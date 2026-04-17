@@ -1,0 +1,15 @@
+{{- if .Values.catalog.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "axisml.fullname" . }}-catalog
+  labels:
+    {{- include "axisml.componentLabels" (dict "context" . "component" "catalog") | nindent 4 }}
+data:
+  DATABASE_HOST: {{ include "axisml.databaseHost" . | quote }}
+  DATABASE_PORT: {{ include "axisml.databasePort" . | quote }}
+  DATABASE_NAME: {{ .Values.database.auth.database | quote }}
+  {{- range $key, $value := .Values.catalog.env }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}
+{{- end }}

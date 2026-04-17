@@ -1,0 +1,191 @@
+# -- Global settings shared across all components
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: ""
+
+nameOverride: ""
+fullnameOverride: ""
+
+# -- Common labels applied to all resources
+commonLabels: {}
+commonAnnotations: {}
+
+# =============================================================================
+# ML Platform
+# =============================================================================
+platform:
+  enabled: true
+  replicaCount: 1
+
+  image:
+    registry: ""
+    repository: nginx
+    tag: "1.27"
+    pullPolicy: IfNotPresent
+
+  service:
+    type: ClusterIP
+    port: 8080
+
+  ingress:
+    enabled: false
+    className: nginx
+    host: axisml.local
+    tls: []
+    annotations: {}
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  env: {}
+
+# =============================================================================
+# ML Compute
+# =============================================================================
+compute:
+  enabled: true
+  replicaCount: 1
+
+  image:
+    registry: ""
+    repository: nginx
+    tag: "1.27"
+    pullPolicy: IfNotPresent
+
+  service:
+    type: ClusterIP
+    port: 8081
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  env: {}
+
+# =============================================================================
+# ML Catalog
+# =============================================================================
+catalog:
+  enabled: true
+  replicaCount: 1
+
+  image:
+    registry: ""
+    repository: nginx
+    tag: "1.27"
+    pullPolicy: IfNotPresent
+
+  service:
+    type: ClusterIP
+    port: 8082
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  env: {}
+
+# =============================================================================
+# Operators
+# =============================================================================
+operators:
+  # -- Master toggle for all operators
+  enabled: true
+
+  mljobOperator:
+    enabled: true
+    image:
+      registry: ""
+      repository: nginx
+      tag: "1.27"
+      pullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+
+  mlserviceOperator:
+    enabled: true
+    image:
+      registry: ""
+      repository: nginx
+      tag: "1.27"
+      pullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+
+  tenantOperator:
+    enabled: true
+    image:
+      registry: ""
+      repository: nginx
+      tag: "1.27"
+      pullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+
+# =============================================================================
+# Database
+# =============================================================================
+database:
+  enabled: true
+  type: postgresql
+  port: 5432
+
+  image:
+    registry: ""
+    repository: postgres
+    tag: "16"
+    pullPolicy: IfNotPresent
+
+  auth:
+    database: axisml
+    username: axisml
+    password: axisml
+
+  persistence:
+    size: 10Gi
+    storageClass: ""
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# -- External database (used when database.enabled=false)
+externalDatabase:
+  host: ""
+  port: 5432
+  database: axisml
+  username: axisml
+  existingSecret: ""

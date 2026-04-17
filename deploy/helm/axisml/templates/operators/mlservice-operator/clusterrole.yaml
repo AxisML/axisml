@@ -1,0 +1,24 @@
+{{- if and .Values.operators.enabled .Values.operators.mlserviceOperator.enabled }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "axisml.fullname" . }}-mlservice-operator
+  labels:
+    {{- include "axisml.componentLabels" (dict "context" . "component" "mlservice-operator") | nindent 4 }}
+rules:
+  - apiGroups: ["axisml.io"]
+    resources: ["mlservices", "mlservices/status"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods", "services", "configmaps"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+  - apiGroups: ["autoscaling"]
+    resources: ["horizontalpodautoscalers"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+{{- end }}

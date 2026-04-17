@@ -1,0 +1,17 @@
+{{- if .Values.catalog.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "axisml.fullname" . }}-catalog
+  labels:
+    {{- include "axisml.componentLabels" (dict "context" . "component" "catalog") | nindent 4 }}
+spec:
+  type: {{ .Values.catalog.service.type }}
+  ports:
+    - port: {{ .Values.catalog.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "axisml.componentSelectorLabels" (dict "context" . "component" "catalog") | nindent 4 }}
+{{- end }}

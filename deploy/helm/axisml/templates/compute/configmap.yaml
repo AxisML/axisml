@@ -1,0 +1,15 @@
+{{- if .Values.compute.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "axisml.fullname" . }}-compute
+  labels:
+    {{- include "axisml.componentLabels" (dict "context" . "component" "compute") | nindent 4 }}
+data:
+  DATABASE_HOST: {{ include "axisml.databaseHost" . | quote }}
+  DATABASE_PORT: {{ include "axisml.databasePort" . | quote }}
+  DATABASE_NAME: {{ .Values.database.auth.database | quote }}
+  {{- range $key, $value := .Values.compute.env }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}
+{{- end }}

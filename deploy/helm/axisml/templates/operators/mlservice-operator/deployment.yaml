@@ -1,0 +1,29 @@
+{{- if and .Values.operators.enabled .Values.operators.mlserviceOperator.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "axisml.fullname" . }}-mlservice-operator
+  labels:
+    {{- include "axisml.componentLabels" (dict "context" . "component" "mlservice-operator") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "axisml.componentSelectorLabels" (dict "context" . "component" "mlservice-operator") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "axisml.componentLabels" (dict "context" . "component" "mlservice-operator") | nindent 8 }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "axisml.fullname" . }}-mlservice-operator
+      containers:
+        - name: mlservice-operator
+          image: {{ include "axisml.image" (dict "imageRoot" .Values.operators.mlserviceOperator.image "global" .Values.global "chart" .Chart) }}
+          imagePullPolicy: {{ .Values.operators.mlserviceOperator.image.pullPolicy }}
+          resources:
+            {{- toYaml .Values.operators.mlserviceOperator.resources | nindent 12 }}
+{{- end }}

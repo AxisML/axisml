@@ -1,0 +1,21 @@
+{{- if and .Values.operators.enabled .Values.operators.mljobOperator.enabled }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "axisml.fullname" . }}-mljob-operator
+  labels:
+    {{- include "axisml.componentLabels" (dict "context" . "component" "mljob-operator") | nindent 4 }}
+rules:
+  - apiGroups: ["axisml.io"]
+    resources: ["mljobs", "mljobs/status"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods", "services", "configmaps"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+{{- end }}

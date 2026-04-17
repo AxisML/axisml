@@ -1,0 +1,29 @@
+{{- if and .Values.operators.enabled .Values.operators.mljobOperator.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "axisml.fullname" . }}-mljob-operator
+  labels:
+    {{- include "axisml.componentLabels" (dict "context" . "component" "mljob-operator") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "axisml.componentSelectorLabels" (dict "context" . "component" "mljob-operator") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "axisml.componentLabels" (dict "context" . "component" "mljob-operator") | nindent 8 }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "axisml.fullname" . }}-mljob-operator
+      containers:
+        - name: mljob-operator
+          image: {{ include "axisml.image" (dict "imageRoot" .Values.operators.mljobOperator.image "global" .Values.global "chart" .Chart) }}
+          imagePullPolicy: {{ .Values.operators.mljobOperator.image.pullPolicy }}
+          resources:
+            {{- toYaml .Values.operators.mljobOperator.resources | nindent 12 }}
+{{- end }}

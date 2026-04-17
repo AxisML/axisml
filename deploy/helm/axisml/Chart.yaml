@@ -1,0 +1,16 @@
+apiVersion: v2
+name: axisml
+description: AxisML - A Kubernetes-native ML platform for distributed training and model serving
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+
+keywords:
+  - machine-learning
+  - kubernetes
+  - mlops
+  - training
+  - inference
+
+maintainers:
+  - name: AxisML Team

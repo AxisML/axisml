@@ -7,6 +7,11 @@ export MINIKUBE_MEMORY  ?= 4096
 export MINIKUBE_DISK    ?= 20g
 export K8S_VERSION      ?=
 
+# --- Helm Configuration ---
+HELM_RELEASE   ?= axisml
+HELM_NAMESPACE ?= axisml-system
+HELM_CHART     ?= deploy/helm/axisml
+
 # --- Cluster Management ---
 
 .PHONY: cluster-up cluster-down cluster-delete cluster-status
@@ -22,6 +27,22 @@ cluster-delete: ## Destroy the cluster entirely
 
 cluster-status: ## Show cluster status
 	@bash scripts/minikube.sh status
+
+# --- Helm Management ---
+
+.PHONY: helm-install helm-upgrade helm-uninstall helm-template
+
+helm-install: ## Install AxisML to the cluster
+	@helm install $(HELM_RELEASE) $(HELM_CHART) -n $(HELM_NAMESPACE) --create-namespace --kube-context $(MINIKUBE_PROFILE)
+
+helm-upgrade: ## Upgrade AxisML deployment
+	@helm upgrade $(HELM_RELEASE) $(HELM_CHART) -n $(HELM_NAMESPACE) --kube-context $(MINIKUBE_PROFILE)
+
+helm-uninstall: ## Uninstall AxisML from the cluster
+	@helm uninstall $(HELM_RELEASE) -n $(HELM_NAMESPACE) --kube-context $(MINIKUBE_PROFILE)
+
+helm-template: ## Render Helm templates locally
+	@helm template $(HELM_RELEASE) $(HELM_CHART)
 
 # --- Help ---
 

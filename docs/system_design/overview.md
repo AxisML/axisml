@@ -201,7 +201,17 @@ axisml/
 │   │   └── axisml/
 │   │       ├── Chart.yaml
 │   │       ├── values.yaml
+│   │       ├── crds/             # CRD 定义（MLJob/MLService/Tenant）
 │   │       └── templates/
+│   │           ├── _helpers.tpl  # 共享模板函数
+│   │           ├── platform/     # ML Platform 模板
+│   │           ├── compute/      # ML Compute 模板
+│   │           ├── catalog/      # ML Catalog 模板
+│   │           ├── operators/    # ML Operators 模板
+│   │           │   ├── mljob-operator/
+│   │           │   ├── mlservice-operator/
+│   │           │   └── tenant-operator/
+│   │           └── common/       # 共享资源（Database 等）
 │   └── docker-compose/           # Docker Compose（Lite 版）
 │       └── docker-compose.yml
 ├── build/                        # 构建相关

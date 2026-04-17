@@ -1,0 +1,14 @@
+{{- if .Values.platform.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "axisml.fullname" . }}-platform
+  labels:
+    {{- include "axisml.componentLabels" (dict "context" . "component" "platform") | nindent 4 }}
+data:
+  ML_COMPUTE_URL: "http://{{ include "axisml.fullname" . }}-compute:{{ .Values.compute.service.port }}"
+  ML_CATALOG_URL: "http://{{ include "axisml.fullname" . }}-catalog:{{ .Values.catalog.service.port }}"
+  {{- range $key, $value := .Values.platform.env }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}
+{{- end }}
