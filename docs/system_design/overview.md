@@ -31,47 +31,47 @@ AxisML 提供两种产品形态：
 ## 3. 整体架构
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                            ML Platform                                  │
-│  ┌─────────────────────────────┐  ┌────────────────────────────────┐   │
-│  │      Frontend (React)       │  │        Backend (Go)            │   │
-│  └─────────────────────────────┘  └────────────┬───────────────────┘   │
-└────────────────────────────────────────────────┼───────────────────────┘
-                                                 │
-              ┌──────────────────────────────────┼──────────────────┐
-              │                                  │                  │
-              ▼                                  ▼                  ▼
-┌──────────────────────┐ ┌───────────────────────────┐ ┌────────────────┐
-│   ML Compute (Go)    │ │      ML Catalog (Go)      │ │   ML Infra     │
-│                      │ │                           │ │                │
-│  API / 业务逻辑 / 调度 │
-│  租户 / 资源单元 / 数据卷│ │  模型管理 / 镜像管理 / 数据集 │ │  gpu-operator  │
-│                      │ │                           │ │  对象存储       │
-└──────────┬───────────┘ │      │            │       │ │  监控 / ...    │
-           │             │ ┌────▼─────┐ ┌────▼─────┐ │ │                │
-           │             │ │PostgreSQL│ │ 对象存储  │ │ │                │
-           ▼             │ │ (元数据)  │ │(制品存储) │ │ │                │
-┌──────────────────────┐ │ └──────────┘ └──────────┘ │ │                │
-│   ML Operators (Go)  │ └───────────────────────────┘ └────────────────┘
-│                      │
-│  mljob-operator      │
-│  mlservice-operator  │
-│  tenant-operator     │
-└──────────────────────┘
+┌───────────────────────────────────────────────────────────────────────────────┐
+│                              AxisML Platform                                 │
+│  ┌───────────────────────────────┐  ┌──────────────────────────────────┐     │
+│  │       Frontend (React)        │  │         Backend (Go)             │     │
+│  └───────────────────────────────┘  └──────────────┬───────────────────┘     │
+└────────────────────────────────────────────────────┼─────────────────────────┘
+                                                     │
+              ┌──────────────────────────────────────┼──────────────────────┐
+              │                                      │                      │
+              ▼                                      ▼                      ▼
+┌──────────────────────────┐ ┌───────────────────────────────┐ ┌────────────────────┐
+│  AxisML Compute (Go)     │ │     AxisML Catalog (Go)       │ │   AxisML Infra     │
+│                          │ │                               │ │                    │
+│  API / 业务逻辑 / 调度    │ │  模型管理 / 镜像管理 / 数据集   │ │  gpu-operator      │
+│  租户 / 资源单元 / 数据卷  │ │                               │ │  对象存储           │
+│                          │ │      │            │           │ │  监控 / ...        │
+└────────────┬─────────────┘ │ ┌────▼─────┐ ┌────▼─────┐    │ │                    │
+             │               │ │PostgreSQL│ │ 对象存储  │    │ │                    │
+             │               │ │ (元数据)  │ │(制品存储) │    │ │                    │
+             ▼               │ └──────────┘ └──────────┘    │ │                    │
+┌──────────────────────────┐ └───────────────────────────────┘ └────────────────────┘
+│  AxisML Operators (Go)   │
+│                          │
+│  mljob-operator          │
+│  mlservice-operator      │
+│  tenant-operator         │
+└──────────────────────────┘
 ```
 
 ## 4. 组件职责
 
-### 4.1 ML Platform
+### 4.1 AxisML Platform
 
 平台层，提供用户交互入口。
 
 - **前端**：基于 TypeScript + React，提供 Web UI，涵盖任务管理、服务管理、制品管理、系统管理等功能页面。
-- **后端**：基于 Go，提供 RESTful API，负责业务逻辑编排，协调 ML Compute 和 ML Catalog 完成具体操作。
+- **后端**：基于 Go，提供 RESTful API，负责业务逻辑编排，协调 AxisML Compute 和 AxisML Catalog 完成具体操作。
 
-> 详细设计见 [ML Platform 设计文档](platform.md)
+> 详细设计见 [AxisML Platform 设计文档](platform.md)
 
-### 4.2 ML Compute
+### 4.2 AxisML Compute
 
 计算服务层，基于 Go 开发，提供 API 接口，承载以下核心职责：
 
@@ -80,9 +80,9 @@ AxisML 提供两种产品形态：
 - **资源单元管理**：定义和管理计算资源规格（如 GPU 类型、CPU/内存配置）。
 - **数据卷管理**：管理训练与推理任务所需的数据卷挂载配置。
 
-> 详细设计见 [ML Compute 设计文档](compute.md)
+> 详细设计见 [AxisML Compute 设计文档](compute.md)
 
-### 4.3 ML Operators
+### 4.3 AxisML Operators
 
 Kubernetes Operator 组件，基于 Go 开发，通过 CRD 对核心概念进行抽象，负责在 Kubernetes 上执行具体的资源编排：
 
@@ -92,11 +92,11 @@ Kubernetes Operator 组件，基于 Go 开发，通过 CRD 对核心概念进行
 | **MLService** | mlservice-operator | 在线推理服务的生命周期管理（部署、扩缩容、流量管理） |
 | **Tenant** | tenant-operator | 租户的资源配额、隔离与管理 |
 
-ML Compute 通过创建/更新 CRD 资源与 ML Operators 协作，Operators 负责将声明式定义转化为实际的 Kubernetes 资源。
+AxisML Compute 通过创建/更新 CRD 资源与 AxisML Operators 协作，Operators 负责将声明式定义转化为实际的 Kubernetes 资源。
 
-> 详细设计见 [ML Operators 设计文档](operators.md)
+> 详细设计见 [AxisML Operators 设计文档](operators.md)
 
-### 4.4 ML Catalog
+### 4.4 AxisML Catalog
 
 制品管理服务，基于 Go 开发，提供 API 接口，负责平台中各类制品的统一管理：
 
@@ -106,9 +106,9 @@ ML Compute 通过创建/更新 CRD 资源与 ML Operators 协作，Operators 负
 
 元数据存储于 PostgreSQL，制品文件存储于对象存储。
 
-> 详细设计见 [ML Catalog 设计文档](catalog.md)
+> 详细设计见 [AxisML Catalog 设计文档](catalog.md)
 
-### 4.5 ML Infra
+### 4.5 AxisML Infra
 
 基础设施层，由开源组件组成，为平台提供底层支撑能力：
 
@@ -117,7 +117,7 @@ ML Compute 通过创建/更新 CRD 资源与 ML Operators 协作，Operators 负
 - **对象存储**：例如 RustFS，用于制品文件的持久化存储。
 - **监控**：kube-prometheus-stack，提供集群与业务的可观测性。
 
-> 详细设计见 [ML Infra 设计文档](infra.md)
+> 详细设计见 [AxisML Infra 设计文档](infra.md)
 
 ## 5. 部署架构
 
@@ -127,17 +127,14 @@ ML Compute 通过创建/更新 CRD 资源与 ML Operators 协作，Operators 负
 
 ```
 Kubernetes Cluster
-├── ML Platform
-│   └── ml-platform (Deployment + Service)
-├── ML Compute
-│   └── ml-compute (Deployment + Service)
-├── ML Operators
+├── AxisML Platform (Deployment + Service)
+├── AxisML Compute (Deployment + Service)
+├── AxisML Operators
 │   ├── mljob-operator (Deployment)
 │   ├── mlservice-operator (Deployment)
 │   └── tenant-operator (Deployment)
-├── ML Catalog
-│   └── ml-catalog (Deployment + Service)
-├── ML Infra
+├── AxisML Catalog (Deployment + Service)
+├── AxisML Infra
 │   ├── 服务网关
 │   ├── gpu-operator
 │   ├── 对象存储
@@ -152,9 +149,9 @@ Kubernetes Cluster
 
 ```
 Docker Compose
-├── ml-platform
-├── ml-compute
-├── ml-catalog
+├── axisml-platform
+├── axisml-compute
+├── axisml-catalog
 ├── postgresql
 └── 对象存储
 ```
@@ -168,7 +165,7 @@ Lite 版包含 Compute Server 但不包含 Operators（无 Kubernetes）。租�
 ```
 axisml/
 ├── components/                   # 各组件代码
-│   ├── ml-platform/              # ML Platform
+│   ├── platform/                 # AxisML Platform
 │   │   ├── backend/              # 后端（Go）
 │   │   │   ├── cmd/              # 服务入口
 │   │   │   ├── internal/         # 业务逻辑
@@ -177,11 +174,11 @@ axisml/
 │   │       ├── src/
 │   │       ├── package.json
 │   │       └── tsconfig.json
-│   ├── ml-compute/               # ML Compute（Go）
+│   ├── compute/                  # AxisML Compute（Go）
 │   │   ├── cmd/                  # 服务入口
 │   │   ├── internal/             # 业务逻辑
 │   │   └── api/                  # API 定义
-│   ├── ml-operators/             # ML Operators（Go）
+│   ├── operators/                # AxisML Operators（Go）
 │   │   ├── cmd/                  # 各 Operator 入口
 │   │   │   ├── mljob-operator/
 │   │   │   ├── mlservice-operator/
@@ -191,7 +188,7 @@ axisml/
 │   │   │   ├── mlservice/
 │   │   │   └── tenant/
 │   │   └── api/                  # CRD 类型定义
-│   └── ml-catalog/               # ML Catalog（Go）
+│   └── catalog/                  # AxisML Catalog（Go）
 │       ├── cmd/                  # 服务入口
 │       ├── internal/             # 业务逻辑
 │       └── api/                  # API 定义
@@ -204,10 +201,10 @@ axisml/
 │   │       ├── crds/             # CRD 定义（MLJob/MLService/Tenant）
 │   │       └── templates/
 │   │           ├── _helpers.tpl  # 共享模板函数
-│   │           ├── platform/     # ML Platform 模板
-│   │           ├── compute/      # ML Compute 模板
-│   │           ├── catalog/      # ML Catalog 模板
-│   │           ├── operators/    # ML Operators 模板
+│   │           ├── platform/     # AxisML Platform 模板
+│   │           ├── compute/      # AxisML Compute 模板
+│   │           ├── catalog/      # AxisML Catalog 模板
+│   │           ├── operators/    # AxisML Operators 模板
 │   │           │   ├── mljob-operator/
 │   │           │   ├── mlservice-operator/
 │   │           │   └── tenant-operator/
@@ -216,9 +213,9 @@ axisml/
 │       └── docker-compose.yml
 ├── build/                        # 构建相关
 │   └── docker/                   # 各组件 Dockerfile
-│       ├── ml-platform.Dockerfile
-│       ├── ml-compute.Dockerfile
-│       ├── ml-catalog.Dockerfile
+│       ├── platform.Dockerfile
+│       ├── compute.Dockerfile
+│       ├── catalog.Dockerfile
 │       ├── mljob-operator.Dockerfile
 │       ├── mlservice-operator.Dockerfile
 │       └── tenant-operator.Dockerfile
@@ -235,10 +232,10 @@ axisml/
 | 目录 | 说明 |
 | --- | --- |
 | `components/` | 各组件代码，每个组件独立子目录，内部遵循 Go 标准项目布局 |
-| `components/ml-platform/` | 平台层，包含 backend（Go）和 frontend（React）两个子项目 |
-| `components/ml-compute/` | 计算服务，Go 服务 |
-| `components/ml-operators/` | Kubernetes Operators，包含 3 个 Operator |
-| `components/ml-catalog/` | 制品管理服务，Go 服务 |
+| `components/platform/` | 平台层，包含 backend（Go）和 frontend（React）两个子项目 |
+| `components/compute/` | 计算服务，Go 服务 |
+| `components/operators/` | Kubernetes Operators，包含 3 个 Operator |
+| `components/catalog/` | 制品管理服务，Go 服务 |
 | `pkg/` | 跨组件复用的公共库（如日志、配置、错误处理等） |
 | `deploy/helm/` | 标准版 Helm Chart |
 | `deploy/docker-compose/` | Lite 版 Docker Compose 配置 |
@@ -254,5 +251,5 @@ axisml/
 | Lite 版部署 | Docker Compose | 降低使用门槛，无需 Kubernetes 集群 |
 | 后端语言 | Go | 云原生生态契合，Operator 开发原生支持 |
 | 前端框架 | TypeScript + React | 社区生态成熟，组件丰富 |
-| 系统管理归属 | 租户、资源单元、数据卷管理放在 ML Compute 中 | 与计算任务强耦合（配额校验、资源分配、卷挂载），避免跨服务调用开销；内部按 package 隔离，保留后续拆分空间 |
+| 系统管理归属 | 租户、资源单元、数据卷管理放在 AxisML Compute 中 | 与计算任务强耦合（配额校验、资源分配、卷挂载），避免跨服务调用开销；内部按 package 隔离，保留后续拆分空间 |
 | 认证鉴权 | TBD（考虑开源方案） | 待评估 |
