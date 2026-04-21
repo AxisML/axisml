@@ -9,12 +9,34 @@ MINIKUBE_CPUS="${MINIKUBE_CPUS:-4}"
 MINIKUBE_MEMORY="${MINIKUBE_MEMORY:-4096}"
 MINIKUBE_DISK="${MINIKUBE_DISK:-20g}"
 K8S_VERSION="${K8S_VERSION:-v1.32.3}"
-MINIKUBE_DRIVER="${MINIKUBE_DRIVER:-docker}"
-
 ADDONS=(ingress metrics-server storage-provisioner dashboard)
 
 info()  { echo "==> $*"; }
+warn()  { echo "WARNING: $*" >&2; }
 error() { echo "ERROR: $*" >&2; exit 1; }
+
+# Detect the container runtime. Priority: docker > podman.
+# Users can override by setting MINIKUBE_DRIVER explicitly.
+detect_driver() {
+    if [[ -n "${MINIKUBE_DRIVER:-}" ]]; then
+        info "Using explicitly configured driver: ${MINIKUBE_DRIVER}"
+        return
+    fi
+
+    if command -v docker &>/dev/null && docker info &>/dev/null 2>&1; then
+        MINIKUBE_DRIVER="docker"
+        info "Detected container runtime: docker"
+        return
+    fi
+
+    if command -v podman &>/dev/null && podman info &>/dev/null 2>&1; then
+        MINIKUBE_DRIVER="podman"
+        info "Detected container runtime: podman"
+        return
+    fi
+
+    error "No container runtime found. Please install Docker Desktop or Podman (see docs/development/local-setup.md)."
+}
 
 check_prerequisites() {
     local missing=()
@@ -24,18 +46,18 @@ check_prerequisites() {
         fi
     done
 
-    if [[ "$MINIKUBE_DRIVER" == "docker" ]]; then
-        if ! command -v docker &>/dev/null; then
-            missing+=("docker")
-        fi
-    fi
-
     if [[ ${#missing[@]} -gt 0 ]]; then
         error "Missing required tools: ${missing[*]}. Please install them first (see docs/development/local-setup.md)."
     fi
 
+    detect_driver
+
     if [[ "$MINIKUBE_DRIVER" == "docker" ]] && ! docker info &>/dev/null; then
         error "Docker daemon is not running. Please start Docker Desktop first."
+    fi
+
+    if [[ "$MINIKUBE_DRIVER" == "podman" ]] && ! podman info &>/dev/null; then
+        error "Podman machine is not running. Please run 'podman machine start' first."
     fi
 }
 
