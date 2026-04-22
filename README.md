@@ -19,6 +19,22 @@ make help
 
 For detailed setup instructions, see [Local Development Environment Setup](docs/development/local-setup.md).
 
+### Install AxisML services
+
+```bash
+# Install AxisML to the cluster via Helm
+make helm-install
+
+# Upgrade an existing installation
+make helm-upgrade
+
+# Render Helm templates locally (dry run)
+make helm-template
+
+# Uninstall AxisML from the cluster
+make helm-uninstall
+```
+
 ## Documentation
 
 - [System Design Overview](docs/system_design/overview.md)
