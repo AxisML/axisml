@@ -1,0 +1,21 @@
+AxisML Infra has been installed successfully into namespace {{ .Release.Namespace }}.
+
+Components deployed:
+{{- if (index .Values "envoy-gateway").enabled }}
+  - Envoy Gateway:        axisml-infra-envoy-gateway
+{{- end }}
+{{- if .Values.rustfs.enabled }}
+  - RustFS (S3):          axisml-infra-rustfs-svc:9000
+{{- end }}
+{{- if (index .Values "gpu-operator").enabled }}
+  - GPU Operator:         axisml-infra-gpu-operator
+{{- end }}
+{{- if .Values.volcano.enabled }}
+  - Volcano scheduler:    {{ .Release.Name }}-scheduler (set schedulerName on ML job pods)
+{{- end }}
+{{- if (index .Values "kube-prometheus-stack").enabled }}
+  - Prometheus / Grafana: axisml-infra-prometheus / axisml-infra-grafana
+{{- end }}
+
+Install the control plane next:
+  helm install axisml deploy/helm/axisml-system -n axisml-system --create-namespace

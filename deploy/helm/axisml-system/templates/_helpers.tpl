@@ -6,19 +6,10 @@ Chart name, truncated to 63 chars.
 {{- end }}
 
 {{/*
-Fullname: release-chartname, truncated to 63 chars.
+Fullname: defaults to the release name (expected to be `axisml`).
 */}}
 {{- define "axisml.fullname" -}}
-{{- if .Values.fullnameOverride }}
-{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
-{{- else }}
-{{- $name := default .Chart.Name .Values.nameOverride }}
-{{- if contains $name .Release.Name }}
-{{- .Release.Name | trunc 63 | trimSuffix "-" }}
-{{- else }}
-{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" }}
-{{- end }}
-{{- end }}
+{{- .Values.fullnameOverride | default .Release.Name | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
@@ -80,7 +71,7 @@ Database host helper.
 */}}
 {{- define "axisml.databaseHost" -}}
 {{- if .Values.database.enabled -}}
-{{- printf "%s-database" (include "axisml.fullname" .) -}}
+{{- .Values.database.fullnameOverride | default "axisml-database" -}}
 {{- else -}}
 {{- .Values.externalDatabase.host -}}
 {{- end -}}

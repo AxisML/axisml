@@ -1,0 +1,77 @@
+# -- Global settings shared across sub-charts
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: ""
+
+# =============================================================================
+# Envoy Gateway
+# =============================================================================
+# Sub-chart: oci://docker.io/envoyproxy/gateway-helm (aliased as envoy-gateway)
+envoy-gateway:
+  enabled: true
+  fullnameOverride: axisml-infra-envoy-gateway
+
+# =============================================================================
+# RustFS (object storage)
+# =============================================================================
+# Sub-chart: https://charts.rustfs.com/rustfs
+rustfs:
+  enabled: true
+  fullnameOverride: axisml-infra-rustfs
+  # Single-node-friendly defaults. Flip to distributed for multi-node prod.
+  replicaCount: 1
+  mode:
+    standalone:
+      enabled: true
+    distributed:
+      enabled: false
+  storageclass:
+    name: standard
+    dataStorageSize: 10Gi
+    logStorageSize: 1Gi
+
+# =============================================================================
+# NVIDIA GPU Operator
+# =============================================================================
+# Sub-chart: https://helm.ngc.nvidia.com/nvidia/gpu-operator
+gpu-operator:
+  enabled: true
+  fullnameOverride: axisml-infra-gpu-operator
+  node-feature-discovery:
+    fullnameOverride: axisml-infra-node-feature-discovery
+
+# =============================================================================
+# Volcano (batch scheduler)
+# =============================================================================
+# Sub-chart: https://volcano-sh.github.io/helm-charts/volcano
+# Volcano hardcodes `{{ .Release.Name }}-<component>`; using release name
+# `axisml-infra` yields axisml-infra-scheduler / -controllers / -admission.
+# Pods created by AxisML operators must set `schedulerName: axisml-infra-scheduler`
+# to be picked up by Volcano.
+volcano:
+  enabled: true
+
+# =============================================================================
+# kube-prometheus-stack (monitoring)
+# =============================================================================
+# Sub-chart: https://prometheus-community.github.io/helm-charts/kube-prometheus-stack
+kube-prometheus-stack:
+  enabled: true
+  # The chart's fullname helper truncates at 26 chars (templates append suffixes
+  # up to 37 chars long), so keep the override ≤ 26 chars.
+  # Note: the Prometheus Operator prefixes CR names with `prometheus-` / `alertmanager-`
+  # when it creates the StatefulSets, so the Prometheus pod ends up as
+  # `prometheus-axisml-infra-prometheus-0` (prometheus twice). We accept that
+  # redundancy in exchange for a clear, specific name on the Services / CRs / ConfigMaps.
+  fullnameOverride: axisml-infra-prometheus
+  # Drop the redundant "-alertmanager"/"-prometheus" suffixes the chart adds
+  # to CR names; otherwise pods end up like
+  # `alertmanager-<fullname>-alertmanager-0`.
+  cleanPrometheusOperatorObjectNames: true
+  grafana:
+    fullnameOverride: axisml-infra-grafana
+  kube-state-metrics:
+    fullnameOverride: axisml-infra-kube-state-metrics
+  prometheus-node-exporter:
+    fullnameOverride: axisml-infra-prometheus-node-exporter

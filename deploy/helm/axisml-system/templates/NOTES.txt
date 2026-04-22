@@ -13,17 +13,17 @@ Components deployed:
 {{- if .Values.operators.enabled }}
   Operators:
   {{- if .Values.operators.mljobOperator.enabled }}
-    - mljob-operator
+    - {{ include "axisml.fullname" . }}-mljob-operator
   {{- end }}
   {{- if .Values.operators.mlserviceOperator.enabled }}
-    - mlservice-operator
+    - {{ include "axisml.fullname" . }}-mlservice-operator
   {{- end }}
   {{- if .Values.operators.tenantOperator.enabled }}
-    - tenant-operator
+    - {{ include "axisml.fullname" . }}-tenant-operator
   {{- end }}
 {{- end }}
 {{- if .Values.database.enabled }}
-  - Database:     {{ include "axisml.fullname" . }}-database:{{ .Values.database.port }}
+  - Database:     {{ include "axisml.databaseHost" . }}:{{ include "axisml.databasePort" . }}
 {{- end }}
 
 {{- if .Values.platform.ingress.enabled }}

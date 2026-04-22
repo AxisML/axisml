@@ -12,7 +12,7 @@ commonLabels: {}
 commonAnnotations: {}
 
 # =============================================================================
-# ML Platform
+# AxisML Platform
 # =============================================================================
 platform:
   enabled: true
@@ -46,7 +46,7 @@ platform:
   env: {}
 
 # =============================================================================
-# ML Compute
+# AxisML Compute
 # =============================================================================
 compute:
   enabled: true
@@ -73,7 +73,7 @@ compute:
   env: {}
 
 # =============================================================================
-# ML Catalog
+# AxisML Catalog
 # =============================================================================
 catalog:
   enabled: true
@@ -100,7 +100,7 @@ catalog:
   env: {}
 
 # =============================================================================
-# Operators
+# AxisML Operators
 # =============================================================================
 operators:
   # -- Master toggle for all operators
@@ -152,35 +152,29 @@ operators:
         memory: 256Mi
 
 # =============================================================================
-# Database
+# Metadata Database (PostgreSQL)
 # =============================================================================
+# Sub-chart: oci://registry-1.docker.io/bitnamicharts/postgresql (aliased as database)
+# All values under this key are passed through to the bitnami/postgresql sub-chart.
+# Disable this and configure `externalDatabase` below to use an external instance.
 database:
   enabled: true
-  type: postgresql
-  port: 5432
-
+  fullnameOverride: axisml-database
+  # Bitnami removed their free `bitnami/*` images from Docker Hub in 2025;
+  # pin the sub-chart image to the `bitnamilegacy` mirror instead.
   image:
-    registry: ""
-    repository: postgres
-    tag: "16"
-    pullPolicy: IfNotPresent
-
+    registry: docker.io
+    repository: bitnamilegacy/postgresql
+    tag: 17.2.0-debian-12-r1
   auth:
     database: axisml
     username: axisml
     password: axisml
-
-  persistence:
-    size: 10Gi
-    storageClass: ""
-
-  resources:
-    requests:
-      cpu: 100m
-      memory: 256Mi
-    limits:
-      cpu: 500m
-      memory: 512Mi
+    # existingSecret: ""
+  primary:
+    persistence:
+      size: 10Gi
+      # storageClass: ""
 
 # -- External database (used when database.enabled=false)
 externalDatabase:

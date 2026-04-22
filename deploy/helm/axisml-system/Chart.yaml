@@ -1,0 +1,23 @@
+apiVersion: v2
+name: axisml-system
+description: AxisML control plane - platform, compute, catalog, operators, and metadata DB
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+
+keywords:
+  - machine-learning
+  - kubernetes
+  - mlops
+  - training
+  - inference
+
+maintainers:
+  - name: AxisML Team
+
+dependencies:
+  - name: postgresql
+    alias: database
+    version: "16.2.3"
+    repository: "oci://registry-1.docker.io/bitnamicharts"
+    condition: database.enabled

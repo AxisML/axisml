@@ -9,9 +9,13 @@ export K8S_VERSION      ?=
 export MINIKUBE_DRIVER  ?=
 
 # --- Helm Configuration ---
-HELM_RELEASE   ?= axisml
-HELM_NAMESPACE ?= axisml-system
-HELM_CHART     ?= deploy/helm/axisml
+HELM_INFRA_RELEASE    ?= axisml-infra
+HELM_INFRA_NAMESPACE  ?= axisml-infra
+HELM_INFRA_CHART      ?= deploy/helm/axisml-infra
+
+HELM_SYSTEM_RELEASE   ?= axisml
+HELM_SYSTEM_NAMESPACE ?= axisml-system
+HELM_SYSTEM_CHART     ?= deploy/helm/axisml-system
 
 # --- Cluster Management ---
 
@@ -32,18 +36,37 @@ cluster-status: ## Show cluster status
 # --- Helm Management ---
 
 .PHONY: helm-install helm-upgrade helm-uninstall helm-template
+.PHONY: helm-install-infra helm-install-system
+.PHONY: helm-upgrade-infra helm-upgrade-system
+.PHONY: helm-uninstall-infra helm-uninstall-system
 
-helm-install: ## Install AxisML to the cluster
-	@helm install $(HELM_RELEASE) $(HELM_CHART) -n $(HELM_NAMESPACE) --create-namespace --kube-context $(MINIKUBE_PROFILE)
+helm-install-infra: ## Install AxisML infrastructure
+	@helm install $(HELM_INFRA_RELEASE) $(HELM_INFRA_CHART) -n $(HELM_INFRA_NAMESPACE) --create-namespace --kube-context $(MINIKUBE_PROFILE)
 
-helm-upgrade: ## Upgrade AxisML deployment
-	@helm upgrade $(HELM_RELEASE) $(HELM_CHART) -n $(HELM_NAMESPACE) --kube-context $(MINIKUBE_PROFILE)
+helm-install-system: ## Install AxisML control plane
+	@helm install $(HELM_SYSTEM_RELEASE) $(HELM_SYSTEM_CHART) -n $(HELM_SYSTEM_NAMESPACE) --create-namespace --kube-context $(MINIKUBE_PROFILE)
 
-helm-uninstall: ## Uninstall AxisML from the cluster
-	@helm uninstall $(HELM_RELEASE) -n $(HELM_NAMESPACE) --kube-context $(MINIKUBE_PROFILE)
+helm-install: helm-install-infra helm-install-system ## Install infra + control plane
 
-helm-template: ## Render Helm templates locally
-	@helm template $(HELM_RELEASE) $(HELM_CHART)
+helm-upgrade-infra: ## Upgrade AxisML infrastructure
+	@helm upgrade $(HELM_INFRA_RELEASE) $(HELM_INFRA_CHART) -n $(HELM_INFRA_NAMESPACE) --kube-context $(MINIKUBE_PROFILE)
+
+helm-upgrade-system: ## Upgrade AxisML control plane
+	@helm upgrade $(HELM_SYSTEM_RELEASE) $(HELM_SYSTEM_CHART) -n $(HELM_SYSTEM_NAMESPACE) --kube-context $(MINIKUBE_PROFILE)
+
+helm-upgrade: helm-upgrade-infra helm-upgrade-system ## Upgrade both
+
+helm-uninstall-system: ## Uninstall AxisML control plane
+	@helm uninstall $(HELM_SYSTEM_RELEASE) -n $(HELM_SYSTEM_NAMESPACE) --kube-context $(MINIKUBE_PROFILE)
+
+helm-uninstall-infra: ## Uninstall AxisML infrastructure
+	@helm uninstall $(HELM_INFRA_RELEASE) -n $(HELM_INFRA_NAMESPACE) --kube-context $(MINIKUBE_PROFILE)
+
+helm-uninstall: helm-uninstall-system helm-uninstall-infra ## Uninstall control plane then infra
+
+helm-template: ## Render both charts locally
+	@helm template $(HELM_INFRA_RELEASE) $(HELM_INFRA_CHART) -n $(HELM_INFRA_NAMESPACE)
+	@helm template $(HELM_SYSTEM_RELEASE) $(HELM_SYSTEM_CHART) -n $(HELM_SYSTEM_NAMESPACE)
 
 # --- Help ---
 

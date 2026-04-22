@@ -2,23 +2,22 @@
 
 ## 1. 概述
 
-AxisML Infra 是平台的基础设施层，由一系列开源组件组成，为上层应用组件（Platform、Compute、Catalog、Operators）提供底层支撑能力，包括流量网关、对象存储、数据库、GPU 管理、批任务调度、监控、日志等。
+AxisML Infra 是平台的基础设施层，由一系列开源组件组成，为上层应用组件（Platform、Compute、Catalog、Operators）提供底层支撑能力。Infra 层不涉及自研代码，所有组件均通过 Helm 引入并在 AxisML Helm chart 中作为 dependencies 统一管理。
 
-Infra 层不涉及自研代码，所有组件均为成熟开源项目的部署与配置。
+本文档仅覆盖 **AxisML 标准版（Kubernetes）** 的基础设施设计，AxisML Lite 的 Docker Compose 形态另行设计。
 
 ### 1.1 组件清单
 
-| 组件 | 技术选型 | 职责 |
-| --- | --- | --- |
-| 服务网关 | Envoy Gateway / Envoy | 请求路由、认证鉴权、流量控制 |
-| 对象存储 | RustFS | 制品文件（模型、镜像、数据集）持久化存储 |
-| 数据库 | PostgreSQL | 元数据持久化存储 |
-| GPU 管理 | NVIDIA GPU Operator | GPU 设备发现、驱动管理、监控 |
-| 批任务调度 | Volcano | Gang Scheduling、队列管理、公平调度 |
-| 共享存储 | JuiceFS | 训练数据集共享挂载 |
-| 监控 | kube-prometheus-stack / Netdata | 集群与业务可观测性 |
-| 容器镜像仓库 | Harbor | 训练/推理容器镜像存储与管理 |
-| 日志采集 | Fluent Bit + ClickHouse | 集中式日志采集与查询 |
+| # | 组件 | 技术选型 | 职责 |
+| --- | --- | --- | --- |
+| 1 | 服务网关 | Envoy Gateway | 请求路由、认证鉴权、流量控制 |
+| 2 | 对象存储 | RustFS | 制品文件（模型、镜像 layer、数据集）持久化存储 |
+| 3 | 数据库 | PostgreSQL（bitnami chart） | 元数据持久化存储 |
+| 4 | GPU 管理 | NVIDIA GPU Operator | GPU 驱动、设备插件与监控 |
+| 5 | 批任务调度 | Volcano | Gang Scheduling、队列管理、公平调度 |
+| 6 | 监控 | kube-prometheus-stack | 集群与业务可观测性 |
+
+> overview.md 第 4.5 节未显式列出批任务调度器，本文档将其纳入 Infra 层，因为 Gang Scheduling 是分布式训练的硬需求（详见 §7 及 §10 关键设计决策）。
 
 ## 2. 整体架构
 
@@ -27,51 +26,40 @@ Infra 层不涉及自研代码，所有组件均为成熟开源项目的部署�
 │                              AxisML Infra                                    │
 │                                                                              │
 │  ┌──────────────────────┐  ┌──────────────┐  ┌───────────────────────────┐  │
-│  │    服务网关            │  │   对象存储    │  │         数据库             │  │
-│  │  Envoy Gateway (标准) │  │   RustFS     │  │       PostgreSQL          │  │
-│  │  Envoy (Lite)        │  │   (S3 兼容)   │  │                           │  │
+│  │      服务网关         │  │   对象存储    │  │         数据库            │  │
+│  │   Envoy Gateway      │  │    RustFS    │  │       PostgreSQL          │  │
+│  │   (Gateway API)      │  │   (S3 API)   │  │    (bitnami sub-chart)    │  │
 │  └──────────────────────┘  └──────────────┘  └───────────────────────────┘  │
 │                                                                              │
 │  ┌──────────────────────┐  ┌──────────────────────────────────────────────┐  │
-│  │    GPU 管理           │  │              批任务调度                       │  │
-│  │  NVIDIA GPU Operator  │  │              Volcano                        │  │
+│  │      GPU 管理         │  │              批任务调度                      │  │
+│  │ NVIDIA GPU Operator  │  │                Volcano                       │  │
 │  └──────────────────────┘  └──────────────────────────────────────────────┘  │
 │                                                                              │
-│  ┌──────────────────────┐  ┌──────────────────────────────────────────────┐  │
-│  │    共享存储           │  │              监控                            │  │
-│  │  JuiceFS             │  │         kube-prometheus-stack                │  │
-│  └──────────────────────┘  └──────────────────────────────────────────────┘  │
-│                                                                              │
-│  ┌──────────────────────┐  ┌──────────────────────────────────────────────┐  │
-│  │    容器镜像仓库       │  │              日志采集                        │  │
-│  │  Harbor              │  │         Fluent Bit + ClickHouse             │  │
-│  └──────────────────────┘  └──────────────────────────────────────────────┘  │
+│  ┌──────────────────────────────────────────────────────────────────────┐   │
+│  │                             监控                                      │   │
+│  │                    kube-prometheus-stack                             │   │
+│  │          (Prometheus + Grafana + AlertManager)                       │   │
+│  └──────────────────────────────────────────────────────────────────────┘   │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 2.1 AxisML vs AxisML Lite
+调用关系要点：
 
-| Infra 组件 | AxisML（标准版） | AxisML Lite |
-| --- | --- | --- |
-| 服务网关 | Envoy Gateway（Gateway API） | Envoy（静态配置） |
-| 对象存储 | RustFS（Helm 子 chart） | RustFS（Docker Compose） |
-| 数据库 | PostgreSQL（StatefulSet） | PostgreSQL（Docker Compose） |
-| GPU 管理 | NVIDIA GPU Operator | NVIDIA Container Toolkit（`--gpus`） |
-| 批任务调度 | Volcano | 不适用（无 Kubernetes） |
-| 共享存储 | JuiceFS CSI | 不适用（本地挂载） |
-| 监控 | kube-prometheus-stack | Netdata |
-| 镜像仓库 | Harbor | 不适用 |
-| 日志采集 | Fluent Bit + ClickHouse | 不适用 |
+- 外部流量 → **Envoy Gateway** → Platform / Compute / Catalog 等 Service
+- Compute / Catalog → **PostgreSQL**（元数据读写）
+- Catalog → **RustFS**（制品文件读写，S3 API）
+- mljob-operator / mlservice-operator 创建的 Pod → **Volcano**（`schedulerName: volcano`）
+- 所有 Pod（含 GPU Operator 的 DCGM Exporter、网关、业务组件）→ **kube-prometheus-stack**（`/metrics` 被 ServiceMonitor 自动发现）
+- 业务 Pod 申请 `nvidia.com/gpu` → **GPU Operator** 完成设备分配
 
-## 3. 服务网关
+## 3. 服务网关（Envoy Gateway）
 
-AxisML 采用 Envoy 作为服务网关的数据面。标准版基于 **Envoy Gateway** 通过 Kubernetes Gateway API 进行声明式配置；Lite 版使用独立 Envoy 容器配合静态配置文件。
+AxisML 采用 [Envoy Gateway](https://gateway.envoyproxy.io/) 作为服务网关，基于 Kubernetes [Gateway API](https://gateway-api.sigs.k8s.io/) 标准以声明式方式配置路由、认证与流量控制。
 
 ### 3.1 架构设计
 
-#### 标准版（Envoy Gateway）
-
-基于 Kubernetes [Gateway API](https://gateway-api.sigs.k8s.io/) 标准，资源模型如下：
+Gateway API 资源模型：
 
 ```
 GatewayClass (envoy-gateway)
@@ -82,385 +70,410 @@ GatewayClass (envoy-gateway)
         │
         ├── HTTPRoute (platform)
         │     pathPrefix: /
-        │     → AxisML Platform Service
+        │     → axisml-platform Service
         │
-        ├── HTTPRoute (compute)
+        ├── HTTPRoute (compute-api)
         │     pathPrefix: /api/compute
-        │     → AxisML Compute Service
+        │     → axisml-compute Service
         │
-        └── HTTPRoute (catalog)
+        └── HTTPRoute (catalog-api)
               pathPrefix: /api/catalog
-              → AxisML Catalog Service
+              → axisml-catalog Service
 ```
 
-Envoy Gateway 以独立 Helm release 部署，作为集群级基础设施与 AxisML 应用 Helm chart 解耦。
-
-#### Lite 版（独立 Envoy）
-
-Lite 版使用独立 Envoy 容器，通过静态 `envoy.yaml` 配置文件实现路由，数据面与标准版一致（均为 Envoy Proxy）：
-
-```yaml
-# docker-compose.yml
-services:
-  envoy:
-    image: envoyproxy/envoy:v1.32-latest
-    ports:
-      - "80:80"
-    volumes:
-      - ./envoy.yaml:/etc/envoy/envoy.yaml
-```
+- **GatewayClass**：由 Envoy Gateway 控制面注册，声明控制器实现。
+- **Gateway**：集群内"监听点"的声明，同一份 Gateway 实例承载全部 AxisML 路由。
+- **HTTPRoute**：各业务组件的路由规则，与 Service 绑定。
 
 ### 3.2 认证鉴权
 
-标准版通过 Envoy Gateway 的 **SecurityPolicy** CRD 提供认证鉴权能力：
+通过 Envoy Gateway 的 `SecurityPolicy` CRD 实现，可附加到 Gateway 或 HTTPRoute 级别：
 
-- **JWT 验证**：验证请求携带的 JWT Token，支持配置 issuer 和 JWKS 端点
-- **OIDC 集成**：支持 OpenID Connect 协议，可对接外部身份提供商
-- **ExtAuth**：支持外部授权服务，实现自定义鉴权逻辑
+| 能力 | 说明 |
+| --- | --- |
+| JWT 验证 | 校验请求头 JWT，支持配置 issuer 与 JWKS 端点 |
+| OIDC 集成 | 支持 OpenID Connect，可对接外部身份提供商 |
+| ExtAuth | 外部授权服务，支持自定义鉴权逻辑 |
 
-SecurityPolicy 可附加到 Gateway 或 HTTPRoute 级别，实现全局或按路由的认证策略。
+具体认证方案（如对接的 IdP）留待 Platform 设计文档确定，Infra 层只保证能力就位。
 
 ### 3.3 流量控制
 
-标准版通过 **BackendTrafficPolicy** CRD 提供流量控制能力：
+通过 Envoy Gateway 的 `BackendTrafficPolicy` CRD 实现：
 
-- **限流（Rate Limiting）**：支持全局限流和按路由限流，基于请求速率控制
-- **熔断（Circuit Breaking）**：当后端服务异常时自动熔断，防止级联故障
-- **超时控制**：配置请求超时和重试策略
-- **负载均衡**：支持多种负载均衡算法（Round Robin、Least Request 等）
+| 能力 | 说明 |
+| --- | --- |
+| 限流 | 支持全局限流和按路由限流 |
+| 熔断 | 后端异常时自动熔断，防止级联故障 |
+| 超时 / 重试 | 配置请求超时与重试策略 |
+| 负载均衡 | Round Robin / Least Request 等算法 |
 
-### 3.4 部署配置
+### 3.4 部署形态
 
-**标准版 Helm 安装：**
+作为 AxisML Helm chart 的 dependency 引入：
 
-```bash
-# 安装 Envoy Gateway
-helm install envoy-gateway oci://docker.io/envoyproxy/gateway-helm \
-  --version v1.3.0 \
-  -n envoy-gateway-system --create-namespace
+```yaml
+# deploy/helm/axisml/Chart.yaml
+dependencies:
+  - name: gateway-helm
+    alias: envoy-gateway
+    version: v1.3.x
+    repository: oci://docker.io/envoyproxy
+    condition: envoy-gateway.enabled
 ```
 
-Gateway 和 HTTPRoute 资源由 AxisML Helm chart 管理，在 `deploy/helm/axisml/templates/` 中定义。
+values.yaml 对应段：
+
+```yaml
+envoy-gateway:
+  enabled: true
+  # Envoy Gateway 子 chart 的 values pass-through
+```
+
+AxisML 自身的 `Gateway` / `HTTPRoute` / `SecurityPolicy` 资源由 chart 的 `templates/infra/gateway/` 下模板提供（本文档定义设计，具体模板由后续 PR 落地）。
 
 ## 4. 对象存储（RustFS）
 
-AxisML 使用 **RustFS** 作为对象存储，用于制品文件（模型、镜像、数据集）的持久化存储。RustFS 是基于 Rust 实现的高性能对象存储服务，兼容 S3 API，采用 Apache 2.0 许可证。
+AxisML 使用 [RustFS](https://rustfs.dev/) 作为对象存储，用于模型权重、容器镜像 layer、数据集等制品文件的持久化。RustFS 是 Apache 2.0 许可证、基于 Rust 实现、S3 API 兼容的高性能对象存储。
 
 ### 4.1 架构设计
 
-RustFS 提供 S3 兼容的 API 接口，支持标准的 S3 操作（PutObject、GetObject、DeleteObject、ListObjects、Presigned URL 等）。
-
-部署模式：
+RustFS 提供标准 S3 API（`PutObject` / `GetObject` / `DeleteObject` / `ListObjects` / Presigned URL 等），部署支持：
 
 | 模式 | 说明 | 适用场景 |
 | --- | --- | --- |
-| 单节点模式 | 单实例部署，数据存储在本地磁盘 | 开发、测试 |
-| 分布式模式 | 多节点部署，数据分布式存储 | 生产环境 |
+| Standalone | 单 Pod + 单 PVC | 开发、测试 |
+| Distributed (4x4) | 4 Pod × 4 PVC | 中等规模生产 |
+| Distributed (16x1) | 16 Pod × 1 PVC | 大规模生产 |
 
-### 4.2 部署配置
+### 4.2 用途
 
-**标准版：** 作为 AxisML Helm chart 的子 chart 部署，默认启用。
+- **Catalog**：模型文件、数据集文件
+- **未来**：容器镜像 registry 后端、日志归档
+
+业务组件通过 S3 SDK 访问，对 RustFS 与其他 S3 兼容实现无感知。
+
+### 4.3 部署形态
+
+作为 AxisML Helm chart 的 dependency：
 
 ```yaml
-# values.yaml
-objectStorage:
+# deploy/helm/axisml/Chart.yaml
+dependencies:
+  - name: rustfs
+    version: 0.0.9x
+    repository: https://charts.rustfs.com
+    condition: rustfs.enabled
+```
+
+values.yaml 对应段：
+
+```yaml
+rustfs:
   enabled: true
-  replicas: 1
-  persistence:
-    size: 50Gi
-  auth:
-    rootUser: axisml
-    rootPassword: axisml-secret
+  # rustfs 子 chart 的 values pass-through
 ```
 
-**Lite 版：** 通过 Docker Compose 部署。
-
-```yaml
-# docker-compose.yml
-services:
-  rustfs:
-    image: rustfs/rustfs:latest
-    ports:
-      - "9000:9000"     # S3 API
-      - "9001:9001"     # Console
-    volumes:
-      - rustfs-data:/data
-    environment:
-      RUSTFS_ROOT_USER: axisml
-      RUSTFS_ROOT_PASSWORD: axisml-secret
-```
+> **成熟度说明**：截至 2026-04，RustFS 的 app version 为 `1.0.0-alpha.x`，项目仍在活跃迭代。本次选型在"关键设计决策"中已记录风险与切换方案（S3 API 抽象使切换成本有限）。
 
 ## 5. 数据库（PostgreSQL）
 
-AxisML 使用 **PostgreSQL** 作为元数据存储，服务于多个组件的元数据持久化需求。
+AxisML 使用 PostgreSQL 作为元数据存储，供 Compute、Catalog 等 Go 组件持久化结构化数据。
 
 ### 5.1 架构设计
 
-PostgreSQL 支持两种部署模式：
+支持两种部署模式，由 `postgresql.enabled` 开关切换：
 
 | 模式 | 说明 | 适用场景 |
 | --- | --- | --- |
-| 内置模式 | AxisML Helm chart 内置部署 PostgreSQL StatefulSet | 开发、测试、单节点 |
-| 外部模式 | 对接外部 PostgreSQL 实例（自建或云托管 RDS） | 生产环境 |
+| 内置模式 | 通过 bitnami/postgresql 子 chart 部署（StatefulSet + PVC） | 开发、测试、轻量生产 |
+| 外部模式 | 对接外部 PostgreSQL 实例（自建或 RDS） | 中大型生产 |
 
-内置模式使用 PostgreSQL 16，通过 StatefulSet + PVC 保证数据持久化。外部模式通过配置外部连接信息接入，AxisML 不负责外部数据库的生命周期管理。
+内置模式采用 bitnami/postgresql 官方 chart，避免自写 StatefulSet 模板——这也是此前自写模板 `database-statefulset.yaml` / `database-service.yaml` 被删除、改由子 chart 提供的原因。
 
-### 5.2 部署配置
+### 5.2 消费方
 
-**标准版内置模式：**
+| 消费方 | 使用场景 |
+| --- | --- |
+| AxisML Compute | 租户、资源单元、数据卷、任务元数据 |
+| AxisML Catalog | 模型、镜像、数据集元数据 |
+
+各消费方通过独立 database 或独立 schema 逻辑隔离（具体隔离粒度由各组件设计文档定义）。
+
+### 5.3 部署形态
 
 ```yaml
-# values.yaml
-database:
-  enabled: true        # 启用内置 PostgreSQL
-  image: postgres:16
-  persistence:
-    size: 10Gi
+# deploy/helm/axisml/Chart.yaml
+dependencies:
+  - name: postgresql
+    version: 16.x.x
+    repository: oci://registry-1.docker.io/bitnamicharts
+    condition: postgresql.enabled
+```
+
+values.yaml 对应段（bitnami pass-through 字段命名）：
+
+```yaml
+postgresql:
+  enabled: true          # 内置模式开关；false 时使用 externalPostgresql
   auth:
     database: axisml
     username: axisml
-    password: axisml
-```
+    password: axisml     # 生产环境应使用 existingSecret
+  primary:
+    persistence:
+      size: 10Gi
 
-**标准版外部模式：**
-
-```yaml
-# values.yaml
-database:
-  enabled: false       # 禁用内置 PostgreSQL
-externalDatabase:
-  host: your-postgres-host
+# 外部模式（postgresql.enabled=false 时生效）
+externalPostgresql:
+  host: ""
   port: 5432
   database: axisml
   username: axisml
-  password: axisml
-  # existingSecret: postgres-credentials
-```
-
-**Lite 版：**
-
-```yaml
-# docker-compose.yml
-services:
-  postgresql:
-    image: postgres:16
-    ports:
-      - "5432:5432"
-    environment:
-      POSTGRES_DB: axisml
-      POSTGRES_USER: axisml
-      POSTGRES_PASSWORD: axisml
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
+  existingSecret: ""
 ```
 
 ## 6. GPU 管理（NVIDIA GPU Operator）
 
-AxisML 使用 **NVIDIA GPU Operator** 管理 Kubernetes 集群中的 GPU 资源。GPU Operator 自动化 GPU 驱动、设备插件、监控等组件的部署和生命周期管理。
+AxisML 使用 [NVIDIA GPU Operator](https://github.com/NVIDIA/gpu-operator) 管理集群 GPU 资源，自动化驱动、设备插件、监控等组件的生命周期。
 
 ### 6.1 组件架构
 
-NVIDIA GPU Operator 包含以下核心组件：
-
 | 组件 | 职责 |
 | --- | --- |
-| **GPU Driver Container** | 容器化 NVIDIA 驱动，自动安装和管理 GPU 驱动 |
-| **NVIDIA Container Toolkit** | 提供容器运行时支持，使容器能访问 GPU |
-| **Device Plugin** | Kubernetes 设备插件，向调度器报告 GPU 资源（`nvidia.com/gpu`） |
-| **DCGM Exporter** | GPU 监控指标导出器，提供 GPU 利用率、温度、显存等 Prometheus 指标 |
-| **GPU Feature Discovery** | 自动发现 GPU 硬件特性并为节点添加标签（GPU 型号、驱动版本等） |
-| **MIG Manager** | Multi-Instance GPU 管理，支持 GPU 分区（A100/H100） |
+| GPU Driver Container | 容器化 NVIDIA 驱动，自动安装与升级 |
+| NVIDIA Container Toolkit | 容器运行时集成，使容器可访问 GPU |
+| Device Plugin | 向 kube-scheduler / Volcano 报告 `nvidia.com/gpu` 资源 |
+| DCGM Exporter | 导出 GPU 利用率、显存、温度等 Prometheus 指标 |
+| GPU Feature Discovery | 自动为节点打标签（GPU 型号、驱动版本等） |
+| MIG Manager | A100/H100 的多实例分区管理 |
 
-GPU Operator 作为独立 Helm release 部署，与 AxisML 应用 Helm chart 解耦。
+### 6.2 调度契约
 
-**Lite 版**不使用 GPU Operator，而是直接依赖宿主机安装的 NVIDIA Container Toolkit，通过 Docker Compose 的 `deploy.resources.reservations.devices` 配置 GPU 分配。
+Infra 层对上层的契约：
 
-### 6.2 部署配置
+- 业务 Pod 申请 GPU 时使用资源名 `nvidia.com/gpu`
+- 节点标签可基于 `nvidia.com/gpu.product`（如 `A100-SXM4-80GB`）做 nodeSelector / affinity
+- DCGM Exporter 的 `/metrics` 端点由 kube-prometheus-stack 自动采集（详见 §8）
 
-```bash
-# 添加 NVIDIA Helm 仓库
-helm repo add nvidia https://helm.ngc.nvidia.com/nvidia
-helm repo update
+### 6.3 部署形态
 
-# 安装 GPU Operator
-helm install gpu-operator nvidia/gpu-operator \
-  --version v24.9.0 \
-  -n gpu-operator --create-namespace \
-  --set driver.enabled=true \
-  --set dcgmExporter.enabled=true
+```yaml
+# deploy/helm/axisml/Chart.yaml
+dependencies:
+  - name: gpu-operator
+    version: v24.x.x
+    repository: https://helm.ngc.nvidia.com/nvidia
+    condition: gpuOperator.enabled
+```
+
+values.yaml 对应段：
+
+```yaml
+gpuOperator:
+  enabled: true
+  # gpu-operator 子 chart 的 values pass-through
+  # 如 driver.enabled / dcgmExporter.enabled 等
 ```
 
 ## 7. 批任务调度（Volcano）
 
-AxisML 使用 **Volcano** 作为批任务调度器，提供 Gang Scheduling、队列管理和公平调度等 ML 训练场景所需的高级调度能力。Volcano 是 CNCF 孵化项目，专为高性能计算和 AI/ML 工作负载设计。
+AxisML 使用 [Volcano](https://volcano.sh/) 作为批任务调度器，与默认的 kube-scheduler 共存，专门接管训练/推理任务的调度。
 
-### 7.1 架构设计
-
-Volcano 包含以下核心组件：
+### 7.1 组件架构
 
 | 组件 | 职责 |
 | --- | --- |
-| **Volcano Scheduler** | 自定义调度器，替代或配合 kube-scheduler，提供高级调度策略 |
-| **Volcano Controller** | 管理 Volcano Job（vcjob）的生命周期 |
-| **Volcano Admission** | Webhook 准入控制器，校验和设置默认值 |
+| Volcano Scheduler | 自定义调度器，按 `schedulerName: volcano` 接管 Pod 调度 |
+| Volcano Controller | 管理 Volcano Job (`vcjob`) 与 `PodGroup` 的生命周期 |
+| Volcano Admission Webhook | 准入控制，校验与默认值注入 |
 
-核心调度能力：
+### 7.2 核心能力
 
 | 能力 | 说明 |
 | --- | --- |
-| **Gang Scheduling** | 确保分布式训练的所有 Worker Pod 同时调度或全部不调度，避免资源死锁 |
-| **Queue** | 任务队列管理，支持多队列并行，控制任务准入 |
-| **Fair-share** | 基于权重的公平资源分配，保证多租户间的资源公平性 |
-| **Preemption** | 任务抢占，高优先级任务可抢占低优先级任务的资源 |
-| **Backfill** | 空闲资源回填，利用碎片资源调度小任务，提升集群利用率 |
+| **Gang Scheduling** | 同一 PodGroup 的全部 Pod 要么同时调度，要么都不调度——避免分布式训练中部分 Worker 启动造成的资源死锁 |
+| **Queue** | 多队列并行，控制任务准入与优先级 |
+| **Fair-share** | 基于权重的公平资源分配，契合多租户配额 |
+| **Preemption** | 高优先级任务可抢占低优先级任务资源 |
+| **Backfill** | 空闲资源回填，提升集群利用率 |
 
-Volcano 作为独立 Helm release 部署，与 AxisML 应用 Helm chart 解耦。
+### 7.3 与 MLJob / MLService 的协作契约
 
-### 7.2 部署配置
+本文档定义 Infra 侧契约，具体实现细节见 `operators.md`：
 
-```bash
-# 安装 Volcano
-helm install volcano volcano-sh/volcano \
-  --version v1.10.0 \
-  -n volcano-system --create-namespace
+- mljob-operator / mlservice-operator 为每个 MLJob / MLService 创建对应的 `PodGroup` 资源，并在 Pod spec 上设置 `schedulerName: volcano`
+- Volcano Scheduler 基于 PodGroup 的 `minMember` / `minResources` 执行 Gang Scheduling
+- 队列（`vcjob.spec.queue`）与租户的映射由 tenant-operator 维护
+
+### 7.4 与 kube-scheduler 共存
+
+Volcano 仅接管带 `schedulerName: volcano` 的 Pod。Infra 自身（网关、数据库、对象存储、监控）以及 Platform / Compute / Catalog 等业务组件的 Pod 仍走默认 kube-scheduler，互不干扰。
+
+### 7.5 部署形态
+
+```yaml
+# deploy/helm/axisml/Chart.yaml
+dependencies:
+  - name: volcano
+    version: 1.10.x
+    repository: https://volcano-sh.github.io/helm-charts
+    condition: volcano.enabled
 ```
 
-## 8. 共享存储（JuiceFS）
+values.yaml 对应段：
 
-AxisML 使用 **JuiceFS** 作为共享文件存储，为训练任务提供 POSIX 兼容的数据集挂载能力。JuiceFS 是一个云原生分布式文件系统，采用数据与元数据分离架构。
-
-### 8.1 架构设计
-
-```
-┌─────────────────────┐
-│   JuiceFS Client    │  ← CSI Driver 以 Pod 形式运行
-│  (FUSE / CSI)       │
-└──────┬──────────────┘
-       │
-  ┌────┴────┐     ┌───────────┐
-  │ 元数据   │     │  数据存储  │
-  │PostgreSQL│     │  RustFS   │
-  └─────────┘     └───────────┘
+```yaml
+volcano:
+  enabled: true
+  # volcano 子 chart 的 values pass-through
 ```
 
-JuiceFS 的架构天然复用 AxisML 已有的基础设施：
+## 8. 监控（kube-prometheus-stack）
 
-- **元数据引擎**：复用 PostgreSQL，无需额外部署元数据存储
-- **数据存储后端**：复用 RustFS（S3 兼容），无需额外部署数据存储
+AxisML 使用 [kube-prometheus-stack](https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack) 作为统一监控栈，包含 Prometheus、Grafana、AlertManager 三件套。
 
-通过 JuiceFS CSI Driver 为 Kubernetes 提供动态 PV 供给（StorageClass），训练任务 Pod 可直接通过 PVC 挂载共享数据卷。JuiceFS 客户端支持本地缓存加速，适合 ML 训练中大数据集反复读取的场景。
-
-## 9. 监控
-
-标准版使用 **kube-prometheus-stack** 提供集群与业务的可观测性；Lite 版使用 **Netdata** 提供零配置的单机实时监控。
-
-### 9.1 标准版（kube-prometheus-stack）
+### 8.1 架构
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│                     kube-prometheus-stack                     │
+│                     kube-prometheus-stack                    │
 │                                                              │
-│  ┌─────────────┐  ┌─────────────┐  ┌──────────────────────┐ │
-│  │ Prometheus   │  │  Grafana    │  │    AlertManager      │ │
-│  │             │  │             │  │                      │ │
-│  │ 指标采集     │  │  可视化看板  │  │  告警通知            │ │
-│  │ 存储        │  │             │  │  (Webhook/Email)     │ │
-│  └─────────────┘  └─────────────┘  └──────────────────────┘ │
+│  ┌─────────────┐  ┌─────────────┐  ┌──────────────────────┐  │
+│  │ Prometheus  │  │   Grafana   │  │    AlertManager      │  │
+│  │ 指标采集/存储│  │  可视化看板  │  │  告警通知            │  │
+│  └─────────────┘  └─────────────┘  └──────────────────────┘  │
 └──────────────────────────────────────────────────────────────┘
          ▲
-         │ ServiceMonitor / PodMonitor
+         │ ServiceMonitor / PodMonitor（CRD 自动发现）
          │
     各组件 /metrics 端点
 ```
 
-通过 ServiceMonitor CRD 自动发现各 AxisML 组件暴露的 `/metrics` 端点，无需手动配置采集目标。kube-prometheus-stack 作为独立 Helm release 部署。
+### 8.2 采集模型
 
-### 9.2 Lite 版（Netdata）
+各 AxisML 组件只需：
 
-**Netdata** 是一款零配置的实时监控工具，开箱即用，适合单机和轻量级场景。通过 Docker Compose 部署单个容器即可自动采集宿主机和容器的 CPU、内存、磁盘、网络、GPU 等指标，并提供内置的 Web Dashboard。
+1. 在容器内暴露 `/metrics` 端点（Prometheus 格式）
+2. 随 Helm chart 提供对应的 `ServiceMonitor` CRD，声明待采集的 Service 与端口
 
-```yaml
-# docker-compose.yml
-services:
-  netdata:
-    image: netdata/netdata:latest
-    ports:
-      - "19999:19999"
-    cap_add:
-      - SYS_PTRACE
-    volumes:
-      - /proc:/host/proc:ro
-      - /sys:/host/sys:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-```
+kube-prometheus-stack 的 Prometheus Operator 会自动发现并配置采集目标，无需手动维护 `prometheus.yml`。
 
-### 9.3 指标体系
+### 8.3 指标体系
 
-| 层级 | 指标来源 | 典型指标 |
+| 层级 | 来源 | 典型指标 |
 | --- | --- | --- |
 | 集群层 | kube-state-metrics、node-exporter | 节点 CPU/内存/磁盘、Pod 状态 |
-| GPU 层 | DCGM Exporter（GPU Operator） | GPU 利用率、显存、温度、功耗 |
-| 网关层 | Envoy Gateway | 请求量、延迟、错误率 |
-| 业务层 | AxisML 各组件 | 训练任务状态、推理延迟、制品数量 |
+| GPU 层 | DCGM Exporter（来自 GPU Operator） | GPU 利用率、显存占用、温度、功耗 |
+| 网关层 | Envoy Gateway | 请求量、延迟分位、错误率 |
+| 调度层 | Volcano | 队列堆积、PodGroup 调度状态 |
+| 业务层 | Platform / Compute / Catalog / Operators | 任务状态、推理延迟、制品数量等自定义指标 |
 
-## 10. 容器镜像仓库（Harbor）
+### 8.4 部署形态
 
-AxisML 使用 **Harbor** 作为容器镜像仓库，提供训练和推理镜像的存储与管理能力。Harbor 是 CNCF 毕业项目，提供镜像存储、漏洞扫描、访问控制、镜像签名等企业级功能。
-
-### 10.1 架构设计
-
-Harbor 提供以下核心能力：
-
-| 能力 | 说明 |
-| --- | --- |
-| 镜像存储 | OCI 兼容的容器镜像存储 |
-| 漏洞扫描 | 集成 Trivy 自动扫描镜像安全漏洞 |
-| 访问控制 | 基于项目的 RBAC 权限管理 |
-| 镜像复制 | 支持多仓库间镜像同步 |
-
-Harbor 的后端存储可对接 RustFS（S3 兼容），复用已有的对象存储基础设施。
-
-## 11. 日志采集（Fluent Bit + ClickHouse）
-
-AxisML 使用 **Fluent Bit** 作为日志采集器，**ClickHouse** 作为日志存储与查询后端。
-
-### 11.1 架构设计
-
-```
-┌──────────┐    ┌──────────┐    ┌──────────────┐
-│ 各组件    │    │Fluent Bit│    │  ClickHouse  │
-│ 容器日志  ├───►│(DaemonSet)├───►│  (日志存储)   │
-│ stdout   ���    │ 采集/过滤 │    │  列式查询     │
-└──────────┘    └──────────┘    └──────────────┘
+```yaml
+# deploy/helm/axisml/Chart.yaml
+dependencies:
+  - name: kube-prometheus-stack
+    alias: kube-prometheus-stack
+    version: 6x.x.x
+    repository: https://prometheus-community.github.io/helm-charts
+    condition: kube-prometheus-stack.enabled
 ```
 
-- **Fluent Bit**：轻量级日志采集器，以 DaemonSet 方式部署在每个节点，采集容器标准输出日志，支持过滤、解析和路由
-- **ClickHouse**：高性能列式数据库，适合日志场景的大规模写入和分析查询。支持 SQL 查询接口，可与 Grafana 集成实现日志可视化
+values.yaml 对应段：
 
-## 12. 关键设计决策
+```yaml
+kube-prometheus-stack:
+  enabled: true
+  # kube-prometheus-stack 子 chart 的 values pass-through
+```
+
+## 9. 部署总览
+
+### 9.1 Helm chart 组织
+
+AxisML 拆分为两个独立的 Helm chart，按"基础设施 / 控制平面"职责分层部署：
+
+| Chart | 路径 | Release | Namespace | 资源命名前缀 |
+| --- | --- | --- | --- | --- |
+| `axisml-infra` | `deploy/helm/axisml-infra` | `axisml-infra` | `axisml-infra` | `axisml-infra-*` |
+| `axisml-system` | `deploy/helm/axisml-system` | `axisml` | `axisml-system` | `axisml-*` |
+
+**axisml-infra** 的依赖：
+
+| Dependency | 仓库 | condition |
+| --- | --- | --- |
+| gateway-helm | oci://docker.io/envoyproxy | `envoy-gateway.enabled` |
+| rustfs | https://charts.rustfs.com | `rustfs.enabled` |
+| gpu-operator | https://helm.ngc.nvidia.com/nvidia | `gpu-operator.enabled` |
+| volcano | https://volcano-sh.github.io/helm-charts | `volcano.enabled` |
+| kube-prometheus-stack | https://prometheus-community.github.io/helm-charts | `kube-prometheus-stack.enabled` |
+
+**axisml-system** 的依赖（数据库归控制平面管理）：
+
+| Dependency | 仓库 | condition |
+| --- | --- | --- |
+| postgresql（aliased 为 `database`） | oci://registry-1.docker.io/bitnamicharts | `database.enabled` |
+
+通过 `condition` 字段保证每个 Infra 组件都可按需启停——例如对接外部 PostgreSQL 时关闭 `database.enabled`，对接现有 Prometheus 时关闭 `kube-prometheus-stack.enabled`。
+
+### 9.2 命名空间约定
+
+- `axisml-infra` 命名空间承载第三方基础设施子 chart 的全部资源；`make helm-install-infra` 默认值。
+- `axisml-system` 命名空间承载 AxisML 自研组件（Platform/Compute/Catalog/Operators）以及元数据数据库 `axisml-database`；`make helm-install-system` 默认值。
+- 跨命名空间访问走 `<service>.<namespace>.svc.cluster.local`，例如 Catalog 调用 RustFS：`axisml-infra-rustfs-svc.axisml-infra:9000`。
+
+### 9.3 安装顺序
+
+```
+make cluster-up             # 拉起本地集群
+make helm-install-infra     # 先装基础设施（CRDs + 监控栈 + 网关 + GPU + 调度器 + 对象存储）
+make helm-install-system    # 再装控制平面（平台组件 + 数据库）
+```
+
+卸载顺序相反：`helm-uninstall-system` → `helm-uninstall-infra`。
+
+### 9.4 与 values.yaml 的对应关系
+
+axisml-infra/values.yaml：
+
+| 组件 | values 根键 | 说明 |
+| --- | --- | --- |
+| 服务网关 | `envoy-gateway` | Envoy Gateway |
+| 对象存储 | `rustfs` | RustFS |
+| GPU 管理 | `gpu-operator` | NVIDIA GPU Operator |
+| 批任务调度 | `volcano` | Volcano（资源名形如 `axisml-infra-scheduler`） |
+| 监控 | `kube-prometheus-stack` | kube-prometheus-stack（`fullnameOverride` 设为 `axisml-infra-prometheus`，避开上游 26 字符截断） |
+
+axisml-system/values.yaml：
+
+| 组件 | values 根键 | 说明 |
+| --- | --- | --- |
+| 数据库 | `database` / `externalDatabase` | PostgreSQL（内置 `axisml-database` / 外接二选一） |
+
+## 10. 关键设计决策
 
 | 决策项 | 决策 | 理由 |
 | --- | --- | --- |
-| 服务网关 | Envoy Gateway | Gateway API 是 Kubernetes 官方的 Ingress 继任者；Envoy 原生支持 gRPC/HTTP2；零外部依赖（纯 CRD 配置） |
-| Lite 版网关 | 独立 Envoy 容器 | 与标准版共享相同的数据面（Envoy），保持行为一致性 |
-| 对象存储 | RustFS | S3 ��容、高性能、Apache 2.0 许可证 |
-| 数据库 | PostgreSQL | 关系型数据，支持事务，云原生生态成熟 |
-| GPU 管理 | NVIDIA GPU Operator | Kubernetes 原生 GPU 管理标准方案，自动化驱动和设备插件生命周期 |
-| 批任务调度 | Volcano | CNCF 孵化项目，Gang Scheduling 是分布式训练的核心需求 |
-| 共享存储 | JuiceFS | POSIX 兼容、复用已有 RustFS + PostgreSQL、客户端缓存加速 |
-| 监控（标准版） | kube-prometheus-stack | Kubernetes 生态事实标准，ServiceMonitor 自动发现 |
-| 监控（Lite 版） | Netdata | 零配置实时监控，单机场景开箱即用 |
-| 镜像仓库 | Harbor | CNCF 毕业项目，企业级镜像管理，后端可对接 RustFS |
-| 日志采集 | Fluent Bit + ClickHouse | Fluent Bit 轻量高效；ClickHouse 列式存储适合日志分析场景 |
-| 基础设施部署策略 | 独立 Helm release | 集群级基础设施与应用解耦，独立升级周期 |
+| 服务网关 | Envoy Gateway | Gateway API 是 Kubernetes 官方的 Ingress 继任者，Envoy 原生支持 gRPC/HTTP2；配置完全 CRD 化，零外部依赖 |
+| 对象存储 | RustFS | Apache 2.0 许可证，S3 兼容；规避 MinIO 自 2021 年转为 AGPLv3 的商用传染风险。风险：项目较年轻（alpha 阶段），社区规模小于 MinIO；S3 API 抽象使切换成本有限 |
+| 数据库 | bitnami/postgresql 子 chart | 复用成熟 chart，避免自写 StatefulSet 模板带来的维护负担；`externalDatabase` 段保留用于生产外接 RDS |
+| 数据库归属 | 纳入 axisml-system 控制平面 chart | 数据库的生命周期、迁移、备份都和业务组件紧密耦合；与 Platform/Compute/Catalog 放同一命名空间可共享 Secret、ServiceMonitor，减少跨 chart 引用 |
+| GPU 管理 | NVIDIA GPU Operator | Kubernetes 原生 GPU 管理事实标准；DCGM Exporter 与监控栈天然集成 |
+| 批任务调度 | Volcano | Gang Scheduling 是分布式训练的硬需求（避免部分 Worker 启动造成资源死锁）；CNCF 孵化项目，Queue + Fair-share 契合多租户模型；与 kube-scheduler 按 `schedulerName` 共存，零副作用 |
+| 批任务调度归属 | 纳入 Infra 层（overview 未列出） | 所有 ML 训练任务都必须经由 Volcano 调度，其归属性与 GPU Operator 相同，均为训练能力的底座 |
+| 监控 | kube-prometheus-stack | Kubernetes 生态事实标准；ServiceMonitor 自动发现免维护；与 GPU Operator 的 DCGM Exporter 开箱即用 |
+| 部署策略 | 拆成 `axisml-infra` / `axisml-system` 两个 chart | 基础设施和控制平面发版节奏、回滚粒度不同；拆分后 infra 可共享给多套 axisml-system 实例。两者通过命名空间 + Service DNS 解耦，仍保持 `condition` 字段支持按需关闭并对接外部实例 |
+| 形态覆盖 | 本文档只覆盖标准版 | AxisML Lite 的 Docker Compose 形态单独设计，避免两种形态在同一文档中相互干扰 |
 
-## 13. 实现路���
+## 11. 未来规划
 
-| 阶段 | 组件 | 说明 |
-| --- | --- | --- |
-| **Phase 1** | 服务网关、对象存储、数据库、GPU 管理、批任务调度 | 平台核心能力所需的基础设施，优先实现 |
-| **Phase 2** | 共享存储、监控、容器镜像仓库、日志采集 | 平台基本功能跑通后逐步引入，完善运维与可观测能力 |
+本次 Infra 设计范围聚焦核心能力，以下组件暂不引入，留作后续扩展：
 
-## 14. 未来规划
+- **共享文件存储**（如 JuiceFS）：训练大数据集的 POSIX 挂载，Phase 1 可先通过 PVC + RustFS 的 S3 协议访问解决
+- **容器镜像仓库**（如 Harbor）：训练/推理镜像的私有仓库管理，短期内可复用公共 registry
+- **日志采集**（如 Fluent Bit + ClickHouse）：集中式日志查询，短期内通过 `kubectl logs` + Prometheus 事件满足
+- **链路追踪**：基于 OpenTelemetry 的分布式调用链，与业务组件改造同步推进
 
-- **链路追踪**：基于 OpenTelemetry 实现分布式链路追踪，打通请求在各组件间的调用链路
+上述组件引入时机由后续 roadmap 决定，届时以增量方式更新本文档。
