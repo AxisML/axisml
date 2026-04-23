@@ -2,7 +2,7 @@
   <img src="docs/assets/banner.png" alt="AxisML" width="720">
 </p>
 
-A unified machine learning platform with native support for distributed training, intelligent resource scheduling, and elastic scaling. Manages the full model lifecycle from development and training to inference and operations.
+AxisML is a machine learning platform with native support for distributed training, intelligent resource scheduling, and elastic scaling. Manages the full model lifecycle from development and training to inference and operations.
 
 ## Quick Start
 
