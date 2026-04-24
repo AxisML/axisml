@@ -24,16 +24,15 @@ ResourcePool 是资源单元与资源队列挂靠的顶层边界——同一池�
 
 ### 2.3 资源单元（ResourceUnit）
 
-ResourcePool 内预先定义的资源规格模板，例如 `1×A100-80G + 8 vCPU + 64G RAM`。用户创建任务或服务时选择一个 ResourceUnit，平台据此申请对应的底层资源，避免在 API 层手工填写 CPU/GPU/内存明细。
+ResourcePool 内预先定义的资源规格模板，例如 `a100-1x-large`（1×A100 + 8 vCPU + 32 GiB）。用户创建任务或服务时选择一个 ResourceUnit，平台据此申请对应的底层资源，避免在 API 层手工填写 CPU/GPU/内存明细。命名规范详见 [compute.md §6.2.3](compute.md)。
 
 ### 2.4 资源队列（Queue）
 
-租户资源配额的承载体。**每个租户在每个 ResourcePool 下拥有一棵独立的队列树**：
+租户资源配额的承载体。**每个租户在每个 ResourcePool 下拥有一组独立的队列**：
 
-- 根队列固定为 `root`
-- `root` 之下可按团队、业务线等维度下挂子队列
-- 子队列可继续下挂下一级子队列
-- **整棵队列树最多 3 级（含 `root`）**
+- 每个 `(tenant, pool)` 默认存在队列 `default`
+- 用户可创建其他队列（如 `training`、`inference`、`nlp`）用于业务线 / 团队维度的配额拆分
+- 当前版本为扁平结构（无父子层级）；分层队列作为后续演进方向
 
 同一租户在不同 ResourcePool 下的队列结构与配额可以完全不同，互不干扰。
 
@@ -56,31 +55,22 @@ ResourcePool 内预先定义的资源规格模板，例如 `1×A100-80G + 8 vCPU
 | 任务 | Job | `MLJob` CRD |
 | 服务 | Service | `MLService` CRD |
 
-## 3. 产品形态
+## 3. 功能矩阵
 
-AxisML 提供两种产品形态：
-
-| 产品形态 | 定位 | 部署方式 |
-| --- | --- | --- |
-| **AxisML** | 完整功能集，适用于中大型集群和生产环境 | Kubernetes |
-| **AxisML Lite** | 聚焦核心能力，适用于轻量级场景或本地开发测试 | Docker Compose |
-
-### 3.1 功能矩阵
-
-| 功能分类 | 功能项 | AxisML | AxisML Lite |
-| --- | --- | :---: | :---: |
-| 训练 & 推理 | 模型定制 | TBD | ✅ |
-| | 开发机 | ✅ | ❌ |
-| | 自定义任务 | ✅ | TBD |
-| | 在线服务 | ✅ | TBD |
-| 制品中心 | 模型 | ✅ | TBD |
-| | 镜像 | ✅ | TBD |
-| | 数据集 | ✅ | TBD |
-| 系统管理 | 租户管理 | ✅ | default 租户 |
-| | 资源池管理 | ✅ | 单一 default 池 |
-| | 资源单元管理 | ✅ | 预置资源单元 |
-| | 资源队列管理 | ✅ | ❌（不启用配额） |
-| | 数据卷管理 | ✅ | ❌ |
+| 功能分类 | 功能项 | 状态 |
+| --- | --- | :---: |
+| 训练 & 推理 | 模型定制 | TBD |
+| | 开发机 | ✅ |
+| | 自定义任务 | ✅ |
+| | 在线服务 | ✅ |
+| 制品中心 | 模型 | ✅ |
+| | 镜像 | ✅ |
+| | 数据集 | ✅ |
+| 系统管理 | 租户管理 | ✅ |
+| | 资源池管理 | ✅ |
+| | 资源单元管理 | ✅ |
+| | 资源队列管理 | ✅ |
+| | 数据卷管理 | TBD |
 
 ## 4. 整体架构
 
@@ -99,7 +89,7 @@ AxisML 提供两种产品形态：
 │  AxisML Compute (Go)     │ │     AxisML Catalog (Go)       │ │   AxisML Infra     │
 │                          │ │                               │ │                    │
 │  API / 业务逻辑 / 调度    │ │  模型管理 / 镜像管理 / 数据集   │ │  gpu-operator      │
-│  租户 / 资源单元 / 数据卷  │ │                               │ │  对象存储           │
+│  租户 / 资源单元 / 队列   │ │                               │ │  对象存储           │
 │                          │ │      │            │           │ │  监控 / ...        │
 └────────────┬─────────────┘ │ ┌────▼─────┐ ┌────▼─────┐    │ │                    │
              │               │ │PostgreSQL│ │ 对象存储  │    │ │                    │
@@ -134,7 +124,6 @@ AxisML 提供两种产品形态：
 - **资源池管理**：ResourcePool 的定义、纳管节点分组，以及与底层集群的映射关系。
 - **资源单元管理**：ResourcePool 内的资源规格模板（如 GPU 类型、CPU/内存配置）定义与管理。
 - **资源队列管理**：队列树的 CRUD、配额分配、配额使用量统计，以及任务/服务提交时的配额校验。
-- **数据卷管理**：管理训练与推理任务所需的数据卷挂载配置。
 
 > 详细设计见 [AxisML Compute 设计文档](compute.md)
 
@@ -150,7 +139,7 @@ Kubernetes Operator 组件，基于 Go 开发，通过 CRD 对核心概念进行
 
 AxisML Compute 通过创建/更新 CRD 资源与 AxisML Operators 协作，Operators 负责将声明式定义转化为实际的 Kubernetes 资源。
 
-> 详细设计见 [AxisML Operators 设计文档](operators.md)
+> 详细设计见 [AxisML Operators 设计文档](operators/)
 
 ### 5.4 AxisML Catalog
 
@@ -177,8 +166,6 @@ AxisML Compute 通过创建/更新 CRD 资源与 AxisML Operators 协作，Opera
 
 ## 6. 部署架构
 
-### 6.1 AxisML
-
 基于 Kubernetes 部署，通过 Helm Chart 进行安装与管理，各组件以容器化方式运行：
 
 ```
@@ -198,21 +185,6 @@ Kubernetes Cluster
 └── 数据层
     └── PostgreSQL (StatefulSet)
 ```
-
-### 6.2 AxisML Lite
-
-基于 Docker Compose 部署，聚焦核心训练与推理能力：
-
-```
-Docker Compose
-├── axisml-platform
-├── axisml-compute
-├── axisml-catalog
-├── postgresql
-└── 对象存储
-```
-
-Lite 版包含 Compute Server 但不包含 Operators（无 Kubernetes）。租户固定为 default，资源池固定为单一 default 池，资源单元预置，资源队列不启用（Lite 不做配额约束）。
 
 ## 7. 项目结构
 
@@ -250,23 +222,21 @@ axisml/
 │       └── api/                  # API 定义
 ├── pkg/                          # 跨组件可复用的公共库
 ├── deploy/                       # 部署配置
-│   ├── helm/                     # Helm Chart（标准版）
-│   │   └── axisml/
-│   │       ├── Chart.yaml
-│   │       ├── values.yaml
-│   │       ├── crds/             # CRD 定义（MLJob/MLService/Tenant）
-│   │       └── templates/
-│   │           ├── _helpers.tpl  # 共享模板函数
-│   │           ├── platform/     # AxisML Platform 模板
-│   │           ├── compute/      # AxisML Compute 模板
-│   │           ├── catalog/      # AxisML Catalog 模板
-│   │           ├── operators/    # AxisML Operators 模板
-│   │           │   ├── mljob-operator/
-│   │           │   ├── mlservice-operator/
-│   │           │   └── tenant-operator/
-│   │           └── common/       # 共享资源（Database 等）
-│   └── docker-compose/           # Docker Compose（Lite 版）
-│       └── docker-compose.yml
+│   └── helm/                     # Helm Chart
+│       └── axisml/
+│           ├── Chart.yaml
+│           ├── values.yaml
+│           ├── crds/             # CRD 定义（MLJob/MLService/Tenant）
+│           └── templates/
+│               ├── _helpers.tpl  # 共享模板函数
+│               ├── platform/     # AxisML Platform 模板
+│               ├── compute/      # AxisML Compute 模板
+│               ├── catalog/      # AxisML Catalog 模板
+│               ├── operators/    # AxisML Operators 模板
+│               │   ├── mljob-operator/
+│               │   ├── mlservice-operator/
+│               │   └── tenant-operator/
+│               └── common/       # 共享资源（Database 等）
 ├── build/                        # 构建相关
 │   └── docker/                   # 各组件 Dockerfile
 │       ├── platform.Dockerfile
@@ -293,8 +263,7 @@ axisml/
 | `components/operators/` | Kubernetes Operators，包含 3 个 Operator |
 | `components/catalog/` | 制品管理服务，Go 服务 |
 | `pkg/` | 跨组件复用的公共库（如日志、配置、错误处理等） |
-| `deploy/helm/` | 标准版 Helm Chart |
-| `deploy/docker-compose/` | Lite 版 Docker Compose 配置 |
+| `deploy/helm/` | Helm Chart |
 | `build/docker/` | 各组件的 Dockerfile |
 
 ## 8. 关键设计决策
@@ -304,8 +273,7 @@ axisml/
 | 计算任务抽象 | 通过 CRD（MLJob/MLService/Tenant）抽象 | 与 Kubernetes 原生集成，声明式管理，框架无关 |
 | 制品元数据存储 | PostgreSQL | 关系型数据，支持事务，生态成熟 |
 | 制品文件存储 | 对象存储 | 适合大文件存储，支持版本管理 |
-| Lite 版部署 | Docker Compose | 降低使用门槛，无需 Kubernetes 集群 |
 | 后端语言 | Go | 云原生生态契合，Operator 开发原生支持 |
 | 前端框架 | TypeScript + React | 社区生态成熟，组件丰富 |
-| 系统管理归属 | 租户、资源池、资源单元、资源队列、数据卷管理放在 AxisML Compute 中 | 与计算任务强耦合（配额校验、资源分配、卷挂载），避免跨服务调用开销；内部按 package 隔离，保留后续拆分空间 |
+| 系统管理归属 | 租户、资源池、资源单元、资源队列管理放在 AxisML Compute 中 | 与计算任务强耦合（配额校验、资源分配），避免跨服务调用开销；内部按 package 隔离，保留后续拆分空间 |
 | 认证鉴权 | TBD（考虑开源方案） | 待评估 |

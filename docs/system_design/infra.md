@@ -4,8 +4,6 @@
 
 AxisML Infra 是平台的基础设施层，由一系列开源组件组成，为上层应用组件（Platform、Compute、Catalog、Operators）提供底层支撑能力。Infra 层不涉及自研代码，所有组件均通过 Helm 引入并在 AxisML Helm chart 中作为 dependencies 统一管理。
 
-本文档仅覆盖 **AxisML 标准版（Kubernetes）** 的基础设施设计，AxisML Lite 的 Docker Compose 形态另行设计。
-
 ### 1.1 组件清单
 
 | # | 组件 | 技术选型 | 职责 |
@@ -46,7 +44,7 @@ AxisML Infra 是平台的基础设施层，由一系列开源组件组成，为�
 
 调用关系要点：
 
-- 外部流量 → **Envoy Gateway** → Platform / Compute / Catalog 等 Service
+- 外部流量 → **Envoy Gateway** → Platform / Catalog 等对外 Service；Compute 仅由 Platform 通过集群内 Service 调用
 - Compute / Catalog → **PostgreSQL**（元数据读写）
 - Catalog → **RustFS**（制品文件读写，S3 API）
 - mljob-operator / mlservice-operator 创建的 Pod → **Volcano**（`schedulerName: volcano`）
@@ -72,10 +70,6 @@ GatewayClass (envoy-gateway)
         │     pathPrefix: /
         │     → axisml-platform Service
         │
-        ├── HTTPRoute (compute-api)
-        │     pathPrefix: /api/compute
-        │     → axisml-compute Service
-        │
         └── HTTPRoute (catalog-api)
               pathPrefix: /api/catalog
               → axisml-catalog Service
@@ -83,7 +77,7 @@ GatewayClass (envoy-gateway)
 
 - **GatewayClass**：由 Envoy Gateway 控制面注册，声明控制器实现。
 - **Gateway**：集群内"监听点"的声明，同一份 Gateway 实例承载全部 AxisML 路由。
-- **HTTPRoute**：各业务组件的路由规则，与 Service 绑定。
+- **HTTPRoute**：对外业务组件的路由规则，与 Service 绑定；Compute 不配置外部 HTTPRoute。
 
 ### 3.2 认证鉴权
 
@@ -195,7 +189,7 @@ AxisML 使用 PostgreSQL 作为元数据存储，供 Compute、Catalog 等 Go �
 
 | 消费方 | 使用场景 |
 | --- | --- |
-| AxisML Compute | 租户、资源单元、数据卷、任务元数据 |
+| AxisML Compute | 租户、资源单元、任务元数据 |
 | AxisML Catalog | 模型、镜像、数据集元数据 |
 
 各消费方通过独立 database 或独立 schema 逻辑隔离（具体隔离粒度由各组件设计文档定义）。
@@ -300,11 +294,12 @@ AxisML 使用 [Volcano](https://volcano.sh/) 作为批任务调度器，与默�
 
 ### 7.3 与 MLJob / MLService 的协作契约
 
-本文档定义 Infra 侧契约，具体实现细节见 `operators.md`：
+本文档定义 Infra 侧契约，具体实现细节见 `operators/`：
 
 - mljob-operator / mlservice-operator 为每个 MLJob / MLService 创建对应的 `PodGroup` 资源，并在 Pod spec 上设置 `schedulerName: volcano`
 - Volcano Scheduler 基于 PodGroup 的 `minMember` / `minResources` 执行 Gang Scheduling
-- 队列（`vcjob.spec.queue`）与租户的映射由 tenant-operator 维护
+- **Volcano `Queue` CR（cluster-scoped）由 Compute 独占 owner**：容量（`spec.capability`）、命名、补偿与 RBAC 均由 Compute 维护，operator 仅通过名称引用（`PodGroup.spec.queue`），不读写 Queue CR。队列与租户 / 资源池的归属关系由 Compute 在 PG 中维护，命名约定 `axisml-<tenant>-<pool>-<queue>` 见 [compute.md §6.2.4](compute.md)
+- tenant-operator 只负责租户的 Namespace 与 ResourceQuota 等集群侧资源，不涉及 Volcano Queue CR
 
 ### 7.4 与 kube-scheduler 共存
 
@@ -465,7 +460,6 @@ axisml-system/values.yaml：
 | 批任务调度归属 | 纳入 Infra 层（overview 未列出） | 所有 ML 训练任务都必须经由 Volcano 调度，其归属性与 GPU Operator 相同，均为训练能力的底座 |
 | 监控 | kube-prometheus-stack | Kubernetes 生态事实标准；ServiceMonitor 自动发现免维护；与 GPU Operator 的 DCGM Exporter 开箱即用 |
 | 部署策略 | 拆成 `axisml-infra` / `axisml-system` 两个 chart | 基础设施和控制平面发版节奏、回滚粒度不同；拆分后 infra 可共享给多套 axisml-system 实例。两者通过命名空间 + Service DNS 解耦，仍保持 `condition` 字段支持按需关闭并对接外部实例 |
-| 形态覆盖 | 本文档只覆盖标准版 | AxisML Lite 的 Docker Compose 形态单独设计，避免两种形态在同一文档中相互干扰 |
 
 ## 11. 未来规划
 
