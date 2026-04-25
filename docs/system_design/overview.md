@@ -36,15 +36,19 @@ ResourcePool 内预先定义的资源规格模板，例如 `a100-1x-large`（1×
 
 同一租户在不同 ResourcePool 下的队列结构与配额可以完全不同，互不干扰。
 
-### 2.5 任务（Job）
+### 2.5 计算负载（Compute Workload）
+
+平台中所有运行时算力承载体的统称，按生命周期分为两类——**任务（Job）** 是一次性 workload，有明确终止态；**服务（Service）** 是长驻 workload，通过扩缩容调节容量。两者共享租户、队列、资源池、配额体系；底层执行由对应 operator 按 `spec.backend.{name, engine}` 元组路由到不同 backend 实现（`native`、`kubeflow-trainer`、`kserve`、`custom`），见 §5.3。
+
+### 2.6 任务（Job）
 
 训练任务、分布式训练任务与数据处理任务的统称，对应 `MLJob` CRD，由 mljob-operator 负责生命周期管理。
 
-### 2.6 服务（Service）
+### 2.7 服务（Service）
 
 模型部署后对外提供在线推理的实体，对应 `MLService` CRD，由 mlservice-operator 负责生命周期管理。
 
-### 2.7 概念速查
+### 2.8 概念速查
 
 | 术语 | 英文名 | 对应对象 |
 | --- | --- | --- |
@@ -52,6 +56,7 @@ ResourcePool 内预先定义的资源规格模板，例如 `a100-1x-large`（1×
 | 资源池 | ResourcePool | 平台内部对象 |
 | 资源单元 | ResourceUnit | 平台内部对象 |
 | 资源队列 | Queue | 平台内部对象 |
+| 计算负载 | Compute Workload | Job / Service 的概念伞 |
 | 任务 | Job | `MLJob` CRD |
 | 服务 | Service | `MLService` CRD |
 
@@ -138,6 +143,17 @@ Kubernetes Operator 组件，基于 Go 开发，通过 CRD 对核心概念进行
 | **Tenant** | tenant-operator | 租户的资源配额、隔离与管理 |
 
 AxisML Compute 通过创建/更新 CRD 资源与 AxisML Operators 协作，Operators 负责将声明式定义转化为实际的 Kubernetes 资源。
+
+mljob-operator 与 mlservice-operator 内部按 `spec.backend.{name, engine}` 二级元组路由到不同 Handler，把工作下放到对应的执行后端：
+
+| Backend | 适用 CRD | 说明 |
+| --- | --- | --- |
+| `native` | MLJob, MLService | 内置 PodGroup+Pod / Deployment+Service 实现，无外部依赖 |
+| `kubeflow-trainer` | MLJob | 委托给 [Kubeflow Training Operator](https://www.kubeflow.org/docs/components/training/) 的 PyTorchJob / TFJob / MPIJob 等 |
+| `kserve` | MLService | 委托给 [KServe](https://kserve.github.io/website/) 的 InferenceService（Triton / TFServing / TorchServe / HuggingFace 等 predictor） |
+| `custom` | MLJob, MLService | 用户自定义后端，通过 `backend.config` 描述目标 GVK 与字段映射 |
+
+backend 选择是 operator 的内部实现细节——MLJob / MLService 仍是用户和 Compute 看到的稳定抽象。
 
 > 详细设计见 [AxisML Operators 设计文档](operators/)
 

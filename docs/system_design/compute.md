@@ -6,6 +6,8 @@ AxisML Compute 是平台的计算服务层，基于 Go 开发，承载 **计算�
 
 **关键边界原则**：Compute 不直接创建 Namespace、Pod 等底层 K8s 资源，这些由对应 Operator 或集群管理员负责；Compute 仅维护业务元数据，并通过 CRD 向 Operator 声明意图。
 
+**与 backend 解耦**：mljob-operator / mlservice-operator 内部按 `spec.backend.{name, engine}` 元组路由到不同 Handler——`(native, default)` 维持现行 PodGroup+Pod / Deployment+Service 行为，未来还会接入 `(kubeflow-trainer, pytorch / tensorflow / mpi …)`、`(kserve, triton / tfserving …)`、`(custom, *)` 等。**Compute 完全不感知后端选择**：API 透传 `backend.{name, engine, config}` 三元组到 CR，Informer 仍只消费统一的 `status.phase`；状态机、PG schema、reconciler 三谓词均不变。具体插件机制见 [operators/mljob-operator.md](operators/mljob-operator.md) §2、[operators/mlservice-operator.md](operators/mlservice-operator.md) §2。
+
 ## 2. 职责与边界
 
 Compute 内部按 6 个模块划分，分两类组织：
@@ -458,6 +460,8 @@ Creating ──(Informer ADD)──▶ Pending ──(CR phase=Running)──▶
 
 Compute 只负责把以下业务语义装进 MLJob CR；具体 `spec` 字段结构、默认值、校验规则由 [operators/mljob-operator.md](operators/mljob-operator.md) 定义。
 
+**`spec.backend` 默认值注入**：用户未指定 `spec.backend` 时，Compute 写 CR 时显式补 `{name: "native", engine: "default"}`；`backend.config` 默认空对象 `{}`。`backend.{name, engine}` 在 PG `jobs.spec` jsonb 中持久化，创建后不可变（Update API 拒绝修改这两个字段）。
+
 **取消语义**（`POST /tenants/{tenant}/jobs/{job}:cancel`）
 
 | 场景 | PG 侧 | CR 侧 |
@@ -538,7 +542,9 @@ Creating ──(Informer ADD)──▶ Pending ──(ready=desired, desired>0)�
 
 **MLService 业务语义**
 
-与 Job 类似（framework / image / replicas / resourceUnit / placement / queue），额外增加**模型引用**（指向 Catalog 的 model version）。具体契约由 [operators/mlservice-operator.md](operators/mlservice-operator.md) 定义。
+与 Job 类似（image / replicas / resourceUnit / placement / queue），额外增加**模型引用**（指向 Catalog 的 model version）。具体契约由 [operators/mlservice-operator.md](operators/mlservice-operator.md) 定义。
+
+**`spec.backend` 默认值注入**：用户未指定 `spec.backend` 时，Compute 写 CR 时显式补 `{name: "native", engine: "default"}`；`backend.config` 默认空对象 `{}`。`backend.{name, engine}` 在 PG `services.spec` jsonb 中持久化，创建后不可变。
 
 **与 Job 的差异**
 
