@@ -93,7 +93,7 @@ ResourcePool 内预先定义的资源规格模板，例如 `a100-1x-large`（1×
 ┌──────────────────────────┐ ┌───────────────────────────────┐ ┌────────────────────┐
 │  AxisML Compute (Go)     │ │     AxisML Catalog (Go)       │ │   AxisML Infra     │
 │                          │ │                               │ │                    │
-│  API / 业务逻辑 / 调度    │ │  模型管理 / 镜像管理 / 数据集   │ │  gpu-operator      │
+│  API / 业务逻辑 / 编排    │ │  模型管理 / 镜像管理 / 数据集   │ │  gpu-operator      │
 │  租户 / 资源单元 / 队列   │ │                               │ │  对象存储           │
 │                          │ │      │            │           │ │  监控 / ...        │
 └────────────┬─────────────┘ │ ┌────▼─────┐ ┌────▼─────┐    │ │                    │
@@ -124,11 +124,11 @@ ResourcePool 内预先定义的资源规格模板，例如 `a100-1x-large`（1×
 
 计算服务层，基于 Go 开发，提供 API 接口，承载以下核心职责：
 
-- **计算任务管理**：训练任务与模型服务的创建、调度与生命周期管理。
-- **租户管理**：租户的创建、资源隔离，以及该租户在各 ResourcePool 下队列树元数据的承载；通过 Tenant CRD 与 tenant-operator 协作。
+- **计算任务管理**：训练任务与模型服务的创建、编排与生命周期管理（实际调度由 Volcano 承担）。
+- **租户管理**：租户的创建、资源隔离，以及该租户在各 ResourcePool 下队列元数据的承载；通过 Tenant CRD 与 tenant-operator 协作。
 - **资源池管理**：ResourcePool 的定义、纳管节点分组，以及与底层集群的映射关系。
 - **资源单元管理**：ResourcePool 内的资源规格模板（如 GPU 类型、CPU/内存配置）定义与管理。
-- **资源队列管理**：队列树的 CRUD、配额分配、配额使用量统计，以及任务/服务提交时的配额校验。
+- **资源队列管理**：扁平队列（v1 无父子层级）的 CRUD、配额分配、配额使用量统计，以及任务/服务提交时的配额校验。
 
 > 详细设计见 [AxisML Compute 设计文档](compute.md)
 
@@ -238,21 +238,21 @@ axisml/
 │       └── api/                  # API 定义
 ├── pkg/                          # 跨组件可复用的公共库
 ├── deploy/                       # 部署配置
-│   └── helm/                     # Helm Chart
-│       └── axisml/
-│           ├── Chart.yaml
-│           ├── values.yaml
-│           ├── crds/             # CRD 定义（MLJob/MLService/Tenant）
-│           └── templates/
-│               ├── _helpers.tpl  # 共享模板函数
-│               ├── platform/     # AxisML Platform 模板
-│               ├── compute/      # AxisML Compute 模板
-│               ├── catalog/      # AxisML Catalog 模板
-│               ├── operators/    # AxisML Operators 模板
-│               │   ├── mljob-operator/
-│               │   ├── mlservice-operator/
-│               │   └── tenant-operator/
-│               └── common/       # 共享资源（Database 等）
+│   └── helm/                     # Helm Charts
+│       ├── axisml-system/        # 系统组件 Chart
+│       │   ├── Chart.yaml
+│       │   ├── values.yaml
+│       │   ├── crds/             # CRD 定义（MLJob/MLService/Tenant）
+│       │   └── templates/
+│       │       ├── _helpers.tpl  # 共享模板函数
+│       │       ├── platform/     # AxisML Platform 模板
+│       │       ├── compute/      # AxisML Compute 模板
+│       │       ├── catalog/      # AxisML Catalog 模板
+│       │       └── operators/    # AxisML Operators 模板
+│       │           ├── mljob-operator/
+│       │           ├── mlservice-operator/
+│       │           └── tenant-operator/
+│       └── axisml-infra/         # 基础设施 Chart（gateway / gpu-operator / 对象存储 / 监控）
 ├── build/                        # 构建相关
 │   └── docker/                   # 各组件 Dockerfile
 │       ├── platform.Dockerfile
