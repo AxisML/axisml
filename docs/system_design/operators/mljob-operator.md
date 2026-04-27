@@ -4,24 +4,14 @@
 
 mljob-operator 把 AxisML Compute 下发的 `MLJob` CR 翻译为底层执行资源（Pod / PodGroup / 第三方 CR），并把执行状态回流到 `MLJob.status`。它内部按 `spec.backend.{name, engine}` 二级元组路由到不同 Handler，由 Handler 真正生成底层资源、把后端原生状态映射回统一的 phase 集合（详见 [overview.md §5.3](../overview.md)）。
 
-**面向两类读者**：
-
-- **Compute 侧 informer / reconciler 作者**：理解 operator 暴露的 spec / status 契约，便于按 [compute.md §5](../compute.md) 的 Outbox + Informer 模型对接
-- **新 backend Handler 作者**：理解 dispatcher 提供的注册、watch、RBAC 聚合机制，便于以最小代价接入新引擎
-
 operator 与 Compute 的分工以 [compute.md §5](../compute.md) 为准；本文档只展开 operator 这一侧的实现契约。
 
 ## 2. 与 Compute 的写路径契约
 
-Compute 采用 Operation Outbox + reconciler 异步下发 CR（详见 [compute.md §5.2](../compute.md)）。Operator 必须满足以下契约：
+Compute 采用 Operation Outbox + reconciler 异步下发 CR（详见 [compute.md §5.2](../compute.md)）。Operator 暴露给 Compute 的核心契约只有两条；其余约束（`backend.{name, engine}` 不可变、不引入 finalizer、Suspend 声明义务等）分散在 §3.3 字段不可变性、§6 Reconcile 生命周期、§7 Handler 接口契约、§10 不变量与约束。
 
 - **`Create` 幂等**：相同 `metadata.name` 的二次 `Create()` 返回 409 `AlreadyExists`，且不引发副作用（不重启 Pod、不重置 status）。Compute 收到 409 后会 `Get()` 现有 CR 并校验 label `axisml.io/job-id=<uuid>`；只有 label 一致才视为成功
-- **不反向写 PG**：operator 不感知 Compute 的 `jobs` / `services` / `tenants` 表；状态推进由 Compute 侧 Informer 按 CR `status` 回流
-- **status 单向权威**：operator 只写 `MLJob.status`；Compute 只写 `MLJob.metadata` / `MLJob.spec`
-- **spec 幂等 Patch**：相同 `spec` 重复 Apply / Patch 不得重建 Pod；只有语义字段变化才触发底层资源变更
-- **`spec.backend.{name, engine}` 创建后不可变**：dispatcher 检测到变更直接拒绝（写 `status.message`），admission webhook 后续补；Compute 也保证不会修改这两个字段
-- **不引入 finalizer**：Compute 的 `Deleting → Deleted` 终态推进依赖 Informer 观察到 CR 真正消失（见 [compute.md §6.3.1](../compute.md)）。Handler 必须把所有底层资源经由 `ownerReference` 级联清理或在 `Cleanup()` 中同步处理，避免任何 finalizer 让 CR 卡在 `Terminating`
-- **Suspend 优先于 Delete**：Compute 取消运行态 Job 时优先 `patch spec.runPolicy.suspend=true`，仅在 Handler 不支持原生 suspend 时退化为 `Delete()`。Handler 必须在自己的章节明确声明是否支持原生 suspend
+- **status 单向权威**：operator 只写 `MLJob.status`，Compute 只写 `MLJob.metadata` / `MLJob.spec`；状态推进由 Compute 侧 Informer 按 CR `status` 回流，operator 不感知 Compute 的 `jobs` 表，也不向 Compute PG 写入任何数据
 
 ## 3. CRD 契约
 
