@@ -105,7 +105,7 @@ PG 的 `used` 只用于 UI 列表展示和 best-effort 预检，**不参与写�
 1. **API 同步路径只写 PG**：业务校验 → PG 事务插入 / 更新业务记录（新建时 `status='Creating'`，取消时 `status='Canceling'`，删除时 `status='Deleting'` + `deleted_at=now()`）→ commit → 返回业务 ID。API 不直接调用 K8s
 2. **Compute 内 reconciler worker 异步下发 CR**：每个模块（`internal/{job,service,tenant,queue}`）在 leader 副本起 goroutine，周期性扫描 PG 按三类谓词分派动作：
    - `status='Creating' AND deleted_at IS NULL` → 按 PG 快照 `Create()` CR（附 label `axisml.io/<resource>-id=<uuid>` 作稳定锚点；409 `AlreadyExists` 视为成功，靠 `metadata.name` + label 双重去重幂等）；Informer ADD 事件推进到就绪态（`Pending` / `Active`）
-   - `status='Canceling'`（Job 专属） → 优先 `patch MLJob.spec.suspend=true`（若 operator 支持）否则 `Delete()` CR；Informer DELETE 事件推进到 `Cancelled`
+   - `status='Canceling'`（Job 专属） → reconciler `patch MLJob.spec.runPolicy.suspend=true`；mljob-operator Handler 完成 suspend / Cleanup 后写 `status.conditions[type=Suspended,status=True,reason=CancelRequested]`，Informer 观察到该 condition 推进 PG 到 `Cancelled` 并入队 `Delete()` CR 做资源回收（DELETE 事件幂等到达，不再变更 PG 状态。详见 [operators/mljob-operator.md §4](operators/mljob-operator.md)）
    - `status='Deleting'` → `Delete()` CR；Informer DELETE 事件推进到 `Deleted`（配合设置 `deleted_at`）
    - 失败按指数退避重试，错误写入业务记录的 `message` 字段供 UI 展示
    - PG 行状态离开这三个谓词覆盖的范围后，reconciler 不再做下发动作
@@ -136,7 +136,7 @@ Creating ──(Informer ADD)──▶ 就绪态 ──(业务事件)──▶ �
 
 | Informer | 监听对象 | 维护方 | 主要用途 | DELETE 事件语义 | spec 漂移处理 |
 | --- | --- | --- | --- | --- | --- |
-| MLJob Informer | `MLJob` CR | `internal/job/` | 推进 `Creating→Pending`、`Pending→Running`、运行终态（`Succeeded`/`Failed`）；`Canceling→Cancelled`；`Deleting→Deleted`（配合 `deleted_at`）；回写 `jobs.status` / `started_at` / `finished_at` | PG `status ∈ (Canceling, Deleting)` → 正常级联，分别推 `Cancelled` / `Deleted`；PG `status ∈ (Pending, Running)` → 外部误删，推 `Cancelled` + `message='external delete'`，**不补偿重建**；已终态忽略 | 不适用（`spec` 不可变） |
+| MLJob Informer | `MLJob` CR | `internal/job/` | 推进 `Creating→Pending`、`Pending→Running`、运行终态（`Succeeded`/`Failed`）；`Canceling→Cancelled`（信号：`status.conditions[type=Suspended,status=True]`）；`Deleting→Deleted`（配合 `deleted_at`）；回写 `jobs.status` / `started_at` / `finished_at` | PG `status='Canceling'` → Suspended condition 推 `Cancelled` 后入队 `Delete()` CR；DELETE 事件幂等忽略。PG `status='Deleting'` → DELETE 推 `Deleted`。PG `status ∈ (Pending, Running)` 收到 DELETE → 外部误删，推 `Cancelled` + `message='external delete'`，**不补偿重建**；已终态忽略 | 不适用（`spec` 不可变） |
 | MLService Informer | `MLService` CR | `internal/service/` | 推进 `Creating→Pending`、`Pending→Ready`、`Ready⇄Degraded⇄Failed`（由 `ready_replicas`/`desired_replicas` 映射，见 §6.3.2）；`Deleting→Deleted`；回写 `services.status` / `ready_replicas` / `endpoint` | PG `status='Deleting'` → 推 `Deleted`；其他运行态 → 外部误删，推 `Deleting` + `message='external delete'`，交 reconciler 完成清理；已 `Deleted` 忽略 | 扩缩容由 API 层同步 `patch` CR，Informer 只消费回流，Compute 不做 spec 漂移对账 |
 | Tenant Informer | `Tenant` CR | `internal/tenant/` | 推进 `Creating→Active`、`Active⇄Suspended`、`Deleting→Deleted` | PG `status='Deleting'` → 推 `Deleted`；其他（外部误删）→ 按 §5.4 配置对象策略由 reconciler 补偿重建 | Tenant CR 声明字段漂移 → reconciler 按 PG 快照覆盖回 CR |
 | Queue Informer | Volcano `Queue` CR | `internal/queue/` | 回写 `queues.used`（来自 `status.allocated`）；推进 `Creating→Active`、`Deleting→Deleted` | PG `status='Deleting'` → 推 `Deleted`；其他（外部误删）→ reconciler 按 PG 快照补偿重建 | `spec.capability` / `spec.deserved` / `spec.guarantee` 漂移 → reconciler 按 PG 快照覆盖回 CR |
@@ -340,7 +340,7 @@ queues(
   name                text,                      -- "default" / "training" / ...
   quota               jsonb,                     -- 三维配额，见下
   status              text,                      -- Creating / Active / Deleting / Deleted
-  used                jsonb,                     -- Informer 从 Volcano Queue status 缓存，只读不记账
+  used                jsonb,                     -- Informer 从 Volcano Queue status.allocated 缓存，只读不记账；反映所有走 Volcano 调度（schedulerName=volcano + PodGroup 关联）的 workload 用量：MLJob 的 (volcano, *) / (kubeflow-trainer, *) 路径自然入账（(native, job) 默认无 Volcano 依赖，不入账）；MLService 的 native 路径由 mlservice-operator 创建轻量 PodGroup（minMember=replicas，不要求 gang）入账（详见 operators/mlservice-operator.md §3.1）；(kserve, *) MLService 当前为已知缺口（见 mlservice §11 follow-up）
   created_at          timestamptz,
   updated_at          timestamptz,
   deleted_at          timestamptz,
@@ -430,7 +430,7 @@ jobs(
 )
 ```
 
-- `spec` 是提交时 MLJob.spec 的完整快照，包含 framework / image / command / replicas 等业务字段，不可变；Informer 回流只写 `status` 相关列
+- `spec` 是提交时 MLJob.spec 的完整快照，包含 `roles[]` / `backend.{name,engine,config}` / `scheduling` / `runPolicy` 等业务字段（结构详见 [operators/mljob-operator.md §3.2](operators/mljob-operator.md)），不可变；Informer 回流只写 `status` 相关列
 - `requested_resources` 冗余存提交时的资源申请，解耦后续 ResourceUnit 修改对已提交任务记账的影响
 - `name` 是 Compute 与 K8s 的命名锚点（对应 MLJob CR `metadata.name`），UUID `id` 通过 label `axisml.io/job-id=<id>` 同步打到 CR 上，作为孤儿检测与跨重命名追踪的稳定锚点
 
@@ -466,7 +466,7 @@ Compute 只负责把以下业务语义装进 MLJob CR；具体 `spec` 字段结�
 
 | 场景 | PG 侧 | CR 侧 |
 | --- | --- | --- |
-| 运行态（`Pending` / `Running`） cancel | `status='Canceling'`，写 `message='user cancelled'` | reconciler 优先 `patch MLJob.spec.suspend=true`（若 operator 支持）否则 `Delete()` CR；Informer DELETE → `Cancelled` |
+| 运行态（`Pending` / `Running`） cancel | `status='Canceling'`，写 `message='user cancelled'` | reconciler `patch MLJob.spec.runPolicy.suspend=true` → operator Handler 完成 suspend/Cleanup 后写 `status.conditions[type=Suspended,status=True,reason=CancelRequested]` → Informer 推 `Cancelled` 并入队 `Delete()` CR 做资源回收（DELETE 事件幂等忽略）|
 | `Creating` 状态 cancel | API 拒绝（要求改用 DELETE） | — |
 | 已终态（`Succeeded`/`Failed`/`Cancelled`/`Deleted` 或已在 `Canceling`/`Deleting`）cancel | API 返回无效操作 | — |
 
@@ -502,9 +502,9 @@ services(
   display_name         text,
   description          text,                     -- 用户备注
   owner_user           text,
-  spec                 jsonb,                    -- 当前 MLService.spec 快照（扩缩容时同步更新 spec.replicas）
+  spec                 jsonb,                    -- 当前 MLService.spec 快照（扩缩容时同步更新 spec.roles[0].replicas，单 role 约定下即 services.replicas；多 role 独立扩缩见 operators/mlservice-operator.md §11）
   requested_resources  jsonb,                    -- 单副本资源申请快照（配额记账用）
-  replicas             int,                      -- 冗余出来供配额记账（= spec.replicas）
+  replicas             int,                      -- 冗余出来供配额记账（单 role 约定下 = spec.roles[0].replicas）
   ready_replicas       int,                      -- Informer 回流
   endpoint             text,                     -- 对外服务地址（Informer 回流）
   status               text,                     -- Creating / Pending / Ready / Degraded / Failed / Deleting / Deleted（Creating/Deleting 由 API 写入；其余由 Informer 推进）
@@ -516,7 +516,7 @@ services(
 )
 ```
 
-- `spec` 是当前 MLService.spec 的快照；与 jobs 不同，`spec` 非完全只读——扩缩容 API 更新 `replicas` 同时回写 `spec.replicas`，其他字段依然不可变
+- `spec` 是当前 MLService.spec 的快照；与 jobs 不同，`spec` 非完全只读——扩缩容 API 更新 `replicas` 同时回写 `spec.roles[0].replicas`（单 role 约定），其他字段依然不可变
 - 总配额占用 = `replicas × requested_resources`，由 Volcano 在实际调度时核算；Compute 在 API 层做 best-effort 预检
 
 **状态机**
@@ -529,7 +529,7 @@ Creating ──(Informer ADD)──▶ Pending ──(ready=desired, desired>0)�
 任一非 Deleting/Deleted 状态 ──(DELETE req)──▶ Deleting ──(CR 确认清理 + deleted_at)──▶ Deleted
 ```
 
-**status 映射规则**（由 Informer 从 MLService CR `status.readyReplicas` / `spec.replicas` 推导）：
+**status 映射规则**（由 Informer 从 MLService CR `status.readyReplicas` / `spec.roles[0].replicas` 推导，单 role 约定下 `services.replicas` 即 `spec.roles[0].replicas`，多 role 独立扩缩见 [operators/mlservice-operator.md §11](operators/mlservice-operator.md)）：
 
 | 条件 | status |
 | --- | --- |
@@ -542,14 +542,14 @@ Creating ──(Informer ADD)──▶ Pending ──(ready=desired, desired>0)�
 
 **MLService 业务语义**
 
-与 Job 类似（image / replicas / resourceUnit / placement / queue），额外增加**模型引用**（指向 Catalog 的 model version）。具体契约由 [operators/mlservice-operator.md](operators/mlservice-operator.md) 定义。
+与 Job 类似（`roles[]` / `backend.{name,engine,config}` / `scheduling` / `runPolicy`），额外增加**模型引用**（`spec.modelRef`，指向 Catalog 的 model version）与**对外路由**（`spec.route`，决定 `status.endpoint` 是内部 Service DNS 还是外部 URL）。具体契约由 [operators/mlservice-operator.md](operators/mlservice-operator.md) 定义。
 
 **`spec.backend` 默认值注入**：用户未指定 `spec.backend` 时，Compute 写 CR 时显式补 `{name: "native", engine: "deployment"}`；`backend.config` 默认空对象 `{}`。`backend.{name, engine}` 在 PG `services.spec` jsonb 中持久化，创建后不可变。
 
 **与 Job 的差异**
 
 - **常驻**：配额占用不随运行状态释放，仅进入 `Deleted` 时释放
-- **扩缩容同步 patch CR**：`POST .../services/{id}:scale` 在 API 层同步更新 `services.replicas` + `services.spec.replicas`，并直接 `patch` MLService CR `spec.replicas`；失败由 API 返回错误。**不走 Reconciler 对账**（不引入 `desired_generation` 字段，保持 Outbox 模型精简）；配额按 `replicas × requested_resources` 线性记账
+- **扩缩容同步 patch CR**：`POST .../services/{id}:scale` 在 API 层同步更新 `services.replicas` + `services.spec.roles[0].replicas`，并直接 `patch` MLService CR path `spec/roles/0/replicas`；失败由 API 返回错误。**不走 Reconciler 对账**（不引入 `desired_generation` 字段，保持 Outbox 模型精简）；配额按 `replicas × requested_resources` 线性记账
 - **无 Cancel 语义**：常驻服务"下线"即"删除"，直接走 DELETE → `Deleting` → `Deleted`
 - **`Failed` 非终态**：与 Job 不同，operator 可能自愈；只有 `Deleted` 为终态
 
@@ -608,12 +608,15 @@ Compute 对 `GET /jobs/{job}/logs` 只做路径级鉴权与 Pod 定位，实际�
 
 | 参数 | 必填 | 语义 |
 | --- | --- | --- |
-| `replica` | 是 | 副本编号（0-based）；越界返 404。Job 的所有 Pod 通过 MLJob controller 打的 `axisml.io/replica-index` label 定位 |
+| `replica` | 否 | 副本编号（0-based），通过 `axisml.io/replica-index` label 定位 Pod；仅副本身份天然稳定的 backend 支持（Indexed Job、StatefulSet 派生 Pod）。NonIndexed Job、裸 Pod 拓扑（如 `(volcano, podgroup)`）下该 label 不存在，应改用 `pod` 参数 |
+| `pod` | 否 | 直接给出 Pod 名（绕过 label 索引）。可通过 `/jobs/{job}/replicas` 端点列出 Pod 名后选用。`replica` 与 `pod` 至少二选一；同时给出以 `pod` 为准 |
 | `container` | 否 | 多容器 Pod 时指定容器名；默认取 mljob-operator 约定的主容器 |
 | `follow` | 否 | `false`（默认）返回完整历史；`true` 进入流式模式 |
 | `tail_lines` | 否 | 只返回末尾 N 行；与 `follow` 可叠加 |
 | `since_time` | 否 | RFC3339 起始时间 |
 | `previous` | 否 | `true` 时查上一次容器实例的日志（用于 crash 后排查退出原因） |
+
+**寻址路径选择**：副本身份稳定的场景（Indexed Job、StatefulSet）建议直接用 `replica`；其他场景先调 `/jobs/{job}/replicas` 列出 pod 名再用 `pod` 参数定位。两者均缺失时返 400。
 
 **流式（`follow=true`）**：Compute 响应 `Content-Type: text/event-stream`，把 kube-apiserver 返回的 chunked log 逐行封装为 SSE `data:` 事件向下游推送；客户端断开时主动关闭 upstream watch。非流式模式下直接透传 `text/plain`。
 
@@ -698,7 +701,7 @@ Helm `post-install` Job 初始化（所有操作幂等，升级 Helm 版本不�
 | 队列模型 | 扁平结构（v1 无父子层级）；每个 `(tenant, pool)` 默认 `default`；1:1 映射到 Volcano Queue | 租户已是强隔离边界，业务线拆分用同级多队列即可；分层带来的 schema / 链式配额 / 孤儿补偿复杂度放到后续按需引入 |
 | 配额记账 | PG 不记账，Volcano 为实际用量权威；Compute 仅做 best-effort 预检 | 避免 PG / K8s 双源冲突；Volcano 调度准入天然具备强约束 |
 | 队列配额建模 | `quota` 采用 Volcano capacity plugin 的三维模型：`capability`（硬上限）/ `deserved`（公平基线）/ `guarantee`（保留份额）；API 必填 `capability`，另两项默认 0 | 单填 `capability` 时退化为"平等抢占直到封顶"的 v1 行为；多队列场景下 `deserved` 提供公平基线与抢占回收语义、`guarantee` 兜底关键队列；与 Volcano 原生调度语义直接对齐，避免自研配额仲裁 |
-| MLJob spec 粒度 | 声明式高阶抽象（framework / replicas / resourceUnit / queue 等） | 隔离 K8s 细节变更影响；operator 可独立演进 Pod 模板 |
+| MLJob spec 粒度 | 声明式高阶抽象（`backend.{name,engine,config}` / `roles[]` / `scheduling` / `runPolicy` 等） | 隔离 K8s 细节变更影响；operator 可独立演进 Pod 模板与 backend Handler |
 | 状态同步 | Informer + PG 落库 | K8s 原生；支持大列表与按状态筛选；与 controller-runtime 工具链吻合 |
 | 认证鉴权 | Platform 统一认证与鉴权；Compute 仅通过 `X-Axisml-User` 记录调用方做审计 / ownership | 避免职责重复；外部入口收敛到 Platform；租户归属通过 URL 路径自然表达 |
 | ResourceUnit 节点匹配 | 通用 `node_selector` 而非 `gpu` 字段 | 覆盖 GPU / TPU / 自研加速卡 / CPU instance type 等任意硬件维度，对未来硬件可扩展 |

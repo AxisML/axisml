@@ -119,11 +119,11 @@ status:
   message: string               # 错误或状态附加信息（Compute 透传到 jobs.message）
   startedAt: timestamp          # 首次进入 Running 的时间（Compute 写入 jobs.started_at）
   finishedAt: timestamp         # 进入终态的时间（Compute 写入 jobs.finished_at）
-  conditions:                   # K8s 标准 conditions（UI 可观测，Compute 不消费）
+  conditions:                   # K8s 标准 conditions（Suspended 会被 Compute 消费为 cancel 推进信号；其余仅 UI 观测）
     - type: Initialized | Scheduled | Suspended | Failed
       status: True | False | Unknown
       lastTransitionTime: timestamp
-      reason: string
+      reason: string             # Suspended 时约定 reason=CancelRequested
       message: string
   roles:                        # 各 role 副本聚合（UI 可观测，Compute 不消费）
     - name: string
@@ -143,9 +143,9 @@ status:
 | `Succeeded` | `Succeeded` | 是 |
 | `Failed` | `Failed` | 是 |
 
-**`Cancelled` 与 `Deleted` 不由 operator 产出**——这两者是 Compute 侧 Informer 观察到 CR DELETE 事件后基于 PG 当前 `status` 推导（详见 [compute.md §5.3 / §5.4](../compute.md)）。operator 收到 cancel 信号（`spec.runPolicy.suspend=true`）后只负责"暂停或清理底层资源"，无需自行写 `Cancelled`。
+**Cancel 推进信号**——`Cancelled` 与 `Deleted` 仍不由 operator 直接产出，但 cancel 路径有明确的链上信号：所有 Handler 在收到 `spec.runPolicy.suspend=true` 并完成"暂停或清理底层资源"后，**必须**写 `status.conditions[type=Suspended,status=True,reason=CancelRequested]`，且 `status.phase` 维持在 `Pending`。Compute Informer 在 PG `status='Canceling'` 时把这个 condition 当作推进信号 → 写 `Cancelled` → 入队 `Delete()` 做 CR 资源回收（DELETE 事件幂等到达，不再变更 PG 状态；详见 [compute.md §5.2 / §5.3 / §6.3.1](../compute.md)）。`Deleted` 仍由 Compute Informer 在观察到 CR DELETE 事件后基于 PG 当前 `status` 推导。
 
-`conditions` 与 `roles[]` 是给 UI 与运维用的 observability 字段，Compute 不消费。这样既保留了 K8s 标准实践（`metav1.Condition`、per-role 副本聚合）又不污染 Compute 状态机的简洁性。
+`Suspended` 之外的 `conditions` 与 `roles[]` 是给 UI 与运维用的 observability 字段，Compute 不消费。这样既保留了 K8s 标准实践（`metav1.Condition`、per-role 副本聚合）又不污染 Compute 状态机的简洁性。
 
 跨 Handler 的 phase 映射规则原则：所有 Handler 在 `MapStatus` 中负责把后端原生状态映射到这四态，映射表写入对应 Handler 章节（§8）。
 
@@ -190,7 +190,7 @@ mljob-operator 由两层组成：
 | --- | --- | --- |
 | MLJob ADD（首次创建） | 路由到 Handler；调用 `Validate(spec)`，校验失败写 `status.phase=Failed` | `Reconcile(ctx, mlJob)` 创建底层资源，设置 `ownerReference: MLJob` |
 | MLJob UPDATE（spec 变更） | 校验 `backend.{name, engine}` 不变（违反则写 `status.message` 拒绝）；其余 spec 变化路由给 Handler | `Reconcile` 幂等更新；只有语义字段变化才触发底层资源变更 |
-| MLJob `spec.runPolicy.suspend=true` | 路由 | 支持原生 suspend → patch 底层资源；不支持 → 调用 `Cleanup()` |
+| MLJob `spec.runPolicy.suspend=true` | 路由 | 执行原生 suspend（如 `(native, job)` patch `Job.spec.suspend=true`、`(volcano, podgroup)` patch `minMember=0` 后驱逐 Pod）或 `Cleanup()` 删除底层资源；完成后写 `status.conditions[type=Suspended,status=True,reason=CancelRequested]`，`phase` 维持 `Pending` |
 | MLJob DELETE | 不阻断 | 一般依赖 ownerReference 级联清理；Handler 仅清理跨 namespace / 外部副作用（外部存储句柄、跨集群资源等） |
 | 底层资源事件（Pod / PodGroup / 第三方 CR） | 通过 ownerReference 反查到 MLJob 后路由 | `MapStatus` 纯函数计算新 phase；dispatcher 把结果合并写入 `status` |
 
@@ -199,16 +199,17 @@ mljob-operator 由两层组成：
 - Handler **不引入 finalizer**；ownerReference 级联清理是默认路径
 - `MapStatus` 必须是纯函数（不发起 K8s 调用），便于未来在 admission webhook 中复用
 - Handler 不能在 `Reconcile` 中直接写 `status`；所有 status 变更必须经过 `MapStatus`，由 dispatcher 统一合并写入，保证回流路径单一
+- dispatcher 通过 `status` subresource 做 strategic merge patch；`conditions[]` 按 K8s 标准 merge-by-`type` 语义合并，不会全量覆盖
 
 **Pod label 约定**（跨 Handler 通用）：
 
-| Label | 取值 | 用途 |
-| --- | --- | --- |
-| `axisml.io/job-id` | `jobs.id`（UUID） | 反查 MLJob，与 CR 上同名 label 一致 |
-| `axisml.io/role` | role 名（如 `worker` / `master` / `launcher`） | 区分多角色拓扑下的 Pod |
-| `axisml.io/replica-index` | role 内 0-based 序号 | **Compute §7.4 任务日志查询的定位依据** |
+| Label | 必填 | 取值 | 用途 |
+| --- | --- | --- | --- |
+| `axisml.io/job-id` | 是 | `jobs.id`（UUID） | 反查 MLJob，与 CR 上同名 label 一致 |
+| `axisml.io/role` | 是 | role 名（如 `worker` / `master` / `launcher`） | 区分多角色拓扑下的 Pod |
+| `axisml.io/replica-index` | 否 | role 内 0-based 序号 | 副本身份天然稳定时建议透传：StatefulSet 的 `apps.kubernetes.io/pod-index`、Indexed Job 的 `batch.kubernetes.io/job-completion-index`；NonIndexed Job、裸 Pod 拓扑下省略 |
 
-凡是管理可寻址副本的 Handler 都必须打这三个 label；不可寻址（例如 KServe 的 autoscaling pod 集合，但那属于 mlservice-operator）才允许省略 `replica-index`。
+`axisml.io/job-id` + `axisml.io/role` 两件套必填，所有 Handler 一律遵守；`axisml.io/replica-index` 只是可观测增强，缺失时 Compute §7.4 日志 API 退化为按 pod 名定位（详见 [compute.md §7.4](../compute.md)）。
 
 ## 7. Handler 接口契约
 
@@ -230,7 +231,7 @@ mljob-operator 由两层组成：
 - `Cleanup` 对已删除资源返回 nil
 - `MapStatus` 是纯函数（不发起 K8s 调用），状态推进只依赖输入参数
 
-**Suspend 声明义务**：每个 Handler 必须在自身章节（§8）显式声明 "原生支持 / 兜底为 Cleanup"。dispatcher 不做静默选择——不支持原生 suspend 时必须显式调用 `Cleanup()`，避免半暂停半运行的中间态。
+**Suspend 声明义务**：每个 Handler 必须在自身章节（§8）显式声明 "原生支持 / 兜底为 Cleanup"。dispatcher 不做静默选择——不支持原生 suspend 时必须显式调用 `Cleanup()`，避免半暂停半运行的中间态。**所有路径完成底层动作后都必须写 `status.conditions[type=Suspended,status=True,reason=CancelRequested]`**（这是 §4 中 cancel 闭环的唯一推进信号；缺失会导致 Compute PG 永远卡在 `Canceling`）；`status.phase` 在 suspend 期间维持 `Pending`。
 
 **Status 写入约束**：Handler 只能通过 `MapStatus` 的返回值影响 `status`；不能在 `Reconcile` 中直接 `status` 写盘。dispatcher 统一合并 `phase` / `message` / `startedAt` / `finishedAt` / `conditions` / `roles[]` 写入 CR，保证 [§2 写路径契约](#2-与-compute-的写路径契约) 中的 "status 单向权威"。
 
@@ -254,7 +255,7 @@ mljob-operator 由两层组成：
 
 - `axisml.io/job-id=<jobs.id>`
 - `axisml.io/role=worker`
-- `axisml.io/replica-index=<0-based>`（Compute §7.4 日志定位依据；Indexed 模式下直接取 K8s 注入的 `batch.kubernetes.io/job-completion-index`）
+- `axisml.io/replica-index=<0-based>`（**仅在 `backend.config.completionMode=Indexed` 时透传** K8s 注入的 `batch.kubernetes.io/job-completion-index`；默认 NonIndexed 模式下省略，日志 API 改用 pod 名定位）
 
 **`backend.config` 关键字段**：
 
@@ -290,7 +291,7 @@ config:
 
 `startedAt` 取 `Job.status.startTime`；`finishedAt` 取 `Job.status.completionTime`（终态时由 Job controller 写入）。`status.roles[worker]` 聚合 Job 上报的 active / succeeded / failed 副本数。
 
-**Suspend**：原生支持。`spec.runPolicy.suspend=true` → patch `Job.spec.suspend=true`（K8s 原生字段，自动驱逐运行中的 Pod 并停止派生新 Pod）；`suspend=false` → 反向 patch。
+**Suspend**：原生支持。`spec.runPolicy.suspend=true` → patch `Job.spec.suspend=true`（K8s 原生字段，自动驱逐运行中的 Pod 并停止派生新 Pod），随后写 `status.conditions[type=Suspended,status=True,reason=CancelRequested]`，`phase` 维持 `Pending`；`suspend=false` → 反向 patch（Compute 模型下不会被触发，Cancelled 是终态、无 resume）。
 
 **RBAC**：`jobs.batch` / `pods` / `events` 的 `create / get / list / watch / update / patch / delete`。
 
@@ -312,7 +313,8 @@ config:
 
 - `axisml.io/job-id=<jobs.id>`
 - `axisml.io/role=worker`
-- `axisml.io/replica-index=<0-based>`（Compute §7.4 日志定位依据）
+
+裸 Pod 拓扑没有稳定 index，省略 `axisml.io/replica-index`；日志 API 通过 pod 名直接定位（详见 [compute.md §7.4](../compute.md)）。
 
 **`backend.config`**：本 Handler 不消费；非空时 `Validate` 写 warning，不报错（为 future 字段预留）。
 
@@ -344,9 +346,9 @@ config:
 
 1. patch `PodGroup.spec.minMember=0`
 2. 删除现存 Pod（依赖 `restartPolicy=OnFailure` 不会自动重建）
-3. 写 `status.conditions` 添加 `type=Suspended, status=True`
+3. 写 `status.conditions[type=Suspended,status=True,reason=CancelRequested]`，`phase` 维持 `Pending`
 
-`suspend=false` 时反向恢复 minMember 与 Pod。
+**顺序约束**：必须先 patch minMember=0、再删 Pod，否则 PodGroup 会立刻把刚被删除的 Pod 重建。`suspend=false` 时反向恢复 minMember 与 Pod（Compute 模型下不会被触发，Cancelled 是终态、无 resume）。
 
 **RBAC**：`pods` / `podgroups.scheduling.volcano.sh` / `events` 的 `create / get / list / watch / update / patch / delete`。
 
@@ -403,7 +405,7 @@ config:
 
 `status.roles[*]` 聚合各 task 的 `succeeded / failed / running / pending` 副本计数（来自 `VolcanoJob.status.taskStatusCount`）。
 
-**Suspend**：兜底为 `Cleanup()`。VolcanoJob 无内置 suspend 字段；`spec.runPolicy.suspend=true` 时 Handler 显式删除 VolcanoJob，依赖 ownerReference 级联清理 Pod，写 `status.conditions[type=Suspended, status=True]`。`suspend=false` 时重建 VolcanoJob（与 §8.2 `(volcano, podgroup)` 的"软停"语义不同，文档使用方需知晓）。
+**Suspend**：兜底为 `Cleanup()`。VolcanoJob 无内置 suspend 字段；`spec.runPolicy.suspend=true` 时 Handler 显式删除 VolcanoJob，依赖 ownerReference 级联清理 Pod，随后写 `status.conditions[type=Suspended,status=True,reason=CancelRequested]`，`phase` 维持 `Pending`。**用户可见行为**：suspend 期间 Pod 全部消失（Cleanup 路径），与 §8.2 软停的 "PodGroup 已 minMember=0、Pod 已驱逐但 PodGroup 仍在排队" 不同。`suspend=false` 重建 VolcanoJob 这条分支在 Compute 模型下不会被触发（Cancelled 是终态、无 resume），描述仅供未来扩展参考。
 
 **RBAC**：`jobs.batch.volcano.sh` / `pods` / `events` 的 `create / get / list / watch / update / patch / delete`；`podgroups.scheduling.volcano.sh` 仅 `get / list / watch`（PodGroup 由 VolcanoJob 自动派生，本 Handler 不直接写）。
 
@@ -445,17 +447,17 @@ config:
 | `Succeeded` | `Succeeded` |
 | `Failed` | `Failed` |
 
-**Suspend**：原生支持（PyTorchJob `runPolicy.suspend`）。
+**Suspend**：原生支持（PyTorchJob `runPolicy.suspend`）。Handler patch 底层后必须额外写 `status.conditions[type=Suspended,status=True,reason=CancelRequested]`、`phase` 维持 `Pending`，作为 §4 cancel 闭环的推进信号。
 
 > 完整字段映射、容错策略、与 elastic training 的交互细节，由独立设计文档落地（见 §11）。
 
 ### 8.5 `(kubeflow-trainer, tensorflow)`
 
-同 §8.4 思路，将 MLJob 翻译为 Kubeflow Trainer 的 `TFJob`。Role 集合约定为 `chief` / `worker` / `ps` / `evaluator`（任一可省略，replicas=0 表示禁用）。Status 映射沿用 TFJob 的 condition 集，与 §8.4 PyTorchJob 同构。Suspend 原生支持。
+同 §8.4 思路，将 MLJob 翻译为 Kubeflow Trainer 的 `TFJob`。Role 集合约定为 `chief` / `worker` / `ps` / `evaluator`（任一可省略，replicas=0 表示禁用）。Status 映射沿用 TFJob 的 condition 集，与 §8.4 PyTorchJob 同构。Suspend 原生支持，Handler 同样在 patch 底层后写 `status.conditions[type=Suspended,status=True,reason=CancelRequested]`。
 
 ### 8.6 `(kubeflow-trainer, mpi)`
 
-将 MLJob 翻译为 Kubeflow [`MPIJob`](https://www.kubeflow.org/docs/components/training/mpi/) CR。Role 集合约定为 `launcher`（replicas=1）+ `worker`（replicas≥1）。`backend.config` 携带 MPI 实现选择（OpenMPI / Intel MPI）与 launcher / worker 通讯参数。Status 映射对齐 MPIJob `status.conditions`。Suspend 原生支持。
+将 MLJob 翻译为 Kubeflow [`MPIJob`](https://www.kubeflow.org/docs/components/training/mpi/) CR。Role 集合约定为 `launcher`（replicas=1）+ `worker`（replicas≥1）。`backend.config` 携带 MPI 实现选择（OpenMPI / Intel MPI）与 launcher / worker 通讯参数。Status 映射对齐 MPIJob `status.conditions`。Suspend 原生支持，Handler 同样在 patch 底层后写 `status.conditions[type=Suspended,status=True,reason=CancelRequested]`。
 
 ### 8.7 `(custom, *)`
 
@@ -496,7 +498,8 @@ operator binary 启动时遍历 registry，把每个启用 Handler 的 `Required
 - Handler 不向 Compute PG 写入任何数据；状态全部经由 MLJob `status` + Informer 回流
 - **Handler 不引入 finalizer**；级联清理依赖 ownerReference + `Cleanup()`
 - **`status.phase` 取值集合冻结为四态**（`Pending | Running | Succeeded | Failed`）；新增 phase 必须经 CRD schema 与 Compute 双侧同步演进
-- 管理可寻址副本的 Handler 必须打 `axisml.io/job-id` / `axisml.io/role` / `axisml.io/replica-index` 三件套 label
+- 所有 Handler 必须打 `axisml.io/job-id` + `axisml.io/role` 两件套 label；副本身份天然稳定的场景（Indexed Job、StatefulSet 派生 Pod）建议叠加 `axisml.io/replica-index`，其余场景省略
+- 所有 Handler 在 cancel 路径完成 suspend / Cleanup 后必须写 `status.conditions[type=Suspended,status=True,reason=CancelRequested]`，`phase` 维持 `Pending`；这是 Compute 推进 `Canceling → Cancelled` 的唯一信号
 
 ## 11. 后续设计文档（不在本文档范围）
 
