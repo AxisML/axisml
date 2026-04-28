@@ -47,6 +47,8 @@ Compute 负责设置以下 metadata（与 [compute.md §6.2.1](../compute.md) �
 
 **为何 per-tenant 资源命名统一加 `axisml-tenant-<tenant-name>-` 前缀**：共享 Namespace 场景下，多个 Tenant 在同一 Namespace 内创建同名 ImagePullSecret / ServiceAccount 会 collide。命名前缀一致化避免 collide，也让 selector 检索（"找出该 Namespace 下属于 tenant X 的所有资源"）有稳定锚点。
 
+**长度上限**：`metadata.name` 已被 Compute API 限制为 ≤40 字符（[compute.md §6](../compute.md)）；`axisml-tenant-` 前缀 14 字符 + tenant-name 40 + 分隔符 1 = 55 字符。`spec.initResources.*[].name` 与 `serviceAccounts[].name` 的理论上限因此为 `253 - 55 = 198` 字符（DNS-1123 subdomain 总长 253）。实际命名场景远低于此，operator 不引入额外校验。
+
 **为何初始化资源都从 `sourceXxxRef` 复制而非内联数据**：避免敏感数据（dockerconfigjson、对象存储凭证）以明文形式写入 Tenant CR。源 Secret / ConfigMap 由集群管理员预先放在受控 Namespace（如 `axisml-system`），operator 用 reader 权限读出再写入租户 Namespace。详见 §6.3–§6.5。
 
 **为何 `runPolicy` 字段缺席**：Tenant 不是 workload——没有 `activeDeadlineSeconds` / `progressDeadlineSeconds` / `backoffLimit` 等概念。生命周期控制只有 `suspended` 一个开关（compute.md §6.2.1 状态机里 `Active ⇄ Suspended` 的载体）。
@@ -72,6 +74,9 @@ spec:
     annotations: {}              # 可选: 同上
 
   # ── 资源配额（per-tenant，落到 ResourceQuota CR）─────────────────
+  # 可选: 整段缺省 或 hard 为 {} → operator 不创建 ResourceQuota，
+  #      租户在该 Namespace 内不受 per-tenant 配额约束
+  #      （仍受 K8s 集群级 / Namespace 级其他 Quota 约束；详见 §6.2）
   resourceQuota:
     hard: {}                     # K8s ResourceQuota.spec.hard 直传
     scopes: []                   # 可选: ResourceQuota.spec.scopes
@@ -118,13 +123,13 @@ spec:
 | --- | --- | --- |
 | `metadata.name` / `labels[axisml.io/tenant-id]` | Compute | 否 |
 | `spec.displayName` / `annotations` | Compute（透传用户输入） | 是 |
-| `spec.namespace.name` | Compute | **否**；controller 拒绝并写 `status.message`，admission webhook 后续接管 |
+| `spec.namespace.name` | Compute | **否**；Compute API 在写路径必须拒绝该字段变更（CRD 用 `x-kubernetes-preserve-unknown-fields`，OpenAPI schema 不强制不可变；controller 仅做行为兜底——拒绝动作并写 `status.message`，但 spec 已被持久化），admission webhook 为最终兜底 |
 | `spec.namespace.labels` / `annotations` | Compute | 是；只在 Namespace **首次创建** 时落地，已存在的 Namespace 不被覆盖（避免污染共享 Namespace） |
-| `spec.resourceQuota.*` | Compute | 是；reconcile 同步覆盖到 ResourceQuota |
+| `spec.resourceQuota.*` | Compute | 是；reconcile 同步覆盖到 ResourceQuota；整段省略或 `hard` 为 `{}` 时 operator 不创建 ResourceQuota（§6.2） |
 | `spec.initResources.*` | Compute | 是；增删 → reconcile 创建 / 删除对应资源（per-tenant 命名前缀保证不会误删其他租户资源） |
 | `spec.suspended` | API（`:suspend` / `:unsuspend` 触发） | 是 |
 
-**默认值注入**：`spec.suspended` 默认 `false`；`spec.initResources` 各列表默认 `[]`；`spec.namespace.labels` / `annotations` 默认 `{}`。
+**默认值注入**：`spec.suspended` 默认 `false`；`spec.initResources` 各列表默认 `[]`；`spec.namespace.labels` / `annotations` 默认 `{}`；`spec.resourceQuota` 默认 `nil`（视为不限额）；`spec.initResources.secrets[].type` 默认 `Opaque`。
 
 **CRD schema 现状**：当前 CRD 的 `spec` / `status` 用 `x-kubernetes-preserve-unknown-fields: true`，重新设计字段无需 CRD bump；待行为稳定后再启用 OpenAPI schema 严格校验（§10）。
 
@@ -181,6 +186,8 @@ Tenant CR ADD 事件会把 Compute 侧 `Creating` 推进为 `Active`；若 opera
 | 任一关键资源（Namespace / ResourceQuota）创建失败且非短暂瞬态 | `Failed` |
 | 否则（瞬态创建过程中） | 维持上一态，`message` 写当前进展 |
 
+**`resourceQuotaReady` 缺省语义**：当 `spec.resourceQuota` 整段省略或 `hard` 为 `{}` 时，operator 不创建 ResourceQuota，`status.resourceQuotaReady` 直接置 `true`（"trivially ready"），不参与 `Failed` 判断。
+
 `conditions` 与 `initResources[]` 是给 UI 与运维用的 observability 字段，Compute 不消费。
 
 ## 5. Reconcile 生命周期
@@ -194,6 +201,7 @@ Tenant CR ADD 事件会把 Compute 侧 `Creating` 推进为 `Active`；若 opera
 | Tenant UPDATE（`spec.suspended` 切换） | true → 写 `status.phase=Suspended`；false → 重新走 phase 推导（§4）。controller 不停机底层资源，只标记 phase；阻断新 Job/Service 提交由 Compute API 在 `tenant.status='Suspended'` 时拦截（compute.md §6.2.1） |
 | Tenant DELETE | 不阻断；不引入 finalizer；K8s GC 通过 ownerReference 级联删除 per-tenant 资源（ResourceQuota / Secret / ConfigMap / SA / Role / RoleBinding）；**Namespace 不删除**（§6.1） |
 | 底层资源事件（ResourceQuota / Secret / ConfigMap / SA 等被外部修改或删除） | 按 ownerReference 反查到 Tenant，重新触发 Reconcile；漂移按各小节策略覆盖回 spec 快照 |
+| 周期 resync（默认 10 min，Helm values 可配） | 触发对所有 Tenant CR 的 reconcile，重读 `sourceSecretRef` / `sourceConfigMapRef` 源数据，按 §6.3–§6.5 漂移策略覆盖 per-tenant 副本——operator 不为源资源建立 watch（避免对 `axisml-system` 等受控 Namespace 引入额外 informer + RBAC），源更新最大延迟 = resync 间隔 |
 
 **关键约束**：
 
@@ -201,6 +209,7 @@ Tenant CR ADD 事件会把 Compute 侧 `Creating` 推进为 `Active`；若 opera
 - `Validate(spec)` 必须是纯函数（不发起 K8s 调用），便于未来在 admission webhook 中复用
 - `Reconcile` 多次调用相同 spec 不重建底层资源；只有语义字段变化才触发更新
 - Status 写入只在 reconcile 末尾通过一次 patch 完成，避免半成品 status
+- 源 Secret / ConfigMap 不建立 watch；其内容变更经"周期 resync"路径感知，最大延迟 = resync 间隔（默认 10 min）。需要更短延迟可由集群管理员 bump Tenant CR 的某个 annotation 显式触发 reconcile
 
 ## 6. 底层资源管理
 
@@ -217,7 +226,7 @@ Tenant CR ADD 事件会把 Compute 侧 `Creating` 推进为 `Active`；若 opera
 | --- | --- |
 | 命名 | `<spec.namespace.name>`（直接采用 spec 字段） |
 | 创建 | Namespace 不存在 → 创建，附加 `spec.namespace.labels` / `annotations` 并叠加 `axisml.io/managed-by=tenant-operator` label |
-| 已存在 | 不修改 metadata（避免污染共享 Namespace 中由其他 Tenant 或管理员设置的 label/annotation）；只把 `axisml.io/managed-by=tenant-operator` label 加上（如缺失） |
+| 已存在 | 不修改 metadata（避免污染共享 Namespace 中由其他 Tenant 或管理员设置的 label/annotation）；只把 `axisml.io/managed-by=tenant-operator` label 加上（如缺失）。**风险**：若 Tenant CR 误指向系统 Namespace（如 `kube-system`），operator 会给该 Namespace 打 label——v1 完全依赖 RBAC 把 namespace 写域限制在业务 Namespace，admission webhook 白名单为后续兜底（§10） |
 | ownerReference | **不设置**——Namespace 不属于任何单一 Tenant |
 | spec 漂移 | 不主动对账（Namespace 自身没有"由 Tenant 决定"的 spec 字段） |
 | 删除 | **永不删除**——即使最后一个引用本 Namespace 的 Tenant 被删除，Namespace 也保留。空 Namespace 由集群管理员手工清理 |
@@ -232,11 +241,12 @@ Tenant CR ADD 事件会把 Compute 侧 `Creating` 推进为 `Active`；若 opera
 | --- | --- |
 | 命名 | `axisml-tenant-<tenant-name>` |
 | 创建 | 在 `<spec.namespace.name>` 内创建 ResourceQuota，`spec.hard` / `scopes` / `scopeSelector` 直接来自 `spec.resourceQuota.*` |
+| **缺省** | `spec.resourceQuota` 整段省略 或 `hard` 为 `{}` → operator 不创建 ResourceQuota；后续 spec 改为非空时再创建；非空 → 改回省略时 reconcile 显式 Delete 已存在的 ResourceQuota |
 | ownerReference | Tenant CR |
 | spec 漂移 | reconcile 检测到 `ResourceQuota.spec` 与 `spec.resourceQuota` 不一致时按 spec 覆盖（PG 快照为权威） |
 | 删除 | 随 Tenant 删除 K8s GC |
 
-**多 Tenant 共享 Namespace 时的语义**：K8s 在同一 Namespace 内对多个 ResourceQuota 取 AND——任一 Quota 超限即拒绝。因此各 Tenant 各持一份 ResourceQuota，会自然得到"每个租户分别受限"的效果，且 Namespace 总量不会超过最严格者之和。对应配额预检由 Compute 在 [compute.md §6.2.4](../compute.md) 队列层面承担；ResourceQuota 仅作为 K8s 准入兜底。
+**多 Tenant 共享 Namespace 时的语义**：K8s 在同一 Namespace 内对多个 ResourceQuota 取 AND——任一 Quota 超限即拒绝。因此各 Tenant 各持一份 ResourceQuota，会自然得到"每个租户分别受限"的效果，且 Namespace 总量不会超过最严格者之和。对应配额预检由 Compute 在 [compute.md §6.2.4](../compute.md) 队列层面承担；ResourceQuota 仅作为 K8s 准入兜底——租户未声明 ResourceQuota 时，Compute 队列层预检是唯一约束源。
 
 `status.resourceQuotaReady` 在 ResourceQuota 创建成功且 `status.used` 已被 K8s 填充时为 `true`。
 
@@ -259,6 +269,7 @@ Tenant CR ADD 事件会把 Compute 侧 `Creating` 推进为 `Active`；若 opera
 | --- | --- |
 | 命名 | `axisml-tenant-<tenant-name>-<spec-name>` |
 | 类型 | 取 `spec.initResources.secrets[].type`，默认 `Opaque`；允许 `dockerconfigjson` / `kubernetes.io/tls` 等任意 K8s Secret type |
+| 类型不一致 | `spec.type` 与源 Secret 的 `type` 不一致时以 spec 为准，operator 在 `status.initResources.secrets[i].message` 写警告并按 `spec.type` 创建本端 Secret；若结构性约束失败（如 `dockerconfigjson` 要求特定 key、`tls` 要求 `tls.crt`/`tls.key`） → 该项 `ready=false`、message 指明缺失字段。Secret type 在 K8s 中不可变，运行时 `spec.type` 改动 → reconcile 删除现有 Secret 重建 |
 | 数据来源 | 同 §6.3，`sourceSecretRef` 复制 |
 | ownerReference / 漂移 / 删除 | 同 §6.3 |
 
@@ -282,6 +293,7 @@ Tenant CR ADD 事件会把 Compute 侧 `Creating` 推进为 `Active`；若 opera
 | --- | --- |
 | ServiceAccount 命名 | `axisml-tenant-<tenant-name>-<spec-name>` |
 | `imagePullSecrets` | 把 `spec.initResources.serviceAccounts[].imagePullSecrets`（按用户可见 name）解析为最终 Secret 名（`axisml-tenant-<tenant>-<name>`）后填到 SA `imagePullSecrets[]` |
+| **引用校验** | `Validate(spec)` 检查 `serviceAccounts[].imagePullSecrets[]` 中每个 name 必须能在 `spec.initResources.imagePullSecrets[].name` 中找到；找不到 → 校验失败 → `status.phase=Failed`，message 指明悬空引用名 |
 | Role 命名 | `axisml-tenant-<tenant-name>-<sa-name>`（仅当声明 `rbac.rules` 且未指定 `rbac.roleRef.kind=ClusterRole`） |
 | RoleBinding 命名 | `axisml-tenant-<tenant-name>-<sa-name>`（声明 `rbac` 即创建） |
 | RoleBinding 绑定关系 | `subjects` 指向本 SA；`roleRef` 指向同名 Role（默认）或 `spec.rbac.roleRef`（指定时） |
@@ -360,8 +372,11 @@ operator binary 启动时聚合以下权限到 ServiceAccount。Helm chart 通�
 
 ## 10. 后续设计文档（不在本文档范围）
 
-- [compute.md §6.2.1](../compute.md) `tenants.namespace UNIQUE` 约束放宽：调整为非唯一索引，并补齐"反查同 Namespace 下所有 Tenant"的查询路径
+- [compute.md §6.2.1](../compute.md) 已放宽 `tenants.namespace` 唯一约束（本文档随 namespace 共享语义同步落地）；尚需补齐"反查同 Namespace 下所有 Tenant"的查询路径以及配套的 UI 展示
 - Admission webhook：`spec.namespace.name` 不可变约束、`spec.initResources.*.sourceXxxRef` 跨 Namespace 读权限白名单、`spec.resourceQuota.hard` 校验
+- **目标 Namespace 白名单**：拒绝 Tenant 指向系统 Namespace（如 `kube-system` / `kube-public` / `axisml-system`），由 admission webhook 表达（与 §6.1 风险脚注呼应）
+- **源资源结构性校验前移**：admission webhook 在 Tenant 创建/更新时校验源 Secret 的 type 与 spec 一致、`dockerconfigjson` / `tls` 等结构性 key 完整，避免运行时才暴露错误
+- **resync 间隔的 Helm values 暴露**：默认 10 min，运维可下调到分钟级换取更短的源资源更新延迟
 - 加密源支持：从 KMS / Vault / Sealed Secrets 拉取凭证作为 `sourceSecretRef` 替代方案
 - `spec.initResources` templating：按 tenant 上下文（id / name / namespace）渲染 ConfigMap 数据（如把 `<tenant-name>` 注入到统一日志采集配置）
 - 跨 Namespace 复制源的 RBAC 收敛：把源 Namespace 限定为单一受控 Namespace（如 `axisml-system`），通过 Role + RoleBinding 而非 ClusterRole 表达

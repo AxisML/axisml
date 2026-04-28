@@ -186,7 +186,7 @@ Compute 默认 `replicas=1`（Standard 与 Lite 均同），但架构按"多副�
 
 **UNIQUE 约束统一语义**：本节所有 schema 里标注的 `UNIQUE` 均实现为 PG partial unique index，`WHERE deleted_at IS NULL`——即软删行不占用唯一键，同名资源在原行被软删后可被再次创建。对应迁移示例：`CREATE UNIQUE INDEX ... ON tbl(col) WHERE deleted_at IS NULL`。
 
-**`name` 字段 DNS-1123 硬校验**：所有承载业务标识并会映射到 K8s 对象名的 `name` 字段（Tenant、ResourcePool、Queue、Job、Service；ResourceUnit 在此之上还叠加 §6.2.3 的语义命名约定），API 层统一校验：字符集 `[a-z0-9-]`，首尾为字母或数字，长度 3–40，不允许连续 `--`。长度上限锁 40 是为了在最坏拼接场景下仍满足 K8s 对象名限制——例如 Tenant namespace `axisml-tenant-<name>`（≤54 字符，DNS-1123 label 上限 63）、Volcano Queue 名 `axisml-<tenant>-<pool>-<queue>`（≤129 字符，DNS-1123 subdomain 上限 253）。需要更长或含大小写/空格的可读名请填 `display_name`。
+**`name` 字段 DNS-1123 硬校验**：所有承载业务标识并会映射到 K8s 对象名的 `name` 字段（Tenant、ResourcePool、Queue、Job、Service；ResourceUnit 在此之上还叠加 §6.2.3 的语义命名约定），API 层统一校验：字符集 `[a-z0-9-]`，首尾为字母或数字，长度 3–40，不允许连续 `--`。长度上限锁 40 是为了在最坏拼接场景下仍满足 K8s 对象名限制——例如 tenant-operator 的 per-tenant 资源前缀 `axisml-tenant-<tenant>-<sub>`（≤55 字符基础前缀 + 子名，DNS-1123 subdomain 上限 253）、Volcano Queue 名 `axisml-<tenant>-<pool>-<queue>`（≤129 字符，DNS-1123 subdomain 上限 253）。Tenant 自身的 namespace 名由 `Tenant.spec.namespace.name` 显式声明，不再约定固定格式（详见 [tenant-operator §3.1 / §6.1](operators/tenant-operator.md)）。需要更长或含大小写/空格的可读名请填 `display_name`。
 
 **迁移**：由 `golang-migrate` embedded 方式在服务启动时执行，依赖 `schema_migrations` 表的 PG advisory lock 避免多副本并发迁移；生产可选通过 Helm `Job` 隔离。
 
@@ -202,9 +202,10 @@ CR 缺失/漂移按 §5.4 配置对象策略补偿。
 tenants(
   id            uuid PK,                  -- 同时作为 Tenant CR label `axisml.io/tenant-id` 的稳定锚点
   name          text UNIQUE,              -- 作为 Tenant CR 的 metadata.name
-  namespace     text UNIQUE,              -- 租户命名空间，约定 `axisml-tenant-<name>`
+  namespace     text,                     -- Tenant CR `spec.namespace.name` 的镜像；非唯一索引（多 Tenant 可共享同一 Namespace，详见 tenant-operator §7）
   display_name  text,
   status        text,                     -- Creating / Active / Suspended / Deleting / Deleted（Creating/Suspended/Deleting 由 API 写入；Active/Deleted 由 Informer 推进）
+  message       text,                     -- 承载 Tenant CR `status.message` 的回流；可空。tenant-operator 写 phase=Failed 时由 Informer 写入，区分"配置出错"与"管理员暂停"
   annotations   jsonb,
   created_at    timestamptz,
   updated_at    timestamptz,
@@ -221,17 +222,17 @@ Creating ──(Informer ADD)──▶ Active ⇄ Suspended ──(DELETE req)�
 ```
 
 - `Suspended` 语义：阻塞该租户下新 Job/Service 提交（API 在 Create 时校验 `tenant.status='Active'`）；已有任务保持运行；`Active ⇄ Suspended` 通过 `:suspend` / `:unsuspend` 动作端点
-- `Creating` 阶段 operator 失败（Namespace 冲突、Quota 校验等）不独立建模为 `Failed`，保留 `Creating` + `message` 暴露原因，reconciler 继续重试
+- **operator 侧 `Tenant.status.phase=Failed` 在 Compute 上等价于 `Suspended` + `message`**：tenant-operator 在校验失败 / 关键资源创建失败时写 `status.phase=Failed`（[tenant-operator §4](operators/tenant-operator.md)），Informer 把 `Failed` 收敛为 `tenants.status='Suspended'` 并把 `tenant.status.message` 写入 `tenants.message`——租户提交链路同样受阻，靠 `message` 区分"配置出错"与"管理员暂停"。Compute 不引入独立 `Failed` 终态
 
 **生命周期**
 
 | 操作 | PG | Kubernetes（reconciler 异步执行） |
 | --- | --- | --- |
-| 创建 | insert `tenants`，`status='Creating'` | 创建 cluster-scoped `Tenant` CR（label `axisml.io/tenant-id=<uuid>`），tenant-operator 建 Namespace `axisml-tenant-<name>` 及默认 ResourceQuota；Informer ADD 推 `Active` |
+| 创建 | insert `tenants`，`status='Creating'` | 创建 cluster-scoped `Tenant` CR（label `axisml.io/tenant-id=<uuid>`），tenant-operator 按 `spec.namespace.name` 落地 Namespace（已存在则共享）、按 `spec.resourceQuota` 创建 per-tenant ResourceQuota（缺省=不限额，详见 [tenant-operator §6.1 / §6.2](operators/tenant-operator.md)）；Informer ADD 推 `Active` |
 | 更新 | update `tenants` | patch Tenant CR |
-| 挂起 | `status='Suspended'` | patch Tenant CR `spec.suspended=true`，tenant-operator 据此调整 quota / 标注 |
+| 挂起 | `status='Suspended'` | patch Tenant CR `spec.suspended=true`，tenant-operator 仅写 `status.phase=Suspended`、不停机底层资源；阻断新 Job/Service 提交由 Compute API 在 `tenant.status='Suspended'` 时拦截 |
 | 恢复 | `status='Active'` | patch Tenant CR `spec.suspended=false` |
-| 删除 | `status='Deleting'`，写 `deleted_at` | reconciler `Delete()` Tenant CR，operator 级联清理 Namespace；Informer 观察 CR 消失 → `Deleted` |
+| 删除 | `status='Deleting'`，写 `deleted_at` | reconciler `Delete()` Tenant CR，K8s GC 通过 ownerReference 级联清理 per-tenant 资源（ResourceQuota / Secret / ConfigMap / SA / Role / RoleBinding）；**Namespace 不删除**（详见 [tenant-operator §6.1](operators/tenant-operator.md)）；Informer 观察 CR 消失 → `Deleted` |
 
 **默认租户**：Helm `post-install` Job 幂等初始化 `default` 租户。
 
