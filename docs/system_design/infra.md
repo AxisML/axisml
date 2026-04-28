@@ -79,6 +79,8 @@ GatewayClass (envoy-gateway)
 - **Gateway**：集群内"监听点"的声明，同一份 Gateway 实例承载全部 AxisML 路由。
 - **HTTPRoute**：对外业务组件的路由规则，与 Service 绑定；Compute 不配置外部 HTTPRoute。
 
+**MLService 派生路由**：mlservice-operator 在租户 namespace 内为开启了 `spec.route.enabled=true` 的 MLService 创建 namespaced `HTTPRoute` / `SecurityPolicy` / `BackendTrafficPolicy`，`parentRefs` 指向同一份 `axisml-gateway`（跨 namespace 引用通过 `ReferenceGrant` 授权，由本 chart 的 `templates/infra/gateway/` 准备）；与 platform / catalog 的静态 HTTPRoute 共存。详见 [operators/mlservice-operator.md](operators/mlservice-operator.md) §3 / §6 / §8.1。
+
 ### 3.2 认证鉴权
 
 通过 Envoy Gateway 的 `SecurityPolicy` CRD 实现，可附加到 Gateway 或 HTTPRoute 级别：
@@ -88,6 +90,7 @@ GatewayClass (envoy-gateway)
 | JWT 验证 | 校验请求头 JWT，支持配置 issuer 与 JWKS 端点 |
 | OIDC 集成 | 支持 OpenID Connect，可对接外部身份提供商 |
 | ExtAuth | 外部授权服务，支持自定义鉴权逻辑 |
+| per-Service 认证 | MLService 通过 `spec.route.auth` 声明本服务的 JWT / API key 策略，由 mlservice-operator 翻译为 namespaced `SecurityPolicy`，`targetRefs` 指向该 MLService 的 HTTPRoute；与 Gateway 级 SecurityPolicy 叠加生效（policy attachment 语义详见 Envoy Gateway 文档） |
 
 具体认证方案（如对接的 IdP）留待 Platform 设计文档确定，Infra 层只保证能力就位。
 

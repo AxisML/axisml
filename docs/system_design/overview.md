@@ -38,7 +38,7 @@ ResourcePool 内预先定义的资源规格模板，例如 `a100-1x-large`（1×
 
 ### 2.5 计算负载（Compute Workload）
 
-平台中所有运行时算力承载体的统称，按生命周期分为两类——**任务（Job）** 是一次性 workload，有明确终止态；**服务（Service）** 是长驻 workload，通过扩缩容调节容量。两者共享租户、队列、资源池、配额体系；底层执行由对应 operator 按 `spec.backend.{name, engine}` 元组路由到不同 backend 实现（`native`、`kubeflow-trainer`、`kserve`、`custom`），见 §5.3。
+平台中所有运行时算力承载体的统称，按生命周期分为两类——**任务（Job）** 是一次性 workload，有明确终止态；**服务（Service）** 是长驻 workload，通过扩缩容调节容量。两者共享租户、队列、资源池、配额体系；底层执行由对应 operator 按 `spec.backend.{name, engine}` 元组路由到不同 backend 实现（MLJob：`native`/`volcano`/`kubeflow-trainer`/`custom`；MLService：`native`/`kserve`/`custom`），见 §5.3。
 
 ### 2.6 任务（Job）
 
@@ -146,14 +146,15 @@ AxisML Compute 通过创建/更新 CRD 资源与 AxisML Operators 协作，Opera
 
 mljob-operator 与 mlservice-operator 内部按 `spec.backend.{name, engine}` 二级元组路由到不同 Handler，把工作下放到对应的执行后端：
 
-| Backend | 适用 CRD | 说明 |
-| --- | --- | --- |
-| `native` | MLJob, MLService | 内置 PodGroup+Pod / Deployment+Service 实现，无外部依赖 |
-| `kubeflow-trainer` | MLJob | 委托给 [Kubeflow Training Operator](https://www.kubeflow.org/docs/components/training/) 的 PyTorchJob / TFJob / MPIJob 等 |
-| `kserve` | MLService | 委托给 [KServe](https://kserve.github.io/website/) 的 InferenceService（Triton / TFServing / TorchServe / HuggingFace 等 predictor） |
-| `custom` | MLJob, MLService | 用户自定义后端，通过 `backend.config` 描述目标 GVK 与字段映射 |
+| Backend | 适用 CRD | engine 示例 | 说明 |
+| --- | --- | --- | --- |
+| `native` | MLJob、MLService | MLJob: `job`；MLService: `deployment` / `statefulset` | 直接使用 K8s 原生工作负载（Job / Deployment / StatefulSet），无 Volcano / 第三方算子依赖 |
+| `volcano` | MLJob | `podgroup` / `volcanojob` | 借助 [Volcano](https://volcano.sh/)：`podgroup` 走裸 Pod + PodGroup，`volcanojob` 走 VolcanoJob CRD |
+| `kubeflow-trainer` | MLJob | `pytorchjob` / `tfjob` / `mpijob` / … | 委托给 [Kubeflow Training Operator](https://www.kubeflow.org/docs/components/training/) 的对应 CR |
+| `kserve` | MLService | `inference` / `llminference` | 委托给 [KServe](https://kserve.github.io/website/) 的对应 CR：`inference` 对应 `InferenceService`，通用 ML 服务（runtime 由 `backend.config.runtime` 选 triton / vllm / tfserving / torchserve / huggingface 等）；`llminference` 对应 `LLMInferenceService`，LLM 原生服务（PD 分离 prefill/decode/router、KV cache 传输等） |
+| `custom` | MLJob、MLService | 任意 | 用户自定义后端，通过 `backend.config` 描述目标 GVK 与字段映射 |
 
-backend 选择是 operator 的内部实现细节——MLJob / MLService 仍是用户和 Compute 看到的稳定抽象。
+默认值：MLJob 为 `(native, job)`、MLService 为 `(native, deployment)`，开箱无需 Volcano / KServe。backend 选择是 operator 的内部实现细节——MLJob / MLService 仍是用户和 Compute 看到的稳定抽象。
 
 > 详细设计见 [AxisML Operators 设计文档](operators/)
 

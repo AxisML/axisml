@@ -36,8 +36,8 @@ Compute 负责设置以下 metadata（与 [compute.md §6.3.1](../compute.md) �
 
 把"角色拓扑"提升为一等公民。Job 的执行域用 `roles[]` 数组承载：
 
-- 单角色 backend（如 `(native, default)`）声明一个 role
-- 多角色 backend（如 PyTorchJob 的 master/worker、TFJob 的 chief/worker/ps/evaluator、MPIJob 的 launcher/worker）声明多个 role
+- 单角色 backend（如 `(native, job)`、`(volcano, podgroup)`）声明一个 role
+- 多角色 backend（如 PyTorchJob 的 master/worker、TFJob 的 chief/worker/ps/evaluator、MPIJob 的 launcher/worker、VolcanoJob 的多 task 拓扑）声明多个 role
 - role 名集合由各 Handler 在 §8 中约定，由 Handler 的 `Validate` 强制
 
 替代方案是把 `image / command / replicas / resources` 全部摆在 spec 顶层（早期方案），对单角色自然，但多角色 backend 不得不把角色切分挤进 `backend.config`，让 generic 字段失去意义——`spec.replicas` 在多角色场景下到底指哪个？`spec.resources` 又对哪个角色生效？引入 `roles[]` 后，单角色场景退化为"只有一个 role 的特例"，避免这种"通用字段对一类后端无意义"的尴尬。
@@ -52,9 +52,13 @@ kind: MLJob
 spec:
   # ── 后端选择（创建后不可变；dispatcher 路由依据）─────────────────────
   backend:
-    name: native              # 必填: native | kubeflow-trainer | custom
+    name: native              # 必填: native | volcano | kubeflow-trainer | custom
                               #      （kserve 仅用于 MLService）
-    engine: default           # 必填: 语义随 backend 而定（见 §8）
+    engine: job               # 必填: 语义随 backend 而定（见 §8）
+                              #   native:           job
+                              #   volcano:          podgroup | volcanojob
+                              #   kubeflow-trainer: pytorchjob | tfjob | mpijob | …
+                              #   custom:           任意名（由 backend.config 描述目标 GVK）
     config: {}                # 可选: 该 (backend, engine) 元组特有的 schemaless 配置
 
   # ── 调度域（由 Compute 从 Queue / ResourcePool / ResourceUnit 合成注入）──
@@ -94,7 +98,7 @@ spec:
 | 字段路径 | 写入方 | 创建后可变？ |
 | --- | --- | --- |
 | `metadata.name` / `namespace` / `labels[axisml.io/*]` | Compute | 否 |
-| `spec.backend.name` / `spec.backend.engine` | Compute（默认 `{native, default}`） | **否**；dispatcher 拒绝并写 `status.message` |
+| `spec.backend.name` / `spec.backend.engine` | Compute（默认 `{native, job}`） | **否**；dispatcher 拒绝并写 `status.message` |
 | `spec.backend.config` | Compute（默认 `{}`） | 视 Handler 语义；Handler 在 §7 `Validate` 中决定 |
 | `spec.scheduling.queue` / `priorityClass` / `nodeSelector` / `tolerations` | Compute（合并 Queue + Pool + Unit） | 否 |
 | `spec.roles[*].template.resources` | Compute（注入 ResourceUnit） | 否 |
@@ -102,7 +106,7 @@ spec:
 | `spec.runPolicy.suspend` | API（`:cancel` 触发） | **是**（cancel 路径专用） |
 | 其他 `spec.runPolicy.*` 与 `spec.roles[*].template.*`（除 resources） | 用户提交 | 否 |
 
-**默认值注入**：用户未指定 `spec.backend` 时，Compute 写 CR 时显式补 `{name: native, engine: default}`；`backend.config` 默认空对象 `{}`。dispatcher 不接受 `backend.name` 或 `backend.engine` 为空。
+**默认值注入**：用户未指定 `spec.backend` 时，Compute 写 CR 时显式补 `{name: native, engine: job}`（K8s 原生 Job，无 Volcano 依赖）；`backend.config` 默认空对象 `{}`。dispatcher 不接受 `backend.name` 或 `backend.engine` 为空。
 
 **CRD schema 现状**：当前 CRD 的 `spec` / `status` 用 `x-kubernetes-preserve-unknown-fields: true`，重新设计字段无需 CRD bump；待行为稳定后再启用 OpenAPI schema 严格校验。
 
@@ -160,9 +164,9 @@ mljob-operator 由两层组成：
                                │
        ┌───────────────────────┼───────────────────────┐
        ▼                       ▼                       ▼
- (native,default)   (kubeflow-trainer,pytorch)   (custom, *)
+   (native,job)       (kubeflow-trainer,pytorch)   (custom, *)
      Handler                Handler                  Handler
- (PodGroup+Pod)         (PyTorchJob CR)        (用户声明的 GVK)
+   (K8s Job)            (PyTorchJob CR)        (用户声明的 GVK)
        │                       │                       │
        └───────────────────────┴───────────────────────┘
                                │
@@ -174,7 +178,7 @@ mljob-operator 由两层组成：
 
 **Watch 拓扑**：Dispatcher 始终 watch MLJob 主队列；每个 Handler 启动时通过 `WatchTargets()` 声明自己关心的底层资源类型（Pod、PodGroup、PyTorchJob、TFJob、MPIJob …），由 dispatcher 统一建立 watch（controller-runtime `Watches()`），事件通过 `ownerReference` 反查回 MLJob 后再交给对应 Handler 的 `MapStatus`。
 
-**注册方式**：编译期注册（每个 handler 包 `init()` → 全局 registry）。MVP 不引入运行时插件加载（plugin / wasm / 外部 grpc）。后续若需要"运行时安装新后端"，再演进为独立 operator binary 路由模式。
+**注册方式**：编译期注册（每个 handler 包 `init()` → 全局 registry）；不引入运行时插件加载（plugin / wasm / 外部 grpc）——若未来需要"运行时安装新后端"，再演进为独立 operator binary 路由模式。
 
 **未注册组合的兜底**：dispatcher 收到一条 `(backend, engine)` 无 handler 的 MLJob → 写 `status.phase=Failed`、`status.message="no handler for backend=X engine=Y"`，不创建任何底层资源。
 
@@ -234,9 +238,67 @@ mljob-operator 由两层组成：
 
 每个 Handler 章节统一按以下小节组织：**底层资源 / `backend.config` / 通用字段映射 / Status 映射 / Suspend / RBAC**。
 
-### 8.1 `(native, default)` —— MVP
+### 8.1 `(native, job)`
 
-MVP 唯一落地的 Handler，保留 PodGroup + Pod 行为。
+底层用 K8s 原生 [`Job`](https://kubernetes.io/docs/concepts/workloads/controllers/job/)，无 Volcano 依赖；适合不需要 gang scheduling、不依赖 Volcano 队列调度的单角色场景。`spec.scheduling.queue` 字段降级为 Compute API 配额标记（仅落到 Pod label `axisml.io/queue` 留痕），不参与 K8s 调度层。
+
+**前置依赖**：无（K8s 自带）。本 Handler 仅需要 `jobs.batch` 的 `create / get / list / watch / update / patch / delete`。
+
+**底层资源**：
+
+- 必填且仅一个 role（`name=worker`）；`Validate` 拒绝多 role 提交（多角色场景应选 `(volcano, volcanojob)` 或 `(kubeflow-trainer, *)`）
+- 每个 MLJob 创建一个 K8s `Job`，Pod 由 Job controller 派生，使用 K8s 默认调度器
+- Job 设置 `ownerReference` 指向 MLJob，保证 MLJob 删除后底层资源级联清理（Pod 进一步由 Job 级联清理）
+
+**Pod label**：
+
+- `axisml.io/job-id=<jobs.id>`
+- `axisml.io/role=worker`
+- `axisml.io/replica-index=<0-based>`（Compute §7.4 日志定位依据；Indexed 模式下直接取 K8s 注入的 `batch.kubernetes.io/job-completion-index`）
+
+**`backend.config` 关键字段**：
+
+```yaml
+config:
+  completionMode: NonIndexed | Indexed   # 默认 NonIndexed
+  podFailurePolicy: {}                    # K8s Job 原生 podFailurePolicy 直通
+```
+
+**通用字段映射**：
+
+| MLJob 字段 | Job 落点 |
+| --- | --- |
+| `roles[worker].template.image` / `imagePullPolicy` / `command` / `args` / `env` / `envFrom` / `workingDir` | Pod 主容器同名字段 |
+| `roles[worker].template.resources.requests` / `limits` | Pod 主容器同名字段 |
+| `roles[worker].replicas` | `Job.spec.parallelism` 与 `Job.spec.completions`（同值；Indexed 模式下 `completions` 表示总分片数） |
+| `roles[worker].restartPolicy` | `Job.spec.template.spec.restartPolicy`（仅允许 `OnFailure` / `Never`） |
+| `spec.scheduling.priorityClass` | Pod `spec.priorityClassName` |
+| `spec.scheduling.nodeSelector` / `tolerations` | Pod 同名字段 |
+| `spec.scheduling.queue` | 不消费（无 Volcano 集成）；仅通过 label `axisml.io/queue` 留痕，Compute 配额仍生效 |
+| `spec.runPolicy.activeDeadlineSeconds` | `Job.spec.activeDeadlineSeconds` |
+| `spec.runPolicy.ttlSecondsAfterFinished` | `Job.spec.ttlSecondsAfterFinished` |
+| `spec.runPolicy.backoffLimit` | `Job.spec.backoffLimit` |
+
+**Status 映射**：
+
+| K8s Job 条件 | MLJob phase |
+| --- | --- |
+| `status.active==0 && status.succeeded==0 && status.failed==0` | `Pending` |
+| `status.active>0` | `Running` |
+| `status.conditions[type=Complete,status=True]` | `Succeeded` |
+| `status.conditions[type=Failed,status=True]` 或超 `activeDeadlineSeconds` | `Failed` |
+
+`startedAt` 取 `Job.status.startTime`；`finishedAt` 取 `Job.status.completionTime`（终态时由 Job controller 写入）。`status.roles[worker]` 聚合 Job 上报的 active / succeeded / failed 副本数。
+
+**Suspend**：原生支持。`spec.runPolicy.suspend=true` → patch `Job.spec.suspend=true`（K8s 原生字段，自动驱逐运行中的 Pod 并停止派生新 Pod）；`suspend=false` → 反向 patch。
+
+**RBAC**：`jobs.batch` / `pods` / `events` 的 `create / get / list / watch / update / patch / delete`。
+
+### 8.2 `(volcano, podgroup)`
+
+将 MLJob 翻译为 Volcano `PodGroup` + 裸 Pod，借助 Volcano 调度器实现 gang scheduling 与队列资源记账；适合需要"全员就位才启动"的单角色任务（如分布式训练的多 Worker 同步启动）。
+
+**前置依赖**：集群已安装 Volcano；本 Handler 需要 `podgroups.scheduling.volcano.sh` 的 `create / get / list / watch / update / patch / delete`。
 
 **底层资源**：
 
@@ -288,7 +350,64 @@ MVP 唯一落地的 Handler，保留 PodGroup + Pod 行为。
 
 **RBAC**：`pods` / `podgroups.scheduling.volcano.sh` / `events` 的 `create / get / list / watch / update / patch / delete`。
 
-### 8.2 `(kubeflow-trainer, pytorch)` —— 占位
+### 8.3 `(volcano, volcanojob)`
+
+将 MLJob 翻译为 Volcano [`Job`](https://volcano.sh/en/docs/vcjob/)（`batch.volcano.sh/v1alpha1` `Job`，本节统一称 VolcanoJob 以与 K8s `Job` 区分）。VolcanoJob 内置多 task 拓扑、原生 gang scheduling、failover plugins、queue 集成，是多角色任务（含 PS / Worker、launcher / worker 等 Volcano 原生形态）的首选 backend。
+
+**前置依赖**：集群已安装 Volcano；本 Handler 需要 `jobs.batch.volcano.sh` 的 `create / get / list / watch / update / patch / delete`。
+
+**Role 集合约定**：`spec.roles[*]` 直接映射到 `VolcanoJob.spec.tasks[*]`，role 名作为 `task.name`；至少 1 个 role，命名由用户给定（`Validate` 仅校验 role 名唯一与合法 DNS 子标签）。
+
+**`backend.config` 关键字段**（schema 待细化设计文档）：
+
+```yaml
+config:
+  minAvailable: int               # 全局 gang 最小副本数；不填则求和 roles[*].replicas
+  plugins:                        # Volcano plugins（svc / ssh / env / mpi 等）
+    svc: []
+    ssh: []
+    env: []
+  policies:                       # 全局生命周期策略，作用于所有 task
+    - event: TaskCompleted | TaskFailed | PodFailed | …
+      action: CompleteJob | RestartJob | TerminateJob | RestartTask
+  taskPolicies:                   # per-role 级别覆盖
+    <roleName>:
+      - event: …
+        action: …
+      minAvailable: int            # 单 role 的 minAvailable（不填取 replicas）
+```
+
+**通用字段映射**：
+
+| MLJob 字段 | VolcanoJob 落点 |
+| --- | --- |
+| `roles[*].name` | `tasks[*].name` |
+| `roles[*].replicas` | `tasks[*].replicas` |
+| `roles[*].restartPolicy` | `tasks[*].template.spec.restartPolicy` |
+| `roles[*].template.*` | `tasks[*].template.spec.containers[0]` 同名字段 |
+| `spec.scheduling.queue` | `VolcanoJob.spec.queue` |
+| `spec.scheduling.priorityClass` | `tasks[*].template.spec.priorityClassName` |
+| `spec.scheduling.nodeSelector` / `tolerations` | `tasks[*].template.spec` 同名字段 |
+| `spec.runPolicy.activeDeadlineSeconds` | 通过 `policies` 的 `Timeout` 事件 + Handler 计时器实现（VolcanoJob 无对等字段） |
+| `spec.runPolicy.ttlSecondsAfterFinished` | `VolcanoJob.spec.ttlSecondsAfterFinished` |
+| `spec.runPolicy.backoffLimit` | 通过 `policies.RestartTask` + Handler 计数实现 |
+
+**Status 映射**：从 `VolcanoJob.status.state.phase` 推导——
+
+| VolcanoJob phase | MLJob phase |
+| --- | --- |
+| `Pending` / `Inqueue` / `Aborted` | `Pending` |
+| `Running` / `Restarting` / `Completing` | `Running` |
+| `Completed` | `Succeeded` |
+| `Failed` / `Terminated` / `Aborting` | `Failed` |
+
+`status.roles[*]` 聚合各 task 的 `succeeded / failed / running / pending` 副本计数（来自 `VolcanoJob.status.taskStatusCount`）。
+
+**Suspend**：兜底为 `Cleanup()`。VolcanoJob 无内置 suspend 字段；`spec.runPolicy.suspend=true` 时 Handler 显式删除 VolcanoJob，依赖 ownerReference 级联清理 Pod，写 `status.conditions[type=Suspended, status=True]`。`suspend=false` 时重建 VolcanoJob（与 §8.2 `(volcano, podgroup)` 的"软停"语义不同，文档使用方需知晓）。
+
+**RBAC**：`jobs.batch.volcano.sh` / `pods` / `events` 的 `create / get / list / watch / update / patch / delete`；`podgroups.scheduling.volcano.sh` 仅 `get / list / watch`（PodGroup 由 VolcanoJob 自动派生，本 Handler 不直接写）。
+
+### 8.4 `(kubeflow-trainer, pytorch)`
 
 将 MLJob 翻译为 Kubeflow Trainer 的 [`PyTorchJob`](https://www.kubeflow.org/docs/components/training/pytorch/) CR。
 
@@ -330,15 +449,15 @@ config:
 
 > 完整字段映射、容错策略、与 elastic training 的交互细节，由独立设计文档落地（见 §11）。
 
-### 8.3 `(kubeflow-trainer, tensorflow)` —— 占位
+### 8.5 `(kubeflow-trainer, tensorflow)`
 
-同 §8.2 思路，将 MLJob 翻译为 Kubeflow Trainer 的 `TFJob`。Role 集合约定为 `chief` / `worker` / `ps` / `evaluator`（任一可省略，replicas=0 表示禁用）。Status 映射沿用 TFJob 的 condition 集，与 §8.2 PyTorchJob 同构。Suspend 原生支持。
+同 §8.4 思路，将 MLJob 翻译为 Kubeflow Trainer 的 `TFJob`。Role 集合约定为 `chief` / `worker` / `ps` / `evaluator`（任一可省略，replicas=0 表示禁用）。Status 映射沿用 TFJob 的 condition 集，与 §8.4 PyTorchJob 同构。Suspend 原生支持。
 
-### 8.4 `(kubeflow-trainer, mpi)` —— 占位
+### 8.6 `(kubeflow-trainer, mpi)`
 
 将 MLJob 翻译为 Kubeflow [`MPIJob`](https://www.kubeflow.org/docs/components/training/mpi/) CR。Role 集合约定为 `launcher`（replicas=1）+ `worker`（replicas≥1）。`backend.config` 携带 MPI 实现选择（OpenMPI / Intel MPI）与 launcher / worker 通讯参数。Status 映射对齐 MPIJob `status.conditions`。Suspend 原生支持。
 
-### 8.5 `(custom, *)` —— 占位
+### 8.7 `(custom, *)`
 
 为外部接入预留的一等公民。用户在 `backend.config` 中以 schemaless 方式描述目标 GVK 与字段映射：
 
@@ -362,11 +481,11 @@ backend:
         Error: Failed
 ```
 
-由 custom Handler 通过 unstructured client 创建并跟踪。**MVP 不实现**——当首个第三方后端无法纳入 `(kubeflow-trainer, *)` 时再设计完整 schema。
+由 custom Handler 通过 unstructured client 创建并跟踪。完整 schema 与 unstructured 操作约定由独立设计文档落地（见 §11）。
 
 ## 9. RBAC 聚合
 
-operator binary 启动时遍历 registry，把每个启用 Handler 的 `RequiredRBAC()` 合并去重，生成本 binary 实际需要的 ClusterRole rules。Helm chart 通过 values 控制启用集合，渲染最小化 RBAC 而非全集。MVP 仅启用 `(native, default)`，对应 RBAC 限定为 §8.1 列出的资源。
+operator binary 启动时遍历 registry，把每个启用 Handler 的 `RequiredRBAC()` 合并去重，生成本 binary 实际需要的 ClusterRole rules。Helm chart 通过 values 控制启用集合，渲染最小化 RBAC 而非全集——例如仅启用 `(native, job)` 时，集群无需安装 Volcano；启用 `(volcano, *)` 才注入 Volcano 相关 RBAC；启用 `(kubeflow-trainer, *)` 才注入对应 CR 的 RBAC。
 
 ## 10. 不变量与约束
 
@@ -381,6 +500,8 @@ operator binary 启动时遍历 registry，把每个启用 Handler 的 `Required
 
 ## 11. 后续设计文档（不在本文档范围）
 
+- `(volcano, volcanojob)` Handler 完整 `config.plugins / policies / taskPolicies` schema 与多 task 字段映射细节
+- `(native, job)` Handler 的 Indexed Job 模式与 `podFailurePolicy` 直通策略细节
 - `(kubeflow-trainer, pytorch / tensorflow / mpi / paddle / xgboost)` 各自的字段映射与状态映射细节
 - `(custom, *)` Handler 的 `config` 完整 schema 与 unstructured 操作约定
 - Admission webhook：`spec.backend.{name, engine}` 不可变约束、`backend.config` 按 Handler 自带 schema 的统一校验
