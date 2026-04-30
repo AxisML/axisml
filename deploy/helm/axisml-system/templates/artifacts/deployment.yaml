@@ -1,35 +1,35 @@
-{{- if .Values.catalog.enabled }}
+{{- if .Values.artifacts.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "axisml.fullname" . }}-catalog
+  name: {{ include "axisml.fullname" . }}-artifacts
   labels:
-    {{- include "axisml.componentLabels" (dict "context" . "component" "catalog") | nindent 4 }}
+    {{- include "axisml.componentLabels" (dict "context" . "component" "artifacts") | nindent 4 }}
 spec:
-  replicas: {{ .Values.catalog.replicaCount }}
+  replicas: {{ .Values.artifacts.replicaCount }}
   selector:
     matchLabels:
-      {{- include "axisml.componentSelectorLabels" (dict "context" . "component" "catalog") | nindent 6 }}
+      {{- include "axisml.componentSelectorLabels" (dict "context" . "component" "artifacts") | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "axisml.componentLabels" (dict "context" . "component" "catalog") | nindent 8 }}
+        {{- include "axisml.componentLabels" (dict "context" . "component" "artifacts") | nindent 8 }}
     spec:
       {{- with .Values.global.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       containers:
-        - name: catalog
-          image: {{ include "axisml.image" (dict "imageRoot" .Values.catalog.image "global" .Values.global "chart" .Chart) }}
-          imagePullPolicy: {{ .Values.catalog.image.pullPolicy }}
+        - name: artifacts
+          image: {{ include "axisml.image" (dict "imageRoot" .Values.artifacts.image "global" .Values.global "chart" .Chart) }}
+          imagePullPolicy: {{ .Values.artifacts.image.pullPolicy }}
           ports:
             - name: http
-              containerPort: {{ .Values.catalog.service.port }}
+              containerPort: {{ .Values.artifacts.service.port }}
               protocol: TCP
           envFrom:
             - configMapRef:
-                name: {{ include "axisml.fullname" . }}-catalog
+                name: {{ include "axisml.fullname" . }}-artifacts
           resources:
-            {{- toYaml .Values.catalog.resources | nindent 12 }}
+            {{- toYaml .Values.artifacts.resources | nindent 12 }}
 {{- end }}

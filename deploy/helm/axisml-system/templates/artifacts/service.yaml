@@ -1,17 +1,17 @@
-{{- if .Values.catalog.enabled }}
+{{- if .Values.artifacts.enabled }}
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "axisml.fullname" . }}-catalog
+  name: {{ include "axisml.fullname" . }}-artifacts
   labels:
-    {{- include "axisml.componentLabels" (dict "context" . "component" "catalog") | nindent 4 }}
+    {{- include "axisml.componentLabels" (dict "context" . "component" "artifacts") | nindent 4 }}
 spec:
-  type: {{ .Values.catalog.service.type }}
+  type: {{ .Values.artifacts.service.type }}
   ports:
-    - port: {{ .Values.catalog.service.port }}
+    - port: {{ .Values.artifacts.service.port }}
       targetPort: http
       protocol: TCP
       name: http
   selector:
-    {{- include "axisml.componentSelectorLabels" (dict "context" . "component" "catalog") | nindent 4 }}
+    {{- include "axisml.componentSelectorLabels" (dict "context" . "component" "artifacts") | nindent 4 }}
 {{- end }}
