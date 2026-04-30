@@ -7,8 +7,8 @@ Components deployed:
 {{- if .Values.compute.enabled }}
   - ML Compute:   {{ include "axisml.fullname" . }}-compute:{{ .Values.compute.service.port }}
 {{- end }}
-{{- if .Values.catalog.enabled }}
-  - ML Catalog:   {{ include "axisml.fullname" . }}-catalog:{{ .Values.catalog.service.port }}
+{{- if .Values.artifacts.enabled }}
+  - ML Artifacts: {{ include "axisml.fullname" . }}-artifacts:{{ .Values.artifacts.service.port }}
 {{- end }}
 {{- if .Values.operators.enabled }}
   Operators:

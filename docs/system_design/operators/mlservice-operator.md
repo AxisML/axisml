@@ -47,7 +47,7 @@ Compute 负责设置以下 metadata（与 [compute.md §6.3.2](../compute.md) �
 
 **与 MLJob 的差异点**：
 
-- 顶层 `modelRef`：service 一等字段，指向 Catalog model version；Handler 据此把模型工件解析为容器侧的位置（环境变量 / volume mount / KServe `storageUri` 等）
+- 顶层 `modelRef`：service 一等字段，指向 Artifacts model version；Handler 据此把模型工件解析为容器侧的位置（环境变量 / volume mount / KServe `storageUri` 等）
 - `roles[*].template.ports[]`：与 K8s `PodSpec.containers[].ports` 同源约定。每个 role 是一个独立的 Deployment / StatefulSet（或 InferenceService 内的 component），各自的容器端口属于该 role 自身——这与多 role 拓扑（KServe transformer/explainer、PD 分离的 prefill/decode/router）天然一致。Handler 据此为每个 role 派生一个 K8s Service（targetPort=containerPort）。早期方案曾把 `ports[]` 放在 spec 顶层，是单 role 退化形态下的便捷写法，但在多 role 模型下"顶层 ports 到底属于哪个 role"无法回答，故下沉
 - 顶层 `route`：可选；与 Gateway API `HTTPRoute` 同源命名。当 `enabled=true` 时由 Handler 创建 namespaced `HTTPRoute`（搭配 Envoy Gateway 的 `SecurityPolicy` / `BackendTrafficPolicy`）实现自助外部入口，`backendRefs` 指向 `route.targetRole` 对应的 K8s Service，详见 §8.1。`route.enabled` 还会切换 `status.endpoint` 的语义：`false` 时为集群内 Service DNS、`true` 时为外部 URL（详见 §4）。`(kserve, *)` Handler 自带 Route 机制，不接受 `route.enabled=true`
 - `runPolicy` 字段集合不同：service 是常驻 workload，**没有** `suspend` / `activeDeadlineSeconds` / `ttlSecondsAfterFinished` / `backoffLimit`；改为 `progressDeadlineSeconds`（rollout 进度超时，与 K8s Deployment 同名字段语义一致）
@@ -77,7 +77,7 @@ spec:
     nodeSelector: {}          # Compute 按 compute.md §6.2.3 合并 pool + unit 后注入
     tolerations: []           # 来自 ResourcePool
 
-  # ── 模型引用（service 特有，指向 Catalog）──────────────────────────
+  # ── 模型引用（service 特有，指向 Artifacts）─────────────────────────
   modelRef:
     name: string
     version: string
@@ -337,7 +337,7 @@ Deployment Pod 没有稳定 index（ReplicaSet 用 hash 后缀，扩缩容/滚�
 | `spec.scheduling.queue` | `PodGroup.spec.queue` 与 Pod label `axisml.io/queue` |
 | `spec.scheduling.priorityClass` | Pod `spec.priorityClassName` |
 | `spec.scheduling.nodeSelector` / `tolerations` | Pod 同名字段 |
-| `spec.modelRef` | Catalog client 解析为模型工件 URI，注入为环境变量 `AXISML_MODEL_URI`（containerPath / volume mount 形态留待后续策略） |
+| `spec.modelRef` | Artifacts client 解析为模型工件 URI，注入为环境变量 `AXISML_MODEL_URI`（containerPath / volume mount 形态留待后续策略） |
 | `spec.route.targetRole` | 选取 HTTPRoute `backendRefs.name` 指向的 K8s Service（单 role 时省略，自动取 `predictor`） |
 | `spec.route.portName` | HTTPRoute `backendRefs.port`（解析为 `targetRole` Service 中对应的端口） |
 | `spec.route.hostname` / `path` | `HTTPRoute.spec.hostnames` / `rules[].matches[].path.value`（path 默认 `/`） |
@@ -429,7 +429,7 @@ config:
     maxReplicas: int              # 自动扩缩上限；不填则等于 minReplicas
     scaleToZero: bool             # 是否允许 scale-to-zero
     protocolVersion: v1 | v2      # KServe 推理协议
-  storageUri: string              # 模型工件位置；可由 Catalog 通过 modelRef 自动解析
+  storageUri: string              # 模型工件位置；可由 Artifacts 通过 modelRef 自动解析
   containerOverrides: {}          # 容器级别 override（command / args / env）
 
   # ── runtime 专属子段（仅在 runtime=对应值 时生效）──
@@ -461,7 +461,7 @@ config:
 - `roles[predictor].template.ports[]` → predictor 容器 `ports`；KServe runtime 据此暴露 inference endpoint
 - `roles[predictor].template.resources` → predictor `resources`
 - `roles[predictor].replicas` → 写入 `predictor.minReplicas`；若未设置 `config.predictor.maxReplicas`，则同时写入 `maxReplicas`
-- `spec.modelRef` → 通过 Catalog 解析为 `predictor.storageUri`（runtime=triton 时也可解析为 `triton.modelRepository`；runtime=vllm 时优先解析为 `vllm.model`，缺失时回退到 `storageUri`）
+- `spec.modelRef` → 通过 Artifacts 解析为 `predictor.storageUri`（runtime=triton 时也可解析为 `triton.modelRepository`；runtime=vllm 时优先解析为 `vllm.model`，缺失时回退到 `storageUri`）
 - `spec.scheduling.queue` → 仅落到 Pod label `axisml.io/queue`，不强制注入 `schedulerName: volcano`（KServe Pod 由 KServe 自身派生，本 Handler 不直接管理；与 §8.1 / §8.2 native Handler 走 Volcano 调度 + 轻量 PodGroup 的方式不同）。**已知缺口**：KServe 路径下 MLService 用量当前不计入 Volcano Queue `status.allocated`，因此也不进入 Compute `queues.used`；KServe + Volcano 调度集成（决定 `schedulerName` / PodGroup 注入策略，让 KServe Pod 也参与 Queue accounting）由独立设计文档落地（见 §11）
 - `spec.scheduling.priorityClass` / `nodeSelector` / `tolerations` → predictor 同名字段
 - `spec.runPolicy.progressDeadlineSeconds` → KServe 暂无对等字段，Handler 在 Validate 中写 warning

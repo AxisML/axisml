@@ -2,7 +2,7 @@
 
 ## 1. 概述
 
-AxisML Infra 是平台的基础设施层，由一系列开源组件组成，为上层应用组件（Platform、Compute、Catalog、Operators）提供底层支撑能力。Infra 层不涉及自研代码，所有组件均通过 Helm 引入并在 AxisML Helm chart 中作为 dependencies 统一管理。
+AxisML Infra 是平台的基础设施层，由一系列开源组件组成，为上层应用组件（Platform、Compute、Artifacts、Operators）提供底层支撑能力。Infra 层不涉及自研代码，所有组件均通过 Helm 引入并在 AxisML Helm chart 中作为 dependencies 统一管理。
 
 ### 1.1 组件清单
 
@@ -44,9 +44,9 @@ AxisML Infra 是平台的基础设施层，由一系列开源组件组成，为�
 
 调用关系要点：
 
-- 外部流量 → **Envoy Gateway** → Platform / Catalog 等对外 Service；Compute 仅由 Platform 通过集群内 Service 调用
-- Compute / Catalog → **PostgreSQL**（元数据读写）
-- Catalog → **RustFS**（制品文件读写，S3 API）
+- 外部流量 → **Envoy Gateway** → Platform / Artifacts 等对外 Service；Compute 仅由 Platform 通过集群内 Service 调用
+- Compute / Artifacts → **PostgreSQL**（元数据读写）
+- Artifacts → **RustFS**（制品文件读写，S3 API）
 - mljob-operator / mlservice-operator 创建的 Pod → **Volcano**（`schedulerName: volcano`）
 - 所有 Pod（含 GPU Operator 的 DCGM Exporter、网关、业务组件）→ **kube-prometheus-stack**（`/metrics` 被 ServiceMonitor 自动发现）
 - 业务 Pod 申请 `nvidia.com/gpu` → **GPU Operator** 完成设备分配
@@ -70,16 +70,16 @@ GatewayClass (envoy-gateway)
         │     pathPrefix: /
         │     → axisml-platform Service
         │
-        └── HTTPRoute (catalog-api)
-              pathPrefix: /api/catalog
-              → axisml-catalog Service
+        └── HTTPRoute (artifacts-api)
+              pathPrefix: /api/artifacts
+              → axisml-artifacts Service
 ```
 
 - **GatewayClass**：由 Envoy Gateway 控制面注册，声明控制器实现。
 - **Gateway**：集群内"监听点"的声明，同一份 Gateway 实例承载全部 AxisML 路由。
 - **HTTPRoute**：对外业务组件的路由规则，与 Service 绑定；Compute 不配置外部 HTTPRoute。
 
-**MLService 派生路由**：mlservice-operator 在租户 namespace 内为开启了 `spec.route.enabled=true` 的 MLService 创建 namespaced `HTTPRoute` / `SecurityPolicy` / `BackendTrafficPolicy`，`parentRefs` 指向同一份 `axisml-gateway`（跨 namespace 引用通过 `ReferenceGrant` 授权，由本 chart 的 `templates/infra/gateway/` 准备）；与 platform / catalog 的静态 HTTPRoute 共存。详见 [operators/mlservice-operator.md](operators/mlservice-operator.md) §3 / §6 / §8.1。
+**MLService 派生路由**：mlservice-operator 在租户 namespace 内为开启了 `spec.route.enabled=true` 的 MLService 创建 namespaced `HTTPRoute` / `SecurityPolicy` / `BackendTrafficPolicy`，`parentRefs` 指向同一份 `axisml-gateway`（跨 namespace 引用通过 `ReferenceGrant` 授权，由本 chart 的 `templates/infra/gateway/` 准备）；与 platform / artifacts 的静态 HTTPRoute 共存。详见 [operators/mlservice-operator.md](operators/mlservice-operator.md) §3 / §6 / §8.1。
 
 ### 3.2 认证鉴权
 
@@ -145,7 +145,7 @@ RustFS 提供标准 S3 API（`PutObject` / `GetObject` / `DeleteObject` / `ListO
 
 ### 4.2 用途
 
-- **Catalog**：模型文件、数据集文件
+- **Artifacts**：模型文件、数据集文件
 - **未来**：容器镜像 registry 后端、日志归档
 
 业务组件通过 S3 SDK 访问，对 RustFS 与其他 S3 兼容实现无感知。
@@ -175,7 +175,7 @@ rustfs:
 
 ## 5. 数据库（PostgreSQL）
 
-AxisML 使用 PostgreSQL 作为元数据存储，供 Compute、Catalog 等 Go 组件持久化结构化数据。
+AxisML 使用 PostgreSQL 作为元数据存储，供 Compute、Artifacts 等 Go 组件持久化结构化数据。
 
 ### 5.1 架构设计
 
@@ -193,7 +193,7 @@ AxisML 使用 PostgreSQL 作为元数据存储，供 Compute、Catalog 等 Go �
 | 消费方 | 使用场景 |
 | --- | --- |
 | AxisML Compute | 租户、资源单元、任务元数据 |
-| AxisML Catalog | 模型、镜像、数据集元数据 |
+| AxisML Artifacts | 模型、镜像、数据集元数据 |
 
 各消费方通过独立 database 或独立 schema 逻辑隔离（具体隔离粒度由各组件设计文档定义）。
 
@@ -306,7 +306,7 @@ AxisML 使用 [Volcano](https://volcano.sh/) 作为批任务调度器，与默�
 
 ### 7.4 与 kube-scheduler 共存
 
-Volcano 仅接管带 `schedulerName: volcano` 的 Pod。Infra 自身（网关、数据库、对象存储、监控）以及 Platform / Compute / Catalog 等业务组件的 Pod 仍走默认 kube-scheduler，互不干扰。
+Volcano 仅接管带 `schedulerName: volcano` 的 Pod。Infra 自身（网关、数据库、对象存储、监控）以及 Platform / Compute / Artifacts 等业务组件的 Pod 仍走默认 kube-scheduler，互不干扰。
 
 ### 7.5 部署形态
 
@@ -365,7 +365,7 @@ kube-prometheus-stack 的 Prometheus Operator 会自动发现并配置采集目�
 | GPU 层 | DCGM Exporter（来自 GPU Operator） | GPU 利用率、显存占用、温度、功耗 |
 | 网关层 | Envoy Gateway | 请求量、延迟分位、错误率 |
 | 调度层 | Volcano | 队列堆积、PodGroup 调度状态 |
-| 业务层 | Platform / Compute / Catalog / Operators | 任务状态、推理延迟、制品数量等自定义指标 |
+| 业务层 | Platform / Compute / Artifacts / Operators | 任务状态、推理延迟、制品数量等自定义指标 |
 
 ### 8.4 部署形态
 
@@ -419,8 +419,8 @@ AxisML 拆分为两个独立的 Helm chart，按"基础设施 / 控制平面"职
 ### 9.2 命名空间约定
 
 - `axisml-infra` 命名空间承载第三方基础设施子 chart 的全部资源；`make helm-install-infra` 默认值。
-- `axisml-system` 命名空间承载 AxisML 自研组件（Platform/Compute/Catalog/Operators）以及元数据数据库 `axisml-database`；`make helm-install-system` 默认值。
-- 跨命名空间访问走 `<service>.<namespace>.svc.cluster.local`，例如 Catalog 调用 RustFS：`axisml-infra-rustfs-svc.axisml-infra:9000`。
+- `axisml-system` 命名空间承载 AxisML 自研组件（Platform/Compute/Artifacts/Operators）以及元数据数据库 `axisml-database`；`make helm-install-system` 默认值。
+- 跨命名空间访问走 `<service>.<namespace>.svc.cluster.local`，例如 Artifacts 调用 RustFS：`axisml-infra-rustfs-svc.axisml-infra:9000`。
 
 ### 9.3 安装顺序
 
@@ -457,7 +457,7 @@ axisml-system/values.yaml：
 | 服务网关 | Envoy Gateway | Gateway API 是 Kubernetes 官方的 Ingress 继任者，Envoy 原生支持 gRPC/HTTP2；配置完全 CRD 化，零外部依赖 |
 | 对象存储 | RustFS | Apache 2.0 许可证，S3 兼容；规避 MinIO 自 2021 年转为 AGPLv3 的商用传染风险。风险：项目较年轻（alpha 阶段），社区规模小于 MinIO；S3 API 抽象使切换成本有限 |
 | 数据库 | bitnami/postgresql 子 chart | 复用成熟 chart，避免自写 StatefulSet 模板带来的维护负担；`externalDatabase` 段保留用于生产外接 RDS |
-| 数据库归属 | 纳入 axisml-system 控制平面 chart | 数据库的生命周期、迁移、备份都和业务组件紧密耦合；与 Platform/Compute/Catalog 放同一命名空间可共享 Secret、ServiceMonitor，减少跨 chart 引用 |
+| 数据库归属 | 纳入 axisml-system 控制平面 chart | 数据库的生命周期、迁移、备份都和业务组件紧密耦合；与 Platform/Compute/Artifacts 放同一命名空间可共享 Secret、ServiceMonitor，减少跨 chart 引用 |
 | GPU 管理 | NVIDIA GPU Operator | Kubernetes 原生 GPU 管理事实标准；DCGM Exporter 与监控栈天然集成 |
 | 批任务调度 | Volcano | Gang Scheduling 是分布式训练的硬需求（避免部分 Worker 启动造成资源死锁）；CNCF 孵化项目，Queue + Fair-share 契合多租户模型；与 kube-scheduler 按 `schedulerName` 共存，零副作用 |
 | 批任务调度归属 | 纳入 Infra 层（overview 未列出） | 所有 ML 训练任务都必须经由 Volcano 调度，其归属性与 GPU Operator 相同，均为训练能力的底座 |

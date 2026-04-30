@@ -7,7 +7,7 @@ metadata:
     {{- include "axisml.componentLabels" (dict "context" . "component" "platform") | nindent 4 }}
 data:
   ML_COMPUTE_URL: "http://compute:{{ .Values.compute.service.port }}"
-  ML_CATALOG_URL: "http://catalog:{{ .Values.catalog.service.port }}"
+  ML_ARTIFACTS_URL: "http://artifacts:{{ .Values.artifacts.service.port }}"
   {{- range $key, $value := .Values.platform.env }}
   {{ $key }}: {{ $value | quote }}
   {{- end }}

@@ -543,7 +543,7 @@ Creating ──(Informer ADD)──▶ Pending ──(ready=desired, desired>0)�
 
 **MLService 业务语义**
 
-与 Job 类似（`roles[]` / `backend.{name,engine,config}` / `scheduling` / `runPolicy`），额外增加**模型引用**（`spec.modelRef`，指向 Catalog 的 model version）与**对外路由**（`spec.route`，决定 `status.endpoint` 是内部 Service DNS 还是外部 URL）。具体契约由 [operators/mlservice-operator.md](operators/mlservice-operator.md) 定义。
+与 Job 类似（`roles[]` / `backend.{name,engine,config}` / `scheduling` / `runPolicy`），额外增加**模型引用**（`spec.modelRef`，指向 Artifacts 的 model version）与**对外路由**（`spec.route`，决定 `status.endpoint` 是内部 Service DNS 还是外部 URL）。具体契约由 [operators/mlservice-operator.md](operators/mlservice-operator.md) 定义。
 
 **`spec.backend` 默认值注入**：用户未指定 `spec.backend` 时，Compute 写 CR 时显式补 `{name: "native", engine: "deployment"}`；`backend.config` 默认空对象 `{}`。`backend.{name, engine}` 在 PG `services.spec` jsonb 中持久化，创建后不可变。
 
@@ -636,7 +636,7 @@ Compute 对 `GET /jobs/{job}/logs` 只做路径级鉴权与 Pod 定位，实际�
 | Volcano | Queue CRD 同步（见 §6.2.4、§5） | 不接管 Pod 调度逻辑，仅通过 `schedulerName: volcano` + queue 让 Volcano 接管 |
 | PostgreSQL | GORM；与其他服务共用 database `axisml`（按表名前缀或 schema 逻辑隔离） | 迁移随二进制打包，启动时执行（golang-migrate） |
 | Platform | REST，请求头透传身份 | Compute 信任内部调用；mTLS / Compute 主动鉴权列为未来规划 |
-| Catalog | HTTP 客户端 | 懒查询：提交任务时校验 image / model / dataset 引用存在 |
+| Artifacts | HTTP 客户端 | 懒查询：提交任务时校验 image / model / dataset 引用存在 |
 
 ## 9. 部署形态
 

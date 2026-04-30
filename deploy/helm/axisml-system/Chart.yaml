@@ -1,6 +1,6 @@
 apiVersion: v2
 name: axisml-system
-description: AxisML control plane - platform, compute, catalog, operators, and metadata DB
+description: AxisML control plane - platform, compute, artifacts, operators, and metadata DB
 type: application
 version: 0.1.0
 appVersion: "0.1.0"

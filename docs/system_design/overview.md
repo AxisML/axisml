@@ -91,7 +91,7 @@ ResourcePool 内预先定义的资源规格模板，例如 `a100-1x-large`（1×
               │                                      │                      │
               ▼                                      ▼                      ▼
 ┌──────────────────────────┐ ┌───────────────────────────────┐ ┌────────────────────┐
-│  AxisML Compute (Go)     │ │     AxisML Catalog (Go)       │ │   AxisML Infra     │
+│  AxisML Compute (Go)     │ │    AxisML Artifacts (Go)      │ │   AxisML Infra     │
 │                          │ │                               │ │                    │
 │  API / 业务逻辑 / 编排    │ │  模型管理 / 镜像管理 / 数据集   │ │  gpu-operator      │
 │  租户 / 资源单元 / 队列   │ │                               │ │  对象存储           │
@@ -116,7 +116,7 @@ ResourcePool 内预先定义的资源规格模板，例如 `a100-1x-large`（1×
 平台层，提供用户交互入口。
 
 - **前端**：基于 TypeScript + React，提供 Web UI，涵盖任务管理、服务管理、制品管理、系统管理等功能页面。
-- **后端**：基于 Go，提供 RESTful API，负责业务逻辑编排，协调 AxisML Compute 和 AxisML Catalog 完成具体操作。
+- **后端**：基于 Go，提供 RESTful API，负责业务逻辑编排，协调 AxisML Compute 和 AxisML Artifacts 完成具体操作。
 
 > 详细设计见 [AxisML Platform 设计文档](platform.md)
 
@@ -158,7 +158,7 @@ mljob-operator 与 mlservice-operator 内部按 `spec.backend.{name, engine}` �
 
 > 详细设计见 [AxisML Operators 设计文档](operators/)
 
-### 5.4 AxisML Catalog
+### 5.4 AxisML Artifacts
 
 制品管理服务，基于 Go 开发，提供 API 接口，负责平台中各类制品的统一管理：
 
@@ -168,7 +168,7 @@ mljob-operator 与 mlservice-operator 内部按 `spec.backend.{name, engine}` �
 
 元数据存储于 PostgreSQL，制品文件存储于对象存储。
 
-> 详细设计见 [AxisML Catalog 设计文档](catalog.md)
+> 详细设计见 [AxisML Artifacts 设计文档](artifacts.md)
 
 ### 5.5 AxisML Infra
 
@@ -193,7 +193,7 @@ Kubernetes Cluster
 │   ├── mljob-operator (Deployment)
 │   ├── mlservice-operator (Deployment)
 │   └── tenant-operator (Deployment)
-├── AxisML Catalog (Deployment + Service)
+├── AxisML Artifacts (Deployment + Service)
 ├── AxisML Infra
 │   ├── 服务网关
 │   ├── gpu-operator
@@ -233,7 +233,7 @@ axisml/
 │   │   │   ├── mlservice/
 │   │   │   └── tenant/
 │   │   └── api/                  # CRD 类型定义
-│   └── catalog/                  # AxisML Catalog（Go）
+│   └── artifacts/                # AxisML Artifacts（Go）
 │       ├── cmd/                  # 服务入口
 │       ├── internal/             # 业务逻辑
 │       └── api/                  # API 定义
@@ -248,7 +248,7 @@ axisml/
 │       │       ├── _helpers.tpl  # 共享模板函数
 │       │       ├── platform/     # AxisML Platform 模板
 │       │       ├── compute/      # AxisML Compute 模板
-│       │       ├── catalog/      # AxisML Catalog 模板
+│       │       ├── artifacts/    # AxisML Artifacts 模板
 │       │       └── operators/    # AxisML Operators 模板
 │       │           ├── mljob-operator/
 │       │           ├── mlservice-operator/
@@ -258,7 +258,7 @@ axisml/
 │   └── docker/                   # 各组件 Dockerfile
 │       ├── platform.Dockerfile
 │       ├── compute.Dockerfile
-│       ├── catalog.Dockerfile
+│       ├── artifacts.Dockerfile
 │       ├── mljob-operator.Dockerfile
 │       ├── mlservice-operator.Dockerfile
 │       └── tenant-operator.Dockerfile
@@ -278,7 +278,7 @@ axisml/
 | `components/platform/` | 平台层，包含 backend（Go）和 frontend（React）两个子项目 |
 | `components/compute/` | 计算服务，Go 服务 |
 | `components/operators/` | Kubernetes Operators，包含 3 个 Operator |
-| `components/catalog/` | 制品管理服务，Go 服务 |
+| `components/artifacts/` | 制品管理服务，Go 服务 |
 | `pkg/` | 跨组件复用的公共库（如日志、配置、错误处理等） |
 | `deploy/helm/` | Helm Chart |
 | `build/docker/` | 各组件的 Dockerfile |
