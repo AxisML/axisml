@@ -9,13 +9,14 @@ AxisML Infra 是平台的基础设施层，由一系列开源组件组成，为�
 | # | 组件 | 技术选型 | 职责 |
 | --- | --- | --- | --- |
 | 1 | 服务网关 | Envoy Gateway | 请求路由、认证鉴权、流量控制 |
-| 2 | 对象存储 | RustFS | 制品文件（模型、镜像 layer、数据集）持久化存储 |
-| 3 | 数据库 | PostgreSQL（bitnami chart） | 元数据持久化存储 |
-| 4 | GPU 管理 | NVIDIA GPU Operator | GPU 驱动、设备插件与监控 |
-| 5 | 批任务调度 | Volcano | Gang Scheduling、队列管理、公平调度 |
-| 6 | 监控 | kube-prometheus-stack | 集群与业务可观测性 |
+| 2 | 对象存储 | RustFS | 数据集、评估报告等基于 S3 协议的制品文件持久化 |
+| 3 | OCI Registry | zot | 模型、容器镜像等基于 OCI Distribution 协议的制品存储 |
+| 4 | 数据库 | PostgreSQL（bitnami chart） | 元数据持久化存储 |
+| 5 | GPU 管理 | NVIDIA GPU Operator | GPU 驱动、设备插件与监控 |
+| 6 | 批任务调度 | Volcano | Gang Scheduling、队列管理、公平调度 |
+| 7 | 监控 | kube-prometheus-stack | 集群与业务可观测性 |
 
-> overview.md 第 4.5 节未显式列出批任务调度器，本文档将其纳入 Infra 层，因为 Gang Scheduling 是分布式训练的硬需求（详见 §7 及 §10 关键设计决策）。
+> overview.md 第 4.5 节未显式列出批任务调度器，本文档将其纳入 Infra 层，因为 Gang Scheduling 是分布式训练的硬需求（详见 §8 及 §11 关键设计决策）。
 
 ## 2. 整体架构
 
@@ -23,11 +24,12 @@ AxisML Infra 是平台的基础设施层，由一系列开源组件组成，为�
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │                              AxisML Infra                                    │
 │                                                                              │
-│  ┌──────────────────────┐  ┌──────────────┐  ┌───────────────────────────┐  │
-│  │      服务网关         │  │   对象存储    │  │         数据库            │  │
-│  │   Envoy Gateway      │  │    RustFS    │  │       PostgreSQL          │  │
-│  │   (Gateway API)      │  │   (S3 API)   │  │    (bitnami sub-chart)    │  │
-│  └──────────────────────┘  └──────────────┘  └───────────────────────────┘  │
+│  ┌──────────────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────┐  │
+│  │      服务网关         │  │   对象存储    │  │ OCI Registry │  │  数据库   │  │
+│  │   Envoy Gateway      │  │    RustFS    │  │     zot      │  │PostgreSQL│  │
+│  │   (Gateway API)      │  │   (S3 API)   │  │ (Distribution│  │ (bitnami)│  │
+│  │                      │  │              │  │     v2)      │  │          │  │
+│  └──────────────────────┘  └──────────────┘  └──────────────┘  └──────────┘  │
 │                                                                              │
 │  ┌──────────────────────┐  ┌──────────────────────────────────────────────┐  │
 │  │      GPU 管理         │  │              批任务调度                      │  │
@@ -46,7 +48,9 @@ AxisML Infra 是平台的基础设施层，由一系列开源组件组成，为�
 
 - 外部流量 → **Envoy Gateway** → Platform / Artifacts 等对外 Service；Compute 仅由 Platform 通过集群内 Service 调用
 - Compute / Artifacts → **PostgreSQL**（元数据读写）
-- Artifacts → **RustFS**（制品文件读写，S3 API）
+- Artifacts → **RustFS**（dataset / eval_report 制品文件读写，S3 API）
+- Artifacts / axisml-cli → **zot**（model / image 制品 push / pull，OCI Distribution v2）
+- mlservice-operator / mljob-operator 派生的 Pod → **zot**（按 imagePullSecret 拉取镜像 / 模型）
 - mljob-operator / mlservice-operator 创建的 Pod → **Volcano**（`schedulerName: volcano`）
 - 所有 Pod（含 GPU Operator 的 DCGM Exporter、网关、业务组件）→ **kube-prometheus-stack**（`/metrics` 被 ServiceMonitor 自动发现）
 - 业务 Pod 申请 `nvidia.com/gpu` → **GPU Operator** 完成设备分配
@@ -145,10 +149,10 @@ RustFS 提供标准 S3 API（`PutObject` / `GetObject` / `DeleteObject` / `ListO
 
 ### 4.2 用途
 
-- **Artifacts**：模型文件、数据集文件
-- **未来**：容器镜像 registry 后端、日志归档
+- **Artifacts**：dataset / eval_report 类制品（按 prefix 组织、整目录上传）；详见 [artifacts.md §6.3.2 / §6.3.4](artifacts.md)
+- **未来**：日志归档
 
-业务组件通过 S3 SDK 访问，对 RustFS 与其他 S3 兼容实现无感知。
+业务组件通过 S3 SDK 访问，对 RustFS 与其他 S3 兼容实现无感知。容器镜像 / 模型权重的 OCI Distribution 协议存储**不**走 RustFS，而是走 §5 zot——OCI 对 ML artifact 的 manifest / artifactType 语义、按 layer 复用与 multi-arch 支持是 RustFS 的 S3 协议无法提供的。
 
 ### 4.3 部署形态
 
@@ -173,11 +177,79 @@ rustfs:
 
 > **成熟度说明**：截至 2026-04，RustFS 的 app version 为 `1.0.0-alpha.x`，项目仍在活跃迭代。本次选型在"关键设计决策"中已记录风险与切换方案（S3 API 抽象使切换成本有限）。
 
-## 5. 数据库（PostgreSQL）
+## 5. OCI Registry（zot）
+
+AxisML 使用 [zot](https://zotregistry.dev/) 作为 OCI Distribution v2 兼容的制品仓库，承载模型权重（`Kind=model`）与容器镜像（`Kind=image`）的存储与分发。zot 是 CNCF Sandbox 项目，Apache 2.0 许可证、单二进制 Go 实现，对 OCI 1.1 artifact manifest（含 `artifactType`）支持完整。
+
+### 5.1 架构设计
+
+zot 提供完整的 OCI Distribution v2 协议（`/v2/<repo>/blobs/uploads/`、`/v2/<repo>/manifests/<ref>` 等），关键能力：
+
+| 能力 | 说明 |
+| --- | --- |
+| OCI artifact manifest | 原生支持 `application/vnd.oci.image.manifest.v1+json` + `artifactType`，承载 ML 模型类非容器制品 |
+| 内容寻址 | `<repo>@sha256:<digest>` 不可变引用，对应 [artifacts.md §5.3](artifacts.md) `?pin=digest` 形态 |
+| 后端可插拔 | 本地 filesystem / S3 兼容存储；未来可把 blob 后端切到 RustFS 实现 OCI metadata + S3 blobs 双层架构 |
+| Bearer token 鉴权 | 支持 scope-limited bearer token（`repository:<repo>:push` / `pull`），由 Artifacts 服务签发后下发给 axisml-cli |
+| Manifest 校验 | `HEAD /v2/<repo>/manifests/<ref>` 返回 digest，Artifacts 在 complete API 阶段比对 cli 提交值（[artifacts.md §5.2](artifacts.md)） |
+
+部署形态：
+
+| 模式 | 说明 | 适用场景 |
+| --- | --- | --- |
+| Standalone | 单 Pod + 单 PVC（filesystem 后端） | 开发、测试、Lite |
+| HA (3x) | 3 Pod + 共享后端（S3 / RustFS） | 中等规模生产 |
+
+### 5.2 用途
+
+- **Artifacts（model Kind）**：模型权重作为 OCI artifact 存储，`artifactType` 由 `spec.format` 携带（如 `application/vnd.axisml.model.pytorch.v1+tar`）
+- **Artifacts（image Kind）**：训练 / 推理容器镜像，标准 docker push / nerdctl push 即可
+- **Operator 拉取**：mlservice-operator / mljob-operator 派生的 Pod 通过 K8s `imagePullSecrets` 直接拉取（凭证由 tenant-operator 落地，详见 [artifacts.md §5.3 / §8](artifacts.md)）
+
+业务组件通过 OCI Distribution v2 客户端（`oras` / `crane` / docker daemon）访问，对 zot 与其他 OCI 兼容实现无感知。
+
+### 5.3 与 Artifacts / tenant-operator 的接入契约
+
+zot 是 axisml-infra chart 提供的纯协议端，本身不感知 AxisML 的租户模型；租户 / 命名隔离由 Artifacts 在 repo 路径上完成，鉴权由 Artifacts 签发的 scope token 表达：
+
+| 资源 | 落点 | 由谁维护 |
+| --- | --- | --- |
+| zot endpoint | ConfigMap（Artifacts 注入） | axisml-infra Helm |
+| zot admin 凭证（Artifacts 用于校验 / GC / 签 scope token） | 平台级 Secret，挂入 Artifacts Pod | axisml-infra Helm（自动生成 / 由管理员预置） |
+| 租户拉取凭证（`axisml-tenant-<tenant>-zot-pull`） | 租户 Namespace Secret | tenant-operator 按 `Tenant.spec.initResources.imagePullSecrets[].name='zot-pull'` 落地（[tenant-operator §6.3](operators/tenant-operator.md)） |
+| 公共拉取凭证（`zot-pull@axisml-system`） | `axisml-system` Namespace Secret | axisml-infra Helm |
+| repo 路径命名（`<scope>/<kind>/<repo>`） | URI 由 Artifacts handler 即时构造 | Artifacts |
+
+zot 不需要任何 AxisML 自定义扩展，所有定制都在 Artifacts 服务侧完成。
+
+### 5.4 部署形态
+
+作为 axisml-infra Helm chart 的 dependency：
+
+```yaml
+# deploy/helm/axisml-infra/Chart.yaml
+dependencies:
+  - name: zot
+    version: 0.1.x                          # https://artifacthub.io/packages/helm/zot/zot
+    repository: https://zotregistry.dev/helm-charts
+    condition: zot.enabled
+```
+
+values.yaml 对应段：
+
+```yaml
+zot:
+  enabled: true
+  # zot 子 chart 的 values pass-through；后端默认 filesystem，HA 场景切 s3
+```
+
+> **与 RustFS 的关系**：v1 zot 使用本地 filesystem 作为 blob 后端，与 RustFS 数据通道无耦合；v2 引入"zot metadata + RustFS blobs"双层架构后，可把 zot 的 storage backend 配置成 S3 协议指向 RustFS，从而把所有制品 bytes 物理上汇聚到 RustFS、由 zot 维护 OCI 协议层。
+
+## 6. 数据库（PostgreSQL）
 
 AxisML 使用 PostgreSQL 作为元数据存储，供 Compute、Artifacts 等 Go 组件持久化结构化数据。
 
-### 5.1 架构设计
+### 6.1 架构设计
 
 支持两种部署模式，由 `postgresql.enabled` 开关切换：
 
@@ -188,7 +260,7 @@ AxisML 使用 PostgreSQL 作为元数据存储，供 Compute、Artifacts 等 Go 
 
 内置模式采用 bitnami/postgresql 官方 chart，避免自写 StatefulSet 模板——这也是此前自写模板 `database-statefulset.yaml` / `database-service.yaml` 被删除、改由子 chart 提供的原因。
 
-### 5.2 消费方
+### 6.2 消费方
 
 | 消费方 | 使用场景 |
 | --- | --- |
@@ -197,7 +269,7 @@ AxisML 使用 PostgreSQL 作为元数据存储，供 Compute、Artifacts 等 Go 
 
 各消费方通过独立 database 或独立 schema 逻辑隔离（具体隔离粒度由各组件设计文档定义）。
 
-### 5.3 部署形态
+### 6.3 部署形态
 
 ```yaml
 # deploy/helm/axisml/Chart.yaml
@@ -230,11 +302,11 @@ externalPostgresql:
   existingSecret: ""
 ```
 
-## 6. GPU 管理（NVIDIA GPU Operator）
+## 7. GPU 管理（NVIDIA GPU Operator）
 
 AxisML 使用 [NVIDIA GPU Operator](https://github.com/NVIDIA/gpu-operator) 管理集群 GPU 资源，自动化驱动、设备插件、监控等组件的生命周期。
 
-### 6.1 组件架构
+### 7.1 组件架构
 
 | 组件 | 职责 |
 | --- | --- |
@@ -245,15 +317,15 @@ AxisML 使用 [NVIDIA GPU Operator](https://github.com/NVIDIA/gpu-operator) 管�
 | GPU Feature Discovery | 自动为节点打标签（GPU 型号、驱动版本等） |
 | MIG Manager | A100/H100 的多实例分区管理 |
 
-### 6.2 调度契约
+### 7.2 调度契约
 
 Infra 层对上层的契约：
 
 - 业务 Pod 申请 GPU 时使用资源名 `nvidia.com/gpu`
 - 节点标签可基于 `nvidia.com/gpu.product`（如 `A100-SXM4-80GB`）做 nodeSelector / affinity
-- DCGM Exporter 的 `/metrics` 端点由 kube-prometheus-stack 自动采集（详见 §8）
+- DCGM Exporter 的 `/metrics` 端点由 kube-prometheus-stack 自动采集（详见 §9）
 
-### 6.3 部署形态
+### 7.3 部署形态
 
 ```yaml
 # deploy/helm/axisml/Chart.yaml
@@ -273,11 +345,11 @@ gpuOperator:
   # 如 driver.enabled / dcgmExporter.enabled 等
 ```
 
-## 7. 批任务调度（Volcano）
+## 8. 批任务调度（Volcano）
 
 AxisML 使用 [Volcano](https://volcano.sh/) 作为批任务调度器，与默认的 kube-scheduler 共存，专门接管训练/推理任务的调度。
 
-### 7.1 组件架构
+### 8.1 组件架构
 
 | 组件 | 职责 |
 | --- | --- |
@@ -285,7 +357,7 @@ AxisML 使用 [Volcano](https://volcano.sh/) 作为批任务调度器，与默�
 | Volcano Controller | 管理 Volcano Job (`vcjob`) 与 `PodGroup` 的生命周期 |
 | Volcano Admission Webhook | 准入控制，校验与默认值注入 |
 
-### 7.2 核心能力
+### 8.2 核心能力
 
 | 能力 | 说明 |
 | --- | --- |
@@ -295,7 +367,7 @@ AxisML 使用 [Volcano](https://volcano.sh/) 作为批任务调度器，与默�
 | **Preemption** | 高优先级任务可抢占低优先级任务资源 |
 | **Backfill** | 空闲资源回填，提升集群利用率 |
 
-### 7.3 与 MLJob / MLService 的协作契约
+### 8.3 与 MLJob / MLService 的协作契约
 
 本文档定义 Infra 侧契约，具体实现细节见 `operators/`：
 
@@ -304,11 +376,11 @@ AxisML 使用 [Volcano](https://volcano.sh/) 作为批任务调度器，与默�
 - **Volcano `Queue` CR（cluster-scoped）由 Compute 独占 owner**：容量（`spec.capability`）、命名、补偿与 RBAC 均由 Compute 维护，operator 仅通过名称引用（`PodGroup.spec.queue`），不读写 Queue CR。队列与租户 / 资源池的归属关系由 Compute 在 PG 中维护，命名约定 `axisml-<tenant>-<pool>-<queue>` 见 [compute.md §6.2.4](compute.md)
 - tenant-operator 只负责租户的 Namespace 与 ResourceQuota 等集群侧资源，不涉及 Volcano Queue CR
 
-### 7.4 与 kube-scheduler 共存
+### 8.4 与 kube-scheduler 共存
 
 Volcano 仅接管带 `schedulerName: volcano` 的 Pod。Infra 自身（网关、数据库、对象存储、监控）以及 Platform / Compute / Artifacts 等业务组件的 Pod 仍走默认 kube-scheduler，互不干扰。
 
-### 7.5 部署形态
+### 8.5 部署形态
 
 ```yaml
 # deploy/helm/axisml/Chart.yaml
@@ -327,11 +399,11 @@ volcano:
   # volcano 子 chart 的 values pass-through
 ```
 
-## 8. 监控（kube-prometheus-stack）
+## 9. 监控（kube-prometheus-stack）
 
 AxisML 使用 [kube-prometheus-stack](https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack) 作为统一监控栈，包含 Prometheus、Grafana、AlertManager 三件套。
 
-### 8.1 架构
+### 9.1 架构
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
@@ -348,7 +420,7 @@ AxisML 使用 [kube-prometheus-stack](https://github.com/prometheus-community/he
     各组件 /metrics 端点
 ```
 
-### 8.2 采集模型
+### 9.2 采集模型
 
 各 AxisML 组件只需：
 
@@ -357,7 +429,7 @@ AxisML 使用 [kube-prometheus-stack](https://github.com/prometheus-community/he
 
 kube-prometheus-stack 的 Prometheus Operator 会自动发现并配置采集目标，无需手动维护 `prometheus.yml`。
 
-### 8.3 指标体系
+### 9.3 指标体系
 
 | 层级 | 来源 | 典型指标 |
 | --- | --- | --- |
@@ -367,7 +439,7 @@ kube-prometheus-stack 的 Prometheus Operator 会自动发现并配置采集目�
 | 调度层 | Volcano | 队列堆积、PodGroup 调度状态 |
 | 业务层 | Platform / Compute / Artifacts / Operators | 任务状态、推理延迟、制品数量等自定义指标 |
 
-### 8.4 部署形态
+### 9.4 部署形态
 
 ```yaml
 # deploy/helm/axisml/Chart.yaml
@@ -387,9 +459,9 @@ kube-prometheus-stack:
   # kube-prometheus-stack 子 chart 的 values pass-through
 ```
 
-## 9. 部署总览
+## 10. 部署总览
 
-### 9.1 Helm chart 组织
+### 10.1 Helm chart 组织
 
 AxisML 拆分为两个独立的 Helm chart，按"基础设施 / 控制平面"职责分层部署：
 
@@ -404,6 +476,7 @@ AxisML 拆分为两个独立的 Helm chart，按"基础设施 / 控制平面"职
 | --- | --- | --- |
 | gateway-helm | oci://docker.io/envoyproxy | `envoy-gateway.enabled` |
 | rustfs | https://charts.rustfs.com | `rustfs.enabled` |
+| zot | https://zotregistry.dev/helm-charts | `zot.enabled` |
 | gpu-operator | https://helm.ngc.nvidia.com/nvidia | `gpu-operator.enabled` |
 | volcano | https://volcano-sh.github.io/helm-charts | `volcano.enabled` |
 | kube-prometheus-stack | https://prometheus-community.github.io/helm-charts | `kube-prometheus-stack.enabled` |
@@ -416,23 +489,23 @@ AxisML 拆分为两个独立的 Helm chart，按"基础设施 / 控制平面"职
 
 通过 `condition` 字段保证每个 Infra 组件都可按需启停——例如对接外部 PostgreSQL 时关闭 `database.enabled`，对接现有 Prometheus 时关闭 `kube-prometheus-stack.enabled`。
 
-### 9.2 命名空间约定
+### 10.2 命名空间约定
 
 - `axisml-infra` 命名空间承载第三方基础设施子 chart 的全部资源；`make helm-install-infra` 默认值。
 - `axisml-system` 命名空间承载 AxisML 自研组件（Platform/Compute/Artifacts/Operators）以及元数据数据库 `axisml-database`；`make helm-install-system` 默认值。
-- 跨命名空间访问走 `<service>.<namespace>.svc.cluster.local`，例如 Artifacts 调用 RustFS：`axisml-infra-rustfs-svc.axisml-infra:9000`。
+- 跨命名空间访问走 `<service>.<namespace>.svc.cluster.local`，例如 Artifacts 调用 RustFS：`axisml-infra-rustfs-svc.axisml-infra:9000`、Artifacts 调用 zot：`axisml-infra-zot.axisml-infra:5000`。
 
-### 9.3 安装顺序
+### 10.3 安装顺序
 
 ```
 make cluster-up             # 拉起本地集群
-make helm-install-infra     # 先装基础设施（CRDs + 监控栈 + 网关 + GPU + 调度器 + 对象存储）
+make helm-install-infra     # 先装基础设施（CRDs + 监控栈 + 网关 + GPU + 调度器 + 对象存储 + OCI Registry）
 make helm-install-system    # 再装控制平面（平台组件 + 数据库）
 ```
 
 卸载顺序相反：`helm-uninstall-system` → `helm-uninstall-infra`。
 
-### 9.4 与 values.yaml 的对应关系
+### 10.4 与 values.yaml 的对应关系
 
 axisml-infra/values.yaml：
 
@@ -440,6 +513,7 @@ axisml-infra/values.yaml：
 | --- | --- | --- |
 | 服务网关 | `envoy-gateway` | Envoy Gateway |
 | 对象存储 | `rustfs` | RustFS |
+| OCI Registry | `zot` | zot（v1 filesystem 后端，v2 可切 S3 指向 RustFS） |
 | GPU 管理 | `gpu-operator` | NVIDIA GPU Operator |
 | 批任务调度 | `volcano` | Volcano（资源名形如 `axisml-infra-scheduler`） |
 | 监控 | `kube-prometheus-stack` | kube-prometheus-stack（`fullnameOverride` 设为 `axisml-infra-prometheus`，避开上游 26 字符截断） |
@@ -450,12 +524,14 @@ axisml-system/values.yaml：
 | --- | --- | --- |
 | 数据库 | `database` / `externalDatabase` | PostgreSQL（内置 `axisml-database` / 外接二选一） |
 
-## 10. 关键设计决策
+## 11. 关键设计决策
 
 | 决策项 | 决策 | 理由 |
 | --- | --- | --- |
 | 服务网关 | Envoy Gateway | Gateway API 是 Kubernetes 官方的 Ingress 继任者，Envoy 原生支持 gRPC/HTTP2；配置完全 CRD 化，零外部依赖 |
 | 对象存储 | RustFS | Apache 2.0 许可证，S3 兼容；规避 MinIO 自 2021 年转为 AGPLv3 的商用传染风险。风险：项目较年轻（alpha 阶段），社区规模小于 MinIO；S3 API 抽象使切换成本有限 |
+| OCI Registry | zot | OCI Distribution v2 + 1.1 artifact manifest 原生支持，对 ML 模型类非容器制品的 `artifactType` 语义完整；CNCF Sandbox、单二进制 Go 实现、可选 S3 后端，与 Artifacts "OCI 协议层 + RustFS bytes 层"演进路径相容。规避自建 Harbor / 复用公共 registry 的多种问题（多租户隔离、内网部署、无 ML artifact 语义） |
+| 制品分流 | OCI Distribution（zot）走 model / image，S3（RustFS）走 dataset / eval_report | OCI 的 artifact manifest + 内容寻址契合模型权重与镜像的不可变引用语义；S3 的整目录上传 / 流式访问契合数据集与报告的"前缀寻址 + 多文件"语义。两条数据通道由 Artifacts 的 `ArtifactHandler` 按 Kind 路由（[artifacts.md §6.3](artifacts.md)） |
 | 数据库 | bitnami/postgresql 子 chart | 复用成熟 chart，避免自写 StatefulSet 模板带来的维护负担；`externalDatabase` 段保留用于生产外接 RDS |
 | 数据库归属 | 纳入 axisml-system 控制平面 chart | 数据库的生命周期、迁移、备份都和业务组件紧密耦合；与 Platform/Compute/Artifacts 放同一命名空间可共享 Secret、ServiceMonitor，减少跨 chart 引用 |
 | GPU 管理 | NVIDIA GPU Operator | Kubernetes 原生 GPU 管理事实标准；DCGM Exporter 与监控栈天然集成 |
@@ -464,12 +540,12 @@ axisml-system/values.yaml：
 | 监控 | kube-prometheus-stack | Kubernetes 生态事实标准；ServiceMonitor 自动发现免维护；与 GPU Operator 的 DCGM Exporter 开箱即用 |
 | 部署策略 | 拆成 `axisml-infra` / `axisml-system` 两个 chart | 基础设施和控制平面发版节奏、回滚粒度不同；拆分后 infra 可共享给多套 axisml-system 实例。两者通过命名空间 + Service DNS 解耦，仍保持 `condition` 字段支持按需关闭并对接外部实例 |
 
-## 11. 未来规划
+## 12. 未来规划
 
 本次 Infra 设计范围聚焦核心能力，以下组件暂不引入，留作后续扩展：
 
 - **共享文件存储**（如 JuiceFS）：训练大数据集的 POSIX 挂载，Phase 1 可先通过 PVC + RustFS 的 S3 协议访问解决
-- **容器镜像仓库**（如 Harbor）：训练/推理镜像的私有仓库管理，短期内可复用公共 registry
+- **OCI Registry 双层后端**：把 zot 的 storage backend 配置成 S3 协议指向 RustFS（"zot metadata + RustFS blobs"），把所有制品 bytes 物理上汇聚到对象存储层
 - **日志采集**（如 Fluent Bit + ClickHouse）：集中式日志查询，短期内通过 `kubectl logs` + Prometheus 事件满足
 - **链路追踪**：基于 OpenTelemetry 的分布式调用链，与业务组件改造同步推进
 
