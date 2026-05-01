@@ -2,7 +2,7 @@
 
 ## 1. 概述
 
-AxisML Infra 是平台的基础设施层，由一系列开源组件组成，为上层应用组件（Platform、Compute、Artifacts、Operators）提供底层支撑能力。Infra 层不涉及自研代码，所有组件均通过 Helm 引入并在 AxisML Helm chart 中作为 dependencies 统一管理。
+AxisML Infra 是平台的基础设施层，由一系列开源组件组成，为上层应用组件（Platform、Compute、Artifacts、Operators）提供底层支撑能力。`axisml-infra` Helm chart 主要通过 dependencies 管理第三方组件，同时包含必要的 Gateway API 路由、跨命名空间授权、Secret / ConfigMap 等 glue 模板；元数据数据库随 `axisml-system` 控制平面 chart 管理。
 
 ### 1.1 组件清单
 
@@ -15,8 +15,6 @@ AxisML Infra 是平台的基础设施层，由一系列开源组件组成，为�
 | 5 | GPU 管理 | NVIDIA GPU Operator | GPU 驱动、设备插件与监控 |
 | 6 | 批任务调度 | Volcano | Gang Scheduling、队列管理、公平调度 |
 | 7 | 监控 | kube-prometheus-stack | 集群与业务可观测性 |
-
-> overview.md 第 4.5 节未显式列出批任务调度器，本文档将其纳入 Infra 层，因为 Gang Scheduling 是分布式训练的硬需求（详见 §8 及 §11 关键设计决策）。
 
 ## 2. 整体架构
 
@@ -51,7 +49,7 @@ AxisML Infra 是平台的基础设施层，由一系列开源组件组成，为�
 - Artifacts → **RustFS**（dataset / eval_report 制品文件读写，S3 API）
 - Artifacts / axisml-cli → **zot**（model / image 制品 push / pull，OCI Distribution v2）
 - mlservice-operator / mljob-operator 派生的 Pod → **zot**（按 imagePullSecret 拉取镜像 / 模型）
-- mljob-operator / mlservice-operator 创建的 Pod → **Volcano**（`schedulerName: volcano`）
+- 启用 Volcano 调度集成的 backend / handler → **Volcano**（默认 `schedulerName: axisml-infra-scheduler`）
 - 所有 Pod（含 GPU Operator 的 DCGM Exporter、网关、业务组件）→ **kube-prometheus-stack**（`/metrics` 被 ServiceMonitor 自动发现）
 - 业务 Pod 申请 `nvidia.com/gpu` → **GPU Operator** 完成设备分配
 
@@ -83,7 +81,7 @@ GatewayClass (envoy-gateway)
 - **Gateway**：集群内"监听点"的声明，同一份 Gateway 实例承载全部 AxisML 路由。
 - **HTTPRoute**：对外业务组件的路由规则，与 Service 绑定；Compute 不配置外部 HTTPRoute。
 
-**MLService 派生路由**：mlservice-operator 在租户 namespace 内为开启了 `spec.route.enabled=true` 的 MLService 创建 namespaced `HTTPRoute` / `SecurityPolicy` / `BackendTrafficPolicy`，`parentRefs` 指向同一份 `axisml-gateway`（跨 namespace 引用通过 `ReferenceGrant` 授权，由本 chart 的 `templates/infra/gateway/` 准备）；与 platform / artifacts 的静态 HTTPRoute 共存。详见 [operators/mlservice-operator.md](operators/mlservice-operator.md) §3 / §6 / §8.1。
+**MLService 派生路由**：mlservice-operator 在租户 namespace 内为开启了 `spec.route.enabled=true` 的 MLService 创建 namespaced `HTTPRoute` / `SecurityPolicy` / `BackendTrafficPolicy`，`parentRefs` 指向 `axisml-infra` namespace 下的同一份 `axisml-gateway`；Gateway listener 通过 `allowedRoutes.namespaces` 放行租户 namespace 的 Route 挂载。`ReferenceGrant` 仅用于跨 namespace backendRef 等被引用对象授权场景，本路径下 HTTPRoute、SecurityPolicy、BackendTrafficPolicy 与目标 Service 保持同 namespace。与 platform / artifacts 的静态 HTTPRoute 共存。详见 [operators/mlservice-operator.md](operators/mlservice-operator.md) §3 / §6 / §8.1。
 
 ### 3.2 认证鉴权
 
@@ -111,10 +109,10 @@ GatewayClass (envoy-gateway)
 
 ### 3.4 部署形态
 
-作为 AxisML Helm chart 的 dependency 引入：
+作为 `axisml-infra` Helm chart 的 dependency 引入：
 
 ```yaml
-# deploy/helm/axisml/Chart.yaml
+# deploy/helm/axisml-infra/Chart.yaml
 dependencies:
   - name: gateway-helm
     alias: envoy-gateway
@@ -131,11 +129,11 @@ envoy-gateway:
   # Envoy Gateway 子 chart 的 values pass-through
 ```
 
-AxisML 自身的 `Gateway` / `HTTPRoute` / `SecurityPolicy` 资源由 chart 的 `templates/infra/gateway/` 下模板提供（本文档定义设计，具体模板由后续 PR 落地）。
+AxisML 自身的 `Gateway` / 静态 `HTTPRoute` / Gateway 级策略与 listener `allowedRoutes` 由 `axisml-infra` chart 的 gateway 模板提供（本文档定义设计，具体模板由后续 PR 落地）。
 
 ## 4. 对象存储（RustFS）
 
-AxisML 使用 [RustFS](https://rustfs.dev/) 作为对象存储，用于模型权重、容器镜像 layer、数据集等制品文件的持久化。RustFS 是 Apache 2.0 许可证、基于 Rust 实现、S3 API 兼容的高性能对象存储。
+AxisML 使用 [RustFS](https://rustfs.dev/) 作为对象存储，用于数据集、评估报告等 S3 类制品文件的持久化。RustFS 是 Apache 2.0 许可证、基于 Rust 实现、S3 API 兼容的高性能对象存储。
 
 ### 4.1 架构设计
 
@@ -156,10 +154,10 @@ RustFS 提供标准 S3 API（`PutObject` / `GetObject` / `DeleteObject` / `ListO
 
 ### 4.3 部署形态
 
-作为 AxisML Helm chart 的 dependency：
+作为 `axisml-infra` Helm chart 的 dependency：
 
 ```yaml
-# deploy/helm/axisml/Chart.yaml
+# deploy/helm/axisml-infra/Chart.yaml
 dependencies:
   - name: rustfs
     version: 0.0.9x
@@ -210,7 +208,7 @@ zot 提供完整的 OCI Distribution v2 协议（`/v2/<repo>/blobs/uploads/`、`
 
 ### 5.3 与 Artifacts / tenant-operator 的接入契约
 
-zot 是 axisml-infra chart 提供的纯协议端，本身不感知 AxisML 的租户模型；租户 / 命名隔离由 Artifacts 在 repo 路径上完成，鉴权由 Artifacts 签发的 scope token 表达：
+zot 目标上由 `axisml-infra` chart 提供为纯协议端，本身不感知 AxisML 的租户模型；租户 / 命名隔离由 Artifacts 在 repo 路径上完成，鉴权由 Artifacts 签发的 scope token 表达：
 
 | 资源 | 落点 | 由谁维护 |
 | --- | --- | --- |
@@ -243,6 +241,8 @@ zot:
   # zot 子 chart 的 values pass-through；后端默认 filesystem，HA 场景切 s3
 ```
 
+> **落地状态说明**：zot 是 Infra 目标架构中的 OCI Registry 后端；当前 `deploy/helm/axisml-infra/Chart.yaml` 仍需补齐该 dependency 与 values，本文保留目标设计以和 Artifacts 的 model / image 存储契约保持一致。
+
 > **与 RustFS 的关系**：v1 zot 使用本地 filesystem 作为 blob 后端，与 RustFS 数据通道无耦合；v2 引入"zot metadata + RustFS blobs"双层架构后，可把 zot 的 storage backend 配置成 S3 协议指向 RustFS，从而把所有制品 bytes 物理上汇聚到 RustFS、由 zot 维护 OCI 协议层。
 
 ## 6. 数据库（PostgreSQL）
@@ -251,7 +251,7 @@ AxisML 使用 PostgreSQL 作为元数据存储，供 Compute、Artifacts 等 Go 
 
 ### 6.1 架构设计
 
-支持两种部署模式，由 `postgresql.enabled` 开关切换：
+支持两种部署模式，由 `database.enabled` 开关切换：
 
 | 模式 | 说明 | 适用场景 |
 | --- | --- | --- |
@@ -272,19 +272,20 @@ AxisML 使用 PostgreSQL 作为元数据存储，供 Compute、Artifacts 等 Go 
 ### 6.3 部署形态
 
 ```yaml
-# deploy/helm/axisml/Chart.yaml
+# deploy/helm/axisml-system/Chart.yaml
 dependencies:
   - name: postgresql
+    alias: database
     version: 16.x.x
     repository: oci://registry-1.docker.io/bitnamicharts
-    condition: postgresql.enabled
+    condition: database.enabled
 ```
 
 values.yaml 对应段（bitnami pass-through 字段命名）：
 
 ```yaml
-postgresql:
-  enabled: true          # 内置模式开关；false 时使用 externalPostgresql
+database:
+  enabled: true          # 内置模式开关；false 时使用 externalDatabase
   auth:
     database: axisml
     username: axisml
@@ -293,8 +294,8 @@ postgresql:
     persistence:
       size: 10Gi
 
-# 外部模式（postgresql.enabled=false 时生效）
-externalPostgresql:
+# 外部模式（database.enabled=false 时生效）
+externalDatabase:
   host: ""
   port: 5432
   database: axisml
@@ -328,18 +329,18 @@ Infra 层对上层的契约：
 ### 7.3 部署形态
 
 ```yaml
-# deploy/helm/axisml/Chart.yaml
+# deploy/helm/axisml-infra/Chart.yaml
 dependencies:
   - name: gpu-operator
     version: v24.x.x
     repository: https://helm.ngc.nvidia.com/nvidia
-    condition: gpuOperator.enabled
+    condition: gpu-operator.enabled
 ```
 
 values.yaml 对应段：
 
 ```yaml
-gpuOperator:
+gpu-operator:
   enabled: true
   # gpu-operator 子 chart 的 values pass-through
   # 如 driver.enabled / dcgmExporter.enabled 等
@@ -347,13 +348,13 @@ gpuOperator:
 
 ## 8. 批任务调度（Volcano）
 
-AxisML 使用 [Volcano](https://volcano.sh/) 作为批任务调度器，与默认的 kube-scheduler 共存，专门接管训练/推理任务的调度。
+AxisML 使用 [Volcano](https://volcano.sh/) 作为批任务调度器，与默认的 kube-scheduler 共存。Volcano 只接管显式选择 Volcano scheduler 的 workload；默认 native Job 不依赖 Volcano。
 
 ### 8.1 组件架构
 
 | 组件 | 职责 |
 | --- | --- |
-| Volcano Scheduler | 自定义调度器，按 `schedulerName: volcano` 接管 Pod 调度 |
+| Volcano Scheduler | 自定义调度器，按 `schedulerName` 接管 Pod 调度；`axisml-infra` release 下默认名称为 `axisml-infra-scheduler` |
 | Volcano Controller | 管理 Volcano Job (`vcjob`) 与 `PodGroup` 的生命周期 |
 | Volcano Admission Webhook | 准入控制，校验与默认值注入 |
 
@@ -371,19 +372,21 @@ AxisML 使用 [Volcano](https://volcano.sh/) 作为批任务调度器，与默�
 
 本文档定义 Infra 侧契约，具体实现细节见 `operators/`：
 
-- mljob-operator / mlservice-operator 为每个 MLJob / MLService 创建对应的 `PodGroup` 资源，并在 Pod spec 上设置 `schedulerName: volcano`
-- Volcano Scheduler 基于 PodGroup 的 `minMember` / `minResources` 执行 Gang Scheduling
+- 只有启用 Volcano 调度集成的 backend / handler 才创建 `PodGroup` 并在 Pod spec 上设置 Volcano scheduler；默认 scheduler 名称为 `axisml-infra-scheduler`
+- MLJob `(native, job)` 保持 K8s 原生 Job 路径，无 Volcano 依赖；MLJob `(volcano, podgroup)` / `(volcano, volcanojob)` 通过 Volcano 执行 Gang Scheduling 与 Queue accounting
+- MLService 不引入独立 `(volcano, *)` backend；native Deployment / StatefulSet handler 按现有设计创建轻量 `PodGroup` 做 Queue accounting，KServe handler 的 Volcano accounting 仍是已知缺口，后续独立设计补齐
+- Volcano Scheduler 基于 PodGroup 的 `minMember` / `minResources` 执行 Gang Scheduling；轻量 PodGroup 仅用于常驻服务记账时不表达"全员就位才启动"语义
 - **Volcano `Queue` CR（cluster-scoped）由 Compute 独占 owner**：容量（`spec.capability`）、命名、补偿与 RBAC 均由 Compute 维护，operator 仅通过名称引用（`PodGroup.spec.queue`），不读写 Queue CR。队列与租户 / 资源池的归属关系由 Compute 在 PG 中维护，命名约定 `axisml-<tenant>-<pool>-<queue>` 见 [compute.md §6.2.4](compute.md)
 - tenant-operator 只负责租户的 Namespace 与 ResourceQuota 等集群侧资源，不涉及 Volcano Queue CR
 
 ### 8.4 与 kube-scheduler 共存
 
-Volcano 仅接管带 `schedulerName: volcano` 的 Pod。Infra 自身（网关、数据库、对象存储、监控）以及 Platform / Compute / Artifacts 等业务组件的 Pod 仍走默认 kube-scheduler，互不干扰。
+Volcano 仅接管带 Volcano schedulerName 的 Pod；在当前 Helm release 下默认值为 `axisml-infra-scheduler`。Infra 自身（网关、对象存储、监控）以及 Platform / Compute / Artifacts / 数据库等控制平面 Pod 仍走默认 kube-scheduler，互不干扰。
 
 ### 8.5 部署形态
 
 ```yaml
-# deploy/helm/axisml/Chart.yaml
+# deploy/helm/axisml-infra/Chart.yaml
 dependencies:
   - name: volcano
     version: 1.10.x
@@ -397,6 +400,7 @@ values.yaml 对应段：
 volcano:
   enabled: true
   # volcano 子 chart 的 values pass-through
+  # 当前 release 名 axisml-infra 下，schedulerName 默认为 axisml-infra-scheduler
 ```
 
 ## 9. 监控（kube-prometheus-stack）
@@ -442,7 +446,7 @@ kube-prometheus-stack 的 Prometheus Operator 会自动发现并配置采集目�
 ### 9.4 部署形态
 
 ```yaml
-# deploy/helm/axisml/Chart.yaml
+# deploy/helm/axisml-infra/Chart.yaml
 dependencies:
   - name: kube-prometheus-stack
     alias: kube-prometheus-stack
@@ -476,7 +480,7 @@ AxisML 拆分为两个独立的 Helm chart，按"基础设施 / 控制平面"职
 | --- | --- | --- |
 | gateway-helm | oci://docker.io/envoyproxy | `envoy-gateway.enabled` |
 | rustfs | https://charts.rustfs.com | `rustfs.enabled` |
-| zot | https://zotregistry.dev/helm-charts | `zot.enabled` |
+| zot（目标项；当前 Chart 待补齐） | https://zotregistry.dev/helm-charts | `zot.enabled` |
 | gpu-operator | https://helm.ngc.nvidia.com/nvidia | `gpu-operator.enabled` |
 | volcano | https://volcano-sh.github.io/helm-charts | `volcano.enabled` |
 | kube-prometheus-stack | https://prometheus-community.github.io/helm-charts | `kube-prometheus-stack.enabled` |
@@ -487,7 +491,7 @@ AxisML 拆分为两个独立的 Helm chart，按"基础设施 / 控制平面"职
 | --- | --- | --- |
 | postgresql（aliased 为 `database`） | oci://registry-1.docker.io/bitnamicharts | `database.enabled` |
 
-通过 `condition` 字段保证每个 Infra 组件都可按需启停——例如对接外部 PostgreSQL 时关闭 `database.enabled`，对接现有 Prometheus 时关闭 `kube-prometheus-stack.enabled`。
+通过 `condition` 字段保证组件可按需启停——例如对接外部 PostgreSQL 时关闭 `database.enabled`，对接现有 Prometheus 时关闭 `kube-prometheus-stack.enabled`。
 
 ### 10.2 命名空间约定
 
@@ -536,7 +540,7 @@ axisml-system/values.yaml：
 | 数据库归属 | 纳入 axisml-system 控制平面 chart | 数据库的生命周期、迁移、备份都和业务组件紧密耦合；与 Platform/Compute/Artifacts 放同一命名空间可共享 Secret、ServiceMonitor，减少跨 chart 引用 |
 | GPU 管理 | NVIDIA GPU Operator | Kubernetes 原生 GPU 管理事实标准；DCGM Exporter 与监控栈天然集成 |
 | 批任务调度 | Volcano | Gang Scheduling 是分布式训练的硬需求（避免部分 Worker 启动造成资源死锁）；CNCF 孵化项目，Queue + Fair-share 契合多租户模型；与 kube-scheduler 按 `schedulerName` 共存，零副作用 |
-| 批任务调度归属 | 纳入 Infra 层（overview 未列出） | 所有 ML 训练任务都必须经由 Volcano 调度，其归属性与 GPU Operator 相同，均为训练能力的底座 |
+| 批任务调度归属 | 纳入 Infra 层 | Volcano 与 GPU Operator 一样属于训练能力底座；作为第三方基础设施组件独立于 AxisML 自研控制平面部署 |
 | 监控 | kube-prometheus-stack | Kubernetes 生态事实标准；ServiceMonitor 自动发现免维护；与 GPU Operator 的 DCGM Exporter 开箱即用 |
 | 部署策略 | 拆成 `axisml-infra` / `axisml-system` 两个 chart | 基础设施和控制平面发版节奏、回滚粒度不同；拆分后 infra 可共享给多套 axisml-system 实例。两者通过命名空间 + Service DNS 解耦，仍保持 `condition` 字段支持按需关闭并对接外部实例 |
 
