@@ -1,21 +1,21 @@
 dependencies:
 - name: gateway-helm
   repository: oci://docker.io/envoyproxy
-  version: 1.3.0
+  version: 1.7.2
 - name: rustfs
   repository: https://charts.rustfs.com
-  version: 0.0.96
+  version: 0.1.0
 - name: zot
   repository: https://zotregistry.dev/helm-charts
   version: 0.1.112
 - name: gpu-operator
   repository: https://helm.ngc.nvidia.com/nvidia
-  version: v24.9.0
+  version: v26.3.1
 - name: koordinator
   repository: https://koordinator-sh.github.io/charts
-  version: 1.5.0
+  version: 1.8.0
 - name: kube-prometheus-stack
   repository: https://prometheus-community.github.io/helm-charts
-  version: 65.0.0
-digest: sha256:4720fee5bed4efc4aeb0418035ab143e155d8bbcc78b43ff6b671ba2dfd29f01
-generated: "2026-05-02T23:15:35.515347+08:00"
+  version: 84.5.0
+digest: sha256:d76e8b7fc9e6af5e8d5e035967a920964fc671ef110ef7963309b84854d6cbee
+generated: "2026-05-03T00:22:38.647906+08:00"

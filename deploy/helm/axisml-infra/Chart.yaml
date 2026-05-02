@@ -22,12 +22,12 @@ maintainers:
 dependencies:
   - name: gateway-helm
     alias: envoy-gateway
-    version: "1.3.0"
+    version: "1.7.2"
     repository: "oci://docker.io/envoyproxy"
     condition: envoy-gateway.enabled
 
   - name: rustfs
-    version: "0.0.96"
+    version: "0.1.0"
     repository: "https://charts.rustfs.com"
     condition: rustfs.enabled
 
@@ -37,16 +37,16 @@ dependencies:
     condition: zot.enabled
 
   - name: gpu-operator
-    version: "v24.9.0"
+    version: "v26.3.1"
     repository: "https://helm.ngc.nvidia.com/nvidia"
     condition: gpu-operator.enabled
 
   - name: koordinator
-    version: "1.5.0"
+    version: "1.8.0"
     repository: "https://koordinator-sh.github.io/charts"
     condition: koordinator.enabled
 
   - name: kube-prometheus-stack
-    version: "65.0.0"
+    version: "84.5.0"
     repository: "https://prometheus-community.github.io/helm-charts"
     condition: kube-prometheus-stack.enabled
