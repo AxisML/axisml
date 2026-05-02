@@ -2,19 +2,22 @@ AxisML Infra has been installed successfully into namespace {{ .Release.Namespac
 
 Components deployed:
 {{- if (index .Values "envoy-gateway").enabled }}
-  - Envoy Gateway:        axisml-infra-envoy-gateway
+  - Envoy Gateway:        envoy-gateway
 {{- end }}
 {{- if .Values.rustfs.enabled }}
-  - RustFS (S3):          axisml-infra-rustfs-svc:9000
+  - RustFS (S3):          rustfs-svc:9000
+{{- end }}
+{{- if .Values.zot.enabled }}
+  - zot (OCI):            zot:5000 (default user: admin / admin)
 {{- end }}
 {{- if (index .Values "gpu-operator").enabled }}
-  - GPU Operator:         axisml-infra-gpu-operator
+  - GPU Operator:         gpu-operator
 {{- end }}
 {{- if .Values.volcano.enabled }}
   - Volcano scheduler:    {{ .Release.Name }}-scheduler (set schedulerName on ML job pods)
 {{- end }}
 {{- if (index .Values "kube-prometheus-stack").enabled }}
-  - Prometheus / Grafana: axisml-infra-prometheus / axisml-infra-grafana
+  - Prometheus / Grafana: prometheus / grafana
 {{- end }}
 
 Install the control plane next:

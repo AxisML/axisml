@@ -35,23 +35,27 @@ cluster-status: ## Show cluster status
 
 # --- Helm Management ---
 
-.PHONY: helm-install helm-upgrade helm-uninstall helm-template
+.PHONY: helm-install helm-upgrade helm-uninstall helm-template helm-deps
 .PHONY: helm-install-infra helm-install-system
 .PHONY: helm-upgrade-infra helm-upgrade-system
 .PHONY: helm-uninstall-infra helm-uninstall-system
 
-helm-install-infra: ## Install AxisML infrastructure
-	@helm install $(HELM_INFRA_RELEASE) $(HELM_INFRA_CHART) -n $(HELM_INFRA_NAMESPACE) --create-namespace --kube-context $(MINIKUBE_PROFILE)
+helm-deps: ## Fetch sub-chart tarballs for both charts (run after clone / Chart.yaml change)
+	@helm dependency update $(HELM_INFRA_CHART)
+	@helm dependency update $(HELM_SYSTEM_CHART)
 
-helm-install-system: ## Install AxisML control plane
-	@helm install $(HELM_SYSTEM_RELEASE) $(HELM_SYSTEM_CHART) -n $(HELM_SYSTEM_NAMESPACE) --create-namespace --kube-context $(MINIKUBE_PROFILE)
+helm-install-infra: ## Install or upgrade AxisML infrastructure (idempotent)
+	@helm upgrade --install $(HELM_INFRA_RELEASE) $(HELM_INFRA_CHART) -n $(HELM_INFRA_NAMESPACE) --create-namespace --kube-context $(MINIKUBE_PROFILE)
 
-helm-install: helm-install-infra helm-install-system ## Install infra + control plane
+helm-install-system: ## Install or upgrade AxisML control plane (idempotent)
+	@helm upgrade --install $(HELM_SYSTEM_RELEASE) $(HELM_SYSTEM_CHART) -n $(HELM_SYSTEM_NAMESPACE) --create-namespace --kube-context $(MINIKUBE_PROFILE)
 
-helm-upgrade-infra: ## Upgrade AxisML infrastructure
+helm-install: helm-install-infra helm-install-system ## Install or upgrade infra + control plane
+
+helm-upgrade-infra: ## Upgrade AxisML infrastructure (must already be installed)
 	@helm upgrade $(HELM_INFRA_RELEASE) $(HELM_INFRA_CHART) -n $(HELM_INFRA_NAMESPACE) --kube-context $(MINIKUBE_PROFILE)
 
-helm-upgrade-system: ## Upgrade AxisML control plane
+helm-upgrade-system: ## Upgrade AxisML control plane (must already be installed)
 	@helm upgrade $(HELM_SYSTEM_RELEASE) $(HELM_SYSTEM_CHART) -n $(HELM_SYSTEM_NAMESPACE) --kube-context $(MINIKUBE_PROFILE)
 
 helm-upgrade: helm-upgrade-infra helm-upgrade-system ## Upgrade both

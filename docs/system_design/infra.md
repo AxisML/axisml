@@ -497,7 +497,7 @@ AxisML 拆分为两个独立的 Helm chart，按"基础设施 / 控制平面"职
 
 - `axisml-infra` 命名空间承载第三方基础设施子 chart 的全部资源；`make helm-install-infra` 默认值。
 - `axisml-system` 命名空间承载 AxisML 自研组件（Platform/Compute/Artifacts/Operators）以及元数据数据库 `axisml-database`；`make helm-install-system` 默认值。
-- 跨命名空间访问走 `<service>.<namespace>.svc.cluster.local`，例如 Artifacts 调用 RustFS：`axisml-infra-rustfs-svc.axisml-infra:9000`、Artifacts 调用 zot：`axisml-infra-zot.axisml-infra:5000`。
+- 跨命名空间访问走 `<service>.<namespace>.svc.cluster.local`，例如 Artifacts 调用 RustFS：`rustfs-svc.axisml-infra:9000`、Artifacts 调用 zot：`zot.axisml-infra:5000`。
 
 ### 10.3 安装顺序
 
@@ -520,7 +520,7 @@ axisml-infra/values.yaml：
 | OCI Registry | `zot` | zot（v1 filesystem 后端，v2 可切 S3 指向 RustFS） |
 | GPU 管理 | `gpu-operator` | NVIDIA GPU Operator |
 | 批任务调度 | `volcano` | Volcano（资源名形如 `axisml-infra-scheduler`） |
-| 监控 | `kube-prometheus-stack` | kube-prometheus-stack（`fullnameOverride` 设为 `axisml-infra-prometheus`，避开上游 26 字符截断） |
+| 监控 | `kube-prometheus-stack` | kube-prometheus-stack（`fullnameOverride` 设为 `prometheus`，避开上游 26 字符截断） |
 
 axisml-system/values.yaml：
 

@@ -4,21 +4,29 @@ global:
   imagePullSecrets: []
   storageClass: ""
 
+# Naming convention: sub-charts are scoped by the `axisml-infra` namespace, so
+# fullnameOverride drops the redundant `axisml-infra-` prefix. Cross-namespace
+# callers reach a sub-chart via `<svc>.axisml-infra.svc.cluster.local` (e.g.
+# `zot.axisml-infra:5000`, `rustfs-svc.axisml-infra:9000`).
+
 # =============================================================================
 # Envoy Gateway
 # =============================================================================
 # Sub-chart: oci://docker.io/envoyproxy/gateway-helm (aliased as envoy-gateway)
+# gateway-helm hardcodes `metadata.name` on its Deployment templates instead of
+# using its own fullname helper, so `fullnameOverride` is silently ignored — the
+# rendered names stay as `envoy-gateway`.
 envoy-gateway:
   enabled: true
-  fullnameOverride: axisml-infra-envoy-gateway
 
 # =============================================================================
 # RustFS (object storage)
 # =============================================================================
 # Sub-chart: https://charts.rustfs.com/rustfs
+# Cluster DNS: rustfs-svc.axisml-infra.svc.cluster.local:9000
 rustfs:
   enabled: true
-  fullnameOverride: axisml-infra-rustfs
+  fullnameOverride: rustfs
   # Single-node-friendly defaults. Flip to distributed for multi-node prod.
   replicaCount: 1
   mode:
@@ -32,14 +40,62 @@ rustfs:
     logStorageSize: 1Gi
 
 # =============================================================================
+# zot (OCI registry)
+# =============================================================================
+# Sub-chart: https://zotregistry.dev/helm-charts/zot
+# OCI Distribution v2 endpoint for model / image artifacts. Cluster DNS:
+#   zot.axisml-infra.svc.cluster.local:5000
+# Defaults: standalone (1 replica), filesystem backend at /var/lib/registry,
+# htpasswd auth with built-in `admin:admin` user (rotate via `secretFiles.htpasswd`
+# or pre-create a Secret and disable mountSecret in production).
+zot:
+  enabled: true
+  fullnameOverride: zot
+  replicaCount: 1
+  service:
+    type: ClusterIP
+    port: 5000
+  persistence: true
+  pvc:
+    create: true
+    accessModes: ["ReadWriteOnce"]
+    storage: 10Gi
+  mountConfig: true
+  configFiles:
+    config.json: |-
+      {
+        "storage": { "rootDirectory": "/var/lib/registry", "dedupe": true, "gc": true },
+        "http": {
+          "address": "0.0.0.0",
+          "port": "5000",
+          "auth": { "htpasswd": { "path": "/secret/htpasswd" } },
+          "accessControl": {
+            "repositories": {
+              "**": {
+                "anonymousPolicy": ["read"],
+                "defaultPolicy": ["read", "create", "update", "delete"]
+              }
+            },
+            "adminPolicy": {
+              "users": ["admin"],
+              "actions": ["read", "create", "update", "delete"]
+            }
+          }
+        },
+        "log": { "level": "info" }
+      }
+  mountSecret: true
+
+# =============================================================================
 # NVIDIA GPU Operator
 # =============================================================================
 # Sub-chart: https://helm.ngc.nvidia.com/nvidia/gpu-operator
+# gpu-operator hardcodes `metadata.name` on its Deployment templates, so
+# `fullnameOverride` is silently ignored — the rendered name stays `gpu-operator`.
 gpu-operator:
   enabled: true
-  fullnameOverride: axisml-infra-gpu-operator
   node-feature-discovery:
-    fullnameOverride: axisml-infra-node-feature-discovery
+    fullnameOverride: nfd
 
 # =============================================================================
 # Volcano (batch scheduler)
@@ -59,19 +115,17 @@ volcano:
 kube-prometheus-stack:
   enabled: true
   # The chart's fullname helper truncates at 26 chars (templates append suffixes
-  # up to 37 chars long), so keep the override ≤ 26 chars.
-  # Note: the Prometheus Operator prefixes CR names with `prometheus-` / `alertmanager-`
-  # when it creates the StatefulSets, so the Prometheus pod ends up as
-  # `prometheus-axisml-infra-prometheus-0` (prometheus twice). We accept that
-  # redundancy in exchange for a clear, specific name on the Services / CRs / ConfigMaps.
-  fullnameOverride: axisml-infra-prometheus
+  # up to 37 chars long), so keep the override ≤ 26 chars. The Prometheus Operator
+  # prefixes its StatefulSet names with `prometheus-` / `alertmanager-`, so the
+  # Prometheus pod still ends up as `prometheus-prometheus-0` — that stutter is
+  # upstream behavior we accept.
+  fullnameOverride: prometheus
   # Drop the redundant "-alertmanager"/"-prometheus" suffixes the chart adds
-  # to CR names; otherwise pods end up like
-  # `alertmanager-<fullname>-alertmanager-0`.
+  # to CR names.
   cleanPrometheusOperatorObjectNames: true
   grafana:
-    fullnameOverride: axisml-infra-grafana
+    fullnameOverride: grafana
   kube-state-metrics:
-    fullnameOverride: axisml-infra-kube-state-metrics
+    fullnameOverride: kube-state-metrics
   prometheus-node-exporter:
-    fullnameOverride: axisml-infra-prometheus-node-exporter
+    fullnameOverride: node-exporter

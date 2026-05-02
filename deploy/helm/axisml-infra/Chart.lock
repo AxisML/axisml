@@ -5,6 +5,9 @@ dependencies:
 - name: rustfs
   repository: https://charts.rustfs.com
   version: 0.0.96
+- name: zot
+  repository: https://zotregistry.dev/helm-charts
+  version: 0.1.112
 - name: gpu-operator
   repository: https://helm.ngc.nvidia.com/nvidia
   version: v24.9.0
@@ -14,5 +17,5 @@ dependencies:
 - name: kube-prometheus-stack
   repository: https://prometheus-community.github.io/helm-charts
   version: 65.0.0
-digest: sha256:9e431e9180394902565beb91fed4cbe8a2d903c949fd430c86b89bb826a26483
-generated: "2026-04-22T20:31:18.231519+08:00"
+digest: sha256:55b4cf6f296525de457b1acbb4fed0fba1eb91309e5fd5ace43290cdbc832ad9
+generated: "2026-05-02T09:58:20.331576+08:00"

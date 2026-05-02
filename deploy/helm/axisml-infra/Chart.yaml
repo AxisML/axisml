@@ -31,6 +31,11 @@ dependencies:
     repository: "https://charts.rustfs.com"
     condition: rustfs.enabled
 
+  - name: zot
+    version: "0.1.112"
+    repository: "https://zotregistry.dev/helm-charts"
+    condition: zot.enabled
+
   - name: gpu-operator
     version: "v24.9.0"
     repository: "https://helm.ngc.nvidia.com/nvidia"
