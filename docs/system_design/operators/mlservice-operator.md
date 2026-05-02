@@ -30,7 +30,7 @@ Compute 负责设置以下 metadata（与 [compute.md §6.3.2](../compute.md) �
 - `metadata.namespace` ← `tenants.namespace`
 - `metadata.labels["axisml.io/service-id"]` ← `services.id`（UUID，孤儿检测稳定锚点）
 - `metadata.labels["axisml.io/tenant"]` ← 租户名
-- `metadata.labels["axisml.io/queue"]` ← Compute Queue 名
+- `metadata.labels["axisml.io/quota"]` ← Compute Quota 名
 
 ### 3.1 spec 设计取舍
 
@@ -43,7 +43,7 @@ Compute 负责设置以下 metadata（与 [compute.md §6.3.2](../compute.md) �
 
 调度域沿用 K8s PodSpec 扁平惯例直接放在 `spec.scheduling` 下，不再额外包一层 `placement`，与 mljob-operator 同构。
 
-**Service 不引入 `volcano` backend**：与 MLJob 不同，service 是常驻 + 弹性扩缩 workload，不应默认获得“所有副本同时调度”的 gang 语义，故 `native` 直接走 K8s 原生 Deployment / StatefulSet，不引入"`(volcano, *)` MLService backend"这种独立 backend 维度。**但 native Service Pod 仍走 Volcano 调度器并附带轻量 PodGroup**：Handler 创建 PodGroup 只作为 Volcano Queue accounting 的归属锚点，不把 `minMember` 设为期望副本数；当 `replicas > 0` 时使用 `minMember=1`，当 `replicas=0` 时删除或跳过 PodGroup。Pod 设置 `schedulerName: volcano` 并通过 annotation 关联到该 PodGroup；Volcano Queue `status.allocated` 因此按实际运行 Pod 反映 MLService 用量，[compute.md §6.2.4](../compute.md) 的 `queues.used` 反映 Job + Service 的合计用量，无需 Compute 自行合成。若某类在线服务确实需要 gang / role-level gang（如 PD 分离要求 prefill 与 decode 成组启动），应作为后续显式设计，而不是复用 native 单角色默认行为。`(kserve, *)` 的 Pod 由 KServe 自身派生，是否接入 Volcano 调度由独立设计文档决定（见 §11）。
+**Service 不引入独立 koordinator backend**：与 MLJob 不同，service 是常驻 + 弹性扩缩 workload，不应默认获得"所有副本同时调度"的 gang 语义，故 `native` 直接走 K8s 原生 Deployment / StatefulSet，不引入额外的 backend 维度。**但所有 native Service 与 KServe 派生的 Pod 仍强制走 koord-scheduler 并消耗 ElasticQuota**：Handler 在 podSpec 模板上设置 `schedulerName: koord-scheduler` 并打 label `quota.scheduling.koordinator.sh/name=axisml-<tenant>-<pool>-<quota>`，让 ElasticQuota plugin 自动按运行 Pod 把用量计入 `status.used`——**无需为 service 创建任何 PodGroup**（Koordinator ElasticQuota 通过 Pod label 直接关联，不依赖中间 PodGroup）。`spec.scheduling.quota` 因此既参与硬约束（koord-scheduler 调度时校验 ElasticQuota.max）也参与回流（Compute 通过 ElasticQuota.status.used 算出 `quotas.used`），无需 Compute 自行合成。若某类在线服务确实需要 gang / role-level gang（如 PD 分离要求 prefill 与 decode 成组启动），应作为后续显式设计，而不是复用 native 单角色默认行为。`(kserve, *)` 的 Pod 由 KServe 自身派生，本 Handler 通过写入 `InferenceService.spec.predictor.schedulerName` 与 `spec.predictor.labels` 透传 schedulerName + quota label，依赖 KServe 把它们传递到派生 Pod（KServe `PredictorSpec` 内联 `corev1.PodSpec` 与 `ComponentExtensionSpec`，因此这两个字段都直接位于 `spec.predictor` 下；详见 §8.3 / [infra.md §8.3](../infra.md)）。
 
 **与 MLJob 的差异点**：
 
@@ -61,7 +61,7 @@ spec:
   # ── 后端选择（创建后不可变；dispatcher 路由依据）─────────────────────
   backend:
     name: native              # 必填: native | kserve | custom
-                              #      （volcano / kubeflow-trainer 仅用于 MLJob）
+                              #      （kubeflow-trainer 仅用于 MLJob）
     engine: deployment        # 必填: 语义随 backend 而定（见 §8）；engine 与目标 CR 1:1 映射
                               #   native: deployment | statefulset
                               #   kserve: inference | llminference
@@ -70,9 +70,9 @@ spec:
                               #   custom: 任意名（由 backend.config 描述目标 GVK）
     config: {}                # 可选: 该 (backend, engine) 元组特有的 schemaless 配置
 
-  # ── 调度域（由 Compute 从 Queue / ResourcePool / ResourceUnit 合成注入）──
+  # ── 调度域（由 Compute 从 Quota / ResourcePool / ResourceUnit 合成注入）──
   scheduling:
-    queue: string             # 必填: Volcano Queue CR 名（与 Compute Queue 1:1 映射）
+    quota: string             # 必填: ElasticQuota CR 名（axisml-<tenant>-<pool>-<quota>，与 Compute Quota 1:1 映射）
     priorityClass: string     # 可选: K8s PriorityClass 名
     nodeSelector: {}          # Compute 按 compute.md §6.2.3 合并 pool + unit 后注入
     tolerations: []           # 来自 ResourcePool
@@ -136,7 +136,7 @@ spec:
 | `metadata.name` / `namespace` / `labels[axisml.io/*]` | Compute | 否 |
 | `spec.backend.name` / `spec.backend.engine` | Compute（默认 `{native, deployment}`） | **否**；dispatcher 拒绝并写 `status.message` |
 | `spec.backend.config` | Compute（默认 `{}`） | 否（v1 仅允许 `roles[*].replicas` 通过 `:scale` 变更；config 热更新见 §11） |
-| `spec.scheduling.queue` / `priorityClass` / `nodeSelector` / `tolerations` | Compute（合并 Queue + Pool + Unit） | 否 |
+| `spec.scheduling.quota` / `priorityClass` / `nodeSelector` / `tolerations` | Compute（合并 Quota + Pool + Unit） | 否 |
 | `spec.modelRef` | 用户提交 | 否（更换模型版本走重建） |
 | `spec.roles[*].name` / `template.*`（含 `ports[]`，除 resources） | 用户提交 | 否 |
 | `spec.roles[*].template.resources` | Compute（注入 ResourceUnit） | 否 |
@@ -224,7 +224,7 @@ mlservice-operator 与 mljob-operator 同构，由两层组成：
                   MLService.status (统一 phase)
 ```
 
-**Watch 拓扑**：Dispatcher 始终 watch MLService 主队列；每个 Handler 启动时通过 `WatchTargets()` 声明自己关心的底层资源类型（Deployment、Service、PodGroup、HTTPRoute、InferenceService …），由 dispatcher 统一建立 watch（controller-runtime `Watches()`），事件通过 `ownerReference` 反查回 MLService 后再交给对应 Handler 的 `MapStatus`。
+**Watch 拓扑**：Dispatcher 始终 watch MLService 主队列；每个 Handler 启动时通过 `WatchTargets()` 声明自己关心的底层资源类型（Deployment、StatefulSet、Service、HTTPRoute、InferenceService …），由 dispatcher 统一建立 watch（controller-runtime `Watches()`），事件通过 `ownerReference` 反查回 MLService 后再交给对应 Handler 的 `MapStatus`。
 
 **注册方式**：编译期注册（每个 handler 包 `init()` → 全局 registry）；不引入运行时插件加载（plugin / wasm / 外部 grpc）——若未来需要 "运行时安装新后端"，再演进为独立 operator binary 路由模式。
 
@@ -249,15 +249,20 @@ mlservice-operator 与 mljob-operator 同构，由两层组成：
 - Handler 不能在 `Reconcile` 中直接写 `status`；所有 status 变更必须经过 `MapStatus`，由 dispatcher 统一合并写入，保证回流路径单一
 - dispatcher 通过 `status` subresource 做 JSON merge patch（或 server-side apply）并用 `resourceVersion` 冲突重试；当前 CRD 仍是 schemaless，不能依赖 CRD strategic merge patch 或 list-map schema，`conditions[]` 必须由 dispatcher 在代码里按 `type` 去重后整体写回
 
-**Pod label 约定**（跨 Handler 通用）：
+**Pod 模板注入约定**（跨 Handler 通用，体现 [infra.md §8.3](../infra.md) 的 Quota 全覆盖不变式）：
 
-| Label | 必填 | 取值 | 用途 |
+| Pod 字段 / Label | 必填 | 取值 | 用途 |
 | --- | --- | --- | --- |
-| `axisml.io/service-id` | 是 | `services.id`（UUID） | 反查 MLService，与 CR 上同名 label 一致 |
-| `axisml.io/role` | 是 | role 名（如 `predictor` / `transformer` / `explainer`） | 区分多角色拓扑下的 Pod |
-| `axisml.io/replica-index` | 否 | role 内 0-based 序号 | 副本身份天然稳定时建议透传：`(native, statefulset)` 取 `apps.kubernetes.io/pod-index`；`(native, deployment)` / KServe autoscaling pod 集合等无稳定身份场景一律省略 |
+| `spec.schedulerName` | 是 | `koord-scheduler` | 所有 AxisML workload Pod 一律走 koord-scheduler；不允许任何 backend 让 Pod 落到默认 kube-scheduler 上 |
+| label `quota.scheduling.koordinator.sh/name` | 是 | `<spec.scheduling.quota>` | Koordinator 原生 quota 关联 label；ElasticQuota plugin 据此把该 Pod 计入 `status.used` |
+| label `axisml.io/service-id` | 是 | `services.id`（UUID） | 反查 MLService，与 CR 上同名 label 一致 |
+| label `axisml.io/role` | 是 | role 名（如 `predictor` / `transformer` / `explainer`） | 区分多角色拓扑下的 Pod |
+| label `axisml.io/quota` | 是 | Compute Quota 名 | AxisML 自有审计 / 查询；与 `quota.scheduling.koordinator.sh/name` 同源，不参与调度 |
+| label `axisml.io/replica-index` | 否 | role 内 0-based 序号 | 副本身份天然稳定时建议透传：`(native, statefulset)` 取 `apps.kubernetes.io/pod-index`；`(native, deployment)` / KServe autoscaling pod 集合等无稳定身份场景一律省略 |
 
-`service-id` + `role` 两件套必填；`replica-index` 是可观测增强，缺失时按 pod 名定位。MLService 当前无 logs API，本约定主要服务于运维排障与 metrics 聚合。
+前 5 项必填；`replica-index` 是可观测增强，缺失时按 pod 名定位。MLService 当前无 logs API，本约定主要服务于运维排障与 metrics 聚合。
+
+**KServe 派生 Pod 的注入路径**：`(kserve, *)` Handler 不直接控制 podSpec；通过写入 `InferenceService.spec.predictor.schedulerName` + `spec.predictor.labels` 让 KServe 透传到派生 Pod 的 `spec.schedulerName` 与 `metadata.labels`（`PredictorSpec` 内联 `corev1.PodSpec` 与 `ComponentExtensionSpec`，所以两者都是 `spec.predictor` 的直接字段）。这要求 KServe 版本支持透传这两个字段（前置依赖见 §8.3）。
 
 **`spec.route` 派生资源**：当 `enabled=true` 时，Handler 在租户 namespace 内创建 / 更新以下资源（统一打 `axisml.io/service-id` label，并设置 `ownerReference: MLService`，靠级联清理删除，不引入 finalizer）：
 
@@ -306,25 +311,19 @@ mlservice-operator 与 mljob-operator 同构，由两层组成：
 
 ### 8.1 `(native, deployment)`
 
-底层用 K8s 原生 Deployment + Service，外加一个轻量 Volcano PodGroup（仅用于 Queue 资源记账，详见 §3.1 中的 "Service 不引入 volcano backend" 说明）。PodGroup 不表达“所有期望副本必须同时调度”，避免在线服务扩容被误建模为 gang workload。
+底层用 K8s 原生 Deployment + Service。所有 Pod 走 koord-scheduler 并通过 Pod label 计入 ElasticQuota，**不**创建 PodGroup（Koordinator ElasticQuota 通过 Pod label 直接关联 quota，不需要中间 PodGroup）。
 
 **底层资源**：
 
 - 必填且仅一个 role（`name=predictor`）；`Validate` 拒绝多 role 提交或其他 role 名
-- 每个 MLService 创建一个 K8s `Deployment`、一个 K8s `Service`；当 `roles[predictor].replicas > 0` 时创建一个 Volcano `PodGroup`：
+- 每个 MLService 创建一个 K8s `Deployment` 与一个 K8s `Service`：
   - `Service` 端口由 `roles[predictor].template.ports[]` 派生（`targetPort=containerPort`）
-  - `PodGroup.spec.queue ← spec.scheduling.queue`，`spec.minMember ← 1`，不设置 `minResources`；扩缩到 0 时删除 PodGroup 或保留无 Pod 关联的空壳，但不得让 PodGroup 阻塞后续 scale-up
+  - Deployment Pod 模板上设置 `schedulerName: koord-scheduler`，并打 §6 列出的 5 项必填 label
 - 当 `spec.route.enabled=true` 时追加 `HTTPRoute` + 可选的 `SecurityPolicy` / `BackendTrafficPolicy`（与 §6 派生资源说明一致）
-- Pod 设置 `schedulerName: volcano`，并通过 annotation `scheduling.k8s.io/group-name=<podgroup-name>` 关联到上述 PodGroup
-- Deployment / Service / PodGroup / 派生路由资源设置 `ownerReference` 指向 MLService，保证 MLService 删除后底层资源级联清理；PodGroup 删除后 Volcano Queue `status.allocated` 自然释放该 Service 的用量
-- operator 不读写 Volcano Queue CR（Queue 由 Compute 独占维护）
+- Deployment / Service / 派生路由资源设置 `ownerReference` 指向 MLService，保证 MLService 删除后底层资源级联清理；Pod 删除后 ElasticQuota `status.used` 自然释放该 Service 的用量
+- operator 不读写 ElasticQuota CR（ElasticQuota 由 Compute 独占维护）
 
-**Pod label**：
-
-- `axisml.io/service-id=<services.id>`
-- `axisml.io/role=predictor`
-
-Deployment Pod 没有稳定 index（ReplicaSet 用 hash 后缀，扩缩容/滚动更新都换 Pod 名），按 §6 约定省略 `axisml.io/replica-index`。
+**Pod label**：见 §6 表（`schedulerName: koord-scheduler` + 5 项必填 label）。Deployment Pod 没有稳定 index（ReplicaSet 用 hash 后缀，扩缩容/滚动更新都换 Pod 名），按 §6 约定省略 `axisml.io/replica-index`。
 
 **`backend.config`**：本 Handler 不消费；非空时 `Validate` 返回 warning，不报错（为 future 字段预留），由 dispatcher 记录 event 或 warning condition。
 
@@ -335,8 +334,9 @@ Deployment Pod 没有稳定 index（ReplicaSet 用 hash 后缀，扩缩容/滚�
 | `roles[predictor].template.image` / `imagePullPolicy` / `command` / `args` / `env` / `envFrom` / `workingDir` | Deployment Pod 主容器同名字段 |
 | `roles[predictor].template.ports[]` | Deployment Pod 主容器 `ports` + K8s Service `spec.ports`（`targetPort` 取 `containerPort`） |
 | `roles[predictor].template.resources.requests` / `limits` | Deployment Pod 主容器同名字段 |
-| `roles[predictor].replicas` | `Deployment.spec.replicas`；`replicas>0` 时存在 `PodGroup.spec.minMember=1` 作为 Queue accounting 锚点 |
-| `spec.scheduling.queue` | `PodGroup.spec.queue` 与 Pod label `axisml.io/queue` |
+| `roles[predictor].replicas` | `Deployment.spec.replicas` |
+| `spec.scheduling.quota` | Pod `spec.template.metadata.labels[quota.scheduling.koordinator.sh/name]` + `axisml.io/quota`；不创建 PodGroup |
+| 调度器选择 | Pod `spec.template.spec.schedulerName=koord-scheduler`（恒定） |
 | `spec.scheduling.priorityClass` | Pod `spec.priorityClassName` |
 | `spec.scheduling.nodeSelector` / `tolerations` | Pod 同名字段 |
 | `spec.modelRef` | Artifacts client 解析为模型工件 URI，注入为环境变量 `AXISML_MODEL_URI`（containerPath / volume mount 形态留待后续策略） |
@@ -371,9 +371,9 @@ Deployment Pod 没有稳定 index（ReplicaSet 用 hash 后缀，扩缩容/滚�
 **RBAC**：
 
 - 基础：`deployments.apps` / `services` / `pods` / `events` 的 `create / get / list / watch / update / patch / delete`
-- Volcano 调度集成：`podgroups.scheduling.volcano.sh` 的 `create / get / list / watch / update / patch / delete`
 - `spec.route` 派生资源：`httproutes.gateway.networking.k8s.io` / `securitypolicies.gateway.envoyproxy.io` / `backendtrafficpolicies.gateway.envoyproxy.io` 的 `create / get / list / watch / update / patch / delete`
 - `secrets` 的 `get / list / watch`（仅当 `spec.route.auth.type=apiKey` 引用 Secret 时）
+- 不需要 ElasticQuota / PodGroup 的 RBAC（ElasticQuota 由 Compute 独占；PodGroup 在 service 路径下不创建）
 
 ### 8.2 `(native, statefulset)`
 
@@ -382,8 +382,8 @@ Deployment Pod 没有稳定 index（ReplicaSet 用 hash 后缀，扩缩容/滚�
 **底层资源**：
 
 - 必填且仅一个 role（`name=predictor`）
-- 每个 MLService 创建一个 `StatefulSet`、一个 headless `Service`（`spec.clusterIP=None`）；当 `replicas>0` 时创建一个 Volcano `PodGroup`（同 §8.1，`minMember=1`，仅作 Queue accounting 锚点）
-- Pod 通过 `<pod>.<svc>.<namespace>.svc.cluster.local` 直连，`schedulerName: volcano` + annotation 关联到上述 PodGroup
+- 每个 MLService 创建一个 `StatefulSet` 与一个 headless `Service`（`spec.clusterIP=None`）；StatefulSet Pod 模板上设置 `schedulerName: koord-scheduler` + §6 列出的 5 项必填 label。**不**创建 PodGroup（同 §8.1）
+- Pod 通过 `<pod>.<svc>.<namespace>.svc.cluster.local` 直连
 - StatefulSet Pod 副本身份稳定，Handler 透传 K8s 注入的 `apps.kubernetes.io/pod-index` 为 `axisml.io/replica-index`
 
 **`backend.config` 关键字段**（schema 待细化设计文档）：
@@ -398,7 +398,7 @@ config:
     partition: int                                # RollingUpdate 模式的灰度分界
 ```
 
-**通用字段映射**：与 §8.1 相同，`roles[predictor].replicas` 落到 `StatefulSet.spec.replicas`；`replicas>0` 时创建 `PodGroup.spec.minMember=1` 作为 Queue accounting 锚点；`roles[predictor].template.ports[]` 落到 StatefulSet 主容器 `ports` + headless Service `spec.ports`；补充 `volumeClaimTemplates` 与 `serviceName` 字段；其余字段沿用 §8.1 表格。
+**通用字段映射**：与 §8.1 相同，`roles[predictor].replicas` 落到 `StatefulSet.spec.replicas`；`roles[predictor].template.ports[]` 落到 StatefulSet 主容器 `ports` + headless Service `spec.ports`；补充 `volumeClaimTemplates` 与 `serviceName` 字段；其余字段沿用 §8.1 表格（含 `schedulerName: koord-scheduler` 与 quota label 注入）。
 
 **`spec.route` 行为**：与 §8.1 一致；HTTPRoute `backendRefs` 指向同一份 headless Service（headless Service 也可作 Gateway API backendRef 目标，由 EndpointSlice 解析具体 Pod）。
 
@@ -409,15 +409,15 @@ config:
 **RBAC**：
 
 - 基础：`statefulsets.apps` / `services` / `pods` / `events` 的 `create / get / list / watch / update / patch / delete`
-- Volcano 调度集成：`podgroups.scheduling.volcano.sh` 的 `create / get / list / watch / update / patch / delete`
 - `spec.route` 派生资源：与 §8.1 同
 - `secrets` 的 `get / list / watch`（仅当 `spec.route.auth.type=apiKey` 引用 Secret 时）
+- 不需要 ElasticQuota / PodGroup 的 RBAC（同 §8.1）
 
 ### 8.3 `(kserve, inference)`
 
 将 MLService 翻译为 KServe [`InferenceService`](https://kserve.github.io/website/) CR（`serving.kserve.io/v1beta1`）。这是 KServe 通用 ML 服务路径——predictor 内的具体 runtime（NVIDIA Triton / [vLLM](https://docs.vllm.ai/) / TF Serving / TorchServe / sklearn / huggingface 等）由 `backend.config.runtime` 选择，转化为 KServe `(Cluster)ServingRuntime` 引用或 `predictor.model.modelFormat` 声明。
 
-**前置依赖**：集群已安装 KServe；其 RBAC 与 CRD 由 KServe chart 单独管理，本 Handler 仅需要 `inferenceservices.serving.kserve.io` 的 `create / get / list / watch / update / patch / delete`，外加各 runtime 对应 `(Cluster)ServingRuntime` 的 `get / list / watch`。
+**前置依赖**：集群已安装 KServe，且版本支持 `InferenceService.spec.predictor.schedulerName` 与 `spec.predictor.labels` 透传到派生 Pod（`PredictorSpec` 内联 `corev1.PodSpec` 与 `ComponentExtensionSpec`，是 KServe v1beta1 的标准契约；这是 §6 quota 全覆盖契约的硬要求，落地 KServe 版本以 axisml-infra 安装时 pin 的 stable 版本为准）。其 RBAC 与 CRD 由 KServe chart 单独管理，本 Handler 仅需要 `inferenceservices.serving.kserve.io` 的 `create / get / list / watch / update / patch / delete`，外加各 runtime 对应 `(Cluster)ServingRuntime` 的 `get / list / watch`。
 
 **Role 集合约定**：当前仅开放 `predictor`（replicas≥0）；扩展角色 `transformer` / `explainer` 的接入节奏见 §11。
 
@@ -465,7 +465,7 @@ config:
 - `roles[predictor].template.resources` → predictor `resources`
 - `roles[predictor].replicas` → 写入 `predictor.minReplicas`；若未设置 `config.predictor.maxReplicas`，则同时写入 `maxReplicas`
 - `spec.modelRef` → 通过 Artifacts 解析为 `predictor.storageUri`（runtime=triton 时也可解析为 `triton.modelRepository`；runtime=vllm 时优先解析为 `vllm.model`，缺失时回退到 `storageUri`）
-- `spec.scheduling.queue` → 仅落到 Pod label `axisml.io/queue`，不强制注入 `schedulerName: volcano`（KServe Pod 由 KServe 自身派生，本 Handler 不直接管理；与 §8.1 / §8.2 native Handler 走 Volcano 调度 + 轻量 PodGroup 的方式不同）。**已知缺口**：KServe 路径下 MLService 用量当前不计入 Volcano Queue `status.allocated`，因此也不进入 Compute `queues.used`；KServe + Volcano 调度集成（决定 `schedulerName` / PodGroup 注入策略，让 KServe Pod 也参与 Queue accounting）由独立设计文档落地（见 §11）
+- `spec.scheduling.quota` → 写入 `InferenceService.spec.predictor.schedulerName=koord-scheduler` 与 `InferenceService.spec.predictor.labels` 中的 `quota.scheduling.koordinator.sh/name=axisml-<tenant>-<pool>-<quota>` + `axisml.io/quota=<quota-name>`；KServe `PredictorSpec` 内联 `corev1.PodSpec` 与 `ComponentExtensionSpec`（参见 kserve `pkg/apis/serving/v1beta1/predictor.go`），因此 `schedulerName` 直接位于 `spec.predictor` 下，组件级 `labels` 也直接位于 `spec.predictor.labels`（KServe 会把它们透传到派生 Pod 的 `spec.schedulerName` 与 `metadata.labels`），使 KServe Pod 与 native Pod 一样消费 ElasticQuota
 - `spec.scheduling.priorityClass` / `nodeSelector` / `tolerations` → predictor 同名字段
 - `spec.runPolicy.progressDeadlineSeconds` → KServe 暂无对等字段，Handler 在 `Validate` 中返回 warning，dispatcher 记录 event 或 warning condition，不阻塞创建
 - `spec.route` → **不支持**；KServe `InferenceService` 自带对外 Route，Handler 在 `Validate` 中拒绝 `spec.route.enabled=true`，由 dispatcher 写 `status.phase=Failed` 与 `status.message="spec.route not supported on (kserve, *) backend; KServe manages its own route"`
@@ -500,7 +500,7 @@ config:
 
 将 MLService 翻译为 KServe LLM 原生 CR `LLMInferenceService`（占位命名；KServe 社区围绕 LLM 原生服务的 GVK 仍在演进，候选名包括 `LLMInferenceService` / `InferencePool` / `LLMRoute` 等，**实际 GVK 以引入 KServe 版本时为准**）。该 engine 承载 LLM 在线服务相对 `InferenceService` 的额外能力——核心是 **PD 分离（disaggregated serving）**：prefill 与 decode 拆成独立角色独立扩缩，搭配 router 角色做请求分发与 KV cache 协调。
 
-**前置依赖**：集群已安装 KServe LLM API（含 `LLMInferenceService` CRD 与对应 controller / runtime）。本 Handler 需要 `llminferenceservices.serving.kserve.io`（占位）的 `create / get / list / watch / update / patch / delete`，外加 KV cache 协议相关 ConfigMap / Secret 的读取权限（细节随 KServe LLM API 落地补全）。
+**前置依赖**：集群已安装 KServe LLM API（含 `LLMInferenceService` CRD 与对应 controller / runtime），并支持把 schedulerName / labels 透传到各 role 派生 Pod（与 §8.3 同；此约束在 KServe LLM API GA 后随版本 pin 落地）。本 Handler 需要 `llminferenceservices.serving.kserve.io`（占位）的 `create / get / list / watch / update / patch / delete`，外加 KV cache 协议相关 ConfigMap / Secret 的读取权限（细节随 KServe LLM API 落地补全）。
 
 **Role 集合约定**（PD 分离骨架；具体 role 名以 KServe LLM API 落地为准）：
 
@@ -538,6 +538,7 @@ config:
 - `roles[*].replicas` → 各 role 的 `minReplicas` / 副本数
 - `spec.modelRef` → `config.llm.model` 或 `config.storageUri`
 - `spec.scheduling.*` → 各 role Pod 的同名字段
+- `spec.scheduling.quota` → 各 role 的 podSpec 注入 `schedulerName: koord-scheduler` 与 `quota.scheduling.koordinator.sh/name` + `axisml.io/quota` label（`LLMInferenceService` 中各 role 的 podSpec / metadata 字段路径以实际 GVK 为准）
 - `spec.runPolicy.progressDeadlineSeconds` → KServe 暂无对等字段，Handler 在 Validate 中返回 warning，dispatcher 记录 event 或 warning condition，不阻塞创建
 - `spec.route` → **不支持**（同 §8.3）；KServe LLM API 自带 router / Route 机制
 
@@ -574,7 +575,7 @@ backend:
     endpointPath: "$.status.url"
 ```
 
-由 custom Handler 通过 unstructured client 创建并跟踪。完整 schema 与 unstructured 操作约定由独立设计文档落地（见 §11）。
+由 custom Handler 通过 unstructured client 创建并跟踪。**仍受 §6 Pod 注入约定与 [infra.md §8.3](../infra.md) Quota 全覆盖不变式约束**：custom Handler 必须保证最终落地的 Pod 模板上有 `schedulerName: koord-scheduler` 与 `quota.scheduling.koordinator.sh/name` label，否则 Validate 直接拒绝。完整 schema 与 unstructured 操作约定由独立设计文档落地（见 §11）。
 
 **`spec.route` 在 custom Handler 下的语义**：由 `config.routeBackend`（在独立设计文档中定义）显式描述外部入口对接的目标 Service；未在 `config` 中 wire `spec.route` 时，Handler 应在 `Validate` 中拒绝 `spec.route.enabled=true`。
 
@@ -587,12 +588,12 @@ operator binary 启动时遍历 registry，把每个启用 Handler 的 `Required
 - `spec.backend.{name, engine}` 创建后不可变；dispatcher 拒绝并写 `status.message`，admission webhook 后续接管
 - `(backend, engine)` 元组未在 registry 注册 → MLService 直接进入 `Failed`，message 写明缺失原因
 - 任一 Handler 的 `Reconcile` / `MapStatus` 必须保持 §2 列出的写路径契约——这是把 "插件" 安全嵌入 Compute Outbox 模型的根基
-- Handler 不直接修改 Volcano Queue CR；Queue CR 由 Compute 独占维护
+- Handler 不直接修改 ElasticQuota CR；ElasticQuota CR 由 Compute 独占维护
 - Handler 不向 Compute PG 写入任何数据；状态全部经由 MLService `status` + Informer 回流
 - **Handler 不引入 finalizer**；级联清理依赖 ownerReference + `Cleanup()`
 - **`status.phase` 取值集合冻结为四态**（`Pending | Ready | Degraded | Failed`）；新增 phase 必须经 CRD schema 与 Compute 双侧同步演进
 - **`spec.roles[*].replicas` 是允许变更的字段**（`:scale` 路径专用）；其余 spec 字段创建后不可变，dispatcher 检测到变更需写 `status.message` 拒绝
-- 所有 Handler 必须打 `axisml.io/service-id` + `axisml.io/role` 两件套 label；副本身份天然稳定的场景（`(native, statefulset)`）建议叠加 `axisml.io/replica-index`，`(native, deployment)` / KServe autoscaling pod 集合等无稳定身份场景一律省略
+- 所有 Handler 派生的 Pod 必须满足 §6 Pod 注入约定的前 5 项必填字段（含 `schedulerName: koord-scheduler` 与 quota label）；缺失任一项视为契约违反，Validate 必须在创建前拦截
 - **`spec.route` 创建后不可变（v1）**；mutable 演进作为后续设计文档预留（见 §11）
 - **`(kserve, *)` Handler 不接受 `spec.route.enabled=true`**（KServe 自带 Route，避免双管）；`(native, *)` 接受；`(custom, *)` 由 `config.routeBackend` 自描述，未 wire 时拒绝
 - **`spec.route` 派生的 `HTTPRoute` / `SecurityPolicy` / `BackendTrafficPolicy` 通过 `ownerReference` 级联清理**；Handler 不引入 finalizer
@@ -604,7 +605,6 @@ operator binary 启动时遍历 registry，把每个启用 Handler 的 `Required
 - 多 role 接入的具体 Handler 落地：
   - `(kserve, inference)` 的 `transformer` / `explainer` 字段映射与状态映射
   - `(kserve, llminference)`（对应 `LLMInferenceService` 占位 GVK，最终以 KServe LLM API 落地版本为准）：vLLM disaggregated / llm-d / NVIDIA Dynamo 等场景下，`prefill` / `decode` / `router` 三类 role 的命名约定、KV cache 传输契约（NIXL / Mooncake / …）、`disaggregation.prefillToDecodeRatio` autoscaler 接入、`Validate` 中的多 role 必填规则、KServe 自带 router 与 AxisML `spec.route` 是否统一的演进方式
-- KServe Pod 与 Volcano 调度的可选集成方案（如需让 KServe Pod 接受 Volcano 队列调度，决定 `schedulerName` / PodGroup 注入策略）
 - KServe scale-to-zero 与 Compute quota 的精细交互模型（含 `maxReplicas × requests` 上限计费策略）
 - `(custom, *)` Handler 的 `config` 完整 schema 与 unstructured 操作约定（含 `config.routeBackend` 与 `spec.route` 的对接细则）
 - 多 role 独立扩缩容的 `:scale` API 扩展（路径中携带 role 名）

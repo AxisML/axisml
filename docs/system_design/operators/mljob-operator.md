@@ -30,14 +30,14 @@ Compute 负责设置以下 metadata（与 [compute.md §6.3.1](../compute.md) �
 - `metadata.namespace` ← `tenants.namespace`
 - `metadata.labels["axisml.io/job-id"]` ← `jobs.id`（UUID，孤儿检测稳定锚点）
 - `metadata.labels["axisml.io/tenant"]` ← 租户名
-- `metadata.labels["axisml.io/queue"]` ← Compute Queue 名
+- `metadata.labels["axisml.io/quota"]` ← Compute Quota 名
 
 ### 3.1 spec 设计取舍
 
 把"角色拓扑"提升为一等公民。Job 的执行域用 `roles[]` 数组承载：
 
-- 单角色 backend（如 `(native, job)`、`(volcano, podgroup)`）声明一个 role
-- 多角色 backend（如 PyTorchJob 的 master/worker、TFJob 的 chief/worker/ps/evaluator、MPIJob 的 launcher/worker、VolcanoJob 的多 task 拓扑）声明多个 role
+- 单角色 backend（如 `(native, job)`、`(native, podgroup)`）声明一个 role
+- 多角色 backend（如 PyTorchJob 的 master/worker、TFJob 的 chief/worker/ps/evaluator、MPIJob 的 launcher/worker）声明多个 role
 - role 名集合由各 Handler 在 §8 中约定，由 Handler 的 `Validate` 强制
 
 替代方案是把 `image / command / replicas / resources` 全部摆在 spec 顶层（早期方案），对单角色自然，但多角色 backend 不得不把角色切分挤进 `backend.config`，让 generic 字段失去意义——`spec.replicas` 在多角色场景下到底指哪个？`spec.resources` 又对哪个角色生效？引入 `roles[]` 后，单角色场景退化为"只有一个 role 的特例"，避免这种"通用字段对一类后端无意义"的尴尬。
@@ -52,18 +52,17 @@ kind: MLJob
 spec:
   # ── 后端选择（创建后不可变；dispatcher 路由依据）─────────────────────
   backend:
-    name: native              # 必填: native | volcano | kubeflow-trainer | custom
+    name: native              # 必填: native | kubeflow-trainer | custom
                               #      （kserve 仅用于 MLService）
     engine: job               # 必填: 语义随 backend 而定（见 §8）
-                              #   native:           job
-                              #   volcano:          podgroup | volcanojob
+                              #   native:           job | podgroup
                               #   kubeflow-trainer: pytorchjob | tfjob | mpijob | …
                               #   custom:           任意名（由 backend.config 描述目标 GVK）
     config: {}                # 可选: 该 (backend, engine) 元组特有的 schemaless 配置
 
-  # ── 调度域（由 Compute 从 Queue / ResourcePool / ResourceUnit 合成注入）──
+  # ── 调度域（由 Compute 从 Quota / ResourcePool / ResourceUnit 合成注入）──
   scheduling:
-    queue: string             # 必填: Volcano Queue CR 名（与 Compute Queue 1:1 映射）
+    quota: string             # 必填: ElasticQuota CR 名（axisml-<tenant>-<pool>-<quota>，与 Compute Quota 1:1 映射）
     priorityClass: string     # 可选: K8s PriorityClass 名
     nodeSelector: {}          # Compute 按 compute.md §6.2.3 合并 pool + unit 后注入
     tolerations: []           # 来自 ResourcePool
@@ -100,13 +99,13 @@ spec:
 | `metadata.name` / `namespace` / `labels[axisml.io/*]` | Compute | 否 |
 | `spec.backend.name` / `spec.backend.engine` | Compute（默认 `{native, job}`） | **否**；dispatcher 拒绝并写 `status.message` |
 | `spec.backend.config` | Compute（默认 `{}`） | 视 Handler 语义；Handler 在 §7 `Validate` 中决定 |
-| `spec.scheduling.queue` / `priorityClass` / `nodeSelector` / `tolerations` | Compute（合并 Queue + Pool + Unit） | 否 |
+| `spec.scheduling.quota` / `priorityClass` / `nodeSelector` / `tolerations` | Compute（合并 Quota + Pool + Unit） | 否 |
 | `spec.roles[*].template.resources` | Compute（注入 ResourceUnit） | 否 |
 | `spec.roles[*].replicas` | 用户提交时给定 | **否**（Job 是一次性 workload；扩缩容是 Service 专属） |
 | `spec.runPolicy.suspend` | API（`:cancel` 触发） | **是**（cancel 路径专用） |
 | 其他 `spec.runPolicy.*` 与 `spec.roles[*].template.*`（除 resources） | 用户提交 | 否 |
 
-**默认值注入**：用户未指定 `spec.backend` 时，Compute 写 CR 时显式补 `{name: native, engine: job}`（K8s 原生 Job，无 Volcano 依赖）；`backend.config` 默认空对象 `{}`。dispatcher 不接受 `backend.name` 或 `backend.engine` 为空。
+**默认值注入**：用户未指定 `spec.backend` 时，Compute 写 CR 时显式补 `{name: native, engine: job}`（K8s 原生 Job + koord-scheduler，详见 §8.1）；`backend.config` 默认空对象 `{}`。dispatcher 不接受 `backend.name` 或 `backend.engine` 为空。
 
 **CRD schema 现状**：当前 CRD 的 `spec` / `status` 用 `x-kubernetes-preserve-unknown-fields: true`，重新设计字段无需 CRD bump；待行为稳定后再启用 OpenAPI schema 严格校验。
 
@@ -194,7 +193,7 @@ mljob-operator 由两层组成：
 | --- | --- | --- |
 | MLJob ADD（首次创建） | 路由到 Handler；调用 `Validate(spec)`，校验失败写 `status.phase=Failed` | `Reconcile(ctx, mlJob)` 创建底层资源，设置 `ownerReference: MLJob` |
 | MLJob UPDATE（spec 变更） | 校验 `backend.{name, engine}` 不变（违反则写 `status.message` 拒绝）；其余 spec 变化路由给 Handler | `Reconcile` 幂等更新；只有语义字段变化才触发底层资源变更 |
-| MLJob `spec.runPolicy.suspend=true` | 路由；若当前或新映射出的 phase 已是 `Succeeded` / `Failed`，终态优先且不写 cancel 成功信号；否则在 Handler 返回 suspend 完成结果后合并写入 `Suspended=True,reason=CancelRequested`，`phase` 维持 `Pending` | 执行原生 suspend（如 `(native, job)` patch `Job.spec.suspend=true`、`(volcano, podgroup)` patch `minMember=0` 后驱逐 Pod）或 `Cleanup()` 删除底层资源；完成后返回结构化 suspend 结果，不直接写 `status` |
+| MLJob `spec.runPolicy.suspend=true` | 路由；若当前或新映射出的 phase 已是 `Succeeded` / `Failed`，终态优先且不写 cancel 成功信号；否则在 Handler 返回 suspend 完成结果后合并写入 `Suspended=True,reason=CancelRequested`，`phase` 维持 `Pending` | 执行原生 suspend（如 `(native, job)` patch `Job.spec.suspend=true`、`(native, podgroup)` patch `PodGroup.spec.minMember=0` 后驱逐 Pod）或 `Cleanup()` 删除底层资源；完成后返回结构化 suspend 结果，不直接写 `status` |
 | MLJob DELETE | 不阻断 | 一般依赖 ownerReference 级联清理；Handler 仅清理跨 namespace / 外部副作用（外部存储句柄、跨集群资源等） |
 | 底层资源事件（Pod / PodGroup / 第三方 CR） | 通过 ownerReference 反查到 MLJob 后路由 | `MapStatus` 纯函数计算新 phase；dispatcher 把结果合并写入 `status` |
 
@@ -205,15 +204,18 @@ mljob-operator 由两层组成：
 - Handler 不能在 `Reconcile` 中直接写 `status`；`status` 的输入只能来自 `MapStatus` 返回值与 `Reconcile` 结构化结果，由 dispatcher 统一合并写入，保证写盘路径单一
 - dispatcher 读取现有 `status` 后在代码中按 `condition.type` 合并 `conditions[]`，再通过 `status` subresource 使用 JSON merge patch 或 update 重试写回；CRD 不依赖 strategic merge patch 的 merge key 语义
 
-**Pod label 约定**（跨 Handler 通用）：
+**Pod 模板注入约定**（跨 Handler 通用，体现 [infra.md §8.3](../infra.md) 的 Quota 全覆盖不变式）：
 
-| Label | 必填 | 取值 | 用途 |
+| Pod 字段 / Label | 必填 | 取值 | 用途 |
 | --- | --- | --- | --- |
-| `axisml.io/job-id` | 是 | `jobs.id`（UUID） | 反查 MLJob，与 CR 上同名 label 一致 |
-| `axisml.io/role` | 是 | role 名（如 `worker` / `master` / `launcher`） | 区分多角色拓扑下的 Pod |
-| `axisml.io/replica-index` | 否 | role 内 0-based 序号 | 副本身份天然稳定时建议透传：StatefulSet 的 `apps.kubernetes.io/pod-index`、Indexed Job 的 `batch.kubernetes.io/job-completion-index`；NonIndexed Job、裸 Pod 拓扑下省略 |
+| `spec.schedulerName` | 是 | `koord-scheduler` | 所有 AxisML workload Pod 一律走 koord-scheduler；不允许任何 backend 让 Pod 落到默认 kube-scheduler 上 |
+| label `quota.scheduling.koordinator.sh/name` | 是 | `<spec.scheduling.quota>` | Koordinator 原生 quota 关联 label；ElasticQuota plugin 据此把该 Pod 计入 `status.used` |
+| label `axisml.io/job-id` | 是 | `jobs.id`（UUID） | 反查 MLJob，与 CR 上同名 label 一致 |
+| label `axisml.io/role` | 是 | role 名（如 `worker` / `master` / `launcher`） | 区分多角色拓扑下的 Pod |
+| label `axisml.io/quota` | 是 | Compute Quota 名 | AxisML 自有审计 / 查询；与 `quota.scheduling.koordinator.sh/name` 同源，不参与调度 |
+| label `axisml.io/replica-index` | 否 | role 内 0-based 序号 | 副本身份天然稳定时建议透传：StatefulSet 的 `apps.kubernetes.io/pod-index`、Indexed Job 的 `batch.kubernetes.io/job-completion-index`；NonIndexed Job、裸 Pod 拓扑下省略 |
 
-`axisml.io/job-id` + `axisml.io/role` 两件套必填，所有 Handler 一律遵守；`axisml.io/replica-index` 只是可观测增强，缺失时 Compute §7.4 日志 API 退化为按 pod 名定位（详见 [compute.md §7.4](../compute.md)）。
+前 5 项必填，所有 Handler 一律遵守；`axisml.io/replica-index` 只是可观测增强，缺失时 Compute §7.4 日志 API 退化为按 pod 名定位（详见 [compute.md §7.4](../compute.md)）。
 
 ## 7. Handler 接口契约
 
@@ -245,21 +247,23 @@ mljob-operator 由两层组成：
 
 ### 8.1 `(native, job)`
 
-底层用 K8s 原生 [`Job`](https://kubernetes.io/docs/concepts/workloads/controllers/job/)，无 Volcano 依赖；适合不需要 gang scheduling、不依赖 Volcano 队列调度的单角色场景。`spec.scheduling.queue` 字段降级为 Compute API 配额标记（仅落到 Pod label `axisml.io/queue` 留痕），不参与 K8s 调度层。
+底层用 K8s 原生 [`Job`](https://kubernetes.io/docs/concepts/workloads/controllers/job/)；适合不需要 gang scheduling 的单角色批处理场景。Pod 强制走 koord-scheduler 并通过 `quota.scheduling.koordinator.sh/name` label 计入 ElasticQuota（与所有 AxisML workload 一致，无"绕过 quota 的调度路径"）；本 Handler **不**创建 PodGroup（gang 不适用）。
 
-**前置依赖**：无（K8s 自带）。本 Handler 仅需要 `jobs.batch` 的 `create / get / list / watch / update / patch / delete`。
+**前置依赖**：集群已安装 Koordinator（提供 koord-scheduler 与 ElasticQuota plugin）。本 Handler 仅需要 `jobs.batch` 的 `create / get / list / watch / update / patch / delete`，不直接读写 ElasticQuota / PodGroup CR。
 
 **底层资源**：
 
-- 必填且仅一个 role（`name=worker`）；`Validate` 拒绝多 role 提交（多角色场景应选 `(volcano, volcanojob)` 或 `(kubeflow-trainer, *)`）
-- 每个 MLJob 创建一个 K8s `Job`，Pod 由 Job controller 派生，使用 K8s 默认调度器
+- 必填且仅一个 role（`name=worker`）；`Validate` 拒绝多 role 提交（多角色场景应选 `(kubeflow-trainer, *)`）
+- 每个 MLJob 创建一个 K8s `Job`，Pod 由 Job controller 派生，但 Pod 模板上设置 `schedulerName: koord-scheduler` —— Pod 由 koord-scheduler 调度而非默认 kube-scheduler
 - Job 设置 `ownerReference` 指向 MLJob，保证 MLJob 删除后底层资源级联清理（Pod 进一步由 Job 级联清理）
 
-**Pod label**：
+**Pod label**（在 `Job.spec.template.metadata.labels` 上注入；§6 Pod 注入约定的具体落地）：
 
+- `quota.scheduling.koordinator.sh/name=<spec.scheduling.quota>` —— Koordinator quota 关联
 - `axisml.io/job-id=<jobs.id>`
 - `axisml.io/role=worker`
-- `axisml.io/replica-index=<0-based>`（**仅在 `backend.config.completionMode=Indexed` 时透传** K8s 注入的 `batch.kubernetes.io/job-completion-index`；默认 NonIndexed 模式下省略，日志 API 改用 pod 名定位）
+- `axisml.io/quota=<quota-name>` —— AxisML 自有追踪
+- `axisml.io/replica-index=<0-based>`（**仅在 `backend.config.completionMode=Indexed` 时透传** K8s 注入的 `batch.kubernetes.io/job-completion-index`；默认 NonIndexed 模式下省略）
 
 **`backend.config` 关键字段**：
 
@@ -279,7 +283,8 @@ config:
 | `roles[worker].restartPolicy` | `Job.spec.template.spec.restartPolicy`（仅允许 `OnFailure` / `Never`） |
 | `spec.scheduling.priorityClass` | Pod `spec.priorityClassName` |
 | `spec.scheduling.nodeSelector` / `tolerations` | Pod 同名字段 |
-| `spec.scheduling.queue` | 不消费（无 Volcano 集成）；仅通过 label `axisml.io/queue` 留痕，Compute 配额仍生效 |
+| `spec.scheduling.quota` | Pod `spec.template.metadata.labels[quota.scheduling.koordinator.sh/name]` + `axisml.io/quota`；不写入 Job 级别字段 |
+| 调度器选择 | Pod `spec.template.spec.schedulerName=koord-scheduler`（恒定） |
 | `spec.runPolicy.activeDeadlineSeconds` | `Job.spec.activeDeadlineSeconds` |
 | `spec.runPolicy.ttlSecondsAfterFinished` | `Job.spec.ttlSecondsAfterFinished` |
 | `spec.runPolicy.backoffLimit` | `Job.spec.backoffLimit` |
@@ -299,24 +304,23 @@ config:
 
 **RBAC**：`jobs.batch` / `pods` / `events` 的 `create / get / list / watch / update / patch / delete`。
 
-### 8.2 `(volcano, podgroup)`
+### 8.2 `(native, podgroup)`
 
-将 MLJob 翻译为 Volcano `PodGroup` + 裸 Pod，借助 Volcano 调度器实现 gang scheduling 与队列资源记账；适合需要"全员就位才启动"的单角色任务（如分布式训练的多 Worker 同步启动）。
+将 MLJob 翻译为 sigs.k8s.io scheduler-plugins `PodGroup` + 裸 Pod，借助 Koordinator gang plugin 实现"全员就位才启动"的单角色任务（如分布式训练的多 Worker 同步启动）。Pod 同样走 koord-scheduler 并计入 ElasticQuota。
 
-**前置依赖**：集群已安装 Volcano；本 Handler 需要 `podgroups.scheduling.volcano.sh` 的 `create / get / list / watch / update / patch / delete`。
+**前置依赖**：集群已安装 Koordinator；本 Handler 需要 `podgroups.scheduling.sigs.k8s.io` 的 `create / get / list / watch / update / patch / delete`。
 
 **底层资源**：
 
-- 必填且仅一个 role（`name=worker`）；`Validate` 拒绝多 role 提交
-- 每个 MLJob 创建一个 Volcano `PodGroup`，`spec.queue ← spec.scheduling.queue`，`spec.minMember ← roles[worker].replicas`
-- 按 `roles[worker].replicas` 创建对应 Worker Pod；所有 Pod 设置 `schedulerName: volcano`
+- 必填且仅一个 role（`name=worker`）；`Validate` 拒绝多 role 提交（多角色场景走 `(kubeflow-trainer, *)`）
+- 每个 MLJob 创建一个 `PodGroup`（`scheduling.sigs.k8s.io/v1alpha1`），`spec.minMember ← roles[worker].replicas`；可按需设置 `spec.minResources`
+- 按 `roles[worker].replicas` 创建对应 Worker 裸 Pod；所有 Pod 设置 `schedulerName: koord-scheduler`，并通过 label `pod-group.scheduling.sigs.k8s.io=<podgroup-name>` 关联到 PodGroup
 - PodGroup / Pod 设置 `ownerReference` 指向 MLJob，保证 MLJob 删除后底层资源级联清理
-- operator 不读写 Volcano Queue CR（Queue 由 Compute 独占维护）
+- operator **不**读写 ElasticQuota CR（ElasticQuota 由 Compute 独占维护，本 Handler 仅通过 Pod label `quota.scheduling.koordinator.sh/name` 引用）
 
-**Pod label**：
+**Pod label**（除 §6 通用 5 项之外）：
 
-- `axisml.io/job-id=<jobs.id>`
-- `axisml.io/role=worker`
+- `pod-group.scheduling.sigs.k8s.io=<podgroup-name>` —— gang 关联
 
 裸 Pod 拓扑没有稳定 index，省略 `axisml.io/replica-index`；日志 API 通过 pod 名直接定位（详见 [compute.md §7.4](../compute.md)）。
 
@@ -329,8 +333,11 @@ config:
 | `roles[worker].template.image` / `imagePullPolicy` / `command` / `args` / `env` / `envFrom` / `workingDir` | Pod 主容器同名字段 |
 | `roles[worker].template.resources.requests` / `limits` | Pod 主容器同名字段 |
 | `roles[worker].restartPolicy` | Pod `spec.restartPolicy` |
+| `roles[worker].replicas` | `PodGroup.spec.minMember` 与裸 Pod 数 |
 | `spec.scheduling.nodeSelector` / `tolerations` | Pod 同名字段 |
 | `spec.scheduling.priorityClass` | Pod `spec.priorityClassName` |
+| `spec.scheduling.quota` | Pod label `quota.scheduling.koordinator.sh/name` + `axisml.io/quota`（PodGroup 不持有 quota 字段，由 koord-scheduler 通过 Pod label 关联） |
+| 调度器选择 | Pod `spec.schedulerName=koord-scheduler`（恒定） |
 | `spec.runPolicy.activeDeadlineSeconds` | Pod 同名字段 |
 | `spec.runPolicy.ttlSecondsAfterFinished` | 终态后由 Handler 显式 GC（裸 Pod 无原生 TTL） |
 | `spec.runPolicy.backoffLimit` | 通过 PodGroup 重试 + Handler 内部计数实现 |
@@ -342,7 +349,7 @@ config:
 | 所有 Pod `Pending` 或 PodGroup 排队中 | `Pending` |
 | 至少一个 Pod 进入 `Running` | `Running` |
 | 所有 Pod `Succeeded` | `Succeeded` |
-| 任一 Pod `Failed`、PodGroup `PodGroupUnschedulable`、超 `activeDeadlineSeconds` | `Failed` |
+| 任一 Pod `Failed`、PodGroup 调度不可达、超 `activeDeadlineSeconds` | `Failed` |
 
 `startedAt` 取首个 Pod `Running` 时间；`finishedAt` 取所有 Pod 进入终态的最晚时间。`status.roles[worker]` 聚合 Pod 数（active / ready / succeeded / failed）。
 
@@ -352,72 +359,15 @@ config:
 2. 删除现存 Pod；后续 reconcile 看到 `spec.runPolicy.suspend=true` 后不再重建 Pod
 3. 返回 `suspendCompleted=true, reason=CancelRequested`，由 dispatcher 写 `Suspended` condition 并让非终态 phase 维持 `Pending`
 
-**顺序约束**：必须先 patch minMember=0、再删 Pod，否则 PodGroup 会立刻把刚被删除的 Pod 重建。`suspend=false` 时反向恢复 minMember 与 Pod（Compute 模型下不会被触发，Cancelled 是终态、无 resume）。
+**顺序约束**：必须先 patch minMember=0、再删 Pod，否则 koord-scheduler 的 gang plugin 可能立即把刚被删除的 Pod 重新调度。`suspend=false` 时反向恢复 minMember 与 Pod（Compute 模型下不会被触发，Cancelled 是终态、无 resume）。
 
-**RBAC**：`pods` / `podgroups.scheduling.volcano.sh` / `events` 的 `create / get / list / watch / update / patch / delete`。
+**RBAC**：`pods` / `podgroups.scheduling.sigs.k8s.io` / `events` 的 `create / get / list / watch / update / patch / delete`。
 
-### 8.3 `(volcano, volcanojob)`
+### 8.3 `(kubeflow-trainer, pytorchjob)`
 
-将 MLJob 翻译为 Volcano [`Job`](https://volcano.sh/en/docs/vcjob/)（`batch.volcano.sh/v1alpha1` `Job`，本节统一称 VolcanoJob 以与 K8s `Job` 区分）。VolcanoJob 内置多 task 拓扑、原生 gang scheduling、failover plugins、queue 集成，是多角色任务（含 PS / Worker、launcher / worker 等 Volcano 原生形态）的首选 backend。
+将 MLJob 翻译为 Kubeflow Trainer 的 [`PyTorchJob`](https://www.kubeflow.org/docs/components/training/pytorch/) CR。PS / Worker、launcher / worker 等多角色 / 多 task 拓扑统一由本 Handler 通过 Kubeflow Trainer 承载。
 
-**前置依赖**：集群已安装 Volcano；本 Handler 需要 `jobs.batch.volcano.sh` 的 `create / get / list / watch / update / patch / delete`。
-
-**Role 集合约定**：`spec.roles[*]` 直接映射到 `VolcanoJob.spec.tasks[*]`，role 名作为 `task.name`；至少 1 个 role，命名由用户给定（`Validate` 仅校验 role 名唯一与合法 DNS 子标签）。
-
-**`backend.config` 关键字段**（schema 待细化设计文档）：
-
-```yaml
-config:
-  minAvailable: int               # 全局 gang 最小副本数；不填则求和 roles[*].replicas
-  plugins:                        # Volcano plugins（svc / ssh / env / mpi 等）
-    svc: []
-    ssh: []
-    env: []
-  policies:                       # 全局生命周期策略，作用于所有 task
-    - event: TaskCompleted | TaskFailed | PodFailed | …
-      action: CompleteJob | RestartJob | TerminateJob | RestartTask
-  taskPolicies:                   # per-role 级别覆盖
-    <roleName>:
-      - event: …
-        action: …
-      minAvailable: int            # 单 role 的 minAvailable（不填取 replicas）
-```
-
-**通用字段映射**：
-
-| MLJob 字段 | VolcanoJob 落点 |
-| --- | --- |
-| `roles[*].name` | `tasks[*].name` |
-| `roles[*].replicas` | `tasks[*].replicas` |
-| `roles[*].restartPolicy` | `tasks[*].template.spec.restartPolicy` |
-| `roles[*].template.*` | `tasks[*].template.spec.containers[0]` 同名字段 |
-| `spec.scheduling.queue` | `VolcanoJob.spec.queue` |
-| `spec.scheduling.priorityClass` | `tasks[*].template.spec.priorityClassName` |
-| `spec.scheduling.nodeSelector` / `tolerations` | `tasks[*].template.spec` 同名字段 |
-| `spec.runPolicy.activeDeadlineSeconds` | 通过 `policies` 的 `Timeout` 事件 + Handler 计时器实现（VolcanoJob 无对等字段） |
-| `spec.runPolicy.ttlSecondsAfterFinished` | `VolcanoJob.spec.ttlSecondsAfterFinished` |
-| `spec.runPolicy.backoffLimit` | 通过 `policies.RestartTask` + Handler 计数实现 |
-
-**Status 映射**：从 `VolcanoJob.status.state.phase` 推导——
-
-| VolcanoJob phase | MLJob phase |
-| --- | --- |
-| `Pending` / `Inqueue` / `Aborted` | `Pending` |
-| `Running` / `Restarting` / `Completing` | `Running` |
-| `Completed` | `Succeeded` |
-| `Failed` / `Terminated` / `Aborting` | `Failed` |
-
-`status.roles[*]` 聚合各 task 的 `succeeded / failed / running / pending` 副本计数（来自 `VolcanoJob.status.taskStatusCount`）。
-
-**Suspend**：兜底为 `Cleanup()`。VolcanoJob 无内置 suspend 字段；`spec.runPolicy.suspend=true` 时 Handler 显式删除 VolcanoJob，依赖 ownerReference 级联清理 Pod，随后返回 `suspendCompleted=true, reason=CancelRequested`，由 dispatcher 写 `Suspended` condition 并让非终态 phase 维持 `Pending`。**用户可见行为**：suspend 期间 Pod 全部消失（Cleanup 路径），与 §8.2 软停的 "PodGroup 已 minMember=0、Pod 已驱逐但 PodGroup 仍在排队" 不同。`suspend=false` 重建 VolcanoJob 这条分支在 Compute 模型下不会被触发（Cancelled 是终态、无 resume），描述仅供未来扩展参考。
-
-**RBAC**：`jobs.batch.volcano.sh` / `pods` / `events` 的 `create / get / list / watch / update / patch / delete`；`podgroups.scheduling.volcano.sh` 仅 `get / list / watch`（PodGroup 由 VolcanoJob 自动派生，本 Handler 不直接写）。
-
-### 8.4 `(kubeflow-trainer, pytorchjob)`
-
-将 MLJob 翻译为 Kubeflow Trainer 的 [`PyTorchJob`](https://www.kubeflow.org/docs/components/training/pytorch/) CR。
-
-**前置依赖**：集群已安装 kubeflow training-operator；其 RBAC 与 CRD 由 operator chart 单独管理。本 Handler 仅需要 `pytorchjobs.kubeflow.org` 的 `create / get / list / watch / update / patch / delete`。目标版本若不支持原生 `runPolicy.suspend`，本 Handler 必须在自身实现中显式 fallback 为 `Cleanup()`；若不支持 Volcano queue / scheduler / PodGroup 注入，则该版本只能作为 Compute best-effort 预检路径，不能宣称已接入 Volcano Queue accounting。
+**前置依赖**：集群已安装 kubeflow training-operator；其 RBAC 与 CRD 由 operator chart 单独管理。本 Handler 仅需要 `pytorchjobs.kubeflow.org` 的 `create / get / list / watch / update / patch / delete`。目标版本若不支持原生 `runPolicy.suspend`，本 Handler 必须在自身实现中显式 fallback 为 `Cleanup()`。
 
 **Role 集合约定**：必须有 `master`（replicas=1，可省略默认）+ `worker`（replicas≥1），可选 `elasticAgent`。
 
@@ -438,7 +388,9 @@ config:
 
 - `roles[master].template.*` → `pytorchReplicaSpecs.Master.template`（必为 1 副本）
 - `roles[worker].template.*` → `pytorchReplicaSpecs.Worker.template`
-- `spec.scheduling.*` → 各 replica 模板内的 nodeSelector / tolerations；启用 Volcano 集成的版本才注入 scheduler / queue / PodGroup 相关字段
+- 每个 replica 模板的 `template.spec.schedulerName` 必须设为 `koord-scheduler`；`template.metadata.labels` 必须注入 §6 列出的 5 项必填 label，并且对于多 worker 的 gang 语义可叠加 `pod-group.scheduling.sigs.k8s.io=<pg-name>` + 由 Handler 一并创建 PodGroup CR（`spec.minMember ← sum(replicas)` 或按 elastic 配置）
+- `spec.scheduling.*` → 各 replica 模板内的 nodeSelector / tolerations
+- `spec.scheduling.quota` → 各 replica 模板的 `template.metadata.labels[quota.scheduling.koordinator.sh/name]`
 - `spec.runPolicy.suspend` → 支持原生 suspend 的版本 patch `PyTorchJob.spec.runPolicy.suspend=true`，否则走 `Cleanup()` fallback
 - `spec.runPolicy.activeDeadlineSeconds` / `backoffLimit` → `PyTorchJob.spec.runPolicy` 同名字段
 
@@ -455,15 +407,15 @@ config:
 
 > 完整字段映射、容错策略、与 elastic training 的交互细节，由独立设计文档落地（见 §11）。
 
-### 8.5 `(kubeflow-trainer, tfjob)`
+### 8.4 `(kubeflow-trainer, tfjob)`
 
-同 §8.4 思路，将 MLJob 翻译为 Kubeflow Trainer 的 `TFJob`。Role 集合约定为 `chief` / `worker` / `ps` / `evaluator`（任一可省略，replicas=0 表示禁用）。Status 映射沿用 TFJob 的 condition 集，与 §8.4 PyTorchJob 同构。Suspend 优先走原生 `runPolicy.suspend`，目标版本不支持时 fallback 为 `Cleanup()`；Handler 完成底层动作后返回结构化 suspend 结果，由 dispatcher 统一写 `Suspended` condition。
+同 §8.3 思路，将 MLJob 翻译为 Kubeflow Trainer 的 `TFJob`。Role 集合约定为 `chief` / `worker` / `ps` / `evaluator`（任一可省略，replicas=0 表示禁用）。各 replica 模板同样必须注入 `schedulerName: koord-scheduler` + §6 必填 label；多角色 gang 通过同一 PodGroup（`minMember=sum(replicas)`）表达。Status 映射沿用 TFJob 的 condition 集，与 §8.3 PyTorchJob 同构。Suspend 优先走原生 `runPolicy.suspend`，目标版本不支持时 fallback 为 `Cleanup()`；Handler 完成底层动作后返回结构化 suspend 结果，由 dispatcher 统一写 `Suspended` condition。
 
-### 8.6 `(kubeflow-trainer, mpijob)`
+### 8.5 `(kubeflow-trainer, mpijob)`
 
-将 MLJob 翻译为 Kubeflow [`MPIJob`](https://www.kubeflow.org/docs/components/training/mpi/) CR。Role 集合约定为 `launcher`（replicas=1）+ `worker`（replicas≥1）。`backend.config` 携带 MPI 实现选择（OpenMPI / Intel MPI）与 launcher / worker 通讯参数。Status 映射对齐 MPIJob `status.conditions`。Suspend 优先走原生 `runPolicy.suspend`，目标版本不支持时 fallback 为 `Cleanup()`；Handler 完成底层动作后返回结构化 suspend 结果，由 dispatcher 统一写 `Suspended` condition。
+将 MLJob 翻译为 Kubeflow [`MPIJob`](https://www.kubeflow.org/docs/components/training/mpi/) CR。Role 集合约定为 `launcher`（replicas=1）+ `worker`（replicas≥1）。`backend.config` 携带 MPI 实现选择（OpenMPI / Intel MPI）与 launcher / worker 通讯参数。各 replica 模板同样必须注入 `schedulerName: koord-scheduler` + §6 必填 label；MPIJob 的 PodGroup 由本 Handler 创建（`minMember=launcher.replicas + worker.replicas`）。Status 映射对齐 MPIJob `status.conditions`。Suspend 优先走原生 `runPolicy.suspend`，目标版本不支持时 fallback 为 `Cleanup()`；Handler 完成底层动作后返回结构化 suspend 结果，由 dispatcher 统一写 `Suspended` condition。
 
-### 8.7 `(custom, *)`
+### 8.6 `(custom, *)`
 
 为外部接入预留的一等公民。用户在 `backend.config` 中以 schemaless 方式描述目标 GVK 与字段映射：
 
@@ -487,30 +439,30 @@ backend:
         Error: Failed
 ```
 
-由 custom Handler 通过 unstructured client 创建并跟踪。完整 schema 与 unstructured 操作约定由独立设计文档落地（见 §11）。
+由 custom Handler 通过 unstructured client 创建并跟踪。**仍受 §6 Pod 注入约定与 [infra.md §8.3](../infra.md) Quota 全覆盖不变式约束**：custom Handler 必须保证最终落地的 Pod 模板上有 `schedulerName: koord-scheduler` 与 `quota.scheduling.koordinator.sh/name` label，否则 Validate 直接拒绝。完整 schema 与 unstructured 操作约定由独立设计文档落地（见 §11）。
 
 ## 9. RBAC 聚合
 
-operator binary 启动时遍历 registry，把每个启用 Handler 的 `RequiredRBAC()` 合并去重，生成本 binary 实际需要的 ClusterRole rules。Helm chart 通过 values 控制启用集合，渲染最小化 RBAC 而非全集——例如仅启用 `(native, job)` 时，集群无需安装 Volcano；启用 `(volcano, *)` 才注入 Volcano 相关 RBAC；启用 `(kubeflow-trainer, *)` 才注入对应 CR 的 RBAC。
+operator binary 启动时遍历 registry，把每个启用 Handler 的 `RequiredRBAC()` 合并去重，生成本 binary 实际需要的 ClusterRole rules。Helm chart 通过 values 控制启用集合，渲染最小化 RBAC 而非全集——例如仅启用 `(native, job)` 时不引入 PodGroup 相关 RBAC；启用 `(native, podgroup)` 才注入 `podgroups.scheduling.sigs.k8s.io` CRUD；启用 `(kubeflow-trainer, *)` 才注入对应 CR 的 RBAC。所有路径都不需要 ElasticQuota 的 RBAC（ElasticQuota 由 Compute 独占维护）。
 
 ## 10. 不变量与约束
 
 - `spec.backend.{name, engine}` 创建后不可变；dispatcher 拒绝并写 `status.message`，admission webhook 后续可前置拦截
 - `(backend, engine)` 元组未在 registry 注册 → MLJob 直接进入 `Failed`，message 写明缺失原因
 - 任一 Handler 的 `Reconcile` / `MapStatus` 必须保持 §2 列出的写路径契约——这是把"插件"安全嵌入 Compute Outbox 模型的根基
-- Handler 不直接修改 Volcano Queue CR；Queue CR 由 Compute 独占维护
+- Handler 不直接修改 ElasticQuota CR；ElasticQuota CR 由 Compute 独占维护
 - Handler 不向 Compute PG 写入任何数据；状态全部经由 MLJob `status` + Informer 回流
 - **Handler 不引入 finalizer**；级联清理依赖 ownerReference + `Cleanup()`
 - **`status.phase` 取值集合冻结为四态**（`Pending | Running | Succeeded | Failed`）；新增 phase 必须经 CRD schema 与 Compute 双侧同步演进
-- 所有 Handler 必须打 `axisml.io/job-id` + `axisml.io/role` 两件套 label；副本身份天然稳定的场景（Indexed Job、StatefulSet 派生 Pod）建议叠加 `axisml.io/replica-index`，其余场景省略
+- 所有 Handler 派生的 Pod 必须满足 §6 Pod 注入约定的前 5 项必填字段；缺失任一项视为契约违反，Validate 必须在创建前拦截
 - 所有 Handler 在 cancel 路径完成 suspend / Cleanup 后必须返回 `suspendCompleted=true, reason=CancelRequested`；dispatcher 据此写 `status.conditions[type=Suspended,status=True,reason=CancelRequested]`，非终态 `phase` 维持 `Pending`；这是 Compute 推进 `Canceling → Cancelled` 的唯一信号
 
 ## 11. 后续设计文档（不在本文档范围）
 
-- `(volcano, volcanojob)` Handler 完整 `config.plugins / policies / taskPolicies` schema 与多 task 字段映射细节
 - `(native, job)` Handler 的 Indexed Job 模式与 `podFailurePolicy` 直通策略细节
-- `(kubeflow-trainer, pytorchjob / tfjob / mpijob / paddlejob / xgboostjob)` 各自的字段映射与状态映射细节
-- `(custom, *)` Handler 的 `config` 完整 schema 与 unstructured 操作约定
+- `(native, podgroup)` Handler 的 PodGroup `minResources` 与 elastic gang 演进
+- `(kubeflow-trainer, pytorchjob / tfjob / mpijob / paddlejob / xgboostjob)` 各自的字段映射与状态映射细节，含每路径下的 PodGroup 创建策略
+- `(custom, *)` Handler 的 `config` 完整 schema 与 unstructured 操作约定（包括 schedulerName / quota label 强制注入校验）
 - Admission webhook：`spec.backend.{name, engine}` 不可变约束、`backend.config` 按 Handler 自带 schema 的统一校验
 - Handler chart 的 values 控制（启用 / 禁用 backend，对应 RBAC 与 watch 的开关）
-- CRD 严格 schema（启用 OpenAPI 校验，替换当前的 `x-kubernetes-preserve-unknown-fields`）
+- CRD 严格 schema（启用 OpenAPI 校验，替换当前的 `x-kubernetes-preserve-unknown-fields`，含 `spec.backend.name` enum 收为 `{native, kubeflow-trainer, custom}` 与 `spec.scheduling.quota` 必填）

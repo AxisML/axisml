@@ -43,7 +43,7 @@ Compute 负责设置以下 metadata（与 [compute.md §6.2.1](../compute.md) �
 
 把 Tenant 的三类职责建模为同级字段——`namespace`（命名空间引用）、`resourceQuota`（独占 Namespace 的 K8s 配额兜底）、`initResources`（初始化清单），避免任何一类职责喧宾夺主。
 
-**ResourceQuota 的边界**：Kubernetes `ResourceQuota` 按 Namespace 聚合计量，不会按 Tenant CR、ServiceAccount 或 `axisml.io/tenant-id` label 自动拆分用量。同一 Namespace 下创建多个 ResourceQuota 时，K8s 准入会同时校验所有 Quota，效果是 namespace-wide 的交集约束，而不是"每个 Tenant 一份独立额度"。因此本文档把 `spec.resourceQuota` 定义为**独占 Namespace 场景的硬兜底**；多 Tenant 共享 Namespace 时，租户级容量约束由 Compute Queue / Volcano Queue 承担，tenant-operator 只负责资源命名、凭证/RBAC 和可观测 label 隔离。
+**ResourceQuota 的边界**：Kubernetes `ResourceQuota` 按 Namespace 聚合计量，不会按 Tenant CR、ServiceAccount 或 `axisml.io/tenant-id` label 自动拆分用量。同一 Namespace 下创建多个 ResourceQuota 时，K8s 准入会同时校验所有 Quota，效果是 namespace-wide 的交集约束，而不是"每个 Tenant 一份独立额度"。因此本文档把 `spec.resourceQuota` 定义为**独占 Namespace 场景的硬兜底**；多 Tenant 共享 Namespace 时，租户级容量约束由 Compute Quota / Koordinator ElasticQuota 承担，tenant-operator 只负责资源命名、凭证/RBAC 和可观测 label 隔离。
 
 **为何把 namespace 名放在 `spec.namespace.name` 而非 `metadata.namespace`**：Tenant 是 cluster-scoped CR，不属于任何 Namespace；同时多个 Tenant 可共享同一个 Namespace，把 namespace 作为引用而非容器是更自然的建模——它是 Tenant 的"目标命名空间"而非"宿主命名空间"。这也让"切换 Namespace"作为不可变约束（§3.3）更自然——切 namespace 即切 spec 一个字段，不是 CR 重建。
 
@@ -78,7 +78,7 @@ spec:
   # ── 资源配额（仅适用于独占 Namespace，落到 ResourceQuota CR）──────
   # 可选: 整段缺省 或 hard 为 {} → operator 不创建 ResourceQuota，
   #      租户不受 tenant-operator 创建的 K8s ResourceQuota 约束
-  #      （仍受 Compute Queue / Volcano Queue 与集群内其他 Quota 约束；详见 §6.2）
+  #      （仍受 Compute Quota / Koordinator ElasticQuota 与集群内其他 Quota 约束；详见 §6.2）
   # 约束: 当多个 Tenant 共享同一 namespace 时必须省略或 hard={}；
   #      K8s ResourceQuota 不能表达 per-tenant 额度
   resourceQuota:
@@ -235,7 +235,7 @@ Tenant CR ADD 事件会把 Compute 侧 `Creating` 推进为 `Active`；若 opera
 | spec 漂移 | 不主动对账（Namespace 自身没有"由 Tenant 决定"的 spec 字段） |
 | 删除 | **永不删除**——即使最后一个引用本 Namespace 的 Tenant 被删除，Namespace 也保留。空 Namespace 由集群管理员手工清理 |
 
-**为何不删 Namespace**：Namespace 中可能存在 Tenant 不可见的 PV、外部 controller 创建的资源（如 Volcano PodGroup 历史记录、用户手工创建的 ConfigMap）。误删 Namespace 会引发不可逆的状态丢失。把"清理空 Namespace"作为运维操作而非 operator 的自动行为是更安全的取舍——代价仅是空 Namespace 残留。
+**为何不删 Namespace**：Namespace 中可能存在 Tenant 不可见的 PV、外部 controller 创建的资源（如 PodGroup 历史记录、ElasticQuota 与 KServe 派生对象、用户手工创建的 ConfigMap）。误删 Namespace 会引发不可逆的状态丢失。把"清理空 Namespace"作为运维操作而非 operator 的自动行为是更安全的取舍——代价仅是空 Namespace 残留。
 
 `status.namespaceReady` 在 Namespace `phase=Active` 时为 `true`。
 
@@ -253,7 +253,7 @@ Tenant CR ADD 事件会把 Compute 侧 `Creating` 推进为 `Active`；若 opera
 | spec 漂移 | reconcile 检测到 `ResourceQuota.spec` 与 `spec.resourceQuota` 不一致时按 spec 覆盖（PG 快照为权威） |
 | 删除 | 随 Tenant 删除 K8s GC |
 
-**多 Tenant 共享 Namespace 时的语义**：K8s 在同一 Namespace 内对多个 ResourceQuota 取交集约束，任一 Quota 超限即拒绝；这些 Quota 都看同一份 Namespace 总用量，不能自然得到"每个租户分别受限"的效果。共享 Namespace 下的租户容量边界由 Compute 在 [compute.md §6.2.4](../compute.md) 队列层面预检，并由 Volcano Queue 负责调度与用量回流；ResourceQuota 不参与 per-tenant 隔离。
+**多 Tenant 共享 Namespace 时的语义**：K8s 在同一 Namespace 内对多个 ResourceQuota 取交集约束，任一 Quota 超限即拒绝；这些 Quota 都看同一份 Namespace 总用量，不能自然得到"每个租户分别受限"的效果。共享 Namespace 下的租户容量边界由 Compute 在 [compute.md §6.2.4](../compute.md) 配额层面预检，并由 Koordinator ElasticQuota 负责调度与用量回流；ResourceQuota 不参与 per-tenant 隔离。
 
 `status.resourceQuotaReady` 在 ResourceQuota 创建成功且 `status.used` 已被 K8s 填充时为 `true`。
 
@@ -320,7 +320,7 @@ Tenant CR ADD 事件会把 Compute 侧 `Creating` 推进为 `Active`；若 opera
 - **Namespace 自身不绑定 ownerReference**——Namespace 是共享资源，不属于任一 Tenant
 - **per-tenant 资源命名前缀 `axisml-tenant-<tenant-name>-`** 保证不 collide
 - **per-tenant 资源 label `axisml.io/tenant-id=<uuid>`** 提供 selector 检索能力（"该 Namespace 内属于 tenant X 的所有资源"）
-- **不使用 per-tenant ResourceQuota**：共享 Namespace 下 `spec.resourceQuota` 必须为空；K8s ResourceQuota 不能按 Tenant 拆分用量，租户级容量边界由 Compute Queue / Volcano Queue 承担
+- **不使用 per-tenant ResourceQuota**：共享 Namespace 下 `spec.resourceQuota` 必须为空；K8s ResourceQuota 不能按 Tenant 拆分用量，租户级容量边界由 Compute Quota / Koordinator ElasticQuota 承担
 - **Pod 通过 ServiceAccount 关联 tenant**：Pod 选择 `axisml-tenant-<tenant>-<sa>` SA → 自动获得本 tenant 的 imagePullSecrets / RBAC；ServiceAccount 是 tenant 身份在 K8s API 调用面的载体
 - **Tenant A 删除不影响 Tenant B**：Tenant A 删除 → K8s GC 清理 A 的 per-tenant 资源（Secret / ConfigMap / SA / Role / RoleBinding 等）→ B 的 per-tenant 资源不受影响 → Namespace 保留
 
@@ -337,7 +337,7 @@ Namespace shared-dev
 ├── ...
 ```
 
-team-a 的 Pod 只能选择 `axisml-tenant-team-a-*` SA，从而只看到本 tenant 的 imagePullSecrets / RBAC。共享 Namespace 下不创建 tenant-operator 管理的 ResourceQuota；team-a / team-b 的容量上限由各自绑定的 Compute Queue / Volcano Queue 表达。
+team-a 的 Pod 只能选择 `axisml-tenant-team-a-*` SA，从而只看到本 tenant 的 imagePullSecrets / RBAC。共享 Namespace 下不创建 tenant-operator 管理的 ResourceQuota；team-a / team-b 的容量上限由各自绑定的 Compute Quota / Koordinator ElasticQuota 表达。
 
 ### 与 Compute schema 的关系
 
@@ -371,7 +371,7 @@ operator binary 启动时聚合以下权限到 ServiceAccount。Helm chart 通�
 - per-tenant 资源命名一律带 `axisml-tenant-<tenant-name>-` 前缀，避免共享 Namespace 内 collide
 - per-tenant 资源必须打 `axisml.io/tenant-id` 与 `axisml.io/managed-by=tenant-operator` label；缺失即视为 operator 不应识别（用于人工排障误打 label 的场景）
 - 非空 `spec.resourceQuota` 要求 `spec.namespace.name` 为独占 Namespace；共享 Namespace 下不创建 tenant-operator 管理的 ResourceQuota
-- operator 不读写 Volcano Queue / MLJob / MLService CR；这些 CR 由 Compute 与对应 operator 独占维护
+- operator 不读写 ElasticQuota / MLJob / MLService CR；这些 CR 由 Compute 与对应 operator 独占维护
 - operator 不向 Compute PG 写入任何数据；状态全部经由 Tenant `status` + Informer 回流
 - `status.phase` 取值集合冻结为三态（`Active | Suspended | Failed`）；新增 phase 必须经 CRD schema 与 Compute 双侧同步演进
 - 初始化资源数据来源限定为同集群内的 `sourceSecretRef` / `sourceConfigMapRef`；不接受内联敏感数据（避免 etcd 明文持久化）

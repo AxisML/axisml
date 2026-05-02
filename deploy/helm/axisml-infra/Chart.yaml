@@ -41,10 +41,10 @@ dependencies:
     repository: "https://helm.ngc.nvidia.com/nvidia"
     condition: gpu-operator.enabled
 
-  - name: volcano
-    version: "1.10.0"
-    repository: "https://volcano-sh.github.io/helm-charts"
-    condition: volcano.enabled
+  - name: koordinator
+    version: "1.5.0"
+    repository: "https://koordinator-sh.github.io/charts"
+    condition: koordinator.enabled
 
   - name: kube-prometheus-stack
     version: "65.0.0"

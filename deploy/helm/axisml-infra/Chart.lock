@@ -11,11 +11,11 @@ dependencies:
 - name: gpu-operator
   repository: https://helm.ngc.nvidia.com/nvidia
   version: v24.9.0
-- name: volcano
-  repository: https://volcano-sh.github.io/helm-charts
-  version: 1.10.0
+- name: koordinator
+  repository: https://koordinator-sh.github.io/charts
+  version: 1.5.0
 - name: kube-prometheus-stack
   repository: https://prometheus-community.github.io/helm-charts
   version: 65.0.0
-digest: sha256:55b4cf6f296525de457b1acbb4fed0fba1eb91309e5fd5ace43290cdbc832ad9
-generated: "2026-05-02T09:58:20.331576+08:00"
+digest: sha256:4720fee5bed4efc4aeb0418035ab143e155d8bbcc78b43ff6b671ba2dfd29f01
+generated: "2026-05-02T23:15:35.515347+08:00"

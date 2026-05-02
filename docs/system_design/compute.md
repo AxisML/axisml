@@ -2,11 +2,11 @@
 
 ## 1. 概述
 
-AxisML Compute 是平台的计算服务层，基于 Go 开发，承载 **计算任务管理** 与 **系统管理（租户 / 资源池 / 资源单元 / 队列）** 两大职责。Compute 通过 REST API 暴露能力，仅接受来自 AxisML Platform 的内部调用，不直接对外部用户流量开放。
+AxisML Compute 是平台的计算服务层，基于 Go 开发，承载 **计算任务管理** 与 **系统管理（租户 / 资源池 / 资源单元 / 配额）** 两大职责。Compute 通过 REST API 暴露能力，仅接受来自 AxisML Platform 的内部调用，不直接对外部用户流量开放。
 
 **关键边界原则**：Compute 不直接创建 Namespace、Pod 等底层 K8s 资源，这些由对应 Operator 或集群管理员负责；Compute 仅维护业务元数据，并通过 CRD 向 Operator 声明意图。
 
-**与 backend 解耦**：mljob-operator / mlservice-operator 内部按 `spec.backend.{name, engine}` 元组路由到不同 Handler。MLJob 支持 `(native, job)`（默认）/ `(volcano, podgroup)` / `(volcano, volcanojob)` / `(kubeflow-trainer, pytorchjob / tfjob / mpijob …)` / `(custom, *)`；MLService 支持 `(native, deployment)`（默认）/ `(native, statefulset)` / `(kserve, inference)` / `(kserve, llminference)` / `(custom, *)`，其中 `(kserve, inference)` 对应 KServe `InferenceService` CR、内部 runtime（triton / vllm / tfserving / torchserve / huggingface …）由 `backend.config.runtime` 选择，`(kserve, llminference)` 对应 KServe `LLMInferenceService` CR、承载 LLM 原生服务（PD 分离）。**Compute 持久化、默认注入并透传 `backend.{name, engine, config}`，但不解释后端运行时语义**；Informer 只消费统一的 `status.phase` 与少量通用状态字段。具体插件机制见 [operators/mljob-operator.md](operators/mljob-operator.md) §2、[operators/mlservice-operator.md](operators/mlservice-operator.md) §2。
+**与 backend 解耦**：mljob-operator / mlservice-operator 内部按 `spec.backend.{name, engine}` 元组路由到不同 Handler。MLJob 支持 `(native, job)`（默认）/ `(native, podgroup)` / `(kubeflow-trainer, pytorchjob / tfjob / mpijob …)` / `(custom, *)`；MLService 支持 `(native, deployment)`（默认）/ `(native, statefulset)` / `(kserve, inference)` / `(kserve, llminference)` / `(custom, *)`，其中 `(kserve, inference)` 对应 KServe `InferenceService` CR、内部 runtime（triton / vllm / tfserving / torchserve / huggingface …）由 `backend.config.runtime` 选择，`(kserve, llminference)` 对应 KServe `LLMInferenceService` CR、承载 LLM 原生服务（PD 分离）。**所有 backend 派生的 Pod 都强制走 koord-scheduler 并消费对应 ElasticQuota**（Quota 全覆盖契约见 [infra.md §8.3](infra.md)）。**Compute 持久化、默认注入并透传 `backend.{name, engine, config}`，但不解释后端运行时语义**；Informer 只消费统一的 `status.phase` 与少量通用状态字段。具体插件机制见 [operators/mljob-operator.md](operators/mljob-operator.md) §2、[operators/mlservice-operator.md](operators/mlservice-operator.md) §2。
 
 ## 2. 职责与边界
 
@@ -16,8 +16,8 @@ Compute 内部按 6 个模块划分，分两类组织：
 | --- | --- | --- | --- |
 | 配置对象（长生命周期） | 租户 Tenant | 元数据 CRUD，下发 `Tenant` CRD | Namespace 创建、ResourceQuota 落地（由 tenant-operator） |
 | | 资源池 ResourcePool | `node_selector` + `tolerations` 描述的池元数据 | Node 自身打标 / 污染（由集群管理员） |
-| | 资源单元 ResourceUnit | 池内资源规格模板（`requests` / `limits` + 节点标签匹配） | 实际调度（Volcano） |
-| | 队列 Queue | 扁平队列三维配额 `quota`（capability / deserved / guarantee）元数据 + Volcano Queue CR 同步 + 用量回流 | 实际公平调度 / 抢占 / 已接入 Volcano accounting 后端的用量核算（Volcano） |
+| | 资源单元 ResourceUnit | 池内资源规格模板（`requests` / `limits` + 节点标签匹配） | 实际调度（koord-scheduler） |
+| | 配额 Quota | 扁平配额 `spec`（min / max）元数据 + Koordinator `ElasticQuota` CR 同步 + 用量回流 | 实际调度 / 抢占 / ElasticQuota status.used 累计（koord-scheduler + ElasticQuota plugin） |
 | 工作负载对象（生命周期） | 任务 Job | `MLJob` CRUD + 状态回流 | Pod / PodGroup 编排（由 mljob-operator） |
 | | 服务 Service | `MLService` CRUD + 状态回流 | Deployment / 自动扩缩（由 mlservice-operator） |
 
@@ -43,7 +43,7 @@ Compute 内部按 6 个模块划分，分两类组织：
  ┌──────────────────┐                         ┌─────────────────────────────┐
  │   PostgreSQL      │                        │   Kubernetes API Server      │
  │ 元数据 / 用量缓存  │                        │   MLJob / MLService / Tenant │
- │                   │                        │   Volcano Queue              │
+ │                   │                        │   ElasticQuota / PodGroup   │
  └──────────────────┘                         └─────────────┬───────────────┘
                                                             │ list-watch
                                                             ▼
@@ -68,7 +68,7 @@ components/compute/
 │   ├── tenant/               # 租户管理
 │   ├── resourcepool/         # 资源池管理
 │   ├── resourceunit/         # 资源单元管理
-│   ├── queue/                # 队列管理（Volcano Queue CR 容量下行 + 用量 informer）
+│   ├── quota/                # 配额管理（ElasticQuota CR spec 下行 + status.used informer）
 │   ├── job/                  # 任务管理（MLJob informer）
 │   ├── service/              # 在线服务管理（MLService informer）
 │   ├── k8sclient/            # controller-runtime client + informer factory（各模块通过它共享 cache）
@@ -87,12 +87,12 @@ components/compute/
 
 ### 5.1 权威划分
 
-> **PG 为配额定义（`quota`）与业务元数据的权威；K8s / Volcano 为运行状态与配额用量（`used`）的权威。**
+> **PG 为配额定义（`spec`）与业务元数据的权威；K8s / Koordinator 为运行状态与配额用量（`used`）的权威。**
 
 | 类别 | 权威方 | 流向 |
 | --- | --- | --- |
-| 队列配额定义 `quota`（capability / deserved / guarantee） | PG | API → PG → Volcano Queue `spec.capability` / `spec.deserved` / `spec.guarantee` |
-| 队列实际用量 `used` | Volcano | Volcano Queue `status.allocated` → Informer → PG `used` 缓存 |
+| 配额定义 `spec`（min / max） | PG | API → PG → ElasticQuota `spec.min` / `spec.max` |
+| 配额实际用量 `used` | Koordinator | ElasticQuota `status.used` → Informer → PG `used` 缓存 |
 | 业务元数据与期望 spec（名称、引用、spec 快照、desired hash） | PG | API → PG → reconciler → CR `spec` |
 | 运行状态（phase、endpoint、副本就绪） | K8s | CR `status` → Informer → PG |
 
@@ -103,11 +103,11 @@ PG 的 `used` 只用于 UI 列表展示和 best-effort 预检，**不参与写�
 采用 **Outbox 模式**：
 
 1. **API 同步路径只写 PG**：业务校验 → PG 事务插入 / 更新业务记录（新建时 `status='Creating'`，取消时 `status='Canceling'`，删除时 `status='Deleting'` + `deleted_at=now()`；允许变更的 spec 写入 PG 快照并更新 `desired_spec_hash`）→ commit → 返回业务 ID。API 不直接写 K8s。
-2. **Compute 内 reconciler worker 异步下发 CR**：每个模块（`internal/{job,service,tenant,queue}`）在 leader 副本起 goroutine，周期性扫描 PG 按生命周期谓词与 spec 同步谓词分派动作：
+2. **Compute 内 reconciler worker 异步下发 CR**：每个模块（`internal/{job,service,tenant,quota}`）在 leader 副本起 goroutine，周期性扫描 PG 按生命周期谓词与 spec 同步谓词分派动作：
    - `status='Creating' AND deleted_at IS NULL` → 按 PG 快照 `Create()` CR（附 label `axisml.io/<resource>-id=<uuid>` 作稳定锚点；409 `AlreadyExists` 视为成功，靠 `metadata.name` + label 双重去重幂等）；Informer ADD 事件推进到就绪态（`Pending` / `Active`）
    - `status='Canceling'`（Job 专属） → reconciler `patch MLJob.spec.runPolicy.suspend=true`；mljob-operator Handler 完成 suspend / Cleanup 后写 `status.conditions[type=Suspended,status=True,reason=CancelRequested]`，Informer 观察到该 condition 推进 PG 到 `Cancelled` 并入队 `Delete()` CR 做资源回收（DELETE 事件幂等到达，不再变更 PG 状态。详见 [operators/mljob-operator.md §4](operators/mljob-operator.md)）
    - `status='Deleting'` → `Delete()` CR；Informer DELETE 事件推进到 `Deleted`（配合设置 `deleted_at`）
-   - `desired_spec_hash != applied_spec_hash AND deleted_at IS NULL` → 对允许变更的 CR-backed 对象执行幂等 `Patch()`：Tenant 的 `spec.displayName` / `annotations` / `namespace.labels` / `namespace.annotations` / `resourceQuota` / `initResources` / `suspended`，Queue 的 `spec.capability` / `spec.deserved` / `spec.guarantee`，Service 的 `spec.roles[0].replicas`。Patch 成功后写 `applied_spec_hash=desired_spec_hash`；后续运行状态仍由 Informer 回流
+   - `desired_spec_hash != applied_spec_hash AND deleted_at IS NULL` → 对允许变更的 CR-backed 对象执行幂等 `Patch()`：Tenant 的 `spec.displayName` / `annotations` / `namespace.labels` / `namespace.annotations` / `resourceQuota` / `initResources` / `suspended`，Quota 的 `spec.min` / `spec.max`，Service 的 `spec.roles[0].replicas`。Patch 成功后写 `applied_spec_hash=desired_spec_hash`；后续运行状态仍由 Informer 回流
    - 失败按指数退避重试，错误写入业务记录的 `message` 字段供 UI 展示
    - PG 行不满足生命周期谓词且 `desired_spec_hash == applied_spec_hash` 后，reconciler 不再做下发动作
 
@@ -126,8 +126,8 @@ Creating ──(Informer ADD)──▶ 就绪态 ──(业务事件)──▶ �
   Cancelled               Deleted
 ```
 
-- 就绪态：Tenant/Queue 为 `Active`；Job 为 `Pending`（继而 `Running`）；Service 为 `Pending`（继而 `Ready`/`Degraded`/`Failed`）
-- 运行终态：Job 有 `Succeeded`/`Failed`；Service 无运行终态（`Failed` 可自愈）；Tenant/Queue 无运行终态
+- 就绪态：Tenant/Quota 为 `Active`；Job 为 `Pending`（继而 `Running`）；Service 为 `Pending`（继而 `Ready`/`Degraded`/`Failed`）
+- 运行终态：Job 有 `Succeeded`/`Failed`；Service 无运行终态（`Failed` 可自愈）；Tenant/Quota 无运行终态
 - `Cancelled` 为 Job 独有终态（资源释放但 PG 行保留供查阅，用户可后续 DELETE 进入 `Deleting → Deleted`）
 - `Deleted` 为所有资源最终软删终态（`deleted_at` 非空，UI 默认不展示）
 
@@ -140,7 +140,7 @@ Creating ──(Informer ADD)──▶ 就绪态 ──(业务事件)──▶ �
 | MLJob Informer | `MLJob` CR | `internal/job/` | 推进 `Creating→Pending`、`Pending→Running`、运行终态（`Succeeded`/`Failed`）；`Canceling→Cancelled`（信号：`status.conditions[type=Suspended,status=True,reason=CancelRequested]`）；`Deleting→Deleted`（配合 `deleted_at`）；回写 `jobs.status` / `started_at` / `finished_at` | PG `status='Canceling'` → Suspended condition 推 `Cancelled`、写 `finished_at`、入队 `Delete()` CR；DELETE 事件幂等忽略。PG `status='Deleting'` → DELETE 推 `Deleted`。PG `status ∈ (Pending, Running)` 收到 DELETE → 外部误删，推 `Cancelled` + `finished_at` + `message='external delete'`，**不补偿重建**；已终态忽略 | 不适用（`spec` 不可变；cancel 由 `Canceling` 谓词 patch `spec.runPolicy.suspend=true`） |
 | MLService Informer | `MLService` CR | `internal/service/` | 推进 `Creating→Pending`、`Pending→Ready`、`Ready⇄Degraded⇄Failed`（由 `ready_replicas`/`desired_replicas` 映射，见 §6.3.2）；`Deleting→Deleted`；回写 `services.status` / `ready_replicas` / `endpoint` | PG `status='Deleting'` → 推 `Deleted`；其他运行态 → 外部误删，写 `status='Deleting'` + `deleted_at=now()` + `message='external delete'`，交 reconciler 对不存在 CR 做幂等确认后推 `Deleted`；已 `Deleted` 忽略 | 扩缩容只更新 PG desired spec；reconciler 根据 `desired_spec_hash != applied_spec_hash` patch CR，Informer 只消费状态回流 |
 | Tenant Informer | `Tenant` CR | `internal/tenant/` | 推进 `Creating→Active`、`Active⇄Suspended`、`Deleting→Deleted`，回写 `tenants.status` / `message` | PG `status='Deleting'` → 推 `Deleted`；其他（外部误删）→ 按 §5.4 配置对象策略由 reconciler 以 PG desired spec 补偿重建 | Tenant CR 声明字段漂移 → reconciler 按 PG desired spec 覆盖回 CR；成功后更新 `applied_spec_hash` |
-| Queue Informer | Volcano `Queue` CR | `internal/queue/` | 回写 `queues.used`（来自 `status.allocated`）；推进 `Creating→Active`、`Deleting→Deleted` | PG `status='Deleting'` → 推 `Deleted`；其他（外部误删）→ reconciler 按 PG desired quota 补偿重建 | `spec.capability` / `spec.deserved` / `spec.guarantee` 漂移 → reconciler 按 PG desired quota 覆盖回 CR；成功后更新 `applied_spec_hash` |
+| Quota Informer | Koordinator `ElasticQuota` CR | `internal/quota/` | 回写 `quotas.used`（来自 `status.used`）；推进 `Creating→Active`、`Deleting→Deleted` | PG `status='Deleting'` → 推 `Deleted`；其他（外部误删）→ reconciler 按 PG desired spec 补偿重建 | `spec.min` / `spec.max` 漂移 → reconciler 按 PG desired spec 覆盖回 CR；成功后更新 `applied_spec_hash` |
 
 通用模式：启动时 `List` 做差异 upsert 与孤儿检测；`Watch` 事件入各自 work queue；单 worker 串行 reconcile；以 `resourceVersion` / `generation` 作乐观并发字段保证幂等。PG 更新短暂失败时事件在 work queue 中重试至成功。
 
@@ -148,10 +148,10 @@ Creating ──(Informer ADD)──▶ 就绪态 ──(业务事件)──▶ �
 
 补偿策略按资源类型分流。启动 `List` 时按 `axisml.io/<resource>-id` label 索引 CR 与 PG 行做对账：
 
-**配置对象（Tenant、Queue）**
+**配置对象（Tenant、Quota）**
 
-- **CR 漂移**：Informer 事件触发 Compute 按 PG 快照对齐——以 PG 为权威的字段（Queue 的 `spec.capability` / `spec.deserved` / `spec.guarantee`、Tenant 的声明字段）覆盖回 CR；CR 权威字段（`status.allocated` 等）不由 Compute 写回
-- **正向孤儿**（PG 有行但无 CR）：reconciler 幂等 `Create()` 重建，CR spec 来自 PG desired spec / quota
+- **CR 漂移**：Informer 事件触发 Compute 按 PG 快照对齐——以 PG 为权威的字段（Quota 的 `spec.min` / `spec.max`、Tenant 的声明字段）覆盖回 CR；CR 权威字段（ElasticQuota `status.used` 等）不由 Compute 写回
+- **正向孤儿**（PG 有行但无 CR）：reconciler 幂等 `Create()` 重建，CR spec 来自 PG desired spec
 - **反向孤儿**（CR 存在但 PG 无对应行或已软删）：默认删除 CR 并记录审计；高敏感场景可切为告警人工介入
 
 **工作负载对象（Job、Service）**
@@ -188,7 +188,7 @@ Compute 默认 `replicas=1`（Standard 与 Lite 均同），但架构按"多副�
 
 **UNIQUE 约束统一语义**：本节所有 schema 里标注的 `UNIQUE` 均实现为 PG partial unique index，`WHERE deleted_at IS NULL`——即软删行不占用唯一键，同名资源在原行被软删后可被再次创建。对应迁移示例：`CREATE UNIQUE INDEX ... ON tbl(col) WHERE deleted_at IS NULL`。
 
-**`name` 字段 DNS-1123 硬校验**：所有承载业务标识并会映射到 K8s 对象名的 `name` 字段（Tenant、ResourcePool、Queue、Job、Service；ResourceUnit 在此之上还叠加 §6.2.3 的语义命名约定），API 层统一校验：字符集 `[a-z0-9-]`，首尾为字母或数字，长度 3–40，不允许连续 `--`。长度上限锁 40 是为了在最坏拼接场景下仍满足 K8s 对象名限制——例如 tenant-operator 的 per-tenant 资源前缀 `axisml-tenant-<tenant>-<sub>`（≤55 字符基础前缀 + 子名，DNS-1123 subdomain 上限 253）、Volcano Queue 名 `axisml-<tenant>-<pool>-<queue>`（≤129 字符，DNS-1123 subdomain 上限 253）。Tenant 自身的 namespace 名由 `Tenant.spec.namespace.name` 显式声明，不再约定固定格式（详见 [tenant-operator §3.1 / §6.1](operators/tenant-operator.md)）。需要更长或含大小写/空格的可读名请填 `display_name`。
+**`name` 字段 DNS-1123 硬校验**：所有承载业务标识并会映射到 K8s 对象名的 `name` 字段（Tenant、ResourcePool、Quota、Job、Service；ResourceUnit 在此之上还叠加 §6.2.3 的语义命名约定），API 层统一校验：字符集 `[a-z0-9-]`，首尾为字母或数字，长度 3–40，不允许连续 `--`。长度上限锁 40 是为了在最坏拼接场景下仍满足 K8s 对象名限制——例如 tenant-operator 的 per-tenant 资源前缀 `axisml-tenant-<tenant>-<sub>`（≤55 字符基础前缀 + 子名，DNS-1123 subdomain 上限 253）、ElasticQuota 名 `axisml-<tenant>-<pool>-<quota>`（≤129 字符，DNS-1123 subdomain 上限 253）。Tenant 自身的 namespace 名由 `Tenant.spec.namespace.name` 显式声明，不再约定固定格式（详见 [tenant-operator §3.1 / §6.1](operators/tenant-operator.md)）。需要更长或含大小写/空格的可读名请填 `display_name`。
 
 **迁移**：由 `golang-migrate` embedded 方式在服务启动时执行，依赖 `schema_migrations` 表的 PG advisory lock 避免多副本并发迁移；生产可选通过 Helm `Job` 隔离。
 
@@ -235,7 +235,7 @@ Creating ──(Informer ADD)──▶ Active ⇄ Suspended ──(DELETE req)�
 
 | 操作 | PG | Kubernetes（reconciler 异步执行） |
 | --- | --- | --- |
-| 创建 | insert `tenants`，写入 `spec` 与 `desired_spec_hash`，`applied_spec_hash=NULL`，`status='Creating'` | 创建 cluster-scoped `Tenant` CR（label `axisml.io/tenant-id=<uuid>`），tenant-operator 按 `spec.namespace.name` 落地 Namespace（已存在则共享）；仅在独占 Namespace 下按 `spec.resourceQuota` 创建 K8s ResourceQuota 兜底，共享 Namespace 的租户级容量边界由 Compute Queue / Volcano Queue 表达（缺省=不限额，详见 [tenant-operator §6.1 / §6.2](operators/tenant-operator.md)）；reconciler 创建成功后写 `applied_spec_hash=desired_spec_hash`，Informer ADD 推 `Active` |
+| 创建 | insert `tenants`，写入 `spec` 与 `desired_spec_hash`，`applied_spec_hash=NULL`，`status='Creating'` | 创建 cluster-scoped `Tenant` CR（label `axisml.io/tenant-id=<uuid>`），tenant-operator 按 `spec.namespace.name` 落地 Namespace（已存在则共享）；仅在独占 Namespace 下按 `spec.resourceQuota` 创建 K8s ResourceQuota 兜底，共享 Namespace 的租户级容量边界由 Compute Quota / Koordinator ElasticQuota 表达（缺省=不限额，详见 [tenant-operator §6.1 / §6.2](operators/tenant-operator.md)）；reconciler 创建成功后写 `applied_spec_hash=desired_spec_hash`，Informer ADD 推 `Active` |
 | 更新 | 校验 `spec.namespace.name` 不变；更新 `tenants.spec` 及镜像列，重算 `desired_spec_hash` | reconciler 观察到 `desired_spec_hash != applied_spec_hash` 后 patch Tenant CR；成功后写 `applied_spec_hash` |
 | 挂起 | 更新 `tenants.spec.suspended=true`，重算 `desired_spec_hash`；可同步把 `status='Suspended'` 用于立即阻断新提交 | reconciler patch Tenant CR `spec.suspended=true`；tenant-operator 仅写 `status.phase=Suspended`、不停机底层资源；Informer 回流确认 `Suspended` |
 | 恢复 | 更新 `tenants.spec.suspended=false`，重算 `desired_spec_hash`；`status` 等待 Informer 回流 `Active` | reconciler patch Tenant CR `spec.suspended=false`；operator 重新推导 `Active` 后由 Informer 回流 |
@@ -336,21 +336,21 @@ Pool 的硬件维度（如 `axisml.io/pool=gpu-a100`）一经设置即为池的"
 
 ResourceUnit 同样无对应 CR，不走 Outbox 下发路径。
 
-#### 6.2.4 资源队列（Queue）
+#### 6.2.4 资源配额（Quota）
 
 **数据模型**
 
 ```
-queues(
+quotas(
   id                  uuid PK,
   tenant_id           uuid FK tenants(id),
   pool_id             uuid FK resource_pools(id),
   name                text,                      -- "default" / "training" / ...
-  quota               jsonb,                     -- 三维配额，见下
-  desired_spec_hash   text,                      -- quota 变更后重算；驱动 Volcano Queue spec 下发
-  applied_spec_hash   text,                      -- reconciler 成功下发 Volcano Queue spec 后写入
+  spec                jsonb,                     -- 配额 spec（min / max），与上游 sigs.k8s.io scheduler-plugins ElasticQuota 字段一一对应；见下
+  desired_spec_hash   text,                      -- spec 变更后重算；驱动 ElasticQuota spec 下发
+  applied_spec_hash   text,                      -- reconciler 成功下发 ElasticQuota spec 后写入
   status              text,                      -- Creating / Active / Deleting / Deleted
-  used                jsonb,                     -- Informer 从 Volcano Queue status.allocated 缓存，只读不记账；反映所有走 Volcano 调度（schedulerName=volcano + PodGroup 关联）的 workload 用量：MLJob 的 (volcano, *) / (kubeflow-trainer, *) 路径自然入账（(native, job) 默认无 Volcano 依赖，不入账）；MLService 的 native 路径由 mlservice-operator 创建轻量 PodGroup 入账，但不把 minMember 设为期望副本数，避免把在线服务扩缩误建模为 gang 调度（详见 operators/mlservice-operator.md §3.1）；(kserve, *) MLService 当前为已知缺口（见 mlservice §11 follow-up）
+  used                jsonb,                     -- Informer 从 ElasticQuota status.used 缓存，只读不记账；反映所有 schedulerName=koord-scheduler 且带 quota.scheduling.koordinator.sh/name=<eq-name> label 的 Pod 用量。AxisML 工作负载 Pod（MLJob 各 backend、MLService native + KServe 派生）一律满足这两个条件（详见 infra.md §8.3 Quota 全覆盖契约），故 Job + Service 的合计用量都自然进入此 used 字段。
   created_at          timestamptz,
   updated_at          timestamptz,
   deleted_at          timestamptz,
@@ -358,29 +358,27 @@ queues(
 )
 ```
 
-`quota` 是 Volcano Queue spec 的 desired state。创建或更新 Queue 时 API 只写 PG 并重算 `desired_spec_hash`；reconciler 创建 / patch Volcano Queue 成功后写 `applied_spec_hash=desired_spec_hash`。`used` 只由 Informer 从 Volcano status 回流。
+`spec` 是 ElasticQuota spec 的 desired state，字段集与上游 `scheduling.sigs.k8s.io/v1alpha1` ElasticQuota 完全一致。创建或更新 Quota 时 API 只写 PG 并重算 `desired_spec_hash`；reconciler 创建 / patch ElasticQuota 成功后写 `applied_spec_hash=desired_spec_hash`。`used` 只由 Informer 从 ElasticQuota status 回流。
 
-`quota` 字段结构：
+`spec` 字段结构：
 
 ```json
 {
-  "capability": {"cpu": "100", "memory": "400Gi", "nvidia.com/gpu": "8"},
-  "deserved":   {"cpu": "40",  "memory": "160Gi", "nvidia.com/gpu": "4"},
-  "guarantee":  {"cpu": "20",  "memory": "80Gi",  "nvidia.com/gpu": "2"}
+  "min": {"cpu": "20",  "memory": "80Gi",  "nvidia.com/gpu": "2"},
+  "max": {"cpu": "100", "memory": "400Gi", "nvidia.com/gpu": "8"}
 }
 ```
 
-**三维配额语义**（对齐 Volcano capacity plugin）：
+**配额语义**（对齐 sigs.k8s.io scheduler-plugins ElasticQuota）：
 
 | 维度 | 含义 | 超限后果 |
 | --- | --- | --- |
-| `capability` | **硬上限**：队列占用资源的最大值 | 超过 → Volcano 拒绝调度，PodGroup 停在 `Pending` |
-| `deserved` | **公平基线**：队列理应分到的份额；超出 `deserved` 但 ≤ `capability` 的部分属于"借用" | 借用部分可被其他队列未满足 `deserved` 的任务**抢占回收（reclaim）** |
-| `guarantee` | **保留份额**：必须满足的底线 | 即便其他队列抢占，也不会被回收到 `guarantee` 以下 |
+| `max` | **硬上限**：配额可占用资源的最大值 | 超过 → koord-scheduler 拒绝调度，Pod 停在 `Pending` |
+| `min` | **保留份额**：必须满足的底线（不可被其他配额抢占的下界） | 已分配资源若超过 `min`，超出部分（属于"借用"）可被其他配额未满足 `min` 的任务**抢占回收（reclaim）** |
 
-**校验约束**（每个资源 key 分别校验）：`guarantee ≤ deserved ≤ capability`，且均 ≥ 0。
+**校验约束**（每个资源 key 分别校验）：`min ≤ max`，且均 ≥ 0。
 
-**默认值策略**：API 仅强制要求 `capability`；`deserved`/`guarantee` 未填时默认为 0（等同"无公平基线、无保留份额"，所有队列平等争抢直到 `capability` 封顶——退化为 v1 行为）。
+**默认值策略**：API 仅强制要求 `max`；`min` 未填时默认为 0（等同"无保留份额"，所有配额平等争抢直到 `max` 封顶）。借用容量在多配额间按 koord-scheduler 默认平权分配；AxisML 不引入 Koordinator 私有的 `shared-weight` annotation，保持 PG schema、API 与上游 CR 字段一一对应。
 
 **状态机**
 
@@ -390,25 +388,27 @@ Creating ──(Informer ADD)──▶ Active ──(DELETE req)──▶ Deleti
 
 **模型特征**
 
-- 扁平结构，每条队列都是独立对象，无父子层级
-- 每个 `(tenant, pool)` 默认存在队列 `default`
-- 用户可另行创建队列（如 `training`、`inference`、`nlp`）用于业务线 / 团队维度的配额拆分
-- 同一租户在不同池下队列结构 / 配额互不干扰
-- 分层队列作为后续演进方向（见 §11）
+- 扁平结构，每条配额都是独立对象，无父子层级
+- 每个 `(tenant, pool)` 默认存在配额 `default`
+- 用户可另行创建配额（如 `training`、`inference`、`nlp`）用于业务线 / 团队维度的拆分
+- 同一租户在不同池下配额结构 / 额度互不干扰
+- 分层配额（Koord-Queue tree）作为后续演进方向（见 §11）
 
-**与 Volcano 的映射**
+**与 Koordinator ElasticQuota 的映射**
 
-- 每条 Compute Queue 1:1 对应一条 Volcano `Queue` CR（cluster-scoped）
-- 命名约定：`axisml-<tenant>-<pool>-<queue>`，例：`axisml-default-gpu-a100-training`
-- 配额下行：`quota.capability` → `queue.spec.capability`；`quota.deserved` → `queue.spec.deserved`；`quota.guarantee` → `queue.spec.guarantee`
-- 用量上行：Informer 观察 `queue.status.allocated` → 缓存到 PG `used`
+- 每条 Compute Quota 1:1 对应一条 Koordinator `ElasticQuota` CR（namespace-scoped；CR 落在租户 namespace 下）
+- 命名约定：`axisml-<tenant>-<pool>-<quota>`，例：`axisml-default-gpu-a100-training`
+- 配额下行：`spec.min` → `ElasticQuota.spec.min`；`spec.max` → `ElasticQuota.spec.max`
+- 用量上行：Informer 观察 `ElasticQuota.status.used` → 缓存到 PG `used`
+
+**多 namespace 契约**：koord-scheduler 的 elasticquota 插件通过 SharedInformerFactory 监听**全集群**所有 namespace 的 `ElasticQuota` CR，`koord-scheduler-config` 中的 `quotaGroupNamespace`（默认 = 安装 namespace `axisml-infra`）只是未带 quota label Pod 的兜底归属点，并非 CR 监听过滤器。Pod 通过 label `quota.scheduling.koordinator.sh/name=<quota-name>` 按**名字**跨 namespace 绑定 quota（quota name 在集群内唯一即可），因此 ElasticQuota CR 与 workload Pod 都落在租户 namespace 是受官方支持的部署形态，`status.used` 与 `min/max` 硬约束照常生效。
 
 **配额预检（best-effort）**：提交任务 / 服务时：
 
-1. 读 `quota.capability` 与缓存 `used`，若 `used + request > capability` 则早期拒绝并返回错误
+1. 读 `spec.max` 与缓存 `used`，若 `used + request > max` 则早期拒绝并返回错误
 2. 预检通过 → 创建 MLJob / MLService CR
 
-Volcano 层硬约束只覆盖实际接入 Queue accounting 的 backend。`(volcano, *)` / `(kubeflow-trainer, *)` MLJob 与 native MLService 会进入 Volcano `Queue.status.allocated`；`(native, job)` 默认不依赖 Volcano，当前 `(kserve, *)` MLService 的 Volcano accounting 仍是已知缺口。未接入的路径只有 Compute best-effort 预检，不应被描述为已有 Volcano 强制配额。`deserved` 与 `guarantee` 影响调度序关系与抢占行为，不做 Compute 层预检（Volcano 调度器按全局视图做决策，Compute 无足够上下文判断"当前是否会被抢占"）。PG 不对 `queues.used` 加锁或事务记账。
+Koordinator 层硬约束覆盖**所有** AxisML workload Pod（[infra.md §8.3](infra.md) Quota 全覆盖契约）：MLJob 各 backend（含 `(native, job)` / `(native, podgroup)` / `(kubeflow-trainer, *)`）与 MLService 各 backend（含 `(native, deployment / statefulset)` / `(kserve, *)`）派生的 Pod 都设置 `schedulerName: koord-scheduler` 并通过 label `quota.scheduling.koordinator.sh/name` 关联到 ElasticQuota，因此都进入 `ElasticQuota.status.used`。`min` 影响调度序关系与抢占行为，不做 Compute 层预检（koord-scheduler 按全局视图做决策，Compute 无足够上下文判断"当前是否会被抢占"）。PG 不对 `quotas.used` 加锁或事务记账。
 
 ### 6.3 工作负载对象
 
@@ -423,7 +423,7 @@ jobs(
   id                   uuid PK,
   tenant_id            uuid FK tenants(id),
   pool_id              uuid FK resource_pools(id),
-  queue_id             uuid FK queues(id),
+  quota_id             uuid FK quotas(id),
   resource_unit_id     uuid FK resource_units(id),
   name                 text,                     -- MLJob CR metadata.name（在租户 namespace 内唯一）
   display_name         text,                     -- 用户可见名
@@ -465,7 +465,7 @@ Creating ──(Informer ADD)──▶ Pending ──(CR phase=Running)──▶
 **提交校验**（API 同步路径，在 §5.2 通用 Outbox 流程之外附加）：
 
 1. 从 `X-Axisml-User` 读取调用方身份（审计与 ownership 归属）
-2. 业务校验：路径中的租户存在且激活；队列归属该租户；ResourceUnit 所属 pool 与队列所属 pool 一致
+2. 业务校验：路径中的租户存在且激活；配额归属该租户；ResourceUnit 所属 pool 与配额所属 pool 一致
 3. 配额预检（best-effort，见 §6.2.4）
 
 **MLJob 业务语义**
@@ -497,7 +497,7 @@ Compute 只负责把以下业务语义装进 MLJob CR；具体 `spec` 字段结�
 | Job 自然结束 | Informer 回流 `Succeeded` / `Failed` | operator/GC 按策略清理 Pod；Compute 不主动删除 CR |
 | 外部误删 CR（PG 在 `Pending`/`Running`） | Informer DELETE → `Cancelled` + `finished_at` + `message='external delete'` | 不补偿重建 |
 
-级联效果：CR 删除 → mljob-operator 清理 Pod → 已接入 Volcano accounting 的 backend 释放 Queue 用量 → Queue Informer 回流刷新 `queues.used`。
+级联效果：CR 删除 → mljob-operator 清理 Pod → Pod 终止后 ElasticQuota plugin 释放对应资源 → Quota Informer 回流刷新 `quotas.used`。
 
 #### 6.3.2 在线服务（Service）
 
@@ -508,7 +508,7 @@ services(
   id                   uuid PK,
   tenant_id            uuid FK tenants(id),
   pool_id              uuid FK resource_pools(id),
-  queue_id             uuid FK queues(id),
+  quota_id             uuid FK quotas(id),
   resource_unit_id     uuid FK resource_units(id),
   name                 text,                     -- MLService CR metadata.name（在租户 namespace 内唯一）
   display_name         text,
@@ -531,7 +531,7 @@ services(
 ```
 
 - `spec` 是当前 MLService.spec 的 desired 快照；与 jobs 不同，`spec` 非完全只读——扩缩容 API 更新 `replicas` 同时回写 `spec.roles[0].replicas`（单 role 约定）并重算 `desired_spec_hash`，其他字段依然不可变
-- 总配额占用 = `replicas × requested_resources`。实际接入 Volcano Queue accounting 的 backend 由 Volcano 核算；Compute 在 API 层做 best-effort 预检
+- 总配额占用 = `replicas × requested_resources`。Koordinator ElasticQuota plugin 通过 Pod label 自动核算实际用量；Compute 在 API 层做 best-effort 预检
 
 **状态机**
 
@@ -589,7 +589,7 @@ Compute 所有 API 置于 `/api/v1` 前缀下，仅供 Platform 通过集群内 
 | 租户动作 | `/api/v1/tenants/{tenant}:suspend`、`:unsuspend` | `Active ⇄ Suspended` |
 | 资源池 | `/api/v1/resource-pools` | CRUD（管理员） |
 | 资源单元 | `/api/v1/resource-pools/{pool}/resource-units` | CRUD（管理员） |
-| 队列 | `/api/v1/tenants/{tenant}/queues` | CRUD |
+| 配额 | `/api/v1/tenants/{tenant}/quotas` | CRUD |
 | 任务 | `/api/v1/tenants/{tenant}/jobs` | Create / Get / List / Delete |
 | 任务副本 | `/api/v1/tenants/{tenant}/jobs/{job}/replicas` | List Pod 副本（编号 / pod 名 / phase / started_at） |
 | 任务日志 | `/api/v1/tenants/{tenant}/jobs/{job}/logs` | 透传 kube-apiserver pod log；`follow=true` 时用 SSE，详见 §7.4 |
@@ -598,7 +598,7 @@ Compute 所有 API 置于 `/api/v1` 前缀下，仅供 Platform 通过集群内 
 | 服务 | `/api/v1/tenants/{tenant}/services` | Create / Get / List / Update / Delete |
 | 服务动作 | `/api/v1/tenants/{tenant}/services/{service}:scale` | 提交 desired `replicas`（API 只写 PG，reconciler 异步 patch CR） |
 
-所有会变更 CR spec 的 API（Tenant update / suspend / unsuspend、Queue quota update、Service scale）都只提交 PG desired state，不承诺 CR 已同步完成。同步失败由 reconciler 写入对应业务记录的 `message` 字段，并通过 §9.6 指标暴露；调用方通过 Get/List 观察 `status`、`message` 与回流字段。
+所有会变更 CR spec 的 API（Tenant update / suspend / unsuspend、Quota spec update、Service scale）都只提交 PG desired state，不承诺 CR 已同步完成。同步失败由 reconciler 写入对应业务记录的 `message` 字段，并通过 §9.6 指标暴露；调用方通过 Get/List 观察 `status`、`message` 与回流字段。
 
 ### 7.2 身份上下文
 
@@ -625,7 +625,7 @@ Compute 对 `GET /jobs/{job}/logs` 只做路径级鉴权与 Pod 定位，实际�
 
 | 参数 | 必填 | 语义 |
 | --- | --- | --- |
-| `replica` | 否 | 副本编号（0-based），通过 `axisml.io/replica-index` label 定位 Pod；仅副本身份天然稳定的 backend 支持（Indexed Job、StatefulSet 派生 Pod）。NonIndexed Job、裸 Pod 拓扑（如 `(volcano, podgroup)`）下该 label 不存在，应改用 `pod` 参数 |
+| `replica` | 否 | 副本编号（0-based），通过 `axisml.io/replica-index` label 定位 Pod；仅副本身份天然稳定的 backend 支持（Indexed Job、StatefulSet 派生 Pod）。NonIndexed Job、裸 Pod 拓扑（如 `(native, podgroup)`）下该 label 不存在，应改用 `pod` 参数 |
 | `pod` | 否 | 直接给出 Pod 名（绕过 label 索引）。可通过 `/jobs/{job}/replicas` 端点列出 Pod 名后选用。`replica` 与 `pod` 至少二选一；同时给出以 `pod` 为准 |
 | `container` | 否 | 多容器 Pod 时指定容器名；默认取 mljob-operator 约定的主容器 |
 | `follow` | 否 | `false`（默认）返回完整历史；`true` 进入流式模式 |
@@ -648,8 +648,8 @@ Compute 对 `GET /jobs/{job}/logs` 只做路径级鉴权与 Pod 定位，实际�
 
 | 对象 | 交互方式 | 关注点 |
 | --- | --- | --- |
-| Kubernetes API | controller-runtime `client.Client` + informer | RBAC：MLJob / MLService / Tenant 全部 verbs；Volcano Queue `create/update/delete/get/list/watch` |
-| Volcano | Queue CRD 同步（见 §6.2.4、§5） | Compute 只维护 Queue CR 与 used 缓存；是否进入 Volcano 调度 / accounting 由各 backend operator 决定 |
+| Kubernetes API | controller-runtime `client.Client` + informer | RBAC：MLJob / MLService / Tenant 全部 verbs；ElasticQuota `create/update/delete/get/list/watch`（namespace-scoped，跨多个租户 ns，需用 ClusterRole） |
+| Koordinator | ElasticQuota CRD 同步（见 §6.2.4、§5） | Compute 只维护 ElasticQuota CR 与 used 缓存；调度 / accounting 由 koord-scheduler 自动完成 |
 | PostgreSQL | GORM；与其他服务共用 database `axisml`（按表名前缀或 schema 逻辑隔离） | 迁移随二进制打包，启动时执行（golang-migrate） |
 | Platform | REST，请求头透传身份 | Compute 信任内部调用；mTLS / Compute 主动鉴权列为未来规划 |
 | Artifacts | HTTP 客户端 | 懒查询：提交任务时校验 image / model / dataset 引用存在 |
@@ -673,7 +673,7 @@ Compute 对 `GET /jobs/{job}/logs` 只做路径级鉴权与 Pod 定位，实际�
 | `deployment.yaml`（已存在，换镜像） | 将 nginx placeholder 替换为真实镜像，加探针 |
 | `service.yaml`（已存在） | 保持 ClusterIP 8081 |
 | `serviceaccount.yaml`（新增） | Compute 服务账号 |
-| `rbac.yaml`（新增） | ClusterRole + ClusterRoleBinding：MLJob / MLService / Tenant / Volcano Queue |
+| `rbac.yaml`（新增） | ClusterRole + ClusterRoleBinding：MLJob / MLService / Tenant / ElasticQuota |
 | `servicemonitor.yaml`（新增） | `/metrics` 暴露，kube-prometheus-stack 自动发现 |
 
 ### 9.3 对外暴露
@@ -687,7 +687,7 @@ Helm `post-install` Job 初始化（所有操作幂等，升级 Helm 版本不�
 - 默认租户 `default`
 - 默认资源池 `default`
 - 默认资源单元（例如 `cpu-small` / `cpu-medium`；GPU 相关单元按实际节点打标后再创建）
-- `(default, default)` 下的默认队列 `default`：`quota.capability` 按集群可用资源估算；`quota.deserved` / `quota.guarantee` 均取 0（单队列场景下抢占与保留不起作用）
+- `(default, default)` 下的默认配额 `default`：`spec.max` 按集群可用资源估算；`spec.min` 取 0（单配额场景下抢占与保留不起作用）
 
 ### 9.5 副本与可用性
 
@@ -708,7 +708,7 @@ Helm `post-install` Job 初始化（所有操作幂等，升级 Helm 版本不�
 | `axisml_compute_informer_workqueue_depth{resource}` | gauge | 各模块 Informer work queue 当前深度 | 持续 > 阈值 → 回流滞后 |
 | `axisml_compute_cr_drift_repair_total{resource,kind}` | counter | CR 漂移修复次数（kind：`missing`/`spec_mismatch`/`orphan_delete`） | 非零即值得看 |
 | `axisml_compute_spec_sync_pending_total{resource}` | gauge | `desired_spec_hash != applied_spec_hash` 的待同步行数 | 持续 > 0 → spec 下发滞后 |
-| `axisml_compute_quota_precheck_rejected_total{tenant,queue}` | counter | 配额预检拒绝次数 | 突增 → 容量规划问题 |
+| `axisml_compute_quota_precheck_rejected_total{tenant,quota}` | counter | 配额预检拒绝次数 | 突增 → 容量规划问题 |
 | `axisml_compute_api_request_duration_seconds{route,status}` | histogram | API 请求延迟分布 | 常规 SLO 告警 |
 
 ## 10. 关键设计决策
@@ -716,9 +716,9 @@ Helm `post-install` Job 初始化（所有操作幂等，升级 Helm 版本不�
 | 决策项 | 决策 | 理由 |
 | --- | --- | --- |
 | 系统管理归属 | 留在 Compute | 与计算任务提交路径强耦合（配额校验、资源引用），避免跨服务调用开销；内部按 package 隔离保留未来拆分空间 |
-| 队列模型 | 扁平结构（v1 无父子层级）；每个 `(tenant, pool)` 默认 `default`；1:1 映射到 Volcano Queue | 租户已是强隔离边界，业务线拆分用同级多队列即可；分层带来的 schema / 链式配额 / 孤儿补偿复杂度放到后续按需引入 |
-| 配额记账 | PG 不记账；Volcano 为已接入 Queue accounting 后端的实际用量权威；Compute 仅做 best-effort 预检 | 避免 PG / K8s 双源冲突；`(native, job)` 与当前 `(kserve, *)` 等未接入路径只有预检，不宣称具备 Volcano 层硬约束 |
-| 队列配额建模 | `quota` 采用 Volcano capacity plugin 的三维模型：`capability`（硬上限）/ `deserved`（公平基线）/ `guarantee`（保留份额）；API 必填 `capability`，另两项默认 0 | 单填 `capability` 时退化为"平等抢占直到封顶"的 v1 行为；多队列场景下 `deserved` 提供公平基线与抢占回收语义、`guarantee` 兜底关键队列；与 Volcano 原生调度语义直接对齐，避免自研配额仲裁 |
+| 配额模型 | 扁平结构（v1 无父子层级）；每个 `(tenant, pool)` 默认 `default`；1:1 映射到 Koordinator `ElasticQuota`（namespace-scoped，落在租户 ns） | 租户已是强隔离边界，业务线拆分用同级多配额即可；分层（Koord-Queue tree）带来的 schema / 链式配额 / 孤儿补偿复杂度放到后续按需引入 |
+| 配额记账 | PG 不记账；Koordinator ElasticQuota 是实际用量权威；Compute 仅做 best-effort 预检；所有 AxisML workload Pod 强制走 koord-scheduler 并通过 quota label 计入 ElasticQuota | 避免 PG / K8s 双源冲突；Quota 全覆盖契约（[infra.md §8.3](infra.md)）保证任何 backend 都不会"绕过 quota 的调度路径"，杜绝旧版"已接入"vs"未接入" Queue accounting 的差异 |
+| 配额建模 | `spec` 采用上游 sigs.k8s.io scheduler-plugins ElasticQuota 的纯二维模型：`min`（保留份额，不可被抢占下界）/ `max`（硬上限）；API 必填 `max`，`min` 默认 0；不引入 Koordinator 私有 `shared-weight` annotation | 与上游 ElasticQuota CR 字段一一对应，避免自研配额仲裁；保持与 K8s 原生资源能力（ResourceQuota / scheduler-plugins ElasticQuota）的语义同构；借用容量分配走 koord-scheduler 默认平权；未来若真有差异化共享需求再按需启用 weight |
 | MLJob spec 粒度 | 声明式高阶抽象（`backend.{name,engine,config}` / `roles[]` / `scheduling` / `runPolicy` 等） | 隔离 K8s 细节变更影响；operator 可独立演进 Pod 模板与 backend Handler |
 | 状态同步 | Informer + PG 落库 | K8s 原生；支持大列表与按状态筛选；与 controller-runtime 工具链吻合 |
 | 认证鉴权 | Platform 统一认证与鉴权；Compute 仅通过 `X-Axisml-User` 记录调用方做审计 / ownership | 避免职责重复；外部入口收敛到 Platform；租户归属通过 URL 路径自然表达 |
@@ -735,9 +735,9 @@ Helm `post-install` Job 初始化（所有操作幂等，升级 Helm 版本不�
 
 ## 11. 未来规划
 
-- **分层队列**：`queues` 表新增 `parent_id`，利用 Volcano Capacity plugin 的 `spec.parent` 能力实现父子配额与抢占；在有真实多团队/多业务线共享租户的诉求时引入
+- **分层配额（Koord-Queue tree）**：`quotas` 表新增 `parent_id`，利用 Koordinator ElasticQuota 的 `quota.scheduling.koordinator.sh/parent` annotation 实现父子配额与抢占；在有真实多团队/多业务线共享租户的诉求时引入
 - **数据卷管理**：纳入 Compute（`components/compute/internal/volume/`），v1 未实现；待补 schema（按租户隔离的 volume 定义与挂载声明）、底层存储映射（PVC / NFS / S3 / hostPath 等）、operator 注入契约（经 MLJob/MLService `spec.volumes` 下发）
-- **多集群**：队列 / 任务按集群维度扩展，联邦调度
+- **多集群**：配额 / 任务按集群维度扩展，联邦调度
 - **细粒度配额**：GPU 时长、存储容量、网络带宽等
 - **审计日志**：独立 `audit_events` 表，关键写操作落库
 - **成本核算**：基于 `jobs` / `services` 的实际使用时长 × 资源单元成本的计费导出

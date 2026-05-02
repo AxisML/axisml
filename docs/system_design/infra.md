@@ -13,7 +13,7 @@ AxisML Infra 是平台的基础设施层，由一系列开源组件组成，为�
 | 3 | OCI Registry | zot | 模型、容器镜像等基于 OCI Distribution 协议的制品存储 |
 | 4 | 数据库 | PostgreSQL（bitnami chart） | 元数据持久化存储 |
 | 5 | GPU 管理 | NVIDIA GPU Operator | GPU 驱动、设备插件与监控 |
-| 6 | 批任务调度 | Volcano | Gang Scheduling、队列管理、公平调度 |
+| 6 | 调度与配额 | Koordinator | koord-scheduler 接管所有 AxisML workload；ElasticQuota 多租户配额；PodGroup gang scheduling |
 | 7 | 监控 | kube-prometheus-stack | 集群与业务可观测性 |
 
 ## 2. 整体架构
@@ -30,8 +30,9 @@ AxisML Infra 是平台的基础设施层，由一系列开源组件组成，为�
 │  └──────────────────────┘  └──────────────┘  └──────────────┘  └──────────┘  │
 │                                                                              │
 │  ┌──────────────────────┐  ┌──────────────────────────────────────────────┐  │
-│  │      GPU 管理         │  │              批任务调度                      │  │
-│  │ NVIDIA GPU Operator  │  │                Volcano                       │  │
+│  │      GPU 管理         │  │              调度与配额                      │  │
+│  │ NVIDIA GPU Operator  │  │              Koordinator                     │  │
+│  │                      │  │   koord-scheduler + ElasticQuota + PodGroup  │  │
 │  └──────────────────────┘  └──────────────────────────────────────────────┘  │
 │                                                                              │
 │  ┌──────────────────────────────────────────────────────────────────────┐   │
@@ -49,7 +50,7 @@ AxisML Infra 是平台的基础设施层，由一系列开源组件组成，为�
 - Artifacts → **RustFS**（dataset / eval_report 制品文件读写，S3 API）
 - Artifacts / axisml-cli → **zot**（model / image 制品 push / pull，OCI Distribution v2）
 - mlservice-operator / mljob-operator 派生的 Pod → **zot**（按 imagePullSecret 拉取镜像 / 模型）
-- 启用 Volcano 调度集成的 backend / handler → **Volcano**（默认 `schedulerName: axisml-infra-scheduler`）
+- 任何 AxisML workload Pod（jobs + services，含 KServe 派生 Pod）→ **Koordinator**（`schedulerName: koord-scheduler` + Pod label `quota.scheduling.koordinator.sh/name=axisml-<tenant>-<pool>-<quota>` 消费 ElasticQuota）
 - 所有 Pod（含 GPU Operator 的 DCGM Exporter、网关、业务组件）→ **kube-prometheus-stack**（`/metrics` 被 ServiceMonitor 自动发现）
 - 业务 Pod 申请 `nvidia.com/gpu` → **GPU Operator** 完成设备分配
 
@@ -313,7 +314,7 @@ AxisML 使用 [NVIDIA GPU Operator](https://github.com/NVIDIA/gpu-operator) 管�
 | --- | --- |
 | GPU Driver Container | 容器化 NVIDIA 驱动，自动安装与升级 |
 | NVIDIA Container Toolkit | 容器运行时集成，使容器可访问 GPU |
-| Device Plugin | 向 kube-scheduler / Volcano 报告 `nvidia.com/gpu` 资源 |
+| Device Plugin | 向 kube-scheduler / koord-scheduler 报告 `nvidia.com/gpu` 资源 |
 | DCGM Exporter | 导出 GPU 利用率、显存、温度等 Prometheus 指标 |
 | GPU Feature Discovery | 自动为节点打标签（GPU 型号、驱动版本等） |
 | MIG Manager | A100/H100 的多实例分区管理 |
@@ -346,61 +347,64 @@ gpu-operator:
   # 如 driver.enabled / dcgmExporter.enabled 等
 ```
 
-## 8. 批任务调度（Volcano）
+## 8. 调度与配额（Koordinator）
 
-AxisML 使用 [Volcano](https://volcano.sh/) 作为批任务调度器，与默认的 kube-scheduler 共存。Volcano 只接管显式选择 Volcano scheduler 的 workload；默认 native Job 不依赖 Volcano。
+AxisML 使用 [Koordinator](https://koordinator.sh/) 作为统一调度器与多租户配额引擎，与默认 kube-scheduler 按 `schedulerName` 共存。**所有 AxisML workload Pod**（MLJob、MLService 各 backend 派生的 Pod，含 KServe 派生 Pod）都强制走 koord-scheduler 并消耗对应 ElasticQuota；只有控制平面 Pod 留在默认 kube-scheduler 上。
 
 ### 8.1 组件架构
 
 | 组件 | 职责 |
 | --- | --- |
-| Volcano Scheduler | 自定义调度器，按 `schedulerName` 接管 Pod 调度；`axisml-infra` release 下默认名称为 `axisml-infra-scheduler` |
-| Volcano Controller | 管理 Volcano Job (`vcjob`) 与 `PodGroup` 的生命周期 |
-| Volcano Admission Webhook | 准入控制，校验与默认值注入 |
+| koord-scheduler | 自定义调度器，承载 Gang Scheduling 与 ElasticQuota plugin；scheduler 名 `koord-scheduler` |
+| koord-manager | Koordinator 控制器集合，管理 ElasticQuota / PodGroup 等 CR 状态聚合 |
+| koord-descheduler（可选） | 在线服务弹性场景下做 Pod 重平衡；v1 不启用 |
+| koordlet（可选） | 节点侧 agent，用于在/离线协同 / QoS / 弹性资源；v1 不启用 |
 
 ### 8.2 核心能力
 
 | 能力 | 说明 |
 | --- | --- |
-| **Gang Scheduling** | 同一 PodGroup 的全部 Pod 要么同时调度，要么都不调度——避免分布式训练中部分 Worker 启动造成的资源死锁 |
-| **Queue** | 多队列并行，控制任务准入与优先级 |
-| **Fair-share** | 基于权重的公平资源分配，契合多租户配额 |
-| **Preemption** | 高优先级任务可抢占低优先级任务资源 |
+| **Gang Scheduling** | 通过 sigs.k8s.io scheduler-plugins `PodGroup` (`scheduling.sigs.k8s.io/v1alpha1`) 表达；同一 PodGroup 的全部 Pod 要么同时调度，要么都不调度——避免分布式训练中部分 Worker 启动造成的资源死锁 |
+| **ElasticQuota** | `scheduling.sigs.k8s.io/v1alpha1` `ElasticQuota`（namespace-scoped）承载 `min` / `max`；Pod 通过 label `quota.scheduling.koordinator.sh/name=<eq-name>` 关联到所属 ElasticQuota。AxisML 不引入 Koordinator 私有的 `shared-weight` annotation，借用容量分配按 koord-scheduler 默认平权处理，让 CR 字段集与上游 scheduler-plugins ElasticQuota 一一对应 |
+| **Preemption / Reclaim** | 已分配但低于其他 ElasticQuota `min` 的资源可被回收；高于 `max` 的请求一律拒绝调度 |
 | **Backfill** | 空闲资源回填，提升集群利用率 |
+| **CoLocation / QoS**（可选） | 在/离线混部、CPU 预算管理；v1 不启用，作为未来演进 |
 
 ### 8.3 与 MLJob / MLService 的协作契约
 
 本文档定义 Infra 侧契约，具体实现细节见 `operators/`：
 
-- 只有启用 Volcano 调度集成的 backend / handler 才创建 `PodGroup` 并在 Pod spec 上设置 Volcano scheduler；默认 scheduler 名称为 `axisml-infra-scheduler`
-- MLJob `(native, job)` 保持 K8s 原生 Job 路径，无 Volcano 依赖；MLJob `(volcano, podgroup)` / `(volcano, volcanojob)` 通过 Volcano 执行 Gang Scheduling 与 Queue accounting
-- MLService 不引入独立 `(volcano, *)` backend；native Deployment / StatefulSet handler 按现有设计创建轻量 `PodGroup` 做 Queue accounting，KServe handler 的 Volcano accounting 仍是已知缺口，后续独立设计补齐
-- Volcano Scheduler 基于 PodGroup 的 `minMember` / `minResources` 执行 Gang Scheduling；轻量 PodGroup 仅用于常驻服务记账时不表达"全员就位才启动"语义
-- **Volcano `Queue` CR（cluster-scoped）由 Compute 独占 owner**：容量（`spec.capability`）、命名、补偿与 RBAC 均由 Compute 维护，operator 仅通过名称引用（`PodGroup.spec.queue`），不读写 Queue CR。队列与租户 / 资源池的归属关系由 Compute 在 PG 中维护，命名约定 `axisml-<tenant>-<pool>-<queue>` 见 [compute.md §6.2.4](compute.md)
-- tenant-operator 只负责租户的 Namespace 与 ResourceQuota 等集群侧资源，不涉及 Volcano Queue CR
+- **Quota 全覆盖（系统级硬不变式）**：任何 AxisML workload Pod 都必须设置 `schedulerName: koord-scheduler` 并携带 label `quota.scheduling.koordinator.sh/name=axisml-<tenant>-<pool>-<quota>`，不允许"绕过 quota 的调度路径"。MLJob / MLService 的所有 backend handler 都必须在 podSpec 模板上注入这两个字段；KServe 路径通过 `InferenceService.spec.predictor.schedulerName` + `spec.predictor.labels` 注入（KServe `PredictorSpec` 内联 `corev1.PodSpec` 与 `ComponentExtensionSpec`，所以两者都是 `spec.predictor` 的直接字段），依赖 KServe 把它们透传到派生 Pod 的 `spec.schedulerName` 与 `metadata.labels`。
+- **Gang scheduling 仅在需要的 backend 启用**：MLJob `(native, podgroup)` / `(kubeflow-trainer, *)` 创建 PodGroup CR；MLJob `(native, job)`、MLService `(native, deployment)` / `(native, statefulset)` / `(kserve, *)` 不创建 PodGroup（gang 不适合非分布式训练 / 常驻服务），但仍走 koord-scheduler，仅通过 quota label 计入 ElasticQuota.
+- **ElasticQuota CR 由 Compute 独占 owner**：`spec.min` / `spec.max`、命名、补偿与 RBAC 均由 Compute 维护；operator 仅通过 Pod label 引用 ElasticQuota，不读写 ElasticQuota CR。配额与租户 / 资源池的归属关系由 Compute 在 PG 中维护，命名约定 `axisml-<tenant>-<pool>-<quota>`，CR 落在租户 namespace 下，详见 [compute.md §6.2.4](compute.md)
+- **tenant-operator** 只负责租户的 Namespace 与 ResourceQuota 等集群侧资源，不涉及 ElasticQuota CR
+- **PodGroup CR** 由对应 backend handler 在租户 namespace 内自管，与 ElasticQuota 解耦
+
+**KServe 版本要求**：`(kserve, *)` MLService 路径要求 KServe 版本支持 `InferenceService.spec.predictor.schedulerName` 与 `spec.predictor.labels` 字段透传到派生 Pod（`PredictorSpec` 内联 `corev1.PodSpec` 与 `ComponentExtensionSpec` 是 KServe v1beta1 的标准契约）。安装时必须 pin 一个已知支持该字段的 KServe stable 版本；详细的最低版本约束在 [operators/mlservice-operator.md §8.3](operators/mlservice-operator.md) 维护。运行时若发现 KServe 不透传则视为阻塞 bug，由升级 KServe 解决，不引入兜底 webhook。
 
 ### 8.4 与 kube-scheduler 共存
 
-Volcano 仅接管带 Volcano schedulerName 的 Pod；在当前 Helm release 下默认值为 `axisml-infra-scheduler`。Infra 自身（网关、对象存储、监控）以及 Platform / Compute / Artifacts / 数据库等控制平面 Pod 仍走默认 kube-scheduler，互不干扰。
+koord-scheduler 仅接管设置了 `schedulerName: koord-scheduler` 的 Pod。Infra 自身（网关、对象存储、监控、Koordinator 自身、GPU Operator）以及 Platform / Compute / Artifacts / 各 Operator / 数据库等控制平面 Pod 的 podSpec 不设置 `schedulerName`，自然走默认 kube-scheduler，**不消耗** ElasticQuota，也与 koord-scheduler 互不干扰。
 
 ### 8.5 部署形态
 
 ```yaml
 # deploy/helm/axisml-infra/Chart.yaml
 dependencies:
-  - name: volcano
-    version: 1.10.x
-    repository: https://volcano-sh.github.io/helm-charts
-    condition: volcano.enabled
+  - name: koordinator
+    version: 1.5.x                                # pin 到上游 stable
+    repository: https://koordinator-sh.github.io/charts
+    condition: koordinator.enabled
 ```
 
 values.yaml 对应段：
 
 ```yaml
-volcano:
+koordinator:
   enabled: true
-  # volcano 子 chart 的 values pass-through
-  # 当前 release 名 axisml-infra 下，schedulerName 默认为 axisml-infra-scheduler
+  # koordinator 子 chart 的 values pass-through
+  # scheduler 名固定为 koord-scheduler；所有 AxisML workload Pod 必须设置
+  # schedulerName: koord-scheduler 才能被接管并消费 ElasticQuota。
 ```
 
 ## 9. 监控（kube-prometheus-stack）
@@ -440,7 +444,7 @@ kube-prometheus-stack 的 Prometheus Operator 会自动发现并配置采集目�
 | 集群层 | kube-state-metrics、node-exporter | 节点 CPU/内存/磁盘、Pod 状态 |
 | GPU 层 | DCGM Exporter（来自 GPU Operator） | GPU 利用率、显存占用、温度、功耗 |
 | 网关层 | Envoy Gateway | 请求量、延迟分位、错误率 |
-| 调度层 | Volcano | 队列堆积、PodGroup 调度状态 |
+| 调度层 | koord-scheduler / koord-manager | ElasticQuota 用量与借用、PodGroup 调度状态、调度延迟 |
 | 业务层 | Platform / Compute / Artifacts / Operators | 任务状态、推理延迟、制品数量等自定义指标 |
 
 ### 9.4 部署形态
@@ -482,7 +486,7 @@ AxisML 拆分为两个独立的 Helm chart，按"基础设施 / 控制平面"职
 | rustfs | https://charts.rustfs.com | `rustfs.enabled` |
 | zot（目标项；当前 Chart 待补齐） | https://zotregistry.dev/helm-charts | `zot.enabled` |
 | gpu-operator | https://helm.ngc.nvidia.com/nvidia | `gpu-operator.enabled` |
-| volcano | https://volcano-sh.github.io/helm-charts | `volcano.enabled` |
+| koordinator | https://koordinator-sh.github.io/charts | `koordinator.enabled` |
 | kube-prometheus-stack | https://prometheus-community.github.io/helm-charts | `kube-prometheus-stack.enabled` |
 
 **axisml-system** 的依赖（数据库归控制平面管理）：
@@ -503,8 +507,8 @@ AxisML 拆分为两个独立的 Helm chart，按"基础设施 / 控制平面"职
 
 ```
 make cluster-up             # 拉起本地集群
-make helm-install-infra     # 先装基础设施（CRDs + 监控栈 + 网关 + GPU + 调度器 + 对象存储 + OCI Registry）
-make helm-install-system    # 再装控制平面（平台组件 + 数据库）
+make helm-install-infra     # 先装基础设施（监控栈 + 网关 + GPU + Koordinator + 对象存储 + OCI Registry）
+make helm-install-system    # 再装控制平面（平台组件 + Operators + CRDs + 数据库）
 ```
 
 卸载顺序相反：`helm-uninstall-system` → `helm-uninstall-infra`。
@@ -519,7 +523,7 @@ axisml-infra/values.yaml：
 | 对象存储 | `rustfs` | RustFS |
 | OCI Registry | `zot` | zot（v1 filesystem 后端，v2 可切 S3 指向 RustFS） |
 | GPU 管理 | `gpu-operator` | NVIDIA GPU Operator |
-| 批任务调度 | `volcano` | Volcano（资源名形如 `axisml-infra-scheduler`） |
+| 调度与配额 | `koordinator` | Koordinator（scheduler 名固定为 `koord-scheduler`） |
 | 监控 | `kube-prometheus-stack` | kube-prometheus-stack（`fullnameOverride` 设为 `prometheus`，避开上游 26 字符截断） |
 
 axisml-system/values.yaml：
@@ -539,8 +543,9 @@ axisml-system/values.yaml：
 | 数据库 | bitnami/postgresql 子 chart | 复用成熟 chart，避免自写 StatefulSet 模板带来的维护负担；`externalDatabase` 段保留用于生产外接 RDS |
 | 数据库归属 | 纳入 axisml-system 控制平面 chart | 数据库的生命周期、迁移、备份都和业务组件紧密耦合；与 Platform/Compute/Artifacts 放同一命名空间可共享 Secret、ServiceMonitor，减少跨 chart 引用 |
 | GPU 管理 | NVIDIA GPU Operator | Kubernetes 原生 GPU 管理事实标准；DCGM Exporter 与监控栈天然集成 |
-| 批任务调度 | Volcano | Gang Scheduling 是分布式训练的硬需求（避免部分 Worker 启动造成资源死锁）；CNCF 孵化项目，Queue + Fair-share 契合多租户模型；与 kube-scheduler 按 `schedulerName` 共存，零副作用 |
-| 批任务调度归属 | 纳入 Infra 层 | Volcano 与 GPU Operator 一样属于训练能力底座；作为第三方基础设施组件独立于 AxisML 自研控制平面部署 |
+| 调度与配额 | Koordinator | sigs.k8s.io scheduler-plugins ElasticQuota 提供 namespace-scoped `min` / `max` 多租户配额模型（不引入 Koordinator 私有 annotation，保持与上游 CR 字段一一对应），PodGroup 提供 Gang Scheduling，二者由统一 koord-scheduler 承载；与 kube-scheduler 按 `schedulerName` 共存，零副作用。ElasticQuota 直接以 namespace 表达租户边界，并通过 Pod label 关联，MLService 路径只需 Pod label 计入配额，无需引入额外的 PodGroup |
+| 调度归属 | 纳入 Infra 层 | Koordinator 与 GPU Operator 一样属于训练 / 推理底座能力；作为第三方基础设施组件独立于 AxisML 自研控制平面部署 |
+| Quota 全覆盖 | 所有 AxisML workload Pod 强制走 koord-scheduler | 任何 job / service 都要消耗 quota，避免"绕过 quota 的调度路径"；KServe 派生 Pod 通过 `spec.predictor.schedulerName` 与 `spec.predictor.labels` 透传（KServe v1beta1 把 `PodSpec` 与 `ComponentExtensionSpec` 内联到 `PredictorSpec`），依赖最新 KServe，不引入兜底 webhook 以保持系统简单 |
 | 监控 | kube-prometheus-stack | Kubernetes 生态事实标准；ServiceMonitor 自动发现免维护；与 GPU Operator 的 DCGM Exporter 开箱即用 |
 | 部署策略 | 拆成 `axisml-infra` / `axisml-system` 两个 chart | 基础设施和控制平面发版节奏、回滚粒度不同；拆分后 infra 可共享给多套 axisml-system 实例。两者通过命名空间 + Service DNS 解耦，仍保持 `condition` 字段支持按需关闭并对接外部实例 |
 

@@ -98,15 +98,32 @@ gpu-operator:
     fullnameOverride: nfd
 
 # =============================================================================
-# Volcano (batch scheduler)
+# Koordinator (scheduler + ElasticQuota)
 # =============================================================================
-# Sub-chart: https://volcano-sh.github.io/helm-charts/volcano
-# Volcano hardcodes `{{ .Release.Name }}-<component>`; using release name
-# `axisml-infra` yields axisml-infra-scheduler / -controllers / -admission.
-# Pods created by AxisML operators must set `schedulerName: axisml-infra-scheduler`
-# to be picked up by Volcano.
-volcano:
+# Sub-chart: https://koordinator-sh.github.io/charts/koordinator
+# Koordinator provides koord-scheduler + koord-manager. AxisML uses:
+#   - PodGroup (scheduling.sigs.k8s.io/v1alpha1) for gang scheduling
+#   - ElasticQuota (scheduling.sigs.k8s.io/v1alpha1) for multi-tenant quota,
+#     keyed by Pod label `quota.scheduling.koordinator.sh/name`
+# All AxisML workload Pods (jobs + services, including KServe-derived) must set
+# `schedulerName: koord-scheduler` to be picked up by Koordinator and to consume
+# their ElasticQuota.
+#
+# KServe version requirement: the (kserve, *) MLService path relies on KServe
+# propagating `InferenceService.spec.predictor.schedulerName` and
+# `spec.predictor.labels` to derived Pods. KServe v1beta1 inlines corev1.PodSpec
+# and ComponentExtensionSpec into PredictorSpec, so both fields live directly
+# under `spec.predictor`. Pin a KServe release that supports this propagation;
+# the latest stable KServe is recommended.
+koordinator:
   enabled: true
+  # Force all Koordinator components (koord-manager, koord-scheduler,
+  # koord-descheduler, koordlet, ConfigMaps) into the `axisml-infra` namespace
+  # alongside the rest of the infra sub-charts. The chart defaults to its own
+  # `koordinator-system` namespace, which would split AxisML infra across two
+  # namespaces.
+  installation:
+    namespace: axisml-infra
 
 # =============================================================================
 # kube-prometheus-stack (monitoring)
