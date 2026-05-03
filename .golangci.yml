@@ -1,0 +1,25 @@
+# Shared lint config for every Go module in the repo. Each module is a
+# distinct golangci-lint invocation (see .github/workflows/ci.yml matrix);
+# this file is the single source of truth for which linters and build tags
+# they share.
+run:
+  timeout: 5m
+  build-tags:
+    - envtest
+    - e2e
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gofmt
+    - goimports
+    - misspell
+
+issues:
+  exclude-dirs:
+    - bin
+    - deploy

@@ -1,4 +1,4 @@
-package test
+package validate_test
 
 import (
 	"strings"

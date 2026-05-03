@@ -54,8 +54,25 @@ vet: ## go vet ./...
 tidy: ## go mod tidy
 	@go mod tidy
 
-# --- Integration tests ---
+# --- L1 envtest ---
+#
+# Hermetic in-process reconciler tests against an embedded apiserver+etcd.
+# Uses the shared setup-envtest binary at $(REPO_ROOT)/test/setup-envtest/setup-envtest
+# (install via `make setup-envtest` from the repo root).
 
-.PHONY: test-integration
-test-integration: ## Run envtest integration tests against the kubeconfig context (run `make cluster-up && make helm-install-infra` first; scale any in-cluster tenant-operator to 0)
-	@go test -tags integration -count=1 -timeout=10m ./test/envtest/...
+REPO_ROOT           := $(abspath $(CURDIR)/../../..)
+ENVTEST             := $(REPO_ROOT)/test/setup-envtest/setup-envtest
+ENVTEST_K8S_VERSION ?= 1.31.0
+
+# test/envtest/ is its own Go module so this operator's production go.mod
+# stays free of test-only deps (the Dockerfile builds from this directory
+# and a sibling-test replace directive would fall outside its build context).
+.PHONY: envtest
+envtest: ## Run L1 envtest (uses shared setup-envtest at test/setup-envtest/)
+	@if [ ! -x "$(ENVTEST)" ]; then \
+	  echo "ERROR: $(ENVTEST) not found. Run 'make setup-envtest' from $(REPO_ROOT)."; \
+	  exit 1; \
+	fi
+	@cd test/envtest && \
+	  KUBEBUILDER_ASSETS="$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" \
+	  go test -tags=envtest -count=1 -timeout=10m ./...

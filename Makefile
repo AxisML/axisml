@@ -115,7 +115,7 @@ _RUN_COMPONENTS = set -e; for c in $(COMPONENTS); do \
 	$(MAKE) -C $$c $(1); \
 done
 
-.PHONY: build image image-load test clean
+.PHONY: build image image-load test tidy clean
 
 build: ## Build every component (delegates to each component's `make build`)
 	@$(call _RUN_COMPONENTS,build)
@@ -128,6 +128,9 @@ image-load: ## Build images and load them into the local minikube node
 
 test: ## Run unit tests across every component (no cluster required)
 	@$(call _RUN_COMPONENTS,test)
+
+tidy: ## Run `go mod tidy` across every component
+	@$(call _RUN_COMPONENTS,tidy)
 
 clean: ## Remove build artifacts across every component
 	@$(call _RUN_COMPONENTS,clean)
@@ -142,7 +145,7 @@ clean: ## Remove build artifacts across every component
 # would collide (e.g., `components/platform/backend` would clash with any
 # other `backend`), give it a distinct directory name or rework the mapping.
 define _COMPONENT_SHORTCUTS
-.PHONY: $(notdir $1)-build $(notdir $1)-image $(notdir $1)-image-load $(notdir $1)-test $(notdir $1)-clean
+.PHONY: $(notdir $1)-build $(notdir $1)-image $(notdir $1)-image-load $(notdir $1)-test $(notdir $1)-envtest $(notdir $1)-tidy $(notdir $1)-clean
 $(notdir $1)-build:
 	@$$(MAKE) -C $1 build
 $(notdir $1)-image:
@@ -151,17 +154,59 @@ $(notdir $1)-image-load:
 	@$$(MAKE) -C $1 image-load-minikube
 $(notdir $1)-test:
 	@$$(MAKE) -C $1 test
+$(notdir $1)-envtest:
+	@$$(MAKE) -C $1 envtest
+$(notdir $1)-tidy:
+	@$$(MAKE) -C $1 tidy
 $(notdir $1)-clean:
 	@$$(MAKE) -C $1 clean
 endef
 $(foreach c,$(COMPONENTS),$(eval $(call _COMPONENT_SHORTCUTS,$(c))))
 
-##@ Integration tests
+##@ Test infrastructure
 
-.PHONY: integration-test
+# Shared setup-envtest binary location. Each operator's `envtest` Makefile
+# target invokes $(REPO_ROOT)/test/setup-envtest/setup-envtest, so all three
+# operators reuse one binary instead of vendoring their own copies.
+ENVTEST_BIN_DIR       ?= $(CURDIR)/test/setup-envtest
+ENVTEST               ?= $(ENVTEST_BIN_DIR)/setup-envtest
+ENVTEST_K8S_VERSION   ?= 1.31.0
+SETUP_ENVTEST_VERSION ?= release-0.19
 
-integration-test: ## Run all integration tests against the running cluster (requires `make cluster-up && make helm-install-infra`; in-cluster operators must be scaled to 0)
-	@$(MAKE) -C components/operators/tenant-operator test-integration
+.PHONY: setup-envtest
+
+setup-envtest: $(ENVTEST) ## Install setup-envtest binary into test/setup-envtest/
+$(ENVTEST):
+	@mkdir -p $(ENVTEST_BIN_DIR)
+	@GOBIN=$(ENVTEST_BIN_DIR) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@$(SETUP_ENVTEST_VERSION)
+
+##@ Test execution
+
+.PHONY: envtest-test e2e-test e2e-wait
+
+# L1 envtest: hermetic, in-process reconciler tests against an embedded
+# apiserver+etcd. Each operator's `envtest` target boots its own envtest with
+# the right CRDs and runs `go test -tags=envtest ./test/envtest/...`.
+envtest-test: setup-envtest ## L1 envtest across all operators (hermetic, CI-friendly)
+	@$(call _RUN_COMPONENTS,envtest)
+
+# L2 e2e: full-stack tests against a real minikube cluster running helm-installed
+# infra + system. Operators run as deployed (NOT scaled to zero); tests act as
+# external clients via client-go and (for service tests) port-forward to
+# in-cluster Services.
+e2e-test: cluster-up image-load helm-install e2e-wait ## L2 minikube e2e (operators + services)
+	@if [ -d test/e2e ]; then \
+	  cd test/e2e && go test -tags=e2e -count=1 -timeout=20m ./... ; \
+	else \
+	  echo "(no e2e tests yet — orchestration complete; add Go tests under test/e2e/ behind build tag e2e)"; \
+	fi
+
+e2e-wait: ## Wait for axisml operator Deployments to become ready (used by e2e-test)
+	@for op in tenant-operator mljob-operator mlservice-operator; do \
+	  printf '>>> waiting for %s\n' "$$op"; \
+	  kubectl --context $(MINIKUBE_PROFILE) -n $(HELM_SYSTEM_NAMESPACE) \
+	    rollout status deploy/$(HELM_SYSTEM_RELEASE)-$$op --timeout=180s; \
+	done
 
 ##@ Help
 
@@ -175,8 +220,8 @@ help: ## Show this help message
 	  /^[a-zA-Z][a-zA-Z0-9_-]*:.*##/ { printf "  \033[36m%-26s\033[0m %s\n", $$1, $$2 }' \
 	  $(MAKEFILE_LIST)
 	@printf "\n\033[1mPer-component shortcuts (auto-generated)\033[0m\n"
-	@printf "  Pattern : <component>-{build,image,image-load,test,clean}\n"
+	@printf "  Pattern : <component>-{build,image,image-load,test,envtest,tidy,clean}\n"
 	@printf "  Active  : %s\n" "$(notdir $(COMPONENTS))"
-	@printf "  Example : make tenant-operator-image  |  make mljob-operator-test\n\n"
+	@printf "  Example : make tenant-operator-image  |  make mljob-operator-envtest\n\n"
 
 .DEFAULT_GOAL := build

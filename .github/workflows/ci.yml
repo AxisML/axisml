@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: lint (${{ matrix.module }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - components/operators/tenant-operator
+          - components/operators/mljob-operator
+          - components/operators/mlservice-operator
+          - components/operators/tenant-operator/test/envtest
+          - components/operators/mljob-operator/test/envtest
+          - components/operators/mlservice-operator/test/envtest
+          - test/testutil
+          - test/e2e
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: ${{ matrix.module }}/go.mod
+          cache: true
+          cache-dependency-path: ${{ matrix.module }}/go.sum
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.61.0
+          working-directory: ${{ matrix.module }}
+          args: --build-tags=envtest,e2e
+
+  unit:
+    name: unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+      - name: Run unit tests
+        run: make test
+
+  envtest:
+    name: L1 envtest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+      - name: Cache shared setup-envtest binary + kubebuilder assets
+        uses: actions/cache@v4
+        with:
+          path: |
+            test/setup-envtest
+            ~/.local/share/kubebuilder-envtest
+          key: envtest-${{ runner.os }}-k8s-1.31.0
+      - name: Run L1 envtest across operators
+        run: make envtest-test

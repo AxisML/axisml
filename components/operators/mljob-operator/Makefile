@@ -59,3 +59,24 @@ tidy: ## go mod tidy
 
 generate: ## Run controller-gen for deepcopy code
 	$(CONTROLLER_GEN) object:headerFile=hack/boilerplate.go.txt paths=./api/...
+
+# --- L1 envtest ---
+#
+# Hermetic in-process reconciler tests. test/envtest/ is its own Go module
+# so this operator's production go.mod stays free of test-only deps; the
+# Dockerfile builds from this directory and a sibling-test replace would
+# fall outside its build context.
+
+REPO_ROOT           := $(abspath $(CURDIR)/../../..)
+ENVTEST             := $(REPO_ROOT)/test/setup-envtest/setup-envtest
+ENVTEST_K8S_VERSION ?= 1.31.0
+
+.PHONY: envtest
+envtest: ## Run L1 envtest (uses shared setup-envtest at test/setup-envtest/)
+	@if [ ! -x "$(ENVTEST)" ]; then \
+	  echo "ERROR: $(ENVTEST) not found. Run 'make setup-envtest' from $(REPO_ROOT)."; \
+	  exit 1; \
+	fi
+	@cd test/envtest && \
+	  KUBEBUILDER_ASSETS="$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" \
+	  go test -tags=envtest -count=1 -timeout=10m ./...

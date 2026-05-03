@@ -1,0 +1,28 @@
+# Build artifacts
+bin/
+*.test
+*.out
+
+# Coverage
+coverage.*
+*.coverprofile
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Go workspaces (each component is its own module)
+go.work
+go.work.sum
+
+# Helm-fetched dependency tarballs
+deploy/helm/*/charts/*.tgz
+
+# Shared envtest binary (downloaded by `make setup-envtest`)
+test/setup-envtest/setup-envtest
