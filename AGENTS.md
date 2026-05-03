@@ -23,7 +23,7 @@ Go components use standard Go formatting. Run `make -C components/operators/mljo
 
 ## Testing Guidelines
 
-Unit tests are Go `*_test.go` files and run with `make test` from the repo root or `make -C components/operators/<name> test` for a single operator. Integration coverage currently exists for the tenant operator: run `make integration-test` after `make cluster-up && make helm-install-infra`, with in-cluster operators scaled to zero as noted in the target help. For Helm-only changes, run `make helm-template` and inspect rendered manifests.
+Tests are organized in three layers: unit (`make test`), L1 envtest hermetic reconciler tests (`make envtest-test` after `make setup-envtest`), and L2 e2e against minikube (`make e2e-test`, which itself brings up the cluster + helm-installs the stack). See `docs/development/testing.md` for layer choice, build tags (`envtest` / `e2e`), conventions, and external-CRD vendoring under `test/crds/external/`. For Helm-only changes, run `make helm-template` and inspect rendered manifests.
 
 ## Commit & Pull Request Guidelines
 
