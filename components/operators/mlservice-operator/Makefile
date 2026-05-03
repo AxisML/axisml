@@ -1,4 +1,4 @@
-# mljob-operator Makefile
+# mlservice-operator Makefile
 #
 # Standard targets (per AxisML component conventions):
 #   make / make build  Compile the binary into bin/
@@ -6,18 +6,15 @@
 #   make test          Run unit tests (no cluster required)
 #   make clean         Remove build artifacts
 
-IMAGE_REPO ?= axisml/mljob-operator
+IMAGE_REPO ?= axisml/mlservice-operator
 # Must track deploy/helm/axisml-system Chart.appVersion: the Helm template
 # defaults image.tag to .Chart.AppVersion when unset, so locally-built images
 # need this tag for `minikube image load` to satisfy the rendered Deployment.
 IMAGE_TAG  ?= 0.1.0
 IMAGE      := $(IMAGE_REPO):$(IMAGE_TAG)
 
-BIN_NAME ?= mljob-operator
+BIN_NAME ?= mlservice-operator
 CMD_PATH ?= ./cmd/manager
-
-CONTROLLER_GEN_VERSION ?= v0.15.0
-CONTROLLER_GEN ?= go run sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_GEN_VERSION)
 
 .DEFAULT_GOAL := build
 
@@ -47,7 +44,7 @@ clean: ## Remove build artifacts
 
 # --- Go convenience targets ---
 
-.PHONY: fmt vet tidy generate
+.PHONY: fmt vet tidy
 fmt: ## go fmt ./...
 	@go fmt ./...
 
@@ -56,6 +53,3 @@ vet: ## go vet ./...
 
 tidy: ## go mod tidy
 	@go mod tidy
-
-generate: ## Run controller-gen for deepcopy code
-	$(CONTROLLER_GEN) object:headerFile=hack/boilerplate.go.txt paths=./api/...

@@ -1,23 +1,23 @@
-# mljob-operator Makefile
+# compute Makefile
 #
 # Standard targets (per AxisML component conventions):
 #   make / make build  Compile the binary into bin/
 #   make image         Build the container image
-#   make test          Run unit tests (no cluster required)
+#   make test          Run unit tests
 #   make clean         Remove build artifacts
+#
+# NOTE: This component is not yet implemented. The targets below assume a
+# Go service with a `./cmd` entrypoint and a co-located Dockerfile, matching
+# the layout planned in docs/system_design/compute.md.
 
-IMAGE_REPO ?= axisml/mljob-operator
-# Must track deploy/helm/axisml-system Chart.appVersion: the Helm template
-# defaults image.tag to .Chart.AppVersion when unset, so locally-built images
-# need this tag for `minikube image load` to satisfy the rendered Deployment.
+IMAGE_REPO ?= axisml/compute
+# Must track deploy/helm/axisml-system Chart.appVersion (the Helm template
+# defaults image.tag to .Chart.AppVersion when unset).
 IMAGE_TAG  ?= 0.1.0
 IMAGE      := $(IMAGE_REPO):$(IMAGE_TAG)
 
-BIN_NAME ?= mljob-operator
-CMD_PATH ?= ./cmd/manager
-
-CONTROLLER_GEN_VERSION ?= v0.15.0
-CONTROLLER_GEN ?= go run sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_GEN_VERSION)
+BIN_NAME ?= compute
+CMD_PATH ?= ./cmd
 
 .DEFAULT_GOAL := build
 
@@ -26,15 +26,15 @@ help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-22s\033[0m %s\n", $$1, $$2}'
 
 .PHONY: build
-build: ## Compile the manager binary into bin/$(BIN_NAME)
+build: ## Compile the binary into bin/$(BIN_NAME)
 	@CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o bin/$(BIN_NAME) $(CMD_PATH)
 
 .PHONY: test
-test: ## Run unit tests (no cluster required)
-	@go test ./... -count=1
+test: ## Run unit tests
+	@go test ./...
 
 .PHONY: image
-image: ## Build the operator container image ($(IMAGE))
+image: ## Build the container image ($(IMAGE))
 	@docker build -t $(IMAGE) .
 
 .PHONY: image-load-minikube
@@ -47,7 +47,7 @@ clean: ## Remove build artifacts
 
 # --- Go convenience targets ---
 
-.PHONY: fmt vet tidy generate
+.PHONY: fmt vet tidy
 fmt: ## go fmt ./...
 	@go fmt ./...
 
@@ -56,6 +56,3 @@ vet: ## go vet ./...
 
 tidy: ## go mod tidy
 	@go mod tidy
-
-generate: ## Run controller-gen for deepcopy code
-	$(CONTROLLER_GEN) object:headerFile=hack/boilerplate.go.txt paths=./api/...
