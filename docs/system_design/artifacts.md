@@ -8,7 +8,7 @@ AxisML Artifacts 是平台的制品管理服务，基于 Go 开发，承载模�
 
 **关键边界原则**：
 - Artifacts 只写自己的 PG，不持有制品 bytes，不做用户身份提供（认证由 Platform 完成）
-- 制品类型（Kind）通过编译期 handler registry 扩展：Model / Dataset / Image / EvalReport 是 v1 内置的四个 Kind；新增 Kind 不需要 DB 表结构迁移，但需要新增 handler、更新 OpenAPI 枚举 / 允许列表与客户端契约
+- 制品类型（Kind）通过编译期 handler registry 扩展：内置 Model / Dataset / Image / EvalReport 四个 Kind；新增 Kind 不需要 DB 表结构迁移，但需要新增 handler、更新 OpenAPI 枚举 / 允许列表与客户端契约
 - 制品分两级：**ArtifactRepo**（仓库 / 组织外壳）+ **Artifact**（具体版本化制品）；后者承载几乎全部业务信息
 
 ## 2. 职责与边界
@@ -220,7 +220,7 @@ GC worker（leader-only goroutine，每 5 分钟一轮）扫描 PG 四类谓词�
 - 后端对象不存在视为成功（吞掉 OCI `MANIFEST_UNKNOWN` / S3 `NoSuchKey` / `404`）
 - 重复调用不产生副作用、不返回非 NotFound 错误
 
-**反向孤儿**（后端有 blob 但 PG 无 Ready 行）：v1 仅记日志告警，**不主动清理**。理由：管理员可能手动 push 调试 blob，误删风险高于孤儿空间成本；待 v2 引入对账模式（带审计 + 灰名单）后再启用。
+**反向孤儿**（后端有 blob 但 PG 无 Ready 行）：仅记日志告警，**不主动清理**。理由：管理员可能手动 push 调试 blob，误删风险高于孤儿空间成本；后续引入对账模式（带审计 + 灰名单）再启用。
 
 ### 5.5 副本与 Leader Election
 
@@ -294,7 +294,7 @@ CREATE UNIQUE INDEX artifact_repos_public_uniq ON artifact_repos(kind, name)
 - `tenant_name` 为 `NULL` = **平台公共空间**：所有租户用户只读，写入需 admin
 - `(tenant_name, kind, name)` 唯一：同一租户内同 Kind 不能重名；公共空间内独立命名空间
 - 租户有效性由 `TenantResolver` 在 API 路径上只读校验：`tenant.name` 存在、`status='Active'`，并返回 workload namespace；Artifacts 不建立跨服务数据库外键，也不写 Compute 表
-- 跨租户共享（除"公共"外的细粒度授权）暂不支持，留作 v2
+- 跨租户共享（除"公共"外的细粒度授权）暂不支持，作为后续演进
 
 **生命周期**：
 
@@ -352,7 +352,7 @@ CREATE UNIQUE INDEX artifacts_repo_version_uniq ON artifacts(repo_id, version);
 | --- | --- |
 | `storage_kind` | 是 `repo.kind` 的纯函数（`ArtifactHandler.StorageKind()`），重复存储会造成漂移风险 |
 | `uri` | 由 `ArtifactHandler.BuildStorageURI(scope, repo.name, version)` 即时构造，避免 PG 与命名约定漂移 |
-| `size_bytes` | 列表/详情页需要时即时 HEAD 后端；v2 引入配额时再添列 |
+| `size_bytes` | 列表/详情页需要时即时 HEAD 后端；后续若引入配额可再添列 |
 | `digest`（OCI Kind） | **必须落库的不可变引用键**——OCI 的不可变引用形式是 `<repo>@<digest>`，没有 digest 就只能回 mutable 的 `:<tag>` 引用，引用方稳定性无从谈起 |
 | `digest`（S3 Kind） | **仅作完整性校验**——S3 不支持按内容寻址访问 prefix，URI 始终是 `<prefix>/<version>/`；落库的目的是 cli 下载后比对、以及审计追溯。`?pin=digest` 在 S3 Kind 下不改变 URI，只在响应里把 digest 标为"pinned"提示消费方校验 |
 
@@ -553,7 +553,7 @@ Artifacts 所有 API 置于 `/api/v1` 前缀下。外部用户流量只到 Platf
 | `X-Axisml-Roles` | 逗号分隔的角色列表（如 `user` / `admin`），由 Platform 鉴权后注入；信任边界与 `X-Axisml-User` 一致 |
 
 租户归属通过 URL 路径 `/tenants/{tenant}/...` 表达。Artifacts 不重做角色鉴权——鉴权由 Platform 统一完成；Artifacts 仅校验：
-- 路径中的租户存在且激活（通过 `TenantResolver` 只读解析，v1 可共库直读 tenants 表，详见 §8）
+- 路径中的租户存在且激活（通过 `TenantResolver` 只读解析，当前实现共库直读 tenants 表，详见 §8）
 - 相关资源归属于该租户
 - 公共空间的写动作要求 `X-Axisml-Roles` 包含 `admin`
 
@@ -602,7 +602,7 @@ S3 路径（dataset / eval_report）类似，把 `oras push` 替换为 S3 multip
 | **zot**（新增 infra 组件） | OCI Distribution v2 协议；Artifacts 持 admin 凭证用于校验 / GC / 签发 scope token，cli 持短期 push / pull token 直连 | 由 axisml-infra chart 提供（infra.md 待同步追加 zot 章节）；当前文档约定接入契约：admin 凭证存于平台级 Secret，endpoint 由 Artifacts ConfigMap 注入 |
 | **RustFS**（已有） | S3 协议；Artifacts 服务签发 prefix-scoped 临时 STS 凭证；bucket `axisml-artifacts` 由 axisml-infra chart 创建 | 区分 prefix `<scope>/datasets/...` / `<scope>/eval-reports/...`；同 bucket 不混 OCI；目录级完整性由 `artifact-manifest.json` + canonical SHA256 表达 |
 | **PostgreSQL** | GORM；与其他服务共用 database `axisml`；表前缀 `artifact_*`（`artifact_repos` / `artifacts`） | 迁移随二进制打包，启动时执行（golang-migrate） |
-| **ml-compute（tenants 表）** | Artifacts 通过 `TenantResolver` 把 URL 中的 tenant name 解析为租户 namespace，并校验 `status='Active'`。**v1 方案：跨服务直读 PG `tenants` 表**（与 compute 同库，只读 SELECT 权限）；后续若两服务拆库则改为 compute 暴露 `GET /api/v1/tenants/{name}` internal API | 仅依赖 `tenants` 这一张表的 `name / namespace / status`，不触碰 compute 私有列，不建立 FK，不写 Compute 表；compute schema 变更需在 PR 描述中提示 Artifacts 同步 |
+| **ml-compute（tenants 表）** | Artifacts 通过 `TenantResolver` 把 URL 中的 tenant name 解析为租户 namespace，并校验 `status='Active'`。**当前方案：跨服务直读 PG `tenants` 表**（与 compute 同库，只读 SELECT 权限）；若后续两服务拆库则改为 compute 暴露 `GET /api/v1/tenants/{name}` internal API | 仅依赖 `tenants` 这一张表的 `name / namespace / status`，不触碰 compute 私有列，不建立 FK，不写 Compute 表；compute schema 变更需在 PR 描述中提示 Artifacts 同步 |
 | **tenant-operator** | 不创建 Artifacts 专用 Secret；约定平台默认让 `Tenant.spec.initResources.imagePullSecrets[].name='zot-pull'`、`secrets[].name='rustfs'`，由 tenant-operator 按 `axisml-tenant-<tenant>-<name>` 命名规则落地（[tenant-operator §6.3 / §6.4](operators/tenant-operator.md)）；来源 Secret 由集群管理员预放在 `axisml-system` | resolve API 的 `auth_hint.secret_ref` 始终指向 workload namespace 内的租户本地 Secret；公共 Secret 只作为复制源，Secret 的 schema（`username` / `password` / `server` 或 dockerconfigjson）由消费方按 K8s Secret type 判断 |
 | **mlservice-operator** | 通过 Artifacts client SDK 解析 `spec.modelRef` → KServe `storageUri` / `AXISML_MODEL_URI` env | 见 [operators/mlservice-operator.md §4](operators/mlservice-operator.md) `spec.modelRef` 字段语义 |
 | **mljob-operator** | 通过 Artifacts client SDK 解析 `spec.imageRef`（如适用）→ Pod `image`；解析 `spec.datasetRef` → 容器 env / volume | 详见 mljob-operator 对应字段 |
@@ -639,7 +639,7 @@ Artifacts 不直接暴露到集群外：终端用户上传/下载经 `axisml-cli
 Helm `post-install` Job 仅做：
 
 - 数据库 migration 启动检查（其余 schema 由服务进程 embedded 迁移完成）
-- v1 不预置任何 ArtifactRepo（公共空间或租户私有都靠用户主动创建）
+- 不预置任何 ArtifactRepo（公共空间或租户私有都靠用户主动创建）
 
 ### 9.5 副本与可用性
 
@@ -670,7 +670,7 @@ Helm `post-install` Job 仅做：
 | 服务定位 | 元数据服务，**bytes 不经过 Artifacts** | 模型 / 数据集动辄数十 GB，代理流量在单副本控制平面是反模式；OCI / S3 协议本身已成熟，cli 直传后端最简 |
 | 制品分级 | `artifact_repos`（仓库外壳）+ `artifacts`（具体版本）；绝大部分信息在 artifact 行 | 与 OCI repository / tag 模型对齐；repo 仅做组织，避免双层存储字段冗余 |
 | Kind 扩展 | 编译期 ArtifactHandler registry，Model / Dataset / Image / EvalReport 内置；新增 Kind 不改 DB 表结构，但要更新 handler / OpenAPI / 允许列表 | 与 mljob-operator / mlservice-operator 的 handler 注册模式同构；`spec jsonb` 提供天然扩展点，同时保持 API 契约显式 |
-| 多租户 | `tenant_name` 可空（NULL = 平台公共空间）；公共空间只读 + admin 写；租户存在性由只读 `TenantResolver` 校验 | 兼顾"租户隔离"与"基础镜像 / 官方模型共享"两类常见场景；避免跨服务 FK，把 Compute 仅作为租户状态来源；细粒度 ACL 留给 v2 |
+| 多租户 | `tenant_name` 可空（NULL = 平台公共空间）；公共空间只读 + admin 写；租户存在性由只读 `TenantResolver` 校验 | 兼顾"租户隔离"与"基础镜像 / 官方模型共享"两类常见场景；避免跨服务 FK，把 Compute 仅作为租户状态来源；细粒度 ACL 作为后续演进 |
 | OCI Registry 选型 | 内置 zot | OCI 原生，对 ML 模型 artifact 类型支持完整；轻量、单二进制、可对接 S3；与 ML 模型托管场景天然契合 |
 | 写路径 | Two-Phase Register-Upload：initiate（PG + 签凭证）→ cli 直传 → complete（校验 + Ready） | 与 S3 multipart upload 的 init / complete 同构；同步两段提交无需常驻 reconciler，仅留 GC TTL 兜底未完成的 Uploading；后端临时错误不把行推 Failed |
 | 读路径凭证模型 | resolve 区分 `inspect`（返回 K8s `secret_ref` 给集群内 operator）与 `download`（返回短期 token / 临时 STS 给集群外 cli） | 集群内外消费方对凭证可用性不同：operator 只能读 K8s Secret，cli 只能拿可直连的临时凭证；混在一起会破坏其中一边 |
@@ -683,7 +683,7 @@ Helm `post-install` Job 仅做：
 | 跨制品引用格式 | `<kind>/<repo>@<version>` 字符串；`Handler.ValidateSpec(ctx, deps, spec)` 通过注入的 `LookupArtifact` 做懒存在性校验 | 文本可读、跨进程可序列化；引用对象删除后引用方仍可保留字符串以利审计 |
 | Secret 命名契约 | Artifacts 不创建 Secret；`auth_hint.secret_ref` 始终渲染为 workload namespace 内的租户本地 Secret，公共 Secret 只作为 tenant-operator 复制源 | Pod 不能直接依赖 `axisml-system` Secret；单一事实来源在 tenant-operator，避免 Artifacts 与 tenant-operator 分别维护命名 |
 | Admin 鉴权 | 读 `X-Axisml-Roles` header（由 Platform 注入），不维护静态 admin 名单 | Platform 是用户 / 角色权威；静态名单会与 Platform 漂移 |
-| 反向孤儿处理 | v1 仅告警，不主动清理 | 误删风险高于孤儿空间成本；v2 引入对账模式 + 灰名单 |
+| 反向孤儿处理 | 仅告警，不主动清理 | 误删风险高于孤儿空间成本；后续引入对账模式 + 灰名单 |
 | API 协议 | REST / JSON + OpenAPI 3.0 | 与 compute 一致；可生成 Platform / Operators / cli 共用的 Go SDK |
 | HA / 副本 | 默认 `replicas=1`；API 层无状态可横扩；GC worker 通过 K8s Lease 选主 | 与 compute 同模式；零成本保留横扩能力 |
 

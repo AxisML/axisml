@@ -719,7 +719,7 @@ Helm `post-install` Job 初始化（所有操作幂等，升级 Helm 版本不�
 | 决策项 | 决策 | 理由 |
 | --- | --- | --- |
 | 系统管理归属 | 留在 Compute | 与计算任务提交路径强耦合（配额校验、资源引用），避免跨服务调用开销；内部按 package 隔离保留未来拆分空间 |
-| 配额模型 | 扁平结构（v1 无父子层级）；每个 `(tenant, pool)` 默认 `default`；1:1 渲染进 `Tenant.spec.quotas[]`，由 tenant-operator 派生 Koordinator `ElasticQuota`（namespace-scoped，落在租户 ns） | 租户已是强隔离边界，业务线拆分用同级多配额即可；Quota 在概念上是 Tenant 子资源，借道 Tenant CR 内联让 tenant-operator 成为 ElasticQuota single writer，给 Compute 提供统一双向数据链路；分层（Koord-Queue tree）放到后续按需引入 |
+| 配额模型 | 扁平结构（无父子层级）；每个 `(tenant, pool)` 默认 `default`；1:1 渲染进 `Tenant.spec.quotas[]`，由 tenant-operator 派生 Koordinator `ElasticQuota`（namespace-scoped，落在租户 ns） | 租户已是强隔离边界，业务线拆分用同级多配额即可；Quota 在概念上是 Tenant 子资源，借道 Tenant CR 内联让 tenant-operator 成为 ElasticQuota single writer，给 Compute 提供统一双向数据链路；分层（Koord-Queue tree）放到后续按需引入 |
 | 配额记账 | PG 不记账；Koordinator ElasticQuota 是实际用量权威；Compute 仅做 best-effort 预检；所有 AxisML workload Pod 强制走 koord-scheduler 并通过 quota label 计入 ElasticQuota | 避免 PG / K8s 双源冲突；Quota 全覆盖契约（[infra.md §8.3](infra.md)）保证任何 backend 都不会"绕过 quota 的调度路径"，杜绝旧版"已接入"vs"未接入" Queue accounting 的差异 |
 | 配额建模 | `spec` 采用上游 sigs.k8s.io scheduler-plugins ElasticQuota 的纯二维模型：`min`（保留份额，不可被抢占下界）/ `max`（硬上限）；API 必填 `max`，`min` 默认 0；不引入 Koordinator 私有 `shared-weight` annotation | 与上游 ElasticQuota CR 字段一一对应，避免自研配额仲裁；保持与 scheduler-plugins ElasticQuota 的语义同构；借用容量分配走 koord-scheduler 默认平权；未来若真有差异化共享需求再按需启用 weight |
 | 配额下行 / 用量回流 | 经由 Tenant CR 内联：API 写 PG `quotas` → 标记 `tenants.desired_spec_hash` → `internal/tenant` reconciler 渲染 `Tenant.spec.quotas[]` → tenant-operator 派生 ElasticQuota；用量反向 `ElasticQuota.status.used` → `Tenant.status.quotas[].used` → Compute Tenant Informer → PG `quotas.used` | Tenant CR 是 Compute 与 K8s 的双向数据链路枢纽；ElasticQuota 由 tenant-operator 独占 owner，Compute 不需要直接 RBAC；Quota 的状态机也借道 Tenant CR `status.quotas[]` 推进，无需独立 Informer |
@@ -740,7 +740,7 @@ Helm `post-install` Job 初始化（所有操作幂等，升级 Helm 版本不�
 ## 11. 未来规划
 
 - **分层配额（Koord-Queue tree）**：`quotas` 表新增 `parent_id`，利用 Koordinator ElasticQuota 的 `quota.scheduling.koordinator.sh/parent` annotation 实现父子配额与抢占；在有真实多团队/多业务线共享租户的诉求时引入
-- **数据卷管理**：纳入 Compute（`components/compute/internal/volume/`），v1 未实现；待补 schema（按租户隔离的 volume 定义与挂载声明）、底层存储映射（PVC / NFS / S3 / hostPath 等）、operator 注入契约（经 MLJob/MLService `spec.volumes` 下发）
+- **数据卷管理**：纳入 Compute（`components/compute/internal/volume/`），当前未实现；待补 schema（按租户隔离的 volume 定义与挂载声明）、底层存储映射（PVC / NFS / S3 / hostPath 等）、operator 注入契约（经 MLJob/MLService `spec.volumes` 下发）
 - **多集群**：配额 / 任务按集群维度扩展，联邦调度
 - **细粒度配额**：GPU 时长、存储容量、网络带宽等
 - **审计日志**：独立 `audit_events` 表，关键写操作落库

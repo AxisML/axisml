@@ -244,7 +244,7 @@ zot:
 
 > **落地状态说明**：zot 是 Infra 目标架构中的 OCI Registry 后端；当前 `deploy/helm/axisml-infra/Chart.yaml` 仍需补齐该 dependency 与 values，本文保留目标设计以和 Artifacts 的 model / image 存储契约保持一致。
 
-> **与 RustFS 的关系**：v1 zot 使用本地 filesystem 作为 blob 后端，与 RustFS 数据通道无耦合；v2 引入"zot metadata + RustFS blobs"双层架构后，可把 zot 的 storage backend 配置成 S3 协议指向 RustFS，从而把所有制品 bytes 物理上汇聚到 RustFS、由 zot 维护 OCI 协议层。
+> **与 RustFS 的关系**：当前形态下 zot 使用本地 filesystem 作为 blob 后端，与 RustFS 数据通道无耦合；后续若引入"zot metadata + RustFS blobs"双层架构，可把 zot 的 storage backend 配置成 S3 协议指向 RustFS，从而把所有制品 bytes 物理上汇聚到 RustFS、由 zot 维护 OCI 协议层。
 
 ## 6. 数据库（PostgreSQL）
 
@@ -357,8 +357,8 @@ AxisML 使用 [Koordinator](https://koordinator.sh/) 作为统一调度器与多
 | --- | --- |
 | koord-scheduler | 自定义调度器，承载 Gang Scheduling 与 ElasticQuota plugin；scheduler 名 `koord-scheduler` |
 | koord-manager | Koordinator 控制器集合，管理 ElasticQuota / PodGroup 等 CR 状态聚合 |
-| koord-descheduler（可选） | 在线服务弹性场景下做 Pod 重平衡；v1 不启用 |
-| koordlet（可选） | 节点侧 agent，用于在/离线协同 / QoS / 弹性资源；v1 不启用 |
+| koord-descheduler（可选） | 在线服务弹性场景下做 Pod 重平衡；当前不启用 |
+| koordlet（可选） | 节点侧 agent，用于在/离线协同 / QoS / 弹性资源；当前不启用 |
 
 ### 8.2 核心能力
 
@@ -368,7 +368,7 @@ AxisML 使用 [Koordinator](https://koordinator.sh/) 作为统一调度器与多
 | **ElasticQuota** | `scheduling.sigs.k8s.io/v1alpha1` `ElasticQuota`（namespace-scoped）承载 `min` / `max`；Pod 通过 label `quota.scheduling.koordinator.sh/name=<eq-name>` 关联到所属 ElasticQuota。AxisML 不引入 Koordinator 私有的 `shared-weight` annotation，借用容量分配按 koord-scheduler 默认平权处理，让 CR 字段集与上游 scheduler-plugins ElasticQuota 一一对应 |
 | **Preemption / Reclaim** | 已分配但低于其他 ElasticQuota `min` 的资源可被回收；高于 `max` 的请求一律拒绝调度 |
 | **Backfill** | 空闲资源回填，提升集群利用率 |
-| **CoLocation / QoS**（可选） | 在/离线混部、CPU 预算管理；v1 不启用，作为未来演进 |
+| **CoLocation / QoS**（可选） | 在/离线混部、CPU 预算管理；当前不启用，作为未来演进 |
 
 ### 8.3 与 MLJob / MLService 的协作契约
 
@@ -521,7 +521,7 @@ axisml-infra/values.yaml：
 | --- | --- | --- |
 | 服务网关 | `envoy-gateway` | Envoy Gateway |
 | 对象存储 | `rustfs` | RustFS |
-| OCI Registry | `zot` | zot（v1 filesystem 后端，v2 可切 S3 指向 RustFS） |
+| OCI Registry | `zot` | zot（默认 filesystem 后端，可切 S3 指向 RustFS） |
 | GPU 管理 | `gpu-operator` | NVIDIA GPU Operator |
 | 调度与配额 | `koordinator` | Koordinator（scheduler 名固定为 `koord-scheduler`） |
 | 监控 | `kube-prometheus-stack` | kube-prometheus-stack（`fullnameOverride` 设为 `prometheus`，避开上游 26 字符截断） |

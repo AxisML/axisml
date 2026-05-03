@@ -135,14 +135,14 @@ spec:
 | --- | --- | --- |
 | `metadata.name` / `namespace` / `labels[axisml.io/*]` | Compute | 否 |
 | `spec.backend.name` / `spec.backend.engine` | Compute（默认 `{native, deployment}`） | **否**；dispatcher 拒绝并写 `status.message` |
-| `spec.backend.config` | Compute（默认 `{}`） | 否（v1 仅允许 `roles[*].replicas` 通过 `:scale` 变更；config 热更新见 §11） |
+| `spec.backend.config` | Compute（默认 `{}`） | 否（仅允许 `roles[*].replicas` 通过 `:scale` 变更；config 热更新见 §11） |
 | `spec.scheduling.quota` / `priorityClass` / `nodeSelector` / `tolerations` | Compute（合并 Quota + Pool + Unit） | 否 |
 | `spec.modelRef` | 用户提交 | 否（更换模型版本走重建） |
 | `spec.roles[*].name` / `template.*`（含 `ports[]`，除 resources） | 用户提交 | 否 |
 | `spec.roles[*].template.resources` | Compute（注入 ResourceUnit） | 否 |
 | `spec.roles[*].replicas` | API（`:scale` 触发） | **是**（扩缩容路径专用） |
 | `spec.runPolicy.progressDeadlineSeconds` | 用户提交 | 否 |
-| `spec.route`（整块，含 `enabled` / `targetRole` / `portName` / `hostname` / `path` / `auth` / `rateLimit` / `timeout`） | 用户提交 | 否（v1 不可变；mutable 演进见 §11） |
+| `spec.route`（整块，含 `enabled` / `targetRole` / `portName` / `hostname` / `path` / `auth` / `rateLimit` / `timeout`） | 用户提交 | 否（不可变；mutable 演进见 §11） |
 
 **默认值注入**：用户未指定 `spec.backend` 时，Compute 写 CR 时显式补 `{name: native, engine: deployment}`；`backend.config` 默认空对象 `{}`。dispatcher 不接受 `backend.name` 或 `backend.engine` 为空。
 
@@ -302,7 +302,7 @@ mlservice-operator 与 mljob-operator 同构，由两层组成：
 
 **`spec.route` 增量职责**：
 
-- `Reconcile`：根据创建时确定的 `spec.route.enabled` 与各子字段创建 / 保持上面三类派生资源；`spec.route` v1 不可变，删除主要依赖 MLService ownerReference 级联清理；`Validate` 拒绝 `(kserve, *)` 下的 `enabled=true`、拒绝多 role 但未指定 `targetRole` 的提交、拒绝多端口但未指定 `portName` 的提交
+- `Reconcile`：根据创建时确定的 `spec.route.enabled` 与各子字段创建 / 保持上面三类派生资源；`spec.route` 不可变，删除主要依赖 MLService ownerReference 级联清理；`Validate` 拒绝 `(kserve, *)` 下的 `enabled=true`、拒绝多 role 但未指定 `targetRole` 的提交、拒绝多端口但未指定 `portName` 的提交
 - `MapStatus`：把 HTTPRoute `Accepted` / `ResolvedRefs` condition 翻译为 `status.endpoint`（按 §4 端口选择规则填写外部 URL）与 `status.conditions` 的 `Available` 条件；HTTPRoute `Accepted=False` 视同后端未就绪，应让 `phase=Degraded` 并把失败原因写入 `message`
 
 **Status 写入约束**：Handler 只能通过 `MapStatus` 的返回值影响 `status`；不能在 `Reconcile` 中直接 `status` 写盘。dispatcher 统一合并 `phase` / `message` / `endpoint` / `readyReplicas` / `conditions` / `roles[]` 写入 CR，保证 [§2 写路径契约](#2-与-compute-的写路径契约) 中的 "status 单向权威"。校验失败、不可变字段被修改、未注册 Handler 等 dispatcher 级错误也由 dispatcher 写 `status.phase=Failed` 与 `status.message`，不交给 Handler 直接写。status patch 采用 JSON merge patch（或 server-side apply）+ `resourceVersion` 冲突重试；`conditions[]` 由 dispatcher 按 `type` 去重后整体写回。
@@ -597,7 +597,7 @@ operator binary 启动时遍历 registry，把每个启用 Handler 的 `Required
 - **`status.phase` 取值集合冻结为四态**（`Pending | Ready | Degraded | Failed`）；新增 phase 必须经 CRD schema 与 Compute 双侧同步演进
 - **`spec.roles[*].replicas` 是允许变更的字段**（`:scale` 路径专用）；其余 spec 字段创建后不可变，dispatcher 检测到变更需写 `status.message` 拒绝
 - 所有 Handler 派生的 Pod 必须满足 §6 Pod 注入约定的前 5 项必填字段（含 `schedulerName: koord-scheduler` 与 quota label）；缺失任一项视为契约违反，Validate 必须在创建前拦截
-- **`spec.route` 创建后不可变（v1）**；mutable 演进作为后续设计文档预留（见 §11）
+- **`spec.route` 创建后不可变**；mutable 演进作为后续设计文档预留（见 §11）
 - **`(kserve, *)` Handler 不接受 `spec.route.enabled=true`**（KServe 自带 Route，避免双管）；`(native, *)` 接受；`(custom, *)` 由 `config.routeBackend` 自描述，未 wire 时拒绝
 - **`spec.route` 派生的 `HTTPRoute` / `SecurityPolicy` / `BackendTrafficPolicy` 通过 `ownerReference` 级联清理**；Handler 不引入 finalizer
 - **`status.endpoint` 是单一服务地址字段**（Compute 透传到 `services.endpoint`）：native/custom 且 `spec.route.enabled=false` 时为 K8s Service DNS（ClusterIP / headless 共用 `<svc>.<ns>.svc.cluster.local:<port>` 格式），native/custom 且 `enabled=true` 时为 AxisML Gateway 外部 URL（`https://<hostname><path>`），`(kserve, *)` 时为 KServe 自带 route/status.url 暴露的 URL；不再单独建 `status.externalUrl` 字段，避免 compute.md services 表 schema churn

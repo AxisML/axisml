@@ -244,7 +244,7 @@ Tenant CR ADD 事件会把 Compute 侧 `Creating` 推进为 `Active`；若 opera
 | --- | --- |
 | 命名 | `<spec.namespace.name>`（直接采用 spec 字段） |
 | 创建 | Namespace 不存在 → 创建，附加 `spec.namespace.labels` / `annotations` 并叠加 `axisml.io/managed-by=tenant-operator` label |
-| 已存在 | 仅补 `axisml.io/managed-by=tenant-operator` label（如缺失）；不覆盖任何其他既有 label / annotation，避免污染共享 Namespace 中由其他 Tenant 或管理员设置的字段。`spec.namespace.labels` / `annotations` 也不会回填到已存在的 Namespace（与 §3.3 行为一致）。**风险**：`Namespace` 是 cluster-scoped 资源，K8s RBAC 不能按前缀或业务范围限制 `create`；v1 必须在 controller 配置中维护目标 Namespace denylist / allowlist（默认拒绝 `kube-*`、`default`、`axisml-system` 等系统 Namespace），admission webhook 作为后续兜底（§10） |
+| 已存在 | 仅补 `axisml.io/managed-by=tenant-operator` label（如缺失）；不覆盖任何其他既有 label / annotation，避免污染共享 Namespace 中由其他 Tenant 或管理员设置的字段。`spec.namespace.labels` / `annotations` 也不会回填到已存在的 Namespace（与 §3.3 行为一致）。**风险**：`Namespace` 是 cluster-scoped 资源，K8s RBAC 不能按前缀或业务范围限制 `create`；controller 配置中必须维护目标 Namespace denylist / allowlist（默认拒绝 `kube-*`、`default`、`axisml-system` 等系统 Namespace），admission webhook 作为后续兜底（§10） |
 | ownerReference | **不设置**——Namespace 不属于任何单一 Tenant |
 | spec 漂移 | 不主动对账（Namespace 自身没有"由 Tenant 决定"的 spec 字段） |
 | 删除 | **永不删除**——即使最后一个引用本 Namespace 的 Tenant 被删除，Namespace 也保留。空 Namespace 由集群管理员手工清理 |
@@ -399,7 +399,7 @@ operator binary 启动时聚合以下权限到 ServiceAccount。Helm chart 通�
 
 - [compute.md §6.2.1](../compute.md) 已放宽 `tenants.namespace` 唯一约束（本文档随 namespace 共享语义同步落地）；尚需补齐"反查同 Namespace 下所有 Tenant"的查询路径以及配套的 UI 展示
 - Admission webhook：`spec.namespace.name` / `spec.quotas[].{pool, name}` 不可变约束、`spec.initResources.*.sourceXxxRef` 跨 Namespace 读权限白名单、`spec.quotas[].{min, max}` 结构性校验
-- **目标 Namespace 白名单**：v1 先通过 controller Helm values 配置 denylist / allowlist，拒绝 Tenant 指向系统 Namespace（如 `kube-system` / `kube-public` / `axisml-system`）；后续由 admission webhook 前移到准入阶段（与 §6.1 风险脚注呼应）
+- **目标 Namespace 白名单**：当前通过 controller Helm values 配置 denylist / allowlist，拒绝 Tenant 指向系统 Namespace（如 `kube-system` / `kube-public` / `axisml-system`）；后续由 admission webhook 前移到准入阶段（与 §6.1 风险脚注呼应）
 - **源资源结构性校验前移**：admission webhook 在 Tenant 创建/更新时校验源 Secret 的 type 与 spec 一致、`dockerconfigjson` / `tls` 等结构性 key 完整，避免运行时才暴露错误
 - **resync 间隔的 Helm values 暴露**：默认 10 min，运维可下调到分钟级换取更短的源资源更新延迟
 - 加密源支持：从 KMS / Vault / Sealed Secrets 拉取凭证作为 `sourceSecretRef` 替代方案
