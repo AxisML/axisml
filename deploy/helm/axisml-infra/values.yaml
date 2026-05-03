@@ -20,6 +20,17 @@ envoy-gateway:
   enabled: true
 
 # =============================================================================
+# axisml-gateway (shared Gateway-API Gateway)
+# =============================================================================
+# A single Gateway in the axisml-infra namespace fronts every MLService
+# HTTPRoute (templates/gateway.yaml). The mlservice-operator hard-codes
+# ParentRef = axisml-infra/axisml-gateway, so disabling envoy-gateway also
+# disables this Gateway and route-enabled MLServices will stay NotAccepted.
+gateway:
+  className: eg
+  httpPort: 80
+
+# =============================================================================
 # RustFS (object storage)
 # =============================================================================
 # Sub-chart: https://charts.rustfs.com/rustfs

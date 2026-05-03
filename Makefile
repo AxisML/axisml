@@ -79,8 +79,11 @@ helm-template: ## Render both charts locally
 # --- Operators ---
 
 TENANT_OPERATOR_DIR ?= components/operators/tenant-operator
+MLSERVICE_OPERATOR_DIR ?= components/operators/mlservice-operator
+MLSERVICE_OPERATOR_IMG ?= axisml/mlservice-operator:dev
 
 .PHONY: tenant-operator-build tenant-operator-test tenant-operator-image tenant-operator-image-load
+.PHONY: mlservice-operator-build mlservice-operator-test mlservice-operator-image mlservice-operator-image-load
 
 tenant-operator-build: ## Compile the tenant-operator binary
 	@$(MAKE) -C $(TENANT_OPERATOR_DIR) build
@@ -93,6 +96,18 @@ tenant-operator-image: ## Build the tenant-operator container image
 
 tenant-operator-image-load: ## Build and load the tenant-operator image into minikube
 	@$(MAKE) -C $(TENANT_OPERATOR_DIR) image-load-minikube
+
+mlservice-operator-build: ## Compile the mlservice-operator binary
+	@cd $(MLSERVICE_OPERATOR_DIR) && go build ./...
+
+mlservice-operator-test: ## Run mlservice-operator unit tests (no cluster required)
+	@cd $(MLSERVICE_OPERATOR_DIR) && go test ./...
+
+mlservice-operator-image: ## Build the mlservice-operator container image
+	@docker build -t $(MLSERVICE_OPERATOR_IMG) $(MLSERVICE_OPERATOR_DIR)
+
+mlservice-operator-image-load: mlservice-operator-image ## Build and load the mlservice-operator image into minikube
+	@minikube -p $(MINIKUBE_PROFILE) image load $(MLSERVICE_OPERATOR_IMG)
 
 # --- Integration tests ---
 

@@ -6,19 +6,36 @@ metadata:
   labels:
     {{- include "axisml.componentLabels" (dict "context" . "component" "mlservice-operator") | nindent 4 }}
 rules:
+  # MLService CR — primary resource. Includes /status so the dispatcher can
+  # patch status. The /scale subresource is intentionally omitted from the
+  # CRD (see crds/mlservice-crd.yaml), so granting verbs on it would be dead
+  # RBAC.
   - apiGroups: ["axisml.io"]
     resources: ["mlservices", "mlservices/status"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+  # (native, deployment) backend.
   - apiGroups: ["apps"]
     resources: ["deployments"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   - apiGroups: [""]
-    resources: ["pods", "services", "configmaps"]
+    resources: ["services", "pods"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+  # Events for dispatcher / handler diagnostics.
   - apiGroups: [""]
     resources: ["events"]
     verbs: ["create", "patch"]
-  - apiGroups: ["autoscaling"]
-    resources: ["horizontalpodautoscalers"]
+
+  # spec.route.enabled=true derives an HTTPRoute. SecurityPolicy and
+  # BackendTrafficPolicy are deferred (Validate emits a warning); add their
+  # rules when those handlers are wired in.
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources: ["httproutes"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+  # Leader election lease.
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 {{- end }}

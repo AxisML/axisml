@@ -24,6 +24,27 @@ spec:
         - name: mlservice-operator
           image: {{ include "axisml.image" (dict "imageRoot" .Values.operators.mlserviceOperator.image "global" .Values.global "chart" .Chart) }}
           imagePullPolicy: {{ .Values.operators.mlserviceOperator.image.pullPolicy }}
+          args:
+            - "--leader-elect=true"
+            - "--metrics-bind-address=:8080"
+            - "--health-probe-bind-address=:8081"
+          ports:
+            - name: metrics
+              containerPort: 8080
+            - name: probes
+              containerPort: 8081
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: probes
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: probes
+            initialDelaySeconds: 5
+            periodSeconds: 10
           resources:
             {{- toYaml .Values.operators.mlserviceOperator.resources | nindent 12 }}
 {{- end }}

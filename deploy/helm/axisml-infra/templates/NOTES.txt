@@ -3,6 +3,7 @@ AxisML Infra has been installed successfully into namespace {{ .Release.Namespac
 Components deployed:
 {{- if (index .Values "envoy-gateway").enabled }}
   - Envoy Gateway:        envoy-gateway
+  - Shared Gateway:       {{ .Release.Namespace }}/axisml-gateway (className={{ .Values.gateway.className | default "eg" }}, port={{ .Values.gateway.httpPort | default 80 }})
 {{- end }}
 {{- if .Values.rustfs.enabled }}
   - RustFS (S3):          rustfs-svc:9000

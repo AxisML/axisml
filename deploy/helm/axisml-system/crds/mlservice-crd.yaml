@@ -16,6 +16,12 @@ spec:
     - name: v1alpha1
       served: true
       storage: true
+      subresources:
+        status: {}
+        # NOTE: a /scale subresource is intentionally omitted. Kubernetes
+        # validates `specReplicasPath` as a JSONPath under .spec without array
+        # notation, so `.spec.roles[*].replicas` is rejected at install time.
+        # Reintroduce when the spec exposes a top-level replicas mirror.
       schema:
         openAPIV3Schema:
           type: object

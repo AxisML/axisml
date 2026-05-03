@@ -125,8 +125,8 @@ operators:
     enabled: true
     image:
       registry: ""
-      repository: nginx
-      tag: "1.27"
+      repository: axisml/mlservice-operator
+      tag: dev
       pullPolicy: IfNotPresent
     resources:
       requests:

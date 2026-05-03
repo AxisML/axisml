@@ -1,0 +1,15 @@
+domain: axisml.io
+layout:
+  - go.kubebuilder.io/v4
+projectName: mlservice-operator
+repo: github.com/axisml/axisml/components/operators/mlservice-operator
+resources:
+  - api:
+      crdVersion: v1
+      namespaced: true
+    domain: axisml.io
+    group: axisml
+    kind: MLService
+    path: github.com/axisml/axisml/components/operators/mlservice-operator/api/v1alpha1
+    version: v1alpha1
+version: "3"
