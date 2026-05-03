@@ -30,7 +30,7 @@ Compute 负责设置以下 metadata（与 [compute.md §6.3.2](../compute.md) �
 - `metadata.namespace` ← `tenants.namespace`
 - `metadata.labels["axisml.io/service-id"]` ← `services.id`（UUID，孤儿检测稳定锚点）
 - `metadata.labels["axisml.io/tenant"]` ← 租户名
-- `metadata.labels["axisml.io/quota"]` ← Compute Quota 名
+- `metadata.labels["axisml.io/quota"]` ← Compute Quota bare name（如 `training`，**不是** ElasticQuota 全名）
 
 ### 3.1 spec 设计取舍
 
@@ -152,6 +152,8 @@ spec:
 
 **CRD schema 现状**：当前 CRD 的 `spec` / `status` 用 `x-kubernetes-preserve-unknown-fields: true`，重新设计字段无需 CRD bump；待行为稳定后再启用 OpenAPI schema 严格校验（§11）。
 
+**status subresource 要求**：`MLService` CRD 必须启用 `subresources.status`，保证 dispatcher 只写 `status`、Compute 只写 `metadata` / `spec` 的边界能由 Kubernetes API Server 隔离。当前 `deploy/helm/axisml-system/crds/mlservice-crd.yaml` 尚未声明该 subresource，属于实现对齐项；本文档先锁定契约，不在本次修订中修改 CRD 文件。
+
 ## 4. Status 契约
 
 ```yaml
@@ -257,7 +259,7 @@ mlservice-operator 与 mljob-operator 同构，由两层组成：
 | label `quota.scheduling.koordinator.sh/name` | 是 | `<spec.scheduling.quota>` | Koordinator 原生 quota 关联 label；ElasticQuota plugin 据此把该 Pod 计入 `status.used` |
 | label `axisml.io/service-id` | 是 | `services.id`（UUID） | 反查 MLService，与 CR 上同名 label 一致 |
 | label `axisml.io/role` | 是 | role 名（如 `predictor` / `transformer` / `explainer`） | 区分多角色拓扑下的 Pod |
-| label `axisml.io/quota` | 是 | Compute Quota 名 | AxisML 自有审计 / 查询；与 `quota.scheduling.koordinator.sh/name` 同源，不参与调度 |
+| label `axisml.io/quota` | 是 | Compute Quota bare name（取自 MLService CR `metadata.labels["axisml.io/quota"]` 透传，**与 `quota.scheduling.koordinator.sh/name` 取值不同**：前者是裸名如 `training`，后者是 ElasticQuota 全名如 `axisml-<tenant>-<pool>-training`） | AxisML 自有审计 / 查询；不参与调度 |
 | label `axisml.io/replica-index` | 否 | role 内 0-based 序号 | 副本身份天然稳定时建议透传：`(native, statefulset)` 取 `apps.kubernetes.io/pod-index`；`(native, deployment)` / KServe autoscaling pod 集合等无稳定身份场景一律省略 |
 
 前 5 项必填；`replica-index` 是可观测增强，缺失时按 pod 名定位。MLService 当前无 logs API，本约定主要服务于运维排障与 metrics 聚合。
@@ -335,7 +337,8 @@ mlservice-operator 与 mljob-operator 同构，由两层组成：
 | `roles[predictor].template.ports[]` | Deployment Pod 主容器 `ports` + K8s Service `spec.ports`（`targetPort` 取 `containerPort`） |
 | `roles[predictor].template.resources.requests` / `limits` | Deployment Pod 主容器同名字段 |
 | `roles[predictor].replicas` | `Deployment.spec.replicas` |
-| `spec.scheduling.quota` | Pod `spec.template.metadata.labels[quota.scheduling.koordinator.sh/name]` + `axisml.io/quota`；不创建 PodGroup |
+| `spec.scheduling.quota` | Pod `spec.template.metadata.labels[quota.scheduling.koordinator.sh/name]`（ElasticQuota 全名 `axisml-<tenant>-<pool>-<quota>`）；不创建 PodGroup |
+| MLService `metadata.labels[axisml.io/quota]` | Pod `spec.template.metadata.labels[axisml.io/quota]`（bare quota name，由 Compute 在 MLService CR 上设置后由 Handler 透传） |
 | 调度器选择 | Pod `spec.template.spec.schedulerName=koord-scheduler`（恒定） |
 | `spec.scheduling.priorityClass` | Pod `spec.priorityClassName` |
 | `spec.scheduling.nodeSelector` / `tolerations` | Pod 同名字段 |

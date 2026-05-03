@@ -30,7 +30,7 @@ Compute 负责设置以下 metadata（与 [compute.md §6.3.1](../compute.md) �
 - `metadata.namespace` ← `tenants.namespace`
 - `metadata.labels["axisml.io/job-id"]` ← `jobs.id`（UUID，孤儿检测稳定锚点）
 - `metadata.labels["axisml.io/tenant"]` ← 租户名
-- `metadata.labels["axisml.io/quota"]` ← Compute Quota 名
+- `metadata.labels["axisml.io/quota"]` ← Compute Quota bare name（如 `training`，**不是** ElasticQuota 全名）
 
 ### 3.1 spec 设计取舍
 
@@ -212,7 +212,7 @@ mljob-operator 由两层组成：
 | label `quota.scheduling.koordinator.sh/name` | 是 | `<spec.scheduling.quota>` | Koordinator 原生 quota 关联 label；ElasticQuota plugin 据此把该 Pod 计入 `status.used` |
 | label `axisml.io/job-id` | 是 | `jobs.id`（UUID） | 反查 MLJob，与 CR 上同名 label 一致 |
 | label `axisml.io/role` | 是 | role 名（如 `worker` / `master` / `launcher`） | 区分多角色拓扑下的 Pod |
-| label `axisml.io/quota` | 是 | Compute Quota 名 | AxisML 自有审计 / 查询；与 `quota.scheduling.koordinator.sh/name` 同源，不参与调度 |
+| label `axisml.io/quota` | 是 | Compute Quota bare name（取自 MLJob CR `metadata.labels["axisml.io/quota"]` 透传，**与 `quota.scheduling.koordinator.sh/name` 取值不同**：前者是裸名如 `training`，后者是 ElasticQuota 全名如 `axisml-<tenant>-<pool>-training`） | AxisML 自有审计 / 查询；不参与调度 |
 | label `axisml.io/replica-index` | 否 | role 内 0-based 序号 | 副本身份天然稳定时建议透传：StatefulSet 的 `apps.kubernetes.io/pod-index`、Indexed Job 的 `batch.kubernetes.io/job-completion-index`；NonIndexed Job、裸 Pod 拓扑下省略 |
 
 前 5 项必填，所有 Handler 一律遵守；`axisml.io/replica-index` 只是可观测增强，缺失时 Compute §7.4 日志 API 退化为按 pod 名定位（详见 [compute.md §7.4](../compute.md)）。
@@ -283,7 +283,8 @@ config:
 | `roles[worker].restartPolicy` | `Job.spec.template.spec.restartPolicy`（仅允许 `OnFailure` / `Never`） |
 | `spec.scheduling.priorityClass` | Pod `spec.priorityClassName` |
 | `spec.scheduling.nodeSelector` / `tolerations` | Pod 同名字段 |
-| `spec.scheduling.quota` | Pod `spec.template.metadata.labels[quota.scheduling.koordinator.sh/name]` + `axisml.io/quota`；不写入 Job 级别字段 |
+| `spec.scheduling.quota` | Pod `spec.template.metadata.labels[quota.scheduling.koordinator.sh/name]`（ElasticQuota 全名 `axisml-<tenant>-<pool>-<quota>`）；不写入 Job 级别字段 |
+| MLJob `metadata.labels[axisml.io/quota]` | Pod `spec.template.metadata.labels[axisml.io/quota]`（bare quota name，由 Compute 在 MLJob CR 上设置后由 Handler 透传） |
 | 调度器选择 | Pod `spec.template.spec.schedulerName=koord-scheduler`（恒定） |
 | `spec.runPolicy.activeDeadlineSeconds` | `Job.spec.activeDeadlineSeconds` |
 | `spec.runPolicy.ttlSecondsAfterFinished` | `Job.spec.ttlSecondsAfterFinished` |
@@ -336,7 +337,8 @@ config:
 | `roles[worker].replicas` | `PodGroup.spec.minMember` 与裸 Pod 数 |
 | `spec.scheduling.nodeSelector` / `tolerations` | Pod 同名字段 |
 | `spec.scheduling.priorityClass` | Pod `spec.priorityClassName` |
-| `spec.scheduling.quota` | Pod label `quota.scheduling.koordinator.sh/name` + `axisml.io/quota`（PodGroup 不持有 quota 字段，由 koord-scheduler 通过 Pod label 关联） |
+| `spec.scheduling.quota` | Pod label `quota.scheduling.koordinator.sh/name`（ElasticQuota 全名）；PodGroup 不持有 quota 字段，由 koord-scheduler 通过 Pod label 关联 |
+| MLJob `metadata.labels[axisml.io/quota]` | Pod label `axisml.io/quota`（bare quota name，透传自 MLJob CR 上同名 label） |
 | 调度器选择 | Pod `spec.schedulerName=koord-scheduler`（恒定） |
 | `spec.runPolicy.activeDeadlineSeconds` | Pod 同名字段 |
 | `spec.runPolicy.ttlSecondsAfterFinished` | 终态后由 Handler 显式 GC（裸 Pod 无原生 TTL） |

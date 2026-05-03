@@ -137,7 +137,7 @@ Creating ──(Informer ADD)──▶ 就绪态 ──(业务事件)──▶ �
 
 | Informer | 监听对象 | 维护方 | 主要用途 | DELETE 事件语义 | spec 漂移处理 |
 | --- | --- | --- | --- | --- | --- |
-| MLJob Informer | `MLJob` CR | `internal/job/` | 推进 `Creating→Pending`、`Pending→Running`、运行终态（`Succeeded`/`Failed`）；`Canceling→Cancelled`（信号：`status.conditions[type=Suspended,status=True,reason=CancelRequested]`）；`Deleting→Deleted`（配合 `deleted_at`）；回写 `jobs.status` / `started_at` / `finished_at` | PG `status='Canceling'` → Suspended condition 推 `Cancelled`、写 `finished_at`、入队 `Delete()` CR；DELETE 事件幂等忽略。PG `status='Deleting'` → DELETE 推 `Deleted`。PG `status ∈ (Pending, Running)` 收到 DELETE → 外部误删，推 `Cancelled` + `finished_at` + `message='external delete'`，**不补偿重建**；已终态忽略 | 不适用（`spec` 不可变；cancel 由 `Canceling` 谓词 patch `spec.runPolicy.suspend=true`） |
+| MLJob Informer | `MLJob` CR | `internal/job/` | 推进 `Creating→Pending`、`Pending→Running`、运行终态（`Succeeded`/`Failed`）；`Canceling→Cancelled`（信号：`status.conditions[type=Suspended,status=True,reason=CancelRequested]`）；**`Canceling→Succeeded`/`Failed`（自然终态优先：cancel patch 下发与 Job 自然结束竞速时，若 CR `status.phase=Succeeded`/`Failed` 先到达，operator 按 [mljob-operator.md §4](operators/mljob-operator.md) "终态优先" 不写 Suspended condition；Compute 在此情形把 PG 直接推到对应运行终态并写 `finished_at`，不再等待 Suspended）**；`Deleting→Deleted`（配合 `deleted_at`）；回写 `jobs.status` / `started_at` / `finished_at` | PG `status='Canceling'` → Suspended condition 推 `Cancelled`、写 `finished_at`、入队 `Delete()` CR；DELETE 事件幂等忽略。PG `status='Deleting'` → DELETE 推 `Deleted`。PG `status ∈ (Pending, Running)` 收到 DELETE → 外部误删，推 `Cancelled` + `finished_at` + `message='external delete'`，**不补偿重建**；已终态忽略 | 不适用（`spec` 不可变；cancel 由 `Canceling` 谓词 patch `spec.runPolicy.suspend=true`） |
 | MLService Informer | `MLService` CR | `internal/service/` | 推进 `Creating→Pending`、`Pending→Ready`、`Ready⇄Degraded⇄Failed`（由 `ready_replicas`/`desired_replicas` 映射，见 §6.3.2）；`Deleting→Deleted`；回写 `services.status` / `ready_replicas` / `endpoint` | PG `status='Deleting'` → 推 `Deleted`；其他运行态 → 外部误删，写 `status='Deleting'` + `deleted_at=now()` + `message='external delete'`，交 reconciler 对不存在 CR 做幂等确认后推 `Deleted`；已 `Deleted` 忽略 | 扩缩容只更新 PG desired spec；reconciler 根据 `desired_spec_hash != applied_spec_hash` patch CR，Informer 只消费状态回流 |
 | Tenant Informer | `Tenant` CR | `internal/tenant/` | 推进 `Creating→Active`、`Active⇄Suspended`、`Deleting→Deleted`，回写 `tenants.status` / `message`；按 `Tenant.status.quotas[].{ready, used}` 推进同租户 `quotas.status`（`Creating→Active`、`Deleting→Deleted`）并刷新 `quotas.used` 缓存 | PG `tenants.status='Deleting'` → 推 `Deleted`，同租户 quotas 一并推 `Deleted`；其他（外部误删）→ 按 §5.4 配置对象策略由 reconciler 以 PG desired spec 补偿重建 Tenant CR（重建时一并渲染 quotas） | Tenant CR 声明字段漂移 → reconciler 按 PG desired spec 覆盖回 CR；成功后更新 `applied_spec_hash` |
 
@@ -390,7 +390,7 @@ Quota 的状态机由 `internal/tenant` 的 Tenant Informer 驱动：每次 Tena
 **模型特征**
 
 - 扁平结构，每条配额都是独立对象，无父子层级
-- 每个 `(tenant, pool)` 默认存在配额 `default`
+- 命名约定上建议每个 `(tenant, pool)` 至少存在一条名为 `default` 的配额；但 Compute 并不为新建租户/池自动派生 `default` 配额，仅在 Helm `post-install` 引导阶段为 bootstrap `(default, default)` 创建一条（详见 §9.4）
 - 用户可另行创建配额（如 `training`、`inference`、`nlp`）用于业务线 / 团队维度的拆分
 - 同一租户在不同池下配额结构 / 额度互不干扰
 - 分层配额（Koord-Queue tree）作为后续演进方向（见 §11）
@@ -480,6 +480,7 @@ Compute 只负责把以下业务语义装进 MLJob CR；具体 `spec` 字段结�
 | 场景 | PG 侧 | CR 侧 |
 | --- | --- | --- |
 | 运行态（`Pending` / `Running`） cancel | `status='Canceling'`，写 `message='user cancelled'` | reconciler `patch MLJob.spec.runPolicy.suspend=true` → operator Handler 完成 suspend/Cleanup 后写 `status.conditions[type=Suspended,status=True,reason=CancelRequested]` → Informer 推 `Cancelled`、写 `finished_at` 并入队 `Delete()` CR 做资源回收（DELETE 事件幂等忽略）|
+| `Canceling` 期间 Job 自然结束（cancel patch 下发与 Job 完成竞速） | 维持 `Canceling` 直到 Informer 观察到 CR 终态；按 §5.3 "自然终态优先" 推到 `Succeeded`/`Failed` 并写 `finished_at`（operator 不写 Suspended condition，按 [mljob-operator.md §4](operators/mljob-operator.md) "终态优先"） | reconciler 已发出 cancel patch；不再补偿，由 Informer 回流终态后续走 `Succeeded`/`Failed` 路径 |
 | `Creating` 状态 cancel | API 拒绝（要求改用 DELETE） | — |
 | 已终态（`Succeeded`/`Failed`/`Cancelled`/`Deleted` 或已在 `Canceling`/`Deleting`）cancel | API 返回无效操作 | — |
 
@@ -489,6 +490,7 @@ Compute 只负责把以下业务语义装进 MLJob CR；具体 `spec` 字段结�
 | --- | --- | --- |
 | 任一非 `Deleting`/`Deleted` 状态 DELETE | `status='Deleting'`，写 `deleted_at` | reconciler `Delete()` CR；Informer DELETE → `Deleted` |
 | `Creating` 状态 DELETE（CR 未下发） | 同上；reconciler 确认 CR 不存在 → 直接推 `Deleted` | — |
+| `Cancelled` 状态 DELETE（CR 已被 cancel 路径回收） | 同上；reconciler `Delete()` CR 收到 404 → 幂等确认后直接推 `Deleted`，不依赖 Informer DELETE 事件 | — |
 | `Deleting`/`Deleted` 再次 DELETE | 幂等，忽略 | — |
 
 **自然事件**

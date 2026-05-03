@@ -142,6 +142,8 @@ spec:
 
 **CRD schema 现状**：当前 CRD 的 `spec` / `status` 用 `x-kubernetes-preserve-unknown-fields: true`，重新设计字段无需 CRD bump；待行为稳定后再启用 OpenAPI schema 严格校验（§10）。
 
+**status subresource 要求**：`Tenant` CRD 必须启用 `subresources.status`，保证 controller 只写 `status`、Compute 只写 `metadata` / `spec` 的边界能由 Kubernetes API Server 隔离。当前 `deploy/helm/axisml-system/crds/tenant-crd.yaml` 尚未声明该 subresource，属于实现对齐项；本文档先锁定契约，不在本次修订中修改 CRD 文件。
+
 ## 4. Status 契约
 
 ```yaml
@@ -242,7 +244,7 @@ Tenant CR ADD 事件会把 Compute 侧 `Creating` 推进为 `Active`；若 opera
 | --- | --- |
 | 命名 | `<spec.namespace.name>`（直接采用 spec 字段） |
 | 创建 | Namespace 不存在 → 创建，附加 `spec.namespace.labels` / `annotations` 并叠加 `axisml.io/managed-by=tenant-operator` label |
-| 已存在 | 不修改 metadata（避免污染共享 Namespace 中由其他 Tenant 或管理员设置的 label/annotation）；只把 `axisml.io/managed-by=tenant-operator` label 加上（如缺失）。**风险**：`Namespace` 是 cluster-scoped 资源，K8s RBAC 不能按前缀或业务范围限制 `create`；v1 必须在 controller 配置中维护目标 Namespace denylist / allowlist（默认拒绝 `kube-*`、`default`、`axisml-system` 等系统 Namespace），admission webhook 作为后续兜底（§10） |
+| 已存在 | 仅补 `axisml.io/managed-by=tenant-operator` label（如缺失）；不覆盖任何其他既有 label / annotation，避免污染共享 Namespace 中由其他 Tenant 或管理员设置的字段。`spec.namespace.labels` / `annotations` 也不会回填到已存在的 Namespace（与 §3.3 行为一致）。**风险**：`Namespace` 是 cluster-scoped 资源，K8s RBAC 不能按前缀或业务范围限制 `create`；v1 必须在 controller 配置中维护目标 Namespace denylist / allowlist（默认拒绝 `kube-*`、`default`、`axisml-system` 等系统 Namespace），admission webhook 作为后续兜底（§10） |
 | ownerReference | **不设置**——Namespace 不属于任何单一 Tenant |
 | spec 漂移 | 不主动对账（Namespace 自身没有"由 Tenant 决定"的 spec 字段） |
 | 删除 | **永不删除**——即使最后一个引用本 Namespace 的 Tenant 被删除，Namespace 也保留。空 Namespace 由集群管理员手工清理 |
