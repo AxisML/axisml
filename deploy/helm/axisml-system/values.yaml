@@ -140,9 +140,24 @@ operators:
     enabled: true
     image:
       registry: ""
-      repository: nginx
-      tag: "1.27"
+      repository: axisml/tenant-operator
+      # tag defaults to .Chart.AppVersion via the axisml.image helper.
+      tag: ""
       pullPolicy: IfNotPresent
+    # Periodic re-reconcile interval for source Secret/ConfigMap drift
+    # (design §5). Operators run a single replica; leader election is off
+    # by default and only useful when scaling to >1 replicas.
+    resyncPeriod: 10m
+    leaderElection: false
+    # Target namespaces a Tenant CR may NOT point spec.namespace.name at
+    # (design §6.1 risk note + §10).
+    namespaceDenylist:
+      - kube-system
+      - kube-public
+      - kube-node-lease
+      - default
+      - axisml-system
+      - axisml-infra
     resources:
       requests:
         cpu: 50m

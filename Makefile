@@ -39,6 +39,7 @@ cluster-status: ## Show cluster status
 .PHONY: helm-install-infra helm-install-system
 .PHONY: helm-upgrade-infra helm-upgrade-system
 .PHONY: helm-uninstall-infra helm-uninstall-system
+.PHONY: helm-crds-system
 
 helm-deps: ## Fetch sub-chart tarballs for both charts (run after clone / Chart.yaml change)
 	@helm dependency update $(HELM_INFRA_CHART)
@@ -47,7 +48,10 @@ helm-deps: ## Fetch sub-chart tarballs for both charts (run after clone / Chart.
 helm-install-infra: ## Install or upgrade AxisML infrastructure (idempotent)
 	@helm upgrade --install $(HELM_INFRA_RELEASE) $(HELM_INFRA_CHART) -n $(HELM_INFRA_NAMESPACE) --create-namespace --kube-context $(MINIKUBE_PROFILE)
 
-helm-install-system: ## Install or upgrade AxisML control plane (idempotent)
+helm-crds-system: ## Apply axisml-system CRDs (Helm only installs files under crds/ once; this picks up schema upgrades)
+	@kubectl --context $(MINIKUBE_PROFILE) apply -f $(HELM_SYSTEM_CHART)/crds/
+
+helm-install-system: helm-crds-system ## Install or upgrade AxisML control plane (idempotent)
 	@helm upgrade --install $(HELM_SYSTEM_RELEASE) $(HELM_SYSTEM_CHART) -n $(HELM_SYSTEM_NAMESPACE) --create-namespace --kube-context $(MINIKUBE_PROFILE)
 
 helm-install: helm-install-infra helm-install-system ## Install or upgrade infra + control plane
@@ -55,7 +59,7 @@ helm-install: helm-install-infra helm-install-system ## Install or upgrade infra
 helm-upgrade-infra: ## Upgrade AxisML infrastructure (must already be installed)
 	@helm upgrade $(HELM_INFRA_RELEASE) $(HELM_INFRA_CHART) -n $(HELM_INFRA_NAMESPACE) --kube-context $(MINIKUBE_PROFILE)
 
-helm-upgrade-system: ## Upgrade AxisML control plane (must already be installed)
+helm-upgrade-system: helm-crds-system ## Upgrade AxisML control plane (must already be installed)
 	@helm upgrade $(HELM_SYSTEM_RELEASE) $(HELM_SYSTEM_CHART) -n $(HELM_SYSTEM_NAMESPACE) --kube-context $(MINIKUBE_PROFILE)
 
 helm-upgrade: helm-upgrade-infra helm-upgrade-system ## Upgrade both
@@ -72,10 +76,35 @@ helm-template: ## Render both charts locally
 	@helm template $(HELM_INFRA_RELEASE) $(HELM_INFRA_CHART) -n $(HELM_INFRA_NAMESPACE)
 	@helm template $(HELM_SYSTEM_RELEASE) $(HELM_SYSTEM_CHART) -n $(HELM_SYSTEM_NAMESPACE)
 
+# --- Operators ---
+
+TENANT_OPERATOR_DIR ?= components/operators/tenant-operator
+
+.PHONY: tenant-operator-build tenant-operator-test tenant-operator-image tenant-operator-image-load
+
+tenant-operator-build: ## Compile the tenant-operator binary
+	@$(MAKE) -C $(TENANT_OPERATOR_DIR) build
+
+tenant-operator-test: ## Run tenant-operator unit tests (no cluster required)
+	@$(MAKE) -C $(TENANT_OPERATOR_DIR) test
+
+tenant-operator-image: ## Build the tenant-operator container image
+	@$(MAKE) -C $(TENANT_OPERATOR_DIR) image
+
+tenant-operator-image-load: ## Build and load the tenant-operator image into minikube
+	@$(MAKE) -C $(TENANT_OPERATOR_DIR) image-load-minikube
+
+# --- Integration tests ---
+
+.PHONY: integration-test
+
+integration-test: ## Run all integration tests against the running cluster (requires `make cluster-up && make helm-install-infra`; in-cluster operators must be scaled to 0)
+	@$(MAKE) -C $(TENANT_OPERATOR_DIR) test-integration
+
 # --- Help ---
 
 .PHONY: help
 help: ## Show this help message
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
 .DEFAULT_GOAL := help

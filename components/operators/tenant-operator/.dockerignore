@@ -1,0 +1,8 @@
+.git
+.idea
+.vscode
+*.test
+*.out
+test/envtest/testdata/*
+!test/envtest/testdata/elasticquotas-crd.yaml
+bin/

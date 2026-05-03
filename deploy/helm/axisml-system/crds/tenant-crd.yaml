@@ -16,6 +16,8 @@ spec:
     - name: v1alpha1
       served: true
       storage: true
+      subresources:
+        status: {}
       schema:
         openAPIV3Schema:
           type: object
@@ -23,6 +25,18 @@ spec:
             spec:
               type: object
               x-kubernetes-preserve-unknown-fields: true
+              properties:
+                namespace:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                      # spec.namespace.name is immutable: changing it would orphan
+                      # init resources and RBAC owned in the original namespace
+                      # since the GC helpers only see the current target.
+                      x-kubernetes-validations:
+                        - rule: "self == oldSelf"
+                          message: "spec.namespace.name is immutable"
             status:
               type: object
               x-kubernetes-preserve-unknown-fields: true

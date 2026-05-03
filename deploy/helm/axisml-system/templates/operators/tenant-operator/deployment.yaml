@@ -24,6 +24,36 @@ spec:
         - name: tenant-operator
           image: {{ include "axisml.image" (dict "imageRoot" .Values.operators.tenantOperator.image "global" .Values.global "chart" .Chart) }}
           imagePullPolicy: {{ .Values.operators.tenantOperator.image.pullPolicy }}
+          args:
+            - --metrics-bind-address=:8080
+            - --health-probe-bind-address=:8081
+            {{- if .Values.operators.tenantOperator.leaderElection }}
+            - --leader-elect=true
+            {{- end }}
+          env:
+            - name: RESYNC_PERIOD
+              value: {{ .Values.operators.tenantOperator.resyncPeriod | quote }}
+            - name: NAMESPACE_DENYLIST
+              value: {{ join "," .Values.operators.tenantOperator.namespaceDenylist | quote }}
+          ports:
+            - name: metrics
+              containerPort: 8080
+              protocol: TCP
+            - name: probe
+              containerPort: 8081
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: probe
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: probe
+            initialDelaySeconds: 5
+            periodSeconds: 10
           resources:
             {{- toYaml .Values.operators.tenantOperator.resources | nindent 12 }}
 {{- end }}
