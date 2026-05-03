@@ -14,10 +14,10 @@ Compute 内部按 6 个模块划分，分两类组织：
 
 | 类别 | 模块 | 职责 | 边界外 |
 | --- | --- | --- | --- |
-| 配置对象（长生命周期） | 租户 Tenant | 元数据 CRUD，下发 `Tenant` CRD | Namespace 创建、ResourceQuota 落地（由 tenant-operator） |
+| 配置对象（长生命周期） | 租户 Tenant | 元数据 CRUD，下发 `Tenant` CRD（含内联 `spec.quotas[]`、`spec.initResources`） | Namespace 创建、ElasticQuota / Secret / SA 等派生（由 tenant-operator） |
 | | 资源池 ResourcePool | `node_selector` + `tolerations` 描述的池元数据 | Node 自身打标 / 污染（由集群管理员） |
 | | 资源单元 ResourceUnit | 池内资源规格模板（`requests` / `limits` + 节点标签匹配） | 实际调度（koord-scheduler） |
-| | 配额 Quota | 扁平配额 `spec`（min / max）元数据 + Koordinator `ElasticQuota` CR 同步 + 用量回流 | 实际调度 / 抢占 / ElasticQuota status.used 累计（koord-scheduler + ElasticQuota plugin） |
+| | 配额 Quota | 扁平配额 `spec`（min / max）元数据 + 渲染进 `Tenant.spec.quotas[]` + 用量回流（来自 `Tenant.status.quotas[].used`） | ElasticQuota CR 派生（tenant-operator）、实际调度 / 抢占 / status.used 累计（koord-scheduler + ElasticQuota plugin） |
 | 工作负载对象（生命周期） | 任务 Job | `MLJob` CRUD + 状态回流 | Pod / PodGroup 编排（由 mljob-operator） |
 | | 服务 Service | `MLService` CRUD + 状态回流 | Deployment / 自动扩缩（由 mlservice-operator） |
 
@@ -68,7 +68,7 @@ components/compute/
 │   ├── tenant/               # 租户管理
 │   ├── resourcepool/         # 资源池管理
 │   ├── resourceunit/         # 资源单元管理
-│   ├── quota/                # 配额管理（ElasticQuota CR spec 下行 + status.used informer）
+│   ├── quota/                # 配额管理（PG `quotas` 表 CRUD；spec 下行与 used 回流借道 Tenant CR，由 internal/tenant 渲染）
 │   ├── job/                  # 任务管理（MLJob informer）
 │   ├── service/              # 在线服务管理（MLService informer）
 │   ├── k8sclient/            # controller-runtime client + informer factory（各模块通过它共享 cache）
@@ -91,8 +91,8 @@ components/compute/
 
 | 类别 | 权威方 | 流向 |
 | --- | --- | --- |
-| 配额定义 `spec`（min / max） | PG | API → PG → ElasticQuota `spec.min` / `spec.max` |
-| 配额实际用量 `used` | Koordinator | ElasticQuota `status.used` → Informer → PG `used` 缓存 |
+| 配额定义 `spec`（min / max） | PG | API → PG `quotas` → reconciler 渲染 `Tenant.spec.quotas[]` → tenant-operator 派生 `ElasticQuota.spec.{min, max}` |
+| 配额实际用量 `used` | Koordinator | `ElasticQuota.status.used` → tenant-operator 聚合 → `Tenant.status.quotas[].used` → Compute Tenant Informer → PG `quotas.used` 缓存 |
 | 业务元数据与期望 spec（名称、引用、spec 快照、desired hash） | PG | API → PG → reconciler → CR `spec` |
 | 运行状态（phase、endpoint、副本就绪） | K8s | CR `status` → Informer → PG |
 
@@ -103,11 +103,11 @@ PG 的 `used` 只用于 UI 列表展示和 best-effort 预检，**不参与写�
 采用 **Outbox 模式**：
 
 1. **API 同步路径只写 PG**：业务校验 → PG 事务插入 / 更新业务记录（新建时 `status='Creating'`，取消时 `status='Canceling'`，删除时 `status='Deleting'` + `deleted_at=now()`；允许变更的 spec 写入 PG 快照并更新 `desired_spec_hash`）→ commit → 返回业务 ID。API 不直接写 K8s。
-2. **Compute 内 reconciler worker 异步下发 CR**：每个模块（`internal/{job,service,tenant,quota}`）在 leader 副本起 goroutine，周期性扫描 PG 按生命周期谓词与 spec 同步谓词分派动作：
+2. **Compute 内 reconciler worker 异步下发 CR**：每个模块（`internal/{job,service,tenant,quota}`）在 leader 副本起 goroutine，周期性扫描 PG 按生命周期谓词与 spec 同步谓词分派动作。Tenant 与 Quota 共用 Tenant CR：`internal/quota` 的写路径只更新 PG `quotas`，并在事务末尾标记同租户 `tenants.desired_spec_hash` 需重算（详见 §6.2.4），由 `internal/tenant` reconciler 统一 patch Tenant CR。
    - `status='Creating' AND deleted_at IS NULL` → 按 PG 快照 `Create()` CR（附 label `axisml.io/<resource>-id=<uuid>` 作稳定锚点；409 `AlreadyExists` 视为成功，靠 `metadata.name` + label 双重去重幂等）；Informer ADD 事件推进到就绪态（`Pending` / `Active`）
    - `status='Canceling'`（Job 专属） → reconciler `patch MLJob.spec.runPolicy.suspend=true`；mljob-operator Handler 完成 suspend / Cleanup 后写 `status.conditions[type=Suspended,status=True,reason=CancelRequested]`，Informer 观察到该 condition 推进 PG 到 `Cancelled` 并入队 `Delete()` CR 做资源回收（DELETE 事件幂等到达，不再变更 PG 状态。详见 [operators/mljob-operator.md §4](operators/mljob-operator.md)）
    - `status='Deleting'` → `Delete()` CR；Informer DELETE 事件推进到 `Deleted`（配合设置 `deleted_at`）
-   - `desired_spec_hash != applied_spec_hash AND deleted_at IS NULL` → 对允许变更的 CR-backed 对象执行幂等 `Patch()`：Tenant 的 `spec.displayName` / `annotations` / `namespace.labels` / `namespace.annotations` / `resourceQuota` / `initResources` / `suspended`，Quota 的 `spec.min` / `spec.max`，Service 的 `spec.roles[0].replicas`。Patch 成功后写 `applied_spec_hash=desired_spec_hash`；后续运行状态仍由 Informer 回流
+   - `desired_spec_hash != applied_spec_hash AND deleted_at IS NULL` → 对允许变更的 CR-backed 对象执行幂等 `Patch()`：Tenant 的 `spec.displayName` / `annotations` / `namespace.labels` / `namespace.annotations` / `quotas` / `initResources` / `suspended`（其中 `spec.quotas[]` 由 `internal/tenant` 在 patch 时按 `SELECT * FROM quotas WHERE tenant_id=$1 AND deleted_at IS NULL` 渲染），Service 的 `spec.roles[0].replicas`。Patch 成功后写 `applied_spec_hash=desired_spec_hash`；后续运行状态仍由 Informer 回流
    - 失败按指数退避重试，错误写入业务记录的 `message` 字段供 UI 展示
    - PG 行不满足生命周期谓词且 `desired_spec_hash == applied_spec_hash` 后，reconciler 不再做下发动作
 
@@ -133,14 +133,13 @@ Creating ──(Informer ADD)──▶ 就绪态 ──(业务事件)──▶ �
 
 ### 5.3 状态回流（Informer）
 
-四条独立 Informer，分别由对应模块持有，通过 `k8sclient` 的 SharedInformerFactory 共享底层 cache：
+三条独立 Informer，分别由对应模块持有，通过 `k8sclient` 的 SharedInformerFactory 共享底层 cache。Quota 不再单设 Informer——`quotas.used` 与 quota 状态机（`Creating→Active→Deleting→Deleted`）都借道 Tenant CR `status.quotas[]` 回流（详见 §6.2.4）：
 
 | Informer | 监听对象 | 维护方 | 主要用途 | DELETE 事件语义 | spec 漂移处理 |
 | --- | --- | --- | --- | --- | --- |
 | MLJob Informer | `MLJob` CR | `internal/job/` | 推进 `Creating→Pending`、`Pending→Running`、运行终态（`Succeeded`/`Failed`）；`Canceling→Cancelled`（信号：`status.conditions[type=Suspended,status=True,reason=CancelRequested]`）；`Deleting→Deleted`（配合 `deleted_at`）；回写 `jobs.status` / `started_at` / `finished_at` | PG `status='Canceling'` → Suspended condition 推 `Cancelled`、写 `finished_at`、入队 `Delete()` CR；DELETE 事件幂等忽略。PG `status='Deleting'` → DELETE 推 `Deleted`。PG `status ∈ (Pending, Running)` 收到 DELETE → 外部误删，推 `Cancelled` + `finished_at` + `message='external delete'`，**不补偿重建**；已终态忽略 | 不适用（`spec` 不可变；cancel 由 `Canceling` 谓词 patch `spec.runPolicy.suspend=true`） |
 | MLService Informer | `MLService` CR | `internal/service/` | 推进 `Creating→Pending`、`Pending→Ready`、`Ready⇄Degraded⇄Failed`（由 `ready_replicas`/`desired_replicas` 映射，见 §6.3.2）；`Deleting→Deleted`；回写 `services.status` / `ready_replicas` / `endpoint` | PG `status='Deleting'` → 推 `Deleted`；其他运行态 → 外部误删，写 `status='Deleting'` + `deleted_at=now()` + `message='external delete'`，交 reconciler 对不存在 CR 做幂等确认后推 `Deleted`；已 `Deleted` 忽略 | 扩缩容只更新 PG desired spec；reconciler 根据 `desired_spec_hash != applied_spec_hash` patch CR，Informer 只消费状态回流 |
-| Tenant Informer | `Tenant` CR | `internal/tenant/` | 推进 `Creating→Active`、`Active⇄Suspended`、`Deleting→Deleted`，回写 `tenants.status` / `message` | PG `status='Deleting'` → 推 `Deleted`；其他（外部误删）→ 按 §5.4 配置对象策略由 reconciler 以 PG desired spec 补偿重建 | Tenant CR 声明字段漂移 → reconciler 按 PG desired spec 覆盖回 CR；成功后更新 `applied_spec_hash` |
-| Quota Informer | Koordinator `ElasticQuota` CR | `internal/quota/` | 回写 `quotas.used`（来自 `status.used`）；推进 `Creating→Active`、`Deleting→Deleted` | PG `status='Deleting'` → 推 `Deleted`；其他（外部误删）→ reconciler 按 PG desired spec 补偿重建 | `spec.min` / `spec.max` 漂移 → reconciler 按 PG desired spec 覆盖回 CR；成功后更新 `applied_spec_hash` |
+| Tenant Informer | `Tenant` CR | `internal/tenant/` | 推进 `Creating→Active`、`Active⇄Suspended`、`Deleting→Deleted`，回写 `tenants.status` / `message`；按 `Tenant.status.quotas[].{ready, used}` 推进同租户 `quotas.status`（`Creating→Active`、`Deleting→Deleted`）并刷新 `quotas.used` 缓存 | PG `tenants.status='Deleting'` → 推 `Deleted`，同租户 quotas 一并推 `Deleted`；其他（外部误删）→ 按 §5.4 配置对象策略由 reconciler 以 PG desired spec 补偿重建 Tenant CR（重建时一并渲染 quotas） | Tenant CR 声明字段漂移 → reconciler 按 PG desired spec 覆盖回 CR；成功后更新 `applied_spec_hash` |
 
 通用模式：启动时 `List` 做差异 upsert 与孤儿检测；`Watch` 事件入各自 work queue；单 worker 串行 reconcile；以 `resourceVersion` / `generation` 作乐观并发字段保证幂等。PG 更新短暂失败时事件在 work queue 中重试至成功。
 
@@ -150,9 +149,9 @@ Creating ──(Informer ADD)──▶ 就绪态 ──(业务事件)──▶ �
 
 **配置对象（Tenant、Quota）**
 
-- **CR 漂移**：Informer 事件触发 Compute 按 PG 快照对齐——以 PG 为权威的字段（Quota 的 `spec.min` / `spec.max`、Tenant 的声明字段）覆盖回 CR；CR 权威字段（ElasticQuota `status.used` 等）不由 Compute 写回
-- **正向孤儿**（PG 有行但无 CR）：reconciler 幂等 `Create()` 重建，CR spec 来自 PG desired spec
-- **反向孤儿**（CR 存在但 PG 无对应行或已软删）：默认删除 CR 并记录审计；高敏感场景可切为告警人工介入
+- **CR 漂移**：Informer 事件触发 Compute 按 PG 快照对齐——以 PG 为权威的字段（Tenant 的所有声明字段，含内联的 `spec.quotas[]`）覆盖回 Tenant CR；CR 权威字段（`Tenant.status.quotas[].used` 来自 ElasticQuota.status.used）不由 Compute 写回
+- **正向孤儿**（PG 有行但无 CR）：reconciler 幂等 `Create()` 重建 Tenant CR（连带 quotas 一并渲染），CR spec 来自 PG desired spec；Quota 没有独立 CR，反向孤儿仅出现在 ElasticQuota 层并由 tenant-operator 在 Tenant CR 漂移修复后自然纠正
+- **反向孤儿**（Tenant CR 存在但 PG 无对应行或已软删）：默认删除 CR 并记录审计；高敏感场景可切为告警人工介入
 
 **工作负载对象（Job、Service）**
 
@@ -188,7 +187,7 @@ Compute 默认 `replicas=1`（Standard 与 Lite 均同），但架构按"多副�
 
 **UNIQUE 约束统一语义**：本节所有 schema 里标注的 `UNIQUE` 均实现为 PG partial unique index，`WHERE deleted_at IS NULL`——即软删行不占用唯一键，同名资源在原行被软删后可被再次创建。对应迁移示例：`CREATE UNIQUE INDEX ... ON tbl(col) WHERE deleted_at IS NULL`。
 
-**`name` 字段 DNS-1123 硬校验**：所有承载业务标识并会映射到 K8s 对象名的 `name` 字段（Tenant、ResourcePool、Quota、Job、Service；ResourceUnit 在此之上还叠加 §6.2.3 的语义命名约定），API 层统一校验：字符集 `[a-z0-9-]`，首尾为字母或数字，长度 3–40，不允许连续 `--`。长度上限锁 40 是为了在最坏拼接场景下仍满足 K8s 对象名限制——例如 tenant-operator 的 per-tenant 资源前缀 `axisml-tenant-<tenant>-<sub>`（≤55 字符基础前缀 + 子名，DNS-1123 subdomain 上限 253）、ElasticQuota 名 `axisml-<tenant>-<pool>-<quota>`（≤129 字符，DNS-1123 subdomain 上限 253）。Tenant 自身的 namespace 名由 `Tenant.spec.namespace.name` 显式声明，不再约定固定格式（详见 [tenant-operator §3.1 / §6.1](operators/tenant-operator.md)）。需要更长或含大小写/空格的可读名请填 `display_name`。
+**`name` 字段 DNS-1123 硬校验**：所有承载业务标识并会映射到 K8s 对象名的 `name` 字段（Tenant、ResourcePool、Quota、Job、Service；ResourceUnit 在此之上还叠加 §6.2.3 的语义命名约定），API 层统一校验：字符集 `[a-z0-9-]`，首尾为字母或数字，长度 3–40，不允许连续 `--`。长度上限锁 40 是为了在最坏拼接场景下仍满足 K8s 对象名限制——例如 tenant-operator 的 per-tenant 资源前缀 `axisml-tenant-<tenant>-<sub>`（≤55 字符基础前缀 + 子名，DNS-1123 subdomain 上限 253）、tenant-operator 派生的 ElasticQuota 名 `axisml-<tenant>-<pool>-<quota>`（≤129 字符，DNS-1123 subdomain 上限 253）。Tenant 自身的 namespace 名由 `Tenant.spec.namespace.name` 显式声明，不再约定固定格式（详见 [tenant-operator §3.1 / §6.1](operators/tenant-operator.md)）。需要更长或含大小写/空格的可读名请填 `display_name`。
 
 **迁移**：由 `golang-migrate` embedded 方式在服务启动时执行，依赖 `schema_migrations` 表的 PG advisory lock 避免多副本并发迁移；生产可选通过 Helm `Job` 隔离。
 
@@ -206,7 +205,7 @@ tenants(
   name                text UNIQUE,        -- 作为 Tenant CR 的 metadata.name
   namespace           text,               -- Tenant CR `spec.namespace.name` 的查询镜像；非唯一索引（多 Tenant 可共享同一 Namespace，详见 tenant-operator §7）
   display_name        text,               -- Tenant CR `spec.displayName` 的查询镜像
-  spec                jsonb,              -- 期望 Tenant.spec 快照：namespace / displayName / annotations / resourceQuota / initResources / suspended
+  spec                jsonb,              -- 期望 Tenant.spec 快照：namespace / displayName / annotations / quotas / initResources / suspended（quotas 由 reconciler 在 patch CR 前从 quotas 表渲染，见 §6.2.4）
   desired_spec_hash   text,               -- API 每次修改 spec 后重算；驱动 reconciler patch CR
   applied_spec_hash   text,               -- reconciler 成功下发 CR spec 后写入
   status              text,               -- Creating / Active / Suspended / Deleting / Deleted（Creating/Suspended/Deleting 由 API 写入；Active/Deleted 由 Informer 推进）
@@ -218,7 +217,7 @@ tenants(
 )
 ```
 
-`namespace` / `display_name` / `annotations` 是列表查询与筛选用的镜像列；Tenant CR 的权威声明在 `spec` jsonb。`spec` 至少覆盖 [tenant-operator.md §3.2](operators/tenant-operator.md) 定义的 `namespace`、`displayName`、`annotations`、`resourceQuota`、`initResources`、`suspended`，其中 `spec.namespace.name` 创建后不可变。
+`namespace` / `display_name` / `annotations` 是列表查询与筛选用的镜像列；Tenant CR 的权威声明在 `spec` jsonb。`spec` 至少覆盖 [tenant-operator.md §3.2](operators/tenant-operator.md) 定义的 `namespace`、`displayName`、`annotations`、`quotas`、`initResources`、`suspended`，其中 `spec.namespace.name` 创建后不可变。`spec.quotas[]` 由 reconciler 在 patch Tenant CR 前从 `quotas` 表实时渲染（详见 §6.2.4），PG `tenants.spec` 中的 `quotas` 字段是上次 patch 时的快照，主要用于幂等性比较。
 
 **状态机**
 
@@ -235,11 +234,11 @@ Creating ──(Informer ADD)──▶ Active ⇄ Suspended ──(DELETE req)�
 
 | 操作 | PG | Kubernetes（reconciler 异步执行） |
 | --- | --- | --- |
-| 创建 | insert `tenants`，写入 `spec` 与 `desired_spec_hash`，`applied_spec_hash=NULL`，`status='Creating'` | 创建 cluster-scoped `Tenant` CR（label `axisml.io/tenant-id=<uuid>`），tenant-operator 按 `spec.namespace.name` 落地 Namespace（已存在则共享）；仅在独占 Namespace 下按 `spec.resourceQuota` 创建 K8s ResourceQuota 兜底，共享 Namespace 的租户级容量边界由 Compute Quota / Koordinator ElasticQuota 表达（缺省=不限额，详见 [tenant-operator §6.1 / §6.2](operators/tenant-operator.md)）；reconciler 创建成功后写 `applied_spec_hash=desired_spec_hash`，Informer ADD 推 `Active` |
+| 创建 | insert `tenants`，写入 `spec`（含 `quotas[]` 渲染快照）与 `desired_spec_hash`，`applied_spec_hash=NULL`，`status='Creating'` | 创建 cluster-scoped `Tenant` CR（label `axisml.io/tenant-id=<uuid>`），tenant-operator 按 `spec.namespace.name` 落地 Namespace（已存在则共享）、按 `spec.quotas[]` 派生 ElasticQuota CR、按 `spec.initResources` 派生 Secret / ConfigMap / SA / RBAC（详见 [tenant-operator §6](operators/tenant-operator.md)）；reconciler 创建成功后写 `applied_spec_hash=desired_spec_hash`，Informer ADD 推 `Active` |
 | 更新 | 校验 `spec.namespace.name` 不变；更新 `tenants.spec` 及镜像列，重算 `desired_spec_hash` | reconciler 观察到 `desired_spec_hash != applied_spec_hash` 后 patch Tenant CR；成功后写 `applied_spec_hash` |
 | 挂起 | 更新 `tenants.spec.suspended=true`，重算 `desired_spec_hash`；可同步把 `status='Suspended'` 用于立即阻断新提交 | reconciler patch Tenant CR `spec.suspended=true`；tenant-operator 仅写 `status.phase=Suspended`、不停机底层资源；Informer 回流确认 `Suspended` |
 | 恢复 | 更新 `tenants.spec.suspended=false`，重算 `desired_spec_hash`；`status` 等待 Informer 回流 `Active` | reconciler patch Tenant CR `spec.suspended=false`；operator 重新推导 `Active` 后由 Informer 回流 |
-| 删除 | `status='Deleting'`，写 `deleted_at` | reconciler `Delete()` Tenant CR，K8s GC 通过 ownerReference 级联清理 per-tenant 资源（ResourceQuota / Secret / ConfigMap / SA / Role / RoleBinding）；**Namespace 不删除**（详见 [tenant-operator §6.1](operators/tenant-operator.md)）；Informer 观察 CR 消失 → `Deleted` |
+| 删除 | `status='Deleting'`，写 `deleted_at`；同租户 quotas 也同步标记 `status='Deleting'` + `deleted_at` | reconciler `Delete()` Tenant CR，K8s GC 通过 ownerReference 级联清理 per-tenant 资源（ElasticQuota / Secret / ConfigMap / SA / Role / RoleBinding）；**Namespace 不删除**（详见 [tenant-operator §6.1](operators/tenant-operator.md)）；Informer 观察 CR 消失 → 同时推 Tenant 与同租户 quotas 至 `Deleted` |
 
 **默认租户**：Helm `post-install` Job 幂等初始化 `default` 租户。
 
@@ -347,10 +346,8 @@ quotas(
   pool_id             uuid FK resource_pools(id),
   name                text,                      -- "default" / "training" / ...
   spec                jsonb,                     -- 配额 spec（min / max），与上游 sigs.k8s.io scheduler-plugins ElasticQuota 字段一一对应；见下
-  desired_spec_hash   text,                      -- spec 变更后重算；驱动 ElasticQuota spec 下发
-  applied_spec_hash   text,                      -- reconciler 成功下发 ElasticQuota spec 后写入
-  status              text,                      -- Creating / Active / Deleting / Deleted
-  used                jsonb,                     -- Informer 从 ElasticQuota status.used 缓存，只读不记账；反映所有 schedulerName=koord-scheduler 且带 quota.scheduling.koordinator.sh/name=<eq-name> label 的 Pod 用量。AxisML 工作负载 Pod（MLJob 各 backend、MLService native + KServe 派生）一律满足这两个条件（详见 infra.md §8.3 Quota 全覆盖契约），故 Job + Service 的合计用量都自然进入此 used 字段。
+  status              text,                      -- Creating / Active / Deleting / Deleted（由 Tenant Informer 按 Tenant.status.quotas[i].ready 推进）
+  used                jsonb,                     -- 缓存自 Tenant.status.quotas[i].used（来自 ElasticQuota.status.used）；只读不记账；反映所有 schedulerName=koord-scheduler 且带 quota.scheduling.koordinator.sh/name=<eq-name> label 的 Pod 用量。AxisML 工作负载 Pod（MLJob 各 backend、MLService native + KServe 派生）一律满足这两个条件（详见 infra.md §8.3 Quota 全覆盖契约），故 Job + Service 的合计用量都自然进入此 used 字段。
   created_at          timestamptz,
   updated_at          timestamptz,
   deleted_at          timestamptz,
@@ -358,7 +355,9 @@ quotas(
 )
 ```
 
-`spec` 是 ElasticQuota spec 的 desired state，字段集与上游 `scheduling.sigs.k8s.io/v1alpha1` ElasticQuota 完全一致。创建或更新 Quota 时 API 只写 PG 并重算 `desired_spec_hash`；reconciler 创建 / patch ElasticQuota 成功后写 `applied_spec_hash=desired_spec_hash`。`used` 只由 Informer 从 ElasticQuota status 回流。
+Quota 在概念上是 Tenant 的子资源——CR 端不再单独下发 `ElasticQuota`，而是把 PG `quotas` 表渲染进 `Tenant.spec.quotas[]`，由 tenant-operator 派生 ElasticQuota（详见 [tenant-operator §6.2](operators/tenant-operator.md)）。这给 Compute / Tenant CR / koord-scheduler 之间提供了统一的双向数据链路。
+
+`spec` 是 ElasticQuota spec 的 desired state，字段集与上游 `scheduling.sigs.k8s.io/v1alpha1` ElasticQuota 完全一致。Quota 不再持有独立的 `desired_spec_hash` / `applied_spec_hash`——其下行同步借道 Tenant CR：API 写 PG `quotas` 时同事务标记同租户 `tenants.desired_spec_hash` 需重算；`internal/tenant` reconciler 在 patch Tenant CR 时把 `SELECT * FROM quotas WHERE tenant_id=$1 AND deleted_at IS NULL` 渲染进 `Tenant.spec.quotas[]`，patch 成功后写 `tenants.applied_spec_hash`。`used` 由 Compute Tenant Informer 从 `Tenant.status.quotas[].used` 回流。
 
 `spec` 字段结构：
 
@@ -383,8 +382,10 @@ quotas(
 **状态机**
 
 ```
-Creating ──(Informer ADD)──▶ Active ──(DELETE req)──▶ Deleting ──(CR 确认清理)──▶ Deleted
+Creating ──(Tenant.status.quotas[i].ready=true)──▶ Active ──(DELETE req)──▶ Deleting ──(Tenant.status 不再含该 quota / Tenant CR 删除)──▶ Deleted
 ```
+
+Quota 的状态机由 `internal/tenant` 的 Tenant Informer 驱动：每次 Tenant CR `status` 更新时，按 `Tenant.status.quotas[].{ready, used}` 与 PG 行做 join，推进对应 quota 的 `status` 与 `used`。
 
 **模型特征**
 
@@ -396,10 +397,10 @@ Creating ──(Informer ADD)──▶ Active ──(DELETE req)──▶ Deleti
 
 **与 Koordinator ElasticQuota 的映射**
 
-- 每条 Compute Quota 1:1 对应一条 Koordinator `ElasticQuota` CR（namespace-scoped；CR 落在租户 namespace 下）
-- 命名约定：`axisml-<tenant>-<pool>-<quota>`，例：`axisml-default-gpu-a100-training`
-- 配额下行：`spec.min` → `ElasticQuota.spec.min`；`spec.max` → `ElasticQuota.spec.max`
-- 用量上行：Informer 观察 `ElasticQuota.status.used` → 缓存到 PG `used`
+- 每条 Compute Quota 1:1 渲染为 `Tenant.spec.quotas[i]`，再由 tenant-operator 1:1 派生一条 Koordinator `ElasticQuota` CR（namespace-scoped；CR 落在租户 namespace 下）
+- 命名约定：`axisml-<tenant>-<pool>-<quota>`，例：`axisml-default-gpu-a100-training`（命名由 tenant-operator 持有，与 §6.1 命名校验对齐）
+- 配额下行：PG `quotas.spec.{min, max}` → `Tenant.spec.quotas[i].{min, max}` → `ElasticQuota.spec.{min, max}`
+- 用量上行：`ElasticQuota.status.used` → tenant-operator 聚合到 `Tenant.status.quotas[i].used` → Compute Tenant Informer → PG `quotas.used`
 
 **多 namespace 契约**：koord-scheduler 的 elasticquota 插件通过 SharedInformerFactory 监听**全集群**所有 namespace 的 `ElasticQuota` CR，`koord-scheduler-config` 中的 `quotaGroupNamespace`（默认 = 安装 namespace `axisml-infra`）只是未带 quota label Pod 的兜底归属点，并非 CR 监听过滤器。Pod 通过 label `quota.scheduling.koordinator.sh/name=<quota-name>` 按**名字**跨 namespace 绑定 quota（quota name 在集群内唯一即可），因此 ElasticQuota CR 与 workload Pod 都落在租户 namespace 是受官方支持的部署形态，`status.used` 与 `min/max` 硬约束照常生效。
 
@@ -497,7 +498,7 @@ Compute 只负责把以下业务语义装进 MLJob CR；具体 `spec` 字段结�
 | Job 自然结束 | Informer 回流 `Succeeded` / `Failed` | operator/GC 按策略清理 Pod；Compute 不主动删除 CR |
 | 外部误删 CR（PG 在 `Pending`/`Running`） | Informer DELETE → `Cancelled` + `finished_at` + `message='external delete'` | 不补偿重建 |
 
-级联效果：CR 删除 → mljob-operator 清理 Pod → Pod 终止后 ElasticQuota plugin 释放对应资源 → Quota Informer 回流刷新 `quotas.used`。
+级联效果：CR 删除 → mljob-operator 清理 Pod → Pod 终止后 ElasticQuota plugin 释放对应资源 → tenant-operator 把 `ElasticQuota.status.used` 聚合到 `Tenant.status.quotas[].used` → Compute Tenant Informer 刷新 `quotas.used`。
 
 #### 6.3.2 在线服务（Service）
 
@@ -648,8 +649,8 @@ Compute 对 `GET /jobs/{job}/logs` 只做路径级鉴权与 Pod 定位，实际�
 
 | 对象 | 交互方式 | 关注点 |
 | --- | --- | --- |
-| Kubernetes API | controller-runtime `client.Client` + informer | RBAC：MLJob / MLService / Tenant 全部 verbs；ElasticQuota `create/update/delete/get/list/watch`（namespace-scoped，跨多个租户 ns，需用 ClusterRole） |
-| Koordinator | ElasticQuota CRD 同步（见 §6.2.4、§5） | Compute 只维护 ElasticQuota CR 与 used 缓存；调度 / accounting 由 koord-scheduler 自动完成 |
+| Kubernetes API | controller-runtime `client.Client` + informer | RBAC：MLJob / MLService / Tenant 全部 verbs；Compute 不直接读写 ElasticQuota（由 tenant-operator 持有，详见 [tenant-operator §8](operators/tenant-operator.md)） |
+| Koordinator | 通过 Tenant CR 间接维护 ElasticQuota（见 §6.2.4、§5） | Compute 只渲染 `Tenant.spec.quotas[]` 并消费 `Tenant.status.quotas[].used`；ElasticQuota CR 派生与 used 聚合在 tenant-operator；调度 / accounting 由 koord-scheduler 自动完成 |
 | PostgreSQL | GORM；与其他服务共用 database `axisml`（按表名前缀或 schema 逻辑隔离） | 迁移随二进制打包，启动时执行（golang-migrate） |
 | Platform | REST，请求头透传身份 | Compute 信任内部调用；mTLS / Compute 主动鉴权列为未来规划 |
 | Artifacts | HTTP 客户端 | 懒查询：提交任务时校验 image / model / dataset 引用存在 |
@@ -673,7 +674,7 @@ Compute 对 `GET /jobs/{job}/logs` 只做路径级鉴权与 Pod 定位，实际�
 | `deployment.yaml`（已存在，换镜像） | 将 nginx placeholder 替换为真实镜像，加探针 |
 | `service.yaml`（已存在） | 保持 ClusterIP 8081 |
 | `serviceaccount.yaml`（新增） | Compute 服务账号 |
-| `rbac.yaml`（新增） | ClusterRole + ClusterRoleBinding：MLJob / MLService / Tenant / ElasticQuota |
+| `rbac.yaml`（新增） | ClusterRole + ClusterRoleBinding：MLJob / MLService / Tenant（ElasticQuota 不在此处，归 tenant-operator） |
 | `servicemonitor.yaml`（新增） | `/metrics` 暴露，kube-prometheus-stack 自动发现 |
 
 ### 9.3 对外暴露
@@ -703,7 +704,7 @@ Helm `post-install` Job 初始化（所有操作幂等，升级 Helm 版本不�
 | 指标 | 类型 | 含义 | 告警建议 |
 | --- | --- | --- | --- |
 | `axisml_compute_is_leader` | gauge | 当前副本是否为 leader（0/1） | 多副本时 `sum == 1` 否则异常 |
-| `axisml_compute_reconciler_oldest_pending_seconds{resource,predicate}` | gauge | 生命周期谓词与 spec 同步谓词工作集中最老未处理行的 age，按资源（job/service/tenant/queue）与谓词（creating/canceling/deleting/spec_sync）拆分 | 持续 > 60s → reconciler 滞后 |
+| `axisml_compute_reconciler_oldest_pending_seconds{resource,predicate}` | gauge | 生命周期谓词与 spec 同步谓词工作集中最老未处理行的 age，按资源（job/service/tenant/quota）与谓词（creating/canceling/deleting/spec_sync）拆分 | 持续 > 60s → reconciler 滞后 |
 | `axisml_compute_reconciler_actions_total{resource,predicate,result}` | counter | reconciler 动作计数（成功 / 重试 / 失败），包含 create / cancel / delete / spec_sync | 失败率或重试率突增 |
 | `axisml_compute_informer_workqueue_depth{resource}` | gauge | 各模块 Informer work queue 当前深度 | 持续 > 阈值 → 回流滞后 |
 | `axisml_compute_cr_drift_repair_total{resource,kind}` | counter | CR 漂移修复次数（kind：`missing`/`spec_mismatch`/`orphan_delete`） | 非零即值得看 |
@@ -716,9 +717,10 @@ Helm `post-install` Job 初始化（所有操作幂等，升级 Helm 版本不�
 | 决策项 | 决策 | 理由 |
 | --- | --- | --- |
 | 系统管理归属 | 留在 Compute | 与计算任务提交路径强耦合（配额校验、资源引用），避免跨服务调用开销；内部按 package 隔离保留未来拆分空间 |
-| 配额模型 | 扁平结构（v1 无父子层级）；每个 `(tenant, pool)` 默认 `default`；1:1 映射到 Koordinator `ElasticQuota`（namespace-scoped，落在租户 ns） | 租户已是强隔离边界，业务线拆分用同级多配额即可；分层（Koord-Queue tree）带来的 schema / 链式配额 / 孤儿补偿复杂度放到后续按需引入 |
+| 配额模型 | 扁平结构（v1 无父子层级）；每个 `(tenant, pool)` 默认 `default`；1:1 渲染进 `Tenant.spec.quotas[]`，由 tenant-operator 派生 Koordinator `ElasticQuota`（namespace-scoped，落在租户 ns） | 租户已是强隔离边界，业务线拆分用同级多配额即可；Quota 在概念上是 Tenant 子资源，借道 Tenant CR 内联让 tenant-operator 成为 ElasticQuota single writer，给 Compute 提供统一双向数据链路；分层（Koord-Queue tree）放到后续按需引入 |
 | 配额记账 | PG 不记账；Koordinator ElasticQuota 是实际用量权威；Compute 仅做 best-effort 预检；所有 AxisML workload Pod 强制走 koord-scheduler 并通过 quota label 计入 ElasticQuota | 避免 PG / K8s 双源冲突；Quota 全覆盖契约（[infra.md §8.3](infra.md)）保证任何 backend 都不会"绕过 quota 的调度路径"，杜绝旧版"已接入"vs"未接入" Queue accounting 的差异 |
-| 配额建模 | `spec` 采用上游 sigs.k8s.io scheduler-plugins ElasticQuota 的纯二维模型：`min`（保留份额，不可被抢占下界）/ `max`（硬上限）；API 必填 `max`，`min` 默认 0；不引入 Koordinator 私有 `shared-weight` annotation | 与上游 ElasticQuota CR 字段一一对应，避免自研配额仲裁；保持与 K8s 原生资源能力（ResourceQuota / scheduler-plugins ElasticQuota）的语义同构；借用容量分配走 koord-scheduler 默认平权；未来若真有差异化共享需求再按需启用 weight |
+| 配额建模 | `spec` 采用上游 sigs.k8s.io scheduler-plugins ElasticQuota 的纯二维模型：`min`（保留份额，不可被抢占下界）/ `max`（硬上限）；API 必填 `max`，`min` 默认 0；不引入 Koordinator 私有 `shared-weight` annotation | 与上游 ElasticQuota CR 字段一一对应，避免自研配额仲裁；保持与 scheduler-plugins ElasticQuota 的语义同构；借用容量分配走 koord-scheduler 默认平权；未来若真有差异化共享需求再按需启用 weight |
+| 配额下行 / 用量回流 | 经由 Tenant CR 内联：API 写 PG `quotas` → 标记 `tenants.desired_spec_hash` → `internal/tenant` reconciler 渲染 `Tenant.spec.quotas[]` → tenant-operator 派生 ElasticQuota；用量反向 `ElasticQuota.status.used` → `Tenant.status.quotas[].used` → Compute Tenant Informer → PG `quotas.used` | Tenant CR 是 Compute 与 K8s 的双向数据链路枢纽；ElasticQuota 由 tenant-operator 独占 owner，Compute 不需要直接 RBAC；Quota 的状态机也借道 Tenant CR `status.quotas[]` 推进，无需独立 Informer |
 | MLJob spec 粒度 | 声明式高阶抽象（`backend.{name,engine,config}` / `roles[]` / `scheduling` / `runPolicy` 等） | 隔离 K8s 细节变更影响；operator 可独立演进 Pod 模板与 backend Handler |
 | 状态同步 | Informer + PG 落库 | K8s 原生；支持大列表与按状态筛选；与 controller-runtime 工具链吻合 |
 | 认证鉴权 | Platform 统一认证与鉴权；Compute 仅通过 `X-Axisml-User` 记录调用方做审计 / ownership | 避免职责重复；外部入口收敛到 Platform；租户归属通过 URL 路径自然表达 |
