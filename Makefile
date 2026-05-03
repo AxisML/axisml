@@ -82,8 +82,17 @@ TENANT_OPERATOR_DIR ?= components/operators/tenant-operator
 MLSERVICE_OPERATOR_DIR ?= components/operators/mlservice-operator
 MLSERVICE_OPERATOR_IMG ?= axisml/mlservice-operator:dev
 
+MLJOB_OPERATOR_DIR ?= components/operators/mljob-operator
+# Default tag tracks the axisml-system chart's appVersion so the
+# image we build locally matches the tag the Helm chart renders by
+# default (Chart.AppVersion via the axisml.image helper). Override
+# MLJOB_OPERATOR_IMAGE_TAG to push a non-release build.
+MLJOB_OPERATOR_IMAGE_TAG ?= $(shell awk '/^appVersion:/{gsub(/"/,"",$$2);print $$2}' deploy/helm/axisml-system/Chart.yaml)
+MLJOB_OPERATOR_IMAGE     ?= axisml/mljob-operator:$(MLJOB_OPERATOR_IMAGE_TAG)
+
 .PHONY: tenant-operator-build tenant-operator-test tenant-operator-image tenant-operator-image-load
 .PHONY: mlservice-operator-build mlservice-operator-test mlservice-operator-image mlservice-operator-image-load
+.PHONY: mljob-operator-tidy mljob-operator-generate mljob-operator-build mljob-operator-test mljob-operator-image mljob-operator-image-load
 
 tenant-operator-build: ## Compile the tenant-operator binary
 	@$(MAKE) -C $(TENANT_OPERATOR_DIR) build
@@ -109,9 +118,29 @@ mlservice-operator-image: ## Build the mlservice-operator container image
 mlservice-operator-image-load: mlservice-operator-image ## Build and load the mlservice-operator image into minikube
 	@minikube -p $(MINIKUBE_PROFILE) image load $(MLSERVICE_OPERATOR_IMG)
 
-# --- Integration tests ---
+mljob-operator-tidy: ## Resolve Go module deps for mljob-operator
+	@$(MAKE) -C $(MLJOB_OPERATOR_DIR) tidy
 
-.PHONY: integration-test
+mljob-operator-generate: ## Run controller-gen for deepcopy code
+	@$(MAKE) -C $(MLJOB_OPERATOR_DIR) generate
+
+mljob-operator-build: ## Compile the mljob-operator binary
+	@$(MAKE) -C $(MLJOB_OPERATOR_DIR) build
+
+mljob-operator-test: ## Run mljob-operator unit tests (no cluster required)
+	@$(MAKE) -C $(MLJOB_OPERATOR_DIR) test
+
+mljob-operator-image: ## Build the mljob-operator container image
+	@docker build -t $(MLJOB_OPERATOR_IMAGE) -f $(MLJOB_OPERATOR_DIR)/Dockerfile $(MLJOB_OPERATOR_DIR)
+
+mljob-operator-image-load: mljob-operator-image ## Build and load the mljob-operator image into minikube
+	@minikube image load $(MLJOB_OPERATOR_IMAGE) -p $(MINIKUBE_PROFILE)
+
+# --- Aggregated test targets ---
+
+.PHONY: test integration-test
+
+test: tenant-operator-test mlservice-operator-test mljob-operator-test ## Run unit tests across all operators (no cluster required)
 
 integration-test: ## Run all integration tests against the running cluster (requires `make cluster-up && make helm-install-infra`; in-cluster operators must be scaled to 0)
 	@$(MAKE) -C $(TENANT_OPERATOR_DIR) test-integration

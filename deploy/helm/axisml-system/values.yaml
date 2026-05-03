@@ -110,9 +110,16 @@ operators:
     enabled: true
     image:
       registry: ""
-      repository: nginx
-      tag: "1.27"
+      repository: axisml/mljob-operator
+      tag: ""               # defaults to Chart.AppVersion via the axisml.image helper
       pullPolicy: IfNotPresent
+    leaderElection:
+      enabled: true
+    handlers:
+      nativeJob:
+        enabled: true
+      nativePodGroup:
+        enabled: true
     resources:
       requests:
         cpu: 50m

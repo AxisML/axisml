@@ -1,4 +1,5 @@
 {{- if and .Values.operators.enabled .Values.operators.mljobOperator.enabled }}
+{{- $op := .Values.operators.mljobOperator }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -22,8 +23,37 @@ spec:
       serviceAccountName: {{ include "axisml.fullname" . }}-mljob-operator
       containers:
         - name: mljob-operator
-          image: {{ include "axisml.image" (dict "imageRoot" .Values.operators.mljobOperator.image "global" .Values.global "chart" .Chart) }}
-          imagePullPolicy: {{ .Values.operators.mljobOperator.image.pullPolicy }}
+          image: {{ include "axisml.image" (dict "imageRoot" $op.image "global" .Values.global "chart" .Chart) }}
+          imagePullPolicy: {{ $op.image.pullPolicy }}
+          args:
+            - --metrics-bind-address=:8080
+            - --health-probe-bind-address=:8081
+            {{- if $op.leaderElection.enabled }}
+            - --leader-elect=true
+            {{- else }}
+            - --leader-elect=false
+            {{- end }}
+            - --enable-native-job={{ $op.handlers.nativeJob.enabled }}
+            - --enable-native-podgroup={{ $op.handlers.nativePodGroup.enabled }}
+          ports:
+            - name: metrics
+              containerPort: 8080
+              protocol: TCP
+            - name: health
+              containerPort: 8081
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 10
           resources:
-            {{- toYaml .Values.operators.mljobOperator.resources | nindent 12 }}
+            {{- toYaml $op.resources | nindent 12 }}
 {{- end }}

@@ -1,0 +1,16 @@
+domain: axisml.io
+layout:
+  - go.kubebuilder.io/v4
+projectName: mljob-operator
+repo: axisml.io/operators/mljob
+version: "3"
+resources:
+  - api:
+      crdVersion: v1
+      namespaced: true
+    controller: true
+    domain: axisml.io
+    group: axisml
+    kind: MLJob
+    path: axisml.io/operators/mljob/api/v1alpha1
+    version: v1alpha1
