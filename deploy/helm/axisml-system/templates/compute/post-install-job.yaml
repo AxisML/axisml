@@ -22,6 +22,8 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      initContainers:
+        {{- include "axisml.waitForDatabase" . | nindent 8 }}
       containers:
         - name: bootstrap
           image: {{ include "axisml.image" (dict "imageRoot" .Values.compute.image "global" .Values.global "chart" .Chart) }}

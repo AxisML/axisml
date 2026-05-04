@@ -87,3 +87,35 @@ Database port helper.
 {{- .Values.externalDatabase.port | default 5432 -}}
 {{- end -}}
 {{- end }}
+
+{{/*
+wait-for-database initContainer. Polls TCP reachability of the database
+Service until it accepts connections; the bitnami/postgresql sub-chart's
+pg_isready readiness probe gates Service endpoints, so a successful TCP
+connect implies the DB is ready to accept queries.
+
+Without this gate, the compute Deployment + bootstrap post-install Job
+crash-loop while the DB is still starting (image pull + initdb on a
+fresh PVC), and the bootstrap Job exhausts its backoffLimit before the
+DB ever becomes reachable. Caller passes the chart context as `.`.
+*/}}
+{{- define "axisml.waitForDatabase" -}}
+- name: wait-for-database
+  image: busybox:1.36.1
+  imagePullPolicy: IfNotPresent
+  env:
+    - name: DATABASE_HOST
+      value: {{ include "axisml.databaseHost" . | quote }}
+    - name: DATABASE_PORT
+      value: {{ include "axisml.databasePort" . | quote }}
+  command:
+    - sh
+    - -c
+    - |
+      echo "wait-for-database: $DATABASE_HOST:$DATABASE_PORT"
+      until nc -z "$DATABASE_HOST" "$DATABASE_PORT"; do
+        echo "wait-for-database: still unavailable; sleeping 2s"
+        sleep 2
+      done
+      echo "wait-for-database: $DATABASE_HOST:$DATABASE_PORT is reachable"
+{{- end }}
