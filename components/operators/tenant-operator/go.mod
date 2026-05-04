@@ -3,7 +3,7 @@ module github.com/axisml/axisml/components/operators/tenant-operator
 go 1.26.0
 
 require (
-	github.com/koordinator-sh/koordinator v1.8.0
+	github.com/koordinator-sh/koordinator v1.7.0
 	k8s.io/api v0.36.0
 	k8s.io/apimachinery v0.36.0
 	k8s.io/client-go v0.36.0

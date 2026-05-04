@@ -9,7 +9,7 @@ go 1.26.0
 require (
 	github.com/axisml/axisml/components/operators/tenant-operator v0.0.0-00010101000000-000000000000
 	github.com/axisml/axisml/test/testutil v0.0.0-00010101000000-000000000000
-	github.com/koordinator-sh/koordinator v1.8.0
+	github.com/koordinator-sh/koordinator v1.7.0
 	github.com/stretchr/testify v1.11.1
 	k8s.io/api v0.36.0
 	k8s.io/apimachinery v0.36.0

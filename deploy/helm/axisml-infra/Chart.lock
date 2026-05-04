@@ -13,9 +13,9 @@ dependencies:
   version: v26.3.1
 - name: koordinator
   repository: https://koordinator-sh.github.io/charts
-  version: 1.8.0
+  version: 1.7.0
 - name: kube-prometheus-stack
   repository: https://prometheus-community.github.io/helm-charts
   version: 84.5.0
-digest: sha256:d76e8b7fc9e6af5e8d5e035967a920964fc671ef110ef7963309b84854d6cbee
-generated: "2026-05-03T00:22:38.647906+08:00"
+digest: sha256:4d498bf4fc83584ba5870b4a3b2fdaee4a406855fabc43f0d64034290de588c9
+generated: "2026-05-04T16:40:14.067828+08:00"
