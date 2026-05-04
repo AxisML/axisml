@@ -6,7 +6,7 @@ AxisML Compute 是平台的计算服务层，基于 Go 开发，承载 **计算�
 
 **关键边界原则**：Compute 不直接创建 Namespace、Pod 等底层 K8s 资源，这些由对应 Operator 或集群管理员负责；Compute 仅维护业务元数据，并通过 CRD 向 Operator 声明意图。
 
-**与 backend 解耦**：mljob-operator / mlservice-operator 内部按 `spec.backend.{name, engine}` 元组路由到不同 Handler。MLJob 支持 `(native, job)`（默认）/ `(native, podgroup)` / `(kubeflow-trainer, pytorchjob / tfjob / mpijob …)` / `(custom, *)`；MLService 支持 `(native, deployment)`（默认）/ `(native, statefulset)` / `(kserve, inference)` / `(kserve, llminference)` / `(custom, *)`，其中 `(kserve, inference)` 对应 KServe `InferenceService` CR、内部 runtime（triton / vllm / tfserving / torchserve / huggingface …）由 `backend.config.runtime` 选择，`(kserve, llminference)` 对应 KServe `LLMInferenceService` CR、承载 LLM 原生服务（PD 分离）。**所有 backend 派生的 Pod 都强制走 koord-scheduler 并消费对应 ElasticQuota**（Quota 全覆盖契约见 [infra.md §8.3](infra.md)）。**Compute 持久化、默认注入并透传 `backend.{name, engine, config}`，但不解释后端运行时语义**；Informer 只消费统一的 `status.phase` 与少量通用状态字段。具体插件机制见 [operator.md#5-mljob-controller](operator.md#5-mljob-controller) §2、[operator.md#6-mlservice-controller](operator.md#6-mlservice-controller) §2。
+**与 backend 解耦**：mljob-operator / mlservice-operator 内部按 `spec.backend.{name, engine}` 元组路由到不同 Handler。MLJob 支持 `(native, job)`（默认）/ `(native, podgroup)` / `(kubeflow-trainer, pytorchjob / tfjob / mpijob …)` / `(custom, *)`；MLService 支持 `(native, deployment)`（默认）/ `(native, statefulset)` / `(kserve, inference)` / `(kserve, llminference)` / `(custom, *)`，其中 `(kserve, inference)` 对应 KServe `InferenceService` CR、内部 runtime（triton / vllm / tfserving / torchserve / huggingface …）由 `backend.config.runtime` 选择，`(kserve, llminference)` 对应 KServe `LLMInferenceService` CR、承载 LLM 原生服务（PD 分离）。**所有 backend 派生的 Pod 都强制走 koord-scheduler 并消费对应 ElasticQuota**（Quota 全覆盖契约见 [infra.md §8.3](infra.md)）。**Compute 持久化、默认注入并透传 `backend.{name, engine, config}`，但不解释后端运行时语义**；Informer 只消费统一的 `status.phase` 与少量通用状态字段。具体插件机制见 [operator.md#4-mljob-controller](operator.md#4-mljob-controller) §2、[operator.md#5-mlservice-controller](operator.md#5-mlservice-controller) §2。
 
 ## 2. 职责与边界
 
@@ -105,7 +105,7 @@ PG 的 `used` 只用于 UI 列表展示和 best-effort 预检，**不参与写�
 1. **API 同步路径只写 PG**：业务校验 → PG 事务插入 / 更新业务记录（新建时 `status='Creating'`，取消时 `status='Canceling'`，删除时 `status='Deleting'` + `deleted_at=now()`；允许变更的 spec 写入 PG 快照并更新 `desired_spec_hash`）→ commit → 返回业务 ID。API 不直接写 K8s。
 2. **Compute 内 reconciler worker 异步下发 CR**：每个模块（`internal/{job,service,tenant,quota}`）在 leader 副本起 goroutine，周期性扫描 PG 按生命周期谓词与 spec 同步谓词分派动作。Tenant 与 Quota 共用 Tenant CR：`internal/quota` 的写路径只更新 PG `quotas`，并在事务末尾标记同租户 `tenants.desired_spec_hash` 需重算（详见 §6.2.4），由 `internal/tenant` reconciler 统一 patch Tenant CR。
    - `status='Creating' AND deleted_at IS NULL` → 按 PG 快照 `Create()` CR（附 label `axisml.io/<resource>-id=<uuid>` 作稳定锚点；409 `AlreadyExists` 视为成功，靠 `metadata.name` + label 双重去重幂等）；Informer ADD 事件推进到就绪态（`Pending` / `Active`）
-   - `status='Canceling'`（Job 专属） → reconciler `patch MLJob.spec.runPolicy.suspend=true`；mljob-operator Handler 完成 suspend / Cleanup 后写 `status.conditions[type=Suspended,status=True,reason=CancelRequested]`，Informer 观察到该 condition 推进 PG 到 `Cancelled` 并入队 `Delete()` CR 做资源回收（DELETE 事件幂等到达，不再变更 PG 状态。详见 [operator.md#5-mljob-controller §4](operator.md#5-mljob-controller)）
+   - `status='Canceling'`（Job 专属） → reconciler `patch MLJob.spec.runPolicy.suspend=true`；mljob-operator Handler 完成 suspend / Cleanup 后写 `status.conditions[type=Suspended,status=True,reason=CancelRequested]`，Informer 观察到该 condition 推进 PG 到 `Cancelled` 并入队 `Delete()` CR 做资源回收（DELETE 事件幂等到达，不再变更 PG 状态。详见 [operator.md#4-mljob-controller §4](operator.md#4-mljob-controller)）
    - `status='Deleting'` → `Delete()` CR；Informer DELETE 事件推进到 `Deleted`（配合设置 `deleted_at`）
    - `desired_spec_hash != applied_spec_hash AND deleted_at IS NULL` → 对允许变更的 CR-backed 对象执行幂等 `Patch()`：Tenant 的 `spec.displayName` / `annotations` / `namespace.labels` / `namespace.annotations` / `quotas` / `initResources` / `suspended`（其中 `spec.quotas[]` 由 `internal/tenant` 在 patch 时按 `SELECT * FROM quotas WHERE tenant_id=$1 AND deleted_at IS NULL` 渲染），Service 的 `spec.roles[0].replicas`。Patch 成功后写 `applied_spec_hash=desired_spec_hash`；后续运行状态仍由 Informer 回流
    - 失败按指数退避重试，错误写入业务记录的 `message` 字段供 UI 展示
@@ -137,7 +137,7 @@ Creating ──(Informer ADD)──▶ 就绪态 ──(业务事件)──▶ �
 
 | Informer | 监听对象 | 维护方 | 主要用途 | DELETE 事件语义 | spec 漂移处理 |
 | --- | --- | --- | --- | --- | --- |
-| MLJob Informer | `MLJob` CR | `internal/job/` | 推进 `Creating→Pending`、`Pending→Running`、运行终态（`Succeeded`/`Failed`）；`Canceling→Cancelled`（信号：`status.conditions[type=Suspended,status=True,reason=CancelRequested]`）；**`Canceling→Succeeded`/`Failed`（自然终态优先：cancel patch 下发与 Job 自然结束竞速时，若 CR `status.phase=Succeeded`/`Failed` 先到达，operator 按 [mljob-operator.md §4](operator.md#5-mljob-controller) "终态优先" 不写 Suspended condition；Compute 在此情形把 PG 直接推到对应运行终态并写 `finished_at`，不再等待 Suspended）**；`Deleting→Deleted`（配合 `deleted_at`）；回写 `jobs.status` / `started_at` / `finished_at` | PG `status='Canceling'` → Suspended condition 推 `Cancelled`、写 `finished_at`、入队 `Delete()` CR；DELETE 事件幂等忽略。PG `status='Deleting'` → DELETE 推 `Deleted`。PG `status ∈ (Pending, Running)` 收到 DELETE → 外部误删，推 `Cancelled` + `finished_at` + `message='external delete'`，**不补偿重建**；已终态忽略 | 不适用（`spec` 不可变；cancel 由 `Canceling` 谓词 patch `spec.runPolicy.suspend=true`） |
+| MLJob Informer | `MLJob` CR | `internal/job/` | 推进 `Creating→Pending`、`Pending→Running`、运行终态（`Succeeded`/`Failed`）；`Canceling→Cancelled`（信号：`status.conditions[type=Suspended,status=True,reason=CancelRequested]`）；**`Canceling→Succeeded`/`Failed`（自然终态优先：cancel patch 下发与 Job 自然结束竞速时，若 CR `status.phase=Succeeded`/`Failed` 先到达，operator 按 [mljob-operator.md §4](operator.md#4-mljob-controller) "终态优先" 不写 Suspended condition；Compute 在此情形把 PG 直接推到对应运行终态并写 `finished_at`，不再等待 Suspended）**；`Deleting→Deleted`（配合 `deleted_at`）；回写 `jobs.status` / `started_at` / `finished_at` | PG `status='Canceling'` → Suspended condition 推 `Cancelled`、写 `finished_at`、入队 `Delete()` CR；DELETE 事件幂等忽略。PG `status='Deleting'` → DELETE 推 `Deleted`。PG `status ∈ (Pending, Running)` 收到 DELETE → 外部误删，推 `Cancelled` + `finished_at` + `message='external delete'`，**不补偿重建**；已终态忽略 | 不适用（`spec` 不可变；cancel 由 `Canceling` 谓词 patch `spec.runPolicy.suspend=true`） |
 | MLService Informer | `MLService` CR | `internal/service/` | 推进 `Creating→Pending`、`Pending→Ready`、`Ready⇄Degraded⇄Failed`（由 `ready_replicas`/`desired_replicas` 映射，见 §6.3.2）；`Deleting→Deleted`；回写 `services.status` / `ready_replicas` / `endpoint` | PG `status='Deleting'` → 推 `Deleted`；其他运行态 → 外部误删，写 `status='Deleting'` + `deleted_at=now()` + `message='external delete'`，交 reconciler 对不存在 CR 做幂等确认后推 `Deleted`；已 `Deleted` 忽略 | 扩缩容只更新 PG desired spec；reconciler 根据 `desired_spec_hash != applied_spec_hash` patch CR，Informer 只消费状态回流 |
 | Tenant Informer | `Tenant` CR | `internal/tenant/` | 推进 `Creating→Active`、`Active⇄Suspended`、`Deleting→Deleted`，回写 `tenants.status` / `message`；按 `Tenant.status.quotas[].{ready, used}` 推进同租户 `quotas.status`（`Creating→Active`、`Deleting→Deleted`）并刷新 `quotas.used` 缓存 | PG `tenants.status='Deleting'` → 推 `Deleted`，同租户 quotas 一并推 `Deleted`；其他（外部误删）→ 按 §5.4 配置对象策略由 reconciler 以 PG desired spec 补偿重建 Tenant CR（重建时一并渲染 quotas） | Tenant CR 声明字段漂移 → reconciler 按 PG desired spec 覆盖回 CR；成功后更新 `applied_spec_hash` |
 
@@ -187,7 +187,7 @@ Compute 默认 `replicas=1`（Standard 与 Lite 均同），但架构按"多副�
 
 **UNIQUE 约束统一语义**：本节所有 schema 里标注的 `UNIQUE` 均实现为 PG partial unique index，`WHERE deleted_at IS NULL`——即软删行不占用唯一键，同名资源在原行被软删后可被再次创建。对应迁移示例：`CREATE UNIQUE INDEX ... ON tbl(col) WHERE deleted_at IS NULL`。
 
-**`name` 字段 DNS-1123 硬校验**：所有承载业务标识并会映射到 K8s 对象名的 `name` 字段（Tenant、ResourcePool、Quota、Job、Service；ResourceUnit 在此之上还叠加 §6.2.3 的语义命名约定），API 层统一校验：字符集 `[a-z0-9-]`，首尾为字母或数字，长度 3–40，不允许连续 `--`。长度上限锁 40 是为了在最坏拼接场景下仍满足 K8s 对象名限制——例如 tenant-operator 的 per-tenant 资源前缀 `axisml-tenant-<tenant>-<sub>`（≤55 字符基础前缀 + 子名，DNS-1123 subdomain 上限 253）、tenant-operator 派生的 ElasticQuota 名 `axisml-<tenant>-<pool>-<quota>`（≤129 字符，DNS-1123 subdomain 上限 253）。Tenant 自身的 namespace 名由 `Tenant.spec.namespace.name` 显式声明，不再约定固定格式（详见 [tenant-operator §3.1 / §6.1](operator.md#4-tenant-controller)）。需要更长或含大小写/空格的可读名请填 `display_name`。
+**`name` 字段 DNS-1123 硬校验**：所有承载业务标识并会映射到 K8s 对象名的 `name` 字段（Tenant、ResourcePool、Quota、Job、Service；ResourceUnit 在此之上还叠加 §6.2.3 的语义命名约定），API 层统一校验：字符集 `[a-z0-9-]`，首尾为字母或数字，长度 3–40，不允许连续 `--`。长度上限锁 40 是为了在最坏拼接场景下仍满足 K8s 对象名限制——例如 tenant-operator 的 per-tenant 资源前缀 `axisml-tenant-<tenant>-<sub>`（≤55 字符基础前缀 + 子名，DNS-1123 subdomain 上限 253）、tenant-operator 派生的 ElasticQuota 名 `axisml-<tenant>-<pool>-<quota>`（≤129 字符，DNS-1123 subdomain 上限 253）。Tenant 自身的 namespace 名由 `Tenant.spec.namespace.name` 显式声明，不再约定固定格式（详见 [tenant-operator §3.1 / §6.1](operator.md#3-tenant-controller)）。需要更长或含大小写/空格的可读名请填 `display_name`。
 
 **迁移**：由 `golang-migrate` embedded 方式在服务启动时执行，依赖 `schema_migrations` 表的 PG advisory lock 避免多副本并发迁移；生产可选通过 Helm `Job` 隔离。
 
@@ -217,7 +217,7 @@ tenants(
 )
 ```
 
-`namespace` / `display_name` / `annotations` 是列表查询与筛选用的镜像列；Tenant CR 的权威声明在 `spec` jsonb。`spec` 至少覆盖 [tenant-operator.md §3.2](operator.md#4-tenant-controller) 定义的 `namespace`、`displayName`、`annotations`、`quotas`、`initResources`、`suspended`，其中 `spec.namespace.name` 创建后不可变。`spec.quotas[]` 由 reconciler 在 patch Tenant CR 前从 `quotas` 表实时渲染（详见 §6.2.4），PG `tenants.spec` 中的 `quotas` 字段是上次 patch 时的快照，主要用于幂等性比较。
+`namespace` / `display_name` / `annotations` 是列表查询与筛选用的镜像列；Tenant CR 的权威声明在 `spec` jsonb。`spec` 至少覆盖 [tenant-operator.md §3.2](operator.md#3-tenant-controller) 定义的 `namespace`、`displayName`、`annotations`、`quotas`、`initResources`、`suspended`，其中 `spec.namespace.name` 创建后不可变。`spec.quotas[]` 由 reconciler 在 patch Tenant CR 前从 `quotas` 表实时渲染（详见 §6.2.4），PG `tenants.spec` 中的 `quotas` 字段是上次 patch 时的快照，主要用于幂等性比较。
 
 **状态机**
 
@@ -228,17 +228,17 @@ Creating ──(Informer ADD)──▶ Active ⇄ Suspended ──(DELETE req)�
 ```
 
 - `Suspended` 语义：阻塞该租户下新 Job/Service 提交（API 在 Create 时校验 `tenant.status='Active'`）；已有任务保持运行；`Active ⇄ Suspended` 通过 `/suspend` / `/unsuspend` 子路径端点
-- **operator 侧 `Tenant.status.phase=Failed` 在 Compute 上等价于 `Suspended` + `message`**：tenant-operator 在校验失败 / 关键资源创建失败时写 `status.phase=Failed`（[tenant-operator §4](operator.md#4-tenant-controller)），Informer 把 `Failed` 收敛为 `tenants.status='Suspended'` 并把 `tenant.status.message` 写入 `tenants.message`——租户提交链路同样受阻，靠 `message` 区分"配置出错"与"管理员暂停"。Compute 不引入独立 `Failed` 终态
+- **operator 侧 `Tenant.status.phase=Failed` 在 Compute 上等价于 `Suspended` + `message`**：tenant-operator 在校验失败 / 关键资源创建失败时写 `status.phase=Failed`（[tenant-operator §4](operator.md#3-tenant-controller)），Informer 把 `Failed` 收敛为 `tenants.status='Suspended'` 并把 `tenant.status.message` 写入 `tenants.message`——租户提交链路同样受阻，靠 `message` 区分"配置出错"与"管理员暂停"。Compute 不引入独立 `Failed` 终态
 
 **生命周期**
 
 | 操作 | PG | Kubernetes（reconciler 异步执行） |
 | --- | --- | --- |
-| 创建 | insert `tenants`，写入 `spec`（含 `quotas[]` 渲染快照）与 `desired_spec_hash`，`applied_spec_hash=NULL`，`status='Creating'` | 创建 cluster-scoped `Tenant` CR（label `axisml.io/tenant-id=<uuid>`），tenant-operator 按 `spec.namespace.name` 落地 Namespace（已存在则共享）、按 `spec.quotas[]` 派生 ElasticQuota CR、按 `spec.initResources` 派生 Secret / ConfigMap / SA / RBAC（详见 [tenant-operator §6](operator.md#4-tenant-controller)）；reconciler 创建成功后写 `applied_spec_hash=desired_spec_hash`，Informer ADD 推 `Active` |
+| 创建 | insert `tenants`，写入 `spec`（含 `quotas[]` 渲染快照）与 `desired_spec_hash`，`applied_spec_hash=NULL`，`status='Creating'` | 创建 cluster-scoped `Tenant` CR（label `axisml.io/tenant-id=<uuid>`），tenant-operator 按 `spec.namespace.name` 落地 Namespace（已存在则共享）、按 `spec.quotas[]` 派生 ElasticQuota CR、按 `spec.initResources` 派生 Secret / ConfigMap / SA / RBAC（详见 [tenant-operator §6](operator.md#3-tenant-controller)）；reconciler 创建成功后写 `applied_spec_hash=desired_spec_hash`，Informer ADD 推 `Active` |
 | 更新 | 校验 `spec.namespace.name` 不变；更新 `tenants.spec` 及镜像列，重算 `desired_spec_hash` | reconciler 观察到 `desired_spec_hash != applied_spec_hash` 后 patch Tenant CR；成功后写 `applied_spec_hash` |
 | 挂起 | 更新 `tenants.spec.suspended=true`，重算 `desired_spec_hash`；可同步把 `status='Suspended'` 用于立即阻断新提交 | reconciler patch Tenant CR `spec.suspended=true`；tenant-operator 仅写 `status.phase=Suspended`、不停机底层资源；Informer 回流确认 `Suspended` |
 | 恢复 | 更新 `tenants.spec.suspended=false`，重算 `desired_spec_hash`；`status` 等待 Informer 回流 `Active` | reconciler patch Tenant CR `spec.suspended=false`；operator 重新推导 `Active` 后由 Informer 回流 |
-| 删除 | `status='Deleting'`，写 `deleted_at`；同租户 quotas 也同步标记 `status='Deleting'` + `deleted_at` | reconciler `Delete()` Tenant CR，K8s GC 通过 ownerReference 级联清理 per-tenant 资源（ElasticQuota / Secret / ConfigMap / SA / Role / RoleBinding）；**Namespace 不删除**（详见 [tenant-operator §6.1](operator.md#4-tenant-controller)）；Informer 观察 CR 消失 → 同时推 Tenant 与同租户 quotas 至 `Deleted` |
+| 删除 | `status='Deleting'`，写 `deleted_at`；同租户 quotas 也同步标记 `status='Deleting'` + `deleted_at` | reconciler `Delete()` Tenant CR，K8s GC 通过 ownerReference 级联清理 per-tenant 资源（ElasticQuota / Secret / ConfigMap / SA / Role / RoleBinding）；**Namespace 不删除**（详见 [tenant-operator §6.1](operator.md#3-tenant-controller)）；Informer 观察 CR 消失 → 同时推 Tenant 与同租户 quotas 至 `Deleted` |
 
 **默认租户**：Helm `post-install` Job 幂等初始化 `default` 租户。
 
@@ -355,7 +355,7 @@ quotas(
 )
 ```
 
-Quota 在概念上是 Tenant 的子资源——CR 端不再单独下发 `ElasticQuota`，而是把 PG `quotas` 表渲染进 `Tenant.spec.quotas[]`，由 tenant-operator 派生 ElasticQuota（详见 [tenant-operator §6.2](operator.md#4-tenant-controller)）。这给 Compute / Tenant CR / koord-scheduler 之间提供了统一的双向数据链路。
+Quota 在概念上是 Tenant 的子资源——CR 端不再单独下发 `ElasticQuota`，而是把 PG `quotas` 表渲染进 `Tenant.spec.quotas[]`，由 tenant-operator 派生 ElasticQuota（详见 [tenant-operator §6.2](operator.md#3-tenant-controller)）。这给 Compute / Tenant CR / koord-scheduler 之间提供了统一的双向数据链路。
 
 `spec` 是 ElasticQuota spec 的 desired state，字段集与上游 `scheduling.sigs.k8s.io/v1alpha1` ElasticQuota 完全一致。Quota 不再持有独立的 `desired_spec_hash` / `applied_spec_hash`——其下行同步借道 Tenant CR：API 写 PG `quotas` 时同事务标记同租户 `tenants.desired_spec_hash` 需重算；`internal/tenant` reconciler 在 patch Tenant CR 时把 `SELECT * FROM quotas WHERE tenant_id=$1 AND deleted_at IS NULL` 渲染进 `Tenant.spec.quotas[]`，patch 成功后写 `tenants.applied_spec_hash`。`used` 由 Compute Tenant Informer 从 `Tenant.status.quotas[].used` 回流。
 
@@ -443,7 +443,7 @@ jobs(
 )
 ```
 
-- `spec` 是提交时 MLJob.spec 的完整快照，包含 `roles[]` / `backend.{name,engine,config}` / `scheduling` / `runPolicy` 等业务字段（结构详见 [operator.md#5-mljob-controller §3.2](operator.md#5-mljob-controller)），不可变；Informer 回流只写 `status` 相关列
+- `spec` 是提交时 MLJob.spec 的完整快照，包含 `roles[]` / `backend.{name,engine,config}` / `scheduling` / `runPolicy` 等业务字段（结构详见 [operator.md#4-mljob-controller §3.2](operator.md#4-mljob-controller)），不可变；Informer 回流只写 `status` 相关列
 - `requested_resources` 冗余存提交时的资源申请，解耦后续 ResourceUnit 修改对已提交任务记账的影响
 - `name` 是 Compute 与 K8s 的命名锚点（对应 MLJob CR `metadata.name`），UUID `id` 通过 label `axisml.io/job-id=<id>` 同步打到 CR 上，作为孤儿检测与跨重命名追踪的稳定锚点
 
@@ -471,7 +471,7 @@ Creating ──(Informer ADD)──▶ Pending ──(CR phase=Running)──▶
 
 **MLJob 业务语义**
 
-Compute 只负责把以下业务语义装进 MLJob CR；具体 `spec` 字段结构、默认值、校验规则由 [operator.md#5-mljob-controller](operator.md#5-mljob-controller) 定义。
+Compute 只负责把以下业务语义装进 MLJob CR；具体 `spec` 字段结构、默认值、校验规则由 [operator.md#4-mljob-controller](operator.md#4-mljob-controller) 定义。
 
 **`spec.backend` 默认值注入**：用户未指定 `spec.backend` 时，Compute 写 CR 时显式补 `{name: "native", engine: "job"}`；`backend.config` 默认空对象 `{}`。`backend.{name, engine}` 在 PG `jobs.spec` jsonb 中持久化，创建后不可变（Update API 拒绝修改这两个字段）。
 
@@ -480,7 +480,7 @@ Compute 只负责把以下业务语义装进 MLJob CR；具体 `spec` 字段结�
 | 场景 | PG 侧 | CR 侧 |
 | --- | --- | --- |
 | 运行态（`Pending` / `Running`） cancel | `status='Canceling'`，写 `message='user cancelled'` | reconciler `patch MLJob.spec.runPolicy.suspend=true` → operator Handler 完成 suspend/Cleanup 后写 `status.conditions[type=Suspended,status=True,reason=CancelRequested]` → Informer 推 `Cancelled`、写 `finished_at` 并入队 `Delete()` CR 做资源回收（DELETE 事件幂等忽略）|
-| `Canceling` 期间 Job 自然结束（cancel patch 下发与 Job 完成竞速） | 维持 `Canceling` 直到 Informer 观察到 CR 终态；按 §5.3 "自然终态优先" 推到 `Succeeded`/`Failed` 并写 `finished_at`（operator 不写 Suspended condition，按 [mljob-operator.md §4](operator.md#5-mljob-controller) "终态优先"） | reconciler 已发出 cancel patch；不再补偿，由 Informer 回流终态后续走 `Succeeded`/`Failed` 路径 |
+| `Canceling` 期间 Job 自然结束（cancel patch 下发与 Job 完成竞速） | 维持 `Canceling` 直到 Informer 观察到 CR 终态；按 §5.3 "自然终态优先" 推到 `Succeeded`/`Failed` 并写 `finished_at`（operator 不写 Suspended condition，按 [mljob-operator.md §4](operator.md#4-mljob-controller) "终态优先"） | reconciler 已发出 cancel patch；不再补偿，由 Informer 回流终态后续走 `Succeeded`/`Failed` 路径 |
 | `Creating` 状态 cancel | API 拒绝（要求改用 DELETE） | — |
 | 已终态（`Succeeded`/`Failed`/`Cancelled`/`Deleted` 或已在 `Canceling`/`Deleting`）cancel | API 返回无效操作 | — |
 
@@ -517,7 +517,7 @@ services(
   display_name         text,
   description          text,                     -- 用户备注
   owner_user           text,
-  spec                 jsonb,                    -- 当前 MLService.spec 快照（扩缩容时同步更新 spec.roles[0].replicas，单 role 约定下即 services.replicas；多 role 独立扩缩见 operator.md#6-mlservice-controller §11）
+  spec                 jsonb,                    -- 当前 MLService.spec 快照（扩缩容时同步更新 spec.roles[0].replicas，单 role 约定下即 services.replicas；多 role 独立扩缩见 operator.md#5-mlservice-controller §11）
   desired_spec_hash    text,                     -- 创建 / scale 时按 desired spec 重算；驱动 reconciler create / patch CR
   applied_spec_hash    text,                     -- reconciler 成功 patch MLService spec 后写入
   requested_resources  jsonb,                    -- 单副本资源申请快照（配额记账用）
@@ -546,7 +546,7 @@ Creating ──(Informer ADD)──▶ Pending ──(ready=desired, desired>0)�
 任一非 Deleting/Deleted 状态 ──(DELETE req)──▶ Deleting ──(CR 确认清理 + deleted_at)──▶ Deleted
 ```
 
-**status 映射规则**（由 Informer 从 MLService CR `status.phase` / `status.readyReplicas` / `spec.roles[0].replicas` 推导，单 role 约定下 `services.replicas` 即 `spec.roles[0].replicas`，多 role 独立扩缩见 [operator.md#6-mlservice-controller §11](operator.md#6-mlservice-controller)）：
+**status 映射规则**（由 Informer 从 MLService CR `status.phase` / `status.readyReplicas` / `spec.roles[0].replicas` 推导，单 role 约定下 `services.replicas` 即 `spec.roles[0].replicas`，多 role 独立扩缩见 [operator.md#5-mlservice-controller §11](operator.md#5-mlservice-controller)）：
 
 | 条件 | status |
 | --- | --- |
@@ -560,7 +560,7 @@ Creating ──(Informer ADD)──▶ Pending ──(ready=desired, desired>0)�
 
 **MLService 业务语义**
 
-与 Job 类似（`roles[]` / `backend.{name,engine,config}` / `scheduling` / `runPolicy`），额外增加**模型引用**（`spec.modelRef`，指向 Artifacts 的 model version）与**对外路由**（native/custom backend 的 `spec.route` 决定 `status.endpoint` 是内部 Service DNS 还是 AxisML Gateway 外部 URL；KServe backend 使用 KServe 自带 route/status.url）。具体契约由 [operator.md#6-mlservice-controller](operator.md#6-mlservice-controller) 定义。
+与 Job 类似（`roles[]` / `backend.{name,engine,config}` / `scheduling` / `runPolicy`），额外增加**模型引用**（`spec.modelRef`，指向 Artifacts 的 model version）与**对外路由**（native/custom backend 的 `spec.route` 决定 `status.endpoint` 是内部 Service DNS 还是 AxisML Gateway 外部 URL；KServe backend 使用 KServe 自带 route/status.url）。具体契约由 [operator.md#5-mlservice-controller](operator.md#5-mlservice-controller) 定义。
 
 **`spec.backend` 默认值注入**：用户未指定 `spec.backend` 时，Compute 写 CR 时显式补 `{name: "native", engine: "deployment"}`；`backend.config` 默认空对象 `{}`。`backend.{name, engine}` 在 PG `services.spec` jsonb 中持久化，创建后不可变。
 
@@ -651,7 +651,7 @@ Compute 对 `GET /jobs/{job}/logs` 只做路径级鉴权与 Pod 定位，实际�
 
 | 对象 | 交互方式 | 关注点 |
 | --- | --- | --- |
-| Kubernetes API | controller-runtime `client.Client` + informer | RBAC：MLJob / MLService / Tenant 全部 verbs；Compute 不直接读写 ElasticQuota（由 tenant-operator 持有，详见 [tenant-operator §8](operator.md#4-tenant-controller)） |
+| Kubernetes API | controller-runtime `client.Client` + informer | RBAC：MLJob / MLService / Tenant 全部 verbs；Compute 不直接读写 ElasticQuota（由 tenant-operator 持有，详见 [tenant-operator §8](operator.md#3-tenant-controller)） |
 | Koordinator | 通过 Tenant CR 间接维护 ElasticQuota（见 §6.2.4、§5） | Compute 只渲染 `Tenant.spec.quotas[]` 并消费 `Tenant.status.quotas[].used`；ElasticQuota CR 派生与 used 聚合在 tenant-operator；调度 / accounting 由 koord-scheduler 自动完成 |
 | PostgreSQL | GORM；与其他服务共用 database `axisml`（按表名前缀或 schema 逻辑隔离） | 迁移随二进制打包，启动时执行（golang-migrate） |
 | Platform | REST，请求头透传身份 | Compute 信任内部调用；mTLS / Compute 主动鉴权列为未来规划 |

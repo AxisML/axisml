@@ -4,24 +4,13 @@ axisml-operator 是 AxisML 控制平面里**唯一**的 Kubernetes operator 二�
 
 | Controller | CRD（`axisml.io/v1alpha1`） | Scope | 详细设计章节 |
 | --- | --- | --- | --- |
-| Tenant | `Tenant` | Cluster-scoped | [§4 Tenant Controller](#4-tenant-controller) |
-| MLJob | `MLJob` | Namespaced | [§5 MLJob Controller](#5-mljob-controller) |
-| MLService | `MLService` | Namespaced | [§6 MLService Controller](#6-mlservice-controller) |
+| Tenant | `Tenant` | Cluster-scoped | [§3 Tenant Controller](#3-tenant-controller) |
+| MLJob | `MLJob` | Namespaced | [§4 MLJob Controller](#4-mljob-controller) |
+| MLService | `MLService` | Namespaced | [§5 MLService Controller](#5-mlservice-controller) |
 
-§1–§3 覆盖**跨 controller 的合并设计**与**作为单一 Deployment 的运维契约**；§4–§6 是各 controller 自身的 CRD 契约、字段不可变性、状态机、子资源管理等深度内容。
+§1–§2 覆盖**跨 controller 的运维契约**——架构总览与 Manager / Scheme / Cache / Flag / RBAC / Helm values；§3–§5 是各 controller 自身的 CRD 契约、字段不可变性、状态机、子资源管理等深度内容。三个 controller 通过 `--enable-{tenant,mljob,mlservice}` 单独启用 / 关闭，必要时可基于同一镜像启动多个 Deployment 各自承载部分控制器实现独立 rollout。
 
-## 1. 合并动机
-
-历史上 tenant / mljob / mlservice 是三个独立的 Go 模块、独立的 Deployment、独立的 ServiceAccount/ClusterRole。三者长期 lock-step：共用 image tag（`components/operators/Dockerfile` + `entrypoint.sh` 已经把它们打成一个镜像，靠 argv[0] 分派）、共用 controller-runtime / k8s.io 版本、共用 RBAC 习惯。把它们折叠进同一个 Manager 后：
-
-- 三个 Deployment / SA / ClusterRole / Lease 缩减为一份；
-- 三个 Go module（`go.mod`）+ 三个 envtest module 合并成一个 production module + 一个 envtest module；
-- CI lint matrix 6 → 2、envtest matrix 3 → 1；
-- 升级路径与运维诊断只看一个 Pod 的日志即可。
-
-代价：**单个 Deployment 失去了按 CRD 独立 rollout 的能力**。这在过去三个 operator 始终同 image tag 同时升级的现实下是可接受的；如果未来某个 controller 需要独立 rollout，可以利用下文 §3.3 的 `--enable-*` 开关，把同一镜像以不同 flag 启动多个 Deployment。
-
-## 2. 架构总览
+## 1. 架构总览
 
 ```
 ┌──────────────────── axisml-operator (one Pod, leader-elected) ────────────────────┐
@@ -44,11 +33,11 @@ axisml-operator 是 AxisML 控制平面里**唯一**的 Kubernetes operator 二�
 └────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-Tenant 走**单 reconciler**直接调度（无 dispatcher）；MLJob 与 MLService 共用 **dispatcher + handler** 模式：CR 的 `spec.backend.{name, engine}` 元组路由到注册过的 Handler，handler 渲染目标 GVK 并把状态回流到 CR.status。这两个 controller 的具体 dispatch 表与默认后端见 [§5.7 MLJob 内置 Handler](#57-内置-handler) 与 [§6.7 MLService 内置 Handler](#67-内置-handler)。
+Tenant 走**单 reconciler**直接调度（无 dispatcher）；MLJob 与 MLService 共用 **dispatcher + handler** 模式：CR 的 `spec.backend.{name, engine}` 元组路由到注册过的 Handler，handler 渲染目标 GVK 并把状态回流到 CR.status。这两个 controller 的具体 dispatch 表与默认后端见 §4.7 MLJob 内置 Handler 与 §5.7 MLService 内置 Handler。
 
-## 3. 合并后的运行时契约
+## 2. 运行时契约
 
-### 3.1 Scheme 注册
+### 2.1 Scheme 注册
 
 ```go
 clientgoscheme.AddToScheme(scheme)           // core, apps, rbac, batch, coordination
@@ -62,7 +51,7 @@ mlservicehandler.RegisterStubs()             // MLService 占位 handler 注册
 
 三个 CRD 共享 group `axisml.io/v1alpha1`，但 Go 类型分别定义在 `components/operator/api/{tenant,mljob,mlservice}/v1alpha1/` 三个子包里——避免 `Phase`、`RoleSpec`、`LabelQuota` 等同名常量在同一包内冲突，同时仍然让一个 Manager 通过分别 `AddToScheme` 把三种 Kind 全注册进去。
 
-### 3.2 Cache 选择性过滤
+### 2.2 Cache 选择性过滤
 
 Tenant 的子资源（Secret / ConfigMap / ServiceAccount / Role / RoleBinding / ElasticQuota）在生产中受 `managed-by=tenant-operator` label 过滤，避免缓存全集群 Secret。**关键约束：这条过滤必须按对象类型挂在 `cache.Options.ByObject` 上**，不能升格成 `cache.Options.DefaultLabelSelector`——否则 MLJob 的 `Job/Pod/PodGroup` informer 与 MLService 的 `Deployment/HTTPRoute` informer 会被同样的 label 过滤掉，导致丢事件。
 
@@ -82,7 +71,7 @@ cache.Options{
 
 注意：`PodGroup` 与 `ElasticQuota` 都属于 `scheduling.sigs.k8s.io/v1alpha1`，但只有 `ElasticQuota` 由 Tenant 写入并打 `managed-by` label。`PodGroup` 由 MLJob handler 写入、不带这条 label，因此在表里**只列 `ElasticQuota`**。
 
-### 3.3 Flag 集合
+### 2.3 Flag 集合
 
 | Flag | 默认 | 说明 |
 | --- | --- | --- |
@@ -98,11 +87,11 @@ cache.Options{
 
 Pod 上还会注入两个环境变量供 Tenant 子模块消费：`RESYNC_PERIOD`（默认 `10m`）、`NAMESPACE_DENYLIST`（逗号分隔列表，默认值见 Helm `values.yaml`）。
 
-### 3.4 RBAC
+### 2.4 RBAC
 
-合并后只保留**一个** ClusterRole（`<release>-operator`），rules 是三个 controller 所需权限的并集，按 controller 分段；段头按 `--enable-*` Helm value 条件渲染（见 `deploy/helm/axisml-system/templates/operator/clusterrole.yaml`）。leader election Lease 在部署 namespace 通过 Role + RoleBinding 授权（不放进 cluster-scoped 角色）。
+整个 axisml-operator 只声明**一个** ClusterRole（`<release>-operator`），rules 是三个 controller 所需权限的并集，按 controller 分段；段头按 `--enable-*` Helm value 条件渲染（见 `deploy/helm/axisml-system/templates/operator/clusterrole.yaml`）。leader election Lease 在部署 namespace 通过 Role + RoleBinding 授权（不放进 cluster-scoped 角色）。
 
-### 3.5 Helm values 接口
+### 2.5 Helm values 接口
 
 ```yaml
 operator:
@@ -116,9 +105,7 @@ operator:
     mlservice: { enabled }
 ```
 
-旧的 `operators.{tenantOperator, mljobOperator, mlserviceOperator}` 三段配置在升级到合并版本时**必须**重写为 `operator.controllers.*`——这是一次破坏性 values 变更，Deployment / SA / ClusterRole 也都重命名了，因此 `helm upgrade` 时旧资源会被删除、新资源会被创建。`helm upgrade` 不会清理三个旧 Lease（`tenant-operator.axisml.io` 等），需手工 `kubectl delete lease`。
-
-## 4. Tenant Controller
+## 3. Tenant Controller
 
 
 ### 1. 概述
@@ -530,7 +517,7 @@ operator binary 启动时聚合以下权限到 ServiceAccount。Helm chart 通�
 - 分层配额：在 `spec.quotas[]` 引入 `parent` 字段，落到 ElasticQuota 的 `quota.scheduling.koordinator.sh/parent` annotation；在出现真实多团队/多业务线共享租户的诉求时按需启用
 - CRD 严格 schema（启用 OpenAPI 校验，替换当前的 `x-kubernetes-preserve-unknown-fields`）
 
-## 5. MLJob Controller
+## 4. MLJob Controller
 
 
 ### 1. 概述
@@ -1002,7 +989,7 @@ operator binary 启动时遍历 registry，把每个启用 Handler 的 `Required
 - Handler chart 的 values 控制（启用 / 禁用 backend，对应 RBAC 与 watch 的开关）
 - CRD 严格 schema（启用 OpenAPI 校验，替换当前的 `x-kubernetes-preserve-unknown-fields`，含 `spec.backend.name` enum 收为 `{native, kubeflow-trainer, custom}` 与 `spec.scheduling.quota` 必填）
 
-## 6. MLService Controller
+## 5. MLService Controller
 
 
 ### 1. 概述
@@ -1622,33 +1609,13 @@ operator binary 启动时遍历 registry，把每个启用 Handler 的 `Required
 - Handler chart 的 values 控制（启用 / 禁用 backend，对应 RBAC 与 watch 的开关）
 - CRD 严格 schema（启用 OpenAPI 校验，替换当前的 `x-kubernetes-preserve-unknown-fields`）
 
-## 7. 测试
+## 6. 测试
 
-合并后的 L1 envtest 在 `components/operator/test/envtest/` 单一 Go module 中，单一 `TestMain` 注册三个 reconciler 到同一个 envtest manager，跑七个 test 文件（tenant 2 + mljob 3 + mlservice 2）。CRDPaths 是 `deploy/helm/axisml-system/crds` 与 `test/crds/external/`（vendored ElasticQuota / PodGroup / HTTPRoute）的并集。
+L1 envtest 在 `components/operator/test/envtest/` 单一 Go module 中，单一 `TestMain` 把三个 reconciler 注册到同一个 envtest manager，跑七个 test 文件（tenant 2 + mljob 3 + mlservice 2）。CRDPaths 是 `deploy/helm/axisml-system/crds` 与 `test/crds/external/`（vendored ElasticQuota / PodGroup / HTTPRoute）的并集。
 
-L2 e2e 仍在 `test/e2e/`，通过部署后的 axisml-operator 与 MLPlatform/Compute API 一起跑端到端；e2e 不直接关心 operator 二进制名。
+L2 e2e 在 `test/e2e/`，通过部署后的 axisml-operator 与 MLPlatform/Compute API 一起跑端到端。
 
-## 8. 升级路径
-
-旧布局：
-
-```
-components/operators/{tenant,mljob,mlservice}-operator/
-deploy/helm/axisml-system/templates/operators/{tenant,mljob,mlservice}-operator/
-docs/system_design/operators/{tenant,mljob,mlservice}-operator.md
-```
-
-新布局：
-
-```
-components/operator/                                       # 单 module
-deploy/helm/axisml-system/templates/operator/              # 单组模板
-docs/system_design/operator.md                             # 总览 + 各 controller 详细设计
-```
-
-`helm upgrade`：旧 Deployment / SA / ClusterRole / ClusterRoleBinding（三份）由 Helm release 记录释放后会被删除并替换为新的合并版本，预期短暂 downtime（秒级）。镜像名 `ghcr.io/axisml/axisml-operator` 不变。
-
-## 9. 相关引用
+## 7. 相关引用
 
 - [docs/system_design/overview.md §5.3](overview.md) 概述了 axisml-operator 在控制平面里的位置。
 - [docs/system_design/compute.md](compute.md) 描述 ml-compute 与 operator 之间的 CR 写路径与状态回流。
