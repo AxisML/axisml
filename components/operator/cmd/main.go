@@ -7,31 +7,20 @@ import (
 	"flag"
 	"os"
 
-	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/thirdparty/scheduler-plugins/pkg/apis/scheduling/v1alpha1"
-	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
-	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	mljobv1alpha1 "github.com/axisml/axisml/components/operator/api/mljob/v1alpha1"
-	mlservicev1alpha1 "github.com/axisml/axisml/components/operator/api/mlservice/v1alpha1"
-	tenantv1alpha1 "github.com/axisml/axisml/components/operator/api/tenant/v1alpha1"
 	mljobdispatcher "github.com/axisml/axisml/components/operator/internal/mljob/dispatcher"
 	"github.com/axisml/axisml/components/operator/internal/mljob/handlers/nativejob"
 	"github.com/axisml/axisml/components/operator/internal/mljob/handlers/nativepodgroup"
 	mlservicedispatcher "github.com/axisml/axisml/components/operator/internal/mlservice/dispatcher"
 	mlservicehandler "github.com/axisml/axisml/components/operator/internal/mlservice/handler"
+	"github.com/axisml/axisml/components/operator/internal/setup"
 	tenantconfig "github.com/axisml/axisml/components/operator/internal/tenant/config"
 	tenantcontroller "github.com/axisml/axisml/components/operator/internal/tenant/controller"
 	tenantvalidate "github.com/axisml/axisml/components/operator/internal/tenant/validate"
@@ -40,20 +29,12 @@ import (
 	_ "github.com/axisml/axisml/components/operator/internal/mlservice/handler/nativedeployment"
 )
 
+const defaultLeaderElectionID = "axisml-operator.axisml.io"
+
 var scheme = runtime.NewScheme()
 
 func init() {
-	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-	utilruntime.Must(corev1.AddToScheme(scheme))
-	utilruntime.Must(appsv1.AddToScheme(scheme))
-	utilruntime.Must(rbacv1.AddToScheme(scheme))
-	utilruntime.Must(schedulingv1alpha1.AddToScheme(scheme))
-	utilruntime.Must(gwapiv1.Install(scheme))
-	utilruntime.Must(tenantv1alpha1.AddToScheme(scheme))
-	utilruntime.Must(mljobv1alpha1.AddToScheme(scheme))
-	utilruntime.Must(mlservicev1alpha1.AddToScheme(scheme))
-
-	mlservicehandler.RegisterStubs()
+	setup.AddToScheme(scheme)
 }
 
 func main() {
@@ -75,7 +56,7 @@ func main() {
 	flag.BoolVar(&enableLeaderElection, "leader-elect", true,
 		"Enable leader election for controller manager.")
 	flag.StringVar(&leaderElectionID, "leader-election-id",
-		"axisml-operator.axisml.io",
+		defaultLeaderElectionID,
 		"Name of the lease used for leader election.")
 	flag.BoolVar(&enableTenant, "enable-tenant", true, "Run the Tenant controller.")
 	flag.BoolVar(&enableMLJob, "enable-mljob", true, "Run the MLJob controller.")
@@ -98,25 +79,7 @@ func main() {
 
 	cacheOpts := cache.Options{SyncPeriod: &resync}
 	if enableTenant {
-		// Restrict the cache for types Tenant manages to objects carrying our
-		// managed-by label. Without this, the default cache would set up a
-		// cluster-wide informer for every Secret/ConfigMap, pulling them all
-		// into memory. Source Secret/ConfigMap reads bypass the cache via the
-		// APIReader (operator design §5: "operator 不为源资源建立 watch").
-		// Per-type filter only — do NOT promote to a global default selector,
-		// or MLJob/MLService informers (Job, Deployment, PodGroup, HTTPRoute)
-		// would also be filtered.
-		managedByOnly := labels.SelectorFromSet(labels.Set{
-			tenantv1alpha1.LabelManagedBy: tenantv1alpha1.ManagedByValue,
-		})
-		cacheOpts.ByObject = map[client.Object]cache.ByObject{
-			&corev1.Secret{}:                   {Label: managedByOnly},
-			&corev1.ConfigMap{}:                {Label: managedByOnly},
-			&corev1.ServiceAccount{}:           {Label: managedByOnly},
-			&rbacv1.Role{}:                     {Label: managedByOnly},
-			&rbacv1.RoleBinding{}:              {Label: managedByOnly},
-			&schedulingv1alpha1.ElasticQuota{}: {Label: managedByOnly},
-		}
+		cacheOpts.ByObject = tenantcontroller.CacheByObject()
 	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{

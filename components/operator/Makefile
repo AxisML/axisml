@@ -46,7 +46,10 @@ clean: ## Remove build artifacts
 
 # --- Go convenience targets ---
 
-.PHONY: fmt vet tidy
+CONTROLLER_GEN_VERSION ?= v0.16.5
+CONTROLLER_GEN         ?= go run sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_GEN_VERSION)
+
+.PHONY: fmt vet tidy generate
 fmt: ## go fmt ./...
 	@go fmt ./...
 
@@ -55,6 +58,9 @@ vet: ## go vet ./...
 
 tidy: ## go mod tidy
 	@go mod tidy
+
+generate: ## Run controller-gen for deepcopy code (mljob; tenant + mlservice deepcopy is hand-maintained)
+	@$(CONTROLLER_GEN) object paths=./api/mljob/...
 
 # --- L1 envtest ---
 #

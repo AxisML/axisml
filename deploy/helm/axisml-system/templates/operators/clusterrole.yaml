@@ -81,23 +81,6 @@ rules:
     resources: ["podgroups"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   {{- end }}
-  {{- if or $op.controllers.mljob.handlers.nativeJob.enabled $op.controllers.mljob.handlers.nativePodGroup.enabled }}
-  # Pods: union of verbs needed by enabled handlers.
-  # nativeJob:      get/list/watch/delete (Pods are reconciled by Job).
-  # nativePodGroup: + create/update/patch (handler renders bare Pods).
-  - apiGroups: [""]
-    resources: ["pods"]
-    verbs:
-      - get
-      - list
-      - watch
-      - delete
-      {{- if $op.controllers.mljob.handlers.nativePodGroup.enabled }}
-      - create
-      - update
-      - patch
-      {{- end }}
-  {{- end }}
   {{- end }}
 
   {{- if $op.controllers.mlservice.enabled }}
@@ -117,13 +100,6 @@ rules:
   - apiGroups: [""]
     resources: ["services"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  {{- if not $op.controllers.mljob.enabled }}
-  # When MLJob is enabled it already grants Pod verbs; declare them here only
-  # when MLJob is off so the MLService backend retains Pod access.
-  - apiGroups: [""]
-    resources: ["pods"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  {{- end }}
 
   # spec.route.enabled=true derives an HTTPRoute. SecurityPolicy and
   # BackendTrafficPolicy are deferred (Validate emits a warning); add their
@@ -131,5 +107,28 @@ rules:
   - apiGroups: ["gateway.networking.k8s.io"]
     resources: ["httproutes"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  {{- end }}
+
+  {{- /*
+    Pods: union across all enabled controllers/handlers. The base verbs
+    (get/list/watch/delete) cover MLJob/native-job (Pods owned by Job).
+    Add create/update/patch when MLJob/native-podgroup renders bare Pods or
+    when MLService creates Pods directly.
+  */ -}}
+  {{- $podsBase := and $op.controllers.mljob.enabled (or $op.controllers.mljob.handlers.nativeJob.enabled $op.controllers.mljob.handlers.nativePodGroup.enabled) }}
+  {{- $podsWrite := or $op.controllers.mlservice.enabled (and $op.controllers.mljob.enabled $op.controllers.mljob.handlers.nativePodGroup.enabled) }}
+  {{- if or $podsBase $podsWrite }}
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs:
+      - get
+      - list
+      - watch
+      - delete
+      {{- if $podsWrite }}
+      - create
+      - update
+      - patch
+      {{- end }}
   {{- end }}
 {{- end }}

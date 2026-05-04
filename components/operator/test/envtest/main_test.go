@@ -35,13 +35,10 @@ import (
 	"sync"
 	"testing"
 
-	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/thirdparty/scheduler-plugins/pkg/apis/scheduling/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
@@ -49,16 +46,13 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
-	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	mljobv1alpha1 "github.com/axisml/axisml/components/operator/api/mljob/v1alpha1"
-	mlservicev1alpha1 "github.com/axisml/axisml/components/operator/api/mlservice/v1alpha1"
-	tenantv1alpha1 "github.com/axisml/axisml/components/operator/api/tenant/v1alpha1"
 	mljobdispatcher "github.com/axisml/axisml/components/operator/internal/mljob/dispatcher"
 	"github.com/axisml/axisml/components/operator/internal/mljob/handlers/nativejob"
 	"github.com/axisml/axisml/components/operator/internal/mljob/handlers/nativepodgroup"
 	mlservicedispatcher "github.com/axisml/axisml/components/operator/internal/mlservice/dispatcher"
 	mlservicehandler "github.com/axisml/axisml/components/operator/internal/mlservice/handler"
+	"github.com/axisml/axisml/components/operator/internal/setup"
 	tenantcontroller "github.com/axisml/axisml/components/operator/internal/tenant/controller"
 	tenantvalidate "github.com/axisml/axisml/components/operator/internal/tenant/validate"
 
@@ -83,14 +77,7 @@ var (
 )
 
 func init() {
-	utilruntime.Must(clientgoscheme.AddToScheme(testScheme))
-	utilruntime.Must(schedulingv1alpha1.AddToScheme(testScheme))
-	utilruntime.Must(gwapiv1.Install(testScheme))
-	utilruntime.Must(tenantv1alpha1.AddToScheme(testScheme))
-	utilruntime.Must(mljobv1alpha1.AddToScheme(testScheme))
-	utilruntime.Must(mlservicev1alpha1.AddToScheme(testScheme))
-
-	mlservicehandler.RegisterStubs()
+	setup.AddToScheme(testScheme)
 }
 
 func TestMain(m *testing.M) {

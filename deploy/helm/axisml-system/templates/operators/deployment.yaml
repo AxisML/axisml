@@ -30,7 +30,7 @@ spec:
             - --health-probe-bind-address=:8081
             {{- if $op.leaderElection.enabled }}
             - --leader-elect=true
-            - --leader-election-id={{ $op.leaderElection.id | default "axisml-operator.axisml.io" }}
+            - --leader-election-id={{ $op.leaderElection.id }}
             {{- else }}
             - --leader-elect=false
             {{- end }}
