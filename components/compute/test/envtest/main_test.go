@@ -27,9 +27,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	mljobv1alpha1 "github.com/axisml/axisml/components/operators/mljob-operator/api/v1alpha1"
-	mlservicev1alpha1 "github.com/axisml/axisml/components/operators/mlservice-operator/api/v1alpha1"
-	tenantv1alpha1 "github.com/axisml/axisml/components/operators/tenant-operator/api/v1alpha1"
+	mljobv1alpha1 "github.com/axisml/axisml/components/operator/api/mljob/v1alpha1"
+	mlservicev1alpha1 "github.com/axisml/axisml/components/operator/api/mlservice/v1alpha1"
+	tenantv1alpha1 "github.com/axisml/axisml/components/operator/api/tenant/v1alpha1"
 
 	computeapp "github.com/axisml/axisml/components/compute/internal/app"
 	computeconfig "github.com/axisml/axisml/components/compute/internal/config"

@@ -17,7 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	tenantv1alpha1 "github.com/axisml/axisml/components/operators/tenant-operator/api/v1alpha1"
+	tenantv1alpha1 "github.com/axisml/axisml/components/operator/api/tenant/v1alpha1"
 
 	"github.com/axisml/axisml/test/e2e"
 	"github.com/axisml/axisml/test/testutil"

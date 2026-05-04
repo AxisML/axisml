@@ -7,9 +7,9 @@ coverage:
       default:
         threshold: 1%
 
-# Carryforward keeps the envtest matrix's per-operator uploads from blanking
-# each other out — each job uploads only its own operator's profile, so without
-# this, only the last-uploaded operator would have a non-zero coverage line.
+# Carryforward keeps the envtest matrix's per-component uploads from blanking
+# each other out — each job uploads only its own profile, so without
+# this, only the last-uploaded component would have a non-zero coverage line.
 flag_management:
   default_rules:
     carryforward: true
@@ -26,4 +26,4 @@ ignore:
   - "**/*_mock.go"
   - "**/mocks/**"
   - "test/**"
-  - "components/operators/*/cmd/**"
+  - "components/operator/cmd/**"

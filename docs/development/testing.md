@@ -9,7 +9,7 @@ verify.
 | Layer | Where | Cluster | When you need it |
 |---|---|---|---|
 | **Unit** | next to the package, `*_test.go` | none (uses `controller-runtime/pkg/client/fake`) | Pure logic, validation, mapping helpers — anything that doesn't need a real apiserver. |
-| **L1 envtest** | `components/operators/<op>/test/envtest/` | embedded apiserver+etcd via `setup-envtest` | Reconciler integration: CRD apply + watch + status patch + ownerRef + cache. Fast, hermetic, CI-friendly. |
+| **L1 envtest** | `components/operator/test/envtest/` (merged) and `components/compute/test/envtest/` | embedded apiserver+etcd via `setup-envtest` | Reconciler integration: CRD apply + watch + status patch + ownerRef + cache. Fast, hermetic, CI-friendly. |
 | **L2 e2e** | `test/e2e/` | real minikube + helm-installed AxisML stack | Full-stack happy paths: real Pods running, real Koordinator scheduler, real cross-operator interactions. |
 
 There's a 4th implicit layer for future services (compute / artifacts /
@@ -40,17 +40,16 @@ make setup-envtest
 # Unit tests across every component. ~10 seconds.
 make test
 
-# L1 envtest across every operator. ~25 seconds. Hermetic.
+# L1 envtest for the merged operator + compute. ~25 seconds. Hermetic.
 make envtest-test
 
 # L2 e2e (operator + future-service suites). Brings up minikube + helm-installs
 # infra and system; runs real Pods. ~10 minutes from a clean clone.
 make e2e-test
 
-# Per-operator slices.
-make tenant-operator-envtest
-make mljob-operator-envtest
-make mlservice-operator-envtest
+# Per-component slices.
+make operator-envtest
+make compute-envtest
 ```
 
 `make e2e-test`'s prerequisites (`cluster-up image-load helm-install
@@ -74,13 +73,12 @@ separately. If a step fails (e.g. helm-install times out), inspect with
   `TestTenant_HappyPath`).
 - **Namespaces in tests**: use `testutil.RandomNamespace` for L1; in L2,
   hardcode a deterministic `e2e-` prefix and explicit `t.Cleanup`. The
-  tenant-operator design intentionally does NOT delete Namespaces, so e2e
-  tenant cleanup must `kubectl delete ns` explicitly (see
-  `test/e2e/operators/tenant_test.go`).
+  Tenant controller design intentionally does NOT delete Namespaces, so
+  e2e tenant cleanup must `kubectl delete ns` explicitly.
 
 ## Module layout
 
-Each operator's `test/envtest/` is its own Go module so the operator's
+Each component's `test/envtest/` is its own Go module so the component's
 production `go.mod` stays free of test-only deps (`testify`, `testutil`).
 This keeps `Dockerfile` build context clean — sibling-test replace
 directives would otherwise fall outside the build context. Same applies
@@ -88,7 +86,7 @@ to `test/e2e/`.
 
 The shared `test/testutil/` is a tiny module with no operator deps; it's
 imported via `replace` from each test module. If you need an operator-
-specific helper (e.g., a Tenant fixture builder), put it inside that
+specific helper (e.g., a Tenant fixture builder), put it inside the
 operator's `test/envtest/` package, NOT in testutil — testutil must remain
 operator-agnostic to avoid circular deps.
 
@@ -156,10 +154,10 @@ make coverage-html
 make coverage-unit
 make coverage-envtest
 
-# Per-operator slices (auto-generated shortcuts).
-make tenant-operator-coverage
-make mljob-operator-envtest-coverage
-make tenant-operator-coverage-html
+# Per-component slices (auto-generated shortcuts).
+make operator-coverage
+make operator-envtest-coverage
+make operator-coverage-html
 
 # Wipe everything (root + per-component coverage/ dirs).
 make coverage-clean
@@ -173,14 +171,14 @@ coverage-merge` (called by `make coverage`) concatenates them into
 `go tool cover -html` resolves package paths against the current Go
 module, so HTML rendering happens **per component** rather than from the
 merged file (the repo root has no `go.mod`, and the project intentionally
-avoids `go.work`). Open the per-operator HTML files for navigation; use
+avoids `go.work`). Open the per-component HTML files for navigation; use
 the merged profile only for aggregate tooling.
 
-**Why envtest needs `-coverpkg`**: each operator's `test/envtest/` is its
-own Go module that imports the operator via `replace`. Without an
-explicit `-coverpkg=<operator-import-path>/...`, `go test -coverprofile`
+**Why envtest needs `-coverpkg`**: each component's `test/envtest/` is its
+own Go module that imports the component via `replace`. Without an
+explicit `-coverpkg=<component-import-path>/...`, `go test -coverprofile`
 only counts the envtest module itself and the merged report would be
-empty. Each operator's Makefile sets `MODULE_PATH` and threads it into
+empty. Each component's Makefile sets `MODULE_PATH` and threads it into
 `-coverpkg` for you.
 
 **Atomic mode**: every coverage invocation uses `-covermode=atomic` so

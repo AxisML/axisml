@@ -10,7 +10,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
-	mlservicev1alpha1 "github.com/axisml/axisml/components/operators/mlservice-operator/api/v1alpha1"
+	mlservicev1alpha1 "github.com/axisml/axisml/components/operator/api/mlservice/v1alpha1"
 )
 
 // Informer reflects MLService CR status into PG.

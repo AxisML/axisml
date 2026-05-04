@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	mljobv1 "github.com/axisml/axisml/components/operators/mljob-operator/api/v1alpha1"
-	mlsvcv1 "github.com/axisml/axisml/components/operators/mlservice-operator/api/v1alpha1"
-	tenantv1 "github.com/axisml/axisml/components/operators/tenant-operator/api/v1alpha1"
+	mljobv1 "github.com/axisml/axisml/components/operator/api/mljob/v1alpha1"
+	mlsvcv1 "github.com/axisml/axisml/components/operator/api/mlservice/v1alpha1"
+	tenantv1 "github.com/axisml/axisml/components/operator/api/tenant/v1alpha1"
 	schedv1alpha1 "github.com/koordinator-sh/koordinator/apis/thirdparty/scheduler-plugins/pkg/apis/scheduling/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"

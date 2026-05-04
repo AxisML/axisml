@@ -10,16 +10,15 @@ Components deployed:
 {{- if .Values.artifacts.enabled }}
   - ML Artifacts: {{ include "axisml.fullname" . }}-artifacts:{{ .Values.artifacts.service.port }}
 {{- end }}
-{{- if .Values.operators.enabled }}
-  Operators:
-  {{- if .Values.operators.mljobOperator.enabled }}
-    - {{ include "axisml.fullname" . }}-mljob-operator
-  {{- end }}
-  {{- if .Values.operators.mlserviceOperator.enabled }}
-    - {{ include "axisml.fullname" . }}-mlservice-operator
-  {{- end }}
-  {{- if .Values.operators.tenantOperator.enabled }}
-    - {{ include "axisml.fullname" . }}-tenant-operator
+{{- if .Values.operator.enabled }}
+  {{- $controllers := list -}}
+  {{- if .Values.operator.controllers.tenant.enabled }}{{- $controllers = append $controllers "tenant" -}}{{- end -}}
+  {{- if .Values.operator.controllers.mljob.enabled }}{{- $controllers = append $controllers "mljob" -}}{{- end -}}
+  {{- if .Values.operator.controllers.mlservice.enabled }}{{- $controllers = append $controllers "mlservice" -}}{{- end }}
+  {{- if $controllers }}
+  - Operator:    {{ include "axisml.fullname" . }}-operator (controllers: {{ join ", " $controllers }})
+  {{- else }}
+  - Operator:    {{ include "axisml.fullname" . }}-operator (no controllers enabled — manager is a no-op)
   {{- end }}
 {{- end }}
 {{- if .Values.database.enabled }}

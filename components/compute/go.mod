@@ -3,9 +3,7 @@ module github.com/axisml/axisml/components/compute
 go 1.26.0
 
 require (
-	github.com/axisml/axisml/components/operators/mljob-operator v0.0.0
-	github.com/axisml/axisml/components/operators/mlservice-operator v0.0.0
-	github.com/axisml/axisml/components/operators/tenant-operator v0.0.0
+	github.com/axisml/axisml/components/operator v0.0.0
 	github.com/gin-gonic/gin v1.10.0
 	github.com/go-logr/logr v1.4.3
 	github.com/go-logr/zapr v1.3.0
@@ -22,6 +20,7 @@ require (
 	k8s.io/apimachinery v0.36.0
 	k8s.io/client-go v0.36.0
 	sigs.k8s.io/controller-runtime v0.24.0
+	sigs.k8s.io/yaml v1.6.0
 )
 
 require (
@@ -102,19 +101,14 @@ require (
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.2 // indirect
-	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
-// Local sibling modules (the three operator API packages live as separate Go
-// modules in the monorepo; pseudo-versions aren't published, so we wire them
-// up via replace directives. Docker builds use the repo root as build context
-// so these paths resolve.)
-replace (
-	github.com/axisml/axisml/components/operators/mljob-operator => ../operators/mljob-operator
-	github.com/axisml/axisml/components/operators/mlservice-operator => ../operators/mlservice-operator
-	github.com/axisml/axisml/components/operators/tenant-operator => ../operators/tenant-operator
-)
+// Local sibling: the merged axisml-operator module hosts all three CRD API
+// packages. Pseudo-versions aren't published, so we wire it up via a replace
+// directive. Docker builds use the repo root as build context so the path
+// resolves.
+replace github.com/axisml/axisml/components/operator => ../operator
 
-// Mirror tenant-operator's pin: koordinator v1.8.0's go.mod references a
+// Mirror axisml-operator's pin: koordinator v1.8.0's go.mod references a
 // kube-openapi version that is not published on the module proxy.
 replace k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912

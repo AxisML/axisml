@@ -129,70 +129,65 @@ artifacts:
   env: {}
 
 # =============================================================================
-# AxisML Operators
+# AxisML Operator
 # =============================================================================
-operators:
-  # -- Master toggle for all operators
+operator:
+  # -- Master toggle for the merged axisml-operator.
   enabled: true
 
-  # -- Shared image for all AxisML operators. entrypoint.sh starts the
-  # selected binary based on each Deployment's first arg.
+  # -- Replica count for the operator Deployment. Leader election (below)
+  # ensures only one replica reconciles at a time, so N>1 is purely an HA
+  # / faster-failover knob.
+  replicaCount: 1
+
+  # -- Image for the merged axisml-operator binary.
   image:
     registry: ghcr.io
     repository: axisml/axisml-operator
     tag: ""               # defaults to Chart.AppVersion via the axisml.image helper
     pullPolicy: IfNotPresent
 
-  mljobOperator:
+  # -- Leader election for the single Deployment. The Lease lives in the
+  # release namespace and is shared across all enabled controllers.
+  leaderElection:
     enabled: true
-    leaderElection:
+    id: axisml-operator.axisml.io
+
+  # -- Resource requests/limits sized for the union of the three controllers.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  # -- Per-CRD controller toggles. Each maps to a `--enable-*` flag on the
+  # binary. Disabling all three reduces the operator to a no-op manager.
+  controllers:
+    tenant:
       enabled: true
-    handlers:
-      nativeJob:
-        enabled: true
-      nativePodGroup:
-        enabled: true
-    resources:
-      requests:
-        cpu: 50m
-        memory: 128Mi
-      limits:
-        cpu: 200m
-        memory: 256Mi
+      # Periodic re-reconcile interval for source Secret/ConfigMap drift.
+      resyncPeriod: 10m
+      # Target namespaces a Tenant CR may NOT point spec.namespace.name at.
+      namespaceDenylist:
+        - kube-system
+        - kube-public
+        - kube-node-lease
+        - default
+        - axisml-system
+        - axisml-infra
 
-  mlserviceOperator:
-    enabled: true
-    resources:
-      requests:
-        cpu: 50m
-        memory: 128Mi
-      limits:
-        cpu: 200m
-        memory: 256Mi
+    mljob:
+      enabled: true
+      handlers:
+        nativeJob:
+          enabled: true
+        nativePodGroup:
+          enabled: true
 
-  tenantOperator:
-    enabled: true
-    # Periodic re-reconcile interval for source Secret/ConfigMap drift
-    # (design §5). Operators run a single replica; leader election is off
-    # by default and only useful when scaling to >1 replicas.
-    resyncPeriod: 10m
-    leaderElection: false
-    # Target namespaces a Tenant CR may NOT point spec.namespace.name at
-    # (design §6.1 risk note + §10).
-    namespaceDenylist:
-      - kube-system
-      - kube-public
-      - kube-node-lease
-      - default
-      - axisml-system
-      - axisml-infra
-    resources:
-      requests:
-        cpu: 50m
-        memory: 128Mi
-      limits:
-        cpu: 200m
-        memory: 256Mi
+    mlservice:
+      enabled: true
 
 # =============================================================================
 # Metadata Database (PostgreSQL)

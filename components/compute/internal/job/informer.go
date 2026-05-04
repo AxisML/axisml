@@ -11,7 +11,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
-	mljobv1alpha1 "github.com/axisml/axisml/components/operators/mljob-operator/api/v1alpha1"
+	mljobv1alpha1 "github.com/axisml/axisml/components/operator/api/mljob/v1alpha1"
 )
 
 // Informer reflects MLJob CR status into PG.

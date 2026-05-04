@@ -10,7 +10,7 @@ import (
 	"gorm.io/gorm"
 	corev1 "k8s.io/api/core/v1"
 
-	mljobv1alpha1 "github.com/axisml/axisml/components/operators/mljob-operator/api/v1alpha1"
+	mljobv1alpha1 "github.com/axisml/axisml/components/operator/api/mljob/v1alpha1"
 
 	"github.com/axisml/axisml/components/compute/internal/auth"
 	"github.com/axisml/axisml/components/compute/internal/quota"

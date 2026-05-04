@@ -11,7 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	mljobv1alpha1 "github.com/axisml/axisml/components/operators/mljob-operator/api/v1alpha1"
+	mljobv1alpha1 "github.com/axisml/axisml/components/operator/api/mljob/v1alpha1"
 
 	"github.com/axisml/axisml/components/compute/internal/metrics"
 	"github.com/axisml/axisml/components/compute/internal/quota"

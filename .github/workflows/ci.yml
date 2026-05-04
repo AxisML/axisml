@@ -23,12 +23,8 @@ jobs:
       fail-fast: false
       matrix:
         module:
-          - components/operators/tenant-operator
-          - components/operators/mljob-operator
-          - components/operators/mlservice-operator
-          - components/operators/tenant-operator/test/envtest
-          - components/operators/mljob-operator/test/envtest
-          - components/operators/mlservice-operator/test/envtest
+          - components/operator
+          - components/operator/test/envtest
           - components/compute
           - components/compute/test/envtest
           - test/testutil
@@ -55,7 +51,7 @@ jobs:
         with:
           go-version: '1.26'
           cache: true
-          # Repo has no root go.sum (monorepo with 8 separate Go modules).
+          # Repo has no root go.sum (monorepo with multiple Go modules).
           # Without this glob, setup-go's default `go.sum` lookup fails and
           # caching degenerates — module downloads and build cache cold-start
           # every run. Globbing every module's go.sum makes the cache key
@@ -66,9 +62,7 @@ jobs:
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
-          # Glob picks up every operator's profile, so adding a new component
-          # to the top-level COMPONENTS list doesn't require editing CI too.
-          files: ./components/operators/*/coverage/coverage.out,./components/compute/coverage/coverage.out
+          files: ./components/operator/coverage/coverage.out,./components/compute/coverage/coverage.out
           flags: unit
           fail_ci_if_error: false
 
@@ -93,10 +87,8 @@ jobs:
       fail-fast: false
       matrix:
         component:
-          - { name: tenant-operator,    coverage: ./components/operators/tenant-operator/coverage/envtest-coverage.out }
-          - { name: mljob-operator,     coverage: ./components/operators/mljob-operator/coverage/envtest-coverage.out }
-          - { name: mlservice-operator, coverage: ./components/operators/mlservice-operator/coverage/envtest-coverage.out }
-          - { name: compute,            coverage: ./components/compute/coverage/envtest-coverage.out }
+          - { name: operator, coverage: ./components/operator/coverage/envtest-coverage.out }
+          - { name: compute,  coverage: ./components/compute/coverage/envtest-coverage.out }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -138,11 +130,9 @@ jobs:
       fail-fast: false
       matrix:
         component:
-          # All three operators ship in one shared image; entrypoint.sh
-          # dispatches to the right binary based on the Deployment's args.
-          # Both this and `compute` build from the repo root because their
-          # Dockerfiles reach into sibling modules.
-          - { name: axisml-operator, image: axisml/axisml-operator, context: ., dockerfile: components/operators/Dockerfile }
+          # The merged operator and compute both build from the repo root —
+          # their Dockerfiles reach into sibling modules.
+          - { name: axisml-operator, image: axisml/axisml-operator, context: ., dockerfile: components/operator/Dockerfile }
           - { name: compute,         image: axisml/axisml-compute,  context: ., dockerfile: components/compute/Dockerfile }
     steps:
       - uses: actions/checkout@v4
