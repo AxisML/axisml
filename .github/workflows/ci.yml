@@ -15,36 +15,39 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
+# Jobs are organised as a type × component grid:
+#
+#                 operator   compute   test
+#   lint            ✓          ✓        ✓
+#   test            ✓          ✓        —
+#   envtest         ✓          ✓        —
+#   openapi         —          ✓        —
+#   image           ✓          ✓        —   (main-only)
+#
+# The `test` lint bucket covers the shared test/testutil + test/e2e modules,
+# which don't have their own test/envtest layers. Each component lint job
+# lints both its production module and its test/envtest sub-module in one go.
+
 jobs:
   lint:
-    name: lint (${{ matrix.module }})
+    name: lint (${{ matrix.component.name }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        module:
-          - components/operator
-          - components/operator/test/envtest
-          - components/compute
-          - components/compute/test/envtest
-          - test/testutil
-          - test/e2e
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: ${{ matrix.module }}/go.mod
-          cache: true
-          cache-dependency-path: ${{ matrix.module }}/go.sum
-      - uses: golangci/golangci-lint-action@v9
-        with:
-          version: v2.12.1
-          working-directory: ${{ matrix.module }}
-          args: --build-tags=envtest,e2e
-
-  unit:
-    name: unit tests
-    runs-on: ubuntu-latest
+        component:
+          - name: operator
+            modules: |
+              components/operator
+              components/operator/test/envtest
+          - name: compute
+            modules: |
+              components/compute
+              components/compute/test/envtest
+          - name: test
+            modules: |
+              test/testutil
+              test/e2e
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -52,22 +55,84 @@ jobs:
           go-version: '1.26'
           cache: true
           # Repo has no root go.sum (monorepo with multiple Go modules).
-          # Without this glob, setup-go's default `go.sum` lookup fails and
-          # caching degenerates — module downloads and build cache cold-start
-          # every run. Globbing every module's go.sum makes the cache key
-          # stable and shares ~/go/pkg/mod + ~/.cache/go-build across runs.
+          # Globbing every module's go.sum makes the cache key stable and
+          # shares ~/go/pkg/mod + ~/.cache/go-build across runs.
+          cache-dependency-path: '**/go.sum'
+      - name: Install golangci-lint
+        # `go install` is reliable across versions; the upstream install.sh
+        # from `master` has had checksum-table regressions for tagged releases.
+        run: |
+          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.1
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Run golangci-lint
+        run: |
+          set -e
+          while IFS= read -r module; do
+            [ -z "$module" ] && continue
+            echo "::group::lint $module"
+            (cd "$module" && golangci-lint run --build-tags=envtest,e2e)
+            echo "::endgroup::"
+          done <<'EOF'
+          ${{ matrix.component.modules }}
+          EOF
+
+  test:
+    name: test (${{ matrix.component }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        component: [operator, compute]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
           cache-dependency-path: '**/go.sum'
       - name: Run unit tests with coverage
-        run: make coverage-unit
+        run: make ${{ matrix.component }}-coverage
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
-          files: ./components/operator/coverage/coverage.out,./components/compute/coverage/coverage.out
-          flags: unit
+          files: ./components/${{ matrix.component }}/coverage/coverage.out
+          flags: test,${{ matrix.component }}
+          fail_ci_if_error: false
+
+  envtest:
+    name: envtest (${{ matrix.component }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        component: [operator, compute]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+          cache-dependency-path: '**/go.sum'
+      - name: Cache shared setup-envtest binary + kubebuilder assets
+        uses: actions/cache@v4
+        with:
+          path: |
+            test/setup-envtest
+            ~/.local/share/kubebuilder-envtest
+          key: envtest-${{ runner.os }}-k8s-1.31.0
+      - name: Install setup-envtest binary if missing
+        run: make setup-envtest
+      - name: Run L1 envtest with coverage
+        run: make ${{ matrix.component }}-envtest-coverage
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./components/${{ matrix.component }}/coverage/envtest-coverage.out
+          flags: envtest,${{ matrix.component }}
           fail_ci_if_error: false
 
   openapi:
-    name: openapi spec drift
+    name: openapi (compute)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -80,48 +145,12 @@ jobs:
         working-directory: components/compute
         run: make openapi-check
 
-  envtest:
-    name: L1 envtest (${{ matrix.component.name }})
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        component:
-          - { name: operator, coverage: ./components/operator/coverage/envtest-coverage.out }
-          - { name: compute,  coverage: ./components/compute/coverage/envtest-coverage.out }
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.26'
-          cache: true
-          # See `unit` job: glob every module's go.sum because there is no
-          # root go.sum to drive setup-go's default cache key.
-          cache-dependency-path: '**/go.sum'
-      - name: Cache shared setup-envtest binary + kubebuilder assets
-        uses: actions/cache@v4
-        with:
-          path: |
-            test/setup-envtest
-            ~/.local/share/kubebuilder-envtest
-          key: envtest-${{ runner.os }}-k8s-1.31.0
-      - name: Install setup-envtest binary if missing
-        run: make setup-envtest
-      - name: Run L1 envtest with coverage for ${{ matrix.component.name }}
-        run: make ${{ matrix.component.name }}-envtest-coverage
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
-        with:
-          files: ${{ matrix.component.coverage }}
-          flags: envtest,${{ matrix.component.name }}
-          fail_ci_if_error: false
-
   image:
     name: image (${{ matrix.component.name }})
     # Only build and push on main pushes — PRs run lint/test but don't publish
     # images. Gate behind every other check so a red main doesn't ship.
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [lint, unit, openapi, envtest]
+    needs: [lint, test, envtest, openapi]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -132,8 +161,8 @@ jobs:
         component:
           # The merged operator and compute both build from the repo root —
           # their Dockerfiles reach into sibling modules.
-          - { name: axisml-operator, image: axisml/axisml-operator, context: ., dockerfile: components/operator/Dockerfile }
-          - { name: compute,         image: axisml/axisml-compute,  context: ., dockerfile: components/compute/Dockerfile }
+          - { name: operator, image: axisml/axisml-operator, context: ., dockerfile: components/operator/Dockerfile }
+          - { name: compute,  image: axisml/axisml-compute,  context: ., dockerfile: components/compute/Dockerfile }
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
