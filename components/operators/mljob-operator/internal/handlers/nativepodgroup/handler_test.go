@@ -141,7 +141,7 @@ func TestReconcile_SuspendOrderedShutdown(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "gang-0", Namespace: "tnt",
 			Labels: map[string]string{
-				axislabels.JobIDLabel:   "11111111-2222-3333-4444-555555555555",
+				axislabels.JobIDLabel:    "11111111-2222-3333-4444-555555555555",
 				axislabels.PodGroupLabel: "gang",
 			},
 		},

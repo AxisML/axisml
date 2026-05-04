@@ -116,11 +116,11 @@ func TestBuildDeployment_InjectsRequiredLabels(t *testing.T) {
 	}
 
 	wantLabels := map[string]string{
-		axisml.LabelServiceID:       "uuid-1",
-		axisml.LabelRole:            "predictor",
-		axisml.LabelKoordQuotaName:  "axisml-demo-default-training",
-		axisml.LabelQuota:           "training",
-		axisml.LabelTenant:          "demo",
+		axisml.LabelServiceID:      "uuid-1",
+		axisml.LabelRole:           "predictor",
+		axisml.LabelKoordQuotaName: "axisml-demo-default-training",
+		axisml.LabelQuota:          "training",
+		axisml.LabelTenant:         "demo",
 	}
 	for k, want := range wantLabels {
 		if got := dep.Spec.Template.Labels[k]; got != want {

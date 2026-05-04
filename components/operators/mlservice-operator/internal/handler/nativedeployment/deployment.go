@@ -36,11 +36,11 @@ func buildDeployment(mls *axisml.MLService) *appsv1.Deployment {
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{Labels: podLabels},
 				Spec: corev1.PodSpec{
-					SchedulerName:    axisml.SchedulerName,
-					NodeSelector:     mls.Spec.Scheduling.NodeSelector,
-					Tolerations:      mls.Spec.Scheduling.Tolerations,
+					SchedulerName:     axisml.SchedulerName,
+					NodeSelector:      mls.Spec.Scheduling.NodeSelector,
+					Tolerations:       mls.Spec.Scheduling.Tolerations,
 					PriorityClassName: mls.Spec.Scheduling.PriorityClass,
-					Containers:       []corev1.Container{buildContainer(mls, role)},
+					Containers:        []corev1.Container{buildContainer(mls, role)},
 				},
 			},
 		},

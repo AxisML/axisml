@@ -14,8 +14,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	tenantv1 "github.com/axisml/axisml/components/operators/tenant-operator/api/v1alpha1"
 	mlsvcv1 "github.com/axisml/axisml/components/operators/mlservice-operator/api/v1alpha1"
+	tenantv1 "github.com/axisml/axisml/components/operators/tenant-operator/api/v1alpha1"
 	"github.com/axisml/axisml/test/e2e"
 	"github.com/axisml/axisml/test/testutil"
 )
