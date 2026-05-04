@@ -3,7 +3,7 @@
 # --- Cluster Configuration ---
 export MINIKUBE_PROFILE ?= axisml
 export MINIKUBE_CPUS    ?= 4
-export MINIKUBE_MEMORY  ?= 4096
+export MINIKUBE_MEMORY  ?= 8192
 export MINIKUBE_DISK    ?= 20g
 export K8S_VERSION      ?=
 export MINIKUBE_DRIVER  ?=

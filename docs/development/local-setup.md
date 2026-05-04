@@ -63,7 +63,7 @@ This creates a minikube cluster named `axisml` with the following defaults:
 |---------|---------|---------|
 | Profile | `axisml` | `MINIKUBE_PROFILE` |
 | CPUs | 4 | `MINIKUBE_CPUS` |
-| Memory | 4096 MB | `MINIKUBE_MEMORY` |
+| Memory | 8192 MB | `MINIKUBE_MEMORY` |
 | Disk | 20 GB | `MINIKUBE_DISK` |
 | Kubernetes |  | `K8S_VERSION` |
 | Driver | auto-detect (docker > podman) | `MINIKUBE_DRIVER` |
