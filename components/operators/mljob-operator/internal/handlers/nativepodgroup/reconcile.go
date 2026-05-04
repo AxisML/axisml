@@ -230,7 +230,7 @@ func (h *Handler) buildPod(mlJob *axisv1alpha1.MLJob, role axisv1alpha1.RoleSpec
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            podName(mlJob.Name, idx),
 			Namespace:       mlJob.Namespace,
-			Labels:          tmpl.ObjectMeta.Labels,
+			Labels:          tmpl.Labels,
 			OwnerReferences: []metav1.OwnerReference{axishandler.OwnerRef(mlJob)},
 		},
 		Spec: tmpl.Spec,

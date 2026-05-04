@@ -101,7 +101,7 @@ func (h *Handler) buildJob(mlJob *axisv1alpha1.MLJob) (*batchv1.Job, error) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            jobName(mlJob.Name),
 			Namespace:       mlJob.Namespace,
-			Labels:          tmpl.ObjectMeta.Labels,
+			Labels:          tmpl.Labels,
 			OwnerReferences: []metav1.OwnerReference{axishandler.OwnerRef(mlJob)},
 		},
 		Spec: batchv1.JobSpec{
