@@ -612,7 +612,7 @@ S3 路径（dataset / eval_report）类似，把 `oras push` 替换为 S3 multip
 
 ### 9.1 镜像与容器
 
-- 镜像：`ghcr.io/axisml/axisml/axisml-artifacts:<appVersion>`（由 `build/docker/artifacts.Dockerfile` 构建）
+- 镜像：`ghcr.io/axisml/axisml-artifacts:<appVersion>`（由 `build/docker/artifacts.Dockerfile` 构建）
 - 端口：`8082/tcp`（REST）
 - 启动命令：`/artifacts serve`
 - 探针：`GET /healthz`、`GET /readyz`

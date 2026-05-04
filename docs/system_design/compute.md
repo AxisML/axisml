@@ -661,7 +661,7 @@ Compute 对 `GET /jobs/{job}/logs` 只做路径级鉴权与 Pod 定位，实际�
 
 ### 9.1 镜像与容器
 
-- 镜像：`ghcr.io/axisml/axisml/axisml-compute:<appVersion>`（由 `build/docker/compute.Dockerfile` 构建）
+- 镜像：`ghcr.io/axisml/axisml-compute:<appVersion>`（由 `build/docker/compute.Dockerfile` 构建）
 - 端口：`8081/tcp`（REST）
 - 启动命令：`/compute serve`
 - 探针：`GET /healthz`、`GET /readyz`

@@ -19,9 +19,10 @@ platform:
   replicaCount: 1
 
   image:
-    registry: ghcr.io
-    repository: axisml/axisml/axisml-platform
-    tag: ""               # defaults to .Chart.AppVersion via the axisml.image helper
+    # Platform service is not yet implemented; use nginx as a placeholder.
+    registry: docker.io
+    repository: library/nginx
+    tag: "1.27-alpine"
     pullPolicy: IfNotPresent
 
   service:
@@ -53,10 +54,10 @@ compute:
   replicaCount: 1
 
   image:
-    # Published by .github/workflows/ci.yml on every push to main.
-    registry: ghcr.io
-    repository: axisml/axisml/axisml-compute
-    tag: ""               # defaults to .Chart.AppVersion via the axisml.image helper
+    # Compute service is not yet implemented; use nginx as a placeholder.
+    registry: docker.io
+    repository: library/nginx
+    tag: "1.27-alpine"
     pullPolicy: IfNotPresent
 
   service:
@@ -107,9 +108,10 @@ artifacts:
   replicaCount: 1
 
   image:
-    registry: ghcr.io
-    repository: axisml/axisml/axisml-artifacts
-    tag: ""               # defaults to .Chart.AppVersion via the axisml.image helper
+    # Artifacts service is not yet implemented; use nginx as a placeholder.
+    registry: docker.io
+    repository: library/nginx
+    tag: "1.27-alpine"
     pullPolicy: IfNotPresent
 
   service:
@@ -137,7 +139,7 @@ operators:
   # selected binary based on each Deployment's first arg.
   image:
     registry: ghcr.io
-    repository: axisml/axisml/axisml-operator
+    repository: axisml/axisml-operator
     tag: ""               # defaults to Chart.AppVersion via the axisml.image helper
     pullPolicy: IfNotPresent
 

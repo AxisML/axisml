@@ -39,7 +39,7 @@ deploy/Dockerfile     Container image build (to be added)
 make help            # list all targets
 make / make build    # compile bin/artifacts
 make test            # unit tests
-make image           # docker build -> ghcr.io/axisml/axisml/axisml-artifacts:0.1.0
+make image           # docker build -> ghcr.io/axisml/axisml-artifacts:0.1.0
 make clean           # remove build artifacts
 ```
 

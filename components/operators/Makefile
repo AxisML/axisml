@@ -4,7 +4,7 @@
 # MLJob, and MLService operator binaries; entrypoint.sh selects which one to
 # execute.
 
-IMAGE_REPO ?= ghcr.io/axisml/axisml/axisml-operator
+IMAGE_REPO ?= ghcr.io/axisml/axisml-operator
 # Must track deploy/helm/axisml-system Chart.appVersion. The top-level
 # Makefile exports IMAGE_TAG from the chart for repo-wide invocations.
 IMAGE_TAG  ?= 0.1.0
