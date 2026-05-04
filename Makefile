@@ -27,6 +27,23 @@ HELM_SYSTEM_CHART     ?= deploy/helm/axisml-system
 #   make image IMAGE_TAG=dev
 export IMAGE_TAG ?= $(shell awk '/^appVersion:/{gsub(/"/,"",$$2);print $$2}' $(HELM_SYSTEM_CHART)/Chart.yaml)
 
+# --- Helm image-tag overrides ---
+#
+# Propagate IMAGE_TAG into the four AxisML component image refs so any
+# `helm-install` / `helm-upgrade` / `helm-template` invocation honours
+# overrides like `make helm-install IMAGE_TAG=latest` without editing
+# values.yaml. The default IMAGE_TAG is Chart.appVersion (above), so
+# omitting the override matches the chart's built-in default.
+#
+# HELM_EXTRA_ARGS is an escape hatch for ad-hoc `--set` / `-f` flags;
+# it's empty by default and appended last (highest precedence).
+HELM_SYSTEM_IMAGE_SET := \
+  --set compute.image.tag=$(IMAGE_TAG) \
+  --set operators.tenantOperator.image.tag=$(IMAGE_TAG) \
+  --set operators.mljobOperator.image.tag=$(IMAGE_TAG) \
+  --set operators.mlserviceOperator.image.tag=$(IMAGE_TAG)
+HELM_EXTRA_ARGS ?=
+
 ##@ Cluster Management
 
 .PHONY: cluster-up cluster-down cluster-delete cluster-status
@@ -62,7 +79,7 @@ helm-crds-system: ## Apply axisml-system CRDs (Helm only installs files under cr
 	@kubectl --context $(MINIKUBE_PROFILE) apply -f $(HELM_SYSTEM_CHART)/crds/
 
 helm-install-system: helm-crds-system ## Install or upgrade AxisML control plane (idempotent)
-	@helm upgrade --install $(HELM_SYSTEM_RELEASE) $(HELM_SYSTEM_CHART) -n $(HELM_SYSTEM_NAMESPACE) --create-namespace --kube-context $(MINIKUBE_PROFILE)
+	@helm upgrade --install $(HELM_SYSTEM_RELEASE) $(HELM_SYSTEM_CHART) -n $(HELM_SYSTEM_NAMESPACE) --create-namespace --kube-context $(MINIKUBE_PROFILE) $(HELM_SYSTEM_IMAGE_SET) $(HELM_EXTRA_ARGS)
 
 helm-install: helm-install-infra helm-install-system ## Install or upgrade infra + control plane
 
@@ -70,7 +87,7 @@ helm-upgrade-infra: ## Upgrade AxisML infrastructure (must already be installed)
 	@helm upgrade $(HELM_INFRA_RELEASE) $(HELM_INFRA_CHART) -n $(HELM_INFRA_NAMESPACE) --kube-context $(MINIKUBE_PROFILE)
 
 helm-upgrade-system: helm-crds-system ## Upgrade AxisML control plane (must already be installed)
-	@helm upgrade $(HELM_SYSTEM_RELEASE) $(HELM_SYSTEM_CHART) -n $(HELM_SYSTEM_NAMESPACE) --kube-context $(MINIKUBE_PROFILE)
+	@helm upgrade $(HELM_SYSTEM_RELEASE) $(HELM_SYSTEM_CHART) -n $(HELM_SYSTEM_NAMESPACE) --kube-context $(MINIKUBE_PROFILE) $(HELM_SYSTEM_IMAGE_SET) $(HELM_EXTRA_ARGS)
 
 helm-upgrade: helm-upgrade-infra helm-upgrade-system ## Upgrade both
 
@@ -84,7 +101,7 @@ helm-uninstall: helm-uninstall-system helm-uninstall-infra ## Uninstall control 
 
 helm-template: ## Render both charts locally
 	@helm template $(HELM_INFRA_RELEASE) $(HELM_INFRA_CHART) -n $(HELM_INFRA_NAMESPACE)
-	@helm template $(HELM_SYSTEM_RELEASE) $(HELM_SYSTEM_CHART) -n $(HELM_SYSTEM_NAMESPACE)
+	@helm template $(HELM_SYSTEM_RELEASE) $(HELM_SYSTEM_CHART) -n $(HELM_SYSTEM_NAMESPACE) $(HELM_SYSTEM_IMAGE_SET) $(HELM_EXTRA_ARGS)
 
 # --- Components ---
 #
