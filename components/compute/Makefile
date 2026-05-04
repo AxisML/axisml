@@ -9,7 +9,7 @@
 # NOTE: Compute imports operator API packages via local replace directives,
 # so `image` builds with the repo root as build context.
 
-IMAGE_REPO ?= axisml/compute
+IMAGE_REPO ?= ghcr.io/axisml/compute
 # Must track deploy/helm/axisml-system Chart.appVersion: the Helm template
 # defaults image.tag to .Chart.AppVersion when unset, so locally-built images
 # need this tag for `minikube image load` to satisfy the rendered Deployment.

@@ -154,6 +154,13 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Read chart appVersion
+        id: chart
+        # The Helm chart's default image.tag is .Chart.AppVersion, so CI must
+        # publish that tag for `helm install` to work out of the box.
+        run: |
+          version=$(awk '/^appVersion:/{gsub(/"/,"",$2);print $2}' deploy/helm/axisml-system/Chart.yaml)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
       - name: Compute image tags
         id: meta
         uses: docker/metadata-action@v5
@@ -164,6 +171,7 @@ jobs:
           tags: |
             type=raw,value=latest
             type=raw,value=main
+            type=raw,value=${{ steps.chart.outputs.version }}
             type=sha,format=short
       - name: Build and push ${{ matrix.component.name }}
         uses: docker/build-push-action@v6
