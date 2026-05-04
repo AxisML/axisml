@@ -238,7 +238,7 @@ func newGenerator() *generator {
 // expanded schema rather than a $ref to itself.
 func (g *generator) register(name string, v any) {
 	t := reflect.TypeOf(v)
-	for t.Kind() == reflect.Ptr {
+	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 	g.inProgress[t] = name
@@ -258,7 +258,7 @@ func (g *generator) register(name string, v any) {
 // (defining the target lazily) so we get a tidy components/schemas section
 // instead of inline duplication.
 func (g *generator) schemaForType(t reflect.Type) *schema {
-	for t.Kind() == reflect.Ptr {
+	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 	if s := wellKnown(t); s != nil {
@@ -369,7 +369,7 @@ func isRequired(binding string, jsonOpts []string, t reflect.Type) bool {
 	return false
 }
 
-func isPtr(t reflect.Type) bool { return t.Kind() == reflect.Ptr }
+func isPtr(t reflect.Type) bool { return t.Kind() == reflect.Pointer }
 
 func intFormat(t reflect.Type) string {
 	switch t.Kind() {
