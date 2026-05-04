@@ -6,7 +6,7 @@
 #   make test          Run unit tests (no cluster required)
 #   make clean         Remove build artifacts
 
-IMAGE_REPO ?= ghcr.io/axisml/tenant-operator
+IMAGE_REPO ?= ghcr.io/axisml/axisml/tenant-operator
 # Must track deploy/helm/axisml-system Chart.appVersion: the Helm template
 # defaults image.tag to .Chart.AppVersion when unset, so locally-built images
 # need this tag for `minikube image load` to satisfy the rendered Deployment.

@@ -661,7 +661,7 @@ Compute 对 `GET /jobs/{job}/logs` 只做路径级鉴权与 Pod 定位，实际�
 
 ### 9.1 镜像与容器
 
-- 镜像：`axisml/compute:<appVersion>`（由 `build/docker/compute.Dockerfile` 构建）
+- 镜像：`ghcr.io/axisml/axisml/axisml-compute:<appVersion>`（由 `build/docker/compute.Dockerfile` 构建）
 - 端口：`8081/tcp`（REST）
 - 启动命令：`/compute serve`
 - 探针：`GET /healthz`、`GET /readyz`
@@ -673,7 +673,7 @@ Compute 对 `GET /jobs/{job}/logs` 只做路径级鉴权与 Pod 定位，实际�
 | 文件 | 用途 |
 | --- | --- |
 | `configmap.yaml`（已存在，补字段） | DB 连接、日志级别 |
-| `deployment.yaml`（已存在，换镜像） | 将 nginx placeholder 替换为真实镜像，加探针 |
+| `deployment.yaml`（已存在） | 使用 `axisml-compute` 镜像，加探针 |
 | `service.yaml`（已存在） | 保持 ClusterIP 8081 |
 | `serviceaccount.yaml`（新增） | Compute 服务账号 |
 | `rbac.yaml`（新增） | ClusterRole + ClusterRoleBinding：MLJob / MLService / Tenant（ElasticQuota 不在此处，归 tenant-operator） |

@@ -44,7 +44,7 @@ make / make build    # build the production bundle into dist/
 make test            # unit tests
 make dev             # start the dev server
 make lint            # lint the codebase
-make image           # docker build → axisml/platform-frontend:0.1.0
+make image           # docker build -> ghcr.io/axisml/axisml/axisml-platform-frontend:0.1.0
 make clean           # remove dist/, build/, and the npm cache
 ```
 

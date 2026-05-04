@@ -10,7 +10,7 @@
 # Go service with a `./cmd` entrypoint and a co-located Dockerfile, matching
 # the layout planned in docs/system_design/artifacts.md.
 
-IMAGE_REPO ?= axisml/artifacts
+IMAGE_REPO ?= ghcr.io/axisml/axisml/axisml-artifacts
 # Must track deploy/helm/axisml-system Chart.appVersion (the Helm template
 # defaults image.tag to .Chart.AppVersion when unset).
 IMAGE_TAG  ?= 0.1.0

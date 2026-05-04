@@ -29,7 +29,7 @@ export IMAGE_TAG ?= $(shell awk '/^appVersion:/{gsub(/"/,"",$$2);print $$2}' $(H
 
 # --- Helm image-tag overrides ---
 #
-# Propagate IMAGE_TAG into the four AxisML component image refs so any
+# Propagate IMAGE_TAG into AxisML component image refs so any
 # `helm-install` / `helm-upgrade` / `helm-template` invocation honours
 # overrides like `make helm-install IMAGE_TAG=latest` without editing
 # values.yaml. The default IMAGE_TAG is Chart.appVersion (above), so
@@ -38,7 +38,9 @@ export IMAGE_TAG ?= $(shell awk '/^appVersion:/{gsub(/"/,"",$$2);print $$2}' $(H
 # HELM_EXTRA_ARGS is an escape hatch for ad-hoc `--set` / `-f` flags;
 # it's empty by default and appended last (highest precedence).
 HELM_SYSTEM_IMAGE_SET := \
+  --set platform.image.tag=$(IMAGE_TAG) \
   --set compute.image.tag=$(IMAGE_TAG) \
+  --set artifacts.image.tag=$(IMAGE_TAG) \
   --set operators.tenantOperator.image.tag=$(IMAGE_TAG) \
   --set operators.mljobOperator.image.tag=$(IMAGE_TAG) \
   --set operators.mlserviceOperator.image.tag=$(IMAGE_TAG)

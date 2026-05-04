@@ -19,9 +19,9 @@ platform:
   replicaCount: 1
 
   image:
-    registry: ""
-    repository: nginx
-    tag: "1.27"
+    registry: ghcr.io
+    repository: axisml/axisml/axisml-platform
+    tag: ""               # defaults to .Chart.AppVersion via the axisml.image helper
     pullPolicy: IfNotPresent
 
   service:
@@ -55,7 +55,7 @@ compute:
   image:
     # Published by .github/workflows/ci.yml on every push to main.
     registry: ghcr.io
-    repository: axisml/compute
+    repository: axisml/axisml/axisml-compute
     tag: ""               # defaults to .Chart.AppVersion via the axisml.image helper
     pullPolicy: IfNotPresent
 
@@ -107,9 +107,9 @@ artifacts:
   replicaCount: 1
 
   image:
-    registry: ""
-    repository: nginx
-    tag: "1.27"
+    registry: ghcr.io
+    repository: axisml/axisml/axisml-artifacts
+    tag: ""               # defaults to .Chart.AppVersion via the axisml.image helper
     pullPolicy: IfNotPresent
 
   service:
@@ -137,7 +137,7 @@ operators:
     enabled: true
     image:
       registry: ghcr.io
-      repository: axisml/mljob-operator
+      repository: axisml/axisml/mljob-operator
       tag: ""               # defaults to Chart.AppVersion via the axisml.image helper
       pullPolicy: IfNotPresent
     leaderElection:
@@ -159,7 +159,7 @@ operators:
     enabled: true
     image:
       registry: ghcr.io
-      repository: axisml/mlservice-operator
+      repository: axisml/axisml/mlservice-operator
       tag: ""               # defaults to Chart.AppVersion via the axisml.image helper
       pullPolicy: IfNotPresent
     resources:
@@ -174,7 +174,7 @@ operators:
     enabled: true
     image:
       registry: ghcr.io
-      repository: axisml/tenant-operator
+      repository: axisml/axisml/tenant-operator
       # tag defaults to .Chart.AppVersion via the axisml.image helper.
       tag: ""
       pullPolicy: IfNotPresent

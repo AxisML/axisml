@@ -34,7 +34,7 @@ The CRD generated from `api/v1alpha1` is checked in under `deploy/helm/axisml-sy
 make help                 # list all targets
 make / make build         # compile bin/mlservice-operator
 make test                 # unit tests (no cluster required)
-make image                # docker build → axisml/mlservice-operator:0.1.0
+make image                # docker build -> ghcr.io/axisml/axisml/mlservice-operator:0.1.0
 make image-load-minikube  # build and `minikube image load` the image
 make clean                # remove build artifacts
 

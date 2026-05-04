@@ -51,7 +51,7 @@ make build                # compile bin/tenant-operator
 make test                 # unit tests (no cluster required)
 make test-integration     # envtest integration tests against the kubeconfig
                           # context (see prerequisites below)
-make image                # docker build → axisml/tenant-operator:0.1.0
+make image                # docker build -> ghcr.io/axisml/axisml/tenant-operator:0.1.0
 make image-load-minikube  # build and `minikube image load` the image
 ```
 

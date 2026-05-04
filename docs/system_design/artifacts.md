@@ -612,7 +612,7 @@ S3 路径（dataset / eval_report）类似，把 `oras push` 替换为 S3 multip
 
 ### 9.1 镜像与容器
 
-- 镜像：`axisml/artifacts:<appVersion>`（由 `build/docker/artifacts.Dockerfile` 构建）
+- 镜像：`ghcr.io/axisml/axisml/axisml-artifacts:<appVersion>`（由 `build/docker/artifacts.Dockerfile` 构建）
 - 端口：`8082/tcp`（REST）
 - 启动命令：`/artifacts serve`
 - 探针：`GET /healthz`、`GET /readyz`
@@ -624,7 +624,7 @@ S3 路径（dataset / eval_report）类似，把 `oras push` 替换为 S3 multip
 | 文件 | 用途 |
 | --- | --- |
 | `configmap.yaml`（已存在，补字段） | DB 连接、zot endpoint、RustFS endpoint、`authHint` 模板（§5.3）、token TTL；不含 admin 名单（admin 走 `X-Axisml-Roles` header） |
-| `deployment.yaml`（已存在，换镜像） | 把 nginx placeholder 替换为真实镜像，加探针 |
+| `deployment.yaml`（已存在） | 使用 `axisml-artifacts` 镜像，加探针 |
 | `service.yaml`（已存在） | 保持 ClusterIP 8082 |
 | `serviceaccount.yaml`（新增） | Artifacts 服务账号 |
 | `secret.yaml`（新增） | 平台级 zot admin 凭证、RustFS 凭证（不进 ConfigMap） |

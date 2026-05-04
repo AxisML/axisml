@@ -141,10 +141,10 @@ jobs:
           # `compute` builds from the repo root because its Dockerfile pulls in
           # sibling operator modules via local `replace` directives. The other
           # three are self-contained.
-          - { name: tenant-operator,    context: components/operators/tenant-operator,    dockerfile: components/operators/tenant-operator/Dockerfile }
-          - { name: mljob-operator,     context: components/operators/mljob-operator,     dockerfile: components/operators/mljob-operator/Dockerfile }
-          - { name: mlservice-operator, context: components/operators/mlservice-operator, dockerfile: components/operators/mlservice-operator/Dockerfile }
-          - { name: compute,            context: .,                                       dockerfile: components/compute/Dockerfile }
+          - { name: tenant-operator,    image: axisml/tenant-operator,    context: components/operators/tenant-operator,    dockerfile: components/operators/tenant-operator/Dockerfile }
+          - { name: mljob-operator,     image: axisml/mljob-operator,     context: components/operators/mljob-operator,     dockerfile: components/operators/mljob-operator/Dockerfile }
+          - { name: mlservice-operator, image: axisml/mlservice-operator, context: components/operators/mlservice-operator, dockerfile: components/operators/mlservice-operator/Dockerfile }
+          - { name: compute,            image: axisml/axisml-compute,     context: .,                                       dockerfile: components/compute/Dockerfile }
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
@@ -167,7 +167,7 @@ jobs:
         with:
           # metadata-action lowercases the image reference itself, so an
           # owner like `AxisML` becomes `axisml` (GHCR requires lowercase).
-          images: ghcr.io/${{ github.repository_owner }}/${{ matrix.component.name }}
+          images: ghcr.io/${{ github.repository_owner }}/${{ matrix.component.image }}
           tags: |
             type=raw,value=latest
             type=raw,value=main
