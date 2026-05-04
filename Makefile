@@ -219,6 +219,31 @@ $(notdir $1)-clean:
 endef
 $(foreach c,$(COMPONENTS),$(eval $(call _COMPONENT_SHORTCUTS,$(c))))
 
+# Per-operator-module shortcuts. The `components/operators` component builds
+# one shared image, but each operator still has its own Go module with unit
+# tests, envtest, and coverage. CI's envtest matrix invokes
+# `make <operator>-envtest-coverage` per operator, so wire those up explicitly.
+define _OPERATOR_SHORTCUTS
+.PHONY: $(notdir $1)-test $(notdir $1)-envtest $(notdir $1)-coverage $(notdir $1)-envtest-coverage $(notdir $1)-coverage-html $(notdir $1)-fmt $(notdir $1)-tidy $(notdir $1)-clean
+$(notdir $1)-test:
+	@$$(MAKE) -C $1 test
+$(notdir $1)-envtest:
+	@$$(MAKE) -C $1 envtest
+$(notdir $1)-coverage:
+	@$$(MAKE) -C $1 coverage
+$(notdir $1)-envtest-coverage:
+	@$$(MAKE) -C $1 envtest-coverage
+$(notdir $1)-coverage-html:
+	@$$(MAKE) -C $1 coverage-html
+$(notdir $1)-fmt:
+	@$$(MAKE) -C $1 fmt
+$(notdir $1)-tidy:
+	@$$(MAKE) -C $1 tidy
+$(notdir $1)-clean:
+	@$$(MAKE) -C $1 clean
+endef
+$(foreach c,$(filter components/operators/%,$(COVERAGE_COMPONENTS)),$(eval $(call _OPERATOR_SHORTCUTS,$(c))))
+
 ##@ Test infrastructure
 
 # Shared setup-envtest binary location. Each operator's `envtest` Makefile
