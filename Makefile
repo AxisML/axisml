@@ -96,9 +96,9 @@ helm-template: ## Render both charts locally
 COMPONENTS := \
   components/operators/tenant-operator \
   components/operators/mljob-operator \
-  components/operators/mlservice-operator
+  components/operators/mlservice-operator \
+  components/compute
 # Scaffolded components (uncomment as they ship code):
-# COMPONENTS += components/compute
 # COMPONENTS += components/artifacts
 # COMPONENTS += components/platform/backend
 # COMPONENTS += components/platform/frontend
@@ -106,6 +106,12 @@ COMPONENTS := \
 # Operator basenames, derived from COMPONENTS. Used by e2e targets that
 # act on every operator Deployment (scale-to-zero, rollout wait).
 OPERATORS := $(notdir $(filter components/operators/%,$(COMPONENTS)))
+
+# All component basenames. Used by e2e-pre-image-load / e2e-wait — every
+# component whose image just got loaded into minikube needs to be scaled to
+# zero first (otherwise `minikube image load` silently no-ops while the old
+# pod still references :TAG) and then waited on after helm-install.
+DEPLOYMENTS := $(notdir $(COMPONENTS))
 
 # Every Go module in the repo (operators + their envtest sub-modules +
 # shared test/testutil + test/e2e). `go fmt ./...` does not cross module
@@ -225,29 +231,33 @@ e2e-test: cluster-up e2e-pre-image-load image-load helm-install e2e-wait ## L2 m
 	  echo "(no e2e tests yet — orchestration complete; add Go tests under test/e2e/ behind build tag e2e)"; \
 	fi
 
-# Scale operator deployments to zero before `image-load`. minikube's
-# `image load --overwrite=true` is silently a no-op when a container in the
-# minikube node still references the existing image:tag, so subsequent runs
-# would deploy stale code. helm-install scales them back up to the chart's
-# replicas (=1), at which point the freshly-loaded image is pulled.
-# `--ignore-not-found` makes scale a no-op on a fresh cluster; per-operator
-# wait selectors stay scoped to operator Pods so future axisml-system Pods
-# (Platform/Compute/Artifacts) don't widen the wait set.
+# Scale axisml-system component deployments to zero before `image-load`.
+# minikube's `image load --overwrite=true` is silently a no-op when a
+# container in the minikube node still references the existing image:tag, so
+# subsequent runs would deploy stale code. helm-install scales them back up to
+# the chart's replicas (=1), at which point the freshly-loaded image is
+# pulled. The `kubectl get` guard makes scale a no-op on a fresh cluster
+# (`kubectl scale` doesn't accept `--ignore-not-found` until v1.31). Per-
+# component wait selectors (`app.kubernetes.io/name=$$c`) stay scoped so we
+# don't widen to unrelated axisml-system Pods.
 e2e-pre-image-load:
-	@for op in $(OPERATORS); do \
-	  kubectl --context $(MINIKUBE_PROFILE) -n $(HELM_SYSTEM_NAMESPACE) \
-	    scale deploy/$(HELM_SYSTEM_RELEASE)-$$op --replicas=0 --ignore-not-found; \
+	@for c in $(DEPLOYMENTS); do \
+	  if kubectl --context $(MINIKUBE_PROFILE) -n $(HELM_SYSTEM_NAMESPACE) \
+	      get deploy/$(HELM_SYSTEM_RELEASE)-$$c >/dev/null 2>&1; then \
+	    kubectl --context $(MINIKUBE_PROFILE) -n $(HELM_SYSTEM_NAMESPACE) \
+	      scale deploy/$(HELM_SYSTEM_RELEASE)-$$c --replicas=0; \
+	  fi; \
 	done
-	@for op in $(OPERATORS); do \
+	@for c in $(DEPLOYMENTS); do \
 	  kubectl --context $(MINIKUBE_PROFILE) -n $(HELM_SYSTEM_NAMESPACE) \
-	    wait --for=delete pod -l app.kubernetes.io/name=$$op --timeout=60s; \
+	    wait --for=delete pod -l app.kubernetes.io/name=$$c --timeout=60s; \
 	done
 
-e2e-wait: ## Wait for axisml operator Deployments to become ready (used by e2e-test)
-	@for op in $(OPERATORS); do \
-	  printf '>>> waiting for %s\n' "$$op"; \
+e2e-wait: ## Wait for axisml component Deployments to become ready (used by e2e-test)
+	@for c in $(DEPLOYMENTS); do \
+	  printf '>>> waiting for %s\n' "$$c"; \
 	  kubectl --context $(MINIKUBE_PROFILE) -n $(HELM_SYSTEM_NAMESPACE) \
-	    rollout status deploy/$(HELM_SYSTEM_RELEASE)-$$op --timeout=180s; \
+	    rollout status deploy/$(HELM_SYSTEM_RELEASE)-$$c --timeout=180s; \
 	done
 
 ##@ Coverage

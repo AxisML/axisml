@@ -8,7 +8,7 @@ operator 与 Compute 的分工以 [compute.md §5 / §6.3.2](../compute.md) 为�
 
 ## 2. 与 Compute 的写路径契约
 
-Compute 采用 Operation Outbox + reconciler 异步下发 CR（详见 [compute.md §5.2](../compute.md)）。Operator 暴露给 Compute 的核心契约只有两条；其余约束（`backend.{name, engine}` 不可变、不引入 finalizer、`:scale` 唯一可变、无 suspend 语义等）分散在 §3.3 字段不可变性、§6 Reconcile 生命周期、§10 不变量与约束。
+Compute 采用 Operation Outbox + reconciler 异步下发 CR（详见 [compute.md §5.2](../compute.md)）。Operator 暴露给 Compute 的核心契约只有两条；其余约束（`backend.{name, engine}` 不可变、不引入 finalizer、`/scale` 唯一可变、无 suspend 语义等）分散在 §3.3 字段不可变性、§6 Reconcile 生命周期、§10 不变量与约束。
 
 - **`Create` 幂等**：相同 `metadata.name` 的二次 `Create()` 返回 409 `AlreadyExists`，且不引发副作用（不重启 Pod、不重置 status）。Compute 收到 409 后会 `Get()` 现有 CR 并校验 label `axisml.io/service-id=<uuid>`；只有 label 一致才视为成功
 - **status 单向权威**：operator 只写 `MLService.status`，Compute 只写 `MLService.metadata` / `MLService.spec`；状态推进由 Compute 侧 Informer 按 CR `status` 回流，operator 不感知 Compute 的 `services` 表，也不向 Compute PG 写入任何数据
@@ -135,12 +135,12 @@ spec:
 | --- | --- | --- |
 | `metadata.name` / `namespace` / `labels[axisml.io/*]` | Compute | 否 |
 | `spec.backend.name` / `spec.backend.engine` | Compute（默认 `{native, deployment}`） | **否**；dispatcher 拒绝并写 `status.message` |
-| `spec.backend.config` | Compute（默认 `{}`） | 否（仅允许 `roles[*].replicas` 通过 `:scale` 变更；config 热更新见 §11） |
+| `spec.backend.config` | Compute（默认 `{}`） | 否（仅允许 `roles[*].replicas` 通过 `/scale` 变更；config 热更新见 §11） |
 | `spec.scheduling.quota` / `priorityClass` / `nodeSelector` / `tolerations` | Compute（合并 Quota + Pool + Unit） | 否 |
 | `spec.modelRef` | 用户提交 | 否（更换模型版本走重建） |
 | `spec.roles[*].name` / `template.*`（含 `ports[]`，除 resources） | 用户提交 | 否 |
 | `spec.roles[*].template.resources` | Compute（注入 ResourceUnit） | 否 |
-| `spec.roles[*].replicas` | API（`:scale` 触发） | **是**（扩缩容路径专用） |
+| `spec.roles[*].replicas` | API（`/scale` 触发） | **是**（扩缩容路径专用） |
 | `spec.runPolicy.progressDeadlineSeconds` | 用户提交 | 否 |
 | `spec.route`（整块，含 `enabled` / `targetRole` / `portName` / `hostname` / `path` / `auth` / `rateLimit` / `timeout`） | 用户提交 | 否（不可变；mutable 演进见 §11） |
 
@@ -148,7 +148,7 @@ spec:
 
 **`spec.route` 与 backend 的兼容性**：`(kserve, *)` Handler 在 `Validate` 中拒绝 `spec.route.enabled=true` 的提交（KServe `InferenceService` 自带对外 Route，避免双管）；`(native, *)` 与 `(custom, *)` 接受。详见各 Handler 章节。
 
-**与 compute.md `services.replicas` 的兼容**：[compute.md §6.3.2](../compute.md) 中的 `services.replicas` 字段在单 role 约定下定义为 `spec.roles[0].replicas`；`:scale` API 在 CR 侧 patch path 写 `spec/roles/0/replicas`。多 role 独立扩缩的契约扩展见 §11。
+**与 compute.md `services.replicas` 的兼容**：[compute.md §6.3.2](../compute.md) 中的 `services.replicas` 字段在单 role 约定下定义为 `spec.roles[0].replicas`；`/scale` API 在 CR 侧 patch path 写 `spec/roles/0/replicas`。多 role 独立扩缩的契约扩展见 §11。
 
 **CRD schema 现状**：当前 CRD 的 `spec` / `status` 用 `x-kubernetes-preserve-unknown-fields: true`，重新设计字段无需 CRD bump；待行为稳定后再启用 OpenAPI schema 严格校验（§11）。
 
@@ -239,7 +239,7 @@ mlservice-operator 与 mljob-operator 同构，由两层组成：
 | 事件 | Dispatcher 行为 | Handler 行为 |
 | --- | --- | --- |
 | MLService ADD（首次创建） | 路由到 Handler；调用 `Validate(spec)`，校验失败写 `status.phase=Failed` | `Reconcile(ctx, mlService)` 创建底层资源，设置 `ownerReference: MLService` |
-| MLService UPDATE（仅 `roles[*].replicas` 变更，来自 `:scale`） | 路由 | `Reconcile` 透传为后端资源副本调整；不重建 Pod |
+| MLService UPDATE（仅 `roles[*].replicas` 变更，来自 `/scale`） | 路由 | `Reconcile` 透传为后端资源副本调整；不重建 Pod |
 | MLService UPDATE（其他 spec 字段变更） | 校验 `backend.{name, engine}` 不变；其他字段变更属于约束违反，写 `status.message` 拒绝 | 不动 |
 | MLService DELETE | 不阻断 | 一般依赖 ownerReference 级联清理；Handler 仅清理跨 namespace / 外部副作用（外部存储句柄、跨集群资源等） |
 | 底层资源事件（Deployment / Service / PodGroup / HTTPRoute / 第三方 CR） | 通过 ownerReference 反查到 MLService 后路由，并从 informer cache 组装同一 MLService 下的相关子资源快照 | `MapStatus` 基于快照纯函数计算新 phase；dispatcher 把结果合并写入 `status` |
@@ -549,7 +549,7 @@ config:
 
 **Status 映射**：参照 KServe LLM API 的 condition 集合落地，原则上沿用 §8.3 四态映射；具体 condition 名以 KServe LLM API 实现为准（§11 写明落地节奏）。`endpoint` 取 KServe LLM API 暴露的 router 入口（与 §8.3 取 `status.url` 同思路；具体字段路径以引入版本为准）。
 
-**Scale**：分别 patch 各 role 在 `LLMInferenceService` 中的 `minReplicas` / `maxReplicas`；多 role 独立扩缩需要 §11 中的 `:scale` API 路径携带 role 名。
+**Scale**：分别 patch 各 role 在 `LLMInferenceService` 中的 `minReplicas` / `maxReplicas`；多 role 独立扩缩需要 §11 中的 `/scale` API 路径携带 role 名。
 
 **Quota 与 autoscaling 的相互作用**：与 §8.3 一致，按 `Σ(role.maxReplicas × role.requests)` 计费；`prefillToDecodeRatio` 仅作为 autoscaler 参考，不参与配额校验。
 
@@ -595,7 +595,7 @@ operator binary 启动时遍历 registry，把每个启用 Handler 的 `Required
 - Handler 不向 Compute PG 写入任何数据；状态全部经由 MLService `status` + Informer 回流
 - **Handler 不引入 finalizer**；级联清理依赖 ownerReference + `Cleanup()`
 - **`status.phase` 取值集合冻结为四态**（`Pending | Ready | Degraded | Failed`）；新增 phase 必须经 CRD schema 与 Compute 双侧同步演进
-- **`spec.roles[*].replicas` 是允许变更的字段**（`:scale` 路径专用）；其余 spec 字段创建后不可变，dispatcher 检测到变更需写 `status.message` 拒绝
+- **`spec.roles[*].replicas` 是允许变更的字段**（`/scale` 路径专用）；其余 spec 字段创建后不可变，dispatcher 检测到变更需写 `status.message` 拒绝
 - 所有 Handler 派生的 Pod 必须满足 §6 Pod 注入约定的前 5 项必填字段（含 `schedulerName: koord-scheduler` 与 quota label）；缺失任一项视为契约违反，Validate 必须在创建前拦截
 - **`spec.route` 创建后不可变**；mutable 演进作为后续设计文档预留（见 §11）
 - **`(kserve, *)` Handler 不接受 `spec.route.enabled=true`**（KServe 自带 Route，避免双管）；`(native, *)` 接受；`(custom, *)` 由 `config.routeBackend` 自描述，未 wire 时拒绝
@@ -610,7 +610,7 @@ operator binary 启动时遍历 registry，把每个启用 Handler 的 `Required
   - `(kserve, llminference)`（对应 `LLMInferenceService` 占位 GVK，最终以 KServe LLM API 落地版本为准）：vLLM disaggregated / llm-d / NVIDIA Dynamo 等场景下，`prefill` / `decode` / `router` 三类 role 的命名约定、KV cache 传输契约（NIXL / Mooncake / …）、`disaggregation.prefillToDecodeRatio` autoscaler 接入、`Validate` 中的多 role 必填规则、KServe 自带 router 与 AxisML `spec.route` 是否统一的演进方式
 - KServe scale-to-zero 与 Compute quota 的精细交互模型（含 `maxReplicas × requests` 上限计费策略）
 - `(custom, *)` Handler 的 `config` 完整 schema 与 unstructured 操作约定（含 `config.routeBackend` 与 `spec.route` 的对接细则）
-- 多 role 独立扩缩容的 `:scale` API 扩展（路径中携带 role 名）
+- 多 role 独立扩缩容的 `/scale` API 扩展（路径中携带 role 名）
 - `spec.route` 可变化路径（轮换 API key / 调整限流不需要重建 Service；Handler 侧需要识别哪些子字段可热更新、哪些必须重建派生资源）
 - `spec.route` 与 KServe 自带 Route 的统一化（让 `(kserve, *)` 也支持 `spec.route` 而非依赖 KServe 内置 Route）
 - Admission webhook：`spec.backend.{name, engine}` 不可变约束、`backend.config` 按 Handler 自带 schema 的统一校验

@@ -136,7 +136,7 @@ spec:
 | `spec.quotas[].{pool, name}` | Compute | **否**（每项标识锚点）；删除某项 → reconcile `Delete()` 对应 ElasticQuota CR；新增某项 → reconcile 创建。修改 `(pool, name)` 不被识别为同项漂移，等价于"删旧增新" |
 | `spec.quotas[].min` / `max` | Compute | 是；reconcile 同步覆盖到对应 ElasticQuota `spec.min` / `spec.max` |
 | `spec.initResources.*` | Compute | 是；增删 → reconcile 创建 / 删除对应资源（per-tenant 命名前缀保证不会误删其他租户资源） |
-| `spec.suspended` | API（`:suspend` / `:unsuspend` 触发） | 是 |
+| `spec.suspended` | API（`/suspend` / `/unsuspend` 触发） | 是 |
 
 **默认值注入**：`spec.suspended` 默认 `false`；`spec.initResources` 各列表默认 `[]`；`spec.namespace.labels` / `annotations` 默认 `{}`；`spec.quotas` 默认 `[]`（视为租户在 K8s 调度层不限额）；`spec.quotas[].min` 默认 `{}`；`spec.initResources.secrets[].type` 默认 `Opaque`。
 

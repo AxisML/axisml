@@ -102,7 +102,7 @@ spec:
 | `spec.scheduling.quota` / `priorityClass` / `nodeSelector` / `tolerations` | Compute（合并 Quota + Pool + Unit） | 否 |
 | `spec.roles[*].template.resources` | Compute（注入 ResourceUnit） | 否 |
 | `spec.roles[*].replicas` | 用户提交时给定 | **否**（Job 是一次性 workload；扩缩容是 Service 专属） |
-| `spec.runPolicy.suspend` | API（`:cancel` 触发） | **是**（cancel 路径专用） |
+| `spec.runPolicy.suspend` | API（`/cancel` 触发） | **是**（cancel 路径专用） |
 | 其他 `spec.runPolicy.*` 与 `spec.roles[*].template.*`（除 resources） | 用户提交 | 否 |
 
 **默认值注入**：用户未指定 `spec.backend` 时，Compute 写 CR 时显式补 `{name: native, engine: job}`（K8s 原生 Job + koord-scheduler，详见 §8.1）；`backend.config` 默认空对象 `{}`。dispatcher 不接受 `backend.name` 或 `backend.engine` 为空。

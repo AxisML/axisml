@@ -12,6 +12,10 @@ spec:
       targetPort: http
       protocol: TCP
       name: http
+    - port: {{ .Values.compute.metricsPort }}
+      targetPort: metrics
+      protocol: TCP
+      name: metrics
   selector:
     {{- include "axisml.componentSelectorLabels" (dict "context" . "component" "compute") | nindent 4 }}
 {{- end }}

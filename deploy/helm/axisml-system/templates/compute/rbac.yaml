@@ -1,0 +1,43 @@
+{{- if .Values.compute.enabled }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "axisml.fullname" . }}-compute
+  labels:
+    {{- include "axisml.componentLabels" (dict "context" . "component" "compute") | nindent 4 }}
+rules:
+  # AxisML CRDs Compute writes to (Tenant cluster-scoped, MLJob/MLService namespace-scoped).
+  - apiGroups: ["axisml.io"]
+    resources: ["tenants", "mljobs", "mlservices"]
+    verbs: ["create", "get", "list", "watch", "update", "patch", "delete"]
+  - apiGroups: ["axisml.io"]
+    resources: ["tenants/status", "mljobs/status", "mlservices/status"]
+    verbs: ["get", "list", "watch"]
+  # Pods + logs + events: read-only, used by future log/replicas/events endpoints.
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "events"]
+    verbs: ["get", "list", "watch"]
+  # Leader election lease (controller-runtime).
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["create", "get", "list", "watch", "update", "patch", "delete"]
+  # Operational eventing.
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "axisml.fullname" . }}-compute
+  labels:
+    {{- include "axisml.componentLabels" (dict "context" . "component" "compute") | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "axisml.fullname" . }}-compute
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "axisml.fullname" . }}-compute
+    namespace: {{ .Release.Namespace }}
+{{- end }}

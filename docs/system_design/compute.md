@@ -227,7 +227,7 @@ Creating ──(Informer ADD)──▶ Active ⇄ Suspended ──(DELETE req)�
                                └──(DELETE req)───────────────────────┘
 ```
 
-- `Suspended` 语义：阻塞该租户下新 Job/Service 提交（API 在 Create 时校验 `tenant.status='Active'`）；已有任务保持运行；`Active ⇄ Suspended` 通过 `:suspend` / `:unsuspend` 动作端点
+- `Suspended` 语义：阻塞该租户下新 Job/Service 提交（API 在 Create 时校验 `tenant.status='Active'`）；已有任务保持运行；`Active ⇄ Suspended` 通过 `/suspend` / `/unsuspend` 子路径端点
 - **operator 侧 `Tenant.status.phase=Failed` 在 Compute 上等价于 `Suspended` + `message`**：tenant-operator 在校验失败 / 关键资源创建失败时写 `status.phase=Failed`（[tenant-operator §4](operators/tenant-operator.md)），Informer 把 `Failed` 收敛为 `tenants.status='Suspended'` 并把 `tenant.status.message` 写入 `tenants.message`——租户提交链路同样受阻，靠 `message` 区分"配置出错"与"管理员暂停"。Compute 不引入独立 `Failed` 终态
 
 **生命周期**
@@ -475,7 +475,7 @@ Compute 只负责把以下业务语义装进 MLJob CR；具体 `spec` 字段结�
 
 **`spec.backend` 默认值注入**：用户未指定 `spec.backend` 时，Compute 写 CR 时显式补 `{name: "native", engine: "job"}`；`backend.config` 默认空对象 `{}`。`backend.{name, engine}` 在 PG `jobs.spec` jsonb 中持久化，创建后不可变（Update API 拒绝修改这两个字段）。
 
-**取消语义**（`POST /tenants/{tenant}/jobs/{job}:cancel`）
+**取消语义**（`POST /tenants/{tenant}/jobs/{job}/cancel`）
 
 | 场景 | PG 侧 | CR 侧 |
 | --- | --- | --- |
@@ -567,7 +567,7 @@ Creating ──(Informer ADD)──▶ Pending ──(ready=desired, desired>0)�
 **与 Job 的差异**
 
 - **常驻**：配额占用不随运行状态释放，仅进入 `Deleted` 时释放
-- **扩缩容走 PG-only Outbox**：`POST .../services/{id}:scale` 在 API 层只更新 `services.replicas` + `services.spec.roles[0].replicas` 并重算 `desired_spec_hash`，返回"desired replicas 已提交"；reconciler 后续 patch MLService CR path `spec/roles/0/replicas`，成功后写 `applied_spec_hash`。实际 `ready_replicas` / `status` 仍由 Informer 回流；配额按 `replicas × requested_resources` 线性预检
+- **扩缩容走 PG-only Outbox**：`POST .../services/{id}/scale` 在 API 层只更新 `services.replicas` + `services.spec.roles[0].replicas` 并重算 `desired_spec_hash`，返回"desired replicas 已提交"；reconciler 后续 patch MLService CR path `spec/roles/0/replicas`，成功后写 `applied_spec_hash`。实际 `ready_replicas` / `status` 仍由 Informer 回流；配额按 `replicas × requested_resources` 线性预检
 - **无 Cancel 语义**：常驻服务"下线"即"删除"，直接走 DELETE → `Deleting` → `Deleted`
 - **`Failed` 非终态**：与 Job 不同，operator 可能自愈；只有 `Deleted` 为终态
 
@@ -589,7 +589,7 @@ Compute 所有 API 置于 `/api/v1` 前缀下，仅供 Platform 通过集群内 
 | --- | --- | --- |
 | 健康检查 | `/healthz`、`/readyz` | Liveness / Readiness |
 | 租户 | `/api/v1/tenants` | Create / Get / List / Update / Delete |
-| 租户动作 | `/api/v1/tenants/{tenant}:suspend`、`:unsuspend` | `Active ⇄ Suspended` |
+| 租户动作 | `/api/v1/tenants/{tenant}/suspend`、`/unsuspend` | `Active ⇄ Suspended` |
 | 资源池 | `/api/v1/resource-pools` | CRUD（管理员） |
 | 资源单元 | `/api/v1/resource-pools/{pool}/resource-units` | CRUD（管理员） |
 | 配额 | `/api/v1/tenants/{tenant}/quotas` | CRUD |
@@ -597,9 +597,9 @@ Compute 所有 API 置于 `/api/v1` 前缀下，仅供 Platform 通过集群内 
 | 任务副本 | `/api/v1/tenants/{tenant}/jobs/{job}/replicas` | List Pod 副本（编号 / pod 名 / phase / started_at） |
 | 任务日志 | `/api/v1/tenants/{tenant}/jobs/{job}/logs` | 透传 kube-apiserver pod log；`follow=true` 时用 SSE，详见 §7.4 |
 | 任务事件 | `/api/v1/tenants/{tenant}/jobs/{job}/events` | 聚合 MLJob / Pod / PodGroup 的 K8s Event |
-| 任务动作 | `/api/v1/tenants/{tenant}/jobs/{job}:cancel` | 运行态 → `Canceling` |
+| 任务动作 | `/api/v1/tenants/{tenant}/jobs/{job}/cancel` | 运行态 → `Canceling` |
 | 服务 | `/api/v1/tenants/{tenant}/services` | Create / Get / List / Update / Delete |
-| 服务动作 | `/api/v1/tenants/{tenant}/services/{service}:scale` | 提交 desired `replicas`（API 只写 PG，reconciler 异步 patch CR） |
+| 服务动作 | `/api/v1/tenants/{tenant}/services/{service}/scale` | 提交 desired `replicas`（API 只写 PG，reconciler 异步 patch CR） |
 
 所有会变更 CR spec 的 API（Tenant update / suspend / unsuspend、Quota spec update、Service scale）都只提交 PG desired state，不承诺 CR 已同步完成。同步失败由 reconciler 写入对应业务记录的 `message` 字段，并通过 §9.6 指标暴露；调用方通过 Get/List 观察 `status`、`message` 与回流字段。
 
