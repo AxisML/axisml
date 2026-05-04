@@ -8,9 +8,7 @@ go 1.26.0
 
 require (
 	github.com/axisml/axisml/components/compute v0.0.0-00010101000000-000000000000
-	github.com/axisml/axisml/components/operators/mljob-operator v0.0.0
-	github.com/axisml/axisml/components/operators/mlservice-operator v0.0.0
-	github.com/axisml/axisml/components/operators/tenant-operator v0.0.0
+	github.com/axisml/axisml/components/operator v0.0.0
 	github.com/axisml/axisml/test/testutil v0.0.0-00010101000000-000000000000
 	github.com/gin-gonic/gin v1.10.0
 	github.com/go-logr/logr v1.4.3
@@ -18,6 +16,7 @@ require (
 	github.com/testcontainers/testcontainers-go v0.34.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.34.0
 	gorm.io/gorm v1.25.12
+	k8s.io/api v0.36.0
 	k8s.io/apimachinery v0.36.0
 	k8s.io/client-go v0.36.0
 	sigs.k8s.io/controller-runtime v0.24.0
@@ -142,7 +141,6 @@ require (
 	gorm.io/datatypes v1.2.5 // indirect
 	gorm.io/driver/mysql v1.5.6 // indirect
 	gorm.io/driver/postgres v1.5.11 // indirect
-	k8s.io/api v0.36.0 // indirect
 	k8s.io/apiextensions-apiserver v0.36.0 // indirect
 	k8s.io/klog/v2 v2.140.0 // indirect
 	k8s.io/kube-openapi v0.30.0 // indirect
@@ -155,9 +153,7 @@ require (
 
 replace (
 	github.com/axisml/axisml/components/compute => ../..
-	github.com/axisml/axisml/components/operators/mljob-operator => ../../../operators/mljob-operator
-	github.com/axisml/axisml/components/operators/mlservice-operator => ../../../operators/mlservice-operator
-	github.com/axisml/axisml/components/operators/tenant-operator => ../../../operators/tenant-operator
+	github.com/axisml/axisml/components/operator => ../../../operator
 	github.com/axisml/axisml/test/testutil => ../../../../test/testutil
 )
 

@@ -10,7 +10,7 @@
 
 ### 2.1 租户（Tenant）
 
-用户归属的基本单位。每个用户必须属于一个租户；任务、服务、制品可见性、资源配额与初始化资源均按租户组织。租户对应 cluster-scoped `Tenant` CRD，由 tenant-operator 负责目标 Namespace、ResourceQuota、Secret、ConfigMap、ServiceAccount 等集群侧资源落地。
+用户归属的基本单位。每个用户必须属于一个租户；任务、服务、制品可见性、资源配额与初始化资源均按租户组织。租户对应 cluster-scoped `Tenant` CRD，由 axisml-operator 的 Tenant controller 负责目标 Namespace、ResourceQuota、Secret、ConfigMap、ServiceAccount 等集群侧资源落地。
 
 Tenant 的目标 Namespace 通过 `spec.namespace.name` 显式声明，多个 Tenant 可以共享同一个 Namespace。平台的隔离边界主要由租户业务模型、per-tenant 资源命名、配额与鉴权策略共同表达，而不是简单等同于 Kubernetes Namespace 的一租户一命名空间隔离。
 
@@ -48,11 +48,11 @@ MLJob / MLService 的底层执行由对应 operator 按 `spec.backend.{name, eng
 
 ### 2.6 任务（Job）
 
-训练任务、分布式训练任务与数据处理任务的统称，对应 `MLJob` CRD，由 mljob-operator 负责生命周期管理。
+训练任务、分布式训练任务与数据处理任务的统称，对应 `MLJob` CRD，由 axisml-operator 的 MLJob controller 负责生命周期管理。
 
 ### 2.7 服务（Service）
 
-模型部署后对外提供在线推理的实体，对应 `MLService` CRD，由 mlservice-operator 负责生命周期管理。
+模型部署后对外提供在线推理的实体，对应 `MLService` CRD，由 axisml-operator 的 MLService controller 负责生命周期管理。
 
 ### 2.8 概念速查
 
@@ -156,7 +156,7 @@ AxisML Infra 还提供：RustFS、zot、Koordinator、NVIDIA GPU Operator、kube
 计算服务层，基于 Go 开发，仅接受 Platform 的内部调用，承载以下核心职责：
 
 - **计算负载管理**：维护 Job / Service 业务元数据，创建或更新 `MLJob` / `MLService` CR，并通过 Informer 消费 operator 回流状态。
-- **租户管理**：维护租户元数据，下发 `Tenant` CR，由 tenant-operator 负责 Namespace、ResourceQuota 与初始化资源落地。
+- **租户管理**：维护租户元数据，下发 `Tenant` CR，由 axisml-operator 的 Tenant controller 负责 Namespace、ResourceQuota 与初始化资源落地。
 - **资源池管理**：维护 ResourcePool 的节点选择、容忍配置与底层集群映射关系。
 - **资源单元管理**：维护 ResourcePool 内的资源规格模板，并在提交 Job / Service 时注入资源请求与节点匹配条件。
 - **资源配额管理**：维护扁平配额的 CRUD、`min` / `max` 配额、best-effort 预检、Koordinator `ElasticQuota` CR 同步与用量缓存。
@@ -165,17 +165,17 @@ Compute 不直接创建 Pod、Deployment、PodGroup 等运行时资源；这些�
 
 > 详细设计见 [AxisML Compute 设计文档](compute.md)
 
-### 5.3 AxisML Operators
+### 5.3 AxisML Operator
 
-Kubernetes Operator 组件，基于 Go 开发，通过 CRD 对核心概念进行抽象，负责在 Kubernetes 上执行具体资源编排：
+Kubernetes Operator 组件，基于 Go 开发，**单一二进制 axisml-operator** 在一个 Manager 中同时承载三个 controller，通过 CRD 对核心概念进行抽象，负责在 Kubernetes 上执行具体资源编排：
 
-| 自定义资源 | Operator | 职责 |
+| 自定义资源 | Controller | 职责 |
 | --- | --- | --- |
-| `MLJob` | mljob-operator | 任务生命周期管理，按 backend handler 创建底层训练 / 批处理资源并回流状态 |
-| `MLService` | mlservice-operator | 在线推理服务生命周期管理，创建部署、服务路由或 KServe 等后端资源并回流状态 |
-| `Tenant` | tenant-operator | 租户目标 Namespace、ResourceQuota、初始化 Secret / ConfigMap / ServiceAccount 等资源维护 |
+| `MLJob` | MLJob controller | 任务生命周期管理，按 backend handler 创建底层训练 / 批处理资源并回流状态 |
+| `MLService` | MLService controller | 在线推理服务生命周期管理，创建部署、服务路由或 KServe 等后端资源并回流状态 |
+| `Tenant` | Tenant controller | 租户目标 Namespace、ResourceQuota、初始化 Secret / ConfigMap / ServiceAccount 等资源维护 |
 
-mljob-operator 与 mlservice-operator 内部按 `spec.backend.{name, engine}` 二级元组路由到不同 Handler：
+MLJob 与 MLService controller 内部按 `spec.backend.{name, engine}` 二级元组路由到不同 Handler：
 
 | Backend | 适用 CRD | engine 示例 | 说明 |
 | --- | --- | --- | --- |
@@ -186,7 +186,7 @@ mljob-operator 与 mlservice-operator 内部按 `spec.backend.{name, engine}` �
 
 默认值：MLJob 为 `(native, job)`、MLService 为 `(native, deployment)`。backend 选择是 operator 的扩展机制；MLJob / MLService 仍是用户和 Compute 看到的稳定抽象。**所有 backend 派生的 Pod 都必须设置 `schedulerName: koord-scheduler` 并携带 ElasticQuota label**（详见 [infra.md §8](infra.md)）。
 
-> 详细设计见 [AxisML Operators 设计文档](operators/)
+> 详细设计见 [AxisML Operator 设计文档](operator/operator.md)
 
 ### 5.4 AxisML Artifacts
 
@@ -236,10 +236,7 @@ Kubernetes Cluster
 │   ├── AxisML Platform (Deployment + Service)
 │   ├── AxisML Compute (Deployment + Service)
 │   ├── AxisML Artifacts (Deployment + Service)
-│   ├── AxisML Operators
-│   │   ├── mljob-operator (Deployment)
-│   │   ├── mlservice-operator (Deployment)
-│   │   └── tenant-operator (Deployment)
+│   ├── AxisML Operator (axisml-operator: single Deployment hosting Tenant + MLJob + MLService controllers)
 │   └── PostgreSQL / externalDatabase
 └── tenant namespaces
     └── Tenant resources / workloads / routes / secrets / ElasticQuota
@@ -258,10 +255,7 @@ axisml/
 │   │   ├── backend/              # 后端（Go）
 │   │   └── frontend/             # 前端（React）
 │   ├── compute/                  # AxisML Compute（Go）
-│   ├── operators/                # AxisML Operators（Go）
-│   │   ├── mljob/
-│   │   ├── mlservice/
-│   │   └── tenant/
+│   ├── operator/                 # AxisML Operator（Go，单二进制承载三个 controller）
 │   └── artifacts/                # AxisML Artifacts（Go）
 ├── deploy/
 │   └── helm/

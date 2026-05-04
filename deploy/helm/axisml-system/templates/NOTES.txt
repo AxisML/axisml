@@ -11,16 +11,11 @@ Components deployed:
   - ML Artifacts: {{ include "axisml.fullname" . }}-artifacts:{{ .Values.artifacts.service.port }}
 {{- end }}
 {{- if .Values.operators.enabled }}
-  Operators:
-  {{- if .Values.operators.mljobOperator.enabled }}
-    - {{ include "axisml.fullname" . }}-mljob-operator
-  {{- end }}
-  {{- if .Values.operators.mlserviceOperator.enabled }}
-    - {{ include "axisml.fullname" . }}-mlservice-operator
-  {{- end }}
-  {{- if .Values.operators.tenantOperator.enabled }}
-    - {{ include "axisml.fullname" . }}-tenant-operator
-  {{- end }}
+  - Operator:    {{ include "axisml.fullname" . }}-operator (controllers:
+    {{- $controllers := list -}}
+    {{- if .Values.operators.controllers.tenant.enabled }}{{- $controllers = append $controllers "tenant" -}}{{- end -}}
+    {{- if .Values.operators.controllers.mljob.enabled }}{{- $controllers = append $controllers "mljob" -}}{{- end -}}
+    {{- if .Values.operators.controllers.mlservice.enabled }}{{- $controllers = append $controllers "mlservice" -}}{{- end }} {{ join ", " $controllers }})
 {{- end }}
 {{- if .Values.database.enabled }}
   - Database:     {{ include "axisml.databaseHost" . }}:{{ include "axisml.databasePort" . }}

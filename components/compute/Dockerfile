@@ -6,10 +6,8 @@
 FROM golang:1.26 AS builder
 WORKDIR /workspace
 
-# Copy operator API modules first so replace targets resolve.
-COPY components/operators/tenant-operator/ components/operators/tenant-operator/
-COPY components/operators/mljob-operator/ components/operators/mljob-operator/
-COPY components/operators/mlservice-operator/ components/operators/mlservice-operator/
+# Copy the merged operator module first so the replace target resolves.
+COPY components/operator/ components/operator/
 COPY components/compute/ components/compute/
 
 WORKDIR /workspace/components/compute

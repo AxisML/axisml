@@ -1,0 +1,78 @@
+{{- if .Values.operators.enabled }}
+{{- $op := .Values.operators }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "axisml.fullname" . }}-operator
+  labels:
+    {{- include "axisml.componentLabels" (dict "context" . "component" "operator") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "axisml.componentSelectorLabels" (dict "context" . "component" "operator") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "axisml.componentLabels" (dict "context" . "component" "operator") | nindent 8 }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "axisml.fullname" . }}-operator
+      containers:
+        - name: operator
+          image: {{ include "axisml.image" (dict "imageRoot" $op.image "global" .Values.global "chart" .Chart) }}
+          imagePullPolicy: {{ $op.image.pullPolicy }}
+          args:
+            - --metrics-bind-address=:8080
+            - --health-probe-bind-address=:8081
+            {{- if $op.leaderElection.enabled }}
+            - --leader-elect=true
+            - --leader-election-id={{ $op.leaderElection.id | default "axisml-operator.axisml.io" }}
+            {{- else }}
+            - --leader-elect=false
+            {{- end }}
+            {{- if not $op.controllers.tenant.enabled }}
+            - --enable-tenant=false
+            {{- end }}
+            {{- if not $op.controllers.mljob.enabled }}
+            - --enable-mljob=false
+            {{- end }}
+            {{- if not $op.controllers.mlservice.enabled }}
+            - --enable-mlservice=false
+            {{- end }}
+            {{- if not $op.controllers.mljob.handlers.nativeJob.enabled }}
+            - --enable-native-job=false
+            {{- end }}
+            {{- if not $op.controllers.mljob.handlers.nativePodGroup.enabled }}
+            - --enable-native-podgroup=false
+            {{- end }}
+          env:
+            - name: RESYNC_PERIOD
+              value: {{ $op.controllers.tenant.resyncPeriod | quote }}
+            - name: NAMESPACE_DENYLIST
+              value: {{ join "," $op.controllers.tenant.namespaceDenylist | quote }}
+          ports:
+            - name: metrics
+              containerPort: 8080
+              protocol: TCP
+            - name: probe
+              containerPort: 8081
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: probe
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: probe
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml $op.resources | nindent 12 }}
+{{- end }}

@@ -10,7 +10,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
-	tenantv1alpha1 "github.com/axisml/axisml/components/operators/tenant-operator/api/v1alpha1"
+	tenantv1alpha1 "github.com/axisml/axisml/components/operator/api/tenant/v1alpha1"
 
 	"github.com/axisml/axisml/components/compute/internal/quota"
 )

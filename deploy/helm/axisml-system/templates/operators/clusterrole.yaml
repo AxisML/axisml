@@ -1,0 +1,135 @@
+{{- if .Values.operators.enabled }}
+{{- $op := .Values.operators }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "axisml.fullname" . }}-operator
+  labels:
+    {{- include "axisml.componentLabels" (dict "context" . "component" "operator") | nindent 4 }}
+rules:
+  # Operational eventing — needed by every controller for kubectl describe.
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+
+  {{- if $op.controllers.tenant.enabled }}
+  # ==========================================================================
+  # Tenant controller
+  # ==========================================================================
+  - apiGroups: ["axisml.io"]
+    resources: ["tenants"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["axisml.io"]
+    resources: ["tenants/status"]
+    verbs: ["get", "update", "patch"]
+  # Required because subreconcilers call controllerutil.SetControllerReference,
+  # which sets blockOwnerDeletion=true. With Kubernetes' owner-reference admission
+  # plugin enabled, creating those children needs update on tenants/finalizers.
+  - apiGroups: ["axisml.io"]
+    resources: ["tenants/finalizers"]
+    verbs: ["update"]
+
+  # Namespace lifecycle: explicitly NO delete (operator design).
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["create", "get", "list", "watch", "patch"]
+
+  # ElasticQuota (scheduler-plugins API group is scheduling.sigs.k8s.io).
+  - apiGroups: ["scheduling.sigs.k8s.io"]
+    resources: ["elasticquotas"]
+    verbs: ["create", "get", "list", "watch", "update", "patch", "delete"]
+
+  # Per-tenant init resources.
+  - apiGroups: [""]
+    resources: ["secrets", "configmaps", "serviceaccounts"]
+    verbs: ["create", "get", "list", "watch", "update", "patch", "delete"]
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["roles", "rolebindings"]
+    verbs: ["create", "get", "list", "watch", "update", "patch", "delete"]
+  # The apiserver's RBAC escalation check rejects creating a Role whose rules
+  # the operator doesn't itself hold, and rejects RoleBindings to a Role/
+  # ClusterRole the operator can't bind. Tenants supply arbitrary rules and
+  # may reference platform ClusterRoles, so grant the targeted verbs here.
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["roles"]
+    verbs: ["bind", "escalate"]
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["clusterroles"]
+    verbs: ["bind"]
+  {{- end }}
+
+  {{- if $op.controllers.mljob.enabled }}
+  # ==========================================================================
+  # MLJob controller
+  # ==========================================================================
+  - apiGroups: ["axisml.io"]
+    resources: ["mljobs"]
+    verbs: ["get", "list", "watch", "patch", "update"]
+  - apiGroups: ["axisml.io"]
+    resources: ["mljobs/status"]
+    verbs: ["get", "patch", "update"]
+  {{- if $op.controllers.mljob.handlers.nativeJob.enabled }}
+  # (native, job) handler — Job CRUD; Pods are owned by the Job and
+  # are reached via the union pods rule below.
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  {{- end }}
+  {{- if $op.controllers.mljob.handlers.nativePodGroup.enabled }}
+  # (native, podgroup) handler — PodGroup CR.
+  - apiGroups: ["scheduling.sigs.k8s.io"]
+    resources: ["podgroups"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  {{- end }}
+  {{- if or $op.controllers.mljob.handlers.nativeJob.enabled $op.controllers.mljob.handlers.nativePodGroup.enabled }}
+  # Pods: union of verbs needed by enabled handlers.
+  # nativeJob:      get/list/watch/delete (Pods are reconciled by Job).
+  # nativePodGroup: + create/update/patch (handler renders bare Pods).
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs:
+      - get
+      - list
+      - watch
+      - delete
+      {{- if $op.controllers.mljob.handlers.nativePodGroup.enabled }}
+      - create
+      - update
+      - patch
+      {{- end }}
+  {{- end }}
+  {{- end }}
+
+  {{- if $op.controllers.mlservice.enabled }}
+  # ==========================================================================
+  # MLService controller
+  # ==========================================================================
+  # MLService CR — the /scale subresource is intentionally omitted from the
+  # CRD (see crds/mlservice-crd.yaml), so granting verbs on it would be dead RBAC.
+  - apiGroups: ["axisml.io"]
+    resources: ["mlservices", "mlservices/status"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+  # (native, deployment) backend.
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  {{- if not $op.controllers.mljob.enabled }}
+  # When MLJob is enabled it already grants Pod verbs; declare them here only
+  # when MLJob is off so the MLService backend retains Pod access.
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  {{- end }}
+
+  # spec.route.enabled=true derives an HTTPRoute. SecurityPolicy and
+  # BackendTrafficPolicy are deferred (Validate emits a warning); add their
+  # rules when those handlers are wired in.
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources: ["httproutes"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  {{- end }}
+{{- end }}

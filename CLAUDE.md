@@ -8,31 +8,30 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 AxisML is a Kubernetes-native ML platform. The repo is a monorepo split into:
 
-- `components/operators/{tenant,mljob,mlservice}-operator/` — three Go operators, the only components that currently ship code.
-- `components/{compute,artifacts,platform/{backend,frontend}}/` — scaffolded service areas with READMEs only; no code yet.
+- `components/operator/` — single Go operator binary (`axisml-operator`) hosting Tenant, MLJob, and MLService controllers in one Manager.
+- `components/compute/` — Go service.
+- `components/{artifacts,platform/{backend,frontend}}/` — scaffolded service areas with READMEs only; no code yet.
 - `deploy/helm/axisml-infra/` — third-party infrastructure chart (Envoy Gateway, RustFS, zot, Koordinator, GPU Operator, kube-prometheus-stack).
-- `deploy/helm/axisml-system/` — control-plane chart: CRDs, operators, and (eventually) Platform/Compute/Artifacts. Includes PostgreSQL.
-- `docs/system_design/` — authoritative design docs (overview, compute, operators, artifacts, infra, platform). Read these before making non-trivial design changes; they encode decisions that the code doesn't yet reflect.
+- `deploy/helm/axisml-system/` — control-plane chart: CRDs, the merged operator, and (eventually) Platform/Compute/Artifacts. Includes PostgreSQL.
+- `docs/system_design/` — authoritative design docs (overview, compute, operator, artifacts, infra, platform). Read these before making non-trivial design changes; they encode decisions that the code doesn't yet reflect.
 - `test/` — shared test infrastructure: `setup-envtest/` binary, `testutil/` helpers, `e2e/` suites, and `crds/external/` vendored upstream CRDs for envtest.
 
 The system design lives ahead of the code. When code and `docs/system_design/` disagree, the design doc is usually the intended target — confirm before "fixing" code to match incomplete scaffolding.
 
 ## Multi-module Go workspace
 
-There are **eight separate Go modules**, each with its own `go.mod`:
+There are **six separate Go modules**, each with its own `go.mod`:
 
 ```
-components/operators/tenant-operator/             (production)
-components/operators/tenant-operator/test/envtest/ (L1 tests, separate module)
-components/operators/mljob-operator/              (production)
-components/operators/mljob-operator/test/envtest/  (L1 tests)
-components/operators/mlservice-operator/          (production)
-components/operators/mlservice-operator/test/envtest/ (L1 tests)
-test/testutil/                                     (shared helpers, no operator deps)
-test/e2e/                                          (L2 tests)
+components/operator/                  (production — Tenant + MLJob + MLService controllers)
+components/operator/test/envtest/     (L1 tests, separate module)
+components/compute/                   (production)
+components/compute/test/envtest/      (L1 tests, separate module)
+test/testutil/                        (shared helpers, no operator deps)
+test/e2e/                             (L2 tests)
 ```
 
-Why split: keeps test-only deps (`testify`, `testutil`) out of each operator's production `go.mod` and Dockerfile build context. `testutil` is imported via `replace` from each test module — keep it operator-agnostic to avoid circular deps.
+Why split: keeps test-only deps (`testify`, `testutil`) out of each component's production `go.mod` and Dockerfile build context. `testutil` is imported via `replace` from each test module — keep it operator-agnostic to avoid circular deps.
 
 Practical implications:
 - `go test ./...` from the repo root won't traverse all of these. Use `make test` / `make envtest-test` / `make e2e-test` instead, or `cd` into the right module.
@@ -47,13 +46,14 @@ The top-level `Makefile` is the command hub. The most common targets:
 make help                # list targets + auto-generated per-component shortcuts
 make build               # fan out `make build` to every active component
 make test                # unit tests across every component (no cluster)
-make envtest-test        # L1 envtest across every operator (hermetic, ~25s)
+make envtest-test        # L1 envtest for the merged operator + compute (hermetic, ~25s)
 make e2e-test            # L2 e2e on real minikube (~10 min, brings up cluster + helm-installs)
 
 # Per-component shortcuts (auto-generated from the COMPONENTS list):
-make tenant-operator-test
-make mljob-operator-envtest
-make mlservice-operator-image-load   # builds image, loads into minikube
+make operator-test
+make operator-envtest
+make operator-image-load   # builds image, loads into minikube
+make compute-test
 
 # Cluster + Helm:
 make cluster-up                      # minikube profile "axisml"
@@ -61,17 +61,16 @@ make helm-install                    # infra first, then system (idempotent upgr
 make helm-template                   # render both charts for review
 ```
 
-Per-operator dev loop (run from inside the operator dir):
+Per-component dev loop (run from inside the component dir):
 
 ```sh
 make fmt vet               # before every commit
-make generate              # regenerate deepcopy when api/ types change
 make build / make image    # binary into bin/, container image
 ```
 
 Single test invocation: `go test -run TestTenant_HappyPath ./internal/...` (use `-tags=envtest` or `-tags=e2e` for those layers).
 
-Per-component shortcuts are auto-generated from the `COMPONENTS` list in the top-level Makefile. Pattern: `<basename>-{build,image,image-load,test,envtest,fmt,tidy,clean}` (e.g., `make tenant-operator-image-load`). Top-level `make fmt` walks every module via `GO_MODULES` (`gofmt -w` doesn't cross module boundaries on its own).
+Per-component shortcuts are auto-generated from the `COMPONENTS` list in the top-level Makefile. Pattern: `<basename>-{build,image,image-load,test,envtest,fmt,tidy,clean}` (e.g., `make operator-image-load`). Top-level `make fmt` walks every module via `GO_MODULES` (`gofmt -w` doesn't cross module boundaries on its own).
 
 Pre-commit hooks (`pre-commit` framework, see `.pre-commit-config.yaml`) run gofmt + basic hygiene checks. Install once per clone: `make install-hooks`. Bypass for a single commit: `git commit --no-verify`. Vendored CRDs (`test/crds/external/`) and Helm sub-charts are excluded from hooks.
 
@@ -82,14 +81,14 @@ Documented in detail in `docs/development/testing.md`. The short version:
 | Layer | Build tag | Where | Cluster |
 |---|---|---|---|
 | Unit | none | `*_test.go` next to package | none — uses `controller-runtime/pkg/client/fake` |
-| L1 envtest | `//go:build envtest` | `components/operators/<op>/test/envtest/` | embedded apiserver+etcd via `setup-envtest` |
+| L1 envtest | `//go:build envtest` | `components/operator/test/envtest/` (merged) and `components/compute/test/envtest/` | embedded apiserver+etcd via `setup-envtest` |
 | L2 e2e | `//go:build e2e` | `test/e2e/` | real minikube with helm-installed stack |
 
 Conventions that bite if you don't know them:
 - **Framework is plain `testing` + `testify`** (`require` for setup, `assert` for checks). **No Ginkgo/Gomega** — don't add them.
 - Each gated test file needs a sibling `doc.go` (no build tag) so the package compiles cleanly under `go test ./...`.
 - Polling: use `testutil.Eventually` / `EventuallyExists` / `EventuallyGone` from `test/testutil/`.
-- **External CRDs**: any CRD an operator imports from outside this repo (Koordinator's ElasticQuota, scheduler-plugins' PodGroup, gateway-api's HTTPRoute, etc.) must be vendored under `test/crds/external/` and added to the per-operator TestMain's `CRDPaths`. Tests hang on "no matches for kind X" otherwise.
+- **External CRDs**: any CRD the operator imports from outside this repo (Koordinator's ElasticQuota, scheduler-plugins' PodGroup, gateway-api's HTTPRoute, etc.) must be vendored under `test/crds/external/` and added to the merged TestMain's `CRDPaths`. Tests hang on "no matches for kind X" otherwise.
 - L2 doesn't run in CI (minikube is too slow/flaky on hosted runners). Don't expect green CI to imply L2 passed.
 
 ## Operator architecture: backend handler routing

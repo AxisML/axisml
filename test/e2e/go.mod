@@ -3,9 +3,7 @@ module github.com/axisml/axisml/test/e2e
 go 1.26.0
 
 require (
-	github.com/axisml/axisml/components/operators/mljob-operator v0.0.0-00010101000000-000000000000
-	github.com/axisml/axisml/components/operators/mlservice-operator v0.0.0-00010101000000-000000000000
-	github.com/axisml/axisml/components/operators/tenant-operator v0.0.0-00010101000000-000000000000
+	github.com/axisml/axisml/components/operator v0.0.0-00010101000000-000000000000
 	github.com/axisml/axisml/test/testutil v0.0.0-00010101000000-000000000000
 	github.com/koordinator-sh/koordinator v1.8.0
 	github.com/stretchr/testify v1.11.1
@@ -63,15 +61,13 @@ require (
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
-// Local sibling modules: replace each operator and the testutil package
+// Local sibling modules: replace the merged operator and the testutil package
 // with their on-disk paths so the e2e tests build against the working tree.
 replace (
-	github.com/axisml/axisml/components/operators/mljob-operator => ../../components/operators/mljob-operator
-	github.com/axisml/axisml/components/operators/mlservice-operator => ../../components/operators/mlservice-operator
-	github.com/axisml/axisml/components/operators/tenant-operator => ../../components/operators/tenant-operator
+	github.com/axisml/axisml/components/operator => ../../components/operator
 	github.com/axisml/axisml/test/testutil => ../testutil
 )
 
-// koordinator v1.8.0 (indirect via tenant-operator) pins k8s.io/kube-openapi
-// at an unpublished version; mirror tenant-operator/go.mod's replace.
+// koordinator v1.8.0 (indirect via axisml-operator) pins k8s.io/kube-openapi
+// at an unpublished version; mirror axisml-operator/go.mod's replace.
 replace k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912

@@ -114,32 +114,24 @@ helm-template: ## Render both charts locally
 # Each entry is a directory that contains a Makefile honouring the contract.
 # Add scaffolded components here as they ship working build targets.
 COMPONENTS := \
-  components/operators \
+  components/operator \
   components/compute
 # Scaffolded components (uncomment as they ship code):
 # COMPONENTS += components/artifacts
 # COMPONENTS += components/platform/backend
 # COMPONENTS += components/platform/frontend
 
-# Operator Deployment basenames. All three operators now share one
-# axisml-operator image, but they still run as separate Deployments.
-OPERATORS := tenant-operator mljob-operator mlservice-operator
+# Component basenames whose images get loaded into minikube + waited on after
+# helm-install. The merged operator runs as a single Deployment; compute is
+# still its own Deployment.
+DEPLOYMENTS := operator compute
 
-# All component basenames. Used by e2e-pre-image-load / e2e-wait — every
-# component whose image just got loaded into minikube needs to be scaled to
-# zero first (otherwise `minikube image load` silently no-ops while the old
-# pod still references :TAG) and then waited on after helm-install.
-DEPLOYMENTS := $(OPERATORS) compute
-
-# Coverage profiles are still produced by each Go operator module, even
-# though image builds go through the shared components/operators component.
+# Coverage profiles are produced by each Go module under COMPONENTS.
 COVERAGE_COMPONENTS := \
-  components/operators/tenant-operator \
-  components/operators/mljob-operator \
-  components/operators/mlservice-operator \
+  components/operator \
   components/compute
 
-# Every Go module in the repo (operators + their envtest sub-modules +
+# Every Go module in the repo (operator + its envtest sub-module + compute +
 # shared test/testutil + test/e2e). `go fmt ./...` does not cross module
 # boundaries, so `make fmt` iterates these explicitly. Sorted for stable
 # output; bin/ excluded so we never recurse into build artifacts.
@@ -187,7 +179,7 @@ clean: ## Remove build artifacts across every component
 #
 # Generate `<basename>-build`, `<basename>-image`, `<basename>-image-load`,
 # `<basename>-test`, `<basename>-clean` for each component listed above. For
-# example: `make operators-image`, `make compute-test`.
+# example: `make operator-image`, `make compute-test`.
 #
 # COMPONENT basenames must be unique. If you add a component whose basename
 # would collide (e.g., `components/platform/backend` would clash with any
@@ -219,36 +211,10 @@ $(notdir $1)-clean:
 endef
 $(foreach c,$(COMPONENTS),$(eval $(call _COMPONENT_SHORTCUTS,$(c))))
 
-# Per-operator-module shortcuts. The `components/operators` component builds
-# one shared image, but each operator still has its own Go module with unit
-# tests, envtest, and coverage. CI's envtest matrix invokes
-# `make <operator>-envtest-coverage` per operator, so wire those up explicitly.
-define _OPERATOR_SHORTCUTS
-.PHONY: $(notdir $1)-test $(notdir $1)-envtest $(notdir $1)-coverage $(notdir $1)-envtest-coverage $(notdir $1)-coverage-html $(notdir $1)-fmt $(notdir $1)-tidy $(notdir $1)-clean
-$(notdir $1)-test:
-	@$$(MAKE) -C $1 test
-$(notdir $1)-envtest:
-	@$$(MAKE) -C $1 envtest
-$(notdir $1)-coverage:
-	@$$(MAKE) -C $1 coverage
-$(notdir $1)-envtest-coverage:
-	@$$(MAKE) -C $1 envtest-coverage
-$(notdir $1)-coverage-html:
-	@$$(MAKE) -C $1 coverage-html
-$(notdir $1)-fmt:
-	@$$(MAKE) -C $1 fmt
-$(notdir $1)-tidy:
-	@$$(MAKE) -C $1 tidy
-$(notdir $1)-clean:
-	@$$(MAKE) -C $1 clean
-endef
-$(foreach c,$(filter components/operators/%,$(COVERAGE_COMPONENTS)),$(eval $(call _OPERATOR_SHORTCUTS,$(c))))
-
 ##@ Test infrastructure
 
-# Shared setup-envtest binary location. Each operator's `envtest` Makefile
-# target invokes $(REPO_ROOT)/test/setup-envtest/setup-envtest, so all three
-# operators reuse one binary instead of vendoring their own copies.
+# Shared setup-envtest binary location. The operator's `envtest` Makefile
+# target invokes $(REPO_ROOT)/test/setup-envtest/setup-envtest.
 ENVTEST_BIN_DIR       ?= $(CURDIR)/test/setup-envtest
 ENVTEST               ?= $(ENVTEST_BIN_DIR)/setup-envtest
 ENVTEST_K8S_VERSION   ?= 1.31.0
@@ -268,7 +234,7 @@ $(ENVTEST):
 # L1 envtest: hermetic, in-process reconciler tests against an embedded
 # apiserver+etcd. Each operator's `envtest` target boots its own envtest with
 # the right CRDs and runs `go test -tags=envtest ./test/envtest/...`.
-envtest-test: setup-envtest ## L1 envtest across all operators (hermetic, CI-friendly)
+envtest-test: setup-envtest ## L1 envtest for the merged operator + compute (hermetic, CI-friendly)
 	@$(call _RUN_COMPONENTS,envtest)
 
 # L2 e2e: full-stack tests against a real minikube cluster running helm-installed
@@ -328,7 +294,7 @@ COVERAGE_FILE ?= $(COVERAGE_DIR)/coverage.out
 coverage-unit: ## Run unit tests with coverage profile across all components
 	@$(call _RUN_COMPONENTS,coverage)
 
-coverage-envtest: setup-envtest ## Run L1 envtest with coverage across all operators
+coverage-envtest: setup-envtest ## Run L1 envtest with coverage across operator + compute
 	@$(call _RUN_COMPONENTS,envtest-coverage)
 
 coverage-merge: ## Merge per-component profiles into $(COVERAGE_FILE)
@@ -382,6 +348,6 @@ help: ## Show this help message
 	@printf "\n\033[1mPer-component shortcuts (auto-generated)\033[0m\n"
 	@printf "  Pattern : <component>-{build,image,image-load,test,envtest,coverage,envtest-coverage,coverage-html,fmt,tidy,clean}\n"
 	@printf "  Active  : %s\n" "$(notdir $(COMPONENTS))"
-	@printf "  Example : make operators-image  |  make compute-test\n\n"
+	@printf "  Example : make operator-image  |  make compute-test\n\n"
 
 .DEFAULT_GOAL := build
