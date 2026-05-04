@@ -17,16 +17,16 @@ concurrency:
 
 # Jobs are organised as a type × component grid:
 #
-#                 operator   compute   shared
-#   lint            ✓          ✓         ✓
-#   test            ✓          ✓         —
-#   envtest         ✓          ✓         —
-#   openapi         —          ✓         —
-#   image           ✓          ✓         —   (main-only)
+#                 operator   compute   test
+#   lint            ✓          ✓        ✓
+#   test            ✓          ✓        —
+#   envtest         ✓          ✓        —
+#   openapi         —          ✓        —
+#   image           ✓          ✓        —   (main-only)
 #
-# The `shared` lint bucket covers test/testutil + test/e2e, which don't have
-# their own test/envtest layers. Each component lint job lints both its
-# production module and its test/envtest sub-module in one go.
+# The `test` lint bucket covers the shared test/testutil + test/e2e modules,
+# which don't have their own test/envtest layers. Each component lint job
+# lints both its production module and its test/envtest sub-module in one go.
 
 jobs:
   lint:
@@ -44,7 +44,7 @@ jobs:
             modules: |
               components/compute
               components/compute/test/envtest
-          - name: shared
+          - name: test
             modules: |
               test/testutil
               test/e2e
