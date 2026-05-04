@@ -2,7 +2,6 @@ package service
 
 import (
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -88,7 +87,7 @@ func (h *Handler) Get(c *gin.Context) {
 		_ = c.Error(err)
 		return
 	}
-	name := strings.TrimSuffix(c.Param("service"), ":scale")
+	name := c.Param("service")
 	v, err := h.svc.Get(c.Request.Context(), id, name)
 	if err != nil {
 		_ = c.Error(err)
@@ -103,7 +102,7 @@ func (h *Handler) Scale(c *gin.Context) {
 		_ = c.Error(err)
 		return
 	}
-	name := strings.TrimSuffix(c.Param("service"), ":scale")
+	name := c.Param("service")
 	var in ScaleInput
 	if err := c.ShouldBindJSON(&in); err != nil {
 		_ = c.Error(err)

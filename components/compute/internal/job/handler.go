@@ -2,7 +2,6 @@ package job
 
 import (
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -99,7 +98,7 @@ func (h *Handler) Get(c *gin.Context) {
 		_ = c.Error(err)
 		return
 	}
-	name := strings.TrimSuffix(c.Param("job"), ":cancel")
+	name := c.Param("job")
 	v, err := h.svc.Get(c.Request.Context(), id, name)
 	if err != nil {
 		_ = c.Error(err)
@@ -114,7 +113,7 @@ func (h *Handler) Cancel(c *gin.Context) {
 		_ = c.Error(err)
 		return
 	}
-	name := strings.TrimSuffix(c.Param("job"), ":cancel")
+	name := c.Param("job")
 	v, err := h.svc.Cancel(c.Request.Context(), id, name)
 	if err != nil {
 		_ = c.Error(err)
