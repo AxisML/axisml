@@ -9,6 +9,19 @@ data:
   DATABASE_HOST: {{ include "axisml.databaseHost" . | quote }}
   DATABASE_PORT: {{ include "axisml.databasePort" . | quote }}
   DATABASE_NAME: {{ .Values.database.auth.database | quote }}
+  DATABASE_USER: {{ .Values.database.auth.username | quote }}
+  API_BIND_ADDRESS: {{ printf ":%d" (int .Values.compute.service.port) | quote }}
+  PROBES_BIND_ADDRESS: {{ printf ":%d" (int .Values.compute.probesPort) | quote }}
+  METRICS_BIND_ADDRESS: {{ printf ":%d" (int .Values.compute.metricsPort) | quote }}
+  LEADER_ELECT: {{ .Values.compute.leaderElection.enabled | quote }}
+  LEADER_NAMESPACE: {{ .Release.Namespace | quote }}
+  RECONCILE_INTERVAL: {{ .Values.compute.reconcileInterval | quote }}
+  LOG_DEVELOPMENT: {{ .Values.compute.logDevelopment | quote }}
+  BOOTSTRAP_TENANT: {{ .Values.compute.bootstrap.defaultTenant | quote }}
+  BOOTSTRAP_TENANT_NAMESPACE: {{ .Values.compute.bootstrap.defaultTenantNamespace | quote }}
+  BOOTSTRAP_POOL: {{ .Values.compute.bootstrap.defaultPool | quote }}
+  BOOTSTRAP_QUOTA_CPU: {{ index .Values.compute.bootstrap.defaultQuotaMax "cpu" | quote }}
+  BOOTSTRAP_QUOTA_MEMORY: {{ index .Values.compute.bootstrap.defaultQuotaMax "memory" | quote }}
   {{- range $key, $value := .Values.compute.env }}
   {{ $key }}: {{ $value | quote }}
   {{- end }}

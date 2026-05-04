@@ -1,0 +1,56 @@
+package job
+
+import (
+	"time"
+
+	"github.com/google/uuid"
+	"gorm.io/datatypes"
+)
+
+// Status enumerates the job state machine.
+type Status string
+
+const (
+	StatusCreating  Status = "Creating"
+	StatusPending   Status = "Pending"
+	StatusRunning   Status = "Running"
+	StatusSucceeded Status = "Succeeded"
+	StatusFailed    Status = "Failed"
+	StatusCanceling Status = "Canceling"
+	StatusCancelled Status = "Cancelled"
+	StatusDeleting  Status = "Deleting"
+	StatusDeleted   Status = "Deleted"
+)
+
+// IsTerminal returns whether the status is a terminal state for reconciliation purposes.
+func IsTerminal(s Status) bool {
+	switch s {
+	case StatusSucceeded, StatusFailed, StatusCancelled, StatusDeleted:
+		return true
+	}
+	return false
+}
+
+// Job is the GORM-backed `jobs` row.
+type Job struct {
+	ID                 uuid.UUID      `gorm:"type:uuid;primaryKey"`
+	TenantID           uuid.UUID      `gorm:"type:uuid;not null;column:tenant_id"`
+	PoolID             uuid.UUID      `gorm:"type:uuid;not null;column:pool_id"`
+	QuotaID            uuid.UUID      `gorm:"type:uuid;not null;column:quota_id"`
+	ResourceUnitID     uuid.UUID      `gorm:"type:uuid;not null;column:resource_unit_id"`
+	Name               string         `gorm:"size:64;not null"`
+	DisplayName        string         `gorm:"type:text;not null;default:''"`
+	Description        string         `gorm:"type:text;not null;default:''"`
+	OwnerUser          string         `gorm:"type:text;not null;default:''"`
+	Spec               datatypes.JSON `gorm:"type:jsonb;not null"`
+	RequestedResources datatypes.JSON `gorm:"type:jsonb;not null;default:'{}'"`
+	Status             string         `gorm:"size:16;not null"`
+	Message            string         `gorm:"type:text;not null;default:''"`
+	StartedAt          *time.Time
+	FinishedAt         *time.Time
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	DeletedAt          *time.Time
+}
+
+func (Job) TableName() string { return "jobs" }

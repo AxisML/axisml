@@ -29,6 +29,8 @@ jobs:
           - components/operators/tenant-operator/test/envtest
           - components/operators/mljob-operator/test/envtest
           - components/operators/mlservice-operator/test/envtest
+          - components/compute
+          - components/compute/test/envtest
           - test/testutil
           - test/e2e
     steps:
@@ -66,20 +68,21 @@ jobs:
         with:
           # Glob picks up every operator's profile, so adding a new component
           # to the top-level COMPONENTS list doesn't require editing CI too.
-          files: ./components/operators/*/coverage/coverage.out
+          files: ./components/operators/*/coverage/coverage.out,./components/compute/coverage/coverage.out
           flags: unit
           fail_ci_if_error: false
 
   envtest:
-    name: L1 envtest (${{ matrix.operator }})
+    name: L1 envtest (${{ matrix.component.name }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        operator:
-          - tenant-operator
-          - mljob-operator
-          - mlservice-operator
+        component:
+          - { name: tenant-operator,    coverage: ./components/operators/tenant-operator/coverage/envtest-coverage.out }
+          - { name: mljob-operator,     coverage: ./components/operators/mljob-operator/coverage/envtest-coverage.out }
+          - { name: mlservice-operator, coverage: ./components/operators/mlservice-operator/coverage/envtest-coverage.out }
+          - { name: compute,            coverage: ./components/compute/coverage/envtest-coverage.out }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -98,11 +101,11 @@ jobs:
           key: envtest-${{ runner.os }}-k8s-1.31.0
       - name: Install setup-envtest binary if missing
         run: make setup-envtest
-      - name: Run L1 envtest with coverage for ${{ matrix.operator }}
-        run: make ${{ matrix.operator }}-envtest-coverage
+      - name: Run L1 envtest with coverage for ${{ matrix.component.name }}
+        run: make ${{ matrix.component.name }}-envtest-coverage
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
-          files: ./components/operators/${{ matrix.operator }}/coverage/envtest-coverage.out
-          flags: envtest,${{ matrix.operator }}
+          files: ${{ matrix.component.coverage }}
+          flags: envtest,${{ matrix.component.name }}
           fail_ci_if_error: false
