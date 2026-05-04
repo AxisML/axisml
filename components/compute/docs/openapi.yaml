@@ -2,16 +2,200 @@
 # Regenerate with: make openapi
 components:
   schemas:
+    Corev1ConfigMapEnvSource:
+      properties:
+        LocalObjectReference:
+          $ref: '#/components/schemas/Corev1LocalObjectReference'
+        optional:
+          nullable: true
+          type: boolean
+      required:
+      - LocalObjectReference
+      type: object
+    Corev1ConfigMapKeySelector:
+      properties:
+        LocalObjectReference:
+          $ref: '#/components/schemas/Corev1LocalObjectReference'
+        key:
+          type: string
+        optional:
+          nullable: true
+          type: boolean
+      required:
+      - LocalObjectReference
+      - key
+      type: object
+    Corev1EnvFromSource:
+      properties:
+        configMapRef:
+          allOf:
+          - $ref: '#/components/schemas/Corev1ConfigMapEnvSource'
+          nullable: true
+        prefix:
+          type: string
+        secretRef:
+          allOf:
+          - $ref: '#/components/schemas/Corev1SecretEnvSource'
+          nullable: true
+      type: object
+    Corev1EnvVar:
+      properties:
+        name:
+          type: string
+        value:
+          type: string
+        valueFrom:
+          allOf:
+          - $ref: '#/components/schemas/Corev1EnvVarSource'
+          nullable: true
+      required:
+      - name
+      type: object
+    Corev1EnvVarSource:
+      properties:
+        configMapKeyRef:
+          allOf:
+          - $ref: '#/components/schemas/Corev1ConfigMapKeySelector'
+          nullable: true
+        fieldRef:
+          allOf:
+          - $ref: '#/components/schemas/Corev1ObjectFieldSelector'
+          nullable: true
+        fileKeyRef:
+          allOf:
+          - $ref: '#/components/schemas/Corev1FileKeySelector'
+          nullable: true
+        resourceFieldRef:
+          allOf:
+          - $ref: '#/components/schemas/Corev1ResourceFieldSelector'
+          nullable: true
+        secretKeyRef:
+          allOf:
+          - $ref: '#/components/schemas/Corev1SecretKeySelector'
+          nullable: true
+      type: object
+    Corev1FileKeySelector:
+      properties:
+        key:
+          type: string
+        optional:
+          nullable: true
+          type: boolean
+        path:
+          type: string
+        volumeName:
+          type: string
+      required:
+      - key
+      - path
+      - volumeName
+      type: object
+    Corev1LocalObjectReference:
+      properties:
+        name:
+          type: string
+      type: object
+    Corev1ObjectFieldSelector:
+      properties:
+        apiVersion:
+          type: string
+        fieldPath:
+          type: string
+      required:
+      - fieldPath
+      type: object
+    Corev1ResourceClaim:
+      properties:
+        name:
+          type: string
+        request:
+          type: string
+      required:
+      - name
+      type: object
+    Corev1ResourceFieldSelector:
+      properties:
+        containerName:
+          type: string
+        divisor:
+          description: Kubernetes resource.Quantity (e.g. "500m", "2Gi", "4").
+          type: string
+        resource:
+          type: string
+      required:
+      - resource
+      type: object
+    Corev1ResourceRequirements:
+      properties:
+        claims:
+          items:
+            $ref: '#/components/schemas/Corev1ResourceClaim'
+          type: array
+        limits:
+          additionalProperties:
+            description: Kubernetes resource.Quantity.
+            type: string
+          description: Map of resource name (cpu, memory, nvidia.com/gpu, …) to resource.Quantity.
+          type: object
+        requests:
+          additionalProperties:
+            description: Kubernetes resource.Quantity.
+            type: string
+          description: Map of resource name (cpu, memory, nvidia.com/gpu, …) to resource.Quantity.
+          type: object
+      type: object
+    Corev1SecretEnvSource:
+      properties:
+        LocalObjectReference:
+          $ref: '#/components/schemas/Corev1LocalObjectReference'
+        optional:
+          nullable: true
+          type: boolean
+      required:
+      - LocalObjectReference
+      type: object
+    Corev1SecretKeySelector:
+      properties:
+        LocalObjectReference:
+          $ref: '#/components/schemas/Corev1LocalObjectReference'
+        key:
+          type: string
+        optional:
+          nullable: true
+          type: boolean
+      required:
+      - LocalObjectReference
+      - key
+      type: object
+    Corev1Toleration:
+      properties:
+        effect:
+          type: string
+        key:
+          type: string
+        operator:
+          type: string
+        tolerationSeconds:
+          format: int64
+          nullable: true
+          type: integer
+        value:
+          type: string
+      type: object
     JobCreateInput:
       properties:
         backend:
-          $ref: '#/components/schemas/MLJobBackendSpec'
+          allOf:
+          - $ref: '#/components/schemas/MLJobBackendSpec'
           nullable: true
         description:
           type: string
         displayName:
           type: string
         name:
+          maxLength: 40
+          minLength: 3
+          pattern: ^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])?$
           type: string
         quotaId:
           format: uuid
@@ -22,9 +206,11 @@ components:
         roles:
           items:
             $ref: '#/components/schemas/MLJobRoleSpec'
+          minItems: 1
           type: array
         runPolicy:
-          $ref: '#/components/schemas/MLJobRunPolicySpec'
+          allOf:
+          - $ref: '#/components/schemas/MLJobRunPolicySpec'
           nullable: true
       required:
       - name
@@ -81,16 +267,28 @@ components:
         updatedAt:
           format: date-time
           type: string
+      required:
+      - createdAt
+      - id
+      - name
+      - spec
+      - status
+      - tenantId
+      - updatedAt
       type: object
     MLJobBackendSpec:
       properties:
         config:
-          $ref: '#/components/schemas/RuntimeRawExtension'
+          description: Embedded Kubernetes resource (free-form JSON).
           nullable: true
+          type: object
         engine:
           type: string
         name:
           type: string
+      required:
+      - engine
+      - name
       type: object
     MLJobPodTemplateSubset:
       properties:
@@ -104,20 +302,22 @@ components:
           type: array
         env:
           items:
-            $ref: '#/components/schemas/V1EnvVar'
+            $ref: '#/components/schemas/Corev1EnvVar'
           type: array
         envFrom:
           items:
-            $ref: '#/components/schemas/V1EnvFromSource'
+            $ref: '#/components/schemas/Corev1EnvFromSource'
           type: array
         image:
           type: string
         imagePullPolicy:
           type: string
         resources:
-          $ref: '#/components/schemas/V1ResourceRequirements'
+          $ref: '#/components/schemas/Corev1ResourceRequirements'
         workingDir:
           type: string
+      required:
+      - image
       type: object
     MLJobRoleSpec:
       properties:
@@ -130,6 +330,10 @@ components:
           type: string
         template:
           $ref: '#/components/schemas/MLJobPodTemplateSubset'
+      required:
+      - name
+      - replicas
+      - template
       type: object
     MLJobRunPolicySpec:
       properties:
@@ -160,8 +364,10 @@ components:
           type: string
         tolerations:
           items:
-            $ref: '#/components/schemas/V1Toleration'
+            $ref: '#/components/schemas/Corev1Toleration'
           type: array
+      required:
+      - quota
       type: object
     MLJobSpec:
       properties:
@@ -175,21 +381,30 @@ components:
           $ref: '#/components/schemas/MLJobRunPolicySpec'
         scheduling:
           $ref: '#/components/schemas/MLJobSchedulingSpec'
+      required:
+      - backend
+      - roles
+      - scheduling
       type: object
     MLServiceBackend:
       properties:
         config:
-          $ref: '#/components/schemas/RuntimeRawExtension'
+          description: Embedded Kubernetes resource (free-form JSON).
           nullable: true
+          type: object
         engine:
           type: string
         name:
           type: string
+      required:
+      - engine
+      - name
       type: object
     MLServiceCreateInput:
       properties:
         backend:
-          $ref: '#/components/schemas/MLServiceBackend'
+          allOf:
+          - $ref: '#/components/schemas/MLServiceBackend'
           nullable: true
         description:
           type: string
@@ -198,6 +413,9 @@ components:
         modelRef:
           $ref: '#/components/schemas/MLServiceModelRef'
         name:
+          maxLength: 40
+          minLength: 3
+          pattern: ^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])?$
           type: string
         quotaId:
           format: uuid
@@ -208,12 +426,15 @@ components:
         roles:
           items:
             $ref: '#/components/schemas/MLServiceRoleSpec'
+          minItems: 1
           type: array
         route:
-          $ref: '#/components/schemas/MLServiceRoute'
+          allOf:
+          - $ref: '#/components/schemas/MLServiceRoute'
           nullable: true
         runPolicy:
-          $ref: '#/components/schemas/MLServiceRunPolicy'
+          allOf:
+          - $ref: '#/components/schemas/MLServiceRunPolicy'
           nullable: true
       required:
       - modelRef
@@ -241,6 +462,9 @@ components:
           type: string
         version:
           type: string
+      required:
+      - name
+      - version
       type: object
     MLServicePodPort:
       properties:
@@ -251,6 +475,9 @@ components:
           type: string
         protocol:
           type: string
+      required:
+      - containerPort
+      - name
       type: object
     MLServicePodTemplate:
       properties:
@@ -264,11 +491,11 @@ components:
           type: array
         env:
           items:
-            $ref: '#/components/schemas/V1EnvVar'
+            $ref: '#/components/schemas/Corev1EnvVar'
           type: array
         envFrom:
           items:
-            $ref: '#/components/schemas/V1EnvFromSource'
+            $ref: '#/components/schemas/Corev1EnvFromSource'
           type: array
         image:
           type: string
@@ -279,9 +506,11 @@ components:
             $ref: '#/components/schemas/MLServicePodPort'
           type: array
         resources:
-          $ref: '#/components/schemas/V1ResourceRequirements'
+          $ref: '#/components/schemas/Corev1ResourceRequirements'
         workingDir:
           type: string
+      required:
+      - image
       type: object
     MLServiceRoleSpec:
       properties:
@@ -292,11 +521,16 @@ components:
           type: integer
         template:
           $ref: '#/components/schemas/MLServicePodTemplate'
+      required:
+      - name
+      - replicas
+      - template
       type: object
     MLServiceRoute:
       properties:
         auth:
-          $ref: '#/components/schemas/MLServiceRouteAuth'
+          allOf:
+          - $ref: '#/components/schemas/MLServiceRouteAuth'
           nullable: true
         enabled:
           type: boolean
@@ -307,20 +541,25 @@ components:
         portName:
           type: string
         rateLimit:
-          $ref: '#/components/schemas/MLServiceRouteRateLimit'
+          allOf:
+          - $ref: '#/components/schemas/MLServiceRouteRateLimit'
           nullable: true
         targetRole:
           type: string
         timeout:
           type: string
+      required:
+      - enabled
       type: object
     MLServiceRouteAuth:
       properties:
         apiKey:
-          $ref: '#/components/schemas/MLServiceRouteAuthAPIKeyConfig'
+          allOf:
+          - $ref: '#/components/schemas/MLServiceRouteAuthAPIKeyConfig'
           nullable: true
         jwt:
-          $ref: '#/components/schemas/MLServiceRouteAuthJWTConfig'
+          allOf:
+          - $ref: '#/components/schemas/MLServiceRouteAuthJWTConfig'
           nullable: true
         type:
           type: string
@@ -328,7 +567,9 @@ components:
     MLServiceRouteAuthAPIKeyConfig:
       properties:
         secretRef:
-          $ref: '#/components/schemas/V1LocalObjectReference'
+          $ref: '#/components/schemas/Corev1LocalObjectReference'
+      required:
+      - secretRef
       type: object
     MLServiceRouteAuthJWTConfig:
       properties:
@@ -336,6 +577,9 @@ components:
           type: string
         jwksUri:
           type: string
+      required:
+      - issuer
+      - jwksUri
       type: object
     MLServiceRouteRateLimit:
       properties:
@@ -345,6 +589,8 @@ components:
         requestsPerSecond:
           format: int32
           type: integer
+      required:
+      - requestsPerSecond
       type: object
     MLServiceRunPolicy:
       properties:
@@ -357,6 +603,7 @@ components:
       properties:
         replicas:
           format: int32
+          minimum: 0
           type: integer
       required:
       - replicas
@@ -373,8 +620,10 @@ components:
           type: string
         tolerations:
           items:
-            $ref: '#/components/schemas/V1Toleration'
+            $ref: '#/components/schemas/Corev1Toleration'
           type: array
+      required:
+      - quota
       type: object
     MLServiceSpec:
       properties:
@@ -387,12 +636,18 @@ components:
             $ref: '#/components/schemas/MLServiceRoleSpec'
           type: array
         route:
-          $ref: '#/components/schemas/MLServiceRoute'
+          allOf:
+          - $ref: '#/components/schemas/MLServiceRoute'
           nullable: true
         runPolicy:
           $ref: '#/components/schemas/MLServiceRunPolicy'
         scheduling:
           $ref: '#/components/schemas/MLServiceScheduling'
+      required:
+      - backend
+      - modelRef
+      - roles
+      - scheduling
       type: object
     MLServiceView:
       properties:
@@ -430,10 +685,31 @@ components:
         updatedAt:
           format: date-time
           type: string
+      required:
+      - createdAt
+      - id
+      - name
+      - readyReplicas
+      - replicas
+      - spec
+      - status
+      - tenantId
+      - updatedAt
       type: object
     Problem:
       properties:
         code:
+          description: Discrete business error class.
+          enum:
+          - validation_failed
+          - not_found
+          - conflict
+          - precondition_failed
+          - unauthorized
+          - forbidden
+          - service_unavailable
+          - internal_error
+          - quota_exceeded
           type: string
         detail:
           type: string
@@ -448,6 +724,11 @@ components:
           type: string
         type:
           type: string
+      required:
+      - code
+      - status
+      - title
+      - type
       type: object
     QuotaCreateInput:
       properties:
@@ -464,8 +745,14 @@ components:
           description: Map of resource name (cpu, memory, nvidia.com/gpu, …) to resource.Quantity.
           type: object
         name:
+          maxLength: 40
+          minLength: 3
+          pattern: ^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])?$
           type: string
         pool:
+          maxLength: 40
+          minLength: 3
+          pattern: ^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])?$
           type: string
       required:
       - max
@@ -543,6 +830,41 @@ components:
             type: string
           description: Map of resource name (cpu, memory, nvidia.com/gpu, …) to resource.Quantity.
           type: object
+      required:
+      - createdAt
+      - id
+      - max
+      - name
+      - pool
+      - poolId
+      - status
+      - tenantId
+      - updatedAt
+      type: object
+    Rbacv1PolicyRule:
+      properties:
+        apiGroups:
+          items:
+            type: string
+          type: array
+        nonResourceURLs:
+          items:
+            type: string
+          type: array
+        resourceNames:
+          items:
+            type: string
+          type: array
+        resources:
+          items:
+            type: string
+          type: array
+        verbs:
+          items:
+            type: string
+          type: array
+      required:
+      - verbs
       type: object
     ResourcepoolCreateInput:
       properties:
@@ -552,6 +874,9 @@ components:
           additionalProperties: {}
           type: object
         name:
+          maxLength: 40
+          minLength: 3
+          pattern: ^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])?$
           type: string
         nodeSelector:
           additionalProperties:
@@ -559,7 +884,7 @@ components:
           type: object
         tolerations:
           items:
-            $ref: '#/components/schemas/V1Toleration'
+            $ref: '#/components/schemas/Corev1Toleration'
           type: array
       required:
       - name
@@ -593,7 +918,7 @@ components:
           type: object
         tolerations:
           items:
-            $ref: '#/components/schemas/V1Toleration'
+            $ref: '#/components/schemas/Corev1Toleration'
           nullable: true
           type: array
       type: object
@@ -618,11 +943,16 @@ components:
           type: object
         tolerations:
           items:
-            $ref: '#/components/schemas/V1Toleration'
+            $ref: '#/components/schemas/Corev1Toleration'
           type: array
         updatedAt:
           format: date-time
           type: string
+      required:
+      - createdAt
+      - id
+      - name
+      - updatedAt
       type: object
     ResourceunitCreateInput:
       properties:
@@ -635,6 +965,9 @@ components:
           description: Map of resource name (cpu, memory, nvidia.com/gpu, …) to resource.Quantity.
           type: object
         name:
+          maxLength: 40
+          minLength: 3
+          pattern: ^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])?$
           type: string
         nodeSelector:
           additionalProperties:
@@ -722,8 +1055,13 @@ components:
         updatedAt:
           format: date-time
           type: string
-      type: object
-    RuntimeRawExtension:
+      required:
+      - createdAt
+      - id
+      - name
+      - poolId
+      - requests
+      - updatedAt
       type: object
     TenantConfigMapSpec:
       properties:
@@ -731,6 +1069,9 @@ components:
           type: string
         sourceConfigMapRef:
           $ref: '#/components/schemas/TenantSourceConfigMapRef'
+      required:
+      - name
+      - sourceConfigMapRef
       type: object
     TenantCreateInput:
       properties:
@@ -743,6 +1084,9 @@ components:
         initResources:
           $ref: '#/components/schemas/TenantInitResources'
         name:
+          maxLength: 40
+          minLength: 3
+          pattern: ^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])?$
           type: string
         namespace:
           $ref: '#/components/schemas/TenantNamespaceSpec'
@@ -756,6 +1100,9 @@ components:
           type: string
         sourceSecretRef:
           $ref: '#/components/schemas/TenantSourceSecretRef'
+      required:
+      - name
+      - sourceSecretRef
       type: object
     TenantInitResources:
       properties:
@@ -799,6 +1146,9 @@ components:
           additionalProperties:
             type: string
           type: object
+      required:
+      - annotations
+      - labels
       type: object
     TenantNamespaceSpec:
       properties:
@@ -812,6 +1162,8 @@ components:
           type: object
         name:
           type: string
+      required:
+      - name
       type: object
     TenantRBACRoleRef:
       properties:
@@ -819,15 +1171,19 @@ components:
           type: string
         name:
           type: string
+      required:
+      - kind
+      - name
       type: object
     TenantRBACSpec:
       properties:
         roleRef:
-          $ref: '#/components/schemas/TenantRBACRoleRef'
+          allOf:
+          - $ref: '#/components/schemas/TenantRBACRoleRef'
           nullable: true
         rules:
           items:
-            $ref: '#/components/schemas/V1PolicyRule'
+            $ref: '#/components/schemas/Rbacv1PolicyRule'
           type: array
       type: object
     TenantSecretSpec:
@@ -838,6 +1194,9 @@ components:
           $ref: '#/components/schemas/TenantSourceSecretRef'
         type:
           type: string
+      required:
+      - name
+      - sourceSecretRef
       type: object
     TenantServiceAccountSpec:
       properties:
@@ -848,8 +1207,11 @@ components:
         name:
           type: string
         rbac:
-          $ref: '#/components/schemas/TenantRBACSpec'
+          allOf:
+          - $ref: '#/components/schemas/TenantRBACSpec'
           nullable: true
+      required:
+      - name
       type: object
     TenantSourceConfigMapRef:
       properties:
@@ -857,6 +1219,9 @@ components:
           type: string
         namespace:
           type: string
+      required:
+      - name
+      - namespace
       type: object
     TenantSourceSecretRef:
       properties:
@@ -864,6 +1229,9 @@ components:
           type: string
         namespace:
           type: string
+      required:
+      - name
+      - namespace
       type: object
     TenantUpdateInput:
       properties:
@@ -876,10 +1244,12 @@ components:
           nullable: true
           type: string
         initResources:
-          $ref: '#/components/schemas/TenantInitResources'
+          allOf:
+          - $ref: '#/components/schemas/TenantInitResources'
           nullable: true
         namespace:
-          $ref: '#/components/schemas/TenantNamespaceMetaPatch'
+          allOf:
+          - $ref: '#/components/schemas/TenantNamespaceMetaPatch'
           nullable: true
       type: object
     TenantView:
@@ -907,179 +1277,13 @@ components:
         updatedAt:
           format: date-time
           type: string
-      type: object
-    V1ConfigMapEnvSource:
-      properties:
-        LocalObjectReference:
-          $ref: '#/components/schemas/V1LocalObjectReference'
-        optional:
-          nullable: true
-          type: boolean
-      type: object
-    V1ConfigMapKeySelector:
-      properties:
-        LocalObjectReference:
-          $ref: '#/components/schemas/V1LocalObjectReference'
-        key:
-          type: string
-        optional:
-          nullable: true
-          type: boolean
-      type: object
-    V1EnvFromSource:
-      properties:
-        configMapRef:
-          $ref: '#/components/schemas/V1ConfigMapEnvSource'
-          nullable: true
-        prefix:
-          type: string
-        secretRef:
-          $ref: '#/components/schemas/V1SecretEnvSource'
-          nullable: true
-      type: object
-    V1EnvVar:
-      properties:
-        name:
-          type: string
-        value:
-          type: string
-        valueFrom:
-          $ref: '#/components/schemas/V1EnvVarSource'
-          nullable: true
-      type: object
-    V1EnvVarSource:
-      properties:
-        configMapKeyRef:
-          $ref: '#/components/schemas/V1ConfigMapKeySelector'
-          nullable: true
-        fieldRef:
-          $ref: '#/components/schemas/V1ObjectFieldSelector'
-          nullable: true
-        fileKeyRef:
-          $ref: '#/components/schemas/V1FileKeySelector'
-          nullable: true
-        resourceFieldRef:
-          $ref: '#/components/schemas/V1ResourceFieldSelector'
-          nullable: true
-        secretKeyRef:
-          $ref: '#/components/schemas/V1SecretKeySelector'
-          nullable: true
-      type: object
-    V1FileKeySelector:
-      properties:
-        key:
-          type: string
-        optional:
-          nullable: true
-          type: boolean
-        path:
-          type: string
-        volumeName:
-          type: string
-      type: object
-    V1LocalObjectReference:
-      properties:
-        name:
-          type: string
-      type: object
-    V1ObjectFieldSelector:
-      properties:
-        apiVersion:
-          type: string
-        fieldPath:
-          type: string
-      type: object
-    V1PolicyRule:
-      properties:
-        apiGroups:
-          items:
-            type: string
-          type: array
-        nonResourceURLs:
-          items:
-            type: string
-          type: array
-        resourceNames:
-          items:
-            type: string
-          type: array
-        resources:
-          items:
-            type: string
-          type: array
-        verbs:
-          items:
-            type: string
-          type: array
-      type: object
-    V1ResourceClaim:
-      properties:
-        name:
-          type: string
-        request:
-          type: string
-      type: object
-    V1ResourceFieldSelector:
-      properties:
-        containerName:
-          type: string
-        divisor:
-          description: Kubernetes resource.Quantity (e.g. "500m", "2Gi", "4").
-          type: string
-        resource:
-          type: string
-      type: object
-    V1ResourceRequirements:
-      properties:
-        claims:
-          items:
-            $ref: '#/components/schemas/V1ResourceClaim'
-          type: array
-        limits:
-          additionalProperties:
-            description: Kubernetes resource.Quantity.
-            type: string
-          description: Map of resource name (cpu, memory, nvidia.com/gpu, …) to resource.Quantity.
-          type: object
-        requests:
-          additionalProperties:
-            description: Kubernetes resource.Quantity.
-            type: string
-          description: Map of resource name (cpu, memory, nvidia.com/gpu, …) to resource.Quantity.
-          type: object
-      type: object
-    V1SecretEnvSource:
-      properties:
-        LocalObjectReference:
-          $ref: '#/components/schemas/V1LocalObjectReference'
-        optional:
-          nullable: true
-          type: boolean
-      type: object
-    V1SecretKeySelector:
-      properties:
-        LocalObjectReference:
-          $ref: '#/components/schemas/V1LocalObjectReference'
-        key:
-          type: string
-        optional:
-          nullable: true
-          type: boolean
-      type: object
-    V1Toleration:
-      properties:
-        effect:
-          type: string
-        key:
-          type: string
-        operator:
-          type: string
-        tolerationSeconds:
-          format: int64
-          nullable: true
-          type: integer
-        value:
-          type: string
+      required:
+      - createdAt
+      - id
+      - name
+      - namespace
+      - status
+      - updatedAt
       type: object
 info:
   description: REST API for tenants, resource pools, resource units, quotas, jobs,
@@ -1141,12 +1345,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
         default:
           content:
             application/json:
@@ -1201,12 +1417,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
         default:
           content:
             application/json:
@@ -1259,12 +1487,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
         default:
           content:
             application/json:
@@ -1320,12 +1560,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
         default:
           content:
             application/json:
@@ -1387,12 +1639,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
         default:
           content:
             application/json:
@@ -1461,12 +1725,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
         default:
           content:
             application/json:
@@ -1528,12 +1804,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
         default:
           content:
             application/json:
@@ -1592,12 +1880,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
         default:
           content:
             application/json:
@@ -1659,12 +1959,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
         default:
           content:
             application/json:
@@ -1732,12 +2044,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
         default:
           content:
             application/json:
@@ -1800,12 +2124,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
         default:
           content:
             application/json:
@@ -1860,12 +2196,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
         default:
           content:
             application/json:
@@ -1918,12 +2266,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
         default:
           content:
             application/json:
@@ -1979,12 +2339,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
         default:
           content:
             application/json:
@@ -2046,12 +2418,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
         default:
           content:
             application/json:
@@ -2120,12 +2504,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
         default:
           content:
             application/json:
@@ -2187,12 +2583,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
         default:
           content:
             application/json:
@@ -2251,12 +2659,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
         default:
           content:
             application/json:
@@ -2318,12 +2738,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
         default:
           content:
             application/json:
@@ -2386,12 +2818,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
         default:
           content:
             application/json:
@@ -2460,12 +2904,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
         default:
           content:
             application/json:
@@ -2527,12 +2983,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
         default:
           content:
             application/json:
@@ -2591,12 +3059,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
         default:
           content:
             application/json:
@@ -2658,12 +3138,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
         default:
           content:
             application/json:
@@ -2731,12 +3223,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
         default:
           content:
             application/json:
@@ -2805,12 +3309,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
         default:
           content:
             application/json:
@@ -2872,12 +3388,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
         default:
           content:
             application/json:
@@ -2936,12 +3464,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
         default:
           content:
             application/json:
@@ -3003,12 +3543,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
         default:
           content:
             application/json:
@@ -3077,12 +3629,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
         default:
           content:
             application/json:
@@ -3139,12 +3703,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
         default:
           content:
             application/json:
@@ -3201,12 +3777,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
         default:
           content:
             application/json:

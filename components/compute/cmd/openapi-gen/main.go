@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -34,6 +35,7 @@ import (
 	"github.com/axisml/axisml/components/compute/internal/server"
 	servicemod "github.com/axisml/axisml/components/compute/internal/service"
 	"github.com/axisml/axisml/components/compute/internal/tenant"
+	apperrors "github.com/axisml/axisml/components/compute/pkg/errors"
 )
 
 // defaultVersion is used when -version is not passed. The make target wires
@@ -149,9 +151,34 @@ type schema struct {
 	Items                *schema            `json:"items,omitempty"`
 	AdditionalProperties *schema            `json:"additionalProperties,omitempty"`
 	Nullable             bool               `json:"nullable,omitempty"`
+	Enum                 []string           `json:"enum,omitempty"`
+	Pattern              string             `json:"pattern,omitempty"`
+	MinLength            *int               `json:"minLength,omitempty"`
+	MaxLength            *int               `json:"maxLength,omitempty"`
+	Minimum              *float64           `json:"minimum,omitempty"`
+	Maximum              *float64           `json:"maximum,omitempty"`
+	MinItems             *int               `json:"minItems,omitempty"`
+	MaxItems             *int               `json:"maxItems,omitempty"`
+	AllOf                []*schema          `json:"allOf,omitempty"`
 }
 
 func ref(name string) *schema { return &schema{Ref: "#/components/schemas/" + name} }
+
+// apiMode controls how a top-level schema's required-list is computed. Inputs
+// take their cue from gin `binding` tags; responses treat any field that
+// doesn't carry `omitempty` (and isn't a pointer) as always present, which is
+// what client codegens want for typed accessors.
+//
+// Mode propagates only to the root struct's fields. Nested schemas (Kubernetes
+// API types, etc.) always use the response/omitempty rule because the same
+// component schema may be reached from both an input and an output context,
+// and we want one canonical shape per type.
+type apiMode int
+
+const (
+	responseMode apiMode = iota
+	inputMode
+)
 
 // Tag names. One source of truth so a typo can't silently split a group.
 const (
@@ -197,7 +224,8 @@ func stringResp(desc string) response {
 
 // withErrors returns the standard Problem-bearing error responses with the
 // given success codes overlaid. Every domain operation calls this — keeps
-// the route table focused on what's unique per route.
+// the route table focused on what's unique per route. Codes here must stay
+// in lock-step with internal/server/problem.go's statusFor.
 func withErrors(success map[string]response) map[string]response {
 	out := map[string]response{
 		"400":     jsonResp("Validation error.", "Problem"),
@@ -205,7 +233,9 @@ func withErrors(success map[string]response) map[string]response {
 		"403":     jsonResp("Forbidden.", "Problem"),
 		"404":     jsonResp("Not found.", "Problem"),
 		"409":     jsonResp("Conflict.", "Problem"),
+		"412":     jsonResp("Precondition failed.", "Problem"),
 		"422":     jsonResp("Quota exceeded.", "Problem"),
+		"503":     jsonResp("Service unavailable.", "Problem"),
 		"default": jsonResp("Unexpected error.", "Problem"),
 	}
 	for k, v := range success {
@@ -236,7 +266,7 @@ func newGenerator() *generator {
 // name (so handlers can reference it as #/components/schemas/<name>). For
 // named struct types we call structSchema directly so the slot holds the
 // expanded schema rather than a $ref to itself.
-func (g *generator) register(name string, v any) {
+func (g *generator) register(name string, v any, mode apiMode) {
 	t := reflect.TypeOf(v)
 	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
@@ -246,7 +276,7 @@ func (g *generator) register(name string, v any) {
 	if ws := wellKnown(t); ws != nil {
 		s = ws
 	} else if t.Kind() == reflect.Struct {
-		s = g.structSchema(t)
+		s = g.structSchema(t, mode)
 	} else {
 		s = g.schemaForType(t)
 	}
@@ -256,7 +286,8 @@ func (g *generator) register(name string, v any) {
 
 // schemaForType is the workhorse. For named struct types it emits a $ref
 // (defining the target lazily) so we get a tidy components/schemas section
-// instead of inline duplication.
+// instead of inline duplication. Nested types always use response-mode
+// required semantics (see apiMode docs).
 func (g *generator) schemaForType(t reflect.Type) *schema {
 	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
@@ -271,6 +302,9 @@ func (g *generator) schemaForType(t reflect.Type) *schema {
 		return &schema{Type: "boolean"}
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
 		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		// Note: uint64 is rendered as int64 since OpenAPI 3.0 has no native
+		// unsigned integer type. None of our public structs use uint64; if
+		// that changes, consider emitting `format: int64` with a description.
 		return &schema{Type: "integer", Format: intFormat(t)}
 	case reflect.Float32, reflect.Float64:
 		return &schema{Type: "number", Format: floatFormat(t)}
@@ -292,19 +326,19 @@ func (g *generator) schemaForType(t reflect.Type) *schema {
 				return ref(name)
 			}
 			g.inProgress[t] = name
-			s := g.structSchema(t)
+			s := g.structSchema(t, responseMode)
 			g.defs[name] = s
 			delete(g.inProgress, t)
 			return ref(name)
 		}
-		return g.structSchema(t)
+		return g.structSchema(t, responseMode)
 	case reflect.Interface:
 		return &schema{} // free-form
 	}
 	return &schema{}
 }
 
-func (g *generator) structSchema(t reflect.Type) *schema {
+func (g *generator) structSchema(t reflect.Type, mode apiMode) *schema {
 	out := &schema{Type: "object", Properties: map[string]*schema{}}
 	var required []string
 	for i := 0; i < t.NumField(); i++ {
@@ -313,7 +347,7 @@ func (g *generator) structSchema(t reflect.Type) *schema {
 			continue
 		}
 		if f.Anonymous && f.Type.Kind() == reflect.Struct && f.Tag.Get("json") == "" {
-			sub := g.structSchema(f.Type)
+			sub := g.structSchema(f.Type, mode)
 			for k, v := range sub.Properties {
 				out.Properties[k] = v
 			}
@@ -329,11 +363,19 @@ func (g *generator) structSchema(t reflect.Type) *schema {
 			name = f.Name
 		}
 		fs := g.schemaForType(f.Type)
+		applyValidators(fs, f.Tag.Get("binding"), f.Type)
 		if isPtr(f.Type) {
-			fs.Nullable = true
+			if fs.Ref != "" {
+				// OpenAPI 3.0 ignores sibling keys next to $ref (fixed in 3.1),
+				// so a bare `{$ref, nullable: true}` would silently drop the
+				// nullability hint. Wrap in `allOf` to surface it.
+				fs = &schema{Nullable: true, AllOf: []*schema{{Ref: fs.Ref}}}
+			} else {
+				fs.Nullable = true
+			}
 		}
 		out.Properties[name] = fs
-		if isRequired(f.Tag.Get("binding"), opts, f.Type) {
+		if isFieldRequired(mode, f.Tag.Get("binding"), opts, f.Type) {
 			required = append(required, name)
 		}
 	}
@@ -352,7 +394,9 @@ func splitTag(tag string) (name string, opts []string) {
 	return parts[0], parts[1:]
 }
 
-func isRequired(binding string, jsonOpts []string, t reflect.Type) bool {
+// isFieldRequired decides whether a struct field appears in the schema's
+// required list. See apiMode docs for the rationale.
+func isFieldRequired(mode apiMode, binding string, jsonOpts []string, t reflect.Type) bool {
 	for _, o := range jsonOpts {
 		if o == "omitempty" {
 			return false
@@ -361,12 +405,148 @@ func isRequired(binding string, jsonOpts []string, t reflect.Type) bool {
 	if isPtr(t) {
 		return false
 	}
+	if mode == responseMode {
+		return true
+	}
 	for _, b := range strings.Split(binding, ",") {
 		if strings.TrimSpace(b) == "required" {
 			return true
 		}
 	}
 	return false
+}
+
+// applyValidators reads the validator/v10 `binding` tag and translates the
+// subset we use into OpenAPI schema constraints. Unknown rules are skipped so
+// the generator stays forward-compatible with new bindings.
+func applyValidators(s *schema, binding string, t reflect.Type) {
+	if binding == "" || s == nil {
+		return
+	}
+	for _, raw := range strings.Split(binding, ",") {
+		rule := strings.TrimSpace(raw)
+		switch {
+		case rule == "" || rule == "required":
+			// Required is handled separately via isFieldRequired.
+		case rule == "axisml_name", rule == "axisml_resource_unit":
+			applyAxisMLNamePattern(s)
+		case strings.HasPrefix(rule, "min="):
+			applySize(s, t, rule[len("min="):], minBound)
+		case strings.HasPrefix(rule, "max="):
+			applySize(s, t, rule[len("max="):], maxBound)
+		case strings.HasPrefix(rule, "len="):
+			applySize(s, t, rule[len("len="):], exactBound)
+		case strings.HasPrefix(rule, "gte="):
+			if v, ok := parseFloat(rule[len("gte="):]); ok {
+				s.Minimum = &v
+			}
+		case strings.HasPrefix(rule, "lte="):
+			if v, ok := parseFloat(rule[len("lte="):]); ok {
+				s.Maximum = &v
+			}
+		}
+	}
+}
+
+type bound int
+
+const (
+	minBound bound = iota
+	maxBound
+	exactBound
+)
+
+// applySize maps validator/v10 size constraints (min/max/len) to the right
+// OpenAPI keyword for the field's Go type: minLength on strings, minItems on
+// slices/arrays/maps, minimum on numbers.
+func applySize(s *schema, t reflect.Type, raw string, b bound) {
+	n, ok := parseInt(raw)
+	if !ok {
+		return
+	}
+	for t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	switch t.Kind() {
+	case reflect.String:
+		applyLengthBound(s, n, b)
+	case reflect.Slice, reflect.Array, reflect.Map:
+		applyItemsBound(s, n, b)
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+		reflect.Float32, reflect.Float64:
+		f := float64(n)
+		applyNumberBound(s, f, b)
+	}
+}
+
+func applyLengthBound(s *schema, n int, b bound) {
+	switch b {
+	case minBound:
+		s.MinLength = &n
+	case maxBound:
+		s.MaxLength = &n
+	case exactBound:
+		s.MinLength = &n
+		s.MaxLength = &n
+	}
+}
+
+func applyItemsBound(s *schema, n int, b bound) {
+	switch b {
+	case minBound:
+		s.MinItems = &n
+	case maxBound:
+		s.MaxItems = &n
+	case exactBound:
+		s.MinItems = &n
+		s.MaxItems = &n
+	}
+}
+
+func applyNumberBound(s *schema, f float64, b bound) {
+	switch b {
+	case minBound:
+		s.Minimum = &f
+	case maxBound:
+		s.Maximum = &f
+	case exactBound:
+		s.Minimum = &f
+		s.Maximum = &f
+	}
+}
+
+// applyAxisMLNamePattern surfaces the AxisML §6.1 name policy as schema
+// constraints. The regex is duplicated rather than imported because the
+// generator's contract is "render whatever clients need to send"; clients
+// don't import strutil.
+const axisMLNamePattern = "^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])?$"
+
+func applyAxisMLNamePattern(s *schema) {
+	if s == nil || s.Type != "string" {
+		return
+	}
+	s.Pattern = axisMLNamePattern
+	minLen := 3
+	maxLen := 40
+	s.MinLength = &minLen
+	s.MaxLength = &maxLen
+}
+
+func parseInt(s string) (int, bool) {
+	n, err := strconv.Atoi(strings.TrimSpace(s))
+	if err != nil {
+		return 0, false
+	}
+	return n, true
+}
+
+func parseFloat(s string) (float64, bool) {
+	f, err := strconv.ParseFloat(strings.TrimSpace(s), 64)
+	if err != nil {
+		return 0, false
+	}
+	return f, true
 }
 
 func isPtr(t reflect.Type) bool { return t.Kind() == reflect.Pointer }
@@ -388,11 +568,12 @@ func floatFormat(t reflect.Type) string {
 	return "double"
 }
 
-// componentName produces a stable, human-readable name like
-// "tenant.CreateInput" → "TenantCreateInput". For the three operator API
-// packages (which all end in "/api/v1alpha1"), we pull the operator name
-// from the path so MLJob/MLService/Tenant types don't collide on the same
-// "V1alpha1" prefix.
+// componentName produces a stable, human-readable name for a Go type. For the
+// three operator API packages we pull the operator name from the path so
+// MLJob/MLService/Tenant types don't collide on a shared "v1alpha1" prefix.
+// For other versioned packages (corev1, metav1, …) we qualify the version
+// segment with the parent so e.g. core/v1 → Corev1Container instead of every
+// v1 package collapsing to V1*.
 func componentName(t reflect.Type) string {
 	pkg := t.PkgPath()
 	if prefix, ok := operatorAPIPrefix(pkg); ok {
@@ -403,19 +584,29 @@ func componentName(t reflect.Type) string {
 		}
 		return prefix + t.Name()
 	}
-	last := pkg
-	if i := strings.LastIndex(pkg, "/"); i >= 0 {
-		last = pkg[i+1:]
-	}
 	// Compute's own service package is named "service"; collapse to MLService
 	// so it reads as a noun rather than a generic word.
 	if strings.HasSuffix(pkg, "/internal/service") {
-		last = "MLService"
+		return "MLService" + t.Name()
 	}
+	parts := strings.Split(pkg, "/")
+	last := parts[len(parts)-1]
 	if last == "" {
 		return t.Name()
 	}
+	if isVersionSegment(last) && len(parts) >= 2 {
+		last = parts[len(parts)-2] + last
+	}
 	return capitalize(last) + t.Name()
+}
+
+// isVersionSegment reports whether s looks like a Kubernetes-style API
+// version (v1, v1alpha1, v2beta1, …).
+func isVersionSegment(s string) bool {
+	if len(s) < 2 || s[0] != 'v' {
+		return false
+	}
+	return s[1] >= '0' && s[1] <= '9'
 }
 
 // operatorAPIPrefix maps the three operator API packages to a prefix that
@@ -451,23 +642,34 @@ func capitalize(s string) string {
 	return strings.ToUpper(s[:1]) + s[1:]
 }
 
+// Type-identity comparisons avoid stringly-typed package-path checks. These
+// are pulled out so the switch below stays a flat type table.
+var (
+	timeType         = reflect.TypeOf(time.Time{})
+	uuidType         = reflect.TypeOf(uuid.UUID{})
+	quantityType     = reflect.TypeOf(resource.Quantity{})
+	datatypesJSON    = reflect.TypeOf(datatypes.JSON{})
+	resourceListType = reflect.TypeOf(corev1.ResourceList{})
+	apperrorsCode    = reflect.TypeOf(apperrors.Code(""))
+)
+
 // wellKnown maps Go types that don't have a useful struct-reflective shape
 // (or that we want to render with a specific OpenAPI flavor) to a fixed
 // schema. Returning nil falls through to the default reflection path.
 func wellKnown(t reflect.Type) *schema {
 	switch t {
-	case reflect.TypeOf(time.Time{}):
+	case timeType:
 		return &schema{Type: "string", Format: "date-time"}
-	case reflect.TypeOf(uuid.UUID{}):
+	case uuidType:
 		return &schema{Type: "string", Format: "uuid"}
-	case reflect.TypeOf(resource.Quantity{}):
+	case quantityType:
 		return &schema{
 			Type:        "string",
 			Description: "Kubernetes resource.Quantity (e.g. \"500m\", \"2Gi\", \"4\").",
 		}
-	case reflect.TypeOf(datatypes.JSON{}):
+	case datatypesJSON:
 		return &schema{Type: "object", Description: "Free-form JSON object."}
-	case reflect.TypeOf(corev1.ResourceList{}):
+	case resourceListType:
 		return &schema{
 			Type: "object",
 			AdditionalProperties: &schema{
@@ -476,11 +678,24 @@ func wellKnown(t reflect.Type) *schema {
 			},
 			Description: "Map of resource name (cpu, memory, nvidia.com/gpu, …) to resource.Quantity.",
 		}
+	case apperrorsCode:
+		// Named string with a closed set of values. Surface the enum so
+		// client codegens emit a typed accessor.
+		return &schema{
+			Type:        "string",
+			Description: "Discrete business error class.",
+			Enum:        apperrors.AllCodes(),
+		}
 	}
 	// metav1.Duration has a single String-marshalling Duration field; render it
 	// as a string instead of an object.
 	if t.Kind() == reflect.Struct && t.PkgPath() == "k8s.io/apimachinery/pkg/apis/meta/v1" && t.Name() == "Duration" {
 		return &schema{Type: "string", Description: "Go duration string (e.g. \"30s\", \"5m\")."}
+	}
+	// runtime.RawExtension exposes only json:"-" fields, so reflection yields
+	// an empty object. Render it as free-form so clients know it's opaque.
+	if t.Kind() == reflect.Struct && t.PkgPath() == "k8s.io/apimachinery/pkg/runtime" && t.Name() == "RawExtension" {
+		return &schema{Type: "object", Description: "Embedded Kubernetes resource (free-form JSON)."}
 	}
 	return nil
 }
@@ -491,24 +706,24 @@ func buildDocument(version string) *document {
 	g := newGenerator()
 
 	// Core component schemas (referenced from operations).
-	g.register("Problem", server.Problem{})
-	g.register("TenantCreateInput", tenant.CreateInput{})
-	g.register("TenantUpdateInput", tenant.UpdateInput{})
-	g.register("TenantView", tenant.View{})
-	g.register("ResourcepoolCreateInput", resourcepool.CreateInput{})
-	g.register("ResourcepoolUpdateInput", resourcepool.UpdateInput{})
-	g.register("ResourcepoolView", resourcepool.View{})
-	g.register("ResourceunitCreateInput", resourceunit.CreateInput{})
-	g.register("ResourceunitUpdateInput", resourceunit.UpdateInput{})
-	g.register("ResourceunitView", resourceunit.View{})
-	g.register("QuotaCreateInput", quota.CreateInput{})
-	g.register("QuotaUpdateInput", quota.UpdateInput{})
-	g.register("QuotaView", quota.View{})
-	g.register("JobCreateInput", job.CreateInput{})
-	g.register("JobView", job.View{})
-	g.register("MLServiceCreateInput", servicemod.CreateInput{})
-	g.register("MLServiceScaleInput", servicemod.ScaleInput{})
-	g.register("MLServiceView", servicemod.View{})
+	g.register("Problem", server.Problem{}, responseMode)
+	g.register("TenantCreateInput", tenant.CreateInput{}, inputMode)
+	g.register("TenantUpdateInput", tenant.UpdateInput{}, inputMode)
+	g.register("TenantView", tenant.View{}, responseMode)
+	g.register("ResourcepoolCreateInput", resourcepool.CreateInput{}, inputMode)
+	g.register("ResourcepoolUpdateInput", resourcepool.UpdateInput{}, inputMode)
+	g.register("ResourcepoolView", resourcepool.View{}, responseMode)
+	g.register("ResourceunitCreateInput", resourceunit.CreateInput{}, inputMode)
+	g.register("ResourceunitUpdateInput", resourceunit.UpdateInput{}, inputMode)
+	g.register("ResourceunitView", resourceunit.View{}, responseMode)
+	g.register("QuotaCreateInput", quota.CreateInput{}, inputMode)
+	g.register("QuotaUpdateInput", quota.UpdateInput{}, inputMode)
+	g.register("QuotaView", quota.View{}, responseMode)
+	g.register("JobCreateInput", job.CreateInput{}, inputMode)
+	g.register("JobView", job.View{}, responseMode)
+	g.register("MLServiceCreateInput", servicemod.CreateInput{}, inputMode)
+	g.register("MLServiceScaleInput", servicemod.ScaleInput{}, inputMode)
+	g.register("MLServiceView", servicemod.View{}, responseMode)
 
 	// Generic list envelope: {items: [], total: int}. We emit one envelope per
 	// resource so $ref to the right item type is preserved.

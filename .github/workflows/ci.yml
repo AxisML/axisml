@@ -72,6 +72,20 @@ jobs:
           flags: unit
           fail_ci_if_error: false
 
+  openapi:
+    name: openapi spec drift
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: components/compute/go.mod
+          cache: true
+          cache-dependency-path: components/compute/go.sum
+      - name: Verify components/compute/docs/openapi.yaml is up to date
+        working-directory: components/compute
+        run: make openapi-check
+
   envtest:
     name: L1 envtest (${{ matrix.component.name }})
     runs-on: ubuntu-latest

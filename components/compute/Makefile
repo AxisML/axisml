@@ -57,6 +57,15 @@ OPENAPI_OUT ?= docs/openapi.yaml
 openapi: ## Regenerate $(OPENAPI_OUT) from the Go request/response types
 	@go run ./cmd/openapi-gen -o $(OPENAPI_OUT) -version $(IMAGE_TAG)
 
+.PHONY: openapi-check
+openapi-check: ## Fail if $(OPENAPI_OUT) is out of date with the Go types (CI guard)
+	@$(MAKE) --no-print-directory openapi
+	@if ! git diff --quiet -- $(OPENAPI_OUT); then \
+	  echo "ERROR: $(OPENAPI_OUT) is out of date. Run 'make openapi' and commit the result."; \
+	  git --no-pager diff -- $(OPENAPI_OUT); \
+	  exit 1; \
+	fi
+
 # --- Go convenience targets ---
 
 .PHONY: fmt vet tidy
