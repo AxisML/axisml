@@ -101,3 +101,9 @@ func (s *Server) Start(ctx context.Context) error {
 
 // NeedLeaderElection returns false: the API is served from every replica.
 func (s *Server) NeedLeaderElection() bool { return false }
+
+// Engine exposes the underlying Gin engine for tests that drive the API
+// in-process via httptest.NewRecorder + engine.ServeHTTP, avoiding the
+// flakiness of binding a real port. Production callers should use Start
+// instead.
+func (s *Server) Engine() *gin.Engine { return s.engine }

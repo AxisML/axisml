@@ -5,6 +5,9 @@ package nativedeployment
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -185,6 +188,16 @@ func (h *Handler) RequiredRBAC() []rbacv1.PolicyRule {
 	}
 }
 
+// appliedSpecHashAnnotation records the SHA-256 of the rendered desired
+// Deployment spec the operator last wrote. It lets reconciles short-circuit
+// when nothing the operator owns has changed — even after the apiserver
+// fills in defaulted fields (terminationMessagePath, dnsPolicy, etc.) on the
+// returned object. Without this, comparing rendered (undefaulted) desired
+// against fetched (defaulted) current returns false-mismatch on every
+// reconcile, generating a no-op patch loop that churns metadata.generation
+// and starves the Deployment controller's availability accounting.
+const appliedSpecHashAnnotation = "axisml.io/applied-spec-hash"
+
 // upsertDeployment is a focused create-or-patch. We intentionally avoid the
 // stock CreateOrUpdate/CreateOrPatch helpers: they invoke the mutate function
 // before reading the existing object, which makes label-merge semantics
@@ -193,23 +206,59 @@ func (h *Handler) upsertDeployment(ctx context.Context, mls *axisml.MLService, d
 	if err := controllerutil.SetControllerReference(mls, desired, h.client.Scheme()); err != nil {
 		return err
 	}
-	current := &appsv1.Deployment{}
-	err := h.client.Get(ctx, types.NamespacedName{Name: desired.Name, Namespace: desired.Namespace}, current)
-	switch {
-	case apierrors.IsNotFound(err):
-		return h.client.Create(ctx, desired)
-	case err != nil:
-		return err
+	hash, err := hashDeploymentSpec(desired)
+	if err != nil {
+		return fmt.Errorf("hash desired spec: %w", err)
 	}
-	patched := current.DeepCopy()
-	patched.Spec = desired.Spec
-	patched.Labels = mergeLabels(current.Labels, desired.Labels)
-	patched.Annotations = desired.Annotations
-	if equality.Semantic.DeepEqual(current.Spec, patched.Spec) &&
-		equality.Semantic.DeepEqual(current.Labels, patched.Labels) {
+	if desired.Annotations == nil {
+		desired.Annotations = map[string]string{}
+	}
+	desired.Annotations[appliedSpecHashAnnotation] = hash
+
+	current := &appsv1.Deployment{}
+	getErr := h.client.Get(ctx, types.NamespacedName{Name: desired.Name, Namespace: desired.Namespace}, current)
+	switch {
+	case apierrors.IsNotFound(getErr):
+		return h.client.Create(ctx, desired)
+	case getErr != nil:
+		return getErr
+	}
+
+	if current.Annotations[appliedSpecHashAnnotation] == hash &&
+		equality.Semantic.DeepEqual(current.Labels, mergeLabels(current.Labels, desired.Labels)) {
 		return nil
 	}
+
+	patched := current.DeepCopy()
+	patched.Labels = mergeLabels(current.Labels, desired.Labels)
+	if patched.Annotations == nil {
+		patched.Annotations = map[string]string{}
+	}
+	for k, v := range desired.Annotations {
+		patched.Annotations[k] = v
+	}
+	patched.OwnerReferences = desired.OwnerReferences
+	patched.Spec = desired.Spec
 	return h.client.Patch(ctx, patched, client.MergeFrom(current))
+}
+
+// hashDeploymentSpec hashes the rendered fields the operator owns: spec
+// (replicas / selector / template) plus the labels we stamp. The annotation
+// itself is excluded — it is set after the hash is computed.
+func hashDeploymentSpec(d *appsv1.Deployment) (string, error) {
+	subset := struct {
+		Spec   appsv1.DeploymentSpec `json:"spec"`
+		Labels map[string]string     `json:"labels"`
+	}{
+		Spec:   d.Spec,
+		Labels: d.Labels,
+	}
+	raw, err := json.Marshal(subset)
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(raw)
+	return hex.EncodeToString(sum[:]), nil
 }
 
 func (h *Handler) upsertService(ctx context.Context, mls *axisml.MLService, desired *corev1.Service) error {

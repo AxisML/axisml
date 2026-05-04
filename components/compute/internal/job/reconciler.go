@@ -92,7 +92,7 @@ func (r *Reconciler) handleCreate(ctx context.Context, j *Job) {
 		r.log.Error(err, "lookup tenant", "id", j.TenantID)
 		return
 	}
-	cr, err := ToCR(j, tnt.Name, tnt.Namespace.Name, "")
+	cr, err := ToCR(j, tnt.Name, tnt.Namespace.Name)
 	if err != nil {
 		r.log.Error(err, "render job CR")
 		return

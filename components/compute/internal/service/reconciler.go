@@ -75,7 +75,7 @@ func (r *Reconciler) handleCreate(ctx context.Context, s *Service) {
 		r.log.Error(err, "lookup tenant")
 		return
 	}
-	cr, err := ToCR(s, tnt.Name, tnt.Namespace.Name, "")
+	cr, err := ToCR(s, tnt.Name, tnt.Namespace.Name)
 	if err != nil {
 		r.log.Error(err, "render service CR")
 		return

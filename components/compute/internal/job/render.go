@@ -12,8 +12,11 @@ import (
 // doesn't export this constant directly so we declare it locally.
 const LabelTenant = "axisml.io/tenant"
 
-// ToCR materialises an MLJob CR from a PG row, ready to be applied.
-func ToCR(j *Job, tenantName, namespace, quotaName string) (*mljobv1alpha1.MLJob, error) {
+// ToCR materialises an MLJob CR from a PG row, ready to be applied. The
+// axisml.io/quota label is sourced from spec.scheduling.quota (Compute
+// already rendered the canonical name at submission); mljob-operator's
+// Validate rejects CRs without it.
+func ToCR(j *Job, tenantName, namespace string) (*mljobv1alpha1.MLJob, error) {
 	var spec mljobv1alpha1.MLJobSpec
 	if len(j.Spec) > 0 {
 		if err := json.Unmarshal(j.Spec, &spec); err != nil {
@@ -26,7 +29,7 @@ func ToCR(j *Job, tenantName, namespace, quotaName string) (*mljobv1alpha1.MLJob
 			Namespace: namespace,
 			Labels: map[string]string{
 				mljobv1alpha1.LabelJobID: j.ID.String(),
-				mljobv1alpha1.LabelQuota: quotaName,
+				mljobv1alpha1.LabelQuota: spec.Scheduling.Quota,
 				LabelTenant:              tenantName,
 			},
 		},
