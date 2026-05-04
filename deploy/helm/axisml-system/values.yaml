@@ -54,10 +54,10 @@ compute:
   replicaCount: 1
 
   image:
-    # Compute service is not yet implemented; use nginx as a placeholder.
-    registry: docker.io
-    repository: library/nginx
-    tag: "1.27-alpine"
+    # Published by .github/workflows/ci.yml on every push to main.
+    registry: ghcr.io
+    repository: axisml/axisml-compute
+    tag: ""               # defaults to .Chart.AppVersion via the axisml.image helper
     pullPolicy: IfNotPresent
 
   service:
