@@ -65,6 +65,13 @@ cluster_exists() {
     minikube profile list -o json 2>/dev/null | grep -q "\"Name\":\"${MINIKUBE_PROFILE}\"" 2>/dev/null
 }
 
+enable_addons() {
+    info "Enabling addons: ${ADDONS[*]}"
+    for addon in "${ADDONS[@]}"; do
+        minikube -p "$MINIKUBE_PROFILE" addons enable "$addon"
+    done
+}
+
 cmd_up() {
     check_prerequisites
 
@@ -73,14 +80,14 @@ cmd_up() {
         status=$(minikube status -p "$MINIKUBE_PROFILE" -f '{{.Host}}' 2>/dev/null || true)
         if [[ "$status" == "Running" ]]; then
             info "Cluster '${MINIKUBE_PROFILE}' is already running."
-            return 0
+        else
+            info "Starting existing cluster '${MINIKUBE_PROFILE}'..."
+            minikube start \
+                -p "$MINIKUBE_PROFILE" \
+                --cpus="$MINIKUBE_CPUS" \
+                --memory="$MINIKUBE_MEMORY" \
+                --disk-size="$MINIKUBE_DISK"
         fi
-        info "Starting existing cluster '${MINIKUBE_PROFILE}'..."
-        minikube start \
-            -p "$MINIKUBE_PROFILE" \
-            --cpus="$MINIKUBE_CPUS" \
-            --memory="$MINIKUBE_MEMORY" \
-            --disk-size="$MINIKUBE_DISK"
     else
         info "Creating cluster '${MINIKUBE_PROFILE}'..."
         minikube start \
@@ -90,12 +97,9 @@ cmd_up() {
             --memory="$MINIKUBE_MEMORY" \
             --disk-size="$MINIKUBE_DISK" \
             --kubernetes-version="$K8S_VERSION"
-
-        info "Enabling addons: ${ADDONS[*]}"
-        for addon in "${ADDONS[@]}"; do
-            minikube addons enable "$addon" -p "$MINIKUBE_PROFILE"
-        done
     fi
+
+    enable_addons
 
     echo ""
     info "Cluster '${MINIKUBE_PROFILE}' is ready!"

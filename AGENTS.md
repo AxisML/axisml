@@ -9,13 +9,13 @@ AxisML is organized around documentation, Helm deployment assets, and component 
 Use the top-level `Makefile` as the command hub.
 
 - `make help`: list available targets and active component shortcuts.
-- `make cluster-up` / `make cluster-status`: create and inspect the local `axisml` minikube cluster.
+- `make cluster-up` / `make cluster-status`: create, repair addons, and inspect the local `axisml` minikube cluster.
 - `make helm-template`: render both Helm charts locally for review.
 - `make helm-install`: install or upgrade infra first, then the system chart.
 - `make build`, `make test`, `make image`: fan out to active operator components.
 - `make mljob-operator-test`: run a single component shortcut; the same pattern applies to `tenant-operator` and `mlservice-operator`.
 
-Local cluster defaults can be overridden, for example `make cluster-up MINIKUBE_CPUS=6 MINIKUBE_MEMORY=8192`.
+Override cluster defaults with `make cluster-up MINIKUBE_CPUS=6 MINIKUBE_MEMORY=8192`.
 
 ## Coding Style & Naming Conventions
 
