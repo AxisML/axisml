@@ -14,10 +14,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	mljobv1 "axisml.io/operators/mljob/api/v1alpha1"
-	tenantv1 "github.com/axisml-io/axisml/components/operators/tenant-operator/api/v1alpha1"
-	"github.com/axisml-io/axisml/test/e2e"
-	"github.com/axisml-io/axisml/test/testutil"
+	mljobv1 "github.com/axisml/axisml/components/operators/mljob-operator/api/v1alpha1"
+	tenantv1 "github.com/axisml/axisml/components/operators/tenant-operator/api/v1alpha1"
+	"github.com/axisml/axisml/test/e2e"
+	"github.com/axisml/axisml/test/testutil"
 )
 
 // TestMLJob_NativeJob runs a full submit→schedule→succeed loop on the real
@@ -75,12 +75,21 @@ func TestMLJob_NativeJob(t *testing.T) {
 
 	quotaName := e2e.ElasticQuotaName(tenantName, "default", "default")
 	mljob := &mljobv1.MLJob{
-		ObjectMeta: metav1.ObjectMeta{Namespace: tenantNs, Name: jobName},
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: tenantNs,
+			Name:      jobName,
+			// e2e plays Compute's role: stamp the labels Compute would
+			// normally set so the operator's CR-label validation passes.
+			Labels: map[string]string{
+				mljobv1.LabelJobID: "uuid-e2e-mljob-hello",
+				mljobv1.LabelQuota: quotaName,
+			},
+		},
 		Spec: mljobv1.MLJobSpec{
 			Backend:    mljobv1.BackendSpec{Name: "native", Engine: "job"},
 			Scheduling: mljobv1.SchedulingSpec{Quota: quotaName},
 			Roles: []mljobv1.RoleSpec{{
-				Name:          "trainer",
+				Name:          mljobv1.DefaultRoleName,
 				Replicas:      1,
 				RestartPolicy: corev1.RestartPolicyNever,
 				Template: mljobv1.PodTemplateSubset{

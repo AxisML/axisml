@@ -2,13 +2,13 @@
 // free of test-only deps (testify, testutil). The operator Dockerfile builds
 // from components/operators/tenant-operator/ and a `../../../` replace would
 // fall outside that build context.
-module github.com/axisml-io/axisml/components/operators/tenant-operator/test/envtest
+module github.com/axisml/axisml/components/operators/tenant-operator/test/envtest
 
 go 1.26.0
 
 require (
-	github.com/axisml-io/axisml/components/operators/tenant-operator v0.0.0-00010101000000-000000000000
-	github.com/axisml-io/axisml/test/testutil v0.0.0-00010101000000-000000000000
+	github.com/axisml/axisml/components/operators/tenant-operator v0.0.0-00010101000000-000000000000
+	github.com/axisml/axisml/test/testutil v0.0.0-00010101000000-000000000000
 	github.com/koordinator-sh/koordinator v1.8.0
 	github.com/stretchr/testify v1.11.1
 	k8s.io/api v0.36.0
@@ -72,8 +72,8 @@ require (
 )
 
 replace (
-	github.com/axisml-io/axisml/components/operators/tenant-operator => ../..
-	github.com/axisml-io/axisml/test/testutil => ../../../../../test/testutil
+	github.com/axisml/axisml/components/operators/tenant-operator => ../..
+	github.com/axisml/axisml/test/testutil => ../../../../../test/testutil
 )
 
 // Mirror tenant-operator/go.mod's koordinator workaround.

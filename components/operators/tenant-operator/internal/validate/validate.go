@@ -11,7 +11,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	axisml "github.com/axisml-io/axisml/components/operators/tenant-operator/api/v1alpha1"
+	axisml "github.com/axisml/axisml/components/operators/tenant-operator/api/v1alpha1"
 )
 
 // Options carries cluster-side configuration that influences validation.

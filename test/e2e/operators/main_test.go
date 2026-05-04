@@ -14,7 +14,7 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/axisml-io/axisml/test/e2e"
+	"github.com/axisml/axisml/test/e2e"
 )
 
 // Package-level cluster handles, lazily initialized by the first setup() call.

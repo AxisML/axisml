@@ -9,8 +9,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	axisml "github.com/axisml-io/axisml/components/operators/tenant-operator/api/v1alpha1"
-	"github.com/axisml-io/axisml/components/operators/tenant-operator/internal/validate"
+	axisml "github.com/axisml/axisml/components/operators/tenant-operator/api/v1alpha1"
+	"github.com/axisml/axisml/components/operators/tenant-operator/internal/validate"
 )
 
 func validSpec() *axisml.TenantSpec {

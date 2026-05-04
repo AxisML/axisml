@@ -1,4 +1,4 @@
-module github.com/axisml-io/axisml/components/operators/tenant-operator
+module github.com/axisml/axisml/components/operators/tenant-operator
 
 go 1.26.0
 

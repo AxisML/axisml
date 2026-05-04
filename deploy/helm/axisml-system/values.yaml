@@ -133,7 +133,7 @@ operators:
     image:
       registry: ""
       repository: axisml/mlservice-operator
-      tag: dev
+      tag: ""               # defaults to Chart.AppVersion via the axisml.image helper
       pullPolicy: IfNotPresent
     resources:
       requests:

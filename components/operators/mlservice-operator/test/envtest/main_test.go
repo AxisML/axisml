@@ -48,7 +48,7 @@ import (
 	// Register the (native, deployment) handler into the package-global registry.
 	_ "github.com/axisml/axisml/components/operators/mlservice-operator/internal/handler/nativedeployment"
 
-	"github.com/axisml-io/axisml/test/testutil"
+	"github.com/axisml/axisml/test/testutil"
 )
 
 var (

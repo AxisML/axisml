@@ -14,10 +14,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	tenantv1 "github.com/axisml-io/axisml/components/operators/tenant-operator/api/v1alpha1"
+	tenantv1 "github.com/axisml/axisml/components/operators/tenant-operator/api/v1alpha1"
 	mlsvcv1 "github.com/axisml/axisml/components/operators/mlservice-operator/api/v1alpha1"
-	"github.com/axisml-io/axisml/test/e2e"
-	"github.com/axisml-io/axisml/test/testutil"
+	"github.com/axisml/axisml/test/e2e"
+	"github.com/axisml/axisml/test/testutil"
 )
 
 // TestMLService_NativeDeployment exercises the (native, deployment) handler:
@@ -72,7 +72,13 @@ func TestMLService_NativeDeployment(t *testing.T) {
 
 	quotaName := e2e.ElasticQuotaName(tenantName, "default", "default")
 	svc := &mlsvcv1.MLService{
-		ObjectMeta: metav1.ObjectMeta{Namespace: tenantNs, Name: svcName},
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: tenantNs,
+			Name:      svcName,
+			// e2e plays Compute's role: stamp the labels Compute would
+			// normally set so the operator's CR-label validation passes.
+			Labels: map[string]string{mlsvcv1.LabelServiceID: "uuid-e2e-mlsvc-hello-nginx"},
+		},
 		Spec: mlsvcv1.MLServiceSpec{
 			Backend:    mlsvcv1.Backend{Name: "native", Engine: "deployment"},
 			Scheduling: mlsvcv1.Scheduling{Quota: quotaName},

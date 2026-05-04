@@ -13,9 +13,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	axisv1alpha1 "axisml.io/operators/mljob/api/v1alpha1"
-	axishandler "axisml.io/operators/mljob/internal/handler"
-	axislabels "axisml.io/operators/mljob/internal/labels"
+	axisv1alpha1 "github.com/axisml/axisml/components/operators/mljob-operator/api/v1alpha1"
+	axishandler "github.com/axisml/axisml/components/operators/mljob-operator/internal/handler"
+	axislabels "github.com/axisml/axisml/components/operators/mljob-operator/internal/labels"
 )
 
 // recordingHandler is a minimal Handler that records whether Reconcile
@@ -74,7 +74,7 @@ func newTerminalMLJob() *axisv1alpha1.MLJob {
 		Spec: axisv1alpha1.MLJobSpec{
 			Backend: axisv1alpha1.BackendSpec{Name: "test", Engine: "engine"},
 			Roles: []axisv1alpha1.RoleSpec{{
-				Name:     "worker",
+				Name:     axisv1alpha1.DefaultRoleName,
 				Replicas: 1,
 				Template: axisv1alpha1.PodTemplateSubset{Image: "x"},
 			}},
@@ -180,7 +180,7 @@ func newPendingMLJob() *axisv1alpha1.MLJob {
 		Spec: axisv1alpha1.MLJobSpec{
 			Backend: axisv1alpha1.BackendSpec{Name: "test", Engine: "engine"},
 			Roles: []axisv1alpha1.RoleSpec{{
-				Name:     "worker",
+				Name:     axisv1alpha1.DefaultRoleName,
 				Replicas: 2,
 				Template: axisv1alpha1.PodTemplateSubset{Image: "x"},
 			}},
@@ -290,7 +290,7 @@ func TestSpecFingerprint(t *testing.T) {
 				NodeSelector: map[string]string{"gpu": "h100"},
 			},
 			Roles: []axisv1alpha1.RoleSpec{{
-				Name:     "worker",
+				Name:     axisv1alpha1.DefaultRoleName,
 				Replicas: 4,
 				Template: axisv1alpha1.PodTemplateSubset{Image: "img:v1"},
 			}},

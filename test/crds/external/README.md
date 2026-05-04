@@ -10,7 +10,7 @@ scheduler-plugins, Kubeflow, KServe, …) needs to live here.
 | File | Group / Kind | Upstream | Pinned version |
 |------|--------------|----------|----------------|
 | `koordinator-elasticquota.yaml` | `scheduling.sigs.k8s.io` / `ElasticQuota` | Koordinator's vendored copy of scheduler-plugins under `apis/thirdparty/scheduler-plugins`. NOTE the group is `scheduling.sigs.k8s.io`, not the upstream `scheduling.x-k8s.io` — Koordinator forked it. | matches `github.com/koordinator-sh/koordinator v1.8.0` (pinned in `tenant-operator/go.mod`) |
-| `scheduler-plugins-podgroup.yaml` | `scheduling.x-k8s.io` / `PodGroup` | `kubernetes-sigs/scheduler-plugins` `config/crd/bases/scheduling.x-k8s.io_podgroups.yaml` | matches `sigs.k8s.io/scheduler-plugins v0.34.7` (pinned in `mljob-operator/go.mod`) |
+| `scheduler-plugins-podgroup.yaml` | `scheduling.sigs.k8s.io` / `PodGroup` | Koordinator's vendored copy of scheduler-plugins under `apis/thirdparty/scheduler-plugins`. The schema mirrors upstream `kubernetes-sigs/scheduler-plugins`, but the group is renamed `scheduling.sigs.k8s.io` (matches what `koord-scheduler` watches in the cluster). | matches `github.com/koordinator-sh/koordinator v1.8.0` (pinned in `mljob-operator/go.mod`) |
 | `gateway-api-httproute.yaml` | `gateway.networking.k8s.io` / `HTTPRoute` | `kubernetes-sigs/gateway-api` `config/crd/standard/gateway.networking.k8s.io_httproutes.yaml`. Required even for tests that don't enable spec.route, because the mlservice-operator dispatcher watches HTTPRoute. | matches `sigs.k8s.io/gateway-api v1.5.1` (pinned in `mlservice-operator/go.mod`) |
 
 Every `.yaml` in this directory is fed to envtest's `CRDDirectoryPaths` by all three operators' TestMains. Don't add empty/placeholder files here — envtest tolerates them today but the contract isn't load-bearing, and a malformed placeholder would break every L1 envtest.
@@ -27,9 +27,10 @@ These will be vendored when the corresponding handler lands; until then keep the
 When the Go module version of an upstream changes:
 
 1. Bump the version in the relevant operator's `go.mod`.
-2. Re-vendor the CRD YAML from the matching tag, e.g.
+2. Re-vendor the CRD YAML from the matching tag. For PodGroup we vendor
+   Koordinator's renamed schema (group `scheduling.sigs.k8s.io`):
    ```sh
-   cp ~/go/pkg/mod/sigs.k8s.io/scheduler-plugins@<version>/config/crd/bases/scheduling.x-k8s.io_podgroups.yaml \
+   cp ~/go/pkg/mod/github.com/koordinator-sh/koordinator@<version>/apis/thirdparty/scheduler-plugins/config/crd/bases/scheduling.sigs.k8s.io_podgroups.yaml \
       test/crds/external/scheduler-plugins-podgroup.yaml
    ```
 3. Update the version cell in the table above.

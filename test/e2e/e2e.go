@@ -11,9 +11,10 @@ import (
 	"testing"
 	"time"
 
-	mljobv1 "axisml.io/operators/mljob/api/v1alpha1"
-	tenantv1 "github.com/axisml-io/axisml/components/operators/tenant-operator/api/v1alpha1"
+	mljobv1 "github.com/axisml/axisml/components/operators/mljob-operator/api/v1alpha1"
+	tenantv1 "github.com/axisml/axisml/components/operators/tenant-operator/api/v1alpha1"
 	mlsvcv1 "github.com/axisml/axisml/components/operators/mlservice-operator/api/v1alpha1"
+	schedv1alpha1 "github.com/koordinator-sh/koordinator/apis/thirdparty/scheduler-plugins/pkg/apis/scheduling/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -25,7 +26,7 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/axisml-io/axisml/test/testutil"
+	"github.com/axisml/axisml/test/testutil"
 )
 
 // SystemNamespace is where the axisml control plane (operators + future
@@ -48,6 +49,7 @@ func Scheme() *runtime.Scheme {
 	utilruntime.Must(tenantv1.AddToScheme(scheme))
 	utilruntime.Must(mljobv1.AddToScheme(scheme))
 	utilruntime.Must(mlsvcv1.AddToScheme(scheme))
+	utilruntime.Must(schedv1alpha1.AddToScheme(scheme))
 	return scheme
 }
 

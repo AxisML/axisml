@@ -6,7 +6,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	axisv1alpha1 "axisml.io/operators/mljob/api/v1alpha1"
+	axisv1alpha1 "github.com/axisml/axisml/components/operators/mljob-operator/api/v1alpha1"
 )
 
 // MapStatusResult is the pure output a handler emits from observing the

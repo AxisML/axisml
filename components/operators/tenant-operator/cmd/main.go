@@ -19,10 +19,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	axisml "github.com/axisml-io/axisml/components/operators/tenant-operator/api/v1alpha1"
-	"github.com/axisml-io/axisml/components/operators/tenant-operator/internal/config"
-	"github.com/axisml-io/axisml/components/operators/tenant-operator/internal/controller"
-	"github.com/axisml-io/axisml/components/operators/tenant-operator/internal/validate"
+	axisml "github.com/axisml/axisml/components/operators/tenant-operator/api/v1alpha1"
+	"github.com/axisml/axisml/components/operators/tenant-operator/internal/config"
+	"github.com/axisml/axisml/components/operators/tenant-operator/internal/controller"
+	"github.com/axisml/axisml/components/operators/tenant-operator/internal/validate"
 )
 
 var scheme = runtime.NewScheme()

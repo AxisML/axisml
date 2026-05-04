@@ -8,6 +8,7 @@ import (
 	"flag"
 	"os"
 
+	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/thirdparty/scheduler-plugins/pkg/apis/scheduling/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -15,12 +16,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
-	schedulingv1alpha1 "sigs.k8s.io/scheduler-plugins/apis/scheduling/v1alpha1"
 
-	axisv1alpha1 "axisml.io/operators/mljob/api/v1alpha1"
-	"axisml.io/operators/mljob/internal/dispatcher"
-	"axisml.io/operators/mljob/internal/handlers/nativejob"
-	"axisml.io/operators/mljob/internal/handlers/nativepodgroup"
+	axisv1alpha1 "github.com/axisml/axisml/components/operators/mljob-operator/api/v1alpha1"
+	"github.com/axisml/axisml/components/operators/mljob-operator/internal/dispatcher"
+	"github.com/axisml/axisml/components/operators/mljob-operator/internal/handlers/nativejob"
+	"github.com/axisml/axisml/components/operators/mljob-operator/internal/handlers/nativepodgroup"
 )
 
 var scheme = runtime.NewScheme()

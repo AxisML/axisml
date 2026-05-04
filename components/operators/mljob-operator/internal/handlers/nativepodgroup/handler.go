@@ -6,24 +6,31 @@
 // The "all-or-nothing" gang scheduling semantics make this the right
 // pick for synchronous distributed training where partial Pod readiness
 // would deadlock NCCL/Gloo handshakes.
+//
+// We import koordinator's vendored copy of scheduler-plugins (group
+// `scheduling.sigs.k8s.io`) rather than the upstream sigs module
+// (`scheduling.x-k8s.io`) because koord-scheduler watches and reconciles
+// PodGroups under koordinator's group; PodGroups created in the upstream
+// group would be invisible to it.
 package nativepodgroup
 
 import (
 	"strconv"
 
+	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/thirdparty/scheduler-plugins/pkg/apis/scheduling/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
-	schedulingv1alpha1 "sigs.k8s.io/scheduler-plugins/apis/scheduling/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	axishandler "axisml.io/operators/mljob/internal/handler"
+	axisv1alpha1 "github.com/axisml/axisml/components/operators/mljob-operator/api/v1alpha1"
+	axishandler "github.com/axisml/axisml/components/operators/mljob-operator/internal/handler"
 )
 
 const (
 	BackendName   = "native"
 	BackendEngine = "podgroup"
-
-	roleName = "worker"
 )
+
+const roleName = axisv1alpha1.DefaultRoleName
 
 // Handler implements axishandler.Handler.
 type Handler struct{}

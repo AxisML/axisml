@@ -9,15 +9,16 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	axishandler "axisml.io/operators/mljob/internal/handler"
+	axisv1alpha1 "github.com/axisml/axisml/components/operators/mljob-operator/api/v1alpha1"
+	axishandler "github.com/axisml/axisml/components/operators/mljob-operator/internal/handler"
 )
 
 const (
 	BackendName   = "native"
 	BackendEngine = "job"
-
-	roleName = "worker"
 )
+
+const roleName = axisv1alpha1.DefaultRoleName
 
 // Handler implements axishandler.Handler.
 type Handler struct{}

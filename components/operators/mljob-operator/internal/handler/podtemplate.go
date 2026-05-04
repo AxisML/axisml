@@ -7,8 +7,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
-	axisv1alpha1 "axisml.io/operators/mljob/api/v1alpha1"
-	axislabels "axisml.io/operators/mljob/internal/labels"
+	axisv1alpha1 "github.com/axisml/axisml/components/operators/mljob-operator/api/v1alpha1"
+	axislabels "github.com/axisml/axisml/components/operators/mljob-operator/internal/labels"
 )
 
 // EnsureRequiredCRLabels validates that the MLJob CR carries the labels

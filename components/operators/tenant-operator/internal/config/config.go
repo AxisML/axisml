@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/axisml-io/axisml/components/operators/tenant-operator/internal/validate"
+	"github.com/axisml/axisml/components/operators/tenant-operator/internal/validate"
 )
 
 // Defaults match the recommendations in tenant-operator design §5 and §6.1.

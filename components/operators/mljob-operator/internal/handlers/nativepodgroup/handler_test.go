@@ -5,16 +5,16 @@ import (
 	"testing"
 	"time"
 
+	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/thirdparty/scheduler-plugins/pkg/apis/scheduling/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	schedulingv1alpha1 "sigs.k8s.io/scheduler-plugins/apis/scheduling/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	axisv1alpha1 "axisml.io/operators/mljob/api/v1alpha1"
-	axishandler "axisml.io/operators/mljob/internal/handler"
-	axislabels "axisml.io/operators/mljob/internal/labels"
+	axisv1alpha1 "github.com/axisml/axisml/components/operators/mljob-operator/api/v1alpha1"
+	axishandler "github.com/axisml/axisml/components/operators/mljob-operator/internal/handler"
+	axislabels "github.com/axisml/axisml/components/operators/mljob-operator/internal/labels"
 )
 
 func newScheme(t *testing.T) *runtime.Scheme {
@@ -48,7 +48,7 @@ func newMLJob(replicas int32, suspend bool) *axisv1alpha1.MLJob {
 				Quota: "axisml-tnt-default-training",
 			},
 			Roles: []axisv1alpha1.RoleSpec{{
-				Name:          "worker",
+				Name:          axisv1alpha1.DefaultRoleName,
 				Replicas:      replicas,
 				RestartPolicy: corev1.RestartPolicyNever,
 				Template: axisv1alpha1.PodTemplateSubset{

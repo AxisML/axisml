@@ -1,4 +1,4 @@
-module github.com/axisml-io/axisml/test/testutil
+module github.com/axisml/axisml/test/testutil
 
 go 1.26.0
 

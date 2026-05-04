@@ -15,9 +15,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	axisml "github.com/axisml-io/axisml/components/operators/tenant-operator/api/v1alpha1"
-	"github.com/axisml-io/axisml/components/operators/tenant-operator/internal/reconcile"
-	"github.com/axisml-io/axisml/components/operators/tenant-operator/internal/validate"
+	axisml "github.com/axisml/axisml/components/operators/tenant-operator/api/v1alpha1"
+	"github.com/axisml/axisml/components/operators/tenant-operator/internal/reconcile"
+	"github.com/axisml/axisml/components/operators/tenant-operator/internal/validate"
 )
 
 // TenantReconciler reconciles a Tenant CR.

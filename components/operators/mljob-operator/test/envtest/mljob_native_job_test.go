@@ -16,10 +16,10 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	axisv1alpha1 "axisml.io/operators/mljob/api/v1alpha1"
-	axislabels "axisml.io/operators/mljob/internal/labels"
+	axisv1alpha1 "github.com/axisml/axisml/components/operators/mljob-operator/api/v1alpha1"
+	axislabels "github.com/axisml/axisml/components/operators/mljob-operator/internal/labels"
 
-	"github.com/axisml-io/axisml/test/testutil"
+	"github.com/axisml/axisml/test/testutil"
 )
 
 const testWaitTimeout = 30 * time.Second
@@ -57,7 +57,7 @@ func TestMLJob_NativeJob_HappyPath(t *testing.T) {
 			Backend:    axisv1alpha1.BackendSpec{Name: "native", Engine: "job"},
 			Scheduling: axisv1alpha1.SchedulingSpec{Quota: "axisml-acme-default-training"},
 			Roles: []axisv1alpha1.RoleSpec{{
-				Name:          "worker",
+				Name:          axisv1alpha1.DefaultRoleName,
 				Replicas:      1,
 				RestartPolicy: corev1.RestartPolicyNever,
 				Template: axisv1alpha1.PodTemplateSubset{

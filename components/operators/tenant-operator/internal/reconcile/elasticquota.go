@@ -14,7 +14,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	axisml "github.com/axisml-io/axisml/components/operators/tenant-operator/api/v1alpha1"
+	axisml "github.com/axisml/axisml/components/operators/tenant-operator/api/v1alpha1"
 )
 
 // ElasticQuotas reconciles spec.quotas[] 1:1 to upstream

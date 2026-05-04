@@ -18,7 +18,7 @@ import (
 
 	axisml "github.com/axisml/axisml/components/operators/mlservice-operator/api/v1alpha1"
 
-	"github.com/axisml-io/axisml/test/testutil"
+	"github.com/axisml/axisml/test/testutil"
 )
 
 const testWaitTimeout = 30 * time.Second

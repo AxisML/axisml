@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync"
 
-	"axisml.io/operators/mljob/internal/handler"
+	"github.com/axisml/axisml/components/operators/mljob-operator/internal/handler"
 )
 
 // Registry holds the (backend, engine) → Handler routing table. Handler

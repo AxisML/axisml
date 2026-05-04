@@ -15,9 +15,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	tenantv1 "github.com/axisml-io/axisml/components/operators/tenant-operator/api/v1alpha1"
-	"github.com/axisml-io/axisml/test/e2e"
-	"github.com/axisml-io/axisml/test/testutil"
+	tenantv1 "github.com/axisml/axisml/components/operators/tenant-operator/api/v1alpha1"
+	"github.com/axisml/axisml/test/e2e"
+	"github.com/axisml/axisml/test/testutil"
 )
 
 // TestTenant_HappyPath creates a Tenant CR and asserts the deployed

@@ -6,7 +6,7 @@
 // CRDs loaded:
 //
 //   - MLJob: deploy/helm/axisml-system/crds/mljob-crd.yaml
-//   - PodGroup (scheduler-plugins, scheduling.x-k8s.io): test/crds/external/scheduler-plugins-podgroup.yaml
+//   - PodGroup (koordinator-vendored scheduler-plugins, scheduling.sigs.k8s.io): test/crds/external/scheduler-plugins-podgroup.yaml
 //
 // envtest has no kubelet, so the underlying batch/v1.Job's Pods never
 // progress on their own. Tests simulate completion by directly patching
@@ -21,6 +21,7 @@ import (
 	"sync"
 	"testing"
 
+	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/thirdparty/scheduler-plugins/pkg/apis/scheduling/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -30,14 +31,13 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
-	schedulingv1alpha1 "sigs.k8s.io/scheduler-plugins/apis/scheduling/v1alpha1"
 
-	axisv1alpha1 "axisml.io/operators/mljob/api/v1alpha1"
-	"axisml.io/operators/mljob/internal/dispatcher"
-	"axisml.io/operators/mljob/internal/handlers/nativejob"
-	"axisml.io/operators/mljob/internal/handlers/nativepodgroup"
+	axisv1alpha1 "github.com/axisml/axisml/components/operators/mljob-operator/api/v1alpha1"
+	"github.com/axisml/axisml/components/operators/mljob-operator/internal/dispatcher"
+	"github.com/axisml/axisml/components/operators/mljob-operator/internal/handlers/nativejob"
+	"github.com/axisml/axisml/components/operators/mljob-operator/internal/handlers/nativepodgroup"
 
-	"github.com/axisml-io/axisml/test/testutil"
+	"github.com/axisml/axisml/test/testutil"
 )
 
 var (

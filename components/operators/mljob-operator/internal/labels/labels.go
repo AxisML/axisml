@@ -1,33 +1,19 @@
-// Package labels centralises the label and annotation keys mandated by
-// the MLJob operator design (§6 Pod injection contract).
+// Package labels re-exports the label and annotation keys defined on
+// the public api/v1alpha1 surface under the names used by the mljob
+// operator's internal packages. The public package is the canonical
+// source; this shim keeps the internal call sites compact.
 package labels
 
+import axisv1alpha1 "github.com/axisml/axisml/components/operators/mljob-operator/api/v1alpha1"
+
 const (
-	// JobIDLabel anchors the MLJob CR's stable UUID; mirrored on every
-	// derived Pod so Compute can reverse-lookup orphans.
-	JobIDLabel = "axisml.io/job-id"
-	// QuotaLabel carries the bare quota name (e.g., "training") and is
-	// distinct from KoordQuotaLabel (which holds the ElasticQuota CR
-	// full name).
-	QuotaLabel = "axisml.io/quota"
-	// RoleLabel identifies the role within the job topology.
-	RoleLabel = "axisml.io/role"
+	JobIDLabel       = axisv1alpha1.LabelJobID
+	QuotaLabel       = axisv1alpha1.LabelQuota
+	RoleLabel        = axisv1alpha1.LabelRole
+	KoordQuotaLabel  = axisv1alpha1.LabelKoordQuotaName
+	PodGroupLabel    = axisv1alpha1.LabelPodGroup
 
-	// KoordQuotaLabel binds the Pod to a Koordinator ElasticQuota by
-	// the quota CR's full name. Required for ElasticQuota plugin to
-	// account the Pod's resources into status.used.
-	KoordQuotaLabel = "quota.scheduling.koordinator.sh/name"
+	AppliedSpecAnnotation = axisv1alpha1.AnnotationAppliedSpec
 
-	// PodGroupLabel binds bare Pods to a scheduler-plugins PodGroup.
-	PodGroupLabel = "pod-group.scheduling.sigs.k8s.io"
-
-	// AppliedSpecAnnotation records a fingerprint of the immutable
-	// portion of MLJob.spec (backend tuple + role topology) at first
-	// observation. Dispatcher uses this to reject post-creation
-	// mutations to backend.{name,engine} and roles[*].{name,replicas}.
-	AppliedSpecAnnotation = "axisml.io/applied-spec"
+	KoordSchedulerName = axisv1alpha1.SchedulerName
 )
-
-// KoordSchedulerName is the name every AxisML workload Pod must use as
-// spec.schedulerName.
-const KoordSchedulerName = "koord-scheduler"

@@ -103,6 +103,10 @@ COMPONENTS := \
 # COMPONENTS += components/platform/backend
 # COMPONENTS += components/platform/frontend
 
+# Operator basenames, derived from COMPONENTS. Used by e2e targets that
+# act on every operator Deployment (scale-to-zero, rollout wait).
+OPERATORS := $(notdir $(filter components/operators/%,$(COMPONENTS)))
+
 ##@ Components — aggregate targets (fan out to every COMPONENT)
 #
 # `make build` / `make image` / `make image-load` / `make test` / `make clean`
@@ -182,7 +186,7 @@ $(ENVTEST):
 
 ##@ Test execution
 
-.PHONY: envtest-test e2e-test e2e-wait
+.PHONY: envtest-test e2e-test e2e-wait e2e-pre-image-load
 
 # L1 envtest: hermetic, in-process reconciler tests against an embedded
 # apiserver+etcd. Each operator's `envtest` target boots its own envtest with
@@ -194,15 +198,33 @@ envtest-test: setup-envtest ## L1 envtest across all operators (hermetic, CI-fri
 # infra + system. Operators run as deployed (NOT scaled to zero); tests act as
 # external clients via client-go and (for service tests) port-forward to
 # in-cluster Services.
-e2e-test: cluster-up image-load helm-install e2e-wait ## L2 minikube e2e (operators + services)
+e2e-test: cluster-up e2e-pre-image-load image-load helm-install e2e-wait ## L2 minikube e2e (operators + services)
 	@if [ -d test/e2e ]; then \
 	  cd test/e2e && go test -tags=e2e -count=1 -timeout=20m ./... ; \
 	else \
 	  echo "(no e2e tests yet — orchestration complete; add Go tests under test/e2e/ behind build tag e2e)"; \
 	fi
 
+# Scale operator deployments to zero before `image-load`. minikube's
+# `image load --overwrite=true` is silently a no-op when a container in the
+# minikube node still references the existing image:tag, so subsequent runs
+# would deploy stale code. helm-install scales them back up to the chart's
+# replicas (=1), at which point the freshly-loaded image is pulled.
+# `--ignore-not-found` makes scale a no-op on a fresh cluster; per-operator
+# wait selectors stay scoped to operator Pods so future axisml-system Pods
+# (Platform/Compute/Artifacts) don't widen the wait set.
+e2e-pre-image-load:
+	@for op in $(OPERATORS); do \
+	  kubectl --context $(MINIKUBE_PROFILE) -n $(HELM_SYSTEM_NAMESPACE) \
+	    scale deploy/$(HELM_SYSTEM_RELEASE)-$$op --replicas=0 --ignore-not-found; \
+	done
+	@for op in $(OPERATORS); do \
+	  kubectl --context $(MINIKUBE_PROFILE) -n $(HELM_SYSTEM_NAMESPACE) \
+	    wait --for=delete pod -l app.kubernetes.io/name=$$op --timeout=60s; \
+	done
+
 e2e-wait: ## Wait for axisml operator Deployments to become ready (used by e2e-test)
-	@for op in tenant-operator mljob-operator mlservice-operator; do \
+	@for op in $(OPERATORS); do \
 	  printf '>>> waiting for %s\n' "$$op"; \
 	  kubectl --context $(MINIKUBE_PROFILE) -n $(HELM_SYSTEM_NAMESPACE) \
 	    rollout status deploy/$(HELM_SYSTEM_RELEASE)-$$op --timeout=180s; \

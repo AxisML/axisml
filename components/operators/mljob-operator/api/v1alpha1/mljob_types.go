@@ -155,6 +155,25 @@ const (
 // when a handler completes the cancel path. Compute consumes this signal.
 const ReasonCancelRequested = "CancelRequested"
 
+// Public label/annotation keys and naming constants. Exported here (rather
+// than in internal/labels) so external clients — Compute, e2e tests — can
+// reference them without poking through internal/. Mirrors the layout used
+// by mlservice-operator's api/v1alpha1.
+const (
+	LabelJobID          = "axisml.io/job-id"
+	LabelQuota          = "axisml.io/quota"
+	LabelRole           = "axisml.io/role"
+	LabelKoordQuotaName = "quota.scheduling.koordinator.sh/name"
+	LabelPodGroup       = "pod-group.scheduling.sigs.k8s.io"
+
+	AnnotationAppliedSpec = "axisml.io/applied-spec"
+
+	SchedulerName = "koord-scheduler"
+
+	// DefaultRoleName is the role name required by the (native, *) handlers.
+	DefaultRoleName = "worker"
+)
+
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Namespaced,shortName=mlj

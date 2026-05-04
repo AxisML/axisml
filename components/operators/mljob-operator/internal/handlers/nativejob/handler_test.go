@@ -11,8 +11,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	axisv1alpha1 "axisml.io/operators/mljob/api/v1alpha1"
-	axislabels "axisml.io/operators/mljob/internal/labels"
+	axisv1alpha1 "github.com/axisml/axisml/components/operators/mljob-operator/api/v1alpha1"
+	axislabels "github.com/axisml/axisml/components/operators/mljob-operator/internal/labels"
 )
 
 func newMLJob(roleReplicas int32, modify func(*axisv1alpha1.MLJob)) *axisv1alpha1.MLJob {
@@ -31,7 +31,7 @@ func newMLJob(roleReplicas int32, modify func(*axisv1alpha1.MLJob)) *axisv1alpha
 				Quota: "axisml-tnt-default-training",
 			},
 			Roles: []axisv1alpha1.RoleSpec{{
-				Name:          "worker",
+				Name:          axisv1alpha1.DefaultRoleName,
 				Replicas:      roleReplicas,
 				RestartPolicy: corev1.RestartPolicyNever,
 				Template: axisv1alpha1.PodTemplateSubset{

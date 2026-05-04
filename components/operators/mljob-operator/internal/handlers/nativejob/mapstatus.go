@@ -4,8 +4,8 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 
-	axisv1alpha1 "axisml.io/operators/mljob/api/v1alpha1"
-	axishandler "axisml.io/operators/mljob/internal/handler"
+	axisv1alpha1 "github.com/axisml/axisml/components/operators/mljob-operator/api/v1alpha1"
+	axishandler "github.com/axisml/axisml/components/operators/mljob-operator/internal/handler"
 )
 
 // MapStatus is a pure function: given the live batch/v1.Job, derive the
