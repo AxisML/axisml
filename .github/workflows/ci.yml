@@ -9,6 +9,12 @@ on:
 permissions:
   contents: read
 
+# Cancel in-progress runs for the same branch/PR when a new commit lands.
+# `main` pushes are excluded (each commit on main should produce a green run).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   lint:
     name: lint (${{ matrix.module }})
@@ -47,18 +53,34 @@ jobs:
         with:
           go-version: '1.26'
           cache: true
+          # Repo has no root go.sum (monorepo with 8 separate Go modules).
+          # Without this glob, setup-go's default `go.sum` lookup fails and
+          # caching degenerates — module downloads and build cache cold-start
+          # every run. Globbing every module's go.sum makes the cache key
+          # stable and shares ~/go/pkg/mod + ~/.cache/go-build across runs.
+          cache-dependency-path: '**/go.sum'
       - name: Run unit tests
         run: make test
 
   envtest:
-    name: L1 envtest
+    name: L1 envtest (${{ matrix.operator }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        operator:
+          - tenant-operator
+          - mljob-operator
+          - mlservice-operator
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version: '1.26'
           cache: true
+          # See `unit` job: glob every module's go.sum because there is no
+          # root go.sum to drive setup-go's default cache key.
+          cache-dependency-path: '**/go.sum'
       - name: Cache shared setup-envtest binary + kubebuilder assets
         uses: actions/cache@v4
         with:
@@ -66,5 +88,7 @@ jobs:
             test/setup-envtest
             ~/.local/share/kubebuilder-envtest
           key: envtest-${{ runner.os }}-k8s-1.31.0
-      - name: Run L1 envtest across operators
-        run: make envtest-test
+      - name: Install setup-envtest binary if missing
+        run: make setup-envtest
+      - name: Run L1 envtest for ${{ matrix.operator }}
+        run: make ${{ matrix.operator }}-envtest
