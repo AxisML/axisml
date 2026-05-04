@@ -7,7 +7,7 @@ metadata:
   labels:
     {{- include "axisml.componentLabels" (dict "context" . "component" "operator") | nindent 4 }}
 spec:
-  replicas: 1
+  replicas: {{ $op.replicaCount | default 1 }}
   selector:
     matchLabels:
       {{- include "axisml.componentSelectorLabels" (dict "context" . "component" "operator") | nindent 6 }}
@@ -49,11 +49,13 @@ spec:
             {{- if not $op.controllers.mljob.handlers.nativePodGroup.enabled }}
             - --enable-native-podgroup=false
             {{- end }}
+          {{- if $op.controllers.tenant.enabled }}
           env:
             - name: RESYNC_PERIOD
               value: {{ $op.controllers.tenant.resyncPeriod | quote }}
             - name: NAMESPACE_DENYLIST
               value: {{ join "," $op.controllers.tenant.namespaceDenylist | quote }}
+          {{- end }}
           ports:
             - name: metrics
               containerPort: 8080

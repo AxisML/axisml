@@ -74,11 +74,14 @@ func main() {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zapOpts)))
 	setupLog := ctrl.Log.WithName("setup")
 
-	tenantCfg := tenantconfig.Load()
-	resync := tenantCfg.ResyncPeriod
-
-	cacheOpts := cache.Options{SyncPeriod: &resync}
+	// Tenant config is tenant-only: don't let RESYNC_PERIOD /
+	// NAMESPACE_DENYLIST silently steer the manager when tenant is off.
+	var tenantCfg tenantconfig.Config
+	cacheOpts := cache.Options{}
 	if enableTenant {
+		tenantCfg = tenantconfig.Load()
+		resync := tenantCfg.ResyncPeriod
+		cacheOpts.SyncPeriod = &resync
 		cacheOpts.ByObject = tenantcontroller.CacheByObject()
 	}
 

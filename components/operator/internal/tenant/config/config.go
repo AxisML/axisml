@@ -1,6 +1,6 @@
-// Package config loads tenant-operator runtime knobs from environment
+// Package config loads Tenant-controller runtime knobs from environment
 // variables. These knobs are surfaced through Helm values
-// (deploy/helm/axisml-system/values.yaml -> tenantOperator).
+// (deploy/helm/axisml-system/values.yaml -> operator.controllers.tenant).
 package config
 
 import (

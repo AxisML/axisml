@@ -12,9 +12,11 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -56,10 +58,13 @@ func (r *Reconciler) SetupWithManager(mgr manager.Manager, allHandlers []hpkg.Ha
 	b := ctrl.NewControllerManagedBy(mgr).
 		For(&axisml.MLService{}, builder.WithPredicates(predicate.GenerationChangedPredicate{}))
 
-	seen := map[string]struct{}{}
+	seen := map[schema.GroupVersionKind]struct{}{}
 	for _, h := range allHandlers {
 		for _, obj := range h.WatchTargets() {
-			gvk := fmt.Sprintf("%T", obj)
+			gvk, err := apiutil.GVKForObject(obj, mgr.GetScheme())
+			if err != nil {
+				return fmt.Errorf("resolve GVK for watch target: %w", err)
+			}
 			if _, ok := seen[gvk]; ok {
 				continue
 			}

@@ -135,6 +135,11 @@ operator:
   # -- Master toggle for the merged axisml-operator.
   enabled: true
 
+  # -- Replica count for the operator Deployment. Leader election (below)
+  # ensures only one replica reconciles at a time, so N>1 is purely an HA
+  # / faster-failover knob.
+  replicaCount: 1
+
   # -- Image for the merged axisml-operator binary.
   image:
     registry: ghcr.io
