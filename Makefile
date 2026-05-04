@@ -62,7 +62,7 @@ cluster-status: ## Show cluster status
 
 ##@ Helm Management
 
-.PHONY: helm-install helm-upgrade helm-uninstall helm-template helm-deps
+.PHONY: helm-install helm-upgrade helm-uninstall helm-template helm-lint helm-deps
 .PHONY: helm-install-infra helm-install-system
 .PHONY: helm-upgrade-infra helm-upgrade-system
 .PHONY: helm-uninstall-infra helm-uninstall-system
@@ -71,6 +71,10 @@ cluster-status: ## Show cluster status
 helm-deps: ## Fetch sub-chart tarballs for both charts (run after clone / Chart.yaml change)
 	@helm dependency update $(HELM_INFRA_CHART)
 	@helm dependency update $(HELM_SYSTEM_CHART)
+
+helm-lint: ## Lint both Helm charts (no dep fetching — missing-dep warning is harmless)
+	@helm lint $(HELM_INFRA_CHART)
+	@helm lint $(HELM_SYSTEM_CHART)
 
 helm-install-infra: ## Install or upgrade AxisML infrastructure (idempotent)
 	@kubectl --context $(MINIKUBE_PROFILE) create namespace $(HELM_INFRA_NAMESPACE) --dry-run=client -o yaml | kubectl --context $(MINIKUBE_PROFILE) apply -f -
