@@ -1,0 +1,43 @@
+# AxisML pre-commit configuration
+#
+# Install once per clone:  make install-hooks   (wraps `pre-commit install`)
+# Run against all files:   pre-commit run --all-files
+# Bypass once:             git commit --no-verify
+
+# Files we never want hooks to touch:
+#   - test/crds/external/* are vendored upstream CRDs (intentionally read-only,
+#     see test/crds/external/README.md) — they must mirror upstream verbatim.
+#   - deploy/helm/*/charts/* holds vendored sub-chart tarballs/dirs.
+exclude: |
+  (?x)^(
+    test/crds/external/.*|
+    deploy/helm/[^/]+/charts/.*
+  )$
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+        # Helm templates use Go template syntax that isn't valid YAML.
+        exclude: |
+          (?x)^deploy/helm/[^/]+/templates/
+
+  - repo: local
+    hooks:
+      - id: gofmt
+        name: gofmt
+        description: Run gofmt against staged Go files.
+        # gofmt -w rewrites in place; pre-commit then fails the run when
+        # any file was modified, prompting the user to re-stage.
+        entry: gofmt -w
+        language: system
+        types: [go]

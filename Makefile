@@ -107,6 +107,12 @@ COMPONENTS := \
 # act on every operator Deployment (scale-to-zero, rollout wait).
 OPERATORS := $(notdir $(filter components/operators/%,$(COMPONENTS)))
 
+# Every Go module in the repo (operators + their envtest sub-modules +
+# shared test/testutil + test/e2e). `go fmt ./...` does not cross module
+# boundaries, so `make fmt` iterates these explicitly. Sorted for stable
+# output; bin/ excluded so we never recurse into build artifacts.
+GO_MODULES := $(sort $(shell find . -name go.mod -not -path '*/bin/*' -exec dirname {} \;))
+
 ##@ Components — aggregate targets (fan out to every COMPONENT)
 #
 # `make build` / `make image` / `make image-load` / `make test` / `make clean`
@@ -119,7 +125,7 @@ _RUN_COMPONENTS = set -e; for c in $(COMPONENTS); do \
 	$(MAKE) -C $$c $(1); \
 done
 
-.PHONY: build image image-load test tidy clean
+.PHONY: build image image-load test fmt tidy clean
 
 build: ## Build every component (delegates to each component's `make build`)
 	@$(call _RUN_COMPONENTS,build)
@@ -132,6 +138,12 @@ image-load: ## Build images and load them into the local minikube node
 
 test: ## Run unit tests across every component (no cluster required)
 	@$(call _RUN_COMPONENTS,test)
+
+fmt: ## Run gofmt across every Go module (covers files behind build tags too)
+	@set -e; for d in $(GO_MODULES); do \
+	  printf '\n>>> %s (fmt)\n' "$$d"; \
+	  (cd $$d && gofmt -w -l .); \
+	done
 
 tidy: ## Run `go mod tidy` across every component
 	@$(call _RUN_COMPONENTS,tidy)
@@ -149,7 +161,7 @@ clean: ## Remove build artifacts across every component
 # would collide (e.g., `components/platform/backend` would clash with any
 # other `backend`), give it a distinct directory name or rework the mapping.
 define _COMPONENT_SHORTCUTS
-.PHONY: $(notdir $1)-build $(notdir $1)-image $(notdir $1)-image-load $(notdir $1)-test $(notdir $1)-envtest $(notdir $1)-tidy $(notdir $1)-clean
+.PHONY: $(notdir $1)-build $(notdir $1)-image $(notdir $1)-image-load $(notdir $1)-test $(notdir $1)-envtest $(notdir $1)-fmt $(notdir $1)-tidy $(notdir $1)-clean
 $(notdir $1)-build:
 	@$$(MAKE) -C $1 build
 $(notdir $1)-image:
@@ -160,6 +172,8 @@ $(notdir $1)-test:
 	@$$(MAKE) -C $1 test
 $(notdir $1)-envtest:
 	@$$(MAKE) -C $1 envtest
+$(notdir $1)-fmt:
+	@$$(MAKE) -C $1 fmt
 $(notdir $1)-tidy:
 	@$$(MAKE) -C $1 tidy
 $(notdir $1)-clean:
@@ -230,6 +244,27 @@ e2e-wait: ## Wait for axisml operator Deployments to become ready (used by e2e-t
 	    rollout status deploy/$(HELM_SYSTEM_RELEASE)-$$op --timeout=180s; \
 	done
 
+##@ Git hooks
+
+# Hook orchestration is delegated to the `pre-commit` framework
+# (https://pre-commit.com); see .pre-commit-config.yaml for the hook list.
+# These targets are thin wrappers so contributors don't need to remember
+# the underlying CLI invocation.
+
+.PHONY: install-hooks uninstall-hooks pre-commit-run
+
+install-hooks: ## Install the pre-commit hook into .git/hooks/ (requires `pre-commit` on PATH)
+	@command -v pre-commit >/dev/null || { \
+	  echo "pre-commit not found. Install: brew install pre-commit  (or pipx install pre-commit)"; \
+	  exit 1; }
+	@pre-commit install
+
+uninstall-hooks: ## Remove the pre-commit hook from .git/hooks/
+	@command -v pre-commit >/dev/null && pre-commit uninstall || true
+
+pre-commit-run: ## Run all pre-commit hooks against every tracked file
+	@pre-commit run --all-files
+
 ##@ Help
 
 .PHONY: help
@@ -242,7 +277,7 @@ help: ## Show this help message
 	  /^[a-zA-Z][a-zA-Z0-9_-]*:.*##/ { printf "  \033[36m%-26s\033[0m %s\n", $$1, $$2 }' \
 	  $(MAKEFILE_LIST)
 	@printf "\n\033[1mPer-component shortcuts (auto-generated)\033[0m\n"
-	@printf "  Pattern : <component>-{build,image,image-load,test,envtest,tidy,clean}\n"
+	@printf "  Pattern : <component>-{build,image,image-load,test,envtest,fmt,tidy,clean}\n"
 	@printf "  Active  : %s\n" "$(notdir $(COMPONENTS))"
 	@printf "  Example : make tenant-operator-image  |  make mljob-operator-envtest\n\n"
 
