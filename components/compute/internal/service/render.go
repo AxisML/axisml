@@ -8,13 +8,19 @@ import (
 	mlservicev1alpha1 "github.com/axisml/axisml/components/operators/mlservice-operator/api/v1alpha1"
 )
 
-// ToCR materialises an MLService CR from a PG row.
+// ToCR materialises an MLService CR from a PG row. quotaName overrides
+// the label value when non-empty; otherwise it is derived from
+// spec.scheduling.quota. The mlservice-operator's validation rejects CRs
+// without a non-empty axisml.io/quota label.
 func ToCR(s *Service, tenantName, namespace, quotaName string) (*mlservicev1alpha1.MLService, error) {
 	var spec mlservicev1alpha1.MLServiceSpec
 	if len(s.Spec) > 0 {
 		if err := json.Unmarshal(s.Spec, &spec); err != nil {
 			return nil, err
 		}
+	}
+	if quotaName == "" {
+		quotaName = spec.Scheduling.Quota
 	}
 	return &mlservicev1alpha1.MLService{
 		ObjectMeta: metav1.ObjectMeta{
