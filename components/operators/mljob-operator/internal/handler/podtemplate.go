@@ -50,15 +50,15 @@ func InjectAxisMLLabels(tmpl *corev1.PodTemplateSpec, mlJob *axisv1alpha1.MLJob,
 		return fmt.Errorf("MLJob %s/%s spec.scheduling.quota is empty", mlJob.Namespace, mlJob.Name)
 	}
 
-	if tmpl.ObjectMeta.Labels == nil {
-		tmpl.ObjectMeta.Labels = map[string]string{}
+	if tmpl.Labels == nil {
+		tmpl.Labels = map[string]string{}
 	}
-	tmpl.ObjectMeta.Labels[axislabels.JobIDLabel] = mlJob.Labels[axislabels.JobIDLabel]
-	tmpl.ObjectMeta.Labels[axislabels.QuotaLabel] = mlJob.Labels[axislabels.QuotaLabel]
-	tmpl.ObjectMeta.Labels[axislabels.RoleLabel] = role.Name
-	tmpl.ObjectMeta.Labels[axislabels.KoordQuotaLabel] = mlJob.Spec.Scheduling.Quota
+	tmpl.Labels[axislabels.JobIDLabel] = mlJob.Labels[axislabels.JobIDLabel]
+	tmpl.Labels[axislabels.QuotaLabel] = mlJob.Labels[axislabels.QuotaLabel]
+	tmpl.Labels[axislabels.RoleLabel] = role.Name
+	tmpl.Labels[axislabels.KoordQuotaLabel] = mlJob.Spec.Scheduling.Quota
 	for k, v := range extraLabels {
-		tmpl.ObjectMeta.Labels[k] = v
+		tmpl.Labels[k] = v
 	}
 
 	tmpl.Spec.SchedulerName = axislabels.KoordSchedulerName

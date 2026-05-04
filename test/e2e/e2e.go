@@ -100,7 +100,7 @@ func WaitDeploymentAvailable(t *testing.T, ctx context.Context, c client.Client,
 			return err
 		}
 		if dep.Status.AvailableReplicas < minReplicas {
-			return fmt.Errorf("Deployment %s/%s availableReplicas=%d (want >=%d)",
+			return fmt.Errorf("deployment %s/%s availableReplicas=%d (want >=%d)",
 				ns, name, dep.Status.AvailableReplicas, minReplicas)
 		}
 		return nil

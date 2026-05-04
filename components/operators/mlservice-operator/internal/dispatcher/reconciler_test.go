@@ -67,7 +67,7 @@ func TestMergeConditions_BumpsLastTransitionOnStatusFlip(t *testing.T) {
 		Reason: "AllReplicasReady",
 	}}
 	merged := mergeConditions(existing, updates, 1)
-	if !merged[0].LastTransitionTime.Time.After(old) {
+	if !merged[0].LastTransitionTime.After(old) {
 		t.Errorf("LastTransitionTime did not advance on status flip: got %v", merged[0].LastTransitionTime.Time)
 	}
 }

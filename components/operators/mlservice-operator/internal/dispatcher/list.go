@@ -51,7 +51,7 @@ func extractItems(list client.ObjectList) ([]client.Object, error) {
 			// address via reflect so the dispatcher can hand a pointer to
 			// the handler.
 			v := reflect.ValueOf(it)
-			if v.Kind() != reflect.Ptr {
+			if v.Kind() != reflect.Pointer {
 				ptr := reflect.New(v.Type())
 				ptr.Elem().Set(v)
 				if obj, ok = ptr.Interface().(client.Object); !ok {

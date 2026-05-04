@@ -32,9 +32,9 @@ jobs:
           go-version-file: ${{ matrix.module }}/go.mod
           cache: true
           cache-dependency-path: ${{ matrix.module }}/go.sum
-      - uses: golangci/golangci-lint-action@v6
+      - uses: golangci/golangci-lint-action@v9
         with:
-          version: v1.61.0
+          version: v2.12.1
           working-directory: ${{ matrix.module }}
           args: --build-tags=envtest,e2e
 

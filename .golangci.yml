@@ -2,8 +2,9 @@
 # distinct golangci-lint invocation (see .github/workflows/ci.yml matrix);
 # this file is the single source of truth for which linters and build tags
 # they share.
+version: "2"
+
 run:
-  timeout: 5m
   build-tags:
     - envtest
     - e2e
@@ -15,11 +16,23 @@ linters:
     - ineffassign
     - staticcheck
     - unused
+    - misspell
+  exclusions:
+    paths:
+      - bin
+      - deploy
+    rules:
+      # kubebuilder-generated scheme registration follows the canonical
+      # pattern that still uses the (deprecated) controller-runtime
+      # scheme.Builder helper; no replacement is recommended upstream.
+      - path: api/v1alpha1/groupversion_info\.go
+        text: "SA1019: scheme.Builder is deprecated"
+
+formatters:
+  enable:
     - gofmt
     - goimports
-    - misspell
-
-issues:
-  exclude-dirs:
-    - bin
-    - deploy
+  exclusions:
+    paths:
+      - bin
+      - deploy
