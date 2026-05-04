@@ -28,6 +28,7 @@ envoy-gateway:
 # disables this Gateway and route-enabled MLServices will stay NotAccepted.
 gateway:
   className: eg
+  controllerName: gateway.envoyproxy.io/gatewayclass-controller
   httpPort: 80
 
 # =============================================================================

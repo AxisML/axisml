@@ -73,7 +73,10 @@ helm-deps: ## Fetch sub-chart tarballs for both charts (run after clone / Chart.
 	@helm dependency update $(HELM_SYSTEM_CHART)
 
 helm-install-infra: ## Install or upgrade AxisML infrastructure (idempotent)
-	@helm upgrade --install $(HELM_INFRA_RELEASE) $(HELM_INFRA_CHART) -n $(HELM_INFRA_NAMESPACE) --create-namespace --kube-context $(MINIKUBE_PROFILE)
+	@kubectl --context $(MINIKUBE_PROFILE) create namespace $(HELM_INFRA_NAMESPACE) --dry-run=client -o yaml | kubectl --context $(MINIKUBE_PROFILE) apply -f -
+	@kubectl --context $(MINIKUBE_PROFILE) label namespace $(HELM_INFRA_NAMESPACE) app.kubernetes.io/managed-by=Helm --overwrite
+	@kubectl --context $(MINIKUBE_PROFILE) annotate namespace $(HELM_INFRA_NAMESPACE) meta.helm.sh/release-name=$(HELM_INFRA_RELEASE) meta.helm.sh/release-namespace=$(HELM_INFRA_NAMESPACE) --overwrite
+	@helm upgrade --install $(HELM_INFRA_RELEASE) $(HELM_INFRA_CHART) -n $(HELM_INFRA_NAMESPACE) --kube-context $(MINIKUBE_PROFILE)
 
 helm-crds-system: ## Apply axisml-system CRDs (Helm only installs files under crds/ once; this picks up schema upgrades)
 	@kubectl --context $(MINIKUBE_PROFILE) apply -f $(HELM_SYSTEM_CHART)/crds/

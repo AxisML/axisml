@@ -1,4 +1,15 @@
 {{- if (index .Values "envoy-gateway").enabled }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: {{ .Values.gateway.className | default "eg" }}
+  labels:
+    app.kubernetes.io/name: axisml-gateway
+    app.kubernetes.io/part-of: axisml-infra
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  controllerName: {{ .Values.gateway.controllerName | default "gateway.envoyproxy.io/gatewayclass-controller" }}
+---
 # axisml-gateway is the shared Envoy Gateway listener that every tenant
 # MLService HTTPRoute attaches to (ParentRef = axisml-infra/axisml-gateway).
 # allowedRoutes.namespaces.from=All authorises the cross-namespace
