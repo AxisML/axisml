@@ -71,6 +71,10 @@ make build / make image    # binary into bin/, container image
 
 Single test invocation: `go test -run TestTenant_HappyPath ./internal/...` (use `-tags=envtest` or `-tags=e2e` for those layers).
 
+Per-component shortcuts are auto-generated from the `COMPONENTS` list in the top-level Makefile. Pattern: `<basename>-{build,image,image-load,test,envtest,fmt,tidy,clean}` (e.g., `make tenant-operator-image-load`). Top-level `make fmt` walks every module via `GO_MODULES` (`gofmt -w` doesn't cross module boundaries on its own).
+
+Pre-commit hooks (`pre-commit` framework, see `.pre-commit-config.yaml`) run gofmt + basic hygiene checks. Install once per clone: `make install-hooks`. Bypass for a single commit: `git commit --no-verify`. Vendored CRDs (`test/crds/external/`) and Helm sub-charts are excluded from hooks.
+
 ## Three-layer testing pyramid
 
 Documented in detail in `docs/development/testing.md`. The short version:
@@ -127,4 +131,4 @@ Operator images are pulled by Helm using `Chart.appVersion` as the default tag. 
 - Conventional Commit subjects: `docs:`, `feat(operator):`, `chore(build):`, `fix:`, etc. Keep scoped and imperative.
 - Component basenames must be unique across the `COMPONENTS` list in the top-level Makefile (the per-component shortcut targets are derived from `notdir`).
 - `bin/` directories are build artifacts — never commit.
-- Lint config (`.golangci.yml`) is shared across all Go modules, with `envtest,e2e` build tags enabled so tagged files are linted too.
+- Lint config (`.golangci.yml`) is shared across all Go modules; CI runs `golangci-lint` once per module (matrix in `.github/workflows/ci.yml`). Active linters: `errcheck`, `govet`, `ineffassign`, `staticcheck`, `unused`, `misspell`, plus `gofmt` + `goimports` formatters. The `envtest,e2e` build tags are enabled so tagged files are linted too.
