@@ -4,6 +4,7 @@ package envtest_test
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -63,7 +64,7 @@ func TestTenantsAPI_CreateAndSuspend(t *testing.T) {
 			return err
 		}
 		if !fresh.Spec.Suspended {
-			return errBecause("CR.spec.suspended still false")
+			return fmt.Errorf("CR.spec.suspended still false")
 		}
 		return nil
 	})
@@ -78,7 +79,7 @@ func TestTenantsAPI_CreateAndSuspend(t *testing.T) {
 			return err
 		}
 		if fresh.Spec.Suspended {
-			return errBecause("CR.spec.suspended still true")
+			return fmt.Errorf("CR.spec.suspended still true")
 		}
 		return nil
 	})
@@ -108,11 +109,3 @@ func TestTenantsAPI_DuplicateNameConflict(t *testing.T) {
 		t.Fatalf("duplicate create: status=%d body=%s, want 409", rr.Code, rr.Body.String())
 	}
 }
-
-// errBecause is a tiny helper to keep Eventually polls readable when the
-// only thing they assert is "this hasn't happened yet."
-func errBecause(msg string) error { return &polledErr{msg: msg} }
-
-type polledErr struct{ msg string }
-
-func (e *polledErr) Error() string { return e.msg }

@@ -22,22 +22,9 @@ import (
 	"github.com/axisml/axisml/test/testutil"
 )
 
-// TestComputeAPI_TenantQuotaLifecycle drives the full tenant + quota
-// path through the deployed compute HTTP API and validates the cluster
-// state on the other side:
-//
-//  1. Create a tenant via /api/v1/tenants → Compute outboxes a Tenant CR
-//     → tenant-operator creates the Namespace + sets phase=Active.
-//  2. Create a quota under the tenant → Compute updates Tenant.spec.quotas
-//     → tenant-operator renders the ElasticQuota in the tenant namespace.
-//  3. Suspend → Tenant CR.spec.suspended=true → operator → phase=Suspended.
-//  4. Unsuspend → back to Active.
-//  5. Delete tenant → CR removed, Namespace explicitly cleaned (operator
-//     intentionally does not delete Namespaces).
-//
-// Replaces the direct-CR `TestTenant_HappyPath` from the operators e2e
-// suite by exercising the same operator behaviour through the production
-// HTTP path.
+// TestComputeAPI_TenantQuotaLifecycle: tenant create → Namespace + phase=Active,
+// quota create → ElasticQuota, suspend → Suspended, unsuspend → Active.
+// Cleanup deletes the namespace explicitly (tenant-operator does not, per design §6.1).
 func TestComputeAPI_TenantQuotaLifecycle(t *testing.T) {
 	_, c := e2e.SetupOrSkip(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)

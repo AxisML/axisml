@@ -18,15 +18,8 @@ import (
 	"github.com/axisml/axisml/test/e2e"
 )
 
-// TestComputeAPI_JobLifecycle exercises the full vertical slice via the
-// compute HTTP API: POST /jobs → outboxer creates the MLJob CR →
-// mljob-operator (native/job handler) creates batch/v1.Job → real Pod runs
-// to completion on minikube → operator updates MLJob.status.phase → compute
-// informer reflects DB → GET /jobs/:job returns status=Succeeded.
-//
-// Replaces the direct-CR `TestMLJob_NativeJob` from operators/ — same
-// integration breadth, broader contract surface (every layer between
-// HTTP and Pod is exercised once).
+// TestComputeAPI_JobLifecycle: POST /jobs through to a real Pod completing
+// on minikube, asserting GET /jobs/:job returns status=Succeeded.
 func TestComputeAPI_JobLifecycle(t *testing.T) {
 	_, c := e2e.SetupOrSkip(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Minute)

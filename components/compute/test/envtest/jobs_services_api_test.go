@@ -4,6 +4,7 @@ package envtest_test
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -169,10 +170,10 @@ func TestJobsAPI_LifecycleCreatesAndCancelsCR(t *testing.T) {
 		grr := doJSON(t, ctx, http.MethodGet,
 			pathf("/api/v1/tenants/%s/jobs/%s", fx.TenantName, jobName), nil, &view)
 		if grr.Code != http.StatusOK {
-			return errBecause("get job: " + grr.Body.String())
+			return fmt.Errorf("get job: %s", grr.Body.String())
 		}
 		if view.Status == "Creating" {
-			return errBecause("job still in Creating; informer hasn't observed CR phase yet")
+			return fmt.Errorf("job still in Creating; informer hasn't observed CR phase yet")
 		}
 		return nil
 	})
@@ -189,7 +190,7 @@ func TestJobsAPI_LifecycleCreatesAndCancelsCR(t *testing.T) {
 			return err
 		}
 		if !fresh.Spec.RunPolicy.Suspend {
-			return errBecause("CR.spec.runPolicy.suspend not yet true")
+			return fmt.Errorf("CR.spec.runPolicy.suspend not yet true")
 		}
 		return nil
 	})
@@ -289,7 +290,7 @@ func TestServicesAPI_LifecycleCreatesScalesAndDeletes(t *testing.T) {
 			return err
 		}
 		if len(fresh.Spec.Roles) == 0 || fresh.Spec.Roles[0].Replicas != 3 {
-			return errBecause("CR.spec.roles[0].replicas not yet 3")
+			return fmt.Errorf("CR.spec.roles[0].replicas not yet 3")
 		}
 		return nil
 	})
@@ -325,7 +326,7 @@ func TestQuotasAPI_UpdatePropagatesToTenantCR(t *testing.T) {
 				return nil
 			}
 		}
-		return errBecause("Tenant CR.spec.quotas does not include fixture quota yet")
+		return fmt.Errorf("Tenant CR.spec.quotas does not include fixture quota yet")
 	})
 
 	// PATCH max to a higher value.
@@ -347,10 +348,10 @@ func TestQuotasAPI_UpdatePropagatesToTenantCR(t *testing.T) {
 				continue
 			}
 			if !q.Max.Cpu().Equal(resource.MustParse("16")) {
-				return errBecause("Tenant CR quota max.cpu not yet 16")
+				return fmt.Errorf("Tenant CR quota max.cpu not yet 16")
 			}
 			return nil
 		}
-		return errBecause("quota gone from Tenant CR")
+		return fmt.Errorf("quota gone from Tenant CR")
 	})
 }

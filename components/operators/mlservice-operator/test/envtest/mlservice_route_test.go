@@ -158,7 +158,7 @@ func TestMLService_ScaleAndImmutability(t *testing.T) {
 
 	const (
 		ns      = "envt-mlsvc-scale"
-		svcName = "scaleable"
+		svcName = "scalable"
 	)
 	require.NoError(t, c.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}}))
 	t.Cleanup(func() { cleanupNamespace(t, c, ns) })
@@ -168,7 +168,7 @@ func TestMLService_ScaleAndImmutability(t *testing.T) {
 			Namespace: ns,
 			Name:      svcName,
 			Labels: map[string]string{
-				axisml.LabelServiceID: "uuid-scaleable",
+				axisml.LabelServiceID: "uuid-scalable",
 				axisml.LabelTenant:    "acme",
 				axisml.LabelQuota:     "axisml-acme-default-default",
 			},

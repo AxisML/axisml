@@ -17,15 +17,9 @@ import (
 	"github.com/axisml/axisml/test/e2e"
 )
 
-// TestComputeAPI_ServiceLifecycle drives the service vertical slice via
-// the compute HTTP API: POST /services → MLService CR → mlservice-operator
-// (native/deployment) → Deployment → real Pod ready → operator → CR
-// status=Ready → informer → DB → GET /services/:service returns
-// status=Ready. Then POST /:service/scale {replicas: 2} flows back through
-// the same path and verifies the Deployment scales.
-//
-// Replaces the direct-CR `TestMLService_NativeDeployment` with the same
-// integration breadth plus the /:scale custom action.
+// TestComputeAPI_ServiceLifecycle: POST /services through to a real Pod
+// Ready, then POST /:service/scale {replicas: 2} and verify the Deployment
+// scales.
 func TestComputeAPI_ServiceLifecycle(t *testing.T) {
 	_, c := e2e.SetupOrSkip(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Minute)
