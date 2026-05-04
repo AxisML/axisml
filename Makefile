@@ -41,9 +41,7 @@ HELM_SYSTEM_IMAGE_SET := \
   --set platform.image.tag=$(IMAGE_TAG) \
   --set compute.image.tag=$(IMAGE_TAG) \
   --set artifacts.image.tag=$(IMAGE_TAG) \
-  --set operators.tenantOperator.image.tag=$(IMAGE_TAG) \
-  --set operators.mljobOperator.image.tag=$(IMAGE_TAG) \
-  --set operators.mlserviceOperator.image.tag=$(IMAGE_TAG)
+  --set operators.image.tag=$(IMAGE_TAG)
 HELM_EXTRA_ARGS ?=
 
 ##@ Cluster Management
@@ -116,24 +114,30 @@ helm-template: ## Render both charts locally
 # Each entry is a directory that contains a Makefile honouring the contract.
 # Add scaffolded components here as they ship working build targets.
 COMPONENTS := \
-  components/operators/tenant-operator \
-  components/operators/mljob-operator \
-  components/operators/mlservice-operator \
+  components/operators \
   components/compute
 # Scaffolded components (uncomment as they ship code):
 # COMPONENTS += components/artifacts
 # COMPONENTS += components/platform/backend
 # COMPONENTS += components/platform/frontend
 
-# Operator basenames, derived from COMPONENTS. Used by e2e targets that
-# act on every operator Deployment (scale-to-zero, rollout wait).
-OPERATORS := $(notdir $(filter components/operators/%,$(COMPONENTS)))
+# Operator Deployment basenames. All three operators now share one
+# axisml-operator image, but they still run as separate Deployments.
+OPERATORS := tenant-operator mljob-operator mlservice-operator
 
 # All component basenames. Used by e2e-pre-image-load / e2e-wait — every
 # component whose image just got loaded into minikube needs to be scaled to
 # zero first (otherwise `minikube image load` silently no-ops while the old
 # pod still references :TAG) and then waited on after helm-install.
-DEPLOYMENTS := $(notdir $(COMPONENTS))
+DEPLOYMENTS := $(OPERATORS) compute
+
+# Coverage profiles are still produced by each Go operator module, even
+# though image builds go through the shared components/operators component.
+COVERAGE_COMPONENTS := \
+  components/operators/tenant-operator \
+  components/operators/mljob-operator \
+  components/operators/mlservice-operator \
+  components/compute
 
 # Every Go module in the repo (operators + their envtest sub-modules +
 # shared test/testutil + test/e2e). `go fmt ./...` does not cross module
@@ -183,7 +187,7 @@ clean: ## Remove build artifacts across every component
 #
 # Generate `<basename>-build`, `<basename>-image`, `<basename>-image-load`,
 # `<basename>-test`, `<basename>-clean` for each component listed above. For
-# example: `make tenant-operator-image`, `make mljob-operator-test`.
+# example: `make operators-image`, `make compute-test`.
 #
 # COMPONENT basenames must be unique. If you add a component whose basename
 # would collide (e.g., `components/platform/backend` would clash with any
@@ -303,7 +307,7 @@ coverage-envtest: setup-envtest ## Run L1 envtest with coverage across all opera
 	@$(call _RUN_COMPONENTS,envtest-coverage)
 
 coverage-merge: ## Merge per-component profiles into $(COVERAGE_FILE)
-	@bash scripts/merge-coverage.sh $(COVERAGE_FILE) $(COMPONENTS)
+	@bash scripts/merge-coverage.sh $(COVERAGE_FILE) $(COVERAGE_COMPONENTS)
 
 coverage: coverage-unit coverage-envtest coverage-merge ## Run unit + envtest with coverage and produce a merged report
 
@@ -316,7 +320,7 @@ coverage-html: ## Render per-component HTML coverage reports
 
 coverage-clean: ## Remove all coverage artifacts (root + per-component)
 	@rm -rf $(COVERAGE_DIR)
-	@for c in $(COMPONENTS); do rm -rf $$c/coverage; done
+	@for c in $(COVERAGE_COMPONENTS); do rm -rf $$c/coverage; done
 
 ##@ Git hooks
 
@@ -353,6 +357,6 @@ help: ## Show this help message
 	@printf "\n\033[1mPer-component shortcuts (auto-generated)\033[0m\n"
 	@printf "  Pattern : <component>-{build,image,image-load,test,envtest,coverage,envtest-coverage,coverage-html,fmt,tidy,clean}\n"
 	@printf "  Active  : %s\n" "$(notdir $(COMPONENTS))"
-	@printf "  Example : make tenant-operator-image  |  make mljob-operator-envtest-coverage\n\n"
+	@printf "  Example : make operators-image  |  make compute-test\n\n"
 
 .DEFAULT_GOAL := build

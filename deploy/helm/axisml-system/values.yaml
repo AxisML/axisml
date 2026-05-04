@@ -133,13 +133,16 @@ operators:
   # -- Master toggle for all operators
   enabled: true
 
+  # -- Shared image for all AxisML operators. entrypoint.sh starts the
+  # selected binary based on each Deployment's first arg.
+  image:
+    registry: ghcr.io
+    repository: axisml/axisml/axisml-operator
+    tag: ""               # defaults to Chart.AppVersion via the axisml.image helper
+    pullPolicy: IfNotPresent
+
   mljobOperator:
     enabled: true
-    image:
-      registry: ghcr.io
-      repository: axisml/axisml/mljob-operator
-      tag: ""               # defaults to Chart.AppVersion via the axisml.image helper
-      pullPolicy: IfNotPresent
     leaderElection:
       enabled: true
     handlers:
@@ -157,11 +160,6 @@ operators:
 
   mlserviceOperator:
     enabled: true
-    image:
-      registry: ghcr.io
-      repository: axisml/axisml/mlservice-operator
-      tag: ""               # defaults to Chart.AppVersion via the axisml.image helper
-      pullPolicy: IfNotPresent
     resources:
       requests:
         cpu: 50m
@@ -172,12 +170,6 @@ operators:
 
   tenantOperator:
     enabled: true
-    image:
-      registry: ghcr.io
-      repository: axisml/axisml/tenant-operator
-      # tag defaults to .Chart.AppVersion via the axisml.image helper.
-      tag: ""
-      pullPolicy: IfNotPresent
     # Periodic re-reconcile interval for source Secret/ConfigMap drift
     # (design §5). Operators run a single replica; leader election is off
     # by default and only useful when scaling to >1 replicas.

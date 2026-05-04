@@ -22,9 +22,10 @@ spec:
       serviceAccountName: {{ include "axisml.fullname" . }}-tenant-operator
       containers:
         - name: tenant-operator
-          image: {{ include "axisml.image" (dict "imageRoot" .Values.operators.tenantOperator.image "global" .Values.global "chart" .Chart) }}
-          imagePullPolicy: {{ .Values.operators.tenantOperator.image.pullPolicy }}
+          image: {{ include "axisml.image" (dict "imageRoot" .Values.operators.image "global" .Values.global "chart" .Chart) }}
+          imagePullPolicy: {{ .Values.operators.image.pullPolicy }}
           args:
+            - tenant-operator
             - --metrics-bind-address=:8080
             - --health-probe-bind-address=:8081
             {{- if .Values.operators.tenantOperator.leaderElection }}

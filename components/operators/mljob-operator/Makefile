@@ -6,7 +6,7 @@
 #   make test          Run unit tests (no cluster required)
 #   make clean         Remove build artifacts
 
-IMAGE_REPO ?= ghcr.io/axisml/axisml/mljob-operator
+IMAGE_REPO ?= ghcr.io/axisml/axisml/axisml-operator
 # Must track deploy/helm/axisml-system Chart.appVersion: the Helm template
 # defaults image.tag to .Chart.AppVersion when unset, so locally-built images
 # need this tag for `minikube image load` to satisfy the rendered Deployment.
@@ -35,7 +35,7 @@ test: ## Run unit tests (no cluster required)
 
 .PHONY: image
 image: ## Build the operator container image ($(IMAGE))
-	@docker build -t $(IMAGE) .
+	@$(MAKE) -C $(REPO_ROOT)/components/operators image
 
 .PHONY: image-load-minikube
 image-load-minikube: image ## Build and load the image into the local minikube node
@@ -64,8 +64,8 @@ generate: ## Run controller-gen for deepcopy code
 #
 # Hermetic in-process reconciler tests. test/envtest/ is its own Go module
 # so this operator's production go.mod stays free of test-only deps; the
-# Dockerfile builds from this directory and a sibling-test replace would
-# fall outside its build context.
+# The shared components/operators Dockerfile builds from the repo root, but
+# this production module still stays free of test-only deps.
 
 REPO_ROOT           := $(abspath $(CURDIR)/../../..)
 ENVTEST             := $(REPO_ROOT)/test/setup-envtest/setup-envtest

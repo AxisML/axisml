@@ -22,9 +22,10 @@ spec:
       serviceAccountName: {{ include "axisml.fullname" . }}-mlservice-operator
       containers:
         - name: mlservice-operator
-          image: {{ include "axisml.image" (dict "imageRoot" .Values.operators.mlserviceOperator.image "global" .Values.global "chart" .Chart) }}
-          imagePullPolicy: {{ .Values.operators.mlserviceOperator.image.pullPolicy }}
+          image: {{ include "axisml.image" (dict "imageRoot" .Values.operators.image "global" .Values.global "chart" .Chart) }}
+          imagePullPolicy: {{ .Values.operators.image.pullPolicy }}
           args:
+            - mlservice-operator
             - "--leader-elect=true"
             - "--metrics-bind-address=:8080"
             - "--health-probe-bind-address=:8081"

@@ -23,9 +23,10 @@ spec:
       serviceAccountName: {{ include "axisml.fullname" . }}-mljob-operator
       containers:
         - name: mljob-operator
-          image: {{ include "axisml.image" (dict "imageRoot" $op.image "global" .Values.global "chart" .Chart) }}
-          imagePullPolicy: {{ $op.image.pullPolicy }}
+          image: {{ include "axisml.image" (dict "imageRoot" .Values.operators.image "global" .Values.global "chart" .Chart) }}
+          imagePullPolicy: {{ .Values.operators.image.pullPolicy }}
           args:
+            - mljob-operator
             - --metrics-bind-address=:8080
             - --health-probe-bind-address=:8081
             {{- if $op.leaderElection.enabled }}
