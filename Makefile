@@ -86,7 +86,7 @@ helm-crds-system: ## Apply axisml-system CRDs (Helm only installs files under cr
 	@kubectl --context $(MINIKUBE_PROFILE) apply -f $(HELM_SYSTEM_CHART)/crds/
 
 helm-install-system: helm-crds-system ## Install or upgrade AxisML control plane (idempotent)
-	@helm upgrade --install $(HELM_SYSTEM_RELEASE) $(HELM_SYSTEM_CHART) -n $(HELM_SYSTEM_NAMESPACE) --create-namespace --kube-context $(MINIKUBE_PROFILE) $(HELM_SYSTEM_IMAGE_SET) $(HELM_EXTRA_ARGS)
+	@helm upgrade --install $(HELM_SYSTEM_RELEASE) $(HELM_SYSTEM_CHART) -n $(HELM_SYSTEM_NAMESPACE) --create-namespace --kube-context $(MINIKUBE_PROFILE) --timeout 10m $(HELM_SYSTEM_IMAGE_SET) $(HELM_EXTRA_ARGS)
 
 helm-install: helm-install-infra helm-install-system ## Install or upgrade infra + control plane
 
@@ -94,7 +94,7 @@ helm-upgrade-infra: ## Upgrade AxisML infrastructure (must already be installed)
 	@helm upgrade $(HELM_INFRA_RELEASE) $(HELM_INFRA_CHART) -n $(HELM_INFRA_NAMESPACE) --kube-context $(MINIKUBE_PROFILE)
 
 helm-upgrade-system: helm-crds-system ## Upgrade AxisML control plane (must already be installed)
-	@helm upgrade $(HELM_SYSTEM_RELEASE) $(HELM_SYSTEM_CHART) -n $(HELM_SYSTEM_NAMESPACE) --kube-context $(MINIKUBE_PROFILE) $(HELM_SYSTEM_IMAGE_SET) $(HELM_EXTRA_ARGS)
+	@helm upgrade $(HELM_SYSTEM_RELEASE) $(HELM_SYSTEM_CHART) -n $(HELM_SYSTEM_NAMESPACE) --kube-context $(MINIKUBE_PROFILE) --timeout 10m $(HELM_SYSTEM_IMAGE_SET) $(HELM_EXTRA_ARGS)
 
 helm-upgrade: helm-upgrade-infra helm-upgrade-system ## Upgrade both
 
