@@ -37,8 +37,11 @@ make help            # list all targets
 make / make build    # compile bin/compute
 make test            # unit tests
 make image           # docker build → axisml/compute:0.1.0
+make openapi         # regenerate docs/openapi.yaml
 make clean           # remove build artifacts
 ```
+
+The OpenAPI 3.0 description of the HTTP API lives at [`docs/openapi.yaml`](docs/openapi.yaml). It is generated from the same Go request/response structs the runtime handlers use; regenerate via `make openapi` after touching any handler signature, route, or `*Input` / `View` struct.
 
 `IMAGE_TAG` defaults to `0.1.0` and must track the `appVersion` in [`deploy/helm/axisml-system/Chart.yaml`](../../deploy/helm/axisml-system/Chart.yaml).
 
