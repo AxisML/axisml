@@ -82,7 +82,7 @@ GatewayClass (envoy-gateway)
 - **Gateway**：集群内"监听点"的声明，同一份 Gateway 实例承载全部 AxisML 路由。
 - **HTTPRoute**：对外业务组件的路由规则，与 Service 绑定；Compute 不配置外部 HTTPRoute。
 
-**MLService 派生路由**：mlservice-operator 在租户 namespace 内为开启了 `spec.route.enabled=true` 的 MLService 创建 namespaced `HTTPRoute` / `SecurityPolicy` / `BackendTrafficPolicy`，`parentRefs` 指向 `axisml-infra` namespace 下的同一份 `axisml-gateway`；Gateway listener 通过 `allowedRoutes.namespaces` 放行租户 namespace 的 Route 挂载。`ReferenceGrant` 仅用于跨 namespace backendRef 等被引用对象授权场景，本路径下 HTTPRoute、SecurityPolicy、BackendTrafficPolicy 与目标 Service 保持同 namespace。与 platform / artifacts 的静态 HTTPRoute 共存。详见 [operator.md#5-mlservice-controller](operator.md#5-mlservice-controller) §3 / §6 / §8.1。
+**MLService 派生路由**：mlservice-operator 在租户 namespace 内为开启了 `spec.route.enabled=true` 的 MLService 创建 namespaced `HTTPRoute` / `SecurityPolicy` / `BackendTrafficPolicy`，`parentRefs` 指向 `axisml-infra` namespace 下的同一份 `axisml-gateway`；Gateway listener 通过 `allowedRoutes.namespaces` 放行租户 namespace 的 Route 挂载。`ReferenceGrant` 仅用于跨 namespace backendRef 等被引用对象授权场景，本路径下 HTTPRoute、SecurityPolicy、BackendTrafficPolicy 与目标 Service 保持同 namespace。与 platform / artifacts 的静态 HTTPRoute 共存。详见 [operator.md#6-mlservice-controller](operator.md#6-mlservice-controller) §3 / §6 / §8.1。
 
 ### 3.2 认证鉴权
 
@@ -215,7 +215,7 @@ zot 目标上由 `axisml-infra` chart 提供为纯协议端，本身不感知 Ax
 | --- | --- | --- |
 | zot endpoint | ConfigMap（Artifacts 注入） | axisml-infra Helm |
 | zot admin 凭证（Artifacts 用于校验 / GC / 签 scope token） | 平台级 Secret，挂入 Artifacts Pod | axisml-infra Helm（自动生成 / 由管理员预置） |
-| 租户拉取凭证（`axisml-tenant-<tenant>-zot-pull`） | 租户 Namespace Secret | tenant-operator 按 `Tenant.spec.initResources.imagePullSecrets[].name='zot-pull'` 落地（[tenant-operator §6.3](operator.md#3-tenant-controller)） |
+| 租户拉取凭证（`axisml-tenant-<tenant>-zot-pull`） | 租户 Namespace Secret | tenant-operator 按 `Tenant.spec.initResources.imagePullSecrets[].name='zot-pull'` 落地（[tenant-operator §6.3](operator.md#4-tenant-controller)） |
 | 公共拉取凭证（`zot-pull@axisml-system`） | `axisml-system` Namespace Secret | axisml-infra Helm |
 | repo 路径命名（`<scope>/<kind>/<repo>`） | URI 由 Artifacts handler 即时构造 | Artifacts |
 
@@ -376,11 +376,11 @@ AxisML 使用 [Koordinator](https://koordinator.sh/) 作为统一调度器与多
 
 - **Quota 全覆盖（系统级硬不变式）**：任何 AxisML workload Pod 都必须设置 `schedulerName: koord-scheduler` 并携带 label `quota.scheduling.koordinator.sh/name=axisml-<tenant>-<pool>-<quota>`，不允许"绕过 quota 的调度路径"。MLJob / MLService 的所有 backend handler 都必须在 podSpec 模板上注入这两个字段；KServe 路径通过 `InferenceService.spec.predictor.schedulerName` + `spec.predictor.labels` 注入（KServe `PredictorSpec` 内联 `corev1.PodSpec` 与 `ComponentExtensionSpec`，所以两者都是 `spec.predictor` 的直接字段），依赖 KServe 把它们透传到派生 Pod 的 `spec.schedulerName` 与 `metadata.labels`。
 - **Gang scheduling 仅在需要的 backend 启用**：MLJob `(native, podgroup)` / `(kubeflow-trainer, *)` 创建 PodGroup CR；MLJob `(native, job)`、MLService `(native, deployment)` / `(native, statefulset)` / `(kserve, *)` 不创建 PodGroup（gang 不适合非分布式训练 / 常驻服务），但仍走 koord-scheduler，仅通过 quota label 计入 ElasticQuota.
-- **ElasticQuota CR 由 tenant-operator 独占 owner**：Compute 把 PG `quotas` 表渲染进 `Tenant.spec.quotas[]`，由 tenant-operator 派生 ElasticQuota CR（`spec.min` / `spec.max`、命名、补偿、RBAC 均归 tenant-operator）；mljob-operator / mlservice-operator 仅通过 Pod label `quota.scheduling.koordinator.sh/name` 引用 ElasticQuota，不读写 ElasticQuota CR。配额与租户 / 资源池的归属关系由 Compute 在 PG 中维护，命名约定 `axisml-<tenant>-<pool>-<quota>`，CR 落在租户 namespace 下，详见 [compute.md §6.2.4](compute.md) 与 [tenant-operator §6.2](operator.md#3-tenant-controller)
+- **ElasticQuota CR 由 tenant-operator 独占 owner**：Compute 把 PG `quotas` 表渲染进 `Tenant.spec.quotas[]`，由 tenant-operator 派生 ElasticQuota CR（`spec.min` / `spec.max`、命名、补偿、RBAC 均归 tenant-operator）；mljob-operator / mlservice-operator 仅通过 Pod label `quota.scheduling.koordinator.sh/name` 引用 ElasticQuota，不读写 ElasticQuota CR。配额与租户 / 资源池的归属关系由 Compute 在 PG 中维护，命名约定 `axisml-<tenant>-<pool>-<quota>`，CR 落在租户 namespace 下，详见 [compute.md §6.2.4](compute.md) 与 [tenant-operator §6.2](operator.md#4-tenant-controller)
 - **tenant-operator** 派生 Namespace、ElasticQuota、initResources（Secret / ConfigMap / SA / RBAC），是 Tenant CR 与 K8s 之间双向数据链路的承载
 - **PodGroup CR** 由对应 backend handler 在租户 namespace 内自管，与 ElasticQuota 解耦
 
-**KServe 版本要求**：`(kserve, *)` MLService 路径要求 KServe 版本支持 `InferenceService.spec.predictor.schedulerName` 与 `spec.predictor.labels` 字段透传到派生 Pod（`PredictorSpec` 内联 `corev1.PodSpec` 与 `ComponentExtensionSpec` 是 KServe v1beta1 的标准契约）。安装时必须 pin 一个已知支持该字段的 KServe stable 版本；详细的最低版本约束在 [operator.md#5-mlservice-controller §8.3](operator.md#5-mlservice-controller) 维护。运行时若发现 KServe 不透传则视为阻塞 bug，由升级 KServe 解决，不引入兜底 webhook。
+**KServe 版本要求**：`(kserve, *)` MLService 路径要求 KServe 版本支持 `InferenceService.spec.predictor.schedulerName` 与 `spec.predictor.labels` 字段透传到派生 Pod（`PredictorSpec` 内联 `corev1.PodSpec` 与 `ComponentExtensionSpec` 是 KServe v1beta1 的标准契约）。安装时必须 pin 一个已知支持该字段的 KServe stable 版本；详细的最低版本约束在 [operator.md#6-mlservice-controller §8.3](operator.md#6-mlservice-controller) 维护。运行时若发现 KServe 不透传则视为阻塞 bug，由升级 KServe 解决，不引入兜底 webhook。
 
 ### 8.4 与 kube-scheduler 共存
 
