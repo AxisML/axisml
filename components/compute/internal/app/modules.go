@@ -15,9 +15,11 @@ import (
 	tenantmod "github.com/axisml/axisml/components/compute/internal/tenant"
 )
 
-// buildModules constructs the full domain wiring (HTTP routes + background
+// BuildModules constructs the full domain wiring (HTTP routes + background
 // runnables). Construction order matters because of cross-module deps.
-func buildModules(
+// Exported so envtest harness can reuse the same wiring rather than
+// duplicating it (and silently drifting).
+func BuildModules(
 	cfg config.Config,
 	gormDB *gorm.DB,
 	mgr manager.Manager,

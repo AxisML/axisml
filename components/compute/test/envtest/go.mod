@@ -12,6 +12,7 @@ require (
 	github.com/axisml/axisml/components/operators/mlservice-operator v0.0.0
 	github.com/axisml/axisml/components/operators/tenant-operator v0.0.0
 	github.com/axisml/axisml/test/testutil v0.0.0-00010101000000-000000000000
+	github.com/gin-gonic/gin v1.10.0
 	github.com/go-logr/logr v1.4.3
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.34.0
@@ -50,7 +51,6 @@ require (
 	github.com/fxamacker/cbor/v2 v2.9.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.3 // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect
-	github.com/gin-gonic/gin v1.10.0 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-logr/zapr v1.3.0 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect

@@ -38,7 +38,7 @@ func Serve(ctx context.Context, cfg config.Config) error {
 		return err
 	}
 
-	modules, runnables, err := buildModules(cfg, gormDB, mgr, log)
+	modules, runnables, err := BuildModules(cfg, gormDB, mgr, log)
 	if err != nil {
 		return err
 	}

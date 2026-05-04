@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/go-logr/logr"
 	"github.com/testcontainers/testcontainers-go"
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -29,8 +31,10 @@ import (
 	mlservicev1alpha1 "github.com/axisml/axisml/components/operators/mlservice-operator/api/v1alpha1"
 	tenantv1alpha1 "github.com/axisml/axisml/components/operators/tenant-operator/api/v1alpha1"
 
+	computeapp "github.com/axisml/axisml/components/compute/internal/app"
 	computeconfig "github.com/axisml/axisml/components/compute/internal/config"
 	computedb "github.com/axisml/axisml/components/compute/internal/db"
+	computeserver "github.com/axisml/axisml/components/compute/internal/server"
 	"github.com/axisml/axisml/test/testutil"
 )
 
@@ -46,6 +50,12 @@ var (
 	mgrCtx  context.Context
 	mgrStop context.CancelFunc
 	mgrWg   sync.WaitGroup
+
+	// testEngine is the same Gin engine that production wires via
+	// app.BuildModules + server.New, exposed for in-process httptest
+	// drives. nil if bootstrapHandlers wasn't called (tests that only
+	// need raw services keep working with that case).
+	testEngine *gin.Engine
 )
 
 func init() {
@@ -87,6 +97,12 @@ func TestMain(m *testing.M) {
 
 	if err := bootstrapManager(); err != nil {
 		fmt.Fprintf(os.Stderr, "bootstrap manager: %v\n", err)
+		teardown()
+		os.Exit(1)
+	}
+
+	if err := bootstrapHandlers(); err != nil {
+		fmt.Fprintf(os.Stderr, "bootstrap handlers: %v\n", err)
 		teardown()
 		os.Exit(1)
 	}
@@ -188,6 +204,55 @@ func bootstrapManager() error {
 }
 
 var testManager ctrl.Manager
+
+// bootstrapHandlers wires the production HTTP modules + reconcilers /
+// informers via the same app.BuildModules helper that compute's main()
+// uses, then exposes the Gin engine for in-process httptest drives.
+// Reconcilers/informers are added to the existing testManager so they
+// share its cache (we must not Add(...) after Start, but bootstrapHandlers
+// runs before the manager goroutine processes its run queue — controller-
+// runtime allows late Add until the manager actually starts work, which
+// is gated on cache sync).
+//
+// The existing tenant_lifecycle_test.go scenarios construct their own
+// reconcilers/informers inline. Those are harmless duplicates: each test
+// uses unique tenant names, so the global pipeline either does the work
+// first (and the inline one no-ops on a found CR) or the inline one does
+// (and the global no-ops). Either ordering passes the assertions.
+func bootstrapHandlers() error {
+	cfg := pgCfg
+	cfg.ReconcileInterval = 100 * time.Millisecond
+	log := logr.Discard()
+
+	modules, runnables, err := computeapp.BuildModules(cfg, gormDB, testManager, log)
+	if err != nil {
+		return fmt.Errorf("build modules: %w", err)
+	}
+
+	srv, err := computeserver.New(computeserver.Options{
+		Addr:    ":0", // never started; engine is invoked via httptest
+		Log:     log,
+		Modules: modules,
+		Ready: func(ctx context.Context) error {
+			sqlDB, err := gormDB.DB()
+			if err != nil {
+				return err
+			}
+			return sqlDB.PingContext(ctx)
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("server.New: %w", err)
+	}
+	testEngine = srv.Engine()
+
+	for _, r := range runnables {
+		if err := testManager.Add(r); err != nil {
+			return fmt.Errorf("add runnable: %w", err)
+		}
+	}
+	return nil
+}
 
 // findRepoRoot walks up from the package directory until it finds the
 // "deploy/helm/axisml-system/crds" tree. Used to anchor CRDPaths.
