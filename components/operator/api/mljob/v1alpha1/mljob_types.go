@@ -201,5 +201,5 @@ type MLJobList struct {
 }
 
 func init() {
-	SchemeBuilder.Register(&MLJob{}, &MLJobList{})
+	addKnownTypes(&MLJob{}, &MLJobList{})
 }

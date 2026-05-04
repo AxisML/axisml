@@ -5,14 +5,26 @@
 package v1alpha1
 
 import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"sigs.k8s.io/controller-runtime/pkg/scheme"
 )
 
 var (
 	GroupVersion = schema.GroupVersion{Group: "axisml.io", Version: "v1alpha1"}
 
-	SchemeBuilder = &scheme.Builder{GroupVersion: GroupVersion}
+	SchemeBuilder = &runtime.SchemeBuilder{}
 
 	AddToScheme = SchemeBuilder.AddToScheme
 )
+
+// addKnownTypes registers the given Kinds with this group/version. Per-Kind
+// init() functions in this package call this helper so new Kinds can be added
+// by dropping a *_types.go file without touching this central declaration.
+func addKnownTypes(objs ...runtime.Object) {
+	SchemeBuilder.Register(func(s *runtime.Scheme) error {
+		s.AddKnownTypes(GroupVersion, objs...)
+		metav1.AddToGroupVersion(s, GroupVersion)
+		return nil
+	})
+}

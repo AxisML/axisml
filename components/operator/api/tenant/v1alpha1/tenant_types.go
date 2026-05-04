@@ -161,5 +161,5 @@ type InitResourceItemStatus struct {
 }
 
 func init() {
-	SchemeBuilder.Register(&Tenant{}, &TenantList{})
+	addKnownTypes(&Tenant{}, &TenantList{})
 }

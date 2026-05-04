@@ -189,5 +189,5 @@ const (
 )
 
 func init() {
-	SchemeBuilder.Register(&MLService{}, &MLServiceList{})
+	addKnownTypes(&MLService{}, &MLServiceList{})
 }
