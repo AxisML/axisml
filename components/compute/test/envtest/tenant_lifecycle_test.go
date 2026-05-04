@@ -4,12 +4,12 @@ package envtest_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/require"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -88,10 +88,16 @@ func TestTenantInformerReflectsActive(t *testing.T) {
 	}
 	require.NoError(t, cl.Status().Update(ctx, cr))
 
-	require.Eventually(t, func() bool {
+	testutil.Eventually(t, 10*time.Second, testutil.DefaultPollInterval, func() error {
 		v, err := tenants.GetByID(ctx, created.ID)
-		return err == nil && v.Status == string(tenantmod.StatusActive)
-	}, 10*time.Second, 200*time.Millisecond)
+		if err != nil {
+			return err
+		}
+		if v.Status != string(tenantmod.StatusActive) {
+			return fmt.Errorf("tenant status=%s, want Active", v.Status)
+		}
+		return nil
+	})
 }
 
 // Verify external CR delete (during Deleting status) drives PG to Deleted.
@@ -128,19 +134,18 @@ func TestTenantExternalDeleteDuringDeleting(t *testing.T) {
 	require.NoError(t, tenants.Delete(ctx, "envtest-t3"))
 
 	// Wait for reconciler to delete the CR and informer to push to Deleted.
-	require.Eventually(t, func() bool {
-		err := cl.Get(ctx, client.ObjectKey{Name: "envtest-t3"}, &tenantv1alpha1.Tenant{})
-		return apierrors.IsNotFound(err)
-	}, 10*time.Second, 200*time.Millisecond)
+	testutil.EventuallyGone(t, ctx, cl, client.ObjectKey{Name: "envtest-t3"}, &tenantv1alpha1.Tenant{}, 10*time.Second)
 
-	require.Eventually(t, func() bool {
-		// Force a fresh read because soft-deleted rows are skipped by service.GetByID.
+	testutil.Eventually(t, 10*time.Second, testutil.DefaultPollInterval, func() error {
 		v, err := tenants.GetByID(ctx, created.ID)
 		if err != nil {
-			return false
+			return err
 		}
-		return v.Status == string(tenantmod.StatusDeleted)
-	}, 10*time.Second, 200*time.Millisecond)
+		if v.Status != string(tenantmod.StatusDeleted) {
+			return fmt.Errorf("tenant status=%s, want Deleted", v.Status)
+		}
+		return nil
+	})
 
 	// Compile guards so unused imports don't lint-fail.
 	_ = metav1.ObjectMeta{}

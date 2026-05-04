@@ -3,6 +3,7 @@ package tenant
 import (
 	"context"
 	"encoding/json"
+	"reflect"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -131,6 +132,14 @@ func (r *Reconciler) handleSpecSync(ctx context.Context, t *Tenant) {
 	}
 	desired := r.toCR(ctx, t)
 	if desired == nil {
+		return
+	}
+	if reflect.DeepEqual(current.Spec, desired.Spec) {
+		// CR already matches desired (e.g. previous Update succeeded but
+		// markApplied failed). Idempotently catch up applied_spec_hash and
+		// skip the API patch.
+		r.markApplied(ctx, t.ID, t.DesiredSpecHash)
+		metrics.ReconcilerActions.WithLabelValues("tenant", "spec_sync", "noop").Inc()
 		return
 	}
 	current.Spec = desired.Spec

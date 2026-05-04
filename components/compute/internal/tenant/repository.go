@@ -80,20 +80,29 @@ type WorkSet struct {
 	SpecDirty []Tenant
 }
 
+// workSetBatch caps each predicate's payload per tick. Reconcilers run on a
+// short interval, so unbounded scans turn into a DoS on the DB during
+// migration / mass-create / mass-delete waves. The next tick picks up the
+// remainder.
+const workSetBatch = 100
+
 func (r *Repository) FindWorkSet(ctx context.Context) (WorkSet, error) {
 	var ws WorkSet
 	if err := r.db.WithContext(ctx).
 		Where("status = ? AND deleted_at IS NULL", string(StatusCreating)).
+		Order("updated_at ASC").Limit(workSetBatch).
 		Find(&ws.Creating).Error; err != nil {
 		return ws, err
 	}
 	if err := r.db.WithContext(ctx).
 		Where("status = ?", string(StatusDeleting)).
+		Order("updated_at ASC").Limit(workSetBatch).
 		Find(&ws.Deleting).Error; err != nil {
 		return ws, err
 	}
 	if err := r.db.WithContext(ctx).
 		Where("desired_spec_hash <> applied_spec_hash AND deleted_at IS NULL").
+		Order("updated_at ASC").Limit(workSetBatch).
 		Find(&ws.SpecDirty).Error; err != nil {
 		return ws, err
 	}

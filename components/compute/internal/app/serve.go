@@ -47,6 +47,13 @@ func Serve(ctx context.Context, cfg config.Config) error {
 		Addr:    cfg.APIBindAddress,
 		Log:     log,
 		Modules: modules,
+		Ready: func(ctx context.Context) error {
+			sqlDB, err := gormDB.DB()
+			if err != nil {
+				return err
+			}
+			return sqlDB.PingContext(ctx)
+		},
 	})
 	if err != nil {
 		return err

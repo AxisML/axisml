@@ -30,6 +30,10 @@ type Options struct {
 	Addr    string
 	Log     logr.Logger
 	Modules []Module
+	// Ready is consulted on /readyz; nil means "always ready". Wire dependency
+	// pings (DB, k8s manager cache, etc.) here so kubelet only routes traffic
+	// once the replica is actually serviceable.
+	Ready func(context.Context) error
 }
 
 // New returns a Server with the standard middleware chain installed.
@@ -48,7 +52,17 @@ func New(opts Options) (*Server, error) {
 		ErrorHandler(),
 	)
 	r.GET("/healthz", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
-	r.GET("/readyz", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
+	r.GET("/readyz", func(c *gin.Context) {
+		if opts.Ready != nil {
+			cctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
+			defer cancel()
+			if err := opts.Ready(cctx); err != nil {
+				c.String(http.StatusServiceUnavailable, "not ready: %v", err)
+				return
+			}
+		}
+		c.String(http.StatusOK, "ok")
+	})
 
 	api := r.Group("/api/v1")
 	for _, m := range opts.Modules {

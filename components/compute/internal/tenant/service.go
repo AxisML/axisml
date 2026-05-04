@@ -3,7 +3,6 @@ package tenant
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -424,7 +423,3 @@ func orEmptyMap[K comparable, V any](m map[K]V) map[K]V {
 	}
 	return m
 }
-
-// errCantSuspendCreating is preserved as a documentation-only error sentinel.
-var errCantSuspendCreating = errors.New("cannot suspend a tenant that is still Creating")
-var _ = errCantSuspendCreating

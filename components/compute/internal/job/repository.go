@@ -68,20 +68,27 @@ type WorkSet struct {
 	Deleting  []Job
 }
 
+// workSetBatch caps each predicate's payload per tick (see tenant repository
+// for rationale).
+const workSetBatch = 100
+
 func (r *Repository) FindWorkSet(ctx context.Context) (WorkSet, error) {
 	var ws WorkSet
 	if err := r.db.WithContext(ctx).
 		Where("status = ? AND deleted_at IS NULL", string(StatusCreating)).
+		Order("updated_at ASC").Limit(workSetBatch).
 		Find(&ws.Creating).Error; err != nil {
 		return ws, err
 	}
 	if err := r.db.WithContext(ctx).
 		Where("status = ?", string(StatusCanceling)).
+		Order("updated_at ASC").Limit(workSetBatch).
 		Find(&ws.Canceling).Error; err != nil {
 		return ws, err
 	}
 	if err := r.db.WithContext(ctx).
 		Where("status = ?", string(StatusDeleting)).
+		Order("updated_at ASC").Limit(workSetBatch).
 		Find(&ws.Deleting).Error; err != nil {
 		return ws, err
 	}

@@ -351,16 +351,20 @@ func (s *Service) MarkDeletedByMissingFromTenant(ctx context.Context, tenantID u
 }
 
 func (s *Service) findByTenantAndName(ctx context.Context, tenantID uuid.UUID, name string) (*Quota, error) {
-	rows, err := s.repo.ListByTenant(ctx, tenantID)
+	rows, err := s.repo.FindByTenantName(ctx, tenantID, name)
 	if err != nil {
 		return nil, err
 	}
-	for i := range rows {
-		if rows[i].Name == name {
-			return &rows[i], nil
-		}
+	switch len(rows) {
+	case 0:
+		return nil, apperrors.New(apperrors.CodeNotFound, "quota not found")
+	case 1:
+		return &rows[0], nil
+	default:
+		// Schema permits same name across pools; the API path doesn't carry
+		// pool, so refuse rather than picking arbitrarily.
+		return nil, apperrors.New(apperrors.CodeConflict, "quota name is ambiguous across pools; specify pool explicitly")
 	}
-	return nil, apperrors.New(apperrors.CodeNotFound, "quota not found")
 }
 
 func (s *Service) toView(ctx context.Context, q *Quota) (*View, error) {

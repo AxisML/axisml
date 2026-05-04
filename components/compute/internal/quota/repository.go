@@ -34,6 +34,22 @@ func (r *Repository) GetByTenantPoolName(ctx context.Context, tenantID, poolID u
 	return &q, nil
 }
 
+// FindByTenantName looks up a quota row by `(tenant_id, name)` only. The
+// schema's unique key is `(tenant_id, pool_id, name)`, so two pools may
+// declare the same quota name — the API path `/tenants/:tenant/quotas/:quota`
+// elides pool, so we explicitly surface that ambiguity instead of silently
+// returning the first row sorted by created_at.
+func (r *Repository) FindByTenantName(ctx context.Context, tenantID uuid.UUID, name string) ([]Quota, error) {
+	var rows []Quota
+	if err := r.db.WithContext(ctx).
+		Where("tenant_id = ? AND name = ? AND deleted_at IS NULL", tenantID, name).
+		Order("created_at ASC").
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
 func (r *Repository) ListByTenant(ctx context.Context, tenantID uuid.UUID) ([]Quota, error) {
 	var quotas []Quota
 	if err := r.db.WithContext(ctx).

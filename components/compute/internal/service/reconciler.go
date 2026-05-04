@@ -134,9 +134,17 @@ func (r *Reconciler) handleSpecSync(ctx context.Context, s *Service) {
 		return
 	}
 	// We only mutate replicas (the only mutable field) per design §6.3.2.
-	if len(current.Spec.Roles) > 0 && len(desiredSpec.Roles) > 0 {
-		current.Spec.Roles[0].Replicas = desiredSpec.Roles[0].Replicas
+	if len(current.Spec.Roles) == 0 || len(desiredSpec.Roles) == 0 {
+		return
 	}
+	if current.Spec.Roles[0].Replicas == desiredSpec.Roles[0].Replicas {
+		// CR already at desired replicas; idempotently catch up
+		// applied_spec_hash and skip the API patch.
+		_ = r.repo.Update(ctx, s.ID, map[string]any{"applied_spec_hash": s.DesiredSpecHash})
+		metrics.ReconcilerActions.WithLabelValues("service", "spec_sync", "noop").Inc()
+		return
+	}
+	current.Spec.Roles[0].Replicas = desiredSpec.Roles[0].Replicas
 	if err := r.k8sClient.Update(ctx, current); err != nil {
 		r.log.Error(err, "patch MLService replicas")
 		metrics.ReconcilerActions.WithLabelValues("service", "spec_sync", "error").Inc()

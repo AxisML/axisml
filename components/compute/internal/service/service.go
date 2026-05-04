@@ -9,6 +9,7 @@ import (
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	mlservicev1alpha1 "github.com/axisml/axisml/components/operators/mlservice-operator/api/v1alpha1"
 
@@ -351,11 +352,11 @@ func scaledRequests(req corev1.ResourceList, replicas int32) corev1.ResourceList
 	}
 	out := corev1.ResourceList{}
 	for k, v := range req {
-		q := v.DeepCopy()
-		for i := int32(1); i < replicas; i++ {
-			q.Add(v)
-		}
-		out[k] = q
+		// Preserve precision via MilliValue (0.001 unit) so fractional CPU
+		// requests scale correctly. Format mirrors the canonical resource
+		// shape used elsewhere ("100m" / "1Mi" etc.).
+		scaled := resource.NewMilliQuantity(v.MilliValue()*int64(replicas), v.Format)
+		out[k] = *scaled
 	}
 	return out
 }
