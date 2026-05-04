@@ -138,3 +138,64 @@ L2 e2e is intentionally NOT in CI — minikube on GitHub-hosted runners is
 slow and flaky, and most regressions show up at L1 first. If you need L2
 coverage in CI later, add a self-hosted runner job or a nightly cron
 workflow rather than putting it on every PR.
+
+## Coverage
+
+Unit and L1 envtest both produce coverage profiles. L2 e2e is excluded
+(not in CI, minikube-dependent — collection isn't reliable).
+
+```sh
+# Unit + envtest with merged profile at coverage/coverage.out.
+make coverage
+
+# Per-component HTML reports (one per operator, written to
+# <component>/coverage/coverage.html and envtest-coverage.html).
+make coverage-html
+
+# One layer at a time.
+make coverage-unit
+make coverage-envtest
+
+# Per-operator slices (auto-generated shortcuts).
+make tenant-operator-coverage
+make mljob-operator-envtest-coverage
+make tenant-operator-coverage-html
+
+# Wipe everything (root + per-component coverage/ dirs).
+make coverage-clean
+```
+
+Each component writes its own profiles to `<component>/coverage/`:
+`coverage.out` for unit, `envtest-coverage.out` for L1. `make
+coverage-merge` (called by `make coverage`) concatenates them into
+`coverage/coverage.out` at the repo root for Codecov / external tools.
+
+`go tool cover -html` resolves package paths against the current Go
+module, so HTML rendering happens **per component** rather than from the
+merged file (the repo root has no `go.mod`, and the project intentionally
+avoids `go.work`). Open the per-operator HTML files for navigation; use
+the merged profile only for aggregate tooling.
+
+**Why envtest needs `-coverpkg`**: each operator's `test/envtest/` is its
+own Go module that imports the operator via `replace`. Without an
+explicit `-coverpkg=<operator-import-path>/...`, `go test -coverprofile`
+only counts the envtest module itself and the merged report would be
+empty. Each operator's Makefile sets `MODULE_PATH` and threads it into
+`-coverpkg` for you.
+
+**Atomic mode**: every coverage invocation uses `-covermode=atomic` so
+`scripts/merge-coverage.sh` can stitch profiles together without a
+gocovmerge dependency. If you add new coverage targets, keep the mode
+consistent.
+
+CI uploads to [Codecov](https://codecov.io/) (public repo, no token
+needed) with these flags:
+
+| Flag | Source | What it covers |
+|---|---|---|
+| `unit` | `unit` job | All three operators' unit profiles in one upload. |
+| `envtest`, `<operator>` | `envtest` matrix job | One upload per operator with both flags so PR comments break down by layer and by operator. |
+
+See `codecov.yml` at the repo root for thresholds and path filters.
+`fail_ci_if_error: false` keeps a Codecov outage from failing the PR —
+test status alone gates merge.

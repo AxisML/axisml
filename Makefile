@@ -161,7 +161,7 @@ clean: ## Remove build artifacts across every component
 # would collide (e.g., `components/platform/backend` would clash with any
 # other `backend`), give it a distinct directory name or rework the mapping.
 define _COMPONENT_SHORTCUTS
-.PHONY: $(notdir $1)-build $(notdir $1)-image $(notdir $1)-image-load $(notdir $1)-test $(notdir $1)-envtest $(notdir $1)-fmt $(notdir $1)-tidy $(notdir $1)-clean
+.PHONY: $(notdir $1)-build $(notdir $1)-image $(notdir $1)-image-load $(notdir $1)-test $(notdir $1)-envtest $(notdir $1)-coverage $(notdir $1)-envtest-coverage $(notdir $1)-coverage-html $(notdir $1)-fmt $(notdir $1)-tidy $(notdir $1)-clean
 $(notdir $1)-build:
 	@$$(MAKE) -C $1 build
 $(notdir $1)-image:
@@ -172,6 +172,12 @@ $(notdir $1)-test:
 	@$$(MAKE) -C $1 test
 $(notdir $1)-envtest:
 	@$$(MAKE) -C $1 envtest
+$(notdir $1)-coverage:
+	@$$(MAKE) -C $1 coverage
+$(notdir $1)-envtest-coverage:
+	@$$(MAKE) -C $1 envtest-coverage
+$(notdir $1)-coverage-html:
+	@$$(MAKE) -C $1 coverage-html
 $(notdir $1)-fmt:
 	@$$(MAKE) -C $1 fmt
 $(notdir $1)-tidy:
@@ -244,6 +250,42 @@ e2e-wait: ## Wait for axisml operator Deployments to become ready (used by e2e-t
 	    rollout status deploy/$(HELM_SYSTEM_RELEASE)-$$op --timeout=180s; \
 	done
 
+##@ Coverage
+#
+# Each component's Makefile produces coverage profiles under <component>/coverage/:
+#   coverage.out          (unit, from `go test -coverprofile`)
+#   envtest-coverage.out  (envtest, with -coverpkg pointed at the operator's
+#                          production module so cross-module envtest hits count)
+# Top-level targets fan out via _RUN_COMPONENTS, then merge with a tiny shell
+# script (atomic-mode profiles concatenate cleanly without gocovmerge).
+
+COVERAGE_DIR  ?= $(CURDIR)/coverage
+COVERAGE_FILE ?= $(COVERAGE_DIR)/coverage.out
+
+.PHONY: coverage coverage-unit coverage-envtest coverage-merge coverage-html coverage-clean
+
+coverage-unit: ## Run unit tests with coverage profile across all components
+	@$(call _RUN_COMPONENTS,coverage)
+
+coverage-envtest: setup-envtest ## Run L1 envtest with coverage across all operators
+	@$(call _RUN_COMPONENTS,envtest-coverage)
+
+coverage-merge: ## Merge per-component profiles into $(COVERAGE_FILE)
+	@bash scripts/merge-coverage.sh $(COVERAGE_FILE) $(COMPONENTS)
+
+coverage: coverage-unit coverage-envtest coverage-merge ## Run unit + envtest with coverage and produce a merged report
+
+# HTML rendering is per-component because `go tool cover -html` resolves source
+# paths against the current Go module and the repo root has no go.mod. See
+# docs/development/testing.md for details.
+coverage-html: ## Render per-component HTML coverage reports
+	@$(call _RUN_COMPONENTS,coverage-html)
+	@printf "\nMerged profile (for Codecov / external tools): %s\n" "$(COVERAGE_FILE)"
+
+coverage-clean: ## Remove all coverage artifacts (root + per-component)
+	@rm -rf $(COVERAGE_DIR)
+	@for c in $(COMPONENTS); do rm -rf $$c/coverage; done
+
 ##@ Git hooks
 
 # Hook orchestration is delegated to the `pre-commit` framework
@@ -277,8 +319,8 @@ help: ## Show this help message
 	  /^[a-zA-Z][a-zA-Z0-9_-]*:.*##/ { printf "  \033[36m%-26s\033[0m %s\n", $$1, $$2 }' \
 	  $(MAKEFILE_LIST)
 	@printf "\n\033[1mPer-component shortcuts (auto-generated)\033[0m\n"
-	@printf "  Pattern : <component>-{build,image,image-load,test,envtest,fmt,tidy,clean}\n"
+	@printf "  Pattern : <component>-{build,image,image-load,test,envtest,coverage,envtest-coverage,coverage-html,fmt,tidy,clean}\n"
 	@printf "  Active  : %s\n" "$(notdir $(COMPONENTS))"
-	@printf "  Example : make tenant-operator-image  |  make mljob-operator-envtest\n\n"
+	@printf "  Example : make tenant-operator-image  |  make mljob-operator-envtest-coverage\n\n"
 
 .DEFAULT_GOAL := build

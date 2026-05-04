@@ -43,7 +43,7 @@ image-load-minikube: image ## Build and load the image into the local minikube n
 
 .PHONY: clean
 clean: ## Remove build artifacts
-	@rm -rf bin/
+	@rm -rf bin/ coverage/
 
 # --- Go convenience targets ---
 
@@ -80,3 +80,49 @@ envtest: ## Run L1 envtest (uses shared setup-envtest at test/setup-envtest/)
 	@cd test/envtest && \
 	  KUBEBUILDER_ASSETS="$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" \
 	  go test -tags=envtest -count=1 -timeout=10m ./...
+
+# --- Coverage ---
+#
+# Unit and envtest coverage profiles. The envtest target uses -coverpkg pointed
+# at this operator's production module so the cross-module envtest hits count
+# (envtest is its own module, so without -coverpkg the profile would be empty).
+# All profiles use -covermode=atomic so they merge cleanly at the repo root.
+
+COVERAGE_DIR          ?= $(CURDIR)/coverage
+COVERAGE_OUT          ?= $(COVERAGE_DIR)/coverage.out
+COVERAGE_HTML         ?= $(COVERAGE_DIR)/coverage.html
+ENVTEST_COVERAGE_OUT  ?= $(COVERAGE_DIR)/envtest-coverage.out
+ENVTEST_COVERAGE_HTML ?= $(COVERAGE_DIR)/envtest-coverage.html
+MODULE_PATH           := github.com/axisml/axisml/components/operators/mljob-operator
+
+.PHONY: coverage envtest-coverage coverage-html
+
+coverage: ## Run unit tests with coverage profile
+	@mkdir -p $(COVERAGE_DIR)
+	@go test -coverprofile=$(COVERAGE_OUT) -covermode=atomic -count=1 ./...
+
+envtest-coverage: ## Run L1 envtest with coverage profile (covers operator's production packages)
+	@mkdir -p $(COVERAGE_DIR)
+	@if [ ! -x "$(ENVTEST)" ]; then \
+	  echo "ERROR: $(ENVTEST) not found. Run 'make setup-envtest' from $(REPO_ROOT)."; \
+	  exit 1; \
+	fi
+	@cd test/envtest && \
+	  KUBEBUILDER_ASSETS="$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" \
+	  go test -tags=envtest -count=1 -timeout=10m \
+	    -coverpkg=$(MODULE_PATH)/... \
+	    -coverprofile=$(ENVTEST_COVERAGE_OUT) -covermode=atomic ./...
+
+coverage-html: ## Render this component's coverage profile(s) as HTML
+	@if [ ! -f $(COVERAGE_OUT) ] && [ ! -f $(ENVTEST_COVERAGE_OUT) ]; then \
+	  echo "no coverage profile found in $(COVERAGE_DIR); run 'make coverage' or 'make envtest-coverage' first"; \
+	  exit 1; \
+	fi
+	@if [ -f $(COVERAGE_OUT) ]; then \
+	  go tool cover -html=$(COVERAGE_OUT) -o $(COVERAGE_HTML); \
+	  echo "unit coverage: $(COVERAGE_HTML)"; \
+	fi
+	@if [ -f $(ENVTEST_COVERAGE_OUT) ]; then \
+	  go tool cover -html=$(ENVTEST_COVERAGE_OUT) -o $(ENVTEST_COVERAGE_HTML); \
+	  echo "envtest coverage: $(ENVTEST_COVERAGE_HTML)"; \
+	fi

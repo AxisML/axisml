@@ -59,8 +59,16 @@ jobs:
           # every run. Globbing every module's go.sum makes the cache key
           # stable and shares ~/go/pkg/mod + ~/.cache/go-build across runs.
           cache-dependency-path: '**/go.sum'
-      - name: Run unit tests
-        run: make test
+      - name: Run unit tests with coverage
+        run: make coverage-unit
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          # Glob picks up every operator's profile, so adding a new component
+          # to the top-level COMPONENTS list doesn't require editing CI too.
+          files: ./components/operators/*/coverage/coverage.out
+          flags: unit
+          fail_ci_if_error: false
 
   envtest:
     name: L1 envtest (${{ matrix.operator }})
@@ -90,5 +98,11 @@ jobs:
           key: envtest-${{ runner.os }}-k8s-1.31.0
       - name: Install setup-envtest binary if missing
         run: make setup-envtest
-      - name: Run L1 envtest for ${{ matrix.operator }}
-        run: make ${{ matrix.operator }}-envtest
+      - name: Run L1 envtest with coverage for ${{ matrix.operator }}
+        run: make ${{ matrix.operator }}-envtest-coverage
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./components/operators/${{ matrix.operator }}/coverage/envtest-coverage.out
+          flags: envtest,${{ matrix.operator }}
+          fail_ci_if_error: false

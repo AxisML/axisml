@@ -6,6 +6,7 @@ bin/
 # Coverage
 coverage.*
 *.coverprofile
+coverage/
 
 # IDE
 .idea/
