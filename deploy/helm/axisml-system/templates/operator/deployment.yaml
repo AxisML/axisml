@@ -1,5 +1,5 @@
-{{- if .Values.operators.enabled }}
-{{- $op := .Values.operators }}
+{{- if .Values.operator.enabled }}
+{{- $op := .Values.operator }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:

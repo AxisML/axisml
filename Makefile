@@ -41,7 +41,7 @@ HELM_SYSTEM_IMAGE_SET := \
   --set platform.image.tag=$(IMAGE_TAG) \
   --set compute.image.tag=$(IMAGE_TAG) \
   --set artifacts.image.tag=$(IMAGE_TAG) \
-  --set operators.image.tag=$(IMAGE_TAG)
+  --set operator.image.tag=$(IMAGE_TAG)
 HELM_EXTRA_ARGS ?=
 
 ##@ Cluster Management

@@ -186,7 +186,7 @@ MLJob 与 MLService controller 内部按 `spec.backend.{name, engine}` 二级元
 
 默认值：MLJob 为 `(native, job)`、MLService 为 `(native, deployment)`。backend 选择是 operator 的扩展机制；MLJob / MLService 仍是用户和 Compute 看到的稳定抽象。**所有 backend 派生的 Pod 都必须设置 `schedulerName: koord-scheduler` 并携带 ElasticQuota label**（详见 [infra.md §8](infra.md)）。
 
-> 详细设计见 [AxisML Operator 设计文档](operator/operator.md)
+> 详细设计见 [AxisML Operator 设计文档](operator.md)
 
 ### 5.4 AxisML Artifacts
 

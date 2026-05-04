@@ -1,4 +1,4 @@
-{{- if and .Values.operators.enabled .Values.operators.leaderElection.enabled }}
+{{- if and .Values.operator.enabled .Values.operator.leaderElection.enabled }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:

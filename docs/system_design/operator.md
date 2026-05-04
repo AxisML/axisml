@@ -4,9 +4,9 @@ axisml-operator 是 AxisML 控制平面里**唯一**的 Kubernetes operator 二�
 
 | Controller | CRD（`axisml.io/v1alpha1`） | Scope | 子设计文档 |
 | --- | --- | --- | --- |
-| Tenant | `Tenant` | Cluster-scoped | [tenant.md](./tenant.md) |
-| MLJob | `MLJob` | Namespaced | [mljob.md](./mljob.md) |
-| MLService | `MLService` | Namespaced | [mlservice.md](./mlservice.md) |
+| Tenant | `Tenant` | Cluster-scoped | [tenant.md](./operator/tenant.md) |
+| MLJob | `MLJob` | Namespaced | [mljob.md](./operator/mljob.md) |
+| MLService | `MLService` | Namespaced | [mlservice.md](./operator/mlservice.md) |
 
 每个 controller 的 CRD 契约、字段不可变性、状态机、子资源管理等细节见各子文档；本文档只覆盖**跨 controller 的合并设计**与**作为单一 Deployment 的运维契约**。
 
@@ -44,7 +44,7 @@ axisml-operator 是 AxisML 控制平面里**唯一**的 Kubernetes operator 二�
 └────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-Tenant 走**单 reconciler**直接调度（无 dispatcher）；MLJob 与 MLService 共用 **dispatcher + handler** 模式：CR 的 `spec.backend.{name, engine}` 元组路由到注册过的 Handler，handler 渲染目标 GVK 并把状态回流到 CR.status。这两个 controller 的具体 dispatch 表与默认后端见各自的子文档（[mljob §7](./mljob.md), [mlservice §11](./mlservice.md)）。
+Tenant 走**单 reconciler**直接调度（无 dispatcher）；MLJob 与 MLService 共用 **dispatcher + handler** 模式：CR 的 `spec.backend.{name, engine}` 元组路由到注册过的 Handler，handler 渲染目标 GVK 并把状态回流到 CR.status。这两个 controller 的具体 dispatch 表与默认后端见各自的子文档（[mljob §7](./operator/mljob.md), [mlservice §11](./operator/mlservice.md)）。
 
 ## 3. 合并后的运行时契约
 
@@ -100,7 +100,7 @@ Pod 上还会注入两个环境变量供 Tenant 子模块消费：`RESYNC_PERIOD
 
 ### 3.4 RBAC
 
-合并后只保留**一个** ClusterRole（`<release>-operator`），rules 是三个 controller 所需权限的并集，按 controller 分段；段头按 `--enable-*` Helm value 条件渲染（见 `deploy/helm/axisml-system/templates/operators/clusterrole.yaml`）。leader election Lease 在部署 namespace 通过 Role + RoleBinding 授权（不放进 cluster-scoped 角色）。
+合并后只保留**一个** ClusterRole（`<release>-operator`），rules 是三个 controller 所需权限的并集，按 controller 分段；段头按 `--enable-*` Helm value 条件渲染（见 `deploy/helm/axisml-system/templates/operator/clusterrole.yaml`）。leader election Lease 在部署 namespace 通过 Role + RoleBinding 授权（不放进 cluster-scoped 角色）。
 
 ### 3.5 Helm values 接口
 
@@ -131,9 +131,9 @@ operators:
 
 详细 reconcile 时序、字段不可变性、子资源管理见各子文档：
 
-- [tenant.md](./tenant.md)
-- [mljob.md](./mljob.md)
-- [mlservice.md](./mlservice.md)
+- [tenant.md](./operator/tenant.md)
+- [mljob.md](./operator/mljob.md)
+- [mlservice.md](./operator/mlservice.md)
 
 ## 5. 测试
 
@@ -155,8 +155,9 @@ docs/system_design/operators/{tenant,mljob,mlservice}-operator.md
 
 ```
 components/operator/                                       # 单 module
-deploy/helm/axisml-system/templates/operators/             # 单组模板
-docs/system_design/operator/{operator,tenant,mljob,mlservice}.md
+deploy/helm/axisml-system/templates/operator/              # 单组模板
+docs/system_design/operator.md                             # 总览
+docs/system_design/operator/{tenant,mljob,mlservice}.md    # 各 controller 子文档
 ```
 
 `helm upgrade`：旧 Deployment / SA / ClusterRole / ClusterRoleBinding（三份）由 Helm release 记录释放后会被删除并替换为新的合并版本，预期短暂 downtime（秒级）。镜像名 `ghcr.io/axisml/axisml-operator` 不变。

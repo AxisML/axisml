@@ -10,12 +10,12 @@ Components deployed:
 {{- if .Values.artifacts.enabled }}
   - ML Artifacts: {{ include "axisml.fullname" . }}-artifacts:{{ .Values.artifacts.service.port }}
 {{- end }}
-{{- if .Values.operators.enabled }}
+{{- if .Values.operator.enabled }}
   - Operator:    {{ include "axisml.fullname" . }}-operator (controllers:
     {{- $controllers := list -}}
-    {{- if .Values.operators.controllers.tenant.enabled }}{{- $controllers = append $controllers "tenant" -}}{{- end -}}
-    {{- if .Values.operators.controllers.mljob.enabled }}{{- $controllers = append $controllers "mljob" -}}{{- end -}}
-    {{- if .Values.operators.controllers.mlservice.enabled }}{{- $controllers = append $controllers "mlservice" -}}{{- end }} {{ join ", " $controllers }})
+    {{- if .Values.operator.controllers.tenant.enabled }}{{- $controllers = append $controllers "tenant" -}}{{- end -}}
+    {{- if .Values.operator.controllers.mljob.enabled }}{{- $controllers = append $controllers "mljob" -}}{{- end -}}
+    {{- if .Values.operator.controllers.mlservice.enabled }}{{- $controllers = append $controllers "mlservice" -}}{{- end }} {{ join ", " $controllers }})
 {{- end }}
 {{- if .Values.database.enabled }}
   - Database:     {{ include "axisml.databaseHost" . }}:{{ include "axisml.databasePort" . }}

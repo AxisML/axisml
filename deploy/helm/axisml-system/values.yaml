@@ -129,9 +129,9 @@ artifacts:
   env: {}
 
 # =============================================================================
-# AxisML Operators
+# AxisML Operator
 # =============================================================================
-operators:
+operator:
   # -- Master toggle for the merged axisml-operator.
   enabled: true
 

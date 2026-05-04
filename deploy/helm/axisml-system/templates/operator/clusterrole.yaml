@@ -1,5 +1,5 @@
-{{- if .Values.operators.enabled }}
-{{- $op := .Values.operators }}
+{{- if .Values.operator.enabled }}
+{{- $op := .Values.operator }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:

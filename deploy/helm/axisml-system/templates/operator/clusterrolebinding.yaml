@@ -1,4 +1,4 @@
-{{- if .Values.operators.enabled }}
+{{- if .Values.operator.enabled }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
