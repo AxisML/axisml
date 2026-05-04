@@ -36,13 +36,14 @@ import (
 	"github.com/axisml/axisml/components/compute/internal/tenant"
 )
 
-// version mirrors deploy/helm/axisml-system/Chart.yaml appVersion. Tracked
-// manually here; the make target syncs it via -ldflags from the Makefile.
-var version = "0.1.0"
+// defaultVersion is used when -version is not passed. The make target wires
+// IMAGE_TAG (which tracks deploy/helm/axisml-system Chart.yaml appVersion)
+// through to the flag so generated specs are tagged with the chart version.
+const defaultVersion = "0.1.0"
 
 func main() {
 	out := flag.String("o", "docs/openapi.yaml", "output path")
-	v := flag.String("version", version, "info.version field")
+	v := flag.String("version", defaultVersion, "info.version field")
 	flag.Parse()
 
 	doc := buildDocument(*v)
@@ -148,13 +149,76 @@ type schema struct {
 	Items                *schema            `json:"items,omitempty"`
 	AdditionalProperties *schema            `json:"additionalProperties,omitempty"`
 	Nullable             bool               `json:"nullable,omitempty"`
-	Enum                 []string           `json:"enum,omitempty"`
-	Minimum              *float64           `json:"minimum,omitempty"`
-	MinItems             *int               `json:"minItems,omitempty"`
-	Example              any                `json:"example,omitempty"`
 }
 
 func ref(name string) *schema { return &schema{Ref: "#/components/schemas/" + name} }
+
+// Tag names. One source of truth so a typo can't silently split a group.
+const (
+	tagTenants       = "tenants"
+	tagResourcePools = "resource-pools"
+	tagResourceUnits = "resource-units"
+	tagQuotas        = "quotas"
+	tagJobs          = "jobs"
+	tagServices      = "services"
+	tagSystem        = "system"
+)
+
+// --- Stateless OpenAPI builders (lifted out of buildDocument for clarity) ---
+
+func pathParam(name, desc string) parameter {
+	return parameter{Name: name, In: "path", Required: true, Description: desc, Schema: &schema{Type: "string"}}
+}
+
+func queryParam(name, desc string, sch *schema) parameter {
+	return parameter{Name: name, In: "query", Description: desc, Schema: sch}
+}
+
+func jsonBody(refName string) *requestBody {
+	return &requestBody{
+		Required: true,
+		Content:  map[string]mediaType{"application/json": {Schema: ref(refName)}},
+	}
+}
+
+func jsonResp(desc, refName string) response {
+	return response{
+		Description: desc,
+		Content:     map[string]mediaType{"application/json": {Schema: ref(refName)}},
+	}
+}
+
+func stringResp(desc string) response {
+	return response{
+		Description: desc,
+		Content:     map[string]mediaType{"text/plain": {Schema: &schema{Type: "string"}}},
+	}
+}
+
+// withErrors returns the standard Problem-bearing error responses with the
+// given success codes overlaid. Every domain operation calls this — keeps
+// the route table focused on what's unique per route.
+func withErrors(success map[string]response) map[string]response {
+	out := map[string]response{
+		"400":     jsonResp("Validation error.", "Problem"),
+		"401":     jsonResp("Unauthorized.", "Problem"),
+		"403":     jsonResp("Forbidden.", "Problem"),
+		"404":     jsonResp("Not found.", "Problem"),
+		"409":     jsonResp("Conflict.", "Problem"),
+		"422":     jsonResp("Quota exceeded.", "Problem"),
+		"default": jsonResp("Unexpected error.", "Problem"),
+	}
+	for k, v := range success {
+		out[k] = v
+	}
+	return out
+}
+
+var (
+	noContentResp = response{Description: "Deleted (idempotent)."}
+	limitParam    = queryParam("limit", "Page size (1–200, default 50).", &schema{Type: "integer", Format: "int32"})
+	offsetParam   = queryParam("offset", "Number of items to skip.", &schema{Type: "integer", Format: "int32"})
+)
 
 // --- Reflection-based schema generator --------------------------------------
 
@@ -248,7 +312,6 @@ func (g *generator) structSchema(t reflect.Type) *schema {
 		if !f.IsExported() {
 			continue
 		}
-		// Embedded promotion: flatten anonymous struct fields.
 		if f.Anonymous && f.Type.Kind() == reflect.Struct && f.Tag.Get("json") == "" {
 			sub := g.structSchema(f.Type)
 			for k, v := range sub.Properties {
@@ -346,7 +409,7 @@ func componentName(t reflect.Type) string {
 	}
 	// Compute's own service package is named "service"; collapse to MLService
 	// so it reads as a noun rather than a generic word.
-	if pkg == "github.com/axisml/axisml/components/compute/internal/service" {
+	if strings.HasSuffix(pkg, "/internal/service") {
 		last = "MLService"
 	}
 	if last == "" {
@@ -378,7 +441,7 @@ func operatorAPIPrefix(pkg string) (string, bool) {
 	case "tenant":
 		return "Tenant", true
 	}
-	return capitalize(op), true
+	return "", false
 }
 
 func capitalize(s string) string {
@@ -467,342 +530,240 @@ func buildDocument(version string) *document {
 	g.defs["MLServiceList"] = listEnvelope("MLServiceView")
 
 	tags := []tagEntry{
-		{Name: "tenants", Description: "Tenant CRUD and lifecycle."},
-		{Name: "resource-pools", Description: "Cluster-scoped resource pool registry."},
-		{Name: "resource-units", Description: "Reusable CPU/GPU/memory recipes scoped to a pool."},
-		{Name: "quotas", Description: "Per-(tenant, pool) ElasticQuota records."},
-		{Name: "jobs", Description: "MLJob CRUD per tenant."},
-		{Name: "services", Description: "MLService CRUD per tenant."},
-		{Name: "system", Description: "Liveness and readiness probes."},
+		{Name: tagTenants, Description: "Tenant CRUD and lifecycle."},
+		{Name: tagResourcePools, Description: "Cluster-scoped resource pool registry."},
+		{Name: tagResourceUnits, Description: "Reusable CPU/GPU/memory recipes scoped to a pool."},
+		{Name: tagQuotas, Description: "Per-(tenant, pool) ElasticQuota records."},
+		{Name: tagJobs, Description: "MLJob CRUD per tenant."},
+		{Name: tagServices, Description: "MLService CRUD per tenant."},
+		{Name: tagSystem, Description: "Liveness and readiness probes."},
 	}
+
+	tenantParam := pathParam("tenant", "Tenant name.")
+	poolParam := pathParam("pool", "Resource pool name.")
+	unitParam := pathParam("unit", "Resource unit name.")
+	quotaParam := pathParam("quota", "Quota name.")
+	jobParam := pathParam("job", "Job name.")
+	serviceParam := pathParam("service", "Service name.")
 
 	paths := map[string]pathItem{}
 
-	// --- system ---
-	stringResp := func(desc string) response {
-		return response{
-			Description: desc,
-			Content: map[string]mediaType{
-				"text/plain": {Schema: &schema{Type: "string"}},
-			},
-		}
-	}
+	// system probes
 	paths["/healthz"] = pathItem{Get: &operation{
-		Tags: []string{"system"}, Summary: "Liveness probe", OperationID: "healthz",
+		Tags: []string{tagSystem}, Summary: "Liveness probe", OperationID: "healthz",
 		Responses: map[string]response{"200": stringResp("ok")},
 	}}
 	paths["/readyz"] = pathItem{Get: &operation{
-		Tags: []string{"system"}, Summary: "Readiness probe", OperationID: "readyz",
+		Tags: []string{tagSystem}, Summary: "Readiness probe", OperationID: "readyz",
 		Responses: map[string]response{
 			"200": stringResp("ok"),
 			"503": stringResp("dependency not yet ready"),
 		},
 	}}
 
-	// --- shared parameter helpers ---
-	pathParam := func(name, desc string) parameter {
-		return parameter{Name: name, In: "path", Required: true, Description: desc, Schema: &schema{Type: "string"}}
-	}
-	queryParam := func(name, desc string, sch *schema) parameter {
-		return parameter{Name: name, In: "query", Description: desc, Schema: sch}
-	}
-	limitParam := queryParam("limit", "Page size (1–200, default 50).", &schema{Type: "integer", Format: "int32"})
-	offsetParam := queryParam("offset", "Number of items to skip.", &schema{Type: "integer", Format: "int32"})
-
-	jsonBody := func(refName string) *requestBody {
-		return &requestBody{
-			Required: true,
-			Content:  map[string]mediaType{"application/json": {Schema: ref(refName)}},
-		}
-	}
-	jsonResp := func(desc, refName string) response {
-		return response{
-			Description: desc,
-			Content:     map[string]mediaType{"application/json": {Schema: ref(refName)}},
-		}
-	}
-	noContent := response{Description: "Deleted (idempotent)."}
-
-	defaultErrors := func() map[string]response {
-		return map[string]response{
-			"400":     jsonResp("Validation error.", "Problem"),
-			"401":     jsonResp("Unauthorized.", "Problem"),
-			"403":     jsonResp("Forbidden.", "Problem"),
-			"404":     jsonResp("Not found.", "Problem"),
-			"409":     jsonResp("Conflict.", "Problem"),
-			"422":     jsonResp("Quota exceeded.", "Problem"),
-			"default": jsonResp("Unexpected error.", "Problem"),
-		}
-	}
-	merge := func(base map[string]response, extras map[string]response) map[string]response {
-		out := map[string]response{}
-		for k, v := range base {
-			out[k] = v
-		}
-		for k, v := range extras {
-			out[k] = v
-		}
-		return out
-	}
-
-	// --- tenants ---
+	// tenants
 	paths["/api/v1/tenants"] = pathItem{
 		Post: &operation{
-			Tags: []string{"tenants"}, Summary: "Create a tenant", OperationID: "createTenant",
+			Tags: []string{tagTenants}, Summary: "Create a tenant", OperationID: "createTenant",
 			RequestBody: jsonBody("TenantCreateInput"),
-			Responses: merge(defaultErrors(), map[string]response{
-				"201": jsonResp("Tenant created.", "TenantView"),
-			}),
+			Responses:   withErrors(map[string]response{"201": jsonResp("Tenant created.", "TenantView")}),
 		},
 		Get: &operation{
-			Tags: []string{"tenants"}, Summary: "List tenants", OperationID: "listTenants",
+			Tags: []string{tagTenants}, Summary: "List tenants", OperationID: "listTenants",
 			Parameters: []parameter{limitParam, offsetParam},
-			Responses: merge(defaultErrors(), map[string]response{
-				"200": jsonResp("Tenant page.", "TenantList"),
-			}),
+			Responses:  withErrors(map[string]response{"200": jsonResp("Tenant page.", "TenantList")}),
 		},
 	}
 	paths["/api/v1/tenants/{tenant}"] = pathItem{
 		Get: &operation{
-			Tags: []string{"tenants"}, Summary: "Get tenant", OperationID: "getTenant",
-			Parameters: []parameter{pathParam("tenant", "Tenant name.")},
-			Responses: merge(defaultErrors(), map[string]response{
-				"200": jsonResp("Tenant.", "TenantView"),
-			}),
+			Tags: []string{tagTenants}, Summary: "Get tenant", OperationID: "getTenant",
+			Parameters: []parameter{tenantParam},
+			Responses:  withErrors(map[string]response{"200": jsonResp("Tenant.", "TenantView")}),
 		},
 		Patch: &operation{
-			Tags: []string{"tenants"}, Summary: "Patch tenant", OperationID: "updateTenant",
-			Parameters:  []parameter{pathParam("tenant", "Tenant name.")},
+			Tags: []string{tagTenants}, Summary: "Patch tenant", OperationID: "updateTenant",
+			Parameters:  []parameter{tenantParam},
 			RequestBody: jsonBody("TenantUpdateInput"),
-			Responses: merge(defaultErrors(), map[string]response{
-				"200": jsonResp("Updated tenant.", "TenantView"),
-			}),
+			Responses:   withErrors(map[string]response{"200": jsonResp("Updated tenant.", "TenantView")}),
 		},
 		Delete: &operation{
-			Tags: []string{"tenants"}, Summary: "Delete tenant", OperationID: "deleteTenant",
-			Parameters: []parameter{pathParam("tenant", "Tenant name.")},
-			Responses:  merge(defaultErrors(), map[string]response{"204": noContent}),
+			Tags: []string{tagTenants}, Summary: "Delete tenant", OperationID: "deleteTenant",
+			Parameters: []parameter{tenantParam},
+			Responses:  withErrors(map[string]response{"204": noContentResp}),
 		},
 	}
 	paths["/api/v1/tenants/{tenant}/suspend"] = pathItem{Post: &operation{
-		Tags: []string{"tenants"}, Summary: "Suspend tenant", OperationID: "suspendTenant",
-		Parameters: []parameter{pathParam("tenant", "Tenant name.")},
-		Responses: merge(defaultErrors(), map[string]response{
-			"200": jsonResp("Suspended.", "TenantView"),
-		}),
+		Tags: []string{tagTenants}, Summary: "Suspend tenant", OperationID: "suspendTenant",
+		Parameters: []parameter{tenantParam},
+		Responses:  withErrors(map[string]response{"200": jsonResp("Suspended.", "TenantView")}),
 	}}
 	paths["/api/v1/tenants/{tenant}/unsuspend"] = pathItem{Post: &operation{
-		Tags: []string{"tenants"}, Summary: "Unsuspend tenant", OperationID: "unsuspendTenant",
-		Parameters: []parameter{pathParam("tenant", "Tenant name.")},
-		Responses: merge(defaultErrors(), map[string]response{
-			"200": jsonResp("Unsuspended.", "TenantView"),
-		}),
+		Tags: []string{tagTenants}, Summary: "Unsuspend tenant", OperationID: "unsuspendTenant",
+		Parameters: []parameter{tenantParam},
+		Responses:  withErrors(map[string]response{"200": jsonResp("Unsuspended.", "TenantView")}),
 	}}
 
-	// --- resource pools ---
+	// resource pools
 	paths["/api/v1/resource-pools"] = pathItem{
 		Post: &operation{
-			Tags: []string{"resource-pools"}, Summary: "Create a resource pool", OperationID: "createResourcePool",
+			Tags: []string{tagResourcePools}, Summary: "Create a resource pool", OperationID: "createResourcePool",
 			RequestBody: jsonBody("ResourcepoolCreateInput"),
-			Responses: merge(defaultErrors(), map[string]response{
-				"201": jsonResp("Created.", "ResourcepoolView"),
-			}),
+			Responses:   withErrors(map[string]response{"201": jsonResp("Created.", "ResourcepoolView")}),
 		},
 		Get: &operation{
-			Tags: []string{"resource-pools"}, Summary: "List resource pools", OperationID: "listResourcePools",
+			Tags: []string{tagResourcePools}, Summary: "List resource pools", OperationID: "listResourcePools",
 			Parameters: []parameter{limitParam, offsetParam},
-			Responses: merge(defaultErrors(), map[string]response{
-				"200": jsonResp("Page.", "ResourcepoolList"),
-			}),
+			Responses:  withErrors(map[string]response{"200": jsonResp("Page.", "ResourcepoolList")}),
 		},
 	}
 	paths["/api/v1/resource-pools/{pool}"] = pathItem{
 		Get: &operation{
-			Tags: []string{"resource-pools"}, Summary: "Get resource pool", OperationID: "getResourcePool",
-			Parameters: []parameter{pathParam("pool", "Resource pool name.")},
-			Responses: merge(defaultErrors(), map[string]response{
-				"200": jsonResp("Resource pool.", "ResourcepoolView"),
-			}),
+			Tags: []string{tagResourcePools}, Summary: "Get resource pool", OperationID: "getResourcePool",
+			Parameters: []parameter{poolParam},
+			Responses:  withErrors(map[string]response{"200": jsonResp("Resource pool.", "ResourcepoolView")}),
 		},
 		Patch: &operation{
-			Tags: []string{"resource-pools"}, Summary: "Patch resource pool", OperationID: "updateResourcePool",
-			Parameters:  []parameter{pathParam("pool", "Resource pool name.")},
+			Tags: []string{tagResourcePools}, Summary: "Patch resource pool", OperationID: "updateResourcePool",
+			Parameters:  []parameter{poolParam},
 			RequestBody: jsonBody("ResourcepoolUpdateInput"),
-			Responses: merge(defaultErrors(), map[string]response{
-				"200": jsonResp("Updated.", "ResourcepoolView"),
-			}),
+			Responses:   withErrors(map[string]response{"200": jsonResp("Updated.", "ResourcepoolView")}),
 		},
 		Delete: &operation{
-			Tags: []string{"resource-pools"}, Summary: "Delete resource pool", OperationID: "deleteResourcePool",
-			Parameters: []parameter{pathParam("pool", "Resource pool name.")},
-			Responses:  merge(defaultErrors(), map[string]response{"204": noContent}),
+			Tags: []string{tagResourcePools}, Summary: "Delete resource pool", OperationID: "deleteResourcePool",
+			Parameters: []parameter{poolParam},
+			Responses:  withErrors(map[string]response{"204": noContentResp}),
 		},
 	}
 
-	// --- resource units (under a pool) ---
+	// resource units (under a pool)
 	paths["/api/v1/resource-pools/{pool}/resource-units"] = pathItem{
 		Post: &operation{
-			Tags: []string{"resource-units"}, Summary: "Create a resource unit", OperationID: "createResourceUnit",
-			Parameters:  []parameter{pathParam("pool", "Resource pool name.")},
+			Tags: []string{tagResourceUnits}, Summary: "Create a resource unit", OperationID: "createResourceUnit",
+			Parameters:  []parameter{poolParam},
 			RequestBody: jsonBody("ResourceunitCreateInput"),
-			Responses: merge(defaultErrors(), map[string]response{
-				"201": jsonResp("Created.", "ResourceunitView"),
-			}),
+			Responses:   withErrors(map[string]response{"201": jsonResp("Created.", "ResourceunitView")}),
 		},
 		Get: &operation{
-			Tags: []string{"resource-units"}, Summary: "List resource units in a pool", OperationID: "listResourceUnits",
-			Parameters: []parameter{pathParam("pool", "Resource pool name."), limitParam, offsetParam},
-			Responses: merge(defaultErrors(), map[string]response{
-				"200": jsonResp("Page.", "ResourceunitList"),
-			}),
+			Tags: []string{tagResourceUnits}, Summary: "List resource units in a pool", OperationID: "listResourceUnits",
+			Parameters: []parameter{poolParam, limitParam, offsetParam},
+			Responses:  withErrors(map[string]response{"200": jsonResp("Page.", "ResourceunitList")}),
 		},
 	}
 	paths["/api/v1/resource-pools/{pool}/resource-units/{unit}"] = pathItem{
 		Get: &operation{
-			Tags: []string{"resource-units"}, Summary: "Get resource unit", OperationID: "getResourceUnit",
-			Parameters: []parameter{pathParam("pool", "Resource pool name."), pathParam("unit", "Resource unit name.")},
-			Responses: merge(defaultErrors(), map[string]response{
-				"200": jsonResp("Resource unit.", "ResourceunitView"),
-			}),
+			Tags: []string{tagResourceUnits}, Summary: "Get resource unit", OperationID: "getResourceUnit",
+			Parameters: []parameter{poolParam, unitParam},
+			Responses:  withErrors(map[string]response{"200": jsonResp("Resource unit.", "ResourceunitView")}),
 		},
 		Patch: &operation{
-			Tags: []string{"resource-units"}, Summary: "Patch resource unit", OperationID: "updateResourceUnit",
-			Parameters: []parameter{
-				pathParam("pool", "Resource pool name."),
-				pathParam("unit", "Resource unit name."),
-			},
+			Tags: []string{tagResourceUnits}, Summary: "Patch resource unit", OperationID: "updateResourceUnit",
+			Parameters:  []parameter{poolParam, unitParam},
 			RequestBody: jsonBody("ResourceunitUpdateInput"),
-			Responses: merge(defaultErrors(), map[string]response{
-				"200": jsonResp("Updated.", "ResourceunitView"),
-			}),
+			Responses:   withErrors(map[string]response{"200": jsonResp("Updated.", "ResourceunitView")}),
 		},
 		Delete: &operation{
-			Tags: []string{"resource-units"}, Summary: "Delete resource unit", OperationID: "deleteResourceUnit",
-			Parameters: []parameter{pathParam("pool", "Resource pool name."), pathParam("unit", "Resource unit name.")},
-			Responses:  merge(defaultErrors(), map[string]response{"204": noContent}),
+			Tags: []string{tagResourceUnits}, Summary: "Delete resource unit", OperationID: "deleteResourceUnit",
+			Parameters: []parameter{poolParam, unitParam},
+			Responses:  withErrors(map[string]response{"204": noContentResp}),
 		},
 	}
 
-	// --- quotas (per tenant) ---
+	// quotas (per tenant)
 	paths["/api/v1/tenants/{tenant}/quotas"] = pathItem{
 		Post: &operation{
-			Tags: []string{"quotas"}, Summary: "Create a quota", OperationID: "createQuota",
-			Parameters:  []parameter{pathParam("tenant", "Tenant name.")},
+			Tags: []string{tagQuotas}, Summary: "Create a quota", OperationID: "createQuota",
+			Parameters:  []parameter{tenantParam},
 			RequestBody: jsonBody("QuotaCreateInput"),
-			Responses: merge(defaultErrors(), map[string]response{
-				"201": jsonResp("Created.", "QuotaView"),
-			}),
+			Responses:   withErrors(map[string]response{"201": jsonResp("Created.", "QuotaView")}),
 		},
 		Get: &operation{
-			Tags: []string{"quotas"}, Summary: "List quotas for a tenant", OperationID: "listQuotas",
-			Parameters: []parameter{pathParam("tenant", "Tenant name."), limitParam, offsetParam},
-			Responses: merge(defaultErrors(), map[string]response{
-				"200": jsonResp("Page.", "QuotaList"),
-			}),
+			Tags: []string{tagQuotas}, Summary: "List quotas for a tenant", OperationID: "listQuotas",
+			Parameters: []parameter{tenantParam, limitParam, offsetParam},
+			Responses:  withErrors(map[string]response{"200": jsonResp("Page.", "QuotaList")}),
 		},
 	}
 	paths["/api/v1/tenants/{tenant}/quotas/{quota}"] = pathItem{
 		Get: &operation{
-			Tags: []string{"quotas"}, Summary: "Get quota", OperationID: "getQuota",
-			Parameters: []parameter{pathParam("tenant", "Tenant name."), pathParam("quota", "Quota name.")},
-			Responses: merge(defaultErrors(), map[string]response{
-				"200": jsonResp("Quota.", "QuotaView"),
-			}),
+			Tags: []string{tagQuotas}, Summary: "Get quota", OperationID: "getQuota",
+			Parameters: []parameter{tenantParam, quotaParam},
+			Responses:  withErrors(map[string]response{"200": jsonResp("Quota.", "QuotaView")}),
 		},
 		Patch: &operation{
-			Tags: []string{"quotas"}, Summary: "Patch quota", OperationID: "updateQuota",
-			Parameters:  []parameter{pathParam("tenant", "Tenant name."), pathParam("quota", "Quota name.")},
+			Tags: []string{tagQuotas}, Summary: "Patch quota", OperationID: "updateQuota",
+			Parameters:  []parameter{tenantParam, quotaParam},
 			RequestBody: jsonBody("QuotaUpdateInput"),
-			Responses: merge(defaultErrors(), map[string]response{
-				"200": jsonResp("Updated.", "QuotaView"),
-			}),
+			Responses:   withErrors(map[string]response{"200": jsonResp("Updated.", "QuotaView")}),
 		},
 		Delete: &operation{
-			Tags: []string{"quotas"}, Summary: "Delete quota", OperationID: "deleteQuota",
-			Parameters: []parameter{pathParam("tenant", "Tenant name."), pathParam("quota", "Quota name.")},
-			Responses:  merge(defaultErrors(), map[string]response{"204": noContent}),
+			Tags: []string{tagQuotas}, Summary: "Delete quota", OperationID: "deleteQuota",
+			Parameters: []parameter{tenantParam, quotaParam},
+			Responses:  withErrors(map[string]response{"204": noContentResp}),
 		},
 	}
 
-	// --- jobs (per tenant) ---
+	// jobs (per tenant)
 	paths["/api/v1/tenants/{tenant}/jobs"] = pathItem{
 		Post: &operation{
-			Tags: []string{"jobs"}, Summary: "Submit an MLJob", OperationID: "createJob",
-			Parameters:  []parameter{pathParam("tenant", "Tenant name.")},
+			Tags: []string{tagJobs}, Summary: "Submit an MLJob", OperationID: "createJob",
+			Parameters:  []parameter{tenantParam},
 			RequestBody: jsonBody("JobCreateInput"),
-			Responses: merge(defaultErrors(), map[string]response{
-				"201": jsonResp("Created.", "JobView"),
-			}),
+			Responses:   withErrors(map[string]response{"201": jsonResp("Created.", "JobView")}),
 		},
 		Get: &operation{
-			Tags: []string{"jobs"}, Summary: "List jobs for a tenant", OperationID: "listJobs",
-			Parameters: []parameter{pathParam("tenant", "Tenant name."), limitParam, offsetParam},
-			Responses: merge(defaultErrors(), map[string]response{
-				"200": jsonResp("Page.", "JobList"),
-			}),
+			Tags: []string{tagJobs}, Summary: "List jobs for a tenant", OperationID: "listJobs",
+			Parameters: []parameter{tenantParam, limitParam, offsetParam},
+			Responses:  withErrors(map[string]response{"200": jsonResp("Page.", "JobList")}),
 		},
 	}
 	paths["/api/v1/tenants/{tenant}/jobs/{job}"] = pathItem{
 		Get: &operation{
-			Tags: []string{"jobs"}, Summary: "Get job", OperationID: "getJob",
-			Parameters: []parameter{pathParam("tenant", "Tenant name."), pathParam("job", "Job name.")},
-			Responses: merge(defaultErrors(), map[string]response{
-				"200": jsonResp("Job.", "JobView"),
-			}),
+			Tags: []string{tagJobs}, Summary: "Get job", OperationID: "getJob",
+			Parameters: []parameter{tenantParam, jobParam},
+			Responses:  withErrors(map[string]response{"200": jsonResp("Job.", "JobView")}),
 		},
 		Delete: &operation{
-			Tags: []string{"jobs"}, Summary: "Delete job", OperationID: "deleteJob",
-			Parameters: []parameter{pathParam("tenant", "Tenant name."), pathParam("job", "Job name.")},
-			Responses:  merge(defaultErrors(), map[string]response{"204": noContent}),
+			Tags: []string{tagJobs}, Summary: "Delete job", OperationID: "deleteJob",
+			Parameters: []parameter{tenantParam, jobParam},
+			Responses:  withErrors(map[string]response{"204": noContentResp}),
 		},
 	}
 	paths["/api/v1/tenants/{tenant}/jobs/{job}/cancel"] = pathItem{Post: &operation{
-		Tags: []string{"jobs"}, Summary: "Cancel a running job", OperationID: "cancelJob",
-		Parameters: []parameter{pathParam("tenant", "Tenant name."), pathParam("job", "Job name.")},
-		Responses: merge(defaultErrors(), map[string]response{
-			"200": jsonResp("Cancelled job.", "JobView"),
-		}),
+		Tags: []string{tagJobs}, Summary: "Cancel a running job", OperationID: "cancelJob",
+		Parameters: []parameter{tenantParam, jobParam},
+		Responses:  withErrors(map[string]response{"200": jsonResp("Cancelled job.", "JobView")}),
 	}}
 
-	// --- services (per tenant) ---
+	// services (per tenant)
 	paths["/api/v1/tenants/{tenant}/services"] = pathItem{
 		Post: &operation{
-			Tags: []string{"services"}, Summary: "Submit an MLService", OperationID: "createMLService",
-			Parameters:  []parameter{pathParam("tenant", "Tenant name.")},
+			Tags: []string{tagServices}, Summary: "Submit an MLService", OperationID: "createMLService",
+			Parameters:  []parameter{tenantParam},
 			RequestBody: jsonBody("MLServiceCreateInput"),
-			Responses: merge(defaultErrors(), map[string]response{
-				"201": jsonResp("Created.", "MLServiceView"),
-			}),
+			Responses:   withErrors(map[string]response{"201": jsonResp("Created.", "MLServiceView")}),
 		},
 		Get: &operation{
-			Tags: []string{"services"}, Summary: "List services for a tenant", OperationID: "listMLServices",
-			Parameters: []parameter{pathParam("tenant", "Tenant name."), limitParam, offsetParam},
-			Responses: merge(defaultErrors(), map[string]response{
-				"200": jsonResp("Page.", "MLServiceList"),
-			}),
+			Tags: []string{tagServices}, Summary: "List services for a tenant", OperationID: "listMLServices",
+			Parameters: []parameter{tenantParam, limitParam, offsetParam},
+			Responses:  withErrors(map[string]response{"200": jsonResp("Page.", "MLServiceList")}),
 		},
 	}
 	paths["/api/v1/tenants/{tenant}/services/{service}"] = pathItem{
 		Get: &operation{
-			Tags: []string{"services"}, Summary: "Get service", OperationID: "getMLService",
-			Parameters: []parameter{pathParam("tenant", "Tenant name."), pathParam("service", "Service name.")},
-			Responses: merge(defaultErrors(), map[string]response{
-				"200": jsonResp("Service.", "MLServiceView"),
-			}),
+			Tags: []string{tagServices}, Summary: "Get service", OperationID: "getMLService",
+			Parameters: []parameter{tenantParam, serviceParam},
+			Responses:  withErrors(map[string]response{"200": jsonResp("Service.", "MLServiceView")}),
 		},
 		Delete: &operation{
-			Tags: []string{"services"}, Summary: "Delete service", OperationID: "deleteMLService",
-			Parameters: []parameter{pathParam("tenant", "Tenant name."), pathParam("service", "Service name.")},
-			Responses:  merge(defaultErrors(), map[string]response{"204": noContent}),
+			Tags: []string{tagServices}, Summary: "Delete service", OperationID: "deleteMLService",
+			Parameters: []parameter{tenantParam, serviceParam},
+			Responses:  withErrors(map[string]response{"204": noContentResp}),
 		},
 	}
 	paths["/api/v1/tenants/{tenant}/services/{service}/scale"] = pathItem{Post: &operation{
-		Tags: []string{"services"}, Summary: "Scale a service", OperationID: "scaleMLService",
-		Parameters:  []parameter{pathParam("tenant", "Tenant name."), pathParam("service", "Service name.")},
+		Tags: []string{tagServices}, Summary: "Scale a service", OperationID: "scaleMLService",
+		Parameters:  []parameter{tenantParam, serviceParam},
 		RequestBody: jsonBody("MLServiceScaleInput"),
-		Responses: merge(defaultErrors(), map[string]response{
-			"200": jsonResp("Scaled service.", "MLServiceView"),
-		}),
+		Responses:   withErrors(map[string]response{"200": jsonResp("Scaled service.", "MLServiceView")}),
 	}}
 
 	return &document{
