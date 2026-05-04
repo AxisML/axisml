@@ -21,6 +21,23 @@ const (
 	CodeQuotaExceeded Code = "quota_exceeded"
 )
 
+// AllCodes lists every Code constant in declaration order. It exists so
+// schema generators (cmd/openapi-gen) can surface the enum without repeating
+// the list and silently going stale when a new code is added here.
+func AllCodes() []string {
+	return []string{
+		string(CodeValidation),
+		string(CodeNotFound),
+		string(CodeConflict),
+		string(CodePrecondition),
+		string(CodeUnauthorized),
+		string(CodeForbidden),
+		string(CodeUnavailable),
+		string(CodeInternal),
+		string(CodeQuotaExceeded),
+	}
+}
+
 // E is the canonical business error. Use New / Wrap to build one.
 type E struct {
 	Code    Code
