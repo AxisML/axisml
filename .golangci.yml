@@ -21,6 +21,12 @@ linters:
     paths:
       - bin
       - deploy
+    rules:
+      # kubebuilder-generated scheme registration follows the canonical
+      # pattern that still uses the (deprecated) controller-runtime
+      # scheme.Builder helper; no replacement is recommended upstream.
+      - path: api/v1alpha1/groupversion_info\.go
+        text: "SA1019: scheme.Builder is deprecated"
 
 formatters:
   enable:
