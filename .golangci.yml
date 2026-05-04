@@ -2,8 +2,9 @@
 # distinct golangci-lint invocation (see .github/workflows/ci.yml matrix);
 # this file is the single source of truth for which linters and build tags
 # they share.
+version: "2"
+
 run:
-  timeout: 5m
   build-tags:
     - envtest
     - e2e
@@ -15,11 +16,17 @@ linters:
     - ineffassign
     - staticcheck
     - unused
+    - misspell
+  exclusions:
+    paths:
+      - bin
+      - deploy
+
+formatters:
+  enable:
     - gofmt
     - goimports
-    - misspell
-
-issues:
-  exclude-dirs:
-    - bin
-    - deploy
+  exclusions:
+    paths:
+      - bin
+      - deploy
