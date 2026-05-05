@@ -25,8 +25,9 @@ import (
 	tenantcontroller "github.com/axisml/axisml/components/operator/internal/tenant/controller"
 	tenantvalidate "github.com/axisml/axisml/components/operator/internal/tenant/validate"
 
-	// Side-effect import: registers the (native, deployment) MLService handler.
+	// Side-effect imports: register the native MLService handlers.
 	_ "github.com/axisml/axisml/components/operator/internal/mlservice/handler/nativedeployment"
+	_ "github.com/axisml/axisml/components/operator/internal/mlservice/handler/nativestatefulset"
 )
 
 const defaultLeaderElectionID = "axisml-operator.axisml.io"

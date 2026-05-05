@@ -1321,7 +1321,7 @@ config:
 | MLService `(native, deployment)` | Deployment + ClusterIP Service + 基础 HTTPRoute（仅创建 `HTTPRoute`，不创建 `SecurityPolicy` / `BackendTrafficPolicy`）（§6.6.1） | envtest 覆盖 happy path、route 启用 / 禁用、scale、字段不可变性 |
 | MLService `(native, statefulset)` | StatefulSet + headless Service、透传 `apps.kubernetes.io/pod-index` 为 `axisml.io/replica-index`、scale 路径 patch `spec.replicas`（§6.6.2） | envtest 覆盖 happy path、scale、字段不可变性 |
 | CRD | 三个 CRD 用 `x-kubernetes-preserve-unknown-fields: true` 宽松 schema + `subresources.status` 显式声明 | helm install / upgrade 通过；status 写入不影响 spec 写入 |
-| 测试 | L1 envtest 一个 module 七个文件覆盖三 controller 的 happy path + suspend + immutability | `make operator-envtest` 通过 |
+| 测试 | L1 envtest 一个 module 八个文件覆盖三 controller 的 happy path + suspend + immutability | `make operator-envtest` 通过 |
 
 ### 7.3 阶段二：功能完善（生产硬化）
 
@@ -1376,7 +1376,7 @@ config:
 
 ## 8. 测试
 
-L1 envtest 在 `components/operator/test/envtest/` 单一 Go module 中，单一 `TestMain` 把三个 reconciler 注册到同一个 envtest manager，跑七个 test 文件（tenant 2 + mljob 3 + mlservice 2）。CRDPaths 是 `deploy/helm/axisml-system/crds` 与 `test/crds/external/`（vendored ElasticQuota / PodGroup / HTTPRoute）的并集。
+L1 envtest 在 `components/operator/test/envtest/` 单一 Go module 中，单一 `TestMain` 把三个 reconciler 注册到同一个 envtest manager，跑八个 test 文件（tenant 2 + mljob 3 + mlservice 3）。CRDPaths 是 `deploy/helm/axisml-system/crds` 与 `test/crds/external/`（vendored ElasticQuota / PodGroup / HTTPRoute）的并集。
 
 L2 e2e 在 `test/e2e/`，通过部署后的 axisml-operator 与 MLPlatform / Compute API 一起跑端到端。
 
