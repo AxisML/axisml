@@ -260,8 +260,8 @@ func TestMLService_ScaleAndImmutability(t *testing.T) {
 }
 
 // TestMLService_StubBackendFails verifies the registered stub backends
-// (kserve/inference, kserve/llminference, native/statefulset) all surface
-// a clear "not implemented" failure rather than silently doing nothing.
+// (kserve/inference, kserve/llminference) all surface a clear
+// "not implemented" failure rather than silently doing nothing.
 // This locks in the contract from handler/stubs.go so a future refactor
 // doesn't accidentally let an unimplemented backend reach Pending and stay
 // there forever.

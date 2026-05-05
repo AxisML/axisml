@@ -52,7 +52,6 @@ func (h *notImplementedHandler) RequiredRBAC() []rbacv1.PolicyRule { return nil 
 // concrete (custom, <engine>) handler ships.
 func RegisterStubs() {
 	stubs := []Key{
-		{Backend: "native", Engine: "statefulset"},
 		{Backend: "kserve", Engine: "inference"},
 		{Backend: "kserve", Engine: "llminference"},
 	}

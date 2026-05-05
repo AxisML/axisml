@@ -89,9 +89,9 @@ rules:
     resources: ["mlservices", "mlservices/status"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 
-  # (native, deployment) backend.
+  # (native, deployment) and (native, statefulset) backends.
   - apiGroups: ["apps"]
-    resources: ["deployments"]
+    resources: ["deployments", "statefulsets"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   - apiGroups: [""]
     resources: ["services"]
