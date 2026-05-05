@@ -68,19 +68,15 @@ rules:
   - apiGroups: ["axisml.io"]
     resources: ["mljobs/status"]
     verbs: ["get", "patch", "update"]
-  {{- if $op.controllers.mljob.handlers.nativeJob.enabled }}
   # (native, job) handler — Job CRUD; Pods are owned by the Job and
   # are reached via the union pods rule below.
   - apiGroups: ["batch"]
     resources: ["jobs"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  {{- end }}
-  {{- if $op.controllers.mljob.handlers.nativePodGroup.enabled }}
   # (native, podgroup) handler — PodGroup CR.
   - apiGroups: ["scheduling.sigs.k8s.io"]
     resources: ["podgroups"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  {{- end }}
   {{- end }}
 
   {{- if $op.controllers.mlservice.enabled }}
@@ -110,14 +106,13 @@ rules:
   {{- end }}
 
   {{- /*
-    Pods: union across all enabled controllers/handlers. The base verbs
+    Pods: union across all enabled controllers. The base verbs
     (get/list/watch/delete) cover MLJob/native-job (Pods owned by Job).
     Add create/update/patch when MLJob/native-podgroup renders bare Pods or
     when MLService creates Pods directly.
   */ -}}
-  {{- $podsBase := and $op.controllers.mljob.enabled (or $op.controllers.mljob.handlers.nativeJob.enabled $op.controllers.mljob.handlers.nativePodGroup.enabled) }}
-  {{- $podsWrite := or $op.controllers.mlservice.enabled (and $op.controllers.mljob.enabled $op.controllers.mljob.handlers.nativePodGroup.enabled) }}
-  {{- if or $podsBase $podsWrite }}
+  {{- $podsWrite := or $op.controllers.mlservice.enabled $op.controllers.mljob.enabled }}
+  {{- if or $op.controllers.mljob.enabled $podsWrite }}
   - apiGroups: [""]
     resources: ["pods"]
     verbs:

@@ -90,8 +90,6 @@ cache.Options{
 | `--enable-tenant` | `true` | 启用 Tenant controller |
 | `--enable-mljob` | `true` | 启用 MLJob controller |
 | `--enable-mlservice` | `true` | 启用 MLService controller |
-| `--enable-native-job` | `true` | MLJob: 注册 (native, job) handler |
-| `--enable-native-podgroup` | `true` | MLJob: 注册 (native, podgroup) handler |
 
 Pod 上还会注入两个环境变量供 Tenant 子模块消费：`RESYNC_PERIOD`（默认 `10m`）、`NAMESPACE_DENYLIST`（逗号分隔列表，默认值见 Helm `values.yaml`）。
 
@@ -111,7 +109,7 @@ operator:
   resources: { requests, limits }
   controllers:
     tenant:    { enabled, resyncPeriod, namespaceDenylist }
-    mljob:     { enabled, handlers: { nativeJob, nativePodGroup } }
+    mljob:     { enabled }
     mlservice: { enabled }
 ```
 

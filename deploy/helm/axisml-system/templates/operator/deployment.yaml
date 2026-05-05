@@ -43,12 +43,6 @@ spec:
             {{- if not $op.controllers.mlservice.enabled }}
             - --enable-mlservice=false
             {{- end }}
-            {{- if not $op.controllers.mljob.handlers.nativeJob.enabled }}
-            - --enable-native-job=false
-            {{- end }}
-            {{- if not $op.controllers.mljob.handlers.nativePodGroup.enabled }}
-            - --enable-native-podgroup=false
-            {{- end }}
           {{- if $op.controllers.tenant.enabled }}
           env:
             - name: RESYNC_PERIOD

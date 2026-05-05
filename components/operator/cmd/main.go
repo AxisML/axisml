@@ -46,8 +46,6 @@ func main() {
 		enableTenant         bool
 		enableMLJob          bool
 		enableMLService      bool
-		enableNativeJob      bool
-		enableNativePodGroup bool
 	)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080",
 		"The address the metric endpoint binds to.")
@@ -61,10 +59,6 @@ func main() {
 	flag.BoolVar(&enableTenant, "enable-tenant", true, "Run the Tenant controller.")
 	flag.BoolVar(&enableMLJob, "enable-mljob", true, "Run the MLJob controller.")
 	flag.BoolVar(&enableMLService, "enable-mlservice", true, "Run the MLService controller.")
-	flag.BoolVar(&enableNativeJob, "enable-native-job", true,
-		"MLJob: register the (native, job) handler.")
-	flag.BoolVar(&enableNativePodGroup, "enable-native-podgroup", true,
-		"MLJob: register the (native, podgroup) handler.")
 
 	zapOpts := zap.Options{Development: false}
 	zapOpts.BindFlags(flag.CommandLine)
@@ -114,12 +108,8 @@ func main() {
 
 	if enableMLJob {
 		registry := mljobdispatcher.NewRegistry()
-		if enableNativeJob {
-			registry.Register(nativejob.New())
-		}
-		if enableNativePodGroup {
-			registry.Register(nativepodgroup.New())
-		}
+		registry.Register(nativejob.New())
+		registry.Register(nativepodgroup.New())
 		if err := (&mljobdispatcher.MLJobReconciler{
 			Client:   mgr.GetClient(),
 			Registry: registry,
@@ -157,8 +147,6 @@ func main() {
 		"tenant", enableTenant,
 		"mljob", enableMLJob,
 		"mlservice", enableMLService,
-		"nativeJob", enableNativeJob,
-		"nativePodGroup", enableNativePodGroup,
 	)
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "manager terminated")
