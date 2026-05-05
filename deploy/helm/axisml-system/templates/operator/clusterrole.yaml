@@ -106,24 +106,14 @@ rules:
   {{- end }}
 
   {{- /*
-    Pods: union across all enabled controllers. The base verbs
-    (get/list/watch/delete) cover MLJob/native-job (Pods owned by Job).
-    Add create/update/patch when MLJob/native-podgroup renders bare Pods or
-    when MLService creates Pods directly.
+    Pods: union across MLJob (native-podgroup renders bare Pods) and
+    MLService (native-deployment indirectly creates Pods via Deployment).
+    Both paths need the full CRUD verb set; render once when either
+    controller is enabled.
   */ -}}
-  {{- $podsWrite := or $op.controllers.mlservice.enabled $op.controllers.mljob.enabled }}
-  {{- if or $op.controllers.mljob.enabled $podsWrite }}
+  {{- if or $op.controllers.mljob.enabled $op.controllers.mlservice.enabled }}
   - apiGroups: [""]
     resources: ["pods"]
-    verbs:
-      - get
-      - list
-      - watch
-      - delete
-      {{- if $podsWrite }}
-      - create
-      - update
-      - patch
-      {{- end }}
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   {{- end }}
 {{- end }}
