@@ -180,11 +180,6 @@ operator:
 
     mljob:
       enabled: true
-      handlers:
-        nativeJob:
-          enabled: true
-        nativePodGroup:
-          enabled: true
 
     mlservice:
       enabled: true

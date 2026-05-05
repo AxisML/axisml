@@ -68,19 +68,15 @@ rules:
   - apiGroups: ["axisml.io"]
     resources: ["mljobs/status"]
     verbs: ["get", "patch", "update"]
-  {{- if $op.controllers.mljob.handlers.nativeJob.enabled }}
   # (native, job) handler — Job CRUD; Pods are owned by the Job and
   # are reached via the union pods rule below.
   - apiGroups: ["batch"]
     resources: ["jobs"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  {{- end }}
-  {{- if $op.controllers.mljob.handlers.nativePodGroup.enabled }}
   # (native, podgroup) handler — PodGroup CR.
   - apiGroups: ["scheduling.sigs.k8s.io"]
     resources: ["podgroups"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  {{- end }}
   {{- end }}
 
   {{- if $op.controllers.mlservice.enabled }}
@@ -110,25 +106,14 @@ rules:
   {{- end }}
 
   {{- /*
-    Pods: union across all enabled controllers/handlers. The base verbs
-    (get/list/watch/delete) cover MLJob/native-job (Pods owned by Job).
-    Add create/update/patch when MLJob/native-podgroup renders bare Pods or
-    when MLService creates Pods directly.
+    Pods: union across MLJob (native-podgroup renders bare Pods) and
+    MLService (native-deployment indirectly creates Pods via Deployment).
+    Both paths need the full CRUD verb set; render once when either
+    controller is enabled.
   */ -}}
-  {{- $podsBase := and $op.controllers.mljob.enabled (or $op.controllers.mljob.handlers.nativeJob.enabled $op.controllers.mljob.handlers.nativePodGroup.enabled) }}
-  {{- $podsWrite := or $op.controllers.mlservice.enabled (and $op.controllers.mljob.enabled $op.controllers.mljob.handlers.nativePodGroup.enabled) }}
-  {{- if or $podsBase $podsWrite }}
+  {{- if or $op.controllers.mljob.enabled $op.controllers.mlservice.enabled }}
   - apiGroups: [""]
     resources: ["pods"]
-    verbs:
-      - get
-      - list
-      - watch
-      - delete
-      {{- if $podsWrite }}
-      - create
-      - update
-      - patch
-      {{- end }}
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   {{- end }}
 {{- end }}
