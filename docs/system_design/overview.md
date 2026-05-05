@@ -26,7 +26,7 @@ ResourcePool 通过节点选择条件和容忍配置描述资源边界。Resourc
 
 ### 2.3 资源单元（ResourceUnit）
 
-ResourcePool 内预先定义的资源规格模板，是 AxisML Compute 维护的元数据对象。例如 `a100-1x-large` 可表示 1xA100 + 8 vCPU + 32 GiB。用户创建任务或服务时选择一个 ResourceUnit，平台据此注入 `requests` / `limits` 和节点匹配条件，避免在 API 层手工填写 CPU/GPU/内存明细。命名规范详见 [compute.md §6.2.3](compute.md)。
+ResourcePool 内预先定义的资源规格模板，是 AxisML Compute 维护的元数据对象。例如 `a100-1x-large` 可表示 1xA100 + 8 vCPU + 32 GiB。用户创建任务或服务时选择一个 ResourceUnit，平台据此注入 `requests` / `limits` 和节点匹配条件，避免在 API 层手工填写 CPU/GPU/内存明细。命名规范详见 [compute.md §6](compute.md)。
 
 ### 2.4 资源配额（Quota）
 

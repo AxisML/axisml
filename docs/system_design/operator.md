@@ -134,19 +134,19 @@ operator:
 
 ### 3.1 与 Compute 的写路径契约
 
-Compute 采用 Operation Outbox + reconciler 异步下发 CR（详见 [compute.md §5.2](compute.md)）。Operator 暴露给 Compute 的核心契约对所有三个 CRD 都成立：
+Compute 采用 Operation Outbox + reconciler 异步下发 CR（详见 [compute.md §3.4](compute.md)）。Operator 暴露给 Compute 的核心契约对所有三个 CRD 都成立：
 
 - **`Create` 幂等**：相同 `metadata.name` 的二次 `Create()` 返回 409 `AlreadyExists`，且不引发副作用（不重建底层资源、不重置 status）。Compute 收到 409 后会 `Get()` 现有 CR 并校验 label `axisml.io/{tenant-id|job-id|service-id}=<uuid>`；只有 label 一致才视为成功。
 - **status 单向权威**：operator 只写 `<CR>.status`，Compute 只写 `<CR>.metadata` / `<CR>.spec`；状态推进由 Compute 侧 Informer 按 CR `status` 消费。**operator 不感知 Compute 的 PG 表，也不向 Compute PG 写入任何数据**——状态与配额用量全部经由 CR `status` 回流。
-- **配置补偿**：CR 被误删后由 Compute 按 PG 快照判定是否重建（[compute.md §5.4](compute.md)）；operator 的 `Reconcile` 必须可在已存在的底层资源上幂等收敛——已存在的资源不重建，只对齐 spec 漂移。
+- **配置补偿**：CR 被误删后由 Compute 按 PG 快照判定是否重建（[compute.md §3.7](compute.md)）；operator 的 `Reconcile` 必须可在已存在的底层资源上幂等收敛——已存在的资源不重建，只对齐 spec 漂移。
 
 各 CRD 还有自身的额外写路径约束（如 Tenant 的"Namespace 永不级联删除"），见 §4.2 / §5.2 / §6.2。
 
 ### 3.2 CRD 共同约束
 
-**metadata 由 Compute 设置**（与 [compute.md §6](compute.md) 对齐）：
+**metadata 由 Compute 设置**（与 [compute.md Part III](compute.md) 对齐）：
 
-- `metadata.name` ← Compute 的对应业务对象 name；DNS-1123 + ≤40 字符（业务硬校验，[compute.md §6](compute.md)）。
+- `metadata.name` ← Compute 的对应业务对象 name；DNS-1123 + ≤40 字符（业务硬校验，[compute.md §3.2](compute.md)）。
 - `metadata.namespace`（仅 namespaced CRD MLJob/MLService）← `tenants.namespace`。
 - `metadata.labels["axisml.io/{tenant,job,service}-id"]` ← UUID，孤儿检测稳定锚点。
 - `metadata.labels["axisml.io/tenant"]` / `["axisml.io/quota"]`（仅 MLJob/MLService）：透传给 Pod 用于审计 / 查询。
@@ -260,7 +260,7 @@ Tenant controller 把 Compute 下发的 `Tenant` CR 翻译为 Kubernetes 侧的�
 2. **ElasticQuota 派生**：把 `spec.quotas[]` 渲染为 Koordinator `ElasticQuota` CR（每 `(tenant, pool, quota)` 一条，落在租户 Namespace 下），并把 `status.used` 回流到 `Tenant.status.quotas[].used`——这是 Tenant CR 与 Compute / koord-scheduler 之间双向数据链路的承载。
 3. **初始化资源下发**：按 `spec.initResources` 创建租户私有的 ImagePullSecrets / 通用 Secret / ConfigMap / ServiceAccount + RBAC。
 
-Tenant 是 [compute.md §5.4](compute.md) 中的**配置对象**——CR 缺失/漂移会被 Compute 按 PG 快照补偿重建，因此 `Reconcile` 必须可重复执行。Tenant controller **不存在多后端实现**，无 dispatcher/handler 分层；所有 Tenant CR 由单一 controller 处理。
+Tenant 是 [compute.md §3.7](compute.md) 中的**配置对象**——CR 缺失/漂移会被 Compute 按 PG 快照补偿重建，因此 `Reconcile` 必须可重复执行。Tenant controller **不存在多后端实现**，无 dispatcher/handler 分层；所有 Tenant CR 由单一 controller 处理。
 
 ### 4.2 与 Compute 的额外契约
 
@@ -284,7 +284,7 @@ Tenant 为 cluster-scoped CR：
 
 把 Tenant 的三类职责建模为同级字段——`namespace`（命名空间引用）、`quotas`（租户配额数组，1:1 渲染为 ElasticQuota CR）、`initResources`（初始化清单），避免任何一类职责喧宾夺主。
 
-**为何把 quotas 内联到 Tenant.spec 而非独立 CR**：Quota 在概念上是 Tenant 的子资源（每条配额都依附于一个 `(tenant, pool)` 组合），生命周期与 Tenant 强绑定。把 quotas 内联到 Tenant CR 让 Tenant controller 成为 ElasticQuota 的 single writer，给 Compute 提供统一的双向数据链路：`spec.quotas[]` 下行表达 desired `min` / `max`，`status.quotas[].used` 上行回流实际用量。Compute 侧仍保留独立的 `quotas` PG 表（[compute.md §6.2.4](compute.md)）以承载 API 行级 CRUD 与跨租户查询；CR 端只是该表的渲染。
+**为何把 quotas 内联到 Tenant.spec 而非独立 CR**：Quota 在概念上是 Tenant 的子资源（每条配额都依附于一个 `(tenant, pool)` 组合），生命周期与 Tenant 强绑定。把 quotas 内联到 Tenant CR 让 Tenant controller 成为 ElasticQuota 的 single writer，给 Compute 提供统一的双向数据链路：`spec.quotas[]` 下行表达 desired `min` / `max`，`status.quotas[].used` 上行回流实际用量。Compute 侧仍保留独立的 `quotas` PG 表（[compute.md §7](compute.md)）以承载 API 行级 CRUD 与跨租户查询；CR 端只是该表的渲染。
 
 **为何 quotas 用数组而非 map**：每条 quota 的标识由 `(pool, name)` 元组确定，map 在 spec 里只能用字符串单 key，会丢失结构。
 
@@ -404,7 +404,7 @@ status:
       ...
 ```
 
-**Compute phase 映射规则**（与 [compute.md §6.2.1](compute.md) 对齐）：
+**Compute phase 映射规则**（与 [compute.md §4](compute.md) 对齐）：
 
 | Tenant status.phase | tenants.status |
 | --- | --- |
@@ -425,7 +425,7 @@ status:
 
 `spec.quotas` 为空数组时 `status.quotas` 同为空，`Active` 推导只看 `namespaceReady` 与 initResources。
 
-**`status.quotas[].used` 回流路径**：controller 通过 SharedInformerFactory watch 本集群所有 namespace 的 ElasticQuota CR，按 ownerReference 反查所属 Tenant，把 `ElasticQuota.status.used` 聚合到对应 `Tenant.status.quotas[i].used`。Compute Tenant Informer 消费该字段更新 PG `quotas.used` 缓存（详见 [compute.md §5.3 / §6.2.4](compute.md)）。
+**`status.quotas[].used` 回流路径**：controller 通过 SharedInformerFactory watch 本集群所有 namespace 的 ElasticQuota CR，按 ownerReference 反查所属 Tenant，把 `ElasticQuota.status.used` 聚合到对应 `Tenant.status.quotas[i].used`。Compute Tenant Informer 消费该字段更新 PG `quotas.used` 缓存（详见 [compute.md §3.6 / §7](compute.md)）。
 
 ### 4.5 Reconcile 生命周期
 
@@ -468,7 +468,7 @@ status:
 
 #### 4.6.2 ElasticQuota
 
-`spec.quotas[]` 每项 1:1 渲染为一条 Koordinator `ElasticQuota` CR（`scheduling.sigs.k8s.io/v1alpha1`，namespace-scoped）。CR 落在 `spec.namespace.name` 下；Pod 通过 label `quota.scheduling.koordinator.sh/name=<eq-name>` 按集群唯一名跨 namespace 绑定 quota（详见 [compute.md §6.2.4](compute.md)），所以共享 Namespace 与独占 Namespace 在 quota 隔离上没有差别——命名前缀已天然 per-tenant 隔离。
+`spec.quotas[]` 每项 1:1 渲染为一条 Koordinator `ElasticQuota` CR（`scheduling.sigs.k8s.io/v1alpha1`，namespace-scoped）。CR 落在 `spec.namespace.name` 下；Pod 通过 label `quota.scheduling.koordinator.sh/name=<eq-name>` 按集群唯一名跨 namespace 绑定 quota（详见 [compute.md §7](compute.md)），所以共享 Namespace 与独占 Namespace 在 quota 隔离上没有差别——命名前缀已天然 per-tenant 隔离。
 
 | 维度 | 行为 |
 | --- | --- |
@@ -632,7 +632,7 @@ spec:
   scheduling:
     quota: string             # 必填: ElasticQuota CR 名（axisml-<tenant>-<pool>-<quota>）
     priorityClass: string     # 可选
-    nodeSelector: {}          # Compute 按 compute.md §6.2.3 合并 pool + unit 后注入
+    nodeSelector: {}          # Compute 按 compute.md §6 合并 pool + unit 后注入
     tolerations: []           # 来自 ResourcePool
 
   # ── 执行域：roles 数组承载角色拓扑 ─────────────────────────────────
@@ -699,7 +699,7 @@ status:
       failedReplicas: int
 ```
 
-**Compute phase 映射规则**（与 [compute.md §6.3.1](compute.md) 对齐）：
+**Compute phase 映射规则**（与 [compute.md §8](compute.md) 对齐）：
 
 | MLJob status.phase | jobs.status | 终态 |
 | --- | --- | --- |
@@ -708,7 +708,7 @@ status:
 | `Succeeded` | `Succeeded` | 是 |
 | `Failed` | `Failed` | 是 |
 
-**Cancel 推进信号**——`Cancelled` 与 `Deleted` 不由 operator 直接产出，但 cancel 路径有明确的链上信号：Handler 在收到 `spec.runPolicy.suspend=true` 并完成"暂停或清理底层资源"后，**必须向 dispatcher 返回 `suspendCompleted=true` 与 `reason=CancelRequested`**；dispatcher 统一合并写入 `status.conditions[type=Suspended,status=True,reason=CancelRequested]`，且在非终态时让 `status.phase` 维持在 `Pending`。Compute Informer 在 PG `status='Canceling'` 时把这个 condition 当作推进信号 → 写 `Cancelled` → 入队 `Delete()` 做 CR 资源回收（详见 [compute.md §5.2 / §5.3 / §6.3.1](compute.md)）。
+**Cancel 推进信号**——`Cancelled` 与 `Deleted` 不由 operator 直接产出，但 cancel 路径有明确的链上信号：Handler 在收到 `spec.runPolicy.suspend=true` 并完成"暂停或清理底层资源"后，**必须向 dispatcher 返回 `suspendCompleted=true` 与 `reason=CancelRequested`**；dispatcher 统一合并写入 `status.conditions[type=Suspended,status=True,reason=CancelRequested]`，且在非终态时让 `status.phase` 维持在 `Pending`。Compute Informer 在 PG `status='Canceling'` 时把这个 condition 当作推进信号 → 写 `Cancelled` → 入队 `Delete()` 做 CR 资源回收（详见 [compute.md §3.4 / §3.6 / §8](compute.md)）。
 
 **终态优先**：cancel 只面向仍处于 `Pending` / `Running` 的 Job。若底层资源已经进入 `Succeeded` / `Failed`，或同一轮 `MapStatus` 已经推导出终态，dispatcher 必须保留终态 phase 与 `finishedAt`，不能为了 cancel 信号把 `status.phase` 回退为 `Pending`；此时不写 `Suspended=True` 作为成功取消信号。
 
@@ -1010,7 +1010,7 @@ spec:
 
 **`spec.route` 与 backend 的兼容性**：`(kserve, *)` Handler 在 `Validate` 中拒绝 `spec.route.enabled=true` 的提交（KServe `InferenceService` 自带对外 Route，避免双管）；`(native, *)` 与 `(custom, *)` 接受。
 
-**与 compute.md `services.replicas` 的兼容**：[compute.md §6.3.2](compute.md) 中的 `services.replicas` 字段在单 role 约定下定义为 `spec.roles[0].replicas`；`/scale` API 在 CR 侧 patch path 写 `spec/roles/0/replicas`。多 role 独立扩缩的契约扩展见 §6.7。
+**与 compute.md `services.replicas` 的兼容**：[compute.md §9](compute.md) 中的 `services.replicas` 字段在单 role 约定下定义为 `spec.roles[0].replicas`；`/scale` API 在 CR 侧 patch path 写 `spec/roles/0/replicas`。多 role 独立扩缩的契约扩展见 §6.7。
 
 ### 6.3 Status
 
@@ -1043,7 +1043,7 @@ status:
 
 **端口选择**：native/custom `route.enabled=true` 时按 `route.portName`；否则取主 role.template.ports[] 中 `name=http` 的端口；不存在时取 `ports[0]` 并加 warning condition。
 
-**Compute phase 映射规则**（与 [compute.md §6.3.2](compute.md) 对齐）：
+**Compute phase 映射规则**（与 [compute.md §9](compute.md) 对齐）：
 
 | MLService status.phase | services.status | 终态 |
 | --- | --- | --- |
@@ -1052,7 +1052,7 @@ status:
 | `Degraded` | `Degraded` | 否，可恢复 |
 | `Failed` | `Failed` | 否，可恢复（自愈） |
 
-`Pending / Ready / Degraded / Failed` 均为非终态——operator 自愈（重建失败 Pod、健康检查恢复）后 Informer 回流可让 `Failed → Degraded → Ready` 自然恢复；只有 `Deleted` 是 Service 的最终终态，由 Compute Informer 在观察到 CR DELETE 事件后基于 PG 当前 `status` 推导（详见 [compute.md §5.3 / §5.4](compute.md)），不由 operator 产出。
+`Pending / Ready / Degraded / Failed` 均为非终态——operator 自愈（重建失败 Pod、健康检查恢复）后 Informer 回流可让 `Failed → Degraded → Ready` 自然恢复；只有 `Deleted` 是 Service 的最终终态，由 Compute Informer 在观察到 CR DELETE 事件后基于 PG 当前 `status` 推导（详见 [compute.md §3.6 / §3.7](compute.md)），不由 operator 产出。
 
 ### 6.4 Reconcile 事件路径
 
@@ -1119,7 +1119,7 @@ Dispatcher 与 Handler 职责切分（通用约束见 §3.3 / §3.6）：
 | `spec.route.rateLimit` / `timeout` | `BackendTrafficPolicy.spec.rateLimit` / `timeout`，`targetRefs` 指向上面 HTTPRoute |
 | `spec.runPolicy.progressDeadlineSeconds` | `Deployment.spec.progressDeadlineSeconds` |
 
-**Status 映射**（沿用 [compute.md §6.3.2](compute.md) 规则）：
+**Status 映射**（沿用 [compute.md §9](compute.md) 规则）：
 
 | 条件 | MLService phase |
 | --- | --- |
