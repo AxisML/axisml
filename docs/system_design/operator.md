@@ -10,11 +10,18 @@ axisml-operator 是 AxisML 控制平面里**唯一**的 Kubernetes operator 二�
 
 **文档组织**：
 
-- §1 架构总览 + §2 运行时契约：作为单一 Deployment / Manager 的运维契约（Scheme、Cache、Flag、RBAC、Helm values）。
-- §3 跨 controller 通用契约：抽取三个 controller 共享的 spec/status 边界、Reconcile 约束、Pod 注入、dispatcher+handler 架构等设计；§4–§6 引用本节而不重复。
-- §4–§6 各 controller 的 CRD 字段、状态推导、Handler 落地等独有内容。
+- **Part I — 运行时框架**（§1 架构总览 + §2 运行时契约）：单一 Deployment / Manager 的运维契约（Scheme、Cache、Flag、RBAC、Helm values）。
+- **Part II — 通用契约**（§3 跨 controller 通用契约）：三个 controller 共享的 spec/status 边界、Reconcile 约束、Pod 注入、dispatcher + handler 架构；§4–§6 引用本节而不重复。
+- **Part III — Controller 详细设计**（§4 Tenant、§5 MLJob、§6 MLService）：各 controller 的 CRD 字段、状态推导、Handler 落地。
+- **Part IV — 实施与验证**（§7 实现路径、§8 测试、§9 相关引用）：功能落地路线（MVP / 功能完善 / 未来规划）、测试层次、跨文档引用。
 
-三个 controller 通过 `--enable-{tenant,mljob,mlservice}` 单独启用 / 关闭；必要时可基于同一镜像启动多个 Deployment 各自承载部分控制器实现独立 rollout。
+三个 controller 通过 `--enable-{tenant,mljob,mlservice}` 单独启用 / 关闭，详见 §2.3。
+
+---
+
+## Part I — 运行时框架
+
+> 本部分描述 operator binary 与 Kubernetes Manager 的运维契约：Scheme 注册、Cache 过滤、CLI flag、RBAC 与 Helm values。三个 controller 共享这些契约。
 
 ## 1. 架构总览
 
@@ -115,6 +122,12 @@ operator:
 
 `controllers.<name>.enabled=false` 时对应 controller 的 reconciler 不挂到 Manager，且 ClusterRole 中相关分段不渲染——做到"按需启用"的最小权限。
 
+---
+
+## Part II — 通用契约
+
+> 本部分集中三个 controller **共享**的边界与协议：与 Compute 的写路径、CRD 共同字段约束、Reconcile 行为、Pod 注入约定、dispatcher + handler 架构、Handler 接口契约。§4–§6 各 controller 章节引用本节而不重复。
+
 ## 3. 跨 controller 通用契约
 
 §3 列出三个 controller **共享**的 spec/status 边界、Reconcile 行为、底层资源约定。§4–§6 引用本节而不重复。
@@ -205,30 +218,37 @@ MLJob 与 MLService 同构使用两层结构：
 
 ### 3.6 Handler 接口契约（MLJob + MLService）
 
-所有 Handler 必须实现以下行为（语言无关，描述责任）：
+所有 Handler 必须实现以下方法（语言无关，描述责任）：
 
 | 方法 | 责任 |
 | --- | --- |
 | `Key()` | 返回 `(backend, engine)` 元组，与 `spec.backend.{name, engine}` 对齐；用作注册表的主键 |
 | `Validate(spec)` | 校验通用字段 + `backend.config` + role 集合（数量、命名）；纯函数，只返回 errors / warnings，不写 `status` |
-| `Reconcile(ctx, cr)` | 创建 / 更新底层资源；幂等；通用字段由 Handler 自己注入到对应位置；处理控制信号（MLJob 的 `spec.runPolicy.suspend`、MLService 的 `spec.roles[*].replicas` scale）；返回结构化结果（如 MLJob 的 `suspendCompleted` / `reason`、warnings），不直接写 `status` |
+| `Reconcile(ctx, cr)` | 创建 / 更新底层资源；幂等；通用字段由 Handler 自己注入到对应位置；处理控制信号（见下方"控制信号义务"）；返回结构化结果，不直接写 `status` |
 | `MapStatus(snapshot)` | 把 CR spec + 底层资源快照映射回统一 phase + 公共状态字段；纯函数，不发起 K8s API 调用 |
 | `Cleanup(ctx, cr)` | 删除底层资源。一般依赖 ownerReference 自动级联，Handler 仅负责需要主动清理的副本（跨 namespace 资源、外部存储句柄） |
 | `WatchTargets()` | 声明本 Handler 需要 watch 的底层资源 GVK 列表，dispatcher 启动时统一建立 watch |
 | `RequiredRBAC()` | 声明本 Handler 需要的 ClusterRole 规则；启动时聚合到 operator ServiceAccount |
 
-**MLJob-specific：Suspend 声明义务**——每个 MLJob Handler 在自身章节显式声明"原生支持 / 兜底为 Cleanup"。dispatcher 不做静默选择——不支持原生 suspend 时必须显式调用 `Cleanup()`，避免半暂停半运行的中间态。**所有路径完成底层动作后都必须返回 `suspendCompleted=true, reason=CancelRequested`**（这是 dispatcher 写入 §5.3 cancel 闭环推进信号的唯一来源；缺失会导致 Compute PG 永远卡在 `Canceling`）；`status.phase` 在非终态 suspend 期间维持 `Pending`。若底层资源已经终态，终态优先，Handler 返回终态状态映射而不是 suspend 完成结果。
+#### 控制信号义务
 
-**MLService-specific：Scale 透传义务**——每个 MLService Handler 必须把 `roles[*].replicas` 透传为后端原生扩缩（Deployment.spec.replicas / StatefulSet.spec.replicas / InferenceService.spec.predictor.{minReplicas, maxReplicas}）；不支持原生扩缩的 backend 兜底为重建底层资源（应避免，作为最后手段）。
+**MLJob Suspend**：每个 MLJob Handler 在自身章节显式声明"原生支持 / 兜底为 Cleanup"，dispatcher 不做静默选择——不支持原生 suspend 时必须显式调用 `Cleanup()`，避免半暂停半运行的中间态。所有路径完成底层动作后都必须返回 `suspendCompleted=true, reason=CancelRequested`——这是 dispatcher 写入 §5.3 cancel 闭环推进信号的唯一来源；缺失会导致 Compute PG 永远卡在 `Canceling`。`status.phase` 在非终态 suspend 期间维持 `Pending`。若底层资源已经终态，终态优先，Handler 返回终态状态映射而不是 suspend 完成结果。
+
+**MLService Scale**：每个 MLService Handler 必须把 `roles[*].replicas` 透传为后端原生扩缩（`Deployment.spec.replicas` / `StatefulSet.spec.replicas` / `InferenceService.spec.predictor.{minReplicas, maxReplicas}`）；不支持原生扩缩的 backend 兜底为重建底层资源（应避免，作为最后手段）。
 
 ### 3.7 不变量
 
-- `spec.backend.{name, engine}` 创建后不可变（仅适用于 MLJob/MLService）；dispatcher 拒绝并写 `status.message`。
+仅列出独立于前面小节的硬约束；与 §3.2 / §3.4 / §3.6 重复的项目（phase 集合冻结、Pod 注入 5 项必填字段、`spec.backend.{name, engine}` 不可变）已在原章节声明，此处不再罗列。
+
 - `(backend, engine)` 元组未在 registry 注册 → CR 直接进入 `Failed`，message 写明缺失原因。
 - Handler 不直接修改 ElasticQuota CR；ElasticQuota 由 Tenant controller 独占维护（spec 写 + status.used 读）。
 - operator 不向 Compute PG 写入任何数据；状态全部经由 CR `status` + Compute Informer 回流。
-- 所有 Handler 派生的 Pod 必须满足 §3.4 Pod 注入约定的前 5 项必填字段；缺失任一项视为契约违反，Validate 必须在创建前拦截。
-- phase 集合冻结：Tenant `Active|Suspended|Failed`、MLJob `Pending|Running|Succeeded|Failed`、MLService `Pending|Ready|Degraded|Failed`。新增 phase 必须 CRD schema 与 Compute 双侧同步演进。
+
+---
+
+## Part III — Controller 详细设计
+
+> 本部分逐个展开三个 controller 的 CRD 字段、状态推导、Handler 落地等独有内容。
 
 ## 4. Tenant Controller
 
@@ -791,7 +811,7 @@ config:
 | 调度器选择 | Pod `spec.schedulerName=koord-scheduler`（恒定） |
 | `spec.runPolicy.activeDeadlineSeconds` | Pod 同名字段 |
 | `spec.runPolicy.ttlSecondsAfterFinished` | 终态后由 Handler 显式 GC（裸 Pod 无原生 TTL） |
-| `spec.runPolicy.backoffLimit` | 通过 PodGroup 重试 + Handler 内部计数实现 |
+| `spec.runPolicy.backoffLimit` | 暂不支持；如需重试请由用户脚本兜底。统一的 Handler 内部计数实现见 §5.6 后续工作 |
 
 **Status 映射**：
 
@@ -814,89 +834,57 @@ config:
 
 **RBAC**：`pods` / `podgroups.scheduling.sigs.k8s.io` / `events` 的 CRUD。
 
-#### 5.5.3 `(kubeflow-trainer, pytorchjob)`
+#### 5.5.3 `(kubeflow-trainer, *)`
 
-将 MLJob 翻译为 Kubeflow Trainer 的 [`PyTorchJob`](https://www.kubeflow.org/docs/components/training/pytorch/) CR。多角色 / 多 task 拓扑统一由本 Handler 通过 Kubeflow Trainer 承载。
+将 MLJob 翻译为 Kubeflow Trainer 的多角色训练 CR。本节锁三件事：路由元组、role 集合约定、Status / Suspend 协议骨架。`backend.config` 详细 schema、elastic / rendezvous 字段、与 PodGroup 的交互细节由独立设计文档落地（见 §5.6）。
 
-**前置依赖**：集群已安装 kubeflow training-operator；本 Handler 仅需要 `pytorchjobs.kubeflow.org` 的 CRUD。
+**前置依赖**：集群已安装 kubeflow training-operator；本 Handler 需要对应 CR 的 CRUD（`pytorchjobs.kubeflow.org` / `tfjobs.kubeflow.org` / `mpijobs.kubeflow.org` …）。
 
-**Role 集合约定**：必须有 `master`（replicas=1，可省略默认）+ `worker`（replicas≥1），可选 `elasticAgent`。
+**Role 集合约定**（按 engine 分）：
 
-**`backend.config` 关键字段**（schema 待细化设计文档）：
+| engine | role 集合 | 备注 |
+| --- | --- | --- |
+| `pytorchjob` | `master`（replicas=1，可省略默认）+ `worker`（replicas≥1），可选 `elasticAgent` | 主线落地 engine |
+| `tfjob` | `chief` / `worker` / `ps` / `evaluator`，任一可省略，replicas=0 表示禁用 | 同 §5.5.3 同构扩展 |
+| `mpijob` | `launcher`（replicas=1）+ `worker`（replicas≥1） | 同 §5.5.3 同构扩展 |
 
-```yaml
-config:
-  elastic:
-    enabled: bool
-    minReplicas: int
-    maxReplicas: int
-  rdzv:                          # 分布式 rendezvous 后端
-    backend: c10d | etcd
-    endpoint: string
-```
+**通用字段映射骨架**：
 
-**通用字段映射**：
+- `roles[*].template.*` → 对应 CR 的 `*ReplicaSpecs.<Role>.template`。
+- 各 replica 模板的 `template.spec.schedulerName` 必须设为 `koord-scheduler`；`template.metadata.labels` 必须注入 §3.4 列出的 5 项必填 label。
+- 多角色 gang 由本 Handler 一并创建 PodGroup CR（`spec.minMember ← sum(replicas)`）；具体 elastic 场景下的 `minMember` 计算策略见 §5.6 后续工作。
+- `spec.scheduling.*` → 各 replica 模板内的同名字段。
+- `spec.runPolicy.activeDeadlineSeconds` / `backoffLimit` → 后端 CR `spec.runPolicy` 同名字段。
 
-- `roles[master].template.*` → `pytorchReplicaSpecs.Master.template`（必为 1 副本）
-- `roles[worker].template.*` → `pytorchReplicaSpecs.Worker.template`
-- 各 replica 模板的 `template.spec.schedulerName` 必须设为 `koord-scheduler`；`template.metadata.labels` 必须注入 §3.4 列出的 5 项必填 label，并且对于多 worker 的 gang 语义可叠加 `pod-group.scheduling.sigs.k8s.io=<pg-name>` + 由 Handler 一并创建 PodGroup CR（`spec.minMember ← sum(replicas)` 或按 elastic 配置）
-- `spec.scheduling.*` → 各 replica 模板内的同名字段
-- `spec.runPolicy.suspend` → 支持原生 suspend 的版本 patch `PyTorchJob.spec.runPolicy.suspend=true`，否则走 `Cleanup()` fallback
-- `spec.runPolicy.activeDeadlineSeconds` / `backoffLimit` → `PyTorchJob.spec.runPolicy` 同名字段
+**Status 映射**：从后端 CR 的 `status.conditions` 推导四态——
 
-**Status 映射**：从 `PyTorchJob.status.conditions` 推导——
-
-| PyTorchJob condition | MLJob phase |
+| 后端 condition | MLJob phase |
 | --- | --- |
 | `Created` / `Restarting` | `Pending` |
 | `Running` | `Running` |
 | `Succeeded` | `Succeeded` |
 | `Failed` | `Failed` |
 
-**Suspend**：优先使用原生 `PyTorchJob.spec.runPolicy.suspend`；目标版本不支持时 fallback 为 `Cleanup()`。
+**Suspend**：优先使用后端原生 `spec.runPolicy.suspend=true`；目标版本不支持时 fallback 为 `Cleanup()`。无论哪条路径都必须按 §3.6 控制信号义务返回 `suspendCompleted=true, reason=CancelRequested`。
 
-> 完整字段映射、容错策略、与 elastic training 的交互细节，由独立设计文档落地（见 §5.6）。
+#### 5.5.4 `(custom, *)`
 
-#### 5.5.4 `(kubeflow-trainer, tfjob)`
+为外部接入预留的一等公民。用户在 `backend.config` 中以 schemaless 方式描述目标 GVK 与字段映射，由 custom Handler 通过 unstructured client 创建并跟踪。
 
-同 §5.5.3 思路，将 MLJob 翻译为 Kubeflow Trainer 的 `TFJob`。Role 集合约定为 `chief` / `worker` / `ps` / `evaluator`（任一可省略，replicas=0 表示禁用）。各 replica 模板同样必须注入 `schedulerName: koord-scheduler` + §3.4 必填 label；多角色 gang 通过同一 PodGroup（`minMember=sum(replicas)`）表达。Status 映射沿用 TFJob 的 condition 集，与 §5.5.3 同构。Suspend 优先走原生 `runPolicy.suspend`，目标版本不支持时 fallback 为 `Cleanup()`。
+**仍受 §3.4 Pod 注入约定约束**：custom Handler 必须保证最终落地的 Pod 模板上有 `schedulerName: koord-scheduler` 与 `quota.scheduling.koordinator.sh/name` label，否则 Validate 直接拒绝。
 
-#### 5.5.5 `(kubeflow-trainer, mpijob)`
-
-将 MLJob 翻译为 Kubeflow [`MPIJob`](https://www.kubeflow.org/docs/components/training/mpi/) CR。Role 集合约定为 `launcher`（replicas=1）+ `worker`（replicas≥1）。`backend.config` 携带 MPI 实现选择（OpenMPI / Intel MPI）与 launcher / worker 通讯参数。各 replica 模板同样必须注入 `schedulerName: koord-scheduler` + §3.4 必填 label；MPIJob 的 PodGroup 由本 Handler 创建（`minMember=launcher.replicas + worker.replicas`）。Status 映射对齐 MPIJob `status.conditions`。Suspend 优先走原生 `runPolicy.suspend`，目标版本不支持时 fallback 为 `Cleanup()`。
-
-#### 5.5.6 `(custom, *)`
-
-为外部接入预留的一等公民。用户在 `backend.config` 中以 schemaless 方式描述目标 GVK 与字段映射：
-
-```yaml
-backend:
-  name: custom
-  engine: any-name
-  config:
-    target:
-      apiVersion: example.com/v1
-      kind: MyTrainingRun
-    fieldMappings:
-      "spec.image": "$.roles[?(@.name=='worker')].template.image"
-      "spec.replicas": "$.roles[?(@.name=='worker')].replicas"
-      # ...
-    statusMappings:
-      "$.status.phase":
-        Created: Pending
-        Active: Running
-        Done: Succeeded
-        Error: Failed
-```
-
-由 custom Handler 通过 unstructured client 创建并跟踪。**仍受 §3.4 Pod 注入约定约束**：custom Handler 必须保证最终落地的 Pod 模板上有 `schedulerName: koord-scheduler` 与 `quota.scheduling.koordinator.sh/name` label，否则 Validate 直接拒绝。完整 schema 与 unstructured 操作约定由独立设计文档落地（见 §5.6）。
+> 完整 schemaless `config` schema、JSONPath fieldMappings / statusMappings、unstructured 操作约定由独立设计文档落地（见 §5.6）。当前 dispatcher 是精确 key 查找、未提供 wildcard 基础设施；落地前先确认至少 1-2 个真实接入需求场景。
 
 ### 5.6 后续工作
 
 - `(native, job)` Handler 的 Indexed Job 模式与 `podFailurePolicy` 直通策略细节。
-- `(native, podgroup)` Handler 的 PodGroup `minResources` 与 elastic gang 演进。
-- `(kubeflow-trainer, pytorchjob / tfjob / mpijob / paddlejob / xgboostjob)` 各自的字段映射与状态映射细节，含每路径下的 PodGroup 创建策略。
-- `(custom, *)` Handler 的 `config` 完整 schema 与 unstructured 操作约定（包括 schedulerName / quota label 强制注入校验）。
+- `(native, podgroup)` Handler 的 PodGroup `minResources` 与 elastic gang 演进；统一的 `runPolicy.backoffLimit` 由 Handler 内部计数器实现。
+- `(kubeflow-trainer, *)` 各 engine 的完整字段映射 / 状态映射 / `backend.config` schema：
+  - `pytorchjob`：`elastic.{enabled, minReplicas, maxReplicas}` + `rdzv.{backend, endpoint}` 详细 schema、与 PodGroup 的交互、与 PyTorch 弹性训练的协议对齐。
+  - `tfjob`：`chief / worker / ps / evaluator` 各 role 字段映射细节。
+  - `mpijob`：MPI 实现选择（OpenMPI / Intel MPI）与 launcher / worker 通讯参数 schema。
+  - `paddlejob` / `xgboostjob` 等扩展 engine 的引入节奏。
+- `(custom, *)` Handler 的 `config` 完整 schema 与 unstructured 操作约定（fieldMappings / statusMappings JSONPath 语义、schedulerName / quota label 强制注入校验、wildcard 路由基础设施）。
 - Admission webhook：`spec.backend.{name, engine}` 不可变约束、`backend.config` 按 Handler 自带 schema 的统一校验。
 - Handler chart 的 values 控制（启用 / 禁用 backend，对应 RBAC 与 watch 的开关）。
 - CRD 严格 schema（启用 OpenAPI 校验，`spec.backend.name` enum 收为 `{native, kubeflow-trainer, custom}` 与 `spec.scheduling.quota` 必填）。
@@ -1162,19 +1150,17 @@ Dispatcher 与 Handler 职责切分（通用约束见 §3.3 / §3.6）：
 - Pod 通过 `<pod>.<svc>.<namespace>.svc.cluster.local` 直连。
 - StatefulSet Pod 副本身份稳定，Handler 透传 K8s 注入的 `apps.kubernetes.io/pod-index` 为 `axisml.io/replica-index`。
 
-**`backend.config` 关键字段**（schema 待细化设计文档）：
+**`backend.config` 关键字段**（基础部分）：
 
 ```yaml
 config:
   podManagementPolicy: OrderedReady | Parallel   # 默认 OrderedReady
   serviceName: string                             # headless Service 名；不填默认 = MLService 名
-  volumeClaimTemplates: []                        # 持久卷模板
-  updateStrategy:
-    type: RollingUpdate | OnDelete
-    partition: int
 ```
 
-**通用字段映射**：与 §6.6.1 相同，`roles[predictor].replicas` 落到 `StatefulSet.spec.replicas`；`roles[predictor].template.ports[]` 落到 StatefulSet 主容器 `ports` + headless Service `spec.ports`；补充 `volumeClaimTemplates` 与 `serviceName` 字段。
+> `volumeClaimTemplates` / `updateStrategy.{type, partition}` 等存储与灰度更新维度由独立设计文档落地，见 §6.7 后续工作。
+
+**通用字段映射**：与 §6.6.1 相同，`roles[predictor].replicas` 落到 `StatefulSet.spec.replicas`；`roles[predictor].template.ports[]` 落到 StatefulSet 主容器 `ports` + headless Service `spec.ports`；补充 `serviceName` 字段。
 
 **Status 映射**：从 `StatefulSet.status` 推导，规则与 §6.6.1 同构。
 
@@ -1249,93 +1235,40 @@ config:
 
 #### 6.6.4 `(kserve, llminference)`
 
-> **本节为占位设计**：KServe LLM API 的 GVK / CRD 字段路径仍在演进，落地以引入版本为准。本节当前只锁两件事——role 命名约定（`prefill / decode / router`）与 PD 分离骨架（`backend.config` 形状）；详细字段、`Validate` 强制项、Status condition 名等待 KServe LLM API GA 后在 §6.7 单独成文。
+> KServe LLM API 的 GVK / CRD 字段路径仍在演进，最终以引入版本为准。本节先锁两件事——路由元组与 role 命名约定。详细 `backend.config` schema、字段映射、`Validate` 强制项、Status condition 名等待 KServe LLM API GA 后在 §6.7 单独成文。
 
-将 MLService 翻译为 KServe LLM 原生 CR `LLMInferenceService`（占位命名）。该 engine 承载 LLM 在线服务的额外能力——核心是 **PD 分离（disaggregated serving）**：prefill 与 decode 拆成独立角色独立扩缩，搭配 router 角色做请求分发与 KV cache 协调。
+将 MLService 翻译为 KServe LLM 原生 CR `LLMInferenceService`（占位命名）。该 engine 承载 LLM 在线服务的 **PD 分离（disaggregated serving）**：prefill 与 decode 拆成独立角色独立扩缩，搭配 router 角色做请求分发与 KV cache 协调。
 
-**前置依赖**：集群已安装 KServe LLM API。本 Handler 需要 `llminferenceservices.serving.kserve.io`（占位）的 CRUD，外加 KV cache 协议相关 ConfigMap / Secret 的读取权限。
+**前置依赖**：集群已安装 KServe LLM API。本 Handler 需要 `llminferenceservices.serving.kserve.io`（占位）的 CRUD。
 
 **Role 集合约定**：
 
-- `prefill`：长上下文处理（compute-bound）；replicas≥1；GPU 配置通常偏算力。
-- `decode`：token 生成（memory-bound）；replicas≥1；GPU 配置通常偏显存与互联带宽。
+- `prefill`：长上下文处理（compute-bound）；replicas≥1。
+- `decode`：token 生成（memory-bound）；replicas≥1。
 - `router`：请求入口与 KV cache 协调；replicas≥1；承载 KServe LLM API 自带的对外入口。
 
-`Validate` 强制：role 名属于上述集合；至少存在 `prefill` 与 `decode`。`(kserve, llminference)` 与 §6.6.3 一样拒绝 `spec.route.enabled=true`，避免同时由 AxisML Gateway 与 KServe LLM router 管理入口。
+`Validate` 强制：role 名属于上述集合；至少存在 `prefill` 与 `decode`。与 §6.6.3 一样拒绝 `spec.route.enabled=true`，避免同时由 AxisML Gateway 与 KServe LLM router 管理入口。
 
-**`backend.config` 关键字段**（schema 占位）：
-
-```yaml
-config:
-  runtime: vllm | <其他 LLM 原生 runtime>
-  storageUri: string
-  llm:
-    model: string
-    maxModelLen: int
-    quantization: awq | gptq | fp8 | none
-  disaggregation:
-    kvTransport: nixl | mooncake | <其他>
-    prefillToDecodeRatio: float
-  parallelism:
-    prefill: { tensorParallelSize, pipelineParallelSize }
-    decode:  { tensorParallelSize, pipelineParallelSize }
-```
-
-**通用字段映射**（占位）：
-
-- `roles[prefill / decode / router].template.{image, command, args, env, envFrom, workingDir, ports, resources}` → 对应 role 在 `LLMInferenceService.spec` 下的同构字段。
-- `roles[*].replicas` → 各 role 的 `minReplicas` / 副本数。
-- `spec.modelRef` → `config.llm.model` 或 `config.storageUri`。
-- `spec.scheduling.*` → 各 role Pod 的同名字段。
-- `spec.scheduling.quota` → 各 role 的 podSpec 注入 `schedulerName: koord-scheduler` 与 quota / `axisml.io/quota` label。
-- `spec.runPolicy.progressDeadlineSeconds` → KServe 暂无对等字段，warning 不阻塞。
-- `spec.route` → **不支持**（同 §6.6.3）。
-
-**单副本 GPU 数约束**：`roles[prefill / decode].template.resources.requests["nvidia.com/gpu"]` 必须等于该 role 的 `tensorParallelSize × pipelineParallelSize`，由 `Validate` 强制。
-
-**Status 映射**：参照 KServe LLM API 的 condition 集合落地，原则上沿用 §6.6.3 四态映射。`endpoint` 取 KServe LLM API 暴露的 router 入口。
-
-**Scale**：分别 patch 各 role 在 `LLMInferenceService` 中的 `minReplicas` / `maxReplicas`；多 role 独立扩缩需要 §6.7 中的 `/scale` API 路径携带 role 名。
-
-**Quota 与 autoscaling 的相互作用**：与 §6.6.3 一致，按 `Σ(role.maxReplicas × role.requests)` 计费；`prefillToDecodeRatio` 仅作为 autoscaler 参考，不参与配额校验。
+> 完整设计（PD 分离 `backend.config` schema、KV cache 传输契约 nixl / mooncake、各 role parallelism schema、单副本 GPU 数与 `tensorParallelSize × pipelineParallelSize` 校验、autoscaling 与 quota 计费策略）见 §6.7 后续工作。
 
 #### 6.6.5 `(custom, *)`
 
-为外部接入预留的一等公民。用户在 `backend.config` 中以 schemaless 方式描述目标 GVK 与字段映射：
+为外部接入预留的一等公民。用户在 `backend.config` 中以 schemaless 方式描述目标 GVK 与字段映射，由 custom Handler 通过 unstructured client 创建并跟踪。
 
-```yaml
-backend:
-  name: custom
-  engine: any-name
-  config:
-    target:
-      apiVersion: example.com/v1
-      kind: MyServingEndpoint
-    fieldMappings:
-      "spec.image":    "$.roles[?(@.name=='predictor')].template.image"
-      "spec.replicas": "$.roles[?(@.name=='predictor')].replicas"
-      # ...
-    statusMappings:
-      "$.status.phase":
-        Pending: Pending
-        Active:  Ready
-        Degraded: Degraded
-        Error:   Failed
-    endpointPath: "$.status.url"
-```
-
-由 custom Handler 通过 unstructured client 创建并跟踪。**仍受 §3.4 Pod 注入约定约束**：custom Handler 必须保证最终落地的 Pod 模板上有 `schedulerName: koord-scheduler` 与 `quota.scheduling.koordinator.sh/name` label，否则 Validate 直接拒绝。完整 schema 与 unstructured 操作约定由独立设计文档落地（见 §6.7）。
+**仍受 §3.4 Pod 注入约定约束**：custom Handler 必须保证最终落地的 Pod 模板上有 `schedulerName: koord-scheduler` 与 `quota.scheduling.koordinator.sh/name` label，否则 Validate 直接拒绝。
 
 **`spec.route` 在 custom Handler 下的语义**：由 `config.routeBackend`（独立设计文档定义）显式描述外部入口对接的目标 Service；未在 `config` 中 wire `spec.route` 时，Handler 应在 `Validate` 中拒绝 `spec.route.enabled=true`。
 
+> 完整 schemaless `config` schema、JSONPath fieldMappings / statusMappings / endpointPath、unstructured 操作约定由独立设计文档落地（见 §6.7）。当前 dispatcher 是精确 key 查找、未提供 wildcard 基础设施；落地前先确认至少 1-2 个真实接入需求场景。
+
 ### 6.7 后续工作
 
-- `(native, statefulset)` Handler 的 `volumeClaimTemplates` / 灰度更新 / pod-index 寻址细节。
+- `(native, statefulset)` Handler 的 `volumeClaimTemplates` 持久卷模板、`updateStrategy.{type, partition}` 灰度更新、pod-index 寻址细节。
 - 多 role 接入的具体 Handler 落地：
   - `(kserve, inference)` 的 `transformer` / `explainer` 字段映射与状态映射。
-  - `(kserve, llminference)`（对应 `LLMInferenceService` 占位 GVK，最终以 KServe LLM API 落地版本为准）：vLLM disaggregated / llm-d / NVIDIA Dynamo 等场景下的命名约定、KV cache 传输契约、autoscaler 接入。
+  - `(kserve, llminference)`（对应 `LLMInferenceService` 占位 GVK，最终以 KServe LLM API 落地版本为准）：vLLM disaggregated / llm-d / NVIDIA Dynamo 等场景下的命名约定、KV cache 传输契约（nixl / mooncake）、各 role parallelism schema、单副本 GPU 数与 `tensorParallelSize × pipelineParallelSize` 校验、autoscaler 接入。
 - KServe scale-to-zero 与 Compute quota 的精细交互模型（含 `maxReplicas × requests` 上限计费策略）。
-- `(custom, *)` Handler 的 `config` 完整 schema 与 unstructured 操作约定（含 `config.routeBackend` 与 `spec.route` 的对接细则）。
+- `(custom, *)` Handler 的 `config` 完整 schema 与 unstructured 操作约定：JSONPath fieldMappings / statusMappings / endpointPath 语义、`config.routeBackend` 与 `spec.route` 的对接细则、wildcard 路由基础设施。
 - 多 role 独立扩缩容的 `/scale` API 扩展（路径中携带 role 名）。
 - `spec.route` 可变化路径（轮换 API key / 调整限流不需要重建 Service；Handler 侧需要识别哪些子字段可热更新、哪些必须重建派生资源）。
 - `spec.route` 与 KServe 自带 Route 的统一化（让 `(kserve, *)` 也支持 `spec.route` 而非依赖 KServe 内置 Route）。
@@ -1343,13 +1276,111 @@ backend:
 - Handler chart 的 values 控制（启用 / 禁用 backend，对应 RBAC 与 watch 的开关）。
 - CRD 严格 schema（启用 OpenAPI 校验，替换当前的 `x-kubernetes-preserve-unknown-fields`）。
 
-## 7. 测试
+---
+
+## Part IV — 实施与验证
+
+> 本部分给出 axisml-operator 的功能落地路线、测试策略与跨文档引用。新贡献者读完前三部分后从这里看"先做什么、再做什么、怎么验证"。
+
+## 7. 实现路径
+
+按功能优先级把交付内容映射到三个阶段。MVP 划定"能跑通端到端最小可发布范围"，功能完善覆盖主流场景与生产硬化，未来规划承接需求未明朗或上游依赖未稳定的方向。
+
+### 7.1 阶段总览
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│ MVP（最小可发布）                                             │
+│   单一 Pod / 三 Reconciler / 两个 Job backend / 两个 Service  │
+│   backend / 完整 Tenant / L1 envtest                         │
+│   ↓                                                           │
+│ 功能完善（生产硬化）                                          │
+│   补齐主流 Handler、外部入口策略、admission webhook、严格      │
+│   CRD schema                                                  │
+│   ↓                                                           │
+│ 未来规划（需求 / 上游驱动）                                    │
+│   custom backend、KServe LLM API、分层配额、加密源、运行时    │
+│   插件                                                        │
+└──────────────────────────────────────────────────────────────┘
+```
+
+每条目标都附完成信号，便于阶段闭合验证。
+
+### 7.2 阶段一：MVP（最小可发布）
+
+支撑端到端最小演示路径："创建 Tenant → 提交单角色 MLJob 与单 Service → 看到 phase 收敛"。
+
+| 模块 | 范围 | 完成信号 |
+| --- | --- | --- |
+| Operator binary | 单一 Manager 承载三 Reconciler、`--enable-*` flag、leader election、Cache `ByObject` 选择性过滤（§2） | 单 Pod 启动后三 controller 同时 Ready；`--enable-mljob=false` 能独立关闭 MLJob 的 watch 与 RBAC |
+| Tenant | Namespace 创建（永不删除）、ElasticQuota 1:1 派生 + `status.used` 回流、ImagePullSecrets / Secrets / ConfigMaps / SAs + RBAC initResources、suspend、Compute phase 映射（§4） | envtest 覆盖：happy path、suspend / unsuspend、quota update、源 Secret 缺失 |
+| MLJob dispatcher | `(backend, engine)` 路由、`Validate` 拒绝未注册元组、Suspend cancel 推进信号合并写入 `conditions[type=Suspended,reason=CancelRequested]`（§5.4） | envtest 覆盖：未知 backend 直接进入 `Failed`；suspend 后 condition 与 phase 变化符合 §5.3 |
+| MLJob `(native, job)` | K8s Job + koord-scheduler、quota label 注入、原生 `Job.spec.suspend` cancel（§5.5.1） | envtest 覆盖 happy path + suspend cancel |
+| MLJob `(native, podgroup)` | scheduler-plugins PodGroup + 裸 Pod、`minMember=0` → 删 Pod 的暂停顺序（§5.5.2） | envtest 覆盖 happy path + suspend shutdown |
+| MLService dispatcher | 同上 + `/scale` 透传 | envtest 覆盖：未知 backend 直接 `Failed`；scale 修改 `roles[0].replicas` 触发后端副本调整 |
+| MLService `(native, deployment)` | Deployment + ClusterIP Service + 基础 HTTPRoute（仅创建 `HTTPRoute`，不创建 `SecurityPolicy` / `BackendTrafficPolicy`）（§6.6.1） | envtest 覆盖 happy path、route 启用 / 禁用、scale、字段不可变性 |
+| MLService `(native, statefulset)` | StatefulSet + headless Service、透传 `apps.kubernetes.io/pod-index` 为 `axisml.io/replica-index`、scale 路径 patch `spec.replicas`（§6.6.2） | envtest 覆盖 happy path、scale、字段不可变性 |
+| CRD | 三个 CRD 用 `x-kubernetes-preserve-unknown-fields: true` 宽松 schema + `subresources.status` 显式声明 | helm install / upgrade 通过；status 写入不影响 spec 写入 |
+| 测试 | L1 envtest 一个 module 七个文件覆盖三 controller 的 happy path + suspend + immutability | `make operator-envtest` 通过 |
+
+### 7.3 阶段二：功能完善（生产硬化）
+
+按"对生产可用性的影响"排序，每条标明完成信号。
+
+1. **MLService `route.auth` + `route.rateLimit / timeout` 派生资源**
+   - 目标：`(native, deployment)` Handler 在 `route.auth.type != none` 时创建 `SecurityPolicy`；在 `rateLimit` / `timeout` 非空时创建 `BackendTrafficPolicy`；统一 ownerReference 到 MLService。
+   - 完成信号：envtest 覆盖 `jwt` / `apiKey` / 限流 三条派生资源路径；`Validate` 不再只返回 warning。
+2. **MLJob `(kubeflow-trainer, pytorchjob)` 主线**
+   - 目标：覆盖多角色分布式训练里使用最广的 backend；以此把 §5.5.3 骨架扩展为完整 handler。
+   - 完成信号：handler 注册到 dispatcher、`master + worker` role 校验、Status condition 映射到四态、原生 suspend + `Cleanup()` fallback 二选一；envtest 覆盖 happy path 与 suspend。
+3. **MLService `(kserve, inference)` 主线（vllm / triton 优先）**
+   - 目标：推理主路径接入。前置依赖：axisml-infra 安装时 pin KServe 版本、确认 `InferenceService.spec.predictor.{schedulerName, labels}` 透传到派生 Pod。
+   - 完成信号：handler 写 `InferenceService` 时强制注入 `schedulerName: koord-scheduler` + quota label、`status.url` 回流到 `endpoint`、scale 路径 patch `predictor.{minReplicas, maxReplicas}`；envtest（用 fake KServe CRD）覆盖 vllm + triton 两条 runtime 校验分支。
+4. **Admission webhook 上线**
+   - 目标：把 `spec.backend.{name, engine}` 不可变、`spec.namespace.name` 不可变、跨 namespace `sourceXxxRef` 白名单、`backend.config` 按 Handler schema 校验，从 controller 兜底前移到准入阶段。
+   - 完成信号：webhook server 部署、cert-manager 颁证；上述 4 类规则各 1 条 envtest（带 `--admission-webhook` flag）通过；`Validate` 实现保持纯函数，可被 webhook 与 controller 同时复用。
+5. **严格 CRD OpenAPI schema**
+   - 目标：替换 `x-kubernetes-preserve-unknown-fields: true`；`spec.backend.name` enum、`spec.scheduling.quota` required、phase enum 收紧、各 role 字段类型显式化。
+   - 完成信号：三个 CRD 移除 `preserve-unknown-fields`；envtest 覆盖"非法 enum 值被 apiserver 直接拒绝"。
+6. **resync 间隔 Helm values 暴露**
+   - 目标：默认 10 min；运维侧可调到分钟级以缩短源 Secret / ConfigMap 的更新延迟。
+   - 完成信号：Helm values `operator.controllers.tenant.resyncPeriod` 透传到 `--resync-period` flag；启动期校验下限。
+7. **目标 Namespace allowlist / denylist 默认硬化**
+   - 目标：把 §4.6.1 列出的 `kube-*` / `default` / `axisml-system` 默认拒绝列表落到 Helm `values.yaml` + 启动期校验。
+   - 完成信号：默认 denylist 在代码与 chart 中保持一致；envtest 覆盖"试图把 Tenant 落到 `kube-system` 被拒绝并写 `status.message`"。
+
+### 7.4 阶段三：未来规划
+
+- **MLJob `(kubeflow-trainer, tfjob)` / `(mpijob)` / `paddlejob` / `xgboostjob`**——用户驱动；与 pytorchjob 同构，落地时复用 §5.5.3 骨架。
+- **MLService `(kserve, llminference)` PD 分离**——等 KServe LLM API GA；KV cache 传输契约（nixl / mooncake）由独立设计文档落地。
+- **MLService `(kserve, inference)` 多 role**（`transformer` / `explainer`）——前提是 KServe 自身的多 component 编排稳定。
+- **MLJob / MLService `(custom, *)` Handler**——schemaless 字段映射 + JSONPath 操作；引入前先确认 1-2 个真实需求场景，避免做 "pluggable but used by nobody" 的接口。
+- **多 role 独立扩缩 `/scale` 路径**——`services.replicas` 字段从单 role 升级为 role 显式寻址。
+- **`spec.route` 可热更新路径**——轮换 API key / 调限流不重建 Service / Deployment。
+- **`spec.route` 与 KServe 自带 Route 的统一化**——让 `(kserve, *)` 也走 AxisML Gateway 而非 KServe 内置 Route。
+- **分层配额**——`spec.quotas[].parent` 落到 ElasticQuota `quota.scheduling.koordinator.sh/parent` annotation。
+- **加密源 / Sealed Secrets / KMS / Vault** 作为 `sourceSecretRef` 的替代方案。
+- **`spec.initResources` templating**——按 tenant 上下文渲染 ConfigMap 数据。
+- **跨 Namespace 复制源 RBAC 收敛**——把允许的源 Namespace 限定为单一受控 Namespace。
+- **运行时插件加载机制**——仅当出现"运行时安装新后端"的硬需求时再考虑；默认结论是编译期 `init()` 注册 + 多 binary 路由就够了。
+- **`(native, podgroup)` 的 elastic gang / `minResources`**——与上层 PodGroup 演进绑定。
+- **跨 controller `runPolicy.backoffLimit` 实现**——由 Handler 内部计数器统一支持。
+
+### 7.5 跨阶段验证策略
+
+| 阶段 | 主测层 | 工具 |
+| --- | --- | --- |
+| MVP | L1 envtest | `make operator-envtest` |
+| 功能完善 | L1 envtest 扩展 + 关键路径 L2 e2e | `make envtest-test` + `make e2e-test`（minikube） |
+| 未来规划 | 单独写 RFC 设计文档 → L1 envtest 先行 → L2 验证多组件链路 | 同上 |
+
+## 8. 测试
 
 L1 envtest 在 `components/operator/test/envtest/` 单一 Go module 中，单一 `TestMain` 把三个 reconciler 注册到同一个 envtest manager，跑七个 test 文件（tenant 2 + mljob 3 + mlservice 2）。CRDPaths 是 `deploy/helm/axisml-system/crds` 与 `test/crds/external/`（vendored ElasticQuota / PodGroup / HTTPRoute）的并集。
 
-L2 e2e 在 `test/e2e/`，通过部署后的 axisml-operator 与 MLPlatform/Compute API 一起跑端到端。
+L2 e2e 在 `test/e2e/`，通过部署后的 axisml-operator 与 MLPlatform / Compute API 一起跑端到端。
 
-## 8. 相关引用
+## 9. 相关引用
 
 - [docs/system_design/overview.md §5.3](overview.md) 概述了 axisml-operator 在控制平面里的位置。
 - [docs/system_design/compute.md](compute.md) 描述 ml-compute 与 operator 之间的 CR 写路径与状态回流。
