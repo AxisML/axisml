@@ -1,4 +1,4 @@
-# axisml-operator 详细设计
+# AxisML Operator 详细设计
 
 axisml-operator 是 AxisML 控制平面里**唯一**的 Kubernetes operator 二进制，由一个 Manager 同时承载三个 controller：
 
