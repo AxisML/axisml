@@ -17,16 +17,18 @@ concurrency:
 
 # Jobs are organised as a type × component grid:
 #
-#                 operator   compute   test
-#   lint            ✓          ✓        ✓
-#   test            ✓          ✓        —
-#   envtest         ✓          ✓        —
-#   openapi         —          ✓        —
-#   image           ✓          ✓        —   (main-only)
+#                 operator   compute   artifacts   test
+#   lint            ✓          ✓          ✓         ✓
+#   test            ✓          ✓          ✓         —
+#   envtest         ✓          ✓          —         —
+#   openapi         —          ✓          —         —
+#   image           ✓          ✓          ✓         —   (main-only)
 #
 # The `test` lint bucket covers the shared test/testutil + test/e2e modules,
 # which don't have their own test/envtest layers. Each component lint job
-# lints both its production module and its test/envtest sub-module in one go.
+# lints both its production module and its test/envtest sub-module in one go;
+# artifacts has no envtest sub-module (testcontainer-backed integration tests
+# under the `integration` build tag run separately, not in CI).
 #
 # `helm-lint` sits outside the grid — it validates Helm charts under
 # deploy/helm/, which aren't tied to a Go component.
@@ -47,6 +49,9 @@ jobs:
             modules: |
               components/compute
               components/compute/test/envtest
+          - name: artifacts
+            modules: |
+              components/artifacts
           - name: test
             modules: |
               test/testutil
@@ -85,7 +90,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        component: [operator, compute]
+        component: [operator, compute, artifacts]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -177,9 +182,12 @@ jobs:
       matrix:
         component:
           # The merged operator and compute both build from the repo root —
-          # their Dockerfiles reach into sibling modules.
-          - { name: operator, image: axisml/axisml-operator, context: ., dockerfile: components/operator/Dockerfile }
-          - { name: compute,  image: axisml/axisml-compute,  context: ., dockerfile: components/compute/Dockerfile }
+          # their Dockerfiles reach into sibling modules. Artifacts is a
+          # standalone module but uses the same repo-root build context for
+          # consistency with the rest of the matrix.
+          - { name: operator,  image: axisml/axisml-operator,  context: ., dockerfile: components/operator/Dockerfile }
+          - { name: compute,   image: axisml/axisml-compute,   context: ., dockerfile: components/compute/Dockerfile }
+          - { name: artifacts, image: axisml/axisml-artifacts, context: ., dockerfile: components/artifacts/Dockerfile }
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-qemu-action@v3

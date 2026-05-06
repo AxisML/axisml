@@ -15,21 +15,59 @@ spec:
       labels:
         {{- include "axisml.componentLabels" (dict "context" . "component" "artifacts") | nindent 8 }}
     spec:
+      serviceAccountName: {{ include "axisml.fullname" . }}-artifacts
       {{- with .Values.global.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      initContainers:
+        {{- include "axisml.waitForDatabase" . | nindent 8 }}
       containers:
         - name: artifacts
           image: {{ include "axisml.image" (dict "imageRoot" .Values.artifacts.image "global" .Values.global "chart" .Chart) }}
           imagePullPolicy: {{ .Values.artifacts.image.pullPolicy }}
+          args: ["serve"]
           ports:
             - name: http
               containerPort: {{ .Values.artifacts.service.port }}
               protocol: TCP
+            - name: metrics
+              containerPort: {{ .Values.artifacts.metricsPort }}
+              protocol: TCP
+            - name: probes
+              containerPort: {{ .Values.artifacts.probesPort }}
+              protocol: TCP
           envFrom:
             - configMapRef:
                 name: {{ include "axisml.fullname" . }}-artifacts
+          env:
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "axisml.fullname" . }}-artifacts-db
+                  key: password
+            - name: OCI_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default (printf "%s-artifacts-zot" (include "axisml.fullname" .)) .Values.artifacts.storage.oci.adminSecretRef.name }}
+                  key: {{ .Values.artifacts.storage.oci.adminSecretRef.usernameKey }}
+            - name: OCI_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default (printf "%s-artifacts-zot" (include "axisml.fullname" .)) .Values.artifacts.storage.oci.adminSecretRef.name }}
+                  key: {{ .Values.artifacts.storage.oci.adminSecretRef.passwordKey }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: probes
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: probes
+            initialDelaySeconds: 5
+            periodSeconds: 10
           resources:
             {{- toYaml .Values.artifacts.resources | nindent 12 }}
 {{- end }}

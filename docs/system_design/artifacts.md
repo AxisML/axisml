@@ -39,12 +39,12 @@ Artifacts 是单一 Go 二进制（`axisml-artifacts`），以 Deployment 形态
 ┌─────────────────────────────────────────────────────────────────────┐
 │  AxisML Artifacts (Go binary, optionally leader-elected)            │
 │                                                                      │
-│  HTTP Server (chi / std net/http)                                    │
-│   ├── /api/v1/.../artifact-repos                Repo CRUD            │
-│   ├── /api/v1/.../artifacts:initiate            Two-Phase write 1    │
-│   ├── /api/v1/.../artifacts/{v}:complete        Two-Phase write 2    │
-│   ├── /api/v1/.../artifacts/{v}:resolve         Read path            │
-│   └── /api/v1/.../artifacts/{v}                 DELETE / GET         │
+│  HTTP Server (Gin)                                                   │
+│   ├── /api/v1/.../repos                         Repo CRUD            │
+│   ├── POST /api/v1/.../repos/{k}/{n}/artifacts  Two-Phase write 1    │
+│   ├── /api/v1/.../repos/{k}/{n}/artifacts/{v}/complete  Two-Phase 2  │
+│   ├── /api/v1/.../repos/{k}/{n}/artifacts/{v}/resolve   Read path    │
+│   └── /api/v1/.../repos/{k}/{n}/artifacts/{v}   DELETE / GET         │
 │                                                                      │
 │  ArtifactHandler Registry (compile-time init())                      │
 │   └── handlers/{model, dataset, image, evalreport}                   │
@@ -200,7 +200,7 @@ Artifacts 没有 K8s CR 下发动作（与 compute 不同），采用与 S3 mult
 **阶段 1：initiate**
 
 ```
-cli → POST /artifact-repos/{repo}/artifacts:initiate
+cli → POST /repos/{kind}/{name}/artifacts
       body: {version, spec, display_name?, description?, labels?, annotations?}
 ```
 
@@ -219,7 +219,7 @@ cli → POST /artifact-repos/{repo}/artifacts:initiate
 **阶段 3：complete**
 
 ```
-cli → POST /artifact-repos/{repo}/artifacts/{version}:complete
+cli → POST /repos/{kind}/{name}/artifacts/{version}/complete
       body: {digest}
 ```
 
@@ -246,7 +246,7 @@ cli → POST /artifact-repos/{repo}/artifacts/{version}:complete
 ### 3.3 读路径：resolve
 
 ```
-GET /artifact-repos/{repo}/artifacts/{version}:resolve?usage={inspect|download}
+GET /repos/{kind}/{name}/artifacts/{version}/resolve?usage={inspect|download}
 ```
 
 `usage` 决定凭证形态——集群内消费方与集群外 cli 对凭证的可用性不同，二者必须分开。Operator 只允许 `usage=inspect`，并必须携带租户 / workload namespace 上下文；`axisml-cli pull` 经 Platform / Gateway 走 `usage=download`。
@@ -489,17 +489,18 @@ artifacts(
 
 Artifacts 所有 API 置于 `/api/v1` 前缀下。
 
+> **路径风格**：URL 使用 `/repos`（不是 `/artifact-repos`）；动词一律用子资源路径（`/complete`、`/resolve`），不使用 `:action` 形式——后者在 Gin / httprouter 中会被解析为路径参数。`POST /repos/{kind}/{name}/artifacts` 即"集合 POST"承担 initiate 角色：在 `Uploading` 状态下创建新版本并返回上传凭证。数据库表名仍为 `artifact_repos` / `artifacts`，与 URL 表面解耦。
+
 | 资源组 | 路径 | 主要动作 |
 | --- | --- | --- |
 | 健康检查 | `/healthz`、`/readyz` | Liveness / Readiness |
-| 租户私有仓库 | `/api/v1/tenants/{tenant}/artifact-repos` | Create / Get / List / Update / Delete |
-| 公共仓库 | `/api/v1/public/artifact-repos` | Get / List（普通用户）；Create / Update / Delete（admin） |
-| 仓库下版本 | `/api/v1/.../artifact-repos/{repo}/artifacts` | List；GET 单个 |
-| 注册版本 | `/api/v1/.../artifact-repos/{repo}/artifacts:initiate` | POST：注册元数据 + 签发上传凭证 |
-| 完成上传 | `/api/v1/.../artifact-repos/{repo}/artifacts/{version}:complete` | POST：校验 digest + 转 Ready |
-| 解析引用 | `/api/v1/.../artifact-repos/{repo}/artifacts/{version}:resolve` | GET：返回 uri / digest / auth_hint |
-| 删除版本 | `/api/v1/.../artifact-repos/{repo}/artifacts/{version}` | DELETE |
-| 删除仓库 | `/api/v1/.../artifact-repos/{repo}` | DELETE（级联） |
+| 租户私有仓库 | `/api/v1/tenants/{tenant}/repos` | Create / Get / List / Update / Delete |
+| 公共仓库 | `/api/v1/public/repos` | Get / List（普通用户）；Create / Update / Delete（admin） |
+| 仓库下版本 | `/api/v1/.../repos/{kind}/{name}/artifacts` | GET：List；POST：initiate（创建 Uploading 版本 + 上传凭证） |
+| 单个版本 | `/api/v1/.../repos/{kind}/{name}/artifacts/{version}` | GET / DELETE |
+| 完成上传 | `/api/v1/.../repos/{kind}/{name}/artifacts/{version}/complete` | POST：校验 digest + 转 Ready |
+| 解析引用 | `/api/v1/.../repos/{kind}/{name}/artifacts/{version}/resolve` | GET：返回 uri / digest / auth_hint |
+| 删除仓库 | `/api/v1/.../repos/{kind}/{name}` | DELETE（级联） |
 
 `...` 表示 `/tenants/{tenant}` 或 `/public` 二选一。
 
@@ -630,7 +631,7 @@ S3 路径（dataset / eval_report）类似，把 `oras push` 替换为 S3 multip
    - 目标：同 version 在 Failed 行上重新 initiate（先 GCBackend 清理后端残留，再重置 Uploading），返回 `previous_failure_reason`。
    - 完成信号：digest mismatch 后再次 initiate 同 version 返回新凭证 + `previous_failure_reason`，complete 成功后状态推进到 `Ready`。
 7. **上传凭证续签**
-   - 目标：`POST /...:initiate?refresh=true`，TTL 末尾 5min cli 主动续签，覆盖 1h 以上的大模型上传。
+   - 目标：`POST /...artifacts?refresh=true`，TTL 末尾 5min cli 主动续签，覆盖 1h 以上的大模型上传。
    - 完成信号：cli 检测到 token 剩余 < 5min 时调用 refresh 拿到新凭证；PG 行不变，仅重发 token / URL。
 8. **`latest_artifact_id` 维护**
    - 目标：complete 与 DELETE 时维护"最近 Ready 时间"指针；UI 列表能按"最近成功上传"排序。

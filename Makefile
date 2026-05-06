@@ -42,6 +42,13 @@ HELM_SYSTEM_IMAGE_SET := \
   --set compute.image.tag=$(IMAGE_TAG) \
   --set artifacts.image.tag=$(IMAGE_TAG) \
   --set operator.image.tag=$(IMAGE_TAG)
+
+# Dev-only defaults the chart `required` gates demand. Production installs
+# should override these via HELM_EXTRA_ARGS or a values file with real
+# secrets — never ship `axisml` to a real cluster.
+HELM_SYSTEM_DEV_DEFAULTS := \
+  --set artifacts.storage.oci.adminSecretRef.password=axisml
+
 HELM_EXTRA_ARGS ?=
 
 ##@ Cluster Management
@@ -86,7 +93,7 @@ helm-crds-system: ## Apply axisml-system CRDs (Helm only installs files under cr
 	@kubectl --context $(MINIKUBE_PROFILE) apply -f $(HELM_SYSTEM_CHART)/crds/
 
 helm-install-system: helm-crds-system ## Install or upgrade AxisML control plane (idempotent)
-	@helm upgrade --install $(HELM_SYSTEM_RELEASE) $(HELM_SYSTEM_CHART) -n $(HELM_SYSTEM_NAMESPACE) --create-namespace --kube-context $(MINIKUBE_PROFILE) --timeout 10m $(HELM_SYSTEM_IMAGE_SET) $(HELM_EXTRA_ARGS)
+	@helm upgrade --install $(HELM_SYSTEM_RELEASE) $(HELM_SYSTEM_CHART) -n $(HELM_SYSTEM_NAMESPACE) --create-namespace --kube-context $(MINIKUBE_PROFILE) --timeout 10m $(HELM_SYSTEM_IMAGE_SET) $(HELM_SYSTEM_DEV_DEFAULTS) $(HELM_EXTRA_ARGS)
 
 helm-install: helm-install-infra helm-install-system ## Install or upgrade infra + control plane
 
@@ -94,7 +101,7 @@ helm-upgrade-infra: ## Upgrade AxisML infrastructure (must already be installed)
 	@helm upgrade $(HELM_INFRA_RELEASE) $(HELM_INFRA_CHART) -n $(HELM_INFRA_NAMESPACE) --kube-context $(MINIKUBE_PROFILE)
 
 helm-upgrade-system: helm-crds-system ## Upgrade AxisML control plane (must already be installed)
-	@helm upgrade $(HELM_SYSTEM_RELEASE) $(HELM_SYSTEM_CHART) -n $(HELM_SYSTEM_NAMESPACE) --kube-context $(MINIKUBE_PROFILE) --timeout 10m $(HELM_SYSTEM_IMAGE_SET) $(HELM_EXTRA_ARGS)
+	@helm upgrade $(HELM_SYSTEM_RELEASE) $(HELM_SYSTEM_CHART) -n $(HELM_SYSTEM_NAMESPACE) --kube-context $(MINIKUBE_PROFILE) --timeout 10m $(HELM_SYSTEM_IMAGE_SET) $(HELM_SYSTEM_DEV_DEFAULTS) $(HELM_EXTRA_ARGS)
 
 helm-upgrade: helm-upgrade-infra helm-upgrade-system ## Upgrade both
 
@@ -108,7 +115,7 @@ helm-uninstall: helm-uninstall-system helm-uninstall-infra ## Uninstall control 
 
 helm-template: ## Render both charts locally
 	@helm template $(HELM_INFRA_RELEASE) $(HELM_INFRA_CHART) -n $(HELM_INFRA_NAMESPACE)
-	@helm template $(HELM_SYSTEM_RELEASE) $(HELM_SYSTEM_CHART) -n $(HELM_SYSTEM_NAMESPACE) $(HELM_SYSTEM_IMAGE_SET) $(HELM_EXTRA_ARGS)
+	@helm template $(HELM_SYSTEM_RELEASE) $(HELM_SYSTEM_CHART) -n $(HELM_SYSTEM_NAMESPACE) $(HELM_SYSTEM_IMAGE_SET) $(HELM_SYSTEM_DEV_DEFAULTS) $(HELM_EXTRA_ARGS)
 
 # --- Components ---
 #
@@ -119,21 +126,22 @@ helm-template: ## Render both charts locally
 # Add scaffolded components here as they ship working build targets.
 COMPONENTS := \
   components/operator \
-  components/compute
+  components/compute \
+  components/artifacts
 # Scaffolded components (uncomment as they ship code):
-# COMPONENTS += components/artifacts
 # COMPONENTS += components/platform/backend
 # COMPONENTS += components/platform/frontend
 
 # Component basenames whose images get loaded into minikube + waited on after
-# helm-install. The merged operator runs as a single Deployment; compute is
-# still its own Deployment.
-DEPLOYMENTS := operator compute
+# helm-install. The merged operator runs as a single Deployment; compute and
+# artifacts each run as their own Deployment.
+DEPLOYMENTS := operator compute artifacts
 
 # Coverage profiles are produced by each Go module under COMPONENTS.
 COVERAGE_COMPONENTS := \
   components/operator \
-  components/compute
+  components/compute \
+  components/artifacts
 
 # Every Go module in the repo (operator + its envtest sub-module + compute +
 # shared test/testutil + test/e2e). `go fmt ./...` does not cross module
