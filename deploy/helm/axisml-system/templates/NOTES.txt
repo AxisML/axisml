@@ -4,6 +4,9 @@ Components deployed:
 {{- if .Values.platform.enabled }}
   - ML Platform:  {{ include "axisml.fullname" . }}-platform:{{ .Values.platform.service.port }}
 {{- end }}
+{{- if .Values.clusterManager.enabled }}
+  - Cluster Mgr:  {{ include "axisml.fullname" . }}-cluster-manager:{{ .Values.clusterManager.service.port }}
+{{- end }}
 {{- if .Values.compute.enabled }}
   - ML Compute:   {{ include "axisml.fullname" . }}-compute:{{ .Values.compute.service.port }}
 {{- end }}

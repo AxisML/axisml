@@ -166,6 +166,46 @@ artifacts:
 # AxisML Operator
 # =============================================================================
 # =============================================================================
+# Cluster Manager
+# =============================================================================
+# Stateless thin shell that translates REST calls into Tenant CR CRUD on the
+# K8s API server. No PG, no leader election (multi-replica is safe — all
+# mutations go through the K8s API server's optimistic concurrency control).
+clusterManager:
+  enabled: true
+  replicaCount: 2
+
+  image:
+    registry: ghcr.io
+    repository: axisml/axisml-cluster-manager
+    tag: ""               # defaults to Chart.AppVersion via the axisml.image helper
+    pullPolicy: IfNotPresent
+
+  service:
+    port: 8082
+  probesPort: 8081
+  metricsPort: 8080
+
+  # Namespaces a Tenant CR may NOT point spec.namespace.name at. Mirrors the
+  # tenant-operator denylist; cluster-manager pre-validates so bad CRs never
+  # reach etcd.
+  namespaceDenylist:
+    - kube-system
+    - kube-public
+    - kube-node-lease
+    - default
+    - axisml-system
+    - axisml-infra
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+# =============================================================================
 # Tenant Operator
 # =============================================================================
 # Reconciles the Tenant CR — provisions Namespace, Koordinator ElasticQuota,

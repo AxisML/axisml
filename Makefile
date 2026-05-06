@@ -129,22 +129,23 @@ helm-template: ## Render both charts locally
 COMPONENTS := \
   components/tenant-operator \
   components/compute-operator \
+  components/cluster-manager \
   components/compute \
   components/artifacts
 # Scaffolded components (uncomment as they ship code):
-# COMPONENTS += components/cluster-manager
 # COMPONENTS += components/platform/backend
 # COMPONENTS += components/platform/frontend
 
 # Component basenames whose images get loaded into minikube + waited on after
-# helm-install. The two operators each run as their own Deployment; compute
-# and artifacts each run as their own Deployment.
-DEPLOYMENTS := tenant-operator compute-operator compute artifacts
+# helm-install. Each operator + cluster-manager + compute + artifacts runs
+# as its own Deployment.
+DEPLOYMENTS := tenant-operator compute-operator cluster-manager compute artifacts
 
 # Coverage profiles are produced by each Go module under COMPONENTS.
 COVERAGE_COMPONENTS := \
   components/tenant-operator \
   components/compute-operator \
+  components/cluster-manager \
   components/compute \
   components/artifacts
 

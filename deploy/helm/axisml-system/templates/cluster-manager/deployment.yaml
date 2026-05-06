@@ -1,0 +1,57 @@
+{{- if .Values.clusterManager.enabled }}
+{{- $cm := .Values.clusterManager }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "axisml.fullname" . }}-cluster-manager
+  labels:
+    {{- include "axisml.componentLabels" (dict "context" . "component" "cluster-manager") | nindent 4 }}
+spec:
+  replicas: {{ $cm.replicaCount | default 1 }}
+  selector:
+    matchLabels:
+      {{- include "axisml.componentSelectorLabels" (dict "context" . "component" "cluster-manager") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "axisml.componentLabels" (dict "context" . "component" "cluster-manager") | nindent 8 }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "axisml.fullname" . }}-cluster-manager
+      containers:
+        - name: cluster-manager
+          image: {{ include "axisml.image" (dict "imageRoot" $cm.image "global" .Values.global "chart" .Chart) }}
+          imagePullPolicy: {{ $cm.image.pullPolicy }}
+          args:
+            - --api-bind-address=:{{ $cm.service.port }}
+            - --metrics-bind-address=:{{ $cm.metricsPort }}
+            - --probes-bind-address=:{{ $cm.probesPort }}
+            - --namespace-denylist={{ join "," $cm.namespaceDenylist }}
+          ports:
+            - name: http
+              containerPort: {{ $cm.service.port }}
+              protocol: TCP
+            - name: probe
+              containerPort: {{ $cm.probesPort }}
+              protocol: TCP
+            - name: metrics
+              containerPort: {{ $cm.metricsPort }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: probe
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: probe
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          resources:
+            {{- toYaml $cm.resources | nindent 12 }}
+{{- end }}

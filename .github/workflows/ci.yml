@@ -50,6 +50,9 @@ jobs:
             modules: |
               components/compute-operator
               components/compute-operator/test/integration
+          - name: cluster-manager
+            modules: |
+              components/cluster-manager
           - name: compute
             modules: |
               components/compute
@@ -95,7 +98,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        component: [tenant-operator, compute-operator, compute, artifacts]
+        component: [tenant-operator, compute-operator, cluster-manager, compute, artifacts]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -189,6 +192,7 @@ jobs:
           # All Dockerfiles build from the repo root for consistency.
           - { name: tenant-operator,  image: axisml/axisml-tenant-operator,  context: ., dockerfile: components/tenant-operator/Dockerfile }
           - { name: compute-operator, image: axisml/axisml-compute-operator, context: ., dockerfile: components/compute-operator/Dockerfile }
+          - { name: cluster-manager,  image: axisml/axisml-cluster-manager,  context: ., dockerfile: components/cluster-manager/Dockerfile }
           - { name: compute,          image: axisml/axisml-compute,          context: ., dockerfile: components/compute/Dockerfile }
           - { name: artifacts,        image: axisml/axisml-artifacts,        context: ., dockerfile: components/artifacts/Dockerfile }
     steps:
