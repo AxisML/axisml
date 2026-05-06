@@ -8,29 +8,34 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 AxisML is a Kubernetes-native ML platform. The repo is a monorepo split into:
 
-- `components/operator/` — single Go operator binary (`axisml-operator`) hosting Tenant, MLJob, and MLService controllers in one Manager.
-- `components/compute/` — Go service (job/quota/resource management).
-- `components/artifacts/` — Go service (model/dataset registry; MVP shipped for the model Kind).
+- `components/tenant-operator/` — Go operator binary reconciling the `Tenant` CR (Namespace, Koordinator ElasticQuota, per-tenant Secret/CM/SA/RBAC). Single reconciler, no dispatcher.
+- `components/compute-operator/` — Go operator binary reconciling `MLJob` and `MLService` CRs via the dispatcher + handler model.
+- `components/cluster-manager/` — Stateless REST shell over Tenant CR CRUD on the K8s API. Admin-tier entry point; no PG.
+- `components/compute/` — Go service for Job/Service/ResourcePool/ResourceUnit. Partitioned by bare namespace string (no Tenant or Quota concepts).
+- `components/artifacts/` — Go service for the artifact registry. Partitioned by `(namespace, kind, name, version)` directly (no ArtifactRepo wrapper).
 - `components/platform/{backend,frontend}/` — scaffolded service areas with READMEs only; no code yet.
 - `deploy/helm/axisml-infra/` — third-party infrastructure chart (Envoy Gateway, RustFS, zot, Koordinator, GPU Operator, kube-prometheus-stack).
-- `deploy/helm/axisml-system/` — control-plane chart: CRDs, the merged operator, Compute, Artifacts, and (eventually) Platform. Includes PostgreSQL.
-- `docs/system_design/` — authoritative design docs (overview, compute, operator, artifacts, infra, platform). Read these before making non-trivial design changes; they encode decisions that the code doesn't yet reflect.
+- `deploy/helm/axisml-system/` — control-plane chart: CRDs, both operators, Cluster Manager, Compute, Artifacts, and (eventually) Platform. Includes PostgreSQL.
+- `docs/system_design/` — authoritative design docs (overview, tenant-operator, compute-operator, cluster-manager, compute, artifacts, infra, platform).
 - `test/` — shared test infrastructure: `setup-envtest/` binary, `testutil/` helpers, `e2e/` suites, and `crds/external/` vendored upstream CRDs for L1 integration tests.
 
 The system design lives ahead of the code. When code and `docs/system_design/` disagree, the design doc is usually the intended target — confirm before "fixing" code to match incomplete scaffolding.
 
 ## Multi-module Go workspace
 
-There are **seven separate Go modules**, each with its own `go.mod`:
+There are **nine separate Go modules**, each with its own `go.mod`:
 
 ```
-components/operator/                     (production — Tenant + MLJob + MLService controllers)
-components/operator/test/integration/    (L1 tests, separate module)
-components/compute/                      (production)
-components/compute/test/integration/     (L1 tests, separate module)
-components/artifacts/                    (production — no L1 sub-module yet; testcontainers tests live under `internal/integration/`)
-test/testutil/                           (shared helpers, no operator deps)
-test/e2e/                                (L2 tests)
+components/tenant-operator/                       (production — Tenant CR reconciler)
+components/tenant-operator/test/integration/      (L1 tests, separate module)
+components/compute-operator/                      (production — MLJob + MLService controllers)
+components/compute-operator/test/integration/     (L1 tests, separate module)
+components/cluster-manager/                       (production — REST shell over Tenant CR; no L1 module)
+components/compute/                               (production)
+components/compute/test/integration/              (L1 tests, separate module)
+components/artifacts/                             (production — testcontainers tests under `internal/integration/`)
+test/testutil/                                    (shared helpers, no operator deps)
+test/e2e/                                         (L2 tests)
 ```
 
 Why split: keeps test-only deps (`testify`, `testutil`) out of each component's production `go.mod` and Dockerfile build context. `testutil` is imported via `replace` from each test module — keep it operator-agnostic to avoid circular deps.
@@ -48,14 +53,16 @@ The top-level `Makefile` is the command hub. The most common targets:
 make help                # list targets + auto-generated per-component shortcuts
 make build               # fan out `make build` to every active component
 make test                # unit tests across every component (no cluster)
-make integration-test    # L1 integration for the merged operator + compute (hermetic, ~25s)
+make integration-test    # L1 integration for the operators + compute (hermetic, ~30s)
 make e2e-test            # L2 e2e on real minikube (~10 min, brings up cluster + helm-installs)
 
 # Per-component shortcuts (auto-generated from the COMPONENTS list:
-# operator, compute, artifacts):
-make operator-test
-make operator-integration
-make operator-image-load   # builds image, loads into minikube
+# tenant-operator, compute-operator, cluster-manager, compute, artifacts):
+make tenant-operator-test
+make tenant-operator-integration
+make compute-operator-test
+make compute-operator-integration
+make cluster-manager-test
 make compute-test
 make artifacts-test
 
@@ -85,7 +92,7 @@ Documented in detail in `docs/development/testing.md`. The short version:
 | Layer | Build tag | Where | Cluster |
 |---|---|---|---|
 | Unit | none | `*_test.go` next to package | none — uses `controller-runtime/pkg/client/fake` |
-| L1 integration | `//go:build integration` | `components/operator/test/integration/` (merged) and `components/compute/test/integration/` | embedded apiserver+etcd via `setup-envtest` (controller-runtime) |
+| L1 integration | `//go:build integration` | `components/{tenant-operator,compute-operator,compute}/test/integration/` | embedded apiserver+etcd via `setup-envtest` (controller-runtime) |
 | L2 e2e | `//go:build e2e` | `test/e2e/` | real minikube with helm-installed stack |
 
 Conventions that bite if you don't know them:
@@ -111,7 +118,7 @@ Defaults: MLJob `(native, job)`, MLService `(native, deployment)`.
 When adding a new handler:
 1. Implement under `internal/<backend>/<engine>/`.
 2. Wire it into the dispatch table in the operator's reconciler.
-3. **All backend-derived Pods MUST set `schedulerName: koord-scheduler` and carry the `quota.scheduling.koordinator.sh/name` label** — this is non-negotiable; bypassing koord-scheduler bypasses tenant quota.
+3. **All backend-derived Pods MUST set `schedulerName: koord-scheduler` and carry the `quota.scheduling.koordinator.sh/name` label** — this is non-negotiable; bypassing koord-scheduler bypasses ElasticQuota.
 4. Vendor any new external CRDs into `test/crds/external/` in the same PR.
 5. Pair an L1 integration happy-path with the unit tests.
 

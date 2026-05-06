@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-AxisML combines Go services, Kubernetes operators, Helm charts, and design docs. Active component code lives in `components/operator/`, `components/compute/`, and `components/artifacts/`; each has its own `go.mod`, `Dockerfile`, and `Makefile`. Platform backend/frontend folders under `components/platform/` are scaffolded. Helm charts live in `deploy/helm/axisml-infra/` for third-party infrastructure and `deploy/helm/axisml-system/` for CRDs and AxisML services. Development and design docs are in `docs/development/` and `docs/system_design/`. Shared test modules and e2e suites live under `test/`.
+AxisML combines Go services, Kubernetes operators, Helm charts, and design docs. Active component code lives in `components/tenant-operator/`, `components/compute-operator/`, `components/cluster-manager/`, `components/compute/`, and `components/artifacts/`; each has its own `go.mod`, `Dockerfile`, and `Makefile`. Platform backend/frontend folders under `components/platform/` are scaffolded. Helm charts live in `deploy/helm/axisml-infra/` for third-party infrastructure and `deploy/helm/axisml-system/` for CRDs and AxisML services. Development and design docs are in `docs/development/` and `docs/system_design/`. Shared test modules and e2e suites live under `test/`.
 
 ## Build, Test, and Development Commands
 
