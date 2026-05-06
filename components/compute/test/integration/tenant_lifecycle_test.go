@@ -1,6 +1,6 @@
-//go:build envtest
+//go:build integration
 
-package envtest_test
+package integration_test
 
 import (
 	"context"
@@ -31,9 +31,9 @@ func TestTenantOutboxCreatesCR(t *testing.T) {
 	tenants := tenantmod.NewService(gormDB, quotas, pools)
 
 	created, err := tenants.Create(ctx, tenantmod.CreateInput{
-		Name:        "envtest-t1",
+		Name:        "integration-t1",
 		DisplayName: "EnvTest Tenant 1",
-		Namespace:   tenantv1alpha1.NamespaceSpec{Name: "envtest-t1"},
+		Namespace:   tenantv1alpha1.NamespaceSpec{Name: "integration-t1"},
 	})
 	require.NoError(t, err)
 
@@ -47,7 +47,7 @@ func TestTenantOutboxCreatesCR(t *testing.T) {
 	require.NoError(t, err)
 
 	cr := &tenantv1alpha1.Tenant{}
-	testutil.EventuallyExists(t, ctx, cl, client.ObjectKey{Name: "envtest-t1"}, cr, 10*time.Second)
+	testutil.EventuallyExists(t, ctx, cl, client.ObjectKey{Name: "integration-t1"}, cr, 10*time.Second)
 	require.Equal(t, created.Name, cr.Name)
 	require.Equal(t, created.Namespace.Name, cr.Spec.Namespace.Name)
 	require.Equal(t, created.ID.String(), cr.Labels[tenantv1alpha1.LabelTenantID])
@@ -63,8 +63,8 @@ func TestTenantInformerReflectsActive(t *testing.T) {
 	tenants := tenantmod.NewService(gormDB, quotas, pools)
 
 	created, err := tenants.Create(ctx, tenantmod.CreateInput{
-		Name:      "envtest-t2",
-		Namespace: tenantv1alpha1.NamespaceSpec{Name: "envtest-t2"},
+		Name:      "integration-t2",
+		Namespace: tenantv1alpha1.NamespaceSpec{Name: "integration-t2"},
 	})
 	require.NoError(t, err)
 
@@ -79,7 +79,7 @@ func TestTenantInformerReflectsActive(t *testing.T) {
 	require.NoError(t, err)
 
 	cr := &tenantv1alpha1.Tenant{}
-	testutil.EventuallyExists(t, ctx, cl, client.ObjectKey{Name: "envtest-t2"}, cr, 10*time.Second)
+	testutil.EventuallyExists(t, ctx, cl, client.ObjectKey{Name: "integration-t2"}, cr, 10*time.Second)
 
 	// Simulate tenant-operator: write status.phase=Active.
 	cr.Status = tenantv1alpha1.TenantStatus{
@@ -111,8 +111,8 @@ func TestTenantExternalDeleteDuringDeleting(t *testing.T) {
 	tenants := tenantmod.NewService(gormDB, quotas, pools)
 
 	created, err := tenants.Create(ctx, tenantmod.CreateInput{
-		Name:      "envtest-t3",
-		Namespace: tenantv1alpha1.NamespaceSpec{Name: "envtest-t3"},
+		Name:      "integration-t3",
+		Namespace: tenantv1alpha1.NamespaceSpec{Name: "integration-t3"},
 	})
 	require.NoError(t, err)
 
@@ -128,13 +128,13 @@ func TestTenantExternalDeleteDuringDeleting(t *testing.T) {
 
 	// Wait for CR.
 	cr := &tenantv1alpha1.Tenant{}
-	testutil.EventuallyExists(t, ctx, cl, client.ObjectKey{Name: "envtest-t3"}, cr, 10*time.Second)
+	testutil.EventuallyExists(t, ctx, cl, client.ObjectKey{Name: "integration-t3"}, cr, 10*time.Second)
 
 	// Move PG to Deleting first.
-	require.NoError(t, tenants.Delete(ctx, "envtest-t3"))
+	require.NoError(t, tenants.Delete(ctx, "integration-t3"))
 
 	// Wait for reconciler to delete the CR and informer to push to Deleted.
-	testutil.EventuallyGone(t, ctx, cl, client.ObjectKey{Name: "envtest-t3"}, &tenantv1alpha1.Tenant{}, 10*time.Second)
+	testutil.EventuallyGone(t, ctx, cl, client.ObjectKey{Name: "integration-t3"}, &tenantv1alpha1.Tenant{}, 10*time.Second)
 
 	testutil.Eventually(t, 10*time.Second, testutil.DefaultPollInterval, func() error {
 		v, err := tenants.GetByID(ctx, created.ID)

@@ -17,8 +17,8 @@ import (
 
 // BuildModules constructs the full domain wiring (HTTP routes + background
 // runnables). Construction order matters because of cross-module deps.
-// Exported so envtest harness can reuse the same wiring rather than
-// duplicating it (and silently drifting).
+// Exported so the integration-test harness can reuse the same wiring rather
+// than duplicating it (and silently drifting).
 func BuildModules(
 	cfg config.Config,
 	gormDB *gorm.DB,

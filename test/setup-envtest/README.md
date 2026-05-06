@@ -1,7 +1,8 @@
 # test/setup-envtest
 
 This directory holds the shared `setup-envtest` binary used by every operator's
-L1 envtest target.
+L1 integration target (the embedded apiserver+etcd is provided by
+controller-runtime's envtest framework).
 
 The binary itself is git-ignored. To install it:
 
@@ -17,4 +18,4 @@ Linux; the equivalent under `~/Library/Application Support` on macOS), not
 inside this directory.
 
 Each operator's `Makefile` references `$(REPO_ROOT)/test/setup-envtest/setup-envtest`
-when running `make <op>-envtest`, so all three operators share one binary.
+when running `make <op>-integration`, so all three operators share one binary.

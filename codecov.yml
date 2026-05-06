@@ -7,15 +7,15 @@ coverage:
       default:
         threshold: 1%
 
-# Carryforward keeps the envtest matrix's per-component uploads from blanking
-# each other out — each job uploads only its own profile, so without
+# Carryforward keeps the integration matrix's per-component uploads from
+# blanking each other out — each job uploads only its own profile, so without
 # this, only the last-uploaded component would have a non-zero coverage line.
 flag_management:
   default_rules:
     carryforward: true
   individual_flags:
     - name: unit
-    - name: envtest
+    - name: integration
 
 comment:
   layout: "reach,diff,flags,files"

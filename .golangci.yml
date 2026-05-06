@@ -6,7 +6,7 @@ version: "2"
 
 run:
   build-tags:
-    - envtest
+    - integration
     - e2e
 
 linters:

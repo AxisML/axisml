@@ -15,7 +15,7 @@ AxisML is a Kubernetes-native ML platform. The repo is a monorepo split into:
 - `deploy/helm/axisml-infra/` — third-party infrastructure chart (Envoy Gateway, RustFS, zot, Koordinator, GPU Operator, kube-prometheus-stack).
 - `deploy/helm/axisml-system/` — control-plane chart: CRDs, the merged operator, Compute, Artifacts, and (eventually) Platform. Includes PostgreSQL.
 - `docs/system_design/` — authoritative design docs (overview, compute, operator, artifacts, infra, platform). Read these before making non-trivial design changes; they encode decisions that the code doesn't yet reflect.
-- `test/` — shared test infrastructure: `setup-envtest/` binary, `testutil/` helpers, `e2e/` suites, and `crds/external/` vendored upstream CRDs for envtest.
+- `test/` — shared test infrastructure: `setup-envtest/` binary, `testutil/` helpers, `e2e/` suites, and `crds/external/` vendored upstream CRDs for L1 integration tests.
 
 The system design lives ahead of the code. When code and `docs/system_design/` disagree, the design doc is usually the intended target — confirm before "fixing" code to match incomplete scaffolding.
 
@@ -24,19 +24,19 @@ The system design lives ahead of the code. When code and `docs/system_design/` d
 There are **seven separate Go modules**, each with its own `go.mod`:
 
 ```
-components/operator/                  (production — Tenant + MLJob + MLService controllers)
-components/operator/test/envtest/     (L1 tests, separate module)
-components/compute/                   (production)
-components/compute/test/envtest/      (L1 tests, separate module)
-components/artifacts/                 (production — no envtest sub-module yet; uses `make integration`)
-test/testutil/                        (shared helpers, no operator deps)
-test/e2e/                             (L2 tests)
+components/operator/                     (production — Tenant + MLJob + MLService controllers)
+components/operator/test/integration/    (L1 tests, separate module)
+components/compute/                      (production)
+components/compute/test/integration/     (L1 tests, separate module)
+components/artifacts/                    (production — no L1 sub-module yet; testcontainers tests live under `internal/integration/`)
+test/testutil/                           (shared helpers, no operator deps)
+test/e2e/                                (L2 tests)
 ```
 
 Why split: keeps test-only deps (`testify`, `testutil`) out of each component's production `go.mod` and Dockerfile build context. `testutil` is imported via `replace` from each test module — keep it operator-agnostic to avoid circular deps.
 
 Practical implications:
-- `go test ./...` from the repo root won't traverse all of these. Use `make test` / `make envtest-test` / `make e2e-test` instead, or `cd` into the right module.
+- `go test ./...` from the repo root won't traverse all of these. Use `make test` / `make integration-test` / `make e2e-test` instead, or `cd` into the right module.
 - `go mod tidy` runs per-module — `make tidy` fans out across all of them.
 - The CI lint matrix in `.github/workflows/ci.yml` enumerates every module; add new modules there too.
 
@@ -48,13 +48,13 @@ The top-level `Makefile` is the command hub. The most common targets:
 make help                # list targets + auto-generated per-component shortcuts
 make build               # fan out `make build` to every active component
 make test                # unit tests across every component (no cluster)
-make envtest-test        # L1 envtest for the merged operator + compute (hermetic, ~25s)
+make integration-test    # L1 integration for the merged operator + compute (hermetic, ~25s)
 make e2e-test            # L2 e2e on real minikube (~10 min, brings up cluster + helm-installs)
 
 # Per-component shortcuts (auto-generated from the COMPONENTS list:
 # operator, compute, artifacts):
 make operator-test
-make operator-envtest
+make operator-integration
 make operator-image-load   # builds image, loads into minikube
 make compute-test
 make artifacts-test
@@ -72,9 +72,9 @@ make fmt vet               # before every commit
 make build / make image    # binary into bin/, container image
 ```
 
-Single test invocation: `go test -run TestTenant_HappyPath ./internal/...` (use `-tags=envtest` or `-tags=e2e` for those layers).
+Single test invocation: `go test -run TestTenant_HappyPath ./internal/...` (use `-tags=integration` or `-tags=e2e` for those layers).
 
-Per-component shortcuts are auto-generated from the `COMPONENTS` list in the top-level Makefile. Pattern: `<basename>-{build,image,image-load,test,envtest,fmt,tidy,clean}` (e.g., `make operator-image-load`). Top-level `make fmt` walks every module via `GO_MODULES` (`gofmt -w` doesn't cross module boundaries on its own).
+Per-component shortcuts are auto-generated from the `COMPONENTS` list in the top-level Makefile. Pattern: `<basename>-{build,image,image-load,test,integration,fmt,tidy,clean}` (e.g., `make operator-image-load`). Top-level `make fmt` walks every module via `GO_MODULES` (`gofmt -w` doesn't cross module boundaries on its own).
 
 Pre-commit hooks (`pre-commit` framework, see `.pre-commit-config.yaml`) run gofmt + basic hygiene checks. Install once per clone: `make install-hooks`. Bypass for a single commit: `git commit --no-verify`. Vendored CRDs (`test/crds/external/`) and Helm sub-charts are excluded from hooks.
 
@@ -85,7 +85,7 @@ Documented in detail in `docs/development/testing.md`. The short version:
 | Layer | Build tag | Where | Cluster |
 |---|---|---|---|
 | Unit | none | `*_test.go` next to package | none — uses `controller-runtime/pkg/client/fake` |
-| L1 envtest | `//go:build envtest` | `components/operator/test/envtest/` (merged) and `components/compute/test/envtest/` | embedded apiserver+etcd via `setup-envtest` |
+| L1 integration | `//go:build integration` | `components/operator/test/integration/` (merged) and `components/compute/test/integration/` | embedded apiserver+etcd via `setup-envtest` (controller-runtime) |
 | L2 e2e | `//go:build e2e` | `test/e2e/` | real minikube with helm-installed stack |
 
 Conventions that bite if you don't know them:
@@ -113,7 +113,7 @@ When adding a new handler:
 2. Wire it into the dispatch table in the operator's reconciler.
 3. **All backend-derived Pods MUST set `schedulerName: koord-scheduler` and carry the `quota.scheduling.koordinator.sh/name` label** — this is non-negotiable; bypassing koord-scheduler bypasses tenant quota.
 4. Vendor any new external CRDs into `test/crds/external/` in the same PR.
-5. Pair an L1 envtest happy-path with the unit tests.
+5. Pair an L1 integration happy-path with the unit tests.
 
 ## Image tag synchronization
 
@@ -134,4 +134,4 @@ Operator images are pulled by Helm using `Chart.appVersion` as the default tag. 
 - Conventional Commit subjects: `docs:`, `feat(operator):`, `chore(build):`, `fix:`, etc. Keep scoped and imperative.
 - Component basenames must be unique across the `COMPONENTS` list in the top-level Makefile (the per-component shortcut targets are derived from `notdir`).
 - `bin/` directories are build artifacts — never commit.
-- Lint config (`.golangci.yml`) is shared across all Go modules; CI runs `golangci-lint` once per module (matrix in `.github/workflows/ci.yml`). Active linters: `errcheck`, `govet`, `ineffassign`, `staticcheck`, `unused`, `misspell`, plus `gofmt` + `goimports` formatters. The `envtest,e2e` build tags are enabled so tagged files are linted too.
+- Lint config (`.golangci.yml`) is shared across all Go modules; CI runs `golangci-lint` once per module (matrix in `.github/workflows/ci.yml`). Active linters: `errcheck`, `govet`, `ineffassign`, `staticcheck`, `unused`, `misspell`, plus `gofmt` + `goimports` formatters. The `integration,e2e` build tags are enabled so tagged files are linted too.

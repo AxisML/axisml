@@ -15,15 +15,15 @@ Use the top-level `Makefile` as the command hub.
 - `make cluster-up` / `make cluster-status`: manage the local `axisml` minikube profile.
 - `make helm-template`: render both Helm charts locally for review.
 - `make helm-install`: install infra first, then the AxisML system chart.
-- `make operator-envtest`, `make compute-test`, `make artifacts-test`: run focused component targets.
+- `make operator-integration`, `make compute-test`, `make artifacts-test`: run focused component targets.
 
 ## Coding Style & Naming Conventions
 
-Go code uses standard `gofmt`; run `make fmt` for all modules or `<component>-fmt` for a slice. `.golangci.yml` enables `errcheck`, `govet`, `staticcheck`, `unused`, `ineffassign`, and `misspell` with `envtest,e2e` build tags. Keep generated files committed when sources require them, such as CRDs or `components/compute/docs/openapi.yaml` after `make -C components/compute openapi`. Do not commit `bin/`, coverage output, local kubeconfigs, or secrets.
+Go code uses standard `gofmt`; run `make fmt` for all modules or `<component>-fmt` for a slice. `.golangci.yml` enables `errcheck`, `govet`, `staticcheck`, `unused`, `ineffassign`, and `misspell` with `integration,e2e` build tags. Keep generated files committed when sources require them, such as CRDs or `components/compute/docs/openapi.yaml` after `make -C components/compute openapi`. Do not commit `bin/`, coverage output, local kubeconfigs, or secrets.
 
 ## Testing Guidelines
 
-Unit tests use Go `testing` and normally sit beside packages as `*_test.go`. L1 tests use `//go:build envtest` under component `test/envtest/` modules; install tooling with `make setup-envtest` and run `make envtest-test`. L2 tests live under `test/e2e/`, use `//go:build e2e`, and run with `make e2e-test` against minikube. Artifacts integration tests use testcontainers via `make -C components/artifacts integration`. See `docs/development/testing.md` for layer choice and external CRD rules.
+Unit tests use Go `testing` and normally sit beside packages as `*_test.go`. L1 tests use `//go:build integration` under component `test/integration/` modules; install tooling with `make setup-envtest` and run `make integration-test`. L2 tests live under `test/e2e/`, use `//go:build e2e`, and run with `make e2e-test` against minikube. Artifacts also has a testcontainers-based integration suite via `make -C components/artifacts integration`. See `docs/development/testing.md` for layer choice and external CRD rules.
 
 ## Commit & Pull Request Guidelines
 
