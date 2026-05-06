@@ -1,0 +1,19 @@
+{{- if and .Values.artifacts.enabled .Values.artifacts.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "axisml.fullname" . }}-artifacts
+  labels:
+    {{- include "axisml.componentLabels" (dict "context" . "component" "artifacts") | nindent 4 }}
+    {{- with .Values.artifacts.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "axisml.componentSelectorLabels" (dict "context" . "component" "artifacts") | nindent 6 }}
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: {{ .Values.artifacts.serviceMonitor.interval | default "30s" }}
+{{- end }}

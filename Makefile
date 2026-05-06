@@ -119,21 +119,22 @@ helm-template: ## Render both charts locally
 # Add scaffolded components here as they ship working build targets.
 COMPONENTS := \
   components/operator \
-  components/compute
+  components/compute \
+  components/artifacts
 # Scaffolded components (uncomment as they ship code):
-# COMPONENTS += components/artifacts
 # COMPONENTS += components/platform/backend
 # COMPONENTS += components/platform/frontend
 
 # Component basenames whose images get loaded into minikube + waited on after
-# helm-install. The merged operator runs as a single Deployment; compute is
-# still its own Deployment.
-DEPLOYMENTS := operator compute
+# helm-install. The merged operator runs as a single Deployment; compute and
+# artifacts each run as their own Deployment.
+DEPLOYMENTS := operator compute artifacts
 
 # Coverage profiles are produced by each Go module under COMPONENTS.
 COVERAGE_COMPONENTS := \
   components/operator \
-  components/compute
+  components/compute \
+  components/artifacts
 
 # Every Go module in the repo (operator + its envtest sub-module + compute +
 # shared test/testutil + test/e2e). `go fmt ./...` does not cross module
