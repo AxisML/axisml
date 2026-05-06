@@ -13,7 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	tenantv1alpha1 "github.com/axisml/axisml/components/operator/api/tenant/v1alpha1"
+	tenantv1alpha1 "github.com/axisml/axisml/components/tenant-operator/api/v1alpha1"
 
 	quotamod "github.com/axisml/axisml/components/compute/internal/quota"
 	poolmod "github.com/axisml/axisml/components/compute/internal/resourcepool"

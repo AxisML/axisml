@@ -1,0 +1,16 @@
+{{- if .Values.tenantOperator.enabled }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "axisml.fullname" . }}-tenant-operator
+  labels:
+    {{- include "axisml.componentLabels" (dict "context" . "component" "tenant-operator") | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "axisml.fullname" . }}-tenant-operator
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "axisml.fullname" . }}-tenant-operator
+    namespace: {{ .Release.Namespace }}
+{{- end }}

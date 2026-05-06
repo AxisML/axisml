@@ -17,12 +17,12 @@ concurrency:
 
 # Jobs are organised as a type × component grid:
 #
-#                 operator   compute   artifacts   test
-#   lint            ✓          ✓          ✓         ✓
-#   test            ✓          ✓          ✓         —
-#   integration     ✓          ✓          —         —
-#   openapi         —          ✓          —         —
-#   image           ✓          ✓          ✓         —   (main-only)
+#                 tenant-operator  compute-operator  compute  artifacts  test
+#   lint            ✓                 ✓               ✓        ✓          ✓
+#   test            ✓                 ✓               ✓        ✓          —
+#   integration     ✓                 ✓               ✓        —          —
+#   openapi         —                 —               ✓        —          —
+#   image           ✓                 ✓               ✓        ✓          —   (main-only)
 #
 # The `test` lint bucket covers the shared test/testutil + test/e2e modules,
 # which don't have their own test/integration layers. Each component lint job
@@ -42,10 +42,14 @@ jobs:
       fail-fast: false
       matrix:
         component:
-          - name: operator
+          - name: tenant-operator
             modules: |
-              components/operator
-              components/operator/test/integration
+              components/tenant-operator
+              components/tenant-operator/test/integration
+          - name: compute-operator
+            modules: |
+              components/compute-operator
+              components/compute-operator/test/integration
           - name: compute
             modules: |
               components/compute
@@ -91,7 +95,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        component: [operator, compute, artifacts]
+        component: [tenant-operator, compute-operator, compute, artifacts]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -114,7 +118,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        component: [operator, compute]
+        component: [tenant-operator, compute-operator, compute]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -182,13 +186,11 @@ jobs:
       fail-fast: false
       matrix:
         component:
-          # The merged operator and compute both build from the repo root —
-          # their Dockerfiles reach into sibling modules. Artifacts is a
-          # standalone module but uses the same repo-root build context for
-          # consistency with the rest of the matrix.
-          - { name: operator,  image: axisml/axisml-operator,  context: ., dockerfile: components/operator/Dockerfile }
-          - { name: compute,   image: axisml/axisml-compute,   context: ., dockerfile: components/compute/Dockerfile }
-          - { name: artifacts, image: axisml/axisml-artifacts, context: ., dockerfile: components/artifacts/Dockerfile }
+          # All Dockerfiles build from the repo root for consistency.
+          - { name: tenant-operator,  image: axisml/axisml-tenant-operator,  context: ., dockerfile: components/tenant-operator/Dockerfile }
+          - { name: compute-operator, image: axisml/axisml-compute-operator, context: ., dockerfile: components/compute-operator/Dockerfile }
+          - { name: compute,          image: axisml/axisml-compute,          context: ., dockerfile: components/compute/Dockerfile }
+          - { name: artifacts,        image: axisml/axisml-artifacts,        context: ., dockerfile: components/artifacts/Dockerfile }
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-qemu-action@v3

@@ -3,7 +3,8 @@ module github.com/axisml/axisml/components/compute
 go 1.26.0
 
 require (
-	github.com/axisml/axisml/components/operator v0.0.0
+	github.com/axisml/axisml/components/compute-operator v0.0.0
+	github.com/axisml/axisml/components/tenant-operator v0.0.0
 	github.com/gin-gonic/gin v1.10.0
 	github.com/go-logr/logr v1.4.3
 	github.com/go-logr/zapr v1.3.0
@@ -103,12 +104,14 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.2 // indirect
 )
 
-// Local sibling: the merged axisml-operator module hosts all three CRD API
-// packages. Pseudo-versions aren't published, so we wire it up via a replace
-// directive. Docker builds use the repo root as build context so the path
-// resolves.
-replace github.com/axisml/axisml/components/operator => ../operator
+// Local siblings: tenant-operator hosts the Tenant CR types, compute-operator
+// hosts MLJob and MLService. Pseudo-versions aren't published, so we wire
+// them up via replace directives. Docker builds use the repo root as build
+// context so the relative paths resolve.
+replace github.com/axisml/axisml/components/tenant-operator => ../tenant-operator
 
-// Mirror axisml-operator's pin: koordinator v1.8.0's go.mod references a
+replace github.com/axisml/axisml/components/compute-operator => ../compute-operator
+
+// Mirror the operator modules' pin: koordinator v1.8.0's go.mod references a
 // kube-openapi version that is not published on the module proxy.
 replace k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912

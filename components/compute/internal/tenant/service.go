@@ -9,7 +9,7 @@ import (
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 
-	tenantv1alpha1 "github.com/axisml/axisml/components/operator/api/tenant/v1alpha1"
+	tenantv1alpha1 "github.com/axisml/axisml/components/tenant-operator/api/v1alpha1"
 
 	"github.com/axisml/axisml/components/compute/internal/quota"
 	"github.com/axisml/axisml/components/compute/internal/resourcepool"

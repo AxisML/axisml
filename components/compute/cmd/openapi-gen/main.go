@@ -609,16 +609,20 @@ func isVersionSegment(s string) bool {
 	return s[1] >= '0' && s[1] <= '9'
 }
 
-// operatorAPIPrefix maps the three operator API sub-packages to a prefix that
-// includes the CRD name. The path looks like
-// ".../components/operator/api/<crd>/v1alpha1".
+// operatorAPIPrefix maps the operator API packages to a prefix that includes
+// the CRD name. After the operator split:
+//   - components/tenant-operator/api/v1alpha1 → "Tenant"
+//   - components/compute-operator/api/<crd>/v1alpha1 → "MLJob" / "MLService"
 func operatorAPIPrefix(pkg string) (string, bool) {
-	const opRoot = "components/operator/api/"
-	i := strings.Index(pkg, opRoot)
+	if strings.Contains(pkg, "components/tenant-operator/api/") {
+		return "Tenant", true
+	}
+	const computeRoot = "components/compute-operator/api/"
+	i := strings.Index(pkg, computeRoot)
 	if i < 0 {
 		return "", false
 	}
-	rest := pkg[i+len(opRoot):]
+	rest := pkg[i+len(computeRoot):]
 	parts := strings.Split(rest, "/")
 	if len(parts) < 1 {
 		return "", false
@@ -628,8 +632,6 @@ func operatorAPIPrefix(pkg string) (string, bool) {
 		return "MLJob", true
 	case "mlservice":
 		return "MLService", true
-	case "tenant":
-		return "Tenant", true
 	}
 	return "", false
 }

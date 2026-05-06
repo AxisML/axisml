@@ -16,9 +16,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	mljobv1alpha1 "github.com/axisml/axisml/components/operator/api/mljob/v1alpha1"
-	mlservicev1alpha1 "github.com/axisml/axisml/components/operator/api/mlservice/v1alpha1"
-	tenantv1alpha1 "github.com/axisml/axisml/components/operator/api/tenant/v1alpha1"
+	mljobv1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mljob/v1alpha1"
+	mlservicev1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
+	tenantv1alpha1 "github.com/axisml/axisml/components/tenant-operator/api/v1alpha1"
 
 	"github.com/axisml/axisml/test/testutil"
 )

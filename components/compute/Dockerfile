@@ -1,7 +1,8 @@
 # syntax=docker/dockerfile:1.7
 #
-# Compute imports operator API packages via local replace directives, so the
-# build context must be the repo root. The top-level Makefile target uses
+# Compute imports tenant-operator + compute-operator API packages via local
+# replace directives, so the build context must be the repo root. The top-
+# level Makefile target uses
 #   docker build -f components/compute/Dockerfile <REPO_ROOT>
 # Run the build stage on the host architecture and cross-compile to TARGETARCH.
 # Pure Go (CGO_ENABLED=0) cross-compiles cleanly, so this avoids QEMU emulation
@@ -11,8 +12,9 @@ ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /workspace
 
-# Copy the merged operator module first so the replace target resolves.
-COPY components/operator/ components/operator/
+# Copy the operator modules first so the replace targets resolve.
+COPY components/tenant-operator/ components/tenant-operator/
+COPY components/compute-operator/ components/compute-operator/
 COPY components/compute/ components/compute/
 
 WORKDIR /workspace/components/compute

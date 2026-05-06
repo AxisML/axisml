@@ -9,8 +9,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
+	mljobv1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mljob/v1alpha1"
 	apperrors "github.com/axisml/axisml/components/compute/pkg/errors"
-	mljobv1alpha1 "github.com/axisml/axisml/components/operator/api/mljob/v1alpha1"
 )
 
 // TestComponentName covers the naming rules that decide where types land in

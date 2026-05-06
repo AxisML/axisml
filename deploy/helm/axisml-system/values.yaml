@@ -165,29 +165,63 @@ artifacts:
 # =============================================================================
 # AxisML Operator
 # =============================================================================
-operator:
-  # -- Master toggle for the merged axisml-operator.
+# =============================================================================
+# Tenant Operator
+# =============================================================================
+# Reconciles the Tenant CR — provisions Namespace, Koordinator ElasticQuota,
+# per-tenant Secret/ConfigMap/SA/RBAC. Single reconciler, no dispatcher.
+tenantOperator:
   enabled: true
-
-  # -- Replica count for the operator Deployment. Leader election (below)
-  # ensures only one replica reconciles at a time, so N>1 is purely an HA
-  # / faster-failover knob.
   replicaCount: 1
 
-  # -- Image for the merged axisml-operator binary.
   image:
     registry: ghcr.io
-    repository: axisml/axisml-operator
+    repository: axisml/axisml-tenant-operator
     tag: ""               # defaults to Chart.AppVersion via the axisml.image helper
     pullPolicy: IfNotPresent
 
-  # -- Leader election for the single Deployment. The Lease lives in the
-  # release namespace and is shared across all enabled controllers.
   leaderElection:
     enabled: true
-    id: axisml-operator.axisml.io
+    id: axisml-tenant-operator.axisml.io
 
-  # -- Resource requests/limits sized for the union of the three controllers.
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+  # Periodic re-reconcile interval for source Secret/ConfigMap drift.
+  resyncPeriod: 10m
+  # Target namespaces a Tenant CR may NOT point spec.namespace.name at.
+  namespaceDenylist:
+    - kube-system
+    - kube-public
+    - kube-node-lease
+    - default
+    - axisml-system
+    - axisml-infra
+
+# =============================================================================
+# Compute Operator
+# =============================================================================
+# Reconciles MLJob and MLService CRs. Dispatcher + handler model; routes by
+# spec.backend.{name,engine}.
+computeOperator:
+  enabled: true
+  replicaCount: 1
+
+  image:
+    registry: ghcr.io
+    repository: axisml/axisml-compute-operator
+    tag: ""               # defaults to Chart.AppVersion via the axisml.image helper
+    pullPolicy: IfNotPresent
+
+  leaderElection:
+    enabled: true
+    id: axisml-compute-operator.axisml.io
+
   resources:
     requests:
       cpu: 100m
@@ -196,25 +230,10 @@ operator:
       cpu: 500m
       memory: 512Mi
 
-  # -- Per-CRD controller toggles. Each maps to a `--enable-*` flag on the
-  # binary. Disabling all three reduces the operator to a no-op manager.
+  # Per-CRD controller toggles. Each maps to a `--enable-*` flag on the binary.
   controllers:
-    tenant:
-      enabled: true
-      # Periodic re-reconcile interval for source Secret/ConfigMap drift.
-      resyncPeriod: 10m
-      # Target namespaces a Tenant CR may NOT point spec.namespace.name at.
-      namespaceDenylist:
-        - kube-system
-        - kube-public
-        - kube-node-lease
-        - default
-        - axisml-system
-        - axisml-infra
-
     mljob:
       enabled: true
-
     mlservice:
       enabled: true
 
