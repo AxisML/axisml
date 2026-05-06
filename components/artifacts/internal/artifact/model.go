@@ -16,10 +16,15 @@ const (
 	StatusDeleted   = "Deleted"
 )
 
-// Artifact is the GORM-backed `artifacts` row.
+// Artifact is the GORM-backed `artifacts` row. After the de-repo rewrite
+// the row is keyed on (namespace, kind, name, version) — there's no
+// parent ArtifactRepo. Compute treats namespace as a bare string (no
+// existence check); kind matches a registered ArtifactHandler.
 type Artifact struct {
 	ID          uuid.UUID      `gorm:"type:uuid;primaryKey"`
-	RepoID      uuid.UUID      `gorm:"type:uuid;not null;column:repo_id"`
+	Namespace   string         `gorm:"size:253;not null"`
+	Kind        string         `gorm:"size:32;not null"`
+	Name        string         `gorm:"size:128;not null"`
 	Version     string         `gorm:"size:128;not null"`
 	DisplayName string         `gorm:"type:text;not null;default:''"`
 	Description string         `gorm:"type:text;not null;default:''"`

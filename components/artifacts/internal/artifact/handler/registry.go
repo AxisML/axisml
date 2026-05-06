@@ -27,12 +27,12 @@ type Spec map[string]any
 // Artifact is the shape handlers see at runtime. Handlers must not mutate
 // it — they only read fields and call backend operations.
 type Artifact struct {
-	Kind     string
-	Scope    string // "tenants/<tenant>" for tenant-private; "system" for public
-	RepoName string
-	Version  string
-	Spec     Spec
-	Digest   string // populated by VerifyComplete; empty before Ready
+	Kind      string
+	Namespace string // "tenants/<tenant>" for tenant-private; "system" for public
+	Name      string
+	Version   string
+	Spec      Spec
+	Digest    string // populated by VerifyComplete; empty before Ready
 }
 
 // Credentials is re-exported here so service callers don't need to depend
@@ -48,7 +48,7 @@ type CompleteClaim struct {
 type Handler interface {
 	Kind() string
 	StorageKind() StorageKind
-	BuildStorageURI(scope, repo, version string) string
+	BuildStorageURI(namespace, name, version string) string
 	ValidateSpec(ctx context.Context, spec Spec) error
 	InitiateUpload(ctx context.Context, a Artifact, ttl time.Duration) (Credentials, error)
 	IssuePullCredentials(ctx context.Context, a Artifact, ttl time.Duration) (Credentials, error)
