@@ -53,8 +53,8 @@ func (h *EnvtestHandle) Stop() error {
 // runtime.Goexit and crashes the test binary instead of reporting the error.
 //
 // KUBEBUILDER_ASSETS must point at a directory containing etcd, kube-apiserver,
-// and kubectl; the operator Makefile's `envtest` target sets it via the shared
-// setup-envtest binary at test/setup-envtest/setup-envtest.
+// and kubectl; each component's `make integration` target sets it via the
+// shared setup-envtest binary at test/setup-envtest/setup-envtest.
 func StartEnvtestE(opts EnvtestOptions) (*EnvtestHandle, error) {
 	if opts.Scheme == nil {
 		return nil, errors.New("StartEnvtestE: opts.Scheme is required")

@@ -1,6 +1,6 @@
 // Package setup wires shared scheme + handler-stub registration so the
-// production cmd/main.go and the merged envtest TestMain stay in sync.
-// Adding a new API group should require touching this file only.
+// production cmd/main.go and the merged integration-test TestMain stay in
+// sync. Adding a new API group should require touching this file only.
 package setup
 
 import (

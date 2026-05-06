@@ -1,6 +1,6 @@
-//go:build envtest
+//go:build integration
 
-package envtest_test
+package integration_test
 
 import (
 	"context"

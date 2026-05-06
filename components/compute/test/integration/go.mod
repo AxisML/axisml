@@ -1,8 +1,8 @@
-// envtest is its own Go module so the production go.mod stays free of
-// test-only deps (testify, testcontainers, testutil). The Dockerfile builds
-// from components/compute/ + sibling operator dirs and a `../../../`
-// replace would fall outside that build context.
-module github.com/axisml/axisml/components/compute/test/envtest
+// The integration-test module is its own Go module so the production
+// go.mod stays free of test-only deps (testify, testcontainers, testutil).
+// The Dockerfile builds from components/compute/ + sibling operator dirs
+// and a `../../../` replace would fall outside that build context.
+module github.com/axisml/axisml/components/compute/test/integration
 
 go 1.26.0
 

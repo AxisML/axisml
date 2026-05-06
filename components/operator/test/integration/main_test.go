@@ -1,11 +1,11 @@
-//go:build envtest
+//go:build integration
 
-// Package envtest_test runs the merged axisml-operator (Tenant, MLJob,
+// Package integration_test runs the merged axisml-operator (Tenant, MLJob,
 // MLService reconcilers) against an embedded apiserver+etcd via
 // controller-runtime's envtest. Hermetic — no minikube, no in-cluster
 // operator, no shared state between runs.
 //
-// Prerequisites (handled by `make axisml-operator-envtest`):
+// Prerequisites (handled by `make operator-integration`):
 //
 //   - The shared `setup-envtest` binary at test/setup-envtest/setup-envtest
 //     (installed by `make setup-envtest` from repo root).
@@ -25,7 +25,7 @@
 // envtest has no kubelet, so workload controllers (Job, Deployment) don't
 // progress on their own. Tests simulate progress by directly patching
 // status (see mljob_native_job_test.go, mlservice_native_deployment_test.go).
-package envtest_test
+package integration_test
 
 import (
 	"context"

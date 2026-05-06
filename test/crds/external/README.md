@@ -1,10 +1,10 @@
-# External CRDs vendored for envtest
+# External CRDs vendored for L1 integration tests
 
 These YAMLs are loaded into the embedded API server by the merged
-axisml-operator's L1 envtest. envtest only knows about CRDs that are
-explicitly fed to it, so any CRD the operator imports from outside this
-repo (Koordinator, scheduler-plugins, Kubeflow, KServe, …) needs to
-live here.
+axisml-operator's L1 integration suite. controller-runtime's envtest
+framework only knows about CRDs that are explicitly fed to it, so any CRD
+the operator imports from outside this repo (Koordinator, scheduler-plugins,
+Kubeflow, KServe, …) needs to live here.
 
 ## Sources
 
@@ -14,7 +14,7 @@ live here.
 | `scheduler-plugins-podgroup.yaml` | `scheduling.sigs.k8s.io` / `PodGroup` | Koordinator's vendored copy of scheduler-plugins under `apis/thirdparty/scheduler-plugins`. The schema mirrors upstream `kubernetes-sigs/scheduler-plugins`, but the group is renamed `scheduling.sigs.k8s.io` (matches what `koord-scheduler` watches in the cluster). | matches `github.com/koordinator-sh/koordinator v1.7.0` (pinned in `components/operator/go.mod`) |
 | `gateway-api-httproute.yaml` | `gateway.networking.k8s.io` / `HTTPRoute` | `kubernetes-sigs/gateway-api` `config/crd/standard/gateway.networking.k8s.io_httproutes.yaml`. Required even for tests that don't enable spec.route, because the MLService dispatcher watches HTTPRoute. | matches `sigs.k8s.io/gateway-api v1.5.1` (pinned in `components/operator/go.mod`) |
 
-Every `.yaml` in this directory is fed to envtest's `CRDDirectoryPaths` by the merged operator's TestMain. Don't add empty/placeholder files here — envtest tolerates them today but the contract isn't load-bearing, and a malformed placeholder would break every L1 envtest.
+Every `.yaml` in this directory is fed to envtest's `CRDDirectoryPaths` by the merged operator's TestMain. Don't add empty/placeholder files here — envtest tolerates them today but the contract isn't load-bearing, and a malformed placeholder would break every L1 integration test.
 
 ## Planned
 
@@ -35,6 +35,6 @@ When the Go module version of an upstream changes:
       test/crds/external/scheduler-plugins-podgroup.yaml
    ```
 3. Update the version cell in the table above.
-4. Run `make envtest-test` to confirm the new schema still satisfies the operator.
+4. Run `make integration-test` to confirm the new schema still satisfies the operator.
 
 A `make sync-external-crds` helper that automates this is a planned follow-up.

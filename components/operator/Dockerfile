@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 #
-# axisml-operator builds from the repo root so the test/envtest sibling
+# axisml-operator builds from the repo root so the test/integration sibling
 # module's `replace` paths still resolve in CI builds. The top-level Makefile
 # target invokes:
 #   docker build -f components/operator/Dockerfile <REPO_ROOT>

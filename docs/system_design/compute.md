@@ -881,16 +881,16 @@ Creating ──(Informer ADD)──▶ Pending ──(ready=desired, desired>0)�
 | 模块 | 范围 | 完成信号 |
 | --- | --- | --- |
 | 服务运行时 | 单副本 / `replicas=1`、Helm 模板（configmap / deployment / service / sa / rbac / servicemonitor / bootstrap-job）、`/healthz` + `/readyz` + `/metrics`、PG 启动迁移 | `helm install` 后 Pod Ready；`/healthz` 200；PG `schema_migrations` 表存在 |
-| Tenant | Create / Get / List / Delete API；Tenant CR 下发 + Informer 推 `Active` / `Deleting → Deleted` | envtest 覆盖：API Create → Tenant CR 出现 + label `axisml.io/tenant-id` 一致；Tenant CR 删除 → PG `status='Deleted'` |
+| Tenant | Create / Get / List / Delete API；Tenant CR 下发 + Informer 推 `Active` / `Deleting → Deleted` | L1 integration 覆盖：API Create → Tenant CR 出现 + label `axisml.io/tenant-id` 一致；Tenant CR 删除 → PG `status='Deleted'` |
 | ResourcePool | CRUD API（无 CR） | API 测试覆盖；新建 Pool 后 ResourceUnit 可挂靠 |
-| ResourceUnit | CRUD API（无 CR）；提交 Job/Service 时注入 `requests` / `limits` / `nodeSelector` / `tolerations`（Pool 优先合并） | API 测试覆盖；envtest 覆盖：提交 Job 后 MLJob CR `spec.scheduling` 与 `spec.roles[*].template.resources` 字段值正确 |
-| Quota | Create / Get / List / Delete API；通过 `tenants.desired_spec_hash` 驱动 Tenant CR 渲染；Informer 按 `Tenant.status.quotas[]` 推进 `Active` / `Deleted` 与 `used` 缓存 | envtest 覆盖：API Create Quota → Tenant CR `spec.quotas[]` 出现 → ElasticQuota 派生（fake tenant-controller）；`Tenant.status.quotas[i].ready=true` → PG quota `status='Active'` |
-| Job | Create / Get / List / Delete API（不含 cancel / logs / events / replicas / spec update）；MLJob CR 下发；Informer 推 `Pending → Running → Succeeded/Failed`；DELETE → `Deleting → Deleted` | envtest 覆盖：API Create → MLJob CR 出现 + 状态推进；DELETE → CR 删除 + PG `Deleted`；外部误删 Pending/Running CR 时 PG 推 `Cancelled`（提前对齐 §3.7） |
-| Service | Create / Get / List / Delete + Scale API（不含其他 spec 更新）；MLService CR 下发；Informer 推 `Pending → Ready` | envtest 覆盖：Scale API 修改 PG `replicas` → reconciler patch CR `spec.roles[0].replicas` → ready_replicas 回流 |
+| ResourceUnit | CRUD API（无 CR）；提交 Job/Service 时注入 `requests` / `limits` / `nodeSelector` / `tolerations`（Pool 优先合并） | API 测试覆盖；L1 integration 覆盖：提交 Job 后 MLJob CR `spec.scheduling` 与 `spec.roles[*].template.resources` 字段值正确 |
+| Quota | Create / Get / List / Delete API；通过 `tenants.desired_spec_hash` 驱动 Tenant CR 渲染；Informer 按 `Tenant.status.quotas[]` 推进 `Active` / `Deleted` 与 `used` 缓存 | L1 integration 覆盖：API Create Quota → Tenant CR `spec.quotas[]` 出现 → ElasticQuota 派生（fake tenant-controller）；`Tenant.status.quotas[i].ready=true` → PG quota `status='Active'` |
+| Job | Create / Get / List / Delete API（不含 cancel / logs / events / replicas / spec update）；MLJob CR 下发；Informer 推 `Pending → Running → Succeeded/Failed`；DELETE → `Deleting → Deleted` | L1 integration 覆盖：API Create → MLJob CR 出现 + 状态推进；DELETE → CR 删除 + PG `Deleted`；外部误删 Pending/Running CR 时 PG 推 `Cancelled`（提前对齐 §3.7） |
+| Service | Create / Get / List / Delete + Scale API（不含其他 spec 更新）；MLService CR 下发；Informer 推 `Pending → Ready` | L1 integration 覆盖：Scale API 修改 PG `replicas` → reconciler patch CR `spec.roles[0].replicas` → ready_replicas 回流 |
 | Outbox + Informer | 谓词只覆盖 `Creating` + `Deleting`；单副本无 leader election 代码路径；reconciler 失败指数退避 | grep `Canceling` / `desired_spec_hash` 谓词代码路径不被触发；reconciler 单元测试覆盖 4 类失败场景重试 |
 | Backend 默认值 | MLJob `(native, job)` / MLService `(native, deployment)` 一律默认注入 | API 创建未指定 backend 时 PG `spec.backend = {name:native, engine:job/deployment}` |
 | Bootstrap | post-install Job：default tenant + default pool + cpu-small/cpu-medium unit + `(default, default)` quota（`max` 按集群可用资源估算，`min=0`） | `helm install` 后查询 4 类对象都存在；重复 `helm upgrade` 不重复创建 |
-| 测试 | API 单元测试 + Informer envtest（fake tenant-controller / fake mljob-controller / fake mlservice-controller） | `make compute-test` + `make compute-envtest` 通过 |
+| 测试 | API 单元测试 + Informer integration（fake tenant-controller / fake mljob-controller / fake mlservice-controller） | `make compute-test` + `make compute-integration` 通过 |
 
 **显式延后到 §10.3**：`desired/applied spec hash`、Job `Canceling`/`Cancelled`、Tenant `Suspended`、CR 漂移补偿（仅外部误删先到位）、配额预检、`Degraded` 状态、metrics 全集、多 backend、Job 日志/副本/事件端点、Service spec 多字段更新。
 
@@ -900,28 +900,28 @@ Creating ──(Informer ADD)──▶ Pending ──(ready=desired, desired>0)�
 
 1. **`desired_spec_hash` / `applied_spec_hash` 双 hash 机制**
    - 目标：覆盖 Tenant `displayName` / `annotations` / `quotas` / `initResources` / `suspended` 与 Service `spec.roles[0].replicas` 的 PG-only 异步 patch 路径。
-   - 完成信号：API PATCH 写 PG `desired_spec_hash` → reconciler 检测差异 → patch CR → 写 `applied_spec_hash`；envtest 覆盖：连续 PATCH 多次只产生最后一次 patch；patch 失败 message 写入 PG。
+   - 完成信号：API PATCH 写 PG `desired_spec_hash` → reconciler 检测差异 → patch CR → 写 `applied_spec_hash`；L1 integration 覆盖：连续 PATCH 多次只产生最后一次 patch；patch 失败 message 写入 PG。
 2. **Tenant suspend / unsuspend + spec update**
    - 目标：管理员可暂停租户提交链路与调整 `displayName` / `initResources`。
-   - 完成信号：suspend API → PG `status='Suspended'` 立即生效（阻塞新 Job/Service Create 校验）；unsuspend → reconciler patch CR → Informer 回 `Active`；envtest 覆盖。
+   - 完成信号：suspend API → PG `status='Suspended'` 立即生效（阻塞新 Job/Service Create 校验）；unsuspend → reconciler patch CR → Informer 回 `Active`；L1 integration 覆盖。
 3. **Quota spec update**
    - 目标：调整 `(tenant, pool, name)` 的 `min` / `max` 不需要重建 Quota。
    - 完成信号：PATCH Quota → 标记 `tenants.desired_spec_hash` → Tenant reconciler 重新渲染 `spec.quotas[]` → ElasticQuota.spec 跟随。
 4. **Job cancel（`Canceling → Cancelled`）**
    - 目标：用户可以取消运行中 Job 并保留 PG 行供查阅。
-   - 完成信号：cancel API → PG `Canceling` → reconciler patch `spec.runPolicy.suspend=true` → Informer 见 Suspended condition → `Cancelled` + `finished_at` + 入队 `Delete()`；envtest 覆盖竞速：cancel patch 与 Job 自然终态同时到达时 Compute 推到对应运行终态而非 `Cancelled`。
+   - 完成信号：cancel API → PG `Canceling` → reconciler patch `spec.runPolicy.suspend=true` → Informer 见 Suspended condition → `Cancelled` + `finished_at` + 入队 `Delete()`；L1 integration 覆盖竞速：cancel patch 与 Job 自然终态同时到达时 Compute 推到对应运行终态而非 `Cancelled`。
 5. **配置对象 CR 漂移与反向孤儿补偿**
    - 目标：Tenant CR 字段被外部修改 / Tenant CR 被外部删除时按 PG desired spec 重建；Tenant CR 存在但 PG 行已软删时删除 CR + 审计。
-   - 完成信号：envtest 覆盖：手动修改 Tenant CR `spec.displayName` → reconciler 下一轮覆盖回 PG 值；删除 Tenant CR → reconciler 重新创建。
+   - 完成信号：L1 integration 覆盖：手动修改 Tenant CR `spec.displayName` → reconciler 下一轮覆盖回 PG 值；删除 Tenant CR → reconciler 重新创建。
 6. **配额 best-effort 预检**
    - 目标：提交 Job/Service 时按 `quotas.spec.max - quotas.used` 早期拒绝，避免空跑 reconciler。
    - 完成信号：构造 used + request > max 场景，API 返回 4xx；metrics `axisml_compute_quota_precheck_rejected_total` 增长。
 7. **Service `Degraded` / `Failed` 状态映射**
    - 目标：精确反映 ready_replicas vs desired_replicas 与 MLService `status.phase` 的组合。
-   - 完成信号：envtest 覆盖 §9.3 主表四条 + `desired_replicas==0` 附注一条。
+   - 完成信号：L1 integration 覆盖 §9.3 主表四条 + `desired_replicas==0` 附注一条。
 8. **多 backend 接入（与 operator §7.2 / §7.3 对齐）**
    - 目标：透传 MLJob `(native, podgroup)` / `(kubeflow-trainer, *)` 与 MLService `(native, statefulset)` / `(kserve, inference)` / `(kserve, llminference)` 的 `backend.config`，Compute 不解释 backend 运行时语义。
-   - 完成信号：API 接受任意已注册 backend；CR `spec.backend` 字段透传准确；envtest 覆盖 `(native, podgroup)` 与 `(kserve, inference)` 两条最常用路径。
+   - 完成信号：API 接受任意已注册 backend；CR `spec.backend` 字段透传准确；L1 integration 覆盖 `(native, podgroup)` 与 `(kserve, inference)` 两条最常用路径。
 9. **Job 日志 + 副本 + 事件端点**
    - 目标：`/logs` 透传 + SSE follow、`/replicas` 与 `/events` 列表。
    - 完成信号：`/logs?follow=true` 流式可用且断开时关闭 upstream；GC 后 Pod 返 410；`/replicas` 按 `axisml.io/job-id` label 检索 Pod。
@@ -942,7 +942,7 @@ Creating ──(Informer ADD)──▶ Pending ──(ready=desired, desired>0)�
 
 11. **`axisml.io/<resource>-id` label 锚点 + 软删命名复用全链路**
     - 目标：所有 CR 创建时打 label；孤儿检测一律按 label 索引而非 name；UNIQUE partial index 允许软删后再创建同名资源。
-    - 完成信号：envtest 覆盖：`DELETE Job foo → Create Job foo` 同租户内成功；CR label 与 PG `id` 始终一致。
+    - 完成信号：L1 integration 覆盖：`DELETE Job foo → Create Job foo` 同租户内成功；CR label 与 PG `id` 始终一致。
 
 ### 10.4 阶段三：未来规划
 
@@ -962,13 +962,13 @@ Creating ──(Informer ADD)──▶ Pending ──(ready=desired, desired>0)�
 
 | 阶段 | 主测层 | 工具 |
 | --- | --- | --- |
-| MVP | API 单元测试 + L1 envtest（含 fake tenant/mljob/mlservice controller） | `make compute-test` + `make compute-envtest` |
-| 功能完善 | L1 envtest 扩展 + 关键路径 L2 e2e（与 axisml-operator + helm 一起跑） | `make envtest-test` + `make e2e-test`（minikube） |
-| 未来规划 | 单独写 RFC 设计文档 → L1 envtest 先行 → L2 验证多组件链路 | 同上 |
+| MVP | API 单元测试 + L1 integration test（含 fake tenant/mljob/mlservice controller） | `make compute-test` + `make compute-integration` |
+| 功能完善 | L1 integration 扩展 + 关键路径 L2 e2e（与 axisml-operator + helm 一起跑） | `make integration-test` + `make e2e-test`（minikube） |
+| 未来规划 | 单独写 RFC 设计文档 → L1 integration 先行 → L2 验证多组件链路 | 同上 |
 
 ## 11. 测试
 
-L1 envtest 在 `components/compute/test/envtest/` 单一 Go module 中：每个模块的 reconciler / Informer 路径覆盖 happy path + 关键 corner case（外部误删、漂移修复、cancel 竞速等）。fake operator 使用 controller-runtime 的 `envtest.Environment` + 简易 reconciler，模拟 tenant-controller / mljob-controller / mlservice-controller 的 status 写入。
+L1 integration 在 `components/compute/test/integration/` 单一 Go module 中：每个模块的 reconciler / Informer 路径覆盖 happy path + 关键 corner case（外部误删、漂移修复、cancel 竞速等）。fake operator 使用 controller-runtime 的 `envtest.Environment` + 简易 reconciler，模拟 tenant-controller / mljob-controller / mlservice-controller 的 status 写入。
 
 API 层单元测试在各 `internal/<module>/handler_test.go`，覆盖请求参数校验、错误格式、租户校验等。
 
