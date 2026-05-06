@@ -17,11 +17,7 @@ data:
   LEADER_NAMESPACE: {{ .Release.Namespace | quote }}
   RECONCILE_INTERVAL: {{ .Values.compute.reconcileInterval | quote }}
   LOG_DEVELOPMENT: {{ .Values.compute.logDevelopment | quote }}
-  BOOTSTRAP_TENANT: {{ .Values.compute.bootstrap.defaultTenant | quote }}
-  BOOTSTRAP_TENANT_NAMESPACE: {{ .Values.compute.bootstrap.defaultTenantNamespace | quote }}
   BOOTSTRAP_POOL: {{ .Values.compute.bootstrap.defaultPool | quote }}
-  BOOTSTRAP_QUOTA_CPU: {{ index .Values.compute.bootstrap.defaultQuotaMax "cpu" | quote }}
-  BOOTSTRAP_QUOTA_MEMORY: {{ index .Values.compute.bootstrap.defaultQuotaMax "memory" | quote }}
   {{- range $key, $value := .Values.compute.env }}
   {{ $key }}: {{ $value | quote }}
   {{- end }}

@@ -80,15 +80,9 @@ compute:
 
   bootstrap:
     enabled: true
-    defaultTenant: default
-    # K8s 内置 `default` namespace 在 tenant-operator denylist 里，default
-    # 租户落到独立的 `axisml-default` namespace，与 `axisml-system` /
-    # `axisml-infra` 命名风格一致。
-    defaultTenantNamespace: axisml-default
+    # Compute's bootstrap job only seeds the default ResourcePool now.
+    # Tenants and quotas are owned by cluster-manager + tenant-operator.
     defaultPool: default
-    defaultQuotaMax:
-      cpu: "8"
-      memory: 16Gi
 
   resources:
     requests:

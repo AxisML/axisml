@@ -4,31 +4,25 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 
 	"github.com/axisml/axisml/components/compute/internal/server"
-	apperrors "github.com/axisml/axisml/components/compute/pkg/errors"
 )
 
-// Handler exposes /tenants/:tenant/jobs routes.
+// Handler exposes /namespaces/:namespace/jobs routes. After the de-tenant
+// rewrite namespace is the bare URL partition key; Compute does no
+// existence / activation check on it.
 type Handler struct {
-	svc        *Service
-	middleware []gin.HandlerFunc
+	svc *Service
 }
 
-// NewHandler builds a job HTTP handler. middleware is applied to the route
-// group so the tenant resolver runs before each handler.
-func NewHandler(svc *Service, middleware ...gin.HandlerFunc) *Handler {
-	return &Handler{svc: svc, middleware: middleware}
+// NewHandler builds a job HTTP handler.
+func NewHandler(svc *Service) *Handler {
+	return &Handler{svc: svc}
 }
 
 // Register implements server.Module.
 func (h *Handler) Register(rg *gin.RouterGroup) {
-	g := rg.Group("/tenants/:tenant/jobs")
-	for _, m := range h.middleware {
-		g.Use(m)
-	}
-	g.Use(populateTenantName)
+	g := rg.Group("/namespaces/:namespace/jobs")
 	g.POST("", h.Create)
 	g.GET("", h.List)
 	g.GET("/:job", h.Get)
@@ -36,36 +30,14 @@ func (h *Handler) Register(rg *gin.RouterGroup) {
 	g.DELETE("/:job", h.Delete)
 }
 
-// populateTenantName takes the tenant URL segment (already validated by the
-// tenant middleware) and stashes it on the request context so downstream
-// services can render the ElasticQuota name without an extra DB lookup.
-func populateTenantName(c *gin.Context) {
-	name := c.Param("tenant")
-	c.Request = c.Request.WithContext(WithTenantName(c.Request.Context(), name))
-	c.Next()
-}
-
-func tenantID(c *gin.Context) (uuid.UUID, error) {
-	v, ok := c.Get("tenantID")
-	if !ok {
-		return uuid.Nil, apperrors.New(apperrors.CodeInternal, "tenant resolver not configured")
-	}
-	id, _ := v.(uuid.UUID)
-	return id, nil
-}
-
 func (h *Handler) Create(c *gin.Context) {
-	id, err := tenantID(c)
-	if err != nil {
-		_ = c.Error(err)
-		return
-	}
+	ns := c.Param("namespace")
 	var in CreateInput
 	if err := c.ShouldBindJSON(&in); err != nil {
 		_ = c.Error(err)
 		return
 	}
-	v, err := h.svc.Create(c.Request.Context(), id, in)
+	v, err := h.svc.Create(c.Request.Context(), ns, in)
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -74,17 +46,13 @@ func (h *Handler) Create(c *gin.Context) {
 }
 
 func (h *Handler) List(c *gin.Context) {
-	id, err := tenantID(c)
-	if err != nil {
-		_ = c.Error(err)
-		return
-	}
+	ns := c.Param("namespace")
 	p, err := server.ParsePagination(c)
 	if err != nil {
 		_ = c.Error(err)
 		return
 	}
-	items, total, err := h.svc.List(c.Request.Context(), id, p.Limit, p.Offset)
+	items, total, err := h.svc.List(c.Request.Context(), ns, p.Limit, p.Offset)
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -93,13 +61,7 @@ func (h *Handler) List(c *gin.Context) {
 }
 
 func (h *Handler) Get(c *gin.Context) {
-	id, err := tenantID(c)
-	if err != nil {
-		_ = c.Error(err)
-		return
-	}
-	name := c.Param("job")
-	v, err := h.svc.Get(c.Request.Context(), id, name)
+	v, err := h.svc.Get(c.Request.Context(), c.Param("namespace"), c.Param("job"))
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -108,13 +70,7 @@ func (h *Handler) Get(c *gin.Context) {
 }
 
 func (h *Handler) Cancel(c *gin.Context) {
-	id, err := tenantID(c)
-	if err != nil {
-		_ = c.Error(err)
-		return
-	}
-	name := c.Param("job")
-	v, err := h.svc.Cancel(c.Request.Context(), id, name)
+	v, err := h.svc.Cancel(c.Request.Context(), c.Param("namespace"), c.Param("job"))
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -123,12 +79,7 @@ func (h *Handler) Cancel(c *gin.Context) {
 }
 
 func (h *Handler) Delete(c *gin.Context) {
-	id, err := tenantID(c)
-	if err != nil {
-		_ = c.Error(err)
-		return
-	}
-	if err := h.svc.Delete(c.Request.Context(), id, c.Param("job")); err != nil {
+	if err := h.svc.Delete(c.Request.Context(), c.Param("namespace"), c.Param("job")); err != nil {
 		_ = c.Error(err)
 		return
 	}

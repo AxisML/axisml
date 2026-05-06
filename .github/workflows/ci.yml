@@ -17,12 +17,11 @@ concurrency:
 
 # Jobs are organised as a type × component grid:
 #
-#                 tenant-operator  compute-operator  compute  artifacts  test
-#   lint            ✓                 ✓               ✓        ✓          ✓
-#   test            ✓                 ✓               ✓        ✓          —
-#   integration     ✓                 ✓               ✓        —          —
-#   openapi         —                 —               ✓        —          —
-#   image           ✓                 ✓               ✓        ✓          —   (main-only)
+#                 tenant-operator  compute-operator  cluster-manager  compute  artifacts  test
+#   lint            ✓                 ✓                ✓                ✓        ✓          ✓
+#   test            ✓                 ✓                ✓                ✓        ✓          —
+#   integration     ✓                 ✓                —                ✓        —          —
+#   image           ✓                 ✓                ✓                ✓        ✓          —   (main-only)
 #
 # The `test` lint bucket covers the shared test/testutil + test/e2e modules,
 # which don't have their own test/integration layers. Each component lint job
@@ -161,26 +160,12 @@ jobs:
         # missing dependencies but still validates Chart.yaml + templates.
         run: make helm-lint
 
-  openapi:
-    name: openapi (compute)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: components/compute/go.mod
-          cache: true
-          cache-dependency-path: components/compute/go.sum
-      - name: Verify components/compute/docs/openapi.yaml is up to date
-        working-directory: components/compute
-        run: make openapi-check
-
   image:
     name: image (${{ matrix.component.name }})
     # Only build and push on main pushes — PRs run lint/test but don't publish
     # images. Gate behind every other check so a red main doesn't ship.
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [lint, test, integration, openapi, helm-lint]
+    needs: [lint, test, integration, helm-lint]
     runs-on: ubuntu-latest
     permissions:
       contents: read

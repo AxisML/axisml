@@ -20,12 +20,15 @@ const (
 	StatusDeleted  Status = "Deleted"
 )
 
-// Service is the GORM-backed `services` row.
+// Service is the GORM-backed `services` row. After de-tenant rewrite the
+// row partition key is `namespace` (bare string); tenant_id / quota_id FKs
+// were dropped. Quota lives only on the rendered MLService CR via
+// spec.scheduling.quota (an opaque ElasticQuota CR name passed through
+// from Platform).
 type Service struct {
 	ID                 uuid.UUID      `gorm:"type:uuid;primaryKey"`
-	TenantID           uuid.UUID      `gorm:"type:uuid;not null;column:tenant_id"`
+	Namespace          string         `gorm:"size:253;not null;column:namespace"`
 	PoolID             uuid.UUID      `gorm:"type:uuid;not null;column:pool_id"`
-	QuotaID            uuid.UUID      `gorm:"type:uuid;not null;column:quota_id"`
 	ResourceUnitID     uuid.UUID      `gorm:"type:uuid;not null;column:resource_unit_id"`
 	Name               string         `gorm:"size:64;not null"`
 	DisplayName        string         `gorm:"type:text;not null;default:''"`

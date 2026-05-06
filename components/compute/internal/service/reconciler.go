@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	"github.com/google/uuid"
 	"gorm.io/gorm"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -15,28 +14,25 @@ import (
 	mlservicev1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
 
 	"github.com/axisml/axisml/components/compute/internal/metrics"
-	"github.com/axisml/axisml/components/compute/internal/tenant"
 )
 
-// Reconciler implements the service Outbox loop.
+// Reconciler implements the service Outbox loop. Namespace is read from
+// the row directly — no tenant lookup.
 type Reconciler struct {
 	db        *gorm.DB
 	repo      *Repository
 	k8sClient client.Client
-	tenants   *tenant.Service
 	log       logr.Logger
 	interval  time.Duration
 }
 
-// NewReconciler builds a service Reconciler.
-func NewReconciler(db *gorm.DB, cl client.Client, tenants *tenant.Service, log logr.Logger, interval time.Duration) *Reconciler {
+func NewReconciler(db *gorm.DB, cl client.Client, log logr.Logger, interval time.Duration) *Reconciler {
 	if interval <= 0 {
 		interval = 2 * time.Second
 	}
-	return &Reconciler{db: db, repo: NewRepository(db), k8sClient: cl, tenants: tenants, log: log, interval: interval}
+	return &Reconciler{db: db, repo: NewRepository(db), k8sClient: cl, log: log, interval: interval}
 }
 
-// NeedLeaderElection ensures only the leader runs.
 func (r *Reconciler) NeedLeaderElection() bool { return true }
 
 func (r *Reconciler) Start(ctx context.Context) error {
@@ -70,12 +66,7 @@ func (r *Reconciler) runOnce(ctx context.Context) {
 }
 
 func (r *Reconciler) handleCreate(ctx context.Context, s *Service) {
-	tnt, err := r.tenants.GetByID(ctx, s.TenantID)
-	if err != nil {
-		r.log.Error(err, "lookup tenant")
-		return
-	}
-	cr, err := ToCR(s, tnt.Name, tnt.Namespace.Name)
+	cr, err := ToCR(s)
 	if err != nil {
 		r.log.Error(err, "render service CR")
 		return
@@ -96,12 +87,8 @@ func (r *Reconciler) handleCreate(ctx context.Context, s *Service) {
 }
 
 func (r *Reconciler) handleDelete(ctx context.Context, s *Service) {
-	tnt, err := r.tenants.GetByID(ctx, s.TenantID)
-	if err != nil {
-		return
-	}
-	cr := &mlservicev1alpha1.MLService{ObjectMeta: metav1.ObjectMeta{Name: s.Name, Namespace: tnt.Namespace.Name}}
-	err = r.k8sClient.Delete(ctx, cr)
+	cr := &mlservicev1alpha1.MLService{ObjectMeta: metav1.ObjectMeta{Name: s.Name, Namespace: s.Namespace}}
+	err := r.k8sClient.Delete(ctx, cr)
 	if err == nil {
 		metrics.ReconcilerActions.WithLabelValues("service", "deleting", "success").Inc()
 		return
@@ -116,12 +103,8 @@ func (r *Reconciler) handleDelete(ctx context.Context, s *Service) {
 }
 
 func (r *Reconciler) handleSpecSync(ctx context.Context, s *Service) {
-	tnt, err := r.tenants.GetByID(ctx, s.TenantID)
-	if err != nil {
-		return
-	}
 	current := &mlservicev1alpha1.MLService{}
-	if err := r.k8sClient.Get(ctx, client.ObjectKey{Namespace: tnt.Namespace.Name, Name: s.Name}, current); err != nil {
+	if err := r.k8sClient.Get(ctx, client.ObjectKey{Namespace: s.Namespace, Name: s.Name}, current); err != nil {
 		if apierrors.IsNotFound(err) {
 			r.handleCreate(ctx, s)
 			return
@@ -133,13 +116,10 @@ func (r *Reconciler) handleSpecSync(ctx context.Context, s *Service) {
 	if err := json.Unmarshal(s.Spec, &desiredSpec); err != nil {
 		return
 	}
-	// We only mutate replicas (the only mutable field) per design §6.3.2.
 	if len(current.Spec.Roles) == 0 || len(desiredSpec.Roles) == 0 {
 		return
 	}
 	if current.Spec.Roles[0].Replicas == desiredSpec.Roles[0].Replicas {
-		// CR already at desired replicas; idempotently catch up
-		// applied_spec_hash and skip the API patch.
 		_ = r.repo.Update(ctx, s.ID, map[string]any{"applied_spec_hash": s.DesiredSpecHash})
 		metrics.ReconcilerActions.WithLabelValues("service", "spec_sync", "noop").Inc()
 		return
@@ -153,6 +133,3 @@ func (r *Reconciler) handleSpecSync(ctx context.Context, s *Service) {
 	_ = r.repo.Update(ctx, s.ID, map[string]any{"applied_spec_hash": s.DesiredSpecHash})
 	metrics.ReconcilerActions.WithLabelValues("service", "spec_sync", "success").Inc()
 }
-
-// Compile guard: keep uuid import alive.
-var _ = uuid.Nil

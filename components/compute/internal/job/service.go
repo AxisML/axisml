@@ -13,50 +13,46 @@ import (
 	mljobv1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mljob/v1alpha1"
 
 	"github.com/axisml/axisml/components/compute/internal/auth"
-	"github.com/axisml/axisml/components/compute/internal/quota"
 	"github.com/axisml/axisml/components/compute/internal/resourcepool"
 	"github.com/axisml/axisml/components/compute/internal/resourceunit"
-	"github.com/axisml/axisml/components/compute/internal/tenant"
 	apperrors "github.com/axisml/axisml/components/compute/pkg/errors"
 	"github.com/axisml/axisml/components/compute/pkg/strutil"
 )
 
-// Service is the job business layer.
+// Service is the job business layer. After de-tenant rewrite the service
+// is keyed on bare namespace strings; tenant + quota lookups are gone.
+// `spec.scheduling.quota` is whatever the caller passes through.
 type Service struct {
-	repo    *Repository
-	db      *gorm.DB
-	tenants *tenant.Service
-	pools   *resourcepool.Service
-	units   *resourceunit.Service
-	quotas  *quota.Service
+	repo  *Repository
+	db    *gorm.DB
+	pools *resourcepool.Service
+	units *resourceunit.Service
 }
 
 // NewService constructs the job service.
 func NewService(
 	db *gorm.DB,
-	tenants *tenant.Service,
 	pools *resourcepool.Service,
 	units *resourceunit.Service,
-	quotas *quota.Service,
 ) *Service {
 	return &Service{
-		repo:    NewRepository(db),
-		db:      db,
-		tenants: tenants,
-		pools:   pools,
-		units:   units,
-		quotas:  quotas,
+		repo:  NewRepository(db),
+		db:    db,
+		pools: pools,
+		units: units,
 	}
 }
 
-// CreateInput is the API request body. The caller selects pool/unit/quota by
-// name; we resolve them at write time and capture the snapshot.
+// CreateInput is the API request body. Caller selects pool/unit/quota by
+// ID; we resolve unit + pool at write time. `Quota` is the ElasticQuota CR
+// name (cluster-unique string) that gets stamped onto Pod labels — Compute
+// treats it as opaque and does no existence check.
 type CreateInput struct {
 	Name           string                       `json:"name" binding:"required,axisml_name"`
 	DisplayName    string                       `json:"displayName"`
 	Description    string                       `json:"description"`
 	ResourceUnitID uuid.UUID                    `json:"resourceUnitId" binding:"required"`
-	QuotaID        uuid.UUID                    `json:"quotaId" binding:"required"`
+	Quota          string                       `json:"quota" binding:"required"`
 	Backend        *mljobv1alpha1.BackendSpec   `json:"backend"`
 	Roles          []mljobv1alpha1.RoleSpec     `json:"roles" binding:"required,min=1"`
 	RunPolicy      *mljobv1alpha1.RunPolicySpec `json:"runPolicy"`
@@ -65,7 +61,7 @@ type CreateInput struct {
 // View is the HTTP response payload.
 type View struct {
 	ID          uuid.UUID               `json:"id"`
-	TenantID    uuid.UUID               `json:"tenantId"`
+	Namespace   string                  `json:"namespace"`
 	Name        string                  `json:"name"`
 	DisplayName string                  `json:"displayName,omitempty"`
 	Description string                  `json:"description,omitempty"`
@@ -79,24 +75,18 @@ type View struct {
 	UpdatedAt   time.Time               `json:"updatedAt"`
 }
 
-// Create writes a new job row and returns the view. The CR is reconciled
-// asynchronously by the job reconciler.
-func (s *Service) Create(ctx context.Context, tenantID uuid.UUID, in CreateInput) (*View, error) {
+// Create writes a new job row. CR is reconciled asynchronously.
+func (s *Service) Create(ctx context.Context, namespace string, in CreateInput) (*View, error) {
 	if !strutil.IsValidName(in.Name) {
 		return nil, apperrors.New(apperrors.CodeValidation, "invalid job name")
 	}
-	if existing, err := s.repo.GetByTenantName(ctx, tenantID, in.Name); err == nil && existing != nil {
+	if in.Quota == "" {
+		return nil, apperrors.New(apperrors.CodeValidation, "quota is required")
+	}
+	if existing, err := s.repo.GetByNamespaceName(ctx, namespace, in.Name); err == nil && existing != nil {
 		return nil, apperrors.New(apperrors.CodeConflict, "job already exists")
 	} else if err != nil && !IsNotFound(err) {
 		return nil, err
-	}
-
-	tnt, err := s.tenants.Get(ctx, tenantNameFromCtx(ctx, tenantID))
-	if err != nil {
-		// Best-effort path: load by ID would require an extra repo method.
-		// The middleware should have already verified existence; if Get fails,
-		// fall through with a generic error.
-		_ = tnt
 	}
 
 	unit, err := s.units.GetByID(ctx, in.ResourceUnitID)
@@ -107,23 +97,12 @@ func (s *Service) Create(ctx context.Context, tenantID uuid.UUID, in CreateInput
 	if err != nil {
 		return nil, err
 	}
-	q, err := s.quotas.GetByID(ctx, in.QuotaID)
-	if err != nil {
-		return nil, err
-	}
-	if q.PoolID != pool.ID {
-		return nil, apperrors.New(apperrors.CodeValidation, "quota and resource unit belong to different pools")
-	}
-	if q.TenantID != tenantID {
-		return nil, apperrors.New(apperrors.CodeValidation, "quota does not belong to tenant")
-	}
 
 	decoded, err := resourceunit.Decode(unit)
 	if err != nil {
 		return nil, err
 	}
 
-	// Backend defaults.
 	backend := mljobv1alpha1.BackendSpec{Name: "native", Engine: "job"}
 	if in.Backend != nil {
 		if in.Backend.Name != "" {
@@ -144,7 +123,6 @@ func (s *Service) Create(ctx context.Context, tenantID uuid.UUID, in CreateInput
 		return nil, err
 	}
 
-	// Resource injection into each role.
 	roles := make([]mljobv1alpha1.RoleSpec, len(in.Roles))
 	for i, r := range in.Roles {
 		role := r
@@ -155,26 +133,18 @@ func (s *Service) Create(ctx context.Context, tenantID uuid.UUID, in CreateInput
 	runPolicy := mljobv1alpha1.RunPolicySpec{}
 	if in.RunPolicy != nil {
 		runPolicy = *in.RunPolicy
-		runPolicy.Suspend = false // reset on creation
+		runPolicy.Suspend = false
 	}
 
 	spec := mljobv1alpha1.MLJobSpec{
 		Backend: backend,
 		Scheduling: mljobv1alpha1.SchedulingSpec{
-			Quota:        elasticQuotaName(tnt, pool, q),
+			Quota:        in.Quota,
 			NodeSelector: resourceunit.MergeNodeSelector(poolSel, decoded.NodeSelector),
 			Tolerations:  poolTols,
 		},
 		Roles:     roles,
 		RunPolicy: runPolicy,
-	}
-
-	// Quota precheck (best-effort).
-	if err := s.quotas.Precheck(ctx, quota.PrecheckRequest{
-		QuotaID:  q.ID,
-		Resource: decoded.Requests,
-	}); err != nil {
-		return nil, err
 	}
 
 	specJSON, err := json.Marshal(spec)
@@ -187,9 +157,8 @@ func (s *Service) Create(ctx context.Context, tenantID uuid.UUID, in CreateInput
 	}
 	j := &Job{
 		ID:                 uuid.New(),
-		TenantID:           tenantID,
+		Namespace:          namespace,
 		PoolID:             pool.ID,
-		QuotaID:            q.ID,
 		ResourceUnitID:     unit.ID,
 		Name:               in.Name,
 		DisplayName:        in.DisplayName,
@@ -205,9 +174,8 @@ func (s *Service) Create(ctx context.Context, tenantID uuid.UUID, in CreateInput
 	return s.toView(j)
 }
 
-// Get returns the job view by name within a tenant.
-func (s *Service) Get(ctx context.Context, tenantID uuid.UUID, name string) (*View, error) {
-	j, err := s.repo.GetByTenantName(ctx, tenantID, name)
+func (s *Service) Get(ctx context.Context, namespace, name string) (*View, error) {
+	j, err := s.repo.GetByNamespaceName(ctx, namespace, name)
 	if err != nil {
 		if IsNotFound(err) {
 			return nil, apperrors.New(apperrors.CodeNotFound, "job not found")
@@ -217,9 +185,8 @@ func (s *Service) Get(ctx context.Context, tenantID uuid.UUID, name string) (*Vi
 	return s.toView(j)
 }
 
-// List returns paginated jobs for a tenant.
-func (s *Service) List(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]View, int64, error) {
-	rows, total, err := s.repo.ListByTenant(ctx, tenantID, limit, offset)
+func (s *Service) List(ctx context.Context, namespace string, limit, offset int) ([]View, int64, error) {
+	rows, total, err := s.repo.ListByNamespace(ctx, namespace, limit, offset)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -234,9 +201,8 @@ func (s *Service) List(ctx context.Context, tenantID uuid.UUID, limit, offset in
 	return out, total, nil
 }
 
-// Cancel transitions Running/Pending jobs into Canceling.
-func (s *Service) Cancel(ctx context.Context, tenantID uuid.UUID, name string) (*View, error) {
-	j, err := s.repo.GetByTenantName(ctx, tenantID, name)
+func (s *Service) Cancel(ctx context.Context, namespace, name string) (*View, error) {
+	j, err := s.repo.GetByNamespaceName(ctx, namespace, name)
 	if err != nil {
 		if IsNotFound(err) {
 			return nil, apperrors.New(apperrors.CodeNotFound, "job not found")
@@ -262,9 +228,8 @@ func (s *Service) Cancel(ctx context.Context, tenantID uuid.UUID, name string) (
 	return s.toView(j)
 }
 
-// Delete moves the job to Deleting and lets the reconciler reap the CR.
-func (s *Service) Delete(ctx context.Context, tenantID uuid.UUID, name string) error {
-	j, err := s.repo.GetByTenantName(ctx, tenantID, name)
+func (s *Service) Delete(ctx context.Context, namespace, name string) error {
+	j, err := s.repo.GetByNamespaceName(ctx, namespace, name)
 	if err != nil {
 		if IsNotFound(err) {
 			return nil
@@ -285,7 +250,7 @@ func (s *Service) toView(j *Job) (*View, error) {
 	}
 	return &View{
 		ID:          j.ID,
-		TenantID:    j.TenantID,
+		Namespace:   j.Namespace,
 		Name:        j.Name,
 		DisplayName: j.DisplayName,
 		Description: j.Description,
@@ -300,29 +265,6 @@ func (s *Service) toView(j *Job) (*View, error) {
 	}, nil
 }
 
-// elasticQuotaName mirrors tenant-operator's naming: axisml-<tenant>-<pool>-<quota>.
-func elasticQuotaName(tnt *tenant.View, pool *resourcepool.ResourcePool, q *quota.Quota) string {
-	tenantName := ""
-	if tnt != nil {
-		tenantName = tnt.Name
-	}
-	return "axisml-" + tenantName + "-" + pool.Name + "-" + q.Name
-}
-
-// tenantNameFromCtx extracts the tenant name from gin context (set by middleware).
-func tenantNameFromCtx(ctx context.Context, _ uuid.UUID) string {
-	v, _ := ctx.Value(ctxTenantNameKey{}).(string)
-	return v
-}
-
-type ctxTenantNameKey struct{}
-
-// WithTenantName puts the tenant name in context for downstream services.
-func WithTenantName(ctx context.Context, name string) context.Context {
-	return context.WithValue(ctx, ctxTenantNameKey{}, name)
-}
-
-// decodePoolNodeSelector returns the pool's nodeSelector map.
 func decodePoolNodeSelector(p *resourcepool.ResourcePool) (map[string]string, error) {
 	if len(p.NodeSelector) == 0 {
 		return nil, nil
