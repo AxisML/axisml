@@ -15,7 +15,7 @@ import (
 // CreateInput is the API-layer request body for creating a repo.
 type CreateInput struct {
 	Kind        string            `json:"kind" binding:"required"`
-	Name        string            `json:"name" binding:"required"`
+	Name        string            `json:"name" binding:"required,axisml_name"`
 	DisplayName string            `json:"display_name,omitempty"`
 	Description string            `json:"description,omitempty"`
 	Labels      map[string]string `json:"labels,omitempty"`

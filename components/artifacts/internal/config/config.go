@@ -44,7 +44,6 @@ type Config struct {
 	// with a JWT-issuing bearer-token realm.
 	OCIEndpoint      string
 	OCIScheme        string
-	OCIScopePrefix   string
 	OCIAdminUser     string
 	OCIAdminPassword string
 
@@ -85,7 +84,6 @@ func Load() (Config, error) {
 
 		OCIEndpoint:      env("OCI_ENDPOINT", "http://axisml-infra-zot.axisml-infra:5000"),
 		OCIScheme:        env("OCI_SCHEME", "http"),
-		OCIScopePrefix:   env("OCI_SCOPE_PREFIX", "tenants"),
 		OCIAdminUser:     env("OCI_ADMIN_USER", "admin"),
 		OCIAdminPassword: env("OCI_ADMIN_PASSWORD", ""),
 

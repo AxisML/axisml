@@ -140,7 +140,6 @@ artifacts:
     oci:
       endpoint: http://axisml-infra-zot.axisml-infra:5000
       scheme: http       # http | https
-      scopePrefix: tenants
       adminSecretRef:
         # Empty name → chart renders default secret <release>-artifacts-zot.
         # Override with an externally-managed Secret name to avoid storing

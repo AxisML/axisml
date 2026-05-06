@@ -19,7 +19,7 @@ import (
 
 // InitiateInput is the API request body for the two-phase write step 1.
 type InitiateInput struct {
-	Version     string            `json:"version" binding:"required"`
+	Version     string            `json:"version" binding:"required,axisml_version"`
 	Spec        map[string]any    `json:"spec" binding:"required"`
 	DisplayName string            `json:"display_name,omitempty"`
 	Description string            `json:"description,omitempty"`

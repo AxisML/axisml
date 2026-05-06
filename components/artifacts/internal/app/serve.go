@@ -47,6 +47,10 @@ func Serve(ctx context.Context, cfg config.Config) error {
 		Addr:    cfg.APIBindAddress,
 		Log:     log,
 		Modules: modules,
+		// Readiness intentionally checks PG only — not zot. zot flakes
+		// shouldn't take artifacts out of rotation: most reads (resolve)
+		// don't touch zot at all, and individual write paths (initiate /
+		// complete) report their own backend errors. Per design §2.3.
 		Ready: func(ctx context.Context) error {
 			return db.Ping(ctx, gormDB)
 		},

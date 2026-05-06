@@ -121,7 +121,6 @@ func bootstrap() (*suite, error) {
 
 		OCIEndpoint:      zot.URL.Host,
 		OCIScheme:        "http",
-		OCIScopePrefix:   "tenants",
 		OCIAdminUser:     "admin",
 		OCIAdminPassword: "secret",
 	}

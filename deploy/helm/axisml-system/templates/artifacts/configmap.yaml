@@ -21,7 +21,6 @@ data:
   UPLOAD_TOKEN_TTL: {{ .Values.artifacts.uploadTokenTTL | quote }}
   OCI_ENDPOINT: {{ .Values.artifacts.storage.oci.endpoint | quote }}
   OCI_SCHEME: {{ .Values.artifacts.storage.oci.scheme | quote }}
-  OCI_SCOPE_PREFIX: {{ .Values.artifacts.storage.oci.scopePrefix | quote }}
   LOG_DEVELOPMENT: {{ .Values.artifacts.logDevelopment | quote }}
   {{- range $key, $value := .Values.artifacts.env }}
   {{ $key }}: {{ $value | quote }}
