@@ -2,33 +2,33 @@
 
 ## Project Structure & Module Organization
 
-AxisML is organized around documentation, Helm deployment assets, and component implementations. System and development docs live in `docs/system_design/` and `docs/development/`; shared images are in `docs/assets/`. Helm charts are under `deploy/helm/axisml-infra/` for third-party infrastructure and `deploy/helm/axisml-system/` for CRDs, the merged operator, and control-plane services. Component code lives in `components/`: the merged Kubernetes operator is `components/operator/` (axisml-operator binary hosting Tenant + MLJob + MLService controllers), `components/compute/` is the active Go service, and `components/artifacts/` + `components/platform/*` are scaffolded service areas.
+AxisML combines Go services, Kubernetes operators, Helm charts, and design docs. Active component code lives in `components/operator/`, `components/compute/`, and `components/artifacts/`; each has its own `go.mod`, `Dockerfile`, and `Makefile`. Platform backend/frontend folders under `components/platform/` are scaffolded. Helm charts live in `deploy/helm/axisml-infra/` for third-party infrastructure and `deploy/helm/axisml-system/` for CRDs and AxisML services. Development and design docs are in `docs/development/` and `docs/system_design/`. Shared test modules and e2e suites live under `test/`.
 
 ## Build, Test, and Development Commands
 
 Use the top-level `Makefile` as the command hub.
 
-- `make help`: list available targets and active component shortcuts.
-- `make cluster-up` / `make cluster-status`: create, repair addons, and inspect the local `axisml` minikube cluster.
+- `make help`: list available targets and generated component shortcuts.
+- `make build`: build all active components into their local `bin/` directories.
+- `make test`: run unit tests for active components.
+- `make image` / `make image-load`: build images and load them into minikube.
+- `make cluster-up` / `make cluster-status`: manage the local `axisml` minikube profile.
 - `make helm-template`: render both Helm charts locally for review.
-- `make helm-install`: install or upgrade infra first, then the system chart.
-- `make build`, `make test`, `make image`: fan out to active components.
-- `make operator-test` / `make compute-test`: per-component shortcuts (auto-generated from the COMPONENTS list).
-
-Override cluster defaults with `make cluster-up MINIKUBE_CPUS=6 MINIKUBE_MEMORY=8192`.
+- `make helm-install`: install infra first, then the AxisML system chart.
+- `make operator-envtest`, `make compute-test`, `make artifacts-test`: run focused component targets.
 
 ## Coding Style & Naming Conventions
 
-Go components use standard Go formatting. Run `make -C components/operator fmt vet` before submitting operator changes; component binaries build into `bin/`, do not commit build artifacts. Keep Helm names and values consistent with chart conventions in `deploy/helm/*/values.yaml`; image tags should track `deploy/helm/axisml-system/Chart.yaml` `appVersion` unless explicitly testing a local tag.
+Go code uses standard `gofmt`; run `make fmt` for all modules or `<component>-fmt` for a slice. `.golangci.yml` enables `errcheck`, `govet`, `staticcheck`, `unused`, `ineffassign`, and `misspell` with `envtest,e2e` build tags. Keep generated files committed when sources require them, such as CRDs or `components/compute/docs/openapi.yaml` after `make -C components/compute openapi`. Do not commit `bin/`, coverage output, local kubeconfigs, or secrets.
 
 ## Testing Guidelines
 
-Tests are organized in three layers: unit (`make test`), L1 envtest hermetic reconciler tests (`make envtest-test` after `make setup-envtest`), and L2 e2e against minikube (`make e2e-test`, which itself brings up the cluster + helm-installs the stack). See `docs/development/testing.md` for layer choice, build tags (`envtest` / `e2e`), conventions, and external-CRD vendoring under `test/crds/external/`. For Helm-only changes, run `make helm-template` and inspect rendered manifests.
+Unit tests use Go `testing` and normally sit beside packages as `*_test.go`. L1 tests use `//go:build envtest` under component `test/envtest/` modules; install tooling with `make setup-envtest` and run `make envtest-test`. L2 tests live under `test/e2e/`, use `//go:build e2e`, and run with `make e2e-test` against minikube. Artifacts integration tests use testcontainers via `make -C components/artifacts integration`. See `docs/development/testing.md` for layer choice and external CRD rules.
 
 ## Commit & Pull Request Guidelines
 
-Recent history uses Conventional Commit-style subjects such as `docs: ...`, `feat(operator): ...`, and `chore(build): ...`. Keep commits scoped and imperative. Pull requests should explain the behavioral or documentation change, list validation commands run, link related issues or design notes, and include screenshots only for UI-facing platform frontend changes.
+Recent history follows Conventional Commit-style subjects: `feat(operator): ...`, `docs(infra): ...`, `ci: ...`. Keep commits scoped and imperative. PRs should summarize behavior or doc changes, link related issues or design notes, list validation commands run, and include screenshots only for UI-facing changes.
 
-## Security & Configuration Tips
+## Hooks & Configuration
 
-Do not commit kubeconfigs, registry credentials, or generated local artifacts. Prefer documented `make` variables such as `MINIKUBE_DRIVER`, `MINIKUBE_PROFILE`, and `IMAGE_TAG` over editing scripts for local-only configuration.
+Install hooks with `make install-hooks`; run all hooks with `make pre-commit-run`. Prefer Make variables such as `IMAGE_TAG`, `MINIKUBE_PROFILE`, `MINIKUBE_CPUS`, and `HELM_EXTRA_ARGS` for local overrides instead of editing scripts or checked-in values.
