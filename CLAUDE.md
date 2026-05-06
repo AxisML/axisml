@@ -9,10 +9,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 AxisML is a Kubernetes-native ML platform. The repo is a monorepo split into:
 
 - `components/operator/` — single Go operator binary (`axisml-operator`) hosting Tenant, MLJob, and MLService controllers in one Manager.
-- `components/compute/` — Go service.
-- `components/{artifacts,platform/{backend,frontend}}/` — scaffolded service areas with READMEs only; no code yet.
+- `components/compute/` — Go service (job/quota/resource management).
+- `components/artifacts/` — Go service (model/dataset registry; MVP shipped for the model Kind).
+- `components/platform/{backend,frontend}/` — scaffolded service areas with READMEs only; no code yet.
 - `deploy/helm/axisml-infra/` — third-party infrastructure chart (Envoy Gateway, RustFS, zot, Koordinator, GPU Operator, kube-prometheus-stack).
-- `deploy/helm/axisml-system/` — control-plane chart: CRDs, the merged operator, and (eventually) Platform/Compute/Artifacts. Includes PostgreSQL.
+- `deploy/helm/axisml-system/` — control-plane chart: CRDs, the merged operator, Compute, Artifacts, and (eventually) Platform. Includes PostgreSQL.
 - `docs/system_design/` — authoritative design docs (overview, compute, operator, artifacts, infra, platform). Read these before making non-trivial design changes; they encode decisions that the code doesn't yet reflect.
 - `test/` — shared test infrastructure: `setup-envtest/` binary, `testutil/` helpers, `e2e/` suites, and `crds/external/` vendored upstream CRDs for envtest.
 
@@ -20,13 +21,14 @@ The system design lives ahead of the code. When code and `docs/system_design/` d
 
 ## Multi-module Go workspace
 
-There are **six separate Go modules**, each with its own `go.mod`:
+There are **seven separate Go modules**, each with its own `go.mod`:
 
 ```
 components/operator/                  (production — Tenant + MLJob + MLService controllers)
 components/operator/test/envtest/     (L1 tests, separate module)
 components/compute/                   (production)
 components/compute/test/envtest/      (L1 tests, separate module)
+components/artifacts/                 (production — no envtest sub-module yet; uses `make integration`)
 test/testutil/                        (shared helpers, no operator deps)
 test/e2e/                             (L2 tests)
 ```
@@ -49,11 +51,13 @@ make test                # unit tests across every component (no cluster)
 make envtest-test        # L1 envtest for the merged operator + compute (hermetic, ~25s)
 make e2e-test            # L2 e2e on real minikube (~10 min, brings up cluster + helm-installs)
 
-# Per-component shortcuts (auto-generated from the COMPONENTS list):
+# Per-component shortcuts (auto-generated from the COMPONENTS list:
+# operator, compute, artifacts):
 make operator-test
 make operator-envtest
 make operator-image-load   # builds image, loads into minikube
 make compute-test
+make artifacts-test
 
 # Cluster + Helm:
 make cluster-up                      # minikube profile "axisml"
