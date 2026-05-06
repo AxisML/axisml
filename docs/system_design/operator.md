@@ -1292,7 +1292,7 @@ config:
 ┌──────────────────────────────────────────────────────────────┐
 │ MVP（最小可发布）                                             │
 │   单一 Pod / 三 Reconciler / 两个 Job backend / 两个 Service  │
-│   backend / 完整 Tenant / L1 envtest                         │
+│   backend / 完整 Tenant / L1 integration                         │
 │   ↓                                                           │
 │ 功能完善（生产硬化）                                          │
 │   补齐主流 Handler、外部入口策略、admission webhook、严格      │
@@ -1313,15 +1313,15 @@ config:
 | 模块 | 范围 | 完成信号 |
 | --- | --- | --- |
 | Operator binary | 单一 Manager 承载三 Reconciler、`--enable-*` flag、leader election、Cache `ByObject` 选择性过滤（§2） | 单 Pod 启动后三 controller 同时 Ready；`--enable-mljob=false` 能独立关闭 MLJob 的 watch 与 RBAC |
-| Tenant | Namespace 创建（永不删除）、ElasticQuota 1:1 派生 + `status.used` 回流、ImagePullSecrets / Secrets / ConfigMaps / SAs + RBAC initResources、suspend、Compute phase 映射（§4） | envtest 覆盖：happy path、suspend / unsuspend、quota update、源 Secret 缺失 |
-| MLJob dispatcher | `(backend, engine)` 路由、`Validate` 拒绝未注册元组、Suspend cancel 推进信号合并写入 `conditions[type=Suspended,reason=CancelRequested]`（§5.4） | envtest 覆盖：未知 backend 直接进入 `Failed`；suspend 后 condition 与 phase 变化符合 §5.3 |
-| MLJob `(native, job)` | K8s Job + koord-scheduler、quota label 注入、原生 `Job.spec.suspend` cancel（§5.5.1） | envtest 覆盖 happy path + suspend cancel |
-| MLJob `(native, podgroup)` | scheduler-plugins PodGroup + 裸 Pod、`minMember=0` → 删 Pod 的暂停顺序（§5.5.2） | envtest 覆盖 happy path + suspend shutdown |
-| MLService dispatcher | 同上 + `/scale` 透传 | envtest 覆盖：未知 backend 直接 `Failed`；scale 修改 `roles[0].replicas` 触发后端副本调整 |
-| MLService `(native, deployment)` | Deployment + ClusterIP Service + 基础 HTTPRoute（仅创建 `HTTPRoute`，不创建 `SecurityPolicy` / `BackendTrafficPolicy`）（§6.6.1） | envtest 覆盖 happy path、route 启用 / 禁用、scale、字段不可变性 |
-| MLService `(native, statefulset)` | StatefulSet + headless Service、透传 `apps.kubernetes.io/pod-index` 为 `axisml.io/replica-index`、scale 路径 patch `spec.replicas`（§6.6.2） | envtest 覆盖 happy path、scale、字段不可变性 |
+| Tenant | Namespace 创建（永不删除）、ElasticQuota 1:1 派生 + `status.used` 回流、ImagePullSecrets / Secrets / ConfigMaps / SAs + RBAC initResources、suspend、Compute phase 映射（§4） | L1 integration 覆盖：happy path、suspend / unsuspend、quota update、源 Secret 缺失 |
+| MLJob dispatcher | `(backend, engine)` 路由、`Validate` 拒绝未注册元组、Suspend cancel 推进信号合并写入 `conditions[type=Suspended,reason=CancelRequested]`（§5.4） | L1 integration 覆盖：未知 backend 直接进入 `Failed`；suspend 后 condition 与 phase 变化符合 §5.3 |
+| MLJob `(native, job)` | K8s Job + koord-scheduler、quota label 注入、原生 `Job.spec.suspend` cancel（§5.5.1） | L1 integration 覆盖 happy path + suspend cancel |
+| MLJob `(native, podgroup)` | scheduler-plugins PodGroup + 裸 Pod、`minMember=0` → 删 Pod 的暂停顺序（§5.5.2） | L1 integration 覆盖 happy path + suspend shutdown |
+| MLService dispatcher | 同上 + `/scale` 透传 | L1 integration 覆盖：未知 backend 直接 `Failed`；scale 修改 `roles[0].replicas` 触发后端副本调整 |
+| MLService `(native, deployment)` | Deployment + ClusterIP Service + 基础 HTTPRoute（仅创建 `HTTPRoute`，不创建 `SecurityPolicy` / `BackendTrafficPolicy`）（§6.6.1） | L1 integration 覆盖 happy path、route 启用 / 禁用、scale、字段不可变性 |
+| MLService `(native, statefulset)` | StatefulSet + headless Service、透传 `apps.kubernetes.io/pod-index` 为 `axisml.io/replica-index`、scale 路径 patch `spec.replicas`（§6.6.2） | L1 integration 覆盖 happy path、scale、字段不可变性 |
 | CRD | 三个 CRD 用 `x-kubernetes-preserve-unknown-fields: true` 宽松 schema + `subresources.status` 显式声明 | helm install / upgrade 通过；status 写入不影响 spec 写入 |
-| 测试 | L1 envtest 一个 module 八个文件覆盖三 controller 的 happy path + suspend + immutability | `make operator-envtest` 通过 |
+| 测试 | L1 integration 一个 module 八个文件覆盖三 controller 的 happy path + suspend + immutability | `make operator-integration` 通过 |
 
 ### 7.3 阶段二：功能完善（生产硬化）
 
@@ -1329,25 +1329,25 @@ config:
 
 1. **MLService `route.auth` + `route.rateLimit / timeout` 派生资源**
    - 目标：`(native, deployment)` Handler 在 `route.auth.type != none` 时创建 `SecurityPolicy`；在 `rateLimit` / `timeout` 非空时创建 `BackendTrafficPolicy`；统一 ownerReference 到 MLService。
-   - 完成信号：envtest 覆盖 `jwt` / `apiKey` / 限流 三条派生资源路径；`Validate` 不再只返回 warning。
+   - 完成信号：L1 integration 覆盖 `jwt` / `apiKey` / 限流 三条派生资源路径；`Validate` 不再只返回 warning。
 2. **MLJob `(kubeflow-trainer, pytorchjob)` 主线**
    - 目标：覆盖多角色分布式训练里使用最广的 backend；以此把 §5.5.3 骨架扩展为完整 handler。
-   - 完成信号：handler 注册到 dispatcher、`master + worker` role 校验、Status condition 映射到四态、原生 suspend + `Cleanup()` fallback 二选一；envtest 覆盖 happy path 与 suspend。
+   - 完成信号：handler 注册到 dispatcher、`master + worker` role 校验、Status condition 映射到四态、原生 suspend + `Cleanup()` fallback 二选一；L1 integration 覆盖 happy path 与 suspend。
 3. **MLService `(kserve, inference)` 主线（vllm / triton 优先）**
    - 目标：推理主路径接入。前置依赖：axisml-infra 安装时 pin KServe 版本、确认 `InferenceService.spec.predictor.{schedulerName, labels}` 透传到派生 Pod。
-   - 完成信号：handler 写 `InferenceService` 时强制注入 `schedulerName: koord-scheduler` + quota label、`status.url` 回流到 `endpoint`、scale 路径 patch `predictor.{minReplicas, maxReplicas}`；envtest（用 fake KServe CRD）覆盖 vllm + triton 两条 runtime 校验分支。
+   - 完成信号：handler 写 `InferenceService` 时强制注入 `schedulerName: koord-scheduler` + quota label、`status.url` 回流到 `endpoint`、scale 路径 patch `predictor.{minReplicas, maxReplicas}`；L1 integration（用 fake KServe CRD）覆盖 vllm + triton 两条 runtime 校验分支。
 4. **Admission webhook 上线**
    - 目标：把 `spec.backend.{name, engine}` 不可变、`spec.namespace.name` 不可变、跨 namespace `sourceXxxRef` 白名单、`backend.config` 按 Handler schema 校验，从 controller 兜底前移到准入阶段。
-   - 完成信号：webhook server 部署、cert-manager 颁证；上述 4 类规则各 1 条 envtest（带 `--admission-webhook` flag）通过；`Validate` 实现保持纯函数，可被 webhook 与 controller 同时复用。
+   - 完成信号：webhook server 部署、cert-manager 颁证；上述 4 类规则各 1 条 integration test（带 `--admission-webhook` flag）通过；`Validate` 实现保持纯函数，可被 webhook 与 controller 同时复用。
 5. **严格 CRD OpenAPI schema**
    - 目标：替换 `x-kubernetes-preserve-unknown-fields: true`；`spec.backend.name` enum、`spec.scheduling.quota` required、phase enum 收紧、各 role 字段类型显式化。
-   - 完成信号：三个 CRD 移除 `preserve-unknown-fields`；envtest 覆盖"非法 enum 值被 apiserver 直接拒绝"。
+   - 完成信号：三个 CRD 移除 `preserve-unknown-fields`；L1 integration 覆盖"非法 enum 值被 apiserver 直接拒绝"。
 6. **resync 间隔 Helm values 暴露**
    - 目标：默认 10 min；运维侧可调到分钟级以缩短源 Secret / ConfigMap 的更新延迟。
    - 完成信号：Helm values `operator.controllers.tenant.resyncPeriod` 透传到 `--resync-period` flag；启动期校验下限。
 7. **目标 Namespace allowlist / denylist 默认硬化**
    - 目标：把 §4.6.1 列出的 `kube-*` / `default` / `axisml-system` 默认拒绝列表落到 Helm `values.yaml` + 启动期校验。
-   - 完成信号：默认 denylist 在代码与 chart 中保持一致；envtest 覆盖"试图把 Tenant 落到 `kube-system` 被拒绝并写 `status.message`"。
+   - 完成信号：默认 denylist 在代码与 chart 中保持一致；L1 integration 覆盖"试图把 Tenant 落到 `kube-system` 被拒绝并写 `status.message`"。
 
 ### 7.4 阶段三：未来规划
 
@@ -1370,13 +1370,13 @@ config:
 
 | 阶段 | 主测层 | 工具 |
 | --- | --- | --- |
-| MVP | L1 envtest | `make operator-envtest` |
-| 功能完善 | L1 envtest 扩展 + 关键路径 L2 e2e | `make envtest-test` + `make e2e-test`（minikube） |
-| 未来规划 | 单独写 RFC 设计文档 → L1 envtest 先行 → L2 验证多组件链路 | 同上 |
+| MVP | L1 integration | `make operator-integration` |
+| 功能完善 | L1 integration 扩展 + 关键路径 L2 e2e | `make integration-test` + `make e2e-test`（minikube） |
+| 未来规划 | 单独写 RFC 设计文档 → L1 integration 先行 → L2 验证多组件链路 | 同上 |
 
 ## 8. 测试
 
-L1 envtest 在 `components/operator/test/envtest/` 单一 Go module 中，单一 `TestMain` 把三个 reconciler 注册到同一个 envtest manager，跑八个 test 文件（tenant 2 + mljob 3 + mlservice 3）。CRDPaths 是 `deploy/helm/axisml-system/crds` 与 `test/crds/external/`（vendored ElasticQuota / PodGroup / HTTPRoute）的并集。
+L1 integration 在 `components/operator/test/integration/` 单一 Go module 中，单一 `TestMain` 把三个 reconciler 注册到同一个 envtest manager，跑八个 test 文件（tenant 2 + mljob 3 + mlservice 3）。CRDPaths 是 `deploy/helm/axisml-system/crds` 与 `test/crds/external/`（vendored ElasticQuota / PodGroup / HTTPRoute）的并集。
 
 L2 e2e 在 `test/e2e/`，通过部署后的 axisml-operator 与 MLPlatform / Compute API 一起跑端到端。
 

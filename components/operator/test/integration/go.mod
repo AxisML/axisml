@@ -1,4 +1,4 @@
-module github.com/axisml/axisml/components/operator/test/envtest
+module github.com/axisml/axisml/components/operator/test/integration
 
 go 1.26.0
 

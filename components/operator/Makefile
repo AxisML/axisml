@@ -1,11 +1,11 @@
 # axisml-operator Makefile
 #
 # Standard targets (per AxisML component conventions):
-#   make / make build  Compile the binary into bin/
-#   make image         Build the container image
-#   make test          Run unit tests (no cluster required)
-#   make envtest       Run L1 envtest against an embedded apiserver+etcd
-#   make clean         Remove build artifacts
+#   make / make build    Compile the binary into bin/
+#   make image           Build the container image
+#   make test            Run unit tests (no cluster required)
+#   make integration     Run L1 integration tests (controller-runtime envtest)
+#   make clean           Remove build artifacts
 
 IMAGE_REPO ?= ghcr.io/axisml/axisml-operator
 # Must track deploy/helm/axisml-system Chart.appVersion: the Helm template
@@ -62,64 +62,65 @@ tidy: ## go mod tidy
 generate: ## Run controller-gen for deepcopy code (mljob; tenant + mlservice deepcopy is hand-maintained)
 	@$(CONTROLLER_GEN) object paths=./api/mljob/...
 
-# --- L1 envtest ---
+# --- L1 integration ---
 #
-# Hermetic in-process reconciler tests against an embedded apiserver+etcd.
-# Uses the shared setup-envtest binary at $(REPO_ROOT)/test/setup-envtest/setup-envtest
-# (install via `make setup-envtest` from the repo root).
+# Hermetic in-process reconciler tests against an embedded apiserver+etcd
+# (controller-runtime envtest). Uses the shared setup-envtest binary at
+# $(REPO_ROOT)/test/setup-envtest/setup-envtest (install via
+# `make setup-envtest` from the repo root).
 
 ENVTEST             := $(REPO_ROOT)/test/setup-envtest/setup-envtest
 ENVTEST_K8S_VERSION ?= 1.31.0
 
-# test/envtest/ is its own Go module so this operator's production go.mod
+# test/integration/ is its own Go module so this operator's production go.mod
 # stays free of test-only deps. The Dockerfile builds from the repo root.
-.PHONY: envtest
-envtest: ## Run L1 envtest (uses shared setup-envtest at test/setup-envtest/)
+.PHONY: integration
+integration: ## Run L1 integration tests (uses shared setup-envtest at test/setup-envtest/)
 	@if [ ! -x "$(ENVTEST)" ]; then \
 	  echo "ERROR: $(ENVTEST) not found. Run 'make setup-envtest' from $(REPO_ROOT)."; \
 	  exit 1; \
 	fi
-	@cd test/envtest && \
+	@cd test/integration && \
 	  KUBEBUILDER_ASSETS="$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" \
-	  go test -tags=envtest -count=1 -timeout=10m ./...
+	  go test -tags=integration -count=1 -timeout=10m ./...
 
 # --- Coverage ---
 
-COVERAGE_DIR          ?= $(CURDIR)/coverage
-COVERAGE_OUT          ?= $(COVERAGE_DIR)/coverage.out
-COVERAGE_HTML         ?= $(COVERAGE_DIR)/coverage.html
-ENVTEST_COVERAGE_OUT  ?= $(COVERAGE_DIR)/envtest-coverage.out
-ENVTEST_COVERAGE_HTML ?= $(COVERAGE_DIR)/envtest-coverage.html
-MODULE_PATH           := github.com/axisml/axisml/components/operator
+COVERAGE_DIR              ?= $(CURDIR)/coverage
+COVERAGE_OUT              ?= $(COVERAGE_DIR)/coverage.out
+COVERAGE_HTML             ?= $(COVERAGE_DIR)/coverage.html
+INTEGRATION_COVERAGE_OUT  ?= $(COVERAGE_DIR)/integration-coverage.out
+INTEGRATION_COVERAGE_HTML ?= $(COVERAGE_DIR)/integration-coverage.html
+MODULE_PATH               := github.com/axisml/axisml/components/operator
 
-.PHONY: coverage envtest-coverage coverage-html
+.PHONY: coverage integration-coverage coverage-html
 
 coverage: ## Run unit tests with coverage profile
 	@mkdir -p $(COVERAGE_DIR)
 	@go test -coverprofile=$(COVERAGE_OUT) -covermode=atomic -count=1 ./...
 
-envtest-coverage: ## Run L1 envtest with coverage profile (covers operator's production packages)
+integration-coverage: ## Run L1 integration tests with coverage profile (covers operator's production packages)
 	@mkdir -p $(COVERAGE_DIR)
 	@if [ ! -x "$(ENVTEST)" ]; then \
 	  echo "ERROR: $(ENVTEST) not found. Run 'make setup-envtest' from $(REPO_ROOT)."; \
 	  exit 1; \
 	fi
-	@cd test/envtest && \
+	@cd test/integration && \
 	  KUBEBUILDER_ASSETS="$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" \
-	  go test -tags=envtest -count=1 -timeout=10m \
+	  go test -tags=integration -count=1 -timeout=10m \
 	    -coverpkg=$(MODULE_PATH)/... \
-	    -coverprofile=$(ENVTEST_COVERAGE_OUT) -covermode=atomic ./...
+	    -coverprofile=$(INTEGRATION_COVERAGE_OUT) -covermode=atomic ./...
 
 coverage-html: ## Render this component's coverage profile(s) as HTML
-	@if [ ! -f $(COVERAGE_OUT) ] && [ ! -f $(ENVTEST_COVERAGE_OUT) ]; then \
-	  echo "no coverage profile found in $(COVERAGE_DIR); run 'make coverage' or 'make envtest-coverage' first"; \
+	@if [ ! -f $(COVERAGE_OUT) ] && [ ! -f $(INTEGRATION_COVERAGE_OUT) ]; then \
+	  echo "no coverage profile found in $(COVERAGE_DIR); run 'make coverage' or 'make integration-coverage' first"; \
 	  exit 1; \
 	fi
 	@if [ -f $(COVERAGE_OUT) ]; then \
 	  go tool cover -html=$(COVERAGE_OUT) -o $(COVERAGE_HTML); \
 	  echo "unit coverage: $(COVERAGE_HTML)"; \
 	fi
-	@if [ -f $(ENVTEST_COVERAGE_OUT) ]; then \
-	  go tool cover -html=$(ENVTEST_COVERAGE_OUT) -o $(ENVTEST_COVERAGE_HTML); \
-	  echo "envtest coverage: $(ENVTEST_COVERAGE_HTML)"; \
+	@if [ -f $(INTEGRATION_COVERAGE_OUT) ]; then \
+	  go tool cover -html=$(INTEGRATION_COVERAGE_OUT) -o $(INTEGRATION_COVERAGE_HTML); \
+	  echo "integration coverage: $(INTEGRATION_COVERAGE_HTML)"; \
 	fi

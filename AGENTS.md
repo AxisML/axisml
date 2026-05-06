@@ -23,7 +23,7 @@ Go components use standard Go formatting. Run `make -C components/operator fmt v
 
 ## Testing Guidelines
 
-Tests are organized in three layers: unit (`make test`), L1 envtest hermetic reconciler tests (`make envtest-test` after `make setup-envtest`), and L2 e2e against minikube (`make e2e-test`, which itself brings up the cluster + helm-installs the stack). See `docs/development/testing.md` for layer choice, build tags (`envtest` / `e2e`), conventions, and external-CRD vendoring under `test/crds/external/`. For Helm-only changes, run `make helm-template` and inspect rendered manifests.
+Tests are organized in three layers: unit (`make test`), L1 integration hermetic tests (`make integration-test` after `make setup-envtest`), and L2 e2e against minikube (`make e2e-test`, which itself brings up the cluster + helm-installs the stack). See `docs/development/testing.md` for layer choice, build tags (`integration` / `e2e`), conventions, and external-CRD vendoring under `test/crds/external/`. For Helm-only changes, run `make helm-template` and inspect rendered manifests.
 
 ## Commit & Pull Request Guidelines
 

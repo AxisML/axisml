@@ -62,37 +62,35 @@ tidy: ## go mod tidy
 
 # --- Coverage ---
 
-COVERAGE_DIR  ?= $(CURDIR)/coverage
-COVERAGE_OUT  ?= $(COVERAGE_DIR)/coverage.out
-COVERAGE_HTML ?= $(COVERAGE_DIR)/coverage.html
-MODULE_PATH   := github.com/axisml/axisml/components/artifacts
+COVERAGE_DIR              ?= $(CURDIR)/coverage
+COVERAGE_OUT              ?= $(COVERAGE_DIR)/coverage.out
+COVERAGE_HTML             ?= $(COVERAGE_DIR)/coverage.html
+INTEGRATION_COVERAGE_OUT  ?= $(COVERAGE_DIR)/integration-coverage.out
+INTEGRATION_COVERAGE_HTML ?= $(COVERAGE_DIR)/integration-coverage.html
+MODULE_PATH               := github.com/axisml/axisml/components/artifacts
 
-.PHONY: coverage coverage-html
+.PHONY: coverage integration-coverage coverage-html
 
 coverage: ## Run unit tests with coverage profile
 	@mkdir -p $(COVERAGE_DIR)
 	@go test -coverprofile=$(COVERAGE_OUT) -covermode=atomic -count=1 ./...
 
-coverage-html: ## Render this component's coverage profile as HTML
-	@if [ ! -f $(COVERAGE_OUT) ]; then \
-	  echo "no coverage profile found in $(COVERAGE_DIR); run 'make coverage' first"; \
+integration-coverage: ## Run testcontainer-backed integration tests with coverage profile
+	@mkdir -p $(COVERAGE_DIR)
+	@go test -tags=integration -count=1 -timeout=10m \
+	  -coverpkg=$(MODULE_PATH)/... \
+	  -coverprofile=$(INTEGRATION_COVERAGE_OUT) -covermode=atomic ./internal/integration/...
+
+coverage-html: ## Render this component's coverage profile(s) as HTML
+	@if [ ! -f $(COVERAGE_OUT) ] && [ ! -f $(INTEGRATION_COVERAGE_OUT) ]; then \
+	  echo "no coverage profile found in $(COVERAGE_DIR); run 'make coverage' or 'make integration-coverage' first"; \
 	  exit 1; \
 	fi
-	@go tool cover -html=$(COVERAGE_OUT) -o $(COVERAGE_HTML)
-	@echo "unit coverage: $(COVERAGE_HTML)"
-
-# --- L1 envtest stubs ---
-#
-# Artifacts watches no CRDs and uses build-tagged integration tests instead
-# of an envtest sub-module. The top-level `envtest-test` and
-# `coverage-envtest` targets fan out to every COMPONENT, so we expose
-# these as no-ops to keep the fan-out contract.
-#
-# Run real integration tests with `make integration` (requires Docker).
-
-.PHONY: envtest envtest-coverage
-envtest: ## (artifacts has no envtest module; use `make integration` instead)
-	@echo "artifacts: no envtest module; run 'make integration' for testcontainer-backed integration tests"
-
-envtest-coverage: ## (no-op for artifacts)
-	@echo "artifacts: no envtest module; coverage-envtest is a no-op"
+	@if [ -f $(COVERAGE_OUT) ]; then \
+	  go tool cover -html=$(COVERAGE_OUT) -o $(COVERAGE_HTML); \
+	  echo "unit coverage: $(COVERAGE_HTML)"; \
+	fi
+	@if [ -f $(INTEGRATION_COVERAGE_OUT) ]; then \
+	  go tool cover -html=$(INTEGRATION_COVERAGE_OUT) -o $(INTEGRATION_COVERAGE_HTML); \
+	  echo "integration coverage: $(INTEGRATION_COVERAGE_HTML)"; \
+	fi

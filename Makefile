@@ -143,8 +143,17 @@ COVERAGE_COMPONENTS := \
   components/compute \
   components/artifacts
 
-# Every Go module in the repo (operator + its envtest sub-module + compute +
-# shared test/testutil + test/e2e). `go fmt ./...` does not cross module
+# Components participating in `make integration-test` and the matching
+# CI integration job. Excludes components whose integration suites have
+# heavier requirements (Docker for testcontainers, etc.) and run separately.
+# Per-component shortcuts (e.g., `make artifacts-integration`) still work for
+# excluded components — they just aren't fanned out from the top-level target.
+INTEGRATION_COMPONENTS := \
+  components/operator \
+  components/compute
+
+# Every Go module in the repo (operator + its integration sub-module + compute
+# + shared test/testutil + test/e2e). `go fmt ./...` does not cross module
 # boundaries, so `make fmt` iterates these explicitly. Sorted for stable
 # output; bin/ excluded so we never recurse into build artifacts.
 GO_MODULES := $(sort $(shell find . -name go.mod -not -path '*/bin/*' -exec dirname {} \;))
@@ -157,6 +166,12 @@ GO_MODULES := $(sort $(shell find . -name go.mod -not -path '*/bin/*' -exec dirn
 
 # Helper: run a sub-make target across every COMPONENT, surfacing failures.
 _RUN_COMPONENTS = set -e; for c in $(COMPONENTS); do \
+	printf '\n>>> %s (%s)\n' "$$c" "$(1)"; \
+	$(MAKE) -C $$c $(1); \
+done
+
+# Same shape as _RUN_COMPONENTS but iterates the integration subset.
+_RUN_INTEGRATION_COMPONENTS = set -e; for c in $(INTEGRATION_COMPONENTS); do \
 	printf '\n>>> %s (%s)\n' "$$c" "$(1)"; \
 	$(MAKE) -C $$c $(1); \
 done
@@ -197,7 +212,7 @@ clean: ## Remove build artifacts across every component
 # would collide (e.g., `components/platform/backend` would clash with any
 # other `backend`), give it a distinct directory name or rework the mapping.
 define _COMPONENT_SHORTCUTS
-.PHONY: $(notdir $1)-build $(notdir $1)-image $(notdir $1)-image-load $(notdir $1)-test $(notdir $1)-envtest $(notdir $1)-coverage $(notdir $1)-envtest-coverage $(notdir $1)-coverage-html $(notdir $1)-fmt $(notdir $1)-tidy $(notdir $1)-clean
+.PHONY: $(notdir $1)-build $(notdir $1)-image $(notdir $1)-image-load $(notdir $1)-test $(notdir $1)-integration $(notdir $1)-coverage $(notdir $1)-integration-coverage $(notdir $1)-coverage-html $(notdir $1)-fmt $(notdir $1)-tidy $(notdir $1)-clean
 $(notdir $1)-build:
 	@$$(MAKE) -C $1 build
 $(notdir $1)-image:
@@ -206,12 +221,12 @@ $(notdir $1)-image-load:
 	@$$(MAKE) -C $1 image-load-minikube
 $(notdir $1)-test:
 	@$$(MAKE) -C $1 test
-$(notdir $1)-envtest:
-	@$$(MAKE) -C $1 envtest
+$(notdir $1)-integration:
+	@$$(MAKE) -C $1 integration
 $(notdir $1)-coverage:
 	@$$(MAKE) -C $1 coverage
-$(notdir $1)-envtest-coverage:
-	@$$(MAKE) -C $1 envtest-coverage
+$(notdir $1)-integration-coverage:
+	@$$(MAKE) -C $1 integration-coverage
 $(notdir $1)-coverage-html:
 	@$$(MAKE) -C $1 coverage-html
 $(notdir $1)-fmt:
@@ -225,8 +240,8 @@ $(foreach c,$(COMPONENTS),$(eval $(call _COMPONENT_SHORTCUTS,$(c))))
 
 ##@ Test infrastructure
 
-# Shared setup-envtest binary location. The operator's `envtest` Makefile
-# target invokes $(REPO_ROOT)/test/setup-envtest/setup-envtest.
+# Shared setup-envtest binary location. Each component's `integration`
+# Makefile target invokes $(REPO_ROOT)/test/setup-envtest/setup-envtest.
 ENVTEST_BIN_DIR       ?= $(CURDIR)/test/setup-envtest
 ENVTEST               ?= $(ENVTEST_BIN_DIR)/setup-envtest
 ENVTEST_K8S_VERSION   ?= 1.31.0
@@ -241,13 +256,14 @@ $(ENVTEST):
 
 ##@ Test execution
 
-.PHONY: envtest-test e2e-test e2e-wait e2e-pre-image-load
+.PHONY: integration-test e2e-test e2e-wait e2e-pre-image-load
 
-# L1 envtest: hermetic, in-process reconciler tests against an embedded
-# apiserver+etcd. Each operator's `envtest` target boots its own envtest with
-# the right CRDs and runs `go test -tags=envtest ./test/envtest/...`.
-envtest-test: setup-envtest ## L1 envtest for the merged operator + compute (hermetic, CI-friendly)
-	@$(call _RUN_COMPONENTS,envtest)
+# L1 integration: hermetic, in-process reconciler tests against an embedded
+# apiserver+etcd (controller-runtime envtest). Each component's `integration`
+# target boots its own envtest with the right CRDs and runs
+# `go test -tags=integration ./test/integration/...`.
+integration-test: setup-envtest ## L1 integration tests for the merged operator + compute (hermetic, CI-friendly)
+	@$(call _RUN_INTEGRATION_COMPONENTS,integration)
 
 # L2 e2e: full-stack tests against a real minikube cluster running helm-installed
 # infra + system. Operators run as deployed (NOT scaled to zero); tests act as
@@ -292,27 +308,28 @@ e2e-wait: ## Wait for axisml component Deployments to become ready (used by e2e-
 ##@ Coverage
 #
 # Each component's Makefile produces coverage profiles under <component>/coverage/:
-#   coverage.out          (unit, from `go test -coverprofile`)
-#   envtest-coverage.out  (envtest, with -coverpkg pointed at the operator's
-#                          production module so cross-module envtest hits count)
+#   coverage.out              (unit, from `go test -coverprofile`)
+#   integration-coverage.out  (integration, with -coverpkg pointed at the
+#                              component's production module so cross-module
+#                              integration hits count)
 # Top-level targets fan out via _RUN_COMPONENTS, then merge with a tiny shell
 # script (atomic-mode profiles concatenate cleanly without gocovmerge).
 
 COVERAGE_DIR  ?= $(CURDIR)/coverage
 COVERAGE_FILE ?= $(COVERAGE_DIR)/coverage.out
 
-.PHONY: coverage coverage-unit coverage-envtest coverage-merge coverage-html coverage-clean
+.PHONY: coverage coverage-unit coverage-integration coverage-merge coverage-html coverage-clean
 
 coverage-unit: ## Run unit tests with coverage profile across all components
 	@$(call _RUN_COMPONENTS,coverage)
 
-coverage-envtest: setup-envtest ## Run L1 envtest with coverage across operator + compute
-	@$(call _RUN_COMPONENTS,envtest-coverage)
+coverage-integration: setup-envtest ## Run L1 integration tests with coverage across operator + compute
+	@$(call _RUN_INTEGRATION_COMPONENTS,integration-coverage)
 
 coverage-merge: ## Merge per-component profiles into $(COVERAGE_FILE)
 	@bash scripts/merge-coverage.sh $(COVERAGE_FILE) $(COVERAGE_COMPONENTS)
 
-coverage: coverage-unit coverage-envtest coverage-merge ## Run unit + envtest with coverage and produce a merged report
+coverage: coverage-unit coverage-integration coverage-merge ## Run unit + integration with coverage and produce a merged report
 
 # HTML rendering is per-component because `go tool cover -html` resolves source
 # paths against the current Go module and the repo root has no go.mod. See
@@ -358,7 +375,7 @@ help: ## Show this help message
 	  /^[a-zA-Z][a-zA-Z0-9_-]*:.*##/ { printf "  \033[36m%-26s\033[0m %s\n", $$1, $$2 }' \
 	  $(MAKEFILE_LIST)
 	@printf "\n\033[1mPer-component shortcuts (auto-generated)\033[0m\n"
-	@printf "  Pattern : <component>-{build,image,image-load,test,envtest,coverage,envtest-coverage,coverage-html,fmt,tidy,clean}\n"
+	@printf "  Pattern : <component>-{build,image,image-load,test,integration,coverage,integration-coverage,coverage-html,fmt,tidy,clean}\n"
 	@printf "  Active  : %s\n" "$(notdir $(COMPONENTS))"
 	@printf "  Example : make operator-image  |  make compute-test\n\n"
 

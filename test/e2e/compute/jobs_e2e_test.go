@@ -71,7 +71,7 @@ func TestComputeAPI_JobLifecycle(t *testing.T) {
 	}, 5*time.Minute, 5*time.Second, "job did not reach Succeeded via compute API")
 }
 
-// computeFixture is the e2e analog of the envtest apiFixture: a tenant
+// computeFixture is the e2e analog of the L1 integration apiFixture: a tenant
 // namespace + pool unit + quota wired through the compute HTTP API. The
 // pool is the bootstrap-shared `default` pool (created by the helm
 // post-install Job) so the e2e cluster doesn't accumulate pools across

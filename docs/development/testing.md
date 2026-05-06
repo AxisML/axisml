@@ -9,7 +9,7 @@ verify.
 | Layer | Where | Cluster | When you need it |
 |---|---|---|---|
 | **Unit** | next to the package, `*_test.go` | none (uses `controller-runtime/pkg/client/fake`) | Pure logic, validation, mapping helpers — anything that doesn't need a real apiserver. |
-| **L1 envtest** | `components/operator/test/envtest/` (merged) and `components/compute/test/envtest/` | embedded apiserver+etcd via `setup-envtest` | Reconciler integration: CRD apply + watch + status patch + ownerRef + cache. Fast, hermetic, CI-friendly. |
+| **L1 integration** | `components/operator/test/integration/` (merged) and `components/compute/test/integration/` | embedded apiserver+etcd via `setup-envtest` (controller-runtime), plus testcontainers for compute's PostgreSQL | Reconciler integration: CRD apply + watch + status patch + ownerRef + cache. Fast, hermetic, CI-friendly. |
 | **L2 e2e** | `test/e2e/` | real minikube + helm-installed AxisML stack | Full-stack happy paths: real Pods running, real Koordinator scheduler, real cross-operator interactions. |
 
 There's a 4th implicit layer for future services (compute / artifacts /
@@ -23,10 +23,10 @@ which are easier to provision from the helm chart than to reproduce locally.
 Pick the cheapest layer that proves what you need:
 
 - "Does this validation reject a bad spec?" → unit.
-- "Does the reconciler create the right Secret with the right owner ref?" → L1 envtest.
+- "Does the reconciler create the right Secret with the right owner ref?" → L1 integration.
 - "Does an MLJob actually finish on a real cluster, with real koord-scheduler accounting?" → L2 e2e.
 
-If you're adding a new handler, pair an L1 envtest happy-path with the
+If you're adding a new handler, pair an L1 integration happy-path with the
 existing per-package unit tests. L2 coverage for new handlers is optional
 but encouraged for handlers that touch external systems (Kubeflow, KServe,
 etc.) — that's where reality bites.
@@ -40,16 +40,16 @@ make setup-envtest
 # Unit tests across every component. ~10 seconds.
 make test
 
-# L1 envtest for the merged operator + compute. ~25 seconds. Hermetic.
-make envtest-test
+# L1 integration for the merged operator + compute. ~25 seconds. Hermetic.
+make integration-test
 
 # L2 e2e (operator + future-service suites). Brings up minikube + helm-installs
 # infra and system; runs real Pods. ~10 minutes from a clean clone.
 make e2e-test
 
 # Per-component slices.
-make operator-envtest
-make compute-envtest
+make operator-integration
+make compute-integration
 ```
 
 `make e2e-test`'s prerequisites (`cluster-up image-load helm-install
@@ -59,7 +59,7 @@ separately. If a step fails (e.g. helm-install times out), inspect with
 
 ## Conventions
 
-- **Build tags**: `//go:build envtest` for L1, `//go:build e2e` for L2.
+- **Build tags**: `//go:build integration` for L1, `//go:build e2e` for L2.
   Default `go test ./...` skips both. Each gated test file has a sibling
   `doc.go` (no build tag) so the package compiles cleanly under `go test
   ./...`.
@@ -78,24 +78,24 @@ separately. If a step fails (e.g. helm-install times out), inspect with
 
 ## Module layout
 
-Each component's `test/envtest/` is its own Go module so the component's
-production `go.mod` stays free of test-only deps (`testify`, `testutil`).
-This keeps `Dockerfile` build context clean — sibling-test replace
-directives would otherwise fall outside the build context. Same applies
-to `test/e2e/`.
+Each component's `test/integration/` is its own Go module so the
+component's production `go.mod` stays free of test-only deps (`testify`,
+`testutil`). This keeps `Dockerfile` build context clean — sibling-test
+replace directives would otherwise fall outside the build context. Same
+applies to `test/e2e/`.
 
 The shared `test/testutil/` is a tiny module with no operator deps; it's
 imported via `replace` from each test module. If you need an operator-
 specific helper (e.g., a Tenant fixture builder), put it inside the
-operator's `test/envtest/` package, NOT in testutil — testutil must remain
-operator-agnostic to avoid circular deps.
+operator's `test/integration/` package, NOT in testutil — testutil must
+remain operator-agnostic to avoid circular deps.
 
-## External CRDs (envtest)
+## External CRDs (integration)
 
-envtest's embedded apiserver only knows about CRDs you feed it. Any CRD
-an operator imports from outside the repo (Koordinator's ElasticQuota,
-scheduler-plugins' PodGroup, gateway-api's HTTPRoute, etc.) must be
-vendored under `test/crds/external/` and added to the per-operator
+The controller-runtime envtest apiserver only knows about CRDs you feed
+it. Any CRD an operator imports from outside the repo (Koordinator's
+ElasticQuota, scheduler-plugins' PodGroup, gateway-api's HTTPRoute, etc.)
+must be vendored under `test/crds/external/` and added to the per-operator
 TestMain's `CRDPaths`. See `test/crds/external/README.md` for the upstream
 sources, version pins, and refresh procedure.
 
@@ -126,10 +126,10 @@ See `test/e2e/compute/README.md`, `test/e2e/artifacts/README.md`,
 
 `.github/workflows/ci.yml` runs three jobs on every PR:
 
-- **lint**: `golangci-lint` per Go module (matrix). Build tags `envtest,e2e`
-  so lint covers tagged files too.
+- **lint**: `golangci-lint` per Go module (matrix). Build tags
+  `integration,e2e` so lint covers tagged files too.
 - **unit**: `make test`.
-- **envtest**: `make envtest-test` with `test/setup-envtest/` and
+- **integration**: `make integration-test` with `test/setup-envtest/` and
   `~/.local/share/kubebuilder-envtest/` cached.
 
 L2 e2e is intentionally NOT in CI — minikube on GitHub-hosted runners is
@@ -139,24 +139,24 @@ workflow rather than putting it on every PR.
 
 ## Coverage
 
-Unit and L1 envtest both produce coverage profiles. L2 e2e is excluded
+Unit and L1 integration both produce coverage profiles. L2 e2e is excluded
 (not in CI, minikube-dependent — collection isn't reliable).
 
 ```sh
-# Unit + envtest with merged profile at coverage/coverage.out.
+# Unit + integration with merged profile at coverage/coverage.out.
 make coverage
 
 # Per-component HTML reports (one per operator, written to
-# <component>/coverage/coverage.html and envtest-coverage.html).
+# <component>/coverage/coverage.html and integration-coverage.html).
 make coverage-html
 
 # One layer at a time.
 make coverage-unit
-make coverage-envtest
+make coverage-integration
 
 # Per-component slices (auto-generated shortcuts).
 make operator-coverage
-make operator-envtest-coverage
+make operator-integration-coverage
 make operator-coverage-html
 
 # Wipe everything (root + per-component coverage/ dirs).
@@ -164,7 +164,7 @@ make coverage-clean
 ```
 
 Each component writes its own profiles to `<component>/coverage/`:
-`coverage.out` for unit, `envtest-coverage.out` for L1. `make
+`coverage.out` for unit, `integration-coverage.out` for L1. `make
 coverage-merge` (called by `make coverage`) concatenates them into
 `coverage/coverage.out` at the repo root for Codecov / external tools.
 
@@ -174,11 +174,11 @@ merged file (the repo root has no `go.mod`, and the project intentionally
 avoids `go.work`). Open the per-component HTML files for navigation; use
 the merged profile only for aggregate tooling.
 
-**Why envtest needs `-coverpkg`**: each component's `test/envtest/` is its
-own Go module that imports the component via `replace`. Without an
+**Why integration needs `-coverpkg`**: each component's `test/integration/`
+is its own Go module that imports the component via `replace`. Without an
 explicit `-coverpkg=<component-import-path>/...`, `go test -coverprofile`
-only counts the envtest module itself and the merged report would be
-empty. Each component's Makefile sets `MODULE_PATH` and threads it into
+only counts the test/integration module itself and the merged report would
+be empty. Each component's Makefile sets `MODULE_PATH` and threads it into
 `-coverpkg` for you.
 
 **Atomic mode**: every coverage invocation uses `-covermode=atomic` so
@@ -192,7 +192,7 @@ needed) with these flags:
 | Flag | Source | What it covers |
 |---|---|---|
 | `unit` | `unit` job | All three operators' unit profiles in one upload. |
-| `envtest`, `<operator>` | `envtest` matrix job | One upload per operator with both flags so PR comments break down by layer and by operator. |
+| `integration`, `<operator>` | `integration` matrix job | One upload per operator with both flags so PR comments break down by layer and by operator. |
 
 See `codecov.yml` at the repo root for thresholds and path filters.
 `fail_ci_if_error: false` keeps a Codecov outage from failing the PR —

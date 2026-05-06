@@ -25,7 +25,6 @@ import (
 	"gorm.io/gorm"
 
 	app "github.com/axisml/axisml/components/artifacts/internal/app"
-	"github.com/axisml/axisml/components/artifacts/internal/artifact/handler"
 	"github.com/axisml/axisml/components/artifacts/internal/config"
 	"github.com/axisml/axisml/components/artifacts/internal/db"
 	"github.com/axisml/axisml/components/artifacts/internal/gc"
@@ -266,17 +265,9 @@ func (z *fakeZot) handle(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusAccepted)
 	default:
 		dump, _ := httputil.DumpRequest(r, false)
-		fmt.Fprintf(w, "fakeZot: unsupported request:\n%s", dump)
+		_, _ = fmt.Fprintf(w, "fakeZot: unsupported request:\n%s", dump)
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
-}
-
-// loadHandler returns the registered handler for `model`. Helps tests simulate
-// the manifest-push step by computing the expected URI / repoPath via the
-// production handler.
-func (z *fakeZot) loadHandler() handler.Handler {
-	h, _ := handler.Get("model")
-	return h
 }
 
 // drive issues a request against the in-process engine.
