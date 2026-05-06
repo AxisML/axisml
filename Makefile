@@ -143,6 +143,15 @@ COVERAGE_COMPONENTS := \
   components/compute \
   components/artifacts
 
+# Components participating in `make integration-test` and the matching
+# CI integration job. Excludes components whose integration suites have
+# heavier requirements (Docker for testcontainers, etc.) and run separately.
+# Per-component shortcuts (e.g., `make artifacts-integration`) still work for
+# excluded components — they just aren't fanned out from the top-level target.
+INTEGRATION_COMPONENTS := \
+  components/operator \
+  components/compute
+
 # Every Go module in the repo (operator + its integration sub-module + compute
 # + shared test/testutil + test/e2e). `go fmt ./...` does not cross module
 # boundaries, so `make fmt` iterates these explicitly. Sorted for stable
@@ -157,6 +166,12 @@ GO_MODULES := $(sort $(shell find . -name go.mod -not -path '*/bin/*' -exec dirn
 
 # Helper: run a sub-make target across every COMPONENT, surfacing failures.
 _RUN_COMPONENTS = set -e; for c in $(COMPONENTS); do \
+	printf '\n>>> %s (%s)\n' "$$c" "$(1)"; \
+	$(MAKE) -C $$c $(1); \
+done
+
+# Same shape as _RUN_COMPONENTS but iterates the integration subset.
+_RUN_INTEGRATION_COMPONENTS = set -e; for c in $(INTEGRATION_COMPONENTS); do \
 	printf '\n>>> %s (%s)\n' "$$c" "$(1)"; \
 	$(MAKE) -C $$c $(1); \
 done
@@ -225,8 +240,8 @@ $(foreach c,$(COMPONENTS),$(eval $(call _COMPONENT_SHORTCUTS,$(c))))
 
 ##@ Test infrastructure
 
-# Shared setup-envtest binary location. The operator's `envtest` Makefile
-# target invokes $(REPO_ROOT)/test/setup-envtest/setup-envtest.
+# Shared setup-envtest binary location. Each component's `integration`
+# Makefile target invokes $(REPO_ROOT)/test/setup-envtest/setup-envtest.
 ENVTEST_BIN_DIR       ?= $(CURDIR)/test/setup-envtest
 ENVTEST               ?= $(ENVTEST_BIN_DIR)/setup-envtest
 ENVTEST_K8S_VERSION   ?= 1.31.0
@@ -248,7 +263,7 @@ $(ENVTEST):
 # target boots its own envtest with the right CRDs and runs
 # `go test -tags=integration ./test/integration/...`.
 integration-test: setup-envtest ## L1 integration tests for the merged operator + compute (hermetic, CI-friendly)
-	@$(call _RUN_COMPONENTS,integration)
+	@$(call _RUN_INTEGRATION_COMPONENTS,integration)
 
 # L2 e2e: full-stack tests against a real minikube cluster running helm-installed
 # infra + system. Operators run as deployed (NOT scaled to zero); tests act as
@@ -309,7 +324,7 @@ coverage-unit: ## Run unit tests with coverage profile across all components
 	@$(call _RUN_COMPONENTS,coverage)
 
 coverage-integration: setup-envtest ## Run L1 integration tests with coverage across operator + compute
-	@$(call _RUN_COMPONENTS,integration-coverage)
+	@$(call _RUN_INTEGRATION_COMPONENTS,integration-coverage)
 
 coverage-merge: ## Merge per-component profiles into $(COVERAGE_FILE)
 	@bash scripts/merge-coverage.sh $(COVERAGE_FILE) $(COVERAGE_COMPONENTS)

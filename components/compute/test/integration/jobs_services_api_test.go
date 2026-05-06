@@ -61,7 +61,7 @@ func setupAPIFixture(t *testing.T, ctx context.Context, stem string) apiFixture 
 
 	// Pre-create the tenant namespace. In production, the tenant-operator
 	// reconciles the Tenant CR into a Namespace; envtest doesn't run the
-	// tenant-operator (compute envtest only loads its CRDs), so the
+	// tenant-operator (compute integration tests only load its CRDs), so the
 	// namespace must exist before child CRs (MLJob/MLService) can land.
 	cl, err := client.New(testCfg, client.Options{Scheme: testScheme})
 	require.NoError(t, err)
