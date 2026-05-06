@@ -129,7 +129,7 @@ func (c *Client) HeadManifest(ctx context.Context, repoPath, reference string) (
 	if err != nil {
 		return "", fmt.Errorf("HEAD %s: %w", url, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	_, _ = io.Copy(io.Discard, resp.Body)
 
 	switch resp.StatusCode {
@@ -159,7 +159,7 @@ func (c *Client) DeleteManifest(ctx context.Context, repoPath, digest string) er
 	if err != nil {
 		return fmt.Errorf("DELETE %s: %w", url, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	_, _ = io.Copy(io.Discard, resp.Body)
 
 	switch resp.StatusCode {
