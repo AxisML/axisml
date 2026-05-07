@@ -20,15 +20,15 @@ concurrency:
 #                 tenant-operator  compute-operator  cluster-manager  compute  artifacts  test
 #   lint            ✓                 ✓                ✓                ✓        ✓          ✓
 #   test            ✓                 ✓                ✓                ✓        ✓          —
-#   integration     ✓                 ✓                —                ✓        —          —
+#   integration     ✓                 ✓                ✓                ✓        ✓          —
 #   image           ✓                 ✓                ✓                ✓        ✓          —   (main-only)
 #
 # The `test` lint bucket covers the shared test/testutil + test/e2e modules,
 # which don't have their own test/integration layers. Each component lint job
 # lints both its production module and its test/integration sub-module in one
-# go; artifacts has no test/integration sub-module (its testcontainer-backed
-# integration tests live in the same module under `./internal/integration` and
-# run separately, not in CI).
+# go; artifacts has no test/integration sub-module — its testcontainer-backed
+# integration tests live in the same module under `./internal/integration`
+# and run as part of the integration matrix below.
 #
 # `helm-lint` sits outside the grid — it validates Helm charts under
 # deploy/helm/, which aren't tied to a Go component.
@@ -121,7 +121,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        component: [tenant-operator, compute-operator, cluster-manager, compute]
+        component: [tenant-operator, compute-operator, cluster-manager, compute, artifacts]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5

@@ -40,7 +40,10 @@ make setup-envtest
 # Unit tests across every component. ~10 seconds.
 make test
 
-# L1 integration for the merged operator + compute. ~25 seconds. Hermetic.
+# L1 integration for every component (envtest-backed for the operators /
+# cluster-manager / compute, testcontainers-backed for artifacts). ~30-60 s.
+# Needs Docker for the testcontainers suites; envtest assets are downloaded
+# on demand.
 make integration-test
 
 # L2 e2e (operator + future-service suites). Brings up minikube + helm-installs
@@ -48,8 +51,11 @@ make integration-test
 make e2e-test
 
 # Per-component slices.
-make operator-integration
+make tenant-operator-integration
+make compute-operator-integration
+make cluster-manager-integration
 make compute-integration
+make artifacts-integration
 ```
 
 `make e2e-test`'s prerequisites (`cluster-up image-load helm-install

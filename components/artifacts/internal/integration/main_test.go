@@ -40,10 +40,9 @@ type suite struct {
 	engine *gin.Engine
 	gcW    *gc.Worker
 
-	// tenant inserted in setup so handler routes that traverse the resolver
-	// have a valid name to use.
-	tenantName      string
-	tenantNamespace string
+	// namespace tests address artifacts under (post-#20 the service is
+	// de-tenanted; namespace is just an opaque K8s string).
+	namespace string
 }
 
 var (
@@ -129,39 +128,11 @@ func bootstrap() (*suite, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Compute owns the tenants table; for integration we create a minimal
-	// stand-in so the resolver can find a row. The columns mirror what
-	// docs/system_design/compute.md §6 calls out.
-	if err := gormDB.Exec(`
-		CREATE TABLE IF NOT EXISTS tenants (
-			id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-			name        text NOT NULL,
-			namespace   text NOT NULL,
-			status      text NOT NULL,
-			created_at  timestamptz NOT NULL DEFAULT now(),
-			updated_at  timestamptz NOT NULL DEFAULT now(),
-			deleted_at  timestamptz
-		);
-		CREATE EXTENSION IF NOT EXISTS "pgcrypto";
-	`).Error; err != nil {
-		return nil, fmt.Errorf("seed tenants table: %w", err)
-	}
 	if err := db.Migrate(gormDB); err != nil {
 		return nil, err
 	}
 
-	// 4. Insert a test tenant.
-	tenantName := "default"
-	tenantNamespace := "axisml-default"
-	if err := gormDB.Exec(`
-		INSERT INTO tenants (name, namespace, status)
-		VALUES (?, ?, 'Active')
-		ON CONFLICT DO NOTHING
-	`, tenantName, tenantNamespace).Error; err != nil {
-		return nil, fmt.Errorf("insert tenant: %w", err)
-	}
-
-	// 5. BuildModules + assemble the Gin engine.
+	// 4. BuildModules + assemble the Gin engine.
 	log := logr.Discard()
 	modules, _, err := app.BuildModules(cfg, gormDB, nil, log)
 	if err != nil {
@@ -172,18 +143,17 @@ func bootstrap() (*suite, error) {
 		return nil, fmt.Errorf("server.New: %w", err)
 	}
 
-	// 6. GC worker with tight tick (ticker not started; tests call Tick).
+	// GC worker with tight tick (ticker not started; tests call Tick).
 	w := gc.New(cfg, gormDB, log)
 
 	return &suite{
-		pgCtr:           ctr.Container,
-		gormDB:          gormDB,
-		cfg:             cfg,
-		zot:             zot,
-		engine:          srv.Engine(),
-		gcW:             w,
-		tenantName:      tenantName,
-		tenantNamespace: tenantNamespace,
+		pgCtr:     ctr.Container,
+		gormDB:    gormDB,
+		cfg:       cfg,
+		zot:       zot,
+		engine:    srv.Engine(),
+		gcW:       w,
+		namespace: "axisml-default",
 	}, nil
 }
 
@@ -294,8 +264,20 @@ func (s *suite) drive(t *testing.T, method, path string, body any) *httptest.Res
 	return rec
 }
 
-func (s *suite) tenantPath(rest string) string {
-	return fmt.Sprintf("/api/v1/tenants/%s%s", s.tenantName, rest)
+// nsPath builds /api/v1/namespaces/{ns}{rest}.
+func (s *suite) nsPath(rest string) string {
+	return fmt.Sprintf("/api/v1/namespaces/%s%s", s.namespace, rest)
+}
+
+// resetState wipes the artifacts table between tests so cases are independent.
+func (s *suite) resetState(t *testing.T) {
+	t.Helper()
+	if err := s.gormDB.Exec("TRUNCATE TABLE artifacts").Error; err != nil {
+		t.Fatalf("truncate artifacts: %v", err)
+	}
+	s.zot.mu.Lock()
+	s.zot.manifests = map[string]string{}
+	s.zot.mu.Unlock()
 }
 
 // fakeDigest produces a deterministic digest string for testing.

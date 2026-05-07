@@ -150,15 +150,15 @@ COVERAGE_COMPONENTS := \
   components/artifacts
 
 # Components participating in `make integration-test` and the matching
-# CI integration job. Excludes components whose integration suites have
-# heavier requirements (Docker for testcontainers, etc.) and run separately.
-# Per-component shortcuts (e.g., `make artifacts-integration`) still work for
-# excluded components — they just aren't fanned out from the top-level target.
+# CI integration job. All current suites need either envtest (kubebuilder
+# assets cached via `make setup-envtest`) or testcontainers (Docker daemon),
+# both of which CI provides — so this list mirrors COMPONENTS exactly.
 INTEGRATION_COMPONENTS := \
   components/tenant-operator \
   components/compute-operator \
   components/cluster-manager \
-  components/compute
+  components/compute \
+  components/artifacts
 
 # Every Go module in the repo (operator + its integration sub-module + compute
 # + shared test/testutil + test/e2e). `go fmt ./...` does not cross module
