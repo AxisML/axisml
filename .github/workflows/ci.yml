@@ -35,13 +35,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-go-cached
+      - name: Cache golangci-lint binary
+        # `go install` would otherwise recompile the binary on every run.
+        # Measured ~75s on this repo (Go module cache hit but compile still
+        # runs), so caching the resulting binary saves a meaningful chunk of
+        # the lint job. Key includes runner OS, Go major, and the pinned lint
+        # version so a version bump triggers a fresh build.
+        uses: actions/cache@v4
+        with:
+          path: ~/go/bin/golangci-lint
+          key: golangci-lint-bin-${{ runner.os }}-go1.26-v2.12.1
       - name: Install golangci-lint
         # `go install` is reliable across versions; the upstream install.sh
         # from `master` has had checksum-table regressions for tagged releases.
-        # The Go module cache makes the source download fast; the compile is
-        # ~20s and not worth a separate binary cache.
+        # Becomes a no-op on cache hit.
         run: |
-          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.1
+          if [ ! -x "$(go env GOPATH)/bin/golangci-lint" ]; then
+            go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.1
+          fi
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Cache golangci-lint analysis
         # Not a download cache, but the dominant cost on this repo: lint
