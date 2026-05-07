@@ -155,6 +155,14 @@ INTEGRATION_COMPONENTS := \
   components/compute \
   components/artifacts
 
+# Components that ship a public REST API and therefore an OpenAPI spec under
+# docs/openapi/. The two operators have no HTTP surface (they reconcile CRs),
+# so they're excluded.
+DOC_COMPONENTS := \
+  components/cluster-manager \
+  components/compute \
+  components/artifacts
+
 # Every Go module in the repo (each component + its integration sub-module
 # + shared test/testutil). `go fmt ./...` does not cross module boundaries,
 # so `make fmt` iterates these explicitly. Sorted for stable output; bin/
@@ -205,6 +213,19 @@ tidy: ## Run `go mod tidy` across every component
 clean: ## Remove build artifacts across every component
 	@$(call _RUN_COMPONENTS,clean)
 
+.PHONY: doc-gen doc-test
+doc-gen: ## Regenerate OpenAPI specs (docs/openapi/*.yaml) for every API service
+	@set -e; for c in $(DOC_COMPONENTS); do \
+	  printf '\n>>> %s (doc-gen)\n' "$$c"; \
+	  $(MAKE) -C $$c doc-gen; \
+	done
+
+doc-test: ## Verify OpenAPI specs are in sync with Go request/response types (CI guard)
+	@set -e; for c in $(DOC_COMPONENTS); do \
+	  printf '\n>>> %s (doc-test)\n' "$$c"; \
+	  $(MAKE) -C $$c doc-test; \
+	done
+
 # --- Per-component shortcut targets ---
 #
 # Generate `<basename>-build`, `<basename>-image`, `<basename>-image-load`,
@@ -240,6 +261,17 @@ $(notdir $1)-clean:
 	@$$(MAKE) -C $1 clean
 endef
 $(foreach c,$(COMPONENTS),$(eval $(call _COMPONENT_SHORTCUTS,$(c))))
+
+# Per-component shortcuts for the OpenAPI doc targets. Only the API services
+# (DOC_COMPONENTS) carry these, since the operators have no HTTP surface.
+define _DOC_COMPONENT_SHORTCUTS
+.PHONY: $(notdir $1)-doc-gen $(notdir $1)-doc-test
+$(notdir $1)-doc-gen:
+	@$$(MAKE) -C $1 doc-gen
+$(notdir $1)-doc-test:
+	@$$(MAKE) -C $1 doc-test
+endef
+$(foreach c,$(DOC_COMPONENTS),$(eval $(call _DOC_COMPONENT_SHORTCUTS,$(c))))
 
 ##@ Test infrastructure
 
@@ -340,6 +372,10 @@ help: ## Show this help message
 	@printf "\n\033[1mPer-component shortcuts (auto-generated)\033[0m\n"
 	@printf "  Pattern : <component>-{build,image,image-load,test,integration,coverage,integration-coverage,coverage-html,fmt,tidy,clean}\n"
 	@printf "  Active  : %s\n" "$(notdir $(COMPONENTS))"
-	@printf "  Example : make operator-image  |  make compute-test\n\n"
+	@printf "  Example : make operator-image  |  make compute-test\n"
+	@printf "\n\033[1mDoc shortcuts (API services only)\033[0m\n"
+	@printf "  Pattern : <component>-{doc-gen,doc-test}\n"
+	@printf "  Active  : %s\n" "$(notdir $(DOC_COMPONENTS))"
+	@printf "  Example : make compute-doc-gen  |  make doc-test\n\n"
 
 .DEFAULT_GOAL := build

@@ -5,6 +5,7 @@ go 1.26.0
 require (
 	github.com/axisml/axisml/components/compute-operator v0.0.0
 	github.com/axisml/axisml/components/tenant-operator v0.0.0
+	github.com/axisml/axisml/pkg/openapigen v0.0.0
 	github.com/gin-gonic/gin v1.10.0
 	github.com/go-logr/logr v1.4.3
 	github.com/go-logr/zapr v1.3.0
@@ -112,6 +113,8 @@ require (
 replace github.com/axisml/axisml/components/tenant-operator => ../tenant-operator
 
 replace github.com/axisml/axisml/components/compute-operator => ../compute-operator
+
+replace github.com/axisml/axisml/pkg/openapigen => ../../pkg/openapigen
 
 // Mirror the operator modules' pin: koordinator v1.8.0's go.mod references a
 // kube-openapi version that is not published on the module proxy.

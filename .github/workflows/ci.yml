@@ -175,12 +175,29 @@ jobs:
         # missing dependencies but still validates Chart.yaml + templates.
         run: make helm-lint
 
+  doc-test:
+    name: doc-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+          cache-dependency-path: '**/go.sum'
+      - name: Verify generated OpenAPI specs are in sync with Go types
+        # Regenerates docs/openapi/{compute,artifacts,cluster-manager}.yaml
+        # from each service's request/response structs and fails the job if
+        # any committed spec drifted. Run `make doc-gen` locally and commit
+        # the result to fix.
+        run: make doc-test
+
   image:
     name: image (${{ matrix.component.name }})
     # Only build and push on main pushes — PRs run lint/test but don't publish
     # images. Gate behind every other check so a red main doesn't ship.
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [lint, test, integration, helm-lint]
+    needs: [lint, test, integration, helm-lint, doc-test]
     runs-on: ubuntu-latest
     permissions:
       contents: read
