@@ -34,7 +34,8 @@ test: ## Run unit tests (no cluster, no testcontainers)
 
 .PHONY: integration
 integration: ## Run integration tests (PG + zot via testcontainers)
-	@go test -tags=integration -count=1 -timeout=10m ./internal/integration/...
+	@cd test/integration && \
+	  go test -tags=integration -count=1 -timeout=10m ./...
 
 .PHONY: image
 image: ## Build the container image ($(IMAGE)) using repo root as build context
@@ -96,11 +97,12 @@ coverage: ## Run unit tests with coverage profile
 	@mkdir -p $(COVERAGE_DIR)
 	@go test -coverprofile=$(COVERAGE_OUT) -covermode=atomic -count=1 ./...
 
-integration-coverage: ## Run testcontainer-backed integration tests with coverage profile
+integration-coverage: ## Run testcontainer-backed integration tests with coverage profile (covers artifacts production packages)
 	@mkdir -p $(COVERAGE_DIR)
-	@go test -tags=integration -count=1 -timeout=10m \
-	  -coverpkg=$(MODULE_PATH)/... \
-	  -coverprofile=$(INTEGRATION_COVERAGE_OUT) -covermode=atomic ./internal/integration/...
+	@cd test/integration && \
+	  go test -tags=integration -count=1 -timeout=10m \
+	    -coverpkg=$(MODULE_PATH)/... \
+	    -coverprofile=$(INTEGRATION_COVERAGE_OUT) -covermode=atomic ./...
 
 coverage-html: ## Render this component's coverage profile(s) as HTML
 	@if [ ! -f $(COVERAGE_OUT) ] && [ ! -f $(INTEGRATION_COVERAGE_OUT) ]; then \

@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-AxisML combines Go services, Kubernetes operators, Helm charts, and design docs. Active component code lives in `components/tenant-operator/`, `components/compute-operator/`, `components/cluster-manager/`, `components/compute/`, and `components/artifacts/`; each has its own `go.mod`, `Dockerfile`, and `Makefile`. Platform backend/frontend folders under `components/platform/` are scaffolded. Helm charts live in `deploy/helm/axisml-infra/` for third-party infrastructure and `deploy/helm/axisml-system/` for CRDs and AxisML services. Development and design docs are in `docs/development/` and `docs/system_design/`. Shared test modules and e2e suites live under `test/`.
+AxisML combines Go services, Kubernetes operators, Helm charts, and design docs. Active component code lives in `components/tenant-operator/`, `components/compute-operator/`, `components/cluster-manager/`, `components/compute/`, and `components/artifacts/`; each has its own `go.mod`, `Dockerfile`, and `Makefile`. Platform backend/frontend folders under `components/platform/` are scaffolded. Helm charts live in `deploy/helm/axisml-infra/` for third-party infrastructure and `deploy/helm/axisml-system/` for CRDs and AxisML services. Development and design docs are in `docs/development/` and `docs/system_design/`. Shared test infrastructure (`testutil/`, `setup-envtest/`, vendored `crds/external/`) lives under `test/`.
 
 ## Build, Test, and Development Commands
 
@@ -19,11 +19,11 @@ Use the top-level `Makefile` as the command hub.
 
 ## Coding Style & Naming Conventions
 
-Go code uses standard `gofmt`; run `make fmt` for all modules or `<component>-fmt` for a slice. `.golangci.yml` enables `errcheck`, `govet`, `staticcheck`, `unused`, `ineffassign`, and `misspell` with `integration,e2e` build tags. Keep generated files committed when sources require them, such as CRDs or `components/compute/docs/openapi.yaml` after `make -C components/compute openapi`. Do not commit `bin/`, coverage output, local kubeconfigs, or secrets.
+Go code uses standard `gofmt`; run `make fmt` for all modules or `<component>-fmt` for a slice. `.golangci.yml` enables `errcheck`, `govet`, `staticcheck`, `unused`, `ineffassign`, and `misspell` with the `integration` build tag. Keep generated files committed when sources require them, such as CRDs or `components/compute/docs/openapi.yaml` after `make -C components/compute openapi`. Do not commit `bin/`, coverage output, local kubeconfigs, or secrets.
 
 ## Testing Guidelines
 
-Unit tests use Go `testing` and normally sit beside packages as `*_test.go`. L1 tests use `//go:build integration`; the operators / cluster-manager / compute keep them under separate `test/integration/` modules (envtest-backed), while artifacts keeps them in-module under `internal/integration/` (testcontainers-backed). All flavours run via `make integration-test` (after `make setup-envtest`). L2 tests live under `test/e2e/`, use `//go:build e2e`, and run with `make e2e-test` against minikube. See `docs/development/testing.md` for layer choice and external CRD rules.
+Unit tests use Go `testing` and normally sit beside packages as `*_test.go`. L1 tests use `//go:build integration` and live in each component's `test/integration/` Go submodule (envtest-backed for operators / cluster-manager / compute, with testcontainers for compute and artifacts Postgres). All run via `make integration-test` (after `make setup-envtest`). HTTP API tests drive the gin engine in-process via `httptest`; see `components/compute/test/integration/httptest_helpers_test.go`. The repo deliberately has no minikube-driven e2e layer — see `docs/development/testing.md` for layer choice and external CRD rules.
 
 ## Commit & Pull Request Guidelines
 

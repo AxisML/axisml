@@ -932,14 +932,14 @@ config:
 | 阶段 | 主测层 | 工具 |
 | --- | --- | --- |
 | MVP | L1 integration | `make compute-operator-integration` |
-| 功能完善 | L1 integration 扩展 + 关键路径 L2 e2e | `make integration-test` + `make e2e-test`（minikube） |
-| 未来规划 | 单独写 RFC 设计文档 → L1 integration 先行 → L2 验证 | 同上 |
+| 功能完善 | L1 integration 扩展（envtest + testcontainers） | `make integration-test` |
+| 未来规划 | 单独写 RFC 设计文档 → L1 integration 先行 | 同上 |
 
 ## 7. 测试
 
 L1 integration 在 `components/compute-operator/test/integration/` 单一 Go module 中，单一 `TestMain` 把两个 reconciler 注册到同一个 envtest manager。CRDPaths 是 `deploy/helm/axisml-system/crds/{mljob,mlservice}-crd.yaml` 与 `test/crds/external/`（vendored PodGroup / HTTPRoute）的并集。
 
-L2 e2e 在 `test/e2e/`，通过部署后的 compute-operator 与 compute API 一起跑端到端。
+仓库当前不维护 minikube 驱动的 L2 e2e 层；端到端验证靠 L1 integration（envtest）覆盖。
 
 ## 8. 相关引用
 

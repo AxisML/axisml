@@ -7,9 +7,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 )
 
@@ -90,33 +88,4 @@ func StartEnvtest(t *testing.T, opts EnvtestOptions) *EnvtestHandle {
 		t.Fatalf("StartEnvtest: %v", err)
 	}
 	return h
-}
-
-// KubeconfigClient builds a client against the user's current kubeconfig
-// context. Used by L2 e2e tests that target a live minikube cluster.
-//
-// Resolves config the same way controller-runtime's `config.GetConfig` does:
-// $KUBECONFIG → $HOME/.kube/config → in-cluster.
-func KubeconfigClient(t *testing.T, scheme *runtime.Scheme) (*rest.Config, client.Client) {
-	t.Helper()
-	cfg, err := config.GetConfig()
-	if err != nil {
-		t.Fatalf("get kubeconfig: %v", err)
-	}
-	c, err := client.New(cfg, client.Options{Scheme: scheme})
-	if err != nil {
-		t.Fatalf("new client: %v", err)
-	}
-	return cfg, c
-}
-
-// CurrentKubeconfigContext returns the active context name from the user's
-// kubeconfig (or empty string if none). Useful for sanity-logging in TestMain.
-func CurrentKubeconfigContext() string {
-	rules := clientcmd.NewDefaultClientConfigLoadingRules()
-	cfg, err := rules.Load()
-	if err != nil || cfg == nil {
-		return ""
-	}
-	return cfg.CurrentContext
 }

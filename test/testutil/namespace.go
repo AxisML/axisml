@@ -22,9 +22,8 @@ var dnsLabelInvalid = regexp.MustCompile(`[^a-z0-9-]`)
 // derived from the test name and a random suffix, then registers a t.Cleanup
 // hook to delete it. Returns the namespace name.
 //
-// Suitable for both L1 integration (embedded apiserver — Namespace deletion
-// is instantaneous) and L2 e2e (real cluster — deletion runs async during
-// cleanup; the test does not block on it).
+// Used by L1 integration tests against envtest's embedded apiserver, where
+// Namespace deletion is instantaneous.
 func RandomNamespace(t *testing.T, ctx context.Context, c client.Client, prefix string) string {
 	t.Helper()
 	name := UniqueNamespaceName(t.Name(), prefix)
