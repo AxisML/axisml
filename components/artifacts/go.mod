@@ -3,6 +3,7 @@ module github.com/axisml/axisml/components/artifacts
 go 1.26.0
 
 require (
+	github.com/axisml/axisml/pkg/openapigen v0.0.0
 	github.com/gin-gonic/gin v1.12.0
 	github.com/go-logr/logr v1.4.3
 	github.com/go-logr/zapr v1.3.0
@@ -149,3 +150,5 @@ require (
 // Mirror the compute / operator pin: koordinator v1.8.0's transitive go.mod
 // references a kube-openapi version that is not published on the module proxy.
 replace k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912
+
+replace github.com/axisml/axisml/pkg/openapigen => ../../pkg/openapigen

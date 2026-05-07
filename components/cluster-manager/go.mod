@@ -4,6 +4,7 @@ go 1.26.0
 
 require (
 	github.com/axisml/axisml/components/tenant-operator v0.0.0
+	github.com/axisml/axisml/pkg/openapigen v0.0.0
 	github.com/gin-gonic/gin v1.10.0
 	github.com/google/uuid v1.6.0
 	github.com/stretchr/testify v1.11.1
@@ -92,3 +93,5 @@ require (
 replace k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912
 
 replace github.com/axisml/axisml/components/tenant-operator => ../tenant-operator
+
+replace github.com/axisml/axisml/pkg/openapigen => ../../pkg/openapigen
