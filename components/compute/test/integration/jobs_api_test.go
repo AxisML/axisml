@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -43,7 +44,8 @@ func TestJob_CancelGuards(t *testing.T) {
 }
 
 func TestJob_NotFound(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
 	const ns = "jobs-nf-ns"
 	mustCreateNamespace(t, ctx, ns)
 
@@ -105,9 +107,12 @@ func mustCreateNamespace(t *testing.T, ctx context.Context, ns string) {
 	t.Helper()
 	c, err := client.New(testCfg, client.Options{Scheme: testScheme})
 	require.NoError(t, err)
-	// Tests share an envtest apiserver — the namespace may already exist
-	// from a previous test in the same package run.
-	_ = c.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})
+	// Tests share an envtest apiserver, so the namespace may already
+	// exist from a previous test in the same package run — that's
+	// fine. Surface any other failure (apiserver down, RBAC, etc.).
+	if err := c.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}}); err != nil && !apierrors.IsAlreadyExists(err) {
+		t.Fatalf("create namespace %q: %v", ns, err)
+	}
 }
 
 func buildJobCreateBody(name string, unitID uuid.UUID) map[string]any {

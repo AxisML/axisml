@@ -88,6 +88,10 @@ func WriteError(c *gin.Context, err error) {
 //   - validator.ValidationErrors (custom tag failures: required, gte, etc.)
 //   - *json.SyntaxError / *json.UnmarshalTypeError (malformed JSON)
 //   - io.EOF / io.ErrUnexpectedEOF (empty or truncated body)
+//
+// Keep in sync with components/artifacts/internal/server/problem.go —
+// duplication is preferred over a shared module to keep each component's
+// production go.mod self-contained (see PR #25 discussion).
 func isBindingError(err error) bool {
 	var ve validator.ValidationErrors
 	if errors.As(err, &ve) {
