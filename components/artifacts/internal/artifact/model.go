@@ -16,10 +16,14 @@ const (
 	StatusDeleted   = "Deleted"
 )
 
-// Artifact is the GORM-backed `artifacts` row.
+// Artifact is the GORM-backed `artifacts` row. Keyed on
+// (namespace, kind, name, version); namespace is a bare string with no
+// existence check, kind matches a registered ArtifactHandler.
 type Artifact struct {
 	ID          uuid.UUID      `gorm:"type:uuid;primaryKey"`
-	RepoID      uuid.UUID      `gorm:"type:uuid;not null;column:repo_id"`
+	Namespace   string         `gorm:"size:253;not null"`
+	Kind        string         `gorm:"size:32;not null"`
+	Name        string         `gorm:"size:128;not null"`
 	Version     string         `gorm:"size:128;not null"`
 	DisplayName string         `gorm:"type:text;not null;default:''"`
 	Description string         `gorm:"type:text;not null;default:''"`

@@ -8,57 +8,48 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 
-	mlservicev1alpha1 "github.com/axisml/axisml/components/operator/api/mlservice/v1alpha1"
+	mlservicev1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
 
 	"github.com/axisml/axisml/components/compute/internal/auth"
-	"github.com/axisml/axisml/components/compute/internal/quota"
 	"github.com/axisml/axisml/components/compute/internal/resourcepool"
 	"github.com/axisml/axisml/components/compute/internal/resourceunit"
 	"github.com/axisml/axisml/components/compute/internal/spechash"
-	"github.com/axisml/axisml/components/compute/internal/tenant"
 	apperrors "github.com/axisml/axisml/components/compute/pkg/errors"
 	"github.com/axisml/axisml/components/compute/pkg/strutil"
 )
 
-// Module wraps the service business layer. We name the type Module rather
-// than Service to avoid shadowing the package's data model type.
+// Module wraps the service business layer. Keyed on bare namespace strings.
 type Module struct {
-	repo    *Repository
-	db      *gorm.DB
-	tenants *tenant.Service
-	pools   *resourcepool.Service
-	units   *resourceunit.Service
-	quotas  *quota.Service
+	repo  *Repository
+	db    *gorm.DB
+	pools *resourcepool.Service
+	units *resourceunit.Service
 }
 
 // NewService builds the service module wiring.
 func NewService(
 	db *gorm.DB,
-	tenants *tenant.Service,
 	pools *resourcepool.Service,
 	units *resourceunit.Service,
-	quotas *quota.Service,
 ) *Module {
 	return &Module{
-		repo:    NewRepository(db),
-		db:      db,
-		tenants: tenants,
-		pools:   pools,
-		units:   units,
-		quotas:  quotas,
+		repo:  NewRepository(db),
+		db:    db,
+		pools: pools,
+		units: units,
 	}
 }
 
-// CreateInput is the API request body.
+// CreateInput is the API request body. `Quota` is the ElasticQuota CR name
+// (cluster-unique string) Compute stamps onto Pod labels — opaque, no
+// existence check.
 type CreateInput struct {
 	Name           string                       `json:"name" binding:"required,axisml_name"`
 	DisplayName    string                       `json:"displayName"`
 	Description    string                       `json:"description"`
 	ResourceUnitID uuid.UUID                    `json:"resourceUnitId" binding:"required"`
-	QuotaID        uuid.UUID                    `json:"quotaId" binding:"required"`
+	Quota          string                       `json:"quota" binding:"required"`
 	Backend        *mlservicev1alpha1.Backend   `json:"backend"`
 	ModelRef       mlservicev1alpha1.ModelRef   `json:"modelRef" binding:"required"`
 	Roles          []mlservicev1alpha1.RoleSpec `json:"roles" binding:"required,min=1"`
@@ -74,7 +65,7 @@ type ScaleInput struct {
 // View is the HTTP response.
 type View struct {
 	ID            uuid.UUID                       `json:"id"`
-	TenantID      uuid.UUID                       `json:"tenantId"`
+	Namespace     string                          `json:"namespace"`
 	Name          string                          `json:"name"`
 	DisplayName   string                          `json:"displayName,omitempty"`
 	Description   string                          `json:"description,omitempty"`
@@ -89,17 +80,16 @@ type View struct {
 	UpdatedAt     time.Time                       `json:"updatedAt"`
 }
 
-func (m *Module) Create(ctx context.Context, tenantID uuid.UUID, in CreateInput) (*View, error) {
+func (m *Module) Create(ctx context.Context, namespace string, in CreateInput) (*View, error) {
 	if !strutil.IsValidName(in.Name) {
 		return nil, apperrors.New(apperrors.CodeValidation, "invalid service name")
 	}
-	if existing, err := m.repo.GetByTenantName(ctx, tenantID, in.Name); err == nil && existing != nil {
+	if in.Quota == "" {
+		return nil, apperrors.New(apperrors.CodeValidation, "quota is required")
+	}
+	if existing, err := m.repo.GetByNamespaceName(ctx, namespace, in.Name); err == nil && existing != nil {
 		return nil, apperrors.New(apperrors.CodeConflict, "service already exists")
 	} else if err != nil && !IsNotFound(err) {
-		return nil, err
-	}
-	tnt, err := m.tenants.GetByID(ctx, tenantID)
-	if err != nil {
 		return nil, err
 	}
 	unit, err := m.units.GetByID(ctx, in.ResourceUnitID)
@@ -109,16 +99,6 @@ func (m *Module) Create(ctx context.Context, tenantID uuid.UUID, in CreateInput)
 	pool, err := m.pools.GetByID(ctx, unit.PoolID)
 	if err != nil {
 		return nil, err
-	}
-	q, err := m.quotas.GetByID(ctx, in.QuotaID)
-	if err != nil {
-		return nil, err
-	}
-	if q.PoolID != pool.ID {
-		return nil, apperrors.New(apperrors.CodeValidation, "quota and resource unit belong to different pools")
-	}
-	if q.TenantID != tenantID {
-		return nil, apperrors.New(apperrors.CodeValidation, "quota does not belong to tenant")
 	}
 	decoded, err := resourceunit.Decode(unit)
 	if err != nil {
@@ -136,10 +116,15 @@ func (m *Module) Create(ctx context.Context, tenantID uuid.UUID, in CreateInput)
 		backend.Config = in.Backend.Config
 	}
 
-	poolSel := decodePoolSelector(pool)
-	poolTols := decodePoolTolerations(pool)
+	poolSel, err := pool.DecodeNodeSelector()
+	if err != nil {
+		return nil, err
+	}
+	poolTols, err := pool.DecodeTolerations()
+	if err != nil {
+		return nil, err
+	}
 
-	// Inject resources into each role.
 	roles := make([]mlservicev1alpha1.RoleSpec, len(in.Roles))
 	replicas := int32(0)
 	for i, r := range in.Roles {
@@ -159,7 +144,7 @@ func (m *Module) Create(ctx context.Context, tenantID uuid.UUID, in CreateInput)
 	spec := mlservicev1alpha1.MLServiceSpec{
 		Backend: backend,
 		Scheduling: mlservicev1alpha1.Scheduling{
-			Quota:        elasticQuotaName(tnt, pool, q),
+			Quota:        in.Quota,
 			NodeSelector: resourceunit.MergeNodeSelector(poolSel, decoded.NodeSelector),
 			Tolerations:  poolTols,
 		},
@@ -167,13 +152,6 @@ func (m *Module) Create(ctx context.Context, tenantID uuid.UUID, in CreateInput)
 		Roles:     roles,
 		RunPolicy: runPolicy,
 		Route:     in.Route,
-	}
-
-	if err := m.quotas.Precheck(ctx, quota.PrecheckRequest{
-		QuotaID:  q.ID,
-		Resource: scaledRequests(decoded.Requests, replicas),
-	}); err != nil {
-		return nil, err
 	}
 
 	specJSON, err := json.Marshal(spec)
@@ -191,9 +169,8 @@ func (m *Module) Create(ctx context.Context, tenantID uuid.UUID, in CreateInput)
 
 	row := &Service{
 		ID:                 uuid.New(),
-		TenantID:           tenantID,
+		Namespace:          namespace,
 		PoolID:             pool.ID,
-		QuotaID:            q.ID,
 		ResourceUnitID:     unit.ID,
 		Name:               in.Name,
 		DisplayName:        in.DisplayName,
@@ -211,8 +188,8 @@ func (m *Module) Create(ctx context.Context, tenantID uuid.UUID, in CreateInput)
 	return m.toView(row)
 }
 
-func (m *Module) Get(ctx context.Context, tenantID uuid.UUID, name string) (*View, error) {
-	row, err := m.repo.GetByTenantName(ctx, tenantID, name)
+func (m *Module) Get(ctx context.Context, namespace, name string) (*View, error) {
+	row, err := m.repo.GetByNamespaceName(ctx, namespace, name)
 	if err != nil {
 		if IsNotFound(err) {
 			return nil, apperrors.New(apperrors.CodeNotFound, "service not found")
@@ -222,8 +199,8 @@ func (m *Module) Get(ctx context.Context, tenantID uuid.UUID, name string) (*Vie
 	return m.toView(row)
 }
 
-func (m *Module) List(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]View, int64, error) {
-	rows, total, err := m.repo.ListByTenant(ctx, tenantID, limit, offset)
+func (m *Module) List(ctx context.Context, namespace string, limit, offset int) ([]View, int64, error) {
+	rows, total, err := m.repo.ListByNamespace(ctx, namespace, limit, offset)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -238,8 +215,8 @@ func (m *Module) List(ctx context.Context, tenantID uuid.UUID, limit, offset int
 	return out, total, nil
 }
 
-func (m *Module) Scale(ctx context.Context, tenantID uuid.UUID, name string, in ScaleInput) (*View, error) {
-	row, err := m.repo.GetByTenantName(ctx, tenantID, name)
+func (m *Module) Scale(ctx context.Context, namespace, name string, in ScaleInput) (*View, error) {
+	row, err := m.repo.GetByNamespaceName(ctx, namespace, name)
 	if err != nil {
 		if IsNotFound(err) {
 			return nil, apperrors.New(apperrors.CodeNotFound, "service not found")
@@ -270,15 +247,15 @@ func (m *Module) Scale(ctx context.Context, tenantID uuid.UUID, name string, in 
 	}); err != nil {
 		return nil, err
 	}
-	row, err = m.repo.Get(ctx, row.ID)
-	if err != nil {
-		return nil, err
-	}
+	row.Spec = datatypes.JSON(specJSON)
+	row.DesiredSpecHash = hash
+	row.Replicas = in.Replicas
+	row.UpdatedAt = time.Now().UTC()
 	return m.toView(row)
 }
 
-func (m *Module) Delete(ctx context.Context, tenantID uuid.UUID, name string) error {
-	row, err := m.repo.GetByTenantName(ctx, tenantID, name)
+func (m *Module) Delete(ctx context.Context, namespace, name string) error {
+	row, err := m.repo.GetByNamespaceName(ctx, namespace, name)
 	if err != nil {
 		if IsNotFound(err) {
 			return nil
@@ -299,7 +276,7 @@ func (m *Module) toView(s *Service) (*View, error) {
 	}
 	return &View{
 		ID:            s.ID,
-		TenantID:      s.TenantID,
+		Namespace:     s.Namespace,
 		Name:          s.Name,
 		DisplayName:   s.DisplayName,
 		Description:   s.Description,
@@ -313,50 +290,4 @@ func (m *Module) toView(s *Service) (*View, error) {
 		CreatedAt:     s.CreatedAt,
 		UpdatedAt:     s.UpdatedAt,
 	}, nil
-}
-
-// elasticQuotaName mirrors tenant-operator naming.
-func elasticQuotaName(tnt *tenant.View, pool *resourcepool.ResourcePool, q *quota.Quota) string {
-	tenantName := ""
-	if tnt != nil {
-		tenantName = tnt.Name
-	}
-	return "axisml-" + tenantName + "-" + pool.Name + "-" + q.Name
-}
-
-func decodePoolSelector(p *resourcepool.ResourcePool) map[string]string {
-	if len(p.NodeSelector) == 0 {
-		return nil
-	}
-	m := map[string]string{}
-	if err := json.Unmarshal(p.NodeSelector, &m); err != nil {
-		return nil
-	}
-	return m
-}
-
-func decodePoolTolerations(p *resourcepool.ResourcePool) []corev1.Toleration {
-	if len(p.Tolerations) == 0 {
-		return nil
-	}
-	var t []corev1.Toleration
-	if err := json.Unmarshal(p.Tolerations, &t); err != nil {
-		return nil
-	}
-	return t
-}
-
-func scaledRequests(req corev1.ResourceList, replicas int32) corev1.ResourceList {
-	if replicas <= 0 || len(req) == 0 {
-		return nil
-	}
-	out := corev1.ResourceList{}
-	for k, v := range req {
-		// Preserve precision via MilliValue (0.001 unit) so fractional CPU
-		// requests scale correctly. Format mirrors the canonical resource
-		// shape used elsewhere ("100m" / "1Mi" etc.).
-		scaled := resource.NewMilliQuantity(v.MilliValue()*int64(replicas), v.Format)
-		out[k] = *scaled
-	}
-	return out
 }

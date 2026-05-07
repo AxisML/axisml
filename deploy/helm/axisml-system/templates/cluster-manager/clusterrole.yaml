@@ -1,0 +1,21 @@
+{{- if .Values.clusterManager.enabled }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "axisml.fullname" . }}-cluster-manager
+  labels:
+    {{- include "axisml.componentLabels" (dict "context" . "component" "cluster-manager") | nindent 4 }}
+rules:
+  # Tenant CR — full CRUD: cluster-manager is the authoritative writer.
+  - apiGroups: ["axisml.io"]
+    resources: ["tenants"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["axisml.io"]
+    resources: ["tenants/status"]
+    verbs: ["get"]
+
+  # ElasticQuota — read-only, used to expose status.used in GET responses.
+  - apiGroups: ["scheduling.sigs.k8s.io"]
+    resources: ["elasticquotas"]
+    verbs: ["get", "list", "watch"]
+{{- end }}

@@ -1,0 +1,17 @@
+{{- if and .Values.tenantOperator.enabled .Values.tenantOperator.leaderElection.enabled }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "axisml.fullname" . }}-tenant-operator-leaderelection
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "axisml.componentLabels" (dict "context" . "component" "tenant-operator") | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "axisml.fullname" . }}-tenant-operator-leaderelection
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "axisml.fullname" . }}-tenant-operator
+    namespace: {{ .Release.Namespace }}
+{{- end }}

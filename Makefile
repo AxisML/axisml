@@ -39,9 +39,11 @@ export IMAGE_TAG ?= $(shell awk '/^appVersion:/{gsub(/"/,"",$$2);print $$2}' $(H
 # it's empty by default and appended last (highest precedence).
 HELM_SYSTEM_IMAGE_SET := \
   --set platform.image.tag=$(IMAGE_TAG) \
+  --set clusterManager.image.tag=$(IMAGE_TAG) \
   --set compute.image.tag=$(IMAGE_TAG) \
   --set artifacts.image.tag=$(IMAGE_TAG) \
-  --set operator.image.tag=$(IMAGE_TAG)
+  --set tenantOperator.image.tag=$(IMAGE_TAG) \
+  --set computeOperator.image.tag=$(IMAGE_TAG)
 
 # Dev-only defaults the chart `required` gates demand. Production installs
 # should override these via HELM_EXTRA_ARGS or a values file with real
@@ -125,7 +127,9 @@ helm-template: ## Render both charts locally
 # Each entry is a directory that contains a Makefile honouring the contract.
 # Add scaffolded components here as they ship working build targets.
 COMPONENTS := \
-  components/operator \
+  components/tenant-operator \
+  components/compute-operator \
+  components/cluster-manager \
   components/compute \
   components/artifacts
 # Scaffolded components (uncomment as they ship code):
@@ -133,13 +137,15 @@ COMPONENTS := \
 # COMPONENTS += components/platform/frontend
 
 # Component basenames whose images get loaded into minikube + waited on after
-# helm-install. The merged operator runs as a single Deployment; compute and
-# artifacts each run as their own Deployment.
-DEPLOYMENTS := operator compute artifacts
+# helm-install. Each operator + cluster-manager + compute + artifacts runs
+# as its own Deployment.
+DEPLOYMENTS := tenant-operator compute-operator cluster-manager compute artifacts
 
 # Coverage profiles are produced by each Go module under COMPONENTS.
 COVERAGE_COMPONENTS := \
-  components/operator \
+  components/tenant-operator \
+  components/compute-operator \
+  components/cluster-manager \
   components/compute \
   components/artifacts
 
@@ -149,7 +155,9 @@ COVERAGE_COMPONENTS := \
 # Per-component shortcuts (e.g., `make artifacts-integration`) still work for
 # excluded components — they just aren't fanned out from the top-level target.
 INTEGRATION_COMPONENTS := \
-  components/operator \
+  components/tenant-operator \
+  components/compute-operator \
+  components/cluster-manager \
   components/compute
 
 # Every Go module in the repo (operator + its integration sub-module + compute

@@ -23,20 +23,20 @@ func (r *Repository) Get(ctx context.Context, id uuid.UUID) (*Service, error) {
 	return &s, nil
 }
 
-func (r *Repository) GetByTenantName(ctx context.Context, tenantID uuid.UUID, name string) (*Service, error) {
+func (r *Repository) GetByNamespaceName(ctx context.Context, namespace, name string) (*Service, error) {
 	var s Service
 	if err := r.db.WithContext(ctx).
-		Where("tenant_id = ? AND name = ? AND deleted_at IS NULL", tenantID, name).
+		Where("namespace = ? AND name = ? AND deleted_at IS NULL", namespace, name).
 		First(&s).Error; err != nil {
 		return nil, err
 	}
 	return &s, nil
 }
 
-func (r *Repository) ListByTenant(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]Service, int64, error) {
+func (r *Repository) ListByNamespace(ctx context.Context, namespace string, limit, offset int) ([]Service, int64, error) {
 	var rows []Service
 	var total int64
-	q := r.db.WithContext(ctx).Model(&Service{}).Where("tenant_id = ? AND deleted_at IS NULL", tenantID)
+	q := r.db.WithContext(ctx).Model(&Service{}).Where("namespace = ? AND deleted_at IS NULL", namespace)
 	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
@@ -61,15 +61,12 @@ func (r *Repository) MarkDeleting(ctx context.Context, id uuid.UUID) error {
 	}).Error
 }
 
-// WorkSet groups the rows that match reconciler predicates.
 type WorkSet struct {
 	Creating  []Service
 	Deleting  []Service
 	SpecDirty []Service
 }
 
-// workSetBatch caps each predicate's payload per tick (see tenant repository
-// for rationale).
 const workSetBatch = 100
 
 func (r *Repository) FindWorkSet(ctx context.Context) (WorkSet, error) {

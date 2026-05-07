@@ -5,35 +5,29 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	"github.com/google/uuid"
 	"gorm.io/gorm"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	mljobv1alpha1 "github.com/axisml/axisml/components/operator/api/mljob/v1alpha1"
+	mljobv1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mljob/v1alpha1"
 
 	"github.com/axisml/axisml/components/compute/internal/metrics"
-	"github.com/axisml/axisml/components/compute/internal/quota"
-	"github.com/axisml/axisml/components/compute/internal/tenant"
 )
 
-// Reconciler implements the job Outbox loop.
+// Reconciler implements the job Outbox loop. Reads namespace directly off
+// the row.
 type Reconciler struct {
 	db        *gorm.DB
 	repo      *Repository
 	k8sClient client.Client
-	tenants   *tenant.Service
-	quotas    *quota.Service
 	log       logr.Logger
 	interval  time.Duration
 }
 
-// NewReconciler builds a job Reconciler.
 func NewReconciler(
 	db *gorm.DB,
 	cl client.Client,
-	tenants *tenant.Service,
 	log logr.Logger,
 	interval time.Duration,
 ) *Reconciler {
@@ -44,16 +38,11 @@ func NewReconciler(
 		db:        db,
 		repo:      NewRepository(db),
 		k8sClient: cl,
-		tenants:   tenants,
 		log:       log,
 		interval:  interval,
 	}
 }
 
-// SetQuotas late-wires the quota service.
-func (r *Reconciler) SetQuotas(q *quota.Service) { r.quotas = q }
-
-// NeedLeaderElection ensures only the leader runs.
 func (r *Reconciler) NeedLeaderElection() bool { return true }
 
 func (r *Reconciler) Start(ctx context.Context) error {
@@ -87,12 +76,7 @@ func (r *Reconciler) runOnce(ctx context.Context) {
 }
 
 func (r *Reconciler) handleCreate(ctx context.Context, j *Job) {
-	tnt, err := r.lookupTenant(ctx, j.TenantID)
-	if err != nil {
-		r.log.Error(err, "lookup tenant", "id", j.TenantID)
-		return
-	}
-	cr, err := ToCR(j, tnt.Name, tnt.Namespace.Name)
+	cr, err := ToCR(j)
 	if err != nil {
 		r.log.Error(err, "render job CR")
 		return
@@ -111,15 +95,10 @@ func (r *Reconciler) handleCreate(ctx context.Context, j *Job) {
 }
 
 func (r *Reconciler) handleCancel(ctx context.Context, j *Job) {
-	tnt, err := r.lookupTenant(ctx, j.TenantID)
-	if err != nil {
-		return
-	}
-	cr := &mljobv1alpha1.MLJob{ObjectMeta: metav1.ObjectMeta{Name: j.Name, Namespace: tnt.Namespace.Name}}
+	cr := &mljobv1alpha1.MLJob{ObjectMeta: metav1.ObjectMeta{Name: j.Name, Namespace: j.Namespace}}
 	patch := client.RawPatch(client.Merge.Type(), []byte(`{"spec":{"runPolicy":{"suspend":true}}}`))
 	if err := r.k8sClient.Patch(ctx, cr, patch); err != nil {
 		if apierrors.IsNotFound(err) {
-			// CR is gone; informer will mark Cancelled.
 			metrics.ReconcilerActions.WithLabelValues("job", "canceling", "noop").Inc()
 			return
 		}
@@ -131,27 +110,17 @@ func (r *Reconciler) handleCancel(ctx context.Context, j *Job) {
 }
 
 func (r *Reconciler) handleDelete(ctx context.Context, j *Job) {
-	tnt, err := r.lookupTenant(ctx, j.TenantID)
-	if err != nil {
-		return
-	}
-	cr := &mljobv1alpha1.MLJob{ObjectMeta: metav1.ObjectMeta{Name: j.Name, Namespace: tnt.Namespace.Name}}
-	err = r.k8sClient.Delete(ctx, cr)
+	cr := &mljobv1alpha1.MLJob{ObjectMeta: metav1.ObjectMeta{Name: j.Name, Namespace: j.Namespace}}
+	err := r.k8sClient.Delete(ctx, cr)
 	if err == nil {
-		// Wait for the informer to flip to Deleted on the actual DELETE event.
 		metrics.ReconcilerActions.WithLabelValues("job", "deleting", "success").Inc()
 		return
 	}
 	if apierrors.IsNotFound(err) {
-		// CR already gone; finalise PG immediately.
 		_ = r.repo.Update(ctx, j.ID, map[string]any{"status": string(StatusDeleted)})
 		metrics.ReconcilerActions.WithLabelValues("job", "deleting", "noop").Inc()
 		return
 	}
 	r.log.Error(err, "delete MLJob", "name", j.Name)
 	metrics.ReconcilerActions.WithLabelValues("job", "deleting", "error").Inc()
-}
-
-func (r *Reconciler) lookupTenant(ctx context.Context, id uuid.UUID) (*tenant.View, error) {
-	return r.tenants.GetByID(ctx, id)
 }

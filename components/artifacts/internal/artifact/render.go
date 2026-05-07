@@ -12,7 +12,9 @@ import (
 // View is the JSON projection of an Artifact returned by the API.
 type View struct {
 	ID          uuid.UUID         `json:"id"`
-	RepoID      uuid.UUID         `json:"repo_id"`
+	Namespace   string            `json:"namespace"`
+	Kind        string            `json:"kind"`
+	Name        string            `json:"name"`
 	Version     string            `json:"version"`
 	DisplayName string            `json:"display_name,omitempty"`
 	Description string            `json:"description,omitempty"`
@@ -31,7 +33,9 @@ type View struct {
 func toView(row *Artifact) View {
 	v := View{
 		ID:          row.ID,
-		RepoID:      row.RepoID,
+		Namespace:   row.Namespace,
+		Kind:        row.Kind,
+		Name:        row.Name,
 		Version:     row.Version,
 		DisplayName: row.DisplayName,
 		Description: row.Description,

@@ -85,25 +85,9 @@ func (w *Worker) Start(ctx context.Context) error {
 // Tick performs one full GC pass. Exported so integration tests can drive
 // it directly without waiting for the ticker.
 func (w *Worker) Tick(ctx context.Context) {
-	w.cascadeRepos(ctx)
 	w.processStaleUploading(ctx)
 	w.processDeleting(ctx)
-	w.finalizeRepos(ctx)
 	w.refreshGauges(ctx)
-}
-
-// cascadeRepos pushes Deleting-repos' children into Deleting.
-func (w *Worker) cascadeRepos(ctx context.Context) {
-	n, err := w.rows.CascadeFromDeletingRepos(ctx, nil)
-	if err != nil {
-		w.log.Error(err, "cascade from deleting repos")
-		metrics.GCActions.WithLabelValues("cascade_repo", "error").Inc()
-		return
-	}
-	if n > 0 {
-		w.log.Info("cascaded artifacts into Deleting", "count", n)
-		metrics.GCActions.WithLabelValues("cascade_repo", "ok").Add(float64(n))
-	}
 }
 
 // processStaleUploading flips stuck Uploading rows to Failed and cleans up
@@ -166,20 +150,6 @@ func (w *Worker) processDeleting(ctx context.Context) {
 	}
 }
 
-// finalizeRepos flips Deleting repos with no remaining live artifacts to
-// Deleted in a single set-based UPDATE.
-func (w *Worker) finalizeRepos(ctx context.Context) {
-	n, err := w.rows.FinalizeEmptyDeletingRepos(ctx, nil)
-	if err != nil {
-		w.log.Error(err, "finalize empty deleting repos")
-		metrics.GCActions.WithLabelValues("repo_finalize", "error").Inc()
-		return
-	}
-	if n > 0 {
-		metrics.GCActions.WithLabelValues("repo_finalize", "ok").Add(float64(n))
-	}
-}
-
 // refreshGauges updates the uploading_count gauge from PG state.
 func (w *Worker) refreshGauges(ctx context.Context) {
 	counts, err := w.rows.CountUploadingByKind(ctx)
@@ -192,16 +162,16 @@ func (w *Worker) refreshGauges(ctx context.Context) {
 	}
 }
 
-// gcArtifact maps a joined GC row to the handler.Artifact view. Spec is
-// not populated here — model.GCBackend (the only Kind in MVP) only reads
-// Scope/RepoName/Version/Digest, so unmarshalling spec on every tick would
-// be wasted work.
+// gcArtifact maps a GC row to the handler.Artifact view. Spec is not
+// populated — model.GCBackend (the only Kind in MVP) only reads
+// Namespace/Name/Version/Digest, so unmarshalling spec on every tick
+// would be wasted work.
 func gcArtifact(row artmod.GCRow) handler.Artifact {
 	return handler.Artifact{
-		Kind:     row.Kind,
-		Scope:    row.Scope(),
-		RepoName: row.RepoName,
-		Version:  row.Version,
-		Digest:   row.Digest,
+		Kind:      row.Kind,
+		Namespace: row.Namespace,
+		Name:      row.Name,
+		Version:   row.Version,
+		Digest:    row.Digest,
 	}
 }

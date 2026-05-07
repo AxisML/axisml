@@ -37,11 +37,10 @@ type Config struct {
 	// Reconciler tuning
 	ReconcileInterval time.Duration
 
-	// Bootstrap defaults (only consumed by `compute bootstrap`)
-	BootstrapTenant          string
-	BootstrapTenantNamespace string
-	BootstrapPool            string
-	BootstrapResourceMax     map[string]string
+	// Bootstrap defaults (only consumed by `compute bootstrap`). The
+	// only seeded object is the default ResourcePool — tenants and
+	// quotas are owned by cluster-manager.
+	BootstrapPool string
 
 	// Logging
 	LogDevelopment bool
@@ -76,13 +75,7 @@ func Load() (Config, error) {
 
 		ReconcileInterval: envDuration("RECONCILE_INTERVAL", 2*time.Second),
 
-		BootstrapTenant:          env("BOOTSTRAP_TENANT", "default"),
-		BootstrapTenantNamespace: env("BOOTSTRAP_TENANT_NAMESPACE", "axisml-default"),
-		BootstrapPool:            env("BOOTSTRAP_POOL", "default"),
-		BootstrapResourceMax: map[string]string{
-			"cpu":    env("BOOTSTRAP_QUOTA_CPU", "8"),
-			"memory": env("BOOTSTRAP_QUOTA_MEMORY", "16Gi"),
-		},
+		BootstrapPool: env("BOOTSTRAP_POOL", "default"),
 
 		LogDevelopment: envBool("LOG_DEVELOPMENT", false),
 	}

@@ -8,7 +8,8 @@ go 1.26.0
 
 require (
 	github.com/axisml/axisml/components/compute v0.0.0-00010101000000-000000000000
-	github.com/axisml/axisml/components/operator v0.0.0
+	github.com/axisml/axisml/components/compute-operator v0.0.0
+	github.com/axisml/axisml/components/tenant-operator v0.0.0
 	github.com/axisml/axisml/test/testutil v0.0.0-00010101000000-000000000000
 	github.com/gin-gonic/gin v1.10.0
 	github.com/go-logr/logr v1.4.3
@@ -153,7 +154,8 @@ require (
 
 replace (
 	github.com/axisml/axisml/components/compute => ../..
-	github.com/axisml/axisml/components/operator => ../../../operator
+	github.com/axisml/axisml/components/compute-operator => ../../../compute-operator
+	github.com/axisml/axisml/components/tenant-operator => ../../../tenant-operator
 	github.com/axisml/axisml/test/testutil => ../../../../test/testutil
 )
 

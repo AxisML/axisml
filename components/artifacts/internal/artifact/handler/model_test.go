@@ -60,8 +60,8 @@ func TestModelHandler_ValidateSpec(t *testing.T) {
 
 func TestModelHandler_BuildStorageURI(t *testing.T) {
 	h := NewModelHandler(oci.New(oci.Config{Endpoint: "zot.local:5000"}))
-	got := h.BuildStorageURI("tenants/default", "llama-7b", "v1")
-	want := "zot.local:5000/tenants/default/models/llama-7b:v1"
+	got := h.BuildStorageURI("team-a", "llama-7b", "v1")
+	want := "zot.local:5000/namespaces/team-a/models/llama-7b:v1"
 	if got != want {
 		t.Fatalf("BuildStorageURI = %q, want %q", got, want)
 	}

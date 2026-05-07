@@ -4,21 +4,26 @@ Components deployed:
 {{- if .Values.platform.enabled }}
   - ML Platform:  {{ include "axisml.fullname" . }}-platform:{{ .Values.platform.service.port }}
 {{- end }}
+{{- if .Values.clusterManager.enabled }}
+  - Cluster Mgr:  {{ include "axisml.fullname" . }}-cluster-manager:{{ .Values.clusterManager.service.port }}
+{{- end }}
 {{- if .Values.compute.enabled }}
   - ML Compute:   {{ include "axisml.fullname" . }}-compute:{{ .Values.compute.service.port }}
 {{- end }}
 {{- if .Values.artifacts.enabled }}
   - ML Artifacts: {{ include "axisml.fullname" . }}-artifacts:{{ .Values.artifacts.service.port }}
 {{- end }}
-{{- if .Values.operator.enabled }}
+{{- if .Values.tenantOperator.enabled }}
+  - Tenant Operator:  {{ include "axisml.fullname" . }}-tenant-operator
+{{- end }}
+{{- if .Values.computeOperator.enabled }}
   {{- $controllers := list -}}
-  {{- if .Values.operator.controllers.tenant.enabled }}{{- $controllers = append $controllers "tenant" -}}{{- end -}}
-  {{- if .Values.operator.controllers.mljob.enabled }}{{- $controllers = append $controllers "mljob" -}}{{- end -}}
-  {{- if .Values.operator.controllers.mlservice.enabled }}{{- $controllers = append $controllers "mlservice" -}}{{- end }}
+  {{- if .Values.computeOperator.controllers.mljob.enabled }}{{- $controllers = append $controllers "mljob" -}}{{- end -}}
+  {{- if .Values.computeOperator.controllers.mlservice.enabled }}{{- $controllers = append $controllers "mlservice" -}}{{- end }}
   {{- if $controllers }}
-  - Operator:    {{ include "axisml.fullname" . }}-operator (controllers: {{ join ", " $controllers }})
+  - Compute Operator: {{ include "axisml.fullname" . }}-compute-operator (controllers: {{ join ", " $controllers }})
   {{- else }}
-  - Operator:    {{ include "axisml.fullname" . }}-operator (no controllers enabled — manager is a no-op)
+  - Compute Operator: {{ include "axisml.fullname" . }}-compute-operator (no controllers enabled — manager is a no-op)
   {{- end }}
 {{- end }}
 {{- if .Values.database.enabled }}

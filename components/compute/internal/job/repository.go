@@ -23,20 +23,23 @@ func (r *Repository) Get(ctx context.Context, id uuid.UUID) (*Job, error) {
 	return &j, nil
 }
 
-func (r *Repository) GetByTenantName(ctx context.Context, tenantID uuid.UUID, name string) (*Job, error) {
+// GetByNamespaceName looks up the live row for (namespace, name). Soft-
+// deleted rows (deleted_at IS NOT NULL) are excluded so the name becomes
+// reusable.
+func (r *Repository) GetByNamespaceName(ctx context.Context, namespace, name string) (*Job, error) {
 	var j Job
 	if err := r.db.WithContext(ctx).
-		Where("tenant_id = ? AND name = ? AND deleted_at IS NULL", tenantID, name).
+		Where("namespace = ? AND name = ? AND deleted_at IS NULL", namespace, name).
 		First(&j).Error; err != nil {
 		return nil, err
 	}
 	return &j, nil
 }
 
-func (r *Repository) ListByTenant(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]Job, int64, error) {
+func (r *Repository) ListByNamespace(ctx context.Context, namespace string, limit, offset int) ([]Job, int64, error) {
 	var rows []Job
 	var total int64
-	q := r.db.WithContext(ctx).Model(&Job{}).Where("tenant_id = ? AND deleted_at IS NULL", tenantID)
+	q := r.db.WithContext(ctx).Model(&Job{}).Where("namespace = ? AND deleted_at IS NULL", namespace)
 	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
@@ -68,8 +71,6 @@ type WorkSet struct {
 	Deleting  []Job
 }
 
-// workSetBatch caps each predicate's payload per tick (see tenant repository
-// for rationale).
 const workSetBatch = 100
 
 func (r *Repository) FindWorkSet(ctx context.Context) (WorkSet, error) {

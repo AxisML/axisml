@@ -3,10 +3,10 @@ module github.com/axisml/axisml/test/e2e
 go 1.26.0
 
 require (
-	github.com/axisml/axisml/components/operator v0.0.0-00010101000000-000000000000
+	github.com/axisml/axisml/components/compute-operator v0.0.0-00010101000000-000000000000
+	github.com/axisml/axisml/components/tenant-operator v0.0.0-00010101000000-000000000000
 	github.com/axisml/axisml/test/testutil v0.0.0-00010101000000-000000000000
 	github.com/koordinator-sh/koordinator v1.8.0
-	github.com/stretchr/testify v1.11.1
 	k8s.io/api v0.36.0
 	k8s.io/apimachinery v0.36.0
 	k8s.io/client-go v0.36.0
@@ -61,13 +61,14 @@ require (
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
-// Local sibling modules: replace the merged operator and the testutil package
-// with their on-disk paths so the e2e tests build against the working tree.
+// Local sibling modules: replace the operator + testutil packages with
+// their on-disk paths so the e2e tests build against the working tree.
 replace (
-	github.com/axisml/axisml/components/operator => ../../components/operator
+	github.com/axisml/axisml/components/compute-operator => ../../components/compute-operator
+	github.com/axisml/axisml/components/tenant-operator => ../../components/tenant-operator
 	github.com/axisml/axisml/test/testutil => ../testutil
 )
 
-// koordinator v1.8.0 (indirect via axisml-operator) pins k8s.io/kube-openapi
-// at an unpublished version; mirror axisml-operator/go.mod's replace.
+// koordinator v1.8.0 pins k8s.io/kube-openapi at an unpublished version;
+// mirror the operator modules' replace.
 replace k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912
