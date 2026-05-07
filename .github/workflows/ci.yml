@@ -43,6 +43,17 @@ jobs:
         run: |
           go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.1
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Cache golangci-lint analysis
+        # Not a download cache, but the dominant cost on this repo: lint
+        # walks 12 Go modules sequentially, and without per-file analysis
+        # results the full job is ~12 min. With this cache restored
+        # incremental runs are several times faster.
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/golangci-lint
+          key: golangci-lint-cache-${{ runner.os }}-${{ hashFiles('.golangci.yml', '**/go.sum') }}
+          restore-keys: |
+            golangci-lint-cache-${{ runner.os }}-
       - name: Run golangci-lint across every Go module
         # Walks every module containing a go.mod (matches Makefile's GO_MODULES),
         # so newly added modules are picked up without touching CI. We don't
