@@ -186,6 +186,7 @@ func (s *Service) Complete(ctx context.Context, namespace, kind, name, version s
 	row.Digest = digest
 	row.ReadyAt = &now
 	row.Message = ""
+	row.UpdatedAt = now
 	return row, nil
 }
 

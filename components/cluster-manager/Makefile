@@ -39,14 +39,31 @@ vet:
 tidy:
 	@go mod tidy
 
-# cluster-manager has no L1 integration suite (no reconciler); the integration
-# target is a no-op so the top-level fan-out doesn't fail.
+ENVTEST             := $(REPO_ROOT)/test/setup-envtest/setup-envtest
+ENVTEST_K8S_VERSION ?= 1.31.0
+MODULE_PATH         := github.com/axisml/axisml/components/cluster-manager
+
 .PHONY: integration integration-coverage
-integration:
-	@echo "(cluster-manager has no L1 integration suite; skipping)"
+integration: ## Run L1 integration tests (envtest with Tenant CRD)
+	@if [ ! -x "$(ENVTEST)" ]; then \
+	  echo "ERROR: $(ENVTEST) not found. Run 'make setup-envtest' from $(REPO_ROOT)."; \
+	  exit 1; \
+	fi
+	@cd test/integration && \
+	  KUBEBUILDER_ASSETS="$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" \
+	  go test -tags=integration -count=1 -timeout=10m ./...
 
 integration-coverage:
-	@echo "(cluster-manager has no L1 integration coverage; skipping)"
+	@mkdir -p $(COVERAGE_DIR)
+	@if [ ! -x "$(ENVTEST)" ]; then \
+	  echo "ERROR: $(ENVTEST) not found. Run 'make setup-envtest' from $(REPO_ROOT)."; \
+	  exit 1; \
+	fi
+	@cd test/integration && \
+	  KUBEBUILDER_ASSETS="$$($(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" \
+	  go test -tags=integration -count=1 -timeout=10m \
+	    -coverpkg=$(MODULE_PATH)/... \
+	    -coverprofile=$(COVERAGE_DIR)/integration-coverage.out -covermode=atomic ./...
 
 COVERAGE_DIR  ?= $(CURDIR)/coverage
 COVERAGE_OUT  ?= $(COVERAGE_DIR)/coverage.out

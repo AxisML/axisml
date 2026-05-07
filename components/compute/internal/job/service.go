@@ -221,6 +221,7 @@ func (s *Service) Cancel(ctx context.Context, namespace, name string) (*View, er
 	}
 	j.Status = string(StatusCanceling)
 	j.Message = "user cancelled"
+	j.UpdatedAt = time.Now().UTC()
 	return s.toView(j)
 }
 

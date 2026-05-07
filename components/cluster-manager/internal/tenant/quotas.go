@@ -40,7 +40,7 @@ func (h *Handler) AddQuota(c *gin.Context) {
 		Max:  srv.ParseResourceList(req.Max),
 	})
 	if err := h.Client.Update(ctx, t); err != nil {
-		writeProblem(c, http.StatusInternalServerError, "update failed", err.Error())
+		writeAPIErr(c, "update", err)
 		return
 	}
 	c.JSON(http.StatusCreated, srv.FromTenant(t))
@@ -72,7 +72,7 @@ func (h *Handler) UpdateQuota(c *gin.Context) {
 	t.Spec.Quotas[idx].Min = srv.ParseResourceList(req.Min)
 	t.Spec.Quotas[idx].Max = srv.ParseResourceList(req.Max)
 	if err := h.Client.Update(ctx, t); err != nil {
-		writeProblem(c, http.StatusInternalServerError, "update failed", err.Error())
+		writeAPIErr(c, "update", err)
 		return
 	}
 	c.JSON(http.StatusOK, srv.FromTenant(t))
@@ -95,7 +95,7 @@ func (h *Handler) DeleteQuota(c *gin.Context) {
 	}
 	t.Spec.Quotas = append(t.Spec.Quotas[:idx], t.Spec.Quotas[idx+1:]...)
 	if err := h.Client.Update(ctx, t); err != nil {
-		writeProblem(c, http.StatusInternalServerError, "update failed", err.Error())
+		writeAPIErr(c, "update", err)
 		return
 	}
 	c.Status(http.StatusNoContent)

@@ -1,9 +1,11 @@
--- AxisML Artifacts initial schema. See docs/system_design/artifacts.md §4.
+-- Reverses 0002. Drops the namespace-keyed artifacts table and recreates
+-- the artifact_repos + repo-keyed artifacts schema from 0001.
+DROP INDEX IF EXISTS uq_artifacts_coord;
+DROP INDEX IF EXISTS idx_artifacts_namespace_kind;
+DROP INDEX IF EXISTS idx_artifacts_workset;
+DROP INDEX IF EXISTS idx_artifacts_uploading_ttl;
+DROP TABLE IF EXISTS artifacts;
 
--- pgcrypto provides gen_random_uuid().
-CREATE EXTENSION IF NOT EXISTS "pgcrypto";
-
--- ArtifactRepo --------------------------------------------------------------
 CREATE TABLE artifact_repos (
     id                 uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_name        text,
@@ -20,19 +22,12 @@ CREATE TABLE artifact_repos (
     updated_at         timestamptz NOT NULL DEFAULT now(),
     deleted_at         timestamptz
 );
-
--- Two partial unique indexes (one for tenant_name IS NULL, one for IS NOT NULL)
--- per design §4.2 — avoids COALESCE sentinels.
 CREATE UNIQUE INDEX uq_artifact_repos_tenant_kind_name
-    ON artifact_repos(tenant_name, kind, name)
-    WHERE tenant_name IS NOT NULL;
+    ON artifact_repos(tenant_name, kind, name) WHERE tenant_name IS NOT NULL;
 CREATE UNIQUE INDEX uq_artifact_repos_public_kind_name
-    ON artifact_repos(kind, name)
-    WHERE tenant_name IS NULL;
-CREATE INDEX idx_artifact_repos_workset
-    ON artifact_repos(status, deleted_at);
+    ON artifact_repos(kind, name) WHERE tenant_name IS NULL;
+CREATE INDEX idx_artifact_repos_workset ON artifact_repos(status, deleted_at);
 
--- Artifact ------------------------------------------------------------------
 CREATE TABLE artifacts (
     id           uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
     repo_id      uuid        NOT NULL REFERENCES artifact_repos(id),
@@ -53,7 +48,6 @@ CREATE TABLE artifacts (
 );
 CREATE UNIQUE INDEX uq_artifacts_repo_version ON artifacts(repo_id, version);
 CREATE INDEX idx_artifacts_workset ON artifacts(status, deleted_at);
--- Speeds up the GC scan for stale Uploading rows (design §3.4).
 CREATE INDEX idx_artifacts_uploading_ttl
     ON artifacts(created_at)
     WHERE status = 'Uploading';

@@ -157,6 +157,7 @@ COVERAGE_COMPONENTS := \
 INTEGRATION_COMPONENTS := \
   components/tenant-operator \
   components/compute-operator \
+  components/cluster-manager \
   components/compute
 
 # Every Go module in the repo (operator + its integration sub-module + compute

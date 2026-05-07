@@ -71,11 +71,7 @@ func (h *Handler) Create(c *gin.Context) {
 	srv.EnsureMetadata(t, req.Name, uuid.NewString())
 
 	if err := h.Client.Create(ctx, t); err != nil {
-		if apierrors.IsAlreadyExists(err) {
-			writeProblem(c, http.StatusConflict, "tenant already exists", err.Error())
-			return
-		}
-		writeProblem(c, http.StatusInternalServerError, "create failed", err.Error())
+		writeAPIErr(c, "create", err)
 		return
 	}
 	c.JSON(http.StatusCreated, srv.FromTenant(t))
@@ -133,22 +129,19 @@ func (h *Handler) Patch(c *gin.Context) {
 	}
 	srv.ApplyPatchToTenant(t, req)
 	if err := h.Client.Update(ctx, t); err != nil {
-		writeProblem(c, http.StatusInternalServerError, "update failed", err.Error())
+		writeAPIErr(c, "update", err)
 		return
 	}
 	c.JSON(http.StatusOK, srv.FromTenant(t))
 }
 
-// Delete handles DELETE /api/v1/tenants/{name}.
+// Delete handles DELETE /api/v1/tenants/{name}. NotFound is treated as
+// success (idempotent).
 func (h *Handler) Delete(c *gin.Context) {
 	ctx := c.Request.Context()
 	t := &tenantv1alpha1.Tenant{ObjectMeta: metav1.ObjectMeta{Name: c.Param("name")}}
-	if err := h.Client.Delete(ctx, t); err != nil {
-		if apierrors.IsNotFound(err) {
-			c.Status(http.StatusNoContent)
-			return
-		}
-		writeProblem(c, http.StatusInternalServerError, "delete failed", err.Error())
+	if err := h.Client.Delete(ctx, t); err != nil && !apierrors.IsNotFound(err) {
+		writeAPIErr(c, "delete", err)
 		return
 	}
 	c.Status(http.StatusNoContent)
@@ -169,7 +162,7 @@ func (h *Handler) suspend(target bool) gin.HandlerFunc {
 		}
 		t.Spec.Suspended = target
 		if err := h.Client.Update(ctx, t); err != nil {
-			writeProblem(c, http.StatusInternalServerError, "update failed", err.Error())
+			writeAPIErr(c, "update", err)
 			return
 		}
 		c.JSON(http.StatusOK, srv.FromTenant(t))
@@ -199,4 +192,24 @@ func writeProblem(c *gin.Context, status int, title, detail string) {
 		Status: status,
 		Detail: detail,
 	})
+}
+
+// writeAPIErr maps a K8s API error onto an RFC7807 response. NotFound is
+// caller-routed (we want the URL :name in the title), so it isn't handled
+// here; callers should check apierrors.IsNotFound first when relevant.
+func writeAPIErr(c *gin.Context, op string, err error) {
+	switch {
+	case apierrors.IsAlreadyExists(err):
+		writeProblem(c, http.StatusConflict, "resource already exists", err.Error())
+	case apierrors.IsConflict(err):
+		// resourceVersion mismatch: someone else mutated the Tenant
+		// concurrently. Caller can retry with a fresh GET.
+		writeProblem(c, http.StatusConflict, "concurrent modification", err.Error())
+	case apierrors.IsInvalid(err) || apierrors.IsBadRequest(err):
+		writeProblem(c, http.StatusBadRequest, "invalid request", err.Error())
+	case apierrors.IsForbidden(err):
+		writeProblem(c, http.StatusForbidden, "forbidden", err.Error())
+	default:
+		writeProblem(c, http.StatusInternalServerError, op+" failed", err.Error())
+	}
 }

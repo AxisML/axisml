@@ -250,6 +250,7 @@ func (m *Module) Scale(ctx context.Context, namespace, name string, in ScaleInpu
 	row.Spec = datatypes.JSON(specJSON)
 	row.DesiredSpecHash = hash
 	row.Replicas = in.Replicas
+	row.UpdatedAt = time.Now().UTC()
 	return m.toView(row)
 }
 

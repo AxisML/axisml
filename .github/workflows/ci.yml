@@ -52,6 +52,7 @@ jobs:
           - name: cluster-manager
             modules: |
               components/cluster-manager
+              components/cluster-manager/test/integration
           - name: compute
             modules: |
               components/compute
@@ -120,7 +121,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        component: [tenant-operator, compute-operator, compute]
+        component: [tenant-operator, compute-operator, cluster-manager, compute]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
