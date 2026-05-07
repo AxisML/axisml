@@ -2,7 +2,7 @@
 
 AxisML Artifacts 是平台的制品管理服务，承载模型、数据集、镜像、评估报告等所有"非运行态"资产的**元数据管理**与**引用寻址**。Artifacts 通过 REST API 暴露能力，调用方为 AxisML Platform 与 Operators，不直接对外部用户流量开放；`axisml-cli` 经由 Platform / Gateway 中转调用 Artifacts。
 
-> **去 repo 化 + 去租户化**：Artifacts 不再有"仓库（ArtifactRepo）"两级抽象，也不再持有"租户私有 / 平台公共"两类空间。Artifact 直接以 `(namespace, kind, name, version)` 四元组寻址；`namespace` 是裸字符串分区键，由调用方（Platform）保证语义。Compute namespace 与 Artifacts namespace **互不绑定**，可同名也可不同名，由 Platform 自由编排（详见 [platform.md](platform.md)）。
+> **寻址模型**：Artifact 直接以 `(namespace, kind, name, version)` 四元组寻址；`namespace` 是裸字符串分区键，由调用方（Platform）保证语义。Compute namespace 与 Artifacts namespace **互不绑定**，可同名也可不同名，由 Platform 自由编排（详见 [platform.md](platform.md)）。
 
 | 模块 | 职责 | 边界外 |
 | --- | --- | --- |
@@ -115,7 +115,7 @@ components/artifacts/
 
 跨组件复用的公共库（日志、配置、错误）放在仓库根 `pkg/`。
 
-> Artifacts 不再依赖 `tenantresolver`——namespace 是裸字符串，不做存在性 / Active 校验。
+> Artifacts 把 `namespace` 当作裸字符串分区键，不做存在性 / Active 校验。
 
 ### 2.2 Flag 与 Helm values 接口
 
@@ -283,7 +283,7 @@ GC worker（leader-only goroutine，每 5 分钟一轮）扫描 PG 三类谓词�
 
 **反向孤儿**（后端有 blob 但 PG 无 Ready 行）：仅记日志告警，**不主动清理**。
 
-> 由于不再有"repo"层，整 namespace 下批量删除（如 Platform 决定下线某 workspace）需要由调用方按 list 逐条 DELETE 触发；Artifacts 自身不提供"按 namespace 级联删除"的批量端点（避免误删大批量制品）。
+> 整 namespace 下批量删除（如 Platform 决定下线某 workspace）需要由调用方按 list 逐条 DELETE 触发；Artifacts 自身不提供"按 namespace 级联删除"的批量端点（避免误删大批量制品）。
 
 ### 3.5 状态机
 
@@ -440,7 +440,7 @@ artifacts(
 
 Artifacts 所有 API 置于 `/api/v1` 前缀下。
 
-> **路径风格**：URL 使用 `/namespaces/{ns}/artifacts/{kind}/{name}` 一级直入 artifact 命名空间，不再有 `/repos` 中间层；动词一律用子资源路径（`/complete`、`/resolve`），不使用 `:action` 形式。`POST /api/v1/namespaces/{ns}/artifacts/{kind}/{name}` 即"集合 POST"承担 initiate 角色：在 `Uploading` 状态下创建新版本并返回上传凭证。
+> **路径风格**：URL 使用 `/namespaces/{ns}/artifacts/{kind}/{name}` 一级直入 artifact 命名空间；动词一律用子资源路径（`/complete`、`/resolve`），不使用 `:action` 形式。`POST /api/v1/namespaces/{ns}/artifacts/{kind}/{name}` 即"集合 POST"承担 initiate 角色：在 `Uploading` 状态下创建新版本并返回上传凭证。
 
 | 资源组 | 路径 | 主要动作 |
 | --- | --- | --- |
@@ -459,7 +459,7 @@ Artifacts 所有 API 置于 `/api/v1` 前缀下。
 | --- | --- |
 | `X-Axisml-User` | 调用方用户唯一 ID，用于审计与 ownership |
 
-Artifacts 不重做角色鉴权——namespace 已经是裸字符串分区键，"哪个用户能访问哪个 namespace"完全由 Platform 在调用前决定。Artifacts 也不再读 `X-Axisml-Roles`。
+Artifacts 不做角色鉴权——namespace 是裸字符串分区键，"哪个用户能访问哪个 namespace"完全由 Platform 在调用前决定。Artifacts 也不读 `X-Axisml-Roles`。
 
 Operator 直连 Artifacts 时不代表终端用户身份，只携带 controller service identity 与明确的 namespace 参数；只允许访问 `resolve?usage=inspect`。
 

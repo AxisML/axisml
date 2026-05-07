@@ -154,7 +154,7 @@ compute 服务采用 Operation Outbox + reconciler 异步下发 CR（详见 [com
 **metadata 由 compute 设置**：
 
 - `metadata.name` ← compute 业务对象 name；DNS-1123 + ≤40 字符（compute API 层硬校验）。
-- `metadata.namespace` ← compute 请求体里的 `namespace` 字段（裸字符串分区键，不再源自 tenant 映射）。
+- `metadata.namespace` ← compute 请求体里的 `namespace` 字段（裸字符串分区键，由调用方提供）。
 - `metadata.labels["axisml.io/{job,service}-id"]` ← UUID，孤儿检测稳定锚点。
 - `metadata.labels["axisml.io/quota"]` ← 透传给 Pod 用于审计 / 查询，取值与 `spec.scheduling.quota`（ElasticQuota CR 名）一致。
 
@@ -185,7 +185,7 @@ compute 服务采用 Operation Outbox + reconciler 异步下发 CR（详见 [com
 | label `quota.scheduling.koordinator.sh/name` | 是 | `<spec.scheduling.quota>` | Koordinator 原生 quota 关联 label；ElasticQuota plugin 据此把该 Pod 计入 `status.used` |
 | label `axisml.io/{job-id\|service-id}` | 是 | UUID | 反查 MLJob / MLService，与 CR 上同名 label 一致 |
 | label `axisml.io/role` | 是 | role 名（`worker` / `master` / `predictor` / ...） | 区分多角色拓扑下的 Pod |
-| label `axisml.io/quota` | 是 | `<spec.scheduling.quota>` | AxisML 自有审计 / 查询；与 `quota.scheduling.koordinator.sh/name` 取值相同（operator 不再从 ElasticQuota 全名中拆解 bare quota name） |
+| label `axisml.io/quota` | 是 | `<spec.scheduling.quota>` | AxisML 自有审计 / 查询；与 `quota.scheduling.koordinator.sh/name` 取值相同（operator 不从 ElasticQuota 全名中拆解 bare quota name） |
 | label `axisml.io/replica-index` | 否 | role 内 0-based 序号 | 副本身份天然稳定时建议透传：StatefulSet 的 `apps.kubernetes.io/pod-index`、Indexed Job 的 `batch.kubernetes.io/job-completion-index`；Deployment / 裸 Pod / KServe autoscaling 等无稳定身份场景一律省略 |
 
 前 5 项必填，所有 Handler 一律遵守；缺失任一项视为契约违反，Handler 的 `Validate` 必须在创建前拦截。
