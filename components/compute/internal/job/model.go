@@ -31,12 +31,10 @@ func IsTerminal(s Status) bool {
 	return false
 }
 
-// Job is the GORM-backed `jobs` row. After the de-tenant rewrite, the row
-// is keyed on (namespace, name) — namespace is a bare string partition key
-// supplied by the caller, with no compute-side existence check. The
-// previous tenant_id / quota_id FKs are gone; quota is expressed only on
-// the rendered MLJob CR via spec.scheduling.quota (an opaque ElasticQuota
-// CR name passed through from Platform).
+// Job is the GORM-backed `jobs` row. The row is keyed on (namespace, name);
+// namespace is a bare string partition key with no compute-side existence
+// check. Quota lives only on the rendered MLJob CR via spec.scheduling.quota,
+// an opaque ElasticQuota CR name passed through from Platform.
 type Job struct {
 	ID                 uuid.UUID      `gorm:"type:uuid;primaryKey"`
 	Namespace          string         `gorm:"size:253;not null;column:namespace"`

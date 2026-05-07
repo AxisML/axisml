@@ -37,9 +37,9 @@ type Config struct {
 	// Reconciler tuning
 	ReconcileInterval time.Duration
 
-	// Bootstrap defaults (only consumed by `compute bootstrap`). After
-	// the de-tenant rewrite the only seeded object is the default
-	// ResourcePool — tenants and quotas are owned by cluster-manager.
+	// Bootstrap defaults (only consumed by `compute bootstrap`). The
+	// only seeded object is the default ResourcePool — tenants and
+	// quotas are owned by cluster-manager.
 	BootstrapPool string
 
 	// Logging

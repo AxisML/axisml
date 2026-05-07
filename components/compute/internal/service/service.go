@@ -8,7 +8,6 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
-	corev1 "k8s.io/api/core/v1"
 
 	mlservicev1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
 
@@ -20,8 +19,7 @@ import (
 	"github.com/axisml/axisml/components/compute/pkg/strutil"
 )
 
-// Module wraps the service business layer. After de-tenant rewrite the
-// module is keyed on bare namespace strings; tenant + quota lookups gone.
+// Module wraps the service business layer. Keyed on bare namespace strings.
 type Module struct {
 	repo  *Repository
 	db    *gorm.DB
@@ -118,8 +116,14 @@ func (m *Module) Create(ctx context.Context, namespace string, in CreateInput) (
 		backend.Config = in.Backend.Config
 	}
 
-	poolSel := decodePoolSelector(pool)
-	poolTols := decodePoolTolerations(pool)
+	poolSel, err := pool.DecodeNodeSelector()
+	if err != nil {
+		return nil, err
+	}
+	poolTols, err := pool.DecodeTolerations()
+	if err != nil {
+		return nil, err
+	}
 
 	roles := make([]mlservicev1alpha1.RoleSpec, len(in.Roles))
 	replicas := int32(0)
@@ -243,10 +247,9 @@ func (m *Module) Scale(ctx context.Context, namespace, name string, in ScaleInpu
 	}); err != nil {
 		return nil, err
 	}
-	row, err = m.repo.Get(ctx, row.ID)
-	if err != nil {
-		return nil, err
-	}
+	row.Spec = datatypes.JSON(specJSON)
+	row.DesiredSpecHash = hash
+	row.Replicas = in.Replicas
 	return m.toView(row)
 }
 
@@ -286,26 +289,4 @@ func (m *Module) toView(s *Service) (*View, error) {
 		CreatedAt:     s.CreatedAt,
 		UpdatedAt:     s.UpdatedAt,
 	}, nil
-}
-
-func decodePoolSelector(p *resourcepool.ResourcePool) map[string]string {
-	if len(p.NodeSelector) == 0 {
-		return nil
-	}
-	m := map[string]string{}
-	if err := json.Unmarshal(p.NodeSelector, &m); err != nil {
-		return nil
-	}
-	return m
-}
-
-func decodePoolTolerations(p *resourcepool.ResourcePool) []corev1.Toleration {
-	if len(p.Tolerations) == 0 {
-		return nil
-	}
-	var t []corev1.Toleration
-	if err := json.Unmarshal(p.Tolerations, &t); err != nil {
-		return nil
-	}
-	return t
 }

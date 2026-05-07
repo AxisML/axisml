@@ -30,7 +30,7 @@ type Config struct {
 func Run(ctx context.Context, cfg Config) error {
 	logger := log.FromContext(ctx).WithName("cluster-manager")
 
-	c, _, err := k8sclient.Build()
+	c, err := k8sclient.Build()
 	if err != nil {
 		return fmt.Errorf("k8sclient: %w", err)
 	}

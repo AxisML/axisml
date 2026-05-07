@@ -9,9 +9,8 @@ import (
 )
 
 // ToCR materialises an MLJob CR from a PG row, ready to be applied. The
-// axisml.io/quota label is sourced from spec.scheduling.quota (Compute
-// passes the value through from the API caller); compute-operator's
-// Validate rejects CRs without it.
+// axisml.io/quota label is sourced from spec.scheduling.quota; compute-
+// operator's Validate rejects CRs without it.
 func ToCR(j *Job) (*mljobv1alpha1.MLJob, error) {
 	var spec mljobv1alpha1.MLJobSpec
 	if len(j.Spec) > 0 {

@@ -14,8 +14,7 @@ import (
 )
 
 // BuildModules constructs the full domain wiring (HTTP routes + background
-// runnables). After de-tenant rewrite there's no tenant or quota module —
-// jobs / services partition on bare namespace strings.
+// runnables). Jobs and services partition on bare namespace strings.
 func BuildModules(
 	cfg config.Config,
 	gormDB *gorm.DB,

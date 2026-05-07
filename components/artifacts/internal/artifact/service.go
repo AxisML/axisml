@@ -49,9 +49,9 @@ type ResolveResult struct {
 	ExpiresAt       *time.Time           `json:"expires_at,omitempty"`
 }
 
-// Service holds Artifact CRUD + state-machine logic. After the de-repo
-// rewrite there's no parent ArtifactRepo lookup; rows are addressed by
-// (namespace, kind, name, version) directly.
+// Service holds Artifact CRUD + state-machine logic. Rows are addressed
+// by (namespace, kind, name, version) directly — there's no parent
+// ArtifactRepo.
 type Service struct {
 	cfg  config.Config
 	rows *Repository
@@ -182,8 +182,11 @@ func (s *Service) Complete(ctx context.Context, namespace, kind, name, version s
 	}); err != nil {
 		return nil, apperrors.Wrap(apperrors.CodeInternal, "mark ready", err)
 	}
-
-	return s.rows.GetByID(ctx, row.ID)
+	row.Status = StatusReady
+	row.Digest = digest
+	row.ReadyAt = &now
+	row.Message = ""
+	return row, nil
 }
 
 // Get returns a single artifact by coord.

@@ -8,9 +8,8 @@ import (
 	mlservicev1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
 )
 
-// ToCR materialises an MLService CR from a PG row. After de-tenant
-// rewrite the namespace comes straight from the row; tenant label is
-// no longer set.
+// ToCR materialises an MLService CR from a PG row. The namespace comes
+// straight from the row; no tenant label is set.
 func ToCR(s *Service) (*mlservicev1alpha1.MLService, error) {
 	var spec mlservicev1alpha1.MLServiceSpec
 	if len(s.Spec) > 0 {

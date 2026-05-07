@@ -8,9 +8,8 @@ import (
 	"github.com/axisml/axisml/components/compute/internal/server"
 )
 
-// Handler exposes /namespaces/:namespace/jobs routes. After the de-tenant
-// rewrite namespace is the bare URL partition key; Compute does no
-// existence / activation check on it.
+// Handler exposes /namespaces/:namespace/jobs routes. Namespace is the bare
+// URL partition key; Compute does no existence / activation check on it.
 type Handler struct {
 	svc *Service
 }

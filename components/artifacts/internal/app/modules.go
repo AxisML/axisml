@@ -15,13 +15,8 @@ import (
 	"github.com/axisml/axisml/components/artifacts/internal/storage/oci"
 )
 
-// kindModel is the only Kind wired in MVP. Tracks the registry key.
-const kindModel = "model"
-
 // BuildModules constructs the full domain wiring (HTTP routes + background
-// runnables). After the de-repo / de-tenant rewrite there's no parent
-// ArtifactRepo and no tenantresolver — artifacts are addressed by
-// (namespace, kind, name, version) directly.
+// runnables).
 func BuildModules(
 	cfg config.Config,
 	gormDB *gorm.DB,
@@ -49,10 +44,12 @@ func BuildModules(
 }
 
 // registerHandlers wires Kind handlers into the process-global registry.
-// Idempotent: re-registration is a no-op.
+// Idempotent on a fresh process; integration tests that re-invoke
+// BuildModules in the same process should call handler.Reset() first.
 func registerHandlers(client *oci.Client) {
-	if _, ok := handler.Get(kindModel); ok {
+	mh := handler.NewModelHandler(client)
+	if _, ok := handler.Get(mh.Kind()); ok {
 		return
 	}
-	handler.Register(handler.NewModelHandler(client))
+	handler.Register(mh)
 }

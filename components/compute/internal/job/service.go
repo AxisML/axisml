@@ -8,7 +8,6 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
-	corev1 "k8s.io/api/core/v1"
 
 	mljobv1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mljob/v1alpha1"
 
@@ -19,8 +18,7 @@ import (
 	"github.com/axisml/axisml/components/compute/pkg/strutil"
 )
 
-// Service is the job business layer. After de-tenant rewrite the service
-// is keyed on bare namespace strings; tenant + quota lookups are gone.
+// Service is the job business layer. Keyed on bare namespace strings;
 // `spec.scheduling.quota` is whatever the caller passes through.
 type Service struct {
 	repo  *Repository
@@ -114,11 +112,11 @@ func (s *Service) Create(ctx context.Context, namespace string, in CreateInput) 
 		backend.Config = in.Backend.Config
 	}
 
-	poolSel, err := decodePoolNodeSelector(pool)
+	poolSel, err := pool.DecodeNodeSelector()
 	if err != nil {
 		return nil, err
 	}
-	poolTols, err := decodePoolTolerations(pool)
+	poolTols, err := pool.DecodeTolerations()
 	if err != nil {
 		return nil, err
 	}
@@ -221,10 +219,8 @@ func (s *Service) Cancel(ctx context.Context, namespace, name string) (*View, er
 	}); err != nil {
 		return nil, err
 	}
-	j, err = s.repo.Get(ctx, j.ID)
-	if err != nil {
-		return nil, err
-	}
+	j.Status = string(StatusCanceling)
+	j.Message = "user cancelled"
 	return s.toView(j)
 }
 
@@ -263,26 +259,4 @@ func (s *Service) toView(j *Job) (*View, error) {
 		CreatedAt:   j.CreatedAt,
 		UpdatedAt:   j.UpdatedAt,
 	}, nil
-}
-
-func decodePoolNodeSelector(p *resourcepool.ResourcePool) (map[string]string, error) {
-	if len(p.NodeSelector) == 0 {
-		return nil, nil
-	}
-	m := map[string]string{}
-	if err := json.Unmarshal(p.NodeSelector, &m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-func decodePoolTolerations(p *resourcepool.ResourcePool) ([]corev1.Toleration, error) {
-	if len(p.Tolerations) == 0 {
-		return nil, nil
-	}
-	var t []corev1.Toleration
-	if err := json.Unmarshal(p.Tolerations, &t); err != nil {
-		return nil, err
-	}
-	return t, nil
 }

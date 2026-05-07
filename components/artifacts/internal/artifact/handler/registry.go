@@ -28,7 +28,7 @@ type Spec map[string]any
 // it — they only read fields and call backend operations.
 type Artifact struct {
 	Kind      string
-	Namespace string // "tenants/<tenant>" for tenant-private; "system" for public
+	Namespace string // bare K8s namespace string supplied by the caller
 	Name      string
 	Version   string
 	Spec      Spec

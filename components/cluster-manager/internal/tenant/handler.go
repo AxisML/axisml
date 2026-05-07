@@ -5,8 +5,8 @@
 package tenant
 
 import (
-	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -99,10 +99,9 @@ func (h *Handler) List(c *gin.Context) {
 		opts = append(opts, client.Continue(cont))
 	}
 	if limit := c.Query("limit"); limit != "" {
-		// gin string → int conversion is intentionally lax; an unparseable
-		// limit is silently dropped (K8s API server will fall back to
-		// default page size).
-		if n, ok := parseInt64(limit); ok {
+		// Unparseable limit is silently dropped — K8s API server falls back
+		// to default page size.
+		if n, err := strconv.ParseInt(limit, 10, 64); err == nil && n > 0 {
 			opts = append(opts, client.Limit(n))
 		}
 	}
@@ -200,25 +199,4 @@ func writeProblem(c *gin.Context, status int, title, detail string) {
 		Status: status,
 		Detail: detail,
 	})
-}
-
-// parseInt64 is a small no-import alternative to strconv to keep the
-// handler imports tight.
-func parseInt64(s string) (int64, bool) {
-	var n int64
-	for _, c := range s {
-		if c < '0' || c > '9' {
-			return 0, false
-		}
-		n = n*10 + int64(c-'0')
-	}
-	return n, true
-}
-
-// asNotFound is exported so handler tests can compose this alongside
-// the apierrors.IsNotFound check without depending on the apierrors
-// package directly.
-var asNotFound = func(err error) bool {
-	var statusErr apierrors.APIStatus
-	return errors.As(err, &statusErr) && apierrors.IsNotFound(err)
 }

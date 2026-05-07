@@ -10,8 +10,7 @@ import (
 )
 
 // Bootstrap idempotently seeds the default ResourcePool. Tenant + Quota
-// seeding is gone after the de-tenant rewrite — both responsibilities
-// moved to cluster-manager + tenant-operator.
+// seeding belongs to cluster-manager + tenant-operator.
 func Bootstrap(ctx context.Context, cfg config.Config) error {
 	gormDB, err := db.Open(cfg)
 	if err != nil {

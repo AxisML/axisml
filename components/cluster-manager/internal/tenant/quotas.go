@@ -4,8 +4,6 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 
 	tenantv1alpha1 "github.com/axisml/axisml/components/tenant-operator/api/v1alpha1"
 
@@ -38,8 +36,8 @@ func (h *Handler) AddQuota(c *gin.Context) {
 	t.Spec.Quotas = append(t.Spec.Quotas, tenantv1alpha1.QuotaSpec{
 		Pool: req.Pool,
 		Name: req.Name,
-		Min:  parseResources(req.Min),
-		Max:  parseResources(req.Max),
+		Min:  srv.ParseResourceList(req.Min),
+		Max:  srv.ParseResourceList(req.Max),
 	})
 	if err := h.Client.Update(ctx, t); err != nil {
 		writeProblem(c, http.StatusInternalServerError, "update failed", err.Error())
@@ -71,8 +69,8 @@ func (h *Handler) UpdateQuota(c *gin.Context) {
 		writeProblem(c, http.StatusBadRequest, "validation failed", "max is required")
 		return
 	}
-	t.Spec.Quotas[idx].Min = parseResources(req.Min)
-	t.Spec.Quotas[idx].Max = parseResources(req.Max)
+	t.Spec.Quotas[idx].Min = srv.ParseResourceList(req.Min)
+	t.Spec.Quotas[idx].Max = srv.ParseResourceList(req.Max)
 	if err := h.Client.Update(ctx, t); err != nil {
 		writeProblem(c, http.StatusInternalServerError, "update failed", err.Error())
 		return
@@ -123,22 +121,4 @@ func indexOfQuota(qs []tenantv1alpha1.QuotaSpec, pool, name string) int {
 		}
 	}
 	return -1
-}
-
-// parseResources turns the API map[string]string shape into a
-// corev1.ResourceList. Unparseable values are dropped — tenant-operator's
-// Validate will surface the error on reconcile.
-func parseResources(in map[string]string) corev1.ResourceList {
-	if len(in) == 0 {
-		return nil
-	}
-	out := make(corev1.ResourceList, len(in))
-	for k, v := range in {
-		q, err := resource.ParseQuantity(v)
-		if err != nil {
-			continue
-		}
-		out[corev1.ResourceName(k)] = q
-	}
-	return out
 }

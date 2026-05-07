@@ -17,7 +17,7 @@ import (
 )
 
 // Reconciler implements the service Outbox loop. Namespace is read from
-// the row directly — no tenant lookup.
+// the row directly.
 type Reconciler struct {
 	db        *gorm.DB
 	repo      *Repository

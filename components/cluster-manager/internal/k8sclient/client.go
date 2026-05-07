@@ -18,26 +18,25 @@ import (
 )
 
 // Build constructs a direct (cache-less) client.Client wired with the
-// Tenant CRD scheme. Returns the scheme alongside so handlers can
-// instantiate empty objects of the right Go type.
-func Build() (client.Client, *runtime.Scheme, error) {
+// Tenant CRD scheme.
+func Build() (client.Client, error) {
 	cfg, err := config.GetConfig()
 	if err != nil {
-		return nil, nil, fmt.Errorf("load kubeconfig: %w", err)
+		return nil, fmt.Errorf("load kubeconfig: %w", err)
 	}
 	return BuildWithConfig(cfg)
 }
 
 // BuildWithConfig is the test-friendly variant that accepts an explicit
 // rest.Config (e.g., from envtest).
-func BuildWithConfig(cfg *rest.Config) (client.Client, *runtime.Scheme, error) {
+func BuildWithConfig(cfg *rest.Config) (client.Client, error) {
 	scheme := runtime.NewScheme()
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(tenantv1alpha1.AddToScheme(scheme))
 
 	c, err := client.New(cfg, client.Options{Scheme: scheme})
 	if err != nil {
-		return nil, nil, fmt.Errorf("new client: %w", err)
+		return nil, fmt.Errorf("new client: %w", err)
 	}
-	return c, scheme, nil
+	return c, nil
 }

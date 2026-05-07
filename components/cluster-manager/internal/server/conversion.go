@@ -41,8 +41,8 @@ func toQuotaSpecs(qs []QuotaSpec) []tenantv1alpha1.QuotaSpec {
 		out = append(out, tenantv1alpha1.QuotaSpec{
 			Pool: q.Pool,
 			Name: q.Name,
-			Min:  parseResourceList(q.Min),
-			Max:  parseResourceList(q.Max),
+			Min:  ParseResourceList(q.Min),
+			Max:  ParseResourceList(q.Max),
 		})
 	}
 	return out
@@ -122,7 +122,10 @@ func strSlice(v any) []string {
 	return nil
 }
 
-func parseResourceList(in map[string]string) corev1.ResourceList {
+// ParseResourceList turns the API map[string]string shape into a
+// corev1.ResourceList. Unparseable values are dropped — tenant-operator's
+// Validate surfaces the error on reconcile.
+func ParseResourceList(in map[string]string) corev1.ResourceList {
 	if len(in) == 0 {
 		return nil
 	}
@@ -258,7 +261,7 @@ func fromTenantStatus(s tenantv1alpha1.TenantStatus) TenantStatus {
 	return out
 }
 
-// PatchTenantObjectMeta applies a TenantPatch to a fetched Tenant.
+// ApplyPatchToTenant applies a PatchTenantRequest to a fetched Tenant.
 func ApplyPatchToTenant(t *tenantv1alpha1.Tenant, p PatchTenantRequest) {
 	if p.DisplayName != nil {
 		t.Spec.DisplayName = *p.DisplayName

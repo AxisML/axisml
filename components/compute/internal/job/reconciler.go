@@ -15,8 +15,8 @@ import (
 	"github.com/axisml/axisml/components/compute/internal/metrics"
 )
 
-// Reconciler implements the job Outbox loop. After de-tenant rewrite the
-// reconciler reads namespace directly off the row; no tenant lookup.
+// Reconciler implements the job Outbox loop. Reads namespace directly off
+// the row.
 type Reconciler struct {
 	db        *gorm.DB
 	repo      *Repository
