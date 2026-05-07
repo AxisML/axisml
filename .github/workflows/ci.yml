@@ -112,6 +112,9 @@ jobs:
 
   integration:
     name: integration
+    # L1 integration is heavy (envtest + testcontainers); only run on main
+    # pushes and manual dispatches. PRs rely on lint + unit tests.
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
