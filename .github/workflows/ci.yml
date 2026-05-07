@@ -15,55 +15,21 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
-# Jobs are organised as a type × component grid:
+# Jobs are organised by *type*, not by component. Each Go-related job sets up
+# its toolchain once and then fans out across every Go module / component
+# internally, which removes the per-shard checkout / setup-go / tool-install
+# overhead that dominated the previous component matrix.
 #
-#                 tenant-operator  compute-operator  cluster-manager  compute  artifacts  test
-#   lint            ✓                 ✓                ✓                ✓        ✓          ✓
-#   test            ✓                 ✓                ✓                ✓        ✓          —
-#   integration     ✓                 ✓                ✓                ✓        ✓          —
-#   image           ✓                 ✓                ✓                ✓        ✓          —   (main-only)
-#
-# The `test` lint bucket covers the shared test/testutil + test/e2e modules,
-# which don't have their own test/integration layers. Each component lint job
-# lints both its production module and its test/integration sub-module in one
-# go; artifacts has no test/integration sub-module — its testcontainer-backed
-# integration tests live in the same module under `./internal/integration`
-# and run as part of the integration matrix below.
-#
-# `helm-lint` sits outside the grid — it validates Helm charts under
-# deploy/helm/, which aren't tied to a Go component.
+#   lint         — golangci-lint over every Go module
+#   test         — unit tests + coverage across every component
+#   integration  — L1 envtest / testcontainers across every component
+#   helm-lint    — Helm chart validation
+#   image        — per-component image build (genuinely parallel work, kept as a matrix; main-only)
 
 jobs:
   lint:
-    name: lint (${{ matrix.component.name }})
+    name: lint
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        component:
-          - name: tenant-operator
-            modules: |
-              components/tenant-operator
-              components/tenant-operator/test/integration
-          - name: compute-operator
-            modules: |
-              components/compute-operator
-              components/compute-operator/test/integration
-          - name: cluster-manager
-            modules: |
-              components/cluster-manager
-              components/cluster-manager/test/integration
-          - name: compute
-            modules: |
-              components/compute
-              components/compute/test/integration
-          - name: artifacts
-            modules: |
-              components/artifacts
-          - name: test
-            modules: |
-              test/testutil
-              test/e2e
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -80,25 +46,26 @@ jobs:
         run: |
           go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.1
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
-      - name: Run golangci-lint
+      - name: Run golangci-lint across every Go module
+        # Walks every module containing a go.mod (matches Makefile's GO_MODULES),
+        # so newly added modules are picked up without touching CI. We don't
+        # short-circuit on the first failure — collect a non-zero status and
+        # report at the end so all modules get a chance to surface issues.
         run: |
-          set -e
+          set -uo pipefail
+          status=0
           while IFS= read -r module; do
-            [ -z "$module" ] && continue
             echo "::group::lint $module"
-            (cd "$module" && golangci-lint run --build-tags=integration,e2e)
+            if ! (cd "$module" && golangci-lint run --build-tags=integration,e2e); then
+              status=1
+            fi
             echo "::endgroup::"
-          done <<'EOF'
-          ${{ matrix.component.modules }}
-          EOF
+          done < <(find . -name go.mod -not -path '*/bin/*' -exec dirname {} \; | sort)
+          exit $status
 
   test:
-    name: test (${{ matrix.component }})
+    name: test
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        component: [tenant-operator, compute-operator, cluster-manager, compute, artifacts]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -106,22 +73,45 @@ jobs:
           go-version: '1.26'
           cache: true
           cache-dependency-path: '**/go.sum'
-      - name: Run unit tests with coverage
-        run: make ${{ matrix.component }}-coverage
-      - name: Upload coverage to Codecov
+      - name: Run unit tests with coverage across all components
+        run: make coverage-unit
+      # Per-component uploads keep Codecov's flag dimension intact so coverage
+      # trends stay legible. Each step is independent (`fail_ci_if_error: false`
+      # mirrors the previous behaviour).
+      - name: Upload tenant-operator coverage
         uses: codecov/codecov-action@v4
         with:
-          files: ./components/${{ matrix.component }}/coverage/coverage.out
-          flags: test,${{ matrix.component }}
+          files: ./components/tenant-operator/coverage/coverage.out
+          flags: test,tenant-operator
+          fail_ci_if_error: false
+      - name: Upload compute-operator coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./components/compute-operator/coverage/coverage.out
+          flags: test,compute-operator
+          fail_ci_if_error: false
+      - name: Upload cluster-manager coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./components/cluster-manager/coverage/coverage.out
+          flags: test,cluster-manager
+          fail_ci_if_error: false
+      - name: Upload compute coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./components/compute/coverage/coverage.out
+          flags: test,compute
+          fail_ci_if_error: false
+      - name: Upload artifacts coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./components/artifacts/coverage/coverage.out
+          flags: test,artifacts
           fail_ci_if_error: false
 
   integration:
-    name: integration (${{ matrix.component }})
+    name: integration
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        component: [tenant-operator, compute-operator, cluster-manager, compute, artifacts]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -138,13 +128,37 @@ jobs:
           key: envtest-${{ runner.os }}-k8s-1.31.0
       - name: Install setup-envtest binary if missing
         run: make setup-envtest
-      - name: Run L1 integration tests with coverage
-        run: make ${{ matrix.component }}-integration-coverage
-      - name: Upload coverage to Codecov
+      - name: Run L1 integration tests with coverage across all components
+        run: make coverage-integration
+      - name: Upload tenant-operator integration coverage
         uses: codecov/codecov-action@v4
         with:
-          files: ./components/${{ matrix.component }}/coverage/integration-coverage.out
-          flags: integration,${{ matrix.component }}
+          files: ./components/tenant-operator/coverage/integration-coverage.out
+          flags: integration,tenant-operator
+          fail_ci_if_error: false
+      - name: Upload compute-operator integration coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./components/compute-operator/coverage/integration-coverage.out
+          flags: integration,compute-operator
+          fail_ci_if_error: false
+      - name: Upload cluster-manager integration coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./components/cluster-manager/coverage/integration-coverage.out
+          flags: integration,cluster-manager
+          fail_ci_if_error: false
+      - name: Upload compute integration coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./components/compute/coverage/integration-coverage.out
+          flags: integration,compute
+          fail_ci_if_error: false
+      - name: Upload artifacts integration coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./components/artifacts/coverage/integration-coverage.out
+          flags: integration,artifacts
           fail_ci_if_error: false
 
   helm-lint:
