@@ -506,7 +506,7 @@ team-a 的 Pod 只能选择 `axisml-tenant-team-a-*` SA，从而只看到本 ten
 
 L1 integration 在 `components/tenant-operator/test/integration/` 单一 Go module 中，单一 `TestMain` 把 Tenant reconciler 注册到 envtest manager，覆盖 happy path、suspend / unsuspend、quota update、源 Secret 缺失等场景。CRDPaths 是 `deploy/helm/axisml-system/crds/tenant-crd.yaml` 与 `test/crds/external/elasticquota.yaml` 的并集。
 
-L2 e2e 在 `test/e2e/`，通过部署后的 tenant-operator 与 cluster-manager API 一起跑端到端。
+仓库当前不维护 minikube 驱动的 L2 e2e 层；端到端验证靠 L1 integration（envtest）覆盖。
 
 ## 7. 相关引用
 

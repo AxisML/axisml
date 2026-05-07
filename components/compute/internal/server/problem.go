@@ -1,9 +1,13 @@
 package server
 
 import (
+	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-playground/validator/v10"
 
 	apperrors "github.com/axisml/axisml/components/compute/pkg/errors"
 )
@@ -58,6 +62,17 @@ func WriteError(c *gin.Context, err error) {
 		})
 		return
 	}
+	if isBindingError(err) {
+		c.AbortWithStatusJSON(http.StatusBadRequest, Problem{
+			Type:     "https://axisml.io/errors/" + string(apperrors.CodeValidation),
+			Title:    "invalid request body",
+			Status:   http.StatusBadRequest,
+			Detail:   err.Error(),
+			Instance: c.Request.URL.Path,
+			Code:     apperrors.CodeValidation,
+		})
+		return
+	}
 	c.AbortWithStatusJSON(http.StatusInternalServerError, Problem{
 		Type:     "https://axisml.io/errors/internal_error",
 		Title:    "internal error",
@@ -66,4 +81,28 @@ func WriteError(c *gin.Context, err error) {
 		Instance: c.Request.URL.Path,
 		Code:     apperrors.CodeInternal,
 	})
+}
+
+// isBindingError detects errors produced by gin's c.ShouldBindJSON path so
+// they map to 400 instead of falling through to the catch-all 500. Covers:
+//   - validator.ValidationErrors (custom tag failures: required, gte, etc.)
+//   - *json.SyntaxError / *json.UnmarshalTypeError (malformed JSON)
+//   - io.EOF / io.ErrUnexpectedEOF (empty or truncated body)
+func isBindingError(err error) bool {
+	var ve validator.ValidationErrors
+	if errors.As(err, &ve) {
+		return true
+	}
+	var synErr *json.SyntaxError
+	if errors.As(err, &synErr) {
+		return true
+	}
+	var typeErr *json.UnmarshalTypeError
+	if errors.As(err, &typeErr) {
+		return true
+	}
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+		return true
+	}
+	return false
 }

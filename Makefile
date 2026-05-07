@@ -136,11 +136,6 @@ COMPONENTS := \
 # COMPONENTS += components/platform/backend
 # COMPONENTS += components/platform/frontend
 
-# Component basenames whose images get loaded into minikube + waited on after
-# helm-install. Each operator + cluster-manager + compute + artifacts runs
-# as its own Deployment.
-DEPLOYMENTS := tenant-operator compute-operator cluster-manager compute artifacts
-
 # Coverage profiles are produced by each Go module under COMPONENTS.
 COVERAGE_COMPONENTS := \
   components/tenant-operator \
@@ -160,10 +155,10 @@ INTEGRATION_COMPONENTS := \
   components/compute \
   components/artifacts
 
-# Every Go module in the repo (operator + its integration sub-module + compute
-# + shared test/testutil + test/e2e). `go fmt ./...` does not cross module
-# boundaries, so `make fmt` iterates these explicitly. Sorted for stable
-# output; bin/ excluded so we never recurse into build artifacts.
+# Every Go module in the repo (each component + its integration sub-module
+# + shared test/testutil). `go fmt ./...` does not cross module boundaries,
+# so `make fmt` iterates these explicitly. Sorted for stable output; bin/
+# excluded so we never recurse into build artifacts.
 GO_MODULES := $(sort $(shell find . -name go.mod -not -path '*/bin/*' -exec dirname {} \;))
 
 ##@ Components — aggregate targets (fan out to every COMPONENT)
@@ -264,54 +259,14 @@ $(ENVTEST):
 
 ##@ Test execution
 
-.PHONY: integration-test e2e-test e2e-wait e2e-pre-image-load
+.PHONY: integration-test
 
 # L1 integration: hermetic, in-process reconciler tests against an embedded
-# apiserver+etcd (controller-runtime envtest). Each component's `integration`
-# target boots its own envtest with the right CRDs and runs
-# `go test -tags=integration ./test/integration/...`.
-integration-test: setup-envtest ## L1 integration tests for the merged operator + compute (hermetic, CI-friendly)
+# apiserver+etcd (controller-runtime envtest) plus testcontainers-managed
+# PostgreSQL where needed. Each component's `integration` target boots its
+# own dependencies and runs `go test -tags=integration ./test/integration/...`.
+integration-test: setup-envtest ## L1 integration tests across every component (hermetic, CI-friendly)
 	@$(call _RUN_INTEGRATION_COMPONENTS,integration)
-
-# L2 e2e: full-stack tests against a real minikube cluster running helm-installed
-# infra + system. Operators run as deployed (NOT scaled to zero); tests act as
-# external clients via client-go and (for service tests) port-forward to
-# in-cluster Services.
-e2e-test: cluster-up e2e-pre-image-load image-load helm-install e2e-wait ## L2 minikube e2e (operators + services)
-	@if [ -d test/e2e ]; then \
-	  cd test/e2e && go test -tags=e2e -count=1 -timeout=20m ./... ; \
-	else \
-	  echo "(no e2e tests yet — orchestration complete; add Go tests under test/e2e/ behind build tag e2e)"; \
-	fi
-
-# Scale axisml-system component deployments to zero before `image-load`.
-# minikube's `image load --overwrite=true` is silently a no-op when a
-# container in the minikube node still references the existing image:tag, so
-# subsequent runs would deploy stale code. helm-install scales them back up to
-# the chart's replicas (=1), at which point the freshly-loaded image is
-# pulled. The `kubectl get` guard makes scale a no-op on a fresh cluster
-# (`kubectl scale` doesn't accept `--ignore-not-found` until v1.31). Per-
-# component wait selectors (`app.kubernetes.io/name=$$c`) stay scoped so we
-# don't widen to unrelated axisml-system Pods.
-e2e-pre-image-load:
-	@for c in $(DEPLOYMENTS); do \
-	  if kubectl --context $(MINIKUBE_PROFILE) -n $(HELM_SYSTEM_NAMESPACE) \
-	      get deploy/$(HELM_SYSTEM_RELEASE)-$$c >/dev/null 2>&1; then \
-	    kubectl --context $(MINIKUBE_PROFILE) -n $(HELM_SYSTEM_NAMESPACE) \
-	      scale deploy/$(HELM_SYSTEM_RELEASE)-$$c --replicas=0; \
-	  fi; \
-	done
-	@for c in $(DEPLOYMENTS); do \
-	  kubectl --context $(MINIKUBE_PROFILE) -n $(HELM_SYSTEM_NAMESPACE) \
-	    wait --for=delete pod -l app.kubernetes.io/name=$$c --timeout=60s; \
-	done
-
-e2e-wait: ## Wait for axisml component Deployments to become ready (used by e2e-test)
-	@for c in $(DEPLOYMENTS); do \
-	  printf '>>> waiting for %s\n' "$$c"; \
-	  kubectl --context $(MINIKUBE_PROFILE) -n $(HELM_SYSTEM_NAMESPACE) \
-	    rollout status deploy/$(HELM_SYSTEM_RELEASE)-$$c --timeout=180s; \
-	done
 
 ##@ Coverage
 #

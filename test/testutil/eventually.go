@@ -1,6 +1,6 @@
-// Package testutil provides shared helpers for AxisML's L1 integration and
-// L2 e2e test suites. It is operator-agnostic: per-operator fixture builders
-// live alongside each operator's test code.
+// Package testutil provides shared helpers for AxisML's L1 integration test
+// suites. It is operator-agnostic: per-operator fixture builders live
+// alongside each operator's test code.
 package testutil
 
 import (

@@ -4,8 +4,7 @@
 // HTTP API state machine end-to-end.
 //
 // Run with `make artifacts-integration` from the repo root, or
-// `go test -tags=integration ./internal/integration/...` from the
-// component directory.
+// `go test -tags=integration ./...` from this directory.
 //
 // This file has no build tag so the package compiles cleanly under
 // `go test ./...`; the actual test code uses `package integration_test`

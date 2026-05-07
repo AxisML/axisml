@@ -255,8 +255,8 @@ cluster-manager 在请求层校验 `(pool, name)` 在当前 spec 中不存在；
 | 模块 | 范围 | 完成信号 |
 | --- | --- | --- |
 | HTTP server | Gin / chi 任选；OpenAPI 契约源 + oapi-codegen 生成 server stub | `make cluster-manager-build` 通过；`/healthz` / `/readyz` 工作 |
-| Tenant API | `POST` / `GET` / `LIST` / `PATCH` / `DELETE` / `suspend` / `unsuspend` | 单元测试覆盖请求层校验；L2 e2e 覆盖端到端 Tenant 创建 → tenant-operator 落地 |
-| Quota API | `POST` / `PATCH` / `DELETE` / `GET` | L2 e2e 覆盖 Tenant 上多条 quota 的增删改 |
+| Tenant API | `POST` / `GET` / `LIST` / `PATCH` / `DELETE` / `suspend` / `unsuspend` | 单元测试覆盖请求层校验；L1 integration（envtest）覆盖端到端 Tenant 创建 → tenant-operator 落地 |
+| Quota API | `POST` / `PATCH` / `DELETE` / `GET` | L1 integration 覆盖 Tenant 上多条 quota 的增删改 |
 | RBAC | §2.4 ClusterRole + ClusterRoleBinding | helm install 后服务可正常 list / patch tenants |
 | Helm | `deploy/helm/axisml-system/templates/cluster-manager/` | helm install 后 `kubectl get deploy/axisml-cluster-manager` Ready |
 
@@ -273,10 +273,12 @@ cluster-manager 在请求层校验 `(pool, name)` 在当前 spec 中不存在；
 
 ## 6. 测试
 
-cluster-manager 没有 reconciler，所以不需要 L1 envtest 集成测试；测试层级：
+cluster-manager 没有 reconciler，但因为它把请求落到真实的 K8s API，envtest 仍然适合验证 HTTP → Tenant CR 这条路径。测试层级：
 
 - **单元**：请求层校验、字段映射逻辑、JSON Patch 构造逻辑。
-- **L2 e2e**：在真实 minikube 上部署 cluster-manager + tenant-operator，跑端到端 Tenant 创建 → Namespace / ElasticQuota / 初始化资源就位。
+- **L1 integration**（`components/cluster-manager/test/integration/` 独立 Go module）：用 envtest 起一个本地 apiserver，加载 Tenant CRD，把 cluster-manager 的 Gin engine 注册到测试路由后通过 in-process `httptest` 驱动；覆盖 Tenant CRUD、suspend / unsuspend、quota 增改删、列表分页、denylist + DNS-1123 校验。
+
+仓库当前不维护 minikube 驱动的 L2 e2e 层。
 
 ## 7. 相关引用
 

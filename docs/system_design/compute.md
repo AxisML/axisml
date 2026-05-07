@@ -724,16 +724,16 @@ Creating ──(Informer ADD)──▶ Pending ──(ready=desired, desired>0)�
 | 阶段 | 主测层 | 工具 |
 | --- | --- | --- |
 | MVP | API 单元测试 + L1 integration test（含 fake compute-operator） | `make compute-test` + `make compute-integration` |
-| 功能完善 | L1 integration 扩展 + 关键路径 L2 e2e | `make integration-test` + `make e2e-test`（minikube） |
-| 未来规划 | 单独写 RFC 设计文档 → L1 integration 先行 → L2 验证多组件链路 | 同上 |
+| 功能完善 | L1 integration 扩展（envtest + testcontainers Postgres + httptest 驱动 HTTP API） | `make integration-test` |
+| 未来规划 | 单独写 RFC 设计文档 → L1 integration 先行 | 同上 |
 
 ## 9. 测试
 
 L1 integration 在 `components/compute/test/integration/` 单一 Go module 中：每个模块的 reconciler / Informer 路径覆盖 happy path + 关键 corner case（外部误删、cancel 竞速等）。fake operator 使用 controller-runtime 的 `envtest.Environment` + 简易 reconciler，模拟 compute-operator 的 status 写入。
 
-API 层单元测试在各 `internal/<module>/handler_test.go`，覆盖请求参数校验、错误格式、namespace 校验等。
+API 层单元测试在各 `internal/<module>/handler_test.go`，覆盖请求参数校验、错误格式、namespace 校验等。HTTP API 契约测试在 L1 integration 中以 in-process gin engine + `httptest` 驱动（参见 `test/integration/httptest_helpers_test.go`）。
 
-L2 e2e 在 `test/e2e/` 跑端到端：通过部署后的 axisml-compute + compute-operator + Platform 模拟用户路径。
+仓库当前不维护 minikube 驱动的 L2 e2e 层；端到端验证靠 L1 integration（envtest + testcontainers）覆盖。
 
 ## 10. 相关引用
 

@@ -5,8 +5,9 @@ package integration_test
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -53,20 +54,23 @@ func requireStatus(t *testing.T, rr *httptest.ResponseRecorder, want int) {
 	}
 }
 
-// idAndName extracts {id, name} fields from a JSON object response. Tests
-// use this for fixture chaining (create something, capture its UUID, use
-// it in the next request).
-func idAndName(t *testing.T, rr *httptest.ResponseRecorder) (string, string) {
+// randSuffix returns a short hex string for namespace / pool / unit names.
+// Tests use it to generate unique identifiers per run so they can run
+// repeatedly against the same Postgres testcontainer without collisions.
+func randSuffix(t *testing.T) string {
 	t.Helper()
-	var v struct {
-		ID   string `json:"id"`
-		Name string `json:"name"`
+	var b [4]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		t.Fatalf("rand: %v", err)
 	}
-	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &v))
-	require.NotEmpty(t, v.ID)
-	require.NotEmpty(t, v.Name)
-	return v.ID, v.Name
+	return hex.EncodeToString(b[:])
 }
 
-// pathf is a tiny URL formatter to keep test bodies readable.
-func pathf(format string, args ...any) string { return fmt.Sprintf(format, args...) }
+// decodeJSONBody unmarshals the recorded response body into out. Returns
+// nil for empty bodies (e.g. 204 No Content).
+func decodeJSONBody(rr *httptest.ResponseRecorder, out any) error {
+	if rr.Body.Len() == 0 {
+		return nil
+	}
+	return json.Unmarshal(rr.Body.Bytes(), out)
+}
