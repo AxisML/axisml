@@ -46,6 +46,27 @@ image-load-minikube: image ## Build and load the image into the local minikube n
 clean: ## Remove build artifacts
 	@rm -rf bin/ coverage/
 
+# --- OpenAPI ---
+#
+# Regenerates docs/openapi/compute.yaml from the Go request/response structs
+# the runtime handlers use. The generator lives at cmd/openapi-gen and shares
+# its reflection engine with artifacts and cluster-manager via pkg/openapigen.
+
+OPENAPI_OUT ?= $(REPO_ROOT)/docs/openapi/compute.yaml
+
+.PHONY: doc-gen
+doc-gen: ## Regenerate $(OPENAPI_OUT) from the Go request/response types
+	@go run ./cmd/openapi-gen -o $(OPENAPI_OUT) -version $(IMAGE_TAG)
+
+.PHONY: doc-test
+doc-test: ## Fail if $(OPENAPI_OUT) is out of date with the Go types (CI guard)
+	@$(MAKE) --no-print-directory doc-gen
+	@if ! git -C $(REPO_ROOT) diff --quiet -- $(OPENAPI_OUT); then \
+	  echo "ERROR: $(OPENAPI_OUT) is out of date. Run 'make doc-gen' and commit the result."; \
+	  git -C $(REPO_ROOT) --no-pager diff -- $(OPENAPI_OUT); \
+	  exit 1; \
+	fi
+
 # --- Go convenience targets ---
 
 .PHONY: fmt vet tidy

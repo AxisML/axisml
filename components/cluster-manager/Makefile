@@ -39,6 +39,27 @@ vet:
 tidy:
 	@go mod tidy
 
+# --- OpenAPI ---
+#
+# Regenerates docs/openapi/cluster-manager.yaml from the Go request/response
+# structs the runtime handlers use. The generator lives at cmd/openapi-gen
+# and shares its reflection engine with compute and artifacts via
+# pkg/openapigen.
+
+OPENAPI_OUT ?= $(REPO_ROOT)/docs/openapi/cluster-manager.yaml
+
+.PHONY: doc-gen doc-test
+doc-gen: ## Regenerate $(OPENAPI_OUT) from the Go request/response types
+	@go run ./cmd/openapi-gen -o $(OPENAPI_OUT) -version $(IMAGE_TAG)
+
+doc-test: ## Fail if $(OPENAPI_OUT) is out of date with the Go types (CI guard)
+	@$(MAKE) --no-print-directory doc-gen
+	@if ! git -C $(REPO_ROOT) diff --quiet -- $(OPENAPI_OUT); then \
+	  echo "ERROR: $(OPENAPI_OUT) is out of date. Run 'make doc-gen' and commit the result."; \
+	  git -C $(REPO_ROOT) --no-pager diff -- $(OPENAPI_OUT); \
+	  exit 1; \
+	fi
+
 ENVTEST             := $(REPO_ROOT)/test/setup-envtest/setup-envtest
 ENVTEST_K8S_VERSION ?= 1.31.0
 MODULE_PATH         := github.com/axisml/axisml/components/cluster-manager
