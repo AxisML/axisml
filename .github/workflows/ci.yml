@@ -207,11 +207,11 @@ jobs:
       matrix:
         component:
           # All Dockerfiles build from the repo root for consistency.
-          - { name: tenant-operator,  image: axisml/axisml-tenant-operator,  context: ., dockerfile: components/tenant-operator/Dockerfile }
-          - { name: compute-operator, image: axisml/axisml-compute-operator, context: ., dockerfile: components/compute-operator/Dockerfile }
-          - { name: cluster-manager,  image: axisml/axisml-cluster-manager,  context: ., dockerfile: components/cluster-manager/Dockerfile }
-          - { name: compute,          image: axisml/axisml-compute,          context: ., dockerfile: components/compute/Dockerfile }
-          - { name: artifacts,        image: axisml/axisml-artifacts,        context: ., dockerfile: components/artifacts/Dockerfile }
+          - { name: tenant-operator,  image: axisml-tenant-operator,  context: ., dockerfile: components/tenant-operator/Dockerfile }
+          - { name: compute-operator, image: axisml-compute-operator, context: ., dockerfile: components/compute-operator/Dockerfile }
+          - { name: cluster-manager,  image: axisml-cluster-manager,  context: ., dockerfile: components/cluster-manager/Dockerfile }
+          - { name: compute,          image: axisml-compute,          context: ., dockerfile: components/compute/Dockerfile }
+          - { name: artifacts,        image: axisml-artifacts,        context: ., dockerfile: components/artifacts/Dockerfile }
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-qemu-action@v3
