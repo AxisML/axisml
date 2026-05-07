@@ -11,35 +11,25 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// TestResourcePool_CRUD drives the full /resource-pools surface in-process
-// against a real Postgres testcontainer: POST → GET → LIST → PATCH → DELETE.
 func TestResourcePool_CRUD(t *testing.T) {
-	if testEngine == nil {
-		t.Skip("compute test scaffolding (testEngine) not initialised")
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
 	name := uniquePoolName(t, "crud")
 
-	createBody := map[string]any{
-		"name":        name,
-		"description": "crud test",
-		"nodeSelector": map[string]string{
-			"role": "worker",
-		},
-	}
-	rr := doJSON(t, ctx, http.MethodPost, "/api/v1/resource-pools", createBody, nil)
+	rr := doJSON(t, ctx, http.MethodPost, "/api/v1/resource-pools", map[string]any{
+		"name":         name,
+		"description":  "crud test",
+		"nodeSelector": map[string]string{"role": "worker"},
+	}, nil)
 	requireStatus(t, rr, http.StatusCreated)
 
-	// GET
 	var got map[string]any
 	rr = doJSON(t, ctx, http.MethodGet, "/api/v1/resource-pools/"+name, nil, &got)
 	requireStatus(t, rr, http.StatusOK)
 	assert.Equal(t, name, got["name"])
 	assert.Equal(t, "crud test", got["description"])
 
-	// LIST contains the pool we created.
 	var list struct {
 		Items []map[string]any `json:"items"`
 		Total int64            `json:"total"`
@@ -49,30 +39,22 @@ func TestResourcePool_CRUD(t *testing.T) {
 	assert.GreaterOrEqual(t, list.Total, int64(1))
 	assert.True(t, containsPool(list.Items, name), "list should include the created pool")
 
-	// PATCH description.
 	rr = doJSON(t, ctx, http.MethodPatch, "/api/v1/resource-pools/"+name,
 		map[string]any{"description": "patched"}, &got)
 	requireStatus(t, rr, http.StatusOK)
 	assert.Equal(t, "patched", got["description"])
 
-	// DELETE → 204; subsequent GET → 404; a second DELETE is also 204
-	// (idempotent — same convention as cluster-manager Tenant DELETE).
+	// DELETE is idempotent: a second call after a successful delete still
+	// returns 204 (matches the cluster-manager Tenant DELETE convention).
 	rr = doJSON(t, ctx, http.MethodDelete, "/api/v1/resource-pools/"+name, nil, nil)
 	requireStatus(t, rr, http.StatusNoContent)
-
 	rr = doJSON(t, ctx, http.MethodGet, "/api/v1/resource-pools/"+name, nil, nil)
 	requireStatus(t, rr, http.StatusNotFound)
-
 	rr = doJSON(t, ctx, http.MethodDelete, "/api/v1/resource-pools/"+name, nil, nil)
 	requireStatus(t, rr, http.StatusNoContent)
 }
 
-// TestResourcePool_DuplicateConflict ensures a second POST with the same
-// name returns 409.
 func TestResourcePool_DuplicateConflict(t *testing.T) {
-	if testEngine == nil {
-		t.Skip("compute test scaffolding not initialised")
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
@@ -81,20 +63,13 @@ func TestResourcePool_DuplicateConflict(t *testing.T) {
 
 	rr := doJSON(t, ctx, http.MethodPost, "/api/v1/resource-pools", body, nil)
 	requireStatus(t, rr, http.StatusCreated)
-	t.Cleanup(func() {
-		_ = doJSON(t, context.Background(), http.MethodDelete, "/api/v1/resource-pools/"+name, nil, nil)
-	})
+	t.Cleanup(func() { deletePool(t, name) })
 
 	rr = doJSON(t, ctx, http.MethodPost, "/api/v1/resource-pools", body, nil)
 	requireStatus(t, rr, http.StatusConflict)
 }
 
-// TestResourcePool_Validation covers missing / malformed name. Bind failures
-// and service-layer validation both surface as 4xx.
 func TestResourcePool_Validation(t *testing.T) {
-	if testEngine == nil {
-		t.Skip("compute test scaffolding not initialised")
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
@@ -108,20 +83,12 @@ func TestResourcePool_Validation(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			rr := doJSON(t, ctx, http.MethodPost, "/api/v1/resource-pools", tc.body, nil)
-			if rr.Code < 400 || rr.Code >= 500 {
-				t.Fatalf("expected 4xx, got %d body=%s", rr.Code, rr.Body.String())
-			}
+			requireClientError(t, rr)
 		})
 	}
 }
 
-// TestResourcePool_NotFound covers the read paths against a name that
-// doesn't exist. DELETE is intentionally idempotent (always 204), so it
-// is exercised in TestResourcePool_CRUD instead.
 func TestResourcePool_NotFound(t *testing.T) {
-	if testEngine == nil {
-		t.Skip("compute test scaffolding not initialised")
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 

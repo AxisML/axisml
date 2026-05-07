@@ -11,6 +11,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
 	tenantv1alpha1 "github.com/axisml/axisml/components/tenant-operator/api/v1alpha1"
@@ -117,31 +119,27 @@ func TestTenant_ListPagination(t *testing.T) {
 		Continue string           `json:"continue"`
 	}
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &page1))
-	assert.LessOrEqual(t, len(page1.Items), 2,
-		"first page must respect limit=2")
-	// The K8s API server only returns a continue token if the list was
-	// truly paginated. With three tenants and limit=2, we expect one.
-	assert.NotEmpty(t, page1.Continue,
-		"first page should carry a continue token when limit < total")
+	assert.LessOrEqual(t, len(page1.Items), 2)
+	// The K8s API server only returns a continue token when the list was
+	// truly paginated; with three tenants and limit=2, one is expected.
+	require.NotEmpty(t, page1.Continue)
 
-	if page1.Continue != "" {
-		rr = doRequest(t, http.MethodGet,
-			"/api/v1/tenants?limit=2&continue="+page1.Continue, "")
-		require.Equal(t, http.StatusOK, rr.Code)
-		var page2 struct {
-			Items []map[string]any `json:"items"`
-		}
-		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &page2))
-		assert.GreaterOrEqual(t, len(page1.Items)+len(page2.Items), 3,
-			"two pages combined should cover all seeded tenants")
+	rr = doRequest(t, http.MethodGet,
+		"/api/v1/tenants?limit=2&continue="+page1.Continue, "")
+	require.Equal(t, http.StatusOK, rr.Code)
+	var page2 struct {
+		Items []map[string]any `json:"items"`
 	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &page2))
+	assert.GreaterOrEqual(t, len(page1.Items)+len(page2.Items), 3)
 }
 
-// deleteTenant best-effort tears down a tenant; tests use it via t.Cleanup.
 func deleteTenant(name string) error {
-	tnt := &tenantv1alpha1.Tenant{}
-	if err := testCli.Get(context.Background(), types.NamespacedName{Name: name}, tnt); err != nil {
-		return nil // already gone
+	err := testCli.Delete(context.Background(), &tenantv1alpha1.Tenant{
+		ObjectMeta: metav1.ObjectMeta{Name: name},
+	})
+	if apierrors.IsNotFound(err) {
+		return nil
 	}
-	return testCli.Delete(context.Background(), tnt)
+	return err
 }

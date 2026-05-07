@@ -4,10 +4,7 @@ package integration_test
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
-	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -28,9 +25,6 @@ import (
 // POST /jobs → DB row → reconciler tick → MLJob CR in envtest. Then
 // GET, List, Cancel, Delete.
 func TestJobCreateRoundTrip(t *testing.T) {
-	if testEngine == nil {
-		t.Skip("compute test scaffolding (testEngine) not initialised")
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -75,8 +69,8 @@ func TestJobCreateRoundTrip(t *testing.T) {
 			},
 		},
 	}
-	rr := postJSON(t, "/api/v1/namespaces/"+ns+"/jobs", body)
-	require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
+	rr := doJSON(t, ctx, http.MethodPost, "/api/v1/namespaces/"+ns+"/jobs", body, nil)
+	requireStatus(t, rr, http.StatusCreated)
 
 	// Reconciler tick should create the MLJob CR. Poll for it.
 	var cr mljobv1alpha1.MLJob
@@ -86,68 +80,35 @@ func TestJobCreateRoundTrip(t *testing.T) {
 	assert.Equal(t, "axisml-default", cr.Spec.Scheduling.Quota)
 	assert.Equal(t, "axisml-default", cr.Labels[mljobv1alpha1.LabelQuota])
 
-	// GET reflects the row.
-	rr = doRequestJSON(t, http.MethodGet, "/api/v1/namespaces/"+ns+"/jobs/my-job", "")
-	require.Equal(t, http.StatusOK, rr.Code)
 	var got map[string]any
-	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &got))
+	rr = doJSON(t, ctx, http.MethodGet, "/api/v1/namespaces/"+ns+"/jobs/my-job", nil, &got)
+	requireStatus(t, rr, http.StatusOK)
 	assert.Equal(t, ns, got["namespace"])
 	assert.Equal(t, "my-job", got["name"])
 
-	// LIST returns the job.
-	rr = doRequestJSON(t, http.MethodGet, "/api/v1/namespaces/"+ns+"/jobs", "")
-	require.Equal(t, http.StatusOK, rr.Code)
 	var list struct {
 		Items []map[string]any `json:"items"`
 		Total int64            `json:"total"`
 	}
-	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &list))
+	rr = doJSON(t, ctx, http.MethodGet, "/api/v1/namespaces/"+ns+"/jobs", nil, &list)
+	requireStatus(t, rr, http.StatusOK)
 	assert.GreaterOrEqual(t, list.Total, int64(1))
 
-	// Duplicate Create -> 409.
-	rr = postJSON(t, "/api/v1/namespaces/"+ns+"/jobs", body)
-	require.Equal(t, http.StatusConflict, rr.Code)
+	rr = doJSON(t, ctx, http.MethodPost, "/api/v1/namespaces/"+ns+"/jobs", body, nil)
+	requireStatus(t, rr, http.StatusConflict)
 
 	// DELETE moves the row to Deleting; reconciler then deletes the CR.
-	rr = doRequestJSON(t, http.MethodDelete, "/api/v1/namespaces/"+ns+"/jobs/my-job", "")
-	require.Equal(t, http.StatusNoContent, rr.Code)
+	rr = doJSON(t, ctx, http.MethodDelete, "/api/v1/namespaces/"+ns+"/jobs/my-job", nil, nil)
+	requireStatus(t, rr, http.StatusNoContent)
 	require.Eventually(t, func() bool {
 		err := c.Get(ctx, types.NamespacedName{Namespace: ns, Name: "my-job"}, &mljobv1alpha1.MLJob{})
-		return err != nil // either NotFound or the cache hasn't synced yet — both acceptable
+		return err != nil
 	}, 10*time.Second, 200*time.Millisecond, "MLJob CR was not reaped")
 }
 
-// TestJobValidation ensures the handler rejects malformed payloads
-// rather than reaching the reconcile path. Mapping binding errors to a
-// specific 4xx status code is the server middleware's job and is checked
-// elsewhere; here we only verify the request didn't slip through to 200.
 func TestJobValidation(t *testing.T) {
-	if testEngine == nil {
-		t.Skip("compute test scaffolding not initialised")
-	}
-	rr := postJSON(t, "/api/v1/namespaces/x-ns/jobs", map[string]any{
-		"name": "no-quota",
-	})
-	assert.NotEqual(t, http.StatusOK, rr.Code)
-	assert.NotEqual(t, http.StatusCreated, rr.Code)
-}
-
-// --- helpers ---------------------------------------------------------
-
-func postJSON(t *testing.T, path string, body any) *httptest.ResponseRecorder {
-	t.Helper()
-	raw, err := json.Marshal(body)
-	require.NoError(t, err)
-	return doRequestJSON(t, http.MethodPost, path, string(raw))
-}
-
-func doRequestJSON(t *testing.T, method, path, body string) *httptest.ResponseRecorder {
-	t.Helper()
-	req := httptest.NewRequest(method, path, strings.NewReader(body))
-	if body != "" {
-		req.Header.Set("Content-Type", "application/json")
-	}
-	rr := httptest.NewRecorder()
-	testEngine.ServeHTTP(rr, req)
-	return rr
+	rr := doJSON(t, context.Background(), http.MethodPost,
+		"/api/v1/namespaces/x-ns/jobs",
+		map[string]any{"name": "no-quota"}, nil)
+	requireClientError(t, rr)
 }
