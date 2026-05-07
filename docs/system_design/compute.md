@@ -2,7 +2,7 @@
 
 AxisML Compute 是平台的计算服务层，基于 Go 开发，仅接受来自 AxisML Platform 的内部 REST 调用，承载 **计算任务管理** 与 **资源池 / 资源单元管理**。Compute 不直接创建 Pod 等底层 K8s 资源——这些由 [compute-operator](compute-operator.md) 负责；Compute 仅维护业务元数据，并通过 CRD 向 operator 声明意图。
 
-> **去租户化**：Compute 不再持有租户与配额的元数据。租户与配额由 [cluster-manager](cluster-manager.md) + [tenant-operator](tenant-operator.md) 负责；Compute 把请求体里的 `namespace` 字段当作裸字符串分区键，把 `spec.scheduling.quota` 当作不透明 ElasticQuota CR 名透传。"用户视角的租户"由 [Platform](platform.md) 自己持有视图层映射。
+> **职责边界**：Compute 不持有租户与配额的元数据。租户与配额由 [cluster-manager](cluster-manager.md) + [tenant-operator](tenant-operator.md) 负责；Compute 把请求体里的 `namespace` 字段当作裸字符串分区键，把 `spec.scheduling.quota` 当作不透明 ElasticQuota CR 名透传。"用户视角的租户"由 [Platform](platform.md) 自己持有视图层映射。
 
 | 模块 | PG 表 | 状态机 | 对应 K8s 资源 |
 | --- | --- | --- | --- |
@@ -193,7 +193,7 @@ Compute 仅接受 Platform 通过集群内 Service DNS 发起的 REST 调用，�
 | 业务元数据与期望 spec（名称、引用、spec 快照、desired hash） | PG | API → PG → reconciler → CR `spec` |
 | 运行状态（phase、endpoint、副本就绪） | K8s | CR `status` → Informer → PG |
 
-配额 spec 与用量都不再由 Compute 持有——`spec.scheduling.quota` 字段值是 Platform 在请求时透传的 ElasticQuota CR 名（cluster-manager / tenant-operator 一侧的产物）。
+配额 spec 与用量都不由 Compute 持有——`spec.scheduling.quota` 字段值是 Platform 在请求时透传的 ElasticQuota CR 名（cluster-manager / tenant-operator 一侧的产物）。
 
 ### 3.4 写路径（Outbox + Reconciler）
 
@@ -290,7 +290,7 @@ Creating ──(Informer ADD)──▶ 就绪态 ──(业务事件)──▶ �
 
 ResourcePool 是 AxisML Compute 维护的纯 PG 元数据对象，用于把集群节点按物理或逻辑维度切分（GPU 池 / CPU 池、A100 池 / H100 池、训练池 / 推理池）。**ResourcePool 无对应 CR**，不走 Outbox 下发路径——它仅在生成 MLJob/MLService 时作为 `spec.scheduling.nodeSelector` / `tolerations` 的注入源。
 
-管理员负责在集群侧给目标节点打标签 / 污染，Compute 不修改 Node 对象。ResourcePool 是全局可见的——Compute 不再做"按租户隔离 ResourcePool 可见性"的校验，由 Platform 决定哪个工作区可以使用哪个 pool。
+管理员负责在集群侧给目标节点打标签 / 污染，Compute 不修改 Node 对象。ResourcePool 是全局可见的——Compute 不做"按租户隔离 ResourcePool 可见性"的校验，由 Platform 决定哪个工作区可以使用哪个 pool。
 
 ### 4.2 数据模型
 
@@ -482,7 +482,7 @@ Creating ──(Informer ADD)──▶ Pending ──(CR phase=Running)──▶
 1. 从 `X-Axisml-User` 读取调用方身份（审计与 ownership 归属）
 2. 业务校验：ResourceUnit 所属 pool 与请求中的 pool 一致；`spec.scheduling.quota` 字段必填（值由 Platform 透传，Compute 不解析含义）
 
-不再做"租户激活"或"配额归属租户"校验——这些由 Platform 自身保证。
+Compute 不做"租户激活"或"配额归属租户"校验——这些由 Platform 自身保证。
 
 #### 6.4.2 取消语义
 

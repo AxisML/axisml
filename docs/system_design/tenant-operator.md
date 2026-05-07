@@ -86,7 +86,7 @@ cache.Options{
 | `--resync-period` | `10m` | 周期 resync 节流；用于源 Secret / ConfigMap 漂移收敛 |
 | `--namespace-denylist` | 见 Helm values | 禁止落到的 Namespace 列表（默认覆盖 `kube-*`、`default`、`axisml-system`、`axisml-infra`） |
 
-不再像旧 axisml-operator 那样需要 `--enable-tenant` / `--enable-mljob` / `--enable-mlservice` 的多 controller 开关——本 binary 只承载一个 reconciler。
+本 binary 只承载一个 reconciler，不需要多 controller 开关。
 
 ### 2.4 RBAC
 
@@ -137,7 +137,7 @@ tenantOperator:
 
 ## Part II — 与 Cluster Manager 的协作契约
 
-> 本部分集中 Tenant CR 的写路径与 Reconcile 行为约束。tenant-operator 的唯一上游写者是 [cluster-manager](cluster-manager.md)；不再像旧设计那样从 compute 接收 Tenant CR。
+> 本部分集中 Tenant CR 的写路径与 Reconcile 行为约束。tenant-operator 的唯一上游写者是 [cluster-manager](cluster-manager.md)。
 
 ## 3. 与 Cluster Manager 的协作契约
 
