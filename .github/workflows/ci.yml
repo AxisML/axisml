@@ -34,14 +34,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.26'
-          cache: true
-          # Repo has no root go.sum (monorepo with multiple Go modules).
-          # Globbing every module's go.sum makes the cache key stable and
-          # shares ~/go/pkg/mod + ~/.cache/go-build across runs.
-          cache-dependency-path: '**/go.sum'
+      - uses: ./.github/actions/setup-go-cached
       - name: Cache golangci-lint binary
         # `go install` would otherwise recompile the binary on every run.
         # Key includes the runner OS, Go version, and pinned lint version
@@ -91,11 +84,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.26'
-          cache: true
-          cache-dependency-path: '**/go.sum'
+      - uses: ./.github/actions/setup-go-cached
       - name: Run unit tests with coverage across all components
         run: make coverage-unit
       # Per-component uploads keep Codecov's flag dimension intact so coverage
@@ -140,11 +129,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.26'
-          cache: true
-          cache-dependency-path: '**/go.sum'
+      - uses: ./.github/actions/setup-go-cached
       - name: Cache shared setup-envtest binary + kubebuilder assets
         uses: actions/cache@v4
         with:
@@ -206,11 +191,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.26'
-          cache: true
-          cache-dependency-path: '**/go.sum'
+      - uses: ./.github/actions/setup-go-cached
       - name: Verify generated OpenAPI specs are in sync with Go types
         # Regenerates docs/openapi/{compute,artifacts,cluster-manager}.yaml
         # from each service's request/response structs and fails the job if

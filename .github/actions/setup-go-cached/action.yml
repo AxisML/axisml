@@ -1,0 +1,37 @@
+name: Setup Go with module cache
+description: >
+  Installs Go and restores GOMODCACHE + the Go build cache with prefix-based
+  restore-keys. Unlike actions/setup-go's built-in cache (exact match only),
+  this lets a partial cache hit survive go.sum changes — only newly added or
+  upgraded modules get re-downloaded.
+
+inputs:
+  go-version:
+    description: Go toolchain version
+    required: false
+    default: '1.26'
+  cache-key-suffix:
+    description: >
+      Optional suffix appended to the cache key to scope caches per job.
+      Same key across jobs means they share — usually what you want.
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ inputs.go-version }}
+        cache: false
+
+    - name: Restore Go module + build cache
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/go/pkg/mod
+          ~/.cache/go-build
+        key: go-${{ runner.os }}-${{ inputs.go-version }}-${{ hashFiles('**/go.sum') }}${{ inputs.cache-key-suffix }}
+        restore-keys: |
+          go-${{ runner.os }}-${{ inputs.go-version }}-
