@@ -584,8 +584,8 @@ S3 路径（dataset / eval_report）类似，把 `oras push` 替换为 S3 multip
 
 | 阶段 | 主测层 | 工具 |
 | --- | --- | --- |
-| MVP | API 层单元测试 + PG / zot stub L1 integration | `make artifacts-test` + `make artifacts-integration`（PG testcontainer + httptest OCI stub） |
-| 功能完善 | L1 integration 扩展（多 kind、RustFS 后端、auth_hint 多租户矩阵） | `make integration-test` |
+| MVP | API 层单元测试 + PG / zot stub integration | `make artifacts-test` + `make artifacts-integration`（PG testcontainer + httptest OCI stub） |
+| 功能完善 | integration 扩展（多 kind、RustFS 后端、auth_hint 多租户矩阵） | `make integration-test` |
 | 未来规划 | 单独写 RFC 设计文档 → 单元 / 集成测试先行 | 同上 |
 
 ## 9. 测试
@@ -593,9 +593,9 @@ S3 路径（dataset / eval_report）类似，把 `oras push` 替换为 S3 multip
 Artifacts 的测试分两层：
 
 - **单元测试**（`components/artifacts/internal/...`）：HTTP handler 输入校验、Handler registry、状态机、render 等纯逻辑用 `testify` 在 `_test.go` 中就近放置。
-- **L1 integration**（`components/artifacts/test/integration/` 独立 Go module）：HTTP API、状态机、PG migration、GC worker 用 `testify` + 真实 PG 容器（`testcontainers-go`）；OCI 后端用 `httptest.Server` stub 出 zot 的关键端点（HEAD / DELETE manifest）以避免拉真实镜像。HTTP 通过 in-process gin engine + `httptest` 驱动，不监听端口。
+- **integration**（`components/artifacts/test/integration/` 独立 Go module）：HTTP API、状态机、PG migration、GC worker 用 `testify` + 真实 PG 容器（`testcontainers-go`）；OCI 后端用 `httptest.Server` stub 出 zot 的关键端点（HEAD / DELETE manifest）以避免拉真实镜像。HTTP 通过 in-process gin engine + `httptest` 驱动，不监听端口。
 
-仓库当前不维护 minikube 驱动的 L2 e2e 层；端到端验证靠 L1 integration 覆盖。测试约束沿用 [CLAUDE.md "两层测试金字塔"](../../CLAUDE.md)：框架是 `testing` + `testify`，无 Ginkgo / Gomega；轮询用 `testutil.Eventually`。
+仓库当前不维护 minikube 驱动的 e2e 层；端到端验证靠 integration 覆盖。测试约束沿用 [CLAUDE.md "两层测试金字塔"](../../CLAUDE.md)：框架是 `testing` + `testify`，无 Ginkgo / Gomega；轮询用 `testutil.Eventually`。
 
 ## 10. 相关引用
 

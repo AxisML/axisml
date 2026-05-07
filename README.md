@@ -64,7 +64,7 @@ See the [System Design Overview](docs/system_design/overview.md) for how these f
 
 ```bash
 make test                # unit tests across all components
-make integration-test    # L1 integration tests (envtest + testcontainers, needs Docker)
+make integration-test    # integration tests (envtest + testcontainers, needs Docker)
 ```
 
 See [Testing Guide](docs/development/testing.md) for the two-layer test pyramid.

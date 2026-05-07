@@ -79,7 +79,7 @@ vet: ## go vet ./...
 tidy: ## go mod tidy
 	@go mod tidy
 
-# --- L1 integration ---
+# --- Integration ---
 #
 # Hermetic in-process tests against an embedded apiserver+etcd
 # (controller-runtime envtest) plus a testcontainers-managed PostgreSQL. Uses
@@ -89,7 +89,7 @@ ENVTEST             := $(REPO_ROOT)/test/setup-envtest/setup-envtest
 ENVTEST_K8S_VERSION ?= 1.31.0
 
 .PHONY: integration
-integration: ## Run L1 integration tests (uses shared setup-envtest at test/setup-envtest/)
+integration: ## Run integration tests (uses shared setup-envtest at test/setup-envtest/)
 	@if [ ! -x "$(ENVTEST)" ]; then \
 	  echo "ERROR: $(ENVTEST) not found. Run 'make setup-envtest' from $(REPO_ROOT)."; \
 	  exit 1; \
@@ -113,7 +113,7 @@ coverage: ## Run unit tests with coverage profile
 	@mkdir -p $(COVERAGE_DIR)
 	@go test -coverprofile=$(COVERAGE_OUT) -covermode=atomic -count=1 ./...
 
-integration-coverage: ## Run L1 integration tests with coverage profile (covers compute production packages)
+integration-coverage: ## Run integration tests with coverage profile (covers compute production packages)
 	@mkdir -p $(COVERAGE_DIR)
 	@if [ ! -x "$(ENVTEST)" ]; then \
 	  echo "ERROR: $(ENVTEST) not found. Run 'make setup-envtest' from $(REPO_ROOT)."; \

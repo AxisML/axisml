@@ -4,7 +4,7 @@
 #   make / make build    Compile the binary into bin/
 #   make image           Build the container image
 #   make test            Run unit tests
-#   make integration     Run L1 integration tests (controller-runtime envtest)
+#   make integration     Run integration tests (controller-runtime envtest)
 #   make clean           Remove build artifacts
 
 IMAGE_REPO ?= ghcr.io/axisml/axisml-tenant-operator
@@ -54,13 +54,13 @@ vet:
 tidy:
 	@go mod tidy
 
-# --- L1 integration ---
+# --- Integration ---
 
 ENVTEST             := $(REPO_ROOT)/test/setup-envtest/setup-envtest
 ENVTEST_K8S_VERSION ?= 1.31.0
 
 .PHONY: integration
-integration: ## Run L1 integration tests
+integration: ## Run integration tests
 	@if [ ! -x "$(ENVTEST)" ]; then \
 	  echo "ERROR: $(ENVTEST) not found. Run 'make setup-envtest' from $(REPO_ROOT)."; \
 	  exit 1; \

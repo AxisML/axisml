@@ -885,7 +885,7 @@ config:
 ┌──────────────────────────────────────────────────────────────┐
 │ MVP                                                           │
 │   单 Pod / 双 Reconciler / 两个 Job backend / 两个 Service   │
-│   backend / L1 integration                                    │
+│   backend / integration                                       │
 │   ↓                                                           │
 │ 功能完善                                                      │
 │   补齐主流 Handler、外部入口策略、admission webhook、严格      │
@@ -901,27 +901,27 @@ config:
 | 模块 | 范围 | 完成信号 |
 | --- | --- | --- |
 | Operator binary | 单 Manager 承载双 Reconciler、`--enable-*` flag、leader election | 单 Pod 启动后两个 controller 同时 Ready |
-| MLJob dispatcher | `(backend, engine)` 路由、`Validate` 拒绝未注册元组、Suspend cancel 推进信号 | L1 integration 覆盖：未知 backend 直接 `Failed`；suspend 后 condition 与 phase 变化符合 §4.3 |
-| MLJob `(native, job)` | K8s Job + koord-scheduler、quota label 注入、原生 `Job.spec.suspend` cancel | L1 integration 覆盖 happy path + suspend cancel |
-| MLJob `(native, podgroup)` | scheduler-plugins PodGroup + 裸 Pod、`minMember=0` → 删 Pod 的暂停顺序 | L1 integration 覆盖 happy path + suspend shutdown |
-| MLService dispatcher | 同上 + `/scale` 透传 | L1 integration 覆盖：未知 backend 直接 `Failed`；scale 修改 `roles[0].replicas` 触发后端副本调整 |
-| MLService `(native, deployment)` | Deployment + ClusterIP Service + 基础 HTTPRoute | L1 integration 覆盖 happy path、route 启用 / 禁用、scale、字段不可变性 |
-| MLService `(native, statefulset)` | StatefulSet + headless Service、`apps.kubernetes.io/pod-index` 透传 | L1 integration 覆盖 happy path、scale、字段不可变性 |
+| MLJob dispatcher | `(backend, engine)` 路由、`Validate` 拒绝未注册元组、Suspend cancel 推进信号 | integration 覆盖：未知 backend 直接 `Failed`；suspend 后 condition 与 phase 变化符合 §4.3 |
+| MLJob `(native, job)` | K8s Job + koord-scheduler、quota label 注入、原生 `Job.spec.suspend` cancel | integration 覆盖 happy path + suspend cancel |
+| MLJob `(native, podgroup)` | scheduler-plugins PodGroup + 裸 Pod、`minMember=0` → 删 Pod 的暂停顺序 | integration 覆盖 happy path + suspend shutdown |
+| MLService dispatcher | 同上 + `/scale` 透传 | integration 覆盖：未知 backend 直接 `Failed`；scale 修改 `roles[0].replicas` 触发后端副本调整 |
+| MLService `(native, deployment)` | Deployment + ClusterIP Service + 基础 HTTPRoute | integration 覆盖 happy path、route 启用 / 禁用、scale、字段不可变性 |
+| MLService `(native, statefulset)` | StatefulSet + headless Service、`apps.kubernetes.io/pod-index` 透传 | integration 覆盖 happy path、scale、字段不可变性 |
 | CRD | 两个 CRD 用 `x-kubernetes-preserve-unknown-fields: true` + `subresources.status` | helm install / upgrade 通过 |
-| 测试 | L1 integration 覆盖两 controller 的 happy path + suspend + immutability | `make compute-operator-integration` 通过 |
+| 测试 | integration 覆盖两 controller 的 happy path + suspend + immutability | `make compute-operator-integration` 通过 |
 
 ### 6.3 阶段二：功能完善
 
 1. **MLService `route.auth` + `route.rateLimit / timeout` 派生资源**
-   - 完成信号：L1 integration 覆盖 `jwt` / `apiKey` / 限流 三条派生资源路径。
+   - 完成信号：integration 覆盖 `jwt` / `apiKey` / 限流 三条派生资源路径。
 2. **MLJob `(kubeflow-trainer, pytorchjob)` 主线**
-   - 完成信号：handler 注册、`master + worker` role 校验、Status condition 映射到四态、原生 suspend + `Cleanup()` fallback；L1 integration 覆盖 happy path 与 suspend。
+   - 完成信号：handler 注册、`master + worker` role 校验、Status condition 映射到四态、原生 suspend + `Cleanup()` fallback；integration 覆盖 happy path 与 suspend。
 3. **MLService `(kserve, inference)` 主线（vllm / triton 优先）**
-   - 完成信号：handler 写 `InferenceService` 时强制注入 `schedulerName: koord-scheduler` + quota label、`status.url` 回流到 `endpoint`、scale 路径 patch `predictor.{minReplicas, maxReplicas}`；L1 integration 覆盖 vllm + triton 两条 runtime 校验分支。
+   - 完成信号：handler 写 `InferenceService` 时强制注入 `schedulerName: koord-scheduler` + quota label、`status.url` 回流到 `endpoint`、scale 路径 patch `predictor.{minReplicas, maxReplicas}`；integration 覆盖 vllm + triton 两条 runtime 校验分支。
 4. **Admission webhook 上线**
    - 完成信号：webhook server 部署、cert-manager 颁证；`spec.backend.{name, engine}` 不可变 / `backend.config` 按 Handler schema 校验各 1 条 integration test 通过。
 5. **严格 CRD OpenAPI schema**
-   - 完成信号：两个 CRD 移除 `preserve-unknown-fields`；L1 integration 覆盖"非法 enum 值被 apiserver 直接拒绝"。
+   - 完成信号：两个 CRD 移除 `preserve-unknown-fields`；integration 覆盖"非法 enum 值被 apiserver 直接拒绝"。
 
 ### 6.4 阶段三：未来规划
 
@@ -931,15 +931,15 @@ config:
 
 | 阶段 | 主测层 | 工具 |
 | --- | --- | --- |
-| MVP | L1 integration | `make compute-operator-integration` |
-| 功能完善 | L1 integration 扩展（envtest + testcontainers） | `make integration-test` |
-| 未来规划 | 单独写 RFC 设计文档 → L1 integration 先行 | 同上 |
+| MVP | integration | `make compute-operator-integration` |
+| 功能完善 | integration 扩展（envtest + testcontainers） | `make integration-test` |
+| 未来规划 | 单独写 RFC 设计文档 → integration 先行 | 同上 |
 
 ## 7. 测试
 
-L1 integration 在 `components/compute-operator/test/integration/` 单一 Go module 中，单一 `TestMain` 把两个 reconciler 注册到同一个 envtest manager。CRDPaths 是 `deploy/helm/axisml-system/crds/{mljob,mlservice}-crd.yaml` 与 `test/crds/external/`（vendored PodGroup / HTTPRoute）的并集。
+integration 在 `components/compute-operator/test/integration/` 单一 Go module 中，单一 `TestMain` 把两个 reconciler 注册到同一个 envtest manager。CRDPaths 是 `deploy/helm/axisml-system/crds/{mljob,mlservice}-crd.yaml` 与 `test/crds/external/`（vendored PodGroup / HTTPRoute）的并集。
 
-仓库当前不维护 minikube 驱动的 L2 e2e 层；端到端验证靠 L1 integration（envtest）覆盖。
+仓库当前不维护 minikube 驱动的 e2e 层；端到端验证靠 integration（envtest）覆盖。
 
 ## 8. 相关引用
 

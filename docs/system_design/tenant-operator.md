@@ -487,9 +487,9 @@ team-a 的 Pod 只能选择 `axisml-tenant-team-a-*` SA，从而只看到本 ten
 | 模块 | 范围 | 完成信号 |
 | --- | --- | --- |
 | Operator binary | 单 Manager / 单 reconciler、leader election、Cache `ByObject` 选择性过滤 | 单 Pod 启动后 Tenant controller Ready |
-| Tenant | Namespace 创建（永不删除）、ElasticQuota 1:1 派生 + `status.used` 回流、ImagePullSecrets / Secrets / ConfigMaps / SAs + RBAC initResources、suspend、phase 推导 | L1 integration 覆盖：happy path、suspend / unsuspend、quota update、源 Secret 缺失 |
+| Tenant | Namespace 创建（永不删除）、ElasticQuota 1:1 派生 + `status.used` 回流、ImagePullSecrets / Secrets / ConfigMaps / SAs + RBAC initResources、suspend、phase 推导 | integration 覆盖：happy path、suspend / unsuspend、quota update、源 Secret 缺失 |
 | CRD | `tenant-crd.yaml` 用 `x-kubernetes-preserve-unknown-fields: true` 宽松 schema + `subresources.status` 显式声明 | helm install / upgrade 通过；status 写入不影响 spec 写入 |
-| 测试 | L1 integration 覆盖 happy path + suspend + immutability | `make tenant-operator-integration` 通过 |
+| 测试 | integration 覆盖 happy path + suspend + immutability | `make tenant-operator-integration` 通过 |
 
 ### 5.2 阶段二：功能完善
 
@@ -504,9 +504,9 @@ team-a 的 Pod 只能选择 `axisml-tenant-team-a-*` SA，从而只看到本 ten
 
 ## 6. 测试
 
-L1 integration 在 `components/tenant-operator/test/integration/` 单一 Go module 中，单一 `TestMain` 把 Tenant reconciler 注册到 envtest manager，覆盖 happy path、suspend / unsuspend、quota update、源 Secret 缺失等场景。CRDPaths 是 `deploy/helm/axisml-system/crds/tenant-crd.yaml` 与 `test/crds/external/elasticquota.yaml` 的并集。
+integration 在 `components/tenant-operator/test/integration/` 单一 Go module 中，单一 `TestMain` 把 Tenant reconciler 注册到 envtest manager，覆盖 happy path、suspend / unsuspend、quota update、源 Secret 缺失等场景。CRDPaths 是 `deploy/helm/axisml-system/crds/tenant-crd.yaml` 与 `test/crds/external/elasticquota.yaml` 的并集。
 
-仓库当前不维护 minikube 驱动的 L2 e2e 层；端到端验证靠 L1 integration（envtest）覆盖。
+仓库当前不维护 minikube 驱动的 e2e 层；端到端验证靠 integration（envtest）覆盖。
 
 ## 7. 相关引用
 

@@ -50,7 +50,7 @@ tidy:
 generate: ## Run controller-gen for deepcopy code (mljob; mlservice deepcopy is hand-maintained)
 	@$(CONTROLLER_GEN) object paths=./api/mljob/...
 
-# --- L1 integration ---
+# --- Integration ---
 
 ENVTEST             := $(REPO_ROOT)/test/setup-envtest/setup-envtest
 ENVTEST_K8S_VERSION ?= 1.31.0

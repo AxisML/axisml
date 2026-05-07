@@ -65,7 +65,7 @@ ENVTEST_K8S_VERSION ?= 1.31.0
 MODULE_PATH         := github.com/axisml/axisml/components/cluster-manager
 
 .PHONY: integration integration-coverage
-integration: ## Run L1 integration tests (envtest with Tenant CRD)
+integration: ## Run integration tests (envtest with Tenant CRD)
 	@if [ ! -x "$(ENVTEST)" ]; then \
 	  echo "ERROR: $(ENVTEST) not found. Run 'make setup-envtest' from $(REPO_ROOT)."; \
 	  exit 1; \
