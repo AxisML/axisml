@@ -5,6 +5,7 @@ on:
     branches: [main]
   push:
     branches: [main]
+    tags: ['v*']
   workflow_dispatch:
 
 permissions:
@@ -198,9 +199,10 @@ jobs:
 
   image:
     name: image (${{ matrix.component.name }})
-    # Only build and push on main pushes — PRs run lint/test but don't publish
-    # images. Gate behind every other check so a red main doesn't ship.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Only build and push on tag pushes (release cuts). PRs and main pushes
+    # run lint/test but don't publish images. Gate behind every other check
+    # so a red tag doesn't ship.
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     needs: [lint, test, integration, helm-lint, doc-test]
     runs-on: ubuntu-latest
     permissions:
@@ -226,13 +228,6 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Read chart appVersion
-        id: chart
-        # The Helm chart's default image.tag is .Chart.AppVersion, so CI must
-        # publish that tag for `helm install` to work out of the box.
-        run: |
-          version=$(awk '/^appVersion:/{gsub(/"/,"",$2);print $2}' deploy/helm/axisml-system/Chart.yaml)
-          echo "version=$version" >> "$GITHUB_OUTPUT"
       - name: Compute image tags
         id: meta
         uses: docker/metadata-action@v5
@@ -240,10 +235,13 @@ jobs:
           # metadata-action lowercases the image reference itself, so an
           # owner like `AxisML` becomes `axisml` (GHCR requires lowercase).
           images: ghcr.io/${{ github.repository_owner }}/${{ matrix.component.image }}
+          # Git tag drives every published tag. `vX.Y.Z` produces images
+          # tagged X.Y.Z (matches Helm chart appVersion convention), X.Y,
+          # latest, and a short-sha tag for traceability.
           tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest
-            type=raw,value=main
-            type=raw,value=${{ steps.chart.outputs.version }}
             type=sha,format=short
       - name: Build and push ${{ matrix.component.name }}
         uses: docker/build-push-action@v6
