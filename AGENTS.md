@@ -23,7 +23,7 @@ Go code uses standard `gofmt`; run `make fmt` for all modules or `<component>-fm
 
 ## Testing Guidelines
 
-Unit tests use Go `testing` and normally sit beside packages as `*_test.go`. L1 tests use `//go:build integration` under component `test/integration/` modules; install tooling with `make setup-envtest` and run `make integration-test`. L2 tests live under `test/e2e/`, use `//go:build e2e`, and run with `make e2e-test` against minikube. Artifacts also has a testcontainers-based integration suite via `make -C components/artifacts integration`. See `docs/development/testing.md` for layer choice and external CRD rules.
+Unit tests use Go `testing` and normally sit beside packages as `*_test.go`. L1 tests use `//go:build integration`; the operators / cluster-manager / compute keep them under separate `test/integration/` modules (envtest-backed), while artifacts keeps them in-module under `internal/integration/` (testcontainers-backed). All flavours run via `make integration-test` (after `make setup-envtest`). L2 tests live under `test/e2e/`, use `//go:build e2e`, and run with `make e2e-test` against minikube. See `docs/development/testing.md` for layer choice and external CRD rules.
 
 ## Commit & Pull Request Guidelines
 

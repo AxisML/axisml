@@ -268,9 +268,12 @@ func (s *Service) MarkDeleting(ctx context.Context, namespace, kind, name, versi
 	})
 }
 
-// loadRow returns the artifact row by coord, or NotFound.
+// loadRow returns the artifact row by coord, or NotFound. Read paths use
+// this so a client can still observe a row's terminal Deleted status after
+// GC has finalised it (Initiate keeps using the deleted_at-filtered
+// GetByCoord so a tombstone doesn't block a re-create on the same coord).
 func (s *Service) loadRow(ctx context.Context, namespace, kind, name, version string) (*Artifact, error) {
-	row, err := s.rows.GetByCoord(ctx, namespace, kind, name, version)
+	row, err := s.rows.GetByCoordIncludingDeleted(ctx, namespace, kind, name, version)
 	if err != nil {
 		if IsNotFound(err) {
 			return nil, apperrors.Newf(apperrors.CodeNotFound, "artifact %s/%s/%s@%s not found", namespace, kind, name, version)

@@ -53,7 +53,7 @@ The top-level `Makefile` is the command hub. The most common targets:
 make help                # list targets + auto-generated per-component shortcuts
 make build               # fan out `make build` to every active component
 make test                # unit tests across every component (no cluster)
-make integration-test    # L1 integration for the operators + compute (hermetic, ~30s)
+make integration-test    # L1 integration for every component (envtest + testcontainers, needs Docker; ~30-60s)
 make e2e-test            # L2 e2e on real minikube (~10 min, brings up cluster + helm-installs)
 
 # Per-component shortcuts (auto-generated from the COMPONENTS list:

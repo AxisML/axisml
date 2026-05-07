@@ -26,11 +26,29 @@ func (r *Repository) GetByID(ctx context.Context, id uuid.UUID) (*Artifact, erro
 }
 
 // GetByCoord loads an artifact by its (namespace, kind, name, version)
-// natural key. Soft-deleted rows are excluded.
+// natural key. Soft-deleted rows (deleted_at IS NOT NULL) are excluded —
+// callers using this for the Initiate idempotency check rely on that so a
+// new version can be created over a fully-Deleted tombstone.
 func (r *Repository) GetByCoord(ctx context.Context, namespace, kind, name, version string) (*Artifact, error) {
 	var row Artifact
 	if err := r.db.WithContext(ctx).
 		Where("namespace = ? AND kind = ? AND name = ? AND version = ? AND deleted_at IS NULL",
+			namespace, kind, name, version).
+		Take(&row).Error; err != nil {
+		return nil, err
+	}
+	return &row, nil
+}
+
+// GetByCoordIncludingDeleted is GetByCoord without the soft-delete filter.
+// Used by read paths (Get / Resolve / etc.) so a client can still observe
+// a row's terminal Deleted status after GC has finalised it; without this,
+// the row vanishes from /artifacts/... the moment GC runs and the user
+// can't tell whether DELETE has propagated or the row never existed.
+func (r *Repository) GetByCoordIncludingDeleted(ctx context.Context, namespace, kind, name, version string) (*Artifact, error) {
+	var row Artifact
+	if err := r.db.WithContext(ctx).
+		Where("namespace = ? AND kind = ? AND name = ? AND version = ?",
 			namespace, kind, name, version).
 		Take(&row).Error; err != nil {
 		return nil, err
