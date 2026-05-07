@@ -4,8 +4,6 @@ import (
 	"context"
 	"testing"
 
-	rbacv1 "k8s.io/api/rbac/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	axisml "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
@@ -120,7 +118,4 @@ func TestNotImplementedHandler_Behavior(t *testing.T) {
 	if got := h.RequiredRBAC(); got != nil {
 		t.Errorf("RequiredRBAC should be nil; got %v", got)
 	}
-	// Type assertions used so unused imports don't break in CI.
-	var _ []rbacv1.PolicyRule = h.RequiredRBAC()
-	var _ []client.Object = h.WatchTargets()
 }
