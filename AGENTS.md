@@ -23,7 +23,7 @@ Go code uses standard `gofmt`; run `make fmt` for all modules or `<component>-fm
 
 ## Testing Guidelines
 
-Unit tests use Go `testing` and normally sit beside packages as `*_test.go`. L1 tests use `//go:build integration` and live in each component's `test/integration/` Go submodule (envtest-backed for operators / cluster-manager / compute, with testcontainers for compute and artifacts Postgres). All run via `make integration-test` (after `make setup-envtest`). HTTP API tests drive the gin engine in-process via `httptest`; see `components/compute/test/integration/httptest_helpers_test.go`. The repo deliberately has no minikube-driven e2e layer — see `docs/development/testing.md` for layer choice and external CRD rules.
+Unit tests use Go `testing` and normally sit beside packages as `*_test.go`. Integration tests use `//go:build integration` and live in each component's `test/integration/` Go submodule (envtest-backed for operators / cluster-manager / compute, with testcontainers for compute and artifacts Postgres). All run via `make integration-test` (after `make setup-envtest`). HTTP API tests drive the gin engine in-process via `httptest`; see `components/compute/test/integration/httptest_helpers_test.go`. The repo deliberately has no e2e layer — see `docs/development/testing.md` for layer choice and external CRD rules.
 
 ## Commit & Pull Request Guidelines
 

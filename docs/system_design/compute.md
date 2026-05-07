@@ -671,9 +671,9 @@ Creating ──(Informer ADD)──▶ Pending ──(ready=desired, desired>0)�
 | --- | --- | --- |
 | 服务运行时 | 单副本 / `replicas=1`、Helm 模板（configmap / deployment / service / sa / rbac / servicemonitor / bootstrap-job）、`/healthz` + `/readyz` + `/metrics`、PG 启动迁移 | `helm install` 后 Pod Ready；`/healthz` 200；PG `schema_migrations` 表存在 |
 | ResourcePool | CRUD API（无 CR） | API 测试覆盖；新建 Pool 后 ResourceUnit 可挂靠 |
-| ResourceUnit | CRUD API（无 CR）；提交 Job/Service 时注入 `requests` / `limits` / `nodeSelector` / `tolerations`（Pool 优先合并） | API 测试覆盖；L1 integration 覆盖：提交 Job 后 MLJob CR `spec.scheduling` 与 `spec.roles[*].template.resources` 字段值正确 |
-| Job | Create / Get / List / Delete API（不含 cancel / logs / events / replicas / spec update）；MLJob CR 下发；Informer 推 `Pending → Running → Succeeded/Failed`；DELETE → `Deleting → Deleted` | L1 integration 覆盖：API Create → MLJob CR 出现 + 状态推进；DELETE → CR 删除 + PG `Deleted`；外部误删 Pending/Running CR 时 PG 推 `Cancelled` |
-| Service | Create / Get / List / Delete + Scale API（不含其他 spec 更新）；MLService CR 下发；Informer 推 `Pending → Ready` | L1 integration 覆盖：Scale API 修改 PG `replicas` → reconciler patch CR `spec.roles[0].replicas` → ready_replicas 回流 |
+| ResourceUnit | CRUD API（无 CR）；提交 Job/Service 时注入 `requests` / `limits` / `nodeSelector` / `tolerations`（Pool 优先合并） | API 测试覆盖；integration 覆盖：提交 Job 后 MLJob CR `spec.scheduling` 与 `spec.roles[*].template.resources` 字段值正确 |
+| Job | Create / Get / List / Delete API（不含 cancel / logs / events / replicas / spec update）；MLJob CR 下发；Informer 推 `Pending → Running → Succeeded/Failed`；DELETE → `Deleting → Deleted` | integration 覆盖：API Create → MLJob CR 出现 + 状态推进；DELETE → CR 删除 + PG `Deleted`；外部误删 Pending/Running CR 时 PG 推 `Cancelled` |
+| Service | Create / Get / List / Delete + Scale API（不含其他 spec 更新）；MLService CR 下发；Informer 推 `Pending → Ready` | integration 覆盖：Scale API 修改 PG `replicas` → reconciler patch CR `spec.roles[0].replicas` → ready_replicas 回流 |
 | Outbox + Informer | 谓词只覆盖 `Creating` + `Deleting`；单副本无 leader election 代码路径 | reconciler 单元测试覆盖 4 类失败场景重试 |
 | Backend 默认值 | MLJob `(native, job)` / MLService `(native, deployment)` 一律默认注入 | API 创建未指定 backend 时 PG `spec.backend = {name:native, engine:job/deployment}` |
 | Bootstrap | post-install Job：default pool + cpu-small/cpu-medium unit | `helm install` 后查询 2 类对象都存在 |
@@ -684,13 +684,13 @@ Creating ──(Informer ADD)──▶ Pending ──(ready=desired, desired>0)�
 按"对生产可用性的影响"排序，每条标明完成信号。
 
 1. **`desired_spec_hash` / `applied_spec_hash` 双 hash 机制（Service `replicas`）**
-   - 完成信号：API PATCH 写 PG `desired_spec_hash` → reconciler 检测差异 → patch CR → 写 `applied_spec_hash`；L1 integration 覆盖。
+   - 完成信号：API PATCH 写 PG `desired_spec_hash` → reconciler 检测差异 → patch CR → 写 `applied_spec_hash`；integration 覆盖。
 2. **Job cancel（`Canceling → Cancelled`）**
-   - 完成信号：cancel API → PG `Canceling` → reconciler patch `spec.runPolicy.suspend=true` → Informer 见 Suspended condition → `Cancelled` + `finished_at` + 入队 `Delete()`；L1 integration 覆盖竞速：cancel patch 与 Job 自然终态同时到达时 Compute 推到对应运行终态而非 `Cancelled`。
+   - 完成信号：cancel API → PG `Canceling` → reconciler patch `spec.runPolicy.suspend=true` → Informer 见 Suspended condition → `Cancelled` + `finished_at` + 入队 `Delete()`；integration 覆盖竞速：cancel patch 与 Job 自然终态同时到达时 Compute 推到对应运行终态而非 `Cancelled`。
 3. **Service `Degraded` / `Failed` 状态映射**
-   - 完成信号：L1 integration 覆盖 §7.3 主表四条 + `desired_replicas==0` 附注一条。
+   - 完成信号：integration 覆盖 §7.3 主表四条 + `desired_replicas==0` 附注一条。
 4. **多 backend 接入**
-   - 完成信号：API 接受任意已注册 backend；CR `spec.backend` 字段透传准确；L1 integration 覆盖 `(native, podgroup)` 与 `(kserve, inference)` 两条最常用路径。
+   - 完成信号：API 接受任意已注册 backend；CR `spec.backend` 字段透传准确；integration 覆盖 `(native, podgroup)` 与 `(kserve, inference)` 两条最常用路径。
 5. **Job 日志 + 副本 + 事件端点**
    - 完成信号：`/logs?follow=true` 流式可用且断开时关闭 upstream；GC 后 Pod 返 410；`/replicas` 按 `axisml.io/job-id` label 检索 Pod。
 6. **完整 metrics 集**
@@ -705,7 +705,7 @@ Creating ──(Informer ADD)──▶ Pending ──(ready=desired, desired>0)�
 | `axisml_compute_api_request_duration_seconds{route,status}` | histogram | API 请求延迟分布 |
 
 7. **`axisml.io/<resource>-id` label 锚点 + 软删命名复用全链路**
-   - 完成信号：L1 integration 覆盖：`DELETE Job foo → Create Job foo` 同 namespace 内成功；CR label 与 PG `id` 始终一致。
+   - 完成信号：integration 覆盖：`DELETE Job foo → Create Job foo` 同 namespace 内成功；CR label 与 PG `id` 始终一致。
 
 ### 8.4 阶段三：未来规划
 
@@ -723,17 +723,17 @@ Creating ──(Informer ADD)──▶ Pending ──(ready=desired, desired>0)�
 
 | 阶段 | 主测层 | 工具 |
 | --- | --- | --- |
-| MVP | API 单元测试 + L1 integration test（含 fake compute-operator） | `make compute-test` + `make compute-integration` |
-| 功能完善 | L1 integration 扩展（envtest + testcontainers Postgres + httptest 驱动 HTTP API） | `make integration-test` |
-| 未来规划 | 单独写 RFC 设计文档 → L1 integration 先行 | 同上 |
+| MVP | API 单元测试 + integration test（含 fake compute-operator） | `make compute-test` + `make compute-integration` |
+| 功能完善 | integration 扩展（envtest + testcontainers Postgres + httptest 驱动 HTTP API） | `make integration-test` |
+| 未来规划 | 单独写 RFC 设计文档 → integration 先行 | 同上 |
 
 ## 9. 测试
 
-L1 integration 在 `components/compute/test/integration/` 单一 Go module 中：每个模块的 reconciler / Informer 路径覆盖 happy path + 关键 corner case（外部误删、cancel 竞速等）。fake operator 使用 controller-runtime 的 `envtest.Environment` + 简易 reconciler，模拟 compute-operator 的 status 写入。
+integration 在 `components/compute/test/integration/` 单一 Go module 中：每个模块的 reconciler / Informer 路径覆盖 happy path + 关键 corner case（外部误删、cancel 竞速等）。fake operator 使用 controller-runtime 的 `envtest.Environment` + 简易 reconciler，模拟 compute-operator 的 status 写入。
 
-API 层单元测试在各 `internal/<module>/handler_test.go`，覆盖请求参数校验、错误格式、namespace 校验等。HTTP API 契约测试在 L1 integration 中以 in-process gin engine + `httptest` 驱动（参见 `test/integration/httptest_helpers_test.go`）。
+API 层单元测试在各 `internal/<module>/handler_test.go`，覆盖请求参数校验、错误格式、namespace 校验等。HTTP API 契约测试在 integration 中以 in-process gin engine + `httptest` 驱动（参见 `test/integration/httptest_helpers_test.go`）。
 
-仓库当前不维护 minikube 驱动的 L2 e2e 层；端到端验证靠 L1 integration（envtest + testcontainers）覆盖。
+仓库当前不维护 minikube 驱动的 e2e 层；端到端验证靠 integration（envtest + testcontainers）覆盖。
 
 ## 10. 相关引用
 

@@ -293,11 +293,11 @@ $(ENVTEST):
 
 .PHONY: integration-test
 
-# L1 integration: hermetic, in-process reconciler tests against an embedded
+# Integration: hermetic, in-process reconciler tests against an embedded
 # apiserver+etcd (controller-runtime envtest) plus testcontainers-managed
 # PostgreSQL where needed. Each component's `integration` target boots its
 # own dependencies and runs `go test -tags=integration ./test/integration/...`.
-integration-test: setup-envtest ## L1 integration tests across every component (hermetic, CI-friendly)
+integration-test: setup-envtest ## Integration tests across every component (hermetic, CI-friendly)
 	@$(call _RUN_INTEGRATION_COMPONENTS,integration)
 
 ##@ Coverage
@@ -318,7 +318,7 @@ COVERAGE_FILE ?= $(COVERAGE_DIR)/coverage.out
 coverage-unit: ## Run unit tests with coverage profile across all components
 	@$(call _RUN_COMPONENTS,coverage)
 
-coverage-integration: setup-envtest ## Run L1 integration tests with coverage across operator + compute
+coverage-integration: setup-envtest ## Run integration tests with coverage across operator + compute
 	@$(call _RUN_INTEGRATION_COMPONENTS,integration-coverage)
 
 coverage-merge: ## Merge per-component profiles into $(COVERAGE_FILE)

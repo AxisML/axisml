@@ -17,25 +17,25 @@ AxisML is a Kubernetes-native ML platform. The repo is a monorepo split into:
 - `deploy/helm/axisml-infra/` — third-party infrastructure chart (Envoy Gateway, RustFS, zot, Koordinator, GPU Operator, kube-prometheus-stack).
 - `deploy/helm/axisml-system/` — control-plane chart: CRDs, both operators, Cluster Manager, Compute, Artifacts, and (eventually) Platform. Includes PostgreSQL.
 - `docs/system_design/` — authoritative design docs (overview, tenant-operator, compute-operator, cluster-manager, compute, artifacts, infra, platform).
-- `test/` — shared test infrastructure: `setup-envtest/` binary, `testutil/` helpers, `crds/external/` vendored upstream CRDs for L1 integration tests.
+- `test/` — shared test infrastructure: `setup-envtest/` binary, `testutil/` helpers, `crds/external/` vendored upstream CRDs for integration tests.
 
 The system design lives ahead of the code. When code and `docs/system_design/` disagree, the design doc is usually the intended target — confirm before "fixing" code to match incomplete scaffolding.
 
 ## Multi-module Go workspace
 
-Each component is its own Go module, and each has a sibling `test/integration/` Go submodule that holds its L1 tests:
+Each component is its own Go module, and each has a sibling `test/integration/` Go submodule that holds its integration tests:
 
 ```
 components/tenant-operator/                       (production — Tenant CR reconciler)
-components/tenant-operator/test/integration/      (L1 tests, separate module)
+components/tenant-operator/test/integration/      (integration tests, separate module)
 components/compute-operator/                      (production — MLJob + MLService controllers)
-components/compute-operator/test/integration/     (L1 tests, separate module)
+components/compute-operator/test/integration/     (integration tests, separate module)
 components/cluster-manager/                       (production — REST shell over Tenant CR)
-components/cluster-manager/test/integration/      (L1 tests, separate module)
+components/cluster-manager/test/integration/      (integration tests, separate module)
 components/compute/                               (production)
-components/compute/test/integration/              (L1 tests, separate module — envtest + testcontainers Postgres)
+components/compute/test/integration/              (integration tests, separate module — envtest + testcontainers Postgres)
 components/artifacts/                             (production)
-components/artifacts/test/integration/            (L1 tests, separate module — testcontainers Postgres + httptest OCI stub)
+components/artifacts/test/integration/            (integration tests, separate module — testcontainers Postgres + httptest OCI stub)
 test/testutil/                                    (shared helpers, no operator deps)
 ```
 
@@ -54,7 +54,7 @@ The top-level `Makefile` is the command hub. The most common targets:
 make help                # list targets + auto-generated per-component shortcuts
 make build               # fan out `make build` to every active component
 make test                # unit tests across every component (no cluster)
-make integration-test    # L1 integration for every component (envtest + testcontainers, needs Docker; ~30-60s)
+make integration-test    # integration tests for every component (envtest + testcontainers, needs Docker; ~30-60s)
 
 # Per-component shortcuts (auto-generated from the COMPONENTS list:
 # tenant-operator, compute-operator, cluster-manager, compute, artifacts):
@@ -82,7 +82,7 @@ make fmt vet               # before every commit
 make build / make image    # binary into bin/, container image
 ```
 
-Single test invocation: `go test -run TestTenant_HappyPath ./internal/...` (use `-tags=integration` for L1 tests).
+Single test invocation: `go test -run TestTenant_HappyPath ./internal/...` (use `-tags=integration` for integration tests).
 
 Per-component shortcuts are auto-generated from the `COMPONENTS` list in the top-level Makefile. Pattern: `<basename>-{build,image,image-load,test,integration,fmt,tidy,clean}` (e.g., `make operator-image-load`). Top-level `make fmt` walks every module via `GO_MODULES` (`gofmt -w` doesn't cross module boundaries on its own).
 
@@ -95,9 +95,9 @@ Documented in detail in `docs/development/testing.md`. The short version:
 | Layer | Build tag | Where | Backing |
 |---|---|---|---|
 | Unit | none | `*_test.go` next to package | none — uses `controller-runtime/pkg/client/fake` |
-| L1 integration | `//go:build integration` | each component's `test/integration/` Go submodule | embedded apiserver+etcd via `setup-envtest` (controller-runtime), plus testcontainers Postgres for compute and artifacts |
+| Integration | `//go:build integration` | each component's `test/integration/` Go submodule | embedded apiserver+etcd via `setup-envtest` (controller-runtime), plus testcontainers Postgres for compute and artifacts |
 
-There is no minikube-driven e2e layer. HTTP API contracts for service components (cluster-manager / compute / artifacts) are tested at L1 by driving the in-process gin engine via `httptest` — see `components/compute/test/integration/httptest_helpers_test.go` for the canonical helpers.
+There is no minikube-driven e2e layer. HTTP API contracts for service components (cluster-manager / compute / artifacts) are tested at the integration layer by driving the in-process gin engine via `httptest` — see `components/compute/test/integration/httptest_helpers_test.go` for the canonical helpers.
 
 Conventions that bite if you don't know them:
 - **Framework is plain `testing` + `testify`** (`require` for setup, `assert` for checks). **No Ginkgo/Gomega** — don't add them.
@@ -123,7 +123,7 @@ When adding a new handler:
 2. Wire it into the dispatch table in the operator's reconciler.
 3. **All backend-derived Pods MUST set `schedulerName: koord-scheduler` and carry the `quota.scheduling.koordinator.sh/name` label** — this is non-negotiable; bypassing koord-scheduler bypasses ElasticQuota.
 4. Vendor any new external CRDs into `test/crds/external/` in the same PR.
-5. Pair an L1 integration happy-path with the unit tests.
+5. Pair an integration happy-path with the unit tests.
 
 ## Image tag synchronization
 
