@@ -21,3 +21,26 @@ func TestIsValidName(t *testing.T) {
 		}
 	}
 }
+
+func TestIsValidResourceUnitName_DelegatesToIsValidName(t *testing.T) {
+	if !IsValidResourceUnitName("ru-1") {
+		t.Error("expected true for valid resource unit name")
+	}
+	if IsValidResourceUnitName("Bad") {
+		t.Error("expected false for invalid name (uppercase)")
+	}
+}
+
+func TestIsValidName_BoundaryLengths(t *testing.T) {
+	if !IsValidName("abc") {
+		t.Error("3-char name should be valid")
+	}
+	long40 := "a234567890123456789012345678901234567890" // 40 chars
+	if !IsValidName(long40) {
+		t.Errorf("40-char name should be valid; got false for %s (len=%d)", long40, len(long40))
+	}
+	long41 := long40 + "1"
+	if IsValidName(long41) {
+		t.Error("41-char name should be invalid")
+	}
+}
