@@ -14,7 +14,7 @@
 
 Tenant 的目标 Namespace 通过 `spec.namespace.name` 显式声明，多个 Tenant 可以共享同一个 Namespace。平台的隔离边界主要由租户业务模型、per-tenant 资源命名、配额与鉴权策略共同表达，而不是简单等同于 Kubernetes Namespace 的一租户一命名空间隔离。
 
-> **Compute / Artifacts 不感知 Tenant 概念**——它们以裸 namespace 字符串作为分区键。"用户视角的租户"由 [Platform](platform/platform.md) 自身持有视图层映射。
+> **Compute / Artifacts 不感知 Tenant 概念**——它们以裸 namespace 字符串作为分区键。"用户视角的租户"由 [Platform](platform/overview.md) 自身持有视图层映射。
 
 ### 2.2 资源池（ResourcePool）
 
@@ -163,9 +163,9 @@ AxisML Infra 还提供：RustFS、zot、Koordinator、NVIDIA GPU Operator、kube
 - **前端**：基于 TypeScript + React，提供 Web UI。
 - **后端**：基于 Go，提供 RESTful API，负责业务逻辑编排，协调 Cluster Manager / Compute / Artifacts 完成具体操作。
 - **租户视图持有方**：Platform 自己的 PG 表持有"用户 → 租户视图 → 工作区"的映射；下层服务对此无感知。
-- **认证鉴权入口**：Platform 是用户身份、角色与租户访问控制的统一入口；具体 IdP、角色模型和鉴权细节仍待 [platform.md](platform/platform.md) 补充。
+- **认证鉴权入口**：Platform 是用户身份、角色与租户访问控制的统一入口；具体 IdP、角色模型和鉴权细节见 [platform/overview.md](platform/overview.md) 与 [platform/auth.md](platform/auth.md)。
 
-> 详细设计见 [AxisML Platform 设计文档](platform/platform.md)
+> 详细设计见 [AxisML Platform 设计文档](platform/overview.md)
 
 ### 5.2 AxisML Cluster Manager
 

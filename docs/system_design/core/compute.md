@@ -2,7 +2,7 @@
 
 AxisML Compute 是平台的计算服务层，基于 Go 开发，仅接受来自 AxisML Platform 的内部 REST 调用，承载 **计算任务管理** 与 **资源池 / 资源单元管理**。Compute 不直接创建 Pod 等底层 K8s 资源——这些由 [compute-operator](compute-operator.md) 负责；Compute 仅维护业务元数据，并通过 CRD 向 operator 声明意图。
 
-> **职责边界**：Compute 不持有租户与配额的元数据。租户与配额由 [cluster-manager](cluster-manager.md) + [tenant-operator](tenant-operator.md) 负责；Compute 把请求体里的 `namespace` 字段当作裸字符串分区键，把 `spec.scheduling.quota` 当作不透明 ElasticQuota CR 名透传。"用户视角的租户"由 [Platform](../platform/platform.md) 自己持有视图层映射。
+> **职责边界**：Compute 不持有租户与配额的元数据。租户与配额由 [cluster-manager](cluster-manager.md) + [tenant-operator](tenant-operator.md) 负责；Compute 把请求体里的 `namespace` 字段当作裸字符串分区键，把 `spec.scheduling.quota` 当作不透明 ElasticQuota CR 名透传。"用户视角的租户"由 [Platform](../platform/overview.md) 自己持有视图层映射。
 
 | 模块 | PG 表 | 状态机 | 对应 K8s 资源 |
 | --- | --- | --- | --- |
