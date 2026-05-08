@@ -20,9 +20,27 @@ Platform 在系统层概念之上额外引入了一组用户视角的对象，�
 
 Platform 内部维护的登录身份。第一版采用内置用户表（用户名 + bcrypt 密码 + JWT 颁发），所有外部 HTTP 流量必须先通过 Platform 鉴权后才能进入下游服务。OIDC / SAML 等外部 IdP 通过抽象出 `IdentityProvider` 接口预留接入点，本期不交付。详见 [auth.md](auth.md)。
 
-### 2.2 角色（Role）与权限（Permission）
+### 2.2 用户角色（Persona）
 
-第一版内置四档角色：
+Platform 在产品语义上区分三类用户身份，权威定义见 [PRD §2 目标用户与角色](../../product/prd.md#2-目标用户与角色)；本节给出与系统设计对齐的简版描述，便于后续小节引用：
+
+- **系统管理员（system admin）**：平台级超管。负责租户、资源池、资源单元、数据卷的全生命周期管理；可见「系统管理」菜单全部入口，可读所有租户数据。
+- **租户管理员（tenant admin）**：单租户负责人。负责本租户在各资源池下的配额拆分、成员管理与本租户内全部业务对象（Job / Service / Artifact / Workspace）的读写；不能跨租户操作。
+- **普通用户（user）**：算法工程师、数据科学家、推理服务运维等业务使用者的统称。在所属租户内使用开发机、提交任务、部署服务、注册与消费制品。
+
+persona 与下一节 RBAC 角色的对应关系：
+
+| Persona（用户角色） | RBAC role（§2.3） | 范围 |
+| --- | --- | --- |
+| 系统管理员 / system admin | `system-admin` | 全局 |
+| 租户管理员 / tenant admin | `tenant-admin` | 单租户 |
+| 普通用户 / user | `tenant-member`（默认）/ `viewer`（只读子档） | 单租户 |
+
+菜单可见性矩阵以 [PRD §6.0](../../product/prd.md#60-角色与菜单可见性矩阵) 为准，不在本文重复。
+
+### 2.3 角色（Role）与权限（Permission）
+
+§2.2 中的三类用户身份在 Platform RBAC 中实现为以下四档角色：
 
 | 角色 | 范围 | 能力概览 |
 | --- | --- | --- |
@@ -33,7 +51,7 @@ Platform 内部维护的登录身份。第一版采用内置用户表（用户�
 
 角色与权限的具体绑定矩阵在 [auth.md](auth.md) 中给出；本文 §7 仅声明数据模型形态。
 
-### 2.3 租户视图（TenantView）
+### 2.4 租户视图（TenantView）
 
 `TenantView` 是 Platform 暴露给用户的「租户」概念，与系统层的 `Tenant` CR 是 1:1 关系，但额外携带 Platform 自己维护的两条信息：
 
@@ -44,7 +62,7 @@ Cluster Manager 不持有任何 PG，权威完全在 Tenant CR；TenantView 的 
 
 > **与上层 overview §2.9 中「工作区 = (compute_namespace, artifacts_namespace) 二元组」的关系**：上层 overview 把这个二元组称为「工作区」（Workspace），那是 Platform 内部的命名空间映射对象；本文档为了避免与用户菜单里的「工作区 = 开发机」冲突，统一把上层的「工作区映射」称为 **TenantView**，把用户菜单里的「工作区」称为 **Workspace（开发机）**。
 
-### 2.4 工作区 / 开发机（Workspace）
+### 2.5 工作区 / 开发机（Workspace）
 
 用户菜单「训练&推理 → 工作区」下的具体对象。语义为一台 **长驻的交互式开发容器**（Jupyter Notebook / VSCode Server / SSH 等）。底层复用 [`MLService(native, deployment)`](../core/compute-operator.md) 后端：
 
@@ -55,14 +73,17 @@ Cluster Manager 不持有任何 PG，权威完全在 Tenant CR；TenantView 的 
 
 详见 [workspace.md](workspace.md)。
 
-### 2.5 数据卷（DataVolume，TBD）
+### 2.6 数据卷（DataVolume，TBD）
 
 预留概念，对应菜单「系统管理 → 数据卷管理」。可能的实现取向包括：用户级 PVC 抽象、数据集挂载路由（基于 Artifacts dataset）、集群 StorageClass 视图。本期暂不冻结字段，仅在概要中保留入口。
 
-### 2.6 概念速查
+### 2.7 概念速查
 
 | 术语 | 英文名 | 来源 / 对应对象 |
 | --- | --- | --- |
+| 系统管理员 | system admin | PRD §2 + RBAC `system-admin` |
+| 租户管理员 | tenant admin | PRD §2 + RBAC `tenant-admin` |
+| 普通用户 | user | PRD §2 + RBAC `tenant-member` / `viewer` |
 | 用户 | User | Platform 内部表 |
 | 角色 | Role | Platform 内部表，含内置四档 |
 | 权限 | Permission | Platform 内部表，绑定到 Role |
