@@ -282,6 +282,6 @@ cluster-manager 没有 reconciler，但因为它把请求落到真实的 K8s API
 
 ## 7. 相关引用
 
-- [docs/system_design/overview.md](overview.md) 概述了 cluster-manager 在控制平面里的位置。
+- [docs/system_design/overview.md](../overview.md) 概述了 cluster-manager 在控制平面里的位置。
 - [docs/system_design/tenant-operator.md](tenant-operator.md) 描述 cluster-manager 写入的 Tenant CR 的具体落地行为。
-- [docs/system_design/platform.md](platform.md) 描述 platform 如何把"租户视图"映射到 cluster-manager API。
+- [docs/system_design/platform.md](../platform/platform.md) 描述 platform 如何把"租户视图"映射到 cluster-manager API。

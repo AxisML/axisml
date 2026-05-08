@@ -2,7 +2,7 @@
 
 AxisML Compute 是平台的计算服务层，基于 Go 开发，仅接受来自 AxisML Platform 的内部 REST 调用，承载 **计算任务管理** 与 **资源池 / 资源单元管理**。Compute 不直接创建 Pod 等底层 K8s 资源——这些由 [compute-operator](compute-operator.md) 负责；Compute 仅维护业务元数据，并通过 CRD 向 operator 声明意图。
 
-> **职责边界**：Compute 不持有租户与配额的元数据。租户与配额由 [cluster-manager](cluster-manager.md) + [tenant-operator](tenant-operator.md) 负责；Compute 把请求体里的 `namespace` 字段当作裸字符串分区键，把 `spec.scheduling.quota` 当作不透明 ElasticQuota CR 名透传。"用户视角的租户"由 [Platform](platform.md) 自己持有视图层映射。
+> **职责边界**：Compute 不持有租户与配额的元数据。租户与配额由 [cluster-manager](cluster-manager.md) + [tenant-operator](tenant-operator.md) 负责；Compute 把请求体里的 `namespace` 字段当作裸字符串分区键，把 `spec.scheduling.quota` 当作不透明 ElasticQuota CR 名透传。"用户视角的租户"由 [Platform](../platform/platform.md) 自己持有视图层映射。
 
 | 模块 | PG 表 | 状态机 | 对应 K8s 资源 |
 | --- | --- | --- | --- |
@@ -737,8 +737,8 @@ API 层单元测试在各 `internal/<module>/handler_test.go`，覆盖请求参�
 
 ## 10. 相关引用
 
-- [docs/system_design/overview.md](overview.md) 概述了 AxisML Compute 在控制平面里的位置。
+- [docs/system_design/overview.md](../overview.md) 概述了 AxisML Compute 在控制平面里的位置。
 - [docs/system_design/compute-operator.md](compute-operator.md) 描述 compute-operator（mljob / mlservice controller）与 Compute 之间的 CR 写路径与状态回流契约。
 - [docs/system_design/cluster-manager.md](cluster-manager.md) 描述租户与配额的入口；Compute 不直接调用，由 Platform 维护两者的关联。
-- [docs/system_design/infra.md](infra.md) 给出 koord-scheduler / ElasticQuota 等基础设施依赖契约。
+- [docs/system_design/infra.md](../infra/infra.md) 给出 koord-scheduler / ElasticQuota 等基础设施依赖契约。
 - [docs/system_design/artifacts.md](artifacts.md) 描述 Artifacts 服务，Compute 在 Job / Service 提交时通过 HTTP 客户端做 image / model / dataset 引用懒查询。

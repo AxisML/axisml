@@ -510,7 +510,7 @@ integration 在 `components/tenant-operator/test/integration/` 单一 Go module 
 
 ## 7. 相关引用
 
-- [docs/system_design/overview.md](overview.md) 概述了 tenant-operator 在控制平面里的位置。
+- [docs/system_design/overview.md](../overview.md) 概述了 tenant-operator 在控制平面里的位置。
 - [docs/system_design/cluster-manager.md](cluster-manager.md) 描述 cluster-manager 与 tenant-operator 之间的 CR 写路径与 status 读路径。
 - [docs/system_design/compute-operator.md](compute-operator.md) 是 tenant-operator 的兄弟 operator，承载 MLJob / MLService 调度。
-- [docs/system_design/infra.md](infra.md) 给出 koord-scheduler / ElasticQuota 等基础设施依赖契约。
+- [docs/system_design/infra.md](../infra/infra.md) 给出 koord-scheduler / ElasticQuota 等基础设施依赖契约。

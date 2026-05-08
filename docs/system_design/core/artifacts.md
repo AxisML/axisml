@@ -2,7 +2,7 @@
 
 AxisML Artifacts 是平台的制品管理服务，承载模型、数据集、镜像、评估报告等所有"非运行态"资产的**元数据管理**与**引用寻址**。Artifacts 通过 REST API 暴露能力，调用方为 AxisML Platform 与 Operators，不直接对外部用户流量开放；`axisml-cli` 经由 Platform / Gateway 中转调用 Artifacts。
 
-> **寻址模型**：Artifact 直接以 `(namespace, kind, name, version)` 四元组寻址；`namespace` 是裸字符串分区键，由调用方（Platform）保证语义。Compute namespace 与 Artifacts namespace **互不绑定**，可同名也可不同名，由 Platform 自由编排（详见 [platform.md](platform.md)）。
+> **寻址模型**：Artifact 直接以 `(namespace, kind, name, version)` 四元组寻址；`namespace` 是裸字符串分区键，由调用方（Platform）保证语义。Compute namespace 与 Artifacts namespace **互不绑定**，可同名也可不同名，由 Platform 自由编排（详见 [platform.md](../platform/platform.md)）。
 
 | 模块 | 职责 | 边界外 |
 | --- | --- | --- |
@@ -372,7 +372,7 @@ artifacts(
 
 由 `Handler.ValidateSpec` 在 initiate 阶段做存在性懒校验。被引用方进入 `Deleted` 后引用方仍可保留 ref 字符串，resolve 时返回 410 Gone。由于 `(namespace, kind, name, version)` 不复用，410 不会变成"意外命中新内容"。
 
-> **跨 namespace 可见性**：Artifacts 不强制可见性边界——任何调用方都可以通过 namespace 访问 Artifact；权限边界由 Platform 在调用前自行校验。Platform 通常按工作区映射（详见 [platform.md](platform.md)）决定哪个用户能看到哪个 namespace 下的制品。
+> **跨 namespace 可见性**：Artifacts 不强制可见性边界——任何调用方都可以通过 namespace 访问 Artifact；权限边界由 Platform 在调用前自行校验。Platform 通常按工作区映射（详见 [platform.md](../platform/platform.md)）决定哪个用户能看到哪个 namespace 下的制品。
 
 ### 4.2 ArtifactHandler 接口
 
@@ -599,8 +599,8 @@ Artifacts 的测试分两层：
 
 ## 10. 相关引用
 
-- [docs/system_design/overview.md §3](overview.md) 概述了 Artifacts 在控制平面里的位置与功能矩阵。
+- [docs/system_design/overview.md §3](../overview.md) 概述了 Artifacts 在控制平面里的位置与功能矩阵。
 - [docs/system_design/tenant-operator.md §4.6](tenant-operator.md) 描述 tenant-operator 如何按 `Tenant.spec.initResources` 落地租户级 zot / RustFS 凭证 Secret——Artifacts `auth_hint` 的命名契约由其决定。
 - [docs/system_design/compute-operator.md](compute-operator.md) 描述 mljob / mlservice handler 如何通过 Artifacts client SDK 解析 `imageRef` / `modelRef` / `datasetRef`。
-- [docs/system_design/platform.md](platform.md) 描述 Platform 如何把"租户视图 / 工作区"映射到 Artifacts namespace。
-- [docs/system_design/infra.md](infra.md) 给出 zot / RustFS / PostgreSQL 等基础设施的部署契约。
+- [docs/system_design/platform.md](../platform/platform.md) 描述 Platform 如何把"租户视图 / 工作区"映射到 Artifacts namespace。
+- [docs/system_design/infra.md](../infra/infra.md) 给出 zot / RustFS / PostgreSQL 等基础设施的部署契约。

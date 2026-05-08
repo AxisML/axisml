@@ -47,7 +47,7 @@ compute-operator **不感知 Tenant CR**——租户级资源由 [tenant-operato
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-MLJob 与 MLService 同构使用 **dispatcher + handler** 模式：CR 的 `spec.backend.{name, engine}` 元组路由到注册过的 Handler，Handler 渲染目标 GVK 并把状态回流到 CR.status——见 §3.5。所有 backend 派生的 Pod 强制走 koord-scheduler 并消费对应 ElasticQuota（[infra.md](infra.md)）。
+MLJob 与 MLService 同构使用 **dispatcher + handler** 模式：CR 的 `spec.backend.{name, engine}` 元组路由到注册过的 Handler，Handler 渲染目标 GVK 并把状态回流到 CR.status——见 §3.5。所有 backend 派生的 Pod 强制走 koord-scheduler 并消费对应 ElasticQuota（[infra.md](../infra/infra.md)）。
 
 ## 2. 运行时契约
 
@@ -177,7 +177,7 @@ compute 服务采用 Operation Outbox + reconciler 异步下发 CR（详见 [com
 
 ### 3.4 Pod 注入约定
 
-所有 MLJob 与 MLService Handler 派生的 Pod（含 KServe 派生的 inference Pod）必须满足以下注入约定，体现 [infra.md](infra.md) 的 Quota 全覆盖不变式：
+所有 MLJob 与 MLService Handler 派生的 Pod（含 KServe 派生的 inference Pod）必须满足以下注入约定，体现 [infra.md](../infra/infra.md) 的 Quota 全覆盖不变式：
 
 | Pod 字段 / Label | 必填 | 取值 | 用途 |
 | --- | --- | --- | --- |
@@ -943,7 +943,7 @@ integration 在 `components/compute-operator/test/integration/` 单一 Go module
 
 ## 8. 相关引用
 
-- [docs/system_design/overview.md](overview.md) 概述了 compute-operator 在控制平面里的位置。
+- [docs/system_design/overview.md](../overview.md) 概述了 compute-operator 在控制平面里的位置。
 - [docs/system_design/compute.md](compute.md) 描述 compute 服务与 operator 之间的 CR 写路径与状态回流。
 - [docs/system_design/tenant-operator.md](tenant-operator.md) 是 compute-operator 的兄弟 operator，承载 Tenant / Quota / Namespace 资源派生。
-- [docs/system_design/infra.md](infra.md) 给出 koord-scheduler / ElasticQuota / Gateway API 等基础设施依赖契约。
+- [docs/system_design/infra.md](../infra/infra.md) 给出 koord-scheduler / ElasticQuota / Gateway API 等基础设施依赖契约。
