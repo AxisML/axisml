@@ -37,7 +37,7 @@
 
 - Tenant CR 字段语义、可变性约束、底层资源落地：见 [cluster-manager.md §3](../core/cluster-manager.md#3-tenant-api) 与 [tenant-operator.md §4](../core/tenant-operator.md#4-tenant-controller)。
 - 用户登录、JWT、内置角色矩阵、`IdentityProvider` 抽象：见 `auth.md`。
-- 资源池 / 资源单元的定义与维护：见 `resource-pool.md` / `resource-unit.md`。
+- 资源池 / 资源单元的定义与维护：见 `resource-pool.md`。
 - 数据卷管理：[platform/overview.md §11](overview.md#11-后续迭代与-tbd) 标记为 TBD。
 
 ## 2. 角色与可见性矩阵

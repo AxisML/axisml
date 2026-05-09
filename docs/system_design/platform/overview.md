@@ -102,8 +102,7 @@ Platform 的用户界面菜单与各功能详设的对应关系如下表。状�
 | 训练&推理 | 在线服务 | [service.md](service.md) | ✅ |
 | 制品中心 | 模型 | [model.md](model.md) | ✅ |
 | 系统管理 | 租户管理（含配额 Tab） | [tenant.md](tenant.md) | ✅ |
-| 系统管理 | 资源池管理 | [resource-pool.md](resource-pool.md) | ✅ |
-| 系统管理 | 资源单元管理 | [resource-unit.md](resource-unit.md) | ✅ |
+| 系统管理 | 资源池管理（含资源单元） | [resource-pool.md](resource-pool.md) | ✅ |
 | 系统管理 | 数据卷管理 | 本文 §11 入口预留 | TBD |
 | 横切 | 用户 / 角色 / 鉴权 | [auth.md](auth.md) | ✅ |
 
