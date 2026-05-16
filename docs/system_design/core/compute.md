@@ -576,6 +576,7 @@ services(
 **字段归属**
 
 - `spec` 与 jobs 不同：扩缩容 API 更新 `replicas` 同时回写 `spec.roles[0].replicas`（单 role 约定）并重算 `desired_spec_hash`，其他字段依然不可变
+- `spec.roles[*].template.{volumes, volumeMounts}`：用户提交，按 [compute-operator.md §5.2.2](compute-operator.md#522-spec-结构) 结构透传到 MLService CR，由 `(native, *)` handler 落到 Pod template；与 `roles[*].template.ports[]` 同属创建后不可变的镜像运行参数
 - `endpoint`：`(native, *)` / `(custom, *)` 可为内部 Service DNS 或 AxisML Gateway URL；`(kserve, *)` 为 KServe `status.url`
 
 **`spec.backend` 默认值注入**：用户未指定 `spec.backend` 时，Compute 写 CR 时显式补 `{name: "native", engine: "deployment"}`。
@@ -607,7 +608,7 @@ Creating ──(Informer ADD)──▶ Pending ──(ready=desired, desired>0)�
 
 #### 7.4.1 提交校验
 
-同 §6.4.1（ResourceUnit / pool 一致；`spec.scheduling.quota` 字段必填）。
+同 §6.4.1（ResourceUnit / pool 一致；`spec.scheduling.quota` 字段必填）。额外校验：`spec.roles[*].template.volumeMounts[].name` 必须出现在同一 role 的 `spec.roles[*].template.volumes[].name` 集合中——校验在 Compute 侧前置，避免下放到 operator 才发现引用错。
 
 #### 7.4.2 扩缩容
 
@@ -626,13 +627,24 @@ Creating ──(Informer ADD)──▶ Pending ──(ready=desired, desired>0)�
 
 外部误删（运行态收到 CR DELETE 事件）的处理见 §3.7。Service 没有 cancel 语义。
 
-### 7.5 与 compute-operator 的契约
+### 7.5 id-based 寻址端点
+
+为支撑 [Platform 开发机](../platform/workspace.md)「以 `services.id` 作为 Platform→Compute 唯一稳定 join key」的设计（参见 [platform/workspace.md §3.4](../platform/workspace.md#34-对-core-层的硬依赖必须同-pr-推进)），Service 模块在原有 `(namespace, name)` 路径之外暴露按 `services.id` 寻址的只读端点：
+
+| Endpoint | 方法 | 说明 |
+| --- | --- | --- |
+| `/api/v1/services/{id}` | `GET` | 返回完整 service 视图（含 `namespace` / `name` / `display_name` / `spec` / `status` / `endpoint` / `replicas` / `ready_replicas` / ...）；语义同 `GET /api/v1/namespaces/{namespace}/services/{service}`，仅入参不同 |
+| `/api/v1/services` | `GET` | query `?ids=id1,id2,...` 批量按 id 拉取；用于 Platform list workspace 的 N+1 优化（一次 RPC 拉一个租户的全部 service） |
+
+写操作（`POST /scale`、`DELETE`）保留既有 namespace-scoped 形态——调用方在写之前先 id-based GET 拿到 `(namespace, name)` 再走原路径，避免引入双轨写 API、写路径复用既有 outbox。
+
+### 7.6 与 compute-operator 的契约
 
 - **Compute phase 映射**：详见 §7.3 表格
 - **`/scale` 透传**：mlservice handler 必须把 `roles[*].replicas` 透传为后端原生扩缩，详见 [compute-operator.md §3.6](compute-operator.md) 控制信号义务
 - **路由派生**：`(native, *)` 的外部入口由 mlservice handler 派生 `HTTPRoute`，Compute 不参与路由配置；`(kserve, *)` 使用 KServe 自带 route
 
-### 7.6 后续工作
+### 7.7 后续工作
 
 - **多 role 独立扩缩**：当前 `services.replicas` 字段在单 role 约定下定义为 `spec.roles[0].replicas`；多 role 场景需要 role 显式寻址
 - **autoscaling**：基于 `request_rate` 的弹性扩缩

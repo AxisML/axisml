@@ -620,6 +620,15 @@ spec:
         resources:
           requests: {}
           limits: {}
+        volumes:                # 可选；与 K8s PodSpec.volumes 同源
+          - name: string
+            persistentVolumeClaim: { claimName: string }
+            # 也支持 configMap / secret / emptyDir 等 PodSpec.volumes 子集
+        volumeMounts:           # 可选；与 K8s Container.volumeMounts 同源
+          - name: string        # 必须出现在 volumes[].name 中
+            mountPath: string
+            readOnly: bool
+            subPath: string
 
   # ── 生命周期 ────────────────────────────────────────────────────
   runPolicy:
@@ -651,7 +660,7 @@ spec:
 | `spec.backend.config` | Compute（默认 `{}`） | 否（仅 `roles[*].replicas` 通过 `/scale` 变更） |
 | `spec.scheduling.*` | Compute | 否 |
 | `spec.modelRef` | 用户提交 | 否（更换模型版本走重建） |
-| `spec.roles[*].name` / `template.*`（含 `ports[]`，除 resources） | 用户提交 | 否 |
+| `spec.roles[*].name` / `template.*`（含 `ports[]` / `volumes[]` / `volumeMounts[]`，除 resources） | 用户提交 | 否 |
 | `spec.roles[*].template.resources` | Compute（注入 ResourceUnit） | 否 |
 | `spec.roles[*].replicas` | API（`/scale` 触发） | **是** |
 | `spec.runPolicy.progressDeadlineSeconds` | 用户提交 | 否 |
@@ -736,6 +745,8 @@ status:
 | --- | --- |
 | `roles[predictor].template.image` 等 | Deployment Pod 主容器同名字段 |
 | `roles[predictor].template.ports[]` | Deployment Pod 主容器 `ports` + K8s Service `spec.ports` |
+| `roles[predictor].template.volumes[]` | `Deployment.spec.template.spec.volumes`；`Validate` 拒绝引用 namespace 外 PVC |
+| `roles[predictor].template.volumeMounts[]` | Deployment Pod 主容器 `volumeMounts`；`Validate` 强制每个 `name` 出现在同 role 的 `volumes[]` 中 |
 | `roles[predictor].replicas` | `Deployment.spec.replicas` |
 | `spec.scheduling.quota` | Pod label `quota.scheduling.koordinator.sh/name`；不创建 PodGroup |
 | `spec.modelRef` | Artifacts client 解析为模型工件 URI，注入为环境变量 `AXISML_MODEL_URI` |

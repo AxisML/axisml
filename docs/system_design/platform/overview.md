@@ -368,7 +368,7 @@ Platform 自有的所有 PG 表如下表。除身份与视图映射外不缓存�
 | `role_permissions` | `(role_id, permission_id)` | — | 多对多 |
 | `user_tenant_roles` | `(user_id, tenant_id, role_id)` | `created_at` | 用户在某租户内的角色绑定；`tenant_id` 引用 `tenants.id` |
 | `tenants` | `id` (uuid) | `name` (uniq) 租户名 / URL 锚点 / 透传为 Tenant CR `metadata.name`；`display_name`, `description`, `business_unit`, `created_at`, `updated_at` | 不缓存 namespace（由下游调用各自携带）、spec / status / quotas |
-| `workspaces` | `id` (uuid) | `name`, `owner_user_id`, `tenant_id`, `compute_namespace`, `mlservice_name`, `image`, `resource_pool_id`, `resource_unit_id`, `quota`, `status`, `created_at`, `updated_at` | 详见 [workspace.md](workspace.md) |
+| `workspaces` | `id` (uuid) | `tenant_id`, `service_id`（Compute `services.id`），`created_at`, `updated_at`, `deleted_at` | 仅 3 业务字段；下游 join key 用 Compute service id；运行态 / 配置 / 镜像信息全部实时穿透 Compute。详见 [workspace.md](workspace.md) |
 | `sessions` | `jti` | `user_id`, `expires_at`, `revoked` | JWT 黑名单（登出 / 强制注销）；按 `expires_at` 定期清理 |
 | `audit_logs` | `id` (bigserial) | `user_id`, `action`, `target`, `metadata` (jsonb), `created_at` | 关键管理员操作的审计；保留期由配置项指定 |
 
