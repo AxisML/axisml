@@ -1,19 +1,19 @@
-# AxisML Platform 开发机 详细设计
+# AxisML Platform 工作区 详细设计
 
-本文档是 AxisML Platform 子系统下 **「训练 & 推理 → 工作区」** 一级功能的全栈设计，承接 [PRD §6.2.1 开发机](../../product/prd.md#621-开发机) 与系统层 [compute](../core/compute.md) / [compute-operator](../core/compute-operator.md) 之间的 Platform 入口：开发机列表 / 详情、创建与启停、浏览器接入与持久化目录管理。
+本文档是 AxisML Platform 子系统下 **「训练 & 推理 → 工作区」** 一级功能的全栈设计，承接 [PRD §6.2.1 工作区](../../product/prd.md#621-工作区) 与系统层 [compute](../core/compute.md) / [compute-operator](../core/compute-operator.md) 之间的 Platform 入口：工作区列表 / 详情、创建与启停、浏览器接入与持久化目录管理。
 
-工作区（Workspace）即 PRD 所称的「开发机」——一台 **长驻的交互式开发容器**，跑用户选定的镜像（jupyter / VSCode Server / 自定义 Web 服务等），用于代码调试、Notebook 试跑与小规模实验。本文不引入新的 CRD，整套语义复用 [`MLService(native, deployment)`](../core/compute-operator.md#561-native-deployment) 后端：创建 = 调 Compute 创建一个单 role 单副本的 MLService；启停 = patch `roles[0].replicas` 在 `0/1` 之间切换；浏览器接入 = 同一只 MLService 的 `spec.route` 派生 HTTPRoute 经 Envoy Gateway 反代。
+工作区（Workspace）即 PRD 所称的「工作区」——一台 **长驻的交互式开发容器**，跑用户选定的镜像（jupyter / VSCode Server / 自定义 Web 服务等），用于代码调试、Notebook 试跑与小规模实验。本文不引入新的 CRD，整套语义复用 [`MLService(native, deployment)`](../core/compute-operator.md#561-native-deployment) 后端：创建 = 调 Compute 创建一个单 role 单副本的 MLService；启停 = patch `roles[0].replicas` 在 `0/1` 之间切换；浏览器接入 = 同一只 MLService 的 `spec.route` 派生 HTTPRoute 经 Envoy Gateway 反代。
 
 | 模块 | 职责 | 边界外 |
 | --- | --- | --- |
-| 开发机视图与生命周期（[§4](#4-菜单与列表页) / [§7.1](#71-开发机-cruddelete)） | 创建 / 列表 / 详情 / 删除；按用户身份过滤可见开发机 | MLService CR 字段语义、Pod 调度、`(native, deployment)` handler 派生（→ [compute.md §7](../core/compute.md#7-service) / [compute-operator.md §5](../core/compute-operator.md#5-mlservice-controller)）|
+| 工作区视图与生命周期（[§4](#4-菜单与列表页) / [§7.1](#71-工作区-cruddelete)） | 创建 / 列表 / 详情 / 删除；按用户身份过滤可见工作区 | MLService CR 字段语义、Pod 调度、`(native, deployment)` handler 派生（→ [compute.md §7](../core/compute.md#7-service) / [compute-operator.md §5](../core/compute-operator.md#5-mlservice-controller)）|
 | 启停（[§4.2](#42-操作按钮) / [§7.2](#72-启停)） | 用户视角的 start / stop 翻译为 Compute `/scale` 写 `replicas=1/0` | Compute 的双 hash 同步语义（→ [compute.md §3.5](../core/compute.md#35-desiredapplied-spec-hash-双-hash-机制)）|
 | 浏览器接入（[Tab 2](#tab-2-访问) / [§7.3](#73-访问入口)） | 派生 `spec.route` 让 native/deployment handler 创建 HTTPRoute；下发短 TTL JWT | HTTPRoute / SecurityPolicy 资源渲染（→ [compute-operator.md §5.5 / §5.6.1](../core/compute-operator.md#55-specroute-派生资源)）|
 | 持久化目录（[§5](#5-创建表单) / [§8.5](#85-pvc-管理)） | 创建 / 销毁 workspace 专属 PVC；MVP 默认挂 `/workspace` | StorageClass 选择、CSI driver 行为、跨节点共享（→ 集群运维；DataVolume 远期方案见 [overview.md §11](overview.md#11-后续迭代与-tbd)）|
 
 **关键不变式：**
 
-> Platform 自有 PG 的 `workspaces` 表只持有 `(id, tenant_id, service_id)` 三个业务字段——回答「这个 service 是不是开发机 / 它属于哪个租户 / 它对应哪一行 Compute service」三个问题；其他所有运行时 / 配置 / 镜像 / 资源信息一律实时穿透到 [compute](../core/compute.md) 的 service 行。
+> Platform 自有 PG 的 `workspaces` 表只持有 `(id, tenant_id, service_id)` 三个业务字段——回答「这个 service 是不是工作区 / 它属于哪个租户 / 它对应哪一行 Compute service」三个问题；其他所有运行时 / 配置 / 镜像 / 资源信息一律实时穿透到 [compute](../core/compute.md) 的 service 行。
 >
 > 下游 join key 用 Compute 的 `services.id`（uuid）而非 `(namespace, name)`，与 [tenant.md](tenant.md) 用 `tenants.id` 当外键的范式一致；rename 抗性更强、列表 N+1 优化天然存在。
 >
@@ -35,7 +35,7 @@
 
 「工作区」是「训练 & 推理」菜单下面向全部 persona（系统管理员 / 租户管理员 / 普通用户）的入口，覆盖以下能力：
 
-- 选镜像 + 资源单元 + 容器端口创建一个开发机；
+- 选镜像 + 资源单元 + 容器端口创建一个工作区；
 - 启动 / 停止单副本（`replicas=1/0`）以释放算力；
 - 通过 Envoy Gateway 经路径前缀直接在浏览器打开 IDE；
 - `/workspace` 目录由 Platform 申请的 PVC 承载，停机 / 重启不丢失；
@@ -55,19 +55,19 @@
 
 | 能力 | `system-admin` | `tenant-admin@self` | `user@self & @owner` | `user@self & 非 owner` |
 | --- | :---: | :---: | :---: | :---: |
-| 列出可见开发机 | 全集群 | 该租户全部 | 仅自己创建的 | 仅自己创建的 |
-| 查看开发机详情 | ✅ | ✅ | ✅ | ❌ |
-| 创建开发机 | ✅ | ✅ | ✅ | — |
+| 列出可见工作区 | 全集群 | 该租户全部 | 仅自己创建的 | 仅自己创建的 |
+| 查看工作区详情 | ✅ | ✅ | ✅ | ❌ |
+| 创建工作区 | ✅ | ✅ | ✅ | — |
 | 启动 / 停止 | ✅ | ✅ | ✅ | ❌ |
 | 删除 | ✅ | ✅ | ✅ | ❌ |
 | 拿 access JWT 进入 IDE | ✅ | ✅ | ✅ | ❌ |
 | 修改展示元数据（display_name / description） | ✅ | ✅ | ✅ | ❌ |
 
-`system-admin` 在所有动作上短路放行，不要求其在 `user_tenant_roles` 中显式绑定。`tenant-admin` 在自己绑定的租户内拥有等同于 `system-admin` 的开发机管理能力，覆盖所有成员的开发机；普通 `user` 仅能操作自己创建的开发机。
+`system-admin` 在所有动作上短路放行，不要求其在 `user_tenant_roles` 中显式绑定。`tenant-admin` 在自己绑定的租户内拥有等同于 `system-admin` 的工作区管理能力，覆盖所有成员的工作区；普通 `user` 仅能操作自己创建的工作区。
 
 ## 3. 数据模型（Platform 自有部分）
 
-按 [overview.md §9 关键设计决策](overview.md#9-关键设计决策) 「Platform PG 范围 — 仅存身份与视图映射，不缓存下游业务元数据」原则，`workspaces` 表只回答 **Compute `services` 表无法回答的 3 个问题**：「这个 service 是不是开发机」「它属于哪个租户」「它对应哪一行 Compute service」。其他字段一律实时穿透到 [compute](../core/compute.md)。
+按 [overview.md §9 关键设计决策](overview.md#9-关键设计决策) 「Platform PG 范围 — 仅存身份与视图映射，不缓存下游业务元数据」原则，`workspaces` 表只回答 **Compute `services` 表无法回答的 3 个问题**：「这个 service 是不是工作区」「它属于哪个租户」「它对应哪一行 Compute service」。其他字段一律实时穿透到 [compute](../core/compute.md)。
 
 ### 3.1 `workspaces` 表
 
@@ -80,7 +80,7 @@
 
 约束：
 
-- 全表只有 3 个业务字段。「凡 service_id 出现在 `workspaces` 表里的 Compute service 就是开发机」——不必在 Compute 上加 `kind` 字段或 label。
+- 全表只有 3 个业务字段。「凡 service_id 出现在 `workspaces` 表里的 Compute service 就是工作区」——不必在 Compute 上加 `kind` 字段或 label。
 - **不存 `mlservice_name` / `compute_namespace`**：它们是 K8s CR 命名细节，Compute 实时返回；与 [tenant.md §3.1](tenant.md#31-tenants-表) 「不缓存 namespace」原则一致。
 - **不存 `display_name` / `description` / `owner_user`**：写入 Compute `services` 同名字段，Platform 不复制。owner 校验直接比较 `compute.services.owner_user`（即 `X-Axisml-User` 注入的 username）与 `current_user.username`。
 - **不存 `desired_state` / `status` / `endpoint` / `replicas` 等运行态**：派生自 Compute service 的 `replicas` + `status`（详见 [§8.3](#83-状态读取与派生)）。
@@ -97,7 +97,7 @@
 | `quota` (ElasticQuota CR 名) | `services.spec.scheduling.quota` |
 | `containerPort` / `accessPath` | `services.spec.roles[0].template.ports[0]` / `services.spec.route.path` |
 | `desired_state` | 派生：`services.replicas == 0 ? "Stopped" : "Running"` |
-| `status`（开发机展示） | 由 [§8.3](#83-状态读取与派生) 状态映射函数从 `(desired_state, services.status)` 二元组计算 |
+| `status`（工作区展示） | 由 [§8.3](#83-状态读取与派生) 状态映射函数从 `(desired_state, services.status)` 二元组计算 |
 | `pvc_name` | 派生：`"axisml-ws-" + id 前 8 字符 + "-data"` |
 | `pvc_size` / `pvc_used` | 详情页时实时 `kubectl get pvc` + Prometheus（可选） |
 | `access_url` | 拼接 `https://<gateway-host>/workspaces/<tenant>/<service.name>/`，`service.name` 来自 Compute |
@@ -105,7 +105,7 @@
 
 ### 3.3 列表查询路径
 
-针对租户管理员 / 系统管理员的「列出整个租户的开发机」与普通用户的「列出我的开发机」两条路径，都走同一段流程：
+针对租户管理员 / 系统管理员的「列出整个租户的工作区」与普通用户的「列出我的工作区」两条路径，都走同一段流程：
 
 1. 按 RBAC 取可见 `tenant_id` 集合；
 2. `SELECT id, service_id FROM workspaces WHERE tenant_id IN (...) AND deleted_at IS NULL`；
@@ -117,14 +117,14 @@
 
 ### 3.4 对 core 层的硬依赖（必须同 PR 推进）
 
-本设计有两块对 core 层的扩展属于「不交付就实现不了」的硬依赖；它们本身不引入新的设计取舍，只是把 [overview.md §2.5](overview.md#25-工作区--开发机workspace) 早已宣布的「Workspace 复用 MLService」承诺落到具体字段上：
+本设计有两块对 core 层的扩展属于「不交付就实现不了」的硬依赖；它们本身不引入新的设计取舍，只是把 [overview.md §2.5](overview.md#25-工作区--工作区workspace) 早已宣布的「Workspace 复用 MLService」承诺落到具体字段上：
 
 #### A. MLService spec 加 `volumes` / `volumeMounts`（PVC 持久化）
 
 | 文件 / 章节 | 改动 |
 | --- | --- |
 | [compute-operator.md §5.2.2](../core/compute-operator.md#522-spec-结构) | 在 MLService `spec.roles[*].template` 下追加 `volumes[]` / `volumeMounts[]`，与 K8s `PodSpec` / `Container` 同源 |
-| [compute-operator.md §5.2.3](../core/compute-operator.md#523-字段归属与不可变性) | 新增字段标 `用户提交 / 否`（开发机重启不需要改 PVC 引用） |
+| [compute-operator.md §5.2.3](../core/compute-operator.md#523-字段归属与不可变性) | 新增字段标 `用户提交 / 否`（工作区重启不需要改 PVC 引用） |
 | [compute-operator.md §5.6.1](../core/compute-operator.md#561-native-deployment) 通用字段映射表 | 追加 `roles[].template.volumes` → `Deployment.spec.template.spec.volumes`；`roles[].template.volumeMounts` → 主容器 `volumeMounts` |
 | [compute.md §7.2](../core/compute.md#72-数据模型) 字段归属 | `spec` jsonb 接受新增 `volumes` / `volumeMounts` 字段透传 |
 | [compute.md §7.4.1](../core/compute.md#741-提交校验) 提交校验 | 增补「`volumeMounts.name` 必须在 `volumes[]` 中存在」校验 |
@@ -134,7 +134,7 @@
 | 文件 / 章节 | 改动 |
 | --- | --- |
 | [compute.md §7.5](../core/compute.md#75-id-based-寻址端点) | 新增 `GET /api/v1/services/{id}` 返回完整 service 视图（含 `namespace` / `name` / `display_name` / `spec` / `status` / `endpoint` / ...）；语义同 `GET /api/v1/namespaces/{ns}/services/{name}`，仅入参不同 |
-| 同上 | `GET /api/v1/services?ids=id1,id2,...` 批量按 id 拉取；用于 Platform list 开发机的 N+1 优化（一次 RPC 拉一个租户的全部 service） |
+| 同上 | `GET /api/v1/services?ids=id1,id2,...` 批量按 id 拉取；用于 Platform list 工作区的 N+1 优化（一次 RPC 拉一个租户的全部 service） |
 
 写操作（`POST /scale`、`DELETE`）保留既有 namespace-scoped 形态——Platform 在写之前先 id-based GET 拿到 `(namespace, name)` 再走原路径，避免 Compute 引入双轨 API、写路径复用既有 outbox。
 
@@ -275,7 +275,7 @@ MVP 不交付。登记到 [§11 后续迭代](#11-后续迭代)：依赖 Compute
 - 出站调用：`internal/client/compute` typed client，定义见 [overview.md §7.5](overview.md#75-下游-typed-client)；通过新增的 `GetServiceByID` / `ListServicesByIDs` 方法对接 [§3.4](#34-对-core-层的硬依赖必须同-pr-推进) 的 id-based 端点。
 - 每个 endpoint 在下文括号内标注允许的角色：`system-admin` 表示全局；`tenant-admin@self` / `user@self` 表示「在该 workspace 所属租户上具备该角色」；`@owner` 表示「`services.owner_user == current_user.username`」。
 
-### 7.1 开发机 CRUD（创建 / 读取 / 删除）
+### 7.1 工作区 CRUD（创建 / 读取 / 删除）
 
 #### `POST /api/v1/workspaces`（已登录 + `user@self` 及以上）
 
@@ -552,7 +552,7 @@ Compute / K8s 是权威；本地 `workspaces` 仅承载视图映射。一致性�
 
 - 复用 [auth.md](auth.md) 中 Platform 内置 JWT 签名密钥（不为 access JWT 单独配密钥）；
 - access JWT TTL 默认 1h，可由 Platform 配置项 `--workspace-access-jwt-ttl` 调整，上限 24h；
-- `aud=axisml-workspace` 与平台主用户 JWT (`aud=axisml-platform`) 区分：网关 SecurityPolicy 校验 `aud` claim 防止主用户 JWT 被滥用为开发机访问凭证；
+- `aud=axisml-workspace` 与平台主用户 JWT (`aud=axisml-platform`) 区分：网关 SecurityPolicy 校验 `aud` claim 防止主用户 JWT 被滥用为工作区访问凭证；
 - Platform 在 `axisml-system` namespace 内暴露 `/.well-known/jwks.json`（ClusterIP，无需走 Envoy Gateway），SecurityPolicy 通过 `cluster-local URL` 拉公钥；
 - JWKS 端点的具体格式与密钥轮换策略 → [auth.md](auth.md)，本文不重复。
 
@@ -600,7 +600,7 @@ zap 字段约定：每条 workspace 操作日志必带 `workspace_id` / `tenant_
 
 | 模块 | 范围 | 完成信号 |
 | --- | --- | --- |
-| handler / service / repository / dto | [§7.1](#71-开发机-cruddelete) / [§7.2](#72-启停) / [§7.3](#73-访问入口) endpoint | `make platform-build` 通过 |
+| handler / service / repository / dto | [§7.1](#71-工作区-cruddelete) / [§7.2](#72-启停) / [§7.3](#73-访问入口) endpoint | `make platform-build` 通过 |
 | RBAC 装配 | [§8.1](#81-rbac-中间件接入) 路由表全部接通；`system-admin` 短路与 `@owner` 校验单测覆盖 | 单元测试覆盖中间件分支 |
 | PG 迁移 | `workspaces` 表创建（3 业务字段 + 时间戳 + 索引） | `make platform-migrate` 干净 |
 | PVC 受限 SA | ClusterRole + RoleBinding Helm 模板 | `kubectl auth can-i` 校验通过 |
@@ -671,9 +671,9 @@ zap 字段约定：每条 workspace 操作日志必带 `workspace_id` / `tenant_
 
 ## 13. 相关引用
 
-- [PRD §6.2.1 开发机](../../product/prd.md#621-开发机)
+- [PRD §6.2.1 工作区](../../product/prd.md#621-工作区)
 - [docs/system_design/overview.md](../overview.md)
-- [docs/system_design/platform/overview.md §2.5 工作区 / 开发机](overview.md#25-工作区--开发机workspace)
+- [docs/system_design/platform/overview.md §2.5 工作区 / 工作区](overview.md#25-工作区--工作区workspace)
 - [docs/system_design/platform/tenant.md](tenant.md)
 - [docs/system_design/core/compute.md §7 Service](../core/compute.md#7-service)
 - [docs/system_design/core/compute-operator.md §5 MLService](../core/compute-operator.md#5-mlservice-controller)

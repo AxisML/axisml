@@ -26,7 +26,7 @@ Platform 在产品语义上区分三类用户身份，权威定义见 [PRD §2 �
 
 - **系统管理员（system admin）**：平台级超管。负责租户、资源池、资源单元、数据卷的全生命周期管理；可见「系统管理」菜单全部入口，可读所有租户数据。
 - **租户管理员（tenant admin）**：单租户负责人。负责本租户在各资源池下的配额拆分、成员管理与本租户内全部业务对象（Job / Service / Artifact / Workspace）的读写；不能跨租户操作。
-- **普通用户（user）**：算法工程师、数据科学家、推理服务运维等业务使用者的统称。在所属租户内使用开发机、提交任务、部署服务、注册与消费制品。
+- **普通用户（user）**：算法工程师、数据科学家、推理服务运维等业务使用者的统称。在所属租户内使用工作区、提交任务、部署服务、注册与消费制品。
 
 persona 与下一节 RBAC 角色的对应关系：
 
@@ -56,11 +56,11 @@ Platform 通过 [cluster-manager](../core/cluster-manager.md) 与系统层的 `T
 
 Cluster Manager 不持有任何 PG，权威完全在 Tenant CR；租户的配额、状态等字段始终读 Tenant CR（按 `name` 寻址，与 Tenant CR `metadata.name` 同名锚点），Platform 自己只缓存「展示元数据」。下游 Compute / Artifacts 不感知 Platform 的租户实体，它们仅按请求体里的 `namespace` 字段分区——该 namespace 在 Job / Artifact 等下游调用时由调用方传递（典型来源是 `Tenant.spec.namespace.name`），不是租户实体的属性，也不在 Platform PG 缓存。
 
-### 2.5 工作区 / 开发机（Workspace）
+### 2.5 工作区 / 工作区（Workspace）
 
 用户菜单「训练&推理 → 工作区」下的具体对象。语义为一台 **长驻的交互式开发容器**（Jupyter Notebook / VSCode Server / SSH 等）。底层复用 [`MLService(native, deployment)`](../core/compute-operator.md) 后端：
 
-- Platform 自行维护 `workspaces` 表，记录开发机的归属用户、租户、镜像、ResourceUnit、底层 MLService 名称等；
+- Platform 自行维护 `workspaces` 表，记录工作区的归属用户、租户、镜像、ResourceUnit、底层 MLService 名称等；
 - 创建 = 调 Compute 创建一个 `MLService(native, deployment)`，单 role、单副本，长驻容器；
 - 启停 = patch 该 MLService 的 `roles[0].replicas`；
 - 用户连接 = 通过 Envoy Gateway 反代或本地 port-forward 到容器端口。
@@ -82,7 +82,7 @@ Cluster Manager 不持有任何 PG，权威完全在 Tenant CR；租户的配额
 | 角色 | Role | Platform 内部表，含内置三档 |
 | 权限 | Permission | Platform 内部表，绑定到 Role |
 | 租户 | Tenant | Platform 内部表（仅展示元数据）+ 上游 `Tenant` CR（权威） |
-| 工作区 / 开发机 | Workspace | Platform 内部表 + Compute `MLService(native, deployment)` |
+| 工作区 / 工作区 | Workspace | Platform 内部表 + Compute `MLService(native, deployment)` |
 | 数据卷 | DataVolume | TBD |
 
 系统层共享的概念（Tenant、ResourcePool、ResourceUnit、Quota、Job、Service、Artifact）参见 [上层 overview §2](../overview.md#2-核心概念)。
@@ -311,7 +311,7 @@ components/platform/backend/
 │   ├── orchestrator/                # 跨服务编排
 │   ├── user/                        # 用户 handler/service/repository
 │   ├── tenant/                      # 租户 handler/service/repository
-│   ├── workspace/                   # 开发机 handler/service/repository
+│   ├── workspace/                   # 工作区 handler/service/repository
 │   ├── job/                         # 计算任务编排（无本地表，仅代理）
 │   ├── service/                     # 在线服务编排
 │   ├── model/                       # 模型 handler（代理 Artifacts）
@@ -442,7 +442,7 @@ type Client interface {
 | 文档组织粒度 | 按二级菜单（子功能）拆文档 + 一份横切 `auth.md` | 单文件保持短小、便于评审与并行迭代；按一级菜单聚合后单文档过长不利阅读 |
 | 后端语言与框架 | Go + Gin + GORM + Cobra，与 Compute 一致 | 复用现有组件骨架与 CI 流水线，降低维护成本 |
 | 认证方式 | 内置用户 + RBAC，`IdentityProvider` 接口预留 OIDC | 第一版自建集群可独立运行；外部 IdP 按需接入而非默认依赖 |
-| 工作区实现 | 复用 `MLService(native, deployment)` 承载开发机 | 避免新增 CRD；与在线服务共用 backend handler |
+| 工作区实现 | 复用 `MLService(native, deployment)` 承载工作区 | 避免新增 CRD；与在线服务共用 backend handler |
 | 租户实体 | Platform 自身 PG 仅维护租户展示元数据；不缓存 namespace 与 spec / status | 下游服务保持 namespace-only 单一职责，不感知租户；namespace 由 Job/Artifact 调用按上下文实时携带 |
 | 配额 UI 归属 | 租户管理详情页内 Tab，不独立菜单 | 配额始终在 (tenant, pool) 上下文中操作 |
 | Platform PG 范围 | 仅存身份与视图映射，不缓存下游业务元数据 | 业务对象权威在 Compute / Artifacts，避免双写漂移 |
@@ -484,7 +484,7 @@ PostgreSQL 沿用 `axisml-system` chart 的内置实例或 `externalDatabase` �
 - **应用中心**：智能体（Agent）/ Skills / MCP 三个子菜单仅在前端预留路由；后端契约、数据模型与 IdP 集成在该方向需求稳定后再展开。
 - **数据卷管理**：可能的实现方向包括 PVC 抽象、数据集挂载路由、集群 StorageClass 视图，本期不冻结字段。
 - **OIDC 接入**：`auth.md` 给出接口签名后即可切换，但本期只交付 `internal`。
-- **IDE 内嵌**：开发机当前通过反代 / port-forward 访问；后续可在前端集成 code-server / JupyterLab 嵌入式视图。
+- **IDE 内嵌**：工作区当前通过反代 / port-forward 访问；后续可在前端集成 code-server / JupyterLab 嵌入式视图。
 - **制品扩展**：dataset / image / eval_report 三类 Artifact 已被 Artifacts 服务支持，仅缺 UI；UI 完工后从 §3 矩阵中升级为 ✅。
 - **审计与告警**：`audit_logs` 表已规划，下一步是 UI 视图与告警规则模板。
 - **多集群 / 多区域**：当前所有概念按单集群假设；多集群方向作为远期演进。

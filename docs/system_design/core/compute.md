@@ -629,7 +629,7 @@ Creating ──(Informer ADD)──▶ Pending ──(ready=desired, desired>0)�
 
 ### 7.5 id-based 寻址端点
 
-为支撑 [Platform 开发机](../platform/workspace.md)「以 `services.id` 作为 Platform→Compute 唯一稳定 join key」的设计（参见 [platform/workspace.md §3.4](../platform/workspace.md#34-对-core-层的硬依赖必须同-pr-推进)），Service 模块在原有 `(namespace, name)` 路径之外暴露按 `services.id` 寻址的只读端点：
+为支撑 [Platform 工作区](../platform/workspace.md)「以 `services.id` 作为 Platform→Compute 唯一稳定 join key」的设计（参见 [platform/workspace.md §3.4](../platform/workspace.md#34-对-core-层的硬依赖必须同-pr-推进)），Service 模块在原有 `(namespace, name)` 路径之外暴露按 `services.id` 寻址的只读端点：
 
 | Endpoint | 方法 | 说明 |
 | --- | --- | --- |
