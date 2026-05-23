@@ -10,7 +10,11 @@
 
 **关键不变式：**
 
-> Platform 自有 PG 仅持有 `tenants`（展示元数据 + Platform 级 `name` 标识）与 `user_tenant_roles`（成员绑定）；租户的 `spec` / `status` / `quotas` 不缓存，所有详情 GET 实时穿透到 cluster-manager。
+> **Platform 不为租户建任何视图表**。租户实体的权威完全在 [cluster-manager](../core/cluster-manager.md) 的 PG `tenants` 表——cluster-manager 自身是 PG-first 业务服务，Tenant CR 是它通过 outbox + reconciler 渲染的下游派生产物。所有租户字段（`displayName` / `description` / `business_unit` / `quotas` / 状态等）都是 cluster-manager API 的一级字段，Platform 仅做透传与展示。
+>
+> Platform 自身只持有 `user_tenant_roles` 关联表（成员绑定），其 `tenant_name` 列直接引用 cluster-manager `tenants.name`（partial unique on `WHERE deleted_at IS NULL`，等价于稳定 FK）。
+>
+> 所有租户字段都实时穿透到 cluster-manager；Platform 端不需要"权威先行 + 本地补偿"那套双写策略；展示元数据也不需要 annotation 折叠 / 展开的 DTO 映射。
 >
 > `compute_namespace` / `artifacts_namespace` 不是租户实体的属性；下游 Job / Service / Artifact 调用各自携带 `namespace` 字段（典型来源：`Tenant.spec.namespace.name`）。
 
@@ -58,31 +62,35 @@
 
 ## 3. 数据模型（Platform 自有部分）
 
-Platform 自身只为租户管理引入两张 PG 表，其余信息向 cluster-manager 实时穿透。
+Platform **不为租户实体建表**。所有租户字段都由 cluster-manager 实时返回（cluster-manager 自身的 PG schema 详见 [cluster-manager.md §3](../core/cluster-manager.md#3-pg-schema)）；Platform 只持有 `user_tenant_roles` 关联用于成员绑定。
 
-### 3.1 `tenants` 表
+### 3.1 租户元数据的归属
 
-| 字段 | 类型 | 说明 |
+cluster-manager API 一级字段与 Platform 视图字段直接 1:1 对应——**没有任何 annotation 折叠 / 展开逻辑**：
+
+| Platform 字段 | cluster-manager API 字段 | 备注 |
 | --- | --- | --- |
-| `id` | uuid PK | 内部稳定标识；`user_tenant_roles` / `workspaces` 等关联表通过该列引用 |
-| `name` | text uniq | 租户名；REST 路径中的 `{name}` 即此列；同时透传作为 Tenant CR 的 `metadata.name`，受 cluster-manager DNS-1123 校验。创建后不可变 |
-| `display_name` | text | UI 展示名，人类可读 |
-| `description` | text | 自由文本说明 |
-| `business_unit` | text | 业务线 / 部门归属，用于列表过滤 |
-| `created_at` / `updated_at` | timestamptz | GORM 自动维护 |
+| `name`（URL 锚点） | `name` | DNS-1123、≤40 字符；cluster-manager 校验；创建后不可变 |
+| `displayName` | `displayName` | 主展示名，允许 Unicode（含中文） |
+| `description` | `description` | 自由文本，允许 Unicode；cluster-manager 一级 PG 列，支持 ≤1000 字符 |
+| `businessUnit` | `businessUnit` | 业务线 / 部门归属；cluster-manager 一级 PG 列 + 索引，支持列表过滤 |
+| `annotations` | `annotations` | 透传给运维使用的扩展位 |
+| `namespace` / `quotas` / `initResources` / `suspended` | 同名字段 | 透传 |
+| `phase` / `namespaceReady` / `conditions` / `quotas[].used` | 同名字段 | cluster-manager informer 回流到 PG 后由 GET 返回 |
+| `createdAt` / `updatedAt` | 同名字段 | cluster-manager `tenants` 表自动维护 |
+| `deletedAt` | `deletedAt` | 软删时间戳；`null` = 活跃 |
 
-约束：
+所有 GET 请求都调 `clustermanager.GetTenant(name)` 取最新视图；Platform 端无任何缓存。cluster-manager 内部走 PG 查询 + informer 回流（详见 [cluster-manager.md §4.3](../core/cluster-manager.md#43-informer-回流)），单租户 GET 延迟充分可控。
 
-- `name` 同时担任 Platform URL 锚点与 Tenant CR `metadata.name`，与 cluster-manager 同名锚点。
-- 不缓存 Tenant CR 的 `spec` / `status` / `quotas`：所有 phase / namespaceReady / quotas 用量在 GET 时实时调 cluster-manager（按 `name` 寻址）。
-- 不存 `compute_namespace` / `artifacts_namespace`：下游 Job / Artifact 调用在请求体上独立携带 `namespace`，由调用上下文（Workspace、表单输入或 Tenant CR `spec.namespace.name`）决定。
+> 历史 / 软删租户：Platform 通过 `?includeArchived=true` 列出，通过 `POST /api/v1/tenants/{name}/restore` 恢复。这两个能力由 cluster-manager 原生提供（[cluster-manager.md §6.2](../core/cluster-manager.md#62-端点)）；Platform 仅做权限校验后透传。
 
 ### 3.2 `user_tenant_roles` 关联
 
-成员管理消费 `user_tenant_roles(user_id, tenant_id, role_id)` 三元组：
+成员管理消费 `user_tenant_roles(user_id, tenant_name, role_id)` 三元组：
 
-- `tenant_id` 引用 `tenants.id`（同库 FK，cascade 行为见 `auth.md`）。
-- 删除租户前需校验该 tenant 下无 `user_tenant_roles` 行（[§7.1](#71-租户-crud) DELETE）。
+- `tenant_name` 直接引用 Tenant CR `metadata.name`，text 类型，无 RDBMS 外键（Tenant CR 不在 PG 中）。
+- 因 Tenant CR `metadata.name` 创建后不可变，等价于一个稳定 FK；rename 抗性损失为零。
+- 删除租户时由 [§8.2](#82-一致性策略与级联) 同步级联清理该租户在 `user_tenant_roles` 中的所有行。
 
 字段、PK、索引细节由 `auth.md` 给出。
 
@@ -96,21 +104,21 @@ Platform 自身只为租户管理引入两张 PG 表，其余信息向 cluster-m
 
 ### 4.1 列表页
 
-| 列 | 来源 | 说明 |
+| 列 | 来源（cluster-manager API 字段） | 说明 |
 | --- | --- | --- |
-| `displayName` | `tenants.display_name` | 主展示列 |
-| `name` | `tenants.name` | 字符串锚点；URL 中的 `{name}` 即此列 |
-| `business_unit` | `tenants.business_unit` | 列过滤 |
-| 状态 | Tenant CR `status.phase` | `Active` / `Suspended` / `Failed` |
-| 命名空间 | Tenant CR `spec.namespace.name` | 只读展示 |
-| 创建时间 | `tenants.created_at` | |
-| 操作 | — | 详情 / 暂停 / 恢复 / 删除 |
+| `displayName` | `displayName` | 主展示列 |
+| `name` | `name` | 字符串锚点；URL 中的 `{name}` 即此列 |
+| `business_unit` | `businessUnit` | 列过滤，cluster-manager 端 PG 索引下推 |
+| 状态 | `phase` | `Active` / `Suspended` / `Failed` / `Deleted`（`includeArchived=true` 时） |
+| 命名空间 | `namespace.name` | 只读展示 |
+| 创建时间 | `createdAt` | |
+| 操作 | — | 详情 / 暂停 / 恢复 / 删除 / 恢复软删 |
 
-- 过滤：状态、business_unit、关键字（display_name / name 模糊匹配）。
-- 列表渲染：Platform 后端把 PG `tenants` 与 cluster-manager `LIST tenants` 结果按 `name` join 后返回；状态字段不在 PG 缓存，cluster-manager 自身走 controller-runtime cache，单次 RT 可控。
+- 过滤：状态、business_unit、关键字（displayName / name 模糊匹配），全部下推 cluster-manager。
+- 列表渲染：Platform 后端直接透传 cluster-manager `LIST tenants` 结果，按 RBAC 裁剪即可；无本地 join，状态字段也无 PG 缓存。cluster-manager 内部走 PG 查询 + informer 回流。
 - 列表可见性：
   - `system-admin`：全集群所有 Tenant CR。
-  - 其他角色：仅 `user_tenant_roles` 中显式绑定的 `tenant_id` 对应的租户。
+  - 其他角色：先按 `user_tenant_roles.user_id = current_user` 取 `tenant_name` 集合，再按集合过滤 cluster-manager 的 LIST 结果。
 
 ### 4.2 操作按钮
 
@@ -120,15 +128,16 @@ Platform 自身只为租户管理引入两张 PG 表，其余信息向 cluster-m
 
 ## 5. 创建租户表单（system-admin only）
 
-| UI 字段 | 写入位置 | 说明 |
+| UI 字段 | cluster-manager API 字段 | 说明 |
 | --- | --- | --- |
-| `name` | Tenant CR `metadata.name` + `tenants.name` | DNS-1123、≤40 字符；DNS 校验由 cluster-manager 兜底 |
-| `displayName` | Tenant CR `spec.displayName` + `tenants.display_name` | 双写以便列表 / 详情两侧展示 |
-| `description` / `businessUnit` | `tenants` 同名列 | 仅 Platform 本地展示，cluster-manager 不感知 |
-| `namespace.name` | Tenant CR `spec.namespace.name` | 创建后不可变（详见 [tenant-operator.md §4.3.3](../core/tenant-operator.md#433-字段归属与不可变性)） |
-| `namespace.labels` / `annotations` | Tenant CR `spec.namespace.{labels, annotations}` | 仅在 Namespace 首次创建时落地 |
-| `quotas[]` | Tenant CR `spec.quotas[]` 透传 | 每条 `(pool, name, min, max)`；`(pool, name)` 创建后不可变 |
-| `initResources` | Tenant CR `spec.initResources` 透传 | 列出 `name` + `sourceXxxRef`；UI 不构造源 Secret 数据，由集群管理员预置 |
+| `name` | `name` | DNS-1123、≤40 字符；DNS 校验由 cluster-manager 兜底；URL 中的 `{name}` 即此列 |
+| `displayName` | `displayName` | 主展示名，允许中文 |
+| `description` | `description` | 自由文本说明，允许中文；cluster-manager 一级 PG 列 |
+| `businessUnit` | `businessUnit` | 业务线 / 部门归属，cluster-manager 一级 PG 列，支持列表过滤 |
+| `namespace.name` | `namespace.name` | 创建后不可变（详见 [tenant-operator.md §4.3.3](../core/tenant-operator.md#433-字段归属与不可变性)） |
+| `namespace.labels` / `annotations` | `namespace.{labels, annotations}` | 仅在 Namespace 首次创建时落地 |
+| `quotas[]` | `quotas[]` 透传 | 每条 `(pool, name, min, max)`；`(pool, name)` 创建后不可变 |
+| `initResources` | `initResources` 透传 | 列出 `name` + `sourceXxxRef`；UI 不构造源 Secret 数据，由集群管理员预置 |
 
 校验：
 
@@ -144,15 +153,15 @@ Platform 自身只为租户管理引入两张 PG 表，其余信息向 cluster-m
 
 展示：
 
-- `display_name` / `description` / `business_unit`（来自 PG `tenants`，可编辑）。
-- 状态卡片：Tenant CR `status.phase` / `namespaceReady` / `conditions[]`（来自 cluster-manager，只读）。
-- 命名空间：Tenant CR `spec.namespace.name`（只读）。
+- `displayName` / `description` / `business_unit`（均为 cluster-manager API 一级字段，可编辑）。
+- 状态卡片：`phase` / `namespaceReady` / `conditions[]`（cluster-manager 由 informer 回流，只读）。
+- 命名空间：`namespace.name`（只读）。
 
 操作：
 
-- **编辑展示元数据**（`system-admin`）：仅写本地 PG，不调 cluster-manager；表单字段限于 `display_name` / `description` / `business_unit`。
+- **编辑展示元数据**（`system-admin`）：单次 PATCH 调 cluster-manager 更新对应一级字段；Platform 无本地表无需双写，cluster-manager 内部由 PG → outbox → CR 异步同步。
 - **暂停 / 恢复**（`system-admin`）：调对应 endpoint。
-- **删除**（`system-admin`）：与列表页同步逻辑。
+- **删除**（`system-admin`）：与列表页同步逻辑；软删后可通过「已归档租户」入口恢复（详见 [§11 后续迭代](#11-后续迭代)）。
 
 ### Tab 2 配额
 
@@ -227,13 +236,19 @@ Platform 自身只为租户管理引入两张 PG 表，其余信息向 cluster-m
 }
 ```
 
-写入顺序：先调 `clustermanager.Client.CreateTenant`，成功后写 `tenants` 行；详见 [§8.2](#82-一致性策略双写-cluster-manager--本地-pg)。响应为 `Tenant` DTO（结构与下方 GET 响应一致）。
+处理顺序：
+
+1. Platform DTO → cluster-manager DTO 映射：全部一级字段 1:1 透传，无 annotation 折叠逻辑。
+2. 调 `clustermanager.Client.CreateTenant`：失败 → 4xx/5xx 直接返给前端。
+3. 成功 → 直接把 cluster-manager 返回的 DTO 透传给前端（仅做命名风格转换，详见 [§8.3](#83-dto-映射器)）。
+
+整个过程 Platform 端无任何 PG 写入，自然没有"上游成功 / 本地失败"的补偿问题。
 
 #### `GET /api/v1/tenants`（已登录即可，按角色裁剪）
 
-- `system-admin`：全集群所有 Tenant CR + 对应 `tenants` 行 join。
-- 其余角色：先按 `user_tenant_roles.user_id = current_user` 取 `tenant_id` 集合，join `tenants` 拿 `name` 集合，按集合过滤 cluster-manager 的 LIST 结果。
-- 支持 query：`status` / `business_unit` / `q`（关键字）/ `limit` / `continue`。
+- `system-admin`：直接透传 cluster-manager `LIST tenants`，映射回 Platform DTO。
+- 其余角色：先按 `user_tenant_roles.user_id = current_user` 取 `tenant_name` 集合，再按集合过滤 cluster-manager 的 LIST 结果。
+- 支持 query：`status` / `business_unit` / `q`（关键字）/ `limit` / `continue` / `includeArchived` / `sortBy`，全部下推到 cluster-manager（cluster-manager 内部走 PG 索引，[cluster-manager.md §6.2](../core/cluster-manager.md#62-端点)），Platform 不做内存过滤。
 
 #### `GET /api/v1/tenants/{name}`（`system-admin` 或 `user@self` 及以上）
 
@@ -250,19 +265,21 @@ Platform 自身只为租户管理引入两张 PG 表，其余信息向 cluster-m
   "namespaceReady": true,
   "conditions": [...],
   "createdAt": "...",
-  "updatedAt": "..."
+  "updatedAt": "...",
+  "deletedAt": null
 }
 ```
 
-`phase` / `namespaceReady` / `conditions` / `namespace` 来自 `Tenant.{spec, status}`；其余来自 PG `tenants`。
+整个 DTO 是 cluster-manager 返回 DTO 的命名风格转换（`namespace.name` 扁平化为 `namespace` 字段等小幅调整）；`displayName` / `description` / `businessUnit` 等都已经是 cluster-manager 的一级字段，不需要 annotation 解码。
+
+`?includeArchived=true` 时同时返回软删租户，`deletedAt` 非 null。
 
 #### `PATCH /api/v1/tenants/{name}`（`system-admin`）
 
-双写：
+单点写：
 
-- **可变 spec 字段**（`displayName` / `annotations` / `namespace.labels` / `namespace.annotations` / `initResources`）→ cluster-manager。
-- **展示元数据**（`displayName` / `description` / `businessUnit`）→ 本地 PG。`displayName` 双写到两侧。
-- 提前拦截不可变字段：`name` / `namespace.name` / `quotas[].(pool, name)`，违反返回 `400 immutable-field`。
+- 请求体里的 `displayName` / `description` / `businessUnit` / `annotations` / `namespace.labels` / `namespace.annotations` / `initResources` 直接 1:1 透传给 cluster-manager PATCH；
+- 提前拦截不可变字段：`name` / `namespace.name` / `quotas[].(pool, name)`，违反返回 `400 immutable-field`，不触达 cluster-manager。
 
 #### `POST /api/v1/tenants/{name}/suspend` / `unsuspend`（`system-admin`）
 
@@ -272,9 +289,21 @@ Platform 自身只为租户管理引入两张 PG 表，其余信息向 cluster-m
 
 顺序：
 
-1. 校验 `user_tenant_roles WHERE tenant_id = (SELECT id FROM tenants WHERE name = :name)` 行数；非空 → `409 tenant-has-members`。
-2. 调 `clustermanager.Client.DeleteTenant`。
-3. 成功后删 `tenants` 行。
+1. 校验 `user_tenant_roles WHERE tenant_name = :name` 行数；非空 → `409 tenant-has-members`，UI 引导先在「成员」Tab 清空。
+2. 调 `clustermanager.Client.DeleteTenant`（**软删**：cluster-manager 写 `deleted_at = now()`，reconciler 异步删除 CR）：失败 → 4xx/5xx 透传。
+3. 成功后由后台 / 同事务 worker 级联清理 `user_tenant_roles` 中 `tenant_name = :name` 的残留行（理论上经 §1 校验已为空，作为兜底）。详见 [§8.2](#82-一致性策略与级联)。
+
+cluster-manager 保留 `deleted_at IS NOT NULL` 的行 retention 期内（默认 365 天），可通过下面的 `restore` 端点恢复。
+
+#### `POST /api/v1/tenants/{name}/restore`（`system-admin`）
+
+恢复 cluster-manager 中软删的租户：
+
+1. 校验当前没有同名活跃租户（cluster-manager 自身的 partial unique 兜底，409 时透传）。
+2. 调 `clustermanager.Client.RestoreTenant`，cluster-manager 清空 `deleted_at` 并重新触发 reconciler 创建 CR。
+3. 由于 [§7.1 DELETE](#delete-apiv1tenantsnamesystem-admin) 已级联清掉 `user_tenant_roles`，恢复后该租户初始无成员，需 `system-admin` 重新分配。
+
+UI 入口：[§11 后续迭代](#11-后续迭代) 中的「已归档租户」管理界面。
 
 ### 7.2 配额
 
@@ -319,12 +348,12 @@ Platform 不做 sum(max) 上限校验；详见 [§10 关键设计决策](#10-关
 | 文件 | 职责 |
 | --- | --- |
 | `handler.go` | Gin 路由注册（`/api/v1/tenants` 前缀）、请求解析、RBAC gate 装配、problem 渲染 |
-| `service.go` | 业务编排：双写 cluster-manager + 本地 PG、suspend / unsuspend 透传、不可变字段拦截、成员增删校验 |
-| `repository.go` | GORM 操作 `tenants` 与 `user_tenant_roles` |
-| `dto.go` | 请求 / 响应类型；与 cluster-manager API DTO 之间的显式映射 |
-| `view.go` | `Tenant` DTO 合并器：把 cluster-manager 返回的 Tenant CR 字段与 `tenants` 行融合 |
+| `service.go` | 业务编排：调 cluster-manager、suspend / unsuspend 透传、不可变字段拦截、成员增删校验 |
+| `repository.go` | GORM 操作 `user_tenant_roles`（仅 join 与级联清理用） |
+| `dto.go` | Platform 请求 / 响应类型；与 cluster-manager API DTO 的显式映射 |
+| `mapping.go` | DTO 映射器：Platform DTO ⇄ cluster-manager DTO，承担 `description` / `businessUnit` ⇄ `spec.annotations` 的折叠 / 展开（详见 [§8.3](#83-dto-映射器)） |
 
-风格沿用 [platform/overview.md §7.1](overview.md#71-仓库与目录布局) 与 [components/compute/](../../../components/compute/) 的 handler/service/repository 三层。
+风格沿用 [platform/overview.md §7.1](overview.md#71-仓库与目录布局) 与 [components/compute/](../../../components/compute/) 的 handler/service/repository 三层。无 `view.go`：单一来源直接由 mapping 产出，无需融合。
 
 ### 8.1 RBAC 中间件接入
 
@@ -332,55 +361,61 @@ Platform 不做 sum(max) 上限校验；详见 [§10 关键设计决策](#10-关
 
 | 路由 | 中间件链 |
 | --- | --- |
-| `POST/PATCH/DELETE /api/v1/tenants[...]`、`POST /api/v1/tenants/{name}/suspend`、`/unsuspend` | `RequireSystemAdmin` |
+| `POST/PATCH/DELETE /api/v1/tenants[...]`、`POST /api/v1/tenants/{name}/suspend`、`/unsuspend`、`/restore` | `RequireSystemAdmin` |
 | `POST/PATCH/DELETE /api/v1/tenants/{name}/quotas[...]` | `RequireTenantRole("tenant-admin", "name")`，`system-admin` 短路 |
 | `POST/PATCH/DELETE /api/v1/tenants/{name}/members[...]` | `RequireTenantRole("tenant-admin", "name")`，`system-admin` 短路 |
 | `GET /api/v1/tenants/{name}` / `GET .../quotas` | `RequireTenantRole("user", "name")`，`system-admin` 短路 |
 | `GET /api/v1/tenants/{name}/members` | `RequireTenantRole("tenant-admin", "name")`，`system-admin` 短路 |
 | `GET /api/v1/tenants` | 已登录即可；handler 内部按角色裁剪可见集合 |
 
-### 8.2 一致性策略（双写 cluster-manager + 本地 PG）
+### 8.2 一致性策略与级联
 
-cluster-manager 是 Tenant CR 的权威；本地 `tenants` 仅承载展示元数据。一致性按「权威先行」组织。
+Tenant 实体的权威完全在 cluster-manager 持有的 Tenant CR；Platform 不缓存任何 Tenant 字段，因此**没有"上游写成功 / 本地写失败"这条失败路径**。原设计中的 `tenants` 本地表 + inline retry + outbox 补偿队列全部不再需要。
 
-**创建**：
-
-1. 调 `clustermanager.Client.CreateTenant`：失败 → 4xx/5xx 直接返给前端，本地 PG 不写。
-2. 成功 → 写本地 `tenants` 行：写入失败 → 不回滚 cluster-manager；返回 5xx + problem detail，提示「Tenant CR 已创建但视图写入失败」；后台保留 inline retry，再失败由 [§11](#11-后续迭代) 持久化补偿队列接管。
+**创建 / 更新**：单点写——映射到 cluster-manager DTO 后单次调用，失败 → 4xx/5xx 透传，无补偿路径。
 
 **删除**：
 
-1. 校验 `user_tenant_roles` 是否仍有该 tenant 行；非空 → `409 tenant-has-members`。
-2. 调 `clustermanager.Client.DeleteTenant`：失败 → 4xx/5xx，本地不变。
-3. 成功 → 删本地 `tenants` 行。
-4. **孤儿处理**：若本地存在但 cluster-manager 返回 `404`，下次 GET 时归并清理。
+1. 先校验 `user_tenant_roles WHERE tenant_name = :name`；非空 → `409 tenant-has-members`，引导先清空成员。
+2. 调 `clustermanager.Client.DeleteTenant`：失败 → 透传。
+3. 成功 → 同事务级联清理 `user_tenant_roles` 中 `tenant_name = :name` 的残留行（经步骤 1 校验后理论为空，作为兜底）。
+4. **孤儿处理**：若 cluster-manager 已返 `404` 但 `user_tenant_roles` 仍有该 tenant 的行，下次 LIST 时按 cluster-manager 结果反向归并（认为已删除），handler 同步清理。
 
-**更新**：
+**不可变字段**：`name` / `namespace.name` / `quotas[].(pool, name)`，Platform 在写之前强校验，违反返回 `400 immutable-field`，从不触达 cluster-manager。
 
-- 可变 spec 字段 → cluster-manager；展示元数据 → 本地 PG，二者独立写入。
-- 任一失败 → problem `type=https://axisml.io/errors/tenant-update-partial`，body 列出 `applied` / `failed` 字段集合。
-- 不可变字段强校验：`name` / `namespace.name` / `quotas[].(pool, name)`，违反返回 `400 immutable-field`，从不触达 cluster-manager。
+### 8.3 DTO 映射器
 
-### 8.3 状态读取
+`mapping.go` 是 Platform ⇄ cluster-manager DTO 转换的唯一来源。**所有字段都是 1:1 透传或命名风格转换**——cluster-manager 已经把 `description` / `business_unit` 升级为 PG 一级字段，Platform 不再需要做 annotation 折叠 / 展开。
+
+主要的命名风格 / 结构调整（其余字段同名同义直传）：
+
+| Platform DTO | cluster-manager DTO |
+| --- | --- |
+| `namespace` (string) | `namespace.name` |
+| `business_unit` (snake_case，沿用既有 OpenAPI 风格) | `businessUnit` (camelCase) |
+
+未识别的 `annotations` 键由 cluster-manager 原样持久化（`tenants.annotations` jsonb）+ 同步到 Tenant CR `spec.annotations`；前端透传 map 显示，不丢失。
+
+### 8.4 状态读取
 
 - 任何展示 Tenant CR 字段（`phase` / `namespaceReady` / `quotas[].used` / `conditions`）的请求都调 `clustermanager.Client.GetTenant(name)`，不本地缓存。
 - 不引入 K8s informer：tenant 操作天然低频；cluster-manager 端走 controller-runtime cache，单租户 GET 延迟充分可控。
 
-### 8.4 PG schema
+### 8.5 PG schema
 
-- `tenants`：见 [§3.1](#31-tenants-表)。
-- `user_tenant_roles`：定义见 `auth.md`；本模块只消费 `(user_id, tenant_id, role_id)` 三元组。
+- `user_tenant_roles`：定义见 `auth.md`；本模块只消费 `(user_id, tenant_name, role_id)` 三元组，并在 [§8.2](#82-一致性策略与级联) 中级联清理。
+- **不引入** `tenants` 表。
 
-两表均在 `migrate` 子命令中自动迁移（详见 [overview.md §7.2](overview.md#72-启动子命令)）。
+表在 `migrate` 子命令中自动迁移（详见 [overview.md §7.2](overview.md#72-启动子命令)）。
 
-### 8.5 度量与日志
+### 8.6 度量与日志
 
 Prometheus 指标（特有于本功能；通用上游调用指标见 [overview.md §7.5](overview.md#75-下游-typed-client)）：
 
 - `platform_tenant_action_total{action, status}`：`action ∈ {create, update_meta, suspend, unsuspend, delete, quota_create, quota_update, quota_delete, member_add, member_update, member_remove}`，`status ∈ {success, failure}`。
-- `platform_tenant_consistency_partial_total{phase}`：`phase ∈ {create_local_failed, update_partial}`，记录 [§8.2](#82-一致性策略双写-cluster-manager--本地-pg) 中部分成功的次数。
+- `platform_tenant_orphan_role_cleanup_total{reason}`：counter，记录 [§8.2](#82-一致性策略与级联) 中孤儿 `user_tenant_roles` 行的级联清理次数；`reason ∈ {delete_cascade, list_reconcile}`。
 
-zap 字段约定：每条租户操作日志必带 `tenant_id` / `tenant_name` / `actor_user` / `action` / `status`；删除 / suspend / 成员变更额外带 `target_user` / `role_name`（如适用）。
+zap 字段约定：每条租户操作日志必带 `tenant_name` / `actor_user` / `action` / `status`；删除 / suspend / 成员变更额外带 `target_user` / `role_name`（如适用）。
 
 ---
 
@@ -392,16 +427,15 @@ zap 字段约定：每条租户操作日志必带 `tenant_id` / `tenant_name` / 
 
 | 模块 | 范围 | 完成信号 |
 | --- | --- | --- |
-| handler / service / repository / dto | [§7.1](#71-租户-crud) / [§7.2](#72-配额) / [§7.3](#73-成员) 全部 endpoint | `make platform-build` 通过 |
+| handler / service / dto / mapping | [§7.1](#71-租户-crud) / [§7.2](#72-配额) / [§7.3](#73-成员) 全部 endpoint | `make platform-build` 通过 |
 | RBAC 装配 | [§8.1](#81-rbac-中间件接入) 路由表全部接通；`system-admin` 短路逻辑生效 | 单元测试覆盖中间件分支 |
-| PG 迁移 | `tenants` 表创建；`user_tenant_roles` 由 `auth.md` 提供 | `make platform-migrate` 干净 |
-| Integration | testcontainers PG + cluster-manager fake，覆盖 happy path（创建 → 加成员 → 加配额 → suspend → 删除） | `make platform-integration` 通过 |
+| PG 迁移 | `user_tenant_roles` 由 `auth.md` 提供；本模块无新增表 | `make platform-migrate` 干净 |
+| Integration | testcontainers PG + cluster-manager fake，覆盖 happy path（创建 → 加成员 → 加配额 → suspend → 删除）+ DTO 映射器双向往返 | `make platform-integration` 通过 |
 
 ### 9.2 阶段二
 
-1. cluster-manager 双写补偿持久化：把 inline retry 替换为 PG outbox 表 + 后台 worker。
-2. 配额 Tab 表头「合计 max」聚合视图。
-3. 列表页「按 phase 分组」聚合视图。
+1. 配额 Tab 表头「合计 max」聚合视图。
+2. 列表页「按 phase 分组」聚合视图。
 
 ### 9.3 阶段三 / TBD
 
@@ -411,36 +445,38 @@ zap 字段约定：每条租户操作日志必带 `tenant_id` / `tenant_name` / 
 
 | 决策项 | 决策 | 理由 |
 | --- | --- | --- |
-| 视图与 Tenant CR 边界 | `tenants` 表只存展示元数据；不缓存 spec / status / quotas / namespace | 避免双写漂移；权威留在 cluster-manager；namespace 由下游 Job/Artifact 调用各自携带 |
+| Platform PG 表 | **不为租户实体建表**；权威完全在 cluster-manager PG（cluster-manager 是 PG-first 业务服务） | 消除 Platform ↔ cluster-manager 双写漂移；同时获得 cluster-manager 的软删、`restore`、富查询能力 |
+| 成员关联 FK | `user_tenant_roles.tenant_name` 直接引用 cluster-manager `tenants.name` | `tenants.name` 在活跃维度 partial unique 且不可变，等价于一个稳定 FK；无需 Platform 自建 uuid |
+| DTO 映射 | 一级字段 1:1 透传；无 annotation 折叠 / 展开逻辑 | cluster-manager 已把 description / business_unit 升级为一级字段，Platform mapping.go 退化为命名风格转换 |
+| 软删恢复 | 由 cluster-manager 原生 `restore` 端点提供；Platform 仅做权限校验后透传 | 「保留 tenant 记录」由 cluster-manager 的 `deleted_at` + retention 落地，Platform 无需引入归档表 |
 | 命名空间归属 | `compute_namespace` / `artifacts_namespace` 不属于租户实体 | 与下游 namespace 分区模型一致；Platform 不维护重复映射 |
 | API 路径形态 | 统一在 `/api/v1/tenants/...`，权限走中间件 | 路径按资源组织；权限差异完全由 RBAC 中间件按角色 + 资源所有权判定 |
 | 详情页 Tab 划分 | 基本信息 / 配额 / 成员 / 审计日志 | 减少首屏字段密度；每个 Tab 对应独立 REST 资源 |
 | 配额拆分总额校验 | Platform 不做；仅作转发 | ElasticQuota 当前为扁平结构，不天然支持父子关系；维持单一职责 |
-| 创建 / 删除一致性 | cluster-manager 优先 → 本地 PG 后行 | cluster-manager 是权威；本地表丢失可重建，反之不可 |
+| 删除级联 | cluster-manager 删除成功后再清理 `user_tenant_roles` 中残留行 | cluster-manager 是权威；level-1 校验已要求成员清空，级联清理为兜底 |
 | 不可变字段拦截 | `name` / `namespace.name` / `quotas[].(pool, name)` | 在 Platform 层拦截，减少 cluster-manager 4xx 与前端误用 |
 | 成员保护 | 不能移除自己最后一个 `tenant-admin` 角色 | 防止租户失管 |
 | 成员角色集合 | 添加 / 修改成员仅允许 `tenant-admin` / `user` | `system-admin` 是平台级角色，不在租户菜单内绑定 |
 
 ## 11. 后续迭代
 
-- **审计日志 Tab**：复用 [overview.md §7.4](overview.md#74-pg-schema) 的 `audit_logs` 表；落地按 `tenant_id` 过滤的索引、UI 表格、保留期可配置项。
-- **cluster-manager 双写补偿持久化**：把 [§8.2](#82-一致性策略双写-cluster-manager--本地-pg) 中的 inline retry 替换为持久化 outbox 表 + 后台 worker。
+- **审计日志 Tab**：复用 [overview.md §7.4](overview.md#74-pg-schema) 的 `audit_logs` 表；落地按 `target=tenant:{name}` 过滤的索引、UI 表格、保留期可配置项。
+- **「已归档租户」管理界面**：UI 入口（系统管理菜单下二级），调 `GET /api/v1/tenants?includeArchived=true&deletedAt_not_null=true` 列出，每行操作 `POST .../restore`。底层能力已由 cluster-manager 提供，缺前端表格 + 权限收口。
 - **配额硬校验 / 分层配额**：等上游 ElasticQuota 提供 `parent` 字段后，Platform 可在 Tab 2 引入「上限 cap」视图与硬阻断。
 - **init_resources 表单深度**：当前仅暴露 `sourceXxxRef`；后续可接入 Vault / Sealed Secrets 等加密源直接创建。
-- **租户软删除**：当前 `DELETE` 直接清理；未来可加 `archived_at` 状态以便恢复。
 - **租户克隆**：基于已有租户的 `quotas` / `initResources` 模板快速创建新租户。
 
 ## 12. 测试策略
 
 - **单元**（`internal/tenant/*_test.go`）：
-  - service 层一致性策略（cluster-manager 失败 / 本地失败 / 双失败）。
+  - DTO 映射器 `mapping.go` 双向往返：`description` / `businessUnit` ↔ `spec.annotations` 折叠 / 展开；未识别 annotation 透传保留。
   - 不可变字段拦截逻辑。
   - 最后一个 `tenant-admin` 校验逻辑。
   - 列表可见性裁剪（不同 RBAC 角色）。
 - **integration**（`components/platform/backend/test/integration/`）：
   - testcontainers PostgreSQL；in-process cluster-manager fake（httptest）模拟 Tenant CR 行为，包括成功 / 4xx / 5xx 响应。
-  - happy path：创建租户 → 加成员 → 加配额 → suspend → unsuspend → 删除。
-  - 故障注入：cluster-manager 创建后本地 PG 写入失败的补偿语义；删除时 `user_tenant_roles` 非空的 409。
+  - happy path：创建租户 → 加成员 → 加配额 → suspend → unsuspend → 删除；断言全程仅写 `user_tenant_roles` 一张表。
+  - 删除时 `user_tenant_roles` 非空 → `409`；非空时绕过校验直接 cluster-manager 删除 → handler 在下次 LIST 时反向归并清理孤儿。
   - RBAC：`system-admin` / `tenant-admin@self` / `user@self` 在每个 endpoint 上的允许 / 拒绝矩阵。
 - 不引入 envtest：Platform 本身不直读 K8s API；端到端校验由 [cluster-manager.md §6](../core/cluster-manager.md#6-测试) / [tenant-operator.md §6](../core/tenant-operator.md#6-测试) 在自身集成层覆盖。
 

@@ -61,16 +61,14 @@
 
 ### 3.1 标识与寻址
 
-- `tenant_name` 来自 [tenants.name](tenant.md#31-tenants-表)；
+- `tenant_name` 直接来自 Tenant CR `metadata.name`（详见 [tenant.md §3](tenant.md#3-数据模型platform-自有部分)）；
 - `job_name` 由用户在创建表单中显式指定（DNS-1123，同一 `compute_namespace` 下唯一）；
 - 下游 join key 用 `(compute_namespace, job_name)`，其中 `compute_namespace = Tenant.spec.namespace.name`，每次写请求前由 Platform 通过 `clustermanager.GetTenant(tenant_name)` 解析；
 - 不为 Job 派生 Platform 端 uuid——Job 还在不在、它在哪个 namespace、它属于谁，三件事全部由 Compute 实时回答。
 
-为什么不像 workspace 那样建一张 `(id, tenant_id, service_id)` 表？workspace 需要把同一种 MLService CR 区分成「这是工作区」与「这是普通在线服务」两个物种，又要派生 PVC 名与访问 URL；Job 没有这两条需求——MLJob 就是 Job，且没有 Platform 持有的子资源——所以建表只会带来双写漂移。
-
 ### 3.2 列表查询路径
 
-1. 按 RBAC 取可见租户集合 `tenant_names ⊆ tenants.name`；
+1. 按 RBAC 取可见租户集合 `tenant_names`（来自 `user_tenant_roles` 或 cluster-manager LIST，详见 [tenant.md §7.1](tenant.md#71-租户-crud)）；
 2. 并行 `clustermanager.GetTenant(name)` 解析每个租户的 `compute_namespace`（request-scoped memoize）；
 3. 并行 `compute.ListJobs(compute_namespace, {ownerUser?, status?, q?, limit, continue?})`；
 4. 内存合并；对普通用户再按 `jobs.owner_user == current_user.username` 二次过滤；

@@ -52,18 +52,21 @@ persona 与下一节 RBAC 角色的对应关系：
 
 ### 2.4 租户（Tenant）
 
-Platform 通过 [cluster-manager](../core/cluster-manager.md) 与系统层的 `Tenant` CR 1:1 对应，并在自身 PG 中只持有该租户的展示元数据（描述、所属业务线等）。
+**Platform 自身不为租户建任何 PG 表**——租户的权威完全在 [cluster-manager](../core/cluster-manager.md) 持有的 PG `tenants` 表（详见 [cluster-manager.md §3](../core/cluster-manager.md#3-pg-schema)）；Tenant CR 是 cluster-manager 通过 outbox + reconciler 渲染下发的派生产物。所有租户字段（`displayName` / `description` / `business_unit` / `quotas` / 状态等）都是 cluster-manager API 的一级字段，Platform 仅做透传与展示。
 
-Cluster Manager 不持有任何 PG，权威完全在 Tenant CR；租户的配额、状态等字段始终读 Tenant CR（按 `name` 寻址，与 Tenant CR `metadata.name` 同名锚点），Platform 自己只缓存「展示元数据」。下游 Compute / Artifacts 不感知 Platform 的租户实体，它们仅按请求体里的 `namespace` 字段分区——该 namespace 在 Job / Artifact 等下游调用时由调用方传递（典型来源是 `Tenant.spec.namespace.name`），不是租户实体的属性，也不在 Platform PG 缓存。
+`user_tenant_roles` 表通过 `tenant_name`（text）引用租户——cluster-manager `tenants.name` 不可变（partial unique on `WHERE deleted_at IS NULL`），等价于一个稳定 FK。下游 Compute / Artifacts 不感知 Platform 的租户实体，它们仅按请求体里的 `namespace` 字段分区——该 namespace 在 Job / Artifact 等下游调用时由调用方传递（典型来源是 `Tenant.spec.namespace.name`），不是租户实体的属性。
 
-### 2.5 工作区 / 工作区（Workspace）
+软删后的租户保留在 cluster-manager `tenants` 表中（`deleted_at IS NOT NULL`），Platform UI 可通过 `?includeArchived=true` 查询历史、`POST /restore` 恢复——「保留 tenant 记录」与「误删恢复」由 cluster-manager 原生支持，Platform 无需额外数据结构。
+
+### 2.5 工作区（Workspace）
 
 用户菜单「训练&推理 → 工作区」下的具体对象。语义为一台 **长驻的交互式开发容器**（Jupyter Notebook / VSCode Server / SSH 等）。底层复用 [`MLService(native, deployment)`](../core/compute-operator.md) 后端：
 
-- Platform 自行维护 `workspaces` 表，记录工作区的归属用户、租户、镜像、ResourceUnit、底层 MLService 名称等；
-- 创建 = 调 Compute 创建一个 `MLService(native, deployment)`，单 role、单副本，长驻容器；
+- **Platform 不为工作区建任何 PG 表**：工作区 = Compute `services` 表中 `kind='workspace'` 的行（详见 [core/compute.md §7.2](../core/compute.md#72-数据模型)）；
+- 创建 = 调 Compute 创建一个 `MLService(native, deployment)`，`kind=workspace`，单 role、单副本，长驻容器；
 - 启停 = patch 该 MLService 的 `roles[0].replicas`；
-- 用户连接 = 通过 Envoy Gateway 反代或本地 port-forward 到容器端口。
+- 用户连接 = 通过 Envoy Gateway 反代或本地 port-forward 到容器端口；
+- 「这是工作区还是普通在线服务」由 Compute service 的 `kind` 列表达，Platform 列表查询 = `compute.ListServices(kind=workspace)`。
 
 详见 [workspace.md](workspace.md)。
 
@@ -81,8 +84,8 @@ Cluster Manager 不持有任何 PG，权威完全在 Tenant CR；租户的配额
 | 用户 | User | Platform 内部表 |
 | 角色 | Role | Platform 内部表，含内置三档 |
 | 权限 | Permission | Platform 内部表，绑定到 Role |
-| 租户 | Tenant | Platform 内部表（仅展示元数据）+ 上游 `Tenant` CR（权威） |
-| 工作区 / 工作区 | Workspace | Platform 内部表 + Compute `MLService(native, deployment)` |
+| 租户 | Tenant | 上游 `Tenant` CR（权威，含展示元数据 annotations） |
+| 工作区 | Workspace | Compute `services` 表中 `kind='workspace'` 的行 + `MLService(native, deployment)` |
 | 数据卷 | DataVolume | TBD |
 
 系统层共享的概念（Tenant、ResourcePool、ResourceUnit、Quota、Job、Service、Artifact）参见 [上层 overview §2](../overview.md#2-核心概念)。
@@ -141,8 +144,8 @@ Platform 的用户界面菜单与各功能详设的对应关系如下表。状�
    │                                  ▼              ▼        │
    │                          Platform PG   下游服务调用       │
    │                          users / roles                    │
-   │                          tenants                          │
-   │                          workspaces ...                   │
+   │                          user_tenant_roles                │
+   │                          sessions / audit_logs            │
    └───────────────────────────────────────────┬──────────────┘
                                                │
               ┌────────────────────┬───────────┴────────────┬───────────────────┐
@@ -358,7 +361,7 @@ components/platform/backend/
 
 ### 7.4 PG Schema
 
-Platform 自有的所有 PG 表如下表。除身份与视图映射外不缓存任何下游业务元数据；Job / Service / Artifact 等业务对象一律向下游服务实时查询。
+Platform 自有 PG 表仅覆盖 **身份、授权、会话与审计** 四类，不缓存任何下游业务元数据；Tenant 展示元数据写入 Tenant CR `spec.{displayName, annotations}`；Workspace / Job / Service / Artifact 等业务对象一律向下游服务实时查询。
 
 | 表 | 主键 | 关键字段 | 备注 |
 | --- | --- | --- | --- |
@@ -366,15 +369,22 @@ Platform 自有的所有 PG 表如下表。除身份与视图映射外不缓存�
 | `roles` | `id` (uuid) | `name` (uniq), `description`, `built_in` | `built_in=true` 的内置角色不可删除 |
 | `permissions` | `id` (uuid) | `name` (uniq), `description` | 字典表 |
 | `role_permissions` | `(role_id, permission_id)` | — | 多对多 |
-| `user_tenant_roles` | `(user_id, tenant_id, role_id)` | `created_at` | 用户在某租户内的角色绑定；`tenant_id` 引用 `tenants.id` |
-| `tenants` | `id` (uuid) | `name` (uniq) 租户名 / URL 锚点 / 透传为 Tenant CR `metadata.name`；`display_name`, `description`, `business_unit`, `created_at`, `updated_at` | 不缓存 namespace（由下游调用各自携带）、spec / status / quotas |
-| `workspaces` | `id` (uuid) | `tenant_id`, `service_id`（Compute `services.id`），`created_at`, `updated_at`, `deleted_at` | 仅 3 业务字段；下游 join key 用 Compute service id；运行态 / 配置 / 镜像信息全部实时穿透 Compute。详见 [workspace.md](workspace.md) |
+| `user_tenant_roles` | `(user_id, tenant_name, role_id)` | `created_at` | 用户在某租户内的角色绑定；`tenant_name` 直接引用 Tenant CR `metadata.name`（不可变，等价于稳定 FK），删租户时由 [tenant.md §8.2](tenant.md#82-一致性策略与级联) 级联清理 |
 | `sessions` | `jti` | `user_id`, `expires_at`, `revoked` | JWT 黑名单（登出 / 强制注销）；按 `expires_at` 定期清理 |
 | `audit_logs` | `id` (bigserial) | `user_id`, `action`, `target`, `metadata` (jsonb), `created_at` | 关键管理员操作的审计；保留期由配置项指定 |
 
-**索引约定**：`username`、`tenants.name`、`(owner_user_id, tenant_id)`、`(user_id, tenant_id)` 等高频查询字段建索引。所有时间戳字段采用 `timestamptz`。
+**显式不建的表**（与上游权威重复，详见各详设）：
 
-各功能详设可声明自己的扩展表（例如 `model.md` 不需要本地表，`workspace.md` 复用上表中的 `workspaces`），但应避免在 Platform 内复制下游已经持有的对象元数据。
+| 不建表 | 数据归属 | 详设 |
+| --- | --- | --- |
+| `tenants` | cluster-manager `tenants` 表（PG 一级字段含 `name` / `display_name` / `description` / `business_unit` / `quotas` / 软删态等） | [cluster-manager.md §3](../core/cluster-manager.md#3-pg-schema) / [tenant.md §3](tenant.md#3-数据模型platform-自有部分) |
+| `workspaces` | Compute `services` 表 `kind='workspace'` 的行；Platform 列表 = `compute.ListServices(kind=workspace)` | [workspace.md §3](workspace.md#3-数据模型platform-自有部分) |
+| `jobs` / `services` / `resource_pools` / `resource_units` | Compute 同名表 | [job.md](job.md) / `service.md` / [resource-pool.md](resource-pool.md) |
+| `models` 等制品元数据 | Artifacts `artifacts` 表 | [model.md](model.md) |
+
+**索引约定**：`username`、`(user_id, tenant_name)`、`audit_logs.created_at` 等高频查询字段建索引。所有时间戳字段采用 `timestamptz`。
+
+各功能详设可声明自己的扩展表，但应避免在 Platform 内复制下游已经持有的对象元数据；目前所有功能详设（tenant / workspace / job / service / model / resource-pool）均不引入新表。
 
 ### 7.5 下游 typed client
 
@@ -431,7 +441,7 @@ type Client interface {
 
 - **第一版**：内置 `users` 表 + bcrypt 密码哈希 + JWT；`sessions` 表存登出黑名单。
 - **RBAC**：内置三档角色（`system-admin` / `tenant-admin` / `user`），权限通过 `role_permissions` 多对多绑定。
-- **租户绑定**：`user_tenant_roles(user_id, tenant_id, role_id)` 表达「某用户在某租户中的角色」；前端可见的租户列表 = 该用户在 `user_tenant_roles` 中绑定到的所有 `tenant_id`（再 join 到 `tenants` 取 `name` / 展示元数据）。
+- **租户绑定**：`user_tenant_roles(user_id, tenant_name, role_id)` 表达「某用户在某租户中的角色」；前端可见的租户列表 = 该用户在 `user_tenant_roles` 中绑定到的所有 `tenant_name`，再调 cluster-manager `LIST tenants` 取展示元数据（来自 Tenant CR `spec.{displayName, annotations}`）。
 - **OIDC 预留**：`internal/auth/IdentityProvider` 接口屏蔽用户来源；`internal` 实现读 `users` 表，`oidc` 实现按需接入；切换由 `--auth-mode` 控制。本期只交付 `internal`。
 - **下游透传**：Platform 校验通过后向下游服务注入 `X-Axisml-User`；下游不做二次鉴权。
 
@@ -442,10 +452,10 @@ type Client interface {
 | 文档组织粒度 | 按二级菜单（子功能）拆文档 + 一份横切 `auth.md` | 单文件保持短小、便于评审与并行迭代；按一级菜单聚合后单文档过长不利阅读 |
 | 后端语言与框架 | Go + Gin + GORM + Cobra，与 Compute 一致 | 复用现有组件骨架与 CI 流水线，降低维护成本 |
 | 认证方式 | 内置用户 + RBAC，`IdentityProvider` 接口预留 OIDC | 第一版自建集群可独立运行；外部 IdP 按需接入而非默认依赖 |
-| 工作区实现 | 复用 `MLService(native, deployment)` 承载工作区 | 避免新增 CRD；与在线服务共用 backend handler |
-| 租户实体 | Platform 自身 PG 仅维护租户展示元数据；不缓存 namespace 与 spec / status | 下游服务保持 namespace-only 单一职责，不感知租户；namespace 由 Job/Artifact 调用按上下文实时携带 |
+| 工作区实现 | 复用 `MLService(native, deployment)` 承载工作区；Compute service 加 `kind` 列区分普通服务与工作区 | 避免新增 CRD；与在线服务共用 backend handler；不在 Platform 维护"工作区标记"视图表 |
+| 租户实体 | Platform 不建 `tenants` 表；权威完全在 cluster-manager PG（cluster-manager 自身是 PG-first 业务服务，Tenant CR 退化为派生产物） | 消除 Platform ↔ cluster-manager 双写漂移；同时获得 cluster-manager 内部的 `description` / `business_unit` 一级字段、软删保留、`restore` 等能力（详见 [cluster-manager.md](../core/cluster-manager.md)） |
 | 配额 UI 归属 | 租户管理详情页内 Tab，不独立菜单 | 配额始终在 (tenant, pool) 上下文中操作 |
-| Platform PG 范围 | 仅存身份与视图映射，不缓存下游业务元数据 | 业务对象权威在 Compute / Artifacts，避免双写漂移 |
+| Platform PG 范围 | 仅存身份（users / roles / permissions）、授权（user_tenant_roles）、会话（sessions）、审计（audit_logs）四类；不建任何视图缓存表 | 业务对象权威在 Compute / Artifacts / Tenant CR；杜绝双写漂移与补偿队列 |
 | 制品 UI 范围 | 制品中心首版只覆盖模型 | 与菜单一致；dataset / image / eval_report 在本文 §11 列入口，复用 Artifacts API 但 UI 后续迭代 |
 | Dashboard | 纯前端聚合视图，无独立后端详设 | 数据全部来自 Job / Service / Artifact / Quota 列表 API + Prometheus 查询 |
 | 用户身份透传 | Platform → 下游统一注入 `X-Axisml-User` 头 | 下游服务保持只接受内部调用、信任 Platform 鉴权 |

@@ -554,6 +554,7 @@ services(
   pool_id              uuid FK resource_pools(id),
   resource_unit_id     uuid FK resource_units(id),
   name                 text,                     -- MLService CR metadata.name
+  kind                 text NOT NULL DEFAULT 'service', -- 'service' | 'workspace'；创建后不可变
   display_name         text,
   description          text,
   owner_user           text,
@@ -576,6 +577,7 @@ services(
 **字段归属**
 
 - `spec` 与 jobs 不同：扩缩容 API 更新 `replicas` 同时回写 `spec.roles[0].replicas`（单 role 约定）并重算 `desired_spec_hash`，其他字段依然不可变
+- `kind`：调用方在 `POST /api/v1/namespaces/{ns}/services` 请求体中显式指定；缺省落到 `'service'`。仅用于 service 与 [Platform 工作区](../platform/workspace.md) 在同一张表上的分类与过滤——Compute 本身不按 `kind` 改变 spec / status / scale / delete 行为，所有 backend handler、状态机、双 hash 同步对两者完全一致。Platform 工作区写 `kind='workspace'`；普通在线服务写 `kind='service'`（也可省略）。创建后不可变
 - `spec.roles[*].template.{volumes, volumeMounts}`：用户提交，按 [compute-operator.md §5.2.2](compute-operator.md#522-spec-结构) 结构透传到 MLService CR，由 `(native, *)` handler 落到 Pod template；与 `roles[*].template.ports[]` 同属创建后不可变的镜像运行参数
 - `endpoint`：`(native, *)` / `(custom, *)` 可为内部 Service DNS 或 AxisML Gateway URL；`(kserve, *)` 为 KServe `status.url`
 
@@ -627,14 +629,16 @@ Creating ──(Informer ADD)──▶ Pending ──(ready=desired, desired>0)�
 
 外部误删（运行态收到 CR DELETE 事件）的处理见 §3.7。Service 没有 cancel 语义。
 
-### 7.5 id-based 寻址端点
+### 7.5 id-based 寻址端点 + kind 过滤
 
-为支撑 [Platform 工作区](../platform/workspace.md)「以 `services.id` 作为 Platform→Compute 唯一稳定 join key」的设计（参见 [platform/workspace.md §3.4](../platform/workspace.md#34-对-core-层的硬依赖必须同-pr-推进)），Service 模块在原有 `(namespace, name)` 路径之外暴露按 `services.id` 寻址的只读端点：
+为支撑 [Platform 工作区](../platform/workspace.md)「在同一张 `services` 表上区分普通在线服务与工作区，并按 `kind='workspace'` 一次列出整个租户的工作区」的设计（参见 [platform/workspace.md §3](../platform/workspace.md#3-数据模型platform-自有部分)），Service 模块除原有 `(namespace, name)` 路径之外提供：
 
 | Endpoint | 方法 | 说明 |
 | --- | --- | --- |
-| `/api/v1/services/{id}` | `GET` | 返回完整 service 视图（含 `namespace` / `name` / `display_name` / `spec` / `status` / `endpoint` / `replicas` / `ready_replicas` / ...）；语义同 `GET /api/v1/namespaces/{namespace}/services/{service}`，仅入参不同 |
-| `/api/v1/services` | `GET` | query `?ids=id1,id2,...` 批量按 id 拉取；用于 Platform list workspace 的 N+1 优化（一次 RPC 拉一个租户的全部 service） |
+| `/api/v1/services/{id}` | `GET` | 返回完整 service 视图（含 `namespace` / `name` / `kind` / `display_name` / `spec` / `status` / `endpoint` / `replicas` / `ready_replicas` / ...）；语义同 `GET /api/v1/namespaces/{namespace}/services/{service}`，仅入参不同 |
+| `/api/v1/services` | `GET` | query `?ids=id1,id2,...` 批量按 id 拉取（Platform N+1 优化），或 `?namespace=<ns>&kind=workspace` 按 namespace + kind 过滤（Platform 工作区列表的唯一寻址路径） |
+
+所有 namespace-scoped LIST / GET 端点（`/api/v1/namespaces/{ns}/services`）的响应也必须返回 `kind` 字段，且支持 `?kind=<value>` 过滤。Platform 写入时由 [workspace.md](../platform/workspace.md) handler 显式传 `kind='workspace'`；其余调用方（service 模块）写入时 `kind='service'`（或省略，由 Compute 默认填）。
 
 写操作（`POST /scale`、`DELETE`）保留既有 namespace-scoped 形态——调用方在写之前先 id-based GET 拿到 `(namespace, name)` 再走原路径，避免引入双轨写 API、写路径复用既有 outbox。
 

@@ -1,6 +1,8 @@
 # AxisML Tenant Operator 详细设计
 
-tenant-operator 是 AxisML 控制平面里负责"管理员域"资源落地的 Kubernetes operator 二进制。它持有一个 Manager，承载单一 Tenant controller，把 cluster-manager 写入的 `Tenant` CR 翻译为 Kubernetes 侧的 Namespace、Koordinator `ElasticQuota`、租户级初始化资源（Secret / ConfigMap / ServiceAccount / Role / RoleBinding），并把执行状态回流到 `Tenant.status`。
+tenant-operator 是 AxisML 控制平面里负责"管理员域"资源落地的 Kubernetes operator 二进制。它持有一个 Manager，承载单一 Tenant controller，把 [cluster-manager](cluster-manager.md) 渲染下发的 `Tenant` CR 翻译为 Kubernetes 侧的 Namespace、Koordinator `ElasticQuota`、租户级初始化资源（Secret / ConfigMap / ServiceAccount / Role / RoleBinding），并把执行状态回流到 `Tenant.status`。
+
+> **关于 Tenant CR 的权威**：Tenant CR 是 cluster-manager PG `tenants` 表的**派生产物**——由 cluster-manager 的 reconciler 通过 outbox + 双 hash 同步渲染下发（详见 [cluster-manager.md §4](cluster-manager.md#4-写路径与同步)）。外部 `kubectl create / edit tenant` **不受支持**：MVP 阶段 cluster-manager reconciler 会把外部 spec 漂移擦回 PG 期望态；阶段二 admission webhook 上线后将硬阻断。tenant-operator 自身仍把 Tenant CR 视作输入 watch 对象，只是上游 producer 收敛到 cluster-manager 一家——这一变更对本文档其余章节（reconcile 行为、字段映射、状态推导）**无任何影响**。
 
 | Controller | CRD（`axisml.io/v1alpha1`） | Scope | 架构 | 状态机 | 主要外部依赖 |
 | --- | --- | --- | --- | --- | --- |
