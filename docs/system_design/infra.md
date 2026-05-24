@@ -281,56 +281,7 @@ Prometheus Operator 自动发现并配置采集目标，无需手动维护 `prom
 
 ## 5. 部署形态
 
-### 5.1 Chart 组织
-
-控制面与基础设施拆分为两个独立的 Helm chart，按"基础设施 / 控制平面"职责分层部署：
-
-| Chart | 路径 | Release | Namespace |
-| --- | --- | --- | --- |
-| `axisml-infra` | `deploy/helm/axisml-infra` | `axisml-infra` | `axisml-infra` |
-| `axisml-system` | `deploy/helm/axisml-system` | `axisml` | `axisml-system` |
-
-拆分原因：基础设施和控制平面发版节奏、回滚粒度不同；拆分后 infra 可共享给多套 axisml-system 实例。两者通过 namespace + Service DNS 解耦，并通过 chart `condition` 字段支持按需关闭并对接外部实例。
-
-### 5.2 命名空间约定
-
-- **`axisml-infra`** 承载第三方基础设施子 chart 的全部资源
-- 跨命名空间访问走 `<service>.<namespace>.svc.cluster.local`，例如 `rustfs-svc.axisml-infra:9000`、`zot.axisml-infra:5000`
-
-### 5.3 安装顺序
-
-```
-make cluster-up             # 拉起本地集群
-make helm-install-infra     # 先装基础设施
-make helm-install-system    # 再装控制平面（含数据库与 CRDs）
-```
-
-卸载顺序相反：`helm-uninstall-system` → `helm-uninstall-infra`。
-
-`make helm-install-system` 内部先 `kubectl apply` `deploy/helm/axisml-system/crds/`，再做 `helm upgrade --install`——Helm 只在初次安装时处理 `crds/` 目录，CRD schema 升级靠这一步保证。
-
-### 5.4 依赖清单
-
-`axisml-infra` 的 dependencies：
-
-| Dependency | 仓库 | condition | values 根键 |
-| --- | --- | --- | --- |
-| `gateway-helm`（Envoy Gateway） | `oci://docker.io/envoyproxy` | `envoy-gateway.enabled` | `envoy-gateway` |
-| `rustfs` | `https://charts.rustfs.com` | `rustfs.enabled` | `rustfs` |
-| `zot` | `https://zotregistry.dev/helm-charts` | `zot.enabled` | `zot` |
-| `gpu-operator` | `https://helm.ngc.nvidia.com/nvidia` | `gpu-operator.enabled` | `gpu-operator` |
-| `koordinator` | `https://koordinator-sh.github.io/charts` | `koordinator.enabled` | `koordinator` |
-| `kube-prometheus-stack` | `https://prometheus-community.github.io/helm-charts` | `kube-prometheus-stack.enabled` | `kube-prometheus-stack` |
-
-`axisml-system` 的 dependencies：
-
-| Dependency | 仓库 | condition | values 根键 |
-| --- | --- | --- | --- |
-| `postgresql`（aliased 为 `database`） | `oci://registry-1.docker.io/bitnamicharts` | `database.enabled` | `database` / `externalDatabase` |
-
-各子 chart 的具体 values 透传通过 values 根键直接写入，由各子 chart 自身文档定义；Infra 设计文档不在此重复。
-
-> **fullnameOverride 约定**：`kube-prometheus-stack` 的 `fullnameOverride` 设为 `prometheus`，避开上游 26 字符截断；`postgresql` 别名为 `database`，使资源命名 `axisml-database-*`。
+详见 [deployment.md](../deployment.md)——含 chart 组织、命名空间约定、安装顺序、依赖清单与 fullnameOverride 约定。
 
 ## 6. 关键设计决策
 

@@ -10,11 +10,11 @@
 
 ### 2.1 租户（Tenant）
 
-集群级管理对象。每个租户对应一条 cluster-scoped `Tenant` CR，由 tenant-operator 负责在 Kubernetes 上落地目标 Namespace、Koordinator ElasticQuota、Secret / ConfigMap / ServiceAccount / RBAC 等初始化资源。Tenant 的写入入口是 [Cluster Manager](core/cluster-manager.md)；它是无状态薄壳，把外部 REST 请求直接翻译为对 Tenant CR 的 K8s API 调用，**不持有任何 PG 业务表**。
+集群级管理对象。每个租户对应一条 cluster-scoped `Tenant` CR，由 tenant-operator 负责在 Kubernetes 上落地目标 Namespace、Koordinator ElasticQuota、Secret / ConfigMap / ServiceAccount / RBAC 等初始化资源。Tenant 的写入入口是 [Cluster Manager](components/cluster-manager.md)；它是无状态薄壳，把外部 REST 请求直接翻译为对 Tenant CR 的 K8s API 调用，**不持有任何 PG 业务表**。
 
 Tenant 的目标 Namespace 通过 `spec.namespace.name` 显式声明，多个 Tenant 可以共享同一个 Namespace。平台的隔离边界主要由租户业务模型、per-tenant 资源命名、配额与鉴权策略共同表达，而不是简单等同于 Kubernetes Namespace 的一租户一命名空间隔离。
 
-> **Compute / Artifacts 不感知 Tenant 概念**——它们以裸 namespace 字符串作为分区键。"用户视角的租户"由 [Platform](platform/overview.md) 自身持有视图层映射。
+> **Compute / Artifacts 不感知 Tenant 概念**——它们以裸 namespace 字符串作为分区键。"用户视角的租户"由 [Platform](components/platform.md) 自身持有视图层映射。
 
 ### 2.2 资源池（ResourcePool）
 
@@ -28,7 +28,7 @@ ResourcePool 通过节点选择条件和容忍配置描述资源边界。Resourc
 
 ### 2.3 资源单元（ResourceUnit）
 
-ResourcePool 内预先定义的资源规格模板，是 AxisML Compute 维护的元数据对象。例如 `a100-1x-large` 可表示 1xA100 + 8 vCPU + 32 GiB。用户创建任务或服务时选择一个 ResourceUnit，平台据此注入 `requests` / `limits` 和节点匹配条件。命名规范详见 [compute.md](core/compute.md)。
+ResourcePool 内预先定义的资源规格模板，是 AxisML Compute 维护的元数据对象。例如 `a100-1x-large` 可表示 1xA100 + 8 vCPU + 32 GiB。用户创建任务或服务时选择一个 ResourceUnit，平台据此注入 `requests` / `limits` 和节点匹配条件。命名规范详见 [compute.md](components/compute.md)。
 
 ### 2.4 资源配额（Quota）
 
@@ -72,7 +72,7 @@ MLJob / MLService 的底层执行由 compute-operator 按 `spec.backend.{name, e
 | 任务 | Job | `MLJob` CRD |
 | 服务 | Service | `MLService` CRD |
 | 制品 | Artifact | Artifacts 元数据：`(namespace, kind, name, version)` |
-| 工作区 | Workspace | Platform 内部概念：`(compute_namespace, artifacts_namespace)` 二元组 |
+| 工作区 | Workspace | Compute `services` 表中 `kind='workspace'` 的行（底层复用 `MLService(native, deployment)`）|
 
 ## 3. 功能矩阵
 
@@ -163,9 +163,9 @@ AxisML Infra 还提供：RustFS、zot、Koordinator、NVIDIA GPU Operator、kube
 - **前端**：基于 TypeScript + React，提供 Web UI。
 - **后端**：基于 Go，提供 RESTful API，负责业务逻辑编排，协调 Cluster Manager / Compute / Artifacts 完成具体操作。
 - **租户视图持有方**：Platform 自己的 PG 表持有"用户 → 租户视图 → 工作区"的映射；下层服务对此无感知。
-- **认证鉴权入口**：Platform 是用户身份、角色与租户访问控制的统一入口；具体 IdP、角色模型和鉴权细节见 [platform/overview.md](platform/overview.md) 与 [platform/auth.md](platform/auth.md)。
+- **认证鉴权入口**：Platform 是用户身份、角色与租户访问控制的统一入口；具体 IdP、角色模型和鉴权细节见 [components/platform.md §5 认证与租户权限模型](components/platform.md#5-认证与租户权限模型)。
 
-> 详细设计见 [AxisML Platform 设计文档](platform/overview.md)
+> 详细设计见 [AxisML Platform 设计文档](components/platform.md)；页面级线框图见 [wireframe.md](wireframe.md)。
 
 ### 5.2 AxisML Cluster Manager
 
@@ -176,7 +176,7 @@ AxisML Infra 还提供：RustFS、zot、Koordinator、NVIDIA GPU Operator、kube
 
 Cluster Manager **不持有 PG 元数据**，权威完全在 etcd。所有 GET 请求都直接读 K8s API。
 
-> 详细设计见 [AxisML Cluster Manager 设计文档](core/cluster-manager.md)
+> 详细设计见 [AxisML Cluster Manager 设计文档](components/cluster-manager.md)
 
 ### 5.3 AxisML Compute
 
@@ -190,7 +190,7 @@ Compute 按请求体里的 `namespace` 字段分区——它不持有"租户"概
 
 Compute 不直接创建 Pod、Deployment、PodGroup 等运行时资源；这些资源由 compute-operator 或底层 controller 根据 CR 声明生成。
 
-> 详细设计见 [AxisML Compute 设计文档](core/compute.md)
+> 详细设计见 [AxisML Compute 设计文档](components/compute.md)
 
 ### 5.4 AxisML Operators
 
@@ -198,8 +198,8 @@ Compute 不直接创建 Pod、Deployment、PodGroup 等运行时资源；这些�
 
 | Operator | 承载 Controller | 职责 |
 | --- | --- | --- |
-| [tenant-operator](core/tenant-operator.md) | Tenant | 把 `Tenant` CR 翻译为 Namespace / Koordinator ElasticQuota / Secret / ConfigMap / ServiceAccount / RBAC 等初始化资源 |
-| [compute-operator](core/compute-operator.md) | MLJob、MLService | 按 `spec.backend.{name, engine}` 元组路由到不同 Handler，渲染 K8s 与第三方 CR（Job / Pod / PodGroup / Deployment / HTTPRoute / KServe `InferenceService` 等） |
+| [tenant-operator](components/tenant-operator.md) | Tenant | 把 `Tenant` CR 翻译为 Namespace / Koordinator ElasticQuota / Secret / ConfigMap / ServiceAccount / RBAC 等初始化资源 |
+| [compute-operator](components/compute-operator.md) | MLJob、MLService | 按 `spec.backend.{name, engine}` 元组路由到不同 Handler，渲染 K8s 与第三方 CR（Job / Pod / PodGroup / Deployment / HTTPRoute / KServe `InferenceService` 等） |
 
 两个 operator 互不依赖：tenant-operator 不感知 MLJob / MLService；compute-operator 不感知 Tenant CR 与 ElasticQuota（仅在 `spec.scheduling.quota` 字段中透传 ElasticQuota CR 名）。
 
@@ -212,7 +212,7 @@ MLJob 与 MLService controller 内部按 `spec.backend.{name, engine}` 二级元
 | `kserve` | MLService | `inference` / `llminference` | 对应 KServe `InferenceService` 与 LLM 原生服务 |
 | `custom` | MLJob、MLService | 任意 | 用户自定义后端，通过 `backend.config` 描述目标 GVK 与字段映射 |
 
-默认值：MLJob `(native, job)`、MLService `(native, deployment)`。**所有 backend 派生的 Pod 都必须设置 `schedulerName: koord-scheduler` 并携带 ElasticQuota label**（详见 [infra.md](infra/infra.md)）。
+默认值：MLJob `(native, job)`、MLService `(native, deployment)`。**所有 backend 派生的 Pod 都必须设置 `schedulerName: koord-scheduler` 并携带 ElasticQuota label**（详见 [infra.md](infra.md)）。
 
 ### 5.5 AxisML Artifacts
 
@@ -226,7 +226,7 @@ Artifacts 按请求体里的 `namespace` 字段分区——同 Compute 一样，
 
 Artifacts 采用元数据服务 / 存储后端分离模式：元数据存储于 PostgreSQL；模型与镜像通过 OCI Distribution 协议存储在 zot；数据集通过 S3 协议存储在 RustFS。上传下载由 CLI 或消费方直连存储后端，Artifacts 不代理大文件 bytes。
 
-> 详细设计见 [AxisML Artifacts 设计文档](core/artifacts.md)
+> 详细设计见 [AxisML Artifacts 设计文档](components/artifacts.md)
 
 ### 5.6 AxisML Infra
 
@@ -242,37 +242,11 @@ Artifacts 采用元数据服务 / 存储后端分离模式：元数据存储于 
 | 调度与配额 | Koordinator | koord-scheduler 接管所有 AxisML workload；ElasticQuota 多租户配额；PodGroup gang scheduling |
 | 监控 | kube-prometheus-stack | 集群与业务指标采集、告警与可视化 |
 
-> 详细设计见 [AxisML Infra 设计文档](infra/infra.md)
+> 详细设计见 [AxisML Infra 设计文档](infra.md)
 
 ## 6. 部署架构
 
-AxisML 基于 Kubernetes 部署，通过两个 Helm chart 分层安装：
-
-- `axisml-infra`：第三方基础设施组件，默认安装到 `axisml-infra` Namespace。
-- `axisml-system`：AxisML 自研控制平面与元数据数据库，默认安装到 `axisml-system` Namespace。
-
-```
-Kubernetes Cluster
-├── axisml-infra namespace
-│   ├── Envoy Gateway
-│   ├── RustFS
-│   ├── zot
-│   ├── NVIDIA GPU Operator
-│   ├── Koordinator
-│   └── kube-prometheus-stack
-├── axisml-system namespace
-│   ├── AxisML Platform           (Deployment + Service)
-│   ├── AxisML Cluster Manager    (Deployment + Service)
-│   ├── AxisML Compute            (Deployment + Service)
-│   ├── AxisML Artifacts          (Deployment + Service)
-│   ├── tenant-operator           (Deployment)
-│   ├── compute-operator          (Deployment)
-│   └── PostgreSQL / externalDatabase
-└── tenant namespaces
-    └── Tenant resources / workloads / routes / secrets / ElasticQuota
-```
-
-安装顺序为先 `axisml-infra`、后 `axisml-system`；卸载顺序相反。PostgreSQL 随 `axisml-system` 管理，也可通过 `externalDatabase` 对接外部实例。
+详见 [deployment.md](deployment.md)。AxisML 通过 `axisml-infra`（第三方基础设施）与 `axisml-system`（控制平面 + 元数据数据库）两个 Helm chart 分层部署，安装顺序 infra → system。
 
 ## 7. 项目结构
 

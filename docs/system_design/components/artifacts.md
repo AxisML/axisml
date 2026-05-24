@@ -2,7 +2,7 @@
 
 AxisML Artifacts 是平台的制品管理服务，承载模型、数据集、镜像、评估报告等所有"非运行态"资产的**元数据管理**与**引用寻址**。Artifacts 通过 REST API 暴露能力，调用方为 AxisML Platform 与 Operators，不直接对外部用户流量开放；`axisml-cli` 经由 Platform / Gateway 中转调用 Artifacts。
 
-> **寻址模型**：Artifact 直接以 `(namespace, kind, name, version)` 四元组寻址；`namespace` 是裸字符串分区键，由调用方（Platform）保证语义。Compute namespace 与 Artifacts namespace **互不绑定**，可同名也可不同名，由 Platform 自由编排（详见 [platform/overview.md](../platform/overview.md)）。
+> **寻址模型**：Artifact 直接以 `(namespace, kind, name, version)` 四元组寻址；`namespace` 是裸字符串分区键，由调用方（Platform）保证语义。Compute namespace 与 Artifacts namespace **互不绑定**，可同名也可不同名，由 Platform 自由编排（详见 [platform.md](platform.md)）。
 
 | 模块 | 职责 | 边界外 |
 | --- | --- | --- |
@@ -146,11 +146,7 @@ artifacts:
 
 ### 2.3 部署形态
 
-- **镜像**：`ghcr.io/axisml/axisml-artifacts:<appVersion>`，端口 `8082/tcp`，启动命令 `/artifacts serve`
-- **探针**：`GET /healthz`（进程存活）、`GET /readyz`（PG 连通；GC 就绪不计入 readiness）
-- **Helm chart**：`deploy/helm/axisml-system/templates/artifacts/` 下提供 ConfigMap / Deployment / Service / ServiceAccount / Secret / ServiceMonitor 标准模板
-- **引导数据**：启动时执行 migration（golang-migrate embedded）；不预置任何 artifact
-- **对外暴露**：Artifacts 不直接对集群外暴露；终端用户经 Platform / Gateway 中转拿到 URI 与凭证后直连 zot / RustFS
+详见 [deployment.md](../deployment.md)。要点：镜像 `ghcr.io/axisml/axisml-artifacts:<appVersion>` / 端口 `8082`；启动时执行 migration（golang-migrate embedded），不预置任何 artifact；Artifacts 不直接对集群外暴露，终端用户经 Platform / Gateway 中转拿到 URI 与凭证后直连 zot / RustFS。
 
 ### 2.4 副本与 Leader Election
 
@@ -161,17 +157,7 @@ artifacts:
 
 ### 2.5 可观测
 
-`/metrics` 至少暴露：
-
-| 指标 | 类型 | 含义 |
-| --- | --- | --- |
-| `axisml_artifacts_is_leader` | gauge | 当前副本是否为 leader（0/1） |
-| `axisml_artifacts_uploading_count{kind}` | gauge | 当前 `status='Uploading'` 行数 |
-| `axisml_artifacts_gc_actions_total{predicate,result}` | counter | GC 动作计数 |
-| `axisml_artifacts_resolve_requests_total{kind,result}` | counter | resolve 请求计数 |
-| `axisml_artifacts_initiate_duration_seconds{kind}` | histogram | initiate 端到端耗时 |
-| `axisml_artifacts_complete_duration_seconds{kind}` | histogram | complete 端到端耗时（含后端 HEAD 校验） |
-| `axisml_artifacts_api_request_duration_seconds{route,status}` | histogram | API 请求延迟 |
+`/metrics` 指标列表详见 [monitoring.md §4.2](../monitoring.md#42-artifacts)。
 
 ---
 
@@ -324,43 +310,7 @@ Ready / Failed ──(DELETE)──▶ Deleting ──(GCBackend 成功)──�
 
 #### 数据模型
 
-```
-artifacts(
-  -- metadata
-  id            uuid PK,
-  namespace     text,                  -- 裸字符串分区键
-  kind          text,                  -- 'model' / 'dataset' / 'image' / 'eval_report'
-  name          text,                  -- DNS-1123；OCI Kind 兼容 OCI repo 名
-  version       text,                  -- OCI tag-safe；扮演 metadata.name 角色
-  display_name  text,
-  description   text,                  -- 此版本说明 / changelog
-  labels        jsonb,
-  annotations   jsonb,
-  owner_user    text,
-
-  -- spec：Kind 特化业务字段，进入 Ready 后冻结，详见 §5
-  spec          jsonb,
-
-  -- observed
-  status        text,                  -- Uploading / Ready / Failed / Deleting / Deleted
-  message       text,                  -- 失败原因或 GC 进度
-  digest        text,                  -- complete 校验通过后写入；OCI Kind 用作不可变引用，S3 Kind 仅作完整性校验
-  ready_at      timestamptz,
-
-  created_at, updated_at, deleted_at
-)
--- (namespace, kind, name, version) UNIQUE WHERE deleted_at IS NULL
-```
-
-**字段分组语义**
-
-- **metadata**：身份与组织信息；`labels` / `annotations` / `display_name` / `description` 在任何状态阶段（包括 Ready 后）均可改
-- **spec**：用户声明，**进入 Ready 后冻结**；想"改" → 同 `(namespace, kind, name)` 下新建版本
-- **observed**：仅由服务端 / GC / 后端校验逻辑回写
-
-**存储地址不入表**：`storage_kind` / `uri` / `size_bytes` 都不作列存储——`storage_kind` 是 `kind` 的纯函数，`uri` 由 `Handler.BuildStorageURI(namespace, name, version)` 即时构造。`digest` 是唯一入表的"内容哈希"——OCI Kind 用作不可变引用键 `<name>@<digest>`；S3 Kind 仅作 manifest 完整性校验。
-
-`<kind-prefix>` ∈ `models / datasets / images / eval-reports`。
+详见 [database.md §4.1 `artifacts` 表](../database.md#41-artifacts-表)。`<kind-prefix>` ∈ `models / datasets / images / eval-reports`。
 
 **跨制品引用**
 
@@ -372,7 +322,7 @@ artifacts(
 
 由 `Handler.ValidateSpec` 在 initiate 阶段做存在性懒校验。被引用方进入 `Deleted` 后引用方仍可保留 ref 字符串，resolve 时返回 410 Gone。由于 `(namespace, kind, name, version)` 不复用，410 不会变成"意外命中新内容"。
 
-> **跨 namespace 可见性**：Artifacts 不强制可见性边界——任何调用方都可以通过 namespace 访问 Artifact；权限边界由 Platform 在调用前自行校验。Platform 通常按工作区映射（详见 [platform/overview.md](../platform/overview.md)）决定哪个用户能看到哪个 namespace 下的制品。
+> **跨 namespace 可见性**：Artifacts 不强制可见性边界——任何调用方都可以通过 namespace 访问 Artifact；权限边界由 Platform 在调用前自行校验。Platform 通常按工作区映射（详见 [platform.md](platform.md)）决定哪个用户能看到哪个 namespace 下的制品。
 
 ### 4.2 ArtifactHandler 接口
 
@@ -436,38 +386,13 @@ artifacts(
 
 ## 6. API 设计
 
-### 6.1 路径规划
+详见 [apis/artifacts.yaml](../apis/artifacts.yaml)。
 
-Artifacts 所有 API 置于 `/api/v1` 前缀下。
+### 6.1 身份上下文
 
-> **路径风格**：URL 使用 `/namespaces/{ns}/artifacts/{kind}/{name}` 一级直入 artifact 命名空间；动词一律用子资源路径（`/complete`、`/resolve`），不使用 `:action` 形式。`POST /api/v1/namespaces/{ns}/artifacts/{kind}/{name}` 即"集合 POST"承担 initiate 角色：在 `Uploading` 状态下创建新版本并返回上传凭证。
+Platform / Gateway 注入 `X-Axisml-User` 头作为调用方身份。Artifacts 不做角色鉴权——namespace 是裸字符串分区键，"哪个用户能访问哪个 namespace"完全由 Platform 在调用前决定。Operator 直连 Artifacts 时只携带 controller service identity，只允许访问 `resolve?usage=inspect`。
 
-| 资源组 | 路径 | 主要动作 |
-| --- | --- | --- |
-| 健康检查 | `/healthz`、`/readyz` | Liveness / Readiness |
-| Artifact 列表 | `/api/v1/namespaces/{ns}/artifacts/{kind}/{name}` | GET：List；POST：initiate（创建 Uploading 版本 + 上传凭证） |
-| 单个版本 | `/api/v1/namespaces/{ns}/artifacts/{kind}/{name}/{version}` | GET / DELETE |
-| 完成上传 | `/api/v1/namespaces/{ns}/artifacts/{kind}/{name}/{version}/complete` | POST：校验 digest + 转 Ready |
-| 解析引用 | `/api/v1/namespaces/{ns}/artifacts/{kind}/{name}/{version}/resolve` | GET：返回 uri / digest / auth_hint |
-| 跨 name 列表 | `/api/v1/namespaces/{ns}/artifacts/{kind}` | GET：List 该 namespace + kind 下的所有 (name, version) 二元组 |
-
-### 6.2 身份上下文
-
-由 Platform / Gateway 注入的请求头：
-
-| Header | 含义 |
-| --- | --- |
-| `X-Axisml-User` | 调用方用户唯一 ID，用于审计与 ownership |
-
-Artifacts 不做角色鉴权——namespace 是裸字符串分区键，"哪个用户能访问哪个 namespace"完全由 Platform 在调用前决定。Artifacts 也不读 `X-Axisml-Roles`。
-
-Operator 直连 Artifacts 时不代表终端用户身份，只携带 controller service identity 与明确的 namespace 参数；只允许访问 `resolve?usage=inspect`。
-
-### 6.3 契约管理
-
-`components/artifacts/api/openapi.yaml` 是唯一契约源，使用 `oapi-codegen` 生成 server stub 与各调用方的 Go SDK（Platform / Operators / cli 共用）。
-
-### 6.4 cli 协作时序（model push 为例）
+### 6.2 cli 协作时序（model push 为例）
 
 ```
 cli                  Artifacts                zot                       PG
@@ -602,5 +527,5 @@ Artifacts 的测试分两层：
 - [docs/system_design/overview.md §3](../overview.md) 概述了 Artifacts 在控制平面里的位置与功能矩阵。
 - [docs/system_design/tenant-operator.md §4.6](tenant-operator.md) 描述 tenant-operator 如何按 `Tenant.spec.initResources` 落地租户级 zot / RustFS 凭证 Secret——Artifacts `auth_hint` 的命名契约由其决定。
 - [docs/system_design/compute-operator.md](compute-operator.md) 描述 mljob / mlservice handler 如何通过 Artifacts client SDK 解析 `imageRef` / `modelRef` / `datasetRef`。
-- [docs/system_design/platform/overview.md](../platform/overview.md) 描述 Platform 如何把"租户视图 / 工作区"映射到 Artifacts namespace。
-- [docs/system_design/infra.md](../infra/infra.md) 给出 zot / RustFS / PostgreSQL 等基础设施的部署契约。
+- [docs/system_design/components/platform.md](platform.md) 描述 Platform 如何把"租户视图 / 工作区"映射到 Artifacts namespace。
+- [docs/system_design/infra.md](../infra.md) 给出 zot / RustFS / PostgreSQL 等基础设施的部署契约。

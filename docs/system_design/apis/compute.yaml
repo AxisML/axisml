@@ -1,0 +1,1744 @@
+openapi: 3.0.3
+info:
+  title: AxisML Compute API
+  version: v1
+  description: |
+    AxisML Compute is the namespace-partitioned business service that manages
+    ResourcePool, ResourceUnit, Job, and Service objects on top of the
+    compute-operator-owned MLJob / MLService CRDs.
+
+    Compute only accepts internal REST calls from AxisML Platform via the
+    in-cluster ClusterIP Service; it is not exposed through any external
+    HTTPRoute. Platform injects the caller identity through the `X-Axisml-User`
+    header on every `/api/v1/*` call.
+
+    Compute writes the desired state into its own PostgreSQL tables and
+    relies on an Outbox + reconciler loop to translate desired state into
+    MLJob / MLService CRs. Read paths surface the latest state observed
+    through the in-process Informer.
+
+servers:
+  - url: http://axisml-compute.axisml-system.svc.cluster.local:8081
+    description: In-cluster ClusterIP endpoint
+
+tags:
+  - name: ResourcePools
+    description: Resource pool management (admin)
+  - name: ResourceUnits
+    description: Resource unit (spec template) management (admin)
+  - name: Jobs
+    description: One-shot ML training / batch jobs (namespace-scoped)
+  - name: Services
+    description: Long-running inference services and workspaces (namespace-scoped)
+  - name: Health
+    description: Liveness and readiness probes
+
+paths:
+  /healthz:
+    get:
+      operationId: healthz
+      tags: [Health]
+      summary: Liveness probe
+      description: Returns 200 if the Compute process is alive.
+      security: []
+      responses:
+        '200':
+          description: Process alive
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: ok
+        '500':
+          $ref: '#/components/responses/ProblemInternal'
+
+  /readyz:
+    get:
+      operationId: readyz
+      tags: [Health]
+      summary: Readiness probe
+      description: |
+        Returns 200 if the process is alive and the PostgreSQL connection is
+        healthy. Informer readiness is intentionally excluded so leader
+        failover does not drain non-leader replicas.
+      security: []
+      responses:
+        '200':
+          description: Ready
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: ok
+        '503':
+          description: Not ready (PG unreachable)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  # ─────────────────────────────────────────────────────────────────────
+  # ResourcePools
+  # ─────────────────────────────────────────────────────────────────────
+  /api/v1/resource-pools:
+    post:
+      operationId: createResourcePool
+      tags: [ResourcePools]
+      summary: Create a resource pool
+      parameters:
+        - $ref: '#/components/parameters/XAxismlUser'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResourcePoolCreateRequest'
+      responses:
+        '201':
+          description: Resource pool created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourcePool'
+        '400': { $ref: '#/components/responses/ProblemBadRequest' }
+        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
+        '403': { $ref: '#/components/responses/ProblemForbidden' }
+        '409': { $ref: '#/components/responses/ProblemConflict' }
+        '422': { $ref: '#/components/responses/ProblemUnprocessable' }
+        '500': { $ref: '#/components/responses/ProblemInternal' }
+    get:
+      operationId: listResourcePools
+      tags: [ResourcePools]
+      summary: List resource pools
+      parameters:
+        - $ref: '#/components/parameters/XAxismlUser'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Continue'
+      responses:
+        '200':
+          description: A page of resource pools
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourcePoolList'
+        '400': { $ref: '#/components/responses/ProblemBadRequest' }
+        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
+        '403': { $ref: '#/components/responses/ProblemForbidden' }
+        '500': { $ref: '#/components/responses/ProblemInternal' }
+
+  /api/v1/resource-pools/{pool}:
+    parameters:
+      - $ref: '#/components/parameters/XAxismlUser'
+      - $ref: '#/components/parameters/PoolName'
+    get:
+      operationId: getResourcePool
+      tags: [ResourcePools]
+      summary: Get a resource pool
+      responses:
+        '200':
+          description: Resource pool
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourcePool'
+        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
+        '403': { $ref: '#/components/responses/ProblemForbidden' }
+        '404': { $ref: '#/components/responses/ProblemNotFound' }
+        '500': { $ref: '#/components/responses/ProblemInternal' }
+    patch:
+      operationId: updateResourcePool
+      tags: [ResourcePools]
+      summary: Update a resource pool
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResourcePoolPatchRequest'
+      responses:
+        '200':
+          description: Updated resource pool
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourcePool'
+        '400': { $ref: '#/components/responses/ProblemBadRequest' }
+        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
+        '403': { $ref: '#/components/responses/ProblemForbidden' }
+        '404': { $ref: '#/components/responses/ProblemNotFound' }
+        '409': { $ref: '#/components/responses/ProblemConflict' }
+        '422': { $ref: '#/components/responses/ProblemUnprocessable' }
+        '500': { $ref: '#/components/responses/ProblemInternal' }
+    delete:
+      operationId: deleteResourcePool
+      tags: [ResourcePools]
+      summary: Soft-delete a resource pool
+      description: |
+        Marks the resource pool as deleted (soft delete). Idempotent: calling
+        delete on an already-deleted pool returns 204.
+      responses:
+        '204':
+          description: Pool soft-deleted
+        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
+        '403': { $ref: '#/components/responses/ProblemForbidden' }
+        '404': { $ref: '#/components/responses/ProblemNotFound' }
+        '409': { $ref: '#/components/responses/ProblemConflict' }
+        '500': { $ref: '#/components/responses/ProblemInternal' }
+
+  # ─────────────────────────────────────────────────────────────────────
+  # ResourceUnits
+  # ─────────────────────────────────────────────────────────────────────
+  /api/v1/resource-pools/{pool}/resource-units:
+    parameters:
+      - $ref: '#/components/parameters/XAxismlUser'
+      - $ref: '#/components/parameters/PoolName'
+    post:
+      operationId: createResourceUnit
+      tags: [ResourceUnits]
+      summary: Create a resource unit inside a pool
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResourceUnitCreateRequest'
+      responses:
+        '201':
+          description: Resource unit created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceUnit'
+        '400': { $ref: '#/components/responses/ProblemBadRequest' }
+        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
+        '403': { $ref: '#/components/responses/ProblemForbidden' }
+        '404': { $ref: '#/components/responses/ProblemNotFound' }
+        '409': { $ref: '#/components/responses/ProblemConflict' }
+        '422': { $ref: '#/components/responses/ProblemUnprocessable' }
+        '500': { $ref: '#/components/responses/ProblemInternal' }
+    get:
+      operationId: listResourceUnits
+      tags: [ResourceUnits]
+      summary: List resource units inside a pool
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Continue'
+      responses:
+        '200':
+          description: A page of resource units
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceUnitList'
+        '400': { $ref: '#/components/responses/ProblemBadRequest' }
+        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
+        '403': { $ref: '#/components/responses/ProblemForbidden' }
+        '404': { $ref: '#/components/responses/ProblemNotFound' }
+        '500': { $ref: '#/components/responses/ProblemInternal' }
+
+  /api/v1/resource-pools/{pool}/resource-units/{unit}:
+    parameters:
+      - $ref: '#/components/parameters/XAxismlUser'
+      - $ref: '#/components/parameters/PoolName'
+      - $ref: '#/components/parameters/UnitName'
+    get:
+      operationId: getResourceUnit
+      tags: [ResourceUnits]
+      summary: Get a resource unit
+      responses:
+        '200':
+          description: Resource unit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceUnit'
+        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
+        '403': { $ref: '#/components/responses/ProblemForbidden' }
+        '404': { $ref: '#/components/responses/ProblemNotFound' }
+        '500': { $ref: '#/components/responses/ProblemInternal' }
+    patch:
+      operationId: updateResourceUnit
+      tags: [ResourceUnits]
+      summary: Update a resource unit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResourceUnitPatchRequest'
+      responses:
+        '200':
+          description: Updated resource unit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceUnit'
+        '400': { $ref: '#/components/responses/ProblemBadRequest' }
+        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
+        '403': { $ref: '#/components/responses/ProblemForbidden' }
+        '404': { $ref: '#/components/responses/ProblemNotFound' }
+        '409': { $ref: '#/components/responses/ProblemConflict' }
+        '422': { $ref: '#/components/responses/ProblemUnprocessable' }
+        '500': { $ref: '#/components/responses/ProblemInternal' }
+    delete:
+      operationId: deleteResourceUnit
+      tags: [ResourceUnits]
+      summary: Soft-delete a resource unit
+      responses:
+        '204':
+          description: Unit soft-deleted
+        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
+        '403': { $ref: '#/components/responses/ProblemForbidden' }
+        '404': { $ref: '#/components/responses/ProblemNotFound' }
+        '409': { $ref: '#/components/responses/ProblemConflict' }
+        '500': { $ref: '#/components/responses/ProblemInternal' }
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Jobs (namespace-scoped)
+  # ─────────────────────────────────────────────────────────────────────
+  /api/v1/namespaces/{namespace}/jobs:
+    parameters:
+      - $ref: '#/components/parameters/XAxismlUser'
+      - $ref: '#/components/parameters/Namespace'
+    post:
+      operationId: createJob
+      tags: [Jobs]
+      summary: Create a job
+      description: |
+        Creates a Job and asynchronously emits the corresponding MLJob CR.
+        Returns 201 with the freshly created Job (status will normally be
+        `Creating` at this point).
+
+        `spec` is immutable after create. `spec.scheduling.quota` is required.
+        `spec.backend` defaults to `{name: native, engine: job}` when omitted.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JobCreateRequest'
+      responses:
+        '201':
+          description: Job created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '400': { $ref: '#/components/responses/ProblemBadRequest' }
+        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
+        '403': { $ref: '#/components/responses/ProblemForbidden' }
+        '404': { $ref: '#/components/responses/ProblemNotFound' }
+        '409': { $ref: '#/components/responses/ProblemConflict' }
+        '422': { $ref: '#/components/responses/ProblemUnprocessable' }
+        '500': { $ref: '#/components/responses/ProblemInternal' }
+    get:
+      operationId: listJobs
+      tags: [Jobs]
+      summary: List jobs in a namespace
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Continue'
+        - in: query
+          name: status
+          description: Optional filter on Job status.
+          required: false
+          schema:
+            $ref: '#/components/schemas/JobStatus'
+      responses:
+        '200':
+          description: A page of jobs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobList'
+        '400': { $ref: '#/components/responses/ProblemBadRequest' }
+        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
+        '403': { $ref: '#/components/responses/ProblemForbidden' }
+        '500': { $ref: '#/components/responses/ProblemInternal' }
+
+  /api/v1/namespaces/{namespace}/jobs/{job}:
+    parameters:
+      - $ref: '#/components/parameters/XAxismlUser'
+      - $ref: '#/components/parameters/Namespace'
+      - $ref: '#/components/parameters/JobName'
+    get:
+      operationId: getJob
+      tags: [Jobs]
+      summary: Get a job by namespace + name
+      responses:
+        '200':
+          description: Job
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
+        '403': { $ref: '#/components/responses/ProblemForbidden' }
+        '404': { $ref: '#/components/responses/ProblemNotFound' }
+        '500': { $ref: '#/components/responses/ProblemInternal' }
+    delete:
+      operationId: deleteJob
+      tags: [Jobs]
+      summary: Soft-delete a job
+      description: |
+        Soft-deletes the Job: PG row is marked `Deleting` + `deleted_at=now()`
+        and the reconciler deletes the MLJob CR. Idempotent.
+      responses:
+        '204':
+          description: Job soft-deleted
+        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
+        '403': { $ref: '#/components/responses/ProblemForbidden' }
+        '404': { $ref: '#/components/responses/ProblemNotFound' }
+        '500': { $ref: '#/components/responses/ProblemInternal' }
+
+  /api/v1/namespaces/{namespace}/jobs/{job}/cancel:
+    parameters:
+      - $ref: '#/components/parameters/XAxismlUser'
+      - $ref: '#/components/parameters/Namespace'
+      - $ref: '#/components/parameters/JobName'
+    post:
+      operationId: cancelJob
+      tags: [Jobs]
+      summary: Cancel a running or pending job
+      description: |
+        Only valid when the job is in `Pending` or `Running`. Calling cancel
+        on a job in `Creating` or any terminal / canceling / deleting state
+        returns 422.
+
+        On success the job transitions to `Canceling`; the reconciler then
+        patches `MLJob.spec.runPolicy.suspend=true` and Compute waits for the
+        operator-reported Suspended condition before advancing to `Cancelled`.
+      responses:
+        '202':
+          description: Cancel accepted; job is transitioning to Canceling
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
+        '403': { $ref: '#/components/responses/ProblemForbidden' }
+        '404': { $ref: '#/components/responses/ProblemNotFound' }
+        '422':
+          description: Job is not in a cancellable state
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500': { $ref: '#/components/responses/ProblemInternal' }
+
+  /api/v1/namespaces/{namespace}/jobs/{job}/replicas:
+    parameters:
+      - $ref: '#/components/parameters/XAxismlUser'
+      - $ref: '#/components/parameters/Namespace'
+      - $ref: '#/components/parameters/JobName'
+    get:
+      operationId: listJobReplicas
+      tags: [Jobs]
+      summary: List the Pod replicas for a job
+      description: |
+        Lists pods reverse-indexed by the `axisml.io/job-id` label. Replica
+        index is taken from the `axisml.io/replica-index` label when present.
+      responses:
+        '200':
+          description: Replica list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReplicaList'
+        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
+        '403': { $ref: '#/components/responses/ProblemForbidden' }
+        '404': { $ref: '#/components/responses/ProblemNotFound' }
+        '500': { $ref: '#/components/responses/ProblemInternal' }
+
+  /api/v1/namespaces/{namespace}/jobs/{job}/events:
+    parameters:
+      - $ref: '#/components/parameters/XAxismlUser'
+      - $ref: '#/components/parameters/Namespace'
+      - $ref: '#/components/parameters/JobName'
+    get:
+      operationId: listJobEvents
+      tags: [Jobs]
+      summary: List the aggregated K8s events for a job
+      description: |
+        Returns K8s events whose involvedObject references the MLJob CR,
+        any derived PodGroup, or any pod owned by the job.
+      responses:
+        '200':
+          description: Aggregated events
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventList'
+        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
+        '403': { $ref: '#/components/responses/ProblemForbidden' }
+        '404': { $ref: '#/components/responses/ProblemNotFound' }
+        '500': { $ref: '#/components/responses/ProblemInternal' }
+
+  /api/v1/namespaces/{namespace}/jobs/{job}/logs:
+    parameters:
+      - $ref: '#/components/parameters/XAxismlUser'
+      - $ref: '#/components/parameters/Namespace'
+      - $ref: '#/components/parameters/JobName'
+    get:
+      operationId: getJobLogs
+      tags: [Jobs]
+      summary: Fetch or stream a job pod's logs
+      description: |
+        Proxies the underlying Pod log API. The Pod is located either by
+        replica index (`replica`, matched against the
+        `axisml.io/replica-index` label) or directly by pod name (`pod`).
+
+        Returns `text/plain` when `follow=false` (default). When `follow=true`
+        the connection is upgraded to a Server-Sent Events stream
+        (`text/event-stream`); each `data:` frame is one log line.
+
+        Returns 410 Gone when the target Pod has been garbage-collected and
+        the kube-apiserver no longer has its logs.
+      parameters:
+        - in: query
+          name: replica
+          description: 0-based replica index; mutually exclusive with `pod`.
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+        - in: query
+          name: pod
+          description: Direct pod name; mutually exclusive with `replica`.
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: container
+          description: Container name (required for multi-container pods).
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: follow
+          description: |
+            When true, stream logs as `text/event-stream`. When false (default)
+            return a one-shot `text/plain` body.
+          required: false
+          schema:
+            type: boolean
+            default: false
+        - in: query
+          name: tailLines
+          description: Return at most this many lines from the end of the log.
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+        - in: query
+          name: sinceSeconds
+          description: Return logs newer than this many seconds.
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+        - in: query
+          name: previous
+          description: Read logs from the previous terminated container.
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: |
+            Logs returned. The body is `text/plain` when `follow=false`, or
+            `text/event-stream` (SSE) when `follow=true`.
+          content:
+            text/plain:
+              schema:
+                type: string
+            text/event-stream:
+              schema:
+                type: string
+                description: SSE stream; each `data:` frame is a log line.
+        '400': { $ref: '#/components/responses/ProblemBadRequest' }
+        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
+        '403': { $ref: '#/components/responses/ProblemForbidden' }
+        '404': { $ref: '#/components/responses/ProblemNotFound' }
+        '410':
+          description: Pod has been garbage-collected; logs are no longer available.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500': { $ref: '#/components/responses/ProblemInternal' }
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Services (namespace-scoped)
+  # ─────────────────────────────────────────────────────────────────────
+  /api/v1/namespaces/{namespace}/services:
+    parameters:
+      - $ref: '#/components/parameters/XAxismlUser'
+      - $ref: '#/components/parameters/Namespace'
+    post:
+      operationId: createService
+      tags: [Services]
+      summary: Create a service or workspace
+      description: |
+        `kind` defaults to `service`. When `kind=workspace` the row is
+        partitioned for Platform's workspace listing path but follows the
+        same backend / state-machine / scale / delete behavior. `spec` is
+        immutable after create except for `spec.roles[0].replicas`, which is
+        only mutable via `/scale`. `spec.scheduling.quota` is required.
+        `spec.backend` defaults to `{name: native, engine: deployment}`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceCreateRequest'
+      responses:
+        '201':
+          description: Service created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Service'
+        '400': { $ref: '#/components/responses/ProblemBadRequest' }
+        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
+        '403': { $ref: '#/components/responses/ProblemForbidden' }
+        '404': { $ref: '#/components/responses/ProblemNotFound' }
+        '409': { $ref: '#/components/responses/ProblemConflict' }
+        '422': { $ref: '#/components/responses/ProblemUnprocessable' }
+        '500': { $ref: '#/components/responses/ProblemInternal' }
+    get:
+      operationId: listServicesByNamespace
+      tags: [Services]
+      summary: List services / workspaces in a namespace
+      parameters:
+        - in: query
+          name: kind
+          description: Filter by service kind.
+          required: false
+          schema:
+            $ref: '#/components/schemas/ServiceKind'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Continue'
+      responses:
+        '200':
+          description: A page of services
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceList'
+        '400': { $ref: '#/components/responses/ProblemBadRequest' }
+        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
+        '403': { $ref: '#/components/responses/ProblemForbidden' }
+        '500': { $ref: '#/components/responses/ProblemInternal' }
+
+  /api/v1/namespaces/{namespace}/services/{service}:
+    parameters:
+      - $ref: '#/components/parameters/XAxismlUser'
+      - $ref: '#/components/parameters/Namespace'
+      - $ref: '#/components/parameters/ServiceName'
+    get:
+      operationId: getService
+      tags: [Services]
+      summary: Get a service by namespace + name
+      responses:
+        '200':
+          description: Service
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Service'
+        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
+        '403': { $ref: '#/components/responses/ProblemForbidden' }
+        '404': { $ref: '#/components/responses/ProblemNotFound' }
+        '500': { $ref: '#/components/responses/ProblemInternal' }
+    delete:
+      operationId: deleteService
+      tags: [Services]
+      summary: Soft-delete a service
+      description: |
+        Soft-deletes the service: PG row is marked `Deleting` +
+        `deleted_at=now()` and the reconciler deletes the MLService CR.
+        Idempotent.
+      responses:
+        '204':
+          description: Service soft-deleted
+        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
+        '403': { $ref: '#/components/responses/ProblemForbidden' }
+        '404': { $ref: '#/components/responses/ProblemNotFound' }
+        '500': { $ref: '#/components/responses/ProblemInternal' }
+
+  /api/v1/namespaces/{namespace}/services/{service}/scale:
+    parameters:
+      - $ref: '#/components/parameters/XAxismlUser'
+      - $ref: '#/components/parameters/Namespace'
+      - $ref: '#/components/parameters/ServiceName'
+    post:
+      operationId: scaleService
+      tags: [Services]
+      summary: Scale a service to a target replica count
+      description: |
+        Updates `services.replicas` and `services.spec.roles[0].replicas`,
+        recomputes `desired_spec_hash`, and returns the updated Service.
+        The reconciler later patches `MLService.spec.roles[0].replicas`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceScaleRequest'
+      responses:
+        '202':
+          description: Scale request accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Service'
+        '400': { $ref: '#/components/responses/ProblemBadRequest' }
+        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
+        '403': { $ref: '#/components/responses/ProblemForbidden' }
+        '404': { $ref: '#/components/responses/ProblemNotFound' }
+        '422': { $ref: '#/components/responses/ProblemUnprocessable' }
+        '500': { $ref: '#/components/responses/ProblemInternal' }
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Services — id-based addressing (Platform N+1 / workspace LIST)
+  # ─────────────────────────────────────────────────────────────────────
+  /api/v1/services:
+    get:
+      operationId: listServices
+      tags: [Services]
+      summary: List services by ids, or by namespace + kind
+      description: |
+        Either `ids` (csv of UUIDs) is provided for an N+1-optimized batch
+        fetch, or `namespace` + `kind` is provided to list all services of
+        a kind inside a namespace (the Platform workspace listing path).
+        Mixing the two query shapes is not allowed.
+      parameters:
+        - $ref: '#/components/parameters/XAxismlUser'
+        - in: query
+          name: ids
+          description: Comma-separated list of service UUIDs.
+          required: false
+          schema:
+            type: string
+            example: 6c8e1d3e-7b3a-4c2e-9a86-1a0f9e1b3b8a,c9a1b2d3-4e5f-6a7b-8c9d-0e1f2a3b4c5d
+        - in: query
+          name: namespace
+          description: Namespace filter; required together with `kind`.
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: kind
+          description: Kind filter; required together with `namespace`.
+          required: false
+          schema:
+            $ref: '#/components/schemas/ServiceKind'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Continue'
+      responses:
+        '200':
+          description: A page of services
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceList'
+        '400': { $ref: '#/components/responses/ProblemBadRequest' }
+        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
+        '403': { $ref: '#/components/responses/ProblemForbidden' }
+        '422': { $ref: '#/components/responses/ProblemUnprocessable' }
+        '500': { $ref: '#/components/responses/ProblemInternal' }
+
+  /api/v1/services/{id}:
+    parameters:
+      - $ref: '#/components/parameters/XAxismlUser'
+      - in: path
+        name: id
+        required: true
+        description: Service UUID.
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getServiceById
+      tags: [Services]
+      summary: Get a service by uuid
+      responses:
+        '200':
+          description: Service
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Service'
+        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
+        '403': { $ref: '#/components/responses/ProblemForbidden' }
+        '404': { $ref: '#/components/responses/ProblemNotFound' }
+        '500': { $ref: '#/components/responses/ProblemInternal' }
+
+components:
+  parameters:
+    XAxismlUser:
+      in: header
+      name: X-Axisml-User
+      required: true
+      description: |
+        Unique user id of the caller, injected by Platform. Used for audit
+        and ownership attribution; no role-level authorization is performed
+        by Compute itself.
+      schema:
+        type: string
+        minLength: 1
+
+    Namespace:
+      in: path
+      name: namespace
+      required: true
+      description: |
+        Bare-string namespace partition key. Written verbatim into the
+        target MLJob / MLService CR `metadata.namespace`; Compute does not
+        validate that the namespace exists in Kubernetes.
+      schema:
+        type: string
+        minLength: 1
+
+    PoolName:
+      in: path
+      name: pool
+      required: true
+      description: Resource pool name (DNS-1123, 3–40 chars).
+      schema:
+        type: string
+        pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+        minLength: 3
+        maxLength: 40
+
+    UnitName:
+      in: path
+      name: unit
+      required: true
+      description: Resource unit name (DNS-1123, 3–40 chars).
+      schema:
+        type: string
+        pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+        minLength: 3
+        maxLength: 40
+
+    JobName:
+      in: path
+      name: job
+      required: true
+      description: Job name (DNS-1123, 3–40 chars).
+      schema:
+        type: string
+        pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+        minLength: 3
+        maxLength: 40
+
+    ServiceName:
+      in: path
+      name: service
+      required: true
+      description: Service name (DNS-1123, 3–40 chars).
+      schema:
+        type: string
+        pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+        minLength: 3
+        maxLength: 40
+
+    Limit:
+      in: query
+      name: limit
+      required: false
+      description: Maximum number of items returned in a single page.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 500
+        default: 50
+
+    Continue:
+      in: query
+      name: continue
+      required: false
+      description: Opaque continuation token from a previous page.
+      schema:
+        type: string
+
+  responses:
+    ProblemBadRequest:
+      description: Bad request (malformed body or query)
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    ProblemUnauthorized:
+      description: Caller identity (`X-Axisml-User`) missing or invalid
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    ProblemForbidden:
+      description: Caller is not allowed to perform this operation
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    ProblemNotFound:
+      description: Resource not found
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    ProblemConflict:
+      description: Conflict with current state (e.g. duplicate name)
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    ProblemGone:
+      description: Underlying resource has been garbage-collected
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    ProblemUnprocessable:
+      description: Request was syntactically valid but violates an invariant
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    ProblemInternal:
+      description: Internal server error
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+
+  schemas:
+    # ────────────────── shared ──────────────────
+    Problem:
+      type: object
+      description: RFC 7807 problem+json error envelope.
+      properties:
+        type:
+          type: string
+          format: uri
+          description: A URI reference that identifies the problem type.
+          default: about:blank
+        title:
+          type: string
+          description: Short, human-readable summary of the problem type.
+        status:
+          type: integer
+          description: HTTP status code.
+        detail:
+          type: string
+          description: Human-readable explanation specific to this occurrence.
+        instance:
+          type: string
+          description: URI reference identifying the specific occurrence.
+        code:
+          type: string
+          description: Stable machine-readable error code.
+        errors:
+          type: array
+          description: Optional field-level validation issues.
+          items:
+            type: object
+            properties:
+              field: { type: string }
+              message: { type: string }
+            required: [field, message]
+      required: [title, status]
+
+    Pagination:
+      type: object
+      description: Pagination envelope returned on list responses.
+      properties:
+        continueToken:
+          type: string
+          description: Token to pass back as `continue` on the next page; empty when no more pages.
+        limit:
+          type: integer
+          description: Limit echoed back from the request.
+
+    Quantity:
+      type: string
+      description: |
+        Kubernetes resource.Quantity string (e.g. `100m`, `1`, `64Gi`,
+        `1Mi`). Parsed by Compute via `k8s.io/apimachinery/pkg/api/resource`.
+      example: 100m
+
+    ResourceList:
+      type: object
+      description: |
+        Map of Kubernetes resource name to Quantity, mirroring K8s
+        `corev1.ResourceList`. Common keys are `cpu`, `memory`,
+        `ephemeral-storage`, `nvidia.com/gpu`, etc.
+      additionalProperties:
+        $ref: '#/components/schemas/Quantity'
+      example:
+        cpu: "8"
+        memory: 64Gi
+        nvidia.com/gpu: "1"
+
+    Toleration:
+      type: object
+      description: |
+        Kubernetes core/v1 Toleration. See
+        https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/.
+      properties:
+        key:
+          type: string
+        operator:
+          type: string
+          enum: [Equal, Exists]
+        value:
+          type: string
+        effect:
+          type: string
+          enum: [NoSchedule, PreferNoSchedule, NoExecute]
+        tolerationSeconds:
+          type: integer
+          format: int64
+
+    NodeSelector:
+      type: object
+      description: Map of node label key to value (K8s `nodeSelector` shape).
+      additionalProperties:
+        type: string
+
+    Replica:
+      type: object
+      description: A Pod replica belonging to a Job.
+      properties:
+        index:
+          type: integer
+          description: 0-based replica index (from `axisml.io/replica-index`); absent when the backend does not produce stable identities.
+          minimum: 0
+        podName:
+          type: string
+        phase:
+          type: string
+          enum: [Pending, Running, Succeeded, Failed, Unknown]
+        startedAt:
+          type: string
+          format: date-time
+        nodeName:
+          type: string
+      required: [podName, phase]
+
+    ReplicaList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Replica'
+      required: [items]
+
+    EventInvolvedObject:
+      type: object
+      description: Reference to the K8s object the event is about.
+      properties:
+        kind: { type: string }
+        namespace: { type: string }
+        name: { type: string }
+        uid: { type: string }
+        apiVersion: { type: string }
+
+    EventSource:
+      type: object
+      properties:
+        component: { type: string }
+        host: { type: string }
+
+    Event:
+      type: object
+      description: |
+        Simplified Kubernetes Event shape (subset of `corev1.Event`) returned
+        from the aggregated Job events endpoint.
+      properties:
+        type:
+          type: string
+          enum: [Normal, Warning]
+        reason:
+          type: string
+        message:
+          type: string
+        source:
+          $ref: '#/components/schemas/EventSource'
+        involvedObject:
+          $ref: '#/components/schemas/EventInvolvedObject'
+        firstTimestamp:
+          type: string
+          format: date-time
+        lastTimestamp:
+          type: string
+          format: date-time
+        count:
+          type: integer
+          minimum: 1
+
+    EventList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Event'
+      required: [items]
+
+    # ────────────────── ResourcePool ──────────────────
+    ResourcePool:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          minLength: 3
+          maxLength: 40
+        description:
+          type: string
+        nodeSelector:
+          $ref: '#/components/schemas/NodeSelector'
+        tolerations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Toleration'
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Free-form metadata (e.g. cost tags, ownership info).
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+      required: [id, name, nodeSelector, tolerations, metadata, createdAt, updatedAt]
+
+    ResourcePoolCreateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          minLength: 3
+          maxLength: 40
+        description:
+          type: string
+        nodeSelector:
+          $ref: '#/components/schemas/NodeSelector'
+        tolerations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Toleration'
+        metadata:
+          type: object
+          additionalProperties: true
+      required: [name]
+
+    ResourcePoolPatchRequest:
+      type: object
+      description: All fields optional; absent fields are left unchanged.
+      properties:
+        description:
+          type: string
+        nodeSelector:
+          $ref: '#/components/schemas/NodeSelector'
+        tolerations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Toleration'
+        metadata:
+          type: object
+          additionalProperties: true
+
+    ResourcePoolList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResourcePool'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+      required: [items]
+
+    # ────────────────── ResourceUnit ──────────────────
+    ResourceUnit:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        poolId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          minLength: 3
+          maxLength: 40
+        description:
+          type: string
+        requests:
+          $ref: '#/components/schemas/ResourceList'
+        limits:
+          $ref: '#/components/schemas/ResourceList'
+        nodeSelector:
+          $ref: '#/components/schemas/NodeSelector'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+      required: [id, poolId, name, requests, limits, nodeSelector, createdAt, updatedAt]
+
+    ResourceUnitCreateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          minLength: 3
+          maxLength: 40
+        description:
+          type: string
+        requests:
+          $ref: '#/components/schemas/ResourceList'
+        limits:
+          $ref: '#/components/schemas/ResourceList'
+        nodeSelector:
+          $ref: '#/components/schemas/NodeSelector'
+      required: [name, requests]
+
+    ResourceUnitPatchRequest:
+      type: object
+      properties:
+        description:
+          type: string
+        requests:
+          $ref: '#/components/schemas/ResourceList'
+        limits:
+          $ref: '#/components/schemas/ResourceList'
+        nodeSelector:
+          $ref: '#/components/schemas/NodeSelector'
+
+    ResourceUnitList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResourceUnit'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+      required: [items]
+
+    # ────────────────── MLJob / MLService shared spec building blocks ──────────────────
+    PodTemplateSpec:
+      type: object
+      description: |
+        K8s core/v1 PodTemplateSpec shape passed through to the backend
+        handler. Compute does not strictly validate this object; the
+        backend Handler's `Validate` is responsible for enforcing the
+        per-backend constraints. Conventionally includes `image`,
+        `imagePullPolicy`, `command`, `args`, `env`, `envFrom`,
+        `workingDir`, `resources`, `ports`, `volumes`, `volumeMounts`.
+      additionalProperties: true
+
+    JobBackend:
+      type: object
+      description: |
+        Backend selector. Immutable after create. Defaults to
+        `{name: native, engine: job}` when omitted on create.
+      properties:
+        name:
+          type: string
+          description: '`native` | `kubeflow-trainer` | `custom`'
+          enum: [native, kubeflow-trainer, custom]
+          default: native
+        engine:
+          type: string
+          description: |
+            Engine selector whose meaning is backend-specific. For `native`:
+            `job` | `podgroup`. For `kubeflow-trainer`: `pytorchjob` |
+            `tfjob` | `mpijob` | …. For `custom`: any name described by
+            `config`.
+          default: job
+        config:
+          type: object
+          additionalProperties: true
+          description: Optional schemaless config interpreted by the Handler.
+      required: [name, engine]
+
+    ServiceBackend:
+      type: object
+      description: |
+        Backend selector. Immutable after create. Defaults to
+        `{name: native, engine: deployment}` when omitted on create.
+      properties:
+        name:
+          type: string
+          description: '`native` | `kserve` | `custom`'
+          enum: [native, kserve, custom]
+          default: native
+        engine:
+          type: string
+          description: |
+            For `native`: `deployment` | `statefulset`. For `kserve`:
+            `inference` | `llminference`. For `custom`: any name described
+            by `config`.
+          default: deployment
+        config:
+          type: object
+          additionalProperties: true
+      required: [name, engine]
+
+    Scheduling:
+      type: object
+      description: Common scheduling block injected into the CR `spec.scheduling`.
+      properties:
+        quota:
+          type: string
+          description: |
+            ElasticQuota CR name (opaque to Compute; passed through verbatim
+            to the CR). Required for jobs and services.
+        priorityClassName:
+          type: string
+        priorityClass:
+          type: string
+          description: |
+            Alias for `priorityClassName` kept for backwards compatibility
+            with the CR spec (`spec.scheduling.priorityClass`).
+        nodeSelector:
+          $ref: '#/components/schemas/NodeSelector'
+        tolerations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Toleration'
+      required: [quota]
+
+    JobRunPolicy:
+      type: object
+      properties:
+        suspend:
+          type: boolean
+          default: false
+          description: Cancel signal; flipped to true by `/cancel`.
+        activeDeadlineSeconds:
+          type: integer
+          format: int64
+          minimum: 1
+        ttlSecondsAfterFinished:
+          type: integer
+          format: int64
+          minimum: 0
+        backoffLimit:
+          type: integer
+          minimum: 0
+        cleanPodPolicy:
+          type: string
+          description: Optional clean-pod policy interpreted by some backends.
+
+    ServiceRunPolicy:
+      type: object
+      properties:
+        progressDeadlineSeconds:
+          type: integer
+          minimum: 1
+
+    JobRole:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Role identifier (`worker` for single-role backends; `master`, `worker`, `ps`, …, depending on engine).
+        replicas:
+          type: integer
+          minimum: 0
+        restartPolicy:
+          type: string
+          enum: [OnFailure, Never]
+        template:
+          $ref: '#/components/schemas/PodTemplateSpec'
+      required: [name, replicas, template]
+
+    ServiceRole:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Role identifier (`predictor` for single-role backends; KServe-style `predictor` / `transformer` / `explainer` for multi-role).
+        replicas:
+          type: integer
+          minimum: 0
+        template:
+          $ref: '#/components/schemas/PodTemplateSpec'
+      required: [name, replicas, template]
+
+    ModelRef:
+      type: object
+      description: Reference to an Artifacts model version.
+      properties:
+        name:
+          type: string
+        version:
+          type: string
+      required: [name, version]
+
+    RouteAuth:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [none, jwt, apiKey]
+          default: none
+        jwt:
+          type: object
+          properties:
+            issuer: { type: string }
+            jwksUri: { type: string }
+        apiKey:
+          type: object
+          properties:
+            secretRef:
+              type: object
+              properties:
+                name: { type: string }
+              required: [name]
+
+    RouteRateLimit:
+      type: object
+      properties:
+        requestsPerSecond:
+          type: integer
+          minimum: 1
+        burst:
+          type: integer
+          minimum: 1
+
+    ServiceRoute:
+      type: object
+      description: Optional external HTTPRoute spec (mirrors MLService `spec.route`).
+      properties:
+        enabled:
+          type: boolean
+          default: false
+        targetRole:
+          type: string
+        portName:
+          type: string
+        hostname:
+          type: string
+        path:
+          type: string
+        auth:
+          $ref: '#/components/schemas/RouteAuth'
+        rateLimit:
+          $ref: '#/components/schemas/RouteRateLimit'
+        timeout:
+          type: string
+          description: Go duration string (e.g. `30s`).
+
+    MLJobSpec:
+      type: object
+      description: |
+        Snapshot of the MLJob CR `spec` (see compute-operator.md §4.2).
+        Immutable after Job creation; cancel is implemented by patching
+        `runPolicy.suspend` server-side, not by allowing the caller to
+        edit spec.
+      properties:
+        backend:
+          $ref: '#/components/schemas/JobBackend'
+        scheduling:
+          $ref: '#/components/schemas/Scheduling'
+        roles:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/JobRole'
+        runPolicy:
+          $ref: '#/components/schemas/JobRunPolicy'
+      required: [scheduling, roles]
+
+    MLServiceSpec:
+      type: object
+      description: |
+        Snapshot of the MLService CR `spec` (see compute-operator.md §5.2).
+        Only `roles[0].replicas` is mutable after create, via `/scale`.
+      properties:
+        backend:
+          $ref: '#/components/schemas/ServiceBackend'
+        scheduling:
+          $ref: '#/components/schemas/Scheduling'
+        modelRef:
+          $ref: '#/components/schemas/ModelRef'
+        roles:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/ServiceRole'
+        runPolicy:
+          $ref: '#/components/schemas/ServiceRunPolicy'
+        route:
+          $ref: '#/components/schemas/ServiceRoute'
+      required: [scheduling, roles]
+
+    # ────────────────── Job ──────────────────
+    JobStatus:
+      type: string
+      description: Compute-side Job state machine.
+      enum:
+        - Creating
+        - Pending
+        - Running
+        - Succeeded
+        - Failed
+        - Canceling
+        - Cancelled
+        - Deleting
+        - Deleted
+
+    Job:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        namespace:
+          type: string
+        poolId:
+          type: string
+          format: uuid
+          nullable: true
+        resourceUnitId:
+          type: string
+          format: uuid
+          nullable: true
+        name:
+          type: string
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          minLength: 3
+          maxLength: 40
+        displayName:
+          type: string
+        description:
+          type: string
+        ownerUser:
+          type: string
+          description: User id from the create-time `X-Axisml-User` header.
+        spec:
+          $ref: '#/components/schemas/MLJobSpec'
+        requestedResources:
+          type: object
+          additionalProperties: true
+          description: Snapshot of the resource request derived from the chosen ResourceUnit at create time.
+        status:
+          $ref: '#/components/schemas/JobStatus'
+        message:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        finishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+      required: [id, namespace, name, spec, status, createdAt, updatedAt]
+
+    JobCreateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          minLength: 3
+          maxLength: 40
+        displayName:
+          type: string
+        description:
+          type: string
+        poolId:
+          type: string
+          format: uuid
+        resourceUnitId:
+          type: string
+          format: uuid
+        spec:
+          $ref: '#/components/schemas/MLJobSpec'
+      required: [name, spec]
+
+    JobList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Job'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+      required: [items]
+
+    # ────────────────── Service ──────────────────
+    ServiceKind:
+      type: string
+      description: |
+        Logical kind of the service row. Compute does not change behavior
+        between values; the field exists purely so Platform's workspace
+        listing can share the same table.
+      enum:
+        - service
+        - workspace
+      default: service
+
+    ServiceStatus:
+      type: string
+      description: Compute-side Service state machine.
+      enum:
+        - Creating
+        - Pending
+        - Ready
+        - Degraded
+        - Failed
+        - Deleting
+        - Deleted
+
+    Service:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        namespace:
+          type: string
+        poolId:
+          type: string
+          format: uuid
+          nullable: true
+        resourceUnitId:
+          type: string
+          format: uuid
+          nullable: true
+        name:
+          type: string
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          minLength: 3
+          maxLength: 40
+        kind:
+          $ref: '#/components/schemas/ServiceKind'
+        displayName:
+          type: string
+        description:
+          type: string
+        ownerUser:
+          type: string
+        spec:
+          $ref: '#/components/schemas/MLServiceSpec'
+        requestedResources:
+          type: object
+          additionalProperties: true
+        desiredSpecHash:
+          type: string
+          description: sha256 of the canonicalized desired `spec` subset.
+        appliedSpecHash:
+          type: string
+          description: sha256 of the spec last successfully applied to the MLService CR.
+        replicas:
+          type: integer
+          minimum: 0
+          description: Desired replica count; equals `spec.roles[0].replicas`.
+        readyReplicas:
+          type: integer
+          minimum: 0
+          description: Replica count observed Ready via the Informer.
+        endpoint:
+          type: string
+          description: Internal Service DNS, AxisML Gateway URL, or KServe `status.url`.
+        status:
+          $ref: '#/components/schemas/ServiceStatus'
+        message:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+      required: [id, namespace, name, kind, spec, desiredSpecHash, replicas, status, createdAt, updatedAt]
+
+    ServiceCreateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          minLength: 3
+          maxLength: 40
+        kind:
+          $ref: '#/components/schemas/ServiceKind'
+        displayName:
+          type: string
+        description:
+          type: string
+        poolId:
+          type: string
+          format: uuid
+        resourceUnitId:
+          type: string
+          format: uuid
+        spec:
+          $ref: '#/components/schemas/MLServiceSpec'
+      required: [name, spec]
+
+    ServiceScaleRequest:
+      type: object
+      properties:
+        replicas:
+          type: integer
+          minimum: 0
+          description: Target desired replica count. Becomes `spec.roles[0].replicas`.
+      required: [replicas]
+
+    ServiceList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Service'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+      required: [items]
+
+security: []

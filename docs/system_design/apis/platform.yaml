@@ -1,0 +1,4943 @@
+openapi: 3.0.3
+info:
+  title: AxisML Platform API
+  version: v1
+  description: |
+    AxisML Platform is the user-facing entrypoint to the AxisML system. It
+    aggregates the three internal services (`cluster-manager`, `compute`,
+    `artifacts`) and adds platform-native features: identity, RBAC,
+    workspace/job/service orchestration, model artifact registry views, and
+    Prometheus-backed dashboards.
+
+    ## Auth model
+
+    Platform sits behind the AxisML Infra Envoy Gateway. The Gateway forwards
+    bearer JWTs to Platform; Platform authenticates the user itself (it is the
+    issuer of these JWTs) and resolves the caller's identity and RBAC role
+    bindings. Unlike the downstream services (`cluster-manager` / `compute` /
+    `artifacts`), Platform endpoints do **not** require an `X-Axisml-User`
+    header on the inbound side — Platform injects that header on its
+    outbound calls to the internal services.
+
+    The `POST /api/v1/auth/login` endpoint is the only authenticated entrypoint
+    that does not itself require a bearer JWT; all other endpoints in this
+    document require a valid bearer JWT. Per-endpoint role requirements are
+    annotated in the operation description (e.g., "Requires `system-admin`",
+    "Requires `tenant-admin@self`", "Requires `user@self`+", etc.).
+
+    Persona ↔ RBAC role mapping (see `components/platform.md §2`):
+
+    | Persona | RBAC role | Scope |
+    | --- | --- | --- |
+    | system admin | `system-admin` | global |
+    | tenant admin | `tenant-admin` | single tenant |
+    | user | `user` | single tenant |
+
+    `@self` means "in the tenant referenced by the URL path". `@owner` means
+    "the resource's `ownerUser` equals the current user".
+
+    ## Errors
+
+    All non-2xx responses follow RFC 7807 `application/problem+json`. Platform
+    deliberately conflates 404 (not found) with insufficient visibility for
+    non-admins to avoid leaking the existence of resources the caller cannot
+    see.
+servers:
+  - url: https://gateway.axisml.example.com
+    description: Envoy Gateway external host (TLS, JWT auth, rate limiting)
+  - url: http://axisml-platform-backend.axisml-system.svc.cluster.local:8080
+    description: In-cluster Service DNS (intra-cluster development)
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Auth
+    description: Login, logout, session refresh, and "who am I" endpoints.
+  - name: Users
+    description: Platform user accounts (the identities used for login).
+  - name: Tenants
+    description: Tenant lifecycle. Proxies cluster-manager with RBAC.
+  - name: Quotas
+    description: ElasticQuota sub-resources of a Tenant (per-pool, per-quota).
+  - name: Members
+    description: Per-tenant user ↔ role bindings.
+  - name: Workspaces
+    description: Long-running interactive dev containers (jupyter / code-server / ...).
+  - name: Jobs
+    description: One-shot training / fine-tuning / batch jobs.
+  - name: Services
+    description: Long-running online inference services.
+  - name: Models
+    description: Model artifact registry views (proxies artifacts).
+  - name: ResourcePools
+    description: Cluster-scoped resource pools (admin-only writes; read by all).
+  - name: ResourceUnits
+    description: Per-pool resource unit specs (admin-only writes; read by all).
+  - name: Dashboard
+    description: Aggregated overview and Prometheus-backed metrics.
+  - name: Audit
+    description: Audit log queries (system-admin only).
+  - name: Health
+    description: Liveness and readiness probes.
+
+paths:
+  /healthz:
+    get:
+      tags: [Health]
+      operationId: getHealthz
+      summary: Liveness probe
+      description: Returns 200 if the process is alive. No authentication required.
+      security: []
+      responses:
+        '200':
+          description: Process is alive.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /readyz:
+    get:
+      tags: [Health]
+      operationId: getReadyz
+      summary: Readiness probe
+      description: |
+        Returns 200 only when PostgreSQL connectivity, the cluster-manager
+        service, the compute service, and the artifacts service are all
+        reachable. Used by the Kubernetes readiness probe.
+      security: []
+      responses:
+        '200':
+          description: Service is ready to accept traffic.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+        '503':
+          description: One or more dependencies are unavailable.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  # ============================================================================
+  # Auth
+  # ============================================================================
+
+  /api/v1/auth/login:
+    post:
+      tags: [Auth]
+      operationId: login
+      summary: Exchange username + password for a bearer JWT
+      description: |
+        Authenticates the user against the internal `users` table (bcrypt) and
+        issues a fresh bearer JWT for use on all subsequent requests. Does
+        **not** require an existing bearer JWT. Documented at
+        `components/platform.md §8`.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login succeeded; returns JWT and current user.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/auth/logout:
+    post:
+      tags: [Auth]
+      operationId: logout
+      summary: Revoke the current bearer JWT
+      description: |
+        Writes the current JWT's `jti` claim to the `sessions` blacklist
+        table. Subsequent requests carrying the same JWT will be rejected
+        with 401. Documented at `components/platform.md §8`.
+      responses:
+        '204':
+          description: Session revoked.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/auth/me:
+    get:
+      tags: [Auth]
+      operationId: getCurrentUser
+      summary: Get the current user, tenant role bindings, and permissions
+      description: |
+        Returns the authenticated user's profile, the list of `(tenantName,
+        roleName)` bindings from `user_tenant_roles`, and the resolved set of
+        permission strings. Used by the frontend to render the menu visibility
+        matrix.
+      responses:
+        '200':
+          description: Current user view.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/auth/refresh:
+    post:
+      tags: [Auth]
+      operationId: refreshToken
+      summary: Refresh the current bearer JWT
+      description: |
+        Returns a fresh JWT with the same identity claims but extended `exp`.
+        The previous JWT is not revoked (clients should switch over and let
+        the old one expire). Documented at `components/platform.md §8`.
+      responses:
+        '200':
+          description: New JWT issued.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefreshResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ============================================================================
+  # Users
+  # ============================================================================
+
+  /api/v1/users:
+    get:
+      tags: [Users]
+      operationId: listUsers
+      summary: Search Platform users
+      description: |
+        Fuzzy-search across `username`, `displayName`, and `email`. Primarily
+        used by the "add member" picker on the tenant detail page; returns
+        only the minimal set of fields (`id`, `username`, `displayName`,
+        `email`). Any authenticated user may call this endpoint. Documented
+        at `components/platform.md §7.4`.
+      parameters:
+        - name: q
+          in: query
+          description: Fuzzy keyword.
+          required: false
+          schema:
+            type: string
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Continue'
+      responses:
+        '200':
+          description: A page of user summaries.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserSummaryList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags: [Users]
+      operationId: createUser
+      summary: Create a Platform user
+      description: |
+        Creates a new internal user (bcrypt password hash, `disabled=false`).
+        Requires `system-admin`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreateRequest'
+      responses:
+        '201':
+          description: User created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/users/{id}:
+    parameters:
+      - $ref: '#/components/parameters/UserId'
+
+    get:
+      tags: [Users]
+      operationId: getUser
+      summary: Get a user by id
+      description: |
+        Any authenticated user may fetch any other user's basic profile (it is
+        already exposed by member lists). For self lookup the `email` field is
+        always returned; for others it may be redacted depending on policy.
+      responses:
+        '200':
+          description: User detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    patch:
+      tags: [Users]
+      operationId: updateUser
+      summary: Update a user's profile or disabled flag
+      description: |
+        Self-update is allowed for `displayName` and `email`. `disabled` may
+        only be flipped by `system-admin`.
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: '#/components/schemas/UserPatchRequest'
+      responses:
+        '200':
+          description: Updated user.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags: [Users]
+      operationId: deleteUser
+      summary: Delete (or disable) a user
+      description: |
+        Soft-deletes the user record and cascades cleanup of their
+        `user_tenant_roles` rows. Requires `system-admin`.
+      responses:
+        '204':
+          description: User deleted.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/users/{id}/password:
+    parameters:
+      - $ref: '#/components/parameters/UserId'
+
+    post:
+      tags: [Users]
+      operationId: setUserPassword
+      summary: Set a user's password
+      description: |
+        Self-update is allowed (must supply `currentPassword`). `system-admin`
+        may reset any user's password without `currentPassword`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetPasswordRequest'
+      responses:
+        '204':
+          description: Password updated.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ============================================================================
+  # Tenants
+  # ============================================================================
+
+  /api/v1/tenants:
+    post:
+      tags: [Tenants]
+      operationId: createTenant
+      summary: Create a tenant
+      description: |
+        Forwards the request to cluster-manager. Requires `system-admin`.
+        Documented at `components/platform.md §7.1`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TenantCreateRequest'
+      responses:
+        '201':
+          description: Tenant created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    get:
+      tags: [Tenants]
+      operationId: listTenants
+      summary: List visible tenants
+      description: |
+        Any authenticated user may call. For `system-admin`, returns all
+        tenants (subject to query filters); otherwise returns only tenants in
+        which the caller has any binding in `user_tenant_roles`. Documented
+        at `components/platform.md §7.1`.
+      parameters:
+        - name: q
+          in: query
+          description: Fuzzy keyword on `name` / `displayName`.
+          required: false
+          schema:
+            type: string
+        - name: business_unit
+          in: query
+          description: Exact-match business unit filter.
+          required: false
+          schema:
+            type: string
+        - name: phase
+          in: query
+          description: Filter by tenant phase.
+          required: false
+          schema:
+            $ref: '#/components/schemas/TenantPhase'
+        - name: includeArchived
+          in: query
+          description: Include soft-deleted tenants.
+          required: false
+          schema:
+            type: boolean
+            default: false
+        - name: sortBy
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [created_at, updated_at]
+            default: created_at
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Continue'
+      responses:
+        '200':
+          description: A page of visible tenants.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/tenants/{name}:
+    parameters:
+      - $ref: '#/components/parameters/TenantName'
+
+    get:
+      tags: [Tenants]
+      operationId: getTenant
+      summary: Get a tenant
+      description: |
+        Requires `system-admin` OR `user@self`+ on `{name}`. When
+        `?includeArchived=true`, the lookup also returns soft-deleted tenants.
+      parameters:
+        - name: includeArchived
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Tenant detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    patch:
+      tags: [Tenants]
+      operationId: updateTenant
+      summary: Update tenant display metadata
+      description: |
+        JSON Merge Patch on mutable fields: `displayName`, `description`,
+        `businessUnit`, `annotations`, `namespace.{labels, annotations}`,
+        `initResources`. Requires `system-admin`. Immutable fields (`name`,
+        `namespace.name`, `quotas[].pool`, `quotas[].name`) are rejected at
+        the request layer with `400 immutable-field`.
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: '#/components/schemas/TenantPatchRequest'
+      responses:
+        '200':
+          description: Updated tenant.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags: [Tenants]
+      operationId: deleteTenant
+      summary: Soft-delete a tenant
+      description: |
+        Requires `system-admin`. Returns 409 if `user_tenant_roles` is
+        non-empty for this tenant. The cluster-manager retains soft-deleted
+        rows for the configured retention window; use `POST /restore` to
+        bring one back.
+      responses:
+        '204':
+          description: Tenant soft-deleted.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/tenants/{name}/suspend:
+    parameters:
+      - $ref: '#/components/parameters/TenantName'
+    post:
+      tags: [Tenants]
+      operationId: suspendTenant
+      summary: Suspend a tenant
+      description: Requires `system-admin`. Sets `suspended=true`.
+      responses:
+        '200':
+          description: Updated tenant.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/tenants/{name}/unsuspend:
+    parameters:
+      - $ref: '#/components/parameters/TenantName'
+    post:
+      tags: [Tenants]
+      operationId: unsuspendTenant
+      summary: Unsuspend a tenant
+      description: Requires `system-admin`. Sets `suspended=false`.
+      responses:
+        '200':
+          description: Updated tenant.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/tenants/{name}/restore:
+    parameters:
+      - $ref: '#/components/parameters/TenantName'
+    post:
+      tags: [Tenants]
+      operationId: restoreTenant
+      summary: Restore a soft-deleted tenant
+      description: |
+        Requires `system-admin`. Clears `deleted_at` on the cluster-manager
+        side and re-triggers the reconciler. Member bindings are not restored
+        automatically.
+      responses:
+        '200':
+          description: Restored tenant.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ============================================================================
+  # Quotas (sub-resource of Tenant)
+  # ============================================================================
+
+  /api/v1/tenants/{name}/quotas:
+    parameters:
+      - $ref: '#/components/parameters/TenantName'
+
+    get:
+      tags: [Quotas]
+      operationId: listTenantQuotas
+      summary: List quotas for a tenant
+      description: |
+        Requires `system-admin` OR `user@self`+ on `{name}`. Returns
+        `spec.quotas[]` plus `status.quotas[].used` (informer-fed).
+      responses:
+        '200':
+          description: Quota list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuotaList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags: [Quotas]
+      operationId: createTenantQuota
+      summary: Add a new quota to a tenant
+      description: |
+        Requires `system-admin` OR `tenant-admin@self`. `(pool, name)` is
+        immutable after creation.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuotaCreateRequest'
+      responses:
+        '201':
+          description: Quota added.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/tenants/{name}/quotas/{pool}/{quotaName}:
+    parameters:
+      - $ref: '#/components/parameters/TenantName'
+      - $ref: '#/components/parameters/QuotaPoolPathParam'
+      - $ref: '#/components/parameters/QuotaNamePathParam'
+
+    patch:
+      tags: [Quotas]
+      operationId: updateTenantQuota
+      summary: Update a quota's `min` / `max`
+      description: Requires `system-admin` OR `tenant-admin@self`.
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: '#/components/schemas/QuotaPatchRequest'
+      responses:
+        '200':
+          description: Quota updated; returns the updated tenant.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags: [Quotas]
+      operationId: deleteTenantQuota
+      summary: Remove a quota from a tenant
+      description: Requires `system-admin` OR `tenant-admin@self`.
+      responses:
+        '204':
+          description: Quota removed.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ============================================================================
+  # Members (sub-resource of Tenant)
+  # ============================================================================
+
+  /api/v1/tenants/{name}/members:
+    parameters:
+      - $ref: '#/components/parameters/TenantName'
+
+    get:
+      tags: [Members]
+      operationId: listTenantMembers
+      summary: List members of a tenant
+      description: Requires `system-admin` OR `tenant-admin@self`.
+      responses:
+        '200':
+          description: Member list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags: [Members]
+      operationId: addTenantMember
+      summary: Add a member to a tenant
+      description: |
+        Requires `system-admin` OR `tenant-admin@self`. `roleName` must be
+        `tenant-admin` or `user`; binding `system-admin` via this endpoint is
+        rejected with `400 role-not-bindable`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemberCreateRequest'
+      responses:
+        '201':
+          description: Member added.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Member'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/tenants/{name}/members/{userId}:
+    parameters:
+      - $ref: '#/components/parameters/TenantName'
+      - $ref: '#/components/parameters/MemberUserId'
+
+    patch:
+      tags: [Members]
+      operationId: updateTenantMember
+      summary: Change a member's role
+      description: |
+        Requires `system-admin` OR `tenant-admin@self`. Cannot demote oneself
+        out of the last `tenant-admin` slot; returns `409 last-tenant-admin`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemberPatchRequest'
+      responses:
+        '200':
+          description: Member updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Member'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags: [Members]
+      operationId: removeTenantMember
+      summary: Remove a member from a tenant
+      description: |
+        Requires `system-admin` OR `tenant-admin@self`. Self-protection:
+        cannot remove oneself from the last `tenant-admin` slot — returns
+        `409 last-tenant-admin`.
+      responses:
+        '204':
+          description: Member removed.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ============================================================================
+  # Workspaces
+  # ============================================================================
+
+  /api/v1/workspaces:
+    post:
+      tags: [Workspaces]
+      operationId: createWorkspace
+      summary: Create a workspace
+      description: |
+        Creates a workspace (`MLService(native, deployment)` with
+        `kind=workspace`) and a dedicated PVC for `/workspace` data.
+        Requires `user@self`+ on the target tenant. Documented at
+        `components/platform.md §7.1`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkspaceCreateRequest'
+      responses:
+        '201':
+          description: Workspace created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    get:
+      tags: [Workspaces]
+      operationId: listWorkspaces
+      summary: List visible workspaces
+      description: |
+        Visibility: `system-admin` sees all; `tenant-admin@self` sees the
+        whole tenant; `user` sees only their own (`ownerUser` pushed down to
+        compute). Documented at `components/platform.md §7.1`.
+      parameters:
+        - name: tenantName
+          in: query
+          description: Restrict to a single tenant.
+          required: false
+          schema:
+            type: string
+        - name: ownerUser
+          in: query
+          description: Admin-only filter.
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/WorkspaceStatus'
+        - name: q
+          in: query
+          description: Keyword (matches `displayName` / `image`).
+          required: false
+          schema:
+            type: string
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Continue'
+      responses:
+        '200':
+          description: A page of workspaces.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/workspaces/{id}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+
+    get:
+      tags: [Workspaces]
+      operationId: getWorkspace
+      summary: Get a workspace
+      description: |
+        Requires `system-admin` OR `tenant-admin@self` OR
+        `user@self & @owner`.
+      responses:
+        '200':
+          description: Workspace detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    patch:
+      tags: [Workspaces]
+      operationId: updateWorkspace
+      summary: Update workspace display metadata
+      description: |
+        Only `displayName` and `description` are mutable; all other fields
+        require delete + recreate. Requires owner OR `tenant-admin@self` OR
+        `system-admin`.
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: '#/components/schemas/WorkspacePatchRequest'
+      responses:
+        '200':
+          description: Updated workspace.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags: [Workspaces]
+      operationId: deleteWorkspace
+      summary: Delete a workspace
+      description: |
+        Requires owner OR `tenant-admin@self` OR `system-admin`. Idempotent.
+        Body controls PVC retention; default deletes the PVC.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkspaceDeleteRequest'
+      responses:
+        '204':
+          description: Workspace deleted.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/workspaces/{id}/start:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    post:
+      tags: [Workspaces]
+      operationId: startWorkspace
+      summary: Start a workspace (scale to 1 replica)
+      description: |
+        Translates to `compute.ScaleService(replicas=1)`. Idempotent.
+        Requires owner OR `tenant-admin@self` OR `system-admin`.
+      responses:
+        '200':
+          description: Workspace started.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/workspaces/{id}/stop:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    post:
+      tags: [Workspaces]
+      operationId: stopWorkspace
+      summary: Stop a workspace (scale to 0 replicas)
+      description: |
+        Translates to `compute.ScaleService(replicas=0)`. Idempotent.
+        Requires owner OR `tenant-admin@self` OR `system-admin`.
+      responses:
+        '200':
+          description: Workspace stopped.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/workspaces/{id}/access:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      tags: [Workspaces]
+      operationId: getWorkspaceAccess
+      summary: Get a short-TTL JWT for IDE access
+      description: |
+        Returns `{ url, jwt, headerName, expiresAt }` for opening the IDE
+        through Envoy Gateway. Requires owner OR `tenant-admin@self` OR
+        `system-admin`. Documented at `components/platform.md §7.3`.
+      responses:
+        '200':
+          description: Workspace access credentials.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceAccess'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/workspaces/{id}/events:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      tags: [Workspaces]
+      operationId: getWorkspaceEvents
+      summary: Stream Kubernetes events for the workspace
+      description: |
+        Proxies `compute.GetServiceEvents`. MVP placeholder: may return
+        `501 Not Implemented` until the upstream `/events` endpoint is
+        extended to services (see `components/platform.md §7.4`).
+      responses:
+        '200':
+          description: Event list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/workspaces/{id}/logs:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      tags: [Workspaces]
+      operationId: getWorkspaceLogs
+      summary: Stream container logs
+      description: |
+        Proxies `compute.GetServiceLogs`. MVP placeholder. Documented at
+        `components/platform.md §7.4`.
+      parameters:
+        - $ref: '#/components/parameters/LogTailLines'
+        - $ref: '#/components/parameters/LogFollow'
+        - $ref: '#/components/parameters/LogContainer'
+        - $ref: '#/components/parameters/LogReplica'
+        - $ref: '#/components/parameters/LogPrevious'
+      responses:
+        '200':
+          description: |
+            Log stream. `text/plain` for `follow=false`; `text/event-stream`
+            for `follow=true`.
+          content:
+            text/plain:
+              schema:
+                type: string
+            text/event-stream:
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '410':
+          $ref: '#/components/responses/Gone'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/workspaces/{id}/replicas:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      tags: [Workspaces]
+      operationId: getWorkspaceReplicas
+      summary: Inspect Pod-level replica state
+      description: |
+        Proxies `compute.GetServiceReplicas`. MVP placeholder pending
+        upstream `/replicas` endpoint extension (`components/platform.md §7.4`).
+      responses:
+        '200':
+          description: Replica list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReplicaList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ============================================================================
+  # Jobs
+  # ============================================================================
+
+  /api/v1/jobs:
+    get:
+      tags: [Jobs]
+      operationId: listAllJobs
+      summary: Cross-tenant job list
+      description: |
+        Lists jobs across all tenants. Requires `system-admin`. Documented at
+        `components/platform.md §7.1`.
+      parameters:
+        - name: tenantName
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/JobStatus'
+        - name: ownerUser
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: backendName
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: backendEngine
+          in: query
+          required: false
+          schema:
+            type: string
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Continue'
+      responses:
+        '200':
+          description: A page of jobs.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/tenants/{tenant}/jobs:
+    parameters:
+      - $ref: '#/components/parameters/TenantPathParam'
+
+    post:
+      tags: [Jobs]
+      operationId: createJob
+      summary: Submit a new compute job
+      description: |
+        Requires `user@self`+ on `{tenant}`. Documented at `components/platform.md
+        §7.1`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JobCreateRequest'
+      responses:
+        '201':
+          description: Job created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    get:
+      tags: [Jobs]
+      operationId: listTenantJobs
+      summary: List jobs under a tenant
+      description: |
+        Requires `user@self`+ on `{tenant}`. `user` callers are restricted to
+        their own jobs (server-side `ownerUser` filter).
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/JobStatus'
+        - name: ownerUser
+          in: query
+          description: Admin-only filter.
+          required: false
+          schema:
+            type: string
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: backendName
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: backendEngine
+          in: query
+          required: false
+          schema:
+            type: string
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Continue'
+      responses:
+        '200':
+          description: A page of jobs.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/tenants/{tenant}/jobs/{name}:
+    parameters:
+      - $ref: '#/components/parameters/TenantPathParam'
+      - $ref: '#/components/parameters/JobName'
+
+    get:
+      tags: [Jobs]
+      operationId: getJob
+      summary: Get a job
+      description: Requires `system-admin` OR `tenant-admin@self` OR `user@self & @owner`.
+      responses:
+        '200':
+          description: Job detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags: [Jobs]
+      operationId: deleteJob
+      summary: Delete a job
+      description: |
+        Requires owner OR `tenant-admin@self` OR `system-admin`. Idempotent.
+      responses:
+        '204':
+          description: Job deleted.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/tenants/{tenant}/jobs/{name}/cancel:
+    parameters:
+      - $ref: '#/components/parameters/TenantPathParam'
+      - $ref: '#/components/parameters/JobName'
+    post:
+      tags: [Jobs]
+      operationId: cancelJob
+      summary: Cancel a running job
+      description: |
+        Requires owner OR `tenant-admin@self` OR `system-admin`. Cannot
+        cancel jobs in `Creating` (compute returns 409). Documented at
+        `components/platform.md §7.2`.
+      responses:
+        '200':
+          description: Cancel request accepted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/tenants/{tenant}/jobs/{name}/replicas:
+    parameters:
+      - $ref: '#/components/parameters/TenantPathParam'
+      - $ref: '#/components/parameters/JobName'
+    get:
+      tags: [Jobs]
+      operationId: getJobReplicas
+      summary: List Pod-level replicas of a job
+      description: Proxies `compute.GetJobReplicas`. Requires same role as GET detail.
+      responses:
+        '200':
+          description: Replica list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReplicaList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/tenants/{tenant}/jobs/{name}/events:
+    parameters:
+      - $ref: '#/components/parameters/TenantPathParam'
+      - $ref: '#/components/parameters/JobName'
+    get:
+      tags: [Jobs]
+      operationId: getJobEvents
+      summary: Stream aggregated Kubernetes events for a job
+      description: Proxies `compute.GetJobEvents`. Requires same role as GET detail.
+      responses:
+        '200':
+          description: Event list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/tenants/{tenant}/jobs/{name}/logs:
+    parameters:
+      - $ref: '#/components/parameters/TenantPathParam'
+      - $ref: '#/components/parameters/JobName'
+    get:
+      tags: [Jobs]
+      operationId: getJobLogs
+      summary: Stream container logs of a job replica
+      description: |
+        Proxies `compute.GetJobLogs`. When `follow=true`, response is an SSE
+        `text/event-stream` of log lines. Otherwise a chunked `text/plain`
+        stream. Requires same role as GET detail.
+      parameters:
+        - $ref: '#/components/parameters/LogPod'
+        - $ref: '#/components/parameters/LogReplica'
+        - $ref: '#/components/parameters/LogContainer'
+        - $ref: '#/components/parameters/LogTailLines'
+        - $ref: '#/components/parameters/LogFollow'
+        - $ref: '#/components/parameters/LogPrevious'
+      responses:
+        '200':
+          description: Log stream.
+          content:
+            text/plain:
+              schema:
+                type: string
+            text/event-stream:
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '410':
+          $ref: '#/components/responses/Gone'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/tenants/{tenant}/jobs/{name}/register-model:
+    parameters:
+      - $ref: '#/components/parameters/TenantPathParam'
+      - $ref: '#/components/parameters/JobName'
+    post:
+      tags: [Jobs]
+      operationId: registerJobModel
+      summary: Register a finished job's output as a model artifact
+      description: |
+        Bridge endpoint to the artifacts service. Phase-two MVP — the
+        endpoint may return `501 Not Implemented` until the artifact upload
+        flow is wired through. Documented at `components/platform.md §7.4`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JobRegisterModelRequest'
+      responses:
+        '202':
+          description: Model registration initiated; returns upload credentials.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelInitiateResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ============================================================================
+  # Services
+  # ============================================================================
+
+  /api/v1/services:
+    post:
+      tags: [Services]
+      operationId: createService
+      summary: Deploy a new online inference service
+      description: |
+        Requires `user@self`+ on the target tenant. Documented at
+        `components/platform.md §7.1`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceCreateRequest'
+      responses:
+        '201':
+          description: Service created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Service'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    get:
+      tags: [Services]
+      operationId: listServices
+      summary: List visible services
+      description: |
+        Visibility mirrors workspaces: `system-admin` sees all,
+        `tenant-admin@self` sees the whole tenant, `user` sees only their own.
+      parameters:
+        - name: tenantName
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: ownerUser
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/ServiceStatus'
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: backendName
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: backendEngine
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: modelName
+          in: query
+          required: false
+          schema:
+            type: string
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Continue'
+      responses:
+        '200':
+          description: A page of services.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/services/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ServiceId'
+
+    get:
+      tags: [Services]
+      operationId: getService
+      summary: Get a service
+      description: |
+        Requires `system-admin` OR `tenant-admin@self` OR
+        `user@self & @owner`.
+      responses:
+        '200':
+          description: Service detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Service'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    patch:
+      tags: [Services]
+      operationId: updateService
+      summary: Update service display metadata
+      description: |
+        Only `displayName` / `description` are mutable; all other fields go
+        through clone-with-new-version (`components/platform.md §5.3`). Requires
+        owner OR `tenant-admin@self` OR `system-admin`.
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: '#/components/schemas/ServicePatchRequest'
+      responses:
+        '200':
+          description: Updated service.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Service'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags: [Services]
+      operationId: deleteService
+      summary: Delete a service
+      description: |
+        Idempotent. Defensive: returns 404 if the target is `kind=workspace`
+        (use the workspaces endpoint). Requires owner OR `tenant-admin@self`
+        OR `system-admin`.
+      responses:
+        '204':
+          description: Service deleted.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/services/{id}/scale:
+    parameters:
+      - $ref: '#/components/parameters/ServiceId'
+    post:
+      tags: [Services]
+      operationId: scaleService
+      summary: Set the replica count for a service
+      description: |
+        Requires owner OR `tenant-admin@self` OR `system-admin`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceScaleRequest'
+      responses:
+        '200':
+          description: Scale request accepted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Service'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/services/{id}/start:
+    parameters:
+      - $ref: '#/components/parameters/ServiceId'
+    post:
+      tags: [Services]
+      operationId: startService
+      summary: Start a stopped service
+      description: |
+        Convenience for "scale to last-known positive replicas, or 1 if
+        unknown". Requires owner OR `tenant-admin@self` OR `system-admin`.
+      responses:
+        '200':
+          description: Start request accepted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Service'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/services/{id}/stop:
+    parameters:
+      - $ref: '#/components/parameters/ServiceId'
+    post:
+      tags: [Services]
+      operationId: stopService
+      summary: Stop a service (scale to 0)
+      description: |
+        Convenience for "scale 0". Requires owner OR `tenant-admin@self` OR
+        `system-admin`.
+      responses:
+        '200':
+          description: Stop request accepted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Service'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/services/{id}/access:
+    parameters:
+      - $ref: '#/components/parameters/ServiceId'
+    get:
+      tags: [Services]
+      operationId: getServiceAccess
+      summary: Issue a short-TTL JWT for inference calls
+      description: |
+        Only meaningful when `route.enabled=true && route.auth.type=jwt`;
+        otherwise returns `409 route-auth-mismatch`. Documented at
+        `components/platform.md §7.3`.
+      responses:
+        '200':
+          description: Access credentials.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceAccess'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/services/{id}/metrics:
+    parameters:
+      - $ref: '#/components/parameters/ServiceId'
+    get:
+      tags: [Services]
+      operationId: getServiceMetrics
+      summary: Query Prometheus for service-level metrics
+      description: |
+        Documented at `components/platform.md §7.4`. Requires same role as GET
+        detail.
+      parameters:
+        - name: metric
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/ServiceMetricName'
+        - name: range
+          in: query
+          required: true
+          description: ISO 8601 duration (`5m`, `15m`, `1h`, `6h`, `24h`).
+          schema:
+            type: string
+        - name: step
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: percentile
+          in: query
+          required: false
+          description: Only for `metric=latency`.
+          schema:
+            type: string
+            enum: [p50, p95, p99]
+            default: p95
+      responses:
+        '200':
+          description: Metric series.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricSeries'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/services/{id}/replicas:
+    parameters:
+      - $ref: '#/components/parameters/ServiceId'
+    get:
+      tags: [Services]
+      operationId: getServiceReplicas
+      summary: List Pod-level replicas
+      description: Proxies `compute.GetServiceReplicas`. MVP placeholder.
+      responses:
+        '200':
+          description: Replica list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReplicaList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/services/{id}/events:
+    parameters:
+      - $ref: '#/components/parameters/ServiceId'
+    get:
+      tags: [Services]
+      operationId: getServiceEvents
+      summary: Stream Kubernetes events for a service
+      description: Proxies `compute.GetServiceEvents`. MVP placeholder.
+      responses:
+        '200':
+          description: Event list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/services/{id}/logs:
+    parameters:
+      - $ref: '#/components/parameters/ServiceId'
+    get:
+      tags: [Services]
+      operationId: getServiceLogs
+      summary: Stream container logs of a service replica
+      description: Proxies `compute.GetServiceLogs`. MVP placeholder.
+      parameters:
+        - $ref: '#/components/parameters/LogPod'
+        - $ref: '#/components/parameters/LogReplica'
+        - $ref: '#/components/parameters/LogContainer'
+        - $ref: '#/components/parameters/LogTailLines'
+        - $ref: '#/components/parameters/LogFollow'
+        - $ref: '#/components/parameters/LogPrevious'
+      responses:
+        '200':
+          description: Log stream.
+          content:
+            text/plain:
+              schema:
+                type: string
+            text/event-stream:
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '410':
+          $ref: '#/components/responses/Gone'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ============================================================================
+  # Models
+  # ============================================================================
+
+  /api/v1/models:
+    post:
+      tags: [Models]
+      operationId: initiateModel
+      summary: Initiate a model artifact upload
+      description: |
+        Proxies `artifacts.InitiateUpload(kind=model)`. Requires `user@self`+
+        on the target tenant. Documented at `components/platform.md §6.2`
+        ("no dedicated model.md exists yet — see overview.md §3 / §6.2").
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModelInitiateRequest'
+      responses:
+        '202':
+          description: Upload initiated; returns credentials and a model handle.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelInitiateResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    get:
+      tags: [Models]
+      operationId: listModels
+      summary: List visible models across tenants
+      description: |
+        For `system-admin`, all models; otherwise the user's tenant scope.
+        Documented at `components/platform.md §3 / §6.2`.
+      parameters:
+        - name: tenantName
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/ModelStatus'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Continue'
+      responses:
+        '200':
+          description: A page of models.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/tenants/{tenant}/models:
+    parameters:
+      - $ref: '#/components/parameters/TenantPathParam'
+    get:
+      tags: [Models]
+      operationId: listTenantModels
+      summary: List models under a tenant
+      description: |
+        Requires `user@self`+ on `{tenant}`. Documented at
+        `components/platform.md §3 / §6.2`.
+      parameters:
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/ModelStatus'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Continue'
+      responses:
+        '200':
+          description: A page of models in the tenant.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/models/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ModelId'
+
+    get:
+      tags: [Models]
+      operationId: getModel
+      summary: Get a model artifact
+      description: |
+        Resolves the artifact via the artifacts service. Requires the caller
+        to have visibility into the model's owning tenant.
+      responses:
+        '200':
+          description: Model detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Model'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags: [Models]
+      operationId: deleteModel
+      summary: Soft-delete a model artifact
+      description: |
+        Requires owner OR `tenant-admin@self` OR `system-admin`. Proxies
+        `artifacts.DeleteArtifact`.
+      responses:
+        '204':
+          description: Model deleted.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/models/{id}/complete:
+    parameters:
+      - $ref: '#/components/parameters/ModelId'
+    post:
+      tags: [Models]
+      operationId: completeModel
+      summary: Mark a model upload complete
+      description: |
+        Proxies `artifacts.CompleteUpload`. Body carries the OCI manifest
+        digest. Documented at `components/platform.md §6.2`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModelCompleteRequest'
+      responses:
+        '200':
+          description: Model finalized.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Model'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ============================================================================
+  # ResourcePools / ResourceUnits
+  # ============================================================================
+
+  /api/v1/resource-pools:
+    post:
+      tags: [ResourcePools]
+      operationId: createResourcePool
+      summary: Create a resource pool
+      description: Requires `system-admin`. Documented at `components/platform.md §7.1`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResourcePoolCreateRequest'
+      responses:
+        '201':
+          description: Resource pool created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourcePool'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    get:
+      tags: [ResourcePools]
+      operationId: listResourcePools
+      summary: List resource pools
+      description: |
+        Any authenticated user. Each item carries an aggregated
+        `resourceUnitCount`. Documented at `components/platform.md §7.1`.
+      parameters:
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Continue'
+      responses:
+        '200':
+          description: A page of pools.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourcePoolList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/resource-pools/{pool}:
+    parameters:
+      - $ref: '#/components/parameters/PoolName'
+
+    get:
+      tags: [ResourcePools]
+      operationId: getResourcePool
+      summary: Get a resource pool
+      description: Any authenticated user.
+      responses:
+        '200':
+          description: Pool detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourcePool'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    patch:
+      tags: [ResourcePools]
+      operationId: updateResourcePool
+      summary: Update a resource pool
+      description: |
+        Requires `system-admin`. Mutable fields: `description`,
+        `nodeSelector`, `tolerations`, `metadata`. `name` is immutable.
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: '#/components/schemas/ResourcePoolPatchRequest'
+      responses:
+        '200':
+          description: Updated pool.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourcePool'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags: [ResourcePools]
+      operationId: deleteResourcePool
+      summary: Delete a resource pool
+      description: |
+        Requires `system-admin`. Returns 409 if any resource units, active
+        jobs, or active services still reference the pool. Documented at
+        `components/platform.md §7.1`.
+      responses:
+        '204':
+          description: Pool deleted.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/resource-pools/{pool}/resource-units:
+    parameters:
+      - $ref: '#/components/parameters/PoolName'
+
+    get:
+      tags: [ResourceUnits]
+      operationId: listResourceUnits
+      summary: List resource units in a pool
+      description: Any authenticated user. Documented at `components/platform.md §7.2`.
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Continue'
+      responses:
+        '200':
+          description: A page of resource units.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceUnitList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags: [ResourceUnits]
+      operationId: createResourceUnit
+      summary: Create a resource unit in a pool
+      description: Requires `system-admin`. Documented at `components/platform.md §7.2`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResourceUnitCreateRequest'
+      responses:
+        '201':
+          description: Resource unit created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceUnit'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/resource-pools/{pool}/resource-units/{unit}:
+    parameters:
+      - $ref: '#/components/parameters/PoolName'
+      - $ref: '#/components/parameters/UnitName'
+
+    get:
+      tags: [ResourceUnits]
+      operationId: getResourceUnit
+      summary: Get a resource unit
+      description: Any authenticated user.
+      responses:
+        '200':
+          description: Resource unit detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceUnit'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    patch:
+      tags: [ResourceUnits]
+      operationId: updateResourceUnit
+      summary: Update a resource unit
+      description: |
+        Requires `system-admin`. Mutable fields: `description`, `requests`,
+        `limits`, `nodeSelector`. `name` and `pool` are immutable.
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: '#/components/schemas/ResourceUnitPatchRequest'
+      responses:
+        '200':
+          description: Updated resource unit.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceUnit'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags: [ResourceUnits]
+      operationId: deleteResourceUnit
+      summary: Delete a resource unit
+      description: |
+        Requires `system-admin`. Returns 409 if any active jobs / services
+        still reference the unit. Documented at `components/platform.md
+        §7.2`.
+      responses:
+        '204':
+          description: Resource unit deleted.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ============================================================================
+  # Dashboard
+  # ============================================================================
+
+  /api/v1/dashboard/overview:
+    get:
+      tags: [Dashboard]
+      operationId: getDashboardOverview
+      summary: Get the dashboard summary
+      description: |
+        Aggregated counts of tenants, jobs, services, workspaces, and GPU
+        utilization. Documented at `components/platform.md §4 / §6`.
+      parameters:
+        - name: tenantName
+          in: query
+          description: Restrict to a single tenant (admin sees all by default).
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Dashboard overview.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardOverview'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/dashboard/metrics:
+    get:
+      tags: [Dashboard]
+      operationId: getDashboardMetrics
+      summary: Query Prometheus through Platform
+      description: |
+        Thin proxy for the dashboard UI. Documented at `components/platform.md
+        §4 / §6`.
+      parameters:
+        - name: tenant
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: metric
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: range
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: step
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Metric series.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricSeries'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ============================================================================
+  # Audit
+  # ============================================================================
+
+  /api/v1/audit-logs:
+    get:
+      tags: [Audit]
+      operationId: listAuditLogs
+      summary: Query the audit log
+      description: |
+        Requires `system-admin`. Documented at `components/platform.md §7.4 /
+        §11`.
+      parameters:
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: action
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: target
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: since
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: until
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Continue'
+      responses:
+        '200':
+          description: A page of audit logs.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditLogList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT issued by Platform itself on `POST /api/v1/auth/login` or
+        `POST /api/v1/auth/refresh`. The `aud` claim is `axisml-platform`
+        for ordinary API access; the workspace / service access endpoints
+        issue separate JWTs with `aud=axisml-workspace` / `aud=axisml-inference`
+        intended for the data-plane (network gateway), not this API.
+
+  parameters:
+    Limit:
+      name: limit
+      in: query
+      description: Page size (default 50, max 200).
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 50
+
+    Continue:
+      name: continue
+      in: query
+      description: Opaque continue token from the previous response.
+      required: false
+      schema:
+        type: string
+
+    TenantName:
+      name: name
+      in: path
+      required: true
+      description: Tenant name (DNS-1123, immutable).
+      schema:
+        type: string
+        pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+        minLength: 3
+        maxLength: 40
+
+    TenantPathParam:
+      name: tenant
+      in: path
+      required: true
+      description: Tenant name (DNS-1123, immutable).
+      schema:
+        type: string
+        pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+        minLength: 3
+        maxLength: 40
+
+    QuotaPoolPathParam:
+      name: pool
+      in: path
+      required: true
+      description: ResourcePool name.
+      schema:
+        type: string
+        pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+        minLength: 1
+        maxLength: 63
+
+    QuotaNamePathParam:
+      name: quotaName
+      in: path
+      required: true
+      description: Quota name (unique within `(tenant, pool)`).
+      schema:
+        type: string
+        pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+        minLength: 1
+        maxLength: 63
+
+    UserId:
+      name: id
+      in: path
+      required: true
+      description: Platform user id.
+      schema:
+        type: string
+        format: uuid
+
+    MemberUserId:
+      name: userId
+      in: path
+      required: true
+      description: Platform user id of the member.
+      schema:
+        type: string
+        format: uuid
+
+    WorkspaceId:
+      name: id
+      in: path
+      required: true
+      description: Compute `services.id` of the workspace (uuid).
+      schema:
+        type: string
+        format: uuid
+
+    ServiceId:
+      name: id
+      in: path
+      required: true
+      description: Compute `services.id` of the service (uuid).
+      schema:
+        type: string
+        format: uuid
+
+    JobName:
+      name: name
+      in: path
+      required: true
+      description: Job name (DNS-1123, unique within the tenant namespace).
+      schema:
+        type: string
+        pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+        minLength: 1
+        maxLength: 63
+
+    ModelId:
+      name: id
+      in: path
+      required: true
+      description: Artifact uuid of the model.
+      schema:
+        type: string
+        format: uuid
+
+    PoolName:
+      name: pool
+      in: path
+      required: true
+      description: ResourcePool name.
+      schema:
+        type: string
+        pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+        minLength: 1
+        maxLength: 63
+
+    UnitName:
+      name: unit
+      in: path
+      required: true
+      description: ResourceUnit name.
+      schema:
+        type: string
+        pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+        minLength: 1
+        maxLength: 63
+
+    LogPod:
+      name: pod
+      in: query
+      required: false
+      description: Pod name (overrides `replica` selection if set).
+      schema:
+        type: string
+
+    LogReplica:
+      name: replica
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 0
+
+    LogContainer:
+      name: container
+      in: query
+      required: false
+      schema:
+        type: string
+
+    LogTailLines:
+      name: tailLines
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        default: 1000
+
+    LogFollow:
+      name: follow
+      in: query
+      required: false
+      description: Stream logs as SSE.
+      schema:
+        type: boolean
+        default: false
+
+    LogPrevious:
+      name: previous
+      in: query
+      required: false
+      description: Read logs from the previous (crashed) container instance.
+      schema:
+        type: boolean
+        default: false
+
+  responses:
+    BadRequest:
+      description: Malformed request (invalid syntax, missing required fields, immutable field, etc.).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Unauthorized:
+      description: Missing or invalid bearer JWT.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Forbidden:
+      description: Authenticated but insufficient role for the requested operation.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    NotFound:
+      description: |
+        Resource not found, OR the caller cannot see it. Platform deliberately
+        conflates these for non-admins to avoid information leak.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Conflict:
+      description: |
+        Conflicts with a precondition: duplicate name, last-tenant-admin
+        protection, in-use blocker, immutable transition, etc.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    UnprocessableEntity:
+      description: Semantically invalid request (e.g., cross-field violations).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Gone:
+      description: Target resource (e.g., a Pod log) is no longer retained.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    BadGateway:
+      description: Upstream service (cluster-manager / compute / artifacts / Prometheus) failed.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    NotImplemented:
+      description: Endpoint is reserved but not yet implemented (e.g., MVP placeholder).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    InternalServerError:
+      description: Unexpected server error.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+
+  schemas:
+    # ------------------------------------------------------------------
+    # Common
+    # ------------------------------------------------------------------
+
+    Problem:
+      type: object
+      description: RFC 7807 problem details.
+      properties:
+        type:
+          type: string
+          format: uri
+          default: about:blank
+          description: Canonical error type URI.
+        title:
+          type: string
+        status:
+          type: integer
+          minimum: 100
+          maximum: 599
+        detail:
+          type: string
+        instance:
+          type: string
+        code:
+          type: string
+          description: Short machine-readable error code (e.g., `immutable-field`, `last-tenant-admin`, `pool-in-use`).
+        errors:
+          type: array
+          description: Field-level validation issues, when applicable.
+          items:
+            $ref: '#/components/schemas/ProblemFieldError'
+
+    ProblemFieldError:
+      type: object
+      required: [field, message]
+      properties:
+        field:
+          type: string
+        message:
+          type: string
+
+    HealthStatus:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded, unavailable]
+        components:
+          type: object
+          additionalProperties:
+            type: string
+          description: |
+            Per-dependency status keyed by name (`db`, `clusterManager`,
+            `compute`, `artifacts`, `prometheus`).
+
+    StringMap:
+      type: object
+      additionalProperties:
+        type: string
+
+    ResourceMap:
+      type: object
+      description: |
+        Kubernetes-style resource quantity map (e.g., `{ "cpu": "100",
+        "memory": "1Ti", "nvidia.com/gpu": "8" }`).
+      additionalProperties:
+        type: string
+
+    EnvVar:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        value:
+          type: string
+        valueFrom:
+          type: object
+          additionalProperties: true
+          description: |
+            Optional Kubernetes-style `valueFrom` selector (`configMapKeyRef`,
+            `secretKeyRef`, ...). Passed through to compute.
+
+    Condition:
+      type: object
+      required: [type, status]
+      properties:
+        type:
+          type: string
+        status:
+          type: string
+          enum: ["True", "False", "Unknown"]
+        reason:
+          type: string
+        message:
+          type: string
+        lastTransitionTime:
+          type: string
+          format: date-time
+
+    Toleration:
+      type: object
+      additionalProperties: true
+      description: Mirrors a Kubernetes `corev1.Toleration`.
+
+    # ------------------------------------------------------------------
+    # Auth / Users
+    # ------------------------------------------------------------------
+
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          minLength: 1
+        password:
+          type: string
+          minLength: 1
+          format: password
+
+    LoginResponse:
+      type: object
+      required: [jwt, user, tenantRoles]
+      properties:
+        jwt:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+        user:
+          $ref: '#/components/schemas/User'
+        tenantRoles:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserTenantRole'
+
+    RefreshResponse:
+      type: object
+      required: [jwt]
+      properties:
+        jwt:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+
+    UserTenantRole:
+      type: object
+      required: [tenantName, roleName]
+      properties:
+        tenantName:
+          type: string
+        roleName:
+          $ref: '#/components/schemas/RoleName'
+
+    RoleName:
+      type: string
+      enum:
+        - system-admin
+        - tenant-admin
+        - user
+
+    MeResponse:
+      type: object
+      required: [user, tenantRoles, permissions, isSystemAdmin]
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        tenantRoles:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserTenantRole'
+        permissions:
+          type: array
+          description: Flat list of permission strings resolved from role bindings.
+          items:
+            type: string
+        isSystemAdmin:
+          type: boolean
+
+    User:
+      type: object
+      required: [id, username, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        displayName:
+          type: string
+        email:
+          type: string
+          format: email
+        disabled:
+          type: boolean
+          default: false
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    UserSummary:
+      type: object
+      required: [id, username]
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        displayName:
+          type: string
+        email:
+          type: string
+          format: email
+
+    UserSummaryList:
+      type: object
+      required: [items, count]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserSummary'
+        count:
+          type: integer
+          minimum: 0
+        continueToken:
+          type: string
+
+    UserCreateRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          minLength: 1
+          maxLength: 64
+        displayName:
+          type: string
+          maxLength: 100
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+          format: password
+
+    UserPatchRequest:
+      type: object
+      properties:
+        displayName:
+          type: string
+          maxLength: 100
+        email:
+          type: string
+          format: email
+        disabled:
+          type: boolean
+
+    SetPasswordRequest:
+      type: object
+      required: [newPassword]
+      properties:
+        currentPassword:
+          type: string
+          format: password
+          description: Required for self-change; omitted by system-admin reset.
+        newPassword:
+          type: string
+          minLength: 8
+          format: password
+
+    # ------------------------------------------------------------------
+    # Tenants
+    # ------------------------------------------------------------------
+
+    TenantPhase:
+      type: string
+      enum: [Pending, Active, Suspended, Failed, Deleting, Deleted]
+
+    Quota:
+      type: object
+      required: [pool, name, max]
+      properties:
+        pool:
+          type: string
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+        name:
+          type: string
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+        min:
+          $ref: '#/components/schemas/ResourceMap'
+        max:
+          $ref: '#/components/schemas/ResourceMap'
+
+    QuotaStatus:
+      type: object
+      required: [pool, name]
+      properties:
+        pool:
+          type: string
+        name:
+          type: string
+        used:
+          $ref: '#/components/schemas/ResourceMap'
+        elasticQuotaName:
+          type: string
+          description: |
+            Rendered ElasticQuota CR name, e.g.,
+            `axisml-<tenant>-<pool>-<quota>`.
+
+    QuotaList:
+      type: object
+      required: [items, count]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Quota'
+        statuses:
+          type: array
+          items:
+            $ref: '#/components/schemas/QuotaStatus'
+        count:
+          type: integer
+          minimum: 0
+
+    QuotaCreateRequest:
+      type: object
+      required: [pool, name, max]
+      properties:
+        pool:
+          type: string
+        name:
+          type: string
+        min:
+          $ref: '#/components/schemas/ResourceMap'
+        max:
+          $ref: '#/components/schemas/ResourceMap'
+
+    QuotaPatchRequest:
+      type: object
+      description: Only `min` / `max` may be patched.
+      properties:
+        min:
+          $ref: '#/components/schemas/ResourceMap'
+        max:
+          $ref: '#/components/schemas/ResourceMap'
+
+    Namespace:
+      type: object
+      description: Tenant-owned Kubernetes Namespace declaration.
+      required: [name]
+      properties:
+        name:
+          type: string
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          minLength: 1
+          maxLength: 63
+        labels:
+          $ref: '#/components/schemas/StringMap'
+        annotations:
+          $ref: '#/components/schemas/StringMap'
+
+    SecretSourceRef:
+      type: object
+      required: [namespace, name]
+      properties:
+        namespace:
+          type: string
+        name:
+          type: string
+
+    ConfigMapSourceRef:
+      type: object
+      required: [namespace, name]
+      properties:
+        namespace:
+          type: string
+        name:
+          type: string
+
+    ImagePullSecretInit:
+      type: object
+      required: [name, sourceSecretRef]
+      properties:
+        name:
+          type: string
+        sourceSecretRef:
+          $ref: '#/components/schemas/SecretSourceRef'
+
+    SecretInit:
+      type: object
+      required: [name, sourceSecretRef]
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+          default: Opaque
+        sourceSecretRef:
+          $ref: '#/components/schemas/SecretSourceRef'
+
+    ConfigMapInit:
+      type: object
+      required: [name, sourceConfigMapRef]
+      properties:
+        name:
+          type: string
+        sourceConfigMapRef:
+          $ref: '#/components/schemas/ConfigMapSourceRef'
+
+    ServiceAccountInit:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        imagePullSecrets:
+          type: array
+          items:
+            type: string
+        rbac:
+          type: object
+          additionalProperties: true
+
+    InitResources:
+      type: object
+      properties:
+        imagePullSecrets:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImagePullSecretInit'
+        secrets:
+          type: array
+          items:
+            $ref: '#/components/schemas/SecretInit'
+        configMaps:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConfigMapInit'
+        serviceAccounts:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServiceAccountInit'
+
+    Tenant:
+      type: object
+      required:
+        - name
+        - displayName
+        - namespace
+        - phase
+        - createdAt
+        - updatedAt
+      properties:
+        name:
+          type: string
+          description: Tenant name; DNS-1123, immutable after creation. URL key.
+        displayName:
+          type: string
+        description:
+          type: string
+        businessUnit:
+          type: string
+        annotations:
+          $ref: '#/components/schemas/StringMap'
+        namespace:
+          $ref: '#/components/schemas/Namespace'
+        quotas:
+          type: array
+          items:
+            $ref: '#/components/schemas/Quota'
+        quotaStatuses:
+          type: array
+          items:
+            $ref: '#/components/schemas/QuotaStatus'
+        initResources:
+          $ref: '#/components/schemas/InitResources'
+        suspended:
+          type: boolean
+          default: false
+        phase:
+          $ref: '#/components/schemas/TenantPhase'
+        namespaceReady:
+          type: boolean
+          default: false
+        conditions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Condition'
+        message:
+          type: string
+        computeNamespace:
+          type: string
+          description: |
+            Convenience flat reference to `namespace.name`; provided to make
+            downstream Compute calls trivial for the frontend.
+        artifactsNamespace:
+          type: string
+          description: |
+            Same value as `computeNamespace` in the current design; surfaced
+            separately so future deployments can split the two without an
+            API break.
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    TenantList:
+      type: object
+      required: [items, count]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Tenant'
+        count:
+          type: integer
+          minimum: 0
+        continueToken:
+          type: string
+
+    TenantCreateRequest:
+      type: object
+      required: [name, displayName, namespace]
+      properties:
+        name:
+          type: string
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          minLength: 3
+          maxLength: 40
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 1000
+        businessUnit:
+          type: string
+          maxLength: 100
+        annotations:
+          $ref: '#/components/schemas/StringMap'
+        namespace:
+          $ref: '#/components/schemas/Namespace'
+        quotas:
+          type: array
+          items:
+            $ref: '#/components/schemas/Quota'
+        initResources:
+          $ref: '#/components/schemas/InitResources'
+
+    TenantPatchRequest:
+      type: object
+      description: |
+        JSON Merge Patch body. Only mutable Platform fields are accepted:
+        `displayName`, `description`, `businessUnit`, `annotations`,
+        `namespace.{labels, annotations}`, `initResources`.
+      properties:
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 1000
+        businessUnit:
+          type: string
+          maxLength: 100
+        annotations:
+          $ref: '#/components/schemas/StringMap'
+        namespace:
+          type: object
+          properties:
+            labels:
+              $ref: '#/components/schemas/StringMap'
+            annotations:
+              $ref: '#/components/schemas/StringMap'
+        initResources:
+          $ref: '#/components/schemas/InitResources'
+
+    # ------------------------------------------------------------------
+    # Members
+    # ------------------------------------------------------------------
+
+    Member:
+      type: object
+      required: [userId, username, roleName, addedAt]
+      properties:
+        userId:
+          type: string
+          format: uuid
+        username:
+          type: string
+        displayName:
+          type: string
+        email:
+          type: string
+          format: email
+        roleName:
+          $ref: '#/components/schemas/RoleName'
+        addedAt:
+          type: string
+          format: date-time
+
+    MemberList:
+      type: object
+      required: [items, count]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Member'
+        count:
+          type: integer
+          minimum: 0
+        continueToken:
+          type: string
+
+    MemberCreateRequest:
+      type: object
+      required: [userId, roleName]
+      properties:
+        userId:
+          type: string
+          format: uuid
+        roleName:
+          type: string
+          enum: [tenant-admin, user]
+          description: |
+            `system-admin` cannot be bound through this endpoint; use the
+            user management menu.
+
+    MemberPatchRequest:
+      type: object
+      required: [roleName]
+      properties:
+        roleName:
+          type: string
+          enum: [tenant-admin, user]
+
+    # ------------------------------------------------------------------
+    # Workspaces
+    # ------------------------------------------------------------------
+
+    WorkspaceStatus:
+      type: string
+      description: Derived from compute service status + replicas.
+      enum:
+        - Creating
+        - Starting
+        - Running
+        - Degraded
+        - Failed
+        - Stopped
+        - Deleting
+        - Deleted
+        - Pending
+
+    WorkspaceDesiredState:
+      type: string
+      enum: [Running, Stopped]
+
+    WorkspaceLifecycle:
+      type: object
+      description: Workspace lifecycle policy.
+      properties:
+        idleTimeoutSeconds:
+          type: integer
+          minimum: 0
+          description: |
+            Auto-stop after this many seconds of inactivity. Phase-two; MVP
+            ignores the value but accepts it for forward compatibility.
+
+    WorkspacePersistentVolume:
+      type: object
+      description: PVC settings for the `/workspace` mount.
+      properties:
+        size:
+          type: string
+          description: Capacity quantity (e.g., `20Gi`).
+          default: 20Gi
+        storageClassName:
+          type: string
+
+    WorkspaceEndpoint:
+      type: object
+      properties:
+        accessUrl:
+          type: string
+          description: |
+            User-facing URL behind Envoy Gateway. Pattern:
+            `https://<gateway>/workspaces/<tenant>/<service.name>/`.
+        internalDns:
+          type: string
+          description: In-cluster DNS, e.g., `<service.name>.<ns>.svc.cluster.local:<port>`.
+
+    Workspace:
+      type: object
+      required:
+        - id
+        - namespace
+        - tenantName
+        - name
+        - ownerUser
+        - image
+        - containerPort
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Compute `services.id` (uuid).
+        namespace:
+          type: string
+          description: Compute namespace == `Tenant.spec.namespace.name`.
+        tenantName:
+          type: string
+        tenantDisplayName:
+          type: string
+        computeNamespace:
+          type: string
+          description: Same as `namespace`; surfaced explicitly for clarity.
+        name:
+          type: string
+          description: |
+            MLService CR name (Platform-generated `ws-<crockford32-rand40>`).
+        displayName:
+          type: string
+        description:
+          type: string
+        ownerUser:
+          type: string
+          description: Username of the creator.
+        ownerUserId:
+          type: string
+          format: uuid
+        image:
+          type: string
+        command:
+          type: array
+          items:
+            type: string
+        args:
+          type: array
+          items:
+            type: string
+        env:
+          type: array
+          items:
+            $ref: '#/components/schemas/EnvVar'
+        containerPort:
+          type: integer
+          minimum: 1
+          maximum: 65535
+        resourcePoolId:
+          type: string
+          format: uuid
+        resourcePoolName:
+          type: string
+        resourceUnitId:
+          type: string
+          format: uuid
+        resourceUnitName:
+          type: string
+        quota:
+          type: string
+          description: Rendered ElasticQuota CR name.
+        requestedResources:
+          $ref: '#/components/schemas/ResourceMap'
+        persistentVolume:
+          $ref: '#/components/schemas/WorkspacePersistentVolume'
+        pvcName:
+          type: string
+          description: Derived PVC name (`axisml-ws-<id8>-data`).
+        pvcSize:
+          type: string
+        pvcUsed:
+          type: string
+        lifecycle:
+          $ref: '#/components/schemas/WorkspaceLifecycle'
+        replicas:
+          type: integer
+          minimum: 0
+        readyReplicas:
+          type: integer
+          minimum: 0
+        desiredState:
+          $ref: '#/components/schemas/WorkspaceDesiredState'
+        status:
+          $ref: '#/components/schemas/WorkspaceStatus'
+        message:
+          type: string
+        endpoint:
+          $ref: '#/components/schemas/WorkspaceEndpoint'
+        lastStartedAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastStoppedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    WorkspaceList:
+      type: object
+      required: [items, count]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Workspace'
+        count:
+          type: integer
+          minimum: 0
+        continueToken:
+          type: string
+        partial:
+          type: boolean
+
+    WorkspaceCreateRequest:
+      type: object
+      required:
+        - tenantName
+        - image
+        - containerPort
+        - resourcePoolId
+        - resourceUnitId
+      properties:
+        tenantName:
+          type: string
+        displayName:
+          type: string
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 1000
+        image:
+          type: string
+        containerPort:
+          type: integer
+          minimum: 1
+          maximum: 65535
+        command:
+          type: array
+          items:
+            type: string
+        args:
+          type: array
+          items:
+            type: string
+        env:
+          type: array
+          items:
+            $ref: '#/components/schemas/EnvVar'
+        resourcePoolId:
+          type: string
+          format: uuid
+        resourceUnitId:
+          type: string
+          format: uuid
+        quota:
+          type: string
+          description: |
+            Quota name within the tenant's `(resourcePoolId)` slot. Platform
+            renders `axisml-<tenant>-<pool>-<quota>` before forwarding.
+        persistentVolume:
+          $ref: '#/components/schemas/WorkspacePersistentVolume'
+        lifecycle:
+          $ref: '#/components/schemas/WorkspaceLifecycle'
+
+    WorkspacePatchRequest:
+      type: object
+      description: Only `displayName` / `description` / `lifecycle` are mutable.
+      properties:
+        displayName:
+          type: string
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 1000
+        lifecycle:
+          $ref: '#/components/schemas/WorkspaceLifecycle'
+
+    WorkspaceDeleteRequest:
+      type: object
+      properties:
+        deletePvc:
+          type: boolean
+          default: true
+
+    WorkspaceAccess:
+      type: object
+      required: [url, jwt, headerName, expiresAt]
+      properties:
+        url:
+          type: string
+        jwt:
+          type: string
+        headerName:
+          type: string
+          default: Authorization
+        expiresAt:
+          type: string
+          format: date-time
+
+    # ------------------------------------------------------------------
+    # Jobs
+    # ------------------------------------------------------------------
+
+    JobStatus:
+      type: string
+      enum:
+        - Creating
+        - Pending
+        - Running
+        - Succeeded
+        - Failed
+        - Cancelled
+        - Deleting
+        - Deleted
+
+    Backend:
+      type: object
+      required: [name, engine]
+      properties:
+        name:
+          type: string
+          enum: [native, kubeflow-trainer, kserve, custom]
+        engine:
+          type: string
+          description: |
+            Engine within the backend (e.g., `job`, `podgroup`, `pytorchjob`,
+            `tfjob`, `mpijob`, `deployment`, `statefulset`, `inference`,
+            `llminference`).
+        config:
+          type: object
+          additionalProperties: true
+
+    RoleTemplate:
+      type: object
+      properties:
+        image:
+          type: string
+        command:
+          type: array
+          items:
+            type: string
+        args:
+          type: array
+          items:
+            type: string
+        env:
+          type: array
+          items:
+            $ref: '#/components/schemas/EnvVar'
+        ports:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        resources:
+          $ref: '#/components/schemas/ResourceMap'
+
+    JobRole:
+      type: object
+      required: [name, template]
+      properties:
+        name:
+          type: string
+          description: Role label (e.g., `worker`, `master`, `chief`, `ps`, `launcher`).
+        replicas:
+          type: integer
+          minimum: 1
+          default: 1
+        restartPolicy:
+          type: string
+          enum: [Never, OnFailure, Always]
+        template:
+          $ref: '#/components/schemas/RoleTemplate'
+
+    JobRoleStatus:
+      type: object
+      properties:
+        name:
+          type: string
+        replicas:
+          type: integer
+        activeReplicas:
+          type: integer
+        readyReplicas:
+          type: integer
+        succeededReplicas:
+          type: integer
+        failedReplicas:
+          type: integer
+        template:
+          $ref: '#/components/schemas/RoleTemplate'
+        restartPolicy:
+          type: string
+
+    RunPolicy:
+      type: object
+      properties:
+        activeDeadlineSeconds:
+          type: integer
+          minimum: 1
+        ttlSecondsAfterFinished:
+          type: integer
+          minimum: 0
+        backoffLimit:
+          type: integer
+          minimum: 0
+        progressDeadlineSeconds:
+          type: integer
+          minimum: 1
+
+    Job:
+      type: object
+      required:
+        - namespace
+        - tenantName
+        - name
+        - ownerUser
+        - backend
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Compute `jobs.id` (uuid) when available.
+        namespace:
+          type: string
+        tenantName:
+          type: string
+        tenantDisplayName:
+          type: string
+        computeNamespace:
+          type: string
+        name:
+          type: string
+        displayName:
+          type: string
+        description:
+          type: string
+        ownerUser:
+          type: string
+        ownerUserId:
+          type: string
+          format: uuid
+        backend:
+          $ref: '#/components/schemas/Backend'
+        resourcePoolId:
+          type: string
+          format: uuid
+        resourcePoolName:
+          type: string
+        resourceUnitId:
+          type: string
+          format: uuid
+        resourceUnitName:
+          type: string
+        quota:
+          type: string
+          description: Rendered ElasticQuota CR name.
+        requestedResources:
+          $ref: '#/components/schemas/ResourceMap'
+        roles:
+          type: array
+          items:
+            $ref: '#/components/schemas/JobRoleStatus'
+        runPolicy:
+          $ref: '#/components/schemas/RunPolicy'
+        status:
+          $ref: '#/components/schemas/JobStatus'
+        message:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        finishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    JobList:
+      type: object
+      required: [items, count]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Job'
+        count:
+          type: integer
+          minimum: 0
+        continueToken:
+          type: string
+        partial:
+          type: boolean
+
+    JobCreateRequest:
+      type: object
+      required:
+        - name
+        - backend
+        - resourcePoolId
+        - resourceUnitId
+        - roles
+      properties:
+        name:
+          type: string
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          minLength: 1
+          maxLength: 63
+        displayName:
+          type: string
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 1000
+        backend:
+          $ref: '#/components/schemas/Backend'
+        resourcePoolId:
+          type: string
+          format: uuid
+        resourceUnitId:
+          type: string
+          format: uuid
+        quota:
+          type: string
+        roles:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/JobRole'
+        runPolicy:
+          $ref: '#/components/schemas/RunPolicy'
+
+    JobRegisterModelRequest:
+      type: object
+      required: [modelName, modelVersion, outputPath]
+      properties:
+        modelName:
+          type: string
+        modelVersion:
+          type: string
+        displayName:
+          type: string
+        description:
+          type: string
+        outputPath:
+          type: string
+
+    # ------------------------------------------------------------------
+    # Services
+    # ------------------------------------------------------------------
+
+    ServiceStatus:
+      type: string
+      enum:
+        - Creating
+        - Pending
+        - Ready
+        - Degraded
+        - Failed
+        - Stopped
+        - Deleting
+        - Deleted
+
+    ServiceRouteAuthType:
+      type: string
+      enum: [none, jwt, apiKey]
+
+    ServiceRouteAuth:
+      type: object
+      required: [type]
+      properties:
+        type:
+          $ref: '#/components/schemas/ServiceRouteAuthType'
+        jwt:
+          type: object
+          properties:
+            issuer:
+              type: string
+            audience:
+              type: string
+            jwksUri:
+              type: string
+        apiKey:
+          type: object
+          properties:
+            secretRef:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                key:
+                  type: string
+
+    ServiceRouteRateLimit:
+      type: object
+      properties:
+        requestsPerSecond:
+          type: integer
+          minimum: 1
+        burst:
+          type: integer
+          minimum: 1
+
+    ServiceRoute:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+          default: true
+        path:
+          type: string
+        hostname:
+          type: string
+        auth:
+          $ref: '#/components/schemas/ServiceRouteAuth'
+        rateLimit:
+          $ref: '#/components/schemas/ServiceRouteRateLimit'
+        timeout:
+          type: string
+          description: ISO 8601 duration (e.g., `30s`).
+
+    ModelRef:
+      type: object
+      required: [name, version]
+      properties:
+        name:
+          type: string
+        version:
+          type: string
+
+    Service:
+      type: object
+      required:
+        - id
+        - namespace
+        - tenantName
+        - name
+        - ownerUser
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        namespace:
+          type: string
+        tenantName:
+          type: string
+        tenantDisplayName:
+          type: string
+        computeNamespace:
+          type: string
+        name:
+          type: string
+        displayName:
+          type: string
+        description:
+          type: string
+        ownerUser:
+          type: string
+        ownerUserId:
+          type: string
+          format: uuid
+        modelRef:
+          $ref: '#/components/schemas/ModelRef'
+        backend:
+          $ref: '#/components/schemas/Backend'
+        image:
+          type: string
+        command:
+          type: array
+          items:
+            type: string
+        args:
+          type: array
+          items:
+            type: string
+        env:
+          type: array
+          items:
+            $ref: '#/components/schemas/EnvVar'
+        containerPort:
+          type: integer
+          minimum: 1
+          maximum: 65535
+        resourcePoolId:
+          type: string
+          format: uuid
+        resourcePoolName:
+          type: string
+        resourceUnitId:
+          type: string
+          format: uuid
+        resourceUnitName:
+          type: string
+        quota:
+          type: string
+        requestedResources:
+          $ref: '#/components/schemas/ResourceMap'
+        replicas:
+          type: integer
+          minimum: 0
+        readyReplicas:
+          type: integer
+          minimum: 0
+        endpoint:
+          type: string
+        route:
+          $ref: '#/components/schemas/ServiceRoute'
+        accessUrl:
+          type: string
+        status:
+          $ref: '#/components/schemas/ServiceStatus'
+        message:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ServiceList:
+      type: object
+      required: [items, count]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Service'
+        count:
+          type: integer
+          minimum: 0
+        continueToken:
+          type: string
+        partial:
+          type: boolean
+
+    ServiceCreateRequest:
+      type: object
+      required:
+        - tenantName
+        - name
+        - modelRef
+        - backend
+        - image
+        - containerPort
+        - resourcePoolId
+        - resourceUnitId
+        - replicas
+      properties:
+        tenantName:
+          type: string
+        name:
+          type: string
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          minLength: 1
+          maxLength: 40
+        displayName:
+          type: string
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 1000
+        modelRef:
+          $ref: '#/components/schemas/ModelRef'
+        backend:
+          $ref: '#/components/schemas/Backend'
+        image:
+          type: string
+        containerPort:
+          type: integer
+          minimum: 1
+          maximum: 65535
+        command:
+          type: array
+          items:
+            type: string
+        args:
+          type: array
+          items:
+            type: string
+        env:
+          type: array
+          items:
+            $ref: '#/components/schemas/EnvVar'
+        resourcePoolId:
+          type: string
+          format: uuid
+        resourceUnitId:
+          type: string
+          format: uuid
+        quota:
+          type: string
+        replicas:
+          type: integer
+          minimum: 0
+        progressDeadlineSeconds:
+          type: integer
+          minimum: 1
+        route:
+          $ref: '#/components/schemas/ServiceRoute'
+
+    ServicePatchRequest:
+      type: object
+      description: Only `displayName` / `description` are mutable.
+      properties:
+        displayName:
+          type: string
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 1000
+
+    ServiceScaleRequest:
+      type: object
+      required: [replicas]
+      properties:
+        replicas:
+          type: integer
+          minimum: 0
+
+    ServiceAccess:
+      type: object
+      required: [url, jwt, headerName, expiresAt]
+      properties:
+        url:
+          type: string
+        jwt:
+          type: string
+        headerName:
+          type: string
+          default: Authorization
+        expiresAt:
+          type: string
+          format: date-time
+
+    ServiceMetricName:
+      type: string
+      enum:
+        - request_rate
+        - latency
+        - error_rate
+        - cpu_util
+        - mem_util
+        - gpu_util
+
+    MetricPoint:
+      type: object
+      required: [timestamp, value]
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        value:
+          type: number
+
+    MetricSeries:
+      type: object
+      required: [metric, range, series]
+      properties:
+        metric:
+          type: string
+        range:
+          type: string
+        step:
+          type: string
+        percentile:
+          type: string
+        unit:
+          type: string
+        series:
+          type: array
+          items:
+            $ref: '#/components/schemas/MetricPoint'
+
+    # ------------------------------------------------------------------
+    # Models
+    # ------------------------------------------------------------------
+
+    ModelStatus:
+      type: string
+      enum: [Pending, Uploading, Ready, Failed, Deleted]
+
+    ModelSpec:
+      type: object
+      description: Artifact-side spec; pass-through.
+      additionalProperties: true
+
+    Model:
+      type: object
+      required:
+        - id
+        - namespace
+        - tenantName
+        - name
+        - version
+        - status
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        namespace:
+          type: string
+        tenantName:
+          type: string
+        name:
+          type: string
+        version:
+          type: string
+        displayName:
+          type: string
+        description:
+          type: string
+        status:
+          $ref: '#/components/schemas/ModelStatus'
+        digest:
+          type: string
+          description: OCI manifest digest once `complete` is called.
+        spec:
+          $ref: '#/components/schemas/ModelSpec'
+        ownerUser:
+          type: string
+        ownerUserId:
+          type: string
+          format: uuid
+        uri:
+          type: string
+          description: Resolved storage URI (zot reference).
+        sizeBytes:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+        readyAt:
+          type: string
+          format: date-time
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+
+    ModelList:
+      type: object
+      required: [items, count]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Model'
+        count:
+          type: integer
+          minimum: 0
+        continueToken:
+          type: string
+
+    ModelInitiateRequest:
+      type: object
+      required: [tenantName, name, version]
+      properties:
+        tenantName:
+          type: string
+        name:
+          type: string
+          pattern: '^[a-z0-9]([-a-z0-9._]*[a-z0-9])?$'
+          minLength: 1
+          maxLength: 100
+        version:
+          type: string
+          minLength: 1
+          maxLength: 64
+        displayName:
+          type: string
+        description:
+          type: string
+        spec:
+          $ref: '#/components/schemas/ModelSpec'
+
+    ModelInitiateResponse:
+      type: object
+      required: [id, uri]
+      properties:
+        id:
+          type: string
+          format: uuid
+        uri:
+          type: string
+          description: Target push URI.
+        storageKind:
+          type: string
+          enum: [oci, s3]
+        uploadCredentials:
+          type: object
+          additionalProperties: true
+          description: Provider-specific credentials, pass-through from artifacts.
+        expiresAt:
+          type: string
+          format: date-time
+
+    ModelCompleteRequest:
+      type: object
+      required: [digest]
+      properties:
+        digest:
+          type: string
+          description: OCI manifest digest (e.g., `sha256:...`).
+
+    # ------------------------------------------------------------------
+    # ResourcePools / ResourceUnits
+    # ------------------------------------------------------------------
+
+    ResourcePool:
+      type: object
+      required: [name, createdAt, updatedAt]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        nodeSelector:
+          $ref: '#/components/schemas/StringMap'
+        tolerations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Toleration'
+        metadata:
+          type: object
+          additionalProperties: true
+        resourceUnitCount:
+          type: integer
+          description: |
+            Aggregated count of `resource_units` in this pool. `-1` when the
+            aggregation call failed (see `components/platform.md §4.3`).
+        nodeCount:
+          type: integer
+          description: |
+            Optional; populated when Platform has access to the node matcher
+            preview. Phase-two field — may be omitted in MVP responses.
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ResourcePoolList:
+      type: object
+      required: [items, count]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResourcePool'
+        count:
+          type: integer
+          minimum: 0
+        continueToken:
+          type: string
+
+    ResourcePoolCreateRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          minLength: 1
+          maxLength: 40
+        description:
+          type: string
+          maxLength: 1000
+        nodeSelector:
+          $ref: '#/components/schemas/StringMap'
+        tolerations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Toleration'
+        metadata:
+          type: object
+          additionalProperties: true
+
+    ResourcePoolPatchRequest:
+      type: object
+      properties:
+        description:
+          type: string
+          maxLength: 1000
+        nodeSelector:
+          $ref: '#/components/schemas/StringMap'
+        tolerations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Toleration'
+        metadata:
+          type: object
+          additionalProperties: true
+
+    ResourceUnit:
+      type: object
+      required: [name, pool, requests, limits, createdAt, updatedAt]
+      properties:
+        name:
+          type: string
+        pool:
+          type: string
+        description:
+          type: string
+        requests:
+          $ref: '#/components/schemas/ResourceMap'
+        limits:
+          $ref: '#/components/schemas/ResourceMap'
+        nodeSelector:
+          $ref: '#/components/schemas/StringMap'
+        metadata:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ResourceUnitList:
+      type: object
+      required: [items, count]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResourceUnit'
+        count:
+          type: integer
+          minimum: 0
+        continueToken:
+          type: string
+
+    ResourceUnitCreateRequest:
+      type: object
+      required: [name, requests, limits]
+      properties:
+        name:
+          type: string
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          minLength: 1
+          maxLength: 63
+        description:
+          type: string
+          maxLength: 1000
+        requests:
+          $ref: '#/components/schemas/ResourceMap'
+        limits:
+          $ref: '#/components/schemas/ResourceMap'
+        nodeSelector:
+          $ref: '#/components/schemas/StringMap'
+        metadata:
+          type: object
+          additionalProperties: true
+
+    ResourceUnitPatchRequest:
+      type: object
+      properties:
+        description:
+          type: string
+          maxLength: 1000
+        requests:
+          $ref: '#/components/schemas/ResourceMap'
+        limits:
+          $ref: '#/components/schemas/ResourceMap'
+        nodeSelector:
+          $ref: '#/components/schemas/StringMap'
+        metadata:
+          type: object
+          additionalProperties: true
+
+    # ------------------------------------------------------------------
+    # Proxy DTOs (events, logs, replicas)
+    # ------------------------------------------------------------------
+
+    Replica:
+      type: object
+      required: [name, phase]
+      properties:
+        name:
+          type: string
+          description: Pod name.
+        role:
+          type: string
+        index:
+          type: integer
+        phase:
+          type: string
+          enum: [Pending, Running, Succeeded, Failed, Unknown]
+        nodeName:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        finishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        message:
+          type: string
+        restartCount:
+          type: integer
+          minimum: 0
+
+    ReplicaList:
+      type: object
+      required: [items, count]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Replica'
+        count:
+          type: integer
+          minimum: 0
+
+    Event:
+      type: object
+      required: [type, reason, message, lastTimestamp]
+      properties:
+        type:
+          type: string
+          enum: [Normal, Warning]
+        reason:
+          type: string
+        message:
+          type: string
+        source:
+          type: string
+        firstTimestamp:
+          type: string
+          format: date-time
+        lastTimestamp:
+          type: string
+          format: date-time
+        count:
+          type: integer
+          minimum: 0
+        involvedObject:
+          type: object
+          properties:
+            kind:
+              type: string
+            name:
+              type: string
+            namespace:
+              type: string
+
+    EventList:
+      type: object
+      required: [items, count]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Event'
+        count:
+          type: integer
+          minimum: 0
+
+    # ------------------------------------------------------------------
+    # Dashboard
+    # ------------------------------------------------------------------
+
+    DashboardOverview:
+      type: object
+      properties:
+        tenantCount:
+          type: integer
+        activeTenantCount:
+          type: integer
+        activeJobCount:
+          type: integer
+        runningServiceCount:
+          type: integer
+        runningWorkspaceCount:
+          type: integer
+        gpuTotal:
+          type: number
+        gpuUsed:
+          type: number
+        cpuTotalCores:
+          type: number
+        cpuUsedCores:
+          type: number
+        memoryTotalGiB:
+          type: number
+        memoryUsedGiB:
+          type: number
+        modelCount:
+          type: integer
+
+    # ------------------------------------------------------------------
+    # Audit
+    # ------------------------------------------------------------------
+
+    AuditLog:
+      type: object
+      required: [id, action, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+          nullable: true
+        username:
+          type: string
+        action:
+          type: string
+          description: |
+            Dotted action name (e.g., `tenant.create`, `job.cancel`,
+            `service.scale`, `workspace.delete`).
+        target:
+          type: string
+          description: |
+            Stable resource handle (e.g., `tenant:team-a`,
+            `job:team-a/train-bert-base-01`, `service:<uuid>`,
+            `workspace:<uuid>`).
+        metadata:
+          type: object
+          additionalProperties: true
+        ipAddress:
+          type: string
+        userAgent:
+          type: string
+        result:
+          type: string
+          enum: [success, failure]
+        createdAt:
+          type: string
+          format: date-time
+
+    AuditLogList:
+      type: object
+      required: [items, count]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditLog'
+        count:
+          type: integer
+          minimum: 0
+        continueToken:
+          type: string

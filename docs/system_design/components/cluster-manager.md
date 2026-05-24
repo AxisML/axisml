@@ -156,17 +156,7 @@ clusterManager:
     archivedTenantDays: 365        # deleted_at IS NOT NULL 的行保留期；GC 物理清理超期行
 ```
 
-Helm 模板清单（`deploy/helm/axisml-system/templates/cluster-manager/`）：
-
-| 文件 | 用途 |
-| --- | --- |
-| `deployment.yaml` | cluster-manager 镜像，探针，env 注入 DSN |
-| `service.yaml` | ClusterIP 8082 |
-| `serviceaccount.yaml` | 服务账号 |
-| `clusterrole.yaml` / `clusterrolebinding.yaml` | §2.5 RBAC |
-| `role.yaml` / `rolebinding.yaml`（in `axisml-system`） | leader election Lease 权限 |
-| `servicemonitor.yaml` | `/metrics` 暴露 |
-| `migrate-job.yaml` | helm pre-install / pre-upgrade hook，执行 `migrate` 子命令 |
+Helm 模板清单详见 [deployment.md §6.1](../deployment.md#61-cluster-manager--compute--artifacts--platform-backend)；cluster-manager 还额外包含 `migrate-job.yaml`（helm pre-install / pre-upgrade hook，执行 `migrate` 子命令）。
 
 ### 2.7 与 Platform 的请求契约
 
@@ -180,73 +170,7 @@ cluster-manager 仅接受 Platform 通过集群内 Service DNS 发起的 REST �
 
 ## 3. PG schema
 
-### 3.1 `tenants` 表
-
-```sql
-CREATE TABLE tenants (
-  id                       uuid PRIMARY KEY,
-  name                     text NOT NULL,
-  display_name             text NOT NULL,
-  description              text NOT NULL DEFAULT '',
-  business_unit            text NOT NULL DEFAULT '',
-  annotations              jsonb NOT NULL DEFAULT '{}',     -- 透传到 Tenant CR spec.annotations 的扩展位
-
-  namespace_name           text NOT NULL,                    -- 写入 Tenant CR spec.namespace.name；创建后不可变
-  namespace_labels         jsonb NOT NULL DEFAULT '{}',
-  namespace_annotations    jsonb NOT NULL DEFAULT '{}',
-
-  quotas                   jsonb NOT NULL DEFAULT '[]',      -- [{pool, name, min, max}]；(pool, name) 创建后不可变
-  init_resources           jsonb NOT NULL DEFAULT '{}',
-  suspended                bool NOT NULL DEFAULT false,
-
-  desired_spec_hash        text NOT NULL,                    -- 见 §4.1
-  applied_spec_hash        text NOT NULL DEFAULT '',         -- reconciler 写入
-
-  phase                    text NOT NULL DEFAULT 'Creating', -- Informer 回流
-  namespace_ready          bool NOT NULL DEFAULT false,      -- Informer 回流
-  conditions               jsonb NOT NULL DEFAULT '[]',      -- Informer 回流
-  quota_status             jsonb NOT NULL DEFAULT '[]',      -- Informer 回流：[{pool, name, ready, used, message}]
-  message                  text NOT NULL DEFAULT '',
-  last_modified_by         text NOT NULL DEFAULT '',         -- 来自 X-Axisml-User
-
-  created_at               timestamptz NOT NULL DEFAULT now(),
-  updated_at               timestamptz NOT NULL DEFAULT now(),
-  deleted_at               timestamptz                       -- 软删除标记；retention 期内保留
-);
-
-CREATE UNIQUE INDEX tenants_name_active_uniq ON tenants (name) WHERE deleted_at IS NULL;
-CREATE INDEX tenants_deleted_at        ON tenants (deleted_at);
-CREATE INDEX tenants_business_unit     ON tenants (business_unit);
-CREATE INDEX tenants_created_at        ON tenants (created_at DESC);
-CREATE INDEX tenants_sync_pending      ON tenants (desired_spec_hash, applied_spec_hash) WHERE desired_spec_hash <> applied_spec_hash;
-```
-
-- `tenants_name_active_uniq` 是 partial unique index：存活租户 `name` 唯一；软删后同名可以重建（与 K8s namespace 复用规则匹配，见 [tenant-operator §4.6.1](tenant-operator.md)）。
-- `tenants_sync_pending` 是 partial index，只对未同步行建索引——reconciler 扫描代价 O(待同步数) 而非 O(全表)。
-
-### 3.2 字段归属
-
-| 字段 | 写入方 | 备注 |
-| --- | --- | --- |
-| `id` | API 层（uuid_generate_v4） | 同时写入 Tenant CR `metadata.labels[axisml.io/tenant-id]`；删除并重建同名后 id 会变 |
-| `name` / `display_name` / `description` / `business_unit` / `annotations` | API 层 | **`description` / `business_unit` 升级为 PG 一级字段**，富文本（含 Unicode / 中文）由 PG 原生承载；reconciler 渲染到 CR `spec.annotations[axisml.io/description, axisml.io/business-unit]` 作为 kubectl 调试位 |
-| `namespace_name` | API 层 | 创建后不可变 |
-| `namespace_labels` / `namespace_annotations` | API 层 | 只在 Namespace 首次创建时落地（[tenant-operator §4.6.1](tenant-operator.md)） |
-| `quotas` / `init_resources` / `suspended` | API 层 | `quotas` 内每条 `(pool, name)` 创建后不可变（参见 §7） |
-| `desired_spec_hash` | API 层 | 每次 mutation 重算 |
-| `applied_spec_hash` | reconciler | 每次成功 patch CR 后写入；与 `desired_spec_hash` 相等表示已同步 |
-| `phase` / `namespace_ready` / `conditions` / `quota_status` / `message` | informer | 由 Tenant CR `status.*` 回流；reconciler 删除完成（DELETE 事件）后置 `phase=Deleted` |
-| `last_modified_by` | API 层 | 来自 `X-Axisml-User` |
-| `deleted_at` | DELETE / restore 端点 | retention 期满后由后台 GC 物理清理 |
-
-### 3.3 历史保留与清理
-
-- `deleted_at IS NOT NULL` 的行保留 `retention.archivedTenantDays`（默认 365 天）；可由 Platform 端通过 `GET /api/v1/tenants?includeArchived=true` 列出，或 `POST /api/v1/tenants/{name}/restore` 恢复（§6.2）。
-- 超过 retention 后由 reconciler 启动时的 GC 任务批量物理删除：
-  ```sql
-  DELETE FROM tenants WHERE deleted_at < now() - interval '<retention> days';
-  ```
-- 物理删除前 reconciler 确认对应 Tenant CR 不存在（防止 retention 期间被外部恢复重建后误清）。
+详见 [database.md §2.1 `tenants` 表](../database.md#21-tenants-表)。
 
 ## 4. 写路径与同步
 
@@ -338,121 +262,15 @@ Deleted ──[POST /restore]──▶ Creating（清空 deleted_at，重算 des
 
 ## Part II — API
 
+详见 [apis/cluster-manager.yaml](../apis/cluster-manager.yaml)。
+
 ## 6. Tenant API
 
-### 6.1 字段校验
-
-cluster-manager 在请求层做 **DNS-1123 + 长度** 校验，把违反规则的请求直接 4xx 拒绝，避免无效行进入 PG：
-
-| 字段 | 校验 |
-| --- | --- |
-| `name` | DNS-1123；长度 3–40；`[a-z0-9-]`；首尾字母数字；无连续 `--` |
-| `displayName` | 长度 1–100，允许 Unicode（含中文） |
-| `description` | 长度 ≤ 1000，允许 Unicode |
-| `businessUnit` | 长度 ≤ 100，允许 Unicode |
-| `annotations` 自定义 key | qualified name（K8s annotation 规则） |
-| `namespace.name` | DNS-1123；非系统 namespace（denylist 与 tenant-operator Helm values 同源） |
-| `quotas[].pool` | DNS-1123 |
-| `quotas[].name` | DNS-1123；同一 tenant 内 `(pool, name)` 唯一 |
-| `quotas[].max[k]` | 必填；非负 |
-| `quotas[].min[k]` | 可选；非负；`min[k] ≤ max[k]` |
-
-更深的语义校验（源 Secret / ConfigMap 是否存在、`(pool, name)` 是否引用有效 ResourcePool）由 tenant-operator 在 reconcile 阶段写到 CR `status.message`，进而由 informer 回流到 PG `tenants.message`；cluster-manager 不前置查询 K8s 资源。
-
-### 6.2 端点
-
-#### `POST /api/v1/tenants`
-
-请求体：
-
-```json
-{
-  "name": "team-a",
-  "displayName": "Team A",
-  "description": "推理团队，负责 LLM 推理服务的研发",
-  "businessUnit": "基础架构-推理平台",
-  "annotations": {},
-  "namespace": { "name": "team-a", "labels": {}, "annotations": {} },
-  "quotas": [
-    { "pool": "default", "name": "default", "min": {}, "max": { "cpu": "100", "memory": "200Gi" } }
-  ],
-  "initResources": {
-    "imagePullSecrets": [],
-    "secrets": [],
-    "configMaps": [],
-    "serviceAccounts": []
-  }
-}
-```
-
-处理：
-
-1. 单事务 INSERT `tenants` 行，`id=uuid_generate_v4()`、`desired_spec_hash=sha256(...)`、`phase='Creating'`；
-2. 若 `name` 已存在未软删行（partial unique 触发）→ 409 `AlreadyExists`；
-3. 同名软删行存在但已软删 → 允许新建（新行 `id` 不同，CR 标签 `axisml.io/tenant-id` 也会更新）；
-4. 返回 201 + 当前 view（`phase='Creating'`，`namespace_ready=false`）；
-5. 下一轮 reconciler tick 创建 Tenant CR；后续 status 字段由 informer 回流。
-
-#### `GET /api/v1/tenants/{name}`
-
-按 `name` + `deleted_at IS NULL` 查 PG；返回完整字段（含 status 列）。query `?includeArchived=true` 时也匹配软删行；同名活跃 + 软删都存在时返回活跃行（partial unique 保证活跃唯一）。
-
-#### `GET /api/v1/tenants`
-
-纯 PG 查询，支持：
-
-| 参数 | 含义 |
-| --- | --- |
-| `q` | 关键字模糊匹配 `name` / `display_name` |
-| `business_unit` | 精确匹配 |
-| `phase` | 精确匹配（`Creating` / `Active` / `Suspended` / `Failed` / `Deleting` / `Deleted`） |
-| `limit` / `continue` | 分页（continue token 由 cluster-manager 颁发） |
-| `includeArchived` | true 时包含 `deleted_at IS NOT NULL` 行 |
-| `sortBy` | `created_at` / `updated_at`；缺省 `created_at desc` |
-
-#### `PATCH /api/v1/tenants/{name}`
-
-请求体使用 RFC 7396 JSON Merge Patch；只接受可变字段：`displayName` / `description` / `businessUnit` / `annotations` / `namespace.labels` / `namespace.annotations` / `initResources`。
-
-不可变字段（`name` / `namespace.name`）在请求层 4xx 拒绝，从不写 PG。
-
-处理：
-
-1. 应用合并 patch；
-2. 重算 `desired_spec_hash`；
-3. 若 hash 未变（语义无变化）→ 直接返回 200 不写 PG；
-4. 否则 UPDATE PG 行，返回 200 + 新 view（CR 同步异步进行）。
-
-#### `POST /api/v1/tenants/{name}/suspend` / `unsuspend`
-
-`UPDATE tenants SET suspended = $1, desired_spec_hash = $2 WHERE name = $3 AND deleted_at IS NULL`。reconciler 异步 patch CR `spec.suspended`。
-
-#### `DELETE /api/v1/tenants/{name}`
-
-软删：`UPDATE tenants SET deleted_at = now(), desired_spec_hash = $1 WHERE name = $2 AND deleted_at IS NULL`。reconciler 异步删除 Tenant CR。返回 200。
-
-幂等：再次 DELETE 已软删的 tenant 直接返 200（`deleted_at IS NULL` 谓词不匹配，不改 PG）。
-
-#### `POST /api/v1/tenants/{name}/restore`
-
-恢复软删 tenant：`UPDATE tenants SET deleted_at = NULL, desired_spec_hash = $1, phase = 'Creating' WHERE name = $2 AND deleted_at IS NOT NULL`。
-
-前置校验：当前没有同名活跃行（partial unique 兜底；若违反返 409）。reconciler 在下一轮 tick 重新创建 Tenant CR。
-
-> 这是 PG-first 模型 free 的副作用——记录原本就在，恢复就是一条 UPDATE。Platform 「已归档租户」UI 入口由 [tenant.md §11](../platform/tenant.md) 暴露。
+详见 [apis/cluster-manager.yaml](../apis/cluster-manager.yaml) `Tenants` tag。
 
 ## 7. Quota API
 
-Quota 不是独立 CRD——是 `tenants.quotas` jsonb 中的一项。所有 Quota mutation 都翻译为对该 jsonb 的事务性修改 + `desired_spec_hash` 重算，由 reconciler 异步 patch 到 Tenant CR `spec.quotas[]`。
-
-| Endpoint | 方法 | 说明 |
-| --- | --- | --- |
-| `GET /api/v1/tenants/{name}/quotas` | `GET` | 返回 `tenants.quotas`（spec）+ `tenants.quota_status`（informer 回流的每条 `ready` / `used` / `message`） |
-| `POST /api/v1/tenants/{name}/quotas` | `POST` | 在 jsonb 中追加 `{pool, name, min, max}`；`(pool, name)` 已存在 → 409 |
-| `PATCH /api/v1/tenants/{name}/quotas/{pool}/{quotaName}` | `PATCH` | 更新某条的 `min` / `max`；定位失败 → 404 |
-| `DELETE /api/v1/tenants/{name}/quotas/{pool}/{quotaName}` | `DELETE` | 从 jsonb 中移除一条；reconciler patch CR 后 tenant-operator 会显式 Delete 对应 ElasticQuota CR（[tenant-operator §4.6.2](tenant-operator.md)） |
-
-并发更新由 PG 行级锁保护（`UPDATE ... WHERE name = $1 AND deleted_at IS NULL` 的事务序列化）；不需要 K8s API resourceVersion 重试逻辑——CR 写入完全由 reconciler 串行执行。
+Quota 不是独立 CRD——是 `tenants.quotas` jsonb 中的一项。所有 Quota mutation 都翻译为对该 jsonb 的事务性修改 + `desired_spec_hash` 重算，由 reconciler 异步 patch 到 Tenant CR `spec.quotas[]`。端点详见 [apis/cluster-manager.yaml](../apis/cluster-manager.yaml) `Quotas` tag。
 
 ---
 
@@ -516,6 +334,6 @@ LIST tenants from K8s API
 ## 10. 相关引用
 
 - [docs/system_design/overview.md](../overview.md) 概述了 cluster-manager 在控制平面里的位置。
-- [docs/system_design/core/compute.md](compute.md) §3.4 / §3.5 是本设计写路径与双 hash 同步的参考样板。
-- [docs/system_design/core/tenant-operator.md](tenant-operator.md) 描述本服务下发的 Tenant CR 的具体落地行为；该文档需配套调整以反映 "CR 是 cluster-manager 派生产物" 的新关系（详见本文 §4.4 / §8.2 关于 admission webhook 的描述）。
-- [docs/system_design/platform/tenant.md](../platform/tenant.md) 描述 Platform 如何消费本 API；本次重写新增的 `description` / `business_unit` 一级字段、`restore` 端点、`includeArchived` 查询参数都对应 Platform 端 [§11 后续迭代](../platform/tenant.md#11-后续迭代) 中的「租户软删除」「展示元数据 annotation 规范化」两条。
+- [docs/system_design/components/compute.md](compute.md) §3.4 / §3.5 是本设计写路径与双 hash 同步的参考样板。
+- [docs/system_design/components/tenant-operator.md](tenant-operator.md) 描述本服务下发的 Tenant CR 的具体落地行为；该文档需配套调整以反映 "CR 是 cluster-manager 派生产物" 的新关系（详见本文 §4.4 / §8.2 关于 admission webhook 的描述）。
+- [docs/system_design/components/platform.md §6 租户管理](platform.md#6-租户管理) 描述 Platform 如何消费本 API；本次重写新增的 `description` / `business_unit` 一级字段、`restore` 端点、`includeArchived` 查询参数都对应 Platform 端 [§13.3 租户后续迭代](platform.md#133-租户) 中的「租户软删除」「展示元数据规范化」两条。

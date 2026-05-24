@@ -1,0 +1,258 @@
+# AxisML 监控设计
+
+本文档汇总 AxisML 控制平面所有组件的 Prometheus 监控指标。监控基础设施由 [kube-prometheus-stack](infra.md#47-监控kube-prometheus-stack) 提供（Prometheus + Grafana + AlertManager），各组件通过 `/metrics` 端点 + `ServiceMonitor` 接入。
+
+---
+
+## 1. 接入模型
+
+各组件接入 Prometheus 的统一约定：
+
+1. 在容器内暴露 `/metrics` 端点（Prometheus 格式）；
+2. Helm chart 提供对应的 `ServiceMonitor` CRD，声明待采集的 Service 与端口；
+3. Prometheus Operator 自动发现并配置采集目标，无需手动维护 `prometheus.yml`。
+
+每个控制面服务的 Helm chart 模板都包含 `servicemonitor.yaml`，无需调用方额外配置。
+
+| 组件 | 端口 | ServiceMonitor 模板 |
+| --- | --- | --- |
+| Cluster Manager | `/metrics`（默认 `:8080`） | `deploy/helm/axisml-system/templates/cluster-manager/servicemonitor.yaml` |
+| Compute | `/metrics`（默认 `:8080`） | `deploy/helm/axisml-system/templates/compute/servicemonitor.yaml` |
+| Artifacts | `/metrics`（默认 `:8080`） | `deploy/helm/axisml-system/templates/artifacts/servicemonitor.yaml` |
+| Platform Backend | `/metrics`（默认 `:8081`） | `deploy/helm/axisml-system/templates/platform/servicemonitor.yaml` |
+| tenant-operator | `/metrics`（默认 `:8080`） | `deploy/helm/axisml-system/templates/tenant-operator/servicemonitor.yaml` |
+| compute-operator | `/metrics`（默认 `:8080`） | `deploy/helm/axisml-system/templates/compute-operator/servicemonitor.yaml` |
+
+`/metrics` 端口与 `--metrics-bind-address` 启动参数对应，可通过 Helm values 调整。
+
+---
+
+## 2. 指标体系层级
+
+| 层级 | 来源 | 典型指标 |
+| --- | --- | --- |
+| 集群层 | kube-state-metrics、node-exporter（来自 kube-prometheus-stack） | 节点 CPU / 内存 / 磁盘、Pod 状态 |
+| GPU 层 | DCGM Exporter（来自 GPU Operator） | GPU 利用率、显存占用、温度、功耗 |
+| 网关层 | Envoy Gateway | 请求量、延迟分位、错误率 |
+| 调度层 | koord-scheduler / koord-manager | ElasticQuota 用量与借用、PodGroup 调度状态、调度延迟 |
+| 控制面 | AxisML 自研组件 | 见下文 §3–§5 |
+
+集群 / GPU / 网关 / 调度层指标都由开源组件原生暴露，本文不重复列出；本文重点是控制面服务自定义指标。
+
+---
+
+## 3. 命名约定
+
+控制面服务 metric 名遵循 Prometheus 社区约定：
+
+| 段 | 含义 |
+| --- | --- |
+| `axisml_<component>_*` | core 层组件（compute / artifacts） |
+| `platform_<module>_*` | Platform 后端各业务模块 |
+| `_total` | counter |
+| `_seconds` / `_duration_seconds` | histogram，单位秒 |
+| `_count` / 无后缀 gauge 名 | gauge |
+
+label 取值规则：
+
+- `status` 一般使用 `{success, failure}`；
+- `action` / `predicate` / `result` / `reason` 各模块自行定义枚举（详见各模块表格）；
+- 不允许 high-cardinality label（如 `user_id`、`tenant_name` 仅在明确聚合用途下使用）。
+
+---
+
+## 4. Core 层指标
+
+### 4.1 Compute
+
+| 指标 | 类型 | 用途 |
+| --- | --- | --- |
+| `axisml_compute_is_leader` | gauge | 当前副本是否为 leader（0/1） |
+| `axisml_compute_reconciler_oldest_pending_seconds{resource,predicate}` | gauge | 工作集最老未处理行的 age |
+| `axisml_compute_reconciler_actions_total{resource,predicate,result}` | counter | reconciler 动作计数 |
+| `axisml_compute_informer_workqueue_depth{resource}` | gauge | 各模块 Informer work queue 深度 |
+| `axisml_compute_spec_sync_pending_total{resource}` | gauge | 待同步行数（`desired_spec_hash <> applied_spec_hash`） |
+| `axisml_compute_api_request_duration_seconds{route,status}` | histogram | API 请求延迟分布 |
+
+label 取值：
+
+- `resource ∈ {job, service}`；
+- `predicate ∈ {creating, canceling, deleting, spec_sync}`；
+- `result ∈ {success, conflict, error, skipped}`。
+
+### 4.2 Artifacts
+
+| 指标 | 类型 | 含义 |
+| --- | --- | --- |
+| `axisml_artifacts_is_leader` | gauge | 当前副本是否为 leader（0/1） |
+| `axisml_artifacts_uploading_count{kind}` | gauge | 当前 `status='Uploading'` 行数 |
+| `axisml_artifacts_gc_actions_total{predicate,result}` | counter | GC 动作计数 |
+| `axisml_artifacts_resolve_requests_total{kind,result}` | counter | resolve 请求计数 |
+| `axisml_artifacts_initiate_duration_seconds{kind}` | histogram | initiate 端到端耗时 |
+| `axisml_artifacts_complete_duration_seconds{kind}` | histogram | complete 端到端耗时（含后端 HEAD 校验） |
+| `axisml_artifacts_api_request_duration_seconds{route,status}` | histogram | API 请求延迟 |
+
+label 取值：
+
+- `kind ∈ {model, dataset, image, eval_report}`；
+- `predicate ∈ {expire_uploading, orphan_oci, orphan_s3}`；
+- `result ∈ {success, not_found, error, skipped}`。
+
+### 4.3 Cluster Manager
+
+| 指标 | 类型 | 用途 |
+| --- | --- | --- |
+| `axisml_cluster_manager_is_leader` | gauge | 当前副本是否为 leader（0/1） |
+| `axisml_cluster_manager_api_request_duration_seconds{route,status}` | histogram | API 请求延迟 |
+| `axisml_cluster_manager_reconciler_actions_total{predicate,result}` | counter | reconciler 动作计数（外部漂移告警、双 hash 收敛等） |
+| `axisml_cluster_manager_spec_sync_pending_total` | gauge | 待同步 `tenants` 行数 |
+| `axisml_cluster_manager_external_drift_total{field}` | counter | 检测到非 cluster-manager 字段管理者写入 CR 的次数 |
+
+### 4.4 tenant-operator
+
+| 指标 | 类型 | 用途 |
+| --- | --- | --- |
+| `axisml_tenant_operator_reconcile_total{result}` | counter | Tenant CR reconcile 总次数（`result ∈ {success, requeue, error}`） |
+| `axisml_tenant_operator_reconcile_duration_seconds` | histogram | reconcile 耗时分布 |
+| `axisml_tenant_operator_workqueue_depth` | gauge | controller-runtime work queue 深度 |
+| `controller_runtime_*` | 多种 | controller-runtime 内置指标 |
+
+### 4.5 compute-operator
+
+| 指标 | 类型 | 用途 |
+| --- | --- | --- |
+| `axisml_compute_operator_reconcile_total{resource,backend,engine,result}` | counter | MLJob / MLService reconcile 总次数 |
+| `axisml_compute_operator_reconcile_duration_seconds{resource,backend,engine}` | histogram | reconcile 耗时分布 |
+| `axisml_compute_operator_handler_dispatch_total{backend,engine,result}` | counter | backend handler 派遣计数 |
+| `controller_runtime_*` | 多种 | controller-runtime 内置指标 |
+
+label 取值：
+
+- `resource ∈ {mljob, mlservice}`；
+- `backend ∈ {native, kubeflow-trainer, kserve, custom}`；
+- `engine` 因 backend 而异（详见 [compute-operator.md §3](components/compute-operator.md)）。
+
+---
+
+## 5. Platform 层指标
+
+### 5.1 跨模块通用
+
+由 Platform 后端的 typed client 中间件层统一打点（[platform.md §4.5](components/platform.md#45-下游-typed-client)）：
+
+| 指标 | 类型 | 用途 |
+| --- | --- | --- |
+| `platform_upstream_request_total{service,method,status}` | counter | 每次下游调用计数；`service ∈ {cluster-manager, compute, artifacts, prometheus}` |
+| `platform_upstream_request_duration_seconds{service,method,status}` | histogram | 下游调用延迟分布 |
+| `platform_api_request_duration_seconds{route,status}` | histogram | Platform 自身 API 请求延迟 |
+| `platform_auth_jwt_issued_total{kind,result}` | counter | JWT 颁发量（`kind ∈ {login, workspace, inference}`） |
+
+### 5.2 Tenant 模块
+
+| 指标 | 类型 | 用途 |
+| --- | --- | --- |
+| `platform_tenant_action_total{action, status}` | counter | `action ∈ {create, update_meta, suspend, unsuspend, delete, quota_create, quota_update, quota_delete, member_add, member_update, member_remove}` |
+| `platform_tenant_orphan_role_cleanup_total{reason}` | counter | 孤儿 `user_tenant_roles` 行的级联清理次数；`reason ∈ {delete_cascade, list_reconcile}` |
+
+详见 [platform.md §6.5.3](components/platform.md#653-模块结构)（度量与日志小节）。
+
+### 5.3 Workspace 模块
+
+| 指标 | 类型 | 用途 |
+| --- | --- | --- |
+| `platform_workspace_action_total{action, status}` | counter | `action ∈ {create, update_meta, start, stop, delete, access_token_issue}` |
+| `platform_workspace_state{tenant_name, state}` | gauge | 按租户聚合各派生 `status` 的 workspace 数；定期采样 |
+| `platform_workspace_pvc_orphan_total` | counter | MLService 已删但 PVC 未能清理留下的孤儿 PVC 数 |
+| `platform_workspace_create_rollback_total{phase}` | counter | 创建过程中 PVC 失败导致回滚 MLService 次数；`phase ∈ {pvc_failed_mlservice_rolled_back, pvc_failed_mlservice_orphaned}` |
+| `platform_workspace_access_jwt_issued_total{result}` | counter | access JWT 颁发量 + 失败原因 |
+
+详见 [platform.md §8.5.6](components/platform.md#856-模块结构)（度量与日志小节）。
+
+### 5.4 Job 模块
+
+| 指标 | 类型 | 用途 |
+| --- | --- | --- |
+| `platform_job_action_total{action, status}` | counter | `action ∈ {create, get, list, cancel, delete, register_model, logs_stream}` |
+| `platform_job_list_tenant_fanout` | histogram | 单次列表请求的下游扇出 namespace 数 |
+| `platform_job_list_partial_total{reason}` | counter | 部分租户失败次数 |
+| `platform_job_logs_stream_active` | gauge | 当前活跃 SSE log stream 连接数 |
+
+详见 [platform.md §9.5.5](components/platform.md#955-模块结构)（度量与日志小节）。
+
+### 5.5 Service 模块
+
+| 指标 | 类型 | 用途 |
+| --- | --- | --- |
+| `platform_service_action_total{action, status}` | counter | `action ∈ {create, get, list, scale, start, stop, patch, delete, access_token_issue, metrics_query, clone_for_new_version}` |
+| `platform_service_list_tenant_fanout` | histogram | 单次列表请求的下游扇出 namespace 数 |
+| `platform_service_list_partial_total{reason}` | counter | 部分租户失败次数 |
+| `platform_service_access_jwt_issued_total{result}` | counter | access JWT 颁发量 + 失败原因 |
+| `platform_service_state{tenant_name, state}` | gauge | 按租户聚合各 `services.status` 的 service 数；定期采样 |
+| `platform_service_metrics_query_total{metric, status}` | counter | Prometheus 查询调用结果分布 |
+
+详见 [platform.md §10.5.5](components/platform.md#1055-模块结构)（度量与日志小节）。
+
+### 5.6 ResourcePool 模块
+
+| 指标 | 类型 | 用途 |
+| --- | --- | --- |
+| `platform_resource_pool_action_total{action, status}` | counter | `action ∈ {create, update, delete, delete_blocked}` |
+| `platform_resource_unit_action_total{action, status}` | counter | 同上 |
+| `platform_resource_pool_unit_count_aggregation_failures_total` | counter | 列表页聚合资源单元数量时的失败计数 |
+
+详见 [platform.md §7.5.2](components/platform.md#752-模块结构)（度量与日志小节）。
+
+---
+
+## 6. 业务指标查询（Service `/metrics` 端点）
+
+Platform `GET /api/v1/services/{id}/metrics` 透传 Prometheus 实时查询，提供 Service 详情页 Tab 5 指标视图。查询模板按 backend 选择，定义在 [platform.md §10.5.4](components/platform.md#1054-prometheus-查询模板)。
+
+| 指标 | 含义 | PromQL 来源 |
+| --- | --- | --- |
+| `request_rate` | 每秒请求数 | Envoy `envoy_http_downstream_rq_total` / KServe / 自定义 backend metrics |
+| `latency` | 请求延迟分位（`p50` / `p95` / `p99`） | `histogram_quantile(<p>, sum(rate(envoy_http_downstream_rq_time_bucket{...}[5m])) by (le))` |
+| `error_rate` | 错误率 | `sum(rate(envoy_http_downstream_rq_total{response_code=~"5.."}[5m])) / sum(rate(envoy_http_downstream_rq_total[5m]))` |
+| `cpu_util` | 副本 CPU 利用率 | `container_cpu_usage_seconds_total` |
+| `mem_util` | 副本内存利用率 | `container_memory_working_set_bytes` |
+| `gpu_util` | GPU 利用率 | DCGM `DCGM_FI_DEV_GPU_UTIL` |
+
+Prometheus URL 来自启动配置 `--prometheus-url`（指向 `axisml-infra` namespace 下的 Prometheus）。
+
+---
+
+## 7. 日志约定
+
+控制面服务统一使用 `zap` 结构化日志：
+
+- 每条租户操作日志携带 `tenant_name` / `actor_user` / `action` / `status` 字段；
+- 工作负载操作日志携带 `namespace` / `resource_id` / `resource_name` / `action`；
+- 错误日志携带 `error` + `stack`（仅 fatal）；
+- 日志级别由 `--log-level` 启动参数控制（默认 `info`）。
+
+日志聚合不在 MVP 范围内——Pod 日志由 K8s 默认 logging 驱动收集，运维通过 `kubectl logs` 或集群级聚合方案（如 Loki，未默认部署）查询。
+
+---
+
+## 8. 告警
+
+MVP 阶段**不预置** AlertManager 告警规则——AlertManager 随 kube-prometheus-stack 部署但无业务告警规则，调用方按需自定义。
+
+后续迭代预留的告警方向（详见 [infra.md §6 后续工作](infra.md)）：
+
+- 节点 NotReady；
+- GPU 异常（DCGM 上报错误率高）；
+- PVC 容量；
+- 配额耗尽（ElasticQuota `min` 持续不可满足）；
+- 调度滞后（PodGroup gang 调度长时间 Pending）；
+- API 错误率（5xx 比例超阈值）。
+
+告警规则的 UI 维护入口规划在 [Platform 系统管理 → 监控告警](components/platform.md#13-后续迭代) 菜单（独立菜单维护，与 service 详情页指标 Tab 解耦）。
+
+---
+
+## 9. 关联文档
+
+- [infra.md §4.7](infra.md#47-监控kube-prometheus-stack)：监控基础设施部署细节；
+- [platform.md §10.5](components/platform.md#105-rest-api-与模块结构) / [§10.5.4](components/platform.md#1054-prometheus-查询模板)：Service 详情页指标 Tab 与 PromQL 模板；
+- 各功能模块的「度量与日志」段落：[§6.5.3 tenant](components/platform.md#653-模块结构) / [§7.5.2 resource-pool](components/platform.md#752-模块结构) / [§8.5.6 workspace](components/platform.md#856-模块结构) / [§9.5.5 job](components/platform.md#955-模块结构) / [§10.5.5 service](components/platform.md#1055-模块结构)。

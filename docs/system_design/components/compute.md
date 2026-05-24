@@ -2,7 +2,7 @@
 
 AxisML Compute 是平台的计算服务层，基于 Go 开发，仅接受来自 AxisML Platform 的内部 REST 调用，承载 **计算任务管理** 与 **资源池 / 资源单元管理**。Compute 不直接创建 Pod 等底层 K8s 资源——这些由 [compute-operator](compute-operator.md) 负责；Compute 仅维护业务元数据，并通过 CRD 向 operator 声明意图。
 
-> **职责边界**：Compute 不持有租户与配额的元数据。租户与配额由 [cluster-manager](cluster-manager.md) + [tenant-operator](tenant-operator.md) 负责；Compute 把请求体里的 `namespace` 字段当作裸字符串分区键，把 `spec.scheduling.quota` 当作不透明 ElasticQuota CR 名透传。"用户视角的租户"由 [Platform](../platform/overview.md) 自己持有视图层映射。
+> **职责边界**：Compute 不持有租户与配额的元数据。租户与配额由 [cluster-manager](cluster-manager.md) + [tenant-operator](tenant-operator.md) 负责；Compute 把请求体里的 `namespace` 字段当作裸字符串分区键，把 `spec.scheduling.quota` 当作不透明 ElasticQuota CR 名透传。"用户视角的租户"由 [Platform](platform.md) 自己持有视图层映射。
 
 | 模块 | PG 表 | 状态机 | 对应 K8s 资源 |
 | --- | --- | --- | --- |
@@ -145,17 +145,7 @@ compute:
     defaultUnits: [cpu-small, cpu-medium]
 ```
 
-**Helm 模板清单**（`deploy/helm/axisml-system/templates/compute/`）：
-
-| 文件 | 用途 |
-| --- | --- |
-| `configmap.yaml` | DB 连接、日志级别 |
-| `deployment.yaml` | 使用 `axisml-compute` 镜像，加探针 |
-| `service.yaml` | ClusterIP 8081 |
-| `serviceaccount.yaml` | Compute 服务账号 |
-| `rbac.yaml` | ClusterRole + ClusterRoleBinding：见 §2.5 |
-| `servicemonitor.yaml` | `/metrics` 暴露，kube-prometheus-stack 自动发现 |
-| `bootstrap-job.yaml` | post-install Job 初始化默认数据（详见 §8.2） |
+**Helm 模板清单**详见 [deployment.md §6.1](../deployment.md#61-cluster-manager--compute--artifacts--platform-backend)；Compute 额外包含 `bootstrap-job.yaml`（post-install Job 初始化默认数据，详见 §8.2）。
 
 ---
 
@@ -283,6 +273,8 @@ Creating ──(Informer ADD)──▶ 就绪态 ──(业务事件)──▶ �
 ## Part III — 模块详细设计
 
 > 本部分逐个展开 4 个模块的数据模型、状态机、生命周期与对外契约。配置对象（ResourcePool / ResourceUnit）在前，工作负载对象（Job / Service）在后。
+>
+> **完整 REST API 契约（路径 / 参数 / 请求响应 schema / 错误码）见 [apis/compute.yaml](../apis/compute.yaml)**——本部分只保留状态机、字段归属与提交/取消/扩缩/删除等业务语义；端点级细节以 OpenAPI 为准。
 
 ## 4. ResourcePool
 
@@ -294,21 +286,7 @@ ResourcePool 是 AxisML Compute 维护的纯 PG 元数据对象，用于把集�
 
 ### 4.2 数据模型
 
-```
-resource_pools(
-  id             uuid PK,
-  name           text UNIQUE,
-  description    text,
-  node_selector  jsonb,                   -- {"axisml.io/pool": "gpu-a100"}
-  tolerations    jsonb,                   -- K8s Toleration 数组
-  metadata       jsonb,                   -- 自由扩展字段
-  created_at     timestamptz,
-  updated_at     timestamptz,
-  deleted_at     timestamptz
-)
-```
-
-**默认池**：Helm `post-install` Job 初始化 `default` 池，`node_selector` 留空即表示整集群可用（详见 §8.2）。
+详见 [database.md §3.1 `resource_pools` 表](../database.md#31-resource_pools-表)。**默认池**：Helm `post-install` Job 初始化 `default` 池，`node_selector` 留空即表示整集群可用（详见 §8.2）。
 
 ### 4.3 注入规则
 
@@ -321,12 +299,7 @@ resource_pools(
 
 ### 4.4 API 端点
 
-| 端点 | 方法 | 用途 |
-| --- | --- | --- |
-| `/api/v1/resource-pools` | `POST` / `GET` | Create / List |
-| `/api/v1/resource-pools/{pool}` | `GET` / `PATCH` / `DELETE` | Get / Update / Delete |
-
-仅管理员可写；Platform 通过角色判断后转发。
+端点详见 [apis/compute.yaml](../apis/compute.yaml) `ResourcePools` tag；路径前缀 `/api/v1/resource-pools/...`。仅管理员可写；Platform 通过角色判断后转发。
 
 ### 4.5 后续工作
 
@@ -343,35 +316,7 @@ ResourceUnit 是 ResourcePool 内预先定义的资源规格模板，是 AxisML 
 
 ### 5.2 数据模型
 
-```
-resource_units(
-  id             uuid PK,
-  pool_id        uuid FK resource_pools(id),
-  name           text,
-  description    text,
-  requests       jsonb,                   -- {"cpu":"8","memory":"64Gi","nvidia.com/gpu":"1"}
-  limits         jsonb,
-  node_selector  jsonb,                   -- 通用节点标签匹配（见 §5.4）
-  created_at     timestamptz,
-  updated_at     timestamptz,
-  deleted_at     timestamptz,
-  UNIQUE(pool_id, name)
-)
-```
-
-**字段说明**
-
-- `requests` / `limits`：标准 K8s 资源
-- `node_selector`：通用节点标签匹配，覆盖 GPU 之外的任意硬件维度
-
-**常见 `node_selector` 用法**：
-
-| 场景 | 示例 |
-| --- | --- |
-| GPU 型号 | `{"nvidia.com/gpu.product": "A100-SXM4-80GB"}` |
-| TPU | `{"cloud.google.com/gke-accelerator": "tpu-v4"}` |
-| 自研加速卡 | `{"axisml.io/accelerator": "npu-x"}` |
-| CPU instance type | `{"node.kubernetes.io/instance-type": "c5.4xlarge"}` |
+详见 [database.md §3.2 `resource_units` 表](../database.md#32-resource_units-表)。`node_selector` 用于覆盖 GPU 之外的硬件维度（GPU 型号 / TPU / 自研加速卡 / CPU instance type 等）。
 
 ### 5.3 命名约定
 
@@ -403,12 +348,7 @@ resource_units(
 
 ### 5.5 API 端点
 
-| 端点 | 方法 | 用途 |
-| --- | --- | --- |
-| `/api/v1/resource-pools/{pool}/resource-units` | `POST` / `GET` | Create / List |
-| `/api/v1/resource-pools/{pool}/resource-units/{unit}` | `GET` / `PATCH` / `DELETE` | Get / Update / Delete |
-
-仅管理员可写。
+端点详见 [apis/compute.yaml](../apis/compute.yaml) `ResourceUnits` tag；路径前缀 `/api/v1/resource-pools/{pool}/resource-units/...`。仅管理员可写。
 
 ### 5.6 后续工作
 
@@ -425,37 +365,7 @@ Job 模块维护 PG `jobs` 表 + 下发 `MLJob` CR + 通过 MLJob Informer 回�
 
 ### 6.2 数据模型
 
-```
-jobs(
-  id                   uuid PK,
-  namespace            text,                     -- 裸字符串分区键，写入 MLJob CR metadata.namespace
-  pool_id              uuid FK resource_pools(id),
-  resource_unit_id     uuid FK resource_units(id),
-  name                 text,                     -- MLJob CR metadata.name
-  display_name         text,
-  description          text,
-  owner_user           text,                     -- 来自 X-Axisml-User
-  spec                 jsonb,                    -- 提交时的 MLJob.spec 完整快照（不可变）
-  requested_resources  jsonb,                    -- 资源申请快照
-  status               text,                     -- Creating / Pending / Running / Succeeded / Failed / Canceling / Cancelled / Deleting / Deleted
-  message              text,
-  started_at           timestamptz,
-  finished_at          timestamptz,
-  created_at           timestamptz,
-  updated_at           timestamptz,
-  deleted_at           timestamptz,
-  UNIQUE(namespace, name)                        -- partial on deleted_at IS NULL
-)
-```
-
-**字段归属**
-
-- `spec` 是提交时 MLJob.spec 的完整快照，包含 `roles[]` / `backend.{name,engine,config}` / `scheduling` / `runPolicy` 等业务字段（结构详见 [compute-operator.md §4.2](compute-operator.md)），**不可变**；Informer 回流只写 `status` 相关列
-- `requested_resources` 冗余存提交时的资源申请，解耦后续 ResourceUnit 修改对已提交任务的影响
-- `name` 是 Compute 与 K8s 的命名锚点（对应 MLJob CR `metadata.name`），UUID `id` 通过 label `axisml.io/job-id=<id>` 同步打到 CR 上
-- `spec.scheduling.quota` 字段值由 Platform 在提交请求时透传——Compute 不解析，也不校验该 ElasticQuota 是否真实存在；如果 Pod 调度时发现 quota 缺失，由 koord-scheduler 拒绝调度并由 operator 回流到 `status.phase=Pending` + 失败 condition
-
-**`spec.backend` 默认值注入**：用户未指定 `spec.backend` 时，Compute 写 CR 时显式补 `{name: "native", engine: "job"}`；`backend.config` 默认空对象 `{}`。`backend.{name, engine}` 创建后不可变。
+详见 [database.md §3.3 `jobs` 表](../database.md#33-jobs-表)。`spec` 是提交时 MLJob.spec 的完整快照（结构详见 [compute-operator.md §4.2](compute-operator.md)），创建后不可变；`spec.scheduling.quota` 由 Platform 透传，Compute 不解析；`spec.backend` 默认值 `{name: "native", engine: "job"}`，创建后不可变。
 
 ### 6.3 状态机
 
@@ -547,41 +457,7 @@ Service 模块维护 PG `services` 表 + 下发 `MLService` CR + 通过 MLServic
 
 ### 7.2 数据模型
 
-```
-services(
-  id                   uuid PK,
-  namespace            text,                     -- 裸字符串分区键，写入 MLService CR metadata.namespace
-  pool_id              uuid FK resource_pools(id),
-  resource_unit_id     uuid FK resource_units(id),
-  name                 text,                     -- MLService CR metadata.name
-  kind                 text NOT NULL DEFAULT 'service', -- 'service' | 'workspace'；创建后不可变
-  display_name         text,
-  description          text,
-  owner_user           text,
-  spec                 jsonb,                    -- 当前 MLService.spec 快照
-  desired_spec_hash    text,
-  applied_spec_hash    text,
-  requested_resources  jsonb,                    -- 单副本资源申请快照
-  replicas             int,                      -- 单 role 约定下 = spec.roles[0].replicas
-  ready_replicas       int,                      -- Informer 回流
-  endpoint             text,                     -- 服务地址（Informer 回流）
-  status               text,                     -- Creating / Pending / Ready / Degraded / Failed / Deleting / Deleted
-  message              text,
-  created_at           timestamptz,
-  updated_at           timestamptz,
-  deleted_at           timestamptz,
-  UNIQUE(namespace, name)
-)
-```
-
-**字段归属**
-
-- `spec` 与 jobs 不同：扩缩容 API 更新 `replicas` 同时回写 `spec.roles[0].replicas`（单 role 约定）并重算 `desired_spec_hash`，其他字段依然不可变
-- `kind`：调用方在 `POST /api/v1/namespaces/{ns}/services` 请求体中显式指定；缺省落到 `'service'`。仅用于 service 与 [Platform 工作区](../platform/workspace.md) 在同一张表上的分类与过滤——Compute 本身不按 `kind` 改变 spec / status / scale / delete 行为，所有 backend handler、状态机、双 hash 同步对两者完全一致。Platform 工作区写 `kind='workspace'`；普通在线服务写 `kind='service'`（也可省略）。创建后不可变
-- `spec.roles[*].template.{volumes, volumeMounts}`：用户提交，按 [compute-operator.md §5.2.2](compute-operator.md#522-spec-结构) 结构透传到 MLService CR，由 `(native, *)` handler 落到 Pod template；与 `roles[*].template.ports[]` 同属创建后不可变的镜像运行参数
-- `endpoint`：`(native, *)` / `(custom, *)` 可为内部 Service DNS 或 AxisML Gateway URL；`(kserve, *)` 为 KServe `status.url`
-
-**`spec.backend` 默认值注入**：用户未指定 `spec.backend` 时，Compute 写 CR 时显式补 `{name: "native", engine: "deployment"}`。
+详见 [database.md §3.4 `services` 表](../database.md#34-services-表)。与 jobs 不同：扩缩容 API 更新 `spec.roles[0].replicas`（单 role 约定）并重算 `desired_spec_hash`，其他字段不可变。`kind`（`service` / `workspace`）由调用方在请求体显式指定，仅作分类与过滤——Compute 不按 `kind` 改变行为；创建后不可变。`spec.backend` 默认值 `{name: "native", engine: "deployment"}`。
 
 ### 7.3 状态机
 
@@ -631,14 +507,14 @@ Creating ──(Informer ADD)──▶ Pending ──(ready=desired, desired>0)�
 
 ### 7.5 id-based 寻址端点 + kind 过滤
 
-为支撑 [Platform 工作区](../platform/workspace.md)「在同一张 `services` 表上区分普通在线服务与工作区，并按 `kind='workspace'` 一次列出整个租户的工作区」的设计（参见 [platform/workspace.md §3](../platform/workspace.md#3-数据模型platform-自有部分)），Service 模块除原有 `(namespace, name)` 路径之外提供：
+为支撑 [Platform 工作区](platform.md#8-工作区)「在同一张 `services` 表上区分普通在线服务与工作区，并按 `kind='workspace'` 一次列出整个租户的工作区」的设计（参见 [platform.md §8.2 数据模型](platform.md#82-数据模型platform-自有部分)），Service 模块除原有 `(namespace, name)` 路径之外提供：
 
 | Endpoint | 方法 | 说明 |
 | --- | --- | --- |
 | `/api/v1/services/{id}` | `GET` | 返回完整 service 视图（含 `namespace` / `name` / `kind` / `display_name` / `spec` / `status` / `endpoint` / `replicas` / `ready_replicas` / ...）；语义同 `GET /api/v1/namespaces/{namespace}/services/{service}`，仅入参不同 |
 | `/api/v1/services` | `GET` | query `?ids=id1,id2,...` 批量按 id 拉取（Platform N+1 优化），或 `?namespace=<ns>&kind=workspace` 按 namespace + kind 过滤（Platform 工作区列表的唯一寻址路径） |
 
-所有 namespace-scoped LIST / GET 端点（`/api/v1/namespaces/{ns}/services`）的响应也必须返回 `kind` 字段，且支持 `?kind=<value>` 过滤。Platform 写入时由 [workspace.md](../platform/workspace.md) handler 显式传 `kind='workspace'`；其余调用方（service 模块）写入时 `kind='service'`（或省略，由 Compute 默认填）。
+所有 namespace-scoped LIST / GET 端点（`/api/v1/namespaces/{ns}/services`）的响应也必须返回 `kind` 字段，且支持 `?kind=<value>` 过滤。Platform 写入时由 [platform.md §8 工作区](platform.md#8-工作区) handler 显式传 `kind='workspace'`；其余调用方（service 模块）写入时 `kind='service'`（或省略，由 Compute 默认填）。
 
 写操作（`POST /scale`、`DELETE`）保留既有 namespace-scoped 形态——调用方在写之前先 id-based GET 拿到 `(namespace, name)` 再走原路径，避免引入双轨写 API、写路径复用既有 outbox。
 
@@ -709,16 +585,7 @@ Creating ──(Informer ADD)──▶ Pending ──(ready=desired, desired>0)�
    - 完成信号：API 接受任意已注册 backend；CR `spec.backend` 字段透传准确；integration 覆盖 `(native, podgroup)` 与 `(kserve, inference)` 两条最常用路径。
 5. **Job 日志 + 副本 + 事件端点**
    - 完成信号：`/logs?follow=true` 流式可用且断开时关闭 upstream；GC 后 Pod 返 410；`/replicas` 按 `axisml.io/job-id` label 检索 Pod。
-6. **完整 metrics 集**
-
-| 指标 | 类型 | 用途 |
-| --- | --- | --- |
-| `axisml_compute_is_leader` | gauge | 当前副本是否为 leader |
-| `axisml_compute_reconciler_oldest_pending_seconds{resource,predicate}` | gauge | 工作集最老未处理行的 age |
-| `axisml_compute_reconciler_actions_total{resource,predicate,result}` | counter | reconciler 动作计数 |
-| `axisml_compute_informer_workqueue_depth{resource}` | gauge | 各模块 Informer work queue 深度 |
-| `axisml_compute_spec_sync_pending_total{resource}` | gauge | 待同步行数 |
-| `axisml_compute_api_request_duration_seconds{route,status}` | histogram | API 请求延迟分布 |
+6. **完整 metrics 集**——指标列表详见 [monitoring.md §4.1](../monitoring.md#41-compute)。
 
 7. **`axisml.io/<resource>-id` label 锚点 + 软删命名复用全链路**
    - 完成信号：integration 覆盖：`DELETE Job foo → Create Job foo` 同 namespace 内成功；CR label 与 PG `id` 始终一致。
@@ -756,5 +623,5 @@ API 层单元测试在各 `internal/<module>/handler_test.go`，覆盖请求参�
 - [docs/system_design/overview.md](../overview.md) 概述了 AxisML Compute 在控制平面里的位置。
 - [docs/system_design/compute-operator.md](compute-operator.md) 描述 compute-operator（mljob / mlservice controller）与 Compute 之间的 CR 写路径与状态回流契约。
 - [docs/system_design/cluster-manager.md](cluster-manager.md) 描述租户与配额的入口；Compute 不直接调用，由 Platform 维护两者的关联。
-- [docs/system_design/infra.md](../infra/infra.md) 给出 koord-scheduler / ElasticQuota 等基础设施依赖契约。
+- [docs/system_design/infra.md](../infra.md) 给出 koord-scheduler / ElasticQuota 等基础设施依赖契约。
 - [docs/system_design/artifacts.md](artifacts.md) 描述 Artifacts 服务，Compute 在 Job / Service 提交时通过 HTTP 客户端做 image / model / dataset 引用懒查询。
