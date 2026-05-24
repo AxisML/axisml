@@ -1026,7 +1026,7 @@ components:
         - namespace
         - displayName
         - spec
-        - status
+        - phase
         - generation
         - createdAt
         - updatedAt
@@ -1085,6 +1085,9 @@ components:
             Latest `generation` the reconciler has successfully synced to
             the CR. `generation == observedGeneration` ⇒ in sync.
           minimum: 0
+        phase:
+          $ref: '#/components/schemas/Phase'
+          description: Top-level phase mirrored from Tenant CR `status.phase`; B-tree indexed for list filtering.
         status:
           $ref: '#/components/schemas/TenantStatus'
         lastModifiedBy:
@@ -1128,12 +1131,10 @@ components:
     TenantStatus:
       type: object
       description: |
-        Tenant CR `status` mirrored into PG as a JSONB blob. Written
+        Status sub-object excluding `phase` (which lives at the top level
+        of `Tenant`). Mirrors Tenant CR `status` minus `phase`. Written
         exclusively by the informer.
-      required: [phase]
       properties:
-        phase:
-          $ref: '#/components/schemas/Phase'
         message:
           type: string
           description: Free-form human-readable fallback message.

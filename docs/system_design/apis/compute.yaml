@@ -339,11 +339,11 @@ paths:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Continue'
         - in: query
-          name: status
-          description: Optional filter on Job status.
+          name: phase
+          description: Optional filter on Job phase.
           required: false
           schema:
-            $ref: '#/components/schemas/JobStatus'
+            $ref: '#/components/schemas/JobPhase'
       responses:
         '200':
           description: A page of jobs
@@ -963,6 +963,30 @@ components:
           type: integer
           description: Limit echoed back from the request.
 
+    StringMap:
+      type: object
+      description: Flat string→string map; used for `labels` / `annotations` (see `database.md §1.6`).
+      additionalProperties:
+        type: string
+
+    Condition:
+      type: object
+      description: K8s-style condition entry mirrored from the underlying CR.
+      required: [type, status]
+      properties:
+        type:
+          type: string
+        status:
+          type: string
+          enum: [True, False, Unknown]
+        reason:
+          type: string
+        message:
+          type: string
+        lastTransitionTime:
+          type: string
+          format: date-time
+
     Quantity:
       type: string
       description: |
@@ -1501,9 +1525,9 @@ components:
       required: [scheduling, roles]
 
     # ────────────────── Job ──────────────────
-    JobStatus:
+    JobPhase:
       type: string
-      description: Compute-side Job state machine.
+      description: Compute-side Job phase. Hoisted to the top of `Job` so list endpoints can filter on it with a B-tree index.
       enum:
         - Creating
         - Pending
@@ -1514,6 +1538,25 @@ components:
         - Cancelled
         - Deleting
         - Deleted
+
+    JobStatus:
+      type: object
+      description: Status sub-object excluding `phase` (which lives at the top level of `Job`). Mirrors MLJob CR `status` minus `phase`.
+      properties:
+        message:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        finishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        conditions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Condition'
 
     Job:
       type: object
@@ -1526,11 +1569,9 @@ components:
         poolId:
           type: string
           format: uuid
-          nullable: true
         resourceUnitId:
           type: string
           format: uuid
-          nullable: true
         name:
           type: string
           pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
@@ -1543,24 +1584,20 @@ components:
         owner:
           type: string
           description: User from the create-time `X-Axisml-User` header. Immutable.
+        labels:
+          $ref: '#/components/schemas/StringMap'
+        annotations:
+          $ref: '#/components/schemas/StringMap'
         spec:
           $ref: '#/components/schemas/MLJobSpec'
         resources:
           type: object
           additionalProperties: true
           description: Snapshot of the resource request derived from the chosen ResourceUnit at create time.
+        phase:
+          $ref: '#/components/schemas/JobPhase'
         status:
           $ref: '#/components/schemas/JobStatus'
-        message:
-          type: string
-        startedAt:
-          type: string
-          format: date-time
-          nullable: true
-        finishedAt:
-          type: string
-          format: date-time
-          nullable: true
         createdAt:
           type: string
           format: date-time
@@ -1571,7 +1608,7 @@ components:
           type: string
           format: date-time
           nullable: true
-      required: [id, namespace, name, spec, status, createdAt, updatedAt]
+      required: [id, namespace, poolId, resourceUnitId, name, owner, spec, phase, createdAt, updatedAt]
 
     JobCreateRequest:
       type: object
@@ -1618,9 +1655,9 @@ components:
         - workspace
       default: service
 
-    ServiceStatus:
+    ServicePhase:
       type: string
-      description: Compute-side Service state machine.
+      description: Compute-side Service phase. Hoisted to the top of `Service` so list endpoints can filter on it with a B-tree index.
       enum:
         - Creating
         - Pending
@@ -1629,6 +1666,24 @@ components:
         - Failed
         - Deleting
         - Deleted
+
+    ServiceStatus:
+      type: object
+      description: Status sub-object excluding `phase` (which lives at the top level of `Service`). Mirrors MLService CR `status` minus `phase`.
+      properties:
+        message:
+          type: string
+        readyReplicas:
+          type: integer
+          minimum: 0
+          description: Replica count observed Ready via the Informer.
+        endpoint:
+          type: string
+          description: Internal Service DNS, AxisML Gateway URL, or KServe `status.url`.
+        conditions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Condition'
 
     Service:
       type: object
@@ -1641,11 +1696,9 @@ components:
         poolId:
           type: string
           format: uuid
-          nullable: true
         resourceUnitId:
           type: string
           format: uuid
-          nullable: true
         name:
           type: string
           pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
@@ -1660,32 +1713,33 @@ components:
         owner:
           type: string
           description: User from the create-time `X-Axisml-User` header. Immutable.
+        labels:
+          $ref: '#/components/schemas/StringMap'
+        annotations:
+          $ref: '#/components/schemas/StringMap'
         spec:
           $ref: '#/components/schemas/MLServiceSpec'
         resources:
           type: object
           additionalProperties: true
-        desiredSpecHash:
-          type: string
-          description: sha256 of the canonicalized desired `spec` subset.
-        appliedSpecHash:
-          type: string
-          description: sha256 of the spec last successfully applied to the MLService CR.
+        generation:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Bumped on every `spec` mutation. Aligns with K8s `metadata.generation`.
+        observedGeneration:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Latest `generation` the reconciler has applied to the MLService CR.
         replicas:
           type: integer
           minimum: 0
           description: Desired replica count; equals `spec.roles[0].replicas`.
-        readyReplicas:
-          type: integer
-          minimum: 0
-          description: Replica count observed Ready via the Informer.
-        endpoint:
-          type: string
-          description: Internal Service DNS, AxisML Gateway URL, or KServe `status.url`.
+        phase:
+          $ref: '#/components/schemas/ServicePhase'
         status:
           $ref: '#/components/schemas/ServiceStatus'
-        message:
-          type: string
         createdAt:
           type: string
           format: date-time
@@ -1696,7 +1750,7 @@ components:
           type: string
           format: date-time
           nullable: true
-      required: [id, namespace, name, kind, spec, desiredSpecHash, replicas, status, createdAt, updatedAt]
+      required: [id, namespace, poolId, resourceUnitId, name, kind, owner, spec, generation, replicas, phase, createdAt, updatedAt]
 
     ServiceCreateRequest:
       type: object

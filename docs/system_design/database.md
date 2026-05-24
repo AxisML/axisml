@@ -89,7 +89,8 @@ CREATE TABLE tenants (
   generation           bigint NOT NULL DEFAULT 1,
   observed_generation  bigint NOT NULL DEFAULT 0,
 
-  status               jsonb NOT NULL DEFAULT '{"phase":"Creating"}',  -- informer 整块回流 Tenant CR status
+  phase                text NOT NULL DEFAULT 'Creating',    -- 顶层高频过滤字段；informer 回流
+  status               jsonb NOT NULL DEFAULT '{}',         -- phase 之外的 status 子树（message / conditions / quotas）；informer 回流
 
   last_modified_by     text NOT NULL DEFAULT '',
   created_at           timestamptz NOT NULL DEFAULT now(),
@@ -101,14 +102,14 @@ CREATE UNIQUE INDEX tenants_name_active_uniq ON tenants (name) WHERE deleted_at 
 CREATE INDEX tenants_deleted_at  ON tenants (deleted_at);
 CREATE INDEX tenants_namespace   ON tenants (namespace) WHERE deleted_at IS NULL;
 CREATE INDEX tenants_created_at  ON tenants (created_at DESC);
-CREATE INDEX tenants_phase       ON tenants ((status->>'phase')) WHERE deleted_at IS NULL;
+CREATE INDEX tenants_phase       ON tenants (phase) WHERE deleted_at IS NULL;
 CREATE INDEX tenants_sync_pending
   ON tenants (id) WHERE generation <> observed_generation AND deleted_at IS NULL;
 ```
 
 `tenants.namespace`（顶层）是组织分组维度（`ai-team` / `search-team` 等），可变；`tenants.spec.namespace.name` 是 tenant 关联的 K8s namespace（不可变，多 tenant 可共享）。两者同名异义，靠路径区分。`jobs` / `services` / `artifacts` 的 `namespace` 与后者同义。
 
-`status` 结构：`{phase, message, conditions[], quotas[]}`（`quotas[].used` 含每条配额的实际用量），由 informer 从 Tenant CR `status` 整块回流。
+`phase` 是 Tenant CR `status.phase` 的顶层冗余（便于 SQL 过滤与 B-tree 索引）；`status` jsonb 持剩余子字段 `{message, conditions[], quotas[]}`（`quotas[].used` 含每条配额的实际用量）。两者都由 informer 写。
 
 **字段归属**
 
@@ -192,18 +193,19 @@ CREATE TABLE jobs (
   annotations          jsonb NOT NULL DEFAULT '{}',
   spec                 jsonb NOT NULL,           -- MLJob spec 快照；不可变
   resources            jsonb,                    -- 按 resource_unit_id 注入的资源申请快照
-  status               jsonb NOT NULL DEFAULT '{"phase":"Creating"}',
+  phase                text NOT NULL DEFAULT 'Creating',
+  status               jsonb NOT NULL DEFAULT '{}',
   created_at           timestamptz NOT NULL DEFAULT now(),
   updated_at           timestamptz NOT NULL DEFAULT now(),
   deleted_at           timestamptz
 );
 
 CREATE UNIQUE INDEX jobs_namespace_name_active_uniq ON jobs (namespace, name) WHERE deleted_at IS NULL;
-CREATE INDEX jobs_phase      ON jobs ((status->>'phase')) WHERE deleted_at IS NULL;
+CREATE INDEX jobs_phase      ON jobs (phase) WHERE deleted_at IS NULL;
 CREATE INDEX jobs_created_at ON jobs (created_at DESC);
 ```
 
-`status` 结构：`{phase, message, startedAt, finishedAt, conditions[]}`，由 informer 从 MLJob CR `status` 整块回流。`resources` 是 spec 中 `roles[*].template.resources` 的便利冗余，供 SQL 用量核算；ResourceUnit 后续修改不影响已创建对象。`spec.backend` 缺省时 Compute 写 CR 时补 `{name: "native", engine: "job"}`，创建后不可变。
+`phase` 是 MLJob CR `status.phase` 的顶层冗余；`status` jsonb 持剩余子字段 `{message, startedAt, finishedAt, conditions[]}`。两者由 informer 写。`resources` 是 `spec.roles[*].template.resources` 的便利冗余，供 SQL 用量核算；ResourceUnit 后续修改不影响已创建对象。`spec.backend` 缺省时 Compute 写 CR 时补 `{name: "native", engine: "job"}`，创建后不可变。
 
 ### 3.4 `services` 表
 
@@ -226,7 +228,8 @@ CREATE TABLE services (
   generation           bigint NOT NULL DEFAULT 1,
   observed_generation  bigint NOT NULL DEFAULT 0,
   resources            jsonb,                             -- 同 jobs.resources
-  status               jsonb NOT NULL DEFAULT '{"phase":"Creating"}',
+  phase                text NOT NULL DEFAULT 'Creating',
+  status               jsonb NOT NULL DEFAULT '{}',
   created_at           timestamptz NOT NULL DEFAULT now(),
   updated_at           timestamptz NOT NULL DEFAULT now(),
   deleted_at           timestamptz
@@ -234,12 +237,12 @@ CREATE TABLE services (
 
 CREATE UNIQUE INDEX services_namespace_name_active_uniq ON services (namespace, name) WHERE deleted_at IS NULL;
 CREATE INDEX services_namespace_kind ON services (namespace, kind) WHERE deleted_at IS NULL;
-CREATE INDEX services_phase          ON services ((status->>'phase')) WHERE deleted_at IS NULL;
+CREATE INDEX services_phase          ON services (phase) WHERE deleted_at IS NULL;
 CREATE INDEX services_created_at     ON services (created_at DESC);
 CREATE INDEX services_sync_pending   ON services (id) WHERE generation <> observed_generation AND deleted_at IS NULL;
 ```
 
-`status` 结构：`{phase, message, readyReplicas, endpoint, conditions[]}`，由 informer 从 MLService CR `status` 整块回流。`spec` 中仅 `spec.roles[0].replicas` 可变（`/scale` 写入并 `+generation`）。`spec.backend` 缺省时 Compute 补 `{name: "native", engine: "deployment"}`。
+`phase` 是 MLService CR `status.phase` 的顶层冗余；`status` jsonb 持剩余子字段 `{message, readyReplicas, endpoint, conditions[]}`。两者由 informer 写。`spec` 中仅 `spec.roles[0].replicas` 可变（`/scale` 写入并 `+generation`）。`spec.backend` 缺省时 Compute 补 `{name: "native", engine: "deployment"}`。
 
 ---
 

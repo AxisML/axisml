@@ -87,7 +87,7 @@
 | 更新 spec（`spec.namespace.labels` / `spec.namespace.annotations` / `spec.quotas[].{min,max}` / `spec.initResources` / `spec.suspended`） | update `spec` + `generation += 1` | reconciler patch CR | `spec.namespace.name`、`spec.quotas[].{pool,name}` 不可变 |
 | 更新顶层 PG 元数据（`display_name` / `namespace`（组织分组）/ `description` / `labels` / `annotations`） | update 行 | **不影响 CR** | 不 `+generation`；扩展位见 [database.md §1.6](../database.md#16-扩展元数据-labels--annotations) |
 | 软删 | `deleted_at = now()` + `generation += 1` | reconciler 删 CR | 行保留到 retention |
-| 恢复 | `deleted_at = NULL` + `generation += 1` | reconciler 重建 CR | 仅适用 `status.phase=Deleted` 行 |
+| 恢复 | `deleted_at = NULL` + `generation += 1` | reconciler 重建 CR | 仅适用 `phase='Deleted'` 行 |
 
 `Failed` 是非终态，operator 自愈后自然回到 `Active`。
 
@@ -141,7 +141,7 @@ watch Tenant CR：
 | 事件 | 写回 PG | 不动 |
 | --- | --- | --- |
 | ADD / UPDATE | `status` 整块（含 `phase` / `conditions` / `quotas[].used`） | `spec` 列、`generation` |
-| DELETE | `status.phase = Deleted` | 其他字段保留供历史查询 |
+| DELETE | `phase = 'Deleted'` | 其他字段保留供历史查询 |
 
 ### 5.3 外部漂移修正
 

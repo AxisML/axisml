@@ -980,11 +980,11 @@ paths:
           required: false
           schema:
             type: string
-        - name: status
+        - name: phase
           in: query
           required: false
           schema:
-            $ref: '#/components/schemas/WorkspaceStatus'
+            $ref: '#/components/schemas/WorkspacePhase'
         - name: q
           in: query
           description: Keyword (matches `displayName` / `image`).
@@ -1290,11 +1290,11 @@ paths:
           required: false
           schema:
             type: string
-        - name: status
+        - name: phase
           in: query
           required: false
           schema:
-            $ref: '#/components/schemas/JobStatus'
+            $ref: '#/components/schemas/JobPhase'
         - name: owner
           in: query
           required: false
@@ -1378,11 +1378,11 @@ paths:
         Requires `user@self`+ on `{tenant}`. `user` callers are restricted to
         their own jobs (server-side `owner` filter).
       parameters:
-        - name: status
+        - name: phase
           in: query
           required: false
           schema:
-            $ref: '#/components/schemas/JobStatus'
+            $ref: '#/components/schemas/JobPhase'
         - name: owner
           in: query
           description: Admin-only filter.
@@ -1684,11 +1684,11 @@ paths:
           required: false
           schema:
             type: string
-        - name: status
+        - name: phase
           in: query
           required: false
           schema:
-            $ref: '#/components/schemas/ServiceStatus'
+            $ref: '#/components/schemas/ServicePhase'
         - name: q
           in: query
           required: false
@@ -3420,7 +3420,7 @@ components:
         - namespace
         - displayName
         - spec
-        - status
+        - phase
         - generation
         - createdAt
         - updatedAt
@@ -3455,6 +3455,8 @@ components:
           type: integer
           format: int64
           minimum: 0
+        phase:
+          $ref: '#/components/schemas/TenantPhase'
         status:
           $ref: '#/components/schemas/TenantStatus'
         computeNamespace:
@@ -3499,10 +3501,8 @@ components:
 
     TenantStatus:
       type: object
-      required: [phase]
+      description: Status sub-object excluding `phase` (which lives at the top level of `Tenant`).
       properties:
-        phase:
-          $ref: '#/components/schemas/TenantPhase'
         message:
           type: string
         conditions:
@@ -3661,9 +3661,9 @@ components:
     # Workspaces
     # ------------------------------------------------------------------
 
-    WorkspaceStatus:
+    WorkspacePhase:
       type: string
-      description: Derived from compute service status + replicas.
+      description: Derived from compute service phase + replicas. Hoisted to the top of `Workspace` for B-tree filtering.
       enum:
         - Creating
         - Starting
@@ -3806,8 +3806,8 @@ components:
           minimum: 0
         desiredState:
           $ref: '#/components/schemas/WorkspaceDesiredState'
-        status:
-          $ref: '#/components/schemas/WorkspaceStatus'
+        phase:
+          $ref: '#/components/schemas/WorkspacePhase'
         message:
           type: string
         endpoint:
@@ -3933,7 +3933,7 @@ components:
     # Jobs
     # ------------------------------------------------------------------
 
-    JobStatus:
+    JobPhase:
       type: string
       enum:
         - Creating
@@ -4097,8 +4097,8 @@ components:
             $ref: '#/components/schemas/JobRoleStatus'
         runPolicy:
           $ref: '#/components/schemas/RunPolicy'
-        status:
-          $ref: '#/components/schemas/JobStatus'
+        phase:
+          $ref: '#/components/schemas/JobPhase'
         message:
           type: string
         startedAt:
@@ -4189,7 +4189,7 @@ components:
     # Services
     # ------------------------------------------------------------------
 
-    ServiceStatus:
+    ServicePhase:
       type: string
       enum:
         - Creating
@@ -4350,8 +4350,8 @@ components:
           $ref: '#/components/schemas/ServiceRoute'
         accessUrl:
           type: string
-        status:
-          $ref: '#/components/schemas/ServiceStatus'
+        phase:
+          $ref: '#/components/schemas/ServicePhase'
         message:
           type: string
         createdAt:
