@@ -1,0 +1,1249 @@
+openapi: 3.0.3
+info:
+  title: AxisML Cluster Manager API
+  version: v1
+  description: |
+    Admin-tier service managing the Tenant CR + Quota lifecycle.
+
+    The Cluster Manager is the authoritative writer for the PostgreSQL `tenants`
+    table. Tenant CRs are derived artifacts produced by a reconciler that
+    syncs PG desired state to Kubernetes via a double-hash (desired/applied)
+    mechanism. Status fields (`phase`, `namespaceReady`, `conditions`,
+    `quotas[].used`) are streamed back from the Tenant CR by an informer.
+
+    All `/api/v1/*` operations require the `X-Axisml-User` header injected by
+    the AxisML Platform. The service is reachable only on the cluster-internal
+    ClusterIP (port 8082) — there is no external ingress.
+
+    Errors follow RFC 7807 `application/problem+json`.
+servers:
+  - url: http://axisml-cluster-manager.axisml-system.svc.cluster.local:8082
+    description: In-cluster Service DNS
+
+tags:
+  - name: Tenants
+    description: Tenant lifecycle (create / read / update / suspend / soft-delete / restore).
+  - name: Quotas
+    description: Quota CRUD as a sub-resource of a Tenant; backed by the `tenants.quotas` jsonb column.
+  - name: Health
+    description: Liveness and readiness probes.
+
+paths:
+  /healthz:
+    get:
+      tags: [Health]
+      operationId: getHealthz
+      summary: Liveness probe
+      description: Returns 200 if the process is alive. No authentication required.
+      responses:
+        '200':
+          description: Process is alive
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /readyz:
+    get:
+      tags: [Health]
+      operationId: getReadyz
+      summary: Readiness probe
+      description: |
+        Returns 200 only when PostgreSQL connectivity and the Kubernetes API
+        are both reachable. Used by the Kubernetes readiness probe.
+      responses:
+        '200':
+          description: Service is ready to accept traffic
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+        '503':
+          description: One or more dependencies are unavailable
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /api/v1/tenants:
+    post:
+      tags: [Tenants]
+      operationId: createTenant
+      summary: Create a tenant
+      description: |
+        Inserts a new row into `tenants` with `generation = 1` and returns
+        the current PG view immediately. The Tenant CR is rendered and
+        applied asynchronously by the reconciler; clients should poll
+        `GET /api/v1/tenants/{name}` and observe `status.phase` /
+        `status.conditions[type=NamespaceReady]` to confirm convergence.
+
+        A partial unique index on `(name) WHERE deleted_at IS NULL`
+        guarantees that an active tenant with the same name yields 409.
+        Soft-deleted rows with the same name are not a conflict.
+      parameters:
+        - $ref: '#/components/parameters/AxismlUserHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TenantCreateRequest'
+      responses:
+        '201':
+          description: Tenant created; reconciler will render the CR asynchronously.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    get:
+      tags: [Tenants]
+      operationId: listTenants
+      summary: List tenants
+      description: |
+        Pure PG query. Returns a page of tenants matching the supplied
+        filters. Pagination uses an opaque continue token issued by the
+        Cluster Manager.
+      parameters:
+        - $ref: '#/components/parameters/AxismlUserHeader'
+        - name: q
+          in: query
+          description: Keyword fuzzy match against `name` and `display_name`.
+          required: false
+          schema:
+            type: string
+        - name: namespace
+          in: query
+          description: |
+            Exact-match organizational grouping filter (top-level
+            `tenants.namespace` column). Note this is **not** the K8s
+            namespace; that lives at `spec.namespace.name`.
+          required: false
+          schema:
+            type: string
+        - name: phase
+          in: query
+          description: Filter by current `status.phase`.
+          required: false
+          schema:
+            $ref: '#/components/schemas/Phase'
+        - name: limit
+          in: query
+          description: Page size (default 50, max 200).
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: continue
+          in: query
+          description: Opaque continue token from a previous response.
+          required: false
+          schema:
+            type: string
+        - name: includeArchived
+          in: query
+          description: When true, include rows with `deleted_at IS NOT NULL`.
+          required: false
+          schema:
+            type: boolean
+            default: false
+        - name: sortBy
+          in: query
+          description: |
+            Sort key. Supports `created_at` and `updated_at`. Defaults to
+            `created_at desc`.
+          required: false
+          schema:
+            type: string
+            enum: [created_at, updated_at]
+            default: created_at
+      responses:
+        '200':
+          description: A page of tenants.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/tenants/{name}:
+    parameters:
+      - $ref: '#/components/parameters/AxismlUserHeader'
+      - $ref: '#/components/parameters/TenantName'
+
+    get:
+      tags: [Tenants]
+      operationId: getTenant
+      summary: Get a tenant by name
+      description: |
+        Looks up by `name` with `deleted_at IS NULL`. When `?includeArchived=true`
+        is set, the lookup also returns soft-deleted rows; if both an active
+        and a soft-deleted row exist with the same name the active row is
+        returned (the partial unique index guarantees uniqueness amongst
+        active rows).
+      parameters:
+        - name: includeArchived
+          in: query
+          description: When true, also match rows with `deleted_at IS NOT NULL`.
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Tenant view.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    patch:
+      tags: [Tenants]
+      operationId: patchTenant
+      summary: Patch a tenant (RFC 7396 JSON Merge Patch)
+      description: |
+        Applies an RFC 7396 JSON Merge Patch. Only mutable fields are
+        accepted: top-level `namespace` (organizational grouping),
+        `displayName`, `description`, `labels`, `annotations`, and the
+        patchable subset of `spec.*` (`spec.namespace.labels`,
+        `spec.namespace.annotations`, `spec.initResources`,
+        `spec.suspended`, individual `spec.quotas[]` entries).
+
+        Immutable fields (`name`, `owner`, `spec.namespace.name`,
+        `spec.quotas[].pool`, `spec.quotas[].name`) are rejected at the
+        request layer (400) and never reach PG.
+
+        Mutations that touch `spec.*` bump `generation` and enqueue a CR
+        sync; mutations to top-level metadata do not.
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: '#/components/schemas/TenantPatchRequest'
+      responses:
+        '200':
+          description: Tenant updated. CR sync is asynchronous.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags: [Tenants]
+      operationId: deleteTenant
+      summary: Soft-delete a tenant
+      description: |
+        Sets `deleted_at = now()` and bumps `generation`. The reconciler
+        will subsequently delete the Tenant CR; the informer sets
+        `status.phase = Deleted` after observing the DELETE event.
+
+        Idempotent: deleting an already-deleted tenant returns 200 without
+        further effect (the `deleted_at IS NULL` predicate filters the
+        UPDATE out).
+      responses:
+        '200':
+          description: Soft-delete accepted (or already soft-deleted).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/tenants/{name}/suspend:
+    parameters:
+      - $ref: '#/components/parameters/AxismlUserHeader'
+      - $ref: '#/components/parameters/TenantName'
+    post:
+      tags: [Tenants]
+      operationId: suspendTenant
+      summary: Suspend a tenant
+      description: |
+        Sets `spec.suspended = true` and bumps `generation`. The reconciler
+        asynchronously patches the Tenant CR's `spec.suspended`.
+      responses:
+        '200':
+          description: Suspend accepted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/tenants/{name}/unsuspend:
+    parameters:
+      - $ref: '#/components/parameters/AxismlUserHeader'
+      - $ref: '#/components/parameters/TenantName'
+    post:
+      tags: [Tenants]
+      operationId: unsuspendTenant
+      summary: Unsuspend a tenant
+      description: |
+        Sets `spec.suspended = false` and bumps `generation`. The reconciler
+        asynchronously patches the Tenant CR's `spec.suspended`.
+      responses:
+        '200':
+          description: Unsuspend accepted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/tenants/{name}/restore:
+    parameters:
+      - $ref: '#/components/parameters/AxismlUserHeader'
+      - $ref: '#/components/parameters/TenantName'
+    post:
+      tags: [Tenants]
+      operationId: restoreTenant
+      summary: Restore a soft-deleted tenant
+      description: |
+        Clears `deleted_at`, resets `status.phase = 'Creating'`, and bumps
+        `generation`. The reconciler will recreate the Tenant CR on the
+        next tick.
+
+        Precondition: no active tenant (i.e. `deleted_at IS NULL`) with
+        the same name may exist; otherwise 409 is returned. This is
+        enforced by the `tenants_name_active_uniq` partial unique index.
+      responses:
+        '200':
+          description: Restore accepted; tenant has returned to the Creating phase.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/tenants/{name}/quotas:
+    parameters:
+      - $ref: '#/components/parameters/AxismlUserHeader'
+      - $ref: '#/components/parameters/TenantName'
+
+    get:
+      tags: [Quotas]
+      operationId: listTenantQuotas
+      summary: List quotas attached to a tenant
+      description: |
+        Returns the union of `tenants.quotas` (spec) and
+        `tenants.quota_status` (informer-fed `ready` / `used` / `message`).
+      responses:
+        '200':
+          description: Quotas spec + observed status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuotaList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags: [Quotas]
+      operationId: createTenantQuota
+      summary: Append a quota to a tenant
+      description: |
+        Appends `{pool, name, min, max}` into the `tenants.quotas` jsonb
+        array. Returns 409 if `(pool, name)` already exists on the tenant.
+
+        `(pool, name)` is immutable thereafter — to change the identity
+        of a quota, delete and re-create.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuotaCreateRequest'
+      responses:
+        '201':
+          description: Quota appended.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Quota'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/tenants/{name}/quotas/{pool}/{quotaName}:
+    parameters:
+      - $ref: '#/components/parameters/AxismlUserHeader'
+      - $ref: '#/components/parameters/TenantName'
+      - $ref: '#/components/parameters/QuotaPool'
+      - $ref: '#/components/parameters/QuotaName'
+
+    patch:
+      tags: [Quotas]
+      operationId: patchTenantQuota
+      summary: Update a quota's min/max
+      description: |
+        RFC 7396 JSON Merge Patch over the `{min, max}` fields of a single
+        quota item. `(pool, name)` are immutable and cannot be patched.
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: '#/components/schemas/QuotaPatchRequest'
+      responses:
+        '200':
+          description: Quota updated; reconciler will sync the underlying ElasticQuota.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Quota'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags: [Quotas]
+      operationId: deleteTenantQuota
+      summary: Remove a quota
+      description: |
+        Removes the quota item identified by `(pool, quotaName)` from the
+        tenant's `quotas` jsonb array. The reconciler will subsequently
+        issue an explicit `Delete()` of the corresponding ElasticQuota CR
+        via the tenant-operator.
+      responses:
+        '204':
+          description: Quota removed.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  parameters:
+    AxismlUserHeader:
+      name: X-Axisml-User
+      in: header
+      required: true
+      description: |
+        Identity of the calling end-user, injected by the AxisML Platform
+        after authenticating the upstream request. Persisted in
+        `tenants.last_modified_by` and emitted on K8s Events. The Cluster
+        Manager does NOT perform role-level authorization — that is the
+        Platform's responsibility.
+      schema:
+        type: string
+        minLength: 1
+
+    TenantName:
+      name: name
+      in: path
+      required: true
+      description: |
+        Tenant name. Immutable after creation. DNS-1123 simplified subset.
+      schema:
+        type: string
+        pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+        minLength: 3
+        maxLength: 40
+
+    QuotaPool:
+      name: pool
+      in: path
+      required: true
+      description: ResourcePool name; part of the immutable quota identity.
+      schema:
+        type: string
+        pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+        minLength: 1
+        maxLength: 63
+
+    QuotaName:
+      name: quotaName
+      in: path
+      required: true
+      description: Quota name; part of the immutable quota identity.
+      schema:
+        type: string
+        pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+        minLength: 1
+        maxLength: 63
+
+  responses:
+    BadRequest:
+      description: Malformed request — bad JSON, schema violation, or attempt to set an immutable field.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+
+    Unauthorized:
+      description: Missing or invalid `X-Axisml-User` header.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+
+    Forbidden:
+      description: The caller is not permitted to perform this operation.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+
+    NotFound:
+      description: The requested resource was not found.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+
+    Conflict:
+      description: The request conflicts with the current state (e.g. duplicate name, restore precondition failure).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+
+    UnprocessableEntity:
+      description: The request is syntactically valid but semantically rejected (e.g. invalid quota values).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+
+    InternalServerError:
+      description: Internal server error.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+
+  schemas:
+    HealthStatus:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded]
+        details:
+          type: object
+          additionalProperties:
+            type: string
+
+    Problem:
+      type: object
+      description: RFC 7807 problem details object.
+      properties:
+        type:
+          type: string
+          format: uri
+          description: A URI reference identifying the problem type.
+          example: about:blank
+        title:
+          type: string
+          description: Short, human-readable summary of the problem type.
+          example: Conflict
+        status:
+          type: integer
+          description: HTTP status code generated for this occurrence.
+          example: 409
+        detail:
+          type: string
+          description: Human-readable explanation specific to this occurrence.
+          example: A tenant with name "team-a" already exists.
+        instance:
+          type: string
+          format: uri
+          description: URI reference identifying the specific occurrence.
+
+    Quantity:
+      type: string
+      description: |
+        A Kubernetes resource quantity string — see
+        https://pkg.go.dev/k8s.io/apimachinery/pkg/api/resource#Quantity.
+        Examples: `100`, `100m`, `200Gi`, `1.5`, `8Ki`.
+      pattern: '^([+-]?[0-9.]+)([eEinumkKMGTP]*[-+]?[0-9]*)$'
+      example: 200Gi
+
+    ResourceMap:
+      type: object
+      description: 'Map of resource name to Kubernetes quantity (e.g. `{"cpu": "8", "memory": "64Gi", "nvidia.com/gpu": "1"}`).'
+      additionalProperties:
+        $ref: '#/components/schemas/Quantity'
+
+    StringMap:
+      type: object
+      description: Free-form string-to-string map (used for labels / annotations).
+      additionalProperties:
+        type: string
+
+    Phase:
+      type: string
+      description: |
+        Lifecycle phase derived from the Tenant CR `status.phase` and the
+        PG-side soft-delete state.
+      enum:
+        - Creating
+        - Active
+        - Suspended
+        - Failed
+        - Deleting
+        - Deleted
+
+    Condition:
+      type: object
+      description: Kubernetes-style condition (mirrors `Tenant.status.conditions[]`).
+      required: [type, status, lastTransitionTime]
+      properties:
+        type:
+          type: string
+          description: |
+            Condition type — e.g. `NamespaceReady`, `QuotasReady`,
+            `InitResourcesReady`, `Suspended`, `Failed`.
+          example: NamespaceReady
+        status:
+          type: string
+          enum: ['True', 'False', 'Unknown']
+        lastTransitionTime:
+          type: string
+          format: date-time
+        reason:
+          type: string
+        message:
+          type: string
+
+    Namespace:
+      type: object
+      description: |
+        Namespace reference. `name` is immutable after creation; `labels`
+        and `annotations` are only honoured the first time the underlying
+        Kubernetes Namespace is created (existing namespaces are not
+        overwritten by the tenant-operator).
+      required: [name]
+      properties:
+        name:
+          type: string
+          description: Target Kubernetes Namespace name. Immutable after creation. DNS-1123.
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          minLength: 1
+          maxLength: 63
+        labels:
+          $ref: '#/components/schemas/StringMap'
+        annotations:
+          $ref: '#/components/schemas/StringMap'
+
+    Quota:
+      type: object
+      description: |
+        One quota entry — the desired spec portion. Each `(pool, name)`
+        renders 1:1 to a Koordinator ElasticQuota CR. `pool` and `name`
+        are immutable for the lifetime of the entry.
+      required: [pool, name, max]
+      properties:
+        pool:
+          type: string
+          description: ResourcePool name. Immutable.
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          minLength: 1
+          maxLength: 63
+        name:
+          type: string
+          description: Quota name; unique within the tenant when paired with `pool`. Immutable.
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          minLength: 1
+          maxLength: 63
+        min:
+          allOf:
+            - $ref: '#/components/schemas/ResourceMap'
+          description: Optional minimum guaranteed resources. Defaults to `{}`. Each value must satisfy `min[k] <= max[k]`.
+        max:
+          allOf:
+            - $ref: '#/components/schemas/ResourceMap'
+          description: Required maximum resource ceiling. All values must be non-negative.
+
+    QuotaStatus:
+      type: object
+      description: Observed status of one quota, populated by the informer from the ElasticQuota CR.
+      required: [pool, name, ready]
+      properties:
+        pool:
+          type: string
+        name:
+          type: string
+        ready:
+          type: boolean
+          description: True when the underlying ElasticQuota CR is reconciled.
+        used:
+          allOf:
+            - $ref: '#/components/schemas/ResourceMap'
+          description: Currently-used resources reported by Koordinator.
+        message:
+          type: string
+
+    QuotaList:
+      type: object
+      description: |
+        Combined view of a tenant's quota spec and observed quota status.
+        Returned by `GET /api/v1/tenants/{name}/quotas`.
+      required: [spec, status]
+      properties:
+        spec:
+          type: array
+          description: Quota spec — mirrors `tenants.quotas`.
+          items:
+            $ref: '#/components/schemas/Quota'
+        status:
+          type: array
+          description: Per-quota observed status — mirrors `tenants.quota_status`.
+          items:
+            $ref: '#/components/schemas/QuotaStatus'
+
+    QuotaCreateRequest:
+      type: object
+      required: [pool, name, max]
+      properties:
+        pool:
+          type: string
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          minLength: 1
+          maxLength: 63
+        name:
+          type: string
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          minLength: 1
+          maxLength: 63
+        min:
+          $ref: '#/components/schemas/ResourceMap'
+        max:
+          $ref: '#/components/schemas/ResourceMap'
+
+    QuotaPatchRequest:
+      type: object
+      description: RFC 7396 JSON Merge Patch — only `min` / `max` are mutable.
+      properties:
+        min:
+          $ref: '#/components/schemas/ResourceMap'
+        max:
+          $ref: '#/components/schemas/ResourceMap'
+
+    SecretSourceRef:
+      type: object
+      description: Reference to a Secret in a controlled source Namespace whose data will be copied into the tenant Namespace.
+      required: [namespace, name]
+      properties:
+        namespace:
+          type: string
+          description: Source Namespace (typically `axisml-system`).
+        name:
+          type: string
+          description: Source Secret name.
+
+    ConfigMapSourceRef:
+      type: object
+      description: Reference to a ConfigMap in a controlled source Namespace whose data will be copied into the tenant Namespace.
+      required: [namespace, name]
+      properties:
+        namespace:
+          type: string
+        name:
+          type: string
+
+    ImagePullSecretInit:
+      type: object
+      description: |
+        User-visible image-pull Secret declaration. The final Kubernetes
+        Secret name is `axisml-tenant-<tenant>-<name>` and its data is
+        copied from `sourceSecretRef`.
+      required: [name, sourceSecretRef]
+      properties:
+        name:
+          type: string
+          description: User-visible name; final Secret name = `axisml-tenant-<tenant>-<name>`.
+          minLength: 1
+          maxLength: 198
+        sourceSecretRef:
+          $ref: '#/components/schemas/SecretSourceRef'
+
+    SecretInit:
+      type: object
+      description: |
+        Generic per-tenant Secret declaration. Defaults to `Opaque` type.
+      required: [name, sourceSecretRef]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 198
+        type:
+          type: string
+          description: Kubernetes Secret type. Defaults to `Opaque`.
+          default: Opaque
+          example: Opaque
+        sourceSecretRef:
+          $ref: '#/components/schemas/SecretSourceRef'
+
+    ConfigMapInit:
+      type: object
+      required: [name, sourceConfigMapRef]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 198
+        sourceConfigMapRef:
+          $ref: '#/components/schemas/ConfigMapSourceRef'
+
+    RBACRoleRef:
+      type: object
+      description: |
+        Optional reference to an existing Role or ClusterRole. When set the
+        tenant-operator skips creating a new Role and just binds the SA to
+        the referenced role.
+      required: [kind, name]
+      properties:
+        kind:
+          type: string
+          enum: [Role, ClusterRole]
+        name:
+          type: string
+
+    RBACInit:
+      type: object
+      description: Optional RBAC bundle attached to a ServiceAccount.
+      properties:
+        rules:
+          type: array
+          description: |
+            PolicyRules to grant. When non-empty and `roleRef.kind` is not
+            `ClusterRole`, the tenant-operator creates a per-tenant Role
+            carrying these rules.
+          items:
+            type: object
+            additionalProperties: true
+            description: |
+              Mirrors a Kubernetes `rbacv1.PolicyRule`
+              (`apiGroups`, `resources`, `verbs`, `resourceNames`,
+              `nonResourceURLs`). The exact shape is defined by the
+              upstream Kubernetes API.
+        roleRef:
+          $ref: '#/components/schemas/RBACRoleRef'
+
+    ServiceAccountInit:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 198
+        imagePullSecrets:
+          type: array
+          description: |
+            References to entries in `initResources.imagePullSecrets[].name`.
+            The tenant-operator validates that each entry resolves to a
+            declared image-pull Secret.
+          items:
+            type: string
+        rbac:
+          $ref: '#/components/schemas/RBACInit'
+
+    InitResources:
+      type: object
+      description: |
+        Tenant-scoped initialization resources. Each entry is materialised
+        in the target Namespace with the `axisml-tenant-<tenant>-<name>`
+        prefix and an `ownerReference` back to the Tenant CR.
+      properties:
+        imagePullSecrets:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImagePullSecretInit'
+          default: []
+        secrets:
+          type: array
+          items:
+            $ref: '#/components/schemas/SecretInit'
+          default: []
+        configMaps:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConfigMapInit'
+          default: []
+        serviceAccounts:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServiceAccountInit'
+          default: []
+
+    InitResourceStatusItem:
+      type: object
+      required: [name, ready]
+      properties:
+        name:
+          type: string
+        ready:
+          type: boolean
+        message:
+          type: string
+
+    InitResourcesStatus:
+      type: object
+      description: Per-init-resource observed status, populated by the informer from the Tenant CR.
+      properties:
+        imagePullSecrets:
+          type: array
+          items:
+            $ref: '#/components/schemas/InitResourceStatusItem'
+        secrets:
+          type: array
+          items:
+            $ref: '#/components/schemas/InitResourceStatusItem'
+        configMaps:
+          type: array
+          items:
+            $ref: '#/components/schemas/InitResourceStatusItem'
+        serviceAccounts:
+          type: array
+          items:
+            $ref: '#/components/schemas/InitResourceStatusItem'
+
+    Tenant:
+      type: object
+      description: |
+        Full Tenant DTO. Mirrors a row of the PG `tenants` table merged
+        with informer-fed Tenant CR status. See `database.md §2.1` for
+        the authoritative field-by-field schema.
+
+        NOTE: the top-level `namespace` field is an organizational
+        grouping (e.g. `ai-team`), distinct from `spec.namespace.name`
+        which is the K8s namespace the tenant maps to. The two share a
+        name but live at different paths.
+      required:
+        - id
+        - name
+        - namespace
+        - displayName
+        - spec
+        - phase
+        - generation
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: |
+            Server-generated UUID. Also written to the Tenant CR's
+            `metadata.labels["axisml.io/tenant-id"]` as a stable anchor.
+        name:
+          type: string
+          description: Tenant name. Immutable after creation. DNS-1123 simplified.
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          minLength: 3
+          maxLength: 40
+        namespace:
+          type: string
+          description: |
+            Organizational grouping (e.g. `ai-team`). Used by Platform to
+            slice tenants across business units. Mutable. **Distinct from
+            `spec.namespace.name`** (K8s namespace).
+          maxLength: 100
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 1000
+          default: ''
+        owner:
+          type: string
+          description: Creator (from `X-Axisml-User`); immutable.
+        labels:
+          allOf:
+            - $ref: '#/components/schemas/StringMap'
+          description: PG-only extension labels; not pushed to the CR. See `database.md §1.6`.
+        annotations:
+          allOf:
+            - $ref: '#/components/schemas/StringMap'
+          description: PG-only extension annotations; not pushed to the CR. See `database.md §1.6`.
+        spec:
+          $ref: '#/components/schemas/TenantSpec'
+        generation:
+          type: integer
+          format: int64
+          description: |
+            Incremented on every `spec` mutation. Aligned with K8s
+            `metadata.generation`. See `database.md §1.4`.
+          minimum: 1
+        observedGeneration:
+          type: integer
+          format: int64
+          description: |
+            Latest `generation` the reconciler has successfully synced to
+            the CR. `generation == observedGeneration` ⇒ in sync.
+          minimum: 0
+        phase:
+          $ref: '#/components/schemas/Phase'
+          description: Top-level phase mirrored from Tenant CR `status.phase`; B-tree indexed for list filtering.
+        status:
+          $ref: '#/components/schemas/TenantStatus'
+        lastModifiedBy:
+          type: string
+          description: Value of `X-Axisml-User` on the most recent mutation.
+          default: ''
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Set when the tenant has been soft-deleted; present only on archived rows.
+
+    TenantSpec:
+      type: object
+      description: |
+        Business spec block (1:1 with Tenant CR `spec`). Mutation to any
+        field here triggers `generation += 1` and a reconciler sync to the CR.
+      required: [namespace]
+      properties:
+        namespace:
+          $ref: '#/components/schemas/Namespace'
+          description: K8s namespace metadata. `name` is immutable; `labels` / `annotations` are mutable.
+        quotas:
+          type: array
+          description: Quota spec (desired). Each `(pool, name)` is immutable.
+          items:
+            $ref: '#/components/schemas/Quota'
+          default: []
+        initResources:
+          $ref: '#/components/schemas/InitResources'
+        suspended:
+          type: boolean
+          default: false
+
+    TenantStatus:
+      type: object
+      description: |
+        Status sub-object excluding `phase` (which lives at the top level
+        of `Tenant`). Mirrors Tenant CR `status` minus `phase`. Written
+        exclusively by the informer.
+      properties:
+        message:
+          type: string
+          description: Free-form human-readable fallback message.
+          default: ''
+        conditions:
+          type: array
+          description: K8s-style condition list. `type` ∈ {NamespaceReady, QuotasReady, InitResourcesReady, ...}.
+          items:
+            $ref: '#/components/schemas/Condition'
+          default: []
+        quotas:
+          type: array
+          description: Per-quota observed state (ready flag + used resources).
+          items:
+            $ref: '#/components/schemas/QuotaStatus'
+          default: []
+        initResources:
+          $ref: '#/components/schemas/InitResourcesStatus'
+
+    TenantCreateRequest:
+      type: object
+      required: [name, namespace, displayName, spec]
+      properties:
+        name:
+          type: string
+          description: Tenant name. Immutable. DNS-1123 simplified.
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          minLength: 3
+          maxLength: 40
+        namespace:
+          type: string
+          description: Organizational grouping (`ai-team`, `search-team`, ...). Mutable post-create.
+          maxLength: 100
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 1000
+        labels:
+          $ref: '#/components/schemas/StringMap'
+        annotations:
+          $ref: '#/components/schemas/StringMap'
+        spec:
+          $ref: '#/components/schemas/TenantSpec'
+
+    TenantPatchRequest:
+      type: object
+      description: |
+        RFC 7396 JSON Merge Patch body. Only mutable fields are accepted:
+        `namespace` (organizational grouping), `displayName`, `description`,
+        `labels`, `annotations`, `spec.namespace.labels`,
+        `spec.namespace.annotations`, `spec.initResources`, `spec.suspended`,
+        and individual `spec.quotas[]` entries (add / remove / update min/max).
+        Immutable fields (`name`, `owner`, `spec.namespace.name`,
+        `spec.quotas[].pool`, `spec.quotas[].name`) are rejected at the
+        request layer.
+
+        Mutations to `spec.*` bump `generation`; mutations to top-level
+        metadata (`namespace`, `displayName`, `description`, `labels`,
+        `annotations`) do not.
+      properties:
+        namespace:
+          type: string
+          maxLength: 100
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 1000
+        labels:
+          $ref: '#/components/schemas/StringMap'
+        annotations:
+          $ref: '#/components/schemas/StringMap'
+        spec:
+          type: object
+          description: Patchable subset of `TenantSpec`. `spec.namespace.name` and `spec.quotas[].{pool,name}` are immutable.
+          properties:
+            namespace:
+              type: object
+              properties:
+                labels:
+                  $ref: '#/components/schemas/StringMap'
+                annotations:
+                  $ref: '#/components/schemas/StringMap'
+            quotas:
+              type: array
+              items:
+                $ref: '#/components/schemas/Quota'
+            initResources:
+              $ref: '#/components/schemas/InitResources'
+            suspended:
+              type: boolean
+
+    TenantList:
+      type: object
+      required: [items, count]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Tenant'
+        continueToken:
+          type: string
+          description: Opaque token to pass back as the `continue` query parameter to fetch the next page.
+        count:
+          type: integer
+          description: Number of items in the current page (not the total across all pages).
+          minimum: 0

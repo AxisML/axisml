@@ -21,6 +21,17 @@ AxisML is a Kubernetes-native ML platform. The repo is a monorepo split into:
 
 The system design lives ahead of the code. When code and `docs/system_design/` disagree, the design doc is usually the intended target — confirm before "fixing" code to match incomplete scaffolding.
 
+## Design doc style
+
+Design docs capture the **final intended state only**, not the reasoning journey:
+
+- No "before / after" comparisons, deprecated approaches, alternatives considered, or change rationale inside the doc body.
+- No phrases like "previously X, now Y", "we used to ...", "this replaces ...", or migration narratives — when something changes, rewrite the affected section in-place to describe the new state directly.
+- Discussion artifacts (why this approach beat the others, what was rejected, ADR-style trade-off analysis) belong in PR descriptions, commit messages, or a dedicated ADR file — never in `docs/system_design/`.
+- `## 9. 后续工作` / "future work" sections may list **forward-looking** TODOs, but should not narrate the doc's editing history.
+
+A reader opening the doc cold should not be able to tell which parts were rewritten in which round.
+
 ## Multi-module Go workspace
 
 Each component is its own Go module, and each has a sibling `test/integration/` Go submodule that holds its integration tests:

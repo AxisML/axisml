@@ -4,8 +4,8 @@ AxisML Artifacts is the artifact management service: it owns metadata, reference
 
 > **Status: MVP.** The model Kind end-to-end happy path is implemented:
 > create repo → initiate (POST /artifacts) → cli `oras push` → complete →
-> resolve → DELETE → GC. Other Kinds (`dataset`, `image`, `eval_report`),
-> `auth_hint`, public space, and full GC predicates are tracked under
+> resolve → DELETE → GC. Other Kinds (`dataset`, `image`), `auth_hint`,
+> public space, and full GC predicates are tracked under
 > `docs/system_design/artifacts.md` §8.3.
 
 ## Responsibilities
@@ -13,7 +13,6 @@ AxisML Artifacts is the artifact management service: it owns metadata, reference
 - **Models** — version, metadata, immutable references, and storage URIs (MVP).
 - **Images** — register, version, and resolve container images (Phase 2).
 - **Datasets** — metadata, storage location, and access credentials (Phase 2).
-- **Eval reports** — evaluation artifact metadata (Phase 2).
 
 Artifacts uses a metadata-service / storage-backend split:
 
@@ -22,7 +21,6 @@ Artifacts uses a metadata-service / storage-backend split:
 | Model        | PostgreSQL  | zot (OCI)            | MVP   |
 | Image        | PostgreSQL  | zot (OCI)            | 2     |
 | Dataset      | PostgreSQL  | RustFS (S3)          | 2     |
-| Eval report  | PostgreSQL  | RustFS (S3)          | 2     |
 
 Uploads and downloads go directly between the cli/consumer and the storage backend via signed credentials — Artifacts does not proxy bulk file bytes.
 
