@@ -8,7 +8,7 @@
 | --- | --- |
 | Artifact CRUD、两阶段写（initiate / complete）、resolve | 制品 bytes 的存取（→ zot / RustFS 直连） |
 | 上传 / 下载凭证签发（OCI scope token / S3 prefix-scoped STS） | 用户认证与角色鉴权（→ [auth.md](../auth.md)） |
-| Kind 按 Handler 注册表分发（model / dataset / image） | namespace 存在性与权限校验（→ [platform.md](platform.md)） |
+| Kind 按 Handler 注册表分发（model / dataset / image） | tenant 存在性与权限校验（namespace 字段由 [compute.md](compute.md) 兜底 tenant 语义） |
 | GC：Uploading TTL、Failed 留存、Deleting 推进 | 反向孤儿主动清理（仅告警）；跨 namespace 级联删除 |
 | 跨制品引用懒校验 | tenant Secret 落地（→ [tenant-operator.md](tenant-operator.md)） |
 
@@ -62,7 +62,7 @@
 | Artifact | 版本化制品 | `(namespace, kind, name, version)` | 四元组创建后不复用；spec / digest 进入 `Ready` 后冻结 |
 
 - `kind` 枚举：`model` / `dataset` / `image`，由 Handler registry 校验。
-- `namespace` 是裸字符串分区键，由 Platform 保证语义；Artifacts 不做存在性校验。
+- `namespace` 是 tenant 标识符（= compute `tenants.name`），由 Platform 透传；Artifacts 不解析、不做存在性校验，仅作为不透明分区键使用。
 - 状态机集合：`Uploading` / `Ready` / `Failed` / `Deleting` / `Deleted`（详见 [§6](#6-接口契约)）。
 - 跨制品引用格式：`<namespace>/<kind>/<name>@<version>`，由 `Handler.ValidateSpec` 在 initiate 阶段懒校验。
 - 扩展元数据 `labels` / `annotations` 双字段语义对齐 [database.md §1.6](../database.md#16-扩展元数据-labels--annotations)；artifacts 无 CR，扩展位天然只落 PG。
@@ -173,6 +173,7 @@ GC worker（leader-only，每 5 分钟一轮）扫描 PG 三类谓词：
 | 对外 REST | `/api/v1/namespaces/{ns}/{kindPlural}/{name}[/{version}[/{complete,resolve}]]`；版本级 `GET` / `PATCH` / `DELETE` 同前缀。`kindPlural` 为 `ArtifactKind` 的 URL 复数形式（`model`↔`models`、`dataset`↔`datasets`、`image`↔`images`） | [apis/artifacts.yaml](../apis/artifacts.yaml) `Artifacts` tag |
 | Handler 接口 | 见下表 | — |
 | 身份头 | 调用方注入 `X-Axisml-User`，本服务仅做审计 | [auth.md §7](../auth.md#7-下游身份透传) |
+| 列表查询 | list 端点支持 `?labelSelector=` K8s grammar，可按 Platform 注入的 `axisml.io/project` 等 label 过滤 | [database.md §1.6](../database.md#16-扩展元数据-labels--annotations) |
 | 错误格式 | HTTP 标准状态码 + RFC 7807 problem+json | — |
 | 写后语义 | initiate 在 PG 提交后返回上传凭证；Ready 由 complete 推进，调用方通过 GET 观察 status；PATCH 是纯 PG mutation，立即可读 | — |
 

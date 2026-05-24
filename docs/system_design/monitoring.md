@@ -69,14 +69,15 @@ label 取值规则：
 | --- | --- | --- |
 | `axisml_compute_is_leader` | gauge | 当前副本是否为 leader（0/1） |
 | `axisml_compute_reconciler_oldest_pending_seconds{resource,predicate}` | gauge | 工作集最老未处理行的 age |
-| `axisml_compute_reconciler_actions_total{resource,predicate,result}` | counter | reconciler 动作计数 |
+| `axisml_compute_reconciler_actions_total{resource,predicate,result}` | counter | reconciler 动作计数（含 tenant CR sync） |
 | `axisml_compute_informer_workqueue_depth{resource}` | gauge | 各模块 Informer work queue 深度 |
 | `axisml_compute_spec_sync_pending_total{resource}` | gauge | 待同步行数（`generation <> observed_generation`） |
+| `axisml_compute_external_drift_total{resource,field}` | counter | 检测到非 compute 字段管理者写入 CR 的次数（Tenant / MLJob / MLService） |
 | `axisml_compute_api_request_duration_seconds{route,status}` | histogram | API 请求延迟分布 |
 
 label 取值：
 
-- `resource ∈ {job, service}`；
+- `resource ∈ {tenant, job, service}`；
 - `predicate ∈ {creating, canceling, deleting, spec_sync}`；
 - `result ∈ {success, conflict, error, skipped}`。
 
@@ -102,11 +103,12 @@ label 取值：
 
 | 指标 | 类型 | 用途 |
 | --- | --- | --- |
-| `axisml_cluster_manager_is_leader` | gauge | 当前副本是否为 leader（0/1） |
 | `axisml_cluster_manager_api_request_duration_seconds{route,status}` | histogram | API 请求延迟 |
-| `axisml_cluster_manager_reconciler_actions_total{predicate,result}` | counter | reconciler 动作计数（外部漂移告警、双 hash 收敛等） |
-| `axisml_cluster_manager_spec_sync_pending_total` | gauge | 待同步 `tenants` 行数 |
-| `axisml_cluster_manager_external_drift_total{field}` | counter | 检测到非 cluster-manager 字段管理者写入 CR 的次数 |
+| `axisml_cluster_manager_api_requests_total{route,status}` | counter | API 请求计数 |
+| `axisml_cluster_manager_resource_pools_total` | gauge | 当前活跃 ResourcePool 数 |
+| `axisml_cluster_manager_resource_units_total` | gauge | 当前活跃 ResourceUnit 数 |
+
+（Cluster Manager 已退化为纯 PG REST 服务——无 leader election、无 reconciler、无 informer，相关指标全部不再适用。Tenant 漂移检测改由 compute 暴露：见 §4.1。）
 
 ### 4.4 tenant-operator
 

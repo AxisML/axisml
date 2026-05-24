@@ -454,8 +454,8 @@ paths:
       operationId: createTenant
       summary: Create a tenant
       description: |
-        Forwards the request to cluster-manager. Requires `system-admin`.
-        Documented at `components/platform.md §7.1`.
+        Forwards the request to compute. Requires `system-admin`.
+        Documented at `components/platform.md §4.1`.
       requestBody:
         required: true
         content:

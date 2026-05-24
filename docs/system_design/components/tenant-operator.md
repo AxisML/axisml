@@ -2,11 +2,11 @@
 
 ## 1. 定位与边界
 
-把 [cluster-manager](cluster-manager.md) 下发的 `Tenant` CR 翻译为 K8s 侧的 Namespace、Koordinator `ElasticQuota`、租户私有的 Secret / ConfigMap / ServiceAccount + RBAC,并把执行状态回流到 `Tenant.status`。
+把 [compute](compute.md) 下发的 `Tenant` CR 翻译为 K8s 侧的 Namespace、Koordinator `ElasticQuota`、租户私有的 Secret / ConfigMap / ServiceAccount + RBAC,并把执行状态回流到 `Tenant.status`。
 
 | 做 | 不做 |
 | --- | --- |
-| Namespace 创建与 metadata 对齐 (永不删除) | Tenant CR / 配额的 CRUD API (→ [cluster-manager.md](cluster-manager.md)) |
+| Namespace 创建与 metadata 对齐 (永不删除) | Tenant CR / 配额的 CRUD API (→ [compute.md](compute.md)) |
 | 每条 `spec.quotas[]` 渲染为 ElasticQuota CR,回流 `status.used` | MLJob / MLService 生命周期 (→ [compute-operator.md](compute-operator.md)) |
 | `spec.initResources` 下发 ImagePullSecret / Secret / ConfigMap / SA + RBAC | 用户认证、平台 RBAC (→ [auth.md](../auth.md)) |
 | 周期 resync 收敛源 Secret / ConfigMap 漂移 | 跨集群 / 多 region 联邦 |
@@ -17,7 +17,7 @@
 
 ```
    ┌──────────────────┐  patch Tenant CR    ┌──────────────────┐
-   │ cluster-manager  │ ───────────────────▶│   K8s API        │
+   │     compute      │ ───────────────────▶│   K8s API        │
    └──────────────────┘                     │   Tenant CR      │
                                             └────────┬─────────┘
                                                      │ watch
@@ -60,7 +60,7 @@
 
 | 实体 | 含义 | 标识键 | 备注 |
 | --- | --- | --- | --- |
-| Tenant | 租户 CR,cluster-scoped | `metadata.name` (DNS-1123, ≤40) | 上游唯一写者为 cluster-manager |
+| Tenant | 租户 CR,cluster-scoped | `metadata.name` (DNS-1123, ≤40) | 上游唯一写者为 compute |
 | Namespace | 运行租户 Pod 的 K8s namespace | `spec.namespace.name` | 可被多 Tenant 共享 (§5.1) |
 | ElasticQuota | Koordinator 配额 CR | `axisml-<tenant>-<pool>-<quota>` | 每条 `spec.quotas[]` 1:1 渲染 |
 | InitResource | per-tenant Secret / CM / SA + RBAC | `axisml-tenant-<tenant>-<name>` | 由 `sourceXxxRef` 复制 |
@@ -177,17 +177,17 @@ Pod 调度 ──▶ koord-scheduler ──▶ ElasticQuota.status.used 累加
                             Tenant.status.quotas[i].used (patch)
                                           │
                                           ▼
-                              cluster-manager informer 写入 PG
+                              compute informer 写入 PG
 ```
 
-`status.used` 只读,不写回 ElasticQuota;cluster-manager 在 `GET /api/v1/namespaces/{namespace}/tenants/{name}` 时直接返回。
+`status.used` 只读,不写回 ElasticQuota;compute 在 `GET /api/v1/namespaces/{namespace}` 时直接返回。
 
 ## 6. 接口契约
 
 | 类别 | 内容 | 引用 |
 | --- | --- | --- |
 | 输入 CR | `Tenant` (`axisml.io/v1alpha1`, cluster-scoped, `shortName=tnt`) | [tenant-crd.yaml](../../../deploy/helm/axisml-system/crds/tenant-crd.yaml) |
-| 上游写者 | cluster-manager 是唯一写者 (`metadata` / `spec`);admission webhook 后续硬阻断外部写 | [cluster-manager.md](cluster-manager.md) |
+| 上游写者 | compute 是唯一写者 (`metadata` / `spec`);admission webhook 后续硬阻断外部写 | [compute.md](compute.md) |
 | status subresource | CRD 声明 `subresources.status`;tenant-operator 是唯一 `status` 写者 | — |
 | 字段归属 | `spec` 四块 `namespace` / `quotas[]` / `initResources` / `suspended` | 详见下表 |
 | 级联清理 | per-tenant 资源 ownerReference → Tenant CR;Tenant DELETE 由 K8s GC 异步清理;Namespace 永不删除 | — |
@@ -197,13 +197,13 @@ Pod 调度 ──▶ koord-scheduler ──▶ ElasticQuota.status.used 累加
 
 | 字段路径 | 写入方 | 可变? |
 | --- | --- | --- |
-| `metadata.name` / `labels[axisml.io/tenant-id]` | cluster-manager | 否 |
-| `spec.namespace.name` | cluster-manager | 否 (controller 拒绝,webhook 兜底) |
-| `spec.namespace.labels` / `annotations` | cluster-manager | 是 (仅首次创建落地) |
-| `spec.quotas[].{pool, name}` | cluster-manager | 否 (标识锚点) |
-| `spec.quotas[].{min, max}` | cluster-manager | 是 |
-| `spec.initResources.*` | cluster-manager | 是 (增删 → reconcile 创建 / 删除) |
-| `spec.suspended` | cluster-manager | 是 |
+| `metadata.name` / `labels[axisml.io/tenant-id]` | compute | 否 |
+| `spec.namespace.name` | compute | 否 (controller 拒绝,webhook 兜底) |
+| `spec.namespace.labels` / `annotations` | compute | 是 (仅首次创建落地) |
+| `spec.quotas[].{pool, name}` | compute | 否 (标识锚点) |
+| `spec.quotas[].{min, max}` | compute | 是 |
+| `spec.initResources.*` | compute | 是 (增删 → reconcile 创建 / 删除) |
+| `spec.suspended` | compute | 是 |
 | `status.*` | tenant-operator | — |
 
 ## 7. 依赖
@@ -212,7 +212,7 @@ Pod 调度 ──▶ koord-scheduler ──▶ ElasticQuota.status.used 累加
 | --- | --- | --- |
 | Kubernetes API | Tenant CR watch、子资源 CRUD、leader Lease | — |
 | Koordinator ElasticQuota CRD | 渲染目标;`status.used` 回流来源 | [infra.md](../infra.md) |
-| cluster-manager | 上游唯一 Tenant CR 写者;status 回流消费方 | [cluster-manager.md](cluster-manager.md) |
+| compute | 上游唯一 Tenant CR 写者;status 回流消费方 | [compute.md](compute.md) |
 | 受控 Namespace 中的源 Secret / ConfigMap | `sourceSecretRef` / `sourceConfigMapRef` 复制数据源 | — |
 
 ## 8. 运行时形态
@@ -228,7 +228,7 @@ Pod 调度 ──▶ koord-scheduler ──▶ ElasticQuota.status.used 累加
 
 ## 9. 后续工作
 
-- **Admission webhook**:`spec.namespace.name` / `spec.quotas[].{pool,name}` 不可变约束、跨 ns `sourceXxxRef` 白名单、`min/max` 结构性校验、源 Secret type 一致性、目标 Namespace allowlist / denylist 前移;同时硬阻断非 cluster-manager 写者。
+- **Admission webhook**:`spec.namespace.name` / `spec.quotas[].{pool,name}` 不可变约束、跨 ns `sourceXxxRef` 白名单、`min/max` 结构性校验、源 Secret type 一致性、目标 Namespace allowlist / denylist 前移;同时硬阻断非 compute 写者。
 - **CRD 严格 schema**:替换 `x-kubernetes-preserve-unknown-fields`,显式声明 `spec` 仅含 `namespace` / `quotas[]` / `initResources` / `suspended` 四块,启用 OpenAPI 校验,收紧 `phase` enum;展示性元数据（display name / description）与扩展位（labels / annotations）一律落 PG (见 [database.md §1.6](../database.md#16-扩展元数据-labels--annotations)),CR 不承载。
 - **加密源支持**:KMS / Vault / Sealed Secrets 作为 `sourceSecretRef` 替代。
 - **`initResources` templating**:按 tenant 上下文 (id / name / namespace) 渲染 ConfigMap 数据。
@@ -241,10 +241,10 @@ Pod 调度 ──▶ koord-scheduler ──▶ ElasticQuota.status.used 累加
 
 - [overview.md](../overview.md) — 控制平面拓扑
 - [auth.md](../auth.md) — 平台用户身份与 RBAC 域 (tenant-operator 不直接参与)
-- [database.md](../database.md) — `tenants` 表 schema (PG 权威由 cluster-manager 持有)
+- [database.md](../database.md) — `tenants` 表 schema (PG 权威由 compute 持有)
 - [deployment.md](../deployment.md) — Helm 模板与部署形态
 - [monitoring.md](../monitoring.md) — Metrics 与告警
 - [infra.md](../infra.md) — Koordinator / ElasticQuota / scheduler-plugins 依赖契约
-- [cluster-manager.md](cluster-manager.md) — Tenant CR 上游 producer
+- [compute.md](compute.md) — Tenant CR 上游 producer
 - [compute-operator.md](compute-operator.md) — 兄弟 operator,承载 MLJob / MLService
 - [artifacts.md](artifacts.md) — `auth_hint` 链路依赖 tenant-operator 下发的 SA + ImagePullSecret

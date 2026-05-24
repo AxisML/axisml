@@ -7,8 +7,8 @@ AxisML 系统中唯一直接面向用户的层；承担身份接入、业务编�
 | 做 | 不做 |
 | --- | --- |
 | 唯一外部 HTTP 入口（前端 SPA + 后端 REST） | 直接管理 K8s 资源（除受限 PVC，见 §5.4） |
-| 身份认证 / JWT 颁发 / RBAC 校验 | 持有 Tenant / Quota 权威 (→ [cluster-manager.md](cluster-manager.md)) |
-| 跨服务业务编排（创建/列表合并/克隆等） | 持有 Job / Service / ResourcePool / ResourceUnit 权威 (→ [compute.md](compute.md)) |
+| 身份认证 / JWT 颁发 / RBAC 校验 | 持有 Tenant / Quota / Job / Service 权威 (→ [compute.md](compute.md)) |
+| 跨服务业务编排（创建/列表合并/克隆等） | 持有 ResourcePool / ResourceUnit 词汇 (→ [cluster-manager.md](cluster-manager.md)) |
 | 视图层映射（Tenant view ↔ namespace；workspace ↔ MLService(kind)） | 持有 Artifact 权威 (→ [artifacts.md](artifacts.md)) |
 | 工作区 PVC 直管（Platform 唯一直接操作 K8s 的范围） | 二次缓存下游业务字段（无视图缓存表） |
 
@@ -67,11 +67,11 @@ Platform 自有实体仅覆盖**身份 / 授权 / 会话 / 审计**四类，完�
 | User | 内置用户 | `id` / `username` unique | bcrypt 密码；OIDC 预留 |
 | Role | RBAC 角色 | `name` (`system-admin` / `tenant-admin` / `user`) | 内置三档；不开放自建 |
 | Permission | 权限位 | `name` | 角色 × 权限矩阵详见 [auth.md §3](../auth.md#3-rbac-角色) |
-| UserTenantRole | 用户↔租户成员关系 | `(user_id, tenant_name, role_id)` | `tenant_name` 引用 cluster-manager `tenants.name` |
+| UserTenantRole | 用户↔租户成员关系 | `(user_id, tenant_name, role_id)` | `tenant_name` 引用 compute `tenants.name` |
 | Session | JWT 会话 / 刷新 token | `id` | TTL 与 JWKS 由 auth 模块管理 |
 | AuditLog | 操作流水 | `id` | `action` / `target` / `actor` / `payload` |
 
-**视图层映射实体**：Tenant view ↔ `(tenant_name, compute_namespace)` 二元组——Platform 调下游前调一次 `clustermanager.GetTenant(name)` 解析 namespace 与 quotas，不落 PG。
+**视图层映射实体**：Tenant view ↔ `(tenant_name, compute_namespace)` 二元组——Platform 调下游前调一次 `compute.GetTenant(name)` 解析 namespace 与 quotas，不落 PG。
 
 ## 4. 核心功能
 
@@ -79,7 +79,7 @@ Platform 自有实体仅覆盖**身份 / 授权 / 会话 / 审计**四类，完�
 
 ### 4.1 租户编排
 
-下游：cluster-manager。
+下游：compute。
 
 | 用户操作 | Platform 内部步骤 | 下游调用 | 一致性策略 |
 | --- | --- | --- | --- |
@@ -98,7 +98,7 @@ Platform 自有实体仅覆盖**身份 / 授权 / 会话 / 审计**四类，完�
 
 | 用户操作 | Platform 内部步骤 | 下游调用 | 一致性策略 |
 | --- | --- | --- | --- |
-| 提交任务 | 解析 namespace + quotas → 拼 `axisml-<tenant>-<pool>-<quota>` → `artifacts.Resolve` 校验镜像/模型 | `CreateJob(ns, body)` | 单点透传 |
+| 提交任务 | 解析 namespace + quotas → `clustermanager.GetResourcePool(pool)` / `GetResourceUnit(pool, unit)` 取词汇 → 展开为 `nodeSelector` / `tolerations` / `requests` / `limits` 写进请求体 → 拼 `axisml-<tenant>-<pool>-<quota>` → `artifacts.Resolve` 校验镜像/模型 | `clustermanager.Get{ResourcePool,ResourceUnit}` + `compute.CreateJob(ns, body{expanded})` | 单点透传 |
 | 取消 | RBAC `@owner` 或更高 → 透传 | `CancelJob` | 状态合法性由 compute 4xx 反馈 |
 | 删除 | RBAC + 透传 | `DeleteJob` | 同上 |
 | 列表 | §5.2 解析 active tenant：header 在 → 单租户透传；`system-admin` 无 header → §5.3 跨租户合并 | `ListJobs(ns, ...)` | 跨租户路径部分失败 → `partial=true` + `error.detail` |
@@ -113,7 +113,7 @@ Platform 自有实体仅覆盖**身份 / 授权 / 会话 / 审计**四类，完�
 
 | 用户操作 | Platform 内部步骤 | 下游调用 | 一致性策略 |
 | --- | --- | --- | --- |
-| 创建 | 解析 namespace + quotas → `artifacts.Resolve` 校验 modelRef/image → 拼 quota 名 → `route.path==""` 时自动拼 `/services/<tenant>/<name>/` 并注入 `AXISML_SERVICE_BASE_URL` env | `CreateService(ns, body{kind=service})` | 单点透传 |
+| 创建 | 解析 namespace + quotas → `clustermanager.GetResourcePool` / `GetResourceUnit` 取词汇并展开为 nodeSelector / tolerations / requests / limits → `artifacts.Resolve` 校验 modelRef/image → 拼 quota 名 → `route.path==""` 时自动拼 `/services/<tenant>/<name>/` 并注入 `AXISML_SERVICE_BASE_URL` env | `clustermanager.Get{ResourcePool,ResourceUnit}` + `compute.CreateService(ns, body{kind=service, expanded})` | 单点透传 |
 | 扩缩容 / start / stop | `RequireServiceOwner` → 翻译 `/start` = 上次>0 replicas（查 audit_logs，缺失 fallback 1），`/stop` = 0 | `ScaleService` | 幂等；`Deleted` → `409 service-deleted` |
 | 删除 | 先 `GetServiceByID` 校验 `kind==service` 防误删工作区 | `DeleteService` | 派生 K8s 资源由 ownerReference 级联 |
 | 路由 / 访问 | `auth.type=jwt` 时颁发 `aud=axisml-inference` 短 TTL JWT | — | `route-auth-mismatch` 时 `409` |
@@ -129,7 +129,7 @@ Platform 自有实体仅覆盖**身份 / 授权 / 会话 / 审计**四类，完�
 
 | 用户操作 | Platform 内部步骤 | 下游调用 | 一致性策略 |
 | --- | --- | --- | --- |
-| 创建 | RBAC + ResourcePool / Unit / Image 解析 → 生成 `mlservice_name="ws-"+crockford32(rand40bit)` → 注入 volumes / `AXISML_WORKSPACE_BASE_URL` env / `spec.route` → 创建 MLService → 由 `service.id` 派生 PVC 名 `axisml-ws-<id 前 8>-data` → 创建 PVC | `compute.CreateService(kind=workspace)` + K8s PVC `create` | PVC 失败 → 调 `DeleteService` 回滚；回滚失败 → 写 audit_logs |
+| 创建 | RBAC + `clustermanager.Get{ResourcePool,ResourceUnit}` 展开为 nodeSelector / requests / limits + Image 解析 → 生成 `mlservice_name="ws-"+crockford32(rand40bit)` → 注入 volumes / `AXISML_WORKSPACE_BASE_URL` env / `spec.route` → 创建 MLService → 由 `service.id` 派生 PVC 名 `axisml-ws-<id 前 8>-data` → 创建 PVC | `clustermanager.Get{ResourcePool,ResourceUnit}` + `compute.CreateService(kind=workspace, expanded)` + K8s PVC `create` | PVC 失败 → 调 `DeleteService` 回滚；回滚失败 → 写 audit_logs |
 | start / stop | `RequireWorkspaceOwner` → 翻译为 `replicas=1/0` | `ScaleService` | 幂等；`Deleted` → `409 workspace-deleted` |
 | 删除 | 校验 `kind==workspace` 防误删 service → 删 MLService → 按 `deletePvc`（默认 true）删 PVC | `DeleteService` + K8s PVC `delete` | 404 幂等 |
 | 浏览器接入 | 颁发 `aud=axisml-workspace` 短 TTL JWT（`--workspace-access-jwt-ttl`，上限 24h） | — | — |
@@ -156,7 +156,7 @@ Platform 自有实体仅覆盖**身份 / 授权 / 会话 / 审计**四类，完�
 
 **关键不变量**：
 - 前端寻址 `(tenant, name, version)` 三元组；URL `/api/v1/{kind-plural}/{tenant}/{name}/{version}`；`{kind-plural} ∈ {models, images, datasets}`。Platform 不维护 id 反查表——url path 直接拼成 artifacts 寻址 tuple；DTO 仍带 `id` 字段供 label / 反向引用使用，但不作为 url 一级 key。
-- tenant → artifact namespace 映射通过 §5.2 `clustermanager.GetTenant(tenant).compute_namespace` 解析；request-scope memoize，不落本地表。
+- tenant → artifact namespace 映射通过 §5.2 `compute.GetTenant(tenant).compute_namespace` 解析；request-scope memoize，不落本地表。
 - `(name, version)` 创建后不可变；spec / digest 进入 `Ready` 冻结；改 spec = 上传新版本。
 - Platform 不为 artifact 建任何视图表；状态 / digest / labels 始终回源 artifacts。
 
@@ -221,11 +221,11 @@ UI 设计:本期原型未覆盖制品中心,占位见 [wireframe.md §3 占位�
 
 | 用户操作 | Platform 内部步骤 | 下游调用 | 一致性策略 |
 | --- | --- | --- | --- |
-| 资源池 CRUD | RBAC `system-admin`；`PATCH` 拦截 `name` 不可变 | `compute.{Create,Update,Delete}ResourcePool` | 单点透传 |
-| 资源池删除前置 | `ListResourceUnits(pool)` > 0 → `409 pool-in-use`；`ListJobs/Services(pool, active)` > 0 → `409` 附 `blockers` | 多次 list | Platform 自做阻断，不依赖 compute 级联 |
-| 资源单元 CRUD | RBAC `system-admin`；命名约定由 compute 兜底 | `compute.{Create,Update,Delete}ResourceUnit` | 单点透传 |
+| 资源池 CRUD | RBAC `system-admin`；`PATCH` 拦截 `name` 不可变 | `clustermanager.{Create,Update,Delete}ResourcePool` | 单点透传 |
+| 资源池删除前置 | `ListResourceUnits(pool)` > 0 → `409 pool-in-use`；`compute.ListJobs/Services` 用量为 0 校验（按 `labels.axisml.io/pool` 过滤）| 多次 list | Platform 自做阻断，不依赖 cluster-manager 级联 |
+| 资源单元 CRUD | RBAC `system-admin`；命名约定由 cluster-manager 兜底 | `clustermanager.{Create,Update,Delete}ResourceUnit` | 单点透传 |
 | 资源单元删除前置 | 活跃 Job / Service 用量 > 0 → `409 unit-in-use` | list | Platform 自做阻断 |
-| 列表（全局可见） | 已登录即可读；写仅 `system-admin` | `ListResourcePools` / `ListResourceUnits` | 资源单元数聚合并发取 count；单池失败该项标 `-1` |
+| 列表（全局可见） | 已登录即可读；写仅 `system-admin` | `clustermanager.ListResourcePools` / `clustermanager.ListResourceUnits` | 资源单元数聚合并发取 count；单池失败该项标 `-1` |
 
 关键不变量：Platform 不为池/单元建表；Node label / taint 由管理员通过 kubectl 维护，UI 不下发。UI 设计见 [wireframe.md](../wireframe.md)。
 
@@ -253,7 +253,7 @@ UI 设计:本期原型未覆盖制品中心,占位见 [wireframe.md §3 占位�
 | tuple 寻址 detail（`/api/v1/{kind}/{tenant}/{name}/{version}`） | URL 内已带 tenant，header 忽略 | 同上 |
 | 租户管理路径（`/api/v1/tenants/{name}/...`） | URL 内已带 tenant，header 忽略 | 同上 |
 
-**下游 namespace 解析**：拿到 tenant 名后，调用 `clustermanager.GetTenant(name)` 取 `compute_namespace` 与 quotas 清单，request-scoped memoize；ElasticQuota 名按 `axisml-<tenant>-<pool>-<quota>` 实时拼接 + 校验，不本地缓存。
+**下游 namespace 解析**：拿到 tenant 名后，调用 `compute.GetTenant(name)` 取 `compute_namespace` 与 quotas 清单，request-scoped memoize；ElasticQuota 名按 `axisml-<tenant>-<pool>-<quota>` 实时拼接 + 校验，不本地缓存。
 
 ### 5.3 列表跨租户合并
 
@@ -271,7 +271,7 @@ Platform 端不持有任何业务数据，**自然无双写一致性问题**—�
 - 跨租户列表：`partial=true` 标记，不阻断主响应。
 - 唯一例外：工作区创建 = MLService 创建 + PVC 创建，PVC 失败需回滚 MLService（见 §4.4）。
 
-下游各自的强一致策略（cluster-manager 双 hash / compute Outbox / artifacts 两阶段写）对 Platform 透明。
+下游各自的强一致策略（compute Outbox + reconciler / artifacts 两阶段写）对 Platform 透明。
 
 ### 5.6 扩展元数据写入约定
 
@@ -279,7 +279,7 @@ Platform 自身需要在下游对象上挂载自定义元数据（审计标记�
 
 | 维度 | 约定 |
 | --- | --- |
-| 写入路径 | `clustermanager.{Create,Update}Tenant` / `compute.{Create,Update}{Job,Service}` / `artifacts.{Create,Update}Artifact` 请求体中携带 `labels` / `annotations` |
+| 写入路径 | `compute.{Create,Update}{Tenant,Job,Service}` / `artifacts.{Create,Update}Artifact` 请求体中携带 `labels` / `annotations` |
 | 存储位置 | 下游 PG 表的 `labels jsonb` + `annotations jsonb` 列（详见 [database.md §1.6](../database.md#16-扩展元数据-labels--annotations)） |
 | Key 命名空间 | Platform 内部固定使用 `platform.axisml.io/<key>` 前缀；终端用户透传字段走 `user.axisml.io/<key>` 或无前缀 |
 | 同步语义 | 修改不触发 CR patch（不 `+generation`），不会引发 reconcile；纯 PG mutation，写后立即可读 |
@@ -308,10 +308,10 @@ RBAC 中间件装配细节归 [auth.md](../auth.md)，Platform 仅在路由层�
 
 | 依赖 | 用途 | 引用 |
 | --- | --- | --- |
-| PostgreSQL | 身份 / 授权 / 会话 / 审计；与 compute / artifacts / cluster-manager 共享同一 DB，按表名前缀隔离 | [database.md](../database.md) / [infra.md](../infra.md) |
+| PostgreSQL | 身份 / 授权 / 会话 / 审计；与 cluster-manager / compute / artifacts 共享同一 DB，按表名前缀隔离 | [database.md](../database.md) / [infra.md](../infra.md) |
 | Envoy Gateway | 唯一外部入口；TLS 终止 / 路由匹配 | [infra.md](../infra.md) |
-| cluster-manager | 租户与配额权威；下发由 cluster-manager 双 hash 异步同步到 Tenant CR | [cluster-manager.md](cluster-manager.md) |
-| compute | Job / Service / ResourcePool / ResourceUnit 权威；写路径由 compute Outbox 保证强一致 | [compute.md](compute.md) |
+| cluster-manager | ResourcePool / ResourceUnit 词汇；Platform 在编排前拉取并展开成 nodeSelector / requests / limits 原语 | [cluster-manager.md](cluster-manager.md) |
+| compute | Tenant / Quota / Job / Service 权威；写路径由 compute Outbox + reconciler 保证强一致 | [compute.md](compute.md) |
 | artifacts | 模型 / 镜像 / 数据集元数据；两阶段写（initiate → 直推 → complete） | [artifacts.md](artifacts.md) |
 | Prometheus (kube-prometheus-stack) | 在线服务指标 Tab 数据源 | [infra.md](../infra.md) |
 | Kubernetes API | 仅工作区 PVC `get/list/create/delete`，受限 RBAC | — |
@@ -393,7 +393,7 @@ RBAC 中间件装配细节归 [auth.md](../auth.md)，Platform 仅在路由层�
 
 ### 9.8 跨模块共享
 
-- cluster-manager 批量 GetTenant RPC（减少多租户 namespace 解析的 RPC 数）。
+- compute 批量 GetTenant RPC（减少多租户 namespace 解析的 RPC 数）。
 
 ## 10. 相关引用
 
