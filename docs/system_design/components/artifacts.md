@@ -65,6 +65,7 @@
 - `namespace` 是裸字符串分区键，由 Platform 保证语义；Artifacts 不做存在性校验。
 - 状态机集合：`Uploading` / `Ready` / `Failed` / `Deleting` / `Deleted`（详见 [§6](#6-接口契约)）。
 - 跨制品引用格式：`<namespace>/<kind>/<name>@<version>`，由 `Handler.ValidateSpec` 在 initiate 阶段懒校验。
+- 扩展元数据 `labels` / `annotations` 双字段语义对齐 [database.md §1.6](../database.md#16-扩展元数据-labels--annotations)；artifacts 无 CR，扩展位天然只落 PG。
 
 字段级 schema 见 [database.md §4.1](../database.md#41-artifacts-表)；spec 子字段见 [apis/artifacts.yaml](../apis/artifacts.yaml)。
 

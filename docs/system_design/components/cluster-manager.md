@@ -37,16 +37,17 @@
 
 ```
 ┌────────────────────────── Cluster Manager (Go) ──────────────────────────┐
-│  HTTP API (Gin)  ──写──▶  PG tenants 表 (desired_spec_hash)              │
+│  HTTP API (Gin)  ──写──▶  PG tenants 表 (spec + generation)              │
 │         ▲                              │                                  │
 │         │ 读                            ▼                                  │
 │         │                       Reconciler (leader-only)                  │
-│         │                       desired ≠ applied → patch CR              │
+│         │                       generation > observed_generation          │
+│         │                                    → patch CR                   │
 │         │                              │                                  │
 │         │                              ▼                                  │
 │         │                       K8s Tenant CR                             │
 │         │                              │ status                            │
-│         └────── PG status 列 ◀── Informer (leader-only)                   │
+│         └────── PG status jsonb ◀── Informer (leader-only)                │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -82,45 +83,43 @@
 
 | 操作 | PG 写 | CR 影响 | 备注 |
 | --- | --- | --- | --- |
-| 创建 | insert `Creating` 行 | reconciler 创建 CR | DNS-1123 校验由 API 层兜底 |
-| 更新 spec 元数据 | update 行 + 重算 `desired_spec_hash` | reconciler patch CR | `name` / `namespace.name` 不可变 |
-| suspend / unsuspend | 仅改 `suspended` 字段 + 重算 hash | reconciler patch CR | 不停机底层资源 |
-| 软删 | `deleted_at = now()` + 重算 hash | reconciler 删 CR | 行保留到 retention |
-| 恢复 | `deleted_at = NULL` + 重算 hash | reconciler 重建 CR | 仅适用 `Deleted` 行 |
+| 创建 | insert `Creating` 行（`generation=1`） | reconciler 创建 CR | DNS-1123 校验由 API 层兜底 |
+| 更新 spec（`spec.namespace.labels` / `spec.namespace.annotations` / `spec.quotas[].{min,max}` / `spec.initResources` / `spec.suspended`） | update `spec` + `generation += 1` | reconciler patch CR | `spec.namespace.name`、`spec.quotas[].{pool,name}` 不可变 |
+| 更新顶层 PG 元数据（`display_name` / `namespace`（组织分组）/ `description` / `labels` / `annotations`） | update 行 | **不影响 CR** | 不 `+generation`；扩展位见 [database.md §1.6](../database.md#16-扩展元数据-labels--annotations) |
+| 软删 | `deleted_at = now()` + `generation += 1` | reconciler 删 CR | 行保留到 retention |
+| 恢复 | `deleted_at = NULL` + `generation += 1` | reconciler 重建 CR | 仅适用 `status.phase=Deleted` 行 |
 
 `Failed` 是非终态，operator 自愈后自然回到 `Active`。
 
 ### 4.2 配额管理
 
-Quota 没有独立 CRD——是 `tenants.quotas` jsonb 中的一项。
+Quota 没有独立 CRD——是 `tenants.spec.quotas[]` jsonb 中的一项。
 
 | 操作 | PG 写 | CR 影响 |
 | --- | --- | --- |
-| 新增 | append jsonb 项 + 重算 hash | reconciler patch `Tenant.spec.quotas[]` |
-| 修改 `min` / `max` | update jsonb 项 + 重算 hash | reconciler patch |
-| 删除 | remove jsonb 项 + 重算 hash | reconciler 删除对应 ElasticQuota CR |
-| 用量回流 | informer 写入 `tenants.quotas[i].used` | — |
+| 新增 | append jsonb 项 + `generation += 1` | reconciler patch `Tenant.spec.quotas[]` |
+| 修改 `min` / `max` | update jsonb 项 + `generation += 1` | reconciler patch |
+| 删除 | remove jsonb 项 + `generation += 1` | reconciler 删除对应 ElasticQuota CR |
+| 用量回流 | informer 写入 `status.quotas[i].used` | — |
 
 **不变约束**：`(pool, name)` 一旦创建即不可变；改名 = 先删后建。
 
 ## 5. 关键机制
 
-### 5.1 写路径：内嵌 Outbox + 双 hash
+### 5.1 写路径：内嵌 Outbox + generation
 
-无独立 outbox 表——借用 `tenants` 表自身的 `desired_spec_hash` / `applied_spec_hash` 两列。
+无独立 outbox 表——借用 `tenants` 表自身的 `generation` / `observed_generation` 两列（语义详见 [database.md §1.4](../database.md#14-generation--observed_generation)）。
 
 ```
 API mutation
      │
      ▼
 ┌──────────────────────── 单事务 ─────────────────────────┐
-│  1. UPDATE tenants SET ...                              │
-│  2. canonical_json = serialize(spec 视图)               │
-│  3. desired_spec_hash = sha256(canonical_json)          │
-│  4. COMMIT                                              │
-└─────────────────────────────────────────────────────────┘
+│  1. UPDATE tenants SET spec = ..., generation = generation + 1  │
+│  2. COMMIT                                                       │
+└──────────────────────────────────────────────────────────────────┘
      │
-     ▼ partial index `WHERE desired_spec_hash <> applied_spec_hash`
+     ▼ partial index `WHERE generation <> observed_generation`
      │
      ▼
 Reconciler (10s tick, leader-only)
@@ -129,11 +128,11 @@ Reconciler (10s tick, leader-only)
 ┌─────────────────────────────────────────────────────────┐
 │  deleted_at ≠ NULL → K8s Delete()                       │
 │  else              → render + Patch() (server-side apply)│
-│  success           → applied_spec_hash = desired_spec_hash│
+│  success           → observed_generation = generation    │
 └─────────────────────────────────────────────────────────┘
 ```
 
-`spec 视图` 含 `name` / `displayName` / `namespace.*` / `quotas[]` / `initResources` / `suspended` / `deleted_at`，不含 `applied_*` / `phase` / `conditions` / `updated_at` 等运行态字段。
+进入 CR 的字段仅来自 `tenants.spec`（即 `spec.namespace` / `spec.quotas` / `spec.initResources` / `spec.suspended`）加上顶层 `name` / `display_name`；顶层的 `namespace`（组织分组）/ `description` / `labels` / `annotations` 等 PG-only 字段**不进 CR**，因此不影响 `generation`。
 
 ### 5.2 状态回流（Informer）
 
@@ -141,8 +140,8 @@ watch Tenant CR：
 
 | 事件 | 写回 PG | 不动 |
 | --- | --- | --- |
-| ADD / UPDATE | `phase` / `namespaceReady` / `conditions` / `quotas[].used` | spec 列、hash 列 |
-| DELETE | `phase = Deleted` | 其他字段保留供历史查询 |
+| ADD / UPDATE | `status` 整块（含 `phase` / `conditions` / `quotas[].used`） | `spec` 列、`generation` |
+| DELETE | `status.phase = Deleted` | 其他字段保留供历史查询 |
 
 ### 5.3 外部漂移修正
 

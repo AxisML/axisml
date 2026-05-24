@@ -400,7 +400,7 @@ components:
       description: |
         Caller identity, injected by AxisML Platform / Gateway upstream.
         Artifacts does not authenticate the value; it is used for audit
-        (`owner_user`) and ownership stamping. Operators connecting directly
+        (`owner`) and ownership stamping. Operators connecting directly
         carry the controller service identity. Health endpoints are exempt.
 
   # ----- Reusable parameters ----------------------------------------------
@@ -734,9 +734,9 @@ components:
           $ref: '#/components/schemas/StringMap'
         annotations:
           $ref: '#/components/schemas/StringMap'
-        ownerUser:
+        owner:
           type: string
-          description: User id (from `X-Axisml-User` at create time).
+          description: User from `X-Axisml-User` at create time. Immutable.
         # spec
         spec:
           $ref: '#/components/schemas/ArtifactSpec'

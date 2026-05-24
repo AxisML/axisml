@@ -34,7 +34,7 @@ info:
     | user | `user` | single tenant |
 
     `@self` means "in the tenant referenced by the URL path". `@owner` means
-    "the resource's `ownerUser` equals the current user".
+    "the resource's `owner` equals the current user".
 
     ## Errors
 
@@ -454,15 +454,18 @@ paths:
           required: false
           schema:
             type: string
-        - name: business_unit
+        - name: namespace
           in: query
-          description: Exact-match business unit filter.
+          description: |
+            Exact-match organizational grouping filter (top-level
+            `tenants.namespace`). **Not** the K8s namespace
+            (`spec.namespace.name`).
           required: false
           schema:
             type: string
         - name: phase
           in: query
-          description: Filter by tenant phase.
+          description: Filter by tenant `status.phase`.
           required: false
           schema:
             $ref: '#/components/schemas/TenantPhase'
@@ -533,11 +536,14 @@ paths:
       operationId: updateTenant
       summary: Update tenant display metadata
       description: |
-        JSON Merge Patch on mutable fields: `displayName`, `description`,
-        `businessUnit`, `annotations`, `namespace.{labels, annotations}`,
-        `initResources`. Requires `system-admin`. Immutable fields (`name`,
-        `namespace.name`, `quotas[].pool`, `quotas[].name`) are rejected at
-        the request layer with `400 immutable-field`.
+        JSON Merge Patch on mutable fields: top-level `namespace`
+        (organizational grouping), `displayName`, `description`, `labels`,
+        `annotations`, and the patchable subset of `spec.*`
+        (`spec.namespace.labels`, `spec.namespace.annotations`,
+        `spec.initResources`, `spec.suspended`, `spec.quotas[]`). Requires
+        `system-admin`. Immutable fields (`name`, `owner`,
+        `spec.namespace.name`, `spec.quotas[].pool`, `spec.quotas[].name`)
+        are rejected at the request layer with `400 immutable-field`.
       requestBody:
         required: true
         content:
@@ -959,7 +965,7 @@ paths:
       summary: List visible workspaces
       description: |
         Visibility: `system-admin` sees all; `tenant-admin@self` sees the
-        whole tenant; `user` sees only their own (`ownerUser` pushed down to
+        whole tenant; `user` sees only their own (`owner` pushed down to
         compute). Documented at `components/platform.md §7.1`.
       parameters:
         - name: tenantName
@@ -968,7 +974,7 @@ paths:
           required: false
           schema:
             type: string
-        - name: ownerUser
+        - name: owner
           in: query
           description: Admin-only filter.
           required: false
@@ -1289,7 +1295,7 @@ paths:
           required: false
           schema:
             $ref: '#/components/schemas/JobStatus'
-        - name: ownerUser
+        - name: owner
           in: query
           required: false
           schema:
@@ -1370,14 +1376,14 @@ paths:
       summary: List jobs under a tenant
       description: |
         Requires `user@self`+ on `{tenant}`. `user` callers are restricted to
-        their own jobs (server-side `ownerUser` filter).
+        their own jobs (server-side `owner` filter).
       parameters:
         - name: status
           in: query
           required: false
           schema:
             $ref: '#/components/schemas/JobStatus'
-        - name: ownerUser
+        - name: owner
           in: query
           description: Admin-only filter.
           required: false
@@ -1673,7 +1679,7 @@ paths:
           required: false
           schema:
             type: string
-        - name: ownerUser
+        - name: owner
           in: query
           required: false
           schema:
@@ -3405,62 +3411,64 @@ components:
 
     Tenant:
       type: object
+      description: |
+        Platform-facing Tenant DTO. Top-level `namespace` is the
+        organizational grouping; the K8s namespace lives at
+        `spec.namespace.name`.
       required:
         - name
-        - displayName
         - namespace
-        - phase
+        - displayName
+        - spec
+        - status
+        - generation
         - createdAt
         - updatedAt
       properties:
         name:
           type: string
           description: Tenant name; DNS-1123, immutable after creation. URL key.
+        namespace:
+          type: string
+          description: |
+            Organizational grouping (e.g. `ai-team`). Mutable. Distinct
+            from `spec.namespace.name`.
+          maxLength: 100
         displayName:
           type: string
         description:
           type: string
-        businessUnit:
+        owner:
           type: string
+          description: Creator; immutable.
+        labels:
+          $ref: '#/components/schemas/StringMap'
         annotations:
           $ref: '#/components/schemas/StringMap'
-        namespace:
-          $ref: '#/components/schemas/Namespace'
-        quotas:
-          type: array
-          items:
-            $ref: '#/components/schemas/Quota'
-        quotaStatuses:
-          type: array
-          items:
-            $ref: '#/components/schemas/QuotaStatus'
-        initResources:
-          $ref: '#/components/schemas/InitResources'
-        suspended:
-          type: boolean
-          default: false
-        phase:
-          $ref: '#/components/schemas/TenantPhase'
-        namespaceReady:
-          type: boolean
-          default: false
-        conditions:
-          type: array
-          items:
-            $ref: '#/components/schemas/Condition'
-        message:
-          type: string
+        spec:
+          $ref: '#/components/schemas/TenantSpec'
+        generation:
+          type: integer
+          format: int64
+          minimum: 1
+        observedGeneration:
+          type: integer
+          format: int64
+          minimum: 0
+        status:
+          $ref: '#/components/schemas/TenantStatus'
         computeNamespace:
           type: string
           description: |
-            Convenience flat reference to `namespace.name`; provided to make
-            downstream Compute calls trivial for the frontend.
+            Convenience flat copy of `spec.namespace.name`, surfaced so the
+            frontend can build downstream Compute calls without re-parsing
+            `spec`.
         artifactsNamespace:
           type: string
           description: |
-            Same value as `computeNamespace` in the current design; surfaced
-            separately so future deployments can split the two without an
-            API break.
+            Same value as `computeNamespace` in the current design; kept as
+            a separate field so future deployments can split the two without
+            an API break.
         createdAt:
           type: string
           format: date-time
@@ -3471,6 +3479,40 @@ components:
           type: string
           format: date-time
           nullable: true
+
+    TenantSpec:
+      type: object
+      required: [namespace]
+      properties:
+        namespace:
+          $ref: '#/components/schemas/Namespace'
+          description: K8s namespace metadata. `name` immutable; `labels` / `annotations` mutable.
+        quotas:
+          type: array
+          items:
+            $ref: '#/components/schemas/Quota'
+        initResources:
+          $ref: '#/components/schemas/InitResources'
+        suspended:
+          type: boolean
+          default: false
+
+    TenantStatus:
+      type: object
+      required: [phase]
+      properties:
+        phase:
+          $ref: '#/components/schemas/TenantPhase'
+        message:
+          type: string
+        conditions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Condition'
+        quotas:
+          type: array
+          items:
+            $ref: '#/components/schemas/QuotaStatus'
 
     TenantList:
       type: object
@@ -3488,13 +3530,17 @@ components:
 
     TenantCreateRequest:
       type: object
-      required: [name, displayName, namespace]
+      required: [name, namespace, displayName, spec]
       properties:
         name:
           type: string
           pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
           minLength: 3
           maxLength: 40
+        namespace:
+          type: string
+          description: Organizational grouping. Mutable post-create.
+          maxLength: 100
         displayName:
           type: string
           minLength: 1
@@ -3502,27 +3548,25 @@ components:
         description:
           type: string
           maxLength: 1000
-        businessUnit:
-          type: string
-          maxLength: 100
+        labels:
+          $ref: '#/components/schemas/StringMap'
         annotations:
           $ref: '#/components/schemas/StringMap'
-        namespace:
-          $ref: '#/components/schemas/Namespace'
-        quotas:
-          type: array
-          items:
-            $ref: '#/components/schemas/Quota'
-        initResources:
-          $ref: '#/components/schemas/InitResources'
+        spec:
+          $ref: '#/components/schemas/TenantSpec'
 
     TenantPatchRequest:
       type: object
       description: |
-        JSON Merge Patch body. Only mutable Platform fields are accepted:
-        `displayName`, `description`, `businessUnit`, `annotations`,
-        `namespace.{labels, annotations}`, `initResources`.
+        JSON Merge Patch body. Mutable Platform fields:
+        top-level `namespace` (organizational grouping), `displayName`,
+        `description`, `labels`, `annotations`, and the patchable subset of
+        `spec.*` (`spec.namespace.labels`, `spec.namespace.annotations`,
+        `spec.initResources`, `spec.suspended`, `spec.quotas[]`).
       properties:
+        namespace:
+          type: string
+          maxLength: 100
         displayName:
           type: string
           minLength: 1
@@ -3530,20 +3574,28 @@ components:
         description:
           type: string
           maxLength: 1000
-        businessUnit:
-          type: string
-          maxLength: 100
+        labels:
+          $ref: '#/components/schemas/StringMap'
         annotations:
           $ref: '#/components/schemas/StringMap'
-        namespace:
+        spec:
           type: object
           properties:
-            labels:
-              $ref: '#/components/schemas/StringMap'
-            annotations:
-              $ref: '#/components/schemas/StringMap'
-        initResources:
-          $ref: '#/components/schemas/InitResources'
+            namespace:
+              type: object
+              properties:
+                labels:
+                  $ref: '#/components/schemas/StringMap'
+                annotations:
+                  $ref: '#/components/schemas/StringMap'
+            quotas:
+              type: array
+              items:
+                $ref: '#/components/schemas/Quota'
+            initResources:
+              $ref: '#/components/schemas/InitResources'
+            suspended:
+              type: boolean
 
     # ------------------------------------------------------------------
     # Members
@@ -3668,7 +3720,7 @@ components:
         - namespace
         - tenantName
         - name
-        - ownerUser
+        - owner
         - image
         - containerPort
         - createdAt
@@ -3696,10 +3748,10 @@ components:
           type: string
         description:
           type: string
-        ownerUser:
+        owner:
           type: string
           description: Username of the creator.
-        ownerUserId:
+        ownerId:
           type: string
           format: uuid
         image:
@@ -3733,7 +3785,7 @@ components:
         quota:
           type: string
           description: Rendered ElasticQuota CR name.
-        requestedResources:
+        resources:
           $ref: '#/components/schemas/ResourceMap'
         persistentVolume:
           $ref: '#/components/schemas/WorkspacePersistentVolume'
@@ -3994,7 +4046,7 @@ components:
         - namespace
         - tenantName
         - name
-        - ownerUser
+        - owner
         - backend
         - createdAt
         - updatedAt
@@ -4017,9 +4069,9 @@ components:
           type: string
         description:
           type: string
-        ownerUser:
+        owner:
           type: string
-        ownerUserId:
+        ownerId:
           type: string
           format: uuid
         backend:
@@ -4037,7 +4089,7 @@ components:
         quota:
           type: string
           description: Rendered ElasticQuota CR name.
-        requestedResources:
+        resources:
           $ref: '#/components/schemas/ResourceMap'
         roles:
           type: array
@@ -4224,7 +4276,7 @@ components:
         - namespace
         - tenantName
         - name
-        - ownerUser
+        - owner
         - createdAt
         - updatedAt
       properties:
@@ -4245,9 +4297,9 @@ components:
           type: string
         description:
           type: string
-        ownerUser:
+        owner:
           type: string
-        ownerUserId:
+        ownerId:
           type: string
           format: uuid
         modelRef:
@@ -4284,7 +4336,7 @@ components:
           type: string
         quota:
           type: string
-        requestedResources:
+        resources:
           $ref: '#/components/schemas/ResourceMap'
         replicas:
           type: integer
@@ -4509,9 +4561,9 @@ components:
           description: OCI manifest digest once `complete` is called.
         spec:
           $ref: '#/components/schemas/ModelSpec'
-        ownerUser:
+        owner:
           type: string
-        ownerUserId:
+        ownerId:
           type: string
           format: uuid
         uri:

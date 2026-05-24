@@ -310,7 +310,7 @@ spec:
 | --- | --- | --- |
 | CRD: MLJob | `axisml.io/v1alpha1`, Namespaced, shortName `mlj`；`status` subresource 必启 | [deploy/helm/axisml-system/crds/mljob-crd.yaml](../../../deploy/helm/axisml-system/crds/mljob-crd.yaml) |
 | CRD: MLService | `axisml.io/v1alpha1`, Namespaced, shortName `mls`；`status` subresource 必启 | [deploy/helm/axisml-system/crds/mlservice-crd.yaml](../../../deploy/helm/axisml-system/crds/mlservice-crd.yaml) |
-| 上游 compute 写契约 | `Create()` 幂等（重复返回 409 `AlreadyExists`，label `axisml.io/{job-id\|service-id}` 一致即视为成功）；`metadata`/`spec` 单向；`spec.runPolicy.suspend` 与 `roles[*].replicas` 是仅有的运行时可变路径 | [compute.md](compute.md) |
+| 上游 compute 写契约 | `Create()` 幂等（重复返回 409 `AlreadyExists`，label `axisml.io/{job-id\|service-id}` 一致即视为成功）；`metadata`/`spec` 单向；`spec.runPolicy.suspend` 与 `roles[*].replicas` 是仅有的运行时可变路径；MLService 额外携带 `axisml.io/service-kind=<service\|workspace>` 稳定 label（operator 不消费，仅供 `kubectl` 与 selector 区分） | [compute.md](compute.md) |
 | 路由元组 | MLJob: `(native,{job,podgroup}) \| (kubeflow-trainer,{pytorchjob,tfjob,mpijob,…}) \| (custom,*)`；MLService: `(native,{deployment,statefulset}) \| (kserve,{inference,llminference}) \| (custom,*)` | §4 |
 | Pod 注入必填 | `spec.schedulerName=koord-scheduler` + 4 项 label（quota / job-id 或 service-id / role / quota 审计） | §5.2 |
 | Status 回流字段 | `phase` / `message` / `roles[*]` / `conditions[type=Suspended]`（MLJob）/ `endpoint`（MLService） | §5.4 |

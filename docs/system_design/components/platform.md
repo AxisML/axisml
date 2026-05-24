@@ -133,7 +133,7 @@ Platform 自有实体仅覆盖**身份 / 授权 / 会话 / 审计**四类，完�
 | start / stop | `RequireWorkspaceOwner` → 翻译为 `replicas=1/0` | `ScaleService` | 幂等；`Deleted` → `409 workspace-deleted` |
 | 删除 | 校验 `kind==workspace` 防误删 service → 删 MLService → 按 `deletePvc`（默认 true）删 PVC | `DeleteService` + K8s PVC `delete` | 404 幂等 |
 | 浏览器接入 | 颁发 `aud=axisml-workspace` 短 TTL JWT（`--workspace-access-jwt-ttl`，上限 24h） | — | — |
-| 列表 | 同 §4.2 跨租户合并；`kind=workspace` 过滤下推 | `ListServices(ns, kind=workspace, ownerUser?)` | 同 §4.2 |
+| 列表 | 同 §4.2 跨租户合并；`kind=workspace` 过滤下推 | `ListServices(ns, kind=workspace, owner?)` | 同 §4.2 |
 
 关键不变量：Platform 不为工作区建任何 PG 表；「这是工作区」由 compute `services.kind='workspace'` 直接表达；PVC 名 deterministic 派生自 `services.id` 无需存储。UI 设计见 [wireframe.md](../wireframe.md)。
 
@@ -196,6 +196,24 @@ Platform 端不持有任何业务数据，**自然无双写一致性问题**—�
 - 唯一例外：工作区创建 = MLService 创建 + PVC 创建，PVC 失败需回滚 MLService（见 §4.4）。
 
 下游各自的强一致策略（cluster-manager 双 hash / compute Outbox / artifacts 两阶段写）对 Platform 透明。
+
+### 5.6 扩展元数据写入约定
+
+Platform 自身需要在下游对象上挂载自定义元数据（审计标记、UI 状态、批次 ID、外部系统关联键等），统一通过下游业务服务的 `labels` / `annotations` 字段写入，**不直接 patch CR**：
+
+| 维度 | 约定 |
+| --- | --- |
+| 写入路径 | `clustermanager.{Create,Update}Tenant` / `compute.{Create,Update}{Job,Service}` / `artifacts.{Create,Update}Artifact` 请求体中携带 `labels` / `annotations` |
+| 存储位置 | 下游 PG 表的 `labels jsonb` + `annotations jsonb` 列（详见 [database.md §1.6](../database.md#16-扩展元数据-labels--annotations)） |
+| Key 命名空间 | Platform 内部固定使用 `platform.axisml.io/<key>` 前缀；终端用户透传字段走 `user.axisml.io/<key>` 或无前缀 |
+| 同步语义 | 修改不触发 CR patch（不 `+generation`），不会引发 reconcile；纯 PG mutation，写后立即可读 |
+| 大小约束 | 见 [database.md §1.6](../database.md#16-扩展元数据-labels--annotations)；Platform 写入前需校验 |
+| 删除 | 软删行保留扩展位以支持 retention 期内恢复；硬删时一并清理 |
+
+**反模式**：
+
+- 不向 K8s CR 的 `metadata.annotations` / `metadata.labels` 写业务扩展位（即使有 PVC 直管的 RBAC，也仅用于工作区 PVC 自身的命名 / selector，不挂业务元数据）；
+- 不在 Platform PG 镜像下游业务对象的元数据（保持 Platform 自身 PG 仅覆盖身份 / 授权 / 会话 / 审计四类的不变量）。
 
 RBAC 中间件装配细节归 [auth.md](../auth.md)，Platform 仅在路由层挂载 `RequireSystemAdmin` / `RequireTenantRole` / `RequireJobOwner` / `RequireServiceOwner` / `RequireWorkspaceOwner` 标准件。
 

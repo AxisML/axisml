@@ -73,11 +73,11 @@ paths:
       operationId: createTenant
       summary: Create a tenant
       description: |
-        Inserts a new row into `tenants`, computes `desired_spec_hash`, and
-        returns the current PG view immediately. The Tenant CR is rendered
-        and applied asynchronously by the reconciler; clients should poll
-        `GET /api/v1/tenants/{name}` and observe `phase` / `namespaceReady`
-        to confirm convergence.
+        Inserts a new row into `tenants` with `generation = 1` and returns
+        the current PG view immediately. The Tenant CR is rendered and
+        applied asynchronously by the reconciler; clients should poll
+        `GET /api/v1/tenants/{name}` and observe `status.phase` /
+        `status.conditions[type=NamespaceReady]` to confirm convergence.
 
         A partial unique index on `(name) WHERE deleted_at IS NULL`
         guarantees that an active tenant with the same name yields 409.
@@ -126,15 +126,18 @@ paths:
           required: false
           schema:
             type: string
-        - name: business_unit
+        - name: namespace
           in: query
-          description: Exact-match business unit filter.
+          description: |
+            Exact-match organizational grouping filter (top-level
+            `tenants.namespace` column). Note this is **not** the K8s
+            namespace; that lives at `spec.namespace.name`.
           required: false
           schema:
             type: string
         - name: phase
           in: query
-          description: Filter by current phase.
+          description: Filter by current `status.phase`.
           required: false
           schema:
             $ref: '#/components/schemas/Phase'
@@ -231,16 +234,18 @@ paths:
       summary: Patch a tenant (RFC 7396 JSON Merge Patch)
       description: |
         Applies an RFC 7396 JSON Merge Patch. Only mutable fields are
-        accepted: `displayName`, `description`, `businessUnit`, `annotations`,
-        `namespace.labels`, `namespace.annotations`, and `initResources`.
+        accepted: top-level `namespace` (organizational grouping),
+        `displayName`, `description`, `labels`, `annotations`, and the
+        patchable subset of `spec.*` (`spec.namespace.labels`,
+        `spec.namespace.annotations`, `spec.initResources`,
+        `spec.suspended`, individual `spec.quotas[]` entries).
 
-        Immutable fields (`name`, `namespace.name`, `quotas[].pool`,
-        `quotas[].name`) are rejected at the request layer (400) and never
-        reach PG.
+        Immutable fields (`name`, `owner`, `spec.namespace.name`,
+        `spec.quotas[].pool`, `spec.quotas[].name`) are rejected at the
+        request layer (400) and never reach PG.
 
-        If the merge result yields an unchanged `desired_spec_hash` (i.e. the
-        patch is semantically a no-op), the call returns 200 without
-        touching PG.
+        Mutations that touch `spec.*` bump `generation` and enqueue a CR
+        sync; mutations to top-level metadata do not.
       requestBody:
         required: true
         content:
@@ -272,9 +277,9 @@ paths:
       operationId: deleteTenant
       summary: Soft-delete a tenant
       description: |
-        Sets `deleted_at = now()` and recomputes `desired_spec_hash`. The
-        reconciler will subsequently delete the Tenant CR; the informer
-        sets `phase = Deleted` after observing the DELETE event.
+        Sets `deleted_at = now()` and bumps `generation`. The reconciler
+        will subsequently delete the Tenant CR; the informer sets
+        `status.phase = Deleted` after observing the DELETE event.
 
         Idempotent: deleting an already-deleted tenant returns 200 without
         further effect (the `deleted_at IS NULL` predicate filters the
@@ -304,8 +309,8 @@ paths:
       operationId: suspendTenant
       summary: Suspend a tenant
       description: |
-        Sets `suspended = true` and recomputes `desired_spec_hash`. The
-        reconciler asynchronously patches the Tenant CR's `spec.suspended`.
+        Sets `spec.suspended = true` and bumps `generation`. The reconciler
+        asynchronously patches the Tenant CR's `spec.suspended`.
       responses:
         '200':
           description: Suspend accepted.
@@ -333,8 +338,8 @@ paths:
       operationId: unsuspendTenant
       summary: Unsuspend a tenant
       description: |
-        Sets `suspended = false` and recomputes `desired_spec_hash`. The
-        reconciler asynchronously patches the Tenant CR's `spec.suspended`.
+        Sets `spec.suspended = false` and bumps `generation`. The reconciler
+        asynchronously patches the Tenant CR's `spec.suspended`.
       responses:
         '200':
           description: Unsuspend accepted.
@@ -362,9 +367,9 @@ paths:
       operationId: restoreTenant
       summary: Restore a soft-deleted tenant
       description: |
-        Clears `deleted_at`, resets `phase = 'Creating'`, and recomputes
-        `desired_spec_hash`. The reconciler will recreate the Tenant CR on
-        the next tick.
+        Clears `deleted_at`, resets `status.phase = 'Creating'`, and bumps
+        `generation`. The reconciler will recreate the Tenant CR on the
+        next tick.
 
         Precondition: no active tenant (i.e. `deleted_at IS NULL`) with
         the same name may exist; otherwise 409 is returned. This is
@@ -1008,14 +1013,21 @@ components:
       type: object
       description: |
         Full Tenant DTO. Mirrors a row of the PG `tenants` table merged
-        with informer-fed Tenant CR status fields.
+        with informer-fed Tenant CR status. See `database.md §2.1` for
+        the authoritative field-by-field schema.
+
+        NOTE: the top-level `namespace` field is an organizational
+        grouping (e.g. `ai-team`), distinct from `spec.namespace.name`
+        which is the K8s namespace the tenant maps to. The two share a
+        name but live at different paths.
       required:
         - id
         - name
-        - displayName
         - namespace
-        - phase
-        - suspended
+        - displayName
+        - spec
+        - status
+        - generation
         - createdAt
         - updatedAt
       properties:
@@ -1031,6 +1043,13 @@ components:
           pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
           minLength: 3
           maxLength: 40
+        namespace:
+          type: string
+          description: |
+            Organizational grouping (e.g. `ai-team`). Used by Platform to
+            slice tenants across business units. Mutable. **Distinct from
+            `spec.namespace.name`** (K8s namespace).
+          maxLength: 100
         displayName:
           type: string
           minLength: 1
@@ -1039,51 +1058,35 @@ components:
           type: string
           maxLength: 1000
           default: ''
-        businessUnit:
+        owner:
           type: string
-          maxLength: 100
-          default: ''
+          description: Creator (from `X-Axisml-User`); immutable.
+        labels:
+          allOf:
+            - $ref: '#/components/schemas/StringMap'
+          description: PG-only extension labels; not pushed to the CR. See `database.md §1.6`.
         annotations:
           allOf:
             - $ref: '#/components/schemas/StringMap'
-          description: Additional annotations that are pass-through onto `Tenant.spec.annotations`.
-        namespace:
-          $ref: '#/components/schemas/Namespace'
-        quotas:
-          type: array
-          description: Quota spec (desired). Each `(pool, name)` is immutable.
-          items:
-            $ref: '#/components/schemas/Quota'
-          default: []
-        initResources:
-          $ref: '#/components/schemas/InitResources'
-        suspended:
-          type: boolean
-          default: false
-        phase:
-          $ref: '#/components/schemas/Phase'
-        namespaceReady:
-          type: boolean
-          description: Mirrors `Tenant.status.namespaceReady` (informer-fed).
-          default: false
-        conditions:
-          type: array
-          description: Mirrors `Tenant.status.conditions[]` (informer-fed).
-          items:
-            $ref: '#/components/schemas/Condition'
-          default: []
-        quotaStatus:
-          type: array
-          description: Per-quota observed status (informer-fed).
-          items:
-            $ref: '#/components/schemas/QuotaStatus'
-          default: []
-        initResourcesStatus:
-          $ref: '#/components/schemas/InitResourcesStatus'
-        message:
-          type: string
-          description: Free-form human-readable message; mirrors `tenants.message`.
-          default: ''
+          description: PG-only extension annotations; not pushed to the CR. See `database.md §1.6`.
+        spec:
+          $ref: '#/components/schemas/TenantSpec'
+        generation:
+          type: integer
+          format: int64
+          description: |
+            Incremented on every `spec` mutation. Aligned with K8s
+            `metadata.generation`. See `database.md §1.4`.
+          minimum: 1
+        observedGeneration:
+          type: integer
+          format: int64
+          description: |
+            Latest `generation` the reconciler has successfully synced to
+            the CR. `generation == observedGeneration` ⇒ in sync.
+          minimum: 0
+        status:
+          $ref: '#/components/schemas/TenantStatus'
         lastModifiedBy:
           type: string
           description: Value of `X-Axisml-User` on the most recent mutation.
@@ -1100,9 +1103,59 @@ components:
           nullable: true
           description: Set when the tenant has been soft-deleted; present only on archived rows.
 
+    TenantSpec:
+      type: object
+      description: |
+        Business spec block (1:1 with Tenant CR `spec`). Mutation to any
+        field here triggers `generation += 1` and a reconciler sync to the CR.
+      required: [namespace]
+      properties:
+        namespace:
+          $ref: '#/components/schemas/Namespace'
+          description: K8s namespace metadata. `name` is immutable; `labels` / `annotations` are mutable.
+        quotas:
+          type: array
+          description: Quota spec (desired). Each `(pool, name)` is immutable.
+          items:
+            $ref: '#/components/schemas/Quota'
+          default: []
+        initResources:
+          $ref: '#/components/schemas/InitResources'
+        suspended:
+          type: boolean
+          default: false
+
+    TenantStatus:
+      type: object
+      description: |
+        Tenant CR `status` mirrored into PG as a JSONB blob. Written
+        exclusively by the informer.
+      required: [phase]
+      properties:
+        phase:
+          $ref: '#/components/schemas/Phase'
+        message:
+          type: string
+          description: Free-form human-readable fallback message.
+          default: ''
+        conditions:
+          type: array
+          description: K8s-style condition list. `type` ∈ {NamespaceReady, QuotasReady, InitResourcesReady, ...}.
+          items:
+            $ref: '#/components/schemas/Condition'
+          default: []
+        quotas:
+          type: array
+          description: Per-quota observed state (ready flag + used resources).
+          items:
+            $ref: '#/components/schemas/QuotaStatus'
+          default: []
+        initResources:
+          $ref: '#/components/schemas/InitResourcesStatus'
+
     TenantCreateRequest:
       type: object
-      required: [name, displayName, namespace]
+      required: [name, namespace, displayName, spec]
       properties:
         name:
           type: string
@@ -1110,6 +1163,10 @@ components:
           pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
           minLength: 3
           maxLength: 40
+        namespace:
+          type: string
+          description: Organizational grouping (`ai-team`, `search-team`, ...). Mutable post-create.
+          maxLength: 100
         displayName:
           type: string
           minLength: 1
@@ -1117,29 +1174,32 @@ components:
         description:
           type: string
           maxLength: 1000
-        businessUnit:
-          type: string
-          maxLength: 100
+        labels:
+          $ref: '#/components/schemas/StringMap'
         annotations:
           $ref: '#/components/schemas/StringMap'
-        namespace:
-          $ref: '#/components/schemas/Namespace'
-        quotas:
-          type: array
-          items:
-            $ref: '#/components/schemas/Quota'
-        initResources:
-          $ref: '#/components/schemas/InitResources'
+        spec:
+          $ref: '#/components/schemas/TenantSpec'
 
     TenantPatchRequest:
       type: object
       description: |
         RFC 7396 JSON Merge Patch body. Only mutable fields are accepted:
-        `displayName`, `description`, `businessUnit`, `annotations`,
-        `namespace.labels`, `namespace.annotations`, `initResources`.
-        Immutable fields (`name`, `namespace.name`, `quotas[].pool`,
-        `quotas[].name`) are rejected at the request layer.
+        `namespace` (organizational grouping), `displayName`, `description`,
+        `labels`, `annotations`, `spec.namespace.labels`,
+        `spec.namespace.annotations`, `spec.initResources`, `spec.suspended`,
+        and individual `spec.quotas[]` entries (add / remove / update min/max).
+        Immutable fields (`name`, `owner`, `spec.namespace.name`,
+        `spec.quotas[].pool`, `spec.quotas[].name`) are rejected at the
+        request layer.
+
+        Mutations to `spec.*` bump `generation`; mutations to top-level
+        metadata (`namespace`, `displayName`, `description`, `labels`,
+        `annotations`) do not.
       properties:
+        namespace:
+          type: string
+          maxLength: 100
         displayName:
           type: string
           minLength: 1
@@ -1147,21 +1207,29 @@ components:
         description:
           type: string
           maxLength: 1000
-        businessUnit:
-          type: string
-          maxLength: 100
+        labels:
+          $ref: '#/components/schemas/StringMap'
         annotations:
           $ref: '#/components/schemas/StringMap'
-        namespace:
+        spec:
           type: object
-          description: Only `labels` and `annotations` may be patched; `name` is immutable.
+          description: Patchable subset of `TenantSpec`. `spec.namespace.name` and `spec.quotas[].{pool,name}` are immutable.
           properties:
-            labels:
-              $ref: '#/components/schemas/StringMap'
-            annotations:
-              $ref: '#/components/schemas/StringMap'
-        initResources:
-          $ref: '#/components/schemas/InitResources'
+            namespace:
+              type: object
+              properties:
+                labels:
+                  $ref: '#/components/schemas/StringMap'
+                annotations:
+                  $ref: '#/components/schemas/StringMap'
+            quotas:
+              type: array
+              items:
+                $ref: '#/components/schemas/Quota'
+            initResources:
+              $ref: '#/components/schemas/InitResources'
+            suspended:
+              type: boolean
 
     TenantList:
       type: object

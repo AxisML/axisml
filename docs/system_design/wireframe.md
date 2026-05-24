@@ -122,14 +122,14 @@
 | 显示名 | compute `services.displayName` | 行点击进详情 |
 | 镜像 | compute `services.spec.roles[0].template.image` | 截断显示;hover 显示完整 |
 | 资源池 · 单元 | compute `services.spec.scheduling.resourcePool` + `resourceUnit` | 显示池名 / 单元名 |
-| Owner | `services.ownerUser` | 普通用户列表已按 `ownerUser=current_user` 过滤 |
+| Owner | `services.owner` | 普通用户列表已按 `owner=current_user` 过滤 |
 | 创建时间 | `services.createdAt` | 相对时间 + tooltip 绝对时间 |
 | 状态 | 派生 (见 [§4.5](#45-状态展示规则)) | 徽章 |
 | 操作 | — | 启动 / 停止 / 打开 / 详情 / 删除 |
 
 **过滤**:租户 (admin 跨租户) / 状态 / 关键字 (显示名 / 镜像)。
 **排序**:创建时间 (默认倒序) / 显示名。
-**可见性**:`system-admin` 跨所有 compute namespace 并行;`tenant-admin@self` 限可见租户;普通用户 compute 端 `ownerUser=` 过滤下推。
+**可见性**:`system-admin` 跨所有 compute namespace 并行;`tenant-admin@self` 限可见租户;普通用户 compute 端 `owner=` 过滤下推。
 
 ### 4.3 创建表单
 
@@ -221,7 +221,7 @@
 | 后端 | `spec.backend.name` / `engine` | 如 `native / job`、`kubeflow-trainer / pytorchjob` |
 | 资源池 · 单元 | `spec.scheduling.resourcePool` + `resourceUnit` | — |
 | 状态 | `jobs.status` | 见 [§5.5](#55-状态展示规则) |
-| Owner | `jobs.ownerUser` | 普通用户已下推过滤 |
+| Owner | `jobs.owner` | 普通用户已下推过滤 |
 | 开始 - 结束时间 | `jobs.startedAt` / `completedAt` | 相对时间 |
 | 操作 | — | 取消 / 详情 / 删除 / 注册为模型 / 重新提交 |
 
@@ -323,12 +323,12 @@
 | 资源池 · 单元 | `spec.scheduling.*` | — |
 | 副本 (`ready/total`) | `status.readyReplicas` / `spec.roles[0].replicas` | `2/3` 形式 |
 | 状态 | `services.status` | 见 [§6.5](#65-状态展示规则) |
-| Owner | `services.ownerUser` | — |
+| Owner | `services.owner` | — |
 | 入口 | `route.enabled` ? 渲染 `https://<gateway><route.path>` : `services.endpoint` | 一键复制 |
 | 创建时间 | `services.createdAt` | — |
 | 操作 | — | 扩缩容 / 停 · 启 / 详情 / 克隆为新版本 / 删除 |
 
-**过滤**:租户 (admin) / 状态 / Owner (admin) / backend.name / engine / 模型名 / 关键字。`tenantName`/`status`/`ownerUser`/`limit`/`continue` 下推 compute;`q`/`backendName`/`backendEngine`/`modelName` 内存二次筛选。
+**过滤**:租户 (admin) / 状态 / Owner (admin) / backend.name / engine / 模型名 / 关键字。`tenantName`/`status`/`owner`/`limit`/`continue` 下推 compute;`q`/`backendName`/`backendEngine`/`modelName` 内存二次筛选。
 
 ### 6.3 创建表单
 
@@ -457,20 +457,20 @@ MLService `spec.modelRef` 创建后不可变。「克隆为新版本」是前端
 | --- | --- |
 | 显示名 | `displayName` |
 | 内部名 | `name` |
-| Business Unit | `business_unit` |
+| 组织分组 | `namespace`（顶层，组织维度；与 `spec.namespace.name` 这个 K8s namespace 区分） |
 | 状态 | `status.phase` (见 [§8.6](#86-状态展示规则)) |
-| 命名空间 | `status.namespace.name` |
+| K8s 命名空间 | `spec.namespace.name` |
 | 创建时间 | `createdAt` |
 | 操作 | 详情 / 暂停 / 恢复 / 删除 / 恢复软删 |
 
-**过滤**:状态 / business_unit / 关键字 (全部下推 cluster-manager)。
+**过滤**:状态 / 组织分组 (`namespace`) / 关键字 (全部下推 cluster-manager)。
 **可见性**:`system-admin` 看全集群;其他角色先按 `user_tenant_roles` 取 `tenant_name` 集合再裁剪。
 
 ### 8.3 详情页 Tab
 
 #### Tab 1 基本信息
 
-展示 `displayName` / `description` / `business_unit` / `phase` / `conditions` / `namespace`。
+展示 `displayName` / `description` / `namespace`（组织分组）/ `status.phase` / `status.conditions` / `spec.namespace.name`（K8s namespace）。
 
 - `system-admin`:可编辑展示元数据 + 暂停 / 恢复 / 删除。
 - 其他角色:只读。
@@ -528,7 +528,7 @@ MLService `spec.modelRef` 创建后不可变。「克隆为新版本」是前端
 | 字段 | 说明 |
 | --- | --- |
 | `name` | 内部名,DNS-1123,创建后不可变 |
-| `displayName` / `description` / `business_unit` | 展示元数据,可改 |
+| `displayName` / `description` / `namespace`（组织分组）| 展示元数据,可改 |
 | `namespace.name` | 渲染目标 namespace,创建后不可变 |
 | `quotas[]` | 初始配额数组 (可后续从详情页 Tab 2 增删) |
 | `initResources` | 初始 Secret / ConfigMap / SA / RBAC (Vault / Sealed Secrets 接入为 TBD) |

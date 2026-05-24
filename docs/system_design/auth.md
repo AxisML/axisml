@@ -71,7 +71,7 @@ API 路径与请求体见 [apis/platform.yaml](apis/platform.yaml) `Auth` tag（
 
 记号：
 - `@self` = 仅对当前用户绑定的租户生效；
-- `@owner` = 仅对当前用户创建的对象（`owner_user == X-Axisml-User`）生效；
+- `@owner` = 仅对当前用户创建的对象（`owner == X-Axisml-User`）生效；
 - `system-admin` 在所有 tenant 级 / owner 级判断上 **短路放行**。
 
 ---
@@ -147,7 +147,7 @@ X-Axisml-User: <username>
 | 服务 | 是否做角色级鉴权 | `X-Axisml-User` 的用途 |
 | --- | --- | --- |
 | cluster-manager | NO | 写入 `tenants.last_modified_by` + K8s Event |
-| compute | NO | 写入 `services.owner_user` / `jobs.owner_user`；列表过滤 `@owner` |
+| compute | NO | 写入 `services.owner` / `jobs.owner`；列表过滤 `@owner` |
 | artifacts | NO | 审计 + ownership 归属 |
 
 下游服务的网络面 **只接受 ClusterIP**；操作员（compute-operator / tenant-operator）直连时只携带 controller service identity，权限受限（例如 artifacts 仅允许 `resolve?usage=inspect`）。
@@ -172,7 +172,7 @@ Platform 后端 `internal/auth` 暴露下列中间件供各功能 handler 拼装
 | `RequireJobOwner(tenantParam, nameParam)` | `@owner` 或在 tenant 上有 ≥ `tenant-admin` | `system-admin` 短路 |
 
 实现要点：
-- `RequireWorkspaceOwner` / `RequireServiceOwner` / `RequireJobOwner` 需要先调下游 GET 拿 `owner_user`；结果通过 `gin.Context.Set(...)` 注入后续 handler，避免重复调用；
+- `RequireWorkspaceOwner` / `RequireServiceOwner` / `RequireJobOwner` 需要先调下游 GET 拿 `owner`；结果通过 `gin.Context.Set(...)` 注入后续 handler，避免重复调用；
 - 角色升降序：`system-admin` > `tenant-admin` > `user`，所有 `≥` 比较按此序列；
 - 失败统一返回 RFC 7807 problem：`401 unauthenticated` / `403 forbidden` / `409 last-tenant-admin`。
 

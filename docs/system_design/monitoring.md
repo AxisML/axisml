@@ -71,7 +71,7 @@ label 取值规则：
 | `axisml_compute_reconciler_oldest_pending_seconds{resource,predicate}` | gauge | 工作集最老未处理行的 age |
 | `axisml_compute_reconciler_actions_total{resource,predicate,result}` | counter | reconciler 动作计数 |
 | `axisml_compute_informer_workqueue_depth{resource}` | gauge | 各模块 Informer work queue 深度 |
-| `axisml_compute_spec_sync_pending_total{resource}` | gauge | 待同步行数（`desired_spec_hash <> applied_spec_hash`） |
+| `axisml_compute_spec_sync_pending_total{resource}` | gauge | 待同步行数（`generation <> observed_generation`） |
 | `axisml_compute_api_request_duration_seconds{route,status}` | histogram | API 请求延迟分布 |
 
 label 取值：

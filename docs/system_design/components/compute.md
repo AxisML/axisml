@@ -40,7 +40,7 @@
 
 ```
 ┌──────────────────────────── Compute (Go) ─────────────────────────────┐
-│  HTTP API (Gin) ──写──▶  PG (desired_spec_hash + status='Creating')   │
+│  HTTP API (Gin) ──写──▶  PG (generation + status='Creating')          │
 │        ▲                                │                              │
 │        │ 读                              ▼                              │
 │        │                       Reconciler goroutines (leader-only)    │
@@ -66,7 +66,9 @@
 
 字段级 schema 见 [database.md §3](../database.md#3-compute)；CR spec 字段见 [compute-operator.md](compute-operator.md)。
 
-**通用 PG 约定**：所有表带 `id uuid` / `created_at` / `updated_at` / `deleted_at`；所有 UNIQUE 实现为 partial unique index `WHERE deleted_at IS NULL`（软删行不占用唯一键，同名可再次创建）；`name` 统一 DNS-1123 校验，长度 3–40。CR-backed 对象额外打 `axisml.io/{job,service}-id=<uuid>` label 作为稳定锚点（`metadata.name` 因软删可重用，UUID 永久唯一）。
+**通用 PG 约定**：所有表带 `id uuid` / `created_at` / `updated_at` / `deleted_at`；所有 UNIQUE 实现为 partial unique index `WHERE deleted_at IS NULL`（软删行不占用唯一键，同名可再次创建）；`name` 统一 DNS-1123 校验，长度 3–40。CR-backed 对象额外打 `axisml.io/{job,service}-id=<uuid>` label 作为稳定锚点（`metadata.name` 因软删可重用，UUID 永久唯一）；`services` 还会同步打 `axisml.io/service-kind=<service|workspace>` label，便于 `kubectl` selector 区分工作区与普通服务（compute / operator 不按 kind 改变行为）。
+
+**扩展元数据**：`jobs` / `services` 表均带 `labels jsonb` + `annotations jsonb` 双字段，对齐 K8s 风格语义，统一约定见 [database.md §1.6](../database.md#16-扩展元数据-labels--annotations)。两者均 **PG-only、不下发 CR、不 `+generation`**——Platform 走 compute REST 写入，不直接 patch CR。
 
 ## 4. 核心功能
 
@@ -87,8 +89,9 @@ Creating ──(Informer ADD)──▶ Pending ──▶ Running ──▶ Succe
 
 | 操作 | PG 写 | CR 影响 | 备注 |
 | --- | --- | --- | --- |
-| 提交 | insert `Creating` 行 + spec 快照 + desired hash | reconciler `Create()` MLJob | 创建后 spec 不可变 |
+| 提交 | insert `Creating` 行 + spec 快照（`generation=1`） | reconciler `Create()` MLJob | 创建后 spec 不可变；无后续 mutation，仅靠 `status='Creating'` 谓词推进 |
 | cancel | `status='Canceling'` + `message='user cancelled'` | reconciler `patch spec.runPolicy.suspend=true` | `Creating` 状态拒绝；要求改用 DELETE |
+| 更新 PG 元数据（`display_name` / `description` / `labels` / `annotations`） | update 行 | **不影响 CR** | Job spec 不可变，但 PG 扩展位任意阶段可改 |
 | 软删 | `status='Deleting'` + `deleted_at=now()` | reconciler `Delete()` CR；Informer DELETE → `Deleted` | 任一非 `Deleting`/`Deleted` 状态适用 |
 | 日志 / 副本 / 事件 | — | 透传 kube-apiserver Pod Log / 按 label list Pod / 聚合 Event | 详见 [apis/compute.yaml](../apis/compute.yaml) `Jobs` tag |
 
@@ -124,11 +127,12 @@ Creating ──(Informer ADD)──▶ Pending ──(ready=desired, desired>0)�
 
 | 操作 | PG 写 | CR 影响 |
 | --- | --- | --- |
-| 创建 | insert `Creating` 行 + spec 快照 + desired hash | reconciler `Create()` MLService |
-| scale | 更新 `services.replicas` + `spec.roles[0].replicas` + 重算 desired hash | reconciler 双 hash patch `spec/roles/0/replicas` |
+| 创建 | insert `Creating` 行 + spec 快照（`generation=1`） | reconciler `Create()` MLService（含 `axisml.io/service-{id,kind}` label） |
+| scale | 更新 `services.replicas` + `spec.roles[0].replicas` + `generation += 1` | reconciler `generation>observed_generation` 触发 patch `spec/roles/0/replicas` |
+| 更新 PG 元数据（`display_name` / `description` / `labels` / `annotations`） | update 行 | **不影响 CR**；不 `+generation` |
 | 软删 | `status='Deleting'` + `deleted_at=now()` | reconciler `Delete()` CR；Informer DELETE → `Deleted` |
 
-Service 无 cancel 语义；除 `roles[0].replicas` 外其他 spec 字段不可变。
+Service 无 cancel 语义；除 `roles[0].replicas` 外其他 spec 字段不可变。`kind` 创建后不可变。
 
 **与 MLService CR 契约**：
 
@@ -181,32 +185,32 @@ Service 无 cancel 语义；除 `roles[0].replicas` 外其他 spec 字段不可�
 
 ### 5.1 写路径：内嵌 Outbox + 4 谓词扫描
 
-无独立 outbox 表——借用业务表自身的 `status` / `deleted_at` / `desired_spec_hash` 列。API 同步路径只写 PG（业务校验 → 事务内写状态 + spec 快照 + 重算 hash → commit → 返回业务 ID）；reconciler goroutine 在 leader 副本按以下谓词扫描分派：
+无独立 outbox 表——借用业务表自身的 `status` / `deleted_at` / `generation` 列。API 同步路径只写 PG（业务校验 → 事务内写状态 + spec 快照 + `generation += 1` → commit → 返回业务 ID）；reconciler goroutine 在 leader 副本按以下谓词扫描分派：
 
 | 谓词 | 动作 | 适用模块 |
 | --- | --- | --- |
 | `status='Creating' AND deleted_at IS NULL` | `Create()` CR（带 `axisml.io/<resource>-id` label；409 视为成功） | Job / Service |
 | `status='Canceling'` | `patch MLJob.spec.runPolicy.suspend=true` | Job |
 | `status='Deleting'` | `Delete()` CR；Informer DELETE 推进 `Deleted` | Job / Service |
-| `desired_spec_hash != applied_spec_hash AND deleted_at IS NULL` | `Patch()` CR；成功后 `applied=desired` | Service |
+| `generation <> observed_generation AND deleted_at IS NULL` | `Patch()` CR；成功后 `observed_generation = generation` | Service |
 
 失败按指数退避重试，错误写入业务记录的 `message`。PG 行不再满足任何谓词后，reconciler 不再下发——自然结束 / 自愈 / 外部误删由 Informer 回流推进。
 
-### 5.2 双 hash spec 同步
+### 5.2 generation spec 同步
 
 ```
 API mutation
      │
-     ▼  (事务内) spec 写入 + canonical_json = serialize(spec 视图) + desired_spec_hash = sha256(canonical_json)
+     ▼  (事务内) spec 写入 + generation = generation + 1
      │
-     ▼  partial index `WHERE desired_spec_hash <> applied_spec_hash AND deleted_at IS NULL`
+     ▼  partial index `WHERE generation <> observed_generation AND deleted_at IS NULL`
      │
 Reconciler (leader-only)
      │
-     ▼  Patch CR → applied_spec_hash = desired_spec_hash
+     ▼  Patch CR → observed_generation = generation
 ```
 
-Hash 由 `internal/spechash` 计算，输入为字段子集的归一化 JSON（不含 `status` / `applied_*` / `updated_at` 等运行态字段）。
+语义对齐 K8s `metadata.generation` / `status.observedGeneration`，统一约定见 [database.md §1.4](../database.md#14-generation--observed_generation)。
 
 | 资源 | 是否启用 | 允许变更字段 |
 | --- | --- | --- |

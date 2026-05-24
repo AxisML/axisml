@@ -189,7 +189,7 @@ Pod 调度 ──▶ koord-scheduler ──▶ ElasticQuota.status.used 累加
 | 输入 CR | `Tenant` (`axisml.io/v1alpha1`, cluster-scoped, `shortName=tnt`) | [tenant-crd.yaml](../../../deploy/helm/axisml-system/crds/tenant-crd.yaml) |
 | 上游写者 | cluster-manager 是唯一写者 (`metadata` / `spec`);admission webhook 后续硬阻断外部写 | [cluster-manager.md](cluster-manager.md) |
 | status subresource | CRD 声明 `subresources.status`;tenant-operator 是唯一 `status` 写者 | — |
-| 字段归属 | `spec` 三大块 `namespace` / `quotas[]` / `initResources` + `displayName` / `annotations` / `suspended` | 详见下表 |
+| 字段归属 | `spec` 三大块 `namespace` / `quotas[]` / `initResources` + `displayName` / `suspended` | 详见下表 |
 | 级联清理 | per-tenant 资源 ownerReference → Tenant CR;Tenant DELETE 由 K8s GC 异步清理;Namespace 永不删除 | — |
 | metadata 命名上限 | `metadata.name` ≤40;子资源前缀 14+40+1=55 → `initResources.*[].name` 与 `serviceAccounts[].name` 上限 198 | — |
 
@@ -198,7 +198,7 @@ Pod 调度 ──▶ koord-scheduler ──▶ ElasticQuota.status.used 累加
 | 字段路径 | 写入方 | 可变? |
 | --- | --- | --- |
 | `metadata.name` / `labels[axisml.io/tenant-id]` | cluster-manager | 否 |
-| `spec.displayName` / `annotations` / `suspended` | cluster-manager | 是 |
+| `spec.displayName` / `suspended` | cluster-manager | 是 |
 | `spec.namespace.name` | cluster-manager | 否 (controller 拒绝,webhook 兜底) |
 | `spec.namespace.labels` / `annotations` | cluster-manager | 是 (仅首次创建落地) |
 | `spec.quotas[].{pool, name}` | cluster-manager | 否 (标识锚点) |
@@ -229,6 +229,7 @@ Pod 调度 ──▶ koord-scheduler ──▶ ElasticQuota.status.used 累加
 ## 9. 后续工作
 
 - **Admission webhook**:`spec.namespace.name` / `spec.quotas[].{pool,name}` 不可变约束、跨 ns `sourceXxxRef` 白名单、`min/max` 结构性校验、源 Secret type 一致性、目标 Namespace allowlist / denylist 前移;同时硬阻断非 cluster-manager 写者。
+- **CRD 移除 `spec.annotations` 字段**:扩展元数据已统一收回 PG `tenants.{labels,annotations}`（见 [database.md §1.6](../database.md#16-扩展元数据-labels--annotations)）,CR 上不再承载业务扩展位。
 - **CRD 严格 schema**:替换 `x-kubernetes-preserve-unknown-fields`,启用 OpenAPI 校验并收紧 `phase` enum。
 - **加密源支持**:KMS / Vault / Sealed Secrets 作为 `sourceSecretRef` 替代。
 - **`initResources` templating**:按 tenant 上下文 (id / name / namespace) 渲染 ConfigMap 数据。

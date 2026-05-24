@@ -44,16 +44,18 @@
 - ResourceUnit 名称叠加 [compute.md §4.4 ResourceUnit](components/compute.md#44-resourceunit) 的语义命名约定；
 - Artifact `version` 改用 OCI tag-safe 子集（`A-Za-z0-9_.-`，长度 1–128，禁止 `/`）。
 
-### 1.4 desired / applied spec hash
+### 1.4 generation / observed_generation
 
-允许变更 spec 的 CR-backed 表（当前为 `tenants` / `services`）采用双 hash 机制：
+允许变更 spec 的 CR-backed 表（当前为 `tenants` / `services`）采用 K8s 风格的 generation 双字段做 outbox 信号：
 
-| 字段 | 写入方 | 含义 |
-| --- | --- | --- |
-| `desired_spec_hash` | API 层 | 每次 mutation 后用规范化 JSON 计算 `sha256` |
-| `applied_spec_hash` | reconciler | 成功 patch CR 后写入；与 `desired_spec_hash` 相等表示已同步 |
+| 字段 | 类型 | 写入方 | 含义 |
+| --- | --- | --- | --- |
+| `generation` | `bigint` | API 层 | spec mutation 时 +1；对齐 K8s `metadata.generation` |
+| `observed_generation` | `bigint` | reconciler | 成功 patch CR 后写入；`generation == observed_generation` 表示已同步；对齐 K8s `status.observedGeneration` |
 
-`jobs` 表 spec 完全不可变，不使用双 hash；`resource_pools` / `resource_units` / `artifacts` / Platform 表无对应 CR，更不使用。
+reconciler 通过 partial index `WHERE generation <> observed_generation AND deleted_at IS NULL` 高效定位待同步行；spec 内容未变但 mutation 重复触发时仍会 +generation，reconciler 走幂等 server-side apply 不会产生副作用。
+
+`jobs` 表 spec 完全不可变，不使用 generation（同步信号借用 `status` 谓词扫描，见 [compute.md §5.1](components/compute.md#51-写路径内嵌-outbox--4-谓词扫描)）；`resource_pools` / `resource_units` / `artifacts` / Platform 表无对应 CR，更不使用。
 
 ### 1.5 CR 稳定锚点
 
@@ -65,6 +67,32 @@
 | `jobs` | `MLJob` | `axisml.io/job-id` |
 | `services` | `MLService` | `axisml.io/service-id` |
 
+`services` 在 CR `metadata.labels` 上额外冗余写 `axisml.io/service-kind=<kind>`（`service` / `workspace`），便于 `kubectl` selector 区分工作区与普通服务；compute / operator 不按该 label 改变行为。
+
+### 1.6 扩展元数据 `labels` / `annotations`
+
+所有业务表（`tenants` / `jobs` / `services` / `artifacts`）统一以 `labels jsonb` + `annotations jsonb` 双字段承载扩展元数据，对齐 K8s 风格语义。**只落 PG，不下发 CR**。
+
+| 字段 | 用途 | 大小约束 | key 校验 |
+| --- | --- | --- | --- |
+| `labels` | 短键短值；用于过滤、归类、跨服务索引 | key/value ≤ 63 字符；总条目 ≤ 64 | K8s label 规范子集（`[a-z0-9A-Z._-]`，可带前缀 `<prefix>/<name>`） |
+| `annotations` | 自由文本；用于展示、工具链跟踪、Platform 内部审计 | 单 value ≤ 4 KiB；总大小 ≤ 32 KiB | UTF-8 字符串，key 沿用 label 命名规则 |
+
+**Key 命名空间约定**（防止 Platform 与第三方写者冲突）：
+
+| 前缀 | 拥有者 |
+| --- | --- |
+| `platform.axisml.io/*` | Platform 内部使用（审计标记、批次 ID、UI 状态等） |
+| `user.axisml.io/*` 或无前缀 | 业务服务调用方透传（终端用户提交） |
+| `<其他正规域名>/*` | 第三方集成（Argo、Kubeflow Pipeline 等） |
+
+**不变量**：
+
+- **不 `+generation`**：修改 `labels` / `annotations` 不触发 CR 同步，纯 PG mutation；
+- **不下发到 CR**：CR `metadata` 上仅出现 [§1.5](#15-cr-稳定锚点) 列出的稳定锚点 label，不携带业务扩展位；CR `spec` 也不再承载扩展位；
+- **写入路径单一**：由业务服务（cluster-manager / compute / artifacts）REST API 接收并写 PG；Platform 走业务服务，不直写 K8s；
+- 软删行保留扩展位以支持 retention 期内恢复。
+
 ---
 
 ## 2. Cluster Manager
@@ -73,41 +101,79 @@
 
 ```sql
 CREATE TABLE tenants (
-  id                       uuid PRIMARY KEY,
-  name                     text NOT NULL,
-  display_name             text NOT NULL,
-  description              text NOT NULL DEFAULT '',
-  business_unit            text NOT NULL DEFAULT '',
-  annotations              jsonb NOT NULL DEFAULT '{}',     -- 透传到 Tenant CR spec.annotations 的扩展位
+  id                   uuid PRIMARY KEY,
+  name                 text NOT NULL,
+  namespace            text NOT NULL,                            -- 组织分组维度（如 "ai-team"）；与 jobs/services/artifacts 的 namespace（K8s namespace）同名异义，详见下方
+  display_name         text,
+  description          text,
+  owner                text,                                     -- 创建者；来自 X-Axisml-User
+  labels               jsonb NOT NULL DEFAULT '{}',              -- 扩展元数据（见 §1.6）；PG-only
+  annotations          jsonb NOT NULL DEFAULT '{}',              -- 扩展元数据（见 §1.6）；PG-only
 
-  namespace_name           text NOT NULL,                    -- 写入 Tenant CR spec.namespace.name；创建后不可变
-  namespace_labels         jsonb NOT NULL DEFAULT '{}',
-  namespace_annotations    jsonb NOT NULL DEFAULT '{}',
+  spec                 jsonb NOT NULL,                           -- 业务规格快照；子结构见下方（spec.namespace 是 K8s namespace 元数据）
+  generation           bigint NOT NULL DEFAULT 1,                -- spec mutation 时 +1（见 §1.4）
+  observed_generation  bigint NOT NULL DEFAULT 0,                -- reconciler patch CR 成功后写入（见 §1.4）
 
-  quotas                   jsonb NOT NULL DEFAULT '[]',      -- [{pool, name, min, max}]；(pool, name) 创建后不可变
-  init_resources           jsonb NOT NULL DEFAULT '{}',
-  suspended                bool NOT NULL DEFAULT false,
+  status               jsonb NOT NULL DEFAULT '{"phase":"Creating"}', -- informer 回流；子结构见下方
 
-  desired_spec_hash        text NOT NULL,
-  applied_spec_hash        text NOT NULL DEFAULT '',         -- reconciler 写入
-
-  phase                    text NOT NULL DEFAULT 'Creating', -- Informer 回流
-  namespace_ready          bool NOT NULL DEFAULT false,      -- Informer 回流
-  conditions               jsonb NOT NULL DEFAULT '[]',      -- Informer 回流
-  quota_status             jsonb NOT NULL DEFAULT '[]',      -- Informer 回流：[{pool, name, ready, used, message}]
-  message                  text NOT NULL DEFAULT '',
-  last_modified_by         text NOT NULL DEFAULT '',         -- 来自 X-Axisml-User
-
-  created_at               timestamptz NOT NULL DEFAULT now(),
-  updated_at               timestamptz NOT NULL DEFAULT now(),
-  deleted_at               timestamptz
+  last_modified_by     text NOT NULL DEFAULT '',                 -- 最近一次 mutation 调用方
+  created_at           timestamptz NOT NULL DEFAULT now(),
+  updated_at           timestamptz NOT NULL DEFAULT now(),
+  deleted_at           timestamptz
 );
 
-CREATE UNIQUE INDEX tenants_name_active_uniq ON tenants (name) WHERE deleted_at IS NULL;
-CREATE INDEX tenants_deleted_at        ON tenants (deleted_at);
-CREATE INDEX tenants_business_unit     ON tenants (business_unit);
-CREATE INDEX tenants_created_at        ON tenants (created_at DESC);
-CREATE INDEX tenants_sync_pending      ON tenants (desired_spec_hash, applied_spec_hash) WHERE desired_spec_hash <> applied_spec_hash;
+CREATE UNIQUE INDEX tenants_name_active_uniq
+  ON tenants (name) WHERE deleted_at IS NULL;
+CREATE INDEX tenants_deleted_at  ON tenants (deleted_at);
+CREATE INDEX tenants_namespace   ON tenants (namespace) WHERE deleted_at IS NULL;
+CREATE INDEX tenants_created_at  ON tenants (created_at DESC);
+CREATE INDEX tenants_phase       ON tenants ((status->>'phase')) WHERE deleted_at IS NULL;
+CREATE INDEX tenants_sync_pending
+  ON tenants (id) WHERE generation <> observed_generation AND deleted_at IS NULL;
+```
+
+**两种 `namespace` 语义区分**（重要）：
+
+| 出现位置 | 含义 | 关系 |
+| --- | --- | --- |
+| `tenants.namespace`（顶层） | 组织分组维度，由 Platform 决定（如 `ai-team` / `search-team` / `default`）；同一组织下可有多个 tenant | tenant 的"父级分组"；Platform 跨表 join 时与下文 K8s namespace **概念不重合**，仅命名相同 |
+| `tenants.spec.namespace.name` | tenant 关联的 **K8s namespace**；写入 K8s Namespace 资源；多 tenant 允许共享同一 K8s namespace | tenant-operator 落地目标 |
+| `jobs.namespace` / `services.namespace` / `artifacts.namespace` | 业务对象所属的 **K8s namespace**；与 `tenants.spec.namespace.name` 同义，可 join | compute / artifacts 的分区键 |
+
+**`spec` 子结构**（与 Tenant CR `spec` 一一对应）：
+
+```jsonc
+{
+  "namespace": {                            // namespace.name 创建后不可变
+    "name":        "<dns-1123>",
+    "labels":      {},                      // 仅在 Namespace 首次创建时落地
+    "annotations": {}
+  },
+  "quotas": [                               // 每条 (pool, name) 创建后不可变
+    { "pool": "<pool>", "name": "<name>", "min": {...}, "max": {...} }
+  ],
+  "initResources": { /* imagePullSecrets / secrets / configMaps / serviceAccounts */ },
+  "suspended":     false
+}
+```
+
+**`status` 子结构**（informer 从 Tenant CR `status` 整块回流）：
+
+```jsonc
+{
+  "phase":   "Creating | Active | Suspended | Failed | Deleting | Deleted",
+  "message": "<人类可读兜底消息>",
+  "conditions": [
+    { "type": "NamespaceReady",     "status": "True|False|Unknown",
+      "reason": "...", "message": "...", "lastTransitionTime": "..." },
+    { "type": "QuotasReady",        "status": "...", "...": "..." },
+    { "type": "InitResourcesReady", "status": "...", "...": "..." }
+  ],
+  "quotas": [                               // 每条 quota 的逐项状态与用量
+    { "pool": "...", "name": "...", "ready": true,
+      "used": { "cpu": "...", "memory": "..." }, "message": "" }
+  ]
+}
 ```
 
 **字段归属**
@@ -115,14 +181,15 @@ CREATE INDEX tenants_sync_pending      ON tenants (desired_spec_hash, applied_sp
 | 字段 | 写入方 | 备注 |
 | --- | --- | --- |
 | `id` | API 层 | 同时写入 Tenant CR `metadata.labels[axisml.io/tenant-id]` |
-| `name` / `display_name` / `description` / `business_unit` / `annotations` | API 层 | `description` / `business_unit` 升级为 PG 一级字段；reconciler 渲染到 CR `spec.annotations[axisml.io/description, axisml.io/business-unit]` |
-| `namespace_name` | API 层 | 创建后不可变 |
-| `namespace_labels` / `namespace_annotations` | API 层 | 只在 Namespace 首次创建时落地 |
-| `quotas` / `init_resources` / `suspended` | API 层 | `quotas` 内每条 `(pool, name)` 创建后不可变 |
-| `desired_spec_hash` | API 层 | 每次 mutation 重算；输入字段：`display_name` / `description` / `business_unit` / `annotations` / `namespace_*` / `quotas` / `init_resources` / `suspended` / `deleted_at` |
-| `applied_spec_hash` | reconciler | 成功 patch CR 后写入 |
-| `phase` / `namespace_ready` / `conditions` / `quota_status` / `message` | informer | 由 Tenant CR `status.*` 回流 |
-| `last_modified_by` | API 层 | 来自 `X-Axisml-User` |
+| `name` / `display_name` | API 层 | `name` 创建后不可变 |
+| `namespace` | API 层 | 顶层组织分组维度；创建后可改（搬迁分组）；**不下发 CR、不进 generation**；与 `spec.namespace.name`（K8s namespace）通过路径区分 |
+| `description` / `owner` | API 层 | PG-only 元数据；`owner` 创建后不可变 |
+| `labels` / `annotations` | API 层 / Platform | 扩展元数据，见 [§1.6](#16-扩展元数据-labels--annotations)；**不下发 CR、不进 generation** |
+| `spec` | API 层 | `spec.namespace.name` 与 `spec.quotas[].{pool,name}` 创建后不可变；其他字段可变 |
+| `generation` | API 层 | 每次 `spec` mutation 时 `+1`；展示性元数据 / 扩展位的修改不触发 |
+| `observed_generation` | reconciler | 成功 patch Tenant CR 后写入 |
+| `status` | informer | 从 Tenant CR `status` 整块回流 |
+| `last_modified_by` | API 层 | 来自 `X-Axisml-User`，每次 mutation 刷新 |
 | `deleted_at` | DELETE / restore 端点 | retention（默认 365 天）期满后由后台 GC 物理清理 |
 
 ---
@@ -185,9 +252,11 @@ CREATE TABLE jobs (
   name                 text NOT NULL,            -- MLJob CR metadata.name
   display_name         text,
   description          text,
-  owner_user           text,                     -- 来自 X-Axisml-User
+  owner                text,                     -- 创建者；来自 X-Axisml-User
+  labels               jsonb NOT NULL DEFAULT '{}',  -- 扩展元数据（见 §1.6）；PG-only
+  annotations          jsonb NOT NULL DEFAULT '{}',  -- 扩展元数据（见 §1.6）；PG-only
   spec                 jsonb NOT NULL,           -- 提交时的 MLJob.spec 完整快照（不可变）
-  requested_resources  jsonb,                    -- 资源申请快照
+  resources            jsonb,                    -- 创建时按 resource_unit_id 注入的资源申请快照
   status               text NOT NULL,            -- Creating/Pending/Running/Succeeded/Failed/Canceling/Cancelled/Deleting/Deleted
   message              text,
   started_at           timestamptz,
@@ -206,7 +275,9 @@ CREATE UNIQUE INDEX jobs_namespace_name_active_uniq
 | 字段 | 写入方 | 备注 |
 | --- | --- | --- |
 | `spec` | API 层 | 提交时 MLJob.spec 完整快照；**不可变**；结构详见 [compute-operator.md §4.1.1](components/compute-operator.md#411-mljob-spec-高层结构) |
-| `requested_resources` | API 层 | 冗余存提交时的资源申请，解耦后续 ResourceUnit 修改对已提交任务的影响 |
+| `owner` | API 层 | 来自 `X-Axisml-User`；创建后不可变 |
+| `labels` / `annotations` | API 层 / Platform | 扩展元数据，见 [§1.6](#16-扩展元数据-labels--annotations)；**不下发 CR** |
+| `resources` | API 层 | 创建时按所选 `resource_unit_id` 注入的资源申请快照；供 SQL 直接核算用量 / 计费，避免穿透 `spec.roles[*].template.resources` jsonb；ResourceUnit 后续修改不影响已创建对象 |
 | `status` / `message` / `started_at` / `finished_at` | informer | 由 MLJob CR `status.*` 回流 |
 
 `spec.backend` 默认值：用户未指定时 Compute 写 CR 时显式补 `{name: "native", engine: "job"}`；`backend.{name, engine}` 创建后不可变。
@@ -222,14 +293,16 @@ CREATE TABLE services (
   pool_id              uuid REFERENCES resource_pools(id),
   resource_unit_id     uuid REFERENCES resource_units(id),
   name                 text NOT NULL,
-  kind                 text NOT NULL DEFAULT 'service', -- 'service' | 'workspace'；创建后不可变
+  kind                 text NOT NULL DEFAULT 'service', -- 'service' | 'workspace'；创建后不可变；同步打到 CR label axisml.io/service-kind
   display_name         text,
   description          text,
-  owner_user           text,
+  owner                text,                     -- 创建者；来自 X-Axisml-User
+  labels               jsonb NOT NULL DEFAULT '{}',  -- 扩展元数据（见 §1.6）；PG-only
+  annotations          jsonb NOT NULL DEFAULT '{}',  -- 扩展元数据（见 §1.6）；PG-only
   spec                 jsonb NOT NULL,           -- 当前 MLService.spec 快照
-  desired_spec_hash    text NOT NULL,
-  applied_spec_hash    text NOT NULL DEFAULT '',
-  requested_resources  jsonb,
+  generation           bigint NOT NULL DEFAULT 1, -- spec mutation 时 +1（见 §1.4）
+  observed_generation  bigint NOT NULL DEFAULT 0, -- reconciler patch CR 成功后写入（见 §1.4）
+  resources            jsonb,                    -- 创建时按 resource_unit_id 注入的资源申请快照（与 jobs.resources 同义）
   replicas             int NOT NULL DEFAULT 1,   -- 单 role 约定下 = spec.roles[0].replicas
   ready_replicas       int NOT NULL DEFAULT 0,   -- Informer 回流
   endpoint             text,                     -- Informer 回流
@@ -244,18 +317,21 @@ CREATE UNIQUE INDEX services_namespace_name_active_uniq
   ON services (namespace, name) WHERE deleted_at IS NULL;
 CREATE INDEX services_namespace_kind ON services (namespace, kind) WHERE deleted_at IS NULL;
 CREATE INDEX services_sync_pending
-  ON services (desired_spec_hash, applied_spec_hash)
-  WHERE desired_spec_hash <> applied_spec_hash AND deleted_at IS NULL;
+  ON services (id)
+  WHERE generation <> observed_generation AND deleted_at IS NULL;
 ```
 
 **字段归属**
 
 | 字段 | 写入方 | 备注 |
 | --- | --- | --- |
-| `spec` | API 层 | 扩缩容 API 可更新 `spec.roles[0].replicas` 并重算 `desired_spec_hash`，其他字段不可变 |
-| `kind` | API 层 | `'service'` / `'workspace'`；Compute 不按 `kind` 改变行为，仅作分类过滤；创建后不可变 |
-| `desired_spec_hash` | API 层 | 输入字段：`spec` 子集（不含 `replicas` 之外的不可变字段散列） |
-| `applied_spec_hash` | reconciler | 成功 patch CR 后写入 |
+| `spec` | API 层 | 扩缩容 API 可更新 `spec.roles[0].replicas` 并 `+generation`，其他字段不可变 |
+| `kind` | API 层 | `'service'` / `'workspace'`；创建后不可变；Compute 不按 `kind` 改变行为，仅作分类过滤；同步写入 CR `metadata.labels[axisml.io/service-kind]` |
+| `owner` | API 层 | 来自 `X-Axisml-User`；创建后不可变 |
+| `labels` / `annotations` | API 层 / Platform | 扩展元数据，见 [§1.6](#16-扩展元数据-labels--annotations)；**不下发 CR、不进 generation** |
+| `generation` | API 层 | 每次 `spec` mutation 时 `+1`（见 §1.4） |
+| `observed_generation` | reconciler | 成功 patch CR 后写入（见 §1.4） |
+| `resources` | API 层 | 与 [`jobs.resources`](#33-jobs-表) 同义 |
 | `replicas` | API 层（`/scale`） | 与 `spec.roles[0].replicas` 同步 |
 | `ready_replicas` / `endpoint` / `status` / `message` | informer | 由 MLService CR `status.*` 回流 |
 
@@ -279,7 +355,7 @@ CREATE TABLE artifacts (
   description   text,                           -- 此版本说明 / changelog
   labels        jsonb NOT NULL DEFAULT '{}',
   annotations   jsonb NOT NULL DEFAULT '{}',
-  owner_user    text,
+  owner         text,                           -- 创建者；来自 X-Axisml-User
 
   -- spec：Kind 特化业务字段，进入 Ready 后冻结
   spec          jsonb NOT NULL,
@@ -304,8 +380,8 @@ CREATE INDEX artifacts_namespace_kind ON artifacts (namespace, kind);
 
 | 段 | 字段 | 可变性 |
 | --- | --- | --- |
-| metadata | `id` / `namespace` / `kind` / `name` / `version` / `owner_user` | 创建后不可变 |
-| metadata | `display_name` / `description` / `labels` / `annotations` | 任何状态阶段可改 |
+| metadata | `id` / `namespace` / `kind` / `name` / `version` / `owner` | 创建后不可变 |
+| metadata | `display_name` / `description` / `labels` / `annotations` | 任何状态阶段可改；`labels` / `annotations` 语义对齐 [§1.6](#16-扩展元数据-labels--annotations) |
 | spec | `spec` | 进入 Ready 后冻结；想"改"→ 同 `(namespace, kind, name)` 下新建版本 |
 | observed | `status` / `message` / `digest` / `ready_at` | 仅由服务端 / GC / 后端校验回写 |
 

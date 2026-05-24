@@ -679,8 +679,8 @@ paths:
       summary: Scale a service to a target replica count
       description: |
         Updates `services.replicas` and `services.spec.roles[0].replicas`,
-        recomputes `desired_spec_hash`, and returns the updated Service.
-        The reconciler later patches `MLService.spec.roles[0].replicas`.
+        bumps `generation`, and returns the updated Service. The reconciler
+        later patches `MLService.spec.roles[0].replicas`.
       requestBody:
         required: true
         content:
@@ -1540,12 +1540,12 @@ components:
           type: string
         description:
           type: string
-        ownerUser:
+        owner:
           type: string
-          description: User id from the create-time `X-Axisml-User` header.
+          description: User from the create-time `X-Axisml-User` header. Immutable.
         spec:
           $ref: '#/components/schemas/MLJobSpec'
-        requestedResources:
+        resources:
           type: object
           additionalProperties: true
           description: Snapshot of the resource request derived from the chosen ResourceUnit at create time.
@@ -1657,11 +1657,12 @@ components:
           type: string
         description:
           type: string
-        ownerUser:
+        owner:
           type: string
+          description: User from the create-time `X-Axisml-User` header. Immutable.
         spec:
           $ref: '#/components/schemas/MLServiceSpec'
-        requestedResources:
+        resources:
           type: object
           additionalProperties: true
         desiredSpecHash:
