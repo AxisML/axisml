@@ -172,7 +172,7 @@ Platform 自有实体仅覆盖**身份 / 授权 / 会话 / 审计**四类，完�
 
 **共享镜像约定**：`system-admin` 在专用 namespace（约定名 `system-images`）维护「平台基础镜像」；Workspace / Job / Service 创建表单的镜像下拉合并展示当前租户 + system 命名空间。Platform 仅在 LIST 阶段做合并，不为「共享」语义建任何 PG 表。
 
-UI 设计见 [wireframe.md §7](../wireframe.md#7-制品中心-模型--镜像--数据集)。
+UI 设计:本期原型未覆盖制品中心,占位见 [wireframe.md §3 占位页骨架](../wireframe.md#3-占位页骨架);详细 mockup 待补,见 [§6.1 待补 ASCII mockup](../wireframe.md#61-待补-ascii-mockup)。
 
 #### 4.5.3 register-from-job（计算任务 → 模型）
 
@@ -202,7 +202,7 @@ UI 设计见 [wireframe.md §7](../wireframe.md#7-制品中心-模型--镜像--�
 6. 在 artifact 上打 provenance 标记：
    - `labels` 写入 `platform.axisml.io/source-job-tenant: <tenant>`、`platform.axisml.io/source-job-name: <jobName>`、`platform.axisml.io/source-job-id: <job.id>`（compute `jobs.id` uuid）；声明式分支再加 `platform.axisml.io/source-output: <outputName>`，ad-hoc 分支省略该 label；
    - `annotations` 写入 `platform.axisml.io/registered-by-user: <username>`、`platform.axisml.io/registered-at: <rfc3339>`；
-7. 返回 `JobRegisterModelResponse`：`{artifact, upload, provenance: {jobId, jobName, outputName?, pvc, sourcePath}}`，前端复用 [§7.2.2 上传指引对话框](../wireframe.md#722-上传表单通用字段--两阶段交互)，额外在对话框顶部渲染「来源：任务 `<tenant>/<jobName>` 输出 `<outputName 或 ad-hoc>`（PVC `<pvc>`，路径 `<sourcePath>`）」。
+7. 返回 `JobRegisterModelResponse`：`{artifact, upload, provenance: {jobId, jobName, outputName?, pvc, sourcePath}}`，前端在通用上传指引对话框顶部额外渲染「来源：任务 `<tenant>/<jobName>` 输出 `<outputName 或 ad-hoc>`（PVC `<pvc>`，路径 `<sourcePath>`）」（对话框 UI 待补，见 [wireframe.md §6.1](../wireframe.md#61-待补-ascii-mockup)）。
 
 **幂等性**：
 - 同一 `(modelName, modelVersion)` 已存在 → `artifacts.InitiateUpload` 透传 `409 ArtifactAlreadyExists`，UI 弹窗引导改版本号；
