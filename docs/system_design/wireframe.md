@@ -19,11 +19,11 @@
 | 一级菜单 | 二级菜单 | 本文章节 | 设计状态 |
 | --- | --- | --- | :---: |
 | Dashboard | — | [§3](#3-dashboard) | ✅ |
-| 应用中心 | 智能体 / Skills / MCP | [§7](#7-制品中心-tbd) (TBD) | TBD |
+| 应用中心 | 智能体 / Skills / MCP | [§12.2](#122-待补-ui-设计-横切) (TBD) | TBD |
 | 训练 & 推理 | 工作区 | [§4](#4-工作区训练--推理--工作区) | ✅ |
 | 训练 & 推理 | 计算任务 | [§5](#5-计算任务训练--推理--计算任务) | ✅ |
 | 训练 & 推理 | 在线服务 | [§6](#6-在线服务训练--推理--在线服务) | ✅ |
-| 制品中心 | 模型 / 镜像 / 数据集 | [§7](#7-制品中心-tbd) (TBD) | TBD |
+| 制品中心 | 模型 / 镜像 / 数据集 | [§7](#7-制品中心-模型--镜像--数据集) | ✅ |
 | 系统管理 | 租户管理 (含配额 / 成员 Tab) | [§8](#8-租户管理系统管理--租户) | ✅ |
 | 系统管理 | 资源池管理 (含资源单元) | [§9](#9-资源池与资源单元系统管理--资源池) | ✅ |
 | 系统管理 | 数据卷管理 | [§10](#10-数据卷-tbd) (TBD) | TBD |
@@ -239,6 +239,7 @@
 | 资源池 / 资源单元 / 配额 | `spec.scheduling.*` | 单元 ∈ 池;配额属于该租户在池下的 quota |
 | Roles | `spec.roles[]` | 按后端动态渲染 |
 | runPolicy | `spec.runPolicy.{activeDeadlineSeconds, ttlSecondsAfterFinished, backoffLimit}` | 数字 |
+| 输出声明 | `spec.outputs[]` | 可空;每条:`name` (DNS-1123) / `kind` (当前仅 `model`) / `volumeName` (须为 PVC 类型卷) / `sourcePath` |
 
 **按后端动态渲染 Roles**:
 
@@ -253,7 +254,9 @@
 
 每个 role 块含:副本数 / 镜像 / 启动命令 / 参数 / 环境变量 / 重启策略。所有 role 共享同一 ResourceUnit。
 
-> 当前表单不开放 `backend.config` / `priorityClass` / 自定义 `nodeSelector` / `volumes`。
+> 当前表单不开放 `backend.config` / `priorityClass` / 自定义 `nodeSelector`。`volumes` 入口仅在「输出声明」启用时可见——表单提供一行 PVC 选择器(选已存在的 PVC,或新建 + 大小);该 PVC 同时挂到 `roles[*].template.volumes[]` 并被 `outputs[].volumeName` 引用。
+
+**输出声明的取舍**:不强制(典型「调参跑分」任务无需声明);填写后 §5.4「注册为模型」按钮可直接选 dropdown,跳过手动 `outputPath` 输入,见 [components/platform.md §4.5.3](components/platform.md#453-register-from-job计算任务--模型)。
 
 对应 REST 端点见 [apis/platform.yaml](apis/platform.yaml) `Jobs` tag。
 
@@ -270,7 +273,13 @@
 要点:
 - Job spec **不可变**——UI 不提供「编辑任务」入口;改参数 = 「重新提交」 = 反填表单新建。
 - **取消**:`compute.CancelJob` 透传,提示 `'user cancelled'`;状态合法性由下游 4xx 反馈。
-- **注册为模型** (后续工作):前置校验 `status == Succeeded`,完整链路见 [components/platform.md §4.2 计算任务编排](components/platform.md#42-计算任务编排)。
+- **注册为模型**:仅在 `phase == Succeeded` 启用。点击后弹出 modal:
+  1. 若 Job 已声明 `spec.outputs[kind=model]`(读 `job.spec.outputs`),modal 顶部下拉列示;选中后 `outputName` 自动填入,源 PVC + sourcePath 只读展示。
+  2. 否则要求手动填 `volumeName` + `outputPath`(PVC 名 dropdown 列出 `job.spec.roles[*].template.volumes[]` 中的 PVC 卷)。
+  3. 填模型字段(`modelName` / `modelVersion` / `spec.framework` / `spec.format` / `displayName` / `description`);`spec.trainingDatasetRef` 由后端探测 `job.spec.roles[*].template.env` 是否含 `AXISML_DATASET_URI` 自动反填,可改可空。
+  4. 提交 `POST /tenants/{t}/jobs/{name}/register-model` → 返回 `{artifact, upload, provenance}`。
+  5. 复用 [§7.2.2 上传指引对话框](#722-上传表单通用字段--两阶段交互),额外渲染顶部「来源:任务 `<tenant>/<name>` 输出 `<outputName 或 ad-hoc>`(PVC `<provenance.pvc>`,路径 `<provenance.sourcePath>`)」;字节上传走 cli (不在本设计内,见 [§4.5.3](components/platform.md#453-register-from-job计算任务--模型) 末段)。
+  6. 后端契约见 [components/platform.md §4.5.3](components/platform.md#453-register-from-job计算任务--模型)。
 
 ### 5.5 状态展示规则
 
@@ -426,18 +435,306 @@ MLService `spec.modelRef` 创建后不可变。「克隆为新版本」是前端
 
 ---
 
-## 7. 制品中心 (TBD)
+## 7. 制品中心 (模型 / 镜像 / 数据集)
 
-二级菜单:模型 / 镜像 / 数据集。
+二级菜单与 Artifacts 服务的三类 `kind` 一一对应:`model` / `image` / `dataset`。三类共用同一套上传 / 列表 / 详情 / 删除骨架,Kind 专属字段在 [§7.3](#73-模型-kindmodel) – [§7.5](#75-数据集-kinddataset) 分述。
 
-当前保留入口,UI 详设待 Artifacts 服务前端评审时补齐:
+底层服务字段与状态机权威定义见 [components/artifacts.md](components/artifacts.md);Platform 透传契约见 [components/platform.md §4.5 制品编排](components/platform.md#45-制品编排)。
 
-- 列表页字段表 (name / version / tenant / kind / status / size / pushedAt / 操作)
-- 详情页 Tab (基本信息 / 版本历史 / 引用方 / 镜像 layer 浏览)
-- 创建表单 (initiate-upload 凭证流程,与 CLI 协同)
-- 状态展示 (`Uploading` / `Ready` / `Failed`)
+### 7.1 页面入口
 
-底层 API 与字段定义见 [components/artifacts.md](components/artifacts.md)。
+| 入口 | 路径 | 权限 |
+| --- | --- | --- |
+| 模型列表 | `/models` | 已登录;按角色裁剪 |
+| 模型创建 | `/models/new` | `RequireTenantRole("user", "<tenantId>")` |
+| 模型详情 | `/models/{tenant}/{name}/{version}` | `@owner` 或所属租户 `tenant-admin+` |
+| 镜像列表 / 创建 / 详情 | `/images` `/images/new` `/images/{tenant}/{name}/{version}` | 同上 |
+| 数据集列表 / 创建 / 详情 | `/datasets` `/datasets/new` `/datasets/{tenant}/{name}/{version}` | 同上 |
+
+寻址采用 `(tenant, name, version)` 三元组——和下游 artifacts 同形——前端 url path 直接拼下游寻址 tuple,Platform 无 id ↔ tuple 反查。tuple 永不复用(软删后保留),稳定性等价于 uuid。租户视图列表走 `/api/v1/tenants/{tenant}/{kind-plural}`(operationId `listTenant{Models,Images,Datasets}`),角色裁剪同 §4 / §5 / §6。
+
+### 7.2 通用模式
+
+三个 Kind 共骨架,本节描述列表 / 上传 / 详情的统一交互;Kind 专属字段在后续小节细化。
+
+#### 7.2.1 列表页(通用列)
+
+| 列 | 来源字段 | 说明 |
+| --- | --- | --- |
+| Name @ Version | `artifact.name` + `artifact.version` | 行点击进详情;`name@version` 一键复制 |
+| 显示名 | `artifact.displayName` | 可空;空时回退 `name` |
+| 租户 | 由 `artifact.namespace` 反查 | `system-admin` 跨租户时展示 |
+| Owner | `artifact.owner` | 普通用户已下推 `owner=` 过滤 |
+| 大小 | `artifact.sizeBytes` | 人读单位 (MiB / GiB);未 `Ready` 显示 `—` |
+| 状态 | `artifact.status` | 徽章,见 [§7.6](#76-状态展示规则) |
+| 上传时间 | `artifact.readyAt` ?? `artifact.createdAt` | 相对时间 + tooltip 绝对时间 |
+| Kind 专属列 | — | 见 §7.3 – §7.5 各小节 |
+| 操作 | — | 详情 / 复制 ref / 上传新版本 / 删除 |
+
+**过滤**:租户 (admin) / 状态 / Owner (admin) / 关键字 (`name` 前缀 / `displayName` 模糊) + Kind 专属过滤项。`tenantName` / `status` / `owner` / `limit` / `continue` 下推 artifacts;`q` 与 Kind 专属过滤在 Platform 内存二次筛选。
+**排序**:上传时间 (默认倒序) / 名称 / 大小。
+**可见性**:`system-admin` 跨所有 artifact namespace 并行 → 部分失败 `partial=true` 黄条;`tenant-admin@self` 限可见租户;普通用户 `@owner` 过滤下推。
+
+下面是模型列表的典型布局,镜像 / 数据集结构相同,仅 Kind 专属列(虚线包围)替换:
+
+```
+┌ 模型 ───────────────────────────────────────────────────────────────────── [+ 上传模型] ┐
+│ 租户▾ all   状态▾ Ready  Owner▾ all   q  llama        [↻]            12 项 (2 个租户) │
+│ ⚠ 1 个租户暂时不可达,显示其余结果                                                     │
+├─────────────────────────────────────────────────────────────────────────────────────────┤
+│  Name @ Version     ┊Framework  Format  Params┊  租户   Owner  大小    状态   上传   ⋯ │
+│  llama-7b @ v3      ┊pytorch    safe…   7B    ┊  team-a  zhang 13.4GiB ● Ready 2h     ⋯│
+│  llama-7b @ v2      ┊pytorch    safe…   7B    ┊  team-a  zhang 13.4GiB ● Ready 5d     ⋯│
+│  qwen-2-7b @ v0.4   ┊pytorch    safe…   7B    ┊  team-a  li    14.1GiB ◐ Upload 2m    ⋯│
+│  bge-large @ v1     ┊onnx       onnx    335M  ┊  team-b  wang  650MiB  ● Ready 12d    ⋯│
+│  bert-base @ v1     ┊tensorflow tf2     110M  ┊  team-b  wang  420MiB  ✗ Failed 1d    ⋯│
+│  …                                                                                      │
+│                                                          [前页]  cursor=abc…  [后页]    │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+要点:
+- 顶部黄条是 §5.3 跨租户合并的 `partial=true` 信号;
+- 状态徽章:●=Ready 绿、◐=Uploading 蓝(spinner)、✗=Failed 红、灰=Deleting / Deleted;
+- 行 ⋯ 菜单:详情 / 复制 ref / 上传新版本 / 编辑展示元数据 / 删除;
+- `system-admin` 的「租户」列才出现,其它角色省略。
+
+#### 7.2.2 上传表单(通用字段 + 两阶段交互)
+
+**通用字段**:
+
+| 字段 | 写入位置 | 校验 |
+| --- | --- | --- |
+| 租户 | 决定 `namespace` | 当前用户 `user+` |
+| 制品名 (`name`) | `artifact.name` | DNS-1123 + OCI repo 字符集;同 `(ns, kind, name)` 多版本可复用 |
+| 版本 (`version`) | `artifact.version` | OCI tag 字符集;同 `(ns, kind, name)` 下唯一,**软删后不可复用** |
+| 显示名 / 描述 | `displayName` / `description` | 可空 |
+| labels / annotations | 见 [database.md §1.6](database.md#16-扩展元数据-labels--annotations) | 大小约束 |
+| Kind 专属 spec | `spec.*` | 见 §7.3 – §7.5 |
+
+**两阶段上传交互**:
+
+1. 用户填表 → 提交 → Platform 调 `initiate{Model,Image,Dataset}` → 返回 `{tenant, name, version, uri, uploadCredentials, expiresAt}`;artifact 行立刻入 `Uploading` 状态。
+2. UI 弹出**上传指引对话框**,根据 `storageKind` 渲染两种通路:
+   - **客户端工具通路**(默认,对所有 Kind 通用):展示 `(tenant, name, version, uri, uploadCredentials, expiresAt)` 凭证与一个可拷贝的客户端调用片段,由本地客户端工具 (`axisml-cli`,具体命令形态另文设计) 推送字节到 `uri`、再调 `complete` 提交 digest。
+   - **浏览器直传通路**(仅 S3 Kind:`dataset` 且 size < 阈值):拖入文件,JS 用 STS 直 PUT 到 `prefix`;上传完成后前端直接调 `complete` 提交 digest。
+3. 「上传中」状态:UI 每 5s 轮询 `GET /{kind-plural}/{tenant}/{name}/{version}` 直到 `Ready` / `Failed`,或用户离开页面 (后台轮询持续 ≤ 24h)。
+4. `complete` 阶段:工具通路下由客户端触发;浏览器通路下由前端触发。Platform 透传 `digest`,artifacts 后端 HEAD 校验后置 `Ready`。
+
+```
+┌─ 上传模型 team-a/llama-7b @ v3 ───────────────────────────┐
+│ 状态: Uploading (剩余 23h 54m,token 在 59m 后过期 ↻ 续签)│
+│                                                          │
+│ ❶ 用客户端工具推送字节(凭证已嵌入下方片段):              │
+│ ┌──────────────────────────────────────────────────────┐ │
+│ │ <axisml-cli 调用,形态另文设计>                       │ │
+│ │ 凭证: <uploadCredentials 摘要>  expiresAt: 14:59     │ │
+│ │ 目标 uri: zot…/namespaces/team-a-…/models/llama-7b:v3│ │
+│ │ 📋 复制凭证 JSON                                     │ │
+│ └──────────────────────────────────────────────────────┘ │
+│                                                          │
+│ ❷ 完成后将自动刷新为 Ready;若失败可点击「重新生成凭证」 │
+│                                                          │
+│ [取消并删除草稿]              [关闭(后台继续轮询)]        │
+└──────────────────────────────────────────────────────────┘
+```
+
+要点:
+- **续签**:Token 剩 < 5min 时「重新生成凭证」按钮调同一 `(ns, kind, name, version)` initiate,artifacts 端幂等返回原行新 token;不需删行重建。
+- **取消草稿**:`Uploading` 行可直接 DELETE,立刻进 `Deleting`;未上传任何 bytes 时 GC 一轮即清。
+- **失败重试**:`Failed` 行不可复活,需 DELETE 后另起新版本 (`v3` → `v3.1`)。
+- **冲突反馈**:同 `(ns, kind, name, version)` 已存在 → `409 ArtifactAlreadyExists`,弹窗引导改 version。
+
+#### 7.2.3 详情页 Tab(通用骨架)
+
+| Tab | 内容 | 操作 |
+| --- | --- | --- |
+| **概览** | 基本信息(`name` / `version` / 租户 / `digest` / `sizeBytes` / `createdAt` / `readyAt` / `owner`)+ Kind 专属信息(§7.3 – §7.5)+ `ref` 一键复制(`<ns>/<kind>/<name>@<version>`) | 编辑 `displayName` / `description` / `labels` / `annotations` / 删除 / 上传新版本 / Kind 专属跳转按钮 |
+| **版本** | `listArtifactVersions(ns, kind, name)`:同 `name` 下所有版本(含已删除),按 `createdAt` 倒序;行点击切换详情 | 「上传新版本」反填 spec |
+| **后端** | `storageKind` / `uri` / `digest` / `auth_hint` 路径(由 `resolve?usage=inspect` 拼接,不下发明文) | 「获取下载凭证」按钮 → 调 `resolve?usage=download` 拉短期 OCI/S3 token |
+| **引用方** | 入口保留 (TBD,详见 §12.3) | — |
+| **审计** | 入口保留 (TBD) | — |
+
+要点:
+- **spec 不可变**:`Ready` 后 spec / digest 冻结 → 「编辑」入口仅暴露 `displayName` / `description` / `labels` / `annotations` 四项,直接调 `PATCH /api/v1/{kind-plural}/{tenant}/{name}/{version}` (`[updateModel]` / `[updateImage]` / `[updateDataset]`,见 [components/platform.md §4.5.1](components/platform.md#451-跨-kind-共骨架));改 spec = 走「上传新版本」反填表单。
+- **删除**:软删 → `Deleting` → GC 清后端 → `Deleted`;`(ns, kind, name, version)` 四元组**永不复用**,删除后同 version 提交 → `409`。
+- **下载凭证**:OCI Kind 返回 1h TTL 的 bearer token;S3 Kind 返回 prefix-scoped STS;前端用 `clipboard` API 复制,不持久化。
+
+下面是模型详情页概览 Tab 的典型布局,镜像 / 数据集结构相同,Kind 专属区(虚线包围)替换为各自字段:
+
+```
+模型 / team-a / llama-7b @ v3                                [⋯ 操作 ▾]
+─────────────────────────────────────────────────────────────────────
+[概览] [版本] [后端] [引用方] [审计]
+─────────────────────────────────────────────────────────────────────
+
+  显示名         Llama 7B fine-tuned (sft-v3)      ✎
+  描述           SFT on internal qa-2024 dataset    ✎
+  ref            team-a/model/llama-7b@v3          📋
+  租户 · ns      team-a · team-a-models
+  Owner          zhang                  上传时间   2026-05-22 14:08 (2h 前)
+  Status         ● Ready                Ready 时间 2026-05-22 14:31
+  大小           13.4 GiB               Digest    sha256:9b74…3a3 📋
+
+  ┌─ Kind 专属 (model) ───────────────────────────────────────────┐
+  │ Framework    pytorch          Format        safetensors      │
+  │ Task         text-generation  Params        7B               │
+  │ 基模型       team-a/model/llama-7b@v1  →                     │
+  │ 训练数据集   team-a/dataset/qa-2024@v3 →                     │
+  │                                                              │
+  │ Provenance   来源任务 team-a/train-llama-sft-v3              │
+  │              输出 weights (PVC axisml-jobs-…-output)     →   │
+  └──────────────────────────────────────────────────────────────┘
+
+  Labels        🔒 platform.axisml.io/source-job-tenant: team-a
+                🔒 platform.axisml.io/source-job-name:   train-llama-sft-v3
+                🔒 platform.axisml.io/source-job-id:     8e0b…f3c1
+                🔒 platform.axisml.io/source-output:     weights
+                   user.axisml.io/cost-center:           ml-platform   ✎
+                   [+ 新增 label]
+  Annotations   🔒 platform.axisml.io/registered-by-user: zhang
+                🔒 platform.axisml.io/registered-at:      2026-05-22T14:08:01Z
+
+  [创建在线服务]  [上传新版本]  [复制 ref]  [获取下载凭证]  [删除]
+```
+
+要点:
+- 顶部「⋯ 操作 ▾」与底部按钮区互为镜像,两套触点等价;
+- ✎ 入口仅在「显示名 / 描述 / 用户 namespace 的 labels & annotations」字段出现,提交即 `PATCH /api/v1/models/{tenant}/{name}/{version}`;
+- **`platform.axisml.io/*` 前缀的 labels / annotations 渲染为只读 chip(图标 🔒 标识),禁止编辑——这是 [components/platform.md §5.6](components/platform.md#56-扩展元数据写入约定) 约定的 Platform 内部 namespace,改了会破坏 provenance / 反向索引;`user.axisml.io/*` 与无前缀的 key 允许 ✎ 编辑**;
+- Provenance 卡片仅在 `labels[platform.axisml.io/source-job-tenant]` 存在时渲染(由 [§4.5.3 register-from-job](components/platform.md#453-register-from-job计算任务--模型) 写入,值取 `source-job-tenant` + `source-job-name` 拼接);
+- 「→」表示可点击跳转;被引方已 `Deleting` / `Deleted` → 文本红色,hover 提示「来源已失效」。
+
+### 7.3 模型 (Kind=`model`)
+
+**列表 Kind 专属列**:
+
+| 列 | 来源 |
+| --- | --- |
+| Framework | `spec.framework` (`pytorch` / `tensorflow` / `onnx` / `safetensors` / `gguf` / `custom`) |
+| Format | `spec.format` (OCI artifactType,如 `application/vnd.axisml.model.safetensors.v1+json`) |
+| Params | `spec.parameters`,人读单位(如 `7B`, `175B`) |
+| Task | `spec.task` |
+
+**Kind 专属过滤**:framework / task。
+
+**上传表单 Kind 专属字段**:
+
+| 字段 | 写入位置 | 校验 |
+| --- | --- | --- |
+| Framework | `spec.framework` | 单选 |
+| Format | `spec.format` | 自由文本,默认按 framework 推荐 |
+| Task | `spec.task` | 自由文本(`text-generation` / `image-classification` / ...) |
+| Parameters | `spec.parameters` | 数字(可空) |
+| 基模型 | `spec.baseModelRef` | ArtifactRef 选择器(只列 `kind=model`,跨可见租户搜索) |
+| 训练数据集 | `spec.trainingDatasetRef` | ArtifactRef 选择器(只列 `kind=dataset`) |
+
+**详情概览 Kind 专属**:Framework / Format / Params / Task;`baseModelRef` / `trainingDatasetRef` 渲染为可跳转链接(被引方 `Deleting` / `Deleted` 时显示红色「已失效」)。Provenance 卡片(若存在):读 `labels[platform.axisml.io/source-job-tenant]` + `labels[platform.axisml.io/source-job-name]` + `labels[platform.axisml.io/source-output]?`,渲染「来源任务 `<tenant>/<jobName>` 输出 `<outputName 或 ad-hoc>`」并提供反向跳转;详细 label 约定见 [components/platform.md §4.5.3](components/platform.md#453-register-from-job计算任务--模型)。
+
+**Kind 专属跳转按钮**:
+- **「创建在线服务」**:跳 `/services/new?modelRef=<name>@<version>&tenant=<t>`,见 §6.3。
+- **「上传新版本」**:`/models/new?name=<name>&tenant=<t>` 并反填上一版本 spec。
+
+**URI 模板**:`<oci-host>/namespaces/<ns>/models/<name>:<version>` (zot)。
+
+**注**:从训练任务一键 register 的路径见 [§5.4 详情页](#54-详情页-tab)「注册为模型」按钮;Platform 编排见 [components/platform.md §4.5.3](components/platform.md#453-register-from-job计算任务--模型)。
+
+### 7.4 镜像 (Kind=`image`)
+
+**列表 Kind 专属列**:
+
+| 列 | 来源 |
+| --- | --- |
+| Purpose | `spec.purpose`(`training` / `inference` / `dev` 徽章) |
+| Platforms | `spec.platforms[]`,join (`linux/amd64,linux/arm64`) |
+| Base | `spec.baseImage` (截断 + hover) |
+
+**Kind 专属过滤**:purpose / platform。
+
+**上传表单 Kind 专属字段**:
+
+| 字段 | 写入位置 | 校验 |
+| --- | --- | --- |
+| Purpose | `spec.purpose` | 单选 |
+| Base Image | `spec.baseImage` | 自由文本(仅信息) |
+| Platforms | `spec.platforms[]` | 多选,默认 `linux/amd64` |
+| Entrypoint | `spec.entrypoint[]` | string 数组,可空 |
+| Notes | `spec.notes` | 长文本 |
+
+**详情概览 Kind 专属**:Purpose / Base / Platforms / Entrypoint / Notes。Image Layer 浏览 Tab (TBD,见 §12.3) — 后端调 zot manifest API 解析 layers。
+
+**Kind 专属跳转按钮**(按 `purpose` 渲染):
+- `training` → **「用作训练镜像」** → `/tenants/{tenant}/jobs/new?image=<uri>`。
+- `inference` → **「用作推理镜像」** → `/services/new?image=<uri>&tenant=<t>`。
+- `dev` → **「用作工作区基础」** → `/workspaces/new?image=<uri>&tenant=<t>`。
+
+**URI 模板**:`<oci-host>/namespaces/<ns>/images/<name>:<version>` (zot)。
+
+**上传方式**:走 §7.2.2 通用工具通路;典型 image 客户端工具会进一步封装 `docker` / `nerdctl push`,具体形态另文设计。不暴露浏览器直传。
+
+**共享镜像约定**:`system-admin` 可在专用 `system` 租户(命名约定 `system-images`)维护「平台常用基础镜像」;Workspace / Job / Service 创建表单的镜像下拉合并展示当前租户 + system 租户的 `image` 制品。
+
+### 7.5 数据集 (Kind=`dataset`)
+
+**列表 Kind 专属列**:
+
+| 列 | 来源 |
+| --- | --- |
+| Format | `spec.format` (`parquet` / `jsonl` / `csv` / `webdataset` / `tfrecord` / `custom`) |
+| Records | `spec.numRecords`,人读单位 |
+| License | `spec.license` |
+
+**Kind 专属过滤**:format。
+
+**上传表单 Kind 专属字段**:
+
+| 字段 | 写入位置 | 校验 |
+| --- | --- | --- |
+| Format | `spec.format` | 单选 |
+| Schema | `spec.schema` | JSON 编辑器,可空 |
+| numRecords | `spec.numRecords` | 数字(informational) |
+| totalSize | `spec.totalSize` | 数字;浏览器直传时由 JS 自动估算填入 |
+| License | `spec.license` | 自由文本 |
+| Splits | `spec.splits[]` | 数组项 `(name, numRecords?, uri?)`;典型 `train` / `val` / `test`,行可增删 |
+
+**详情概览 Kind 专属**:Format / Records / Size / License;Splits 列表(每个 split 含 `name` + `numRecords` + sub-prefix);Schema 折叠 JSON 展示。
+
+**Kind 专属跳转按钮**:
+- **「训练时使用」** → `/tenants/{tenant}/jobs/new?datasetRef=<name>@<version>` (注入 `AXISML_DATASET_URI` env)。
+
+**URI 模板**:`s3://axisml-artifacts/namespaces/<ns>/datasets/<name>/<version>/` (RustFS)。
+
+**上传方式**:走 §7.2.2 通用工具通路;< 100 MiB 单文件支持浏览器拖入直传(走 S3 STS PUT)。
+
+### 7.6 状态展示规则
+
+直接展示 `artifacts.status`,三个 Kind 共用:
+
+| 状态 | 视觉 |
+| --- | --- |
+| `Uploading` | 蓝色徽章 + spinner;hover 显示 token `expiresAt` 倒计时 |
+| `Ready` | 绿色实心 |
+| `Failed` | 红色;hover 显示 `message` |
+| `Deleting` | 灰色 + spinner |
+| `Deleted` | 灰色 (列表默认隐藏;过滤器开启「显示已删除」时可见,仅可读,不可复活) |
+
+补充:
+- 上传超时(24h 内未 complete)由 GC 自动转 `Failed`,UI 下次刷新自然回落。
+- `Ready` 后被引方 (`baseModelRef` / `modelRef` / `datasetRef`) 软删 → resolve 时下游返 410 → 本制品状态仍为 `Ready`,但「引用方」字段标红「已失效」。
+
+### 7.7 权限可见性
+
+三 Kind 共用矩阵:
+
+| 操作 | system-admin | tenant-admin (@self) | user (@self) | user (@owner) |
+| :--- | :---: | :---: | :---: | :---: |
+| 列出 | 全集群 | 本租户 | 本租户 | 本租户 |
+| 上传(initiate / complete) | ✅ | ✅ | ✅ | — |
+| 编辑展示元数据 (`displayName` / `description` / `labels` / `annotations`) | ✅ | ✅ | — | ✅ |
+| 删除 | ✅ | ✅ | — | ✅ |
+| 获取下载凭证 (`resolve?usage=download`) | ✅ | ✅ | ✅ | — |
+
+完整 RBAC 矩阵见 [auth.md §3](auth.md#3-rbac-角色)。
 
 ---
 
@@ -686,6 +983,9 @@ ResourceUnit 完整 CRUD:
 
 - [§2.2 全局布局](#22-全局布局)
 - [§3.3 Dashboard 卡片占位](#33-ascii-占位)
+- [§7.2.1 制品中心 · 列表页骨架](#721-列表页通用列)
+- [§7.2.2 制品中心 · 上传指引对话框](#722-上传表单通用字段--两阶段交互)
+- [§7.2.3 制品中心 · 详情页概览 Tab](#723-详情页-tab通用骨架)
 - [§8.3 租户详情 · 配额 Tab](#tab-2-配额)
 - [§9.3 资源池详情 · 资源单元 Tab](#tab-2-资源单元)
 - [§9.5 资源池删除前置阻断对话框](#95-资源池删除前置阻断)
@@ -703,7 +1003,7 @@ ResourceUnit 完整 CRUD:
 - 工作区列表 / 创建表单 / 详情页 概览 · 访问 Tab
 - 计算任务列表 / 创建表单 / 详情页 概览 · 副本 · 事件 · 日志 Tab
 - 在线服务列表 / 创建表单 / 详情页 概览 · 访问 · 指标 Tab
-- 模型 / 镜像 / 数据集制品中心列表与详情
+- 制品中心:列表骨架与详情概览 mockup 已在 §7.2.1 / §7.2.3 落位;待补 Kind 专属 (镜像 / 数据集) 详情差异 mockup
 - 系统管理 · 用户与角色页面
 - 数据卷管理页面 (整套)
 - 应用中心 (智能体 / Skills / MCP) 页面 (整套)
@@ -751,6 +1051,14 @@ ResourceUnit 完整 CRUD:
   - API key 轮换 UI;
   - LLM 专项指标看板 (tokens/sec / TTFT / TBT / KV cache / batch utilization);
   - 告警与 SLO 配置 (AlertManager 集成)。
+- **制品中心**:
+  - 引用方反查 Tab (`Service.spec.modelRef` / `Job.spec.datasetRef` 反向索引);
+  - 镜像 Layer 浏览 Tab (zot manifest 解析 + per-layer 大小展示);
+  - 数据集样本预览 (按 `format` 取首 N 行);
+  - 浏览器直传支持范围扩展 (现仅 S3 Kind 小文件;OCI Kind 需在浏览器实现 chunked push,工作量高);
+  - 制品签名 / SBOM 展示 (cosign / notation / trivy 集成,等待 artifacts 服务支持);
+  - 跨制品引用懒校验失效提示从「红色徽章」升级为详情页顶部黄条;
+  - 制品配额展示 (per namespace / Kind 总大小 / 总数,等待 artifacts 服务 `size_bytes` 入表)。
 
 ---
 

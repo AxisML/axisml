@@ -94,7 +94,7 @@ label 取值：
 
 label 取值：
 
-- `kind ∈ {model, dataset, image, eval_report}`；
+- `kind ∈ {model, dataset, image}`；
 - `predicate ∈ {expire_uploading, orphan_oci, orphan_s3}`；
 - `result ∈ {success, not_found, error, skipped}`。
 

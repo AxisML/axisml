@@ -8,7 +8,7 @@
 | --- | --- |
 | Artifact CRUD、两阶段写（initiate / complete）、resolve | 制品 bytes 的存取（→ zot / RustFS 直连） |
 | 上传 / 下载凭证签发（OCI scope token / S3 prefix-scoped STS） | 用户认证与角色鉴权（→ [auth.md](../auth.md)） |
-| Kind 按 Handler 注册表分发（model / dataset / image / eval_report） | namespace 存在性与权限校验（→ [platform.md](platform.md)） |
+| Kind 按 Handler 注册表分发（model / dataset / image） | namespace 存在性与权限校验（→ [platform.md](platform.md)） |
 | GC：Uploading TTL、Failed 留存、Deleting 推进 | 反向孤儿主动清理（仅告警）；跨 namespace 级联删除 |
 | 跨制品引用懒校验 | tenant Secret 落地（→ [tenant-operator.md](tenant-operator.md)） |
 
@@ -47,7 +47,7 @@
 │   └── middleware: 身份解析、错误、metrics                       │
 │                                                                 │
 │  ArtifactHandler Registry (compile-time init())                 │
-│   └── handlers/{model, dataset, image, evalreport}              │
+│   └── handlers/{model, dataset, image}                          │
 │         BuildStorageURI / ValidateSpec / InitiateUpload         │
 │         VerifyComplete / GCBackend                              │
 │                                                                 │
@@ -61,7 +61,7 @@
 | --- | --- | --- | --- |
 | Artifact | 版本化制品 | `(namespace, kind, name, version)` | 四元组创建后不复用；spec / digest 进入 `Ready` 后冻结 |
 
-- `kind` 枚举：`model` / `dataset` / `image` / `eval_report`，由 Handler registry 校验。
+- `kind` 枚举：`model` / `dataset` / `image`，由 Handler registry 校验。
 - `namespace` 是裸字符串分区键，由 Platform 保证语义；Artifacts 不做存在性校验。
 - 状态机集合：`Uploading` / `Ready` / `Failed` / `Deleting` / `Deleted`（详见 [§6](#6-接口契约)）。
 - 跨制品引用格式：`<namespace>/<kind>/<name>@<version>`，由 `Handler.ValidateSpec` 在 initiate 阶段懒校验。
@@ -105,17 +105,6 @@ OCI 容器镜像，承载训练 / 推理 / 开发运行时；阶段 2 由本机 
 | 必填 spec | `purpose`（`training` / `inference` / `dev`） |
 | URI 模板 | `<oci-host>/namespaces/<ns>/images/<name>:<version>` |
 | 主要消费方 | mljob / mlservice handler 用 URI 作为 Pod `spec.containers[].image`；imagePullSecret 走 `auth_hint` 约定命名 |
-
-### 4.4 EvalReport
-
-S3 目录制品，承载模型评测结果，引用被评模型与评测数据集。
-
-| 项 | 值 |
-| --- | --- |
-| StorageKind | `s3`（RustFS） |
-| 必填 spec | `model_ref` / `dataset_ref` / `metrics` / `evaluator` |
-| URI 模板 | `s3://axisml-artifacts/namespaces/<ns>/eval-reports/<name>/<version>/`；digest 同 dataset |
-| 主要消费方 | 平台 UI 列表页按 `spec.metrics` 排序展示，详情页通过 resolve 跳转下载报告原文 |
 
 ## 5. 关键机制
 
@@ -181,17 +170,19 @@ GC worker（leader-only，每 5 分钟一轮）扫描 PG 三类谓词：
 
 | 类别 | 内容 | 引用 |
 | --- | --- | --- |
-| 对外 REST | `/api/v1/namespaces/{ns}/artifacts/{kind}/{name}[/{version}[/{complete,resolve}]]` | [apis/artifacts.yaml](../apis/artifacts.yaml) `Artifacts` tag |
+| 对外 REST | `/api/v1/namespaces/{ns}/artifacts/{kind}/{name}[/{version}[/{complete,resolve}]]`；版本级 `GET` / `PATCH` / `DELETE` 同前缀 | [apis/artifacts.yaml](../apis/artifacts.yaml) `Artifacts` tag |
 | Handler 接口 | 见下表 | — |
 | 身份头 | 调用方注入 `X-Axisml-User`，本服务仅做审计 | [auth.md §7](../auth.md#7-下游身份透传) |
 | 错误格式 | HTTP 标准状态码 + RFC 7807 problem+json | — |
-| 写后语义 | initiate 在 PG 提交后返回上传凭证；Ready 由 complete 推进，调用方通过 GET 观察 status | — |
+| 写后语义 | initiate 在 PG 提交后返回上传凭证；Ready 由 complete 推进，调用方通过 GET 观察 status；PATCH 是纯 PG mutation，立即可读 | — |
+
+**PATCH 可变字段**（任何非终态状态生效）：`displayName` / `description` / `labels` / `annotations` 四项。其它字段一律不可变；submitting any other field returns `400 ImmutableField`。`Deleting` / `Deleted` 行 PATCH 返 `409 ArtifactTerminal`。`labels` / `annotations` 按整体 map 替换语义（无 per-entry 合并）；缺省 key 保持原值。详见 [apis/artifacts.yaml `updateArtifact`](../apis/artifacts.yaml)。
 
 **ArtifactHandler 接口**（编译期注册，key=`Kind()`）：
 
 | 方法 | 责任 |
 | --- | --- |
-| `Kind()` | 返回 `model` / `dataset` / `image` / `eval_report`；registry 主键 |
+| `Kind()` | 返回 `model` / `dataset` / `image`；registry 主键 |
 | `StorageKind()` | 返回 `oci` / `s3` |
 | `BuildStorageURI(ns, name, version)` | 即时拼装存储 URI；不读 PG / 不调后端 |
 | `ValidateSpec(ctx, deps, spec)` | 校验 Kind 特化 spec 字段 + 跨制品引用；纯函数 + 注入 lookup |
@@ -237,7 +228,7 @@ Ready / Failed ──(DELETE)──▶ Deleting ──(GCBackend 成功)──�
 
 ## 9. 后续工作
 
-- `dataset` / `image` / `eval_report` 三个 Kind 端到端打通（initiate / complete / resolve / GC 全谓词覆盖）。
+- `dataset` / `image` 两个 Kind 端到端打通（initiate / complete / resolve / GC 全谓词覆盖）；`model` 已 MVP。
 - `auth_hint` 字段在 resolve 接受 `secretPrefix` query 参数，支持 Platform 覆盖默认命名。
 - 上传凭证续签：cli 检测 token 剩余 < 5min 时刷新，PG 行不变。
 - Failed 重试：digest mismatch 后允许同 version 再次 initiate，并在响应中带 `previous_failure_reason`。

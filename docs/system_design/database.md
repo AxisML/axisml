@@ -9,7 +9,7 @@
 | Compute | `resource_units` | 资源单元（纯 PG 配置） |
 | Compute | `jobs` | 一次性计算任务 |
 | Compute | `services` | 常驻在线服务 / 工作区 |
-| [Artifacts](components/artifacts.md) | `artifacts` | 制品（model / dataset / image / eval_report） |
+| [Artifacts](components/artifacts.md) | `artifacts` | 制品（model / dataset / image） |
 | [Platform](components/platform.md) | `users` / `roles` / `permissions` / `role_permissions` / `user_tenant_roles` / `sessions` / `audit_logs` | 身份、授权、会话、审计 |
 
 ---
@@ -254,7 +254,7 @@ CREATE INDEX services_sync_pending   ON services (id) WHERE generation <> observ
 CREATE TABLE artifacts (
   id            uuid PRIMARY KEY,
   namespace     text NOT NULL,
-  kind          text NOT NULL,                  -- model / dataset / image / eval_report
+  kind          text NOT NULL,                  -- model / dataset / image
   name          text NOT NULL,
   version       text NOT NULL,                  -- OCI tag-safe
   display_name  text,

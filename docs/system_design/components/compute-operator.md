@@ -82,9 +82,19 @@ spec:
   scheduling:   { quota, priorityClass, nodeSelector, tolerations }
   roles:        [{ name, replicas, restartPolicy, template }]   # 多角色拓扑
   runPolicy:    { suspend, activeDeadlineSeconds, ttlSecondsAfterFinished, backoffLimit }
+  outputs:      [{ name, kind, volumeName, sourcePath }]        # 可选；声明产物位置，供 Platform register-model 桥接
 ```
 
-字段完整 schema 与不可变性约定以 CRD yaml + 后续 admission webhook 为准；`spec.backend.{name,engine}` 创建后不可变，`spec.runPolicy.suspend` 是唯一允许由 API（`/cancel`）翻转的字段。
+字段完整 schema 与不可变性约定以 CRD yaml + 后续 admission webhook 为准；`spec.backend.{name,engine}` 创建后不可变，`spec.runPolicy.suspend` 是唯一允许由 API（`/cancel`）翻转的字段。`spec.outputs[]` 创建后不可变。
+
+**`spec.outputs[]` 语义**：纯元数据，operator 运行时不消费——仅在 `Validate(spec)` 阶段做静态约束（见下表）。Job 跑完后产物 bytes 留在用户挂载的 PVC 上；Platform 通过 [§4.5.3](platform.md#453-register-from-job计算任务--模型) 的 register-model 桥接流读取这份声明，反查 PVC + sourcePath，调 artifacts initiate 并向用户返回上传凭证 + provenance（字节由客户端工具异步推送，不由 operator 或 Platform 搬运）。
+
+| 字段 | 约束（`Validate`） |
+| --- | --- |
+| `name` | 同 Job 内唯一；DNS-1123 |
+| `kind` | 当前仅支持 `model`；其他值 `400` |
+| `volumeName` | 必须命中 `roles[*].template.volumes[].name` 中某个 PVC 类型卷（`persistentVolumeClaim` 或 `ephemeral` 派生持久卷），拒绝 `emptyDir`——否则 Pod 终止后产物消失 |
+| `sourcePath` | 相对路径，挂在 `volumeName` 之内；不做穿越校验 |
 
 #### 4.1.2 状态机与事件路径
 

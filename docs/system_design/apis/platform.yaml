@@ -69,7 +69,11 @@ tags:
   - name: Services
     description: Long-running online inference services.
   - name: Models
-    description: Model artifact registry views (proxies artifacts).
+    description: Model artifact registry views (proxies artifacts, `kind=model`).
+  - name: Images
+    description: Container image artifact registry views (proxies artifacts, `kind=image`).
+  - name: Datasets
+    description: Dataset artifact registry views (proxies artifacts, `kind=dataset`).
   - name: ResourcePools
     description: Cluster-scoped resource pools (admin-only writes; read by all).
   - name: ResourceUnits
@@ -1595,9 +1599,16 @@ paths:
       operationId: registerJobModel
       summary: Register a finished job's output as a model artifact
       description: |
-        Bridge endpoint to the artifacts service. Phase-two MVP — the
-        endpoint may return `501 Not Implemented` until the artifact upload
-        flow is wired through. Documented at `components/platform.md §7.4`.
+        Bridge endpoint to the artifacts service. Requires `@owner`+ on
+        the job. Prefers `outputName` (referencing a declared
+        `MLJob.spec.outputs[]` entry); falls back to ad-hoc
+        `outputPath` + `volumeName`. Returns an upload-credentials envelope
+        plus provenance hints (PVC name + sourcePath) so the user can push
+        the bytes from any environment that has the source PVC mounted
+        (typically a workspace). The byte-push itself is out of band — the
+        client tool (axisml-cli, designed separately) consumes the
+        credentials and calls `completeModel`. Documented at
+        `components/platform.md §4.5.3`.
       requestBody:
         required: true
         content:
@@ -1606,11 +1617,14 @@ paths:
               $ref: '#/components/schemas/JobRegisterModelRequest'
       responses:
         '202':
-          description: Model registration initiated; returns upload credentials.
+          description: |
+            Model registration initiated; returns the new artifact row,
+            short-lived upload credentials, and provenance hints (source
+            PVC + path). Bytes are pushed by the client out-of-band.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ModelInitiateResponse'
+                $ref: '#/components/schemas/JobRegisterModelResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -1621,8 +1635,6 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
-        '501':
-          $ref: '#/components/responses/NotImplemented'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -2186,9 +2198,11 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/models/{id}:
+  /api/v1/models/{tenant}/{name}/{version}:
     parameters:
-      - $ref: '#/components/parameters/ModelId'
+      - $ref: '#/components/parameters/TenantPathParam'
+      - $ref: '#/components/parameters/ArtifactName'
+      - $ref: '#/components/parameters/ArtifactVersion'
 
     get:
       tags: [Models]
@@ -2196,7 +2210,9 @@ paths:
       summary: Get a model artifact
       description: |
         Resolves the artifact via the artifacts service. Requires the caller
-        to have visibility into the model's owning tenant.
+        to have visibility into the model's owning tenant. Addressing uses
+        the immutable `(tenant, name, version)` tuple; the tuple is never
+        reused even after soft-delete.
       responses:
         '200':
           description: Model detail.
@@ -2210,6 +2226,48 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '410':
+          description: Artifact has been soft-deleted; the tuple is permanently gone.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    patch:
+      tags: [Models]
+      operationId: updateModel
+      summary: Update mutable model metadata
+      description: |
+        Updates `displayName` / `description` / `labels` / `annotations`.
+        All other fields immutable post-create or frozen on `Ready`.
+        Requires owner OR `tenant-admin@self` OR `system-admin`. Proxies
+        `artifacts.UpdateArtifact`. Documented at
+        `components/platform.md §4.5.1`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ArtifactUpdateRequest'
+      responses:
+        '200':
+          description: Model updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Model'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -2219,7 +2277,8 @@ paths:
       summary: Soft-delete a model artifact
       description: |
         Requires owner OR `tenant-admin@self` OR `system-admin`. Proxies
-        `artifacts.DeleteArtifact`.
+        `artifacts.DeleteArtifact`. Idempotent: deleting an already-deleted
+        tuple returns 204.
       responses:
         '204':
           description: Model deleted.
@@ -2234,16 +2293,18 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/models/{id}/complete:
+  /api/v1/models/{tenant}/{name}/{version}/complete:
     parameters:
-      - $ref: '#/components/parameters/ModelId'
+      - $ref: '#/components/parameters/TenantPathParam'
+      - $ref: '#/components/parameters/ArtifactName'
+      - $ref: '#/components/parameters/ArtifactVersion'
     post:
       tags: [Models]
       operationId: completeModel
       summary: Mark a model upload complete
       description: |
         Proxies `artifacts.CompleteUpload`. Body carries the OCI manifest
-        digest. Documented at `components/platform.md §6.2`.
+        digest. Documented at `components/platform.md §4.5.1`.
       requestBody:
         required: true
         content:
@@ -2257,6 +2318,531 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Model'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ============================================================================
+  # Images
+  # ============================================================================
+
+  /api/v1/images:
+    post:
+      tags: [Images]
+      operationId: initiateImage
+      summary: Initiate an image artifact upload
+      description: |
+        Proxies `artifacts.InitiateUpload(kind=image)`. Requires `user@self`+
+        on the target tenant. Documented at `components/platform.md §4.5`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImageInitiateRequest'
+      responses:
+        '202':
+          description: Upload initiated; returns credentials and an image handle.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImageInitiateResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    get:
+      tags: [Images]
+      operationId: listImages
+      summary: List visible images across tenants
+      description: |
+        For `system-admin`, all images; otherwise the user's tenant scope.
+        Documented at `components/platform.md §4.5`.
+      parameters:
+        - name: tenantName
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/ImageStatus'
+        - name: purpose
+          in: query
+          required: false
+          description: Filter by `spec.purpose`.
+          schema:
+            type: string
+            enum: [training, inference, dev]
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Continue'
+      responses:
+        '200':
+          description: A page of images.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImageList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/tenants/{tenant}/images:
+    parameters:
+      - $ref: '#/components/parameters/TenantPathParam'
+    get:
+      tags: [Images]
+      operationId: listTenantImages
+      summary: List images under a tenant
+      description: |
+        Requires `user@self`+ on `{tenant}`. Documented at
+        `components/platform.md §4.5`.
+      parameters:
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/ImageStatus'
+        - name: purpose
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [training, inference, dev]
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Continue'
+      responses:
+        '200':
+          description: A page of images in the tenant.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImageList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/images/{tenant}/{name}/{version}:
+    parameters:
+      - $ref: '#/components/parameters/TenantPathParam'
+      - $ref: '#/components/parameters/ArtifactName'
+      - $ref: '#/components/parameters/ArtifactVersion'
+
+    get:
+      tags: [Images]
+      operationId: getImage
+      summary: Get an image artifact
+      description: |
+        Resolves the artifact via the artifacts service. Requires the caller
+        to have visibility into the image's owning tenant. Addressing uses
+        the immutable `(tenant, name, version)` tuple.
+      responses:
+        '200':
+          description: Image detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Image'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '410':
+          description: Artifact has been soft-deleted; the tuple is permanently gone.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    patch:
+      tags: [Images]
+      operationId: updateImage
+      summary: Update mutable image metadata
+      description: |
+        Updates `displayName` / `description` / `labels` / `annotations`.
+        All other fields immutable post-create or frozen on `Ready`.
+        Requires owner OR `tenant-admin@self` OR `system-admin`. Proxies
+        `artifacts.UpdateArtifact`. Documented at
+        `components/platform.md §4.5.1`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ArtifactUpdateRequest'
+      responses:
+        '200':
+          description: Image updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Image'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags: [Images]
+      operationId: deleteImage
+      summary: Soft-delete an image artifact
+      description: |
+        Requires owner OR `tenant-admin@self` OR `system-admin`. Proxies
+        `artifacts.DeleteArtifact`.
+      responses:
+        '204':
+          description: Image deleted.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/images/{tenant}/{name}/{version}/complete:
+    parameters:
+      - $ref: '#/components/parameters/TenantPathParam'
+      - $ref: '#/components/parameters/ArtifactName'
+      - $ref: '#/components/parameters/ArtifactVersion'
+    post:
+      tags: [Images]
+      operationId: completeImage
+      summary: Mark an image upload complete
+      description: |
+        Proxies `artifacts.CompleteUpload`. Body carries the OCI manifest
+        digest. Documented at `components/platform.md §4.5.1`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImageCompleteRequest'
+      responses:
+        '200':
+          description: Image finalized.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Image'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ============================================================================
+  # Datasets
+  # ============================================================================
+
+  /api/v1/datasets:
+    post:
+      tags: [Datasets]
+      operationId: initiateDataset
+      summary: Initiate a dataset artifact upload
+      description: |
+        Proxies `artifacts.InitiateUpload(kind=dataset)`. Requires `user@self`+
+        on the target tenant. Documented at `components/platform.md §4.5`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DatasetInitiateRequest'
+      responses:
+        '202':
+          description: Upload initiated; returns credentials and a dataset handle.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatasetInitiateResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    get:
+      tags: [Datasets]
+      operationId: listDatasets
+      summary: List visible datasets across tenants
+      description: |
+        For `system-admin`, all datasets; otherwise the user's tenant scope.
+        Documented at `components/platform.md §4.5`.
+      parameters:
+        - name: tenantName
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/DatasetStatus'
+        - name: format
+          in: query
+          required: false
+          description: Filter by `spec.format`.
+          schema:
+            type: string
+            enum: [parquet, jsonl, csv, webdataset, tfrecord, custom]
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Continue'
+      responses:
+        '200':
+          description: A page of datasets.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatasetList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/tenants/{tenant}/datasets:
+    parameters:
+      - $ref: '#/components/parameters/TenantPathParam'
+    get:
+      tags: [Datasets]
+      operationId: listTenantDatasets
+      summary: List datasets under a tenant
+      description: |
+        Requires `user@self`+ on `{tenant}`. Documented at
+        `components/platform.md §4.5`.
+      parameters:
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/DatasetStatus'
+        - name: format
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [parquet, jsonl, csv, webdataset, tfrecord, custom]
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Continue'
+      responses:
+        '200':
+          description: A page of datasets in the tenant.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatasetList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/datasets/{tenant}/{name}/{version}:
+    parameters:
+      - $ref: '#/components/parameters/TenantPathParam'
+      - $ref: '#/components/parameters/ArtifactName'
+      - $ref: '#/components/parameters/ArtifactVersion'
+
+    get:
+      tags: [Datasets]
+      operationId: getDataset
+      summary: Get a dataset artifact
+      description: |
+        Resolves the artifact via the artifacts service. Requires the caller
+        to have visibility into the dataset's owning tenant. Addressing uses
+        the immutable `(tenant, name, version)` tuple.
+      responses:
+        '200':
+          description: Dataset detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dataset'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '410':
+          description: Artifact has been soft-deleted; the tuple is permanently gone.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    patch:
+      tags: [Datasets]
+      operationId: updateDataset
+      summary: Update mutable dataset metadata
+      description: |
+        Updates `displayName` / `description` / `labels` / `annotations`.
+        All other fields immutable post-create or frozen on `Ready`.
+        Requires owner OR `tenant-admin@self` OR `system-admin`. Proxies
+        `artifacts.UpdateArtifact`. Documented at
+        `components/platform.md §4.5.1`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ArtifactUpdateRequest'
+      responses:
+        '200':
+          description: Dataset updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dataset'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags: [Datasets]
+      operationId: deleteDataset
+      summary: Soft-delete a dataset artifact
+      description: |
+        Requires owner OR `tenant-admin@self` OR `system-admin`. Proxies
+        `artifacts.DeleteArtifact`.
+      responses:
+        '204':
+          description: Dataset deleted.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/datasets/{tenant}/{name}/{version}/complete:
+    parameters:
+      - $ref: '#/components/parameters/TenantPathParam'
+      - $ref: '#/components/parameters/ArtifactName'
+      - $ref: '#/components/parameters/ArtifactVersion'
+    post:
+      tags: [Datasets]
+      operationId: completeDataset
+      summary: Mark a dataset upload complete
+      description: |
+        Proxies `artifacts.CompleteUpload`. Body carries the canonical-JSON
+        SHA256 of `artifact-manifest.json`. Documented at
+        `components/platform.md §4.5.1`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DatasetCompleteRequest'
+      responses:
+        '200':
+          description: Dataset finalized.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dataset'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -2808,14 +3394,32 @@ components:
         minLength: 1
         maxLength: 63
 
-    ModelId:
-      name: id
+    ArtifactName:
+      name: name
       in: path
       required: true
-      description: Artifact uuid of the model.
+      description: |
+        Artifact name (OCI-repo-safe). Combined with `{tenant}` + `{version}`
+        forms the immutable addressing tuple consumed by the downstream
+        artifacts service.
       schema:
         type: string
-        format: uuid
+        pattern: '^[a-z0-9]([-a-z0-9._]*[a-z0-9])?$'
+        minLength: 1
+        maxLength: 128
+
+    ArtifactVersion:
+      name: version
+      in: path
+      required: true
+      description: |
+        Artifact version (OCI tag-safe). Immutable; never reused even after
+        soft-delete.
+      schema:
+        type: string
+        pattern: '^[A-Za-z0-9_.-]{1,128}$'
+        minLength: 1
+        maxLength: 128
 
     PoolName:
       name: pool
@@ -3986,6 +4590,24 @@ components:
             additionalProperties: true
         resources:
           $ref: '#/components/schemas/ResourceMap'
+        volumes:
+          type: array
+          description: |
+            Pod volumes (shape matches K8s `PodSpec.volumes[]`). Pass-through
+            from compute. Surfaced on the Platform DTO so the register-model
+            modal can offer a PVC dropdown and Workspace / Job edit UIs can
+            display mounts. Authoritative shape lives in `apis/compute.yaml`.
+          items:
+            type: object
+            additionalProperties: true
+        volumeMounts:
+          type: array
+          description: |
+            Per-container volume mounts (shape matches K8s
+            `PodSpec.containers[0].volumeMounts[]`). Pass-through from compute.
+          items:
+            type: object
+            additionalProperties: true
 
     JobRole:
       type: object
@@ -4097,6 +4719,8 @@ components:
             $ref: '#/components/schemas/JobRoleStatus'
         runPolicy:
           $ref: '#/components/schemas/RunPolicy'
+        spec:
+          $ref: '#/components/schemas/MLJobSpec'
         phase:
           $ref: '#/components/schemas/JobPhase'
         message:
@@ -4115,6 +4739,69 @@ components:
         updatedAt:
           type: string
           format: date-time
+
+    MLJobSpec:
+      type: object
+      description: |
+        Mirror of `apis/compute.yaml#/components/schemas/MLJobSpec`
+        (pass-through from compute). Surfaced on `Job` so the UI can
+        drive `register-model` (read `outputs[]` + `roles[*].template.volumes[]`),
+        prefill the "resubmit" form, and render a complete YAML view. The
+        authoritative shape and validation rules live in
+        `components/compute-operator.md §4.1.1` and `apis/compute.yaml`.
+      properties:
+        backend:
+          $ref: '#/components/schemas/Backend'
+        scheduling:
+          type: object
+          additionalProperties: true
+          description: |
+            Pass-through scheduling block (quota / priorityClass / nodeSelector
+            / tolerations). Shape matches compute `Scheduling`.
+        roles:
+          type: array
+          items:
+            $ref: '#/components/schemas/JobRole'
+        runPolicy:
+          $ref: '#/components/schemas/RunPolicy'
+        outputs:
+          type: array
+          description: |
+            Declarative output descriptors. See `JobOutput`. Read by the
+            UI's register-model modal; the operator does not consume
+            `outputs` at runtime.
+          items:
+            $ref: '#/components/schemas/JobOutput'
+
+    JobOutput:
+      type: object
+      description: |
+        Declaration of a single Job output. Mirror of
+        `apis/compute.yaml#/components/schemas/JobOutput`.
+      required: [name, kind, volumeName, sourcePath]
+      properties:
+        name:
+          type: string
+          description: Unique handle within the Job (DNS-1123).
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          minLength: 1
+          maxLength: 63
+        kind:
+          type: string
+          description: Artifact kind this output produces. Only `model` is supported initially.
+          enum: [model]
+        volumeName:
+          type: string
+          description: |
+            Name of the volume in `roles[*].template.volumes[]` that holds
+            the output bytes. Must be a PVC-backed volume.
+          minLength: 1
+          maxLength: 253
+        sourcePath:
+          type: string
+          description: Relative path inside `volumeName` containing the artifact bytes.
+          minLength: 1
+          maxLength: 1024
 
     JobList:
       type: object
@@ -4169,21 +4856,115 @@ components:
             $ref: '#/components/schemas/JobRole'
         runPolicy:
           $ref: '#/components/schemas/RunPolicy'
+        outputs:
+          type: array
+          description: |
+            Optional declarative output descriptors (`MLJob.spec.outputs[]`).
+            Filling these at submit time enables the register-model modal
+            to offer a typed dropdown instead of ad-hoc `outputPath` entry.
+          items:
+            $ref: '#/components/schemas/JobOutput'
 
     JobRegisterModelRequest:
       type: object
-      required: [modelName, modelVersion, outputPath]
+      description: |
+        Body for `POST /tenants/{t}/jobs/{name}/register-model`. Two
+        addressing modes — exactly one must be supplied:
+
+        - **Declared** (preferred): set `outputName` to reference an entry
+          in `MLJob.spec.outputs[]` (must have `kind=model`). The referenced
+          entry's `volumeName` + `sourcePath` are used.
+        - **Ad-hoc**: omit `outputName` and provide BOTH `outputPath` AND
+          `volumeName`. Used for jobs submitted without declared outputs.
+
+        Mixing the two modes (e.g. `outputName` + `outputPath`) or
+        partially populating ad-hoc (e.g. only `outputPath`, no
+        `volumeName`) returns `400 InvalidOutputSelector`.
+
+        `spec.trainingDatasetRef` is auto-filled by Platform when the Job's
+        roles' container envs include `AXISML_DATASET_URI` pointing at a
+        resolvable dataset artifact; users can override or supply it
+        manually.
+      required: [modelName, modelVersion, spec]
       properties:
+        outputName:
+          type: string
+          description: |
+            Name of the `MLJob.spec.outputs[]` entry whose `(volumeName,
+            sourcePath)` Platform should bridge to artifacts. Mutually
+            exclusive with `outputPath` + `volumeName`. When set the
+            referenced output must have `kind=model`.
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+        outputPath:
+          type: string
+          description: |
+            Ad-hoc relative path inside `volumeName` containing the model
+            bytes. Used only when `outputName` is omitted; must be paired
+            with `volumeName`.
+          minLength: 1
+          maxLength: 1024
+        volumeName:
+          type: string
+          description: |
+            Ad-hoc volume name in `roles[*].template.volumes[]` (must be a
+            PVC-backed volume). Used only when `outputName` is omitted;
+            must be paired with `outputPath`.
+          minLength: 1
+          maxLength: 253
         modelName:
           type: string
+          pattern: '^[a-z0-9]([-a-z0-9._]*[a-z0-9])?$'
+          minLength: 1
+          maxLength: 100
         modelVersion:
           type: string
+          minLength: 1
+          maxLength: 64
         displayName:
           type: string
         description:
           type: string
-        outputPath:
-          type: string
+        spec:
+          $ref: '#/components/schemas/ModelSpec'
+
+    JobRegisterModelResponse:
+      type: object
+      description: |
+        Envelope returned by `registerJobModel`. `artifact` + `upload`
+        mirror the standard initiate response; `provenance` records which
+        PVC / path the bytes live on so the user can find them. Bytes are
+        pushed out-of-band by the caller (the cli flow is intentionally
+        outside the Platform contract).
+      required: [artifact, upload, provenance]
+      properties:
+        artifact:
+          $ref: '#/components/schemas/Model'
+        upload:
+          type: object
+          additionalProperties: true
+          description: |
+            Upload credentials envelope (same shape as
+            `ModelInitiateResponse.uploadCredentials`).
+        provenance:
+          type: object
+          required: [jobId, jobName, pvc, sourcePath]
+          properties:
+            jobId:
+              type: string
+              format: uuid
+              description: Source job uuid (mirrored into the artifact's labels).
+            jobName:
+              type: string
+              description: Source job name within the tenant.
+            outputName:
+              type: string
+              description: Source `MLJob.spec.outputs[].name`; absent for ad-hoc registrations.
+            pvc:
+              type: string
+              description: PVC name resolved from the chosen volume.
+            sourcePath:
+              type: string
+              description: Path inside the PVC.
 
     # ------------------------------------------------------------------
     # Services
@@ -4521,7 +5302,8 @@ components:
 
     ModelStatus:
       type: string
-      enum: [Pending, Uploading, Ready, Failed, Deleted]
+      description: Mirrors artifacts `ArtifactStatus` for `kind=model`.
+      enum: [Uploading, Ready, Failed, Deleting, Deleted]
 
     ModelSpec:
       type: object
@@ -4596,6 +5378,12 @@ components:
           minimum: 0
         continueToken:
           type: string
+        partial:
+          type: boolean
+          description: |
+            `true` when one or more upstream tenants failed during the
+            cross-tenant merge (see `components/platform.md §5.3`). Returned
+            items are still valid; missing tenants are listed in `error.detail`.
 
     ModelInitiateRequest:
       type: object
@@ -4647,6 +5435,326 @@ components:
         digest:
           type: string
           description: OCI manifest digest (e.g., `sha256:...`).
+
+    # ------------------------------------------------------------------
+    # Artifacts — shared
+    # ------------------------------------------------------------------
+
+    ArtifactRef:
+      type: string
+      description: |
+        Cross-artifact reference in the form `<namespace>/<kind>/<name>@<version>`,
+        e.g. `team-a-models/model/llama-7b@v3`. Mirrors the shape used by
+        the artifacts service.
+      pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?/(model|dataset|image)/[a-z0-9]([-a-z0-9._]*[a-z0-9])?@[A-Za-z0-9_.-]{1,128}$'
+      example: team-a/dataset/mmlu@v1
+
+    ArtifactUpdateRequest:
+      type: object
+      description: |
+        Body for the per-Kind PATCH endpoints (`updateModel` / `updateImage`
+        / `updateDataset`). Partial-replace semantics on the four supported
+        keys: a key omitted leaves the stored value untouched; a key set to
+        `{}` clears `labels` / `annotations`. Submitting any other field
+        returns `400 ImmutableField`. Mirrors `apis/artifacts.yaml#/components/schemas/ArtifactUpdateRequest`.
+      properties:
+        displayName:
+          type: string
+          maxLength: 256
+        description:
+          type: string
+          maxLength: 4096
+        labels:
+          $ref: '#/components/schemas/StringMap'
+        annotations:
+          $ref: '#/components/schemas/StringMap'
+
+    # ------------------------------------------------------------------
+    # Images
+    # ------------------------------------------------------------------
+
+    ImageStatus:
+      type: string
+      description: Mirrors artifacts `ArtifactStatus` for `kind=image`.
+      enum: [Uploading, Ready, Failed, Deleting, Deleted]
+
+    ImageSpec:
+      type: object
+      description: |
+        Artifact-side spec for `kind=image`; pass-through to artifacts. The
+        canonical field shape lives in `apis/artifacts.yaml#/components/schemas/ImageSpec`
+        (`purpose` required; `baseImage` / `platforms` / `entrypoint` / `notes` optional).
+      additionalProperties: true
+
+    Image:
+      type: object
+      required:
+        - id
+        - namespace
+        - tenantName
+        - name
+        - version
+        - status
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        namespace:
+          type: string
+        tenantName:
+          type: string
+        name:
+          type: string
+        version:
+          type: string
+        displayName:
+          type: string
+        description:
+          type: string
+        status:
+          $ref: '#/components/schemas/ImageStatus'
+        digest:
+          type: string
+          description: OCI manifest digest once `complete` is called.
+        spec:
+          $ref: '#/components/schemas/ImageSpec'
+        owner:
+          type: string
+        ownerId:
+          type: string
+          format: uuid
+        uri:
+          type: string
+          description: Resolved storage URI (zot reference).
+        sizeBytes:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+        readyAt:
+          type: string
+          format: date-time
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+
+    ImageList:
+      type: object
+      required: [items, count]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Image'
+        count:
+          type: integer
+          minimum: 0
+        continueToken:
+          type: string
+        partial:
+          type: boolean
+          description: |
+            `true` when one or more upstream tenants failed during the
+            cross-tenant merge (see `components/platform.md §5.3`).
+
+    ImageInitiateRequest:
+      type: object
+      required: [tenantName, name, version, spec]
+      properties:
+        tenantName:
+          type: string
+        name:
+          type: string
+          pattern: '^[a-z0-9]([-a-z0-9._]*[a-z0-9])?$'
+          minLength: 1
+          maxLength: 100
+        version:
+          type: string
+          minLength: 1
+          maxLength: 64
+        displayName:
+          type: string
+        description:
+          type: string
+        spec:
+          $ref: '#/components/schemas/ImageSpec'
+
+    ImageInitiateResponse:
+      type: object
+      required: [id, uri]
+      properties:
+        id:
+          type: string
+          format: uuid
+        uri:
+          type: string
+          description: Target push URI.
+        storageKind:
+          type: string
+          enum: [oci, s3]
+        uploadCredentials:
+          type: object
+          additionalProperties: true
+          description: Provider-specific credentials, pass-through from artifacts.
+        expiresAt:
+          type: string
+          format: date-time
+
+    ImageCompleteRequest:
+      type: object
+      required: [digest]
+      properties:
+        digest:
+          type: string
+          description: OCI manifest digest (e.g., `sha256:...`).
+
+    # ------------------------------------------------------------------
+    # Datasets
+    # ------------------------------------------------------------------
+
+    DatasetStatus:
+      type: string
+      description: Mirrors artifacts `ArtifactStatus` for `kind=dataset`.
+      enum: [Uploading, Ready, Failed, Deleting, Deleted]
+
+    DatasetSpec:
+      type: object
+      description: |
+        Artifact-side spec for `kind=dataset`; pass-through to artifacts. The
+        canonical field shape lives in `apis/artifacts.yaml#/components/schemas/DatasetSpec`
+        (`format` required; `schema` / `numRecords` / `totalSize` / `license` /
+        `splits[]` optional).
+      additionalProperties: true
+
+    Dataset:
+      type: object
+      required:
+        - id
+        - namespace
+        - tenantName
+        - name
+        - version
+        - status
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        namespace:
+          type: string
+        tenantName:
+          type: string
+        name:
+          type: string
+        version:
+          type: string
+        displayName:
+          type: string
+        description:
+          type: string
+        status:
+          $ref: '#/components/schemas/DatasetStatus'
+        digest:
+          type: string
+          description: |
+            Canonical-JSON SHA256 of `artifact-manifest.json` once `complete`
+            is called.
+        spec:
+          $ref: '#/components/schemas/DatasetSpec'
+        owner:
+          type: string
+        ownerId:
+          type: string
+          format: uuid
+        uri:
+          type: string
+          description: Resolved storage URI (RustFS S3 prefix).
+        sizeBytes:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+        readyAt:
+          type: string
+          format: date-time
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+
+    DatasetList:
+      type: object
+      required: [items, count]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Dataset'
+        count:
+          type: integer
+          minimum: 0
+        continueToken:
+          type: string
+        partial:
+          type: boolean
+          description: |
+            `true` when one or more upstream tenants failed during the
+            cross-tenant merge (see `components/platform.md §5.3`).
+
+    DatasetInitiateRequest:
+      type: object
+      required: [tenantName, name, version, spec]
+      properties:
+        tenantName:
+          type: string
+        name:
+          type: string
+          pattern: '^[a-z0-9]([-a-z0-9._]*[a-z0-9])?$'
+          minLength: 1
+          maxLength: 100
+        version:
+          type: string
+          minLength: 1
+          maxLength: 64
+        displayName:
+          type: string
+        description:
+          type: string
+        spec:
+          $ref: '#/components/schemas/DatasetSpec'
+
+    DatasetInitiateResponse:
+      type: object
+      required: [id, uri]
+      properties:
+        id:
+          type: string
+          format: uuid
+        uri:
+          type: string
+          description: Target push URI (S3 prefix).
+        storageKind:
+          type: string
+          enum: [oci, s3]
+        uploadCredentials:
+          type: object
+          additionalProperties: true
+          description: Provider-specific credentials, pass-through from artifacts.
+        expiresAt:
+          type: string
+          format: date-time
+
+    DatasetCompleteRequest:
+      type: object
+      required: [digest]
+      properties:
+        digest:
+          type: string
+          description: Canonical-JSON SHA256 of `artifact-manifest.json`.
 
     # ------------------------------------------------------------------
     # ResourcePools / ResourceUnits

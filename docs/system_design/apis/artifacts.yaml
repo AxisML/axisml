@@ -246,6 +246,50 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '410': { $ref: '#/components/responses/Gone' }
         '500': { $ref: '#/components/responses/InternalError' }
+    patch:
+      tags: [Artifacts]
+      summary: Update mutable display metadata
+      description: |
+        Updates the mutable subset of an artifact row: `displayName`,
+        `description`, `labels`, `annotations`. All other fields are
+        immutable post-create (`name` / `version` / `kind` / `namespace` /
+        `owner`) or frozen on transition to `Ready` (`spec` / `digest`).
+
+        Body uses partial-replace semantics on the four supported keys: a
+        key absent from the body is left untouched; a key present replaces
+        the whole value (no per-entry deep merge inside `labels` /
+        `annotations`).
+
+        Allowed in any non-terminal state (`Uploading`, `Ready`, `Failed`);
+        rejected for `Deleting` / `Deleted` with `409 ArtifactTerminal`.
+        Submitting an immutable field returns `400 ImmutableField` with the
+        offending path. PATCH is a PG-only mutation: it does not touch the
+        storage backend and does not affect `updatedAt` ordering for GC.
+      operationId: updateArtifact
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ArtifactUpdateRequest'
+      responses:
+        '200':
+          description: Artifact updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Artifact'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Artifact is in a terminal state (`Deleting` / `Deleted`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500': { $ref: '#/components/responses/InternalError' }
     delete:
       tags: [Artifacts]
       summary: Delete an artifact version (soft delete + async backend GC)
@@ -528,7 +572,7 @@ components:
     ArtifactKind:
       type: string
       description: Artifact kind (registered ArtifactHandler key).
-      enum: [model, dataset, image, eval_report]
+      enum: [model, dataset, image]
 
     ArtifactStatus:
       type: string
@@ -546,7 +590,7 @@ components:
       description: |
         Cross-artifact reference in the form `<namespace>/<kind>/<name>@<version>`,
         e.g. `team-a-models/model/llama-7b@v3`.
-      pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?/(model|dataset|image|eval_report)/[a-z0-9]([-a-z0-9._]*[a-z0-9])?@[A-Za-z0-9_.-]{1,128}$'
+      pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?/(model|dataset|image)/[a-z0-9]([-a-z0-9._]*[a-z0-9])?@[A-Za-z0-9_.-]{1,128}$'
       example: team-a/dataset/mmlu@v1
 
     Digest:
@@ -652,30 +696,11 @@ components:
         notes:
           type: string
 
-    EvalReportSpec:
-      type: object
-      description: Spec for `kind=eval_report`.
-      required: [modelRef, datasetRef, metrics, evaluator]
-      properties:
-        modelRef:
-          $ref: '#/components/schemas/ArtifactRef'
-        datasetRef:
-          $ref: '#/components/schemas/ArtifactRef'
-        metrics:
-          type: object
-          description: "Free-form metric map (e.g. `{accuracy: 0.82, f1: 0.79}`)."
-          additionalProperties: true
-        evaluator:
-          type: string
-          description: Evaluator identifier (free-form, e.g. `lm-eval-harness@v0.4`).
-        notes:
-          type: string
-
     ArtifactSpec:
       description: |
         Kind-specific spec. The runtime shape matches one of `ModelSpec`,
-        `DatasetSpec`, `ImageSpec`, or `EvalReportSpec`; clients must pick
-        the shape consistent with the outer `kind` field of the artifact.
+        `DatasetSpec`, or `ImageSpec`; clients must pick the shape consistent
+        with the outer `kind` field of the artifact.
 
         OpenAPI 3.0 discriminators on `oneOf` require the discriminator to
         live inside each branch; here the discriminator lives on the parent
@@ -685,7 +710,6 @@ components:
         - $ref: '#/components/schemas/ModelSpec'
         - $ref: '#/components/schemas/DatasetSpec'
         - $ref: '#/components/schemas/ImageSpec'
-        - $ref: '#/components/schemas/EvalReportSpec'
 
     # --- Artifact DTO (matches database.md §4.1) ---
     Artifact:
@@ -897,6 +921,26 @@ components:
         expiresAt:
           type: string
           format: date-time
+
+    ArtifactUpdateRequest:
+      type: object
+      description: |
+        Body for `PATCH /api/v1/namespaces/{ns}/artifacts/{kind}/{name}/{version}`.
+        Partial-replace semantics on the four supported keys. Omitting a key
+        leaves the stored value untouched; setting a key to `{}` clears
+        `labels` / `annotations`. Submitting any other field returns
+        `400 ImmutableField`.
+      properties:
+        displayName:
+          type: string
+          maxLength: 256
+        description:
+          type: string
+          maxLength: 4096
+        labels:
+          $ref: '#/components/schemas/StringMap'
+        annotations:
+          $ref: '#/components/schemas/StringMap'
 
     ArtifactCompleteRequest:
       type: object

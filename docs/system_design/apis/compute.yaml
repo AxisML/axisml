@@ -1483,7 +1483,7 @@ components:
     MLJobSpec:
       type: object
       description: |
-        Snapshot of the MLJob CR `spec` (see compute-operator.md §4.2).
+        Snapshot of the MLJob CR `spec` (see compute-operator.md §4.1.1).
         Immutable after Job creation; cancel is implemented by patching
         `runPolicy.suspend` server-side, not by allowing the caller to
         edit spec.
@@ -1499,7 +1499,51 @@ components:
             $ref: '#/components/schemas/JobRole'
         runPolicy:
           $ref: '#/components/schemas/JobRunPolicy'
+        outputs:
+          type: array
+          description: |
+            Declarative output descriptors. Pure metadata: the operator does
+            NOT consume `outputs` at runtime (no auto-push, no sidecar). It
+            is read by Platform's `register-model` bridge to locate the
+            artifact bytes on the PVC after the Job reaches `Succeeded`.
+            See `components/compute-operator.md §4.1.1` for validation rules.
+          items:
+            $ref: '#/components/schemas/JobOutput'
       required: [scheduling, roles]
+
+    JobOutput:
+      type: object
+      description: |
+        Declaration of a single Job output. The operator validates structure
+        only (`kind=model`, `volumeName` resolves to a non-`emptyDir` volume
+        in `roles[*].template.volumes[]`); it does not transfer bytes.
+      required: [name, kind, volumeName, sourcePath]
+      properties:
+        name:
+          type: string
+          description: Unique handle within the Job (DNS-1123).
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          minLength: 1
+          maxLength: 63
+        kind:
+          type: string
+          description: Artifact kind this output produces. Only `model` is supported initially.
+          enum: [model]
+        volumeName:
+          type: string
+          description: |
+            Name of the volume in `roles[*].template.volumes[]` that holds
+            the output bytes. Must be a PVC-backed volume.
+          minLength: 1
+          maxLength: 253
+        sourcePath:
+          type: string
+          description: |
+            Relative path inside `volumeName` containing the artifact bytes.
+            Used by Platform's `register-model` to point the user's cli at
+            the right directory.
+          minLength: 1
+          maxLength: 1024
 
     MLServiceSpec:
       type: object

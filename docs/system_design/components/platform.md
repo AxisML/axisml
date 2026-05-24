@@ -103,7 +103,7 @@ Platform 自有实体仅覆盖**身份 / 授权 / 会话 / 审计**四类，完�
 | 删除 | RBAC + 透传 | `DeleteJob` | 同上 |
 | 列表（跨租户） | RBAC 取可见租户集 → 并行解析 namespace → 并行 LIST → 内存合并 | `ListJobs(ns, ...)` ×N | 部分失败 → `partial=true` + `error.detail` |
 | 副本/事件/日志 | `RequireJobOwner` 校验 → 透传（含 SSE `follow=true`） | `GetJob{Replicas,Events,Logs}` | 流式 chunked 透传 |
-| register-model | 校验 `status=Succeeded` → 初始化上传 → 客户端直推 → complete | `artifacts.{Initiate,Complete}Upload` | 两步桥接；当前受限于 volumes UI |
+| register-model | RBAC `@owner`+ → 校验 `phase=Succeeded` → 解析 `spec.outputs[]` 选中项（或显式 `outputPath` override）→ 反查 PVC + sourcePath → 调 `artifacts.InitiateUpload(kind=model)` 并打 provenance labels → 返 `{artifact, upload, provenance}`，字节由客户端工具异步推送 | `compute.GetJob` + `artifacts.InitiateUpload` | 详见 [§4.5.3](#453-register-from-job计算任务--模型) |
 
 关键不变量：任务标识为 `(tenant_name, job_name)`，URL `/api/v1/tenants/{tenant}/jobs/{name}`；Job spec 不可变——「编辑」= 新建。UI 设计见 [wireframe.md](../wireframe.md)。
 
@@ -139,16 +139,81 @@ Platform 自有实体仅覆盖**身份 / 授权 / 会话 / 审计**四类，完�
 
 ### 4.5 制品编排
 
-下游：artifacts。
+下游：artifacts。三个 Kind（`model` / `image` / `dataset`）共享同一组 Platform 端点形态（仿 Models tag），按 Kind 分子表暴露给前端；跨 Kind 共用的编排骨架先列在 §4.5.1，Kind 专属差异落 §4.5.2。
+
+#### 4.5.1 跨 Kind 共骨架
 
 | 用户操作 | Platform 内部步骤 | 下游调用 | 一致性策略 |
 | --- | --- | --- | --- |
-| 注册（initiate） | RBAC `tenant-admin@self` 或 `user@owner` → 透传 | `InitiateUpload(ns, kind, name)` | 返 `{artifact_id, uri, upload_credentials}` 透传 |
-| 完成（complete） | 校验 `digest` 非空 → 透传 | `CompleteUpload(id, digest)` | 单点透传 |
-| 解析（resolve） | 内部编排子步骤（Job/Service 创建前调用），不直接对外暴露独立端点 | `Resolve(ns, kind, name, version)` | 校验失败 `400` 阻断上游创建 |
-| 列表 | 跨租户合并同 §4.2 | `ListArtifacts(ns, kind, ...)` ×N | `partial=true` |
+| 上传（initiate） | RBAC `user@self`+ → 解析 tenant → namespace → 透传 spec（artifacts handler 做 Kind 级校验，失败 4xx 反馈） | `artifacts.InitiateUpload(ns, kind, name, body)` | 返 `{artifact, upload}`：`uri` / `uploadCredentials` 直接透传，前端按 §7.2.2 渲染上传指引 |
+| 完成（complete） | RBAC `@owner`+ → 校验 `digest` 非空 → 透传 | `artifacts.CompleteUpload(ns, kind, name, version, {digest, claim?})` | 单点透传；`DigestMismatch` / `Failed` 由下游 4xx 反馈 |
+| 解析（resolve `usage=inspect`） | 内部编排子步骤（Job / Service / Workspace 创建前调用）；**不对外暴露独立 REST 端点** | `artifacts.Resolve(ns, kind, name, version, usage=inspect)` | 校验失败 `400` 阻断上游创建；返回的 `auth_hint` 用于 K8s spec 注入 |
+| 获取下载凭证（resolve `usage=download`） | RBAC `user@self`+ → 透传 | `artifacts.Resolve(usage=download)` | 1h TTL pull token / S3 STS；前端复制即用 |
+| 列表 | RBAC 取可见租户集 → 并行解析 namespace → 并行 `artifacts.ListByKind` → 内存合并 | `ListArtifactsByKind(ns, kind, ...)` ×N | 部分失败 → `partial=true` + `error.detail` |
+| 单条详情 | URL `{tenant}/{name}/{version}` 直接拼下游 tuple → 透传 | `GetArtifact(ns, kind, name, version)` | 410 透传（软删后 tuple 永不复用） |
+| 编辑展示元数据 | RBAC `@owner` / `tenant-admin@self` → 透传（`displayName` / `description` / `labels` / `annotations` 可改，其它字段 `400 immutable-field`） | `artifacts.UpdateArtifact(ns, kind, name, version, body)` | 单点透传；`Deleting`/`Deleted` → `409 ArtifactTerminal`；`labels` / `annotations` 整体替换语义（见 [artifacts.md §6](artifacts.md#6-接口契约)） |
+| 删除 | RBAC `@owner` / `tenant-admin@self`+ → 透传 | `artifacts.DeleteArtifact(ns, kind, name, version)` | 软删；GC 异步清后端；`(ns, kind, name, version)` 永不复用 |
 
-UI 设计见 [wireframe.md](../wireframe.md)。
+**关键不变量**：
+- 前端寻址 `(tenant, name, version)` 三元组；URL `/api/v1/{kind-plural}/{tenant}/{name}/{version}`；`{kind-plural} ∈ {models, images, datasets}`。Platform 不维护 id 反查表——url path 直接拼成 artifacts 寻址 tuple；DTO 仍带 `id` 字段供 label / 反向引用使用，但不作为 url 一级 key。
+- tenant → artifact namespace 映射通过 §5.2 `clustermanager.GetTenant(tenant).compute_namespace` 解析；request-scope memoize，不落本地表。
+- `(name, version)` 创建后不可变；spec / digest 进入 `Ready` 冻结；改 spec = 上传新版本。
+- Platform 不为 artifact 建任何视图表；状态 / digest / labels 始终回源 artifacts。
+
+#### 4.5.2 Kind 专属编排差异
+
+| Kind | StorageKind | artifacts handler 必填字段（参考） | 跨制品引用懒校验 | 自动注册路径（非 UI） |
+| --- | --- | --- | --- | --- |
+| `model` | `oci` (zot) | `spec.framework` / `spec.format` | `baseModelRef` / `trainingDatasetRef` 由 artifacts handler 触发 `Resolve` 探活；失败 4xx 反馈 | 计算任务详情「注册为模型」按钮（详见 [§4.5.3](#453-register-from-job计算任务--模型)） |
+| `image` | `oci` (zot) | `spec.purpose` | — | — |
+| `dataset` | `s3` (RustFS) | `spec.format` | — | — |
+
+> Platform 不验 spec；上表「必填字段」列出的是 artifacts handler 的硬校验（spec / 引用懒校验），Platform 仅做透传，校验失败时由下游 4xx 直传到客户端。
+
+**共享镜像约定**：`system-admin` 在专用 namespace（约定名 `system-images`）维护「平台基础镜像」；Workspace / Job / Service 创建表单的镜像下拉合并展示当前租户 + system 命名空间。Platform 仅在 LIST 阶段做合并，不为「共享」语义建任何 PG 表。
+
+UI 设计见 [wireframe.md §7](../wireframe.md#7-制品中心-模型--镜像--数据集)。
+
+#### 4.5.3 register-from-job（计算任务 → 模型）
+
+把训练任务的产物注册成 `model` 制品的桥接路径。前置：MLJob 提交时已在 `spec.outputs[]` 声明产物（[compute-operator.md §4.1.1](compute-operator.md#411-mljob-spec-高层结构)），或调用方在请求体中显式提供 `outputPath` + `volumeName` 覆盖。
+
+**端点**：`POST /api/v1/tenants/{tenant}/jobs/{name}/register-model`（[apis/platform.yaml](../apis/platform.yaml) `Jobs` tag `registerJobModel`）。
+
+**请求体**（详见 [apis/platform.yaml `JobRegisterModelRequest`](../apis/platform.yaml)）：
+- 两选一寻址（互斥）：
+  - **声明式**：`outputName` 指向 `MLJob.spec.outputs[]` 某项（须 `kind=model`）；
+  - **ad-hoc**：同时给 `outputPath` + `volumeName`；二者缺一报 `400 InvalidOutputSelector`。
+- `modelName` + `modelVersion`：制品标识，必填；
+- `spec`：`ModelSpec`，必填（`spec.framework` / `spec.format` 由 artifacts handler 强校验，UI 可按 `image` 推断默认）；
+- `spec.trainingDatasetRef?`：若 Job role 容器 env 含 `AXISML_DATASET_URI` 且能 resolve 到一个 `Ready` 的 dataset，UI 在打开 modal 时自动反填，用户可改可空。
+- `displayName?` / `description?`：可空。
+
+**Platform 内部步骤**（顺序）：
+
+1. RBAC：`@owner` 或本租户 `tenant-admin+`；
+2. `compute.GetJob(ns, name)` 拉 Job 全字段；
+3. 校验 `job.phase=Succeeded`（其他 → `409 job-not-succeeded`）；
+4. 解析产物位置：
+   - `outputName` 命中 → 读 `spec.outputs[outputName]` 的 `volumeName` + `sourcePath`；
+   - 否则用请求体 `outputPath` + `volumeName`；
+   - 反查 `spec.roles[*].template.volumes[name=volumeName]` 取 `persistentVolumeClaim.claimName`（非 PVC 卷 → `400 output-volume-must-be-pvc`）；
+5. `artifacts.InitiateUpload(ns, kind=model, name=modelName, body)` → 拿 `{artifact, upload}`；
+6. 在 artifact 上打 provenance 标记：
+   - `labels` 写入 `platform.axisml.io/source-job-tenant: <tenant>`、`platform.axisml.io/source-job-name: <jobName>`、`platform.axisml.io/source-job-id: <job.id>`（compute `jobs.id` uuid）；声明式分支再加 `platform.axisml.io/source-output: <outputName>`，ad-hoc 分支省略该 label；
+   - `annotations` 写入 `platform.axisml.io/registered-by-user: <username>`、`platform.axisml.io/registered-at: <rfc3339>`；
+7. 返回 `JobRegisterModelResponse`：`{artifact, upload, provenance: {jobId, jobName, outputName?, pvc, sourcePath}}`，前端复用 [§7.2.2 上传指引对话框](../wireframe.md#722-上传表单通用字段--两阶段交互)，额外在对话框顶部渲染「来源：任务 `<tenant>/<jobName>` 输出 `<outputName 或 ad-hoc>`（PVC `<pvc>`，路径 `<sourcePath>`）」。
+
+**幂等性**：
+- 同一 `(modelName, modelVersion)` 已存在 → `artifacts.InitiateUpload` 透传 `409 ArtifactAlreadyExists`，UI 弹窗引导改版本号；
+- `Failed` 行不可复活：用户需 DELETE 旧行后另起版本。
+
+**字节如何上传**：Platform 只返回 artifact 行 + upload credentials + provenance hint，**不**渲染或下发 cli 命令。客户端（typically `axisml-cli`）拿到 credentials 后自行完成两阶段写的第二阶段（push + `complete`）；具体 cli 子命令形态另行设计，不在 Platform 契约内。
+
+**不做**：
+- Platform 不主动 push bytes（避免占自身 Pod 资源 / 不持长期文件读权限）；
+- Platform 不为「已注册过的 Job」建索引——`artifact.labels[platform.axisml.io/source-job-id]` 即反向索引基础，由独立引用方反查端点（§9.2 后续工作）消费；
+- compute-operator 不参与该运行时流程（保持 operator 不知 artifacts 存在的边界；operator 仅在 `Validate(spec)` 阶段对 `spec.outputs[]` 做静态约束）。
 
 ### 4.6 资源池 / 单元编排
 
@@ -221,7 +286,7 @@ RBAC 中间件装配细节归 [auth.md](../auth.md)，Platform 仅在路由层�
 
 | 类别 | 内容 | 引用 |
 | --- | --- | --- |
-| 对外 REST | 主要 tag：`Auth` / `Tenants` / `Quotas` / `Members` / `Jobs` / `Services` / `Workspaces` / `Models` / `Images` / `Datasets` / `ResourcePools` / `ResourceUnits` / `Dashboard` | [apis/platform.yaml](../apis/platform.yaml) |
+| 对外 REST | 主要业务 tag：`Auth` / `Tenants` / `Quotas` / `Members` / `Jobs` / `Services` / `Workspaces` / `Models` / `Images` / `Datasets` / `ResourcePools` / `ResourceUnits` / `Dashboard`；系统类 tag（`Users` / `Audit` / `Health`）省略，全量见 yaml | [apis/platform.yaml](../apis/platform.yaml) |
 | 状态 | 不暴露任何 K8s CR；下游运行态字段（phase / conditions / status）作为只读字段透传 | — |
 | 错误格式 | HTTP 标准状态码 + RFC 7807 `application/problem+json`；下游 problem 由 typed client 解析后透传或包装 | — |
 | 流式 | 日志 / 事件 `follow=true` 采用 `text/event-stream` SSE；非 follow 用 `text/plain` chunked | — |
@@ -263,7 +328,11 @@ RBAC 中间件装配细节归 [auth.md](../auth.md)，Platform 仅在路由层�
 
 ### 9.2 制品中心
 
-- dataset / image / eval_report 三类 Artifact UI（底层已被 artifacts 服务支持）。
+- 引用方反查端点（`Service.spec.modelRef` / `Job.spec.datasetRef` 反向索引）；
+- 浏览器直传支持范围扩展（现仅 S3 Kind 小文件；OCI Kind 需在浏览器实现 chunked push）；
+- 跨制品引用懒校验失效后的状态广播（被引方 `Deleted` → 引用方 `Ready` 但 resolve 返 410；前端展示降级告知）；
+- 制品配额 / 签名 / SBOM 接入（等待 artifacts 服务 `size_bytes` 入表 + cosign / notation / trivy 集成）；
+- 镜像 Layer 浏览端点（zot manifest API 解析 + per-layer 大小）。
 
 ### 9.3 租户
 
