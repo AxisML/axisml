@@ -40,7 +40,7 @@
 
 ```
 ┌──────────────────────────── Compute (Go) ─────────────────────────────┐
-│  HTTP API (Gin) ──写──▶  PG (generation + status='Creating')          │
+│  HTTP API (Gin) ──写──▶  PG (generation + status.phase='Creating')          │
 │        ▲                                │                              │
 │        │ 读                              ▼                              │
 │        │                       Reconciler goroutines (leader-only)    │
@@ -89,10 +89,10 @@ Creating ──(Informer ADD)──▶ Pending ──▶ Running ──▶ Succe
 
 | 操作 | PG 写 | CR 影响 | 备注 |
 | --- | --- | --- | --- |
-| 提交 | insert `Creating` 行 + spec 快照（`generation=1`） | reconciler `Create()` MLJob | 创建后 spec 不可变；无后续 mutation，仅靠 `status='Creating'` 谓词推进 |
-| cancel | `status='Canceling'` + `message='user cancelled'` | reconciler `patch spec.runPolicy.suspend=true` | `Creating` 状态拒绝；要求改用 DELETE |
+| 提交 | insert `Creating` 行 + spec 快照（`generation=1`） | reconciler `Create()` MLJob | 创建后 spec 不可变；无后续 mutation，仅靠 `status.phase='Creating'` 谓词推进 |
+| cancel | `status.phase='Canceling'` + `message='user cancelled'` | reconciler `patch spec.runPolicy.suspend=true` | `Creating` 状态拒绝；要求改用 DELETE |
 | 更新 PG 元数据（`display_name` / `description` / `labels` / `annotations`） | update 行 | **不影响 CR** | Job spec 不可变，但 PG 扩展位任意阶段可改 |
-| 软删 | `status='Deleting'` + `deleted_at=now()` | reconciler `Delete()` CR；Informer DELETE → `Deleted` | 任一非 `Deleting`/`Deleted` 状态适用 |
+| 软删 | `status.phase='Deleting'` + `deleted_at=now()` | reconciler `Delete()` CR；Informer DELETE → `Deleted` | 任一非 `Deleting`/`Deleted` 状态适用 |
 | 日志 / 副本 / 事件 | — | 透传 kube-apiserver Pod Log / 按 label list Pod / 聚合 Event | 详见 [apis/compute.yaml](../apis/compute.yaml) `Jobs` tag |
 
 `Succeeded` / `Failed` / `Cancelled` 为运行终态；`Deleted` 为软删终态。`Cancelled` PG 行保留（`deleted_at IS NULL`），用户可再次 DELETE。
@@ -130,7 +130,7 @@ Creating ──(Informer ADD)──▶ Pending ──(ready=desired, desired>0)�
 | 创建 | insert `Creating` 行 + spec 快照（`generation=1`） | reconciler `Create()` MLService（含 `axisml.io/service-{id,kind}` label） |
 | scale | 更新 `services.replicas` + `spec.roles[0].replicas` + `generation += 1` | reconciler `generation>observed_generation` 触发 patch `spec/roles/0/replicas` |
 | 更新 PG 元数据（`display_name` / `description` / `labels` / `annotations`） | update 行 | **不影响 CR**；不 `+generation` |
-| 软删 | `status='Deleting'` + `deleted_at=now()` | reconciler `Delete()` CR；Informer DELETE → `Deleted` |
+| 软删 | `status.phase='Deleting'` + `deleted_at=now()` | reconciler `Delete()` CR；Informer DELETE → `Deleted` |
 
 Service 无 cancel 语义；除 `roles[0].replicas` 外其他 spec 字段不可变。`kind` 创建后不可变。
 
@@ -189,9 +189,9 @@ Service 无 cancel 语义；除 `roles[0].replicas` 外其他 spec 字段不可�
 
 | 谓词 | 动作 | 适用模块 |
 | --- | --- | --- |
-| `status='Creating' AND deleted_at IS NULL` | `Create()` CR（带 `axisml.io/<resource>-id` label；409 视为成功） | Job / Service |
-| `status='Canceling'` | `patch MLJob.spec.runPolicy.suspend=true` | Job |
-| `status='Deleting'` | `Delete()` CR；Informer DELETE 推进 `Deleted` | Job / Service |
+| `status.phase='Creating' AND deleted_at IS NULL` | `Create()` CR（带 `axisml.io/<resource>-id` label；409 视为成功） | Job / Service |
+| `status.phase='Canceling'` | `patch MLJob.spec.runPolicy.suspend=true` | Job |
+| `status.phase='Deleting'` | `Delete()` CR；Informer DELETE 推进 `Deleted` | Job / Service |
 | `generation <> observed_generation AND deleted_at IS NULL` | `Patch()` CR；成功后 `observed_generation = generation` | Service |
 
 失败按指数退避重试，错误写入业务记录的 `message`。PG 行不再满足任何谓词后，reconciler 不再下发——自然结束 / 自愈 / 外部误删由 Informer 回流推进。
@@ -224,8 +224,8 @@ Reconciler (leader-only)
 
 | Informer | 监听对象 | 主要回写字段 |
 | --- | --- | --- |
-| MLJob Informer | `MLJob` CR | `jobs.status` / `started_at` / `finished_at` / `message`；按 4.1 phase 映射表推进 |
-| MLService Informer | `MLService` CR | `services.status` / `ready_replicas` / `endpoint` / `message`；按 4.2 条件表推进 |
+| MLJob Informer | `MLJob` CR | 整块写 `jobs.status` jsonb（`{phase, message, startedAt, finishedAt, conditions[]}`）；按 4.1 phase 映射表推进 |
+| MLService Informer | `MLService` CR | 整块写 `services.status` jsonb（`{phase, message, readyReplicas, endpoint, conditions[]}`）；按 4.2 条件表推进 |
 
 启动时 `List` 做差异 upsert 与孤儿对账；`Watch` 事件入各自 work queue；单 worker 串行 reconcile；以 `resourceVersion` / `generation` 作乐观并发字段。
 
@@ -237,8 +237,8 @@ Compute **不反向重建 CR**。Informer 观察到 CR DELETE 事件后按 PG �
 | --- | --- |
 | `Canceling` | 幂等忽略；`Cancelled` 只由 Suspended condition 推进 |
 | `Deleting` | 正常级联清理，推进 `Deleted` |
-| Job 在 `Pending`/`Running`（外部误删） | 推 `Cancelled` + `finished_at` + `message='external delete'`，不补偿重建 |
-| Service 在 `Pending`/`Ready`/`Degraded`/`Failed`（外部误删） | 写 `Deleting` + `deleted_at=now()` + `message='external delete'`，下一轮谓词幂等确认后推 `Deleted` |
+| Job 在 `Pending`/`Running`（外部误删） | 推 `status.phase=Cancelled` + `status.finishedAt` + `status.message='external delete'`，不补偿重建 |
+| Service 在 `Pending`/`Ready`/`Degraded`/`Failed`（外部误删） | 写 `status.phase=Deleting` + `deleted_at=now()` + `status.message='external delete'`，下一轮谓词幂等确认后推 `Deleted` |
 | 已终态 | 忽略 |
 
 **正向孤儿**（PG `Creating` 但无 CR，且 `deleted_at IS NULL`）属 Outbox 正常窗口，reconciler 下一轮幂等重试 `Create()`。**反向孤儿**（CR 存在但 PG 无行或已 `Deleted`）：默认删除 CR 并记录审计。
@@ -249,7 +249,7 @@ Compute **不反向重建 CR**。Informer 观察到 CR DELETE 事件后按 PG �
 | --- | --- | --- |
 | 对外 REST | `/api/v1/namespaces/{ns}/jobs[...]`、`/api/v1/namespaces/{ns}/services[...]`、`/api/v1/services[/{id}]`、`/api/v1/resource-pools[...]`、`/api/v1/resource-pools/{pool}/resource-units[...]` | [apis/compute.yaml](../apis/compute.yaml) `Jobs` / `Services` / `ResourcePools` / `ResourceUnits` tag |
 | 下发 CR | `MLJob` / `MLService`（`axisml.io/v1alpha1`，namespaced），Compute 是唯一 `spec` 写者 | [compute-operator.md](compute-operator.md) |
-| 回流字段 | `jobs.status` / `started_at` / `finished_at`；`services.status` / `ready_replicas` / `endpoint` | — |
+| 回流字段 | `jobs.status` / `services.status`（jsonb 整块；子结构见 [database.md §3.3 / §3.4](../database.md#33-jobs-表)） | — |
 | 不变量 | CR `metadata` / `spec` 单写（Compute 写）；CR `status` 单读（operator 写）；API 不直接写 K8s | — |
 | 身份头 | 调用方注入 `X-Axisml-User`，本服务仅做审计与 ownership 归属 | [auth.md §7](../auth.md#7-下游身份透传) |
 | 错误格式 | HTTP 标准状态码 + RFC 7807 problem+json | — |
