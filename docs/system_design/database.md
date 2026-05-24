@@ -48,7 +48,7 @@
 
 reconciler 通过 partial index `WHERE generation <> observed_generation AND deleted_at IS NULL` 高效定位待同步行；spec 内容未变但 mutation 重复触发时仍会 +generation，reconciler 走幂等 server-side apply 不会产生副作用。
 
-`jobs` 表 spec 完全不可变，不使用 generation（同步信号借用 `status` 谓词扫描，见 [compute.md §5.1](components/compute.md#51-写路径内嵌-outbox--4-谓词扫描)）；`resource_pools` / `resource_units` / `artifacts` / Platform 表无对应 CR，更不使用 generation。
+`jobs` 表 spec 完全不可变，不使用 generation（同步信号借用 `status` 谓词扫描，见 [compute.md §5.1](components/compute.md#51-写路径内嵌-outbox--谓词扫描)）；`resource_pools` / `resource_units` / `artifacts` / Platform 表无对应 CR，更不使用 generation。
 
 ### 1.5 CR 稳定锚点
 

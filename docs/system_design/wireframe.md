@@ -228,8 +228,8 @@ Footer: 共 3 个资源单元 · 合并选择器在展开行查看
 ```
 
 要点:
-- 行可展开 (`▸`),展开后渲染 `pool.node_selector` ⊕ `unit.node_selector` 合并预览 (Pool 优先;详细规则见 [components/compute.md §4.4](components/compute.md#44-resourceunit))。
-- 命名约定 `<accelerator>[-<count>x]-<tier>[-<variant>]`,如 `a100-1x-large` / `cpu-medium` / `a100-8x-xlarge-ib`,由 compute 服务兜底校验。
+- 行可展开 (`▸`),展开后渲染 `pool.node_selector` ⊕ `unit.node_selector` 合并预览 (Pool 优先;详细规则见 [components/cluster-manager.md §3.2](components/cluster-manager.md#32-resourceunit))。
+- 命名约定 `<accelerator>[-<count>x]-<tier>[-<variant>]`,如 `a100-1x-large` / `cpu-medium` / `a100-8x-xlarge-ib`,由 cluster-manager 服务兜底校验。
 - requests / limits 用 tag chips 渲染,limits 缺省时显示 `…` (沿用 requests)。
 - 删除前置阻断信息 (使用此 unit 的活跃 Job / Service 计数) 在二次确认弹窗呈现 → `409 unit-in-use`。
 

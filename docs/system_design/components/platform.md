@@ -71,7 +71,7 @@ Platform 自有实体仅覆盖**身份 / 授权 / 会话 / 审计**四类，完�
 | Session | JWT 会话 / 刷新 token | `id` | TTL 与 JWKS 由 auth 模块管理 |
 | AuditLog | 操作流水 | `id` | `action` / `target` / `actor` / `payload` |
 
-**视图层映射实体**：Tenant view ↔ `(tenant_name, compute_namespace)` 二元组——Platform 调下游前调一次 `compute.GetTenant(name)` 解析 namespace 与 quotas，不落 PG。
+**视图层映射实体**：Tenant view ↔ `(tenant_name, k8s_namespace)` 二元组——Platform 调下游前调一次 `compute.GetTenant(name)` 解析 `spec.namespace.name`（K8s namespace，PVC 操作需要）与 quotas，不落 PG。注意 compute / artifacts 的 REST URL 中 `{namespace}` 段 = `tenant_name`，**不是** K8s namespace；K8s namespace 仅 Platform 直接操作 K8s 资源（如 PVC）时用到。
 
 ## 4. 核心功能
 
@@ -156,7 +156,7 @@ Platform 自有实体仅覆盖**身份 / 授权 / 会话 / 审计**四类，完�
 
 **关键不变量**：
 - 前端寻址 `(tenant, name, version)` 三元组；URL `/api/v1/{kind-plural}/{tenant}/{name}/{version}`；`{kind-plural} ∈ {models, images, datasets}`。Platform 不维护 id 反查表——url path 直接拼成 artifacts 寻址 tuple；DTO 仍带 `id` 字段供 label / 反向引用使用，但不作为 url 一级 key。
-- tenant → artifact namespace 映射通过 §5.2 `compute.GetTenant(tenant).compute_namespace` 解析；request-scope memoize，不落本地表。
+- artifact `namespace` 字段 = `tenant_name`（与 compute 对齐），无需 GetTenant 解析；只在 PVC / quota 名拼接等场景才需要 `compute.GetTenant(tenant).spec.namespace.name`。
 - `(name, version)` 创建后不可变；spec / digest 进入 `Ready` 冻结；改 spec = 上传新版本。
 - Platform 不为 artifact 建任何视图表；状态 / digest / labels 始终回源 artifacts。
 
@@ -253,7 +253,7 @@ UI 设计:本期原型未覆盖制品中心,占位见 [wireframe.md §3 占位�
 | tuple 寻址 detail（`/api/v1/{kind}/{tenant}/{name}/{version}`） | URL 内已带 tenant，header 忽略 | 同上 |
 | 租户管理路径（`/api/v1/tenants/{name}/...`） | URL 内已带 tenant，header 忽略 | 同上 |
 
-**下游 namespace 解析**：拿到 tenant 名后，调用 `compute.GetTenant(name)` 取 `compute_namespace` 与 quotas 清单，request-scoped memoize；ElasticQuota 名按 `axisml-<tenant>-<pool>-<quota>` 实时拼接 + 校验，不本地缓存。
+**下游 namespace 解析**：compute / artifacts 的 URL `{namespace}` 段直接用 `tenant_name`，无需解析。仅当需要 K8s 直接操作（PVC 等）或拼 ElasticQuota 名（`axisml-<tenant>-<pool>-<quota>`，其中 `<tenant>` = tenant_name）时调用 `compute.GetTenant(name)` 取 `spec.namespace.name` / quotas 清单，request-scoped memoize，不本地缓存。
 
 ### 5.3 列表跨租户合并
 
