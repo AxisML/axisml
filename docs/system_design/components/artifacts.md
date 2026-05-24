@@ -134,7 +134,7 @@ cli              Artifacts               zot / RustFS         PG
 
 ### 5.2 读路径：resolve
 
-`GET /api/v1/namespaces/{ns}/artifacts/{kind}/{name}/{version}/resolve?usage={inspect|download}`
+`GET /api/v1/namespaces/{ns}/{kindPlural}/{name}/{version}/resolve?usage={inspect|download}`
 
 | usage | 调用方 | 额外字段 | 凭证形态 |
 | --- | --- | --- | --- |
@@ -170,7 +170,7 @@ GC worker（leader-only，每 5 分钟一轮）扫描 PG 三类谓词：
 
 | 类别 | 内容 | 引用 |
 | --- | --- | --- |
-| 对外 REST | `/api/v1/namespaces/{ns}/artifacts/{kind}/{name}[/{version}[/{complete,resolve}]]`；版本级 `GET` / `PATCH` / `DELETE` 同前缀 | [apis/artifacts.yaml](../apis/artifacts.yaml) `Artifacts` tag |
+| 对外 REST | `/api/v1/namespaces/{ns}/{kindPlural}/{name}[/{version}[/{complete,resolve}]]`；版本级 `GET` / `PATCH` / `DELETE` 同前缀。`kindPlural` 为 `ArtifactKind` 的 URL 复数形式（`model`↔`models`、`dataset`↔`datasets`、`image`↔`images`） | [apis/artifacts.yaml](../apis/artifacts.yaml) `Artifacts` tag |
 | Handler 接口 | 见下表 | — |
 | 身份头 | 调用方注入 `X-Axisml-User`，本服务仅做审计 | [auth.md §7](../auth.md#7-下游身份透传) |
 | 错误格式 | HTTP 标准状态码 + RFC 7807 problem+json | — |

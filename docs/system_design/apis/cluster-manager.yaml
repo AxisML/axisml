@@ -11,6 +11,10 @@ info:
     mechanism. Status fields (`phase`, `namespaceReady`, `conditions`,
     `quotas[].used`) are streamed back from the Tenant CR by an informer.
 
+    Tenant identity is `(namespace, name)`; `namespace` here is the
+    organizational grouping (e.g. `ai-team`), distinct from the Kubernetes
+    namespace at `spec.namespace.name`.
+
     All `/api/v1/*` operations require the `X-Axisml-User` header injected by
     the AxisML Platform. The service is reachable only on the cluster-internal
     ClusterIP (port 8082) — there is no external ingress.
@@ -28,13 +32,17 @@ tags:
   - name: Health
     description: Liveness and readiness probes.
 
+security:
+  - AxismlUserHeader: []
+
 paths:
   /healthz:
     get:
       tags: [Health]
-      operationId: getHealthz
+      operationId: healthz
       summary: Liveness probe
       description: Returns 200 if the process is alive. No authentication required.
+      security: []
       responses:
         '200':
           description: Process is alive
@@ -42,17 +50,16 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthStatus'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
 
   /readyz:
     get:
       tags: [Health]
-      operationId: getReadyz
+      operationId: readyz
       summary: Readiness probe
       description: |
         Returns 200 only when PostgreSQL connectivity and the Kubernetes API
         are both reachable. Used by the Kubernetes readiness probe.
+      security: []
       responses:
         '200':
           description: Service is ready to accept traffic
@@ -67,23 +74,25 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
 
-  /api/v1/tenants:
+  /api/v1/namespaces/{namespace}/tenants:
+    parameters:
+      - $ref: '#/components/parameters/Namespace'
+
     post:
       tags: [Tenants]
       operationId: createTenant
       summary: Create a tenant
       description: |
-        Inserts a new row into `tenants` with `generation = 1` and returns
-        the current PG view immediately. The Tenant CR is rendered and
-        applied asynchronously by the reconciler; clients should poll
-        `GET /api/v1/tenants/{name}` and observe `status.phase` /
-        `status.conditions[type=NamespaceReady]` to confirm convergence.
+        Inserts a new row into `tenants` with `generation = 1` and returns the
+        current PG view immediately. The Tenant CR is rendered and applied
+        asynchronously by the reconciler; clients should poll
+        `GET /api/v1/namespaces/{namespace}/tenants/{name}` and observe
+        `status.phase` / `status.conditions[type=NamespaceReady]` to confirm
+        convergence.
 
-        A partial unique index on `(name) WHERE deleted_at IS NULL`
-        guarantees that an active tenant with the same name yields 409.
-        Soft-deleted rows with the same name are not a conflict.
-      parameters:
-        - $ref: '#/components/parameters/AxismlUserHeader'
+        A partial unique index on `(namespace, name) WHERE deleted_at IS NULL`
+        guarantees that an active tenant with the same `(namespace, name)`
+        yields 409. Soft-deleted rows are not a conflict.
       requestBody:
         required: true
         content:
@@ -119,19 +128,9 @@ paths:
         filters. Pagination uses an opaque continue token issued by the
         Cluster Manager.
       parameters:
-        - $ref: '#/components/parameters/AxismlUserHeader'
         - name: q
           in: query
           description: Keyword fuzzy match against `name` and `display_name`.
-          required: false
-          schema:
-            type: string
-        - name: namespace
-          in: query
-          description: |
-            Exact-match organizational grouping filter (top-level
-            `tenants.namespace` column). Note this is **not** the K8s
-            namespace; that lives at `spec.namespace.name`.
           required: false
           schema:
             type: string
@@ -175,7 +174,7 @@ paths:
             default: created_at
       responses:
         '200':
-          description: A page of tenants.
+          description: A page of tenants in the requested namespace.
           content:
             application/json:
               schema:
@@ -189,20 +188,20 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/tenants/{name}:
+  /api/v1/namespaces/{namespace}/tenants/{name}:
     parameters:
-      - $ref: '#/components/parameters/AxismlUserHeader'
+      - $ref: '#/components/parameters/Namespace'
       - $ref: '#/components/parameters/TenantName'
 
     get:
       tags: [Tenants]
       operationId: getTenant
-      summary: Get a tenant by name
+      summary: Get a tenant
       description: |
-        Looks up by `name` with `deleted_at IS NULL`. When `?includeArchived=true`
-        is set, the lookup also returns soft-deleted rows; if both an active
-        and a soft-deleted row exist with the same name the active row is
-        returned (the partial unique index guarantees uniqueness amongst
+        Looks up by `(namespace, name)` with `deleted_at IS NULL`. When
+        `?includeArchived=true` is set, the lookup also returns soft-deleted
+        rows; if both an active and a soft-deleted row exist the active row
+        is returned (the partial unique index guarantees uniqueness amongst
         active rows).
       parameters:
         - name: includeArchived
@@ -234,13 +233,12 @@ paths:
       summary: Patch a tenant (RFC 7396 JSON Merge Patch)
       description: |
         Applies an RFC 7396 JSON Merge Patch. Only mutable fields are
-        accepted: top-level `namespace` (organizational grouping),
-        `displayName`, `description`, `labels`, `annotations`, and the
-        patchable subset of `spec.*` (`spec.namespace.labels`,
+        accepted: `displayName`, `description`, `labels`, `annotations`,
+        and the patchable subset of `spec.*` (`spec.namespace.labels`,
         `spec.namespace.annotations`, `spec.initResources`,
         `spec.suspended`, individual `spec.quotas[]` entries).
 
-        Immutable fields (`name`, `owner`, `spec.namespace.name`,
+        Immutable fields (`namespace`, `name`, `owner`, `spec.namespace.name`,
         `spec.quotas[].pool`, `spec.quotas[].name`) are rejected at the
         request layer (400) and never reach PG.
 
@@ -300,9 +298,9 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/tenants/{name}/suspend:
+  /api/v1/namespaces/{namespace}/tenants/{name}/suspend:
     parameters:
-      - $ref: '#/components/parameters/AxismlUserHeader'
+      - $ref: '#/components/parameters/Namespace'
       - $ref: '#/components/parameters/TenantName'
     post:
       tags: [Tenants]
@@ -329,9 +327,9 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/tenants/{name}/unsuspend:
+  /api/v1/namespaces/{namespace}/tenants/{name}/unsuspend:
     parameters:
-      - $ref: '#/components/parameters/AxismlUserHeader'
+      - $ref: '#/components/parameters/Namespace'
       - $ref: '#/components/parameters/TenantName'
     post:
       tags: [Tenants]
@@ -358,9 +356,9 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/tenants/{name}/restore:
+  /api/v1/namespaces/{namespace}/tenants/{name}/restore:
     parameters:
-      - $ref: '#/components/parameters/AxismlUserHeader'
+      - $ref: '#/components/parameters/Namespace'
       - $ref: '#/components/parameters/TenantName'
     post:
       tags: [Tenants]
@@ -371,9 +369,10 @@ paths:
         `generation`. The reconciler will recreate the Tenant CR on the
         next tick.
 
-        Precondition: no active tenant (i.e. `deleted_at IS NULL`) with
-        the same name may exist; otherwise 409 is returned. This is
-        enforced by the `tenants_name_active_uniq` partial unique index.
+        Precondition: no active tenant (i.e. `deleted_at IS NULL`) with the
+        same `(namespace, name)` may exist; otherwise 409 is returned. This
+        is enforced by the `tenants_namespace_name_active_uniq` partial
+        unique index.
       responses:
         '200':
           description: Restore accepted; tenant has returned to the Creating phase.
@@ -392,9 +391,9 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/tenants/{name}/quotas:
+  /api/v1/namespaces/{namespace}/tenants/{name}/quotas:
     parameters:
-      - $ref: '#/components/parameters/AxismlUserHeader'
+      - $ref: '#/components/parameters/Namespace'
       - $ref: '#/components/parameters/TenantName'
 
     get:
@@ -458,9 +457,9 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/tenants/{name}/quotas/{pool}/{quotaName}:
+  /api/v1/namespaces/{namespace}/tenants/{name}/quotas/{pool}/{quotaName}:
     parameters:
-      - $ref: '#/components/parameters/AxismlUserHeader'
+      - $ref: '#/components/parameters/Namespace'
       - $ref: '#/components/parameters/TenantName'
       - $ref: '#/components/parameters/QuotaPool'
       - $ref: '#/components/parameters/QuotaName'
@@ -520,20 +519,32 @@ paths:
           $ref: '#/components/responses/InternalServerError'
 
 components:
-  parameters:
+  securitySchemes:
     AxismlUserHeader:
-      name: X-Axisml-User
+      type: apiKey
       in: header
-      required: true
+      name: X-Axisml-User
       description: |
         Identity of the calling end-user, injected by the AxisML Platform
         after authenticating the upstream request. Persisted in
         `tenants.last_modified_by` and emitted on K8s Events. The Cluster
         Manager does NOT perform role-level authorization — that is the
-        Platform's responsibility.
+        Platform's responsibility. Health probes (`/healthz`, `/readyz`)
+        are exempt.
+
+  parameters:
+    Namespace:
+      name: namespace
+      in: path
+      required: true
+      description: |
+        Organizational grouping (e.g. `ai-team`). Immutable. Distinct from
+        the K8s namespace at `spec.namespace.name`.
       schema:
         type: string
+        pattern: '^[A-Za-z0-9]([A-Za-z0-9_.-]*[A-Za-z0-9])?$'
         minLength: 1
+        maxLength: 100
 
     TenantName:
       name: name
@@ -786,7 +797,7 @@ components:
       type: object
       description: |
         Combined view of a tenant's quota spec and observed quota status.
-        Returned by `GET /api/v1/tenants/{name}/quotas`.
+        Returned by `GET /api/v1/namespaces/{namespace}/tenants/{name}/quotas`.
       required: [spec, status]
       properties:
         spec:
@@ -1016,10 +1027,9 @@ components:
         with informer-fed Tenant CR status. See `database.md §2.1` for
         the authoritative field-by-field schema.
 
-        NOTE: the top-level `namespace` field is an organizational
-        grouping (e.g. `ai-team`), distinct from `spec.namespace.name`
-        which is the K8s namespace the tenant maps to. The two share a
-        name but live at different paths.
+        The top-level `namespace` field is the organizational grouping
+        (e.g. `ai-team`), distinct from `spec.namespace.name` which is the
+        K8s namespace the tenant maps to.
       required:
         - id
         - name
@@ -1046,9 +1056,10 @@ components:
         namespace:
           type: string
           description: |
-            Organizational grouping (e.g. `ai-team`). Used by Platform to
-            slice tenants across business units. Mutable. **Distinct from
-            `spec.namespace.name`** (K8s namespace).
+            Organizational grouping (e.g. `ai-team`). Immutable. Distinct
+            from `spec.namespace.name` (K8s namespace).
+          pattern: '^[A-Za-z0-9]([A-Za-z0-9_.-]*[A-Za-z0-9])?$'
+          minLength: 1
           maxLength: 100
         displayName:
           type: string
@@ -1156,7 +1167,11 @@ components:
 
     TenantCreateRequest:
       type: object
-      required: [name, namespace, displayName, spec]
+      description: |
+        Body for `POST /api/v1/namespaces/{namespace}/tenants`. The
+        organizational `namespace` is taken from the URL path and must not
+        be repeated in the body.
+      required: [name, displayName, spec]
       properties:
         name:
           type: string
@@ -1164,10 +1179,6 @@ components:
           pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
           minLength: 3
           maxLength: 40
-        namespace:
-          type: string
-          description: Organizational grouping (`ai-team`, `search-team`, ...). Mutable post-create.
-          maxLength: 100
         displayName:
           type: string
           minLength: 1
@@ -1186,21 +1197,18 @@ components:
       type: object
       description: |
         RFC 7396 JSON Merge Patch body. Only mutable fields are accepted:
-        `namespace` (organizational grouping), `displayName`, `description`,
-        `labels`, `annotations`, `spec.namespace.labels`,
-        `spec.namespace.annotations`, `spec.initResources`, `spec.suspended`,
-        and individual `spec.quotas[]` entries (add / remove / update min/max).
-        Immutable fields (`name`, `owner`, `spec.namespace.name`,
+        `displayName`, `description`, `labels`, `annotations`,
+        `spec.namespace.labels`, `spec.namespace.annotations`,
+        `spec.initResources`, `spec.suspended`, and individual
+        `spec.quotas[]` entries (add / remove / update min/max). Immutable
+        fields (`namespace`, `name`, `owner`, `spec.namespace.name`,
         `spec.quotas[].pool`, `spec.quotas[].name`) are rejected at the
         request layer.
 
         Mutations to `spec.*` bump `generation`; mutations to top-level
-        metadata (`namespace`, `displayName`, `description`, `labels`,
-        `annotations`) do not.
+        metadata (`displayName`, `description`, `labels`, `annotations`)
+        do not.
       properties:
-        namespace:
-          type: string
-          maxLength: 100
         displayName:
           type: string
           minLength: 1

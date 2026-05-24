@@ -101,11 +101,11 @@ Platform 自有实体仅覆盖**身份 / 授权 / 会话 / 审计**四类，完�
 | 提交任务 | 解析 namespace + quotas → 拼 `axisml-<tenant>-<pool>-<quota>` → `artifacts.Resolve` 校验镜像/模型 | `CreateJob(ns, body)` | 单点透传 |
 | 取消 | RBAC `@owner` 或更高 → 透传 | `CancelJob` | 状态合法性由 compute 4xx 反馈 |
 | 删除 | RBAC + 透传 | `DeleteJob` | 同上 |
-| 列表（跨租户） | RBAC 取可见租户集 → 并行解析 namespace → 并行 LIST → 内存合并 | `ListJobs(ns, ...)` ×N | 部分失败 → `partial=true` + `error.detail` |
+| 列表 | §5.2 解析 active tenant：header 在 → 单租户透传；`system-admin` 无 header → §5.3 跨租户合并 | `ListJobs(ns, ...)` | 跨租户路径部分失败 → `partial=true` + `error.detail` |
 | 副本/事件/日志 | `RequireJobOwner` 校验 → 透传（含 SSE `follow=true`） | `GetJob{Replicas,Events,Logs}` | 流式 chunked 透传 |
 | register-model | RBAC `@owner`+ → 校验 `phase=Succeeded` → 解析 `spec.outputs[]` 选中项（或显式 `outputPath` override）→ 反查 PVC + sourcePath → 调 `artifacts.InitiateUpload(kind=model)` 并打 provenance labels → 返 `{artifact, upload, provenance}`，字节由客户端工具异步推送 | `compute.GetJob` + `artifacts.InitiateUpload` | 详见 [§4.5.3](#453-register-from-job计算任务--模型) |
 
-关键不变量：任务标识为 `(tenant_name, job_name)`，URL `/api/v1/tenants/{tenant}/jobs/{name}`；Job spec 不可变——「编辑」= 新建。UI 设计见 [wireframe.md](../wireframe.md)。
+关键不变量：任务标识为 `(tenant_name, job_name)`，`tenant_name` 由 `X-Axisml-Tenant` 头携带（详见 §5.2），URL 形态 `/api/v1/jobs/{name}`；Job spec 不可变——「编辑」= 新建。UI 设计见 [wireframe.md](../wireframe.md)。
 
 ### 4.3 在线服务编排
 
@@ -119,7 +119,7 @@ Platform 自有实体仅覆盖**身份 / 授权 / 会话 / 审计**四类，完�
 | 路由 / 访问 | `auth.type=jwt` 时颁发 `aud=axisml-inference` 短 TTL JWT | — | `route-auth-mismatch` 时 `409` |
 | 指标查询 | 按 backend 选 PromQL 模板（PromQL 见 [monitoring.md](../monitoring.md#6-业务指标查询service-metrics-端点)） | `prometheus.Query` / `QueryRange` | 查询失败 `502 upstream-failure` |
 | clone-with-new-version | 前端语法糖：反填创建表单 → 用户改 `modelRef.version` → 提新 service → 外部切流量 → 旧 service 停服 | `CreateService` + `DeleteService` | MLService `spec.modelRef` 不可变；当前不接管 weighted route |
-| 列表 | 同 §4.2 跨租户合并；防误删校验 `kind=service` | `ListServices(ns, kind=service)` ×N | 部分失败 → `partial=true` |
+| 列表 | 同 §4.2；防误删校验 `kind=service` | `ListServices(ns, kind=service)` | 跨租户路径部分失败 → `partial=true` |
 
 关键不变量：寻址 `services.id` (uuid)；spec 除 `roles[*].replicas` 外不可变。UI 设计见 [wireframe.md](../wireframe.md)。
 
@@ -133,7 +133,7 @@ Platform 自有实体仅覆盖**身份 / 授权 / 会话 / 审计**四类，完�
 | start / stop | `RequireWorkspaceOwner` → 翻译为 `replicas=1/0` | `ScaleService` | 幂等；`Deleted` → `409 workspace-deleted` |
 | 删除 | 校验 `kind==workspace` 防误删 service → 删 MLService → 按 `deletePvc`（默认 true）删 PVC | `DeleteService` + K8s PVC `delete` | 404 幂等 |
 | 浏览器接入 | 颁发 `aud=axisml-workspace` 短 TTL JWT（`--workspace-access-jwt-ttl`，上限 24h） | — | — |
-| 列表 | 同 §4.2 跨租户合并；`kind=workspace` 过滤下推 | `ListServices(ns, kind=workspace, owner?)` | 同 §4.2 |
+| 列表 | 同 §4.2；`kind=workspace` 过滤下推 | `ListServices(ns, kind=workspace, owner?)` | 同 §4.2 |
 
 关键不变量：Platform 不为工作区建任何 PG 表；「这是工作区」由 compute `services.kind='workspace'` 直接表达；PVC 名 deterministic 派生自 `services.id` 无需存储。UI 设计见 [wireframe.md](../wireframe.md)。
 
@@ -149,7 +149,7 @@ Platform 自有实体仅覆盖**身份 / 授权 / 会话 / 审计**四类，完�
 | 完成（complete） | RBAC `@owner`+ → 校验 `digest` 非空 → 透传 | `artifacts.CompleteUpload(ns, kind, name, version, {digest, claim?})` | 单点透传；`DigestMismatch` / `Failed` 由下游 4xx 反馈 |
 | 解析（resolve `usage=inspect`） | 内部编排子步骤（Job / Service / Workspace 创建前调用）；**不对外暴露独立 REST 端点** | `artifacts.Resolve(ns, kind, name, version, usage=inspect)` | 校验失败 `400` 阻断上游创建；返回的 `auth_hint` 用于 K8s spec 注入 |
 | 获取下载凭证（resolve `usage=download`） | RBAC `user@self`+ → 透传 | `artifacts.Resolve(usage=download)` | 1h TTL pull token / S3 STS；前端复制即用 |
-| 列表 | RBAC 取可见租户集 → 并行解析 namespace → 并行 `artifacts.ListByKind` → 内存合并 | `ListArtifactsByKind(ns, kind, ...)` ×N | 部分失败 → `partial=true` + `error.detail` |
+| 列表 | §5.2 解析 active tenant：header 在 → 单租户透传；`system-admin` 无 header → §5.3 跨租户合并 | `ListArtifactsByKind(ns, kind, ...)` | 跨租户路径部分失败 → `partial=true` + `error.detail` |
 | 单条详情 | URL `{tenant}/{name}/{version}` 直接拼下游 tuple → 透传 | `GetArtifact(ns, kind, name, version)` | 410 透传（软删后 tuple 永不复用） |
 | 编辑展示元数据 | RBAC `@owner` / `tenant-admin@self` → 透传（`displayName` / `description` / `labels` / `annotations` 可改，其它字段 `400 immutable-field`） | `artifacts.UpdateArtifact(ns, kind, name, version, body)` | 单点透传；`Deleting`/`Deleted` → `409 ArtifactTerminal`；`labels` / `annotations` 整体替换语义（见 [artifacts.md §6](artifacts.md#6-接口契约)） |
 | 删除 | RBAC `@owner` / `tenant-admin@self`+ → 透传 | `artifacts.DeleteArtifact(ns, kind, name, version)` | 软删；GC 异步清后端；`(ns, kind, name, version)` 永不复用 |
@@ -178,7 +178,7 @@ UI 设计:本期原型未覆盖制品中心,占位见 [wireframe.md §3 占位�
 
 把训练任务的产物注册成 `model` 制品的桥接路径。前置：MLJob 提交时已在 `spec.outputs[]` 声明产物（[compute-operator.md §4.1.1](compute-operator.md#411-mljob-spec-高层结构)），或调用方在请求体中显式提供 `outputPath` + `volumeName` 覆盖。
 
-**端点**：`POST /api/v1/tenants/{tenant}/jobs/{name}/register-model`（[apis/platform.yaml](../apis/platform.yaml) `Jobs` tag `registerJobModel`）。
+**端点**：`POST /api/v1/jobs/{name}/register-model`（[apis/platform.yaml](../apis/platform.yaml) `Jobs` tag `registerJobModel`）；当前 tenant 由 `X-Axisml-Tenant` 头携带，详见 §5.2。
 
 **请求体**（详见 [apis/platform.yaml `JobRegisterModelRequest`](../apis/platform.yaml)）：
 - 两选一寻址（互斥）：
@@ -242,11 +242,22 @@ UI 设计:本期原型未覆盖制品中心,占位见 [wireframe.md §3 占位�
 
 ### 5.2 上下文解析
 
-下游调用前必须解析 tenant → compute namespace：调用 `clustermanager.GetTenant(name)` 拿 `compute_namespace` 与 quotas 清单，request-scoped memoize；ElasticQuota 名按 `axisml-<tenant>-<pool>-<quota>` 实时拼接 + 校验，不本地缓存。
+**Active tenant 来源**：单租户操作（`/api/v1/jobs|workspaces|services|models|images|datasets` 及其子路径）的当前 tenant 不在 URL 里，而是由请求头 `X-Axisml-Tenant: <name>` 携带。RBAC 中间件按下表处理：
+
+| 端点形态 | header 缺省 | header 存在 |
+| --- | --- | --- |
+| list（如 `GET /api/v1/jobs`） | `system-admin` 走 §5.3 跨租户 fanout；非 admin → `400 active-tenant-required` | scoped 到该 tenant；调用方需在此 tenant 有 binding（或为 `system-admin`），否则 `404` |
+| create（如 `POST /api/v1/jobs`） | `400 active-tenant-required` | 必须有 `user@self`+ binding |
+| name 寻址 detail（如 `/api/v1/jobs/{name}/...`） | `400 active-tenant-required` | 用 header 解析 namespace 后再用 `name` 寻址 |
+| uuid 寻址 detail（如 `/api/v1/workspaces/{id}`） | 用 uuid 自寻址；header 仅做一致性对账 | 同上 |
+| tuple 寻址 detail（`/api/v1/{kind}/{tenant}/{name}/{version}`） | URL 内已带 tenant，header 忽略 | 同上 |
+| 租户管理路径（`/api/v1/tenants/{name}/...`） | URL 内已带 tenant，header 忽略 | 同上 |
+
+**下游 namespace 解析**：拿到 tenant 名后，调用 `clustermanager.GetTenant(name)` 取 `compute_namespace` 与 quotas 清单，request-scoped memoize；ElasticQuota 名按 `axisml-<tenant>-<pool>-<quota>` 实时拼接 + 校验，不本地缓存。
 
 ### 5.3 列表跨租户合并
 
-按 RBAC 取可见租户集合 → 并行解析 namespace → 并行 LIST → 内存合并。**partial 失败策略**：单租户失败不中断整体，响应附 `partial=true` + `error.detail`；前端列表头部黄条提示。
+当 `system-admin` 不带 `X-Axisml-Tenant` 调用 list 端点时进入此路径：按 RBAC 取可见租户集合 → 并行解析 namespace → 并行 LIST → 内存合并。**partial 失败策略**：单租户失败不中断整体，响应附 `partial=true` + `error.detail`；前端列表头部黄条提示。带 header 的请求只查单租户，走快速路径。
 
 ### 5.4 PVC 管理（Platform 仅有的直接 K8s 操作）
 
@@ -290,7 +301,7 @@ RBAC 中间件装配细节归 [auth.md](../auth.md)，Platform 仅在路由层�
 | 状态 | 不暴露任何 K8s CR；下游运行态字段（phase / conditions / status）作为只读字段透传 | — |
 | 错误格式 | HTTP 标准状态码 + RFC 7807 `application/problem+json`；下游 problem 由 typed client 解析后透传或包装 | — |
 | 流式 | 日志 / 事件 `follow=true` 采用 `text/event-stream` SSE；非 follow 用 `text/plain` chunked | — |
-| 身份头 | 入站校验 JWT；出站注入 `X-Axisml-User` | [auth.md §7](../auth.md#7-下游身份透传) |
+| 身份头 | 入站校验 JWT；单租户操作的 active tenant 由入站 `X-Axisml-Tenant` 头携带（详见 §5.2）；出站注入 `X-Axisml-User` | [auth.md §7](../auth.md#7-下游身份透传) |
 | Prometheus 指标 | `platform_*` 系列；模块级清单见 [monitoring.md](../monitoring.md) | — |
 
 ## 7. 依赖
@@ -352,7 +363,7 @@ RBAC 中间件装配细节归 [auth.md](../auth.md)，Platform 仅在路由层�
 
 ### 9.5 工作区
 
-- compute service `/events` / `/logs` / `/replicas` 端点扩展；
+- compute service `/events` / `/pods` / `/pods/{pod}/logs` / `/pods/{pod}/events` 端点接入；
 - 闲时自动 stop；
 - 孤儿 PVC 清理 UI；
 - SSH 接入；

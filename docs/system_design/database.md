@@ -78,7 +78,7 @@ reconciler 通过 partial index `WHERE generation <> observed_generation AND del
 CREATE TABLE tenants (
   id                   uuid PRIMARY KEY,
   name                 text NOT NULL,
-  namespace            text NOT NULL,                            -- 组织分组维度（如 "ai-team"）；与 jobs/services/artifacts 的 namespace（K8s namespace）同名异义，详见下方
+  namespace            text NOT NULL,                            -- 组织分组维度（如 "ai-team"），创建后不可变；与 jobs/services/artifacts 的 namespace（K8s namespace）同名异义，详见下方
   display_name         text,
   description          text,
   owner                text,                       -- 创建者；来自 X-Axisml-User；不可变
@@ -98,16 +98,16 @@ CREATE TABLE tenants (
   deleted_at           timestamptz
 );
 
-CREATE UNIQUE INDEX tenants_name_active_uniq ON tenants (name) WHERE deleted_at IS NULL;
+CREATE UNIQUE INDEX tenants_namespace_name_active_uniq
+  ON tenants (namespace, name) WHERE deleted_at IS NULL;
 CREATE INDEX tenants_deleted_at  ON tenants (deleted_at);
-CREATE INDEX tenants_namespace   ON tenants (namespace) WHERE deleted_at IS NULL;
 CREATE INDEX tenants_created_at  ON tenants (created_at DESC);
 CREATE INDEX tenants_phase       ON tenants (phase) WHERE deleted_at IS NULL;
 CREATE INDEX tenants_sync_pending
   ON tenants (id) WHERE generation <> observed_generation AND deleted_at IS NULL;
 ```
 
-`tenants.namespace`（顶层）是组织分组维度（`ai-team` / `search-team` 等），可变；`tenants.spec.namespace.name` 是 tenant 关联的 K8s namespace（不可变，多 tenant 可共享）。两者同名异义，靠路径区分。`jobs` / `services` / `artifacts` 的 `namespace` 与后者同义。
+`tenants.namespace`（顶层）是组织分组维度（`ai-team` / `search-team` 等），创建后不可变；`tenants.spec.namespace.name` 是 tenant 关联的 K8s namespace（不可变，多 tenant 可共享）。两者同名异义，靠路径区分。`jobs` / `services` / `artifacts` 的 `namespace` 与后者同义。
 
 `phase` 是 Tenant CR `status.phase` 的顶层冗余（便于 SQL 过滤与 B-tree 索引）；`status` jsonb 持剩余子字段 `{message, conditions[], quotas[]}`（`quotas[].used` 含每条配额的实际用量）。两者都由 informer 写。
 
@@ -117,7 +117,7 @@ CREATE INDEX tenants_sync_pending
 | --- | --- | --- |
 | `id` | API | 同时写入 CR `metadata.labels[axisml.io/tenant-id]` |
 | `name` | API | 创建后不可变 |
-| `namespace` | API | 顶层组织分组维度（非 K8s namespace） |
+| `namespace` | API | 顶层组织分组维度（非 K8s namespace）；创建后不可变；与 `name` 组成唯一标识 |
 | `spec` | API | `spec.namespace.name` / `spec.quotas[].{pool,name}` 创建后不可变 |
 | `generation` | API | spec mutation 时 +1 |
 | `observed_generation` | reconciler | 成功 patch CR 后写入 |

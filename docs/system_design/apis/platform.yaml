@@ -33,8 +33,48 @@ info:
     | tenant admin | `tenant-admin` | single tenant |
     | user | `user` | single tenant |
 
-    `@self` means "in the tenant referenced by the URL path". `@owner` means
-    "the resource's `owner` equals the current user".
+    `@self` means "in the active tenant" — the tenant referenced by the URL
+    path (`/api/v1/tenants/{name}/...` for tenant-management endpoints) **or**
+    by the `X-Axisml-Tenant` request header (for all other tenant-scoped
+    endpoints). `@owner` means "the resource's `owner` equals the current
+    user".
+
+    ## Active tenant (`X-Axisml-Tenant`)
+
+    A single user can hold role bindings in multiple tenants
+    (`user_tenant_roles` is many-to-many). For day-to-day, tenant-implicit
+    endpoints — `/api/v1/jobs`, `/api/v1/workspaces`, `/api/v1/services`,
+    `/api/v1/models`, `/api/v1/images`, `/api/v1/datasets` — the caller
+    declares the active tenant via the `X-Axisml-Tenant` request header. The
+    frontend's tenant selector is the canonical source; switching tenants
+    only updates the header on subsequent requests (no JWT re-issue).
+
+    Server contract:
+
+    - **List endpoints**: scope to `X-Axisml-Tenant` when present. If absent:
+      `system-admin` gets the cross-tenant view; non-admins receive
+      `400 active-tenant-required`.
+    - **Create endpoints**: `X-Axisml-Tenant` is required; otherwise
+      `400 active-tenant-required`.
+    - **Name-keyed detail endpoints** (e.g., `/api/v1/jobs/{name}`): the
+      header disambiguates the name and is required; otherwise
+      `400 active-tenant-required`.
+    - **UUID-keyed detail endpoints** (e.g., `/api/v1/workspaces/{id}`,
+      `/api/v1/services/{id}`): the UUID is self-sufficient; the header is
+      optional and used only as a consistency cross-check. RBAC is enforced
+      against the resource's owning tenant.
+    - **Tuple-keyed artifact detail endpoints**
+      (`/api/v1/models/{tenant}/{name}/{version}` and the image / dataset
+      analogues): the tuple already carries the tenant, so the header is
+      ignored. URLs remain copy-paste shareable across contexts.
+    - **Tenant-management endpoints** (`/api/v1/tenants/{name}/quotas`,
+      `/api/v1/tenants/{name}/members`, `/api/v1/tenants/{name}` itself):
+      tenant lives in the URL path; the header is ignored.
+
+    If `X-Axisml-Tenant` names a tenant the caller has no binding in (and the
+    caller is not `system-admin`), the response is `404 Not Found` — Platform
+    deliberately conflates "tenant does not exist" with "tenant exists but
+    you can't see it".
 
     ## Errors
 
@@ -932,9 +972,11 @@ paths:
       summary: Create a workspace
       description: |
         Creates a workspace (`MLService(native, deployment)` with
-        `kind=workspace`) and a dedicated PVC for `/workspace` data.
-        Requires `user@self`+ on the target tenant. Documented at
-        `components/platform.md §7.1`.
+        `kind=workspace`) and a dedicated PVC for `/workspace` data in the
+        active tenant (`X-Axisml-Tenant`). Requires `user@self`+. Documented
+        at `components/platform.md §7.1`.
+      parameters:
+        - $ref: '#/components/parameters/ActiveTenantHeader'
       requestBody:
         required: true
         content:
@@ -966,18 +1008,16 @@ paths:
     get:
       tags: [Workspaces]
       operationId: listWorkspaces
-      summary: List visible workspaces
+      summary: List workspaces
       description: |
-        Visibility: `system-admin` sees all; `tenant-admin@self` sees the
-        whole tenant; `user` sees only their own (`owner` pushed down to
-        compute). Documented at `components/platform.md §7.1`.
+        With `X-Axisml-Tenant`: scoped to that tenant. `tenant-admin@self`
+        sees the whole tenant; `user` sees only their own (`owner` pushed
+        down to compute). Without the header: `system-admin` gets the
+        cross-tenant view; non-admin callers receive
+        `400 active-tenant-required`. Documented at
+        `components/platform.md §7.1`.
       parameters:
-        - name: tenantName
-          in: query
-          description: Restrict to a single tenant.
-          required: false
-          schema:
-            type: string
+        - $ref: '#/components/parameters/ActiveTenantHeaderOptional'
         - name: owner
           in: query
           description: Admin-only filter.
@@ -1004,6 +1044,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/WorkspaceList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -1184,14 +1226,15 @@ paths:
     get:
       tags: [Workspaces]
       operationId: getWorkspaceEvents
-      summary: Stream Kubernetes events for the workspace
+      summary: List service-level Kubernetes events for the workspace
       description: |
-        Proxies `compute.GetServiceEvents`. MVP placeholder: may return
-        `501 Not Implemented` until the upstream `/events` endpoint is
-        extended to services (see `components/platform.md §7.4`).
+        Proxies `compute.ListServiceEvents`. Returns events whose
+        `involvedObject` references the MLService CR, its derived workload,
+        or its HTTPRoute. Pod-level events are NOT included; use
+        `/workspaces/{id}/pods/{pod}/events` for those.
       responses:
         '200':
-          description: Event list.
+          description: Service-level event list.
           content:
             application/json:
               schema:
@@ -1202,26 +1245,51 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
-        '501':
-          $ref: '#/components/responses/NotImplemented'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/workspaces/{id}/logs:
+  /api/v1/workspaces/{id}/pods:
     parameters:
       - $ref: '#/components/parameters/WorkspaceId'
     get:
       tags: [Workspaces]
-      operationId: getWorkspaceLogs
-      summary: Stream container logs
+      operationId: listWorkspacePods
+      summary: List Pods backing the workspace
       description: |
-        Proxies `compute.GetServiceLogs`. MVP placeholder. Documented at
-        `components/platform.md §7.4`.
+        Proxies `compute.ListServicePods`. Each Pod carries `replicaIndex`
+        and `role` when the backend produces them.
+      responses:
+        '200':
+          description: Pod list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PodList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/workspaces/{id}/pods/{pod}/logs:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/PodName'
+    get:
+      tags: [Workspaces]
+      operationId: getWorkspacePodLogs
+      summary: Fetch or stream a workspace pod's logs
+      description: |
+        Proxies `compute.GetServicePodLogs`. `text/plain` for `follow=false`,
+        `text/event-stream` for `follow=true`. 410 Gone if the Pod has been
+        garbage-collected.
       parameters:
+        - $ref: '#/components/parameters/LogContainer'
         - $ref: '#/components/parameters/LogTailLines'
         - $ref: '#/components/parameters/LogFollow'
-        - $ref: '#/components/parameters/LogContainer'
-        - $ref: '#/components/parameters/LogReplica'
         - $ref: '#/components/parameters/LogPrevious'
       responses:
         '200':
@@ -1243,36 +1311,33 @@ paths:
           $ref: '#/components/responses/NotFound'
         '410':
           $ref: '#/components/responses/Gone'
-        '501':
-          $ref: '#/components/responses/NotImplemented'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/workspaces/{id}/replicas:
+  /api/v1/workspaces/{id}/pods/{pod}/events:
     parameters:
       - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/PodName'
     get:
       tags: [Workspaces]
-      operationId: getWorkspaceReplicas
-      summary: Inspect Pod-level replica state
+      operationId: listWorkspacePodEvents
+      summary: List K8s events for one pod of the workspace
       description: |
-        Proxies `compute.GetServiceReplicas`. MVP placeholder pending
-        upstream `/replicas` endpoint extension (`components/platform.md §7.4`).
+        Proxies `compute.ListServicePodEvents`. Returns events whose
+        `involvedObject` references the named pod only.
       responses:
         '200':
-          description: Replica list.
+          description: Pod-scoped events.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ReplicaList'
+                $ref: '#/components/schemas/EventList'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
-        '501':
-          $ref: '#/components/responses/NotImplemented'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -1281,71 +1346,15 @@ paths:
   # ============================================================================
 
   /api/v1/jobs:
-    get:
-      tags: [Jobs]
-      operationId: listAllJobs
-      summary: Cross-tenant job list
-      description: |
-        Lists jobs across all tenants. Requires `system-admin`. Documented at
-        `components/platform.md §7.1`.
-      parameters:
-        - name: tenantName
-          in: query
-          required: false
-          schema:
-            type: string
-        - name: phase
-          in: query
-          required: false
-          schema:
-            $ref: '#/components/schemas/JobPhase'
-        - name: owner
-          in: query
-          required: false
-          schema:
-            type: string
-        - name: q
-          in: query
-          required: false
-          schema:
-            type: string
-        - name: backendName
-          in: query
-          required: false
-          schema:
-            type: string
-        - name: backendEngine
-          in: query
-          required: false
-          schema:
-            type: string
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/Continue'
-      responses:
-        '200':
-          description: A page of jobs.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/JobList'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-  /api/v1/tenants/{tenant}/jobs:
-    parameters:
-      - $ref: '#/components/parameters/TenantPathParam'
-
     post:
       tags: [Jobs]
       operationId: createJob
       summary: Submit a new compute job
       description: |
-        Requires `user@self`+ on `{tenant}`. Documented at `components/platform.md
-        §7.1`.
+        Creates a job in the active tenant (`X-Axisml-Tenant`). Requires
+        `user@self`+. Documented at `components/platform.md §7.1`.
+      parameters:
+        - $ref: '#/components/parameters/ActiveTenantHeader'
       requestBody:
         required: true
         content:
@@ -1376,12 +1385,18 @@ paths:
 
     get:
       tags: [Jobs]
-      operationId: listTenantJobs
-      summary: List jobs under a tenant
+      operationId: listJobs
+      summary: List jobs
       description: |
-        Requires `user@self`+ on `{tenant}`. `user` callers are restricted to
-        their own jobs (server-side `owner` filter).
+        With `X-Axisml-Tenant`: scoped to that tenant; `user` callers are
+        restricted to their own jobs (server-side `owner` filter);
+        `tenant-admin@self` and `system-admin` see all jobs in the tenant.
+        Without the header: `system-admin` gets the cross-tenant view (all
+        jobs across all tenants, optionally narrowed by `?owner=`); non-admin
+        callers receive `400 active-tenant-required`. Documented at
+        `components/platform.md §7.1`.
       parameters:
+        - $ref: '#/components/parameters/ActiveTenantHeaderOptional'
         - name: phase
           in: query
           required: false
@@ -1417,25 +1432,28 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/JobList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/tenants/{tenant}/jobs/{name}:
+  /api/v1/jobs/{name}:
     parameters:
-      - $ref: '#/components/parameters/TenantPathParam'
+      - $ref: '#/components/parameters/ActiveTenantHeader'
       - $ref: '#/components/parameters/JobName'
 
     get:
       tags: [Jobs]
       operationId: getJob
       summary: Get a job
-      description: Requires `system-admin` OR `tenant-admin@self` OR `user@self & @owner`.
+      description: |
+        Resolves `{name}` within the active tenant (`X-Axisml-Tenant`).
+        Requires `system-admin` OR `tenant-admin@self` OR
+        `user@self & @owner`.
       responses:
         '200':
           description: Job detail.
@@ -1443,6 +1461,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Job'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1461,6 +1481,8 @@ paths:
       responses:
         '204':
           description: Job deleted.
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1470,9 +1492,9 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/tenants/{tenant}/jobs/{name}/cancel:
+  /api/v1/jobs/{name}/cancel:
     parameters:
-      - $ref: '#/components/parameters/TenantPathParam'
+      - $ref: '#/components/parameters/ActiveTenantHeader'
       - $ref: '#/components/parameters/JobName'
     post:
       tags: [Jobs]
@@ -1489,6 +1511,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Job'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1500,22 +1524,26 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/tenants/{tenant}/jobs/{name}/replicas:
+  /api/v1/jobs/{name}/pods:
     parameters:
-      - $ref: '#/components/parameters/TenantPathParam'
+      - $ref: '#/components/parameters/ActiveTenantHeader'
       - $ref: '#/components/parameters/JobName'
     get:
       tags: [Jobs]
-      operationId: getJobReplicas
-      summary: List Pod-level replicas of a job
-      description: Proxies `compute.GetJobReplicas`. Requires same role as GET detail.
+      operationId: listJobPods
+      summary: List Pods belonging to a job
+      description: |
+        Proxies `compute.ListJobPods`. Each Pod carries `replicaIndex` and
+        `role` when the backend produces them. Requires same role as GET detail.
       responses:
         '200':
-          description: Replica list.
+          description: Pod list.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ReplicaList'
+                $ref: '#/components/schemas/PodList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1525,22 +1553,28 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/tenants/{tenant}/jobs/{name}/events:
+  /api/v1/jobs/{name}/events:
     parameters:
-      - $ref: '#/components/parameters/TenantPathParam'
+      - $ref: '#/components/parameters/ActiveTenantHeader'
       - $ref: '#/components/parameters/JobName'
     get:
       tags: [Jobs]
       operationId: getJobEvents
-      summary: Stream aggregated Kubernetes events for a job
-      description: Proxies `compute.GetJobEvents`. Requires same role as GET detail.
+      summary: List job-level Kubernetes events
+      description: |
+        Proxies `compute.ListJobEvents`. Returns events whose `involvedObject`
+        references the MLJob CR itself or any derived PodGroup. Pod-level
+        events are NOT included; use `/api/v1/jobs/{name}/pods/{pod}/events`.
+        Requires same role as GET detail.
       responses:
         '200':
-          description: Event list.
+          description: Job-level event list.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/EventList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1550,21 +1584,20 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/tenants/{tenant}/jobs/{name}/logs:
+  /api/v1/jobs/{name}/pods/{pod}/logs:
     parameters:
-      - $ref: '#/components/parameters/TenantPathParam'
+      - $ref: '#/components/parameters/ActiveTenantHeader'
       - $ref: '#/components/parameters/JobName'
+      - $ref: '#/components/parameters/PodName'
     get:
       tags: [Jobs]
-      operationId: getJobLogs
-      summary: Stream container logs of a job replica
+      operationId: getJobPodLogs
+      summary: Fetch or stream a job pod's logs
       description: |
-        Proxies `compute.GetJobLogs`. When `follow=true`, response is an SSE
+        Proxies `compute.GetJobPodLogs`. When `follow=true`, response is an SSE
         `text/event-stream` of log lines. Otherwise a chunked `text/plain`
         stream. Requires same role as GET detail.
       parameters:
-        - $ref: '#/components/parameters/LogPod'
-        - $ref: '#/components/parameters/LogReplica'
         - $ref: '#/components/parameters/LogContainer'
         - $ref: '#/components/parameters/LogTailLines'
         - $ref: '#/components/parameters/LogFollow'
@@ -1579,6 +1612,8 @@ paths:
             text/event-stream:
               schema:
                 type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1590,9 +1625,39 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/tenants/{tenant}/jobs/{name}/register-model:
+  /api/v1/jobs/{name}/pods/{pod}/events:
     parameters:
-      - $ref: '#/components/parameters/TenantPathParam'
+      - $ref: '#/components/parameters/ActiveTenantHeader'
+      - $ref: '#/components/parameters/JobName'
+      - $ref: '#/components/parameters/PodName'
+    get:
+      tags: [Jobs]
+      operationId: listJobPodEvents
+      summary: List K8s events for one pod of a job
+      description: |
+        Proxies `compute.ListJobPodEvents`. Returns events whose
+        `involvedObject` references the named pod only.
+      responses:
+        '200':
+          description: Pod-scoped events.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/jobs/{name}/register-model:
+    parameters:
+      - $ref: '#/components/parameters/ActiveTenantHeader'
       - $ref: '#/components/parameters/JobName'
     post:
       tags: [Jobs]
@@ -1648,8 +1713,10 @@ paths:
       operationId: createService
       summary: Deploy a new online inference service
       description: |
-        Requires `user@self`+ on the target tenant. Documented at
-        `components/platform.md §7.1`.
+        Deploys a service in the active tenant (`X-Axisml-Tenant`). Requires
+        `user@self`+. Documented at `components/platform.md §7.1`.
+      parameters:
+        - $ref: '#/components/parameters/ActiveTenantHeader'
       requestBody:
         required: true
         content:
@@ -1681,16 +1748,14 @@ paths:
     get:
       tags: [Services]
       operationId: listServices
-      summary: List visible services
+      summary: List services
       description: |
-        Visibility mirrors workspaces: `system-admin` sees all,
-        `tenant-admin@self` sees the whole tenant, `user` sees only their own.
+        With `X-Axisml-Tenant`: scoped to that tenant; `tenant-admin@self`
+        sees the whole tenant; `user` sees only their own. Without the
+        header: `system-admin` gets the cross-tenant view; non-admin callers
+        receive `400 active-tenant-required`.
       parameters:
-        - name: tenantName
-          in: query
-          required: false
-          schema:
-            type: string
+        - $ref: '#/components/parameters/ActiveTenantHeaderOptional'
         - name: owner
           in: query
           required: false
@@ -1730,6 +1795,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ServiceList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -1991,29 +2058,29 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/services/{id}/replicas:
+  /api/v1/services/{id}/pods:
     parameters:
       - $ref: '#/components/parameters/ServiceId'
     get:
       tags: [Services]
-      operationId: getServiceReplicas
-      summary: List Pod-level replicas
-      description: Proxies `compute.GetServiceReplicas`. MVP placeholder.
+      operationId: listServicePods
+      summary: List Pods backing a service
+      description: |
+        Proxies `compute.ListServicePods`. Each Pod carries `replicaIndex` and
+        `role` when the backend produces them.
       responses:
         '200':
-          description: Replica list.
+          description: Pod list.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ReplicaList'
+                $ref: '#/components/schemas/PodList'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
-        '501':
-          $ref: '#/components/responses/NotImplemented'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -2023,11 +2090,15 @@ paths:
     get:
       tags: [Services]
       operationId: getServiceEvents
-      summary: Stream Kubernetes events for a service
-      description: Proxies `compute.GetServiceEvents`. MVP placeholder.
+      summary: List service-level Kubernetes events
+      description: |
+        Proxies `compute.ListServiceEvents`. Returns events whose
+        `involvedObject` references the MLService CR, its derived workload,
+        or its HTTPRoute. Pod-level events are NOT included; use
+        `/services/{id}/pods/{pod}/events` for those.
       responses:
         '200':
-          description: Event list.
+          description: Service-level event list.
           content:
             application/json:
               schema:
@@ -2038,22 +2109,22 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
-        '501':
-          $ref: '#/components/responses/NotImplemented'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/services/{id}/logs:
+  /api/v1/services/{id}/pods/{pod}/logs:
     parameters:
       - $ref: '#/components/parameters/ServiceId'
+      - $ref: '#/components/parameters/PodName'
     get:
       tags: [Services]
-      operationId: getServiceLogs
-      summary: Stream container logs of a service replica
-      description: Proxies `compute.GetServiceLogs`. MVP placeholder.
+      operationId: getServicePodLogs
+      summary: Fetch or stream a service pod's logs
+      description: |
+        Proxies `compute.GetServicePodLogs`. `text/plain` for `follow=false`,
+        `text/event-stream` for `follow=true`. 410 Gone if the Pod has been
+        garbage-collected.
       parameters:
-        - $ref: '#/components/parameters/LogPod'
-        - $ref: '#/components/parameters/LogReplica'
         - $ref: '#/components/parameters/LogContainer'
         - $ref: '#/components/parameters/LogTailLines'
         - $ref: '#/components/parameters/LogFollow'
@@ -2076,8 +2147,33 @@ paths:
           $ref: '#/components/responses/NotFound'
         '410':
           $ref: '#/components/responses/Gone'
-        '501':
-          $ref: '#/components/responses/NotImplemented'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/services/{id}/pods/{pod}/events:
+    parameters:
+      - $ref: '#/components/parameters/ServiceId'
+      - $ref: '#/components/parameters/PodName'
+    get:
+      tags: [Services]
+      operationId: listServicePodEvents
+      summary: List K8s events for one pod of a service
+      description: |
+        Proxies `compute.ListServicePodEvents`. Returns events whose
+        `involvedObject` references the named pod only.
+      responses:
+        '200':
+          description: Pod-scoped events.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -2091,9 +2187,12 @@ paths:
       operationId: initiateModel
       summary: Initiate a model artifact upload
       description: |
-        Proxies `artifacts.InitiateUpload(kind=model)`. Requires `user@self`+
-        on the target tenant. Documented at `components/platform.md §6.2`
-        ("no dedicated model.md exists yet — see overview.md §3 / §6.2").
+        Proxies `artifacts.InitiateUpload(kind=model)` against the active
+        tenant (`X-Axisml-Tenant`). Requires `user@self`+. Documented at
+        `components/platform.md §6.2` ("no dedicated model.md exists yet —
+        see overview.md §3 / §6.2").
+      parameters:
+        - $ref: '#/components/parameters/ActiveTenantHeader'
       requestBody:
         required: true
         content:
@@ -2125,16 +2224,14 @@ paths:
     get:
       tags: [Models]
       operationId: listModels
-      summary: List visible models across tenants
+      summary: List models
       description: |
-        For `system-admin`, all models; otherwise the user's tenant scope.
-        Documented at `components/platform.md §3 / §6.2`.
+        With `X-Axisml-Tenant`: scoped to that tenant. Without the header:
+        `system-admin` gets the cross-tenant view; non-admin callers receive
+        `400 active-tenant-required`. Documented at
+        `components/platform.md §3 / §6.2`.
       parameters:
-        - name: tenantName
-          in: query
-          required: false
-          schema:
-            type: string
+        - $ref: '#/components/parameters/ActiveTenantHeaderOptional'
         - name: q
           in: query
           required: false
@@ -2154,47 +2251,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ModelList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-  /api/v1/tenants/{tenant}/models:
-    parameters:
-      - $ref: '#/components/parameters/TenantPathParam'
-    get:
-      tags: [Models]
-      operationId: listTenantModels
-      summary: List models under a tenant
-      description: |
-        Requires `user@self`+ on `{tenant}`. Documented at
-        `components/platform.md §3 / §6.2`.
-      parameters:
-        - name: q
-          in: query
-          required: false
-          schema:
-            type: string
-        - name: status
-          in: query
-          required: false
-          schema:
-            $ref: '#/components/schemas/ModelStatus'
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/Continue'
-      responses:
-        '200':
-          description: A page of models in the tenant.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ModelList'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -2343,8 +2403,11 @@ paths:
       operationId: initiateImage
       summary: Initiate an image artifact upload
       description: |
-        Proxies `artifacts.InitiateUpload(kind=image)`. Requires `user@self`+
-        on the target tenant. Documented at `components/platform.md §4.5`.
+        Proxies `artifacts.InitiateUpload(kind=image)` against the active
+        tenant (`X-Axisml-Tenant`). Requires `user@self`+. Documented at
+        `components/platform.md §4.5`.
+      parameters:
+        - $ref: '#/components/parameters/ActiveTenantHeader'
       requestBody:
         required: true
         content:
@@ -2376,16 +2439,14 @@ paths:
     get:
       tags: [Images]
       operationId: listImages
-      summary: List visible images across tenants
+      summary: List images
       description: |
-        For `system-admin`, all images; otherwise the user's tenant scope.
-        Documented at `components/platform.md §4.5`.
+        With `X-Axisml-Tenant`: scoped to that tenant. Without the header:
+        `system-admin` gets the cross-tenant view; non-admin callers receive
+        `400 active-tenant-required`. Documented at
+        `components/platform.md §4.5`.
       parameters:
-        - name: tenantName
-          in: query
-          required: false
-          schema:
-            type: string
+        - $ref: '#/components/parameters/ActiveTenantHeaderOptional'
         - name: q
           in: query
           required: false
@@ -2412,53 +2473,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ImageList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-  /api/v1/tenants/{tenant}/images:
-    parameters:
-      - $ref: '#/components/parameters/TenantPathParam'
-    get:
-      tags: [Images]
-      operationId: listTenantImages
-      summary: List images under a tenant
-      description: |
-        Requires `user@self`+ on `{tenant}`. Documented at
-        `components/platform.md §4.5`.
-      parameters:
-        - name: q
-          in: query
-          required: false
-          schema:
-            type: string
-        - name: status
-          in: query
-          required: false
-          schema:
-            $ref: '#/components/schemas/ImageStatus'
-        - name: purpose
-          in: query
-          required: false
-          schema:
-            type: string
-            enum: [training, inference, dev]
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/Continue'
-      responses:
-        '200':
-          description: A page of images in the tenant.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ImageList'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -2605,8 +2623,11 @@ paths:
       operationId: initiateDataset
       summary: Initiate a dataset artifact upload
       description: |
-        Proxies `artifacts.InitiateUpload(kind=dataset)`. Requires `user@self`+
-        on the target tenant. Documented at `components/platform.md §4.5`.
+        Proxies `artifacts.InitiateUpload(kind=dataset)` against the active
+        tenant (`X-Axisml-Tenant`). Requires `user@self`+. Documented at
+        `components/platform.md §4.5`.
+      parameters:
+        - $ref: '#/components/parameters/ActiveTenantHeader'
       requestBody:
         required: true
         content:
@@ -2638,16 +2659,14 @@ paths:
     get:
       tags: [Datasets]
       operationId: listDatasets
-      summary: List visible datasets across tenants
+      summary: List datasets
       description: |
-        For `system-admin`, all datasets; otherwise the user's tenant scope.
-        Documented at `components/platform.md §4.5`.
+        With `X-Axisml-Tenant`: scoped to that tenant. Without the header:
+        `system-admin` gets the cross-tenant view; non-admin callers receive
+        `400 active-tenant-required`. Documented at
+        `components/platform.md §4.5`.
       parameters:
-        - name: tenantName
-          in: query
-          required: false
-          schema:
-            type: string
+        - $ref: '#/components/parameters/ActiveTenantHeaderOptional'
         - name: q
           in: query
           required: false
@@ -2674,53 +2693,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DatasetList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-  /api/v1/tenants/{tenant}/datasets:
-    parameters:
-      - $ref: '#/components/parameters/TenantPathParam'
-    get:
-      tags: [Datasets]
-      operationId: listTenantDatasets
-      summary: List datasets under a tenant
-      description: |
-        Requires `user@self`+ on `{tenant}`. Documented at
-        `components/platform.md §4.5`.
-      parameters:
-        - name: q
-          in: query
-          required: false
-          schema:
-            type: string
-        - name: status
-          in: query
-          required: false
-          schema:
-            $ref: '#/components/schemas/DatasetStatus'
-        - name: format
-          in: query
-          required: false
-          schema:
-            type: string
-            enum: [parquet, jsonl, csv, webdataset, tfrecord, custom]
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/Continue'
-      responses:
-        '200':
-          description: A page of datasets in the tenant.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DatasetList'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -3148,14 +3124,12 @@ paths:
       summary: Get the dashboard summary
       description: |
         Aggregated counts of tenants, jobs, services, workspaces, and GPU
-        utilization. Documented at `components/platform.md §4 / §6`.
+        utilization. With `X-Axisml-Tenant`: scoped to that tenant. Without
+        the header: `system-admin` gets the cross-tenant aggregate; non-admin
+        callers receive `400 active-tenant-required`. Documented at
+        `components/platform.md §4 / §6`.
       parameters:
-        - name: tenantName
-          in: query
-          description: Restrict to a single tenant (admin sees all by default).
-          required: false
-          schema:
-            type: string
+        - $ref: '#/components/parameters/ActiveTenantHeaderOptional'
       responses:
         '200':
           description: Dashboard overview.
@@ -3163,6 +3137,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DashboardOverview'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -3174,14 +3150,12 @@ paths:
       operationId: getDashboardMetrics
       summary: Query Prometheus through Platform
       description: |
-        Thin proxy for the dashboard UI. Documented at `components/platform.md
-        §4 / §6`.
+        Thin proxy for the dashboard UI. With `X-Axisml-Tenant`: queries are
+        constrained to the tenant (label selectors auto-injected). Without
+        the header: only `system-admin` may issue cross-tenant queries.
+        Documented at `components/platform.md §4 / §6`.
       parameters:
-        - name: tenant
-          in: query
-          required: false
-          schema:
-            type: string
+        - $ref: '#/components/parameters/ActiveTenantHeaderOptional'
         - name: metric
           in: query
           required: true
@@ -3284,6 +3258,38 @@ components:
         intended for the data-plane (network gateway), not this API.
 
   parameters:
+    ActiveTenantHeader:
+      name: X-Axisml-Tenant
+      in: header
+      required: true
+      description: |
+        Active tenant for this request. See `info.description` ("Active
+        tenant"). Required on tenant-implicit list/create/name-keyed-detail
+        endpoints; if absent, non-admin callers receive
+        `400 active-tenant-required` and `system-admin` falls back to
+        cross-tenant behavior on list endpoints only.
+      schema:
+        type: string
+        pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+        minLength: 3
+        maxLength: 40
+
+    ActiveTenantHeaderOptional:
+      name: X-Axisml-Tenant
+      in: header
+      required: false
+      description: |
+        Optional active-tenant override. On UUID-keyed detail endpoints the
+        UUID is self-sufficient; this header is only used as a consistency
+        cross-check. On list endpoints it scopes the query; if omitted,
+        `system-admin` receives the cross-tenant view and non-admins receive
+        `400 active-tenant-required`.
+      schema:
+        type: string
+        pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+        minLength: 3
+        maxLength: 40
+
     Limit:
       name: limit
       in: query
@@ -3443,21 +3449,15 @@ components:
         minLength: 1
         maxLength: 63
 
-    LogPod:
+    PodName:
       name: pod
-      in: query
-      required: false
-      description: Pod name (overrides `replica` selection if set).
+      in: path
+      required: true
+      description: Pod name (the canonical K8s pod identity, as listed by `/pods`).
       schema:
         type: string
-
-    LogReplica:
-      name: replica
-      in: query
-      required: false
-      schema:
-        type: integer
-        minimum: 0
+        minLength: 1
+        maxLength: 253
 
     LogContainer:
       name: container
@@ -4449,15 +4449,15 @@ components:
 
     WorkspaceCreateRequest:
       type: object
+      description: |
+        Target tenant comes from the `X-Axisml-Tenant` request header (see
+        `info.description` "Active tenant").
       required:
-        - tenantName
         - image
         - containerPort
         - resourcePoolId
         - resourceUnitId
       properties:
-        tenantName:
-          type: string
         displayName:
           type: string
           maxLength: 100
@@ -4868,8 +4868,8 @@ components:
     JobRegisterModelRequest:
       type: object
       description: |
-        Body for `POST /tenants/{t}/jobs/{name}/register-model`. Two
-        addressing modes — exactly one must be supplied:
+        Body for `POST /api/v1/jobs/{name}/register-model`. Two addressing
+        modes — exactly one must be supplied:
 
         - **Declared** (preferred): set `outputName` to reference an entry
           in `MLJob.spec.outputs[]` (must have `kind=model`). The referenced
@@ -5160,8 +5160,10 @@ components:
 
     ServiceCreateRequest:
       type: object
+      description: |
+        Target tenant comes from the `X-Axisml-Tenant` request header (see
+        `info.description` "Active tenant").
       required:
-        - tenantName
         - name
         - modelRef
         - backend
@@ -5171,8 +5173,6 @@ components:
         - resourceUnitId
         - replicas
       properties:
-        tenantName:
-          type: string
         name:
           type: string
           pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
@@ -5387,10 +5387,11 @@ components:
 
     ModelInitiateRequest:
       type: object
-      required: [tenantName, name, version]
+      description: |
+        Target tenant comes from the `X-Axisml-Tenant` request header (see
+        `info.description` "Active tenant").
+      required: [name, version]
       properties:
-        tenantName:
-          type: string
         name:
           type: string
           pattern: '^[a-z0-9]([-a-z0-9._]*[a-z0-9])?$'
@@ -5562,10 +5563,11 @@ components:
 
     ImageInitiateRequest:
       type: object
-      required: [tenantName, name, version, spec]
+      description: |
+        Target tenant comes from the `X-Axisml-Tenant` request header (see
+        `info.description` "Active tenant").
+      required: [name, version, spec]
       properties:
-        tenantName:
-          type: string
         name:
           type: string
           pattern: '^[a-z0-9]([-a-z0-9._]*[a-z0-9])?$'
@@ -5707,10 +5709,11 @@ components:
 
     DatasetInitiateRequest:
       type: object
-      required: [tenantName, name, version, spec]
+      description: |
+        Target tenant comes from the `X-Axisml-Tenant` request header (see
+        `info.description` "Active tenant").
+      required: [name, version, spec]
       properties:
-        tenantName:
-          type: string
         name:
           type: string
           pattern: '^[a-z0-9]([-a-z0-9._]*[a-z0-9])?$'
@@ -5925,20 +5928,23 @@ components:
           additionalProperties: true
 
     # ------------------------------------------------------------------
-    # Proxy DTOs (events, logs, replicas)
+    # Proxy DTOs (events, logs, pods)
     # ------------------------------------------------------------------
 
-    Replica:
+    Pod:
       type: object
       required: [name, phase]
       properties:
         name:
           type: string
-          description: Pod name.
+          description: Pod name; canonical identity (matches `kubectl get pods`).
         role:
           type: string
-        index:
+          description: Role name (`master` / `worker` / `ps`, `predictor` / `transformer` / `explainer`, ...).
+        replicaIndex:
           type: integer
+          minimum: 0
+          description: 0-based replica index (from `axisml.io/replica-index`); absent when the backend does not produce stable identities.
         phase:
           type: string
           enum: [Pending, Running, Succeeded, Failed, Unknown]
@@ -5958,14 +5964,14 @@ components:
           type: integer
           minimum: 0
 
-    ReplicaList:
+    PodList:
       type: object
       required: [items, count]
       properties:
         items:
           type: array
           items:
-            $ref: '#/components/schemas/Replica'
+            $ref: '#/components/schemas/Pod'
         count:
           type: integer
           minimum: 0

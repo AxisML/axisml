@@ -33,6 +33,9 @@ tags:
   - name: Health
     description: Liveness and readiness probes
 
+security:
+  - AxismlUserHeader: []
+
 paths:
   /healthz:
     get:
@@ -45,12 +48,9 @@ paths:
         '200':
           description: Process alive
           content:
-            text/plain:
+            application/json:
               schema:
-                type: string
-                example: ok
-        '500':
-          $ref: '#/components/responses/ProblemInternal'
+                $ref: '#/components/schemas/HealthStatus'
 
   /readyz:
     get:
@@ -66,12 +66,11 @@ paths:
         '200':
           description: Ready
           content:
-            text/plain:
+            application/json:
               schema:
-                type: string
-                example: ok
+                $ref: '#/components/schemas/HealthStatus'
         '503':
-          description: Not ready (PG unreachable)
+          description: Not ready (e.g. PG unreachable)
           content:
             application/problem+json:
               schema:
@@ -85,8 +84,6 @@ paths:
       operationId: createResourcePool
       tags: [ResourcePools]
       summary: Create a resource pool
-      parameters:
-        - $ref: '#/components/parameters/XAxismlUser'
       requestBody:
         required: true
         content:
@@ -100,18 +97,17 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ResourcePool'
-        '400': { $ref: '#/components/responses/ProblemBadRequest' }
-        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
-        '403': { $ref: '#/components/responses/ProblemForbidden' }
-        '409': { $ref: '#/components/responses/ProblemConflict' }
-        '422': { $ref: '#/components/responses/ProblemUnprocessable' }
-        '500': { $ref: '#/components/responses/ProblemInternal' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
     get:
       operationId: listResourcePools
       tags: [ResourcePools]
       summary: List resource pools
       parameters:
-        - $ref: '#/components/parameters/XAxismlUser'
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Continue'
       responses:
@@ -121,14 +117,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ResourcePoolList'
-        '400': { $ref: '#/components/responses/ProblemBadRequest' }
-        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
-        '403': { $ref: '#/components/responses/ProblemForbidden' }
-        '500': { $ref: '#/components/responses/ProblemInternal' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
 
   /api/v1/resource-pools/{pool}:
     parameters:
-      - $ref: '#/components/parameters/XAxismlUser'
       - $ref: '#/components/parameters/PoolName'
     get:
       operationId: getResourcePool
@@ -141,10 +136,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ResourcePool'
-        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
-        '403': { $ref: '#/components/responses/ProblemForbidden' }
-        '404': { $ref: '#/components/responses/ProblemNotFound' }
-        '500': { $ref: '#/components/responses/ProblemInternal' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
     patch:
       operationId: updateResourcePool
       tags: [ResourcePools]
@@ -162,13 +157,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ResourcePool'
-        '400': { $ref: '#/components/responses/ProblemBadRequest' }
-        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
-        '403': { $ref: '#/components/responses/ProblemForbidden' }
-        '404': { $ref: '#/components/responses/ProblemNotFound' }
-        '409': { $ref: '#/components/responses/ProblemConflict' }
-        '422': { $ref: '#/components/responses/ProblemUnprocessable' }
-        '500': { $ref: '#/components/responses/ProblemInternal' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
     delete:
       operationId: deleteResourcePool
       tags: [ResourcePools]
@@ -179,18 +174,17 @@ paths:
       responses:
         '204':
           description: Pool soft-deleted
-        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
-        '403': { $ref: '#/components/responses/ProblemForbidden' }
-        '404': { $ref: '#/components/responses/ProblemNotFound' }
-        '409': { $ref: '#/components/responses/ProblemConflict' }
-        '500': { $ref: '#/components/responses/ProblemInternal' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
 
   # ─────────────────────────────────────────────────────────────────────
   # ResourceUnits
   # ─────────────────────────────────────────────────────────────────────
   /api/v1/resource-pools/{pool}/resource-units:
     parameters:
-      - $ref: '#/components/parameters/XAxismlUser'
       - $ref: '#/components/parameters/PoolName'
     post:
       operationId: createResourceUnit
@@ -209,13 +203,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ResourceUnit'
-        '400': { $ref: '#/components/responses/ProblemBadRequest' }
-        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
-        '403': { $ref: '#/components/responses/ProblemForbidden' }
-        '404': { $ref: '#/components/responses/ProblemNotFound' }
-        '409': { $ref: '#/components/responses/ProblemConflict' }
-        '422': { $ref: '#/components/responses/ProblemUnprocessable' }
-        '500': { $ref: '#/components/responses/ProblemInternal' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
     get:
       operationId: listResourceUnits
       tags: [ResourceUnits]
@@ -230,15 +224,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ResourceUnitList'
-        '400': { $ref: '#/components/responses/ProblemBadRequest' }
-        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
-        '403': { $ref: '#/components/responses/ProblemForbidden' }
-        '404': { $ref: '#/components/responses/ProblemNotFound' }
-        '500': { $ref: '#/components/responses/ProblemInternal' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
 
   /api/v1/resource-pools/{pool}/resource-units/{unit}:
     parameters:
-      - $ref: '#/components/parameters/XAxismlUser'
       - $ref: '#/components/parameters/PoolName'
       - $ref: '#/components/parameters/UnitName'
     get:
@@ -252,10 +245,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ResourceUnit'
-        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
-        '403': { $ref: '#/components/responses/ProblemForbidden' }
-        '404': { $ref: '#/components/responses/ProblemNotFound' }
-        '500': { $ref: '#/components/responses/ProblemInternal' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
     patch:
       operationId: updateResourceUnit
       tags: [ResourceUnits]
@@ -273,13 +266,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ResourceUnit'
-        '400': { $ref: '#/components/responses/ProblemBadRequest' }
-        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
-        '403': { $ref: '#/components/responses/ProblemForbidden' }
-        '404': { $ref: '#/components/responses/ProblemNotFound' }
-        '409': { $ref: '#/components/responses/ProblemConflict' }
-        '422': { $ref: '#/components/responses/ProblemUnprocessable' }
-        '500': { $ref: '#/components/responses/ProblemInternal' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
     delete:
       operationId: deleteResourceUnit
       tags: [ResourceUnits]
@@ -287,18 +280,17 @@ paths:
       responses:
         '204':
           description: Unit soft-deleted
-        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
-        '403': { $ref: '#/components/responses/ProblemForbidden' }
-        '404': { $ref: '#/components/responses/ProblemNotFound' }
-        '409': { $ref: '#/components/responses/ProblemConflict' }
-        '500': { $ref: '#/components/responses/ProblemInternal' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
 
   # ─────────────────────────────────────────────────────────────────────
   # Jobs (namespace-scoped)
   # ─────────────────────────────────────────────────────────────────────
   /api/v1/namespaces/{namespace}/jobs:
     parameters:
-      - $ref: '#/components/parameters/XAxismlUser'
       - $ref: '#/components/parameters/Namespace'
     post:
       operationId: createJob
@@ -324,13 +316,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Job'
-        '400': { $ref: '#/components/responses/ProblemBadRequest' }
-        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
-        '403': { $ref: '#/components/responses/ProblemForbidden' }
-        '404': { $ref: '#/components/responses/ProblemNotFound' }
-        '409': { $ref: '#/components/responses/ProblemConflict' }
-        '422': { $ref: '#/components/responses/ProblemUnprocessable' }
-        '500': { $ref: '#/components/responses/ProblemInternal' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
     get:
       operationId: listJobs
       tags: [Jobs]
@@ -351,14 +343,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/JobList'
-        '400': { $ref: '#/components/responses/ProblemBadRequest' }
-        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
-        '403': { $ref: '#/components/responses/ProblemForbidden' }
-        '500': { $ref: '#/components/responses/ProblemInternal' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
 
   /api/v1/namespaces/{namespace}/jobs/{job}:
     parameters:
-      - $ref: '#/components/parameters/XAxismlUser'
       - $ref: '#/components/parameters/Namespace'
       - $ref: '#/components/parameters/JobName'
     get:
@@ -372,10 +363,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Job'
-        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
-        '403': { $ref: '#/components/responses/ProblemForbidden' }
-        '404': { $ref: '#/components/responses/ProblemNotFound' }
-        '500': { $ref: '#/components/responses/ProblemInternal' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
     delete:
       operationId: deleteJob
       tags: [Jobs]
@@ -386,14 +377,13 @@ paths:
       responses:
         '204':
           description: Job soft-deleted
-        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
-        '403': { $ref: '#/components/responses/ProblemForbidden' }
-        '404': { $ref: '#/components/responses/ProblemNotFound' }
-        '500': { $ref: '#/components/responses/ProblemInternal' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
 
   /api/v1/namespaces/{namespace}/jobs/{job}/cancel:
     parameters:
-      - $ref: '#/components/parameters/XAxismlUser'
       - $ref: '#/components/parameters/Namespace'
       - $ref: '#/components/parameters/JobName'
     post:
@@ -415,78 +405,52 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Job'
-        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
-        '403': { $ref: '#/components/responses/ProblemForbidden' }
-        '404': { $ref: '#/components/responses/ProblemNotFound' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
         '422':
           description: Job is not in a cancellable state
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
-        '500': { $ref: '#/components/responses/ProblemInternal' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
 
-  /api/v1/namespaces/{namespace}/jobs/{job}/replicas:
+  /api/v1/namespaces/{namespace}/jobs/{job}/pods:
     parameters:
-      - $ref: '#/components/parameters/XAxismlUser'
       - $ref: '#/components/parameters/Namespace'
       - $ref: '#/components/parameters/JobName'
     get:
-      operationId: listJobReplicas
+      operationId: listJobPods
       tags: [Jobs]
-      summary: List the Pod replicas for a job
+      summary: List the Pods for a job
       description: |
-        Lists pods reverse-indexed by the `axisml.io/job-id` label. Replica
-        index is taken from the `axisml.io/replica-index` label when present.
+        Lists pods reverse-indexed by the `axisml.io/job-id` label. Each Pod
+        carries `replicaIndex` (from `axisml.io/replica-index`) and `role`
+        (from `axisml.io/role`) when the backend produces them.
       responses:
         '200':
-          description: Replica list
+          description: Pod list
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ReplicaList'
-        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
-        '403': { $ref: '#/components/responses/ProblemForbidden' }
-        '404': { $ref: '#/components/responses/ProblemNotFound' }
-        '500': { $ref: '#/components/responses/ProblemInternal' }
+                $ref: '#/components/schemas/PodList'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
 
-  /api/v1/namespaces/{namespace}/jobs/{job}/events:
+  /api/v1/namespaces/{namespace}/jobs/{job}/pods/{pod}/logs:
     parameters:
-      - $ref: '#/components/parameters/XAxismlUser'
       - $ref: '#/components/parameters/Namespace'
       - $ref: '#/components/parameters/JobName'
+      - $ref: '#/components/parameters/PodName'
     get:
-      operationId: listJobEvents
-      tags: [Jobs]
-      summary: List the aggregated K8s events for a job
-      description: |
-        Returns K8s events whose involvedObject references the MLJob CR,
-        any derived PodGroup, or any pod owned by the job.
-      responses:
-        '200':
-          description: Aggregated events
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/EventList'
-        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
-        '403': { $ref: '#/components/responses/ProblemForbidden' }
-        '404': { $ref: '#/components/responses/ProblemNotFound' }
-        '500': { $ref: '#/components/responses/ProblemInternal' }
-
-  /api/v1/namespaces/{namespace}/jobs/{job}/logs:
-    parameters:
-      - $ref: '#/components/parameters/XAxismlUser'
-      - $ref: '#/components/parameters/Namespace'
-      - $ref: '#/components/parameters/JobName'
-    get:
-      operationId: getJobLogs
+      operationId: getJobPodLogs
       tags: [Jobs]
       summary: Fetch or stream a job pod's logs
       description: |
-        Proxies the underlying Pod log API. The Pod is located either by
-        replica index (`replica`, matched against the
-        `axisml.io/replica-index` label) or directly by pod name (`pod`).
+        Proxies the underlying Pod log API for one pod of the job.
 
         Returns `text/plain` when `follow=false` (default). When `follow=true`
         the connection is upgraded to a Server-Sent Events stream
@@ -495,19 +459,6 @@ paths:
         Returns 410 Gone when the target Pod has been garbage-collected and
         the kube-apiserver no longer has its logs.
       parameters:
-        - in: query
-          name: replica
-          description: 0-based replica index; mutually exclusive with `pod`.
-          required: false
-          schema:
-            type: integer
-            minimum: 0
-        - in: query
-          name: pod
-          description: Direct pod name; mutually exclusive with `replica`.
-          required: false
-          schema:
-            type: string
         - in: query
           name: container
           description: Container name (required for multi-container pods).
@@ -557,24 +508,73 @@ paths:
               schema:
                 type: string
                 description: SSE stream; each `data:` frame is a log line.
-        '400': { $ref: '#/components/responses/ProblemBadRequest' }
-        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
-        '403': { $ref: '#/components/responses/ProblemForbidden' }
-        '404': { $ref: '#/components/responses/ProblemNotFound' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
         '410':
           description: Pod has been garbage-collected; logs are no longer available.
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
-        '500': { $ref: '#/components/responses/ProblemInternal' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/namespaces/{namespace}/jobs/{job}/pods/{pod}/events:
+    parameters:
+      - $ref: '#/components/parameters/Namespace'
+      - $ref: '#/components/parameters/JobName'
+      - $ref: '#/components/parameters/PodName'
+    get:
+      operationId: listJobPodEvents
+      tags: [Jobs]
+      summary: List K8s events for one pod of a job
+      description: |
+        Returns K8s events whose `involvedObject` references the named pod
+        (`Scheduled`, `Pulling`, `OOMKilled`, `BackOff`, ...). For events on
+        the MLJob CR or derived PodGroup, use `/jobs/{job}/events`.
+      responses:
+        '200':
+          description: Pod-scoped events
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventList'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/namespaces/{namespace}/jobs/{job}/events:
+    parameters:
+      - $ref: '#/components/parameters/Namespace'
+      - $ref: '#/components/parameters/JobName'
+    get:
+      operationId: listJobEvents
+      tags: [Jobs]
+      summary: List job-level K8s events
+      description: |
+        Returns K8s events whose `involvedObject` references the MLJob CR
+        itself or any derived PodGroup (gang scheduling, suspended, success
+        criteria met, ...). Pod-level events are NOT included; use
+        `/jobs/{job}/pods/{pod}/events` for those.
+      responses:
+        '200':
+          description: Job-level events
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventList'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
 
   # ─────────────────────────────────────────────────────────────────────
   # Services (namespace-scoped)
   # ─────────────────────────────────────────────────────────────────────
   /api/v1/namespaces/{namespace}/services:
     parameters:
-      - $ref: '#/components/parameters/XAxismlUser'
       - $ref: '#/components/parameters/Namespace'
     post:
       operationId: createService
@@ -600,13 +600,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Service'
-        '400': { $ref: '#/components/responses/ProblemBadRequest' }
-        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
-        '403': { $ref: '#/components/responses/ProblemForbidden' }
-        '404': { $ref: '#/components/responses/ProblemNotFound' }
-        '409': { $ref: '#/components/responses/ProblemConflict' }
-        '422': { $ref: '#/components/responses/ProblemUnprocessable' }
-        '500': { $ref: '#/components/responses/ProblemInternal' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
     get:
       operationId: listServicesByNamespace
       tags: [Services]
@@ -627,14 +627,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ServiceList'
-        '400': { $ref: '#/components/responses/ProblemBadRequest' }
-        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
-        '403': { $ref: '#/components/responses/ProblemForbidden' }
-        '500': { $ref: '#/components/responses/ProblemInternal' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
 
   /api/v1/namespaces/{namespace}/services/{service}:
     parameters:
-      - $ref: '#/components/parameters/XAxismlUser'
       - $ref: '#/components/parameters/Namespace'
       - $ref: '#/components/parameters/ServiceName'
     get:
@@ -648,10 +647,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Service'
-        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
-        '403': { $ref: '#/components/responses/ProblemForbidden' }
-        '404': { $ref: '#/components/responses/ProblemNotFound' }
-        '500': { $ref: '#/components/responses/ProblemInternal' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
     delete:
       operationId: deleteService
       tags: [Services]
@@ -663,14 +662,13 @@ paths:
       responses:
         '204':
           description: Service soft-deleted
-        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
-        '403': { $ref: '#/components/responses/ProblemForbidden' }
-        '404': { $ref: '#/components/responses/ProblemNotFound' }
-        '500': { $ref: '#/components/responses/ProblemInternal' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
 
   /api/v1/namespaces/{namespace}/services/{service}/scale:
     parameters:
-      - $ref: '#/components/parameters/XAxismlUser'
       - $ref: '#/components/parameters/Namespace'
       - $ref: '#/components/parameters/ServiceName'
     post:
@@ -694,102 +692,167 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Service'
-        '400': { $ref: '#/components/responses/ProblemBadRequest' }
-        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
-        '403': { $ref: '#/components/responses/ProblemForbidden' }
-        '404': { $ref: '#/components/responses/ProblemNotFound' }
-        '422': { $ref: '#/components/responses/ProblemUnprocessable' }
-        '500': { $ref: '#/components/responses/ProblemInternal' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
 
-  # ─────────────────────────────────────────────────────────────────────
-  # Services — id-based addressing (Platform N+1 / workspace LIST)
-  # ─────────────────────────────────────────────────────────────────────
-  /api/v1/services:
-    get:
-      operationId: listServices
-      tags: [Services]
-      summary: List services by ids, or by namespace + kind
-      description: |
-        Either `ids` (csv of UUIDs) is provided for an N+1-optimized batch
-        fetch, or `namespace` + `kind` is provided to list all services of
-        a kind inside a namespace (the Platform workspace listing path).
-        Mixing the two query shapes is not allowed.
-      parameters:
-        - $ref: '#/components/parameters/XAxismlUser'
-        - in: query
-          name: ids
-          description: Comma-separated list of service UUIDs.
-          required: false
-          schema:
-            type: string
-            example: 6c8e1d3e-7b3a-4c2e-9a86-1a0f9e1b3b8a,c9a1b2d3-4e5f-6a7b-8c9d-0e1f2a3b4c5d
-        - in: query
-          name: namespace
-          description: Namespace filter; required together with `kind`.
-          required: false
-          schema:
-            type: string
-        - in: query
-          name: kind
-          description: Kind filter; required together with `namespace`.
-          required: false
-          schema:
-            $ref: '#/components/schemas/ServiceKind'
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/Continue'
-      responses:
-        '200':
-          description: A page of services
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ServiceList'
-        '400': { $ref: '#/components/responses/ProblemBadRequest' }
-        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
-        '403': { $ref: '#/components/responses/ProblemForbidden' }
-        '422': { $ref: '#/components/responses/ProblemUnprocessable' }
-        '500': { $ref: '#/components/responses/ProblemInternal' }
-
-  /api/v1/services/{id}:
+  /api/v1/namespaces/{namespace}/services/{service}/pods:
     parameters:
-      - $ref: '#/components/parameters/XAxismlUser'
-      - in: path
-        name: id
-        required: true
-        description: Service UUID.
-        schema:
-          type: string
-          format: uuid
+      - $ref: '#/components/parameters/Namespace'
+      - $ref: '#/components/parameters/ServiceName'
     get:
-      operationId: getServiceById
+      operationId: listServicePods
       tags: [Services]
-      summary: Get a service by uuid
+      summary: List the Pods for a service
+      description: |
+        Lists pods reverse-indexed by the `axisml.io/service-id` label. Each
+        Pod carries `replicaIndex` (from `axisml.io/replica-index`) and `role`
+        (from `axisml.io/role`) when the backend produces them.
       responses:
         '200':
-          description: Service
+          description: Pod list
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Service'
-        '401': { $ref: '#/components/responses/ProblemUnauthorized' }
-        '403': { $ref: '#/components/responses/ProblemForbidden' }
-        '404': { $ref: '#/components/responses/ProblemNotFound' }
-        '500': { $ref: '#/components/responses/ProblemInternal' }
+                $ref: '#/components/schemas/PodList'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/namespaces/{namespace}/services/{service}/pods/{pod}/logs:
+    parameters:
+      - $ref: '#/components/parameters/Namespace'
+      - $ref: '#/components/parameters/ServiceName'
+      - $ref: '#/components/parameters/PodName'
+    get:
+      operationId: getServicePodLogs
+      tags: [Services]
+      summary: Fetch or stream a service pod's logs
+      description: |
+        Proxies the underlying Pod log API for one pod of the service. Same
+        semantics as the job equivalent: `text/plain` body when `follow=false`,
+        SSE stream when `follow=true`. Returns 410 Gone if the Pod has been
+        garbage-collected.
+      parameters:
+        - in: query
+          name: container
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: follow
+          required: false
+          schema:
+            type: boolean
+            default: false
+        - in: query
+          name: tailLines
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+        - in: query
+          name: sinceSeconds
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+        - in: query
+          name: previous
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: |
+            Logs returned. `text/plain` when `follow=false`, `text/event-stream`
+            when `follow=true`.
+          content:
+            text/plain:
+              schema:
+                type: string
+            text/event-stream:
+              schema:
+                type: string
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '410':
+          description: Pod has been garbage-collected; logs are no longer available.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/namespaces/{namespace}/services/{service}/pods/{pod}/events:
+    parameters:
+      - $ref: '#/components/parameters/Namespace'
+      - $ref: '#/components/parameters/ServiceName'
+      - $ref: '#/components/parameters/PodName'
+    get:
+      operationId: listServicePodEvents
+      tags: [Services]
+      summary: List K8s events for one pod of a service
+      description: |
+        Returns K8s events whose `involvedObject` references the named pod.
+        For events on the MLService CR or its derived Deployment / HTTPRoute,
+        use `/services/{service}/events`.
+      responses:
+        '200':
+          description: Pod-scoped events
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventList'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/namespaces/{namespace}/services/{service}/events:
+    parameters:
+      - $ref: '#/components/parameters/Namespace'
+      - $ref: '#/components/parameters/ServiceName'
+    get:
+      operationId: listServiceEvents
+      tags: [Services]
+      summary: List service-level K8s events
+      description: |
+        Returns K8s events whose `involvedObject` references the MLService CR
+        itself or its derived workload (Deployment / StatefulSet / KServe
+        InferenceService) and route (HTTPRoute). Pod-level events are NOT
+        included; use `/services/{service}/pods/{pod}/events` for those.
+      responses:
+        '200':
+          description: Service-level events
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventList'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
 
 components:
-  parameters:
-    XAxismlUser:
+  securitySchemes:
+    AxismlUserHeader:
+      type: apiKey
       in: header
       name: X-Axisml-User
-      required: true
       description: |
-        Unique user id of the caller, injected by Platform. Used for audit
-        and ownership attribution; no role-level authorization is performed
-        by Compute itself.
-      schema:
-        type: string
-        minLength: 1
+        Caller identity, injected by Platform. Used for audit and ownership
+        attribution; Compute itself performs no role-level authorization.
+        Health probes (`/healthz`, `/readyz`) are exempt.
 
+  parameters:
     Namespace:
       in: path
       name: namespace
@@ -846,6 +909,16 @@ components:
         minLength: 3
         maxLength: 40
 
+    PodName:
+      in: path
+      name: pod
+      required: true
+      description: Pod name (the canonical K8s pod identity, as listed by `/pods`).
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 253
+
     Limit:
       in: query
       name: limit
@@ -854,7 +927,7 @@ components:
       schema:
         type: integer
         minimum: 1
-        maximum: 500
+        maximum: 200
         default: 50
 
     Continue:
@@ -866,49 +939,49 @@ components:
         type: string
 
   responses:
-    ProblemBadRequest:
+    BadRequest:
       description: Bad request (malformed body or query)
       content:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
-    ProblemUnauthorized:
+    Unauthorized:
       description: Caller identity (`X-Axisml-User`) missing or invalid
       content:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
-    ProblemForbidden:
+    Forbidden:
       description: Caller is not allowed to perform this operation
       content:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
-    ProblemNotFound:
+    NotFound:
       description: Resource not found
       content:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
-    ProblemConflict:
+    Conflict:
       description: Conflict with current state (e.g. duplicate name)
       content:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
-    ProblemGone:
+    Gone:
       description: Underlying resource has been garbage-collected
       content:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
-    ProblemUnprocessable:
+    UnprocessableEntity:
       description: Request was syntactically valid but violates an invariant
       content:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
-    ProblemInternal:
+    InternalServerError:
       description: Internal server error
       content:
         application/problem+json:
@@ -917,6 +990,19 @@ components:
 
   schemas:
     # ────────────────── shared ──────────────────
+    HealthStatus:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded]
+        details:
+          type: object
+          description: Optional per-dependency notes when `status=degraded`.
+          additionalProperties:
+            type: string
+
     Problem:
       type: object
       description: RFC 7807 problem+json error envelope.
@@ -951,17 +1037,6 @@ components:
               message: { type: string }
             required: [field, message]
       required: [title, status]
-
-    Pagination:
-      type: object
-      description: Pagination envelope returned on list responses.
-      properties:
-        continueToken:
-          type: string
-          description: Token to pass back as `continue` on the next page; empty when no more pages.
-        limit:
-          type: integer
-          description: Limit echoed back from the request.
 
     StringMap:
       type: object
@@ -1033,16 +1108,20 @@ components:
       additionalProperties:
         type: string
 
-    Replica:
+    Pod:
       type: object
-      description: A Pod replica belonging to a Job.
+      description: A Pod belonging to a Job or Service.
       properties:
-        index:
+        name:
+          type: string
+          description: Pod name; canonical identity (matches `kubectl get pods`).
+        replicaIndex:
           type: integer
           description: 0-based replica index (from `axisml.io/replica-index`); absent when the backend does not produce stable identities.
           minimum: 0
-        podName:
+        role:
           type: string
+          description: Role name (from `axisml.io/role`); present for multi-role backends (`master` / `worker` / `ps`, `predictor` / `transformer` / `explainer`, ...).
         phase:
           type: string
           enum: [Pending, Running, Succeeded, Failed, Unknown]
@@ -1051,15 +1130,15 @@ components:
           format: date-time
         nodeName:
           type: string
-      required: [podName, phase]
+      required: [name, phase]
 
-    ReplicaList:
+    PodList:
       type: object
       properties:
         items:
           type: array
           items:
-            $ref: '#/components/schemas/Replica'
+            $ref: '#/components/schemas/Pod'
       required: [items]
 
     EventInvolvedObject:
@@ -1194,9 +1273,14 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ResourcePool'
-        pagination:
-          $ref: '#/components/schemas/Pagination'
-      required: [items]
+        count:
+          type: integer
+          minimum: 0
+          description: Number of items in this page.
+        continueToken:
+          type: string
+          description: Opaque token; pass back as `continue` to fetch the next page. Absent on the last page.
+      required: [items, count]
 
     # ────────────────── ResourceUnit ──────────────────
     ResourceUnit:
@@ -1270,9 +1354,14 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ResourceUnit'
-        pagination:
-          $ref: '#/components/schemas/Pagination'
-      required: [items]
+        count:
+          type: integer
+          minimum: 0
+          description: Number of items in this page.
+        continueToken:
+          type: string
+          description: Opaque token; pass back as `continue` to fetch the next page. Absent on the last page.
+      required: [items, count]
 
     # ────────────────── MLJob / MLService shared spec building blocks ──────────────────
     PodTemplateSpec:
@@ -1683,9 +1772,14 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Job'
-        pagination:
-          $ref: '#/components/schemas/Pagination'
-      required: [items]
+        count:
+          type: integer
+          minimum: 0
+          description: Number of items in this page.
+        continueToken:
+          type: string
+          description: Opaque token; pass back as `continue` to fetch the next page. Absent on the last page.
+      required: [items, count]
 
     # ────────────────── Service ──────────────────
     ServiceKind:
@@ -1836,8 +1930,11 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Service'
-        pagination:
-          $ref: '#/components/schemas/Pagination'
-      required: [items]
-
-security: []
+        count:
+          type: integer
+          minimum: 0
+          description: Number of items in this page.
+        continueToken:
+          type: string
+          description: Opaque token; pass back as `continue` to fetch the next page. Absent on the last page.
+      required: [items, count]

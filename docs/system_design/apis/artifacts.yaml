@@ -46,10 +46,9 @@ paths:
         '200':
           description: Process is alive
           content:
-            text/plain:
+            application/json:
               schema:
-                type: string
-                example: ok
+                $ref: '#/components/schemas/HealthStatus'
 
   /readyz:
     get:
@@ -64,10 +63,9 @@ paths:
         '200':
           description: Service is ready
           content:
-            text/plain:
+            application/json:
               schema:
-                type: string
-                example: ok
+                $ref: '#/components/schemas/HealthStatus'
         '503':
           description: Not ready (e.g. PG unreachable)
           content:
@@ -77,16 +75,15 @@ paths:
 
   # ----- Artifact lifecycle -------------------------------------------------
 
-  /api/v1/namespaces/{namespace}/artifacts/{kind}:
+  /api/v1/namespaces/{namespace}/{kindPlural}:
     parameters:
-      - $ref: '#/components/parameters/NamespacePath'
-      - $ref: '#/components/parameters/KindPath'
-      - $ref: '#/components/parameters/XAxismlUser'
+      - $ref: '#/components/parameters/KindPluralPath'
+      - $ref: '#/components/parameters/Namespace'
     get:
       tags: [Artifacts]
       summary: List all (name, version) tuples for a namespace + kind
       description: |
-        Returns every artifact row in `(namespace, kind)`. Filterable by
+        Returns every artifact row in `(kind, namespace)`. Filterable by
         artifact name prefix and status. Pagination via opaque `continue`
         token.
       operationId: listArtifactsByKind
@@ -128,14 +125,13 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
-        '500': { $ref: '#/components/responses/InternalError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
 
-  /api/v1/namespaces/{namespace}/artifacts/{kind}/{name}:
+  /api/v1/namespaces/{namespace}/{kindPlural}/{name}:
     parameters:
-      - $ref: '#/components/parameters/NamespacePath'
-      - $ref: '#/components/parameters/KindPath'
+      - $ref: '#/components/parameters/KindPluralPath'
+      - $ref: '#/components/parameters/Namespace'
       - $ref: '#/components/parameters/NamePath'
-      - $ref: '#/components/parameters/XAxismlUser'
     get:
       tags: [Artifacts]
       summary: List versions of a single artifact name
@@ -171,7 +167,7 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
-        '500': { $ref: '#/components/responses/InternalError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
     post:
       tags: [Artifacts]
       summary: Initiate a new artifact version (phase 1 of two-phase write)
@@ -220,15 +216,14 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
-        '500': { $ref: '#/components/responses/InternalError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
 
-  /api/v1/namespaces/{namespace}/artifacts/{kind}/{name}/{version}:
+  /api/v1/namespaces/{namespace}/{kindPlural}/{name}/{version}:
     parameters:
-      - $ref: '#/components/parameters/NamespacePath'
-      - $ref: '#/components/parameters/KindPath'
+      - $ref: '#/components/parameters/KindPluralPath'
+      - $ref: '#/components/parameters/Namespace'
       - $ref: '#/components/parameters/NamePath'
       - $ref: '#/components/parameters/VersionPath'
-      - $ref: '#/components/parameters/XAxismlUser'
     get:
       tags: [Artifacts]
       summary: Get a single artifact version
@@ -245,7 +240,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '410': { $ref: '#/components/responses/Gone' }
-        '500': { $ref: '#/components/responses/InternalError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
     patch:
       tags: [Artifacts]
       summary: Update mutable display metadata
@@ -289,7 +284,7 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
-        '500': { $ref: '#/components/responses/InternalError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
     delete:
       tags: [Artifacts]
       summary: Delete an artifact version (soft delete + async backend GC)
@@ -310,15 +305,14 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '500': { $ref: '#/components/responses/InternalError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
 
-  /api/v1/namespaces/{namespace}/artifacts/{kind}/{name}/{version}/complete:
+  /api/v1/namespaces/{namespace}/{kindPlural}/{name}/{version}/complete:
     parameters:
-      - $ref: '#/components/parameters/NamespacePath'
-      - $ref: '#/components/parameters/KindPath'
+      - $ref: '#/components/parameters/KindPluralPath'
+      - $ref: '#/components/parameters/Namespace'
       - $ref: '#/components/parameters/NamePath'
       - $ref: '#/components/parameters/VersionPath'
-      - $ref: '#/components/parameters/XAxismlUser'
     post:
       tags: [Artifacts]
       summary: Complete an upload (phase 2 of two-phase write)
@@ -363,15 +357,14 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
-        '500': { $ref: '#/components/responses/InternalError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
 
-  /api/v1/namespaces/{namespace}/artifacts/{kind}/{name}/{version}/resolve:
+  /api/v1/namespaces/{namespace}/{kindPlural}/{name}/{version}/resolve:
     parameters:
-      - $ref: '#/components/parameters/NamespacePath'
-      - $ref: '#/components/parameters/KindPath'
+      - $ref: '#/components/parameters/KindPluralPath'
+      - $ref: '#/components/parameters/Namespace'
       - $ref: '#/components/parameters/NamePath'
       - $ref: '#/components/parameters/VersionPath'
-      - $ref: '#/components/parameters/XAxismlUser'
     get:
       tags: [Artifacts]
       summary: Resolve an artifact reference to a storage URI
@@ -431,7 +424,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '410': { $ref: '#/components/responses/Gone' }
-        '500': { $ref: '#/components/responses/InternalError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
 
 components:
 
@@ -449,29 +442,22 @@ components:
 
   # ----- Reusable parameters ----------------------------------------------
   parameters:
-    XAxismlUser:
-      in: header
-      name: X-Axisml-User
-      required: true
-      description: Caller user id (or controller identity for operators).
-      schema:
-        type: string
-        minLength: 1
-        maxLength: 256
-    NamespacePath:
+    Namespace:
       in: path
       name: namespace
       required: true
       description: DNS-1123 namespace (bare partition key).
       schema:
         $ref: '#/components/schemas/Namespace'
-    KindPath:
+    KindPluralPath:
       in: path
-      name: kind
+      name: kindPlural
       required: true
-      description: Artifact kind.
+      description: |
+        URL-path plural form of artifact kind. Stable mapping:
+        `model` ↔ `models`, `dataset` ↔ `datasets`, `image` ↔ `images`.
       schema:
-        $ref: '#/components/schemas/ArtifactKind'
+        $ref: '#/components/schemas/ArtifactKindPlural'
     NamePath:
       in: path
       name: name
@@ -531,7 +517,7 @@ components:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
-    InternalError:
+    InternalServerError:
       description: Internal server error.
       content:
         application/problem+json:
@@ -540,6 +526,19 @@ components:
 
   # ----- Schemas ----------------------------------------------------------
   schemas:
+
+    HealthStatus:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded]
+        details:
+          type: object
+          description: Optional per-dependency notes when `status=degraded`.
+          additionalProperties:
+            type: string
 
     # --- Primitive / shared ---
     Namespace:
@@ -573,6 +572,14 @@ components:
       type: string
       description: Artifact kind (registered ArtifactHandler key).
       enum: [model, dataset, image]
+
+    ArtifactKindPlural:
+      type: string
+      description: |
+        URL-path plural form of `ArtifactKind`. Stable mapping:
+        `model` ↔ `models`, `dataset` ↔ `datasets`, `image` ↔ `images`.
+        Used only as a path segment; DTO `kind` field carries the singular form.
+      enum: [models, datasets, images]
 
     ArtifactStatus:
       type: string
@@ -810,9 +817,9 @@ components:
     ArtifactInitiateRequest:
       type: object
       description: |
-        Body for `POST /api/v1/namespaces/{ns}/artifacts/{kind}/{name}`. The
-        `kind` and `name` come from the path; the caller specifies the
-        `version` and the Kind-specific `spec`.
+        Body for `POST /api/v1/namespaces/{ns}/{kindPlural}/{name}`.
+        The `kind` (derived from `kindPlural`) and `name` come from the path;
+        the caller specifies the `version` and the Kind-specific `spec`.
       required: [version, spec]
       properties:
         version:
@@ -925,7 +932,7 @@ components:
     ArtifactUpdateRequest:
       type: object
       description: |
-        Body for `PATCH /api/v1/namespaces/{ns}/artifacts/{kind}/{name}/{version}`.
+        Body for `PATCH /api/v1/namespaces/{ns}/{kindPlural}/{name}/{version}`.
         Partial-replace semantics on the four supported keys. Omitting a key
         leaves the stored value untouched; setting a key to `{}` clears
         `labels` / `annotations`. Submitting any other field returns
@@ -945,7 +952,7 @@ components:
     ArtifactCompleteRequest:
       type: object
       description: |
-        Body for `POST /api/v1/namespaces/{ns}/artifacts/{kind}/{name}/{version}/complete`.
+        Body for `POST /api/v1/namespaces/{ns}/{kindPlural}/{name}/{version}/complete`.
         The client submits the digest reported by the storage backend; the
         server independently HEADs the backend to verify.
       required: [digest]

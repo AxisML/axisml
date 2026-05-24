@@ -55,8 +55,8 @@
 
 | 实体 | 含义 | 标识键 | 备注 |
 | --- | --- | --- | --- |
-| Tenant | 租户 | `name` (DNS-1123, ≤40 字符, 创建后不可变) | PG 行 + Tenant CR 1:1 |
-| Quota | 配额，内联在 `tenants.quotas` jsonb | `(tenant.name, pool, name)` | 每条 1:1 渲染为 ElasticQuota CR |
+| Tenant | 租户 | `(namespace, name)`；`namespace` 是组织分组（如 `ai-team`），`name` DNS-1123 ≤40 字符；均创建后不可变 | PG 行 + Tenant CR 1:1 |
+| Quota | 配额，内联在 `tenants.quotas` jsonb | `(tenant.namespace, tenant.name, pool, name)` | 每条 1:1 渲染为 ElasticQuota CR |
 
 字段级 schema 见 [database.md §2.1](../database.md#21-tenants-表)；Tenant CR spec 字段见 [tenant-operator.md §6 接口契约](tenant-operator.md#6-接口契约)。
 
@@ -85,7 +85,7 @@
 | --- | --- | --- | --- |
 | 创建 | insert `Creating` 行（`generation=1`） | reconciler 创建 CR | DNS-1123 校验由 API 层兜底 |
 | 更新 spec（`spec.namespace.labels` / `spec.namespace.annotations` / `spec.quotas[].{min,max}` / `spec.initResources` / `spec.suspended`） | update `spec` + `generation += 1` | reconciler patch CR | `spec.namespace.name`、`spec.quotas[].{pool,name}` 不可变 |
-| 更新顶层 PG 元数据（`display_name` / `namespace`（组织分组）/ `description` / `labels` / `annotations`） | update 行 | **不影响 CR** | 不 `+generation`；扩展位见 [database.md §1.6](../database.md#16-扩展元数据-labels--annotations) |
+| 更新顶层 PG 元数据（`display_name` / `description` / `labels` / `annotations`） | update 行 | **不影响 CR** | 不 `+generation`；扩展位见 [database.md §1.6](../database.md#16-扩展元数据-labels--annotations) |
 | 软删 | `deleted_at = now()` + `generation += 1` | reconciler 删 CR | 行保留到 retention |
 | 恢复 | `deleted_at = NULL` + `generation += 1` | reconciler 重建 CR | 仅适用 `phase='Deleted'` 行 |
 
@@ -132,7 +132,7 @@ Reconciler (10s tick, leader-only)
 └─────────────────────────────────────────────────────────┘
 ```
 
-进入 CR 的字段仅来自 `tenants.spec`（即 `spec.namespace` / `spec.quotas` / `spec.initResources` / `spec.suspended`）加上顶层 `name` / `display_name`；顶层的 `namespace`（组织分组）/ `description` / `labels` / `annotations` 等 PG-only 字段**不进 CR**，因此不影响 `generation`。
+进入 CR 的字段仅来自 `tenants.spec`（即 `spec.namespace` / `spec.quotas` / `spec.initResources` / `spec.suspended`）加上顶层 `name` / `display_name`；顶层的 `namespace`（组织分组，仅用于标识与 PG 索引）/ `description` / `labels` / `annotations` 等 PG-only 字段**不进 CR**，因此不影响 `generation`。
 
 ### 5.2 状态回流（Informer）
 
@@ -155,7 +155,7 @@ watch Tenant CR：
 
 | 类别 | 内容 | 引用 |
 | --- | --- | --- |
-| 对外 REST | `/api/v1/tenants[...]`、`/api/v1/quotas[...]`、`/api/v1/tenants/{name}/{suspend,unsuspend,restore}` | [apis/cluster-manager.yaml](../apis/cluster-manager.yaml) `Tenants` / `Quotas` tag |
+| 对外 REST | `/api/v1/namespaces/{namespace}/tenants[...]`、`.../tenants/{name}/{suspend,unsuspend,restore}`、`.../tenants/{name}/quotas[...]` | [apis/cluster-manager.yaml](../apis/cluster-manager.yaml) `Tenants` / `Quotas` tag |
 | 下发 CR | `Tenant`（`axisml.io/v1alpha1`, cluster-scoped），cluster-manager 是唯一写者 | [tenant-operator.md §6 接口契约](tenant-operator.md#6-接口契约) |
 | 回流字段 | `phase` / `namespaceReady` / `conditions` / `quotas[].used` 通过 GET 返回 | — |
 | 身份头 | 调用方注入 `X-Axisml-User`，本服务仅做审计 | [auth.md §7](../auth.md#7-下游身份透传) |
@@ -184,7 +184,7 @@ watch Tenant CR：
 ## 9. 后续工作
 
 - Admission webhook：硬阻断非 cluster-manager 的 Tenant CR 写请求。
-- 批量端点：`POST /api/v1/tenants:batchCreate` 等便于 Platform 批量初始化。
+- 批量端点：`POST /api/v1/namespaces/{namespace}/tenants:batchCreate` 等便于 Platform 批量初始化。
 - 独立 `cluster_manager_audits` 表记录 PG mutation 流水（与 Platform `audit_logs` 分层）。
 - 外部漂移自动告警（Prometheus + K8s Event）。
 - Retention GC 守护：定期物理清理超期 `Deleted` 行并暴露指标。

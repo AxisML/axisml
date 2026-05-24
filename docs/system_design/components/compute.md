@@ -9,7 +9,7 @@
 | Job / Service CRUD、cancel / scale、软删 | 直接创建 Pod / Deployment / PodGroup 等底层资源 (→ [compute-operator.md](compute-operator.md)) |
 | ResourcePool / ResourceUnit CRUD + 注入合并 | 修改 Node label / taint（管理员手工维护） |
 | `MLJob` / `MLService` spec 下发 + status 回流 | 租户、ElasticQuota、Namespace 管理 (→ [cluster-manager.md](cluster-manager.md) / [tenant-operator.md](tenant-operator.md)) |
-| 日志 / 副本 / 事件端点透传 kube-apiserver | 用户认证与角色鉴权 (→ [auth.md](../auth.md)) |
+| Pod 列表 / Pod 日志 / 事件端点透传 kube-apiserver | 用户认证与角色鉴权 (→ [auth.md](../auth.md)) |
 | 工作区列表（`kind='workspace'` 过滤） | 工作区业务语义本身 (→ [platform.md](platform.md)) |
 
 `namespace` 字段作为裸字符串分区键，`spec.scheduling.quota` 作为不透明 ElasticQuota 名透传；Compute 不解析也不校验存在性。
@@ -93,7 +93,7 @@ Creating ──(Informer ADD)──▶ Pending ──▶ Running ──▶ Succe
 | cancel | `phase='Canceling'` + `message='user cancelled'` | reconciler `patch spec.runPolicy.suspend=true` | `Creating` 状态拒绝；要求改用 DELETE |
 | 更新 PG 元数据（`display_name` / `description` / `labels` / `annotations`） | update 行 | **不影响 CR** | Job spec 不可变，但 PG 扩展位任意阶段可改 |
 | 软删 | `phase='Deleting'` + `deleted_at=now()` | reconciler `Delete()` CR；Informer DELETE → `Deleted` | 任一非 `Deleting`/`Deleted` 状态适用 |
-| 日志 / 副本 / 事件 | — | 透传 kube-apiserver Pod Log / 按 label list Pod / 聚合 Event | 详见 [apis/compute.yaml](../apis/compute.yaml) `Jobs` tag |
+| Pod 列表 / Pod 日志 / Pod 事件 / Job 事件 | — | 按 `axisml.io/job-id` label list Pod；按 Pod 名透传 Pod Log；按 `involvedObject` 过滤 Event（Pod 端点只回 Pod 事件，Job 端点只回 MLJob/PodGroup 事件） | 详见 [apis/compute.yaml](../apis/compute.yaml) `Jobs` tag |
 
 `Succeeded` / `Failed` / `Cancelled` 为运行终态；`Deleted` 为软删终态。`Cancelled` PG 行保留（`deleted_at IS NULL`），用户可再次 DELETE。
 
@@ -131,6 +131,7 @@ Creating ──(Informer ADD)──▶ Pending ──(ready=desired, desired>0)�
 | scale | 更新 `services.replicas` + `spec.roles[0].replicas` + `generation += 1` | reconciler `generation>observed_generation` 触发 patch `spec/roles/0/replicas` |
 | 更新 PG 元数据（`display_name` / `description` / `labels` / `annotations`） | update 行 | **不影响 CR**；不 `+generation` |
 | 软删 | `phase='Deleting'` + `deleted_at=now()` | reconciler `Delete()` CR；Informer DELETE → `Deleted` |
+| Pod 列表 / Pod 日志 / Pod 事件 / Service 事件 | — | 按 `axisml.io/service-id` label list Pod；按 Pod 名透传 Pod Log；按 `involvedObject` 过滤 Event（Pod 端点只回 Pod 事件，Service 端点只回 MLService/底层 Workload/HTTPRoute 事件） |
 
 Service 无 cancel 语义；除 `roles[0].replicas` 外其他 spec 字段不可变。`kind` 创建后不可变。
 
@@ -144,7 +145,7 @@ Service 无 cancel 语义；除 `roles[0].replicas` 外其他 spec 字段不可�
 | `ready_replicas == 0 && desired_replicas > 0` 且 CR `phase=Failed` | `Failed`（可自愈） |
 | `desired_replicas == 0` | `Pending` |
 
-**id-based 寻址 + kind 过滤**：除 `(namespace, name)` 路径外提供 `GET /api/v1/services/{id}` 与 `GET /api/v1/services?ids=...` 或 `?namespace=&kind=workspace`，供 [Platform 工作区](platform.md) 在同一张表上区分 `kind='service'` 与 `kind='workspace'`；`kind` 创建后不可变，Compute 不按 `kind` 改变行为，仅作分类与过滤。写操作（`/scale`、`DELETE`）保留 namespace-scoped 形态。
+**kind 过滤**：`GET /api/v1/namespaces/{ns}/services?kind=workspace` 供 [Platform 工作区](platform.md) 在同一张表上区分 `kind='service'` 与 `kind='workspace'`；`kind` 创建后不可变，Compute 不按 `kind` 改变行为，仅作分类与过滤。
 
 ### 4.3 ResourcePool
 
@@ -247,7 +248,7 @@ Compute **不反向重建 CR**。Informer 观察到 CR DELETE 事件后按 PG �
 
 | 类别 | 内容 | 引用 |
 | --- | --- | --- |
-| 对外 REST | `/api/v1/namespaces/{ns}/jobs[...]`、`/api/v1/namespaces/{ns}/services[...]`、`/api/v1/services[/{id}]`、`/api/v1/resource-pools[...]`、`/api/v1/resource-pools/{pool}/resource-units[...]` | [apis/compute.yaml](../apis/compute.yaml) `Jobs` / `Services` / `ResourcePools` / `ResourceUnits` tag |
+| 对外 REST | `/api/v1/namespaces/{ns}/jobs[...]`、`/api/v1/namespaces/{ns}/services[...]`、`/api/v1/resource-pools[...]`、`/api/v1/resource-pools/{pool}/resource-units[...]` | [apis/compute.yaml](../apis/compute.yaml) `Jobs` / `Services` / `ResourcePools` / `ResourceUnits` tag |
 | 下发 CR | `MLJob` / `MLService`（`axisml.io/v1alpha1`，namespaced），Compute 是唯一 `spec` 写者 | [compute-operator.md](compute-operator.md) |
 | 回流字段 | `jobs.status` / `services.status`（jsonb 整块；子结构见 [database.md §3.3 / §3.4](../database.md#33-jobs-表)） | — |
 | 不变量 | CR `metadata` / `spec` 单写（Compute 写）；CR `status` 单读（operator 写）；API 不直接写 K8s | — |

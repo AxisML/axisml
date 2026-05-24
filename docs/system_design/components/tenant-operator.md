@@ -180,7 +180,7 @@ Pod 调度 ──▶ koord-scheduler ──▶ ElasticQuota.status.used 累加
                               cluster-manager informer 写入 PG
 ```
 
-`status.used` 只读,不写回 ElasticQuota;cluster-manager 在 `GET /api/v1/tenants/{name}` 时直接返回。
+`status.used` 只读,不写回 ElasticQuota;cluster-manager 在 `GET /api/v1/namespaces/{namespace}/tenants/{name}` 时直接返回。
 
 ## 6. 接口契约
 

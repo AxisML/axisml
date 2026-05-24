@@ -58,7 +58,7 @@
 | --- | --- | --- | --- | :---: |
 | — | Dashboard | `home` | `/dashboard` | 占位(规划中) |
 | 训练 & 推理 | 工作区 | `dev` | `/workspaces` | 占位(超出本期原型范围) |
-|  | 计算任务 | `job` | `/jobs` · `/tenants/{t}/jobs` | 占位 |
+|  | 计算任务 | `job` | `/jobs` | 占位 |
 |  | 在线服务 | `service` | `/services` | 占位 |
 | 制品中心 | 数据集 | `dataset` | `/datasets` | 占位 |
 |  | 模型 | `model` | `/models` | 占位 |
