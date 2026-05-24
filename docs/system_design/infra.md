@@ -1,4 +1,4 @@
-# AxisML Infra 详细设计
+# AxisML Infra 概要设计
 
 ## 1. 概述
 
@@ -14,7 +14,7 @@ AxisML Infra 是平台的基础设施层，由一组开源组件组成，为承�
 | 6 | 调度与配额 | Koordinator | koord-scheduler 接管接入工作负载；ElasticQuota 多租户配额；PodGroup gang scheduling |
 | 7 | 监控 | kube-prometheus-stack | 集群与业务可观测性 |
 
-部署上 Infra 拆为两个 Helm chart：第三方组件（1、2、3、5、6、7）由 `axisml-infra` 统一管理，元数据数据库（4）随控制平面 chart `axisml-system` 管理（详见 §5）。
+部署上 Infra 拆为两个 Helm chart：第三方组件（1、2、3、5、6、7）由 `axisml-infra` 统一管理，元数据数据库（4）随控制平面 chart `axisml-system` 管理（详见 [deployment.md](deployment.md)）。
 
 ## 2. 职责与边界
 
@@ -76,23 +76,19 @@ AxisML Infra 是平台的基础设施层，由一组开源组件组成，为承�
 
 ```
 GatewayClass (envoy-gateway)
-  │
   └── Gateway (axisml-gateway, in axisml-infra ns)
-        │  Listener: HTTP (80)
-        │  Listener: HTTPS (443)
+        │  Listener: HTTP (80) / HTTPS (443)
         │     allowedRoutes.namespaces: 放行接入工作负载所在 namespace
-        │
         └── HTTPRoute（静态 / 派生）→ 目标 ClusterIP Service
 ```
 
-- **GatewayClass**：由 Envoy Gateway 控制面注册，声明控制器实现。
 - **Gateway**：单一实例 `axisml-gateway` 承载全部路由，由 `axisml-infra` chart 提供。
 - **静态 HTTPRoute**：由调用方 chart 一同发布，对接控制面服务对外接口。
-- **派生 HTTPRoute**：调用方 controller 在工作负载所在 namespace 内创建 namespaced `HTTPRoute` / `SecurityPolicy` / `BackendTrafficPolicy`，`parentRefs` 指向 `axisml-infra` namespace 下的 `axisml-gateway`。Gateway listener 的 `allowedRoutes.namespaces` 放行目标 namespace 挂载。`ReferenceGrant` 仅在跨 namespace `backendRef` 等被引用对象授权场景使用。
+- **派生 HTTPRoute**：调用方 controller 在工作负载所在 namespace 内创建 namespaced `HTTPRoute` / `SecurityPolicy` / `BackendTrafficPolicy`，`parentRefs` 指向 `axisml-gateway`；`ReferenceGrant` 仅在跨 namespace `backendRef` 等被引用对象授权场景使用。
 
 #### 4.1.2 认证鉴权
 
-通过 Envoy Gateway 的 `SecurityPolicy` CRD 实现，可附加到 Gateway 或 HTTPRoute 级别：
+通过 `SecurityPolicy` CRD 实现，可附加到 Gateway 或 HTTPRoute 级别：
 
 | 能力 | 说明 |
 | --- | --- |
@@ -105,7 +101,7 @@ GatewayClass (envoy-gateway)
 
 #### 4.1.3 流量控制
 
-通过 Envoy Gateway 的 `BackendTrafficPolicy` CRD 实现：
+通过 `BackendTrafficPolicy` CRD 实现：
 
 | 能力 | 说明 |
 | --- | --- |
@@ -126,13 +122,13 @@ GatewayClass (envoy-gateway)
 | Distributed (4×4) | 4 Pod × 4 PVC | 中等规模生产 |
 | Distributed (16×1) | 16 Pod × 1 PVC | 大规模生产 |
 
+具体形态选择详见 [deployment.md](deployment.md)。
+
 #### 4.2.2 对外契约
 
-- 调用方通过 S3 SDK 访问，对 RustFS 与其他 S3 兼容实现无感知
-- 凭证：admin 凭证由 `axisml-infra` 自动生成（或管理员预置），由调用方按 Secret 引用挂入 Pod；presigned URL 与短期凭证由调用方按需签发
-- 命名隔离：bucket / prefix 由调用方按业务模型组织，本服务不内置任何 ACL 或租户模型
-
-> **风险**：RustFS 项目较年轻，社区规模小于成熟方案；选型主要规避 MinIO 自 2021 年转 AGPLv3 的商用传染风险。S3 API 抽象使切换成本有限。
+- 调用方通过 S3 SDK 访问，对 RustFS 与其他 S3 兼容实现无感知。
+- 凭证：admin 凭证由 `axisml-infra` 自动生成（或管理员预置），由调用方按 Secret 引用挂入 Pod；presigned URL 与短期凭证由调用方按需签发。
+- 命名隔离：bucket / prefix 由调用方按业务模型组织，本服务不内置任何 ACL 或租户模型。
 
 ### 4.3 OCI Registry（zot）
 
@@ -144,7 +140,7 @@ GatewayClass (envoy-gateway)
 | --- | --- |
 | OCI artifact manifest | 原生支持 `application/vnd.oci.image.manifest.v1+json` + `artifactType`，承载非容器制品（如 ML 模型权重） |
 | 内容寻址 | `<repo>@sha256:<digest>` 不可变引用 |
-| 后端可插拔 | 本地 filesystem / S3 兼容存储；可把 blob 后端切到 RustFS 实现 OCI metadata + S3 blobs 双层架构（详见 §7.3） |
+| 后端可插拔 | 本地 filesystem / S3 兼容存储；可把 blob 后端切到 RustFS 实现 OCI metadata + S3 blobs 双层架构 |
 | Bearer token 鉴权 | 支持 scope-limited bearer token（`repository:<repo>:push` / `pull`） |
 | Manifest 校验 | `HEAD /v2/<repo>/manifests/<ref>` 返回 digest，调用方据此做完整性校验 |
 
@@ -165,7 +161,7 @@ zot 本身不感知任何业务模型。基础设施层提供：
 | zot admin 凭证 | 平台级 Secret，挂入需要校验 / GC / 签 scope token 的服务 Pod | axisml-infra Helm（自动生成 / 由管理员预置） |
 | 公共拉取凭证 | `axisml-system` Namespace Secret | axisml-infra Helm |
 
-repo 路径命名、租户隔离、scope token 的具体形态全部由调用方决定，本服务不内置任何业务约定。
+repo 路径命名、租户隔离、scope token 的具体形态全部由调用方决定。
 
 ### 4.4 数据库（PostgreSQL）
 
@@ -178,9 +174,7 @@ PostgreSQL 是元数据持久化存储。归属 `axisml-system` 控制平面 cha
 | 内置模式 | bitnami/postgresql 子 chart（StatefulSet + PVC） | 开发、测试、轻量生产 |
 | 外部模式 | 对接外部 PostgreSQL 实例（自建 / RDS） | 中大型生产 |
 
-由 `database.enabled` 开关切换；外部模式通过 `externalDatabase.{host,port,database,username,existingSecret}` 配置。
-
-各调用方通过独立 schema 或独立 database 逻辑隔离；schema 迁移由各调用方二进制内嵌 `golang-migrate` 在启动时执行，依赖 PG advisory lock 避免多副本并发迁移。
+由 `database.enabled` 开关切换；外部模式通过 `externalDatabase.{host,port,database,username,existingSecret}` 配置。各调用方通过独立 schema 或独立 database 逻辑隔离；schema 迁移由各调用方二进制内嵌 `golang-migrate` 在启动时执行，依赖 PG advisory lock 避免多副本并发迁移。Schema 细节详见 [database.md](database.md)。
 
 ### 4.5 GPU 管理（NVIDIA GPU Operator）
 
@@ -199,9 +193,9 @@ PostgreSQL 是元数据持久化存储。归属 `axisml-system` 控制平面 cha
 
 #### 4.5.2 调度契约
 
-- 业务 Pod 申请 GPU 时使用资源名 `nvidia.com/gpu`
-- 节点标签可基于 `nvidia.com/gpu.product`（如 `A100-SXM4-80GB`）做 nodeSelector / affinity
-- DCGM Exporter 的 `/metrics` 端点由 kube-prometheus-stack 自动采集（详见 §4.7）
+- 业务 Pod 申请 GPU 时使用资源名 `nvidia.com/gpu`。
+- 节点标签可基于 `nvidia.com/gpu.product`（如 `A100-SXM4-80GB`）做 nodeSelector / affinity。
+- DCGM Exporter 的 `/metrics` 端点由 kube-prometheus-stack 自动采集（详见 §4.7）。
 
 ### 4.6 调度与配额（Koordinator）
 
@@ -231,8 +225,8 @@ PostgreSQL 是元数据持久化存储。归属 `axisml-system` 控制平面 cha
 本节定义 Infra 侧契约，**不点名具体调用方组件**——任何接入本基础设施的工作负载都遵守同一套约束：
 
 - **Quota 全覆盖（系统级硬不变式）**：任何接入工作负载 Pod 都必须设置 `schedulerName: koord-scheduler` 并携带 label `quota.scheduling.koordinator.sh/name=<elastic-quota-name>`，不允许"绕过 quota 的调度路径"。如果调用方使用第三方 controller（如 KServe `InferenceService`）派生 Pod，必须保证该 controller 把这两个字段透传到派生 Pod；不支持透传的 controller 不应接入本基础设施。
-- **Gang scheduling 仅在需要的工作负载启用**：分布式训练等需要全员就位的工作负载创建 PodGroup CR；常驻服务、单 Pod 任务不创建 PodGroup（gang 不适合非分布式训练 / 常驻服务），但仍走 koord-scheduler，仅通过 quota label 计入 ElasticQuota。
-- **ElasticQuota CR 由调用方独占 owner**：ElasticQuota CR 的 `spec.min` / `spec.max`、命名、补偿、RBAC 全部归调用方负责；本基础设施不预置任何 ElasticQuota CR，也不为 ElasticQuota CR 持有 mutation 权限。命名约定由调用方决定。
+- **Gang scheduling 仅在需要的工作负载启用**：分布式训练等需要全员就位的工作负载创建 PodGroup CR；常驻服务、单 Pod 任务不创建 PodGroup，但仍走 koord-scheduler，仅通过 quota label 计入 ElasticQuota。
+- **ElasticQuota CR 由调用方独占 owner**：ElasticQuota CR 的 `spec.min` / `spec.max`、命名、补偿、RBAC 全部归调用方负责；本基础设施不预置任何 ElasticQuota CR，也不为 ElasticQuota CR 持有 mutation 权限。
 - **PodGroup CR** 由对应工作负载所属调用方在工作负载所在 namespace 内自管。
 
 #### 4.6.4 与 kube-scheduler 共存
@@ -241,14 +235,13 @@ PostgreSQL 是元数据持久化存储。归属 `axisml-system` 控制平面 cha
 
 ### 4.7 监控（kube-prometheus-stack）
 
-[kube-prometheus-stack](https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack) 包含 Prometheus、Grafana、AlertManager 三件套。
+[kube-prometheus-stack](https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack) 包含 Prometheus、Grafana、AlertManager 三件套。接入细节详见 [monitoring.md](monitoring.md)。
 
 #### 4.7.1 架构
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │                     kube-prometheus-stack                    │
-│                                                              │
 │  ┌─────────────┐  ┌─────────────┐  ┌──────────────────────┐  │
 │  │ Prometheus  │  │   Grafana   │  │    AlertManager      │  │
 │  │ 指标采集/存储│  │  可视化看板  │  │  告警通知            │  │
@@ -262,12 +255,7 @@ PostgreSQL 是元数据持久化存储。归属 `axisml-system` 控制平面 cha
 
 #### 4.7.2 采集模型
 
-各调用方组件只需：
-
-1. 在容器内暴露 `/metrics` 端点（Prometheus 格式）
-2. 随 Helm chart 提供对应的 `ServiceMonitor` CRD，声明待采集的 Service 与端口
-
-Prometheus Operator 自动发现并配置采集目标，无需手动维护 `prometheus.yml`。
+各调用方组件只需：(1) 在容器内暴露 `/metrics` 端点（Prometheus 格式）；(2) 随 Helm chart 提供对应的 `ServiceMonitor` CRD，声明待采集的 Service 与端口。Prometheus Operator 自动发现并配置采集目标，无需手动维护 `prometheus.yml`。
 
 #### 4.7.3 指标体系
 
@@ -281,7 +269,7 @@ Prometheus Operator 自动发现并配置采集目标，无需手动维护 `prom
 
 ## 5. 部署形态
 
-详见 [deployment.md](../deployment.md)——含 chart 组织、命名空间约定、安装顺序、依赖清单与 fullnameOverride 约定。
+详见 [deployment.md](deployment.md)——含 chart 组织、命名空间约定、安装顺序、依赖清单与 fullnameOverride 约定。系统级位置见 [overview.md](overview.md)。
 
 ## 6. 关键设计决策
 
@@ -300,29 +288,7 @@ Prometheus Operator 自动发现并配置采集目标，无需手动维护 `prom
 | 监控 | kube-prometheus-stack | Kubernetes 生态事实标准；ServiceMonitor 自动发现免维护；与 GPU Operator 的 DCGM Exporter 开箱即用 |
 | Chart 拆分 | `axisml-infra` / `axisml-system` 两个 chart | 基础设施和控制平面发版节奏、回滚粒度不同；infra 可共享给多套 axisml-system 实例 |
 
-## 7. 实现路径
-
-按"先打通核心可用路径，再补齐生产级能力，最后引入演进型组件"的思路分三阶段。
-
-### 7.1 MVP（核心可用）
-
-目标：调用方能完整跑通"提交工作负载 → 调度 → 拉镜像 / 制品 → 写元数据 → 看监控"的最小闭环。
-
-| 组件 | 形态 |
-| --- | --- |
-| Envoy Gateway | 装入 `axisml-infra` chart；提供 `axisml-gateway`（HTTP listener）；listener `allowedRoutes.namespaces` 放行接入工作负载所在 namespace |
-| RustFS | Standalone（单 Pod + PVC）；admin 凭证由 chart 自动生成 |
-| zot | Standalone（filesystem 后端）；admin 凭证由 chart 自动生成；公共拉取 Secret 落地到 `axisml-system` namespace |
-| PostgreSQL | 内置模式（bitnami chart，单节点 StatefulSet）；database `axisml`，由各调用方自管 schema 迁移 |
-| GPU Operator | 默认配置（driver + container toolkit + device plugin + DCGM Exporter + GFD）；MIG 暂不启用 |
-| Koordinator | `koord-scheduler` + `koord-manager` + ElasticQuota plugin + PodGroup CRD；其他可选组件全部关闭 |
-| kube-prometheus-stack | Prometheus + Grafana + AlertManager 默认部署；ServiceMonitor 自动发现已就绪；不预置告警规则 |
-
-MVP 不含的能力：HTTPS / TLS、SecurityPolicy 实施、BackendTrafficPolicy 限流、对象存储 / OCI registry 的 HA、外部 PostgreSQL、自定义 Grafana dashboard、告警规则、MIG。
-
-### 7.2 功能完善（生产可用）
-
-目标：达到正常生产环境部署的工程能力，覆盖安全、HA、可观测、容量演进等关键面。
+## 7. 后续工作
 
 **网关与安全**
 
@@ -331,11 +297,11 @@ MVP 不含的能力：HTTPS / TLS、SecurityPolicy 实施、BackendTrafficPolicy
 - 静态 HTTPRoute 增加 `BackendTrafficPolicy`（限流 + 熔断 + 重试）
 - 跨 namespace `ReferenceGrant` 模板（仅在跨 namespace `backendRef` 出现时启用）
 
-**对象存储 / OCI Registry**
+**对象存储**
 
-- RustFS 切换到 Distributed (4×4) 部署
-- zot 切换到 HA (3×) + 共享后端（S3 兼容存储或 RustFS）
-- zot 增加 GC、垃圾清理 CronJob、scrub 配置（由 zot 自带能力 + chart values）
+- RustFS 切换到 Distributed (4×4) 或 (16×1) 生产形态
+- 双层后端：把 zot 的 storage backend 配置成 S3 协议指向 RustFS，把所有制品 bytes 物理上汇聚到对象存储层
+- zot 增加 GC、垃圾清理 CronJob、scrub 配置；HA (3×) + 共享后端
 
 **数据库**
 
@@ -345,7 +311,9 @@ MVP 不含的能力：HTTPS / TLS、SecurityPolicy 实施、BackendTrafficPolicy
 **GPU 与调度**
 
 - GPU Operator 启用 MIG（A100 / H100 多实例分区），节点级开关
-- Koordinator 调度策略调优（gang scheduling timeout、quota borrow 策略）；引入 Grafana Dashboard 展示 ElasticQuota 用量、借用、抢占事件
+- Koordinator 调度策略调优（gang scheduling timeout、quota borrow 策略）
+- Koordinator 在/离线协同：启用 `koordlet` + `koord-descheduler`，引入 CoLocation / QoS、Pod 重平衡
+- 多集群联邦：Koordinator 跨集群配额、调度策略下沉
 
 **可观测性**
 
@@ -353,13 +321,8 @@ MVP 不含的能力：HTTPS / TLS、SecurityPolicy 实施、BackendTrafficPolicy
 - 预置 AlertManager 告警规则：节点 NotReady、GPU 异常、PVC 容量、配额耗尽、调度滞后、API 错误率
 - 持久化 Prometheus 数据卷（默认 14 天保留期，可调）
 
-### 7.3 未来规划
+**未来组件**
 
-以下能力需求出现时再增量引入，本设计文档届时同步更新：
-
-- **共享文件存储**（如 JuiceFS）：训练大数据集的 POSIX 挂载；当前形态可先通过 PVC + RustFS 的 S3 协议访问解决
-- **OCI Registry 双层后端**：把 zot 的 storage backend 配置成 S3 协议指向 RustFS（"zot metadata + RustFS blobs"），把所有制品 bytes 物理上汇聚到对象存储层
-- **日志采集**（如 Fluent Bit + ClickHouse / Loki）：集中式日志查询；当前通过 `kubectl logs` 满足
-- **链路追踪**：基于 OpenTelemetry 的分布式调用链，与调用方组件改造同步推进
-- **Koordinator 在/离线协同**：启用 `koordlet` + `koord-descheduler`，引入 CoLocation / QoS、Pod 重平衡，用于在线推理与离线训练混部场景
-- **多集群联邦**：Koordinator 跨集群配额、调度策略下沉
+- 共享文件存储（如 JuiceFS）：训练大数据集的 POSIX 挂载；当前形态可先通过 PVC + RustFS 的 S3 协议访问解决
+- 日志采集（如 Fluent Bit + ClickHouse / Loki）：集中式日志查询；当前通过 `kubectl logs` 满足
+- 链路追踪：基于 OpenTelemetry 的分布式调用链，与调用方组件改造同步推进

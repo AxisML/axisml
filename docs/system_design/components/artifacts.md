@@ -1,531 +1,262 @@
-# AxisML Artifacts 详细设计
+# AxisML Artifacts 概要设计
 
-AxisML Artifacts 是平台的制品管理服务，承载模型、数据集、镜像、评估报告等所有"非运行态"资产的**元数据管理**与**引用寻址**。Artifacts 通过 REST API 暴露能力，调用方为 AxisML Platform 与 Operators，不直接对外部用户流量开放；`axisml-cli` 经由 Platform / Gateway 中转调用 Artifacts。
+## 1. 定位与边界
 
-> **寻址模型**：Artifact 直接以 `(namespace, kind, name, version)` 四元组寻址；`namespace` 是裸字符串分区键，由调用方（Platform）保证语义。Compute namespace 与 Artifacts namespace **互不绑定**，可同名也可不同名，由 Platform 自由编排（详见 [platform.md](platform.md)）。
+平台的制品元数据服务；以 PostgreSQL `artifacts` 表为元数据权威，按 `(namespace, kind, name, version)` 四元组寻址，bytes 由调用方凭短期凭证直连 zot / RustFS。
 
-| 模块 | 职责 | 边界外 |
-| --- | --- | --- |
-| Artifact ([§4](#4-领域模型)) | 版本化制品 CRUD、状态机、引用解析（resolve） | 制品 bytes 的存取 |
-| ArtifactHandler ([§4.2](#42-artifacthandler-接口) / [§5](#5-内置-kind)) | 按 Kind 路由到后端：URI 拼装 / 上传凭证签发 / 完整性校验 / 后端清理 | 实际 bytes 存储（由 zot / RustFS 承担） |
-| GC worker ([§3.4](#34-gc-与生命周期清理)) | 清理过期 Uploading、级联删除、孤儿告警 | 反向孤儿主动清理（误删风险，仅告警） |
+| 做 | 不做 |
+| --- | --- |
+| Artifact CRUD、两阶段写（initiate / complete）、resolve | 制品 bytes 的存取（→ zot / RustFS 直连） |
+| 上传 / 下载凭证签发（OCI scope token / S3 prefix-scoped STS） | 用户认证与角色鉴权（→ [auth.md](../auth.md)） |
+| Kind 按 Handler 注册表分发（model / dataset / image / eval_report） | namespace 存在性与权限校验（→ [platform.md](platform.md)） |
+| GC：Uploading TTL、Failed 留存、Deleting 推进 | 反向孤儿主动清理（仅告警）；跨 namespace 级联删除 |
+| 跨制品引用懒校验 | tenant Secret 落地（→ [tenant-operator.md](tenant-operator.md)） |
 
-**核心范式**：元数据服务 / 存储后端分离——Artifacts 只持有元数据（PG），制品 bytes 由 cli 与集群内消费方凭 Artifacts 返回的引用或临时凭证**直连**对应后端（OCI 走 zot Registry，S3 走 RustFS）。服务自身不在数据通道上，不做大文件代理。
+## 2. 架构
 
-**关键不变式**：
-
-> **PG 是元数据权威；OCI Registry / 对象存储是 bytes 权威。**
-> Artifact 一旦进入 `Ready` 即不可变（spec / digest 锁定）；更新内容 = 在同 `(namespace, kind, name)` 下新建一个新 version。
-
-**文档组织**：
-
-- **Part I — 服务框架**（§1 架构总览 + §2 运行时契约）：服务的整体形态、代码布局与部署 / 副本 / 可观测契约。
-- **Part II — 核心机制**（§3 跨模块通用机制）：元数据 / 字节分离原则、两阶段写路径、resolve 读路径、GC 生命周期、副本与选主。
-- **Part III — 领域模型与 API**（§4 领域模型、§5 内置 Kind、§6 API 设计、§7 外部系统协作）：表 schema、Kind 特化字段、REST 契约、外部依赖。
-- **Part IV — 实施与验证**（§8 实现路径、§9 测试、§10 相关引用）。
-
----
-
-## Part I — 服务框架
-
-> 本部分描述 Artifacts 服务的整体形态、代码布局与运维契约。
-
-## 1. 架构总览
-
-### 1.1 服务形态
-
-Artifacts 是单一 Go 二进制（`axisml-artifacts`），以 Deployment 形态部署在 `axisml-system` namespace；REST API 通过 ClusterIP Service 暴露。服务内部按"API + Handler 注册表 + GC worker"三层组织。
+### 2.1 上下文
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│  AxisML Artifacts (Go binary, optionally leader-elected)            │
-│                                                                      │
-│  HTTP Server (Gin)                                                   │
-│   ├── POST /api/v1/namespaces/{ns}/artifacts/{kind}/{name}                  Two-Phase write 1   │
-│   ├── POST /api/v1/namespaces/{ns}/artifacts/{kind}/{name}/{v}/complete     Two-Phase 2        │
-│   ├── GET  /api/v1/namespaces/{ns}/artifacts/{kind}/{name}/{v}/resolve      Read path          │
-│   └── DELETE / GET /api/v1/namespaces/{ns}/artifacts/{kind}/{name}/{v}                          │
-│                                                                      │
-│  ArtifactHandler Registry (compile-time init())                      │
-│   └── handlers/{model, dataset, image, evalreport}                   │
-│                                                                      │
-│  GC Worker (leader-only goroutine, scan PG every 5 min)              │
-└──────────┬──────────────────────────────────────────┬───────────────┘
-           │                                          │
-           ▼                                          ▼
-   ┌──────────────────────┐         ┌─────────────────────────────┐
-   │   PostgreSQL         │         │   Storage Backends           │
-   │   artifacts          │         │   ┌──────────┐ ┌──────────┐  │
-   │   (元数据权威)        │         │   │   zot    │ │  RustFS  │  │
-   │                      │         │   │  (OCI)   │ │   (S3)   │  │
-   └──────────────────────┘         │   └──────────┘ └──────────┘  │
-                                     └──────────────▲──────────────┘
-                                                    │
-                                       直传（push / PUT），不经 Artifacts
-                                                    │
-                                         ←── 来自 cli / workload
+  ┌──────────────┐  REST   ┌─────────────────┐
+  │  Platform    │ ──┐     │   Operators     │
+  └──────────────┘   │     │ (compute-op)    │
+  ┌──────────────┐   │     └────────┬────────┘
+  │ axisml-cli   │ ──┤              │ resolve?usage=inspect
+  └──────────────┘   ▼              ▼
+                ┌────────────────────────────┐
+                │    AxisML Artifacts        │
+                └──────┬───────────────┬─────┘
+                       │ PG 读写        │ 签 token / HEAD / GC
+                       ▼               ▼
+              ┌─────────────────┐  ┌─────────────────────┐
+              │  PostgreSQL     │  │  zot (OCI)          │
+              │  artifacts 表   │  │  RustFS (S3)        │
+              └─────────────────┘  └────────▲────────────┘
+                                            │ 直传 / 直拉
+                                  ┌─────────┴─────────┐
+                                  │ cli / workload    │
+                                  └───────────────────┘
 ```
 
-### 1.2 调用形态
+### 2.2 内部结构
 
 ```
-┌─────────────────┐   ┌─────────────────┐   ┌─────────────────┐
-│   axisml-cli    │   │  AxisML Platform│   │    Operators    │
-│   (用户侧 CLI)  │──▶│  (UI / Gateway) │   │  (内部消费方)    │
-└─────────────────┘   └────────┬────────┘   └────────┬────────┘
-                               │                     │
-                               │ REST + identity     │ REST + namespace
-                               └──────────┬──────────┘
-                                          ▼
-                              AxisML Artifacts (REST API)
+┌──────────────────────── Artifacts (Go) ─────────────────────────┐
+│  HTTP API (Gin)                                                 │
+│   ├── initiate / complete / resolve / GET / DELETE              │
+│   └── middleware: 身份解析、错误、metrics                       │
+│                                                                 │
+│  ArtifactHandler Registry (compile-time init())                 │
+│   └── handlers/{model, dataset, image, evalreport}              │
+│         BuildStorageURI / ValidateSpec / InitiateUpload         │
+│         VerifyComplete / GCBackend                              │
+│                                                                 │
+│  GC Worker (leader-only goroutine, 5 min tick)                  │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-- `axisml-cli` 与 UI 经 Platform / Gateway 中转调用 Artifacts；Platform 负责认证并注入用户身份与 namespace
-- 集群内 Operators（compute-operator 的 mljob / mlservice handler）直连 Artifacts ClusterIP，仅用于读路径（`usage=inspect`）
-- cli 拿到 Artifacts 返回的 URI 与短期凭证后，直接与 zot / RustFS 交互完成上传 / 下载，bytes **不经过** Artifacts 服务
+## 3. 核心模型
 
-### 1.3 模块边界
+| 实体 | 含义 | 寻址键 | 备注 |
+| --- | --- | --- | --- |
+| Artifact | 版本化制品 | `(namespace, kind, name, version)` | 四元组创建后不复用；spec / digest 进入 `Ready` 后冻结 |
 
-Artifact 直接以 `(namespace, kind, name, version)` 四元组寻址。Kind 通过编译期 ArtifactHandler registry 扩展：内置 Model / Dataset / Image / EvalReport 四个 Kind；新增 Kind 不需要 DB 表结构迁移，但需要新增 handler、扩展 OpenAPI 枚举与允许列表。
+- `kind` 枚举：`model` / `dataset` / `image` / `eval_report`，由 Handler registry 校验。
+- `namespace` 是裸字符串分区键，由 Platform 保证语义；Artifacts 不做存在性校验。
+- 状态机集合：`Uploading` / `Ready` / `Failed` / `Deleting` / `Deleted`（详见 [§6](#6-接口契约)）。
+- 跨制品引用格式：`<namespace>/<kind>/<name>@<version>`，由 `Handler.ValidateSpec` 在 initiate 阶段懒校验。
 
-详细模块清单见文档开头表格；模块之间的接口契约见 §4.2。
+字段级 schema 见 [database.md §4.1](../database.md#41-artifacts-表)；spec 子字段见 [apis/artifacts.yaml](../apis/artifacts.yaml)。
 
-## 2. 运行时契约
+## 4. 核心功能
 
-### 2.1 代码布局
+写路径统一见 [§5.1](#51-写路径两阶段提交)；读路径统一见 [§5.2](#52-读路径resolve)。完整 spec 字段以 [apis/artifacts.yaml](../apis/artifacts.yaml) 为准。
+
+### 4.1 Model
+
+OCI artifact，承载训练好的模型权重。
+
+| 项 | 值 |
+| --- | --- |
+| StorageKind | `oci`（zot） |
+| 必填 spec | `framework`（`pytorch` / `tensorflow` / `onnx` / `safetensors` / `gguf` / `custom`）、`format`（OCI artifact media type） |
+| URI 模板 | `<oci-host>/namespaces/<ns>/models/<name>:<version>`；ManifestType `application/vnd.oci.image.manifest.v1+json`，`artifactType` 承载 `spec.format` |
+| 主要消费方 | mlservice handler → KServe `predictor.storageUri`（补 `oci://`）或 native env `AXISML_MODEL_URI` |
+
+### 4.2 Dataset
+
+S3 目录级制品，承载训练 / 评测数据集。
+
+| 项 | 值 |
+| --- | --- |
+| StorageKind | `s3`（RustFS） |
+| 必填 spec | `format`（`parquet` / `jsonl` / `csv` / `webdataset` / `tfrecord` / `custom`） |
+| URI 模板 | `s3://axisml-artifacts/namespaces/<ns>/datasets/<name>/<version>/`；digest = canonical JSON SHA256(`artifact-manifest.json`) |
+| 主要消费方 | mljob handler 注入 env `AXISML_DATASET_URI` / `AXISML_DATASET_DIGEST`，并通过 init container 或 csi-s3 volume 挂载到 `/data` |
+
+### 4.3 Image
+
+OCI 容器镜像，承载训练 / 推理 / 开发运行时；阶段 2 由本机 docker / nerdctl push，`axisml-cli image push` 封装为单命令。
+
+| 项 | 值 |
+| --- | --- |
+| StorageKind | `oci`（zot） |
+| 必填 spec | `purpose`（`training` / `inference` / `dev`） |
+| URI 模板 | `<oci-host>/namespaces/<ns>/images/<name>:<version>` |
+| 主要消费方 | mljob / mlservice handler 用 URI 作为 Pod `spec.containers[].image`；imagePullSecret 走 `auth_hint` 约定命名 |
+
+### 4.4 EvalReport
+
+S3 目录制品，承载模型评测结果，引用被评模型与评测数据集。
+
+| 项 | 值 |
+| --- | --- |
+| StorageKind | `s3`（RustFS） |
+| 必填 spec | `model_ref` / `dataset_ref` / `metrics` / `evaluator` |
+| URI 模板 | `s3://axisml-artifacts/namespaces/<ns>/eval-reports/<name>/<version>/`；digest 同 dataset |
+| 主要消费方 | 平台 UI 列表页按 `spec.metrics` 排序展示，详情页通过 resolve 跳转下载报告原文 |
+
+## 5. 关键机制
+
+### 5.1 写路径：两阶段提交
 
 ```
-components/artifacts/
-├── cmd/artifacts/             # 服务入口 main.go
-├── api/
-│   ├── openapi.yaml           # OpenAPI 3.0 契约源
-│   └── types/                 # oapi-codegen 生成的 request/response types + server stub
-├── internal/
-│   ├── server/                # HTTP router、middleware（身份解析、错误处理、metrics）
-│   ├── artifact/              # Artifact CRUD、状态机、resolve、initiate / complete
-│   │   └── handler/           # Kind handler 注册表（model / dataset / image / evalreport）
-│   ├── storage/               # 后端 client 抽象
-│   │   ├── oci/               # zot 客户端 + scope token 签发
-│   │   └── s3/                # RustFS 客户端 + prefix-scoped STS 签发
-│   ├── gc/                    # GC worker（leader-only）
-│   ├── db/                    # GORM 客户端 + golang-migrate 迁移
-│   └── auth/                  # 从 X-Axisml-User 解析调用方身份
-└── pkg/                       # Artifacts 内部可复用工具（错误、分页）
+cli              Artifacts               zot / RustFS         PG
+ │── initiate ──▶│                            │                 │
+ │                │── ValidateSpec ──────────▶│                 │
+ │                │── insert(Uploading) ────────────────────────▶│
+ │                │── sign scope token / STS  │                 │
+ │◀── creds,uri ──│                            │                 │
+ │── push / PutObject ─────────────────────▶│                 │
+ │◀── digest ──────────────────────────────│                 │
+ │── complete(digest) ─▶│                    │                 │
+ │                │── HEAD manifest / GET artifact-manifest.json│
+ │                │◀── 200 + digest ─────────│                 │
+ │                │── update(Ready, digest) ────────────────────▶│
+ │◀── 200 ────────│                            │                 │
 ```
 
-跨组件复用的公共库（日志、配置、错误）放在仓库根 `pkg/`。
+**幂等性**：
 
-> Artifacts 把 `namespace` 当作裸字符串分区键，不做存在性 / Active 校验。
+- 重复 initiate 同 `(namespace, kind, name, version)`：未过期 `Uploading` 返原凭证；其他终态均 409（同 version 不可复活，复用先 DELETE 旧行）。
+- 重复 complete：`Uploading` 正常推进；`Ready` 且 digest 一致 → 200，不一致 → 409 `DigestMismatch`；其他状态 → 409。
+- 未在 24h 内 complete 的 `Uploading` 由 GC 转 `Failed` 并清理后端残留 blob。
 
-### 2.2 Flag 与 Helm values 接口
+### 5.2 读路径：resolve
 
-| Flag | 默认 | 说明 |
-| --- | --- | --- |
-| `--listen-address` | `:8082` | REST API 端口 |
-| `--metrics-bind-address` | `:8080` | Prometheus metrics |
-| `--health-probe-bind-address` | `:8081` | `/healthz` / `/readyz` |
-| `--leader-elect` | `true` | leader election（多副本时启用） |
-| `--leader-election-id` | `axisml-artifacts.axisml.io` | Lease 名 |
-| `--db-dsn` | （Secret 注入） | Postgres DSN |
+`GET /api/v1/namespaces/{ns}/artifacts/{kind}/{name}/{version}/resolve?usage={inspect|download}`
 
-```yaml
-artifacts:
-  enabled: true
-  image: { registry, repository, tag, pullPolicy }
-  replicas: 1
-  leaderElection: { enabled, id }
-  resources: { requests, limits }
-  storage:
-    oci:    { endpoint, adminSecretRef }     # zot
-    s3:     { endpoint, region, bucket, adminSecretRef }  # RustFS
-  database:
-    secretRef: { name, key }                  # PG DSN
-  metrics:
-    serviceMonitor: { enabled }
-```
+| usage | 调用方 | 额外字段 | 凭证形态 |
+| --- | --- | --- | --- |
+| `inspect` | 集群内 operator（mlservice / mljob handler） | `auth_hint?` | `auth_hint = {secret_ref, namespace, username_key, password_key}` 指针；Secret 由 tenant-operator 落地于 workload namespace。Artifacts 不返回明文也不校验存在性 |
+| `download` | `axisml-cli pull`（经 Platform / Gateway） | `pull_credentials` / `expires_at` | OCI pull scope token / S3 prefix-scoped STS，TTL=1h |
 
-### 2.3 部署形态
+公共字段：`storage_kind`（`oci` / `s3`）、`uri`（由 `Handler.BuildStorageURI` 拼装）、`digest`（PG 读，未 Ready 为空）。
 
-详见 [deployment.md](../deployment.md)。要点：镜像 `ghcr.io/axisml/axisml-artifacts:<appVersion>` / 端口 `8082`；启动时执行 migration（golang-migrate embedded），不预置任何 artifact；Artifacts 不直接对集群外暴露，终端用户经 Platform / Gateway 中转拿到 URI 与凭证后直连 zot / RustFS。
+`auth_hint.secret_ref` 命名与 tenant-operator 共享：Platform 在 query 中传入 workload namespace 与可选 secret 前缀，Artifacts 按模板渲染指针返回。
 
-### 2.4 副本与 Leader Election
+### 5.3 GC 与生命周期清理
 
-- **API 层无状态**：所有副本服务 HTTP，仅写 PG，水平扩容无需协调
-- **GC worker 选主**：通过 `coordination.k8s.io/Lease` 确保单点扫描；`replicas=1` 时退化为单成员 lease
-- **默认形态**：`replicas=1`；多副本仅出于可用性
-- **readiness 不绑定 leader**：`/readyz` 仅校验 PG 连通
+GC worker（leader-only，每 5 分钟一轮）扫描 PG 三类谓词：
 
-### 2.5 可观测
+| 谓词 | 动作 |
+| --- | --- |
+| `status='Uploading' AND created_at < now() - 24h` | 标 `Failed`，调 `Handler.GCBackend` 清理后端残留 blob |
+| `status='Failed' AND updated_at < now() - 30d AND deleted_at IS NULL` | 转 `Deleting`；保留 30 天供诊断 |
+| `status='Deleting'` | 调 `Handler.GCBackend`；成功后 PG `status='Deleted'`、写 `deleted_at` |
 
-`/metrics` 指标列表详见 [monitoring.md §4.2](../monitoring.md#42-artifacts)。
+`Handler.GCBackend` 实现需保证幂等，并把"对象不存在"视作成功（吞掉 OCI `MANIFEST_UNKNOWN` / S3 `NoSuchKey` / 404）。反向孤儿（后端有 blob 但 PG 无 Ready 行）仅记日志告警，不主动清理。整 namespace 批量删除由调用方按 list 逐条 DELETE 触发；Artifacts 不提供 namespace 级联删除端点。
 
----
-
-## Part II — 核心机制
-
-> 本部分集中跨模块**共享**的运行机制。
-
-## 3. 跨模块通用机制
-
-### 3.1 元数据 / 字节分离与权威划分
+### 5.4 元数据 / 字节分离权威
 
 | 类别 | 权威方 | 流向 |
 | --- | --- | --- |
 | 元数据（artifact 行） | PG | API → PG |
-| 制品 bytes | zot / RustFS | cli → 后端（直传，不经服务） |
-| digest（manifest 哈希 / 内容哈希） | 后端 | 后端 → complete API → PG |
-| 上传凭证（push / PUT） | Artifacts 签发 | Artifacts → Platform → cli（短期 OCI token / prefix-scoped 临时 STS） |
-| 下载凭证（pull / GET） | Artifacts 签发 | Artifacts → Platform → cli（短期 pull token / 临时 STS）；集群内 operator 走 inspect 路径，不签明文凭证 |
+| 制品 bytes | zot / RustFS | cli / workload → 后端（直传 / 直拉，不经服务） |
+| digest | 后端 | 后端 → complete API → PG |
+| 上传 / 下载凭证 | Artifacts 签发 | Artifacts → Platform → cli（短期 token，TTL=1h）；集群内 operator 走 inspect，不签明文 |
 
-### 3.2 写路径：两阶段提交（initiate → complete）
+## 6. 接口契约
 
-Artifacts 没有 K8s CR 下发动作（与 compute 不同），采用与 S3 multipart upload 同构的两阶段提交。
+| 类别 | 内容 | 引用 |
+| --- | --- | --- |
+| 对外 REST | `/api/v1/namespaces/{ns}/artifacts/{kind}/{name}[/{version}[/{complete,resolve}]]` | [apis/artifacts.yaml](../apis/artifacts.yaml) `Artifacts` tag |
+| Handler 接口 | 见下表 | — |
+| 身份头 | 调用方注入 `X-Axisml-User`，本服务仅做审计 | [auth.md §7](../auth.md#7-下游身份透传) |
+| 错误格式 | HTTP 标准状态码 + RFC 7807 problem+json | — |
+| 写后语义 | initiate 在 PG 提交后返回上传凭证；Ready 由 complete 推进，调用方通过 GET 观察 status | — |
 
-**阶段 1：initiate**
+**ArtifactHandler 接口**（编译期注册，key=`Kind()`）：
 
-```
-cli → POST /api/v1/namespaces/{ns}/artifacts/{kind}/{name}
-      body: {version, spec, display_name?, description?, labels?, annotations?}
-```
-
-1. API 校验：`kind` 在 ArtifactHandler registry 中 + 同 `(namespace, kind, name)` 内 version 唯一 + `Handler.ValidateSpec(spec)` 通过
-2. PG insert artifact 行，`status='Uploading'`
-3. `Handler.InitiateUpload` 签发上传凭证：
-   - OCI（model / image）：调 zot 签发 scope-limited bearer token，scope=`repository:namespaces/<ns>/<kind-prefix>/<name>:push`，TTL=1h
-   - S3（dataset / eval_report）：签发 prefix-scoped 临时 STS 凭证，scope 限定到 `namespaces/<ns>/<kind-prefix>/<name>/<version>/`，TTL=1h
-4. 返回 `{artifact_id, uri, upload_credentials, expires_at}`
-
-**阶段 2：cli 直传后端**（不经 Artifacts）
-
-- OCI：`oras push <uri>` 或封装在 `axisml-cli model push` / `image push`
-- S3：使用临时 STS 执行 multipart upload / PutObject 到限定 prefix；上传完成前必须写入 `<prefix>/artifact-manifest.json`
-
-**阶段 3：complete**
-
-```
-cli → POST /api/v1/namespaces/{ns}/artifacts/{kind}/{name}/{version}/complete
-      body: {digest}
-```
-
-1. Artifacts 调后端校验：
-   - OCI：`HEAD /v2/namespaces/<ns>/<kind-prefix>/<name>/manifests/<version>` → 比对 cli 提交的 digest
-   - S3：`HEAD` + `GET` 读取 `<prefix>/artifact-manifest.json`，按 canonical JSON 计算 SHA256 比对
-2. 校验通过：PG update `status='Ready'`、`digest=<…>`、`ready_at=now()`
-3. 确定性失败（digest mismatch / manifest 缺失 / spec 不匹配）：PG update `status='Failed'`、`message=<原因>`，保留行供调试
-4. 后端临时错误（5xx / 网络抖动）：API 返回 5xx，PG 行保持 `Uploading`，允许 cli 稍后重试 complete
-
-**幂等性**：
-
-- 同 `(namespace, kind, name, version)` 重复 initiate：
-  - 已有 `Uploading` 未过期 → 返回原 credentials
-  - 已 `Ready` / `Deleting` / `Deleted` → 409 `AlreadyExists`（同 version 不可复活）
-  - 已 `Failed` → 409；想复用 version 需先 DELETE 该行
-- complete 重复调用：
-  - 当前 `Uploading` → 正常推进
-  - 已 `Ready`：digest 一致 → 200；不一致 → 409 `DigestMismatch`
-  - 已 `Failed` / `Deleting` / `Deleted` → 409
-
-**TTL 兜底**：未在 24h 内 complete 的 `Uploading` 行由 GC 转 `Failed` 并清理后端残留 blob（见 §3.4）。
-
-### 3.3 读路径：resolve
-
-```
-GET /api/v1/namespaces/{ns}/artifacts/{kind}/{name}/{version}/resolve?usage={inspect|download}
-```
-
-`usage` 决定凭证形态——集群内消费方与集群外 cli 对凭证的可用性不同，二者必须分开。Operator 只允许 `usage=inspect`，并必须携带 workload namespace 上下文；`axisml-cli pull` 经 Platform / Gateway 走 `usage=download`。
-
-| usage | 调用方 | 返回字段 | 凭证形态 |
-| --- | --- | --- | --- |
-| `inspect`（默认） | mlservice / mljob handler | `storage_kind` / `uri` / `digest` / `auth_hint?` | `auth_hint = {secret_ref, namespace, username_key, password_key}`：仅指针；Secret 必须存在于 workload namespace（由 tenant-operator 按 `Tenant.spec.initResources` 落地，详见 [tenant-operator.md §4.6.3](tenant-operator.md)）。Artifacts 不返回明文，也不校验 Secret 是否存在 |
-| `download` | `axisml-cli pull` | `storage_kind` / `uri` / `digest` / `pull_credentials` / `expires_at` | OCI：zot 签发 `pull` scope bearer token，TTL=1h；S3：返回 prefix-scoped 临时 STS 凭证，TTL=1h |
-
-公共字段：
-
-| 字段 | 含义 |
+| 方法 | 责任 |
 | --- | --- |
-| `storage_kind` | `oci` / `s3` |
-| `uri` | 由 `Handler.BuildStorageURI` 即时拼装；OCI: `<oci-host>/namespaces/<ns>/<kind-prefix>/<name>:<version>`、S3: `s3://<bucket>/namespaces/<ns>/<kind-prefix>/<name>/<version>/` |
-| `digest` | 从 PG 读；artifact 未到 `Ready` 时为空 |
+| `Kind()` | 返回 `model` / `dataset` / `image` / `eval_report`；registry 主键 |
+| `StorageKind()` | 返回 `oci` / `s3` |
+| `BuildStorageURI(ns, name, version)` | 即时拼装存储 URI；不读 PG / 不调后端 |
+| `ValidateSpec(ctx, deps, spec)` | 校验 Kind 特化 spec 字段 + 跨制品引用；纯函数 + 注入 lookup |
+| `InitiateUpload(ctx, a)` | 签发上传凭证（OCI scope token / S3 prefix-scoped STS）；幂等 |
+| `VerifyComplete(ctx, a, claim)` | 调后端 HEAD / GET manifest 校验 digest |
+| `GCBackend(ctx, a)` | 删除后端残留 blob；幂等；NotFound 视作成功 |
 
-**`auth_hint.secret_ref` 的命名约定**：
-
-- OCI：约定的租户 imagePullSecret 名（如 `axisml-tenant-<tenant>-zot-pull`，由 tenant-operator 落地，由 Platform 在请求 resolve 时传入或在配置中固定）
-- S3：约定的租户对象存储 Secret 名（如 `axisml-tenant-<tenant>-rustfs`）
-
-Artifacts 不创建任何 Secret，也不感知 tenant 名——**Platform 在调用 resolve 时把 workload namespace 与可选的 secret 命名前缀作为 query 参数传入**，Artifacts 按模板渲染 `auth_hint.secret_ref` 后返回；消费方按 ref 从 workload namespace 读取。
-
-### 3.4 GC 与生命周期清理
-
-GC worker（leader-only goroutine，每 5 分钟一轮）扫描 PG 三类谓词：
-
-| 谓词 | 动作 |
-| --- | --- |
-| `artifacts WHERE status='Uploading' AND created_at < now() - 24h` | 标 `Failed`，调 `Handler.GCBackend` 清理后端残留 blob |
-| `artifacts WHERE status='Failed' AND updated_at < now() - 30d AND deleted_at IS NULL` | 转 `Deleting`；保留 30 天供诊断 |
-| `artifacts WHERE status='Deleting'` | 调 `Handler.GCBackend`；成功后 PG `status='Deleted'`、写 `deleted_at` |
-
-`Handler.GCBackend` 实现需保证幂等，并把"对象不存在"视作成功（吞掉 OCI `MANIFEST_UNKNOWN` / S3 `NoSuchKey` / 404）。
-
-**反向孤儿**（后端有 blob 但 PG 无 Ready 行）：仅记日志告警，**不主动清理**。
-
-> 整 namespace 下批量删除（如 Platform 决定下线某 workspace）需要由调用方按 list 逐条 DELETE 触发；Artifacts 自身不提供"按 namespace 级联删除"的批量端点（避免误删大批量制品）。
-
-### 3.5 状态机
-
-Artifact 状态机：
+**状态机**：
 
 ```
 Uploading ──(complete + 后端 HEAD 通过)──▶ Ready
           ──(complete 失败 / GC TTL 超时)──▶ Failed
-
 Ready / Failed ──(DELETE)──▶ Deleting ──(GCBackend 成功)──▶ Deleted
 ```
 
 | 状态 | 含义 |
 | --- | --- |
-| `Uploading` | initiate 后的中间态；24h 内未 complete 由 GC 转 `Failed` |
-| `Ready` | 上传完成、digest 锁定，**spec 不可变，digest 不可变**；可被 resolve、可被 DELETE |
-| `Failed` | 上传失败 / 校验失败；行保留供调试；可被 DELETE 进入清理流程 |
-| `Deleting` → `Deleted` | 删除中间态；`deleted_at` 在进入 `Deleting` 时写入 |
+| `Uploading` | initiate 后中间态；24h 内未 complete 由 GC 转 `Failed` |
+| `Ready` | 已上传 + digest 锁定；spec / digest 不可变；可 resolve / DELETE |
+| `Failed` | 上传或校验失败；保留供调试；可 DELETE |
+| `Deleting` → `Deleted` | 删除中间态；进入 `Deleting` 时写 `deleted_at` |
 
-> **`Uploading` 替代 `Creating` 的命名取舍**：Artifacts 没有 CR 下发动作，对应阶段是"PG 已写、bytes 待上传"，命名 `Uploading` 更贴合实际语义。
+未注册 Kind 兜底：API 收到 `kind` 不在 registry 的请求 → 400，不创建 PG 行。
 
----
+## 7. 依赖
 
-## Part III — 领域模型与 API
+| 依赖 | 用途 | 引用 |
+| --- | --- | --- |
+| PostgreSQL | 元数据权威；与 cluster-manager / compute 共享 database，表前缀 `artifact_*` | [database.md](../database.md) / [infra.md](../infra.md) |
+| zot | OCI 后端；Artifacts 持 admin 凭证签 scope token / HEAD 校验 / GC 删 blob，cli 持短期 token 直连 | [infra.md](../infra.md) |
+| RustFS | S3 后端；Artifacts 签 prefix-scoped 临时 STS / HEAD `artifact-manifest.json` 校验 / GC 删 prefix，bucket `axisml-artifacts` | [infra.md](../infra.md) |
+| tenant-operator | resolve 返回的 `auth_hint.secret_ref` 指向 workload namespace 内 Secret，由 tenant-operator 按命名契约（如 `axisml-tenant-<tenant>-zot-pull` / `axisml-tenant-<tenant>-rustfs`）落地 | [tenant-operator.md](tenant-operator.md) |
 
-> 本部分给出 Artifacts 的数据 schema、内置 Kind 的特化字段、REST API 契约与外部依赖系统的协作边界。
+## 8. 运行时形态
 
-## 4. 领域模型
-
-### 4.1 通用约定
-
-- 通用字段 `id uuid` PK / `created_at` / `updated_at` / `deleted_at`
-- `namespace` / `name` 字段 **DNS-1123** 兼容；`name` 进一步约束为 OCI repository 合法字符集（OCI Kind）
-- `version` 字段采用 **OCI tag-safe** 子集（`A-Za-z0-9_.-`，长度 1–128，禁止 `/`），同时安全映射到 OCI tag 与 S3 prefix
-- `kind` 枚举：`model` / `dataset` / `image` / `eval_report`，由 ArtifactHandler registry 校验
-- 表结构遵循 K8s CR 三段式：**metadata** / **spec**（用户声明，进入 Ready 后冻结）/ **observed**（status 簇，仅服务端回写）
-- `(namespace, kind, name, version)` 一旦创建即不复用，删除后也不释放唯一键，以保证跨组件持久引用语义
-
-#### 数据模型
-
-详见 [database.md §4.1 `artifacts` 表](../database.md#41-artifacts-表)。`<kind-prefix>` ∈ `models / datasets / images / eval-reports`。
-
-**跨制品引用**
-
-格式 `<namespace>/<kind>/<name>@<version>`，例：
-
-- `team-a-models/model/llama-7b@v3`
-- `team-a/dataset/mmlu@v1`
-- `system/image/training-base@2024-09`
-
-由 `Handler.ValidateSpec` 在 initiate 阶段做存在性懒校验。被引用方进入 `Deleted` 后引用方仍可保留 ref 字符串，resolve 时返回 410 Gone。由于 `(namespace, kind, name, version)` 不复用，410 不会变成"意外命中新内容"。
-
-> **跨 namespace 可见性**：Artifacts 不强制可见性边界——任何调用方都可以通过 namespace 访问 Artifact；权限边界由 Platform 在调用前自行校验。Platform 通常按工作区映射（详见 [platform.md](platform.md)）决定哪个用户能看到哪个 namespace 下的制品。
-
-### 4.2 ArtifactHandler 接口
-
-所有 Handler 必须实现以下方法（语言无关，描述责任）：
-
-| 方法 | 责任 |
+| 维度 | 值 |
 | --- | --- |
-| `Kind()` | 返回 `model` / `dataset` / `image` / `eval_report`；用作 registry 主键 |
-| `StorageKind()` | 返回 `oci` / `s3` |
-| `BuildStorageURI(namespace, name, version)` | 即时拼装存储 URI；不读 PG / 不调后端 |
-| `ValidateSpec(ctx, deps, spec)` | 校验 Kind 特化 spec 字段 + 跨制品引用；纯函数 + 注入的 lookup 接口；只返回 errors |
-| `InitiateUpload(ctx, a)` | 签发上传凭证（OCI scope token / S3 prefix-scoped STS）；幂等 |
-| `VerifyComplete(ctx, a, claim)` | 调后端 HEAD / GET manifest，校验 digest 匹配 |
-| `GCBackend(ctx, a)` | 删除后端残留 blob；幂等；NotFound 视作成功（§3.4） |
+| 进程 | 单二进制 `axisml-artifacts`；启动时执行 golang-migrate embedded migration |
+| 副本 | API 默认 `replicas=1`（无状态，可水平扩）；GC worker 单 leader（K8s Lease） |
+| 暴露 | ClusterIP `:8082`，不对外；探针 `/healthz` / `/readyz`（仅校验 PG 连通） |
+| RBAC scope | 自身 ns 的 `leases`（GC leader election）；不需要其他 K8s RBAC（只读 PG + 调后端 HTTP） |
+| Helm values / 镜像 | 详见 [deployment.md](../deployment.md) |
 
-**注册方式**：编译期注册（每个 handler 包 `init()` → 全局 registry，key=`Kind()`）。新增 Kind 不需要改 schema（`spec jsonb` + `kind text` 兼容），只需新增一个 handler 包并扩展 OpenAPI 枚举与允许列表。
+## 9. 后续工作
 
-**未注册 Kind 的兜底**：API 收到 `kind` 不在 registry 的请求 → 直接 400，不创建 PG 行。
-
-## 5. 内置 Kind
-
-每个 Kind 列出**必填 spec 字段** + **存储后端形态** + **主要消费方**；完整字段见 OpenAPI。
-
-### 5.1 model
-
-- **StorageKind**：`oci`
-- **必填 spec**：`framework`（`pytorch` / `tensorflow` / `onnx` / `safetensors` / `gguf` / `custom`）、`format`（OCI artifact media type）
-- **推荐 spec**：`task`、`parameters`、`base_model_ref`、`training_dataset_ref`
-- **URI**：`<oci-host>/namespaces/<ns>/models/<name>:<version>` 或 `...@sha256:<digest>`
-- **ManifestType**：`application/vnd.oci.image.manifest.v1+json`，`artifactType` 字段承载 `spec.format`
-- **上传**：OCI Distribution v2 push（`oras push` 或 `axisml-cli model push`）
-- **消费**：mlservice handler 解析 `MLService.spec.modelRef` → resolve → 注入 KServe `predictor.storageUri`（补 `oci://` 前缀）或 native env `AXISML_MODEL_URI`
-
-### 5.2 dataset
-
-- **StorageKind**：`s3`
-- **必填 spec**：`format`（`parquet` / `jsonl` / `csv` / `webdataset` / `tfrecord` / `custom`）
-- **推荐 spec**：`schema`、`num_records`、`total_size`、`license`、`splits`
-- **URI**：`s3://axisml-artifacts/namespaces/<ns>/datasets/<name>/<version>/`
-- **上传**：RustFS S3 multipart / PutObject，凭证为 prefix-scoped 临时 STS；上传完成前写入 `artifact-manifest.json`
-- **digest**：服务端读取 manifest 后按 canonical JSON 计算 SHA256
-- **消费**：mljob handler 注入容器 env `AXISML_DATASET_URI` / `AXISML_DATASET_DIGEST`，并通过 init container 或 csi-s3 volume 挂载到 `/data`
-
-### 5.3 image
-
-- **StorageKind**：`oci`
-- **必填 spec**：`purpose`（`training` / `inference` / `dev`）
-- **推荐 spec**：`base_image`、`platforms`、`entrypoint`、`notes`
-- **URI**：`<oci-host>/namespaces/<ns>/images/<name>:<version>`
-- **上传**：仍走两阶段 initiate / complete，但阶段 2 由本机 docker / nerdctl daemon 完成 push；cli 子命令 `axisml-cli image push` 把三步封装为单命令
-- **消费**：mljob / mlservice handler 用 URI 作为 Pod `spec.containers[].image`；imagePullSecret 走约定命名（§3.3）
-
-### 5.4 eval_report
-
-- **StorageKind**：`s3`
-- **必填 spec**：`model_ref`（被评测模型）、`dataset_ref`（评测数据集）、`metrics`（关键指标抽取）、`evaluator`（评测器标识）
-- **推荐 spec**：`notes`
-- **URI**：`s3://axisml-artifacts/namespaces/<ns>/eval-reports/<name>/<version>/`
-- **digest**：同 dataset，必须上传 `artifact-manifest.json`
-- **消费**：平台 UI 列表页直接读 `spec.metrics` 排序展示，详情页通过 resolve 跳转下载报告原文
-
-## 6. API 设计
-
-详见 [apis/artifacts.yaml](../apis/artifacts.yaml)。
-
-### 6.1 身份上下文
-
-Platform / Gateway 注入 `X-Axisml-User` 头作为调用方身份。Artifacts 不做角色鉴权——namespace 是裸字符串分区键，"哪个用户能访问哪个 namespace"完全由 Platform 在调用前决定。Operator 直连 Artifacts 时只携带 controller service identity，只允许访问 `resolve?usage=inspect`。
-
-### 6.2 cli 协作时序（model push 为例）
-
-```
-cli                  Artifacts                zot                       PG
- │                     │                       │                         │
- │ ───── initiate ──▶ │                       │                         │
- │                     │ ── ValidateSpec ────▶│                         │
- │                     │ ── insert(Uploading) ──────────────────────────▶│
- │                     │ ── 签 OCI scope token │                         │
- │ ◀── creds, uri ──── │                       │                         │
- │                                                                       │
- │ ───── oras push <uri> ────────────────────▶│                         │
- │ ◀── digest ──────────────────────────────── │                         │
- │                                                                       │
- │ ───── complete(digest) ─▶                    │                         │
- │                     │ ── HEAD manifest ───▶│                         │
- │                     │ ◀── 200 + digest ────│                         │
- │                     │ ── update(Ready, digest) ──────────────────────▶│
- │ ◀── 200 ──────────── │                       │                         │
-```
-
-S3 路径（dataset / eval_report）类似，把 `oras push` 替换为 S3 multipart upload，并在 complete 前上传 `artifact-manifest.json`。
-
-## 7. 外部系统协作
-
-| 对象 | 交互方式 | 关注点 |
-| --- | --- | --- |
-| **zot** | OCI Distribution v2；Artifacts 持 admin 凭证用于校验 / GC / 签发 scope token，cli 持短期 push / pull token 直连 | 由 axisml-infra chart 提供；admin 凭证存于平台级 Secret，endpoint 由 ConfigMap 注入 |
-| **RustFS** | S3 协议；Artifacts 签发 prefix-scoped 临时 STS；bucket `axisml-artifacts` 由 axisml-infra chart 创建 | 区分 prefix `namespaces/<ns>/datasets/...` / `namespaces/<ns>/eval-reports/...`；目录级完整性由 `artifact-manifest.json` 表达 |
-| **PostgreSQL** | GORM；与其他服务共用 database `axisml`；表前缀 `artifact_*` | 迁移随二进制打包，启动时执行（golang-migrate） |
-| **tenant-operator** | Artifacts 不创建 Secret；约定平台默认让 `Tenant.spec.initResources.imagePullSecrets[].name='zot-pull'`、`secrets[].name='rustfs'`，由 tenant-operator 按 `axisml-tenant-<tenant>-<name>` 命名规则落地（[tenant-operator.md §4.6](tenant-operator.md)） | resolve 的 `auth_hint.secret_ref` 始终指向 workload namespace 内的租户本地 Secret；Artifacts 自身不感知 tenant 名 |
-| **compute-operator** | mljob / mlservice handler 通过 Artifacts client SDK 解析 `spec.modelRef` → KServe `storageUri` / `AXISML_MODEL_URI` env，或 `spec.imageRef` → Pod `image` | 详见 [compute-operator.md](compute-operator.md) |
-| **Platform / Gateway** | REST + UI 展示；同时是 `X-Axisml-User` 的注入方；负责把"租户视图 / 工作区"映射为 Artifacts namespace | 终端用户与 `axisml-cli` 均经 Platform / Gateway 中转 |
-
----
-
-## Part IV — 实施与验证
-
-> 本部分给出 Artifacts 的功能落地路线、测试策略与跨文档引用。
-
-## 8. 实现路径
-
-### 8.1 阶段总览
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│ MVP（最小可发布）                                             │
-│   单一 Pod / 仅 model Kind / 两阶段写 + resolve / GC TTL 兜底 │
-│   ↓                                                           │
-│ 功能完善（生产硬化）                                          │
-│   补齐 dataset / image / eval_report Kind、auth_hint、        │
-│   Failed 重试、上传凭证续签、多副本选主                        │
-│   ↓                                                           │
-│ 未来规划（需求 / 上游驱动）                                    │
-│   细粒度 ACL、配额、cosign 签名、跨集群同步、lineage、         │
-│   漏洞扫描                                                    │
-└──────────────────────────────────────────────────────────────┘
-```
-
-### 8.2 阶段一：MVP
-
-支撑端到端最小演示路径："建 model artifact → initiate → cli `oras push` → complete → operator resolve → Pod 拉取"。
-
-| 模块 | 范围 | 完成信号 |
-| --- | --- | --- |
-| 服务框架 | 单 Deployment + ConfigMap + Secret + Service；`/healthz` `/readyz`；启动 migration | 单 Pod 启动后 `/readyz` 返回 200，PG schema 自动迁移到当前版本 |
-| 数据模型 | `artifacts` 表，三段式（metadata / spec / observed）；`(namespace, kind, name, version)` 全生命周期唯一 | golang-migrate 启动时把表与 unique index 落地；重复 `(namespace, kind, name, version)` 创建返回 409 |
-| Kind 支持 | 仅 `model`（OCI / zot），spec 必填 `framework` / `format`；其他 Kind 请求一律 400 | `kind != model` 之外的 initiate 直接 400，不在 PG 留行 |
-| 写路径 | initiate（PG + OCI scope-limited bearer token，TTL=1h）→ cli `oras push` → complete（HEAD `manifests/<version>` + digest 校验 → Ready）；同 version 重复以 409 / 200 处理 | initiate 后立即 `oras push` + complete 链路通过；未 complete 24h 后 GC 转 `Failed`；digest mismatch → 409 `DigestMismatch` |
-| 读路径 | `usage=inspect` 返回 `storage_kind` / `uri` / `digest`，**不返回 auth_hint**（operator 按约定命名直接设 imagePullSecret）；`usage=download` 返回短期 OCI pull token | mlservice handler 用 inspect 结果创建 Pod 能拉到 model；cli 用 download token 能 `oras pull` |
-| 删除 | DELETE 单 artifact | DELETE artifact → 状态 `Deleting` → GC 完成后端清理 → `Deleted` |
-| GC | 仅扫两类谓词：`Uploading > 24h → Failed`、`Deleting → 后端清理后 Deleted` | GC worker leader 单实例运行；扫描间隔 5min；GCBackend 对 NotFound 幂等 |
-| 部署 | 单副本 Deployment；ServiceMonitor 暴露 metrics | Helm install 后 `axisml_artifacts_uploading_count` 指标可被 Prometheus 抓取 |
-| 测试 | API 层单元测试（chi router + handler 注册表）+ 集成测试（PG + 真实 zot in test container） | `make artifacts-test` 通过；happy path + 24h TTL fast-forward + DELETE 三类用例覆盖 |
-
-### 8.3 阶段二：功能完善
-
-按"对生产可用性的影响"排序，每条标明完成信号。
-
-1. **dataset Kind 上线**
-   - 完成信号：`(kind=dataset)` initiate 返回 STS 凭证；cli 用临时凭证完成 multipart upload + 写 manifest；complete 校验通过；mljob handler 用 inspect 结果挂载 `/data`。
-2. **image Kind 上线**
-   - 完成信号：`axisml-cli image push` 单命令完成三步；多架构 manifest list 写入 zot 后 inspect 返回正确 `platforms`。
-3. **eval_report Kind 上线**
-   - 完成信号：initiate 时被引用 model / dataset 不存在 → 直接 400；UI 列表页能按 `spec.metrics.accuracy` 排序展示。
-4. **`auth_hint` 字段**
-   - 完成信号：mljob handler 解析 dataset inspect 后从 workload namespace 读 Secret 挂载到 csi-s3 volume；OCI Kind 的 `auth_hint` 与 imagePullSecret 约定一致；resolve 接受 `secretPrefix` query 参数允许 Platform 覆盖默认命名。
-5. **Failed 重试**
-   - 完成信号：digest mismatch 后再次 initiate 同 version 返回新凭证 + `previous_failure_reason`，complete 成功后状态推进到 `Ready`。
-6. **上传凭证续签**
-   - 完成信号：cli 检测到 token 剩余 < 5min 时调用 refresh 拿到新凭证；PG 行不变，仅重发 token / URL。
-7. **跨制品引用懒校验**
-   - 完成信号：`Handler.ValidateSpec` 注入 `LookupArtifact`，对 `base_model_ref` / `dataset_ref` / `model_ref` 做存在性校验；删除被引用 model 后引用方 resolve 返回 410。
-8. **`pin=digest` 语义**
-   - 完成信号：OCI Kind 返回 `<name>@<digest>` 不可变形态；S3 Kind 仅在响应里把 digest 标 `pinned`。
-9. **多副本 + Leader Election**
-   - 完成信号：`replicas=2` 时 `sum(axisml_artifacts_is_leader) == 1`；leader 切换后 GC 不停摆且无重复扫描。
-10. **GC 完整谓词**
-    - 完成信号：Failed 行 30 天后被 GC 自动推到 Deleting 并最终 Deleted；可观测 `gc_actions_total` 三个 predicate 都有计数。
-11. **完整 metrics**
-    - 完成信号：Prometheus 上述指标可见；P99 延迟曲线在 dashboard 可绘制。
-
-### 8.4 阶段三：未来规划
-
-- **细粒度 ACL**——基于 namespace 的 ACL（哪些 user / role 可以读 / 写哪些 namespace）。Artifacts 自身 enforce 还是仅依赖 Platform 前置鉴权由后续设计决定。
-- **配额管理**——按 namespace / 按 Kind 限制总大小、总数量、单版本大小；`size_bytes` 入表，GC worker 维护用量。
-- **制品签名 / SBOM**——cosign / notation 集成，supply-chain 审计；签名信息作为 annotations 回写到 `artifacts` 行。
-- **跨集群同步**——多 region / 多集群部署时镜像 / 模型自动同步（zot replication 原生支持）；S3 Kind 走 RustFS 多区域复制。
-- **在线 lineage**——`base_model_ref` / `training_dataset_ref` / `eval_report.model_ref` 的依赖图可视化与影响面分析。
-- **漏洞扫描集成**——image Kind 接入 trivy / grype，扫描结果作为 annotations 回写。
-- **反向孤儿对账**——从"仅告警"升级为带审计 + 灰名单的清理模式。
-- **批量 namespace 删除**——Platform 触发 workspace 下线时所需的"按 namespace 批量回收"端点（默认禁用，需要 admin token）。
-
-### 8.5 跨阶段验证策略
-
-| 阶段 | 主测层 | 工具 |
-| --- | --- | --- |
-| MVP | API 层单元测试 + PG / zot stub integration | `make artifacts-test` + `make artifacts-integration`（PG testcontainer + httptest OCI stub） |
-| 功能完善 | integration 扩展（多 kind、RustFS 后端、auth_hint 多租户矩阵） | `make integration-test` |
-| 未来规划 | 单独写 RFC 设计文档 → 单元 / 集成测试先行 | 同上 |
-
-## 9. 测试
-
-Artifacts 的测试分两层：
-
-- **单元测试**（`components/artifacts/internal/...`）：HTTP handler 输入校验、Handler registry、状态机、render 等纯逻辑用 `testify` 在 `_test.go` 中就近放置。
-- **integration**（`components/artifacts/test/integration/` 独立 Go module）：HTTP API、状态机、PG migration、GC worker 用 `testify` + 真实 PG 容器（`testcontainers-go`）；OCI 后端用 `httptest.Server` stub 出 zot 的关键端点（HEAD / DELETE manifest）以避免拉真实镜像。HTTP 通过 in-process gin engine + `httptest` 驱动，不监听端口。
-
-仓库当前不维护 minikube 驱动的 e2e 层；端到端验证靠 integration 覆盖。测试约束沿用 [CLAUDE.md "两层测试金字塔"](../../CLAUDE.md)：框架是 `testing` + `testify`，无 Ginkgo / Gomega；轮询用 `testutil.Eventually`。
+- `dataset` / `image` / `eval_report` 三个 Kind 端到端打通（initiate / complete / resolve / GC 全谓词覆盖）。
+- `auth_hint` 字段在 resolve 接受 `secretPrefix` query 参数，支持 Platform 覆盖默认命名。
+- 上传凭证续签：cli 检测 token 剩余 < 5min 时刷新，PG 行不变。
+- Failed 重试：digest mismatch 后允许同 version 再次 initiate，并在响应中带 `previous_failure_reason`。
+- `pin=digest` 语义：OCI Kind 返回 `<name>@<digest>` 不可变形态；S3 Kind 在响应中把 digest 标 `pinned`。
+- 跨制品引用懒校验：`Handler.ValidateSpec` 注入 `LookupArtifact`，删除被引用方后引用方 resolve 返回 410。
+- 多副本 + Leader Election 生产化（`replicas≥2` 时 `sum(axisml_artifacts_is_leader) == 1`，leader 切换无重复扫描）。
+- 配额管理：按 namespace / Kind 限制总大小、总数量、单版本大小；`size_bytes` 入表。
+- 制品签名 / SBOM（cosign / notation）、image Kind 漏洞扫描（trivy / grype）。
+- 跨集群同步（zot replication / RustFS 多区域复制）；反向孤儿对账升级为审计 + 灰名单清理。
+- 批量 namespace 删除端点（默认禁用，需 admin token），服务 workspace 下线场景。
 
 ## 10. 相关引用
 
-- [docs/system_design/overview.md §3](../overview.md) 概述了 Artifacts 在控制平面里的位置与功能矩阵。
-- [docs/system_design/tenant-operator.md §4.6](tenant-operator.md) 描述 tenant-operator 如何按 `Tenant.spec.initResources` 落地租户级 zot / RustFS 凭证 Secret——Artifacts `auth_hint` 的命名契约由其决定。
-- [docs/system_design/compute-operator.md](compute-operator.md) 描述 mljob / mlservice handler 如何通过 Artifacts client SDK 解析 `imageRef` / `modelRef` / `datasetRef`。
-- [docs/system_design/components/platform.md](platform.md) 描述 Platform 如何把"租户视图 / 工作区"映射到 Artifacts namespace。
-- [docs/system_design/infra.md](../infra.md) 给出 zot / RustFS / PostgreSQL 等基础设施的部署契约。
+- [overview.md](../overview.md) — Artifacts 在控制平面里的位置
+- [auth.md](../auth.md) — `X-Axisml-User` 注入与传播
+- [database.md](../database.md) — `artifacts` 表 schema
+- [deployment.md](../deployment.md) — Helm chart 与部署形态
+- [monitoring.md](../monitoring.md) — Metrics 与告警
+- [infra.md](../infra.md) — zot / RustFS / PostgreSQL 基础设施
+- [apis/artifacts.yaml](../apis/artifacts.yaml) — REST API 字段契约
+- [tenant-operator.md](tenant-operator.md) — `auth_hint.secret_ref` 命名与落地契约
+- [compute-operator.md](compute-operator.md) — mljob / mlservice handler 作为 resolve 消费方
+- [platform.md](platform.md) — 工作区到 Artifacts namespace 的映射

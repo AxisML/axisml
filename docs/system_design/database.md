@@ -1,6 +1,6 @@
 # AxisML 数据库设计
 
-本文档汇总 AxisML 控制平面所有持久化在 PostgreSQL 中的表 schema。所有控制面服务共用同一个 database `axisml`，按表名前缀逻辑隔离；schema 迁移由各服务二进制内嵌 `golang-migrate` 在启动时执行。Postgres 部署形态见 [infra.md §4.4](infra.md#44-数据库postgresql)。
+本文档汇总 AxisML 控制平面所有持久化在 PostgreSQL 中的表 schema。所有控制面服务共用同一个 database `axisml`，按表名前缀逻辑隔离；schema 迁移由各服务二进制内嵌 `golang-migrate` 在启动时执行。Postgres 部署形态见 [infra.md §4.4](infra.md#44-数据库postgresql)；系统级位置见 [overview.md](overview.md)。
 
 | 服务 | 表 | 用途 |
 | --- | --- | --- |
@@ -41,7 +41,7 @@
 
 - 字符集 `[a-z0-9-]`；首尾为字母或数字；长度 3–40；不允许连续 `--`；
 - **DNS-1123 兼容**；
-- ResourceUnit 名称叠加 [compute.md §5.3](components/compute.md#53-命名约定) 的语义命名约定；
+- ResourceUnit 名称叠加 [compute.md §4.4 ResourceUnit](components/compute.md#44-resourceunit) 的语义命名约定；
 - Artifact `version` 改用 OCI tag-safe 子集（`A-Za-z0-9_.-`，长度 1–128，禁止 `/`）。
 
 ### 1.4 desired / applied spec hash
@@ -205,7 +205,7 @@ CREATE UNIQUE INDEX jobs_namespace_name_active_uniq
 
 | 字段 | 写入方 | 备注 |
 | --- | --- | --- |
-| `spec` | API 层 | 提交时 MLJob.spec 完整快照；**不可变**；结构详见 [compute-operator.md §4.2](components/compute-operator.md) |
+| `spec` | API 层 | 提交时 MLJob.spec 完整快照；**不可变**；结构详见 [compute-operator.md §4.1.1](components/compute-operator.md#411-mljob-spec-高层结构) |
 | `requested_resources` | API 层 | 冗余存提交时的资源申请，解耦后续 ResourceUnit 修改对已提交任务的影响 |
 | `status` / `message` / `started_at` / `finished_at` | informer | 由 MLJob CR `status.*` 回流 |
 
@@ -213,7 +213,7 @@ CREATE UNIQUE INDEX jobs_namespace_name_active_uniq
 
 ### 3.4 `services` 表
 
-`services` 表同时承载普通在线服务（`kind='service'`）和 [Platform 工作区](components/platform.md#8-工作区)（`kind='workspace'`）。
+`services` 表同时承载普通在线服务（`kind='service'`）和 [Platform 工作区](components/platform.md#44-工作区编排)（`kind='workspace'`）。
 
 ```sql
 CREATE TABLE services (
@@ -340,4 +340,4 @@ Platform PG 仅覆盖 **身份、授权、会话、审计** 四类，**不缓存
 - `audit_logs (created_at DESC)` 与 `(user_id, created_at DESC)` 时间序查询；
 - `sessions (expires_at)` 用于定期清理。
 
-`user_tenant_roles.tenant_name` **不做跨服务 FK 约束**；级联清理由 [platform.md §6.5.2](components/platform.md#652-一致性策略与级联) 在应用层实现。
+`user_tenant_roles.tenant_name` **不做跨服务 FK 约束**；级联清理由 [platform.md §4.1 租户编排](components/platform.md#41-租户编排)（删除/恢复行）在应用层实现。

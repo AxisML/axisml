@@ -130,7 +130,7 @@ label 取值：
 
 - `resource ∈ {mljob, mlservice}`；
 - `backend ∈ {native, kubeflow-trainer, kserve, custom}`；
-- `engine` 因 backend 而异（详见 [compute-operator.md §3](components/compute-operator.md)）。
+- `engine` 因 backend 而异（详见 [compute-operator.md §3 核心模型](components/compute-operator.md#3-核心模型)）。
 
 ---
 
@@ -138,7 +138,7 @@ label 取值：
 
 ### 5.1 跨模块通用
 
-由 Platform 后端的 typed client 中间件层统一打点（[platform.md §4.5](components/platform.md#45-下游-typed-client)）：
+由 Platform 后端的 typed client 中间件层统一打点（[platform.md §5.1](components/platform.md#51-跨服务调用模型)）：
 
 | 指标 | 类型 | 用途 |
 | --- | --- | --- |
@@ -154,7 +154,7 @@ label 取值：
 | `platform_tenant_action_total{action, status}` | counter | `action ∈ {create, update_meta, suspend, unsuspend, delete, quota_create, quota_update, quota_delete, member_add, member_update, member_remove}` |
 | `platform_tenant_orphan_role_cleanup_total{reason}` | counter | 孤儿 `user_tenant_roles` 行的级联清理次数；`reason ∈ {delete_cascade, list_reconcile}` |
 
-详见 [platform.md §6.5.3](components/platform.md#653-模块结构)（度量与日志小节）。
+业务编排见 [platform.md §4.1 租户编排](components/platform.md#41-租户编排)。
 
 ### 5.3 Workspace 模块
 
@@ -166,7 +166,7 @@ label 取值：
 | `platform_workspace_create_rollback_total{phase}` | counter | 创建过程中 PVC 失败导致回滚 MLService 次数；`phase ∈ {pvc_failed_mlservice_rolled_back, pvc_failed_mlservice_orphaned}` |
 | `platform_workspace_access_jwt_issued_total{result}` | counter | access JWT 颁发量 + 失败原因 |
 
-详见 [platform.md §8.5.6](components/platform.md#856-模块结构)（度量与日志小节）。
+业务编排见 [platform.md §4.4 工作区编排](components/platform.md#44-工作区编排)。
 
 ### 5.4 Job 模块
 
@@ -177,7 +177,7 @@ label 取值：
 | `platform_job_list_partial_total{reason}` | counter | 部分租户失败次数 |
 | `platform_job_logs_stream_active` | gauge | 当前活跃 SSE log stream 连接数 |
 
-详见 [platform.md §9.5.5](components/platform.md#955-模块结构)（度量与日志小节）。
+业务编排见 [platform.md §4.2 计算任务编排](components/platform.md#42-计算任务编排)。
 
 ### 5.5 Service 模块
 
@@ -190,7 +190,7 @@ label 取值：
 | `platform_service_state{tenant_name, state}` | gauge | 按租户聚合各 `services.status` 的 service 数；定期采样 |
 | `platform_service_metrics_query_total{metric, status}` | counter | Prometheus 查询调用结果分布 |
 
-详见 [platform.md §10.5.5](components/platform.md#1055-模块结构)（度量与日志小节）。
+业务编排见 [platform.md §4.3 在线服务编排](components/platform.md#43-在线服务编排)。
 
 ### 5.6 ResourcePool 模块
 
@@ -200,13 +200,13 @@ label 取值：
 | `platform_resource_unit_action_total{action, status}` | counter | 同上 |
 | `platform_resource_pool_unit_count_aggregation_failures_total` | counter | 列表页聚合资源单元数量时的失败计数 |
 
-详见 [platform.md §7.5.2](components/platform.md#752-模块结构)（度量与日志小节）。
+业务编排见 [platform.md §4.6 资源池 / 单元编排](components/platform.md#46-资源池--单元编排)。
 
 ---
 
 ## 6. 业务指标查询（Service `/metrics` 端点）
 
-Platform `GET /api/v1/services/{id}/metrics` 透传 Prometheus 实时查询，提供 Service 详情页 Tab 5 指标视图。查询模板按 backend 选择，定义在 [platform.md §10.5.4](components/platform.md#1054-prometheus-查询模板)。
+Platform `GET /api/v1/services/{id}/metrics` 透传 Prometheus 实时查询，提供 Service 详情页 Tab 5 指标视图。查询模板按 backend 选择，端点字段契约见 [apis/platform.yaml](apis/platform.yaml) `Services` tag `metrics` 端点。
 
 | 指标 | 含义 | PromQL 来源 |
 | --- | --- | --- |
@@ -230,15 +230,15 @@ Prometheus URL 来自启动配置 `--prometheus-url`（指向 `axisml-infra` nam
 - 错误日志携带 `error` + `stack`（仅 fatal）；
 - 日志级别由 `--log-level` 启动参数控制（默认 `info`）。
 
-日志聚合不在 MVP 范围内——Pod 日志由 K8s 默认 logging 驱动收集，运维通过 `kubectl logs` 或集群级聚合方案（如 Loki，未默认部署）查询。
+日志聚合当前不在交付范围内——Pod 日志由 K8s 默认 logging 驱动收集，运维通过 `kubectl logs` 或集群级聚合方案（如 Loki，未默认部署）查询。
 
 ---
 
 ## 8. 告警
 
-MVP 阶段**不预置** AlertManager 告警规则——AlertManager 随 kube-prometheus-stack 部署但无业务告警规则，调用方按需自定义。
+当前**不预置** AlertManager 告警规则——AlertManager 随 kube-prometheus-stack 部署但无业务告警规则，调用方按需自定义。
 
-后续迭代预留的告警方向（详见 [infra.md §6 后续工作](infra.md)）：
+后续迭代预留的告警方向（详见 [infra.md §7 后续工作](infra.md#7-后续工作) / [deployment.md §9 后续工作](deployment.md#9-后续工作)）：
 
 - 节点 NotReady；
 - GPU 异常（DCGM 上报错误率高）；
@@ -247,12 +247,13 @@ MVP 阶段**不预置** AlertManager 告警规则——AlertManager 随 kube-pro
 - 调度滞后（PodGroup gang 调度长时间 Pending）；
 - API 错误率（5xx 比例超阈值）。
 
-告警规则的 UI 维护入口规划在 [Platform 系统管理 → 监控告警](components/platform.md#13-后续迭代) 菜单（独立菜单维护，与 service 详情页指标 Tab 解耦）。
+告警规则的 UI 维护入口规划在 [Platform 系统管理 → 监控告警](components/platform.md#91-横切) 菜单（独立菜单维护，与 service 详情页指标 Tab 解耦）。
 
 ---
 
 ## 9. 关联文档
 
+- [overview.md](overview.md)：系统级导航；
 - [infra.md §4.7](infra.md#47-监控kube-prometheus-stack)：监控基础设施部署细节；
-- [platform.md §10.5](components/platform.md#105-rest-api-与模块结构) / [§10.5.4](components/platform.md#1054-prometheus-查询模板)：Service 详情页指标 Tab 与 PromQL 模板；
-- 各功能模块的「度量与日志」段落：[§6.5.3 tenant](components/platform.md#653-模块结构) / [§7.5.2 resource-pool](components/platform.md#752-模块结构) / [§8.5.6 workspace](components/platform.md#856-模块结构) / [§9.5.5 job](components/platform.md#955-模块结构) / [§10.5.5 service](components/platform.md#1055-模块结构)。
+- [apis/platform.yaml](apis/platform.yaml) `Services` tag `metrics` 端点：Service 详情页指标 Tab 字段契约；
+- [platform.md §4 核心功能](components/platform.md#4-核心功能)：各业务模块编排逻辑（度量 label 中的 `action` 与编排步骤一一对应）。

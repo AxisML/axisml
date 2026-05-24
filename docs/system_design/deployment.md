@@ -13,7 +13,7 @@ AxisML 基于 Kubernetes 部署，通过两个 Helm chart 分层安装：
 | `axisml-infra` | `deploy/helm/axisml-infra` | `axisml-infra` | `axisml-infra` | 第三方基础设施组件（Envoy Gateway / RustFS / zot / GPU Operator / Koordinator / kube-prometheus-stack） |
 | `axisml-system` | `deploy/helm/axisml-system` | `axisml` | `axisml-system` | AxisML 自研控制平面 + CRDs + 元数据数据库（PostgreSQL） |
 
-拆分原因：基础设施和控制平面发版节奏、回滚粒度不同；拆分后 infra 可共享给多套 axisml-system 实例。两者通过 namespace + Service DNS 解耦，并通过 chart `condition` 字段支持按需关闭并对接外部实例。
+两者通过 namespace + Service DNS 解耦，并通过 chart `condition` 字段支持按需关闭并对接外部实例。
 
 ```
 Kubernetes Cluster
@@ -52,7 +52,7 @@ make helm-install-system    # 再装控制平面（含数据库与 CRDs）
 
 `make helm-install-system` 内部先 `kubectl apply` `deploy/helm/axisml-system/crds/`，再做 `helm upgrade --install`——Helm 只在初次安装时处理 `crds/` 目录，CRD schema 升级靠这一步保证。
 
-> **顺序约束**：`axisml-infra` 提供 CRDs 和组件（Koordinator、Envoy Gateway 等），`axisml-system` 依赖；安装颠倒会导致 Tenant / MLJob CR 创建时找不到 ElasticQuota / HTTPRoute kind 而失败。
+> **顺序约束**：`axisml-infra` 提供 Koordinator / Envoy Gateway 等 CRDs；安装颠倒会导致 Tenant / MLJob CR 创建时找不到 ElasticQuota / HTTPRoute kind 而失败。
 
 ---
 
@@ -77,7 +77,7 @@ make helm-install-system    # 再装控制平面（含数据库与 CRDs）
 
 > **fullnameOverride 约定**：`kube-prometheus-stack` 的 `fullnameOverride` 设为 `prometheus`，避开上游 26 字符截断；`postgresql` 别名为 `database`，使资源命名 `axisml-database-*`。
 
-各子 chart 的具体 values 透传通过 values 根键直接写入，由各子 chart 自身文档定义；本文不重复。PostgreSQL 部署模式见 [database.md](database.md) / [infra.md §4.4](infra.md#44-数据库postgresql)。
+各子 chart 的具体 values 透传由 values 根键直接写入。PostgreSQL 部署模式见 [database.md](database.md) / [infra.md §4.4](infra.md#44-数据库postgresql)。
 
 ---
 
@@ -108,14 +108,25 @@ make helm-install-system    # 再装控制平面（含数据库与 CRDs）
 | 组件 | 副本 | 端口 | leader election | 备注 |
 | --- | --- | --- | --- | --- |
 | Cluster Manager | `1` 默认 | `:8080` API、`:8080` metrics | controller-runtime Lease | 后台 reconciler / informer 只在 leader 副本运行 |
-| Compute | `1` 默认 | `:8081` API、`:8080` metrics | controller-runtime Lease | 同上；API 层无状态可水平扩 |
+| Compute | `1` 默认 | `:8081` API、`:8080` metrics | controller-runtime Lease | 同上；API 层无状态可水平扩；bootstrap Job 初始化默认 pool + cpu-small/cpu-medium unit |
 | Artifacts | `1` 默认 | `:8082` API、`:8080` metrics | `coordination.k8s.io/Lease` | GC worker 选主；API 层无状态 |
 | Platform Backend | `1` 默认 | `:8080` API、`:8081` metrics | 无 | 完全无状态 |
 | Platform Frontend | `1` 默认 | `:80` 静态资源 | 无 | 后端镜像独立部署，通过 Helm `platform.frontend.image` 字段配置 |
 | tenant-operator | `1`（leader）+ N 备 | `:8080` metrics | controller-runtime Lease | 单 leader |
 | compute-operator | `1`（leader）+ N 备 | `:8080` metrics | controller-runtime Lease | 单 leader；dispatcher + handler 模型 |
 
-`tenant namespaces` 由 tenant-operator 在 `Tenant` CR reconcile 时创建（详见 [tenant-operator.md §4.6.1](components/tenant-operator.md)），不在 Helm chart 内静态声明。
+`axisml-infra` namespace 内的基础设施组件部署形态（默认 values）：
+
+| 组件 | 形态 |
+| --- | --- |
+| Envoy Gateway | 单 GatewayClass + `axisml-gateway`（HTTP listener），`allowedRoutes.namespaces` 放行接入工作负载所在 namespace |
+| RustFS | Standalone（单 Pod + PVC），admin 凭证由 chart 自动生成 |
+| zot | Standalone（filesystem 后端），公共拉取 Secret 落地到 `axisml-system` namespace |
+| GPU Operator | driver + container toolkit + device plugin + DCGM Exporter + GFD；MIG 暂不启用 |
+| Koordinator | `koord-scheduler` + `koord-manager` + ElasticQuota plugin + PodGroup CRD |
+| kube-prometheus-stack | Prometheus + Grafana + AlertManager；ServiceMonitor 自动发现；不预置告警规则 |
+
+`tenant namespaces` 由 tenant-operator 在 `Tenant` CR reconcile 时创建（详见 [tenant-operator.md §4.1.1 Namespace 落地](components/tenant-operator.md#411-namespace-落地)），不在 Helm chart 内静态声明。
 
 ---
 
@@ -157,7 +168,7 @@ CRD 定义放在 `deploy/helm/axisml-system/crds/` 下（不在 `templates/`）�
 | `mljobs.axisml.io` | `crds/mljob-crd.yaml` | compute-operator |
 | `mlservices.axisml.io` | `crds/mlservice-crd.yaml` | compute-operator |
 
-`make helm-install-system` 先 `kubectl apply -f crds/`，再 `helm upgrade --install`——Helm 只在初次安装时处理 `crds/` 目录，schema 升级靠这一步。
+CRD schema 升级由 `make helm-install-system` 的 `kubectl apply -f crds/` 一步保证（见 §2）。
 
 ---
 
@@ -176,59 +187,7 @@ PostgreSQL 由 `axisml-system` chart 提供，支持两种模式：
 
 ---
 
-## 8. MVP 部署形态
-
-目标：调用方能完整跑通"提交工作负载 → 调度 → 拉镜像 / 制品 → 写元数据 → 看监控"的最小闭环。
-
-| 组件 | MVP 形态 |
-| --- | --- |
-| Envoy Gateway | 装入 `axisml-infra` chart；提供 `axisml-gateway`（HTTP listener）；listener `allowedRoutes.namespaces` 放行接入工作负载所在 namespace |
-| RustFS | Standalone（单 Pod + PVC）；admin 凭证由 chart 自动生成 |
-| zot | Standalone（filesystem 后端）；admin 凭证由 chart 自动生成；公共拉取 Secret 落地到 `axisml-system` namespace |
-| PostgreSQL | 内置模式（bitnami chart，单节点 StatefulSet）；database `axisml`，由各调用方自管 schema 迁移 |
-| GPU Operator | 默认配置（driver + container toolkit + device plugin + DCGM Exporter + GFD）；MIG 暂不启用 |
-| Koordinator | `koord-scheduler` + `koord-manager` + ElasticQuota plugin + PodGroup CRD；其他可选组件全部关闭 |
-| kube-prometheus-stack | Prometheus + Grafana + AlertManager 默认部署；ServiceMonitor 自动发现已就绪；不预置告警规则 |
-| Cluster Manager / Compute / Artifacts / Platform / tenant-operator / compute-operator | `replicas=1`；上述 Helm 模板清单 §6 全部启用；bootstrap Job 初始化默认数据 |
-
-MVP 不含的能力：HTTPS / TLS、SecurityPolicy 实施、BackendTrafficPolicy 限流、对象存储 / OCI registry 的 HA、外部 PostgreSQL、自定义 Grafana dashboard、告警规则、MIG。
-
----
-
-## 9. 生产硬化（阶段二）
-
-### 9.1 网关与安全
-
-- `axisml-gateway` 增加 HTTPS listener；TLS 证书通过 `cert-manager` 或 Secret 注入；
-- Gateway 级 `SecurityPolicy`（JWT / OIDC，对接调用方选定的 IdP）；
-- 静态 HTTPRoute 增加 `BackendTrafficPolicy`（限流 + 熔断 + 重试）；
-- 跨 namespace `ReferenceGrant` 模板（仅在跨 namespace `backendRef` 出现时启用）。
-
-### 9.2 对象存储 / OCI Registry
-
-- RustFS 切换到 Distributed（4×4）部署；
-- zot 切换到 HA（3×）+ 共享后端（S3 兼容存储或 RustFS）；
-- zot 增加 GC、垃圾清理 CronJob、scrub 配置。
-
-### 9.3 数据库
-
-- 支持外部 PostgreSQL（`database.enabled=false` + `externalDatabase.*`）；提供示例 values 与连接 Secret 模板；
-- 备份策略（CronJob + 远端对象存储）。
-
-### 9.4 监控告警
-
-- 预置 AlertManager 告警规则：节点 NotReady、GPU 异常、PVC 容量、配额耗尽、调度滞后、API 错误率（详见 [monitoring.md §8](monitoring.md#8-告警)）；
-- 持久化 Prometheus 数据卷（默认 14 天保留期，可调）；
-- 自定义 Grafana dashboard（控制面 + 业务）。
-
-### 9.5 Operator HA
-
-- tenant-operator / compute-operator 多副本 leader election；
-- Compute / Cluster Manager / Artifacts 多副本（API 层水平扩，后台协程仍 leader-only）。
-
----
-
-## 10. 关键设计决策
+## 8. 关键设计决策
 
 | 决策项 | 决策 | 理由 |
 | --- | --- | --- |
@@ -238,14 +197,44 @@ MVP 不含的能力：HTTPS / TLS、SecurityPolicy 实施、BackendTrafficPolicy
 | 镜像 tag 来源 | 由 `axisml-system/Chart.yaml` `appVersion` 注入 | 保证 chart 与镜像 tag 一致；避免 Helm rendered Deployment 拉不到镜像 |
 | Operator 形态 | tenant-operator + compute-operator 拆为两个独立二进制 | 管理员域与业务域按变更频率与权限边界分离；任一 operator 演进或重启不影响另一域 |
 | Namespace 命名 | `axisml-system` / `axisml-infra` + 租户 namespace 由 tenant-operator 派生 | 系统组件与租户工作负载隔离；租户 namespace 名由 Tenant CR `spec.namespace.name` 决定 |
-| 外部 PostgreSQL | 通过 `database.enabled=false` + `externalDatabase.*` 切换 | 生产推荐外接 RDS；MVP 用内置 bitnami chart 简化本地起步 |
+| 外部 PostgreSQL | 通过 `database.enabled=false` + `externalDatabase.*` 切换 | 生产推荐外接 RDS；内置 bitnami chart 简化本地起步 |
 
 ---
 
-## 11. 关联文档
+## 9. 后续工作
+
+当前部署未覆盖的能力：HTTPS / TLS、SecurityPolicy 实施、BackendTrafficPolicy 限流、对象存储 / OCI registry 的 HA、外部 PostgreSQL、自定义 Grafana dashboard、告警规则、MIG。后续工作按主题归类：
+
+**网关与安全**
+- `axisml-gateway` 增加 HTTPS listener；TLS 证书通过 `cert-manager` 或 Secret 注入
+- Gateway 级 `SecurityPolicy`（JWT / OIDC，对接调用方选定的 IdP）
+- 静态 HTTPRoute 增加 `BackendTrafficPolicy`（限流 + 熔断 + 重试）
+- 跨 namespace `ReferenceGrant` 模板（仅在跨 namespace `backendRef` 出现时启用）
+
+**对象存储 / OCI Registry**
+- RustFS 切换到 Distributed（4×4）部署
+- zot 切换到 HA（3×）+ 共享后端（S3 兼容存储或 RustFS）
+- zot 增加 GC、垃圾清理 CronJob、scrub 配置
+
+**数据库**
+- 支持外部 PostgreSQL（`database.enabled=false` + `externalDatabase.*`）；提供示例 values 与连接 Secret 模板
+- 备份策略（CronJob + 远端对象存储）
+
+**监控告警**
+- 预置 AlertManager 告警规则：节点 NotReady、GPU 异常、PVC 容量、配额耗尽、调度滞后、API 错误率（详见 [monitoring.md §8](monitoring.md#8-告警)）
+- 持久化 Prometheus 数据卷（默认 14 天保留期，可调）
+- 自定义 Grafana dashboard（控制面 + 业务）
+
+**Operator HA**
+- tenant-operator / compute-operator 多副本 leader election
+- Compute / Cluster Manager / Artifacts 多副本（API 层水平扩，后台协程仍 leader-only）
+
+---
+
+## 10. 关联文档
 
 - [overview.md §6 部署架构](overview.md#6-部署架构)：总体部署示意；
 - [infra.md §5 部署形态](infra.md#5-部署形态)：infra chart 子组件部署细节；
 - [database.md §1 部署形态](database.md)：PostgreSQL 部署形态；
 - [monitoring.md §1 接入模型](monitoring.md#1-接入模型)：ServiceMonitor 接入；
-- 各组件详设的 §2.6 Helm values 章节：[cluster-manager](components/cluster-manager.md) / [compute](components/compute.md) / [artifacts](components/artifacts.md) / [tenant-operator](components/tenant-operator.md) / [compute-operator](components/compute-operator.md) / [platform §11 部署架构](components/platform.md#11-部署架构)。
+- 各组件详设的 §8 运行时形态 章节：[cluster-manager](components/cluster-manager.md#8-运行时形态) / [compute](components/compute.md#8-运行时形态) / [artifacts](components/artifacts.md#8-运行时形态) / [tenant-operator](components/tenant-operator.md#8-运行时形态) / [compute-operator](components/compute-operator.md#8-运行时形态) / [platform](components/platform.md#8-运行时形态)。
