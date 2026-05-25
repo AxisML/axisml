@@ -113,12 +113,12 @@ Platform 自有实体仅覆盖**身份 / 授权 / 会话 / 审计**四类，完�
 
 | 用户操作 | Platform 内部步骤 | 下游调用 | 一致性策略 |
 | --- | --- | --- | --- |
-| 创建 | 解析 namespace + quotas → `clustermanager.GetResourcePool` / `GetResourceUnit` 取词汇并展开为 nodeSelector / tolerations / requests / limits → `artifacts.Resolve` 校验 modelRef/image → 拼 quota 名 → `route.path==""` 时自动拼 `/services/<tenant>/<name>/` 并注入 `AXISML_SERVICE_BASE_URL` env | `clustermanager.Get{ResourcePool,ResourceUnit}` + `compute.CreateService(ns, body{kind=service, expanded})` | 单点透传 |
+| 创建 | 解析 namespace + quotas → `clustermanager.GetResourcePool` / `GetResourceUnit` 取词汇并展开为 nodeSelector / tolerations / requests / limits → 拼 quota 名 → `route.path==""` 时自动拼 `/services/<tenant>/<name>/` 并注入 `AXISML_SERVICE_BASE_URL` env | `clustermanager.Get{ResourcePool,ResourceUnit}` + `compute.CreateService(ns, body{kind=service, expanded})` | 单点透传 |
 | 扩缩容 / start / stop | `RequireServiceOwner` → 翻译 `/start` = 上次>0 replicas（查 audit_logs，缺失 fallback 1），`/stop` = 0 | `ScaleService` | 幂等；`Deleted` → `409 service-deleted` |
 | 删除 | 先 `GetServiceByID` 校验 `kind==service` 防误删工作区 | `DeleteService` | 派生 K8s 资源由 ownerReference 级联 |
 | 路由 / 访问 | `auth.type=jwt` 时颁发 `aud=axisml-inference` 短 TTL JWT | — | `route-auth-mismatch` 时 `409` |
 | 指标查询 | 按 backend 选 PromQL 模板（PromQL 见 [monitoring.md](../monitoring.md#6-业务指标查询service-metrics-端点)） | `prometheus.Query` / `QueryRange` | 查询失败 `502 upstream-failure` |
-| clone-with-new-version | 前端语法糖：反填创建表单 → 用户改 `modelRef.version` → 提新 service → 外部切流量 → 旧 service 停服 | `CreateService` + `DeleteService` | MLService `spec.modelRef` 不可变；当前不接管 weighted route |
+| clone-with-new-version | 前端语法糖：反填创建表单 → 用户改镜像 / env 等 → 提新 service → 外部切流量 → 旧 service 停服 | `CreateService` + `DeleteService` | 当前不接管 weighted route |
 | 列表 | 同 §4.2；防误删校验 `kind=service` | `ListServices(ns, kind=service)` | 跨租户路径部分失败 → `partial=true` |
 
 关键不变量：寻址 `services.id` (uuid)；spec 除 `roles[*].replicas` 外不可变。UI 设计见 [wireframe.md](../wireframe.md)。
@@ -162,11 +162,11 @@ Platform 自有实体仅覆盖**身份 / 授权 / 会话 / 审计**四类，完�
 
 #### 4.5.2 Kind 专属编排差异
 
-| Kind | StorageKind | artifacts handler 必填字段（参考） | 跨制品引用懒校验 | 自动注册路径（非 UI） |
-| --- | --- | --- | --- | --- |
-| `model` | `oci` (zot) | `spec.framework` / `spec.format` | `baseModelRef` / `trainingDatasetRef` 由 artifacts handler 触发 `Resolve` 探活；失败 4xx 反馈 | 计算任务详情「注册为模型」按钮（详见 [§4.5.3](#453-register-from-job计算任务--模型)） |
-| `image` | `oci` (zot) | `spec.purpose` | — | — |
-| `dataset` | `s3` (RustFS) | `spec.format` | — | — |
+| Kind | StorageKind | artifacts handler 必填字段（参考） | 自动注册路径（非 UI） |
+| --- | --- | --- | --- |
+| `model` | `oci` (zot) | `spec.framework` / `spec.format` | 计算任务详情「注册为模型」按钮（详见 [§4.5.3](#453-register-from-job计算任务--模型)） |
+| `image` | `oci` (zot) | `spec.purpose` | — |
+| `dataset` | `s3` (RustFS) | `spec.format` | — |
 
 > Platform 不验 spec；上表「必填字段」列出的是 artifacts handler 的硬校验（spec / 引用懒校验），Platform 仅做透传，校验失败时由下游 4xx 直传到客户端。
 
@@ -186,7 +186,6 @@ UI 设计:本期原型未覆盖制品中心,占位见 [wireframe.md §3 占位�
   - **ad-hoc**：同时给 `outputPath` + `volumeName`；二者缺一报 `400 InvalidOutputSelector`。
 - `modelName` + `modelVersion`：制品标识，必填；
 - `spec`：`ModelSpec`，必填（`spec.framework` / `spec.format` 由 artifacts handler 强校验，UI 可按 `image` 推断默认）；
-- `spec.trainingDatasetRef?`：若 Job role 容器 env 含 `AXISML_DATASET_URI` 且能 resolve 到一个 `Ready` 的 dataset，UI 在打开 modal 时自动反填，用户可改可空。
 - `displayName?` / `description?`：可空。
 
 **Platform 内部步骤**（顺序）：
@@ -339,9 +338,8 @@ RBAC 中间件装配细节归 [auth.md](../auth.md)，Platform 仅在路由层�
 
 ### 9.2 制品中心
 
-- 引用方反查端点（`Service.spec.modelRef` / `Job.spec.datasetRef` 反向索引）；
+- 跨制品引用机制（待 artifact-hub 引用方案定稿）；
 - 浏览器直传支持范围扩展（现仅 S3 Kind 小文件；OCI Kind 需在浏览器实现 chunked push）；
-- 跨制品引用懒校验失效后的状态广播（被引方 `Deleted` → 引用方 `Ready` 但 resolve 返 410；前端展示降级告知）；
 - 制品配额 / 签名 / SBOM 接入（等待 artifacts 服务 `size_bytes` 入表 + cosign / notation / trivy 集成）；
 - 镜像 Layer 浏览端点（zot manifest API 解析 + per-layer 大小）。
 

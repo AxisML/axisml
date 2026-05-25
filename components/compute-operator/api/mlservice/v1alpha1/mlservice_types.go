@@ -33,12 +33,6 @@ type Scheduling struct {
 	Tolerations   []corev1.Toleration `json:"tolerations,omitempty"`
 }
 
-// ModelRef points at an Artifacts model version.
-type ModelRef struct {
-	Name    string `json:"name"`
-	Version string `json:"version"`
-}
-
 // PodPort mirrors the small subset of corev1.ContainerPort the spec exposes.
 type PodPort struct {
 	Name          string          `json:"name"`
@@ -126,7 +120,6 @@ type Route struct {
 type MLServiceSpec struct {
 	Backend    Backend    `json:"backend"`
 	Scheduling Scheduling `json:"scheduling"`
-	ModelRef   ModelRef   `json:"modelRef"`
 	Roles      []RoleSpec `json:"roles"`
 	RunPolicy  RunPolicy  `json:"runPolicy,omitempty"`
 	Route      *Route     `json:"route,omitempty"`

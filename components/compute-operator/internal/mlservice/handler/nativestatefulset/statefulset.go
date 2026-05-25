@@ -1,8 +1,6 @@
 package nativestatefulset
 
 import (
-	"fmt"
-
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -10,17 +8,11 @@ import (
 	axisml "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
 )
 
+// replicaIndexEnvVarName surfaces the K8s-injected apps.kubernetes.io/pod-index
+// label as an env var (§6.6.2). Static pod labels can't reference fieldRef, so
+// materialising axisml.io/replica-index per ordinal would require a mutating
+// webhook; the downward-API env var is the webhook-free MVP fit.
 const (
-	// modelEnvVarName carries the resolved Artifacts model URI. MVP synthesises
-	// a model://<name>:<version> placeholder identical to the deployment
-	// handler — real Artifacts resolution arrives with the client rewrite.
-	modelEnvVarName = "AXISML_MODEL_URI"
-
-	// replicaIndexEnvVarName surfaces the K8s-injected
-	// apps.kubernetes.io/pod-index label as an env var (§6.6.2). Static pod
-	// labels can't reference fieldRef, so materialising axisml.io/replica-index
-	// per ordinal would require a mutating webhook; the downward-API env var
-	// is the webhook-free MVP fit.
 	replicaIndexEnvVarName = "AXISML_REPLICA_INDEX"
 	replicaIndexFieldPath  = "metadata.labels['apps.kubernetes.io/pod-index']"
 )
@@ -72,10 +64,6 @@ func buildContainer(mls *axisml.MLService, role axisml.RoleSpec) corev1.Containe
 		EnvFrom:         tmpl.EnvFrom,
 		Resources:       tmpl.Resources,
 	}
-	c.Env = append(c.Env, corev1.EnvVar{
-		Name:  modelEnvVarName,
-		Value: fmt.Sprintf("model://%s:%s", mls.Spec.ModelRef.Name, mls.Spec.ModelRef.Version),
-	})
 	c.Env = append(c.Env, corev1.EnvVar{
 		Name: replicaIndexEnvVarName,
 		ValueFrom: &corev1.EnvVarSource{

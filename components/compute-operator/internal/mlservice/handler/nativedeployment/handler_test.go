@@ -20,7 +20,6 @@ func minimalSpec() *axisml.MLServiceSpec {
 	return &axisml.MLServiceSpec{
 		Backend:    axisml.Backend{Name: "native", Engine: "deployment"},
 		Scheduling: axisml.Scheduling{Quota: "axisml-demo-default-training"},
-		ModelRef:   axisml.ModelRef{Name: "dummy", Version: "v1"},
 		Roles: []axisml.RoleSpec{{
 			Name:     axisml.DefaultRoleName,
 			Replicas: 1,
@@ -58,15 +57,6 @@ func TestValidate_RejectsWrongRoleName(t *testing.T) {
 	h := &Handler{}
 	if v := h.Validate(spec); v.OK() {
 		t.Fatal("expected validation to fail when role name is not predictor")
-	}
-}
-
-func TestValidate_RejectsMissingModelRef(t *testing.T) {
-	spec := minimalSpec()
-	spec.ModelRef = axisml.ModelRef{}
-	h := &Handler{}
-	if v := h.Validate(spec); v.OK() {
-		t.Fatal("expected validation to fail with empty modelRef")
 	}
 }
 
@@ -132,27 +122,6 @@ func TestBuildDeployment_InjectsRequiredLabels(t *testing.T) {
 	// would break Service routing if pinned into the selector.
 	if _, ok := dep.Spec.Selector.MatchLabels[axisml.LabelKoordQuotaName]; ok {
 		t.Error("selector unexpectedly contains koord quota label")
-	}
-}
-
-func TestBuildDeployment_InjectsModelEnvVar(t *testing.T) {
-	mls := &axisml.MLService{
-		ObjectMeta: metav1.ObjectMeta{Name: "smoke", Namespace: "tenant-demo"},
-		Spec:       *minimalSpec(),
-	}
-	dep := buildDeployment(mls)
-	c := dep.Spec.Template.Spec.Containers[0]
-	found := false
-	for _, e := range c.Env {
-		if e.Name == modelEnvVarName {
-			if e.Value != "model://dummy:v1" {
-				t.Errorf("model env value = %q; want %q", e.Value, "model://dummy:v1")
-			}
-			found = true
-		}
-	}
-	if !found {
-		t.Errorf("env var %s not injected; got %v", modelEnvVarName, c.Env)
 	}
 }
 

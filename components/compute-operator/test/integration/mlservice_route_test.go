@@ -54,7 +54,6 @@ func TestMLService_NativeDeployment_RouteEnabled(t *testing.T) {
 		Spec: axisml.MLServiceSpec{
 			Backend:    axisml.Backend{Name: "native", Engine: "deployment"},
 			Scheduling: axisml.Scheduling{Quota: "axisml-acme-default-default"},
-			ModelRef:   axisml.ModelRef{Name: "demo", Version: "v1"},
 			Roles: []axisml.RoleSpec{{
 				Name:     axisml.DefaultRoleName,
 				Replicas: 1,
@@ -176,7 +175,6 @@ func TestMLService_ScaleAndImmutability(t *testing.T) {
 		Spec: axisml.MLServiceSpec{
 			Backend:    axisml.Backend{Name: "native", Engine: "deployment"},
 			Scheduling: axisml.Scheduling{Quota: "axisml-acme-default-default"},
-			ModelRef:   axisml.ModelRef{Name: "demo", Version: "v1"},
 			Roles: []axisml.RoleSpec{{
 				Name:     axisml.DefaultRoleName,
 				Replicas: 1,
@@ -291,7 +289,6 @@ func TestMLService_StubBackendFails(t *testing.T) {
 		Spec: axisml.MLServiceSpec{
 			Backend:    axisml.Backend{Name: "kserve", Engine: "inference"},
 			Scheduling: axisml.Scheduling{Quota: "axisml-acme-default-default"},
-			ModelRef:   axisml.ModelRef{Name: "demo", Version: "v1"},
 			Roles: []axisml.RoleSpec{{
 				Name:     axisml.DefaultRoleName,
 				Replicas: 1,

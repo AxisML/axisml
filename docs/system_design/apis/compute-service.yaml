@@ -1934,16 +1934,6 @@ components:
           $ref: '#/components/schemas/PodTemplateSpec'
       required: [name, replicas, template]
 
-    ModelRef:
-      type: object
-      description: Reference to an Artifacts model version.
-      properties:
-        name:
-          type: string
-        version:
-          type: string
-      required: [name, version]
-
     RouteAuth:
       type: object
       properties:
@@ -2073,8 +2063,6 @@ components:
           $ref: '#/components/schemas/ServiceBackend'
         scheduling:
           $ref: '#/components/schemas/Scheduling'
-        modelRef:
-          $ref: '#/components/schemas/ModelRef'
         roles:
           type: array
           minItems: 1

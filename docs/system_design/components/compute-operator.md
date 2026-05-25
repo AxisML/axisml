@@ -165,13 +165,12 @@ spec:
 spec:
   backend:      { name, engine, config }
   scheduling:   { quota, priorityClass, nodeSelector, tolerations }
-  modelRef:     { name, version }                              # 指向 Artifacts
   roles:        [{ name, replicas, template{ports,volumes,volumeMounts,…} }]
   runPolicy:    { progressDeadlineSeconds }
   route:        { enabled, targetRole, portName, hostname, path, auth, rateLimit, timeout }  # 可选
 ```
 
-`roles[*].replicas` 是唯一允许由 API（`/scale`）变更的字段；`spec.modelRef` 切版本走重建；`spec.route` 整块不可变。
+`roles[*].replicas` 是唯一允许由 API（`/scale`）变更的字段；`spec.route` 整块不可变。
 
 #### 4.2.2 状态机与事件路径
 
@@ -197,7 +196,7 @@ spec:
 | --- | --- |
 | 底层资源 | K8s `Deployment` + `Service`（`targetPort=containerPort`）；不创建 PodGroup；`route.enabled=true` 时追加 HTTPRoute (+ 可选 SecurityPolicy / BackendTrafficPolicy) |
 | 必填字段 | 单 role `predictor`，`template.image` + `template.ports[]` |
-| 关键字段映射 | `replicas → Deployment.spec.replicas`；`template.volumes/volumeMounts → PodSpec` 同名（`Validate` 强制 volumeMounts 在同 role volumes 中、PVC 同 namespace）；`modelRef` → Artifacts 解析为 env `AXISML_MODEL_URI` |
+| 关键字段映射 | `replicas → Deployment.spec.replicas`；`template.volumes/volumeMounts → PodSpec` 同名（`Validate` 强制 volumeMounts 在同 role volumes 中、PVC 同 namespace） |
 | Scale(MLService) | patch `Deployment.spec.replicas`，不重建 Pod |
 | RBAC | `deployments.apps` / `services` / `pods` / `events` + Gateway / Envoy CRD（按 `route` 开启）；`secrets` get/list/watch（仅 `apiKey` auth） |
 
@@ -219,7 +218,7 @@ spec:
 | --- | --- |
 | 底层资源 | KServe `InferenceService`（`serving.kserve.io/v1beta1`）；role 仅 `predictor` |
 | 必填字段 | `backend.config.runtime`（`triton/vllm/tfserving/torchserve/sklearn/huggingface/<ServingRuntime>`）；runtime 专属约束由 `Validate` 强制（如 `vllm` 的 GPU = `tensorParallelSize × pipelineParallelSize`） |
-| 关键字段映射 | `replicas → predictor.minReplicas`（必要时同时回填 `maxReplicas`）；`modelRef` → `predictor.storageUri`（或 runtime 专属字段）；Quota 注入 `predictor.schedulerName=koord-scheduler` + `predictor.labels`；**拒绝 `spec.route.enabled=true`** |
+| 关键字段映射 | `replicas → predictor.minReplicas`（必要时同时回填 `maxReplicas`）；模型 / 镜像引用从 `template.env` 透传（待 artifact-hub 引用方案定稿）；Quota 注入 `predictor.schedulerName=koord-scheduler` + `predictor.labels`；**拒绝 `spec.route.enabled=true`** |
 | Scale(MLService) | patch `predictor.{minReplicas, maxReplicas}` |
 | RBAC | `inferenceservices.serving.kserve.io` / `pods` / `events` 的 CRUD |
 
@@ -340,7 +339,6 @@ CRD 字段级 schema 不在本文展开，以上述 yaml + 后续 admission webh
 | Gateway API | `spec.route.enabled=true` 派生 `HTTPRoute`，挂到 `axisml-gateway` | [infra.md](../infra.md) |
 | Envoy Gateway 扩展 (`SecurityPolicy` / `BackendTrafficPolicy`) | `route.auth` / `rateLimit` / `timeout` 派生 | [infra.md](../infra.md) |
 | compute（上游 CR 写者） | 通过 `Create + Patch` 下发期望，status 单向回流；operator 不感知其 PG 表与 Outbox 推进机制 | [compute-service.md](compute-service.md) |
-| artifacts | `spec.modelRef` 解析为 storageUri / env | [artifact-hub.md](artifact-hub.md) |
 
 ## 8. 运行时形态
 
@@ -390,5 +388,4 @@ CRD 字段级 schema 不在本文展开，以上述 yaml + 后续 admission webh
 - [infra.md](../infra.md) — Koordinator / scheduler-plugins / Kubeflow / KServe / Gateway API / Envoy Gateway 依赖
 - [compute-service.md](compute-service.md) — 上游 CR 写者；Outbox + 双 hash 推进机制
 - [tenant-operator.md](tenant-operator.md) — 兄弟 operator；Tenant / ElasticQuota / Namespace 落地
-- [artifact-hub.md](artifact-hub.md) — `spec.modelRef` 解析依赖的工件 registry
 - CRD yaml：[deploy/helm/axisml-system/crds/mljob-crd.yaml](../../../deploy/helm/axisml-system/crds/mljob-crd.yaml) / [deploy/helm/axisml-system/crds/mlservice-crd.yaml](../../../deploy/helm/axisml-system/crds/mlservice-crd.yaml)

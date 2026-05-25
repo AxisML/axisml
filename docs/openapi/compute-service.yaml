@@ -408,8 +408,6 @@ components:
           type: string
         displayName:
           type: string
-        modelRef:
-          $ref: '#/components/schemas/MLServiceModelRef'
         name:
           maxLength: 40
           minLength: 3
@@ -434,7 +432,6 @@ components:
           - $ref: '#/components/schemas/MLServiceRunPolicy'
           nullable: true
       required:
-      - modelRef
       - name
       - quota
       - resourceUnitId
@@ -452,16 +449,6 @@ components:
       required:
       - items
       - total
-      type: object
-    MLServiceModelRef:
-      properties:
-        name:
-          type: string
-        version:
-          type: string
-      required:
-      - name
-      - version
       type: object
     MLServicePodPort:
       properties:
@@ -626,8 +613,6 @@ components:
       properties:
         backend:
           $ref: '#/components/schemas/MLServiceBackend'
-        modelRef:
-          $ref: '#/components/schemas/MLServiceModelRef'
         roles:
           items:
             $ref: '#/components/schemas/MLServiceRoleSpec'
@@ -642,7 +627,6 @@ components:
           $ref: '#/components/schemas/MLServiceScheduling'
       required:
       - backend
-      - modelRef
       - roles
       - scheduling
       type: object

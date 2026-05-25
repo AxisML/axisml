@@ -561,12 +561,11 @@ UI 即时校验 + cluster-manager 兜底。完整字段清单与校验规则见 
   - LLM 专项指标看板 (tokens/sec / TTFT / TBT / KV cache / batch utilization);
   - 告警与 SLO 配置 (AlertManager 集成)。
 - **制品中心**:
-  - 引用方反查 Tab (`Service.spec.modelRef` / `Job.spec.datasetRef` 反向索引);
+  - 跨制品引用 UI (待 artifact-hub 引用方案定稿);
   - 镜像 Layer 浏览 Tab (zot manifest 解析 + per-layer 大小展示);
   - 数据集样本预览 (按 `format` 取首 N 行);
   - 浏览器直传支持范围扩展 (现仅 S3 Kind 小文件;OCI Kind 需在浏览器实现 chunked push,工作量高);
   - 制品签名 / SBOM 展示 (cosign / notation / trivy 集成,等待 artifacts 服务支持);
-  - 跨制品引用懒校验失效提示从「红色徽章」升级为详情页顶部黄条;
   - 制品配额展示 (per namespace / Kind 总大小 / 总数,等待 artifacts 服务 `size_bytes` 入表)。
 
 ---

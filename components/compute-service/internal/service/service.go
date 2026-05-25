@@ -51,7 +51,6 @@ type CreateInput struct {
 	ResourceUnitID uuid.UUID                    `json:"resourceUnitId" binding:"required"`
 	Quota          string                       `json:"quota" binding:"required"`
 	Backend        *mlservicev1alpha1.Backend   `json:"backend"`
-	ModelRef       mlservicev1alpha1.ModelRef   `json:"modelRef" binding:"required"`
 	Roles          []mlservicev1alpha1.RoleSpec `json:"roles" binding:"required,min=1"`
 	RunPolicy      *mlservicev1alpha1.RunPolicy `json:"runPolicy"`
 	Route          *mlservicev1alpha1.Route     `json:"route"`
@@ -148,7 +147,6 @@ func (m *Module) Create(ctx context.Context, namespace string, in CreateInput) (
 			NodeSelector: resourceunit.MergeNodeSelector(poolSel, decoded.NodeSelector),
 			Tolerations:  poolTols,
 		},
-		ModelRef:  in.ModelRef,
 		Roles:     roles,
 		RunPolicy: runPolicy,
 		Route:     in.Route,

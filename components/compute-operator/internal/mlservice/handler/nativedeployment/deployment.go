@@ -1,20 +1,12 @@
 package nativedeployment
 
 import (
-	"fmt"
-
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	axisml "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
 )
-
-// modelEnvVarName carries the resolved Artifacts model URI into the predictor
-// container. MVP does no real Artifacts resolution: we synthesise a
-// model://<name>:<version> placeholder so users can see the wiring works
-// before the real client is implemented.
-const modelEnvVarName = "AXISML_MODEL_URI"
 
 // buildDeployment renders the desired Deployment for the (native, deployment)
 // backend. Pod template injection follows §6 Pod 注入约定.
@@ -64,10 +56,6 @@ func buildContainer(mls *axisml.MLService, role axisml.RoleSpec) corev1.Containe
 		EnvFrom:         tmpl.EnvFrom,
 		Resources:       tmpl.Resources,
 	}
-	c.Env = append(c.Env, corev1.EnvVar{
-		Name:  modelEnvVarName,
-		Value: fmt.Sprintf("model://%s:%s", mls.Spec.ModelRef.Name, mls.Spec.ModelRef.Version),
-	})
 	for _, p := range tmpl.Ports {
 		c.Ports = append(c.Ports, corev1.ContainerPort{
 			Name:          p.Name,

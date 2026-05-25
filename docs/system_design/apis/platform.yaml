@@ -4880,11 +4880,6 @@ components:
         Mixing the two modes (e.g. `outputName` + `outputPath`) or
         partially populating ad-hoc (e.g. only `outputPath`, no
         `volumeName`) returns `400 InvalidOutputSelector`.
-
-        `spec.trainingDatasetRef` is auto-filled by Platform when the Job's
-        roles' container envs include `AXISML_DATASET_URI` pointing at a
-        resolvable dataset artifact; users can override or supply it
-        manually.
       required: [modelName, modelVersion, spec]
       properties:
         outputName:
@@ -5041,15 +5036,6 @@ components:
           type: string
           description: ISO 8601 duration (e.g., `30s`).
 
-    ModelRef:
-      type: object
-      required: [name, version]
-      properties:
-        name:
-          type: string
-        version:
-          type: string
-
     Service:
       type: object
       required:
@@ -5083,8 +5069,6 @@ components:
         ownerId:
           type: string
           format: uuid
-        modelRef:
-          $ref: '#/components/schemas/ModelRef'
         backend:
           $ref: '#/components/schemas/Backend'
         image:
@@ -5165,7 +5149,6 @@ components:
         `info.description` "Active tenant").
       required:
         - name
-        - modelRef
         - backend
         - image
         - containerPort
@@ -5184,8 +5167,6 @@ components:
         description:
           type: string
           maxLength: 1000
-        modelRef:
-          $ref: '#/components/schemas/ModelRef'
         backend:
           $ref: '#/components/schemas/Backend'
         image:
@@ -5440,15 +5421,6 @@ components:
     # ------------------------------------------------------------------
     # Artifacts — shared
     # ------------------------------------------------------------------
-
-    ArtifactRef:
-      type: string
-      description: |
-        Cross-artifact reference in the form `<namespace>/<kind>/<name>@<version>`,
-        e.g. `team-a-models/model/llama-7b@v3`. Mirrors the shape used by
-        the artifacts service.
-      pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?/(model|dataset|image)/[a-z0-9]([-a-z0-9._]*[a-z0-9])?@[A-Za-z0-9_.-]{1,128}$'
-      example: team-a/dataset/mmlu@v1
 
     ArtifactUpdateRequest:
       type: object

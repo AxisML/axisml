@@ -51,7 +51,6 @@ func TestMLService_NativeStatefulSet_HappyPath(t *testing.T) {
 		Spec: axisml.MLServiceSpec{
 			Backend:    axisml.Backend{Name: "native", Engine: "statefulset"},
 			Scheduling: axisml.Scheduling{Quota: "axisml-acme-default-default"},
-			ModelRef:   axisml.ModelRef{Name: "demo", Version: "v1"},
 			Roles: []axisml.RoleSpec{{
 				Name:     axisml.DefaultRoleName,
 				Replicas: 1,
@@ -124,7 +123,6 @@ func TestMLService_NativeStatefulSet_ScaleAndImmutability(t *testing.T) {
 		Spec: axisml.MLServiceSpec{
 			Backend:    axisml.Backend{Name: "native", Engine: "statefulset"},
 			Scheduling: axisml.Scheduling{Quota: "axisml-acme-default-default"},
-			ModelRef:   axisml.ModelRef{Name: "demo", Version: "v1"},
 			Roles: []axisml.RoleSpec{{
 				Name:     axisml.DefaultRoleName,
 				Replicas: 1,

@@ -605,14 +605,6 @@ components:
       additionalProperties:
         type: string
 
-    ArtifactRef:
-      type: string
-      description: |
-        Cross-artifact reference in the form `<namespace>/<kind>/<name>@<version>`,
-        e.g. `team-a-models/model/llama-7b@v3`.
-      pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?/(model|dataset|image)/[a-z0-9]([-a-z0-9._]*[a-z0-9])?@[A-Za-z0-9_.-]{1,128}$'
-      example: team-a/dataset/mmlu@v1
-
     Digest:
       type: string
       description: |
@@ -646,10 +638,6 @@ components:
           format: double
           minimum: 0
           description: Parameter count (e.g. 7e9 for 7B).
-        baseModelRef:
-          $ref: '#/components/schemas/ArtifactRef'
-        trainingDatasetRef:
-          $ref: '#/components/schemas/ArtifactRef'
 
     DatasetSpec:
       type: object

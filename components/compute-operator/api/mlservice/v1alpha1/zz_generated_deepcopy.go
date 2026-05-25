@@ -52,19 +52,6 @@ func (in *Scheduling) DeepCopy() *Scheduling {
 	return out
 }
 
-func (in *ModelRef) DeepCopyInto(out *ModelRef) {
-	*out = *in
-}
-
-func (in *ModelRef) DeepCopy() *ModelRef {
-	if in == nil {
-		return nil
-	}
-	out := new(ModelRef)
-	in.DeepCopyInto(out)
-	return out
-}
-
 func (in *PodPort) DeepCopyInto(out *PodPort) {
 	*out = *in
 }
@@ -217,7 +204,6 @@ func (in *MLServiceSpec) DeepCopyInto(out *MLServiceSpec) {
 	*out = *in
 	in.Backend.DeepCopyInto(&out.Backend)
 	in.Scheduling.DeepCopyInto(&out.Scheduling)
-	out.ModelRef = in.ModelRef
 	if in.Roles != nil {
 		out.Roles = make([]RoleSpec, len(in.Roles))
 		for i := range in.Roles {

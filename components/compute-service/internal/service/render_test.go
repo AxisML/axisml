@@ -17,7 +17,6 @@ func TestServiceToCR_StampsLabelsAndCopiesSpec(t *testing.T) {
 	spec := mlservicev1alpha1.MLServiceSpec{
 		Backend:    mlservicev1alpha1.Backend{Name: "native", Engine: "deployment"},
 		Scheduling: mlservicev1alpha1.Scheduling{Quota: "axisml-default"},
-		ModelRef:   mlservicev1alpha1.ModelRef{Name: "demo", Version: "v1"},
 		Roles: []mlservicev1alpha1.RoleSpec{{
 			Name:     mlservicev1alpha1.DefaultRoleName,
 			Replicas: 3,
@@ -40,7 +39,6 @@ func TestServiceToCR_StampsLabelsAndCopiesSpec(t *testing.T) {
 	assert.Equal(t, "team-a", cr.Namespace)
 	assert.Equal(t, id.String(), cr.Labels[mlservicev1alpha1.LabelServiceID])
 	assert.Equal(t, "axisml-default", cr.Labels[mlservicev1alpha1.LabelQuota])
-	assert.Equal(t, spec.ModelRef, cr.Spec.ModelRef)
 	assert.Equal(t, int32(3), cr.Spec.Roles[0].Replicas)
 }
 

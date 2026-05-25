@@ -55,7 +55,6 @@ func TestMLService_NativeDeployment_HappyPath(t *testing.T) {
 		Spec: axisml.MLServiceSpec{
 			Backend:    axisml.Backend{Name: "native", Engine: "deployment"},
 			Scheduling: axisml.Scheduling{Quota: "axisml-acme-default-default"},
-			ModelRef:   axisml.ModelRef{Name: "demo", Version: "v1"},
 			Roles: []axisml.RoleSpec{{
 				Name:     axisml.DefaultRoleName,
 				Replicas: 1,

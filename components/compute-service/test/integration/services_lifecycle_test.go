@@ -53,7 +53,6 @@ func TestServiceCreateRoundTrip(t *testing.T) {
 		"resourceUnitId": unitView.ID,
 		"quota":          "axisml-default",
 		"backend":        map[string]string{"name": "native", "engine": "deployment"},
-		"modelRef":       map[string]any{"name": "demo", "version": "v1"},
 		"roles": []map[string]any{
 			{
 				"name":     mlservicev1alpha1.DefaultRoleName,

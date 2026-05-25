@@ -20,7 +20,6 @@ func minimalSpec() *axisml.MLServiceSpec {
 	return &axisml.MLServiceSpec{
 		Backend:    axisml.Backend{Name: "native", Engine: "statefulset"},
 		Scheduling: axisml.Scheduling{Quota: "axisml-demo-default-training"},
-		ModelRef:   axisml.ModelRef{Name: "dummy", Version: "v1"},
 		Roles: []axisml.RoleSpec{{
 			Name:     axisml.DefaultRoleName,
 			Replicas: 1,
@@ -101,15 +100,6 @@ func TestValidate_RejectsWrongRoleName(t *testing.T) {
 	}
 }
 
-func TestValidate_RejectsMissingModelRef(t *testing.T) {
-	spec := minimalSpec()
-	spec.ModelRef = axisml.ModelRef{}
-	h := &Handler{}
-	if v := h.Validate(spec); v.OK() {
-		t.Fatal("expected validation to fail with empty modelRef")
-	}
-}
-
 func TestValidate_RejectsRouteWithUnknownPortName(t *testing.T) {
 	spec := minimalSpec()
 	spec.Route = &axisml.Route{Enabled: true, PortName: "grpc"}
@@ -185,18 +175,6 @@ func TestBuildStatefulSet_InjectsRequiredLabels(t *testing.T) {
 	// Selector must NOT carry the quota / tenant labels.
 	if _, ok := sts.Spec.Selector.MatchLabels[axisml.LabelKoordQuotaName]; ok {
 		t.Error("selector unexpectedly contains koord quota label")
-	}
-}
-
-func TestBuildStatefulSet_InjectsModelEnvVar(t *testing.T) {
-	mls := &axisml.MLService{
-		ObjectMeta: metav1.ObjectMeta{Name: "smoke", Namespace: "tenant-demo"},
-		Spec:       *minimalSpec(),
-	}
-	sts := buildStatefulSet(mls, Config{})
-	c := sts.Spec.Template.Spec.Containers[0]
-	if !envHasValue(c.Env, modelEnvVarName, "model://dummy:v1") {
-		t.Errorf("env var %s not injected with expected value; got %v", modelEnvVarName, c.Env)
 	}
 }
 
@@ -458,15 +436,6 @@ func TestMapStatus_HonorsCustomServiceName(t *testing.T) {
 	if upd.Endpoint != "custom-headless.tenant-demo.svc.cluster.local:8080" {
 		t.Errorf("endpoint = %q; want headless-name-based DNS", upd.Endpoint)
 	}
-}
-
-func envHasValue(env []corev1.EnvVar, name, value string) bool {
-	for _, e := range env {
-		if e.Name == name && e.Value == value {
-			return true
-		}
-	}
-	return false
 }
 
 func containsSubstring(haystack []string, needle string) bool {

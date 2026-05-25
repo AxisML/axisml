@@ -100,9 +100,6 @@ func (h *Handler) Validate(spec *axisml.MLServiceSpec) handler.Validation {
 				fmt.Sprintf("roles[0].template.ports[%d].containerPort must be >0", i))
 		}
 	}
-	if spec.ModelRef.Name == "" || spec.ModelRef.Version == "" {
-		v.Errors = append(v.Errors, "modelRef.name and modelRef.version are required")
-	}
 	if spec.Scheduling.Quota == "" {
 		v.Errors = append(v.Errors, "scheduling.quota is required")
 	}

@@ -15,7 +15,6 @@ func TestImmutableSpecHash_StableOnReplicaChange(t *testing.T) {
 		Spec: axisml.MLServiceSpec{
 			Backend:    axisml.Backend{Name: "native", Engine: "deployment"},
 			Scheduling: axisml.Scheduling{Quota: "q"},
-			ModelRef:   axisml.ModelRef{Name: "m", Version: "v1"},
 			Roles: []axisml.RoleSpec{{
 				Name:     "predictor",
 				Replicas: 1,
@@ -44,7 +43,6 @@ func TestImmutableSpecHash_ChangesOnImageMutation(t *testing.T) {
 		Spec: axisml.MLServiceSpec{
 			Backend:    axisml.Backend{Name: "native", Engine: "deployment"},
 			Scheduling: axisml.Scheduling{Quota: "q"},
-			ModelRef:   axisml.ModelRef{Name: "m", Version: "v1"},
 			Roles: []axisml.RoleSpec{{
 				Name:     "predictor",
 				Replicas: 1,
