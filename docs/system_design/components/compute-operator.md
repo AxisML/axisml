@@ -2,13 +2,13 @@
 
 ## 1. 定位与边界
 
-承载 `MLJob` / `MLService` 两个 namespaced CR 的 Kubernetes operator；以 dispatcher + handler 模式把 [compute](compute.md) 下发的期望状态翻译为底层 K8s 与第三方资源，并把执行状态回流到 CR `status`。
+承载 `MLJob` / `MLService` 两个 namespaced CR 的 Kubernetes operator；以 dispatcher + handler 模式把 [compute-service](compute-service.md) 下发的期望状态翻译为底层 K8s 与第三方资源，并把执行状态回流到 CR `status`。
 
 | 做 | 不做 |
 | --- | --- |
 | MLJob / MLService CR reconcile，dispatcher 按 `spec.backend.{name, engine}` 路由 | Tenant / Namespace / ElasticQuota 落地 (→ [tenant-operator.md](tenant-operator.md)) |
-| 派生 Job / Pod / PodGroup / Deployment / StatefulSet / HTTPRoute / KServe `InferenceService` 等 | 业务持久化、用量计费、Outbox 推进 (→ [compute.md](compute.md)) |
-| `spec.route` 派生 Gateway API + Envoy Gateway 扩展资源 | 模型工件存储 (→ [artifacts.md](artifacts.md)) |
+| 派生 Job / Pod / PodGroup / Deployment / StatefulSet / HTTPRoute / KServe `InferenceService` 等 | 业务持久化、用量计费、Outbox 推进 (→ [compute-service.md](compute-service.md)) |
+| `spec.route` 派生 Gateway API + Envoy Gateway 扩展资源 | 模型工件存储 (→ [artifact-hub.md](artifact-hub.md)) |
 | Cancel 推进信号（`Suspended` condition）单向回流 | 用户认证 / 鉴权 (→ [auth.md](../auth.md)) |
 | Pod 注入 `schedulerName=koord-scheduler` + Quota label | 写 compute PG / 跨集群联邦 |
 
@@ -320,7 +320,7 @@ spec:
 | --- | --- | --- |
 | CRD: MLJob | `axisml.io/v1alpha1`, Namespaced, shortName `mlj`；`status` subresource 必启 | [deploy/helm/axisml-system/crds/mljob-crd.yaml](../../../deploy/helm/axisml-system/crds/mljob-crd.yaml) |
 | CRD: MLService | `axisml.io/v1alpha1`, Namespaced, shortName `mls`；`status` subresource 必启 | [deploy/helm/axisml-system/crds/mlservice-crd.yaml](../../../deploy/helm/axisml-system/crds/mlservice-crd.yaml) |
-| 上游 compute 写契约 | `Create()` 幂等（重复返回 409 `AlreadyExists`，label `axisml.io/{job-id\|service-id}` 一致即视为成功）；`metadata`/`spec` 单向；`spec.runPolicy.suspend` 与 `roles[*].replicas` 是仅有的运行时可变路径；MLService 额外携带 `axisml.io/service-kind=<service\|workspace>` 稳定 label（operator 不消费，仅供 `kubectl` 与 selector 区分） | [compute.md](compute.md) |
+| 上游 compute 写契约 | `Create()` 幂等（重复返回 409 `AlreadyExists`，label `axisml.io/{job-id\|service-id}` 一致即视为成功）；`metadata`/`spec` 单向；`spec.runPolicy.suspend` 与 `roles[*].replicas` 是仅有的运行时可变路径；MLService 额外携带 `axisml.io/service-kind=<service\|workspace>` 稳定 label（operator 不消费，仅供 `kubectl` 与 selector 区分） | [compute-service.md](compute-service.md) |
 | 路由元组 | MLJob: `(native,{job,podgroup}) \| (kubeflow-trainer,{pytorchjob,tfjob,mpijob,…}) \| (custom,*)`；MLService: `(native,{deployment,statefulset}) \| (kserve,{inference,llminference}) \| (custom,*)` | §4 |
 | Pod 注入必填 | `spec.schedulerName=koord-scheduler` + 4 项 label（quota / job-id 或 service-id / role / quota 审计） | §5.2 |
 | Status 回流字段 | `phase` / `message` / `roles[*]` / `conditions[type=Suspended]`（MLJob）/ `endpoint`（MLService） | §5.4 |
@@ -339,8 +339,8 @@ CRD 字段级 schema 不在本文展开，以上述 yaml + 后续 admission webh
 | KServe | `(kserve,inference)` / `(kserve,llminference)` 后端 CR 控制器 | [infra.md](../infra.md) |
 | Gateway API | `spec.route.enabled=true` 派生 `HTTPRoute`，挂到 `axisml-gateway` | [infra.md](../infra.md) |
 | Envoy Gateway 扩展 (`SecurityPolicy` / `BackendTrafficPolicy`) | `route.auth` / `rateLimit` / `timeout` 派生 | [infra.md](../infra.md) |
-| compute（上游 CR 写者） | 通过 `Create + Patch` 下发期望，status 单向回流；operator 不感知其 PG 表与 Outbox 推进机制 | [compute.md](compute.md) |
-| artifacts | `spec.modelRef` 解析为 storageUri / env | [artifacts.md](artifacts.md) |
+| compute（上游 CR 写者） | 通过 `Create + Patch` 下发期望，status 单向回流；operator 不感知其 PG 表与 Outbox 推进机制 | [compute-service.md](compute-service.md) |
+| artifacts | `spec.modelRef` 解析为 storageUri / env | [artifact-hub.md](artifact-hub.md) |
 
 ## 8. 运行时形态
 
@@ -388,7 +388,7 @@ CRD 字段级 schema 不在本文展开，以上述 yaml + 后续 admission webh
 - [deployment.md](../deployment.md) — Helm chart / 镜像 / 部署清单
 - [monitoring.md](../monitoring.md) — Metrics 与告警
 - [infra.md](../infra.md) — Koordinator / scheduler-plugins / Kubeflow / KServe / Gateway API / Envoy Gateway 依赖
-- [compute.md](compute.md) — 上游 CR 写者；Outbox + 双 hash 推进机制
+- [compute-service.md](compute-service.md) — 上游 CR 写者；Outbox + 双 hash 推进机制
 - [tenant-operator.md](tenant-operator.md) — 兄弟 operator；Tenant / ElasticQuota / Namespace 落地
-- [artifacts.md](artifacts.md) — `spec.modelRef` 解析依赖的工件 registry
+- [artifact-hub.md](artifact-hub.md) — `spec.modelRef` 解析依赖的工件 registry
 - CRD yaml：[deploy/helm/axisml-system/crds/mljob-crd.yaml](../../../deploy/helm/axisml-system/crds/mljob-crd.yaml) / [deploy/helm/axisml-system/crds/mlservice-crd.yaml](../../../deploy/helm/axisml-system/crds/mlservice-crd.yaml)

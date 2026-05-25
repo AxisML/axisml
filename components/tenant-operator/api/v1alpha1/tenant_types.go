@@ -32,7 +32,7 @@ const (
 // +kubebuilder:resource:scope=Cluster,shortName=tnt
 // +kubebuilder:subresource:status
 
-// Tenant is a cluster-scoped CR managed by AxisML Compute and reconciled by
+// Tenant is a cluster-scoped CR managed by AxisML Compute Service and reconciled by
 // tenant-operator into Namespace + ElasticQuota + per-tenant init resources.
 type Tenant struct {
 	metav1.TypeMeta   `json:",inline"`

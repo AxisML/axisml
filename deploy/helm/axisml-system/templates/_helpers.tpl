@@ -94,7 +94,7 @@ Service until it accepts connections; the bitnami/postgresql sub-chart's
 pg_isready readiness probe gates Service endpoints, so a successful TCP
 connect implies the DB is ready to accept queries.
 
-Without this gate, the compute Deployment + bootstrap post-install Job
+Without this gate, the compute-service Deployment + bootstrap post-install Job
 crash-loop while the DB is still starting (image pull + initdb on a
 fresh PVC), and the bootstrap Job exhausts its backoffLimit before the
 DB ever becomes reachable. Caller passes the chart context as `.`.

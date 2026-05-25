@@ -40,8 +40,8 @@ export IMAGE_TAG ?= $(shell awk '/^appVersion:/{gsub(/"/,"",$$2);print $$2}' $(H
 HELM_SYSTEM_IMAGE_SET := \
   --set platform.image.tag=$(IMAGE_TAG) \
   --set clusterManager.image.tag=$(IMAGE_TAG) \
-  --set compute.image.tag=$(IMAGE_TAG) \
-  --set artifacts.image.tag=$(IMAGE_TAG) \
+  --set computeService.image.tag=$(IMAGE_TAG) \
+  --set artifactHub.image.tag=$(IMAGE_TAG) \
   --set tenantOperator.image.tag=$(IMAGE_TAG) \
   --set computeOperator.image.tag=$(IMAGE_TAG)
 
@@ -49,7 +49,7 @@ HELM_SYSTEM_IMAGE_SET := \
 # should override these via HELM_EXTRA_ARGS or a values file with real
 # secrets — never ship `axisml` to a real cluster.
 HELM_SYSTEM_DEV_DEFAULTS := \
-  --set artifacts.storage.oci.adminSecretRef.password=axisml
+  --set artifactHub.storage.oci.adminSecretRef.password=axisml
 
 HELM_EXTRA_ARGS ?=
 
@@ -130,8 +130,8 @@ COMPONENTS := \
   components/tenant-operator \
   components/compute-operator \
   components/cluster-manager \
-  components/compute \
-  components/artifacts
+  components/compute-service \
+  components/artifact-hub
 # Scaffolded components (uncomment as they ship code):
 # COMPONENTS += components/platform/backend
 # COMPONENTS += components/platform/frontend
@@ -141,8 +141,8 @@ COVERAGE_COMPONENTS := \
   components/tenant-operator \
   components/compute-operator \
   components/cluster-manager \
-  components/compute \
-  components/artifacts
+  components/compute-service \
+  components/artifact-hub
 
 # Components participating in `make integration-test` and the matching
 # CI integration job. All current suites need either envtest (kubebuilder
@@ -152,16 +152,16 @@ INTEGRATION_COMPONENTS := \
   components/tenant-operator \
   components/compute-operator \
   components/cluster-manager \
-  components/compute \
-  components/artifacts
+  components/compute-service \
+  components/artifact-hub
 
 # Components that ship a public REST API and therefore an OpenAPI spec under
 # docs/openapi/. The two operators have no HTTP surface (they reconcile CRs),
 # so they're excluded.
 DOC_COMPONENTS := \
   components/cluster-manager \
-  components/compute \
-  components/artifacts
+  components/compute-service \
+  components/artifact-hub
 
 # Every Go module in the repo (each component + its integration sub-module
 # + shared test/testutil). `go fmt ./...` does not cross module boundaries,
@@ -318,7 +318,7 @@ COVERAGE_FILE ?= $(COVERAGE_DIR)/coverage.out
 coverage-unit: ## Run unit tests with coverage profile across all components
 	@$(call _RUN_COMPONENTS,coverage)
 
-coverage-integration: setup-envtest ## Run integration tests with coverage across operator + compute
+coverage-integration: setup-envtest ## Run integration tests with coverage across every component
 	@$(call _RUN_INTEGRATION_COMPONENTS,integration-coverage)
 
 coverage-merge: ## Merge per-component profiles into $(COVERAGE_FILE)
@@ -372,10 +372,10 @@ help: ## Show this help message
 	@printf "\n\033[1mPer-component shortcuts (auto-generated)\033[0m\n"
 	@printf "  Pattern : <component>-{build,image,image-load,test,integration,coverage,integration-coverage,coverage-html,fmt,tidy,clean}\n"
 	@printf "  Active  : %s\n" "$(notdir $(COMPONENTS))"
-	@printf "  Example : make operator-image  |  make compute-test\n"
+	@printf "  Example : make tenant-operator-image  |  make compute-service-test\n"
 	@printf "\n\033[1mDoc shortcuts (API services only)\033[0m\n"
 	@printf "  Pattern : <component>-{doc-gen,doc-test}\n"
 	@printf "  Active  : %s\n" "$(notdir $(DOC_COMPONENTS))"
-	@printf "  Example : make compute-doc-gen  |  make doc-test\n\n"
+	@printf "  Example : make compute-service-doc-gen  |  make doc-test\n\n"
 
 .DEFAULT_GOAL := build

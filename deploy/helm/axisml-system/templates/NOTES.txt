@@ -7,11 +7,11 @@ Components deployed:
 {{- if .Values.clusterManager.enabled }}
   - Cluster Mgr:  {{ include "axisml.fullname" . }}-cluster-manager:{{ .Values.clusterManager.service.port }}
 {{- end }}
-{{- if .Values.compute.enabled }}
-  - ML Compute:   {{ include "axisml.fullname" . }}-compute:{{ .Values.compute.service.port }}
+{{- if .Values.computeService.enabled }}
+  - Compute Service: {{ include "axisml.fullname" . }}-compute-service:{{ .Values.computeService.service.port }}
 {{- end }}
-{{- if .Values.artifacts.enabled }}
-  - ML Artifacts: {{ include "axisml.fullname" . }}-artifacts:{{ .Values.artifacts.service.port }}
+{{- if .Values.artifactHub.enabled }}
+  - Artifact Hub:    {{ include "axisml.fullname" . }}-artifact-hub:{{ .Values.artifactHub.service.port }}
 {{- end }}
 {{- if .Values.tenantOperator.enabled }}
   - Tenant Operator:  {{ include "axisml.fullname" . }}-tenant-operator

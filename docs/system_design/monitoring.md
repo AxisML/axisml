@@ -17,8 +17,8 @@
 | 组件 | 端口 | ServiceMonitor 模板 |
 | --- | --- | --- |
 | Cluster Manager | `/metrics`（默认 `:8080`） | `deploy/helm/axisml-system/templates/cluster-manager/servicemonitor.yaml` |
-| Compute | `/metrics`（默认 `:8080`） | `deploy/helm/axisml-system/templates/compute/servicemonitor.yaml` |
-| Artifacts | `/metrics`（默认 `:8080`） | `deploy/helm/axisml-system/templates/artifacts/servicemonitor.yaml` |
+| Compute Service | `/metrics`（默认 `:8080`） | `deploy/helm/axisml-system/templates/compute-service/servicemonitor.yaml` |
+| Artifact Hub | `/metrics`（默认 `:8080`） | `deploy/helm/axisml-system/templates/artifact-hub/servicemonitor.yaml` |
 | Platform Backend | `/metrics`（默认 `:8081`） | `deploy/helm/axisml-system/templates/platform/servicemonitor.yaml` |
 | tenant-operator | `/metrics`（默认 `:8080`） | `deploy/helm/axisml-system/templates/tenant-operator/servicemonitor.yaml` |
 | compute-operator | `/metrics`（默认 `:8080`） | `deploy/helm/axisml-system/templates/compute-operator/servicemonitor.yaml` |
@@ -63,8 +63,7 @@ label 取值规则：
 
 ## 4. Core 层指标
 
-### 4.1 Compute
-
+### 4.1 Compute Service
 | 指标 | 类型 | 用途 |
 | --- | --- | --- |
 | `axisml_compute_is_leader` | gauge | 当前副本是否为 leader（0/1） |
@@ -81,8 +80,7 @@ label 取值：
 - `predicate ∈ {creating, canceling, deleting, spec_sync}`；
 - `result ∈ {success, conflict, error, skipped}`。
 
-### 4.2 Artifacts
-
+### 4.2 Artifact Hub
 | 指标 | 类型 | 含义 |
 | --- | --- | --- |
 | `axisml_artifacts_is_leader` | gauge | 当前副本是否为 leader（0/1） |

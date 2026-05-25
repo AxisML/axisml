@@ -27,8 +27,8 @@ Kubernetes Cluster
 ├── axisml-system namespace
 │   ├── AxisML Platform           (Deployment + Service)
 │   ├── AxisML Cluster Manager    (Deployment + Service)
-│   ├── AxisML Compute            (Deployment + Service)
-│   ├── AxisML Artifacts          (Deployment + Service)
+│   ├── AxisML Compute Service    (Deployment + Service)
+│   ├── AxisML Artifact Hub       (Deployment + Service)
 │   ├── tenant-operator           (Deployment)
 │   ├── compute-operator          (Deployment)
 │   └── PostgreSQL / externalDatabase
@@ -88,8 +88,8 @@ make helm-install-system    # 再装控制平面（含数据库与 CRDs）
 | 组件 | 镜像 |
 | --- | --- |
 | Cluster Manager | `ghcr.io/axisml/axisml-cluster-manager:<appVersion>` |
-| Compute | `ghcr.io/axisml/axisml-compute:<appVersion>` |
-| Artifacts | `ghcr.io/axisml/axisml-artifacts:<appVersion>` |
+| Compute Service | `ghcr.io/axisml/axisml-compute-service:<appVersion>` |
+| Artifact Hub | `ghcr.io/axisml/axisml-artifact-hub:<appVersion>` |
 | Platform Backend | `ghcr.io/axisml/axisml-platform-backend:<appVersion>` |
 | Platform Frontend | `ghcr.io/axisml/axisml-platform-frontend:<appVersion>` |
 | tenant-operator | `ghcr.io/axisml/axisml-tenant-operator:<appVersion>` |
@@ -108,8 +108,8 @@ make helm-install-system    # 再装控制平面（含数据库与 CRDs）
 | 组件 | 副本 | 端口 | leader election | 备注 |
 | --- | --- | --- | --- | --- |
 | Cluster Manager | `1` 默认 | `:8080` API、`:8080` metrics | controller-runtime Lease | 后台 reconciler / informer 只在 leader 副本运行 |
-| Compute | `1` 默认 | `:8081` API、`:8080` metrics | controller-runtime Lease | 同上；API 层无状态可水平扩；bootstrap Job 初始化默认 pool + cpu-small/cpu-medium unit |
-| Artifacts | `1` 默认 | `:8082` API、`:8080` metrics | `coordination.k8s.io/Lease` | GC worker 选主；API 层无状态 |
+| Compute Service | `1` 默认 | `:8081` API、`:8080` metrics | controller-runtime Lease | 同上；API 层无状态可水平扩；bootstrap Job 初始化默认 pool + cpu-small/cpu-medium unit |
+| Artifact Hub | `1` 默认 | `:8082` API、`:8080` metrics | `coordination.k8s.io/Lease` | GC worker 选主；API 层无状态 |
 | Platform Backend | `1` 默认 | `:8080` API、`:8081` metrics | 无 | 完全无状态 |
 | Platform Frontend | `1` 默认 | `:80` 静态资源 | 无 | 后端镜像独立部署，通过 Helm `platform.frontend.image` 字段配置 |
 | tenant-operator | `1`（leader）+ N 备 | `:8080` metrics | controller-runtime Lease | 单 leader |
@@ -134,19 +134,19 @@ make helm-install-system    # 再装控制平面（含数据库与 CRDs）
 
 每个控制面组件的 Helm 模板放在 `deploy/helm/axisml-system/templates/<component>/` 下，文件清单基本一致：
 
-### 6.1 Cluster Manager / Compute / Artifacts / Platform Backend
+### 6.1 Cluster Manager / Compute Service / Artifact Hub / Platform Backend
 
 | 文件 | 用途 |
 | --- | --- |
 | `configmap.yaml` | DB 连接、日志级别、下游 URL |
 | `secret.yaml` | DB DSN、JWT 签名密钥（仅 Platform） |
 | `deployment.yaml` | 主 Deployment，含探针 `/healthz` / `/readyz` |
-| `service.yaml` | ClusterIP（cluster-manager / compute / artifacts）；HTTPRoute 仅 Platform 暴露外部入口 |
+| `service.yaml` | ClusterIP（cluster-manager / compute-service / artifact-hub）；HTTPRoute 仅 Platform 暴露外部入口 |
 | `serviceaccount.yaml` | 服务账号 |
 | `rbac.yaml` | ClusterRole + ClusterRoleBinding（详见各组件详设 §2.5） |
 | `role.yaml` / `rolebinding.yaml` | leader election Lease 权限（在 `axisml-system` namespace 内） |
 | `servicemonitor.yaml` | `/metrics` 暴露，kube-prometheus-stack 自动发现 |
-| `bootstrap-job.yaml` | post-install Job 初始化默认数据（仅 Compute：default pool + cpu-small/cpu-medium unit） |
+| `bootstrap-job.yaml` | post-install Job 初始化默认数据（仅 compute-service：default pool + cpu-small/cpu-medium unit） |
 
 ### 6.2 tenant-operator / compute-operator
 
@@ -227,7 +227,7 @@ PostgreSQL 由 `axisml-system` chart 提供，支持两种模式：
 
 **Operator HA**
 - tenant-operator / compute-operator 多副本 leader election
-- Compute / Cluster Manager / Artifacts 多副本（API 层水平扩，后台协程仍 leader-only）
+- Compute Service / Cluster Manager / Artifact Hub 多副本（API 层水平扩，后台协程仍 leader-only）
 
 ---
 
@@ -237,4 +237,4 @@ PostgreSQL 由 `axisml-system` chart 提供，支持两种模式：
 - [infra.md §5 部署形态](infra.md#5-部署形态)：infra chart 子组件部署细节；
 - [database.md §1 部署形态](database.md)：PostgreSQL 部署形态；
 - [monitoring.md §1 接入模型](monitoring.md#1-接入模型)：ServiceMonitor 接入；
-- 各组件详设的 §8 运行时形态 章节：[cluster-manager](components/cluster-manager.md#8-运行时形态) / [compute](components/compute.md#8-运行时形态) / [artifacts](components/artifacts.md#8-运行时形态) / [tenant-operator](components/tenant-operator.md#8-运行时形态) / [compute-operator](components/compute-operator.md#8-运行时形态) / [platform](components/platform.md#8-运行时形态)。
+- 各组件详设的 §8 运行时形态 章节：[cluster-manager](components/cluster-manager.md#8-运行时形态) / [compute-service](components/compute-service.md#8-运行时形态) / [artifact-hub](components/artifact-hub.md#8-运行时形态) / [tenant-operator](components/tenant-operator.md#8-运行时形态) / [compute-operator](components/compute-operator.md#8-运行时形态) / [platform](components/platform.md#8-运行时形态)。

@@ -1,0 +1,63 @@
+{{- if .Values.computeService.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "axisml.fullname" . }}-compute-service
+  labels:
+    {{- include "axisml.componentLabels" (dict "context" . "component" "compute-service") | nindent 4 }}
+spec:
+  replicas: {{ .Values.computeService.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "axisml.componentSelectorLabels" (dict "context" . "component" "compute-service") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "axisml.componentLabels" (dict "context" . "component" "compute-service") | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "axisml.fullname" . }}-compute-service
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        {{- include "axisml.waitForDatabase" . | nindent 8 }}
+      containers:
+        - name: compute-service
+          image: {{ include "axisml.image" (dict "imageRoot" .Values.computeService.image "global" .Values.global "chart" .Chart) }}
+          imagePullPolicy: {{ .Values.computeService.image.pullPolicy }}
+          args: ["serve"]
+          ports:
+            - name: http
+              containerPort: {{ .Values.computeService.service.port }}
+              protocol: TCP
+            - name: metrics
+              containerPort: {{ .Values.computeService.metricsPort }}
+              protocol: TCP
+            - name: probes
+              containerPort: {{ .Values.computeService.probesPort }}
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: {{ include "axisml.fullname" . }}-compute-service
+          env:
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "axisml.fullname" . }}-compute-service-db
+                  key: password
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: probes
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: probes
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.computeService.resources | nindent 12 }}
+{{- end }}

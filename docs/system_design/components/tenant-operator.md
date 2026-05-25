@@ -2,11 +2,11 @@
 
 ## 1. 定位与边界
 
-把 [compute](compute.md) 下发的 `Tenant` CR 翻译为 K8s 侧的 Namespace、Koordinator `ElasticQuota`、租户私有的 Secret / ConfigMap / ServiceAccount + RBAC,并把执行状态回流到 `Tenant.status`。
+把 [compute-service](compute-service.md) 下发的 `Tenant` CR 翻译为 K8s 侧的 Namespace、Koordinator `ElasticQuota`、租户私有的 Secret / ConfigMap / ServiceAccount + RBAC,并把执行状态回流到 `Tenant.status`。
 
 | 做 | 不做 |
 | --- | --- |
-| Namespace 创建与 metadata 对齐 (永不删除) | Tenant CR / 配额的 CRUD API (→ [compute.md](compute.md)) |
+| Namespace 创建与 metadata 对齐 (永不删除) | Tenant CR / 配额的 CRUD API (→ [compute-service.md](compute-service.md)) |
 | 每条 `spec.quotas[]` 渲染为 ElasticQuota CR,回流 `status.used` | MLJob / MLService 生命周期 (→ [compute-operator.md](compute-operator.md)) |
 | `spec.initResources` 下发 ImagePullSecret / Secret / ConfigMap / SA + RBAC | 用户认证、平台 RBAC (→ [auth.md](../auth.md)) |
 | 周期 resync 收敛源 Secret / ConfigMap 漂移 | 跨集群 / 多 region 联邦 |
@@ -133,7 +133,7 @@ reconcile 触发事件:
 - **漂移**:reconcile 检测到本端 ≠ 源时覆盖;源 watch 不建立,延迟 ≤ resync 间隔;
 - **删除**:spec 删项 → reconcile 显式 Delete;Tenant 删除 → ownerReference GC。
 
-**关键不变量**:`serviceAccounts[].imagePullSecrets[]` 中每个 name 必须能在 `imagePullSecrets[].name` 中找到,否则 Validate 失败。这些 Secret 也是 [artifacts.md](artifacts.md) `auth_hint` 链路的落地端。
+**关键不变量**:`serviceAccounts[].imagePullSecrets[]` 中每个 name 必须能在 `imagePullSecrets[].name` 中找到,否则 Validate 失败。这些 Secret 也是 [artifact-hub.md](artifact-hub.md) `auth_hint` 链路的落地端。
 
 ## 5. 关键机制
 
@@ -187,7 +187,7 @@ Pod 调度 ──▶ koord-scheduler ──▶ ElasticQuota.status.used 累加
 | 类别 | 内容 | 引用 |
 | --- | --- | --- |
 | 输入 CR | `Tenant` (`axisml.io/v1alpha1`, cluster-scoped, `shortName=tnt`) | [tenant-crd.yaml](../../../deploy/helm/axisml-system/crds/tenant-crd.yaml) |
-| 上游写者 | compute 是唯一写者 (`metadata` / `spec`);admission webhook 后续硬阻断外部写 | [compute.md](compute.md) |
+| 上游写者 | compute 是唯一写者 (`metadata` / `spec`);admission webhook 后续硬阻断外部写 | [compute-service.md](compute-service.md) |
 | status subresource | CRD 声明 `subresources.status`;tenant-operator 是唯一 `status` 写者 | — |
 | 字段归属 | `spec` 四块 `namespace` / `quotas[]` / `initResources` / `suspended` | 详见下表 |
 | 级联清理 | per-tenant 资源 ownerReference → Tenant CR;Tenant DELETE 由 K8s GC 异步清理;Namespace 永不删除 | — |
@@ -212,7 +212,7 @@ Pod 调度 ──▶ koord-scheduler ──▶ ElasticQuota.status.used 累加
 | --- | --- | --- |
 | Kubernetes API | Tenant CR watch、子资源 CRUD、leader Lease | — |
 | Koordinator ElasticQuota CRD | 渲染目标;`status.used` 回流来源 | [infra.md](../infra.md) |
-| compute | 上游唯一 Tenant CR 写者;status 回流消费方 | [compute.md](compute.md) |
+| compute | 上游唯一 Tenant CR 写者;status 回流消费方 | [compute-service.md](compute-service.md) |
 | 受控 Namespace 中的源 Secret / ConfigMap | `sourceSecretRef` / `sourceConfigMapRef` 复制数据源 | — |
 
 ## 8. 运行时形态
@@ -245,6 +245,6 @@ Pod 调度 ──▶ koord-scheduler ──▶ ElasticQuota.status.used 累加
 - [deployment.md](../deployment.md) — Helm 模板与部署形态
 - [monitoring.md](../monitoring.md) — Metrics 与告警
 - [infra.md](../infra.md) — Koordinator / ElasticQuota / scheduler-plugins 依赖契约
-- [compute.md](compute.md) — Tenant CR 上游 producer
+- [compute-service.md](compute-service.md) — Tenant CR 上游 producer
 - [compute-operator.md](compute-operator.md) — 兄弟 operator,承载 MLJob / MLService
-- [artifacts.md](artifacts.md) — `auth_hint` 链路依赖 tenant-operator 下发的 SA + ImagePullSecret
+- [artifact-hub.md](artifact-hub.md) — `auth_hint` 链路依赖 tenant-operator 下发的 SA + ImagePullSecret

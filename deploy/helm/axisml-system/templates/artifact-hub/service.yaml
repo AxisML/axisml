@@ -1,0 +1,17 @@
+{{- if .Values.artifactHub.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "axisml.fullname" . }}-artifact-hub
+  labels:
+    {{- include "axisml.componentLabels" (dict "context" . "component" "artifact-hub") | nindent 4 }}
+spec:
+  type: {{ .Values.artifactHub.service.type }}
+  ports:
+    - port: {{ .Values.artifactHub.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "axisml.componentSelectorLabels" (dict "context" . "component" "artifact-hub") | nindent 4 }}
+{{- end }}

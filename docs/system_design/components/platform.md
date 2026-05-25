@@ -7,9 +7,9 @@ AxisML 系统中唯一直接面向用户的层；承担身份接入、业务编�
 | 做 | 不做 |
 | --- | --- |
 | 唯一外部 HTTP 入口（前端 SPA + 后端 REST） | 直接管理 K8s 资源（除受限 PVC，见 §5.4） |
-| 身份认证 / JWT 颁发 / RBAC 校验 | 持有 Tenant / Quota / Job / Service 权威 (→ [compute.md](compute.md)) |
+| 身份认证 / JWT 颁发 / RBAC 校验 | 持有 Tenant / Quota / Job / Service 权威 (→ [compute-service.md](compute-service.md)) |
 | 跨服务业务编排（创建/列表合并/克隆等） | 持有 ResourcePool / ResourceUnit 词汇 (→ [cluster-manager.md](cluster-manager.md)) |
-| 视图层映射（Tenant view ↔ namespace；workspace ↔ MLService(kind)） | 持有 Artifact 权威 (→ [artifacts.md](artifacts.md)) |
+| 视图层映射（Tenant view ↔ namespace；workspace ↔ MLService(kind)） | 持有 Artifact 权威 (→ [artifact-hub.md](artifact-hub.md)) |
 | 工作区 PVC 直管（Platform 唯一直接操作 K8s 的范围） | 二次缓存下游业务字段（无视图缓存表） |
 
 ## 2. 架构
@@ -311,8 +311,8 @@ RBAC 中间件装配细节归 [auth.md](../auth.md)，Platform 仅在路由层�
 | PostgreSQL | 身份 / 授权 / 会话 / 审计；与 cluster-manager / compute / artifacts 共享同一 DB，按表名前缀隔离 | [database.md](../database.md) / [infra.md](../infra.md) |
 | Envoy Gateway | 唯一外部入口；TLS 终止 / 路由匹配 | [infra.md](../infra.md) |
 | cluster-manager | ResourcePool / ResourceUnit 词汇；Platform 在编排前拉取并展开成 nodeSelector / requests / limits 原语 | [cluster-manager.md](cluster-manager.md) |
-| compute | Tenant / Quota / Job / Service 权威；写路径由 compute Outbox + reconciler 保证强一致 | [compute.md](compute.md) |
-| artifacts | 模型 / 镜像 / 数据集元数据；两阶段写（initiate → 直推 → complete） | [artifacts.md](artifacts.md) |
+| compute | Tenant / Quota / Job / Service 权威；写路径由 compute Outbox + reconciler 保证强一致 | [compute-service.md](compute-service.md) |
+| artifacts | 模型 / 镜像 / 数据集元数据；两阶段写（initiate → 直推 → complete） | [artifact-hub.md](artifact-hub.md) |
 | Prometheus (kube-prometheus-stack) | 在线服务指标 Tab 数据源 | [infra.md](../infra.md) |
 | Kubernetes API | 仅工作区 PVC `get/list/create/delete`，受限 RBAC | — |
 
@@ -405,4 +405,4 @@ RBAC 中间件装配细节归 [auth.md](../auth.md)，Platform 仅在路由层�
 - [infra.md](../infra.md) — Envoy Gateway / kube-prometheus-stack
 - [wireframe.md](../wireframe.md) — 所有 UI 设计（列表 / 详情 / 表单）
 - [apis/platform.yaml](../apis/platform.yaml) — REST 契约源
-- [cluster-manager.md](cluster-manager.md) / [tenant-operator.md](tenant-operator.md) / [compute.md](compute.md) / [compute-operator.md](compute-operator.md) / [artifacts.md](artifacts.md)
+- [cluster-manager.md](cluster-manager.md) / [tenant-operator.md](tenant-operator.md) / [compute-service.md](compute-service.md) / [compute-operator.md](compute-operator.md) / [artifact-hub.md](artifact-hub.md)

@@ -7,8 +7,8 @@
 | 做 | 不做 |
 | --- | --- |
 | ResourcePool / ResourceUnit CRUD | 修改 Node label / taint（admin 手工维护） |
-| 默认池 `default` 初始化（Helm post-install） | 租户 / 配额管理 (→ [compute.md](compute.md)) |
-| Pool / Unit 列表与详情查询，给 Platform 编排前展开 nodeSelector / requests / limits 用 | 计算负载与制品管理 (→ [compute.md](compute.md) / [artifacts.md](artifacts.md)) |
+| 默认池 `default` 初始化（Helm post-install） | 租户 / 配额管理 (→ [compute-service.md](compute-service.md)) |
+| Pool / Unit 列表与详情查询，给 Platform 编排前展开 nodeSelector / requests / limits 用 | 计算负载与制品管理 (→ [compute-service.md](compute-service.md) / [artifact-hub.md](artifact-hub.md)) |
 | 用户认证与角色鉴权 (← Platform) | 调用任何 K8s API |
 
 Cluster Manager 没有 CR、没有 reconciler、没有 informer、没有 leader election。是纯 REST + PG。
@@ -153,4 +153,4 @@ Platform 在编排 Job / Service 时调本服务拿 Pool / Unit 详情，展开�
 - [monitoring.md](../monitoring.md) — Metrics
 - [apis/cluster-manager.yaml](../apis/cluster-manager.yaml) — REST 契约源
 - [platform.md](platform.md) — Platform 在编排前调 Pool/Unit 做展开
-- [compute.md](compute.md) — Tenant / Job / Service 权威服务
+- [compute-service.md](compute-service.md) — Tenant / Job / Service 权威服务

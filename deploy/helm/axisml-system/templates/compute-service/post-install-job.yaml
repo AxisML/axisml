@@ -1,0 +1,41 @@
+{{- if and .Values.computeService.enabled .Values.computeService.bootstrap.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "axisml.fullname" . }}-compute-service-bootstrap
+  labels:
+    {{- include "axisml.componentLabels" (dict "context" . "component" "compute-service-bootstrap") | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 5
+  template:
+    metadata:
+      labels:
+        {{- include "axisml.componentLabels" (dict "context" . "component" "compute-service-bootstrap") | nindent 8 }}
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: {{ include "axisml.fullname" . }}-compute-service
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        {{- include "axisml.waitForDatabase" . | nindent 8 }}
+      containers:
+        - name: bootstrap
+          image: {{ include "axisml.image" (dict "imageRoot" .Values.computeService.image "global" .Values.global "chart" .Chart) }}
+          imagePullPolicy: {{ .Values.computeService.image.pullPolicy }}
+          args: ["bootstrap"]
+          envFrom:
+            - configMapRef:
+                name: {{ include "axisml.fullname" . }}-compute-service
+          env:
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "axisml.fullname" . }}-compute-service-db
+                  key: password
+{{- end }}

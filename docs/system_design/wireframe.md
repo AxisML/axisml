@@ -105,10 +105,10 @@
 | 菜单项 | Page Title | 一句说明 (link 到详细 doc) |
 | --- | --- | --- |
 | Dashboard | `Dashboard.` | 登录后默认落地页,后续展示可见租户数 / 活跃任务 / 在线服务 / GPU 利用率,见 [monitoring.md](monitoring.md)。 |
-| 工作区 | `工作区。` | Jupyter / VSCode 等开发容器入口,见 [components/compute.md](components/compute.md)。 |
-| 计算任务 | `计算任务。` | PyTorchJob / MPIJob / 自定义训练任务,见 [components/compute.md](components/compute.md)。 |
-| 在线服务 | `在线服务。` | 模型在线推理与路由,见 [components/compute.md](components/compute.md)。 |
-| 数据集 / 模型 / 镜像 | 同菜单项名 | 制品中心,见 [components/artifacts.md](components/artifacts.md)。 |
+| 工作区 | `工作区。` | Jupyter / VSCode 等开发容器入口,见 [components/compute-service.md](components/compute-service.md)。 |
+| 计算任务 | `计算任务。` | PyTorchJob / MPIJob / 自定义训练任务,见 [components/compute-service.md](components/compute-service.md)。 |
+| 在线服务 | `在线服务。` | 模型在线推理与路由,见 [components/compute-service.md](components/compute-service.md)。 |
+| 数据集 / 模型 / 镜像 | 同菜单项名 | 制品中心,见 [components/artifact-hub.md](components/artifact-hub.md)。 |
 | 数据卷管理 | `数据卷管理。` | DataVolume 抽象方案待定,见 §6 后续设计。 |
 
 placeholder 块固定四段:
@@ -578,6 +578,6 @@ UI 即时校验 + cluster-manager 兜底。完整字段清单与校验规则见 
 - [apis/platform.yaml](apis/platform.yaml) — REST API 字段契约
 - [monitoring.md](monitoring.md) — Dashboard 与服务指标数据来源
 - [overview.md](overview.md) — 系统概念与组件关系
-- [components/compute.md](components/compute.md) — Job / Service / ResourcePool / ResourceUnit 字段权威
+- [components/compute-service.md](components/compute-service.md) — Job / Service / ResourcePool / ResourceUnit 字段权威
 - [components/cluster-manager.md](components/cluster-manager.md) — Tenant 字段权威
-- [components/artifacts.md](components/artifacts.md) — 制品中心字段权威
+- [components/artifact-hub.md](components/artifact-hub.md) — 制品中心字段权威

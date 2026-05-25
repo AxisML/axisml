@@ -1,0 +1,2357 @@
+openapi: 3.0.3
+info:
+  title: AxisML Compute Service API
+  version: v1
+  description: |
+    AxisML Compute Service is the multi-tenant ML workload service. It owns Tenant
+    lifecycle (Tenant CR producer), Quota subresource, and namespace-partitioned
+    Job / Service objects on top of the compute-operator-owned MLJob /
+    MLService CRDs.
+
+    Path segment `{namespace}` is the tenant identifier (= `tenants.name`);
+    compute internally resolves the K8s namespace via the Tenant row.
+
+    Compute only accepts internal REST calls from AxisML Platform via the
+    in-cluster ClusterIP Service; it is not exposed through any external
+    HTTPRoute. Platform injects the caller identity through the `X-Axisml-User`
+    header on every `/api/v1/*` call.
+
+    Compute writes the desired state into its own PostgreSQL tables and
+    relies on an Outbox + reconciler loop to translate desired state into
+    Tenant / MLJob / MLService CRs. Read paths surface the latest state
+    observed through three in-process Informers.
+
+servers:
+  - url: http://axisml-compute-service.axisml-system.svc.cluster.local:8081
+    description: In-cluster ClusterIP endpoint
+
+tags:
+  - name: Tenants
+    description: Tenant lifecycle (create / read / update / suspend / soft-delete / restore)
+  - name: Quotas
+    description: Quota CRUD as a sub-resource of a Tenant; backed by `tenants.spec.quotas[]` jsonb
+  - name: Jobs
+    description: One-shot ML training / batch jobs (namespace-scoped)
+  - name: Services
+    description: Long-running inference services and workspaces (namespace-scoped)
+  - name: Health
+    description: Liveness and readiness probes
+
+security:
+  - AxismlUserHeader: []
+
+paths:
+  /healthz:
+    get:
+      operationId: healthz
+      tags: [Health]
+      summary: Liveness probe
+      description: Returns 200 if the Compute process is alive.
+      security: []
+      responses:
+        '200':
+          description: Process alive
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+
+  /readyz:
+    get:
+      operationId: readyz
+      tags: [Health]
+      summary: Readiness probe
+      description: |
+        Returns 200 if the process is alive and the PostgreSQL connection is
+        healthy. Informer readiness is intentionally excluded so leader
+        failover does not drain non-leader replicas.
+      security: []
+      responses:
+        '200':
+          description: Ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+        '503':
+          description: Not ready (e.g. PG unreachable)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Tenants (K8s style — `{namespace}` IS the tenant identifier)
+  # ─────────────────────────────────────────────────────────────────────
+  /api/v1/namespaces:
+    post:
+      tags: [Tenants]
+      operationId: createTenant
+      summary: Create a tenant
+      description: |
+        Inserts a new row into `tenants` with `generation = 1` and returns
+        the current PG view immediately. The Tenant CR is rendered and
+        applied asynchronously by the reconciler; clients should poll
+        `GET /api/v1/namespaces/{namespace}` and observe `status.phase` /
+        `status.conditions[type=NamespaceReady]` to confirm convergence.
+
+        A partial unique index on `(name) WHERE deleted_at IS NULL`
+        guarantees that an active tenant with the same `name` yields 409.
+        Soft-deleted rows are not a conflict.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TenantCreateRequest'
+      responses:
+        '201':
+          description: Tenant created; reconciler will render the CR asynchronously.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    get:
+      tags: [Tenants]
+      operationId: listTenants
+      summary: List tenants
+      description: |
+        Pure PG query. Returns a page of tenants matching the supplied
+        filters. Pagination uses an opaque continue token.
+      parameters:
+        - name: q
+          in: query
+          description: Keyword fuzzy match against `name` and `display_name`.
+          required: false
+          schema:
+            type: string
+        - name: phase
+          in: query
+          description: Filter by current `status.phase`.
+          required: false
+          schema:
+            $ref: '#/components/schemas/Phase'
+        - $ref: '#/components/parameters/LabelSelector'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Continue'
+        - name: includeArchived
+          in: query
+          description: When true, include rows with `deleted_at IS NOT NULL`.
+          required: false
+          schema:
+            type: boolean
+            default: false
+        - name: sortBy
+          in: query
+          description: Sort key. Supports `created_at` and `updated_at`. Defaults to `created_at desc`.
+          required: false
+          schema:
+            type: string
+            enum: [created_at, updated_at]
+            default: created_at
+      responses:
+        '200':
+          description: A page of tenants.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantList'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/namespaces/{namespace}:
+    parameters:
+      - $ref: '#/components/parameters/Namespace'
+    get:
+      tags: [Tenants]
+      operationId: getTenant
+      summary: Get a tenant
+      description: |
+        Looks up by `name` (= path `{namespace}`) with `deleted_at IS NULL`.
+        When `?includeArchived=true` is set, the lookup also returns
+        soft-deleted rows; if both an active and a soft-deleted row exist
+        the active row is returned.
+      parameters:
+        - name: includeArchived
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Tenant view.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    patch:
+      tags: [Tenants]
+      operationId: patchTenant
+      summary: Patch a tenant (RFC 7396 JSON Merge Patch)
+      description: |
+        Applies an RFC 7396 JSON Merge Patch. Only mutable fields are
+        accepted: `displayName`, `description`, `labels`, `annotations`,
+        and the patchable subset of `spec.*` (`spec.namespace.labels`,
+        `spec.namespace.annotations`, `spec.initResources`, `spec.suspended`,
+        individual `spec.quotas[]` entries).
+
+        Immutable fields (`name`, `owner`, `spec.namespace.name`,
+        `spec.quotas[].pool`, `spec.quotas[].name`) are rejected at the
+        request layer (400).
+
+        Mutations to `spec.*` bump `generation`; mutations to top-level
+        metadata do not.
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: '#/components/schemas/TenantPatchRequest'
+      responses:
+        '200':
+          description: Tenant updated. CR sync is asynchronous.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    delete:
+      tags: [Tenants]
+      operationId: deleteTenant
+      summary: Soft-delete a tenant
+      description: |
+        Sets `deleted_at = now()` and bumps `generation`. The reconciler
+        will subsequently delete the Tenant CR; the informer sets
+        `status.phase = Deleted` after observing the DELETE event.
+
+        Idempotent: deleting an already-deleted tenant returns 200 without
+        further effect.
+      responses:
+        '200':
+          description: Soft-delete accepted (or already soft-deleted).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/namespaces/{namespace}/suspend:
+    parameters:
+      - $ref: '#/components/parameters/Namespace'
+    post:
+      tags: [Tenants]
+      operationId: suspendTenant
+      summary: Suspend a tenant
+      description: Sets `spec.suspended = true` and bumps `generation`.
+      responses:
+        '200':
+          description: Suspend accepted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/namespaces/{namespace}/unsuspend:
+    parameters:
+      - $ref: '#/components/parameters/Namespace'
+    post:
+      tags: [Tenants]
+      operationId: unsuspendTenant
+      summary: Unsuspend a tenant
+      description: Sets `spec.suspended = false` and bumps `generation`.
+      responses:
+        '200':
+          description: Unsuspend accepted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/namespaces/{namespace}/restore:
+    parameters:
+      - $ref: '#/components/parameters/Namespace'
+    post:
+      tags: [Tenants]
+      operationId: restoreTenant
+      summary: Restore a soft-deleted tenant
+      description: |
+        Clears `deleted_at`, resets `status.phase = 'Creating'`, and bumps
+        `generation`. Precondition: no active tenant with the same `name`
+        may exist; otherwise 409.
+      responses:
+        '200':
+          description: Restore accepted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Quotas (sub-resource of tenant)
+  # ─────────────────────────────────────────────────────────────────────
+  /api/v1/namespaces/{namespace}/quotas:
+    parameters:
+      - $ref: '#/components/parameters/Namespace'
+    get:
+      tags: [Quotas]
+      operationId: listTenantQuotas
+      summary: List quotas attached to a tenant
+      description: |
+        Returns the union of `tenants.spec.quotas[]` (desired spec) and
+        observed status (`ready` / `used` / `message`) from the informer.
+      responses:
+        '200':
+          description: Quotas spec + observed status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuotaList'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    post:
+      tags: [Quotas]
+      operationId: createTenantQuota
+      summary: Append a quota to a tenant
+      description: |
+        Appends `{pool, name, min, max}` into the `tenants.spec.quotas[]`
+        jsonb array. Returns 409 if `(pool, name)` already exists.
+        `(pool, name)` is immutable thereafter.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuotaCreateRequest'
+      responses:
+        '201':
+          description: Quota appended.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Quota'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/namespaces/{namespace}/quotas/{pool}/{quotaName}:
+    parameters:
+      - $ref: '#/components/parameters/Namespace'
+      - $ref: '#/components/parameters/QuotaPool'
+      - $ref: '#/components/parameters/QuotaName'
+    patch:
+      tags: [Quotas]
+      operationId: patchTenantQuota
+      summary: Update a quota's min/max
+      description: RFC 7396 JSON Merge Patch over `{min, max}`. `(pool, name)` are immutable.
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: '#/components/schemas/QuotaPatchRequest'
+      responses:
+        '200':
+          description: Quota updated; reconciler will sync the underlying ElasticQuota.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Quota'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    delete:
+      tags: [Quotas]
+      operationId: deleteTenantQuota
+      summary: Remove a quota
+      description: |
+        Removes the quota item from `tenants.spec.quotas[]`. The reconciler
+        will subsequently delete the corresponding ElasticQuota CR via
+        tenant-operator.
+      responses:
+        '204':
+          description: Quota removed.
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Jobs (namespace-scoped)
+  # ─────────────────────────────────────────────────────────────────────
+  /api/v1/namespaces/{namespace}/jobs:
+    parameters:
+      - $ref: '#/components/parameters/Namespace'
+    post:
+      operationId: createJob
+      tags: [Jobs]
+      summary: Create a job
+      description: |
+        Creates a Job and asynchronously emits the corresponding MLJob CR.
+        Returns 201 with the freshly created Job (status will normally be
+        `Creating` at this point).
+
+        `spec` is immutable after create. `spec.scheduling.quota` is required.
+        `spec.backend` defaults to `{name: native, engine: job}` when omitted.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JobCreateRequest'
+      responses:
+        '201':
+          description: Job created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    get:
+      operationId: listJobs
+      tags: [Jobs]
+      summary: List jobs in a namespace
+      parameters:
+        - $ref: '#/components/parameters/LabelSelector'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Continue'
+        - in: query
+          name: phase
+          description: Optional filter on Job phase.
+          required: false
+          schema:
+            $ref: '#/components/schemas/JobPhase'
+      responses:
+        '200':
+          description: A page of jobs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobList'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/namespaces/{namespace}/jobs/{job}:
+    parameters:
+      - $ref: '#/components/parameters/Namespace'
+      - $ref: '#/components/parameters/JobName'
+    get:
+      operationId: getJob
+      tags: [Jobs]
+      summary: Get a job by namespace + name
+      responses:
+        '200':
+          description: Job
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    delete:
+      operationId: deleteJob
+      tags: [Jobs]
+      summary: Soft-delete a job
+      description: |
+        Soft-deletes the Job: PG row is marked `Deleting` + `deleted_at=now()`
+        and the reconciler deletes the MLJob CR. Idempotent.
+      responses:
+        '204':
+          description: Job soft-deleted
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/namespaces/{namespace}/jobs/{job}/cancel:
+    parameters:
+      - $ref: '#/components/parameters/Namespace'
+      - $ref: '#/components/parameters/JobName'
+    post:
+      operationId: cancelJob
+      tags: [Jobs]
+      summary: Cancel a running or pending job
+      description: |
+        Only valid when the job is in `Pending` or `Running`. Calling cancel
+        on a job in `Creating` or any terminal / canceling / deleting state
+        returns 422.
+
+        On success the job transitions to `Canceling`; the reconciler then
+        patches `MLJob.spec.runPolicy.suspend=true` and Compute waits for the
+        operator-reported Suspended condition before advancing to `Cancelled`.
+      responses:
+        '202':
+          description: Cancel accepted; job is transitioning to Canceling
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422':
+          description: Job is not in a cancellable state
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/namespaces/{namespace}/jobs/{job}/pods:
+    parameters:
+      - $ref: '#/components/parameters/Namespace'
+      - $ref: '#/components/parameters/JobName'
+    get:
+      operationId: listJobPods
+      tags: [Jobs]
+      summary: List the Pods for a job
+      description: |
+        Lists pods reverse-indexed by the `axisml.io/job-id` label. Each Pod
+        carries `replicaIndex` (from `axisml.io/replica-index`) and `role`
+        (from `axisml.io/role`) when the backend produces them.
+      responses:
+        '200':
+          description: Pod list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PodList'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/namespaces/{namespace}/jobs/{job}/pods/{pod}/logs:
+    parameters:
+      - $ref: '#/components/parameters/Namespace'
+      - $ref: '#/components/parameters/JobName'
+      - $ref: '#/components/parameters/PodName'
+    get:
+      operationId: getJobPodLogs
+      tags: [Jobs]
+      summary: Fetch or stream a job pod's logs
+      description: |
+        Proxies the underlying Pod log API for one pod of the job.
+
+        Returns `text/plain` when `follow=false` (default). When `follow=true`
+        the connection is upgraded to a Server-Sent Events stream
+        (`text/event-stream`); each `data:` frame is one log line.
+
+        Returns 410 Gone when the target Pod has been garbage-collected and
+        the kube-apiserver no longer has its logs.
+      parameters:
+        - in: query
+          name: container
+          description: Container name (required for multi-container pods).
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: follow
+          description: |
+            When true, stream logs as `text/event-stream`. When false (default)
+            return a one-shot `text/plain` body.
+          required: false
+          schema:
+            type: boolean
+            default: false
+        - in: query
+          name: tailLines
+          description: Return at most this many lines from the end of the log.
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+        - in: query
+          name: sinceSeconds
+          description: Return logs newer than this many seconds.
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+        - in: query
+          name: previous
+          description: Read logs from the previous terminated container.
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: |
+            Logs returned. The body is `text/plain` when `follow=false`, or
+            `text/event-stream` (SSE) when `follow=true`.
+          content:
+            text/plain:
+              schema:
+                type: string
+            text/event-stream:
+              schema:
+                type: string
+                description: SSE stream; each `data:` frame is a log line.
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '410':
+          description: Pod has been garbage-collected; logs are no longer available.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/namespaces/{namespace}/jobs/{job}/pods/{pod}/events:
+    parameters:
+      - $ref: '#/components/parameters/Namespace'
+      - $ref: '#/components/parameters/JobName'
+      - $ref: '#/components/parameters/PodName'
+    get:
+      operationId: listJobPodEvents
+      tags: [Jobs]
+      summary: List K8s events for one pod of a job
+      description: |
+        Returns K8s events whose `involvedObject` references the named pod
+        (`Scheduled`, `Pulling`, `OOMKilled`, `BackOff`, ...). For events on
+        the MLJob CR or derived PodGroup, use `/jobs/{job}/events`.
+      responses:
+        '200':
+          description: Pod-scoped events
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventList'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/namespaces/{namespace}/jobs/{job}/events:
+    parameters:
+      - $ref: '#/components/parameters/Namespace'
+      - $ref: '#/components/parameters/JobName'
+    get:
+      operationId: listJobEvents
+      tags: [Jobs]
+      summary: List job-level K8s events
+      description: |
+        Returns K8s events whose `involvedObject` references the MLJob CR
+        itself or any derived PodGroup (gang scheduling, suspended, success
+        criteria met, ...). Pod-level events are NOT included; use
+        `/jobs/{job}/pods/{pod}/events` for those.
+      responses:
+        '200':
+          description: Job-level events
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventList'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Services (namespace-scoped)
+  # ─────────────────────────────────────────────────────────────────────
+  /api/v1/namespaces/{namespace}/services:
+    parameters:
+      - $ref: '#/components/parameters/Namespace'
+    post:
+      operationId: createService
+      tags: [Services]
+      summary: Create a service or workspace
+      description: |
+        `kind` defaults to `service`. When `kind=workspace` the row is
+        partitioned for Platform's workspace listing path but follows the
+        same backend / state-machine / scale / delete behavior. `spec` is
+        immutable after create except for `spec.roles[0].replicas`, which is
+        only mutable via `/scale`. `spec.scheduling.quota` is required.
+        `spec.backend` defaults to `{name: native, engine: deployment}`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceCreateRequest'
+      responses:
+        '201':
+          description: Service created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Service'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    get:
+      operationId: listServicesByNamespace
+      tags: [Services]
+      summary: List services / workspaces in a namespace
+      parameters:
+        - in: query
+          name: kind
+          description: Filter by service kind.
+          required: false
+          schema:
+            $ref: '#/components/schemas/ServiceKind'
+        - $ref: '#/components/parameters/LabelSelector'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Continue'
+      responses:
+        '200':
+          description: A page of services
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceList'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/namespaces/{namespace}/services/{service}:
+    parameters:
+      - $ref: '#/components/parameters/Namespace'
+      - $ref: '#/components/parameters/ServiceName'
+    get:
+      operationId: getService
+      tags: [Services]
+      summary: Get a service by namespace + name
+      responses:
+        '200':
+          description: Service
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Service'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    delete:
+      operationId: deleteService
+      tags: [Services]
+      summary: Soft-delete a service
+      description: |
+        Soft-deletes the service: PG row is marked `Deleting` +
+        `deleted_at=now()` and the reconciler deletes the MLService CR.
+        Idempotent.
+      responses:
+        '204':
+          description: Service soft-deleted
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/namespaces/{namespace}/services/{service}/scale:
+    parameters:
+      - $ref: '#/components/parameters/Namespace'
+      - $ref: '#/components/parameters/ServiceName'
+    post:
+      operationId: scaleService
+      tags: [Services]
+      summary: Scale a service to a target replica count
+      description: |
+        Updates `services.replicas` and `services.spec.roles[0].replicas`,
+        bumps `generation`, and returns the updated Service. The reconciler
+        later patches `MLService.spec.roles[0].replicas`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceScaleRequest'
+      responses:
+        '202':
+          description: Scale request accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Service'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/namespaces/{namespace}/services/{service}/pods:
+    parameters:
+      - $ref: '#/components/parameters/Namespace'
+      - $ref: '#/components/parameters/ServiceName'
+    get:
+      operationId: listServicePods
+      tags: [Services]
+      summary: List the Pods for a service
+      description: |
+        Lists pods reverse-indexed by the `axisml.io/service-id` label. Each
+        Pod carries `replicaIndex` (from `axisml.io/replica-index`) and `role`
+        (from `axisml.io/role`) when the backend produces them.
+      responses:
+        '200':
+          description: Pod list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PodList'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/namespaces/{namespace}/services/{service}/pods/{pod}/logs:
+    parameters:
+      - $ref: '#/components/parameters/Namespace'
+      - $ref: '#/components/parameters/ServiceName'
+      - $ref: '#/components/parameters/PodName'
+    get:
+      operationId: getServicePodLogs
+      tags: [Services]
+      summary: Fetch or stream a service pod's logs
+      description: |
+        Proxies the underlying Pod log API for one pod of the service. Same
+        semantics as the job equivalent: `text/plain` body when `follow=false`,
+        SSE stream when `follow=true`. Returns 410 Gone if the Pod has been
+        garbage-collected.
+      parameters:
+        - in: query
+          name: container
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: follow
+          required: false
+          schema:
+            type: boolean
+            default: false
+        - in: query
+          name: tailLines
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+        - in: query
+          name: sinceSeconds
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+        - in: query
+          name: previous
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: |
+            Logs returned. `text/plain` when `follow=false`, `text/event-stream`
+            when `follow=true`.
+          content:
+            text/plain:
+              schema:
+                type: string
+            text/event-stream:
+              schema:
+                type: string
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '410':
+          description: Pod has been garbage-collected; logs are no longer available.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/namespaces/{namespace}/services/{service}/pods/{pod}/events:
+    parameters:
+      - $ref: '#/components/parameters/Namespace'
+      - $ref: '#/components/parameters/ServiceName'
+      - $ref: '#/components/parameters/PodName'
+    get:
+      operationId: listServicePodEvents
+      tags: [Services]
+      summary: List K8s events for one pod of a service
+      description: |
+        Returns K8s events whose `involvedObject` references the named pod.
+        For events on the MLService CR or its derived Deployment / HTTPRoute,
+        use `/services/{service}/events`.
+      responses:
+        '200':
+          description: Pod-scoped events
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventList'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /api/v1/namespaces/{namespace}/services/{service}/events:
+    parameters:
+      - $ref: '#/components/parameters/Namespace'
+      - $ref: '#/components/parameters/ServiceName'
+    get:
+      operationId: listServiceEvents
+      tags: [Services]
+      summary: List service-level K8s events
+      description: |
+        Returns K8s events whose `involvedObject` references the MLService CR
+        itself or its derived workload (Deployment / StatefulSet / KServe
+        InferenceService) and route (HTTPRoute). Pod-level events are NOT
+        included; use `/services/{service}/pods/{pod}/events` for those.
+      responses:
+        '200':
+          description: Service-level events
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventList'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+components:
+  securitySchemes:
+    AxismlUserHeader:
+      type: apiKey
+      in: header
+      name: X-Axisml-User
+      description: |
+        Caller identity, injected by Platform. Used for audit and ownership
+        attribution; Compute itself performs no role-level authorization.
+        Health probes (`/healthz`, `/readyz`) are exempt.
+
+  parameters:
+    Namespace:
+      in: path
+      name: namespace
+      required: true
+      description: |
+        Tenant identifier (= `tenants.name`), used as the partition key
+        for Job / Service rows. Compute internally joins the `tenants`
+        table to resolve the K8s namespace (`spec.namespace.name`) used
+        as `metadata.namespace` on the derived MLJob / MLService CR.
+      schema:
+        type: string
+        pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+        minLength: 3
+        maxLength: 40
+
+    QuotaPool:
+      in: path
+      name: pool
+      required: true
+      description: ResourcePool name (DNS-1123); references `cluster-manager` pool vocabulary.
+      schema:
+        type: string
+        pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+        minLength: 1
+        maxLength: 63
+
+    QuotaName:
+      in: path
+      name: quotaName
+      required: true
+      description: Quota name within `(namespace, pool)`.
+      schema:
+        type: string
+        pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+        minLength: 1
+        maxLength: 63
+
+    JobName:
+      in: path
+      name: job
+      required: true
+      description: Job name (DNS-1123, 3–40 chars).
+      schema:
+        type: string
+        pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+        minLength: 3
+        maxLength: 40
+
+    ServiceName:
+      in: path
+      name: service
+      required: true
+      description: Service name (DNS-1123, 3–40 chars).
+      schema:
+        type: string
+        pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+        minLength: 3
+        maxLength: 40
+
+    PodName:
+      in: path
+      name: pod
+      required: true
+      description: Pod name (the canonical K8s pod identity, as listed by `/pods`).
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 253
+
+    LabelSelector:
+      in: query
+      name: labelSelector
+      required: false
+      description: |
+        K8s-style label selector. Comma-separated AND of one or more terms:
+        `key=value` / `key==value` / `key!=value` / `key in (a,b)` /
+        `key notin (a,b)` / `key` (existence) / `!key` (absence). Common
+        keys include `axisml.io/project`, `axisml.io/experiment`.
+      schema:
+        type: string
+
+    Limit:
+      in: query
+      name: limit
+      required: false
+      description: Maximum number of items returned in a single page.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 50
+
+    Continue:
+      in: query
+      name: continue
+      required: false
+      description: Opaque continuation token from a previous page.
+      schema:
+        type: string
+
+  responses:
+    BadRequest:
+      description: Bad request (malformed body or query)
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Unauthorized:
+      description: Caller identity (`X-Axisml-User`) missing or invalid
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Forbidden:
+      description: Caller is not allowed to perform this operation
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    NotFound:
+      description: Resource not found
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Conflict:
+      description: Conflict with current state (e.g. duplicate name)
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Gone:
+      description: Underlying resource has been garbage-collected
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    UnprocessableEntity:
+      description: Request was syntactically valid but violates an invariant
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+
+  schemas:
+    # ────────────────── shared ──────────────────
+    HealthStatus:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded]
+        details:
+          type: object
+          description: Optional per-dependency notes when `status=degraded`.
+          additionalProperties:
+            type: string
+
+    Problem:
+      type: object
+      description: RFC 7807 problem+json error envelope.
+      properties:
+        type:
+          type: string
+          format: uri
+          description: A URI reference that identifies the problem type.
+          default: about:blank
+        title:
+          type: string
+          description: Short, human-readable summary of the problem type.
+        status:
+          type: integer
+          description: HTTP status code.
+        detail:
+          type: string
+          description: Human-readable explanation specific to this occurrence.
+        instance:
+          type: string
+          description: URI reference identifying the specific occurrence.
+        code:
+          type: string
+          description: Stable machine-readable error code.
+        errors:
+          type: array
+          description: Optional field-level validation issues.
+          items:
+            type: object
+            properties:
+              field: { type: string }
+              message: { type: string }
+            required: [field, message]
+      required: [title, status]
+
+    StringMap:
+      type: object
+      description: Flat string→string map; used for `labels` / `annotations` (see `database.md §1.6`).
+      additionalProperties:
+        type: string
+
+    Condition:
+      type: object
+      description: K8s-style condition entry mirrored from the underlying CR.
+      required: [type, status]
+      properties:
+        type:
+          type: string
+        status:
+          type: string
+          enum: [True, False, Unknown]
+        reason:
+          type: string
+        message:
+          type: string
+        lastTransitionTime:
+          type: string
+          format: date-time
+
+    Quantity:
+      type: string
+      description: |
+        Kubernetes resource.Quantity string (e.g. `100m`, `1`, `64Gi`,
+        `1Mi`). Parsed by Compute via `k8s.io/apimachinery/pkg/api/resource`.
+      example: 100m
+
+    ResourceList:
+      type: object
+      description: |
+        Map of Kubernetes resource name to Quantity, mirroring K8s
+        `corev1.ResourceList`. Common keys are `cpu`, `memory`,
+        `ephemeral-storage`, `nvidia.com/gpu`, etc.
+      additionalProperties:
+        $ref: '#/components/schemas/Quantity'
+      example:
+        cpu: "8"
+        memory: 64Gi
+        nvidia.com/gpu: "1"
+
+    Toleration:
+      type: object
+      description: |
+        Kubernetes core/v1 Toleration. See
+        https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/.
+      properties:
+        key:
+          type: string
+        operator:
+          type: string
+          enum: [Equal, Exists]
+        value:
+          type: string
+        effect:
+          type: string
+          enum: [NoSchedule, PreferNoSchedule, NoExecute]
+        tolerationSeconds:
+          type: integer
+          format: int64
+
+    NodeSelector:
+      type: object
+      description: Map of node label key to value (K8s `nodeSelector` shape).
+      additionalProperties:
+        type: string
+
+    Pod:
+      type: object
+      description: A Pod belonging to a Job or Service.
+      properties:
+        name:
+          type: string
+          description: Pod name; canonical identity (matches `kubectl get pods`).
+        replicaIndex:
+          type: integer
+          description: 0-based replica index (from `axisml.io/replica-index`); absent when the backend does not produce stable identities.
+          minimum: 0
+        role:
+          type: string
+          description: Role name (from `axisml.io/role`); present for multi-role backends (`master` / `worker` / `ps`, `predictor` / `transformer` / `explainer`, ...).
+        phase:
+          type: string
+          enum: [Pending, Running, Succeeded, Failed, Unknown]
+        startedAt:
+          type: string
+          format: date-time
+        nodeName:
+          type: string
+      required: [name, phase]
+
+    PodList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Pod'
+      required: [items]
+
+    EventInvolvedObject:
+      type: object
+      description: Reference to the K8s object the event is about.
+      properties:
+        kind: { type: string }
+        namespace: { type: string }
+        name: { type: string }
+        uid: { type: string }
+        apiVersion: { type: string }
+
+    EventSource:
+      type: object
+      properties:
+        component: { type: string }
+        host: { type: string }
+
+    Event:
+      type: object
+      description: |
+        Simplified Kubernetes Event shape (subset of `corev1.Event`) returned
+        from the aggregated Job events endpoint.
+      properties:
+        type:
+          type: string
+          enum: [Normal, Warning]
+        reason:
+          type: string
+        message:
+          type: string
+        source:
+          $ref: '#/components/schemas/EventSource'
+        involvedObject:
+          $ref: '#/components/schemas/EventInvolvedObject'
+        firstTimestamp:
+          type: string
+          format: date-time
+        lastTimestamp:
+          type: string
+          format: date-time
+        count:
+          type: integer
+          minimum: 1
+
+    EventList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Event'
+      required: [items]
+
+    # ────────────────── Tenant ──────────────────
+    Phase:
+      type: string
+      description: |
+        Lifecycle phase derived from the Tenant CR `status.phase` and the
+        PG-side soft-delete state.
+      enum:
+        - Creating
+        - Active
+        - Suspended
+        - Failed
+        - Deleting
+        - Deleted
+
+    TenantNamespace:
+      type: object
+      description: |
+        Target K8s namespace metadata. `name` is immutable after creation;
+        `labels` and `annotations` are only honoured the first time the
+        underlying K8s Namespace is created (existing namespaces are not
+        overwritten by tenant-operator).
+      required: [name]
+      properties:
+        name:
+          type: string
+          description: Target K8s Namespace name. Immutable after creation. DNS-1123.
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          minLength: 1
+          maxLength: 63
+        labels:
+          $ref: '#/components/schemas/StringMap'
+        annotations:
+          $ref: '#/components/schemas/StringMap'
+
+    Quota:
+      type: object
+      description: |
+        One quota entry — the desired spec portion. Each `(pool, name)`
+        renders 1:1 to a Koordinator ElasticQuota CR. `pool` references
+        cluster-manager's ResourcePool; `pool` and `name` are immutable
+        for the lifetime of the entry.
+      required: [pool, name, max]
+      properties:
+        pool:
+          type: string
+          description: ResourcePool name (cluster-manager vocabulary). Immutable.
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          minLength: 1
+          maxLength: 63
+        name:
+          type: string
+          description: Quota name; unique within the tenant when paired with `pool`. Immutable.
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          minLength: 1
+          maxLength: 63
+        min:
+          allOf:
+            - $ref: '#/components/schemas/ResourceList'
+          description: Optional minimum guaranteed resources. Defaults to `{}`. Each value must satisfy `min[k] <= max[k]`.
+        max:
+          allOf:
+            - $ref: '#/components/schemas/ResourceList'
+          description: Required maximum resource ceiling. All values must be non-negative.
+
+    QuotaStatus:
+      type: object
+      description: Observed status of one quota, populated by the informer from the ElasticQuota CR.
+      required: [pool, name, ready]
+      properties:
+        pool:
+          type: string
+        name:
+          type: string
+        ready:
+          type: boolean
+          description: True when the underlying ElasticQuota CR is reconciled.
+        used:
+          allOf:
+            - $ref: '#/components/schemas/ResourceList'
+          description: Currently-used resources reported by Koordinator.
+        message:
+          type: string
+
+    QuotaList:
+      type: object
+      description: |
+        Combined view of a tenant's quota spec and observed quota status.
+        Returned by `GET /api/v1/namespaces/{namespace}/quotas`.
+      required: [spec, status]
+      properties:
+        spec:
+          type: array
+          description: Quota spec — mirrors `tenants.spec.quotas[]`.
+          items:
+            $ref: '#/components/schemas/Quota'
+        status:
+          type: array
+          description: Per-quota observed status.
+          items:
+            $ref: '#/components/schemas/QuotaStatus'
+
+    QuotaCreateRequest:
+      type: object
+      required: [pool, name, max]
+      properties:
+        pool:
+          type: string
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          minLength: 1
+          maxLength: 63
+        name:
+          type: string
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          minLength: 1
+          maxLength: 63
+        min:
+          $ref: '#/components/schemas/ResourceList'
+        max:
+          $ref: '#/components/schemas/ResourceList'
+
+    QuotaPatchRequest:
+      type: object
+      description: RFC 7396 JSON Merge Patch — only `min` / `max` are mutable.
+      properties:
+        min:
+          $ref: '#/components/schemas/ResourceList'
+        max:
+          $ref: '#/components/schemas/ResourceList'
+
+    # Tenant init-resources (Secret / CM / SA + RBAC)
+    SecretSourceRef:
+      type: object
+      required: [namespace, name]
+      properties:
+        namespace: { type: string }
+        name: { type: string }
+
+    ConfigMapSourceRef:
+      type: object
+      required: [namespace, name]
+      properties:
+        namespace: { type: string }
+        name: { type: string }
+
+    ImagePullSecretInit:
+      type: object
+      required: [name, sourceSecretRef]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 198
+        sourceSecretRef:
+          $ref: '#/components/schemas/SecretSourceRef'
+
+    SecretInit:
+      type: object
+      required: [name, sourceSecretRef]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 198
+        type:
+          type: string
+          default: Opaque
+        sourceSecretRef:
+          $ref: '#/components/schemas/SecretSourceRef'
+
+    ConfigMapInit:
+      type: object
+      required: [name, sourceConfigMapRef]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 198
+        sourceConfigMapRef:
+          $ref: '#/components/schemas/ConfigMapSourceRef'
+
+    RBACRoleRef:
+      type: object
+      required: [kind, name]
+      properties:
+        kind:
+          type: string
+          enum: [Role, ClusterRole]
+        name: { type: string }
+
+    RBACInit:
+      type: object
+      properties:
+        rules:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        roleRef:
+          $ref: '#/components/schemas/RBACRoleRef'
+
+    ServiceAccountInit:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 198
+        imagePullSecrets:
+          type: array
+          items:
+            type: string
+        rbac:
+          $ref: '#/components/schemas/RBACInit'
+
+    InitResources:
+      type: object
+      properties:
+        imagePullSecrets:
+          type: array
+          items: { $ref: '#/components/schemas/ImagePullSecretInit' }
+          default: []
+        secrets:
+          type: array
+          items: { $ref: '#/components/schemas/SecretInit' }
+          default: []
+        configMaps:
+          type: array
+          items: { $ref: '#/components/schemas/ConfigMapInit' }
+          default: []
+        serviceAccounts:
+          type: array
+          items: { $ref: '#/components/schemas/ServiceAccountInit' }
+          default: []
+
+    InitResourceStatusItem:
+      type: object
+      required: [name, ready]
+      properties:
+        name: { type: string }
+        ready: { type: boolean }
+        message: { type: string }
+
+    InitResourcesStatus:
+      type: object
+      properties:
+        imagePullSecrets:
+          type: array
+          items: { $ref: '#/components/schemas/InitResourceStatusItem' }
+        secrets:
+          type: array
+          items: { $ref: '#/components/schemas/InitResourceStatusItem' }
+        configMaps:
+          type: array
+          items: { $ref: '#/components/schemas/InitResourceStatusItem' }
+        serviceAccounts:
+          type: array
+          items: { $ref: '#/components/schemas/InitResourceStatusItem' }
+
+    TenantSpec:
+      type: object
+      description: |
+        Business spec block (1:1 with Tenant CR `spec`). Mutation to any
+        field here triggers `generation += 1` and a reconciler sync.
+      required: [namespace]
+      properties:
+        namespace:
+          $ref: '#/components/schemas/TenantNamespace'
+        quotas:
+          type: array
+          items: { $ref: '#/components/schemas/Quota' }
+          default: []
+        initResources:
+          $ref: '#/components/schemas/InitResources'
+        suspended:
+          type: boolean
+          default: false
+
+    TenantStatus:
+      type: object
+      description: |
+        Status sub-object excluding `phase` (which lives at the top level
+        of `Tenant`). Written exclusively by the informer.
+      properties:
+        message:
+          type: string
+          default: ''
+        conditions:
+          type: array
+          items: { $ref: '#/components/schemas/Condition' }
+          default: []
+        quotas:
+          type: array
+          items: { $ref: '#/components/schemas/QuotaStatus' }
+          default: []
+        initResources:
+          $ref: '#/components/schemas/InitResourcesStatus'
+
+    Tenant:
+      type: object
+      description: |
+        Full Tenant DTO. Mirrors a row of the PG `tenants` table merged
+        with informer-fed Tenant CR status. See `database.md §3.1`.
+      required:
+        - id
+        - name
+        - displayName
+        - spec
+        - phase
+        - generation
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Server-generated UUID; also written to CR `metadata.labels["axisml.io/tenant-id"]`.
+        name:
+          type: string
+          description: Tenant identifier; cluster-wide unique. Immutable. DNS-1123.
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          minLength: 3
+          maxLength: 40
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 1000
+          default: ''
+        owner:
+          type: string
+          description: Creator (from `X-Axisml-User`); immutable.
+        labels:
+          allOf:
+            - $ref: '#/components/schemas/StringMap'
+          description: PG-only extension labels; not pushed to the CR.
+        annotations:
+          allOf:
+            - $ref: '#/components/schemas/StringMap'
+          description: PG-only extension annotations; not pushed to the CR.
+        spec:
+          $ref: '#/components/schemas/TenantSpec'
+        generation:
+          type: integer
+          format: int64
+          minimum: 1
+        observedGeneration:
+          type: integer
+          format: int64
+          minimum: 0
+        phase:
+          $ref: '#/components/schemas/Phase'
+        status:
+          $ref: '#/components/schemas/TenantStatus'
+        lastModifiedBy:
+          type: string
+          default: ''
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    TenantCreateRequest:
+      type: object
+      description: |
+        Body for `POST /api/v1/namespaces`. The tenant `name` carried here
+        becomes the URL `{namespace}` value for subsequent CRUD calls.
+      required: [name, displayName, spec]
+      properties:
+        name:
+          type: string
+          description: Tenant name; cluster-wide unique. Immutable. DNS-1123.
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          minLength: 3
+          maxLength: 40
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 1000
+        labels:
+          $ref: '#/components/schemas/StringMap'
+        annotations:
+          $ref: '#/components/schemas/StringMap'
+        spec:
+          $ref: '#/components/schemas/TenantSpec'
+
+    TenantPatchRequest:
+      type: object
+      description: |
+        RFC 7396 JSON Merge Patch body. Only mutable fields are accepted:
+        `displayName`, `description`, `labels`, `annotations`,
+        `spec.namespace.labels`, `spec.namespace.annotations`,
+        `spec.initResources`, `spec.suspended`, and individual
+        `spec.quotas[]` entries.
+      properties:
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 1000
+        labels:
+          $ref: '#/components/schemas/StringMap'
+        annotations:
+          $ref: '#/components/schemas/StringMap'
+        spec:
+          type: object
+          properties:
+            namespace:
+              type: object
+              properties:
+                labels:
+                  $ref: '#/components/schemas/StringMap'
+                annotations:
+                  $ref: '#/components/schemas/StringMap'
+            quotas:
+              type: array
+              items: { $ref: '#/components/schemas/Quota' }
+            initResources:
+              $ref: '#/components/schemas/InitResources'
+            suspended:
+              type: boolean
+
+    TenantList:
+      type: object
+      required: [items, count]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Tenant' }
+        count:
+          type: integer
+          minimum: 0
+        continueToken:
+          type: string
+
+    # ────────────────── MLJob / MLService shared spec building blocks ──────────────────
+    PodTemplateSpec:
+      type: object
+      description: |
+        K8s core/v1 PodTemplateSpec shape passed through to the backend
+        handler. Compute does not strictly validate this object; the
+        backend Handler's `Validate` is responsible for enforcing the
+        per-backend constraints. Conventionally includes `image`,
+        `imagePullPolicy`, `command`, `args`, `env`, `envFrom`,
+        `workingDir`, `resources`, `ports`, `volumes`, `volumeMounts`.
+      additionalProperties: true
+
+    JobBackend:
+      type: object
+      description: |
+        Backend selector. Immutable after create. Defaults to
+        `{name: native, engine: job}` when omitted on create.
+      properties:
+        name:
+          type: string
+          description: '`native` | `kubeflow-trainer` | `custom`'
+          enum: [native, kubeflow-trainer, custom]
+          default: native
+        engine:
+          type: string
+          description: |
+            Engine selector whose meaning is backend-specific. For `native`:
+            `job` | `podgroup`. For `kubeflow-trainer`: `pytorchjob` |
+            `tfjob` | `mpijob` | …. For `custom`: any name described by
+            `config`.
+          default: job
+        config:
+          type: object
+          additionalProperties: true
+          description: Optional schemaless config interpreted by the Handler.
+      required: [name, engine]
+
+    ServiceBackend:
+      type: object
+      description: |
+        Backend selector. Immutable after create. Defaults to
+        `{name: native, engine: deployment}` when omitted on create.
+      properties:
+        name:
+          type: string
+          description: '`native` | `kserve` | `custom`'
+          enum: [native, kserve, custom]
+          default: native
+        engine:
+          type: string
+          description: |
+            For `native`: `deployment` | `statefulset`. For `kserve`:
+            `inference` | `llminference`. For `custom`: any name described
+            by `config`.
+          default: deployment
+        config:
+          type: object
+          additionalProperties: true
+      required: [name, engine]
+
+    Scheduling:
+      type: object
+      description: Common scheduling block injected into the CR `spec.scheduling`.
+      properties:
+        quota:
+          type: string
+          description: |
+            ElasticQuota CR name (opaque to Compute; passed through verbatim
+            to the CR). Required for jobs and services.
+        priorityClassName:
+          type: string
+        priorityClass:
+          type: string
+          description: |
+            Alias for `priorityClassName` kept for backwards compatibility
+            with the CR spec (`spec.scheduling.priorityClass`).
+        nodeSelector:
+          $ref: '#/components/schemas/NodeSelector'
+        tolerations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Toleration'
+      required: [quota]
+
+    JobRunPolicy:
+      type: object
+      properties:
+        suspend:
+          type: boolean
+          default: false
+          description: Cancel signal; flipped to true by `/cancel`.
+        activeDeadlineSeconds:
+          type: integer
+          format: int64
+          minimum: 1
+        ttlSecondsAfterFinished:
+          type: integer
+          format: int64
+          minimum: 0
+        backoffLimit:
+          type: integer
+          minimum: 0
+        cleanPodPolicy:
+          type: string
+          description: Optional clean-pod policy interpreted by some backends.
+
+    ServiceRunPolicy:
+      type: object
+      properties:
+        progressDeadlineSeconds:
+          type: integer
+          minimum: 1
+
+    JobRole:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Role identifier (`worker` for single-role backends; `master`, `worker`, `ps`, …, depending on engine).
+        replicas:
+          type: integer
+          minimum: 0
+        restartPolicy:
+          type: string
+          enum: [OnFailure, Never]
+        template:
+          $ref: '#/components/schemas/PodTemplateSpec'
+      required: [name, replicas, template]
+
+    ServiceRole:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Role identifier (`predictor` for single-role backends; KServe-style `predictor` / `transformer` / `explainer` for multi-role).
+        replicas:
+          type: integer
+          minimum: 0
+        template:
+          $ref: '#/components/schemas/PodTemplateSpec'
+      required: [name, replicas, template]
+
+    ModelRef:
+      type: object
+      description: Reference to an Artifacts model version.
+      properties:
+        name:
+          type: string
+        version:
+          type: string
+      required: [name, version]
+
+    RouteAuth:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [none, jwt, apiKey]
+          default: none
+        jwt:
+          type: object
+          properties:
+            issuer: { type: string }
+            jwksUri: { type: string }
+        apiKey:
+          type: object
+          properties:
+            secretRef:
+              type: object
+              properties:
+                name: { type: string }
+              required: [name]
+
+    RouteRateLimit:
+      type: object
+      properties:
+        requestsPerSecond:
+          type: integer
+          minimum: 1
+        burst:
+          type: integer
+          minimum: 1
+
+    ServiceRoute:
+      type: object
+      description: Optional external HTTPRoute spec (mirrors MLService `spec.route`).
+      properties:
+        enabled:
+          type: boolean
+          default: false
+        targetRole:
+          type: string
+        portName:
+          type: string
+        hostname:
+          type: string
+        path:
+          type: string
+        auth:
+          $ref: '#/components/schemas/RouteAuth'
+        rateLimit:
+          $ref: '#/components/schemas/RouteRateLimit'
+        timeout:
+          type: string
+          description: Go duration string (e.g. `30s`).
+
+    MLJobSpec:
+      type: object
+      description: |
+        Snapshot of the MLJob CR `spec` (see compute-operator.md §4.1.1).
+        Immutable after Job creation; cancel is implemented by patching
+        `runPolicy.suspend` server-side, not by allowing the caller to
+        edit spec.
+      properties:
+        backend:
+          $ref: '#/components/schemas/JobBackend'
+        scheduling:
+          $ref: '#/components/schemas/Scheduling'
+        roles:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/JobRole'
+        runPolicy:
+          $ref: '#/components/schemas/JobRunPolicy'
+        outputs:
+          type: array
+          description: |
+            Declarative output descriptors. Pure metadata: the operator does
+            NOT consume `outputs` at runtime (no auto-push, no sidecar). It
+            is read by Platform's `register-model` bridge to locate the
+            artifact bytes on the PVC after the Job reaches `Succeeded`.
+            See `components/compute-operator.md §4.1.1` for validation rules.
+          items:
+            $ref: '#/components/schemas/JobOutput'
+      required: [scheduling, roles]
+
+    JobOutput:
+      type: object
+      description: |
+        Declaration of a single Job output. The operator validates structure
+        only (`kind=model`, `volumeName` resolves to a non-`emptyDir` volume
+        in `roles[*].template.volumes[]`); it does not transfer bytes.
+      required: [name, kind, volumeName, sourcePath]
+      properties:
+        name:
+          type: string
+          description: Unique handle within the Job (DNS-1123).
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          minLength: 1
+          maxLength: 63
+        kind:
+          type: string
+          description: Artifact kind this output produces. Only `model` is supported initially.
+          enum: [model]
+        volumeName:
+          type: string
+          description: |
+            Name of the volume in `roles[*].template.volumes[]` that holds
+            the output bytes. Must be a PVC-backed volume.
+          minLength: 1
+          maxLength: 253
+        sourcePath:
+          type: string
+          description: |
+            Relative path inside `volumeName` containing the artifact bytes.
+            Used by Platform's `register-model` to point the user's cli at
+            the right directory.
+          minLength: 1
+          maxLength: 1024
+
+    MLServiceSpec:
+      type: object
+      description: |
+        Snapshot of the MLService CR `spec` (see compute-operator.md §5.2).
+        Only `roles[0].replicas` is mutable after create, via `/scale`.
+      properties:
+        backend:
+          $ref: '#/components/schemas/ServiceBackend'
+        scheduling:
+          $ref: '#/components/schemas/Scheduling'
+        modelRef:
+          $ref: '#/components/schemas/ModelRef'
+        roles:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/ServiceRole'
+        runPolicy:
+          $ref: '#/components/schemas/ServiceRunPolicy'
+        route:
+          $ref: '#/components/schemas/ServiceRoute'
+      required: [scheduling, roles]
+
+    # ────────────────── Job ──────────────────
+    JobPhase:
+      type: string
+      description: Compute-side Job phase. Hoisted to the top of `Job` so list endpoints can filter on it with a B-tree index.
+      enum:
+        - Creating
+        - Pending
+        - Running
+        - Succeeded
+        - Failed
+        - Canceling
+        - Cancelled
+        - Deleting
+        - Deleted
+
+    JobStatus:
+      type: object
+      description: Status sub-object excluding `phase` (which lives at the top level of `Job`). Mirrors MLJob CR `status` minus `phase`.
+      properties:
+        message:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        finishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        conditions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Condition'
+
+    Job:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        namespace:
+          type: string
+          description: Tenant identifier (= `tenants.name`).
+        name:
+          type: string
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          minLength: 3
+          maxLength: 40
+        displayName:
+          type: string
+        description:
+          type: string
+        owner:
+          type: string
+          description: User from the create-time `X-Axisml-User` header. Immutable.
+        labels:
+          $ref: '#/components/schemas/StringMap'
+        annotations:
+          $ref: '#/components/schemas/StringMap'
+        spec:
+          $ref: '#/components/schemas/MLJobSpec'
+        phase:
+          $ref: '#/components/schemas/JobPhase'
+        status:
+          $ref: '#/components/schemas/JobStatus'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+      required: [id, namespace, name, owner, spec, phase, createdAt, updatedAt]
+
+    JobCreateRequest:
+      type: object
+      description: |
+        Platform expands cluster-manager ResourcePool / ResourceUnit references
+        into `spec.scheduling.nodeSelector` / `spec.scheduling.tolerations` and
+        per-role `template.resources` *before* calling this endpoint; compute
+        does not accept pool/unit references.
+      properties:
+        name:
+          type: string
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          minLength: 3
+          maxLength: 40
+        displayName:
+          type: string
+        description:
+          type: string
+        labels:
+          $ref: '#/components/schemas/StringMap'
+        annotations:
+          $ref: '#/components/schemas/StringMap'
+        spec:
+          $ref: '#/components/schemas/MLJobSpec'
+      required: [name, spec]
+
+    JobList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Job'
+        count:
+          type: integer
+          minimum: 0
+          description: Number of items in this page.
+        continueToken:
+          type: string
+          description: Opaque token; pass back as `continue` to fetch the next page. Absent on the last page.
+      required: [items, count]
+
+    # ────────────────── Service ──────────────────
+    ServiceKind:
+      type: string
+      description: |
+        Logical kind of the service row. Compute does not change behavior
+        between values; the field exists purely so Platform's workspace
+        listing can share the same table.
+      enum:
+        - service
+        - workspace
+      default: service
+
+    ServicePhase:
+      type: string
+      description: Compute-side Service phase. Hoisted to the top of `Service` so list endpoints can filter on it with a B-tree index.
+      enum:
+        - Creating
+        - Pending
+        - Ready
+        - Degraded
+        - Failed
+        - Deleting
+        - Deleted
+
+    ServiceStatus:
+      type: object
+      description: Status sub-object excluding `phase` (which lives at the top level of `Service`). Mirrors MLService CR `status` minus `phase`.
+      properties:
+        message:
+          type: string
+        readyReplicas:
+          type: integer
+          minimum: 0
+          description: Replica count observed Ready via the Informer.
+        endpoint:
+          type: string
+          description: Internal Service DNS, AxisML Gateway URL, or KServe `status.url`.
+        conditions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Condition'
+
+    Service:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        namespace:
+          type: string
+          description: Tenant identifier (= `tenants.name`).
+        name:
+          type: string
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          minLength: 3
+          maxLength: 40
+        kind:
+          $ref: '#/components/schemas/ServiceKind'
+        displayName:
+          type: string
+        description:
+          type: string
+        owner:
+          type: string
+          description: User from the create-time `X-Axisml-User` header. Immutable.
+        labels:
+          $ref: '#/components/schemas/StringMap'
+        annotations:
+          $ref: '#/components/schemas/StringMap'
+        spec:
+          $ref: '#/components/schemas/MLServiceSpec'
+        generation:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Bumped on every `spec` mutation. Aligns with K8s `metadata.generation`.
+        observedGeneration:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Latest `generation` the reconciler has applied to the MLService CR.
+        replicas:
+          type: integer
+          minimum: 0
+          description: Desired replica count; equals `spec.roles[0].replicas`.
+        phase:
+          $ref: '#/components/schemas/ServicePhase'
+        status:
+          $ref: '#/components/schemas/ServiceStatus'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+      required: [id, namespace, name, kind, owner, spec, generation, replicas, phase, createdAt, updatedAt]
+
+    ServiceCreateRequest:
+      type: object
+      description: |
+        Platform expands cluster-manager ResourcePool / ResourceUnit references
+        into `spec.scheduling` and per-role `template.resources` *before*
+        calling this endpoint; compute does not accept pool/unit references.
+      properties:
+        name:
+          type: string
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          minLength: 3
+          maxLength: 40
+        kind:
+          $ref: '#/components/schemas/ServiceKind'
+        displayName:
+          type: string
+        description:
+          type: string
+        labels:
+          $ref: '#/components/schemas/StringMap'
+        annotations:
+          $ref: '#/components/schemas/StringMap'
+        spec:
+          $ref: '#/components/schemas/MLServiceSpec'
+      required: [name, spec]
+
+    ServiceScaleRequest:
+      type: object
+      properties:
+        replicas:
+          type: integer
+          minimum: 0
+          description: Target desired replica count. Becomes `spec.roles[0].replicas`.
+      required: [replicas]
+
+    ServiceList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Service'
+        count:
+          type: integer
+          minimum: 0
+          description: Number of items in this page.
+        continueToken:
+          type: string
+          description: Opaque token; pass back as `continue` to fetch the next page. Absent on the last page.
+      required: [items, count]

@@ -7,8 +7,8 @@ directory. Do not hand-edit — your changes will be overwritten by the next
 
 | Service | Source | Generator |
 |---|---|---|
-| `compute.yaml` | `components/compute/internal/{job,service,resourcepool,resourceunit}/service.go` | `components/compute/cmd/openapi-gen` |
-| `artifacts.yaml` | `components/artifacts/internal/artifact/{service,render}.go` | `components/artifacts/cmd/openapi-gen` |
+| `compute-service.yaml` | `components/compute-service/internal/{job,service,resourcepool,resourceunit}/service.go` | `components/compute-service/cmd/openapi-gen` |
+| `artifact-hub.yaml` | `components/artifact-hub/internal/artifact/{service,render}.go` | `components/artifact-hub/cmd/openapi-gen` |
 | `cluster-manager.yaml` | `components/cluster-manager/internal/server/types.go` | `components/cluster-manager/cmd/openapi-gen` |
 
 The shared reflection engine lives in `pkg/openapigen/`. Each per-service
@@ -20,8 +20,8 @@ in PRs) and registers component schemas via `pkg/openapigen.Generator`.
 ```sh
 make doc-gen        # regenerate all three specs
 make doc-test       # regenerate + diff (CI guard; non-zero on drift)
-make compute-doc-gen
-make artifacts-doc-gen
+make compute-service-doc-gen
+make artifact-hub-doc-gen
 make cluster-manager-doc-gen
 ```
 

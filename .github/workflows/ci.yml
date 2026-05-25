@@ -114,13 +114,13 @@ jobs:
       - name: Upload compute coverage
         uses: codecov/codecov-action@v4
         with:
-          files: ./components/compute/coverage/coverage.out
+          files: ./components/compute-service/coverage/coverage.out
           flags: test,compute
           fail_ci_if_error: false
       - name: Upload artifacts coverage
         uses: codecov/codecov-action@v4
         with:
-          files: ./components/artifacts/coverage/coverage.out
+          files: ./components/artifact-hub/coverage/coverage.out
           flags: test,artifacts
           fail_ci_if_error: false
 
@@ -165,13 +165,13 @@ jobs:
       - name: Upload compute integration coverage
         uses: codecov/codecov-action@v4
         with:
-          files: ./components/compute/coverage/integration-coverage.out
+          files: ./components/compute-service/coverage/integration-coverage.out
           flags: integration,compute
           fail_ci_if_error: false
       - name: Upload artifacts integration coverage
         uses: codecov/codecov-action@v4
         with:
-          files: ./components/artifacts/coverage/integration-coverage.out
+          files: ./components/artifact-hub/coverage/integration-coverage.out
           flags: integration,artifacts
           fail_ci_if_error: false
 
@@ -221,8 +221,8 @@ jobs:
           - { name: tenant-operator,  image: axisml-tenant-operator,  context: ., dockerfile: components/tenant-operator/Dockerfile }
           - { name: compute-operator, image: axisml-compute-operator, context: ., dockerfile: components/compute-operator/Dockerfile }
           - { name: cluster-manager,  image: axisml-cluster-manager,  context: ., dockerfile: components/cluster-manager/Dockerfile }
-          - { name: compute,          image: axisml-compute,          context: ., dockerfile: components/compute/Dockerfile }
-          - { name: artifacts,        image: axisml-artifacts,        context: ., dockerfile: components/artifacts/Dockerfile }
+          - { name: compute,          image: axisml-compute-service,          context: ., dockerfile: components/compute-service/Dockerfile }
+          - { name: artifacts,        image: axisml-artifact-hub,        context: ., dockerfile: components/artifact-hub/Dockerfile }
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-qemu-action@v3

@@ -9,7 +9,7 @@
 | 角色 | 职责 |
 | --- | --- |
 | [Platform](components/platform.md) | 唯一的外部认证入口；签发并校验 JWT；维护用户 / 角色 / 租户绑定；向下游注入身份头 |
-| [Cluster Manager](components/cluster-manager.md) / [Compute](components/compute.md) / [Artifacts](components/artifacts.md) | 只接受集群内 ClusterIP 调用；信任 Platform 注入的 `X-Axisml-User`，不做角色级鉴权 |
+| [Cluster Manager](components/cluster-manager.md) / [compute-service](components/compute-service.md) / [artifact-hub](components/artifact-hub.md) | 只接受集群内 ClusterIP 调用；信任 Platform 注入的 `X-Axisml-User`，不做角色级鉴权 |
 | Envoy Gateway | 在 Platform 之外另负责 **工作区 / 在线服务** 数据面入口的 JWT 校验（参见 [§5](#5-access-jwt) 与 [§6](#6-jwks)） |
 
 约束：

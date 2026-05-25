@@ -1,0 +1,21 @@
+{{- if .Values.computeService.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "axisml.fullname" . }}-compute-service
+  labels:
+    {{- include "axisml.componentLabels" (dict "context" . "component" "compute-service") | nindent 4 }}
+spec:
+  type: {{ .Values.computeService.service.type }}
+  ports:
+    - port: {{ .Values.computeService.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+    - port: {{ .Values.computeService.metricsPort }}
+      targetPort: metrics
+      protocol: TCP
+      name: metrics
+  selector:
+    {{- include "axisml.componentSelectorLabels" (dict "context" . "component" "compute-service") | nindent 4 }}
+{{- end }}

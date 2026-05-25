@@ -11,12 +11,12 @@ AxisML is a Kubernetes-native ML platform. The repo is a monorepo split into:
 - `components/tenant-operator/` — Go operator binary reconciling the `Tenant` CR (Namespace, Koordinator ElasticQuota, per-tenant Secret/CM/SA/RBAC). Single reconciler, no dispatcher.
 - `components/compute-operator/` — Go operator binary reconciling `MLJob` and `MLService` CRs via the dispatcher + handler model.
 - `components/cluster-manager/` — Stateless REST shell over Tenant CR CRUD on the K8s API. Admin-tier entry point; no PG.
-- `components/compute/` — Go service for Job/Service/ResourcePool/ResourceUnit. Partitioned by bare namespace string (no Tenant or Quota concepts).
-- `components/artifacts/` — Go service for the artifact registry. Partitioned by `(namespace, kind, name, version)` directly (no ArtifactRepo wrapper).
+- `components/compute-service/` — Go service for Job/Service/ResourcePool/ResourceUnit. Partitioned by bare namespace string (no Tenant or Quota concepts).
+- `components/artifact-hub/` — Go service for the artifact registry. Partitioned by `(namespace, kind, name, version)` directly (no ArtifactRepo wrapper).
 - `components/platform/{backend,frontend}/` — scaffolded service areas with READMEs only; no code yet.
 - `deploy/helm/axisml-infra/` — third-party infrastructure chart (Envoy Gateway, RustFS, zot, Koordinator, GPU Operator, kube-prometheus-stack).
-- `deploy/helm/axisml-system/` — control-plane chart: CRDs, both operators, Cluster Manager, Compute, Artifacts, and (eventually) Platform. Includes PostgreSQL.
-- `docs/system_design/` — authoritative design docs (overview, tenant-operator, compute-operator, cluster-manager, compute, artifacts, infra, platform).
+- `deploy/helm/axisml-system/` — control-plane chart: CRDs, both operators, Cluster Manager, Compute Service, Artifact Hub, and (eventually) Platform. Includes PostgreSQL.
+- `docs/system_design/` — authoritative design docs (overview, tenant-operator, compute-operator, cluster-manager, compute-service, artifact-hub, infra, platform).
 - `test/` — shared test infrastructure: `setup-envtest/` binary, `testutil/` helpers, `crds/external/` vendored upstream CRDs for integration tests.
 
 The system design lives ahead of the code. When code and `docs/system_design/` disagree, the design doc is usually the intended target — confirm before "fixing" code to match incomplete scaffolding.
@@ -43,10 +43,10 @@ components/compute-operator/                      (production — MLJob + MLServ
 components/compute-operator/test/integration/     (integration tests, separate module)
 components/cluster-manager/                       (production — REST shell over Tenant CR)
 components/cluster-manager/test/integration/      (integration tests, separate module)
-components/compute/                               (production)
-components/compute/test/integration/              (integration tests, separate module — envtest + testcontainers Postgres)
-components/artifacts/                             (production)
-components/artifacts/test/integration/            (integration tests, separate module — testcontainers Postgres + httptest OCI stub)
+components/compute-service/                       (production)
+components/compute-service/test/integration/      (integration tests, separate module — envtest + testcontainers Postgres)
+components/artifact-hub/                          (production)
+components/artifact-hub/test/integration/         (integration tests, separate module — testcontainers Postgres + httptest OCI stub)
 test/testutil/                                    (shared helpers, no operator deps)
 ```
 
@@ -68,17 +68,17 @@ make test                # unit tests across every component (no cluster)
 make integration-test    # integration tests for every component (envtest + testcontainers, needs Docker; ~30-60s)
 
 # Per-component shortcuts (auto-generated from the COMPONENTS list:
-# tenant-operator, compute-operator, cluster-manager, compute, artifacts):
+# tenant-operator, compute-operator, cluster-manager, compute-service, artifact-hub):
 make tenant-operator-test
 make tenant-operator-integration
 make compute-operator-test
 make compute-operator-integration
 make cluster-manager-test
 make cluster-manager-integration
-make compute-test
-make compute-integration
-make artifacts-test
-make artifacts-integration
+make compute-service-test
+make compute-service-integration
+make artifact-hub-test
+make artifact-hub-integration
 
 # Cluster + Helm:
 make cluster-up                      # minikube profile "axisml"
@@ -106,9 +106,9 @@ Documented in detail in `docs/development/testing.md`. The short version:
 | Layer | Build tag | Where | Backing |
 |---|---|---|---|
 | Unit | none | `*_test.go` next to package | none — uses `controller-runtime/pkg/client/fake` |
-| Integration | `//go:build integration` | each component's `test/integration/` Go submodule | embedded apiserver+etcd via `setup-envtest` (controller-runtime), plus testcontainers Postgres for compute and artifacts |
+| Integration | `//go:build integration` | each component's `test/integration/` Go submodule | embedded apiserver+etcd via `setup-envtest` (controller-runtime), plus testcontainers Postgres for compute-service and artifact-hub |
 
-There is no minikube-driven e2e layer. HTTP API contracts for service components (cluster-manager / compute / artifacts) are tested at the integration layer by driving the in-process gin engine via `httptest` — see `components/compute/test/integration/httptest_helpers_test.go` for the canonical helpers.
+There is no minikube-driven e2e layer. HTTP API contracts for service components (cluster-manager / compute-service / artifact-hub) are tested at the integration layer by driving the in-process gin engine via `httptest` — see `components/compute-service/test/integration/httptest_helpers_test.go` for the canonical helpers.
 
 Conventions that bite if you don't know them:
 - **Framework is plain `testing` + `testify`** (`require` for setup, `assert` for checks). **No Ginkgo/Gomega** — don't add them.

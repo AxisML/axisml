@@ -6,10 +6,10 @@
 | --- | --- | --- |
 | [Cluster Manager](components/cluster-manager.md) | `resource_pools` | 资源池（纯 PG 配置；admin 词汇） |
 | Cluster Manager | `resource_units` | 资源单元（纯 PG 配置；admin 词汇） |
-| [Compute](components/compute.md) | `tenants` | 租户 / 配额 / namespace spec（写路径权威） |
-| Compute | `jobs` | 一次性计算任务 |
-| Compute | `services` | 常驻在线服务 / 工作区 |
-| [Artifacts](components/artifacts.md) | `artifacts` | 制品（model / dataset / image） |
+| [compute-service](components/compute-service.md) | `tenants` | 租户 / 配额 / namespace spec（写路径权威） |
+| Compute Service | `jobs` | 一次性计算任务 |
+| Compute Service | `services` | 常驻在线服务 / 工作区 |
+| [artifact-hub](components/artifact-hub.md) | `artifacts` | 制品（model / dataset / image） |
 | [Platform](components/platform.md) | `users` / `roles` / `permissions` / `role_permissions` / `user_tenant_roles` / `sessions` / `audit_logs` | 身份、授权、会话、审计 |
 
 ---
@@ -48,7 +48,7 @@
 
 reconciler 通过 partial index `WHERE generation <> observed_generation AND deleted_at IS NULL` 高效定位待同步行；spec 内容未变但 mutation 重复触发时仍会 +generation，reconciler 走幂等 server-side apply 不会产生副作用。
 
-`jobs` 表 spec 完全不可变，不使用 generation（同步信号借用 `status` 谓词扫描，见 [compute.md §5.1](components/compute.md#51-写路径内嵌-outbox--谓词扫描)）；`resource_pools` / `resource_units` / `artifacts` / Platform 表无对应 CR，更不使用 generation。
+`jobs` 表 spec 完全不可变，不使用 generation（同步信号借用 `status` 谓词扫描，见 [compute.md §5.1](components/compute-service.md#51-写路径内嵌-outbox--谓词扫描)）；`resource_pools` / `resource_units` / `artifacts` / Platform 表无对应 CR，更不使用 generation。
 
 ### 1.5 CR 稳定锚点
 
@@ -124,8 +124,7 @@ CREATE UNIQUE INDEX resource_units_pool_name_active_uniq
 
 ---
 
-## 3. Compute
-
+## 3. Compute Service
 `tenants` / `jobs` / `services` 的 `namespace text` 字段是 tenant 标识符（= `tenants.name`）；Compute 内部通过 join `tenants` 表得到 `spec.namespace.name` 用于 CR 下发的 `metadata.namespace`。
 
 ### 3.1 `tenants` 表
@@ -210,7 +209,7 @@ CREATE INDEX jobs_namespace_project_created
 
 `phase` 是 MLJob CR `status.phase` 的顶层冗余；`status` jsonb 持剩余子字段 `{message, startedAt, finishedAt, conditions[]}`。两者由 informer 写。`spec` 含 Platform 已展开的 `nodeSelector` / `tolerations` / `resources`（不再持有 `pool_id` / `resource_unit_id`——展开责任在 Platform，详见 [platform.md §4.2](components/platform.md#42-计算任务编排)）。`spec.backend` 缺省时 Compute 写 CR 时补 `{name: "native", engine: "job"}`，创建后不可变。
 
-GIN + 复合表达式索引支持 `?labelSelector=axisml.io/project=...` 的过滤路径（详见 [§1.6](#16-扩展元数据-labels--annotations) 与 [compute.md §6](components/compute.md#6-接口契约)）。
+GIN + 复合表达式索引支持 `?labelSelector=axisml.io/project=...` 的过滤路径（详见 [§1.6](#16-扩展元数据-labels--annotations) 与 [compute.md §6](components/compute-service.md#6-接口契约)）。
 
 ### 3.3 `services` 表
 
@@ -252,8 +251,7 @@ CREATE INDEX services_namespace_project_created
 
 ---
 
-## 4. Artifacts
-
+## 4. Artifact Hub
 ### 4.1 `artifacts` 表
 
 ```sql
