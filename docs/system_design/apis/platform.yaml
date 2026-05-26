@@ -56,13 +56,11 @@ info:
       `400 active-tenant-required`.
     - **Create endpoints**: `X-Axisml-Tenant` is required; otherwise
       `400 active-tenant-required`.
-    - **Name-keyed detail endpoints** (e.g., `/api/v1/jobs/{name}`): the
-      header disambiguates the name and is required; otherwise
-      `400 active-tenant-required`.
-    - **UUID-keyed detail endpoints** (e.g., `/api/v1/workspaces/{id}`,
-      `/api/v1/services/{id}`): the UUID is self-sufficient; the header is
-      optional and used only as a consistency cross-check. RBAC is enforced
-      against the resource's owning tenant.
+    - **Name-keyed detail endpoints** (e.g., `/api/v1/jobs/{name}`,
+      `/api/v1/services/{name}`, `/api/v1/workspaces/{name}`): the header
+      disambiguates the name and is required; otherwise
+      `400 active-tenant-required`. Mirrors compute-service's
+      `(namespace, name)` addressing convention.
     - **Tuple-keyed artifact detail endpoints**
       (`/api/v1/models/{tenant}/{name}/{version}` and the image / dataset
       analogues): the tuple already carries the tenant, so the header is
@@ -582,12 +580,12 @@ paths:
       description: |
         JSON Merge Patch on mutable fields: top-level `namespace`
         (organizational grouping), `displayName`, `description`, `labels`,
-        `annotations`, and the patchable subset of `spec.*`
-        (`spec.namespace.labels`, `spec.namespace.annotations`,
-        `spec.initResources`, `spec.suspended`, `spec.quotas[]`). Requires
-        `system-admin`. Immutable fields (`name`, `owner`,
-        `spec.namespace.name`, `spec.quotas[].pool`, `spec.quotas[].name`)
-        are rejected at the request layer with `400 immutable-field`.
+        `annotations`, plus `spec.namespace.labels` / `spec.namespace.annotations`
+        (PG-only display metadata, do not bump generation),
+        `spec.initResources`, and `spec.quotas[]`. Requires `system-admin`.
+        Immutable fields (`name`, `owner`, `spec.namespace.name`,
+        `spec.quotas[].pool`, `spec.quotas[].name`) are rejected at the
+        request layer with `400 immutable-field`.
       requestBody:
         required: true
         content:
@@ -634,54 +632,6 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-  /api/v1/tenants/{name}/suspend:
-    parameters:
-      - $ref: '#/components/parameters/TenantName'
-    post:
-      tags: [Tenants]
-      operationId: suspendTenant
-      summary: Suspend a tenant
-      description: Requires `system-admin`. Sets `suspended=true`.
-      responses:
-        '200':
-          description: Updated tenant.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Tenant'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-  /api/v1/tenants/{name}/unsuspend:
-    parameters:
-      - $ref: '#/components/parameters/TenantName'
-    post:
-      tags: [Tenants]
-      operationId: unsuspendTenant
-      summary: Unsuspend a tenant
-      description: Requires `system-admin`. Sets `suspended=false`.
-      responses:
-        '200':
-          description: Updated tenant.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Tenant'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -1051,9 +1001,9 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/workspaces/{id}:
+  /api/v1/workspaces/{name}:
     parameters:
-      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/WorkspaceName'
 
     get:
       tags: [Workspaces]
@@ -1137,9 +1087,9 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/workspaces/{id}/start:
+  /api/v1/workspaces/{name}/start:
     parameters:
-      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/WorkspaceName'
     post:
       tags: [Workspaces]
       operationId: startWorkspace
@@ -1165,9 +1115,9 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/workspaces/{id}/stop:
+  /api/v1/workspaces/{name}/stop:
     parameters:
-      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/WorkspaceName'
     post:
       tags: [Workspaces]
       operationId: stopWorkspace
@@ -1193,9 +1143,9 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/workspaces/{id}/access:
+  /api/v1/workspaces/{name}/access:
     parameters:
-      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/WorkspaceName'
     get:
       tags: [Workspaces]
       operationId: getWorkspaceAccess
@@ -1220,9 +1170,9 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/workspaces/{id}/events:
+  /api/v1/workspaces/{name}/events:
     parameters:
-      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/WorkspaceName'
     get:
       tags: [Workspaces]
       operationId: getWorkspaceEvents
@@ -1248,9 +1198,9 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/workspaces/{id}/pods:
+  /api/v1/workspaces/{name}/pods:
     parameters:
-      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/WorkspaceName'
     get:
       tags: [Workspaces]
       operationId: listWorkspacePods
@@ -1274,9 +1224,9 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/workspaces/{id}/pods/{pod}/logs:
+  /api/v1/workspaces/{name}/pods/{pod}/logs:
     parameters:
-      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/WorkspaceName'
       - $ref: '#/components/parameters/PodName'
     get:
       tags: [Workspaces]
@@ -1314,9 +1264,9 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/workspaces/{id}/pods/{pod}/events:
+  /api/v1/workspaces/{name}/pods/{pod}/events:
     parameters:
-      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/WorkspaceName'
       - $ref: '#/components/parameters/PodName'
     get:
       tags: [Workspaces]
@@ -1655,54 +1605,6 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/jobs/{name}/register-model:
-    parameters:
-      - $ref: '#/components/parameters/ActiveTenantHeader'
-      - $ref: '#/components/parameters/JobName'
-    post:
-      tags: [Jobs]
-      operationId: registerJobModel
-      summary: Register a finished job's output as a model artifact
-      description: |
-        Bridge endpoint to the artifacts service. Requires `@owner`+ on
-        the job. Prefers `outputName` (referencing a declared
-        `MLJob.spec.outputs[]` entry); falls back to ad-hoc
-        `outputPath` + `volumeName`. Returns an upload-credentials envelope
-        plus provenance hints (PVC name + sourcePath) so the user can push
-        the bytes from any environment that has the source PVC mounted
-        (typically a workspace). The byte-push itself is out of band — the
-        client tool (axisml-cli, designed separately) consumes the
-        credentials and calls `completeModel`. Documented at
-        `components/platform.md §4.5.3`.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/JobRegisterModelRequest'
-      responses:
-        '202':
-          description: |
-            Model registration initiated; returns the new artifact row,
-            short-lived upload credentials, and provenance hints (source
-            PVC + path). Bytes are pushed by the client out-of-band.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/JobRegisterModelResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/Conflict'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
   # ============================================================================
   # Services
   # ============================================================================
@@ -1802,9 +1704,9 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/services/{id}:
+  /api/v1/services/{name}:
     parameters:
-      - $ref: '#/components/parameters/ServiceId'
+      - $ref: '#/components/parameters/ServiceName'
 
     get:
       tags: [Services]
@@ -1834,9 +1736,9 @@ paths:
       operationId: updateService
       summary: Update service display metadata
       description: |
-        Only `displayName` / `description` are mutable; all other fields go
-        through clone-with-new-version (`components/platform.md §5.3`). Requires
-        owner OR `tenant-admin@self` OR `system-admin`.
+        Only `displayName` / `description` / `labels` / `annotations` are
+        mutable; all other fields require creating a new service version.
+        Requires owner OR `tenant-admin@self` OR `system-admin`.
       requestBody:
         required: true
         content:
@@ -1883,9 +1785,9 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/services/{id}/scale:
+  /api/v1/services/{name}/scale:
     parameters:
-      - $ref: '#/components/parameters/ServiceId'
+      - $ref: '#/components/parameters/ServiceName'
     post:
       tags: [Services]
       operationId: scaleService
@@ -1918,9 +1820,9 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/services/{id}/start:
+  /api/v1/services/{name}/start:
     parameters:
-      - $ref: '#/components/parameters/ServiceId'
+      - $ref: '#/components/parameters/ServiceName'
     post:
       tags: [Services]
       operationId: startService
@@ -1946,9 +1848,9 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/services/{id}/stop:
+  /api/v1/services/{name}/stop:
     parameters:
-      - $ref: '#/components/parameters/ServiceId'
+      - $ref: '#/components/parameters/ServiceName'
     post:
       tags: [Services]
       operationId: stopService
@@ -1974,9 +1876,9 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/services/{id}/access:
+  /api/v1/services/{name}/access:
     parameters:
-      - $ref: '#/components/parameters/ServiceId'
+      - $ref: '#/components/parameters/ServiceName'
     get:
       tags: [Services]
       operationId: getServiceAccess
@@ -2003,9 +1905,9 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/services/{id}/metrics:
+  /api/v1/services/{name}/metrics:
     parameters:
-      - $ref: '#/components/parameters/ServiceId'
+      - $ref: '#/components/parameters/ServiceName'
     get:
       tags: [Services]
       operationId: getServiceMetrics
@@ -2058,9 +1960,9 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/services/{id}/pods:
+  /api/v1/services/{name}/pods:
     parameters:
-      - $ref: '#/components/parameters/ServiceId'
+      - $ref: '#/components/parameters/ServiceName'
     get:
       tags: [Services]
       operationId: listServicePods
@@ -2084,9 +1986,9 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/services/{id}/events:
+  /api/v1/services/{name}/events:
     parameters:
-      - $ref: '#/components/parameters/ServiceId'
+      - $ref: '#/components/parameters/ServiceName'
     get:
       tags: [Services]
       operationId: getServiceEvents
@@ -2112,9 +2014,9 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/services/{id}/pods/{pod}/logs:
+  /api/v1/services/{name}/pods/{pod}/logs:
     parameters:
-      - $ref: '#/components/parameters/ServiceId'
+      - $ref: '#/components/parameters/ServiceName'
       - $ref: '#/components/parameters/PodName'
     get:
       tags: [Services]
@@ -2150,9 +2052,9 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/services/{id}/pods/{pod}/events:
+  /api/v1/services/{name}/pods/{pod}/events:
     parameters:
-      - $ref: '#/components/parameters/ServiceId'
+      - $ref: '#/components/parameters/ServiceName'
       - $ref: '#/components/parameters/PodName'
     get:
       tags: [Services]
@@ -3371,23 +3273,27 @@ components:
         type: string
         format: uuid
 
-    WorkspaceId:
-      name: id
+    WorkspaceName:
+      name: name
       in: path
       required: true
-      description: Compute `services.id` of the workspace (uuid).
+      description: Workspace name within the active tenant (DNS-1123).
       schema:
         type: string
-        format: uuid
+        pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+        minLength: 1
+        maxLength: 63
 
-    ServiceId:
-      name: id
+    ServiceName:
+      name: name
       in: path
       required: true
-      description: Compute `services.id` of the service (uuid).
+      description: Service name within the active tenant (DNS-1123).
       schema:
         type: string
-        format: uuid
+        pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+        minLength: 1
+        maxLength: 63
 
     JobName:
       name: name
@@ -3845,7 +3751,7 @@ components:
 
     TenantPhase:
       type: string
-      enum: [Pending, Active, Suspended, Failed, Deleting, Deleted]
+      enum: [Creating, Active, Failed, Deleting, Deleted]
 
     Quota:
       type: object
@@ -3864,6 +3770,11 @@ components:
 
     QuotaStatus:
       type: object
+      description: |
+        Per-quota status. `used` is ephemeral (live from compute's Tenant
+        Informer cache, not persisted in PG); omitted on cache cold-start or
+        stale-watch windows, in which case the response carries a `Warning`
+        header. See `components/compute-service.md §5.3`.
       required: [pool, name]
       properties:
         pool:
@@ -4099,9 +4010,6 @@ components:
             $ref: '#/components/schemas/Quota'
         initResources:
           $ref: '#/components/schemas/InitResources'
-        suspended:
-          type: boolean
-          default: false
 
     TenantStatus:
       type: object
@@ -4164,9 +4072,9 @@ components:
       description: |
         JSON Merge Patch body. Mutable Platform fields:
         top-level `namespace` (organizational grouping), `displayName`,
-        `description`, `labels`, `annotations`, and the patchable subset of
-        `spec.*` (`spec.namespace.labels`, `spec.namespace.annotations`,
-        `spec.initResources`, `spec.suspended`, `spec.quotas[]`).
+        `description`, `labels`, `annotations`, plus `spec.namespace.labels`
+        / `spec.namespace.annotations` (PG-only display metadata, do not bump
+        generation), `spec.initResources`, and `spec.quotas[]`.
       properties:
         namespace:
           type: string
@@ -4198,8 +4106,6 @@ components:
                 $ref: '#/components/schemas/Quota'
             initResources:
               $ref: '#/components/schemas/InitResources'
-            suspended:
-              type: boolean
 
     # ------------------------------------------------------------------
     # Members
@@ -4376,14 +4282,18 @@ components:
           type: integer
           minimum: 1
           maximum: 65535
-        resourcePoolId:
+        poolName:
           type: string
-          format: uuid
+          description: ResourcePool name (CR `metadata.name`). compute looks it up via Informer cache and expands.
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          maxLength: 40
         resourcePoolName:
           type: string
-        resourceUnitId:
+        unitName:
           type: string
-          format: uuid
+          description: Unit name inside the chosen pool's `spec.units[]`. compute expands `(poolName, unitName)` at create time.
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          maxLength: 40
         resourceUnitName:
           type: string
         quota:
@@ -4455,8 +4365,8 @@ components:
       required:
         - image
         - containerPort
-        - resourcePoolId
-        - resourceUnitId
+        - poolName
+        - unitName
       properties:
         displayName:
           type: string
@@ -4482,16 +4392,20 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/EnvVar'
-        resourcePoolId:
+        poolName:
           type: string
-          format: uuid
-        resourceUnitId:
+          description: ResourcePool name (CR `metadata.name`). compute looks it up via Informer cache and expands.
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          maxLength: 40
+        unitName:
           type: string
-          format: uuid
+          description: Unit name inside the chosen pool's `spec.units[]`. compute expands `(poolName, unitName)` at create time.
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          maxLength: 40
         quota:
           type: string
           description: |
-            Quota name within the tenant's `(resourcePoolId)` slot. Platform
+            Quota name within the tenant's `(poolName)` slot. Platform
             renders `axisml-<tenant>-<pool>-<quota>` before forwarding.
         persistentVolume:
           $ref: '#/components/schemas/WorkspacePersistentVolume'
@@ -4594,9 +4508,9 @@ components:
           type: array
           description: |
             Pod volumes (shape matches K8s `PodSpec.volumes[]`). Pass-through
-            from compute. Surfaced on the Platform DTO so the register-model
-            modal can offer a PVC dropdown and Workspace / Job edit UIs can
-            display mounts. Authoritative shape lives in `apis/compute.yaml`.
+            from compute. Surfaced on the Platform DTO so Workspace / Job edit
+            UIs can display mounts. Authoritative shape lives in
+            `apis/compute.yaml`.
           items:
             type: object
             additionalProperties: true
@@ -4698,14 +4612,18 @@ components:
           format: uuid
         backend:
           $ref: '#/components/schemas/Backend'
-        resourcePoolId:
+        poolName:
           type: string
-          format: uuid
+          description: ResourcePool name (CR `metadata.name`). compute looks it up via Informer cache and expands.
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          maxLength: 40
         resourcePoolName:
           type: string
-        resourceUnitId:
+        unitName:
           type: string
-          format: uuid
+          description: Unit name inside the chosen pool's `spec.units[]`. compute expands `(poolName, unitName)` at create time.
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          maxLength: 40
         resourceUnitName:
           type: string
         quota:
@@ -4744,10 +4662,9 @@ components:
       type: object
       description: |
         Mirror of `apis/compute.yaml#/components/schemas/MLJobSpec`
-        (pass-through from compute). Surfaced on `Job` so the UI can
-        drive `register-model` (read `outputs[]` + `roles[*].template.volumes[]`),
-        prefill the "resubmit" form, and render a complete YAML view. The
-        authoritative shape and validation rules live in
+        (pass-through from compute). Surfaced on `Job` so the UI can prefill
+        the "resubmit" form and render a complete YAML view. The authoritative
+        shape and validation rules live in
         `components/compute-operator.md §4.1.1` and `apis/compute.yaml`.
       properties:
         backend:
@@ -4764,44 +4681,6 @@ components:
             $ref: '#/components/schemas/JobRole'
         runPolicy:
           $ref: '#/components/schemas/RunPolicy'
-        outputs:
-          type: array
-          description: |
-            Declarative output descriptors. See `JobOutput`. Read by the
-            UI's register-model modal; the operator does not consume
-            `outputs` at runtime.
-          items:
-            $ref: '#/components/schemas/JobOutput'
-
-    JobOutput:
-      type: object
-      description: |
-        Declaration of a single Job output. Mirror of
-        `apis/compute.yaml#/components/schemas/JobOutput`.
-      required: [name, kind, volumeName, sourcePath]
-      properties:
-        name:
-          type: string
-          description: Unique handle within the Job (DNS-1123).
-          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
-          minLength: 1
-          maxLength: 63
-        kind:
-          type: string
-          description: Artifact kind this output produces. Only `model` is supported initially.
-          enum: [model]
-        volumeName:
-          type: string
-          description: |
-            Name of the volume in `roles[*].template.volumes[]` that holds
-            the output bytes. Must be a PVC-backed volume.
-          minLength: 1
-          maxLength: 253
-        sourcePath:
-          type: string
-          description: Relative path inside `volumeName` containing the artifact bytes.
-          minLength: 1
-          maxLength: 1024
 
     JobList:
       type: object
@@ -4824,8 +4703,8 @@ components:
       required:
         - name
         - backend
-        - resourcePoolId
-        - resourceUnitId
+        - poolName
+        - unitName
         - roles
       properties:
         name:
@@ -4841,12 +4720,16 @@ components:
           maxLength: 1000
         backend:
           $ref: '#/components/schemas/Backend'
-        resourcePoolId:
+        poolName:
           type: string
-          format: uuid
-        resourceUnitId:
+          description: ResourcePool name (CR `metadata.name`). compute looks it up via Informer cache and expands.
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          maxLength: 40
+        unitName:
           type: string
-          format: uuid
+          description: Unit name inside the chosen pool's `spec.units[]`. compute expands `(poolName, unitName)` at create time.
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          maxLength: 40
         quota:
           type: string
         roles:
@@ -4856,110 +4739,6 @@ components:
             $ref: '#/components/schemas/JobRole'
         runPolicy:
           $ref: '#/components/schemas/RunPolicy'
-        outputs:
-          type: array
-          description: |
-            Optional declarative output descriptors (`MLJob.spec.outputs[]`).
-            Filling these at submit time enables the register-model modal
-            to offer a typed dropdown instead of ad-hoc `outputPath` entry.
-          items:
-            $ref: '#/components/schemas/JobOutput'
-
-    JobRegisterModelRequest:
-      type: object
-      description: |
-        Body for `POST /api/v1/jobs/{name}/register-model`. Two addressing
-        modes — exactly one must be supplied:
-
-        - **Declared** (preferred): set `outputName` to reference an entry
-          in `MLJob.spec.outputs[]` (must have `kind=model`). The referenced
-          entry's `volumeName` + `sourcePath` are used.
-        - **Ad-hoc**: omit `outputName` and provide BOTH `outputPath` AND
-          `volumeName`. Used for jobs submitted without declared outputs.
-
-        Mixing the two modes (e.g. `outputName` + `outputPath`) or
-        partially populating ad-hoc (e.g. only `outputPath`, no
-        `volumeName`) returns `400 InvalidOutputSelector`.
-      required: [modelName, modelVersion, spec]
-      properties:
-        outputName:
-          type: string
-          description: |
-            Name of the `MLJob.spec.outputs[]` entry whose `(volumeName,
-            sourcePath)` Platform should bridge to artifacts. Mutually
-            exclusive with `outputPath` + `volumeName`. When set the
-            referenced output must have `kind=model`.
-          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
-        outputPath:
-          type: string
-          description: |
-            Ad-hoc relative path inside `volumeName` containing the model
-            bytes. Used only when `outputName` is omitted; must be paired
-            with `volumeName`.
-          minLength: 1
-          maxLength: 1024
-        volumeName:
-          type: string
-          description: |
-            Ad-hoc volume name in `roles[*].template.volumes[]` (must be a
-            PVC-backed volume). Used only when `outputName` is omitted;
-            must be paired with `outputPath`.
-          minLength: 1
-          maxLength: 253
-        modelName:
-          type: string
-          pattern: '^[a-z0-9]([-a-z0-9._]*[a-z0-9])?$'
-          minLength: 1
-          maxLength: 100
-        modelVersion:
-          type: string
-          minLength: 1
-          maxLength: 64
-        displayName:
-          type: string
-        description:
-          type: string
-        spec:
-          $ref: '#/components/schemas/ModelSpec'
-
-    JobRegisterModelResponse:
-      type: object
-      description: |
-        Envelope returned by `registerJobModel`. `artifact` + `upload`
-        mirror the standard initiate response; `provenance` records which
-        PVC / path the bytes live on so the user can find them. Bytes are
-        pushed out-of-band by the caller (the cli flow is intentionally
-        outside the Platform contract).
-      required: [artifact, upload, provenance]
-      properties:
-        artifact:
-          $ref: '#/components/schemas/Model'
-        upload:
-          type: object
-          additionalProperties: true
-          description: |
-            Upload credentials envelope (same shape as
-            `ModelInitiateResponse.uploadCredentials`).
-        provenance:
-          type: object
-          required: [jobId, jobName, pvc, sourcePath]
-          properties:
-            jobId:
-              type: string
-              format: uuid
-              description: Source job uuid (mirrored into the artifact's labels).
-            jobName:
-              type: string
-              description: Source job name within the tenant.
-            outputName:
-              type: string
-              description: Source `MLJob.spec.outputs[].name`; absent for ad-hoc registrations.
-            pvc:
-              type: string
-              description: PVC name resolved from the chosen volume.
-            sourcePath:
-              type: string
-              description: Path inside the PVC.
 
     # ------------------------------------------------------------------
     # Services
@@ -5089,14 +4868,18 @@ components:
           type: integer
           minimum: 1
           maximum: 65535
-        resourcePoolId:
+        poolName:
           type: string
-          format: uuid
+          description: ResourcePool name (CR `metadata.name`). compute looks it up via Informer cache and expands.
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          maxLength: 40
         resourcePoolName:
           type: string
-        resourceUnitId:
+        unitName:
           type: string
-          format: uuid
+          description: Unit name inside the chosen pool's `spec.units[]`. compute expands `(poolName, unitName)` at create time.
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          maxLength: 40
         resourceUnitName:
           type: string
         quota:
@@ -5152,8 +4935,8 @@ components:
         - backend
         - image
         - containerPort
-        - resourcePoolId
-        - resourceUnitId
+        - poolName
+        - unitName
         - replicas
       properties:
         name:
@@ -5187,12 +4970,16 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/EnvVar'
-        resourcePoolId:
+        poolName:
           type: string
-          format: uuid
-        resourceUnitId:
+          description: ResourcePool name (CR `metadata.name`). compute looks it up via Informer cache and expands.
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          maxLength: 40
+        unitName:
           type: string
-          format: uuid
+          description: Unit name inside the chosen pool's `spec.units[]`. compute expands `(poolName, unitName)` at create time.
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          maxLength: 40
         quota:
           type: string
         replicas:
@@ -5737,7 +5524,11 @@ components:
 
     ResourcePool:
       type: object
-      required: [name, createdAt, updatedAt]
+      description: |
+        Pass-through of cluster-manager's `ResourcePool` (mirrors the K8s
+        `ResourcePool` CR). `units` is the embedded `spec.units[]` array,
+        not a separate REST resource.
+      required: [name, createdAt]
       properties:
         name:
           type: string
@@ -5749,19 +5540,21 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Toleration'
-        metadata:
-          type: object
-          additionalProperties: true
-        resourceUnitCount:
-          type: integer
-          description: |
-            Aggregated count of `resource_units` in this pool. `-1` when the
-            aggregation call failed (see `components/platform.md §4.3`).
+        units:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResourceUnit'
+        labels:
+          $ref: '#/components/schemas/StringMap'
+        annotations:
+          $ref: '#/components/schemas/StringMap'
         nodeCount:
           type: integer
           description: |
             Optional; populated when Platform has access to the node matcher
             preview. Phase-two field — may be omitted in MVP responses.
+        resourceVersion:
+          type: string
         createdAt:
           type: string
           format: date-time
@@ -5801,12 +5594,19 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Toleration'
-        metadata:
-          type: object
-          additionalProperties: true
+        units:
+          type: array
+          description: Optional initial `spec.units[]`; can also be managed later via /resource-units subroutes.
+          items:
+            $ref: '#/components/schemas/ResourceUnitCreateRequest'
+        labels:
+          $ref: '#/components/schemas/StringMap'
+        annotations:
+          $ref: '#/components/schemas/StringMap'
 
     ResourcePoolPatchRequest:
       type: object
+      description: Pool-level fields only; use /resource-units subroutes to manage individual units.
       properties:
         description:
           type: string
@@ -5817,17 +5617,17 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Toleration'
-        metadata:
-          type: object
-          additionalProperties: true
+        labels:
+          $ref: '#/components/schemas/StringMap'
+        annotations:
+          $ref: '#/components/schemas/StringMap'
 
     ResourceUnit:
       type: object
-      required: [name, pool, requests, limits, createdAt, updatedAt]
+      description: Embedded entry of `ResourcePool.spec.units[]`. Identified by `(poolName, name)`.
+      required: [name, requests, limits]
       properties:
         name:
-          type: string
-        pool:
           type: string
         description:
           type: string
@@ -5837,15 +5637,8 @@ components:
           $ref: '#/components/schemas/ResourceMap'
         nodeSelector:
           $ref: '#/components/schemas/StringMap'
-        metadata:
-          type: object
-          additionalProperties: true
-        createdAt:
-          type: string
-          format: date-time
-        updatedAt:
-          type: string
-          format: date-time
+        annotations:
+          $ref: '#/components/schemas/StringMap'
 
     ResourceUnitList:
       type: object
@@ -5869,7 +5662,7 @@ components:
           type: string
           pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
           minLength: 1
-          maxLength: 63
+          maxLength: 40
         description:
           type: string
           maxLength: 1000
@@ -5879,9 +5672,8 @@ components:
           $ref: '#/components/schemas/ResourceMap'
         nodeSelector:
           $ref: '#/components/schemas/StringMap'
-        metadata:
-          type: object
-          additionalProperties: true
+        annotations:
+          $ref: '#/components/schemas/StringMap'
 
     ResourceUnitPatchRequest:
       type: object
@@ -5895,9 +5687,8 @@ components:
           $ref: '#/components/schemas/ResourceMap'
         nodeSelector:
           $ref: '#/components/schemas/StringMap'
-        metadata:
-          type: object
-          additionalProperties: true
+        annotations:
+          $ref: '#/components/schemas/StringMap'
 
     # ------------------------------------------------------------------
     # Proxy DTOs (events, logs, pods)

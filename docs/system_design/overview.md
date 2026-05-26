@@ -8,17 +8,17 @@
 
 平台采用 **两层业务模型 + 一层视图**：
 
-- **集群词汇层**：ResourcePool / ResourceUnit 由 [Cluster Manager](components/cluster-manager.md) 持有，作为 admin 维度的节点切分与资源规格词汇——纯 PG 元数据，无 K8s 调用。
+- **集群词汇层**：ResourcePool CRD（内嵌 `units[]` 数组）由 [Cluster Manager](components/cluster-manager.md) 通过 REST 维护——admin 视角的"K8s 写抽象"层，cluster-manager 调 K8s API 写 CR；compute 通过 Informer 直读 CR 完成展开。
 - **租户与工作负载层**：租户（Tenant）、配额（Quota）、计算负载（Job / Service）与制品（Artifact）由 [compute-service](components/compute-service.md) 与 [artifact-hub](components/artifact-hub.md) 承载；compute 持有 Tenant 权威并下发 Tenant CR 给 [tenant-operator](components/tenant-operator.md) 在 Kubernetes 上落地。
-- **视图层**：[Platform](components/platform.md) 自己持有"用户 → 租户视图 → (compute_ns, artifacts_ns)"映射，把上述两层拼成用户看得到的工作区视图；在调 compute 创建任务前先从 cluster-manager 拉 pool/unit 展开成 nodeSelector / requests / limits 原语。
+- **视图层**：[Platform](components/platform.md) 自己持有"用户 → 租户视图 → (compute_ns, artifacts_ns)"映射，把上述两层拼成用户看得到的工作区视图；调 compute 创建任务时只透传 `(poolName, unitName)` 名字对，pool/unit 展开由 compute 自完成。
 
 ### 2.1 概念速查
 
 | 术语 | 英文 | 对应对象 | 详细设计 |
 | --- | --- | --- | --- |
 | 租户 | Tenant | 集群级 `Tenant` CR + PG `tenants` 行 | [compute-service #3](components/compute-service.md#3-核心模型) / [tenant-operator #3](components/tenant-operator.md#3-核心模型) |
-| 资源池 | ResourcePool | Cluster Manager 元数据对象（按用途 / 硬件 / 来源划分） | [cluster-manager #3](components/cluster-manager.md#3-核心模型) |
-| 资源单元 | ResourceUnit | ResourcePool 内的资源规格模板 | [cluster-manager #3](components/cluster-manager.md#3-核心模型) |
+| 资源池 | ResourcePool | `ResourcePool` CRD（cluster-scoped）；`spec.units[]` 内嵌 unit 数组 | [cluster-manager #3](components/cluster-manager.md#3-核心模型) |
+| 资源单元 | ResourceUnit (unit) | ResourcePool `spec.units[]` 内嵌项, 同 pool 一起生灭 | [cluster-manager #3](components/cluster-manager.md#3-核心模型) |
 | 资源配额 | Quota | `Tenant.spec.quotas[]` 内联项 → namespace-scoped `ElasticQuota` CR | [compute-service #3](components/compute-service.md#3-核心模型) / [tenant-operator #4](components/tenant-operator.md#4-核心功能) |
 | 计算负载 | Compute Workload | Job / Service 的概念伞 | [compute-service #3](components/compute-service.md#3-核心模型) |
 | 任务 | Job | `MLJob` CRD | [compute-operator #3](components/compute-operator.md#3-核心模型) |
@@ -30,7 +30,7 @@
 
 - **namespace = 租户标识符**：compute / artifacts 的 `namespace` 字段是 tenant 名（= `tenants.name`）；compute 内部 join 自己的 `tenants` 表得到 K8s namespace 用于 CR 下发；artifacts 不解析。
 - **PG 为权威，CR 为派生**：compute 以 `tenants` 表为唯一权威，Tenant CR 由内部 reconciler 派生并持续对账。
-- **Cluster Manager 零 K8s 调用**：仅持有 PG 元数据，不下发任何 CR、无 leader election；Platform 调用它的唯一目的是拿 pool/unit 词汇做展开。
+- **Cluster Manager 是 K8s admin REST 抽象**：把 admin 视角的 K8s 写 / 读（ResourcePool CRD CRUD，扩展端点见 [cluster-manager §9](components/cluster-manager.md#9-后续工作)）收敛为 REST，让 Platform 全程不直接调 K8s API；无独立持久化、无 reconciler、无 leader election。
 - **所有 AxisML Pod 走 koord-scheduler**：任何 backend handler 渲染出的 Pod 必须设置 `schedulerName: koord-scheduler` 并携带 `quota.scheduling.koordinator.sh/name` label —— 不存在"绕过配额"的调度路径。
 - **Operator 之间不互相感知**：tenant-operator 不看 MLJob / MLService；compute-operator 不看 Tenant / ElasticQuota（仅透传 quota 名）。
 - **分组维度走 labels**：project / experiment 等用户分组通过 `labels.axisml.io/<dim>` 落 PG，list 端点支持 `?labelSelector=`；compute / artifacts 不感知 Platform 业务概念。
@@ -53,9 +53,10 @@
 | | 资源池管理（cluster-manager） | ✅ |
 | | 资源单元管理（cluster-manager） | ✅ |
 | | 资源配额管理（compute） | ✅ |
-| | 数据卷管理 | TBD |
 
 图例：`✅` 表示已有对应详细设计；`TBD` 表示概要中保留能力入口，详细设计待补充或待稳定。
+
+> **删除 / 恢复语义**：仅 `Tenant` 支持软删 + restore（365 天 retention 后物理清理）；`Job` / `Service` / `Workspace` 删除即终态，无 restore 路径（重新提交即可）；`Artifact` 软删后 `(namespace, kind, name, version)` 永不复用。详见各组件 §4。
 
 ## 4. 整体架构
 
@@ -75,16 +76,16 @@
 │                              AxisML Platform                                 │
 │            Frontend (React) + Backend (Go) / 用户入口 / 业务编排               │
 │            持有"租户视图 ↔ (compute_ns, artifacts_ns)" 映射                  │
-│            调 compute 前 拉 cluster-manager pool/unit 展开成原语              │
+│            创建 Job / Service 时仅向 compute 传 pool/unit 名字                │
 └──────┬─────────────────────┬────────────────────────┬────────────────────────┘
        │                     │                        │
        ▼                     ▼                        ▼
 ┌─────────────────┐  ┌─────────────────────┐  ┌─────────────────────────────┐
 │ Cluster Manager │  │ AxisML Compute Service │  │   AxisML Artifact Hub        │
-│ (Go, 纯 PG)     │  │ (Go, namespace 分区)   │  │  (Go, namespace 分区)        │
-│ ResourcePool /  │  │  Tenant / Quota /   │  │  Artifact 元数据            │
-│ ResourceUnit    │  │  Job / Service      │  │  model,image -> zot          │
-│ (admin 词汇)    │  │  → Tenant /         │  │  dataset -> RustFS           │
+│ (Go, K8s REST)  │  │ (Go, namespace 分区)   │  │  (Go, namespace 分区)        │
+│ ResourcePool CR │  │  Tenant / Quota /   │  │  Artifact 元数据            │
+│ (含内嵌 units)  │  │  Job / Service      │  │  model,image -> zot          │
+│ admin 域 REST   │  │  → Tenant /         │  │  dataset -> RustFS           │
 │                 │  │    MLJob / MLService │  │                              │
 └─────────────────┘  └─────────┬──────────┘  └─────────────┬───────────────┘
                                │                           │
@@ -117,7 +118,7 @@ AxisML Infra 还提供：RustFS、zot、Koordinator、NVIDIA GPU Operator、kube
 核心调用关系：
 
 - 外部流量经 Envoy Gateway 进入 Platform；下层服务仅接受 Platform 内部调用。
-- Platform → Cluster Manager（拉 pool/unit 词汇做展开）、Compute（租户 / 配额 / 任务 / 服务）、Artifacts（模型 / 镜像 / 数据集）；compute / artifacts 以 namespace（tenant 名）为分区入参。
+- Platform → Cluster Manager（ResourcePool admin REST）、Compute（租户 / 配额 / 任务 / 服务；创建 workload 时仅传 pool/unit 名字, 由 compute 内部 Informer 直读 CR 展开）、Artifacts（模型 / 镜像 / 数据集）；compute / artifacts 以 namespace（tenant 名）为分区入参。
 - 租户与负载闭环：Compute 写 PG `tenants` / `jobs` / `services` → reconciler patch Tenant / MLJob / MLService CR → tenant-operator 落地 Namespace / ElasticQuota / 初始化资源；compute-operator 按 `spec.backend.{name, engine}` 路由 backend handler 渲染 K8s 与第三方 CR。
 - 制品域：Artifacts 元数据走 PG；模型 / 镜像走 zot（OCI），数据集走 RustFS（S3），上传下载由消费方直连存储，Artifacts 不代理大文件 bytes。
 
@@ -127,7 +128,7 @@ AxisML Infra 还提供：RustFS、zot、Koordinator、NVIDIA GPU Operator、kube
 | --- | --- |
 | [overview.md](overview.md) | 本文，系统级导航与高层模型 |
 | [components/platform.md](components/platform.md) | Platform（用户入口、业务编排、租户视图层） |
-| [components/cluster-manager.md](components/cluster-manager.md) | Cluster Manager（ResourcePool / ResourceUnit admin 词汇服务，纯 PG） |
+| [components/cluster-manager.md](components/cluster-manager.md) | Cluster Manager（ResourcePool CRD 的 admin REST 入口；含内嵌 `spec.units[]`） |
 | [components/compute-service.md](components/compute-service.md) | Compute（Tenant / Quota / Job / Service 业务服务 + 三类 CR reconciler） |
 | [components/artifact-hub.md](components/artifact-hub.md) | Artifacts（制品元数据 + 存储后端分离） |
 | [components/tenant-operator.md](components/tenant-operator.md) | tenant-operator（Tenant CR → Namespace / ElasticQuota / 初始化资源） |
@@ -144,13 +145,13 @@ AxisML Infra 还提供：RustFS、zot、Koordinator、NVIDIA GPU Operator、kube
 | 组件 | 一句话职责 | 关键模型 | 详细设计 |
 | --- | --- | --- | --- |
 | **Platform** | 用户入口与业务编排，持有租户视图层映射 | User / Org / 视图层 (compute_ns, artifacts_ns) 映射 | [platform.md](components/platform.md) |
-| **Cluster Manager** | admin 词汇服务，ResourcePool / ResourceUnit 的 PG 权威源（无 K8s 调用） | PG `resource_pools` / `resource_units` | [cluster-manager.md](components/cluster-manager.md) |
+| **Cluster Manager** | admin 域 K8s REST 抽象（ResourcePool CRD CRUD；扩展端点见组件文档 §9） | ResourcePool CR (含内嵌 `spec.units[]`) | [cluster-manager.md](components/cluster-manager.md) |
 | **Compute** | 业务域计算服务，管理 Tenant / Quota / Job / Service 与三类 CR | Tenant + MLJob + MLService（PG tenants/jobs/services，namespace 分区） | [compute-service.md](components/compute-service.md) |
 | **Artifacts** | 业务域制品服务，元数据 / 存储分离 | Artifact 四元组 `(namespace, kind, name, version)` | [artifact-hub.md](components/artifact-hub.md) |
 | **tenant-operator** | 把 Tenant CR 翻译为 Namespace / ElasticQuota / 初始化资源 | Tenant CR（cluster-scoped） | [tenant-operator.md](components/tenant-operator.md) |
 | **compute-operator** | 把 MLJob / MLService 路由到 backend handler 渲染 K8s 与第三方 CR | MLJob / MLService + backend handler registry | [compute-operator.md](components/compute-operator.md) |
 
-各组件的定位、架构、模型与接口契约请进入对应文档 §1–§6 查阅，本文不再展开。
+各组件的定位、架构、模型与接口契约请进入对应文档 §1–§6 查阅，本文不展开。
 
 ## 7. 部署架构
 
@@ -201,7 +202,7 @@ axisml/
 | 计算任务抽象 | 通过 CRD（MLJob / MLService / Tenant）抽象 | 与 Kubernetes 原生集成，声明式管理，框架无关 |
 | 控制平面拆分 | tenant-operator + compute-operator 两个独立二进制 | 管理员域与业务域按变更频率与权限边界分离 |
 | 租户与配额归属 | compute 持有 Tenant + Quota 权威，统一与 Job / Service 共驻一个 PG schema | 消除 cluster-manager 与 compute 间的 namespace 解析跨服务调用；compute 自己 join 出 K8s namespace；权威收敛到单一服务；详见 [compute-service #5](components/compute-service.md#5-关键机制) |
-| Pool/Unit 与租户分离 | ResourcePool / ResourceUnit 独立到 cluster-manager（纯 PG），Platform 在编排前展开为原语 | pool/unit 是集群级 admin 词汇，跟租户生命周期解耦；compute 不感知 pool/unit；变更频率天然不同 |
+| Pool/Unit 与租户分离 | ResourcePool CRD 由 cluster-manager 管 (内嵌 units), compute 通过 Informer 直读做展开 | pool/unit 是集群级 admin 词汇，跟租户生命周期解耦；写路径 (cluster-manager → K8s) 与读路径 (compute Informer) 都经 etcd 收敛, 无跨组件调用 |
 | Compute / Artifacts 分区模型 | 按 tenant 名作为 namespace 分区字符串，compute 内部 join 解析 K8s ns，artifacts 不解析 | 既保留分区清晰性，也避免在每次调用中传两套 namespace |
 | backend 扩展机制 | compute-operator 内部按 `spec.backend.{name, engine}` 路由 | 用户面向稳定 CRD，底层后端可按需接入 native / Kubeflow / KServe / custom；详见 [compute-operator #4](components/compute-operator.md#4-核心功能) |
 | 配额模型 | Quota 内联在 `Tenant.spec.quotas[]` → 1:1 映射上游 `ElasticQuota` CR（namespace-scoped），纯 `min` / `max` 二维 | 对齐 sigs.k8s.io scheduler-plugins 原生语义，避免独立 Quota CRD |
@@ -213,4 +214,5 @@ axisml/
 | 后端语言 | Go | 云原生生态契合，Operator 开发原生支持 |
 | 前端框架 | TypeScript + React | 社区生态成熟，组件丰富 |
 | 系统管理归属 | 租户与配额归 compute；资源池、资源单元归 cluster-manager | compute 持有"租户 ↔ K8s namespace"映射后可独立解析 namespace；pool/unit 是集群级 admin 词汇，与租户生命周期解耦 |
-| 认证鉴权 | Platform 统一入口；内置用户体系 + RBAC 三档；`IdentityProvider` 接口预留 OIDC | 外部入口收敛到 Platform，下层信任 `X-Axisml-User` 透传；详见 [auth.md](auth.md) |
+| 认证鉴权 | Platform 统一入口；内置用户体系 + RBAC 三档（硬编码）；OIDC 后续接入 | 外部入口收敛到 Platform，下层信任 `X-Axisml-User` 透传；详见 [auth.md](auth.md) |
+| 全局可见制品 | `axisml-system` 内置租户 + `artifacts.visibility=public` 字段 | 跨租户共享只在"平台基础镜像 / 公共数据集"这种 system-admin 维护的场景出现；不引入"租户 A 主动分享给租户 B" |

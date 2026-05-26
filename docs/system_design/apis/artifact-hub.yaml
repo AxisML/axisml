@@ -10,17 +10,17 @@ info:
     stable. Writes follow a two-phase protocol: `initiate` (create an
     `Uploading` row and hand back short-lived upload credentials), then
     `complete` (server HEADs the storage backend and transitions the row to
-    `Ready`). Consumers (operators, axisml-cli) call `resolve` to obtain the
-    storage URI / digest / auth hint for fetching artifact bytes; bytes never
-    flow through this service.
+    `Ready`). Consumers (operators, end-user clients) call `resolve` to obtain
+    the storage URI / digest for fetching artifact bytes; bytes never flow
+    through this service.
 
-    Callers are AxisML Platform (on behalf of axisml-cli and the UI) and the
-    in-cluster Operators. Authentication and namespace authorization are
+    Callers are AxisML Platform (on behalf of the UI / end-user clients) and
+    the in-cluster Operators. Authentication and namespace authorization are
     performed by Platform; this service treats `namespace` as an opaque
     partition key.
 
 servers:
-  - url: http://axisml-artifact-hub.axisml-system.svc.cluster.local:8082
+  - url: http://axisml-artifact-hub.axisml-system.svc.cluster.local:8080
     description: In-cluster ClusterIP service
 
 tags:
@@ -380,14 +380,15 @@ paths:
       summary: Resolve an artifact reference to a storage URI
       description: |
         Returns the storage URI, content digest (if `Ready`), and an
-        auth hint or short-lived pull credentials depending on `usage`.
+        URI / digest or short-lived pull credentials depending on `usage`.
 
         * `usage=inspect` (default) is for in-cluster operators (mljob /
-          mlservice handlers). Returns `authHint` pointing at a tenant-local
-          Secret that the workload namespace already carries (provisioned by
-          tenant-operator). No plaintext credentials are returned.
-        * `usage=download` is for `axisml-cli pull` and similar
-          end-user flows. Returns short-lived pull credentials (OCI bearer
+          mlservice handlers). Returns only `uri` + `digest`; the workload
+          authenticates to zot / RustFS via the per-tenant ServiceAccount
+          provisioned by tenant-operator (default `imagePullSecrets` for OCI;
+          env / volume Secret for S3).  No credential references are returned.
+        * `usage=download` is for end-user clients (browser / CLI) acting
+          through Platform.  Returns short-lived pull credentials (OCI bearer
           token or S3 STS) that allow direct GETs against the backend.
 
         Returns 410 Gone when the artifact has been soft-deleted; because
@@ -402,26 +403,6 @@ paths:
             type: string
             enum: [inspect, download]
             default: inspect
-        - in: query
-          name: workloadNamespace
-          description: |
-            Workload namespace from which `authHint.secretRef` should be
-            resolved. Required for `usage=inspect`. Platform supplies the
-            mapping between the artifact namespace and the workload
-            namespace; Artifacts does not look it up.
-          required: false
-          schema:
-            $ref: '#/components/schemas/Namespace'
-        - in: query
-          name: secretPrefix
-          description: |
-            Optional Secret-name prefix that overrides the default tenant
-            Secret naming convention used to build `authHint.secretRef.name`.
-          required: false
-          schema:
-            type: string
-            pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
-            maxLength: 63
       responses:
         '200':
           description: Resolved reference.
@@ -719,12 +700,12 @@ components:
         - $ref: '#/components/schemas/DatasetSpec'
         - $ref: '#/components/schemas/ImageSpec'
 
-    # --- Artifact DTO (matches database.md §4.1) ---
+    # --- Artifact DTO (matches database.md §3.1) ---
     Artifact:
       type: object
       description: |
         Full Artifact view. Matches the `artifacts` PG table schema
-        (database.md §4.1). The `(namespace, kind, name, version)` tuple is
+        (database.md §3.1). The `(namespace, kind, name, version)` tuple is
         immutable once created and is never reused even after delete.
         `spec` is frozen once `status=Ready`. `displayName`, `description`,
         `labels`, and `annotations` are mutable in any state (no PATCH
@@ -755,6 +736,15 @@ components:
           $ref: '#/components/schemas/ArtifactName'
         version:
           $ref: '#/components/schemas/ArtifactVersion'
+        visibility:
+          type: string
+          enum: [tenant, public]
+          default: tenant
+          description: |
+            `tenant` (default) — visible only inside this namespace.
+            `public` — globally visible; only allowed in the built-in
+            `axisml-system` namespace (enforced by Platform RBAC). Immutable
+            after creation.
         displayName:
           type: string
           maxLength: 256
@@ -972,8 +962,10 @@ components:
       type: object
       description: |
         Resolved storage reference. `uri` is always present. `digest` is
-        present once the artifact is `Ready`. Exactly one of `authHint` or
-        `pullCredentials` is populated depending on `usage`.
+        present once the artifact is `Ready`. `pullCredentials` is populated
+        only on `usage=download`; on `usage=inspect` the workload pulls bytes
+        via the per-tenant ServiceAccount (provisioned by tenant-operator) and
+        no credential reference is returned.
       required: [uri, storageKind]
       properties:
         storageKind:
@@ -990,8 +982,12 @@ components:
           example: zot.axisml-infra.svc:5000/namespaces/team-a/models/llama-7b:v3
         digest:
           $ref: '#/components/schemas/Digest'
-        authHint:
-          $ref: '#/components/schemas/AuthHint'
+        visibility:
+          type: string
+          enum: [tenant, public]
+          description: |
+            Inherited from the artifact row. `public` artifacts live in the
+            built-in `axisml-system` namespace and are visible to every tenant.
         pullCredentials:
           description: |
             Short-lived pull credentials for `usage=download`. Same shape as
@@ -1005,43 +1001,6 @@ components:
             mapping:
               oci: '#/components/schemas/OciUploadCredentials'
               s3: '#/components/schemas/S3UploadCredentials'
-
-    AuthHint:
-      type: object
-      description: |
-        Pointer to a tenant-local Secret that the workload namespace already
-        carries (provisioned by tenant-operator from `Tenant.spec.initResources`,
-        see tenant-operator.md §4.6). Artifacts never returns plaintext
-        credentials on the `inspect` path and does not verify that the Secret
-        exists; the consumer is responsible for reading it.
-      required: [kind, secretRef]
-      properties:
-        kind:
-          type: string
-          enum: [oci, s3]
-        secretRef:
-          type: object
-          required: [namespace, name]
-          properties:
-            namespace:
-              $ref: '#/components/schemas/Namespace'
-            name:
-              type: string
-              description: |
-                Tenant-local Secret name, rendered from a Platform-supplied
-                template (default `axisml-tenant-<tenant>-zot-pull` for OCI
-                and `axisml-tenant-<tenant>-rustfs` for S3).
-              pattern: '^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$'
-              maxLength: 253
-            usernameKey:
-              type: string
-              description: Secret data key carrying the username (OCI).
-            passwordKey:
-              type: string
-              description: Secret data key carrying the password / token (OCI).
-        scope:
-          type: string
-          description: Optional capability scope string (e.g. OCI `pull`).
 
     # --- RFC 7807 Problem Details ---
     Problem:

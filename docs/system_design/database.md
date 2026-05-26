@@ -4,19 +4,19 @@
 
 | 服务 | 表 | 用途 |
 | --- | --- | --- |
-| [Cluster Manager](components/cluster-manager.md) | `resource_pools` | 资源池（纯 PG 配置；admin 词汇） |
-| Cluster Manager | `resource_units` | 资源单元（纯 PG 配置；admin 词汇） |
 | [compute-service](components/compute-service.md) | `tenants` | 租户 / 配额 / namespace spec（写路径权威） |
 | Compute Service | `jobs` | 一次性计算任务 |
 | Compute Service | `services` | 常驻在线服务 / 工作区 |
 | [artifact-hub](components/artifact-hub.md) | `artifacts` | 制品（model / dataset / image） |
-| [Platform](components/platform.md) | `users` / `roles` / `permissions` / `role_permissions` / `user_tenant_roles` / `sessions` / `audit_logs` | 身份、授权、会话、审计 |
+| [Platform](components/platform.md) | `users` / `user_tenant_roles` / `sessions` / `audit_logs` | 身份、授权、会话、审计（角色硬编码三档，不入表） |
+
+> [Cluster Manager](components/cluster-manager.md) **不入 PG**——ResourcePool（含内嵌 `spec.units[]`）持久化在 K8s etcd 上的 `ResourcePool` CRD，cluster-manager 是 REST + K8s API 调用层。
 
 ---
 
 ## 1. 通用约定
 
-下列约定对**业务表**生效（`tenants` / `jobs` / `services` / `artifacts` / `resource_pools` / `resource_units`）；Platform 的身份 / 会话 / 审计表（§5）按需自定义，不强制遵循。新增业务表或扩展现有表时必须满足。
+下列约定对**业务表**生效（`tenants` / `jobs` / `services` / `artifacts`）；Platform 的身份 / 会话 / 审计表（§4）按需自定义，不强制遵循。新增业务表或扩展现有表时必须满足。
 
 ### 1.1 通用字段
 
@@ -34,7 +34,7 @@
 
 - 字符集 `[a-z0-9-]`；首尾为字母或数字；长度 3–40；不允许连续 `--`；
 - **DNS-1123 兼容**；
-- ResourceUnit 名称叠加 [cluster-manager.md §3.2 ResourceUnit](components/cluster-manager.md) 的语义命名约定；
+- ResourcePool / ResourceUnit 名称叠加 [cluster-manager.md §3.1](components/cluster-manager.md#31-resourcepool-形状) 的语义命名约定（CRD 校验，本表无 PG 实体）；
 - Artifact `version` 改用 OCI tag-safe 子集（`A-Za-z0-9_.-`，长度 1–128，禁止 `/`）。
 
 ### 1.4 generation / observed_generation
@@ -48,7 +48,7 @@
 
 reconciler 通过 partial index `WHERE generation <> observed_generation AND deleted_at IS NULL` 高效定位待同步行；spec 内容未变但 mutation 重复触发时仍会 +generation，reconciler 走幂等 server-side apply 不会产生副作用。
 
-`jobs` 表 spec 完全不可变，不使用 generation（同步信号借用 `status` 谓词扫描，见 [compute.md §5.1](components/compute-service.md#51-写路径内嵌-outbox--谓词扫描)）；`resource_pools` / `resource_units` / `artifacts` / Platform 表无对应 CR，更不使用 generation。
+`jobs` 表 spec 完全不可变，不使用 generation（同步信号借用 `status` 谓词扫描，见 [compute.md §5.1](components/compute-service.md#51-写路径内嵌-outbox--谓词扫描)）；`artifacts` / Platform 表无对应 CR，更不使用 generation。
 
 ### 1.5 CR 稳定锚点
 
@@ -72,59 +72,7 @@ reconciler 通过 partial index `WHERE generation <> observed_generation AND del
 
 ---
 
-## 2. Cluster Manager
-
-Cluster Manager 持有集群级 admin 词汇——ResourcePool（节点切分维度）与 ResourceUnit（池内资源规格模板）。两者均为纯 PG 元数据，无对应 CR，由 admin 离线维护节点 label / taint。
-
-### 2.1 `resource_pools` 表
-
-```sql
-CREATE TABLE resource_pools (
-  id             uuid PRIMARY KEY,
-  name           text NOT NULL,
-  description    text,
-  node_selector  jsonb NOT NULL DEFAULT '{}',     -- {"axisml.io/pool": "gpu-a100"}
-  tolerations    jsonb NOT NULL DEFAULT '[]',     -- K8s Toleration 数组
-  labels         jsonb NOT NULL DEFAULT '{}',
-  annotations    jsonb NOT NULL DEFAULT '{}',
-  created_at     timestamptz NOT NULL DEFAULT now(),
-  updated_at     timestamptz NOT NULL DEFAULT now(),
-  deleted_at     timestamptz
-);
-
-CREATE UNIQUE INDEX resource_pools_name_active_uniq
-  ON resource_pools (name) WHERE deleted_at IS NULL;
-```
-
-无对应 CR；纯 PG 配置对象。
-
-### 2.2 `resource_units` 表
-
-```sql
-CREATE TABLE resource_units (
-  id             uuid PRIMARY KEY,
-  pool_id        uuid NOT NULL REFERENCES resource_pools(id),
-  name           text NOT NULL,
-  description    text,
-  requests       jsonb NOT NULL DEFAULT '{}',     -- {"cpu":"8","memory":"64Gi","nvidia.com/gpu":"1"}
-  limits         jsonb NOT NULL DEFAULT '{}',
-  node_selector  jsonb NOT NULL DEFAULT '{}',     -- 通用节点标签匹配
-  labels         jsonb NOT NULL DEFAULT '{}',
-  annotations    jsonb NOT NULL DEFAULT '{}',
-  created_at     timestamptz NOT NULL DEFAULT now(),
-  updated_at     timestamptz NOT NULL DEFAULT now(),
-  deleted_at     timestamptz
-);
-
-CREATE UNIQUE INDEX resource_units_pool_name_active_uniq
-  ON resource_units (pool_id, name) WHERE deleted_at IS NULL;
-```
-
-无对应 CR；纯 PG 配置对象。
-
----
-
-## 3. Compute Service
+## 2. Compute Service
 `tenants` / `jobs` / `services` 的 `namespace text` 字段是 tenant 标识符（= `tenants.name`）；Compute 内部通过 join `tenants` 表得到 `spec.namespace.name` 用于 CR 下发的 `metadata.namespace`。
 
 ### 3.1 `tenants` 表
@@ -163,7 +111,7 @@ CREATE INDEX tenants_sync_pending
 
 `tenants.spec.namespace.name` 是 tenant 关联的 K8s namespace（不可变，多 tenant 可共享）。`jobs` / `services` / `artifacts` 的 `namespace` 字段 = `tenants.name`，作为逻辑分区键；Compute 写 CR 时 join 出 K8s namespace。
 
-`phase` 是 Tenant CR `status.phase` 的顶层冗余（便于 SQL 过滤与 B-tree 索引）；`status` jsonb 持剩余子字段 `{message, conditions[], quotas[]}`（`quotas[].used` 含每条配额的实际用量）。两者都由 informer 写。
+`phase` 是 Tenant CR `status.phase` 的顶层冗余（便于 SQL 过滤与 B-tree 索引）；`status` jsonb 持剩余子字段 `{message, namespaceReady, conditions[], quotas[].{pool, name, ready}}` —— informer 在写 PG 时**主动 strip** `quotas[].used`，该字段属于 ephemeral 调度态，只活在 Tenant CR `status.quotas[].used` 与 compute Tenant Informer 的 in-memory cache 里，GET 端点实时聚合返回（详见 [compute-service.md §5.3](components/compute-service.md#53-状态回流informer)）。两者都由 informer 写。
 
 **字段归属**
 
@@ -207,7 +155,7 @@ CREATE INDEX jobs_namespace_project_created
   WHERE deleted_at IS NULL;
 ```
 
-`phase` 是 MLJob CR `status.phase` 的顶层冗余；`status` jsonb 持剩余子字段 `{message, startedAt, finishedAt, conditions[]}`。两者由 informer 写。`spec` 含 Platform 已展开的 `nodeSelector` / `tolerations` / `resources`（不再持有 `pool_id` / `resource_unit_id`——展开责任在 Platform，详见 [platform.md §4.2](components/platform.md#42-计算任务编排)）。`spec.backend` 缺省时 Compute 写 CR 时补 `{name: "native", engine: "job"}`，创建后不可变。
+`phase` 是 MLJob CR `status.phase` 的顶层冗余；`status` jsonb 持剩余子字段 `{message, startedAt, finishedAt, conditions[]}`。两者由 informer 写。`spec` 含 compute 已展开的 `nodeSelector` / `tolerations` / `resources` snapshot, 同时保留 `scheduling.poolName` / `scheduling.unitName` 做溯源 (compute 在 Create 入口完成 ResourcePool CR Informer cache lookup 与合并, 详见 [compute-service.md §5.4](components/compute-service.md#54-resourcepool-展开))。`spec.backend` 缺省时 Compute 写 CR 时补 `{name: "native", engine: "job"}`，创建后不可变。
 
 GIN + 复合表达式索引支持 `?labelSelector=axisml.io/project=...` 的过滤路径（详见 [§1.6](#16-扩展元数据-labels--annotations) 与 [compute.md §6](components/compute-service.md#6-接口契约)）。
 
@@ -251,7 +199,7 @@ CREATE INDEX services_namespace_project_created
 
 ---
 
-## 4. Artifact Hub
+## 3. Artifact Hub
 ### 4.1 `artifacts` 表
 
 ```sql
@@ -261,6 +209,7 @@ CREATE TABLE artifacts (
   kind          text NOT NULL,                  -- model / dataset / image
   name          text NOT NULL,
   version       text NOT NULL,                  -- OCI tag-safe
+  visibility    text NOT NULL DEFAULT 'tenant', -- 'tenant'（默认，本 namespace 内可见）| 'public'（全局可见；仅 axisml-system namespace 允许）
   display_name  text,
   description   text,
   labels        jsonb NOT NULL DEFAULT '{}',
@@ -281,17 +230,18 @@ CREATE TABLE artifacts (
 
 CREATE UNIQUE INDEX artifacts_nknv_uniq    ON artifacts (namespace, kind, name, version);
 CREATE INDEX artifacts_namespace_kind      ON artifacts (namespace, kind);
+CREATE INDEX artifacts_visibility_public   ON artifacts (kind, name, version) WHERE visibility = 'public' AND status = 'Ready';
 CREATE INDEX artifacts_created_at          ON artifacts (created_at DESC);
 CREATE INDEX artifacts_labels_gin          ON artifacts USING GIN (labels jsonb_path_ops);
 ```
 
-`(namespace, kind, name, version)` 是 §1.2 软删唯一性的例外——一旦创建即不复用、软删后也不释放，因此 unique index **不带** `WHERE deleted_at IS NULL`。`spec` / `digest` Ready 后冻结，"改"= 同 `(namespace, kind, name)` 下新建 `version`。`display_name` / `description` / `labels` / `annotations` 任何阶段可改。`namespace` 是 tenant 标识符（= compute `tenants.name`），Artifacts 不解析。
+`(namespace, kind, name, version)` 是 §1.2 软删唯一性的例外——一旦创建即不复用、软删后也不释放，因此 unique index **不带** `WHERE deleted_at IS NULL`。`spec` / `digest` Ready 后冻结，"改"= 同 `(namespace, kind, name)` 下新建 `version`。`display_name` / `description` / `labels` / `annotations` 任何阶段可改；`visibility` 创建后不可变。`namespace` 是 tenant 标识符（= compute `tenants.name`），Artifacts 不解析；`visibility='public'` 仅允许在 `axisml-system` 内置 namespace 下创建（由调用方 Platform RBAC 兜底）。
 
 存储地址不入表：`storage_kind` 是 `kind` 的纯函数，`uri` 由 `Handler.BuildStorageURI(namespace, name, version)` 即时构造。新增 Kind 无需 schema 迁移（`spec jsonb` + `kind text` 兼容），只需新增 handler 与 OpenAPI 枚举。
 
 ---
 
-## 5. Platform
+## 4. Platform
 
 Platform PG 仅覆盖 **身份、授权、会话、审计** 四类，**不缓存任何下游业务元数据**——Tenant / Workspace / Job / Service / Artifact 等业务对象一律向下游服务实时查询。
 
@@ -299,44 +249,26 @@ Platform PG 仅覆盖 **身份、授权、会话、审计** 四类，**不缓存
 
 ```sql
 CREATE TABLE users (
-  id            uuid PRIMARY KEY,
-  username      text NOT NULL,
-  password_hash text NOT NULL,
-  email         text,
-  display_name  text,
-  disabled      bool NOT NULL DEFAULT false,
-  created_at    timestamptz NOT NULL DEFAULT now(),
-  updated_at    timestamptz NOT NULL DEFAULT now()
+  id                    uuid PRIMARY KEY,
+  username              text NOT NULL,
+  password_hash         text NOT NULL,
+  must_change_password  bool NOT NULL DEFAULT false,        -- bootstrap 时 admin/admin 默认 true
+  email                 text,
+  display_name          text,
+  disabled              bool NOT NULL DEFAULT false,
+  created_at            timestamptz NOT NULL DEFAULT now(),
+  updated_at            timestamptz NOT NULL DEFAULT now()
 );
 CREATE UNIQUE INDEX users_username_uniq ON users (username);
 
-CREATE TABLE roles (
-  id          uuid PRIMARY KEY,
-  name        text NOT NULL,
-  description text,
-  built_in    bool NOT NULL DEFAULT false           -- built_in=true 的角色不可删除
-);
-CREATE UNIQUE INDEX roles_name_uniq ON roles (name);
-
-CREATE TABLE permissions (
-  id          uuid PRIMARY KEY,
-  name        text NOT NULL,
-  description text
-);
-CREATE UNIQUE INDEX permissions_name_uniq ON permissions (name);
-
-CREATE TABLE role_permissions (
-  role_id       uuid NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
-  permission_id uuid NOT NULL REFERENCES permissions(id) ON DELETE CASCADE,
-  PRIMARY KEY (role_id, permission_id)
-);
+-- 角色硬编码三档（`system-admin` / `tenant-admin` / `user`），不入表；权限矩阵见 auth.md §3。
 
 CREATE TABLE user_tenant_roles (
   user_id     uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  tenant_name text NOT NULL,                       -- 引用 Tenant CR metadata.name（稳定 FK，跨服务不约束）
-  role_id     uuid NOT NULL REFERENCES roles(id),
+  tenant_name text NOT NULL,                       -- 引用 compute `tenants.name`（稳定 FK，跨服务不约束）
+  role        text NOT NULL,                       -- 'tenant-admin' | 'user'；硬编码枚举
   created_at  timestamptz NOT NULL DEFAULT now(),
-  PRIMARY KEY (user_id, tenant_name, role_id)
+  PRIMARY KEY (user_id, tenant_name, role)
 );
 CREATE INDEX user_tenant_roles_user_tenant ON user_tenant_roles (user_id, tenant_name);
 
@@ -360,4 +292,6 @@ CREATE INDEX audit_logs_created_at      ON audit_logs (created_at DESC);
 CREATE INDEX audit_logs_user_created_at ON audit_logs (user_id, created_at DESC);
 ```
 
-`user_tenant_roles.tenant_name` 不做跨服务 FK——cluster-manager `tenants.name` 在 `WHERE deleted_at IS NULL` 上 partial unique 且创建后不可变，等价于稳定 FK；级联清理由 [platform.md §4.1](components/platform.md#41-租户编排) 在应用层实现。`audit_logs` 保留期由 `--audit-log-retention-days` 配置（默认 90 天）。
+`user_tenant_roles.tenant_name` 不做跨服务 FK——compute `tenants.name` 在 `WHERE deleted_at IS NULL` 上 partial unique 且创建后不可变，等价于稳定 FK；级联清理由 [platform.md §4.1](components/platform.md#41-租户编排) 在应用层实现。`user_tenant_roles.role` 是硬编码 text 枚举（`tenant-admin` / `user`），完整矩阵见 [auth.md §3](auth.md#3-rbac-角色)。`audit_logs` 保留期由 `--audit-log-retention-days` 配置（默认 90 天）。
+
+**bootstrap 行为**：首次 `axisml-platform bootstrap` 会插入 `admin` 用户（密码 hash 默认 `admin`，`must_change_password=true`；可通过环境变量 `AXISML_BOOTSTRAP_PASSWORD` 覆盖），同时在 compute 中初始化内置租户 `axisml-system` 承载 `visibility=public` 制品。

@@ -22,12 +22,12 @@ info:
     observed through three in-process Informers.
 
 servers:
-  - url: http://axisml-compute-service.axisml-system.svc.cluster.local:8081
+  - url: http://axisml-compute-service.axisml-system.svc.cluster.local:8080
     description: In-cluster ClusterIP endpoint
 
 tags:
   - name: Tenants
-    description: Tenant lifecycle (create / read / update / suspend / soft-delete / restore)
+    description: Tenant lifecycle (create / read / update / soft-delete / restore)
   - name: Quotas
     description: Quota CRUD as a sub-resource of a Tenant; backed by `tenants.spec.quotas[]` jsonb
   - name: Jobs
@@ -203,17 +203,17 @@ paths:
       summary: Patch a tenant (RFC 7396 JSON Merge Patch)
       description: |
         Applies an RFC 7396 JSON Merge Patch. Only mutable fields are
-        accepted: `displayName`, `description`, `labels`, `annotations`,
-        and the patchable subset of `spec.*` (`spec.namespace.labels`,
-        `spec.namespace.annotations`, `spec.initResources`, `spec.suspended`,
-        individual `spec.quotas[]` entries).
+        accepted: `displayName`, `description`, `labels`, `annotations`
+        (these stay PG-only), `spec.namespace.labels`,
+        `spec.namespace.annotations` (also PG-only, do not bump generation),
+        `spec.initResources`, and individual `spec.quotas[]` entries.
 
         Immutable fields (`name`, `owner`, `spec.namespace.name`,
         `spec.quotas[].pool`, `spec.quotas[].name`) are rejected at the
         request layer (400).
 
-        Mutations to `spec.*` bump `generation`; mutations to top-level
-        metadata do not.
+        Mutations to `spec.initResources` / `spec.quotas[]` bump `generation`;
+        all metadata-style mutations do not.
       requestBody:
         required: true
         content:
@@ -254,48 +254,6 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '500': { $ref: '#/components/responses/InternalServerError' }
-
-  /api/v1/namespaces/{namespace}/suspend:
-    parameters:
-      - $ref: '#/components/parameters/Namespace'
-    post:
-      tags: [Tenants]
-      operationId: suspendTenant
-      summary: Suspend a tenant
-      description: Sets `spec.suspended = true` and bumps `generation`.
-      responses:
-        '200':
-          description: Suspend accepted.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Tenant'
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/Conflict' }
-        '500': { $ref: '#/components/responses/InternalServerError' }
-
-  /api/v1/namespaces/{namespace}/unsuspend:
-    parameters:
-      - $ref: '#/components/parameters/Namespace'
-    post:
-      tags: [Tenants]
-      operationId: unsuspendTenant
-      summary: Unsuspend a tenant
-      description: Sets `spec.suspended = false` and bumps `generation`.
-      responses:
-        '200':
-          description: Unsuspend accepted.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Tenant'
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/Conflict' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
   /api/v1/namespaces/{namespace}/restore:
@@ -1353,7 +1311,6 @@ components:
       enum:
         - Creating
         - Active
-        - Suspended
         - Failed
         - Deleting
         - Deleted
@@ -1410,7 +1367,13 @@ components:
 
     QuotaStatus:
       type: object
-      description: Observed status of one quota, populated by the informer from the ElasticQuota CR.
+      description: |
+        Observed status of one quota, populated by the informer from the
+        Tenant CR `status.quotas[]`. `used` is **not** persisted in PG —
+        compute serves it live from the Tenant Informer in-memory cache
+        (see compute-service.md §5.3); during cache cold-start or when the
+        watch has been stale beyond TTL, `used` is omitted and a `Warning`
+        response header is set.
       required: [pool, name, ready]
       properties:
         pool:
@@ -1423,7 +1386,9 @@ components:
         used:
           allOf:
             - $ref: '#/components/schemas/ResourceList'
-          description: Currently-used resources reported by Koordinator.
+          description: |
+            Currently-used resources reported by Koordinator (live from
+            Tenant CR cache, ephemeral; not persisted in PG).
         message:
           type: string
 
@@ -1618,9 +1583,6 @@ components:
           default: []
         initResources:
           $ref: '#/components/schemas/InitResources'
-        suspended:
-          type: boolean
-          default: false
 
     TenantStatus:
       type: object
@@ -1646,7 +1608,7 @@ components:
       type: object
       description: |
         Full Tenant DTO. Mirrors a row of the PG `tenants` table merged
-        with informer-fed Tenant CR status. See `database.md §3.1`.
+        with informer-fed Tenant CR status. See `database.md §2.1`.
       required:
         - id
         - name
@@ -1746,9 +1708,9 @@ components:
       description: |
         RFC 7396 JSON Merge Patch body. Only mutable fields are accepted:
         `displayName`, `description`, `labels`, `annotations`,
-        `spec.namespace.labels`, `spec.namespace.annotations`,
-        `spec.initResources`, `spec.suspended`, and individual
-        `spec.quotas[]` entries.
+        `spec.namespace.labels`, `spec.namespace.annotations` (these last two
+        are PG-only display metadata; they do not bump generation),
+        `spec.initResources`, and individual `spec.quotas[]` entries.
       properties:
         displayName:
           type: string
@@ -1776,8 +1738,6 @@ components:
               items: { $ref: '#/components/schemas/Quota' }
             initResources:
               $ref: '#/components/schemas/InitResources'
-            suspended:
-              type: boolean
 
     TenantList:
       type: object
@@ -1854,13 +1814,32 @@ components:
 
     Scheduling:
       type: object
-      description: Common scheduling block injected into the CR `spec.scheduling`.
+      description: |
+        Common scheduling block. On CREATE, the caller supplies
+        `(poolName, unitName)` and the `quota` name; compute looks up the
+        ResourcePool CR via Informer cache, merges `pool.spec.nodeSelector`
+        + `pool.spec.tolerations` + the chosen `unit.nodeSelector` and writes
+        the expanded primitives into the snapshot. Once persisted, GET
+        responses surface the **expanded** `nodeSelector` / `tolerations`
+        alongside the original `poolName` / `unitName` for traceability.
       properties:
         quota:
           type: string
           description: |
             ElasticQuota CR name (opaque to Compute; passed through verbatim
             to the CR). Required for jobs and services.
+        poolName:
+          type: string
+          description: |
+            ResourcePool CR name (cluster-scoped, `axisml.io/v1alpha1`).
+            Required on create; immutable after snapshot.
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          maxLength: 40
+        unitName:
+          type: string
+          description: Entry within `pool.spec.units[]`. Required on create; immutable after snapshot.
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          maxLength: 40
         priorityClassName:
           type: string
         priorityClass:
@@ -1870,11 +1849,13 @@ components:
             with the CR spec (`spec.scheduling.priorityClass`).
         nodeSelector:
           $ref: '#/components/schemas/NodeSelector'
+          description: Read-only on GET (expanded snapshot); writes are derived from `(poolName, unitName)` expansion.
         tolerations:
           type: array
           items:
             $ref: '#/components/schemas/Toleration'
-      required: [quota]
+          description: Read-only on GET (expanded snapshot).
+      required: [quota, poolName, unitName]
 
     JobRunPolicy:
       type: object
@@ -2007,51 +1988,7 @@ components:
             $ref: '#/components/schemas/JobRole'
         runPolicy:
           $ref: '#/components/schemas/JobRunPolicy'
-        outputs:
-          type: array
-          description: |
-            Declarative output descriptors. Pure metadata: the operator does
-            NOT consume `outputs` at runtime (no auto-push, no sidecar). It
-            is read by Platform's `register-model` bridge to locate the
-            artifact bytes on the PVC after the Job reaches `Succeeded`.
-            See `components/compute-operator.md §4.1.1` for validation rules.
-          items:
-            $ref: '#/components/schemas/JobOutput'
       required: [scheduling, roles]
-
-    JobOutput:
-      type: object
-      description: |
-        Declaration of a single Job output. The operator validates structure
-        only (`kind=model`, `volumeName` resolves to a non-`emptyDir` volume
-        in `roles[*].template.volumes[]`); it does not transfer bytes.
-      required: [name, kind, volumeName, sourcePath]
-      properties:
-        name:
-          type: string
-          description: Unique handle within the Job (DNS-1123).
-          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
-          minLength: 1
-          maxLength: 63
-        kind:
-          type: string
-          description: Artifact kind this output produces. Only `model` is supported initially.
-          enum: [model]
-        volumeName:
-          type: string
-          description: |
-            Name of the volume in `roles[*].template.volumes[]` that holds
-            the output bytes. Must be a PVC-backed volume.
-          minLength: 1
-          maxLength: 253
-        sourcePath:
-          type: string
-          description: |
-            Relative path inside `volumeName` containing the artifact bytes.
-            Used by Platform's `register-model` to point the user's cli at
-            the right directory.
-          minLength: 1
-          maxLength: 1024
 
     MLServiceSpec:
       type: object

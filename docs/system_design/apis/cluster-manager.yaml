@@ -3,29 +3,35 @@ info:
   title: AxisML Cluster Manager API
   version: v1
   description: |
-    Cluster-level admin vocabulary service for AxisML.
+    Cluster-level admin REST abstraction for AxisML.
 
-    Persists ResourcePool and ResourceUnit metadata in PostgreSQL. The
-    Cluster Manager performs no Kubernetes API calls and runs no reconciler /
-    informer / leader election — it is a pure PG-backed REST service. Platform
-    calls in before orchestrating Job / Service creation, expands Pool / Unit
-    references into nodeSelector / tolerations / requests / limits primitives,
-    then passes those primitives to compute.
+    Currently the REST entry point for the `ResourcePool` CRD (cluster-scoped,
+    `axisml.io/v1alpha1`).  `units` are NOT a separate CR — they live as an
+    embedded `spec.units[]` array on each ResourcePool and share its lifecycle.
+    The Cluster Manager translates REST calls into Kubernetes API operations
+    (create / get / list / patch / delete on `ResourcePool` CRs); it runs no
+    reconciler, holds no PostgreSQL, and is multi-replica peer.
+
+    Platform creates / edits / deletes pools (and units inside them) through
+    these REST endpoints. compute-service reads the same CRs directly via a
+    K8s Informer cache to expand `(poolName, unitName)` into Pod primitives
+    at Job / Service creation time — both paths converge on K8s etcd, no
+    direct service-to-service call between cluster-manager and compute.
 
     All `/api/v1/*` operations require the `X-Axisml-User` header injected by
     the AxisML Platform. The service is reachable only on the cluster-internal
-    ClusterIP (port 8082) — there is no external ingress.
+    ClusterIP (port 8080) — there is no external ingress.
 
     Errors follow RFC 7807 `application/problem+json`.
 servers:
-  - url: http://axisml-cluster-manager.axisml-system.svc.cluster.local:8082
+  - url: http://axisml-cluster-manager.axisml-system.svc.cluster.local:8080
     description: In-cluster Service DNS
 
 tags:
   - name: ResourcePools
-    description: Resource pool management (admin vocabulary).
+    description: ResourcePool CRD management (admin vocabulary; `units` are embedded `spec.units[]`).
   - name: ResourceUnits
-    description: Resource unit (spec template) management (admin vocabulary).
+    description: Convenience sub-routes that operate on `pool.spec.units[]` array entries; internally patches the parent ResourcePool CR.
   - name: Health
     description: Liveness and readiness probes.
 
@@ -54,7 +60,7 @@ paths:
       operationId: readyz
       summary: Readiness probe
       description: |
-        Returns 200 when PostgreSQL is reachable. Used by the Kubernetes
+        Returns 200 when the Kubernetes API server is reachable. Used by the
         readiness probe.
       security: []
       responses:
@@ -65,7 +71,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/HealthStatus'
         '503':
-          description: PostgreSQL unavailable
+          description: Kubernetes API unavailable
           content:
             application/problem+json:
               schema:
@@ -78,7 +84,11 @@ paths:
     post:
       operationId: createResourcePool
       tags: [ResourcePools]
-      summary: Create a resource pool
+      summary: Create a ResourcePool CR
+      description: |
+        Translates to `kubectl create resourcepool`. The request body's
+        `units[]` array (if any) is written into the CR's `spec.units[]`
+        atomically.
       requestBody:
         required: true
         content:
@@ -163,18 +173,19 @@ paths:
     delete:
       operationId: deleteResourcePool
       tags: [ResourcePools]
-      summary: Soft-delete a resource pool
+      summary: Delete a ResourcePool CR
       description: |
-        Marks the resource pool as deleted (soft delete). Idempotent: calling
-        delete on an already-deleted pool returns 204. Returns `409 pool-in-use`
-        if active ResourceUnits reference this pool.
+        Hard-deletes the ResourcePool CR; all embedded `spec.units[]` go with
+        it (no separate "unit-in-use" check since units have no independent
+        lifecycle). Idempotent: deleting a missing pool returns 204.
+        Future: an admission webhook may block deletion when active
+        Jobs/Services reference this pool (via `axisml.io/resource-pool` label).
       responses:
         '204':
-          description: Pool soft-deleted
+          description: Pool deleted (or already absent)
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/Conflict' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
   # ─────────────────────────────────────────────────────────────────────
@@ -186,7 +197,11 @@ paths:
     post:
       operationId: createResourceUnit
       tags: [ResourceUnits]
-      summary: Create a resource unit inside a pool
+      summary: Add a unit to the pool's `spec.units[]`
+      description: |
+        Convenience: GET the parent ResourcePool CR, append the new unit to
+        its `spec.units[]`, PATCH the CR with optimistic-locking via
+        `resourceVersion`. Single retry on conflict before returning 409.
       requestBody:
         required: true
         content:
@@ -274,10 +289,15 @@ paths:
     delete:
       operationId: deleteResourceUnit
       tags: [ResourceUnits]
-      summary: Soft-delete a resource unit
+      summary: Remove a unit from the pool's `spec.units[]`
+      description: |
+        Convenience: patches the parent ResourcePool CR removing the matching
+        unit entry. Hard removal (no soft-delete; embedded array items have
+        no independent lifecycle). Active Job/Service snapshots remain
+        unaffected (expanded values frozen at create).
       responses:
         '204':
-          description: Unit soft-deleted
+          description: Unit removed (or already absent)
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -489,12 +509,16 @@ components:
         type: string
 
     # ────────────────── ResourcePool ──────────────────
+    # DTO shape mirrors the K8s ResourcePool CR (`axisml.io/v1alpha1`).
+    # `units` is the embedded `spec.units[]` array; not a separate resource.
+
     ResourcePool:
       type: object
+      description: |
+        ResourcePool DTO. Wraps the underlying CR's `metadata` (name / labels /
+        annotations / resourceVersion) and `spec` (nodeSelector / tolerations /
+        units[]). No separate `id` — CR `metadata.name` is the stable handle.
       properties:
-        id:
-          type: string
-          format: uuid
         name:
           type: string
           pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
@@ -502,27 +526,32 @@ components:
           maxLength: 40
         description:
           type: string
+          description: Convenience surface for `metadata.annotations[axisml.io/description]`.
         nodeSelector:
           $ref: '#/components/schemas/NodeSelector'
         tolerations:
           type: array
           items:
             $ref: '#/components/schemas/Toleration'
+        units:
+          type: array
+          description: Embedded `spec.units[]`; share pool's lifecycle (no independent CR).
+          items:
+            $ref: '#/components/schemas/ResourceUnit'
         labels:
           $ref: '#/components/schemas/StringMap'
         annotations:
           $ref: '#/components/schemas/StringMap'
+        resourceVersion:
+          type: string
+          description: K8s resourceVersion (opaque); used for optimistic-locked PATCH.
         createdAt:
           type: string
           format: date-time
         updatedAt:
           type: string
           format: date-time
-        deletedAt:
-          type: string
-          format: date-time
-          nullable: true
-      required: [id, name, nodeSelector, tolerations, createdAt, updatedAt]
+      required: [name, nodeSelector, tolerations, units, createdAt]
 
     ResourcePoolCreateRequest:
       type: object
@@ -540,6 +569,11 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Toleration'
+        units:
+          type: array
+          description: Optional initial `spec.units[]` (can be added later via /resource-units subroutes).
+          items:
+            $ref: '#/components/schemas/ResourceUnitCreateRequest'
         labels:
           $ref: '#/components/schemas/StringMap'
         annotations:
@@ -548,7 +582,9 @@ components:
 
     ResourcePoolPatchRequest:
       type: object
-      description: All fields optional; absent fields are left unchanged. `name` is immutable.
+      description: |
+        Pool-level fields only (use /resource-units subroutes to manipulate
+        individual units). `name` is immutable.
       properties:
         description:
           type: string
@@ -576,19 +612,17 @@ components:
           description: Number of items in this page.
         continueToken:
           type: string
-          description: Opaque token; pass back as `continue` to fetch the next page. Absent on the last page.
+          description: Opaque K8s `continue` token; pass back as `continue` to fetch the next page. Absent on the last page.
       required: [items, count]
 
-    # ────────────────── ResourceUnit ──────────────────
+    # ────────────────── ResourceUnit (embedded in ResourcePool) ──────────────────
     ResourceUnit:
       type: object
+      description: |
+        One entry of `ResourcePool.spec.units[]`. Identified by the tuple
+        `(poolName, name)` from the URL; not addressable as an independent
+        Kubernetes resource. No `id` / `deletedAt` — array-item lifecycle.
       properties:
-        id:
-          type: string
-          format: uuid
-        poolId:
-          type: string
-          format: uuid
         name:
           type: string
           pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
@@ -602,21 +636,9 @@ components:
           $ref: '#/components/schemas/ResourceList'
         nodeSelector:
           $ref: '#/components/schemas/NodeSelector'
-        labels:
-          $ref: '#/components/schemas/StringMap'
         annotations:
           $ref: '#/components/schemas/StringMap'
-        createdAt:
-          type: string
-          format: date-time
-        updatedAt:
-          type: string
-          format: date-time
-        deletedAt:
-          type: string
-          format: date-time
-          nullable: true
-      required: [id, poolId, name, requests, limits, nodeSelector, createdAt, updatedAt]
+      required: [name, requests, limits]
 
     ResourceUnitCreateRequest:
       type: object
@@ -634,15 +656,13 @@ components:
           $ref: '#/components/schemas/ResourceList'
         nodeSelector:
           $ref: '#/components/schemas/NodeSelector'
-        labels:
-          $ref: '#/components/schemas/StringMap'
         annotations:
           $ref: '#/components/schemas/StringMap'
-      required: [name, requests]
+      required: [name, requests, limits]
 
     ResourceUnitPatchRequest:
       type: object
-      description: All fields optional; absent fields are left unchanged. `pool` / `name` are immutable.
+      description: All fields optional; `name` is immutable; internally maps to a JSON Patch on `pool.spec.units[?(@.name=={name})]`.
       properties:
         description:
           type: string
@@ -652,8 +672,6 @@ components:
           $ref: '#/components/schemas/ResourceList'
         nodeSelector:
           $ref: '#/components/schemas/NodeSelector'
-        labels:
-          $ref: '#/components/schemas/StringMap'
         annotations:
           $ref: '#/components/schemas/StringMap'
 
@@ -667,8 +685,5 @@ components:
         count:
           type: integer
           minimum: 0
-          description: Number of items in this page.
-        continueToken:
-          type: string
-          description: Opaque token; pass back as `continue` to fetch the next page. Absent on the last page.
+          description: Number of units in this pool.
       required: [items, count]

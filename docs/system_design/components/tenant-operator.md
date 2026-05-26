@@ -83,7 +83,6 @@ reconcile 触发事件:
 | 事件 | 行为 |
 | --- | --- |
 | Tenant ADD / UPDATE(spec) | Validate → 按 §4.1.1 → §4.1.2 → §4.1.3 顺序就位,末尾推 phase |
-| Tenant UPDATE(`spec.suspended`) | true → `phase=Suspended`;false → 重新走 phase 推导;不停机底层资源 |
 | Tenant DELETE | 不阻断;K8s GC 按 ownerReference 清理子资源;Namespace 不删除 |
 | 子资源事件 | 按 ownerReference 反查触发 reconcile;ElasticQuota `status.used` 只刷新 `Tenant.status.quotas[i].used` |
 | 周期 resync (默认 10 min) | 重读 `sourceSecretRef` / `sourceConfigMapRef` 收敛漂移 |
@@ -133,7 +132,7 @@ reconcile 触发事件:
 - **漂移**:reconcile 检测到本端 ≠ 源时覆盖;源 watch 不建立,延迟 ≤ resync 间隔;
 - **删除**:spec 删项 → reconcile 显式 Delete;Tenant 删除 → ownerReference GC。
 
-**关键不变量**:`serviceAccounts[].imagePullSecrets[]` 中每个 name 必须能在 `imagePullSecrets[].name` 中找到,否则 Validate 失败。这些 Secret 也是 [artifact-hub.md](artifact-hub.md) `auth_hint` 链路的落地端。
+**关键不变量**:`serviceAccounts[].imagePullSecrets[]` 中每个 name 必须能在 `imagePullSecrets[].name` 中找到,否则 Validate 失败。per-tenant SA + 默认 imagePullSecrets / Secret 是 [artifact-hub.md](artifact-hub.md) 的 `resolve?usage=inspect` 路径上 workload 拉取 zot / RustFS 的唯一凭证来源 —— artifacts 自身不签发也不返回任何 Secret 引用。
 
 ## 5. 关键机制
 
@@ -156,12 +155,11 @@ reconcile 末尾按下表推 phase 并一次性 patch status:
 
 | 条件 | phase |
 | --- | --- |
-| `spec.suspended == true` | `Suspended` |
 | `namespaceReady && all quotas[*].ready && all initResources[*].ready` | `Active` |
 | 关键资源 (Namespace / ElasticQuota) 创建失败且非瞬态 | `Failed` |
 | 否则 (瞬态创建中) | 维持上一态,`message` 写当前进展 |
 
-`status.conditions[]` 按 `type` (`NamespaceReady` / `QuotasReady` / `InitResourcesReady` / `Suspended` / `Failed`) 去重后整体写回。`spec.quotas` 为空时 `status.quotas` 同空,`Active` 推导只看 namespace + initResources。
+`status.conditions[]` 按 `type` (`NamespaceReady` / `QuotasReady` / `InitResourcesReady` / `Failed`) 去重后整体写回。`spec.quotas` 为空时 `status.quotas` 同空,`Active` 推导只看 namespace + initResources。
 
 ### 5.3 ElasticQuota status.used 回流路径
 
@@ -174,13 +172,14 @@ Pod 调度 ──▶ koord-scheduler ──▶ ElasticQuota.status.used 累加
                               tenant-operator
                                           │ ownerReference 反查 Tenant
                                           ▼
-                            Tenant.status.quotas[i].used (patch)
+                            Tenant.status.quotas[i].used (patch)  ← 链路终点
                                           │
+                                          │ watch (compute Tenant Informer)
                                           ▼
-                              compute informer 写入 PG
+                            compute in-memory cache (不入 PG)
 ```
 
-`status.used` 只读,不写回 ElasticQuota;compute 在 `GET /api/v1/namespaces/{namespace}` 时直接返回。
+`status.used` 只读,不写回 ElasticQuota;**`used` 字段不持久化到 compute PG**,只活在 Tenant CR `status.quotas[].used` 与 compute Tenant Informer 的 in-memory cache 里。compute 在 `GET /api/v1/namespaces/{namespace}` 时从 cache 实时聚合返回,Informer 启动 `WaitForCacheSync` 通过前 `/readyz` 不就绪,避免冷启窗口。这样 PG 不脏存调度即变的 ephemeral 态,权威源单一收敛到 ElasticQuota CR (经 Tenant CR 抽象层暴露)。详见 [compute-service.md §5.3](compute-service.md#53-状态回流informer)。
 
 ## 6. 接口契约
 
@@ -189,7 +188,7 @@ Pod 调度 ──▶ koord-scheduler ──▶ ElasticQuota.status.used 累加
 | 输入 CR | `Tenant` (`axisml.io/v1alpha1`, cluster-scoped, `shortName=tnt`) | [tenant-crd.yaml](../../../deploy/helm/axisml-system/crds/tenant-crd.yaml) |
 | 上游写者 | compute 是唯一写者 (`metadata` / `spec`);admission webhook 后续硬阻断外部写 | [compute-service.md](compute-service.md) |
 | status subresource | CRD 声明 `subresources.status`;tenant-operator 是唯一 `status` 写者 | — |
-| 字段归属 | `spec` 四块 `namespace` / `quotas[]` / `initResources` / `suspended` | 详见下表 |
+| 字段归属 | `spec` 三块 `namespace` / `quotas[]` / `initResources` | 详见下表 |
 | 级联清理 | per-tenant 资源 ownerReference → Tenant CR;Tenant DELETE 由 K8s GC 异步清理;Namespace 永不删除 | — |
 | metadata 命名上限 | `metadata.name` ≤40;子资源前缀 14+40+1=55 → `initResources.*[].name` 与 `serviceAccounts[].name` 上限 198 | — |
 
@@ -199,12 +198,14 @@ Pod 调度 ──▶ koord-scheduler ──▶ ElasticQuota.status.used 累加
 | --- | --- | --- |
 | `metadata.name` / `labels[axisml.io/tenant-id]` | compute | 否 |
 | `spec.namespace.name` | compute | 否 (controller 拒绝,webhook 兜底) |
-| `spec.namespace.labels` / `annotations` | compute | 是 (仅首次创建落地) |
 | `spec.quotas[].{pool, name}` | compute | 否 (标识锚点) |
 | `spec.quotas[].{min, max}` | compute | 是 |
 | `spec.initResources.*` | compute | 是 (增删 → reconcile 创建 / 删除) |
-| `spec.suspended` | compute | 是 |
 | `status.*` | tenant-operator | — |
+
+**防御等级**:`metadata` / `spec` 单写约束 (compute 为唯一写者) 当前由 controller `Validate(spec)` 软兜底,**不防止外部直接 `kubectl patch` 改 CR 的攻击面** —— 系统目前在控制面信任边界内部署,admission webhook 是后续硬化路径 (见 §9)。
+
+**展示性元数据归属**:`display_name` / `description` / `labels` / `annotations` 这类纯展示与扩展位**不进 CR**,仅落 [compute-service `tenants` 表的同名列](compute-service.md#41-tenant) (扩展位见 [database.md §1.6](../database.md#16-扩展元数据-labels--annotations))。修改它们不 `+generation`,不触发 reconcile。
 
 ## 7. 依赖
 
@@ -221,7 +222,7 @@ Pod 调度 ──▶ koord-scheduler ──▶ ElasticQuota.status.used 累加
 | --- | --- |
 | 进程 | 单二进制 `axisml-tenant-operator`;承载 Manager + Tenant Reconciler |
 | 副本 | `replicas=1`,leader election Lease `axisml-tenant-operator.axisml.io` |
-| 暴露端口 | metrics `:8080`、health probe `:8081` (`/healthz`, `/readyz`);无对外服务 |
+| 暴露端口 | Metrics `:8081`、Probes `:8082` (`/healthz`, `/readyz`);无 API 端口,无对外服务 |
 | RBAC scope | ClusterRole:`tenants.axisml.io` (`get/list/watch/patch`)、`namespaces` (`create/get/list/watch/update/patch`,**无 delete**)、`elasticquotas.scheduling.sigs.k8s.io` RW、目标 ns `secrets/configmaps/serviceaccounts/roles/rolebindings` RW、源 ns `secrets/configmaps` RO、`events` `create/patch`;Role:自身 ns `leases` RW |
 | Cache 过滤 | 子资源用 `axisml.io/managed-by=tenant-operator` label selector,避免拉全集群;Tenant CR 不过滤 |
 | Helm values / 镜像 | `tenantOperator.*`,详见 [deployment.md](../deployment.md) |
@@ -229,7 +230,7 @@ Pod 调度 ──▶ koord-scheduler ──▶ ElasticQuota.status.used 累加
 ## 9. 后续工作
 
 - **Admission webhook**:`spec.namespace.name` / `spec.quotas[].{pool,name}` 不可变约束、跨 ns `sourceXxxRef` 白名单、`min/max` 结构性校验、源 Secret type 一致性、目标 Namespace allowlist / denylist 前移;同时硬阻断非 compute 写者。
-- **CRD 严格 schema**:替换 `x-kubernetes-preserve-unknown-fields`,显式声明 `spec` 仅含 `namespace` / `quotas[]` / `initResources` / `suspended` 四块,启用 OpenAPI 校验,收紧 `phase` enum;展示性元数据（display name / description）与扩展位（labels / annotations）一律落 PG (见 [database.md §1.6](../database.md#16-扩展元数据-labels--annotations)),CR 不承载。
+- **CRD 严格 schema**:替换 `x-kubernetes-preserve-unknown-fields`,显式声明 `spec` 仅含 `namespace` / `quotas[]` / `initResources` 三块,启用 OpenAPI 校验,收紧 `phase` enum;展示性元数据（display name / description）与扩展位（labels / annotations）一律落 PG (见 [database.md §1.6](../database.md#16-扩展元数据-labels--annotations)),CR 不承载。
 - **加密源支持**:KMS / Vault / Sealed Secrets 作为 `sourceSecretRef` 替代。
 - **`initResources` templating**:按 tenant 上下文 (id / name / namespace) 渲染 ConfigMap 数据。
 - **复制源 RBAC 收敛**:把源 Namespace 限定为单一受控 Namespace。
@@ -247,4 +248,4 @@ Pod 调度 ──▶ koord-scheduler ──▶ ElasticQuota.status.used 累加
 - [infra.md](../infra.md) — Koordinator / ElasticQuota / scheduler-plugins 依赖契约
 - [compute-service.md](compute-service.md) — Tenant CR 上游 producer
 - [compute-operator.md](compute-operator.md) — 兄弟 operator,承载 MLJob / MLService
-- [artifact-hub.md](artifact-hub.md) — `auth_hint` 链路依赖 tenant-operator 下发的 SA + ImagePullSecret
+- [artifact-hub.md](artifact-hub.md) — `resolve?usage=inspect` 路径依赖 tenant-operator 下发的 per-tenant SA + 默认 ImagePullSecret / Secret

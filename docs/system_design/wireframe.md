@@ -41,7 +41,6 @@
 │ 系统管理   │                                                         │
 │ • 租户管理 │                                                         │
 │ • 资源池管理│                                                        │
-│ • 数据卷管理│                                                        │
 └────────────┴─────────────────────────────────────────────────────────┘
 ```
 
@@ -65,7 +64,6 @@
 |  | 镜像 | `image` | `/images` | 占位 |
 | 系统管理 | **租户管理** | `tenants` / `tenant-detail` | `/tenants` · `/tenants/{name}` | ✅ 实交 |
 |  | **资源池管理** | `pools` / `pool-detail` | `/resource-pools` · `/resource-pools/{name}` | ✅ 实交 |
-|  | 数据卷管理 | `volumes` | `/data-volumes` (TBD) | 占位 |
 
 二级菜单的能力矩阵 (含横切的认证 / RBAC) 见 [components/platform.md §4 核心功能](components/platform.md#4-核心功能)。
 
@@ -85,7 +83,7 @@
 
 ## 3. 占位页骨架
 
-未实交的菜单 (`home` · `dev` · `job` · `service` · `dataset` · `model` · `image` · `volumes`) 沿用同一壳:Page Head + 虚线 placeholder (badge · 标题 · 说明)。
+未实交的菜单 (`home` · `dev` · `job` · `service` · `dataset` · `model` · `image`) 沿用同一壳:Page Head + 虚线 placeholder (badge · 标题 · 说明)。
 
 ```
 ┌ Page Head ─────────────────────────┐
@@ -109,7 +107,6 @@
 | 计算任务 | `计算任务。` | PyTorchJob / MPIJob / 自定义训练任务,见 [components/compute-service.md](components/compute-service.md)。 |
 | 在线服务 | `在线服务。` | 模型在线推理与路由,见 [components/compute-service.md](components/compute-service.md)。 |
 | 数据集 / 模型 / 镜像 | 同菜单项名 | 制品中心,见 [components/artifact-hub.md](components/artifact-hub.md)。 |
-| 数据卷管理 | `数据卷管理。` | DataVolume 抽象方案待定,见 §6 后续设计。 |
 
 placeholder 块固定四段:
 1. badge — 「规划中」或「超出本期原型范围」二选一(对齐 IA 表的设计状态)。
@@ -157,7 +154,7 @@ Footer: 共 6 个资源池                       ‹ [1] ›       每页 20 条
 
 | 列 | 来源 | 备注 |
 | --- | --- | --- |
-| 名称 | compute `resource_pools.name` | mono link,点击进详情 |
+| 名称 | cluster-manager `ResourcePool.metadata.name` | mono link,点击进详情 |
 | 描述 | `description` | 截断 + hover |
 | 节点选择器 | `node_selector` | 渲染为 tag chips,溢出折叠 `+N` |
 | 单元 | `compute.ListResourceUnits(pool, limit=0)` 计数 | mono;单池失败 → `—` |
@@ -228,7 +225,7 @@ Footer: 共 3 个资源单元 · 合并选择器在展开行查看
 ```
 
 要点:
-- 行可展开 (`▸`),展开后渲染 `pool.node_selector` ⊕ `unit.node_selector` 合并预览 (Pool 优先;详细规则见 [components/cluster-manager.md §3.2](components/cluster-manager.md#32-resourceunit))。
+- 行可展开 (`▸`),展开后渲染 `pool.nodeSelector` ⊕ `unit.nodeSelector` 合并预览 (Pool 优先;详细规则见 [components/cluster-manager.md §3.2](components/cluster-manager.md#32-展开合并规则))。
 - 命名约定 `<accelerator>[-<count>x]-<tier>[-<variant>]`,如 `a100-1x-large` / `cpu-medium` / `a100-8x-xlarge-ib`,由 cluster-manager 服务兜底校验。
 - requests / limits 用 tag chips 渲染,limits 缺省时显示 `…` (沿用 requests)。
 - 删除前置阻断信息 (使用此 unit 的活跃 Job / Service 计数) 在二次确认弹窗呈现 → `409 unit-in-use`。
@@ -311,14 +308,14 @@ Card › Table
 ┌─────────────────┬──────────────┬───────────┬───────────┬─────────────┬─────┬──────────┬────────┐
 │ 显示名           │ 名称 (mono)   │ 业务线     │ 状态       │ 命名空间     │成员  │ 创建时间  │ 操作    │
 ├─────────────────┼──────────────┼───────────┼───────────┼─────────────┼─────┼──────────┼────────┤
-│ Team A · 推理   │ team-a       │ [infra]    │ ● Active  │ team-a      │ 12  │ 2026-02… │详情 暂停│
-│ 推荐算法组       │ recsys-core  │ [recsys]   │ ● Active  │ recsys-core │ 28  │ 2025-12… │详情 暂停│
-│ 搜索算法组       │ search-rank  │ [search]   │ ● Active  │ search-rank │ 19  │ 2026-01… │详情 暂停│
-│ 平台 SRE        │ platform-sre │ [platform] │ ● Active  │ platform-sre│  6  │ 2025-09… │详情 暂停│
-│ 语音算法组       │ speech-asr   │ [recsys]   │ ● Suspended│ speech-asr │  8  │ 2026-03… │详情 恢复│
-│ 客户演示租户     │ demo-cus     │ [platform] │ ● Failed  │ demo-cus    │  3  │ 2026-05… │详情 删除│
-│ 视觉算法组       │ cv-percep    │ [recsys]   │ ● Active  │ cv-percep   │ 22  │ 2025-11… │详情 暂停│
-│ NLP 通用        │ nlp-general  │ [recsys]   │ ● Active  │ nlp-general │ 15  │ 2025-08… │详情 暂停│
+│ Team A · 推理   │ team-a       │ [infra]    │ ● Active  │ team-a      │ 12  │ 2026-02… │详情 删除│
+│ 推荐算法组       │ recsys-core  │ [recsys]   │ ● Active  │ recsys-core │ 28  │ 2025-12… │详情 删除│
+│ 搜索算法组       │ search-rank  │ [search]   │ ● Active  │ search-rank │ 19  │ 2026-01… │详情 删除│
+│ 平台 SRE        │ platform-sre │ [platform] │ ● Active  │ platform-sre│  6  │ 2025-09… │详情 删除│
+│ 语音算法组       │ speech-asr   │ [recsys]   │ ● Failed  │ speech-asr  │  8  │ 2026-03… │详情 删除│
+│ 客户演示租户     │ demo-cus     │ [platform] │ ● Deleting│ demo-cus    │  3  │ 2026-05… │详情 恢复│
+│ 视觉算法组       │ cv-percep    │ [recsys]   │ ● Active  │ cv-percep   │ 22  │ 2025-11… │详情 删除│
+│ NLP 通用        │ nlp-general  │ [recsys]   │ ● Active  │ nlp-general │ 15  │ 2025-08… │详情 删除│
 └─────────────────┴──────────────┴───────────┴───────────┴─────────────┴─────┴──────────┴────────┘
 Footer: 共 14 个租户 · 当前显示 1–8         ‹ [1] [2] ›      每页 8 条
 ```
@@ -334,7 +331,7 @@ Footer: 共 14 个租户 · 当前显示 1–8         ‹ [1] [2] ›      每�
 | 命名空间 | `spec.namespace.name` | mono |
 | 成员 | `user_tenant_roles WHERE tenant_name = X` 计数 | Platform 内补充字段,聚合查询 |
 | 创建时间 | `createdAt` | mono muted |
-| 操作 | — | 详情 / 暂停 / 恢复 / 删除 (按 `phase` 切换) |
+| 操作 | — | 详情 / 删除 / 恢复 (按 `phase` 切换) |
 
 **过滤**:显示名 / 名称模糊搜索 · 状态 ▾ · 业务线 ▾ · 重置。`status` / `namespace` (业务线) 下推 cluster-manager;`q` (关键字) 由 Platform 内存二次筛选。
 **可见性**:`system-admin` 看全集群;其他角色按 `user_tenant_roles` 取 `tenant_name` 集合裁剪。
@@ -354,7 +351,7 @@ Tabs:  [基本信息]  [配额 (5)]  [成员 (12)]  [审计日志]
 #### Tab 1 · 基本信息
 
 ```
-┌ 展示元数据                          [编辑] [暂停] [删除] ┐
+┌ 展示元数据                          [编辑] [删除] ┐
 │ KV grid: 显示名 · 名称 (mono, DNS-1123, 不可变) · 描述    │
 │          业务线 (pill) · 命名空间 · 创建/更新时间          │
 └──────────────────────────────────────────────────────────┘
@@ -377,14 +374,14 @@ Tabs:  [基本信息]  [配额 (5)]  [成员 (12)]  [审计日志]
 | 区块 | 字段 | 来源 |
 | --- | --- | --- |
 | 展示元数据 | 显示名 / 名称 (mono · 不可变) / 描述 / 业务线 pill / 命名空间 / 创建+更新时间 | cluster-manager `tenants.*` |
-| Stat 卡 · phase | `Active` / `Suspended` / `Failed` … | `status.phase` (见 §5.6) |
+| Stat 卡 · phase | `Active` / `Failed` / `Deleting` … | `status.phase` (见 §5.6) |
 | Stat 卡 · NS 就绪 | `是` / `否` | `status.conditions[type=NamespaceReady].status` |
 | Stat 卡 · 配额条目 | `5 (3 池)` | `Σ quotas[].count` + 涉及 pool 数 |
 | Stat 卡 · 成员 | `12` | `user_tenant_roles WHERE tenant_name` 计数 |
 | Conditions 列表 | type / status pill / message / lastTransitionTime | `status.conditions[]` |
 
 `status.conditions[]` 异常 → Stat 卡 phase 旁加红点提示,Conditions 列表里对应行用 `[False]` 红色 pill。
-写权限:`system-admin` 可编辑展示元数据 + 暂停 / 恢复 / 删除;其他角色只读。
+写权限:`system-admin` 可编辑展示元数据 + 删除 / 恢复;其他角色只读。
 
 #### Tab 2 · 配额 (按资源池分组)
 
@@ -472,18 +469,17 @@ UI 即时校验 + cluster-manager 兜底。完整字段清单与校验规则见 
 
 - **DELETE 租户** — 前置检查 `user_tenant_roles WHERE tenant_name = :name`;非空 → `409 tenant-has-members`,二次确认弹窗列出残留成员。
 - **PATCH 租户** — 不可变字段 `name` / `namespace.name` / `quotas[].(pool, name)` 在表单中置灰。
-- **暂停 / 恢复** — 仅 `system-admin`;暂停后行为详见 [components/cluster-manager.md](components/cluster-manager.md)。
+- **RESTORE 租户** — 仅 `system-admin`;对软删后的租户从 retention 窗口内恢复(详见 [components/compute-service.md](components/compute-service.md#41-tenant))。
 
 ### 5.6 状态展示规则
 
 | `phase` | 视觉 |
 | --- | --- |
-| `Pending` | 灰色 + spinner |
+| `Creating` | 灰色 + spinner |
 | `Active` | 绿色实心 (前端解锁该租户的提交按钮) |
-| `Suspended` | 黄色 |
 | `Failed` | 红色 (初始 NS / Quota 同步失败) |
 | `Deleting` | 灰色 + spinner |
-| `Deleted` (软删) | 灰色 (列表默认隐藏,过滤器开启「显示已删除」时可见) |
+| `Deleted` (软删) | 灰色 (列表默认隐藏,过滤器开启「显示已删除」时可见;`system-admin` 可恢复) |
 
 `conditions[]` 异常时在 Stat 卡 phase 旁加红点提示,详细原因在 Tab 1 的 Conditions 列表展开查看。
 
@@ -492,7 +488,7 @@ UI 即时校验 + cluster-manager 兜底。完整字段清单与校验规则见 
 | 操作 | system-admin | tenant-admin (@self) | user (@self) |
 | --- | :---: | :---: | :---: |
 | 列出 | 全集群 | 本租户 | 本租户 |
-| 创建 / 删除 / 暂停 / 恢复 | ✅ | ✗ | ✗ |
+| 创建 / 删除 / 恢复 | ✅ | ✗ | ✗ |
 | 编辑展示元数据 (Tab 1) | ✅ | ✗ | ✗ |
 | 配额 CRUD (Tab 2) | ✅ | ✅ | ✗ |
 | 成员 CRUD (Tab 3) | ✅ | ✅ | ✗ |
@@ -514,7 +510,6 @@ UI 即时校验 + cluster-manager 兜底。完整字段清单与校验规则见 
 - 在线服务列表 / 创建表单 / 详情页 (概览 · 访问 · 指标 Tab)
 - 制品中心:模型 / 镜像 / 数据集 列表骨架与详情页 (概览 · 版本 · 后端 Tab)
 - 系统管理 · 用户与角色页面
-- 数据卷管理页面 (整套)
 - 应用中心 (智能体 / Skills / MCP) 页面 (整套)
 
 补齐顺序与各功能后续工作节奏对齐 ([components/platform.md §9 后续工作](components/platform.md#9-后续工作))。
@@ -523,7 +518,7 @@ UI 即时校验 + cluster-manager 兜底。完整字段清单与校验规则见 
 
 - **应用中心 (Agent / Skills / MCP)** — 页面结构、列表字段、创建表单。
 - **审计日志 UI** — 按 `target` 前缀检索 (`tenant:` / `job:` / `service:` / `resource-pool:` / `workspace:`),含告警规则模板入口。
-- **OIDC 登录页** — `--auth-mode=oidc` 切换后的登录跳转 UX。
+- **OIDC 登录页** — OIDC 接入后的登录跳转 UX。
 - **多集群 / 多区域选择器** — 顶栏增加集群切换器。
 
 ### 6.3 待补 UI 设计 (功能模块)

@@ -16,12 +16,12 @@
 
 | 组件 | 端口 | ServiceMonitor 模板 |
 | --- | --- | --- |
-| Cluster Manager | `/metrics`（默认 `:8080`） | `deploy/helm/axisml-system/templates/cluster-manager/servicemonitor.yaml` |
-| Compute Service | `/metrics`（默认 `:8080`） | `deploy/helm/axisml-system/templates/compute-service/servicemonitor.yaml` |
-| Artifact Hub | `/metrics`（默认 `:8080`） | `deploy/helm/axisml-system/templates/artifact-hub/servicemonitor.yaml` |
-| Platform Backend | `/metrics`（默认 `:8081`） | `deploy/helm/axisml-system/templates/platform/servicemonitor.yaml` |
-| tenant-operator | `/metrics`（默认 `:8080`） | `deploy/helm/axisml-system/templates/tenant-operator/servicemonitor.yaml` |
-| compute-operator | `/metrics`（默认 `:8080`） | `deploy/helm/axisml-system/templates/compute-operator/servicemonitor.yaml` |
+| Cluster Manager | `/metrics` `:8081` | `deploy/helm/axisml-system/templates/cluster-manager/servicemonitor.yaml` |
+| Compute Service | `/metrics` `:8081` | `deploy/helm/axisml-system/templates/compute-service/servicemonitor.yaml` |
+| Artifact Hub | `/metrics` `:8081` | `deploy/helm/axisml-system/templates/artifact-hub/servicemonitor.yaml` |
+| Platform Backend | `/metrics` `:8081` | `deploy/helm/axisml-system/templates/platform/servicemonitor.yaml` |
+| tenant-operator | `/metrics` `:8081` | `deploy/helm/axisml-system/templates/tenant-operator/servicemonitor.yaml` |
+| compute-operator | `/metrics` `:8081` | `deploy/helm/axisml-system/templates/compute-operator/servicemonitor.yaml` |
 
 `/metrics` 端口与 `--metrics-bind-address` 启动参数对应，可通过 Helm values 调整。
 
@@ -70,6 +70,9 @@ label 取值规则：
 | `axisml_compute_reconciler_oldest_pending_seconds{resource,predicate}` | gauge | 工作集最老未处理行的 age |
 | `axisml_compute_reconciler_actions_total{resource,predicate,result}` | counter | reconciler 动作计数（含 tenant CR sync） |
 | `axisml_compute_informer_workqueue_depth{resource}` | gauge | 各模块 Informer work queue 深度 |
+| `axisml_compute_informer_cache_size{resource}` | gauge | Informer in-memory cache 条目数（`resource ∈ {tenant, job, service}`；Tenant cache 直接承担 `quotas[].used` 实时查询） |
+| `axisml_compute_informer_cache_synced{resource}` | gauge | Informer cache 是否完成首次 list（0/1）；`tenant=0` 时 GET tenant 在 `quotas[].used` 上返 `null` + warning |
+| `axisml_compute_informer_last_sync_age_seconds{resource}` | gauge | 距离上次成功 watch 事件的秒数；超过 stale TTL（默认 30s）时 used 字段视为不可信 |
 | `axisml_compute_spec_sync_pending_total{resource}` | gauge | 待同步行数（`generation <> observed_generation`） |
 | `axisml_compute_external_drift_total{resource,field}` | counter | 检测到非 compute 字段管理者写入 CR 的次数（Tenant / MLJob / MLService） |
 | `axisml_compute_api_request_duration_seconds{route,status}` | histogram | API 请求延迟分布 |
@@ -78,7 +81,7 @@ label 取值：
 
 - `resource ∈ {tenant, job, service}`；
 - `predicate ∈ {creating, canceling, deleting, spec_sync}`；
-- `result ∈ {success, conflict, error, skipped}`。
+- `result ∈ {success, conflict, not_found, error, skipped}`。
 
 ### 4.2 Artifact Hub
 | 指标 | 类型 | 含义 |
@@ -95,7 +98,7 @@ label 取值：
 
 - `kind ∈ {model, dataset, image}`；
 - `predicate ∈ {expire_uploading, orphan_oci, orphan_s3}`；
-- `result ∈ {success, not_found, error, skipped}`。
+- `result ∈ {success, conflict, not_found, error, skipped}`（与 §4.1 对齐）。
 
 ### 4.3 Cluster Manager
 
@@ -103,16 +106,17 @@ label 取值：
 | --- | --- | --- |
 | `axisml_cluster_manager_api_request_duration_seconds{route,status}` | histogram | API 请求延迟 |
 | `axisml_cluster_manager_api_requests_total{route,status}` | counter | API 请求计数 |
-| `axisml_cluster_manager_resource_pools_total` | gauge | 当前活跃 ResourcePool 数 |
-| `axisml_cluster_manager_resource_units_total` | gauge | 当前活跃 ResourceUnit 数 |
+| `axisml_cluster_manager_resource_pools_total` | gauge | 当前活跃 ResourcePool CR 数 (从 K8s API 或 Informer cache 聚合) |
+| `axisml_cluster_manager_resource_units_total` | gauge | 当前活跃 unit 数 (聚合自 `pool.spec.units[]`) |
+| `axisml_cluster_manager_k8s_request_total{verb,resource,result}` | counter | 出站 K8s API 调用计数 |
 
-（Cluster Manager 已退化为纯 PG REST 服务——无 leader election、无 reconciler、无 informer，相关指标全部不再适用。Tenant 漂移检测改由 compute 暴露：见 §4.1。）
+Cluster Manager 是 K8s admin REST 抽象（ResourcePool CR CRUD 入口）；无 reconciler / 无 leader election。Tenant 漂移检测由 compute 暴露：见 §4.1。
 
 ### 4.4 tenant-operator
 
 | 指标 | 类型 | 用途 |
 | --- | --- | --- |
-| `axisml_tenant_operator_reconcile_total{result}` | counter | Tenant CR reconcile 总次数（`result ∈ {success, requeue, error}`） |
+| `axisml_tenant_operator_reconcile_total{result}` | counter | Tenant CR reconcile 总次数（`result ∈ {success, requeue, conflict, not_found, error, skipped}`） |
 | `axisml_tenant_operator_reconcile_duration_seconds` | histogram | reconcile 耗时分布 |
 | `axisml_tenant_operator_workqueue_depth` | gauge | controller-runtime work queue 深度 |
 | `controller_runtime_*` | 多种 | controller-runtime 内置指标 |
@@ -129,8 +133,9 @@ label 取值：
 label 取值：
 
 - `resource ∈ {mljob, mlservice}`；
-- `backend ∈ {native, kubeflow-trainer, kserve, custom}`；
-- `engine` 因 backend 而异（详见 [compute-operator.md §3 核心模型](components/compute-operator.md#3-核心模型)）。
+- `backend ∈ {native}`（其它 backend 元组未交付，预留——详见 [compute-operator.md §9](components/compute-operator.md#9-后续工作)）；
+- `engine ∈ {job, deployment, statefulset}`；
+- `result ∈ {success, requeue, conflict, not_found, error, skipped}`（与 §4.1 / §4.2 对齐）。
 
 ---
 
@@ -151,7 +156,7 @@ label 取值：
 
 | 指标 | 类型 | 用途 |
 | --- | --- | --- |
-| `platform_tenant_action_total{action, status}` | counter | `action ∈ {create, update_meta, suspend, unsuspend, delete, quota_create, quota_update, quota_delete, member_add, member_update, member_remove}` |
+| `platform_tenant_action_total{action, status}` | counter | `action ∈ {create, update_meta, delete, restore, quota_create, quota_update, quota_delete, member_add, member_update, member_remove}` |
 | `platform_tenant_orphan_role_cleanup_total{reason}` | counter | 孤儿 `user_tenant_roles` 行的级联清理次数；`reason ∈ {delete_cascade, list_reconcile}` |
 
 业务编排见 [platform.md §4.1 租户编排](components/platform.md#41-租户编排)。
@@ -162,9 +167,9 @@ label 取值：
 | --- | --- | --- |
 | `platform_workspace_action_total{action, status}` | counter | `action ∈ {create, update_meta, start, stop, delete, access_token_issue}` |
 | `platform_workspace_state{tenant_name, state}` | gauge | 按租户聚合各派生 `status` 的 workspace 数；定期采样 |
-| `platform_workspace_pvc_orphan_total` | counter | MLService 已删但 PVC 未能清理留下的孤儿 PVC 数 |
-| `platform_workspace_create_rollback_total{phase}` | counter | 创建过程中 PVC 失败导致回滚 MLService 次数；`phase ∈ {pvc_failed_mlservice_rolled_back, pvc_failed_mlservice_orphaned}` |
 | `platform_workspace_access_jwt_issued_total{result}` | counter | access JWT 颁发量 + 失败原因 |
+
+> Workspace PVC 生命周期由 compute-service 同事务派生与回收（详见 [compute-service.md §4.4](components/compute-service.md#44-service)）；孤儿 PVC / 回滚相关指标归 compute 侧暴露，不在 Platform 模块。
 
 业务编排见 [platform.md §4.4 工作区编排](components/platform.md#44-工作区编排)。
 
@@ -172,7 +177,7 @@ label 取值：
 
 | 指标 | 类型 | 用途 |
 | --- | --- | --- |
-| `platform_job_action_total{action, status}` | counter | `action ∈ {create, get, list, cancel, delete, register_model, logs_stream}` |
+| `platform_job_action_total{action, status}` | counter | `action ∈ {create, get, list, cancel, delete, logs_stream}` |
 | `platform_job_list_tenant_fanout` | histogram | 单次列表请求的下游扇出 namespace 数 |
 | `platform_job_list_partial_total{reason}` | counter | 部分租户失败次数 |
 | `platform_job_logs_stream_active` | gauge | 当前活跃 SSE log stream 连接数 |
@@ -183,7 +188,7 @@ label 取值：
 
 | 指标 | 类型 | 用途 |
 | --- | --- | --- |
-| `platform_service_action_total{action, status}` | counter | `action ∈ {create, get, list, scale, start, stop, patch, delete, access_token_issue, metrics_query, clone_for_new_version}` |
+| `platform_service_action_total{action, status}` | counter | `action ∈ {create, get, list, scale, start, stop, patch, delete, access_token_issue, metrics_query}` |
 | `platform_service_list_tenant_fanout` | histogram | 单次列表请求的下游扇出 namespace 数 |
 | `platform_service_list_partial_total{reason}` | counter | 部分租户失败次数 |
 | `platform_service_access_jwt_issued_total{result}` | counter | access JWT 颁发量 + 失败原因 |
@@ -231,6 +236,8 @@ Prometheus URL 来自启动配置 `--prometheus-url`（指向 `axisml-infra` nam
 - 日志级别由 `--log-level` 启动参数控制（默认 `info`）。
 
 日志聚合当前不在交付范围内——Pod 日志由 K8s 默认 logging 驱动收集，运维通过 `kubectl logs` 或集群级聚合方案（如 Loki，未默认部署）查询。
+
+**Pod 日志保留 SLA**：训练任务 / 在线服务 / 工作区的 Pod 日志保留期 **= Pod 自身 TTL**（受 `runPolicy.ttlSecondsAfterFinished` 与节点级 logrotate 影响，默认数小时到一天量级）。Pod 被 GC 后日志即丢失；长周期 retro debug 必须依赖集群级日志聚合方案（未默认部署，后续工作）。
 
 ---
 

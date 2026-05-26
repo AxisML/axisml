@@ -36,7 +36,7 @@ Kubernetes Cluster
     └── Tenant resources / workloads / routes / secrets / ElasticQuota
 ```
 
-跨 namespace 访问统一走 `<service>.<namespace>.svc.cluster.local`，例如 `rustfs-svc.axisml-infra:9000`、`zot.axisml-infra:5000`、`axisml-cluster-manager.axisml-system:8080`。
+跨 namespace 访问统一走 `<service>.<namespace>.svc.cluster.local`，例如 `rustfs-svc.axisml-infra:9000`、`zot.axisml-infra:5000`、`axisml-cluster-manager.axisml-system:8080`。所有自研控制面组件统一约定 API `:8080` / Metrics `:8081` / Probes `:8082`（operator 无 API 端口，metrics + probes 同此约定）；不同组件分别落不同 Service 名，端口可同号无冲突。
 
 ---
 
@@ -107,13 +107,13 @@ make helm-install-system    # 再装控制平面（含数据库与 CRDs）
 
 | 组件 | 副本 | 端口 | leader election | 备注 |
 | --- | --- | --- | --- | --- |
-| Cluster Manager | `1` 默认 | `:8080` API、`:8080` metrics | controller-runtime Lease | 后台 reconciler / informer 只在 leader 副本运行 |
-| Compute Service | `1` 默认 | `:8081` API、`:8080` metrics | controller-runtime Lease | 同上；API 层无状态可水平扩；bootstrap Job 初始化默认 pool + cpu-small/cpu-medium unit |
-| Artifact Hub | `1` 默认 | `:8082` API、`:8080` metrics | `coordination.k8s.io/Lease` | GC worker 选主；API 层无状态 |
-| Platform Backend | `1` 默认 | `:8080` API、`:8081` metrics | 无 | 完全无状态 |
-| Platform Frontend | `1` 默认 | `:80` 静态资源 | 无 | 后端镜像独立部署，通过 Helm `platform.frontend.image` 字段配置 |
-| tenant-operator | `1`（leader）+ N 备 | `:8080` metrics | controller-runtime Lease | 单 leader |
-| compute-operator | `1`（leader）+ N 备 | `:8080` metrics | controller-runtime Lease | 单 leader；dispatcher + handler 模型 |
+| Cluster Manager | `1` 默认 | `:8080` API / `:8081` metrics / `:8082` probes | 无 | K8s admin REST 抽象（ResourcePool CRD CRUD），多副本对等运行；无 reconciler / 无 informer (list 端点可选 Pool Informer cache)；bootstrap Job 初始化默认 ResourcePool CR (含 cpu-small/cpu-medium unit) |
+| Compute Service | `1` 默认 | 同上 | controller-runtime Lease | API 层无状态可水平扩；reconciler / informer 单 leader；workspace 创建时同事务派生 PVC |
+| Artifact Hub | `1` 默认 | 同上 | `coordination.k8s.io/Lease` | GC worker 选主；API 层无状态 |
+| Platform Backend | `1` 默认 | 同上 | 无 | 完全无状态；不调用 K8s API |
+| Platform Frontend | `1` 默认 | `:80` 静态资源 | 无 | 前端镜像独立部署，通过 Helm `platform.frontend.image` 字段配置 |
+| tenant-operator | `1`（leader）+ N 备 | `:8081` metrics / `:8082` probes（无 API） | controller-runtime Lease | 单 leader |
+| compute-operator | `1`（leader）+ N 备 | 同上 | controller-runtime Lease | 单 leader；dispatcher + handler 模型 |
 
 `axisml-infra` namespace 内的基础设施组件部署形态（默认 values）：
 
@@ -146,7 +146,7 @@ make helm-install-system    # 再装控制平面（含数据库与 CRDs）
 | `rbac.yaml` | ClusterRole + ClusterRoleBinding（详见各组件详设 §2.5） |
 | `role.yaml` / `rolebinding.yaml` | leader election Lease 权限（在 `axisml-system` namespace 内） |
 | `servicemonitor.yaml` | `/metrics` 暴露，kube-prometheus-stack 自动发现 |
-| `bootstrap-job.yaml` | post-install Job 初始化默认数据（仅 compute-service：default pool + cpu-small/cpu-medium unit） |
+| `bootstrap-job.yaml` | post-install Job 初始化默认数据：cluster-manager 创建 default ResourcePool CR (内嵌 cpu-small/cpu-medium unit)；platform 创建初始 `system-admin`（admin/admin，首次登录强制改密）+ 内置租户 `axisml-system` |
 
 ### 6.2 tenant-operator / compute-operator
 
@@ -167,6 +167,7 @@ CRD 定义放在 `deploy/helm/axisml-system/crds/` 下（不在 `templates/`）�
 | `tenants.axisml.io` | `crds/tenant-crd.yaml` | tenant-operator |
 | `mljobs.axisml.io` | `crds/mljob-crd.yaml` | compute-operator |
 | `mlservices.axisml.io` | `crds/mlservice-crd.yaml` | compute-operator |
+| `resourcepools.axisml.io` | `crds/resource-pool-crd.yaml` | cluster-manager (写) / compute-service (Informer 读做展开) |
 
 CRD schema 升级由 `make helm-install-system` 的 `kubectl apply -f crds/` 一步保证（见 §2）。
 
@@ -203,7 +204,7 @@ PostgreSQL 由 `axisml-system` chart 提供，支持两种模式：
 
 ## 9. 后续工作
 
-当前部署未覆盖的能力：HTTPS / TLS、SecurityPolicy 实施、BackendTrafficPolicy 限流、对象存储 / OCI registry 的 HA、外部 PostgreSQL、自定义 Grafana dashboard、告警规则、MIG。后续工作按主题归类：
+当前部署未覆盖的能力：HTTPS / TLS、SecurityPolicy 实施、BackendTrafficPolicy 限流、对象存储 / OCI registry 的 HA、外部 PostgreSQL、自定义 Grafana dashboard、告警规则、MIG。后续工作按主题归类（DataVolume / 数据卷管理不在路线图内——当前由 dataset artifact + 工作区 PVC 覆盖训练数据挂载场景）：
 
 **网关与安全**
 - `axisml-gateway` 增加 HTTPS listener；TLS 证书通过 `cert-manager` 或 Secret 注入

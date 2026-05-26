@@ -1,6 +1,6 @@
 # AxisML 认证与权限模型
 
-本文档汇总 AxisML 控制平面的认证（authn）、授权（authz）与下游身份透传契约。所有控制面服务共享同一套身份模型与权限矩阵；身份与会话的持久化 schema 见 [database.md §5](database.md#5-platform)，HTTP API 端点见 [apis/platform.yaml](apis/platform.yaml)。系统级位置见 [overview.md](overview.md)。
+本文档汇总 AxisML 控制平面的认证（authn）、授权（authz）与下游身份透传契约。所有控制面服务共享同一套身份模型与权限矩阵；身份与会话的持久化 schema 见 [database.md §4](database.md#4-platform)，HTTP API 端点见 [apis/platform.yaml](apis/platform.yaml)。系统级位置见 [overview.md](overview.md)。
 
 ---
 
@@ -15,7 +15,7 @@
 约束：
 - 所有外部 HTTP 流量必须先经 Platform 鉴权后才能落到下游服务。
 - 下游服务的 Service 类型为 ClusterIP，不挂网关；NetworkPolicy 限制只允许 `axisml-system` namespace 入站。
-- 内置身份源默认启用；OIDC / SAML 通过 `IdentityProvider` 接口预留（见 [§9](#9-后续工作)）。
+- 当前仅支持内置用户体系（用户名 + bcrypt 密码）；OIDC / SAML 接入为后续工作（见 [§9](#9-后续工作)），届时再设计抽象层。
 
 ---
 
@@ -26,18 +26,17 @@
 - 用户名 + bcrypt 密码哈希存于 `users` 表；
 - 登录成功后签发 JWT（`aud=axisml-platform`，主登录 token TTL 12h）；
 - 登出 / 强制注销通过 `sessions` 表（按 `jti` 黑名单）实现；
-- 表 schema 见 [database.md §5.1](database.md#51-schema)。
+- 表 schema 见 [database.md §4.1](database.md#51-schema)。
 
-### 2.2 IdentityProvider 抽象
+### 2.2 初始账号 / bootstrap
 
-Platform 内部以 `internal/auth.IdentityProvider` 接口屏蔽身份来源，由 `--auth-mode` 启动参数切换：
+`axisml-platform bootstrap` 子命令在首次安装时执行：
 
-| 模式 | 实现 | 状态 |
-| --- | --- | --- |
-| `internal` | 读 `users` 表 + bcrypt 校验 | 默认 |
-| `oidc` | 走外部 OIDC IdP；`users` 表退化为身份缓存 | 接口预留（见 [§9](#9-后续工作)） |
+- 创建内置角色（见 §3）；
+- 创建初始 `system-admin` 账号 `admin` / `admin`（**首次登录强制改密**）；可通过环境变量 `AXISML_BOOTSTRAP_PASSWORD` 覆盖；
+- 创建内置租户 `axisml-system`（承载 `visibility=public` 制品）。
 
-切换模式不影响下游：JWT 颁发方式、`X-Axisml-User` 注入契约、RBAC 矩阵均不变。
+OIDC / SAML 是后续工作，不在当前抽象内。
 
 ### 2.3 登录 / 登出 / 续期
 
@@ -47,31 +46,33 @@ API 路径与请求体见 [apis/platform.yaml](apis/platform.yaml) `Auth` tag（
 
 ## 3. RBAC 角色
 
-三档内置角色，权限通过 `role_permissions` 多对多绑定（见 [database.md §5.1](database.md#51-schema)）。
+三档**硬编码**内置角色，无运行时增删角色 / 调整权限的能力：
 
 | 角色 | 范围 | 能力概览 |
 | --- | --- | --- |
-| `system-admin` | 全局 | 用户 / 角色 / 租户 CRUD；资源池 / 资源单元 CRUD；读所有租户数据 |
-| `tenant-admin` | 单租户 | 本租户内成员管理、配额申请、对所有业务对象（Job / Service / Artifact / Workspace）的读写 |
+| `system-admin` | 全局 | 用户 / 租户 CRUD；资源池 / 资源单元 CRUD；读所有租户数据；维护 `axisml-system` 内置租户（含 `visibility=public` 制品） |
+| `tenant-admin` | 单租户 | 本租户内成员管理、配额申请、对所有业务对象（Job / Service / Artifact / Workspace）的读写**（含跨 owner 的启停 / 删）** |
 | `user` | 单租户 | 提交 / 管理自己创建的业务对象；读取本租户内的共享资产 |
 
 ### 3.1 全局权限矩阵
 
 | 权限 | `system-admin` | `tenant-admin` | `user` |
 | --- | :---: | :---: | :---: |
-| 用户 / 角色 / 权限 CRUD | OK | NO | NO |
-| 租户 CRUD（创建 / 暂停 / 恢复 / 删除） | OK | NO | NO |
+| 用户 CRUD | OK | NO | NO |
+| 租户 CRUD（创建 / 恢复 / 删除） | OK | NO | NO |
 | 租户成员管理 | OK | OK (@self) | NO |
 | 租户配额 CRUD | OK | OK (@self) | NO |
 | 资源池 / 资源单元 CRUD | OK | NO | NO |
 | 工作区 / Job / Service 创建 | OK | OK (@self) | OK (@self) |
-| 工作区 / Job / Service 启停 / 删 | OK | OK (@self) | OK (@owner) |
-| 制品 CRUD | OK | OK (@self) | OK (@self) |
+| 工作区 / Job / Service 启停 / 删 | OK | OK (@self, 跨 owner) | OK (@owner) |
+| 制品 CRUD | OK | OK (@self, 跨 owner) | OK (@self, @owner) |
+| `axisml-system` 制品 `visibility=public` 写 | OK | NO | NO |
 | 跨租户读 | OK | NO | NO |
 
 记号：
 - `@self` = 仅对当前用户绑定的租户生效；
 - `@owner` = 仅对当前用户创建的对象（`owner == X-Axisml-User`）生效；
+- `@self, 跨 owner` = `tenant-admin` 在本租户内**可操作任意 owner** 的对象（不限本人创建）；
 - `system-admin` 在所有 tenant 级 / owner 级判断上 **短路放行**。
 
 ---
@@ -80,7 +81,7 @@ API 路径与请求体见 [apis/platform.yaml](apis/platform.yaml) `Auth` tag（
 
 ### 4.1 关联表
 
-`user_tenant_roles(user_id, tenant_name, role_id)` 表达「某用户在某租户内的角色」（schema 见 [database.md §5.1](database.md#51-schema)）。
+`user_tenant_roles(user_id, tenant_name, role_id)` 表达「某用户在某租户内的角色」（schema 见 [database.md §4.1](database.md#51-schema)）。
 
 ### 4.2 `tenant_name` 作为稳定外键
 
@@ -180,8 +181,8 @@ Platform 后端 `internal/auth` 暴露下列中间件供各功能 handler 拼装
 
 ## 9. 后续工作
 
-- **OIDC 接入**：实现 `IdentityProvider` 的 OIDC 适配；登录页支持外部跳转；`users` 表退化为身份缓存。
+- **OIDC 接入**：引入 `IdentityProvider` 抽象 + OIDC 适配；登录页支持外部跳转；`users` 表退化为身份缓存。
 - **集群内 mTLS**：Platform ↔ 下游 / 下游 ↔ 下游全部走 mTLS；下游基于 SPIFFE ID 校验调用方，而非裸 `X-Axisml-User`。
-- **审计日志 UI**：`audit_logs` 表已有 schema（见 [database.md §5.1](database.md#51-schema)），前端 Tab 4 入口待补；保留期由 `--audit-log-retention-days` 控制。
+- **审计日志 UI**：`audit_logs` 表已有 schema（见 [database.md §4.1](database.md#51-schema)），前端 Tab 4 入口待补；保留期由 `--audit-log-retention-days` 控制。
 - **多集群下的 token 边界**：当 Platform 跨集群签发 JWT 时，需要按集群隔离 `iss` / `kid` 与 JWKS endpoint。
-- **细粒度权限**：当前 `permissions` 表已为字典化预留；后续可按需把全局矩阵拆细到对象级。
+- **细粒度权限**：如需把全局矩阵拆细到对象级，再引入 `permissions` / `role_permissions` 字典化表（当前不预留）。
