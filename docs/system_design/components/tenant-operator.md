@@ -227,18 +227,7 @@ Pod 调度 ──▶ koord-scheduler ──▶ ElasticQuota.status.used 累加
 | Cache 过滤 | 子资源用 `axisml.io/managed-by=tenant-operator` label selector,避免拉全集群;Tenant CR 不过滤 |
 | Helm values / 镜像 | `tenantOperator.*`,详见 [deployment.md](../deployment.md) |
 
-## 9. 后续工作
-
-- **Admission webhook**:`spec.namespace.name` / `spec.quotas[].{pool,name}` 不可变约束、跨 ns `sourceXxxRef` 白名单、`min/max` 结构性校验、源 Secret type 一致性、目标 Namespace allowlist / denylist 前移;同时硬阻断非 compute 写者。
-- **CRD 严格 schema**:替换 `x-kubernetes-preserve-unknown-fields`,显式声明 `spec` 仅含 `namespace` / `quotas[]` / `initResources` 三块,启用 OpenAPI 校验,收紧 `phase` enum;展示性元数据（display name / description）与扩展位（labels / annotations）一律落 PG (见 [database.md §1.6](../database.md#16-扩展元数据-labels--annotations)),CR 不承载。
-- **加密源支持**:KMS / Vault / Sealed Secrets 作为 `sourceSecretRef` 替代。
-- **`initResources` templating**:按 tenant 上下文 (id / name / namespace) 渲染 ConfigMap 数据。
-- **复制源 RBAC 收敛**:把源 Namespace 限定为单一受控 Namespace。
-- **分层配额**:`spec.quotas[]` 引入 `parent` 字段,落到 ElasticQuota `quota.scheduling.koordinator.sh/parent` annotation。
-- **resync 间隔 Helm values 暴露**:默认 10 min,可调到分钟级。
-- **ServiceAccount + RBAC 子能力的 Helm values 开关**。
-
-## 10. 相关引用
+## 9. 相关引用
 
 - [overview.md](../overview.md) — 控制平面拓扑
 - [auth.md](../auth.md) — 平台用户身份与 RBAC 域 (tenant-operator 不直接参与)

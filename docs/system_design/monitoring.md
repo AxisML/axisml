@@ -133,7 +133,7 @@ Cluster Manager 是 K8s admin REST 抽象（ResourcePool CR CRUD 入口）；无
 label 取值：
 
 - `resource ∈ {mljob, mlservice}`；
-- `backend ∈ {native}`（其它 backend 元组未交付，预留——详见 [compute-operator.md §9](components/compute-operator.md#9-后续工作)）；
+- `backend ∈ {native}`（其它 backend 元组未交付，label 预留）；
 - `engine ∈ {job, deployment, statefulset}`；
 - `result ∈ {success, requeue, conflict, not_found, error, skipped}`（与 §4.1 / §4.2 对齐）。
 
@@ -237,7 +237,7 @@ Prometheus URL 来自启动配置 `--prometheus-url`（指向 `axisml-infra` nam
 
 日志聚合当前不在交付范围内——Pod 日志由 K8s 默认 logging 驱动收集，运维通过 `kubectl logs` 或集群级聚合方案（如 Loki，未默认部署）查询。
 
-**Pod 日志保留 SLA**：训练任务 / 在线服务 / 工作区的 Pod 日志保留期 **= Pod 自身 TTL**（受 `runPolicy.ttlSecondsAfterFinished` 与节点级 logrotate 影响，默认数小时到一天量级）。Pod 被 GC 后日志即丢失；长周期 retro debug 必须依赖集群级日志聚合方案（未默认部署，后续工作）。
+**Pod 日志保留 SLA**：训练任务 / 在线服务 / 工作区的 Pod 日志保留期 **= Pod 自身 TTL**（受 `runPolicy.ttlSecondsAfterFinished` 与节点级 logrotate 影响，默认数小时到一天量级）。Pod 被 GC 后日志即丢失；长周期 retro debug 必须依赖集群级日志聚合方案（未默认部署）。
 
 ---
 
@@ -245,7 +245,7 @@ Prometheus URL 来自启动配置 `--prometheus-url`（指向 `axisml-infra` nam
 
 当前**不预置** AlertManager 告警规则——AlertManager 随 kube-prometheus-stack 部署但无业务告警规则，调用方按需自定义。
 
-后续迭代预留的告警方向（详见 [infra.md §7 后续工作](infra.md#7-后续工作) / [deployment.md §9 后续工作](deployment.md#9-后续工作)）：
+调用方自定义告警时可参考以下方向：
 
 - 节点 NotReady；
 - GPU 异常（DCGM 上报错误率高）；

@@ -15,7 +15,7 @@
 约束：
 - 所有外部 HTTP 流量必须先经 Platform 鉴权后才能落到下游服务。
 - 下游服务的 Service 类型为 ClusterIP，不挂网关；NetworkPolicy 限制只允许 `axisml-system` namespace 入站。
-- 当前仅支持内置用户体系（用户名 + bcrypt 密码）；OIDC / SAML 接入为后续工作（见 [§9](#9-后续工作)），届时再设计抽象层。
+- 当前仅支持内置用户体系（用户名 + bcrypt 密码）；OIDC / SAML 接入届时再设计抽象层，不在本文范围。
 
 ---
 
@@ -36,7 +36,7 @@
 - 创建初始 `system-admin` 账号 `admin` / `admin`（**首次登录强制改密**）；可通过环境变量 `AXISML_BOOTSTRAP_PASSWORD` 覆盖；
 - 创建内置租户 `axisml-system`（承载 `visibility=public` 制品）。
 
-OIDC / SAML 是后续工作，不在当前抽象内。
+OIDC / SAML 不在当前抽象内。
 
 ### 2.3 登录 / 登出 / 续期
 
@@ -155,7 +155,7 @@ X-Axisml-User: <username>
 
 ### 7.2 mTLS
 
-当前下游完全信任 `X-Axisml-User`，依赖网络面 NetworkPolicy 隔离。**集群内 mTLS 是后续工作**（见 [§9](#9-后续工作)）。
+当前下游完全信任 `X-Axisml-User`，依赖网络面 NetworkPolicy 隔离。集群内 mTLS 不在本文范围。
 
 ---
 
@@ -176,13 +176,3 @@ Platform 后端 `internal/auth` 暴露下列中间件供各功能 handler 拼装
 - `RequireWorkspaceOwner` / `RequireServiceOwner` / `RequireJobOwner` 需要先调下游 GET 拿 `owner`；结果通过 `gin.Context.Set(...)` 注入后续 handler，避免重复调用；
 - 角色升降序：`system-admin` > `tenant-admin` > `user`，所有 `≥` 比较按此序列；
 - 失败统一返回 RFC 7807 problem：`401 unauthenticated` / `403 forbidden` / `409 last-tenant-admin`。
-
----
-
-## 9. 后续工作
-
-- **OIDC 接入**：引入 `IdentityProvider` 抽象 + OIDC 适配；登录页支持外部跳转；`users` 表退化为身份缓存。
-- **集群内 mTLS**：Platform ↔ 下游 / 下游 ↔ 下游全部走 mTLS；下游基于 SPIFFE ID 校验调用方，而非裸 `X-Axisml-User`。
-- **审计日志 UI**：`audit_logs` 表已有 schema（见 [database.md §4.1](database.md#51-schema)），前端 Tab 4 入口待补；保留期由 `--audit-log-retention-days` 控制。
-- **多集群下的 token 边界**：当 Platform 跨集群签发 JWT 时，需要按集群隔离 `iss` / `kid` 与 JWKS endpoint。
-- **细粒度权限**：如需把全局矩阵拆细到对象级，再引入 `permissions` / `role_permissions` 字典化表（当前不预留）。

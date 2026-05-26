@@ -183,15 +183,7 @@ snapshot 语义：compute 在 Create 入口完成展开后立刻把 nodeSelector
 | RBAC scope | ClusterRole：`resourcepools.axisml.io` (`get/list/watch/create/update/patch/delete`)、`events` `create/patch` |
 | Helm values / 镜像 | 详见 [deployment.md](../deployment.md) |
 
-## 9. 后续工作
-
-- **Admission webhook**：`metadata.name` / `spec.units[].name` 不可变；`requests <= limits` 结构校验；删除 pool 时阻断有活跃 Job/Service 引用的场景（通过 label `axisml.io/resource-pool=<name>` 反查）。
-- **节点 / StorageClass / 集群容量等 admin 域只读端点**：按需追加，统一收敛在本服务，避免 Platform 直接调 K8s。
-- **池间调度策略**（跨池借用，默认禁止）+ 池容量预估。
-- **混合资源 unit**（CPU + MIG 分片）与价格元数据用于成本核算。
-- **Pool / Unit 用量回流**：从 ElasticQuota 聚合（与 [compute-service §5.3](compute-service.md#53-状态回流informer) 的 `quotas[].used` 复用同一来源），便于 admin 看每个池的实际占用。
-
-## 10. 相关引用
+## 9. 相关引用
 
 - [overview.md](../overview.md) — 控制平面拓扑
 - [auth.md](../auth.md) — 身份与鉴权契约

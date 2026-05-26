@@ -449,7 +449,7 @@ Filters: 🔍 用户名 / 邮箱  |  角色 ▾                       [+ 添加�
 
 #### Tab 4 · 审计日志
 
-Placeholder (规划中,详见 §6 后续设计)。保留入口与 Tab pill。
+Placeholder (规划中)。保留入口与 Tab pill。
 
 ### 5.4 租户创建表单 (`system-admin` only)
 
@@ -498,74 +498,7 @@ UI 即时校验 + cluster-manager 兜底。完整字段清单与校验规则见 
 
 ---
 
-## 6. 后续设计
-
-### 6.1 待补 ASCII mockup
-
-下列页面尚无 ASCII mockup,待原型升级到对应菜单时按 §4 / §5 模板补齐:
-
-- Dashboard 卡片占位 (我可见的租户 / 活跃任务 / 在线服务 / 工作区 / 配额 Top N / GPU 利用率趋势 / 最近事件流)
-- 工作区列表 / 创建表单 / 详情页 (概览 · 访问 Tab)
-- 计算任务列表 / 创建表单 / 详情页 (概览 · 副本 · 事件 · 日志 Tab)
-- 在线服务列表 / 创建表单 / 详情页 (概览 · 访问 · 指标 Tab)
-- 制品中心:模型 / 镜像 / 数据集 列表骨架与详情页 (概览 · 版本 · 后端 Tab)
-- 系统管理 · 用户与角色页面
-- 应用中心 (智能体 / Skills / MCP) 页面 (整套)
-
-补齐顺序与各功能后续工作节奏对齐 ([components/platform.md §9 后续工作](components/platform.md#9-后续工作))。
-
-### 6.2 待补 UI 设计 (横切)
-
-- **应用中心 (Agent / Skills / MCP)** — 页面结构、列表字段、创建表单。
-- **审计日志 UI** — 按 `target` 前缀检索 (`tenant:` / `job:` / `service:` / `resource-pool:` / `workspace:`),含告警规则模板入口。
-- **OIDC 登录页** — OIDC 接入后的登录跳转 UX。
-- **多集群 / 多区域选择器** — 顶栏增加集群切换器。
-
-### 6.3 待补 UI 设计 (功能模块)
-
-- **租户**:
-  - 配额硬校验 / 分层配额 UI (依赖上游 ElasticQuota `parent` 字段);
-  - 「已归档租户」管理界面 (restore 入口);
-  - `initResources` 表单深度;
-  - 租户克隆向导。
-- **资源池**:
-  - 按租户的池可见性 (池 → 租户白名单);
-  - 节点匹配预览 Tab;
-  - 池容量聚合 (allocatable / requested);
-  - 资源单元成本元数据 `cost_per_hour` 列。
-- **工作区**:
-  - 事件 / 日志 / 副本 Tab (待 compute 端点扩展);
-  - 闲时自动 stop 配置入口;
-  - 孤儿 PVC 清理 UI;
-  - 创建表单预设 (镜像 + 启动命令 + 资源单元 一键填好);
-  - SSH 接入面板;
-  - 多容器 Workspace (jupyter + tensorboard sidecar) 表单。
-- **计算任务**:
-  - per-role ResourceUnit 表单 (解锁 master CPU + worker GPU);
-  - 任务模板 / 重新提交 UX (spec 反填);
-  - DAG 工作流编辑器;
-  - SSE / WebSocket 增量列表;
-  - `(custom, *)` JSON schema 编辑器。
-- **在线服务**:
-  - 事件 / 日志 / 副本 Tab (后续工作);
-  - 流量切换与灰度 UI (weighted route / canary / 自动指标判定回滚);
-  - 自动扩缩容配置 (HPA / KEDA);
-  - 多 role 独立扩缩;
-  - 多端口 / 多协议;
-  - API key 轮换 UI;
-  - LLM 专项指标看板 (tokens/sec / TTFT / TBT / KV cache / batch utilization);
-  - 告警与 SLO 配置 (AlertManager 集成)。
-- **制品中心**:
-  - 跨制品引用 UI (待 artifact-hub 引用方案定稿);
-  - 镜像 Layer 浏览 Tab (zot manifest 解析 + per-layer 大小展示);
-  - 数据集样本预览 (按 `format` 取首 N 行);
-  - 浏览器直传支持范围扩展 (现仅 S3 Kind 小文件;OCI Kind 需在浏览器实现 chunked push,工作量高);
-  - 制品签名 / SBOM 展示 (cosign / notation / trivy 集成,等待 artifacts 服务支持);
-  - 制品配额展示 (per namespace / Kind 总大小 / 总数,等待 artifacts 服务 `size_bytes` 入表)。
-
----
-
-## 7. 相关引用
+## 6. 相关引用
 
 - [components/platform.md](components/platform.md) — 后端业务编排、跨服务调用、PG schema
 - [auth.md](auth.md) — RBAC 角色矩阵、JWT 颁发、IdentityProvider

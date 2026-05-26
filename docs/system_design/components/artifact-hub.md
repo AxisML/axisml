@@ -225,19 +225,7 @@ Ready / Failed ──(DELETE)──▶ Deleting ──(GCBackend 成功)──�
 | RBAC scope | 自身 ns 的 `leases`（GC leader election）；不需要其他 K8s RBAC（只读 PG + 调后端 HTTP） |
 | Helm values / 镜像 | 详见 [deployment.md](../deployment.md) |
 
-## 9. 后续工作
-
-- `dataset` / `image` 两个 Kind 端到端打通（initiate / complete / resolve / GC 全谓词覆盖）。
-- 上传凭证续签：客户端检测 token 剩余 < 5min 时刷新，PG 行不变；长时上传（大模型）必经路径。
-- Failed 重试：digest mismatch 后允许同 version 再次 initiate，并在响应中带 `previous_failure_reason`。
-- `pin=digest` 语义：OCI Kind 返回 `<name>@<digest>` 不可变形态；S3 Kind 在响应中把 digest 标 `pinned`。
-- 多副本 + Leader Election 生产化（`replicas≥2` 时 `sum(axisml_artifacts_is_leader) == 1`，leader 切换无重复扫描）。
-- 配额管理：按 namespace / Kind 限制总大小、总数量、单版本大小；`size_bytes` 入表。
-- 制品签名 / SBOM（cosign / notation）、image Kind 漏洞扫描（trivy / grype）。
-- 跨集群同步（zot replication / RustFS 多区域复制）；反向孤儿对账升级为审计 + 灰名单清理。
-- 批量 namespace 删除端点（默认禁用，需 admin token），服务 workspace 下线场景。
-
-## 10. 相关引用
+## 9. 相关引用
 
 - [overview.md](../overview.md) — Artifacts 在控制平面里的位置
 - [auth.md](../auth.md) — `X-Axisml-User` 注入与传播

@@ -202,37 +202,7 @@ PostgreSQL 由 `axisml-system` chart 提供，支持两种模式：
 
 ---
 
-## 9. 后续工作
-
-当前部署未覆盖的能力：HTTPS / TLS、SecurityPolicy 实施、BackendTrafficPolicy 限流、对象存储 / OCI registry 的 HA、外部 PostgreSQL、自定义 Grafana dashboard、告警规则、MIG。后续工作按主题归类（DataVolume / 数据卷管理不在路线图内——当前由 dataset artifact + 工作区 PVC 覆盖训练数据挂载场景）：
-
-**网关与安全**
-- `axisml-gateway` 增加 HTTPS listener；TLS 证书通过 `cert-manager` 或 Secret 注入
-- Gateway 级 `SecurityPolicy`（JWT / OIDC，对接调用方选定的 IdP）
-- 静态 HTTPRoute 增加 `BackendTrafficPolicy`（限流 + 熔断 + 重试）
-- 跨 namespace `ReferenceGrant` 模板（仅在跨 namespace `backendRef` 出现时启用）
-
-**对象存储 / OCI Registry**
-- RustFS 切换到 Distributed（4×4）部署
-- zot 切换到 HA（3×）+ 共享后端（S3 兼容存储或 RustFS）
-- zot 增加 GC、垃圾清理 CronJob、scrub 配置
-
-**数据库**
-- 支持外部 PostgreSQL（`database.enabled=false` + `externalDatabase.*`）；提供示例 values 与连接 Secret 模板
-- 备份策略（CronJob + 远端对象存储）
-
-**监控告警**
-- 预置 AlertManager 告警规则：节点 NotReady、GPU 异常、PVC 容量、配额耗尽、调度滞后、API 错误率（详见 [monitoring.md §8](monitoring.md#8-告警)）
-- 持久化 Prometheus 数据卷（默认 14 天保留期，可调）
-- 自定义 Grafana dashboard（控制面 + 业务）
-
-**Operator HA**
-- tenant-operator / compute-operator 多副本 leader election
-- Compute Service / Cluster Manager / Artifact Hub 多副本（API 层水平扩，后台协程仍 leader-only）
-
----
-
-## 10. 关联文档
+## 9. 关联文档
 
 - [overview.md §6 部署架构](overview.md#6-部署架构)：总体部署示意；
 - [infra.md §5 部署形态](infra.md#5-部署形态)：infra chart 子组件部署细节；

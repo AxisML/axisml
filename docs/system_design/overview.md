@@ -30,7 +30,7 @@
 
 - **namespace = 租户标识符**：compute / artifacts 的 `namespace` 字段是 tenant 名（= `tenants.name`）；compute 内部 join 自己的 `tenants` 表得到 K8s namespace 用于 CR 下发；artifacts 不解析。
 - **PG 为权威，CR 为派生**：compute 以 `tenants` 表为唯一权威，Tenant CR 由内部 reconciler 派生并持续对账。
-- **Cluster Manager 是 K8s admin REST 抽象**：把 admin 视角的 K8s 写 / 读（ResourcePool CRD CRUD，扩展端点见 [cluster-manager §9](components/cluster-manager.md#9-后续工作)）收敛为 REST，让 Platform 全程不直接调 K8s API；无独立持久化、无 reconciler、无 leader election。
+- **Cluster Manager 是 K8s admin REST 抽象**：把 admin 视角的 K8s 写 / 读（ResourcePool CRD CRUD）收敛为 REST，让 Platform 全程不直接调 K8s API；无独立持久化、无 reconciler、无 leader election。
 - **所有 AxisML Pod 走 koord-scheduler**：任何 backend handler 渲染出的 Pod 必须设置 `schedulerName: koord-scheduler` 并携带 `quota.scheduling.koordinator.sh/name` label —— 不存在"绕过配额"的调度路径。
 - **Operator 之间不互相感知**：tenant-operator 不看 MLJob / MLService；compute-operator 不看 Tenant / ElasticQuota（仅透传 quota 名）。
 - **分组维度走 labels**：project / experiment 等用户分组通过 `labels.axisml.io/<dim>` 落 PG，list 端点支持 `?labelSelector=`；compute / artifacts 不感知 Platform 业务概念。

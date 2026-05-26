@@ -351,21 +351,7 @@ Compute 不感知 ElasticQuota CR 内部结构——quota 名是字符串透传�
 | RBAC scope | `tenants.axisml.io` / `mljobs.axisml.io` / `mlservices.axisml.io` 全权 + `resourcepools.axisml.io` `get/list/watch` (Pool 展开) + 跨 tenant ns 的 `persistentvolumeclaims` `get/list/watch/create/delete`（仅 workspace 派生）+ `pods` / `pods/log` / `events` RO + 自身 ns 的 `leases`；**不含** `elasticquotas` / `namespaces` / `secrets`（这些由 tenant-operator 落地） |
 | Helm values / 镜像 | 详见 [deployment.md §6.1](../deployment.md#61-cluster-manager--compute--artifacts--platform-backend) |
 
-## 9. 后续工作
-
-- Admission webhook：硬阻断非 Compute 的 `Tenant` / `MLJob` / `MLService` spec 写请求。
-- 多副本 HA：完整 leader election 路径与多副本压测。
-- Job spec 部分可变：`display_name` / `description` / `runPolicy.activeDeadlineSeconds` 等元数据更新。
-- Job 模板与 DAG 工作流编排。
-- Service 多 role 独立扩缩。
-- Service 基于 `request_rate` 的 autoscaling、`spec.route` 热更新（轮换 API key / 调限流不重建）。
-- Tenant 批量端点；Tenant retention GC 守护进程。
-- 数据卷管理模块；Custom backend 透传；多集群联邦。
-- 独立 `audit_events` 表；按使用时长 × 单元成本的计费导出。
-- mTLS / Compute 主动鉴权（当前完全信任 Platform 注入的 `X-Axisml-User`）。
-- Admission webhook：`Tenant` / `MLJob` / `MLService` 单写约束（Compute 为唯一 `metadata` / `spec` 写者）当前由 controller `Validate(spec)` 软兜底，**不防止外部直接 `kubectl patch` 改 CR 的攻击面**；系统目前在控制面信任边界内部署，admission webhook 是后续硬化路径。
-
-## 10. 相关引用
+## 9. 相关引用
 
 - [overview.md](../overview.md) — Compute 在控制平面里的位置
 - [auth.md](../auth.md) — `X-Axisml-User` 身份头协议与鉴权边界

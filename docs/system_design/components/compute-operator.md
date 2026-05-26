@@ -7,7 +7,7 @@
 | 做 | 不做 |
 | --- | --- |
 | MLJob / MLService CR reconcile，dispatcher 按 `spec.backend.{name, engine}` 路由 | Tenant / Namespace / ElasticQuota 落地 (→ [tenant-operator.md](tenant-operator.md)) |
-| 派生 Job / Pod / Deployment / StatefulSet / HTTPRoute 等（kubeflow-trainer / kserve / 自定义后端为后续工作，见 §9） | 业务持久化、用量计费、Outbox 推进 (→ [compute-service.md](compute-service.md)) |
+| 派生 Job / Pod / Deployment / StatefulSet / HTTPRoute 等（kubeflow-trainer / kserve / 自定义后端在 dispatcher / handler 接口上保留扩展点） | 业务持久化、用量计费、Outbox 推进 (→ [compute-service.md](compute-service.md)) |
 | `spec.route` 派生 Gateway API + Envoy Gateway 扩展资源 | 模型工件存储 (→ [artifact-hub.md](artifact-hub.md)) |
 | Cancel 推进信号（`Suspended` condition）单向回流 | 用户认证 / 鉴权 (→ [auth.md](../auth.md)) |
 | Pod 注入 `schedulerName=koord-scheduler` + Quota label | 写 compute PG / 跨集群联邦 |
@@ -56,7 +56,7 @@
 
 `--enable-mljob` / `--enable-mlservice` 单独启停对应 dispatcher，未启用时其 ClusterRole 分段也不渲染（最小权限）。
 
-> 当前仅交付 `native` 后端；`kubeflow-trainer` / `kserve` / `custom` 在 dispatcher / handler 接口上保留扩展点，但生产实现见 [§9 后续工作](#9-后续工作)。
+> 当前仅交付 `native` 后端；`kubeflow-trainer` / `kserve` / `custom` 在 dispatcher / handler 接口上保留扩展点，生产实现不在本文范围。
 
 ## 3. 核心模型
 
@@ -285,32 +285,7 @@ CRD 字段级 schema 不在本文展开，以上述 yaml + 后续 admission webh
 | `--metrics-bind-address` | `:8081` | Prometheus 端口 |
 | `--health-probe-bind-address` | `:8082` | 探针端口 |
 
-## 9. 后续工作
-
-**扩展 backend**（dispatcher / handler 接口位保留，schema 与实现待 RFC）：
-
-- `(native, podgroup)`：sigs.k8s.io scheduler-plugins `PodGroup` + 裸 Pod；MLJob gang scheduling 单 backend 路径。
-- `(kubeflow-trainer, *)`：`PyTorchJob` / `TFJob` / `MPIJob` 等；各 engine 完整字段映射 / 状态映射 / `backend.config` schema。
-- `(kserve, inference)`：扩展 role（`transformer` / `explainer`）。
-- `(kserve, llminference)`：vLLM disaggregated / llm-d / NVIDIA Dynamo 下的 KV cache 传输契约（nixl / mooncake）、parallelism schema、autoscaler 接入。
-- `(custom, *)`：`backend.config` 的 `targetGVK` + JSONPath fieldMappings / statusMappings / endpointPath schema 与 unstructured 操作约定。
-- KServe scale-to-zero 与 compute quota 的精细交互模型。
-
-**native 系列演进**：
-
-- `(native, job)` Indexed Job 与 `podFailurePolicy` 直通策略细化。
-- `(native, statefulset)` `volumeClaimTemplates` / `updateStrategy` 灰度更新与 pod-index 寻址。
-- 多 role 独立扩缩容的 `/scale` API 扩展。
-- `spec.route` 可热更新路径。
-
-**质量与硬化**：
-
-- Admission webhook：`spec.backend.{name,engine}` 不可变约束、`backend.config` 按 Handler 自带 schema 统一校验，复用 `Validate` 纯函数（同时硬阻断非 compute 写者）。
-- Handler chart values 控制（按 backend 启停 RBAC 与 watch）。
-- CRD 严格 schema（移除 `x-kubernetes-preserve-unknown-fields`，启用 OpenAPI 校验）。
-- 外部漂移检测（非 compute 主体 patch `spec` 时告警 / 拒绝）。
-
-## 10. 相关引用
+## 9. 相关引用
 
 - [overview.md](../overview.md) — compute-operator 在控制平面拓扑中的位置
 - [auth.md](../auth.md) — 身份与鉴权契约（operator 不直接认证终端用户）
