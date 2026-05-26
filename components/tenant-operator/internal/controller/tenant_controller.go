@@ -77,22 +77,6 @@ func (r *TenantReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, r.patchStatusFailed(ctx, tenant, err.Error())
 	}
 
-	// Suspended is purely a phase signal — keep all underlying resources
-	// running; Compute API enforces submission gating from
-	// tenants.status='Suspended' (design §5 / §6.2.1). Carry forward the last
-	// observed quota and init-resource statuses so suspension does not wipe
-	// status.quotas[].used (which Compute caches) or per-item readiness.
-	if tenant.Spec.Suspended {
-		return ctrl.Result{}, r.patchStatus(ctx, tenant, reconcile.Aggregate{
-			NamespaceReady:   tenant.Status.NamespaceReady,
-			Quotas:           tenant.Status.Quotas,
-			ImagePullSecrets: tenant.Status.InitResources.ImagePullSecrets,
-			Secrets:          tenant.Status.InitResources.Secrets,
-			ConfigMaps:       tenant.Status.InitResources.ConfigMaps,
-			ServiceAccounts:  tenant.Status.InitResources.ServiceAccounts,
-		}, axisml.TenantPhaseSuspended, "spec.suspended=true")
-	}
-
 	// Pre-populate the aggregate with the previously observed status so a
 	// transient failure in one subreconciler doesn't wipe the per-item
 	// readiness — and especially the cached ElasticQuota.status.used that

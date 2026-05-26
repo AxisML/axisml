@@ -171,17 +171,6 @@ func TestBuildStatus_FailedPhaseAddsFailedCondition(t *testing.T) {
 	}
 }
 
-func TestBuildStatus_SuspendedAddsCondition(t *testing.T) {
-	tnt := &axisml.Tenant{
-		ObjectMeta: metav1.ObjectMeta{Generation: 1},
-		Spec:       axisml.TenantSpec{Suspended: true},
-	}
-	st := BuildStatus(tnt, Aggregate{NamespaceReady: true}, axisml.TenantPhaseSuspended, "")
-	if _, ok := condsByType(st.Conditions)[axisml.ConditionSuspended]; !ok {
-		t.Fatal("expected Suspended condition")
-	}
-}
-
 func TestBuildStatus_PreservesLastTransitionTime(t *testing.T) {
 	old := metav1.Time{Time: time.Now().Add(-2 * time.Hour).UTC().Truncate(time.Second)}
 	tnt := &axisml.Tenant{

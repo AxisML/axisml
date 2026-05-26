@@ -60,10 +60,8 @@ func (a Aggregate) AllQuotasReady() bool {
 	return true
 }
 
-// DerivePhase implements design §4's phase derivation table. The previous
-// phase is supplied so transient-progress paths can preserve state. Callers
-// must short-circuit Suspended themselves before invoking this — suspension
-// is a phase-only signal and shouldn't go through the readiness derivation.
+// DerivePhase implements design §5.2's phase derivation. The previous phase
+// is supplied so transient-progress paths can preserve state.
 func DerivePhase(t *axisml.Tenant, a Aggregate, previous axisml.TenantPhase) (axisml.TenantPhase, string) {
 	if a.CriticalFailure {
 		return axisml.TenantPhaseFailed, a.FailureMessage
@@ -111,9 +109,6 @@ func BuildStatus(t *axisml.Tenant, a Aggregate, phase axisml.TenantPhase, messag
 		condition(prev, axisml.ConditionNamespaceReady, a.NamespaceReady, "NamespaceReconciled", a.NamespaceMsg, t.Generation),
 		condition(prev, axisml.ConditionQuotasReady, a.AllQuotasReady(), "QuotasReconciled", "", t.Generation),
 		condition(prev, axisml.ConditionInitResourcesReady, a.AllInitResourcesReady(), "InitResourcesReconciled", "", t.Generation),
-	}
-	if t.Spec.Suspended {
-		st.Conditions = append(st.Conditions, condition(prev, axisml.ConditionSuspended, true, "TenantSuspended", "spec.suspended=true", t.Generation))
 	}
 	if phase == axisml.TenantPhaseFailed {
 		st.Conditions = append(st.Conditions, condition(prev, axisml.ConditionFailed, true, "ReconcileFailed", message, t.Generation))

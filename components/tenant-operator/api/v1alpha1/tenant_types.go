@@ -7,13 +7,14 @@ import (
 )
 
 // TenantPhase enumerates the operator-side high-level state of a Tenant.
-// Compute maps Failed → Suspended (with message); see design §4.
+// Per design §5.2, phase is Active when all sub-reconcilers are ready,
+// Failed on a non-transient critical failure, otherwise the previous phase
+// is preserved (initial state is empty until first successful pass).
 type TenantPhase string
 
 const (
-	TenantPhaseActive    TenantPhase = "Active"
-	TenantPhaseSuspended TenantPhase = "Suspended"
-	TenantPhaseFailed    TenantPhase = "Failed"
+	TenantPhaseActive TenantPhase = "Active"
+	TenantPhaseFailed TenantPhase = "Failed"
 )
 
 // Well-known label keys applied by tenant-operator.
@@ -24,7 +25,6 @@ const (
 	ConditionNamespaceReady     = "NamespaceReady"
 	ConditionQuotasReady        = "QuotasReady"
 	ConditionInitResourcesReady = "InitResourcesReady"
-	ConditionSuspended          = "Suspended"
 	ConditionFailed             = "Failed"
 )
 
@@ -51,14 +51,14 @@ type TenantList struct {
 	Items           []Tenant `json:"items"`
 }
 
-// TenantSpec mirrors design §3.2.
+// TenantSpec mirrors the new tenant-operator design (§3 / §6 — namespace +
+// quotas[] + initResources).
 type TenantSpec struct {
 	DisplayName   string            `json:"displayName,omitempty"`
 	Annotations   map[string]string `json:"annotations,omitempty"`
 	Namespace     NamespaceSpec     `json:"namespace"`
 	Quotas        []QuotaSpec       `json:"quotas,omitempty"`
 	InitResources InitResources     `json:"initResources,omitempty"`
-	Suspended     bool              `json:"suspended,omitempty"`
 }
 
 // NamespaceSpec describes the target Namespace; spec.namespace.name is immutable.
