@@ -6,16 +6,13 @@ metadata:
   labels:
     {{- include "axisml.componentLabels" (dict "context" . "component" "cluster-manager") | nindent 4 }}
 rules:
-  # Tenant CR — full CRUD: cluster-manager is the authoritative writer.
+  # ResourcePool CR — full CRUD: cluster-manager is the REST writer.
   - apiGroups: ["axisml.io"]
-    resources: ["tenants"]
+    resources: ["resourcepools"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  - apiGroups: ["axisml.io"]
-    resources: ["tenants/status"]
-    verbs: ["get"]
 
-  # ElasticQuota — read-only, used to expose status.used in GET responses.
-  - apiGroups: ["scheduling.sigs.k8s.io"]
-    resources: ["elasticquotas"]
-    verbs: ["get", "list", "watch"]
+  # Events: emit audit events on REST mutations.
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
 {{- end }}

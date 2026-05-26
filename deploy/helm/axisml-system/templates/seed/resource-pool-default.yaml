@@ -1,0 +1,27 @@
+{{- if .Values.seed.resourcePool.enabled }}
+# Seed ResourcePool: a cluster-wide `default` pool with two CPU units. Pool
+# `spec.nodeSelector` is empty so the pool admits every node. ResourcePool
+# is managed by cluster-manager via REST in production; this seed installs
+# a sensible starting state for fresh clusters via Helm hooks so it's
+# picked up only on first install (no overwrite on upgrade).
+apiVersion: axisml.io/v1alpha1
+kind: ResourcePool
+metadata:
+  name: {{ .Values.seed.resourcePool.name | quote }}
+  annotations:
+    axisml.io/description: "Default cluster-wide pool seeded by Helm"
+    helm.sh/hook: post-install
+    helm.sh/hook-weight: "1"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  nodeSelector: {}
+  tolerations: []
+  units:
+    {{- range .Values.seed.resourcePool.units }}
+    - name: {{ .name | quote }}
+      requests:
+        {{- toYaml .requests | nindent 8 }}
+      limits:
+        {{- toYaml .limits | nindent 8 }}
+    {{- end }}
+{{- end }}

@@ -12,6 +12,46 @@ commonLabels: {}
 commonAnnotations: {}
 
 # =============================================================================
+# Seed resources (installed via Helm post-install hooks)
+# =============================================================================
+# These give fresh clusters a usable starting state without forcing operators
+# to run the cluster-manager / compute-service REST bootstrap themselves. Each
+# block can be disabled by flipping enabled=false (e.g. for an external
+# bootstrap pipeline that owns the same objects).
+seed:
+  resourcePool:
+    enabled: true
+    # Pool name (cluster-scoped). compute-service's pool/unit expansion looks
+    # up the (poolName, unitName) tuple at Job/Service create time.
+    name: default
+    units:
+      - name: cpu-small
+        requests:
+          cpu: "1"
+          memory: 2Gi
+        limits:
+          cpu: "1"
+          memory: 2Gi
+      - name: cpu-medium
+        requests:
+          cpu: "4"
+          memory: 8Gi
+        limits:
+          cpu: "4"
+          memory: 8Gi
+
+  tenant:
+    enabled: true
+    # Built-in platform tenant; hosts visibility=public artifacts.
+    name: axisml-system
+    # Stable UUID for the seed tenant (compute-service's `tenants.id` will be
+    # generated on first sync; this label gives external selectors a stable
+    # handle until then).
+    id: 00000000-0000-0000-0000-000000000001
+    # K8s namespace tenant-operator should create.
+    namespace: axisml-system
+
+# =============================================================================
 # AxisML Platform
 # =============================================================================
 platform:

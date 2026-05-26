@@ -1,0 +1,29 @@
+{{- if .Values.seed.tenant.enabled }}
+# Seed Tenant: the platform-built-in tenant referenced by docs/system_design/
+# overview.md §9 ("全局可见制品"). Carries the namespace `axisml-system` and
+# is the home for `visibility=public` artifacts. Installed via Helm hooks so
+# it's picked up only on first install.
+apiVersion: axisml.io/v1alpha1
+kind: Tenant
+metadata:
+  name: {{ .Values.seed.tenant.name | quote }}
+  annotations:
+    axisml.io/description: "Built-in platform tenant for public artifacts"
+    helm.sh/hook: post-install
+    helm.sh/hook-weight: "2"
+    helm.sh/hook-delete-policy: before-hook-creation
+  labels:
+    axisml.io/tenant-id: {{ .Values.seed.tenant.id | quote }}
+spec:
+  namespace:
+    name: {{ .Values.seed.tenant.namespace | quote }}
+  quotas:
+    - pool: {{ .Values.seed.resourcePool.name | quote }}
+      name: default
+      min:
+        cpu: "1"
+        memory: 1Gi
+      max:
+        cpu: "8"
+        memory: 16Gi
+{{- end }}
