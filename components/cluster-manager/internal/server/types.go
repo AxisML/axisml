@@ -1,130 +1,144 @@
-// Package server defines request/response types and HTTP handler shapes
-// shared between the tenant and quota handlers. The cluster-manager is a
-// thin shell over the K8s API, so types here mirror Tenant CR fields.
+// Package server defines request/response DTOs and shared error helpers
+// for the cluster-manager REST API. The service is a stateless shell over
+// the ResourcePool CRD (cluster-scoped, axisml.io/v1alpha1) plus the
+// embedded `spec.units[]` array; types here mirror the OpenAPI contract
+// in docs/system_design/apis/cluster-manager.yaml.
 package server
 
-import "time"
+import (
+	"net/http"
+	"time"
 
-// CreateTenantRequest mirrors Tenant.spec plus a top-level `name` for
-// metadata.name. Fields map 1:1 to the CRD; cluster-manager validates
-// shape (DNS-1123, length, denylist) before forwarding to the API server.
-type CreateTenantRequest struct {
-	Name        string            `json:"name"`
-	DisplayName string            `json:"displayName,omitempty"`
-	Annotations map[string]string `json:"annotations,omitempty"`
-	Namespace   NamespaceSpec     `json:"namespace"`
-	Quotas      []QuotaSpec       `json:"quotas,omitempty"`
-	Init        *InitResources    `json:"initResources,omitempty"`
-	Suspended   bool              `json:"suspended,omitempty"`
+	corev1 "k8s.io/api/core/v1"
+
+	"github.com/gin-gonic/gin"
+)
+
+// ResourcePoolDTO matches the OpenAPI ResourcePool schema. It wraps the
+// underlying CR's metadata.{name,labels,annotations,resourceVersion} and
+// spec fields. No separate id — CR name is the stable handle.
+type ResourcePoolDTO struct {
+	Name            string              `json:"name"`
+	Description     string              `json:"description,omitempty"`
+	NodeSelector    map[string]string   `json:"nodeSelector,omitempty"`
+	Tolerations     []corev1.Toleration `json:"tolerations,omitempty"`
+	Units           []ResourceUnitDTO   `json:"units"`
+	Labels          map[string]string   `json:"labels,omitempty"`
+	Annotations     map[string]string   `json:"annotations,omitempty"`
+	ResourceVersion string              `json:"resourceVersion,omitempty"`
+	CreatedAt       time.Time           `json:"createdAt"`
+	UpdatedAt       time.Time           `json:"updatedAt,omitempty"`
 }
 
-// PatchTenantRequest covers the mutable fields. Immutable fields
-// (spec.namespace.name, spec.quotas[].{pool,name}) are rejected at the
-// handler with 400.
-type PatchTenantRequest struct {
-	DisplayName *string           `json:"displayName,omitempty"`
-	Annotations map[string]string `json:"annotations,omitempty"`
-	Init        *InitResources    `json:"initResources,omitempty"`
+// ResourceUnitDTO is one entry of pool.spec.units[]. Identified by the
+// (poolName, name) tuple in the URL — no independent CR.
+type ResourceUnitDTO struct {
+	Name         string              `json:"name"`
+	Description  string              `json:"description,omitempty"`
+	Requests     corev1.ResourceList `json:"requests"`
+	Limits       corev1.ResourceList `json:"limits"`
+	NodeSelector map[string]string   `json:"nodeSelector,omitempty"`
+	Annotations  map[string]string   `json:"annotations,omitempty"`
 }
 
-// NamespaceSpec mirrors Tenant.spec.namespace.
-type NamespaceSpec struct {
-	Name        string            `json:"name"`
-	Labels      map[string]string `json:"labels,omitempty"`
-	Annotations map[string]string `json:"annotations,omitempty"`
+// CreateResourcePoolRequest is the body for POST /api/v1/resource-pools.
+type CreateResourcePoolRequest struct {
+	Name         string                      `json:"name"`
+	Description  string                      `json:"description,omitempty"`
+	NodeSelector map[string]string           `json:"nodeSelector,omitempty"`
+	Tolerations  []corev1.Toleration         `json:"tolerations,omitempty"`
+	Units        []CreateResourceUnitRequest `json:"units,omitempty"`
+	Labels       map[string]string           `json:"labels,omitempty"`
+	Annotations  map[string]string           `json:"annotations,omitempty"`
 }
 
-// QuotaSpec mirrors one entry of Tenant.spec.quotas[].
-type QuotaSpec struct {
-	Pool string            `json:"pool"`
-	Name string            `json:"name"`
-	Min  map[string]string `json:"min,omitempty"`
-	Max  map[string]string `json:"max"`
+// PatchResourcePoolRequest covers the pool-level mutable fields. `name`
+// is immutable; use unit sub-routes for unit-level mutations.
+type PatchResourcePoolRequest struct {
+	Description  *string             `json:"description,omitempty"`
+	NodeSelector map[string]string   `json:"nodeSelector,omitempty"`
+	Tolerations  []corev1.Toleration `json:"tolerations,omitempty"`
+	Labels       map[string]string   `json:"labels,omitempty"`
+	Annotations  map[string]string   `json:"annotations,omitempty"`
 }
 
-// InitResources mirrors Tenant.spec.initResources. Fields are pointers /
-// slices so PATCH can omit them safely.
-type InitResources struct {
-	ImagePullSecrets []ImagePullSecretSpec `json:"imagePullSecrets,omitempty"`
-	Secrets          []SecretSpec          `json:"secrets,omitempty"`
-	ConfigMaps       []ConfigMapSpec       `json:"configMaps,omitempty"`
-	ServiceAccounts  []ServiceAccountSpec  `json:"serviceAccounts,omitempty"`
+// CreateResourceUnitRequest is the body for POST .../resource-units.
+type CreateResourceUnitRequest struct {
+	Name         string              `json:"name"`
+	Description  string              `json:"description,omitempty"`
+	Requests     corev1.ResourceList `json:"requests"`
+	Limits       corev1.ResourceList `json:"limits"`
+	NodeSelector map[string]string   `json:"nodeSelector,omitempty"`
+	Annotations  map[string]string   `json:"annotations,omitempty"`
 }
 
-type ImagePullSecretSpec struct {
-	Name            string    `json:"name"`
-	SourceSecretRef ObjectRef `json:"sourceSecretRef"`
+// PatchResourceUnitRequest covers the unit-level mutable fields. `name`
+// is immutable.
+type PatchResourceUnitRequest struct {
+	Description  *string             `json:"description,omitempty"`
+	Requests     corev1.ResourceList `json:"requests,omitempty"`
+	Limits       corev1.ResourceList `json:"limits,omitempty"`
+	NodeSelector map[string]string   `json:"nodeSelector,omitempty"`
+	Annotations  map[string]string   `json:"annotations,omitempty"`
 }
 
-type SecretSpec struct {
-	Name            string    `json:"name"`
-	Type            string    `json:"type,omitempty"`
-	SourceSecretRef ObjectRef `json:"sourceSecretRef"`
+// ResourcePoolList is the LIST response.
+type ResourcePoolList struct {
+	Items         []ResourcePoolDTO `json:"items"`
+	Count         int               `json:"count"`
+	ContinueToken string            `json:"continueToken,omitempty"`
 }
 
-type ConfigMapSpec struct {
-	Name               string    `json:"name"`
-	SourceConfigMapRef ObjectRef `json:"sourceConfigMapRef"`
+// ResourceUnitList is the LIST response for units inside one pool.
+type ResourceUnitList struct {
+	Items []ResourceUnitDTO `json:"items"`
+	Count int               `json:"count"`
 }
 
-type ServiceAccountSpec struct {
-	Name             string   `json:"name"`
-	ImagePullSecrets []string `json:"imagePullSecrets,omitempty"`
-	RBAC             *RBAC    `json:"rbac,omitempty"`
-}
-
-type RBAC struct {
-	Rules   []map[string]any `json:"rules,omitempty"`
-	RoleRef *RoleRef         `json:"roleRef,omitempty"`
-}
-
-type RoleRef struct {
-	Kind string `json:"kind"`
-	Name string `json:"name"`
-}
-
-type ObjectRef struct {
-	Namespace string `json:"namespace"`
-	Name      string `json:"name"`
-}
-
-// TenantResponse is the shape returned for GET / LIST.
-type TenantResponse struct {
-	ID          string         `json:"id"`
-	Name        string         `json:"name"`
-	DisplayName string         `json:"displayName,omitempty"`
-	Namespace   NamespaceSpec  `json:"namespace"`
-	Quotas      []QuotaSpec    `json:"quotas,omitempty"`
-	Init        *InitResources `json:"initResources,omitempty"`
-	Suspended   bool           `json:"suspended"`
-	Status      TenantStatus   `json:"status"`
-	CreatedAt   time.Time      `json:"createdAt,omitempty"`
-}
-
-type TenantStatus struct {
-	Phase   string        `json:"phase,omitempty"`
-	Message string        `json:"message,omitempty"`
-	Quotas  []QuotaStatus `json:"quotas,omitempty"`
-}
-
-type QuotaStatus struct {
-	Pool    string            `json:"pool"`
-	Name    string            `json:"name"`
-	Ready   bool              `json:"ready"`
-	Used    map[string]string `json:"used,omitempty"`
-	Message string            `json:"message,omitempty"`
-}
-
-// ListTenantsResponse paginates per the K8s API server's continue token.
-type ListTenantsResponse struct {
-	Items    []TenantResponse `json:"items"`
-	Continue string           `json:"continue,omitempty"`
-}
-
-// Problem is the RFC 7807 error body cluster-manager returns on 4xx/5xx.
+// Problem mirrors RFC 7807 application/problem+json.
 type Problem struct {
 	Type   string `json:"type"`
 	Title  string `json:"title"`
 	Status int    `json:"status"`
 	Detail string `json:"detail,omitempty"`
+	Code   string `json:"code,omitempty"`
+}
+
+// AbortWithProblem writes an RFC 7807 problem response and stops the gin chain.
+func AbortWithProblem(c *gin.Context, status int, code, title, detail string) {
+	c.AbortWithStatusJSON(status, Problem{
+		Type:   "about:blank",
+		Title:  title,
+		Status: status,
+		Detail: detail,
+		Code:   code,
+	})
+}
+
+// HealthStatus is the body returned by /healthz, /readyz on success.
+type HealthStatus struct {
+	Status string `json:"status"`
+}
+
+// LastModifiedByAnnotation tracks the X-Axisml-User that performed the
+// most recent mutation (audit hint; the K8s API also persists this).
+const LastModifiedByAnnotation = "axisml.io/last-modified-by"
+
+// DescriptionAnnotation surfaces the DTO's `description` field through
+// the CR's metadata.annotations[axisml.io/description] (no dedicated CR
+// field — keeps the API admin-friendly without polluting spec).
+const DescriptionAnnotation = "axisml.io/description"
+
+// HeaderUser is the request header carrying the calling end-user.
+const HeaderUser = "X-Axisml-User"
+
+// RequireUser is gin middleware that 401s if X-Axisml-User is missing on
+// any /api/v1 request.
+func RequireUser(c *gin.Context) {
+	if c.GetHeader(HeaderUser) == "" {
+		AbortWithProblem(c, http.StatusUnauthorized, "MissingUser",
+			"X-Axisml-User header required", "")
+		return
+	}
+	c.Next()
 }

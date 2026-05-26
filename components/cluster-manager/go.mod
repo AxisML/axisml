@@ -3,11 +3,8 @@ module github.com/axisml/axisml/components/cluster-manager
 go 1.26.0
 
 require (
-	github.com/axisml/axisml/components/tenant-operator v0.0.0
 	github.com/axisml/axisml/pkg/openapigen v0.0.0
 	github.com/gin-gonic/gin v1.10.0
-	github.com/google/uuid v1.6.0
-	github.com/stretchr/testify v1.11.1
 	k8s.io/api v0.36.0
 	k8s.io/apimachinery v0.36.0
 	k8s.io/client-go v0.36.0
@@ -39,6 +36,7 @@ require (
 	github.com/go-playground/validator/v10 v10.20.0 // indirect
 	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/google/gnostic-models v0.7.0 // indirect
+	github.com/google/uuid v1.6.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.7 // indirect
