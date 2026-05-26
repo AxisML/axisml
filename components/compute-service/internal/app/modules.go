@@ -11,6 +11,7 @@ import (
 	unitmod "github.com/axisml/axisml/components/compute-service/internal/resourceunit"
 	"github.com/axisml/axisml/components/compute-service/internal/server"
 	servicemod "github.com/axisml/axisml/components/compute-service/internal/service"
+	tenantmod "github.com/axisml/axisml/components/compute-service/internal/tenant"
 )
 
 // BuildModules constructs the full domain wiring (HTTP routes + background
@@ -25,6 +26,7 @@ func BuildModules(
 	units := unitmod.NewService(gormDB)
 	jobs := jobmod.NewService(gormDB, pools, units)
 	services := servicemod.NewService(gormDB, pools, units)
+	tenants := tenantmod.NewService(gormDB)
 
 	jobRecon := jobmod.NewReconciler(gormDB, mgr.GetClient(), log.WithName("job-reconciler"), cfg.ReconcileInterval)
 	serviceRecon := servicemod.NewReconciler(gormDB, mgr.GetClient(), log.WithName("service-reconciler"), cfg.ReconcileInterval)
@@ -33,6 +35,7 @@ func BuildModules(
 	serviceInf := servicemod.NewInformer(gormDB, mgr, log.WithName("service-informer"))
 
 	modules := []server.Module{
+		tenantmod.NewHandler(tenants),
 		poolmod.NewHandler(pools),
 		unitmod.NewHandler(units, pools),
 		jobmod.NewHandler(jobs),

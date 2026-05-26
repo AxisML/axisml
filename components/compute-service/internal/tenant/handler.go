@@ -1,0 +1,88 @@
+package tenant
+
+import (
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+
+	"github.com/axisml/axisml/components/compute-service/internal/server"
+)
+
+// Handler exposes /api/v1/namespaces routes. The "namespace" URL token is
+// the tenant identifier (= tenants.name).
+type Handler struct{ svc *Service }
+
+func NewHandler(svc *Service) *Handler { return &Handler{svc: svc} }
+
+// Register implements server.Module.
+func (h *Handler) Register(rg *gin.RouterGroup) {
+	g := rg.Group("/namespaces")
+	g.POST("", h.Create)
+	g.GET("", h.List)
+	g.GET("/:namespace", h.Get)
+	g.PATCH("/:namespace", h.Patch)
+	g.DELETE("/:namespace", h.Delete)
+}
+
+func (h *Handler) Create(c *gin.Context) {
+	var in CreateInput
+	if err := c.ShouldBindJSON(&in); err != nil {
+		_ = c.Error(err)
+		return
+	}
+	v, err := h.svc.Create(c.Request.Context(), in, callerUser(c))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusCreated, v)
+}
+
+func (h *Handler) List(c *gin.Context) {
+	p, err := server.ParsePagination(c)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	v, err := h.svc.List(c.Request.Context(), p.Limit, p.Offset)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, v)
+}
+
+func (h *Handler) Get(c *gin.Context) {
+	v, err := h.svc.Get(c.Request.Context(), c.Param("namespace"))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, v)
+}
+
+func (h *Handler) Patch(c *gin.Context) {
+	var in PatchInput
+	if err := c.ShouldBindJSON(&in); err != nil {
+		_ = c.Error(err)
+		return
+	}
+	v, err := h.svc.Patch(c.Request.Context(), c.Param("namespace"), in, callerUser(c))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, v)
+}
+
+func (h *Handler) Delete(c *gin.Context) {
+	if err := h.svc.Delete(c.Request.Context(), c.Param("namespace")); err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func callerUser(c *gin.Context) string {
+	return c.GetHeader("X-Axisml-User")
+}
