@@ -83,10 +83,11 @@ func TestServiceCreateRoundTrip(t *testing.T) {
 	rr = doJSON(t, ctx, http.MethodPost, "/api/v1/namespaces/"+ns+"/services", body, nil)
 	requireStatus(t, rr, http.StatusConflict)
 
-	// Scale to 3 — DB row updates immediately; reconciler propagates to CR.
+	// Scale to 3 — 202 Accepted per design (DB row mutated; reconciler
+	// propagates async to the CR).
 	rr = doJSON(t, ctx, http.MethodPost, "/api/v1/namespaces/"+ns+"/services/predictor/scale",
 		map[string]any{"replicas": 3}, nil)
-	requireStatus(t, rr, http.StatusOK)
+	requireStatus(t, rr, http.StatusAccepted)
 
 	require.Eventually(t, func() bool {
 		fresh := &mlservicev1alpha1.MLService{}

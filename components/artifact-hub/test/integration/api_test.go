@@ -23,7 +23,7 @@ func modelInitiateBody(version string, overrides map[string]any) map[string]any 
 			"framework": "pytorch",
 			"format":    "safetensors",
 		},
-		"display_name": "demo model",
+		"displayName": "demo model",
 	}
 	for k, v := range overrides {
 		body[k] = v
@@ -264,7 +264,7 @@ func TestArtifact_DeleteMarksDeleting(t *testing.T) {
 
 	rr := s.drive(t, http.MethodDelete,
 		s.nsPath("/models/"+name+"/"+version), nil)
-	require.Equal(t, http.StatusAccepted, rr.Code, rr.Body.String())
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 
 	rr = s.drive(t, http.MethodGet,
 		s.nsPath("/models/"+name+"/"+version), nil)
@@ -276,7 +276,7 @@ func TestArtifact_DeleteMarksDeleting(t *testing.T) {
 	// Idempotent: a second DELETE on a Deleting row is still 202.
 	rr = s.drive(t, http.MethodDelete,
 		s.nsPath("/models/"+name+"/"+version), nil)
-	assert.Equal(t, http.StatusAccepted, rr.Code, rr.Body.String())
+	assert.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 }
 
 // TestGC_StaleUploadingFlippedToFailed verifies the Uploading-TTL predicate.
@@ -317,7 +317,7 @@ func TestGC_DeletingMarkedDeleted(t *testing.T) {
 
 	rr := s.drive(t, http.MethodDelete,
 		s.nsPath("/models/"+name+"/"+version), nil)
-	require.Equal(t, http.StatusAccepted, rr.Code)
+	require.Equal(t, http.StatusOK, rr.Code)
 
 	s.gcW.Tick(context.Background())
 

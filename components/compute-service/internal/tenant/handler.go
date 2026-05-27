@@ -117,6 +117,7 @@ func (h *Handler) List(c *gin.Context) {
 		_ = c.Error(err)
 		return
 	}
+	v.ContinueToken = server.EncodeContinue(p.Offset, len(v.Items), v.Total)
 	c.JSON(http.StatusOK, v)
 }
 
@@ -148,7 +149,15 @@ func (h *Handler) Delete(c *gin.Context) {
 		_ = c.Error(err)
 		return
 	}
-	c.Status(http.StatusNoContent)
+	// Design yaml expects 200 + the tenant body (now phase=Deleting) so
+	// the caller has the tombstone state in one trip. Use the unscoped
+	// lookup so we can return the just-soft-deleted row.
+	v, err := h.svc.GetIncludingDeleted(c.Request.Context(), c.Param("namespace"))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, v)
 }
 
 func callerUser(c *gin.Context) string {

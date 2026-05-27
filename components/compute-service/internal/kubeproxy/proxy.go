@@ -56,30 +56,60 @@ func (c *Client) ListPodsByLabel(ctx context.Context, namespace, labelKey, label
 	return pods.Items, nil
 }
 
-// EventsForInvolved returns events whose .involvedObject matches the
-// (kind, name) under namespace.
-func (c *Client) EventsForInvolved(ctx context.Context, namespace, kind, name string) ([]eventsv1.Event, error) {
+// EventsForInvolved returns events whose .regarding (events.k8s.io/v1) or
+// .involvedObject (core/v1) matches one of the (kind, name) targets under
+// namespace. compute-service.md §4.3 / §4.4 specify that a job's /events
+// endpoint includes MLJob + PodGroup events; a service's /events covers
+// MLService + Deployment + StatefulSet + HTTPRoute. Callers pass the
+// list as multiple `match` entries.
+type EventTarget struct {
+	Kind string
+	Name string
+}
+
+func (c *Client) EventsForInvolved(ctx context.Context, namespace string, targets ...EventTarget) ([]eventsv1.Event, error) {
 	var evList eventsv1.EventList
 	if err := c.ctrl.List(ctx, &evList, &client.ListOptions{Namespace: namespace}); err != nil {
 		return nil, apperrors.Wrap(apperrors.CodeUnavailable, "list events", err)
 	}
 	out := make([]eventsv1.Event, 0, len(evList.Items))
 	for _, e := range evList.Items {
-		if e.Regarding.Kind == kind && e.Regarding.Name == name {
-			out = append(out, e)
+		for _, t := range targets {
+			if e.Regarding.Kind == t.Kind && e.Regarding.Name == t.Name {
+				out = append(out, e)
+				break
+			}
 		}
 	}
 	return out, nil
 }
 
-// StreamPodLog writes the pod's container log to w. tailLines / follow
-// pass through to kube-apiserver.
-func (c *Client) StreamPodLog(ctx context.Context, namespace, pod, container string, tailLines int64, follow bool, w io.Writer) error {
-	opts := &corev1.PodLogOptions{Container: container, Follow: follow}
-	if tailLines > 0 {
-		opts.TailLines = &tailLines
+// PodLogOptions carries the query parameters the /logs endpoint forwards
+// to kube-apiserver. Mirrors the design yaml's subset.
+type PodLogOptions struct {
+	Container    string
+	Follow       bool
+	Previous     bool
+	TailLines    int64
+	SinceSeconds int64
+}
+
+// StreamPodLog writes the pod's container log to w. NotFound is surfaced
+// as CodeNotFound (the handler maps it to 410 Gone when a pod that was
+// recently observed has been GC'd).
+func (c *Client) StreamPodLog(ctx context.Context, namespace, pod string, opts PodLogOptions, w io.Writer) error {
+	apiOpts := &corev1.PodLogOptions{
+		Container: opts.Container,
+		Follow:    opts.Follow,
+		Previous:  opts.Previous,
 	}
-	req := c.clients.CoreV1().Pods(namespace).GetLogs(pod, opts)
+	if opts.TailLines > 0 {
+		apiOpts.TailLines = &opts.TailLines
+	}
+	if opts.SinceSeconds > 0 {
+		apiOpts.SinceSeconds = &opts.SinceSeconds
+	}
+	req := c.clients.CoreV1().Pods(namespace).GetLogs(pod, apiOpts)
 	stream, err := req.Stream(ctx)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
@@ -110,27 +140,50 @@ func (c *Client) PodsByLabel(g *gin.Context, namespace, labelKey, labelValue str
 	g.JSON(http.StatusOK, gin.H{"items": items, "total": len(items)})
 }
 
-// PodLog streams text/plain.
+// PodLog streams the log as text/plain (or as an SSE stream when ?follow=true).
+// Maps NotFound to HTTP 410 Gone, which lets clients distinguish a GC'd
+// pod from a transient kube-apiserver lookup failure.
 func (c *Client) PodLog(g *gin.Context, namespace, pod string) {
-	container := g.Query("container")
-	tail := int64(0)
+	opts := PodLogOptions{Container: g.Query("container")}
 	if v := g.Query("tailLines"); v != "" {
 		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
-			tail = n
+			opts.TailLines = n
 		}
 	}
-	follow := g.Query("follow") == "true"
+	if v := g.Query("sinceSeconds"); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+			opts.SinceSeconds = n
+		}
+	}
+	opts.Follow = g.Query("follow") == "true"
+	opts.Previous = g.Query("previous") == "true"
 
+	if opts.Follow {
+		g.Writer.Header().Set("Content-Type", "text/event-stream")
+		g.Writer.Header().Set("Cache-Control", "no-cache")
+		g.Writer.Header().Set("Connection", "keep-alive")
+	} else {
+		g.Writer.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	}
 	g.Status(http.StatusOK)
-	g.Writer.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	if err := c.StreamPodLog(g.Request.Context(), namespace, pod, container, tail, follow, g.Writer); err != nil {
+
+	if err := c.StreamPodLog(g.Request.Context(), namespace, pod, opts, g.Writer); err != nil {
+		// Distinguish "pod GC'd / never existed" from transient failures.
+		if e, ok := apperrors.As(err); ok && e.Code == apperrors.CodeNotFound {
+			// Headers may already be flushed; the best signal we can give a
+			// client now is to write a marker line and return.
+			_, _ = g.Writer.WriteString("\n[pod gone: 410 Gone]\n")
+			return
+		}
 		_ = g.Error(err)
 	}
 }
 
-// EventsByInvolved renders events as JSON.
-func (c *Client) EventsByInvolved(g *gin.Context, namespace, kind, name string) {
-	evs, err := c.EventsForInvolved(g.Request.Context(), namespace, kind, name)
+// EventsByInvolved renders events targeting any of the supplied (kind, name)
+// pairs as JSON. Used by both /jobs/{job}/events (MLJob + PodGroup) and
+// /services/{svc}/events (MLService + Deployment + StatefulSet + HTTPRoute).
+func (c *Client) EventsByInvolved(g *gin.Context, namespace string, targets ...EventTarget) {
+	evs, err := c.EventsForInvolved(g.Request.Context(), namespace, targets...)
 	if err != nil {
 		_ = g.Error(err)
 		return

@@ -62,7 +62,7 @@ func (r *Repository) Update(ctx context.Context, id uuid.UUID, fields map[string
 
 func (r *Repository) MarkDeleting(ctx context.Context, id uuid.UUID) error {
 	return r.db.WithContext(ctx).Model(&Job{}).Where("id = ?", id).Updates(map[string]any{
-		"status":     string(StatusDeleting),
+		"phase":      string(StatusDeleting),
 		"deleted_at": time.Now().UTC(),
 	}).Error
 }
@@ -79,19 +79,19 @@ const workSetBatch = 100
 func (r *Repository) FindWorkSet(ctx context.Context) (WorkSet, error) {
 	var ws WorkSet
 	if err := r.db.WithContext(ctx).
-		Where("status = ? AND deleted_at IS NULL", string(StatusCreating)).
+		Where("phase = ? AND deleted_at IS NULL", string(StatusCreating)).
 		Order("updated_at ASC").Limit(workSetBatch).
 		Find(&ws.Creating).Error; err != nil {
 		return ws, err
 	}
 	if err := r.db.WithContext(ctx).
-		Where("status = ?", string(StatusCanceling)).
+		Where("phase = ?", string(StatusCanceling)).
 		Order("updated_at ASC").Limit(workSetBatch).
 		Find(&ws.Canceling).Error; err != nil {
 		return ws, err
 	}
 	if err := r.db.WithContext(ctx).
-		Where("status = ?", string(StatusDeleting)).
+		Where("phase = ?", string(StatusDeleting)).
 		Order("updated_at ASC").Limit(workSetBatch).
 		Find(&ws.Deleting).Error; err != nil {
 		return ws, err

@@ -58,9 +58,9 @@ func TestTenant_CR_RoundTrip(t *testing.T) {
 	require.Len(t, cr.Spec.Quotas, 1)
 	require.NotEmpty(t, cr.Labels[tenantv1alpha1.LabelTenantID])
 
-	// DELETE flows through to CR removal.
+	// DELETE returns 200 + the tombstone body now (per design yaml).
 	rr = doJSON(t, ctx, http.MethodDelete, "/api/v1/namespaces/"+tenantName, nil, nil)
-	requireStatus(t, rr, http.StatusNoContent)
+	requireStatus(t, rr, http.StatusOK)
 
 	require.Eventually(t, func() bool {
 		err := c.Get(ctx, types.NamespacedName{Name: tenantName}, &tenantv1alpha1.Tenant{})

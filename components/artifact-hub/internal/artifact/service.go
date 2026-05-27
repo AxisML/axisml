@@ -21,7 +21,7 @@ type InitiateInput struct {
 	Version     string            `json:"version" binding:"required,axisml_version"`
 	Spec        map[string]any    `json:"spec" binding:"required"`
 	Visibility  string            `json:"visibility,omitempty"`
-	DisplayName string            `json:"display_name,omitempty"`
+	DisplayName string            `json:"displayName,omitempty"`
 	Description string            `json:"description,omitempty"`
 	Labels      map[string]string `json:"labels,omitempty"`
 	Annotations map[string]string `json:"annotations,omitempty"`
@@ -30,7 +30,7 @@ type InitiateInput struct {
 // PatchInput is the body for PATCH .../{kindPlural}/{name}/{version}.
 // Only the four "displayable" fields are mutable post-Ready (design §6).
 type PatchInput struct {
-	DisplayName *string           `json:"display_name,omitempty"`
+	DisplayName *string           `json:"displayName,omitempty"`
 	Description *string           `json:"description,omitempty"`
 	Labels      map[string]string `json:"labels,omitempty"`
 	Annotations map[string]string `json:"annotations,omitempty"`

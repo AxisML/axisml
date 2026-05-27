@@ -23,17 +23,17 @@ func TestArtifact_PATCH_AllowedFields(t *testing.T) {
 	completeOK(t, s, name, version, digest)
 
 	body := map[string]any{
-		"display_name": "renamed model",
-		"description":  "patched description",
-		"labels":       map[string]string{"axisml.io/project": "p1"},
-		"annotations":  map[string]string{"axisml.io/note": "hi"},
+		"displayName": "renamed model",
+		"description": "patched description",
+		"labels":      map[string]string{"axisml.io/project": "p1"},
+		"annotations": map[string]string{"axisml.io/note": "hi"},
 	}
 	rr := s.drive(t, http.MethodPatch,
 		s.nsPath("/models/"+name+"/"+version), body)
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &got))
-	assert.Equal(t, "renamed model", got["display_name"])
+	assert.Equal(t, "renamed model", got["displayName"])
 	assert.Equal(t, "patched description", got["description"])
 }
 

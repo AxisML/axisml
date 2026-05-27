@@ -37,6 +37,7 @@ var kindPluralToSingular = map[string]string{
 func (h *Handler) Register(rg *gin.RouterGroup) {
 	for plural := range kindPluralToSingular {
 		g := rg.Group("/namespaces/:namespace/" + plural)
+		g.GET("", h.bindKind(plural, h.ListByKind))
 		g.POST("/:name", h.bindKind(plural, h.Initiate))
 		g.GET("/:name", h.bindKind(plural, h.List))
 		g.GET("/:name/:version", h.bindKind(plural, h.Get))
@@ -45,6 +46,33 @@ func (h *Handler) Register(rg *gin.RouterGroup) {
 		g.GET("/:name/:version/resolve", h.bindKind(plural, h.Resolve))
 		g.DELETE("/:name/:version", h.bindKind(plural, h.Delete))
 	}
+}
+
+// ListByKind handles GET /api/v1/namespaces/{ns}/{kindPlural} — returns
+// every (name, version) under the namespace's kind. Design yaml exposes
+// this for browsing all artifacts of a kind without specifying a name.
+func (h *Handler) ListByKind(c *gin.Context) {
+	p, err := server.ParsePagination(c)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	// name="" → match every (kind, name).
+	rows, total, err := h.svc.List(c.Request.Context(),
+		c.Param("namespace"), kindOf(c), "", c.Query("status"), p.Limit, p.Offset)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	items := make([]View, 0, len(rows))
+	for i := range rows {
+		items = append(items, toView(&rows[i]))
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"items":         items,
+		"total":         total,
+		"continueToken": server.EncodeContinue(p.Offset, len(items), total),
+	})
 }
 
 // bindKind injects the singular `kind` into the gin context so the per-route
@@ -88,7 +116,11 @@ func (h *Handler) List(c *gin.Context) {
 	for i := range rows {
 		items = append(items, toView(&rows[i]))
 	}
-	c.JSON(http.StatusOK, gin.H{"items": items, "total": total})
+	c.JSON(http.StatusOK, gin.H{
+		"items":         items,
+		"total":         total,
+		"continueToken": server.EncodeContinue(p.Offset, len(items), total),
+	})
 }
 
 func (h *Handler) Get(c *gin.Context) {
@@ -102,11 +134,12 @@ func (h *Handler) Get(c *gin.Context) {
 
 // patchAllowedFields is the closed set of mutable keys per design §6.
 // Anything else in the PATCH body is rejected with 400 ImmutableField.
+// Keys are camelCase to match the JSON contract.
 var patchAllowedFields = map[string]struct{}{
-	"display_name": {},
-	"description":  {},
-	"labels":       {},
-	"annotations":  {},
+	"displayName": {},
+	"description": {},
+	"labels":      {},
+	"annotations": {},
 }
 
 // Patch handles PATCH /{kindPlural}/{name}/{version} — only displayName,
@@ -174,5 +207,12 @@ func (h *Handler) Delete(c *gin.Context) {
 		_ = c.Error(err)
 		return
 	}
-	c.Status(http.StatusAccepted)
+	// Per design yaml: DELETE returns the artifact (now status=Deleting)
+	// so the caller has the tombstone row + observable state in one trip.
+	row, err := h.svc.Get(c.Request.Context(), c.Param("namespace"), kindOf(c), c.Param("name"), c.Param("version"))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, toView(row))
 }

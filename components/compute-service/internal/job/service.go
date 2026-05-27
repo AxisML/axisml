@@ -53,21 +53,21 @@ type CreateInput struct {
 	RunPolicy     *mljobv1alpha1.RunPolicySpec `json:"runPolicy"`
 }
 
-// View is the HTTP response payload.
+// View is the HTTP response payload. Mirrors the design yaml: nested
+// spec / status sub-trees, phase at the top level, owner / labels /
+// annotations carried separately.
 type View struct {
 	ID          uuid.UUID               `json:"id"`
 	Namespace   string                  `json:"namespace"`
 	Name        string                  `json:"name"`
-	PoolName    string                  `json:"poolName,omitempty"`
-	UnitName    string                  `json:"unitName,omitempty"`
 	DisplayName string                  `json:"displayName,omitempty"`
 	Description string                  `json:"description,omitempty"`
-	OwnerUser   string                  `json:"ownerUser,omitempty"`
-	Status      string                  `json:"status"`
-	Message     string                  `json:"message,omitempty"`
-	StartedAt   *time.Time              `json:"startedAt,omitempty"`
-	FinishedAt  *time.Time              `json:"finishedAt,omitempty"`
+	Owner       string                  `json:"owner,omitempty"`
+	Labels      map[string]string       `json:"labels,omitempty"`
+	Annotations map[string]string       `json:"annotations,omitempty"`
+	Phase       string                  `json:"phase"`
 	Spec        mljobv1alpha1.MLJobSpec `json:"spec"`
+	Status      StatusFields            `json:"status"`
 	CreatedAt   time.Time               `json:"createdAt"`
 	UpdatedAt   time.Time               `json:"updatedAt"`
 }
@@ -131,10 +131,6 @@ func (s *Service) Create(ctx context.Context, namespace string, in CreateInput) 
 	if err != nil {
 		return nil, err
 	}
-	reqJSON, err := json.Marshal(expanded.Requests)
-	if err != nil {
-		return nil, err
-	}
 	// Mirror the (poolName, unitName) provenance into PG labels alongside
 	// any user-supplied entries — Platform's pre-delete check against
 	// active workloads uses labelSelector against axisml.io/resource-pool
@@ -144,19 +140,17 @@ func (s *Service) Create(ctx context.Context, namespace string, in CreateInput) 
 		mljobv1alpha1.LabelResourceUnit: in.UnitName,
 	})
 	j := &Job{
-		ID:                 uuid.New(),
-		Namespace:          namespace,
-		PoolName:           in.PoolName,
-		UnitName:           in.UnitName,
-		Name:               in.Name,
-		DisplayName:        in.DisplayName,
-		Description:        in.Description,
-		OwnerUser:          auth.User(ctx),
-		Labels:             mapBytes(mergedLabels),
-		Annotations:        mapBytes(in.Annotations),
-		Spec:               datatypes.JSON(specJSON),
-		RequestedResources: datatypes.JSON(reqJSON),
-		Status:             string(StatusCreating),
+		ID:          uuid.New(),
+		Namespace:   namespace,
+		Name:        in.Name,
+		DisplayName: in.DisplayName,
+		Description: in.Description,
+		Owner:       auth.User(ctx),
+		Labels:      mapBytes(mergedLabels),
+		Annotations: mapBytes(in.Annotations),
+		Spec:        datatypes.JSON(specJSON),
+		Phase:       string(StatusCreating),
+		StatusJSON:  []byte("{}"),
 	}
 	if err := s.repo.Create(ctx, j); err != nil {
 		return nil, err
@@ -199,20 +193,27 @@ func (s *Service) Cancel(ctx context.Context, namespace, name string) (*View, er
 		}
 		return nil, err
 	}
-	switch Status(j.Status) {
+	switch Status(j.Phase) {
 	case StatusCreating:
 		return nil, apperrors.New(apperrors.CodePrecondition, "job is still being created; use DELETE")
 	case StatusCanceling, StatusCancelled, StatusDeleting, StatusDeleted, StatusSucceeded, StatusFailed:
 		return nil, apperrors.New(apperrors.CodePrecondition, "job is not cancellable in current state")
 	}
+	// Merge "user cancelled" into status.message; preserve other status fields.
+	var sf StatusFields
+	if len(j.StatusJSON) > 0 {
+		_ = json.Unmarshal(j.StatusJSON, &sf)
+	}
+	sf.Message = "user cancelled"
+	statusB, _ := json.Marshal(sf)
 	if err := s.repo.Update(ctx, j.ID, map[string]any{
-		"status":  string(StatusCanceling),
-		"message": "user cancelled",
+		"phase":  string(StatusCanceling),
+		"status": datatypes.JSON(statusB),
 	}); err != nil {
 		return nil, err
 	}
-	j.Status = string(StatusCanceling)
-	j.Message = "user cancelled"
+	j.Phase = string(StatusCanceling)
+	j.StatusJSON = statusB
 	j.UpdatedAt = time.Now().UTC()
 	return s.toView(j)
 }
@@ -225,7 +226,7 @@ func (s *Service) Delete(ctx context.Context, namespace, name string) error {
 		}
 		return err
 	}
-	switch Status(j.Status) {
+	switch Status(j.Phase) {
 	case StatusDeleting, StatusDeleted:
 		return nil
 	}
@@ -262,21 +263,32 @@ func (s *Service) toView(j *Job) (*View, error) {
 	if len(j.Spec) > 0 {
 		_ = json.Unmarshal(j.Spec, &spec)
 	}
+	var status StatusFields
+	if len(j.StatusJSON) > 0 {
+		_ = json.Unmarshal(j.StatusJSON, &status)
+	}
 	return &View{
 		ID:          j.ID,
 		Namespace:   j.Namespace,
 		Name:        j.Name,
-		PoolName:    j.PoolName,
-		UnitName:    j.UnitName,
 		DisplayName: j.DisplayName,
 		Description: j.Description,
-		OwnerUser:   j.OwnerUser,
-		Status:      j.Status,
-		Message:     j.Message,
-		StartedAt:   j.StartedAt,
-		FinishedAt:  j.FinishedAt,
+		Owner:       j.Owner,
+		Labels:      decodeMap(j.Labels),
+		Annotations: decodeMap(j.Annotations),
+		Phase:       j.Phase,
 		Spec:        spec,
+		Status:      status,
 		CreatedAt:   j.CreatedAt,
 		UpdatedAt:   j.UpdatedAt,
 	}, nil
+}
+
+func decodeMap(raw []byte) map[string]string {
+	if len(raw) == 0 {
+		return nil
+	}
+	m := map[string]string{}
+	_ = json.Unmarshal(raw, &m)
+	return m
 }

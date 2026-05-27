@@ -80,25 +80,27 @@ type ScaleInput struct {
 	Replicas int32 `json:"replicas" binding:"required,gte=0"`
 }
 
-// View is the HTTP response.
+// View is the HTTP response. Mirrors the design yaml: nested spec / status
+// sub-trees, phase at the top level, owner / labels / annotations as
+// first-class fields. generation / observedGeneration support the K8s-
+// style sync signal.
 type View struct {
-	ID            uuid.UUID                       `json:"id"`
-	Namespace     string                          `json:"namespace"`
-	Name          string                          `json:"name"`
-	Kind          string                          `json:"kind"`
-	PoolName      string                          `json:"poolName,omitempty"`
-	UnitName      string                          `json:"unitName,omitempty"`
-	DisplayName   string                          `json:"displayName,omitempty"`
-	Description   string                          `json:"description,omitempty"`
-	OwnerUser     string                          `json:"ownerUser,omitempty"`
-	Replicas      int32                           `json:"replicas"`
-	ReadyReplicas int32                           `json:"readyReplicas"`
-	Endpoint      string                          `json:"endpoint,omitempty"`
-	Status        string                          `json:"status"`
-	Message       string                          `json:"message,omitempty"`
-	Spec          mlservicev1alpha1.MLServiceSpec `json:"spec"`
-	CreatedAt     time.Time                       `json:"createdAt"`
-	UpdatedAt     time.Time                       `json:"updatedAt"`
+	ID                 uuid.UUID                       `json:"id"`
+	Namespace          string                          `json:"namespace"`
+	Name               string                          `json:"name"`
+	Kind               string                          `json:"kind"`
+	DisplayName        string                          `json:"displayName,omitempty"`
+	Description        string                          `json:"description,omitempty"`
+	Owner              string                          `json:"owner,omitempty"`
+	Labels             map[string]string               `json:"labels,omitempty"`
+	Annotations        map[string]string               `json:"annotations,omitempty"`
+	Generation         int64                           `json:"generation"`
+	ObservedGeneration int64                           `json:"observedGeneration"`
+	Phase              string                          `json:"phase"`
+	Spec               mlservicev1alpha1.MLServiceSpec `json:"spec"`
+	Status             StatusFields                    `json:"status"`
+	CreatedAt          time.Time                       `json:"createdAt"`
+	UpdatedAt          time.Time                       `json:"updatedAt"`
 }
 
 func (m *Module) Create(ctx context.Context, namespace string, in CreateInput) (*View, error) {
@@ -170,10 +172,6 @@ func (m *Module) Create(ctx context.Context, namespace string, in CreateInput) (
 	if err != nil {
 		return nil, err
 	}
-	reqJSON, err := json.Marshal(expanded.Requests)
-	if err != nil {
-		return nil, err
-	}
 
 	// For kind=workspace, materialise the backing PVC first; if PVC creation
 	// fails we surface the error and never write the DB row. Per design §4.4,
@@ -196,23 +194,23 @@ func (m *Module) Create(ctx context.Context, namespace string, in CreateInput) (
 		mlservicev1alpha1.LabelResourcePool: in.PoolName,
 		mlservicev1alpha1.LabelResourceUnit: in.UnitName,
 	})
+	// status.readyReplicas starts at 0; the desired-replica value lives only
+	// in spec.roles[0].replicas (no separate `replicas` column anymore).
+	_ = replicas
 	row := &Service{
-		ID:                 uuid.New(),
-		Namespace:          namespace,
-		Kind:               kind,
-		PoolName:           in.PoolName,
-		UnitName:           in.UnitName,
-		Name:               in.Name,
-		DisplayName:        in.DisplayName,
-		Description:        in.Description,
-		OwnerUser:          auth.User(ctx),
-		Labels:             svcMapBytes(mergedLabels),
-		Annotations:        svcMapBytes(in.Annotations),
-		Spec:               datatypes.JSON(specJSON),
-		Generation:         1,
-		RequestedResources: datatypes.JSON(reqJSON),
-		Replicas:           replicas,
-		Status:             string(StatusCreating),
+		ID:          uuid.New(),
+		Namespace:   namespace,
+		Kind:        kind,
+		Name:        in.Name,
+		DisplayName: in.DisplayName,
+		Description: in.Description,
+		Owner:       auth.User(ctx),
+		Labels:      svcMapBytes(mergedLabels),
+		Annotations: svcMapBytes(in.Annotations),
+		Spec:        datatypes.JSON(specJSON),
+		Generation:  1,
+		Phase:       string(StatusCreating),
+		StatusJSON:  []byte("{}"),
 	}
 	if err := m.repo.Create(ctx, row); err != nil {
 		return nil, err
@@ -274,7 +272,6 @@ func (m *Module) Scale(ctx context.Context, namespace, name string, in ScaleInpu
 	if err := m.repo.Update(ctx, row.ID, map[string]any{
 		"spec":       datatypes.JSON(specJSON),
 		"generation": gorm.Expr("generation + 1"),
-		"replicas":   in.Replicas,
 	}); err != nil {
 		return nil, err
 	}
@@ -294,7 +291,7 @@ func (m *Module) Delete(ctx context.Context, namespace, name string, deletePVC b
 		}
 		return err
 	}
-	switch Status(row.Status) {
+	switch Status(row.Phase) {
 	case StatusDeleting, StatusDeleted:
 		return nil
 	}
@@ -441,23 +438,26 @@ func (m *Module) toView(s *Service) (*View, error) {
 	if len(s.Spec) > 0 {
 		_ = json.Unmarshal(s.Spec, &spec)
 	}
+	var status StatusFields
+	if len(s.StatusJSON) > 0 {
+		_ = json.Unmarshal(s.StatusJSON, &status)
+	}
 	return &View{
-		ID:            s.ID,
-		Namespace:     s.Namespace,
-		Name:          s.Name,
-		Kind:          s.Kind,
-		PoolName:      s.PoolName,
-		UnitName:      s.UnitName,
-		DisplayName:   s.DisplayName,
-		Description:   s.Description,
-		OwnerUser:     s.OwnerUser,
-		Replicas:      s.Replicas,
-		ReadyReplicas: s.ReadyReplicas,
-		Endpoint:      s.Endpoint,
-		Status:        s.Status,
-		Message:       s.Message,
-		Spec:          spec,
-		CreatedAt:     s.CreatedAt,
-		UpdatedAt:     s.UpdatedAt,
+		ID:                 s.ID,
+		Namespace:          s.Namespace,
+		Name:               s.Name,
+		Kind:               s.Kind,
+		DisplayName:        s.DisplayName,
+		Description:        s.Description,
+		Owner:              s.Owner,
+		Labels:             decodeStringMap(s.Labels),
+		Annotations:        decodeStringMap(s.Annotations),
+		Generation:         s.Generation,
+		ObservedGeneration: s.ObservedGeneration,
+		Phase:              s.Phase,
+		Spec:               spec,
+		Status:             status,
+		CreatedAt:          s.CreatedAt,
+		UpdatedAt:          s.UpdatedAt,
 	}, nil
 }

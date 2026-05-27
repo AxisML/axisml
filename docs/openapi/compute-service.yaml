@@ -1059,6 +1059,23 @@ components:
       - reason
       - type
       type: object
+    JobConditionRow:
+      properties:
+        lastTransitionTime:
+          format: date-time
+          type: string
+        message:
+          type: string
+        reason:
+          type: string
+        status:
+          type: string
+        type:
+          type: string
+      required:
+      - status
+      - type
+      type: object
     JobCreateInput:
       properties:
         annotations:
@@ -1119,8 +1136,29 @@ components:
       - items
       - total
       type: object
+    JobStatusFields:
+      properties:
+        conditions:
+          items:
+            $ref: '#/components/schemas/JobConditionRow'
+          type: array
+        finishedAt:
+          format: date-time
+          nullable: true
+          type: string
+        message:
+          type: string
+        startedAt:
+          format: date-time
+          nullable: true
+          type: string
+      type: object
     JobView:
       properties:
+        annotations:
+          additionalProperties:
+            type: string
+          type: object
         createdAt:
           format: date-time
           type: string
@@ -1128,33 +1166,25 @@ components:
           type: string
         displayName:
           type: string
-        finishedAt:
-          format: date-time
-          nullable: true
-          type: string
         id:
           format: uuid
           type: string
-        message:
-          type: string
+        labels:
+          additionalProperties:
+            type: string
+          type: object
         name:
           type: string
         namespace:
           type: string
-        ownerUser:
+        owner:
           type: string
-        poolName:
+        phase:
           type: string
         spec:
           $ref: '#/components/schemas/MLJobSpec'
-        startedAt:
-          format: date-time
-          nullable: true
-          type: string
         status:
-          type: string
-        unitName:
-          type: string
+          $ref: '#/components/schemas/JobStatusFields'
         updatedAt:
           format: date-time
           type: string
@@ -1163,6 +1193,7 @@ components:
       - id
       - name
       - namespace
+      - phase
       - spec
       - status
       - updatedAt
@@ -1551,6 +1582,10 @@ components:
       type: object
     MLServiceView:
       properties:
+        annotations:
+          additionalProperties:
+            type: string
+          type: object
         createdAt:
           format: date-time
           type: string
@@ -1558,46 +1593,45 @@ components:
           type: string
         displayName:
           type: string
-        endpoint:
-          type: string
+        generation:
+          format: int64
+          type: integer
         id:
           format: uuid
           type: string
         kind:
           type: string
-        message:
-          type: string
+        labels:
+          additionalProperties:
+            type: string
+          type: object
         name:
           type: string
         namespace:
           type: string
-        ownerUser:
-          type: string
-        poolName:
-          type: string
-        readyReplicas:
-          format: int32
+        observedGeneration:
+          format: int64
           type: integer
-        replicas:
-          format: int32
-          type: integer
+        owner:
+          type: string
+        phase:
+          type: string
         spec:
           $ref: '#/components/schemas/MLServiceSpec'
         status:
-          type: string
-        unitName:
-          type: string
+          $ref: '#/components/schemas/ServiceStatusFields'
         updatedAt:
           format: date-time
           type: string
       required:
       - createdAt
+      - generation
       - id
       - kind
       - name
       - namespace
-      - readyReplicas
-      - replicas
+      - observedGeneration
+      - phase
       - spec
       - status
       - updatedAt
@@ -1788,6 +1822,39 @@ components:
       - title
       - type
       type: object
+    ServiceConditionRow:
+      properties:
+        lastTransitionTime:
+          format: date-time
+          type: string
+        message:
+          type: string
+        reason:
+          type: string
+        status:
+          type: string
+        type:
+          type: string
+      required:
+      - status
+      - type
+      type: object
+    ServiceStatusFields:
+      properties:
+        conditions:
+          items:
+            $ref: '#/components/schemas/ServiceConditionRow'
+          type: array
+        endpoint:
+          type: string
+        message:
+          type: string
+        readyReplicas:
+          format: int32
+          type: integer
+      required:
+      - readyReplicas
+      type: object
     ServiceWorkspaceStorageSpec:
       properties:
         size:
@@ -1871,6 +1938,8 @@ components:
       type: object
     TenantListResponse:
       properties:
+        continueToken:
+          type: string
         items:
           items:
             $ref: '#/components/schemas/TenantResponse'

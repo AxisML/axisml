@@ -57,12 +57,18 @@ func (h *Handler) PodLog(c *gin.Context) {
 
 // PodEvents lists events whose involvedObject is the pod.
 func (h *Handler) PodEvents(c *gin.Context) {
-	h.kube.EventsByInvolved(c, c.Param("namespace"), "Pod", c.Param("pod"))
+	h.kube.EventsByInvolved(c, c.Param("namespace"),
+		kubeproxy.EventTarget{Kind: "Pod", Name: c.Param("pod")})
 }
 
-// JobEvents lists events whose involvedObject is the MLJob CR.
+// JobEvents lists events targeting the MLJob CR or its peer scheduling
+// primitive (PodGroup) per design §4.3.
 func (h *Handler) JobEvents(c *gin.Context) {
-	h.kube.EventsByInvolved(c, c.Param("namespace"), "MLJob", c.Param("job"))
+	jobName := c.Param("job")
+	h.kube.EventsByInvolved(c, c.Param("namespace"),
+		kubeproxy.EventTarget{Kind: "MLJob", Name: jobName},
+		kubeproxy.EventTarget{Kind: "PodGroup", Name: jobName},
+	)
 }
 
 func (h *Handler) Create(c *gin.Context) {
@@ -97,7 +103,11 @@ func (h *Handler) List(c *gin.Context) {
 		_ = c.Error(err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"items": items, "total": total})
+	c.JSON(http.StatusOK, gin.H{
+		"items":         items,
+		"total":         total,
+		"continueToken": server.EncodeContinue(p.Offset, len(items), total),
+	})
 }
 
 func (h *Handler) Get(c *gin.Context) {
@@ -115,7 +125,9 @@ func (h *Handler) Cancel(c *gin.Context) {
 		_ = c.Error(err)
 		return
 	}
-	c.JSON(http.StatusOK, v)
+	// 202 Accepted per design yaml: cancel is async — the row is now in
+	// Canceling and the reconciler will patch suspend=true on the CR.
+	c.JSON(http.StatusAccepted, v)
 }
 
 func (h *Handler) Delete(c *gin.Context) {

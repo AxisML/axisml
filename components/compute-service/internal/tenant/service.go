@@ -178,6 +178,19 @@ func (s *Service) Restore(ctx context.Context, name string, lastModifiedBy strin
 	return s.Get(ctx, name)
 }
 
+// GetIncludingDeleted returns the tenant row even if soft-deleted (used by
+// the DELETE handler so it can return the tombstone).
+func (s *Service) GetIncludingDeleted(ctx context.Context, name string) (Response, error) {
+	t, err := s.repo.FindByName(ctx, name)
+	if err != nil {
+		if IsNotFound(err) {
+			return Response{}, apperrors.Newf(apperrors.CodeNotFound, "tenant %q not found", name)
+		}
+		return Response{}, apperrors.Wrap(apperrors.CodeInternal, "load tenant", err)
+	}
+	return toResponse(t)
+}
+
 // Delete soft-deletes the tenant.
 func (s *Service) Delete(ctx context.Context, name string) error {
 	t, err := s.repo.GetByName(ctx, name)

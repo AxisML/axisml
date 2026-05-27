@@ -124,10 +124,12 @@ type Response struct {
 	LastModifiedBy string            `json:"lastModifiedBy,omitempty"`
 }
 
-// ListResponse paginates the LIST endpoint.
+// ListResponse paginates the LIST endpoint. `continueToken` is a K8s-style
+// opaque cursor for the next page; absent on the last page.
 type ListResponse struct {
-	Items []Response `json:"items"`
-	Total int64      `json:"total"`
+	Items         []Response `json:"items"`
+	Total         int64      `json:"total"`
+	ContinueToken string     `json:"continueToken,omitempty"`
 }
 
 func toResponse(t *Tenant) (Response, error) {

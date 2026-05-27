@@ -139,10 +139,10 @@ snapshot 语义：compute 在 Create 入口完成展开后立刻把 nodeSelector
 
 | 操作 | 内部行为 |
 | --- | --- |
-| GET `/api/v1/resource-pools/{pool}/units` | 返回 `pool.spec.units[]`；不另起 K8s 调用 |
-| POST `/api/v1/resource-pools/{pool}/units` | 先 GET pool → append `units[]` → JSON Patch（带 resourceVersion 乐观锁）→ 重试一次防冲突 |
-| PATCH `/api/v1/resource-pools/{pool}/units/{name}` | 同上，定位数组项后局部更新 |
-| DELETE `/api/v1/resource-pools/{pool}/units/{name}` | 同上，移除数组项 |
+| GET `/api/v1/resource-pools/{pool}/resource-units` | 返回 `pool.spec.units[]`；不另起 K8s 调用 |
+| POST `/api/v1/resource-pools/{pool}/resource-units` | 先 GET pool → append `units[]` → JSON Patch（带 resourceVersion 乐观锁）→ 重试一次防冲突 |
+| PATCH `/api/v1/resource-pools/{pool}/resource-units/{name}` | 同上，定位数组项后局部更新 |
+| DELETE `/api/v1/resource-pools/{pool}/resource-units/{name}` | 同上，移除数组项 |
 
 每个 unit 端点都映射为"读 pool CR → 局部改 `spec.units[]` → 写回 CR"的原子封装。UI / API 客户端不需要关心 CR 整体形状。
 
@@ -156,7 +156,7 @@ snapshot 语义：compute 在 Create 入口完成展开后立刻把 nodeSelector
 
 | 类别 | 内容 | 引用 |
 | --- | --- | --- |
-| 对外 REST | `/api/v1/resource-pools[/{pool}]`、`/api/v1/resource-pools/{pool}/units[/{unit}]` | [apis/cluster-manager.yaml](../apis/cluster-manager.yaml) `ResourcePools` tag |
+| 对外 REST | `/api/v1/resource-pools[/{pool}]`、`/api/v1/resource-pools/{pool}/resource-units[/{unit}]` | [apis/cluster-manager.yaml](../apis/cluster-manager.yaml) `ResourcePools` tag |
 | 下发 CR | `ResourcePool`（`axisml.io/v1alpha1`，cluster-scoped）；cluster-manager 是 REST 写者，kubectl 路径也允许 | [resource-pool-crd.yaml](../../../deploy/helm/axisml-system/crds/resource-pool-crd.yaml) |
 | 身份头 | 调用方注入 `X-Axisml-User`，本服务仅做审计；同时透传为 CR annotation `axisml.io/last-modified-by` | [auth.md §7](../auth.md#7-下游身份透传) |
 | 错误格式 | HTTP 标准状态码 + RFC 7807 problem+json；K8s API 错误经 typed 映射 | — |

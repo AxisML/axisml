@@ -82,9 +82,13 @@ func TestTenant_API_Lifecycle(t *testing.T) {
 	require.Greater(t, patched.Generation, created.Generation,
 		"spec mutation must bump generation")
 
-	// DELETE soft-deletes (subsequent GET 404s).
-	rr = doJSON(t, ctx, http.MethodDelete, "/api/v1/namespaces/team-alpha", nil, nil)
-	requireStatus(t, rr, http.StatusNoContent)
+	// DELETE returns 200 + the tombstone body per design yaml. A
+	// subsequent GET via the active-filtered Get still 404s because
+	// deleted_at is now set.
+	var deleted tenantmod.Response
+	rr = doJSON(t, ctx, http.MethodDelete, "/api/v1/namespaces/team-alpha", nil, &deleted)
+	requireStatus(t, rr, http.StatusOK)
+	require.Equal(t, tenantmod.PhaseDeleting, deleted.Phase)
 
 	rr = doJSON(t, ctx, http.MethodGet, "/api/v1/namespaces/team-alpha", nil, nil)
 	requireStatus(t, rr, http.StatusNotFound)

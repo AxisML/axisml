@@ -20,35 +20,46 @@ const (
 	StatusDeleted  Status = "Deleted"
 )
 
-// Service is the GORM-backed `services` row. Partition key is `namespace`
-// (bare string). Quota lives only on the rendered MLService CR via
-// spec.scheduling.quota — an opaque ElasticQuota CR name passed through
-// from Platform. PoolName / UnitName are provenance only — the underlying
-// ResourcePool lives in the K8s CRD owned by cluster-manager (no FK).
+// Service is the GORM-backed `services` row. Phase column = high-frequency
+// CR status.phase mirror; the rest of the status sub-tree {message,
+// readyReplicas, endpoint, conditions[]} lives in `status jsonb`. Pool /
+// unit names live on labels (axisml.io/resource-pool / -unit) for
+// provenance, not in dedicated columns.
 type Service struct {
 	ID                 uuid.UUID      `gorm:"type:uuid;primaryKey"`
 	Namespace          string         `gorm:"size:253;not null;column:namespace"`
 	Kind               string         `gorm:"size:16;not null;default:'service'"`
-	PoolName           string         `gorm:"size:40;not null;column:pool_name"`
-	UnitName           string         `gorm:"size:40;not null;column:unit_name"`
 	Name               string         `gorm:"size:64;not null"`
 	DisplayName        string         `gorm:"type:text;not null;default:''"`
 	Description        string         `gorm:"type:text;not null;default:''"`
-	OwnerUser          string         `gorm:"type:text;not null;default:''"`
+	Owner              string         `gorm:"type:text;not null;default:''"`
 	Labels             datatypes.JSON `gorm:"type:jsonb;not null;default:'{}'"`
 	Annotations        datatypes.JSON `gorm:"type:jsonb;not null;default:'{}'"`
 	Spec               datatypes.JSON `gorm:"type:jsonb;not null"`
 	Generation         int64          `gorm:"not null;default:1"`
 	ObservedGeneration int64          `gorm:"not null;default:0;column:observed_generation"`
-	RequestedResources datatypes.JSON `gorm:"type:jsonb;not null;default:'{}'"`
-	Replicas           int32          `gorm:"not null;default:1"`
-	ReadyReplicas      int32          `gorm:"not null;default:0;column:ready_replicas"`
-	Endpoint           string         `gorm:"type:text;not null;default:''"`
-	Status             string         `gorm:"size:16;not null"`
-	Message            string         `gorm:"type:text;not null;default:''"`
+	Phase              string         `gorm:"size:16;not null;default:'Creating'"`
+	StatusJSON         datatypes.JSON `gorm:"type:jsonb;not null;default:'{}';column:status"`
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
 	DeletedAt          *time.Time
 }
 
 func (Service) TableName() string { return "services" }
+
+// StatusFields mirrors the CR status sub-tree compute persists.
+type StatusFields struct {
+	Message       string         `json:"message,omitempty"`
+	ReadyReplicas int32          `json:"readyReplicas"`
+	Endpoint      string         `json:"endpoint,omitempty"`
+	Conditions    []ConditionRow `json:"conditions,omitempty"`
+}
+
+// ConditionRow is one entry inside status.conditions[].
+type ConditionRow struct {
+	Type               string    `json:"type"`
+	Status             string    `json:"status"`
+	Reason             string    `json:"reason,omitempty"`
+	Message            string    `json:"message,omitempty"`
+	LastTransitionTime time.Time `json:"lastTransitionTime,omitempty"`
+}

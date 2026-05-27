@@ -17,7 +17,7 @@ components:
           type: object
         description:
           type: string
-        display_name:
+        displayName:
           type: string
         labels:
           additionalProperties:
@@ -80,7 +80,7 @@ components:
         description:
           nullable: true
           type: string
-        display_name:
+        displayName:
           nullable: true
           type: string
         labels:
@@ -114,14 +114,14 @@ components:
           additionalProperties:
             type: string
           type: object
-        created_at:
+        createdAt:
           format: date-time
           type: string
         description:
           type: string
         digest:
           type: string
-        display_name:
+        displayName:
           type: string
         id:
           format: uuid
@@ -138,9 +138,9 @@ components:
           type: string
         namespace:
           type: string
-        owner_user:
+        owner:
           type: string
-        ready_at:
+        readyAt:
           format: date-time
           nullable: true
           type: string
@@ -149,7 +149,7 @@ components:
           type: object
         status:
           type: string
-        updated_at:
+        updatedAt:
           format: date-time
           type: string
         version:
@@ -157,14 +157,14 @@ components:
         visibility:
           type: string
       required:
-      - created_at
+      - createdAt
       - id
       - kind
       - name
       - namespace
       - spec
       - status
-      - updated_at
+      - updatedAt
       - version
       - visibility
       type: object

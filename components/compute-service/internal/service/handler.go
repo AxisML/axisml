@@ -50,11 +50,21 @@ func (h *Handler) PodLog(c *gin.Context) {
 }
 
 func (h *Handler) PodEvents(c *gin.Context) {
-	h.kube.EventsByInvolved(c, c.Param("namespace"), "Pod", c.Param("pod"))
+	h.kube.EventsByInvolved(c, c.Param("namespace"),
+		kubeproxy.EventTarget{Kind: "Pod", Name: c.Param("pod")})
 }
 
+// ServiceEvents lists events targeting the MLService CR or its underlying
+// workload primitives (Deployment / StatefulSet) and exposed HTTPRoute
+// per design §4.4.
 func (h *Handler) ServiceEvents(c *gin.Context) {
-	h.kube.EventsByInvolved(c, c.Param("namespace"), "MLService", c.Param("service"))
+	svcName := c.Param("service")
+	h.kube.EventsByInvolved(c, c.Param("namespace"),
+		kubeproxy.EventTarget{Kind: "MLService", Name: svcName},
+		kubeproxy.EventTarget{Kind: "Deployment", Name: svcName},
+		kubeproxy.EventTarget{Kind: "StatefulSet", Name: svcName},
+		kubeproxy.EventTarget{Kind: "HTTPRoute", Name: svcName},
+	)
 }
 
 func (h *Handler) Create(c *gin.Context) {
@@ -89,7 +99,11 @@ func (h *Handler) List(c *gin.Context) {
 		_ = c.Error(err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"items": items, "total": total})
+	c.JSON(http.StatusOK, gin.H{
+		"items":         items,
+		"total":         total,
+		"continueToken": server.EncodeContinue(p.Offset, len(items), total),
+	})
 }
 
 func (h *Handler) Get(c *gin.Context) {
@@ -112,7 +126,9 @@ func (h *Handler) Scale(c *gin.Context) {
 		_ = c.Error(err)
 		return
 	}
-	c.JSON(http.StatusOK, v)
+	// 202 Accepted per design yaml: scale is async — generation bumped,
+	// reconciler will propagate to the CR.
+	c.JSON(http.StatusAccepted, v)
 }
 
 func (h *Handler) Delete(c *gin.Context) {
