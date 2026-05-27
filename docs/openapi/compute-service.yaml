@@ -1179,6 +1179,10 @@ components:
         createdAt:
           format: date-time
           type: string
+        deletedAt:
+          format: date-time
+          nullable: true
+          type: string
         description:
           type: string
         displayName:
@@ -1623,6 +1627,10 @@ components:
         createdAt:
           format: date-time
           type: string
+        deletedAt:
+          format: date-time
+          nullable: true
+          type: string
         description:
           type: string
         displayName:
@@ -1974,6 +1982,8 @@ components:
       properties:
         continueToken:
           type: string
+        count:
+          type: integer
         items:
           items:
             $ref: '#/components/schemas/TenantResponse'
@@ -1982,6 +1992,7 @@ components:
           format: int64
           type: integer
       required:
+      - count
       - items
       - total
       type: object
@@ -2027,6 +2038,14 @@ components:
           - $ref: '#/components/schemas/TenantInitResources'
           nullable: true
         labels:
+          additionalProperties:
+            type: string
+          type: object
+        namespaceAnnotations:
+          additionalProperties:
+            type: string
+          type: object
+        namespaceLabels:
           additionalProperties:
             type: string
           type: object
@@ -2155,6 +2174,10 @@ components:
         createdAt:
           format: date-time
           type: string
+        deletedAt:
+          format: date-time
+          nullable: true
+          type: string
         description:
           type: string
         displayName:
@@ -2179,6 +2202,9 @@ components:
           type: string
         namespace:
           $ref: '#/components/schemas/TenantNamespaceSpec'
+        observedGeneration:
+          format: int64
+          type: integer
         owner:
           type: string
         phase:
@@ -2199,6 +2225,7 @@ components:
       - id
       - name
       - namespace
+      - observedGeneration
       - phase
       - updatedAt
       type: object
@@ -2247,12 +2274,16 @@ paths:
         schema:
           format: int32
           type: integer
-      - description: Number of items to skip.
+      - description: Opaque continuation token from a previous page.
         in: query
-        name: offset
+        name: continue
         schema:
-          format: int32
-          type: integer
+          type: string
+      - description: K8s-style label selector filtered against the row's labels jsonb.
+        in: query
+        name: labelSelector
+        schema:
+          type: string
       responses:
         "200":
           content:
@@ -2631,12 +2662,16 @@ paths:
         schema:
           format: int32
           type: integer
-      - description: Number of items to skip.
+      - description: Opaque continuation token from a previous page.
         in: query
-        name: offset
+        name: continue
         schema:
-          format: int32
-          type: integer
+          type: string
+      - description: K8s-style label selector filtered against the row's labels jsonb.
+        in: query
+        name: labelSelector
+        schema:
+          type: string
       responses:
         "200":
           content:
@@ -3848,12 +3883,16 @@ paths:
         schema:
           format: int32
           type: integer
-      - description: Number of items to skip.
+      - description: Opaque continuation token from a previous page.
         in: query
-        name: offset
+        name: continue
         schema:
-          format: int32
-          type: integer
+          type: string
+      - description: K8s-style label selector filtered against the row's labels jsonb.
+        in: query
+        name: labelSelector
+        schema:
+          type: string
       responses:
         "200":
           content:

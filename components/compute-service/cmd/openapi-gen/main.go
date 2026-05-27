@@ -147,7 +147,8 @@ func buildDocument(version string) *openapigen.Document {
 	serviceParam := openapigen.PathParam("service", "Service name.")
 
 	limitParam := openapigen.QueryParam("limit", "Page size (1–200, default 50).", openapigen.IntFormat32Param())
-	offsetParam := openapigen.QueryParam("offset", "Number of items to skip.", openapigen.IntFormat32Param())
+	continueParam := openapigen.QueryParam("continue", "Opaque continuation token from a previous page.", &openapigen.Schema{Type: "string"})
+	labelSelectorParam := openapigen.QueryParam("labelSelector", "K8s-style label selector filtered against the row's labels jsonb.", &openapigen.Schema{Type: "string"})
 
 	paths := map[string]openapigen.PathItem{}
 
@@ -174,7 +175,7 @@ func buildDocument(version string) *openapigen.Document {
 		},
 		Get: &openapigen.Operation{
 			Tags: []string{tagTenants}, Summary: "List tenants", OperationID: "listTenants",
-			Parameters: []openapigen.Parameter{limitParam, offsetParam},
+			Parameters: []openapigen.Parameter{limitParam, continueParam, labelSelectorParam},
 			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Page.", "TenantListResponse")}),
 		},
 	}
@@ -243,7 +244,7 @@ func buildDocument(version string) *openapigen.Document {
 		},
 		Get: &openapigen.Operation{
 			Tags: []string{tagJobs}, Summary: "List jobs in a namespace", OperationID: "listJobs",
-			Parameters: []openapigen.Parameter{nsParam, limitParam, offsetParam},
+			Parameters: []openapigen.Parameter{nsParam, limitParam, continueParam, labelSelectorParam},
 			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Page.", "JobList")}),
 		},
 	}
@@ -305,7 +306,7 @@ func buildDocument(version string) *openapigen.Document {
 		},
 		Get: &openapigen.Operation{
 			Tags: []string{tagServices}, Summary: "List services in a namespace", OperationID: "listMLServices",
-			Parameters: []openapigen.Parameter{nsParam, limitParam, offsetParam},
+			Parameters: []openapigen.Parameter{nsParam, limitParam, continueParam, labelSelectorParam},
 			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Page.", "MLServiceList")}),
 		},
 	}

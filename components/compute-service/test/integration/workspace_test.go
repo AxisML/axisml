@@ -106,6 +106,79 @@ func TestWorkspace_PVCLifecycle(t *testing.T) {
 	}, 10*time.Second, 200*time.Millisecond, "workspace PVC delete never dispatched")
 }
 
+// TestWorkspace_PVCRollbackOnDBFail forces the second create to fail at the
+// PG unique-violation step (same name in the same namespace) and asserts
+// the PVC created in that attempt is rolled back, so we don't leak storage.
+func TestWorkspace_PVCRollbackOnDBFail(t *testing.T) {
+	if testEngine == nil {
+		t.Skip("test engine not bootstrapped")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	c, err := client.New(testCfg, client.Options{Scheme: testScheme})
+	require.NoError(t, err)
+
+	seedResourcePool(t, ctx, "ws-rollback-pool", "small")
+	const ns = "ws-rollback-ns"
+	mustCreateNamespace(t, ctx, ns)
+
+	const wsName = "rollback-ws"
+	body := map[string]any{
+		"name":             wsName,
+		"kind":             "workspace",
+		"poolName":         "ws-rollback-pool",
+		"unitName":         "small",
+		"quota":            "axisml-default",
+		"workspaceStorage": map[string]any{"size": "1Gi"},
+		"roles": []map[string]any{{
+			"name":     mlservicev1alpha1.DefaultRoleName,
+			"replicas": 1,
+			"template": map[string]any{
+				"image": "busybox:1.36",
+				"ports": []map[string]any{{
+					"name": "http", "containerPort": 8080,
+					"protocol": string(corev1.ProtocolTCP),
+				}},
+			},
+		}},
+	}
+	rr := doJSON(t, ctx, http.MethodPost, "/api/v1/namespaces/"+ns+"/services", body, nil)
+	requireStatus(t, rr, http.StatusCreated)
+	t.Cleanup(func() {
+		_ = doJSON(t, ctx, http.MethodDelete,
+			"/api/v1/namespaces/"+ns+"/services/"+wsName, nil, nil)
+	})
+
+	// First DELETE so the PVC is gone, then the second create is the real
+	// rollback case: we'll force a hand-made duplicate row via direct SQL
+	// so the second API call hits a unique-violation after creating the PVC.
+	// Insert a duplicate row directly.
+	row := map[string]any{}
+	_ = row
+	require.NoError(t, gormDB.Exec(
+		`INSERT INTO services (id, namespace, name, kind, spec, phase, status, generation, observed_generation)
+		 VALUES (gen_random_uuid(), ?, ?, 'workspace', '{}', 'Creating', '{}', 1, 0)`,
+		ns, wsName+"-dup").Error)
+
+	// Now create a second workspace with the same name as our dup-row. The
+	// PVC will be created, then PG insert fails (unique violation on
+	// (namespace, name) — services_namespace_name_active_uniq), and the
+	// rollback path should delete the PVC.
+	body["name"] = wsName + "-dup"
+	rr = doJSON(t, ctx, http.MethodPost, "/api/v1/namespaces/"+ns+"/services", body, nil)
+	require.GreaterOrEqual(t, rr.Code, 400)
+	require.Less(t, rr.Code, 600)
+
+	// The PVC for the duplicate name should NOT exist (rollback removed it
+	// or it was never reached on a fast-fail).
+	require.Eventually(t, func() bool {
+		var pvc corev1.PersistentVolumeClaim
+		err := c.Get(ctx, types.NamespacedName{Namespace: ns, Name: service.WorkspacePVCName(wsName + "-dup")}, &pvc)
+		return apierrors.IsNotFound(err) || (err == nil && pvc.DeletionTimestamp != nil)
+	}, 5*time.Second, 200*time.Millisecond, "duplicate workspace PVC was not rolled back")
+}
+
 // TestWorkspace_DeletePvcFalse retains the PVC when ?deletePvc=false.
 func TestWorkspace_DeletePvcFalse(t *testing.T) {
 	if testEngine == nil {

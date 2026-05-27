@@ -70,6 +70,7 @@ type View struct {
 	Status      StatusFields            `json:"status"`
 	CreatedAt   time.Time               `json:"createdAt"`
 	UpdatedAt   time.Time               `json:"updatedAt"`
+	DeletedAt   *time.Time              `json:"deletedAt,omitempty"`
 }
 
 // Create writes a new job row. CR is reconciled asynchronously.
@@ -327,6 +328,7 @@ func (s *Service) toView(j *Job) (*View, error) {
 		Status:      status,
 		CreatedAt:   j.CreatedAt,
 		UpdatedAt:   j.UpdatedAt,
+		DeletedAt:   j.DeletedAt,
 	}, nil
 }
 

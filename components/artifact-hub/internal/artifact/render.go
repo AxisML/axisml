@@ -31,6 +31,7 @@ type View struct {
 	ReadyAt     *time.Time        `json:"readyAt,omitempty"`
 	CreatedAt   time.Time         `json:"createdAt"`
 	UpdatedAt   time.Time         `json:"updatedAt"`
+	DeletedAt   *time.Time        `json:"deletedAt,omitempty"`
 }
 
 func toView(row *Artifact) View {
@@ -50,6 +51,7 @@ func toView(row *Artifact) View {
 		ReadyAt:     row.ReadyAt,
 		CreatedAt:   row.CreatedAt,
 		UpdatedAt:   row.UpdatedAt,
+		DeletedAt:   row.DeletedAt,
 		Labels:      dbjson.DecodeStringMap(row.Labels),
 		Annotations: dbjson.DecodeStringMap(row.Annotations),
 	}

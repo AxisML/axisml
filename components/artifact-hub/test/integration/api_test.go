@@ -67,9 +67,11 @@ func TestArtifact_HappyPath(t *testing.T) {
 	const name, version = "llama-7b", "v1"
 
 	init := initiateOK(t, s, name, version)
-	assert.Equal(t, "oci", init["storage_kind"])
-	assert.Contains(t, init["uri"], "namespaces/"+s.namespace+"/models/"+name+":"+version)
-	assert.NotEmpty(t, init["artifact_id"])
+	upload := init["upload"].(map[string]any)
+	assert.Equal(t, "oci", upload["storageKind"])
+	assert.Contains(t, upload["uri"], "namespaces/"+s.namespace+"/models/"+name+":"+version)
+	artifactView := init["artifact"].(map[string]any)
+	assert.NotEmpty(t, artifactView["id"])
 
 	digest := fakeDigest(name + version)
 	completed := completeOK(t, s, name, version, digest)
@@ -108,7 +110,7 @@ func TestArtifact_HappyPath(t *testing.T) {
 	var inspect map[string]any
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &inspect))
 	assert.Equal(t, digest, inspect["digest"])
-	assert.Nil(t, inspect["pull_credentials"])
+	assert.Nil(t, inspect["pullCredentials"])
 
 	// Resolve(download) — pull credentials present.
 	rr = s.drive(t, http.MethodGet,
@@ -116,7 +118,7 @@ func TestArtifact_HappyPath(t *testing.T) {
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 	var download map[string]any
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &download))
-	assert.NotNil(t, download["pull_credentials"], "download must include pull credentials")
+	assert.NotNil(t, download["pullCredentials"], "download must include pull credentials")
 }
 
 // TestArtifact_DuplicateInitiateConflict ensures the (namespace, kind, name,

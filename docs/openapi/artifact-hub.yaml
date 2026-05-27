@@ -39,24 +39,13 @@ components:
       type: object
     ArtifactInitiateResult:
       properties:
-        artifact_id:
-          format: uuid
-          type: string
-        expires_at:
-          format: date-time
-          type: string
-        storage_kind:
-          type: string
-        upload_credentials:
-          $ref: '#/components/schemas/OciCredentials'
-        uri:
-          type: string
+        artifact:
+          $ref: '#/components/schemas/ArtifactView'
+        upload:
+          $ref: '#/components/schemas/ArtifactUploadCredentials'
       required:
-      - artifact_id
-      - expires_at
-      - storage_kind
-      - upload_credentials
-      - uri
+      - artifact
+      - upload
       type: object
     ArtifactList:
       properties:
@@ -92,20 +81,39 @@ components:
       properties:
         digest:
           type: string
-        expires_at:
+        expiresAt:
           format: date-time
           nullable: true
           type: string
-        pull_credentials:
+        pullCredentials:
           allOf:
           - $ref: '#/components/schemas/OciCredentials'
           nullable: true
-        storage_kind:
+        storageKind:
+          type: string
+        uri:
+          type: string
+        visibility:
+          type: string
+      required:
+      - storageKind
+      - uri
+      type: object
+    ArtifactUploadCredentials:
+      properties:
+        credentials:
+          $ref: '#/components/schemas/OciCredentials'
+        expiresAt:
+          format: date-time
+          type: string
+        storageKind:
           type: string
         uri:
           type: string
       required:
-      - storage_kind
+      - credentials
+      - expiresAt
+      - storageKind
       - uri
       type: object
     ArtifactView:
@@ -116,6 +124,10 @@ components:
           type: object
         createdAt:
           format: date-time
+          type: string
+        deletedAt:
+          format: date-time
+          nullable: true
           type: string
         description:
           type: string
@@ -239,15 +251,19 @@ paths:
         schema:
           format: int32
           type: integer
-      - description: Number of items to skip.
+      - description: Opaque continuation token from a previous page.
         in: query
-        name: offset
+        name: continue
         schema:
-          format: int32
-          type: integer
+          type: string
       - description: Optional status filter (pending, ready, failed).
         in: query
         name: status
+        schema:
+          type: string
+      - description: K8s-style label selector filtered against the row's labels jsonb.
+        in: query
+        name: labelSelector
         schema:
           type: string
       responses:
@@ -336,15 +352,19 @@ paths:
         schema:
           format: int32
           type: integer
-      - description: Number of items to skip.
+      - description: Opaque continuation token from a previous page.
         in: query
-        name: offset
+        name: continue
         schema:
-          format: int32
-          type: integer
+          type: string
       - description: Optional status filter (pending, ready, failed).
         in: query
         name: status
+        schema:
+          type: string
+      - description: K8s-style label selector filtered against the row's labels jsonb.
+        in: query
+        name: labelSelector
         schema:
           type: string
       responses:
@@ -957,15 +977,19 @@ paths:
         schema:
           format: int32
           type: integer
-      - description: Number of items to skip.
+      - description: Opaque continuation token from a previous page.
         in: query
-        name: offset
+        name: continue
         schema:
-          format: int32
-          type: integer
+          type: string
       - description: Optional status filter (pending, ready, failed).
         in: query
         name: status
+        schema:
+          type: string
+      - description: K8s-style label selector filtered against the row's labels jsonb.
+        in: query
+        name: labelSelector
         schema:
           type: string
       responses:
@@ -1054,15 +1078,19 @@ paths:
         schema:
           format: int32
           type: integer
-      - description: Number of items to skip.
+      - description: Opaque continuation token from a previous page.
         in: query
-        name: offset
+        name: continue
         schema:
-          format: int32
-          type: integer
+          type: string
       - description: Optional status filter (pending, ready, failed).
         in: query
         name: status
+        schema:
+          type: string
+      - description: K8s-style label selector filtered against the row's labels jsonb.
+        in: query
+        name: labelSelector
         schema:
           type: string
       responses:
@@ -1675,15 +1703,19 @@ paths:
         schema:
           format: int32
           type: integer
-      - description: Number of items to skip.
+      - description: Opaque continuation token from a previous page.
         in: query
-        name: offset
+        name: continue
         schema:
-          format: int32
-          type: integer
+          type: string
       - description: Optional status filter (pending, ready, failed).
         in: query
         name: status
+        schema:
+          type: string
+      - description: K8s-style label selector filtered against the row's labels jsonb.
+        in: query
+        name: labelSelector
         schema:
           type: string
       responses:
@@ -1772,15 +1804,19 @@ paths:
         schema:
           format: int32
           type: integer
-      - description: Number of items to skip.
+      - description: Opaque continuation token from a previous page.
         in: query
-        name: offset
+        name: continue
         schema:
-          format: int32
-          type: integer
+          type: string
       - description: Optional status filter (pending, ready, failed).
         in: query
         name: status
+        schema:
+          type: string
+      - description: K8s-style label selector filtered against the row's labels jsonb.
+        in: query
+        name: labelSelector
         schema:
           type: string
       responses:

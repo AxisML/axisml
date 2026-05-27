@@ -80,6 +80,7 @@ func (s *Service) List(ctx context.Context, limit, offset int, labelClause strin
 		}
 		out.Items = append(out.Items, r)
 	}
+	out.Count = len(out.Items)
 	return out, nil
 }
 
@@ -110,7 +111,14 @@ func (s *Service) Patch(ctx context.Context, name string, in PatchInput, lastMod
 		updates["annotations"] = mapToJSON(in.Annotations)
 	}
 
-	if in.Quotas != nil || in.InitResources != nil {
+	// We always re-marshal the spec when any spec block changes; bump
+	// generation only for material spec mutations (quotas, initResources).
+	// Namespace label/annotation patches are persisted on the CR via spec
+	// but design §4.1 says they MUST NOT bump generation (they're cosmetic
+	// for tenant-operator).
+	needSpecRewrite := in.Quotas != nil || in.InitResources != nil ||
+		in.NamespaceLabels != nil || in.NamespaceAnnotations != nil
+	if needSpecRewrite {
 		var spec SpecJSON
 		if err := json.Unmarshal(t.Spec, &spec); err != nil {
 			return Response{}, apperrors.Wrap(apperrors.CodeInternal, "unmarshal spec", err)
@@ -119,11 +127,6 @@ func (s *Service) Patch(ctx context.Context, name string, in PatchInput, lastMod
 			if err := validateQuotas(*in.Quotas); err != nil {
 				return Response{}, err
 			}
-			// (pool, name) is the immutable identity anchor per design §4.1
-			// / §4.2: rename quota = delete-then-add via the sub-routes.
-			// PATCH at this top level must NOT silently rewrite an entry's
-			// identity tuple. Reject if any incoming (pool, name) doesn't
-			// already exist on the tenant; min/max changes are allowed.
 			if err := guardQuotaIdentity(spec.Quotas, *in.Quotas); err != nil {
 				return Response{}, err
 			}
@@ -132,12 +135,20 @@ func (s *Service) Patch(ctx context.Context, name string, in PatchInput, lastMod
 		if in.InitResources != nil {
 			spec.InitResources = in.InitResources
 		}
+		if in.NamespaceLabels != nil {
+			spec.Namespace.Labels = in.NamespaceLabels
+		}
+		if in.NamespaceAnnotations != nil {
+			spec.Namespace.Annotations = in.NamespaceAnnotations
+		}
 		b, err := json.Marshal(spec)
 		if err != nil {
 			return Response{}, apperrors.Wrap(apperrors.CodeInternal, "marshal spec", err)
 		}
 		updates["spec"] = b
-		updates["generation"] = gorm.Expr("generation + 1")
+		if in.Quotas != nil || in.InitResources != nil {
+			updates["generation"] = gorm.Expr("generation + 1")
+		}
 		specMutated = true
 	}
 	_ = specMutated

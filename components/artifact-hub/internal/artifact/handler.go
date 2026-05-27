@@ -76,6 +76,7 @@ func (h *Handler) ListByKind(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"items":         items,
+		"count":         len(items),
 		"total":         total,
 		"continueToken": server.EncodeContinue(p.Offset, len(items), total),
 	})
@@ -129,6 +130,7 @@ func (h *Handler) List(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"items":         items,
+		"count":         len(items),
 		"total":         total,
 		"continueToken": server.EncodeContinue(p.Offset, len(items), total),
 	})

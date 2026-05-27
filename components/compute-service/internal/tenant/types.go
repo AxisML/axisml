@@ -95,39 +95,52 @@ type CreateInput struct {
 }
 
 // PatchInput is the body for PATCH /api/v1/namespaces/{name}.
+//
+// Per design §4.1, `namespaceLabels` / `namespaceAnnotations` mutate
+// `spec.namespace.{labels,annotations}` WITHOUT bumping generation (the
+// CR field is rewritten, but tenant-operator doesn't recreate the K8s
+// namespace — see tenant-operator.md §4.1.1). All other spec mutations
+// (quotas / initResources) DO bump generation.
 type PatchInput struct {
-	DisplayName   *string           `json:"displayName,omitempty"`
-	Description   *string           `json:"description,omitempty"`
-	Labels        map[string]string `json:"labels,omitempty"`
-	Annotations   map[string]string `json:"annotations,omitempty"`
-	Quotas        *[]QuotaSpec      `json:"quotas,omitempty"`
-	InitResources *InitResources    `json:"initResources,omitempty"`
+	DisplayName          *string           `json:"displayName,omitempty"`
+	Description          *string           `json:"description,omitempty"`
+	Labels               map[string]string `json:"labels,omitempty"`
+	Annotations          map[string]string `json:"annotations,omitempty"`
+	NamespaceLabels      map[string]string `json:"namespaceLabels,omitempty"`
+	NamespaceAnnotations map[string]string `json:"namespaceAnnotations,omitempty"`
+	Quotas               *[]QuotaSpec      `json:"quotas,omitempty"`
+	InitResources        *InitResources    `json:"initResources,omitempty"`
 }
 
 // Response is the JSON shape returned by GET / LIST / Create / Patch.
 type Response struct {
-	ID             uuid.UUID         `json:"id"`
-	Name           string            `json:"name"`
-	DisplayName    string            `json:"displayName,omitempty"`
-	Description    string            `json:"description,omitempty"`
-	Owner          string            `json:"owner,omitempty"`
-	Labels         map[string]string `json:"labels,omitempty"`
-	Annotations    map[string]string `json:"annotations,omitempty"`
-	Namespace      NamespaceSpec     `json:"namespace"`
-	Quotas         []QuotaSpec       `json:"quotas,omitempty"`
-	InitResources  *InitResources    `json:"initResources,omitempty"`
-	Phase          string            `json:"phase"`
-	Status         json.RawMessage   `json:"status,omitempty"`
-	Generation     int64             `json:"generation"`
-	CreatedAt      time.Time         `json:"createdAt"`
-	UpdatedAt      time.Time         `json:"updatedAt"`
-	LastModifiedBy string            `json:"lastModifiedBy,omitempty"`
+	ID                 uuid.UUID         `json:"id"`
+	Name               string            `json:"name"`
+	DisplayName        string            `json:"displayName,omitempty"`
+	Description        string            `json:"description,omitempty"`
+	Owner              string            `json:"owner,omitempty"`
+	Labels             map[string]string `json:"labels,omitempty"`
+	Annotations        map[string]string `json:"annotations,omitempty"`
+	Namespace          NamespaceSpec     `json:"namespace"`
+	Quotas             []QuotaSpec       `json:"quotas,omitempty"`
+	InitResources      *InitResources    `json:"initResources,omitempty"`
+	Phase              string            `json:"phase"`
+	Status             json.RawMessage   `json:"status,omitempty"`
+	Generation         int64             `json:"generation"`
+	ObservedGeneration int64             `json:"observedGeneration"`
+	CreatedAt          time.Time         `json:"createdAt"`
+	UpdatedAt          time.Time         `json:"updatedAt"`
+	DeletedAt          *time.Time        `json:"deletedAt,omitempty"`
+	LastModifiedBy     string            `json:"lastModifiedBy,omitempty"`
 }
 
-// ListResponse paginates the LIST endpoint. `continueToken` is a K8s-style
+// ListResponse paginates the LIST endpoint. `count` is the page size
+// (== len(items)) per the design yaml; `total` is the unfiltered row
+// count kept for client convenience. `continueToken` is a K8s-style
 // opaque cursor for the next page; absent on the last page.
 type ListResponse struct {
 	Items         []Response `json:"items"`
+	Count         int        `json:"count"`
 	Total         int64      `json:"total"`
 	ContinueToken string     `json:"continueToken,omitempty"`
 }
@@ -144,22 +157,24 @@ func toResponse(t *Tenant) (Response, error) {
 	_ = json.Unmarshal(t.Annotations, &annotations)
 
 	return Response{
-		ID:             t.ID,
-		Name:           t.Name,
-		DisplayName:    t.DisplayName,
-		Description:    t.Description,
-		Owner:          t.Owner,
-		Labels:         labels,
-		Annotations:    annotations,
-		Namespace:      spec.Namespace,
-		Quotas:         spec.Quotas,
-		InitResources:  spec.InitResources,
-		Phase:          t.Phase,
-		Status:         json.RawMessage(t.Status),
-		Generation:     t.Generation,
-		CreatedAt:      t.CreatedAt,
-		UpdatedAt:      t.UpdatedAt,
-		LastModifiedBy: t.LastModifiedBy,
+		ID:                 t.ID,
+		Name:               t.Name,
+		DisplayName:        t.DisplayName,
+		Description:        t.Description,
+		Owner:              t.Owner,
+		Labels:             labels,
+		Annotations:        annotations,
+		Namespace:          spec.Namespace,
+		Quotas:             spec.Quotas,
+		InitResources:      spec.InitResources,
+		Phase:              t.Phase,
+		Status:             json.RawMessage(t.Status),
+		Generation:         t.Generation,
+		ObservedGeneration: t.ObservedGeneration,
+		CreatedAt:          t.CreatedAt,
+		UpdatedAt:          t.UpdatedAt,
+		DeletedAt:          t.DeletedAt,
+		LastModifiedBy:     t.LastModifiedBy,
 	}, nil
 }
 

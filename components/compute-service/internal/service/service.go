@@ -101,6 +101,7 @@ type View struct {
 	Status             StatusFields                    `json:"status"`
 	CreatedAt          time.Time                       `json:"createdAt"`
 	UpdatedAt          time.Time                       `json:"updatedAt"`
+	DeletedAt          *time.Time                      `json:"deletedAt,omitempty"`
 }
 
 func (m *Module) Create(ctx context.Context, namespace string, in CreateInput) (*View, error) {
@@ -516,5 +517,6 @@ func (m *Module) toView(s *Service) (*View, error) {
 		Status:             status,
 		CreatedAt:          s.CreatedAt,
 		UpdatedAt:          s.UpdatedAt,
+		DeletedAt:          s.DeletedAt,
 	}, nil
 }

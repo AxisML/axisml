@@ -36,13 +36,21 @@ type PatchInput struct {
 	Annotations map[string]string `json:"annotations,omitempty"`
 }
 
-// InitiateResult is what we return to the cli after step 1.
+// UploadCredentials wraps the storage-backend credential + storage URI
+// returned alongside the artifact row on Initiate (design yaml).
+type UploadCredentials struct {
+	StorageKind string              `json:"storageKind"`
+	URI         string              `json:"uri"`
+	Credentials handler.Credentials `json:"credentials"`
+	ExpiresAt   time.Time           `json:"expiresAt"`
+}
+
+// InitiateResult is what we return to the cli after step 1. Per design
+// yaml, it bundles the newly persisted Artifact view with the upload
+// credentials so the caller has a one-stop reply.
 type InitiateResult struct {
-	ArtifactID        uuid.UUID           `json:"artifact_id"`
-	StorageKind       string              `json:"storage_kind"`
-	URI               string              `json:"uri"`
-	UploadCredentials handler.Credentials `json:"upload_credentials"`
-	ExpiresAt         time.Time           `json:"expires_at"`
+	Artifact View              `json:"artifact"`
+	Upload   UploadCredentials `json:"upload"`
 }
 
 // CompleteInput is the API request body for the two-phase write step 2.
@@ -50,13 +58,16 @@ type CompleteInput struct {
 	Digest string `json:"digest" binding:"required"`
 }
 
-// ResolveResult is what we return on /resolve.
+// ResolveResult is what we return on /resolve. CamelCase per design yaml;
+// `visibility` is the artifact's persisted visibility (tenant|public) so
+// callers don't need a second GET.
 type ResolveResult struct {
-	StorageKind     string               `json:"storage_kind"`
+	StorageKind     string               `json:"storageKind"`
 	URI             string               `json:"uri"`
 	Digest          string               `json:"digest,omitempty"`
-	PullCredentials *handler.Credentials `json:"pull_credentials,omitempty"`
-	ExpiresAt       *time.Time           `json:"expires_at,omitempty"`
+	Visibility      string               `json:"visibility,omitempty"`
+	PullCredentials *handler.Credentials `json:"pullCredentials,omitempty"`
+	ExpiresAt       *time.Time           `json:"expiresAt,omitempty"`
 }
 
 // Service holds Artifact CRUD + state-machine logic. Rows are addressed
@@ -156,11 +167,13 @@ func (s *Service) Initiate(ctx context.Context, namespace, kind, name, ownerUser
 	}
 
 	return &InitiateResult{
-		ArtifactID:        row.ID,
-		StorageKind:       string(h.StorageKind()),
-		URI:               h.BuildStorageURI(namespace, name, in.Version),
-		UploadCredentials: creds,
-		ExpiresAt:         creds.ExpiresAt,
+		Artifact: toView(row),
+		Upload: UploadCredentials{
+			StorageKind: string(h.StorageKind()),
+			URI:         h.BuildStorageURI(namespace, name, in.Version),
+			Credentials: creds,
+			ExpiresAt:   creds.ExpiresAt,
+		},
 	}, nil
 }
 
@@ -260,6 +273,7 @@ func (s *Service) Resolve(ctx context.Context, namespace, kind, name, version, u
 		StorageKind: string(h.StorageKind()),
 		URI:         uri,
 		Digest:      row.Digest,
+		Visibility:  row.Visibility,
 	}
 
 	if usage == "" {

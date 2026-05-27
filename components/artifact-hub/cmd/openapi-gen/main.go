@@ -123,7 +123,8 @@ func buildDocument(version string) *openapigen.Document {
 	versionParam := openapigen.PathParam("version", "Artifact version (free-form string).")
 
 	limitParam := openapigen.QueryParam("limit", "Page size (1–200, default 50).", openapigen.IntFormat32Param())
-	offsetParam := openapigen.QueryParam("offset", "Number of items to skip.", openapigen.IntFormat32Param())
+	continueParam := openapigen.QueryParam("continue", "Opaque continuation token from a previous page.", &openapigen.Schema{Type: "string"})
+	labelSelectorParam := openapigen.QueryParam("labelSelector", "K8s-style label selector filtered against the row's labels jsonb.", &openapigen.Schema{Type: "string"})
 	statusParam := openapigen.QueryParam("status", "Optional status filter (pending, ready, failed).", &openapigen.Schema{Type: "string"})
 	usageParam := openapigen.QueryParam("usage", "Optional usage hint forwarded to the storage handler.", &openapigen.Schema{Type: "string"})
 
@@ -155,7 +156,7 @@ func buildDocument(version string) *openapigen.Document {
 		paths[base] = openapigen.PathItem{Get: &openapigen.Operation{
 			Tags: []string{tagArtifacts}, Summary: "List every " + k.singular + " (across all names) in a namespace",
 			OperationID: "list" + k.tag + "s",
-			Parameters:  []openapigen.Parameter{nsParam, limitParam, offsetParam, statusParam},
+			Parameters:  []openapigen.Parameter{nsParam, limitParam, continueParam, statusParam, labelSelectorParam},
 			Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Page.", "ArtifactList")}),
 		}}
 		paths[base+"/{name}"] = openapigen.PathItem{
@@ -169,7 +170,7 @@ func buildDocument(version string) *openapigen.Document {
 			Get: &openapigen.Operation{
 				Tags: []string{tagArtifacts}, Summary: "List versions of a " + k.singular,
 				OperationID: "list" + k.tag + "Versions",
-				Parameters:  []openapigen.Parameter{nsParam, nameParam, limitParam, offsetParam, statusParam},
+				Parameters:  []openapigen.Parameter{nsParam, nameParam, limitParam, continueParam, statusParam, labelSelectorParam},
 				Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Page.", "ArtifactList")}),
 			},
 		}
