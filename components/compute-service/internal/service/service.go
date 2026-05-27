@@ -213,6 +213,17 @@ func (m *Module) Create(ctx context.Context, namespace string, in CreateInput) (
 		StatusJSON:  []byte("{}"),
 	}
 	if err := m.repo.Create(ctx, row); err != nil {
+		// Workspace path created a PVC first; clean it up so we don't leak
+		// orphan storage on a unique-violation or other terminal DB error.
+		if kind == mlservicev1alpha1.ServiceKindWorkspace && m.k8s != nil {
+			pvc := &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      WorkspacePVCName(in.Name),
+					Namespace: namespace,
+				},
+			}
+			_ = m.k8s.Delete(ctx, pvc)
+		}
 		return nil, err
 	}
 	return m.toView(row)
@@ -276,6 +287,52 @@ func (m *Module) Scale(ctx context.Context, namespace, name string, in ScaleInpu
 		return nil, err
 	}
 	// Re-read so the returned view reflects the bumped generation.
+	fresh, err := m.repo.Get(ctx, row.ID)
+	if err != nil {
+		return nil, err
+	}
+	return m.toView(fresh)
+}
+
+// PatchInput is the body for PATCH /api/v1/namespaces/{ns}/services/{svc}.
+// Only the four display-tier fields are mutable post-create per
+// compute-service.md §4.4; spec mutations go through /scale.
+type PatchInput struct {
+	DisplayName *string           `json:"displayName,omitempty"`
+	Description *string           `json:"description,omitempty"`
+	Labels      map[string]string `json:"labels,omitempty"`
+	Annotations map[string]string `json:"annotations,omitempty"`
+}
+
+// Patch updates the row's display-tier metadata. Pure PG mutation —
+// no CR is touched, no generation bump.
+func (m *Module) Patch(ctx context.Context, namespace, name string, in PatchInput) (*View, error) {
+	row, err := m.repo.GetByNamespaceName(ctx, namespace, name)
+	if err != nil {
+		if IsNotFound(err) {
+			return nil, apperrors.New(apperrors.CodeNotFound, "service not found")
+		}
+		return nil, err
+	}
+	updates := map[string]any{}
+	if in.DisplayName != nil {
+		updates["display_name"] = *in.DisplayName
+	}
+	if in.Description != nil {
+		updates["description"] = *in.Description
+	}
+	if in.Labels != nil {
+		updates["labels"] = svcMapBytes(in.Labels)
+	}
+	if in.Annotations != nil {
+		updates["annotations"] = svcMapBytes(in.Annotations)
+	}
+	if len(updates) == 0 {
+		return m.toView(row)
+	}
+	if err := m.repo.Update(ctx, row.ID, updates); err != nil {
+		return nil, err
+	}
 	fresh, err := m.repo.Get(ctx, row.ID)
 	if err != nil {
 		return nil, err

@@ -45,11 +45,16 @@ func BuildModules(
 
 // registerHandlers wires Kind handlers into the process-global registry.
 // Idempotent on a fresh process; integration tests that re-invoke
-// BuildModules in the same process should call handler.Reset() first.
+// BuildModules in the same process check the model entry first.
 func registerHandlers(client *oci.Client) {
-	mh := handler.NewModelHandler(client)
-	if _, ok := handler.Get(mh.Kind()); ok {
-		return
+	if _, ok := handler.Get("model"); ok {
+		return // already registered (test re-runs)
 	}
-	handler.Register(mh)
+	handler.Register(handler.NewModelHandler(client))
+	handler.Register(handler.NewImageHandler(client))
+	// Dataset bucket is conventionally `axisml-artifact-hub` per infra.md;
+	// the MVP handler issues prefix-scoped placeholder credentials without
+	// a live STS integration.
+	handler.Register(handler.NewDatasetHandler("axisml-artifact-hub",
+		client.Endpoint()))
 }

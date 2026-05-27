@@ -1136,6 +1136,23 @@ components:
       - items
       - total
       type: object
+    JobPatchInput:
+      properties:
+        annotations:
+          additionalProperties:
+            type: string
+          type: object
+        description:
+          nullable: true
+          type: string
+        displayName:
+          nullable: true
+          type: string
+        labels:
+          additionalProperties:
+            type: string
+          type: object
+      type: object
     JobStatusFields:
       properties:
         conditions:
@@ -1391,6 +1408,23 @@ components:
       required:
       - items
       - total
+      type: object
+    MLServicePatchInput:
+      properties:
+        annotations:
+          additionalProperties:
+            type: string
+          type: object
+        description:
+          nullable: true
+          type: string
+        displayName:
+          nullable: true
+          type: string
+        labels:
+          additionalProperties:
+            type: string
+          type: object
       type: object
     MLServicePodPort:
       properties:
@@ -2366,8 +2400,12 @@ paths:
         schema:
           type: string
       responses:
-        "204":
-          description: Deleted (idempotent).
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantResponse'
+          description: Soft-deleted tenant (phase=Deleting).
         "400":
           content:
             application/json:
@@ -2897,6 +2935,91 @@ paths:
       summary: Get job
       tags:
       - jobs
+    patch:
+      operationId: patchJob
+      parameters:
+      - description: Tenant name (= jobs/services partition key).
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      - description: Job name.
+        in: path
+        name: job
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JobPatchInput'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobView'
+          description: Patched job.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: Patch job display fields
+      tags:
+      - jobs
   /api/v1/namespaces/{namespace}/jobs/{job}/cancel:
     post:
       operationId: cancelJob
@@ -2914,12 +3037,12 @@ paths:
         schema:
           type: string
       responses:
-        "200":
+        "202":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/JobView'
-          description: Cancelled job.
+          description: Cancellation queued (row is Canceling).
         "400":
           content:
             application/json:
@@ -4029,6 +4152,91 @@ paths:
       summary: Get service
       tags:
       - services
+    patch:
+      operationId: patchMLService
+      parameters:
+      - description: Tenant name (= jobs/services partition key).
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      - description: Service name.
+        in: path
+        name: service
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MLServicePatchInput'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MLServiceView'
+          description: Patched service.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: Patch service display fields
+      tags:
+      - services
   /api/v1/namespaces/{namespace}/services/{service}/events:
     get:
       operationId: listServiceEvents
@@ -4384,12 +4592,12 @@ paths:
               $ref: '#/components/schemas/MLServiceScaleInput'
         required: true
       responses:
-        "200":
+        "202":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/MLServiceView'
-          description: Scaled service.
+          description: Scale queued (generation bumped).
         "400":
           content:
             application/json:

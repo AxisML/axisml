@@ -224,9 +224,11 @@ func (s *Service) Get(ctx context.Context, namespace, kind, name, version string
 }
 
 // List returns artifacts under (namespace, kind, name). Pass an empty `name`
-// to list every artifact name+version under (namespace, kind).
-func (s *Service) List(ctx context.Context, namespace, kind, name, status string, limit, offset int) ([]Artifact, int64, error) {
-	rows, total, err := s.rows.ListByCoord(ctx, namespace, kind, name, status, limit, offset)
+// to list every artifact name+version under (namespace, kind). labelClause
+// and labelArgs come from server.JSONLabelsSQL applied to the ?labelSelector
+// query — empty for no filtering.
+func (s *Service) List(ctx context.Context, namespace, kind, name, status string, limit, offset int, labelClause string, labelArgs []any) ([]Artifact, int64, error) {
+	rows, total, err := s.rows.ListByCoord(ctx, namespace, kind, name, status, limit, offset, labelClause, labelArgs)
 	if err != nil {
 		return nil, 0, apperrors.Wrap(apperrors.CodeInternal, "list artifacts", err)
 	}

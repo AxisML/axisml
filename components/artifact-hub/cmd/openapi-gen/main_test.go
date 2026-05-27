@@ -72,6 +72,7 @@ func TestRouteCoverage(t *testing.T) {
 		{"get", "/readyz"},
 		// One representative kind (models); the loop in main.go renders all
 		// three kinds (models/datasets/images) symmetrically.
+		{"get", "/api/v1/namespaces/{namespace}/models"},
 		{"post", "/api/v1/namespaces/{namespace}/models/{name}"},
 		{"get", "/api/v1/namespaces/{namespace}/models/{name}"},
 		{"get", "/api/v1/namespaces/{namespace}/models/{name}/{version}"},

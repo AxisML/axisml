@@ -152,6 +152,12 @@ func buildDocument(version string) *openapigen.Document {
 		{"images", "image", "Image"},
 	} {
 		base := "/api/v1/namespaces/{namespace}/" + k.plural
+		paths[base] = openapigen.PathItem{Get: &openapigen.Operation{
+			Tags: []string{tagArtifacts}, Summary: "List every " + k.singular + " (across all names) in a namespace",
+			OperationID: "list" + k.tag + "s",
+			Parameters:  []openapigen.Parameter{nsParam, limitParam, offsetParam, statusParam},
+			Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Page.", "ArtifactList")}),
+		}}
 		paths[base+"/{name}"] = openapigen.PathItem{
 			Post: &openapigen.Operation{
 				Tags: []string{tagArtifacts}, Summary: "Initiate a " + k.singular + " version (two-phase write step 1)",
@@ -185,7 +191,7 @@ func buildDocument(version string) *openapigen.Document {
 				Tags: []string{tagArtifacts}, Summary: "Delete a " + k.singular + " version",
 				OperationID: "delete" + k.tag,
 				Parameters:  []openapigen.Parameter{nsParam, nameParam, versionParam},
-				Responses:   withErrors(map[string]openapigen.Response{"202": {Description: "Accepted (asynchronous deletion)."}}),
+				Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Soft-deleted artifact (status=Deleting).", "ArtifactView")}),
 			},
 		}
 		paths[base+"/{name}/{version}/complete"] = openapigen.PathItem{Post: &openapigen.Operation{

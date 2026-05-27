@@ -218,6 +218,52 @@ func (s *Service) Cancel(ctx context.Context, namespace, name string) (*View, er
 	return s.toView(j)
 }
 
+// PatchInput is the body for PATCH /api/v1/namespaces/{ns}/jobs/{job}.
+// Per design §4.3, only the four "PG-only display" fields are mutable
+// after create — the rest of the spec is frozen.
+type PatchInput struct {
+	DisplayName *string           `json:"displayName,omitempty"`
+	Description *string           `json:"description,omitempty"`
+	Labels      map[string]string `json:"labels,omitempty"`
+	Annotations map[string]string `json:"annotations,omitempty"`
+}
+
+// Patch updates the row's display-tier metadata. Pure PG mutation —
+// no CR is touched, no generation bump (compute-service.md §4.3).
+func (s *Service) Patch(ctx context.Context, namespace, name string, in PatchInput) (*View, error) {
+	j, err := s.repo.GetByNamespaceName(ctx, namespace, name)
+	if err != nil {
+		if IsNotFound(err) {
+			return nil, apperrors.New(apperrors.CodeNotFound, "job not found")
+		}
+		return nil, err
+	}
+	updates := map[string]any{}
+	if in.DisplayName != nil {
+		updates["display_name"] = *in.DisplayName
+	}
+	if in.Description != nil {
+		updates["description"] = *in.Description
+	}
+	if in.Labels != nil {
+		updates["labels"] = mapBytes(in.Labels)
+	}
+	if in.Annotations != nil {
+		updates["annotations"] = mapBytes(in.Annotations)
+	}
+	if len(updates) == 0 {
+		return s.toView(j)
+	}
+	if err := s.repo.Update(ctx, j.ID, updates); err != nil {
+		return nil, err
+	}
+	fresh, err := s.repo.Get(ctx, j.ID)
+	if err != nil {
+		return nil, err
+	}
+	return s.toView(fresh)
+}
+
 func (s *Service) Delete(ctx context.Context, namespace, name string) error {
 	j, err := s.repo.GetByNamespaceName(ctx, namespace, name)
 	if err != nil {

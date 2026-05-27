@@ -57,9 +57,15 @@ func (h *Handler) ListByKind(c *gin.Context) {
 		_ = c.Error(err)
 		return
 	}
+	clause, args, err := server.JSONLabelsSQL("labels", c.Query("labelSelector"))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
 	// name="" → match every (kind, name).
 	rows, total, err := h.svc.List(c.Request.Context(),
-		c.Param("namespace"), kindOf(c), "", c.Query("status"), p.Limit, p.Offset)
+		c.Param("namespace"), kindOf(c), "", c.Query("status"),
+		p.Limit, p.Offset, clause, args)
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -107,7 +113,12 @@ func (h *Handler) List(c *gin.Context) {
 		_ = c.Error(err)
 		return
 	}
-	rows, total, err := h.svc.List(c.Request.Context(), c.Param("namespace"), kindOf(c), c.Param("name"), c.Query("status"), p.Limit, p.Offset)
+	clause, args, err := server.JSONLabelsSQL("labels", c.Query("labelSelector"))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	rows, total, err := h.svc.List(c.Request.Context(), c.Param("namespace"), kindOf(c), c.Param("name"), c.Query("status"), p.Limit, p.Offset, clause, args)
 	if err != nil {
 		_ = c.Error(err)
 		return

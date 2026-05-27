@@ -120,8 +120,10 @@ func buildDocument(version string) *openapigen.Document {
 	g.Register("TenantQuotaInput", tenantmod.QuotaPatchInput{}, openapigen.InputMode)
 	g.Register("TenantQuota", tenantmod.QuotaSpec{}, openapigen.ResponseMode)
 	g.Register("JobCreateInput", job.CreateInput{}, openapigen.InputMode)
+	g.Register("JobPatchInput", job.PatchInput{}, openapigen.InputMode)
 	g.Register("JobView", job.View{}, openapigen.ResponseMode)
 	g.Register("MLServiceCreateInput", servicemod.CreateInput{}, openapigen.InputMode)
+	g.Register("MLServicePatchInput", servicemod.PatchInput{}, openapigen.InputMode)
 	g.Register("MLServiceScaleInput", servicemod.ScaleInput{}, openapigen.InputMode)
 	g.Register("MLServiceView", servicemod.View{}, openapigen.ResponseMode)
 	g.Register("PodView", kubeproxy.PodView{}, openapigen.ResponseMode)
@@ -191,7 +193,7 @@ func buildDocument(version string) *openapigen.Document {
 		Delete: &openapigen.Operation{
 			Tags: []string{tagTenants}, Summary: "Delete tenant (soft delete)", OperationID: "deleteTenant",
 			Parameters: []openapigen.Parameter{nsParam},
-			Responses:  withErrors(map[string]openapigen.Response{"204": openapigen.NoContentResp}),
+			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Soft-deleted tenant (phase=Deleting).", "TenantResponse")}),
 		},
 	}
 
@@ -251,6 +253,12 @@ func buildDocument(version string) *openapigen.Document {
 			Parameters: []openapigen.Parameter{nsParam, jobParam},
 			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Job.", "JobView")}),
 		},
+		Patch: &openapigen.Operation{
+			Tags: []string{tagJobs}, Summary: "Patch job display fields", OperationID: "patchJob",
+			Parameters:  []openapigen.Parameter{nsParam, jobParam},
+			RequestBody: openapigen.JSONBody("JobPatchInput"),
+			Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Patched job.", "JobView")}),
+		},
 		Delete: &openapigen.Operation{
 			Tags: []string{tagJobs}, Summary: "Delete job", OperationID: "deleteJob",
 			Parameters: []openapigen.Parameter{nsParam, jobParam},
@@ -260,7 +268,7 @@ func buildDocument(version string) *openapigen.Document {
 	paths["/api/v1/namespaces/{namespace}/jobs/{job}/cancel"] = openapigen.PathItem{Post: &openapigen.Operation{
 		Tags: []string{tagJobs}, Summary: "Cancel a running job", OperationID: "cancelJob",
 		Parameters: []openapigen.Parameter{nsParam, jobParam},
-		Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Cancelled job.", "JobView")}),
+		Responses:  withErrors(map[string]openapigen.Response{"202": openapigen.JSONResp("Cancellation queued (row is Canceling).", "JobView")}),
 	}}
 
 	podParam := openapigen.PathParam("pod", "Pod name.")
@@ -307,6 +315,12 @@ func buildDocument(version string) *openapigen.Document {
 			Parameters: []openapigen.Parameter{nsParam, serviceParam},
 			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Service.", "MLServiceView")}),
 		},
+		Patch: &openapigen.Operation{
+			Tags: []string{tagServices}, Summary: "Patch service display fields", OperationID: "patchMLService",
+			Parameters:  []openapigen.Parameter{nsParam, serviceParam},
+			RequestBody: openapigen.JSONBody("MLServicePatchInput"),
+			Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Patched service.", "MLServiceView")}),
+		},
 		Delete: &openapigen.Operation{
 			Tags: []string{tagServices}, Summary: "Delete service", OperationID: "deleteMLService",
 			Parameters: []openapigen.Parameter{nsParam, serviceParam},
@@ -317,7 +331,7 @@ func buildDocument(version string) *openapigen.Document {
 		Tags: []string{tagServices}, Summary: "Scale a service", OperationID: "scaleMLService",
 		Parameters:  []openapigen.Parameter{nsParam, serviceParam},
 		RequestBody: openapigen.JSONBody("MLServiceScaleInput"),
-		Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Scaled service.", "MLServiceView")}),
+		Responses:   withErrors(map[string]openapigen.Response{"202": openapigen.JSONResp("Scale queued (generation bumped).", "MLServiceView")}),
 	}}
 
 	paths["/api/v1/namespaces/{namespace}/services/{service}/pods"] = openapigen.PathItem{Get: &openapigen.Operation{

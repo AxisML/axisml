@@ -36,6 +36,8 @@ CREATE UNIQUE INDEX uq_artifacts_coord
 CREATE INDEX idx_artifacts_namespace_kind ON artifacts(namespace, kind) WHERE deleted_at IS NULL;
 CREATE INDEX idx_artifacts_visibility_public
     ON artifacts(kind, name, version) WHERE visibility = 'public' AND status = 'Ready';
+CREATE INDEX artifacts_labels_gin
+    ON artifacts USING GIN (labels jsonb_path_ops);
 CREATE INDEX idx_artifacts_workset ON artifacts(status, deleted_at);
 CREATE INDEX idx_artifacts_uploading_ttl
     ON artifacts(created_at)

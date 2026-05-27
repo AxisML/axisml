@@ -26,6 +26,7 @@ func (h *Handler) Register(rg *gin.RouterGroup) {
 	g.POST("", h.Create)
 	g.GET("", h.List)
 	g.GET("/:service", h.Get)
+	g.PATCH("/:service", h.Patch)
 	g.POST("/:service/scale", h.Scale)
 	g.DELETE("/:service", h.Delete)
 	if h.kube != nil {
@@ -43,6 +44,20 @@ func (h *Handler) ListPods(c *gin.Context) {
 		return
 	}
 	h.kube.PodsByLabel(c, s.Namespace, mlservicev1alpha1.LabelServiceID, s.ID.String())
+}
+
+func (h *Handler) Patch(c *gin.Context) {
+	var in PatchInput
+	if err := c.ShouldBindJSON(&in); err != nil {
+		_ = c.Error(err)
+		return
+	}
+	v, err := h.svc.Patch(c.Request.Context(), c.Param("namespace"), c.Param("service"), in)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, v)
 }
 
 func (h *Handler) PodLog(c *gin.Context) {

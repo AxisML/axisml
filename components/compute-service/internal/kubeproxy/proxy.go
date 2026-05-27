@@ -96,8 +96,9 @@ type PodLogOptions struct {
 
 // StreamPodLog writes the pod's container log to w. NotFound is surfaced
 // as CodeNotFound (the handler maps it to 410 Gone when a pod that was
-// recently observed has been GC'd).
-func (c *Client) StreamPodLog(ctx context.Context, namespace, pod string, opts PodLogOptions, w io.Writer) error {
+// recently observed has been GC'd). When flusher is non-nil, each chunk
+// gets flushed immediately (SSE / follow contract).
+func (c *Client) StreamPodLog(ctx context.Context, namespace, pod string, opts PodLogOptions, w io.Writer, flusher http.Flusher) error {
 	apiOpts := &corev1.PodLogOptions{
 		Container: opts.Container,
 		Follow:    opts.Follow,
@@ -118,8 +119,26 @@ func (c *Client) StreamPodLog(ctx context.Context, namespace, pod string, opts P
 		return apperrors.Wrap(apperrors.CodeUnavailable, "open pod log stream", err)
 	}
 	defer stream.Close()
-	_, err = io.Copy(w, stream)
-	return err
+	if flusher == nil {
+		_, err = io.Copy(w, stream)
+		return err
+	}
+	buf := make([]byte, 4096)
+	for {
+		n, readErr := stream.Read(buf)
+		if n > 0 {
+			if _, wErr := w.Write(buf[:n]); wErr != nil {
+				return wErr
+			}
+			flusher.Flush()
+		}
+		if readErr == io.EOF {
+			return nil
+		}
+		if readErr != nil {
+			return readErr
+		}
+	}
 }
 
 // ----------------------------------------------------------------------
@@ -158,16 +177,22 @@ func (c *Client) PodLog(g *gin.Context, namespace, pod string) {
 	opts.Follow = g.Query("follow") == "true"
 	opts.Previous = g.Query("previous") == "true"
 
+	var flusher http.Flusher
 	if opts.Follow {
 		g.Writer.Header().Set("Content-Type", "text/event-stream")
 		g.Writer.Header().Set("Cache-Control", "no-cache")
 		g.Writer.Header().Set("Connection", "keep-alive")
+		// Grab the underlying ResponseWriter's Flusher so each chunk
+		// hits the wire immediately (SSE contract).
+		if f, ok := g.Writer.(http.Flusher); ok {
+			flusher = f
+		}
 	} else {
 		g.Writer.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	}
 	g.Status(http.StatusOK)
 
-	if err := c.StreamPodLog(g.Request.Context(), namespace, pod, opts, g.Writer); err != nil {
+	if err := c.StreamPodLog(g.Request.Context(), namespace, pod, opts, g.Writer, flusher); err != nil {
 		// Distinguish "pod GC'd / never existed" from transient failures.
 		if e, ok := apperrors.As(err); ok && e.Code == apperrors.CodeNotFound {
 			// Headers may already be flushed; the best signal we can give a

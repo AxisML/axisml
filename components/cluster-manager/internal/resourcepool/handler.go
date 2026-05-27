@@ -203,32 +203,34 @@ func (h *Handler) CreateUnit(c *gin.Context) {
 		return
 	}
 
-	pool, err := h.getPool(c.Request.Context(), poolName)
+	var added axismlv1alpha1.ResourceUnit
+	err := h.mutateWithRetry(c.Request.Context(), poolName, func(pool *axismlv1alpha1.ResourcePool) error {
+		for _, u := range pool.Spec.Units {
+			if u.Name == req.Name {
+				// Surface as a non-retryable 409 by returning a sentinel
+				// the outer handler maps via writeK8sError; here we use
+				// apierrors.NewAlreadyExists so the predicate in
+				// mutateWithRetry treats it as terminal (not conflict).
+				return apierrors.NewAlreadyExists(
+					axismlv1alpha1.GroupVersion.WithResource("resourcepools").GroupResource(),
+					poolName+"/units/"+req.Name)
+			}
+		}
+		pool.Spec.Units = append(pool.Spec.Units, srv.DTOToUnit(req))
+		if pool.Annotations == nil {
+			pool.Annotations = map[string]string{}
+		}
+		if user := c.GetHeader(srv.HeaderUser); user != "" {
+			pool.Annotations[srv.LastModifiedByAnnotation] = user
+		}
+		added = pool.Spec.Units[len(pool.Spec.Units)-1]
+		return nil
+	})
 	if err != nil {
 		writeK8sError(c, err, poolName)
 		return
 	}
-	for _, u := range pool.Spec.Units {
-		if u.Name == req.Name {
-			srv.AbortWithProblem(c, http.StatusConflict, "DuplicateUnit",
-				"unit name already exists in pool", req.Name)
-			return
-		}
-	}
-
-	base := pool.DeepCopy()
-	pool.Spec.Units = append(pool.Spec.Units, srv.DTOToUnit(req))
-	if pool.Annotations == nil {
-		pool.Annotations = map[string]string{}
-	}
-	if user := c.GetHeader(srv.HeaderUser); user != "" {
-		pool.Annotations[srv.LastModifiedByAnnotation] = user
-	}
-	if err := h.Client.Patch(c.Request.Context(), pool, client.MergeFrom(base)); err != nil {
-		writeK8sError(c, err, poolName)
-		return
-	}
-	c.JSON(http.StatusCreated, srv.UnitToDTO(pool.Spec.Units[len(pool.Spec.Units)-1]))
+	c.JSON(http.StatusCreated, srv.UnitToDTO(added))
 }
 
 // ListUnits handles GET .../resource-units. Returns pool.spec.units[].
@@ -325,11 +327,35 @@ func (h *Handler) PatchUnit(c *gin.Context) {
 		}
 		pool.Annotations[srv.LastModifiedByAnnotation] = user
 	}
-	if err := h.Client.Patch(c.Request.Context(), pool, client.MergeFrom(base)); err != nil {
+	if err := patchWithRetry(c.Request.Context(), h.Client, pool, base, poolName); err != nil {
 		writeK8sError(c, err, poolName)
 		return
 	}
 	c.JSON(http.StatusOK, srv.UnitToDTO(pool.Spec.Units[idx]))
+}
+
+// patchWithRetry runs MergeFrom-Patch once; on a resourceVersion conflict
+// it re-reads the pool, replays the modification by computing the diff
+// between `base` and `desired` against the fresh remote, and retries
+// once. Per design (cluster-manager.md §4.2). Returns the last error if
+// the second attempt also conflicts.
+func patchWithRetry(ctx context.Context, c client.Client, desired, base *axismlv1alpha1.ResourcePool, name string) error {
+	err := c.Patch(ctx, desired, client.MergeFrom(base))
+	if err == nil || !apierrors.IsConflict(err) {
+		return err
+	}
+	// Re-read, then attempt the same diff again against the fresh object.
+	fresh := &axismlv1alpha1.ResourcePool{}
+	if getErr := c.Get(ctx, types.NamespacedName{Name: name}, fresh); getErr != nil {
+		return getErr
+	}
+	// Re-apply the diff: desired-vs-base captures what the caller wanted
+	// to change; that intent still applies on top of the fresh object.
+	freshBase := fresh.DeepCopy()
+	fresh.Spec = desired.Spec
+	fresh.Labels = desired.Labels
+	fresh.Annotations = desired.Annotations
+	return c.Patch(ctx, fresh, client.MergeFrom(freshBase))
 }
 
 // DeleteUnit handles DELETE .../resource-units/{unit}.
@@ -363,7 +389,7 @@ func (h *Handler) DeleteUnit(c *gin.Context) {
 		}
 		pool.Annotations[srv.LastModifiedByAnnotation] = user
 	}
-	if err := h.Client.Patch(c.Request.Context(), pool, client.MergeFrom(base)); err != nil {
+	if err := patchWithRetry(c.Request.Context(), h.Client, pool, base, poolName); err != nil {
 		writeK8sError(c, err, poolName)
 		return
 	}
@@ -378,6 +404,37 @@ func (h *Handler) getPool(ctx context.Context, name string) (*axismlv1alpha1.Res
 		return nil, err
 	}
 	return pool, nil
+}
+
+// mutateWithRetry runs `mutate` against a fresh ResourcePool read; if the
+// Patch comes back with a 409 (resourceVersion conflict), it re-reads and
+// reruns the mutation once. Design (cluster-manager.md §4.2) requires
+// JSON Patch + resourceVersion optimistic lock + one retry to keep
+// concurrent unit-edit UX usable.
+func (h *Handler) mutateWithRetry(ctx context.Context, poolName string, mutate func(p *axismlv1alpha1.ResourcePool) error) error {
+	for attempt := 0; attempt < 2; attempt++ {
+		pool, err := h.getPool(ctx, poolName)
+		if err != nil {
+			return err
+		}
+		base := pool.DeepCopy()
+		if err := mutate(pool); err != nil {
+			return err
+		}
+		err = h.Client.Patch(ctx, pool, client.MergeFrom(base))
+		if err == nil {
+			return nil
+		}
+		if !apierrors.IsConflict(err) {
+			return err
+		}
+		// Conflict on the first attempt is recoverable; refresh and retry.
+	}
+	return apierrors.NewConflict(
+		axismlv1alpha1.GroupVersion.WithResource("resourcepools").GroupResource(),
+		poolName,
+		errors.New("resourceVersion conflict after one retry"),
+	)
 }
 
 func writeK8sError(c *gin.Context, err error, name string) {

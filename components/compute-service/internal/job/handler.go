@@ -30,6 +30,7 @@ func (h *Handler) Register(rg *gin.RouterGroup) {
 	g.POST("", h.Create)
 	g.GET("", h.List)
 	g.GET("/:job", h.Get)
+	g.PATCH("/:job", h.Patch)
 	g.POST("/:job/cancel", h.Cancel)
 	g.DELETE("/:job", h.Delete)
 	if h.kube != nil {
@@ -108,6 +109,20 @@ func (h *Handler) List(c *gin.Context) {
 		"total":         total,
 		"continueToken": server.EncodeContinue(p.Offset, len(items), total),
 	})
+}
+
+func (h *Handler) Patch(c *gin.Context) {
+	var in PatchInput
+	if err := c.ShouldBindJSON(&in); err != nil {
+		_ = c.Error(err)
+		return
+	}
+	v, err := h.svc.Patch(c.Request.Context(), c.Param("namespace"), c.Param("job"), in)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, v)
 }
 
 func (h *Handler) Get(c *gin.Context) {
