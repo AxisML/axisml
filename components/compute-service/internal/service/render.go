@@ -8,8 +8,10 @@ import (
 	mlservicev1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
 )
 
-// ToCR materialises an MLService CR from a PG row. The namespace comes
-// straight from the row; no tenant label is set.
+// ToCR materialises an MLService CR from a PG row. Per design §6 / §5.2
+// the CR carries the stable label set: service-id (UUID anchor),
+// service-kind (`service`|`workspace`, for kubectl selectors), tenant
+// (= partition namespace), and quota.
 func ToCR(s *Service) (*mlservicev1alpha1.MLService, error) {
 	var spec mlservicev1alpha1.MLServiceSpec
 	if len(s.Spec) > 0 {
@@ -17,13 +19,19 @@ func ToCR(s *Service) (*mlservicev1alpha1.MLService, error) {
 			return nil, err
 		}
 	}
+	kind := s.Kind
+	if kind == "" {
+		kind = mlservicev1alpha1.ServiceKindService
+	}
 	return &mlservicev1alpha1.MLService{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      s.Name,
 			Namespace: s.Namespace,
 			Labels: map[string]string{
-				mlservicev1alpha1.LabelServiceID: s.ID.String(),
-				mlservicev1alpha1.LabelQuota:     spec.Scheduling.Quota,
+				mlservicev1alpha1.LabelServiceID:   s.ID.String(),
+				mlservicev1alpha1.LabelServiceKind: kind,
+				mlservicev1alpha1.LabelTenant:      s.Namespace,
+				mlservicev1alpha1.LabelQuota:       spec.Scheduling.Quota,
 			},
 		},
 		Spec: spec,

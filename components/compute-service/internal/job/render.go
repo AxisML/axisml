@@ -23,8 +23,9 @@ func ToCR(j *Job) (*mljobv1alpha1.MLJob, error) {
 			Name:      j.Name,
 			Namespace: j.Namespace,
 			Labels: map[string]string{
-				mljobv1alpha1.LabelJobID: j.ID.String(),
-				mljobv1alpha1.LabelQuota: spec.Scheduling.Quota,
+				mljobv1alpha1.LabelJobID:  j.ID.String(),
+				mljobv1alpha1.LabelTenant: j.Namespace,
+				mljobv1alpha1.LabelQuota:  spec.Scheduling.Quota,
 			},
 		},
 		Spec: spec,

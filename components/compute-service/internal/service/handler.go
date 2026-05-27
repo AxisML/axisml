@@ -80,7 +80,13 @@ func (h *Handler) Scale(c *gin.Context) {
 }
 
 func (h *Handler) Delete(c *gin.Context) {
-	if err := h.svc.Delete(c.Request.Context(), c.Param("namespace"), c.Param("service")); err != nil {
+	// ?deletePvc=false opts out of cascading PVC deletion for workspaces;
+	// design §4.4 defaults to true.
+	deletePVC := true
+	if v := c.Query("deletePvc"); v == "false" {
+		deletePVC = false
+	}
+	if err := h.svc.Delete(c.Request.Context(), c.Param("namespace"), c.Param("service"), deletePVC); err != nil {
 		_ = c.Error(err)
 		return
 	}

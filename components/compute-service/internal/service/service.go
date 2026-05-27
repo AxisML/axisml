@@ -3,11 +3,18 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	mlservicev1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
 
@@ -23,32 +30,47 @@ type Module struct {
 	repo  *Repository
 	db    *gorm.DB
 	pools *poolcache.Reader
+	k8s   client.Client
 }
 
-// NewService builds the service module wiring.
-func NewService(db *gorm.DB, pools *poolcache.Reader) *Module {
+// NewService builds the service module wiring. The k8sClient is used for
+// workspace PVC management (kind=workspace) and may be nil in pure-DB tests.
+func NewService(db *gorm.DB, pools *poolcache.Reader, k8sClient client.Client) *Module {
 	return &Module{
 		repo:  NewRepository(db),
 		db:    db,
 		pools: pools,
+		k8s:   k8sClient,
 	}
 }
 
 // CreateInput is the API request body. Caller selects pool/unit by NAME
 // (the ResourcePool CRD lives in K8s; compute reads it via Informer cache).
 // `Quota` is the ElasticQuota CR name (cluster-unique string) Compute stamps
-// onto Pod labels — opaque, no existence check.
+// onto Pod labels — opaque, no existence check. `Kind` distinguishes a
+// regular online service from a Platform workspace; immutable after create.
+// When kind=workspace, `WorkspaceStorage` describes the PVC backing the
+// workspace (size required; storageClass optional, falls back to the
+// cluster default).
 type CreateInput struct {
-	Name        string                       `json:"name" binding:"required,axisml_name"`
-	DisplayName string                       `json:"displayName"`
-	Description string                       `json:"description"`
-	PoolName    string                       `json:"poolName" binding:"required"`
-	UnitName    string                       `json:"unitName" binding:"required"`
-	Quota       string                       `json:"quota" binding:"required"`
-	Backend     *mlservicev1alpha1.Backend   `json:"backend"`
-	Roles       []mlservicev1alpha1.RoleSpec `json:"roles" binding:"required,min=1"`
-	RunPolicy   *mlservicev1alpha1.RunPolicy `json:"runPolicy"`
-	Route       *mlservicev1alpha1.Route     `json:"route"`
+	Name             string                       `json:"name" binding:"required,axisml_name"`
+	Kind             string                       `json:"kind,omitempty"`
+	DisplayName      string                       `json:"displayName"`
+	Description      string                       `json:"description"`
+	PoolName         string                       `json:"poolName" binding:"required"`
+	UnitName         string                       `json:"unitName" binding:"required"`
+	Quota            string                       `json:"quota" binding:"required"`
+	Backend          *mlservicev1alpha1.Backend   `json:"backend"`
+	Roles            []mlservicev1alpha1.RoleSpec `json:"roles" binding:"required,min=1"`
+	RunPolicy        *mlservicev1alpha1.RunPolicy `json:"runPolicy"`
+	Route            *mlservicev1alpha1.Route     `json:"route"`
+	WorkspaceStorage *WorkspaceStorageSpec        `json:"workspaceStorage,omitempty"`
+}
+
+// WorkspaceStorageSpec carries the PVC sizing for kind=workspace services.
+type WorkspaceStorageSpec struct {
+	Size         string `json:"size" binding:"required"`
+	StorageClass string `json:"storageClass,omitempty"`
 }
 
 // ScaleInput is the body for /:scale.
@@ -61,6 +83,7 @@ type View struct {
 	ID            uuid.UUID                       `json:"id"`
 	Namespace     string                          `json:"namespace"`
 	Name          string                          `json:"name"`
+	Kind          string                          `json:"kind"`
 	PoolName      string                          `json:"poolName,omitempty"`
 	UnitName      string                          `json:"unitName,omitempty"`
 	DisplayName   string                          `json:"displayName,omitempty"`
@@ -82,6 +105,14 @@ func (m *Module) Create(ctx context.Context, namespace string, in CreateInput) (
 	}
 	if in.Quota == "" {
 		return nil, apperrors.New(apperrors.CodeValidation, "quota is required")
+	}
+	kind := in.Kind
+	if kind == "" {
+		kind = mlservicev1alpha1.ServiceKindService
+	}
+	if kind != mlservicev1alpha1.ServiceKindService && kind != mlservicev1alpha1.ServiceKindWorkspace {
+		return nil, apperrors.Newf(apperrors.CodeValidation,
+			"kind must be %q or %q", mlservicev1alpha1.ServiceKindService, mlservicev1alpha1.ServiceKindWorkspace)
 	}
 	if existing, err := m.repo.GetByNamespaceName(ctx, namespace, in.Name); err == nil && existing != nil {
 		return nil, apperrors.New(apperrors.CodeConflict, "service already exists")
@@ -145,9 +176,19 @@ func (m *Module) Create(ctx context.Context, namespace string, in CreateInput) (
 		return nil, err
 	}
 
+	// For kind=workspace, materialise the backing PVC first; if PVC creation
+	// fails we surface the error and never write the DB row. Per design §4.4,
+	// PG row + PVC are a logical pair.
+	if kind == mlservicev1alpha1.ServiceKindWorkspace {
+		if err := m.ensureWorkspacePVC(ctx, namespace, in.Name, in.WorkspaceStorage); err != nil {
+			return nil, err
+		}
+	}
+
 	row := &Service{
 		ID:                 uuid.New(),
 		Namespace:          namespace,
+		Kind:               kind,
 		PoolName:           in.PoolName,
 		UnitName:           in.UnitName,
 		Name:               in.Name,
@@ -232,7 +273,7 @@ func (m *Module) Scale(ctx context.Context, namespace, name string, in ScaleInpu
 	return m.toView(row)
 }
 
-func (m *Module) Delete(ctx context.Context, namespace, name string) error {
+func (m *Module) Delete(ctx context.Context, namespace, name string, deletePVC bool) error {
 	row, err := m.repo.GetByNamespaceName(ctx, namespace, name)
 	if err != nil {
 		if IsNotFound(err) {
@@ -244,7 +285,75 @@ func (m *Module) Delete(ctx context.Context, namespace, name string) error {
 	case StatusDeleting, StatusDeleted:
 		return nil
 	}
-	return m.repo.MarkDeleting(ctx, row.ID)
+	if err := m.repo.MarkDeleting(ctx, row.ID); err != nil {
+		return err
+	}
+	// For workspaces, default behaviour is to delete the backing PVC alongside
+	// the row. Callers that want to preserve the volume must pass
+	// deletePVC=false (the ?deletePvc=false query in the HTTP layer).
+	if row.Kind == mlservicev1alpha1.ServiceKindWorkspace && deletePVC && m.k8s != nil {
+		pvc := &corev1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      WorkspacePVCName(name),
+				Namespace: namespace,
+			},
+		}
+		if delErr := m.k8s.Delete(ctx, pvc); delErr != nil && !apierrors.IsNotFound(delErr) {
+			return apperrors.Wrap(apperrors.CodeUnavailable, "delete workspace pvc", delErr)
+		}
+	}
+	return nil
+}
+
+// WorkspacePVCName is the deterministic PVC name used for kind=workspace
+// services (design §4.4).
+func WorkspacePVCName(serviceName string) string {
+	return fmt.Sprintf("axisml-ws-%s-data", serviceName)
+}
+
+// ensureWorkspacePVC creates the backing PVC for a kind=workspace service.
+// Idempotent: AlreadyExists is treated as success so retries don't fail the
+// Create. When the K8s client isn't wired (unit / pure-DB tests), the call
+// is a no-op.
+func (m *Module) ensureWorkspacePVC(ctx context.Context, namespace, name string, spec *WorkspaceStorageSpec) error {
+	if m.k8s == nil {
+		return nil
+	}
+	if spec == nil || spec.Size == "" {
+		return apperrors.New(apperrors.CodeValidation,
+			"workspaceStorage.size is required when kind=workspace")
+	}
+	q, err := resource.ParseQuantity(spec.Size)
+	if err != nil {
+		return apperrors.Newf(apperrors.CodeValidation,
+			"workspaceStorage.size %q is not a valid Quantity: %v", spec.Size, err)
+	}
+	pvc := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      WorkspacePVCName(name),
+			Namespace: namespace,
+			Labels: map[string]string{
+				mlservicev1alpha1.LabelServiceKind: mlservicev1alpha1.ServiceKindWorkspace,
+				"axisml.io/workspace":              name,
+			},
+		},
+		Spec: corev1.PersistentVolumeClaimSpec{
+			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+			Resources: corev1.VolumeResourceRequirements{
+				Requests: corev1.ResourceList{corev1.ResourceStorage: q},
+			},
+		},
+	}
+	if spec.StorageClass != "" {
+		sc := spec.StorageClass
+		pvc.Spec.StorageClassName = &sc
+	}
+	if err := m.k8s.Create(ctx, pvc); err != nil && !apierrors.IsAlreadyExists(err) {
+		return apperrors.Wrap(apperrors.CodeUnavailable, "create workspace pvc", err)
+	}
+	// Re-read so callers / tests can verify the bound PVC if needed.
+	_ = m.k8s.Get(ctx, types.NamespacedName{Namespace: namespace, Name: WorkspacePVCName(name)}, pvc)
+	return nil
 }
 
 func (m *Module) toView(s *Service) (*View, error) {
@@ -256,6 +365,7 @@ func (m *Module) toView(s *Service) (*View, error) {
 		ID:            s.ID,
 		Namespace:     s.Namespace,
 		Name:          s.Name,
+		Kind:          s.Kind,
 		PoolName:      s.PoolName,
 		UnitName:      s.UnitName,
 		DisplayName:   s.DisplayName,

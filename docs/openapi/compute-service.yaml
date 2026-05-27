@@ -414,6 +414,8 @@ components:
           type: string
         displayName:
           type: string
+        kind:
+          type: string
         name:
           maxLength: 40
           minLength: 3
@@ -438,6 +440,10 @@ components:
           nullable: true
         unitName:
           type: string
+        workspaceStorage:
+          allOf:
+          - $ref: '#/components/schemas/ServiceWorkspaceStorageSpec'
+          nullable: true
       required:
       - name
       - poolName
@@ -652,6 +658,8 @@ components:
         id:
           format: uuid
           type: string
+        kind:
+          type: string
         message:
           type: string
         name:
@@ -680,6 +688,7 @@ components:
       required:
       - createdAt
       - id
+      - kind
       - name
       - namespace
       - readyReplicas
@@ -721,6 +730,15 @@ components:
       - status
       - title
       - type
+      type: object
+    ServiceWorkspaceStorageSpec:
+      properties:
+        size:
+          type: string
+        storageClass:
+          type: string
+      required:
+      - size
       type: object
     TenantConfigMapSpec:
       properties:

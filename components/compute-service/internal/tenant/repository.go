@@ -67,3 +67,42 @@ func (r *Repository) SoftDelete(ctx context.Context, id uuid.UUID) error {
 			"generation": gorm.Expr("generation + 1"),
 		}).Error
 }
+
+// WorkSet is the reconciler's snapshot of rows that need K8s action.
+type WorkSet struct {
+	Creating []Tenant // phase='Creating' AND deleted_at IS NULL
+	Patching []Tenant // generation != observed_generation AND deleted_at IS NULL
+	Deleting []Tenant // phase='Deleting' (any deleted_at — fresh soft-delete or retry)
+}
+
+// FindWorkSet collects rows the Outbox loop should act on (design §5.1).
+func (r *Repository) FindWorkSet(ctx context.Context) (*WorkSet, error) {
+	ws := &WorkSet{}
+	if err := r.db.WithContext(ctx).
+		Where("phase = ? AND deleted_at IS NULL", PhaseCreating).
+		Find(&ws.Creating).Error; err != nil {
+		return nil, err
+	}
+	if err := r.db.WithContext(ctx).
+		Where("generation <> observed_generation AND deleted_at IS NULL AND phase <> ?", PhaseCreating).
+		Find(&ws.Patching).Error; err != nil {
+		return nil, err
+	}
+	if err := r.db.WithContext(ctx).
+		Where("phase = ?", PhaseDeleting).
+		Find(&ws.Deleting).Error; err != nil {
+		return nil, err
+	}
+	return ws, nil
+}
+
+// FindByName returns the row including soft-deleted ones — used by the
+// Informer to map a Tenant CR DELETE event back to its row.
+func (r *Repository) FindByName(ctx context.Context, name string) (*Tenant, error) {
+	var t Tenant
+	if err := r.db.Unscoped().WithContext(ctx).Where("name = ?", name).
+		Order("created_at DESC").First(&t).Error; err != nil {
+		return nil, err
+	}
+	return &t, nil
+}

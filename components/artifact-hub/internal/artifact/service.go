@@ -20,8 +20,18 @@ import (
 type InitiateInput struct {
 	Version     string            `json:"version" binding:"required,axisml_version"`
 	Spec        map[string]any    `json:"spec" binding:"required"`
+	Visibility  string            `json:"visibility,omitempty"`
 	DisplayName string            `json:"display_name,omitempty"`
 	Description string            `json:"description,omitempty"`
+	Labels      map[string]string `json:"labels,omitempty"`
+	Annotations map[string]string `json:"annotations,omitempty"`
+}
+
+// PatchInput is the body for PATCH .../{kindPlural}/{name}/{version}.
+// Only the four "displayable" fields are mutable post-Ready (design §6).
+type PatchInput struct {
+	DisplayName *string           `json:"display_name,omitempty"`
+	Description *string           `json:"description,omitempty"`
 	Labels      map[string]string `json:"labels,omitempty"`
 	Annotations map[string]string `json:"annotations,omitempty"`
 }
@@ -78,8 +88,25 @@ func (s *Service) Initiate(ctx context.Context, namespace, kind, name, ownerUser
 		return nil, err
 	}
 
-	// Idempotency: if (namespace, kind, name, version) already exists, refuse.
-	existing, err := s.rows.GetByCoord(ctx, namespace, kind, name, in.Version)
+	visibility := in.Visibility
+	if visibility == "" {
+		visibility = VisibilityTenant
+	}
+	if visibility != VisibilityTenant && visibility != VisibilityPublic {
+		return nil, apperrors.Newf(apperrors.CodeValidation,
+			"visibility must be %q or %q", VisibilityTenant, VisibilityPublic)
+	}
+	if visibility == VisibilityPublic && namespace != PublicVisibilityNamespace {
+		return nil, apperrors.Newf(apperrors.CodeForbidden,
+			"visibility=%q is only allowed under the %q namespace",
+			VisibilityPublic, PublicVisibilityNamespace)
+	}
+
+	// Idempotency: artifact (namespace, kind, name, version) never recycles
+	// (database.md §1.2). Check the deleted_at-inclusive lookup so a
+	// tombstone is treated as occupying the coord — clients bump version
+	// instead of replaying the same tuple.
+	existing, err := s.rows.GetByCoordIncludingDeleted(ctx, namespace, kind, name, in.Version)
 	if err != nil && !IsNotFound(err) {
 		return nil, apperrors.Wrap(apperrors.CodeInternal, "lookup artifact", err)
 	}
@@ -101,6 +128,7 @@ func (s *Service) Initiate(ctx context.Context, namespace, kind, name, ownerUser
 		Kind:        kind,
 		Name:        name,
 		Version:     in.Version,
+		Visibility:  visibility,
 		DisplayName: in.DisplayName,
 		Description: in.Description,
 		Labels:      labels,
@@ -253,6 +281,47 @@ func (s *Service) Resolve(ctx context.Context, namespace, kind, name, version, u
 }
 
 // MarkDeleting transitions the artifact to Deleting.
+// Patch updates the four mutable display-tier fields on an artifact row
+// (display_name / description / labels / annotations). Per design §6:
+//   - spec / digest / visibility / kind / name / version / namespace are
+//     immutable;
+//   - rows in Deleting / Deleted return 409.
+//   - labels / annotations follow whole-map replace semantics; if a key
+//     is absent from the patch, the column is left as-is unless the
+//     payload supplies a non-nil map (then it replaces).
+func (s *Service) Patch(ctx context.Context, namespace, kind, name, version string, in PatchInput) (*Artifact, error) {
+	row, err := s.loadRow(ctx, namespace, kind, name, version)
+	if err != nil {
+		return nil, err
+	}
+	if row.Status == StatusDeleting || row.Status == StatusDeleted {
+		return nil, apperrors.Newf(apperrors.CodeConflict,
+			"artifact is %s; patch rejected", row.Status)
+	}
+	updates := map[string]any{}
+	if in.DisplayName != nil {
+		updates["display_name"] = *in.DisplayName
+	}
+	if in.Description != nil {
+		updates["description"] = *in.Description
+	}
+	if in.Labels != nil {
+		labels, _ := dbjson.MapToJSON(in.Labels)
+		updates["labels"] = labels
+	}
+	if in.Annotations != nil {
+		anns, _ := dbjson.MapToJSON(in.Annotations)
+		updates["annotations"] = anns
+	}
+	if len(updates) == 0 {
+		return row, nil
+	}
+	if err := s.rows.Update(ctx, nil, row.ID, updates); err != nil {
+		return nil, apperrors.Wrap(apperrors.CodeInternal, "update artifact", err)
+	}
+	return s.loadRow(ctx, namespace, kind, name, version)
+}
+
 func (s *Service) MarkDeleting(ctx context.Context, namespace, kind, name, version string) error {
 	row, err := s.loadRow(ctx, namespace, kind, name, version)
 	if err != nil {

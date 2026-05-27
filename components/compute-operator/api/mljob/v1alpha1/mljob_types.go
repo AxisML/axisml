@@ -161,6 +161,7 @@ const ReasonCancelRequested = "CancelRequested"
 // by mlservice-operator's api/v1alpha1.
 const (
 	LabelJobID          = "axisml.io/job-id"
+	LabelTenant         = "axisml.io/tenant"
 	LabelQuota          = "axisml.io/quota"
 	LabelRole           = "axisml.io/role"
 	LabelKoordQuotaName = "quota.scheduling.koordinator.sh/name"

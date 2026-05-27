@@ -28,6 +28,7 @@ const (
 type Service struct {
 	ID                 uuid.UUID      `gorm:"type:uuid;primaryKey"`
 	Namespace          string         `gorm:"size:253;not null;column:namespace"`
+	Kind               string         `gorm:"size:16;not null;default:'service'"`
 	PoolName           string         `gorm:"size:40;not null;column:pool_name"`
 	UnitName           string         `gorm:"size:40;not null;column:unit_name"`
 	Name               string         `gorm:"size:64;not null"`

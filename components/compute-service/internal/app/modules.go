@@ -27,11 +27,13 @@ func BuildModules(
 
 	tenants := tenantmod.NewService(gormDB)
 	jobs := jobmod.NewService(gormDB, pools)
-	services := servicemod.NewService(gormDB, pools)
+	services := servicemod.NewService(gormDB, pools, mgr.GetClient())
 
+	tenantRecon := tenantmod.NewReconciler(gormDB, mgr.GetClient(), log.WithName("tenant-reconciler"), cfg.ReconcileInterval)
 	jobRecon := jobmod.NewReconciler(gormDB, mgr.GetClient(), log.WithName("job-reconciler"), cfg.ReconcileInterval)
 	serviceRecon := servicemod.NewReconciler(gormDB, mgr.GetClient(), log.WithName("service-reconciler"), cfg.ReconcileInterval)
 
+	tenantInf := tenantmod.NewInformer(gormDB, mgr, log.WithName("tenant-informer"))
 	jobInf := jobmod.NewInformer(gormDB, mgr, log.WithName("job-informer"))
 	serviceInf := servicemod.NewInformer(gormDB, mgr, log.WithName("service-informer"))
 
@@ -41,8 +43,8 @@ func BuildModules(
 		servicemod.NewHandler(services),
 	}
 	runnables := []manager.Runnable{
-		jobRecon, serviceRecon,
-		jobInf, serviceInf,
+		tenantRecon, jobRecon, serviceRecon,
+		tenantInf, jobInf, serviceInf,
 	}
 	return modules, runnables, nil
 }

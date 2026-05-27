@@ -13,6 +13,7 @@ CREATE TABLE artifacts (
     kind         text        NOT NULL,
     name         text        NOT NULL,
     version      text        NOT NULL,
+    visibility   text        NOT NULL DEFAULT 'tenant',
     display_name text        NOT NULL DEFAULT '',
     description  text        NOT NULL DEFAULT '',
     labels       jsonb       NOT NULL DEFAULT '{}'::jsonb,
@@ -27,9 +28,14 @@ CREATE TABLE artifacts (
     updated_at   timestamptz NOT NULL DEFAULT now(),
     deleted_at   timestamptz
 );
+-- Per database.md §3.1: artifact (namespace, kind, name, version) never
+-- recycles even after soft delete, so the unique index does NOT carry the
+-- deleted_at filter.
 CREATE UNIQUE INDEX uq_artifacts_coord
-    ON artifacts(namespace, kind, name, version) WHERE deleted_at IS NULL;
+    ON artifacts(namespace, kind, name, version);
 CREATE INDEX idx_artifacts_namespace_kind ON artifacts(namespace, kind) WHERE deleted_at IS NULL;
+CREATE INDEX idx_artifacts_visibility_public
+    ON artifacts(kind, name, version) WHERE visibility = 'public' AND status = 'Ready';
 CREATE INDEX idx_artifacts_workset ON artifacts(status, deleted_at);
 CREATE INDEX idx_artifacts_uploading_ttl
     ON artifacts(created_at)

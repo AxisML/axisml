@@ -169,10 +169,18 @@ type MLServiceList struct {
 
 // LabelServiceID is the stable orphan-detection anchor written by Compute.
 const (
-	LabelServiceID = "axisml.io/service-id"
-	LabelTenant    = "axisml.io/tenant"
-	LabelQuota     = "axisml.io/quota"
-	LabelRole      = "axisml.io/role"
+	LabelServiceID   = "axisml.io/service-id"
+	LabelServiceKind = "axisml.io/service-kind"
+	LabelTenant      = "axisml.io/tenant"
+	LabelQuota       = "axisml.io/quota"
+	LabelRole        = "axisml.io/role"
+
+	// ServiceKind enumerates the rows in compute-service's `services` table
+	// (kind='service' vs kind='workspace'). Stamped on the MLService CR via
+	// LabelServiceKind for kubectl / selector use; compute-operator does not
+	// branch on it.
+	ServiceKindService   = "service"
+	ServiceKindWorkspace = "workspace"
 
 	LabelKoordQuotaName = "quota.scheduling.koordinator.sh/name"
 

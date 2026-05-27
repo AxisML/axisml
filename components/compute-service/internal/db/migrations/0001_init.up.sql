@@ -77,6 +77,7 @@ CREATE TABLE services (
     id                   uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
     namespace            text        NOT NULL,
     name                 text        NOT NULL,
+    kind                 text        NOT NULL DEFAULT 'service',
     pool_name            text        NOT NULL DEFAULT '',
     unit_name            text        NOT NULL DEFAULT '',
     display_name         text        NOT NULL DEFAULT '',
@@ -97,6 +98,8 @@ CREATE TABLE services (
 );
 CREATE UNIQUE INDEX uq_services_namespace_name
     ON services(namespace, name) WHERE deleted_at IS NULL;
+CREATE INDEX idx_services_namespace_kind
+    ON services(namespace, kind) WHERE deleted_at IS NULL;
 CREATE INDEX idx_services_workset
     ON services(status, deleted_at);
 CREATE INDEX idx_services_spec_sync

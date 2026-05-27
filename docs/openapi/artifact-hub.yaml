@@ -31,6 +31,8 @@ components:
           minLength: 1
           pattern: ^[a-zA-Z0-9._-]+$
           type: string
+        visibility:
+          type: string
       required:
       - spec
       - version
@@ -135,6 +137,8 @@ components:
           type: string
         version:
           type: string
+        visibility:
+          type: string
       required:
       - created_at
       - id
@@ -145,6 +149,7 @@ components:
       - status
       - updated_at
       - version
+      - visibility
       type: object
     OciCredentials:
       properties:

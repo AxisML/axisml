@@ -16,6 +16,7 @@ type View struct {
 	Kind        string            `json:"kind"`
 	Name        string            `json:"name"`
 	Version     string            `json:"version"`
+	Visibility  string            `json:"visibility"`
 	DisplayName string            `json:"display_name,omitempty"`
 	Description string            `json:"description,omitempty"`
 	Labels      map[string]string `json:"labels,omitempty"`
@@ -37,6 +38,7 @@ func toView(row *Artifact) View {
 		Kind:        row.Kind,
 		Name:        row.Name,
 		Version:     row.Version,
+		Visibility:  row.Visibility,
 		DisplayName: row.DisplayName,
 		Description: row.Description,
 		OwnerUser:   row.OwnerUser,
