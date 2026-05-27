@@ -12,8 +12,7 @@ import (
 	mlservicev1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
 
 	"github.com/axisml/axisml/components/compute-service/internal/auth"
-	"github.com/axisml/axisml/components/compute-service/internal/resourcepool"
-	"github.com/axisml/axisml/components/compute-service/internal/resourceunit"
+	"github.com/axisml/axisml/components/compute-service/internal/poolcache"
 	"github.com/axisml/axisml/components/compute-service/internal/spechash"
 	apperrors "github.com/axisml/axisml/components/compute-service/pkg/errors"
 	"github.com/axisml/axisml/components/compute-service/pkg/strutil"
@@ -23,37 +22,33 @@ import (
 type Module struct {
 	repo  *Repository
 	db    *gorm.DB
-	pools *resourcepool.Service
-	units *resourceunit.Service
+	pools *poolcache.Reader
 }
 
 // NewService builds the service module wiring.
-func NewService(
-	db *gorm.DB,
-	pools *resourcepool.Service,
-	units *resourceunit.Service,
-) *Module {
+func NewService(db *gorm.DB, pools *poolcache.Reader) *Module {
 	return &Module{
 		repo:  NewRepository(db),
 		db:    db,
 		pools: pools,
-		units: units,
 	}
 }
 
-// CreateInput is the API request body. `Quota` is the ElasticQuota CR name
-// (cluster-unique string) Compute stamps onto Pod labels — opaque, no
-// existence check.
+// CreateInput is the API request body. Caller selects pool/unit by NAME
+// (the ResourcePool CRD lives in K8s; compute reads it via Informer cache).
+// `Quota` is the ElasticQuota CR name (cluster-unique string) Compute stamps
+// onto Pod labels — opaque, no existence check.
 type CreateInput struct {
-	Name           string                       `json:"name" binding:"required,axisml_name"`
-	DisplayName    string                       `json:"displayName"`
-	Description    string                       `json:"description"`
-	ResourceUnitID uuid.UUID                    `json:"resourceUnitId" binding:"required"`
-	Quota          string                       `json:"quota" binding:"required"`
-	Backend        *mlservicev1alpha1.Backend   `json:"backend"`
-	Roles          []mlservicev1alpha1.RoleSpec `json:"roles" binding:"required,min=1"`
-	RunPolicy      *mlservicev1alpha1.RunPolicy `json:"runPolicy"`
-	Route          *mlservicev1alpha1.Route     `json:"route"`
+	Name        string                       `json:"name" binding:"required,axisml_name"`
+	DisplayName string                       `json:"displayName"`
+	Description string                       `json:"description"`
+	PoolName    string                       `json:"poolName" binding:"required"`
+	UnitName    string                       `json:"unitName" binding:"required"`
+	Quota       string                       `json:"quota" binding:"required"`
+	Backend     *mlservicev1alpha1.Backend   `json:"backend"`
+	Roles       []mlservicev1alpha1.RoleSpec `json:"roles" binding:"required,min=1"`
+	RunPolicy   *mlservicev1alpha1.RunPolicy `json:"runPolicy"`
+	Route       *mlservicev1alpha1.Route     `json:"route"`
 }
 
 // ScaleInput is the body for /:scale.
@@ -66,6 +61,8 @@ type View struct {
 	ID            uuid.UUID                       `json:"id"`
 	Namespace     string                          `json:"namespace"`
 	Name          string                          `json:"name"`
+	PoolName      string                          `json:"poolName,omitempty"`
+	UnitName      string                          `json:"unitName,omitempty"`
 	DisplayName   string                          `json:"displayName,omitempty"`
 	Description   string                          `json:"description,omitempty"`
 	OwnerUser     string                          `json:"ownerUser,omitempty"`
@@ -91,15 +88,7 @@ func (m *Module) Create(ctx context.Context, namespace string, in CreateInput) (
 	} else if err != nil && !IsNotFound(err) {
 		return nil, err
 	}
-	unit, err := m.units.GetByID(ctx, in.ResourceUnitID)
-	if err != nil {
-		return nil, err
-	}
-	pool, err := m.pools.GetByID(ctx, unit.PoolID)
-	if err != nil {
-		return nil, err
-	}
-	decoded, err := resourceunit.Decode(unit)
+	expanded, err := m.pools.Resolve(ctx, in.PoolName, in.UnitName)
 	if err != nil {
 		return nil, err
 	}
@@ -115,20 +104,11 @@ func (m *Module) Create(ctx context.Context, namespace string, in CreateInput) (
 		backend.Config = in.Backend.Config
 	}
 
-	poolSel, err := pool.DecodeNodeSelector()
-	if err != nil {
-		return nil, err
-	}
-	poolTols, err := pool.DecodeTolerations()
-	if err != nil {
-		return nil, err
-	}
-
 	roles := make([]mlservicev1alpha1.RoleSpec, len(in.Roles))
 	replicas := int32(0)
 	for i, r := range in.Roles {
 		role := r
-		role.Template.Resources = resourceunit.BuildResources(decoded.Requests, decoded.Limits)
+		role.Template.Resources = poolcache.BuildResources(expanded.Requests, expanded.Limits)
 		roles[i] = role
 		if i == 0 {
 			replicas = role.Replicas
@@ -144,8 +124,8 @@ func (m *Module) Create(ctx context.Context, namespace string, in CreateInput) (
 		Backend: backend,
 		Scheduling: mlservicev1alpha1.Scheduling{
 			Quota:        in.Quota,
-			NodeSelector: resourceunit.MergeNodeSelector(poolSel, decoded.NodeSelector),
-			Tolerations:  poolTols,
+			NodeSelector: expanded.NodeSelector,
+			Tolerations:  expanded.Tolerations,
 		},
 		Roles:     roles,
 		RunPolicy: runPolicy,
@@ -160,7 +140,7 @@ func (m *Module) Create(ctx context.Context, namespace string, in CreateInput) (
 	if err != nil {
 		return nil, err
 	}
-	reqJSON, err := json.Marshal(decoded.Requests)
+	reqJSON, err := json.Marshal(expanded.Requests)
 	if err != nil {
 		return nil, err
 	}
@@ -168,8 +148,8 @@ func (m *Module) Create(ctx context.Context, namespace string, in CreateInput) (
 	row := &Service{
 		ID:                 uuid.New(),
 		Namespace:          namespace,
-		PoolID:             pool.ID,
-		ResourceUnitID:     unit.ID,
+		PoolName:           in.PoolName,
+		UnitName:           in.UnitName,
 		Name:               in.Name,
 		DisplayName:        in.DisplayName,
 		Description:        in.Description,
@@ -276,6 +256,8 @@ func (m *Module) toView(s *Service) (*View, error) {
 		ID:            s.ID,
 		Namespace:     s.Namespace,
 		Name:          s.Name,
+		PoolName:      s.PoolName,
+		UnitName:      s.UnitName,
 		DisplayName:   s.DisplayName,
 		Description:   s.Description,
 		OwnerUser:     s.OwnerUser,

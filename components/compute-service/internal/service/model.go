@@ -23,12 +23,13 @@ const (
 // Service is the GORM-backed `services` row. Partition key is `namespace`
 // (bare string). Quota lives only on the rendered MLService CR via
 // spec.scheduling.quota — an opaque ElasticQuota CR name passed through
-// from Platform.
+// from Platform. PoolName / UnitName are provenance only — the underlying
+// ResourcePool lives in the K8s CRD owned by cluster-manager (no FK).
 type Service struct {
 	ID                 uuid.UUID      `gorm:"type:uuid;primaryKey"`
 	Namespace          string         `gorm:"size:253;not null;column:namespace"`
-	PoolID             uuid.UUID      `gorm:"type:uuid;not null;column:pool_id"`
-	ResourceUnitID     uuid.UUID      `gorm:"type:uuid;not null;column:resource_unit_id"`
+	PoolName           string         `gorm:"size:40;not null;column:pool_name"`
+	UnitName           string         `gorm:"size:40;not null;column:unit_name"`
 	Name               string         `gorm:"size:64;not null"`
 	DisplayName        string         `gorm:"type:text;not null;default:''"`
 	Description        string         `gorm:"type:text;not null;default:''"`

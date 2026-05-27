@@ -1,49 +1,59 @@
--- AxisML Compute Service initial schema. See docs/system_design/components/compute-service.md.
+-- AxisML Compute Service initial schema (v1). See
+-- docs/system_design/components/compute-service.md.
 --
--- Job/Service rows partition on a bare `namespace` string supplied by
--- the caller — Compute performs no existence check on it. Tenants and
--- quotas are owned by cluster-manager + tenant-operator.
+-- compute-service is the authority for the Tenant domain (compute owns the
+-- Tenant CR write path) and the home of the Job / Service partition tables.
+-- Jobs and Services partition on a bare `namespace` string that equals
+-- `tenants.name`; compute joins the tenants table to resolve the K8s
+-- namespace at CR-write time.
+--
+-- ResourcePool / ResourceUnit are NOT persisted here — they live in the
+-- cluster-scoped ResourcePool CRD owned by cluster-manager and consumed by
+-- compute via a SharedInformer cache (design §5.4). Job / Service rows
+-- store the (poolName, unitName) pair as provenance labels; the expanded
+-- nodeSelector / tolerations / resources are baked into spec jsonb at
+-- create time.
 
 -- pgcrypto provides gen_random_uuid().
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
--- Resource pools ------------------------------------------------------------
-CREATE TABLE resource_pools (
-    id              uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
-    name            text        NOT NULL,
-    description     text        NOT NULL DEFAULT '',
-    node_selector   jsonb       NOT NULL DEFAULT '{}'::jsonb,
-    tolerations     jsonb       NOT NULL DEFAULT '[]'::jsonb,
-    metadata        jsonb       NOT NULL DEFAULT '{}'::jsonb,
-    created_at      timestamptz NOT NULL DEFAULT now(),
-    updated_at      timestamptz NOT NULL DEFAULT now(),
-    deleted_at      timestamptz
+-- Tenants -------------------------------------------------------------------
+CREATE TABLE tenants (
+    id                   uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+    name                 text        NOT NULL,
+    display_name         text        NOT NULL DEFAULT '',
+    description          text        NOT NULL DEFAULT '',
+    owner                text        NOT NULL DEFAULT '',
+    labels               jsonb       NOT NULL DEFAULT '{}'::jsonb,
+    annotations          jsonb       NOT NULL DEFAULT '{}'::jsonb,
+    spec                 jsonb       NOT NULL,
+    generation           bigint      NOT NULL DEFAULT 1,
+    observed_generation  bigint      NOT NULL DEFAULT 0,
+    phase                text        NOT NULL DEFAULT 'Creating',
+    status               jsonb       NOT NULL DEFAULT '{}'::jsonb,
+    last_modified_by     text        NOT NULL DEFAULT '',
+    created_at           timestamptz NOT NULL DEFAULT now(),
+    updated_at           timestamptz NOT NULL DEFAULT now(),
+    deleted_at           timestamptz
 );
-CREATE UNIQUE INDEX uq_resource_pools_name ON resource_pools(name) WHERE deleted_at IS NULL;
-
--- Resource units ------------------------------------------------------------
-CREATE TABLE resource_units (
-    id              uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
-    pool_id         uuid        NOT NULL REFERENCES resource_pools(id),
-    name            text        NOT NULL,
-    description     text        NOT NULL DEFAULT '',
-    requests        jsonb       NOT NULL,
-    limits          jsonb       NOT NULL DEFAULT '{}'::jsonb,
-    node_selector   jsonb       NOT NULL DEFAULT '{}'::jsonb,
-    created_at      timestamptz NOT NULL DEFAULT now(),
-    updated_at      timestamptz NOT NULL DEFAULT now(),
-    deleted_at      timestamptz
-);
-CREATE UNIQUE INDEX uq_resource_units_pool_name
-    ON resource_units(pool_id, name) WHERE deleted_at IS NULL;
+CREATE UNIQUE INDEX tenants_name_active_uniq
+    ON tenants (name) WHERE deleted_at IS NULL;
+CREATE INDEX tenants_deleted_at  ON tenants (deleted_at);
+CREATE INDEX tenants_created_at  ON tenants (created_at DESC);
+CREATE INDEX tenants_phase       ON tenants (phase) WHERE deleted_at IS NULL;
+CREATE INDEX tenants_sync_pending
+    ON tenants (id) WHERE generation <> observed_generation AND deleted_at IS NULL;
 
 -- Jobs ----------------------------------------------------------------------
+-- Spec is a frozen snapshot at create time (already pool/unit-expanded).
+-- pool_name / unit_name are provenance only (no FK — ResourcePool lives in
+-- the K8s CRD).
 CREATE TABLE jobs (
     id                   uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
     namespace            text        NOT NULL,
-    pool_id              uuid        NOT NULL REFERENCES resource_pools(id),
-    resource_unit_id     uuid        NOT NULL REFERENCES resource_units(id),
     name                 text        NOT NULL,
+    pool_name            text        NOT NULL DEFAULT '',
+    unit_name            text        NOT NULL DEFAULT '',
     display_name         text        NOT NULL DEFAULT '',
     description          text        NOT NULL DEFAULT '',
     owner_user           text        NOT NULL DEFAULT '',
@@ -59,16 +69,16 @@ CREATE TABLE jobs (
 );
 CREATE UNIQUE INDEX uq_jobs_namespace_name
     ON jobs(namespace, name) WHERE deleted_at IS NULL;
-CREATE INDEX idx_jobs_workset ON jobs(status, deleted_at);
-CREATE INDEX idx_jobs_namespace_status ON jobs(namespace, status) WHERE deleted_at IS NULL;
+CREATE INDEX idx_jobs_workset            ON jobs(status, deleted_at);
+CREATE INDEX idx_jobs_namespace_status   ON jobs(namespace, status) WHERE deleted_at IS NULL;
 
 -- Services ------------------------------------------------------------------
 CREATE TABLE services (
     id                   uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
     namespace            text        NOT NULL,
-    pool_id              uuid        NOT NULL REFERENCES resource_pools(id),
-    resource_unit_id     uuid        NOT NULL REFERENCES resource_units(id),
     name                 text        NOT NULL,
+    pool_name            text        NOT NULL DEFAULT '',
+    unit_name            text        NOT NULL DEFAULT '',
     display_name         text        NOT NULL DEFAULT '',
     description          text        NOT NULL DEFAULT '',
     owner_user           text        NOT NULL DEFAULT '',
@@ -87,7 +97,9 @@ CREATE TABLE services (
 );
 CREATE UNIQUE INDEX uq_services_namespace_name
     ON services(namespace, name) WHERE deleted_at IS NULL;
-CREATE INDEX idx_services_workset ON services(status, deleted_at);
+CREATE INDEX idx_services_workset
+    ON services(status, deleted_at);
 CREATE INDEX idx_services_spec_sync
     ON services(deleted_at) WHERE desired_spec_hash <> applied_spec_hash;
-CREATE INDEX idx_services_namespace_status ON services(namespace, status) WHERE deleted_at IS NULL;
+CREATE INDEX idx_services_namespace_status
+    ON services(namespace, status) WHERE deleted_at IS NULL;

@@ -7,8 +7,7 @@ import (
 
 	"github.com/axisml/axisml/components/compute-service/internal/config"
 	jobmod "github.com/axisml/axisml/components/compute-service/internal/job"
-	poolmod "github.com/axisml/axisml/components/compute-service/internal/resourcepool"
-	unitmod "github.com/axisml/axisml/components/compute-service/internal/resourceunit"
+	"github.com/axisml/axisml/components/compute-service/internal/poolcache"
 	"github.com/axisml/axisml/components/compute-service/internal/server"
 	servicemod "github.com/axisml/axisml/components/compute-service/internal/service"
 	tenantmod "github.com/axisml/axisml/components/compute-service/internal/tenant"
@@ -16,17 +15,19 @@ import (
 
 // BuildModules constructs the full domain wiring (HTTP routes + background
 // runnables). Jobs and services partition on bare namespace strings.
+// ResourcePool is fed from the K8s Informer cache (controller-runtime
+// manager client), not PG.
 func BuildModules(
 	cfg config.Config,
 	gormDB *gorm.DB,
 	mgr manager.Manager,
 	log logr.Logger,
 ) ([]server.Module, []manager.Runnable, error) {
-	pools := poolmod.NewService(gormDB)
-	units := unitmod.NewService(gormDB)
-	jobs := jobmod.NewService(gormDB, pools, units)
-	services := servicemod.NewService(gormDB, pools, units)
+	pools := poolcache.New(mgr.GetClient())
+
 	tenants := tenantmod.NewService(gormDB)
+	jobs := jobmod.NewService(gormDB, pools)
+	services := servicemod.NewService(gormDB, pools)
 
 	jobRecon := jobmod.NewReconciler(gormDB, mgr.GetClient(), log.WithName("job-reconciler"), cfg.ReconcileInterval)
 	serviceRecon := servicemod.NewReconciler(gormDB, mgr.GetClient(), log.WithName("service-reconciler"), cfg.ReconcileInterval)
@@ -36,8 +37,6 @@ func BuildModules(
 
 	modules := []server.Module{
 		tenantmod.NewHandler(tenants),
-		poolmod.NewHandler(pools),
-		unitmod.NewHandler(units, pools),
 		jobmod.NewHandler(jobs),
 		servicemod.NewHandler(services),
 	}

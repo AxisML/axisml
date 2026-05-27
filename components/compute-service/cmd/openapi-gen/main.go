@@ -20,10 +20,9 @@ import (
 	"strings"
 
 	"github.com/axisml/axisml/components/compute-service/internal/job"
-	"github.com/axisml/axisml/components/compute-service/internal/resourcepool"
-	"github.com/axisml/axisml/components/compute-service/internal/resourceunit"
 	"github.com/axisml/axisml/components/compute-service/internal/server"
 	servicemod "github.com/axisml/axisml/components/compute-service/internal/service"
+	tenantmod "github.com/axisml/axisml/components/compute-service/internal/tenant"
 	apperrors "github.com/axisml/axisml/components/compute-service/pkg/errors"
 	"github.com/axisml/axisml/pkg/openapigen"
 )
@@ -32,11 +31,10 @@ const defaultVersion = "0.0.0-dev"
 
 // Tag names. One source of truth so a typo can't silently split a group.
 const (
-	tagResourcePools = "resource-pools"
-	tagResourceUnits = "resource-units"
-	tagJobs          = "jobs"
-	tagServices      = "services"
-	tagSystem        = "system"
+	tagTenants  = "tenants"
+	tagJobs     = "jobs"
+	tagServices = "services"
+	tagSystem   = "system"
 )
 
 // AxisML §6.1 name policy is duplicated here as a regex rather than imported
@@ -44,8 +42,7 @@ const (
 // clients don't import strutil. Same constants live in
 // components/compute-service/pkg/strutil — keep them in sync if the policy changes.
 const (
-	axisMLNamePattern         = "^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])?$"
-	axisMLResourceUnitPattern = axisMLNamePattern
+	axisMLNamePattern = "^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])?$"
 )
 
 func main() {
@@ -109,41 +106,33 @@ func buildDocument(version string) *openapigen.Document {
 		},
 		PatternRules: []openapigen.PatternRule{
 			{Tag: "axisml_name", Pattern: axisMLNamePattern, MinLength: 3, MaxLength: 40},
-			{Tag: "axisml_resource_unit", Pattern: axisMLResourceUnitPattern, MinLength: 3, MaxLength: 40},
 		},
 		PackageNamer: operatorAPIPrefix,
 	})
 
 	// Core component schemas (referenced from operations).
 	g.Register("Problem", server.Problem{}, openapigen.ResponseMode)
-	g.Register("ResourcepoolCreateInput", resourcepool.CreateInput{}, openapigen.InputMode)
-	g.Register("ResourcepoolUpdateInput", resourcepool.UpdateInput{}, openapigen.InputMode)
-	g.Register("ResourcepoolView", resourcepool.View{}, openapigen.ResponseMode)
-	g.Register("ResourceunitCreateInput", resourceunit.CreateInput{}, openapigen.InputMode)
-	g.Register("ResourceunitUpdateInput", resourceunit.UpdateInput{}, openapigen.InputMode)
-	g.Register("ResourceunitView", resourceunit.View{}, openapigen.ResponseMode)
+	g.Register("TenantCreateInput", tenantmod.CreateInput{}, openapigen.InputMode)
+	g.Register("TenantPatchInput", tenantmod.PatchInput{}, openapigen.InputMode)
+	g.Register("TenantResponse", tenantmod.Response{}, openapigen.ResponseMode)
+	g.Register("TenantListResponse", tenantmod.ListResponse{}, openapigen.ResponseMode)
 	g.Register("JobCreateInput", job.CreateInput{}, openapigen.InputMode)
 	g.Register("JobView", job.View{}, openapigen.ResponseMode)
 	g.Register("MLServiceCreateInput", servicemod.CreateInput{}, openapigen.InputMode)
 	g.Register("MLServiceScaleInput", servicemod.ScaleInput{}, openapigen.InputMode)
 	g.Register("MLServiceView", servicemod.View{}, openapigen.ResponseMode)
 
-	g.Set("ResourcepoolList", openapigen.ListEnvelope("ResourcepoolView"))
-	g.Set("ResourceunitList", openapigen.ListEnvelope("ResourceunitView"))
 	g.Set("JobList", openapigen.ListEnvelope("JobView"))
 	g.Set("MLServiceList", openapigen.ListEnvelope("MLServiceView"))
 
 	tags := []openapigen.TagEntry{
-		{Name: tagResourcePools, Description: "Cluster-scoped resource pool registry."},
-		{Name: tagResourceUnits, Description: "Reusable CPU/GPU/memory recipes scoped to a pool."},
-		{Name: tagJobs, Description: "MLJob CRUD per namespace."},
+		{Name: tagTenants, Description: "Tenant CRUD. Compute owns the Tenant CR; PG is authoritative, CR is derived."},
+		{Name: tagJobs, Description: "MLJob CRUD per namespace. ResourcePool/Unit referenced by name (read from K8s Informer cache)."},
 		{Name: tagServices, Description: "MLService CRUD per namespace."},
 		{Name: tagSystem, Description: "Liveness and readiness probes."},
 	}
 
-	nsParam := openapigen.PathParam("namespace", "Kubernetes namespace.")
-	poolParam := openapigen.PathParam("pool", "Resource pool name.")
-	unitParam := openapigen.PathParam("unit", "Resource unit name.")
+	nsParam := openapigen.PathParam("namespace", "Tenant name (= jobs/services partition key).")
 	jobParam := openapigen.PathParam("job", "Job name.")
 	serviceParam := openapigen.PathParam("service", "Service name.")
 
@@ -165,67 +154,35 @@ func buildDocument(version string) *openapigen.Document {
 		},
 	}}
 
-	// resource pools
-	paths["/api/v1/resource-pools"] = openapigen.PathItem{
+	// tenants (the URL token is the tenant name, mirroring the design's
+	// "namespace = tenant identifier" naming).
+	paths["/api/v1/namespaces"] = openapigen.PathItem{
 		Post: &openapigen.Operation{
-			Tags: []string{tagResourcePools}, Summary: "Create a resource pool", OperationID: "createResourcePool",
-			RequestBody: openapigen.JSONBody("ResourcepoolCreateInput"),
-			Responses:   withErrors(map[string]openapigen.Response{"201": openapigen.JSONResp("Created.", "ResourcepoolView")}),
+			Tags: []string{tagTenants}, Summary: "Create a tenant", OperationID: "createTenant",
+			RequestBody: openapigen.JSONBody("TenantCreateInput"),
+			Responses:   withErrors(map[string]openapigen.Response{"201": openapigen.JSONResp("Created.", "TenantResponse")}),
 		},
 		Get: &openapigen.Operation{
-			Tags: []string{tagResourcePools}, Summary: "List resource pools", OperationID: "listResourcePools",
+			Tags: []string{tagTenants}, Summary: "List tenants", OperationID: "listTenants",
 			Parameters: []openapigen.Parameter{limitParam, offsetParam},
-			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Page.", "ResourcepoolList")}),
+			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Page.", "TenantListResponse")}),
 		},
 	}
-	paths["/api/v1/resource-pools/{pool}"] = openapigen.PathItem{
+	paths["/api/v1/namespaces/{namespace}"] = openapigen.PathItem{
 		Get: &openapigen.Operation{
-			Tags: []string{tagResourcePools}, Summary: "Get resource pool", OperationID: "getResourcePool",
-			Parameters: []openapigen.Parameter{poolParam},
-			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Resource pool.", "ResourcepoolView")}),
+			Tags: []string{tagTenants}, Summary: "Get tenant", OperationID: "getTenant",
+			Parameters: []openapigen.Parameter{nsParam},
+			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Tenant.", "TenantResponse")}),
 		},
 		Patch: &openapigen.Operation{
-			Tags: []string{tagResourcePools}, Summary: "Patch resource pool", OperationID: "updateResourcePool",
-			Parameters:  []openapigen.Parameter{poolParam},
-			RequestBody: openapigen.JSONBody("ResourcepoolUpdateInput"),
-			Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Updated.", "ResourcepoolView")}),
+			Tags: []string{tagTenants}, Summary: "Patch tenant", OperationID: "patchTenant",
+			Parameters:  []openapigen.Parameter{nsParam},
+			RequestBody: openapigen.JSONBody("TenantPatchInput"),
+			Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Updated.", "TenantResponse")}),
 		},
 		Delete: &openapigen.Operation{
-			Tags: []string{tagResourcePools}, Summary: "Delete resource pool", OperationID: "deleteResourcePool",
-			Parameters: []openapigen.Parameter{poolParam},
-			Responses:  withErrors(map[string]openapigen.Response{"204": openapigen.NoContentResp}),
-		},
-	}
-
-	// resource units (under a pool)
-	paths["/api/v1/resource-pools/{pool}/resource-units"] = openapigen.PathItem{
-		Post: &openapigen.Operation{
-			Tags: []string{tagResourceUnits}, Summary: "Create a resource unit", OperationID: "createResourceUnit",
-			Parameters:  []openapigen.Parameter{poolParam},
-			RequestBody: openapigen.JSONBody("ResourceunitCreateInput"),
-			Responses:   withErrors(map[string]openapigen.Response{"201": openapigen.JSONResp("Created.", "ResourceunitView")}),
-		},
-		Get: &openapigen.Operation{
-			Tags: []string{tagResourceUnits}, Summary: "List resource units in a pool", OperationID: "listResourceUnits",
-			Parameters: []openapigen.Parameter{poolParam, limitParam, offsetParam},
-			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Page.", "ResourceunitList")}),
-		},
-	}
-	paths["/api/v1/resource-pools/{pool}/resource-units/{unit}"] = openapigen.PathItem{
-		Get: &openapigen.Operation{
-			Tags: []string{tagResourceUnits}, Summary: "Get resource unit", OperationID: "getResourceUnit",
-			Parameters: []openapigen.Parameter{poolParam, unitParam},
-			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Resource unit.", "ResourceunitView")}),
-		},
-		Patch: &openapigen.Operation{
-			Tags: []string{tagResourceUnits}, Summary: "Patch resource unit", OperationID: "updateResourceUnit",
-			Parameters:  []openapigen.Parameter{poolParam, unitParam},
-			RequestBody: openapigen.JSONBody("ResourceunitUpdateInput"),
-			Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Updated.", "ResourceunitView")}),
-		},
-		Delete: &openapigen.Operation{
-			Tags: []string{tagResourceUnits}, Summary: "Delete resource unit", OperationID: "deleteResourceUnit",
-			Parameters: []openapigen.Parameter{poolParam, unitParam},
+			Tags: []string{tagTenants}, Summary: "Delete tenant (soft delete)", OperationID: "deleteTenant",
+			Parameters: []openapigen.Parameter{nsParam},
 			Responses:  withErrors(map[string]openapigen.Response{"204": openapigen.NoContentResp}),
 		},
 	}
@@ -300,7 +257,7 @@ func buildDocument(version string) *openapigen.Document {
 		Info: openapigen.Info{
 			Title:       "AxisML Compute Service API",
 			Version:     version,
-			Description: "REST API for resource pools, resource units, jobs, and services. Partitioned by Kubernetes namespace. RFC7807 Problem responses on errors.",
+			Description: "REST API for Tenant CRUD plus per-namespace Jobs and Services. ResourcePool/Unit live in the cluster-manager CRD; compute references them by name. RFC7807 Problem responses on errors.",
 		},
 		Servers: []openapigen.ServerEntry{{URL: "/", Description: "Same-origin"}},
 		Tags:    tags,

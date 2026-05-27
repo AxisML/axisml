@@ -22,7 +22,7 @@ const (
 	StatusDeleted   Status = "Deleted"
 )
 
-// IsTerminal returns whether the status is a terminal state for reconciliation purposes.
+// IsTerminal returns whether the status is a terminal state.
 func IsTerminal(s Status) bool {
 	switch s {
 	case StatusSucceeded, StatusFailed, StatusCancelled, StatusDeleted:
@@ -33,13 +33,13 @@ func IsTerminal(s Status) bool {
 
 // Job is the GORM-backed `jobs` row. The row is keyed on (namespace, name);
 // namespace is a bare string partition key with no compute-side existence
-// check. Quota lives only on the rendered MLJob CR via spec.scheduling.quota,
-// an opaque ElasticQuota CR name passed through from Platform.
+// check. PoolName / UnitName are provenance only — the underlying
+// ResourcePool lives in the K8s CRD owned by cluster-manager (no FK).
 type Job struct {
 	ID                 uuid.UUID      `gorm:"type:uuid;primaryKey"`
 	Namespace          string         `gorm:"size:253;not null;column:namespace"`
-	PoolID             uuid.UUID      `gorm:"type:uuid;not null;column:pool_id"`
-	ResourceUnitID     uuid.UUID      `gorm:"type:uuid;not null;column:resource_unit_id"`
+	PoolName           string         `gorm:"size:40;not null;column:pool_name"`
+	UnitName           string         `gorm:"size:40;not null;column:unit_name"`
 	Name               string         `gorm:"size:64;not null"`
 	DisplayName        string         `gorm:"type:text;not null;default:''"`
 	Description        string         `gorm:"type:text;not null;default:''"`

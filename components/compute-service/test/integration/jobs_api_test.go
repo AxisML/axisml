@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -17,8 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	poolmod "github.com/axisml/axisml/components/compute-service/internal/resourcepool"
-	unitmod "github.com/axisml/axisml/components/compute-service/internal/resourceunit"
+	axismlv1alpha1 "github.com/axisml/axisml/components/cluster-manager/api/v1alpha1"
 	apperrors "github.com/axisml/axisml/components/compute-service/pkg/errors"
 )
 
@@ -26,12 +24,12 @@ func TestJob_CancelGuards(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	unitID := seedPoolAndUnit(t, ctx, "jobs-cancel-pool", "small-cancel")
+	seedResourcePool(t, ctx, "jobs-cancel-pool", "small-cancel")
 	const ns = "jobs-cancel-ns"
 	mustCreateNamespace(t, ctx, ns)
 
 	rr := doJSON(t, ctx, http.MethodPost, "/api/v1/namespaces/"+ns+"/jobs",
-		buildJobCreateBody("cancel-me", unitID), nil)
+		buildJobCreateBody("cancel-me", "jobs-cancel-pool", "small-cancel"), nil)
 	requireStatus(t, rr, http.StatusCreated)
 
 	// Cancel before the operator has observed the CR returns 412 telling
@@ -60,13 +58,13 @@ func TestJob_ListPagination(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	unitID := seedPoolAndUnit(t, ctx, "jobs-list-pool", "small-list")
+	seedResourcePool(t, ctx, "jobs-list-pool", "small-list")
 	const ns = "jobs-list-ns"
 	mustCreateNamespace(t, ctx, ns)
 
 	for _, n := range []string{"a", "b", "c"} {
 		rr := doJSON(t, ctx, http.MethodPost, "/api/v1/namespaces/"+ns+"/jobs",
-			buildJobCreateBody("job-"+n, unitID), nil)
+			buildJobCreateBody("job-"+n, "jobs-list-pool", "small-list"), nil)
 		requireStatus(t, rr, http.StatusCreated)
 	}
 
@@ -85,42 +83,51 @@ func TestJob_ListPagination(t *testing.T) {
 
 // --- helpers --------------------------------------------------------------
 
-// seedPoolAndUnit creates (or reuses) a ResourcePool and a ResourceUnit
-// under it via the service layer (not the HTTP API), returning the unit ID
-// for callers to reference in job/service create bodies.
-func seedPoolAndUnit(t *testing.T, ctx context.Context, poolName, unitName string) uuid.UUID {
+// seedResourcePool creates (or reuses) a ResourcePool CR with one embedded
+// unit so the poolcache Informer has something to resolve. Per the new
+// design, compute reads pools from the K8s CRD — never from PG.
+func seedResourcePool(t *testing.T, ctx context.Context, poolName, unitName string) {
 	t.Helper()
-	pool, err := poolmod.NewService(gormDB).EnsureDefault(ctx, poolName)
+	c, err := client.New(testCfg, client.Options{Scheme: testScheme})
 	require.NoError(t, err)
-	view, err := unitmod.NewService(gormDB).Create(ctx, pool.ID, unitmod.CreateInput{
-		Name: unitName,
-		Requests: corev1.ResourceList{
-			corev1.ResourceCPU:    resource.MustParse("100m"),
-			corev1.ResourceMemory: resource.MustParse("128Mi"),
+
+	pool := &axismlv1alpha1.ResourcePool{
+		ObjectMeta: metav1.ObjectMeta{Name: poolName},
+		Spec: axismlv1alpha1.ResourcePoolSpec{
+			Units: []axismlv1alpha1.ResourceUnit{{
+				Name: unitName,
+				Requests: corev1.ResourceList{
+					corev1.ResourceCPU:    resource.MustParse("100m"),
+					corev1.ResourceMemory: resource.MustParse("128Mi"),
+				},
+				Limits: corev1.ResourceList{
+					corev1.ResourceCPU:    resource.MustParse("100m"),
+					corev1.ResourceMemory: resource.MustParse("128Mi"),
+				},
+			}},
 		},
-	})
-	require.NoError(t, err)
-	return view.ID
+	}
+	if err := c.Create(ctx, pool); err != nil && !apierrors.IsAlreadyExists(err) {
+		t.Fatalf("seed ResourcePool: %v", err)
+	}
 }
 
 func mustCreateNamespace(t *testing.T, ctx context.Context, ns string) {
 	t.Helper()
 	c, err := client.New(testCfg, client.Options{Scheme: testScheme})
 	require.NoError(t, err)
-	// Tests share an envtest apiserver, so the namespace may already
-	// exist from a previous test in the same package run — that's
-	// fine. Surface any other failure (apiserver down, RBAC, etc.).
 	if err := c.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}}); err != nil && !apierrors.IsAlreadyExists(err) {
 		t.Fatalf("create namespace %q: %v", ns, err)
 	}
 }
 
-func buildJobCreateBody(name string, unitID uuid.UUID) map[string]any {
+func buildJobCreateBody(name, poolName, unitName string) map[string]any {
 	return map[string]any{
-		"name":           name,
-		"resourceUnitId": unitID,
-		"quota":          "axisml-default",
-		"backend":        map[string]string{"name": "native", "engine": "job"},
+		"name":     name,
+		"poolName": poolName,
+		"unitName": unitName,
+		"quota":    "axisml-default",
+		"backend":  map[string]string{"name": "native", "engine": "job"},
 		"roles": []map[string]any{
 			{
 				"name":     "worker",

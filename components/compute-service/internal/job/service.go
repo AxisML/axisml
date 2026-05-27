@@ -12,8 +12,7 @@ import (
 	mljobv1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mljob/v1alpha1"
 
 	"github.com/axisml/axisml/components/compute-service/internal/auth"
-	"github.com/axisml/axisml/components/compute-service/internal/resourcepool"
-	"github.com/axisml/axisml/components/compute-service/internal/resourceunit"
+	"github.com/axisml/axisml/components/compute-service/internal/poolcache"
 	apperrors "github.com/axisml/axisml/components/compute-service/pkg/errors"
 	"github.com/axisml/axisml/components/compute-service/pkg/strutil"
 )
@@ -23,37 +22,32 @@ import (
 type Service struct {
 	repo  *Repository
 	db    *gorm.DB
-	pools *resourcepool.Service
-	units *resourceunit.Service
+	pools *poolcache.Reader
 }
 
 // NewService constructs the job service.
-func NewService(
-	db *gorm.DB,
-	pools *resourcepool.Service,
-	units *resourceunit.Service,
-) *Service {
+func NewService(db *gorm.DB, pools *poolcache.Reader) *Service {
 	return &Service{
 		repo:  NewRepository(db),
 		db:    db,
 		pools: pools,
-		units: units,
 	}
 }
 
-// CreateInput is the API request body. Caller selects pool/unit/quota by
-// ID; we resolve unit + pool at write time. `Quota` is the ElasticQuota CR
-// name (cluster-unique string) that gets stamped onto Pod labels — Compute
-// treats it as opaque and does no existence check.
+// CreateInput is the API request body. Caller selects pool/unit by NAME
+// (the ResourcePool CRD lives in K8s; compute reads it via Informer cache).
+// `Quota` is the ElasticQuota CR name (cluster-unique string) stamped onto
+// Pod labels — compute treats it as opaque.
 type CreateInput struct {
-	Name           string                       `json:"name" binding:"required,axisml_name"`
-	DisplayName    string                       `json:"displayName"`
-	Description    string                       `json:"description"`
-	ResourceUnitID uuid.UUID                    `json:"resourceUnitId" binding:"required"`
-	Quota          string                       `json:"quota" binding:"required"`
-	Backend        *mljobv1alpha1.BackendSpec   `json:"backend"`
-	Roles          []mljobv1alpha1.RoleSpec     `json:"roles" binding:"required,min=1"`
-	RunPolicy      *mljobv1alpha1.RunPolicySpec `json:"runPolicy"`
+	Name        string                       `json:"name" binding:"required,axisml_name"`
+	DisplayName string                       `json:"displayName"`
+	Description string                       `json:"description"`
+	PoolName    string                       `json:"poolName" binding:"required"`
+	UnitName    string                       `json:"unitName" binding:"required"`
+	Quota       string                       `json:"quota" binding:"required"`
+	Backend     *mljobv1alpha1.BackendSpec   `json:"backend"`
+	Roles       []mljobv1alpha1.RoleSpec     `json:"roles" binding:"required,min=1"`
+	RunPolicy   *mljobv1alpha1.RunPolicySpec `json:"runPolicy"`
 }
 
 // View is the HTTP response payload.
@@ -61,6 +55,8 @@ type View struct {
 	ID          uuid.UUID               `json:"id"`
 	Namespace   string                  `json:"namespace"`
 	Name        string                  `json:"name"`
+	PoolName    string                  `json:"poolName,omitempty"`
+	UnitName    string                  `json:"unitName,omitempty"`
 	DisplayName string                  `json:"displayName,omitempty"`
 	Description string                  `json:"description,omitempty"`
 	OwnerUser   string                  `json:"ownerUser,omitempty"`
@@ -87,16 +83,7 @@ func (s *Service) Create(ctx context.Context, namespace string, in CreateInput) 
 		return nil, err
 	}
 
-	unit, err := s.units.GetByID(ctx, in.ResourceUnitID)
-	if err != nil {
-		return nil, err
-	}
-	pool, err := s.pools.GetByID(ctx, unit.PoolID)
-	if err != nil {
-		return nil, err
-	}
-
-	decoded, err := resourceunit.Decode(unit)
+	expanded, err := s.pools.Resolve(ctx, in.PoolName, in.UnitName)
 	if err != nil {
 		return nil, err
 	}
@@ -112,19 +99,10 @@ func (s *Service) Create(ctx context.Context, namespace string, in CreateInput) 
 		backend.Config = in.Backend.Config
 	}
 
-	poolSel, err := pool.DecodeNodeSelector()
-	if err != nil {
-		return nil, err
-	}
-	poolTols, err := pool.DecodeTolerations()
-	if err != nil {
-		return nil, err
-	}
-
 	roles := make([]mljobv1alpha1.RoleSpec, len(in.Roles))
 	for i, r := range in.Roles {
 		role := r
-		role.Template.Resources = resourceunit.BuildResources(decoded.Requests, decoded.Limits)
+		role.Template.Resources = poolcache.BuildResources(expanded.Requests, expanded.Limits)
 		roles[i] = role
 	}
 
@@ -138,8 +116,8 @@ func (s *Service) Create(ctx context.Context, namespace string, in CreateInput) 
 		Backend: backend,
 		Scheduling: mljobv1alpha1.SchedulingSpec{
 			Quota:        in.Quota,
-			NodeSelector: resourceunit.MergeNodeSelector(poolSel, decoded.NodeSelector),
-			Tolerations:  poolTols,
+			NodeSelector: expanded.NodeSelector,
+			Tolerations:  expanded.Tolerations,
 		},
 		Roles:     roles,
 		RunPolicy: runPolicy,
@@ -149,15 +127,15 @@ func (s *Service) Create(ctx context.Context, namespace string, in CreateInput) 
 	if err != nil {
 		return nil, err
 	}
-	reqJSON, err := json.Marshal(decoded.Requests)
+	reqJSON, err := json.Marshal(expanded.Requests)
 	if err != nil {
 		return nil, err
 	}
 	j := &Job{
 		ID:                 uuid.New(),
 		Namespace:          namespace,
-		PoolID:             pool.ID,
-		ResourceUnitID:     unit.ID,
+		PoolName:           in.PoolName,
+		UnitName:           in.UnitName,
 		Name:               in.Name,
 		DisplayName:        in.DisplayName,
 		Description:        in.Description,
@@ -249,6 +227,8 @@ func (s *Service) toView(j *Job) (*View, error) {
 		ID:          j.ID,
 		Namespace:   j.Namespace,
 		Name:        j.Name,
+		PoolName:    j.PoolName,
+		UnitName:    j.UnitName,
 		DisplayName: j.DisplayName,
 		Description: j.Description,
 		OwnerUser:   j.OwnerUser,
