@@ -52,13 +52,12 @@ type TenantList struct {
 }
 
 // TenantSpec mirrors the new tenant-operator design (§3 / §6 — namespace +
-// quotas[] + initResources).
+// quotas[] + initResources). Per the design, display_name / description /
+// labels / annotations are PG-only and never propagated to the CR.
 type TenantSpec struct {
-	DisplayName   string            `json:"displayName,omitempty"`
-	Annotations   map[string]string `json:"annotations,omitempty"`
-	Namespace     NamespaceSpec     `json:"namespace"`
-	Quotas        []QuotaSpec       `json:"quotas,omitempty"`
-	InitResources InitResources     `json:"initResources,omitempty"`
+	Namespace     NamespaceSpec `json:"namespace"`
+	Quotas        []QuotaSpec   `json:"quotas,omitempty"`
+	InitResources InitResources `json:"initResources,omitempty"`
 }
 
 // NamespaceSpec describes the target Namespace; spec.namespace.name is immutable.

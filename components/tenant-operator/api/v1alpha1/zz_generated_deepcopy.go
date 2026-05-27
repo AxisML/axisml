@@ -53,12 +53,6 @@ func (in *TenantList) DeepCopyObject() runtime.Object { return in.DeepCopy() }
 
 func (in *TenantSpec) DeepCopyInto(out *TenantSpec) {
 	*out = *in
-	if in.Annotations != nil {
-		out.Annotations = make(map[string]string, len(in.Annotations))
-		for k, v := range in.Annotations {
-			out.Annotations[k] = v
-		}
-	}
 	in.Namespace.DeepCopyInto(&out.Namespace)
 	if in.Quotas != nil {
 		out.Quotas = make([]QuotaSpec, len(in.Quotas))

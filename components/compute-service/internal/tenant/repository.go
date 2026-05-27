@@ -32,11 +32,15 @@ func (r *Repository) GetByName(ctx context.Context, name string) (*Tenant, error
 	return &t, nil
 }
 
-// List returns all active tenants, paginated by created_at DESC.
-func (r *Repository) List(ctx context.Context, limit, offset int) ([]Tenant, int64, error) {
+// List returns all active tenants, paginated by created_at DESC. Optionally
+// filtered by a labelSelector SQL fragment built from server.JSONLabelsSQL.
+func (r *Repository) List(ctx context.Context, limit, offset int, labelClause string, labelArgs []any) ([]Tenant, int64, error) {
 	var rows []Tenant
 	var total int64
 	q := r.db.WithContext(ctx).Model(&Tenant{}).Where("deleted_at IS NULL")
+	if labelClause != "" {
+		q = q.Where(labelClause, labelArgs...)
+	}
 	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}

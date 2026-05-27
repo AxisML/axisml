@@ -5,16 +5,20 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	mlservicev1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
+
+	"github.com/axisml/axisml/components/compute-service/internal/kubeproxy"
 	"github.com/axisml/axisml/components/compute-service/internal/server"
 )
 
 // Handler exposes /namespaces/:namespace/services routes.
 type Handler struct {
-	svc *Module
+	svc  *Module
+	kube *kubeproxy.Client
 }
 
-func NewHandler(svc *Module) *Handler {
-	return &Handler{svc: svc}
+func NewHandler(svc *Module, kube *kubeproxy.Client) *Handler {
+	return &Handler{svc: svc, kube: kube}
 }
 
 func (h *Handler) Register(rg *gin.RouterGroup) {
@@ -24,6 +28,33 @@ func (h *Handler) Register(rg *gin.RouterGroup) {
 	g.GET("/:service", h.Get)
 	g.POST("/:service/scale", h.Scale)
 	g.DELETE("/:service", h.Delete)
+	if h.kube != nil {
+		g.GET("/:service/pods", h.ListPods)
+		g.GET("/:service/pods/:pod/log", h.PodLog)
+		g.GET("/:service/pods/:pod/events", h.PodEvents)
+		g.GET("/:service/events", h.ServiceEvents)
+	}
+}
+
+func (h *Handler) ListPods(c *gin.Context) {
+	s, err := h.svc.Get(c.Request.Context(), c.Param("namespace"), c.Param("service"))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	h.kube.PodsByLabel(c, s.Namespace, mlservicev1alpha1.LabelServiceID, s.ID.String())
+}
+
+func (h *Handler) PodLog(c *gin.Context) {
+	h.kube.PodLog(c, c.Param("namespace"), c.Param("pod"))
+}
+
+func (h *Handler) PodEvents(c *gin.Context) {
+	h.kube.EventsByInvolved(c, c.Param("namespace"), "Pod", c.Param("pod"))
+}
+
+func (h *Handler) ServiceEvents(c *gin.Context) {
+	h.kube.EventsByInvolved(c, c.Param("namespace"), "MLService", c.Param("service"))
 }
 
 func (h *Handler) Create(c *gin.Context) {
@@ -48,7 +79,12 @@ func (h *Handler) List(c *gin.Context) {
 		_ = c.Error(err)
 		return
 	}
-	items, total, err := h.svc.List(c.Request.Context(), ns, p.Limit, p.Offset)
+	clause, args, err := server.JSONLabelsSQL("labels", c.Query("labelSelector"))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	items, total, err := h.svc.List(c.Request.Context(), ns, c.Query("kind"), p.Limit, p.Offset, clause, args)
 	if err != nil {
 		_ = c.Error(err)
 		return

@@ -35,6 +35,8 @@ type Service struct {
 	DisplayName        string         `gorm:"type:text;not null;default:''"`
 	Description        string         `gorm:"type:text;not null;default:''"`
 	OwnerUser          string         `gorm:"type:text;not null;default:''"`
+	Labels             datatypes.JSON `gorm:"type:jsonb;not null;default:'{}'"`
+	Annotations        datatypes.JSON `gorm:"type:jsonb;not null;default:'{}'"`
 	Spec               datatypes.JSON `gorm:"type:jsonb;not null"`
 	DesiredSpecHash    string         `gorm:"type:text;not null;default:'';column:desired_spec_hash"`
 	AppliedSpecHash    string         `gorm:"type:text;not null;default:'';column:applied_spec_hash"`

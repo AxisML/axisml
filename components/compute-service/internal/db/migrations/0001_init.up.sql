@@ -57,6 +57,8 @@ CREATE TABLE jobs (
     display_name         text        NOT NULL DEFAULT '',
     description          text        NOT NULL DEFAULT '',
     owner_user           text        NOT NULL DEFAULT '',
+    labels               jsonb       NOT NULL DEFAULT '{}'::jsonb,
+    annotations          jsonb       NOT NULL DEFAULT '{}'::jsonb,
     spec                 jsonb       NOT NULL,
     requested_resources  jsonb       NOT NULL DEFAULT '{}'::jsonb,
     status               text        NOT NULL,
@@ -71,6 +73,7 @@ CREATE UNIQUE INDEX uq_jobs_namespace_name
     ON jobs(namespace, name) WHERE deleted_at IS NULL;
 CREATE INDEX idx_jobs_workset            ON jobs(status, deleted_at);
 CREATE INDEX idx_jobs_namespace_status   ON jobs(namespace, status) WHERE deleted_at IS NULL;
+CREATE INDEX idx_jobs_labels_gin         ON jobs USING GIN (labels jsonb_path_ops);
 
 -- Services ------------------------------------------------------------------
 CREATE TABLE services (
@@ -83,6 +86,8 @@ CREATE TABLE services (
     display_name         text        NOT NULL DEFAULT '',
     description          text        NOT NULL DEFAULT '',
     owner_user           text        NOT NULL DEFAULT '',
+    labels               jsonb       NOT NULL DEFAULT '{}'::jsonb,
+    annotations          jsonb       NOT NULL DEFAULT '{}'::jsonb,
     spec                 jsonb       NOT NULL,
     desired_spec_hash    text        NOT NULL DEFAULT '',
     applied_spec_hash    text        NOT NULL DEFAULT '',
@@ -106,3 +111,5 @@ CREATE INDEX idx_services_spec_sync
     ON services(deleted_at) WHERE desired_spec_hash <> applied_spec_hash;
 CREATE INDEX idx_services_namespace_status
     ON services(namespace, status) WHERE deleted_at IS NULL;
+CREATE INDEX idx_services_labels_gin
+    ON services USING GIN (labels jsonb_path_ops);

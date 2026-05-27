@@ -182,8 +182,46 @@ components:
         value:
           type: string
       type: object
+    EventList:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/EventView'
+          type: array
+        total:
+          format: int64
+          type: integer
+      required:
+      - items
+      - total
+      type: object
+    EventView:
+      properties:
+        eventTime:
+          allOf:
+          - $ref: '#/components/schemas/Metav1Time'
+          nullable: true
+        note:
+          type: string
+        object:
+          type: string
+        reason:
+          type: string
+        reportingController:
+          type: string
+        type:
+          type: string
+      required:
+      - object
+      - reason
+      - type
+      type: object
     JobCreateInput:
       properties:
+        annotations:
+          additionalProperties:
+            type: string
+          type: object
         backend:
           allOf:
           - $ref: '#/components/schemas/MLJobBackendSpec'
@@ -192,12 +230,18 @@ components:
           type: string
         displayName:
           type: string
+        labels:
+          additionalProperties:
+            type: string
+          type: object
         name:
           maxLength: 40
           minLength: 3
           pattern: ^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])?$
           type: string
         poolName:
+          type: string
+        priorityClass:
           type: string
         quota:
           type: string
@@ -406,6 +450,10 @@ components:
       type: object
     MLServiceCreateInput:
       properties:
+        annotations:
+          additionalProperties:
+            type: string
+          type: object
         backend:
           allOf:
           - $ref: '#/components/schemas/MLServiceBackend'
@@ -416,12 +464,18 @@ components:
           type: string
         kind:
           type: string
+        labels:
+          additionalProperties:
+            type: string
+          type: object
         name:
           maxLength: 40
           minLength: 3
           pattern: ^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])?$
           type: string
         poolName:
+          type: string
+        priorityClass:
           type: string
         quota:
           type: string
@@ -697,6 +751,40 @@ components:
       - status
       - updatedAt
       type: object
+    Metav1Time:
+      type: object
+    PodList:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/PodView'
+          type: array
+        total:
+          format: int64
+          type: integer
+      required:
+      - items
+      - total
+      type: object
+    PodView:
+      properties:
+        labels:
+          additionalProperties:
+            type: string
+          type: object
+        name:
+          type: string
+        namespace:
+          type: string
+        nodeName:
+          type: string
+        phase:
+          type: string
+      required:
+      - name
+      - namespace
+      - phase
+      type: object
     Problem:
       properties:
         code:
@@ -876,6 +964,53 @@ components:
           nullable: true
           type: array
       type: object
+    TenantQuota:
+      properties:
+        max:
+          additionalProperties:
+            type: string
+          type: object
+        min:
+          additionalProperties:
+            type: string
+          type: object
+        name:
+          type: string
+        pool:
+          type: string
+      required:
+      - max
+      - name
+      - pool
+      type: object
+    TenantQuotaInput:
+      properties:
+        max:
+          additionalProperties:
+            type: string
+          type: object
+        min:
+          additionalProperties:
+            type: string
+          type: object
+        name:
+          type: string
+        pool:
+          type: string
+      type: object
+    TenantQuotaList:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/TenantQuota'
+          type: array
+        total:
+          format: int64
+          type: integer
+      required:
+      - items
+      - total
+      type: object
     TenantQuotaSpec:
       properties:
         max:
@@ -894,6 +1029,50 @@ components:
       - max
       - name
       - pool
+      type: object
+    TenantRBACRoleRef:
+      properties:
+        kind:
+          type: string
+        name:
+          type: string
+      required:
+      - kind
+      - name
+      type: object
+    TenantRBACRule:
+      properties:
+        apiGroups:
+          items:
+            type: string
+          type: array
+        nonResourceURLs:
+          items:
+            type: string
+          type: array
+        resourceNames:
+          items:
+            type: string
+          type: array
+        resources:
+          items:
+            type: string
+          type: array
+        verbs:
+          items:
+            type: string
+          type: array
+      type: object
+    TenantRBACSpec:
+      properties:
+        roleRef:
+          allOf:
+          - $ref: '#/components/schemas/TenantRBACRoleRef'
+          nullable: true
+        rules:
+          items:
+            $ref: '#/components/schemas/TenantRBACRule'
+          type: array
       type: object
     TenantResponse:
       properties:
@@ -971,6 +1150,10 @@ components:
           type: array
         name:
           type: string
+        rbac:
+          allOf:
+          - $ref: '#/components/schemas/TenantRBACSpec'
+          nullable: true
       required:
       - name
       type: object
@@ -1756,6 +1939,738 @@ paths:
       summary: Cancel a running job
       tags:
       - jobs
+  /api/v1/namespaces/{namespace}/jobs/{job}/events:
+    get:
+      operationId: listJobEvents
+      parameters:
+      - description: Tenant name (= jobs/services partition key).
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      - description: Job name.
+        in: path
+        name: job
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventList'
+          description: Events.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: List events targeted at the MLJob CR
+      tags:
+      - jobs
+  /api/v1/namespaces/{namespace}/jobs/{job}/pods:
+    get:
+      operationId: listJobPods
+      parameters:
+      - description: Tenant name (= jobs/services partition key).
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      - description: Job name.
+        in: path
+        name: job
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PodList'
+          description: Pods.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: List pods of a job
+      tags:
+      - jobs
+  /api/v1/namespaces/{namespace}/jobs/{job}/pods/{pod}/events:
+    get:
+      operationId: listJobPodEvents
+      parameters:
+      - description: Tenant name (= jobs/services partition key).
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      - description: Job name.
+        in: path
+        name: job
+        required: true
+        schema:
+          type: string
+      - description: Pod name.
+        in: path
+        name: pod
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventList'
+          description: Events.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: List events targeted at a pod
+      tags:
+      - jobs
+  /api/v1/namespaces/{namespace}/jobs/{job}/pods/{pod}/log:
+    get:
+      operationId: getJobPodLog
+      parameters:
+      - description: Tenant name (= jobs/services partition key).
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      - description: Job name.
+        in: path
+        name: job
+        required: true
+        schema:
+          type: string
+      - description: Pod name.
+        in: path
+        name: pod
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            text/plain:
+              schema:
+                type: string
+          description: text/plain stream of pod log
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: Stream a pod's container log
+      tags:
+      - jobs
+  /api/v1/namespaces/{namespace}/quotas:
+    get:
+      operationId: listTenantQuotas
+      parameters:
+      - description: Tenant name (= jobs/services partition key).
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantQuotaList'
+          description: Quotas.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: List quotas of a tenant
+      tags:
+      - tenants
+    post:
+      operationId: addTenantQuota
+      parameters:
+      - description: Tenant name (= jobs/services partition key).
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TenantQuotaInput'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantQuota'
+          description: Added.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: Add a quota to a tenant
+      tags:
+      - tenants
+  /api/v1/namespaces/{namespace}/quotas/{pool}/{name}:
+    delete:
+      operationId: deleteTenantQuota
+      parameters:
+      - description: Tenant name (= jobs/services partition key).
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      - description: Pool name.
+        in: path
+        name: pool
+        required: true
+        schema:
+          type: string
+      - description: Quota name (within the (tenant, pool)).
+        in: path
+        name: name
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          description: Deleted (idempotent).
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: Delete a quota
+      tags:
+      - tenants
+    patch:
+      operationId: patchTenantQuota
+      parameters:
+      - description: Tenant name (= jobs/services partition key).
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      - description: Pool name.
+        in: path
+        name: pool
+        required: true
+        schema:
+          type: string
+      - description: Quota name (within the (tenant, pool)).
+        in: path
+        name: name
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TenantQuotaInput'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantQuota'
+          description: Updated.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: Patch a quota's min/max
+      tags:
+      - tenants
+  /api/v1/namespaces/{namespace}/restore:
+    post:
+      operationId: restoreTenant
+      parameters:
+      - description: Tenant name (= jobs/services partition key).
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantResponse'
+          description: Restored tenant.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: Restore a soft-deleted tenant
+      tags:
+      - tenants
   /api/v1/namespaces/{namespace}/services:
     get:
       operationId: listMLServices
@@ -2074,6 +2989,338 @@ paths:
                 $ref: '#/components/schemas/Problem'
           description: Unexpected error.
       summary: Get service
+      tags:
+      - services
+  /api/v1/namespaces/{namespace}/services/{service}/events:
+    get:
+      operationId: listServiceEvents
+      parameters:
+      - description: Tenant name (= jobs/services partition key).
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      - description: Service name.
+        in: path
+        name: service
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventList'
+          description: Events.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: List events targeted at the MLService CR
+      tags:
+      - services
+  /api/v1/namespaces/{namespace}/services/{service}/pods:
+    get:
+      operationId: listServicePods
+      parameters:
+      - description: Tenant name (= jobs/services partition key).
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      - description: Service name.
+        in: path
+        name: service
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PodList'
+          description: Pods.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: List pods of a service
+      tags:
+      - services
+  /api/v1/namespaces/{namespace}/services/{service}/pods/{pod}/events:
+    get:
+      operationId: listServicePodEvents
+      parameters:
+      - description: Tenant name (= jobs/services partition key).
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      - description: Service name.
+        in: path
+        name: service
+        required: true
+        schema:
+          type: string
+      - description: Pod name.
+        in: path
+        name: pod
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventList'
+          description: Events.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: List events targeted at a service pod
+      tags:
+      - services
+  /api/v1/namespaces/{namespace}/services/{service}/pods/{pod}/log:
+    get:
+      operationId: getServicePodLog
+      parameters:
+      - description: Tenant name (= jobs/services partition key).
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      - description: Service name.
+        in: path
+        name: service
+        required: true
+        schema:
+          type: string
+      - description: Pod name.
+        in: path
+        name: pod
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            text/plain:
+              schema:
+                type: string
+          description: text/plain stream of pod log
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: Stream a service pod's container log
       tags:
       - services
   /api/v1/namespaces/{namespace}/services/{service}/scale:

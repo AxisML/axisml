@@ -7,6 +7,7 @@ import (
 
 	"github.com/axisml/axisml/components/compute-service/internal/config"
 	jobmod "github.com/axisml/axisml/components/compute-service/internal/job"
+	"github.com/axisml/axisml/components/compute-service/internal/kubeproxy"
 	"github.com/axisml/axisml/components/compute-service/internal/poolcache"
 	"github.com/axisml/axisml/components/compute-service/internal/server"
 	servicemod "github.com/axisml/axisml/components/compute-service/internal/service"
@@ -37,10 +38,15 @@ func BuildModules(
 	jobInf := jobmod.NewInformer(gormDB, mgr, log.WithName("job-informer"))
 	serviceInf := servicemod.NewInformer(gormDB, mgr, log.WithName("service-informer"))
 
+	kube, err := kubeproxy.New(mgr.GetConfig(), mgr.GetClient())
+	if err != nil {
+		return nil, nil, err
+	}
+
 	modules := []server.Module{
 		tenantmod.NewHandler(tenants),
-		jobmod.NewHandler(jobs),
-		servicemod.NewHandler(services),
+		jobmod.NewHandler(jobs, kube),
+		servicemod.NewHandler(services, kube),
 	}
 	runnables := []manager.Runnable{
 		tenantRecon, jobRecon, serviceRecon,

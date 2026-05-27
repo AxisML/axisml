@@ -52,8 +52,29 @@ type ConfigMapSpec struct {
 }
 
 type ServiceAccountSpec struct {
-	Name             string   `json:"name"`
-	ImagePullSecrets []string `json:"imagePullSecrets,omitempty"`
+	Name             string    `json:"name"`
+	ImagePullSecrets []string  `json:"imagePullSecrets,omitempty"`
+	RBAC             *RBACSpec `json:"rbac,omitempty"`
+}
+
+// RBACSpec mirrors tenant-operator's RBAC spec — `rules` builds a Role,
+// or `roleRef` references an existing ClusterRole. Per design §4.1.3.
+type RBACSpec struct {
+	Rules   []RBACRule   `json:"rules,omitempty"`
+	RoleRef *RBACRoleRef `json:"roleRef,omitempty"`
+}
+
+type RBACRule struct {
+	APIGroups       []string `json:"apiGroups,omitempty"`
+	Resources       []string `json:"resources,omitempty"`
+	Verbs           []string `json:"verbs,omitempty"`
+	ResourceNames   []string `json:"resourceNames,omitempty"`
+	NonResourceURLs []string `json:"nonResourceURLs,omitempty"`
+}
+
+type RBACRoleRef struct {
+	Kind string `json:"kind"`
+	Name string `json:"name"`
 }
 
 type ObjectRef struct {

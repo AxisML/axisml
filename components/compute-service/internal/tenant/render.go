@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -101,10 +102,30 @@ func toInitResources(in InitResources) tenantv1alpha1.InitResources {
 		})
 	}
 	for _, sa := range in.ServiceAccounts {
-		out.ServiceAccounts = append(out.ServiceAccounts, tenantv1alpha1.ServiceAccountSpec{
+		entry := tenantv1alpha1.ServiceAccountSpec{
 			Name:             sa.Name,
 			ImagePullSecrets: sa.ImagePullSecrets,
-		})
+		}
+		if sa.RBAC != nil {
+			rbac := &tenantv1alpha1.RBACSpec{}
+			for _, r := range sa.RBAC.Rules {
+				rbac.Rules = append(rbac.Rules, rbacv1.PolicyRule{
+					APIGroups:       r.APIGroups,
+					Resources:       r.Resources,
+					Verbs:           r.Verbs,
+					ResourceNames:   r.ResourceNames,
+					NonResourceURLs: r.NonResourceURLs,
+				})
+			}
+			if sa.RBAC.RoleRef != nil {
+				rbac.RoleRef = &tenantv1alpha1.RBACRoleRef{
+					Kind: sa.RBAC.RoleRef.Kind,
+					Name: sa.RBAC.RoleRef.Name,
+				}
+			}
+			entry.RBAC = rbac
+		}
+		out.ServiceAccounts = append(out.ServiceAccounts, entry)
 	}
 	return out
 }

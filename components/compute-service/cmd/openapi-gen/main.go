@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"github.com/axisml/axisml/components/compute-service/internal/job"
+	"github.com/axisml/axisml/components/compute-service/internal/kubeproxy"
 	"github.com/axisml/axisml/components/compute-service/internal/server"
 	servicemod "github.com/axisml/axisml/components/compute-service/internal/service"
 	tenantmod "github.com/axisml/axisml/components/compute-service/internal/tenant"
@@ -116,14 +117,21 @@ func buildDocument(version string) *openapigen.Document {
 	g.Register("TenantPatchInput", tenantmod.PatchInput{}, openapigen.InputMode)
 	g.Register("TenantResponse", tenantmod.Response{}, openapigen.ResponseMode)
 	g.Register("TenantListResponse", tenantmod.ListResponse{}, openapigen.ResponseMode)
+	g.Register("TenantQuotaInput", tenantmod.QuotaPatchInput{}, openapigen.InputMode)
+	g.Register("TenantQuota", tenantmod.QuotaSpec{}, openapigen.ResponseMode)
 	g.Register("JobCreateInput", job.CreateInput{}, openapigen.InputMode)
 	g.Register("JobView", job.View{}, openapigen.ResponseMode)
 	g.Register("MLServiceCreateInput", servicemod.CreateInput{}, openapigen.InputMode)
 	g.Register("MLServiceScaleInput", servicemod.ScaleInput{}, openapigen.InputMode)
 	g.Register("MLServiceView", servicemod.View{}, openapigen.ResponseMode)
+	g.Register("PodView", kubeproxy.PodView{}, openapigen.ResponseMode)
+	g.Register("EventView", kubeproxy.EventView{}, openapigen.ResponseMode)
 
 	g.Set("JobList", openapigen.ListEnvelope("JobView"))
 	g.Set("MLServiceList", openapigen.ListEnvelope("MLServiceView"))
+	g.Set("PodList", openapigen.ListEnvelope("PodView"))
+	g.Set("EventList", openapigen.ListEnvelope("EventView"))
+	g.Set("TenantQuotaList", openapigen.ListEnvelope("TenantQuota"))
 
 	tags := []openapigen.TagEntry{
 		{Name: tagTenants, Description: "Tenant CRUD. Compute owns the Tenant CR; PG is authoritative, CR is derived."},
@@ -187,6 +195,42 @@ func buildDocument(version string) *openapigen.Document {
 		},
 	}
 
+	paths["/api/v1/namespaces/{namespace}/restore"] = openapigen.PathItem{Post: &openapigen.Operation{
+		Tags: []string{tagTenants}, Summary: "Restore a soft-deleted tenant", OperationID: "restoreTenant",
+		Parameters: []openapigen.Parameter{nsParam},
+		Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Restored tenant.", "TenantResponse")}),
+	}}
+
+	poolParam := openapigen.PathParam("pool", "Pool name.")
+	quotaNameParam := openapigen.PathParam("name", "Quota name (within the (tenant, pool)).")
+
+	paths["/api/v1/namespaces/{namespace}/quotas"] = openapigen.PathItem{
+		Get: &openapigen.Operation{
+			Tags: []string{tagTenants}, Summary: "List quotas of a tenant", OperationID: "listTenantQuotas",
+			Parameters: []openapigen.Parameter{nsParam},
+			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Quotas.", "TenantQuotaList")}),
+		},
+		Post: &openapigen.Operation{
+			Tags: []string{tagTenants}, Summary: "Add a quota to a tenant", OperationID: "addTenantQuota",
+			Parameters:  []openapigen.Parameter{nsParam},
+			RequestBody: openapigen.JSONBody("TenantQuotaInput"),
+			Responses:   withErrors(map[string]openapigen.Response{"201": openapigen.JSONResp("Added.", "TenantQuota")}),
+		},
+	}
+	paths["/api/v1/namespaces/{namespace}/quotas/{pool}/{name}"] = openapigen.PathItem{
+		Patch: &openapigen.Operation{
+			Tags: []string{tagTenants}, Summary: "Patch a quota's min/max", OperationID: "patchTenantQuota",
+			Parameters:  []openapigen.Parameter{nsParam, poolParam, quotaNameParam},
+			RequestBody: openapigen.JSONBody("TenantQuotaInput"),
+			Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Updated.", "TenantQuota")}),
+		},
+		Delete: &openapigen.Operation{
+			Tags: []string{tagTenants}, Summary: "Delete a quota", OperationID: "deleteTenantQuota",
+			Parameters: []openapigen.Parameter{nsParam, poolParam, quotaNameParam},
+			Responses:  withErrors(map[string]openapigen.Response{"204": openapigen.NoContentResp}),
+		},
+	}
+
 	// jobs (per namespace)
 	paths["/api/v1/namespaces/{namespace}/jobs"] = openapigen.PathItem{
 		Post: &openapigen.Operation{
@@ -217,6 +261,30 @@ func buildDocument(version string) *openapigen.Document {
 		Tags: []string{tagJobs}, Summary: "Cancel a running job", OperationID: "cancelJob",
 		Parameters: []openapigen.Parameter{nsParam, jobParam},
 		Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Cancelled job.", "JobView")}),
+	}}
+
+	podParam := openapigen.PathParam("pod", "Pod name.")
+	paths["/api/v1/namespaces/{namespace}/jobs/{job}/pods"] = openapigen.PathItem{Get: &openapigen.Operation{
+		Tags: []string{tagJobs}, Summary: "List pods of a job", OperationID: "listJobPods",
+		Parameters: []openapigen.Parameter{nsParam, jobParam},
+		Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Pods.", "PodList")}),
+	}}
+	paths["/api/v1/namespaces/{namespace}/jobs/{job}/pods/{pod}/log"] = openapigen.PathItem{Get: &openapigen.Operation{
+		Tags: []string{tagJobs}, Summary: "Stream a pod's container log", OperationID: "getJobPodLog",
+		Parameters: []openapigen.Parameter{nsParam, jobParam, podParam},
+		Responses: withErrors(map[string]openapigen.Response{
+			"200": openapigen.StringResp("text/plain stream of pod log"),
+		}),
+	}}
+	paths["/api/v1/namespaces/{namespace}/jobs/{job}/pods/{pod}/events"] = openapigen.PathItem{Get: &openapigen.Operation{
+		Tags: []string{tagJobs}, Summary: "List events targeted at a pod", OperationID: "listJobPodEvents",
+		Parameters: []openapigen.Parameter{nsParam, jobParam, podParam},
+		Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Events.", "EventList")}),
+	}}
+	paths["/api/v1/namespaces/{namespace}/jobs/{job}/events"] = openapigen.PathItem{Get: &openapigen.Operation{
+		Tags: []string{tagJobs}, Summary: "List events targeted at the MLJob CR", OperationID: "listJobEvents",
+		Parameters: []openapigen.Parameter{nsParam, jobParam},
+		Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Events.", "EventList")}),
 	}}
 
 	// services (per namespace)
@@ -250,6 +318,29 @@ func buildDocument(version string) *openapigen.Document {
 		Parameters:  []openapigen.Parameter{nsParam, serviceParam},
 		RequestBody: openapigen.JSONBody("MLServiceScaleInput"),
 		Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Scaled service.", "MLServiceView")}),
+	}}
+
+	paths["/api/v1/namespaces/{namespace}/services/{service}/pods"] = openapigen.PathItem{Get: &openapigen.Operation{
+		Tags: []string{tagServices}, Summary: "List pods of a service", OperationID: "listServicePods",
+		Parameters: []openapigen.Parameter{nsParam, serviceParam},
+		Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Pods.", "PodList")}),
+	}}
+	paths["/api/v1/namespaces/{namespace}/services/{service}/pods/{pod}/log"] = openapigen.PathItem{Get: &openapigen.Operation{
+		Tags: []string{tagServices}, Summary: "Stream a service pod's container log", OperationID: "getServicePodLog",
+		Parameters: []openapigen.Parameter{nsParam, serviceParam, podParam},
+		Responses: withErrors(map[string]openapigen.Response{
+			"200": openapigen.StringResp("text/plain stream of pod log"),
+		}),
+	}}
+	paths["/api/v1/namespaces/{namespace}/services/{service}/pods/{pod}/events"] = openapigen.PathItem{Get: &openapigen.Operation{
+		Tags: []string{tagServices}, Summary: "List events targeted at a service pod", OperationID: "listServicePodEvents",
+		Parameters: []openapigen.Parameter{nsParam, serviceParam, podParam},
+		Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Events.", "EventList")}),
+	}}
+	paths["/api/v1/namespaces/{namespace}/services/{service}/events"] = openapigen.PathItem{Get: &openapigen.Operation{
+		Tags: []string{tagServices}, Summary: "List events targeted at the MLService CR", OperationID: "listServiceEvents",
+		Parameters: []openapigen.Parameter{nsParam, serviceParam},
+		Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Events.", "EventList")}),
 	}}
 
 	return &openapigen.Document{

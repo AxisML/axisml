@@ -65,9 +65,10 @@ func (s *Service) Get(ctx context.Context, name string) (Response, error) {
 	return toResponse(t)
 }
 
-// List returns all active tenants.
-func (s *Service) List(ctx context.Context, limit, offset int) (ListResponse, error) {
-	rows, total, err := s.repo.List(ctx, limit, offset)
+// List returns all active tenants, optionally filtered by labelSelector
+// (K8s grammar; see server.JSONLabelsSQL for SQL projection).
+func (s *Service) List(ctx context.Context, limit, offset int, labelClause string, labelArgs []any) (ListResponse, error) {
+	rows, total, err := s.repo.List(ctx, limit, offset, labelClause, labelArgs)
 	if err != nil {
 		return ListResponse{}, apperrors.Wrap(apperrors.CodeInternal, "list tenants", err)
 	}
@@ -135,6 +136,36 @@ func (s *Service) Patch(ctx context.Context, name string, in PatchInput, lastMod
 
 	if err := s.repo.Update(ctx, t.ID, updates); err != nil {
 		return Response{}, apperrors.Wrap(apperrors.CodeInternal, "update tenant", err)
+	}
+	return s.Get(ctx, name)
+}
+
+// Restore reverses a soft-delete on a tenant. Per design §4.1: only rows
+// in phase=Deleted (i.e. the operator has already torn down the CR) are
+// eligible; the row's deleted_at is cleared, phase flips back to
+// Creating, generation bumps so the reconciler re-creates the CR.
+func (s *Service) Restore(ctx context.Context, name string, lastModifiedBy string) (Response, error) {
+	var t Tenant
+	if err := s.repo.db.WithContext(ctx).Unscoped().
+		Where("name = ?", name).Order("created_at DESC").First(&t).Error; err != nil {
+		if IsNotFound(err) {
+			return Response{}, apperrors.Newf(apperrors.CodeNotFound, "tenant %q not found", name)
+		}
+		return Response{}, apperrors.Wrap(apperrors.CodeInternal, "load tenant", err)
+	}
+	if t.Phase != PhaseDeleted {
+		return Response{}, apperrors.Newf(apperrors.CodePrecondition,
+			"tenant %q phase=%s; only Deleted tenants can be restored", name, t.Phase)
+	}
+	if err := s.repo.db.WithContext(ctx).Unscoped().Model(&Tenant{}).
+		Where("id = ?", t.ID).
+		Updates(map[string]any{
+			"phase":            PhaseCreating,
+			"deleted_at":       gorm.Expr("NULL"),
+			"generation":       gorm.Expr("generation + 1"),
+			"last_modified_by": lastModifiedBy,
+		}).Error; err != nil {
+		return Response{}, apperrors.Wrap(apperrors.CodeInternal, "restore tenant", err)
 	}
 	return s.Get(ctx, name)
 }

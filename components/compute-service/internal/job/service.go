@@ -39,15 +39,18 @@ func NewService(db *gorm.DB, pools *poolcache.Reader) *Service {
 // `Quota` is the ElasticQuota CR name (cluster-unique string) stamped onto
 // Pod labels — compute treats it as opaque.
 type CreateInput struct {
-	Name        string                       `json:"name" binding:"required,axisml_name"`
-	DisplayName string                       `json:"displayName"`
-	Description string                       `json:"description"`
-	PoolName    string                       `json:"poolName" binding:"required"`
-	UnitName    string                       `json:"unitName" binding:"required"`
-	Quota       string                       `json:"quota" binding:"required"`
-	Backend     *mljobv1alpha1.BackendSpec   `json:"backend"`
-	Roles       []mljobv1alpha1.RoleSpec     `json:"roles" binding:"required,min=1"`
-	RunPolicy   *mljobv1alpha1.RunPolicySpec `json:"runPolicy"`
+	Name          string                       `json:"name" binding:"required,axisml_name"`
+	DisplayName   string                       `json:"displayName"`
+	Description   string                       `json:"description"`
+	Labels        map[string]string            `json:"labels,omitempty"`
+	Annotations   map[string]string            `json:"annotations,omitempty"`
+	PoolName      string                       `json:"poolName" binding:"required"`
+	UnitName      string                       `json:"unitName" binding:"required"`
+	Quota         string                       `json:"quota" binding:"required"`
+	PriorityClass string                       `json:"priorityClass,omitempty"`
+	Backend       *mljobv1alpha1.BackendSpec   `json:"backend"`
+	Roles         []mljobv1alpha1.RoleSpec     `json:"roles" binding:"required,min=1"`
+	RunPolicy     *mljobv1alpha1.RunPolicySpec `json:"runPolicy"`
 }
 
 // View is the HTTP response payload.
@@ -115,9 +118,10 @@ func (s *Service) Create(ctx context.Context, namespace string, in CreateInput) 
 	spec := mljobv1alpha1.MLJobSpec{
 		Backend: backend,
 		Scheduling: mljobv1alpha1.SchedulingSpec{
-			Quota:        in.Quota,
-			NodeSelector: expanded.NodeSelector,
-			Tolerations:  expanded.Tolerations,
+			Quota:         in.Quota,
+			PriorityClass: in.PriorityClass,
+			NodeSelector:  expanded.NodeSelector,
+			Tolerations:   expanded.Tolerations,
 		},
 		Roles:     roles,
 		RunPolicy: runPolicy,
@@ -140,6 +144,8 @@ func (s *Service) Create(ctx context.Context, namespace string, in CreateInput) 
 		DisplayName:        in.DisplayName,
 		Description:        in.Description,
 		OwnerUser:          auth.User(ctx),
+		Labels:             mapBytes(in.Labels),
+		Annotations:        mapBytes(in.Annotations),
 		Spec:               datatypes.JSON(specJSON),
 		RequestedResources: datatypes.JSON(reqJSON),
 		Status:             string(StatusCreating),
@@ -161,8 +167,8 @@ func (s *Service) Get(ctx context.Context, namespace, name string) (*View, error
 	return s.toView(j)
 }
 
-func (s *Service) List(ctx context.Context, namespace string, limit, offset int) ([]View, int64, error) {
-	rows, total, err := s.repo.ListByNamespace(ctx, namespace, limit, offset)
+func (s *Service) List(ctx context.Context, namespace string, limit, offset int, labelClause string, labelArgs []any) ([]View, int64, error) {
+	rows, total, err := s.repo.ListByNamespace(ctx, namespace, limit, offset, labelClause, labelArgs)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -216,6 +222,14 @@ func (s *Service) Delete(ctx context.Context, namespace, name string) error {
 		return nil
 	}
 	return s.repo.MarkDeleting(ctx, j.ID)
+}
+
+func mapBytes(m map[string]string) datatypes.JSON {
+	if m == nil {
+		m = map[string]string{}
+	}
+	b, _ := json.Marshal(m)
+	return b
 }
 
 func (s *Service) toView(j *Job) (*View, error) {

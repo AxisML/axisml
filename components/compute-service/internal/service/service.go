@@ -57,9 +57,12 @@ type CreateInput struct {
 	Kind             string                       `json:"kind,omitempty"`
 	DisplayName      string                       `json:"displayName"`
 	Description      string                       `json:"description"`
+	Labels           map[string]string            `json:"labels,omitempty"`
+	Annotations      map[string]string            `json:"annotations,omitempty"`
 	PoolName         string                       `json:"poolName" binding:"required"`
 	UnitName         string                       `json:"unitName" binding:"required"`
 	Quota            string                       `json:"quota" binding:"required"`
+	PriorityClass    string                       `json:"priorityClass,omitempty"`
 	Backend          *mlservicev1alpha1.Backend   `json:"backend"`
 	Roles            []mlservicev1alpha1.RoleSpec `json:"roles" binding:"required,min=1"`
 	RunPolicy        *mlservicev1alpha1.RunPolicy `json:"runPolicy"`
@@ -154,9 +157,10 @@ func (m *Module) Create(ctx context.Context, namespace string, in CreateInput) (
 	spec := mlservicev1alpha1.MLServiceSpec{
 		Backend: backend,
 		Scheduling: mlservicev1alpha1.Scheduling{
-			Quota:        in.Quota,
-			NodeSelector: expanded.NodeSelector,
-			Tolerations:  expanded.Tolerations,
+			Quota:         in.Quota,
+			PriorityClass: in.PriorityClass,
+			NodeSelector:  expanded.NodeSelector,
+			Tolerations:   expanded.Tolerations,
 		},
 		Roles:     roles,
 		RunPolicy: runPolicy,
@@ -195,6 +199,8 @@ func (m *Module) Create(ctx context.Context, namespace string, in CreateInput) (
 		DisplayName:        in.DisplayName,
 		Description:        in.Description,
 		OwnerUser:          auth.User(ctx),
+		Labels:             svcMapBytes(in.Labels),
+		Annotations:        svcMapBytes(in.Annotations),
 		Spec:               datatypes.JSON(specJSON),
 		DesiredSpecHash:    hash,
 		RequestedResources: datatypes.JSON(reqJSON),
@@ -218,8 +224,8 @@ func (m *Module) Get(ctx context.Context, namespace, name string) (*View, error)
 	return m.toView(row)
 }
 
-func (m *Module) List(ctx context.Context, namespace string, limit, offset int) ([]View, int64, error) {
-	rows, total, err := m.repo.ListByNamespace(ctx, namespace, limit, offset)
+func (m *Module) List(ctx context.Context, namespace, kind string, limit, offset int, labelClause string, labelArgs []any) ([]View, int64, error) {
+	rows, total, err := m.repo.ListByNamespace(ctx, namespace, kind, limit, offset, labelClause, labelArgs)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -303,6 +309,14 @@ func (m *Module) Delete(ctx context.Context, namespace, name string, deletePVC b
 		}
 	}
 	return nil
+}
+
+func svcMapBytes(m map[string]string) datatypes.JSON {
+	if m == nil {
+		m = map[string]string{}
+	}
+	b, _ := json.Marshal(m)
+	return b
 }
 
 // WorkspacePVCName is the deterministic PVC name used for kind=workspace

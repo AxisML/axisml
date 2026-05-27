@@ -36,10 +36,13 @@ func (r *Repository) GetByNamespaceName(ctx context.Context, namespace, name str
 	return &j, nil
 }
 
-func (r *Repository) ListByNamespace(ctx context.Context, namespace string, limit, offset int) ([]Job, int64, error) {
+func (r *Repository) ListByNamespace(ctx context.Context, namespace string, limit, offset int, labelClause string, labelArgs []any) ([]Job, int64, error) {
 	var rows []Job
 	var total int64
 	q := r.db.WithContext(ctx).Model(&Job{}).Where("namespace = ? AND deleted_at IS NULL", namespace)
+	if labelClause != "" {
+		q = q.Where(labelClause, labelArgs...)
+	}
 	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
