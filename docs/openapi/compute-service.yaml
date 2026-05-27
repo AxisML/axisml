@@ -2,6 +2,131 @@
 # Regenerate with: make doc-gen
 components:
   schemas:
+    Corev1AWSElasticBlockStoreVolumeSource:
+      properties:
+        fsType:
+          type: string
+        partition:
+          format: int32
+          type: integer
+        readOnly:
+          type: boolean
+        volumeID:
+          type: string
+      required:
+      - volumeID
+      type: object
+    Corev1AzureDiskVolumeSource:
+      properties:
+        cachingMode:
+          nullable: true
+          type: string
+        diskName:
+          type: string
+        diskURI:
+          type: string
+        fsType:
+          nullable: true
+          type: string
+        kind:
+          nullable: true
+          type: string
+        readOnly:
+          nullable: true
+          type: boolean
+      required:
+      - diskName
+      - diskURI
+      type: object
+    Corev1AzureFileVolumeSource:
+      properties:
+        readOnly:
+          type: boolean
+        secretName:
+          type: string
+        shareName:
+          type: string
+      required:
+      - secretName
+      - shareName
+      type: object
+    Corev1CSIVolumeSource:
+      properties:
+        driver:
+          type: string
+        fsType:
+          nullable: true
+          type: string
+        nodePublishSecretRef:
+          allOf:
+          - $ref: '#/components/schemas/Corev1LocalObjectReference'
+          nullable: true
+        readOnly:
+          nullable: true
+          type: boolean
+        volumeAttributes:
+          additionalProperties:
+            type: string
+          type: object
+      required:
+      - driver
+      type: object
+    Corev1CephFSVolumeSource:
+      properties:
+        monitors:
+          items:
+            type: string
+          type: array
+        path:
+          type: string
+        readOnly:
+          type: boolean
+        secretFile:
+          type: string
+        secretRef:
+          allOf:
+          - $ref: '#/components/schemas/Corev1LocalObjectReference'
+          nullable: true
+        user:
+          type: string
+      required:
+      - monitors
+      type: object
+    Corev1CinderVolumeSource:
+      properties:
+        fsType:
+          type: string
+        readOnly:
+          type: boolean
+        secretRef:
+          allOf:
+          - $ref: '#/components/schemas/Corev1LocalObjectReference'
+          nullable: true
+        volumeID:
+          type: string
+      required:
+      - volumeID
+      type: object
+    Corev1ClusterTrustBundleProjection:
+      properties:
+        labelSelector:
+          allOf:
+          - $ref: '#/components/schemas/Metav1LabelSelector'
+          nullable: true
+        name:
+          nullable: true
+          type: string
+        optional:
+          nullable: true
+          type: boolean
+        path:
+          type: string
+        signerName:
+          nullable: true
+          type: string
+      required:
+      - path
+      type: object
     Corev1ConfigMapEnvSource:
       properties:
         LocalObjectReference:
@@ -24,6 +149,84 @@ components:
       required:
       - LocalObjectReference
       - key
+      type: object
+    Corev1ConfigMapProjection:
+      properties:
+        LocalObjectReference:
+          $ref: '#/components/schemas/Corev1LocalObjectReference'
+        items:
+          items:
+            $ref: '#/components/schemas/Corev1KeyToPath'
+          type: array
+        optional:
+          nullable: true
+          type: boolean
+      required:
+      - LocalObjectReference
+      type: object
+    Corev1ConfigMapVolumeSource:
+      properties:
+        LocalObjectReference:
+          $ref: '#/components/schemas/Corev1LocalObjectReference'
+        defaultMode:
+          format: int32
+          nullable: true
+          type: integer
+        items:
+          items:
+            $ref: '#/components/schemas/Corev1KeyToPath'
+          type: array
+        optional:
+          nullable: true
+          type: boolean
+      required:
+      - LocalObjectReference
+      type: object
+    Corev1DownwardAPIProjection:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/Corev1DownwardAPIVolumeFile'
+          type: array
+      type: object
+    Corev1DownwardAPIVolumeFile:
+      properties:
+        fieldRef:
+          allOf:
+          - $ref: '#/components/schemas/Corev1ObjectFieldSelector'
+          nullable: true
+        mode:
+          format: int32
+          nullable: true
+          type: integer
+        path:
+          type: string
+        resourceFieldRef:
+          allOf:
+          - $ref: '#/components/schemas/Corev1ResourceFieldSelector'
+          nullable: true
+      required:
+      - path
+      type: object
+    Corev1DownwardAPIVolumeSource:
+      properties:
+        defaultMode:
+          format: int32
+          nullable: true
+          type: integer
+        items:
+          items:
+            $ref: '#/components/schemas/Corev1DownwardAPIVolumeFile'
+          type: array
+      type: object
+    Corev1EmptyDirVolumeSource:
+      properties:
+        medium:
+          type: string
+        sizeLimit:
+          description: Kubernetes resource.Quantity (e.g. "500m", "2Gi", "4").
+          nullable: true
+          type: string
       type: object
     Corev1EnvFromSource:
       properties:
@@ -74,6 +277,32 @@ components:
           - $ref: '#/components/schemas/Corev1SecretKeySelector'
           nullable: true
       type: object
+    Corev1EphemeralVolumeSource:
+      properties:
+        volumeClaimTemplate:
+          allOf:
+          - $ref: '#/components/schemas/Corev1PersistentVolumeClaimTemplate'
+          nullable: true
+      type: object
+    Corev1FCVolumeSource:
+      properties:
+        fsType:
+          type: string
+        lun:
+          format: int32
+          nullable: true
+          type: integer
+        readOnly:
+          type: boolean
+        targetWWNs:
+          items:
+            type: string
+          type: array
+        wwids:
+          items:
+            type: string
+          type: array
+      type: object
     Corev1FileKeySelector:
       properties:
         key:
@@ -90,10 +319,151 @@ components:
       - path
       - volumeName
       type: object
+    Corev1FlexVolumeSource:
+      properties:
+        driver:
+          type: string
+        fsType:
+          type: string
+        options:
+          additionalProperties:
+            type: string
+          type: object
+        readOnly:
+          type: boolean
+        secretRef:
+          allOf:
+          - $ref: '#/components/schemas/Corev1LocalObjectReference'
+          nullable: true
+      required:
+      - driver
+      type: object
+    Corev1FlockerVolumeSource:
+      properties:
+        datasetName:
+          type: string
+        datasetUUID:
+          type: string
+      type: object
+    Corev1GCEPersistentDiskVolumeSource:
+      properties:
+        fsType:
+          type: string
+        partition:
+          format: int32
+          type: integer
+        pdName:
+          type: string
+        readOnly:
+          type: boolean
+      required:
+      - pdName
+      type: object
+    Corev1GitRepoVolumeSource:
+      properties:
+        directory:
+          type: string
+        repository:
+          type: string
+        revision:
+          type: string
+      required:
+      - repository
+      type: object
+    Corev1GlusterfsVolumeSource:
+      properties:
+        endpoints:
+          type: string
+        path:
+          type: string
+        readOnly:
+          type: boolean
+      required:
+      - endpoints
+      - path
+      type: object
+    Corev1HostPathVolumeSource:
+      properties:
+        path:
+          type: string
+        type:
+          nullable: true
+          type: string
+      required:
+      - path
+      type: object
+    Corev1ISCSIVolumeSource:
+      properties:
+        chapAuthDiscovery:
+          type: boolean
+        chapAuthSession:
+          type: boolean
+        fsType:
+          type: string
+        initiatorName:
+          nullable: true
+          type: string
+        iqn:
+          type: string
+        iscsiInterface:
+          type: string
+        lun:
+          format: int32
+          type: integer
+        portals:
+          items:
+            type: string
+          type: array
+        readOnly:
+          type: boolean
+        secretRef:
+          allOf:
+          - $ref: '#/components/schemas/Corev1LocalObjectReference'
+          nullable: true
+        targetPortal:
+          type: string
+      required:
+      - iqn
+      - lun
+      - targetPortal
+      type: object
+    Corev1ImageVolumeSource:
+      properties:
+        pullPolicy:
+          type: string
+        reference:
+          type: string
+      type: object
+    Corev1KeyToPath:
+      properties:
+        key:
+          type: string
+        mode:
+          format: int32
+          nullable: true
+          type: integer
+        path:
+          type: string
+      required:
+      - key
+      - path
+      type: object
     Corev1LocalObjectReference:
       properties:
         name:
           type: string
+      type: object
+    Corev1NFSVolumeSource:
+      properties:
+        path:
+          type: string
+        readOnly:
+          type: boolean
+        server:
+          type: string
+      required:
+      - path
+      - server
       type: object
     Corev1ObjectFieldSelector:
       properties:
@@ -103,6 +473,154 @@ components:
           type: string
       required:
       - fieldPath
+      type: object
+    Corev1PersistentVolumeClaimSpec:
+      properties:
+        accessModes:
+          items:
+            type: string
+          type: array
+        dataSource:
+          allOf:
+          - $ref: '#/components/schemas/Corev1TypedLocalObjectReference'
+          nullable: true
+        dataSourceRef:
+          allOf:
+          - $ref: '#/components/schemas/Corev1TypedObjectReference'
+          nullable: true
+        resources:
+          $ref: '#/components/schemas/Corev1VolumeResourceRequirements'
+        selector:
+          allOf:
+          - $ref: '#/components/schemas/Metav1LabelSelector'
+          nullable: true
+        storageClassName:
+          nullable: true
+          type: string
+        volumeAttributesClassName:
+          nullable: true
+          type: string
+        volumeMode:
+          nullable: true
+          type: string
+        volumeName:
+          type: string
+      type: object
+    Corev1PersistentVolumeClaimTemplate:
+      properties:
+        metadata:
+          $ref: '#/components/schemas/Metav1ObjectMeta'
+        spec:
+          $ref: '#/components/schemas/Corev1PersistentVolumeClaimSpec'
+      required:
+      - spec
+      type: object
+    Corev1PersistentVolumeClaimVolumeSource:
+      properties:
+        claimName:
+          type: string
+        readOnly:
+          type: boolean
+      required:
+      - claimName
+      type: object
+    Corev1PhotonPersistentDiskVolumeSource:
+      properties:
+        fsType:
+          type: string
+        pdID:
+          type: string
+      required:
+      - pdID
+      type: object
+    Corev1PodCertificateProjection:
+      properties:
+        certificateChainPath:
+          type: string
+        credentialBundlePath:
+          type: string
+        keyPath:
+          type: string
+        keyType:
+          type: string
+        maxExpirationSeconds:
+          format: int32
+          nullable: true
+          type: integer
+        signerName:
+          type: string
+        userAnnotations:
+          additionalProperties:
+            type: string
+          type: object
+      type: object
+    Corev1PortworxVolumeSource:
+      properties:
+        fsType:
+          type: string
+        readOnly:
+          type: boolean
+        volumeID:
+          type: string
+      required:
+      - volumeID
+      type: object
+    Corev1ProjectedVolumeSource:
+      properties:
+        defaultMode:
+          format: int32
+          nullable: true
+          type: integer
+        sources:
+          items:
+            $ref: '#/components/schemas/Corev1VolumeProjection'
+          type: array
+      required:
+      - sources
+      type: object
+    Corev1QuobyteVolumeSource:
+      properties:
+        group:
+          type: string
+        readOnly:
+          type: boolean
+        registry:
+          type: string
+        tenant:
+          type: string
+        user:
+          type: string
+        volume:
+          type: string
+      required:
+      - registry
+      - volume
+      type: object
+    Corev1RBDVolumeSource:
+      properties:
+        fsType:
+          type: string
+        image:
+          type: string
+        keyring:
+          type: string
+        monitors:
+          items:
+            type: string
+          type: array
+        pool:
+          type: string
+        readOnly:
+          type: boolean
+        secretRef:
+          allOf:
+          - $ref: '#/components/schemas/Corev1LocalObjectReference'
+          nullable: true
+        user:
+          type: string
+      required:
+      - image
+      - monitors
       type: object
     Corev1ResourceClaim:
       properties:
@@ -144,6 +662,34 @@ components:
           description: Map of resource name (cpu, memory, nvidia.com/gpu, …) to resource.Quantity.
           type: object
       type: object
+    Corev1ScaleIOVolumeSource:
+      properties:
+        fsType:
+          type: string
+        gateway:
+          type: string
+        protectionDomain:
+          type: string
+        readOnly:
+          type: boolean
+        secretRef:
+          allOf:
+          - $ref: '#/components/schemas/Corev1LocalObjectReference'
+          nullable: true
+        sslEnabled:
+          type: boolean
+        storageMode:
+          type: string
+        storagePool:
+          type: string
+        system:
+          type: string
+        volumeName:
+          type: string
+      required:
+      - gateway
+      - system
+      type: object
     Corev1SecretEnvSource:
       properties:
         LocalObjectReference:
@@ -167,6 +713,64 @@ components:
       - LocalObjectReference
       - key
       type: object
+    Corev1SecretProjection:
+      properties:
+        LocalObjectReference:
+          $ref: '#/components/schemas/Corev1LocalObjectReference'
+        items:
+          items:
+            $ref: '#/components/schemas/Corev1KeyToPath'
+          type: array
+        optional:
+          nullable: true
+          type: boolean
+      required:
+      - LocalObjectReference
+      type: object
+    Corev1SecretVolumeSource:
+      properties:
+        defaultMode:
+          format: int32
+          nullable: true
+          type: integer
+        items:
+          items:
+            $ref: '#/components/schemas/Corev1KeyToPath'
+          type: array
+        optional:
+          nullable: true
+          type: boolean
+        secretName:
+          type: string
+      type: object
+    Corev1ServiceAccountTokenProjection:
+      properties:
+        audience:
+          type: string
+        expirationSeconds:
+          format: int64
+          nullable: true
+          type: integer
+        path:
+          type: string
+      required:
+      - path
+      type: object
+    Corev1StorageOSVolumeSource:
+      properties:
+        fsType:
+          type: string
+        readOnly:
+          type: boolean
+        secretRef:
+          allOf:
+          - $ref: '#/components/schemas/Corev1LocalObjectReference'
+          nullable: true
+        volumeName:
+          type: string
+        volumeNamespace:
+          type: string
+      type: object
     Corev1Toleration:
       properties:
         effect:
@@ -181,6 +785,245 @@ components:
           type: integer
         value:
           type: string
+      type: object
+    Corev1TypedLocalObjectReference:
+      properties:
+        apiGroup:
+          nullable: true
+          type: string
+        kind:
+          type: string
+        name:
+          type: string
+      required:
+      - kind
+      - name
+      type: object
+    Corev1TypedObjectReference:
+      properties:
+        apiGroup:
+          nullable: true
+          type: string
+        kind:
+          type: string
+        name:
+          type: string
+        namespace:
+          nullable: true
+          type: string
+      required:
+      - kind
+      - name
+      type: object
+    Corev1Volume:
+      properties:
+        VolumeSource:
+          $ref: '#/components/schemas/Corev1VolumeSource'
+        name:
+          type: string
+      required:
+      - VolumeSource
+      - name
+      type: object
+    Corev1VolumeMount:
+      properties:
+        mountPath:
+          type: string
+        mountPropagation:
+          nullable: true
+          type: string
+        name:
+          type: string
+        readOnly:
+          type: boolean
+        recursiveReadOnly:
+          nullable: true
+          type: string
+        subPath:
+          type: string
+        subPathExpr:
+          type: string
+      required:
+      - mountPath
+      - name
+      type: object
+    Corev1VolumeProjection:
+      properties:
+        clusterTrustBundle:
+          allOf:
+          - $ref: '#/components/schemas/Corev1ClusterTrustBundleProjection'
+          nullable: true
+        configMap:
+          allOf:
+          - $ref: '#/components/schemas/Corev1ConfigMapProjection'
+          nullable: true
+        downwardAPI:
+          allOf:
+          - $ref: '#/components/schemas/Corev1DownwardAPIProjection'
+          nullable: true
+        podCertificate:
+          allOf:
+          - $ref: '#/components/schemas/Corev1PodCertificateProjection'
+          nullable: true
+        secret:
+          allOf:
+          - $ref: '#/components/schemas/Corev1SecretProjection'
+          nullable: true
+        serviceAccountToken:
+          allOf:
+          - $ref: '#/components/schemas/Corev1ServiceAccountTokenProjection'
+          nullable: true
+      type: object
+    Corev1VolumeResourceRequirements:
+      properties:
+        limits:
+          additionalProperties:
+            description: Kubernetes resource.Quantity.
+            type: string
+          description: Map of resource name (cpu, memory, nvidia.com/gpu, …) to resource.Quantity.
+          type: object
+        requests:
+          additionalProperties:
+            description: Kubernetes resource.Quantity.
+            type: string
+          description: Map of resource name (cpu, memory, nvidia.com/gpu, …) to resource.Quantity.
+          type: object
+      type: object
+    Corev1VolumeSource:
+      properties:
+        awsElasticBlockStore:
+          allOf:
+          - $ref: '#/components/schemas/Corev1AWSElasticBlockStoreVolumeSource'
+          nullable: true
+        azureDisk:
+          allOf:
+          - $ref: '#/components/schemas/Corev1AzureDiskVolumeSource'
+          nullable: true
+        azureFile:
+          allOf:
+          - $ref: '#/components/schemas/Corev1AzureFileVolumeSource'
+          nullable: true
+        cephfs:
+          allOf:
+          - $ref: '#/components/schemas/Corev1CephFSVolumeSource'
+          nullable: true
+        cinder:
+          allOf:
+          - $ref: '#/components/schemas/Corev1CinderVolumeSource'
+          nullable: true
+        configMap:
+          allOf:
+          - $ref: '#/components/schemas/Corev1ConfigMapVolumeSource'
+          nullable: true
+        csi:
+          allOf:
+          - $ref: '#/components/schemas/Corev1CSIVolumeSource'
+          nullable: true
+        downwardAPI:
+          allOf:
+          - $ref: '#/components/schemas/Corev1DownwardAPIVolumeSource'
+          nullable: true
+        emptyDir:
+          allOf:
+          - $ref: '#/components/schemas/Corev1EmptyDirVolumeSource'
+          nullable: true
+        ephemeral:
+          allOf:
+          - $ref: '#/components/schemas/Corev1EphemeralVolumeSource'
+          nullable: true
+        fc:
+          allOf:
+          - $ref: '#/components/schemas/Corev1FCVolumeSource'
+          nullable: true
+        flexVolume:
+          allOf:
+          - $ref: '#/components/schemas/Corev1FlexVolumeSource'
+          nullable: true
+        flocker:
+          allOf:
+          - $ref: '#/components/schemas/Corev1FlockerVolumeSource'
+          nullable: true
+        gcePersistentDisk:
+          allOf:
+          - $ref: '#/components/schemas/Corev1GCEPersistentDiskVolumeSource'
+          nullable: true
+        gitRepo:
+          allOf:
+          - $ref: '#/components/schemas/Corev1GitRepoVolumeSource'
+          nullable: true
+        glusterfs:
+          allOf:
+          - $ref: '#/components/schemas/Corev1GlusterfsVolumeSource'
+          nullable: true
+        hostPath:
+          allOf:
+          - $ref: '#/components/schemas/Corev1HostPathVolumeSource'
+          nullable: true
+        image:
+          allOf:
+          - $ref: '#/components/schemas/Corev1ImageVolumeSource'
+          nullable: true
+        iscsi:
+          allOf:
+          - $ref: '#/components/schemas/Corev1ISCSIVolumeSource'
+          nullable: true
+        nfs:
+          allOf:
+          - $ref: '#/components/schemas/Corev1NFSVolumeSource'
+          nullable: true
+        persistentVolumeClaim:
+          allOf:
+          - $ref: '#/components/schemas/Corev1PersistentVolumeClaimVolumeSource'
+          nullable: true
+        photonPersistentDisk:
+          allOf:
+          - $ref: '#/components/schemas/Corev1PhotonPersistentDiskVolumeSource'
+          nullable: true
+        portworxVolume:
+          allOf:
+          - $ref: '#/components/schemas/Corev1PortworxVolumeSource'
+          nullable: true
+        projected:
+          allOf:
+          - $ref: '#/components/schemas/Corev1ProjectedVolumeSource'
+          nullable: true
+        quobyte:
+          allOf:
+          - $ref: '#/components/schemas/Corev1QuobyteVolumeSource'
+          nullable: true
+        rbd:
+          allOf:
+          - $ref: '#/components/schemas/Corev1RBDVolumeSource'
+          nullable: true
+        scaleIO:
+          allOf:
+          - $ref: '#/components/schemas/Corev1ScaleIOVolumeSource'
+          nullable: true
+        secret:
+          allOf:
+          - $ref: '#/components/schemas/Corev1SecretVolumeSource'
+          nullable: true
+        storageos:
+          allOf:
+          - $ref: '#/components/schemas/Corev1StorageOSVolumeSource'
+          nullable: true
+        vsphereVolume:
+          allOf:
+          - $ref: '#/components/schemas/Corev1VsphereVirtualDiskVolumeSource'
+          nullable: true
+      type: object
+    Corev1VsphereVirtualDiskVolumeSource:
+      properties:
+        fsType:
+          type: string
+        storagePolicyID:
+          type: string
+        storagePolicyName:
+          type: string
+        volumePath:
+          type: string
+      required:
+      - volumePath
       type: object
     EventList:
       properties:
@@ -559,6 +1402,14 @@ components:
           type: array
         resources:
           $ref: '#/components/schemas/Corev1ResourceRequirements'
+        volumeMounts:
+          items:
+            $ref: '#/components/schemas/Corev1VolumeMount'
+          type: array
+        volumes:
+          items:
+            $ref: '#/components/schemas/Corev1Volume'
+          type: array
         workingDir:
           type: string
       required:
@@ -750,6 +1601,124 @@ components:
       - spec
       - status
       - updatedAt
+      type: object
+    Metav1FieldsV1:
+      type: object
+    Metav1LabelSelector:
+      properties:
+        matchExpressions:
+          items:
+            $ref: '#/components/schemas/Metav1LabelSelectorRequirement'
+          type: array
+        matchLabels:
+          additionalProperties:
+            type: string
+          type: object
+      type: object
+    Metav1LabelSelectorRequirement:
+      properties:
+        key:
+          type: string
+        operator:
+          type: string
+        values:
+          items:
+            type: string
+          type: array
+      required:
+      - key
+      - operator
+      type: object
+    Metav1ManagedFieldsEntry:
+      properties:
+        apiVersion:
+          type: string
+        fieldsType:
+          type: string
+        fieldsV1:
+          allOf:
+          - $ref: '#/components/schemas/Metav1FieldsV1'
+          nullable: true
+        manager:
+          type: string
+        operation:
+          type: string
+        subresource:
+          type: string
+        time:
+          allOf:
+          - $ref: '#/components/schemas/Metav1Time'
+          nullable: true
+      type: object
+    Metav1ObjectMeta:
+      properties:
+        annotations:
+          additionalProperties:
+            type: string
+          type: object
+        creationTimestamp:
+          $ref: '#/components/schemas/Metav1Time'
+        deletionGracePeriodSeconds:
+          format: int64
+          nullable: true
+          type: integer
+        deletionTimestamp:
+          allOf:
+          - $ref: '#/components/schemas/Metav1Time'
+          nullable: true
+        finalizers:
+          items:
+            type: string
+          type: array
+        generateName:
+          type: string
+        generation:
+          format: int64
+          type: integer
+        labels:
+          additionalProperties:
+            type: string
+          type: object
+        managedFields:
+          items:
+            $ref: '#/components/schemas/Metav1ManagedFieldsEntry'
+          type: array
+        name:
+          type: string
+        namespace:
+          type: string
+        ownerReferences:
+          items:
+            $ref: '#/components/schemas/Metav1OwnerReference'
+          type: array
+        resourceVersion:
+          type: string
+        selfLink:
+          type: string
+        uid:
+          type: string
+      type: object
+    Metav1OwnerReference:
+      properties:
+        apiVersion:
+          type: string
+        blockOwnerDeletion:
+          nullable: true
+          type: boolean
+        controller:
+          nullable: true
+          type: boolean
+        kind:
+          type: string
+        name:
+          type: string
+        uid:
+          type: string
+      required:
+      - apiVersion
+      - kind
+      - name
+      - uid
       type: object
     Metav1Time:
       type: object
@@ -2185,9 +3154,9 @@ paths:
       summary: List events targeted at a pod
       tags:
       - jobs
-  /api/v1/namespaces/{namespace}/jobs/{job}/pods/{pod}/log:
+  /api/v1/namespaces/{namespace}/jobs/{job}/pods/{pod}/logs:
     get:
-      operationId: getJobPodLog
+      operationId: getJobPodLogs
       parameters:
       - description: Tenant name (= jobs/services partition key).
         in: path
@@ -3237,9 +4206,9 @@ paths:
       summary: List events targeted at a service pod
       tags:
       - services
-  /api/v1/namespaces/{namespace}/services/{service}/pods/{pod}/log:
+  /api/v1/namespaces/{namespace}/services/{service}/pods/{pod}/logs:
     get:
-      operationId: getServicePodLog
+      operationId: getServicePodLogs
       parameters:
       - description: Tenant name (= jobs/services partition key).
         in: path

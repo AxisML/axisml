@@ -18,15 +18,22 @@ func ToCR(j *Job) (*mljobv1alpha1.MLJob, error) {
 			return nil, err
 		}
 	}
+	labels := map[string]string{
+		mljobv1alpha1.LabelJobID:  j.ID.String(),
+		mljobv1alpha1.LabelTenant: j.Namespace,
+		mljobv1alpha1.LabelQuota:  spec.Scheduling.Quota,
+	}
+	if j.PoolName != "" {
+		labels[mljobv1alpha1.LabelResourcePool] = j.PoolName
+	}
+	if j.UnitName != "" {
+		labels[mljobv1alpha1.LabelResourceUnit] = j.UnitName
+	}
 	return &mljobv1alpha1.MLJob{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      j.Name,
 			Namespace: j.Namespace,
-			Labels: map[string]string{
-				mljobv1alpha1.LabelJobID:  j.ID.String(),
-				mljobv1alpha1.LabelTenant: j.Namespace,
-				mljobv1alpha1.LabelQuota:  spec.Scheduling.Quota,
-			},
+			Labels:    labels,
 		},
 		Spec: spec,
 	}, nil

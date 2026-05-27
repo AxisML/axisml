@@ -20,7 +20,6 @@ import (
 
 	"github.com/axisml/axisml/components/compute-service/internal/auth"
 	"github.com/axisml/axisml/components/compute-service/internal/poolcache"
-	"github.com/axisml/axisml/components/compute-service/internal/spechash"
 	apperrors "github.com/axisml/axisml/components/compute-service/pkg/errors"
 	"github.com/axisml/axisml/components/compute-service/pkg/strutil"
 )
@@ -171,10 +170,6 @@ func (m *Module) Create(ctx context.Context, namespace string, in CreateInput) (
 	if err != nil {
 		return nil, err
 	}
-	hash, err := spechash.Compute(spec)
-	if err != nil {
-		return nil, err
-	}
 	reqJSON, err := json.Marshal(expanded.Requests)
 	if err != nil {
 		return nil, err
@@ -182,13 +177,25 @@ func (m *Module) Create(ctx context.Context, namespace string, in CreateInput) (
 
 	// For kind=workspace, materialise the backing PVC first; if PVC creation
 	// fails we surface the error and never write the DB row. Per design §4.4,
-	// PG row + PVC are a logical pair.
+	// PG row + PVC are a logical pair, and the PVC must be wired into
+	// roles[0].template.{volumes,volumeMounts} so the Pod actually mounts it.
 	if kind == mlservicev1alpha1.ServiceKindWorkspace {
 		if err := m.ensureWorkspacePVC(ctx, namespace, in.Name, in.WorkspaceStorage); err != nil {
 			return nil, err
 		}
+		if len(spec.Roles) > 0 {
+			injectWorkspaceVolume(&spec.Roles[0], in.Name)
+		}
+		// Re-marshal the spec now that we've injected the volume mount.
+		if specJSON, err = json.Marshal(spec); err != nil {
+			return nil, err
+		}
 	}
 
+	mergedLabels := mergeSvcLabels(in.Labels, map[string]string{
+		mlservicev1alpha1.LabelResourcePool: in.PoolName,
+		mlservicev1alpha1.LabelResourceUnit: in.UnitName,
+	})
 	row := &Service{
 		ID:                 uuid.New(),
 		Namespace:          namespace,
@@ -199,10 +206,10 @@ func (m *Module) Create(ctx context.Context, namespace string, in CreateInput) (
 		DisplayName:        in.DisplayName,
 		Description:        in.Description,
 		OwnerUser:          auth.User(ctx),
-		Labels:             svcMapBytes(in.Labels),
+		Labels:             svcMapBytes(mergedLabels),
 		Annotations:        svcMapBytes(in.Annotations),
 		Spec:               datatypes.JSON(specJSON),
-		DesiredSpecHash:    hash,
+		Generation:         1,
 		RequestedResources: datatypes.JSON(reqJSON),
 		Replicas:           replicas,
 		Status:             string(StatusCreating),
@@ -257,26 +264,26 @@ func (m *Module) Scale(ctx context.Context, namespace, name string, in ScaleInpu
 	}
 	spec.Roles[0].Replicas = in.Replicas
 
-	hash, err := spechash.Compute(spec)
-	if err != nil {
-		return nil, err
-	}
 	specJSON, err := json.Marshal(spec)
 	if err != nil {
 		return nil, err
 	}
+	// Bump generation so the reconciler's `generation <> observed_generation`
+	// predicate picks the row up; observed_generation lands when the patch
+	// hits the CR (per design §5.2).
 	if err := m.repo.Update(ctx, row.ID, map[string]any{
-		"spec":              datatypes.JSON(specJSON),
-		"desired_spec_hash": hash,
-		"replicas":          in.Replicas,
+		"spec":       datatypes.JSON(specJSON),
+		"generation": gorm.Expr("generation + 1"),
+		"replicas":   in.Replicas,
 	}); err != nil {
 		return nil, err
 	}
-	row.Spec = datatypes.JSON(specJSON)
-	row.DesiredSpecHash = hash
-	row.Replicas = in.Replicas
-	row.UpdatedAt = time.Now().UTC()
-	return m.toView(row)
+	// Re-read so the returned view reflects the bumped generation.
+	fresh, err := m.repo.Get(ctx, row.ID)
+	if err != nil {
+		return nil, err
+	}
+	return m.toView(fresh)
 }
 
 func (m *Module) Delete(ctx context.Context, namespace, name string, deletePVC bool) error {
@@ -311,12 +318,71 @@ func (m *Module) Delete(ctx context.Context, namespace, name string, deletePVC b
 	return nil
 }
 
+func mergeSvcLabels(user, system map[string]string) map[string]string {
+	out := map[string]string{}
+	for k, v := range user {
+		out[k] = v
+	}
+	for k, v := range system {
+		if v == "" {
+			continue
+		}
+		out[k] = v
+	}
+	return out
+}
+
 func svcMapBytes(m map[string]string) datatypes.JSON {
 	if m == nil {
 		m = map[string]string{}
 	}
 	b, _ := json.Marshal(m)
 	return b
+}
+
+// injectWorkspaceVolume wires the backing PVC into the role's pod template.
+// The volume is named `workspace`, mounted at /workspace. If the caller
+// already supplied a volume of the same name we leave their choice alone
+// (deterministic-PVC name still wins as the claim it points at).
+func injectWorkspaceVolume(role *mlservicev1alpha1.RoleSpec, serviceName string) {
+	const volumeName = "workspace"
+	const mountPath = "/workspace"
+
+	hasVolume := false
+	for i := range role.Template.Volumes {
+		if role.Template.Volumes[i].Name == volumeName {
+			role.Template.Volumes[i].VolumeSource = corev1.VolumeSource{
+				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+					ClaimName: WorkspacePVCName(serviceName),
+				},
+			}
+			hasVolume = true
+			break
+		}
+	}
+	if !hasVolume {
+		role.Template.Volumes = append(role.Template.Volumes, corev1.Volume{
+			Name: volumeName,
+			VolumeSource: corev1.VolumeSource{
+				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+					ClaimName: WorkspacePVCName(serviceName),
+				},
+			},
+		})
+	}
+	hasMount := false
+	for i := range role.Template.VolumeMounts {
+		if role.Template.VolumeMounts[i].Name == volumeName {
+			hasMount = true
+			break
+		}
+	}
+	if !hasMount {
+		role.Template.VolumeMounts = append(role.Template.VolumeMounts, corev1.VolumeMount{
+			Name:      volumeName,
+			MountPath: mountPath,
+		})
+	}
 }
 
 // WorkspacePVCName is the deterministic PVC name used for kind=workspace

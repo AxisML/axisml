@@ -90,6 +90,18 @@ func (in *PodTemplate) DeepCopyInto(out *PodTemplate) {
 		copy(out.Ports, in.Ports)
 	}
 	in.Resources.DeepCopyInto(&out.Resources)
+	if in.Volumes != nil {
+		out.Volumes = make([]corev1.Volume, len(in.Volumes))
+		for i := range in.Volumes {
+			in.Volumes[i].DeepCopyInto(&out.Volumes[i])
+		}
+	}
+	if in.VolumeMounts != nil {
+		out.VolumeMounts = make([]corev1.VolumeMount, len(in.VolumeMounts))
+		for i := range in.VolumeMounts {
+			in.VolumeMounts[i].DeepCopyInto(&out.VolumeMounts[i])
+		}
+	}
 }
 
 func (in *PodTemplate) DeepCopy() *PodTemplate {

@@ -38,8 +38,8 @@ type Service struct {
 	Labels             datatypes.JSON `gorm:"type:jsonb;not null;default:'{}'"`
 	Annotations        datatypes.JSON `gorm:"type:jsonb;not null;default:'{}'"`
 	Spec               datatypes.JSON `gorm:"type:jsonb;not null"`
-	DesiredSpecHash    string         `gorm:"type:text;not null;default:'';column:desired_spec_hash"`
-	AppliedSpecHash    string         `gorm:"type:text;not null;default:'';column:applied_spec_hash"`
+	Generation         int64          `gorm:"not null;default:1"`
+	ObservedGeneration int64          `gorm:"not null;default:0;column:observed_generation"`
 	RequestedResources datatypes.JSON `gorm:"type:jsonb;not null;default:'{}'"`
 	Replicas           int32          `gorm:"not null;default:1"`
 	ReadyReplicas      int32          `gorm:"not null;default:0;column:ready_replicas"`

@@ -23,16 +23,23 @@ func ToCR(s *Service) (*mlservicev1alpha1.MLService, error) {
 	if kind == "" {
 		kind = mlservicev1alpha1.ServiceKindService
 	}
+	labels := map[string]string{
+		mlservicev1alpha1.LabelServiceID:   s.ID.String(),
+		mlservicev1alpha1.LabelServiceKind: kind,
+		mlservicev1alpha1.LabelTenant:      s.Namespace,
+		mlservicev1alpha1.LabelQuota:       spec.Scheduling.Quota,
+	}
+	if s.PoolName != "" {
+		labels[mlservicev1alpha1.LabelResourcePool] = s.PoolName
+	}
+	if s.UnitName != "" {
+		labels[mlservicev1alpha1.LabelResourceUnit] = s.UnitName
+	}
 	return &mlservicev1alpha1.MLService{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      s.Name,
 			Namespace: s.Namespace,
-			Labels: map[string]string{
-				mlservicev1alpha1.LabelServiceID:   s.ID.String(),
-				mlservicev1alpha1.LabelServiceKind: kind,
-				mlservicev1alpha1.LabelTenant:      s.Namespace,
-				mlservicev1alpha1.LabelQuota:       spec.Scheduling.Quota,
-			},
+			Labels:    labels,
 		},
 		Spec: spec,
 	}, nil

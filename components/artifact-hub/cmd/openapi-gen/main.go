@@ -107,6 +107,7 @@ func buildDocument(version string) *openapigen.Document {
 	g.Register("ArtifactInitiateInput", artifact.InitiateInput{}, openapigen.InputMode)
 	g.Register("ArtifactInitiateResult", artifact.InitiateResult{}, openapigen.ResponseMode)
 	g.Register("ArtifactCompleteInput", artifact.CompleteInput{}, openapigen.InputMode)
+	g.Register("ArtifactPatchInput", artifact.PatchInput{}, openapigen.InputMode)
 	g.Register("ArtifactResolveResult", artifact.ResolveResult{}, openapigen.ResponseMode)
 	g.Register("ArtifactView", artifact.View{}, openapigen.ResponseMode)
 
@@ -117,8 +118,7 @@ func buildDocument(version string) *openapigen.Document {
 		{Name: tagSystem, Description: "Liveness and readiness probes."},
 	}
 
-	nsParam := openapigen.PathParam("namespace", "Kubernetes namespace.")
-	kindParam := openapigen.PathParam("kind", "Artifact kind (e.g. model, dataset, code).")
+	nsParam := openapigen.PathParam("namespace", "Tenant namespace (= compute tenants.name).")
 	nameParam := openapigen.PathParam("name", "Artifact name.")
 	versionParam := openapigen.PathParam("version", "Artifact version (free-form string).")
 
@@ -141,49 +141,67 @@ func buildDocument(version string) *openapigen.Document {
 		},
 	}}
 
-	paths["/api/v1/namespaces/{namespace}/artifacts/{kind}"] = openapigen.PathItem{
-		Get: &openapigen.Operation{
-			Tags: []string{tagArtifacts}, Summary: "List every (name, version) of a kind in a namespace", OperationID: "listArtifactsByKind",
-			Parameters: []openapigen.Parameter{nsParam, kindParam, limitParam, offsetParam, statusParam},
-			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Page.", "ArtifactList")}),
-		},
+	// Each kind has the same sub-tree at /{kindPlural}/{name}[/{version}[/{complete,resolve}]].
+	for _, k := range []struct {
+		plural   string
+		singular string
+		tag      string
+	}{
+		{"models", "model", "Model"},
+		{"datasets", "dataset", "Dataset"},
+		{"images", "image", "Image"},
+	} {
+		base := "/api/v1/namespaces/{namespace}/" + k.plural
+		paths[base+"/{name}"] = openapigen.PathItem{
+			Post: &openapigen.Operation{
+				Tags: []string{tagArtifacts}, Summary: "Initiate a " + k.singular + " version (two-phase write step 1)",
+				OperationID: "initiate" + k.tag,
+				Parameters:  []openapigen.Parameter{nsParam, nameParam},
+				RequestBody: openapigen.JSONBody("ArtifactInitiateInput"),
+				Responses:   withErrors(map[string]openapigen.Response{"201": openapigen.JSONResp("Initiated.", "ArtifactInitiateResult")}),
+			},
+			Get: &openapigen.Operation{
+				Tags: []string{tagArtifacts}, Summary: "List versions of a " + k.singular,
+				OperationID: "list" + k.tag + "Versions",
+				Parameters:  []openapigen.Parameter{nsParam, nameParam, limitParam, offsetParam, statusParam},
+				Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Page.", "ArtifactList")}),
+			},
+		}
+		paths[base+"/{name}/{version}"] = openapigen.PathItem{
+			Get: &openapigen.Operation{
+				Tags: []string{tagArtifacts}, Summary: "Get a " + k.singular + " version",
+				OperationID: "get" + k.tag,
+				Parameters:  []openapigen.Parameter{nsParam, nameParam, versionParam},
+				Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Artifact.", "ArtifactView")}),
+			},
+			Patch: &openapigen.Operation{
+				Tags: []string{tagArtifacts}, Summary: "Patch a " + k.singular + "'s display_name / description / labels / annotations",
+				OperationID: "update" + k.tag,
+				Parameters:  []openapigen.Parameter{nsParam, nameParam, versionParam},
+				RequestBody: openapigen.JSONBody("ArtifactPatchInput"),
+				Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Updated.", "ArtifactView")}),
+			},
+			Delete: &openapigen.Operation{
+				Tags: []string{tagArtifacts}, Summary: "Delete a " + k.singular + " version",
+				OperationID: "delete" + k.tag,
+				Parameters:  []openapigen.Parameter{nsParam, nameParam, versionParam},
+				Responses:   withErrors(map[string]openapigen.Response{"202": {Description: "Accepted (asynchronous deletion)."}}),
+			},
+		}
+		paths[base+"/{name}/{version}/complete"] = openapigen.PathItem{Post: &openapigen.Operation{
+			Tags: []string{tagArtifacts}, Summary: "Complete " + k.singular + " upload (two-phase write step 2)",
+			OperationID: "complete" + k.tag,
+			Parameters:  []openapigen.Parameter{nsParam, nameParam, versionParam},
+			RequestBody: openapigen.JSONBody("ArtifactCompleteInput"),
+			Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Completed artifact.", "ArtifactView")}),
+		}}
+		paths[base+"/{name}/{version}/resolve"] = openapigen.PathItem{Get: &openapigen.Operation{
+			Tags: []string{tagArtifacts}, Summary: "Resolve " + k.singular + " for download",
+			OperationID: "resolve" + k.tag,
+			Parameters:  []openapigen.Parameter{nsParam, nameParam, versionParam, usageParam},
+			Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Resolved.", "ArtifactResolveResult")}),
+		}}
 	}
-	paths["/api/v1/namespaces/{namespace}/artifacts/{kind}/{name}"] = openapigen.PathItem{
-		Post: &openapigen.Operation{
-			Tags: []string{tagArtifacts}, Summary: "Initiate a new artifact version (two-phase write step 1)", OperationID: "initiateArtifact",
-			Parameters:  []openapigen.Parameter{nsParam, kindParam, nameParam},
-			RequestBody: openapigen.JSONBody("ArtifactInitiateInput"),
-			Responses:   withErrors(map[string]openapigen.Response{"201": openapigen.JSONResp("Initiated.", "ArtifactInitiateResult")}),
-		},
-		Get: &openapigen.Operation{
-			Tags: []string{tagArtifacts}, Summary: "List versions of an artifact", OperationID: "listArtifactVersions",
-			Parameters: []openapigen.Parameter{nsParam, kindParam, nameParam, limitParam, offsetParam, statusParam},
-			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Page.", "ArtifactList")}),
-		},
-	}
-	paths["/api/v1/namespaces/{namespace}/artifacts/{kind}/{name}/{version}"] = openapigen.PathItem{
-		Get: &openapigen.Operation{
-			Tags: []string{tagArtifacts}, Summary: "Get an artifact version", OperationID: "getArtifact",
-			Parameters: []openapigen.Parameter{nsParam, kindParam, nameParam, versionParam},
-			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Artifact.", "ArtifactView")}),
-		},
-		Delete: &openapigen.Operation{
-			Tags: []string{tagArtifacts}, Summary: "Delete an artifact version", OperationID: "deleteArtifact",
-			Parameters: []openapigen.Parameter{nsParam, kindParam, nameParam, versionParam},
-			Responses:  withErrors(map[string]openapigen.Response{"202": {Description: "Accepted (asynchronous deletion)."}}),
-		},
-	}
-	paths["/api/v1/namespaces/{namespace}/artifacts/{kind}/{name}/{version}/complete"] = openapigen.PathItem{Post: &openapigen.Operation{
-		Tags: []string{tagArtifacts}, Summary: "Complete an artifact upload (two-phase write step 2)", OperationID: "completeArtifact",
-		Parameters:  []openapigen.Parameter{nsParam, kindParam, nameParam, versionParam},
-		RequestBody: openapigen.JSONBody("ArtifactCompleteInput"),
-		Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Completed artifact.", "ArtifactView")}),
-	}}
-	paths["/api/v1/namespaces/{namespace}/artifacts/{kind}/{name}/{version}/resolve"] = openapigen.PathItem{Get: &openapigen.Operation{
-		Tags: []string{tagArtifacts}, Summary: "Resolve an artifact for download", OperationID: "resolveArtifact",
-		Parameters: []openapigen.Parameter{nsParam, kindParam, nameParam, versionParam, usageParam},
-		Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Resolved.", "ArtifactResolveResult")}),
-	}}
 
 	return &openapigen.Document{
 		OpenAPI: "3.0.3",

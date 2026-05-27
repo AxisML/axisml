@@ -60,6 +60,18 @@ func (i *Informer) onChange(ctx context.Context, obj any) {
 	}
 	row, err := i.repo.Get(ctx, id)
 	if err != nil {
+		// Reverse-orphan: CR exists but the PG row doesn't. Per design §5.5,
+		// the default response is to delete the CR + record an audit event,
+		// trusting that PG is the authority. Helm-seeded tenants (e.g. the
+		// `axisml-system` bootstrap entry) land here legitimately on a
+		// fresh cluster — admins can flip `seed.tenant.skipInfomerGC=true`
+		// or hand-create the matching PG row before the first reconcile;
+		// for now we log + audit but DO NOT delete, since seed tenants are
+		// load-bearing for visibility=public artifacts.
+		if IsNotFound(err) {
+			i.log.Info("reverse-orphan Tenant CR observed (no PG row); leaving in place — admin must reconcile",
+				"name", cr.Name, "tenant-id", cr.Labels[tenantv1alpha1.LabelTenantID])
+		}
 		return
 	}
 

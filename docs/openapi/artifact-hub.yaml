@@ -71,6 +71,23 @@ components:
       - items
       - total
       type: object
+    ArtifactPatchInput:
+      properties:
+        annotations:
+          additionalProperties:
+            type: string
+          type: object
+        description:
+          nullable: true
+          type: string
+        display_name:
+          nullable: true
+          type: string
+        labels:
+          additionalProperties:
+            type: string
+          type: object
+      type: object
     ArtifactResolveResult:
       properties:
         digest:
@@ -206,116 +223,13 @@ info:
   version: 0.1.0
 openapi: 3.0.3
 paths:
-  /api/v1/namespaces/{namespace}/artifacts/{kind}:
+  /api/v1/namespaces/{namespace}/datasets/{name}:
     get:
-      operationId: listArtifactsByKind
+      operationId: listDatasetVersions
       parameters:
-      - description: Kubernetes namespace.
+      - description: Tenant namespace (= compute tenants.name).
         in: path
         name: namespace
-        required: true
-        schema:
-          type: string
-      - description: Artifact kind (e.g. model, dataset, code).
-        in: path
-        name: kind
-        required: true
-        schema:
-          type: string
-      - description: Page size (1–200, default 50).
-        in: query
-        name: limit
-        schema:
-          format: int32
-          type: integer
-      - description: Number of items to skip.
-        in: query
-        name: offset
-        schema:
-          format: int32
-          type: integer
-      - description: Optional status filter (pending, ready, failed).
-        in: query
-        name: status
-        schema:
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ArtifactList'
-          description: Page.
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Validation error.
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Unauthorized.
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Forbidden.
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Not found.
-        "409":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Conflict.
-        "410":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Gone.
-        "412":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Precondition failed.
-        "503":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Service unavailable.
-        default:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Unexpected error.
-      summary: List every (name, version) of a kind in a namespace
-      tags:
-      - artifacts
-  /api/v1/namespaces/{namespace}/artifacts/{kind}/{name}:
-    get:
-      operationId: listArtifactVersions
-      parameters:
-      - description: Kubernetes namespace.
-        in: path
-        name: namespace
-        required: true
-        schema:
-          type: string
-      - description: Artifact kind (e.g. model, dataset, code).
-        in: path
-        name: kind
         required: true
         schema:
           type: string
@@ -403,21 +317,15 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Unexpected error.
-      summary: List versions of an artifact
+      summary: List versions of a dataset
       tags:
       - artifacts
     post:
-      operationId: initiateArtifact
+      operationId: initiateDataset
       parameters:
-      - description: Kubernetes namespace.
+      - description: Tenant namespace (= compute tenants.name).
         in: path
         name: namespace
-        required: true
-        schema:
-          type: string
-      - description: Artifact kind (e.g. model, dataset, code).
-        in: path
-        name: kind
         required: true
         schema:
           type: string
@@ -494,22 +402,16 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Unexpected error.
-      summary: Initiate a new artifact version (two-phase write step 1)
+      summary: Initiate a dataset version (two-phase write step 1)
       tags:
       - artifacts
-  /api/v1/namespaces/{namespace}/artifacts/{kind}/{name}/{version}:
+  /api/v1/namespaces/{namespace}/datasets/{name}/{version}:
     delete:
-      operationId: deleteArtifact
+      operationId: deleteDataset
       parameters:
-      - description: Kubernetes namespace.
+      - description: Tenant namespace (= compute tenants.name).
         in: path
         name: namespace
-        required: true
-        schema:
-          type: string
-      - description: Artifact kind (e.g. model, dataset, code).
-        in: path
-        name: kind
         required: true
         schema:
           type: string
@@ -582,21 +484,15 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Unexpected error.
-      summary: Delete an artifact version
+      summary: Delete a dataset version
       tags:
       - artifacts
     get:
-      operationId: getArtifact
+      operationId: getDataset
       parameters:
-      - description: Kubernetes namespace.
+      - description: Tenant namespace (= compute tenants.name).
         in: path
         name: namespace
-        required: true
-        schema:
-          type: string
-      - description: Artifact kind (e.g. model, dataset, code).
-        in: path
-        name: kind
         required: true
         schema:
           type: string
@@ -673,22 +569,107 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Unexpected error.
-      summary: Get an artifact version
+      summary: Get a dataset version
       tags:
       - artifacts
-  /api/v1/namespaces/{namespace}/artifacts/{kind}/{name}/{version}/complete:
-    post:
-      operationId: completeArtifact
+    patch:
+      operationId: updateDataset
       parameters:
-      - description: Kubernetes namespace.
+      - description: Tenant namespace (= compute tenants.name).
         in: path
         name: namespace
         required: true
         schema:
           type: string
-      - description: Artifact kind (e.g. model, dataset, code).
+      - description: Artifact name.
         in: path
-        name: kind
+        name: name
+        required: true
+        schema:
+          type: string
+      - description: Artifact version (free-form string).
+        in: path
+        name: version
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ArtifactPatchInput'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactView'
+          description: Updated.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict.
+        "410":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Gone.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: Patch a dataset's display_name / description / labels / annotations
+      tags:
+      - artifacts
+  /api/v1/namespaces/{namespace}/datasets/{name}/{version}/complete:
+    post:
+      operationId: completeDataset
+      parameters:
+      - description: Tenant namespace (= compute tenants.name).
+        in: path
+        name: namespace
         required: true
         schema:
           type: string
@@ -771,22 +752,16 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Unexpected error.
-      summary: Complete an artifact upload (two-phase write step 2)
+      summary: Complete dataset upload (two-phase write step 2)
       tags:
       - artifacts
-  /api/v1/namespaces/{namespace}/artifacts/{kind}/{name}/{version}/resolve:
+  /api/v1/namespaces/{namespace}/datasets/{name}/{version}/resolve:
     get:
-      operationId: resolveArtifact
+      operationId: resolveDataset
       parameters:
-      - description: Kubernetes namespace.
+      - description: Tenant namespace (= compute tenants.name).
         in: path
         name: namespace
-        required: true
-        schema:
-          type: string
-      - description: Artifact kind (e.g. model, dataset, code).
-        in: path
-        name: kind
         required: true
         schema:
           type: string
@@ -868,7 +843,1253 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Unexpected error.
-      summary: Resolve an artifact for download
+      summary: Resolve dataset for download
+      tags:
+      - artifacts
+  /api/v1/namespaces/{namespace}/images/{name}:
+    get:
+      operationId: listImageVersions
+      parameters:
+      - description: Tenant namespace (= compute tenants.name).
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      - description: Artifact name.
+        in: path
+        name: name
+        required: true
+        schema:
+          type: string
+      - description: Page size (1–200, default 50).
+        in: query
+        name: limit
+        schema:
+          format: int32
+          type: integer
+      - description: Number of items to skip.
+        in: query
+        name: offset
+        schema:
+          format: int32
+          type: integer
+      - description: Optional status filter (pending, ready, failed).
+        in: query
+        name: status
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactList'
+          description: Page.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict.
+        "410":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Gone.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: List versions of a image
+      tags:
+      - artifacts
+    post:
+      operationId: initiateImage
+      parameters:
+      - description: Tenant namespace (= compute tenants.name).
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      - description: Artifact name.
+        in: path
+        name: name
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ArtifactInitiateInput'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactInitiateResult'
+          description: Initiated.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict.
+        "410":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Gone.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: Initiate a image version (two-phase write step 1)
+      tags:
+      - artifacts
+  /api/v1/namespaces/{namespace}/images/{name}/{version}:
+    delete:
+      operationId: deleteImage
+      parameters:
+      - description: Tenant namespace (= compute tenants.name).
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      - description: Artifact name.
+        in: path
+        name: name
+        required: true
+        schema:
+          type: string
+      - description: Artifact version (free-form string).
+        in: path
+        name: version
+        required: true
+        schema:
+          type: string
+      responses:
+        "202":
+          description: Accepted (asynchronous deletion).
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict.
+        "410":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Gone.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: Delete a image version
+      tags:
+      - artifacts
+    get:
+      operationId: getImage
+      parameters:
+      - description: Tenant namespace (= compute tenants.name).
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      - description: Artifact name.
+        in: path
+        name: name
+        required: true
+        schema:
+          type: string
+      - description: Artifact version (free-form string).
+        in: path
+        name: version
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactView'
+          description: Artifact.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict.
+        "410":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Gone.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: Get a image version
+      tags:
+      - artifacts
+    patch:
+      operationId: updateImage
+      parameters:
+      - description: Tenant namespace (= compute tenants.name).
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      - description: Artifact name.
+        in: path
+        name: name
+        required: true
+        schema:
+          type: string
+      - description: Artifact version (free-form string).
+        in: path
+        name: version
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ArtifactPatchInput'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactView'
+          description: Updated.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict.
+        "410":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Gone.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: Patch a image's display_name / description / labels / annotations
+      tags:
+      - artifacts
+  /api/v1/namespaces/{namespace}/images/{name}/{version}/complete:
+    post:
+      operationId: completeImage
+      parameters:
+      - description: Tenant namespace (= compute tenants.name).
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      - description: Artifact name.
+        in: path
+        name: name
+        required: true
+        schema:
+          type: string
+      - description: Artifact version (free-form string).
+        in: path
+        name: version
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ArtifactCompleteInput'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactView'
+          description: Completed artifact.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict.
+        "410":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Gone.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: Complete image upload (two-phase write step 2)
+      tags:
+      - artifacts
+  /api/v1/namespaces/{namespace}/images/{name}/{version}/resolve:
+    get:
+      operationId: resolveImage
+      parameters:
+      - description: Tenant namespace (= compute tenants.name).
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      - description: Artifact name.
+        in: path
+        name: name
+        required: true
+        schema:
+          type: string
+      - description: Artifact version (free-form string).
+        in: path
+        name: version
+        required: true
+        schema:
+          type: string
+      - description: Optional usage hint forwarded to the storage handler.
+        in: query
+        name: usage
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactResolveResult'
+          description: Resolved.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict.
+        "410":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Gone.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: Resolve image for download
+      tags:
+      - artifacts
+  /api/v1/namespaces/{namespace}/models/{name}:
+    get:
+      operationId: listModelVersions
+      parameters:
+      - description: Tenant namespace (= compute tenants.name).
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      - description: Artifact name.
+        in: path
+        name: name
+        required: true
+        schema:
+          type: string
+      - description: Page size (1–200, default 50).
+        in: query
+        name: limit
+        schema:
+          format: int32
+          type: integer
+      - description: Number of items to skip.
+        in: query
+        name: offset
+        schema:
+          format: int32
+          type: integer
+      - description: Optional status filter (pending, ready, failed).
+        in: query
+        name: status
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactList'
+          description: Page.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict.
+        "410":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Gone.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: List versions of a model
+      tags:
+      - artifacts
+    post:
+      operationId: initiateModel
+      parameters:
+      - description: Tenant namespace (= compute tenants.name).
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      - description: Artifact name.
+        in: path
+        name: name
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ArtifactInitiateInput'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactInitiateResult'
+          description: Initiated.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict.
+        "410":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Gone.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: Initiate a model version (two-phase write step 1)
+      tags:
+      - artifacts
+  /api/v1/namespaces/{namespace}/models/{name}/{version}:
+    delete:
+      operationId: deleteModel
+      parameters:
+      - description: Tenant namespace (= compute tenants.name).
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      - description: Artifact name.
+        in: path
+        name: name
+        required: true
+        schema:
+          type: string
+      - description: Artifact version (free-form string).
+        in: path
+        name: version
+        required: true
+        schema:
+          type: string
+      responses:
+        "202":
+          description: Accepted (asynchronous deletion).
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict.
+        "410":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Gone.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: Delete a model version
+      tags:
+      - artifacts
+    get:
+      operationId: getModel
+      parameters:
+      - description: Tenant namespace (= compute tenants.name).
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      - description: Artifact name.
+        in: path
+        name: name
+        required: true
+        schema:
+          type: string
+      - description: Artifact version (free-form string).
+        in: path
+        name: version
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactView'
+          description: Artifact.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict.
+        "410":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Gone.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: Get a model version
+      tags:
+      - artifacts
+    patch:
+      operationId: updateModel
+      parameters:
+      - description: Tenant namespace (= compute tenants.name).
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      - description: Artifact name.
+        in: path
+        name: name
+        required: true
+        schema:
+          type: string
+      - description: Artifact version (free-form string).
+        in: path
+        name: version
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ArtifactPatchInput'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactView'
+          description: Updated.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict.
+        "410":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Gone.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: Patch a model's display_name / description / labels / annotations
+      tags:
+      - artifacts
+  /api/v1/namespaces/{namespace}/models/{name}/{version}/complete:
+    post:
+      operationId: completeModel
+      parameters:
+      - description: Tenant namespace (= compute tenants.name).
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      - description: Artifact name.
+        in: path
+        name: name
+        required: true
+        schema:
+          type: string
+      - description: Artifact version (free-form string).
+        in: path
+        name: version
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ArtifactCompleteInput'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactView'
+          description: Completed artifact.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict.
+        "410":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Gone.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: Complete model upload (two-phase write step 2)
+      tags:
+      - artifacts
+  /api/v1/namespaces/{namespace}/models/{name}/{version}/resolve:
+    get:
+      operationId: resolveModel
+      parameters:
+      - description: Tenant namespace (= compute tenants.name).
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      - description: Artifact name.
+        in: path
+        name: name
+        required: true
+        schema:
+          type: string
+      - description: Artifact version (free-form string).
+        in: path
+        name: version
+        required: true
+        schema:
+          type: string
+      - description: Optional usage hint forwarded to the storage handler.
+        in: query
+        name: usage
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactResolveResult'
+          description: Resolved.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict.
+        "410":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Gone.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: Resolve model for download
       tags:
       - artifacts
   /healthz:

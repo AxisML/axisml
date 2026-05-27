@@ -30,7 +30,7 @@ func (h *Handler) Register(rg *gin.RouterGroup) {
 	g.DELETE("/:service", h.Delete)
 	if h.kube != nil {
 		g.GET("/:service/pods", h.ListPods)
-		g.GET("/:service/pods/:pod/log", h.PodLog)
+		g.GET("/:service/pods/:pod/logs", h.PodLog)
 		g.GET("/:service/pods/:pod/events", h.PodEvents)
 		g.GET("/:service/events", h.ServiceEvents)
 	}

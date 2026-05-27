@@ -13,9 +13,6 @@ import (
 // caller can use to filter rows whose `labels jsonb` column matches the
 // K8s selector grammar (=, ==, !=, in, notin, key, !key — comma-separated
 // AND). Empty input means "match everything".
-//
-// The returned predicate captures the parsed selector and tests against a
-// flat map[string]string view of the row's labels.
 func ParseLabelSelector(raw string) (func(map[string]string) bool, error) {
 	if strings.TrimSpace(raw) == "" {
 		return func(map[string]string) bool { return true }, nil
@@ -30,10 +27,9 @@ func ParseLabelSelector(raw string) (func(map[string]string) bool, error) {
 }
 
 // JSONLabelsSQL renders the K8s label selector into a Postgres `WHERE`
-// fragment over a `labels jsonb` column. It only supports the subset
-// that's safely expressible in SQL (equality, inequality, exists/!exists);
-// `in`/`notin` selectors fall back to caller-side filtering via the
-// predicate returned from ParseLabelSelector.
+// fragment over a `labels jsonb` column. Supports `=`, `==`, `!=`,
+// `exists`, `!exists`, `in (…)`, `notin (…)` — the full K8s grammar minus
+// gte/lte (which K8s selectors don't expose anyway).
 //
 // The returned (sqlFragment, args) is empty for a match-all selector.
 func JSONLabelsSQL(column, raw string) (string, []any, error) {
@@ -71,6 +67,37 @@ func JSONLabelsSQL(column, raw string) (string, []any, error) {
 		case "!":
 			clauses = append(clauses, fmt.Sprintf("(%s ->> ?) IS NULL", column))
 			args = append(args, r.Key())
+		case "in":
+			vals := r.Values().UnsortedList()
+			if len(vals) == 0 {
+				continue
+			}
+			placeholders := make([]string, len(vals))
+			for i := range vals {
+				placeholders[i] = "?"
+			}
+			clauses = append(clauses, fmt.Sprintf("(%s ->> ?) IN (%s)", column, strings.Join(placeholders, ",")))
+			args = append(args, r.Key())
+			for _, v := range vals {
+				args = append(args, v)
+			}
+		case "notin":
+			vals := r.Values().UnsortedList()
+			if len(vals) == 0 {
+				continue
+			}
+			placeholders := make([]string, len(vals))
+			for i := range vals {
+				placeholders[i] = "?"
+			}
+			// "notin" must also match rows where the key is absent (K8s set
+			// semantics): NULL OR NOT IN (...).
+			clauses = append(clauses, fmt.Sprintf("((%s ->> ?) IS NULL OR (%s ->> ?) NOT IN (%s))",
+				column, column, strings.Join(placeholders, ",")))
+			args = append(args, r.Key(), r.Key())
+			for _, v := range vals {
+				args = append(args, v)
+			}
 		}
 	}
 	if len(clauses) == 0 {

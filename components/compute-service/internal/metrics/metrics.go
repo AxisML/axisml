@@ -35,10 +35,11 @@ var (
 		Help: "Age of the oldest reconciler work-set row.",
 	}, []string{"resource", "predicate"})
 
-	// SpecSyncPending is the count of rows with desired_spec_hash != applied_spec_hash.
+	// SpecSyncPending is the count of rows with generation != observed_generation
+	// (services_sync_pending partial index).
 	SpecSyncPending = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "axisml_compute_spec_sync_pending_total",
-		Help: "Rows with pending spec sync.",
+		Help: "Rows with pending spec sync (generation != observed_generation).",
 	}, []string{"resource"})
 
 	// QuotaPrecheckRejected counts API-layer quota precheck rejections.

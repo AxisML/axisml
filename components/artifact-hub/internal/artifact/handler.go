@@ -1,12 +1,14 @@
 package artifact
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 
 	"github.com/axisml/axisml/components/artifact-hub/internal/auth"
 	"github.com/axisml/axisml/components/artifact-hub/internal/server"
+	apperrors "github.com/axisml/axisml/components/artifact-hub/pkg/errors"
 )
 
 // Handler exposes routes under /api/v1/namespaces/{ns}/{kindPlural}/...
@@ -98,13 +100,43 @@ func (h *Handler) Get(c *gin.Context) {
 	c.JSON(http.StatusOK, toView(row))
 }
 
+// patchAllowedFields is the closed set of mutable keys per design §6.
+// Anything else in the PATCH body is rejected with 400 ImmutableField.
+var patchAllowedFields = map[string]struct{}{
+	"display_name": {},
+	"description":  {},
+	"labels":       {},
+	"annotations":  {},
+}
+
 // Patch handles PATCH /{kindPlural}/{name}/{version} — only displayName,
-// description, labels, annotations are mutable (design §6).
+// description, labels, annotations are mutable (design §6). Submitting any
+// other key returns 400 ImmutableField so callers can't silently no-op
+// (e.g. attempting to change visibility / digest).
 func (h *Handler) Patch(c *gin.Context) {
-	var in PatchInput
-	if err := c.ShouldBindJSON(&in); err != nil {
+	var raw map[string]json.RawMessage
+	if err := c.ShouldBindJSON(&raw); err != nil {
 		_ = c.Error(err)
 		return
+	}
+	for k := range raw {
+		if _, ok := patchAllowedFields[k]; !ok {
+			_ = c.Error(apperrors.Newf(apperrors.CodeValidation,
+				"field %q is immutable; only display_name / description / labels / annotations may be patched", k))
+			return
+		}
+	}
+	var in PatchInput
+	if len(raw) > 0 {
+		b, err := json.Marshal(raw)
+		if err != nil {
+			_ = c.Error(err)
+			return
+		}
+		if err := json.Unmarshal(b, &in); err != nil {
+			_ = c.Error(err)
+			return
+		}
 	}
 	row, err := h.svc.Patch(c.Request.Context(), c.Param("namespace"), kindOf(c), c.Param("name"), c.Param("version"), in)
 	if err != nil {

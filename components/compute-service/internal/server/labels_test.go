@@ -64,6 +64,24 @@ func TestJSONLabelsSQL_Equality(t *testing.T) {
 	assert.Equal(t, []any{"a", "b"}, args)
 }
 
+func TestJSONLabelsSQL_In(t *testing.T) {
+	clause, args, err := JSONLabelsSQL("labels", "color in (red,blue)")
+	require.NoError(t, err)
+	assert.Contains(t, clause, "IN (")
+	require.Len(t, args, 3)
+	assert.Equal(t, "color", args[0])
+	vals := map[string]bool{args[1].(string): true, args[2].(string): true}
+	assert.True(t, vals["red"] && vals["blue"])
+}
+
+func TestJSONLabelsSQL_NotIn(t *testing.T) {
+	clause, args, err := JSONLabelsSQL("labels", "color notin (red,blue)")
+	require.NoError(t, err)
+	assert.Contains(t, clause, "IS NULL")
+	assert.Contains(t, clause, "NOT IN")
+	require.GreaterOrEqual(t, len(args), 4)
+}
+
 func TestJSONLabelsSQL_MultipleClausesANDed(t *testing.T) {
 	clause, args, err := JSONLabelsSQL("labels", "a=1,!b")
 	require.NoError(t, err)

@@ -89,8 +89,8 @@ CREATE TABLE services (
     labels               jsonb       NOT NULL DEFAULT '{}'::jsonb,
     annotations          jsonb       NOT NULL DEFAULT '{}'::jsonb,
     spec                 jsonb       NOT NULL,
-    desired_spec_hash    text        NOT NULL DEFAULT '',
-    applied_spec_hash    text        NOT NULL DEFAULT '',
+    generation           bigint      NOT NULL DEFAULT 1,
+    observed_generation  bigint      NOT NULL DEFAULT 0,
     requested_resources  jsonb       NOT NULL DEFAULT '{}'::jsonb,
     replicas             integer     NOT NULL DEFAULT 1,
     ready_replicas       integer     NOT NULL DEFAULT 0,
@@ -107,8 +107,8 @@ CREATE INDEX idx_services_namespace_kind
     ON services(namespace, kind) WHERE deleted_at IS NULL;
 CREATE INDEX idx_services_workset
     ON services(status, deleted_at);
-CREATE INDEX idx_services_spec_sync
-    ON services(deleted_at) WHERE desired_spec_hash <> applied_spec_hash;
+CREATE INDEX services_sync_pending
+    ON services(id) WHERE generation <> observed_generation AND deleted_at IS NULL;
 CREATE INDEX idx_services_namespace_status
     ON services(namespace, status) WHERE deleted_at IS NULL;
 CREATE INDEX idx_services_labels_gin

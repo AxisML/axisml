@@ -119,6 +119,14 @@ func (s *Service) Patch(ctx context.Context, name string, in PatchInput, lastMod
 			if err := validateQuotas(*in.Quotas); err != nil {
 				return Response{}, err
 			}
+			// (pool, name) is the immutable identity anchor per design §4.1
+			// / §4.2: rename quota = delete-then-add via the sub-routes.
+			// PATCH at this top level must NOT silently rewrite an entry's
+			// identity tuple. Reject if any incoming (pool, name) doesn't
+			// already exist on the tenant; min/max changes are allowed.
+			if err := guardQuotaIdentity(spec.Quotas, *in.Quotas); err != nil {
+				return Response{}, err
+			}
 			spec.Quotas = *in.Quotas
 		}
 		if in.InitResources != nil {
@@ -181,6 +189,35 @@ func (s *Service) Delete(ctx context.Context, name string) error {
 	}
 	if err := s.repo.SoftDelete(ctx, t.ID); err != nil {
 		return apperrors.Wrap(apperrors.CodeInternal, "soft delete tenant", err)
+	}
+	return nil
+}
+
+// guardQuotaIdentity refuses a PATCH whose incoming quotas[] adds a tuple
+// that doesn't already exist on the row OR drops a tuple that does. Both
+// are identity mutations and the design routes them through the quota sub-
+// resource endpoints (POST / DELETE), not top-level PATCH. Reorderings,
+// min/max edits on existing tuples — fine.
+func guardQuotaIdentity(existing []QuotaSpec, incoming []QuotaSpec) error {
+	have := map[string]struct{}{}
+	for _, q := range existing {
+		have[q.Pool+"/"+q.Name] = struct{}{}
+	}
+	want := map[string]struct{}{}
+	for _, q := range incoming {
+		want[q.Pool+"/"+q.Name] = struct{}{}
+	}
+	for k := range want {
+		if _, ok := have[k]; !ok {
+			return apperrors.Newf(apperrors.CodeValidation,
+				"quota %s does not exist on this tenant; use POST /quotas to add", k)
+		}
+	}
+	for k := range have {
+		if _, ok := want[k]; !ok {
+			return apperrors.Newf(apperrors.CodeValidation,
+				"quota %s missing from PATCH body; use DELETE /quotas/{pool}/{name} to remove", k)
+		}
 	}
 	return nil
 }

@@ -90,7 +90,7 @@ func (r *Repository) FindWorkSet(ctx context.Context) (WorkSet, error) {
 		return ws, err
 	}
 	if err := r.db.WithContext(ctx).
-		Where("desired_spec_hash <> applied_spec_hash AND deleted_at IS NULL").
+		Where("generation <> observed_generation AND deleted_at IS NULL").
 		Order("updated_at ASC").Limit(workSetBatch).
 		Find(&ws.SpecDirty).Error; err != nil {
 		return ws, err

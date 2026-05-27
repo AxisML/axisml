@@ -164,6 +164,8 @@ const (
 	LabelTenant         = "axisml.io/tenant"
 	LabelQuota          = "axisml.io/quota"
 	LabelRole           = "axisml.io/role"
+	LabelResourcePool   = "axisml.io/resource-pool"
+	LabelResourceUnit   = "axisml.io/resource-unit"
 	LabelKoordQuotaName = "quota.scheduling.koordinator.sh/name"
 	LabelPodGroup       = "pod-group.scheduling.sigs.k8s.io"
 

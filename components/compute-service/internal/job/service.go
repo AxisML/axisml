@@ -135,6 +135,14 @@ func (s *Service) Create(ctx context.Context, namespace string, in CreateInput) 
 	if err != nil {
 		return nil, err
 	}
+	// Mirror the (poolName, unitName) provenance into PG labels alongside
+	// any user-supplied entries — Platform's pre-delete check against
+	// active workloads uses labelSelector against axisml.io/resource-pool
+	// / axisml.io/resource-unit (compute-service.md §5.4).
+	mergedLabels := mergeLabels(in.Labels, map[string]string{
+		mljobv1alpha1.LabelResourcePool: in.PoolName,
+		mljobv1alpha1.LabelResourceUnit: in.UnitName,
+	})
 	j := &Job{
 		ID:                 uuid.New(),
 		Namespace:          namespace,
@@ -144,7 +152,7 @@ func (s *Service) Create(ctx context.Context, namespace string, in CreateInput) 
 		DisplayName:        in.DisplayName,
 		Description:        in.Description,
 		OwnerUser:          auth.User(ctx),
-		Labels:             mapBytes(in.Labels),
+		Labels:             mapBytes(mergedLabels),
 		Annotations:        mapBytes(in.Annotations),
 		Spec:               datatypes.JSON(specJSON),
 		RequestedResources: datatypes.JSON(reqJSON),
@@ -222,6 +230,23 @@ func (s *Service) Delete(ctx context.Context, namespace, name string) error {
 		return nil
 	}
 	return s.repo.MarkDeleting(ctx, j.ID)
+}
+
+// mergeLabels combines user-supplied labels with system provenance labels.
+// System keys (pool/unit) win over user-supplied entries with the same key
+// so callers can't shadow the provenance pointer.
+func mergeLabels(user, system map[string]string) map[string]string {
+	out := map[string]string{}
+	for k, v := range user {
+		out[k] = v
+	}
+	for k, v := range system {
+		if v == "" {
+			continue
+		}
+		out[k] = v
+	}
+	return out
 }
 
 func mapBytes(m map[string]string) datatypes.JSON {

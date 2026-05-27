@@ -88,12 +88,12 @@ func (r *Reconciler) handleCreate(ctx context.Context, t *Tenant) {
 	}
 	if err := r.k8s.Create(ctx, cr); err != nil {
 		if apierrors.IsAlreadyExists(err) {
-			// CR exists; treat as success and mark observed_generation so we
-			// don't churn — the Informer will overwrite phase based on the
-			// CR's own status.
-			_ = r.repo.Update(ctx, t.ID, map[string]any{
-				"observed_generation": t.Generation,
-			})
+			// CR exists; the spec on it may be stale if the user PATCHed
+			// the tenant after the original Create landed but before the
+			// CR's status flipped to Active (so we're still in
+			// phase=Creating per our state machine). Delegate to the patch
+			// path which will Get → Update → bump observed_generation.
+			r.handlePatch(ctx, t)
 			metrics.ReconcilerActions.WithLabelValues("tenant", "creating", "noop").Inc()
 			return
 		}
@@ -115,8 +115,6 @@ func (r *Reconciler) handlePatch(ctx context.Context, t *Tenant) {
 		r.log.Error(err, "render tenant CR for patch", "name", t.Name)
 		return
 	}
-	// MergeFrom an empty CR effectively says "replace these fields on the
-	// remote object". For simplicity we send the whole desired spec.
 	existing := &tenantv1alpha1.Tenant{}
 	if getErr := r.k8s.Get(ctx, types.NamespacedName{Name: t.Name}, existing); getErr != nil {
 		if apierrors.IsNotFound(getErr) {
@@ -128,10 +126,13 @@ func (r *Reconciler) handlePatch(ctx context.Context, t *Tenant) {
 		metrics.ReconcilerActions.WithLabelValues("tenant", "patching", "error").Inc()
 		return
 	}
-	patch := client.MergeFrom(existing.DeepCopy())
+	// Whole-spec replace via Update so the apiserver sees the full intended
+	// state. MergeFrom on a slice (quotas[]) can produce surprising diffs
+	// because JSON-merge-patch can't express "drop entry N"; Update side-
+	// steps that by carrying the desired full slice.
 	existing.Spec = cr.Spec
-	if err := r.k8s.Patch(ctx, existing, patch); err != nil {
-		r.log.Error(err, "patch Tenant CR", "name", t.Name)
+	if err := r.k8s.Update(ctx, existing); err != nil {
+		r.log.Error(err, "update Tenant CR", "name", t.Name)
 		metrics.ReconcilerActions.WithLabelValues("tenant", "patching", "error").Inc()
 		return
 	}

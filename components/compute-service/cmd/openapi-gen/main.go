@@ -269,8 +269,8 @@ func buildDocument(version string) *openapigen.Document {
 		Parameters: []openapigen.Parameter{nsParam, jobParam},
 		Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Pods.", "PodList")}),
 	}}
-	paths["/api/v1/namespaces/{namespace}/jobs/{job}/pods/{pod}/log"] = openapigen.PathItem{Get: &openapigen.Operation{
-		Tags: []string{tagJobs}, Summary: "Stream a pod's container log", OperationID: "getJobPodLog",
+	paths["/api/v1/namespaces/{namespace}/jobs/{job}/pods/{pod}/logs"] = openapigen.PathItem{Get: &openapigen.Operation{
+		Tags: []string{tagJobs}, Summary: "Stream a pod's container log", OperationID: "getJobPodLogs",
 		Parameters: []openapigen.Parameter{nsParam, jobParam, podParam},
 		Responses: withErrors(map[string]openapigen.Response{
 			"200": openapigen.StringResp("text/plain stream of pod log"),
@@ -325,8 +325,8 @@ func buildDocument(version string) *openapigen.Document {
 		Parameters: []openapigen.Parameter{nsParam, serviceParam},
 		Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Pods.", "PodList")}),
 	}}
-	paths["/api/v1/namespaces/{namespace}/services/{service}/pods/{pod}/log"] = openapigen.PathItem{Get: &openapigen.Operation{
-		Tags: []string{tagServices}, Summary: "Stream a service pod's container log", OperationID: "getServicePodLog",
+	paths["/api/v1/namespaces/{namespace}/services/{service}/pods/{pod}/logs"] = openapigen.PathItem{Get: &openapigen.Operation{
+		Tags: []string{tagServices}, Summary: "Stream a service pod's container log", OperationID: "getServicePodLogs",
 		Parameters: []openapigen.Parameter{nsParam, serviceParam, podParam},
 		Responses: withErrors(map[string]openapigen.Response{
 			"200": openapigen.StringResp("text/plain stream of pod log"),
