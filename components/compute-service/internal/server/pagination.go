@@ -26,8 +26,6 @@ const (
 )
 
 // ParsePagination reads `?limit` / `?continue` from the query string.
-// `?offset=N` is also accepted as a back-compat alias for the decoded
-// continue token (mostly to keep older tests working during the migration).
 func ParsePagination(c *gin.Context) (Pagination, error) {
 	p := Pagination{Limit: defaultLimit}
 	if v := c.Query("limit"); v != "" {
@@ -44,12 +42,6 @@ func ParsePagination(c *gin.Context) (Pagination, error) {
 		n, err := decodeContinue(v)
 		if err != nil || n < 0 {
 			return p, apperrors.New(apperrors.CodeValidation, "continue token is invalid")
-		}
-		p.Offset = n
-	} else if v := c.Query("offset"); v != "" {
-		n, err := strconv.Atoi(v)
-		if err != nil || n < 0 {
-			return p, apperrors.New(apperrors.CodeValidation, "offset must be a non-negative integer")
 		}
 		p.Offset = n
 	}

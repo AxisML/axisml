@@ -96,7 +96,6 @@ func (s *Service) Patch(ctx context.Context, name string, in PatchInput, lastMod
 	}
 
 	updates := map[string]any{"last_modified_by": lastModifiedBy}
-	specMutated := false
 
 	if in.DisplayName != nil {
 		updates["display_name"] = *in.DisplayName
@@ -164,9 +163,7 @@ func (s *Service) Patch(ctx context.Context, name string, in PatchInput, lastMod
 		if quotasUpdated || initResUpdated {
 			updates["generation"] = gorm.Expr("generation + 1")
 		}
-		specMutated = true
 	}
-	_ = specMutated
 
 	if err := s.repo.Update(ctx, t.ID, updates); err != nil {
 		return Response{}, apperrors.Wrap(apperrors.CodeInternal, "update tenant", err)

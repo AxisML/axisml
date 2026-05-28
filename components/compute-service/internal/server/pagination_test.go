@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -28,11 +29,24 @@ func TestParsePagination_Defaults(t *testing.T) {
 }
 
 func TestParsePagination_AppliesValues(t *testing.T) {
-	c := newCtxWithQuery("limit=10&offset=5")
+	// "NQ" is base64.RawURLEncoding of "5" — the continue token format.
+	c := newCtxWithQuery("limit=10&continue=NQ")
 	p, err := ParsePagination(c)
 	require.NoError(t, err)
 	assert.Equal(t, 10, p.Limit)
 	assert.Equal(t, 5, p.Offset)
+}
+
+func TestParsePagination_RejectsBadContinue(t *testing.T) {
+	for _, qs := range []string{"continue=not-base64!!", "continue=" + base64Of("-1")} {
+		t.Run(qs, func(t *testing.T) {
+			_, err := ParsePagination(newCtxWithQuery(qs))
+			require.Error(t, err)
+			e, ok := apperrors.As(err)
+			require.True(t, ok)
+			assert.Equal(t, apperrors.CodeValidation, e.Code)
+		})
+	}
 }
 
 func TestParsePagination_ClampsLimitToMax(t *testing.T) {
@@ -54,21 +68,13 @@ func TestParsePagination_RejectsBadLimit(t *testing.T) {
 	}
 }
 
-func TestParsePagination_RejectsBadOffset(t *testing.T) {
-	for _, qs := range []string{"offset=abc", "offset=-1"} {
-		t.Run(qs, func(t *testing.T) {
-			_, err := ParsePagination(newCtxWithQuery(qs))
-			require.Error(t, err)
-			e, ok := apperrors.As(err)
-			require.True(t, ok)
-			assert.Equal(t, apperrors.CodeValidation, e.Code)
-		})
-	}
-}
-
-func TestParsePagination_OffsetZeroAccepted(t *testing.T) {
-	c := newCtxWithQuery("offset=0")
+func TestParsePagination_ContinueZeroAccepted(t *testing.T) {
+	c := newCtxWithQuery("continue=" + base64Of("0"))
 	p, err := ParsePagination(c)
 	require.NoError(t, err)
 	assert.Equal(t, 0, p.Offset)
+}
+
+func base64Of(s string) string {
+	return base64.RawURLEncoding.EncodeToString([]byte(s))
 }

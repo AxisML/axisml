@@ -164,7 +164,7 @@ func (h *Handler) Patch(c *gin.Context) {
 		pool.Annotations[srv.LastModifiedByAnnotation] = user
 	}
 
-	if err := h.Client.Patch(c.Request.Context(), pool, client.MergeFrom(base)); err != nil {
+	if err := patchWithRetry(c.Request.Context(), h.Client, pool, base, name); err != nil {
 		writeK8sError(c, err, name)
 		return
 	}
@@ -458,7 +458,6 @@ func writeK8sError(c *gin.Context, err error, name string) {
 		srv.AbortWithProblem(c, http.StatusInternalServerError, "K8sError",
 			"unexpected error from Kubernetes API", err.Error())
 	}
-	_ = errors.New
 }
 
 func firstDuplicateUnit(units []srv.CreateResourceUnitRequest) (bool, string) {

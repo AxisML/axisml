@@ -23,8 +23,7 @@ const (
 	maxLimit     = 200
 )
 
-// ParsePagination reads `?limit` / `?continue` (with `?offset=N` as a
-// back-compat alias) from the query string.
+// ParsePagination reads `?limit` / `?continue` from the query string.
 func ParsePagination(c *gin.Context) (Pagination, error) {
 	p := Pagination{Limit: defaultLimit}
 	if v := c.Query("limit"); v != "" {
@@ -41,12 +40,6 @@ func ParsePagination(c *gin.Context) (Pagination, error) {
 		n, err := decodeContinue(v)
 		if err != nil || n < 0 {
 			return p, apperrors.New(apperrors.CodeValidation, "continue token is invalid")
-		}
-		p.Offset = n
-	} else if v := c.Query("offset"); v != "" {
-		n, err := strconv.Atoi(v)
-		if err != nil || n < 0 {
-			return p, apperrors.New(apperrors.CodeValidation, "offset must be a non-negative integer")
 		}
 		p.Offset = n
 	}
