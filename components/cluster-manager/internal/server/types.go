@@ -8,6 +8,7 @@ package server
 import (
 	"net/http"
 	"time"
+	"unicode"
 
 	corev1 "k8s.io/api/core/v1"
 
@@ -132,13 +133,52 @@ const DescriptionAnnotation = "axisml.io/description"
 // HeaderUser is the request header carrying the calling end-user.
 const HeaderUser = "X-Axisml-User"
 
-// RequireUser is gin middleware that 401s if X-Axisml-User is missing on
-// any /api/v1 request.
+// MaxUserHeaderLen caps the X-Axisml-User length so a malicious caller
+// cannot bloat metadata.annotations (K8s caps annotations at 256 KiB
+// total). 253 matches the DNS-1123 subdomain bound, which is the largest
+// caller identity we currently expect (email, k8s username).
+const MaxUserHeaderLen = 253
+
+// RequireUser is gin middleware that gates /api/v1 on a valid
+// X-Axisml-User header. It only audits the caller; the gateway is the
+// real authn boundary (see deploy/helm/axisml-system/templates/
+// cluster-manager/networkpolicy.yaml — only the gateway namespace may
+// reach :8080). Without that NetworkPolicy any pod in the cluster could
+// set the header and impersonate.
 func RequireUser(c *gin.Context) {
-	if c.GetHeader(HeaderUser) == "" {
+	user := c.GetHeader(HeaderUser)
+	if user == "" {
 		AbortWithProblem(c, http.StatusUnauthorized, "MissingUser",
 			"X-Axisml-User header required", "")
 		return
 	}
+	if err := validateUserHeader(user); err != nil {
+		AbortWithProblem(c, http.StatusBadRequest, "InvalidUser",
+			"X-Axisml-User header malformed", err.Error())
+		return
+	}
 	c.Next()
 }
+
+// validateUserHeader rejects control chars, whitespace, and overly long
+// values before the header lands in metadata.annotations.
+func validateUserHeader(v string) error {
+	if len(v) > MaxUserHeaderLen {
+		return errUserTooLong
+	}
+	for _, r := range v {
+		if r == ' ' || unicode.IsControl(r) || unicode.IsSpace(r) {
+			return errUserBadChars
+		}
+	}
+	return nil
+}
+
+var (
+	errUserTooLong  = &headerError{msg: "value exceeds 253 chars"}
+	errUserBadChars = &headerError{msg: "value contains whitespace or control characters"}
+)
+
+type headerError struct{ msg string }
+
+func (e *headerError) Error() string { return e.msg }

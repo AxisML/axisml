@@ -296,9 +296,8 @@ func (s *Service) Resolve(ctx context.Context, namespace, kind, name, version, u
 	return res, nil
 }
 
-// MarkDeleting transitions the artifact to Deleting.
 // Patch updates the four mutable display-tier fields on an artifact row
-// (display_name / description / labels / annotations). Per design §6:
+// (displayName / description / labels / annotations). Per design §6:
 //   - spec / digest / visibility / kind / name / version / namespace are
 //     immutable;
 //   - rows in Deleting / Deleted return 409.

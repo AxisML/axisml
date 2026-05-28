@@ -94,7 +94,7 @@ type RunPolicySpec struct {
 	// +optional
 	ActiveDeadlineSeconds *int64 `json:"activeDeadlineSeconds,omitempty"`
 	// TTLSecondsAfterFinished triggers GC of underlying resources after
-	// the job reaches a terminal phase. Does not affect PodGroup soft delete.
+	// the job reaches a terminal phase.
 	// +optional
 	TTLSecondsAfterFinished *int32 `json:"ttlSecondsAfterFinished,omitempty"`
 	// BackoffLimit is the retry budget; semantics vary per handler.
@@ -167,7 +167,6 @@ const (
 	LabelResourcePool   = "axisml.io/resource-pool"
 	LabelResourceUnit   = "axisml.io/resource-unit"
 	LabelKoordQuotaName = "quota.scheduling.koordinator.sh/name"
-	LabelPodGroup       = "pod-group.scheduling.sigs.k8s.io"
 
 	AnnotationAppliedSpec = "axisml.io/applied-spec"
 

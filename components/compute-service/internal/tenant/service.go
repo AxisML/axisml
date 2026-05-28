@@ -175,12 +175,19 @@ func (s *Service) Patch(ctx context.Context, name string, in PatchInput, lastMod
 // in phase=Deleted (i.e. the operator has already torn down the CR) are
 // eligible; the row's deleted_at is cleared, phase flips back to
 // Creating, generation bumps so the reconciler re-creates the CR.
+//
+// We explicitly target the most recent *soft-deleted* row (deleted_at IS
+// NOT NULL): if the caller recreated the same-name tenant after deletion,
+// the active row would otherwise win the ORDER BY and the older tombstone
+// would be unreachable.
 func (s *Service) Restore(ctx context.Context, name string, lastModifiedBy string) (Response, error) {
 	var t Tenant
 	if err := s.repo.db.WithContext(ctx).Unscoped().
-		Where("name = ?", name).Order("created_at DESC").First(&t).Error; err != nil {
+		Where("name = ? AND deleted_at IS NOT NULL", name).
+		Order("deleted_at DESC").First(&t).Error; err != nil {
 		if IsNotFound(err) {
-			return Response{}, apperrors.Newf(apperrors.CodeNotFound, "tenant %q not found", name)
+			return Response{}, apperrors.Newf(apperrors.CodeNotFound,
+				"no soft-deleted tenant named %q to restore", name)
 		}
 		return Response{}, apperrors.Wrap(apperrors.CodeInternal, "load tenant", err)
 	}
@@ -196,6 +203,12 @@ func (s *Service) Restore(ctx context.Context, name string, lastModifiedBy strin
 			"generation":       gorm.Expr("generation + 1"),
 			"last_modified_by": lastModifiedBy,
 		}).Error; err != nil {
+		if isUniqueViolation(err) {
+			// An active row with the same name landed between our SELECT
+			// and the UPDATE; surface as Conflict instead of Internal.
+			return Response{}, apperrors.Newf(apperrors.CodeConflict,
+				"active tenant %q already exists; cannot restore", name)
+		}
 		return Response{}, apperrors.Wrap(apperrors.CodeInternal, "restore tenant", err)
 	}
 	return s.Get(ctx, name)

@@ -60,25 +60,53 @@ func (h *Handler) Patch(c *gin.Context) {
 	c.JSON(http.StatusOK, v)
 }
 
+// PodLog streams the pod's log. The pod must carry
+// axisml.io/service-id=<row.id>; the URL :namespace is checked against
+// the row, not blindly forwarded to kube-apiserver.
 func (h *Handler) PodLog(c *gin.Context) {
-	h.kube.PodLog(c, c.Param("namespace"), c.Param("pod"))
+	s, err := h.svc.Get(c.Request.Context(), c.Param("namespace"), c.Param("service"))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	if err := h.kube.VerifyPodHasLabel(c.Request.Context(), s.Namespace, c.Param("pod"),
+		mlservicev1alpha1.LabelServiceID, s.ID.String()); err != nil {
+		_ = c.Error(err)
+		return
+	}
+	h.kube.PodLog(c, s.Namespace, c.Param("pod"))
 }
 
 func (h *Handler) PodEvents(c *gin.Context) {
-	h.kube.EventsByInvolved(c, c.Param("namespace"),
+	s, err := h.svc.Get(c.Request.Context(), c.Param("namespace"), c.Param("service"))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	if err := h.kube.VerifyPodHasLabel(c.Request.Context(), s.Namespace, c.Param("pod"),
+		mlservicev1alpha1.LabelServiceID, s.ID.String()); err != nil {
+		_ = c.Error(err)
+		return
+	}
+	h.kube.EventsByInvolved(c, s.Namespace,
 		kubeproxy.EventTarget{Kind: "Pod", Name: c.Param("pod")})
 }
 
 // ServiceEvents lists events targeting the MLService CR or its underlying
 // workload primitives (Deployment / StatefulSet) and exposed HTTPRoute
-// per design §4.4.
+// per design §4.4. Row lookup confirms the URL :namespace/:service tuple
+// before forwarding.
 func (h *Handler) ServiceEvents(c *gin.Context) {
-	svcName := c.Param("service")
-	h.kube.EventsByInvolved(c, c.Param("namespace"),
-		kubeproxy.EventTarget{Kind: "MLService", Name: svcName},
-		kubeproxy.EventTarget{Kind: "Deployment", Name: svcName},
-		kubeproxy.EventTarget{Kind: "StatefulSet", Name: svcName},
-		kubeproxy.EventTarget{Kind: "HTTPRoute", Name: svcName},
+	s, err := h.svc.Get(c.Request.Context(), c.Param("namespace"), c.Param("service"))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	h.kube.EventsByInvolved(c, s.Namespace,
+		kubeproxy.EventTarget{Kind: "MLService", Name: s.Name},
+		kubeproxy.EventTarget{Kind: "Deployment", Name: s.Name},
+		kubeproxy.EventTarget{Kind: "StatefulSet", Name: s.Name},
+		kubeproxy.EventTarget{Kind: "HTTPRoute", Name: s.Name},
 	)
 }
 

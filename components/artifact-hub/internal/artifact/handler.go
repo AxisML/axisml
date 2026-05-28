@@ -168,7 +168,7 @@ func (h *Handler) Patch(c *gin.Context) {
 	for k := range raw {
 		if _, ok := patchAllowedFields[k]; !ok {
 			_ = c.Error(apperrors.Newf(apperrors.CodeValidation,
-				"field %q is immutable; only display_name / description / labels / annotations may be patched", k))
+				"field %q is immutable; only displayName / description / labels / annotations may be patched", k))
 			return
 		}
 	}

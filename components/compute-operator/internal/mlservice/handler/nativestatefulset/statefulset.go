@@ -43,6 +43,7 @@ func buildStatefulSet(mls *axisml.MLService, cfg Config) *appsv1.StatefulSet {
 					NodeSelector:      mls.Spec.Scheduling.NodeSelector,
 					Tolerations:       mls.Spec.Scheduling.Tolerations,
 					PriorityClassName: mls.Spec.Scheduling.PriorityClass,
+					Volumes:           role.Template.Volumes,
 					Containers:        []corev1.Container{buildContainer(mls, role)},
 				},
 			},
@@ -63,6 +64,7 @@ func buildContainer(mls *axisml.MLService, role axisml.RoleSpec) corev1.Containe
 		Env:             append([]corev1.EnvVar(nil), tmpl.Env...),
 		EnvFrom:         tmpl.EnvFrom,
 		Resources:       tmpl.Resources,
+		VolumeMounts:    tmpl.VolumeMounts,
 	}
 	c.Env = append(c.Env, corev1.EnvVar{
 		Name: replicaIndexEnvVarName,

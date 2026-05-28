@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/axisml/axisml/components/artifact-hub/internal/storage/oci"
 	apperrors "github.com/axisml/axisml/components/artifact-hub/pkg/errors"
 )
 
@@ -102,6 +101,3 @@ func (h *DatasetHandler) GCBackend(_ context.Context, _ Artifact) error {
 func (h *DatasetHandler) prefix(namespace, name, version string) string {
 	return fmt.Sprintf("namespaces/%s/datasets/%s/%s/", namespace, name, version)
 }
-
-// silence unused import (we only reference oci for shared types).
-var _ = oci.ErrNotFound

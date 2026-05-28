@@ -22,7 +22,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	axismlv1alpha1 "github.com/axisml/axisml/components/cluster-manager/api/v1alpha1"
@@ -107,7 +106,6 @@ func runBootstrap() {
 		os.Exit(1)
 	}
 	fmt.Fprintf(os.Stderr, "ResourcePool %q created\n", *poolName)
-	_ = client.IgnoreNotFound
 }
 
 func unit(name, cpu, mem string) axismlv1alpha1.ResourceUnit {

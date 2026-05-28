@@ -112,8 +112,11 @@ func (s *Service) Create(ctx context.Context, namespace string, in CreateInput) 
 
 	runPolicy := mljobv1alpha1.RunPolicySpec{}
 	if in.RunPolicy != nil {
+		if in.RunPolicy.Suspend {
+			return nil, apperrors.New(apperrors.CodeValidation,
+				"runPolicy.suspend=true is not allowed on Create; use POST /jobs/{name}/cancel after submission")
+		}
 		runPolicy = *in.RunPolicy
-		runPolicy.Suspend = false
 	}
 
 	spec := mljobv1alpha1.MLJobSpec{

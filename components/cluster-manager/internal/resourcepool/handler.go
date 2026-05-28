@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -85,7 +86,9 @@ func (h *Handler) Get(c *gin.Context) {
 	c.JSON(http.StatusOK, srv.PoolToDTO(pool))
 }
 
-// List handles GET /api/v1/resource-pools.
+// List handles GET /api/v1/resource-pools. Supports ?labelSelector,
+// ?limit (1-500, default 100), and ?continue (opaque cursor returned by
+// a previous page). Mirrors apis/cluster-manager.yaml.
 func (h *Handler) List(c *gin.Context) {
 	opts := []client.ListOption{}
 	if sel := c.Query("labelSelector"); sel != "" {
@@ -96,6 +99,18 @@ func (h *Handler) List(c *gin.Context) {
 			return
 		}
 		opts = append(opts, client.MatchingLabelsSelector{Selector: ps})
+	}
+	if v := c.Query("limit"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 || n > 500 {
+			srv.AbortWithProblem(c, http.StatusBadRequest, "InvalidLimit",
+				"limit must be an integer in [1, 500]", v)
+			return
+		}
+		opts = append(opts, client.Limit(int64(n)))
+	}
+	if cont := c.Query("continue"); cont != "" {
+		opts = append(opts, client.Continue(cont))
 	}
 
 	var pools axismlv1alpha1.ResourcePoolList
@@ -122,13 +137,25 @@ func (h *Handler) Patch(c *gin.Context) {
 		return
 	}
 
-	pool, err := h.getPool(c.Request.Context(), name)
+	user := c.GetHeader(srv.HeaderUser)
+	var result *axismlv1alpha1.ResourcePool
+	err := h.mutateWithRetry(c.Request.Context(), name, func(pool *axismlv1alpha1.ResourcePool) error {
+		applyPoolPatch(pool, req, user)
+		result = pool
+		return nil
+	})
 	if err != nil {
 		writeK8sError(c, err, name)
 		return
 	}
-	base := pool.DeepCopy()
+	c.JSON(http.StatusOK, srv.PoolToDTO(result))
+}
 
+// applyPoolPatch mutates `pool` in place per the PATCH request. Kept as a
+// closure body so mutateWithRetry can re-run it against a fresh read on a
+// 409 — replaying the *intent* of the patch rather than the snapshot of
+// fields, which would silently overwrite any concurrent peer edit.
+func applyPoolPatch(pool *axismlv1alpha1.ResourcePool, req srv.PatchResourcePoolRequest, user string) {
 	if req.NodeSelector != nil {
 		pool.Spec.NodeSelector = req.NodeSelector
 	}
@@ -160,15 +187,9 @@ func (h *Handler) Patch(c *gin.Context) {
 	if req.Description != nil {
 		pool.Annotations[srv.DescriptionAnnotation] = *req.Description
 	}
-	if user := c.GetHeader(srv.HeaderUser); user != "" {
+	if user != "" {
 		pool.Annotations[srv.LastModifiedByAnnotation] = user
 	}
-
-	if err := patchWithRetry(c.Request.Context(), h.Client, pool, base, name); err != nil {
-		writeK8sError(c, err, name)
-		return
-	}
-	c.JSON(http.StatusOK, srv.PoolToDTO(pool))
 }
 
 // Delete handles DELETE /api/v1/resource-pools/{pool}.
@@ -273,26 +294,42 @@ func (h *Handler) PatchUnit(c *gin.Context) {
 		return
 	}
 
-	pool, err := h.getPool(c.Request.Context(), poolName)
+	user := c.GetHeader(srv.HeaderUser)
+	var patched axismlv1alpha1.ResourceUnit
+	err := h.mutateWithRetry(c.Request.Context(), poolName, func(pool *axismlv1alpha1.ResourcePool) error {
+		idx := -1
+		for i := range pool.Spec.Units {
+			if pool.Spec.Units[i].Name == unitName {
+				idx = i
+				break
+			}
+		}
+		if idx == -1 {
+			return apierrors.NewNotFound(
+				axismlv1alpha1.GroupVersion.WithResource("resourcepools").GroupResource(),
+				poolName+"/units/"+unitName)
+		}
+		applyUnitPatch(&pool.Spec.Units[idx], req)
+		if user != "" {
+			if pool.Annotations == nil {
+				pool.Annotations = map[string]string{}
+			}
+			pool.Annotations[srv.LastModifiedByAnnotation] = user
+		}
+		patched = pool.Spec.Units[idx]
+		return nil
+	})
 	if err != nil {
 		writeK8sError(c, err, poolName)
 		return
 	}
-	idx := -1
-	for i := range pool.Spec.Units {
-		if pool.Spec.Units[i].Name == unitName {
-			idx = i
-			break
-		}
-	}
-	if idx == -1 {
-		srv.AbortWithProblem(c, http.StatusNotFound, "UnitNotFound",
-			"unit not found in pool", unitName)
-		return
-	}
+	c.JSON(http.StatusOK, srv.UnitToDTO(patched))
+}
 
-	base := pool.DeepCopy()
-	u := &pool.Spec.Units[idx]
+// applyUnitPatch mutates one unit in place per the PATCH request. Kept
+// as a closure body so mutateWithRetry can re-run it against a fresh
+// read on 409 — replaying intent rather than overwriting a snapshot.
+func applyUnitPatch(u *axismlv1alpha1.ResourceUnit, req srv.PatchResourceUnitRequest) {
 	if req.Requests != nil {
 		u.Requests = req.Requests
 	}
@@ -321,80 +358,48 @@ func (h *Handler) PatchUnit(c *gin.Context) {
 		}
 		u.Annotations[srv.DescriptionAnnotation] = *req.Description
 	}
-	if user := c.GetHeader(srv.HeaderUser); user != "" {
-		if pool.Annotations == nil {
-			pool.Annotations = map[string]string{}
-		}
-		pool.Annotations[srv.LastModifiedByAnnotation] = user
-	}
-	if err := patchWithRetry(c.Request.Context(), h.Client, pool, base, poolName); err != nil {
-		writeK8sError(c, err, poolName)
-		return
-	}
-	c.JSON(http.StatusOK, srv.UnitToDTO(pool.Spec.Units[idx]))
-}
-
-// patchWithRetry runs MergeFrom-Patch once; on a resourceVersion conflict
-// it re-reads the pool, replays the modification by computing the diff
-// between `base` and `desired` against the fresh remote, and retries
-// once. Per design (cluster-manager.md §4.2). Returns the last error if
-// the second attempt also conflicts.
-func patchWithRetry(ctx context.Context, c client.Client, desired, base *axismlv1alpha1.ResourcePool, name string) error {
-	err := c.Patch(ctx, desired, client.MergeFrom(base))
-	if err == nil || !apierrors.IsConflict(err) {
-		return err
-	}
-	// Re-read, then attempt the same diff again against the fresh object.
-	fresh := &axismlv1alpha1.ResourcePool{}
-	if getErr := c.Get(ctx, types.NamespacedName{Name: name}, fresh); getErr != nil {
-		return getErr
-	}
-	// Re-apply the diff: desired-vs-base captures what the caller wanted
-	// to change; that intent still applies on top of the fresh object.
-	freshBase := fresh.DeepCopy()
-	fresh.Spec = desired.Spec
-	fresh.Labels = desired.Labels
-	fresh.Annotations = desired.Annotations
-	return c.Patch(ctx, fresh, client.MergeFrom(freshBase))
 }
 
 // DeleteUnit handles DELETE .../resource-units/{unit}.
 func (h *Handler) DeleteUnit(c *gin.Context) {
 	poolName, unitName := c.Param("pool"), c.Param("unit")
-	pool, err := h.getPool(c.Request.Context(), poolName)
+	user := c.GetHeader(srv.HeaderUser)
+	err := h.mutateWithRetry(c.Request.Context(), poolName, func(pool *axismlv1alpha1.ResourcePool) error {
+		idx := -1
+		for i := range pool.Spec.Units {
+			if pool.Spec.Units[i].Name == unitName {
+				idx = i
+				break
+			}
+		}
+		if idx == -1 {
+			// Idempotent: nothing to remove, treat the closure as a no-op
+			// so the outer apierrors.NewNotFound becomes the public 204.
+			return errNoMutationNeeded
+		}
+		pool.Spec.Units = append(pool.Spec.Units[:idx], pool.Spec.Units[idx+1:]...)
+		if user != "" {
+			if pool.Annotations == nil {
+				pool.Annotations = map[string]string{}
+			}
+			pool.Annotations[srv.LastModifiedByAnnotation] = user
+		}
+		return nil
+	})
 	if err != nil {
-		if apierrors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) || errors.Is(err, errNoMutationNeeded) {
 			c.Status(http.StatusNoContent)
 			return
 		}
 		writeK8sError(c, err, poolName)
 		return
 	}
-	idx := -1
-	for i := range pool.Spec.Units {
-		if pool.Spec.Units[i].Name == unitName {
-			idx = i
-			break
-		}
-	}
-	if idx == -1 {
-		c.Status(http.StatusNoContent)
-		return
-	}
-	base := pool.DeepCopy()
-	pool.Spec.Units = append(pool.Spec.Units[:idx], pool.Spec.Units[idx+1:]...)
-	if user := c.GetHeader(srv.HeaderUser); user != "" {
-		if pool.Annotations == nil {
-			pool.Annotations = map[string]string{}
-		}
-		pool.Annotations[srv.LastModifiedByAnnotation] = user
-	}
-	if err := patchWithRetry(c.Request.Context(), h.Client, pool, base, poolName); err != nil {
-		writeK8sError(c, err, poolName)
-		return
-	}
 	c.Status(http.StatusNoContent)
 }
+
+// errNoMutationNeeded short-circuits mutateWithRetry's Patch call when
+// the closure decides no change is required (e.g. idempotent DELETE).
+var errNoMutationNeeded = errors.New("no mutation needed")
 
 // ─────────────────────────────────────────────────────────────── helpers
 
@@ -411,6 +416,14 @@ func (h *Handler) getPool(ctx context.Context, name string) (*axismlv1alpha1.Res
 // reruns the mutation once. Design (cluster-manager.md §4.2) requires
 // JSON Patch + resourceVersion optimistic lock + one retry to keep
 // concurrent unit-edit UX usable.
+//
+// Re-running the closure (rather than re-applying a fixed Spec snapshot)
+// preserves concurrent peer edits: if peer adds a unit between attempt 1
+// and attempt 2, the closure sees that unit on the fresh read and only
+// layers the caller's mutation on top.
+//
+// If `mutate` returns errNoMutationNeeded, the Patch call is skipped and
+// nil is returned (idempotent no-op).
 func (h *Handler) mutateWithRetry(ctx context.Context, poolName string, mutate func(p *axismlv1alpha1.ResourcePool) error) error {
 	for attempt := 0; attempt < 2; attempt++ {
 		pool, err := h.getPool(ctx, poolName)
@@ -419,6 +432,9 @@ func (h *Handler) mutateWithRetry(ctx context.Context, poolName string, mutate f
 		}
 		base := pool.DeepCopy()
 		if err := mutate(pool); err != nil {
+			if errors.Is(err, errNoMutationNeeded) {
+				return nil
+			}
 			return err
 		}
 		err = h.Client.Patch(ctx, pool, client.MergeFrom(base))

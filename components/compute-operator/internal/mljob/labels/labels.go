@@ -11,7 +11,6 @@ const (
 	QuotaLabel      = axisv1alpha1.LabelQuota
 	RoleLabel       = axisv1alpha1.LabelRole
 	KoordQuotaLabel = axisv1alpha1.LabelKoordQuotaName
-	PodGroupLabel   = axisv1alpha1.LabelPodGroup
 
 	AppliedSpecAnnotation = axisv1alpha1.AnnotationAppliedSpec
 

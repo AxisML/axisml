@@ -42,13 +42,10 @@ spec:
                       name:
                         type: string
                         pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
-                        minLength: 3
+                        minLength: 1
                         maxLength: 40
                     required: [name]
       additionalPrinterColumns:
-        - name: Units
-          type: integer
-          jsonPath: .spec.units.length
         - name: Age
           type: date
           jsonPath: .metadata.creationTimestamp

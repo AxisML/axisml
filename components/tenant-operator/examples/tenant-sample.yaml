@@ -16,7 +16,6 @@ metadata:
   labels:
     axisml.io/tenant-id: "11111111-2222-3333-4444-555555555555"
 spec:
-  displayName: "Sample Tenant"
   namespace:
     name: sample-ns
     labels:
@@ -51,4 +50,3 @@ spec:
             - apiGroups: [""]
               resources: ["pods", "pods/log"]
               verbs: ["get", "list", "watch"]
-  suspended: false

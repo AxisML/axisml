@@ -41,6 +41,26 @@ func New(cfg *rest.Config, ctrl client.Client) (*Client, error) {
 	return &Client{ctrl: ctrl, clients: cs}, nil
 }
 
+// VerifyPodHasLabel fetches the named Pod and confirms it carries the
+// expected label key=value. Returns CodeNotFound if the pod is missing or
+// CodePermissionDenied if the pod exists but is not tagged with the
+// caller's job/service id — preventing the URL `:namespace/:pod` from
+// leaking pods belonging to other rows in the same K8s namespace.
+func (c *Client) VerifyPodHasLabel(ctx context.Context, namespace, pod, labelKey, labelValue string) error {
+	var p corev1.Pod
+	if err := c.ctrl.Get(ctx, client.ObjectKey{Namespace: namespace, Name: pod}, &p); err != nil {
+		if apierrors.IsNotFound(err) {
+			return apperrors.Newf(apperrors.CodeNotFound, "pod %s/%s not found", namespace, pod)
+		}
+		return apperrors.Wrap(apperrors.CodeUnavailable, "get pod", err)
+	}
+	if p.Labels[labelKey] != labelValue {
+		return apperrors.Newf(apperrors.CodeForbidden,
+			"pod %s/%s does not belong to this resource", namespace, pod)
+	}
+	return nil
+}
+
 // ListPodsByLabel returns Pods in `namespace` whose metadata.labels match
 // the given key=value (typically `axisml.io/job-id=<uuid>` or
 // `axisml.io/service-id=<uuid>`).

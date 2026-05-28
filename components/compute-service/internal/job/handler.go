@@ -51,24 +51,53 @@ func (h *Handler) ListPods(c *gin.Context) {
 	h.kube.PodsByLabel(c, j.Namespace, mljobv1alpha1.LabelJobID, j.ID.String())
 }
 
-// PodLog streams a pod's log.
+// PodLog streams a pod's log. The pod must carry
+// axisml.io/job-id=<row.id>; otherwise the pod is reachable only via the
+// kube-apiserver itself and not through this REST surface.
 func (h *Handler) PodLog(c *gin.Context) {
-	h.kube.PodLog(c, c.Param("namespace"), c.Param("pod"))
+	j, err := h.svc.Get(c.Request.Context(), c.Param("namespace"), c.Param("job"))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	if err := h.kube.VerifyPodHasLabel(c.Request.Context(), j.Namespace, c.Param("pod"),
+		mljobv1alpha1.LabelJobID, j.ID.String()); err != nil {
+		_ = c.Error(err)
+		return
+	}
+	h.kube.PodLog(c, j.Namespace, c.Param("pod"))
 }
 
-// PodEvents lists events whose involvedObject is the pod.
+// PodEvents lists events whose involvedObject is the pod. Same scoping
+// as PodLog: the pod must be tagged with the job's id.
 func (h *Handler) PodEvents(c *gin.Context) {
-	h.kube.EventsByInvolved(c, c.Param("namespace"),
+	j, err := h.svc.Get(c.Request.Context(), c.Param("namespace"), c.Param("job"))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	if err := h.kube.VerifyPodHasLabel(c.Request.Context(), j.Namespace, c.Param("pod"),
+		mljobv1alpha1.LabelJobID, j.ID.String()); err != nil {
+		_ = c.Error(err)
+		return
+	}
+	h.kube.EventsByInvolved(c, j.Namespace,
 		kubeproxy.EventTarget{Kind: "Pod", Name: c.Param("pod")})
 }
 
 // JobEvents lists events targeting the MLJob CR or its peer scheduling
-// primitive (PodGroup) per design §4.3.
+// primitive (PodGroup) per design §4.3. We resolve the row first so the
+// :namespace path parameter is checked against the row, not blindly
+// forwarded.
 func (h *Handler) JobEvents(c *gin.Context) {
-	jobName := c.Param("job")
-	h.kube.EventsByInvolved(c, c.Param("namespace"),
-		kubeproxy.EventTarget{Kind: "MLJob", Name: jobName},
-		kubeproxy.EventTarget{Kind: "PodGroup", Name: jobName},
+	j, err := h.svc.Get(c.Request.Context(), c.Param("namespace"), c.Param("job"))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	h.kube.EventsByInvolved(c, j.Namespace,
+		kubeproxy.EventTarget{Kind: "MLJob", Name: j.Name},
+		kubeproxy.EventTarget{Kind: "PodGroup", Name: j.Name},
 	)
 }
 
