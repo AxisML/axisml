@@ -1,8 +1,16 @@
 # AxisML pre-commit configuration
 #
-# Install once per clone:  make install-hooks   (wraps `pre-commit install`)
+# Install once per clone:  make install-hooks   (installs both commit & push stages)
 # Run against all files:   pre-commit run --all-files
-# Bypass once:             git commit --no-verify
+# Run push hooks only:     pre-commit run --hook-stage pre-push --all-files
+# Bypass once:             git commit --no-verify   /   git push --no-verify
+#
+# Stage policy:
+#   - pre-commit  → fast (<5s on a typical change). Formatters + go vet on
+#                   touched modules + scoped doc/helm checks.
+#   - pre-push    → moderate (30-60s). golangci-lint + go test on touched
+#                   modules — catches the failures that today only show up
+#                   in CI.
 
 # Files we never want hooks to touch:
 #   - test/crds/external/* are vendored upstream CRDs (intentionally read-only,
@@ -41,3 +49,60 @@ repos:
         entry: gofmt -w
         language: system
         types: [go]
+
+      - id: go-vet
+        name: go vet (touched modules)
+        description: Run `go vet ./...` on each Go module containing a staged file.
+        # Per-module vet is fast (~2-5s per module) and catches the kind of
+        # API-drift bug that today only shows up in CI lint (undefined
+        # identifiers, unused imports, build breakage in tagged files).
+        entry: scripts/touched-go-modules.sh vet
+        language: system
+        types: [go]
+        pass_filenames: true
+        require_serial: true
+
+      - id: doc-test
+        name: doc-test (OpenAPI sync)
+        description: Verify generated OpenAPI specs match the Go DTOs (`make doc-test`).
+        # Triggers when the openapi-gen sources OR any Go file inside the
+        # three HTTP-surface components changes. Operators (compute / tenant)
+        # have no HTTP surface and are excluded. The action is ~10s locally.
+        entry: make doc-test
+        language: system
+        files: ^components/(cluster-manager|compute-service|artifact-hub)/.*\.go$
+        pass_filenames: false
+        require_serial: true
+
+      - id: helm-lint
+        name: helm lint
+        description: Lint the Helm charts when chart files change.
+        entry: make helm-lint
+        language: system
+        files: ^deploy/helm/.*
+        pass_filenames: false
+        require_serial: true
+
+      # ── pre-push stage ────────────────────────────────────────────────
+      # These fire on `git push`, not on every commit. They cover the slow
+      # checks (lint + unit tests) that today only run in CI.
+
+      - id: golangci-lint
+        name: golangci-lint (touched modules, pre-push)
+        description: Run golangci-lint on each Go module containing a pushed file.
+        entry: scripts/touched-go-modules.sh golangci-lint
+        language: system
+        types: [go]
+        stages: [pre-push]
+        pass_filenames: true
+        require_serial: true
+
+      - id: go-test
+        name: go test -short (touched modules, pre-push)
+        description: Run unit tests in each Go module containing a pushed file.
+        entry: scripts/touched-go-modules.sh test
+        language: system
+        types: [go]
+        stages: [pre-push]
+        pass_filenames: true
+        require_serial: true

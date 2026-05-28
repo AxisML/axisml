@@ -346,17 +346,24 @@ coverage-clean: ## Remove all coverage artifacts (root + per-component)
 
 .PHONY: install-hooks uninstall-hooks pre-commit-run
 
-install-hooks: ## Install the pre-commit hook into .git/hooks/ (requires `pre-commit` on PATH)
+install-hooks: ## Install pre-commit + pre-push hooks into .git/hooks/ (requires `pre-commit` on PATH)
 	@command -v pre-commit >/dev/null || { \
 	  echo "pre-commit not found. Install: brew install pre-commit  (or pipx install pre-commit)"; \
 	  exit 1; }
 	@pre-commit install
+	@pre-commit install --hook-type pre-push
 
-uninstall-hooks: ## Remove the pre-commit hook from .git/hooks/
-	@command -v pre-commit >/dev/null && pre-commit uninstall || true
+uninstall-hooks: ## Remove pre-commit + pre-push hooks from .git/hooks/
+	@command -v pre-commit >/dev/null && { \
+	  pre-commit uninstall; \
+	  pre-commit uninstall --hook-type pre-push; \
+	} || true
 
 pre-commit-run: ## Run all pre-commit hooks against every tracked file
 	@pre-commit run --all-files
+
+pre-push-run: ## Run all pre-push hooks against every tracked file
+	@pre-commit run --hook-stage pre-push --all-files
 
 ##@ Help
 
