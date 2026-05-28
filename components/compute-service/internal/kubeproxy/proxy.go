@@ -138,7 +138,7 @@ func (c *Client) StreamPodLog(ctx context.Context, namespace, pod string, opts P
 		}
 		return apperrors.Wrap(apperrors.CodeUnavailable, "open pod log stream", err)
 	}
-	defer stream.Close()
+	defer func() { _ = stream.Close() }()
 	if flusher == nil {
 		_, err = io.Copy(w, stream)
 		return err

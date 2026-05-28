@@ -44,7 +44,7 @@ func (s *Service) AddQuota(ctx context.Context, tenantName string, in QuotaPatch
 		return QuotaSpec{}, apperrors.New(apperrors.CodeValidation, "max is required")
 	}
 
-	q := QuotaSpec{Pool: in.Pool, Name: in.Name, Min: in.Min, Max: in.Max}
+	q := QuotaSpec(in)
 	if err := s.mutateQuotas(ctx, tenantName, lastModifiedBy, func(qs []QuotaSpec) ([]QuotaSpec, error) {
 		for _, existing := range qs {
 			if existing.Pool == q.Pool && existing.Name == q.Name {
