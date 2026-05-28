@@ -27,8 +27,8 @@ func (h *Handler) Register(rg *gin.RouterGroup) {
 	q := g.Group("/:namespace/quotas")
 	q.GET("", h.ListQuotas)
 	q.POST("", h.AddQuota)
-	q.PATCH("/:pool/:name", h.PatchQuota)
-	q.DELETE("/:pool/:name", h.DeleteQuota)
+	q.PATCH("/:pool/:quotaName", h.PatchQuota)
+	q.DELETE("/:pool/:quotaName", h.DeleteQuota)
 }
 
 func (h *Handler) ListQuotas(c *gin.Context) {
@@ -61,7 +61,7 @@ func (h *Handler) PatchQuota(c *gin.Context) {
 		return
 	}
 	q, err := h.svc.PatchQuota(c.Request.Context(),
-		c.Param("namespace"), c.Param("pool"), c.Param("name"), in, callerUser(c))
+		c.Param("namespace"), c.Param("pool"), c.Param("quotaName"), in, callerUser(c))
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -71,7 +71,7 @@ func (h *Handler) PatchQuota(c *gin.Context) {
 
 func (h *Handler) DeleteQuota(c *gin.Context) {
 	if err := h.svc.DeleteQuota(c.Request.Context(),
-		c.Param("namespace"), c.Param("pool"), c.Param("name"), callerUser(c)); err != nil {
+		c.Param("namespace"), c.Param("pool"), c.Param("quotaName"), callerUser(c)); err != nil {
 		_ = c.Error(err)
 		return
 	}

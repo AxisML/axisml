@@ -94,22 +94,34 @@ type CreateInput struct {
 	InitResources *InitResources    `json:"initResources,omitempty"`
 }
 
-// PatchInput is the body for PATCH /api/v1/namespaces/{name}.
+// PatchInput is the body for PATCH /api/v1/namespaces/{name}. The wire
+// shape mirrors the design yaml: top-level display fields plus a nested
+// `spec` block carrying the mutable spec entries.
 //
-// Per design §4.1, `namespaceLabels` / `namespaceAnnotations` mutate
-// `spec.namespace.{labels,annotations}` WITHOUT bumping generation (the
-// CR field is rewritten, but tenant-operator doesn't recreate the K8s
-// namespace — see tenant-operator.md §4.1.1). All other spec mutations
-// (quotas / initResources) DO bump generation.
+// Per design §4.1, `spec.namespace.{labels,annotations}` mutations rewrite
+// the CR field but DO NOT bump generation (tenant-operator doesn't recreate
+// the K8s namespace — see tenant-operator.md §4.1.1). Quotas / initResources
+// mutations DO bump generation.
 type PatchInput struct {
-	DisplayName          *string           `json:"displayName,omitempty"`
-	Description          *string           `json:"description,omitempty"`
-	Labels               map[string]string `json:"labels,omitempty"`
-	Annotations          map[string]string `json:"annotations,omitempty"`
-	NamespaceLabels      map[string]string `json:"namespaceLabels,omitempty"`
-	NamespaceAnnotations map[string]string `json:"namespaceAnnotations,omitempty"`
-	Quotas               *[]QuotaSpec      `json:"quotas,omitempty"`
-	InitResources        *InitResources    `json:"initResources,omitempty"`
+	DisplayName *string             `json:"displayName,omitempty"`
+	Description *string             `json:"description,omitempty"`
+	Labels      map[string]string   `json:"labels,omitempty"`
+	Annotations map[string]string   `json:"annotations,omitempty"`
+	Spec        *PatchInputSpecPart `json:"spec,omitempty"`
+}
+
+// PatchInputSpecPart carries the design-allowed mutable spec entries.
+type PatchInputSpecPart struct {
+	Namespace     *PatchInputNamespacePart `json:"namespace,omitempty"`
+	Quotas        *[]QuotaSpec             `json:"quotas,omitempty"`
+	InitResources *InitResources           `json:"initResources,omitempty"`
+}
+
+// PatchInputNamespacePart wraps the two PG-only display fields. Labels /
+// annotations are patched as a whole-map replace.
+type PatchInputNamespacePart struct {
+	Labels      map[string]string `json:"labels,omitempty"`
+	Annotations map[string]string `json:"annotations,omitempty"`
 }
 
 // Response is the JSON shape returned by GET / LIST / Create / Patch.

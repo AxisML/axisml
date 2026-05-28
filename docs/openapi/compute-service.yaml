@@ -2033,22 +2033,36 @@ components:
         displayName:
           nullable: true
           type: string
-        initResources:
-          allOf:
-          - $ref: '#/components/schemas/TenantInitResources'
-          nullable: true
         labels:
           additionalProperties:
             type: string
           type: object
-        namespaceAnnotations:
+        spec:
+          allOf:
+          - $ref: '#/components/schemas/TenantPatchInputSpecPart'
+          nullable: true
+      type: object
+    TenantPatchInputNamespacePart:
+      properties:
+        annotations:
           additionalProperties:
             type: string
           type: object
-        namespaceLabels:
+        labels:
           additionalProperties:
             type: string
           type: object
+      type: object
+    TenantPatchInputSpecPart:
+      properties:
+        initResources:
+          allOf:
+          - $ref: '#/components/schemas/TenantInitResources'
+          nullable: true
+        namespace:
+          allOf:
+          - $ref: '#/components/schemas/TenantPatchInputNamespacePart'
+          nullable: true
         quotas:
           items:
             $ref: '#/components/schemas/TenantQuotaSpec'
@@ -3620,7 +3634,7 @@ paths:
       summary: Add a quota to a tenant
       tags:
       - tenants
-  /api/v1/namespaces/{namespace}/quotas/{pool}/{name}:
+  /api/v1/namespaces/{namespace}/quotas/{pool}/{quotaName}:
     delete:
       operationId: deleteTenantQuota
       parameters:
@@ -3638,7 +3652,7 @@ paths:
           type: string
       - description: Quota name (within the (tenant, pool)).
         in: path
-        name: name
+        name: quotaName
         required: true
         schema:
           type: string
@@ -3719,7 +3733,7 @@ paths:
           type: string
       - description: Quota name (within the (tenant, pool)).
         in: path
-        name: name
+        name: quotaName
         required: true
         schema:
           type: string

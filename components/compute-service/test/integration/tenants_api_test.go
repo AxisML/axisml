@@ -65,14 +65,17 @@ func TestTenant_API_Lifecycle(t *testing.T) {
 	require.True(t, found, "tenant team-alpha not in LIST response")
 
 	// PATCH displayName + bump quota max → generation must increment.
+	// Wire shape mirrors the design yaml: nested spec.quotas.
 	patchReq := map[string]any{
 		"displayName": "Team Alpha (renamed)",
-		"quotas": []map[string]any{{
-			"pool": "default",
-			"name": "default",
-			"min":  map[string]string{"cpu": "1"},
-			"max":  map[string]string{"cpu": "16"},
-		}},
+		"spec": map[string]any{
+			"quotas": []map[string]any{{
+				"pool": "default",
+				"name": "default",
+				"min":  map[string]string{"cpu": "1"},
+				"max":  map[string]string{"cpu": "16"},
+			}},
+		},
 	}
 	var patched tenantmod.Response
 	rr = doJSON(t, ctx, http.MethodPatch, "/api/v1/namespaces/team-alpha", patchReq, &patched)

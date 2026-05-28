@@ -205,7 +205,7 @@ func buildDocument(version string) *openapigen.Document {
 	}}
 
 	poolParam := openapigen.PathParam("pool", "Pool name.")
-	quotaNameParam := openapigen.PathParam("name", "Quota name (within the (tenant, pool)).")
+	quotaNameParam := openapigen.PathParam("quotaName", "Quota name (within the (tenant, pool)).")
 
 	paths["/api/v1/namespaces/{namespace}/quotas"] = openapigen.PathItem{
 		Get: &openapigen.Operation{
@@ -220,7 +220,7 @@ func buildDocument(version string) *openapigen.Document {
 			Responses:   withErrors(map[string]openapigen.Response{"201": openapigen.JSONResp("Added.", "TenantQuota")}),
 		},
 	}
-	paths["/api/v1/namespaces/{namespace}/quotas/{pool}/{name}"] = openapigen.PathItem{
+	paths["/api/v1/namespaces/{namespace}/quotas/{pool}/{quotaName}"] = openapigen.PathItem{
 		Patch: &openapigen.Operation{
 			Tags: []string{tagTenants}, Summary: "Patch a quota's min/max", OperationID: "patchTenantQuota",
 			Parameters:  []openapigen.Parameter{nsParam, poolParam, quotaNameParam},

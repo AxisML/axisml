@@ -101,8 +101,8 @@ func TestRouteCoverage(t *testing.T) {
 		{"post", "/api/v1/namespaces/{namespace}/restore"},
 		{"get", "/api/v1/namespaces/{namespace}/quotas"},
 		{"post", "/api/v1/namespaces/{namespace}/quotas"},
-		{"patch", "/api/v1/namespaces/{namespace}/quotas/{pool}/{name}"},
-		{"delete", "/api/v1/namespaces/{namespace}/quotas/{pool}/{name}"},
+		{"patch", "/api/v1/namespaces/{namespace}/quotas/{pool}/{quotaName}"},
+		{"delete", "/api/v1/namespaces/{namespace}/quotas/{pool}/{quotaName}"},
 	}
 	for _, w := range want {
 		item, ok := doc.Paths[w.path]
