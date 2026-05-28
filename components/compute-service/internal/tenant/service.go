@@ -176,25 +176,41 @@ func (s *Service) Patch(ctx context.Context, name string, in PatchInput, lastMod
 // eligible; the row's deleted_at is cleared, phase flips back to
 // Creating, generation bumps so the reconciler re-creates the CR.
 //
-// We explicitly target the most recent *soft-deleted* row (deleted_at IS
-// NOT NULL): if the caller recreated the same-name tenant after deletion,
-// the active row would otherwise win the ORDER BY and the older tombstone
-// would be unreachable.
+// Status mapping (in order):
+//  1. soft-deleted row in phase=Deleted → restore it (200).
+//  2. any other row by name exists → 412 PreconditionFailed.
+//     The most common case: the caller hit /restore on an active tenant
+//     (or a stuck-in-Deleting row); the row exists but isn't restorable.
+//  3. no row at all → 404.
+//
+// Explicitly targeting the soft-deleted row first means a recreate-then-
+// restore loop still works: if the caller deleted `foo`, recreated `foo`
+// (new row), and then asks to restore, we surface the older tombstone
+// instead of returning 412 against the new active row.
 func (s *Service) Restore(ctx context.Context, name string, lastModifiedBy string) (Response, error) {
 	var t Tenant
-	if err := s.repo.db.WithContext(ctx).Unscoped().
-		Where("name = ? AND deleted_at IS NOT NULL", name).
-		Order("deleted_at DESC").First(&t).Error; err != nil {
-		if IsNotFound(err) {
-			return Response{}, apperrors.Newf(apperrors.CodeNotFound,
-				"no soft-deleted tenant named %q to restore", name)
-		}
+	err := s.repo.db.WithContext(ctx).Unscoped().
+		Where("name = ? AND deleted_at IS NOT NULL AND phase = ?", name, PhaseDeleted).
+		Order("deleted_at DESC").First(&t).Error
+	if err != nil && !IsNotFound(err) {
 		return Response{}, apperrors.Wrap(apperrors.CodeInternal, "load tenant", err)
 	}
-	if t.Phase != PhaseDeleted {
+	if IsNotFound(err) {
+		// Disambiguate 404 from 412 — does any row by this name exist?
+		var any Tenant
+		probeErr := s.repo.db.WithContext(ctx).Unscoped().
+			Where("name = ?", name).Order("created_at DESC").First(&any).Error
+		if probeErr != nil {
+			if IsNotFound(probeErr) {
+				return Response{}, apperrors.Newf(apperrors.CodeNotFound,
+					"tenant %q not found", name)
+			}
+			return Response{}, apperrors.Wrap(apperrors.CodeInternal, "load tenant", probeErr)
+		}
 		return Response{}, apperrors.Newf(apperrors.CodePrecondition,
-			"tenant %q phase=%s; only Deleted tenants can be restored", name, t.Phase)
+			"tenant %q phase=%s; only Deleted tenants can be restored", name, any.Phase)
 	}
+
 	if err := s.repo.db.WithContext(ctx).Unscoped().Model(&Tenant{}).
 		Where("id = ?", t.ID).
 		Updates(map[string]any{
