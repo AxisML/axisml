@@ -14,7 +14,7 @@ func TestStubsValidateReturnDocPointer(t *testing.T) {
 	}
 	found := false
 	for _, e := range v.Errors {
-		if containsAll(e, "kserve", "inference", "mlservice-operator.md", "§11") {
+		if containsAll(e, "kserve", "inference", "compute-operator.md", "§4") {
 			found = true
 		}
 	}

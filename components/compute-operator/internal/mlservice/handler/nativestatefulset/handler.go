@@ -103,6 +103,16 @@ func (h *Handler) Validate(spec *axisml.MLServiceSpec) handler.Validation {
 	if spec.Scheduling.Quota == "" {
 		v.Errors = append(v.Errors, "scheduling.quota is required")
 	}
+	declared := map[string]bool{}
+	for _, vol := range role.Template.Volumes {
+		declared[vol.Name] = true
+	}
+	for i, vm := range role.Template.VolumeMounts {
+		if !declared[vm.Name] {
+			v.Errors = append(v.Errors,
+				fmt.Sprintf("roles[0].template.volumeMounts[%d].name %q has no matching volume", i, vm.Name))
+		}
+	}
 	if _, err := parseBackendConfig(spec.Backend.Config); err != nil {
 		v.Errors = append(v.Errors, fmt.Sprintf("backend.config invalid: %s", err.Error()))
 	}

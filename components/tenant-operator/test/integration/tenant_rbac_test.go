@@ -171,10 +171,12 @@ func TestTenant_ConfigMapDataDriftCorrected(t *testing.T) {
 		if err := c.Get(ctx, types.NamespacedName{Name: tenantName}, &t1); err != nil {
 			return err
 		}
-		if t1.Spec.Annotations == nil {
-			t1.Spec.Annotations = map[string]string{}
+		// spec.annotations no longer exists in the new design; nudge
+		// metadata.annotations instead to trigger a reconcile.
+		if t1.Annotations == nil {
+			t1.Annotations = map[string]string{}
 		}
-		t1.Spec.Annotations["bump"] = time.Now().Format(time.RFC3339Nano)
+		t1.Annotations["bump"] = time.Now().Format(time.RFC3339Nano)
 		return c.Update(ctx, &t1)
 	})
 

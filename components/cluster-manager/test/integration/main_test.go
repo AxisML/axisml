@@ -1,8 +1,8 @@
 //go:build integration
 
-// Package integration_test exercises the cluster-manager Tenant + Quota
-// REST handlers against an embedded apiserver+etcd via controller-runtime
-// envtest. The Tenant CRD is loaded from deploy/helm/axisml-system/crds.
+// Package integration_test drives the cluster-manager ResourcePool REST API
+// against an embedded apiserver+etcd (controller-runtime envtest), with the
+// ResourcePool CRD loaded from deploy/helm/axisml-system/crds.
 package integration_test
 
 import (
@@ -20,18 +20,17 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	axismlv1alpha1 "github.com/axisml/axisml/components/cluster-manager/api/v1alpha1"
+	cmapp "github.com/axisml/axisml/components/cluster-manager/internal/app"
 	cmk8sclient "github.com/axisml/axisml/components/cluster-manager/internal/k8sclient"
-	cmtenant "github.com/axisml/axisml/components/cluster-manager/internal/tenant"
-	tenantv1alpha1 "github.com/axisml/axisml/components/tenant-operator/api/v1alpha1"
 
 	"github.com/axisml/axisml/test/testutil"
 )
 
 var (
-	testEnv  *testutil.EnvtestHandle
-	testCli  client.Client
-	testRtr  *gin.Engine
-	denylist = []string{"kube-system", "default", "axisml-system"}
+	testEnv *testutil.EnvtestHandle
+	testCli client.Client
+	testRtr *gin.Engine
 )
 
 func TestMain(m *testing.M) {
@@ -45,7 +44,7 @@ func TestMain(m *testing.M) {
 
 	scheme := runtime.NewScheme()
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-	utilruntime.Must(tenantv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(axismlv1alpha1.AddToScheme(scheme))
 
 	testEnv, err = testutil.StartEnvtestE(testutil.EnvtestOptions{
 		Scheme: scheme,
@@ -67,9 +66,7 @@ func TestMain(m *testing.M) {
 	testCli = c
 
 	gin.SetMode(gin.TestMode)
-	r := gin.New()
-	(&cmtenant.Handler{Client: testCli, NamespaceDenylist: denylist}).Register(r.Group("/api/v1"))
-	testRtr = r
+	testRtr = cmapp.NewRouter(testCli)
 
 	code := m.Run()
 
@@ -77,12 +74,21 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// doRequest is a tiny helper around the in-process gin router.
+// doRequest is a tiny helper around the in-process gin router. All requests
+// receive a default X-Axisml-User unless the test explicitly overrides it.
 func doRequest(t *testing.T, method, path, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	return doRequestAs(t, method, path, body, "test-user")
+}
+
+func doRequestAs(t *testing.T, method, path, body, user string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(method, path, stringReader(body))
 	if body != "" {
 		req.Header.Set("Content-Type", "application/json")
+	}
+	if user != "" {
+		req.Header.Set("X-Axisml-User", user)
 	}
 	rr := httptest.NewRecorder()
 	testRtr.ServeHTTP(rr, req)

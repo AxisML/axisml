@@ -2,6 +2,7 @@ package job
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -60,41 +61,58 @@ func (i *Informer) onChange(ctx context.Context, obj any) {
 	if err != nil {
 		return
 	}
-	updates := map[string]any{}
+
+	// Build the next phase + status sub-tree by merging CR status into
+	// the existing PG row.
+	var prevStatus StatusFields
+	if len(j.StatusJSON) > 0 {
+		_ = json.Unmarshal(j.StatusJSON, &prevStatus)
+	}
+	nextStatus := prevStatus
+	newPhase := j.Phase
 
 	switch cr.Status.Phase {
 	case mljobv1alpha1.PhasePending:
-		if j.Status == string(StatusCreating) {
-			updates["status"] = string(StatusPending)
+		if j.Phase == string(StatusCreating) {
+			newPhase = string(StatusPending)
 		}
 	case mljobv1alpha1.PhaseRunning:
-		if Status(j.Status) == StatusCreating || Status(j.Status) == StatusPending {
-			updates["status"] = string(StatusRunning)
+		if Status(j.Phase) == StatusCreating || Status(j.Phase) == StatusPending {
+			newPhase = string(StatusRunning)
 		}
-		if j.StartedAt == nil && cr.Status.StartedAt != nil {
+		if prevStatus.StartedAt == nil && cr.Status.StartedAt != nil {
 			t := cr.Status.StartedAt.Time
-			updates["started_at"] = t
+			nextStatus.StartedAt = &t
 		}
 	case mljobv1alpha1.PhaseSucceeded:
-		updates["status"] = string(StatusSucceeded)
-		updates["finished_at"] = terminalTime(cr)
+		newPhase = string(StatusSucceeded)
+		t := terminalTime(cr)
+		nextStatus.FinishedAt = &t
 	case mljobv1alpha1.PhaseFailed:
-		updates["status"] = string(StatusFailed)
-		updates["finished_at"] = terminalTime(cr)
+		newPhase = string(StatusFailed)
+		t := terminalTime(cr)
+		nextStatus.FinishedAt = &t
 		if cr.Status.Message != "" {
-			updates["message"] = cr.Status.Message
+			nextStatus.Message = cr.Status.Message
 		}
 	}
 
 	// Suspended condition with reason=CancelRequested → Cancelled.
-	if Status(j.Status) == StatusCanceling && hasCondition(cr.Status.Conditions, mljobv1alpha1.ConditionSuspended, mljobv1alpha1.ReasonCancelRequested) {
-		updates["status"] = string(StatusCancelled)
-		updates["finished_at"] = time.Now().UTC()
+	if Status(j.Phase) == StatusCanceling && hasCondition(cr.Status.Conditions, mljobv1alpha1.ConditionSuspended, mljobv1alpha1.ReasonCancelRequested) {
+		newPhase = string(StatusCancelled)
+		t := time.Now().UTC()
+		nextStatus.FinishedAt = &t
 	}
 
-	if len(updates) > 0 {
-		_ = i.repo.Update(ctx, id, updates)
+	b, _ := json.Marshal(nextStatus)
+	prevB, _ := json.Marshal(prevStatus)
+	if newPhase == j.Phase && string(b) == string(prevB) {
+		return
 	}
+	_ = i.repo.Update(ctx, id, map[string]any{
+		"phase":  newPhase,
+		"status": b,
+	})
 }
 
 func (i *Informer) onDelete(ctx context.Context, obj any) {
@@ -110,24 +128,44 @@ func (i *Informer) onDelete(ctx context.Context, obj any) {
 	if err != nil {
 		return
 	}
-	switch Status(j.Status) {
+	switch Status(j.Phase) {
 	case StatusDeleting:
 		now := time.Now().UTC()
-		_ = i.repo.Update(ctx, id, map[string]any{"status": string(StatusDeleted), "deleted_at": now})
+		_ = i.repo.Update(ctx, id, map[string]any{
+			"phase":      string(StatusDeleted),
+			"deleted_at": now,
+		})
 	case StatusPending, StatusRunning:
 		// External delete during run → mark Cancelled per design §5.4.
+		now := time.Now().UTC()
+		next := mergeStatusFields(j.StatusJSON, func(s *StatusFields) {
+			s.Message = "external delete"
+			s.FinishedAt = &now
+		})
 		_ = i.repo.Update(ctx, id, map[string]any{
-			"status":      string(StatusCancelled),
-			"finished_at": time.Now().UTC(),
-			"message":     "external delete",
+			"phase":  string(StatusCancelled),
+			"status": next,
 		})
 	case StatusCanceling:
-		// Treat DELETE in Canceling as the natural completion of cancel.
+		now := time.Now().UTC()
+		next := mergeStatusFields(j.StatusJSON, func(s *StatusFields) {
+			s.FinishedAt = &now
+		})
 		_ = i.repo.Update(ctx, id, map[string]any{
-			"status":      string(StatusCancelled),
-			"finished_at": time.Now().UTC(),
+			"phase":  string(StatusCancelled),
+			"status": next,
 		})
 	}
+}
+
+func mergeStatusFields(raw []byte, mutate func(*StatusFields)) []byte {
+	var sf StatusFields
+	if len(raw) > 0 {
+		_ = json.Unmarshal(raw, &sf)
+	}
+	mutate(&sf)
+	b, _ := json.Marshal(sf)
+	return b
 }
 
 func jobIDFromLabels(cr *mljobv1alpha1.MLJob) (uuid.UUID, error) {

@@ -32,6 +32,7 @@ func buildDeployment(mls *axisml.MLService) *appsv1.Deployment {
 					NodeSelector:      mls.Spec.Scheduling.NodeSelector,
 					Tolerations:       mls.Spec.Scheduling.Tolerations,
 					PriorityClassName: mls.Spec.Scheduling.PriorityClass,
+					Volumes:           role.Template.Volumes,
 					Containers:        []corev1.Container{buildContainer(mls, role)},
 				},
 			},
@@ -55,6 +56,7 @@ func buildContainer(mls *axisml.MLService, role axisml.RoleSpec) corev1.Containe
 		Env:             append([]corev1.EnvVar(nil), tmpl.Env...),
 		EnvFrom:         tmpl.EnvFrom,
 		Resources:       tmpl.Resources,
+		VolumeMounts:    tmpl.VolumeMounts,
 	}
 	for _, p := range tmpl.Ports {
 		c.Ports = append(c.Ports, corev1.ContainerPort{

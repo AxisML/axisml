@@ -460,6 +460,32 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+    patch:
+      operationId: patchJob
+      tags: [Jobs]
+      summary: Patch a job's PG-only display metadata
+      description: |
+        Per compute-service.md §4.3, only `displayName` / `description` /
+        `labels` / `annotations` are mutable post-create. Pure PG mutation —
+        no CR is touched, no generation bump.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JobPatchRequest'
+      responses:
+        '200':
+          description: Patched job
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
     delete:
       operationId: deleteJob
       tags: [Jobs]
@@ -741,6 +767,33 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Service'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    patch:
+      operationId: patchService
+      tags: [Services]
+      summary: Patch a service's PG-only display metadata
+      description: |
+        Per compute-service.md §4.4, only `displayName` / `description` /
+        `labels` / `annotations` are mutable post-create via PATCH. Spec
+        mutations (replicas) flow through `/scale`. Pure PG mutation; no
+        CR is touched, no generation bump.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServicePatchRequest'
+      responses:
+        '200':
+          description: Patched service
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Service'
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -2113,6 +2166,18 @@ components:
           $ref: '#/components/schemas/MLJobSpec'
       required: [name, spec]
 
+    JobPatchRequest:
+      type: object
+      description: |
+        RFC 7396 JSON Merge Patch body for `PATCH /jobs/{job}`. Only
+        PG-only display fields are mutable; spec / phase / status remain
+        frozen.
+      properties:
+        displayName: { type: string, maxLength: 100 }
+        description: { type: string, maxLength: 1000 }
+        labels:      { $ref: '#/components/schemas/StringMap' }
+        annotations: { $ref: '#/components/schemas/StringMap' }
+
     JobList:
       type: object
       properties:
@@ -2264,6 +2329,18 @@ components:
           minimum: 0
           description: Target desired replica count. Becomes `spec.roles[0].replicas`.
       required: [replicas]
+
+    ServicePatchRequest:
+      type: object
+      description: |
+        RFC 7396 JSON Merge Patch body for `PATCH /services/{service}`.
+        Only PG-only display fields are mutable; spec.roles[0].replicas
+        flows through `/scale`.
+      properties:
+        displayName: { type: string, maxLength: 100 }
+        description: { type: string, maxLength: 1000 }
+        labels:      { $ref: '#/components/schemas/StringMap' }
+        annotations: { $ref: '#/components/schemas/StringMap' }
 
     ServiceList:
       type: object

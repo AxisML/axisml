@@ -16,6 +16,16 @@ const (
 	StatusDeleted   = "Deleted"
 )
 
+// Visibility enumerates per-artifact visibility (design §3).
+const (
+	VisibilityTenant = "tenant" // default; visible only within the row's namespace
+	VisibilityPublic = "public" // global; only allowed in the axisml-system namespace
+)
+
+// PublicVisibilityNamespace is the only namespace where visibility='public'
+// is accepted; design §3 + database.md §3.1.
+const PublicVisibilityNamespace = "axisml-system"
+
 // Artifact is the GORM-backed `artifacts` row. Keyed on
 // (namespace, kind, name, version); namespace is a bare string with no
 // existence check, kind matches a registered ArtifactHandler.
@@ -25,6 +35,7 @@ type Artifact struct {
 	Kind        string         `gorm:"size:32;not null"`
 	Name        string         `gorm:"size:128;not null"`
 	Version     string         `gorm:"size:128;not null"`
+	Visibility  string         `gorm:"size:16;not null;default:'tenant'"`
 	DisplayName string         `gorm:"type:text;not null;default:''"`
 	Description string         `gorm:"type:text;not null;default:''"`
 	Labels      datatypes.JSON `gorm:"type:jsonb;not null;default:'{}'"`

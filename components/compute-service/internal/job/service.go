@@ -12,8 +12,7 @@ import (
 	mljobv1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mljob/v1alpha1"
 
 	"github.com/axisml/axisml/components/compute-service/internal/auth"
-	"github.com/axisml/axisml/components/compute-service/internal/resourcepool"
-	"github.com/axisml/axisml/components/compute-service/internal/resourceunit"
+	"github.com/axisml/axisml/components/compute-service/internal/poolcache"
 	apperrors "github.com/axisml/axisml/components/compute-service/pkg/errors"
 	"github.com/axisml/axisml/components/compute-service/pkg/strutil"
 )
@@ -23,54 +22,55 @@ import (
 type Service struct {
 	repo  *Repository
 	db    *gorm.DB
-	pools *resourcepool.Service
-	units *resourceunit.Service
+	pools *poolcache.Reader
 }
 
 // NewService constructs the job service.
-func NewService(
-	db *gorm.DB,
-	pools *resourcepool.Service,
-	units *resourceunit.Service,
-) *Service {
+func NewService(db *gorm.DB, pools *poolcache.Reader) *Service {
 	return &Service{
 		repo:  NewRepository(db),
 		db:    db,
 		pools: pools,
-		units: units,
 	}
 }
 
-// CreateInput is the API request body. Caller selects pool/unit/quota by
-// ID; we resolve unit + pool at write time. `Quota` is the ElasticQuota CR
-// name (cluster-unique string) that gets stamped onto Pod labels — Compute
-// treats it as opaque and does no existence check.
+// CreateInput is the API request body. Caller selects pool/unit by NAME
+// (the ResourcePool CRD lives in K8s; compute reads it via Informer cache).
+// `Quota` is the ElasticQuota CR name (cluster-unique string) stamped onto
+// Pod labels — compute treats it as opaque.
 type CreateInput struct {
-	Name           string                       `json:"name" binding:"required,axisml_name"`
-	DisplayName    string                       `json:"displayName"`
-	Description    string                       `json:"description"`
-	ResourceUnitID uuid.UUID                    `json:"resourceUnitId" binding:"required"`
-	Quota          string                       `json:"quota" binding:"required"`
-	Backend        *mljobv1alpha1.BackendSpec   `json:"backend"`
-	Roles          []mljobv1alpha1.RoleSpec     `json:"roles" binding:"required,min=1"`
-	RunPolicy      *mljobv1alpha1.RunPolicySpec `json:"runPolicy"`
+	Name          string                       `json:"name" binding:"required,axisml_name"`
+	DisplayName   string                       `json:"displayName"`
+	Description   string                       `json:"description"`
+	Labels        map[string]string            `json:"labels,omitempty"`
+	Annotations   map[string]string            `json:"annotations,omitempty"`
+	PoolName      string                       `json:"poolName" binding:"required"`
+	UnitName      string                       `json:"unitName" binding:"required"`
+	Quota         string                       `json:"quota" binding:"required"`
+	PriorityClass string                       `json:"priorityClass,omitempty"`
+	Backend       *mljobv1alpha1.BackendSpec   `json:"backend"`
+	Roles         []mljobv1alpha1.RoleSpec     `json:"roles" binding:"required,min=1"`
+	RunPolicy     *mljobv1alpha1.RunPolicySpec `json:"runPolicy"`
 }
 
-// View is the HTTP response payload.
+// View is the HTTP response payload. Mirrors the design yaml: nested
+// spec / status sub-trees, phase at the top level, owner / labels /
+// annotations carried separately.
 type View struct {
 	ID          uuid.UUID               `json:"id"`
 	Namespace   string                  `json:"namespace"`
 	Name        string                  `json:"name"`
 	DisplayName string                  `json:"displayName,omitempty"`
 	Description string                  `json:"description,omitempty"`
-	OwnerUser   string                  `json:"ownerUser,omitempty"`
-	Status      string                  `json:"status"`
-	Message     string                  `json:"message,omitempty"`
-	StartedAt   *time.Time              `json:"startedAt,omitempty"`
-	FinishedAt  *time.Time              `json:"finishedAt,omitempty"`
+	Owner       string                  `json:"owner,omitempty"`
+	Labels      map[string]string       `json:"labels,omitempty"`
+	Annotations map[string]string       `json:"annotations,omitempty"`
+	Phase       string                  `json:"phase"`
 	Spec        mljobv1alpha1.MLJobSpec `json:"spec"`
+	Status      StatusFields            `json:"status"`
 	CreatedAt   time.Time               `json:"createdAt"`
 	UpdatedAt   time.Time               `json:"updatedAt"`
+	DeletedAt   *time.Time              `json:"deletedAt,omitempty"`
 }
 
 // Create writes a new job row. CR is reconciled asynchronously.
@@ -87,16 +87,7 @@ func (s *Service) Create(ctx context.Context, namespace string, in CreateInput) 
 		return nil, err
 	}
 
-	unit, err := s.units.GetByID(ctx, in.ResourceUnitID)
-	if err != nil {
-		return nil, err
-	}
-	pool, err := s.pools.GetByID(ctx, unit.PoolID)
-	if err != nil {
-		return nil, err
-	}
-
-	decoded, err := resourceunit.Decode(unit)
+	expanded, err := s.pools.Resolve(ctx, in.PoolName, in.UnitName)
 	if err != nil {
 		return nil, err
 	}
@@ -112,34 +103,29 @@ func (s *Service) Create(ctx context.Context, namespace string, in CreateInput) 
 		backend.Config = in.Backend.Config
 	}
 
-	poolSel, err := pool.DecodeNodeSelector()
-	if err != nil {
-		return nil, err
-	}
-	poolTols, err := pool.DecodeTolerations()
-	if err != nil {
-		return nil, err
-	}
-
 	roles := make([]mljobv1alpha1.RoleSpec, len(in.Roles))
 	for i, r := range in.Roles {
 		role := r
-		role.Template.Resources = resourceunit.BuildResources(decoded.Requests, decoded.Limits)
+		role.Template.Resources = poolcache.BuildResources(expanded.Requests, expanded.Limits)
 		roles[i] = role
 	}
 
 	runPolicy := mljobv1alpha1.RunPolicySpec{}
 	if in.RunPolicy != nil {
+		if in.RunPolicy.Suspend {
+			return nil, apperrors.New(apperrors.CodeValidation,
+				"runPolicy.suspend=true is not allowed on Create; use POST /jobs/{name}/cancel after submission")
+		}
 		runPolicy = *in.RunPolicy
-		runPolicy.Suspend = false
 	}
 
 	spec := mljobv1alpha1.MLJobSpec{
 		Backend: backend,
 		Scheduling: mljobv1alpha1.SchedulingSpec{
-			Quota:        in.Quota,
-			NodeSelector: resourceunit.MergeNodeSelector(poolSel, decoded.NodeSelector),
-			Tolerations:  poolTols,
+			Quota:         in.Quota,
+			PriorityClass: in.PriorityClass,
+			NodeSelector:  expanded.NodeSelector,
+			Tolerations:   expanded.Tolerations,
 		},
 		Roles:     roles,
 		RunPolicy: runPolicy,
@@ -149,22 +135,26 @@ func (s *Service) Create(ctx context.Context, namespace string, in CreateInput) 
 	if err != nil {
 		return nil, err
 	}
-	reqJSON, err := json.Marshal(decoded.Requests)
-	if err != nil {
-		return nil, err
-	}
+	// Mirror the (poolName, unitName) provenance into PG labels alongside
+	// any user-supplied entries — Platform's pre-delete check against
+	// active workloads uses labelSelector against axisml.io/resource-pool
+	// / axisml.io/resource-unit (compute-service.md §5.4).
+	mergedLabels := mergeLabels(in.Labels, map[string]string{
+		mljobv1alpha1.LabelResourcePool: in.PoolName,
+		mljobv1alpha1.LabelResourceUnit: in.UnitName,
+	})
 	j := &Job{
-		ID:                 uuid.New(),
-		Namespace:          namespace,
-		PoolID:             pool.ID,
-		ResourceUnitID:     unit.ID,
-		Name:               in.Name,
-		DisplayName:        in.DisplayName,
-		Description:        in.Description,
-		OwnerUser:          auth.User(ctx),
-		Spec:               datatypes.JSON(specJSON),
-		RequestedResources: datatypes.JSON(reqJSON),
-		Status:             string(StatusCreating),
+		ID:          uuid.New(),
+		Namespace:   namespace,
+		Name:        in.Name,
+		DisplayName: in.DisplayName,
+		Description: in.Description,
+		Owner:       auth.User(ctx),
+		Labels:      mapBytes(mergedLabels),
+		Annotations: mapBytes(in.Annotations),
+		Spec:        datatypes.JSON(specJSON),
+		Phase:       string(StatusCreating),
+		StatusJSON:  []byte("{}"),
 	}
 	if err := s.repo.Create(ctx, j); err != nil {
 		return nil, err
@@ -183,8 +173,8 @@ func (s *Service) Get(ctx context.Context, namespace, name string) (*View, error
 	return s.toView(j)
 }
 
-func (s *Service) List(ctx context.Context, namespace string, limit, offset int) ([]View, int64, error) {
-	rows, total, err := s.repo.ListByNamespace(ctx, namespace, limit, offset)
+func (s *Service) List(ctx context.Context, namespace string, limit, offset int, labelClause string, labelArgs []any) ([]View, int64, error) {
+	rows, total, err := s.repo.ListByNamespace(ctx, namespace, limit, offset, labelClause, labelArgs)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -207,22 +197,75 @@ func (s *Service) Cancel(ctx context.Context, namespace, name string) (*View, er
 		}
 		return nil, err
 	}
-	switch Status(j.Status) {
+	switch Status(j.Phase) {
 	case StatusCreating:
 		return nil, apperrors.New(apperrors.CodePrecondition, "job is still being created; use DELETE")
 	case StatusCanceling, StatusCancelled, StatusDeleting, StatusDeleted, StatusSucceeded, StatusFailed:
 		return nil, apperrors.New(apperrors.CodePrecondition, "job is not cancellable in current state")
 	}
+	// Merge "user cancelled" into status.message; preserve other status fields.
+	var sf StatusFields
+	if len(j.StatusJSON) > 0 {
+		_ = json.Unmarshal(j.StatusJSON, &sf)
+	}
+	sf.Message = "user cancelled"
+	statusB, _ := json.Marshal(sf)
 	if err := s.repo.Update(ctx, j.ID, map[string]any{
-		"status":  string(StatusCanceling),
-		"message": "user cancelled",
+		"phase":  string(StatusCanceling),
+		"status": datatypes.JSON(statusB),
 	}); err != nil {
 		return nil, err
 	}
-	j.Status = string(StatusCanceling)
-	j.Message = "user cancelled"
+	j.Phase = string(StatusCanceling)
+	j.StatusJSON = statusB
 	j.UpdatedAt = time.Now().UTC()
 	return s.toView(j)
+}
+
+// PatchInput is the body for PATCH /api/v1/namespaces/{ns}/jobs/{job}.
+// Per design §4.3, only the four "PG-only display" fields are mutable
+// after create — the rest of the spec is frozen.
+type PatchInput struct {
+	DisplayName *string           `json:"displayName,omitempty"`
+	Description *string           `json:"description,omitempty"`
+	Labels      map[string]string `json:"labels,omitempty"`
+	Annotations map[string]string `json:"annotations,omitempty"`
+}
+
+// Patch updates the row's display-tier metadata. Pure PG mutation —
+// no CR is touched, no generation bump (compute-service.md §4.3).
+func (s *Service) Patch(ctx context.Context, namespace, name string, in PatchInput) (*View, error) {
+	j, err := s.repo.GetByNamespaceName(ctx, namespace, name)
+	if err != nil {
+		if IsNotFound(err) {
+			return nil, apperrors.New(apperrors.CodeNotFound, "job not found")
+		}
+		return nil, err
+	}
+	updates := map[string]any{}
+	if in.DisplayName != nil {
+		updates["display_name"] = *in.DisplayName
+	}
+	if in.Description != nil {
+		updates["description"] = *in.Description
+	}
+	if in.Labels != nil {
+		updates["labels"] = mapBytes(in.Labels)
+	}
+	if in.Annotations != nil {
+		updates["annotations"] = mapBytes(in.Annotations)
+	}
+	if len(updates) == 0 {
+		return s.toView(j)
+	}
+	if err := s.repo.Update(ctx, j.ID, updates); err != nil {
+		return nil, err
+	}
+	fresh, err := s.repo.Get(ctx, j.ID)
+	if err != nil {
+		return nil, err
+	}
+	return s.toView(fresh)
 }
 
 func (s *Service) Delete(ctx context.Context, namespace, name string) error {
@@ -233,11 +276,36 @@ func (s *Service) Delete(ctx context.Context, namespace, name string) error {
 		}
 		return err
 	}
-	switch Status(j.Status) {
+	switch Status(j.Phase) {
 	case StatusDeleting, StatusDeleted:
 		return nil
 	}
 	return s.repo.MarkDeleting(ctx, j.ID)
+}
+
+// mergeLabels combines user-supplied labels with system provenance labels.
+// System keys (pool/unit) win over user-supplied entries with the same key
+// so callers can't shadow the provenance pointer.
+func mergeLabels(user, system map[string]string) map[string]string {
+	out := map[string]string{}
+	for k, v := range user {
+		out[k] = v
+	}
+	for k, v := range system {
+		if v == "" {
+			continue
+		}
+		out[k] = v
+	}
+	return out
+}
+
+func mapBytes(m map[string]string) datatypes.JSON {
+	if m == nil {
+		m = map[string]string{}
+	}
+	b, _ := json.Marshal(m)
+	return b
 }
 
 func (s *Service) toView(j *Job) (*View, error) {
@@ -245,19 +313,33 @@ func (s *Service) toView(j *Job) (*View, error) {
 	if len(j.Spec) > 0 {
 		_ = json.Unmarshal(j.Spec, &spec)
 	}
+	var status StatusFields
+	if len(j.StatusJSON) > 0 {
+		_ = json.Unmarshal(j.StatusJSON, &status)
+	}
 	return &View{
 		ID:          j.ID,
 		Namespace:   j.Namespace,
 		Name:        j.Name,
 		DisplayName: j.DisplayName,
 		Description: j.Description,
-		OwnerUser:   j.OwnerUser,
-		Status:      j.Status,
-		Message:     j.Message,
-		StartedAt:   j.StartedAt,
-		FinishedAt:  j.FinishedAt,
+		Owner:       j.Owner,
+		Labels:      decodeMap(j.Labels),
+		Annotations: decodeMap(j.Annotations),
+		Phase:       j.Phase,
 		Spec:        spec,
+		Status:      status,
 		CreatedAt:   j.CreatedAt,
 		UpdatedAt:   j.UpdatedAt,
+		DeletedAt:   j.DeletedAt,
 	}, nil
+}
+
+func decodeMap(raw []byte) map[string]string {
+	if len(raw) == 0 {
+		return nil
+	}
+	m := map[string]string{}
+	_ = json.Unmarshal(raw, &m)
+	return m
 }

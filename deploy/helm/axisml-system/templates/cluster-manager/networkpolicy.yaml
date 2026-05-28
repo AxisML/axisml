@@ -1,0 +1,32 @@
+{{- if and .Values.clusterManager.enabled .Values.clusterManager.networkPolicy.enabled }}
+{{- $cm := .Values.clusterManager }}
+# cluster-manager trusts X-Axisml-User as an audit field; the upstream
+# gateway is the authn boundary. This NetworkPolicy enforces that boundary
+# at the network layer so other in-cluster workloads cannot spoof callers.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "axisml.fullname" . }}-cluster-manager
+  labels:
+    {{- include "axisml.componentLabels" (dict "context" . "component" "cluster-manager") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "axisml.componentSelectorLabels" (dict "context" . "component" "cluster-manager") | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        {{- range $ns := $cm.networkPolicy.ingressFromNamespaces }}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $ns | quote }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: {{ $cm.service.port }}
+        - protocol: TCP
+          port: {{ $cm.probesPort }}
+        - protocol: TCP
+          port: {{ $cm.metricsPort }}
+{{- end }}

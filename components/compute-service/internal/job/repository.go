@@ -36,10 +36,13 @@ func (r *Repository) GetByNamespaceName(ctx context.Context, namespace, name str
 	return &j, nil
 }
 
-func (r *Repository) ListByNamespace(ctx context.Context, namespace string, limit, offset int) ([]Job, int64, error) {
+func (r *Repository) ListByNamespace(ctx context.Context, namespace string, limit, offset int, labelClause string, labelArgs []any) ([]Job, int64, error) {
 	var rows []Job
 	var total int64
 	q := r.db.WithContext(ctx).Model(&Job{}).Where("namespace = ? AND deleted_at IS NULL", namespace)
+	if labelClause != "" {
+		q = q.Where(labelClause, labelArgs...)
+	}
 	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
@@ -59,7 +62,7 @@ func (r *Repository) Update(ctx context.Context, id uuid.UUID, fields map[string
 
 func (r *Repository) MarkDeleting(ctx context.Context, id uuid.UUID) error {
 	return r.db.WithContext(ctx).Model(&Job{}).Where("id = ?", id).Updates(map[string]any{
-		"status":     string(StatusDeleting),
+		"phase":      string(StatusDeleting),
 		"deleted_at": time.Now().UTC(),
 	}).Error
 }
@@ -76,19 +79,19 @@ const workSetBatch = 100
 func (r *Repository) FindWorkSet(ctx context.Context) (WorkSet, error) {
 	var ws WorkSet
 	if err := r.db.WithContext(ctx).
-		Where("status = ? AND deleted_at IS NULL", string(StatusCreating)).
+		Where("phase = ? AND deleted_at IS NULL", string(StatusCreating)).
 		Order("updated_at ASC").Limit(workSetBatch).
 		Find(&ws.Creating).Error; err != nil {
 		return ws, err
 	}
 	if err := r.db.WithContext(ctx).
-		Where("status = ?", string(StatusCanceling)).
+		Where("phase = ?", string(StatusCanceling)).
 		Order("updated_at ASC").Limit(workSetBatch).
 		Find(&ws.Canceling).Error; err != nil {
 		return ws, err
 	}
 	if err := r.db.WithContext(ctx).
-		Where("status = ?", string(StatusDeleting)).
+		Where("phase = ?", string(StatusDeleting)).
 		Order("updated_at ASC").Limit(workSetBatch).
 		Find(&ws.Deleting).Error; err != nil {
 		return ws, err

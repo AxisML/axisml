@@ -12,6 +12,47 @@ commonLabels: {}
 commonAnnotations: {}
 
 # =============================================================================
+# Seed resources (installed via Helm post-install hooks)
+# =============================================================================
+# These give fresh clusters a usable starting state without forcing operators
+# to run the cluster-manager / compute-service REST bootstrap themselves. Each
+# block can be disabled by flipping enabled=false (e.g. for an external
+# bootstrap pipeline that owns the same objects).
+seed:
+  resourcePool:
+    enabled: true
+    # Pool name (cluster-scoped). compute-service's pool/unit expansion looks
+    # up the (poolName, unitName) tuple at Job/Service create time.
+    name: default
+    units:
+      - name: cpu-small
+        requests:
+          cpu: "1"
+          memory: 2Gi
+        limits:
+          cpu: "1"
+          memory: 2Gi
+      - name: cpu-medium
+        requests:
+          cpu: "4"
+          memory: 8Gi
+        limits:
+          cpu: "4"
+          memory: 8Gi
+
+  tenant:
+    enabled: true
+    # Built-in platform tenant; hosts visibility=public artifacts.
+    name: axisml-system
+    # Stable UUID stamped on the seed Tenant CR as
+    # metadata.labels[axisml.io/tenant-id] for external selectors. tenant-
+    # operator's reconciler propagates this id onto the namespace + child
+    # resources it provisions.
+    id: 00000000-0000-0000-0000-000000000001
+    # K8s namespace tenant-operator should create.
+    namespace: axisml-system
+
+# =============================================================================
 # AxisML Platform
 # =============================================================================
 platform:
@@ -190,6 +231,19 @@ clusterManager:
     - default
     - axisml-system
     - axisml-infra
+
+  # cluster-manager trusts the X-Axisml-User header for caller identity (it
+  # is purely an audit hint — the gateway upstream is the real authn
+  # boundary). Restrict ingress at the network layer so the header cannot
+  # be spoofed by other in-cluster workloads.
+  networkPolicy:
+    enabled: true
+    # Namespaces allowed to call cluster-manager's REST surface. The default
+    # picks the gateway and system namespaces; adjust if Platform lives
+    # elsewhere.
+    ingressFromNamespaces:
+      - axisml-infra
+      - axisml-system
 
   resources:
     requests:

@@ -68,17 +68,16 @@ func TestRouteCoverage(t *testing.T) {
 	want := []struct{ method, path string }{
 		{"get", "/healthz"},
 		{"get", "/readyz"},
-		{"post", "/api/v1/tenants"},
-		{"get", "/api/v1/tenants"},
-		{"get", "/api/v1/tenants/{name}"},
-		{"patch", "/api/v1/tenants/{name}"},
-		{"delete", "/api/v1/tenants/{name}"},
-		{"post", "/api/v1/tenants/{name}/suspend"},
-		{"post", "/api/v1/tenants/{name}/unsuspend"},
-		{"post", "/api/v1/tenants/{name}/quotas"},
-		{"get", "/api/v1/tenants/{name}/quotas"},
-		{"patch", "/api/v1/tenants/{name}/quotas/{pool}/{quota}"},
-		{"delete", "/api/v1/tenants/{name}/quotas/{pool}/{quota}"},
+		{"post", "/api/v1/resource-pools"},
+		{"get", "/api/v1/resource-pools"},
+		{"get", "/api/v1/resource-pools/{pool}"},
+		{"patch", "/api/v1/resource-pools/{pool}"},
+		{"delete", "/api/v1/resource-pools/{pool}"},
+		{"post", "/api/v1/resource-pools/{pool}/resource-units"},
+		{"get", "/api/v1/resource-pools/{pool}/resource-units"},
+		{"get", "/api/v1/resource-pools/{pool}/resource-units/{unit}"},
+		{"patch", "/api/v1/resource-pools/{pool}/resource-units/{unit}"},
+		{"delete", "/api/v1/resource-pools/{pool}/resource-units/{unit}"},
 	}
 	for _, w := range want {
 		item, ok := doc.Paths[w.path]
@@ -92,11 +91,11 @@ func TestRouteCoverage(t *testing.T) {
 	}
 }
 
-// TestErrorOverlay pins the standard error-response overlay. cluster-manager
-// has the smallest set: 400/403/404/409/500 (no 412/422/503; no 401 path).
+// TestErrorOverlay pins the cluster-manager error-response overlay:
+// 400/401/404/409/422/500 (plus default).
 func TestErrorOverlay(t *testing.T) {
 	resps := withErrors(map[string]openapigen.Response{"200": {Description: "ok"}})
-	for _, code := range []string{"400", "403", "404", "409", "500", "default"} {
+	for _, code := range []string{"400", "401", "404", "409", "422", "500", "default"} {
 		if _, ok := resps[code]; !ok {
 			t.Errorf("withErrors missing %q response", code)
 		}

@@ -1,4 +1,3 @@
 DROP TABLE IF EXISTS services;
 DROP TABLE IF EXISTS jobs;
-DROP TABLE IF EXISTS resource_units;
-DROP TABLE IF EXISTS resource_pools;
+DROP TABLE IF EXISTS tenants;

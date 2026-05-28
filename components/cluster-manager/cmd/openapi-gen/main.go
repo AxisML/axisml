@@ -1,9 +1,8 @@
 // openapi-gen renders an OpenAPI 3.0.3 description of the cluster-manager
 // HTTP API to docs/openapi/cluster-manager.yaml at the repo root.
 //
-// Schemas are derived from the request/response types in internal/server,
-// which mirror the Tenant CR shape. Routes are listed explicitly here
-// (single source of truth) rather than scraped from the gin router.
+// The cluster-manager exposes ResourcePool CRD CRUD (with embedded
+// spec.units[]); request/response types are mirrored from internal/server.
 //
 // Run from the component root:
 //
@@ -23,9 +22,9 @@ import (
 const defaultVersion = "0.0.0-dev"
 
 const (
-	tagTenants = "tenants"
-	tagQuotas  = "quotas"
-	tagSystem  = "system"
+	tagResourcePools = "resource-pools"
+	tagResourceUnits = "resource-units"
+	tagSystem        = "system"
 )
 
 func main() {
@@ -52,15 +51,13 @@ func fail(format string, args ...any) {
 	os.Exit(1)
 }
 
-// withErrors returns the standard Problem-bearing error responses.
-// cluster-manager statusFor (writeProblem + writeAPIErr in tenant/handler.go)
-// emits 400, 403, 404, 409, 500 — no 412/422/503 path; 401 only via gateway.
 func withErrors(success map[string]openapigen.Response) map[string]openapigen.Response {
 	out := map[string]openapigen.Response{
 		"400":     openapigen.JSONResp("Validation error.", "Problem"),
-		"403":     openapigen.JSONResp("Forbidden.", "Problem"),
+		"401":     openapigen.JSONResp("Missing or invalid X-Axisml-User.", "Problem"),
 		"404":     openapigen.JSONResp("Not found.", "Problem"),
 		"409":     openapigen.JSONResp("Conflict (already exists or concurrent modification).", "Problem"),
+		"422":     openapigen.JSONResp("Invariant violated.", "Problem"),
 		"500":     openapigen.JSONResp("Internal error.", "Problem"),
 		"default": openapigen.JSONResp("Unexpected error.", "Problem"),
 	}
@@ -74,36 +71,24 @@ func buildDocument(version string) *openapigen.Document {
 	g := openapigen.New(openapigen.Options{})
 
 	g.Register("Problem", server.Problem{}, openapigen.ResponseMode)
-	g.Register("CreateTenantRequest", server.CreateTenantRequest{}, openapigen.InputMode)
-	g.Register("PatchTenantRequest", server.PatchTenantRequest{}, openapigen.InputMode)
-	g.Register("QuotaSpec", server.QuotaSpec{}, openapigen.InputMode)
-	g.Register("TenantResponse", server.TenantResponse{}, openapigen.ResponseMode)
-	g.Register("ListTenantsResponse", server.ListTenantsResponse{}, openapigen.ResponseMode)
-
-	// ListQuotas returns a synthetic envelope (gin.H{"spec": ..., "status": ...})
-	// rather than a typed struct. Define it explicitly so client codegen sees a
-	// concrete shape.
-	g.Set("QuotaListResponse", &openapigen.Schema{
-		Type:     "object",
-		Required: []string{"spec", "status"},
-		Properties: map[string]*openapigen.Schema{
-			"spec":   {Type: "array", Items: openapigen.Ref("QuotaSpec")},
-			"status": {Type: "array", Items: openapigen.Ref("ServerQuotaStatus")},
-		},
-	})
+	g.Register("CreateResourcePoolRequest", server.CreateResourcePoolRequest{}, openapigen.InputMode)
+	g.Register("PatchResourcePoolRequest", server.PatchResourcePoolRequest{}, openapigen.InputMode)
+	g.Register("CreateResourceUnitRequest", server.CreateResourceUnitRequest{}, openapigen.InputMode)
+	g.Register("PatchResourceUnitRequest", server.PatchResourceUnitRequest{}, openapigen.InputMode)
+	g.Register("ResourcePoolDTO", server.ResourcePoolDTO{}, openapigen.ResponseMode)
+	g.Register("ResourceUnitDTO", server.ResourceUnitDTO{}, openapigen.ResponseMode)
+	g.Register("ResourcePoolList", server.ResourcePoolList{}, openapigen.ResponseMode)
+	g.Register("ResourceUnitList", server.ResourceUnitList{}, openapigen.ResponseMode)
 
 	tags := []openapigen.TagEntry{
-		{Name: tagTenants, Description: "Tenant CRUD over the Tenant CR via the K8s API."},
-		{Name: tagQuotas, Description: "Per-tenant ElasticQuota declarations (spec.quotas[])."},
+		{Name: tagResourcePools, Description: "ResourcePool CRD CRUD."},
+		{Name: tagResourceUnits, Description: "Sub-routes over pool.spec.units[]."},
 		{Name: tagSystem, Description: "Liveness and readiness probes."},
 	}
 
-	nameParam := openapigen.PathParam("name", "Tenant name (metadata.name).")
-	poolParam := openapigen.PathParam("pool", "Resource pool name.")
-	quotaParam := openapigen.PathParam("quota", "Quota name.")
-
-	limitParam := openapigen.QueryParam("limit", "Page size for the K8s LIST call.", openapigen.IntFormat32Param())
-	continueParam := openapigen.QueryParam("continue", "K8s LIST continue token from a prior page.", &openapigen.Schema{Type: "string"})
+	poolParam := openapigen.PathParam("pool", "ResourcePool name.")
+	unitParam := openapigen.PathParam("unit", "ResourceUnit name (within a pool).")
+	selectorParam := openapigen.QueryParam("labelSelector", "K8s-style label selector.", &openapigen.Schema{Type: "string"})
 
 	paths := map[string]openapigen.PathItem{}
 
@@ -116,70 +101,67 @@ func buildDocument(version string) *openapigen.Document {
 		Responses: map[string]openapigen.Response{"200": {Description: "ok"}},
 	}}
 
-	paths["/api/v1/tenants"] = openapigen.PathItem{
+	paths["/api/v1/resource-pools"] = openapigen.PathItem{
 		Post: &openapigen.Operation{
-			Tags: []string{tagTenants}, Summary: "Create a tenant", OperationID: "createTenant",
-			RequestBody: openapigen.JSONBody("CreateTenantRequest"),
-			Responses:   withErrors(map[string]openapigen.Response{"201": openapigen.JSONResp("Tenant created.", "TenantResponse")}),
+			Tags: []string{tagResourcePools}, Summary: "Create a ResourcePool", OperationID: "createResourcePool",
+			RequestBody: openapigen.JSONBody("CreateResourcePoolRequest"),
+			Responses:   withErrors(map[string]openapigen.Response{"201": openapigen.JSONResp("ResourcePool created.", "ResourcePoolDTO")}),
 		},
 		Get: &openapigen.Operation{
-			Tags: []string{tagTenants}, Summary: "List tenants", OperationID: "listTenants",
-			Parameters: []openapigen.Parameter{limitParam, continueParam},
-			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Tenant page.", "ListTenantsResponse")}),
+			Tags: []string{tagResourcePools}, Summary: "List ResourcePools", OperationID: "listResourcePools",
+			Parameters: []openapigen.Parameter{selectorParam},
+			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("ResourcePool page.", "ResourcePoolList")}),
 		},
 	}
-	paths["/api/v1/tenants/{name}"] = openapigen.PathItem{
+
+	paths["/api/v1/resource-pools/{pool}"] = openapigen.PathItem{
 		Get: &openapigen.Operation{
-			Tags: []string{tagTenants}, Summary: "Get tenant", OperationID: "getTenant",
-			Parameters: []openapigen.Parameter{nameParam},
-			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Tenant.", "TenantResponse")}),
+			Tags: []string{tagResourcePools}, Summary: "Get ResourcePool", OperationID: "getResourcePool",
+			Parameters: []openapigen.Parameter{poolParam},
+			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("ResourcePool.", "ResourcePoolDTO")}),
 		},
 		Patch: &openapigen.Operation{
-			Tags: []string{tagTenants}, Summary: "Patch tenant", OperationID: "patchTenant",
-			Parameters:  []openapigen.Parameter{nameParam},
-			RequestBody: openapigen.JSONBody("PatchTenantRequest"),
-			Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Updated tenant.", "TenantResponse")}),
+			Tags: []string{tagResourcePools}, Summary: "Patch ResourcePool", OperationID: "updateResourcePool",
+			Parameters:  []openapigen.Parameter{poolParam},
+			RequestBody: openapigen.JSONBody("PatchResourcePoolRequest"),
+			Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Updated ResourcePool.", "ResourcePoolDTO")}),
 		},
 		Delete: &openapigen.Operation{
-			Tags: []string{tagTenants}, Summary: "Delete tenant", OperationID: "deleteTenant",
-			Parameters: []openapigen.Parameter{nameParam},
+			Tags: []string{tagResourcePools}, Summary: "Delete ResourcePool", OperationID: "deleteResourcePool",
+			Parameters: []openapigen.Parameter{poolParam},
 			Responses:  withErrors(map[string]openapigen.Response{"204": openapigen.NoContentResp}),
 		},
 	}
-	paths["/api/v1/tenants/{name}/suspend"] = openapigen.PathItem{Post: &openapigen.Operation{
-		Tags: []string{tagTenants}, Summary: "Suspend tenant", OperationID: "suspendTenant",
-		Parameters: []openapigen.Parameter{nameParam},
-		Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Suspended.", "TenantResponse")}),
-	}}
-	paths["/api/v1/tenants/{name}/unsuspend"] = openapigen.PathItem{Post: &openapigen.Operation{
-		Tags: []string{tagTenants}, Summary: "Unsuspend tenant", OperationID: "unsuspendTenant",
-		Parameters: []openapigen.Parameter{nameParam},
-		Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Unsuspended.", "TenantResponse")}),
-	}}
 
-	paths["/api/v1/tenants/{name}/quotas"] = openapigen.PathItem{
+	paths["/api/v1/resource-pools/{pool}/resource-units"] = openapigen.PathItem{
 		Post: &openapigen.Operation{
-			Tags: []string{tagQuotas}, Summary: "Add a quota to a tenant", OperationID: "addQuota",
-			Parameters:  []openapigen.Parameter{nameParam},
-			RequestBody: openapigen.JSONBody("QuotaSpec"),
-			Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Updated tenant.", "TenantResponse")}),
+			Tags: []string{tagResourceUnits}, Summary: "Add a unit to the pool", OperationID: "createResourceUnit",
+			Parameters:  []openapigen.Parameter{poolParam},
+			RequestBody: openapigen.JSONBody("CreateResourceUnitRequest"),
+			Responses:   withErrors(map[string]openapigen.Response{"201": openapigen.JSONResp("Unit created.", "ResourceUnitDTO")}),
 		},
 		Get: &openapigen.Operation{
-			Tags: []string{tagQuotas}, Summary: "List quotas of a tenant", OperationID: "listQuotas",
-			Parameters: []openapigen.Parameter{nameParam},
-			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Quota spec + status.", "QuotaListResponse")}),
+			Tags: []string{tagResourceUnits}, Summary: "List units in a pool", OperationID: "listResourceUnits",
+			Parameters: []openapigen.Parameter{poolParam, selectorParam},
+			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Unit page.", "ResourceUnitList")}),
 		},
 	}
-	paths["/api/v1/tenants/{name}/quotas/{pool}/{quota}"] = openapigen.PathItem{
+
+	paths["/api/v1/resource-pools/{pool}/resource-units/{unit}"] = openapigen.PathItem{
+		Get: &openapigen.Operation{
+			Tags: []string{tagResourceUnits}, Summary: "Get unit", OperationID: "getResourceUnit",
+			Parameters: []openapigen.Parameter{poolParam, unitParam},
+			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Unit.", "ResourceUnitDTO")}),
+		},
 		Patch: &openapigen.Operation{
-			Tags: []string{tagQuotas}, Summary: "Update a quota", OperationID: "updateQuota",
-			Parameters:  []openapigen.Parameter{nameParam, poolParam, quotaParam},
-			RequestBody: openapigen.JSONBody("QuotaSpec"),
-			Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Updated tenant.", "TenantResponse")}),
+			Tags: []string{tagResourceUnits}, Summary: "Patch unit", OperationID: "updateResourceUnit",
+			Parameters:  []openapigen.Parameter{poolParam, unitParam},
+			RequestBody: openapigen.JSONBody("PatchResourceUnitRequest"),
+			Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Updated unit.", "ResourceUnitDTO")}),
 		},
 		Delete: &openapigen.Operation{
-			Tags: []string{tagQuotas}, Summary: "Delete a quota", OperationID: "deleteQuota",
-			Parameters: []openapigen.Parameter{nameParam, poolParam, quotaParam},
+			Tags: []string{tagResourceUnits}, Summary: "Remove unit from pool", OperationID: "deleteResourceUnit",
+			Parameters: []openapigen.Parameter{poolParam, unitParam},
 			Responses:  withErrors(map[string]openapigen.Response{"204": openapigen.NoContentResp}),
 		},
 	}
@@ -189,7 +171,7 @@ func buildDocument(version string) *openapigen.Document {
 		Info: openapigen.Info{
 			Title:       "AxisML Cluster Manager API",
 			Version:     version,
-			Description: "Stateless REST shell over Tenant CR CRUD. Forwards to the Kubernetes API server. RFC7807 Problem responses on errors.",
+			Description: "Stateless REST shell over the ResourcePool CRD (with embedded spec.units[]). RFC7807 Problem responses on errors.",
 		},
 		Servers: []openapigen.ServerEntry{{URL: "/", Description: "Same-origin"}},
 		Tags:    tags,

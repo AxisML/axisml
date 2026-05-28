@@ -16,7 +16,6 @@ import (
 
 	mljobdispatcher "github.com/axisml/axisml/components/compute-operator/internal/mljob/dispatcher"
 	"github.com/axisml/axisml/components/compute-operator/internal/mljob/handlers/nativejob"
-	"github.com/axisml/axisml/components/compute-operator/internal/mljob/handlers/nativepodgroup"
 	mlservicedispatcher "github.com/axisml/axisml/components/compute-operator/internal/mlservice/dispatcher"
 	mlservicehandler "github.com/axisml/axisml/components/compute-operator/internal/mlservice/handler"
 	"github.com/axisml/axisml/components/compute-operator/internal/setup"
@@ -78,7 +77,6 @@ func main() {
 	if enableMLJob {
 		registry := mljobdispatcher.NewRegistry()
 		registry.Register(nativejob.New())
-		registry.Register(nativepodgroup.New())
 		if err := (&mljobdispatcher.MLJobReconciler{
 			Client:   mgr.GetClient(),
 			Registry: registry,

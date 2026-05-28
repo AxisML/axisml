@@ -38,7 +38,7 @@ func TestToView_PopulatesAllJSONFields(t *testing.T) {
 	assert.Equal(t, "v1", v.Version)
 	assert.Equal(t, "Llama", v.DisplayName)
 	assert.Equal(t, "demo", v.Description)
-	assert.Equal(t, "alice", v.OwnerUser)
+	assert.Equal(t, "alice", v.Owner)
 	assert.Equal(t, StatusReady, v.Status)
 	assert.Equal(t, "sha256:abc", v.Digest)
 	assert.Equal(t, "pytorch", v.Spec["framework"])

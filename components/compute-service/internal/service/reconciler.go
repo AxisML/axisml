@@ -73,7 +73,7 @@ func (r *Reconciler) handleCreate(ctx context.Context, s *Service) {
 	}
 	if err := r.k8sClient.Create(ctx, cr); err != nil {
 		if apierrors.IsAlreadyExists(err) {
-			_ = r.repo.Update(ctx, s.ID, map[string]any{"applied_spec_hash": s.DesiredSpecHash})
+			_ = r.repo.Update(ctx, s.ID, map[string]any{"observed_generation": s.Generation})
 			metrics.ReconcilerActions.WithLabelValues("service", "creating", "noop").Inc()
 			return
 		}
@@ -82,7 +82,7 @@ func (r *Reconciler) handleCreate(ctx context.Context, s *Service) {
 		metrics.ReconcilerActions.WithLabelValues("service", "creating", "error").Inc()
 		return
 	}
-	_ = r.repo.Update(ctx, s.ID, map[string]any{"applied_spec_hash": s.DesiredSpecHash})
+	_ = r.repo.Update(ctx, s.ID, map[string]any{"observed_generation": s.Generation})
 	metrics.ReconcilerActions.WithLabelValues("service", "creating", "success").Inc()
 }
 
@@ -120,7 +120,7 @@ func (r *Reconciler) handleSpecSync(ctx context.Context, s *Service) {
 		return
 	}
 	if current.Spec.Roles[0].Replicas == desiredSpec.Roles[0].Replicas {
-		_ = r.repo.Update(ctx, s.ID, map[string]any{"applied_spec_hash": s.DesiredSpecHash})
+		_ = r.repo.Update(ctx, s.ID, map[string]any{"observed_generation": s.Generation})
 		metrics.ReconcilerActions.WithLabelValues("service", "spec_sync", "noop").Inc()
 		return
 	}
@@ -130,6 +130,6 @@ func (r *Reconciler) handleSpecSync(ctx context.Context, s *Service) {
 		metrics.ReconcilerActions.WithLabelValues("service", "spec_sync", "error").Inc()
 		return
 	}
-	_ = r.repo.Update(ctx, s.ID, map[string]any{"applied_spec_hash": s.DesiredSpecHash})
+	_ = r.repo.Update(ctx, s.ID, map[string]any{"observed_generation": s.Generation})
 	metrics.ReconcilerActions.WithLabelValues("service", "spec_sync", "success").Inc()
 }

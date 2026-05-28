@@ -42,7 +42,10 @@ type PodPort struct {
 
 // PodTemplate exposes the limited PodSpec subset declared in §3.2.
 // We deliberately do NOT embed corev1.PodSpec: hiding the full PodSpec is a
-// design constraint (§3.1).
+// design constraint (§3.1). volumes / volumeMounts are exposed for the
+// workspace PVC mount path (compute-service.md §4.4) and other long-running
+// service storage needs; native-handler Validate enforces that every
+// volumeMount refers to a declared volume.
 type PodTemplate struct {
 	Image           string                      `json:"image"`
 	ImagePullPolicy corev1.PullPolicy           `json:"imagePullPolicy,omitempty"`
@@ -53,6 +56,8 @@ type PodTemplate struct {
 	WorkingDir      string                      `json:"workingDir,omitempty"`
 	Ports           []PodPort                   `json:"ports,omitempty"`
 	Resources       corev1.ResourceRequirements `json:"resources,omitempty"`
+	Volumes         []corev1.Volume             `json:"volumes,omitempty"`
+	VolumeMounts    []corev1.VolumeMount        `json:"volumeMounts,omitempty"`
 }
 
 // RoleSpec is one execution role (predictor / transformer / explainer / ...).
@@ -169,10 +174,20 @@ type MLServiceList struct {
 
 // LabelServiceID is the stable orphan-detection anchor written by Compute.
 const (
-	LabelServiceID = "axisml.io/service-id"
-	LabelTenant    = "axisml.io/tenant"
-	LabelQuota     = "axisml.io/quota"
-	LabelRole      = "axisml.io/role"
+	LabelServiceID    = "axisml.io/service-id"
+	LabelServiceKind  = "axisml.io/service-kind"
+	LabelTenant       = "axisml.io/tenant"
+	LabelQuota        = "axisml.io/quota"
+	LabelRole         = "axisml.io/role"
+	LabelResourcePool = "axisml.io/resource-pool"
+	LabelResourceUnit = "axisml.io/resource-unit"
+
+	// ServiceKind enumerates the rows in compute-service's `services` table
+	// (kind='service' vs kind='workspace'). Stamped on the MLService CR via
+	// LabelServiceKind for kubectl / selector use; compute-operator does not
+	// branch on it.
+	ServiceKindService   = "service"
+	ServiceKindWorkspace = "workspace"
 
 	LabelKoordQuotaName = "quota.scheduling.koordinator.sh/name"
 

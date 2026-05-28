@@ -5,8 +5,6 @@ package integration_test
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -56,15 +54,6 @@ func requireClientError(t *testing.T, rr *httptest.ResponseRecorder) {
 	if rr.Code < 400 || rr.Code >= 500 {
 		t.Fatalf("expected 4xx, got %d body=%s", rr.Code, rr.Body.String())
 	}
-}
-
-func randSuffix(t *testing.T) string {
-	t.Helper()
-	var b [4]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		t.Fatalf("rand: %v", err)
-	}
-	return hex.EncodeToString(b[:])
 }
 
 func decodeJSONBody(rr *httptest.ResponseRecorder, out any) error {

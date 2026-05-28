@@ -7,13 +7,13 @@ module github.com/axisml/axisml/components/compute-service/test/integration
 go 1.26.0
 
 require (
+	github.com/axisml/axisml/components/cluster-manager v0.0.0
 	github.com/axisml/axisml/components/compute-operator v0.0.0
 	github.com/axisml/axisml/components/compute-service v0.0.0-00010101000000-000000000000
 	github.com/axisml/axisml/components/tenant-operator v0.0.0
 	github.com/axisml/axisml/test/testutil v0.0.0-00010101000000-000000000000
 	github.com/gin-gonic/gin v1.10.0
 	github.com/go-logr/logr v1.4.3
-	github.com/google/uuid v1.6.0
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.34.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.34.0
@@ -66,6 +66,7 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang-migrate/migrate/v4 v4.18.1 // indirect
 	github.com/google/gnostic-models v0.7.0 // indirect
+	github.com/google/uuid v1.6.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
@@ -153,6 +154,7 @@ require (
 )
 
 replace (
+	github.com/axisml/axisml/components/cluster-manager => ../../../cluster-manager
 	github.com/axisml/axisml/components/compute-operator => ../../../compute-operator
 	github.com/axisml/axisml/components/compute-service => ../..
 	github.com/axisml/axisml/components/tenant-operator => ../../../tenant-operator

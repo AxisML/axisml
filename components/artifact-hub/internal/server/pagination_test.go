@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -29,10 +30,14 @@ func TestParsePagination_Defaults(t *testing.T) {
 }
 
 func TestParsePagination_AppliesValues(t *testing.T) {
-	p, err := ParsePagination(newCtxWithQuery("limit=10&offset=5"))
+	p, err := ParsePagination(newCtxWithQuery("limit=10&continue=" + base64Of("5")))
 	require.NoError(t, err)
 	assert.Equal(t, 10, p.Limit)
 	assert.Equal(t, 5, p.Offset)
+}
+
+func base64Of(s string) string {
+	return base64.RawURLEncoding.EncodeToString([]byte(s))
 }
 
 func TestParsePagination_ClampsLimit(t *testing.T) {
@@ -42,7 +47,11 @@ func TestParsePagination_ClampsLimit(t *testing.T) {
 }
 
 func TestParsePagination_RejectsBadInputs(t *testing.T) {
-	for _, qs := range []string{"limit=abc", "limit=0", "limit=-1", "offset=abc", "offset=-1"} {
+	bad := []string{
+		"limit=abc", "limit=0", "limit=-1",
+		"continue=not-base64!!", "continue=" + base64Of("-1"),
+	}
+	for _, qs := range bad {
 		t.Run(qs, func(t *testing.T) {
 			_, err := ParsePagination(newCtxWithQuery(qs))
 			require.Error(t, err)

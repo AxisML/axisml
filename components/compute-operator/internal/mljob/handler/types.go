@@ -62,7 +62,6 @@ type ReconcileResult struct {
 	// Warnings are surfaced as status.message suffix when phase is
 	// otherwise unchanged (e.g. unknown backend.config keys).
 	Warnings []string
-	// RequeueAfter, if positive, schedules a follow-up reconcile (used
-	// by the (native, podgroup) handler to GC after TTL expiry).
+	// RequeueAfter, if positive, schedules a follow-up reconcile.
 	RequeueAfterSeconds int32
 }

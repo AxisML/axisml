@@ -1,93 +1,113 @@
--- AxisML Compute Service initial schema. See docs/system_design/components/compute-service.md.
+-- AxisML Compute Service initial schema (v1). See
+-- docs/system_design/components/compute-service.md.
 --
--- Job/Service rows partition on a bare `namespace` string supplied by
--- the caller — Compute performs no existence check on it. Tenants and
--- quotas are owned by cluster-manager + tenant-operator.
+-- compute-service is the authority for the Tenant domain (compute owns the
+-- Tenant CR write path) and the home of the Job / Service partition tables.
+-- Jobs and Services partition on a bare `namespace` string that equals
+-- `tenants.name`; compute joins the tenants table to resolve the K8s
+-- namespace at CR-write time.
+--
+-- ResourcePool / ResourceUnit are NOT persisted here — they live in the
+-- cluster-scoped ResourcePool CRD owned by cluster-manager and consumed by
+-- compute via a SharedInformer cache (design §5.4). Job / Service rows
+-- store the (poolName, unitName) pair as provenance labels; the expanded
+-- nodeSelector / tolerations / resources are baked into spec jsonb at
+-- create time.
 
 -- pgcrypto provides gen_random_uuid().
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
--- Resource pools ------------------------------------------------------------
-CREATE TABLE resource_pools (
-    id              uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
-    name            text        NOT NULL,
-    description     text        NOT NULL DEFAULT '',
-    node_selector   jsonb       NOT NULL DEFAULT '{}'::jsonb,
-    tolerations     jsonb       NOT NULL DEFAULT '[]'::jsonb,
-    metadata        jsonb       NOT NULL DEFAULT '{}'::jsonb,
-    created_at      timestamptz NOT NULL DEFAULT now(),
-    updated_at      timestamptz NOT NULL DEFAULT now(),
-    deleted_at      timestamptz
+-- Tenants -------------------------------------------------------------------
+CREATE TABLE tenants (
+    id                   uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+    name                 text        NOT NULL,
+    display_name         text        NOT NULL DEFAULT '',
+    description          text        NOT NULL DEFAULT '',
+    owner                text        NOT NULL DEFAULT '',
+    labels               jsonb       NOT NULL DEFAULT '{}'::jsonb,
+    annotations          jsonb       NOT NULL DEFAULT '{}'::jsonb,
+    spec                 jsonb       NOT NULL,
+    generation           bigint      NOT NULL DEFAULT 1,
+    observed_generation  bigint      NOT NULL DEFAULT 0,
+    phase                text        NOT NULL DEFAULT 'Creating',
+    status               jsonb       NOT NULL DEFAULT '{}'::jsonb,
+    last_modified_by     text        NOT NULL DEFAULT '',
+    created_at           timestamptz NOT NULL DEFAULT now(),
+    updated_at           timestamptz NOT NULL DEFAULT now(),
+    deleted_at           timestamptz
 );
-CREATE UNIQUE INDEX uq_resource_pools_name ON resource_pools(name) WHERE deleted_at IS NULL;
-
--- Resource units ------------------------------------------------------------
-CREATE TABLE resource_units (
-    id              uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
-    pool_id         uuid        NOT NULL REFERENCES resource_pools(id),
-    name            text        NOT NULL,
-    description     text        NOT NULL DEFAULT '',
-    requests        jsonb       NOT NULL,
-    limits          jsonb       NOT NULL DEFAULT '{}'::jsonb,
-    node_selector   jsonb       NOT NULL DEFAULT '{}'::jsonb,
-    created_at      timestamptz NOT NULL DEFAULT now(),
-    updated_at      timestamptz NOT NULL DEFAULT now(),
-    deleted_at      timestamptz
-);
-CREATE UNIQUE INDEX uq_resource_units_pool_name
-    ON resource_units(pool_id, name) WHERE deleted_at IS NULL;
+CREATE UNIQUE INDEX tenants_name_active_uniq
+    ON tenants (name) WHERE deleted_at IS NULL;
+CREATE INDEX tenants_deleted_at  ON tenants (deleted_at);
+CREATE INDEX tenants_created_at  ON tenants (created_at DESC);
+CREATE INDEX tenants_phase       ON tenants (phase) WHERE deleted_at IS NULL;
+CREATE INDEX tenants_sync_pending
+    ON tenants (id) WHERE generation <> observed_generation AND deleted_at IS NULL;
 
 -- Jobs ----------------------------------------------------------------------
+-- Spec is a frozen snapshot at create time (already pool/unit-expanded).
+-- Phase is the top-level high-frequency filter column; the rest of CR
+-- status ({message, startedAt, finishedAt, conditions[]}) lives in
+-- status jsonb (database.md §3.2). Pool/Unit provenance lives in labels
+-- (axisml.io/resource-pool / -unit), not in a dedicated column.
 CREATE TABLE jobs (
     id                   uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
     namespace            text        NOT NULL,
-    pool_id              uuid        NOT NULL REFERENCES resource_pools(id),
-    resource_unit_id     uuid        NOT NULL REFERENCES resource_units(id),
     name                 text        NOT NULL,
     display_name         text        NOT NULL DEFAULT '',
     description          text        NOT NULL DEFAULT '',
-    owner_user           text        NOT NULL DEFAULT '',
+    owner                text        NOT NULL DEFAULT '',
+    labels               jsonb       NOT NULL DEFAULT '{}'::jsonb,
+    annotations          jsonb       NOT NULL DEFAULT '{}'::jsonb,
     spec                 jsonb       NOT NULL,
-    requested_resources  jsonb       NOT NULL DEFAULT '{}'::jsonb,
-    status               text        NOT NULL,
-    message              text        NOT NULL DEFAULT '',
-    started_at           timestamptz,
-    finished_at          timestamptz,
+    phase                text        NOT NULL DEFAULT 'Creating',
+    status               jsonb       NOT NULL DEFAULT '{}'::jsonb,
     created_at           timestamptz NOT NULL DEFAULT now(),
     updated_at           timestamptz NOT NULL DEFAULT now(),
     deleted_at           timestamptz
 );
-CREATE UNIQUE INDEX uq_jobs_namespace_name
+CREATE UNIQUE INDEX jobs_namespace_name_active_uniq
     ON jobs(namespace, name) WHERE deleted_at IS NULL;
-CREATE INDEX idx_jobs_workset ON jobs(status, deleted_at);
-CREATE INDEX idx_jobs_namespace_status ON jobs(namespace, status) WHERE deleted_at IS NULL;
+CREATE INDEX jobs_phase                  ON jobs(phase) WHERE deleted_at IS NULL;
+CREATE INDEX jobs_created_at             ON jobs(created_at DESC);
+CREATE INDEX jobs_labels_gin             ON jobs USING GIN (labels jsonb_path_ops);
+CREATE INDEX jobs_namespace_project_created
+    ON jobs (namespace, (labels->>'axisml.io/project'), created_at DESC)
+    WHERE deleted_at IS NULL;
 
 -- Services ------------------------------------------------------------------
+-- Mirrors the jobs table shape: phase + status jsonb. Replicas and
+-- ready_replicas live inside status jsonb (status.readyReplicas) per
+-- database.md §3.3. Pool/Unit provenance lives in labels.
 CREATE TABLE services (
     id                   uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
     namespace            text        NOT NULL,
-    pool_id              uuid        NOT NULL REFERENCES resource_pools(id),
-    resource_unit_id     uuid        NOT NULL REFERENCES resource_units(id),
     name                 text        NOT NULL,
+    kind                 text        NOT NULL DEFAULT 'service',
     display_name         text        NOT NULL DEFAULT '',
     description          text        NOT NULL DEFAULT '',
-    owner_user           text        NOT NULL DEFAULT '',
+    owner                text        NOT NULL DEFAULT '',
+    labels               jsonb       NOT NULL DEFAULT '{}'::jsonb,
+    annotations          jsonb       NOT NULL DEFAULT '{}'::jsonb,
     spec                 jsonb       NOT NULL,
-    desired_spec_hash    text        NOT NULL DEFAULT '',
-    applied_spec_hash    text        NOT NULL DEFAULT '',
-    requested_resources  jsonb       NOT NULL DEFAULT '{}'::jsonb,
-    replicas             integer     NOT NULL DEFAULT 1,
-    ready_replicas       integer     NOT NULL DEFAULT 0,
-    endpoint             text        NOT NULL DEFAULT '',
-    status               text        NOT NULL,
-    message              text        NOT NULL DEFAULT '',
+    generation           bigint      NOT NULL DEFAULT 1,
+    observed_generation  bigint      NOT NULL DEFAULT 0,
+    phase                text        NOT NULL DEFAULT 'Creating',
+    status               jsonb       NOT NULL DEFAULT '{}'::jsonb,
     created_at           timestamptz NOT NULL DEFAULT now(),
     updated_at           timestamptz NOT NULL DEFAULT now(),
     deleted_at           timestamptz
 );
-CREATE UNIQUE INDEX uq_services_namespace_name
+CREATE UNIQUE INDEX services_namespace_name_active_uniq
     ON services(namespace, name) WHERE deleted_at IS NULL;
-CREATE INDEX idx_services_workset ON services(status, deleted_at);
-CREATE INDEX idx_services_spec_sync
-    ON services(deleted_at) WHERE desired_spec_hash <> applied_spec_hash;
-CREATE INDEX idx_services_namespace_status ON services(namespace, status) WHERE deleted_at IS NULL;
+CREATE INDEX services_namespace_kind
+    ON services(namespace, kind) WHERE deleted_at IS NULL;
+CREATE INDEX services_phase              ON services(phase) WHERE deleted_at IS NULL;
+CREATE INDEX services_created_at         ON services(created_at DESC);
+CREATE INDEX services_sync_pending
+    ON services(id) WHERE generation <> observed_generation AND deleted_at IS NULL;
+CREATE INDEX services_labels_gin
+    ON services USING GIN (labels jsonb_path_ops);
+CREATE INDEX services_namespace_project_created
+    ON services (namespace, (labels->>'axisml.io/project'), created_at DESC)
+    WHERE deleted_at IS NULL;

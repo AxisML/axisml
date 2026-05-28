@@ -8,7 +8,6 @@
 //
 //   - MLJob: deploy/helm/axisml-system/crds/mljob-crd.yaml
 //   - MLService: deploy/helm/axisml-system/crds/mlservice-crd.yaml
-//   - PodGroup: test/crds/external/scheduler-plugins-podgroup.yaml
 //   - HTTPRoute: test/crds/external/gateway-api-httproute.yaml
 //
 // envtest has no kubelet, so workload controllers (Job, Deployment) don't
@@ -34,7 +33,6 @@ import (
 
 	mljobdispatcher "github.com/axisml/axisml/components/compute-operator/internal/mljob/dispatcher"
 	"github.com/axisml/axisml/components/compute-operator/internal/mljob/handlers/nativejob"
-	"github.com/axisml/axisml/components/compute-operator/internal/mljob/handlers/nativepodgroup"
 	mlservicedispatcher "github.com/axisml/axisml/components/compute-operator/internal/mlservice/dispatcher"
 	mlservicehandler "github.com/axisml/axisml/components/compute-operator/internal/mlservice/handler"
 	"github.com/axisml/axisml/components/compute-operator/internal/setup"
@@ -111,7 +109,6 @@ func bootstrapManager() error {
 
 	mljobRegistry := mljobdispatcher.NewRegistry()
 	mljobRegistry.Register(nativejob.New())
-	mljobRegistry.Register(nativepodgroup.New())
 	if err := (&mljobdispatcher.MLJobReconciler{
 		Client:   mgr.GetClient(),
 		Registry: mljobRegistry,

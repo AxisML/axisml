@@ -22,7 +22,7 @@ func (h *notImplementedHandler) Key() Key { return h.key }
 func (h *notImplementedHandler) Validate(_ *axisml.MLServiceSpec) Validation {
 	return Validation{Errors: []string{
 		fmt.Sprintf(
-			"backend (%s, %s) not implemented; see docs/system_design/operators/mlservice-operator.md §11 (后续设计文档)",
+			"backend (%s, %s) not implemented; see docs/system_design/components/compute-operator.md §4 / §5.1",
 			h.key.Backend, h.key.Engine,
 		),
 	}}

@@ -27,6 +27,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
+	axismlv1alpha1 "github.com/axisml/axisml/components/cluster-manager/api/v1alpha1"
 	mljobv1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mljob/v1alpha1"
 	mlservicev1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
 	tenantv1alpha1 "github.com/axisml/axisml/components/tenant-operator/api/v1alpha1"
@@ -60,6 +61,7 @@ var (
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(testScheme))
+	utilruntime.Must(axismlv1alpha1.AddToScheme(testScheme))
 	utilruntime.Must(tenantv1alpha1.AddToScheme(testScheme))
 	utilruntime.Must(mljobv1alpha1.AddToScheme(testScheme))
 	utilruntime.Must(mlservicev1alpha1.AddToScheme(testScheme))

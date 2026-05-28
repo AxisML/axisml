@@ -70,13 +70,19 @@ func TestRouteCoverage(t *testing.T) {
 	want := []struct{ method, path string }{
 		{"get", "/healthz"},
 		{"get", "/readyz"},
-		{"get", "/api/v1/namespaces/{namespace}/artifacts/{kind}"},
-		{"post", "/api/v1/namespaces/{namespace}/artifacts/{kind}/{name}"},
-		{"get", "/api/v1/namespaces/{namespace}/artifacts/{kind}/{name}"},
-		{"get", "/api/v1/namespaces/{namespace}/artifacts/{kind}/{name}/{version}"},
-		{"delete", "/api/v1/namespaces/{namespace}/artifacts/{kind}/{name}/{version}"},
-		{"post", "/api/v1/namespaces/{namespace}/artifacts/{kind}/{name}/{version}/complete"},
-		{"get", "/api/v1/namespaces/{namespace}/artifacts/{kind}/{name}/{version}/resolve"},
+		// One representative kind (models); the loop in main.go renders all
+		// three kinds (models/datasets/images) symmetrically.
+		{"get", "/api/v1/namespaces/{namespace}/models"},
+		{"post", "/api/v1/namespaces/{namespace}/models/{name}"},
+		{"get", "/api/v1/namespaces/{namespace}/models/{name}"},
+		{"get", "/api/v1/namespaces/{namespace}/models/{name}/{version}"},
+		{"patch", "/api/v1/namespaces/{namespace}/models/{name}/{version}"},
+		{"delete", "/api/v1/namespaces/{namespace}/models/{name}/{version}"},
+		{"post", "/api/v1/namespaces/{namespace}/models/{name}/{version}/complete"},
+		{"get", "/api/v1/namespaces/{namespace}/models/{name}/{version}/resolve"},
+		// Datasets / images symmetry spot-check.
+		{"post", "/api/v1/namespaces/{namespace}/datasets/{name}"},
+		{"post", "/api/v1/namespaces/{namespace}/images/{name}"},
 	}
 	for _, w := range want {
 		item, ok := doc.Paths[w.path]

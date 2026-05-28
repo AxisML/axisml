@@ -1,6 +1,9 @@
-// Package app wires the cluster-manager process: HTTP server, K8s
-// client, signal handling. The main package's job is just flag parsing
-// and calling Run.
+// Package app wires the cluster-manager process: HTTP server, K8s client,
+// signal handling. The main package's job is just flag parsing.
+//
+// cluster-manager is a stateless REST shell over the ResourcePool CRD
+// (cluster-scoped, axisml.io/v1alpha1) — no PG, no reconciler, no leader
+// election. Multi-replica peer.
 package app
 
 import (
@@ -11,10 +14,12 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/axisml/axisml/components/cluster-manager/internal/k8sclient"
-	"github.com/axisml/axisml/components/cluster-manager/internal/tenant"
+	"github.com/axisml/axisml/components/cluster-manager/internal/resourcepool"
+	srv "github.com/axisml/axisml/components/cluster-manager/internal/server"
 )
 
 // Config groups the runtime knobs the binary exposes.
@@ -22,37 +27,36 @@ type Config struct {
 	APIBindAddress     string
 	MetricsBindAddress string
 	ProbesBindAddress  string
-	NamespaceDenylist  []string
 }
 
 // Run is the long-running entry point. Cancel ctx (e.g. via SIGTERM
 // handler) to trigger a graceful HTTP shutdown.
 func Run(ctx context.Context, cfg Config) error {
-	logger := log.FromContext(ctx).WithName("cluster-manager")
-
 	c, err := k8sclient.Build()
 	if err != nil {
 		return fmt.Errorf("k8sclient: %w", err)
 	}
+	return runWith(ctx, cfg, c)
+}
 
-	gin.SetMode(gin.ReleaseMode)
-	r := gin.New()
-	r.Use(gin.Recovery())
+// RunWith is the test-friendly variant accepting a prebuilt client (envtest).
+func RunWith(ctx context.Context, cfg Config, c client.Client) error {
+	return runWith(ctx, cfg, c)
+}
 
-	api := r.Group("/api/v1")
-	(&tenant.Handler{Client: c, NamespaceDenylist: cfg.NamespaceDenylist}).Register(api)
+func runWith(ctx context.Context, cfg Config, c client.Client) error {
+	logger := log.FromContext(ctx).WithName("cluster-manager")
 
-	probes := gin.New()
-	probes.GET("/healthz", func(ctx *gin.Context) { ctx.Status(http.StatusOK) })
-	probes.GET("/readyz", func(ctx *gin.Context) { ctx.Status(http.StatusOK) })
+	r := NewRouter(c)
+	probes := NewProbeRouter()
 
-	srv := &http.Server{Addr: cfg.APIBindAddress, Handler: r}
+	srvAPI := &http.Server{Addr: cfg.APIBindAddress, Handler: r}
 	probeSrv := &http.Server{Addr: cfg.ProbesBindAddress, Handler: probes}
 
 	errCh := make(chan error, 2)
 	go func() {
 		logger.Info("listening", "addr", cfg.APIBindAddress)
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := srvAPI.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errCh <- fmt.Errorf("api: %w", err)
 		}
 	}()
@@ -65,14 +69,40 @@ func Run(ctx context.Context, cfg Config) error {
 	select {
 	case <-ctx.Done():
 	case err := <-errCh:
-		_ = srv.Close()
+		_ = srvAPI.Close()
 		_ = probeSrv.Close()
 		return err
 	}
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	_ = srv.Shutdown(shutdownCtx)
+	_ = srvAPI.Shutdown(shutdownCtx)
 	_ = probeSrv.Shutdown(shutdownCtx)
 	return nil
+}
+
+// NewRouter builds the gin router. Exposed so integration tests can drive
+// the engine via httptest without booting the listener.
+func NewRouter(c client.Client) *gin.Engine {
+	gin.SetMode(gin.ReleaseMode)
+	r := gin.New()
+	r.Use(gin.Recovery())
+
+	api := r.Group("/api/v1", srv.RequireUser)
+	(&resourcepool.Handler{Client: c}).Register(api)
+
+	return r
+}
+
+// NewProbeRouter builds the lightweight /healthz, /readyz router.
+func NewProbeRouter() *gin.Engine {
+	gin.SetMode(gin.ReleaseMode)
+	probes := gin.New()
+	probes.GET("/healthz", func(ctx *gin.Context) {
+		ctx.JSON(http.StatusOK, srv.HealthStatus{Status: "ok"})
+	})
+	probes.GET("/readyz", func(ctx *gin.Context) {
+		ctx.JSON(http.StatusOK, srv.HealthStatus{Status: "ok"})
+	})
+	return probes
 }

@@ -5,7 +5,6 @@ go 1.26.0
 require (
 	github.com/axisml/axisml/components/compute-operator v0.0.0
 	github.com/axisml/axisml/test/testutil v0.0.0
-	github.com/koordinator-sh/koordinator v1.7.0
 	github.com/stretchr/testify v1.11.1
 	k8s.io/api v0.36.0
 	k8s.io/apimachinery v0.36.0
@@ -68,10 +67,9 @@ require (
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
-// koordinator v1.8.0's go.mod pins k8s.io/kube-openapi v0.30.0 (which is not
-// published on the module proxy) and relies on a replace directive to remap
-// it to a real pseudo-version. Replace directives are not transitive, so we
-// must mirror it here so `go mod tidy` can resolve the import graph.
+// k8s.io/kube-openapi v0.30.0 (the version k8s.io/apimachinery v0.36.0 pins
+// transitively) is not published on the module proxy; pin to a real
+// pseudo-version so `go mod tidy` can resolve the import graph.
 replace k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912
 
 replace github.com/axisml/axisml/components/compute-operator => ../..

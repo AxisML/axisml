@@ -11,35 +11,21 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	mlservicev1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
-	poolmod "github.com/axisml/axisml/components/compute-service/internal/resourcepool"
-	unitmod "github.com/axisml/axisml/components/compute-service/internal/resourceunit"
 )
 
 // TestServiceCreateRoundTrip exercises the namespace-keyed service pipeline:
-// POST /services → DB row → reconciler tick → MLService CR in envtest. Then
-// Get, List, Scale, Delete.
+// seed ResourcePool CR → POST /services → DB row → reconciler tick →
+// MLService CR in envtest. Then Get, List, Scale, Delete.
 func TestServiceCreateRoundTrip(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	pools := poolmod.NewService(gormDB)
-	pool, err := pools.EnsureDefault(ctx, "services-e2e-pool")
-	require.NoError(t, err)
-	units := unitmod.NewService(gormDB)
-	unitView, err := units.Create(ctx, pool.ID, unitmod.CreateInput{
-		Name: "small",
-		Requests: corev1.ResourceList{
-			corev1.ResourceCPU:    resource.MustParse("100m"),
-			corev1.ResourceMemory: resource.MustParse("128Mi"),
-		},
-	})
-	require.NoError(t, err)
+	seedResourcePool(t, ctx, "services-e2e-pool", "small")
 
 	const ns = "services-e2e-ns"
 	c, err := client.New(testCfg, client.Options{Scheme: testScheme})
@@ -49,10 +35,11 @@ func TestServiceCreateRoundTrip(t *testing.T) {
 	}))
 
 	body := map[string]any{
-		"name":           "predictor",
-		"resourceUnitId": unitView.ID,
-		"quota":          "axisml-default",
-		"backend":        map[string]string{"name": "native", "engine": "deployment"},
+		"name":     "predictor",
+		"poolName": "services-e2e-pool",
+		"unitName": "small",
+		"quota":    "axisml-default",
+		"backend":  map[string]string{"name": "native", "engine": "deployment"},
 		"roles": []map[string]any{
 			{
 				"name":     mlservicev1alpha1.DefaultRoleName,
@@ -75,7 +62,6 @@ func TestServiceCreateRoundTrip(t *testing.T) {
 	}, 10*time.Second, 200*time.Millisecond, "MLService CR did not appear")
 	assert.Equal(t, "axisml-default", cr.Spec.Scheduling.Quota)
 	assert.Equal(t, "axisml-default", cr.Labels[mlservicev1alpha1.LabelQuota])
-	// compute must stamp service-id; operator validation rejects empty.
 	assert.NotEmpty(t, cr.Labels[mlservicev1alpha1.LabelServiceID])
 	require.Len(t, cr.Spec.Roles, 1)
 	assert.Equal(t, int32(1), cr.Spec.Roles[0].Replicas)
@@ -97,10 +83,11 @@ func TestServiceCreateRoundTrip(t *testing.T) {
 	rr = doJSON(t, ctx, http.MethodPost, "/api/v1/namespaces/"+ns+"/services", body, nil)
 	requireStatus(t, rr, http.StatusConflict)
 
-	// Scale to 3 — DB row updates immediately; reconciler propagates to CR.
+	// Scale to 3 — 202 Accepted per design (DB row mutated; reconciler
+	// propagates async to the CR).
 	rr = doJSON(t, ctx, http.MethodPost, "/api/v1/namespaces/"+ns+"/services/predictor/scale",
 		map[string]any{"replicas": 3}, nil)
-	requireStatus(t, rr, http.StatusOK)
+	requireStatus(t, rr, http.StatusAccepted)
 
 	require.Eventually(t, func() bool {
 		fresh := &mlservicev1alpha1.MLService{}

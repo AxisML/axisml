@@ -33,10 +33,16 @@ func (r *Repository) GetByNamespaceName(ctx context.Context, namespace, name str
 	return &s, nil
 }
 
-func (r *Repository) ListByNamespace(ctx context.Context, namespace string, limit, offset int) ([]Service, int64, error) {
+func (r *Repository) ListByNamespace(ctx context.Context, namespace, kind string, limit, offset int, labelClause string, labelArgs []any) ([]Service, int64, error) {
 	var rows []Service
 	var total int64
 	q := r.db.WithContext(ctx).Model(&Service{}).Where("namespace = ? AND deleted_at IS NULL", namespace)
+	if kind != "" {
+		q = q.Where("kind = ?", kind)
+	}
+	if labelClause != "" {
+		q = q.Where(labelClause, labelArgs...)
+	}
 	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
@@ -56,7 +62,7 @@ func (r *Repository) Update(ctx context.Context, id uuid.UUID, fields map[string
 
 func (r *Repository) MarkDeleting(ctx context.Context, id uuid.UUID) error {
 	return r.db.WithContext(ctx).Model(&Service{}).Where("id = ?", id).Updates(map[string]any{
-		"status":     string(StatusDeleting),
+		"phase":      string(StatusDeleting),
 		"deleted_at": time.Now().UTC(),
 	}).Error
 }
@@ -72,19 +78,19 @@ const workSetBatch = 100
 func (r *Repository) FindWorkSet(ctx context.Context) (WorkSet, error) {
 	var ws WorkSet
 	if err := r.db.WithContext(ctx).
-		Where("status = ? AND deleted_at IS NULL", string(StatusCreating)).
+		Where("phase = ? AND deleted_at IS NULL", string(StatusCreating)).
 		Order("updated_at ASC").Limit(workSetBatch).
 		Find(&ws.Creating).Error; err != nil {
 		return ws, err
 	}
 	if err := r.db.WithContext(ctx).
-		Where("status = ?", string(StatusDeleting)).
+		Where("phase = ?", string(StatusDeleting)).
 		Order("updated_at ASC").Limit(workSetBatch).
 		Find(&ws.Deleting).Error; err != nil {
 		return ws, err
 	}
 	if err := r.db.WithContext(ctx).
-		Where("desired_spec_hash <> applied_spec_hash AND deleted_at IS NULL").
+		Where("generation <> observed_generation AND deleted_at IS NULL").
 		Order("updated_at ASC").Limit(workSetBatch).
 		Find(&ws.SpecDirty).Error; err != nil {
 		return ws, err

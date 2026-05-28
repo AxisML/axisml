@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -13,7 +14,9 @@ import (
 	mlservicev1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
 )
 
-// Informer reflects MLService CR status into PG.
+// Informer reflects MLService CR status into PG. Writes go to phase
+// (high-frequency filter) + status jsonb (message / readyReplicas /
+// endpoint / conditions[]).
 type Informer struct {
 	db   *gorm.DB
 	repo *Repository
@@ -21,12 +24,10 @@ type Informer struct {
 	log  logr.Logger
 }
 
-// NewInformer constructs the service Informer.
 func NewInformer(db *gorm.DB, mgr manager.Manager, log logr.Logger) *Informer {
 	return &Informer{db: db, repo: NewRepository(db), mgr: mgr, log: log}
 }
 
-// NeedLeaderElection ensures only the leader writes back.
 func (i *Informer) NeedLeaderElection() bool { return true }
 
 func (i *Informer) Start(ctx context.Context) error {
@@ -59,34 +60,44 @@ func (i *Informer) onChange(ctx context.Context, obj any) {
 	if err != nil {
 		return
 	}
-	updates := map[string]any{
-		"ready_replicas": cr.Status.ReadyReplicas,
-		"endpoint":       cr.Status.Endpoint,
+	// Don't override Deleting/Deleted.
+	if Status(row.Phase) == StatusDeleting || Status(row.Phase) == StatusDeleted {
+		return
 	}
+
 	desired := int32(0)
 	if len(cr.Spec.Roles) > 0 {
 		desired = cr.Spec.Roles[0].Replicas
 	}
+	newPhase := row.Phase
 	switch {
 	case desired == 0:
-		updates["status"] = string(StatusPending)
+		newPhase = string(StatusPending)
 	case cr.Status.ReadyReplicas == 0 && cr.Status.Phase == mlservicev1alpha1.PhasePending:
-		updates["status"] = string(StatusPending)
+		newPhase = string(StatusPending)
 	case cr.Status.ReadyReplicas == desired:
-		updates["status"] = string(StatusReady)
+		newPhase = string(StatusReady)
 	case cr.Status.ReadyReplicas > 0 && cr.Status.ReadyReplicas < desired:
-		updates["status"] = string(StatusDegraded)
+		newPhase = string(StatusDegraded)
 	case cr.Status.ReadyReplicas == 0 && cr.Status.Phase == mlservicev1alpha1.PhaseFailed:
-		updates["status"] = string(StatusFailed)
-		if cr.Status.Message != "" {
-			updates["message"] = cr.Status.Message
-		}
+		newPhase = string(StatusFailed)
 	}
-	// Don't override Deleting/Deleted.
-	if Status(row.Status) == StatusDeleting || Status(row.Status) == StatusDeleted {
-		return
+
+	var sf StatusFields
+	if len(row.StatusJSON) > 0 {
+		_ = json.Unmarshal(row.StatusJSON, &sf)
 	}
-	_ = i.repo.Update(ctx, id, updates)
+	sf.ReadyReplicas = cr.Status.ReadyReplicas
+	sf.Endpoint = cr.Status.Endpoint
+	if cr.Status.Phase == mlservicev1alpha1.PhaseFailed && cr.Status.Message != "" {
+		sf.Message = cr.Status.Message
+	}
+	b, _ := json.Marshal(sf)
+
+	_ = i.repo.Update(ctx, id, map[string]any{
+		"phase":  newPhase,
+		"status": b,
+	})
 }
 
 func (i *Informer) onDelete(ctx context.Context, obj any) {
@@ -102,15 +113,25 @@ func (i *Informer) onDelete(ctx context.Context, obj any) {
 	if err != nil {
 		return
 	}
-	switch Status(row.Status) {
+	switch Status(row.Phase) {
 	case StatusDeleting:
 		now := time.Now().UTC()
-		_ = i.repo.Update(ctx, id, map[string]any{"status": string(StatusDeleted), "deleted_at": now})
-	case StatusPending, StatusReady, StatusDegraded, StatusFailed:
 		_ = i.repo.Update(ctx, id, map[string]any{
-			"status":     string(StatusDeleting),
+			"phase":      string(StatusDeleted),
+			"deleted_at": now,
+		})
+	case StatusPending, StatusReady, StatusDegraded, StatusFailed:
+		// External delete during run → mark Deleting per design §5.4.
+		var sf StatusFields
+		if len(row.StatusJSON) > 0 {
+			_ = json.Unmarshal(row.StatusJSON, &sf)
+		}
+		sf.Message = "external delete"
+		b, _ := json.Marshal(sf)
+		_ = i.repo.Update(ctx, id, map[string]any{
+			"phase":      string(StatusDeleting),
 			"deleted_at": time.Now().UTC(),
-			"message":    "external delete",
+			"status":     b,
 		})
 	}
 }

@@ -60,7 +60,7 @@ func (r *Repository) GetByCoordIncludingDeleted(ctx context.Context, namespace, 
 // is optional. To list across versions of a single artifact name, callers
 // pass the name; to list across all names within a kind, pass an empty
 // name.
-func (r *Repository) ListByCoord(ctx context.Context, namespace, kind, name, status string, limit, offset int) ([]Artifact, int64, error) {
+func (r *Repository) ListByCoord(ctx context.Context, namespace, kind, name, status string, limit, offset int, labelClause string, labelArgs []any) ([]Artifact, int64, error) {
 	var rows []Artifact
 	var total int64
 	q := r.db.WithContext(ctx).Model(&Artifact{}).
@@ -70,6 +70,9 @@ func (r *Repository) ListByCoord(ctx context.Context, namespace, kind, name, sta
 	}
 	if status != "" {
 		q = q.Where("status = ?", status)
+	}
+	if labelClause != "" {
+		q = q.Where(labelClause, labelArgs...)
 	}
 	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err

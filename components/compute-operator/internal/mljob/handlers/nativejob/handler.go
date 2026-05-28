@@ -1,8 +1,8 @@
 // Package nativejob implements the (native, job) handler from
 // design §8.1: a single-role MLJob is rendered as one batch/v1.Job.
 // All Pods carry koord-scheduler + the five mandatory labels so the
-// ElasticQuota plugin accounts for them; gang scheduling is NOT used
-// (that's the (native, podgroup) handler's job).
+// ElasticQuota plugin accounts for them. Gang scheduling is out of
+// scope for this handler.
 package nativejob
 
 import (

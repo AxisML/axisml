@@ -28,6 +28,7 @@ spec:
               properties:
                 namespace:
                   type: object
+                  x-kubernetes-preserve-unknown-fields: true
                   properties:
                     name:
                       type: string
