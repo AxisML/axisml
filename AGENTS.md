@@ -2,33 +2,36 @@
 
 ## Project Structure & Module Organization
 
-AxisML combines Go services, Kubernetes operators, Helm charts, and design docs. Active component code lives in `components/tenant-operator/`, `components/compute-operator/`, `components/cluster-manager/`, `components/compute-service/`, and `components/artifact-hub/`; each has its own `go.mod`, `Dockerfile`, and `Makefile`. Platform backend/frontend folders under `components/platform/` are scaffolded. Helm charts live in `deploy/helm/axisml-infra/` for third-party infrastructure and `deploy/helm/axisml-system/` for CRDs and AxisML services. Development and design docs are in `docs/development/` and `docs/system_design/`. Shared test infrastructure (`testutil/`, `setup-envtest/`, vendored `crds/external/`) lives under `test/`.
+AxisML is a Kubernetes-native monorepo made of independent Go modules. Active components live under `components/`: `tenant-operator`, `compute-operator`, `cluster-manager`, `compute-service`, and `artifact-hub`. Scaffolded Platform areas are in `components/platform/backend` and `components/platform/frontend`. Shared Go helpers are in `test/testutil`, external CRDs for tests are in `test/crds/external`, and generated OpenAPI specs are in `docs/openapi`. Helm charts are split between `deploy/helm/axisml-infra` for infrastructure and `deploy/helm/axisml-system` for AxisML control-plane services. Design documents live in `docs/system_design`; update them when behavior or contracts change.
 
 ## Build, Test, and Development Commands
 
-Use the top-level `Makefile` as the command hub.
+Use the top-level `Makefile` as the command entry point:
 
-- `make help`: list available targets and generated component shortcuts.
-- `make build`: build all active components into their local `bin/` directories.
-- `make test`: run unit tests for active components.
-- `make image` / `make image-load`: build images and load them into minikube.
-- `make cluster-up` / `make cluster-status`: manage the local `axisml` minikube profile.
-- `make helm-template`: render both Helm charts locally for review.
-- `make helm-install`: install infra first, then the AxisML system chart.
-- `make tenant-operator-integration`, `make compute-service-test`, `make artifact-hub-test`: run focused component targets.
+- `make help` lists aggregate and per-component targets.
+- `make build` builds all active components.
+- `make test` runs unit tests across active components.
+- `make integration-test` runs envtest/testcontainers integration suites and requires Docker.
+- `make fmt` runs `gofmt` across every Go module.
+- `make helm-template` renders both Helm charts locally.
+- `make helm-lint` lints chart changes.
+- `make doc-gen` regenerates OpenAPI specs for HTTP services.
+- `make doc-test` verifies generated specs match Go DTOs.
+
+Per-component shortcuts follow `<component>-<target>`, for example `make compute-service-test` or `make artifact-hub-doc-gen`.
 
 ## Coding Style & Naming Conventions
 
-Go code uses standard `gofmt`; run `make fmt` for all modules or `<component>-fmt` for a slice. `.golangci.yml` enables `errcheck`, `govet`, `staticcheck`, `unused`, `ineffassign`, and `misspell` with the `integration` build tag. Keep generated files committed when sources require them, such as CRDs or `components/compute-service/docs/openapi.yaml` after `make -C components/compute-service openapi`. Do not commit `bin/`, coverage output, local kubeconfigs, or secrets.
+Go code must be formatted with `gofmt`; hooks also run `go vet` and push-time `golangci-lint` on touched modules. Keep package names short and lowercase. Component directory basenames must stay unique because Makefile shortcuts are derived from them. Do not hand-edit generated files such as `zz_generated_deepcopy.go` or `docs/openapi/*.yaml`; regenerate them instead.
 
 ## Testing Guidelines
 
-Unit tests use Go `testing` and normally sit beside packages as `*_test.go`. Integration tests use `//go:build integration` and live in each component's `test/integration/` Go submodule (envtest-backed for operators / cluster-manager / compute-service, with testcontainers for compute-service and artifact-hub Postgres). All run via `make integration-test` (after `make setup-envtest`). HTTP API tests drive the gin engine in-process via `httptest`; see `components/compute-service/test/integration/httptest_helpers_test.go`. The repo deliberately has no e2e layer — see `docs/development/testing.md` for layer choice and external CRD rules.
+Unit tests sit next to packages as `*_test.go` and use Go `testing` with `testify`. Integration tests live in each component's `test/integration` submodule and are gated by the `integration` build tag. Prefer `test/testutil` polling helpers for reconciler assertions. Add required external CRDs under `test/crds/external` when a new controller dependency needs them.
 
 ## Commit & Pull Request Guidelines
 
-Recent history follows Conventional Commit-style subjects: `feat(operator): ...`, `docs(infra): ...`, `ci: ...`. Keep commits scoped and imperative. PRs should summarize behavior or doc changes, link related issues or design notes, list validation commands run, and include screenshots only for UI-facing changes.
+Follow Conventional Commit-style subjects seen in history, such as `fix(compute-service): ...`, `feat: ...`, and `chore: ...`. Keep commits scoped and imperative. Before opening a PR, run the relevant `make ...-test`, `make doc-test`, and `make helm-template`/`make helm-lint` checks for touched areas. PRs should describe behavior changes, link issues when available, and include screenshots only for UI-facing changes.
 
-## Hooks & Configuration
+## Security & Configuration Tips
 
-Install hooks with `make install-hooks`; run all hooks with `make pre-commit-run`. Prefer Make variables such as `IMAGE_TAG`, `MINIKUBE_PROFILE`, `MINIKUBE_CPUS`, and `HELM_EXTRA_ARGS` for local overrides instead of editing scripts or checked-in values.
+Do not commit real secrets, kubeconfigs, local binaries, `bin/`, coverage output, or generated cluster state. Development Helm defaults are for local use only; production installs must provide real secret values through values files or `HELM_EXTRA_ARGS`.
