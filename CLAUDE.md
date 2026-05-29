@@ -97,7 +97,11 @@ Single test invocation: `go test -run TestTenant_HappyPath ./internal/...` (use 
 
 Per-component shortcuts are auto-generated from the `COMPONENTS` list in the top-level Makefile. Pattern: `<basename>-{build,image,image-load,test,integration,fmt,tidy,clean}` (e.g., `make operator-image-load`). Top-level `make fmt` walks every module via `GO_MODULES` (`gofmt -w` doesn't cross module boundaries on its own).
 
-Pre-commit hooks (`pre-commit` framework, see `.pre-commit-config.yaml`) run gofmt + basic hygiene checks. Install once per clone: `make install-hooks`. Bypass for a single commit: `git commit --no-verify`. Vendored CRDs (`test/crds/external/`) and Helm sub-charts are excluded from hooks.
+Pre-commit hooks (`pre-commit` framework, see `.pre-commit-config.yaml`) are staged:
+- **pre-commit** (fast, <5s): gofmt, basic hygiene, `go vet` on touched modules, `make doc-test` when Go in `cluster-manager` / `compute-service` / `artifact-hub` changes, `make helm-lint` when `deploy/helm/**` changes.
+- **pre-push** (30-60s): `golangci-lint` and `go test -short` on every Go module containing a pushed file.
+
+Install once per clone: `make install-hooks`. Bypass for a single commit: `git commit --no-verify`. Vendored CRDs (`test/crds/external/`) and Helm sub-charts are excluded from hooks. If `doc-test` fails after editing DTOs, run `make <component>-doc-gen` (or top-level `make doc-gen`) to regenerate `docs/openapi/<component>.yaml` and re-stage — see next section.
 
 ## Two-layer testing pyramid
 
@@ -135,6 +139,15 @@ When adding a new handler:
 3. **All backend-derived Pods MUST set `schedulerName: koord-scheduler` and carry the `quota.scheduling.koordinator.sh/name` label** — this is non-negotiable; bypassing koord-scheduler bypasses ElasticQuota.
 4. Vendor any new external CRDs into `test/crds/external/` in the same PR.
 5. Pair an integration happy-path with the unit tests.
+
+## OpenAPI specs are generated, not hand-written
+
+The three HTTP-surface components (`cluster-manager`, `compute-service`, `artifact-hub`) keep their OpenAPI spec under `docs/openapi/<component>.yaml` and generate it from the Go request/response DTOs. The operators have no HTTP surface and are excluded.
+
+- `make doc-gen` (or `make <component>-doc-gen`) regenerates the spec(s).
+- `make doc-test` (or `make <component>-doc-test`) verifies that the spec matches the current Go types — this is the CI guard and also the pre-commit hook described above.
+
+When you change a handler signature or DTO in one of those three components, regenerate before committing. Do not hand-edit `docs/openapi/*.yaml`.
 
 ## Image tag synchronization
 
