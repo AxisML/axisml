@@ -17,13 +17,18 @@ HELM_SYSTEM_RELEASE   ?= axisml
 HELM_SYSTEM_NAMESPACE ?= axisml-system
 HELM_SYSTEM_CHART     ?= deploy/helm/axisml-system
 
+HELM_PLATFORM_RELEASE   ?= axisml-platform
+HELM_PLATFORM_NAMESPACE ?= axisml-platform
+HELM_PLATFORM_CHART     ?= deploy/helm/axisml-platform
+
 # --- Image Tag (shared across components) ---
 #
 # Each component's Makefile defaults IMAGE_TAG to 0.1.0 and notes that it
-# must track Chart.appVersion. We export the chart's appVersion here so any
-# top-level invocation overrides that default and keeps every component's
-# image tag aligned with what the Helm chart will pull. Override on the
-# command line for non-release builds:
+# must track Chart.appVersion. The axisml-system chart is the single version
+# authority across all three charts (infra / system / platform): we export its
+# appVersion here so any top-level invocation overrides that default and keeps
+# every component's image tag aligned with what the charts will pull. Override
+# on the command line for non-release builds:
 #   make image IMAGE_TAG=dev
 export IMAGE_TAG ?= $(shell awk '/^appVersion:/{gsub(/"/,"",$$2);print $$2}' $(HELM_SYSTEM_CHART)/Chart.yaml)
 
@@ -38,12 +43,18 @@ export IMAGE_TAG ?= $(shell awk '/^appVersion:/{gsub(/"/,"",$$2);print $$2}' $(H
 # HELM_EXTRA_ARGS is an escape hatch for ad-hoc `--set` / `-f` flags;
 # it's empty by default and appended last (highest precedence).
 HELM_SYSTEM_IMAGE_SET := \
-  --set platform.image.tag=$(IMAGE_TAG) \
   --set clusterManager.image.tag=$(IMAGE_TAG) \
   --set computeService.image.tag=$(IMAGE_TAG) \
   --set artifactHub.image.tag=$(IMAGE_TAG) \
   --set tenantOperator.image.tag=$(IMAGE_TAG) \
   --set computeOperator.image.tag=$(IMAGE_TAG)
+
+# Platform still ships an nginx placeholder image (see axisml-platform values),
+# which does not track Chart.appVersion — so IMAGE_TAG is NOT forced onto it yet.
+# Uncomment once Platform publishes a real image tagged to appVersion.
+HELM_PLATFORM_IMAGE_SET :=
+# HELM_PLATFORM_IMAGE_SET := \
+#   --set platform.image.tag=$(IMAGE_TAG)
 
 # Dev-only defaults the chart `required` gates demand. Production installs
 # should override these via HELM_EXTRA_ARGS or a values file with real
@@ -72,18 +83,20 @@ cluster-status: ## Show cluster status
 ##@ Helm Management
 
 .PHONY: helm-install helm-upgrade helm-uninstall helm-template helm-lint helm-deps
-.PHONY: helm-install-infra helm-install-system
-.PHONY: helm-upgrade-infra helm-upgrade-system
-.PHONY: helm-uninstall-infra helm-uninstall-system
+.PHONY: helm-install-infra helm-install-system helm-install-platform
+.PHONY: helm-upgrade-infra helm-upgrade-system helm-upgrade-platform
+.PHONY: helm-uninstall-infra helm-uninstall-system helm-uninstall-platform
 .PHONY: helm-crds-system
 
-helm-deps: ## Fetch sub-chart tarballs for both charts (run after clone / Chart.yaml change)
+helm-deps: ## Fetch sub-chart tarballs for all charts (run after clone / Chart.yaml change)
 	@helm dependency update $(HELM_INFRA_CHART)
 	@helm dependency update $(HELM_SYSTEM_CHART)
+	@helm dependency update $(HELM_PLATFORM_CHART)
 
-helm-lint: ## Lint both Helm charts (no dep fetching — missing-dep warning is harmless)
+helm-lint: ## Lint all Helm charts (no dep fetching — missing-dep warning is harmless)
 	@helm lint $(HELM_INFRA_CHART)
 	@helm lint $(HELM_SYSTEM_CHART)
+	@helm lint $(HELM_PLATFORM_CHART)
 
 helm-install-infra: ## Install or upgrade AxisML infrastructure (idempotent)
 	@kubectl --context $(MINIKUBE_PROFILE) create namespace $(HELM_INFRA_NAMESPACE) --dry-run=client -o yaml | kubectl --context $(MINIKUBE_PROFILE) apply -f -
@@ -97,7 +110,10 @@ helm-crds-system: ## Apply axisml-system CRDs (Helm only installs files under cr
 helm-install-system: helm-crds-system ## Install or upgrade AxisML control plane (idempotent)
 	@helm upgrade --install $(HELM_SYSTEM_RELEASE) $(HELM_SYSTEM_CHART) -n $(HELM_SYSTEM_NAMESPACE) --create-namespace --kube-context $(MINIKUBE_PROFILE) --timeout 10m $(HELM_SYSTEM_IMAGE_SET) $(HELM_SYSTEM_DEV_DEFAULTS) $(HELM_EXTRA_ARGS)
 
-helm-install: helm-install-infra helm-install-system ## Install or upgrade infra + control plane
+helm-install-platform: ## Install or upgrade AxisML platform (idempotent)
+	@helm upgrade --install $(HELM_PLATFORM_RELEASE) $(HELM_PLATFORM_CHART) -n $(HELM_PLATFORM_NAMESPACE) --create-namespace --kube-context $(MINIKUBE_PROFILE) $(HELM_PLATFORM_IMAGE_SET) $(HELM_EXTRA_ARGS)
+
+helm-install: helm-install-infra helm-install-system helm-install-platform ## Install or upgrade infra + control plane + platform
 
 helm-upgrade-infra: ## Upgrade AxisML infrastructure (must already be installed)
 	@helm upgrade $(HELM_INFRA_RELEASE) $(HELM_INFRA_CHART) -n $(HELM_INFRA_NAMESPACE) --kube-context $(MINIKUBE_PROFILE)
@@ -105,7 +121,13 @@ helm-upgrade-infra: ## Upgrade AxisML infrastructure (must already be installed)
 helm-upgrade-system: helm-crds-system ## Upgrade AxisML control plane (must already be installed)
 	@helm upgrade $(HELM_SYSTEM_RELEASE) $(HELM_SYSTEM_CHART) -n $(HELM_SYSTEM_NAMESPACE) --kube-context $(MINIKUBE_PROFILE) --timeout 10m $(HELM_SYSTEM_IMAGE_SET) $(HELM_SYSTEM_DEV_DEFAULTS) $(HELM_EXTRA_ARGS)
 
-helm-upgrade: helm-upgrade-infra helm-upgrade-system ## Upgrade both
+helm-upgrade-platform: ## Upgrade AxisML platform (must already be installed)
+	@helm upgrade $(HELM_PLATFORM_RELEASE) $(HELM_PLATFORM_CHART) -n $(HELM_PLATFORM_NAMESPACE) --kube-context $(MINIKUBE_PROFILE) $(HELM_PLATFORM_IMAGE_SET) $(HELM_EXTRA_ARGS)
+
+helm-upgrade: helm-upgrade-infra helm-upgrade-system helm-upgrade-platform ## Upgrade all three
+
+helm-uninstall-platform: ## Uninstall AxisML platform
+	@helm uninstall $(HELM_PLATFORM_RELEASE) -n $(HELM_PLATFORM_NAMESPACE) --kube-context $(MINIKUBE_PROFILE)
 
 helm-uninstall-system: ## Uninstall AxisML control plane
 	@helm uninstall $(HELM_SYSTEM_RELEASE) -n $(HELM_SYSTEM_NAMESPACE) --kube-context $(MINIKUBE_PROFILE)
@@ -113,11 +135,12 @@ helm-uninstall-system: ## Uninstall AxisML control plane
 helm-uninstall-infra: ## Uninstall AxisML infrastructure
 	@helm uninstall $(HELM_INFRA_RELEASE) -n $(HELM_INFRA_NAMESPACE) --kube-context $(MINIKUBE_PROFILE)
 
-helm-uninstall: helm-uninstall-system helm-uninstall-infra ## Uninstall control plane then infra
+helm-uninstall: helm-uninstall-platform helm-uninstall-system helm-uninstall-infra ## Uninstall platform then control plane then infra
 
-helm-template: ## Render both charts locally
+helm-template: ## Render all charts locally
 	@helm template $(HELM_INFRA_RELEASE) $(HELM_INFRA_CHART) -n $(HELM_INFRA_NAMESPACE)
 	@helm template $(HELM_SYSTEM_RELEASE) $(HELM_SYSTEM_CHART) -n $(HELM_SYSTEM_NAMESPACE) $(HELM_SYSTEM_IMAGE_SET) $(HELM_SYSTEM_DEV_DEFAULTS) $(HELM_EXTRA_ARGS)
+	@helm template $(HELM_PLATFORM_RELEASE) $(HELM_PLATFORM_CHART) -n $(HELM_PLATFORM_NAMESPACE) $(HELM_PLATFORM_IMAGE_SET) $(HELM_EXTRA_ARGS)
 
 # --- Components ---
 #

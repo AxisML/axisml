@@ -53,41 +53,6 @@ seed:
     namespace: axisml-system
 
 # =============================================================================
-# AxisML Platform
-# =============================================================================
-platform:
-  enabled: true
-  replicaCount: 1
-
-  image:
-    # Platform service is not yet implemented; use nginx as a placeholder.
-    registry: docker.io
-    repository: library/nginx
-    tag: "1.27-alpine"
-    pullPolicy: IfNotPresent
-
-  service:
-    type: ClusterIP
-    port: 8080
-
-  ingress:
-    enabled: false
-    className: nginx
-    host: axisml.local
-    tls: []
-    annotations: {}
-
-  resources:
-    requests:
-      cpu: 100m
-      memory: 256Mi
-    limits:
-      cpu: 500m
-      memory: 512Mi
-
-  env: {}
-
-# =============================================================================
 # AxisML Compute Service
 # =============================================================================
 computeService:
@@ -328,27 +293,28 @@ computeOperator:
 # =============================================================================
 # Metadata Database (PostgreSQL)
 # =============================================================================
-# Sub-chart: oci://registry-1.docker.io/bitnamicharts/postgresql (aliased as database)
-# All values under this key are passed through to the bitnami/postgresql sub-chart.
-# Disable this and configure `externalDatabase` below to use an external instance.
+# The PostgreSQL engine is owned by the axisml-infra chart (bitnami sub-chart,
+# Service `axisml-database` in the `infraNamespace`). The system layer treats it
+# as a fixed in-cluster dependency: with `database.enabled=true`, compute-service
+# and artifact-hub connect to `<fullnameOverride>.<infraNamespace>:<port>` and
+# render their own connection Secret from `auth.password`. That password MUST
+# match `database.auth.password` in the axisml-infra chart. Set
+# `database.enabled=false` and configure `externalDatabase` to use a managed DB.
 database:
   enabled: true
+  # Service name of the PostgreSQL instance in the infra namespace.
   fullnameOverride: axisml-database
-  # Bitnami removed their free `bitnami/*` images from Docker Hub in 2025;
-  # pin the sub-chart image to the `bitnamilegacy` mirror instead.
-  image:
-    registry: docker.io
-    repository: bitnamilegacy/postgresql
-    tag: 17.2.0-debian-12-r1
+  port: 5432
   auth:
     database: axisml
     username: axisml
+    # Shared with axisml-infra's `database.auth.password`; consumed by the
+    # per-service connection Secret rendered in this namespace.
     password: axisml
-    # existingSecret: ""
-  primary:
-    persistence:
-      size: 10Gi
-      # storageClass: ""
+
+# -- Namespace hosting the axisml-infra chart (PostgreSQL, object storage, etc.).
+# Used to build the cross-namespace database DNS name.
+infraNamespace: axisml-infra
 
 # -- External database (used when database.enabled=false)
 externalDatabase:

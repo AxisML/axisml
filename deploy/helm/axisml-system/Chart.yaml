@@ -1,6 +1,6 @@
 apiVersion: v2
 name: axisml-system
-description: AxisML control plane - platform, compute-service, artifact-hub, operators, and metadata DB
+description: AxisML control plane - cluster-manager, compute-service, artifact-hub, and operators
 type: application
 version: 0.2.0
 appVersion: "0.1.0"
@@ -14,10 +14,3 @@ keywords:
 
 maintainers:
   - name: AxisML Team
-
-dependencies:
-  - name: postgresql
-    alias: database
-    version: "16.2.3"
-    repository: "oci://registry-1.docker.io/bitnamicharts"
-    condition: database.enabled

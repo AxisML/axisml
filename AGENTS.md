@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-AxisML is a Kubernetes-native monorepo made of independent Go modules. Active components live under `components/`: `tenant-operator`, `compute-operator`, `cluster-manager`, `compute-service`, and `artifact-hub`. Scaffolded Platform areas are in `components/platform/backend` and `components/platform/frontend`. Shared Go helpers are in `test/testutil`, external CRDs for tests are in `test/crds/external`, and generated OpenAPI specs are in `docs/openapi`. Helm charts are split between `deploy/helm/axisml-infra` for infrastructure and `deploy/helm/axisml-system` for AxisML control-plane services. Design documents live in `docs/system_design`; update them when behavior or contracts change.
+AxisML is a Kubernetes-native monorepo made of independent Go modules. Active components live under `components/`: `tenant-operator`, `compute-operator`, `cluster-manager`, `compute-service`, and `artifact-hub`. Scaffolded Platform areas are in `components/platform/backend` and `components/platform/frontend`. Shared Go helpers are in `test/testutil`, external CRDs for tests are in `test/crds/external`, and generated OpenAPI specs are in `docs/openapi`. Helm charts split along the Platform / System / Infra layers: `deploy/helm/axisml-infra` (third-party infrastructure + PostgreSQL), `deploy/helm/axisml-system` (control-plane services + CRDs), and `deploy/helm/axisml-platform` (user-facing entry point); install order infra → system → platform. Design documents live in `docs/system_design`; update them when behavior or contracts change.
 
 ## Build, Test, and Development Commands
 

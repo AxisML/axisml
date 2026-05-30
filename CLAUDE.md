@@ -14,8 +14,10 @@ AxisML is a Kubernetes-native ML platform. The repo is a monorepo split into:
 - `components/compute-service/` — Go service for Job/Service/ResourcePool/ResourceUnit. Partitioned by bare namespace string (no Tenant or Quota concepts).
 - `components/artifact-hub/` — Go service for the artifact registry. Partitioned by `(namespace, kind, name, version)` directly (no ArtifactRepo wrapper).
 - `components/platform/{backend,frontend}/` — scaffolded service areas with READMEs only; no code yet.
-- `deploy/helm/axisml-infra/` — third-party infrastructure chart (Envoy Gateway, RustFS, zot, Koordinator, GPU Operator, kube-prometheus-stack).
-- `deploy/helm/axisml-system/` — control-plane chart: CRDs, both operators, Cluster Manager, Compute Service, Artifact Hub, and (eventually) Platform. Includes PostgreSQL.
+- Deployment splits into three Helm charts along the Platform / System / Infra responsibility layers (install order infra → system → platform, uninstall reverse):
+  - `deploy/helm/axisml-infra/` — Infra layer: third-party infrastructure (Envoy Gateway, RustFS, zot, Koordinator, GPU Operator, kube-prometheus-stack) **plus PostgreSQL**.
+  - `deploy/helm/axisml-system/` — System layer: CRDs, both operators, Cluster Manager, Compute Service, Artifact Hub. No PostgreSQL — it consumes the infra DB cross-namespace.
+  - `deploy/helm/axisml-platform/` — Platform layer: the user-facing entry point (Platform frontend + backend). The only externally-exposed layer.
 - `docs/system_design/` — authoritative design docs (overview, tenant-operator, compute-operator, cluster-manager, compute-service, artifact-hub, infra, platform).
 - `test/` — shared test infrastructure: `setup-envtest/` binary, `testutil/` helpers, `crds/external/` vendored upstream CRDs for integration tests.
 
@@ -151,7 +153,7 @@ When you change a handler signature or DTO in one of those three components, reg
 
 ## Image tag synchronization
 
-Operator images are pulled by Helm using `Chart.appVersion` as the default tag. The top-level Makefile exports `IMAGE_TAG` from `deploy/helm/axisml-system/Chart.yaml`'s `appVersion`, overriding each component's local default. This means:
+Operator images are pulled by Helm using `Chart.appVersion` as the default tag. `deploy/helm/axisml-system/Chart.yaml`'s `appVersion` is the single version authority across all three charts: the top-level Makefile exports `IMAGE_TAG` from it and injects it into both the system and platform charts' `--set <component>.image.tag`, overriding each component's local default. (Platform still ships an nginx placeholder image, so `HELM_PLATFORM_IMAGE_SET` is intentionally empty until Platform publishes a real appVersion-tracked image.) This means:
 
 - `make image` from the repo root tags images to match what the chart will pull.
 - `make image` from inside a component dir uses the component's local default (`0.1.0`) — fine for ad-hoc testing, but `minikube image load` won't satisfy the rendered Deployment unless the tags match.
@@ -159,7 +161,9 @@ Operator images are pulled by Helm using `Chart.appVersion` as the default tag. 
 
 ## Helm: install order matters
 
-`axisml-infra` provides CRDs and components that `axisml-system` depends on (Koordinator, Envoy Gateway, etc.). Always install infra first, uninstall system first. `make helm-install` / `make helm-uninstall` enforce this ordering.
+Three charts, installed infra → system → platform (uninstall reverse). `axisml-infra` provides CRDs, components, and PostgreSQL that `axisml-system` depends on (Koordinator, Envoy Gateway, the DB, etc.); `axisml-platform` depends on the system-layer services being up (its bootstrap calls compute-service). `make helm-install` / `make helm-uninstall` enforce this ordering.
+
+PostgreSQL lives in the infra namespace, so the system services reach it cross-namespace at `axisml-database.axisml-infra:5432`. Because Secrets are namespace-scoped, each system service renders its own DB-credentials Secret from `database.auth.password` — that password must match `database.auth.password` in the infra chart (a shared input present in both values files).
 
 `make helm-install-system` runs `helm-crds-system` first, which `kubectl apply`s `deploy/helm/axisml-system/crds/` directly — Helm only installs files under `crds/` on initial install, so this picks up schema upgrades. If you add or change a CRD, the chart upgrade alone won't apply it; the make target handles this.
 

@@ -23,26 +23,28 @@ For detailed setup instructions, see [Local Development Environment Setup](docs/
 
 ### Install AxisML services
 
-AxisML ships as two Helm charts: `axisml-infra` (third-party infrastructure) and
-`axisml-system` (control plane + metadata DB). Install infra first.
+AxisML ships as three Helm charts along the Platform / System / Infra layers:
+`axisml-infra` (third-party infrastructure + metadata DB), `axisml-system`
+(control-plane services + CRDs), and `axisml-platform` (user-facing entry point).
+Install order is infra → system → platform.
 
 ```bash
-# Install both (infra then system)
+# Install all three (infra → system → platform)
 make helm-install
 
 # Or install/upgrade one layer at a time
-make helm-install-infra    # also: helm-install-system / helm-upgrade-infra / helm-upgrade-system
+make helm-install-infra    # also: helm-install-system / helm-install-platform / helm-upgrade-*
 
-# Render both charts locally (dry run)
+# Render all charts locally (dry run)
 make helm-template
 
-# Uninstall (system first, then infra)
+# Uninstall (platform → system → infra)
 make helm-uninstall
 ```
 
 ## Components
 
-AxisML is a monorepo split into independent Go modules, deployed together via the `axisml-system` Helm chart. The system is organized into three layers: a **cluster-vocabulary layer** (admin's K8s write abstraction), a **tenant + workload layer** (business authority in PG, derived CRs), and a **view layer** (the user-facing entry point).
+AxisML is a monorepo split into independent Go modules. The business model is organized into three conceptual layers: a **cluster-vocabulary layer** (admin's K8s write abstraction), a **tenant + workload layer** (business authority in PG, derived CRs), and a **view layer** (the user-facing entry point). Deployment mirrors this with three Helm charts (`axisml-infra` / `axisml-system` / `axisml-platform`): the view layer ships in `axisml-platform`, the cluster-vocabulary and tenant + workload services in `axisml-system`.
 
 **Cluster-vocabulary layer**
 - **[cluster-manager](docs/system_design/components/cluster-manager.md)** — stateless REST shell over the cluster-scoped `ResourcePool` CRD (with inline `spec.units[]`). Collapses admin's Kubernetes write operations (pool CRUD, unit add/remove) into a stable REST contract. No PG, no reconciler, no leader election; Kubernetes etcd is the source of truth, and compute-service consumes the CRD directly via an Informer.
@@ -56,7 +58,7 @@ AxisML is a monorepo split into independent Go modules, deployed together via th
 **View layer**
 - **[platform](docs/system_design/components/platform.md)** — Go backend (BFF) + React frontend. The only externally exposed entry point; holds the user → tenant-view mapping and orchestrates calls to cluster-manager / compute-service / artifact-hub, passing user identity via the `X-Axisml-User` header. Currently a scaffold.
 
-**Infrastructure** (separate `axisml-infra` chart): Envoy Gateway, RustFS, zot, Koordinator (ElasticQuota + koord-scheduler), GPU Operator, kube-prometheus-stack. See [infra design](docs/system_design/infra.md).
+**Infrastructure** (separate `axisml-infra` chart): Envoy Gateway, RustFS, zot, Koordinator (ElasticQuota + koord-scheduler), GPU Operator, kube-prometheus-stack, and PostgreSQL (the metadata DB). See [infra design](docs/system_design/infra.md).
 
 See the [System Design Overview](docs/system_design/overview.md) for how these fit together.
 
