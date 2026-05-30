@@ -19,7 +19,7 @@
 | Cluster Manager | `/metrics` `:8081` | `deploy/helm/axisml-system/templates/cluster-manager/servicemonitor.yaml` |
 | Compute Service | `/metrics` `:8081` | `deploy/helm/axisml-system/templates/compute-service/servicemonitor.yaml` |
 | Artifact Hub | `/metrics` `:8081` | `deploy/helm/axisml-system/templates/artifact-hub/servicemonitor.yaml` |
-| Platform Backend | `/metrics` `:8081` | `deploy/helm/axisml-system/templates/platform/servicemonitor.yaml` |
+| Platform Backend | `/metrics` `:8081` | `deploy/helm/axisml-platform/templates/servicemonitor.yaml` |
 | tenant-operator | `/metrics` `:8081` | `deploy/helm/axisml-system/templates/tenant-operator/servicemonitor.yaml` |
 | compute-operator | `/metrics` `:8081` | `deploy/helm/axisml-system/templates/compute-operator/servicemonitor.yaml` |
 

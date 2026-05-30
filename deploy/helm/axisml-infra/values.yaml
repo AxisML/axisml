@@ -158,3 +158,33 @@ kube-prometheus-stack:
     fullnameOverride: kube-state-metrics
   prometheus-node-exporter:
     fullnameOverride: node-exporter
+
+# =============================================================================
+# Metadata Database (PostgreSQL)
+# =============================================================================
+# Sub-chart: oci://registry-1.docker.io/bitnamicharts/postgresql (aliased as database)
+# All values under this key are passed through to the bitnami/postgresql sub-chart.
+# The system-layer services (compute-service, artifact-hub) reach this instance
+# cross-namespace at `axisml-database.axisml-infra.svc.cluster.local:5432`; the
+# `auth.password` set here MUST match `database.auth.password` in the axisml-system
+# chart, which renders its own connection Secret from that shared value. Disable
+# this and point the system chart's `externalDatabase` block at a managed instance
+# to use an external database.
+database:
+  enabled: true
+  fullnameOverride: axisml-database
+  # Bitnami removed their free `bitnami/*` images from Docker Hub in 2025;
+  # pin the sub-chart image to the `bitnamilegacy` mirror instead.
+  image:
+    registry: docker.io
+    repository: bitnamilegacy/postgresql
+    tag: 17.2.0-debian-12-r1
+  auth:
+    database: axisml
+    username: axisml
+    password: axisml
+    # existingSecret: ""
+  primary:
+    persistence:
+      size: 10Gi
+      # storageClass: ""

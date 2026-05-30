@@ -14,7 +14,7 @@ AxisML Infra 是平台的基础设施层，由一组开源组件组成，为承�
 | 6 | 调度与配额 | Koordinator | koord-scheduler 接管接入工作负载；ElasticQuota 多租户配额；PodGroup gang scheduling |
 | 7 | 监控 | kube-prometheus-stack | 集群与业务可观测性 |
 
-部署上 Infra 拆为两个 Helm chart：第三方组件（1、2、3、5、6、7）由 `axisml-infra` 统一管理，元数据数据库（4）随控制平面 chart `axisml-system` 管理（详见 [deployment.md](deployment.md)）。
+部署上全部 7 个第三方组件（含元数据数据库 PostgreSQL）由 Infra 层 chart `axisml-infra` 统一管理（详见 [deployment.md](deployment.md)）。
 
 ## 2. 职责与边界
 
@@ -165,7 +165,7 @@ repo 路径命名、租户隔离、scope token 的具体形态全部由调用方
 
 ### 4.4 数据库（PostgreSQL）
 
-PostgreSQL 是元数据持久化存储。归属 `axisml-system` 控制平面 chart——数据库的生命周期、迁移、备份与控制面服务紧密耦合，与控制面同 namespace 可共享 Secret、ServiceMonitor，减少跨 chart 引用。
+PostgreSQL 是元数据持久化存储。作为第三方依赖归属 Infra 层 chart `axisml-infra`，与 RustFS/zot 同性质，部署在 `axisml-infra` namespace（Service `axisml-database`）。System 层服务把它当外部库消费：经跨 namespace FQDN `axisml-database.axisml-infra:5432` 连接，连接凭据由 System 层从共享 `database.auth.password` 在本 namespace 自渲染为 Secret（Secret 不跨 namespace 引用）。
 
 #### 4.4.1 部署模式
 
@@ -174,7 +174,7 @@ PostgreSQL 是元数据持久化存储。归属 `axisml-system` 控制平面 cha
 | 内置模式 | bitnami/postgresql 子 chart（StatefulSet + PVC） | 开发、测试、轻量生产 |
 | 外部模式 | 对接外部 PostgreSQL 实例（自建 / RDS） | 中大型生产 |
 
-由 `database.enabled` 开关切换；外部模式通过 `externalDatabase.{host,port,database,username,existingSecret}` 配置。各调用方通过独立 schema 或独立 database 逻辑隔离；schema 迁移由各调用方二进制内嵌 `golang-migrate` 在启动时执行，依赖 PG advisory lock 避免多副本并发迁移。Schema 细节详见 [database.md](database.md)。
+由 Infra 层 `database.enabled` 开关切换内置/关闭；外部模式下 System 层 `database.enabled=false` 并通过 `externalDatabase.{host,port,database,username,existingSecret}` 指向托管实例。各调用方通过独立 schema 或独立 database 逻辑隔离；schema 迁移由各调用方二进制内嵌 `golang-migrate` 在启动时执行，依赖 PG advisory lock 避免多副本并发迁移。Schema 细节详见 [database.md](database.md)。
 
 ### 4.5 GPU 管理（NVIDIA GPU Operator）
 
@@ -280,10 +280,10 @@ PostgreSQL 是元数据持久化存储。归属 `axisml-system` 控制平面 cha
 | OCI Registry | zot | OCI Distribution v2 + 1.1 artifact manifest 原生支持，对非容器制品的 `artifactType` 语义完整；CNCF Sandbox、单二进制 Go 实现、可选 S3 后端 |
 | 制品分流 | OCI（zot）走不可变内容寻址类制品，S3（RustFS）走目录型 / 多文件类制品 | OCI 的 artifact manifest + 内容寻址契合不可变引用语义；S3 的整目录上传 / 流式访问契合"前缀寻址 + 多文件"语义 |
 | 数据库 | bitnami/postgresql 子 chart | 复用成熟 chart，避免自写 StatefulSet 模板；`externalDatabase` 段保留用于生产外接 RDS |
-| 数据库归属 | 纳入 `axisml-system` 控制平面 chart | 数据库的生命周期、迁移、备份和控制面服务紧密耦合；同 namespace 可共享 Secret、ServiceMonitor，减少跨 chart 引用 |
+| 数据库归属 | 纳入 `axisml-infra` Infra 层 chart | 沿"Infra 层 = 100% 第三方"边界，与 RustFS/zot 同性质；System 层把它当外部库消费，连接凭据用投影 Secret 解决跨 namespace 引用 |
 | GPU 管理 | NVIDIA GPU Operator | Kubernetes 原生 GPU 管理事实标准；DCGM Exporter 与监控栈天然集成 |
 | 调度与配额 | Koordinator | sigs.k8s.io scheduler-plugins ElasticQuota 提供 namespace-scoped `min` / `max` 多租户配额模型，PodGroup 提供 Gang Scheduling，二者由统一 koord-scheduler 承载；与 kube-scheduler 按 `schedulerName` 共存，零副作用 |
 | 配额 CR 表达 | 不引入 Koordinator 私有 annotation，保持与上游 scheduler-plugins ElasticQuota 字段一一对应 | 避免锁定 Koordinator 私有扩展，将来切换或 mirror 上游 scheduler-plugins 的成本最小 |
 | Quota 全覆盖 | 任何接入工作负载 Pod 强制走 koord-scheduler | 避免"绕过 quota 的调度路径"；不支持 `schedulerName` 透传的第三方 controller 不应接入 |
 | 监控 | kube-prometheus-stack | Kubernetes 生态事实标准；ServiceMonitor 自动发现免维护；与 GPU Operator 的 DCGM Exporter 开箱即用 |
-| Chart 拆分 | `axisml-infra` / `axisml-system` 两个 chart | 基础设施和控制平面发版节奏、回滚粒度不同；infra 可共享给多套 axisml-system 实例 |
+| Chart 拆分 | `axisml-infra` / `axisml-system` / `axisml-platform` 三个 chart，对齐 Platform / System / Infra 职责分层 | 用户面、自研控制面、第三方基础设施三者发版节奏、回滚粒度、对外暴露面各不相同；infra 可共享给多套实例 |

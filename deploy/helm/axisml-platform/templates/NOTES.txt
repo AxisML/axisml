@@ -1,0 +1,18 @@
+AxisML Platform has been installed successfully!
+
+{{- if .Values.platform.enabled }}
+  - ML Platform:  {{ include "axisml.fullname" . }}-platform:{{ .Values.platform.service.port }}
+{{- end }}
+
+Downstream system-layer services (namespace: {{ .Values.system.namespace }}):
+  - Compute Service: {{ .Values.system.computeService.name }}.{{ .Values.system.namespace }}:{{ .Values.system.computeService.port }}
+  - Artifact Hub:    {{ .Values.system.artifactHub.name }}.{{ .Values.system.namespace }}:{{ .Values.system.artifactHub.port }}
+
+{{- if .Values.platform.ingress.enabled }}
+
+Access the platform at: http://{{ .Values.platform.ingress.host }}
+{{- else }}
+
+To access the platform, run:
+  kubectl port-forward svc/{{ include "axisml.fullname" . }}-platform {{ .Values.platform.service.port }}:{{ .Values.platform.service.port }} -n {{ .Release.Namespace }}
+{{- end }}

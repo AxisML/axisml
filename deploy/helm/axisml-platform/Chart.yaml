@@ -1,0 +1,15 @@
+apiVersion: v2
+name: axisml-platform
+description: AxisML platform layer - user-facing entry point, business orchestration, tenant view
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+
+keywords:
+  - machine-learning
+  - kubernetes
+  - mlops
+  - platform
+
+maintainers:
+  - name: AxisML Team

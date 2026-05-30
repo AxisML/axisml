@@ -2,6 +2,8 @@
 
 本文档汇总 AxisML 控制平面所有持久化在 PostgreSQL 中的表 schema。所有控制面服务共用同一个 database `axisml`，按表名前缀逻辑隔离；schema 迁移由各服务二进制内嵌 `golang-migrate` 在启动时执行。Postgres 部署形态见 [infra.md §4.4](infra.md#44-数据库postgresql)；系统级位置见 [overview.md](overview.md)。
 
+**连接契约**：PostgreSQL 引擎归 Infra 层（`axisml-infra` chart，Service `axisml-database`）。System 层服务（compute-service / artifact-hub）经跨 namespace FQDN `axisml-database.axisml-infra:5432` 连接；连接凭据由 System 层从与 Infra 层同值的 `database.auth.password` 在本 namespace 自渲染为 Secret——Secret 为 namespace-scoped 不跨 namespace 引用，故密码作为两 chart 的共享输入各出现一次（生产环境两边指向同一外部托管实例 / 凭据）。Platform 层不直连 DB。
+
 | 服务 | 表 | 用途 |
 | --- | --- | --- |
 | [compute-service](components/compute-service.md) | `tenants` | 租户 / 配额 / namespace spec（写路径权威） |

@@ -6,7 +6,7 @@ Chart name, truncated to 63 chars.
 {{- end }}
 
 {{/*
-Fullname: defaults to the release name (expected to be `axisml`).
+Fullname: defaults to the release name (expected to be `axisml-platform`).
 */}}
 {{- define "axisml.fullname" -}}
 {{- .Values.fullnameOverride | default .Release.Name | trunc 63 | trimSuffix "-" }}
@@ -64,59 +64,4 @@ Usage: include "axisml.image" (dict "imageRoot" .Values.platform.image "global" 
 {{- else -}}
 {{- printf "%s:%s" .imageRoot.repository $tag -}}
 {{- end -}}
-{{- end }}
-
-{{/*
-Database host helper. The PostgreSQL engine lives in the axisml-infra chart, so
-the in-cluster path is the cross-namespace FQDN `<name>.<infraNamespace>`.
-*/}}
-{{- define "axisml.databaseHost" -}}
-{{- if .Values.database.enabled -}}
-{{- printf "%s.%s" (.Values.database.fullnameOverride | default "axisml-database") .Values.infraNamespace -}}
-{{- else -}}
-{{- .Values.externalDatabase.host -}}
-{{- end -}}
-{{- end }}
-
-{{/*
-Database port helper.
-*/}}
-{{- define "axisml.databasePort" -}}
-{{- if .Values.database.enabled -}}
-{{- .Values.database.port | default 5432 -}}
-{{- else -}}
-{{- .Values.externalDatabase.port | default 5432 -}}
-{{- end -}}
-{{- end }}
-
-{{/*
-wait-for-database initContainer. Polls TCP reachability of the database
-Service until it accepts connections; the bitnami/postgresql sub-chart's
-pg_isready readiness probe gates Service endpoints, so a successful TCP
-connect implies the DB is ready to accept queries.
-
-Without this gate, the compute-service Deployment + bootstrap post-install Job
-crash-loop while the DB is still starting (image pull + initdb on a
-fresh PVC), and the bootstrap Job exhausts its backoffLimit before the
-DB ever becomes reachable. Caller passes the chart context as `.`.
-*/}}
-{{- define "axisml.waitForDatabase" -}}
-- name: wait-for-database
-  image: busybox:1.36.1
-  imagePullPolicy: IfNotPresent
-  env:
-    - name: DATABASE_HOST
-      value: {{ include "axisml.databaseHost" . | quote }}
-    - name: DATABASE_PORT
-      value: {{ include "axisml.databasePort" . | quote }}
-  command:
-    - sh
-    - -c
-    - |
-      echo "wait-for-database: $DATABASE_HOST:$DATABASE_PORT"
-      until nc -z "$DATABASE_HOST" "$DATABASE_PORT"; do
-        echo "wait-for-database: still unavailable; sleeping 2s"
-        sleep 2
-      done
-      echo "wait-for-database: $DATABASE_HOST:$DATABASE_PORT is reachable"
 {{- end }}

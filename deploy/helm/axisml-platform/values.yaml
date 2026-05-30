@@ -1,0 +1,63 @@
+# -- Global settings shared across all components
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: ""
+
+nameOverride: ""
+fullnameOverride: ""
+
+# -- Common labels applied to all resources
+commonLabels: {}
+commonAnnotations: {}
+
+# =============================================================================
+# Downstream system-layer services
+# =============================================================================
+# Platform is the only externally-reachable layer; it orchestrates the
+# system-layer domain services over cluster-internal DNS. Those services live
+# in their own namespace (default `axisml-system`, release `axisml`), so the
+# URLs are fully-qualified `<service>.<namespace>` rather than bare names.
+system:
+  namespace: axisml-system
+  computeService:
+    name: axisml-compute-service
+    port: 8081
+  artifactHub:
+    name: axisml-artifact-hub
+    port: 8082
+
+# =============================================================================
+# AxisML Platform
+# =============================================================================
+platform:
+  enabled: true
+  replicaCount: 1
+
+  image:
+    # Platform service is not yet implemented; use nginx as a placeholder.
+    registry: docker.io
+    repository: library/nginx
+    tag: "1.27-alpine"
+    pullPolicy: IfNotPresent
+
+  service:
+    type: ClusterIP
+    port: 8080
+
+  ingress:
+    enabled: false
+    className: nginx
+    host: axisml.local
+    tls: []
+    annotations: {}
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  env: {}

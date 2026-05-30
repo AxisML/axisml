@@ -1,9 +1,6 @@
 AxisML has been installed successfully!
 
 Components deployed:
-{{- if .Values.platform.enabled }}
-  - ML Platform:  {{ include "axisml.fullname" . }}-platform:{{ .Values.platform.service.port }}
-{{- end }}
 {{- if .Values.clusterManager.enabled }}
   - Cluster Mgr:  {{ include "axisml.fullname" . }}-cluster-manager:{{ .Values.clusterManager.service.port }}
 {{- end }}
@@ -30,11 +27,5 @@ Components deployed:
   - Database:     {{ include "axisml.databaseHost" . }}:{{ include "axisml.databasePort" . }}
 {{- end }}
 
-{{- if .Values.platform.ingress.enabled }}
-
-Access the platform at: http://{{ .Values.platform.ingress.host }}
-{{- else }}
-
-To access the platform, run:
-  kubectl port-forward svc/{{ include "axisml.fullname" . }}-platform {{ .Values.platform.service.port }}:{{ .Values.platform.service.port }} -n {{ .Release.Namespace }}
-{{- end }}
+The system layer serves only internal callers (Platform). Install the
+axisml-platform chart for the user-facing entry point.

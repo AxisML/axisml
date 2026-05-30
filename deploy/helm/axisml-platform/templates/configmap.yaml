@@ -6,8 +6,8 @@ metadata:
   labels:
     {{- include "axisml.componentLabels" (dict "context" . "component" "platform") | nindent 4 }}
 data:
-  ML_COMPUTE_URL: "http://compute-service:{{ .Values.computeService.service.port }}"
-  ML_ARTIFACTS_URL: "http://artifact-hub:{{ .Values.artifactHub.service.port }}"
+  ML_COMPUTE_URL: "http://{{ .Values.system.computeService.name }}.{{ .Values.system.namespace }}:{{ .Values.system.computeService.port }}"
+  ML_ARTIFACTS_URL: "http://{{ .Values.system.artifactHub.name }}.{{ .Values.system.namespace }}:{{ .Values.system.artifactHub.port }}"
   {{- range $key, $value := .Values.platform.env }}
   {{ $key }}: {{ $value | quote }}
   {{- end }}

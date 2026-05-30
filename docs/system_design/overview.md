@@ -60,59 +60,48 @@
 
 ## 4. 整体架构
 
-```
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                                External Users                                │
-└──────────────────────────────────────┬───────────────────────────────────────┘
-                                       │
-                                       ▼
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                         AxisML Infra: Envoy Gateway                          │
-│                     路由 / 认证接入 / 流量控制 / MLService 路由                 │
-└──────────────────────────────────────┬───────────────────────────────────────┘
-                                       │
-                                       ▼
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                              AxisML Platform                                 │
-│            Frontend (React) + Backend (Go) / 用户入口 / 业务编排               │
-│            持有"租户视图 ↔ (compute_ns, artifacts_ns)" 映射                  │
-│            创建 Job / Service 时仅向 compute 传 pool/unit 名字                │
-└──────┬─────────────────────┬────────────────────────┬────────────────────────┘
-       │                     │                        │
-       ▼                     ▼                        ▼
-┌─────────────────┐  ┌─────────────────────┐  ┌─────────────────────────────┐
-│ Cluster Manager │  │ AxisML Compute Service │  │   AxisML Artifact Hub        │
-│ (Go, K8s REST)  │  │ (Go, namespace 分区)   │  │  (Go, namespace 分区)        │
-│ ResourcePool CR │  │  Tenant / Quota /   │  │  Artifact 元数据            │
-│ (含内嵌 units)  │  │  Job / Service      │  │  model,image -> zot          │
-│ admin 域 REST   │  │  → Tenant /         │  │  dataset -> RustFS           │
-│                 │  │    MLJob / MLService │  │                              │
-└─────────────────┘  └─────────┬──────────┘  └─────────────┬───────────────┘
-                               │                           │
-                               ▼                           ▼
-                     ┌────────────────────┐  ┌─────────────────────────────┐
-                     │ tenant-operator    │  │       Metadata DB            │
-                     │ Tenant CR          │  │       PostgreSQL             │
-                     │ → Namespace /      │  └─────────────────────────────┘
-                     │   ElasticQuota /   │
-                     │   Secret / CM /    │
-                     │   SA / RBAC        │
-                     └─┬──────────────────┘
-                       │
-                     ┌─┴──────────────────┐
-                     │ compute-operator   │
-                     │ MLJob / MLService  │
-                     │ → backend handler  │
-                     │ → K8s 资源         │
-                     └─────────┬──────────┘
-                               │
-                               ▼
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                              Kubernetes Cluster                              │
-│  Workloads / Tenant Resources / ElasticQuota / PodGroup / HTTPRoute          │
-└──────────────────────────────────────────────────────────────────────────────┘
+系统沿职责划分为三层：**Platform 层**（用户面，唯一对外）、**System 层**（控制面，自研领域能力，不对外）、**Infra 层**（第三方基础设施）。三层各自独立部署为一个 Helm chart（见 [deployment.md](deployment.md)）。
 
-AxisML Infra 还提供：RustFS、zot、Koordinator、NVIDIA GPU Operator、kube-prometheus-stack。
+```
+                                External Users
+                                       │
+                  外部流量 → Envoy Gateway(Infra 层) → Platform
+                                       ▼
+┌──────────────────────────  Platform 层（用户面 · 唯一对外）  ──────────────────────┐
+│  AxisML Platform — Frontend (React) + Backend (Go)                              │
+│  用户入口 / 认证 / 业务编排；持有"租户视图 ↔ (compute_ns, artifacts_ns)"映射        │
+│  创建 Job / Service 时仅向 compute 传 pool/unit 名字                              │
+└──────┬───────────────────────────┬────────────────────────────┬─────────────────┘
+       │                           │                            │  内部调用（信任 X-Axisml-User）
+       ▼                           ▼                            ▼
+┌──────────────────────  System 层（控制面 · 自研领域能力 · 不对外）  ──────────────────┐
+│  ┌─────────────────┐  ┌────────────────────┐  ┌─────────────────────────────┐    │
+│  │ Cluster Manager │  │ Compute Service     │  │  Artifact Hub                │    │
+│  │ (Go, K8s REST)  │  │ (Go, namespace 分区)│  │  (Go, namespace 分区)        │    │
+│  │ ResourcePool CR │  │ Tenant / Quota /    │  │  Artifact 元数据             │    │
+│  │ (含内嵌 units)  │  │ Job / Service       │  │  model,image -> zot          │    │
+│  │ admin 域 REST   │  │ → Tenant/MLJob/...   │  │  dataset -> RustFS           │    │
+│  └─────────────────┘  └─────────┬──────────┘  └──────────────────────────────┘    │
+│  ┌────────────────────┐  ┌──────┴─────────────┐                                   │
+│  │ tenant-operator    │  │ compute-operator   │                                   │
+│  │ Tenant CR →        │  │ MLJob/MLService →   │  CRDs 随本层一同发布               │
+│  │ Namespace/Quota/   │  │ backend handler →   │                                   │
+│  │ Secret/CM/SA/RBAC  │  │ K8s 资源            │                                   │
+│  └─────────┬──────────┘  └─────────┬──────────┘                                   │
+└────────────┼───────────────────────┼─────────────────────────────────────────────┘
+             │ 元数据 / 存储          │ schedulerName: koord-scheduler
+             ▼                       ▼
+┌────────────────────────  Infra 层（第三方基础设施）  ──────────────────────────────┐
+│  Envoy Gateway（对外入口路由 → Platform）   Koordinator（koord-scheduler + Quota）  │
+│  PostgreSQL（元数据库）   zot（OCI: model/image）   RustFS（S3: dataset）            │
+│  NVIDIA GPU Operator   kube-prometheus-stack                                      │
+└──────────────────────────────────────┬───────────────────────────────────────────┘
+                                       │ 所有 workload Pod 经 koord-scheduler 落到
+                                       ▼
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│                              Kubernetes Cluster                                   │
+│  Workloads / Tenant Resources / ElasticQuota / PodGroup / HTTPRoute               │
+└──────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 核心调用关系：
@@ -155,7 +144,7 @@ AxisML Infra 还提供：RustFS、zot、Koordinator、NVIDIA GPU Operator、kube
 
 ## 7. 部署架构
 
-详见 [deployment.md](deployment.md)。AxisML 通过 `axisml-infra`（第三方基础设施）与 `axisml-system`（控制平面 + 元数据数据库）两个 Helm chart 分层部署，安装顺序 infra → system。
+详见 [deployment.md](deployment.md)。AxisML 按三层各部署为一个 Helm chart：`axisml-infra`（Infra 层：第三方基础设施 + PostgreSQL）、`axisml-system`（System 层：自研控制面 + CRDs）、`axisml-platform`（Platform 层：用户面）。安装顺序 infra → system → platform，卸载反向。
 
 ## 8. 项目结构
 
@@ -174,8 +163,9 @@ axisml/
 │   └── artifact-hub/             # AxisML Artifact Hub（Go）
 ├── deploy/
 │   └── helm/
-│       ├── axisml-infra/         # 基础设施 Chart
-│       └── axisml-system/        # 控制平面 Chart + CRDs + 数据库依赖
+│       ├── axisml-infra/         # Infra 层 Chart：第三方基础设施 + PostgreSQL
+│       ├── axisml-system/        # System 层 Chart：自研控制面 + CRDs
+│       └── axisml-platform/      # Platform 层 Chart：用户面（前端 + 后端）
 ├── docs/
 │   ├── development/
 │   └── system_design/
@@ -189,8 +179,9 @@ axisml/
 | 目录 | 说明 |
 | --- | --- |
 | `components/` | 各组件代码目录（Platform / Cluster Manager / Compute / Tenant Operator / Compute Operator / Artifacts） |
-| `deploy/helm/axisml-infra/` | 基础设施 Helm chart |
-| `deploy/helm/axisml-system/` | 控制平面 Helm chart，承载 Platform、Cluster Manager、Compute、Artifacts、tenant-operator、compute-operator、CRDs 与数据库依赖 |
+| `deploy/helm/axisml-infra/` | Infra 层 Helm chart：第三方基础设施（Envoy / zot / RustFS / Koordinator / GPU Operator / kube-prometheus-stack）+ PostgreSQL |
+| `deploy/helm/axisml-system/` | System 层 Helm chart：Cluster Manager、Compute、Artifacts、tenant-operator、compute-operator 与 CRDs |
+| `deploy/helm/axisml-platform/` | Platform 层 Helm chart：用户面（Frontend + Backend） |
 | `docs/system_design/` | 系统设计文档 |
 | `docs/development/` | 本地开发与环境说明 |
 | `scripts/` | 本地集群、安装、调试等脚本 |
@@ -210,7 +201,7 @@ axisml/
 | 制品抽象 | Artifact 直接以 `(namespace, kind, name, version)` 四元组寻址，无"仓库"两级空间 | 与 Compute 分区模型对齐，统一为裸 namespace |
 | 制品元数据存储 | PostgreSQL | 关系型 + 事务 + 生态成熟 |
 | 制品文件存储 | model / image 走 zot，dataset 走 RustFS | OCI 适合不可变模型 / 镜像引用，S3 适合目录型多文件数据集 |
-| 部署分层 | `axisml-infra` / `axisml-system` 两个 Helm chart | 基础设施与控制平面发版节奏、回滚粒度不同 |
+| 部署分层 | `axisml-infra` / `axisml-system` / `axisml-platform` 三个 Helm chart，对齐 Platform / System / Infra 职责分层 | 用户面、自研控制面、第三方基础设施三者发版节奏、回滚粒度、对外暴露面各不相同；PostgreSQL 作为第三方依赖归 infra |
 | 后端语言 | Go | 云原生生态契合，Operator 开发原生支持 |
 | 前端框架 | TypeScript + React | 社区生态成熟，组件丰富 |
 | 系统管理归属 | 租户与配额归 compute；资源池、资源单元归 cluster-manager | compute 持有"租户 ↔ K8s namespace"映射后可独立解析 namespace；pool/unit 是集群级 admin 词汇，与租户生命周期解耦 |
