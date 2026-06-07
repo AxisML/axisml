@@ -323,6 +323,21 @@ $(ENVTEST):
 integration-test: setup-envtest ## Integration tests across every component (hermetic, CI-friendly)
 	@$(call _RUN_INTEGRATION_COMPONENTS,integration)
 
+.PHONY: e2e-test e2e-clean
+
+# E2E: real-cluster system-layer tests. NOT hermetic and NOT part of CI — it
+# assumes the `axisml` minikube cluster is up with infra + system installed
+# (`make cluster-up && make helm-install`) and that the workload images are
+# preloaded (`minikube image load busybox:latest`, `... nginx:1.27`). The suite
+# reaches the in-cluster HTTP services via `kubectl port-forward`.
+# See test/e2e/README.md.
+e2e-test: ## End-to-end tests against the running axisml minikube cluster (manual)
+	@cd test/e2e && go test -tags=e2e -count=1 -timeout=30m -v ./...
+
+# Remove the shared e2e tenant left behind by an interrupted run (E2E_KEEP_TENANT).
+e2e-clean: ## Delete the shared e2e tenant namespace
+	@kubectl --context $(MINIKUBE_PROFILE) delete tenant e2e --ignore-not-found
+
 ##@ Coverage
 #
 # Each component's Makefile produces coverage profiles under <component>/coverage/:
