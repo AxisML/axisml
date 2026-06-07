@@ -9,6 +9,11 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	tenantv1 "github.com/axisml/axisml/components/tenant-operator/api/v1alpha1"
 )
 
 // TestMain wires up the process-wide harness: a K8s client against the ambient
@@ -74,15 +79,19 @@ func ensureSharedTenant(ctx context.Context) error {
 		return lastErr
 	}
 
-	// Wait for the namespace to actually materialize (tenant-operator).
+	// Wait for the namespace AND its ElasticQuota to materialize. Workload
+	// tests resolve the quota immediately, so racing on just the namespace would
+	// flake.
 	deadline = time.Now().Add(cfg.CRProvisionTimeout)
 	for time.Now().Before(deadline) {
 		if err := h.namespaceExists(ctx, cfg.SharedNamespace); err == nil {
-			return nil
+			if names, qerr := elasticQuotaNames(ctx, cfg.SharedNamespace); qerr == nil && len(names) > 0 {
+				return nil
+			}
 		}
 		time.Sleep(cfg.PollInterval)
 	}
-	return fmt.Errorf("shared namespace %q not provisioned within %s", cfg.SharedNamespace, cfg.CRProvisionTimeout)
+	return fmt.Errorf("shared tenant %q namespace/quota not provisioned within %s", cfg.SharedTenant, cfg.CRProvisionTimeout)
 }
 
 // cleanupSharedTenant best-effort removes the shared tenant at the end of the
@@ -92,9 +101,14 @@ func cleanupSharedTenant(ctx context.Context) {
 	if os.Getenv("E2E_KEEP_TENANT") != "" {
 		return
 	}
-	if _, err := h.deleteTenant(ctx, h.cfg.SharedTenant); err != nil {
-		fmt.Fprintf(os.Stderr, "e2e: shared tenant cleanup: %v\n", err)
-	}
+	// Soft-delete via the API (keeps compute-service's view consistent)...
+	_, _ = h.deleteTenant(ctx, h.cfg.SharedTenant)
+	// ...then hard-remove the CR + namespace via the admin client so the next
+	// run starts clean (the operator never deletes the namespace itself).
+	ten := &tenantv1.Tenant{ObjectMeta: metav1.ObjectMeta{Name: h.cfg.SharedTenant}}
+	_ = h.k8s.Delete(ctx, ten)
+	nsObj := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: h.cfg.SharedNamespace}}
+	_ = h.k8s.Delete(ctx, nsObj)
 }
 
 // sharedNS returns the namespace of the shared test tenant.

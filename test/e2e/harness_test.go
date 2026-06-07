@@ -11,6 +11,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"os"
 	"os/exec"
 	"regexp"
 	"testing"
@@ -70,9 +71,16 @@ func buildScheme() *runtime.Scheme {
 // TestMain after a readiness gate so failures are reported clearly.
 func newSuite() (*suite, error) {
 	cfg := loadConfig()
-	if cfg.SharedNamespace == "" {
-		cfg.SharedNamespace = envOr("E2E_SHARED_NAMESPACE", cfg.SharedTenant)
+	// Give the shared tenant a per-run-unique name unless explicitly pinned.
+	// compute-service soft-deletes tenants, so reusing a fixed name across runs
+	// collides (409 on re-create, leaving no CR/quota). A unique name sidesteps
+	// that; cleanup hard-removes the CR + namespace via the admin client.
+	if v := os.Getenv("E2E_SHARED_TENANT"); v != "" {
+		cfg.SharedTenant = v
+	} else {
+		cfg.SharedTenant = fmt.Sprintf("e2e-%d", time.Now().Unix()%1000000)
 	}
+	cfg.SharedNamespace = envOr("E2E_SHARED_NAMESPACE", cfg.SharedTenant)
 	s := &suite{cfg: cfg, scheme: buildScheme()}
 
 	restCfg, err := ctrlconfig.GetConfig()

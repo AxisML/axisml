@@ -32,7 +32,13 @@ func uniqueName(prefix string) string {
 // resource quantity strings (e.g. "1", "2Gi").
 func buildTenant(name, namespace, pool, cpu, mem string) *tenantv1.Tenant {
 	return &tenantv1.Tenant{
-		ObjectMeta: metav1.ObjectMeta{Name: name},
+		// The operator requires a non-empty tenant-id label (its orphan-detection
+		// anchor); compute-service stamps a UUID here. The name is unique enough
+		// for tests.
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   name,
+			Labels: map[string]string{tenantv1.LabelTenantID: name},
+		},
 		Spec: tenantv1.TenantSpec{
 			Namespace: tenantv1.NamespaceSpec{Name: namespace},
 			Quotas: []tenantv1.QuotaSpec{{
@@ -59,16 +65,13 @@ func createTenantCR(t *testing.T, ctx context.Context, ten *tenantv1.Tenant) {
 	}
 	require(h.k8s.Create(ctx, ten), "create Tenant")
 	t.Cleanup(func() {
-		cl := ten.DeepCopy()
-		_ = h.k8s.Delete(context.Background(), cl)
-		// Best-effort wait for the namespace to be GC'd so re-runs are clean.
-		deadline := time.Now().Add(h.cfg.CRProvisionTimeout)
-		for time.Now().Before(deadline) {
-			if err := h.namespaceExists(context.Background(), ten.Spec.Namespace.Name); isNotFound(err) {
-				return
-			}
-			time.Sleep(h.cfg.PollInterval)
-		}
+		bg := context.Background()
+		_ = h.k8s.Delete(bg, ten.DeepCopy())
+		// The operator intentionally never deletes the tenant namespace (design
+		// §6.1: "never delete, no ownerReference"), so the test runner (admin
+		// kubeconfig) removes it to keep re-runs clean. Best-effort, no wait.
+		ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ten.Spec.Namespace.Name}}
+		_ = h.k8s.Delete(bg, ns)
 	})
 }
 

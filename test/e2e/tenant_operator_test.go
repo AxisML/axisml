@@ -4,12 +4,16 @@ package e2e
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	tenantv1 "github.com/axisml/axisml/components/tenant-operator/api/v1alpha1"
 )
@@ -23,6 +27,22 @@ func TestTenant_Provisioning(t *testing.T) {
 	name := uniqueName("e2e-l1")
 	ns := name
 	ten := buildTenant(name, ns, h.cfg.DefaultPool, "2", "4Gi")
+	// The operator only provisions RBAC/SA/Secret/ConfigMap when the Tenant spec
+	// requests them via InitResources (a bare tenant gets just namespace +
+	// ElasticQuota). Request a ServiceAccount with RBAC so the operator also
+	// creates a Role + RoleBinding, which we assert below.
+	ten.Spec.InitResources = tenantv1.InitResources{
+		ServiceAccounts: []tenantv1.ServiceAccountSpec{{
+			Name: "e2e-sa",
+			RBAC: &tenantv1.RBACSpec{
+				Rules: []rbacv1.PolicyRule{{
+					APIGroups: []string{""},
+					Resources: []string{"pods"},
+					Verbs:     []string{"get", "list"},
+				}},
+			},
+		}},
+	}
 	createTenantCR(t, ctx, ten)
 
 	// Namespace materializes.
@@ -45,8 +65,23 @@ func TestTenant_Provisioning(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "2", max["cpu"])
 
-	// RBAC: tenant-operator creates at least one Role in the namespace.
+	// InitResources: the ServiceAccount and its Role are provisioned. The
+	// operator names per-tenant resources "axisml-<tenant>-<sub>", so match by
+	// suffix rather than the bare spec name.
 	eventually(t, h.cfg.CRProvisionTimeout, func() error {
+		var sas corev1.ServiceAccountList
+		if err := h.k8s.List(ctx, &sas, client.InNamespace(ns)); err != nil {
+			return err
+		}
+		found := false
+		for i := range sas.Items {
+			if strings.HasSuffix(sas.Items[i].Name, "-e2e-sa") {
+				found = true
+			}
+		}
+		if !found {
+			return assertErr("ServiceAccount *-e2e-sa not found in %s", ns)
+		}
 		n, err := countRoles(ctx, ns)
 		if err != nil {
 			return err
@@ -88,11 +123,16 @@ func TestTenant_QuotaUpdatePropagates(t *testing.T) {
 		return nil
 	})
 
-	// Bump the quota max to 3 CPU.
-	cur, err := getTenantCR(ctx, name)
-	require.NoError(t, err)
-	cur.Spec.Quotas[0].Max[corev1.ResourceCPU] = resource.MustParse("3")
-	require.NoError(t, h.k8s.Update(ctx, cur))
+	// Bump the quota max to 3 CPU. Retry on conflict — the operator writes
+	// status concurrently, so a naive get+update races.
+	eventually(t, h.cfg.CRProvisionTimeout, func() error {
+		cur, err := getTenantCR(ctx, name)
+		if err != nil {
+			return err
+		}
+		cur.Spec.Quotas[0].Max[corev1.ResourceCPU] = resource.MustParse("3")
+		return h.k8s.Update(ctx, cur)
+	})
 
 	eventually(t, h.cfg.CRProvisionTimeout, func() error {
 		max, err := quotaMax(ctx, ns, eqName)
@@ -106,23 +146,35 @@ func TestTenant_QuotaUpdatePropagates(t *testing.T) {
 	})
 }
 
-func TestTenant_DeletionGC(t *testing.T) {
+// TestTenant_DeletionRetainsNamespace verifies the operator's intended deletion
+// semantics: deleting a Tenant CR removes the CR but DELIBERATELY retains the
+// namespace (design §6.1: "never delete, no ownerReference" — so user workloads
+// and data survive an accidental Tenant deletion). The test runner cleans up the
+// orphaned namespace itself.
+func TestTenant_DeletionRetainsNamespace(t *testing.T) {
 	ctx := context.Background()
 	name := uniqueName("e2e-l1d")
 	ns := name
 	ten := buildTenant(name, ns, h.cfg.DefaultPool, "1", "2Gi")
 	require.NoError(t, h.k8s.Create(ctx, ten))
+	t.Cleanup(func() {
+		_ = h.k8s.Delete(context.Background(), &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})
+	})
 	eventually(t, h.cfg.CRProvisionTimeout, func() error { return h.namespaceExists(ctx, ns) })
 
 	require.NoError(t, h.k8s.Delete(ctx, ten))
+
+	// Tenant CR is gone...
 	eventually(t, h.cfg.CRProvisionTimeout, func() error {
-		if err := h.namespaceExists(ctx, ns); isNotFound(err) {
+		if _, err := getTenantCR(ctx, name); isNotFound(err) {
 			return nil
 		} else if err != nil {
 			return err
 		}
-		return assertErr("namespace %s still present", ns)
+		return assertErr("tenant %s still present", name)
 	})
+	// ...but the namespace is intentionally retained.
+	require.NoError(t, h.namespaceExists(ctx, ns), "namespace must survive tenant deletion")
 }
 
 // TestTenant_ElasticQuotaAdmits is the real-cluster payoff: koord-scheduler must
@@ -131,8 +183,17 @@ func TestTenant_ElasticQuotaAdmits(t *testing.T) {
 	ctx := context.Background()
 	name := uniqueName("e2e-l1adm")
 	ns := name
-	// 1 CPU quota; two 700m pods cannot both fit.
-	ten := buildTenant(name, ns, h.cfg.DefaultPool, "1", "2Gi")
+	// Small quota with small pods: two 200m pods (400m) exceed the 300m max so
+	// the second is blocked, while 200m always fits the node. Set min=200m so the
+	// quota has GUARANTEED capacity for the first pod — koord-scheduler then
+	// admits fit-1 deterministically regardless of how many other quotas the rest
+	// of the suite has churned (with min=0 admission depends on borrowing shared
+	// capacity, which gets flaky under churn).
+	ten := buildTenant(name, ns, h.cfg.DefaultPool, "300m", "512Mi")
+	ten.Spec.Quotas[0].Min = corev1.ResourceList{
+		corev1.ResourceCPU:    resource.MustParse("200m"),
+		corev1.ResourceMemory: resource.MustParse("256Mi"),
+	}
 	createTenantCR(t, ctx, ten)
 	eventually(t, h.cfg.CRProvisionTimeout, func() error { return h.namespaceExists(ctx, ns) })
 
@@ -146,8 +207,8 @@ func TestTenant_ElasticQuotaAdmits(t *testing.T) {
 		return nil
 	})
 
-	p1 := schedulablePod(ns, "fit-1", eqName, "700m")
-	p2 := schedulablePod(ns, "fit-2", eqName, "700m")
+	p1 := schedulablePod(ns, "fit-1", eqName, "200m")
+	p2 := schedulablePod(ns, "fit-2", eqName, "200m")
 	require.NoError(t, h.k8s.Create(ctx, p1))
 	t.Cleanup(func() { _ = h.k8s.Delete(context.Background(), p1) })
 	require.NoError(t, h.k8s.Create(ctx, p2))

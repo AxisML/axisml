@@ -42,7 +42,7 @@ func TestClusterManager_CreatePoolRoundTripsToCR(t *testing.T) {
 	})
 }
 
-func TestClusterManager_AddUnitAndImmutability(t *testing.T) {
+func TestClusterManager_AddAndPatchUnit(t *testing.T) {
 	ctx := context.Background()
 	pool := uniqueName("e2e-pool")
 	require.True(t, h.clusterManager.mustDo(t, ctx, http.MethodPost, "/api/v1/resource-pools",
@@ -53,17 +53,24 @@ func TestClusterManager_AddUnitAndImmutability(t *testing.T) {
 
 	unitPath := "/api/v1/resource-pools/" + pool + "/resource-units"
 	add := cmCreateUnitReq{
-		Name:     "u1",
+		Name:     "unit-a",
 		Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("2")},
 		Limits:   corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("2")},
 	}
 	r := h.clusterManager.mustDo(t, ctx, http.MethodPost, unitPath, add)
 	require.True(t, r.is2xx(), "add unit: %d: %s", r.status, string(r.body))
 
-	// Units are immutable: PATCH must be rejected.
-	patch := map[string]any{"requests": map[string]string{"cpu": "4"}}
-	r = h.clusterManager.mustDo(t, ctx, http.MethodPatch, unitPath+"/u1", patch)
-	assert.True(t, r.is4xx(), "patching an immutable unit should be 4xx, got %d", r.status)
+	// Unit fields are mutable (only the unit name is immutable). PATCH the
+	// requests and confirm the change is reflected in the pool.
+	patch := map[string]any{"requests": map[string]string{"cpu": "4"}, "limits": map[string]string{"cpu": "4"}}
+	r = h.clusterManager.mustDo(t, ctx, http.MethodPatch, unitPath+"/unit-a", patch)
+	require.True(t, r.is2xx(), "patch unit: %d: %s", r.status, string(r.body))
+
+	g := h.clusterManager.mustDo(t, ctx, http.MethodGet, "/api/v1/resource-pools/"+pool, nil)
+	var dto cmPoolDTO
+	require.NoError(t, g.decode(&dto))
+	require.Len(t, dto.Units, 1)
+	assert.Equal(t, "4", dto.Units[0].Requests.Cpu().String(), "patched unit cpu should be 4")
 }
 
 func TestClusterManager_DeletePoolGC(t *testing.T) {

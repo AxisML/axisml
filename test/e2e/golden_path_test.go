@@ -8,9 +8,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	mljobv1 "github.com/axisml/axisml/components/compute-operator/api/mljob/v1alpha1"
 	mlservicev1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
+	tenantv1 "github.com/axisml/axisml/components/tenant-operator/api/v1alpha1"
 )
 
 // the cross-service golden path. One ordered journey through all five
@@ -96,13 +100,21 @@ func TestGoldenPath_TrainAndServeJourney(t *testing.T) {
 		return h.get(ctx, ns, svcName, hr)
 	})
 
-	// 6) teardown: delete the service, then the tenant; namespace is GC'd.
+	// 6) teardown: delete the service, then the tenant. The Tenant CR goes away;
+	// the operator intentionally retains the namespace (design §6.1), so the
+	// runner removes it itself.
+	t.Cleanup(func() {
+		_ = h.k8s.Delete(context.Background(), &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})
+	})
 	_, _ = h.deleteService(ctx, ns, svcName)
 	_, _ = h.deleteTenant(ctx, tenant)
 	eventually(t, h.cfg.CRProvisionTimeout, func() error {
-		if err := h.namespaceExists(ctx, ns); isNotFound(err) {
+		var ten tenantv1.Tenant
+		if err := h.k8s.Get(ctx, client.ObjectKey{Name: tenant}, &ten); isNotFound(err) {
 			return nil
+		} else if err != nil {
+			return err
 		}
-		return assertErr("namespace %s not GC'd after tenant delete", ns)
+		return assertErr("tenant %s still present after delete", tenant)
 	})
 }

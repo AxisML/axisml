@@ -284,7 +284,14 @@ func TestComputeOperator_OverQuotaMLJobPends(t *testing.T) {
 
 func buildMLJobCR(ns, name, quota string) *mljobv1.MLJob {
 	return &mljobv1.MLJob{
-		ObjectMeta: objMeta(ns, name, map[string]string{mljobv1.LabelQuota: quota}),
+		// The operator validates that compute-service's identity labels are
+		// present (job-id is mandatory); tenant/quota mirror the namespace +
+		// ElasticQuota. We use the CR name as the id.
+		ObjectMeta: objMeta(ns, name, map[string]string{
+			mljobv1.LabelJobID:  name,
+			mljobv1.LabelTenant: ns,
+			mljobv1.LabelQuota:  quota,
+		}),
 		Spec: mljobv1.MLJobSpec{
 			Backend:    mljobv1.BackendSpec{Name: "native", Engine: "job"},
 			Scheduling: mljobv1.SchedulingSpec{Quota: quota},
@@ -304,7 +311,11 @@ func buildMLJobCR(ns, name, quota string) *mljobv1.MLJob {
 
 func buildMLServiceCR(ns, name, quota, engine string, route *mlservicev1.Route) *mlservicev1.MLService {
 	return &mlservicev1.MLService{
-		ObjectMeta: objMeta(ns, name, map[string]string{mlservicev1.LabelQuota: quota}),
+		ObjectMeta: objMeta(ns, name, map[string]string{
+			mlservicev1.LabelServiceID: name,
+			mlservicev1.LabelTenant:    ns,
+			mlservicev1.LabelQuota:     quota,
+		}),
 		Spec: mlservicev1.MLServiceSpec{
 			Backend:    mlservicev1.Backend{Name: "native", Engine: engine},
 			Scheduling: mlservicev1.Scheduling{Quota: quota},
