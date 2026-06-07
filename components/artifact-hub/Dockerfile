@@ -12,6 +12,8 @@ ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /workspace
 
+# Copy the shared pkg module first so the replace target resolves.
+COPY pkg/openapigen/ pkg/openapigen/
 COPY components/artifact-hub/go.mod components/artifact-hub/go.sum components/artifact-hub/
 RUN --mount=type=cache,target=/go/pkg/mod \
     cd components/artifact-hub && go mod download

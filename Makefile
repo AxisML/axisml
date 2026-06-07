@@ -60,7 +60,7 @@ HELM_PLATFORM_IMAGE_SET :=
 # should override these via HELM_EXTRA_ARGS or a values file with real
 # secrets — never ship `axisml` to a real cluster.
 HELM_SYSTEM_DEV_DEFAULTS := \
-  --set artifactHub.storage.oci.adminSecretRef.password=axisml
+  --set artifactHub.storage.oci.adminSecretRef.password=admin
 
 HELM_EXTRA_ARGS ?=
 

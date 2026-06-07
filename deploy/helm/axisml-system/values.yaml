@@ -138,7 +138,9 @@ artifactHub:
 
   storage:
     oci:
-      endpoint: http://axisml-infra-zot.axisml-infra:5000
+      # The infra zot chart sets fullnameOverride: zot, so the Service is "zot"
+      # (not "<infra-release>-zot"). Address it by that name.
+      endpoint: http://zot.axisml-infra:5000
       scheme: http       # http | https
       adminSecretRef:
         # Empty name → chart renders default secret <release>-artifact-hub-zot.
