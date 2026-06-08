@@ -11,7 +11,7 @@
   <a href="https://github.com/AxisML/axisml/actions/workflows/ci.yml"><img src="https://github.com/AxisML/axisml/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white" alt="Go 1.26">
   <img src="https://img.shields.io/badge/Kubernetes-native-326CE5?logo=kubernetes&logoColor=white" alt="Kubernetes-native">
-  <img src="https://img.shields.io/badge/status-pre--release-orange" alt="Status: pre-release">
+  <img src="https://img.shields.io/badge/status-early%20development-orange" alt="Status: early development">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" alt="License: Apache 2.0"></a>
   <a href="#contributing"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen" alt="PRs welcome"></a>
 </p>
@@ -28,6 +28,11 @@
 ---
 
 **AxisML** is a Kubernetes-native ML platform that manages the entire model lifecycle — development, distributed training, artifact management, online inference, and operations — behind one coherent control plane. It pairs a clean tenant/quota model with [Koordinator](https://koordinator.sh) elastic scheduling so teams share GPU capacity without stepping on each other, and routes every workload — native Jobs, Kubeflow trainers, KServe inference — through a single quota-enforced scheduling path.
+
+> [!WARNING]
+> **AxisML is in early, active development.** APIs, CRDs, and Helm values change
+> frequently and without notice. Not yet recommended for production — expect
+> breaking changes between commits. See [Project Status](#project-status).
 
 ## Why AxisML
 
@@ -165,7 +170,7 @@ Architecture notes and gotchas live in [CLAUDE.md](CLAUDE.md); contributor conve
 
 ## Project Status
 
-AxisML is **pre-release** and under active development. The system design lives ahead of the code — when code and `docs/system_design/` disagree, the design doc is usually the intended target. See the [roadmap](docs/roadmap.md) for the feature matrix and current focus.
+AxisML is in **early, active development**. The system design lives ahead of the code — when code and `docs/system_design/` disagree, the design doc is usually the intended target. See the [roadmap](docs/roadmap.md) for the feature matrix and current focus.
 
 ## Contributing
 
