@@ -136,6 +136,14 @@ koordinator:
   # namespaces.
   installation:
     namespace: axisml-infra
+  # Single-replica overrides (chart defaults to 2 each for leader-election HA).
+  # AxisML targets single-node / dev clusters where HA standbys add no value.
+  manager:
+    replicas: 1
+  scheduler:
+    replicas: 1
+  descheduler:
+    replicas: 1
 
 # =============================================================================
 # kube-prometheus-stack (monitoring)
