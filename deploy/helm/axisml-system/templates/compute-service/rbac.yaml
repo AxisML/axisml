@@ -13,10 +13,25 @@ rules:
   - apiGroups: ["axisml.io"]
     resources: ["tenants/status", "mljobs/status", "mlservices/status"]
     verbs: ["get", "list", "watch"]
-  # Pods + logs + events: read-only, used by future log/replicas/events endpoints.
+  # ResourcePool (owned by cluster-manager): Compute reads it via an informer to
+  # resolve pool/unit -> nodeSelector/tolerations/resources when materializing
+  # Job/Service workloads.
+  - apiGroups: ["axisml.io"]
+    resources: ["resourcepools"]
+    verbs: ["get", "list", "watch"]
+  # Pods + logs + events: read-only, used by the kubeproxy log/pods/events endpoints.
   - apiGroups: [""]
     resources: ["pods", "pods/log", "events"]
     verbs: ["get", "list", "watch"]
+  # The events kubeproxy endpoint reads the events.k8s.io/v1 Event type (not just
+  # core/v1 events), so the informer needs list/watch on that group too.
+  - apiGroups: ["events.k8s.io"]
+    resources: ["events"]
+    verbs: ["get", "list", "watch"]
+  # PersistentVolumeClaims: Compute creates/deletes a PVC backing workspace services.
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["create", "get", "list", "watch", "update", "patch", "delete"]
   # Leader election lease (controller-runtime).
   - apiGroups: ["coordination.k8s.io"]
     resources: ["leases"]

@@ -1,0 +1,71 @@
+# System-layer E2E suite
+
+Real-cluster end-to-end tests for the five system-layer services, built bottom-up
+by dependency.
+
+This layer is **manual / local only** — it is gated behind the `e2e` build tag and is
+not part of `go test ./...` or PR CI.
+
+## Prerequisites
+
+1. A running cluster with infra + system installed:
+   ```sh
+   make cluster-up
+   make helm-install        # infra -> system -> platform
+   ```
+2. Workload images preloaded (offline-deterministic; pods use `imagePullPolicy: IfNotPresent`):
+   ```sh
+   minikube image load busybox:latest -p axisml
+   minikube image load nginx:1.27   -p axisml
+   ```
+3. `kubectl` on PATH with its context pointing at the `axisml` cluster (the suite reaches
+   the ClusterIP-only HTTP services through `kubectl port-forward`).
+
+## Run
+
+```sh
+make e2e-test            # from repo root
+# or
+cd test/e2e && go test -tags=e2e -v -timeout=30m ./...
+```
+
+A single case:
+```sh
+cd test/e2e && go test -tags=e2e -run TestComputeService_JobLifecycleTopToBottom -v ./...
+```
+
+## Layout
+
+| File | Covers |
+|---|---|
+| `main_test.go` | `TestMain`, shared `e2e` tenant setup/teardown |
+| `harness_test.go` | K8s client, scheme, port-forward, HTTP client, polling |
+| `config_test.go` | env-driven knobs (namespaces, ports, images, timeouts) |
+| `dto_test.go` | e2e-local mirrors of the services' HTTP DTOs |
+| `actions_test.go` | reusable client actions + request builders |
+| `util_test.go` / `k8shelpers_test.go` | tenant/pod builders, CRD/quota/pod helpers |
+| `oci_test.go` | minimal OCI-distribution push for artifact-hub |
+| `preflight_test.go` | environment readiness gate |
+| `tenant_operator_test.go` | tenant-operator (incl. real ElasticQuota admission) |
+| `cluster_manager_test.go` | cluster-manager ResourcePool CRUD |
+| `compute_operator_test.go` | MLJob/MLService -> real workloads, scheduler labels, route |
+| `compute_service_test.go` | HTTP -> CR -> running pod chain, scale, workspace PVC |
+| `artifact_hub_test.go` | artifact metadata lifecycle + real zot two-phase upload |
+| `golden_path_test.go` | cross-service train-and-serve journey |
+
+## Configuration (env overrides)
+
+All have cluster-default values; override only when your install differs:
+`E2E_INFRA_NAMESPACE`, `E2E_SYSTEM_NAMESPACE`, `E2E_CLUSTER_MANAGER_SVC`,
+`E2E_COMPUTE_SERVICE_SVC`, `E2E_ARTIFACT_HUB_SVC`, `E2E_USER`, `E2E_SHARED_TENANT`,
+`E2E_SHARED_NAMESPACE`, `E2E_DEFAULT_POOL`, `E2E_DEFAULT_UNIT`, `E2E_JOB_IMAGE`,
+`E2E_SERVICE_IMAGE`. Set `E2E_KEEP_TENANT=1` to leave the shared tenant in place for
+post-mortem inspection (`make e2e-clean` removes it later).
+
+## Known validation point
+
+`oci_test.go` parses artifact-hub's upload credentials/URI defensively
+(`username`/`password` or bearer `token`, scheme-stripped repo path). This is the one
+contract the suite cannot verify offline; if a live run of `TestArtifactHub_ModelTwoPhaseUploadResolve`
+shows a different credential or URI shape, adjust `parseOCICreds` / `parseRepoRef` — the
+rest of the artifact flow is contract-stable.

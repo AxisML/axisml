@@ -9,7 +9,8 @@ ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /workspace
 
-# Copy the tenant-operator first so the replace target resolves.
+# Copy the tenant-operator and shared pkg modules first so the replace targets resolve.
+COPY pkg/openapigen/ pkg/openapigen/
 COPY components/tenant-operator/ components/tenant-operator/
 COPY components/cluster-manager/ components/cluster-manager/
 
