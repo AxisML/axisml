@@ -62,9 +62,3 @@ replace github.com/axisml/axisml/components/tenant-operator => ../../components/
 replace github.com/axisml/axisml/components/compute-operator => ../../components/compute-operator
 
 replace github.com/axisml/axisml/components/cluster-manager => ../../components/cluster-manager
-
-replace github.com/axisml/axisml/components/compute-service => ../../components/compute-service
-
-replace github.com/axisml/axisml/components/artifact-hub => ../../components/artifact-hub
-
-replace github.com/axisml/axisml/test/testutil => ../testutil

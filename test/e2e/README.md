@@ -31,7 +31,7 @@ cd test/e2e && go test -tags=e2e -v -timeout=30m ./...
 
 A single case:
 ```sh
-cd test/e2e && go test -tags=e2e -run TestL4_JobLifecycleTopToBottom -v ./...
+cd test/e2e && go test -tags=e2e -run TestComputeService_JobLifecycleTopToBottom -v ./...
 ```
 
 ## Layout
@@ -66,6 +66,6 @@ post-mortem inspection (`make e2e-clean` removes it later).
 
 `oci_test.go` parses artifact-hub's upload credentials/URI defensively
 (`username`/`password` or bearer `token`, scheme-stripped repo path). This is the one
-contract the suite cannot verify offline; if a live run of `TestL5_ModelTwoPhaseUploadResolve`
+contract the suite cannot verify offline; if a live run of `TestArtifactHub_ModelTwoPhaseUploadResolve`
 shows a different credential or URI shape, adjust `parseOCICreds` / `parseRepoRef` — the
 rest of the artifact flow is contract-stable.

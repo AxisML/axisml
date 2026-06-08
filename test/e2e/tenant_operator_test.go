@@ -6,6 +6,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -225,10 +226,20 @@ func TestTenant_ElasticQuotaAdmits(t *testing.T) {
 		}
 		return nil
 	})
-	// p2 stays Pending (unscheduled) while p1 holds the quota.
-	ok, err := podScheduled(ctx, ns, "fit-2")
-	require.NoError(t, err)
-	assert.False(t, ok, "fit-2 should be blocked by ElasticQuota while fit-1 runs")
+	// p2 must STAY Pending while p1 holds the quota. A single immediate check
+	// would pass simply because the scheduler hasn't processed p2 yet (a false
+	// positive that would hide a quota-enforcement regression), so assert it
+	// stays unscheduled across a window.
+	consistently(t, 15*time.Second, func() error {
+		ok, err := podScheduled(ctx, ns, "fit-2")
+		if err != nil {
+			return err
+		}
+		if ok {
+			return assertErr("fit-2 scheduled while fit-1 holds the quota (ElasticQuota not enforced)")
+		}
+		return nil
+	})
 
 	// Free the quota; p2 should then schedule.
 	require.NoError(t, h.k8s.Delete(ctx, p1))

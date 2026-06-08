@@ -338,6 +338,20 @@ func eventually(t *testing.T, timeout time.Duration, fn func() error) {
 	t.Fatalf("eventually: timed out after %s: %v", timeout, last)
 }
 
+// consistently asserts fn returns nil on every poll across the whole window
+// (the inverse of eventually). Used for "must STAY in state X" checks where a
+// single immediate read could pass before the system has had a chance to act.
+func consistently(t *testing.T, window time.Duration, fn func() error) {
+	t.Helper()
+	deadline := time.Now().Add(window)
+	for time.Now().Before(deadline) {
+		if err := fn(); err != nil {
+			t.Fatalf("consistently: condition violated within %s: %v", window, err)
+		}
+		time.Sleep(h.cfg.PollInterval)
+	}
+}
+
 func (s *suite) get(ctx context.Context, ns, name string, obj client.Object) error {
 	return s.k8s.Get(ctx, client.ObjectKey{Namespace: ns, Name: name}, obj)
 }

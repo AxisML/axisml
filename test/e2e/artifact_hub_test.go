@@ -33,7 +33,7 @@ func TestArtifactHub_AnonymousAllowed(t *testing.T) {
 func TestArtifactHub_ModelInitiateReturnsUpload(t *testing.T) {
 	ctx := context.Background()
 	ns := sharedNS()
-	name := uniqueName("l5-model")
+	name := uniqueName("e2e-model")
 	res := initiateModel(t, ctx, ns, name, "1.0.0")
 	assert.NotEmpty(t, res.Upload.StorageKind, "initiate should return a storage kind")
 	assert.NotEmpty(t, res.Upload.URI, "initiate should return an upload URI")
@@ -47,7 +47,7 @@ func TestArtifactHub_ModelInitiateReturnsUpload(t *testing.T) {
 func TestArtifactHub_ModelTwoPhaseUploadResolve(t *testing.T) {
 	ctx := context.Background()
 	ns := sharedNS()
-	name := uniqueName("l5-2phase")
+	name := uniqueName("e2e-2phase")
 	res := initiateModel(t, ctx, ns, name, "1.0.0")
 	t.Cleanup(func() {
 		_, _ = h.artifactHub.do(context.Background(), http.MethodDelete, modelPath(ns, name)+"/1.0.0", nil)
@@ -90,7 +90,7 @@ func TestArtifactHub_ModelTwoPhaseUploadResolve(t *testing.T) {
 func TestArtifactHub_PatchMetadata(t *testing.T) {
 	ctx := context.Background()
 	ns := sharedNS()
-	name := uniqueName("l5-patch")
+	name := uniqueName("e2e-patch")
 	initiateModel(t, ctx, ns, name, "1.0.0")
 	t.Cleanup(func() {
 		_, _ = h.artifactHub.do(context.Background(), http.MethodDelete, modelPath(ns, name)+"/1.0.0", nil)
@@ -110,8 +110,8 @@ func TestArtifactHub_PatchMetadata(t *testing.T) {
 func TestArtifactHub_ListAndLabelSelector(t *testing.T) {
 	ctx := context.Background()
 	ns := sharedNS()
-	name := uniqueName("l5-list")
-	res := initiateModelWithLabels(t, ctx, ns, name, "1.0.0", map[string]string{"suite": "l5list"})
+	name := uniqueName("e2e-list")
+	res := initiateModelWithLabels(t, ctx, ns, name, "1.0.0", map[string]string{"suite": "e2elist"})
 	_ = res
 	t.Cleanup(func() {
 		_, _ = h.artifactHub.do(context.Background(), http.MethodDelete, modelPath(ns, name)+"/1.0.0", nil)
@@ -119,7 +119,7 @@ func TestArtifactHub_ListAndLabelSelector(t *testing.T) {
 
 	// List filtered by our unique label returns our artifact.
 	l := h.artifactHub.mustDo(t, ctx, http.MethodGet,
-		"/api/v1/namespaces/"+ns+"/models?labelSelector=suite%3Dl5list", nil)
+		"/api/v1/namespaces/"+ns+"/models?labelSelector=suite%3De2elist", nil)
 	require.True(t, l.is2xx(), "list: %d", l.status)
 	assert.Contains(t, string(l.body), name, "filtered list should contain our model")
 }
@@ -131,7 +131,7 @@ func TestArtifactHub_ListAndLabelSelector(t *testing.T) {
 func TestArtifactHub_SoftDelete(t *testing.T) {
 	ctx := context.Background()
 	ns := sharedNS()
-	name := uniqueName("l5-del")
+	name := uniqueName("e2e-del")
 	initiateModel(t, ctx, ns, name, "1.0.0")
 
 	d := h.artifactHub.mustDo(t, ctx, http.MethodDelete, modelPath(ns, name)+"/1.0.0", nil)

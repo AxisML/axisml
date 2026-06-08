@@ -22,7 +22,7 @@ import (
 
 func TestComputeService_CreateTenantViaAPI(t *testing.T) {
 	ctx := context.Background()
-	name := uniqueName("e2e-l4t")
+	name := uniqueName("e2e-apitenant")
 	r, err := h.createTenant(ctx, csCreateTenantReq{
 		Name:      name,
 		Namespace: csNamespaceSpec{Name: name},
@@ -46,7 +46,7 @@ func TestComputeService_CreateTenantViaAPI(t *testing.T) {
 
 func TestComputeService_QuotaAllocationViaAPI(t *testing.T) {
 	ctx := context.Background()
-	name := uniqueName("e2e-l4q")
+	name := uniqueName("e2e-apiquota")
 	r, err := h.createTenant(ctx, csCreateTenantReq{
 		Name:      name,
 		Namespace: csNamespaceSpec{Name: name},
@@ -78,7 +78,7 @@ func TestComputeService_JobLifecycleTopToBottom(t *testing.T) {
 	ctx := context.Background()
 	ns := sharedNS()
 	quota := sharedQuota(t, ctx)
-	name := uniqueName("l4-job")
+	name := uniqueName("e2e-apijob")
 
 	r, err := h.createJob(ctx, ns, busyboxJobReq(name, h.cfg.DefaultPool, h.cfg.DefaultUnit, quota))
 	require.NoError(t, err)
@@ -116,7 +116,7 @@ func TestComputeService_JobCancel(t *testing.T) {
 	ctx := context.Background()
 	ns := sharedNS()
 	quota := sharedQuota(t, ctx)
-	name := uniqueName("l4-cancel")
+	name := uniqueName("e2e-apicancel")
 
 	req := busyboxJobReq(name, h.cfg.DefaultPool, h.cfg.DefaultUnit, quota)
 	req.Roles[0].Template.Command = []string{"sh", "-c", "sleep 600"}
@@ -149,7 +149,7 @@ func TestComputeService_KubeproxyPodsAndLogs(t *testing.T) {
 	ctx := context.Background()
 	ns := sharedNS()
 	quota := sharedQuota(t, ctx)
-	name := uniqueName("l4-proxy")
+	name := uniqueName("e2e-proxy")
 
 	r, err := h.createJob(ctx, ns, busyboxJobReq(name, h.cfg.DefaultPool, h.cfg.DefaultUnit, quota))
 	require.NoError(t, err)
@@ -176,7 +176,7 @@ func TestComputeService_ServiceLifecycleScaleDelete(t *testing.T) {
 	ctx := context.Background()
 	ns := sharedNS()
 	quota := sharedQuota(t, ctx)
-	name := uniqueName("l4-svc")
+	name := uniqueName("e2e-apisvc")
 
 	r, err := h.createService(ctx, ns, nginxServiceReq(name, h.cfg.DefaultPool, h.cfg.DefaultUnit, quota, nil))
 	require.NoError(t, err)
@@ -230,7 +230,7 @@ func TestComputeService_WorkspacePVC(t *testing.T) {
 	ctx := context.Background()
 	ns := sharedNS()
 	quota := sharedQuota(t, ctx)
-	name := uniqueName("l4-ws")
+	name := uniqueName("e2e-workspace")
 
 	req := nginxServiceReq(name, h.cfg.DefaultPool, h.cfg.DefaultUnit, quota, nil)
 	req.Kind = mlservicev1.ServiceKindWorkspace
@@ -274,7 +274,7 @@ func TestComputeService_UnknownPoolRejected(t *testing.T) {
 	ctx := context.Background()
 	ns := sharedNS()
 	quota := sharedQuota(t, ctx)
-	name := uniqueName("l4-badpool")
+	name := uniqueName("e2e-badpool")
 
 	r, err := h.createJob(ctx, ns, busyboxJobReq(name, "does-not-exist", "nope", quota))
 	require.NoError(t, err)
