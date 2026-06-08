@@ -10,8 +10,8 @@ AxisML is a Kubernetes-native ML platform. The repo is a monorepo split into:
 
 - `components/tenant-operator/` — Go operator binary reconciling the `Tenant` CR (Namespace, Koordinator ElasticQuota, per-tenant Secret/CM/SA/RBAC). Single reconciler, no dispatcher.
 - `components/compute-operator/` — Go operator binary reconciling `MLJob` and `MLService` CRs via the dispatcher + handler model.
-- `components/cluster-manager/` — Stateless REST shell over Tenant CR CRUD on the K8s API. Admin-tier entry point; no PG.
-- `components/compute-service/` — Go service for Job/Service/ResourcePool/ResourceUnit. Partitioned by bare namespace string (no Tenant or Quota concepts).
+- `components/cluster-manager/` — Stateless REST shell over the cluster-scoped `ResourcePool` CRD (CRUD of pools + inline `spec.units[]`) on the K8s API. Admin-tier entry point; no PG, no reconciler, no leader election — Kubernetes etcd is the source of truth.
+- `components/compute-service/` — Go service and business authority for Tenant / Quota / Job / Service / Workspace, with PG as the sole source of truth. Emits `Tenant` / `MLJob` / `MLService` CRs derived from PG and reads back their status; partitioned by namespace (= tenant name). Resolves `(poolName, unitName)` against the `ResourcePool` CRD via Informer (it does not own the ResourcePool/ResourceUnit vocabulary — that's cluster-manager).
 - `components/artifact-hub/` — Go service for the artifact registry. Partitioned by `(namespace, kind, name, version)` directly (no ArtifactRepo wrapper).
 - `components/platform/{backend,frontend}/` — scaffolded service areas with READMEs only; no code yet.
 - Deployment splits into three Helm charts along the Platform / System / Infra responsibility layers (install order infra → system → platform, uninstall reverse):
@@ -43,7 +43,7 @@ components/tenant-operator/                       (production — Tenant CR reco
 components/tenant-operator/test/integration/      (integration tests, separate module)
 components/compute-operator/                      (production — MLJob + MLService controllers)
 components/compute-operator/test/integration/     (integration tests, separate module)
-components/cluster-manager/                       (production — REST shell over Tenant CR)
+components/cluster-manager/                       (production — REST shell over ResourcePool CR)
 components/cluster-manager/test/integration/      (integration tests, separate module)
 components/compute-service/                       (production)
 components/compute-service/test/integration/      (integration tests, separate module — envtest + testcontainers Postgres)
