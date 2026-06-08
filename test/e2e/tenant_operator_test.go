@@ -24,7 +24,7 @@ import (
 
 func TestTenant_Provisioning(t *testing.T) {
 	ctx := context.Background()
-	name := uniqueName("e2e-l1")
+	name := uniqueName("e2e-tenant")
 	ns := name
 	ten := buildTenant(name, ns, h.cfg.DefaultPool, "2", "4Gi")
 	// The operator only provisions RBAC/SA/Secret/ConfigMap when the Tenant spec
@@ -107,7 +107,7 @@ func TestTenant_Provisioning(t *testing.T) {
 
 func TestTenant_QuotaUpdatePropagates(t *testing.T) {
 	ctx := context.Background()
-	name := uniqueName("e2e-l1q")
+	name := uniqueName("e2e-quota")
 	ns := name
 	ten := buildTenant(name, ns, h.cfg.DefaultPool, "2", "4Gi")
 	createTenantCR(t, ctx, ten)
@@ -153,7 +153,7 @@ func TestTenant_QuotaUpdatePropagates(t *testing.T) {
 // orphaned namespace itself.
 func TestTenant_DeletionRetainsNamespace(t *testing.T) {
 	ctx := context.Background()
-	name := uniqueName("e2e-l1d")
+	name := uniqueName("e2e-delete")
 	ns := name
 	ten := buildTenant(name, ns, h.cfg.DefaultPool, "1", "2Gi")
 	require.NoError(t, h.k8s.Create(ctx, ten))
@@ -181,7 +181,7 @@ func TestTenant_DeletionRetainsNamespace(t *testing.T) {
 // actually admit/block pods against the ElasticQuota. [edge]
 func TestTenant_ElasticQuotaAdmits(t *testing.T) {
 	ctx := context.Background()
-	name := uniqueName("e2e-l1adm")
+	name := uniqueName("e2e-admin")
 	ns := name
 	// Small quota with small pods: two 200m pods (400m) exceed the 300m max so
 	// the second is blocked, while 200m always fits the node. Set min=200m so the

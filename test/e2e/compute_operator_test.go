@@ -26,7 +26,7 @@ func TestComputeOperator_MLJobRunsToCompletion(t *testing.T) {
 	ctx := context.Background()
 	ns := sharedNS()
 	quota := sharedQuota(t, ctx)
-	name := uniqueName("l3-job")
+	name := uniqueName("e2e-job")
 
 	job := buildMLJobCR(ns, name, quota)
 	require.NoError(t, h.k8s.Create(ctx, job))
@@ -49,7 +49,7 @@ func TestComputeOperator_SchedulerAndQuotaLabels(t *testing.T) {
 	ctx := context.Background()
 	ns := sharedNS()
 	quota := sharedQuota(t, ctx)
-	name := uniqueName("l3-sched")
+	name := uniqueName("e2e-sched")
 
 	job := buildMLJobCR(ns, name, quota)
 	require.NoError(t, h.k8s.Create(ctx, job))
@@ -79,7 +79,7 @@ func TestComputeOperator_MLJobCancelSuspends(t *testing.T) {
 	ctx := context.Background()
 	ns := sharedNS()
 	quota := sharedQuota(t, ctx)
-	name := uniqueName("l3-cancel")
+	name := uniqueName("e2e-cancel")
 
 	// Long-running so we can observe suspension.
 	job := buildMLJobCR(ns, name, quota)
@@ -108,7 +108,7 @@ func TestComputeOperator_MLServiceDeploymentServes(t *testing.T) {
 	ctx := context.Background()
 	ns := sharedNS()
 	quota := sharedQuota(t, ctx)
-	name := uniqueName("l3-svc")
+	name := uniqueName("e2e-svc")
 
 	svc := buildMLServiceCR(ns, name, quota, "deployment", nil)
 	require.NoError(t, h.k8s.Create(ctx, svc))
@@ -148,7 +148,7 @@ func TestComputeOperator_MLServiceRouteThroughEnvoy(t *testing.T) {
 	ctx := context.Background()
 	ns := sharedNS()
 	quota := sharedQuota(t, ctx)
-	name := uniqueName("l3-route")
+	name := uniqueName("e2e-route")
 
 	route := &mlservicev1.Route{Enabled: true, Hostname: name + ".e2e.local"}
 	svc := buildMLServiceCR(ns, name, quota, "deployment", route)
@@ -180,7 +180,7 @@ func TestComputeOperator_StatefulSetEngine(t *testing.T) {
 	ctx := context.Background()
 	ns := sharedNS()
 	quota := sharedQuota(t, ctx)
-	name := uniqueName("l3-sts")
+	name := uniqueName("e2e-sts")
 
 	svc := buildMLServiceCR(ns, name, quota, "statefulset", nil)
 	require.NoError(t, h.k8s.Create(ctx, svc))
@@ -206,7 +206,7 @@ func TestComputeOperator_MLServiceScaleViaCR(t *testing.T) {
 	ctx := context.Background()
 	ns := sharedNS()
 	quota := sharedQuota(t, ctx)
-	name := uniqueName("l3-scale")
+	name := uniqueName("e2e-scale")
 
 	svc := buildMLServiceCR(ns, name, quota, "deployment", nil)
 	require.NoError(t, h.k8s.Create(ctx, svc))
@@ -240,7 +240,7 @@ func TestComputeOperator_MLServiceScaleViaCR(t *testing.T) {
 
 func TestComputeOperator_OverQuotaMLJobPends(t *testing.T) {
 	ctx := context.Background()
-	tn := uniqueName("e2e-l3oq")
+	tn := uniqueName("e2e-oq-tenant")
 	ns := tn
 	// 1 CPU quota.
 	createTenantCR(t, ctx, buildTenant(tn, ns, h.cfg.DefaultPool, "1", "2Gi"))
@@ -255,7 +255,7 @@ func TestComputeOperator_OverQuotaMLJobPends(t *testing.T) {
 		return nil
 	})
 
-	name := uniqueName("l3-oq")
+	name := uniqueName("e2e-oq")
 	job := buildMLJobCR(ns, name, quota)
 	// Request more CPU than the quota allows.
 	job.Spec.Roles[0].Template.Resources = corev1.ResourceRequirements{
