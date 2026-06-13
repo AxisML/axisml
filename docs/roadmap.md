@@ -132,8 +132,8 @@
 
 ### 4. Platform UX 与前端补齐
 
-- **待补 wireframe → 实现**
-  - Dashboard 首页卡片（我可见的租户 / 活跃任务 / 在线服务 / 工作区 / 配额 Top N / GPU 利用率趋势 / 最近事件流）
+- **wireframe 已落档（[wireframe.md](system_design/wireframe.md) §6–§9），待前端实现**
+  - Dashboard 首页卡片（我可见的租户 / 活跃任务 / 在线服务 / 工作区 / 配额 Top N / GPU 利用率趋势 / 最近事件流）— wireframe 详设暂缓（[wireframe.md §3](system_design/wireframe.md#3-dashboard-登录默认落地页) 仅占位）
   - 工作区：列表 / 创建表单 / 详情（概览 · 访问 Tab）
   - 计算任务：列表 / 创建表单 / 详情（概览 · 副本 · 事件 · 日志 Tab）
   - 在线服务：列表 / 创建表单 / 详情（概览 · 访问 · 指标 Tab）

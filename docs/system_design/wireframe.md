@@ -56,7 +56,7 @@
 
 | 菜单组 | 菜单项 | 生产路径 | 租户作用域 | UI 详设 |
 | --- | --- | --- | :---: | :---: |
-| — | Dashboard | `/dashboard` | 切换器联动 | §3 |
+| — | Dashboard (中文 首页) | `/dashboard` | 切换器联动 | §3 |
 | 训练 & 推理 | 工作区 | `/workspaces` · `/workspaces/{name}` | 租户内 | §6 |
 |  | 计算任务 | `/jobs` · `/jobs/{name}` | 租户内 | §7 |
 |  | 在线服务 | `/services` · `/services/{name}` | 租户内 | §8 |
@@ -84,7 +84,7 @@
 
 ---
 
-## 3. Dashboard (登录默认落地页)
+## 3. Dashboard (首页 · 登录默认落地页)
 
 登录后默认落地路由 `/dashboard`,**作用域随 Topbar 租户切换器联动**的概览页。数据来自两个端点:`GET /api/v1/dashboard/overview`(KPI + 资源用量快照)与 `GET /api/v1/dashboard/metrics`(时序图)。字段契约见 [apis/platform.yaml](apis/platform.yaml) `Dashboard` tag,编排见 [components/platform.md §4](components/platform.md#4-核心功能),指标口径见 [monitoring.md](monitoring.md)。
 
@@ -412,7 +412,7 @@ Footer: 共 14 个租户 · 当前显示 1–8         ‹ [1] [2] ›      每�
 | 命名空间 | `spec.namespace.name` | mono |
 | 成员 | `user_tenant_roles WHERE tenant_name = X` 计数 | Platform 内补充字段,聚合查询 |
 | 创建时间 | `createdAt` | mono muted |
-| 操作 | — | 详情 / 删除 / 恢复 (按 `phase` 切换) |
+| 操作 | — | 详情 / 删除 / 暂停 / 恢复 (按 `phase` 切换) |
 
 **过滤**:显示名 / 名称模糊搜索 · 状态 ▾ · 业务线 ▾ · 重置。`status` / `namespace` (业务线) 下推 compute-service;`q` (关键字) 由 Platform 内存二次筛选。
 **可见性**:`system-admin` 看全集群;其他角色按 `user_tenant_roles` 取 `tenant_name` 集合裁剪。
@@ -551,6 +551,7 @@ UI 即时校验 + compute-service 兜底。完整字段清单与校验规则见 
 - **DELETE 租户** — 前置检查 `user_tenant_roles WHERE tenant_name = :name`;非空 → `409 tenant-has-members`,二次确认弹窗列出残留成员。
 - **PATCH 租户** — 不可变字段 `name` / `namespace.name` / `quotas[].(pool, name)` 在表单中置灰。
 - **RESTORE 租户** — 仅 `system-admin`;对软删后的租户从 retention 窗口内恢复(详见 [components/compute-service.md](components/compute-service.md#41-tenant))。
+- **SUSPEND / RESUME 租户** — 仅 `system-admin`;`Active ⇄ Suspended`;暂停后锁定该租户的提交入口、已派生工作负载暂停调度,配额与成员 / 元数据保留;恢复即回到 `Active`。
 
 ### 5.6 状态展示规则
 
@@ -558,6 +559,7 @@ UI 即时校验 + compute-service 兜底。完整字段清单与校验规则见 
 | --- | --- |
 | `Creating` | 灰色 + spinner |
 | `Active` | 绿色实心 (前端解锁该租户的提交按钮) |
+| `Suspended` | 橙色实心 (管理员手动暂停;锁定提交入口,已派生工作负载暂停调度) |
 | `Failed` | 红色 (初始 NS / Quota 同步失败) |
 | `Deleting` | 灰色 + spinner |
 | `Deleted` (软删) | 灰色 (列表默认隐藏,过滤器开启「显示已删除」时可见;`system-admin` 可恢复) |
@@ -569,7 +571,7 @@ UI 即时校验 + compute-service 兜底。完整字段清单与校验规则见 
 | 操作 | system-admin | tenant-admin (@self) | user (@self) |
 | --- | :---: | :---: | :---: |
 | 列出 | 全集群 | 本租户 | 本租户 |
-| 创建 / 删除 / 恢复 | ✅ | ✗ | ✗ |
+| 创建 / 删除 / 暂停 / 恢复 | ✅ | ✗ | ✗ |
 | 编辑展示元数据 (Tab 1) | ✅ | ✗ | ✗ |
 | 配额 CRUD (Tab 2) | ✅ | ✅ | ✗ |
 | 成员 CRUD (Tab 3) | ✅ | ✅ | ✗ |
