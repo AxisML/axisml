@@ -4510,7 +4510,7 @@ components:
             Pod volumes (shape matches K8s `PodSpec.volumes[]`). Pass-through
             from compute. Surfaced on the Platform DTO so Workspace / Job edit
             UIs can display mounts. Authoritative shape lives in
-            `apis/compute.yaml`.
+            `apis/compute-service.yaml`.
           items:
             type: object
             additionalProperties: true
@@ -4661,11 +4661,11 @@ components:
     MLJobSpec:
       type: object
       description: |
-        Mirror of `apis/compute.yaml#/components/schemas/MLJobSpec`
+        Mirror of `apis/compute-service.yaml#/components/schemas/MLJobSpec`
         (pass-through from compute). Surfaced on `Job` so the UI can prefill
         the "resubmit" form and render a complete YAML view. The authoritative
         shape and validation rules live in
-        `components/compute-operator.md §4.1.1` and `apis/compute.yaml`.
+        `components/compute-operator.md §4.1.1` and `apis/compute-service.yaml`.
       properties:
         backend:
           $ref: '#/components/schemas/Backend'
