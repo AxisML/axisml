@@ -20,7 +20,7 @@ info:
 
     All `/api/v1/*` operations require the `X-Axisml-User` header injected by
     the AxisML Platform. The service is reachable only on the cluster-internal
-    ClusterIP (port 8080) — there is no external ingress.
+    ClusterIP (port 8080 by default) — there is no external ingress.
 
     Errors follow RFC 7807 `application/problem+json`.
 servers:

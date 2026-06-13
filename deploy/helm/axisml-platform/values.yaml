@@ -22,10 +22,10 @@ system:
   namespace: axisml-system
   computeService:
     name: axisml-compute-service
-    port: 8081
+    port: 8080
   artifactHub:
     name: axisml-artifact-hub
-    port: 8082
+    port: 8080
 
 # =============================================================================
 # AxisML Platform

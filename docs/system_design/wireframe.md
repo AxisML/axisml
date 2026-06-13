@@ -86,7 +86,7 @@
 
 ## 3. Dashboard (首页 · 登录默认落地页)
 
-登录后默认落地路由 `/dashboard`,**作用域随 Topbar 租户切换器联动**的概览页。数据来自两个端点:`GET /api/v1/dashboard/overview`(KPI + 资源用量快照)与 `GET /api/v1/dashboard/metrics`(时序图)。字段契约见 [apis/platform.yaml](apis/platform.yaml) `Dashboard` tag,编排见 [components/platform.md §4](components/platform.md#4-核心功能),指标口径见 [monitoring.md](monitoring.md)。
+登录后默认落地路由 `/dashboard`,**作用域随 Topbar 租户切换器联动**的概览页。数据来自两个端点:`GET /api/v1/dashboard/overview`(KPI + 资源用量快照)与 `GET /api/v1/dashboard/metrics`(时序图)。字段契约见 [apis/platform.yaml](apis/platform.yaml) `Dashboard` tag,编排见 [components/platform.md §4.7](components/platform.md#47-dashboard-编排),指标口径见 [monitoring.md](monitoring.md)。
 
 ### 3.1 作用域与视图
 
@@ -181,7 +181,8 @@ KPI 卡行(无「租户」卡)
 
 | 场景 | 触发 | UI 呈现 |
 | --- | --- | --- |
-| overview GPU/CPU/内存为 `null` | compute-service Informer cache 未同步([monitoring.md §4.1](monitoring.md)) | gauge 显示 `—` + hover「指标同步中」 |
+| 全局视图集群容量为 `null` | cluster-manager 容量聚合未就绪 | gauge 显示 `—` + hover「指标同步中」 |
+| 租户视图配额用量为 `null` | compute-service Tenant Informer cache 未同步([compute-service.md §5.3](components/compute-service.md#53-状态回流informer)) | gauge 显示 `—` + hover「指标同步中」 |
 | metrics 查询失败 | `/dashboard/metrics` 返 `502 Bad Gateway` | 图区占位「指标服务暂不可用」,KPI / gauge 不受影响 |
 | 跨租户聚合部分失败 | overview `partial=true` | 页顶黄条「N 个租户暂时不可达,显示其余结果」(§2.3 错误条) |
 
@@ -551,7 +552,7 @@ UI 即时校验 + compute-service 兜底。完整字段清单与校验规则见 
 - **DELETE 租户** — 前置检查 `user_tenant_roles WHERE tenant_name = :name`;非空 → `409 tenant-has-members`,二次确认弹窗列出残留成员。
 - **PATCH 租户** — 不可变字段 `name` / `namespace.name` / `quotas[].(pool, name)` 在表单中置灰。
 - **RESTORE 租户** — 仅 `system-admin`;对软删后的租户从 retention 窗口内恢复(详见 [components/compute-service.md](components/compute-service.md#41-tenant))。
-- **SUSPEND / RESUME 租户** — 仅 `system-admin`;`Active ⇄ Suspended`;暂停后锁定该租户的提交入口、已派生工作负载暂停调度,配额与成员 / 元数据保留;恢复即回到 `Active`。
+- **SUSPEND / RESUME 租户** — 仅 `system-admin`;`Active ⇄ Suspended`;暂停后锁定该租户的新建提交入口(任务 / 服务 / 工作区),已运行工作负载继续运行、可继续 scale / stop / delete,配额与成员 / 元数据保留;恢复即回到 `Active`。
 
 ### 5.6 状态展示规则
 
@@ -559,7 +560,7 @@ UI 即时校验 + compute-service 兜底。完整字段清单与校验规则见 
 | --- | --- |
 | `Creating` | 灰色 + spinner |
 | `Active` | 绿色实心 (前端解锁该租户的提交按钮) |
-| `Suspended` | 橙色实心 (管理员手动暂停;锁定提交入口,已派生工作负载暂停调度) |
+| `Suspended` | 橙色实心 (管理员手动暂停;锁定新建提交入口,已运行工作负载继续运行) |
 | `Failed` | 红色 (初始 NS / Quota 同步失败) |
 | `Deleting` | 灰色 + spinner |
 | `Deleted` (软删) | 灰色 (列表默认隐藏,过滤器开启「显示已删除」时可见;`system-admin` 可恢复) |

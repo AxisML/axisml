@@ -12,6 +12,8 @@ ML 工作负载 + 多租户管控面：以 PostgreSQL 为权威，承载 Tenant 
 | `Tenant` / `MLJob` / `MLService` spec 下发 + status 回流 | ResourcePool / ResourceUnit 词汇 (→ [cluster-manager.md](cluster-manager.md)) |
 | Pod 列表 / Pod 日志 / 事件端点透传 kube-apiserver | 用户认证与角色鉴权 (→ [auth.md](../auth.md)) |
 | 工作区列表（`kind='workspace'` 过滤） | 工作区业务语义本身 (→ [platform.md](platform.md)) |
+| 在线服务 / 工作负载运行指标代理（按 `spec.backend` 选 PromQL 查 Prometheus） | 指标采集 / 存储（→ kube-prometheus-stack） |
+| 跨 namespace 活跃 workload 按 label 计数（供 Platform pool/unit 删除前置阻断） | — |
 
 **namespace 字段语义**：`jobs` / `services` 表的 `namespace text` 是 tenant 标识符（= `tenants.name`），逻辑分区键；Compute 内部 join `tenants` 表得到 `spec.namespace.name` 用于 CR 下发。
 
@@ -59,7 +61,7 @@ ML 工作负载 + 多租户管控面：以 PostgreSQL 为权威，承载 Tenant 
 
 | 实体 | 含义 | 标识键 | 状态机 | 对应 CR |
 | --- | --- | --- | --- | --- |
-| Tenant | 租户 | `id` (uuid) / `name`（集群内全局唯一） | `Creating \| Active \| Failed \| Deleting \| Deleted` | `Tenant`（cluster-scoped） |
+| Tenant | 租户 | `id` (uuid) / `name`（集群内全局唯一） | `Creating \| Active \| Suspended \| Failed \| Deleting \| Deleted` | `Tenant`（cluster-scoped） |
 | Quota | 配额，内联在 `tenants.spec.quotas[]` | `(tenant.name, pool, name)` | 无独立状态 | 每条 1:1 渲染为 ElasticQuota CR（由 tenant-operator 落地） |
 | Job | 一次性训练 / 离线任务 | `id` (uuid) / `(namespace, name)` | `Creating \| Pending \| Running \| Succeeded \| Failed \| Canceling \| Cancelled \| Deleting \| Deleted` | `MLJob`（namespaced） |
 | Service | 常驻在线服务 / 工作区 | `id` (uuid) / `(namespace, name)` | `Creating \| Pending \| Ready \| Degraded \| Failed \| Deleting \| Deleted` | `MLService`（namespaced） |
@@ -77,7 +79,7 @@ ML 工作负载 + 多租户管控面：以 PostgreSQL 为权威，承载 Tenant 
 **状态机**：
 
 ```
-[POST]──▶ Creating ──(namespaceReady)──▶ Active
+[POST]──▶ Creating ──(namespaceReady)──▶ Active ⇄[suspend/resume]⇄ Suspended
                                             │
                                             ▼
                                           Failed ──(自愈)──▶ Active
@@ -97,8 +99,11 @@ ML 工作负载 + 多租户管控面：以 PostgreSQL 为权威，承载 Tenant 
 | 更新顶层 PG 元数据（`display_name` / `description` / `labels` / `annotations`） | update 行 | **不影响 CR** | 不 `+generation`；扩展位见 [database.md §1.6](../database.md#16-扩展元数据-labels--annotations)；包含 `namespace.labels` / `namespace.annotations` 这类纯展示位 |
 | 软删 | `phase='Deleting'` + `deleted_at = now()` + `generation += 1` | reconciler 删 CR | 行保留到 retention |
 | 恢复 | `deleted_at = NULL` + `generation += 1` | reconciler 重建 CR | 仅适用 `phase='Deleted'` 行 |
+| 暂停 / 恢复 | `phase='Suspended'` / `phase='Active'` | **不下发 / 不改 CR**；不 `+generation` | 仅 `Active`↔`Suspended` 切换；reconciler 无匹配谓词 |
 
 `Failed` 是非终态，operator 自愈后自然回到 `Active`。
+
+**暂停语义**：`Suspended` 与 `Creating` / `Canceling` / `Deleting` 一样，是 API 直接写入 `phase` 的意图态——区别是它没有匹配的 reconciler 谓词（§5.1），故不下发 / 不改 Tenant CR、不 `+generation`、tenant-operator 不参与。informer 回流时**跳过** `phase='Suspended'` 行的 phase 推进，仅刷新其 `status` 子树（conditions / quotas）；resume 把 `phase` 复位 `Active` 后恢复正常回流。创建 Job / Service / Workspace 端点在写 PG 前校验本租户 `phase != 'Suspended'`，否则 `409 tenant-suspended`；存量 workload 的 `cancel` / `scale` / `stop` / `delete` 不受闸门限制。
 
 **与 Tenant CR 契约**：
 
@@ -107,6 +112,8 @@ ML 工作负载 + 多租户管控面：以 PostgreSQL 为权威，承载 Tenant 
 | `Pending` | `Creating` |
 | `Active` | `Active`（含 `namespaceReady=true`） |
 | `Failed` | `Failed`（可自愈） |
+
+`Suspended` 不来自 Tenant CR——它是 API 直接置入 `phase` 的意图态，informer 不覆盖（见上文「暂停语义」）。
 
 `status.quotas[].used` **不入 PG**——由 tenant-operator 写到 Tenant CR `status.quotas[].used`，compute-service Tenant Informer 内存 cache 现读，GET 时与 PG 中的 spec / phase 合并返回。详见 [§5.3](#53-状态回流informer)。
 
@@ -185,6 +192,7 @@ Creating ──(Informer ADD)──▶ Pending ──(ready=desired, desired>0)�
 | 软删 | `phase='Deleting'` + `deleted_at=now()` | reconciler `Delete()` CR；Informer DELETE → `Deleted`；`kind='workspace'` 时按 `?deletePvc=true`（默认 true）一并 `Delete()` PVC |
 | Pod 列表 / Pod 日志 / Pod 事件 / Service 事件 | — | 按 `axisml.io/service-id` label list Pod；按 Pod 名透传 Pod Log；按 `involvedObject` 过滤 Event（Pod 端点只回 Pod 事件，Service 端点只回 MLService/底层 Workload/HTTPRoute 事件） |
 | list 过滤 | — | `?labelSelector=` 支持 K8s 语法，常用 `axisml.io/project=<id>` |
+| 指标查询 | — | 按 `spec.backend` 选 PromQL 模板查 Prometheus，返回 `MetricSeries`（QPS / 延迟 / 错误率 / CPU·内存·GPU 利用率） |
 
 Service 无 cancel 语义；除 `roles[0].replicas` 外其他 spec 字段不可变。`kind` 创建后不可变。
 
@@ -245,7 +253,7 @@ Reconciler (leader-only)
 
 | Informer | 监听对象 | 主要回写字段 |
 | --- | --- | --- |
-| Tenant Informer | `Tenant` CR | 写 `tenants.status` jsonb（`{phase, message, namespaceReady, conditions[], quotas[].{pool, name, ready}}`）；**主动 strip `quotas[].used`**——该字段保留在 Informer in-memory cache 中，GET 时实时聚合返回；按 §4.1 phase 映射表推进 |
+| Tenant Informer | `Tenant` CR | 写 `tenants.status` jsonb（`{phase, message, namespaceReady, conditions[], quotas[].{pool, name, ready}}`）；**主动 strip `quotas[].used`**——该字段保留在 Informer in-memory cache 中，GET 时实时聚合返回；按 §4.1 phase 映射表推进，但 `phase='Suspended'` 的行只刷新 status 子树、不推进 phase（API 意图态） |
 | MLJob Informer | `MLJob` CR | 整块写 `jobs.status` jsonb（`{phase, message, startedAt, finishedAt, conditions[]}`）；按 §4.3 phase 映射表推进 |
 | MLService Informer | `MLService` CR | 整块写 `services.status` jsonb（`{phase, message, readyReplicas, endpoint, conditions[]}`）；按 §4.4 条件表推进 |
 
@@ -290,7 +298,10 @@ POST /api/v1/namespaces/{ns}/jobs
 **校验失败语义**：
 - pool CR 不存在 → `400 pool-not-found`
 - unit 名在 `pool.spec.units[]` 内找不到 → `400 unit-not-found`
+- `(poolName, quota)` 不在 `tenant.spec.quotas[]` 中 → `400 quota-not-found`
 - Informer cache 未 sync（compute-service 冷启） → `WaitForCacheSync` 通过前 `/readyz` 不就绪，Pod 不接流量，外部观察不到这种状态
+
+**quota 名组装**：Platform 仅传短 quota 名；compute 校验 `(poolName, quota) ∈ tenant.spec.quotas` 后组装全名 `axisml-<tenant>-<pool>-<quota>` 写入 `spec.scheduling.quota`，随展开结果一并 snapshot 冻结。
 
 **snapshot 语义**：pool/unit CR 仅在 Create 入口被读取一次，展开结果一次性写入 PG `spec` 快照后即固化。后续 reconciler 把 spec 透传到 MLJob / MLService CR；compute-operator 直接读 spec 渲染 Pod，全程不感知 pool/unit 概念。pool 删除或 unit 改值不会影响已创建 workload。
 
@@ -317,7 +328,8 @@ Compute **不反向重建 CR**。Informer 观察到 CR DELETE 事件后按 PG �
 
 | 类别 | 内容 | 引用 |
 | --- | --- | --- |
-| 对外 REST（K8s 风格） | `/api/v1/namespaces[/{namespace}]`（Tenant CRUD）、`/api/v1/namespaces/{namespace}/restore`、`/api/v1/namespaces/{namespace}/quotas[/{pool}/{name}]`、`/api/v1/namespaces/{namespace}/jobs[...]`、`/api/v1/namespaces/{namespace}/services[...]` | [apis/compute-service.yaml](../apis/compute-service.yaml) `Tenants` / `Quotas` / `Jobs` / `Services` tag |
+| 对外 REST（K8s 风格） | `/api/v1/namespaces[/{namespace}]`（Tenant CRUD）、`/api/v1/namespaces/{namespace}/{restore,suspend,resume}`、`/api/v1/namespaces/{namespace}/quotas[/{pool}/{name}]`、`/api/v1/namespaces/{namespace}/jobs[...]`、`/api/v1/namespaces/{namespace}/services[...]`、`/api/v1/namespaces/{namespace}/services/{name}/metrics` | [apis/compute-service.yaml](../apis/compute-service.yaml) `Tenants` / `Quotas` / `Jobs` / `Services` tag |
+| 跨 namespace 聚合 | `GET /api/v1/workloads/count?labelSelector=&active=true`（忽略分区按 label 统计活跃 Job/Service）、`GET /api/v1/workloads/metrics?...`（租户 / 集群级工作负载时序） | [apis/compute-service.yaml](../apis/compute-service.yaml) `Workloads` tag |
 | 下发 CR | `Tenant`（`axisml.io/v1alpha1`, cluster-scoped）、`MLJob` / `MLService`（namespaced）；Compute 是唯一 `spec` 写者 | [tenant-operator.md](tenant-operator.md) / [compute-operator.md](compute-operator.md) |
 | 回流字段 | `tenants.status` / `jobs.status` / `services.status`（jsonb 整块） | [database.md §2](../database.md#2-compute-service) |
 | 不变量 | CR `metadata` / `spec` 单写（Compute 写）；CR `status` 单读（operator 写）；API 不直接写 K8s | — |
@@ -337,8 +349,9 @@ Compute **不反向重建 CR**。Informer 观察到 CR DELETE 事件后按 PG �
 | Platform | 上游唯一调用方；注入 `X-Axisml-User`；请求体仅携带 `(poolName, unitName)` 名字对，由 compute-service 自己展开 | [auth.md](../auth.md) / [platform.md §4.2](platform.md#42-计算任务编排) |
 | ResourcePool CR | compute-service 通过 K8s Informer cache 直读, 创建 Job/Service 时按 `(poolName, unitName)` 展开为 Pod 原语 snapshot | [cluster-manager.md §3](cluster-manager.md#3-核心模型) |
 | artifacts | image / model / dataset 引用懒查询；**由 operator handler 侧调用 resolve API，Compute 自身不调用** | [artifact-hub.md](artifact-hub.md) |
+| Prometheus | 在线服务 / 工作负载运行指标查询（`GetServiceMetrics` / `GetWorkloadMetrics`，`--prometheus-url`）；只读 | [infra.md](../infra.md) / [monitoring.md](../monitoring.md) |
 
-Compute 不感知 ElasticQuota CR 内部结构——quota 名是字符串透传到 Tenant CR / MLJob / MLService 的 `spec.scheduling.quota`。
+Compute 不感知 ElasticQuota CR 内部结构——接收 Platform 传入的短 quota 名，校验 `(pool, quota) ∈ tenant.spec.quotas` 后组装全名 `axisml-<tenant>-<pool>-<quota>` 写入 `spec.scheduling.quota`，再字符串透传到 Tenant CR / MLJob / MLService。
 
 ## 8. 运行时形态
 

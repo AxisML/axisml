@@ -83,7 +83,7 @@ info:
 servers:
   - url: https://gateway.axisml.example.com
     description: Envoy Gateway external host (TLS, JWT auth, rate limiting)
-  - url: http://axisml-platform-backend.axisml-system.svc.cluster.local:8080
+  - url: http://axisml-platform-platform.axisml-platform.svc.cluster.local:8080
     description: In-cluster Service DNS (intra-cluster development)
 
 security:
@@ -5216,7 +5216,7 @@ components:
         / `updateDataset`). Partial-replace semantics on the four supported
         keys: a key omitted leaves the stored value untouched; a key set to
         `{}` clears `labels` / `annotations`. Submitting any other field
-        returns `400 ImmutableField`. Mirrors `apis/artifacts.yaml#/components/schemas/ArtifactUpdateRequest`.
+        returns `400 ImmutableField`. Mirrors `apis/artifact-hub.yaml#/components/schemas/ArtifactUpdateRequest`.
       properties:
         displayName:
           type: string
@@ -5242,7 +5242,7 @@ components:
       type: object
       description: |
         Artifact-side spec for `kind=image`; pass-through to artifacts. The
-        canonical field shape lives in `apis/artifacts.yaml#/components/schemas/ImageSpec`
+        canonical field shape lives in `apis/artifact-hub.yaml#/components/schemas/ImageSpec`
         (`purpose` required; `baseImage` / `platforms` / `entrypoint` / `notes` optional).
       additionalProperties: true
 
@@ -5385,7 +5385,7 @@ components:
       type: object
       description: |
         Artifact-side spec for `kind=dataset`; pass-through to artifacts. The
-        canonical field shape lives in `apis/artifacts.yaml#/components/schemas/DatasetSpec`
+        canonical field shape lives in `apis/artifact-hub.yaml#/components/schemas/DatasetSpec`
         (`format` required; `schema` / `numRecords` / `totalSize` / `license` /
         `splits[]` optional).
       additionalProperties: true

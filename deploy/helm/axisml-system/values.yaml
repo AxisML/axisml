@@ -68,9 +68,9 @@ computeService:
 
   service:
     type: ClusterIP
-    port: 8081           # HTTP API
+    port: 8080           # HTTP API
 
-  metricsPort: 8080      # Prometheus /metrics
+  metricsPort: 8081      # Prometheus /metrics
   probesPort: 8082       # /healthz + /readyz
 
   leaderElection:
@@ -115,11 +115,10 @@ artifactHub:
 
   service:
     type: ClusterIP
-    port: 8082           # HTTP API (per docs/system_design/components/artifact-hub.md §2.2)
+    port: 8080           # HTTP API
 
-  metricsPort: 8080
-  probesPort: 8083       # Distinct from compute-service's 8082 to avoid collision in any
-                         # shared local dev port-forward layouts.
+  metricsPort: 8081
+  probesPort: 8082
 
   leaderElection:
     enabled: true
@@ -184,9 +183,9 @@ clusterManager:
     pullPolicy: IfNotPresent
 
   service:
-    port: 8082
-  probesPort: 8081
-  metricsPort: 8080
+    port: 8080
+  probesPort: 8082
+  metricsPort: 8081
 
   # Namespaces a Tenant CR may NOT point spec.namespace.name at. Mirrors the
   # tenant-operator denylist; cluster-manager pre-validates so bad CRs never
@@ -205,12 +204,13 @@ clusterManager:
   # be spoofed by other in-cluster workloads.
   networkPolicy:
     enabled: true
-    # Namespaces allowed to call cluster-manager's REST surface. The default
-    # picks the gateway and system namespaces; adjust if Platform lives
-    # elsewhere.
+    # Namespaces allowed to call cluster-manager's REST surface. Platform is
+    # the normal caller; infra/system are kept for gateway probes and in-cluster
+    # administrative bootstrap paths.
     ingressFromNamespaces:
       - axisml-infra
       - axisml-system
+      - axisml-platform
 
   resources:
     requests:
