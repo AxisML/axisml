@@ -169,7 +169,7 @@ Platform 自有实体仅覆盖**身份 / 授权 / 会话 / 审计**四类，完�
 
 **全局可见制品（visibility=public）**：`system-admin` 在内置 namespace `axisml-system`（与控制面同名的保留 tenant）下创建制品并设置 `visibility=public`；Workspace / Job / Service 创建表单的镜像 / 模型 / 数据集下拉**合并展示当前租户 + `axisml-system` 命名空间的 public 行**。Platform 仅在 LIST 阶段做合并，不为「共享」语义建任何 PG 表；写入路径同普通制品，权限由 artifacts RBAC 兜底（仅 `system-admin` 能写 `axisml-system` 下的制品）。
 
-UI 设计:本期原型未覆盖制品中心,占位见 [wireframe.md §3 占位页骨架](../wireframe.md#3-占位页骨架);详细 mockup 待补,见 [§6.1 待补 ASCII mockup](../wireframe.md#61-待补-ascii-mockup)。
+UI 设计见 [wireframe.md §9 制品中心](../wireframe.md#9-制品中心-数据集--模型--镜像)(列表 / 详情 / 上传流程,数据集 / 模型 / 镜像共用模板)。
 
 ### 4.6 资源池编排
 
