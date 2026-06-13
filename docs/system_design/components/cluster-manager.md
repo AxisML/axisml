@@ -10,6 +10,7 @@
 | 默认 `default` pool 初始化（Helm post-install） | 租户 / 配额管理 (→ [compute-service.md](compute-service.md)) |
 | 用户认证与角色鉴权 (← Platform) | 计算负载 / 工作区 PVC / Pod 日志（这些属 workload 域，归 compute） |
 | `?labelSelector=` 列表过滤 | 制品管理 (→ [artifact-hub.md](artifact-hub.md)) |
+| 集群容量聚合 + 集群级指标代理（节点 allocatable/used、集群时序） | 工作负载 / 租户级指标 (→ [compute-service.md](compute-service.md)) |
 
 形态：**REST 网关层**，无独立持久化（CRD 落 K8s etcd），无 reconciler，无 leader election，多副本对等运行。
 
@@ -148,6 +149,17 @@ snapshot 语义：compute 在 Create 入口完成展开后立刻把 nodeSelector
 
 > unit 修改后已创建的 Job/Service **不感知**——见 §3.2 snapshot 语义。
 
+### 4.3 集群容量与指标
+
+admin 域的集群事实由本服务即时聚合，供 [Platform](platform.md#47-dashboard-编排) Dashboard 全局视图使用：
+
+| 端点 | 内部行为 |
+| --- | --- |
+| `GET /api/v1/cluster/capacity` | K8s typed client 聚合 Node `status.allocatable` 得 GPU / CPU / 内存总量，扣减已调度 Pod requests 得已用量，返回 `{gpu,cpu,memory}{used,total}` |
+| `GET /api/v1/cluster/metrics?metric=&range=&step=` | 按 `metric` 选 PromQL 模板查 Prometheus，返回集群级 `MetricSeries`（如集群 GPU 利用率、活跃任务并发） |
+
+容量与时序均为即时聚合，不引入持久化；PromQL 模板见 [monitoring.md §6](../monitoring.md#6-业务指标查询prometheus-代理)。
+
 ## 5. 关键机制
 
 无异步、无 reconciler。所有 mutation 是单次 K8s API 调用（最多一次乐观锁重试），返回时已写入 etcd。
@@ -157,6 +169,7 @@ snapshot 语义：compute 在 Create 入口完成展开后立刻把 nodeSelector
 | 类别 | 内容 | 引用 |
 | --- | --- | --- |
 | 对外 REST | `/api/v1/resource-pools[/{pool}]`、`/api/v1/resource-pools/{pool}/units[/{unit}]` | [apis/cluster-manager.yaml](../apis/cluster-manager.yaml) `ResourcePools` tag |
+| 对外 REST（集群事实） | `/api/v1/cluster/capacity`、`/api/v1/cluster/metrics` | [apis/cluster-manager.yaml](../apis/cluster-manager.yaml) `Cluster` tag |
 | 下发 CR | `ResourcePool`（`axisml.io/v1alpha1`，cluster-scoped）；cluster-manager 是 REST 写者，kubectl 路径也允许 | [resource-pool-crd.yaml](../../../deploy/helm/axisml-system/crds/resource-pool-crd.yaml) |
 | 身份头 | 调用方注入 `X-Axisml-User`，本服务仅做审计；同时透传为 CR annotation `axisml.io/last-modified-by` | [auth.md §7](../auth.md#7-下游身份透传) |
 | 错误格式 | HTTP 标准状态码 + RFC 7807 problem+json；K8s API 错误经 typed 映射 | — |
@@ -168,8 +181,9 @@ snapshot 语义：compute 在 Create 入口完成展开后立刻把 nodeSelector
 
 | 依赖 | 用途 | 引用 |
 | --- | --- | --- |
-| Kubernetes API | ResourcePool CR CRUD + leader Lease (无, 暂不需要) | — |
-| Platform | 唯一外部调用方；admin 域 UI 入口 | [platform.md §4.6](platform.md#46-资源池--单元编排) |
+| Kubernetes API | ResourcePool CR CRUD + Node `allocatable` / Pod requests 读（容量聚合） | — |
+| Prometheus | 集群级时序查询（`/cluster/metrics`）；只读 | [infra.md](../infra.md) / [monitoring.md](../monitoring.md) |
+| Platform | 唯一外部调用方；admin 域 UI 入口 + Dashboard 集群容量 / 时序 | [platform.md §4.6](platform.md#46-资源池编排) |
 
 不依赖 PostgreSQL、tenant-operator、compute、artifacts。
 
@@ -180,7 +194,7 @@ snapshot 语义：compute 在 Create 入口完成展开后立刻把 nodeSelector
 | 进程 | 单二进制 `axisml-cluster-manager`；子命令 `serve` / `bootstrap`（创建默认 pool CR） |
 | 副本 | 任意（无状态对等运行；无 leader election） |
 | 暴露端口 | API `:8080`；Metrics `:8081`；Probes `:8082`（`/healthz` / `/readyz`，仅校验 K8s API 可达），均不对外 |
-| RBAC scope | ClusterRole：`resourcepools.axisml.io` (`get/list/watch/create/update/patch/delete`)、`events` `create/patch` |
+| RBAC scope | ClusterRole：`resourcepools.axisml.io` (`get/list/watch/create/update/patch/delete`)、`nodes` / `pods` `get/list`（容量聚合）、`events` `create/patch` |
 | Helm values / 镜像 | 详见 [deployment.md](../deployment.md) |
 
 ## 9. 相关引用

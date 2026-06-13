@@ -59,7 +59,7 @@ API 路径与请求体见 [apis/platform.yaml](apis/platform.yaml) `Auth` tag（
 | 权限 | `system-admin` | `tenant-admin` | `user` |
 | --- | :---: | :---: | :---: |
 | 用户 CRUD | OK | NO | NO |
-| 租户 CRUD（创建 / 恢复 / 删除） | OK | NO | NO |
+| 租户 CRUD（创建 / 暂停 / 恢复 / 删除） | OK | NO | NO |
 | 租户成员管理 | OK | OK (@self) | NO |
 | 租户配额 CRUD | OK | OK (@self) | NO |
 | 资源池 / 资源单元 CRUD | OK | NO | NO |
@@ -85,8 +85,8 @@ API 路径与请求体见 [apis/platform.yaml](apis/platform.yaml) `Auth` tag（
 
 ### 4.2 `tenant_name` 作为稳定外键
 
-- `tenant_name` 是 text 列，直接引用 cluster-manager `tenants.name`，**不**在 PG 层做跨服务 FK；
-- 等价稳定 FK 的依据：cluster-manager `tenants.name` 在 `WHERE deleted_at IS NULL` 上 partial unique 且 **创建后不可变**（参见 [cluster-manager.md](components/cluster-manager.md)）；
+- `tenant_name` 是 text 列，直接引用 compute `tenants.name`，**不**在 PG 层做跨服务 FK；
+- 等价稳定 FK 的依据：compute `tenants.name` 在 `WHERE deleted_at IS NULL` 上 partial unique 且 **创建后不可变**（参见 [compute-service.md](components/compute-service.md)）；
 - 租户软删 / 硬删时由应用层级联清理本租户在 `user_tenant_roles` 中的所有行（详见 [platform.md §4.1 租户编排](components/platform.md#41-租户编排)）。
 
 ### 4.3 角色绑定规则
@@ -117,7 +117,7 @@ API 入口见 [apis/platform.yaml](apis/platform.yaml) `Members` tag。
 ### 5.2 颁发流程
 
 1. 用户先以主登录 token 通过 Platform 鉴权；
-2. 调 `GET /api/v1/workspaces/{id}/access` 或 `GET /api/v1/services/{id}/access`（见 [apis/platform.yaml](apis/platform.yaml) `Workspaces` / `Services` tag）；
+2. 调 `GET /api/v1/workspaces/{name}/access` 或 `GET /api/v1/services/{name}/access`（见 [apis/platform.yaml](apis/platform.yaml) `Workspaces` / `Services` tag）；
 3. 返回 `{ url, jwt, expiresAt }`；前端引导用户拼出 `<url>?token=<jwt>` 或在请求头注入；
 4. 数据面网关基于 JWKS 验签 + `aud` 校验后放行。
 
@@ -168,9 +168,9 @@ Platform 后端 `internal/auth` 暴露下列中间件供各功能 handler 拼装
 | `RequireAuthenticated` | 主 token 有效且未在 `sessions` 黑名单 | — |
 | `RequireSystemAdmin` | 当前用户具备 `system-admin` 角色 | — |
 | `RequireTenantRole(role, tenantParam)` | 在路径变量 `tenantParam` 对应的租户上拥有 ≥ `role` 角色 | `system-admin` 短路放行 |
-| `RequireWorkspaceOwner(idParam)` | `@owner` 或在 workspace 所属租户上有 ≥ `tenant-admin` | `system-admin` 短路 |
-| `RequireServiceOwner(idParam)` | `@owner` 或在 service 所属租户上有 ≥ `tenant-admin` | `system-admin` 短路 |
-| `RequireJobOwner(tenantParam, nameParam)` | `@owner` 或在 tenant 上有 ≥ `tenant-admin` | `system-admin` 短路 |
+| `RequireWorkspaceOwner(nameParam)` | `@owner` 或在 workspace 所属租户上有 ≥ `tenant-admin`；租户由 `X-Axisml-Tenant` 头解析 | `system-admin` 短路 |
+| `RequireServiceOwner(nameParam)` | `@owner` 或在 service 所属租户上有 ≥ `tenant-admin`；租户由 `X-Axisml-Tenant` 头解析 | `system-admin` 短路 |
+| `RequireJobOwner(nameParam)` | `@owner` 或在 job 所属租户上有 ≥ `tenant-admin`；租户由 `X-Axisml-Tenant` 头解析 | `system-admin` 短路 |
 
 实现要点：
 - `RequireWorkspaceOwner` / `RequireServiceOwner` / `RequireJobOwner` 需要先调下游 GET 拿 `owner`；结果通过 `gin.Context.Set(...)` 注入后续 handler，避免重复调用；

@@ -76,6 +76,7 @@ label 取值规则：
 | `axisml_compute_spec_sync_pending_total{resource}` | gauge | 待同步行数（`generation <> observed_generation`） |
 | `axisml_compute_external_drift_total{resource,field}` | counter | 检测到非 compute 字段管理者写入 CR 的次数（Tenant / MLJob / MLService） |
 | `axisml_compute_api_request_duration_seconds{route,status}` | histogram | API 请求延迟分布 |
+| `axisml_compute_metrics_query_duration_seconds{scope,result}` | histogram | 经 compute 代理的 Prometheus 指标查询耗时（`scope ∈ {service, workload}`） |
 
 label 取值：
 
@@ -109,6 +110,7 @@ label 取值：
 | `axisml_cluster_manager_resource_pools_total` | gauge | 当前活跃 ResourcePool CR 数 (从 K8s API 或 Informer cache 聚合) |
 | `axisml_cluster_manager_resource_units_total` | gauge | 当前活跃 unit 数 (聚合自 `pool.spec.units[]`) |
 | `axisml_cluster_manager_k8s_request_total{verb,resource,result}` | counter | 出站 K8s API 调用计数 |
+| `axisml_cluster_manager_cluster_query_total{kind,result}` | counter | 集群事实查询计数（`kind ∈ {capacity, metrics}`；capacity 走 K8s 聚合、metrics 走 Prometheus） |
 
 Cluster Manager 是 K8s admin REST 抽象（ResourcePool CR CRUD 入口）；无 reconciler / 无 leader election。Tenant 漂移检测由 compute 暴露：见 §4.1。
 
@@ -147,7 +149,7 @@ label 取值：
 
 | 指标 | 类型 | 用途 |
 | --- | --- | --- |
-| `platform_upstream_request_total{service,method,status}` | counter | 每次下游调用计数；`service ∈ {cluster-manager, compute, artifacts, prometheus}` |
+| `platform_upstream_request_total{service,method,status}` | counter | 每次下游调用计数；`service ∈ {cluster-manager, compute, artifacts}` |
 | `platform_upstream_request_duration_seconds{service,method,status}` | histogram | 下游调用延迟分布 |
 | `platform_api_request_duration_seconds{route,status}` | histogram | Platform 自身 API 请求延迟 |
 | `platform_auth_jwt_issued_total{kind,result}` | counter | JWT 颁发量（`kind ∈ {login, workspace, inference}`） |
@@ -193,7 +195,7 @@ label 取值：
 | `platform_service_list_partial_total{reason}` | counter | 部分租户失败次数 |
 | `platform_service_access_jwt_issued_total{result}` | counter | access JWT 颁发量 + 失败原因 |
 | `platform_service_state{tenant_name, state}` | gauge | 按租户聚合各 `services.status` 的 service 数；定期采样 |
-| `platform_service_metrics_query_total{metric, status}` | counter | Prometheus 查询调用结果分布 |
+| `platform_service_metrics_query_total{metric, status}` | counter | service 指标查询（经 compute-service）结果分布 |
 
 业务编排见 [platform.md §4.3 在线服务编排](components/platform.md#43-在线服务编排)。
 
@@ -205,13 +207,18 @@ label 取值：
 | `platform_resource_unit_action_total{action, status}` | counter | 同上 |
 | `platform_resource_pool_unit_count_aggregation_failures_total` | counter | 列表页聚合资源单元数量时的失败计数 |
 
-业务编排见 [platform.md §4.6 资源池 / 单元编排](components/platform.md#46-资源池--单元编排)。
+业务编排见 [platform.md §4.6 资源池编排](components/platform.md#46-资源池编排)。
 
 ---
 
-## 6. 业务指标查询（Service `/metrics` 端点）
+## 6. 业务指标查询（Prometheus 代理）
 
-Platform `GET /api/v1/services/{id}/metrics` 透传 Prometheus 实时查询，提供 Service 详情页 Tab 5 指标视图。查询模板按 backend 选择，端点字段契约见 [apis/platform.yaml](apis/platform.yaml) `Services` tag `metrics` 端点。
+Service 详情页指标 Tab 与 Dashboard 时序图的 Prometheus 查询由拥有该域的 System 服务执行，Platform 仅透传返回的 `MetricSeries`、不直连 Prometheus：
+
+- **在线服务 / 工作负载指标** 由 compute-service 执行（`GetServiceMetrics` / `GetWorkloadMetrics`），按 `spec.backend` 选 PromQL 模板；
+- **集群容量与集群时序** 由 cluster-manager 执行（`GetClusterCapacity` / `GetClusterMetrics`）。
+
+下表为在线服务指标 Tab 的查询模板，字段契约见 [apis/platform.yaml](apis/platform.yaml) `Services` tag `metrics` 端点。
 
 | 指标 | 含义 | PromQL 来源 |
 | --- | --- | --- |
@@ -222,7 +229,7 @@ Platform `GET /api/v1/services/{id}/metrics` 透传 Prometheus 实时查询，�
 | `mem_util` | 副本内存利用率 | `container_memory_working_set_bytes` |
 | `gpu_util` | GPU 利用率 | DCGM `DCGM_FI_DEV_GPU_UTIL` |
 
-Prometheus URL 来自启动配置 `--prometheus-url`（指向 `axisml-infra` namespace 下的 Prometheus）。
+compute-service 与 cluster-manager 各自以启动参数 `--prometheus-url`（指向 `axisml-infra` namespace 下的 Prometheus）执行查询；Platform 不持有 Prometheus 连接。
 
 ---
 
@@ -254,7 +261,7 @@ Prometheus URL 来自启动配置 `--prometheus-url`（指向 `axisml-infra` nam
 - 调度滞后（PodGroup gang 调度长时间 Pending）；
 - API 错误率（5xx 比例超阈值）。
 
-告警规则的 UI 维护入口规划在 [Platform 系统管理 → 监控告警](components/platform.md#91-横切) 菜单（独立菜单维护，与 service 详情页指标 Tab 解耦）。
+告警规则当前不在产品菜单内；后续若纳入，将作为系统管理下的独立入口维护，与 service 详情页指标 Tab 解耦。
 
 ---
 

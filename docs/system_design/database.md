@@ -93,7 +93,7 @@ CREATE TABLE tenants (
   generation           bigint NOT NULL DEFAULT 1,
   observed_generation  bigint NOT NULL DEFAULT 0,
 
-  phase                text NOT NULL DEFAULT 'Creating',    -- 顶层高频过滤字段；informer 回流
+  phase                text NOT NULL DEFAULT 'Creating',    -- 顶层高频过滤字段；API 写意图态（Creating/Suspended/Deleting）+ informer 回流观测态
   status               jsonb NOT NULL DEFAULT '{}',         -- phase 之外的 status 子树（message / conditions / quotas）；informer 回流
 
   last_modified_by     text NOT NULL DEFAULT '',
@@ -113,7 +113,7 @@ CREATE INDEX tenants_sync_pending
 
 `tenants.spec.namespace.name` 是 tenant 关联的 K8s namespace（不可变，多 tenant 可共享）。`jobs` / `services` / `artifacts` 的 `namespace` 字段 = `tenants.name`，作为逻辑分区键；Compute 写 CR 时 join 出 K8s namespace。
 
-`phase` 是 Tenant CR `status.phase` 的顶层冗余（便于 SQL 过滤与 B-tree 索引）；`status` jsonb 持剩余子字段 `{message, namespaceReady, conditions[], quotas[].{pool, name, ready}}` —— informer 在写 PG 时**主动 strip** `quotas[].used`，该字段属于 ephemeral 调度态，只活在 Tenant CR `status.quotas[].used` 与 compute Tenant Informer 的 in-memory cache 里，GET 端点实时聚合返回（详见 [compute-service.md §5.3](components/compute-service.md#53-状态回流informer)）。两者都由 informer 写。
+`phase` 是 Tenant CR `status.phase` 的顶层冗余（便于 SQL 过滤与 B-tree 索引）；`status` jsonb 持剩余子字段 `{message, namespaceReady, conditions[], quotas[].{pool, name, ready}}` —— informer 在写 PG 时**主动 strip** `quotas[].used`，该字段属于 ephemeral 调度态，只活在 Tenant CR `status.quotas[].used` 与 compute Tenant Informer 的 in-memory cache 里，GET 端点实时聚合返回（详见 [compute-service.md §5.3](components/compute-service.md#53-状态回流informer)）。两者都由 informer 写。`Suspended` 与 `Creating` / `Deleting` 同属 API 直接写入 `phase` 的意图态（reconciler 无匹配谓词、不下发 CR）；informer 回流时**不覆盖** `phase='Suspended'` 的行，仅刷新其 `status` 子树（conditions / quotas），resume 把 `phase` 复位 `Active` 后恢复正常回流（详见 [compute-service.md §4.1](components/compute-service.md#41-tenant)）。
 
 **字段归属**
 
