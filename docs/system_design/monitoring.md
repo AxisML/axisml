@@ -6,22 +6,22 @@
 
 ## 1. 接入模型
 
-各组件接入 Prometheus 的统一约定：
+各组件接入 Prometheus 的目标约定：
 
 1. 在容器内暴露 `/metrics` 端点（Prometheus 格式）；
-2. Helm chart 提供对应的 `ServiceMonitor` CRD，声明待采集的 Service 与端口；
+2. Helm chart 按组件提供 `ServiceMonitor` CRD，声明待采集的 Service 与端口；
 3. Prometheus Operator 自动发现并配置采集目标，无需手动维护 `prometheus.yml`。
 
-每个控制面服务的 Helm chart 模板都包含 `servicemonitor.yaml`，无需调用方额外配置。
+当前 Helm chart 已为 compute-service / artifact-hub 提供 `servicemonitor.yaml`，默认 `*.serviceMonitor.enabled=false`，部署 kube-prometheus-stack 后可按需打开。cluster-manager 暴露 metrics Service 端口但尚未提供 ServiceMonitor；tenant-operator / compute-operator 暴露 Pod metrics 端口但尚未提供 Service / ServiceMonitor；Platform chart 当前仍是 nginx placeholder，暂不暴露 backend metrics。
 
-| 组件 | 端口 | ServiceMonitor 模板 |
+| 组件 | 端口 | 当前 Helm 接入状态 |
 | --- | --- | --- |
-| Cluster Manager | `/metrics` `:8081` | `deploy/helm/axisml-system/templates/cluster-manager/servicemonitor.yaml` |
+| Cluster Manager | `/metrics` `:8081` | Service 暴露 `metrics` 端口；ServiceMonitor 待补 |
 | Compute Service | `/metrics` `:8081` | `deploy/helm/axisml-system/templates/compute-service/servicemonitor.yaml` |
 | Artifact Hub | `/metrics` `:8081` | `deploy/helm/axisml-system/templates/artifact-hub/servicemonitor.yaml` |
-| Platform Backend | `/metrics` `:8081` | `deploy/helm/axisml-platform/templates/servicemonitor.yaml` |
-| tenant-operator | `/metrics` `:8081` | `deploy/helm/axisml-system/templates/tenant-operator/servicemonitor.yaml` |
-| compute-operator | `/metrics` `:8081` | `deploy/helm/axisml-system/templates/compute-operator/servicemonitor.yaml` |
+| Platform Backend | 目标 `/metrics` `:8081` | 当前 chart 为 nginx placeholder；ServiceMonitor 待真实 backend 落地 |
+| tenant-operator | `/metrics` `:8081` | Pod 暴露 metrics；Service / ServiceMonitor 待补 |
+| compute-operator | `/metrics` `:8081` | Pod 暴露 metrics；Service / ServiceMonitor 待补 |
 
 `/metrics` 端口与 `--metrics-bind-address` 启动参数对应，可通过 Helm values 调整。
 

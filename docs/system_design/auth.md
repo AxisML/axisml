@@ -14,7 +14,7 @@
 
 约束：
 - 所有外部 HTTP 流量必须先经 Platform 鉴权后才能落到下游服务。
-- 下游服务的 Service 类型为 ClusterIP，不挂网关；NetworkPolicy 限制只允许 `axisml-system` namespace 入站。
+- 下游服务的 Service 类型为 ClusterIP，不挂网关；NetworkPolicy 限制只允许 Platform 所在 namespace（默认 `axisml-platform`）以及必要的 System / Infra 管理路径入站。
 - 当前仅支持内置用户体系（用户名 + bcrypt 密码）；OIDC / SAML 接入届时再设计抽象层，不在本文范围。
 
 ---
@@ -125,9 +125,9 @@ API 入口见 [apis/platform.yaml](apis/platform.yaml) `Members` tag。
 
 ## 6. JWKS
 
-- Platform 在 `axisml-system` namespace 内暴露 `/.well-known/jwks.json`；
+- Platform 在 `axisml-platform` namespace 内暴露 `/.well-known/jwks.json`；
 - **走 ClusterIP，不暴露到 Envoy Gateway**；
-- Envoy `SecurityPolicy` 通过 cluster-local URL（`http://platform.axisml-system:8080/.well-known/jwks.json`）拉取公钥；
+- Envoy `SecurityPolicy` 通过 cluster-local URL（默认 `http://axisml-platform-platform.axisml-platform:8080/.well-known/jwks.json`，即 `<platform-service>.<platform-namespace>`）拉取公钥；
 - 公钥旋转 = Platform 同时挂出新旧 kid，网关按 JWKS 自动发现新键；
 - compute-operator 渲染数据面 HTTPRoute 时引用同一 `jwksUri`（参见 [compute-operator.md](components/compute-operator.md)）。
 

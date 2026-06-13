@@ -26,7 +26,7 @@ AxisML Infra 是平台的基础设施层，由一组开源组件组成，为承�
 | PostgreSQL | 提供单一 database，调用方按 schema 或表前缀逻辑隔离 | 不做应用层 SQL 迁移（由各调用方自管） |
 | GPU Operator | 提供 `nvidia.com/gpu` extended resource、节点标签、DCGM Exporter `/metrics` | 不做调度决策；调度由 koord-scheduler 完成 |
 | Koordinator | 提供 `koord-scheduler` 调度器、`ElasticQuota` / `PodGroup` CRD | 不持有 ElasticQuota / PodGroup CR 的写权限（由各 CR 的实际 owner 派生） |
-| kube-prometheus-stack | 提供 Prometheus / Grafana / AlertManager；自动发现 ServiceMonitor / PodMonitor | 不主动埋点；各组件自行暴露 `/metrics` 与 ServiceMonitor |
+| kube-prometheus-stack | 提供 Prometheus / Grafana / AlertManager；自动发现 ServiceMonitor / PodMonitor | 不主动埋点；各组件自行暴露 `/metrics`，并按组件补充 ServiceMonitor / PodMonitor |
 
 **面向接入工作负载的硬不变式**：任何接入本基础设施的工作负载 Pod 必须设置 `schedulerName: koord-scheduler` 并携带 label `quota.scheduling.koordinator.sh/name=<elastic-quota-name>`，否则视为绕过配额的 bug。详见 §4.6.3。
 
@@ -63,7 +63,7 @@ AxisML Infra 是平台的基础设施层，由一组开源组件组成，为承�
 - 接入服务 → **PostgreSQL**（元数据读写）
 - 接入服务 / 终端 cli → **RustFS**（S3 协议）/ **zot**（OCI Distribution v2 协议）
 - 任何接入工作负载 Pod → **Koordinator**（`schedulerName: koord-scheduler` + Pod label `quota.scheduling.koordinator.sh/name` 消费 ElasticQuota）
-- 所有 Pod（含 GPU Operator 的 DCGM Exporter）→ **kube-prometheus-stack**（`/metrics` 被 ServiceMonitor 自动发现）
+- 已配置采集对象（含 GPU Operator 的 DCGM Exporter 与 AxisML ServiceMonitor / PodMonitor）→ **kube-prometheus-stack**（Prometheus Operator 自动发现）
 - 业务 Pod 申请 `nvidia.com/gpu` → **GPU Operator** 完成设备分配
 
 ## 4. 组件设计
@@ -255,7 +255,7 @@ PostgreSQL 是元数据持久化存储。作为第三方依赖归属 Infra 层 c
 
 #### 4.7.2 采集模型
 
-各调用方组件只需：(1) 在容器内暴露 `/metrics` 端点（Prometheus 格式）；(2) 随 Helm chart 提供对应的 `ServiceMonitor` CRD，声明待采集的 Service 与端口。Prometheus Operator 自动发现并配置采集目标，无需手动维护 `prometheus.yml`。
+各调用方组件的目标接入模型是：(1) 在容器内暴露 `/metrics` 端点（Prometheus 格式）；(2) 随 Helm chart 提供对应的 `ServiceMonitor` / `PodMonitor` CRD，声明待采集的对象与端口。当前 AxisML 自研组件的已落地与待补齐清单见 [monitoring.md §1](monitoring.md#1-接入模型)。Prometheus Operator 自动发现并配置采集目标，无需手动维护 `prometheus.yml`。
 
 #### 4.7.3 指标体系
 

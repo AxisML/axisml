@@ -26,8 +26,8 @@ spec:
           image: {{ include "axisml.image" (dict "imageRoot" $op.image "global" .Values.global "chart" .Chart) }}
           imagePullPolicy: {{ $op.image.pullPolicy }}
           args:
-            - --metrics-bind-address=:8080
-            - --health-probe-bind-address=:8081
+            - --metrics-bind-address=:8081
+            - --health-probe-bind-address=:8082
             {{- if $op.leaderElection.enabled }}
             - --leader-elect=true
             - --leader-election-id={{ $op.leaderElection.id }}
@@ -42,10 +42,10 @@ spec:
             {{- end }}
           ports:
             - name: metrics
-              containerPort: 8080
+              containerPort: 8081
               protocol: TCP
             - name: probe
-              containerPort: 8081
+              containerPort: 8082
               protocol: TCP
           livenessProbe:
             httpGet:

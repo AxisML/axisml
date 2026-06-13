@@ -67,11 +67,11 @@
 - 状态机集合：`Uploading` / `Ready` / `Failed` / `Deleting` / `Deleted`（详见 [§6](#6-接口契约)）。
 - 扩展元数据 `labels` / `annotations` 双字段语义对齐 [database.md §1.6](../database.md#16-扩展元数据-labels--annotations)；artifacts 无 CR，扩展位天然只落 PG。
 
-字段级 schema 见 [database.md §3.1](../database.md#31-artifacts-表)；spec 子字段见 [apis/artifacts.yaml](../apis/artifacts.yaml)。
+字段级 schema 见 [database.md §3.1](../database.md#31-artifacts-表)；spec 子字段见 [apis/artifact-hub.yaml](../apis/artifact-hub.yaml)。
 
 ## 4. 核心功能
 
-写路径统一见 [§5.1](#51-写路径两阶段提交)；读路径统一见 [§5.2](#52-读路径resolve)。完整 spec 字段以 [apis/artifacts.yaml](../apis/artifacts.yaml) 为准。
+写路径统一见 [§5.1](#51-写路径两阶段提交)；读路径统一见 [§5.2](#52-读路径resolve)。完整 spec 字段以 [apis/artifact-hub.yaml](../apis/artifact-hub.yaml) 为准。
 
 ### 4.1 Model
 
@@ -168,14 +168,14 @@ GC worker（leader-only，每 5 分钟一轮）扫描 PG 三类谓词：
 
 | 类别 | 内容 | 引用 |
 | --- | --- | --- |
-| 对外 REST | `/api/v1/namespaces/{ns}/{kindPlural}/{name}[/{version}[/{complete,resolve}]]`；版本级 `GET` / `PATCH` / `DELETE` 同前缀。`kindPlural` 为 `ArtifactKind` 的 URL 复数形式（`model`↔`models`、`dataset`↔`datasets`、`image`↔`images`） | [apis/artifacts.yaml](../apis/artifacts.yaml) `Artifacts` tag |
+| 对外 REST | `/api/v1/namespaces/{ns}/{kindPlural}/{name}[/{version}[/{complete,resolve}]]`；版本级 `GET` / `PATCH` / `DELETE` 同前缀。`kindPlural` 为 `ArtifactKind` 的 URL 复数形式（`model`↔`models`、`dataset`↔`datasets`、`image`↔`images`） | [apis/artifact-hub.yaml](../apis/artifact-hub.yaml) `Artifacts` tag |
 | Handler 接口 | 见下表 | — |
 | 身份头 | 调用方注入 `X-Axisml-User`，本服务仅做审计 | [auth.md §7](../auth.md#7-下游身份透传) |
 | 列表查询 | list 端点支持 `?labelSelector=` K8s grammar，可按 Platform 注入的 `axisml.io/project` 等 label 过滤 | [database.md §1.6](../database.md#16-扩展元数据-labels--annotations) |
 | 错误格式 | HTTP 标准状态码 + RFC 7807 problem+json | — |
 | 写后语义 | initiate 在 PG 提交后返回上传凭证；Ready 由 complete 推进，调用方通过 GET 观察 status；PATCH 是纯 PG mutation，立即可读 | — |
 
-**PATCH 可变字段**（任何非终态状态生效）：`displayName` / `description` / `labels` / `annotations` 四项。其它字段一律不可变（含 `visibility`：创建后不可变）；submitting any other field returns `400 ImmutableField`。`Deleting` / `Deleted` 行 PATCH 返 `409 ArtifactTerminal`。`labels` / `annotations` 按整体 map 替换语义（无 per-entry 合并）；缺省 key 保持原值。详见 [apis/artifacts.yaml `updateArtifact`](../apis/artifacts.yaml)。
+**PATCH 可变字段**（任何非终态状态生效）：`displayName` / `description` / `labels` / `annotations` 四项。其它字段一律不可变（含 `visibility`：创建后不可变）；submitting any other field returns `400 ImmutableField`。`Deleting` / `Deleted` 行 PATCH 返 `409 ArtifactTerminal`。`labels` / `annotations` 按整体 map 替换语义（无 per-entry 合并）；缺省 key 保持原值。详见 [apis/artifact-hub.yaml `updateArtifact`](../apis/artifact-hub.yaml)。
 
 **ArtifactHandler 接口**（编译期注册，key=`Kind()`）：
 
@@ -233,7 +233,7 @@ Ready / Failed ──(DELETE)──▶ Deleting ──(GCBackend 成功)──�
 - [deployment.md](../deployment.md) — Helm chart 与部署形态
 - [monitoring.md](../monitoring.md) — Metrics 与告警
 - [infra.md](../infra.md) — zot / RustFS / PostgreSQL 基础设施
-- [apis/artifacts.yaml](../apis/artifacts.yaml) — REST API 字段契约
+- [apis/artifact-hub.yaml](../apis/artifact-hub.yaml) — REST API 字段契约
 - [tenant-operator.md](tenant-operator.md) — per-tenant SA + 默认 ImagePullSecret / Secret 落地契约（`resolve?usage=inspect` 的隐式凭证来源）
 - [compute-operator.md](compute-operator.md) — mljob / mlservice handler 作为 resolve 消费方
 - [platform.md](platform.md) — 工作区到 Artifacts namespace 的映射

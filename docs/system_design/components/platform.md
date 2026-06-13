@@ -300,9 +300,9 @@ RBAC 中间件装配细节归 [auth.md](../auth.md)，Platform 在路由层挂�
 | 维度 | 值 |
 | --- | --- |
 | 进程 | 单二进制 `axisml-platform`；子命令 `serve` / `migrate` / `bootstrap` |
-| 副本 | 默认 `replicas=2`（无状态）；后端 + 前端镜像分别构建，共用同一 Service |
+| 副本 | 当前 chart 默认 `replicas=1`；Platform 服务无状态，后续真实后端 / 前端镜像拆分后可水平扩 |
 | 启动子命令 | `serve` 启动 HTTP API + 后台任务；`migrate` 执行 GORM 迁移（部署 init container）；`bootstrap` 一次性创建内置角色、初始 `system-admin` 账号（默认 `admin/admin`，首次登录强制改密；可由 `AXISML_BOOTSTRAP_PASSWORD` 覆盖）以及内置 `axisml-system` 租户（承载 `visibility=public` 制品） |
-| 暴露端口 | API `:8080`；Metrics `:8081`；Probes `:8082`（`/healthz` / `/readyz`）；JWKS `/.well-known/jwks.json` 走 ClusterIP，不经 Gateway |
+| 暴露端口 | 当前 chart 以 nginx placeholder 暴露 HTTP `:8080`；真实 Platform Backend 目标为 API `:8080`、Metrics `:8081`、Probes `:8082`（`/healthz` / `/readyz`），JWKS `/.well-known/jwks.json` 走 ClusterIP，不经 Gateway |
 | RBAC scope | 无 K8s API 需求（PVC / CR / Pod / 节点容量 / 指标查询透传一律下沉下游服务） |
 | Helm values / 镜像 | 详见 [deployment.md](../deployment.md) |
 

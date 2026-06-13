@@ -38,7 +38,7 @@ Kubernetes Cluster
     └── Tenant resources / workloads / routes / secrets / ElasticQuota
 ```
 
-跨 namespace 访问统一走 `<service>.<namespace>.svc.cluster.local`，例如 `rustfs-svc.axisml-infra:9000`、`zot.axisml-infra:5000`、`axisml-database.axisml-infra:5432`、`axisml-compute-service.axisml-system:8081`。Platform 调用下游 System 服务、System 服务连接 Infra 层数据库均走此跨 namespace FQDN。所有自研控制面组件统一约定 API `:8080` / Metrics `:8081` / Probes `:8082`（operator 无 API 端口，metrics + probes 同此约定）；不同组件分别落不同 Service 名，端口可同号无冲突。
+跨 namespace 访问统一走 `<service>.<namespace>.svc.cluster.local`，例如 `rustfs-svc.axisml-infra:9000`、`zot.axisml-infra:5000`、`axisml-database.axisml-infra:5432`、`axisml-compute-service.axisml-system:8080`。Platform 调用下游 System 服务、System 服务连接 Infra 层数据库均走此跨 namespace FQDN。端口以 Helm values 为准：自研服务 HTTP API 统一 `:8080`；metrics 统一 `:8081`；probes 统一 `:8082`（operator 无 API 端口）。
 
 ---
 
@@ -118,8 +118,8 @@ make helm-install-platform  # 最后装用户面
 | 组件 | 副本 | 端口 | leader election | 备注 |
 | --- | --- | --- | --- | --- |
 | Cluster Manager | `1` 默认 | `:8080` API / `:8081` metrics / `:8082` probes | 无 | K8s admin REST 抽象（ResourcePool CRD CRUD），多副本对等运行；无 reconciler / 无 informer (list 端点可选 Pool Informer cache)；bootstrap Job 初始化默认 ResourcePool CR (含 cpu-small/cpu-medium unit) |
-| Compute Service | `1` 默认 | 同上 | controller-runtime Lease | API 层无状态可水平扩；reconciler / informer 单 leader；workspace 创建时同事务派生 PVC |
-| Artifact Hub | `1` 默认 | 同上 | `coordination.k8s.io/Lease` | GC worker 选主；API 层无状态 |
+| Compute Service | `1` 默认 | `:8080` API / `:8081` metrics / `:8082` probes | controller-runtime Lease | API 层无状态可水平扩；reconciler / informer 单 leader；workspace 创建时同事务派生 PVC |
+| Artifact Hub | `1` 默认 | `:8080` API / `:8081` metrics / `:8082` probes | `coordination.k8s.io/Lease` | GC worker 选主；API 层无状态 |
 | tenant-operator | `1`（leader）+ N 备 | `:8081` metrics / `:8082` probes（无 API） | controller-runtime Lease | 单 leader |
 | compute-operator | `1`（leader）+ N 备 | 同上 | controller-runtime Lease | 单 leader；dispatcher + handler 模型 |
 
@@ -127,8 +127,7 @@ make helm-install-platform  # 最后装用户面
 
 | 组件 | 副本 | 端口 | leader election | 备注 |
 | --- | --- | --- | --- | --- |
-| Platform Backend | `1` 默认 | `:8080` API / `:8081` metrics / `:8082` probes | 无 | 完全无状态；不调用 K8s API；经跨 namespace FQDN 调 System 层服务 |
-| Platform Frontend | `1` 默认 | `:80` 静态资源 | 无 | 前端镜像独立部署，通过 Helm `platform.frontend.image` 字段配置 |
+| Platform chart | `1` 默认 | 当前 nginx placeholder 仅 `:8080` HTTP | 无 | 真实 Platform Backend 目标为 API `:8080` / metrics `:8081` / probes `:8082`；经跨 namespace FQDN 调 System 层服务 |
 
 `axisml-infra` namespace 内的基础设施组件部署形态（默认 values）：
 
@@ -148,7 +147,7 @@ make helm-install-platform  # 最后装用户面
 
 ## 6. Helm 模板清单
 
-System 层组件的 Helm 模板放在 `deploy/helm/axisml-system/templates/<component>/` 下，文件清单基本一致：
+System 层组件的 Helm 模板放在 `deploy/helm/axisml-system/templates/<component>/` 下，文件清单按组件略有差异：
 
 ### 6.1 Cluster Manager / Compute Service / Artifact Hub
 
@@ -161,7 +160,7 @@ System 层组件的 Helm 模板放在 `deploy/helm/axisml-system/templates/<comp
 | `serviceaccount.yaml` | 服务账号 |
 | `rbac.yaml` | ClusterRole + ClusterRoleBinding（详见各组件详设 §2.5） |
 | `role.yaml` / `rolebinding.yaml` | leader election Lease 权限（在 `axisml-system` namespace 内） |
-| `servicemonitor.yaml` | `/metrics` 暴露，kube-prometheus-stack 自动发现 |
+| `servicemonitor.yaml` | `/metrics` 暴露，当前由 compute-service / artifact-hub 提供并通过 `*.serviceMonitor.enabled` opt-in |
 | `post-install-job.yaml` | post-install Job：compute-service 初始化默认 ResourcePool 引用 |
 
 System 层的默认数据由 `templates/seed/` 下的 post-install hook 落地：`resource-pool-default.yaml`（default ResourcePool，内嵌 cpu-small/cpu-medium unit）、`tenant-system.yaml`（内置租户 `axisml-system`）。
