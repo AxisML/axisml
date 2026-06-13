@@ -18,7 +18,7 @@ import (
 	srv "github.com/axisml/axisml/components/cluster-manager/internal/server"
 )
 
-// Handler implements the /api/v1/resource-pools[/{pool}[/resource-units...]]
+// Handler implements the /api/v1/resource-pools[/{pool}[/units...]]
 // HTTP surface. It owns no state; all mutations go straight to the K8s API
 // server via client.Client.
 type Handler struct {
@@ -34,7 +34,7 @@ func (h *Handler) Register(rg *gin.RouterGroup) {
 	pools.PATCH("/:pool", h.Patch)
 	pools.DELETE("/:pool", h.Delete)
 
-	units := pools.Group("/:pool/resource-units")
+	units := pools.Group("/:pool/units")
 	units.POST("", h.CreateUnit)
 	units.GET("", h.ListUnits)
 	units.GET("/:unit", h.GetUnit)
@@ -210,7 +210,7 @@ func (h *Handler) Delete(c *gin.Context) {
 
 // ─────────────────────────────────────────────────────────────── Units
 
-// CreateUnit handles POST .../resource-units. Optimistically patches the
+// CreateUnit handles POST .../units. Optimistically patches the
 // parent ResourcePool's spec.units[].
 func (h *Handler) CreateUnit(c *gin.Context) {
 	poolName := c.Param("pool")
@@ -254,7 +254,7 @@ func (h *Handler) CreateUnit(c *gin.Context) {
 	c.JSON(http.StatusCreated, srv.UnitToDTO(added))
 }
 
-// ListUnits handles GET .../resource-units. Returns pool.spec.units[].
+// ListUnits handles GET .../units. Returns pool.spec.units[].
 func (h *Handler) ListUnits(c *gin.Context) {
 	pool, err := h.getPool(c.Request.Context(), c.Param("pool"))
 	if err != nil {
@@ -268,7 +268,7 @@ func (h *Handler) ListUnits(c *gin.Context) {
 	c.JSON(http.StatusOK, srv.ResourceUnitList{Items: items, Count: len(items)})
 }
 
-// GetUnit handles GET .../resource-units/{unit}.
+// GetUnit handles GET .../units/{unit}.
 func (h *Handler) GetUnit(c *gin.Context) {
 	pool, err := h.getPool(c.Request.Context(), c.Param("pool"))
 	if err != nil {
@@ -285,7 +285,7 @@ func (h *Handler) GetUnit(c *gin.Context) {
 		"unit not found in pool", c.Param("unit"))
 }
 
-// PatchUnit handles PATCH .../resource-units/{unit}.
+// PatchUnit handles PATCH .../units/{unit}.
 func (h *Handler) PatchUnit(c *gin.Context) {
 	poolName, unitName := c.Param("pool"), c.Param("unit")
 	var req srv.PatchResourceUnitRequest
@@ -360,7 +360,7 @@ func applyUnitPatch(u *axismlv1alpha1.ResourceUnit, req srv.PatchResourceUnitReq
 	}
 }
 
-// DeleteUnit handles DELETE .../resource-units/{unit}.
+// DeleteUnit handles DELETE .../units/{unit}.
 func (h *Handler) DeleteUnit(c *gin.Context) {
 	poolName, unitName := c.Param("pool"), c.Param("unit")
 	user := c.GetHeader(srv.HeaderUser)

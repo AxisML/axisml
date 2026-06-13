@@ -28,7 +28,7 @@ func TestResourceUnit_Lifecycle(t *testing.T) {
 	t.Cleanup(func() { _ = doRequest(t, "DELETE", "/api/v1/resource-pools/"+poolName, "") })
 
 	// Add a second unit.
-	rr = doRequest(t, "POST", "/api/v1/resource-pools/"+poolName+"/resource-units", `{
+	rr = doRequest(t, "POST", "/api/v1/resource-pools/"+poolName+"/units", `{
 	  "name": "cpu-medium",
 	  "description": "4-core medium",
 	  "requests": {"cpu": "4", "memory": "8Gi"},
@@ -42,18 +42,18 @@ func TestResourceUnit_Lifecycle(t *testing.T) {
 	require.Equal(t, "4", cpuQ.String())
 
 	// List shows both.
-	rr = doRequest(t, "GET", "/api/v1/resource-pools/"+poolName+"/resource-units", "")
+	rr = doRequest(t, "GET", "/api/v1/resource-pools/"+poolName+"/units", "")
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 	var list srv.ResourceUnitList
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &list))
 	require.Equal(t, 2, list.Count)
 
 	// Get one.
-	rr = doRequest(t, "GET", "/api/v1/resource-pools/"+poolName+"/resource-units/cpu-medium", "")
+	rr = doRequest(t, "GET", "/api/v1/resource-pools/"+poolName+"/units/cpu-medium", "")
 	require.Equal(t, http.StatusOK, rr.Code)
 
 	// Patch cpu-medium's limits.
-	rr = doRequest(t, "PATCH", "/api/v1/resource-pools/"+poolName+"/resource-units/cpu-medium",
+	rr = doRequest(t, "PATCH", "/api/v1/resource-pools/"+poolName+"/units/cpu-medium",
 		`{"limits": {"cpu": "8", "memory": "16Gi"}}`)
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 	var patched srv.ResourceUnitDTO
@@ -62,7 +62,7 @@ func TestResourceUnit_Lifecycle(t *testing.T) {
 	require.Equal(t, "8", cpuLim.String())
 
 	// Duplicate add returns 409.
-	rr = doRequest(t, "POST", "/api/v1/resource-pools/"+poolName+"/resource-units", `{
+	rr = doRequest(t, "POST", "/api/v1/resource-pools/"+poolName+"/units", `{
 	  "name": "cpu-medium",
 	  "requests": {"cpu":"1"},
 	  "limits":   {"cpu":"1"}
@@ -70,10 +70,10 @@ func TestResourceUnit_Lifecycle(t *testing.T) {
 	require.Equal(t, http.StatusConflict, rr.Code)
 
 	// Delete cpu-medium.
-	rr = doRequest(t, "DELETE", "/api/v1/resource-pools/"+poolName+"/resource-units/cpu-medium", "")
+	rr = doRequest(t, "DELETE", "/api/v1/resource-pools/"+poolName+"/units/cpu-medium", "")
 	require.Equal(t, http.StatusNoContent, rr.Code)
 
-	rr = doRequest(t, "GET", "/api/v1/resource-pools/"+poolName+"/resource-units", "")
+	rr = doRequest(t, "GET", "/api/v1/resource-pools/"+poolName+"/units", "")
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &list))
 	require.Equal(t, 1, list.Count)
