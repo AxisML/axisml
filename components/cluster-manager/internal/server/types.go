@@ -63,7 +63,7 @@ type PatchResourcePoolRequest struct {
 	Annotations  map[string]string   `json:"annotations,omitempty"`
 }
 
-// CreateResourceUnitRequest is the body for POST .../resource-units.
+// CreateResourceUnitRequest is the body for POST .../units.
 type CreateResourceUnitRequest struct {
 	Name         string              `json:"name"`
 	Description  string              `json:"description,omitempty"`

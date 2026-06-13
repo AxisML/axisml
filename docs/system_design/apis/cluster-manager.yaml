@@ -191,7 +191,7 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   # ResourceUnits
   # ─────────────────────────────────────────────────────────────────────
-  /api/v1/resource-pools/{pool}/resource-units:
+  /api/v1/resource-pools/{pool}/units:
     parameters:
       - $ref: '#/components/parameters/PoolName'
     post:
@@ -243,7 +243,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
-  /api/v1/resource-pools/{pool}/resource-units/{unit}:
+  /api/v1/resource-pools/{pool}/units/{unit}:
     parameters:
       - $ref: '#/components/parameters/PoolName'
       - $ref: '#/components/parameters/UnitName'
@@ -571,7 +571,7 @@ components:
             $ref: '#/components/schemas/Toleration'
         units:
           type: array
-          description: Optional initial `spec.units[]` (can be added later via /resource-units subroutes).
+          description: Optional initial `spec.units[]` (can be added later via /units subroutes).
           items:
             $ref: '#/components/schemas/ResourceUnitCreateRequest'
         labels:
@@ -583,7 +583,7 @@ components:
     ResourcePoolPatchRequest:
       type: object
       description: |
-        Pool-level fields only (use /resource-units subroutes to manipulate
+        Pool-level fields only (use /units subroutes to manipulate
         individual units). `name` is immutable.
       properties:
         description:

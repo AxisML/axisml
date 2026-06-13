@@ -10,22 +10,22 @@
 | 派生 Job / Pod / Deployment / StatefulSet / HTTPRoute 等（kubeflow-trainer / kserve / 自定义后端在 dispatcher / handler 接口上保留扩展点） | 业务持久化、用量计费、Outbox 推进 (→ [compute-service.md](compute-service.md)) |
 | `spec.route` 派生 Gateway API + Envoy Gateway 扩展资源 | 模型工件存储 (→ [artifact-hub.md](artifact-hub.md)) |
 | Cancel 推进信号（`Suspended` condition）单向回流 | 用户认证 / 鉴权 (→ [auth.md](../auth.md)) |
-| Pod 注入 `schedulerName=koord-scheduler` + Quota label | 写 compute PG / 跨集群联邦 |
+| Pod 注入 `schedulerName=koord-scheduler` + Quota label | 写 compute-service PG / 跨集群联邦 |
 
 ## 2. 架构
 
 ### 2.1 上下文
 
 ```
-   ┌──────────────┐   Create / Patch CR (spec)   ┌──────────────────────┐
-   │   compute    │ ────────────────────────────▶│   K8s API: MLJob /   │
-   └──────────────┘                              │   MLService          │
+   ┌─────────────────┐  Create / Patch CR (spec)  ┌──────────────────────┐
+   │ compute-service │ ──────────────────────────▶│   K8s API: MLJob /   │
+   └─────────────────┘                            │   MLService          │
           ▲                                       └─────────┬────────────┘
           │  status (watch)                                 │ watch
           │                                                 ▼
-   ┌──────────────┐                            ┌────────────────────────┐
-   │   compute    │◀─── CR.status 回流 ────────│   compute-operator     │
-   └──────────────┘                            └─────────┬──────────────┘
+   ┌─────────────────┐                          ┌────────────────────────┐
+   │ compute-service │◀─── CR.status 回流 ──────│   compute-operator     │
+   └─────────────────┘                          └─────────┬──────────────┘
                                                          │ 派生
               ┌──────────────────────────────────────────┼──────────────────────────────────────────┐
               ▼                                          ▼                                          ▼
@@ -67,7 +67,7 @@
 
 两个 CR 均使用 `axisml.io/v1alpha1`，`status` subresource 必启用。字段级 schema 见 [§6](#6-接口契约) 引用的 CRD yaml；spec 顶层结构与字段归属约定见 [§4.1.1](#411-mljob-spec-高层结构) / [§4.2.1](#421-mlservice-spec-高层结构)。
 
-`spec.scheduling.quota` 是 compute 透传的 ElasticQuota CR 名字符串，对 operator 不透明——ElasticQuota 资源本身由 [tenant-operator](tenant-operator.md) 独占维护。
+`spec.scheduling.quota` 是 compute-service 透传的 ElasticQuota CR 名字符串，对 operator 不透明——ElasticQuota 资源本身由 [tenant-operator](tenant-operator.md) 独占维护。
 
 ## 4. 核心功能
 
@@ -137,7 +137,7 @@ spec:
                      └──▶ Failed ───────┘   (operator 自愈 → Informer 自然恢复)
 ```
 
-四态全部非终态——`Deleted` 由 compute Informer 观察 CR DELETE 后基于 PG 推导。
+四态全部非终态——`Deleted` 由 compute-service Informer 观察 CR DELETE 后基于 PG 推导。
 
 | 事件 | Dispatcher 行为 | Handler 行为 |
 | --- | --- | --- |
@@ -230,11 +230,11 @@ spec:
 
 | 信号 | 写入方 | 读取方 | 备注 |
 | --- | --- | --- | --- |
-| `CR.status.phase` / `message` | operator dispatcher | compute Informer | 唯一被 compute 持久化的 phase 字段 |
-| `CR.status.roles[*]` | operator dispatcher | UI / compute 观测 | role 级 replica 计数 |
-| `MLService.status.endpoint` | operator dispatcher | compute Informer | 来源见 §5.3 |
-| `MLJob.status.conditions[type=Suspended,status=True,reason=CancelRequested]` | dispatcher 合并 Handler 返回的 `suspendCompleted=true` | compute Informer | **cancel 闭环推进的唯一来源**；PG `Canceling → Cancelled → Delete()` 全靠它；缺失会卡住 |
-| `CR.metadata` / `spec` | compute | operator 只读 | 单向；operator 永不向 compute PG 写入 |
+| `CR.status.phase` / `message` | operator dispatcher | compute-service Informer | 唯一被 compute-service 持久化的 phase 字段 |
+| `CR.status.roles[*]` | operator dispatcher | UI / compute-service 观测 | role 级 replica 计数 |
+| `MLService.status.endpoint` | operator dispatcher | compute-service Informer | 来源见 §5.3 |
+| `MLJob.status.conditions[type=Suspended,status=True,reason=CancelRequested]` | dispatcher 合并 Handler 返回的 `suspendCompleted=true` | compute-service Informer | **cancel 闭环推进的唯一来源**；PG `Canceling → Cancelled → Delete()` 全靠它；缺失会卡住 |
+| `CR.metadata` / `spec` | compute-service | operator 只读 | 单向；operator 永不向 compute-service PG 写入 |
 
 **终态优先**：若底层资源已 `Succeeded` / `Failed`，cancel 信号被吞——`status.phase` 保留终态，`finishedAt` 不回退。
 
@@ -244,7 +244,7 @@ spec:
 | --- | --- | --- |
 | CRD: MLJob | `axisml.io/v1alpha1`, Namespaced, shortName `mlj`；`status` subresource 必启 | [deploy/helm/axisml-system/crds/mljob-crd.yaml](../../../deploy/helm/axisml-system/crds/mljob-crd.yaml) |
 | CRD: MLService | `axisml.io/v1alpha1`, Namespaced, shortName `mls`；`status` subresource 必启 | [deploy/helm/axisml-system/crds/mlservice-crd.yaml](../../../deploy/helm/axisml-system/crds/mlservice-crd.yaml) |
-| 上游 compute 写契约 | `Create()` 幂等（重复返回 409 `AlreadyExists`，label `axisml.io/{job-id\|service-id}` 一致即视为成功）；`metadata`/`spec` 单向；`spec.runPolicy.suspend` 与 `roles[*].replicas` 是仅有的运行时可变路径；MLService 额外携带 `axisml.io/service-kind=<service\|workspace>` 稳定 label（operator 不消费，仅供 `kubectl` 与 selector 区分） | [compute-service.md](compute-service.md) |
+| 上游 compute-service 写契约 | `Create()` 幂等（重复返回 409 `AlreadyExists`，label `axisml.io/{job-id\|service-id}` 一致即视为成功）；`metadata`/`spec` 单向；`spec.runPolicy.suspend` 与 `roles[*].replicas` 是仅有的运行时可变路径；MLService 额外携带 `axisml.io/service-kind=<service\|workspace>` 稳定 label（operator 不消费，仅供 `kubectl` 与 selector 区分） | [compute-service.md](compute-service.md) |
 | 路由元组 | MLJob: `(native,job)`；MLService: `(native,{deployment,statefulset})`（其它扩展元组保留接口位，未交付——见 §9） | §4 |
 | Pod 注入必填 | `spec.schedulerName=koord-scheduler` + 4 项 label（quota / job-id 或 service-id / role / quota 审计） | §5.2 |
 | Status 回流字段 | `phase` / `message` / `roles[*]` / `conditions[type=Suspended]`（MLJob）/ `endpoint`（MLService） | §5.4 |
@@ -252,7 +252,7 @@ spec:
 
 CRD 字段级 schema 不在本文展开，以上述 yaml + 后续 admission webhook 为准。
 
-**防御等级**：`metadata` / `spec` 单写约束（compute 为唯一写者）当前由 dispatcher `Validate(spec)` 软兜底，**不防止外部直接 `kubectl patch` 改 CR 的攻击面**——系统目前在控制面信任边界内部署，admission webhook 是后续硬化路径（见 §9）。
+**防御等级**：`metadata` / `spec` 单写约束（compute-service 为唯一写者）当前由 dispatcher `Validate(spec)` 软兜底，**不防止外部直接 `kubectl patch` 改 CR 的攻击面**——系统目前在控制面信任边界内部署，admission webhook 是后续硬化路径（见 §9）。
 
 ## 7. 依赖
 
@@ -262,7 +262,7 @@ CRD 字段级 schema 不在本文展开，以上述 yaml + 后续 admission webh
 | Koordinator (`koord-scheduler` + `koord-scheduler` ElasticQuota plugin) | 所有派生 Pod 强制 schedulerName + Quota label 计入 ElasticQuota；ElasticQuota CR 资源由 tenant-operator 维护，operator 只透传名字 | [infra.md](../infra.md) / [tenant-operator.md](tenant-operator.md) |
 | Gateway API | `spec.route.enabled=true` 派生 `HTTPRoute`，挂到 `axisml-gateway` | [infra.md](../infra.md) |
 | Envoy Gateway 扩展 (`SecurityPolicy` / `BackendTrafficPolicy`) | `route.auth` / `rateLimit` / `timeout` 派生 | [infra.md](../infra.md) |
-| compute（上游 CR 写者） | 通过 `Create + Patch` 下发期望，status 单向回流；operator 不感知其 PG 表与 Outbox 推进机制 | [compute-service.md](compute-service.md) |
+| compute-service（上游 CR 写者） | 通过 `Create + Patch` 下发期望，status 单向回流；operator 不感知其 PG 表与 Outbox 推进机制 | [compute-service.md](compute-service.md) |
 
 ## 8. 运行时形态
 
@@ -289,7 +289,7 @@ CRD 字段级 schema 不在本文展开，以上述 yaml + 后续 admission webh
 
 - [overview.md](../overview.md) — compute-operator 在控制平面拓扑中的位置
 - [auth.md](../auth.md) — 身份与鉴权契约（operator 不直接认证终端用户）
-- [database.md](../database.md) — compute / cluster-manager PG 表（operator 只读 CR，不触 PG）
+- [database.md](../database.md) — compute-service / cluster-manager PG 表（operator 只读 CR，不触 PG）
 - [deployment.md](../deployment.md) — Helm chart / 镜像 / 部署清单
 - [monitoring.md](../monitoring.md) — Metrics 与告警
 - [infra.md](../infra.md) — Koordinator / scheduler-plugins / Kubeflow / KServe / Gateway API / Envoy Gateway 依赖

@@ -133,7 +133,7 @@ func buildDocument(version string) *openapigen.Document {
 		},
 	}
 
-	paths["/api/v1/resource-pools/{pool}/resource-units"] = openapigen.PathItem{
+	paths["/api/v1/resource-pools/{pool}/units"] = openapigen.PathItem{
 		Post: &openapigen.Operation{
 			Tags: []string{tagResourceUnits}, Summary: "Add a unit to the pool", OperationID: "createResourceUnit",
 			Parameters:  []openapigen.Parameter{poolParam},
@@ -147,7 +147,7 @@ func buildDocument(version string) *openapigen.Document {
 		},
 	}
 
-	paths["/api/v1/resource-pools/{pool}/resource-units/{unit}"] = openapigen.PathItem{
+	paths["/api/v1/resource-pools/{pool}/units/{unit}"] = openapigen.PathItem{
 		Get: &openapigen.Operation{
 			Tags: []string{tagResourceUnits}, Summary: "Get unit", OperationID: "getResourceUnit",
 			Parameters: []openapigen.Parameter{poolParam, unitParam},

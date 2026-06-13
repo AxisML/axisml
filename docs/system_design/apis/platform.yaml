@@ -2877,7 +2877,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/resource-pools/{pool}/resource-units:
+  /api/v1/resource-pools/{pool}/units:
     parameters:
       - $ref: '#/components/parameters/PoolName'
 
@@ -2936,7 +2936,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/resource-pools/{pool}/resource-units/{unit}:
+  /api/v1/resource-pools/{pool}/units/{unit}:
     parameters:
       - $ref: '#/components/parameters/PoolName'
       - $ref: '#/components/parameters/UnitName'
@@ -4510,7 +4510,7 @@ components:
             Pod volumes (shape matches K8s `PodSpec.volumes[]`). Pass-through
             from compute. Surfaced on the Platform DTO so Workspace / Job edit
             UIs can display mounts. Authoritative shape lives in
-            `apis/compute.yaml`.
+            `apis/compute-service.yaml`.
           items:
             type: object
             additionalProperties: true
@@ -4661,11 +4661,11 @@ components:
     MLJobSpec:
       type: object
       description: |
-        Mirror of `apis/compute.yaml#/components/schemas/MLJobSpec`
+        Mirror of `apis/compute-service.yaml#/components/schemas/MLJobSpec`
         (pass-through from compute). Surfaced on `Job` so the UI can prefill
         the "resubmit" form and render a complete YAML view. The authoritative
         shape and validation rules live in
-        `components/compute-operator.md §4.1.1` and `apis/compute.yaml`.
+        `components/compute-operator.md §4.1.1` and `apis/compute-service.yaml`.
       properties:
         backend:
           $ref: '#/components/schemas/Backend'
@@ -5596,7 +5596,7 @@ components:
             $ref: '#/components/schemas/Toleration'
         units:
           type: array
-          description: Optional initial `spec.units[]`; can also be managed later via /resource-units subroutes.
+          description: Optional initial `spec.units[]`; can also be managed later via /units subroutes.
           items:
             $ref: '#/components/schemas/ResourceUnitCreateRequest'
         labels:
@@ -5606,7 +5606,7 @@ components:
 
     ResourcePoolPatchRequest:
       type: object
-      description: Pool-level fields only; use /resource-units subroutes to manage individual units.
+      description: Pool-level fields only; use /units subroutes to manage individual units.
       properties:
         description:
           type: string

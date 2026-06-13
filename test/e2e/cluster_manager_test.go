@@ -51,7 +51,7 @@ func TestClusterManager_AddAndPatchUnit(t *testing.T) {
 		_, _ = h.clusterManager.do(context.Background(), http.MethodDelete, "/api/v1/resource-pools/"+pool, nil)
 	})
 
-	unitPath := "/api/v1/resource-pools/" + pool + "/resource-units"
+	unitPath := "/api/v1/resource-pools/" + pool + "/units"
 	add := cmCreateUnitReq{
 		Name:     "unit-a",
 		Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("2")},

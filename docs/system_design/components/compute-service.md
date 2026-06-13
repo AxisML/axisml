@@ -15,7 +15,7 @@ ML 工作负载 + 多租户管控面：以 PostgreSQL 为权威，承载 Tenant 
 
 **namespace 字段语义**：`jobs` / `services` 表的 `namespace text` 是 tenant 标识符（= `tenants.name`），逻辑分区键；Compute 内部 join `tenants` 表得到 `spec.namespace.name` 用于 CR 下发。
 
-**Pool/Unit 展开归属**：Platform 仅向 compute 传 `(poolName, unitName)` 名字对；compute 通过 K8s Informer 直读 `ResourcePool` CR cache 完成展开（合并 `nodeSelector` / `tolerations` / `requests` / `limits` 写进请求体的 `spec.scheduling` / `spec.roles[*].template.resources`），然后 snapshot 到 `jobs.spec` / `services.spec` jsonb。snapshot 一经写入即与 pool/unit CR 解耦，pool/unit 后续修改 / 删除不影响已创建 workload。详见 §5.4。
+**Pool/Unit 展开归属**：Platform 仅向 compute-service 传 `(poolName, unitName)` 名字对；compute-service 通过 K8s Informer 直读 `ResourcePool` CR cache 完成展开（合并 `nodeSelector` / `tolerations` / `requests` / `limits` 写进请求体的 `spec.scheduling` / `spec.roles[*].template.resources`），然后 snapshot 到 `jobs.spec` / `services.spec` jsonb。snapshot 一经写入即与 pool/unit CR 解耦，pool/unit 后续修改 / 删除不影响已创建 workload。详见 §5.4。
 
 ## 2. 架构
 
@@ -66,9 +66,9 @@ ML 工作负载 + 多租户管控面：以 PostgreSQL 为权威，承载 Tenant 
 
 字段级 schema 见 [database.md §2](../database.md#2-compute-service)；CR spec 字段见 [tenant-operator.md](tenant-operator.md) / [compute-operator.md](compute-operator.md)。
 
-**通用 PG 约定**：所有表带 `id uuid` / `created_at` / `updated_at` / `deleted_at`；所有 UNIQUE 实现为 partial unique index `WHERE deleted_at IS NULL`（软删行不占用唯一键，同名可再次创建）；`name` 统一 DNS-1123 校验，长度 3–40。CR-backed 对象额外打 `axisml.io/{tenant,job,service}-id=<uuid>` label 作为稳定锚点（`metadata.name` 因软删可重用，UUID 永久唯一）；`services` 还会同步打 `axisml.io/service-kind=<service|workspace>` label，便于 `kubectl` selector 区分工作区与普通服务（compute / operator 不按 kind 改变行为）。
+**通用 PG 约定**：所有表带 `id uuid` / `created_at` / `updated_at` / `deleted_at`；所有 UNIQUE 实现为 partial unique index `WHERE deleted_at IS NULL`（软删行不占用唯一键，同名可再次创建）；`name` 统一 DNS-1123 校验，长度 3–40。CR-backed 对象额外打 `axisml.io/{tenant,job,service}-id=<uuid>` label 作为稳定锚点（`metadata.name` 因软删可重用，UUID 永久唯一）；`services` 还会同步打 `axisml.io/service-kind=<service|workspace>` label，便于 `kubectl` selector 区分工作区与普通服务（compute-service / operator 不按 kind 改变行为）。
 
-**扩展元数据 + 分组维度**：`tenants` / `jobs` / `services` 表均带 `labels jsonb` + `annotations jsonb` 双字段，对齐 K8s 风格语义，统一约定见 [database.md §1.6](../database.md#16-扩展元数据-labels--annotations)。Platform 用 `labels.axisml.io/project` 等 label 在 compute 之上实现 project / experiment / 自定义分组（见 [platform.md](platform.md)）。list 端点支持 `?labelSelector=` K8s 语法。两类扩展位均 **PG-only、不下发 CR、不 `+generation`**。
+**扩展元数据 + 分组维度**：`tenants` / `jobs` / `services` 表均带 `labels jsonb` + `annotations jsonb` 双字段，对齐 K8s 风格语义，统一约定见 [database.md §1.6](../database.md#16-扩展元数据-labels--annotations)。Platform 用 `labels.axisml.io/project` 等 label 在 compute-service 之上实现 project / experiment / 自定义分组（见 [platform.md](platform.md)）。list 端点支持 `?labelSelector=` K8s 语法。两类扩展位均 **PG-only、不下发 CR、不 `+generation`**。
 
 ## 4. 核心功能
 
@@ -108,7 +108,7 @@ ML 工作负载 + 多租户管控面：以 PostgreSQL 为权威，承载 Tenant 
 | `Active` | `Active`（含 `namespaceReady=true`） |
 | `Failed` | `Failed`（可自愈） |
 
-`status.quotas[].used` **不入 PG**——由 tenant-operator 写到 Tenant CR `status.quotas[].used`，compute Tenant Informer 内存 cache 现读，GET 时与 PG 中的 spec / phase 合并返回。详见 [§5.3](#53-状态回流informer)。
+`status.quotas[].used` **不入 PG**——由 tenant-operator 写到 Tenant CR `status.quotas[].used`，compute-service Tenant Informer 内存 cache 现读，GET 时与 PG 中的 spec / phase 合并返回。详见 [§5.3](#53-状态回流informer)。
 
 ### 4.2 Quota
 
@@ -144,7 +144,7 @@ Creating ──(Informer ADD)──▶ Pending ──▶ Running ──▶ Succe
 | cancel | `phase='Canceling'` + `message='user cancelled'` | reconciler `patch spec.runPolicy.suspend=true` | `Creating` 状态拒绝；要求改用 DELETE |
 | 更新 PG 元数据（`display_name` / `description` / `labels` / `annotations`） | update 行 | **不影响 CR** | Job spec 不可变，但 PG 扩展位任意阶段可改 |
 | 软删 | `phase='Deleting'` + `deleted_at=now()` | reconciler `Delete()` CR；Informer DELETE → `Deleted` | 任一非 `Deleting`/`Deleted` 状态适用 |
-| Pod 列表 / Pod 日志 / Pod 事件 / Job 事件 | — | 按 `axisml.io/job-id` label list Pod；按 Pod 名透传 Pod Log；按 `involvedObject` 过滤 Event（Pod 端点只回 Pod 事件，Job 端点只回 MLJob/PodGroup 事件） | 详见 [apis/compute.yaml](../apis/compute.yaml) `Jobs` tag |
+| Pod 列表 / Pod 日志 / Pod 事件 / Job 事件 | — | 按 `axisml.io/job-id` label list Pod；按 Pod 名透传 Pod Log；按 `involvedObject` 过滤 Event（Pod 端点只回 Pod 事件，Job 端点只回 MLJob/PodGroup 事件） | 详见 [apis/compute-service.yaml](../apis/compute-service.yaml) `Jobs` tag |
 | list 过滤 | — | `?labelSelector=` 支持 K8s 语法，常用 `axisml.io/project=<id>` | 见 [database.md §1.6](../database.md#16-扩展元数据-labels--annotations) |
 
 `Succeeded` / `Failed` / `Cancelled` 为运行终态；`Deleted` 为软删终态。`Cancelled` PG 行保留（`deleted_at IS NULL`），用户可再次 DELETE。
@@ -188,7 +188,7 @@ Creating ──(Informer ADD)──▶ Pending ──(ready=desired, desired>0)�
 
 Service 无 cancel 语义；除 `roles[0].replicas` 外其他 spec 字段不可变。`kind` 创建后不可变。
 
-**workspace PVC 生命周期**：`kind='workspace'` 时 compute 同事务创建 PVC（命名 deterministic：`axisml-ws-<service-name>-data`，size / storageClass 由请求体携带）；PVC 失败 → 同事务回滚 MLService 行，整个 POST 返 5xx。删除时按 `?deletePvc=true`（默认）一并 GC 后端 PVC，否则保留供后续 restore 接入。MLService Pod spec 的 `volumes[].persistentVolumeClaim.claimName` 直接指向该 PVC；compute-operator 不感知 workspace 的存储语义。
+**workspace PVC 生命周期**：`kind='workspace'` 时 compute-service 同事务创建 PVC（命名 deterministic：`axisml-ws-<service-name>-data`，size / storageClass 由请求体携带）；PVC 失败 → 同事务回滚 MLService 行，整个 POST 返 5xx。删除时按 `?deletePvc=true`（默认）一并 GC 后端 PVC，否则保留供后续 restore 接入。MLService Pod spec 的 `volumes[].persistentVolumeClaim.claimName` 直接指向该 PVC；compute-operator 不感知 workspace 的存储语义。
 
 **与 MLService CR 契约**：
 
@@ -253,15 +253,15 @@ Reconciler (leader-only)
 
 **`quotas[].used` 不入 PG 的语义约束**：
 
-- 该字段是调度即变的 ephemeral 态，落 PG 会制造"PG 值与现实漂移"的窗口；权威源是 koord-scheduler 写入的 `ElasticQuota.status.used`，由 [tenant-operator §5.3](tenant-operator.md#53-elasticquota-statusused-回流路径) 聚合到 Tenant CR `status.quotas[].used`，compute 仅以 Tenant CR 为消费入口。
+- 该字段是调度即变的 ephemeral 态，落 PG 会制造"PG 值与现实漂移"的窗口；权威源是 koord-scheduler 写入的 `ElasticQuota.status.used`，由 [tenant-operator §5.3](tenant-operator.md#53-elasticquota-statusused-回流路径) 聚合到 Tenant CR `status.quotas[].used`，compute-service 仅以 Tenant CR 为消费入口。
 - GET tenant 端点合并路径：`SELECT FROM tenants` 取 spec + PG `status`（不含 `used`） → Tenant Informer cache lookup 拿 `status.quotas[].used` → merge 后返回。
 - 启动期 `WaitForCacheSync` 通过前 `/readyz` 不就绪，避免 cache 冷启窗口返回 `used=null`；运行期 informer 断线超过 stale TTL（默认 30s）时 GET 返回 `used=null` + warning header，不撒谎。
-- 多副本 compute 各自维护 cache，自然收敛，无须协调。
+- 多副本 compute-service 各自维护 cache，自然收敛，无须协调。
 - 历史趋势查询走 Prometheus（koord-scheduler 自带 ElasticQuota 指标），PG 不承担时序。
 
 ### 5.4 ResourcePool 展开
 
-compute 接收 Job / Service / Workspace 创建请求时，**自己**完成 pool/unit 到 K8s Pod 原语的展开，Platform 不参与展开逻辑：
+compute-service 接收 Job / Service / Workspace 创建请求时，**自己**完成 pool/unit 到 K8s Pod 原语的展开，Platform 不参与展开逻辑：
 
 ```
 POST /api/v1/namespaces/{ns}/jobs
@@ -290,13 +290,13 @@ POST /api/v1/namespaces/{ns}/jobs
 **校验失败语义**：
 - pool CR 不存在 → `400 pool-not-found`
 - unit 名在 `pool.spec.units[]` 内找不到 → `400 unit-not-found`
-- Informer cache 未 sync（compute 冷启） → `WaitForCacheSync` 通过前 `/readyz` 不就绪，Pod 不接流量，外部观察不到这种状态
+- Informer cache 未 sync（compute-service 冷启） → `WaitForCacheSync` 通过前 `/readyz` 不就绪，Pod 不接流量，外部观察不到这种状态
 
 **snapshot 语义**：pool/unit CR 仅在 Create 入口被读取一次，展开结果一次性写入 PG `spec` 快照后即固化。后续 reconciler 把 spec 透传到 MLJob / MLService CR；compute-operator 直接读 spec 渲染 Pod，全程不感知 pool/unit 概念。pool 删除或 unit 改值不会影响已创建 workload。
 
-**与 [§5.3 Tenant Informer cache](#53-状态回流informer) 复用一套基础设施**：compute 已经持有 K8s SharedInformerFactory，加一条 ResourcePool Informer 零边际复杂度。
+**与 [§5.3 Tenant Informer cache](#53-状态回流informer) 复用一套基础设施**：compute-service 已经持有 K8s SharedInformerFactory，加一条 ResourcePool Informer 零边际复杂度。
 
-**溯源 label**：展开成功后, compute 在创建的 `MLJob` / `MLService` CR 上自动打 label `axisml.io/resource-pool=<poolName>` + `axisml.io/resource-unit=<unitName>`, 同时往 `jobs.labels` / `services.labels` 写同一对 key, 便于 Platform 在 pool/unit 删除前置阻断（按 labelSelector 反查活跃 workload, 详见 [platform.md §4.6](platform.md#46-资源池编排)）。
+**溯源 label**：展开成功后, compute-service 在创建的 `MLJob` / `MLService` CR 上自动打 label `axisml.io/resource-pool=<poolName>` + `axisml.io/resource-unit=<unitName>`, 同时往 `jobs.labels` / `services.labels` 写同一对 key, 便于 Platform 在 pool/unit 删除前置阻断（按 labelSelector 反查活跃 workload, 详见 [platform.md §4.6](platform.md#46-资源池编排)）。
 
 ### 5.5 孤儿与补偿
 
@@ -317,7 +317,7 @@ Compute **不反向重建 CR**。Informer 观察到 CR DELETE 事件后按 PG �
 
 | 类别 | 内容 | 引用 |
 | --- | --- | --- |
-| 对外 REST（K8s 风格） | `/api/v1/namespaces[/{namespace}]`（Tenant CRUD）、`/api/v1/namespaces/{namespace}/restore`、`/api/v1/namespaces/{namespace}/quotas[/{pool}/{name}]`、`/api/v1/namespaces/{namespace}/jobs[...]`、`/api/v1/namespaces/{namespace}/services[...]` | [apis/compute.yaml](../apis/compute.yaml) `Tenants` / `Quotas` / `Jobs` / `Services` tag |
+| 对外 REST（K8s 风格） | `/api/v1/namespaces[/{namespace}]`（Tenant CRUD）、`/api/v1/namespaces/{namespace}/restore`、`/api/v1/namespaces/{namespace}/quotas[/{pool}/{name}]`、`/api/v1/namespaces/{namespace}/jobs[...]`、`/api/v1/namespaces/{namespace}/services[...]` | [apis/compute-service.yaml](../apis/compute-service.yaml) `Tenants` / `Quotas` / `Jobs` / `Services` tag |
 | 下发 CR | `Tenant`（`axisml.io/v1alpha1`, cluster-scoped）、`MLJob` / `MLService`（namespaced）；Compute 是唯一 `spec` 写者 | [tenant-operator.md](tenant-operator.md) / [compute-operator.md](compute-operator.md) |
 | 回流字段 | `tenants.status` / `jobs.status` / `services.status`（jsonb 整块） | [database.md §2](../database.md#2-compute-service) |
 | 不变量 | CR `metadata` / `spec` 单写（Compute 写）；CR `status` 单读（operator 写）；API 不直接写 K8s | — |
@@ -334,8 +334,8 @@ Compute **不反向重建 CR**。Informer 观察到 CR DELETE 事件后按 PG �
 | Kubernetes API | `Tenant` / `MLJob` / `MLService` CR 下发 + status watch + Pod log / Event 透传 + leader Lease | — |
 | tenant-operator | 下游 CR 消费者，把 Tenant CR 落地为 K8s Namespace / Secret / ElasticQuota 等 | [tenant-operator.md](tenant-operator.md) |
 | compute-operator | 下游 CR 消费者，把 MLJob / MLService CR 落地为底层资源 | [compute-operator.md](compute-operator.md) |
-| Platform | 上游唯一调用方；注入 `X-Axisml-User`；请求体仅携带 `(poolName, unitName)` 名字对，由 compute 自己展开 | [auth.md](../auth.md) / [platform.md §4.2](platform.md#42-计算任务编排) |
-| ResourcePool CR | compute 通过 K8s Informer cache 直读, 创建 Job/Service 时按 `(poolName, unitName)` 展开为 Pod 原语 snapshot | [cluster-manager.md §3](cluster-manager.md#3-核心模型) |
+| Platform | 上游唯一调用方；注入 `X-Axisml-User`；请求体仅携带 `(poolName, unitName)` 名字对，由 compute-service 自己展开 | [auth.md](../auth.md) / [platform.md §4.2](platform.md#42-计算任务编排) |
+| ResourcePool CR | compute-service 通过 K8s Informer cache 直读, 创建 Job/Service 时按 `(poolName, unitName)` 展开为 Pod 原语 snapshot | [cluster-manager.md §3](cluster-manager.md#3-核心模型) |
 | artifacts | image / model / dataset 引用懒查询；**由 operator handler 侧调用 resolve API，Compute 自身不调用** | [artifact-hub.md](artifact-hub.md) |
 
 Compute 不感知 ElasticQuota CR 内部结构——quota 名是字符串透传到 Tenant CR / MLJob / MLService 的 `spec.scheduling.quota`。
@@ -359,9 +359,9 @@ Compute 不感知 ElasticQuota CR 内部结构——quota 名是字符串透传�
 - [deployment.md](../deployment.md) — Helm 模板与发布编排
 - [monitoring.md](../monitoring.md) — Compute Prometheus 指标列表
 - [infra.md](../infra.md) — Koordinator / koord-scheduler / ElasticQuota 依赖契约
-- [apis/compute.yaml](../apis/compute.yaml) — REST API 契约源
+- [apis/compute-service.yaml](../apis/compute-service.yaml) — REST API 契约源
 - [tenant-operator.md](tenant-operator.md) — Tenant CR 字段契约与落地行为
 - [compute-operator.md](compute-operator.md) — `MLJob` / `MLService` CR 字段契约与 handler 实现
 - [artifact-hub.md](artifact-hub.md) — Job / Service 提交时引用懒查询（image / model / dataset）
-- [cluster-manager.md](cluster-manager.md) — ResourcePool CRD 的写入方; compute 通过 Informer 直读做展开
+- [cluster-manager.md](cluster-manager.md) — ResourcePool CRD 的写入方; compute-service 通过 Informer 直读做展开
 - [platform.md](platform.md) — 上游调用方；工作区在 `services` 表上的 `kind='workspace'` 复用

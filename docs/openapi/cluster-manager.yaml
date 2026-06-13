@@ -647,7 +647,7 @@ paths:
       summary: Patch ResourcePool
       tags:
       - resource-pools
-  /api/v1/resource-pools/{pool}/resource-units:
+  /api/v1/resource-pools/{pool}/units:
     get:
       operationId: listResourceUnits
       parameters:
@@ -781,7 +781,7 @@ paths:
       summary: Add a unit to the pool
       tags:
       - resource-units
-  /api/v1/resource-pools/{pool}/resource-units/{unit}:
+  /api/v1/resource-pools/{pool}/units/{unit}:
     delete:
       operationId: deleteResourceUnit
       parameters:
