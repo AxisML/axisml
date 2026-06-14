@@ -184,6 +184,7 @@ CRD 定义放在 `deploy/helm/axisml-system/crds/` 下（不在 `templates/`）�
 | `tenants.axisml.io` | `crds/tenant-crd.yaml` | tenant-operator |
 | `mlruns.axisml.io` | `crds/mlrun-crd.yaml` | compute-operator |
 | `mlservices.axisml.io` | `crds/mlservice-crd.yaml` | compute-operator |
+| `mltrafficpolicies.axisml.io` | `crds/mltrafficpolicy-crd.yaml` | compute-operator |
 | `resourcepools.axisml.io` | `crds/resource-pool-crd.yaml` | cluster-manager (写) / compute-service (Informer 读做展开) |
 
 CRD schema 升级由 `make helm-install-system` 的 `kubectl apply -f crds/` 一步保证（见 §2）。

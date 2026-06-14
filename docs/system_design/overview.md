@@ -19,7 +19,7 @@
 | 租户 | Tenant | 集群级 `Tenant` CR + PG `tenants` 行 | [compute-service #3](components/compute-service.md#3-核心模型) / [tenant-operator #3](components/tenant-operator.md#3-核心模型) |
 | 资源池 | ResourcePool | `ResourcePool` CRD（cluster-scoped）；`spec.units[]` 内嵌 unit 数组 | [cluster-manager #3](components/cluster-manager.md#3-核心模型) |
 | 资源单元 | ResourceUnit (unit) | ResourcePool `spec.units[]` 内嵌项, 同 pool 一起生灭 | [cluster-manager #3](components/cluster-manager.md#3-核心模型) |
-| 资源配额 | Quota | `Tenant.spec.quotas[]` 内联项 → namespace-scoped `ElasticQuota` CR | [compute-service #3](components/compute-service.md#3-核心模型) / [tenant-operator #4](components/tenant-operator.md#4-核心功能) |
+| 资源配额 | Allocation / Quota | `Tenant.spec.allocations[]`（总额度，system-admin 设）→ 父 `ElasticQuota`；`Tenant.spec.quotas[]`（子配额，tenant-admin 在总额度内拆分）→ 子 `ElasticQuota`（均 namespace-scoped） | [compute-service #3](components/compute-service.md#3-核心模型) / [tenant-operator #4](components/tenant-operator.md#4-核心功能) |
 | 计算负载 | Compute Workload | Run / Service 的概念伞 | [compute-service #3](components/compute-service.md#3-核心模型) |
 | 任务（定义） | Job | Platform PG `jobs` 行（可复用模板，name 级定义） | [platform #3.2](components/platform.md#32-定义jobs--datasets--models--images) |
 | 运行 | Run | `MLRun` CRD（Job 的一次运行，命名 `<job>-<n>`）；Platform 经 `axisml.io/job` label 关联 | [compute-operator #3](components/compute-operator.md#3-核心模型) |
@@ -132,7 +132,6 @@
 | [deployment.md](deployment.md) | Helm chart 分层与部署顺序 |
 | [monitoring.md](monitoring.md) | Prometheus 指标与监控约定 |
 | [infra.md](infra.md) | 第三方基础设施（Envoy / zot / RustFS / Koordinator / GPU Operator / kube-prometheus-stack）契约 |
-| [wireframe.md](wireframe.md) | 前端页面级线框图与交互设计 |
 
 ## 6. 组件职责一览
 
@@ -202,7 +201,7 @@ axisml/
 | Pool/Unit 与租户分离 | ResourcePool CRD 由 cluster-manager 管 (内嵌 units), compute 通过 Informer 直读做展开 | pool/unit 是集群级 admin 词汇，跟租户生命周期解耦；写路径 (cluster-manager → K8s) 与读路径 (compute Informer) 都经 etcd 收敛, 无跨组件调用 |
 | Compute / Artifacts 分区模型 | 按 tenant 名作为 namespace 分区字符串，compute 内部 join 解析 K8s ns，artifacts 不解析 | 既保留分区清晰性，也避免在每次调用中传两套 namespace |
 | backend 扩展机制 | compute-operator 内部按 `spec.backend.{name, engine}` 路由 | 用户面向稳定 CRD，底层后端可按需接入 native / Kubeflow / KServe / custom；详见 [compute-operator #4](components/compute-operator.md#4-核心功能) |
-| 配额模型 | Quota 内联在 `Tenant.spec.quotas[]` → 1:1 映射上游 `ElasticQuota` CR（namespace-scoped），纯 `min` / `max` 二维 | 对齐 sigs.k8s.io scheduler-plugins 原生语义，避免独立 Quota CRD |
+| 配额模型 | 两级配额内联在 Tenant spec：`spec.allocations[]`（总额度，system-admin）→ 父 `ElasticQuota`，`spec.quotas[]`（子配额，tenant-admin 在总额度内拆分）→ 子 `ElasticQuota`（namespace-scoped，纯 `min` / `max` 二维） | 对齐 Koordinator ElasticQuota 父 / 子层级语义，租户内可按团队再分且总量不超分，避免独立 Quota CRD |
 | 调度与配额收编 | 所有 Pod 强制 `schedulerName: koord-scheduler` + ElasticQuota label | 保证不存在绕过配额的调度路径 |
 | 制品抽象 | Artifact 直接以 `(namespace, kind, name, version)` 四元组寻址，无"仓库"两级空间 | 与 Compute 分区模型对齐，统一为裸 namespace |
 | 制品元数据存储 | PostgreSQL | 关系型 + 事务 + 生态成熟 |

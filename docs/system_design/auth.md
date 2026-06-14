@@ -79,13 +79,13 @@
 
 ## 4. 租户内角色绑定
 
-- **关联表** `user_tenant_roles(user_id, tenant_name, role_id)` 表达「某用户在某租户内的角色」（schema 见 [database.md §4.1](database.md#51-schema)）。
+- **关联表** `user_tenant_roles(user_id, tenant_name, role)` 表达「某用户在某租户内的角色」（schema 见 [database.md §4.1](database.md#51-schema)）。
 - **`tenant_name` 作稳定外键**：text 列直接引用 compute `tenants.name`，不在 PG 层做跨服务 FK；其稳定性依据是 `tenants.name` 在 `WHERE deleted_at IS NULL` 上 partial unique 且创建后不可变（见 [compute-service.md](components/compute-service.md)）。租户软删 / 硬删时由应用层级联清理本租户在 `user_tenant_roles` 的所有行（见 [platform.md §4.1](components/platform.md#41-租户编排)）。
 - **绑定规则**：
   - 一个 `(user_id, tenant_name)` 组合最多一条记录；
   - 仅可绑定 `tenant-admin` / `user`；`system-admin` 由全局用户管理维护；
   - **自我保护**：操作者不能移除 / 降级自己在本租户的最后一个 `tenant-admin`，否则返回 `409 last-tenant-admin`；
-  - 前端可见的租户列表 = 该用户绑定的所有 `tenant_name`，再调 cluster-manager `LIST tenants` 取展示元数据。
+  - 前端可见的租户列表 = 该用户绑定的所有 `tenant_name`，再调 compute-service `LIST tenants` 取展示元数据（租户归 compute 持有，见 [compute-service.md](components/compute-service.md)）。
 
 端点见 [apis/platform.yaml](apis/platform.yaml) `Members` tag。
 

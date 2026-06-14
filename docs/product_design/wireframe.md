@@ -4,13 +4,13 @@
 
 本文是 Platform 前端 UI 的设计文档,集中描述页面结构、菜单与导航、列表页字段、详情页 Tab、创建/编辑表单字段、状态展示规则与权限可见性,作为前端开发与产品视觉评审的唯一对齐入口。
 
-- **后端业务编排** (跨服务调用顺序、写入路径、一致性策略、PG schema) 见 [components/platform.md](components/platform.md)。
-- **用户认证与角色矩阵** (RBAC 完整定义、JWT 颁发、IdentityProvider 接口) 见 [auth.md](auth.md)。
-- **REST API 字段契约** 见 [apis/platform.yaml](apis/platform.yaml)。
-- **Dashboard / 服务指标数据来源** 见 [monitoring.md](monitoring.md)。
-- **整体系统概念** (Tenant / ResourcePool / Job / Service / Artifact) 见 [overview.md](overview.md)。
+- **后端业务编排** (跨服务调用顺序、写入路径、一致性策略、PG schema) 见 [components/platform.md](../system_design/components/platform.md)。
+- **用户认证与角色矩阵** (RBAC 完整定义、JWT 颁发、IdentityProvider 接口) 见 [auth.md](../system_design/auth.md)。
+- **REST API 字段契约** 见 [apis/platform.yaml](../system_design/apis/platform.yaml)。
+- **Dashboard / 服务指标数据来源** 见 [monitoring.md](../system_design/monitoring.md)。
+- **整体系统概念** (Tenant / ResourcePool / Job / Service / Artifact) 见 [overview.md](../system_design/overview.md)。
 
-> 各菜单按 §2.2 信息架构组织,列表 / 详情 / 表单布局在下文对应章节落档:Dashboard §3、资源池管理 §4、租户管理 §5、工作区 §6、计算任务 §7、在线服务 §8、资产中心(数据集 / 模型 / 镜像)§9、流量控制 §10。本文只描述**布局与字段呈现**;字段契约见 [apis/platform.yaml](apis/platform.yaml),状态机与编排见各服务文档,权限矩阵见 [auth.md](auth.md)。
+> 各菜单按 §2.2 信息架构组织,列表 / 详情 / 表单布局在下文对应章节落档:Dashboard §3、资源池管理 §4、租户管理 §5、工作区 §6、计算任务 §7、在线服务 §8、资产中心(数据集 / 模型 / 镜像)§9、流量控制 §10。本文只描述**布局与字段呈现**;字段契约见 [apis/platform.yaml](../system_design/apis/platform.yaml),状态机与编排见各服务文档,权限矩阵见 [auth.md](../system_design/auth.md)。
 
 ---
 
@@ -70,7 +70,7 @@
 | 系统管理 | **租户管理** | `/tenants` · `/tenants/{name}` | 全集群 | §5 |
 |  | **资源池管理** | `/resource-pools` · `/resource-pools/{name}` | 全集群 | §4 |
 
-二级菜单的能力矩阵 (含横切的认证 / RBAC) 见 [components/platform.md §4 核心功能](components/platform.md#4-核心功能)。
+二级菜单的能力矩阵 (含横切的认证 / RBAC) 见 [components/platform.md §4 核心功能](../system_design/components/platform.md#4-核心功能)。
 
 ### 2.3 通用元素约定
 
@@ -90,7 +90,7 @@
 
 ## 3. Dashboard (首页 · 登录默认落地页)
 
-登录后默认落地路由 `/dashboard`,**作用域随 Topbar 租户切换器联动**的概览页。数据来自两个端点:`GET /api/v1/dashboard/overview`(KPI + 资源用量快照)与 `GET /api/v1/dashboard/metrics`(时序图)。字段契约见 [apis/platform.yaml](apis/platform.yaml) `Dashboard` tag,编排见 [components/platform.md §4.7](components/platform.md#47-dashboard-编排),指标口径见 [monitoring.md](monitoring.md)。
+登录后默认落地路由 `/dashboard`,**作用域随 Topbar 租户切换器联动**的概览页。数据来自两个端点:`GET /api/v1/dashboard/overview`(KPI + 资源用量快照)与 `GET /api/v1/dashboard/metrics`(时序图)。字段契约见 [apis/platform.yaml](../system_design/apis/platform.yaml) `Dashboard` tag,编排见 [components/platform.md §4.7](../system_design/components/platform.md#47-dashboard-编排),指标口径见 [monitoring.md](../system_design/monitoring.md)。
 
 ### 3.1 作用域与视图
 
@@ -179,14 +179,14 @@ KPI 卡行(无「租户」卡)
 
 - 时序图调 `GET /api/v1/dashboard/metrics?metric=&range=&step=`,返回 `MetricSeries`(`metric` / `unit` / `series[]`);range 选择器 `1h / 24h / 7d` 改写 `range` 与 `step` 后重查。
 - 全局视图查询不带 `X-Axisml-Tenant`(集群级);租户视图自动注入 label selector 收敛到本租户。
-- 具体 `metric` key 与 PromQL 模板由 [monitoring.md](monitoring.md)(§2 集群 / GPU 层原生指标 + §6 查询模板)统一定义,UI 不内嵌 PromQL。
+- 具体 `metric` key 与 PromQL 模板由 [monitoring.md](../system_design/monitoring.md)(§2 集群 / GPU 层原生指标 + §6 查询模板)统一定义,UI 不内嵌 PromQL。
 
 ### 3.5 数据来源与降级
 
 | 场景 | 触发 | UI 呈现 |
 | --- | --- | --- |
 | 全局视图集群容量为 `null` | cluster-manager 容量聚合未就绪 | gauge 显示 `—` + hover「指标同步中」 |
-| 租户视图配额用量为 `null` | compute-service Tenant Informer cache 未同步([compute-service.md §5.3](components/compute-service.md#53-状态回流informer)) | gauge 显示 `—` + hover「指标同步中」 |
+| 租户视图配额用量为 `null` | compute-service Tenant Informer cache 未同步([compute-service.md §5.3](../system_design/components/compute-service.md#53-状态回流informer)) | gauge 显示 `—` + hover「指标同步中」 |
 | metrics 查询失败 | `/dashboard/metrics` 返 `502 Bad Gateway` | 图区占位「指标服务暂不可用」,KPI / gauge 不受影响 |
 | 跨租户聚合部分失败 | overview `partial=true` | 页顶黄条「N 个租户暂时不可达,显示其余结果」(§2.3 错误条) |
 
@@ -200,7 +200,7 @@ KPI 卡行(无「租户」卡)
 | 租户视图(本租户) | ✅ | ✅ | ✅ |
 | 快捷入口写操作 CTA | ✅ | ✅ | ✅(@self) |
 
-完整矩阵见 [auth.md §3](auth.md#3-rbac-角色)。
+完整矩阵见 [auth.md §3](../system_design/auth.md#3-rbac-角色)。
 
 ---
 
@@ -313,7 +313,7 @@ Footer: 共 3 个资源单元 · 合并选择器在展开行查看
 ```
 
 要点:
-- 行可展开 (`▸`),展开后渲染 `pool.nodeSelector` ⊕ `unit.nodeSelector` 合并预览 (Pool 优先;详细规则见 [components/cluster-manager.md §3.2](components/cluster-manager.md#32-展开合并规则))。
+- 行可展开 (`▸`),展开后渲染 `pool.nodeSelector` ⊕ `unit.nodeSelector` 合并预览 (Pool 优先;详细规则见 [components/cluster-manager.md §3.2](../system_design/components/cluster-manager.md#32-展开合并规则))。
 - 命名约定 `<accelerator>[-<count>x]-<tier>[-<variant>]`,如 `a100-1x-large` / `cpu-medium` / `a100-8x-xlarge-ib`,由 cluster-manager 服务兜底校验。
 - requests / limits 用 tag chips 渲染,limits 缺省时显示 `…` (沿用 requests)。
 - 删除前置阻断信息 (使用此 unit 的活跃 Job / Service 计数) 在二次确认弹窗呈现 → `409 unit-in-use`。
@@ -329,7 +329,7 @@ Placeholder (规划中),保留入口与 Tab pill 计数。
 
 字段 = cluster-manager 创建请求 1:1 透传:`name` / `description` / `node_selector` / `tolerations` / `metadata`。
 
-UI 即时校验 + cluster-manager 兜底。详见 [apis/platform.yaml](apis/platform.yaml) `ResourcePools` / `ResourceUnits` tag。
+UI 即时校验 + cluster-manager 兜底。详见 [apis/platform.yaml](../system_design/apis/platform.yaml) `ResourcePools` / `ResourceUnits` tag。
 
 > Node label / taint 由管理员通过 `kubectl` 维护,**UI 不下发**。
 
@@ -369,7 +369,7 @@ UI 即时校验 + cluster-manager 兜底。详见 [apis/platform.yaml](apis/plat
 | 列表 / 详情 (含 ResourceUnit) | ✅ | ✅ (只读) |
 | 创建 / 编辑 / 删除 Pool 与 Unit | ✅ | ✗ |
 
-完整矩阵见 [auth.md §3](auth.md#3-rbac-角色)。
+完整矩阵见 [auth.md §3](../system_design/auth.md#3-rbac-角色)。
 
 ---
 
@@ -492,7 +492,7 @@ Tabs:  [基本信息]  [配额 (5)]  [成员 (12)]  [审计日志]
 ```
 
 要点:
-- **信息条** — 顶部 1 行 `Σ max` 跨池合计 (cpu / gpu / memory) **仅作肉眼参考,不做硬阻断**,决策见 [components/platform.md §4.1 租户编排](components/platform.md#41-租户编排)。
+- **信息条** — 顶部 1 行 `Σ max` 跨池合计 (cpu / gpu / memory) **仅作肉眼参考,不做硬阻断**,决策见 [components/platform.md §4.1 租户编排](../system_design/components/platform.md#41-租户编排)。
 - **分组卡** — 按 `quota.pool` 切分,卡头展示该 pool 的配额计数与 max 小计。多池则多个并列卡;单条配额时简化为一行内联表达 (见 `gpu-h100` / `cpu-medium` 示例)。
 - **行字段** — `name` (`(pool, name)` 创建后不可变,编辑态置灰) · `min` (tag chips) · `max` (tag chips) · `used` (实时 `compute.GetQuotaUsage`) · 用量条 (`used / max` 比例,≥ 90% 加 `⚠` 警示) · 操作 (编辑 / 删除)。
 
@@ -549,13 +549,13 @@ Placeholder (规划中)。保留入口与 Tab pill。
 | `quotas[]` | 初始配额数组,可后续从详情页 Tab 2 增删 |
 | `initResources` | 初始 Secret / ConfigMap / SA / RBAC (Vault / Sealed Secrets 接入为 TBD) |
 
-UI 即时校验 + compute-service 兜底。完整字段清单与校验规则见 [apis/platform.yaml](apis/platform.yaml) `Tenants` tag。
+UI 即时校验 + compute-service 兜底。完整字段清单与校验规则见 [apis/platform.yaml](../system_design/apis/platform.yaml) `Tenants` tag。
 
 ### 5.5 列表 / 详情通用操作约束
 
 - **DELETE 租户** — 前置检查 `user_tenant_roles WHERE tenant_name = :name`;非空 → `409 tenant-has-members`,二次确认弹窗列出残留成员。
 - **PATCH 租户** — 不可变字段 `name` / `namespace.name` / `quotas[].(pool, name)` 在表单中置灰。
-- **RESTORE 租户** — 仅 `system-admin`;对软删后的租户从 retention 窗口内恢复(详见 [components/compute-service.md](components/compute-service.md#41-tenant))。
+- **RESTORE 租户** — 仅 `system-admin`;对软删后的租户从 retention 窗口内恢复(详见 [components/compute-service.md](../system_design/components/compute-service.md#41-tenant))。
 - **SUSPEND / RESUME 租户** — 仅 `system-admin`;`Active ⇄ Suspended`;暂停后锁定该租户的新建提交入口(任务 / 服务 / 工作区),已运行工作负载继续运行、可继续 scale / stop / delete,配额与成员 / 元数据保留;恢复即回到 `Active`。
 
 ### 5.6 状态展示规则
@@ -582,13 +582,13 @@ UI 即时校验 + compute-service 兜底。完整字段清单与校验规则见 
 | 成员 CRUD (Tab 3) | ✅ | ✅ | ✗ |
 | 查看配额 / 成员 | ✅ | ✅ | ✅ (仅查看) |
 
-完整矩阵见 [auth.md §3](auth.md#3-rbac-角色)。
+完整矩阵见 [auth.md §3](../system_design/auth.md#3-rbac-角色)。
 
 ---
 
 ## 6. 工作区 (训练中心 → 工作区)
 
-交互式开发容器(Jupyter / VSCode 等),隶属 topbar 当前租户。字段权威见 [components/compute-service.md](components/compute-service.md)。
+交互式开发容器(Jupyter / VSCode 等),隶属 topbar 当前租户。字段权威见 [components/compute-service.md](../system_design/components/compute-service.md)。
 
 ### 6.0 资源选择链(工作区 / 任务 / 服务通用)
 
@@ -688,7 +688,7 @@ Tabs:  [基本信息]  [实例 (Pods)]  [日志]  [事件]
 
 ## 7. 计算任务 (训练中心 → 计算任务)
 
-计算任务采用 **Job(可复用模板)→ Run(每次运行)** 两级模型,隶属 topbar 当前租户。Job 是 Platform 自有的模板定义;从 Job 触发的每次运行是一个 Run(对应 compute 的一个 `MLRun`,命名 `<job>-<n>`)。字段权威见 [components/platform.md §4.2](components/platform.md#42-计算任务编排) 与 [components/compute-service.md](components/compute-service.md)。
+计算任务采用 **Job(可复用模板)→ Run(每次运行)** 两级模型,隶属 topbar 当前租户。Job 是 Platform 自有的模板定义;从 Job 触发的每次运行是一个 Run(对应 compute 的一个 `MLRun`,命名 `<job>-<n>`)。字段权威见 [components/platform.md §4.2](../system_design/components/platform.md#42-计算任务编排) 与 [components/compute-service.md](../system_design/components/compute-service.md)。
 
 ### 7.1 页面入口
 
@@ -790,7 +790,7 @@ Tabs:  [基本信息]  [实例 (Pods)]  [日志]  [事件]
 
 ## 8. 在线服务 (服务中心 → 在线服务)
 
-常驻在线推理服务,隶属 topbar 当前租户,可暴露路由对外访问。多版本灰度发布与加权切流由 §10 流量控制 承接。字段权威见 [components/compute-service.md](components/compute-service.md)。
+常驻在线推理服务,隶属 topbar 当前租户,可暴露路由对外访问。多版本灰度发布与加权切流由 §10 流量控制 承接。字段权威见 [components/compute-service.md](../system_design/components/compute-service.md)。
 
 ### 8.1 页面入口
 
@@ -832,12 +832,12 @@ Tabs:  [基本信息]  [监控]  [实例 (Pods)]  [日志]  [事件]
 ```
 
 - **基本信息** — KV grid:名称 · 显示名 · 描述 · 资源单元 · 镜像 · 副本(`ready/desired`)· 端口(`name:port` chips)· 访问地址 · 路由配置(path / hostname / 鉴权 type / 限流 / 超时,**创建后不可变**)· 创建人 / 时间。
-- **监控** — 时序折线图(取自 Prometheus,见 [monitoring.md](monitoring.md)):QPS · 延迟 p50/p95/p99 · 错误率(5xx)· CPU / 内存 / GPU 利用率(按副本)。顶部带时间范围选择(5m / 1h / 24h)。
+- **监控** — 时序折线图(取自 Prometheus,见 [monitoring.md](../system_design/monitoring.md)):QPS · 延迟 p50/p95/p99 · 错误率(5xx)· CPU / 内存 / GPU 利用率(按副本)。顶部带时间范围选择(5m / 1h / 24h)。
 - **实例 (Pods)** · **日志** · **事件** — 同 §6.3。
 
 ### 8.4 创建表单
 
-`name`(不可变)· `display_name` / `description` · **资源池 → 资源单元 → 镜像**(§6.0)· `replicas` · 端口 `ports[]`(`name` / `containerPort` / `protocol`)· 命令 / 参数 · 环境变量 · **路由**(可选,创建后不可变):开关 · `path`(留空自动生成 `/services/<租户>/<name>/`)· `hostname` · 鉴权(`apiKey` / `none`)· 限流 · 超时。
+`name`(不可变)· `display_name` / `description` · **资源池 → 资源单元 → 镜像**(§6.0)· `replicas` · 端口 `ports[]`(`name` / `containerPort` / `protocol`)· 命令 / 参数 · 环境变量 · **路由**(可选,创建后不可变):开关 · `path`(留空自动生成 `/services/<租户>/<name>/`)· `hostname` · 鉴权(`none`;`apiKey` 规划中、本版本不提供,见 [auth.md §5.3](../system_design/auth.md#53-在线服务接入api-key规划中))· 限流 · 超时。
 
 ### 8.5 扩缩容 / 启停
 
@@ -856,7 +856,7 @@ Tabs:  [基本信息]  [监控]  [实例 (Pods)]  [日志]  [事件]
 
 ## 9. 资产中心 (数据集 / 模型 / 镜像)
 
-三个菜单(数据集 / 模型 / 镜像)共用同一列表 / 详情 / 上传模板,仅 **spec 字段** 与 **存储后端** 不同。制品身份为 `(租户, 类型, 名称, 版本)`;同名制品下挂多个版本。列表合并「当前租户」+「公共(`axisml-system`)」制品。字段权威见 [components/artifact-hub.md](components/artifact-hub.md)。
+三个菜单(数据集 / 模型 / 镜像)共用同一列表 / 详情 / 上传模板,仅 **spec 字段** 与 **存储后端** 不同。制品身份为 `(租户, 类型, 名称, 版本)`;同名制品下挂多个版本。列表合并「当前租户」+「公共(`axisml-system`)」制品。字段权威见 [components/artifact-hub.md](../system_design/components/artifact-hub.md)。
 
 ### 9.1 三类制品差异
 
@@ -963,7 +963,7 @@ LLaMA-7B 监督微调权重                                 [+ 上传新版本]
 
 ## 10. 流量控制 (服务中心 → 流量控制)
 
-在线服务的多版本流量编排。每条**流量策略**绑定一个稳定对外入口(path / hostname),把入站请求按权重分发到当前租户下的多个**在线服务后端**,支撑灰度发布、加权切分与蓝绿版本切换。底层加权路由由 compute 派生(`(native,*)` → Envoy Gateway `HTTPRoute` 加权 `backendRefs`;`kserve` → `InferenceService` canary),Platform / UI 不直连网关、不内嵌 PromQL。字段权威见 [components/compute-service.md §4.4](components/compute-service.md#44-service)。
+在线服务的多版本流量编排。每条**流量策略**绑定一个稳定对外入口(path / hostname),把入站请求按权重分发到当前租户下的多个**在线服务后端**,支撑灰度发布、加权切分与蓝绿版本切换。底层加权路由由 compute 派生(`(native,*)` → Envoy Gateway `HTTPRoute` 加权 `backendRefs`;`kserve` → `InferenceService` canary),Platform / UI 不直连网关、不内嵌 PromQL。字段权威见 [components/compute-service.md §4.4](../system_design/components/compute-service.md#44-service)。
 
 策略与成员服务解耦:成员是已存在的在线服务(§8),建议建为内部服务(关闭自身 route、仅 ClusterIP),由策略统一对外;一个在线服务至多被一条活跃策略引用。
 
@@ -1009,15 +1009,17 @@ Tabs:  [基本信息]  [流量分布]  [监控]  [事件]
 
 - **基本信息** — KV grid:名称 · 显示名 · 描述 · 模式 · 对外入口(path / hostname / 鉴权 type,**创建后不可变**)· 后端数 · 创建人 / 时间。
 - **流量分布** — 后端表:在线服务(mono link → §8 详情)· 角色(`稳定` / `灰度`,加权模式为 `成员`)· 目标权重 · 实际流量占比 · 后端状态(回源服务 phase,复用 §8.6 徽章)。灰度模式顶部带灰度百分比 slider + `[提升]` `[回滚]`;加权模式每行可编辑权重(实时 `Σ=100` 校验)。
-- **监控** — 按后端分组对比的时序折线图(取自 compute 指标代理,见 [monitoring.md](monitoring.md)):各后端 QPS · 延迟 p95 · 错误率(5xx);灰度模式额外叠加**稳定 vs 灰度健康对比**(错误率 / 延迟差值)辅助放量决策。时间范围 5m / 1h / 24h。
+- **监控** — 按后端分组对比的时序折线图(取自 compute 指标代理,见 [monitoring.md](../system_design/monitoring.md)):各后端 QPS · 延迟 p95 · 错误率(5xx);灰度模式额外叠加**稳定 vs 灰度健康对比**(错误率 / 延迟差值)辅助放量决策。时间范围 5m / 1h / 24h。
 - **事件** — 策略与灰度操作流水:权重调整 / 提升 / 回滚 / 后端就绪 / 后端失联。
 
 ### 10.4 创建表单
 
-`name`(不可变)· `display_name` / `description` · **模式**(`加权` / `灰度`,创建后不可变)· **对外入口**(创建后不可变):`path`(留空自动生成 `/services/<租户>/<name>/`)· `hostname` · 鉴权(`apiKey` / `none`)· **后端**:
+`name`(不可变)· `display_name` / `description` · **模式**(`加权` / `灰度`,创建后不可变)· **对外入口**(创建后不可变):`path`(留空自动生成 `/services/<租户>/<name>/`)· `hostname` · 鉴权(`none`;`apiKey` 规划中、本版本不提供,见 [auth.md §5.3](../system_design/auth.md#53-在线服务接入api-key规划中))· **后端**:
 
 - **加权** — 添加 N 个在线服务,每个设权重(实时 `Σ=100` 校验)。
 - **灰度** — 选 1 个稳定后端 + 1 个灰度后端,设初始灰度百分比(默认 5)。
+
+> **模式映射**:UI 仅暴露 `加权` / `灰度` 两种创建模式,对应 compute `mode` 的 `weighted` / `canary`;compute 的 `bluegreen` mode 不在创建表单单列——蓝绿切换在加权模式下通过全量切换实现(见 §10.5「版本切换(蓝绿)」)。
 
 后端下拉只列当前租户 `Ready` 的在线服务;已被其它活跃策略占用的服务置灰并提示。
 
@@ -1030,12 +1032,16 @@ Tabs:  [基本信息]  [流量分布]  [监控]  [事件]
 
 ### 10.6 状态展示规则
 
-| `phase` | 视觉 | 含义 |
-| --- | --- | --- |
-| `生效中`(Active) | ● 绿 | 全部后端 `Ready`、权重已下发生效 |
-| `灰度中`(Progressing) | ◐ 橙 | 灰度模式且灰度百分比 ∈ (0, 100) |
-| `未就绪`(NotReady) | ○ 灰描边 | 至少一个成员服务非 `Ready` 或缺失 |
-| `Creating` / `Updating` / `Deleting` | 灰 + spinner | 派生 / 变更 / 回收中 |
+UI 标签是 compute `MLTrafficPolicy` phase（`Creating | Pending | Ready | Degraded | Failed | Deleting | Deleted`，见 [compute-service.md §3](../system_design/components/compute-service.md#3-核心模型)）的展示映射：
+
+| compute `phase` | UI 标签 | 视觉 | 含义 |
+| --- | --- | --- | --- |
+| `Ready`(全量分发) | `生效中`(Active) | ● 绿 | 全部后端 `Ready`、权重已下发生效 |
+| `Ready`(灰度模式且灰度百分比 ∈ (0, 100)) | `灰度中`(Progressing) | ◐ 橙 | 灰度放量进行中 |
+| `Pending` / `Degraded` | `未就绪`(NotReady) | ○ 灰描边 | 至少一个成员服务非 `Ready` 或缺失 |
+| `Failed` | `失败`(Failed) | ▲ 红 | 网关派生失败,需人工介入 |
+| `Creating` / `Deleting` | `Creating` / `Deleting` | 灰 + spinner | 派生 / 回收中 |
+| `Deleted` | —(从列表移除) | — | 软删后不再展示 |
 
 后端行内单独显示成员服务 phase(复用 §8.6 在线服务徽章)。
 
@@ -1047,11 +1053,11 @@ Tabs:  [基本信息]  [流量分布]  [监控]  [事件]
 
 ## 11. 相关引用
 
-- [components/platform.md](components/platform.md) — 后端业务编排、跨服务调用、PG schema
-- [auth.md](auth.md) — RBAC 角色矩阵、JWT 颁发、IdentityProvider
-- [apis/platform.yaml](apis/platform.yaml) — REST API 字段契约
-- [monitoring.md](monitoring.md) — Dashboard 与服务指标数据来源
-- [overview.md](overview.md) — 系统概念与组件关系
-- [components/compute-service.md](components/compute-service.md) — Tenant / Quota / Job / Service / Workspace 字段权威
-- [components/cluster-manager.md](components/cluster-manager.md) — ResourcePool / ResourceUnit 字段权威
-- [components/artifact-hub.md](components/artifact-hub.md) — 资产中心字段权威
+- [components/platform.md](../system_design/components/platform.md) — 后端业务编排、跨服务调用、PG schema
+- [auth.md](../system_design/auth.md) — RBAC 角色矩阵、JWT 颁发、IdentityProvider
+- [apis/platform.yaml](../system_design/apis/platform.yaml) — REST API 字段契约
+- [monitoring.md](../system_design/monitoring.md) — Dashboard 与服务指标数据来源
+- [overview.md](../system_design/overview.md) — 系统概念与组件关系
+- [components/compute-service.md](../system_design/components/compute-service.md) — Tenant / Quota / Job / Service / Workspace 字段权威
+- [components/cluster-manager.md](../system_design/components/cluster-manager.md) — ResourcePool / ResourceUnit 字段权威
+- [components/artifact-hub.md](../system_design/components/artifact-hub.md) — 资产中心字段权威
