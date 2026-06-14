@@ -41,7 +41,7 @@
 - **🧩 Pluggable training & serving backends.** One `MLRun`/`MLService` API dispatches to `native` (Job / Deployment / StatefulSet + gang-scheduled `PodGroup`), `kubeflow-trainer` (PyTorchJob / TFJob / MPIJob), `kserve` (`InferenceService`), or a `custom` GVK — without changing the user-facing contract.
 - **📦 First-class artifacts.** Models, datasets, images, and eval reports addressed by `(namespace, kind, name, version)`, backed by OCI (zot) and S3 (RustFS). Clients stream bytes directly from storage — the registry never proxies large blobs.
 - **🎛️ Declarative, GitOps-friendly.** Three layered Helm charts (infra → system → platform), CRDs as the cluster source of truth, PostgreSQL as the business authority — with continuous reconciliation between them.
-- **🔬 Built to be tested.** A two-layer test pyramid (unit + envtest/testcontainers integration), generated OpenAPI specs verified in CI, and pre-commit/pre-push hooks that keep the monorepo honest.
+- **🔬 Built to be tested.** Unit + envtest/testcontainers integration tests (plus a manual real-cluster e2e suite), generated OpenAPI specs verified in CI, and pre-commit/pre-push hooks that keep the monorepo honest.
 
 ## Architecture
 
@@ -60,7 +60,7 @@ flowchart TD
         cs["Compute Service<br/><i>Tenant / Quota / Job / Service · PG authority</i>"]
         ah["Artifact Hub<br/><i>model / dataset / image / report</i>"]
         to["tenant-operator<br/><i>Tenant CR → ns / quota / rbac</i>"]
-        co["compute-operator<br/><i>MLRun / MLService → backend handlers</i>"]
+        co["compute-operator<br/><i>MLRun / MLService / MLTrafficPolicy → backend handlers</i>"]
     end
 
     subgraph Infra["Infra Layer · third-party"]
@@ -87,7 +87,7 @@ flowchart TD
 
 - **`namespace` *is* the tenant identifier** across compute-service and artifact-hub — no separate tenant lookup at the edge.
 - **PostgreSQL is authoritative, CRs are derived.** compute-service owns the `tenants` table and continuously reconciles the cluster-level `Tenant` CR from it.
-- **Operators don't know about each other.** tenant-operator never reads `MLRun`/`MLService`; compute-operator never reads `Tenant`/`ElasticQuota` (it only passes the quota name through).
+- **Operators don't know about each other.** tenant-operator never reads `MLRun`/`MLService`/`MLTrafficPolicy`; compute-operator never reads `Tenant`/`ElasticQuota` (it only passes the quota name through).
 - **Only Platform is exposed.** System services accept internal calls and trust the `X-Axisml-User` identity header.
 
 See the [System Design Overview](docs/system_design/overview.md) for the full picture.
@@ -126,7 +126,7 @@ make test                # unit tests across every component (no cluster needed)
 make integration-test    # envtest + testcontainers integration tests (needs Docker, ~30–60s)
 ```
 
-See the [Testing Guide](docs/development/testing.md) for the two-layer test pyramid.
+See the [Testing Guide](docs/development/testing.md) for the full testing layers (unit / integration / manual e2e via `make e2e-test`).
 
 ## Components
 
@@ -134,11 +134,11 @@ AxisML is a monorepo of independent Go modules organized into three layers.
 
 | Component | Layer | What it does |
 | --- | --- | --- |
-| **[platform](docs/system_design/components/platform.md)** | View | Go BFF + React frontend. The only externally exposed entry point; holds the user → tenant-view mapping and orchestrates the system services. _(scaffold)_ |
+| **[platform](docs/system_design/components/platform.md)** | View | Go BFF + React frontend. The only externally exposed entry point; holds the user → tenant-view mapping and orchestrates the system services. _(backend is currently a contract-only shell generating `docs/openapi/platform.yaml`; frontend scaffolded)_ |
 | **[cluster-manager](docs/system_design/components/cluster-manager.md)** | Cluster vocab | Stateless REST shell over the cluster-scoped `ResourcePool` CRD (with inline `spec.units[]`). No PG, no reconciler — Kubernetes etcd is the source of truth. |
 | **[compute-service](docs/system_design/components/compute-service.md)** | Tenant + workload | REST service and business authority for **Tenant / Quota / Job / Service / Workspace**, with PG as the sole source of truth. Emits `Tenant` / `MLRun` / `MLService` CRs and reads back status. |
 | **[tenant-operator](docs/system_design/components/tenant-operator.md)** | Tenant + workload | Reconciles the `Tenant` CR into a Namespace, Koordinator `ElasticQuota`, and per-tenant Secret / ConfigMap / ServiceAccount / RBAC. |
-| **[compute-operator](docs/system_design/components/compute-operator.md)** | Tenant + workload | Reconciles `MLRun` / `MLService` via a dispatcher + handler model (`native`, `kubeflow-trainer`, `kserve`, `custom`). All derived Pods route through `koord-scheduler`. |
+| **[compute-operator](docs/system_design/components/compute-operator.md)** | Tenant + workload | Reconciles `MLRun` / `MLService` / `MLTrafficPolicy` via a dispatcher + handler model (`native`, `kubeflow-trainer`, `kserve`, `custom`). All derived Pods route through `koord-scheduler`. |
 | **[artifact-hub](docs/system_design/components/artifact-hub.md)** | Tenant + workload | Registry for models, datasets, images, and eval reports, addressed by `(namespace, kind, name, version)`. PG holds metadata; bytes live in zot (OCI) and RustFS (S3). |
 
 **Infrastructure** (`axisml-infra` chart): Envoy Gateway, RustFS, zot, Koordinator, NVIDIA GPU Operator, kube-prometheus-stack, and PostgreSQL. See the [infra design](docs/system_design/infra.md).
@@ -154,7 +154,7 @@ make doc-test            # verify specs match Go types (CI guard)
 ```
 
 - **Each component is its own Go module** with a sibling `test/integration/` submodule — `go test ./...` from the root won't traverse everything; use the `make` targets.
-- **OpenAPI specs are generated, not hand-written.** After changing a handler signature or DTO in `cluster-manager` / `compute-service` / `artifact-hub`, run `make doc-gen` before committing.
+- **OpenAPI specs are generated, not hand-written.** After changing a handler signature or DTO in `cluster-manager` / `compute-service` / `artifact-hub` / `platform/backend`, run `make doc-gen` before committing.
 - **External CRDs** the operators import (Koordinator's ElasticQuota, scheduler-plugins' PodGroup, …) are vendored under `test/crds/external/`.
 
 Architecture notes and gotchas live in [CLAUDE.md](CLAUDE.md); contributor conventions in [AGENTS.md](AGENTS.md).
