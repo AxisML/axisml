@@ -210,7 +210,7 @@ spec:
 
 | 维度 | 取值 |
 | --- | --- |
-| 底层资源 | 单条 `HTTPRoute`（`rules[].backendRefs[]` → 各成员 MLService 对应的 K8s Service，`backendRefs[*].weight = spec.backends[*].weight`）；`endpoint.auth.type=jwt` 时追加 `SecurityPolicy`（`aud=axisml-inference`） |
+| 底层资源 | 单条 `HTTPRoute`（`rules[].backendRefs[]` → 各成员 MLService 对应的 K8s Service，`backendRefs[*].weight = spec.backends[*].weight`）；`endpoint.auth.type=apiKey` 时追加 `SecurityPolicy`（`apiKeyAuth`，`secretRef`）——本版本 apiKey 未交付，当前仅 `none` |
 | 必填字段 | `backends[]` 非空且各成员 K8s Service 已存在；`endpoint.path` |
 | 关键字段映射 | `endpoint.{hostname,path} → HTTPRoute.{hostnames, rules[].matches[].path}`；`parentRefs → axisml-gateway`（跨 ns 复用 infra chart 的 `ReferenceGrant`）；`backends[*].weight → rules[].backendRefs[*].weight` |
 | Split / Promote / Rollback | patch `HTTPRoute.rules[].backendRefs[*].weight`，原子生效，不重建路由 |

@@ -145,7 +145,7 @@ Platform 自有实体分两类：**身份 / 授权 / 会话 / 审计**，以及 
 | 扩缩容 | `RequireServiceOwner` → 透传副本数 | `ScaleMLService` | 幂等；`Deleted` → `409 service-deleted` |
 | 停止 / 启动 | `RequireServiceOwner` → `stop` = scale 0 并把停前副本数写入 `annotations[platform.axisml.io/last-replicas]`；`start` = scale 回该 annotation（缺失 fallback 1） | `UpdateMLService`（元数据）+ `ScaleMLService` | annotation 为 PG-only 元数据，随时可写（§5.5） |
 | 删除 | 先 `GetMLService` 校验 `kind==service` 防误删工作区 → 透传 | `DeleteMLService` | 派生 K8s 资源由 ownerReference 级联 |
-| 路由 / 访问 | `route.auth.type=jwt` 时颁发 `aud=axisml-inference` 短 TTL access JWT | —（Platform 自签） | 数据面网关验签放行；`route-auth-mismatch` → `409` |
+| 路由 / 访问 | 在线服务数据面鉴权设计为 API KEY（`route.auth.type=apiKey`），由后续「API KEY 管理」功能提供；本版本不实现，当前仅 `none`（无鉴权） | —（Platform 不签发 access token） | 网关直放 |
 | 指标查询 | `RequireServiceOwner` → 透传（按 backend 选 PromQL 模板的逻辑在 compute 侧，Platform 不感知 backend、不直连 Prometheus） | `compute.GetServiceMetrics(name, metric, range, step)` | 查询失败 → `502 upstream-failure` |
 | 列表 | 同 §4.2；`kind=service` 过滤下推 | `ListMLServices(ns, kind=service)` | 跨租户部分失败 → `partial=true` |
 
@@ -251,7 +251,7 @@ KPI + gauge 默认 30s 轮询；时序图随 range 选择器（`1h/24h/7d`）重
 | 创建 | RBAC + 对每个成员逐个 `GetMLService` 预检 `kind==service` 且 `Ready` → 校验成员同租户、未被其它活跃策略占用 → `endpoint.path==""` 时自动拼 `/services/<tenant>/<name>/` → 请求体携带 `mode` / `endpoint` / `backends[]` | `compute.CreateTrafficPolicy(ns, body)` | 单点透传；加权路由由 compute 内部派生 |
 | 调整流量 | `RequireTrafficPolicyOwner` → 校验 `Σweight==100`（加权）/ `0–100`（灰度）→ 透传 | `compute.UpdateTrafficSplit` | 幂等；`Deleted` → `409 traffic-policy-deleted` |
 | 提升 / 回滚 | `RequireTrafficPolicyOwner` → 灰度专属动作：`promote` 置灰度后端 100 并互换 stable/canary `role`（灰度升为新基线）、`rollback` 置灰度 0 | `compute.PromoteCanary` / `compute.RollbackCanary` | 灰度态机合法性由 compute 4xx 反馈 |
-| 路由 / 访问 | `endpoint.auth.type=jwt` 时颁发 `aud=axisml-inference` 短 TTL access JWT（复用 §4.3） | —（Platform 自签） | 数据面网关验签放行 |
+| 路由 / 访问 | 在线服务入口鉴权设计为 API KEY（`endpoint.auth.type=apiKey`，复用 §4.3）；本版本不实现，当前仅 `none` | —（Platform 不签发 access token） | 网关直放 |
 | 指标查询 | `RequireTrafficPolicyOwner` → 透传（按后端分组的 QPS / 延迟 / 错误率、灰度健康对比） | `compute.GetTrafficMetrics(name, metric, range, step)` | 查询失败 → `502 upstream-failure` |
 | 列表 / 详情 | 同 §4.2 / §4.3：§5.2 解析 active tenant → 单租户透传 / `system-admin` 跨租户合并 | `compute.{List,Get}TrafficPolicy(ns)` | 跨租户部分失败 → `partial=true` |
 | 删除 | `RequireTrafficPolicyOwner` → 透传（仅解除路由，成员服务保留） | `compute.DeleteTrafficPolicy` | 派生 `HTTPRoute` / canary 由 ownerReference 级联；成员 MLService 不随策略删除 |
@@ -324,8 +324,8 @@ RBAC 中间件装配细节归 [auth.md](../auth.md)，Platform 在路由层挂�
 | 状态 | 不暴露任何 K8s CR；下游运行态字段（phase / conditions / status / quota 用量）作为只读字段透传 | — |
 | 错误格式 | HTTP 标准状态码 + RFC 7807 `application/problem+json`；下游 problem 由 typed client 解析后透传或包装 | — |
 | 流式 | 日志 / 事件 `follow=true` 采用 `text/event-stream` SSE；非 follow 用 `text/plain` chunked | — |
-| 身份头 | 入站校验主登录 JWT；单租户操作的 active tenant 由入站 `X-Axisml-Tenant` 头携带（§5.2）；出站注入 `X-Axisml-User` | [auth.md §7](../auth.md#7-下游身份透传) |
-| access JWT | 工作区 / 在线服务数据面入口走独立 access JWT（`aud=axisml-workspace` / `axisml-inference`），由 Platform 颁发、Envoy SecurityPolicy 验签 | [auth.md §5](../auth.md#5-access-jwt) |
+| 身份头 | 入站校验主登录 JWT；单租户操作的 active tenant 由入站 `X-Axisml-Tenant` 头携带（§5.2）；出站注入 `X-Axisml-User` | [auth.md §6](../auth.md#6-下游身份透传) |
+| 数据面接入 | 工作区数据面走 access JWT（`aud=axisml-workspace`，Cookie 携带），由 Platform 颁发、Envoy SecurityPolicy 验签；在线服务设计为 API KEY（后续实现，当前无鉴权） | [auth.md §5](../auth.md#5-数据面接入) |
 | Prometheus 指标 | `platform_*` 系列自身指标；模块级清单见 [monitoring.md §5](../monitoring.md#5-platform-层指标) | — |
 
 ## 7. 依赖

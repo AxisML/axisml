@@ -152,7 +152,7 @@ label 取值：
 | `platform_upstream_request_total{service,method,status}` | counter | 每次下游调用计数；`service ∈ {cluster-manager, compute, artifacts}` |
 | `platform_upstream_request_duration_seconds{service,method,status}` | histogram | 下游调用延迟分布 |
 | `platform_api_request_duration_seconds{route,status}` | histogram | Platform 自身 API 请求延迟 |
-| `platform_auth_jwt_issued_total{kind,result}` | counter | JWT 颁发量（`kind ∈ {login, workspace, inference}`） |
+| `platform_auth_jwt_issued_total{kind,result}` | counter | JWT 颁发量（`kind ∈ {login, workspace}`） |
 
 ### 5.2 Tenant 模块
 

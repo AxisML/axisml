@@ -170,7 +170,7 @@ GC worker（leader-only，每 5 分钟一轮）扫描 PG 三类谓词：
 | --- | --- | --- |
 | 对外 REST | `/api/v1/namespaces/{ns}/{kindPlural}/{name}[/{version}[/{complete,resolve}]]`；版本级 `GET` / `PATCH` / `DELETE` 同前缀。`kindPlural` 为 `ArtifactKind` 的 URL 复数形式（`model`↔`models`、`dataset`↔`datasets`、`image`↔`images`） | [apis/artifact-hub.yaml](../apis/artifact-hub.yaml) `Artifacts` tag |
 | Handler 接口 | 见下表 | — |
-| 身份头 | 调用方注入 `X-Axisml-User`，本服务仅做审计 | [auth.md §7](../auth.md#7-下游身份透传) |
+| 身份头 | 调用方注入 `X-Axisml-User`，本服务仅做审计 | [auth.md §6](../auth.md#6-下游身份透传) |
 | 列表查询 | list 端点支持 `?labelSelector=` K8s grammar，可按任意 `labels` 过滤 | [database.md §1.6](../database.md#16-扩展元数据-labels--annotations) |
 | 错误格式 | HTTP 标准状态码 + RFC 7807 problem+json | — |
 | 写后语义 | initiate 在 PG 提交后返回上传凭证；Ready 由 complete 推进，调用方通过 GET 观察 status；PATCH 是纯 PG mutation，立即可读 | — |

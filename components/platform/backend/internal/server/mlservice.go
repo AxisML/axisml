@@ -107,14 +107,6 @@ type MLServiceScaleRequest struct {
 	Replicas int `json:"replicas" binding:"required,min=0"`
 }
 
-// MLServiceAccess is a short-lived access grant for an MLService endpoint.
-type MLServiceAccess struct {
-	URL        string    `json:"url"`
-	JWT        string    `json:"jwt"`
-	HeaderName string    `json:"headerName"`
-	ExpiresAt  time.Time `json:"expiresAt"`
-}
-
 // MetricPoint is one (timestamp, value) sample.
 type MetricPoint struct {
 	Timestamp time.Time `json:"timestamp"`

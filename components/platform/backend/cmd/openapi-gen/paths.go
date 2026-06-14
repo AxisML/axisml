@@ -359,8 +359,6 @@ func paths() map[string]openapigen.PathItem {
 		[]openapigen.Parameter{mlserviceNameP()}, nil, resp(sc("200", "Start request accepted.", "MLService"), "401", "403", "404", "409", "500"))}
 	p["/api/v1/mlservices/{name}/stop"] = openapigen.PathItem{Post: newOp(tagMLServices, "stopMLService", "Stop a service (scale to 0)",
 		[]openapigen.Parameter{mlserviceNameP()}, nil, resp(sc("200", "Stop request accepted.", "MLService"), "401", "403", "404", "409", "500"))}
-	p["/api/v1/mlservices/{name}/access"] = openapigen.PathItem{Get: newOp(tagMLServices, "getMLServiceAccess", "Issue a short-TTL JWT for inference calls",
-		[]openapigen.Parameter{mlserviceNameP()}, nil, resp(sc("200", "Access credentials.", "MLServiceAccess"), "401", "403", "404", "409", "500"))}
 	p["/api/v1/mlservices/{name}/metrics"] = openapigen.PathItem{Get: newOp(tagMLServices, "getMLServiceMetrics", "Query Prometheus for service-level metrics",
 		[]openapigen.Parameter{mlserviceNameP(),
 			qpReq("metric", "", openapigen.Ref("MLServiceMetricName")),

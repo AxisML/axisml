@@ -92,14 +92,14 @@ func TestEveryOperationIsTagged(t *testing.T) {
 }
 
 // TestExpectedCounts pins the surface size so an accidental drop of a route or
-// schema is caught. 70 paths / 127 component schemas mirror the design spec.
+// schema is caught. 69 paths / 126 component schemas mirror the design spec.
 func TestExpectedCounts(t *testing.T) {
 	doc := buildDocument("test")
-	if got := len(doc.Paths); got != 70 {
-		t.Errorf("path count = %d, want 70", got)
+	if got := len(doc.Paths); got != 69 {
+		t.Errorf("path count = %d, want 69", got)
 	}
-	if got := len(doc.Components.Schemas); got != 127 {
-		t.Errorf("schema count = %d, want 127", got)
+	if got := len(doc.Components.Schemas); got != 126 {
+		t.Errorf("schema count = %d, want 126", got)
 	}
 }
 

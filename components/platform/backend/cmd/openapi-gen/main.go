@@ -250,7 +250,6 @@ func registerSchemas(g *openapigen.Generator) {
 		"MLServiceRoute":            server.MLServiceRoute{},
 		"MLService":                 server.MLService{},
 		"MLServiceList":             server.MLServiceList{},
-		"MLServiceAccess":           server.MLServiceAccess{},
 		"MetricPoint":               server.MetricPoint{},
 		"MetricSeries":              server.MetricSeries{},
 		"Model":                     server.Model{},

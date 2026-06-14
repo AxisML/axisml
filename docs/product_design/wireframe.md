@@ -837,7 +837,7 @@ Tabs:  [基本信息]  [监控]  [实例 (Pods)]  [日志]  [事件]
 
 ### 8.4 创建表单
 
-`name`(不可变)· `display_name` / `description` · **资源池 → 资源单元 → 镜像**(§6.0)· `replicas` · 端口 `ports[]`(`name` / `containerPort` / `protocol`)· 命令 / 参数 · 环境变量 · **路由**(可选,创建后不可变):开关 · `path`(留空自动生成 `/services/<租户>/<name>/`)· `hostname` · 鉴权(`jwt` / `apiKey` / `none`)· 限流 · 超时。
+`name`(不可变)· `display_name` / `description` · **资源池 → 资源单元 → 镜像**(§6.0)· `replicas` · 端口 `ports[]`(`name` / `containerPort` / `protocol`)· 命令 / 参数 · 环境变量 · **路由**(可选,创建后不可变):开关 · `path`(留空自动生成 `/services/<租户>/<name>/`)· `hostname` · 鉴权(`apiKey` / `none`)· 限流 · 超时。
 
 ### 8.5 扩缩容 / 启停
 
@@ -1014,7 +1014,7 @@ Tabs:  [基本信息]  [流量分布]  [监控]  [事件]
 
 ### 10.4 创建表单
 
-`name`(不可变)· `display_name` / `description` · **模式**(`加权` / `灰度`,创建后不可变)· **对外入口**(创建后不可变):`path`(留空自动生成 `/services/<租户>/<name>/`)· `hostname` · 鉴权(`jwt` / `apiKey` / `none`)· **后端**:
+`name`(不可变)· `display_name` / `description` · **模式**(`加权` / `灰度`,创建后不可变)· **对外入口**(创建后不可变):`path`(留空自动生成 `/services/<租户>/<name>/`)· `hostname` · 鉴权(`apiKey` / `none`)· **后端**:
 
 - **加权** — 添加 N 个在线服务,每个设权重(实时 `Σ=100` 校验)。
 - **灰度** — 选 1 个稳定后端 + 1 个灰度后端,设初始灰度百分比(默认 5)。

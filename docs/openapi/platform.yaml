@@ -964,23 +964,6 @@ components:
       - tenantName
       - updatedAt
       type: object
-    MLServiceAccess:
-      properties:
-        expiresAt:
-          format: date-time
-          type: string
-        headerName:
-          type: string
-        jwt:
-          type: string
-        url:
-          type: string
-      required:
-      - expiresAt
-      - headerName
-      - jwt
-      - url
-      type: object
     MLServiceCreateRequest:
       properties:
         args:
@@ -5834,60 +5817,6 @@ paths:
                 $ref: '#/components/schemas/Problem'
           description: Unexpected server error.
       summary: Update service display metadata
-      tags:
-      - MLServices
-  /api/v1/mlservices/{name}/access:
-    get:
-      operationId: getMLServiceAccess
-      parameters:
-      - in: path
-        name: name
-        required: true
-        schema:
-          maxLength: 63
-          minLength: 1
-          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MLServiceAccess'
-          description: Access credentials.
-        "401":
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Missing or invalid bearer JWT.
-        "403":
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Authenticated but insufficient role for the requested operation.
-        "404":
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Resource not found, OR the caller cannot see it. Platform deliberately
-            conflates these for non-admins to avoid information leak.
-        "409":
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: 'Conflicts with a precondition: duplicate name, last-tenant-admin
-            protection, in-use blocker, immutable transition, etc.'
-        "500":
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Unexpected server error.
-      summary: Issue a short-TTL JWT for inference calls
       tags:
       - MLServices
   /api/v1/mlservices/{name}/events:
