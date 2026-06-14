@@ -103,8 +103,11 @@ func (h *Handler) Validate(spec *mltp.MLTrafficPolicySpec) handler.Validation {
 	}
 
 	if spec.Endpoint.Auth != nil && spec.Endpoint.Auth.Type == mltp.EndpointAuthJWT {
-		v.Warnings = append(v.Warnings,
-			"endpoint.auth=jwt is not yet wired; SecurityPolicy creation deferred to a follow-up")
+		// Fail closed: SecurityPolicy derivation is not wired yet, so programming
+		// the route would expose an UNAUTHENTICATED endpoint under the impression
+		// it is JWT-protected. Reject until the SecurityPolicy follow-up lands.
+		v.Errors = append(v.Errors,
+			"endpoint.auth=jwt is not yet supported (SecurityPolicy derivation pending); use auth.type=none")
 	}
 	if spec.Backend.Config != nil && len(spec.Backend.Config.Raw) > 0 {
 		v.Warnings = append(v.Warnings,

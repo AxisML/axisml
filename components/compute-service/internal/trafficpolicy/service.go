@@ -97,6 +97,13 @@ func (m *Module) Create(ctx context.Context, namespace string, in CreateInput) (
 	default:
 		return nil, apperrors.Newf(apperrors.CodeValidation, "unknown mode %q", in.Mode)
 	}
+	// Fail closed: SecurityPolicy derivation for the data-plane gateway is not
+	// wired yet, so accepting auth=jwt would create an UNAUTHENTICATED endpoint
+	// the caller believes is JWT-protected. Reject until the follow-up lands.
+	if in.Endpoint.Auth != nil && in.Endpoint.Auth.Type == mltp.EndpointAuthJWT {
+		return nil, apperrors.New(apperrors.CodeValidation,
+			"endpoint.auth=jwt is not yet supported (SecurityPolicy derivation pending); omit auth or use type=none")
+	}
 	if existing, err := m.repo.GetByNamespaceName(ctx, namespace, in.Name); err == nil && existing != nil {
 		return nil, apperrors.New(apperrors.CodeConflict, "traffic policy already exists")
 	} else if err != nil && !IsNotFound(err) {

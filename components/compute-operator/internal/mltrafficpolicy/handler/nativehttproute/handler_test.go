@@ -71,13 +71,17 @@ func TestValidate_UnknownMode(t *testing.T) {
 	assert.False(t, h.Validate(spec).OK())
 }
 
-func TestValidate_JWTAuthEmitsDeferralWarning(t *testing.T) {
+func TestValidate_JWTAuthRejectedUntilWired(t *testing.T) {
+	// Fail closed: SecurityPolicy is not wired yet, so auth=jwt must be
+	// rejected rather than silently programming an unauthenticated route.
 	h := &Handler{}
 	spec := weightedSpec()
 	spec.Endpoint.Auth = &mltp.EndpointAuth{Type: mltp.EndpointAuthJWT}
-	v := h.Validate(spec)
-	assert.True(t, v.OK())
-	assert.NotEmpty(t, v.Warnings)
+	assert.False(t, h.Validate(spec).OK())
+
+	// auth.type=none stays valid.
+	spec.Endpoint.Auth = &mltp.EndpointAuth{Type: mltp.EndpointAuthNone}
+	assert.True(t, h.Validate(spec).OK())
 }
 
 func TestBuildHTTPRoute_WeightsPortsHostPath(t *testing.T) {
