@@ -17,6 +17,7 @@ import (
 	resourcepoolv1alpha1 "github.com/axisml/axisml/components/cluster-manager/api/v1alpha1"
 	mljobv1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mljob/v1alpha1"
 	mlservicev1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
+	mltrafficpolicyv1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mltrafficpolicy/v1alpha1"
 	tenantv1alpha1 "github.com/axisml/axisml/components/tenant-operator/api/v1alpha1"
 )
 
@@ -28,6 +29,7 @@ func Scheme() *runtime.Scheme {
 	utilruntime.Must(tenantv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(mljobv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(mlservicev1alpha1.AddToScheme(scheme))
+	utilruntime.Must(mltrafficpolicyv1alpha1.AddToScheme(scheme))
 	// compute resolves ResourcePool/ResourceUnit (owned by cluster-manager) when
 	// materializing Job/Service workloads, so its type must be in the scheme.
 	utilruntime.Must(resourcepoolv1alpha1.AddToScheme(scheme))

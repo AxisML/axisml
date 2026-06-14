@@ -291,6 +291,8 @@ computeOperator:
       enabled: true
     mlservice:
       enabled: true
+    mltrafficpolicy:
+      enabled: true
 
 # =============================================================================
 # Metadata Database (PostgreSQL)

@@ -11,6 +11,7 @@ import (
 
 	mljobv1 "github.com/axisml/axisml/components/compute-operator/api/mljob/v1alpha1"
 	mlservicev1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
+	mltpv1 "github.com/axisml/axisml/components/compute-operator/api/mltrafficpolicy/v1alpha1"
 )
 
 // Reusable client actions shared across the layer test files. Each returns the
@@ -74,6 +75,53 @@ func (s *suite) scaleService(ctx context.Context, ns, name string, replicas int3
 
 func (s *suite) deleteService(ctx context.Context, ns, name string) (resp, error) {
 	return s.computeService.do(ctx, http.MethodDelete, servicePath(ns, name), nil)
+}
+
+// ----- compute-service: traffic policies -----
+
+func trafficPoliciesPath(ns string) string {
+	return fmt.Sprintf("/api/v1/namespaces/%s/traffic-policies", ns)
+}
+func trafficPolicyPath(ns, name string) string {
+	return fmt.Sprintf("/api/v1/namespaces/%s/traffic-policies/%s", ns, name)
+}
+
+func (s *suite) createTrafficPolicy(ctx context.Context, ns string, req csCreateTrafficPolicyReq) (resp, error) {
+	return s.computeService.do(ctx, http.MethodPost, trafficPoliciesPath(ns), req)
+}
+
+func (s *suite) getTrafficPolicy(ctx context.Context, ns, name string) (resp, error) {
+	return s.computeService.do(ctx, http.MethodGet, trafficPolicyPath(ns, name), nil)
+}
+
+func (s *suite) splitTrafficPolicy(ctx context.Context, ns, name string, req csTrafficSplitReq) (resp, error) {
+	return s.computeService.do(ctx, http.MethodPost, trafficPolicyPath(ns, name)+"/split", req)
+}
+
+func (s *suite) promoteTrafficPolicy(ctx context.Context, ns, name string) (resp, error) {
+	return s.computeService.do(ctx, http.MethodPost, trafficPolicyPath(ns, name)+"/promote", nil)
+}
+
+func (s *suite) rollbackTrafficPolicy(ctx context.Context, ns, name string) (resp, error) {
+	return s.computeService.do(ctx, http.MethodPost, trafficPolicyPath(ns, name)+"/rollback", nil)
+}
+
+func (s *suite) deleteTrafficPolicy(ctx context.Context, ns, name string) (resp, error) {
+	return s.computeService.do(ctx, http.MethodDelete, trafficPolicyPath(ns, name), nil)
+}
+
+// canaryTrafficReq builds a canary traffic policy fronting two member services
+// (stable @90 / canary @10).
+func canaryTrafficReq(name, stableSvc, canarySvc string) csCreateTrafficPolicyReq {
+	return csCreateTrafficPolicyReq{
+		Name:     name,
+		Mode:     string(mltpv1.TrafficModeCanary),
+		Endpoint: mltpv1.Endpoint{Hostname: name + ".e2e.local"},
+		Backends: []mltpv1.BackendMember{
+			{ServiceName: stableSvc, Role: mltpv1.RoleStable, Weight: 90},
+			{ServiceName: canarySvc, Role: mltpv1.RoleCanary, Weight: 10},
+		},
+	}
 }
 
 // ----- request builders -----

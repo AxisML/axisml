@@ -24,6 +24,7 @@ import (
 	"github.com/axisml/axisml/components/compute-service/internal/server"
 	servicemod "github.com/axisml/axisml/components/compute-service/internal/service"
 	tenantmod "github.com/axisml/axisml/components/compute-service/internal/tenant"
+	trafficpolicymod "github.com/axisml/axisml/components/compute-service/internal/trafficpolicy"
 	apperrors "github.com/axisml/axisml/components/compute-service/pkg/errors"
 	"github.com/axisml/axisml/pkg/openapigen"
 )
@@ -32,10 +33,11 @@ const defaultVersion = "0.0.0-dev"
 
 // Tag names. One source of truth so a typo can't silently split a group.
 const (
-	tagTenants  = "tenants"
-	tagJobs     = "jobs"
-	tagServices = "services"
-	tagSystem   = "system"
+	tagTenants         = "tenants"
+	tagJobs            = "jobs"
+	tagServices        = "services"
+	tagTrafficPolicies = "traffic-policies"
+	tagSystem          = "system"
 )
 
 // AxisML §6.1 name policy is duplicated here as a regex rather than imported
@@ -126,11 +128,16 @@ func buildDocument(version string) *openapigen.Document {
 	g.Register("MLServicePatchInput", servicemod.PatchInput{}, openapigen.InputMode)
 	g.Register("MLServiceScaleInput", servicemod.ScaleInput{}, openapigen.InputMode)
 	g.Register("MLServiceView", servicemod.View{}, openapigen.ResponseMode)
+	g.Register("TrafficPolicyCreateInput", trafficpolicymod.CreateInput{}, openapigen.InputMode)
+	g.Register("TrafficPolicyPatchInput", trafficpolicymod.PatchInput{}, openapigen.InputMode)
+	g.Register("TrafficPolicySplitInput", trafficpolicymod.SplitInput{}, openapigen.InputMode)
+	g.Register("TrafficPolicyView", trafficpolicymod.View{}, openapigen.ResponseMode)
 	g.Register("PodView", kubeproxy.PodView{}, openapigen.ResponseMode)
 	g.Register("EventView", kubeproxy.EventView{}, openapigen.ResponseMode)
 
 	g.Set("JobList", openapigen.ListEnvelope("JobView"))
 	g.Set("MLServiceList", openapigen.ListEnvelope("MLServiceView"))
+	g.Set("TrafficPolicyList", openapigen.ListEnvelope("TrafficPolicyView"))
 	g.Set("PodList", openapigen.ListEnvelope("PodView"))
 	g.Set("EventList", openapigen.ListEnvelope("EventView"))
 	g.Set("TenantQuotaList", openapigen.ListEnvelope("TenantQuota"))
@@ -139,12 +146,14 @@ func buildDocument(version string) *openapigen.Document {
 		{Name: tagTenants, Description: "Tenant CRUD. Compute owns the Tenant CR; PG is authoritative, CR is derived."},
 		{Name: tagJobs, Description: "MLJob CRUD per namespace. ResourcePool/Unit referenced by name (read from K8s Informer cache)."},
 		{Name: tagServices, Description: "MLService CRUD per namespace."},
+		{Name: tagTrafficPolicies, Description: "MLTrafficPolicy CRUD per namespace: weighted / canary / blue-green traffic split over member online services."},
 		{Name: tagSystem, Description: "Liveness and readiness probes."},
 	}
 
 	nsParam := openapigen.PathParam("namespace", "Tenant name (= jobs/services partition key).")
 	jobParam := openapigen.PathParam("job", "Job name.")
 	serviceParam := openapigen.PathParam("service", "Service name.")
+	policyParam := openapigen.PathParam("policy", "Traffic policy name.")
 
 	limitParam := openapigen.QueryParam("limit", "Page size (1–200, default 50).", openapigen.IntFormat32Param())
 	continueParam := openapigen.QueryParam("continue", "Opaque continuation token from a previous page.", &openapigen.Schema{Type: "string"})
@@ -358,6 +367,55 @@ func buildDocument(version string) *openapigen.Document {
 		Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Events.", "EventList")}),
 	}}
 
+	// traffic policies (per namespace)
+	paths["/api/v1/namespaces/{namespace}/traffic-policies"] = openapigen.PathItem{
+		Post: &openapigen.Operation{
+			Tags: []string{tagTrafficPolicies}, Summary: "Create a traffic policy", OperationID: "createTrafficPolicy",
+			Parameters:  []openapigen.Parameter{nsParam},
+			RequestBody: openapigen.JSONBody("TrafficPolicyCreateInput"),
+			Responses:   withErrors(map[string]openapigen.Response{"201": openapigen.JSONResp("Created.", "TrafficPolicyView")}),
+		},
+		Get: &openapigen.Operation{
+			Tags: []string{tagTrafficPolicies}, Summary: "List traffic policies in a namespace", OperationID: "listTrafficPolicies",
+			Parameters: []openapigen.Parameter{nsParam, limitParam, continueParam, labelSelectorParam},
+			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Page.", "TrafficPolicyList")}),
+		},
+	}
+	paths["/api/v1/namespaces/{namespace}/traffic-policies/{policy}"] = openapigen.PathItem{
+		Get: &openapigen.Operation{
+			Tags: []string{tagTrafficPolicies}, Summary: "Get traffic policy", OperationID: "getTrafficPolicy",
+			Parameters: []openapigen.Parameter{nsParam, policyParam},
+			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Traffic policy.", "TrafficPolicyView")}),
+		},
+		Patch: &openapigen.Operation{
+			Tags: []string{tagTrafficPolicies}, Summary: "Patch traffic policy display fields", OperationID: "patchTrafficPolicy",
+			Parameters:  []openapigen.Parameter{nsParam, policyParam},
+			RequestBody: openapigen.JSONBody("TrafficPolicyPatchInput"),
+			Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Patched traffic policy.", "TrafficPolicyView")}),
+		},
+		Delete: &openapigen.Operation{
+			Tags: []string{tagTrafficPolicies}, Summary: "Delete traffic policy (members retained)", OperationID: "deleteTrafficPolicy",
+			Parameters: []openapigen.Parameter{nsParam, policyParam},
+			Responses:  withErrors(map[string]openapigen.Response{"204": openapigen.NoContentResp}),
+		},
+	}
+	paths["/api/v1/namespaces/{namespace}/traffic-policies/{policy}/split"] = openapigen.PathItem{Post: &openapigen.Operation{
+		Tags: []string{tagTrafficPolicies}, Summary: "Adjust per-backend weights", OperationID: "splitTrafficPolicy",
+		Parameters:  []openapigen.Parameter{nsParam, policyParam},
+		RequestBody: openapigen.JSONBody("TrafficPolicySplitInput"),
+		Responses:   withErrors(map[string]openapigen.Response{"202": openapigen.JSONResp("Split queued (generation bumped).", "TrafficPolicyView")}),
+	}}
+	paths["/api/v1/namespaces/{namespace}/traffic-policies/{policy}/promote"] = openapigen.PathItem{Post: &openapigen.Operation{
+		Tags: []string{tagTrafficPolicies}, Summary: "Promote the canary to stable (canary mode)", OperationID: "promoteTrafficPolicy",
+		Parameters: []openapigen.Parameter{nsParam, policyParam},
+		Responses:  withErrors(map[string]openapigen.Response{"202": openapigen.JSONResp("Promote queued (generation bumped).", "TrafficPolicyView")}),
+	}}
+	paths["/api/v1/namespaces/{namespace}/traffic-policies/{policy}/rollback"] = openapigen.PathItem{Post: &openapigen.Operation{
+		Tags: []string{tagTrafficPolicies}, Summary: "Roll the canary back to 0 (canary mode)", OperationID: "rollbackTrafficPolicy",
+		Parameters: []openapigen.Parameter{nsParam, policyParam},
+		Responses:  withErrors(map[string]openapigen.Response{"202": openapigen.JSONResp("Rollback queued (generation bumped).", "TrafficPolicyView")}),
+	}}
+
 	return &openapigen.Document{
 		OpenAPI: "3.0.3",
 		Info: openapigen.Info{
@@ -393,6 +451,8 @@ func operatorAPIPrefix(pkg string) (string, bool) {
 		return "MLJob", true
 	case "mlservice":
 		return "MLService", true
+	case "mltrafficpolicy":
+		return "MLTrafficPolicy", true
 	}
 	return "", false
 }

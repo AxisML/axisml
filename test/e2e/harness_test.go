@@ -31,6 +31,7 @@ import (
 	poolv1 "github.com/axisml/axisml/components/cluster-manager/api/v1alpha1"
 	mljobv1 "github.com/axisml/axisml/components/compute-operator/api/mljob/v1alpha1"
 	mlservicev1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
+	mltpv1 "github.com/axisml/axisml/components/compute-operator/api/mltrafficpolicy/v1alpha1"
 	tenantv1 "github.com/axisml/axisml/components/tenant-operator/api/v1alpha1"
 )
 
@@ -63,6 +64,7 @@ func buildScheme() *runtime.Scheme {
 	utilruntime.Must(poolv1.AddToScheme(s))
 	utilruntime.Must(mljobv1.AddToScheme(s))
 	utilruntime.Must(mlservicev1.AddToScheme(s))
+	utilruntime.Must(mltpv1.AddToScheme(s))
 	return s
 }
 

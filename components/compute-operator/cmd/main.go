@@ -18,11 +18,16 @@ import (
 	"github.com/axisml/axisml/components/compute-operator/internal/mljob/handlers/nativejob"
 	mlservicedispatcher "github.com/axisml/axisml/components/compute-operator/internal/mlservice/dispatcher"
 	mlservicehandler "github.com/axisml/axisml/components/compute-operator/internal/mlservice/handler"
+	mltrafficpolicydispatcher "github.com/axisml/axisml/components/compute-operator/internal/mltrafficpolicy/dispatcher"
+	mltrafficpolicyhandler "github.com/axisml/axisml/components/compute-operator/internal/mltrafficpolicy/handler"
 	"github.com/axisml/axisml/components/compute-operator/internal/setup"
 
 	// Side-effect imports: register the native MLService handlers.
 	_ "github.com/axisml/axisml/components/compute-operator/internal/mlservice/handler/nativedeployment"
 	_ "github.com/axisml/axisml/components/compute-operator/internal/mlservice/handler/nativestatefulset"
+
+	// Side-effect import: register the native MLTrafficPolicy handler.
+	_ "github.com/axisml/axisml/components/compute-operator/internal/mltrafficpolicy/handler/nativehttproute"
 )
 
 const defaultLeaderElectionID = "axisml-compute-operator.axisml.io"
@@ -35,12 +40,13 @@ func init() {
 
 func main() {
 	var (
-		metricsAddr          string
-		probeAddr            string
-		enableLeaderElection bool
-		leaderElectionID     string
-		enableMLJob          bool
-		enableMLService      bool
+		metricsAddr           string
+		probeAddr             string
+		enableLeaderElection  bool
+		leaderElectionID      string
+		enableMLJob           bool
+		enableMLService       bool
+		enableMLTrafficPolicy bool
 	)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080",
 		"The address the metric endpoint binds to.")
@@ -53,6 +59,7 @@ func main() {
 		"Name of the lease used for leader election.")
 	flag.BoolVar(&enableMLJob, "enable-mljob", true, "Run the MLJob controller.")
 	flag.BoolVar(&enableMLService, "enable-mlservice", true, "Run the MLService controller.")
+	flag.BoolVar(&enableMLTrafficPolicy, "enable-mltrafficpolicy", true, "Run the MLTrafficPolicy controller.")
 
 	zapOpts := zap.Options{Development: false}
 	zapOpts.BindFlags(flag.CommandLine)
@@ -101,6 +108,21 @@ func main() {
 		}
 	}
 
+	if enableMLTrafficPolicy {
+		handlersByKey, allHandlers, err := mltrafficpolicyhandler.Build(mgr)
+		if err != nil {
+			setupLog.Error(err, "unable to build MLTrafficPolicy handler registry")
+			os.Exit(1)
+		}
+		for _, k := range mltrafficpolicyhandler.Keys() {
+			setupLog.Info("registered MLTrafficPolicy handler", "key", k.String())
+		}
+		if err := mltrafficpolicydispatcher.NewReconciler(mgr, handlersByKey).SetupWithManager(mgr, allHandlers); err != nil {
+			setupLog.Error(err, "unable to set up MLTrafficPolicy controller")
+			os.Exit(1)
+		}
+	}
+
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to register healthz")
 		os.Exit(1)
@@ -113,6 +135,7 @@ func main() {
 	setupLog.Info("starting axisml-compute-operator",
 		"mljob", enableMLJob,
 		"mlservice", enableMLService,
+		"mltrafficpolicy", enableMLTrafficPolicy,
 	)
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "manager terminated")

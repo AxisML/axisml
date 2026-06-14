@@ -51,6 +51,22 @@ rules:
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   {{- end }}
 
+  {{- if $op.controllers.mltrafficpolicy.enabled }}
+  # ==========================================================================
+  # MLTrafficPolicy controller — derives a weighted HTTPRoute over member
+  # services. No Pods; resolves member Service ports read-only.
+  # ==========================================================================
+  - apiGroups: ["axisml.io"]
+    resources: ["mltrafficpolicies", "mltrafficpolicies/status"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources: ["httproutes"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list", "watch"]
+  {{- end }}
+
   {{- /*
     Pods: union across MLJob (native-podgroup renders bare Pods) and
     MLService (native-deployment indirectly creates Pods via Deployment).

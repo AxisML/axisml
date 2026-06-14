@@ -35,11 +35,16 @@ import (
 	"github.com/axisml/axisml/components/compute-operator/internal/mljob/handlers/nativejob"
 	mlservicedispatcher "github.com/axisml/axisml/components/compute-operator/internal/mlservice/dispatcher"
 	mlservicehandler "github.com/axisml/axisml/components/compute-operator/internal/mlservice/handler"
+	mltrafficpolicydispatcher "github.com/axisml/axisml/components/compute-operator/internal/mltrafficpolicy/dispatcher"
+	mltrafficpolicyhandler "github.com/axisml/axisml/components/compute-operator/internal/mltrafficpolicy/handler"
 	"github.com/axisml/axisml/components/compute-operator/internal/setup"
 
 	// Side-effect imports: register the native MLService handlers.
 	_ "github.com/axisml/axisml/components/compute-operator/internal/mlservice/handler/nativedeployment"
 	_ "github.com/axisml/axisml/components/compute-operator/internal/mlservice/handler/nativestatefulset"
+
+	// Side-effect import: register the native MLTrafficPolicy handler.
+	_ "github.com/axisml/axisml/components/compute-operator/internal/mltrafficpolicy/handler/nativehttproute"
 
 	"github.com/axisml/axisml/test/testutil"
 )
@@ -122,6 +127,14 @@ func bootstrapManager() error {
 	}
 	if err := mlservicedispatcher.NewReconciler(mgr, mlserviceHandlersByKey).SetupWithManager(mgr, mlserviceAll); err != nil {
 		return fmt.Errorf("setup MLService reconciler: %w", err)
+	}
+
+	mltpHandlersByKey, mltpAll, err := mltrafficpolicyhandler.Build(mgr)
+	if err != nil {
+		return fmt.Errorf("MLTrafficPolicy handler build: %w", err)
+	}
+	if err := mltrafficpolicydispatcher.NewReconciler(mgr, mltpHandlersByKey).SetupWithManager(mgr, mltpAll); err != nil {
+		return fmt.Errorf("setup MLTrafficPolicy reconciler: %w", err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())

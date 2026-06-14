@@ -61,12 +61,14 @@ func loadConfig() envConfig {
 		InfraNamespace:  envOr("E2E_INFRA_NAMESPACE", "axisml-infra"),
 		SystemNamespace: envOr("E2E_SYSTEM_NAMESPACE", "axisml-system"),
 
+		// All three components serve their HTTP API on the `http` port 8080
+		// (metrics live on 8081, probes on 8082 — not the API).
 		ClusterManagerSvc:  envOr("E2E_CLUSTER_MANAGER_SVC", "axisml-cluster-manager"),
-		ClusterManagerPort: 8082,
+		ClusterManagerPort: 8080,
 		ComputeServiceSvc:  envOr("E2E_COMPUTE_SERVICE_SVC", "axisml-compute-service"),
-		ComputeServicePort: 8081,
+		ComputeServicePort: 8080,
 		ArtifactHubSvc:     envOr("E2E_ARTIFACT_HUB_SVC", "axisml-artifact-hub"),
-		ArtifactHubPort:    8082,
+		ArtifactHubPort:    8080,
 
 		User: envOr("E2E_USER", "e2e-suite"),
 

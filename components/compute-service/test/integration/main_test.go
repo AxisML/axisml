@@ -30,6 +30,7 @@ import (
 	axismlv1alpha1 "github.com/axisml/axisml/components/cluster-manager/api/v1alpha1"
 	mljobv1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mljob/v1alpha1"
 	mlservicev1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
+	mltrafficpolicyv1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mltrafficpolicy/v1alpha1"
 	tenantv1alpha1 "github.com/axisml/axisml/components/tenant-operator/api/v1alpha1"
 
 	computeapp "github.com/axisml/axisml/components/compute-service/internal/app"
@@ -65,6 +66,7 @@ func init() {
 	utilruntime.Must(tenantv1alpha1.AddToScheme(testScheme))
 	utilruntime.Must(mljobv1alpha1.AddToScheme(testScheme))
 	utilruntime.Must(mlservicev1alpha1.AddToScheme(testScheme))
+	utilruntime.Must(mltrafficpolicyv1alpha1.AddToScheme(testScheme))
 }
 
 // TestMain sets up envtest + PostgreSQL once for the whole package.
