@@ -10,7 +10,7 @@
 - **Dashboard / 服务指标数据来源** 见 [monitoring.md](monitoring.md)。
 - **整体系统概念** (Tenant / ResourcePool / Job / Service / Artifact) 见 [overview.md](overview.md)。
 
-> 各菜单按 §2.2 信息架构组织,列表 / 详情 / 表单布局在下文对应章节落档:Dashboard §3、资源池管理 §4、租户管理 §5、工作区 §6、计算任务 §7、在线服务 §8、制品中心(数据集 / 模型 / 镜像)§9、流量配置 §10。本文只描述**布局与字段呈现**;字段契约见 [apis/platform.yaml](apis/platform.yaml),状态机与编排见各服务文档,权限矩阵见 [auth.md](auth.md)。
+> 各菜单按 §2.2 信息架构组织,列表 / 详情 / 表单布局在下文对应章节落档:Dashboard §3、资源池管理 §4、租户管理 §5、工作区 §6、计算任务 §7、在线服务 §8、资产中心(数据集 / 模型 / 镜像)§9、流量控制 §10。本文只描述**布局与字段呈现**;字段契约见 [apis/platform.yaml](apis/platform.yaml),状态机与编排见各服务文档,权限矩阵见 [auth.md](auth.md)。
 
 ---
 
@@ -34,9 +34,9 @@
 │            │   ┌ Filters (search · select · select · 重置) ────┐     │
 │ 服务中心   │   └────────────────────────────────────────────────┘     │
 │ • 在线服务 │                                                         │
-│ • 流量配置 │   ┌ Card / Section / Table ──────────────────────┐      │
+│ • 流量控制 │   ┌ Card / Section / Table ──────────────────────┐      │
 │            │   │                                              │      │
-│ 制品中心   │   └──────────────────────────────────────────────┘      │
+│ 资产中心   │   └──────────────────────────────────────────────┘      │
 │ • 模型     │                                                         │
 │ • 镜像     │                                                         │
 │ • 数据集   │                                                         │
@@ -52,7 +52,7 @@
 | 栅格 | `grid-template-columns: 232px 1fr` × `rows: 56px 1fr`,`min-width: 1280` |
 | Topbar | 品牌区 · 面包屑 · **租户切换器** · 文档 · 通知 · 头像 |
 | 租户切换器 | 下拉显示当前用户绑定的租户列表,选中项即所有租户内菜单(工作区 / 任务 / 服务 / 流量 / 制品)的操作上下文。`system-admin` 额外提供「全部租户」选项(跨租户聚合列表);单租户用户隐藏控件直接锁定 |
-| Sidebar | 五个分组:**Dashboard** / **训练中心** / **服务中心** / **制品中心** / **系统管理**,mono 小字 label 区隔 |
+| Sidebar | 五个分组:**Dashboard** / **训练中心** / **服务中心** / **资产中心** / **系统管理**,mono 小字 label 区隔 |
 | Main | Page Head → Filters → Card / Table,复用整套 Geist 组件 |
 
 ### 2.2 信息架构
@@ -63,8 +63,8 @@
 | 训练中心 | 工作区 | `/workspaces` · `/workspaces/{name}` | 租户内 | §6 |
 |  | 计算任务 | `/jobs` · `/jobs/{name}` | 租户内 | §7 |
 | 服务中心 | 在线服务 | `/services` · `/services/{name}` | 租户内 | §8 |
-|  | 流量配置 | `/traffic` · `/traffic/{name}` | 租户内 | §10 |
-| 制品中心 | 数据集 | `/datasets` · `/datasets/{name}` | 租户内 | §9 |
+|  | 流量控制 | `/traffic` · `/traffic/{name}` | 租户内 | §10 |
+| 资产中心 | 数据集 | `/datasets` · `/datasets/{name}` | 租户内 | §9 |
 |  | 模型 | `/models` · `/models/{name}` | 租户内 | §9 |
 |  | 镜像 | `/images` · `/images/{name}` | 租户内 | §9 |
 | 系统管理 | **租户管理** | `/tenants` · `/tenants/{name}` | 全集群 | §5 |
@@ -76,7 +76,7 @@
 
 - **面包屑** — `一级 / 二级 / [资源名]`,详情页第三段可点击回到列表。
 - **空态** — 列表页无数据时渲染居中插画 + 「创建第一个 X」CTA + 引导链接;加载中用骨架行占位。
-- **视图切换** — 工作区(§6)与制品中心(§9,数据集 / 模型 / 镜像)列表页支持「列表 / 卡片」双视图,切换控件 `[☰ 列表 | ▦ 卡片]` 居 Filters 行右端,默认列表视图,偏好持久化到 localStorage。两视图共享同一套过滤 / 排序 / 分页结果,仅呈现形态不同;卡片视图为响应式网格(每行 2–4 张)。其余列表页(任务 / 服务 / 流量 / 租户 / 资源池)仅列表视图。
+- **视图切换** — 工作区(§6)与资产中心(§9,数据集 / 模型 / 镜像)列表页支持「列表 / 卡片」双视图,切换控件 `[☰ 列表 | ▦ 卡片]` 居 Filters 行右端,默认列表视图,偏好持久化到 localStorage。两视图共享同一套过滤 / 排序 / 分页结果,仅呈现形态不同;卡片视图为响应式网格(每行 2–4 张)。其余列表页(任务 / 服务 / 流量 / 租户 / 资源池)仅列表视图。
 - **租户作用域** — 工作区 / 任务 / 服务 / 流量 / 制品菜单的列表与创建均隶属 topbar 当前租户;切换租户即整页刷新数据。系统管理(租户 / 资源池)为全集群,不受切换器影响。
 - **错误条** — 跨租户并行 LIST 部分失败 → 列表顶部黄条「N 个租户暂时不可达,显示其余结果」(对应 `partial=true`)。
 - **二次确认** — 删除 / 取消 / 强制操作弹窗显示「前置阻断信息」(如使用此资源单元的活跃 Job / Service 计数)。
@@ -759,7 +759,7 @@ Tabs:  [基本信息]  [实例 (Pods)]  [日志]  [事件]
 
 ## 8. 在线服务 (服务中心 → 在线服务)
 
-常驻在线推理服务,隶属 topbar 当前租户,可暴露路由对外访问。多版本灰度发布与加权切流由 §10 流量配置 承接。字段权威见 [components/compute-service.md](components/compute-service.md)。
+常驻在线推理服务,隶属 topbar 当前租户,可暴露路由对外访问。多版本灰度发布与加权切流由 §10 流量控制 承接。字段权威见 [components/compute-service.md](components/compute-service.md)。
 
 ### 8.1 页面入口
 
@@ -823,7 +823,7 @@ Tabs:  [基本信息]  [监控]  [实例 (Pods)]  [日志]  [事件]
 
 ---
 
-## 9. 制品中心 (数据集 / 模型 / 镜像)
+## 9. 资产中心 (数据集 / 模型 / 镜像)
 
 三个菜单(数据集 / 模型 / 镜像)共用同一列表 / 详情 / 上传模板,仅 **spec 字段** 与 **存储后端** 不同。制品身份为 `(租户, 类型, 名称, 版本)`;同名制品下挂多个版本。列表合并「当前租户」+「公共(`axisml-system`)」制品。字段权威见 [components/artifact-hub.md](components/artifact-hub.md)。
 
@@ -930,7 +930,7 @@ LLaMA-7B 监督微调权重                                 [+ 上传新版本]
 
 ---
 
-## 10. 流量配置 (服务中心 → 流量配置)
+## 10. 流量控制 (服务中心 → 流量控制)
 
 在线服务的多版本流量编排。每条**流量策略**绑定一个稳定对外入口(path / hostname),把入站请求按权重分发到当前租户下的多个**在线服务后端**,支撑灰度发布、加权切分与蓝绿版本切换。底层加权路由由 compute 派生(`(native,*)` → Envoy Gateway `HTTPRoute` 加权 `backendRefs`;`kserve` → `InferenceService` canary),Platform / UI 不直连网关、不内嵌 PromQL。字段权威见 [components/compute-service.md §4.4](components/compute-service.md#44-service)。
 
@@ -946,7 +946,7 @@ LLaMA-7B 监督微调权重                                 [+ 上传新版本]
 ### 10.2 列表页
 
 ```
-Page Head:  // serving / traffic   流量配置。            [+ 新建策略]
+Page Head:  // serving / traffic   流量控制。            [+ 新建策略]
 
 Filters:  🔍 名称搜索  |  模式 ▾  |  状态 ▾  |  重置
 
@@ -968,7 +968,7 @@ Footer: 共 3 条策略                                    ‹ [1] ›        �
 ### 10.3 详情页 Tab
 
 ```
-← 返回流量配置列表
+← 返回流量控制列表
 rt-chat.   [◐ 灰度中]                                   traffic/rt-chat
 对话服务灰度发布
 [调整流量]  [提升]  [回滚]  [删除]
@@ -1023,4 +1023,4 @@ Tabs:  [基本信息]  [流量分布]  [监控]  [事件]
 - [overview.md](overview.md) — 系统概念与组件关系
 - [components/compute-service.md](components/compute-service.md) — Tenant / Quota / Job / Service / Workspace 字段权威
 - [components/cluster-manager.md](components/cluster-manager.md) — ResourcePool / ResourceUnit 字段权威
-- [components/artifact-hub.md](components/artifact-hub.md) — 制品中心字段权威
+- [components/artifact-hub.md](components/artifact-hub.md) — 资产中心字段权威
