@@ -216,15 +216,15 @@ UI 设计见 [wireframe.md §9](../wireframe.md#9-制品中心-数据集--模型
 
 KPI + gauge 默认 30s 轮询；时序图随 range 选择器（`1h/24h/7d`）重查。具体 `metric` key 与 PromQL 模板由 [monitoring.md](../monitoring.md) 统一定义、在 compute / cluster-manager 内执行，Platform 与 UI 均不内嵌 PromQL。
 
-### 4.8 流量控制编排
+### 4.8 流量配置编排
 
-下游：compute（流量策略 + 加权路由派生 + 灰度指标代理）。流量策略把一个稳定对外入口的入站流量按权重分发到该租户下多个在线服务后端，支撑灰度发布、加权切分与蓝绿切换；加权路由（`(native,*)` → Envoy Gateway `HTTPRoute` 加权 `backendRefs`；`kserve` → `InferenceService` canary）由 compute 内部派生，Platform 不直连网关、不内嵌 PromQL。字段契约属 compute 在线服务路由域，见 [compute-service.md §4.4](compute-service.md#44-service)。
+下游：compute（流量策略 + 加权路由派生 + 灰度指标代理）。流量策略把一个稳定对外入口的入站流量按权重分发到该租户下多个在线服务后端，支撑灰度发布、加权切分与蓝绿切换；加权路由（`(native,*)` → Envoy Gateway `HTTPRoute` 加权 `backendRefs`；`kserve` → `InferenceService` canary）由 compute 内部派生，Platform 不直连网关、不内嵌 PromQL。字段契约属 compute 在线服务路由域，见 [compute-service.md §4.5](compute-service.md#45-流量策略mltrafficpolicy)。
 
 | 用户操作 | Platform 内部步骤 | 下游调用 | 一致性策略 |
 | --- | --- | --- | --- |
 | 创建 | RBAC + 对每个成员逐个 `GetService` 预检 `kind==service` 且 `Ready` → 校验成员同租户、未被其它活跃策略占用 → `endpoint.path==""` 时自动拼 `/services/<tenant>/<name>/` → 请求体携带 `mode` / `endpoint` / `backends[]` | `compute.CreateTrafficPolicy(ns, body)` | 单点透传；加权路由由 compute 内部派生 |
 | 调整流量 | `RequireTrafficPolicyOwner` → 校验 `Σweight==100`（加权）/ `0–100`（灰度）→ 透传 | `compute.UpdateTrafficSplit` | 幂等；`Deleted` → `409 traffic-policy-deleted` |
-| 提升 / 回滚 | `RequireTrafficPolicyOwner` → 灰度专属动作：`promote` 置灰度后端 100 并改写稳定基线引用、`rollback` 置灰度 0 | `compute.PromoteCanary` / `compute.RollbackCanary` | 灰度态机合法性由 compute 4xx 反馈 |
+| 提升 / 回滚 | `RequireTrafficPolicyOwner` → 灰度专属动作：`promote` 置灰度后端 100 并互换 stable/canary `role`（灰度升为新基线）、`rollback` 置灰度 0 | `compute.PromoteCanary` / `compute.RollbackCanary` | 灰度态机合法性由 compute 4xx 反馈 |
 | 路由 / 访问 | `endpoint.auth.type=jwt` 时颁发 `aud=axisml-inference` 短 TTL access JWT（复用 §4.3） | —（Platform 自签） | 数据面网关验签放行 |
 | 指标查询 | `RequireTrafficPolicyOwner` → 透传（按后端分组的 QPS / 延迟 / 错误率、灰度健康对比） | `compute.GetTrafficMetrics(name, metric, range, step)` | 查询失败 → `502 upstream-failure` |
 | 列表 / 详情 | 同 §4.2 / §4.3：§5.2 解析 active tenant → 单租户透传 / `system-admin` 跨租户合并 | `compute.{List,Get}TrafficPolicy(ns)` | 跨租户部分失败 → `partial=true` |
