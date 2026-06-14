@@ -36,8 +36,8 @@ func TestComponentName(t *testing.T) {
 		PackageNamer: func(pkg string) (string, bool) {
 			// Mock the per-operator prefix scheme used by the compute generator.
 			switch {
-			case strings.Contains(pkg, "/mljob-operator/api"):
-				return "MLJob", true
+			case strings.Contains(pkg, "/mlrun-operator/api"):
+				return "MLRun", true
 			case strings.Contains(pkg, "/mlservice-operator/api"):
 				return "MLService", true
 			}

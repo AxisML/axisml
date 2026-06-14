@@ -1,12 +1,12 @@
 # compute-service
 
-AxisML Compute Service is the internal compute service: it owns the business metadata for jobs, services, tenants, resource pools, resource units, and quotas, and translates user intent into `MLJob` / `MLService` / `Tenant` CRs for the operators to act on.
+AxisML Compute Service is the internal compute service: it owns the business metadata for jobs, services, tenants, resource pools, resource units, and quotas, and translates user intent into `MLRun` / `MLService` / `Tenant` CRs for the operators to act on.
 
 > **Status: scaffold.** The directory and Makefile are in place; the Go implementation is not yet committed. See [`docs/system_design/components/compute-service.md`](../../docs/system_design/components/compute-service.md) for the design and the API surface this service will expose.
 
 ## Responsibilities
 
-- **Compute workloads** — maintain Job / Service business metadata; create `MLJob` / `MLService` CRs; consume status reflowed by the operators via informer.
+- **Compute workloads** — maintain Job / Service business metadata; create `MLRun` / `MLService` CRs; consume status reflowed by the operators via informer.
 - **Tenants** — maintain tenant metadata; emit `Tenant` CRs for tenant-operator to land Namespace / ResourceQuota / init resources.
 - **Resource pools** — maintain `ResourcePool` metadata: node selectors, tolerations, cluster mapping.
 - **Resource units** — maintain reusable resource templates (CPU/GPU/memory recipes); inject `requests`/`limits` and node-matching at workload submit time.
@@ -23,8 +23,8 @@ internal/
   ├── resourcepool/    ResourcePool metadata
   ├── resourceunit/    ResourceUnit templates + injection helpers
   ├── quota/           Quota model + ElasticQuota sync + usage reflow
-  ├── job/             MLJob CRUD + status informer
-  ├── service/         MLService CRUD + status informer
+  ├── mlrun/           MLRun CRUD + status informer
+  ├── mlservice/       MLService CRUD + status informer
   └── volume/          Data volume management (TBD)
 api/                  HTTP / gRPC contract definitions
 deploy/Dockerfile     Container image build (to be added)

@@ -22,10 +22,10 @@ import (
 // Ready (real Deployment + pod), so it is a valid traffic-policy member.
 func createReadyService(t *testing.T, ctx context.Context, ns, quota, name string) {
 	t.Helper()
-	r, err := h.createService(ctx, ns, nginxServiceReq(name, h.cfg.DefaultPool, h.cfg.DefaultUnit, quota, nil))
+	r, err := h.createMLService(ctx, ns, nginxMLServiceReq(name, h.cfg.DefaultPool, h.cfg.DefaultUnit, quota, nil))
 	require.NoError(t, err)
 	require.True(t, r.is2xx(), "create member service %s: %d: %s", name, r.status, string(r.body))
-	t.Cleanup(func() { _, _ = h.deleteService(context.Background(), ns, name) })
+	t.Cleanup(func() { _, _ = h.deleteMLService(context.Background(), ns, name) })
 
 	eventually(t, h.cfg.PodReadyTimeout, func() error {
 		var svc mlservicev1.MLService
@@ -168,7 +168,7 @@ func TestTrafficPolicy_CanaryThroughGateway(t *testing.T) {
 	})
 	// Members are not deleted by the policy.
 	for _, svc := range []string{stable, canary} {
-		g, err := h.getService(ctx, ns, svc)
+		g, err := h.getMLService(ctx, ns, svc)
 		require.NoError(t, err)
 		assert.True(t, g.is2xx(), "member service %s should survive policy delete: %d", svc, g.status)
 	}

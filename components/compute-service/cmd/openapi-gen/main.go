@@ -19,10 +19,10 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/axisml/axisml/components/compute-service/internal/job"
 	"github.com/axisml/axisml/components/compute-service/internal/kubeproxy"
+	"github.com/axisml/axisml/components/compute-service/internal/mlrun"
+	servicemod "github.com/axisml/axisml/components/compute-service/internal/mlservice"
 	"github.com/axisml/axisml/components/compute-service/internal/server"
-	servicemod "github.com/axisml/axisml/components/compute-service/internal/service"
 	tenantmod "github.com/axisml/axisml/components/compute-service/internal/tenant"
 	trafficpolicymod "github.com/axisml/axisml/components/compute-service/internal/trafficpolicy"
 	apperrors "github.com/axisml/axisml/components/compute-service/pkg/errors"
@@ -34,8 +34,8 @@ const defaultVersion = "0.0.0-dev"
 // Tag names. One source of truth so a typo can't silently split a group.
 const (
 	tagTenants         = "tenants"
-	tagJobs            = "jobs"
-	tagServices        = "services"
+	tagMLRuns          = "mlruns"
+	tagMLServices      = "mlservices"
 	tagTrafficPolicies = "traffic-policies"
 	tagSystem          = "system"
 )
@@ -121,9 +121,9 @@ func buildDocument(version string) *openapigen.Document {
 	g.Register("TenantListResponse", tenantmod.ListResponse{}, openapigen.ResponseMode)
 	g.Register("TenantQuotaInput", tenantmod.QuotaPatchInput{}, openapigen.InputMode)
 	g.Register("TenantQuota", tenantmod.QuotaSpec{}, openapigen.ResponseMode)
-	g.Register("JobCreateInput", job.CreateInput{}, openapigen.InputMode)
-	g.Register("JobPatchInput", job.PatchInput{}, openapigen.InputMode)
-	g.Register("JobView", job.View{}, openapigen.ResponseMode)
+	g.Register("MLRunCreateInput", mlrun.CreateInput{}, openapigen.InputMode)
+	g.Register("MLRunPatchInput", mlrun.PatchInput{}, openapigen.InputMode)
+	g.Register("MLRunView", mlrun.View{}, openapigen.ResponseMode)
 	g.Register("MLServiceCreateInput", servicemod.CreateInput{}, openapigen.InputMode)
 	g.Register("MLServicePatchInput", servicemod.PatchInput{}, openapigen.InputMode)
 	g.Register("MLServiceScaleInput", servicemod.ScaleInput{}, openapigen.InputMode)
@@ -135,7 +135,7 @@ func buildDocument(version string) *openapigen.Document {
 	g.Register("PodView", kubeproxy.PodView{}, openapigen.ResponseMode)
 	g.Register("EventView", kubeproxy.EventView{}, openapigen.ResponseMode)
 
-	g.Set("JobList", openapigen.ListEnvelope("JobView"))
+	g.Set("MLRunList", openapigen.ListEnvelope("MLRunView"))
 	g.Set("MLServiceList", openapigen.ListEnvelope("MLServiceView"))
 	g.Set("TrafficPolicyList", openapigen.ListEnvelope("TrafficPolicyView"))
 	g.Set("PodList", openapigen.ListEnvelope("PodView"))
@@ -144,15 +144,15 @@ func buildDocument(version string) *openapigen.Document {
 
 	tags := []openapigen.TagEntry{
 		{Name: tagTenants, Description: "Tenant CRUD. Compute owns the Tenant CR; PG is authoritative, CR is derived."},
-		{Name: tagJobs, Description: "MLJob CRUD per namespace. ResourcePool/Unit referenced by name (read from K8s Informer cache)."},
-		{Name: tagServices, Description: "MLService CRUD per namespace."},
+		{Name: tagMLRuns, Description: "MLRun CRUD per namespace. ResourcePool/Unit referenced by name (read from K8s Informer cache)."},
+		{Name: tagMLServices, Description: "MLService CRUD per namespace."},
 		{Name: tagTrafficPolicies, Description: "MLTrafficPolicy CRUD per namespace: weighted / canary / blue-green traffic split over member online services."},
 		{Name: tagSystem, Description: "Liveness and readiness probes."},
 	}
 
-	nsParam := openapigen.PathParam("namespace", "Tenant name (= jobs/services partition key).")
-	jobParam := openapigen.PathParam("job", "Job name.")
-	serviceParam := openapigen.PathParam("service", "Service name.")
+	nsParam := openapigen.PathParam("namespace", "Tenant name (= mlruns/mlservices partition key).")
+	mlrunParam := openapigen.PathParam("mlrun", "MLRun name.")
+	mlserviceParam := openapigen.PathParam("mlservice", "MLService name.")
 	policyParam := openapigen.PathParam("policy", "Traffic policy name.")
 
 	limitParam := openapigen.QueryParam("limit", "Page size (1–200, default 50).", openapigen.IntFormat32Param())
@@ -243,127 +243,127 @@ func buildDocument(version string) *openapigen.Document {
 		},
 	}
 
-	// jobs (per namespace)
-	paths["/api/v1/namespaces/{namespace}/jobs"] = openapigen.PathItem{
+	// mlruns (per namespace)
+	paths["/api/v1/namespaces/{namespace}/mlruns"] = openapigen.PathItem{
 		Post: &openapigen.Operation{
-			Tags: []string{tagJobs}, Summary: "Submit an MLJob", OperationID: "createJob",
+			Tags: []string{tagMLRuns}, Summary: "Submit an MLRun", OperationID: "createMLRun",
 			Parameters:  []openapigen.Parameter{nsParam},
-			RequestBody: openapigen.JSONBody("JobCreateInput"),
-			Responses:   withErrors(map[string]openapigen.Response{"201": openapigen.JSONResp("Created.", "JobView")}),
+			RequestBody: openapigen.JSONBody("MLRunCreateInput"),
+			Responses:   withErrors(map[string]openapigen.Response{"201": openapigen.JSONResp("Created.", "MLRunView")}),
 		},
 		Get: &openapigen.Operation{
-			Tags: []string{tagJobs}, Summary: "List jobs in a namespace", OperationID: "listJobs",
+			Tags: []string{tagMLRuns}, Summary: "List MLRuns in a namespace", OperationID: "listMLRuns",
 			Parameters: []openapigen.Parameter{nsParam, limitParam, continueParam, labelSelectorParam},
-			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Page.", "JobList")}),
+			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Page.", "MLRunList")}),
 		},
 	}
-	paths["/api/v1/namespaces/{namespace}/jobs/{job}"] = openapigen.PathItem{
+	paths["/api/v1/namespaces/{namespace}/mlruns/{mlrun}"] = openapigen.PathItem{
 		Get: &openapigen.Operation{
-			Tags: []string{tagJobs}, Summary: "Get job", OperationID: "getJob",
-			Parameters: []openapigen.Parameter{nsParam, jobParam},
-			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Job.", "JobView")}),
+			Tags: []string{tagMLRuns}, Summary: "Get MLRun", OperationID: "getMLRun",
+			Parameters: []openapigen.Parameter{nsParam, mlrunParam},
+			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("MLRun.", "MLRunView")}),
 		},
 		Patch: &openapigen.Operation{
-			Tags: []string{tagJobs}, Summary: "Patch job display fields", OperationID: "patchJob",
-			Parameters:  []openapigen.Parameter{nsParam, jobParam},
-			RequestBody: openapigen.JSONBody("JobPatchInput"),
-			Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Patched job.", "JobView")}),
+			Tags: []string{tagMLRuns}, Summary: "Patch MLRun display fields", OperationID: "patchMLRun",
+			Parameters:  []openapigen.Parameter{nsParam, mlrunParam},
+			RequestBody: openapigen.JSONBody("MLRunPatchInput"),
+			Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Patched MLRun.", "MLRunView")}),
 		},
 		Delete: &openapigen.Operation{
-			Tags: []string{tagJobs}, Summary: "Delete job", OperationID: "deleteJob",
-			Parameters: []openapigen.Parameter{nsParam, jobParam},
+			Tags: []string{tagMLRuns}, Summary: "Delete MLRun", OperationID: "deleteMLRun",
+			Parameters: []openapigen.Parameter{nsParam, mlrunParam},
 			Responses:  withErrors(map[string]openapigen.Response{"204": openapigen.NoContentResp}),
 		},
 	}
-	paths["/api/v1/namespaces/{namespace}/jobs/{job}/cancel"] = openapigen.PathItem{Post: &openapigen.Operation{
-		Tags: []string{tagJobs}, Summary: "Cancel a running job", OperationID: "cancelJob",
-		Parameters: []openapigen.Parameter{nsParam, jobParam},
-		Responses:  withErrors(map[string]openapigen.Response{"202": openapigen.JSONResp("Cancellation queued (row is Canceling).", "JobView")}),
+	paths["/api/v1/namespaces/{namespace}/mlruns/{mlrun}/cancel"] = openapigen.PathItem{Post: &openapigen.Operation{
+		Tags: []string{tagMLRuns}, Summary: "Cancel a running MLRun", OperationID: "cancelMLRun",
+		Parameters: []openapigen.Parameter{nsParam, mlrunParam},
+		Responses:  withErrors(map[string]openapigen.Response{"202": openapigen.JSONResp("Cancellation queued (row is Canceling).", "MLRunView")}),
 	}}
 
 	podParam := openapigen.PathParam("pod", "Pod name.")
-	paths["/api/v1/namespaces/{namespace}/jobs/{job}/pods"] = openapigen.PathItem{Get: &openapigen.Operation{
-		Tags: []string{tagJobs}, Summary: "List pods of a job", OperationID: "listJobPods",
-		Parameters: []openapigen.Parameter{nsParam, jobParam},
+	paths["/api/v1/namespaces/{namespace}/mlruns/{mlrun}/pods"] = openapigen.PathItem{Get: &openapigen.Operation{
+		Tags: []string{tagMLRuns}, Summary: "List pods of an MLRun", OperationID: "listMLRunPods",
+		Parameters: []openapigen.Parameter{nsParam, mlrunParam},
 		Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Pods.", "PodList")}),
 	}}
-	paths["/api/v1/namespaces/{namespace}/jobs/{job}/pods/{pod}/logs"] = openapigen.PathItem{Get: &openapigen.Operation{
-		Tags: []string{tagJobs}, Summary: "Stream a pod's container log", OperationID: "getJobPodLogs",
-		Parameters: []openapigen.Parameter{nsParam, jobParam, podParam},
+	paths["/api/v1/namespaces/{namespace}/mlruns/{mlrun}/pods/{pod}/logs"] = openapigen.PathItem{Get: &openapigen.Operation{
+		Tags: []string{tagMLRuns}, Summary: "Stream a pod's container log", OperationID: "getMLRunPodLogs",
+		Parameters: []openapigen.Parameter{nsParam, mlrunParam, podParam},
 		Responses: withErrors(map[string]openapigen.Response{
 			"200": openapigen.StringResp("text/plain stream of pod log"),
 		}),
 	}}
-	paths["/api/v1/namespaces/{namespace}/jobs/{job}/pods/{pod}/events"] = openapigen.PathItem{Get: &openapigen.Operation{
-		Tags: []string{tagJobs}, Summary: "List events targeted at a pod", OperationID: "listJobPodEvents",
-		Parameters: []openapigen.Parameter{nsParam, jobParam, podParam},
+	paths["/api/v1/namespaces/{namespace}/mlruns/{mlrun}/pods/{pod}/events"] = openapigen.PathItem{Get: &openapigen.Operation{
+		Tags: []string{tagMLRuns}, Summary: "List events targeted at a pod", OperationID: "listMLRunPodEvents",
+		Parameters: []openapigen.Parameter{nsParam, mlrunParam, podParam},
 		Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Events.", "EventList")}),
 	}}
-	paths["/api/v1/namespaces/{namespace}/jobs/{job}/events"] = openapigen.PathItem{Get: &openapigen.Operation{
-		Tags: []string{tagJobs}, Summary: "List events targeted at the MLJob CR", OperationID: "listJobEvents",
-		Parameters: []openapigen.Parameter{nsParam, jobParam},
+	paths["/api/v1/namespaces/{namespace}/mlruns/{mlrun}/events"] = openapigen.PathItem{Get: &openapigen.Operation{
+		Tags: []string{tagMLRuns}, Summary: "List events targeted at the MLRun CR", OperationID: "listMLRunEvents",
+		Parameters: []openapigen.Parameter{nsParam, mlrunParam},
 		Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Events.", "EventList")}),
 	}}
 
-	// services (per namespace)
-	paths["/api/v1/namespaces/{namespace}/services"] = openapigen.PathItem{
+	// mlservices (per namespace)
+	paths["/api/v1/namespaces/{namespace}/mlservices"] = openapigen.PathItem{
 		Post: &openapigen.Operation{
-			Tags: []string{tagServices}, Summary: "Submit an MLService", OperationID: "createMLService",
+			Tags: []string{tagMLServices}, Summary: "Submit an MLService", OperationID: "createMLService",
 			Parameters:  []openapigen.Parameter{nsParam},
 			RequestBody: openapigen.JSONBody("MLServiceCreateInput"),
 			Responses:   withErrors(map[string]openapigen.Response{"201": openapigen.JSONResp("Created.", "MLServiceView")}),
 		},
 		Get: &openapigen.Operation{
-			Tags: []string{tagServices}, Summary: "List services in a namespace", OperationID: "listMLServices",
+			Tags: []string{tagMLServices}, Summary: "List MLServices in a namespace", OperationID: "listMLServices",
 			Parameters: []openapigen.Parameter{nsParam, limitParam, continueParam, labelSelectorParam},
 			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Page.", "MLServiceList")}),
 		},
 	}
-	paths["/api/v1/namespaces/{namespace}/services/{service}"] = openapigen.PathItem{
+	paths["/api/v1/namespaces/{namespace}/mlservices/{mlservice}"] = openapigen.PathItem{
 		Get: &openapigen.Operation{
-			Tags: []string{tagServices}, Summary: "Get service", OperationID: "getMLService",
-			Parameters: []openapigen.Parameter{nsParam, serviceParam},
-			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Service.", "MLServiceView")}),
+			Tags: []string{tagMLServices}, Summary: "Get MLService", OperationID: "getMLService",
+			Parameters: []openapigen.Parameter{nsParam, mlserviceParam},
+			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("MLService.", "MLServiceView")}),
 		},
 		Patch: &openapigen.Operation{
-			Tags: []string{tagServices}, Summary: "Patch service display fields", OperationID: "patchMLService",
-			Parameters:  []openapigen.Parameter{nsParam, serviceParam},
+			Tags: []string{tagMLServices}, Summary: "Patch MLService display fields", OperationID: "patchMLService",
+			Parameters:  []openapigen.Parameter{nsParam, mlserviceParam},
 			RequestBody: openapigen.JSONBody("MLServicePatchInput"),
 			Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Patched service.", "MLServiceView")}),
 		},
 		Delete: &openapigen.Operation{
-			Tags: []string{tagServices}, Summary: "Delete service", OperationID: "deleteMLService",
-			Parameters: []openapigen.Parameter{nsParam, serviceParam},
+			Tags: []string{tagMLServices}, Summary: "Delete MLService", OperationID: "deleteMLService",
+			Parameters: []openapigen.Parameter{nsParam, mlserviceParam},
 			Responses:  withErrors(map[string]openapigen.Response{"204": openapigen.NoContentResp}),
 		},
 	}
-	paths["/api/v1/namespaces/{namespace}/services/{service}/scale"] = openapigen.PathItem{Post: &openapigen.Operation{
-		Tags: []string{tagServices}, Summary: "Scale a service", OperationID: "scaleMLService",
-		Parameters:  []openapigen.Parameter{nsParam, serviceParam},
+	paths["/api/v1/namespaces/{namespace}/mlservices/{mlservice}/scale"] = openapigen.PathItem{Post: &openapigen.Operation{
+		Tags: []string{tagMLServices}, Summary: "Scale an MLService", OperationID: "scaleMLService",
+		Parameters:  []openapigen.Parameter{nsParam, mlserviceParam},
 		RequestBody: openapigen.JSONBody("MLServiceScaleInput"),
 		Responses:   withErrors(map[string]openapigen.Response{"202": openapigen.JSONResp("Scale queued (generation bumped).", "MLServiceView")}),
 	}}
 
-	paths["/api/v1/namespaces/{namespace}/services/{service}/pods"] = openapigen.PathItem{Get: &openapigen.Operation{
-		Tags: []string{tagServices}, Summary: "List pods of a service", OperationID: "listServicePods",
-		Parameters: []openapigen.Parameter{nsParam, serviceParam},
+	paths["/api/v1/namespaces/{namespace}/mlservices/{mlservice}/pods"] = openapigen.PathItem{Get: &openapigen.Operation{
+		Tags: []string{tagMLServices}, Summary: "List pods of an MLService", OperationID: "listMLServicePods",
+		Parameters: []openapigen.Parameter{nsParam, mlserviceParam},
 		Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Pods.", "PodList")}),
 	}}
-	paths["/api/v1/namespaces/{namespace}/services/{service}/pods/{pod}/logs"] = openapigen.PathItem{Get: &openapigen.Operation{
-		Tags: []string{tagServices}, Summary: "Stream a service pod's container log", OperationID: "getServicePodLogs",
-		Parameters: []openapigen.Parameter{nsParam, serviceParam, podParam},
+	paths["/api/v1/namespaces/{namespace}/mlservices/{mlservice}/pods/{pod}/logs"] = openapigen.PathItem{Get: &openapigen.Operation{
+		Tags: []string{tagMLServices}, Summary: "Stream an MLService pod's container log", OperationID: "getMLServicePodLogs",
+		Parameters: []openapigen.Parameter{nsParam, mlserviceParam, podParam},
 		Responses: withErrors(map[string]openapigen.Response{
 			"200": openapigen.StringResp("text/plain stream of pod log"),
 		}),
 	}}
-	paths["/api/v1/namespaces/{namespace}/services/{service}/pods/{pod}/events"] = openapigen.PathItem{Get: &openapigen.Operation{
-		Tags: []string{tagServices}, Summary: "List events targeted at a service pod", OperationID: "listServicePodEvents",
-		Parameters: []openapigen.Parameter{nsParam, serviceParam, podParam},
+	paths["/api/v1/namespaces/{namespace}/mlservices/{mlservice}/pods/{pod}/events"] = openapigen.PathItem{Get: &openapigen.Operation{
+		Tags: []string{tagMLServices}, Summary: "List events targeted at an MLService pod", OperationID: "listMLServicePodEvents",
+		Parameters: []openapigen.Parameter{nsParam, mlserviceParam, podParam},
 		Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Events.", "EventList")}),
 	}}
-	paths["/api/v1/namespaces/{namespace}/services/{service}/events"] = openapigen.PathItem{Get: &openapigen.Operation{
-		Tags: []string{tagServices}, Summary: "List events targeted at the MLService CR", OperationID: "listServiceEvents",
-		Parameters: []openapigen.Parameter{nsParam, serviceParam},
+	paths["/api/v1/namespaces/{namespace}/mlservices/{mlservice}/events"] = openapigen.PathItem{Get: &openapigen.Operation{
+		Tags: []string{tagMLServices}, Summary: "List events targeted at the MLService CR", OperationID: "listMLServiceEvents",
+		Parameters: []openapigen.Parameter{nsParam, mlserviceParam},
 		Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Events.", "EventList")}),
 	}}
 
@@ -433,8 +433,8 @@ func buildDocument(version string) *openapigen.Document {
 }
 
 // operatorAPIPrefix maps the compute-operator's nested API package paths
-// (.../compute-operator/api/{mljob,mlservice}/v1alpha1) to per-CRD prefixes
-// so MLJobSpec / MLServiceSpec don't collide on a shared "v1alpha1" segment.
+// (.../compute-operator/api/{mlrun,mlservice}/v1alpha1) to per-CRD prefixes
+// so MLRunSpec / MLServiceSpec don't collide on a shared "v1alpha1" segment.
 func operatorAPIPrefix(pkg string) (string, bool) {
 	const root = "components/compute-operator/api/"
 	i := strings.Index(pkg, root)
@@ -447,8 +447,8 @@ func operatorAPIPrefix(pkg string) (string, bool) {
 		return "", false
 	}
 	switch parts[0] {
-	case "mljob":
-		return "MLJob", true
+	case "mlrun":
+		return "MLRun", true
 	case "mlservice":
 		return "MLService", true
 	case "mltrafficpolicy":

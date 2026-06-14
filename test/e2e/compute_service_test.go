@@ -13,7 +13,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 
-	mljobv1 "github.com/axisml/axisml/components/compute-operator/api/mljob/v1alpha1"
+	mlrunv1 "github.com/axisml/axisml/components/compute-operator/api/mlrun/v1alpha1"
 	mlservicev1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
 )
 
@@ -74,63 +74,63 @@ func TestComputeService_QuotaAllocationViaAPI(t *testing.T) {
 	})
 }
 
-func TestComputeService_JobLifecycleTopToBottom(t *testing.T) {
+func TestComputeService_MLRunLifecycleTopToBottom(t *testing.T) {
 	ctx := context.Background()
 	ns := sharedNS()
 	quota := sharedQuota(t, ctx)
 	name := uniqueName("e2e-apijob")
 
-	r, err := h.createJob(ctx, ns, busyboxJobReq(name, h.cfg.DefaultPool, h.cfg.DefaultUnit, quota))
+	r, err := h.createMLRun(ctx, ns, busyboxMLRunReq(name, h.cfg.DefaultPool, h.cfg.DefaultUnit, quota))
 	require.NoError(t, err)
 	require.True(t, r.is2xx(), "create job: %d: %s", r.status, string(r.body))
-	t.Cleanup(func() { _, _ = h.deleteJob(context.Background(), ns, name) })
+	t.Cleanup(func() { _, _ = h.deleteMLRun(context.Background(), ns, name) })
 
-	// MLJob CR carries the resolved resource snapshot from the unit.
-	var job mljobv1.MLJob
+	// MLRun CR carries the resolved resource snapshot from the unit.
+	var job mlrunv1.MLRun
 	eventually(t, h.cfg.CRProvisionTimeout, func() error { return h.get(ctx, ns, name, &job) })
-	require.NotEmpty(t, job.Spec.Roles, "MLJob should have a role")
+	require.NotEmpty(t, job.Spec.Roles, "MLRun should have a role")
 	assert.NotEmpty(t, job.Spec.Roles[0].Template.Resources.Requests,
-		"unit resources should be snapshotted onto the MLJob role")
+		"unit resources should be snapshotted onto the MLRun role")
 
 	// GET reports the job and it runs to Succeeded.
-	eventually(t, h.cfg.JobCompleteTimeout, func() error {
-		g, err := h.getJob(ctx, ns, name)
+	eventually(t, h.cfg.MLRunCompleteTimeout, func() error {
+		g, err := h.getMLRun(ctx, ns, name)
 		if err != nil {
 			return err
 		}
 		if !g.is2xx() {
 			return assertErr("GET job: %d", g.status)
 		}
-		var v csJobView
+		var v csMLRunView
 		if err := g.decode(&v); err != nil {
 			return err
 		}
-		if v.Phase != string(mljobv1.PhaseSucceeded) {
+		if v.Phase != string(mlrunv1.PhaseSucceeded) {
 			return assertErr("phase=%q want Succeeded", v.Phase)
 		}
 		return nil
 	})
 }
 
-func TestComputeService_JobCancel(t *testing.T) {
+func TestComputeService_MLRunCancel(t *testing.T) {
 	ctx := context.Background()
 	ns := sharedNS()
 	quota := sharedQuota(t, ctx)
 	name := uniqueName("e2e-apicancel")
 
-	req := busyboxJobReq(name, h.cfg.DefaultPool, h.cfg.DefaultUnit, quota)
+	req := busyboxMLRunReq(name, h.cfg.DefaultPool, h.cfg.DefaultUnit, quota)
 	req.Roles[0].Template.Command = []string{"sh", "-c", "sleep 600"}
-	r, err := h.createJob(ctx, ns, req)
+	r, err := h.createMLRun(ctx, ns, req)
 	require.NoError(t, err)
 	require.True(t, r.is2xx(), "create job: %d: %s", r.status, string(r.body))
-	t.Cleanup(func() { _, _ = h.deleteJob(context.Background(), ns, name) })
+	t.Cleanup(func() { _, _ = h.deleteMLRun(context.Background(), ns, name) })
 
 	eventually(t, h.cfg.CRProvisionTimeout, func() error {
-		var job mljobv1.MLJob
+		var job mlrunv1.MLRun
 		return h.get(ctx, ns, name, &job)
 	})
 
-	c := h.computeService.mustDo(t, ctx, http.MethodPost, jobPath(ns, name)+"/cancel", nil)
+	c := h.computeService.mustDo(t, ctx, http.MethodPost, mlrunPath(ns, name)+"/cancel", nil)
 	require.True(t, c.is2xx(), "cancel job: %d: %s", c.status, string(c.body))
 
 	eventually(t, h.cfg.PodReadyTimeout, func() error {
@@ -151,14 +151,14 @@ func TestComputeService_KubeproxyPodsAndLogs(t *testing.T) {
 	quota := sharedQuota(t, ctx)
 	name := uniqueName("e2e-proxy")
 
-	r, err := h.createJob(ctx, ns, busyboxJobReq(name, h.cfg.DefaultPool, h.cfg.DefaultUnit, quota))
+	r, err := h.createMLRun(ctx, ns, busyboxMLRunReq(name, h.cfg.DefaultPool, h.cfg.DefaultUnit, quota))
 	require.NoError(t, err)
 	require.True(t, r.is2xx())
-	t.Cleanup(func() { _, _ = h.deleteJob(context.Background(), ns, name) })
+	t.Cleanup(func() { _, _ = h.deleteMLRun(context.Background(), ns, name) })
 
 	// Pods sub-resource is reachable.
 	eventually(t, h.cfg.PodReadyTimeout, func() error {
-		p := h.computeService.mustDo(t, ctx, http.MethodGet, jobPath(ns, name)+"/pods", nil)
+		p := h.computeService.mustDo(t, ctx, http.MethodGet, mlrunPath(ns, name)+"/pods", nil)
 		if !p.is2xx() {
 			return assertErr("GET pods: %d", p.status)
 		}
@@ -168,7 +168,7 @@ func TestComputeService_KubeproxyPodsAndLogs(t *testing.T) {
 		return nil
 	})
 	// Events sub-resource is reachable.
-	e := h.computeService.mustDo(t, ctx, http.MethodGet, jobPath(ns, name)+"/events", nil)
+	e := h.computeService.mustDo(t, ctx, http.MethodGet, mlrunPath(ns, name)+"/events", nil)
 	assert.True(t, e.is2xx(), "GET events: %d", e.status)
 }
 
@@ -178,7 +178,7 @@ func TestComputeService_ServiceLifecycleScaleDelete(t *testing.T) {
 	quota := sharedQuota(t, ctx)
 	name := uniqueName("e2e-apisvc")
 
-	r, err := h.createService(ctx, ns, nginxServiceReq(name, h.cfg.DefaultPool, h.cfg.DefaultUnit, quota, nil))
+	r, err := h.createMLService(ctx, ns, nginxMLServiceReq(name, h.cfg.DefaultPool, h.cfg.DefaultUnit, quota, nil))
 	require.NoError(t, err)
 	require.True(t, r.is2xx(), "create service: %d: %s", r.status, string(r.body))
 
@@ -199,7 +199,7 @@ func TestComputeService_ServiceLifecycleScaleDelete(t *testing.T) {
 	})
 
 	// Scale 1 -> 2 via the API.
-	s := h.computeService.mustDo(t, ctx, http.MethodPost, servicePath(ns, name)+"/scale", csScaleReq{Replicas: 2})
+	s := h.computeService.mustDo(t, ctx, http.MethodPost, mlservicePath(ns, name)+"/scale", csScaleReq{Replicas: 2})
 	require.True(t, s.is2xx(), "scale: %d: %s", s.status, string(s.body))
 	eventually(t, h.cfg.PodReadyTimeout, func() error {
 		var dep appsv1.Deployment
@@ -213,7 +213,7 @@ func TestComputeService_ServiceLifecycleScaleDelete(t *testing.T) {
 	})
 
 	// Delete cascades the workload.
-	d := h.computeService.mustDo(t, ctx, http.MethodDelete, servicePath(ns, name), nil)
+	d := h.computeService.mustDo(t, ctx, http.MethodDelete, mlservicePath(ns, name), nil)
 	require.True(t, d.is2xx(), "delete: %d", d.status)
 	eventually(t, h.cfg.CRProvisionTimeout, func() error {
 		var svc mlservicev1.MLService
@@ -232,10 +232,10 @@ func TestComputeService_WorkspacePVC(t *testing.T) {
 	quota := sharedQuota(t, ctx)
 	name := uniqueName("e2e-workspace")
 
-	req := nginxServiceReq(name, h.cfg.DefaultPool, h.cfg.DefaultUnit, quota, nil)
+	req := nginxMLServiceReq(name, h.cfg.DefaultPool, h.cfg.DefaultUnit, quota, nil)
 	req.Kind = mlservicev1.ServiceKindWorkspace
 	req.WorkspaceStorage = &csWorkspaceStorage{Size: "1Gi"}
-	r, err := h.createService(ctx, ns, req)
+	r, err := h.createMLService(ctx, ns, req)
 	require.NoError(t, err)
 	require.True(t, r.is2xx(), "create workspace: %d: %s", r.status, string(r.body))
 
@@ -254,7 +254,7 @@ func TestComputeService_WorkspacePVC(t *testing.T) {
 	})
 
 	// Delete cascades the PVC.
-	d := h.computeService.mustDo(t, ctx, http.MethodDelete, servicePath(ns, name), nil)
+	d := h.computeService.mustDo(t, ctx, http.MethodDelete, mlservicePath(ns, name), nil)
 	require.True(t, d.is2xx())
 	eventually(t, h.cfg.CRProvisionTimeout, func() error {
 		var pvcs corev1.PersistentVolumeClaimList
@@ -276,21 +276,21 @@ func TestComputeService_UnknownPoolRejected(t *testing.T) {
 	quota := sharedQuota(t, ctx)
 	name := uniqueName("e2e-badpool")
 
-	r, err := h.createJob(ctx, ns, busyboxJobReq(name, "does-not-exist", "nope", quota))
+	r, err := h.createMLRun(ctx, ns, busyboxMLRunReq(name, "does-not-exist", "nope", quota))
 	require.NoError(t, err)
 	assert.True(t, r.is4xx(), "unknown pool should be 4xx, got %d", r.status)
 
-	// No MLJob CR was created.
-	var job mljobv1.MLJob
+	// No MLRun CR was created.
+	var job mlrunv1.MLRun
 	err = h.get(ctx, ns, name, &job)
-	assert.True(t, isNotFound(err), "no MLJob should exist for a rejected request")
+	assert.True(t, isNotFound(err), "no MLRun should exist for a rejected request")
 }
 
-func TestComputeService_JobIntoUnknownNamespace(t *testing.T) {
+func TestComputeService_MLRunIntoUnknownNamespace(t *testing.T) {
 	ctx := context.Background()
 	quota := "whatever"
 	ns := uniqueName("nope-ns")
-	r, err := h.createJob(ctx, ns, busyboxJobReq("j", h.cfg.DefaultPool, h.cfg.DefaultUnit, quota))
+	r, err := h.createMLRun(ctx, ns, busyboxMLRunReq("j", h.cfg.DefaultPool, h.cfg.DefaultUnit, quota))
 	require.NoError(t, err)
 	assert.True(t, r.is4xx(), "job into unknown namespace should be 4xx, got %d", r.status)
 }

@@ -8,7 +8,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
-	mljobv1 "github.com/axisml/axisml/components/compute-operator/api/mljob/v1alpha1"
+	mlrunv1 "github.com/axisml/axisml/components/compute-operator/api/mlrun/v1alpha1"
 	mlservicev1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
 	mltpv1 "github.com/axisml/axisml/components/compute-operator/api/mltrafficpolicy/v1alpha1"
 )
@@ -83,21 +83,21 @@ type csTenantResp struct {
 
 // ---------- compute-service: job ----------
 
-type csCreateJobReq struct {
+type csCreateMLRunReq struct {
 	Name     string               `json:"name"`
 	PoolName string               `json:"poolName"`
 	UnitName string               `json:"unitName"`
 	Quota    string               `json:"quota"`
-	Backend  *mljobv1.BackendSpec `json:"backend,omitempty"`
-	Roles    []mljobv1.RoleSpec   `json:"roles"`
+	Backend  *mlrunv1.BackendSpec `json:"backend,omitempty"`
+	Roles    []mlrunv1.RoleSpec   `json:"roles"`
 }
 
-type csJobView struct {
+type csMLRunView struct {
 	ID        string            `json:"id"`
 	Namespace string            `json:"namespace"`
 	Name      string            `json:"name"`
 	Phase     string            `json:"phase"`
-	Spec      mljobv1.MLJobSpec `json:"spec"`
+	Spec      mlrunv1.MLRunSpec `json:"spec"`
 	Status    json.RawMessage   `json:"status"`
 }
 
@@ -108,7 +108,7 @@ type csWorkspaceStorage struct {
 	StorageClass string `json:"storageClass,omitempty"`
 }
 
-type csCreateServiceReq struct {
+type csCreateMLServiceReq struct {
 	Name             string                 `json:"name"`
 	Kind             string                 `json:"kind,omitempty"`
 	PoolName         string                 `json:"poolName"`
@@ -124,7 +124,7 @@ type csScaleReq struct {
 	Replicas int32 `json:"replicas"`
 }
 
-type csServiceView struct {
+type csMLServiceView struct {
 	ID        string                    `json:"id"`
 	Namespace string                    `json:"namespace"`
 	Name      string                    `json:"name"`

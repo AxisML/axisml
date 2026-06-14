@@ -1,18 +1,18 @@
 //go:build integration
 
-// Package integration_test runs the axisml-compute-operator (MLJob,
+// Package integration_test runs the axisml-compute-operator (MLRun,
 // MLService reconcilers) against an embedded apiserver+etcd via
 // controller-runtime's envtest.
 //
 // CRDs loaded:
 //
-//   - MLJob: deploy/helm/axisml-system/crds/mljob-crd.yaml
+//   - MLRun: deploy/helm/axisml-system/crds/mlrun-crd.yaml
 //   - MLService: deploy/helm/axisml-system/crds/mlservice-crd.yaml
 //   - HTTPRoute: test/crds/external/gateway-api-httproute.yaml
 //
 // envtest has no kubelet, so workload controllers (Job, Deployment) don't
 // progress on their own. Tests simulate progress by directly patching
-// status (see mljob_native_job_test.go, mlservice_native_deployment_test.go).
+// status (see mlrun_native_job_test.go, mlservice_native_deployment_test.go).
 package integration_test
 
 import (
@@ -31,8 +31,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	mljobdispatcher "github.com/axisml/axisml/components/compute-operator/internal/mljob/dispatcher"
-	"github.com/axisml/axisml/components/compute-operator/internal/mljob/handlers/nativejob"
+	mlrundispatcher "github.com/axisml/axisml/components/compute-operator/internal/mlrun/dispatcher"
+	"github.com/axisml/axisml/components/compute-operator/internal/mlrun/handlers/nativejob"
 	mlservicedispatcher "github.com/axisml/axisml/components/compute-operator/internal/mlservice/dispatcher"
 	mlservicehandler "github.com/axisml/axisml/components/compute-operator/internal/mlservice/handler"
 	mltrafficpolicydispatcher "github.com/axisml/axisml/components/compute-operator/internal/mltrafficpolicy/dispatcher"
@@ -112,13 +112,13 @@ func bootstrapManager() error {
 		return fmt.Errorf("new manager: %w", err)
 	}
 
-	mljobRegistry := mljobdispatcher.NewRegistry()
-	mljobRegistry.Register(nativejob.New())
-	if err := (&mljobdispatcher.MLJobReconciler{
+	mlrunRegistry := mlrundispatcher.NewRegistry()
+	mlrunRegistry.Register(nativejob.New())
+	if err := (&mlrundispatcher.MLRunReconciler{
 		Client:   mgr.GetClient(),
-		Registry: mljobRegistry,
+		Registry: mlrunRegistry,
 	}).SetupWithManager(mgr); err != nil {
-		return fmt.Errorf("setup MLJob reconciler: %w", err)
+		return fmt.Errorf("setup MLRun reconciler: %w", err)
 	}
 
 	mlserviceHandlersByKey, mlserviceAll, err := mlservicehandler.Build(mgr)

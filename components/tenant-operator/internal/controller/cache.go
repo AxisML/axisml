@@ -17,11 +17,11 @@ import (
 // reads bypass the cache via the APIReader.
 //
 // The filter must NOT be applied as a global default selector — that would
-// also filter MLJob/MLService informers (Job, Deployment, PodGroup, HTTPRoute),
+// also filter MLRun/MLService informers (Job, Deployment, PodGroup, HTTPRoute),
 // none of which carry the tenant managed-by label.
 //
 // PodGroup (also in scheduling.sigs.k8s.io/v1alpha1) is not in the map: it's
-// owned by MLJob and not labelled by Tenant.
+// owned by MLRun and not labelled by Tenant.
 func CacheByObject() map[client.Object]cache.ByObject {
 	managedByOnly := labels.SelectorFromSet(labels.Set{
 		tenantv1alpha1.LabelManagedBy: tenantv1alpha1.ManagedByValue,

@@ -12,7 +12,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	mljobv1 "github.com/axisml/axisml/components/compute-operator/api/mljob/v1alpha1"
+	mlrunv1 "github.com/axisml/axisml/components/compute-operator/api/mlrun/v1alpha1"
 	mlservicev1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
 	tenantv1 "github.com/axisml/axisml/components/tenant-operator/api/v1alpha1"
 )
@@ -65,15 +65,15 @@ func TestGoldenPath_TrainAndServeJourney(t *testing.T) {
 
 	// 4) compute-service: run a training job under the tenant quota -> real pod.
 	jobName := uniqueName("golden-job")
-	jr, err := h.createJob(ctx, ns, busyboxJobReq(jobName, h.cfg.DefaultPool, h.cfg.DefaultUnit, quota))
+	jr, err := h.createMLRun(ctx, ns, busyboxMLRunReq(jobName, h.cfg.DefaultPool, h.cfg.DefaultUnit, quota))
 	require.NoError(t, err)
 	require.True(t, jr.is2xx(), "create job: %d: %s", jr.status, string(jr.body))
-	eventually(t, h.cfg.JobCompleteTimeout, func() error {
-		var job mljobv1.MLJob
+	eventually(t, h.cfg.MLRunCompleteTimeout, func() error {
+		var job mlrunv1.MLRun
 		if err := h.get(ctx, ns, jobName, &job); err != nil {
 			return err
 		}
-		if job.Status.Phase != mljobv1.PhaseSucceeded {
+		if job.Status.Phase != mlrunv1.PhaseSucceeded {
 			return assertErr("job phase=%q want Succeeded", job.Status.Phase)
 		}
 		return nil
@@ -82,7 +82,7 @@ func TestGoldenPath_TrainAndServeJourney(t *testing.T) {
 	// 5) compute-service: serve the model (nginx stand-in) with a route.
 	svcName := uniqueName("golden-svc")
 	route := &mlservicev1.Route{Enabled: true, Hostname: svcName + ".e2e.local"}
-	sr, err := h.createService(ctx, ns, nginxServiceReq(svcName, h.cfg.DefaultPool, h.cfg.DefaultUnit, quota, route))
+	sr, err := h.createMLService(ctx, ns, nginxMLServiceReq(svcName, h.cfg.DefaultPool, h.cfg.DefaultUnit, quota, route))
 	require.NoError(t, err)
 	require.True(t, sr.is2xx(), "create service: %d: %s", sr.status, string(sr.body))
 	eventually(t, h.cfg.PodReadyTimeout, func() error {
@@ -106,7 +106,7 @@ func TestGoldenPath_TrainAndServeJourney(t *testing.T) {
 	t.Cleanup(func() {
 		_ = h.k8s.Delete(context.Background(), &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})
 	})
-	_, _ = h.deleteService(ctx, ns, svcName)
+	_, _ = h.deleteMLService(ctx, ns, svcName)
 	_, _ = h.deleteTenant(ctx, tenant)
 	eventually(t, h.cfg.CRProvisionTimeout, func() error {
 		var ten tenantv1.Tenant

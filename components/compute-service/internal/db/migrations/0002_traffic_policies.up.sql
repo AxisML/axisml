@@ -1,9 +1,9 @@
--- AxisML Compute Service — traffic_policies (v2).
+-- AxisML Compute MLService — traffic_policies (v2).
 -- See docs/system_design/components/compute-service.md §4.5 and
 -- docs/system_design/database.md §3.4.
 --
 -- A traffic policy distributes a stable external entrypoint's inbound traffic
--- by weight across multiple online services (services rows with kind='service')
+-- by weight across multiple online mlservices (mlservices rows with kind='service')
 -- in the same namespace. compute-service is the sole spec writer; the
 -- MLTrafficPolicy CR is the derived product. Only spec.backends[*].{weight,role}
 -- is mutable after create; endpoint / mode / backend tuple are frozen.

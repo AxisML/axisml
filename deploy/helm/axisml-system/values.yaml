@@ -261,7 +261,7 @@ tenantOperator:
 # =============================================================================
 # Compute Operator
 # =============================================================================
-# Reconciles MLJob and MLService CRs. Dispatcher + handler model; routes by
+# Reconciles MLRun and MLService CRs. Dispatcher + handler model; routes by
 # spec.backend.{name,engine}.
 computeOperator:
   enabled: true
@@ -287,7 +287,7 @@ computeOperator:
 
   # Per-CRD controller toggles. Each maps to a `--enable-*` flag on the binary.
   controllers:
-    mljob:
+    mlrun:
       enabled: true
     mlservice:
       enabled: true

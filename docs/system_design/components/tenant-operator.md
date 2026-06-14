@@ -7,7 +7,7 @@
 | 做 | 不做 |
 | --- | --- |
 | Namespace 创建与 metadata 对齐 (永不删除) | Tenant CR / 配额的 CRUD API (→ [compute-service.md](compute-service.md)) |
-| 每条 `spec.quotas[]` 渲染为 ElasticQuota CR,回流 `status.used` | MLJob / MLService 生命周期 (→ [compute-operator.md](compute-operator.md)) |
+| 每条 `spec.quotas[]` 渲染为 ElasticQuota CR,回流 `status.used` | MLRun / MLService 生命周期 (→ [compute-operator.md](compute-operator.md)) |
 | `spec.initResources` 下发 ImagePullSecret / Secret / ConfigMap / SA + RBAC | 用户认证、平台 RBAC (→ [auth.md](../auth.md)) |
 | 周期 resync 收敛源 Secret / ConfigMap 漂移 | 跨集群 / 多 region 联邦 |
 
@@ -236,5 +236,5 @@ Pod 调度 ──▶ koord-scheduler ──▶ ElasticQuota.status.used 累加
 - [monitoring.md](../monitoring.md) — Metrics 与告警
 - [infra.md](../infra.md) — Koordinator / ElasticQuota / scheduler-plugins 依赖契约
 - [compute-service.md](compute-service.md) — Tenant CR 上游 producer
-- [compute-operator.md](compute-operator.md) — 兄弟 operator,承载 MLJob / MLService
+- [compute-operator.md](compute-operator.md) — 兄弟 operator,承载 MLRun / MLService
 - [artifact-hub.md](artifact-hub.md) — `resolve?usage=inspect` 路径依赖 tenant-operator 下发的 per-tenant SA + 默认 ImagePullSecret / Secret

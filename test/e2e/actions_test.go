@@ -9,7 +9,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
-	mljobv1 "github.com/axisml/axisml/components/compute-operator/api/mljob/v1alpha1"
+	mlrunv1 "github.com/axisml/axisml/components/compute-operator/api/mlrun/v1alpha1"
 	mlservicev1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
 	mltpv1 "github.com/axisml/axisml/components/compute-operator/api/mltrafficpolicy/v1alpha1"
 )
@@ -31,50 +31,50 @@ func (s *suite) deleteTenant(ctx context.Context, name string) (resp, error) {
 	return s.computeService.do(ctx, http.MethodDelete, "/api/v1/namespaces/"+name, nil)
 }
 
-// ----- compute-service: jobs -----
+// ----- compute-service: mlruns -----
 
-func jobsPath(ns string) string { return fmt.Sprintf("/api/v1/namespaces/%s/jobs", ns) }
-func jobPath(ns, name string) string {
-	return fmt.Sprintf("/api/v1/namespaces/%s/jobs/%s", ns, name)
+func mlrunsPath(ns string) string { return fmt.Sprintf("/api/v1/namespaces/%s/mlruns", ns) }
+func mlrunPath(ns, name string) string {
+	return fmt.Sprintf("/api/v1/namespaces/%s/mlruns/%s", ns, name)
 }
 
-func (s *suite) createJob(ctx context.Context, ns string, req csCreateJobReq) (resp, error) {
-	return s.computeService.do(ctx, http.MethodPost, jobsPath(ns), req)
+func (s *suite) createMLRun(ctx context.Context, ns string, req csCreateMLRunReq) (resp, error) {
+	return s.computeService.do(ctx, http.MethodPost, mlrunsPath(ns), req)
 }
 
-func (s *suite) getJob(ctx context.Context, ns, name string) (resp, error) {
-	return s.computeService.do(ctx, http.MethodGet, jobPath(ns, name), nil)
+func (s *suite) getMLRun(ctx context.Context, ns, name string) (resp, error) {
+	return s.computeService.do(ctx, http.MethodGet, mlrunPath(ns, name), nil)
 }
 
-func (s *suite) cancelJob(ctx context.Context, ns, name string) (resp, error) {
-	return s.computeService.do(ctx, http.MethodPost, jobPath(ns, name)+"/cancel", nil)
+func (s *suite) cancelMLRun(ctx context.Context, ns, name string) (resp, error) {
+	return s.computeService.do(ctx, http.MethodPost, mlrunPath(ns, name)+"/cancel", nil)
 }
 
-func (s *suite) deleteJob(ctx context.Context, ns, name string) (resp, error) {
-	return s.computeService.do(ctx, http.MethodDelete, jobPath(ns, name), nil)
+func (s *suite) deleteMLRun(ctx context.Context, ns, name string) (resp, error) {
+	return s.computeService.do(ctx, http.MethodDelete, mlrunPath(ns, name), nil)
 }
 
-// ----- compute-service: services -----
+// ----- compute-service: mlservices -----
 
-func servicesPath(ns string) string { return fmt.Sprintf("/api/v1/namespaces/%s/services", ns) }
-func servicePath(ns, name string) string {
-	return fmt.Sprintf("/api/v1/namespaces/%s/services/%s", ns, name)
+func mlservicesPath(ns string) string { return fmt.Sprintf("/api/v1/namespaces/%s/mlservices", ns) }
+func mlservicePath(ns, name string) string {
+	return fmt.Sprintf("/api/v1/namespaces/%s/mlservices/%s", ns, name)
 }
 
-func (s *suite) createService(ctx context.Context, ns string, req csCreateServiceReq) (resp, error) {
-	return s.computeService.do(ctx, http.MethodPost, servicesPath(ns), req)
+func (s *suite) createMLService(ctx context.Context, ns string, req csCreateMLServiceReq) (resp, error) {
+	return s.computeService.do(ctx, http.MethodPost, mlservicesPath(ns), req)
 }
 
-func (s *suite) getService(ctx context.Context, ns, name string) (resp, error) {
-	return s.computeService.do(ctx, http.MethodGet, servicePath(ns, name), nil)
+func (s *suite) getMLService(ctx context.Context, ns, name string) (resp, error) {
+	return s.computeService.do(ctx, http.MethodGet, mlservicePath(ns, name), nil)
 }
 
-func (s *suite) scaleService(ctx context.Context, ns, name string, replicas int32) (resp, error) {
-	return s.computeService.do(ctx, http.MethodPost, servicePath(ns, name)+"/scale", csScaleReq{Replicas: replicas})
+func (s *suite) scaleMLService(ctx context.Context, ns, name string, replicas int32) (resp, error) {
+	return s.computeService.do(ctx, http.MethodPost, mlservicePath(ns, name)+"/scale", csScaleReq{Replicas: replicas})
 }
 
-func (s *suite) deleteService(ctx context.Context, ns, name string) (resp, error) {
-	return s.computeService.do(ctx, http.MethodDelete, servicePath(ns, name), nil)
+func (s *suite) deleteMLService(ctx context.Context, ns, name string) (resp, error) {
+	return s.computeService.do(ctx, http.MethodDelete, mlservicePath(ns, name), nil)
 }
 
 // ----- compute-service: traffic policies -----
@@ -126,21 +126,21 @@ func canaryTrafficReq(name, stableSvc, canarySvc string) csCreateTrafficPolicyRe
 
 // ----- request builders -----
 
-// busyboxJobReq builds a minimal native/job MLJob create request that runs to
+// busyboxMLRunReq builds a minimal native/job MLRun create request that runs to
 // completion quickly.
-func busyboxJobReq(name, pool, unit, quota string) csCreateJobReq {
-	return csCreateJobReq{
+func busyboxMLRunReq(name, pool, unit, quota string) csCreateMLRunReq {
+	return csCreateMLRunReq{
 		Name:     name,
 		PoolName: pool,
 		UnitName: unit,
 		Quota:    quota,
-		Backend:  &mljobv1.BackendSpec{Name: "native", Engine: "job"},
-		Roles: []mljobv1.RoleSpec{{
-			Name:          mljobv1.DefaultRoleName,
+		Backend:  &mlrunv1.BackendSpec{Name: "native", Engine: "job"},
+		Roles: []mlrunv1.RoleSpec{{
+			Name:          mlrunv1.DefaultRoleName,
 			Replicas:      1,
 			RestartPolicy: corev1.RestartPolicyNever,
-			Template: mljobv1.PodTemplateSubset{
-				Image:           h.cfg.JobImage,
+			Template: mlrunv1.PodTemplateSubset{
+				Image:           h.cfg.MLRunImage,
 				ImagePullPolicy: corev1.PullIfNotPresent,
 				Command:         []string{"sh", "-c", "echo hello"},
 			},
@@ -148,9 +148,9 @@ func busyboxJobReq(name, pool, unit, quota string) csCreateJobReq {
 	}
 }
 
-// nginxServiceReq builds a minimal native/deployment MLService create request.
-func nginxServiceReq(name, pool, unit, quota string, route *mlservicev1.Route) csCreateServiceReq {
-	return csCreateServiceReq{
+// nginxMLServiceReq builds a minimal native/deployment MLService create request.
+func nginxMLServiceReq(name, pool, unit, quota string, route *mlservicev1.Route) csCreateMLServiceReq {
+	return csCreateMLServiceReq{
 		Name:     name,
 		Kind:     mlservicev1.ServiceKindService,
 		PoolName: pool,

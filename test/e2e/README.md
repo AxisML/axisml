@@ -48,7 +48,7 @@ cd test/e2e && go test -tags=e2e -run TestComputeService_JobLifecycleTopToBottom
 | `preflight_test.go` | environment readiness gate |
 | `tenant_operator_test.go` | tenant-operator (incl. real ElasticQuota admission) |
 | `cluster_manager_test.go` | cluster-manager ResourcePool CRUD |
-| `compute_operator_test.go` | MLJob/MLService -> real workloads, scheduler labels, route |
+| `compute_operator_test.go` | MLRun/MLService -> real workloads, scheduler labels, route |
 | `compute_service_test.go` | HTTP -> CR -> running pod chain, scale, workspace PVC |
 | `traffic_policy_test.go` | HTTP -> MLTrafficPolicy CR -> weighted HTTPRoute; canary split / promote / delete |
 | `artifact_hub_test.go` | artifact metadata lifecycle + real zot two-phase upload |

@@ -14,7 +14,7 @@ The backend (Go) lives in [`../backend/`](../backend/) and provides the REST API
 
 ## Functional surface (planned)
 
-- Job management — create / monitor / cancel `MLJob`s, view logs and metrics.
+- Job management — create / monitor / cancel `MLRun`s, view logs and metrics.
 - Service management — deploy / scale / route `MLService`s, view inference traffic.
 - Artifact center — browse models, images, datasets; manage versions and references.
 - System management — tenants, resource pools, resource units, quotas, data volumes.

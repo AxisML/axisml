@@ -2,7 +2,31 @@
 
 Backend for AxisML Platform — the user-facing entry point that orchestrates business operations across Compute and Artifacts.
 
-> **Status: scaffold.** The directory and Makefile are in place; the Go implementation is not yet committed. See [`docs/system_design/platform.md`](../../../docs/system_design/platform.md) for the design and the API surface this service will expose.
+> **Status: contract-only shell.** The directory layout, entrypoint, and build
+> tooling match the sibling services, but the server is not implemented: the
+> entrypoint serves health probes and a `501` fallback for every API route. What
+> *is* committed is the API contract — the HTTP surface is declared as Go DTOs
+> under [`internal/server/`](internal/server/) and rendered to
+> [`docs/openapi/platform.yaml`](../../../docs/openapi/platform.yaml) by
+> [`cmd/openapi-gen`](cmd/openapi-gen/) via the shared `pkg/openapigen` engine —
+> the same code-first flow used by cluster-manager / compute-service /
+> artifact-hub. See [`docs/system_design/platform.md`](../../../docs/system_design/platform.md)
+> for the design. When the handlers land, they reuse these same DTOs, so the
+> spec stays in lock-step automatically.
+
+## API contract
+
+```sh
+make doc-gen     # regenerate docs/openapi/platform.yaml from internal/server DTOs
+make doc-test    # CI guard: fail if the committed spec is stale vs the Go types
+make test        # spec integrity tests (refs resolve, operationIds unique, coverage)
+```
+
+`docs/openapi/platform.yaml` is **generated, never hand-edited** — edit the DTOs
+in `internal/server/` (and routes in `cmd/openapi-gen/paths.go`) and regenerate.
+The OpenAPI engine renders `components/schemas` only; shared parameters/responses
+are inlined per operation and the bearer-JWT security scheme is documented in the
+design doc rather than the generated spec (matching the sibling services).
 
 ## Responsibilities
 
@@ -12,17 +36,23 @@ Backend for AxisML Platform — the user-facing entry point that orchestrates bu
 
 The frontend (TypeScript + React) lives in [`../frontend/`](../frontend/) and consumes this backend's API.
 
-## Planned layout
+## Layout
 
 ```
-cmd/                Service entrypoint (HTTP server, downstream clients, auth)
+cmd/platform-backend/  Service entrypoint (flags + signals -> internal/app)
+cmd/openapi-gen/       OpenAPI generator: DTOs -> docs/openapi/platform.yaml
 internal/
-  ├── api/             HTTP handlers (per resource: jobs, services, tenants, pools, ...)
+  ├── app/             Process wiring: HTTP servers, graceful shutdown, routers
+  └── server/          API DTO structs — the contract surface
+Dockerfile             Container image build (repo root build context)
+test/integration/      httptest-driven integration suite (separate go.mod)
+
+# Planned (land with the server implementation):
+internal/
+  ├── handler/         HTTP handlers (per resource: jobs, services, tenants, pools, ...)
   ├── orchestrator/    Cross-service orchestration logic
   ├── auth/            IdP integration, role model, tenant access control (TBD)
   └── client/          Typed clients for compute / artifacts
-api/                  OpenAPI / proto contract definitions
-deploy/Dockerfile     Container image build (to be added)
 ```
 
 ## Local development

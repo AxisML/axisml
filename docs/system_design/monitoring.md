@@ -74,7 +74,7 @@ label 取值规则：
 | `axisml_compute_informer_cache_synced{resource}` | gauge | Informer cache 是否完成首次 list（0/1）；`tenant=0` 时 GET tenant 在 `quotas[].used` 上返 `null` + warning |
 | `axisml_compute_informer_last_sync_age_seconds{resource}` | gauge | 距离上次成功 watch 事件的秒数；超过 stale TTL（默认 30s）时 used 字段视为不可信 |
 | `axisml_compute_spec_sync_pending_total{resource}` | gauge | 待同步行数（`generation <> observed_generation`） |
-| `axisml_compute_external_drift_total{resource,field}` | counter | 检测到非 compute 字段管理者写入 CR 的次数（Tenant / MLJob / MLService） |
+| `axisml_compute_external_drift_total{resource,field}` | counter | 检测到非 compute 字段管理者写入 CR 的次数（Tenant / MLRun / MLService） |
 | `axisml_compute_api_request_duration_seconds{route,status}` | histogram | API 请求延迟分布 |
 | `axisml_compute_metrics_query_duration_seconds{scope,result}` | histogram | 经 compute 代理的 Prometheus 指标查询耗时（`scope ∈ {service, workload}`） |
 
@@ -127,14 +127,14 @@ Cluster Manager 是 K8s admin REST 抽象（ResourcePool CR CRUD 入口）；无
 
 | 指标 | 类型 | 用途 |
 | --- | --- | --- |
-| `axisml_compute_operator_reconcile_total{resource,backend,engine,result}` | counter | MLJob / MLService reconcile 总次数 |
+| `axisml_compute_operator_reconcile_total{resource,backend,engine,result}` | counter | MLRun / MLService reconcile 总次数 |
 | `axisml_compute_operator_reconcile_duration_seconds{resource,backend,engine}` | histogram | reconcile 耗时分布 |
 | `axisml_compute_operator_handler_dispatch_total{backend,engine,result}` | counter | backend handler 派遣计数 |
 | `controller_runtime_*` | 多种 | controller-runtime 内置指标 |
 
 label 取值：
 
-- `resource ∈ {mljob, mlservice}`；
+- `resource ∈ {mlrun, mlservice}`；
 - `backend ∈ {native}`（其它 backend 元组未交付，label 预留）；
 - `engine ∈ {job, deployment, statefulset}`；
 - `result ∈ {success, requeue, conflict, not_found, error, skipped}`（与 §4.1 / §4.2 对齐）。
@@ -152,7 +152,7 @@ label 取值：
 | `platform_upstream_request_total{service,method,status}` | counter | 每次下游调用计数；`service ∈ {cluster-manager, compute, artifacts}` |
 | `platform_upstream_request_duration_seconds{service,method,status}` | histogram | 下游调用延迟分布 |
 | `platform_api_request_duration_seconds{route,status}` | histogram | Platform 自身 API 请求延迟 |
-| `platform_auth_jwt_issued_total{kind,result}` | counter | JWT 颁发量（`kind ∈ {login, workspace, inference}`） |
+| `platform_auth_jwt_issued_total{kind,result}` | counter | JWT 颁发量（`kind ∈ {login, workspace}`） |
 
 ### 5.2 Tenant 模块
 
@@ -194,7 +194,7 @@ label 取值：
 | `platform_service_list_tenant_fanout` | histogram | 单次列表请求的下游扇出 namespace 数 |
 | `platform_service_list_partial_total{reason}` | counter | 部分租户失败次数 |
 | `platform_service_access_jwt_issued_total{result}` | counter | access JWT 颁发量 + 失败原因 |
-| `platform_service_state{tenant_name, state}` | gauge | 按租户聚合各 `services.status` 的 service 数；定期采样 |
+| `platform_service_state{tenant_name, state}` | gauge | 按租户聚合各 `mlservices.status` 的 service 数；定期采样 |
 | `platform_service_metrics_query_total{metric, status}` | counter | service 指标查询（经 compute-service）结果分布 |
 
 业务编排见 [platform.md §4.3 在线服务编排](components/platform.md#43-在线服务编排)。

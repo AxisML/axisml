@@ -35,12 +35,12 @@ minikube cluster. Two kinds: **product/infra bugs** (fixed in the repo) and
    still relies on the default), so the pattern is symmetric and collision-proof.
 
 5. **compute-service scheme misses ResourcePool** — `k8sclient.Scheme()`
-   registers tenant/mljob/mlservice but not the cluster-manager ResourcePool
+   registers tenant/mlrun/mlservice but not the cluster-manager ResourcePool
    type it reads via poolcache, so Job/Service creation 503s with "no kind is
    registered for the type v1alpha1.ResourcePool". Added `resourcepoolv1alpha1.AddToScheme`.
 
 6. **compute-service ClusterRole misses permissions** — the chart granted
-   tenants/mljobs/mlservices + core pods/events, but not:
+   tenants/mlruns/mlservices + core pods/events, but not:
    - `resourcepools` (read) → poolcache informer `forbidden`, so Job/Service
      creation hangs until the request times out;
    - `persistentvolumeclaims` → workspace services can't create their PVC;
@@ -82,8 +82,8 @@ doc) that don't match the system's actual, intended behavior:
 - **Resource units are mutable** (only the unit *name* is immutable). The
   cluster-manager test now PATCHes a unit and asserts the change, instead of
   expecting a 4xx.
-- **MLJob/MLService require identity labels.** The operator validates that
-  compute-service's labels are present — `axisml.io/job-id` (mandatory) /
+- **MLRun/MLService require identity labels.** The operator validates that
+  compute-service's labels are present — `axisml.io/run-id` (mandatory) /
   `axisml.io/service-id`, plus tenant/quota. Direct-CR tests now stamp them.
 - **Unit/tenant names have length rules** (e.g. resource-unit name 3–40 chars);
   test fixtures adjusted.

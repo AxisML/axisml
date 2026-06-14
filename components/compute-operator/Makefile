@@ -47,8 +47,8 @@ vet:
 tidy:
 	@go mod tidy
 
-generate: ## Run controller-gen for deepcopy code (mljob; mlservice deepcopy is hand-maintained)
-	@$(CONTROLLER_GEN) object paths=./api/mljob/...
+generate: ## Run controller-gen for deepcopy code (mlrun; mlservice deepcopy is hand-maintained)
+	@$(CONTROLLER_GEN) object paths=./api/mlrun/...
 
 # --- Integration ---
 

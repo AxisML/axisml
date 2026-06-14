@@ -15,7 +15,7 @@ Components deployed:
 {{- end }}
 {{- if .Values.computeOperator.enabled }}
   {{- $controllers := list -}}
-  {{- if .Values.computeOperator.controllers.mljob.enabled }}{{- $controllers = append $controllers "mljob" -}}{{- end -}}
+  {{- if .Values.computeOperator.controllers.mlrun.enabled }}{{- $controllers = append $controllers "mlrun" -}}{{- end -}}
   {{- if .Values.computeOperator.controllers.mlservice.enabled }}{{- $controllers = append $controllers "mlservice" -}}{{- end }}
   {{- if $controllers }}
   - Compute Operator: {{ include "axisml.fullname" . }}-compute-operator (controllers: {{ join ", " $controllers }})

@@ -37,16 +37,16 @@ type envConfig struct {
 
 	// Workload images, preloaded via `minikube image load` (imagePullPolicy
 	// IfNotPresent so the preloaded copies are used; no live pulls mid-run).
-	JobImage     string
+	MLRunImage   string
 	ServiceImage string
 
 	// Timeout budgets — much larger than the integration layer because real
 	// scheduling, image pulls and kubelet startup take real time.
-	CRProvisionTimeout time.Duration
-	HTTPReadyTimeout   time.Duration
-	PodReadyTimeout    time.Duration
-	JobCompleteTimeout time.Duration
-	PollInterval       time.Duration
+	CRProvisionTimeout   time.Duration
+	HTTPReadyTimeout     time.Duration
+	PodReadyTimeout      time.Duration
+	MLRunCompleteTimeout time.Duration
+	PollInterval         time.Duration
 }
 
 func envOr(key, def string) string {
@@ -76,13 +76,13 @@ func loadConfig() envConfig {
 		DefaultPool:  envOr("E2E_DEFAULT_POOL", "default"),
 		DefaultUnit:  envOr("E2E_DEFAULT_UNIT", "cpu-small"),
 
-		JobImage:     envOr("E2E_JOB_IMAGE", "busybox:latest"),
+		MLRunImage:   envOr("E2E_JOB_IMAGE", "busybox:latest"),
 		ServiceImage: envOr("E2E_SERVICE_IMAGE", "nginx:1.27"),
 
-		CRProvisionTimeout: 90 * time.Second,
-		HTTPReadyTimeout:   60 * time.Second,
-		PodReadyTimeout:    4 * time.Minute,
-		JobCompleteTimeout: 5 * time.Minute,
-		PollInterval:       2 * time.Second,
+		CRProvisionTimeout:   90 * time.Second,
+		HTTPReadyTimeout:     60 * time.Second,
+		PodReadyTimeout:      4 * time.Minute,
+		MLRunCompleteTimeout: 5 * time.Minute,
+		PollInterval:         2 * time.Second,
 	}
 }

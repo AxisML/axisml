@@ -1059,24 +1059,21 @@ components:
       - reason
       - type
       type: object
-    JobConditionRow:
+    MLRunBackendSpec:
       properties:
-        lastTransitionTime:
-          format: date-time
+        config:
+          description: Embedded Kubernetes resource (free-form JSON).
+          nullable: true
+          type: object
+        engine:
           type: string
-        message:
-          type: string
-        reason:
-          type: string
-        status:
-          type: string
-        type:
+        name:
           type: string
       required:
-      - status
-      - type
+      - engine
+      - name
       type: object
-    JobCreateInput:
+    MLRunCreateInput:
       properties:
         annotations:
           additionalProperties:
@@ -1084,7 +1081,7 @@ components:
           type: object
         backend:
           allOf:
-          - $ref: '#/components/schemas/MLJobBackendSpec'
+          - $ref: '#/components/schemas/MLRunBackendSpec'
           nullable: true
         description:
           type: string
@@ -1107,12 +1104,12 @@ components:
           type: string
         roles:
           items:
-            $ref: '#/components/schemas/MLJobRoleSpec'
+            $ref: '#/components/schemas/MLRunRoleSpec'
           minItems: 1
           type: array
         runPolicy:
           allOf:
-          - $ref: '#/components/schemas/MLJobRunPolicySpec'
+          - $ref: '#/components/schemas/MLRunRunPolicySpec'
           nullable: true
         unitName:
           type: string
@@ -1123,11 +1120,11 @@ components:
       - roles
       - unitName
       type: object
-    JobList:
+    MLRunList:
       properties:
         items:
           items:
-            $ref: '#/components/schemas/JobView'
+            $ref: '#/components/schemas/MLRunView'
           type: array
         total:
           format: int64
@@ -1136,7 +1133,7 @@ components:
       - items
       - total
       type: object
-    JobPatchInput:
+    MLRunPatchInput:
       properties:
         annotations:
           additionalProperties:
@@ -1153,24 +1150,103 @@ components:
             type: string
           type: object
       type: object
-    JobStatusFields:
+    MLRunPodTemplateSubset:
       properties:
-        conditions:
+        args:
           items:
-            $ref: '#/components/schemas/JobConditionRow'
+            type: string
           type: array
-        finishedAt:
-          format: date-time
-          nullable: true
+        command:
+          items:
+            type: string
+          type: array
+        env:
+          items:
+            $ref: '#/components/schemas/Corev1EnvVar'
+          type: array
+        envFrom:
+          items:
+            $ref: '#/components/schemas/Corev1EnvFromSource'
+          type: array
+        image:
           type: string
-        message:
+        imagePullPolicy:
           type: string
-        startedAt:
-          format: date-time
-          nullable: true
+        resources:
+          $ref: '#/components/schemas/Corev1ResourceRequirements'
+        workingDir:
           type: string
+      required:
+      - image
       type: object
-    JobView:
+    MLRunRoleSpec:
+      properties:
+        name:
+          type: string
+        replicas:
+          format: int32
+          type: integer
+        restartPolicy:
+          type: string
+        template:
+          $ref: '#/components/schemas/MLRunPodTemplateSubset'
+      required:
+      - name
+      - replicas
+      - template
+      type: object
+    MLRunRunPolicySpec:
+      properties:
+        activeDeadlineSeconds:
+          format: int64
+          nullable: true
+          type: integer
+        backoffLimit:
+          format: int32
+          nullable: true
+          type: integer
+        suspend:
+          type: boolean
+        ttlSecondsAfterFinished:
+          format: int32
+          nullable: true
+          type: integer
+      type: object
+    MLRunSchedulingSpec:
+      properties:
+        nodeSelector:
+          additionalProperties:
+            type: string
+          type: object
+        priorityClass:
+          type: string
+        quota:
+          type: string
+        tolerations:
+          items:
+            $ref: '#/components/schemas/Corev1Toleration'
+          type: array
+      required:
+      - quota
+      type: object
+    MLRunSpec:
+      properties:
+        backend:
+          $ref: '#/components/schemas/MLRunBackendSpec'
+        roles:
+          items:
+            $ref: '#/components/schemas/MLRunRoleSpec'
+          type: array
+        runPolicy:
+          $ref: '#/components/schemas/MLRunRunPolicySpec'
+        scheduling:
+          $ref: '#/components/schemas/MLRunSchedulingSpec'
+      required:
+      - backend
+      - roles
+      - scheduling
+      type: object
+    MLRunView:
       properties:
         annotations:
           additionalProperties:
@@ -1203,9 +1279,9 @@ components:
         phase:
           type: string
         spec:
-          $ref: '#/components/schemas/MLJobSpec'
+          $ref: '#/components/schemas/MLRunSpec'
         status:
-          $ref: '#/components/schemas/JobStatusFields'
+          $ref: '#/components/schemas/MlrunStatusFields'
         updatedAt:
           format: date-time
           type: string
@@ -1218,116 +1294,6 @@ components:
       - spec
       - status
       - updatedAt
-      type: object
-    MLJobBackendSpec:
-      properties:
-        config:
-          description: Embedded Kubernetes resource (free-form JSON).
-          nullable: true
-          type: object
-        engine:
-          type: string
-        name:
-          type: string
-      required:
-      - engine
-      - name
-      type: object
-    MLJobPodTemplateSubset:
-      properties:
-        args:
-          items:
-            type: string
-          type: array
-        command:
-          items:
-            type: string
-          type: array
-        env:
-          items:
-            $ref: '#/components/schemas/Corev1EnvVar'
-          type: array
-        envFrom:
-          items:
-            $ref: '#/components/schemas/Corev1EnvFromSource'
-          type: array
-        image:
-          type: string
-        imagePullPolicy:
-          type: string
-        resources:
-          $ref: '#/components/schemas/Corev1ResourceRequirements'
-        workingDir:
-          type: string
-      required:
-      - image
-      type: object
-    MLJobRoleSpec:
-      properties:
-        name:
-          type: string
-        replicas:
-          format: int32
-          type: integer
-        restartPolicy:
-          type: string
-        template:
-          $ref: '#/components/schemas/MLJobPodTemplateSubset'
-      required:
-      - name
-      - replicas
-      - template
-      type: object
-    MLJobRunPolicySpec:
-      properties:
-        activeDeadlineSeconds:
-          format: int64
-          nullable: true
-          type: integer
-        backoffLimit:
-          format: int32
-          nullable: true
-          type: integer
-        suspend:
-          type: boolean
-        ttlSecondsAfterFinished:
-          format: int32
-          nullable: true
-          type: integer
-      type: object
-    MLJobSchedulingSpec:
-      properties:
-        nodeSelector:
-          additionalProperties:
-            type: string
-          type: object
-        priorityClass:
-          type: string
-        quota:
-          type: string
-        tolerations:
-          items:
-            $ref: '#/components/schemas/Corev1Toleration'
-          type: array
-      required:
-      - quota
-      type: object
-    MLJobSpec:
-      properties:
-        backend:
-          $ref: '#/components/schemas/MLJobBackendSpec'
-        roles:
-          items:
-            $ref: '#/components/schemas/MLJobRoleSpec'
-          type: array
-        runPolicy:
-          $ref: '#/components/schemas/MLJobRunPolicySpec'
-        scheduling:
-          $ref: '#/components/schemas/MLJobSchedulingSpec'
-      required:
-      - backend
-      - roles
-      - scheduling
       type: object
     MLServiceBackend:
       properties:
@@ -1391,7 +1357,7 @@ components:
           type: string
         workspaceStorage:
           allOf:
-          - $ref: '#/components/schemas/ServiceWorkspaceStorageSpec'
+          - $ref: '#/components/schemas/MlserviceWorkspaceStorageSpec'
           nullable: true
       required:
       - name
@@ -1661,7 +1627,7 @@ components:
         spec:
           $ref: '#/components/schemas/MLServiceSpec'
         status:
-          $ref: '#/components/schemas/ServiceStatusFields'
+          $ref: '#/components/schemas/MlserviceStatusFields'
         updatedAt:
           format: date-time
           type: string
@@ -1872,6 +1838,82 @@ components:
       type: object
     Metav1Time:
       type: object
+    MlrunConditionRow:
+      properties:
+        lastTransitionTime:
+          format: date-time
+          type: string
+        message:
+          type: string
+        reason:
+          type: string
+        status:
+          type: string
+        type:
+          type: string
+      required:
+      - status
+      - type
+      type: object
+    MlrunStatusFields:
+      properties:
+        conditions:
+          items:
+            $ref: '#/components/schemas/MlrunConditionRow'
+          type: array
+        finishedAt:
+          format: date-time
+          nullable: true
+          type: string
+        message:
+          type: string
+        startedAt:
+          format: date-time
+          nullable: true
+          type: string
+      type: object
+    MlserviceConditionRow:
+      properties:
+        lastTransitionTime:
+          format: date-time
+          type: string
+        message:
+          type: string
+        reason:
+          type: string
+        status:
+          type: string
+        type:
+          type: string
+      required:
+      - status
+      - type
+      type: object
+    MlserviceStatusFields:
+      properties:
+        conditions:
+          items:
+            $ref: '#/components/schemas/MlserviceConditionRow'
+          type: array
+        endpoint:
+          type: string
+        message:
+          type: string
+        readyReplicas:
+          format: int32
+          type: integer
+      required:
+      - readyReplicas
+      type: object
+    MlserviceWorkspaceStorageSpec:
+      properties:
+        size:
+          type: string
+        storageClass:
+          type: string
+      required:
+      - size
+      type: object
     PodList:
       properties:
         items:
@@ -1937,48 +1979,6 @@ components:
       - status
       - title
       - type
-      type: object
-    ServiceConditionRow:
-      properties:
-        lastTransitionTime:
-          format: date-time
-          type: string
-        message:
-          type: string
-        reason:
-          type: string
-        status:
-          type: string
-        type:
-          type: string
-      required:
-      - status
-      - type
-      type: object
-    ServiceStatusFields:
-      properties:
-        conditions:
-          items:
-            $ref: '#/components/schemas/ServiceConditionRow'
-          type: array
-        endpoint:
-          type: string
-        message:
-          type: string
-        readyReplicas:
-          format: int32
-          type: integer
-      required:
-      - readyReplicas
-      type: object
-    ServiceWorkspaceStorageSpec:
-      properties:
-        size:
-          type: string
-        storageClass:
-          type: string
-      required:
-      - size
       type: object
     TenantConfigMapSpec:
       properties:
@@ -2702,7 +2702,7 @@ paths:
     delete:
       operationId: deleteTenant
       parameters:
-      - description: Tenant name (= jobs/services partition key).
+      - description: Tenant name (= mlruns/mlservices partition key).
         in: path
         name: namespace
         required: true
@@ -2775,7 +2775,7 @@ paths:
     get:
       operationId: getTenant
       parameters:
-      - description: Tenant name (= jobs/services partition key).
+      - description: Tenant name (= mlruns/mlservices partition key).
         in: path
         name: namespace
         required: true
@@ -2848,7 +2848,7 @@ paths:
     patch:
       operationId: patchTenant
       parameters:
-      - description: Tenant name (= jobs/services partition key).
+      - description: Tenant name (= mlruns/mlservices partition key).
         in: path
         name: namespace
         required: true
@@ -2924,11 +2924,11 @@ paths:
       summary: Patch tenant
       tags:
       - tenants
-  /api/v1/namespaces/{namespace}/jobs:
+  /api/v1/namespaces/{namespace}/mlruns:
     get:
-      operationId: listJobs
+      operationId: listMLRuns
       parameters:
-      - description: Tenant name (= jobs/services partition key).
+      - description: Tenant name (= mlruns/mlservices partition key).
         in: path
         name: namespace
         required: true
@@ -2955,7 +2955,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/JobList'
+                $ref: '#/components/schemas/MLRunList'
           description: Page.
         "400":
           content:
@@ -3011,13 +3011,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Unexpected error.
-      summary: List jobs in a namespace
+      summary: List MLRuns in a namespace
       tags:
-      - jobs
+      - mlruns
     post:
-      operationId: createJob
+      operationId: createMLRun
       parameters:
-      - description: Tenant name (= jobs/services partition key).
+      - description: Tenant name (= mlruns/mlservices partition key).
         in: path
         name: namespace
         required: true
@@ -3027,14 +3027,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/JobCreateInput'
+              $ref: '#/components/schemas/MLRunCreateInput'
         required: true
       responses:
         "201":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/JobView'
+                $ref: '#/components/schemas/MLRunView'
           description: Created.
         "400":
           content:
@@ -3090,22 +3090,22 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Unexpected error.
-      summary: Submit an MLJob
+      summary: Submit an MLRun
       tags:
-      - jobs
-  /api/v1/namespaces/{namespace}/jobs/{job}:
+      - mlruns
+  /api/v1/namespaces/{namespace}/mlruns/{mlrun}:
     delete:
-      operationId: deleteJob
+      operationId: deleteMLRun
       parameters:
-      - description: Tenant name (= jobs/services partition key).
+      - description: Tenant name (= mlruns/mlservices partition key).
         in: path
         name: namespace
         required: true
         schema:
           type: string
-      - description: Job name.
+      - description: MLRun name.
         in: path
-        name: job
+        name: mlrun
         required: true
         schema:
           type: string
@@ -3166,21 +3166,21 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Unexpected error.
-      summary: Delete job
+      summary: Delete MLRun
       tags:
-      - jobs
+      - mlruns
     get:
-      operationId: getJob
+      operationId: getMLRun
       parameters:
-      - description: Tenant name (= jobs/services partition key).
+      - description: Tenant name (= mlruns/mlservices partition key).
         in: path
         name: namespace
         required: true
         schema:
           type: string
-      - description: Job name.
+      - description: MLRun name.
         in: path
-        name: job
+        name: mlrun
         required: true
         schema:
           type: string
@@ -3189,8 +3189,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/JobView'
-          description: Job.
+                $ref: '#/components/schemas/MLRunView'
+          description: MLRun.
         "400":
           content:
             application/json:
@@ -3245,21 +3245,21 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Unexpected error.
-      summary: Get job
+      summary: Get MLRun
       tags:
-      - jobs
+      - mlruns
     patch:
-      operationId: patchJob
+      operationId: patchMLRun
       parameters:
-      - description: Tenant name (= jobs/services partition key).
+      - description: Tenant name (= mlruns/mlservices partition key).
         in: path
         name: namespace
         required: true
         schema:
           type: string
-      - description: Job name.
+      - description: MLRun name.
         in: path
-        name: job
+        name: mlrun
         required: true
         schema:
           type: string
@@ -3267,15 +3267,15 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/JobPatchInput'
+              $ref: '#/components/schemas/MLRunPatchInput'
         required: true
       responses:
         "200":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/JobView'
-          description: Patched job.
+                $ref: '#/components/schemas/MLRunView'
+          description: Patched MLRun.
         "400":
           content:
             application/json:
@@ -3330,22 +3330,22 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Unexpected error.
-      summary: Patch job display fields
+      summary: Patch MLRun display fields
       tags:
-      - jobs
-  /api/v1/namespaces/{namespace}/jobs/{job}/cancel:
+      - mlruns
+  /api/v1/namespaces/{namespace}/mlruns/{mlrun}/cancel:
     post:
-      operationId: cancelJob
+      operationId: cancelMLRun
       parameters:
-      - description: Tenant name (= jobs/services partition key).
+      - description: Tenant name (= mlruns/mlservices partition key).
         in: path
         name: namespace
         required: true
         schema:
           type: string
-      - description: Job name.
+      - description: MLRun name.
         in: path
-        name: job
+        name: mlrun
         required: true
         schema:
           type: string
@@ -3354,7 +3354,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/JobView'
+                $ref: '#/components/schemas/MLRunView'
           description: Cancellation queued (row is Canceling).
         "400":
           content:
@@ -3410,22 +3410,22 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Unexpected error.
-      summary: Cancel a running job
+      summary: Cancel a running MLRun
       tags:
-      - jobs
-  /api/v1/namespaces/{namespace}/jobs/{job}/events:
+      - mlruns
+  /api/v1/namespaces/{namespace}/mlruns/{mlrun}/events:
     get:
-      operationId: listJobEvents
+      operationId: listMLRunEvents
       parameters:
-      - description: Tenant name (= jobs/services partition key).
+      - description: Tenant name (= mlruns/mlservices partition key).
         in: path
         name: namespace
         required: true
         schema:
           type: string
-      - description: Job name.
+      - description: MLRun name.
         in: path
-        name: job
+        name: mlrun
         required: true
         schema:
           type: string
@@ -3490,22 +3490,22 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Unexpected error.
-      summary: List events targeted at the MLJob CR
+      summary: List events targeted at the MLRun CR
       tags:
-      - jobs
-  /api/v1/namespaces/{namespace}/jobs/{job}/pods:
+      - mlruns
+  /api/v1/namespaces/{namespace}/mlruns/{mlrun}/pods:
     get:
-      operationId: listJobPods
+      operationId: listMLRunPods
       parameters:
-      - description: Tenant name (= jobs/services partition key).
+      - description: Tenant name (= mlruns/mlservices partition key).
         in: path
         name: namespace
         required: true
         schema:
           type: string
-      - description: Job name.
+      - description: MLRun name.
         in: path
-        name: job
+        name: mlrun
         required: true
         schema:
           type: string
@@ -3570,22 +3570,22 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Unexpected error.
-      summary: List pods of a job
+      summary: List pods of an MLRun
       tags:
-      - jobs
-  /api/v1/namespaces/{namespace}/jobs/{job}/pods/{pod}/events:
+      - mlruns
+  /api/v1/namespaces/{namespace}/mlruns/{mlrun}/pods/{pod}/events:
     get:
-      operationId: listJobPodEvents
+      operationId: listMLRunPodEvents
       parameters:
-      - description: Tenant name (= jobs/services partition key).
+      - description: Tenant name (= mlruns/mlservices partition key).
         in: path
         name: namespace
         required: true
         schema:
           type: string
-      - description: Job name.
+      - description: MLRun name.
         in: path
-        name: job
+        name: mlrun
         required: true
         schema:
           type: string
@@ -3658,20 +3658,20 @@ paths:
           description: Unexpected error.
       summary: List events targeted at a pod
       tags:
-      - jobs
-  /api/v1/namespaces/{namespace}/jobs/{job}/pods/{pod}/logs:
+      - mlruns
+  /api/v1/namespaces/{namespace}/mlruns/{mlrun}/pods/{pod}/logs:
     get:
-      operationId: getJobPodLogs
+      operationId: getMLRunPodLogs
       parameters:
-      - description: Tenant name (= jobs/services partition key).
+      - description: Tenant name (= mlruns/mlservices partition key).
         in: path
         name: namespace
         required: true
         schema:
           type: string
-      - description: Job name.
+      - description: MLRun name.
         in: path
-        name: job
+        name: mlrun
         required: true
         schema:
           type: string
@@ -3744,12 +3744,839 @@ paths:
           description: Unexpected error.
       summary: Stream a pod's container log
       tags:
-      - jobs
+      - mlruns
+  /api/v1/namespaces/{namespace}/mlservices:
+    get:
+      operationId: listMLServices
+      parameters:
+      - description: Tenant name (= mlruns/mlservices partition key).
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      - description: Page size (1–200, default 50).
+        in: query
+        name: limit
+        schema:
+          format: int32
+          type: integer
+      - description: Opaque continuation token from a previous page.
+        in: query
+        name: continue
+        schema:
+          type: string
+      - description: K8s-style label selector filtered against the row's labels jsonb.
+        in: query
+        name: labelSelector
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MLServiceList'
+          description: Page.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: List MLServices in a namespace
+      tags:
+      - mlservices
+    post:
+      operationId: createMLService
+      parameters:
+      - description: Tenant name (= mlruns/mlservices partition key).
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MLServiceCreateInput'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MLServiceView'
+          description: Created.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: Submit an MLService
+      tags:
+      - mlservices
+  /api/v1/namespaces/{namespace}/mlservices/{mlservice}:
+    delete:
+      operationId: deleteMLService
+      parameters:
+      - description: Tenant name (= mlruns/mlservices partition key).
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      - description: MLService name.
+        in: path
+        name: mlservice
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          description: Deleted (idempotent).
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: Delete MLService
+      tags:
+      - mlservices
+    get:
+      operationId: getMLService
+      parameters:
+      - description: Tenant name (= mlruns/mlservices partition key).
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      - description: MLService name.
+        in: path
+        name: mlservice
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MLServiceView'
+          description: MLService.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: Get MLService
+      tags:
+      - mlservices
+    patch:
+      operationId: patchMLService
+      parameters:
+      - description: Tenant name (= mlruns/mlservices partition key).
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      - description: MLService name.
+        in: path
+        name: mlservice
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MLServicePatchInput'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MLServiceView'
+          description: Patched service.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: Patch MLService display fields
+      tags:
+      - mlservices
+  /api/v1/namespaces/{namespace}/mlservices/{mlservice}/events:
+    get:
+      operationId: listMLServiceEvents
+      parameters:
+      - description: Tenant name (= mlruns/mlservices partition key).
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      - description: MLService name.
+        in: path
+        name: mlservice
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventList'
+          description: Events.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: List events targeted at the MLService CR
+      tags:
+      - mlservices
+  /api/v1/namespaces/{namespace}/mlservices/{mlservice}/pods:
+    get:
+      operationId: listMLServicePods
+      parameters:
+      - description: Tenant name (= mlruns/mlservices partition key).
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      - description: MLService name.
+        in: path
+        name: mlservice
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PodList'
+          description: Pods.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: List pods of an MLService
+      tags:
+      - mlservices
+  /api/v1/namespaces/{namespace}/mlservices/{mlservice}/pods/{pod}/events:
+    get:
+      operationId: listMLServicePodEvents
+      parameters:
+      - description: Tenant name (= mlruns/mlservices partition key).
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      - description: MLService name.
+        in: path
+        name: mlservice
+        required: true
+        schema:
+          type: string
+      - description: Pod name.
+        in: path
+        name: pod
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventList'
+          description: Events.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: List events targeted at an MLService pod
+      tags:
+      - mlservices
+  /api/v1/namespaces/{namespace}/mlservices/{mlservice}/pods/{pod}/logs:
+    get:
+      operationId: getMLServicePodLogs
+      parameters:
+      - description: Tenant name (= mlruns/mlservices partition key).
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      - description: MLService name.
+        in: path
+        name: mlservice
+        required: true
+        schema:
+          type: string
+      - description: Pod name.
+        in: path
+        name: pod
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            text/plain:
+              schema:
+                type: string
+          description: text/plain stream of pod log
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: Stream an MLService pod's container log
+      tags:
+      - mlservices
+  /api/v1/namespaces/{namespace}/mlservices/{mlservice}/scale:
+    post:
+      operationId: scaleMLService
+      parameters:
+      - description: Tenant name (= mlruns/mlservices partition key).
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      - description: MLService name.
+        in: path
+        name: mlservice
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MLServiceScaleInput'
+        required: true
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MLServiceView'
+          description: Scale queued (generation bumped).
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Precondition failed.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: Scale an MLService
+      tags:
+      - mlservices
   /api/v1/namespaces/{namespace}/quotas:
     get:
       operationId: listTenantQuotas
       parameters:
-      - description: Tenant name (= jobs/services partition key).
+      - description: Tenant name (= mlruns/mlservices partition key).
         in: path
         name: namespace
         required: true
@@ -3822,7 +4649,7 @@ paths:
     post:
       operationId: addTenantQuota
       parameters:
-      - description: Tenant name (= jobs/services partition key).
+      - description: Tenant name (= mlruns/mlservices partition key).
         in: path
         name: namespace
         required: true
@@ -3902,7 +4729,7 @@ paths:
     delete:
       operationId: deleteTenantQuota
       parameters:
-      - description: Tenant name (= jobs/services partition key).
+      - description: Tenant name (= mlruns/mlservices partition key).
         in: path
         name: namespace
         required: true
@@ -3983,7 +4810,7 @@ paths:
     patch:
       operationId: patchTenantQuota
       parameters:
-      - description: Tenant name (= jobs/services partition key).
+      - description: Tenant name (= mlruns/mlservices partition key).
         in: path
         name: namespace
         required: true
@@ -4075,7 +4902,7 @@ paths:
     post:
       operationId: restoreTenant
       parameters:
-      - description: Tenant name (= jobs/services partition key).
+      - description: Tenant name (= mlruns/mlservices partition key).
         in: path
         name: namespace
         required: true
@@ -4145,838 +4972,11 @@ paths:
       summary: Restore a soft-deleted tenant
       tags:
       - tenants
-  /api/v1/namespaces/{namespace}/services:
-    get:
-      operationId: listMLServices
-      parameters:
-      - description: Tenant name (= jobs/services partition key).
-        in: path
-        name: namespace
-        required: true
-        schema:
-          type: string
-      - description: Page size (1–200, default 50).
-        in: query
-        name: limit
-        schema:
-          format: int32
-          type: integer
-      - description: Opaque continuation token from a previous page.
-        in: query
-        name: continue
-        schema:
-          type: string
-      - description: K8s-style label selector filtered against the row's labels jsonb.
-        in: query
-        name: labelSelector
-        schema:
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MLServiceList'
-          description: Page.
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Validation error.
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Unauthorized.
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Forbidden.
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Not found.
-        "409":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Conflict.
-        "412":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Precondition failed.
-        "422":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Quota exceeded.
-        "503":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Service unavailable.
-        default:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Unexpected error.
-      summary: List services in a namespace
-      tags:
-      - services
-    post:
-      operationId: createMLService
-      parameters:
-      - description: Tenant name (= jobs/services partition key).
-        in: path
-        name: namespace
-        required: true
-        schema:
-          type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/MLServiceCreateInput'
-        required: true
-      responses:
-        "201":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MLServiceView'
-          description: Created.
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Validation error.
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Unauthorized.
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Forbidden.
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Not found.
-        "409":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Conflict.
-        "412":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Precondition failed.
-        "422":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Quota exceeded.
-        "503":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Service unavailable.
-        default:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Unexpected error.
-      summary: Submit an MLService
-      tags:
-      - services
-  /api/v1/namespaces/{namespace}/services/{service}:
-    delete:
-      operationId: deleteMLService
-      parameters:
-      - description: Tenant name (= jobs/services partition key).
-        in: path
-        name: namespace
-        required: true
-        schema:
-          type: string
-      - description: Service name.
-        in: path
-        name: service
-        required: true
-        schema:
-          type: string
-      responses:
-        "204":
-          description: Deleted (idempotent).
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Validation error.
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Unauthorized.
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Forbidden.
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Not found.
-        "409":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Conflict.
-        "412":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Precondition failed.
-        "422":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Quota exceeded.
-        "503":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Service unavailable.
-        default:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Unexpected error.
-      summary: Delete service
-      tags:
-      - services
-    get:
-      operationId: getMLService
-      parameters:
-      - description: Tenant name (= jobs/services partition key).
-        in: path
-        name: namespace
-        required: true
-        schema:
-          type: string
-      - description: Service name.
-        in: path
-        name: service
-        required: true
-        schema:
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MLServiceView'
-          description: Service.
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Validation error.
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Unauthorized.
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Forbidden.
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Not found.
-        "409":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Conflict.
-        "412":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Precondition failed.
-        "422":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Quota exceeded.
-        "503":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Service unavailable.
-        default:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Unexpected error.
-      summary: Get service
-      tags:
-      - services
-    patch:
-      operationId: patchMLService
-      parameters:
-      - description: Tenant name (= jobs/services partition key).
-        in: path
-        name: namespace
-        required: true
-        schema:
-          type: string
-      - description: Service name.
-        in: path
-        name: service
-        required: true
-        schema:
-          type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/MLServicePatchInput'
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MLServiceView'
-          description: Patched service.
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Validation error.
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Unauthorized.
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Forbidden.
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Not found.
-        "409":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Conflict.
-        "412":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Precondition failed.
-        "422":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Quota exceeded.
-        "503":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Service unavailable.
-        default:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Unexpected error.
-      summary: Patch service display fields
-      tags:
-      - services
-  /api/v1/namespaces/{namespace}/services/{service}/events:
-    get:
-      operationId: listServiceEvents
-      parameters:
-      - description: Tenant name (= jobs/services partition key).
-        in: path
-        name: namespace
-        required: true
-        schema:
-          type: string
-      - description: Service name.
-        in: path
-        name: service
-        required: true
-        schema:
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/EventList'
-          description: Events.
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Validation error.
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Unauthorized.
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Forbidden.
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Not found.
-        "409":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Conflict.
-        "412":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Precondition failed.
-        "422":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Quota exceeded.
-        "503":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Service unavailable.
-        default:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Unexpected error.
-      summary: List events targeted at the MLService CR
-      tags:
-      - services
-  /api/v1/namespaces/{namespace}/services/{service}/pods:
-    get:
-      operationId: listServicePods
-      parameters:
-      - description: Tenant name (= jobs/services partition key).
-        in: path
-        name: namespace
-        required: true
-        schema:
-          type: string
-      - description: Service name.
-        in: path
-        name: service
-        required: true
-        schema:
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PodList'
-          description: Pods.
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Validation error.
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Unauthorized.
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Forbidden.
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Not found.
-        "409":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Conflict.
-        "412":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Precondition failed.
-        "422":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Quota exceeded.
-        "503":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Service unavailable.
-        default:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Unexpected error.
-      summary: List pods of a service
-      tags:
-      - services
-  /api/v1/namespaces/{namespace}/services/{service}/pods/{pod}/events:
-    get:
-      operationId: listServicePodEvents
-      parameters:
-      - description: Tenant name (= jobs/services partition key).
-        in: path
-        name: namespace
-        required: true
-        schema:
-          type: string
-      - description: Service name.
-        in: path
-        name: service
-        required: true
-        schema:
-          type: string
-      - description: Pod name.
-        in: path
-        name: pod
-        required: true
-        schema:
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/EventList'
-          description: Events.
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Validation error.
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Unauthorized.
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Forbidden.
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Not found.
-        "409":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Conflict.
-        "412":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Precondition failed.
-        "422":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Quota exceeded.
-        "503":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Service unavailable.
-        default:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Unexpected error.
-      summary: List events targeted at a service pod
-      tags:
-      - services
-  /api/v1/namespaces/{namespace}/services/{service}/pods/{pod}/logs:
-    get:
-      operationId: getServicePodLogs
-      parameters:
-      - description: Tenant name (= jobs/services partition key).
-        in: path
-        name: namespace
-        required: true
-        schema:
-          type: string
-      - description: Service name.
-        in: path
-        name: service
-        required: true
-        schema:
-          type: string
-      - description: Pod name.
-        in: path
-        name: pod
-        required: true
-        schema:
-          type: string
-      responses:
-        "200":
-          content:
-            text/plain:
-              schema:
-                type: string
-          description: text/plain stream of pod log
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Validation error.
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Unauthorized.
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Forbidden.
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Not found.
-        "409":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Conflict.
-        "412":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Precondition failed.
-        "422":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Quota exceeded.
-        "503":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Service unavailable.
-        default:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Unexpected error.
-      summary: Stream a service pod's container log
-      tags:
-      - services
-  /api/v1/namespaces/{namespace}/services/{service}/scale:
-    post:
-      operationId: scaleMLService
-      parameters:
-      - description: Tenant name (= jobs/services partition key).
-        in: path
-        name: namespace
-        required: true
-        schema:
-          type: string
-      - description: Service name.
-        in: path
-        name: service
-        required: true
-        schema:
-          type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/MLServiceScaleInput'
-        required: true
-      responses:
-        "202":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MLServiceView'
-          description: Scale queued (generation bumped).
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Validation error.
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Unauthorized.
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Forbidden.
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Not found.
-        "409":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Conflict.
-        "412":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Precondition failed.
-        "422":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Quota exceeded.
-        "503":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Service unavailable.
-        default:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Unexpected error.
-      summary: Scale a service
-      tags:
-      - services
   /api/v1/namespaces/{namespace}/traffic-policies:
     get:
       operationId: listTrafficPolicies
       parameters:
-      - description: Tenant name (= jobs/services partition key).
+      - description: Tenant name (= mlruns/mlservices partition key).
         in: path
         name: namespace
         required: true
@@ -5065,7 +5065,7 @@ paths:
     post:
       operationId: createTrafficPolicy
       parameters:
-      - description: Tenant name (= jobs/services partition key).
+      - description: Tenant name (= mlruns/mlservices partition key).
         in: path
         name: namespace
         required: true
@@ -5145,7 +5145,7 @@ paths:
     delete:
       operationId: deleteTrafficPolicy
       parameters:
-      - description: Tenant name (= jobs/services partition key).
+      - description: Tenant name (= mlruns/mlservices partition key).
         in: path
         name: namespace
         required: true
@@ -5220,7 +5220,7 @@ paths:
     get:
       operationId: getTrafficPolicy
       parameters:
-      - description: Tenant name (= jobs/services partition key).
+      - description: Tenant name (= mlruns/mlservices partition key).
         in: path
         name: namespace
         required: true
@@ -5299,7 +5299,7 @@ paths:
     patch:
       operationId: patchTrafficPolicy
       parameters:
-      - description: Tenant name (= jobs/services partition key).
+      - description: Tenant name (= mlruns/mlservices partition key).
         in: path
         name: namespace
         required: true
@@ -5385,7 +5385,7 @@ paths:
     post:
       operationId: promoteTrafficPolicy
       parameters:
-      - description: Tenant name (= jobs/services partition key).
+      - description: Tenant name (= mlruns/mlservices partition key).
         in: path
         name: namespace
         required: true
@@ -5465,7 +5465,7 @@ paths:
     post:
       operationId: rollbackTrafficPolicy
       parameters:
-      - description: Tenant name (= jobs/services partition key).
+      - description: Tenant name (= mlruns/mlservices partition key).
         in: path
         name: namespace
         required: true
@@ -5545,7 +5545,7 @@ paths:
     post:
       operationId: splitTrafficPolicy
       parameters:
-      - description: Tenant name (= jobs/services partition key).
+      - description: Tenant name (= mlruns/mlservices partition key).
         in: path
         name: namespace
         required: true
@@ -5666,11 +5666,11 @@ tags:
 - description: Tenant CRUD. Compute owns the Tenant CR; PG is authoritative, CR is
     derived.
   name: tenants
-- description: MLJob CRUD per namespace. ResourcePool/Unit referenced by name (read
+- description: MLRun CRUD per namespace. ResourcePool/Unit referenced by name (read
     from K8s Informer cache).
-  name: jobs
+  name: mlruns
 - description: MLService CRUD per namespace.
-  name: services
+  name: mlservices
 - description: 'MLTrafficPolicy CRUD per namespace: weighted / canary / blue-green
     traffic split over member online services.'
   name: traffic-policies

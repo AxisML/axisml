@@ -93,7 +93,7 @@ S3 目录级制品，承载训练 / 评测数据集。
 | StorageKind | `s3`（RustFS） |
 | 必填 spec | `format`（`parquet` / `jsonl` / `csv` / `webdataset` / `tfrecord` / `custom`） |
 | URI 模板 | `s3://axisml-artifact-hub/namespaces/<ns>/datasets/<name>/<version>/`；digest = canonical JSON SHA256(`artifact-manifest.json`) |
-| 主要消费方 | mljob handler 注入 env `AXISML_DATASET_URI` / `AXISML_DATASET_DIGEST`，并通过 init container 或 csi-s3 volume 挂载到 `/data` |
+| 主要消费方 | mlrun handler 注入 env `AXISML_DATASET_URI` / `AXISML_DATASET_DIGEST`，并通过 init container 或 csi-s3 volume 挂载到 `/data` |
 
 ### 4.3 Image
 
@@ -104,7 +104,7 @@ OCI 容器镜像，承载训练 / 推理 / 开发运行时；阶段 2 由调用�
 | StorageKind | `oci`（zot） |
 | 必填 spec | `purpose`（`training` / `inference` / `dev`） |
 | URI 模板 | `<oci-host>/namespaces/<ns>/images/<name>:<version>` |
-| 主要消费方 | mljob / mlservice handler 用 URI 作为 Pod `spec.containers[].image`；imagePullSecret 由 tenant-operator 落地的 per-tenant ServiceAccount 默认携带，operator 不显式拼 secret 名 |
+| 主要消费方 | mlrun / mlservice handler 用 URI 作为 Pod `spec.containers[].image`；imagePullSecret 由 tenant-operator 落地的 per-tenant ServiceAccount 默认携带，operator 不显式拼 secret 名 |
 
 ## 5. 关键机制
 
@@ -138,7 +138,7 @@ OCI 容器镜像，承载训练 / 推理 / 开发运行时；阶段 2 由调用�
 
 | usage | 调用方 | 额外字段 | 凭证形态 |
 | --- | --- | --- | --- |
-| `inspect` | 集群内 operator（mlservice / mljob handler） | — | 不签发任何凭证；operator 派生的 Pod 通过 per-tenant ServiceAccount（由 tenant-operator 在 workload namespace 内落地，已默认携带 zot / RustFS 的 imagePullSecrets / 通用 Secret）拉取/读写后端；Artifacts 只回 `uri` + `digest`。 |
+| `inspect` | 集群内 operator（mlservice / mlrun handler） | — | 不签发任何凭证；operator 派生的 Pod 通过 per-tenant ServiceAccount（由 tenant-operator 在 workload namespace 内落地，已默认携带 zot / RustFS 的 imagePullSecrets / 通用 Secret）拉取/读写后端；Artifacts 只回 `uri` + `digest`。 |
 | `download` | 终端用户 / 训练 / 推理脚本（经 Platform / Gateway） | `pull_credentials` / `expires_at` | OCI pull scope token / S3 prefix-scoped STS，TTL=1h |
 
 公共字段：`storage_kind`（`oci` / `s3`）、`uri`（由 `Handler.BuildStorageURI` 拼装）、`digest`（PG 读，未 Ready 为空）、`visibility`。
@@ -170,8 +170,8 @@ GC worker（leader-only，每 5 分钟一轮）扫描 PG 三类谓词：
 | --- | --- | --- |
 | 对外 REST | `/api/v1/namespaces/{ns}/{kindPlural}/{name}[/{version}[/{complete,resolve}]]`；版本级 `GET` / `PATCH` / `DELETE` 同前缀。`kindPlural` 为 `ArtifactKind` 的 URL 复数形式（`model`↔`models`、`dataset`↔`datasets`、`image`↔`images`） | [apis/artifact-hub.yaml](../apis/artifact-hub.yaml) `Artifacts` tag |
 | Handler 接口 | 见下表 | — |
-| 身份头 | 调用方注入 `X-Axisml-User`，本服务仅做审计 | [auth.md §7](../auth.md#7-下游身份透传) |
-| 列表查询 | list 端点支持 `?labelSelector=` K8s grammar，可按 Platform 注入的 `axisml.io/project` 等 label 过滤 | [database.md §1.6](../database.md#16-扩展元数据-labels--annotations) |
+| 身份头 | 调用方注入 `X-Axisml-User`，本服务仅做审计 | [auth.md §6](../auth.md#6-下游身份透传) |
+| 列表查询 | list 端点支持 `?labelSelector=` K8s grammar，可按任意 `labels` 过滤 | [database.md §1.6](../database.md#16-扩展元数据-labels--annotations) |
 | 错误格式 | HTTP 标准状态码 + RFC 7807 problem+json | — |
 | 写后语义 | initiate 在 PG 提交后返回上传凭证；Ready 由 complete 推进，调用方通过 GET 观察 status；PATCH 是纯 PG mutation，立即可读 | — |
 
@@ -235,5 +235,5 @@ Ready / Failed ──(DELETE)──▶ Deleting ──(GCBackend 成功)──�
 - [infra.md](../infra.md) — zot / RustFS / PostgreSQL 基础设施
 - [apis/artifact-hub.yaml](../apis/artifact-hub.yaml) — REST API 字段契约
 - [tenant-operator.md](tenant-operator.md) — per-tenant SA + 默认 ImagePullSecret / Secret 落地契约（`resolve?usage=inspect` 的隐式凭证来源）
-- [compute-operator.md](compute-operator.md) — mljob / mlservice handler 作为 resolve 消费方
+- [compute-operator.md](compute-operator.md) — mlrun / mlservice handler 作为 resolve 消费方
 - [platform.md](platform.md) — 工作区到 Artifacts namespace 的映射

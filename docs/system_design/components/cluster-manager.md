@@ -123,7 +123,7 @@ spec:
 | `pool.spec.tolerations` | 直接作为 `spec.scheduling.tolerations` |
 | `unit.requests` / `limits` | 写入 `spec.roles[*].template.resources` |
 
-snapshot 语义：compute 在 Create 入口完成展开后立刻把 nodeSelector / tolerations / requests / limits 写入 `jobs.spec` / `services.spec` jsonb。pool 或 unit 后续修改 / 删除**不影响**已创建的 workload——它们存的是展开后的原语，跟 CR 解耦。
+snapshot 语义：compute 在 Create 入口完成展开后立刻把 nodeSelector / tolerations / requests / limits 写入 `mlruns.spec` / `mlservices.spec` jsonb。pool 或 unit 后续修改 / 删除**不影响**已创建的 workload——它们存的是展开后的原语，跟 CR 解耦。
 
 ## 4. 核心功能
 
@@ -171,7 +171,7 @@ admin 域的集群事实由本服务即时聚合，供 [Platform](platform.md#47
 | 对外 REST | `/api/v1/resource-pools[/{pool}]`、`/api/v1/resource-pools/{pool}/units[/{unit}]` | [apis/cluster-manager.yaml](../apis/cluster-manager.yaml) `ResourcePools` tag |
 | 对外 REST（集群事实） | `/api/v1/cluster/capacity`、`/api/v1/cluster/metrics` | [apis/cluster-manager.yaml](../apis/cluster-manager.yaml) `Cluster` tag |
 | 下发 CR | `ResourcePool`（`axisml.io/v1alpha1`，cluster-scoped）；cluster-manager 是 REST 写者，kubectl 路径也允许 | [resource-pool-crd.yaml](../../../deploy/helm/axisml-system/crds/resource-pool-crd.yaml) |
-| 身份头 | 调用方注入 `X-Axisml-User`，本服务仅做审计；同时透传为 CR annotation `axisml.io/last-modified-by` | [auth.md §7](../auth.md#7-下游身份透传) |
+| 身份头 | 调用方注入 `X-Axisml-User`，本服务仅做审计；同时透传为 CR annotation `axisml.io/last-modified-by` | [auth.md §6](../auth.md#6-下游身份透传) |
 | 错误格式 | HTTP 标准状态码 + RFC 7807 problem+json；K8s API 错误经 typed 映射 | — |
 | 写后语义 | mutation 经 K8s API 写入 etcd 后返回；强一致 | — |
 

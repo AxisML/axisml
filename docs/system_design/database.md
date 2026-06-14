@@ -7,8 +7,8 @@
 | 服务 | 表 | 用途 |
 | --- | --- | --- |
 | [compute-service](components/compute-service.md) | `tenants` | 租户 / 配额 / namespace spec（写路径权威） |
-| Compute Service | `jobs` | 一次性计算任务 |
-| Compute Service | `services` | 常驻在线服务 / 工作区 |
+| Compute Service | `mlruns` | 一次性计算任务 |
+| Compute Service | `mlservices` | 常驻在线服务 / 工作区 |
 | Compute Service | `traffic_policies` | 流量策略（稳定入口按权重分发到多个在线服务） |
 | [artifact-hub](components/artifact-hub.md) | `artifacts` | 制品（model / dataset / image） |
 | [Platform](components/platform.md) | `users` / `user_tenant_roles` / `sessions` / `audit_logs` | 身份、授权、会话、审计（角色硬编码三档，不入表） |
@@ -19,7 +19,7 @@
 
 ## 1. 通用约定
 
-下列约定对**业务表**生效（`tenants` / `jobs` / `services` / `traffic_policies` / `artifacts`）；Platform 的身份 / 会话 / 审计表（§4）按需自定义，不强制遵循。新增业务表或扩展现有表时必须满足。
+下列约定对**业务表**生效（`tenants` / `mlruns` / `mlservices` / `traffic_policies` / `artifacts`）；Platform 的身份 / 会话 / 审计表（§4）按需自定义，不强制遵循。新增业务表或扩展现有表时必须满足。
 
 ### 1.1 通用字段
 
@@ -42,7 +42,7 @@
 
 ### 1.4 generation / observed_generation
 
-允许变更 spec 的 CR-backed 表（当前为 `tenants` / `services` / `traffic_policies`）采用 K8s 风格的 generation 双字段做 outbox 信号：
+允许变更 spec 的 CR-backed 表（当前为 `tenants` / `mlservices` / `traffic_policies`）采用 K8s 风格的 generation 双字段做 outbox 信号：
 
 | 字段 | 类型 | 写入方 | 含义 |
 | --- | --- | --- | --- |
@@ -51,7 +51,7 @@
 
 reconciler 通过 partial index `WHERE generation <> observed_generation AND deleted_at IS NULL` 高效定位待同步行；spec 内容未变但 mutation 重复触发时仍会 +generation，reconciler 走幂等 server-side apply 不会产生副作用。
 
-`jobs` 表 spec 完全不可变，不使用 generation（同步信号借用 `status` 谓词扫描，见 [compute.md §5.1](components/compute-service.md#51-写路径内嵌-outbox--谓词扫描)）；`artifacts` / Platform 表无对应 CR，更不使用 generation。
+`mlruns` 表 spec 完全不可变，不使用 generation（同步信号借用 `status` 谓词扫描，见 [compute.md §5.1](components/compute-service.md#51-写路径内嵌-outbox--谓词扫描)）；`artifacts` / Platform 表无对应 CR，更不使用 generation。
 
 ### 1.5 CR 稳定锚点
 
@@ -60,24 +60,24 @@ reconciler 通过 partial index `WHERE generation <> observed_generation AND del
 | PG 表 | 对应 CR | label key |
 | --- | --- | --- |
 | `tenants` | `Tenant` | `axisml.io/tenant-id` |
-| `jobs` | `MLJob` | `axisml.io/job-id` |
-| `services` | `MLService` | `axisml.io/service-id` |
+| `mlruns` | `MLRun` | `axisml.io/run-id` |
+| `mlservices` | `MLService` | `axisml.io/service-id` |
 | `traffic_policies` | `MLTrafficPolicy` | `axisml.io/traffic-policy-id` |
 
-`services` 在 CR `metadata.labels` 上额外冗余写 `axisml.io/service-kind=<kind>`（`service` / `workspace`），便于 `kubectl` selector 区分工作区与普通服务；compute / operator 不按该 label 改变行为。
+`mlservices` 在 CR `metadata.labels` 上额外冗余写 `axisml.io/service-kind=<kind>`（`service` / `workspace`），便于 `kubectl` selector 区分工作区与普通服务；compute / operator 不按该 label 改变行为。
 
 ### 1.6 扩展元数据 `labels` / `annotations`
 
-所有业务表统一以 `labels jsonb` + `annotations jsonb` 承载扩展元数据，K8s 风格：`labels` 短键短值用于过滤索引（key/value ≤ 63 字符、总条目 ≤ 64）；`annotations` 自由文本用于展示与跟踪（单 value ≤ 4 KiB、总 ≤ 32 KiB）。Key 前缀约定：`axisml.io/*` 为系统级保留前缀（如 `axisml.io/project` / `axisml.io/experiment`），`platform.axisml.io/*` 由 Platform 内部使用，`user.axisml.io/*` 或无前缀由业务服务调用方透传。
+所有业务表统一以 `labels jsonb` + `annotations jsonb` 承载扩展元数据，K8s 风格：`labels` 短键短值用于过滤索引（key/value ≤ 63 字符、总条目 ≤ 64）；`annotations` 自由文本用于展示与跟踪（单 value ≤ 4 KiB、总 ≤ 32 KiB）。Key 前缀约定：`axisml.io/*` 为系统级保留前缀（如 `axisml.io/job` / `axisml.io/experiment`），`platform.axisml.io/*` 由 Platform 内部使用，`user.axisml.io/*` 或无前缀由业务服务调用方透传。
 
-**查询**：业务服务的 list 端点接受 `?labelSelector=` 查询参数，语法沿用 K8s（`=`/`==`/`!=`/`in (…)`/`notin (…)`/`key`/`!key`，多条件逗号分隔为 AND）。`jobs` / `services` / `traffic_policies` / `artifacts` 表均建 GIN 索引兜底；高频 label key（如 `axisml.io/project`）额外建复合表达式索引。
+**查询**：业务服务的 list 端点接受 `?labelSelector=` 查询参数，语法沿用 K8s（`=`/`==`/`!=`/`in (…)`/`notin (…)`/`key`/`!key`，多条件逗号分隔为 AND）。`mlruns` / `mlservices` / `traffic_policies` / `artifacts` 表均建 GIN 索引兜底；高频 label key（如 `axisml.io/job`）额外建复合表达式索引。
 
 **只落 PG**：扩展位不下发到 CR、不触发 `+generation`、不参与 reconcile。写入路径由业务服务 REST 唯一承载，Platform 走业务服务，不直写 K8s。
 
 ---
 
 ## 2. Compute Service
-`tenants` / `jobs` / `services` 的 `namespace text` 字段是 tenant 标识符（= `tenants.name`）；Compute 内部通过 join `tenants` 表得到 `spec.namespace.name` 用于 CR 下发的 `metadata.namespace`。
+`tenants` / `mlruns` / `mlservices` 的 `namespace text` 字段是 tenant 标识符（= `tenants.name`）；Compute 内部通过 join `tenants` 表得到 `spec.namespace.name` 用于 CR 下发的 `metadata.namespace`。
 
 ### 3.1 `tenants` 表
 
@@ -113,7 +113,7 @@ CREATE INDEX tenants_sync_pending
   ON tenants (id) WHERE generation <> observed_generation AND deleted_at IS NULL;
 ```
 
-`tenants.spec.namespace.name` 是 tenant 关联的 K8s namespace（不可变，多 tenant 可共享）。`jobs` / `services` / `artifacts` 的 `namespace` 字段 = `tenants.name`，作为逻辑分区键；Compute 写 CR 时 join 出 K8s namespace。
+`tenants.spec.namespace.name` 是 tenant 关联的 K8s namespace（不可变，多 tenant 可共享）。`mlruns` / `mlservices` / `artifacts` 的 `namespace` 字段 = `tenants.name`，作为逻辑分区键；Compute 写 CR 时 join 出 K8s namespace。
 
 `phase` 是 Tenant CR `status.phase` 的顶层冗余（便于 SQL 过滤与 B-tree 索引）；`status` jsonb 持剩余子字段 `{message, namespaceReady, conditions[], quotas[].{pool, name, ready}}` —— informer 在写 PG 时**主动 strip** `quotas[].used`，该字段属于 ephemeral 调度态，只活在 Tenant CR `status.quotas[].used` 与 compute Tenant Informer 的 in-memory cache 里，GET 端点实时聚合返回（详见 [compute-service.md §5.3](components/compute-service.md#53-状态回流informer)）。两者都由 informer 写。`Suspended` 与 `Creating` / `Deleting` 同属 API 直接写入 `phase` 的意图态（reconciler 无匹配谓词、不下发 CR）；informer 回流时**不覆盖** `phase='Suspended'` 的行，仅刷新其 `status` 子树（conditions / quotas），resume 把 `phase` 复位 `Active` 后恢复正常回流（详见 [compute-service.md §4.1](components/compute-service.md#41-tenant)）。
 
@@ -130,10 +130,10 @@ CREATE INDEX tenants_sync_pending
 | `last_modified_by` | API | 每次 mutation 用 `X-Axisml-User` 刷新 |
 | `deleted_at` | DELETE / restore | retention 365 天后 GC 物理清理 |
 
-### 3.2 `jobs` 表
+### 3.2 `mlruns` 表
 
 ```sql
-CREATE TABLE jobs (
+CREATE TABLE mlruns (
   id                   uuid PRIMARY KEY,
   namespace            text NOT NULL,                 -- tenant 标识符（= tenants.name）
   name                 text NOT NULL,
@@ -142,7 +142,7 @@ CREATE TABLE jobs (
   owner                text,                          -- 创建者；不可变
   labels               jsonb NOT NULL DEFAULT '{}',
   annotations          jsonb NOT NULL DEFAULT '{}',
-  spec                 jsonb NOT NULL,                -- MLJob spec 快照；不可变；含已展开的 nodeSelector / tolerations / resources
+  spec                 jsonb NOT NULL,                -- MLRun spec 快照；不可变；含已展开的 nodeSelector / tolerations / resources
   phase                text NOT NULL DEFAULT 'Creating',
   status               jsonb NOT NULL DEFAULT '{}',
   created_at           timestamptz NOT NULL DEFAULT now(),
@@ -150,25 +150,25 @@ CREATE TABLE jobs (
   deleted_at           timestamptz
 );
 
-CREATE UNIQUE INDEX jobs_namespace_name_active_uniq ON jobs (namespace, name) WHERE deleted_at IS NULL;
-CREATE INDEX jobs_phase      ON jobs (phase) WHERE deleted_at IS NULL;
-CREATE INDEX jobs_created_at ON jobs (created_at DESC);
-CREATE INDEX jobs_labels_gin ON jobs USING GIN (labels jsonb_path_ops);
-CREATE INDEX jobs_namespace_project_created
-  ON jobs (namespace, (labels->>'axisml.io/project'), created_at DESC)
+CREATE UNIQUE INDEX mlruns_namespace_name_active_uniq ON mlruns (namespace, name) WHERE deleted_at IS NULL;
+CREATE INDEX mlruns_phase      ON mlruns (phase) WHERE deleted_at IS NULL;
+CREATE INDEX mlruns_created_at ON mlruns (created_at DESC);
+CREATE INDEX mlruns_labels_gin ON mlruns USING GIN (labels jsonb_path_ops);
+CREATE INDEX mlruns_namespace_job_created
+  ON mlruns (namespace, (labels->>'axisml.io/job'), created_at DESC)
   WHERE deleted_at IS NULL;
 ```
 
-`phase` 是 MLJob CR `status.phase` 的顶层冗余；`status` jsonb 持剩余子字段 `{message, startedAt, finishedAt, conditions[]}`。两者由 informer 写。`spec` 含 compute 已展开的 `nodeSelector` / `tolerations` / `resources` snapshot, 同时保留 `scheduling.poolName` / `scheduling.unitName` 做溯源 (compute 在 Create 入口完成 ResourcePool CR Informer cache lookup 与合并, 详见 [compute-service.md §5.4](components/compute-service.md#54-resourcepool-展开))。`spec.backend` 缺省时 Compute 写 CR 时补 `{name: "native", engine: "job"}`，创建后不可变。
+`phase` 是 MLRun CR `status.phase` 的顶层冗余；`status` jsonb 持剩余子字段 `{message, startedAt, finishedAt, conditions[]}`。两者由 informer 写。`spec` 含 compute 已展开的 `nodeSelector` / `tolerations` / `resources` snapshot, 同时保留 `scheduling.poolName` / `scheduling.unitName` 做溯源 (compute 在 Create 入口完成 ResourcePool CR Informer cache lookup 与合并, 详见 [compute-service.md §5.4](components/compute-service.md#54-resourcepool-展开))。`spec.backend` 缺省时 Compute 写 CR 时补 `{name: "native", engine: "job"}`，创建后不可变。
 
-GIN + 复合表达式索引支持 `?labelSelector=axisml.io/project=...` 的过滤路径（详见 [§1.6](#16-扩展元数据-labels--annotations) 与 [compute.md §6](components/compute-service.md#6-接口契约)）。
+GIN + 复合表达式索引支持 `?labelSelector=axisml.io/job=...`（列某 Job 的 Run）的过滤路径（详见 [§1.6](#16-扩展元数据-labels--annotations) 与 [compute.md §6](components/compute-service.md#6-接口契约)）。
 
-### 3.3 `services` 表
+### 3.3 `mlservices` 表
 
-`services` 表同时承载普通在线服务（`kind='service'`）和 [Platform 工作区](components/platform.md#44-工作区编排)（`kind='workspace'`）。
+`mlservices` 表同时承载普通在线服务（`kind='service'`）和 [Platform 工作区](components/platform.md#44-工作区编排)（`kind='workspace'`）。
 
 ```sql
-CREATE TABLE services (
+CREATE TABLE mlservices (
   id                   uuid PRIMARY KEY,
   namespace            text NOT NULL,                       -- tenant 标识符（= tenants.name）
   name                 text NOT NULL,
@@ -188,22 +188,22 @@ CREATE TABLE services (
   deleted_at           timestamptz
 );
 
-CREATE UNIQUE INDEX services_namespace_name_active_uniq ON services (namespace, name) WHERE deleted_at IS NULL;
-CREATE INDEX services_namespace_kind ON services (namespace, kind) WHERE deleted_at IS NULL;
-CREATE INDEX services_phase          ON services (phase) WHERE deleted_at IS NULL;
-CREATE INDEX services_created_at     ON services (created_at DESC);
-CREATE INDEX services_sync_pending   ON services (id) WHERE generation <> observed_generation AND deleted_at IS NULL;
-CREATE INDEX services_labels_gin     ON services USING GIN (labels jsonb_path_ops);
-CREATE INDEX services_namespace_project_created
-  ON services (namespace, (labels->>'axisml.io/project'), created_at DESC)
+CREATE UNIQUE INDEX mlservices_namespace_name_active_uniq ON mlservices (namespace, name) WHERE deleted_at IS NULL;
+CREATE INDEX mlservices_namespace_kind ON mlservices (namespace, kind) WHERE deleted_at IS NULL;
+CREATE INDEX mlservices_phase          ON mlservices (phase) WHERE deleted_at IS NULL;
+CREATE INDEX mlservices_created_at     ON mlservices (created_at DESC);
+CREATE INDEX mlservices_sync_pending   ON mlservices (id) WHERE generation <> observed_generation AND deleted_at IS NULL;
+CREATE INDEX mlservices_labels_gin     ON mlservices USING GIN (labels jsonb_path_ops);
+CREATE INDEX mlservices_namespace_created
+  ON mlservices (namespace, created_at DESC)
   WHERE deleted_at IS NULL;
 ```
 
-`phase` 是 MLService CR `status.phase` 的顶层冗余；`status` jsonb 持剩余子字段 `{message, readyReplicas, endpoint, conditions[]}`。两者由 informer 写。`spec` 中仅 `spec.roles[0].replicas` 可变（`/scale` 写入并 `+generation`）。`spec.backend` 缺省时 Compute 补 `{name: "native", engine: "deployment"}`。同 §3.2，label GIN + 复合表达式索引服务于 labelSelector 查询。
+`phase` 是 MLService CR `status.phase` 的顶层冗余；`status` jsonb 持剩余子字段 `{message, readyReplicas, endpoint, conditions[]}`。两者由 informer 写。`spec` 中仅 `spec.roles[0].replicas` 可变（`/scale` 写入并 `+generation`）。`spec.backend` 缺省时 Compute 补 `{name: "native", engine: "deployment"}`。label GIN 索引服务于 labelSelector 查询；`(namespace, created_at)` 复合索引服务于租户内按时间列表（services 无 Job 父级，不按 job 分组）。
 
 ### 3.4 `traffic_policies` 表
 
-把一个稳定对外入口的入站流量按权重分发到同 `namespace` 下多个在线服务（`services` 表 `kind='service'` 的行）；CR 派生与契约见 [compute-service.md §4.5](components/compute-service.md#45-流量策略mltrafficpolicy) / [compute-operator.md §4.3](components/compute-operator.md#43-mltrafficpolicy-controller)。
+把一个稳定对外入口的入站流量按权重分发到同 `namespace` 下多个在线服务（`mlservices` 表 `kind='service'` 的行）；CR 派生与契约见 [compute-service.md §4.5](components/compute-service.md#45-流量策略mltrafficpolicy) / [compute-operator.md §4.3](components/compute-operator.md#43-mltrafficpolicy-controller)。
 
 ```sql
 CREATE TABLE traffic_policies (
@@ -233,7 +233,7 @@ CREATE INDEX traffic_policies_sync_pending ON traffic_policies (id) WHERE genera
 CREATE INDEX traffic_policies_labels_gin   ON traffic_policies USING GIN (labels jsonb_path_ops);
 ```
 
-`phase` 是 MLTrafficPolicy CR `status.phase` 的顶层冗余；`status` jsonb 持剩余子字段 `{message, endpoint, backends[].{serviceName, weight, ready}, conditions[]}`，由 informer 整块回流。`spec` 持 `{mode, endpoint{path,hostname,auth}, backends[].{serviceName,role,weight}, backend{name,engine}}`——其中 `backends[*].weight` 由 `/split` `/rollback` 改、canary `/promote` 额外互换两后端的 `role`，均 `+generation`。canary 当前基线即 `role=stable` 的后端，**不设独立 `baselineRef` 指针**。成员以 `serviceName` 引用同 `namespace` 的 `services` 行，**不冗余成员 spec**。
+`phase` 是 MLTrafficPolicy CR `status.phase` 的顶层冗余；`status` jsonb 持剩余子字段 `{message, endpoint, backends[].{serviceName, weight, ready}, conditions[]}`，由 informer 整块回流。`spec` 持 `{mode, endpoint{path,hostname,auth}, backends[].{serviceName,role,weight}, backend{name,engine}}`——其中 `backends[*].weight` 由 `/split` `/rollback` 改、canary `/promote` 额外互换两后端的 `role`，均 `+generation`。canary 当前基线即 `role=stable` 的后端，**不设独立 `baselineRef` 指针**。成员以 `serviceName` 引用同 `namespace` 的 `mlservices` 行，**不冗余成员 spec**。
 
 **成员占用唯一性**（一个在线服务同时只能被一个活跃策略引用）是跨 `traffic_policies.spec.backends[]` jsonb 数组的约束，PG 难以用单一索引表达，由 compute-service 在创建 / 删除事务内于应用层维护（见 [compute-service.md §4.5](components/compute-service.md#45-流量策略mltrafficpolicy)）。
 
@@ -283,7 +283,7 @@ CREATE INDEX artifacts_labels_gin          ON artifacts USING GIN (labels jsonb_
 
 ## 4. Platform
 
-Platform PG 仅覆盖 **身份、授权、会话、审计** 四类，**不缓存任何下游业务元数据**——Tenant / Workspace / Job / Service / Artifact 等业务对象一律向下游服务实时查询。
+Platform PG 覆盖 **身份、授权、会话、审计** 四类，外加 **Job / Model / Image / Dataset 四张定义**（§5.2）。**不缓存任何下游可变实例状态**——run / version / phase / conditions / digest / quota 用量一律向下游服务实时查询；Tenant / Workspace / Service 等无 Platform 视图表。
 
 ### 5.1 schema
 
@@ -335,3 +335,36 @@ CREATE INDEX audit_logs_user_created_at ON audit_logs (user_id, created_at DESC)
 `user_tenant_roles.tenant_name` 不做跨服务 FK——compute `tenants.name` 在 `WHERE deleted_at IS NULL` 上 partial unique 且创建后不可变，等价于稳定 FK；级联清理由 [platform.md §4.1](components/platform.md#41-租户编排) 在应用层实现。`user_tenant_roles.role` 是硬编码 text 枚举（`tenant-admin` / `user`），完整矩阵见 [auth.md §3](auth.md#3-rbac-角色)。`audit_logs` 保留期由 `--audit-log-retention-days` 配置（默认 90 天）。
 
 **bootstrap 行为**：首次 `axisml-platform bootstrap` 会插入 `admin` 用户（密码 hash 默认 `admin`，`must_change_password=true`；可通过环境变量 `AXISML_BOOTSTRAP_PASSWORD` 覆盖），同时在 compute 中初始化内置租户 `axisml-system` 承载 `visibility=public` 制品。
+
+### 5.2 定义（jobs / datasets / models / images）
+
+这四张表是 Platform 自有的 name 级**定义 / 模板**实体；运行 / 版本**实例**由下游持有，二者实时关联，Platform **不建 run/version 索引表**（语义见 [platform.md §3.2](components/platform.md#32-定义jobs--datasets--models--images)）。
+
+四张定义表同构；下给出 `jobs` 完整定义，`datasets` / `models` / `images` 列与索引一致（仅表名与索引名前缀替换，`spec` 语义不同）。
+
+```sql
+CREATE TABLE jobs (
+  id            uuid PRIMARY KEY,
+  tenant_name   text NOT NULL,                 -- 分区键（= compute tenants.name）
+  name          text NOT NULL,
+  display_name  text,
+  description   text,
+  owner_user    text,                          -- 创建者
+  labels        jsonb NOT NULL DEFAULT '{}',
+  annotations   jsonb NOT NULL DEFAULT '{}',
+  spec          jsonb NOT NULL,                -- Job 可复用模板（见下）
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  updated_at    timestamptz NOT NULL DEFAULT now(),
+  deleted_at    timestamptz
+);
+CREATE UNIQUE INDEX jobs_tenant_name_active_uniq ON jobs (tenant_name, name) WHERE deleted_at IS NULL;
+CREATE INDEX jobs_created_at ON jobs (created_at DESC);
+CREATE INDEX jobs_labels_gin ON jobs USING GIN (labels jsonb_path_ops);
+
+-- datasets / models / images：列与索引同 jobs（表名与索引名前缀替换）；spec 改持 name 级业务元数据。
+```
+
+- `jobs.spec`：Job 可复用模板——`backend{name,engine,config}` / `roles[]`（含镜像引用）/ `scheduling{poolName,unitName,quota}`（仅名字，compute 内部展开）/ `runPolicy` / 制品引用 `(kind,name,version)`。**无 run 列**。
+- `models.spec` / `images.spec` / `datasets.spec`：name 级业务元数据（如 `framework` / `format` / `purpose`）；版本级硬校验在 artifacts。**无 version 列**。
+- **关联（实时，无索引表）**：Run 经 compute `MLRun` 的 `axisml.io/job=<job>` label 反查（Run 命名 `<job>-<n>`）；制品版本经 artifacts `(namespace, kind, name)` 列举。
+- 软删后同名可重建（§1.2 partial unique）；定义可在零 Run / 零版本状态下存在。

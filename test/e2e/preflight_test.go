@@ -42,7 +42,7 @@ func TestPreflight_CRDsEstablished(t *testing.T) {
 	crds := []string{
 		"tenants.axisml.io",
 		"resourcepools.axisml.io",
-		"mljobs.axisml.io",
+		"mlruns.axisml.io",
 		"mlservices.axisml.io",
 		"elasticquotas.scheduling.sigs.k8s.io",
 		"podgroups.scheduling.sigs.k8s.io",

@@ -1,4 +1,4 @@
-// Command axisml-compute-operator runs the MLJob and MLService
+// Command axisml-compute-operator runs the MLRun and MLService
 // reconcilers in a single manager. Each controller can be disabled
 // independently via --enable-* flags.
 package main
@@ -14,8 +14,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	mljobdispatcher "github.com/axisml/axisml/components/compute-operator/internal/mljob/dispatcher"
-	"github.com/axisml/axisml/components/compute-operator/internal/mljob/handlers/nativejob"
+	mlrundispatcher "github.com/axisml/axisml/components/compute-operator/internal/mlrun/dispatcher"
+	"github.com/axisml/axisml/components/compute-operator/internal/mlrun/handlers/nativejob"
 	mlservicedispatcher "github.com/axisml/axisml/components/compute-operator/internal/mlservice/dispatcher"
 	mlservicehandler "github.com/axisml/axisml/components/compute-operator/internal/mlservice/handler"
 	mltrafficpolicydispatcher "github.com/axisml/axisml/components/compute-operator/internal/mltrafficpolicy/dispatcher"
@@ -44,7 +44,7 @@ func main() {
 		probeAddr             string
 		enableLeaderElection  bool
 		leaderElectionID      string
-		enableMLJob           bool
+		enableMLRun           bool
 		enableMLService       bool
 		enableMLTrafficPolicy bool
 	)
@@ -57,7 +57,7 @@ func main() {
 	flag.StringVar(&leaderElectionID, "leader-election-id",
 		defaultLeaderElectionID,
 		"Name of the lease used for leader election.")
-	flag.BoolVar(&enableMLJob, "enable-mljob", true, "Run the MLJob controller.")
+	flag.BoolVar(&enableMLRun, "enable-mlrun", true, "Run the MLRun controller.")
 	flag.BoolVar(&enableMLService, "enable-mlservice", true, "Run the MLService controller.")
 	flag.BoolVar(&enableMLTrafficPolicy, "enable-mltrafficpolicy", true, "Run the MLTrafficPolicy controller.")
 
@@ -81,14 +81,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	if enableMLJob {
-		registry := mljobdispatcher.NewRegistry()
+	if enableMLRun {
+		registry := mlrundispatcher.NewRegistry()
 		registry.Register(nativejob.New())
-		if err := (&mljobdispatcher.MLJobReconciler{
+		if err := (&mlrundispatcher.MLRunReconciler{
 			Client:   mgr.GetClient(),
 			Registry: registry,
 		}).SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to set up MLJob controller")
+			setupLog.Error(err, "unable to set up MLRun controller")
 			os.Exit(1)
 		}
 	}
@@ -133,7 +133,7 @@ func main() {
 	}
 
 	setupLog.Info("starting axisml-compute-operator",
-		"mljob", enableMLJob,
+		"mlrun", enableMLRun,
 		"mlservice", enableMLService,
 		"mltrafficpolicy", enableMLTrafficPolicy,
 	)

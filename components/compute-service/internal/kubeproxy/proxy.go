@@ -62,7 +62,7 @@ func (c *Client) VerifyPodHasLabel(ctx context.Context, namespace, pod, labelKey
 }
 
 // ListPodsByLabel returns Pods in `namespace` whose metadata.labels match
-// the given key=value (typically `axisml.io/job-id=<uuid>` or
+// the given key=value (typically `axisml.io/run-id=<uuid>` or
 // `axisml.io/service-id=<uuid>`).
 func (c *Client) ListPodsByLabel(ctx context.Context, namespace, labelKey, labelValue string) ([]corev1.Pod, error) {
 	var pods corev1.PodList
@@ -79,7 +79,7 @@ func (c *Client) ListPodsByLabel(ctx context.Context, namespace, labelKey, label
 // EventsForInvolved returns events whose .regarding (events.k8s.io/v1) or
 // .involvedObject (core/v1) matches one of the (kind, name) targets under
 // namespace. compute-service.md §4.3 / §4.4 specify that a job's /events
-// endpoint includes MLJob + PodGroup events; a service's /events covers
+// endpoint includes MLRun + PodGroup events; a service's /events covers
 // MLService + Deployment + StatefulSet + HTTPRoute. Callers pass the
 // list as multiple `match` entries.
 type EventTarget struct {
@@ -225,7 +225,7 @@ func (c *Client) PodLog(g *gin.Context, namespace, pod string) {
 }
 
 // EventsByInvolved renders events targeting any of the supplied (kind, name)
-// pairs as JSON. Used by both /jobs/{job}/events (MLJob + PodGroup) and
+// pairs as JSON. Used by both /jobs/{job}/events (MLRun + PodGroup) and
 // /services/{svc}/events (MLService + Deployment + StatefulSet + HTTPRoute).
 func (c *Client) EventsByInvolved(g *gin.Context, namespace string, targets ...EventTarget) {
 	evs, err := c.EventsForInvolved(g.Request.Context(), namespace, targets...)

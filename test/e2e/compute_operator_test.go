@@ -15,30 +15,30 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	mljobv1 "github.com/axisml/axisml/components/compute-operator/api/mljob/v1alpha1"
+	mlrunv1 "github.com/axisml/axisml/components/compute-operator/api/mlrun/v1alpha1"
 	mlservicev1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
 )
 
-// compute-operator. MLJob/MLService CRs are applied DIRECTLY (bypassing
+// compute-operator. MLRun/MLService CRs are applied DIRECTLY (bypassing
 // compute-service) to isolate the operator, into the shared tenant namespace.
 
-func TestComputeOperator_MLJobRunsToCompletion(t *testing.T) {
+func TestComputeOperator_MLRunRunsToCompletion(t *testing.T) {
 	ctx := context.Background()
 	ns := sharedNS()
 	quota := sharedQuota(t, ctx)
 	name := uniqueName("e2e-job")
 
-	job := buildMLJobCR(ns, name, quota)
+	job := buildMLRunCR(ns, name, quota)
 	require.NoError(t, h.k8s.Create(ctx, job))
 	t.Cleanup(func() { _ = h.k8s.Delete(context.Background(), job) })
 
-	// MLJob reaches Succeeded once kubelet has actually run the pod.
-	eventually(t, h.cfg.JobCompleteTimeout, func() error {
-		var cur mljobv1.MLJob
+	// MLRun reaches Succeeded once kubelet has actually run the pod.
+	eventually(t, h.cfg.MLRunCompleteTimeout, func() error {
+		var cur mlrunv1.MLRun
 		if err := h.get(ctx, ns, name, &cur); err != nil {
 			return err
 		}
-		if cur.Status.Phase != mljobv1.PhaseSucceeded {
+		if cur.Status.Phase != mlrunv1.PhaseSucceeded {
 			return assertErr("phase=%q want Succeeded", cur.Status.Phase)
 		}
 		return nil
@@ -51,7 +51,7 @@ func TestComputeOperator_SchedulerAndQuotaLabels(t *testing.T) {
 	quota := sharedQuota(t, ctx)
 	name := uniqueName("e2e-sched")
 
-	job := buildMLJobCR(ns, name, quota)
+	job := buildMLRunCR(ns, name, quota)
 	require.NoError(t, h.k8s.Create(ctx, job))
 	t.Cleanup(func() { _ = h.k8s.Delete(context.Background(), job) })
 
@@ -75,21 +75,21 @@ func TestComputeOperator_SchedulerAndQuotaLabels(t *testing.T) {
 	})
 }
 
-func TestComputeOperator_MLJobCancelSuspends(t *testing.T) {
+func TestComputeOperator_MLRunCancelSuspends(t *testing.T) {
 	ctx := context.Background()
 	ns := sharedNS()
 	quota := sharedQuota(t, ctx)
 	name := uniqueName("e2e-cancel")
 
 	// Long-running so we can observe suspension.
-	job := buildMLJobCR(ns, name, quota)
+	job := buildMLRunCR(ns, name, quota)
 	job.Spec.Roles[0].Template.Command = []string{"sh", "-c", "sleep 600"}
 	require.NoError(t, h.k8s.Create(ctx, job))
 	t.Cleanup(func() { _ = h.k8s.Delete(context.Background(), job) })
 
 	// Cancel by setting spec.runPolicy.suspend via an unstructured patch (avoids
 	// depending on the exact Go field tag).
-	eventually(t, h.cfg.CRProvisionTimeout, func() error { return setMLJobSuspend(ctx, ns, name, true) })
+	eventually(t, h.cfg.CRProvisionTimeout, func() error { return setMLRunSuspend(ctx, ns, name, true) })
 
 	// The backing batch/v1 Job is suspended.
 	eventually(t, h.cfg.PodReadyTimeout, func() error {
@@ -238,7 +238,7 @@ func TestComputeOperator_MLServiceScaleViaCR(t *testing.T) {
 	})
 }
 
-func TestComputeOperator_OverQuotaMLJobPends(t *testing.T) {
+func TestComputeOperator_OverQuotaMLRunPends(t *testing.T) {
 	ctx := context.Background()
 	tn := uniqueName("e2e-oq-tenant")
 	ns := tn
@@ -256,7 +256,7 @@ func TestComputeOperator_OverQuotaMLJobPends(t *testing.T) {
 	})
 
 	name := uniqueName("e2e-oq")
-	job := buildMLJobCR(ns, name, quota)
+	job := buildMLRunCR(ns, name, quota)
 	// Request more CPU than the quota allows.
 	job.Spec.Roles[0].Template.Resources = corev1.ResourceRequirements{
 		Requests: corev1.ResourceList{corev1.ResourceCPU: mustQty("4")},
@@ -282,25 +282,25 @@ func TestComputeOperator_OverQuotaMLJobPends(t *testing.T) {
 
 // ---- compute-operator helpers ----
 
-func buildMLJobCR(ns, name, quota string) *mljobv1.MLJob {
-	return &mljobv1.MLJob{
+func buildMLRunCR(ns, name, quota string) *mlrunv1.MLRun {
+	return &mlrunv1.MLRun{
 		// The operator validates that compute-service's identity labels are
-		// present (job-id is mandatory); tenant/quota mirror the namespace +
+		// present (run-id is mandatory); tenant/quota mirror the namespace +
 		// ElasticQuota. We use the CR name as the id.
 		ObjectMeta: objMeta(ns, name, map[string]string{
-			mljobv1.LabelJobID:  name,
-			mljobv1.LabelTenant: ns,
-			mljobv1.LabelQuota:  quota,
+			mlrunv1.LabelRunID:  name,
+			mlrunv1.LabelTenant: ns,
+			mlrunv1.LabelQuota:  quota,
 		}),
-		Spec: mljobv1.MLJobSpec{
-			Backend:    mljobv1.BackendSpec{Name: "native", Engine: "job"},
-			Scheduling: mljobv1.SchedulingSpec{Quota: quota},
-			Roles: []mljobv1.RoleSpec{{
-				Name:          mljobv1.DefaultRoleName,
+		Spec: mlrunv1.MLRunSpec{
+			Backend:    mlrunv1.BackendSpec{Name: "native", Engine: "job"},
+			Scheduling: mlrunv1.SchedulingSpec{Quota: quota},
+			Roles: []mlrunv1.RoleSpec{{
+				Name:          mlrunv1.DefaultRoleName,
 				Replicas:      1,
 				RestartPolicy: corev1.RestartPolicyNever,
-				Template: mljobv1.PodTemplateSubset{
-					Image:           h.cfg.JobImage,
+				Template: mlrunv1.PodTemplateSubset{
+					Image:           h.cfg.MLRunImage,
 					ImagePullPolicy: corev1.PullIfNotPresent,
 					Command:         []string{"sh", "-c", "echo hello"},
 				},
@@ -347,10 +347,10 @@ func firstPodMatching(ctx context.Context, ns, sub string) (*corev1.Pod, error) 
 	return nil, nil
 }
 
-// setMLJobSuspend patches spec.runPolicy.suspend on the MLJob via unstructured.
-func setMLJobSuspend(ctx context.Context, ns, name string, suspend bool) error {
+// setMLRunSuspend patches spec.runPolicy.suspend on the MLRun via unstructured.
+func setMLRunSuspend(ctx context.Context, ns, name string, suspend bool) error {
 	obj := &unstructured.Unstructured{}
-	obj.SetGroupVersionKind(mljobv1.GroupVersion.WithKind("MLJob"))
+	obj.SetGroupVersionKind(mlrunv1.GroupVersion.WithKind("MLRun"))
 	if err := h.k8s.Get(ctx, client.ObjectKey{Namespace: ns, Name: name}, obj); err != nil {
 		return err
 	}

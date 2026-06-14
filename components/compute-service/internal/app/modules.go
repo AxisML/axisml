@@ -6,11 +6,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	"github.com/axisml/axisml/components/compute-service/internal/config"
-	jobmod "github.com/axisml/axisml/components/compute-service/internal/job"
 	"github.com/axisml/axisml/components/compute-service/internal/kubeproxy"
+	jobmod "github.com/axisml/axisml/components/compute-service/internal/mlrun"
+	servicemod "github.com/axisml/axisml/components/compute-service/internal/mlservice"
 	"github.com/axisml/axisml/components/compute-service/internal/poolcache"
 	"github.com/axisml/axisml/components/compute-service/internal/server"
-	servicemod "github.com/axisml/axisml/components/compute-service/internal/service"
 	tenantmod "github.com/axisml/axisml/components/compute-service/internal/tenant"
 	trafficpolicymod "github.com/axisml/axisml/components/compute-service/internal/trafficpolicy"
 )
@@ -29,17 +29,17 @@ func BuildModules(
 
 	tenants := tenantmod.NewService(gormDB)
 	jobs := jobmod.NewService(gormDB, pools)
-	services := servicemod.NewService(gormDB, pools, mgr.GetClient())
+	services := servicemod.NewMLService(gormDB, pools, mgr.GetClient())
 	trafficPolicies := trafficpolicymod.NewService(gormDB, servicemod.NewRepository(gormDB))
 
 	tenantRecon := tenantmod.NewReconciler(gormDB, mgr.GetClient(), log.WithName("tenant-reconciler"), cfg.ReconcileInterval)
-	jobRecon := jobmod.NewReconciler(gormDB, mgr.GetClient(), log.WithName("job-reconciler"), cfg.ReconcileInterval)
-	serviceRecon := servicemod.NewReconciler(gormDB, mgr.GetClient(), log.WithName("service-reconciler"), cfg.ReconcileInterval)
+	jobRecon := jobmod.NewReconciler(gormDB, mgr.GetClient(), log.WithName("mlrun-reconciler"), cfg.ReconcileInterval)
+	serviceRecon := servicemod.NewReconciler(gormDB, mgr.GetClient(), log.WithName("mlservice-reconciler"), cfg.ReconcileInterval)
 	trafficRecon := trafficpolicymod.NewReconciler(gormDB, mgr.GetClient(), log.WithName("traffic-policy-reconciler"), cfg.ReconcileInterval)
 
 	tenantInf := tenantmod.NewInformer(gormDB, mgr, log.WithName("tenant-informer"))
-	jobInf := jobmod.NewInformer(gormDB, mgr, log.WithName("job-informer"))
-	serviceInf := servicemod.NewInformer(gormDB, mgr, log.WithName("service-informer"))
+	jobInf := jobmod.NewInformer(gormDB, mgr, log.WithName("mlrun-informer"))
+	serviceInf := servicemod.NewInformer(gormDB, mgr, log.WithName("mlservice-informer"))
 	trafficInf := trafficpolicymod.NewInformer(gormDB, mgr, log.WithName("traffic-policy-informer"))
 
 	kube, err := kubeproxy.New(mgr.GetConfig(), mgr.GetClient())
