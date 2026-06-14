@@ -43,7 +43,7 @@ info:
 
     A single user can hold role bindings in multiple tenants
     (`user_tenant_roles` is many-to-many). For day-to-day, tenant-implicit
-    endpoints — `/api/v1/mlruns`, `/api/v1/workspaces`, `/api/v1/mlservices`,
+    endpoints — `/api/v1/jobs`, `/api/v1/workspaces`, `/api/v1/mlservices`,
     `/api/v1/models`, `/api/v1/images`, `/api/v1/datasets` — the caller
     declares the active tenant via the `X-Axisml-Tenant` request header. The
     frontend's tenant selector is the canonical source; switching tenants
@@ -56,15 +56,16 @@ info:
       `400 active-tenant-required`.
     - **Create endpoints**: `X-Axisml-Tenant` is required; otherwise
       `400 active-tenant-required`.
-    - **Name-keyed detail endpoints** (e.g., `/api/v1/mlruns/{name}`,
+    - **Name-keyed detail endpoints** (e.g., `/api/v1/jobs/{name}`,
       `/api/v1/mlservices/{name}`, `/api/v1/workspaces/{name}`): the header
       disambiguates the name and is required; otherwise
       `400 active-tenant-required`. Mirrors compute-service's
       `(namespace, name)` addressing convention.
-    - **Tuple-keyed artifact detail endpoints**
-      (`/api/v1/models/{tenant}/{name}/{version}` and the image / dataset
-      analogues): the tuple already carries the tenant, so the header is
-      ignored. URLs remain copy-paste shareable across contexts.
+    - **Tuple-keyed artifact endpoints**
+      (`/api/v1/models/{tenant}/{name}` definitions and their
+      `/versions/{version}` sub-resources; image / dataset analogues): the
+      tuple already carries the tenant, so the header is ignored. URLs remain
+      copy-paste shareable across contexts.
     - **Tenant-management endpoints** (`/api/v1/tenants/{name}/quotas`,
       `/api/v1/tenants/{name}/members`, `/api/v1/tenants/{name}` itself):
       tenant lives in the URL path; the header is ignored.
@@ -102,16 +103,18 @@ tags:
     description: Per-tenant user ↔ role bindings.
   - name: Workspaces
     description: Long-running interactive dev containers (jupyter / code-server / ...).
-  - name: MLRuns
-    description: One-shot training / fine-tuning / batch jobs.
+  - name: Jobs
+    description: |
+      Reusable Job templates (Platform-owned definitions) and their Runs.
+      Each Run is a compute `MLRun` named `<job>-<n>`, listed/triggered live.
   - name: MLServices
     description: Long-running online inference services.
   - name: Models
-    description: Model artifact registry views (proxies artifacts, `kind=model`).
+    description: Model definitions (Platform-owned); versions proxy artifacts (`kind=model`).
   - name: Images
-    description: Container image artifact registry views (proxies artifacts, `kind=image`).
+    description: Image definitions (Platform-owned); versions proxy artifacts (`kind=image`).
   - name: Datasets
-    description: Dataset artifact registry views (proxies artifacts, `kind=dataset`).
+    description: Dataset definitions (Platform-owned); versions proxy artifacts (`kind=dataset`).
   - name: ResourcePools
     description: Cluster-scoped resource pools (admin-only writes; read by all).
   - name: ResourceUnits
@@ -1295,14 +1298,15 @@ paths:
   # Jobs
   # ============================================================================
 
-  /api/v1/mlruns:
+  /api/v1/jobs:
     post:
-      tags: [MLRuns]
-      operationId: createMLRun
-      summary: Submit a new compute job
+      tags: [Jobs]
+      operationId: createJob
+      summary: Create a Job (reusable template)
       description: |
-        Creates a job in the active tenant (`X-Axisml-Tenant`). Requires
-        `user@self`+. Documented at `components/platform.md §7.1`.
+        Creates a Job definition in the active tenant (`X-Axisml-Tenant`).
+        The definition holds a reusable template; no run is started. Requires
+        `user@self`+. Documented at `components/platform.md §4.2`.
       parameters:
         - $ref: '#/components/parameters/ActiveTenantHeader'
       requestBody:
@@ -1310,14 +1314,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/MLRunCreateRequest'
+              $ref: '#/components/schemas/JobCreateInput'
       responses:
         '201':
           description: Job created.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MLRun'
+                $ref: '#/components/schemas/JobView'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -1334,24 +1338,18 @@ paths:
           $ref: '#/components/responses/InternalServerError'
 
     get:
-      tags: [MLRuns]
-      operationId: listMLRuns
-      summary: List jobs
+      tags: [Jobs]
+      operationId: listJobs
+      summary: List Jobs
       description: |
         With `X-Axisml-Tenant`: scoped to that tenant; `user` callers are
         restricted to their own jobs (server-side `owner` filter);
         `tenant-admin@self` and `system-admin` see all jobs in the tenant.
-        Without the header: `system-admin` gets the cross-tenant view (all
-        jobs across all tenants, optionally narrowed by `?owner=`); non-admin
-        callers receive `400 active-tenant-required`. Documented at
-        `components/platform.md §7.1`.
+        Without the header: `system-admin` gets the cross-tenant view
+        (optionally narrowed by `?owner=`); non-admin callers receive
+        `400 active-tenant-required`. Documented at `components/platform.md §4.2`.
       parameters:
         - $ref: '#/components/parameters/ActiveTenantHeaderOptional'
-        - name: phase
-          in: query
-          required: false
-          schema:
-            $ref: '#/components/schemas/MLRunPhase'
         - name: owner
           in: query
           description: Admin-only filter.
@@ -1363,25 +1361,15 @@ paths:
           required: false
           schema:
             type: string
-        - name: backendName
-          in: query
-          required: false
-          schema:
-            type: string
-        - name: backendEngine
-          in: query
-          required: false
-          schema:
-            type: string
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Continue'
       responses:
         '200':
-          description: A page of jobs.
+          description: A page of Jobs.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MLRunList'
+                $ref: '#/components/schemas/JobList'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -1391,15 +1379,15 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/mlruns/{name}:
+  /api/v1/jobs/{name}:
     parameters:
       - $ref: '#/components/parameters/ActiveTenantHeader'
-      - $ref: '#/components/parameters/MLRunName'
+      - $ref: '#/components/parameters/JobName'
 
     get:
-      tags: [MLRuns]
-      operationId: getMLRun
-      summary: Get a job
+      tags: [Jobs]
+      operationId: getJob
+      summary: Get a Job
       description: |
         Resolves `{name}` within the active tenant (`X-Axisml-Tenant`).
         Requires `system-admin` OR `tenant-admin@self` OR
@@ -1410,7 +1398,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MLRun'
+                $ref: '#/components/schemas/JobView'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -1419,48 +1407,57 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    patch:
+      tags: [Jobs]
+      operationId: updateJob
+      summary: Edit a Job template / metadata
+      description: |
+        Updates the reusable template `spec` and/or display metadata. All fields
+        optional; provided fields replace. Editing `spec` affects only runs
+        triggered afterwards (existing runs are snapshots). Requires owner OR
+        `tenant-admin@self` OR `system-admin`. Documented at
+        `components/platform.md §4.2`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JobPatchInput'
+      responses:
+        '200':
+          description: Job updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobView'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
     delete:
-      tags: [MLRuns]
-      operationId: deleteMLRun
-      summary: Delete a job
+      tags: [Jobs]
+      operationId: deleteJob
+      summary: Delete a Job (cascade)
       description: |
-        Requires owner OR `tenant-admin@self` OR `system-admin`. Idempotent.
+        If any Run is in an active (non-terminal) phase the request is rejected
+        with `409 job-has-active-runs`; otherwise all (terminal) Runs are cascade
+        soft-deleted, then the definition. Requires owner OR `tenant-admin@self` OR
+        `system-admin`. Documented at `components/platform.md §4.2`.
       responses:
         '204':
-          description: Job deleted.
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-  /api/v1/mlruns/{name}/cancel:
-    parameters:
-      - $ref: '#/components/parameters/ActiveTenantHeader'
-      - $ref: '#/components/parameters/MLRunName'
-    post:
-      tags: [MLRuns]
-      operationId: cancelMLRun
-      summary: Cancel a running job
-      description: |
-        Requires owner OR `tenant-admin@self` OR `system-admin`. Cannot
-        cancel jobs in `Creating` (compute returns 409). Documented at
-        `components/platform.md §7.2`.
-      responses:
-        '200':
-          description: Cancel request accepted.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MLRun'
+          description: Job (and its terminal Runs) deleted.
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -1474,17 +1471,182 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/mlruns/{name}/pods:
+  /api/v1/jobs/{name}/runs:
     parameters:
       - $ref: '#/components/parameters/ActiveTenantHeader'
-      - $ref: '#/components/parameters/MLRunName'
-    get:
-      tags: [MLRuns]
-      operationId: listMLRunPods
-      summary: List Pods belonging to a job
+      - $ref: '#/components/parameters/JobName'
+
+    post:
+      tags: [Jobs]
+      operationId: triggerRun
+      summary: Trigger a Run from a Job
       description: |
-        Proxies `compute.ListJobPods`. Each Pod carries `replicaIndex` and
-        `role` when the backend produces them. Requires same role as GET detail.
+        Snapshots the Job template (⊕ optional overrides) into a new compute
+        `MLRun` named `<job>-<n>` (n = max existing run number + 1, with 409
+        retry) labelled `axisml.io/job=<job>`. Referenced artifact versions are
+        pre-checked `Ready` (else `400`). Omit the body for a plain re-run.
+        Requires `user@self`+. Documented at `components/platform.md §4.2`.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RunTriggerInput'
+      responses:
+        '201':
+          description: Run triggered.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunView'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    get:
+      tags: [Jobs]
+      operationId: listRuns
+      summary: List Runs of a Job (live)
+      description: |
+        Lists the Job's Runs live from compute
+        (`ListMLRuns(labelSelector=axisml.io/job=<job>)`). Requires same role as
+        GET Job detail. Documented at `components/platform.md §4.2`.
+      parameters:
+        - name: phase
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/RunPhase'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Continue'
+      responses:
+        '200':
+          description: A page of Runs.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/jobs/{name}/runs/{run}:
+    parameters:
+      - $ref: '#/components/parameters/ActiveTenantHeader'
+      - $ref: '#/components/parameters/JobName'
+      - $ref: '#/components/parameters/RunName'
+
+    get:
+      tags: [Jobs]
+      operationId: getRun
+      summary: Get a Run
+      description: |
+        Proxies `compute.GetMLRun(<job>-<n>)`. Requires same role as GET Job
+        detail.
+      responses:
+        '200':
+          description: Run detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunView'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags: [Jobs]
+      operationId: deleteRun
+      summary: Delete a Run
+      description: |
+        Proxies `compute.DeleteMLRun(<job>-<n>)`. The MLRun spec is immutable;
+        deletion is terminal. Requires owner OR `tenant-admin@self` OR
+        `system-admin`. Idempotent.
+      responses:
+        '204':
+          description: Run deleted.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/jobs/{name}/runs/{run}/cancel:
+    parameters:
+      - $ref: '#/components/parameters/ActiveTenantHeader'
+      - $ref: '#/components/parameters/JobName'
+      - $ref: '#/components/parameters/RunName'
+    post:
+      tags: [Jobs]
+      operationId: cancelRun
+      summary: Cancel a running Run
+      description: |
+        Proxies `compute.CancelMLRun(<job>-<n>)`. Requires owner OR
+        `tenant-admin@self` OR `system-admin`. Cannot cancel runs in `Creating`
+        (compute returns 409). Documented at `components/platform.md §4.2`.
+      responses:
+        '200':
+          description: Cancel request accepted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunView'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/jobs/{name}/runs/{run}/pods:
+    parameters:
+      - $ref: '#/components/parameters/ActiveTenantHeader'
+      - $ref: '#/components/parameters/JobName'
+      - $ref: '#/components/parameters/RunName'
+    get:
+      tags: [Jobs]
+      operationId: listRunPods
+      summary: List Pods belonging to a Run
+      description: |
+        Proxies `compute.ListMLRunPods(<job>-<n>)`. Each Pod carries
+        `replicaIndex` and `role` when the backend produces them. Requires same
+        role as GET Run detail.
       responses:
         '200':
           description: Pod list.
@@ -1503,19 +1665,21 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/mlruns/{name}/events:
+  /api/v1/jobs/{name}/runs/{run}/events:
     parameters:
       - $ref: '#/components/parameters/ActiveTenantHeader'
-      - $ref: '#/components/parameters/MLRunName'
+      - $ref: '#/components/parameters/JobName'
+      - $ref: '#/components/parameters/RunName'
     get:
-      tags: [MLRuns]
-      operationId: getMLRunEvents
-      summary: List job-level Kubernetes events
+      tags: [Jobs]
+      operationId: listRunEvents
+      summary: List Run-level Kubernetes events
       description: |
-        Proxies `compute.ListJobEvents`. Returns events whose `involvedObject`
-        references the MLRun CR itself or any derived PodGroup. Pod-level
-        events are NOT included; use `/api/v1/mlruns/{name}/pods/{pod}/events`.
-        Requires same role as GET detail.
+        Proxies `compute.ListMLRunEvents(<job>-<n>)`. Returns events whose
+        `involvedObject` references the MLRun CR itself or any derived PodGroup.
+        Pod-level events are NOT included; use
+        `/api/v1/jobs/{name}/runs/{run}/pods/{pod}/events`. Requires same role as
+        GET Run detail.
       responses:
         '200':
           description: Job-level event list.
@@ -1534,19 +1698,20 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/mlruns/{name}/pods/{pod}/logs:
+  /api/v1/jobs/{name}/runs/{run}/pods/{pod}/logs:
     parameters:
       - $ref: '#/components/parameters/ActiveTenantHeader'
-      - $ref: '#/components/parameters/MLRunName'
+      - $ref: '#/components/parameters/JobName'
+      - $ref: '#/components/parameters/RunName'
       - $ref: '#/components/parameters/PodName'
     get:
-      tags: [MLRuns]
-      operationId: getMLRunPodLogs
-      summary: Fetch or stream a job pod's logs
+      tags: [Jobs]
+      operationId: getRunPodLogs
+      summary: Fetch or stream a Run pod's logs
       description: |
-        Proxies `compute.GetJobPodLogs`. When `follow=true`, response is an SSE
-        `text/event-stream` of log lines. Otherwise a chunked `text/plain`
-        stream. Requires same role as GET detail.
+        Proxies `compute.GetMLRunPodLogs(<job>-<n>)`. When `follow=true`, response
+        is an SSE `text/event-stream` of log lines. Otherwise a chunked
+        `text/plain` stream. Requires same role as GET Run detail.
       parameters:
         - $ref: '#/components/parameters/LogContainer'
         - $ref: '#/components/parameters/LogTailLines'
@@ -1575,17 +1740,18 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/mlruns/{name}/pods/{pod}/events:
+  /api/v1/jobs/{name}/runs/{run}/pods/{pod}/events:
     parameters:
       - $ref: '#/components/parameters/ActiveTenantHeader'
-      - $ref: '#/components/parameters/MLRunName'
+      - $ref: '#/components/parameters/JobName'
+      - $ref: '#/components/parameters/RunName'
       - $ref: '#/components/parameters/PodName'
     get:
-      tags: [MLRuns]
-      operationId: listMLRunPodEvents
-      summary: List K8s events for one pod of a job
+      tags: [Jobs]
+      operationId: listRunPodEvents
+      summary: List K8s events for one pod of a Run
       description: |
-        Proxies `compute.ListJobPodEvents`. Returns events whose
+        Proxies `compute.ListMLRunPodEvents(<job>-<n>)`. Returns events whose
         `involvedObject` references the named pod only.
       responses:
         '200':
@@ -2084,17 +2250,195 @@ paths:
   # ============================================================================
 
   /api/v1/models:
+    get:
+      tags: [Models]
+      operationId: listModelDefinitions
+      summary: List model definitions
+      description: |
+        Lists model definitions (Platform-owned). With `X-Axisml-Tenant`:
+        scoped to that tenant. Without the header: `system-admin` gets the
+        cross-tenant view (merged with `axisml-system` public definitions); non-admin
+        callers receive `400 active-tenant-required`. Documented at
+        `components/platform.md §4.5`.
+      parameters:
+        - $ref: '#/components/parameters/ActiveTenantHeaderOptional'
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Continue'
+      responses:
+        '200':
+          description: A page of model definitions.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactDefinitionList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/models/{tenant}/{name}:
+    parameters:
+      - $ref: '#/components/parameters/TenantPathParam'
+      - $ref: '#/components/parameters/ArtifactName'
+
+    post:
+      tags: [Models]
+      operationId: createModelDefinition
+      summary: Create a model definition
+      description: |
+        Creates a model definition (name-level); no version is uploaded.
+        Requires `user@self`+. Documented at `components/platform.md §4.5.1`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ArtifactDefinitionCreateInput'
+      responses:
+        '201':
+          description: Model definition created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactDefinitionView'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    get:
+      tags: [Models]
+      operationId: getModelDefinition
+      summary: Get a model definition
+      description: Resolves the model definition `(tenant, name)`.
+      responses:
+        '200':
+          description: Model definition detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactDefinitionView'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    patch:
+      tags: [Models]
+      operationId: updateModelDefinition
+      summary: Edit model definition metadata
+      description: |
+        Updates `displayName` / `description` / `labels` / `annotations` / definition
+        `spec` (name-level business metadata). Requires owner OR
+        `tenant-admin@self` OR `system-admin`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ArtifactDefinitionPatchInput'
+      responses:
+        '200':
+          description: Model definition updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactDefinitionView'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags: [Models]
+      operationId: deleteModelDefinition
+      summary: Delete a model definition (cascade)
+      description: |
+        Cascade soft-deletes all versions of the definition (proxying
+        `artifacts.DeleteArtifact` per version), then the definition. Requires owner
+        OR `tenant-admin@self` OR `system-admin`. Documented at
+        `components/platform.md §4.5.1`.
+      responses:
+        '204':
+          description: Model definition and its versions deleted.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/models/{tenant}/{name}/versions:
+    parameters:
+      - $ref: '#/components/parameters/TenantPathParam'
+      - $ref: '#/components/parameters/ArtifactName'
+
+    get:
+      tags: [Models]
+      operationId: listModelVersions
+      summary: List versions of a model definition (live)
+      description: |
+        Lists versions live from artifacts
+        (`ListArtifactsByKind(kind=model, name)`). Documented at
+        `components/platform.md §4.5.1`.
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/ModelStatus'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Continue'
+      responses:
+        '200':
+          description: A page of model versions.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
     post:
       tags: [Models]
       operationId: initiateModel
-      summary: Initiate a model artifact upload
+      summary: Initiate a model version upload
       description: |
-        Proxies `artifacts.InitiateUpload(kind=model)` against the active
-        tenant (`X-Axisml-Tenant`). Requires `user@self`+. Documented at
-        `components/platform.md §6.2` ("no dedicated model.md exists yet —
-        see overview.md §3 / §6.2").
-      parameters:
-        - $ref: '#/components/parameters/ActiveTenantHeader'
+        Proxies `artifacts.InitiateUpload(kind=model, name)` against the active
+        tenant. Requires `user@self`+. Documented at `components/platform.md §4.5.1`.
       requestBody:
         required: true
         content:
@@ -2123,44 +2467,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-    get:
-      tags: [Models]
-      operationId: listModels
-      summary: List models
-      description: |
-        With `X-Axisml-Tenant`: scoped to that tenant. Without the header:
-        `system-admin` gets the cross-tenant view; non-admin callers receive
-        `400 active-tenant-required`. Documented at
-        `components/platform.md §3 / §6.2`.
-      parameters:
-        - $ref: '#/components/parameters/ActiveTenantHeaderOptional'
-        - name: q
-          in: query
-          required: false
-          schema:
-            type: string
-        - name: status
-          in: query
-          required: false
-          schema:
-            $ref: '#/components/schemas/ModelStatus'
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/Continue'
-      responses:
-        '200':
-          description: A page of models.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ModelList'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-  /api/v1/models/{tenant}/{name}/{version}:
+  /api/v1/models/{tenant}/{name}/versions/{version}:
     parameters:
       - $ref: '#/components/parameters/TenantPathParam'
       - $ref: '#/components/parameters/ArtifactName'
@@ -2255,7 +2562,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/models/{tenant}/{name}/{version}/complete:
+  /api/v1/models/{tenant}/{name}/versions/{version}/complete:
     parameters:
       - $ref: '#/components/parameters/TenantPathParam'
       - $ref: '#/components/parameters/ArtifactName'
@@ -2295,21 +2602,238 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /api/v1/models/{tenant}/{name}/versions/{version}/resolve:
+    parameters:
+      - $ref: '#/components/parameters/TenantPathParam'
+      - $ref: '#/components/parameters/ArtifactName'
+      - $ref: '#/components/parameters/ArtifactVersion'
+    get:
+      tags: [Models]
+      operationId: resolveModel
+      summary: Resolve download credentials for a model version
+      description: |
+        Proxies `artifacts.Resolve(usage=download)`. Returns the storage URI and
+        short-TTL pull credentials. Requires `user@self`+. Documented at
+        `components/platform.md §4.5.1`.
+      responses:
+        '200':
+          description: Resolved download target.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactResolveResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '410':
+          $ref: '#/components/responses/Gone'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   # ============================================================================
   # Images
   # ============================================================================
 
   /api/v1/images:
+    get:
+      tags: [Images]
+      operationId: listImageDefinitions
+      summary: List image definitions
+      description: |
+        Lists image definitions (Platform-owned). With `X-Axisml-Tenant`:
+        scoped to that tenant. Without the header: `system-admin` gets the
+        cross-tenant view (merged with `axisml-system` public definitions); non-admin
+        callers receive `400 active-tenant-required`. Documented at
+        `components/platform.md §4.5`.
+      parameters:
+        - $ref: '#/components/parameters/ActiveTenantHeaderOptional'
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: purpose
+          in: query
+          required: false
+          description: Filter by definition `spec.purpose`.
+          schema:
+            type: string
+            enum: [training, inference, dev]
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Continue'
+      responses:
+        '200':
+          description: A page of image definitions.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactDefinitionList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/images/{tenant}/{name}:
+    parameters:
+      - $ref: '#/components/parameters/TenantPathParam'
+      - $ref: '#/components/parameters/ArtifactName'
+
+    post:
+      tags: [Images]
+      operationId: createImageDefinition
+      summary: Create an image definition
+      description: |
+        Creates an image definition (name-level); no version is uploaded.
+        Requires `user@self`+. Documented at `components/platform.md §4.5.1`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ArtifactDefinitionCreateInput'
+      responses:
+        '201':
+          description: Image definition created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactDefinitionView'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    get:
+      tags: [Images]
+      operationId: getImageDefinition
+      summary: Get an image definition
+      description: Resolves the image definition `(tenant, name)`.
+      responses:
+        '200':
+          description: Image definition detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactDefinitionView'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    patch:
+      tags: [Images]
+      operationId: updateImageDefinition
+      summary: Edit image definition metadata
+      description: |
+        Updates `displayName` / `description` / `labels` / `annotations` / definition
+        `spec` (name-level business metadata). Requires owner OR
+        `tenant-admin@self` OR `system-admin`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ArtifactDefinitionPatchInput'
+      responses:
+        '200':
+          description: Image definition updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactDefinitionView'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags: [Images]
+      operationId: deleteImageDefinition
+      summary: Delete an image definition (cascade)
+      description: |
+        Cascade soft-deletes all versions of the definition (proxying
+        `artifacts.DeleteArtifact` per version), then the definition. Requires owner
+        OR `tenant-admin@self` OR `system-admin`. Documented at
+        `components/platform.md §4.5.1`.
+      responses:
+        '204':
+          description: Image definition and its versions deleted.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/images/{tenant}/{name}/versions:
+    parameters:
+      - $ref: '#/components/parameters/TenantPathParam'
+      - $ref: '#/components/parameters/ArtifactName'
+
+    get:
+      tags: [Images]
+      operationId: listImageVersions
+      summary: List versions of an image definition (live)
+      description: |
+        Lists versions live from artifacts
+        (`ListArtifactsByKind(kind=image, name)`). Documented at
+        `components/platform.md §4.5.1`.
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/ImageStatus'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Continue'
+      responses:
+        '200':
+          description: A page of image versions.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImageList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
     post:
       tags: [Images]
       operationId: initiateImage
-      summary: Initiate an image artifact upload
+      summary: Initiate an image version upload
       description: |
-        Proxies `artifacts.InitiateUpload(kind=image)` against the active
-        tenant (`X-Axisml-Tenant`). Requires `user@self`+. Documented at
-        `components/platform.md §4.5`.
-      parameters:
-        - $ref: '#/components/parameters/ActiveTenantHeader'
+        Proxies `artifacts.InitiateUpload(kind=image, name)` against the active
+        tenant. Requires `user@self`+. Documented at `components/platform.md §4.5.1`.
       requestBody:
         required: true
         content:
@@ -2338,51 +2862,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-    get:
-      tags: [Images]
-      operationId: listImages
-      summary: List images
-      description: |
-        With `X-Axisml-Tenant`: scoped to that tenant. Without the header:
-        `system-admin` gets the cross-tenant view; non-admin callers receive
-        `400 active-tenant-required`. Documented at
-        `components/platform.md §4.5`.
-      parameters:
-        - $ref: '#/components/parameters/ActiveTenantHeaderOptional'
-        - name: q
-          in: query
-          required: false
-          schema:
-            type: string
-        - name: status
-          in: query
-          required: false
-          schema:
-            $ref: '#/components/schemas/ImageStatus'
-        - name: purpose
-          in: query
-          required: false
-          description: Filter by `spec.purpose`.
-          schema:
-            type: string
-            enum: [training, inference, dev]
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/Continue'
-      responses:
-        '200':
-          description: A page of images.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ImageList'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-  /api/v1/images/{tenant}/{name}/{version}:
+  /api/v1/images/{tenant}/{name}/versions/{version}:
     parameters:
       - $ref: '#/components/parameters/TenantPathParam'
       - $ref: '#/components/parameters/ArtifactName'
@@ -2475,7 +2955,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/images/{tenant}/{name}/{version}/complete:
+  /api/v1/images/{tenant}/{name}/versions/{version}/complete:
     parameters:
       - $ref: '#/components/parameters/TenantPathParam'
       - $ref: '#/components/parameters/ArtifactName'
@@ -2515,21 +2995,238 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /api/v1/images/{tenant}/{name}/versions/{version}/resolve:
+    parameters:
+      - $ref: '#/components/parameters/TenantPathParam'
+      - $ref: '#/components/parameters/ArtifactName'
+      - $ref: '#/components/parameters/ArtifactVersion'
+    get:
+      tags: [Images]
+      operationId: resolveImage
+      summary: Resolve download credentials for an image version
+      description: |
+        Proxies `artifacts.Resolve(usage=download)`. Returns the storage URI and
+        short-TTL pull credentials. Requires `user@self`+. Documented at
+        `components/platform.md §4.5.1`.
+      responses:
+        '200':
+          description: Resolved download target.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactResolveResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '410':
+          $ref: '#/components/responses/Gone'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   # ============================================================================
   # Datasets
   # ============================================================================
 
   /api/v1/datasets:
+    get:
+      tags: [Datasets]
+      operationId: listDatasetDefinitions
+      summary: List dataset definitions
+      description: |
+        Lists dataset definitions (Platform-owned). With `X-Axisml-Tenant`:
+        scoped to that tenant. Without the header: `system-admin` gets the
+        cross-tenant view (merged with `axisml-system` public definitions); non-admin
+        callers receive `400 active-tenant-required`. Documented at
+        `components/platform.md §4.5`.
+      parameters:
+        - $ref: '#/components/parameters/ActiveTenantHeaderOptional'
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: format
+          in: query
+          required: false
+          description: Filter by definition `spec.format`.
+          schema:
+            type: string
+            enum: [parquet, jsonl, csv, webdataset, tfrecord, custom]
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Continue'
+      responses:
+        '200':
+          description: A page of dataset definitions.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactDefinitionList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/datasets/{tenant}/{name}:
+    parameters:
+      - $ref: '#/components/parameters/TenantPathParam'
+      - $ref: '#/components/parameters/ArtifactName'
+
+    post:
+      tags: [Datasets]
+      operationId: createDatasetDefinition
+      summary: Create a dataset definition
+      description: |
+        Creates a dataset definition (name-level); no version is uploaded.
+        Requires `user@self`+. Documented at `components/platform.md §4.5.1`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ArtifactDefinitionCreateInput'
+      responses:
+        '201':
+          description: Dataset definition created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactDefinitionView'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    get:
+      tags: [Datasets]
+      operationId: getDatasetDefinition
+      summary: Get a dataset definition
+      description: Resolves the dataset definition `(tenant, name)`.
+      responses:
+        '200':
+          description: Dataset definition detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactDefinitionView'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    patch:
+      tags: [Datasets]
+      operationId: updateDatasetDefinition
+      summary: Edit dataset definition metadata
+      description: |
+        Updates `displayName` / `description` / `labels` / `annotations` / definition
+        `spec` (name-level business metadata). Requires owner OR
+        `tenant-admin@self` OR `system-admin`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ArtifactDefinitionPatchInput'
+      responses:
+        '200':
+          description: Dataset definition updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactDefinitionView'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags: [Datasets]
+      operationId: deleteDatasetDefinition
+      summary: Delete a dataset definition (cascade)
+      description: |
+        Cascade soft-deletes all versions of the definition (proxying
+        `artifacts.DeleteArtifact` per version), then the definition. Requires owner
+        OR `tenant-admin@self` OR `system-admin`. Documented at
+        `components/platform.md §4.5.1`.
+      responses:
+        '204':
+          description: Dataset definition and its versions deleted.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/datasets/{tenant}/{name}/versions:
+    parameters:
+      - $ref: '#/components/parameters/TenantPathParam'
+      - $ref: '#/components/parameters/ArtifactName'
+
+    get:
+      tags: [Datasets]
+      operationId: listDatasetVersions
+      summary: List versions of a dataset definition (live)
+      description: |
+        Lists versions live from artifacts
+        (`ListArtifactsByKind(kind=dataset, name)`). Documented at
+        `components/platform.md §4.5.1`.
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/DatasetStatus'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Continue'
+      responses:
+        '200':
+          description: A page of dataset versions.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatasetList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
     post:
       tags: [Datasets]
       operationId: initiateDataset
-      summary: Initiate a dataset artifact upload
+      summary: Initiate a dataset version upload
       description: |
-        Proxies `artifacts.InitiateUpload(kind=dataset)` against the active
-        tenant (`X-Axisml-Tenant`). Requires `user@self`+. Documented at
-        `components/platform.md §4.5`.
-      parameters:
-        - $ref: '#/components/parameters/ActiveTenantHeader'
+        Proxies `artifacts.InitiateUpload(kind=dataset, name)` against the active
+        tenant. Requires `user@self`+. Documented at `components/platform.md §4.5.1`.
       requestBody:
         required: true
         content:
@@ -2558,51 +3255,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-    get:
-      tags: [Datasets]
-      operationId: listDatasets
-      summary: List datasets
-      description: |
-        With `X-Axisml-Tenant`: scoped to that tenant. Without the header:
-        `system-admin` gets the cross-tenant view; non-admin callers receive
-        `400 active-tenant-required`. Documented at
-        `components/platform.md §4.5`.
-      parameters:
-        - $ref: '#/components/parameters/ActiveTenantHeaderOptional'
-        - name: q
-          in: query
-          required: false
-          schema:
-            type: string
-        - name: status
-          in: query
-          required: false
-          schema:
-            $ref: '#/components/schemas/DatasetStatus'
-        - name: format
-          in: query
-          required: false
-          description: Filter by `spec.format`.
-          schema:
-            type: string
-            enum: [parquet, jsonl, csv, webdataset, tfrecord, custom]
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/Continue'
-      responses:
-        '200':
-          description: A page of datasets.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DatasetList'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-  /api/v1/datasets/{tenant}/{name}/{version}:
+  /api/v1/datasets/{tenant}/{name}/versions/{version}:
     parameters:
       - $ref: '#/components/parameters/TenantPathParam'
       - $ref: '#/components/parameters/ArtifactName'
@@ -2695,7 +3348,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/datasets/{tenant}/{name}/{version}/complete:
+  /api/v1/datasets/{tenant}/{name}/versions/{version}/complete:
     parameters:
       - $ref: '#/components/parameters/TenantPathParam'
       - $ref: '#/components/parameters/ArtifactName'
@@ -2733,6 +3386,37 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/datasets/{tenant}/{name}/versions/{version}/resolve:
+    parameters:
+      - $ref: '#/components/parameters/TenantPathParam'
+      - $ref: '#/components/parameters/ArtifactName'
+      - $ref: '#/components/parameters/ArtifactVersion'
+    get:
+      tags: [Datasets]
+      operationId: resolveDataset
+      summary: Resolve download credentials for a dataset version
+      description: |
+        Proxies `artifacts.Resolve(usage=download)`. Returns the storage URI and
+        short-TTL S3 STS credentials. Requires `user@self`+. Documented at
+        `components/platform.md §4.5.1`.
+      responses:
+        '200':
+          description: Resolved download target.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactResolveResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '410':
+          $ref: '#/components/responses/Gone'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -3295,11 +3979,23 @@ components:
         minLength: 1
         maxLength: 63
 
-    MLRunName:
+    JobName:
       name: name
       in: path
       required: true
-      description: Job name (DNS-1123, unique within the tenant namespace).
+      description: Job name (DNS-1123, unique within the tenant).
+      schema:
+        type: string
+        pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+        minLength: 1
+        maxLength: 63
+
+    RunName:
+      name: run
+      in: path
+      required: true
+      description: |
+        Run name, of the form `<job>-<n>` — the underlying compute MLRun name.
       schema:
         type: string
         pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
@@ -4451,14 +5147,18 @@ components:
     # Jobs
     # ------------------------------------------------------------------
 
-    MLRunPhase:
+    RunPhase:
       type: string
+      description: |
+        Run (compute MLRun) phase. The active (non-terminal) phases —
+        Creating / Pending / Running / Canceling — block Job-definition deletion.
       enum:
         - Creating
         - Pending
         - Running
         - Succeeded
         - Failed
+        - Canceling
         - Cancelled
         - Deleting
         - Deleted
@@ -4576,8 +5276,11 @@ components:
           type: integer
           minimum: 1
 
-    MLRun:
+    RunView:
       type: object
+      description: |
+        A single Run = the compute `MLRun` produced by triggering a Job
+        (`<job>-<n>`). Surfaced read-only; phase / status are live from compute.
       required:
         - namespace
         - tenantName
@@ -4590,7 +5293,7 @@ components:
         id:
           type: string
           format: uuid
-          description: Compute `jobs.id` (uuid) when available.
+          description: Compute `mlruns.id` (uuid) when available.
         namespace:
           type: string
         tenantName:
@@ -4601,6 +5304,12 @@ components:
           type: string
         name:
           type: string
+        jobName:
+          type: string
+          description: Parent Job name; the run is named `<jobName>-<runNumber>`.
+        runNumber:
+          type: integer
+          description: Sequence number within the parent Job.
         displayName:
           type: string
         description:
@@ -4640,7 +5349,7 @@ components:
         spec:
           $ref: '#/components/schemas/MLRunSpec'
         phase:
-          $ref: '#/components/schemas/MLRunPhase'
+          $ref: '#/components/schemas/RunPhase'
         message:
           type: string
         startedAt:
@@ -4662,10 +5371,10 @@ components:
       type: object
       description: |
         Mirror of `apis/compute-service.yaml#/components/schemas/MLRunSpec`
-        (pass-through from compute). Surfaced on `Job` so the UI can prefill
-        the "resubmit" form and render a complete YAML view. The authoritative
-        shape and validation rules live in
-        `components/compute-operator.md §4.1.1` and `apis/compute-service.yaml`.
+        (pass-through from compute). Surfaced on `RunView` so the UI can render
+        a complete YAML view of a run. The authoritative shape and validation
+        rules live in `components/compute-operator.md §4.1.1` and
+        `apis/compute-service.yaml`.
       properties:
         backend:
           $ref: '#/components/schemas/Backend'
@@ -4682,14 +5391,14 @@ components:
         runPolicy:
           $ref: '#/components/schemas/RunPolicy'
 
-    MLRunList:
+    RunList:
       type: object
       required: [items, count]
       properties:
         items:
           type: array
           items:
-            $ref: '#/components/schemas/MLRun'
+            $ref: '#/components/schemas/RunView'
         count:
           type: integer
           minimum: 0
@@ -4698,14 +5407,124 @@ components:
         partial:
           type: boolean
 
-    MLRunCreateRequest:
+    # ------------------------------------------------------------------
+    # Jobs (Platform-owned definitions) + Run trigger
+    # ------------------------------------------------------------------
+
+    ArtifactRef:
       type: object
+      description: Reference to an artifact version consumed by a run.
+      required: [kind, name, version]
+      properties:
+        kind:
+          type: string
+          enum: [image, model, dataset]
+        name:
+          type: string
+        version:
+          type: string
+
+    JobSpec:
+      type: object
+      description: |
+        Reusable Job template. A run snapshots this (⊕ trigger-time overrides)
+        into a compute MLRun. `scheduling` carries names only — compute expands
+        pool/unit and assembles the ElasticQuota name. Authoritative MLRun spec
+        shape lives in `components/compute-operator.md §4.1.1`.
+      required: [backend, roles]
+      properties:
+        backend:
+          $ref: '#/components/schemas/Backend'
+        poolName:
+          type: string
+          description: ResourcePool name (CR `metadata.name`). compute looks it up via Informer cache and expands.
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          maxLength: 40
+        unitName:
+          type: string
+          description: Unit name inside the chosen pool's `spec.units[]`. compute expands `(poolName, unitName)` at trigger time.
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          maxLength: 40
+        quota:
+          type: string
+        roles:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/MLRunRole'
+        runPolicy:
+          $ref: '#/components/schemas/RunPolicy'
+        artifacts:
+          type: array
+          description: Artifact references (image / model / dataset) by name+version.
+          items:
+            $ref: '#/components/schemas/ArtifactRef'
+
+    JobView:
+      type: object
+      description: A reusable Job template (Platform-owned).
       required:
+        - id
+        - namespace
+        - tenantName
         - name
-        - backend
-        - poolName
-        - unitName
-        - roles
+        - owner
+        - spec
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Platform `jobs.id`.
+        namespace:
+          type: string
+          description: Tenant name (= partition key).
+        tenantName:
+          type: string
+        name:
+          type: string
+        displayName:
+          type: string
+        description:
+          type: string
+        owner:
+          type: string
+        ownerId:
+          type: string
+          format: uuid
+        labels:
+          $ref: '#/components/schemas/StringMap'
+        annotations:
+          $ref: '#/components/schemas/StringMap'
+        spec:
+          $ref: '#/components/schemas/JobSpec'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    JobList:
+      type: object
+      required: [items, count]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/JobView'
+        count:
+          type: integer
+          minimum: 0
+        continueToken:
+          type: string
+        partial:
+          type: boolean
+
+    JobCreateInput:
+      type: object
+      required: [name, spec]
       properties:
         name:
           type: string
@@ -4718,27 +5537,81 @@ components:
         description:
           type: string
           maxLength: 1000
-        backend:
-          $ref: '#/components/schemas/Backend'
+        labels:
+          $ref: '#/components/schemas/StringMap'
+        annotations:
+          $ref: '#/components/schemas/StringMap'
+        spec:
+          $ref: '#/components/schemas/JobSpec'
+
+    JobPatchInput:
+      type: object
+      description: |
+        All fields optional; provided fields replace. Editing `spec` affects only
+        runs triggered afterwards (existing runs are immutable snapshots).
+      properties:
+        displayName:
+          type: string
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 1000
+        labels:
+          $ref: '#/components/schemas/StringMap'
+        annotations:
+          $ref: '#/components/schemas/StringMap'
+        spec:
+          $ref: '#/components/schemas/JobSpec'
+
+    RunTriggerInput:
+      type: object
+      description: |
+        Optional overrides applied on top of the Job template when triggering a
+        run. Omit the body (or all fields) for a plain re-run. The whitelist is
+        deliberately narrow: `backend.{name,engine}` and role topology cannot be
+        overridden — edit the Job template instead.
+      properties:
+        displayName:
+          type: string
+          maxLength: 100
+        labels:
+          $ref: '#/components/schemas/StringMap'
+        annotations:
+          $ref: '#/components/schemas/StringMap'
         poolName:
           type: string
-          description: ResourcePool name (CR `metadata.name`). compute looks it up via Informer cache and expands.
           pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
           maxLength: 40
         unitName:
           type: string
-          description: Unit name inside the chosen pool's `spec.units[]`. compute expands `(poolName, unitName)` at create time.
           pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
           maxLength: 40
         quota:
           type: string
+        resources:
+          $ref: '#/components/schemas/ResourceMap'
+        artifacts:
+          type: array
+          description: Swap artifact versions referenced by the template.
+          items:
+            $ref: '#/components/schemas/ArtifactRef'
         roles:
           type: array
-          minItems: 1
+          description: Per-role hyperparameter overrides (args / env only).
           items:
-            $ref: '#/components/schemas/MLRunRole'
-        runPolicy:
-          $ref: '#/components/schemas/RunPolicy'
+            type: object
+            required: [name]
+            properties:
+              name:
+                type: string
+              args:
+                type: array
+                items:
+                  type: string
+              env:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EnvVar'
 
     # ------------------------------------------------------------------
     # Services
@@ -5156,15 +6029,10 @@ components:
     ModelInitiateRequest:
       type: object
       description: |
-        Target tenant comes from the `X-Axisml-Tenant` request header (see
-        `info.description` "Active tenant").
-      required: [name, version]
+        Target tenant and artifact name come from the URL path
+        (`/{tenant}/{name}/versions`).
+      required: [version]
       properties:
-        name:
-          type: string
-          pattern: '^[a-z0-9]([-a-z0-9._]*[a-z0-9])?$'
-          minLength: 1
-          maxLength: 100
         version:
           type: string
           minLength: 1
@@ -5228,6 +6096,137 @@ components:
           $ref: '#/components/schemas/StringMap'
         annotations:
           $ref: '#/components/schemas/StringMap'
+
+    # ------------------------------------------------------------------
+    # Artifact definitions (Platform-owned definitions; shared across kinds)
+    # ------------------------------------------------------------------
+
+    ArtifactDefinitionCreateInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          pattern: '^[a-z0-9]([-a-z0-9._]*[a-z0-9])?$'
+          minLength: 1
+          maxLength: 128
+        displayName:
+          type: string
+          maxLength: 256
+        description:
+          type: string
+          maxLength: 4096
+        labels:
+          $ref: '#/components/schemas/StringMap'
+        annotations:
+          $ref: '#/components/schemas/StringMap'
+        spec:
+          type: object
+          additionalProperties: true
+          description: |
+            Name-level business metadata (e.g. model `framework`/`format`, image
+            `purpose`, dataset `format`). Version-level hard validation stays in
+            the artifacts service.
+
+    ArtifactDefinitionPatchInput:
+      type: object
+      description: All fields optional; provided fields replace.
+      properties:
+        displayName:
+          type: string
+          maxLength: 256
+        description:
+          type: string
+          maxLength: 4096
+        labels:
+          $ref: '#/components/schemas/StringMap'
+        annotations:
+          $ref: '#/components/schemas/StringMap'
+        spec:
+          type: object
+          additionalProperties: true
+
+    ArtifactDefinitionView:
+      type: object
+      description: |
+        A Platform-owned artifact definition (name-level). Versions live in
+        the artifacts service and are listed live (see the `/versions` sub-resource).
+      required: [id, namespace, tenantName, name, kind, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        namespace:
+          type: string
+          description: Tenant name (= partition key).
+        tenantName:
+          type: string
+        name:
+          type: string
+        kind:
+          type: string
+          enum: [model, image, dataset]
+        displayName:
+          type: string
+        description:
+          type: string
+        owner:
+          type: string
+        ownerId:
+          type: string
+          format: uuid
+        labels:
+          $ref: '#/components/schemas/StringMap'
+        annotations:
+          $ref: '#/components/schemas/StringMap'
+        spec:
+          type: object
+          additionalProperties: true
+        visibility:
+          type: string
+          enum: [tenant, public]
+          description: Public definitions live under the `axisml-system` tenant.
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ArtifactDefinitionList:
+      type: object
+      required: [items, count]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ArtifactDefinitionView'
+        count:
+          type: integer
+          minimum: 0
+        continueToken:
+          type: string
+        partial:
+          type: boolean
+
+    ArtifactResolveResponse:
+      type: object
+      required: [storageKind, uri]
+      properties:
+        storageKind:
+          type: string
+          enum: [oci, s3]
+        uri:
+          type: string
+        digest:
+          type: string
+        pullCredentials:
+          type: object
+          additionalProperties: true
+          description: Provider-specific download credentials, pass-through from artifacts.
+        expiresAt:
+          type: string
+          format: date-time
 
     # ------------------------------------------------------------------
     # Images
@@ -5323,15 +6322,10 @@ components:
     ImageInitiateRequest:
       type: object
       description: |
-        Target tenant comes from the `X-Axisml-Tenant` request header (see
-        `info.description` "Active tenant").
-      required: [name, version, spec]
+        Target tenant and artifact name come from the URL path
+        (`/{tenant}/{name}/versions`).
+      required: [version, spec]
       properties:
-        name:
-          type: string
-          pattern: '^[a-z0-9]([-a-z0-9._]*[a-z0-9])?$'
-          minLength: 1
-          maxLength: 100
         version:
           type: string
           minLength: 1
@@ -5469,15 +6463,10 @@ components:
     DatasetInitiateRequest:
       type: object
       description: |
-        Target tenant comes from the `X-Axisml-Tenant` request header (see
-        `info.description` "Active tenant").
-      required: [name, version, spec]
+        Target tenant and artifact name come from the URL path
+        (`/{tenant}/{name}/versions`).
+      required: [version, spec]
       properties:
-        name:
-          type: string
-          pattern: '^[a-z0-9]([-a-z0-9._]*[a-z0-9])?$'
-          minLength: 1
-          maxLength: 100
         version:
           type: string
           minLength: 1

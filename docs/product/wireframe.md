@@ -61,7 +61,7 @@
 | --- | --- | --- | :---: | :---: |
 | — | Dashboard (中文 首页) | `/dashboard` | 切换器联动 | §3 |
 | 训练中心 | 工作区 | `/workspaces` · `/workspaces/{name}` | 租户内 | §6 |
-|  | 计算任务 | `/mlruns` · `/mlruns/{name}` | 租户内 | §7 |
+|  | 计算任务 | `/jobs` · `/jobs/{name}` · `/jobs/{name}/runs/{run}` | 租户内 | §7 |
 | 服务中心 | 在线服务 | `/mlservices` · `/mlservices/{name}` | 租户内 | §8 |
 |  | 流量控制 | `/traffic` · `/traffic/{name}` | 租户内 | §10 |
 | 资产中心 | 数据集 | `/datasets` · `/datasets/{name}` | 租户内 | §9 |
@@ -134,7 +134,7 @@ KPI 卡(`DashboardOverview`):
 | 卡 | 字段 | 说明 |
 | --- | --- | --- |
 | 租户 | `tenantCount` · `activeTenantCount` | 总数 + `Active` 计数;点击跳 `/tenants` |
-| 活跃任务 | `activeJobCount` | `Running` + `Pending`;跳 `/mlruns` |
+| 活跃任务 | `activeJobCount` | 活跃 Run(`Running` + `Pending`);跳 `/jobs` |
 | 在线服务 | `runningServiceCount` | `Ready` + `Degraded`;跳 `/mlservices` |
 | 工作区 | `runningWorkspaceCount` | `Ready`;跳 `/workspaces` |
 | 模型 | `modelCount` | 含 `axisml-system` 公共;跳 `/models` |
@@ -350,7 +350,7 @@ UI 即时校验 + cluster-manager 兜底。详见 [apis/platform.yaml](apis/plat
 ```
 
 - 池内 `spec.units[]` 随 pool 级联删除,不构成删除阻断(`cluster-manager` DELETE 一并移除)。
-- `compute.ListMLRuns(pool, active)` / `compute.ListMLServices(pool, active)` > 0 → `409 pool-in-use`(按 `labels.axisml.io/resource-pool=<name>` 过滤),弹窗列示例 job / service name 与计数。
+- `compute.ListMLRuns(pool, active)` / `compute.ListMLServices(pool, active)` > 0 → `409 pool-in-use`(按 `labels.axisml.io/resource-pool=<name>` 过滤),弹窗列示例 run / service name 与计数。
 
 ### 4.6 状态展示规则
 
@@ -688,58 +688,87 @@ Tabs:  [基本信息]  [实例 (Pods)]  [日志]  [事件]
 
 ## 7. 计算任务 (训练中心 → 计算任务)
 
-批处理训练 / 评估任务,隶属 topbar 当前租户。一次性运行至终态。字段权威见 [components/compute-service.md](components/compute-service.md)。
+计算任务采用 **Job(可复用模板)→ Run(每次运行)** 两级模型,隶属 topbar 当前租户。Job 是 Platform 自有的模板定义;从 Job 触发的每次运行是一个 Run(对应 compute 的一个 `MLRun`,命名 `<job>-<n>`)。字段权威见 [components/platform.md §4.2](components/platform.md#42-计算任务编排) 与 [components/compute-service.md](components/compute-service.md)。
 
 ### 7.1 页面入口
 
 | 入口 | 生产路径 | 权限 |
 | --- | --- | --- |
-| 任务列表 | `/mlruns` | 本租户成员(读);`owner` / `tenant-admin`(写) |
-| 任务详情 | `/mlruns/{name}` | 同上 |
+| Job 列表 | `/jobs` | 本租户成员(读);`owner` / `tenant-admin`(写) |
+| Job 详情(含运行历史) | `/jobs/{name}` | 同上 |
+| Run 详情 | `/jobs/{name}/runs/{run}` | 同上 |
 
-### 7.2 列表页
-
-```
-Page Head:  // training / jobs   计算任务。            [+ 新建任务]
-
-Filters:  🔍 名称搜索  |  状态 ▾  |  资源池 ▾  |  创建人 ▾  |  重置
-
-Card › Table
-┌──────────────────┬──────────┬───────────────┬────────┬─────────┬───────────┬──────────────┐
-│ 名称              │ 状态      │ 资源单元       │ 副本    │ 创建人  │ 耗时       │ 操作          │
-├──────────────────┼──────────┼───────────────┼────────┼─────────┼───────────┼──────────────┤
-│ train-llm-7b     │ ● 运行中  │ gpu-a100/4x   │ 4      │ 张伟    │ 02:14:30  │取消 日志 详情 │
-│ eval-recall      │ ● 排队中  │ gpu-h100/1x   │ 1      │ 李娜    │ —         │取消 详情      │
-│ sft-baseline     │ ● 成功    │ gpu-a100/1x   │ 1      │ 王磊    │ 01:02:11  │再次提交 删除  │
-│ pretrain-debug   │ ● 失败    │ gpu-a100/8x   │ 8      │ 陈曦    │ 00:08:22  │再次提交 删除  │
-└──────────────────┴──────────┴───────────────┴────────┴─────────┴───────────┴──────────────┘
-Footer: 共 4 个任务                                    ‹ [1] ›        每页 20 条
-```
-
-**列定义**:名称(mono link)· 状态(phase 徽章,见 §7.6)· 资源单元(`pool/unit`)· 副本 · 创建人 · 耗时(`finishedAt − startedAt`,运行中实时累计)· 操作。
-**操作**:取消(仅 `Pending` / `Running`)· 日志 · 详情 · 再次提交(预填表单重建,因 spec 不可变)· 删除(终态亦可)。
-
-### 7.3 详情页 Tab
+### 7.2 列表页(Job)
 
 ```
-← 返回任务列表
-train-llm-7b.   [● 运行中]                                  jobs/train-llm-7b
+Page Head:  // training / jobs   计算任务。            [+ 新建 Job]
+
+Filters:  🔍 名称搜索  |  创建人 ▾  |  重置
+
+┌──────────────────┬───────────────┬────────┬─────────┬───────────┬────────────────────┐
+│ 名称              │ 最近运行状态   │ 运行数  │ 创建人  │ 更新时间   │ 操作                │
+├──────────────────┼───────────────┼────────┼─────────┼───────────┼────────────────────┤
+│ train-llm-7b     │ ● 运行中       │ 12     │ 张伟    │ 2d ago    │运行 详情 编辑 删除  │
+│ eval-recall      │ ● 成功         │ 3      │ 李娜    │ 5d ago    │运行 详情 编辑 删除  │
+│ sft-baseline     │ ○ 从未运行     │ 0      │ 王磊    │ 1h ago    │运行 详情 编辑 删除  │
+└──────────────────┴───────────────┴────────┴─────────┴───────────┴────────────────────┘
+Footer: 共 3 个 Job                                   ‹ [1] ›        每页 20 条
+```
+
+**列定义**:名称(mono link → Job 详情)· 最近运行状态(该 Job 最新 Run 的 phase 徽章,见 §7.6;实时取自 compute)· 运行数(实时计数)· 创建人 · 更新时间 · 操作。
+**操作**:运行(触发一次 Run,§7.5)· 详情 · 编辑(改模板,§7.4)· 删除(有活跃 Run 时禁用并提示 `409 job-has-active-runs`,否则级联软删全部 Run)。
+> 「最近运行状态」「运行数」由 Platform 实时回源 compute(`ListMLRuns(labelSelector=axisml.io/job=<job>)`),不落 Platform 表。
+
+### 7.3 Job 详情页 Tab
+
+```
+← 返回 Job 列表
+train-llm-7b.   [模板]                                       jobs/train-llm-7b
 LLaMA-7B 全参微调
-[取消任务]  [再次提交]  [删除]
+[▶ 运行]  [编辑模板]  [删除]
+
+Tabs:  [运行历史 (Runs)]  [模板 (Spec)]
+```
+
+- **运行历史 (Runs)** — 该 Job 的 Run 列表(实时回源 compute):
+
+```
+┌──────────────────┬──────────┬───────────────┬────────┬─────────┬───────────┬──────────────┐
+│ Run               │ 状态      │ 资源单元       │ 副本    │ 触发人  │ 耗时       │ 操作          │
+├──────────────────┼──────────┼───────────────┼────────┼─────────┼───────────┼──────────────┤
+│ train-llm-7b-12  │ ● 运行中  │ gpu-a100/4x   │ 4      │ 张伟    │ 02:14:30  │取消 日志 详情 │
+│ train-llm-7b-11  │ ● 成功    │ gpu-a100/4x   │ 4      │ 张伟    │ 03:40:02  │日志 详情 删除 │
+│ train-llm-7b-10  │ ● 失败    │ gpu-a100/8x   │ 8      │ 李娜    │ 00:08:22  │日志 详情 删除 │
+└──────────────────┴──────────┴───────────────┴────────┴─────────┴───────────┴──────────────┘
+```
+
+  Run 名 `<job>-<n>`(mono link → Run 详情)· 状态(phase 徽章)· 资源单元(`pool/unit`)· 副本 · 触发人 · 耗时(`finishedAt − startedAt`,运行中实时累计)· 操作:取消(仅 `Pending` / `Running`)· 日志 · 详情 · 删除(终态)。
+- **模板 (Spec)** — Job 模板 KV grid:名称 · 显示名 · 描述 · 资源池 / 单元(默认)· 镜像 · 副本数 · 命令 / 参数(chips)· 环境变量 · 运行策略(超时 / 重试 / TTL)· 制品引用(镜像 / 模型 / 数据集,`name` + `version`)。编辑见 §7.4;改模板只影响**之后**触发的 Run。
+
+### 7.3.1 Run 详情页 (`/jobs/{name}/runs/{run}`)
+
+```
+← 返回 train-llm-7b
+train-llm-7b-12.   [● 运行中]                  jobs/train-llm-7b/runs/train-llm-7b-12
+[取消运行]  [删除]
 
 Tabs:  [基本信息]  [实例 (Pods)]  [日志]  [事件]
 ```
 
-- **基本信息** — KV grid:名称 · 显示名 · 描述 · 资源单元 · 镜像 · 副本数 · 命令 / 参数(chips)· 环境变量 · 运行策略(超时 / 重试 / TTL)· 开始 / 结束时间 · 状态消息(`message`,失败时高亮)。
+- **基本信息** — 该 Run 快照的 KV grid:Run 名 · 资源单元 · 镜像 · 副本数 · 命令 / 参数 · 环境变量 · 运行策略 · 触发期 override(若有)· 开始 / 结束时间 · 状态消息(`message`,失败时高亮)。Run spec 创建后不可变。
 - **实例 (Pods)** — Pod 列表(阶段 / 节点 / 重启 / 退出码),行内日志入口。
 - **日志** — 按 Pod 选择 + follow;mono 终端。
 - **事件** — K8s Events 时间线。
 
-### 7.4 创建表单
+### 7.4 Job 创建 / 编辑表单(模板)
 
-`name`(不可变)· `display_name` / `description` · **资源池 → 资源单元 → 镜像**(§6.0)· `replicas` · 命令 / 参数 · 环境变量 · 运行策略(`activeDeadlineSeconds` / `backoffLimit` / `ttlSecondsAfterFinished`)· 可选挂载模型 / 数据集制品。
+`name`(创建后不可变)· `display_name` / `description` · **资源池 → 资源单元 → 镜像**(§6.0)· `replicas` · 命令 / 参数 · 环境变量 · 运行策略(`activeDeadlineSeconds` / `backoffLimit` / `ttlSecondsAfterFinished`)· 可选挂载模型 / 数据集制品(`name` + `version`)。保存即写模板,**不触发运行**。编辑(§7.3 [编辑模板])可改除 `name` 外的模板字段;改动只影响之后触发的 Run。
 
-### 7.5 状态展示规则
+### 7.5 触发运行(Run)对话框
+
+§7.2 / §7.3 的 [运行] 打开。默认按模板直接运行;展开「高级 · 本次覆盖」可选覆盖:镜像 / 模型 / 数据集**版本** · 资源单元(pool / unit)· `replicas` 与资源 · 超参(命令 / 参数 / 环境变量)。**不可**改 backend 与 role 拓扑(需改模板)。确认后 Platform 对引用制品版本预检 `Ready`,失败 `400` 阻断;成功则创建 `<job>-<n>` 并跳转 Run 详情。
+
+### 7.6 状态展示规则(Run phase)
 
 | `phase` | 视觉 | 含义 |
 | --- | --- | --- |
@@ -751,9 +780,11 @@ Tabs:  [基本信息]  [实例 (Pods)]  [日志]  [事件]
 | `Cancelled` | ○ 灰(终态) | 已取消 |
 | `Deleting` | 灰 + spinner | 删除中 |
 
-### 7.6 权限可见性
+> Job 列表「最近运行状态」取该 Job 最新 Run 的 `phase`;无 Run 显示 `○ 从未运行`。
 
-与 §6.7 工作区一致(列表 / 详情 / 日志本租户可读;创建任意成员;取消 / 删除限 `owner` 或 `tenant-admin`)。
+### 7.7 权限可见性
+
+列表 / 详情 / 日志本租户可读;创建 Job / 触发运行任意成员;编辑模板 / 删除 Job / 取消 · 删除 Run 限 `owner` 或 `tenant-admin`(与 §6.7 工作区同档)。
 
 ---
 
