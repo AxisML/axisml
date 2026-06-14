@@ -9,17 +9,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 AxisML is a Kubernetes-native ML platform. The repo is a monorepo split into:
 
 - `components/tenant-operator/` — Go operator binary reconciling the `Tenant` CR (Namespace, Koordinator ElasticQuota, per-tenant Secret/CM/SA/RBAC). Single reconciler, no dispatcher.
-- `components/compute-operator/` — Go operator binary reconciling `MLRun` and `MLService` CRs via the dispatcher + handler model.
+- `components/compute-operator/` — Go operator binary reconciling `MLRun`, `MLService`, and `MLTrafficPolicy` CRs via the dispatcher + handler model (one dispatcher per CR, each gated by `--enable-mlrun` / `--enable-mlservice` / `--enable-mltrafficpolicy`).
 - `components/cluster-manager/` — Stateless REST shell over the cluster-scoped `ResourcePool` CRD (CRUD of pools + inline `spec.units[]`) on the K8s API. Admin-tier entry point; no PG, no reconciler, no leader election — Kubernetes etcd is the source of truth.
 - `components/compute-service/` — Go service and business authority for Tenant / Quota / Job / Service / Workspace, with PG as the sole source of truth. Emits `Tenant` / `MLRun` / `MLService` CRs derived from PG and reads back their status; partitioned by namespace (= tenant name). Resolves `(poolName, unitName)` against the `ResourcePool` CRD via Informer (it does not own the ResourcePool/ResourceUnit vocabulary — that's cluster-manager).
 - `components/artifact-hub/` — Go service for the artifact registry. Partitioned by `(namespace, kind, name, version)` directly (no ArtifactRepo wrapper).
-- `components/platform/{backend,frontend}/` — scaffolded service areas with READMEs only; no code yet.
+- `components/platform/backend/` — the user-facing API authority and only external entry point, currently a **contract-only Go shell**: `internal/server` declares the request/response DTOs that generate `docs/openapi/platform.yaml` via `cmd/openapi-gen`, while `cmd/platform-backend` serves only health probes + a `501` fallback (real handlers are TODO). `components/platform/frontend/` is still a README-only scaffold.
 - Deployment splits into three Helm charts along the Platform / System / Infra responsibility layers (install order infra → system → platform, uninstall reverse):
   - `deploy/helm/axisml-infra/` — Infra layer: third-party infrastructure (Envoy Gateway, RustFS, zot, Koordinator, GPU Operator, kube-prometheus-stack) **plus PostgreSQL**.
   - `deploy/helm/axisml-system/` — System layer: CRDs, both operators, Cluster Manager, Compute Service, Artifact Hub. No PostgreSQL — it consumes the infra DB cross-namespace.
   - `deploy/helm/axisml-platform/` — Platform layer: the user-facing entry point (Platform frontend + backend). The only externally-exposed layer.
-- `docs/system_design/` — authoritative design docs (overview, tenant-operator, compute-operator, cluster-manager, compute-service, artifact-hub, infra, platform).
-- `test/` — shared test infrastructure: `setup-envtest/` binary, `testutil/` helpers, `crds/external/` vendored upstream CRDs for integration tests.
+- `docs/system_design/` — authoritative design docs (overview, per-component, infra, platform, plus `auth.md` / `database.md`). Other doc trees: `docs/openapi/` (generated API specs), `docs/product_design/` (product/UX, incl. an interactive `prototype/`), `docs/development/` (dev guides), `docs/roadmap.md`.
+- `test/` — shared test infrastructure: `setup-envtest/` binary, `testutil/` helpers, `crds/external/` vendored upstream CRDs, and `e2e/` (the centralized real-cluster e2e suite — see testing section).
 
 The system design lives ahead of the code. When code and `docs/system_design/` disagree, the design doc is usually the intended target — confirm before "fixing" code to match incomplete scaffolding.
 
@@ -41,7 +41,7 @@ Each component is its own Go module, and each has a sibling `test/integration/` 
 ```
 components/tenant-operator/                       (production — Tenant CR reconciler)
 components/tenant-operator/test/integration/      (integration tests, separate module)
-components/compute-operator/                      (production — MLRun + MLService controllers)
+components/compute-operator/                      (production — MLRun + MLService + MLTrafficPolicy controllers)
 components/compute-operator/test/integration/     (integration tests, separate module)
 components/cluster-manager/                       (production — REST shell over ResourcePool CR)
 components/cluster-manager/test/integration/      (integration tests, separate module)
@@ -49,6 +49,8 @@ components/compute-service/                       (production)
 components/compute-service/test/integration/      (integration tests, separate module — envtest + testcontainers Postgres)
 components/artifact-hub/                          (production)
 components/artifact-hub/test/integration/         (integration tests, separate module — testcontainers Postgres + httptest OCI stub)
+components/platform/backend/                       (production — contract-only API shell; generates docs/openapi/platform.yaml)
+components/platform/backend/test/integration/     (integration tests — drives in-process gin via httptest; no envtest/Docker)
 test/testutil/                                    (shared helpers, no operator deps)
 ```
 
@@ -70,7 +72,8 @@ make test                # unit tests across every component (no cluster)
 make integration-test    # integration tests for every component (envtest + testcontainers, needs Docker; ~30-60s)
 
 # Per-component shortcuts (auto-generated from the COMPONENTS list:
-# tenant-operator, compute-operator, cluster-manager, compute-service, artifact-hub):
+# tenant-operator, compute-operator, cluster-manager, compute-service, artifact-hub,
+# plus platform/backend whose basename is `backend` — so `make backend-test`):
 make tenant-operator-test
 make tenant-operator-integration
 make compute-operator-test
@@ -84,8 +87,8 @@ make artifact-hub-integration
 
 # Cluster + Helm:
 make cluster-up                      # minikube profile "axisml"
-make helm-install                    # infra first, then system (idempotent upgrade --install)
-make helm-template                   # render both charts for review
+make helm-install                    # infra → system → platform (idempotent upgrade --install)
+make helm-template                   # render all three charts for review
 ```
 
 Per-component dev loop (run from inside the component dir):
@@ -97,7 +100,7 @@ make build / make image    # binary into bin/, container image
 
 Single test invocation: `go test -run TestTenant_HappyPath ./internal/...` (use `-tags=integration` for integration tests).
 
-Per-component shortcuts are auto-generated from the `COMPONENTS` list in the top-level Makefile. Pattern: `<basename>-{build,image,image-load,test,integration,fmt,tidy,clean}` (e.g., `make operator-image-load`). Top-level `make fmt` walks every module via `GO_MODULES` (`gofmt -w` doesn't cross module boundaries on its own).
+Per-component shortcuts are auto-generated from the `COMPONENTS` list in the top-level Makefile. Pattern: `<basename>-{build,image,image-load,test,integration,coverage,fmt,tidy,clean}` (e.g., `make compute-operator-image-load`); API services also get `<basename>-{doc-gen,doc-test}`. **Basename = `notdir` of the path**, so `components/platform/backend` → `backend-test` / `backend-doc-gen` (not `platform-*`). Top-level `make fmt` walks every module via `GO_MODULES` (`gofmt -w` doesn't cross module boundaries on its own).
 
 Pre-commit hooks (`pre-commit` framework, see `.pre-commit-config.yaml`) are staged:
 - **pre-commit** (fast, <5s): gofmt, basic hygiene, `go vet` on touched modules, `make doc-test` when Go in `cluster-manager` / `compute-service` / `artifact-hub` changes, `make helm-lint` when `deploy/helm/**` changes.
@@ -105,7 +108,7 @@ Pre-commit hooks (`pre-commit` framework, see `.pre-commit-config.yaml`) are sta
 
 Install once per clone: `make install-hooks`. Bypass for a single commit: `git commit --no-verify`. Vendored CRDs (`test/crds/external/`) and Helm sub-charts are excluded from hooks. If `doc-test` fails after editing DTOs, run `make <component>-doc-gen` (or top-level `make doc-gen`) to regenerate `docs/openapi/<component>.yaml` and re-stage — see next section.
 
-## Two-layer testing pyramid
+## Testing layers
 
 Documented in detail in `docs/development/testing.md`. The short version:
 
@@ -113,8 +116,9 @@ Documented in detail in `docs/development/testing.md`. The short version:
 |---|---|---|---|
 | Unit | none | `*_test.go` next to package | none — uses `controller-runtime/pkg/client/fake` |
 | Integration | `//go:build integration` | each component's `test/integration/` Go submodule | embedded apiserver+etcd via `setup-envtest` (controller-runtime), plus testcontainers Postgres for compute-service and artifact-hub |
+| E2E | `//go:build e2e` | `test/e2e/` (centralized, **not** per-component) | a **real** `axisml` minikube cluster (infra+system installed); reaches in-cluster HTTP via `kubectl port-forward` |
 
-There is no minikube-driven e2e layer. HTTP API contracts for service components (cluster-manager / compute-service / artifact-hub) are tested at the integration layer by driving the in-process gin engine via `httptest` — see `components/compute-service/test/integration/httptest_helpers_test.go` for the canonical helpers.
+The e2e suite is **manual and not in CI**: run `make e2e-test` after `make cluster-up && make helm-install` (details in `test/e2e/README.md`). HTTP API contracts for the service components are *also* covered at the integration layer by driving the in-process gin engine via `httptest` — see `components/compute-service/test/integration/httptest_helpers_test.go` for the canonical helpers.
 
 Conventions that bite if you don't know them:
 - **Framework is plain `testing` + `testify`** (`require` for setup, `assert` for checks). **No Ginkgo/Gomega** — don't add them.
@@ -124,16 +128,16 @@ Conventions that bite if you don't know them:
 
 ## Operator architecture: backend handler routing
 
-The MLRun and MLService operators don't reconcile a single backend type. Each CR's `spec.backend.{name, engine}` tuple routes reconciliation to a different handler:
+The compute-operator runs three dispatchers (MLRun / MLService / MLTrafficPolicy); none reconciles a single backend type. Each CR's `spec.backend.{name, engine}` tuple routes reconciliation to a different handler:
 
 | Backend | CRD | engine examples | Notes |
 |---|---|---|---|
-| `native` | MLRun, MLService | `job`, `podgroup`, `deployment`, `statefulset` | Direct K8s primitives + sigs.k8s.io scheduler-plugins `PodGroup` for gang scheduling |
+| `native` | MLRun, MLService, MLTrafficPolicy | `job`, `podgroup`, `deployment`, `statefulset`, `httproute` | Direct K8s primitives + sigs.k8s.io scheduler-plugins `PodGroup` for gang scheduling; MLTrafficPolicy → Envoy Gateway `HTTPRoute` with weighted `backendRefs` (canary / blue-green over member MLServices) |
 | `kubeflow-trainer` | MLRun | `pytorchjob`, `tfjob`, `mpijob`, ... | Delegates to Kubeflow Training Operator |
 | `kserve` | MLService | `inference`, `llminference` | KServe `InferenceService` |
 | `custom` | MLRun, MLService | any | User-defined target GVK via `backend.config` |
 
-Defaults: MLRun `(native, job)`, MLService `(native, deployment)`.
+Defaults: MLRun `(native, job)`, MLService `(native, deployment)`, MLTrafficPolicy `(native, httproute)`.
 
 When adding a new handler:
 1. Implement under `internal/<backend>/<engine>/`.
@@ -144,12 +148,12 @@ When adding a new handler:
 
 ## OpenAPI specs are generated, not hand-written
 
-The three HTTP-surface components (`cluster-manager`, `compute-service`, `artifact-hub`) keep their OpenAPI spec under `docs/openapi/<component>.yaml` and generate it from the Go request/response DTOs. The operators have no HTTP surface and are excluded.
+Four components own a generated spec under `docs/openapi/<component>.yaml`, produced from their Go request/response DTOs: `cluster-manager`, `compute-service`, `artifact-hub`, and `platform/backend` (a server-less contract shell that nonetheless owns `docs/openapi/platform.yaml`). The two operators have no HTTP surface and are excluded. (`docs/system_design/apis/*.yaml` is a separate, hand-maintained legacy spec set being retired in favor of `docs/openapi/`.)
 
-- `make doc-gen` (or `make <component>-doc-gen`) regenerates the spec(s).
-- `make doc-test` (or `make <component>-doc-test`) verifies that the spec matches the current Go types — this is the CI guard and also the pre-commit hook described above.
+- `make doc-gen` (or `make <basename>-doc-gen`) regenerates the spec(s).
+- `make doc-test` (or `make <basename>-doc-test`) verifies that the spec matches the current Go types — this is the CI guard and the pre-commit hook described above.
 
-When you change a handler signature or DTO in one of those three components, regenerate before committing. Do not hand-edit `docs/openapi/*.yaml`.
+When you change a handler signature or DTO, regenerate before committing and never hand-edit `docs/openapi/*.yaml`. **Gotcha:** the pre-commit `doc-test` hook only watches `cluster-manager` / `compute-service` / `artifact-hub` Go files, so editing `platform/backend` DTOs won't trip it — run `make backend-doc-gen` yourself (its basename is `backend`, not `platform`).
 
 ## Image tag synchronization
 
