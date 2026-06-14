@@ -2,7 +2,7 @@
 
 ## 1. 定位与边界
 
-ML 工作负载 + 多租户管控面：以 PostgreSQL 为权威，承载 Tenant / Quota / Job / Service / TrafficPolicy 的元数据，把 `Tenant` / `MLJob` / `MLService` / `MLTrafficPolicy` CR 当作 PG 行的派生产物下发到 K8s。
+ML 工作负载 + 多租户管控面：以 PostgreSQL 为权威，承载 Tenant / Quota / Job / Service / TrafficPolicy 的元数据，把 `Tenant` / `MLRun` / `MLService` / `MLTrafficPolicy` CR 当作 PG 行的派生产物下发到 K8s。
 
 | 做 | 不做 |
 | --- | --- |
@@ -10,15 +10,15 @@ ML 工作负载 + 多租户管控面：以 PostgreSQL 为权威，承载 Tenant 
 | Quota（内联 `tenants.quotas` jsonb）CRUD | 修改 Node label / taint（admin 手工维护） |
 | Job / Service CRUD、cancel / scale、软删；workspace 创建时附带 PVC 生命周期管理 | 直接创建 Pod / Deployment / PodGroup 等底层资源 (→ [compute-operator.md](compute-operator.md)) |
 | 流量策略（MLTrafficPolicy）CRUD、split / promote / rollback、指标代理；成员校验权威 | 加权 HTTPRoute / 灰度的网关派生 (→ [compute-operator.md](compute-operator.md)) |
-| `Tenant` / `MLJob` / `MLService` / `MLTrafficPolicy` spec 下发 + status 回流 | ResourcePool / ResourceUnit 词汇 (→ [cluster-manager.md](cluster-manager.md)) |
+| `Tenant` / `MLRun` / `MLService` / `MLTrafficPolicy` spec 下发 + status 回流 | ResourcePool / ResourceUnit 词汇 (→ [cluster-manager.md](cluster-manager.md)) |
 | Pod 列表 / Pod 日志 / 事件端点透传 kube-apiserver | 用户认证与角色鉴权 (→ [auth.md](../auth.md)) |
 | 工作区列表（`kind='workspace'` 过滤） | 工作区业务语义本身 (→ [platform.md](platform.md)) |
 | 在线服务 / 工作负载运行指标代理（按 `spec.backend` 选 PromQL 查 Prometheus） | 指标采集 / 存储（→ kube-prometheus-stack） |
 | 跨 namespace 活跃 workload 按 label 计数（供 Platform pool/unit 删除前置阻断） | — |
 
-**namespace 字段语义**：`jobs` / `services` 表的 `namespace text` 是 tenant 标识符（= `tenants.name`），逻辑分区键；Compute 内部 join `tenants` 表得到 `spec.namespace.name` 用于 CR 下发。
+**namespace 字段语义**：`mlruns` / `mlservices` 表的 `namespace text` 是 tenant 标识符（= `tenants.name`），逻辑分区键；Compute 内部 join `tenants` 表得到 `spec.namespace.name` 用于 CR 下发。
 
-**Pool/Unit 展开归属**：Platform 仅向 compute-service 传 `(poolName, unitName)` 名字对；compute-service 通过 K8s Informer 直读 `ResourcePool` CR cache 完成展开（合并 `nodeSelector` / `tolerations` / `requests` / `limits` 写进请求体的 `spec.scheduling` / `spec.roles[*].template.resources`），然后 snapshot 到 `jobs.spec` / `services.spec` jsonb。snapshot 一经写入即与 pool/unit CR 解耦，pool/unit 后续修改 / 删除不影响已创建 workload。详见 §5.4。
+**Pool/Unit 展开归属**：Platform 仅向 compute-service 传 `(poolName, unitName)` 名字对；compute-service 通过 K8s Informer 直读 `ResourcePool` CR cache 完成展开（合并 `nodeSelector` / `tolerations` / `requests` / `limits` 写进请求体的 `spec.scheduling` / `spec.roles[*].template.resources`），然后 snapshot 到 `mlruns.spec` / `mlservices.spec` jsonb。snapshot 一经写入即与 pool/unit CR 解耦，pool/unit 后续修改 / 删除不影响已创建 workload。详见 §5.4。
 
 ## 2. 架构
 
@@ -33,8 +33,8 @@ ML 工作负载 + 多租户管控面：以 PostgreSQL 为权威，承载 Tenant 
                                           ▼              ▼                              ▼
                                 ┌─────────────────┐  ┌──────────────────────┐  ┌────────────────┐
                                 │  PostgreSQL     │  │   K8s API            │  │ tenant-operator│
-                                │  tenants/jobs/  │  │   Tenant / MLJob /   │  │ compute-operator│
-                                │  services       │  │   MLService          │  └────────────────┘
+                                │ tenants/mlruns/ │  │   Tenant / MLRun /   │  │ compute-operator│
+                                │  mlservices     │  │   MLService          │  └────────────────┘
                                 └─────────────────┘  └──────────────────────┘
 ```
 
@@ -50,7 +50,7 @@ ML 工作负载 + 多租户管控面：以 PostgreSQL 为权威，承载 Tenant 
 │        │            └───────────┴───────────┴───────────┴───────────┘ │
 │        │                                │                              │
 │        │                                ▼ Create / Patch / Delete     │
-│        │             Tenant / MLJob / MLService / MLTrafficPolicy CR   │
+│        │             Tenant / MLRun / MLService / MLTrafficPolicy CR   │
 │        │                                │ status                       │
 │        └──── PG status 列 ◀──── Informer (leader-only, shared cache)   │
 └────────────────────────────────────────────────────────────────────────┘
@@ -64,15 +64,15 @@ ML 工作负载 + 多租户管控面：以 PostgreSQL 为权威，承载 Tenant 
 | --- | --- | --- | --- | --- |
 | Tenant | 租户 | `id` (uuid) / `name`（集群内全局唯一） | `Creating \| Active \| Suspended \| Failed \| Deleting \| Deleted` | `Tenant`（cluster-scoped） |
 | Quota | 配额，内联在 `tenants.spec.quotas[]` | `(tenant.name, pool, name)` | 无独立状态 | 每条 1:1 渲染为 ElasticQuota CR（由 tenant-operator 落地） |
-| Job | 一次性训练 / 离线任务 | `id` (uuid) / `(namespace, name)` | `Creating \| Pending \| Running \| Succeeded \| Failed \| Canceling \| Cancelled \| Deleting \| Deleted` | `MLJob`（namespaced） |
+| Job | 一次性训练 / 离线任务 | `id` (uuid) / `(namespace, name)` | `Creating \| Pending \| Running \| Succeeded \| Failed \| Canceling \| Cancelled \| Deleting \| Deleted` | `MLRun`（namespaced） |
 | Service | 常驻在线服务 / 工作区 | `id` (uuid) / `(namespace, name)` | `Creating \| Pending \| Ready \| Degraded \| Failed \| Deleting \| Deleted` | `MLService`（namespaced） |
 | TrafficPolicy | 流量策略：稳定入口按权重分发到多个在线服务 | `id` (uuid) / `(namespace, name)` | `Creating \| Pending \| Ready \| Degraded \| Failed \| Deleting \| Deleted` | `MLTrafficPolicy`（namespaced） |
 
 字段级 schema 见 [database.md §2](../database.md#2-compute-service)；CR spec 字段见 [tenant-operator.md](tenant-operator.md) / [compute-operator.md](compute-operator.md)。
 
-**通用 PG 约定**：所有表带 `id uuid` / `created_at` / `updated_at` / `deleted_at`；所有 UNIQUE 实现为 partial unique index `WHERE deleted_at IS NULL`（软删行不占用唯一键，同名可再次创建）；`name` 统一 DNS-1123 校验，长度 3–40。CR-backed 对象额外打 `axisml.io/{tenant,job,service,traffic-policy}-id=<uuid>` label 作为稳定锚点（`metadata.name` 因软删可重用，UUID 永久唯一）；`services` 还会同步打 `axisml.io/service-kind=<service|workspace>` label，便于 `kubectl` selector 区分工作区与普通服务（compute-service / operator 不按 kind 改变行为）。
+**通用 PG 约定**：所有表带 `id uuid` / `created_at` / `updated_at` / `deleted_at`；所有 UNIQUE 实现为 partial unique index `WHERE deleted_at IS NULL`（软删行不占用唯一键，同名可再次创建）；`name` 统一 DNS-1123 校验，长度 3–40。CR-backed 对象额外打 `axisml.io/{tenant,run,service,traffic-policy}-id=<uuid>` label 作为稳定锚点（`metadata.name` 因软删可重用，UUID 永久唯一）；`mlservices` 还会同步打 `axisml.io/service-kind=<service|workspace>` label，便于 `kubectl` selector 区分工作区与普通服务（compute-service / operator 不按 kind 改变行为）。
 
-**扩展元数据 + 分组维度**：`tenants` / `jobs` / `services` 表均带 `labels jsonb` + `annotations jsonb` 双字段，对齐 K8s 风格语义，统一约定见 [database.md §1.6](../database.md#16-扩展元数据-labels--annotations)。Platform 用 `labels.axisml.io/project` 等 label 在 compute-service 之上实现 project / experiment / 自定义分组（见 [platform.md](platform.md)）。list 端点支持 `?labelSelector=` K8s 语法。两类扩展位均 **PG-only、不下发 CR、不 `+generation`**。
+**扩展元数据 + 分组维度**：`tenants` / `mlruns` / `mlservices` 表均带 `labels jsonb` + `annotations jsonb` 双字段，对齐 K8s 风格语义，统一约定见 [database.md §1.6](../database.md#16-扩展元数据-labels--annotations)。Platform 用 `labels.axisml.io/project` 等 label 在 compute-service 之上实现 project / experiment / 自定义分组（见 [platform.md](platform.md)）。list 端点支持 `?labelSelector=` K8s 语法。两类扩展位均 **PG-only、不下发 CR、不 `+generation`**。
 
 ## 4. 核心功能
 
@@ -149,18 +149,18 @@ Creating ──(Informer ADD)──▶ Pending ──▶ Running ──▶ Succe
 
 | 操作 | PG 写 | CR 影响 | 备注 |
 | --- | --- | --- | --- |
-| 提交 | insert `Creating` 行 + spec 快照（已含展开后的 `nodeSelector` / `tolerations` / `resources`） | reconciler `Create()` MLJob | 创建后 spec 不可变；无后续 mutation，仅靠 `phase='Creating'` 谓词推进 |
+| 提交 | insert `Creating` 行 + spec 快照（已含展开后的 `nodeSelector` / `tolerations` / `resources`） | reconciler `Create()` MLRun | 创建后 spec 不可变；无后续 mutation，仅靠 `phase='Creating'` 谓词推进 |
 | cancel | `phase='Canceling'` + `message='user cancelled'` | reconciler `patch spec.runPolicy.suspend=true` | `Creating` 状态拒绝；要求改用 DELETE |
 | 更新 PG 元数据（`display_name` / `description` / `labels` / `annotations`） | update 行 | **不影响 CR** | Job spec 不可变，但 PG 扩展位任意阶段可改 |
 | 软删 | `phase='Deleting'` + `deleted_at=now()` | reconciler `Delete()` CR；Informer DELETE → `Deleted` | 任一非 `Deleting`/`Deleted` 状态适用 |
-| Pod 列表 / Pod 日志 / Pod 事件 / Job 事件 | — | 按 `axisml.io/job-id` label list Pod；按 Pod 名透传 Pod Log；按 `involvedObject` 过滤 Event（Pod 端点只回 Pod 事件，Job 端点只回 MLJob/PodGroup 事件） | 详见 [apis/compute-service.yaml](../apis/compute-service.yaml) `Jobs` tag |
+| Pod 列表 / Pod 日志 / Pod 事件 / Job 事件 | — | 按 `axisml.io/run-id` label list Pod；按 Pod 名透传 Pod Log；按 `involvedObject` 过滤 Event（Pod 端点只回 Pod 事件，Job 端点只回 MLRun/PodGroup 事件） | 详见 [apis/compute-service.yaml](../apis/compute-service.yaml) `MLRuns` tag |
 | list 过滤 | — | `?labelSelector=` 支持 K8s 语法，常用 `axisml.io/project=<id>` | 见 [database.md §1.6](../database.md#16-扩展元数据-labels--annotations) |
 
 `Succeeded` / `Failed` / `Cancelled` 为运行终态；`Deleted` 为软删终态。`Cancelled` PG 行保留（`deleted_at IS NULL`），用户可再次 DELETE。
 
-**与 MLJob CR 契约**：
+**与 MLRun CR 契约**：
 
-| MLJob `status.phase` | PG `status` |
+| MLRun `status.phase` | PG `status` |
 | --- | --- |
 | `Pending` | `Pending` |
 | `Running` | `Running` |
@@ -210,7 +210,7 @@ Service 无 cancel 语义；除 `roles[0].replicas` 外其他 spec 字段不可�
 | `ready_replicas == 0 && desired_replicas > 0` 且 CR `phase=Failed` | `Failed`（可自愈） |
 | `desired_replicas == 0` | `Pending` |
 
-**kind 过滤**：`GET /api/v1/namespaces/{ns}/services?kind=workspace` 供 [Platform 工作区](platform.md) 在同一张表上区分 `kind='service'` 与 `kind='workspace'`；`kind` 创建后不可变，Compute 不按 `kind` 改变行为，仅作分类与过滤。
+**kind 过滤**：`GET /api/v1/namespaces/{ns}/mlservices?kind=workspace` 供 [Platform 工作区](platform.md) 在同一张表上区分 `kind='service'` 与 `kind='workspace'`；`kind` 创建后不可变，Compute 不按 `kind` 改变行为，仅作分类与过滤。
 
 ### 4.5 流量策略（MLTrafficPolicy）
 
@@ -283,7 +283,7 @@ Platform 侧创建编排（[platform.md §4.8](platform.md#48-流量配置编排
 | 谓词 | 动作 | 适用模块 |
 | --- | --- | --- |
 | `phase='Creating' AND deleted_at IS NULL` | `Create()` CR（带 `axisml.io/<resource>-id` label；409 视为成功） | Tenant / Job / Service / TrafficPolicy |
-| `phase='Canceling'` | `patch MLJob.spec.runPolicy.suspend=true` | Job |
+| `phase='Canceling'` | `patch MLRun.spec.runPolicy.suspend=true` | Job |
 | `phase='Deleting'` | `Delete()` CR；Informer DELETE 推进 `Deleted` | Tenant / Job / Service / TrafficPolicy |
 | `generation <> observed_generation AND deleted_at IS NULL` | `Patch()` CR；成功后 `observed_generation = generation` | Tenant / Service / TrafficPolicy |
 
@@ -319,8 +319,8 @@ Reconciler (leader-only)
 | Informer | 监听对象 | 主要回写字段 |
 | --- | --- | --- |
 | Tenant Informer | `Tenant` CR | 写 `tenants.status` jsonb（`{phase, message, namespaceReady, conditions[], quotas[].{pool, name, ready}}`）；**主动 strip `quotas[].used`**——该字段保留在 Informer in-memory cache 中，GET 时实时聚合返回；按 §4.1 phase 映射表推进，但 `phase='Suspended'` 的行只刷新 status 子树、不推进 phase（API 意图态） |
-| MLJob Informer | `MLJob` CR | 整块写 `jobs.status` jsonb（`{phase, message, startedAt, finishedAt, conditions[]}`）；按 §4.3 phase 映射表推进 |
-| MLService Informer | `MLService` CR | 整块写 `services.status` jsonb（`{phase, message, readyReplicas, endpoint, conditions[]}`）；按 §4.4 条件表推进 |
+| MLRun Informer | `MLRun` CR | 整块写 `mlruns.status` jsonb（`{phase, message, startedAt, finishedAt, conditions[]}`）；按 §4.3 phase 映射表推进 |
+| MLService Informer | `MLService` CR | 整块写 `mlservices.status` jsonb（`{phase, message, readyReplicas, endpoint, conditions[]}`）；按 §4.4 条件表推进 |
 | MLTrafficPolicy Informer | `MLTrafficPolicy` CR | 整块写 `traffic_policies.status` jsonb（`{phase, message, endpoint, backends[].{serviceName, weight, ready}, conditions[]}`）；按 §4.5 条件表推进 |
 
 启动时 `List` 做差异 upsert 与孤儿对账；`Watch` 事件入各自 work queue；单 worker 串行 reconcile；以 `resourceVersion` / `generation` 作乐观并发字段。
@@ -338,7 +338,7 @@ Reconciler (leader-only)
 compute-service 接收 Job / Service / Workspace 创建请求时，**自己**完成 pool/unit 到 K8s Pod 原语的展开，Platform 不参与展开逻辑：
 
 ```
-POST /api/v1/namespaces/{ns}/jobs
+POST /api/v1/namespaces/{ns}/mlruns
    body: { name, scheduling: { poolName, unitName, quota, ... }, ... }
          │
          ▼ ResourcePool Informer cache lookup
@@ -349,7 +349,7 @@ POST /api/v1/namespaces/{ns}/jobs
    注入 spec.scheduling.{nodeSelector, tolerations} + spec.roles[*].template.resources
          │
          ▼
-   snapshot 到 jobs.spec / services.spec jsonb (展开后即冻结，与 CR 解耦)
+   snapshot 到 mlruns.spec / mlservices.spec jsonb (展开后即冻结，与 CR 解耦)
 ```
 
 **合并规则**（与 [cluster-manager.md §3.2](cluster-manager.md#32-展开合并规则) 一致）：
@@ -369,11 +369,11 @@ POST /api/v1/namespaces/{ns}/jobs
 
 **quota 名组装**：Platform 仅传短 quota 名；compute 校验 `(poolName, quota) ∈ tenant.spec.quotas` 后组装全名 `axisml-<tenant>-<pool>-<quota>` 写入 `spec.scheduling.quota`，随展开结果一并 snapshot 冻结。
 
-**snapshot 语义**：pool/unit CR 仅在 Create 入口被读取一次，展开结果一次性写入 PG `spec` 快照后即固化。后续 reconciler 把 spec 透传到 MLJob / MLService CR；compute-operator 直接读 spec 渲染 Pod，全程不感知 pool/unit 概念。pool 删除或 unit 改值不会影响已创建 workload。
+**snapshot 语义**：pool/unit CR 仅在 Create 入口被读取一次，展开结果一次性写入 PG `spec` 快照后即固化。后续 reconciler 把 spec 透传到 MLRun / MLService CR；compute-operator 直接读 spec 渲染 Pod，全程不感知 pool/unit 概念。pool 删除或 unit 改值不会影响已创建 workload。
 
 **与 [§5.3 Tenant Informer cache](#53-状态回流informer) 复用一套基础设施**：compute-service 已经持有 K8s SharedInformerFactory，加一条 ResourcePool Informer 零边际复杂度。
 
-**溯源 label**：展开成功后, compute-service 在创建的 `MLJob` / `MLService` CR 上自动打 label `axisml.io/resource-pool=<poolName>` + `axisml.io/resource-unit=<unitName>`, 同时往 `jobs.labels` / `services.labels` 写同一对 key, 便于 Platform 在 pool/unit 删除前置阻断（按 labelSelector 反查活跃 workload, 详见 [platform.md §4.6](platform.md#46-资源池编排)）。
+**溯源 label**：展开成功后, compute-service 在创建的 `MLRun` / `MLService` CR 上自动打 label `axisml.io/resource-pool=<poolName>` + `axisml.io/resource-unit=<unitName>`, 同时往 `mlruns.labels` / `mlservices.labels` 写同一对 key, 便于 Platform 在 pool/unit 删除前置阻断（按 labelSelector 反查活跃 workload, 详见 [platform.md §4.6](platform.md#46-资源池编排)）。
 
 ### 5.5 孤儿与补偿
 
@@ -395,10 +395,10 @@ Compute **不反向重建 CR**。Informer 观察到 CR DELETE 事件后按 PG �
 
 | 类别 | 内容 | 引用 |
 | --- | --- | --- |
-| 对外 REST（K8s 风格） | `/api/v1/namespaces[/{namespace}]`（Tenant CRUD）、`/api/v1/namespaces/{namespace}/{restore,suspend,resume}`、`/api/v1/namespaces/{namespace}/quotas[/{pool}/{name}]`、`/api/v1/namespaces/{namespace}/jobs[...]`、`/api/v1/namespaces/{namespace}/services[...]`、`/api/v1/namespaces/{namespace}/services/{name}/metrics`、`/api/v1/namespaces/{namespace}/traffic-policies[...]`（含 `/{name}/{split,promote,rollback,metrics}` 子路径） | [apis/compute-service.yaml](../apis/compute-service.yaml) `Tenants` / `Quotas` / `Jobs` / `Services` / `TrafficPolicies` tag |
+| 对外 REST（K8s 风格） | `/api/v1/namespaces[/{namespace}]`（Tenant CRUD）、`/api/v1/namespaces/{namespace}/{restore,suspend,resume}`、`/api/v1/namespaces/{namespace}/quotas[/{pool}/{name}]`、`/api/v1/namespaces/{namespace}/mlruns[...]`、`/api/v1/namespaces/{namespace}/mlservices[...]`、`/api/v1/namespaces/{namespace}/mlservices/{name}/metrics`、`/api/v1/namespaces/{namespace}/traffic-policies[...]`（含 `/{name}/{split,promote,rollback,metrics}` 子路径） | [apis/compute-service.yaml](../apis/compute-service.yaml) `Tenants` / `Quotas` / `MLRuns` / `MLServices` / `TrafficPolicies` tag |
 | 跨 namespace 聚合 | `GET /api/v1/workloads/count?labelSelector=&active=true`（忽略分区按 label 统计活跃 Job/Service）、`GET /api/v1/workloads/metrics?...`（租户 / 集群级工作负载时序） | [apis/compute-service.yaml](../apis/compute-service.yaml) `Workloads` tag |
-| 下发 CR | `Tenant`（`axisml.io/v1alpha1`, cluster-scoped）、`MLJob` / `MLService` / `MLTrafficPolicy`（namespaced）；Compute 是唯一 `spec` 写者 | [tenant-operator.md](tenant-operator.md) / [compute-operator.md](compute-operator.md) |
-| 回流字段 | `tenants.status` / `jobs.status` / `services.status` / `traffic_policies.status`（jsonb 整块） | [database.md §2](../database.md#2-compute-service) |
+| 下发 CR | `Tenant`（`axisml.io/v1alpha1`, cluster-scoped）、`MLRun` / `MLService` / `MLTrafficPolicy`（namespaced）；Compute 是唯一 `spec` 写者 | [tenant-operator.md](tenant-operator.md) / [compute-operator.md](compute-operator.md) |
+| 回流字段 | `tenants.status` / `mlruns.status` / `mlservices.status` / `traffic_policies.status`（jsonb 整块） | [database.md §2](../database.md#2-compute-service) |
 | 不变量 | CR `metadata` / `spec` 单写（Compute 写）；CR `status` 单读（operator 写）；API 不直接写 K8s | — |
 | 列表查询 | 所有 list 端点支持 `?labelSelector=` （K8s grammar：`=`/`==`/`!=`/`in (...)`/`notin (...)`/`key`/`!key`，逗号分隔 AND） | [database.md §1.6](../database.md#16-扩展元数据-labels--annotations) |
 | 身份头 | 调用方注入 `X-Axisml-User`，本服务仅做审计与 ownership 归属 | [auth.md §7](../auth.md#7-下游身份透传) |
@@ -410,15 +410,15 @@ Compute **不反向重建 CR**。Informer 观察到 CR DELETE 事件后按 PG �
 | 依赖 | 用途 | 引用 |
 | --- | --- | --- |
 | PostgreSQL | 业务元数据权威；与 artifacts 共享 database `axisml`，表前缀隔离 | [database.md §2](../database.md#2-compute-service) / [infra.md](../infra.md) |
-| Kubernetes API | `Tenant` / `MLJob` / `MLService` / `MLTrafficPolicy` CR 下发 + status watch + Pod log / Event 透传 + leader Lease | — |
+| Kubernetes API | `Tenant` / `MLRun` / `MLService` / `MLTrafficPolicy` CR 下发 + status watch + Pod log / Event 透传 + leader Lease | — |
 | tenant-operator | 下游 CR 消费者，把 Tenant CR 落地为 K8s Namespace / Secret / ElasticQuota 等 | [tenant-operator.md](tenant-operator.md) |
-| compute-operator | 下游 CR 消费者，把 MLJob / MLService / MLTrafficPolicy CR 落地为底层资源（含加权路由 / 灰度派生） | [compute-operator.md](compute-operator.md) |
+| compute-operator | 下游 CR 消费者，把 MLRun / MLService / MLTrafficPolicy CR 落地为底层资源（含加权路由 / 灰度派生） | [compute-operator.md](compute-operator.md) |
 | Platform | 上游唯一调用方；注入 `X-Axisml-User`；请求体仅携带 `(poolName, unitName)` 名字对，由 compute-service 自己展开 | [auth.md](../auth.md) / [platform.md §4.2](platform.md#42-计算任务编排) |
 | ResourcePool CR | compute-service 通过 K8s Informer cache 直读, 创建 Job/Service 时按 `(poolName, unitName)` 展开为 Pod 原语 snapshot | [cluster-manager.md §3](cluster-manager.md#3-核心模型) |
 | artifacts | image / model / dataset 引用懒查询；**由 operator handler 侧调用 resolve API，Compute 自身不调用** | [artifact-hub.md](artifact-hub.md) |
 | Prometheus | 在线服务 / 工作负载运行指标查询（`GetServiceMetrics` / `GetWorkloadMetrics`，`--prometheus-url`）；只读 | [infra.md](../infra.md) / [monitoring.md](../monitoring.md) |
 
-Compute 不感知 ElasticQuota CR 内部结构——接收 Platform 传入的短 quota 名，校验 `(pool, quota) ∈ tenant.spec.quotas` 后组装全名 `axisml-<tenant>-<pool>-<quota>` 写入 `spec.scheduling.quota`，再字符串透传到 Tenant CR / MLJob / MLService。
+Compute 不感知 ElasticQuota CR 内部结构——接收 Platform 传入的短 quota 名，校验 `(pool, quota) ∈ tenant.spec.quotas` 后组装全名 `axisml-<tenant>-<pool>-<quota>` 写入 `spec.scheduling.quota`，再字符串透传到 Tenant CR / MLRun / MLService。
 
 ## 8. 运行时形态
 
@@ -428,7 +428,7 @@ Compute 不感知 ElasticQuota CR 内部结构——接收 Platform 传入的短
 | 副本 | 默认 `replicas=1`（API 无状态可水平扩，reconciler / Informer 单 leader） |
 | Leader Election | K8s `Lease`（`axisml-compute-service.axisml.io`）；单副本退化为单成员瞬时 lease；`/metrics` 暴露 `axisml_compute_is_leader` gauge |
 | 暴露端口 | API `:8080`；Metrics `:8081`；Probes `:8082`（`/healthz` liveness / `/readyz` 校验 PG）；ClusterIP，无外部 `HTTPRoute` |
-| RBAC scope | `tenants.axisml.io` / `mljobs.axisml.io` / `mlservices.axisml.io` / `mltrafficpolicies.axisml.io` 全权 + `resourcepools.axisml.io` `get/list/watch` (Pool 展开) + 跨 tenant ns 的 `persistentvolumeclaims` `get/list/watch/create/delete`（仅 workspace 派生）+ `pods` / `pods/log` / `events` RO + 自身 ns 的 `leases`；**不含** `elasticquotas` / `namespaces` / `secrets`（这些由 tenant-operator 落地） |
+| RBAC scope | `tenants.axisml.io` / `mlruns.axisml.io` / `mlservices.axisml.io` / `mltrafficpolicies.axisml.io` 全权 + `resourcepools.axisml.io` `get/list/watch` (Pool 展开) + 跨 tenant ns 的 `persistentvolumeclaims` `get/list/watch/create/delete`（仅 workspace 派生）+ `pods` / `pods/log` / `events` RO + 自身 ns 的 `leases`；**不含** `elasticquotas` / `namespaces` / `secrets`（这些由 tenant-operator 落地） |
 | Helm values / 镜像 | 详见 [deployment.md §6.1](../deployment.md#61-cluster-manager--compute--artifacts--platform-backend) |
 
 ## 9. 相关引用
@@ -441,7 +441,7 @@ Compute 不感知 ElasticQuota CR 内部结构——接收 Platform 传入的短
 - [infra.md](../infra.md) — Koordinator / koord-scheduler / ElasticQuota 依赖契约
 - [apis/compute-service.yaml](../apis/compute-service.yaml) — REST API 契约源
 - [tenant-operator.md](tenant-operator.md) — Tenant CR 字段契约与落地行为
-- [compute-operator.md](compute-operator.md) — `MLJob` / `MLService` CR 字段契约与 handler 实现
+- [compute-operator.md](compute-operator.md) — `MLRun` / `MLService` CR 字段契约与 handler 实现
 - [artifact-hub.md](artifact-hub.md) — Job / Service 提交时引用懒查询（image / model / dataset）
 - [cluster-manager.md](cluster-manager.md) — ResourcePool CRD 的写入方; compute-service 通过 Informer 直读做展开
-- [platform.md](platform.md) — 上游调用方；工作区在 `services` 表上的 `kind='workspace'` 复用
+- [platform.md](platform.md) — 上游调用方；工作区在 `mlservices` 表上的 `kind='workspace'` 复用

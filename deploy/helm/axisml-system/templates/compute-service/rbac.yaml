@@ -6,13 +6,13 @@ metadata:
   labels:
     {{- include "axisml.componentLabels" (dict "context" . "component" "compute-service") | nindent 4 }}
 rules:
-  # AxisML CRDs Compute writes to (Tenant cluster-scoped; MLJob/MLService/
+  # AxisML CRDs Compute writes to (Tenant cluster-scoped; MLRun/MLService/
   # MLTrafficPolicy namespace-scoped).
   - apiGroups: ["axisml.io"]
-    resources: ["tenants", "mljobs", "mlservices", "mltrafficpolicies"]
+    resources: ["tenants", "mlruns", "mlservices", "mltrafficpolicies"]
     verbs: ["create", "get", "list", "watch", "update", "patch", "delete"]
   - apiGroups: ["axisml.io"]
-    resources: ["tenants/status", "mljobs/status", "mlservices/status", "mltrafficpolicies/status"]
+    resources: ["tenants/status", "mlruns/status", "mlservices/status", "mltrafficpolicies/status"]
     verbs: ["get", "list", "watch"]
   # ResourcePool (owned by cluster-manager): Compute reads it via an informer to
   # resolve pool/unit -> nodeSelector/tolerations/resources when materializing

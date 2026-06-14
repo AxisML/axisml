@@ -20,7 +20,7 @@ Every `.yaml` in this directory is fed to envtest's `CRDDirectoryPaths` by the m
 
 These will be vendored when the corresponding handler lands; until then keep the file out of this directory (envtest loads everything here).
 
-- **Kubeflow Training Operator** (`kubeflow.org` family — likely `TrainJob` `v2alpha1`, or `PyTorchJob`/`TFJob`/`MPIJob` `v1`). Source: `github.com/kubeflow/trainer/manifests/...`. Add as `kubeflow-trainjob.yaml` when a kubeflow MLJob handler lands.
+- **Kubeflow Training Operator** (`kubeflow.org` family — likely `TrainJob` `v2alpha1`, or `PyTorchJob`/`TFJob`/`MPIJob` `v1`). Source: `github.com/kubeflow/trainer/manifests/...`. Add as `kubeflow-trainjob.yaml` when a kubeflow MLRun handler lands.
 - **KServe** (`serving.kserve.io` — likely `InferenceService` `v1beta1`, optionally `LLMInferenceService` `v1alpha1`). Source: `github.com/kserve/kserve/config/crd/...`. Add as `kserve-inferenceservice.yaml` when a kserve MLService handler lands.
 
 ## Refresh procedure

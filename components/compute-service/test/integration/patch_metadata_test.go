@@ -9,12 +9,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	jobmod "github.com/axisml/axisml/components/compute-service/internal/job"
+	jobmod "github.com/axisml/axisml/components/compute-service/internal/mlrun"
 )
 
-// TestJob_PatchMetadata verifies PATCH /jobs/{job} updates display-tier
+// TestMLRun_PatchMetadata verifies PATCH /mlruns/{job} updates display-tier
 // fields without touching spec (compute-service.md §4.3).
-func TestJob_PatchMetadata(t *testing.T) {
+func TestMLRun_PatchMetadata(t *testing.T) {
 	if testEngine == nil {
 		t.Skip("test engine not bootstrapped")
 	}
@@ -23,8 +23,8 @@ func TestJob_PatchMetadata(t *testing.T) {
 	const ns = "patch-ns"
 	mustCreateNamespace(t, ctx, ns)
 
-	rr := doJSON(t, ctx, http.MethodPost, "/api/v1/namespaces/"+ns+"/jobs",
-		buildJobCreateBody("patchable", "patch-pool", "small"), nil)
+	rr := doJSON(t, ctx, http.MethodPost, "/api/v1/namespaces/"+ns+"/mlruns",
+		buildMLRunCreateBody("patchable", "patch-pool", "small"), nil)
 	requireStatus(t, rr, http.StatusCreated)
 
 	body := map[string]any{
@@ -34,29 +34,29 @@ func TestJob_PatchMetadata(t *testing.T) {
 	}
 	var patched jobmod.View
 	rr = doJSON(t, ctx, http.MethodPatch,
-		"/api/v1/namespaces/"+ns+"/jobs/patchable", body, &patched)
+		"/api/v1/namespaces/"+ns+"/mlruns/patchable", body, &patched)
 	requireStatus(t, rr, http.StatusOK)
 	require.Equal(t, "Patched Display", patched.DisplayName)
 	require.Equal(t, "patched desc", patched.Description)
 	require.Equal(t, "p9", patched.Labels["axisml.io/project"])
 }
 
-// TestJob_PatchNotFound returns 404 on a missing job.
-func TestJob_PatchNotFound(t *testing.T) {
+// TestMLRun_PatchNotFound returns 404 on a missing job.
+func TestMLRun_PatchNotFound(t *testing.T) {
 	if testEngine == nil {
 		t.Skip("test engine not bootstrapped")
 	}
 	const ns = "patch-nf-ns"
 	mustCreateNamespace(t, context.Background(), ns)
 	rr := doJSON(t, context.Background(), http.MethodPatch,
-		"/api/v1/namespaces/"+ns+"/jobs/ghost",
+		"/api/v1/namespaces/"+ns+"/mlruns/ghost",
 		map[string]any{"displayName": "x"}, nil)
 	requireStatus(t, rr, http.StatusNotFound)
 }
 
-// TestService_PatchMetadata: PATCH /services/{service} updates display-tier
+// TestMLService_PatchMetadata: PATCH /mlservices/{service} updates display-tier
 // fields without touching spec.
-func TestService_PatchMetadata(t *testing.T) {
+func TestMLService_PatchMetadata(t *testing.T) {
 	if testEngine == nil {
 		t.Skip("test engine not bootstrapped")
 	}
@@ -65,7 +65,7 @@ func TestService_PatchMetadata(t *testing.T) {
 	const ns = "svc-patch-ns"
 	mustCreateNamespace(t, ctx, ns)
 
-	rr := doJSON(t, ctx, http.MethodPost, "/api/v1/namespaces/"+ns+"/services", map[string]any{
+	rr := doJSON(t, ctx, http.MethodPost, "/api/v1/namespaces/"+ns+"/mlservices", map[string]any{
 		"name":     "patchable-svc",
 		"poolName": "svc-patch-pool",
 		"unitName": "small",
@@ -84,7 +84,7 @@ func TestService_PatchMetadata(t *testing.T) {
 	requireStatus(t, rr, http.StatusCreated)
 
 	rr = doJSON(t, ctx, http.MethodPatch,
-		"/api/v1/namespaces/"+ns+"/services/patchable-svc",
+		"/api/v1/namespaces/"+ns+"/mlservices/patchable-svc",
 		map[string]any{
 			"displayName": "Patched Service",
 			"labels":      map[string]string{"axisml.io/project": "p9"},

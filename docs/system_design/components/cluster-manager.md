@@ -123,7 +123,7 @@ spec:
 | `pool.spec.tolerations` | 直接作为 `spec.scheduling.tolerations` |
 | `unit.requests` / `limits` | 写入 `spec.roles[*].template.resources` |
 
-snapshot 语义：compute 在 Create 入口完成展开后立刻把 nodeSelector / tolerations / requests / limits 写入 `jobs.spec` / `services.spec` jsonb。pool 或 unit 后续修改 / 删除**不影响**已创建的 workload——它们存的是展开后的原语，跟 CR 解耦。
+snapshot 语义：compute 在 Create 入口完成展开后立刻把 nodeSelector / tolerations / requests / limits 写入 `mlruns.spec` / `mlservices.spec` jsonb。pool 或 unit 后续修改 / 删除**不影响**已创建的 workload——它们存的是展开后的原语，跟 CR 解耦。
 
 ## 4. 核心功能
 

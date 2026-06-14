@@ -34,8 +34,8 @@ spec:
             {{- else }}
             - --leader-elect=false
             {{- end }}
-            {{- if not $op.controllers.mljob.enabled }}
-            - --enable-mljob=false
+            {{- if not $op.controllers.mlrun.enabled }}
+            - --enable-mlrun=false
             {{- end }}
             {{- if not $op.controllers.mlservice.enabled }}
             - --enable-mlservice=false

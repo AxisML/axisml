@@ -382,7 +382,7 @@ paths:
         Returns the storage URI, content digest (if `Ready`), and an
         URI / digest or short-lived pull credentials depending on `usage`.
 
-        * `usage=inspect` (default) is for in-cluster operators (mljob /
+        * `usage=inspect` (default) is for in-cluster operators (mlrun /
           mlservice handlers). Returns only `uri` + `digest`; the workload
           authenticates to zot / RustFS via the per-tenant ServiceAccount
           provisioned by tenant-operator (default `imagePullSecrets` for OCI;

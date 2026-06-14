@@ -56,7 +56,7 @@ make helm-install-platform  # 最后装用户面
 `make helm-install-system` 内部先 `kubectl apply` `deploy/helm/axisml-system/crds/`，再做 `helm upgrade --install`——Helm 只在初次安装时处理 `crds/` 目录，CRD schema 升级靠这一步保证。
 
 > **顺序约束**：
-> - `axisml-infra` 提供 Koordinator / Envoy Gateway 等 CRDs 与 PostgreSQL；先于 system 安装，否则 Tenant / MLJob CR 找不到 ElasticQuota / HTTPRoute kind、compute / artifact 连不上数据库。
+> - `axisml-infra` 提供 Koordinator / Envoy Gateway 等 CRDs 与 PostgreSQL；先于 system 安装，否则 Tenant / MLRun CR 找不到 ElasticQuota / HTTPRoute kind、compute / artifact 连不上数据库。
 > - `axisml-platform` 在最后安装：Platform 启动即依赖 System 层的 compute-service / artifact-hub 就绪，且其 bootstrap（初始化 `system-admin` 与内置租户）需调用 compute。
 
 ---
@@ -182,7 +182,7 @@ CRD 定义放在 `deploy/helm/axisml-system/crds/` 下（不在 `templates/`）�
 | CRD | 文件 | 由谁消费 |
 | --- | --- | --- |
 | `tenants.axisml.io` | `crds/tenant-crd.yaml` | tenant-operator |
-| `mljobs.axisml.io` | `crds/mljob-crd.yaml` | compute-operator |
+| `mlruns.axisml.io` | `crds/mlrun-crd.yaml` | compute-operator |
 | `mlservices.axisml.io` | `crds/mlservice-crd.yaml` | compute-operator |
 | `resourcepools.axisml.io` | `crds/resource-pool-crd.yaml` | cluster-manager (写) / compute-service (Informer 读做展开) |
 

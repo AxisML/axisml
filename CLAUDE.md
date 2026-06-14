@@ -9,9 +9,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 AxisML is a Kubernetes-native ML platform. The repo is a monorepo split into:
 
 - `components/tenant-operator/` — Go operator binary reconciling the `Tenant` CR (Namespace, Koordinator ElasticQuota, per-tenant Secret/CM/SA/RBAC). Single reconciler, no dispatcher.
-- `components/compute-operator/` — Go operator binary reconciling `MLJob` and `MLService` CRs via the dispatcher + handler model.
+- `components/compute-operator/` — Go operator binary reconciling `MLRun` and `MLService` CRs via the dispatcher + handler model.
 - `components/cluster-manager/` — Stateless REST shell over the cluster-scoped `ResourcePool` CRD (CRUD of pools + inline `spec.units[]`) on the K8s API. Admin-tier entry point; no PG, no reconciler, no leader election — Kubernetes etcd is the source of truth.
-- `components/compute-service/` — Go service and business authority for Tenant / Quota / Job / Service / Workspace, with PG as the sole source of truth. Emits `Tenant` / `MLJob` / `MLService` CRs derived from PG and reads back their status; partitioned by namespace (= tenant name). Resolves `(poolName, unitName)` against the `ResourcePool` CRD via Informer (it does not own the ResourcePool/ResourceUnit vocabulary — that's cluster-manager).
+- `components/compute-service/` — Go service and business authority for Tenant / Quota / Job / Service / Workspace, with PG as the sole source of truth. Emits `Tenant` / `MLRun` / `MLService` CRs derived from PG and reads back their status; partitioned by namespace (= tenant name). Resolves `(poolName, unitName)` against the `ResourcePool` CRD via Informer (it does not own the ResourcePool/ResourceUnit vocabulary — that's cluster-manager).
 - `components/artifact-hub/` — Go service for the artifact registry. Partitioned by `(namespace, kind, name, version)` directly (no ArtifactRepo wrapper).
 - `components/platform/{backend,frontend}/` — scaffolded service areas with READMEs only; no code yet.
 - Deployment splits into three Helm charts along the Platform / System / Infra responsibility layers (install order infra → system → platform, uninstall reverse):
@@ -41,7 +41,7 @@ Each component is its own Go module, and each has a sibling `test/integration/` 
 ```
 components/tenant-operator/                       (production — Tenant CR reconciler)
 components/tenant-operator/test/integration/      (integration tests, separate module)
-components/compute-operator/                      (production — MLJob + MLService controllers)
+components/compute-operator/                      (production — MLRun + MLService controllers)
 components/compute-operator/test/integration/     (integration tests, separate module)
 components/cluster-manager/                       (production — REST shell over ResourcePool CR)
 components/cluster-manager/test/integration/      (integration tests, separate module)
@@ -124,16 +124,16 @@ Conventions that bite if you don't know them:
 
 ## Operator architecture: backend handler routing
 
-The MLJob and MLService operators don't reconcile a single backend type. Each CR's `spec.backend.{name, engine}` tuple routes reconciliation to a different handler:
+The MLRun and MLService operators don't reconcile a single backend type. Each CR's `spec.backend.{name, engine}` tuple routes reconciliation to a different handler:
 
 | Backend | CRD | engine examples | Notes |
 |---|---|---|---|
-| `native` | MLJob, MLService | `job`, `podgroup`, `deployment`, `statefulset` | Direct K8s primitives + sigs.k8s.io scheduler-plugins `PodGroup` for gang scheduling |
-| `kubeflow-trainer` | MLJob | `pytorchjob`, `tfjob`, `mpijob`, ... | Delegates to Kubeflow Training Operator |
+| `native` | MLRun, MLService | `job`, `podgroup`, `deployment`, `statefulset` | Direct K8s primitives + sigs.k8s.io scheduler-plugins `PodGroup` for gang scheduling |
+| `kubeflow-trainer` | MLRun | `pytorchjob`, `tfjob`, `mpijob`, ... | Delegates to Kubeflow Training Operator |
 | `kserve` | MLService | `inference`, `llminference` | KServe `InferenceService` |
-| `custom` | MLJob, MLService | any | User-defined target GVK via `backend.config` |
+| `custom` | MLRun, MLService | any | User-defined target GVK via `backend.config` |
 
-Defaults: MLJob `(native, job)`, MLService `(native, deployment)`.
+Defaults: MLRun `(native, job)`, MLService `(native, deployment)`.
 
 When adding a new handler:
 1. Implement under `internal/<backend>/<engine>/`.

@@ -117,7 +117,7 @@ API 入口见 [apis/platform.yaml](apis/platform.yaml) `Members` tag。
 ### 5.2 颁发流程
 
 1. 用户先以主登录 token 通过 Platform 鉴权；
-2. 调 `GET /api/v1/workspaces/{name}/access` 或 `GET /api/v1/services/{name}/access`（见 [apis/platform.yaml](apis/platform.yaml) `Workspaces` / `Services` tag）；
+2. 调 `GET /api/v1/workspaces/{name}/access` 或 `GET /api/v1/mlservices/{name}/access`（见 [apis/platform.yaml](apis/platform.yaml) `Workspaces` / `MLServices` tag）；
 3. 返回 `{ url, jwt, expiresAt }`；前端引导用户拼出 `<url>?token=<jwt>` 或在请求头注入；
 4. 数据面网关基于 JWKS 验签 + `aud` 校验后放行。
 
@@ -148,7 +148,7 @@ X-Axisml-User: <username>
 | 服务 | 是否做角色级鉴权 | `X-Axisml-User` 的用途 |
 | --- | --- | --- |
 | cluster-manager | NO | 写入 `tenants.last_modified_by` + K8s Event |
-| compute | NO | 写入 `services.owner` / `jobs.owner`；列表过滤 `@owner` |
+| compute | NO | 写入 `mlservices.owner` / `mlruns.owner`；列表过滤 `@owner` |
 | artifacts | NO | 审计 + ownership 归属 |
 
 下游服务的网络面 **只接受 ClusterIP**；操作员（compute-operator / tenant-operator）直连时只携带 controller service identity，权限受限（例如 artifacts 仅允许 `resolve?usage=inspect`）。

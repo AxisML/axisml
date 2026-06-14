@@ -5,7 +5,7 @@ info:
   description: |
     AxisML Compute Service is the multi-tenant ML workload service. It owns Tenant
     lifecycle (Tenant CR producer), Quota subresource, and namespace-partitioned
-    Job / Service objects on top of the compute-operator-owned MLJob /
+    Job / Service objects on top of the compute-operator-owned MLRun /
     MLService CRDs.
 
     Path segment `{namespace}` is the tenant identifier (= `tenants.name`);
@@ -18,7 +18,7 @@ info:
 
     Compute writes the desired state into its own PostgreSQL tables and
     relies on an Outbox + reconciler loop to translate desired state into
-    Tenant / MLJob / MLService CRs. Read paths surface the latest state
+    Tenant / MLRun / MLService CRs. Read paths surface the latest state
     observed through three in-process Informers.
 
 servers:
@@ -30,9 +30,9 @@ tags:
     description: Tenant lifecycle (create / read / update / soft-delete / restore)
   - name: Quotas
     description: Quota CRUD as a sub-resource of a Tenant; backed by `tenants.spec.quotas[]` jsonb
-  - name: Jobs
+  - name: MLRuns
     description: One-shot ML training / batch jobs (namespace-scoped)
-  - name: Services
+  - name: MLServices
     description: Long-running inference services and workspaces (namespace-scoped)
   - name: Health
     description: Liveness and readiness probes
@@ -381,15 +381,15 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   # Jobs (namespace-scoped)
   # ─────────────────────────────────────────────────────────────────────
-  /api/v1/namespaces/{namespace}/jobs:
+  /api/v1/namespaces/{namespace}/mlruns:
     parameters:
       - $ref: '#/components/parameters/Namespace'
     post:
-      operationId: createJob
-      tags: [Jobs]
+      operationId: createMLRun
+      tags: [MLRuns]
       summary: Create a job
       description: |
-        Creates a Job and asynchronously emits the corresponding MLJob CR.
+        Creates a Job and asynchronously emits the corresponding MLRun CR.
         Returns 201 with the freshly created Job (status will normally be
         `Creating` at this point).
 
@@ -400,14 +400,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/JobCreateRequest'
+              $ref: '#/components/schemas/MLRunCreateRequest'
       responses:
         '201':
           description: Job created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Job'
+                $ref: '#/components/schemas/MLRun'
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -416,8 +416,8 @@ paths:
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalServerError' }
     get:
-      operationId: listJobs
-      tags: [Jobs]
+      operationId: listMLRuns
+      tags: [MLRuns]
       summary: List jobs in a namespace
       parameters:
         - $ref: '#/components/parameters/LabelSelector'
@@ -428,26 +428,26 @@ paths:
           description: Optional filter on Job phase.
           required: false
           schema:
-            $ref: '#/components/schemas/JobPhase'
+            $ref: '#/components/schemas/MLRunPhase'
       responses:
         '200':
           description: A page of jobs
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/JobList'
+                $ref: '#/components/schemas/MLRunList'
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
-  /api/v1/namespaces/{namespace}/jobs/{job}:
+  /api/v1/namespaces/{namespace}/mlruns/{mlrun}:
     parameters:
       - $ref: '#/components/parameters/Namespace'
-      - $ref: '#/components/parameters/JobName'
+      - $ref: '#/components/parameters/MLRunName'
     get:
-      operationId: getJob
-      tags: [Jobs]
+      operationId: getMLRun
+      tags: [MLRuns]
       summary: Get a job by namespace + name
       responses:
         '200':
@@ -455,14 +455,14 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Job'
+                $ref: '#/components/schemas/MLRun'
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalServerError' }
     patch:
-      operationId: patchJob
-      tags: [Jobs]
+      operationId: patchMLRun
+      tags: [MLRuns]
       summary: Patch a job's PG-only display metadata
       description: |
         Per compute-service.md §4.3, only `displayName` / `description` /
@@ -473,26 +473,26 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/JobPatchRequest'
+              $ref: '#/components/schemas/MLRunPatchRequest'
       responses:
         '200':
           description: Patched job
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Job'
+                $ref: '#/components/schemas/MLRun'
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalServerError' }
     delete:
-      operationId: deleteJob
-      tags: [Jobs]
+      operationId: deleteMLRun
+      tags: [MLRuns]
       summary: Soft-delete a job
       description: |
         Soft-deletes the Job: PG row is marked `Deleting` + `deleted_at=now()`
-        and the reconciler deletes the MLJob CR. Idempotent.
+        and the reconciler deletes the MLRun CR. Idempotent.
       responses:
         '204':
           description: Job soft-deleted
@@ -501,13 +501,13 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
-  /api/v1/namespaces/{namespace}/jobs/{job}/cancel:
+  /api/v1/namespaces/{namespace}/mlruns/{mlrun}/cancel:
     parameters:
       - $ref: '#/components/parameters/Namespace'
-      - $ref: '#/components/parameters/JobName'
+      - $ref: '#/components/parameters/MLRunName'
     post:
-      operationId: cancelJob
-      tags: [Jobs]
+      operationId: cancelMLRun
+      tags: [MLRuns]
       summary: Cancel a running or pending job
       description: |
         Only valid when the job is in `Pending` or `Running`. Calling cancel
@@ -515,7 +515,7 @@ paths:
         returns 422.
 
         On success the job transitions to `Canceling`; the reconciler then
-        patches `MLJob.spec.runPolicy.suspend=true` and Compute waits for the
+        patches `MLRun.spec.runPolicy.suspend=true` and Compute waits for the
         operator-reported Suspended condition before advancing to `Cancelled`.
       responses:
         '202':
@@ -523,7 +523,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Job'
+                $ref: '#/components/schemas/MLRun'
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -535,16 +535,16 @@ paths:
                 $ref: '#/components/schemas/Problem'
         '500': { $ref: '#/components/responses/InternalServerError' }
 
-  /api/v1/namespaces/{namespace}/jobs/{job}/pods:
+  /api/v1/namespaces/{namespace}/mlruns/{mlrun}/pods:
     parameters:
       - $ref: '#/components/parameters/Namespace'
-      - $ref: '#/components/parameters/JobName'
+      - $ref: '#/components/parameters/MLRunName'
     get:
-      operationId: listJobPods
-      tags: [Jobs]
+      operationId: listMLRunPods
+      tags: [MLRuns]
       summary: List the Pods for a job
       description: |
-        Lists pods reverse-indexed by the `axisml.io/job-id` label. Each Pod
+        Lists pods reverse-indexed by the `axisml.io/run-id` label. Each Pod
         carries `replicaIndex` (from `axisml.io/replica-index`) and `role`
         (from `axisml.io/role`) when the backend produces them.
       responses:
@@ -559,14 +559,14 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
-  /api/v1/namespaces/{namespace}/jobs/{job}/pods/{pod}/logs:
+  /api/v1/namespaces/{namespace}/mlruns/{mlrun}/pods/{pod}/logs:
     parameters:
       - $ref: '#/components/parameters/Namespace'
-      - $ref: '#/components/parameters/JobName'
+      - $ref: '#/components/parameters/MLRunName'
       - $ref: '#/components/parameters/PodName'
     get:
-      operationId: getJobPodLogs
-      tags: [Jobs]
+      operationId: getMLRunPodLogs
+      tags: [MLRuns]
       summary: Fetch or stream a job pod's logs
       description: |
         Proxies the underlying Pod log API for one pod of the job.
@@ -639,19 +639,19 @@ paths:
                 $ref: '#/components/schemas/Problem'
         '500': { $ref: '#/components/responses/InternalServerError' }
 
-  /api/v1/namespaces/{namespace}/jobs/{job}/pods/{pod}/events:
+  /api/v1/namespaces/{namespace}/mlruns/{mlrun}/pods/{pod}/events:
     parameters:
       - $ref: '#/components/parameters/Namespace'
-      - $ref: '#/components/parameters/JobName'
+      - $ref: '#/components/parameters/MLRunName'
       - $ref: '#/components/parameters/PodName'
     get:
-      operationId: listJobPodEvents
-      tags: [Jobs]
+      operationId: listMLRunPodEvents
+      tags: [MLRuns]
       summary: List K8s events for one pod of a job
       description: |
         Returns K8s events whose `involvedObject` references the named pod
         (`Scheduled`, `Pulling`, `OOMKilled`, `BackOff`, ...). For events on
-        the MLJob CR or derived PodGroup, use `/jobs/{job}/events`.
+        the MLRun CR or derived PodGroup, use `/mlruns/{mlrun}/events`.
       responses:
         '200':
           description: Pod-scoped events
@@ -664,19 +664,19 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
-  /api/v1/namespaces/{namespace}/jobs/{job}/events:
+  /api/v1/namespaces/{namespace}/mlruns/{mlrun}/events:
     parameters:
       - $ref: '#/components/parameters/Namespace'
-      - $ref: '#/components/parameters/JobName'
+      - $ref: '#/components/parameters/MLRunName'
     get:
-      operationId: listJobEvents
-      tags: [Jobs]
+      operationId: listMLRunEvents
+      tags: [MLRuns]
       summary: List job-level K8s events
       description: |
-        Returns K8s events whose `involvedObject` references the MLJob CR
+        Returns K8s events whose `involvedObject` references the MLRun CR
         itself or any derived PodGroup (gang scheduling, suspended, success
         criteria met, ...). Pod-level events are NOT included; use
-        `/jobs/{job}/pods/{pod}/events` for those.
+        `/mlruns/{mlrun}/pods/{pod}/events` for those.
       responses:
         '200':
           description: Job-level events
@@ -692,12 +692,12 @@ paths:
   # ─────────────────────────────────────────────────────────────────────
   # Services (namespace-scoped)
   # ─────────────────────────────────────────────────────────────────────
-  /api/v1/namespaces/{namespace}/services:
+  /api/v1/namespaces/{namespace}/mlservices:
     parameters:
       - $ref: '#/components/parameters/Namespace'
     post:
-      operationId: createService
-      tags: [Services]
+      operationId: createMLService
+      tags: [MLServices]
       summary: Create a service or workspace
       description: |
         `kind` defaults to `service`. When `kind=workspace` the row is
@@ -711,14 +711,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ServiceCreateRequest'
+              $ref: '#/components/schemas/MLServiceCreateRequest'
       responses:
         '201':
           description: Service created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Service'
+                $ref: '#/components/schemas/MLService'
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -727,8 +727,8 @@ paths:
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalServerError' }
     get:
-      operationId: listServicesByNamespace
-      tags: [Services]
+      operationId: listMLServicesByNamespace
+      tags: [MLServices]
       summary: List services / workspaces in a namespace
       parameters:
         - in: query
@@ -736,7 +736,7 @@ paths:
           description: Filter by service kind.
           required: false
           schema:
-            $ref: '#/components/schemas/ServiceKind'
+            $ref: '#/components/schemas/MLServiceKind'
         - $ref: '#/components/parameters/LabelSelector'
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Continue'
@@ -746,19 +746,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ServiceList'
+                $ref: '#/components/schemas/MLServiceList'
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
-  /api/v1/namespaces/{namespace}/services/{service}:
+  /api/v1/namespaces/{namespace}/mlservices/{mlservice}:
     parameters:
       - $ref: '#/components/parameters/Namespace'
-      - $ref: '#/components/parameters/ServiceName'
+      - $ref: '#/components/parameters/MLServiceName'
     get:
-      operationId: getService
-      tags: [Services]
+      operationId: getMLService
+      tags: [MLServices]
       summary: Get a service by namespace + name
       responses:
         '200':
@@ -766,14 +766,14 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Service'
+                $ref: '#/components/schemas/MLService'
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalServerError' }
     patch:
-      operationId: patchService
-      tags: [Services]
+      operationId: patchMLService
+      tags: [MLServices]
       summary: Patch a service's PG-only display metadata
       description: |
         Per compute-service.md §4.4, only `displayName` / `description` /
@@ -785,22 +785,22 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ServicePatchRequest'
+              $ref: '#/components/schemas/MLServicePatchRequest'
       responses:
         '200':
           description: Patched service
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Service'
+                $ref: '#/components/schemas/MLService'
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalServerError' }
     delete:
-      operationId: deleteService
-      tags: [Services]
+      operationId: deleteMLService
+      tags: [MLServices]
       summary: Soft-delete a service
       description: |
         Soft-deletes the service: PG row is marked `Deleting` +
@@ -814,13 +814,13 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
-  /api/v1/namespaces/{namespace}/services/{service}/scale:
+  /api/v1/namespaces/{namespace}/mlservices/{mlservice}/scale:
     parameters:
       - $ref: '#/components/parameters/Namespace'
-      - $ref: '#/components/parameters/ServiceName'
+      - $ref: '#/components/parameters/MLServiceName'
     post:
-      operationId: scaleService
-      tags: [Services]
+      operationId: scaleMLService
+      tags: [MLServices]
       summary: Scale a service to a target replica count
       description: |
         Updates `services.replicas` and `services.spec.roles[0].replicas`,
@@ -831,14 +831,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ServiceScaleRequest'
+              $ref: '#/components/schemas/MLServiceScaleRequest'
       responses:
         '202':
           description: Scale request accepted
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Service'
+                $ref: '#/components/schemas/MLService'
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -846,13 +846,13 @@ paths:
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
-  /api/v1/namespaces/{namespace}/services/{service}/pods:
+  /api/v1/namespaces/{namespace}/mlservices/{mlservice}/pods:
     parameters:
       - $ref: '#/components/parameters/Namespace'
-      - $ref: '#/components/parameters/ServiceName'
+      - $ref: '#/components/parameters/MLServiceName'
     get:
-      operationId: listServicePods
-      tags: [Services]
+      operationId: listMLServicePods
+      tags: [MLServices]
       summary: List the Pods for a service
       description: |
         Lists pods reverse-indexed by the `axisml.io/service-id` label. Each
@@ -870,14 +870,14 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
-  /api/v1/namespaces/{namespace}/services/{service}/pods/{pod}/logs:
+  /api/v1/namespaces/{namespace}/mlservices/{mlservice}/pods/{pod}/logs:
     parameters:
       - $ref: '#/components/parameters/Namespace'
-      - $ref: '#/components/parameters/ServiceName'
+      - $ref: '#/components/parameters/MLServiceName'
       - $ref: '#/components/parameters/PodName'
     get:
-      operationId: getServicePodLogs
-      tags: [Services]
+      operationId: getMLServicePodLogs
+      tags: [MLServices]
       summary: Fetch or stream a service pod's logs
       description: |
         Proxies the underlying Pod log API for one pod of the service. Same
@@ -938,19 +938,19 @@ paths:
                 $ref: '#/components/schemas/Problem'
         '500': { $ref: '#/components/responses/InternalServerError' }
 
-  /api/v1/namespaces/{namespace}/services/{service}/pods/{pod}/events:
+  /api/v1/namespaces/{namespace}/mlservices/{mlservice}/pods/{pod}/events:
     parameters:
       - $ref: '#/components/parameters/Namespace'
-      - $ref: '#/components/parameters/ServiceName'
+      - $ref: '#/components/parameters/MLServiceName'
       - $ref: '#/components/parameters/PodName'
     get:
-      operationId: listServicePodEvents
-      tags: [Services]
+      operationId: listMLServicePodEvents
+      tags: [MLServices]
       summary: List K8s events for one pod of a service
       description: |
         Returns K8s events whose `involvedObject` references the named pod.
         For events on the MLService CR or its derived Deployment / HTTPRoute,
-        use `/services/{service}/events`.
+        use `/mlservices/{mlservice}/events`.
       responses:
         '200':
           description: Pod-scoped events
@@ -963,19 +963,19 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
-  /api/v1/namespaces/{namespace}/services/{service}/events:
+  /api/v1/namespaces/{namespace}/mlservices/{mlservice}/events:
     parameters:
       - $ref: '#/components/parameters/Namespace'
-      - $ref: '#/components/parameters/ServiceName'
+      - $ref: '#/components/parameters/MLServiceName'
     get:
-      operationId: listServiceEvents
-      tags: [Services]
+      operationId: listMLServiceEvents
+      tags: [MLServices]
       summary: List service-level K8s events
       description: |
         Returns K8s events whose `involvedObject` references the MLService CR
         itself or its derived workload (Deployment / StatefulSet / KServe
         InferenceService) and route (HTTPRoute). Pod-level events are NOT
-        included; use `/services/{service}/pods/{pod}/events` for those.
+        included; use `/mlservices/{mlservice}/pods/{pod}/events` for those.
       responses:
         '200':
           description: Service-level events
@@ -1008,7 +1008,7 @@ components:
         Tenant identifier (= `tenants.name`), used as the partition key
         for Job / Service rows. Compute internally joins the `tenants`
         table to resolve the K8s namespace (`spec.namespace.name`) used
-        as `metadata.namespace` on the derived MLJob / MLService CR.
+        as `metadata.namespace` on the derived MLRun / MLService CR.
       schema:
         type: string
         pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
@@ -1037,9 +1037,9 @@ components:
         minLength: 1
         maxLength: 63
 
-    JobName:
+    MLRunName:
       in: path
-      name: job
+      name: mlrun
       required: true
       description: Job name (DNS-1123, 3–40 chars).
       schema:
@@ -1048,9 +1048,9 @@ components:
         minLength: 3
         maxLength: 40
 
-    ServiceName:
+    MLServiceName:
       in: path
-      name: service
+      name: mlservice
       required: true
       description: Service name (DNS-1123, 3–40 chars).
       schema:
@@ -1805,7 +1805,7 @@ components:
         continueToken:
           type: string
 
-    # ────────────────── MLJob / MLService shared spec building blocks ──────────────────
+    # ────────────────── MLRun / MLService shared spec building blocks ──────────────────
     PodTemplateSpec:
       type: object
       description: |
@@ -1817,7 +1817,7 @@ components:
         `workingDir`, `resources`, `ports`, `volumes`, `volumeMounts`.
       additionalProperties: true
 
-    JobBackend:
+    MLRunBackend:
       type: object
       description: |
         Backend selector. Immutable after create. Defaults to
@@ -1842,7 +1842,7 @@ components:
           description: Optional schemaless config interpreted by the Handler.
       required: [name, engine]
 
-    ServiceBackend:
+    MLServiceBackend:
       type: object
       description: |
         Backend selector. Immutable after create. Defaults to
@@ -1910,7 +1910,7 @@ components:
           description: Read-only on GET (expanded snapshot).
       required: [quota, poolName, unitName]
 
-    JobRunPolicy:
+    MLRunRunPolicy:
       type: object
       properties:
         suspend:
@@ -1932,14 +1932,14 @@ components:
           type: string
           description: Optional clean-pod policy interpreted by some backends.
 
-    ServiceRunPolicy:
+    MLServiceRunPolicy:
       type: object
       properties:
         progressDeadlineSeconds:
           type: integer
           minimum: 1
 
-    JobRole:
+    MLRunRole:
       type: object
       properties:
         name:
@@ -1955,7 +1955,7 @@ components:
           $ref: '#/components/schemas/PodTemplateSpec'
       required: [name, replicas, template]
 
-    ServiceRole:
+    MLServiceRole:
       type: object
       properties:
         name:
@@ -1999,7 +1999,7 @@ components:
           type: integer
           minimum: 1
 
-    ServiceRoute:
+    MLServiceRoute:
       type: object
       description: Optional external HTTPRoute spec (mirrors MLService `spec.route`).
       properties:
@@ -2022,25 +2022,25 @@ components:
           type: string
           description: Go duration string (e.g. `30s`).
 
-    MLJobSpec:
+    MLRunSpec:
       type: object
       description: |
-        Snapshot of the MLJob CR `spec` (see compute-operator.md §4.1.1).
+        Snapshot of the MLRun CR `spec` (see compute-operator.md §4.1.1).
         Immutable after Job creation; cancel is implemented by patching
         `runPolicy.suspend` server-side, not by allowing the caller to
         edit spec.
       properties:
         backend:
-          $ref: '#/components/schemas/JobBackend'
+          $ref: '#/components/schemas/MLRunBackend'
         scheduling:
           $ref: '#/components/schemas/Scheduling'
         roles:
           type: array
           minItems: 1
           items:
-            $ref: '#/components/schemas/JobRole'
+            $ref: '#/components/schemas/MLRunRole'
         runPolicy:
-          $ref: '#/components/schemas/JobRunPolicy'
+          $ref: '#/components/schemas/MLRunRunPolicy'
       required: [scheduling, roles]
 
     MLServiceSpec:
@@ -2050,22 +2050,22 @@ components:
         Only `roles[0].replicas` is mutable after create, via `/scale`.
       properties:
         backend:
-          $ref: '#/components/schemas/ServiceBackend'
+          $ref: '#/components/schemas/MLServiceBackend'
         scheduling:
           $ref: '#/components/schemas/Scheduling'
         roles:
           type: array
           minItems: 1
           items:
-            $ref: '#/components/schemas/ServiceRole'
+            $ref: '#/components/schemas/MLServiceRole'
         runPolicy:
-          $ref: '#/components/schemas/ServiceRunPolicy'
+          $ref: '#/components/schemas/MLServiceRunPolicy'
         route:
-          $ref: '#/components/schemas/ServiceRoute'
+          $ref: '#/components/schemas/MLServiceRoute'
       required: [scheduling, roles]
 
     # ────────────────── Job ──────────────────
-    JobPhase:
+    MLRunPhase:
       type: string
       description: Compute-side Job phase. Hoisted to the top of `Job` so list endpoints can filter on it with a B-tree index.
       enum:
@@ -2079,9 +2079,9 @@ components:
         - Deleting
         - Deleted
 
-    JobStatus:
+    MLRunStatus:
       type: object
-      description: Status sub-object excluding `phase` (which lives at the top level of `Job`). Mirrors MLJob CR `status` minus `phase`.
+      description: Status sub-object excluding `phase` (which lives at the top level of `Job`). Mirrors MLRun CR `status` minus `phase`.
       properties:
         message:
           type: string
@@ -2098,7 +2098,7 @@ components:
           items:
             $ref: '#/components/schemas/Condition'
 
-    Job:
+    MLRun:
       type: object
       properties:
         id:
@@ -2124,11 +2124,11 @@ components:
         annotations:
           $ref: '#/components/schemas/StringMap'
         spec:
-          $ref: '#/components/schemas/MLJobSpec'
+          $ref: '#/components/schemas/MLRunSpec'
         phase:
-          $ref: '#/components/schemas/JobPhase'
+          $ref: '#/components/schemas/MLRunPhase'
         status:
-          $ref: '#/components/schemas/JobStatus'
+          $ref: '#/components/schemas/MLRunStatus'
         createdAt:
           type: string
           format: date-time
@@ -2141,7 +2141,7 @@ components:
           nullable: true
       required: [id, namespace, name, owner, spec, phase, createdAt, updatedAt]
 
-    JobCreateRequest:
+    MLRunCreateRequest:
       type: object
       description: |
         Platform expands cluster-manager ResourcePool / ResourceUnit references
@@ -2163,13 +2163,13 @@ components:
         annotations:
           $ref: '#/components/schemas/StringMap'
         spec:
-          $ref: '#/components/schemas/MLJobSpec'
+          $ref: '#/components/schemas/MLRunSpec'
       required: [name, spec]
 
-    JobPatchRequest:
+    MLRunPatchRequest:
       type: object
       description: |
-        RFC 7396 JSON Merge Patch body for `PATCH /jobs/{job}`. Only
+        RFC 7396 JSON Merge Patch body for `PATCH /mlruns/{mlrun}`. Only
         PG-only display fields are mutable; spec / phase / status remain
         frozen.
       properties:
@@ -2178,13 +2178,13 @@ components:
         labels:      { $ref: '#/components/schemas/StringMap' }
         annotations: { $ref: '#/components/schemas/StringMap' }
 
-    JobList:
+    MLRunList:
       type: object
       properties:
         items:
           type: array
           items:
-            $ref: '#/components/schemas/Job'
+            $ref: '#/components/schemas/MLRun'
         count:
           type: integer
           minimum: 0
@@ -2195,7 +2195,7 @@ components:
       required: [items, count]
 
     # ────────────────── Service ──────────────────
-    ServiceKind:
+    MLServiceKind:
       type: string
       description: |
         Logical kind of the service row. Compute does not change behavior
@@ -2206,7 +2206,7 @@ components:
         - workspace
       default: service
 
-    ServicePhase:
+    MLServicePhase:
       type: string
       description: Compute-side Service phase. Hoisted to the top of `Service` so list endpoints can filter on it with a B-tree index.
       enum:
@@ -2218,7 +2218,7 @@ components:
         - Deleting
         - Deleted
 
-    ServiceStatus:
+    MLServiceStatus:
       type: object
       description: Status sub-object excluding `phase` (which lives at the top level of `Service`). Mirrors MLService CR `status` minus `phase`.
       properties:
@@ -2236,7 +2236,7 @@ components:
           items:
             $ref: '#/components/schemas/Condition'
 
-    Service:
+    MLService:
       type: object
       properties:
         id:
@@ -2251,7 +2251,7 @@ components:
           minLength: 3
           maxLength: 40
         kind:
-          $ref: '#/components/schemas/ServiceKind'
+          $ref: '#/components/schemas/MLServiceKind'
         displayName:
           type: string
         description:
@@ -2280,9 +2280,9 @@ components:
           minimum: 0
           description: Desired replica count; equals `spec.roles[0].replicas`.
         phase:
-          $ref: '#/components/schemas/ServicePhase'
+          $ref: '#/components/schemas/MLServicePhase'
         status:
-          $ref: '#/components/schemas/ServiceStatus'
+          $ref: '#/components/schemas/MLServiceStatus'
         createdAt:
           type: string
           format: date-time
@@ -2295,7 +2295,7 @@ components:
           nullable: true
       required: [id, namespace, name, kind, owner, spec, generation, replicas, phase, createdAt, updatedAt]
 
-    ServiceCreateRequest:
+    MLServiceCreateRequest:
       type: object
       description: |
         Platform expands cluster-manager ResourcePool / ResourceUnit references
@@ -2308,7 +2308,7 @@ components:
           minLength: 3
           maxLength: 40
         kind:
-          $ref: '#/components/schemas/ServiceKind'
+          $ref: '#/components/schemas/MLServiceKind'
         displayName:
           type: string
         description:
@@ -2321,7 +2321,7 @@ components:
           $ref: '#/components/schemas/MLServiceSpec'
       required: [name, spec]
 
-    ServiceScaleRequest:
+    MLServiceScaleRequest:
       type: object
       properties:
         replicas:
@@ -2330,10 +2330,10 @@ components:
           description: Target desired replica count. Becomes `spec.roles[0].replicas`.
       required: [replicas]
 
-    ServicePatchRequest:
+    MLServicePatchRequest:
       type: object
       description: |
-        RFC 7396 JSON Merge Patch body for `PATCH /services/{service}`.
+        RFC 7396 JSON Merge Patch body for `PATCH /mlservices/{mlservice}`.
         Only PG-only display fields are mutable; spec.roles[0].replicas
         flows through `/scale`.
       properties:
@@ -2342,13 +2342,13 @@ components:
         labels:      { $ref: '#/components/schemas/StringMap' }
         annotations: { $ref: '#/components/schemas/StringMap' }
 
-    ServiceList:
+    MLServiceList:
       type: object
       properties:
         items:
           type: array
           items:
-            $ref: '#/components/schemas/Service'
+            $ref: '#/components/schemas/MLService'
         count:
           type: integer
           minimum: 0

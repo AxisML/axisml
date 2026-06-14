@@ -1,0 +1,190 @@
+package mlservice
+
+import (
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+
+	mlservicev1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
+
+	"github.com/axisml/axisml/components/compute-service/internal/kubeproxy"
+	"github.com/axisml/axisml/components/compute-service/internal/server"
+)
+
+// Handler exposes /namespaces/:namespace/mlservices routes.
+type Handler struct {
+	svc  *Module
+	kube *kubeproxy.Client
+}
+
+func NewHandler(svc *Module, kube *kubeproxy.Client) *Handler {
+	return &Handler{svc: svc, kube: kube}
+}
+
+func (h *Handler) Register(rg *gin.RouterGroup) {
+	g := rg.Group("/namespaces/:namespace/mlservices")
+	g.POST("", h.Create)
+	g.GET("", h.List)
+	g.GET("/:mlservice", h.Get)
+	g.PATCH("/:mlservice", h.Patch)
+	g.POST("/:mlservice/scale", h.Scale)
+	g.DELETE("/:mlservice", h.Delete)
+	if h.kube != nil {
+		g.GET("/:mlservice/pods", h.ListPods)
+		g.GET("/:mlservice/pods/:pod/logs", h.PodLog)
+		g.GET("/:mlservice/pods/:pod/events", h.PodEvents)
+		g.GET("/:mlservice/events", h.MLServiceEvents)
+	}
+}
+
+func (h *Handler) ListPods(c *gin.Context) {
+	s, err := h.svc.Get(c.Request.Context(), c.Param("namespace"), c.Param("mlservice"))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	h.kube.PodsByLabel(c, s.Namespace, mlservicev1alpha1.LabelServiceID, s.ID.String())
+}
+
+func (h *Handler) Patch(c *gin.Context) {
+	var in PatchInput
+	if err := c.ShouldBindJSON(&in); err != nil {
+		_ = c.Error(err)
+		return
+	}
+	v, err := h.svc.Patch(c.Request.Context(), c.Param("namespace"), c.Param("mlservice"), in)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, v)
+}
+
+// PodLog streams the pod's log. The pod must carry
+// axisml.io/service-id=<row.id>; the URL :namespace is checked against
+// the row, not blindly forwarded to kube-apiserver.
+func (h *Handler) PodLog(c *gin.Context) {
+	s, err := h.svc.Get(c.Request.Context(), c.Param("namespace"), c.Param("mlservice"))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	if err := h.kube.VerifyPodHasLabel(c.Request.Context(), s.Namespace, c.Param("pod"),
+		mlservicev1alpha1.LabelServiceID, s.ID.String()); err != nil {
+		_ = c.Error(err)
+		return
+	}
+	h.kube.PodLog(c, s.Namespace, c.Param("pod"))
+}
+
+func (h *Handler) PodEvents(c *gin.Context) {
+	s, err := h.svc.Get(c.Request.Context(), c.Param("namespace"), c.Param("mlservice"))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	if err := h.kube.VerifyPodHasLabel(c.Request.Context(), s.Namespace, c.Param("pod"),
+		mlservicev1alpha1.LabelServiceID, s.ID.String()); err != nil {
+		_ = c.Error(err)
+		return
+	}
+	h.kube.EventsByInvolved(c, s.Namespace,
+		kubeproxy.EventTarget{Kind: "Pod", Name: c.Param("pod")})
+}
+
+// MLServiceEvents lists events targeting the MLService CR or its underlying
+// workload primitives (Deployment / StatefulSet) and exposed HTTPRoute
+// per design §4.4. Row lookup confirms the URL :namespace/:mlservice tuple
+// before forwarding.
+func (h *Handler) MLServiceEvents(c *gin.Context) {
+	s, err := h.svc.Get(c.Request.Context(), c.Param("namespace"), c.Param("mlservice"))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	h.kube.EventsByInvolved(c, s.Namespace,
+		kubeproxy.EventTarget{Kind: "MLService", Name: s.Name},
+		kubeproxy.EventTarget{Kind: "Deployment", Name: s.Name},
+		kubeproxy.EventTarget{Kind: "StatefulSet", Name: s.Name},
+		kubeproxy.EventTarget{Kind: "HTTPRoute", Name: s.Name},
+	)
+}
+
+func (h *Handler) Create(c *gin.Context) {
+	ns := c.Param("namespace")
+	var in CreateInput
+	if err := c.ShouldBindJSON(&in); err != nil {
+		_ = c.Error(err)
+		return
+	}
+	v, err := h.svc.Create(c.Request.Context(), ns, in)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusCreated, v)
+}
+
+func (h *Handler) List(c *gin.Context) {
+	ns := c.Param("namespace")
+	p, err := server.ParsePagination(c)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	clause, args, err := server.JSONLabelsSQL("labels", c.Query("labelSelector"))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	items, total, err := h.svc.List(c.Request.Context(), ns, c.Query("kind"), p.Limit, p.Offset, clause, args)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"items":         items,
+		"count":         len(items),
+		"total":         total,
+		"continueToken": server.EncodeContinue(p.Offset, len(items), total),
+	})
+}
+
+func (h *Handler) Get(c *gin.Context) {
+	v, err := h.svc.Get(c.Request.Context(), c.Param("namespace"), c.Param("mlservice"))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, v)
+}
+
+func (h *Handler) Scale(c *gin.Context) {
+	var in ScaleInput
+	if err := c.ShouldBindJSON(&in); err != nil {
+		_ = c.Error(err)
+		return
+	}
+	v, err := h.svc.Scale(c.Request.Context(), c.Param("namespace"), c.Param("mlservice"), in)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	// 202 Accepted per design yaml: scale is async — generation bumped,
+	// reconciler will propagate to the CR.
+	c.JSON(http.StatusAccepted, v)
+}
+
+func (h *Handler) Delete(c *gin.Context) {
+	// ?deletePvc=false opts out of cascading PVC deletion for workspaces;
+	// design §4.4 defaults to true.
+	deletePVC := true
+	if v := c.Query("deletePvc"); v == "false" {
+		deletePVC = false
+	}
+	if err := h.svc.Delete(c.Request.Context(), c.Param("namespace"), c.Param("mlservice"), deletePVC); err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}

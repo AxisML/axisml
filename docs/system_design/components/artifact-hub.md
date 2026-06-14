@@ -93,7 +93,7 @@ S3 目录级制品，承载训练 / 评测数据集。
 | StorageKind | `s3`（RustFS） |
 | 必填 spec | `format`（`parquet` / `jsonl` / `csv` / `webdataset` / `tfrecord` / `custom`） |
 | URI 模板 | `s3://axisml-artifact-hub/namespaces/<ns>/datasets/<name>/<version>/`；digest = canonical JSON SHA256(`artifact-manifest.json`) |
-| 主要消费方 | mljob handler 注入 env `AXISML_DATASET_URI` / `AXISML_DATASET_DIGEST`，并通过 init container 或 csi-s3 volume 挂载到 `/data` |
+| 主要消费方 | mlrun handler 注入 env `AXISML_DATASET_URI` / `AXISML_DATASET_DIGEST`，并通过 init container 或 csi-s3 volume 挂载到 `/data` |
 
 ### 4.3 Image
 
@@ -104,7 +104,7 @@ OCI 容器镜像，承载训练 / 推理 / 开发运行时；阶段 2 由调用�
 | StorageKind | `oci`（zot） |
 | 必填 spec | `purpose`（`training` / `inference` / `dev`） |
 | URI 模板 | `<oci-host>/namespaces/<ns>/images/<name>:<version>` |
-| 主要消费方 | mljob / mlservice handler 用 URI 作为 Pod `spec.containers[].image`；imagePullSecret 由 tenant-operator 落地的 per-tenant ServiceAccount 默认携带，operator 不显式拼 secret 名 |
+| 主要消费方 | mlrun / mlservice handler 用 URI 作为 Pod `spec.containers[].image`；imagePullSecret 由 tenant-operator 落地的 per-tenant ServiceAccount 默认携带，operator 不显式拼 secret 名 |
 
 ## 5. 关键机制
 
@@ -138,7 +138,7 @@ OCI 容器镜像，承载训练 / 推理 / 开发运行时；阶段 2 由调用�
 
 | usage | 调用方 | 额外字段 | 凭证形态 |
 | --- | --- | --- | --- |
-| `inspect` | 集群内 operator（mlservice / mljob handler） | — | 不签发任何凭证；operator 派生的 Pod 通过 per-tenant ServiceAccount（由 tenant-operator 在 workload namespace 内落地，已默认携带 zot / RustFS 的 imagePullSecrets / 通用 Secret）拉取/读写后端；Artifacts 只回 `uri` + `digest`。 |
+| `inspect` | 集群内 operator（mlservice / mlrun handler） | — | 不签发任何凭证；operator 派生的 Pod 通过 per-tenant ServiceAccount（由 tenant-operator 在 workload namespace 内落地，已默认携带 zot / RustFS 的 imagePullSecrets / 通用 Secret）拉取/读写后端；Artifacts 只回 `uri` + `digest`。 |
 | `download` | 终端用户 / 训练 / 推理脚本（经 Platform / Gateway） | `pull_credentials` / `expires_at` | OCI pull scope token / S3 prefix-scoped STS，TTL=1h |
 
 公共字段：`storage_kind`（`oci` / `s3`）、`uri`（由 `Handler.BuildStorageURI` 拼装）、`digest`（PG 读，未 Ready 为空）、`visibility`。
@@ -235,5 +235,5 @@ Ready / Failed ──(DELETE)──▶ Deleting ──(GCBackend 成功)──�
 - [infra.md](../infra.md) — zot / RustFS / PostgreSQL 基础设施
 - [apis/artifact-hub.yaml](../apis/artifact-hub.yaml) — REST API 字段契约
 - [tenant-operator.md](tenant-operator.md) — per-tenant SA + 默认 ImagePullSecret / Secret 落地契约（`resolve?usage=inspect` 的隐式凭证来源）
-- [compute-operator.md](compute-operator.md) — mljob / mlservice handler 作为 resolve 消费方
+- [compute-operator.md](compute-operator.md) — mlrun / mlservice handler 作为 resolve 消费方
 - [platform.md](platform.md) — 工作区到 Artifacts namespace 的映射

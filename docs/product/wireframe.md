@@ -61,8 +61,8 @@
 | --- | --- | --- | :---: | :---: |
 | — | Dashboard (中文 首页) | `/dashboard` | 切换器联动 | §3 |
 | 训练中心 | 工作区 | `/workspaces` · `/workspaces/{name}` | 租户内 | §6 |
-|  | 计算任务 | `/jobs` · `/jobs/{name}` | 租户内 | §7 |
-| 服务中心 | 在线服务 | `/services` · `/services/{name}` | 租户内 | §8 |
+|  | 计算任务 | `/mlruns` · `/mlruns/{name}` | 租户内 | §7 |
+| 服务中心 | 在线服务 | `/mlservices` · `/mlservices/{name}` | 租户内 | §8 |
 |  | 流量控制 | `/traffic` · `/traffic/{name}` | 租户内 | §10 |
 | 资产中心 | 数据集 | `/datasets` · `/datasets/{name}` | 租户内 | §9 |
 |  | 模型 | `/models` · `/models/{name}` | 租户内 | §9 |
@@ -134,8 +134,8 @@ KPI 卡(`DashboardOverview`):
 | 卡 | 字段 | 说明 |
 | --- | --- | --- |
 | 租户 | `tenantCount` · `activeTenantCount` | 总数 + `Active` 计数;点击跳 `/tenants` |
-| 活跃任务 | `activeJobCount` | `Running` + `Pending`;跳 `/jobs` |
-| 在线服务 | `runningServiceCount` | `Ready` + `Degraded`;跳 `/services` |
+| 活跃任务 | `activeJobCount` | `Running` + `Pending`;跳 `/mlruns` |
+| 在线服务 | `runningServiceCount` | `Ready` + `Degraded`;跳 `/mlservices` |
 | 工作区 | `runningWorkspaceCount` | `Ready`;跳 `/workspaces` |
 | 模型 | `modelCount` | 含 `axisml-system` 公共;跳 `/models` |
 
@@ -350,7 +350,7 @@ UI 即时校验 + cluster-manager 兜底。详见 [apis/platform.yaml](apis/plat
 ```
 
 - 池内 `spec.units[]` 随 pool 级联删除,不构成删除阻断(`cluster-manager` DELETE 一并移除)。
-- `compute.ListJobs(pool, active)` / `compute.ListServices(pool, active)` > 0 → `409 pool-in-use`(按 `labels.axisml.io/resource-pool=<name>` 过滤),弹窗列示例 job / service name 与计数。
+- `compute.ListMLRuns(pool, active)` / `compute.ListMLServices(pool, active)` > 0 → `409 pool-in-use`(按 `labels.axisml.io/resource-pool=<name>` 过滤),弹窗列示例 job / service name 与计数。
 
 ### 4.6 状态展示规则
 
@@ -694,8 +694,8 @@ Tabs:  [基本信息]  [实例 (Pods)]  [日志]  [事件]
 
 | 入口 | 生产路径 | 权限 |
 | --- | --- | --- |
-| 任务列表 | `/jobs` | 本租户成员(读);`owner` / `tenant-admin`(写) |
-| 任务详情 | `/jobs/{name}` | 同上 |
+| 任务列表 | `/mlruns` | 本租户成员(读);`owner` / `tenant-admin`(写) |
+| 任务详情 | `/mlruns/{name}` | 同上 |
 
 ### 7.2 列表页
 
@@ -765,8 +765,8 @@ Tabs:  [基本信息]  [实例 (Pods)]  [日志]  [事件]
 
 | 入口 | 生产路径 | 权限 |
 | --- | --- | --- |
-| 服务列表 | `/services` | 本租户成员(读);`owner` / `tenant-admin`(写) |
-| 服务详情 | `/services/{name}` | 同上 |
+| 服务列表 | `/mlservices` | 本租户成员(读);`owner` / `tenant-admin`(写) |
+| 服务详情 | `/mlservices/{name}` | 同上 |
 
 ### 8.2 列表页
 

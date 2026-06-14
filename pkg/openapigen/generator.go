@@ -254,7 +254,7 @@ func (g *Generator) lookupWellKnown(t reflect.Type) *Schema {
 
 // componentName produces a stable, human-readable name for a Go type. The
 // PackageNamer hook lets services collapse colliding versioned packages
-// (e.g. mljob-operator/api/v1alpha1 vs mlservice-operator/api/v1alpha1) to
+// (e.g. mlrun-operator/api/v1alpha1 vs mlservice-operator/api/v1alpha1) to
 // per-operator prefixes; otherwise we fall back to capitalising the last
 // segment, qualifying Kubernetes-style version segments with their parent.
 func (g *Generator) componentName(t reflect.Type) string {

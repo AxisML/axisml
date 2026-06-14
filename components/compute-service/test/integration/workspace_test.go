@@ -17,7 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	mlservicev1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
-	"github.com/axisml/axisml/components/compute-service/internal/service"
+	"github.com/axisml/axisml/components/compute-service/internal/mlservice"
 )
 
 // TestWorkspace_PVCLifecycle drives the kind=workspace path end-to-end:
@@ -60,10 +60,10 @@ func TestWorkspace_PVCLifecycle(t *testing.T) {
 			},
 		}},
 	}
-	rr := doJSON(t, ctx, http.MethodPost, "/api/v1/namespaces/"+ns+"/services", body, nil)
+	rr := doJSON(t, ctx, http.MethodPost, "/api/v1/namespaces/"+ns+"/mlservices", body, nil)
 	requireStatus(t, rr, http.StatusCreated)
 
-	pvcName := service.WorkspacePVCName(wsName)
+	pvcName := mlservice.WorkspacePVCName(wsName)
 
 	// PVC should exist immediately (created synchronously before the DB row).
 	var pvc corev1.PersistentVolumeClaim
@@ -94,7 +94,7 @@ func TestWorkspace_PVCLifecycle(t *testing.T) {
 	// observable contract is "delete was dispatched": either the PVC is
 	// gone, or it's been marked with a deletionTimestamp.
 	rr = doJSON(t, ctx, http.MethodDelete,
-		"/api/v1/namespaces/"+ns+"/services/"+wsName, nil, nil)
+		"/api/v1/namespaces/"+ns+"/mlservices/"+wsName, nil, nil)
 	requireStatus(t, rr, http.StatusNoContent)
 	require.Eventually(t, func() bool {
 		var fresh corev1.PersistentVolumeClaim
@@ -143,11 +143,11 @@ func TestWorkspace_PVCRollbackOnDBFail(t *testing.T) {
 			},
 		}},
 	}
-	rr := doJSON(t, ctx, http.MethodPost, "/api/v1/namespaces/"+ns+"/services", body, nil)
+	rr := doJSON(t, ctx, http.MethodPost, "/api/v1/namespaces/"+ns+"/mlservices", body, nil)
 	requireStatus(t, rr, http.StatusCreated)
 	t.Cleanup(func() {
 		_ = doJSON(t, ctx, http.MethodDelete,
-			"/api/v1/namespaces/"+ns+"/services/"+wsName, nil, nil)
+			"/api/v1/namespaces/"+ns+"/mlservices/"+wsName, nil, nil)
 	})
 
 	// First DELETE so the PVC is gone, then the second create is the real
@@ -157,7 +157,7 @@ func TestWorkspace_PVCRollbackOnDBFail(t *testing.T) {
 	row := map[string]any{}
 	_ = row
 	require.NoError(t, gormDB.Exec(
-		`INSERT INTO services (id, namespace, name, kind, spec, phase, status, generation, observed_generation)
+		`INSERT INTO mlservices (id, namespace, name, kind, spec, phase, status, generation, observed_generation)
 		 VALUES (gen_random_uuid(), ?, ?, 'workspace', '{}', 'Creating', '{}', 1, 0)`,
 		ns, wsName+"-dup").Error)
 
@@ -166,7 +166,7 @@ func TestWorkspace_PVCRollbackOnDBFail(t *testing.T) {
 	// (namespace, name) — services_namespace_name_active_uniq), and the
 	// rollback path should delete the PVC.
 	body["name"] = wsName + "-dup"
-	rr = doJSON(t, ctx, http.MethodPost, "/api/v1/namespaces/"+ns+"/services", body, nil)
+	rr = doJSON(t, ctx, http.MethodPost, "/api/v1/namespaces/"+ns+"/mlservices", body, nil)
 	require.GreaterOrEqual(t, rr.Code, 400)
 	require.Less(t, rr.Code, 600)
 
@@ -174,7 +174,7 @@ func TestWorkspace_PVCRollbackOnDBFail(t *testing.T) {
 	// or it was never reached on a fast-fail).
 	require.Eventually(t, func() bool {
 		var pvc corev1.PersistentVolumeClaim
-		err := c.Get(ctx, types.NamespacedName{Namespace: ns, Name: service.WorkspacePVCName(wsName + "-dup")}, &pvc)
+		err := c.Get(ctx, types.NamespacedName{Namespace: ns, Name: mlservice.WorkspacePVCName(wsName + "-dup")}, &pvc)
 		return apierrors.IsNotFound(err) || (err == nil && pvc.DeletionTimestamp != nil)
 	}, 5*time.Second, 200*time.Millisecond, "duplicate workspace PVC was not rolled back")
 }
@@ -216,13 +216,13 @@ func TestWorkspace_DeletePvcFalse(t *testing.T) {
 			},
 		}},
 	}
-	rr := doJSON(t, ctx, http.MethodPost, "/api/v1/namespaces/"+ns+"/services", body, nil)
+	rr := doJSON(t, ctx, http.MethodPost, "/api/v1/namespaces/"+ns+"/mlservices", body, nil)
 	requireStatus(t, rr, http.StatusCreated)
 
-	pvcName := service.WorkspacePVCName(wsName)
+	pvcName := mlservice.WorkspacePVCName(wsName)
 
 	rr = doJSON(t, ctx, http.MethodDelete,
-		"/api/v1/namespaces/"+ns+"/services/"+wsName+"?deletePvc=false", nil, nil)
+		"/api/v1/namespaces/"+ns+"/mlservices/"+wsName+"?deletePvc=false", nil, nil)
 	requireStatus(t, rr, http.StatusNoContent)
 	t.Cleanup(func() {
 		_ = c.Delete(context.Background(), &corev1.PersistentVolumeClaim{

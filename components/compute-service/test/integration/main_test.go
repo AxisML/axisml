@@ -28,7 +28,7 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	axismlv1alpha1 "github.com/axisml/axisml/components/cluster-manager/api/v1alpha1"
-	mljobv1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mljob/v1alpha1"
+	mlrunv1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlrun/v1alpha1"
 	mlservicev1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
 	mltrafficpolicyv1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mltrafficpolicy/v1alpha1"
 	tenantv1alpha1 "github.com/axisml/axisml/components/tenant-operator/api/v1alpha1"
@@ -64,7 +64,7 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(testScheme))
 	utilruntime.Must(axismlv1alpha1.AddToScheme(testScheme))
 	utilruntime.Must(tenantv1alpha1.AddToScheme(testScheme))
-	utilruntime.Must(mljobv1alpha1.AddToScheme(testScheme))
+	utilruntime.Must(mlrunv1alpha1.AddToScheme(testScheme))
 	utilruntime.Must(mlservicev1alpha1.AddToScheme(testScheme))
 	utilruntime.Must(mltrafficpolicyv1alpha1.AddToScheme(testScheme))
 }

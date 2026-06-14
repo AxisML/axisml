@@ -43,7 +43,7 @@ info:
 
     A single user can hold role bindings in multiple tenants
     (`user_tenant_roles` is many-to-many). For day-to-day, tenant-implicit
-    endpoints — `/api/v1/jobs`, `/api/v1/workspaces`, `/api/v1/services`,
+    endpoints — `/api/v1/mlruns`, `/api/v1/workspaces`, `/api/v1/mlservices`,
     `/api/v1/models`, `/api/v1/images`, `/api/v1/datasets` — the caller
     declares the active tenant via the `X-Axisml-Tenant` request header. The
     frontend's tenant selector is the canonical source; switching tenants
@@ -56,8 +56,8 @@ info:
       `400 active-tenant-required`.
     - **Create endpoints**: `X-Axisml-Tenant` is required; otherwise
       `400 active-tenant-required`.
-    - **Name-keyed detail endpoints** (e.g., `/api/v1/jobs/{name}`,
-      `/api/v1/services/{name}`, `/api/v1/workspaces/{name}`): the header
+    - **Name-keyed detail endpoints** (e.g., `/api/v1/mlruns/{name}`,
+      `/api/v1/mlservices/{name}`, `/api/v1/workspaces/{name}`): the header
       disambiguates the name and is required; otherwise
       `400 active-tenant-required`. Mirrors compute-service's
       `(namespace, name)` addressing convention.
@@ -102,9 +102,9 @@ tags:
     description: Per-tenant user ↔ role bindings.
   - name: Workspaces
     description: Long-running interactive dev containers (jupyter / code-server / ...).
-  - name: Jobs
+  - name: MLRuns
     description: One-shot training / fine-tuning / batch jobs.
-  - name: Services
+  - name: MLServices
     description: Long-running online inference services.
   - name: Models
     description: Model artifact registry views (proxies artifacts, `kind=model`).
@@ -1295,10 +1295,10 @@ paths:
   # Jobs
   # ============================================================================
 
-  /api/v1/jobs:
+  /api/v1/mlruns:
     post:
-      tags: [Jobs]
-      operationId: createJob
+      tags: [MLRuns]
+      operationId: createMLRun
       summary: Submit a new compute job
       description: |
         Creates a job in the active tenant (`X-Axisml-Tenant`). Requires
@@ -1310,14 +1310,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/JobCreateRequest'
+              $ref: '#/components/schemas/MLRunCreateRequest'
       responses:
         '201':
           description: Job created.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Job'
+                $ref: '#/components/schemas/MLRun'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -1334,8 +1334,8 @@ paths:
           $ref: '#/components/responses/InternalServerError'
 
     get:
-      tags: [Jobs]
-      operationId: listJobs
+      tags: [MLRuns]
+      operationId: listMLRuns
       summary: List jobs
       description: |
         With `X-Axisml-Tenant`: scoped to that tenant; `user` callers are
@@ -1351,7 +1351,7 @@ paths:
           in: query
           required: false
           schema:
-            $ref: '#/components/schemas/JobPhase'
+            $ref: '#/components/schemas/MLRunPhase'
         - name: owner
           in: query
           description: Admin-only filter.
@@ -1381,7 +1381,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/JobList'
+                $ref: '#/components/schemas/MLRunList'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -1391,14 +1391,14 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/jobs/{name}:
+  /api/v1/mlruns/{name}:
     parameters:
       - $ref: '#/components/parameters/ActiveTenantHeader'
-      - $ref: '#/components/parameters/JobName'
+      - $ref: '#/components/parameters/MLRunName'
 
     get:
-      tags: [Jobs]
-      operationId: getJob
+      tags: [MLRuns]
+      operationId: getMLRun
       summary: Get a job
       description: |
         Resolves `{name}` within the active tenant (`X-Axisml-Tenant`).
@@ -1410,7 +1410,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Job'
+                $ref: '#/components/schemas/MLRun'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -1423,8 +1423,8 @@ paths:
           $ref: '#/components/responses/InternalServerError'
 
     delete:
-      tags: [Jobs]
-      operationId: deleteJob
+      tags: [MLRuns]
+      operationId: deleteMLRun
       summary: Delete a job
       description: |
         Requires owner OR `tenant-admin@self` OR `system-admin`. Idempotent.
@@ -1442,13 +1442,13 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/jobs/{name}/cancel:
+  /api/v1/mlruns/{name}/cancel:
     parameters:
       - $ref: '#/components/parameters/ActiveTenantHeader'
-      - $ref: '#/components/parameters/JobName'
+      - $ref: '#/components/parameters/MLRunName'
     post:
-      tags: [Jobs]
-      operationId: cancelJob
+      tags: [MLRuns]
+      operationId: cancelMLRun
       summary: Cancel a running job
       description: |
         Requires owner OR `tenant-admin@self` OR `system-admin`. Cannot
@@ -1460,7 +1460,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Job'
+                $ref: '#/components/schemas/MLRun'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -1474,13 +1474,13 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/jobs/{name}/pods:
+  /api/v1/mlruns/{name}/pods:
     parameters:
       - $ref: '#/components/parameters/ActiveTenantHeader'
-      - $ref: '#/components/parameters/JobName'
+      - $ref: '#/components/parameters/MLRunName'
     get:
-      tags: [Jobs]
-      operationId: listJobPods
+      tags: [MLRuns]
+      operationId: listMLRunPods
       summary: List Pods belonging to a job
       description: |
         Proxies `compute.ListJobPods`. Each Pod carries `replicaIndex` and
@@ -1503,18 +1503,18 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/jobs/{name}/events:
+  /api/v1/mlruns/{name}/events:
     parameters:
       - $ref: '#/components/parameters/ActiveTenantHeader'
-      - $ref: '#/components/parameters/JobName'
+      - $ref: '#/components/parameters/MLRunName'
     get:
-      tags: [Jobs]
-      operationId: getJobEvents
+      tags: [MLRuns]
+      operationId: getMLRunEvents
       summary: List job-level Kubernetes events
       description: |
         Proxies `compute.ListJobEvents`. Returns events whose `involvedObject`
-        references the MLJob CR itself or any derived PodGroup. Pod-level
-        events are NOT included; use `/api/v1/jobs/{name}/pods/{pod}/events`.
+        references the MLRun CR itself or any derived PodGroup. Pod-level
+        events are NOT included; use `/api/v1/mlruns/{name}/pods/{pod}/events`.
         Requires same role as GET detail.
       responses:
         '200':
@@ -1534,14 +1534,14 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/jobs/{name}/pods/{pod}/logs:
+  /api/v1/mlruns/{name}/pods/{pod}/logs:
     parameters:
       - $ref: '#/components/parameters/ActiveTenantHeader'
-      - $ref: '#/components/parameters/JobName'
+      - $ref: '#/components/parameters/MLRunName'
       - $ref: '#/components/parameters/PodName'
     get:
-      tags: [Jobs]
-      operationId: getJobPodLogs
+      tags: [MLRuns]
+      operationId: getMLRunPodLogs
       summary: Fetch or stream a job pod's logs
       description: |
         Proxies `compute.GetJobPodLogs`. When `follow=true`, response is an SSE
@@ -1575,14 +1575,14 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/jobs/{name}/pods/{pod}/events:
+  /api/v1/mlruns/{name}/pods/{pod}/events:
     parameters:
       - $ref: '#/components/parameters/ActiveTenantHeader'
-      - $ref: '#/components/parameters/JobName'
+      - $ref: '#/components/parameters/MLRunName'
       - $ref: '#/components/parameters/PodName'
     get:
-      tags: [Jobs]
-      operationId: listJobPodEvents
+      tags: [MLRuns]
+      operationId: listMLRunPodEvents
       summary: List K8s events for one pod of a job
       description: |
         Proxies `compute.ListJobPodEvents`. Returns events whose
@@ -1609,10 +1609,10 @@ paths:
   # Services
   # ============================================================================
 
-  /api/v1/services:
+  /api/v1/mlservices:
     post:
-      tags: [Services]
-      operationId: createService
+      tags: [MLServices]
+      operationId: createMLService
       summary: Deploy a new online inference service
       description: |
         Deploys a service in the active tenant (`X-Axisml-Tenant`). Requires
@@ -1624,14 +1624,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ServiceCreateRequest'
+              $ref: '#/components/schemas/MLServiceCreateRequest'
       responses:
         '201':
           description: Service created.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Service'
+                $ref: '#/components/schemas/MLService'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -1648,8 +1648,8 @@ paths:
           $ref: '#/components/responses/InternalServerError'
 
     get:
-      tags: [Services]
-      operationId: listServices
+      tags: [MLServices]
+      operationId: listMLServices
       summary: List services
       description: |
         With `X-Axisml-Tenant`: scoped to that tenant; `tenant-admin@self`
@@ -1667,7 +1667,7 @@ paths:
           in: query
           required: false
           schema:
-            $ref: '#/components/schemas/ServicePhase'
+            $ref: '#/components/schemas/MLServicePhase'
         - name: q
           in: query
           required: false
@@ -1696,7 +1696,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ServiceList'
+                $ref: '#/components/schemas/MLServiceList'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -1704,13 +1704,13 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/services/{name}:
+  /api/v1/mlservices/{name}:
     parameters:
-      - $ref: '#/components/parameters/ServiceName'
+      - $ref: '#/components/parameters/MLServiceName'
 
     get:
-      tags: [Services]
-      operationId: getService
+      tags: [MLServices]
+      operationId: getMLService
       summary: Get a service
       description: |
         Requires `system-admin` OR `tenant-admin@self` OR
@@ -1721,7 +1721,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Service'
+                $ref: '#/components/schemas/MLService'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1732,8 +1732,8 @@ paths:
           $ref: '#/components/responses/InternalServerError'
 
     patch:
-      tags: [Services]
-      operationId: updateService
+      tags: [MLServices]
+      operationId: updateMLService
       summary: Update service display metadata
       description: |
         Only `displayName` / `description` / `labels` / `annotations` are
@@ -1744,14 +1744,14 @@ paths:
         content:
           application/merge-patch+json:
             schema:
-              $ref: '#/components/schemas/ServicePatchRequest'
+              $ref: '#/components/schemas/MLServicePatchRequest'
       responses:
         '200':
           description: Updated service.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Service'
+                $ref: '#/components/schemas/MLService'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -1766,8 +1766,8 @@ paths:
           $ref: '#/components/responses/InternalServerError'
 
     delete:
-      tags: [Services]
-      operationId: deleteService
+      tags: [MLServices]
+      operationId: deleteMLService
       summary: Delete a service
       description: |
         Idempotent. Defensive: returns 404 if the target is `kind=workspace`
@@ -1785,12 +1785,12 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/services/{name}/scale:
+  /api/v1/mlservices/{name}/scale:
     parameters:
-      - $ref: '#/components/parameters/ServiceName'
+      - $ref: '#/components/parameters/MLServiceName'
     post:
-      tags: [Services]
-      operationId: scaleService
+      tags: [MLServices]
+      operationId: scaleMLService
       summary: Set the replica count for a service
       description: |
         Requires owner OR `tenant-admin@self` OR `system-admin`.
@@ -1799,14 +1799,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ServiceScaleRequest'
+              $ref: '#/components/schemas/MLServiceScaleRequest'
       responses:
         '200':
           description: Scale request accepted.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Service'
+                $ref: '#/components/schemas/MLService'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -1820,12 +1820,12 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/services/{name}/start:
+  /api/v1/mlservices/{name}/start:
     parameters:
-      - $ref: '#/components/parameters/ServiceName'
+      - $ref: '#/components/parameters/MLServiceName'
     post:
-      tags: [Services]
-      operationId: startService
+      tags: [MLServices]
+      operationId: startMLService
       summary: Start a stopped service
       description: |
         Convenience for "scale to last-known positive replicas, or 1 if
@@ -1836,7 +1836,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Service'
+                $ref: '#/components/schemas/MLService'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1848,12 +1848,12 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/services/{name}/stop:
+  /api/v1/mlservices/{name}/stop:
     parameters:
-      - $ref: '#/components/parameters/ServiceName'
+      - $ref: '#/components/parameters/MLServiceName'
     post:
-      tags: [Services]
-      operationId: stopService
+      tags: [MLServices]
+      operationId: stopMLService
       summary: Stop a service (scale to 0)
       description: |
         Convenience for "scale 0". Requires owner OR `tenant-admin@self` OR
@@ -1864,7 +1864,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Service'
+                $ref: '#/components/schemas/MLService'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1876,12 +1876,12 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/services/{name}/access:
+  /api/v1/mlservices/{name}/access:
     parameters:
-      - $ref: '#/components/parameters/ServiceName'
+      - $ref: '#/components/parameters/MLServiceName'
     get:
-      tags: [Services]
-      operationId: getServiceAccess
+      tags: [MLServices]
+      operationId: getMLServiceAccess
       summary: Issue a short-TTL JWT for inference calls
       description: |
         Only meaningful when `route.enabled=true && route.auth.type=jwt`;
@@ -1893,7 +1893,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ServiceAccess'
+                $ref: '#/components/schemas/MLServiceAccess'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1905,12 +1905,12 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/services/{name}/metrics:
+  /api/v1/mlservices/{name}/metrics:
     parameters:
-      - $ref: '#/components/parameters/ServiceName'
+      - $ref: '#/components/parameters/MLServiceName'
     get:
-      tags: [Services]
-      operationId: getServiceMetrics
+      tags: [MLServices]
+      operationId: getMLServiceMetrics
       summary: Query Prometheus for service-level metrics
       description: |
         Documented at `components/platform.md §7.4`. Requires same role as GET
@@ -1920,7 +1920,7 @@ paths:
           in: query
           required: true
           schema:
-            $ref: '#/components/schemas/ServiceMetricName'
+            $ref: '#/components/schemas/MLServiceMetricName'
         - name: range
           in: query
           required: true
@@ -1960,12 +1960,12 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/services/{name}/pods:
+  /api/v1/mlservices/{name}/pods:
     parameters:
-      - $ref: '#/components/parameters/ServiceName'
+      - $ref: '#/components/parameters/MLServiceName'
     get:
-      tags: [Services]
-      operationId: listServicePods
+      tags: [MLServices]
+      operationId: listMLServicePods
       summary: List Pods backing a service
       description: |
         Proxies `compute.ListServicePods`. Each Pod carries `replicaIndex` and
@@ -1986,18 +1986,18 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/services/{name}/events:
+  /api/v1/mlservices/{name}/events:
     parameters:
-      - $ref: '#/components/parameters/ServiceName'
+      - $ref: '#/components/parameters/MLServiceName'
     get:
-      tags: [Services]
-      operationId: getServiceEvents
+      tags: [MLServices]
+      operationId: getMLServiceEvents
       summary: List service-level Kubernetes events
       description: |
         Proxies `compute.ListServiceEvents`. Returns events whose
         `involvedObject` references the MLService CR, its derived workload,
         or its HTTPRoute. Pod-level events are NOT included; use
-        `/services/{id}/pods/{pod}/events` for those.
+        `/mlservices/{id}/pods/{pod}/events` for those.
       responses:
         '200':
           description: Service-level event list.
@@ -2014,13 +2014,13 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/services/{name}/pods/{pod}/logs:
+  /api/v1/mlservices/{name}/pods/{pod}/logs:
     parameters:
-      - $ref: '#/components/parameters/ServiceName'
+      - $ref: '#/components/parameters/MLServiceName'
       - $ref: '#/components/parameters/PodName'
     get:
-      tags: [Services]
-      operationId: getServicePodLogs
+      tags: [MLServices]
+      operationId: getMLServicePodLogs
       summary: Fetch or stream a service pod's logs
       description: |
         Proxies `compute.GetServicePodLogs`. `text/plain` for `follow=false`,
@@ -2052,13 +2052,13 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/services/{name}/pods/{pod}/events:
+  /api/v1/mlservices/{name}/pods/{pod}/events:
     parameters:
-      - $ref: '#/components/parameters/ServiceName'
+      - $ref: '#/components/parameters/MLServiceName'
       - $ref: '#/components/parameters/PodName'
     get:
-      tags: [Services]
-      operationId: listServicePodEvents
+      tags: [MLServices]
+      operationId: listMLServicePodEvents
       summary: List K8s events for one pod of a service
       description: |
         Proxies `compute.ListServicePodEvents`. Returns events whose
@@ -3284,7 +3284,7 @@ components:
         minLength: 1
         maxLength: 63
 
-    ServiceName:
+    MLServiceName:
       name: name
       in: path
       required: true
@@ -3295,7 +3295,7 @@ components:
         minLength: 1
         maxLength: 63
 
-    JobName:
+    MLRunName:
       name: name
       in: path
       required: true
@@ -4451,7 +4451,7 @@ components:
     # Jobs
     # ------------------------------------------------------------------
 
-    JobPhase:
+    MLRunPhase:
       type: string
       enum:
         - Creating
@@ -4523,7 +4523,7 @@ components:
             type: object
             additionalProperties: true
 
-    JobRole:
+    MLRunRole:
       type: object
       required: [name, template]
       properties:
@@ -4540,7 +4540,7 @@ components:
         template:
           $ref: '#/components/schemas/RoleTemplate'
 
-    JobRoleStatus:
+    MLRunRoleStatus:
       type: object
       properties:
         name:
@@ -4576,7 +4576,7 @@ components:
           type: integer
           minimum: 1
 
-    Job:
+    MLRun:
       type: object
       required:
         - namespace
@@ -4634,13 +4634,13 @@ components:
         roles:
           type: array
           items:
-            $ref: '#/components/schemas/JobRoleStatus'
+            $ref: '#/components/schemas/MLRunRoleStatus'
         runPolicy:
           $ref: '#/components/schemas/RunPolicy'
         spec:
-          $ref: '#/components/schemas/MLJobSpec'
+          $ref: '#/components/schemas/MLRunSpec'
         phase:
-          $ref: '#/components/schemas/JobPhase'
+          $ref: '#/components/schemas/MLRunPhase'
         message:
           type: string
         startedAt:
@@ -4658,10 +4658,10 @@ components:
           type: string
           format: date-time
 
-    MLJobSpec:
+    MLRunSpec:
       type: object
       description: |
-        Mirror of `apis/compute-service.yaml#/components/schemas/MLJobSpec`
+        Mirror of `apis/compute-service.yaml#/components/schemas/MLRunSpec`
         (pass-through from compute). Surfaced on `Job` so the UI can prefill
         the "resubmit" form and render a complete YAML view. The authoritative
         shape and validation rules live in
@@ -4678,18 +4678,18 @@ components:
         roles:
           type: array
           items:
-            $ref: '#/components/schemas/JobRole'
+            $ref: '#/components/schemas/MLRunRole'
         runPolicy:
           $ref: '#/components/schemas/RunPolicy'
 
-    JobList:
+    MLRunList:
       type: object
       required: [items, count]
       properties:
         items:
           type: array
           items:
-            $ref: '#/components/schemas/Job'
+            $ref: '#/components/schemas/MLRun'
         count:
           type: integer
           minimum: 0
@@ -4698,7 +4698,7 @@ components:
         partial:
           type: boolean
 
-    JobCreateRequest:
+    MLRunCreateRequest:
       type: object
       required:
         - name
@@ -4736,7 +4736,7 @@ components:
           type: array
           minItems: 1
           items:
-            $ref: '#/components/schemas/JobRole'
+            $ref: '#/components/schemas/MLRunRole'
         runPolicy:
           $ref: '#/components/schemas/RunPolicy'
 
@@ -4744,7 +4744,7 @@ components:
     # Services
     # ------------------------------------------------------------------
 
-    ServicePhase:
+    MLServicePhase:
       type: string
       enum:
         - Creating
@@ -4756,16 +4756,16 @@ components:
         - Deleting
         - Deleted
 
-    ServiceRouteAuthType:
+    MLServiceRouteAuthType:
       type: string
       enum: [none, jwt, apiKey]
 
-    ServiceRouteAuth:
+    MLServiceRouteAuth:
       type: object
       required: [type]
       properties:
         type:
-          $ref: '#/components/schemas/ServiceRouteAuthType'
+          $ref: '#/components/schemas/MLServiceRouteAuthType'
         jwt:
           type: object
           properties:
@@ -4787,7 +4787,7 @@ components:
                 key:
                   type: string
 
-    ServiceRouteRateLimit:
+    MLServiceRouteRateLimit:
       type: object
       properties:
         requestsPerSecond:
@@ -4797,7 +4797,7 @@ components:
           type: integer
           minimum: 1
 
-    ServiceRoute:
+    MLServiceRoute:
       type: object
       properties:
         enabled:
@@ -4808,14 +4808,14 @@ components:
         hostname:
           type: string
         auth:
-          $ref: '#/components/schemas/ServiceRouteAuth'
+          $ref: '#/components/schemas/MLServiceRouteAuth'
         rateLimit:
-          $ref: '#/components/schemas/ServiceRouteRateLimit'
+          $ref: '#/components/schemas/MLServiceRouteRateLimit'
         timeout:
           type: string
           description: ISO 8601 duration (e.g., `30s`).
 
-    Service:
+    MLService:
       type: object
       required:
         - id
@@ -4895,11 +4895,11 @@ components:
         endpoint:
           type: string
         route:
-          $ref: '#/components/schemas/ServiceRoute'
+          $ref: '#/components/schemas/MLServiceRoute'
         accessUrl:
           type: string
         phase:
-          $ref: '#/components/schemas/ServicePhase'
+          $ref: '#/components/schemas/MLServicePhase'
         message:
           type: string
         createdAt:
@@ -4909,14 +4909,14 @@ components:
           type: string
           format: date-time
 
-    ServiceList:
+    MLServiceList:
       type: object
       required: [items, count]
       properties:
         items:
           type: array
           items:
-            $ref: '#/components/schemas/Service'
+            $ref: '#/components/schemas/MLService'
         count:
           type: integer
           minimum: 0
@@ -4925,7 +4925,7 @@ components:
         partial:
           type: boolean
 
-    ServiceCreateRequest:
+    MLServiceCreateRequest:
       type: object
       description: |
         Target tenant comes from the `X-Axisml-Tenant` request header (see
@@ -4989,9 +4989,9 @@ components:
           type: integer
           minimum: 1
         route:
-          $ref: '#/components/schemas/ServiceRoute'
+          $ref: '#/components/schemas/MLServiceRoute'
 
-    ServicePatchRequest:
+    MLServicePatchRequest:
       type: object
       description: Only `displayName` / `description` are mutable.
       properties:
@@ -5002,7 +5002,7 @@ components:
           type: string
           maxLength: 1000
 
-    ServiceScaleRequest:
+    MLServiceScaleRequest:
       type: object
       required: [replicas]
       properties:
@@ -5010,7 +5010,7 @@ components:
           type: integer
           minimum: 0
 
-    ServiceAccess:
+    MLServiceAccess:
       type: object
       required: [url, jwt, headerName, expiresAt]
       properties:
@@ -5025,7 +5025,7 @@ components:
           type: string
           format: date-time
 
-    ServiceMetricName:
+    MLServiceMetricName:
       type: string
       enum:
         - request_rate

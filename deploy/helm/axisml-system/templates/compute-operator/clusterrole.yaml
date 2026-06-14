@@ -11,15 +11,15 @@ rules:
     resources: ["events"]
     verbs: ["create", "patch"]
 
-  {{- if $op.controllers.mljob.enabled }}
+  {{- if $op.controllers.mlrun.enabled }}
   # ==========================================================================
-  # MLJob controller
+  # MLRun controller
   # ==========================================================================
   - apiGroups: ["axisml.io"]
-    resources: ["mljobs"]
+    resources: ["mlruns"]
     verbs: ["get", "list", "watch", "patch", "update"]
   - apiGroups: ["axisml.io"]
-    resources: ["mljobs/status"]
+    resources: ["mlruns/status"]
     verbs: ["get", "patch", "update"]
   # (native, job) handler — Job CRUD; Pods are owned by the Job and
   # are reached via the union pods rule below.
@@ -68,10 +68,10 @@ rules:
   {{- end }}
 
   {{- /*
-    Pods: union across MLJob (native-podgroup renders bare Pods) and
+    Pods: union across MLRun (native-podgroup renders bare Pods) and
     MLService (native-deployment indirectly creates Pods via Deployment).
   */ -}}
-  {{- if or $op.controllers.mljob.enabled $op.controllers.mlservice.enabled }}
+  {{- if or $op.controllers.mlrun.enabled $op.controllers.mlservice.enabled }}
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]

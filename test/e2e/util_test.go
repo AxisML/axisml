@@ -98,7 +98,7 @@ func schedulablePod(ns, name, quotaName, cpu string) *corev1.Pod {
 			RestartPolicy: corev1.RestartPolicyNever,
 			Containers: []corev1.Container{{
 				Name:            "pause",
-				Image:           h.cfg.JobImage,
+				Image:           h.cfg.MLRunImage,
 				ImagePullPolicy: corev1.PullIfNotPresent,
 				Command:         []string{"sh", "-c", "sleep 600"},
 				Resources: corev1.ResourceRequirements{

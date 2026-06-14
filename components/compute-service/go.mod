@@ -108,7 +108,7 @@ require (
 )
 
 // Local siblings: tenant-operator hosts the Tenant CR types, compute-operator
-// hosts MLJob and MLService. Pseudo-versions aren't published, so we wire
+// hosts MLRun and MLService. Pseudo-versions aren't published, so we wire
 // them up via replace directives. Docker builds use the repo root as build
 // context so the relative paths resolve.
 replace github.com/axisml/axisml/components/tenant-operator => ../tenant-operator

@@ -13,7 +13,7 @@ import (
 	mltp "github.com/axisml/axisml/components/compute-operator/api/mltrafficpolicy/v1alpha1"
 
 	"github.com/axisml/axisml/components/compute-service/internal/auth"
-	servicemod "github.com/axisml/axisml/components/compute-service/internal/service"
+	servicemod "github.com/axisml/axisml/components/compute-service/internal/mlservice"
 	apperrors "github.com/axisml/axisml/components/compute-service/pkg/errors"
 	"github.com/axisml/axisml/components/compute-service/pkg/strutil"
 )

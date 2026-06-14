@@ -103,13 +103,13 @@ Platform 自有实体仅覆盖**身份 / 授权 / 会话 / 审计**四类，完�
 
 | 用户操作 | Platform 内部步骤 | 下游调用 | 一致性策略 |
 | --- | --- | --- | --- |
-| 提交任务 | RBAC `user@self`+ → 对引用的镜像 / 模型 / 数据集逐个 `GetArtifact` 预检 `Ready` → 请求体携带 `scheduling{poolName, unitName, quota}` 名字三元组 | `compute.CreateJob(ns=tenant, body)` | 单点透传；pool/unit 展开与 quota 名组装由 compute 内部完成 |
-| 取消 | `RequireJobOwner` → 透传 | `CancelJob` | 状态合法性由 compute 4xx 反馈 |
-| 删除 | RBAC + 透传 | `DeleteJob` | spec 不可变，删除即终态（重提交即新建） |
-| 列表 | §5.2 解析 active tenant：header 在 → 单租户透传；`system-admin` 无 header → §5.3 跨租户合并 | `ListJobs(ns, labelSelector?, phase?)` | 跨租户路径部分失败 → `partial=true` |
-| 副本 / 事件 / 日志 | `RequireJobOwner` → 透传（含 SSE `follow=true`） | `GetJob{Pods,Events,Logs}` | 流式 chunked / SSE 透传 |
+| 提交任务 | RBAC `user@self`+ → 对引用的镜像 / 模型 / 数据集逐个 `GetArtifact` 预检 `Ready` → 请求体携带 `scheduling{poolName, unitName, quota}` 名字三元组 | `compute.CreateMLRun(ns=tenant, body)` | 单点透传；pool/unit 展开与 quota 名组装由 compute 内部完成 |
+| 取消 | `RequireJobOwner` → 透传 | `CancelMLRun` | 状态合法性由 compute 4xx 反馈 |
+| 删除 | RBAC + 透传 | `DeleteMLRun` | spec 不可变，删除即终态（重提交即新建） |
+| 列表 | §5.2 解析 active tenant：header 在 → 单租户透传；`system-admin` 无 header → §5.3 跨租户合并 | `ListMLRuns(ns, labelSelector?, phase?)` | 跨租户路径部分失败 → `partial=true` |
+| 副本 / 事件 / 日志 | `RequireJobOwner` → 透传（含 SSE `follow=true`） | `GetMLRun{Pods,Events,Logs}` | 流式 chunked / SSE 透传 |
 
-关键不变量：任务标识 `(tenant_name, job_name)`，`tenant_name` 由 `X-Axisml-Tenant` 头携带（§5.2），URL 形态 `/api/v1/jobs/{name}`；Job spec 不可变——「编辑」=「再次提交」预填重建。Platform **不拼 ElasticQuota 名、不展开 pool/unit、不解析 namespace**，只透传名字三元组。
+关键不变量：任务标识 `(tenant_name, job_name)`，`tenant_name` 由 `X-Axisml-Tenant` 头携带（§5.2），URL 形态 `/api/v1/mlruns/{name}`；Job spec 不可变——「编辑」=「再次提交」预填重建。Platform **不拼 ElasticQuota 名、不展开 pool/unit、不解析 namespace**，只透传名字三元组。
 
 ### 4.3 在线服务编排
 
@@ -117,15 +117,15 @@ Platform 自有实体仅覆盖**身份 / 授权 / 会话 / 审计**四类，完�
 
 | 用户操作 | Platform 内部步骤 | 下游调用 | 一致性策略 |
 | --- | --- | --- | --- |
-| 创建 | RBAC + `GetArtifact` 预检 → `route.path==""` 时自动拼 `/services/<tenant>/<name>/` 并注入 `AXISML_SERVICE_BASE_URL` env → 请求体携带 `scheduling{poolName, unitName, quota}` + `route` | `compute.CreateService(ns, body{kind=service,...})` | 单点透传 |
-| 扩缩容 | `RequireServiceOwner` → 透传副本数 | `ScaleService` | 幂等；`Deleted` → `409 service-deleted` |
-| 停止 / 启动 | `RequireServiceOwner` → `stop` = scale 0 并把停前副本数写入 `annotations[platform.axisml.io/last-replicas]`；`start` = scale 回该 annotation（缺失 fallback 1） | `UpdateService`（元数据）+ `ScaleService` | annotation 为 PG-only 元数据，随时可写（§5.5） |
-| 删除 | 先 `GetService` 校验 `kind==service` 防误删工作区 → 透传 | `DeleteService` | 派生 K8s 资源由 ownerReference 级联 |
+| 创建 | RBAC + `GetArtifact` 预检 → `route.path==""` 时自动拼 `/services/<tenant>/<name>/` 并注入 `AXISML_SERVICE_BASE_URL` env → 请求体携带 `scheduling{poolName, unitName, quota}` + `route` | `compute.CreateMLService(ns, body{kind=service,...})` | 单点透传 |
+| 扩缩容 | `RequireServiceOwner` → 透传副本数 | `ScaleMLService` | 幂等；`Deleted` → `409 service-deleted` |
+| 停止 / 启动 | `RequireServiceOwner` → `stop` = scale 0 并把停前副本数写入 `annotations[platform.axisml.io/last-replicas]`；`start` = scale 回该 annotation（缺失 fallback 1） | `UpdateMLService`（元数据）+ `ScaleMLService` | annotation 为 PG-only 元数据，随时可写（§5.5） |
+| 删除 | 先 `GetMLService` 校验 `kind==service` 防误删工作区 → 透传 | `DeleteMLService` | 派生 K8s 资源由 ownerReference 级联 |
 | 路由 / 访问 | `route.auth.type=jwt` 时颁发 `aud=axisml-inference` 短 TTL access JWT | —（Platform 自签） | 数据面网关验签放行；`route-auth-mismatch` → `409` |
 | 指标查询 | `RequireServiceOwner` → 透传（按 backend 选 PromQL 模板的逻辑在 compute 侧，Platform 不感知 backend、不直连 Prometheus） | `compute.GetServiceMetrics(name, metric, range, step)` | 查询失败 → `502 upstream-failure` |
-| 列表 | 同 §4.2；`kind=service` 过滤下推 | `ListServices(ns, kind=service)` | 跨租户部分失败 → `partial=true` |
+| 列表 | 同 §4.2；`kind=service` 过滤下推 | `ListMLServices(ns, kind=service)` | 跨租户部分失败 → `partial=true` |
 
-关键不变量：寻址 `(tenant_name, service_name)`，URL `/api/v1/services/{name}`（与 Jobs 对称）；spec 除 `roles[*].replicas` 外不可变；在线服务运行指标由 compute 内部按 backend 选 PromQL 模板查询（模板见 [monitoring.md §6](../monitoring.md#6-业务指标查询prometheus-代理)），Platform 与 UI 均不内嵌 PromQL、不直连 Prometheus。
+关键不变量：寻址 `(tenant_name, service_name)`，URL `/api/v1/mlservices/{name}`（与 MLRuns 对称）；spec 除 `roles[*].replicas` 外不可变；在线服务运行指标由 compute 内部按 backend 选 PromQL 模板查询（模板见 [monitoring.md §6](../monitoring.md#6-业务指标查询prometheus-代理)），Platform 与 UI 均不内嵌 PromQL、不直连 Prometheus。
 
 ### 4.4 工作区编排
 
@@ -133,13 +133,13 @@ Platform 自有实体仅覆盖**身份 / 授权 / 会话 / 审计**四类，完�
 
 | 用户操作 | Platform 内部步骤 | 下游调用 | 一致性策略 |
 | --- | --- | --- | --- |
-| 创建 | RBAC + `GetArtifact` 预检 → 生成 `workspace_name="ws-"+crockford32(rand40bit)` → 注入 `AXISML_WORKSPACE_BASE_URL` env / `spec.route` + `scheduling{poolName, unitName, quota}` + PVC `size`/`storageClass` | `compute.CreateService(kind=workspace, body)` | 单点透传；compute 同事务保证 MLService + PVC 同失同成、内部展开 pool/unit |
-| 停止 / 启动 | `RequireWorkspaceOwner` → 同 §4.3：`stop`=scale 0（记 `last-replicas`，工作区恒为 1）、`start`=scale 回 | `ScaleService` | 幂等；`Deleted` → `409 workspace-deleted` |
-| 删除 | 校验 `kind==workspace` 防误删 service → 透传（带 `?deletePvc=`，默认 true） | `DeleteService` | 派生 K8s 资源 + PVC 由 compute 级联清理 |
+| 创建 | RBAC + `GetArtifact` 预检 → 生成 `workspace_name="ws-"+crockford32(rand40bit)` → 注入 `AXISML_WORKSPACE_BASE_URL` env / `spec.route` + `scheduling{poolName, unitName, quota}` + PVC `size`/`storageClass` | `compute.CreateMLService(kind=workspace, body)` | 单点透传；compute 同事务保证 MLService + PVC 同失同成、内部展开 pool/unit |
+| 停止 / 启动 | `RequireWorkspaceOwner` → 同 §4.3：`stop`=scale 0（记 `last-replicas`，工作区恒为 1）、`start`=scale 回 | `ScaleMLService` | 幂等；`Deleted` → `409 workspace-deleted` |
+| 删除 | 校验 `kind==workspace` 防误删 service → 透传（带 `?deletePvc=`，默认 true） | `DeleteMLService` | 派生 K8s 资源 + PVC 由 compute 级联清理 |
 | 浏览器接入 | 颁发 `aud=axisml-workspace` 短 TTL access JWT（`--workspace-access-jwt-ttl`，上限 24h） | —（Platform 自签） | 数据面网关验签放行 |
-| 列表 | 同 §4.2；`kind=workspace` 过滤下推 | `ListServices(ns, kind=workspace, owner?)` | 同 §4.2 |
+| 列表 | 同 §4.2；`kind=workspace` 过滤下推 | `ListMLServices(ns, kind=workspace, owner?)` | 同 §4.2 |
 
-关键不变量：Platform 不为工作区建任何 PG 表；「这是工作区」由 compute `services.kind='workspace'` 直接表达；Platform 自身**不直接调用 K8s API**，PVC 生命周期由 compute 接管。寻址 `(tenant_name, workspace_name)`，URL `/api/v1/workspaces/{name}`。
+关键不变量：Platform 不为工作区建任何 PG 表；「这是工作区」由 compute `mlservices.kind='workspace'` 直接表达；Platform 自身**不直接调用 K8s API**，PVC 生命周期由 compute 接管。寻址 `(tenant_name, workspace_name)`，URL `/api/v1/workspaces/{name}`。
 
 ### 4.5 制品编排
 
@@ -222,7 +222,7 @@ KPI + gauge 默认 30s 轮询；时序图随 range 选择器（`1h/24h/7d`）重
 
 | 用户操作 | Platform 内部步骤 | 下游调用 | 一致性策略 |
 | --- | --- | --- | --- |
-| 创建 | RBAC + 对每个成员逐个 `GetService` 预检 `kind==service` 且 `Ready` → 校验成员同租户、未被其它活跃策略占用 → `endpoint.path==""` 时自动拼 `/services/<tenant>/<name>/` → 请求体携带 `mode` / `endpoint` / `backends[]` | `compute.CreateTrafficPolicy(ns, body)` | 单点透传；加权路由由 compute 内部派生 |
+| 创建 | RBAC + 对每个成员逐个 `GetMLService` 预检 `kind==service` 且 `Ready` → 校验成员同租户、未被其它活跃策略占用 → `endpoint.path==""` 时自动拼 `/services/<tenant>/<name>/` → 请求体携带 `mode` / `endpoint` / `backends[]` | `compute.CreateTrafficPolicy(ns, body)` | 单点透传；加权路由由 compute 内部派生 |
 | 调整流量 | `RequireTrafficPolicyOwner` → 校验 `Σweight==100`（加权）/ `0–100`（灰度）→ 透传 | `compute.UpdateTrafficSplit` | 幂等；`Deleted` → `409 traffic-policy-deleted` |
 | 提升 / 回滚 | `RequireTrafficPolicyOwner` → 灰度专属动作：`promote` 置灰度后端 100 并互换 stable/canary `role`（灰度升为新基线）、`rollback` 置灰度 0 | `compute.PromoteCanary` / `compute.RollbackCanary` | 灰度态机合法性由 compute 4xx 反馈 |
 | 路由 / 访问 | `endpoint.auth.type=jwt` 时颁发 `aud=axisml-inference` 短 TTL access JWT（复用 §4.3） | —（Platform 自签） | 数据面网关验签放行 |
@@ -245,13 +245,13 @@ KPI + gauge 默认 30s 轮询；时序图随 range 选择器（`1h/24h/7d`）重
 
 ### 5.2 上下文解析
 
-**Active tenant 来源**：单租户操作（`/api/v1/jobs|workspaces|services|models|images|datasets` 及子路径）的当前 tenant 不在 URL 里，由请求头 `X-Axisml-Tenant: <name>` 携带。RBAC 中间件按下表处理：
+**Active tenant 来源**：单租户操作（`/api/v1/mlruns|workspaces|mlservices|models|images|datasets` 及子路径）的当前 tenant 不在 URL 里，由请求头 `X-Axisml-Tenant: <name>` 携带。RBAC 中间件按下表处理：
 
 | 端点形态 | header 缺省 | header 存在 |
 | --- | --- | --- |
-| list（如 `GET /api/v1/jobs`） | `system-admin` 走 §5.3 跨租户 fanout；非 admin → `400 active-tenant-required` | scoped 到该 tenant；调用方需在此 tenant 有 binding（或为 `system-admin`），否则 `404` |
-| create（如 `POST /api/v1/jobs`） | `400 active-tenant-required` | 必须有 `user@self`+ binding |
-| name 寻址 detail（`/api/v1/{jobs\|services\|workspaces}/{name}/...`） | `400 active-tenant-required` | 用 header 取 `tenant_name` 作分区键后再用 `name` 寻址 |
+| list（如 `GET /api/v1/mlruns`） | `system-admin` 走 §5.3 跨租户 fanout；非 admin → `400 active-tenant-required` | scoped 到该 tenant；调用方需在此 tenant 有 binding（或为 `system-admin`），否则 `404` |
+| create（如 `POST /api/v1/mlruns`） | `400 active-tenant-required` | 必须有 `user@self`+ binding |
+| name 寻址 detail（`/api/v1/{mlruns\|mlservices\|workspaces}/{name}/...`） | `400 active-tenant-required` | 用 header 取 `tenant_name` 作分区键后再用 `name` 寻址 |
 | tuple 寻址 detail（`/api/v1/{kind}/{tenant}/{name}/{version}`） | URL 内已带 tenant，header 忽略 | 同上 |
 | 租户 / 资源池管理路径（`/api/v1/tenants/{name}/...`、`/api/v1/resource-pools/...`） | URL 内已带标识或为全集群对象，header 忽略 | 同上 |
 | dashboard（`/api/v1/dashboard/*`） | `system-admin` → 全局视图；非 admin → `400 active-tenant-required` | 收敛到该 tenant 视图 |
@@ -293,7 +293,7 @@ RBAC 中间件装配细节归 [auth.md](../auth.md)，Platform 在路由层挂�
 
 | 类别 | 内容 | 引用 |
 | --- | --- | --- |
-| 对外 REST | 业务 tag：`Auth` / `Tenants` / `Quotas` / `Members` / `Jobs` / `Services` / `Workspaces` / `Models` / `Images` / `Datasets` / `ResourcePools` / `ResourceUnits` / `Dashboard`；jobs / services / workspaces 一律 `/api/v1/{kind}/{name}` name 寻址；制品走 `/api/v1/{kind-plural}/{tenant}/{name}/{version}` tuple 寻址；系统类 tag（`Users` / `Audit` / `Health`）见 yaml | [apis/platform.yaml](../apis/platform.yaml) |
+| 对外 REST | 业务 tag：`Auth` / `Tenants` / `Quotas` / `Members` / `MLRuns` / `MLServices` / `Workspaces` / `Models` / `Images` / `Datasets` / `ResourcePools` / `ResourceUnits` / `Dashboard`；mlruns / mlservices / workspaces 一律 `/api/v1/{kind}/{name}` name 寻址；制品走 `/api/v1/{kind-plural}/{tenant}/{name}/{version}` tuple 寻址；系统类 tag（`Users` / `Audit` / `Health`）见 yaml | [apis/platform.yaml](../apis/platform.yaml) |
 | 状态 | 不暴露任何 K8s CR；下游运行态字段（phase / conditions / status / quota 用量）作为只读字段透传 | — |
 | 错误格式 | HTTP 标准状态码 + RFC 7807 `application/problem+json`；下游 problem 由 typed client 解析后透传或包装 | — |
 | 流式 | 日志 / 事件 `follow=true` 采用 `text/event-stream` SSE；非 follow 用 `text/plain` chunked | — |

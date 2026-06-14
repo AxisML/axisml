@@ -33,7 +33,7 @@
 
 - 单集群部署形态（minikube + `axisml-infra` + `axisml-system` 两 Helm chart）
 - **tenant-operator**：单二进制单副本；`Tenant` CR → Namespace + ElasticQuota + 默认 Secret / ConfigMap / SA / RBAC
-- **compute-operator**：单二进制单副本；dispatcher + handler 路由 `MLJob` / `MLService`
+- **compute-operator**：单二进制单副本；dispatcher + handler 路由 `MLRun` / `MLService`
 - **cluster-manager**：`ResourcePool` CRD 的 admin REST 入口（内嵌 `spec.units[]`）
 - **compute-service**：Tenant / Quota / Job / Service 业务服务 + 三类 CR reconciler（PG 权威）
 - **artifact-hub**：制品元数据 + 双后端（zot / RustFS）分离
@@ -88,7 +88,7 @@
 - Admission webhook（每个 operator / service 一个）
   - **tenant-operator**：`spec.namespace.name` / `spec.quotas[].{pool,name}` 不可变；跨 ns `sourceXxxRef` 白名单；`min/max` 结构校验；目标 Namespace allowlist / denylist；硬阻断非 Compute 主体的 `Tenant` 写请求
   - **compute-operator**：`spec.backend.{name, engine}` 不可变；`backend.config` 按 Handler 自带 schema 校验；外部漂移检测（非 Compute 主体 patch `spec` 时拒绝）
-  - **compute-service**：`Tenant` / `MLJob` / `MLService` 单写约束硬化（Compute 为唯一 `metadata` / `spec` 写者）
+  - **compute-service**：`Tenant` / `MLRun` / `MLService` 单写约束硬化（Compute 为唯一 `metadata` / `spec` 写者）
   - **cluster-manager**：`ResourcePool` 的 `metadata.name` / `spec.units[].name` 不可变；`requests <= limits` 结构校验；删除 pool 时阻断有活跃 Job/Service 引用
 - CRD 严格 schema：移除所有 CRD 的 `x-kubernetes-preserve-unknown-fields`；启用 OpenAPI 校验；显式声明 spec 子结构与 `phase` enum
 - 展示性元数据（display name / description）与扩展位（labels / annotations）一律落 PG，CR 不承载
@@ -97,7 +97,7 @@
 
 ### 2. 计算后端生态扩展
 
-- **Kubeflow Trainer 系列（MLJob）**
+- **Kubeflow Trainer 系列（MLRun）**
   - `(kubeflow-trainer, pytorchjob)` — 字段映射 / 状态映射 / `backend.config` schema
   - `(kubeflow-trainer, tfjob)`
   - `(kubeflow-trainer, mpijob)`
@@ -110,7 +110,7 @@
   - `(custom, *)` — `backend.config` 的 `targetGVK` + JSONPath `fieldMappings` / `statusMappings` / `endpointPath` schema 与 unstructured 操作约定
   - Platform 前端 `(custom, *)` JSON schema 编辑器
 - **Native 系列演进**
-  - `(native, podgroup)`：sigs.k8s.io scheduler-plugins PodGroup + 裸 Pod，作为 MLJob gang scheduling 单 backend 路径
+  - `(native, podgroup)`：sigs.k8s.io scheduler-plugins PodGroup + 裸 Pod，作为 MLRun gang scheduling 单 backend 路径
   - `(native, job)` Indexed Job 与 `podFailurePolicy` 直通策略
   - `(native, statefulset)` `volumeClaimTemplates` / `updateStrategy` 灰度更新与 pod-index 寻址
 - Handler chart values 控制（按 backend 启停 RBAC 与 watch）

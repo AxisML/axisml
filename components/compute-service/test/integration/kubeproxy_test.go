@@ -14,13 +14,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	mljobv1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mljob/v1alpha1"
+	mlrunv1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlrun/v1alpha1"
 )
 
-// TestKubeProxy_ListJobPods drives GET /jobs/{job}/pods: seed a Pod
-// carrying the axisml.io/job-id label and assert it shows up in the
+// TestKubeProxy_ListMLRunPods drives GET /mlruns/{job}/pods: seed a Pod
+// carrying the axisml.io/run-id label and assert it shows up in the
 // projected response.
-func TestKubeProxy_ListJobPods(t *testing.T) {
+func TestKubeProxy_ListMLRunPods(t *testing.T) {
 	if testEngine == nil {
 		t.Skip("test engine not bootstrapped")
 	}
@@ -34,23 +34,23 @@ func TestKubeProxy_ListJobPods(t *testing.T) {
 	const ns = "kp-ns"
 	mustCreateNamespace(t, ctx, ns)
 
-	rr := doJSON(t, ctx, http.MethodPost, "/api/v1/namespaces/"+ns+"/jobs",
-		buildJobCreateBody("kp-job", "kp-pool", "small"), nil)
+	rr := doJSON(t, ctx, http.MethodPost, "/api/v1/namespaces/"+ns+"/mlruns",
+		buildMLRunCreateBody("kp-job", "kp-pool", "small"), nil)
 	requireStatus(t, rr, http.StatusCreated)
 
 	// Pull the job's id so the seeded Pod label matches what kubeproxy
 	// will query for.
 	var view map[string]any
-	rr = doJSON(t, ctx, http.MethodGet, "/api/v1/namespaces/"+ns+"/jobs/kp-job", nil, &view)
+	rr = doJSON(t, ctx, http.MethodGet, "/api/v1/namespaces/"+ns+"/mlruns/kp-job", nil, &view)
 	requireStatus(t, rr, http.StatusOK)
 	jobID := view["id"].(string)
 
-	// Seed a Pod carrying axisml.io/job-id.
+	// Seed a Pod carrying axisml.io/run-id.
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: ns,
 			Name:      "fake-pod",
-			Labels:    map[string]string{mljobv1alpha1.LabelJobID: jobID},
+			Labels:    map[string]string{mlrunv1alpha1.LabelRunID: jobID},
 		},
 		Spec: corev1.PodSpec{
 			Containers: []corev1.Container{{Name: "main", Image: "busybox:1.36"}},
@@ -63,14 +63,14 @@ func TestKubeProxy_ListJobPods(t *testing.T) {
 		Total int              `json:"total"`
 	}
 	rr = doJSON(t, ctx, http.MethodGet,
-		"/api/v1/namespaces/"+ns+"/jobs/kp-job/pods", nil, &out)
+		"/api/v1/namespaces/"+ns+"/mlruns/kp-job/pods", nil, &out)
 	requireStatus(t, rr, http.StatusOK)
 	assert.Equal(t, 1, out.Total, "kubeproxy must return the seeded pod")
 	assert.Equal(t, "fake-pod", out.Items[0]["name"])
 }
 
-// TestKubeProxy_ListJobEvents lists events tied to an MLJob.
-func TestKubeProxy_ListJobEvents(t *testing.T) {
+// TestKubeProxy_ListMLRunEvents lists events tied to an MLRun.
+func TestKubeProxy_ListMLRunEvents(t *testing.T) {
 	if testEngine == nil {
 		t.Skip("test engine not bootstrapped")
 	}
@@ -81,8 +81,8 @@ func TestKubeProxy_ListJobEvents(t *testing.T) {
 	mustCreateNamespace(t, ctx, ns)
 	seedResourcePool(t, ctx, "kp-evt-pool", "small")
 
-	rr := doJSON(t, ctx, http.MethodPost, "/api/v1/namespaces/"+ns+"/jobs",
-		buildJobCreateBody("evt-job", "kp-evt-pool", "small"), nil)
+	rr := doJSON(t, ctx, http.MethodPost, "/api/v1/namespaces/"+ns+"/mlruns",
+		buildMLRunCreateBody("evt-job", "kp-evt-pool", "small"), nil)
 	requireStatus(t, rr, http.StatusCreated)
 
 	// We're not asserting events exist (envtest emits none by default); we
@@ -92,7 +92,7 @@ func TestKubeProxy_ListJobEvents(t *testing.T) {
 		Total int              `json:"total"`
 	}
 	rr = doJSON(t, ctx, http.MethodGet,
-		"/api/v1/namespaces/"+ns+"/jobs/evt-job/events", nil, &out)
+		"/api/v1/namespaces/"+ns+"/mlruns/evt-job/events", nil, &out)
 	requireStatus(t, rr, http.StatusOK)
 	assert.NotNil(t, out.Items)
 }

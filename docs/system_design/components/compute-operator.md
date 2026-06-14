@@ -2,11 +2,11 @@
 
 ## 1. 定位与边界
 
-承载 `MLJob` / `MLService` / `MLTrafficPolicy` 三个 namespaced CR 的 Kubernetes operator；以 dispatcher + handler 模式把 [compute-service](compute-service.md) 下发的期望状态翻译为底层 K8s 与第三方资源，并把执行状态回流到 CR `status`。
+承载 `MLRun` / `MLService` / `MLTrafficPolicy` 三个 namespaced CR 的 Kubernetes operator；以 dispatcher + handler 模式把 [compute-service](compute-service.md) 下发的期望状态翻译为底层 K8s 与第三方资源，并把执行状态回流到 CR `status`。
 
 | 做 | 不做 |
 | --- | --- |
-| MLJob / MLService / MLTrafficPolicy CR reconcile，dispatcher 按 `spec.backend.{name, engine}` 路由 | Tenant / Namespace / ElasticQuota 落地 (→ [tenant-operator.md](tenant-operator.md)) |
+| MLRun / MLService / MLTrafficPolicy CR reconcile，dispatcher 按 `spec.backend.{name, engine}` 路由 | Tenant / Namespace / ElasticQuota 落地 (→ [tenant-operator.md](tenant-operator.md)) |
 | 派生 Job / Pod / Deployment / StatefulSet / HTTPRoute 等（kubeflow-trainer / kserve / 自定义后端在 dispatcher / handler 接口上保留扩展点） | 业务持久化、用量计费、Outbox 推进 (→ [compute-service.md](compute-service.md)) |
 | MLTrafficPolicy 派生加权 `HTTPRoute` / kserve canary，编排一个稳定入口到多个在线服务的流量分发 | 流量策略的成员校验 / 权重权威 (→ [compute-service.md](compute-service.md)) |
 | `spec.route` 派生 Gateway API + Envoy Gateway 扩展资源 | 模型工件存储 (→ [artifact-hub.md](artifact-hub.md)) |
@@ -19,7 +19,7 @@
 
 ```
    ┌─────────────────┐  Create / Patch CR (spec)  ┌──────────────────────┐
-   │ compute-service │ ──────────────────────────▶│ K8s: MLJob/MLService │
+   │ compute-service │ ──────────────────────────▶│ K8s: MLRun/MLService │
    └─────────────────┘                            │  + MLTrafficPolicy   │
           ▲                                       └─────────┬────────────┘
           │  status (watch)                                 │ watch
@@ -44,7 +44,7 @@
 │  ctrl.Manager   Lease: axisml-compute-operator.axisml.io                  │
 │                                                                            │
 │  ┌──────────────┐  ┌──────────────────┐  ┌────────────────────────┐       │
-│  │ MLJob        │  │ MLService        │  │ MLTrafficPolicy        │       │
+│  │ MLRun        │  │ MLService        │  │ MLTrafficPolicy        │       │
 │  │ Dispatcher   │  │ Dispatcher       │  │ Dispatcher             │       │
 │  │ ─ registry ─ │  │ ─ registry ─     │  │ ─ registry ─           │       │
 │  │ (native,job) │  │ (native,deploy)  │  │ (native,httproute)     │       │
@@ -56,7 +56,7 @@
 └────────────────────────────────────────────────────────────────────────────┘
 ```
 
-`*` `(kserve,inference)` 为保留扩展位（见 §9），当前仅交付 `(native,httproute)`。`--enable-mljob` / `--enable-mlservice` / `--enable-mltrafficpolicy` 单独启停对应 dispatcher，未启用时其 ClusterRole 分段也不渲染（最小权限）。
+`*` `(kserve,inference)` 为保留扩展位（见 §9），当前仅交付 `(native,httproute)`。`--enable-mlrun` / `--enable-mlservice` / `--enable-mltrafficpolicy` 单独启停对应 dispatcher，未启用时其 ClusterRole 分段也不渲染（最小权限）。
 
 > 当前仅交付 `native` 后端；`kubeflow-trainer` / `kserve` / `custom` 在 dispatcher / handler 接口上保留扩展点，生产实现不在本文范围。
 
@@ -64,19 +64,19 @@
 
 | 实体 | 含义 | 范围 | 状态机集合 | `backend` 路由元组 |
 | --- | --- | --- | --- | --- |
-| MLJob | 一次性批训练 / 离线任务 | Namespaced (`mlj`) | `Pending / Running / Succeeded / Failed` | `(native,job)`（其它扩展元组见 §9） |
+| MLRun | 一次性批训练 / 离线任务 | Namespaced (`mlj`) | `Pending / Running / Succeeded / Failed` | `(native,job)`（其它扩展元组见 §9） |
 | MLService | 在线推理服务 | Namespaced (`mls`) | `Pending / Ready / Degraded / Failed` | `(native,deployment) \| (native,statefulset)`（其它扩展元组见 §9） |
 | MLTrafficPolicy | 在线服务流量编排（加权 / 灰度 / 蓝绿） | Namespaced (`mltp`) | `Pending / Ready / Degraded / Failed` | `(native,httproute)`（`(kserve,inference)` 见 §9） |
 
-三个 CR 均使用 `axisml.io/v1alpha1`，`status` subresource 必启用。字段级 schema 见 [§6](#6-接口契约) 引用的 CRD yaml；spec 顶层结构与字段归属约定见 [§4.1.1](#411-mljob-spec-高层结构) / [§4.2.1](#421-mlservice-spec-高层结构) / [§4.3.1](#431-mltrafficpolicy-spec-高层结构)。
+三个 CR 均使用 `axisml.io/v1alpha1`，`status` subresource 必启用。字段级 schema 见 [§6](#6-接口契约) 引用的 CRD yaml；spec 顶层结构与字段归属约定见 [§4.1.1](#411-mlrun-spec-高层结构) / [§4.2.1](#421-mlservice-spec-高层结构) / [§4.3.1](#431-mltrafficpolicy-spec-高层结构)。
 
 `spec.scheduling.quota` 是 compute-service 透传的 ElasticQuota CR 名字符串，对 operator 不透明——ElasticQuota 资源本身由 [tenant-operator](tenant-operator.md) 独占维护。
 
 ## 4. 核心功能
 
-### 4.1 MLJob Controller
+### 4.1 MLRun Controller
 
-#### 4.1.1 MLJob spec 高层结构
+#### 4.1.1 MLRun spec 高层结构
 
 ```yaml
 spec:
@@ -101,10 +101,10 @@ spec:
 
 | 事件 | Dispatcher 行为 | Handler 行为 |
 | --- | --- | --- |
-| MLJob ADD | 路由到 Handler；`Validate(spec)` 失败 → `status.phase=Failed` | `Reconcile` 创建底层资源 + 设置 `ownerReference` |
-| MLJob UPDATE（spec） | 校验 `backend.{name,engine}` 不变；其余 spec 路由 | `Reconcile` 幂等更新 |
+| MLRun ADD | 路由到 Handler；`Validate(spec)` 失败 → `status.phase=Failed` | `Reconcile` 创建底层资源 + 设置 `ownerReference` |
+| MLRun UPDATE（spec） | 校验 `backend.{name,engine}` 不变；其余 spec 路由 | `Reconcile` 幂等更新 |
 | `runPolicy.suspend=true` | 终态优先；非终态时合并 Handler 返回的 suspend 结果，写 `Suspended=True,reason=CancelRequested` | 执行原生 suspend 或 `Cleanup()`，返回 `suspendCompleted=true` |
-| MLJob DELETE | 不阻断（无 finalizer） | 依赖 `ownerReference` 级联清理 |
+| MLRun DELETE | 不阻断（无 finalizer） | 依赖 `ownerReference` 级联清理 |
 | 底层资源事件 | 通过 `ownerReference` 反查路由 | `MapStatus` 纯函数计算新 phase |
 
 #### 4.1.3 `(native, job)` Handler
@@ -114,7 +114,7 @@ spec:
 | 底层资源 | K8s `Job`（单 role `worker`），不创建 PodGroup |
 | 必填字段 | `roles[worker]`，`template.image`，`scheduling.quota` |
 | 关键字段映射 | `replicas → Job.spec.parallelism = Job.spec.completions`；`runPolicy.{activeDeadlineSeconds,ttlSecondsAfterFinished,backoffLimit} → Job.spec` 同名；其余 Pod 模板透传 |
-| Suspend(MLJob) | 原生支持：patch `Job.spec.suspend=true`，返回 `suspendCompleted=true` |
+| Suspend(MLRun) | 原生支持：patch `Job.spec.suspend=true`，返回 `suspendCompleted=true` |
 | RBAC | `jobs.batch` / `pods` / `events` 的 CRUD |
 
 ### 4.2 MLService Controller
@@ -253,13 +253,13 @@ spec:
 
 ### 5.2 Pod 注入约定
 
-所有 MLJob / MLService Handler 派生的 Pod 必须满足以下注入，体现 [infra.md](../infra.md) 的 Quota 全覆盖不变式（未来接入的第三方 backend 需保证同样语义）：
+所有 MLRun / MLService Handler 派生的 Pod 必须满足以下注入，体现 [infra.md](../infra.md) 的 Quota 全覆盖不变式（未来接入的第三方 backend 需保证同样语义）：
 
 | Pod 字段 / Label | 必填 | 取值 | 用途 |
 | --- | --- | --- | --- |
 | `spec.schedulerName` | 是 | `koord-scheduler` | AxisML 所有 workload Pod 强制走 koord-scheduler |
 | label `quota.scheduling.koordinator.sh/name` | 是 | `<spec.scheduling.quota>` | Koordinator ElasticQuota plugin 计入 `status.used` 的原生 label |
-| label `axisml.io/{job-id\|service-id}` | 是 | UUID | 反查 MLJob / MLService，与 CR 同名 label 一致 |
+| label `axisml.io/{run-id\|service-id}` | 是 | UUID | 反查 MLRun / MLService，与 CR 同名 label 一致 |
 | label `axisml.io/role` | 是 | role 名（`worker`/`master`/`predictor`/…） | 多角色拓扑区分 |
 | label `axisml.io/quota` | 是 | `<spec.scheduling.quota>` | AxisML 自有审计 / 查询 |
 | label `axisml.io/replica-index` | 否 | role 内 0-based 序号 | 仅在天然稳定时透传（StatefulSet `apps.kubernetes.io/pod-index`、Indexed Job `batch.kubernetes.io/job-completion-index`） |
@@ -291,7 +291,7 @@ MLTrafficPolicy handler 只派生网关路由资源（`HTTPRoute` / `SecurityPol
 | `MLService.status.endpoint` | operator dispatcher | compute-service Informer | 来源见 §5.3 |
 | `MLTrafficPolicy.status.endpoint` | operator dispatcher | compute-service Informer | 稳定对外入口 URL；来源见 §4.3.3 |
 | `MLTrafficPolicy.status.backends[*].{serviceName,weight,ready}` | operator dispatcher | compute-service Informer | 成员就绪与生效权重，回源给 Platform 的灰度健康视图 |
-| `MLJob.status.conditions[type=Suspended,status=True,reason=CancelRequested]` | dispatcher 合并 Handler 返回的 `suspendCompleted=true` | compute-service Informer | **cancel 闭环推进的唯一来源**；PG `Canceling → Cancelled → Delete()` 全靠它；缺失会卡住 |
+| `MLRun.status.conditions[type=Suspended,status=True,reason=CancelRequested]` | dispatcher 合并 Handler 返回的 `suspendCompleted=true` | compute-service Informer | **cancel 闭环推进的唯一来源**；PG `Canceling → Cancelled → Delete()` 全靠它；缺失会卡住 |
 | `CR.metadata` / `spec` | compute-service | operator 只读 | 单向；operator 永不向 compute-service PG 写入 |
 
 **终态优先**：若底层资源已 `Succeeded` / `Failed`，cancel 信号被吞——`status.phase` 保留终态，`finishedAt` 不回退。
@@ -300,13 +300,13 @@ MLTrafficPolicy handler 只派生网关路由资源（`HTTPRoute` / `SecurityPol
 
 | 维度 | 内容 | 引用 |
 | --- | --- | --- |
-| CRD: MLJob | `axisml.io/v1alpha1`, Namespaced, shortName `mlj`；`status` subresource 必启 | [deploy/helm/axisml-system/crds/mljob-crd.yaml](../../../deploy/helm/axisml-system/crds/mljob-crd.yaml) |
+| CRD: MLRun | `axisml.io/v1alpha1`, Namespaced, shortName `mlj`；`status` subresource 必启 | [deploy/helm/axisml-system/crds/mlrun-crd.yaml](../../../deploy/helm/axisml-system/crds/mlrun-crd.yaml) |
 | CRD: MLService | `axisml.io/v1alpha1`, Namespaced, shortName `mls`；`status` subresource 必启 | [deploy/helm/axisml-system/crds/mlservice-crd.yaml](../../../deploy/helm/axisml-system/crds/mlservice-crd.yaml) |
 | CRD: MLTrafficPolicy | `axisml.io/v1alpha1`, Namespaced, shortName `mltp`；`status` subresource 必启 | [deploy/helm/axisml-system/crds/mltrafficpolicy-crd.yaml](../../../deploy/helm/axisml-system/crds/mltrafficpolicy-crd.yaml) |
-| 上游 compute-service 写契约 | `Create()` 幂等（重复返回 409 `AlreadyExists`，label `axisml.io/{job-id\|service-id\|traffic-policy-id}` 一致即视为成功）；`metadata`/`spec` 单向；`spec.runPolicy.suspend`（MLJob）、`roles[*].replicas`（MLService）、`backends[*].weight`（MLTrafficPolicy）是仅有的运行时可变路径；MLService 额外携带 `axisml.io/service-kind=<service\|workspace>` 稳定 label（operator 不消费，仅供 `kubectl` 与 selector 区分） | [compute-service.md](compute-service.md) |
-| 路由元组 | MLJob: `(native,job)`；MLService: `(native,{deployment,statefulset})`；MLTrafficPolicy: `(native,httproute)`（其它扩展元组保留接口位，未交付——见 §9） | §4 |
-| Pod 注入必填 | `spec.schedulerName=koord-scheduler` + 4 项 label（quota / job-id 或 service-id / role / quota 审计）；MLTrafficPolicy 不派生 Pod，不适用 | §5.2 |
-| Status 回流字段 | `phase` / `message` / `roles[*]` / `conditions[type=Suspended]`（MLJob）/ `endpoint`（MLService）/ `endpoint` + `backends[*].{serviceName,weight,ready}`（MLTrafficPolicy） | §5.4 |
+| 上游 compute-service 写契约 | `Create()` 幂等（重复返回 409 `AlreadyExists`，label `axisml.io/{run-id\|service-id\|traffic-policy-id}` 一致即视为成功）；`metadata`/`spec` 单向；`spec.runPolicy.suspend`（MLRun）、`roles[*].replicas`（MLService）、`backends[*].weight`（MLTrafficPolicy）是仅有的运行时可变路径；MLService 额外携带 `axisml.io/service-kind=<service\|workspace>` 稳定 label（operator 不消费，仅供 `kubectl` 与 selector 区分） | [compute-service.md](compute-service.md) |
+| 路由元组 | MLRun: `(native,job)`；MLService: `(native,{deployment,statefulset})`；MLTrafficPolicy: `(native,httproute)`（其它扩展元组保留接口位，未交付——见 §9） | §4 |
+| Pod 注入必填 | `spec.schedulerName=koord-scheduler` + 4 项 label（quota / run-id 或 service-id / role / quota 审计）；MLTrafficPolicy 不派生 Pod，不适用 | §5.2 |
+| Status 回流字段 | `phase` / `message` / `roles[*]` / `conditions[type=Suspended]`（MLRun）/ `endpoint`（MLService）/ `endpoint` + `backends[*].{serviceName,weight,ready}`（MLTrafficPolicy） | §5.4 |
 | 现状 schema | 两 CRD 的 `spec` / `status` 暂用 `x-kubernetes-preserve-unknown-fields: true`；严格 OpenAPI + admission webhook 见 §9 | — |
 
 CRD 字段级 schema 不在本文展开，以上述 yaml + 后续 admission webhook 为准。
@@ -337,7 +337,7 @@ CRD 字段级 schema 不在本文展开，以上述 yaml + 后续 admission webh
 
 | Flag | 默认 | 说明 |
 | --- | --- | --- |
-| `--enable-mljob` | `true` | 启用 MLJob dispatcher；`false` 时对应 reconciler 不挂、ClusterRole 分段不渲染 |
+| `--enable-mlrun` | `true` | 启用 MLRun dispatcher；`false` 时对应 reconciler 不挂、ClusterRole 分段不渲染 |
 | `--enable-mlservice` | `true` | 同上，MLService |
 | `--enable-mltrafficpolicy` | `true` | 同上，MLTrafficPolicy dispatcher |
 | `--leader-elect` | `true` | leader election 总开关 |
@@ -355,4 +355,4 @@ CRD 字段级 schema 不在本文展开，以上述 yaml + 后续 admission webh
 - [infra.md](../infra.md) — Koordinator / scheduler-plugins / Kubeflow / KServe / Gateway API / Envoy Gateway 依赖
 - [compute-service.md](compute-service.md) — 上游 CR 写者；Outbox + 双 hash 推进机制
 - [tenant-operator.md](tenant-operator.md) — 兄弟 operator；Tenant / ElasticQuota / Namespace 落地
-- CRD yaml：[deploy/helm/axisml-system/crds/mljob-crd.yaml](../../../deploy/helm/axisml-system/crds/mljob-crd.yaml) / [deploy/helm/axisml-system/crds/mlservice-crd.yaml](../../../deploy/helm/axisml-system/crds/mlservice-crd.yaml) / [deploy/helm/axisml-system/crds/mltrafficpolicy-crd.yaml](../../../deploy/helm/axisml-system/crds/mltrafficpolicy-crd.yaml)
+- CRD yaml：[deploy/helm/axisml-system/crds/mlrun-crd.yaml](../../../deploy/helm/axisml-system/crds/mlrun-crd.yaml) / [deploy/helm/axisml-system/crds/mlservice-crd.yaml](../../../deploy/helm/axisml-system/crds/mlservice-crd.yaml) / [deploy/helm/axisml-system/crds/mltrafficpolicy-crd.yaml](../../../deploy/helm/axisml-system/crds/mltrafficpolicy-crd.yaml)

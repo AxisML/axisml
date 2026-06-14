@@ -18,15 +18,15 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	mltp "github.com/axisml/axisml/components/compute-operator/api/mltrafficpolicy/v1alpha1"
-	servicemod "github.com/axisml/axisml/components/compute-service/internal/service"
+	servicemod "github.com/axisml/axisml/components/compute-service/internal/mlservice"
 )
 
-// seedReadyService inserts a services row already in phase=Ready so the
+// seedReadyMLService inserts a services row already in phase=Ready so the
 // traffic-policy member validation (kind=service + Ready + native family)
 // passes without a running compute-operator.
-func seedReadyService(t *testing.T, ctx context.Context, ns, name string) {
+func seedReadyMLService(t *testing.T, ctx context.Context, ns, name string) {
 	t.Helper()
-	row := &servicemod.Service{
+	row := &servicemod.MLService{
 		ID:          uuid.New(),
 		Namespace:   ns,
 		Name:        name,
@@ -55,8 +55,8 @@ func TestTrafficPolicy_CanaryLifecycle(t *testing.T) {
 		ns         = "tp-e2e"
 		policyName = "chat-traffic"
 	)
-	seedReadyService(t, ctx, ns, "chat-v1")
-	seedReadyService(t, ctx, ns, "chat-v2")
+	seedReadyMLService(t, ctx, ns, "chat-v1")
+	seedReadyMLService(t, ctx, ns, "chat-v2")
 
 	c, err := client.New(testCfg, client.Options{Scheme: testScheme})
 	require.NoError(t, err)
