@@ -9,6 +9,7 @@
 | [compute-service](components/compute-service.md) | `tenants` | 租户 / 配额 / namespace spec（写路径权威） |
 | Compute Service | `jobs` | 一次性计算任务 |
 | Compute Service | `services` | 常驻在线服务 / 工作区 |
+| Compute Service | `traffic_policies` | 流量策略（稳定入口按权重分发到多个在线服务） |
 | [artifact-hub](components/artifact-hub.md) | `artifacts` | 制品（model / dataset / image） |
 | [Platform](components/platform.md) | `users` / `user_tenant_roles` / `sessions` / `audit_logs` | 身份、授权、会话、审计（角色硬编码三档，不入表） |
 
@@ -18,7 +19,7 @@
 
 ## 1. 通用约定
 
-下列约定对**业务表**生效（`tenants` / `jobs` / `services` / `artifacts`）；Platform 的身份 / 会话 / 审计表（§4）按需自定义，不强制遵循。新增业务表或扩展现有表时必须满足。
+下列约定对**业务表**生效（`tenants` / `jobs` / `services` / `traffic_policies` / `artifacts`）；Platform 的身份 / 会话 / 审计表（§4）按需自定义，不强制遵循。新增业务表或扩展现有表时必须满足。
 
 ### 1.1 通用字段
 
@@ -41,7 +42,7 @@
 
 ### 1.4 generation / observed_generation
 
-允许变更 spec 的 CR-backed 表（当前为 `tenants` / `services`）采用 K8s 风格的 generation 双字段做 outbox 信号：
+允许变更 spec 的 CR-backed 表（当前为 `tenants` / `services` / `traffic_policies`）采用 K8s 风格的 generation 双字段做 outbox 信号：
 
 | 字段 | 类型 | 写入方 | 含义 |
 | --- | --- | --- | --- |
@@ -61,6 +62,7 @@ reconciler 通过 partial index `WHERE generation <> observed_generation AND del
 | `tenants` | `Tenant` | `axisml.io/tenant-id` |
 | `jobs` | `MLJob` | `axisml.io/job-id` |
 | `services` | `MLService` | `axisml.io/service-id` |
+| `traffic_policies` | `MLTrafficPolicy` | `axisml.io/traffic-policy-id` |
 
 `services` 在 CR `metadata.labels` 上额外冗余写 `axisml.io/service-kind=<kind>`（`service` / `workspace`），便于 `kubectl` selector 区分工作区与普通服务；compute / operator 不按该 label 改变行为。
 
@@ -68,7 +70,7 @@ reconciler 通过 partial index `WHERE generation <> observed_generation AND del
 
 所有业务表统一以 `labels jsonb` + `annotations jsonb` 承载扩展元数据，K8s 风格：`labels` 短键短值用于过滤索引（key/value ≤ 63 字符、总条目 ≤ 64）；`annotations` 自由文本用于展示与跟踪（单 value ≤ 4 KiB、总 ≤ 32 KiB）。Key 前缀约定：`axisml.io/*` 为系统级保留前缀（如 `axisml.io/project` / `axisml.io/experiment`），`platform.axisml.io/*` 由 Platform 内部使用，`user.axisml.io/*` 或无前缀由业务服务调用方透传。
 
-**查询**：业务服务的 list 端点接受 `?labelSelector=` 查询参数，语法沿用 K8s（`=`/`==`/`!=`/`in (…)`/`notin (…)`/`key`/`!key`，多条件逗号分隔为 AND）。`jobs` / `services` / `artifacts` 表均建 GIN 索引兜底；高频 label key（如 `axisml.io/project`）额外建复合表达式索引。
+**查询**：业务服务的 list 端点接受 `?labelSelector=` 查询参数，语法沿用 K8s（`=`/`==`/`!=`/`in (…)`/`notin (…)`/`key`/`!key`，多条件逗号分隔为 AND）。`jobs` / `services` / `traffic_policies` / `artifacts` 表均建 GIN 索引兜底；高频 label key（如 `axisml.io/project`）额外建复合表达式索引。
 
 **只落 PG**：扩展位不下发到 CR、不触发 `+generation`、不参与 reconcile。写入路径由业务服务 REST 唯一承载，Platform 走业务服务，不直写 K8s。
 
@@ -198,6 +200,42 @@ CREATE INDEX services_namespace_project_created
 ```
 
 `phase` 是 MLService CR `status.phase` 的顶层冗余；`status` jsonb 持剩余子字段 `{message, readyReplicas, endpoint, conditions[]}`。两者由 informer 写。`spec` 中仅 `spec.roles[0].replicas` 可变（`/scale` 写入并 `+generation`）。`spec.backend` 缺省时 Compute 补 `{name: "native", engine: "deployment"}`。同 §3.2，label GIN + 复合表达式索引服务于 labelSelector 查询。
+
+### 3.4 `traffic_policies` 表
+
+把一个稳定对外入口的入站流量按权重分发到同 `namespace` 下多个在线服务（`services` 表 `kind='service'` 的行）；CR 派生与契约见 [compute-service.md §4.5](components/compute-service.md#45-流量策略mltrafficpolicy) / [compute-operator.md §4.3](components/compute-operator.md#43-mltrafficpolicy-controller)。
+
+```sql
+CREATE TABLE traffic_policies (
+  id                   uuid PRIMARY KEY,
+  namespace            text NOT NULL,                       -- tenant 标识符（= tenants.name）
+  name                 text NOT NULL,
+  mode                 text NOT NULL,                       -- 'weighted' | 'canary' | 'bluegreen'；创建后不可变
+  display_name         text,
+  description          text,
+  owner                text,                                -- 创建者；不可变
+  labels               jsonb NOT NULL DEFAULT '{}',
+  annotations          jsonb NOT NULL DEFAULT '{}',
+  spec                 jsonb NOT NULL,                      -- MLTrafficPolicy spec 快照；endpoint / mode / backend 元组创建后不可变，仅 backends[*].{weight,role} 可变（role 仅 canary promote 互换）
+  generation           bigint NOT NULL DEFAULT 1,
+  observed_generation  bigint NOT NULL DEFAULT 0,
+  phase                text NOT NULL DEFAULT 'Creating',
+  status               jsonb NOT NULL DEFAULT '{}',
+  created_at           timestamptz NOT NULL DEFAULT now(),
+  updated_at           timestamptz NOT NULL DEFAULT now(),
+  deleted_at           timestamptz
+);
+
+CREATE UNIQUE INDEX traffic_policies_namespace_name_active_uniq ON traffic_policies (namespace, name) WHERE deleted_at IS NULL;
+CREATE INDEX traffic_policies_phase        ON traffic_policies (phase) WHERE deleted_at IS NULL;
+CREATE INDEX traffic_policies_created_at   ON traffic_policies (created_at DESC);
+CREATE INDEX traffic_policies_sync_pending ON traffic_policies (id) WHERE generation <> observed_generation AND deleted_at IS NULL;
+CREATE INDEX traffic_policies_labels_gin   ON traffic_policies USING GIN (labels jsonb_path_ops);
+```
+
+`phase` 是 MLTrafficPolicy CR `status.phase` 的顶层冗余；`status` jsonb 持剩余子字段 `{message, endpoint, backends[].{serviceName, weight, ready}, conditions[]}`，由 informer 整块回流。`spec` 持 `{mode, endpoint{path,hostname,auth}, backends[].{serviceName,role,weight}, backend{name,engine}}`——其中 `backends[*].weight` 由 `/split` `/rollback` 改、canary `/promote` 额外互换两后端的 `role`，均 `+generation`。canary 当前基线即 `role=stable` 的后端，**不设独立 `baselineRef` 指针**。成员以 `serviceName` 引用同 `namespace` 的 `services` 行，**不冗余成员 spec**。
+
+**成员占用唯一性**（一个在线服务同时只能被一个活跃策略引用）是跨 `traffic_policies.spec.backends[]` jsonb 数组的约束，PG 难以用单一索引表达，由 compute-service 在创建 / 删除事务内于应用层维护（见 [compute-service.md §4.5](components/compute-service.md#45-流量策略mltrafficpolicy)）。
 
 ---
 

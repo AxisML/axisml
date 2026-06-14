@@ -24,6 +24,7 @@
 | 任务 | Job | `MLJob` CRD | [compute-operator #3](components/compute-operator.md#3-核心模型) |
 | 服务 | Service | `MLService` CRD | [compute-operator #3](components/compute-operator.md#3-核心模型) |
 | 工作区 | Workspace | Compute `services` 表中 `kind='workspace'`（底层复用 `MLService(native, deployment)`） | [compute-service #3](components/compute-service.md#3-核心模型) |
+| 流量策略 | Traffic Policy | namespace-scoped `MLTrafficPolicy` CR + PG `traffic_policies` 行（一个稳定入口加权分发到多个在线服务） | [compute-service #4.5](components/compute-service.md#45-流量策略mltrafficpolicy) / [compute-operator #4.3](components/compute-operator.md#43-mltrafficpolicy-controller) |
 | 制品 | Artifact | `(namespace, kind, name, version)` 四元组寻址；`namespace` = 租户名 | [artifacts #3](components/artifact-hub.md#3-核心模型) |
 
 ### 2.2 关键不变量
@@ -46,7 +47,7 @@
 | | 工作区 | ✅ |
 | | 自定义任务 | ✅ |
 | 服务中心 | 在线服务 | ✅ |
-| | 流量控制 | ✅ |
+| | 流量配置 | ✅ |
 | 制品中心 | 模型 | ✅ |
 | | 镜像 | ✅ |
 | | 数据集 | ✅ |
@@ -109,7 +110,7 @@
 
 - 外部流量经 Envoy Gateway 进入 Platform；下层服务仅接受 Platform 内部调用。
 - Platform → Cluster Manager（ResourcePool admin REST）、Compute（租户 / 配额 / 任务 / 服务；创建 workload 时仅传 pool/unit 名字, 由 compute 内部 Informer 直读 CR 展开）、Artifacts（模型 / 镜像 / 数据集）；compute / artifacts 以 namespace（tenant 名）为分区入参。
-- 租户与负载闭环：Compute 写 PG `tenants` / `jobs` / `services` → reconciler patch Tenant / MLJob / MLService CR → tenant-operator 落地 Namespace / ElasticQuota / 初始化资源；compute-operator 按 `spec.backend.{name, engine}` 路由 backend handler 渲染 K8s 与第三方 CR。
+- 租户与负载闭环：Compute 写 PG `tenants` / `jobs` / `services` / `traffic_policies` → reconciler patch Tenant / MLJob / MLService / MLTrafficPolicy CR → tenant-operator 落地 Namespace / ElasticQuota / 初始化资源；compute-operator 按 `spec.backend.{name, engine}` 路由 backend handler 渲染 K8s 与第三方 CR（MLTrafficPolicy 派生加权 `HTTPRoute`）。
 - 制品域：Artifacts 元数据走 PG；模型 / 镜像走 zot（OCI），数据集走 RustFS（S3），上传下载由消费方直连存储，Artifacts 不代理大文件 bytes。
 
 ## 5. 设计文档导航
@@ -136,10 +137,10 @@
 | --- | --- | --- | --- |
 | **Platform** | 用户入口与业务编排，持有租户视图层映射 | User / Org / 视图层 (compute_ns, artifacts_ns) 映射 | [platform.md](components/platform.md) |
 | **Cluster Manager** | admin 域 K8s REST 抽象（ResourcePool CRD CRUD；扩展端点见组件文档 §9） | ResourcePool CR (含内嵌 `spec.units[]`) | [cluster-manager.md](components/cluster-manager.md) |
-| **Compute** | 业务域计算服务，管理 Tenant / Quota / Job / Service 与三类 CR | Tenant + MLJob + MLService（PG tenants/jobs/services，namespace 分区） | [compute-service.md](components/compute-service.md) |
+| **Compute** | 业务域计算服务，管理 Tenant / Quota / Job / Service / TrafficPolicy 与四类 CR | Tenant + MLJob + MLService + MLTrafficPolicy（PG tenants/jobs/services/traffic_policies，namespace 分区） | [compute-service.md](components/compute-service.md) |
 | **Artifacts** | 业务域制品服务，元数据 / 存储分离 | Artifact 四元组 `(namespace, kind, name, version)` | [artifact-hub.md](components/artifact-hub.md) |
 | **tenant-operator** | 把 Tenant CR 翻译为 Namespace / ElasticQuota / 初始化资源 | Tenant CR（cluster-scoped） | [tenant-operator.md](components/tenant-operator.md) |
-| **compute-operator** | 把 MLJob / MLService 路由到 backend handler 渲染 K8s 与第三方 CR | MLJob / MLService + backend handler registry | [compute-operator.md](components/compute-operator.md) |
+| **compute-operator** | 把 MLJob / MLService / MLTrafficPolicy 路由到 backend handler 渲染 K8s 与第三方 / 网关 CR | MLJob / MLService / MLTrafficPolicy + backend handler registry | [compute-operator.md](components/compute-operator.md) |
 
 各组件的定位、架构、模型与接口契约请进入对应文档 §1–§6 查阅，本文不展开。
 
@@ -191,7 +192,7 @@ axisml/
 
 | 决策项 | 决策 | 理由 |
 | --- | --- | --- |
-| 计算任务抽象 | 通过 CRD（MLJob / MLService / Tenant）抽象 | 与 Kubernetes 原生集成，声明式管理，框架无关 |
+| 计算任务抽象 | 通过 CRD（MLJob / MLService / MLTrafficPolicy / Tenant）抽象 | 与 Kubernetes 原生集成，声明式管理，框架无关 |
 | 控制平面拆分 | tenant-operator + compute-operator 两个独立二进制 | 管理员域与业务域按变更频率与权限边界分离 |
 | 租户与配额归属 | compute 持有 Tenant + Quota 权威，统一与 Job / Service 共驻一个 PG schema | 消除 cluster-manager 与 compute 间的 namespace 解析跨服务调用；compute 自己 join 出 K8s namespace；权威收敛到单一服务；详见 [compute-service #5](components/compute-service.md#5-关键机制) |
 | Pool/Unit 与租户分离 | ResourcePool CRD 由 cluster-manager 管 (内嵌 units), compute 通过 Informer 直读做展开 | pool/unit 是集群级 admin 词汇，跟租户生命周期解耦；写路径 (cluster-manager → K8s) 与读路径 (compute Informer) 都经 etcd 收敛, 无跨组件调用 |

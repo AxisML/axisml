@@ -10,7 +10,7 @@
 - **Dashboard / 服务指标数据来源** 见 [monitoring.md](monitoring.md)。
 - **整体系统概念** (Tenant / ResourcePool / Job / Service / Artifact) 见 [overview.md](overview.md)。
 
-> 各菜单按 §2.2 信息架构组织,列表 / 详情 / 表单布局在下文对应章节落档:Dashboard §3、资源池管理 §4、租户管理 §5、工作区 §6、计算任务 §7、在线服务 §8、制品中心(数据集 / 模型 / 镜像)§9、流量控制 §10。本文只描述**布局与字段呈现**;字段契约见 [apis/platform.yaml](apis/platform.yaml),状态机与编排见各服务文档,权限矩阵见 [auth.md](auth.md)。
+> 各菜单按 §2.2 信息架构组织,列表 / 详情 / 表单布局在下文对应章节落档:Dashboard §3、资源池管理 §4、租户管理 §5、工作区 §6、计算任务 §7、在线服务 §8、制品中心(数据集 / 模型 / 镜像)§9、流量配置 §10。本文只描述**布局与字段呈现**;字段契约见 [apis/platform.yaml](apis/platform.yaml),状态机与编排见各服务文档,权限矩阵见 [auth.md](auth.md)。
 
 ---
 
@@ -34,7 +34,7 @@
 │            │   ┌ Filters (search · select · select · 重置) ────┐     │
 │ 服务中心   │   └────────────────────────────────────────────────┘     │
 │ • 在线服务 │                                                         │
-│ • 流量控制 │   ┌ Card / Section / Table ──────────────────────┐      │
+│ • 流量配置 │   ┌ Card / Section / Table ──────────────────────┐      │
 │            │   │                                              │      │
 │ 制品中心   │   └──────────────────────────────────────────────┘      │
 │ • 模型     │                                                         │
@@ -63,7 +63,7 @@
 | 训练中心 | 工作区 | `/workspaces` · `/workspaces/{name}` | 租户内 | §6 |
 |  | 计算任务 | `/jobs` · `/jobs/{name}` | 租户内 | §7 |
 | 服务中心 | 在线服务 | `/services` · `/services/{name}` | 租户内 | §8 |
-|  | 流量控制 | `/traffic` · `/traffic/{name}` | 租户内 | §10 |
+|  | 流量配置 | `/traffic` · `/traffic/{name}` | 租户内 | §10 |
 | 制品中心 | 数据集 | `/datasets` · `/datasets/{name}` | 租户内 | §9 |
 |  | 模型 | `/models` · `/models/{name}` | 租户内 | §9 |
 |  | 镜像 | `/images` · `/images/{name}` | 租户内 | §9 |
@@ -759,7 +759,7 @@ Tabs:  [基本信息]  [实例 (Pods)]  [日志]  [事件]
 
 ## 8. 在线服务 (服务中心 → 在线服务)
 
-常驻在线推理服务,隶属 topbar 当前租户,可暴露路由对外访问。多版本灰度发布与加权切流由 §10 流量控制 承接。字段权威见 [components/compute-service.md](components/compute-service.md)。
+常驻在线推理服务,隶属 topbar 当前租户,可暴露路由对外访问。多版本灰度发布与加权切流由 §10 流量配置 承接。字段权威见 [components/compute-service.md](components/compute-service.md)。
 
 ### 8.1 页面入口
 
@@ -930,7 +930,7 @@ LLaMA-7B 监督微调权重                                 [+ 上传新版本]
 
 ---
 
-## 10. 流量控制 (服务中心 → 流量控制)
+## 10. 流量配置 (服务中心 → 流量配置)
 
 在线服务的多版本流量编排。每条**流量策略**绑定一个稳定对外入口(path / hostname),把入站请求按权重分发到当前租户下的多个**在线服务后端**,支撑灰度发布、加权切分与蓝绿版本切换。底层加权路由由 compute 派生(`(native,*)` → Envoy Gateway `HTTPRoute` 加权 `backendRefs`;`kserve` → `InferenceService` canary),Platform / UI 不直连网关、不内嵌 PromQL。字段权威见 [components/compute-service.md §4.4](components/compute-service.md#44-service)。
 
@@ -946,7 +946,7 @@ LLaMA-7B 监督微调权重                                 [+ 上传新版本]
 ### 10.2 列表页
 
 ```
-Page Head:  // serving / traffic   流量控制。            [+ 新建策略]
+Page Head:  // serving / traffic   流量配置。            [+ 新建策略]
 
 Filters:  🔍 名称搜索  |  模式 ▾  |  状态 ▾  |  重置
 
@@ -968,7 +968,7 @@ Footer: 共 3 条策略                                    ‹ [1] ›        �
 ### 10.3 详情页 Tab
 
 ```
-← 返回流量控制列表
+← 返回流量配置列表
 rt-chat.   [◐ 灰度中]                                   traffic/rt-chat
 对话服务灰度发布
 [调整流量]  [提升]  [回滚]  [删除]
