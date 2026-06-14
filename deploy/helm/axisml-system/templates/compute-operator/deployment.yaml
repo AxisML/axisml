@@ -40,6 +40,9 @@ spec:
             {{- if not $op.controllers.mlservice.enabled }}
             - --enable-mlservice=false
             {{- end }}
+            {{- if not $op.controllers.mltrafficpolicy.enabled }}
+            - --enable-mltrafficpolicy=false
+            {{- end }}
           ports:
             - name: metrics
               containerPort: 8081

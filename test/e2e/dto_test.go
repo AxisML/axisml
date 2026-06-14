@@ -10,6 +10,7 @@ import (
 
 	mljobv1 "github.com/axisml/axisml/components/compute-operator/api/mljob/v1alpha1"
 	mlservicev1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
+	mltpv1 "github.com/axisml/axisml/components/compute-operator/api/mltrafficpolicy/v1alpha1"
 )
 
 // These are e2e-local mirrors of the services' HTTP DTOs. The real DTOs live
@@ -131,6 +132,35 @@ type csServiceView struct {
 	Phase     string                    `json:"phase"`
 	Spec      mlservicev1.MLServiceSpec `json:"spec"`
 	Status    json.RawMessage           `json:"status"`
+}
+
+// ---------- compute-service: traffic policy ----------
+
+type csCreateTrafficPolicyReq struct {
+	Name        string                 `json:"name"`
+	DisplayName string                 `json:"displayName,omitempty"`
+	Mode        string                 `json:"mode"`
+	Endpoint    mltpv1.Endpoint        `json:"endpoint"`
+	Backends    []mltpv1.BackendMember `json:"backends"`
+}
+
+type csTrafficWeightUpdate struct {
+	ServiceName string `json:"serviceName"`
+	Weight      int32  `json:"weight"`
+}
+
+type csTrafficSplitReq struct {
+	Backends []csTrafficWeightUpdate `json:"backends"`
+}
+
+type csTrafficPolicyView struct {
+	ID        string                     `json:"id"`
+	Namespace string                     `json:"namespace"`
+	Name      string                     `json:"name"`
+	Mode      string                     `json:"mode"`
+	Phase     string                     `json:"phase"`
+	Spec      mltpv1.MLTrafficPolicySpec `json:"spec"`
+	Status    json.RawMessage            `json:"status"`
 }
 
 // ---------- artifact-hub ----------
