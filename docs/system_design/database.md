@@ -123,7 +123,7 @@ CREATE INDEX tenants_sync_pending
 | --- | --- | --- |
 | `id` | API | 同时写入 CR `metadata.labels[axisml.io/tenant-id]` |
 | `name` | API | 创建后不可变；集群内全局唯一 |
-| `spec` | API | `spec.namespace.name` / `spec.quotas[].{pool,name}` 创建后不可变 |
+| `spec` | API | `spec.namespace.name` / `spec.allocations[].pool` / `spec.quotas[].{pool,name}` 创建后不可变 |
 | `generation` | API | spec mutation 时 +1 |
 | `observed_generation` | reconciler | 成功 patch CR 后写入 |
 | `status` | informer | 从 Tenant CR `status` 整块回流 |

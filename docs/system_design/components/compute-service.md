@@ -63,7 +63,8 @@ ML 工作负载 + 多租户管控面：以 PostgreSQL 为权威，承载 Tenant 
 | 实体 | 含义 | 标识键 | 状态机 | 对应 CR |
 | --- | --- | --- | --- | --- |
 | Tenant | 租户 | `id` (uuid) / `name`（集群内全局唯一） | `Creating \| Active \| Suspended \| Failed \| Deleting \| Deleted` | `Tenant`（cluster-scoped） |
-| Quota | 配额，内联在 `tenants.spec.quotas[]` | `(tenant.name, pool, name)` | 无独立状态 | 每条 1:1 渲染为 ElasticQuota CR（由 tenant-operator 落地） |
+| Allocation | 资源池总额度（cap），内联在 `tenants.spec.allocations[]`，由 system-admin 设定 | `(tenant.name, pool)` | 无独立状态 | 每条渲染为父 ElasticQuota CR（由 tenant-operator 落地） |
+| Quota | 子配额，内联在 `tenants.spec.quotas[]`，由 tenant-admin 在所属 pool 的 allocation 内拆分 | `(tenant.name, pool, name)` | 无独立状态 | 每条 1:1 渲染为子 ElasticQuota CR（父为对应 pool 的 allocation） |
 | Job | 一次性训练 / 离线任务 | `id` (uuid) / `(namespace, name)` | `Creating \| Pending \| Running \| Succeeded \| Failed \| Canceling \| Cancelled \| Deleting \| Deleted` | `MLRun`（namespaced） |
 | Service | 常驻在线服务 / 工作区 | `id` (uuid) / `(namespace, name)` | `Creating \| Pending \| Ready \| Degraded \| Failed \| Deleting \| Deleted` | `MLService`（namespaced） |
 | TrafficPolicy | 流量策略：稳定入口按权重分发到多个在线服务 | `id` (uuid) / `(namespace, name)` | `Creating \| Pending \| Ready \| Degraded \| Failed \| Deleting \| Deleted` | `MLTrafficPolicy`（namespaced） |
@@ -97,7 +98,7 @@ ML 工作负载 + 多租户管控面：以 PostgreSQL 为权威，承载 Tenant 
 | 操作 | PG 写 | CR 影响 | 备注 |
 | --- | --- | --- | --- |
 | 创建 | insert `Creating` 行（`generation=1`） | reconciler 创建 Tenant CR | DNS-1123 校验由 API 层兜底；`name` 集群内全局唯一 |
-| 更新 spec（`spec.quotas[].{min,max}` / `spec.initResources`） | update `spec` + `generation += 1` | reconciler patch CR | `spec.namespace.name` / `spec.quotas[].{pool,name}` 不可变 |
+| 更新 spec（`spec.allocations[].{min,max}` / `spec.quotas[].{min,max}` / `spec.initResources`） | update `spec` + `generation += 1` | reconciler patch CR | `spec.namespace.name` / `spec.allocations[].pool` / `spec.quotas[].{pool,name}` 不可变 |
 | 更新顶层 PG 元数据（`display_name` / `description` / `labels` / `annotations`） | update 行 | **不影响 CR** | 不 `+generation`；扩展位见 [database.md §1.6](../database.md#16-扩展元数据-labels--annotations)；包含 `namespace.labels` / `namespace.annotations` 这类纯展示位 |
 | 软删 | `phase='Deleting'` + `deleted_at = now()` + `generation += 1` | reconciler 删 CR | 行保留到 retention |
 | 恢复 | `deleted_at = NULL` + `generation += 1` | reconciler 重建 CR | 仅适用 `phase='Deleted'` 行 |
@@ -119,18 +120,23 @@ ML 工作负载 + 多租户管控面：以 PostgreSQL 为权威，承载 Tenant 
 
 `status.quotas[].used` **不入 PG**——由 tenant-operator 写到 Tenant CR `status.quotas[].used`，compute-service Tenant Informer 内存 cache 现读，GET 时与 PG 中的 spec / phase 合并返回。详见 [§5.3](#53-状态回流informer)。
 
-### 4.2 Quota
+### 4.2 Allocation 与 Quota（两级配额）
 
-Quota 没有独立 CRD——是 `tenants.spec.quotas[]` jsonb 中的一项，由 tenant-operator 渲染成 ElasticQuota CR 落地。
+配额是**两级模型**，均无独立 CRD、均内联在 Tenant spec：
 
-| 操作 | PG 写 | CR 影响 |
-| --- | --- | --- |
-| 新增 | append jsonb 项 + `generation += 1` | reconciler patch `Tenant.spec.quotas[]` |
-| 修改 `min` / `max` | update jsonb 项 + `generation += 1` | reconciler patch |
-| 删除 | remove jsonb 项 + `generation += 1` | reconciler 删除对应 ElasticQuota CR |
-| 用量回流 | 不入 PG；从 Tenant Informer cache 现读 `status.quotas[i].used` | — |
+- **总额度 Allocation**（`tenants.spec.allocations[]`，键 `(pool)`）：system-admin 为租户在某资源池下设定的**总量上限（cap）**，渲染为该 `(tenant, pool)` 的**父** ElasticQuota。
+- **子配额 Quota**（`tenants.spec.quotas[]`，键 `(pool, name)`）：tenant-admin 在所属 pool 的 allocation 内**拆分**出的命名子额度（如按团队），渲染为父下的**子** ElasticQuota；workload 只绑定子配额。
 
-**不变约束**：`(pool, name)` 一旦创建即不可变；改名 = 先删后建。
+| 操作 | 角色 | PG 写 | CR 影响 |
+| --- | --- | --- | --- |
+| 设 / 改总额度 `allocations[]` | `system-admin` | upsert jsonb 项 + `generation += 1` | reconciler patch 父 ElasticQuota |
+| 删总额度 | `system-admin` | 该 pool 无子配额时移除项 + `generation += 1` | reconciler 删父 ElasticQuota |
+| 增 / 改 / 删子配额 `quotas[]` | `tenant-admin@self` | 写 jsonb 项 + `generation += 1` | reconciler patch / 删子 ElasticQuota |
+| 用量回流 | — | 不入 PG；从 Tenant Informer cache 现读 `status.quotas[i].used` | — |
+
+**额度不超分**（compute-service 写前校验，超出返 `400 quota-exceeds-allocation`）：对每个 pool，`Σ quotas[].min ≤ allocations[pool].min` 且 每项 `quotas[].max ≤ allocations[pool].max`；子配额的 `pool` 必须存在对应 allocation。tenant-operator 落地时按同一约束兜底，Koordinator 按父 / 子 ElasticQuota 层级在调度期强制。
+
+**不变约束**：`allocations[].pool` 与 `quotas[].(pool, name)` 一旦创建即不可变；子配额改名 = 先删后建；删总额度前该 pool 的子配额必须先清空。
 
 ### 4.3 Job
 

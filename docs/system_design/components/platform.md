@@ -92,7 +92,7 @@ Platform 自有实体分两类：**身份 / 授权 / 会话 / 审计**，以及 
 
 ## 4. 核心功能
 
-每节定义编排动作；UI 字段与布局见 [wireframe.md](../wireframe.md)，字段契约见 [apis/platform.yaml](../apis/platform.yaml)，权限矩阵见 [auth.md §3](../auth.md#3-rbac-角色)。
+每节定义编排动作；字段契约见 [apis/platform.yaml](../apis/platform.yaml)，权限矩阵见 [auth.md §3](../auth.md#3-rbac-角色)。
 
 ### 4.1 租户编排
 
@@ -104,13 +104,14 @@ Platform 自有实体分两类：**身份 / 授权 / 会话 / 审计**，以及 
 | 编辑展示元数据 | RBAC `system-admin` → 拦截不可变字段 | `UpdateTenant`（`display_name` / `description` / `namespace` 业务线 / `labels` / `annotations`） | `400 immutable-field` Platform 兜底 |
 | 软删 / 恢复 | RBAC + 成员校验（非空 → `409 tenant-has-members`） | `DeleteTenant` / `RestoreTenant` | 成功后级联清理 `user_tenant_roles` |
 | **暂停 / 恢复** | RBAC `system-admin` → 透传 | `SuspendTenant` / `ResumeTenant`（`Active ⇄ Suspended`） | 单点透传；compute 在创建入口对 `Suspended` 租户返 `409 tenant-suspended`，已运行 workload 不受影响 |
-| 配额 CRUD | RBAC `tenant-admin@self` → 拦截 `(pool, name)` 不可变 | `Add/Update/DeleteQuota` | `400 immutable-field` Platform 兜底 |
+| 总额度（allocation）CRUD | RBAC `system-admin` → 拦截 `pool` 不可变 | `Set/Update/DeleteAllocation` | `400 immutable-field` Platform 兜底 |
+| 子配额 CRUD | RBAC `tenant-admin@self` → 拦截 `(pool, name)` 不可变；校验额度不超分 | `Add/Update/DeleteQuota` | 超额 compute 返 `400 quota-exceeds-allocation`；`400 immutable-field` Platform 兜底 |
 | 成员管理 | RBAC + 自我保护（不能移除最后一个 `tenant-admin` → `409 last-tenant-admin`） | —（仅 Platform PG） | `user_tenant_roles` 内事务 |
 | 列表 | 按角色裁剪：非 `system-admin` 取绑定 tenant 集合 | `ListTenants`（query 下推） | 单租户失败 → `partial=true` |
 
 **暂停语义**：`Suspended` 是**提交闸门**——锁定该租户下 Run 触发 / Service / Workspace 的**新建入口**（Job 定义本身为纯定义，可继续编辑），已派生工作负载继续运行、可继续 scale / stop / delete。闸门由 compute 在创建端点强制（返 `409 tenant-suspended`），Platform 按 phase 置灰前端新建 CTA；`tenant-operator` 不参与暂停。
 
-关键不变量：Platform 不为租户建任何视图表；`name` / `namespace.name` / 配额 `(pool, name)` 创建后不可变。成员数为 Platform 侧 `user_tenant_roles` 聚合，与 compute 无关。
+关键不变量：Platform 不为租户建任何视图表；`name` / `namespace.name` / 总额度 `pool` / 子配额 `(pool, name)` 创建后不可变；子配额受 system-admin 设定的总额度约束（`Σ ≤ cap`），超额由 compute 返 `400 quota-exceeds-allocation`。成员数为 Platform 侧 `user_tenant_roles` 聚合，与 compute 无关。
 
 ### 4.2 计算任务编排
 
@@ -202,8 +203,6 @@ Platform 自有实体分两类：**身份 / 授权 / 会话 / 审计**，以及 
 > Platform 不验 spec；上表是 artifacts handler 的硬校验，Platform 仅透传，失败时由下游 4xx 直传客户端。
 
 **全局可见制品（visibility=public）**：`system-admin` 在内置 namespace `axisml-system`（保留 tenant）下创建定义并上传 `visibility=public` 版本；Workspace / Run 触发 / Service 表单的镜像 / 模型 / 数据集下拉**合并展示当前租户 + `axisml-system` 的 public 定义与版本**。Platform 仅在 LIST 阶段做合并，不为「共享」建专门 PG 表（复用 `axisml-system` 租户下的普通定义 + 版本 `visibility=public`）；写入路径同普通制品，权限由 artifacts RBAC 兜底（仅 `system-admin` 能写 `axisml-system` 下制品）。
-
-UI 设计见 [wireframe.md §9](../wireframe.md#9-资产中心-数据集--模型--镜像)。
 
 ### 4.6 资源池编排
 
@@ -357,6 +356,5 @@ RBAC 中间件装配细节归 [auth.md](../auth.md)，Platform 在路由层挂�
 - [deployment.md](../deployment.md) — Helm / 部署
 - [monitoring.md](../monitoring.md) — Metrics、告警与 service metrics PromQL 模板
 - [infra.md](../infra.md) — Envoy Gateway / kube-prometheus-stack
-- [wireframe.md](../wireframe.md) — 所有 UI 设计（列表 / 详情 / 表单）
 - [apis/platform.yaml](../apis/platform.yaml) — REST 契约源
 - [cluster-manager.md](cluster-manager.md) / [tenant-operator.md](tenant-operator.md) / [compute-service.md](compute-service.md) / [compute-operator.md](compute-operator.md) / [artifact-hub.md](artifact-hub.md)

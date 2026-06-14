@@ -222,7 +222,7 @@
 ## 8. 术语表与参考
 
 - [概要设计 overview.md](../system_design/overview.md)
-- [产品 UI 设计 wireframe.md](../system_design/wireframe.md)
+- [产品 UI 设计 wireframe.md](wireframe.md)
 - [Cluster Manager 设计](../system_design/components/cluster-manager.md)
 - [Compute Service 设计](../system_design/components/compute-service.md)
 - [Compute Operator 设计](../system_design/components/compute-operator.md)
