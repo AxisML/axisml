@@ -1,14 +1,11 @@
-# platform-backend Makefile
+# axisml-platform-backend Makefile
 #
-# Standard targets (per AxisML component conventions):
-#   make / make build  Compile the binary into bin/
-#   make image         Build the container image
-#   make test          Run unit tests
-#   make clean         Remove build artifacts
-#
-# NOTE: This component is not yet implemented. The targets below assume a
-# Go service with a `./cmd` entrypoint and a co-located Dockerfile, matching
-# the layout planned in docs/system_design/platform.md.
+# Platform is the user-facing aggregator. The server is not implemented yet:
+# cmd/platform-backend currently serves health probes and a 501 fallback, while
+# the full API surface is declared as Go DTOs in internal/server and rendered to
+# docs/openapi/platform.yaml by cmd/openapi-gen. The build/image/test/doc
+# contract matches the sibling services so the component drops into the standard
+# tooling as its handlers land.
 
 IMAGE_REPO ?= ghcr.io/axisml/axisml-platform-backend
 # Must track deploy/helm/axisml-system Chart.appVersion (the Helm template
@@ -16,38 +13,32 @@ IMAGE_REPO ?= ghcr.io/axisml/axisml-platform-backend
 IMAGE_TAG  ?= 0.1.0
 IMAGE      := $(IMAGE_REPO):$(IMAGE_TAG)
 
-BIN_NAME ?= platform-backend
-CMD_PATH ?= ./cmd
+BIN_NAME  ?= axisml-platform-backend
+CMD_PATH  ?= ./cmd/platform-backend
+REPO_ROOT := $(abspath $(CURDIR)/../../..)
 
 .DEFAULT_GOAL := build
 
-.PHONY: help
+.PHONY: help build test image image-load-minikube clean fmt vet tidy
+
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-22s\033[0m %s\n", $$1, $$2}'
 
-.PHONY: build
-build: ## Compile the binary into bin/$(BIN_NAME)
+build: ## Compile the platform-backend binary into bin/
 	@CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o bin/$(BIN_NAME) $(CMD_PATH)
 
-.PHONY: test
 test: ## Run unit tests
 	@go test ./...
 
-.PHONY: image
-image: ## Build the container image ($(IMAGE))
-	@docker build -t $(IMAGE) .
+image: ## Build the container image ($(IMAGE)) using repo root as build context
+	@docker build -f $(CURDIR)/Dockerfile -t $(IMAGE) $(REPO_ROOT)
 
-.PHONY: image-load-minikube
 image-load-minikube: image ## Build and load the image into the local minikube node
 	@minikube image load $(IMAGE)
 
-.PHONY: clean
 clean: ## Remove build artifacts
-	@rm -rf bin/
+	@rm -rf bin/ coverage/
 
-# --- Go convenience targets ---
-
-.PHONY: fmt vet tidy
 fmt: ## go fmt ./...
 	@go fmt ./...
 
@@ -56,3 +47,58 @@ vet: ## go vet ./...
 
 tidy: ## go mod tidy
 	@go mod tidy
+
+# --- OpenAPI ---
+#
+# Regenerates docs/openapi/platform.yaml from the Go DTO structs in
+# internal/server. The generator lives at cmd/openapi-gen and shares its
+# reflection engine with the other API services via pkg/openapigen.
+
+OPENAPI_OUT ?= $(REPO_ROOT)/docs/openapi/platform.yaml
+
+.PHONY: doc-gen doc-test
+doc-gen: ## Regenerate $(OPENAPI_OUT) from the Go DTO types
+	@go run ./cmd/openapi-gen -o $(OPENAPI_OUT) -version $(IMAGE_TAG)
+
+doc-test: ## Fail if $(OPENAPI_OUT) is out of date with the Go types (CI guard)
+	@$(MAKE) --no-print-directory doc-gen
+	@if ! git -C $(REPO_ROOT) diff --quiet -- $(OPENAPI_OUT); then \
+	  echo "ERROR: $(OPENAPI_OUT) is out of date. Run 'make doc-gen' and commit the result."; \
+	  git -C $(REPO_ROOT) --no-pager diff -- $(OPENAPI_OUT); \
+	  exit 1; \
+	fi
+
+# --- Integration tests ---
+#
+# Platform's integration suite drives the in-process gin engine via httptest
+# (no envtest / testcontainers needed — it has no K8s client or DB yet).
+
+MODULE_PATH := github.com/axisml/axisml/components/platform/backend
+
+.PHONY: integration integration-coverage
+integration: ## Run integration tests (in-process httptest)
+	@cd test/integration && go test -tags=integration -count=1 -timeout=10m ./...
+
+integration-coverage: ## Run integration tests with a coverage profile
+	@mkdir -p $(COVERAGE_DIR)
+	@cd test/integration && \
+	  go test -tags=integration -count=1 -timeout=10m \
+	    -coverpkg=$(MODULE_PATH)/... \
+	    -coverprofile=$(COVERAGE_DIR)/integration-coverage.out -covermode=atomic ./...
+
+# --- Coverage ---
+
+COVERAGE_DIR  ?= $(CURDIR)/coverage
+COVERAGE_OUT  ?= $(COVERAGE_DIR)/coverage.out
+COVERAGE_HTML ?= $(COVERAGE_DIR)/coverage.html
+
+.PHONY: coverage coverage-html
+coverage: ## Run unit tests with a coverage profile
+	@mkdir -p $(COVERAGE_DIR)
+	@go test -coverprofile=$(COVERAGE_OUT) -covermode=atomic -count=1 ./...
+
+coverage-html: ## Render the unit coverage profile to HTML
+	@if [ -f $(COVERAGE_OUT) ]; then \
+	  go tool cover -html=$(COVERAGE_OUT) -o $(COVERAGE_HTML); \
+	  echo "unit coverage: $(COVERAGE_HTML)"; \
+	fi

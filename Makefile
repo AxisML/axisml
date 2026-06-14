@@ -154,9 +154,13 @@ COMPONENTS := \
   components/compute-operator \
   components/cluster-manager \
   components/compute-service \
-  components/artifact-hub
+  components/artifact-hub \
+  components/platform/backend
+# platform/backend is a contract-only shell today: cmd/platform-backend serves
+# health probes + a 501 fallback, and the API surface is declared as DTOs that
+# generate docs/openapi/platform.yaml. It builds/tests/images like a sibling so
+# the standard tooling carries it as handlers land.
 # Scaffolded components (uncomment as they ship code):
-# COMPONENTS += components/platform/backend
 # COMPONENTS += components/platform/frontend
 
 # Coverage profiles are produced by each Go module under COMPONENTS.
@@ -165,26 +169,31 @@ COVERAGE_COMPONENTS := \
   components/compute-operator \
   components/cluster-manager \
   components/compute-service \
-  components/artifact-hub
+  components/artifact-hub \
+  components/platform/backend
 
 # Components participating in `make integration-test` and the matching
-# CI integration job. All current suites need either envtest (kubebuilder
-# assets cached via `make setup-envtest`) or testcontainers (Docker daemon),
-# both of which CI provides — so this list mirrors COMPONENTS exactly.
+# CI integration job. Most suites need either envtest (kubebuilder assets
+# cached via `make setup-envtest`) or testcontainers (Docker daemon), both of
+# which CI provides; platform/backend's suite needs neither (it drives the
+# in-process gin engine via httptest).
 INTEGRATION_COMPONENTS := \
   components/tenant-operator \
   components/compute-operator \
   components/cluster-manager \
   components/compute-service \
-  components/artifact-hub
+  components/artifact-hub \
+  components/platform/backend
 
 # Components that ship a public REST API and therefore an OpenAPI spec under
 # docs/openapi/. The two operators have no HTTP surface (they reconcile CRs),
-# so they're excluded.
+# so they're excluded. platform/backend is a contract-only shell (no server
+# yet) but still owns docs/openapi/platform.yaml, so it participates in doc-gen.
 DOC_COMPONENTS := \
   components/cluster-manager \
   components/compute-service \
-  components/artifact-hub
+  components/artifact-hub \
+  components/platform/backend
 
 # Every Go module in the repo (each component + its integration sub-module
 # + shared test/testutil). `go fmt ./...` does not cross module boundaries,
