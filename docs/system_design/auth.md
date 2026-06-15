@@ -63,8 +63,8 @@
 | 租户成员管理 | OK | OK (@self) | NO |
 | 租户配额 CRUD | OK | OK (@self) | NO |
 | 资源池 / 资源单元 CRUD | OK | NO | NO |
-| 工作区 / Job / Service 创建 | OK | OK (@self) | OK (@self) |
-| 工作区 / Job / Service 启停 / 删 | OK | OK (@self, 跨 owner) | OK (@owner) |
+| 工作区 / Job / 实验 / 评估 / Service 创建 | OK | OK (@self) | OK (@self) |
+| 工作区 / Job / 实验 / 评估 / Service 启停 / 删；TensorBoard 启动 / 停止 | OK | OK (@self, 跨 owner) | OK (@owner) |
 | 制品 CRUD | OK | OK (@self, 跨 owner) | OK (@self, @owner) |
 | `axisml-system` 制品 `visibility=public` 写 | OK | NO | NO |
 | 跨租户读 | OK | NO | NO |
@@ -113,6 +113,8 @@
 3. JWT 写入工作区域名下的 Cookie；
 4. 浏览器访问工作区 HTTPRoute 时自动携带 Cookie，Envoy SecurityPolicy 从 Cookie 提取 JWT，基于 JWKS（§5.4）验签 + 校验 `aud` 后放行。
 
+实验的 **TensorBoard**（`MLService(kind=tensorboard)`，见 [platform.md §4.11](components/platform.md#411-tensorboard-编排)）数据面同走本节路径：复用同一 `aud=axisml-workspace` access JWT 与 SecurityPolicy，其 `/tensorboard/<tenant>/<exp>/` HTTPRoute 在同一 audience 下放行；启动 / 打开本身限 `owner` / `tenant-admin`（§3.1）。
+
 ### 5.3 在线服务接入（API KEY，规划中）
 
 在线服务（推理端点）的数据面鉴权设计为 **API KEY**，由后续独立的「API KEY 管理」功能提供。**本版本不实现**，故当前在线服务数据面**无鉴权保护**——既不签发 access JWT，也不校验 API KEY，对应的颁发端点一并延后。
@@ -157,9 +159,11 @@ Platform 后端 `internal/auth` 暴露下列中间件供各功能 handler 拼装
 | `RequireWorkspaceOwner(nameParam)` | `@owner` 或在 workspace 所属租户上有 ≥ `tenant-admin`；租户由 `X-Axisml-Tenant` 头解析 | `system-admin` 短路 |
 | `RequireServiceOwner(nameParam)` | `@owner` 或在 service 所属租户上有 ≥ `tenant-admin`；租户由 `X-Axisml-Tenant` 头解析 | `system-admin` 短路 |
 | `RequireJobOwner(nameParam)` | `@owner` 或在 job 所属租户上有 ≥ `tenant-admin`；租户由 `X-Axisml-Tenant` 头解析 | `system-admin` 短路 |
+| `RequireExperimentOwner(nameParam)` | `@owner` 或在 experiment 所属租户上有 ≥ `tenant-admin`；租户由 `X-Axisml-Tenant` 头解析 | `system-admin` 短路 |
+| `RequireEvaluationOwner(nameParam)` | `@owner` 或在 evaluation 所属租户上有 ≥ `tenant-admin`；租户由 `X-Axisml-Tenant` 头解析 | `system-admin` 短路 |
 
 实现要点：
 
-- `RequireWorkspaceOwner` / `RequireServiceOwner` / `RequireJobOwner` 需先调下游 GET 拿 `owner`，结果经 `gin.Context.Set(...)` 注入后续 handler，避免重复调用；
+- `RequireWorkspaceOwner` / `RequireServiceOwner` / `RequireJobOwner` / `RequireExperimentOwner` / `RequireEvaluationOwner` 需先调下游 GET 拿 `owner`（实验 / 评估的 owner 取自 Platform PG 定义行），结果经 `gin.Context.Set(...)` 注入后续 handler，避免重复调用；TensorBoard 启动 / 打开 / 停止复用 `RequireExperimentOwner`（按所属实验判定，普通成员不可启动）；
 - 角色升降序：`system-admin` > `tenant-admin` > `user`，所有 `≥` 比较按此序列；
 - 失败统一返回 RFC 7807 problem：`401 unauthenticated` / `403 forbidden` / `409 last-tenant-admin`。
