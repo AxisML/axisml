@@ -2,13 +2,13 @@
 
 ## 1. 定位与边界
 
-AxisML 系统中唯一直接面向用户的层；承担身份接入、业务编排与视图层映射，把用户视角的操作翻译为对 cluster-manager / compute / artifacts 三个 System 层服务的下游调用。此外自有 Job / Model / Image / Dataset 的 name 级**定义**（模板 / 定义），运行实例（Run）与制品版本仍由下游持有。
+AxisML 系统中唯一直接面向用户的层；承担身份接入、业务编排与视图层映射，把用户视角的操作翻译为对 cluster-manager / compute / artifacts 三个 System 层服务的下游调用。此外自有 Job / 实验（Experiment）/ 评估（Evaluation）/ Model / Image / Dataset 的 name 级**定义**（模板 / 定义），运行实例（Run）与制品版本仍由下游持有。
 
 | 做 | 不做 |
 | --- | --- |
 | 唯一外部 HTTP 入口（前端 SPA + 后端 REST） | 直接管理 K8s 资源（全部下沉下游服务，自身不持 K8s client） |
 | 身份认证 / JWT 颁发 / RBAC 校验 / access JWT 颁发 | 持有 Tenant / Quota / Run(MLRun) / Service / Workspace 权威（→ [compute-service.md](compute-service.md)） |
-| **持有 Job / Model / Image / Dataset 定义**（name 级，Platform 自有 PG 表） | 持有制品**版本**（artifact version）权威（→ [artifact-hub.md](artifact-hub.md)） |
+| **持有 Job / 实验 / 评估 / Model / Image / Dataset 定义**（name 级，Platform 自有 PG 表） | 持有制品**版本**（artifact version）权威（→ [artifact-hub.md](artifact-hub.md)） |
 | 跨服务业务编排（创建 / 跨租户列表合并 / Dashboard 聚合） | 持有 ResourcePool / ResourceUnit 词汇（→ [cluster-manager.md](cluster-manager.md)） |
 | 视图层映射（用户 ↔ 租户绑定 ↔ `tenant_name`；workspace ↔ `MLService(kind=workspace)`） | 拼 ElasticQuota 名 / 解析 K8s namespace（均下沉 compute） |
 | 全局可见制品的列表合并（`axisml-system` 内置租户 + `visibility=public`） | 缓存下游可变**实例**状态（phase / status / conditions / digest / quota 用量 → 一律实时回源） |
@@ -37,7 +37,7 @@ AxisML 系统中唯一直接面向用户的层；承担身份接入、业务编�
    manager
 ```
 
-外部流量必须经 Envoy Gateway 进入 Platform；下游全部 ClusterIP。Platform 只与三个 System 层自研服务通信，**不直接访问任何 Infra 层组件**——不调 K8s API、不碰 zot / RustFS、**也不直连 Prometheus**。所有指标查询封装在拥有该域的 System 服务里：在线服务 / 工作负载 / 租户运行指标由 compute 代理（backend→PromQL 模板选择在 compute 侧），集群容量与集群时序由 cluster-manager 代理；Platform 仅透传与聚合它们回传的 `MetricSeries`，不感知 PromQL，也不感知 backend。
+外部流量必须经 Envoy Gateway 进入 Platform；下游全部 ClusterIP。Platform 只与三个 System 层自研服务通信，**不直接访问任何 Infra 层组件**——不调 K8s API、不持有 zot / RustFS 的 client 与凭证（仅对 compute 签发的临时只读地址做无凭证 GET，如读评估报告 `report.json`，不感知存储布局）、**也不直连 Prometheus**。所有指标查询封装在拥有该域的 System 服务里：在线服务 / 工作负载 / 租户运行指标由 compute 代理（backend→PromQL 模板选择在 compute 侧），集群容量与集群时序由 cluster-manager 代理；Platform 仅透传与聚合它们回传的 `MetricSeries`，不感知 PromQL，也不感知 backend。
 
 ### 2.2 内部结构
 
@@ -62,7 +62,7 @@ AxisML 系统中唯一直接面向用户的层；承担身份接入、业务编�
 
 ## 3. 核心模型
 
-Platform 自有实体分两类：**身份 / 授权 / 会话 / 审计**，以及 **Job / Model / Image / Dataset 四张定义**。完整字段与索引见 [database.md §4](../database.md#4-platform)。
+Platform 自有实体分两类：**身份 / 授权 / 会话 / 审计**，以及 **Job / Experiment / Evaluation / Model / Image / Dataset 六张定义**。完整字段与索引见 [database.md §4](../database.md#4-platform)。
 
 ### 3.1 身份 / 授权 / 会话 / 审计
 
@@ -75,20 +75,22 @@ Platform 自有实体分两类：**身份 / 授权 / 会话 / 审计**，以及 
 | Session | JWT 会话 / 刷新 token | `jti` | TTL 与 JWKS 由 auth 模块管理 |
 | AuditLog | 操作流水 | `id` | `action` / `target` / `metadata` / `actor` |
 
-### 3.2 定义（jobs / datasets / models / images）
+### 3.2 定义（jobs / experiments / evaluations / datasets / models / images）
 
-这四张表是 Platform 自有的 name 级**定义 / 模板**实体；真正的运行 / 版本**实例**由下游持有，二者通过实时查询关联（Platform **不建** run/version 索引表）。
+这六张表是 Platform 自有的 name 级**定义 / 模板**实体；真正的运行 / 版本**实例**由下游持有，二者通过实时查询关联（Platform **不建** run/version 索引表）。`experiments`（实验）与 `evaluations`（评估）是 `jobs` 的训练 / 评测**特化形态**——同为「定义 → Run」两级模型，Run 仍是 compute `MLRun`，仅多带 `axisml.io/{experiment,evaluation}` 分组 label；`experiments.spec` 与 `jobs.spec` 同构（区别在训练框定 + TensorBoard 集成，超参即 args/env、Platform 不单独建模），`evaluations.spec` 为评测特化，**均不引入新 compute CR / handler**。
 
 | 定义（Platform PG） | 实例所有者 | `spec` 内容 | 关联（实时） |
 | --- | --- | --- | --- |
 | `jobs`（Job 可复用模板） | Run = `MLRun`（compute） | `backend` / `roles[]` / `scheduling{poolName,unitName,quota}` / `runPolicy` / 制品引用 `(kind,name,version)` | `compute.ListMLRuns(labelSelector=axisml.io/job=<job>)` |
+| `experiments`（训练实验模板） | Run = `MLRun`（compute，打 `axisml.io/experiment`） | 训练特化：`spec` 与 `jobs` 同构（`backend` / `roles[]` / `scheduling` / `runPolicy` / 制品引用）；训练超参即 `roles[*].template.{args,env}`，Platform 不单独建模；指标经 TensorBoard（§4.11） | `compute.ListMLRuns(labelSelector=axisml.io/experiment=<exp>)` |
+| `evaluations`（评估模板） | Run = `MLRun`（compute，打 `axisml.io/evaluation`） | 评测特化：`backend` / `scheduling` / `targets[]`（被评 `model@version` 集合）/ `dataset(name,version)` / `metrics[]` / `primaryMetric`（榜单排序）/ `runPolicy` | `compute.ListMLRuns(labelSelector=axisml.io/evaluation=<eval>)` |
 | `models`（模型定义） | `model` 版本（artifacts） | name 级业务元数据（`framework` / `format` 等） | `artifacts.ListArtifactsByKind(ns, model, name)` |
 | `images`（镜像定义） | `image` 版本（artifacts） | name 级业务元数据（`purpose` 等） | `artifacts.ListArtifactsByKind(ns, image, name)` |
 | `datasets`（数据集定义） | `dataset` 版本（artifacts） | name 级业务元数据（`format` 等） | `artifacts.ListArtifactsByKind(ns, dataset, name)` |
 
 定义以 `(tenant_name, name)` 寻址，软删后同名可重建；定义可在**零 Run / 零版本**状态下存在（纯定义）。
 
-**关键不变量**：Platform 拥有 name 级**定义**，下游拥有**实例**——Job 定义 ⊕ 触发期 overrides 快照 → compute `MLRun`（Run 命名 `<job>-<n>`，打 `axisml.io/job` label）；Model/Image/Dataset 定义 → artifacts 版本 `(namespace,kind,name,version)`。除四张定义与身份 / 审计外，Platform **不为任何下游对象建视图表**，也**不持久化** run / version / phase / conditions / digest / quota 用量——这些一律实时回源下游。用户 → 租户绑定（`user_tenant_roles`）与租户展示元数据（`compute.GetTenant` 现取）维持原状。
+**关键不变量**：Platform 拥有 name 级**定义**，下游拥有**实例**——Job / 实验 / 评估定义 ⊕ 触发期 overrides 快照 → compute `MLRun`（Run 命名 `<定义>-<n>`，分别打 `axisml.io/{job,experiment,evaluation}` label）；Model/Image/Dataset 定义 → artifacts 版本 `(namespace,kind,name,version)`。除六张定义与身份 / 审计外，Platform **不为任何下游对象建视图表**，也**不持久化** run / version / phase / conditions / digest / quota 用量——这些一律实时回源下游。用户 → 租户绑定（`user_tenant_roles`）与租户展示元数据（`compute.GetTenant` 现取）维持原状。
 
 ## 4. 核心功能
 
@@ -257,6 +259,61 @@ KPI + gauge 默认 30s 轮询；时序图随 range 选择器（`1h/24h/7d`）重
 
 关键不变量：寻址 `(tenant_name, policy_name)`，URL `/api/v1/traffic/{name}`；`endpoint`（path / hostname / auth）与 `mode` 创建后不可变（改模式 = 重建），可变仅 `backends[*].weight` 与灰度百分比；成员的 owner 校验与加权路由派生均在 compute 侧，Platform 不为流量策略建任何视图表，权重 / 灰度态 / 成员 phase 始终回源 compute。
 
+### 4.9 实验编排
+
+下游：compute（+ artifacts 预检）。实验是 Platform 自有的**训练特化模板定义**（`experiments` 表，`spec` 与 `jobs` 同构）；每次运行产生一个 **Run**，对应 compute 的一个 `MLRun`（打 `axisml.io/experiment` label），复用计算任务的现有后端（`(native,job)` / `(kubeflow-trainer,*)`），**无需新 compute handler**。训练超参即 `roles[*].template.{args,env}`，Platform **不单独建模 / 不单独展示超参**；训练指标不入 PG，Run 容器把 TensorBoard event log 写到 compute 注入的对象存储位置（路径与凭证由 compute 渲染 Pod 时注入，**Platform 不碰对象存储**），经 §4.11 的 TensorBoard 查看与对比。
+
+| 用户操作 | Platform 内部步骤 | 下游调用 | 一致性策略 |
+| --- | --- | --- | --- |
+| 创建实验（定义） | RBAC `user@self`+ → 校验训练模板字段 → 写 `experiments` 行 | —（仅 Platform PG） | `(tenant_name, name)` 唯一 |
+| 编辑实验（定义） | RBAC `@owner` → PATCH 模板 `spec` / 展示元数据 | —（仅 Platform PG） | 模板可变；只影响**之后**触发的 Run |
+| 删除实验（定义） | RBAC `@owner`+ → 实时列 Run 判活跃 | `compute.ListMLRuns` → `compute.DeleteMLRun`（逐个） | 有活跃 Run → `409 experiment-has-active-runs`；否则级联软删全部 Run 后软删定义 |
+| **触发运行（Run）** | RBAC `user@self`+ → 对 override 后的镜像 / 数据集引用逐个 `GetArtifact` 预检 `Ready` → 快照 `Experiment.spec ⊕ overrides`（覆盖白名单同 §4.2）→ 命名 `<exp>-<n>` + 打 `axisml.io/experiment` label | `compute.CreateMLRun(ns=tenant, body)` | 序号 `n` 同 §4.2（撞名重算重试，有界） |
+| Run 列表 | `RequireExperimentOwner` → 实时列该实验的 Run | `compute.ListMLRuns(ns, labelSelector=axisml.io/experiment=<exp>, phase?)` | 按 experiment label 收敛 |
+| 取消 / 删除 Run / 副本 / 事件 / 日志 | 同 §4.2（`RequireExperimentOwner`） | `compute.{Cancel,Delete,GetMLRun{Pods,Events,Logs}}(<exp>-<n>)` | 同 §4.2 |
+| 在 TensorBoard 中对比 | `RequireExperimentOwner` → 选定 Run 集合 → 拉起 / 复用 TensorBoard（§4.11） | `compute.CreateMLService(kind=tensorboard)` | 指标与超参对比全在 TensorBoard（HParams / Scalars），Platform 不自建对比视图 |
+| 登记模型 | `RequireExperimentOwner` → 经 compute 取 Run 的 checkpoint 产出位置 → 走 artifacts 登记流程 | `compute.GetMLRun(<exp>-<n>)` → `artifacts.InitiateArtifact(model, ...)` | 复用 §4.5 制品编排 |
+
+关键不变量：
+- 实验定义寻址 `(tenant_name, experiment_name)`，URL `/api/v1/experiments/{name}`；Run 为子资源 `/api/v1/experiments/{name}/runs/{run}`，`{run}` = `<exp>-<n>`，与 §4.2 同构；`experiments.spec` 与 `jobs.spec` 同构（训练超参即 args/env，Platform 不单独建模）。
+- Run（MLRun）spec 触发时快照冻结，创建后不可变；改模板只影响之后的 Run。
+- **训练指标 / checkpoint 不落 PG，也不经 Platform**：路径约定（`experiments/<exp>/runs/<run>/{tb,output}/`）与对象存储凭证由 compute 在渲染 Run / TensorBoard Pod 时注入（与 `schedulerName` 同处注入），Platform 全程只透传名字、不碰对象存储（[§2.1 不变量](#21-上下文)）；指标查看与多 Run 对比统一经 TensorBoard（§4.11）。Run 删除时由 compute 一并 GC 其对象存储产出，与 PVC GC 同档（[compute-service.md §4.4](compute-service.md#44-service)）。Platform **不建 `runs` 索引表**。
+
+### 4.10 评估编排
+
+下游：compute（+ artifacts 预检）。评估是 Platform 自有的**评测特化模板定义**（`evaluations` 表）；每次运行产生一个 **Run**（`MLRun`，打 `axisml.io/evaluation` label，复用 `(native,job)`，无需新 handler），按 `dataset` + `metrics[]` 对 `targets[]`（被评 `model@version` 集合）离线批量打分，把结构化报告写到 compute 注入的对象存储位置；渲染榜单时经 `compute.GetMLRunReport` 取回报告的**临时只读地址**，Platform 直接 GET 该地址读 `report.json`（compute 只签发地址、不代理 bytes；Platform 不持对象存储 client / 凭证）。
+
+| 用户操作 | Platform 内部步骤 | 下游调用 | 一致性策略 |
+| --- | --- | --- | --- |
+| 创建评估（定义） | RBAC `user@self`+ → 校验模板字段（`targets[]` / `dataset` / `metrics[]` / `primaryMetric`）→ 写 `evaluations` 行 | —（仅 Platform PG） | `(tenant_name, name)` 唯一 |
+| 编辑评估（定义） | RBAC `@owner` → PATCH 模板 `spec` / 展示元数据 | —（仅 Platform PG） | 模板可变；只影响之后触发的 Run |
+| 删除评估（定义） | RBAC `@owner`+ → 实时列 Run 判活跃 | `compute.ListMLRuns` → `compute.DeleteMLRun`（逐个） | 有活跃 Run → `409 evaluation-has-active-runs`；否则级联软删全部 Run 后软删定义 |
+| **触发运行（Run）** | RBAC `user@self`+ → 对被评 `model@version` 集合与 `dataset` 版本逐个 `GetArtifact` 预检 `Ready` → 快照 `Evaluation.spec ⊕ overrides` → 命名 `<eval>-<n>` + 打 `axisml.io/evaluation` label | `compute.CreateMLRun(ns=tenant, body)` | 序号 `n` 同 §4.2 |
+| Run 列表 | `RequireEvaluationOwner` → 实时列该评估的 Run | `compute.ListMLRuns(ns, labelSelector=axisml.io/evaluation=<eval>, phase?)` | 按 evaluation label 收敛 |
+| 取消 / 删除 Run / 副本 / 事件 / 日志 | 同 §4.2（`RequireEvaluationOwner`） | `compute.{Cancel,Delete,GetMLRun{Pods,Events,Logs}}(<eval>-<n>)` | 同 §4.2 |
+| 报告 / 榜单读取 | `RequireEvaluationOwner` → Run `Succeeded` 后取回报告**临时地址** → Platform GET 该地址读 `report.json` → 按 `primaryMetric` 渲染模型 × 指标榜单 | `compute.GetMLRunReport(<eval>-<n>)`（返回临时只读 URL） | 仅 `Succeeded` Run 有报告；缺失 → compute 返 `404 report-not-ready`，Platform 透传 |
+
+关键不变量：
+- 评估定义寻址 `(tenant_name, evaluation_name)`，URL `/api/v1/evaluations/{name}`；Run 子资源 `/api/v1/evaluations/{name}/runs/{run}`，`{run}` = `<eval>-<n>`。
+- Run spec 触发时快照冻结，创建后不可变。
+- **评估报告不落 PG**：Run 把 `report.json`（模型 × 指标分数矩阵）写到 compute 注入的对象存储位置（路径约定 `evaluations/<eval>/runs/<run>/report.json`）；Platform 渲染榜单与跨 Run Δ 对比时经 `compute.GetMLRunReport` 取回**临时只读地址**后直读（compute 不代理 bytes、只用对象存储凭证签发短期 URL；Platform 不持对象存储 client / 凭证，仅对该地址做无凭证 GET、不缓存，见 [§2.1 不变量](#21-上下文)），**不建分数表、不建 `runs` 索引表**。Run 删除时报告随对象存储产出由 compute 一并 GC。
+
+### 4.11 TensorBoard 编排
+
+下游：compute（services with `kind=tensorboard`）。TensorBoard 是按需为某个实验（或选定 Run 集合）拉起的**临时只读指标视图**，**复用** `MLService(native, deployment)`、不引入新 CRD，logdir 指向 §4.9 约定的对象存储 event log 前缀（路径与读凭证由 compute 渲染 Pod 时注入，Platform 不碰对象存储）。实验的指标查看与多 Run 对比（HParams / Scalars）全部落在这里，Platform 不自建指标 / 超参视图。
+
+| 用户操作 | Platform 内部步骤 | 下游调用 | 一致性策略 |
+| --- | --- | --- | --- |
+| 启动 TensorBoard | `RequireExperimentOwner` → 解析目标（实验级聚合全 Run / 选定 Run）→ 幂等：已存活则复用 → 创建 `kind=tensorboard` 服务（`route.path==""` 时自动拼 `/tensorboard/<tenant>/<exp>/`；logdir 与对象存储凭证由 compute 渲染时注入） | `compute.CreateMLService(ns, body{kind=tensorboard,...})` | 一个实验复用一个实例（命名 deterministic，撞名即复用） |
+| 打开 | `RequireExperimentOwner` → 返回 route endpoint | `compute.GetMLService(<tb-name>)` | `Ready` 后可访问 |
+| 停止 / 回收 | `RequireExperimentOwner` 手动停 / 空闲 TTL 自动回收 | `compute.DeleteMLService(<tb-name>)` | 删除即终态，重拉即恢复 |
+
+关键不变量：
+- TensorBoard 实例是 compute `MLService(kind=tensorboard, native/deployment)`，**所有 Pod 仍走 koord-scheduler 与租户配额**；Platform 不自管 Pod、不碰对象存储（logdir 与凭证由 compute 注入）。
+- 临时、只读、可空闲回收（idle TTL）；不产出制品。
+- **启动 / 打开 / 停止均限 `owner` 或 `tenant-admin`**（`RequireExperimentOwner`；启动会拉起占配额的 workload，不开放给普通成员）。
+- 数据面访问复用工作区 access JWT（`aud=axisml-workspace`，见 [auth.md §5.2](../auth.md#52-工作区接入cookie--jwt)）；`kind=tensorboard` 与 `service` / `workspace` 同表区分（[compute-service.md §4.4](compute-service.md#44-service)），`kind` 创建后不可变。
+
 ## 5. 关键机制
 
 ### 5.1 跨服务调用模型
@@ -311,15 +368,15 @@ Platform 需要在下游对象上挂载自定义元数据（审计标记、UI �
 
 **典型用途 · 服务 / 工作区副本基线**：`stop` 前把当前副本数写入 `annotations[platform.axisml.io/last-replicas]`，`start` 时读回恢复（缺失 fallback 1）。
 
-**反模式**：不向 K8s CR 的 `metadata.{labels,annotations}` 写业务扩展位（Platform 本就不直接调 K8s API）；不在 Platform PG 镜像下游**实例**状态（phase / digest / 版本 / Run 等一律实时回源；Platform PG 仅覆盖身份 / 授权 / 会话 / 审计 + 四张定义）。
+**反模式**：不向 K8s CR 的 `metadata.{labels,annotations}` 写业务扩展位（Platform 本就不直接调 K8s API）；不在 Platform PG 镜像下游**实例**状态（phase / digest / 版本 / Run 等一律实时回源；Platform PG 仅覆盖身份 / 授权 / 会话 / 审计 + 六张定义）。
 
-RBAC 中间件装配细节归 [auth.md](../auth.md)，Platform 在路由层挂载 `RequireSystemAdmin` / `RequireTenantRole` / `RequireJobOwner` / `RequireServiceOwner` / `RequireWorkspaceOwner` 标准件（均按 `name` 寻址）。
+RBAC 中间件装配细节归 [auth.md](../auth.md)，Platform 在路由层挂载 `RequireSystemAdmin` / `RequireTenantRole` / `RequireJobOwner` / `RequireExperimentOwner` / `RequireEvaluationOwner` / `RequireServiceOwner` / `RequireWorkspaceOwner` 标准件（均按 `name` 寻址）。
 
 ## 6. 接口契约
 
 | 类别 | 内容 | 引用 |
 | --- | --- | --- |
-| 对外 REST | 业务 tag：`Auth` / `Tenants` / `Quotas` / `Members` / `Jobs` / `MLServices` / `Workspaces` / `Models` / `Images` / `Datasets` / `ResourcePools` / `ResourceUnits` / `Dashboard`；jobs / mlservices / workspaces 一律 `/api/v1/{kind}/{name}` name 寻址（Run 为 jobs 子资源 `/jobs/{name}/runs/{run}`）；制品定义走 `/api/v1/{kind-plural}/{tenant}/{name}` tuple 寻址（版本为子资源 `/versions/{version}`）；系统类 tag（`Users` / `Audit` / `Health`）见 yaml | [apis/platform.yaml](../apis/platform.yaml) |
+| 对外 REST | 业务 tag：`Auth` / `Tenants` / `Quotas` / `Members` / `Jobs` / `Experiments` / `Evaluations` / `MLServices` / `Workspaces` / `Models` / `Images` / `Datasets` / `ResourcePools` / `ResourceUnits` / `Dashboard`；jobs / experiments / evaluations / mlservices / workspaces 一律 `/api/v1/{kind}/{name}` name 寻址（Run 为 jobs / experiments / evaluations 的子资源 `/{kind}/{name}/runs/{run}`；TensorBoard 为 experiments 子资源 `/experiments/{name}/tensorboard`；评估报告 `/evaluations/{name}/runs/{run}/report`）；制品定义走 `/api/v1/{kind-plural}/{tenant}/{name}` tuple 寻址（版本为子资源 `/versions/{version}`）；系统类 tag（`Users` / `Audit` / `Health`）见 yaml | [apis/platform.yaml](../apis/platform.yaml) |
 | 状态 | 不暴露任何 K8s CR；下游运行态字段（phase / conditions / status / quota 用量）作为只读字段透传 | — |
 | 错误格式 | HTTP 标准状态码 + RFC 7807 `application/problem+json`；下游 problem 由 typed client 解析后透传或包装 | — |
 | 流式 | 日志 / 事件 `follow=true` 采用 `text/event-stream` SSE；非 follow 用 `text/plain` chunked | — |
@@ -331,10 +388,10 @@ RBAC 中间件装配细节归 [auth.md](../auth.md)，Platform 在路由层挂�
 
 | 依赖 | 用途 | 备注 / 契约依赖 | 引用 |
 | --- | --- | --- | --- |
-| PostgreSQL | 身份 / 授权 / 会话 / 审计 + Job / Model / Image / Dataset 四张定义；与 compute / artifacts 共享同一 DB，按表名前缀隔离 | — | [database.md §4](../database.md#4-platform) |
+| PostgreSQL | 身份 / 授权 / 会话 / 审计 + Job / Experiment / Evaluation / Model / Image / Dataset 六张定义；与 compute / artifacts 共享同一 DB，按表名前缀隔离 | — | [database.md §4](../database.md#4-platform) |
 | Envoy Gateway | 唯一外部入口；TLS 终止 / 路由匹配；数据面 access JWT SecurityPolicy | — | [infra.md](../infra.md) |
 | cluster-manager | ResourcePool / Unit CRUD 的 REST 入口；Dashboard 集群容量分母与集群时序 | `GetClusterCapacity`（GPU/CPU/内存 used/total 可分配口径）；`GetClusterMetrics`（集群级时序，内部查 Prometheus） | [cluster-manager.md](cluster-manager.md) |
-| compute | Tenant / Quota / Run(MLRun) / Service / Workspace 权威；写路径由 Outbox + reconciler 保证强一致；在线服务 / 工作负载运行指标代理 | Run 触发经 `CreateMLRun`（命名 `<job>-<n>` + label `axisml.io/job`），列 Run 经 `ListMLRuns(labelSelector)`，Job 定义在 Platform；创建体接收 `scheduling{poolName,unitName,quota}` 名字对，compute 校验 `(pool,quota)∈tenant.quotas` 并组装 ElasticQuota 名；`Suspended` phase + 创建闸门（`409 tenant-suspended`）；`CountActiveWorkloads(labelSelector)` 活跃用量计数；`GetServiceMetrics` / `GetWorkloadMetrics`（backend-aware 时序，内部查 Prometheus） | [compute-service.md](compute-service.md) |
+| compute | Tenant / Quota / Run(MLRun) / Service / Workspace / TensorBoard 权威；写路径由 Outbox + reconciler 保证强一致；在线服务 / 工作负载运行指标代理 | Run 触发经 `CreateMLRun`（命名 `<定义>-<n>` + label `axisml.io/{job,experiment,evaluation}`），列 Run 经 `ListMLRuns(labelSelector)`，Job / 实验 / 评估定义在 Platform，TensorBoard 经 `CreateMLService(kind=tensorboard)`；创建体接收 `scheduling{poolName,unitName,quota}` 名字对，compute 校验 `(pool,quota)∈tenant.quotas` 并组装 ElasticQuota 名；`Suspended` phase + 创建闸门（`409 tenant-suspended`）；`CountActiveWorkloads(labelSelector)` 活跃用量计数；`GetServiceMetrics` / `GetWorkloadMetrics`（backend-aware 时序，内部查 Prometheus） | [compute-service.md](compute-service.md) |
 | artifacts | 模型 / 镜像 / 数据集**版本**；两阶段写（initiate → 直推 → complete）；name 级定义在 Platform | 版本列表经 `ListArtifactsByKind(ns,kind,name)`；消费侧创建走 `GetArtifact` 预检 Ready；`resolve?usage=inspect` 专属 operator | [artifact-hub.md](artifact-hub.md) |
 
 ## 8. 运行时形态

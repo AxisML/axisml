@@ -231,6 +231,8 @@ Service 详情页指标 Tab 与 Dashboard 时序图的 Prometheus 查询由拥�
 
 compute-service 与 cluster-manager 各自以启动参数 `--prometheus-url`（指向 `axisml-infra` namespace 下的 Prometheus）执行查询；Platform 不持有 Prometheus 连接。
 
+**训练指标 / 评估报告不走 Prometheus**：实验 Run 的训练指标以 TensorBoard event log 形式写入对象存储，由按需拉起的 TensorBoard 实例（compute `MLService(kind=tensorboard)`）读取展示；评估 Run 的结果以 `report.json` 写入对象存储，由 Platform 经 compute（`GetMLRunReport`）取回**临时只读地址**后直读渲染榜单（compute 只签发地址、不代理 bytes）。二者均为**文件态**指标，不被 Prometheus 抓取、不进 `MetricSeries` 代理通道（编排见 [platform.md §4.9–§4.11](components/platform.md#49-实验编排)）。
+
 ---
 
 ## 7. 日志约定

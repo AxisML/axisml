@@ -66,12 +66,12 @@ ML 工作负载 + 多租户管控面：以 PostgreSQL 为权威，承载 Tenant 
 | Allocation | 资源池总额度（cap），内联在 `tenants.spec.allocations[]`，由 system-admin 设定 | `(tenant.name, pool)` | 无独立状态 | 每条渲染为父 ElasticQuota CR（由 tenant-operator 落地） |
 | Quota | 子配额，内联在 `tenants.spec.quotas[]`，由 tenant-admin 在所属 pool 的 allocation 内拆分 | `(tenant.name, pool, name)` | 无独立状态 | 每条 1:1 渲染为子 ElasticQuota CR（父为对应 pool 的 allocation） |
 | Job | 一次性训练 / 离线任务 | `id` (uuid) / `(namespace, name)` | `Creating \| Pending \| Running \| Succeeded \| Failed \| Canceling \| Cancelled \| Deleting \| Deleted` | `MLRun`（namespaced） |
-| Service | 常驻在线服务 / 工作区 | `id` (uuid) / `(namespace, name)` | `Creating \| Pending \| Ready \| Degraded \| Failed \| Deleting \| Deleted` | `MLService`（namespaced） |
+| Service | 常驻在线服务 / 工作区 / TensorBoard | `id` (uuid) / `(namespace, name)` | `Creating \| Pending \| Ready \| Degraded \| Failed \| Deleting \| Deleted` | `MLService`（namespaced） |
 | TrafficPolicy | 流量策略：稳定入口按权重分发到多个在线服务 | `id` (uuid) / `(namespace, name)` | `Creating \| Pending \| Ready \| Degraded \| Failed \| Deleting \| Deleted` | `MLTrafficPolicy`（namespaced） |
 
 字段级 schema 见 [database.md §2](../database.md#2-compute-service)；CR spec 字段见 [tenant-operator.md](tenant-operator.md) / [compute-operator.md](compute-operator.md)。
 
-**通用 PG 约定**：所有表带 `id uuid` / `created_at` / `updated_at` / `deleted_at`；所有 UNIQUE 实现为 partial unique index `WHERE deleted_at IS NULL`（软删行不占用唯一键，同名可再次创建）；`name` 统一 DNS-1123 校验，长度 3–40。CR-backed 对象额外打 `axisml.io/{tenant,run,service,traffic-policy}-id=<uuid>` label 作为稳定锚点（`metadata.name` 因软删可重用，UUID 永久唯一）；`mlservices` 还会同步打 `axisml.io/service-kind=<service|workspace>` label，便于 `kubectl` selector 区分工作区与普通服务（compute-service / operator 不按 kind 改变行为）。
+**通用 PG 约定**：所有表带 `id uuid` / `created_at` / `updated_at` / `deleted_at`；所有 UNIQUE 实现为 partial unique index `WHERE deleted_at IS NULL`（软删行不占用唯一键，同名可再次创建）；`name` 统一 DNS-1123 校验，长度 3–40。CR-backed 对象额外打 `axisml.io/{tenant,run,service,traffic-policy}-id=<uuid>` label 作为稳定锚点（`metadata.name` 因软删可重用，UUID 永久唯一）；`mlservices` 还会同步打 `axisml.io/service-kind=<service|workspace|tensorboard>` label，便于 `kubectl` selector 区分工作区 / TensorBoard 与普通服务（compute-service / operator 不按 kind 改变行为）。
 
 **扩展元数据 + 分组维度**：`tenants` / `mlruns` / `mlservices` 表均带 `labels jsonb` + `annotations jsonb` 双字段，对齐 K8s 风格语义，统一约定见 [database.md §1.6](../database.md#16-扩展元数据-labels--annotations)。上层可借 `labels` 实现任意分组维度，list 端点支持 `?labelSelector=` K8s 语法。两类扩展位均 **PG-only、不下发 CR、不 `+generation`**。
 
@@ -164,6 +164,8 @@ Creating ──(Informer ADD)──▶ Pending ──▶ Running ──▶ Succe
 
 `Succeeded` / `Failed` / `Cancelled` 为运行终态；`Deleted` 为软删终态。`Cancelled` PG 行保留（`deleted_at IS NULL`），用户可再次 DELETE。
 
+**Run 对象存储产出**：实验 / 评估等 Run 把 TensorBoard event log / checkpoint / `report.json` 写到对象存储——路径（`{experiments|evaluations}/<def>/runs/<run>/...`）与凭证由 operator 渲染 Pod 时注入（[compute-operator.md §5.2](compute-operator.md#52-pod-注入约定)），compute-service 不缓存产出内容。`GetMLRunReport(ns, name)` 端点为 [Platform 评估编排](platform.md#410-评估编排) 返回 `report.json` 的**临时只读地址**：compute-service 用对象存储凭证签发短期 URL（**不代理 bytes**），Platform 直接 GET 该地址读取、自身不持对象存储 client / 凭证。Run 软删时按对象存储约定前缀一并 GC 这些产出（与 §4.4 工作区 PVC GC 同档）。
+
 **与 MLRun CR 契约**：
 
 | MLRun `status.phase` | PG `status` |
@@ -216,7 +218,7 @@ Service 无 cancel 语义；除 `roles[0].replicas` 外其他 spec 字段不可�
 | `ready_replicas == 0 && desired_replicas > 0` 且 CR `phase=Failed` | `Failed`（可自愈） |
 | `desired_replicas == 0` | `Pending` |
 
-**kind 过滤**：`GET /api/v1/namespaces/{ns}/mlservices?kind=workspace` 供 [Platform 工作区](platform.md) 在同一张表上区分 `kind='service'` 与 `kind='workspace'`；`kind` 创建后不可变，Compute 不按 `kind` 改变行为，仅作分类与过滤。
+**kind 过滤**：`GET /api/v1/namespaces/{ns}/mlservices?kind=workspace`（或 `=service` / `=tensorboard`）供 [Platform](platform.md) 在同一张表上区分 `kind='service'`（在线服务）/ `kind='workspace'`（交互式开发）/ `kind='tensorboard'`（实验指标查看的按需临时实例，编排见 [platform.md §4.11](platform.md#411-tensorboard-编排)）；`kind` 创建后不可变，Compute 不按 `kind` 改变行为，仅作分类与过滤。`kind='tensorboard'` 复用 `(native, deployment)`、**不派生 PVC**，logdir 与对象存储读凭证由 operator 渲染 Pod 时注入（[compute-operator.md §5.2](compute-operator.md#52-pod-注入约定)），可按空闲 TTL 回收（Platform 侧编排）。
 
 ### 4.5 流量策略（MLTrafficPolicy）
 
@@ -423,6 +425,7 @@ Compute **不反向重建 CR**。Informer 观察到 CR DELETE 事件后按 PG �
 | ResourcePool CR | compute-service 通过 K8s Informer cache 直读, 创建 Job/Service 时按 `(poolName, unitName)` 展开为 Pod 原语 snapshot | [cluster-manager.md §3](cluster-manager.md#3-核心模型) |
 | artifacts | image / model / dataset 引用懒查询；**由 operator handler 侧调用 resolve API，Compute 自身不调用** | [artifact-hub.md](artifact-hub.md) |
 | Prometheus | 在线服务 / 工作负载运行指标查询（`GetServiceMetrics` / `GetWorkloadMetrics`，`--prometheus-url`）；只读 | [infra.md](../infra.md) / [monitoring.md](../monitoring.md) |
+| 对象存储（RustFS） | Run 对象存储产出的访问域：为 Run / TensorBoard Pod 注入读写凭证（event log / checkpoint / `report.json`）、`GetMLRunReport` 签发报告临时读地址（**不代理 bytes**）、Run 软删时 GC 产出 | [infra.md](../infra.md) / [artifact-hub.md](artifact-hub.md) |
 
 Compute 不感知 ElasticQuota CR 内部结构——接收 Platform 传入的短 quota 名，校验 `(pool, quota) ∈ tenant.spec.quotas` 后组装全名 `axisml-<tenant>-<pool>-<quota>` 写入 `spec.scheduling.quota`，再字符串透传到 Tenant CR / MLRun / MLService。
 

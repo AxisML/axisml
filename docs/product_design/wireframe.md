@@ -10,7 +10,7 @@
 - **Dashboard / 服务指标数据来源** 见 [monitoring.md](../system_design/monitoring.md)。
 - **整体系统概念** (Tenant / ResourcePool / Job / Service / Artifact) 见 [overview.md](../system_design/overview.md)。
 
-> 各菜单按 §2.2 信息架构组织,列表 / 详情 / 表单布局在下文对应章节落档:Dashboard §3、资源池管理 §4、租户管理 §5、工作区 §6、计算任务 §7、在线服务 §8、资产中心(数据集 / 模型 / 镜像)§9、流量控制 §10。本文只描述**布局与字段呈现**;字段契约见 [apis/platform.yaml](../system_design/apis/platform.yaml),状态机与编排见各服务文档,权限矩阵见 [auth.md](../system_design/auth.md)。
+> 各菜单按 §2.2 信息架构组织,列表 / 详情 / 表单布局在下文对应章节落档:Dashboard §3、资源池管理 §4、租户管理 §5、工作区 §6、计算任务 §7、在线服务 §8、资产中心(数据集 / 模型 / 镜像)§9、流量控制 §10、实验 §11、评估 §12。本文只描述**布局与字段呈现**;字段契约见 [apis/platform.yaml](../system_design/apis/platform.yaml),状态机与编排见各服务文档,权限矩阵见 [auth.md](../system_design/auth.md)。
 
 ---
 
@@ -62,6 +62,8 @@
 | — | Dashboard (中文 首页) | `/dashboard` | 切换器联动 | §3 |
 | 训练中心 | 工作区 | `/workspaces` · `/workspaces/{name}` | 租户内 | §6 |
 |  | 计算任务 | `/jobs` · `/jobs/{name}` · `/jobs/{name}/runs/{run}` | 租户内 | §7 |
+|  | 实验 | `/experiments` · `/experiments/{name}` · `/experiments/{name}/runs/{run}` | 租户内 | §11 |
+|  | 评估 | `/evaluations` · `/evaluations/{name}` · `/evaluations/{name}/runs/{run}` | 租户内 | §12 |
 | 服务中心 | 在线服务 | `/mlservices` · `/mlservices/{name}` | 租户内 | §8 |
 |  | 流量控制 | `/traffic` · `/traffic/{name}` | 租户内 | §10 |
 | 资产中心 | 数据集 | `/datasets` · `/datasets/{name}` | 租户内 | §9 |
@@ -590,9 +592,9 @@ UI 即时校验 + compute-service 兜底。完整字段清单与校验规则见 
 
 交互式开发容器(Jupyter / VSCode 等),隶属 topbar 当前租户。字段权威见 [components/compute-service.md](../system_design/components/compute-service.md)。
 
-### 6.0 资源选择链(工作区 / 任务 / 服务通用)
+### 6.0 资源选择链(工作区 / 任务 / 实验 / 评估 / 服务通用)
 
-三类资源的创建表单共享同一条资源引用链,后一项依赖前一项:
+工作区 / 计算任务 / 实验 / 评估 / 在线服务的创建表单共享同一条资源引用链,后一项依赖前一项:
 
 ```
 资源池 ▾  →  资源单元 ▾  →  镜像 ▾
@@ -1051,7 +1053,219 @@ UI 标签是 compute `MLTrafficPolicy` phase（`Creating | Pending | Ready | Deg
 
 ---
 
-## 11. 相关引用
+## 11. 实验 (训练中心 → 实验)
+
+实验是面向训练场景的**特化计算任务**,与 §7 计算任务共享 **定义 → 运行(Run)** 两级模型:实验本身是 Platform 自有的训练模板(`spec` 与计算任务同构),从实验触发的每次运行是一个 Run(对应 compute 的一个 `MLRun`,命名 `<experiment>-<n>`),并通过 `labels.axisml.io/experiment=<name>` 归属。相比计算任务,实验聚焦训练:**指标查看与多 Run 对比统一在 TensorBoard**、**产出一键登记模型**。训练超参即命令 / 参数 / 环境变量,**Platform 不单独建模 / 不单独展示超参**。隶属 topbar 当前租户。
+
+> 实验为训练中心新增能力,本节描述 UI 布局与字段呈现;编排见 [platform.md §4.9 / §4.11](../system_design/components/platform.md#49-实验编排),字段权威见 [compute-service.md](../system_design/components/compute-service.md)。资源引用链复用 §6.0,Run 生命周期与计算任务一致(§7.6)。
+
+### 11.1 页面入口
+
+| 入口 | 生产路径 | 权限 |
+| --- | --- | --- |
+| 实验列表 | `/experiments` | 本租户成员(读);`owner` / `tenant-admin`(写) |
+| 实验详情(含运行历史) | `/experiments/{name}` | 同上 |
+| Run 详情 | `/experiments/{name}/runs/{run}` | 同上 |
+
+### 11.2 列表页
+
+```
+Page Head:  // training / experiments   实验。            [+ 新建实验]
+
+Filters:  🔍 名称搜索  |  创建人 ▾  |  重置
+
+┌──────────────────┬───────────────┬────────┬─────────┬───────────┬────────────────────┐
+│ 名称              │ 最近运行状态   │ 运行数  │ 创建人  │ 更新时间   │ 操作                │
+├──────────────────┼───────────────┼────────┼─────────┼───────────┼────────────────────┤
+│ sft-llama-lr     │ ● 运行中       │ 8      │ 张伟    │ 1h ago    │运行 详情 编辑 删除  │
+│ rec-dssm-tune    │ ● 成功         │ 12     │ 李娜    │ 2d ago    │运行 详情 编辑 删除  │
+│ cv-aug-search    │ ○ 从未运行     │ 0      │ 王磊    │ 30m ago   │运行 详情 编辑 删除  │
+└──────────────────┴───────────────┴────────┴─────────┴───────────┴────────────────────┘
+Footer: 共 3 个实验                                   ‹ [1] ›        每页 20 条
+```
+
+**列定义**:名称(mono link → 实验详情)· 最近运行状态(该实验最新 Run 的 phase 徽章,见 §7.6;实时取自 compute)· 运行数(实时计数)· 创建人 · 更新时间 · 操作。
+**操作**:运行(触发一次 Run,§11.5)· 详情 · 编辑(改模板,§11.4)· 删除(有活跃 Run 时禁用并提示 `409 experiment-has-active-runs`,否则级联软删全部 Run)。
+> 「最近运行状态」「运行数」由 Platform 实时回源 compute(`ListMLRuns(labelSelector=axisml.io/experiment=<name>)`),不落 Platform 表。
+
+### 11.3 实验详情页 Tab
+
+```
+← 返回实验列表
+sft-llama-lr.   [模板]                                experiments/sft-llama-lr
+LLaMA-7B 学习率搜索
+[▶ 运行]  [📊 TensorBoard]  [编辑模板]  [删除]
+
+Tabs:  [运行历史 (Runs)]  [模板 (Spec)]
+```
+
+- **运行历史 (Runs)** — 该实验的 Run 列表(实时回源 compute);训练指标 / 超参对比统一在 TensorBoard,列表只列运行身份与状态:
+
+```
+┌──┬──────────────────┬──────────┬───────────────┬───────────┬─────────┬──────────────┐
+│☑ │ Run               │ 状态      │ 资源单元       │ 耗时       │ 触发人  │ 操作          │
+├──┼──────────────────┼──────────┼───────────────┼───────────┼─────────┼──────────────┤
+│☑ │ sft-llama-lr-8   │ ● 运行中  │ gpu-a100/4x   │ 01:12:30  │ 张伟    │取消 日志 详情 │
+│☑ │ sft-llama-lr-5   │ ● 成功    │ gpu-a100/4x   │ 02:40:05  │ 张伟    │日志 详情 删除 │
+│☐ │ sft-llama-lr-3   │ ● 失败    │ gpu-a100/4x   │ 00:08:22  │ 李娜    │日志 详情 删除 │
+└──┴──────────────────┴──────────┴───────────────┴───────────┴─────────┴──────────────┘
+勾选多行 → [📊 在 TensorBoard 中对比所选 (2)]
+```
+
+  Run 名 `<experiment>-<n>`(mono link → Run 详情)· 状态(phase 徽章,§7.6)· 资源单元(`pool/unit`)· 耗时(`finishedAt − startedAt`,运行中实时累计)· 触发人 · 操作:取消(仅 `Pending` / `Running`)· 日志 · 详情 · 删除(终态)。训练指标 / 超参对比不在页内自建——勾选多行后顶部 `[📊 在 TensorBoard 中对比所选 (N)]` 拉起 TensorBoard 并选中这些 Run(Scalars 曲线叠加 / HParams 面板)。
+- **模板 (Spec)** — 实验模板 KV grid(与计算任务模板同构):名称 · 显示名 · 描述 · 资源池 / 单元(默认)· 镜像 · 分布式拓扑(role / replicas)· 命令 / 参数(chips,训练超参即写在此)· 环境变量 · 运行策略(超时 / 重试 / TTL)· 制品引用(镜像 / 数据集,`name` + `version`)。编辑见 §11.4;改模板只影响**之后**触发的 Run。
+
+> **TensorBoard** — 详情页右上角 `[📊 TensorBoard]` 按需拉起一个指向本实验各 Run event log 的 TensorBoard 实例(聚合 Scalars / HParams,支持多 Run 对比),新标签页打开,空闲自动回收;训练脚本把 event log 写入 compute 注入的对象存储位置(路径 / 凭证由 compute 注入,平台不碰对象存储)。启动 / 停止限 `owner` / `tenant-admin`,编排见 [platform.md §4.11](../system_design/components/platform.md#411-tensorboard-编排)。
+
+### 11.3.1 Run 详情页 (`/experiments/{name}/runs/{run}`)
+
+```
+← 返回 sft-llama-lr
+sft-llama-lr-8.   [● 运行中]              experiments/sft-llama-lr/runs/sft-llama-lr-8
+[📊 TensorBoard]  [登记为模型版本]  [取消运行]  [删除]
+
+Tabs:  [基本信息]  [实例 (Pods)]  [日志]  [事件]
+```
+
+- **基本信息** — 该 Run 快照的 KV grid:Run 名 · 资源单元 · 镜像 · 分布式拓扑 · 命令 / 参数(含训练超参)· 环境变量 · 数据集引用 · 运行策略 · 开始 / 结束时间 · 状态消息(`message`,失败时高亮)。Run spec 创建后不可变。
+- **实例 (Pods)** · **日志** · **事件** — 同 §7.3.1。
+- 训练指标经右上角 `[📊 TensorBoard]` 查看(拉起一个仅指向本 Run event log 的 TensorBoard 实例)。
+- `[登记为模型版本]`(仅 `Succeeded` Run、`owner` / `tenant-admin`)→ 把本 Run 的 checkpoint 产出登记为模型版本(§11.6)。
+
+### 11.4 实验创建 / 编辑表单(模板)
+
+`name`(创建后不可变)· `display_name` / `description` · **资源池 → 资源单元 → 镜像**(§6.0)· 分布式拓扑(role / `replicas`)· 命令 / 参数(训练超参写在此)· 环境变量 · 运行策略(`activeDeadlineSeconds` / `backoffLimit` / `ttlSecondsAfterFinished`)· 数据集制品引用(`name` + `version`)。保存即写模板,**不触发运行**。编辑可改除 `name` 外的模板字段;改动只影响之后触发的 Run。
+
+### 11.5 触发运行(Run)对话框
+
+§11.2 / §11.3 的 [运行] 打开。默认按模板直接运行;展开「高级 · 本次覆盖」可覆盖:命令 / 参数(改训练超参)· 环境变量 · 数据集**版本** · 资源单元(pool / unit)· `replicas`。**不可**改 backend 与 role 拓扑(需改模板)。确认后 Platform 对引用制品版本预检 `Ready`,失败 `400` 阻断;成功则创建 `<experiment>-<n>` 并跳转 Run 详情。
+
+> **批量触发(sweep)** — 一次性按不同参数批量触发多个 Run,列入规划,本版本逐次手动触发。
+
+### 11.6 模型登记
+
+- **登记模型** — 在任一成功 Run 详情点 `[登记为模型版本]` → 复用资产中心上传流程(§9.4),预填来源 Run 与 checkpoint 产出位置(经 compute 取回)、建议版本号 → 写入「模型」制品。仅 `owner` / `tenant-admin` 可登记(§11.8)。
+
+### 11.7 状态展示规则(Run phase)
+
+与 §7.6 计算任务 Run phase 完全一致(`Creating·Pending` / `Running` / `Succeeded` / `Failed` / `Canceling·Cancelled` / `Deleting`)。实验列表「最近运行状态」取最新 Run 的 `phase`;无 Run 显示 `○ 从未运行`。
+
+### 11.8 权限可见性
+
+与 §7.7 计算任务同档:列表 / 详情 / 日志本租户可读;创建实验 / 触发运行任意成员;编辑模板 / 删除实验 / 取消 · 删除 Run / 登记模型 / 启动 · 停止 TensorBoard 限 `owner` 或 `tenant-admin`。
+
+---
+
+## 12. 评估 (训练中心 → 评估)
+
+评估是面向模型质量度量的**特化计算任务**,同样复用 **定义 → 运行(Run)** 两级模型:评估本身是 Platform 自有模板,从评估触发的每次运行是一个 Run(对应 compute 的一个 `MLRun`,命名 `<evaluation>-<n>`),通过 `labels.axisml.io/evaluation=<name>` 归属。一次运行按 **评测数据集 + 指标 / 评测方法** 对**一个或多个模型版本**做离线批量打分,产出 **评估报告**(模型 × 指标分数矩阵)与 **榜单**(横向排序)。隶属 topbar 当前租户。
+
+> 评估为训练中心新增能力,本节描述 UI 布局与字段呈现;编排见 [platform.md §4.10](../system_design/components/platform.md#410-评估编排),字段权威见 [compute-service.md](../system_design/components/compute-service.md);评估报告 `report.json` 由 Run 写对象存储,Platform 经 compute(`GetMLRunReport`)取临时只读地址后读取渲染榜单(compute 只签发地址、不代理 bytes)。资源引用链复用 §6.0,Run 生命周期与计算任务一致(§7.6)。
+
+### 12.1 页面入口
+
+| 入口 | 生产路径 | 权限 |
+| --- | --- | --- |
+| 评估列表 | `/evaluations` | 本租户成员(读);`owner` / `tenant-admin`(写) |
+| 评估详情(含运行历史 / 报告) | `/evaluations/{name}` | 同上 |
+| Run 详情 | `/evaluations/{name}/runs/{run}` | 同上 |
+
+### 12.2 列表页
+
+```
+Page Head:  // training / evaluations   评估。            [+ 新建评估]
+
+Filters:  🔍 名称搜索  |  创建人 ▾  |  重置
+
+┌──────────────────┬───────────────┬────────┬──────────┬─────────┬───────────┬──────────────┐
+│ 名称              │ 最近运行状态   │ 运行数  │ 被评模型 │ 创建人  │ 更新时间   │ 操作          │
+├──────────────────┼───────────────┼────────┼──────────┼─────────┼───────────┼──────────────┤
+│ chat-quality     │ ● 成功         │ 4      │ 3        │ 张伟    │ 3h ago    │运行 详情 删除 │
+│ recall-eval      │ ● 运行中       │ 2      │ 5        │ 李娜    │ 20m ago   │运行 详情 删除 │
+│ safety-bench     │ ○ 从未运行     │ 0      │ 2        │ 王磊    │ 1d ago    │运行 编辑 删除 │
+└──────────────────┴───────────────┴────────┴──────────┴─────────┴───────────┴──────────────┘
+Footer: 共 3 个评估                                   ‹ [1] ›        每页 20 条
+```
+
+**列定义**:名称(mono link → 评估详情)· 最近运行状态(最新 Run 的 phase 徽章,§7.6)· 运行数(实时计数)· 被评模型(模板内被评模型版本数)· 创建人 · 更新时间 · 操作。
+**操作**:运行(§12.5)· 详情 · 编辑(改模板,§12.4)· 删除(有活跃 Run 时禁用并提示 `409 evaluation-has-active-runs`,否则级联软删全部 Run)。
+> 「最近运行状态」「运行数」由 Platform 实时回源 compute(`ListMLRuns(labelSelector=axisml.io/evaluation=<name>)`),不落 Platform 表;榜单 / 报告仅在评估详情按需经 compute(`GetMLRunReport`)取回(§12.3)。
+
+### 12.3 评估详情页 Tab
+
+```
+← 返回评估列表
+chat-quality.   [模板]                                 evaluations/chat-quality
+对话模型质量评测
+[▶ 运行]  [编辑模板]  [删除]
+
+Tabs:  [运行历史 (Runs)]  [报告 / 榜单]  [模板 (Spec)]
+```
+
+- **运行历史 (Runs)** — 该评估的 Run 列表(实时回源 compute):
+
+```
+┌──────────────────┬──────────┬───────────────┬──────────┬──────────────────────┬─────────┬───────────┬──────────────┐
+│ Run               │ 状态      │ 资源单元       │ 被评模型 │ 榜首(主指标)         │ 触发人  │ 耗时       │ 操作          │
+├──────────────────┼──────────┼───────────────┼──────────┼──────────────────────┼─────────┼───────────┼──────────────┤
+│ chat-quality-4   │ ● 成功    │ gpu-l40s/1x   │ 3        │ llama-sft@v3 0.871   │ 张伟    │ 00:42:10  │报告 日志 详情 │
+│ chat-quality-3   │ ● 成功    │ gpu-l40s/1x   │ 2        │ llama-sft@v2 0.844   │ 张伟    │ 00:31:55  │报告 日志 详情 │
+│ chat-quality-2   │ ● 失败    │ gpu-l40s/1x   │ 3        │ —                    │ 李娜    │ 00:03:12  │日志 详情 删除 │
+└──────────────────┴──────────┴───────────────┴──────────┴──────────────────────┴─────────┴───────────┴──────────────┘
+```
+
+  Run 名 `<evaluation>-<n>`(mono link → Run 详情)· 状态(§7.6)· 资源单元 · 被评模型(本次运行评测的模型版本数)· 榜首(主指标第一名 `model@version` + 分数)· 触发人 · 耗时 · 操作:报告(跳「报告 / 榜单」Tab 定位本 Run)· 日志 · 详情 · 取消(`Pending` / `Running`)· 删除(终态)。
+- **报告 / 榜单** — 选定某个成功 Run(默认最新),呈现该 Run 的评估结果:
+
+```
+Run 选择: chat-quality-4 ▾        排序: 主指标 acc ▾ · 降序
+
+┌──────────────────────┬─────────┬─────────┬──────────┬──────────┐
+│ 模型版本 (排名)       │ acc ★   │ f1      │ latency  │ 样本数    │
+├──────────────────────┼─────────┼─────────┼──────────┼──────────┤
+│ 1  llama-sft@v3      │ 0.871   │ 0.862   │ 182ms    │ 2,000    │
+│ 2  llama-sft@v2      │ 0.844   │ 0.839   │ 179ms    │ 2,000    │
+│ 3  baseline@v1       │ 0.802   │ 0.795   │ 168ms    │ 2,000    │
+└──────────────────────┴─────────┴─────────┴──────────┴──────────┘
+评测数据集: eval-chat-zh@2024-06 · 指标方法: 内置 accuracy/f1 + 延迟
+```
+
+  行 = 被评 `model@version`(mono link → §9 模型详情),按主指标排序加排名;列 = 各指标分数(主指标加 `★`,最优单元格高亮)· 样本数。顶部标注评测数据集版本与指标方法。多 Run 时用 Run 选择器切换;支持「与上一个成功 Run 对比」叠加 Δ 列(规划)。
+- **模板 (Spec)** — 评估模板 KV grid:名称 · 显示名 · 描述 · 资源池 / 单元 · 镜像 · **被评模型版本集合**(`model@version` chips)· **评测数据集**(`name` + `version`)· **指标 / 评测方法**(内置指标集选择或自定义评测命令 / 参数)· **主指标**(用于榜单排序)· 运行策略。编辑见 §12.4。
+
+### 12.3.1 Run 详情页 (`/evaluations/{name}/runs/{run}`)
+
+```
+← 返回 chat-quality
+chat-quality-4.   [● 成功]              evaluations/chat-quality/runs/chat-quality-4
+[删除]
+
+Tabs:  [基本信息]  [报告]  [实例 (Pods)]  [日志]  [事件]
+```
+
+- **基本信息** — 该 Run 快照:Run 名 · 资源单元 · 镜像 · 被评模型版本集合 · 评测数据集版本 · 指标 / 评测方法 · 命令 / 参数 · 运行策略 · 开始 / 结束时间 · 状态消息。Run spec 创建后不可变。
+- **报告** — 本 Run 的榜单表(同 §12.3「报告 / 榜单」单 Run 视图)。
+- **实例 (Pods)** · **日志** · **事件** — 同 §7.3.1。
+
+### 12.4 评估创建 / 编辑表单(模板)
+
+`name`(创建后不可变)· `display_name` / `description` · **资源池 → 资源单元 → 镜像**(§6.0)· **被评模型**(多选模型版本,`name@version`;至少 1 个)· **评测数据集**(dataset `name` + `version`)· **指标 / 评测方法**(内置指标集勾选,或自定义评测命令 / 参数)· **主指标**(榜单默认排序键 + 方向)· 运行策略。保存即写模板,不触发运行。编辑可改除 `name` 外字段;改动只影响之后触发的 Run。
+
+### 12.5 触发运行(Run)对话框
+
+§12.2 / §12.3 的 [运行] 打开。默认按模板运行;展开「高级 · 本次覆盖」可覆盖:被评模型版本集合 · 评测数据集**版本** · 资源单元。确认后 Platform 对被评模型版本与数据集版本预检 `Ready`,失败 `400` 阻断;成功则创建 `<evaluation>-<n>` 并跳转 Run 详情。
+
+### 12.6 状态展示规则(Run phase)
+
+与 §7.6 计算任务 Run phase 一致。评估列表「最近运行状态」取最新 Run 的 `phase`;无 Run 显示 `○ 从未运行`。报告 / 榜单仅在 Run `Succeeded` 后可读。
+
+### 12.7 权限可见性
+
+与 §7.7 计算任务同档:列表 / 详情 / 报告 / 日志本租户可读;创建评估 / 触发运行任意成员;编辑模板 / 删除评估 / 取消 · 删除 Run 限 `owner` 或 `tenant-admin`。
+
+---
+
+## 13. 相关引用
 
 - [components/platform.md](../system_design/components/platform.md) — 后端业务编排、跨服务调用、PG schema
 - [auth.md](../system_design/auth.md) — RBAC 角色矩阵、JWT 颁发、IdentityProvider

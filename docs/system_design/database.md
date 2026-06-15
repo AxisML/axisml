@@ -172,7 +172,7 @@ CREATE TABLE mlservices (
   id                   uuid PRIMARY KEY,
   namespace            text NOT NULL,                       -- tenant 标识符（= tenants.name）
   name                 text NOT NULL,
-  kind                 text NOT NULL DEFAULT 'service',     -- 'service' | 'workspace'；不可变；冗余到 CR label axisml.io/service-kind
+  kind                 text NOT NULL DEFAULT 'service',     -- 'service' | 'workspace' | 'tensorboard'；不可变；冗余到 CR label axisml.io/service-kind
   display_name         text,
   description          text,
   owner                text,                                -- 创建者；不可变
@@ -283,7 +283,7 @@ CREATE INDEX artifacts_labels_gin          ON artifacts USING GIN (labels jsonb_
 
 ## 4. Platform
 
-Platform PG 覆盖 **身份、授权、会话、审计** 四类，外加 **Job / Model / Image / Dataset 四张定义**（§5.2）。**不缓存任何下游可变实例状态**——run / version / phase / conditions / digest / quota 用量一律向下游服务实时查询；Tenant / Workspace / Service 等无 Platform 视图表。
+Platform PG 覆盖 **身份、授权、会话、审计** 四类，外加 **Job / Experiment / Evaluation / Model / Image / Dataset 六张定义**（§5.2）。**不缓存任何下游可变实例状态**——run / version / phase / conditions / digest / quota 用量一律向下游服务实时查询；Tenant / Workspace / Service 等无 Platform 视图表。
 
 ### 5.1 schema
 
@@ -336,11 +336,11 @@ CREATE INDEX audit_logs_user_created_at ON audit_logs (user_id, created_at DESC)
 
 **bootstrap 行为**：首次 `axisml-platform bootstrap` 会插入 `admin` 用户（密码 hash 默认 `admin`，`must_change_password=true`；可通过环境变量 `AXISML_BOOTSTRAP_PASSWORD` 覆盖），同时在 compute 中初始化内置租户 `axisml-system` 承载 `visibility=public` 制品。
 
-### 5.2 定义（jobs / datasets / models / images）
+### 5.2 定义（jobs / experiments / evaluations / datasets / models / images）
 
-这四张表是 Platform 自有的 name 级**定义 / 模板**实体；运行 / 版本**实例**由下游持有，二者实时关联，Platform **不建 run/version 索引表**（语义见 [platform.md §3.2](components/platform.md#32-定义jobs--datasets--models--images)）。
+这六张表是 Platform 自有的 name 级**定义 / 模板**实体；运行 / 版本**实例**由下游持有，二者实时关联，Platform **不建 run/version 索引表**（语义见 [platform.md §3.2](components/platform.md#32-定义jobs--experiments--evaluations--datasets--models--images)）。
 
-四张定义表同构；下给出 `jobs` 完整定义，`datasets` / `models` / `images` 列与索引一致（仅表名与索引名前缀替换，`spec` 语义不同）。
+六张定义表同构；下给出 `jobs` 完整定义，`experiments` / `evaluations` / `datasets` / `models` / `images` 列与索引一致（仅表名与索引名前缀替换，`spec` 语义不同）。
 
 ```sql
 CREATE TABLE jobs (
@@ -361,10 +361,13 @@ CREATE UNIQUE INDEX jobs_tenant_name_active_uniq ON jobs (tenant_name, name) WHE
 CREATE INDEX jobs_created_at ON jobs (created_at DESC);
 CREATE INDEX jobs_labels_gin ON jobs USING GIN (labels jsonb_path_ops);
 
+-- experiments / evaluations：列与索引同 jobs（表名与索引名前缀替换）；spec 持训练 / 评测特化模板。
 -- datasets / models / images：列与索引同 jobs（表名与索引名前缀替换）；spec 改持 name 级业务元数据。
 ```
 
 - `jobs.spec`：Job 可复用模板——`backend{name,engine,config}` / `roles[]`（含镜像引用）/ `scheduling{poolName,unitName,quota}`（仅名字，compute 内部展开）/ `runPolicy` / 制品引用 `(kind,name,version)`。**无 run 列**。
+- `experiments.spec`：与 `jobs.spec` 同构（训练超参即 `roles[*].template.{args,env}`，Platform 不单独建模）；`evaluations.spec`：评测特化（`targets[]`（被评 `model@version`）/ `dataset(name,version)` / `metrics[]` / `primaryMetric`），语义见 [platform.md §4.9 / §4.10](components/platform.md#49-实验编排)。**无 run 列**。
 - `models.spec` / `images.spec` / `datasets.spec`：name 级业务元数据（如 `framework` / `format` / `purpose`）；版本级硬校验在 artifacts。**无 version 列**。
-- **关联（实时，无索引表）**：Run 经 compute `MLRun` 的 `axisml.io/job=<job>` label 反查（Run 命名 `<job>-<n>`）；制品版本经 artifacts `(namespace, kind, name)` 列举。
+- **关联（实时，无索引表）**：Run 经 compute `MLRun` 的 `axisml.io/{job,experiment,evaluation}=<定义>` label 反查（Run 命名 `<定义>-<n>`）；制品版本经 artifacts `(namespace, kind, name)` 列举。
 - 软删后同名可重建（§1.2 partial unique）；定义可在零 Run / 零版本状态下存在。
+- **训练指标 / 评估报告 / checkpoint 不入 PG、不经 Platform**：实验 Run 的 TensorBoard event log（`experiments/<exp>/runs/<run>/tb/`）/ checkpoint（`.../output/`）、评估 Run 的 `report.json`（`evaluations/<eval>/runs/<run>/report.json`）由 compute 注入路径与凭证写入对象存储；TensorBoard 实例读 event log，评估报告由 compute 经 `GetMLRunReport` 签发临时只读地址、Platform 直读该地址（compute 不代理 bytes），Run 删除时由 compute 一并 GC（编排见 [platform.md §4.9–§4.11](components/platform.md#49-实验编排)）。PG 仅存定义。
