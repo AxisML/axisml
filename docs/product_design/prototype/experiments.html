@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>实验 · AxisML 控制台</title>
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body data-nav="experiments">
+  <main class="page" id="page">
+    <div class="breadcrumb"><span>训练中心</span><span class="sep">/</span><span>实验</span></div>
+    <div class="page-head">
+      <div><h1>实验</h1><p class="sub">统一管理实验创建、运行、对比与追踪流程，帮助团队高效沉淀实验结果。支持实验过程可视化与版本留痕，让模型迭代更清晰可控。</p></div>
+      <div class="actions"><button class="btn btn-primary" data-drawer-open="expDrawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>新建实验</button></div>
+    </div>
+
+    <div class="toolbar">
+      <div class="field-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input placeholder="实验名搜索" /></div>
+      <select class="select"><option>创建人：全部</option><option>张伟</option><option>李娜</option><option>陈曦</option><option>王磊</option></select>
+      <button class="btn btn-ghost">重置</button>
+    </div>
+
+    <div class="panel">
+      <div class="table-wrap"><table class="tbl">
+        <thead><tr><th>名称</th><th>最近运行状态</th><th class="num-col">运行数</th><th>创建人</th><th>更新时间</th><th style="text-align:right">操作</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><a class="t-name mono" href="experiment-detail.html">llama3-sft-lr-sweep</a><div class="t-sub">LLaMA3-8B SFT 学习率扫描</div></td>
+            <td><a class="runbar" href="experiment-detail.html" aria-label="llama3-sft-lr-sweep 最近运行" title="查看 llama3-sft-lr-sweep 历史运行"><span class="ri ok" title="#5 成功"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/></svg></span><span class="ri fail" title="#6 失败"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M15 9l-6 6M9 9l6 6"/></svg></span><span class="ri ok" title="#7 成功"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/></svg></span><span class="ri run" title="#8 运行中"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg></span><span class="ri none" title="无更晚运行"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" stroke-dasharray="3 3"/></svg></span></a></td>
+            <td class="num-col">8</td><td>张伟</td><td class="muted">12 分钟前</td>
+            <td><div class="row-actions"><button class="act act-run" title="运行" aria-label="运行" data-drawer-open="runExpDrawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 4l14 8-14 8z"/></svg></button><a class="act" href="experiment-detail.html" title="详情" aria-label="详情"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a><button class="act" title="编辑" aria-label="编辑" data-drawer-open="editExpDrawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button></div></td>
+          </tr>
+          <tr>
+            <td><a class="t-name mono" href="experiment-detail.html">resnet-aug-search</a><div class="t-sub">ResNet 数据增强搜索</div></td>
+            <td><a class="runbar" href="experiment-detail.html" aria-label="resnet-aug-search 最近运行" title="查看 resnet-aug-search 历史运行"><span class="ri ok" title="#8 成功"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/></svg></span><span class="ri ok" title="#9 成功"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/></svg></span><span class="ri fail" title="#10 失败"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M15 9l-6 6M9 9l6 6"/></svg></span><span class="ri ok" title="#11 成功"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/></svg></span><span class="ri ok" title="#12 成功"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/></svg></span></a></td>
+            <td class="num-col">12</td><td>李娜</td><td class="muted">2 小时前</td>
+            <td><div class="row-actions"><button class="act act-run" title="运行" aria-label="运行" data-drawer-open="runExpDrawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 4l14 8-14 8z"/></svg></button><a class="act" href="experiment-detail.html" title="详情" aria-label="详情"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a><button class="act" title="编辑" aria-label="编辑" data-drawer-open="editExpDrawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button></div></td>
+          </tr>
+          <tr>
+            <td><a class="t-name mono" href="experiment-detail.html">qwen-vl-finetune</a><div class="t-sub">Qwen2-VL 指令微调</div></td>
+            <td><a class="runbar" href="experiment-detail.html" aria-label="qwen-vl-finetune 最近运行" title="查看 qwen-vl-finetune 历史运行"><span class="ri none" title="无更早运行"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" stroke-dasharray="3 3"/></svg></span><span class="ri fail" title="#1 失败"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M15 9l-6 6M9 9l6 6"/></svg></span><span class="ri ok" title="#2 成功"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/></svg></span><span class="ri ok" title="#3 成功"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/></svg></span><span class="ri ok" title="#4 成功"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/></svg></span></a></td>
+            <td class="num-col">5</td><td>陈曦</td><td class="muted">1 天前</td>
+            <td><div class="row-actions"><button class="act act-run" title="运行" aria-label="运行" data-drawer-open="runExpDrawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 4l14 8-14 8z"/></svg></button><a class="act" href="experiment-detail.html" title="详情" aria-label="详情"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a><button class="act" title="编辑" aria-label="编辑" data-drawer-open="editExpDrawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button></div></td>
+          </tr>
+          <tr>
+            <td><a class="t-name mono" href="experiment-detail.html">embed-contrastive</a><div class="t-sub">向量模型对比学习</div></td>
+            <td><a class="runbar" href="experiment-detail.html" aria-label="embed-contrastive 最近运行" title="查看 embed-contrastive 历史运行"><span class="ri none" title="无更早运行"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" stroke-dasharray="3 3"/></svg></span><span class="ri none" title="无更早运行"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" stroke-dasharray="3 3"/></svg></span><span class="ri ok" title="#1 成功"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/></svg></span><span class="ri ok" title="#2 成功"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/></svg></span><span class="ri pend" title="#3 排队中"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg></span></a></td>
+            <td class="num-col">3</td><td>王磊</td><td class="muted">3 天前</td>
+            <td><div class="row-actions"><button class="act act-run" title="运行" aria-label="运行" data-drawer-open="runExpDrawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 4l14 8-14 8z"/></svg></button><a class="act" href="experiment-detail.html" title="详情" aria-label="详情"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a><button class="act" title="编辑" aria-label="编辑" data-drawer-open="editExpDrawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button></div></td>
+          </tr>
+        </tbody>
+      </table></div>
+      <div class="pagination"><span>共 4 个实验</span><div class="pages"><span class="pg">‹</span><span class="pg on">1</span><span class="pg">›</span></div><span>每页 20 条</span></div>
+    </div>
+  </main>
+
+  <!-- 新建实验抽屉（保存模板，不触发运行） -->
+  <aside class="drawer wide" id="expDrawer">
+    <div class="drawer-head"><div><h3>新建实验</h3><div class="sub">保存模板，不触发运行</div></div><button class="icon-btn" data-drawer-close>✕</button></div>
+    <div class="drawer-body">
+      <div class="fieldset-title"><span class="n">1</span>基本信息</div>
+      <div class="form-grid">
+        <div class="field"><label>实验名 <span class="req">*</span></label><input class="input mono" placeholder="llama3-sft-lr-sweep" /></div>
+        <div class="field full"><label>描述</label><textarea class="textarea" placeholder="围绕同一训练目标，扫描不同学习率以择优"></textarea></div>
+      </div>
+
+      <div class="fieldset-title"><span class="n">2</span>镜像</div>
+      <div class="field"><label>训练镜像 <span class="req">*</span></label>
+        <div class="pick-grid" data-pick-group>
+          <div class="pick on"><div class="p-title">pytorch:2.3-cu121</div><div class="p-spec">PyTorch 训练镜像</div></div>
+          <div class="pick"><div class="p-title">megatron:24.05</div><div class="p-spec">Megatron-LM 训练镜像</div></div>
+        </div>
+      </div>
+
+      <div class="fieldset-title"><span class="n">3</span>资源选择</div>
+      <div class="form-grid">
+        <div class="field full"><label>资源池 <span class="req">*</span></label><select class="input"><option>gpu-a100 · A100 训练池</option><option>gpu-h100 · H100 训练/推理池</option></select></div>
+      </div>
+      <div class="field" style="margin-top:var(--space-4)"><label>资源单元 <span class="req">*</span></label>
+        <div class="pick-grid" data-pick-group>
+          <div class="pick on"><div class="p-title">a100-4x-xlarge</div><div class="p-spec">4×A100 · 32 vCPU · 256 GiB</div></div>
+          <div class="pick"><div class="p-title">a100-8x-xlarge-ib</div><div class="p-spec">8×A100 · IB · 64 vCPU · 512 GiB</div></div>
+        </div>
+      </div>
+      <div class="form-grid" style="margin-top:var(--space-4)">
+        <div class="field"><label>副本数 <span class="req">*</span></label><input class="input num" value="2" /></div>
+      </div>
+
+      <div class="fieldset-title"><span class="n">4</span>启动命令 / 环境变量</div>
+      <div class="form-grid">
+        <div class="field full"><label>启动命令（超参写在命令 / 参数中）</label><textarea class="textarea">torchrun --nproc_per_node=4 sft.py \
+  --base llama3-8b-base --lr {{lr}} --epochs 3</textarea><span class="help">触发运行时可对 lr 等参数做本次覆盖。</span></div>
+        <div class="field full"><label>环境变量</label><textarea class="textarea" style="min-height:60px" placeholder="WANDB_DISABLED=true&#10;NCCL_DEBUG=INFO"></textarea><span class="help">每行一个 KEY=VALUE，注入到训练容器。</span></div>
+      </div>
+
+      <div class="fieldset-title"><span class="n">5</span>数据卷</div>
+      <div class="form-grid">
+        <div class="field full"><label>数据卷 <span class="req">*</span></label>
+          <div class="vol-list" data-vol-list>
+            <div class="vol-row">
+              <select class="input" aria-label="数据卷"><option>team-datasets · 1 TiB</option><option>ckpt-store · 500 GiB</option><option>新建数据卷…</option></select>
+              <input class="input mono" value="/data" placeholder="挂载路径" aria-label="挂载路径" />
+              <button type="button" class="icon-btn" data-vol-remove title="移除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+            </div>
+            <div class="vol-row">
+              <select class="input" aria-label="数据卷"><option>ckpt-store · 500 GiB</option><option>team-datasets · 1 TiB</option><option>新建数据卷…</option></select>
+              <input class="input mono" value="/output" placeholder="挂载路径" aria-label="挂载路径" />
+              <button type="button" class="icon-btn" data-vol-remove title="移除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+            </div>
+          </div>
+          <a class="link vol-add" data-vol-add role="button" tabindex="0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>添加数据卷</a>
+          <span class="help">挂载训练数据与产出目录，每次运行（Run）继承此挂载，支持挂载多个。</span>
+        </div>
+      </div>
+
+      <details style="margin-top:var(--space-6)">
+        <summary style="cursor:pointer;font-weight:600;font-size:13px;color:var(--accent)">高级设置</summary>
+        <div class="form-grid" style="margin-top:var(--space-4)">
+          <div class="field"><label>超时 (s)</label><input class="input num" value="172800" /></div>
+          <div class="field"><label>重试次数</label><input class="input num" value="1" /></div>
+        </div>
+      </details>
+    </div>
+    <div class="drawer-foot"><span class="grow"></span><button class="btn" data-drawer-close>取消</button><button class="btn btn-primary" data-toast="实验已创建" data-drawer-submit>创建实验</button></div>
+  </aside>
+
+  <!-- 触发运行抽屉（参考新建实验，基本信息锁定，超参本次可覆盖） -->
+  <aside class="drawer wide" id="runExpDrawer">
+    <div class="drawer-head"><div><h3>触发运行</h3><div class="sub mono">llama3-sft-lr-sweep</div></div><button class="icon-btn" data-drawer-close>✕</button></div>
+    <div class="drawer-body">
+      <div class="fieldset-title"><span class="n">1</span>基本信息</div>
+      <div class="form-grid">
+        <div class="field"><label>实验名</label><input class="input mono" value="llama3-sft-lr-sweep" disabled /></div>
+        <div class="field full"><label>描述</label><textarea class="textarea" disabled>LLaMA3-8B SFT 学习率扫描</textarea></div>
+      </div>
+
+      <div class="fieldset-title"><span class="n">2</span>镜像</div>
+      <div class="field"><label>训练镜像 <span class="req">*</span></label>
+        <div class="pick-grid" data-pick-group>
+          <div class="pick on"><div class="p-title">pytorch:2.3-cu121</div><div class="p-spec">PyTorch 训练镜像</div></div>
+          <div class="pick"><div class="p-title">megatron:24.05</div><div class="p-spec">Megatron-LM 训练镜像</div></div>
+        </div>
+      </div>
+
+      <div class="fieldset-title"><span class="n">3</span>资源选择</div>
+      <div class="form-grid">
+        <div class="field full"><label>资源池 <span class="req">*</span></label><select class="input"><option>gpu-a100 · A100 训练池</option><option>gpu-h100 · H100 训练/推理池</option></select></div>
+      </div>
+      <div class="field" style="margin-top:var(--space-4)"><label>资源单元 <span class="req">*</span></label>
+        <div class="pick-grid" data-pick-group>
+          <div class="pick on"><div class="p-title">a100-4x-xlarge</div><div class="p-spec">4×A100 · 32 vCPU · 256 GiB</div></div>
+          <div class="pick"><div class="p-title">a100-8x-xlarge-ib</div><div class="p-spec">8×A100 · IB · 64 vCPU · 512 GiB</div></div>
+        </div>
+      </div>
+      <div class="form-grid" style="margin-top:var(--space-4)">
+        <div class="field"><label>副本数 <span class="req">*</span></label><input class="input num" value="2" /></div>
+      </div>
+
+      <div class="fieldset-title"><span class="n">4</span>启动命令 / 环境变量</div>
+      <div class="form-grid">
+        <div class="field full"><label>启动命令（本次运行可覆盖超参）</label><textarea class="textarea">torchrun --nproc_per_node=4 sft.py \
+  --base llama3-8b-base --lr 2e-5 --epochs 3</textarea><span class="help">将 {{lr}} 替换为本次运行的取值。</span></div>
+        <div class="field full"><label>环境变量</label><textarea class="textarea" style="min-height:60px">WANDB_DISABLED=true
+NCCL_DEBUG=INFO</textarea></div>
+      </div>
+
+      <div class="fieldset-title"><span class="n">5</span>数据卷</div>
+      <div class="form-grid">
+        <div class="field full"><label>数据卷 <span class="req">*</span></label>
+          <div class="vol-list" data-vol-list>
+            <div class="vol-row">
+              <select class="input" aria-label="数据卷"><option>team-datasets · 1 TiB</option><option>ckpt-store · 500 GiB</option><option>新建数据卷…</option></select>
+              <input class="input mono" value="/data" placeholder="挂载路径" aria-label="挂载路径" />
+              <button type="button" class="icon-btn" data-vol-remove title="移除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+            </div>
+            <div class="vol-row">
+              <select class="input" aria-label="数据卷"><option>ckpt-store · 500 GiB</option><option>team-datasets · 1 TiB</option><option>新建数据卷…</option></select>
+              <input class="input mono" value="/output" placeholder="挂载路径" aria-label="挂载路径" />
+              <button type="button" class="icon-btn" data-vol-remove title="移除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+            </div>
+          </div>
+          <a class="link vol-add" data-vol-add role="button" tabindex="0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>添加数据卷</a>
+        </div>
+      </div>
+
+      <details style="margin-top:var(--space-6)">
+        <summary style="cursor:pointer;font-weight:600;font-size:13px;color:var(--accent)">高级设置</summary>
+        <div class="form-grid" style="margin-top:var(--space-4)">
+          <div class="field"><label>超时 (s)</label><input class="input num" value="172800" /></div>
+          <div class="field"><label>重试次数</label><input class="input num" value="1" /></div>
+        </div>
+      </details>
+    </div>
+    <div class="drawer-foot"><span class="grow"></span><button class="btn" data-drawer-close>取消</button><button class="btn btn-primary" data-toast="已触发运行 llama3-sft-lr-sweep-9" data-drawer-submit>确认运行</button></div>
+  </aside>
+
+  <!-- 编辑实验抽屉（参考新建实验，编辑只影响之后触发的运行） -->
+  <aside class="drawer wide" id="editExpDrawer">
+    <div class="drawer-head"><div><h3>编辑实验</h3><div class="sub mono">llama3-sft-lr-sweep</div></div><button class="icon-btn" data-drawer-close>✕</button></div>
+    <div class="drawer-body">
+      <div class="fieldset-title"><span class="n">1</span>基本信息</div>
+      <div class="form-grid">
+        <div class="field"><label>实验名 <span class="req">*</span></label><input class="input mono" value="llama3-sft-lr-sweep" /></div>
+        <div class="field full"><label>描述</label><textarea class="textarea">LLaMA3-8B SFT 学习率扫描</textarea></div>
+      </div>
+
+      <div class="fieldset-title"><span class="n">2</span>镜像</div>
+      <div class="field"><label>训练镜像 <span class="req">*</span></label>
+        <div class="pick-grid" data-pick-group>
+          <div class="pick on"><div class="p-title">pytorch:2.3-cu121</div><div class="p-spec">PyTorch 训练镜像</div></div>
+          <div class="pick"><div class="p-title">megatron:24.05</div><div class="p-spec">Megatron-LM 训练镜像</div></div>
+        </div>
+      </div>
+
+      <div class="fieldset-title"><span class="n">3</span>资源选择</div>
+      <div class="form-grid">
+        <div class="field full"><label>资源池 <span class="req">*</span></label><select class="input"><option>gpu-a100 · A100 训练池</option><option>gpu-h100 · H100 训练/推理池</option></select></div>
+      </div>
+      <div class="field" style="margin-top:var(--space-4)"><label>资源单元 <span class="req">*</span></label>
+        <div class="pick-grid" data-pick-group>
+          <div class="pick on"><div class="p-title">a100-4x-xlarge</div><div class="p-spec">4×A100 · 32 vCPU · 256 GiB</div></div>
+          <div class="pick"><div class="p-title">a100-8x-xlarge-ib</div><div class="p-spec">8×A100 · IB · 64 vCPU · 512 GiB</div></div>
+        </div>
+      </div>
+      <div class="form-grid" style="margin-top:var(--space-4)">
+        <div class="field"><label>副本数 <span class="req">*</span></label><input class="input num" value="2" /></div>
+      </div>
+
+      <div class="fieldset-title"><span class="n">4</span>启动命令 / 环境变量</div>
+      <div class="form-grid">
+        <div class="field full"><label>启动命令（超参写在命令 / 参数中）</label><textarea class="textarea">torchrun --nproc_per_node=4 sft.py \
+  --base llama3-8b-base --lr {{lr}} --epochs 3</textarea><span class="help">触发运行时可对 lr 等参数做本次覆盖。</span></div>
+        <div class="field full"><label>环境变量</label><textarea class="textarea" style="min-height:60px">WANDB_DISABLED=true
+NCCL_DEBUG=INFO</textarea><span class="help">每行一个 KEY=VALUE，注入到训练容器。</span></div>
+      </div>
+
+      <div class="fieldset-title"><span class="n">5</span>数据卷</div>
+      <div class="form-grid">
+        <div class="field full"><label>数据卷 <span class="req">*</span></label>
+          <div class="vol-list" data-vol-list>
+            <div class="vol-row">
+              <select class="input" aria-label="数据卷"><option>team-datasets · 1 TiB</option><option>ckpt-store · 500 GiB</option><option>新建数据卷…</option></select>
+              <input class="input mono" value="/data" placeholder="挂载路径" aria-label="挂载路径" />
+              <button type="button" class="icon-btn" data-vol-remove title="移除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+            </div>
+            <div class="vol-row">
+              <select class="input" aria-label="数据卷"><option>ckpt-store · 500 GiB</option><option>team-datasets · 1 TiB</option><option>新建数据卷…</option></select>
+              <input class="input mono" value="/output" placeholder="挂载路径" aria-label="挂载路径" />
+              <button type="button" class="icon-btn" data-vol-remove title="移除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+            </div>
+          </div>
+          <a class="link vol-add" data-vol-add role="button" tabindex="0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>添加数据卷</a>
+        </div>
+      </div>
+
+      <details style="margin-top:var(--space-6)">
+        <summary style="cursor:pointer;font-weight:600;font-size:13px;color:var(--accent)">高级设置</summary>
+        <div class="form-grid" style="margin-top:var(--space-4)">
+          <div class="field"><label>超时 (s)</label><input class="input num" value="172800" /></div>
+          <div class="field"><label>重试次数</label><input class="input num" value="1" /></div>
+        </div>
+      </details>
+    </div>
+    <div class="drawer-foot"><span class="grow"></span><button class="btn" data-drawer-close>取消</button><button class="btn btn-primary" data-toast="实验已保存" data-drawer-submit>保存</button></div>
+  </aside>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

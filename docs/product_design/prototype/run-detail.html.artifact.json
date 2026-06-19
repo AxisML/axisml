@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "run-detail.html",
+  "entry": "run-detail.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-06-15T23:35:43.133Z",
+  "updatedAt": "2026-06-15T23:35:43.133Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

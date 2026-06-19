@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ws-dev-zhang · 工作区 · AxisML</title>
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body data-nav="workspace">
+  <!-- 工具品牌徽标（Jupyter / VS Code），按官方品牌色着色 -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <symbol id="ic-jupyter" viewBox="0 0 24 24"><path fill="#F37726" d="M7.157 22.201A1.784 1.784 0 0 1 5.374 24a1.784 1.784 0 0 1-1.784-1.799 1.784 1.784 0 0 1 1.784-1.799 1.784 1.784 0 0 1 1.783 1.799zM20.582 1.427a1.415 1.415 0 0 1-1.415 1.428 1.415 1.415 0 0 1-1.416-1.428A1.415 1.415 0 0 1 19.167 0a1.415 1.415 0 0 1 1.415 1.427zM4.992 3.336A1.781 1.781 0 0 1 3.21 5.135 1.781 1.781 0 0 1 1.427 3.336 1.781 1.781 0 0 1 3.21 1.537a1.781 1.781 0 0 1 1.782 1.799zM12 18.694c-3.945 0-7.394-1.417-9.191-3.506a9.799 9.799 0 0 0 18.382 0c-1.797 2.089-5.246 3.506-9.191 3.506zM12 5.306c3.945 0 7.394 1.417 9.191 3.506a9.799 9.799 0 0 0-18.382 0C4.606 6.723 8.055 5.306 12 5.306z"/></symbol>
+    <symbol id="ic-vscode" viewBox="0 0 24 24"><path fill="#007ACC" d="M23.15 2.587L18.21.21a1.494 1.494 0 0 0-1.705.29l-9.46 8.63-4.12-3.128a.999.999 0 0 0-1.276.057L.327 7.261A1 1 0 0 0 .326 8.74L3.899 12 .326 15.26a1 1 0 0 0 .001 1.479L1.65 17.94a.999.999 0 0 0 1.276.057l4.12-3.128 9.46 8.63a1.492 1.492 0 0 0 1.704.29l4.942-2.377A1.5 1.5 0 0 0 24 20.06V3.939a1.5 1.5 0 0 0-.85-1.352zm-5.146 14.861L10.826 12l7.178-5.448v10.896z"/></symbol>
+  </svg>
+  <main class="page" id="page">
+    <a class="back-link" href="workspace.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>返回工作区列表</a>
+
+    <div class="page-head">
+      <div>
+        <h1 class="detail-title">ws-dev-zhang <span class="spill run"><span class="dot"></span>运行中</span></h1>
+        <div class="detail-sub">开发调试环境 · 创建人 张伟</div>
+      </div>
+      <div class="actions">
+        <a class="btn" href="#" data-toast="正在打开 Jupyter…"><svg class="brand" style="width:15px;height:15px"><use href="#ic-jupyter"/></svg>打开 Jupyter</a>
+        <a class="btn" href="#" data-toast="正在打开 VS Code…"><svg class="brand" style="width:15px;height:15px"><use href="#ic-vscode"/></svg>VS Code</a>
+        <button class="btn" data-toast="工作区已停止">停止</button>
+        <button class="btn btn-danger" data-confirm="删除工作区 ws-dev-zhang？" data-confirm-desc="工作区将被删除，环境内未持久化的内容会丢失。" data-confirm-info="<label style='display:flex;align-items:center;gap:8px;margin-top:4px'><input type='checkbox' checked> 一并删除数据卷 PVC（50 GiB）</label>" data-confirm-ok="确认删除" data-confirm-toast="工作区已删除">删除</button>
+      </div>
+    </div>
+
+    <div data-tabs>
+      <div class="tabs">
+        <button class="on" data-tab="info">概览</button>
+        <button data-tab="log">日志</button>
+        <button data-tab="ev">事件</button>
+      </div>
+
+      <!-- 基本信息 -->
+      <div class="tabpane on" data-pane="info">
+        <div class="panel">
+          <div class="panel-head"><h3>配置信息</h3><button class="btn btn-sm" data-drawer-open="wsEditDrawer">编辑</button></div>
+          <div class="panel-body"><dl class="kv kv-lg">
+            <dt>名称</dt><dd><span class="cchip">ws-dev-zhang</span></dd>
+            <dt>描述</dt><dd>开发调试环境</dd>
+            <dt>资源池</dt><dd><span class="cchip">cpu-medium · 通用 CPU 池</span></dd>
+            <dt>资源单元</dt><dd><span class="cchip">cpu-medium</span> 8 vCPU · 32 GiB</dd>
+            <dt>镜像</dt><dd><span class="cchip">jupyter-ds:2024.3</span></dd>
+            <dt>访问地址</dt><dd><span class="cchip">/ws/llm-lab/ws-dev-zhang/</span><button class="icon-mini" data-toast="访问地址已复制" title="复制" aria-label="复制访问地址"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></dd>
+            <dt>数据卷</dt><dd><span class="cchip">ws-dev-zhang-data</span> 50 GiB · standard-rwo</dd>
+            <dt>挂载路径</dt><dd><span class="cchip">/workspace</span></dd>
+            <dt>环境变量</dt><dd><div class="chip-row"><span class="cchip">HF_HOME=/data/hf</span><span class="cchip">JUPYTER_TOKEN=••••</span></div></dd>
+            <dt>创建人</dt><dd>张伟 · <span class="mono">2026-06-13</span></dd>
+          </dl></div>
+        </div>
+      </div>
+
+      <!-- 日志 -->
+      <div class="tabpane" data-pane="log">
+        <div class="panel"><div class="panel-body">
+          <div class="log-bar">
+            <div class="pod-pick"><span class="pp-tag">POD</span><select><option>ws-dev-zhang-0</option></select></div>
+            <div class="grow"></div>
+            <label class="follow">实时跟随 <button class="toggle on" aria-label="实时跟随"></button></label>
+          </div>
+          <pre class="logbox"><span class="l-time">02:14:10</span><span class="l-info">[I]</span> Jupyter server started on :8888
+<span class="l-time">02:14:11</span><span class="l-info">[I]</span> Mounted PVC ws-dev-zhang-data at /workspace
+<span class="l-time">09:02:33</span><span class="l-info">[I]</span> Kernel restarted by user
+<span class="l-time">09:31:18</span><span class="l-warn">[W]</span> high memory usage 27.4 / 32 GiB
+<span class="l-time">09:48:12</span><span class="l-info">[I]</span> Saved checkpoint train_sft.ipynb</pre>
+        </div></div>
+      </div>
+
+      <!-- 事件 -->
+      <div class="tabpane" data-pane="ev">
+        <div class="panel"><div class="panel-body">
+          <div class="timeline">
+            <div class="tl-item"><span class="tl-dot"></span><div class="tl-head"><span class="tl-name">Started</span><span class="tl-tag">NORMAL</span><span class="tl-time">2026-06-13 02:14:10</span></div><div class="tl-desc">Pod ws-dev-zhang-0 scheduled to node-cpu-12 and started</div></div>
+            <div class="tl-item"><span class="tl-dot"></span><div class="tl-head"><span class="tl-name">VolumeBound</span><span class="tl-tag">NORMAL</span><span class="tl-time">2026-06-13 02:14:02</span></div><div class="tl-desc">PVC ws-dev-zhang-data (50 GiB · standard-rwo) bound</div></div>
+            <div class="tl-item is-muted"><span class="tl-dot"></span><div class="tl-head"><span class="tl-name">Created</span><span class="tl-tag">NORMAL</span><span class="tl-time">2026-06-13 02:13:58</span></div><div class="tl-desc">Workspace created from image jupyter-ds:2024.3</div></div>
+          </div>
+        </div></div>
+      </div>
+    </div>
+  </main>
+
+  <!-- 编辑工作区抽屉（运行中：仅可改名称） -->
+  <aside class="drawer" id="wsEditDrawer">
+    <div class="drawer-head"><div><h3>编辑工作区</h3><div class="sub">ws-dev-zhang · 运行中</div></div><button class="icon-btn" data-drawer-close>✕</button></div>
+    <div class="drawer-body">
+      <div class="form-notice">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>
+        <span>工作区运行中，仅可修改<b>名称</b>。镜像、资源、数据卷、环境变量需先<b>停止</b>工作区后才能修改。</span>
+      </div>
+      <div class="form-grid">
+        <div class="field full"><label>名称 <span class="req">*</span></label><input class="input" value="开发调试环境" /><span class="help">用于在列表与详情中展示</span></div>
+        <div class="field full"><label>描述</label><textarea class="textarea" disabled>开发调试用交互式容器</textarea><span class="help">需停机后修改</span></div>
+        <div class="field full"><label>镜像</label><input class="input" value="jupyter-ds:2024.3" disabled /><span class="help">需停机后修改</span></div>
+        <div class="field full"><label>资源单元</label><input class="input" value="cpu-medium / 1x · 8 vCPU · 32 GiB" disabled /><span class="help">需停机后修改</span></div>
+        <div class="field full"><label>数据卷</label>
+          <div class="vol-list">
+            <div class="vol-row" data-only>
+              <select class="input" disabled><option>ws-dev-zhang-data（50 GiB · standard-rwo）</option></select>
+              <input class="input mono" value="/workspace" disabled />
+              <button type="button" class="icon-btn" disabled aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+            </div>
+          </div>
+          <span class="help">需停机后修改</span>
+        </div>
+        <div class="field full"><label>环境变量</label><textarea class="textarea" disabled>HF_HOME=/data/hf
+JUPYTER_TOKEN=••••</textarea><span class="help">需停机后修改</span></div>
+      </div>
+    </div>
+    <div class="drawer-foot"><span class="grow"></span><button class="btn" data-drawer-close>取消</button><button class="btn btn-primary" data-toast="工作区已更新" data-drawer-submit>保存修改</button></div>
+  </aside>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

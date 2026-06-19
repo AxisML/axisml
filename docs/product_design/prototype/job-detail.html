@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>train-llm-7b · 自定义任务 · AxisML</title>
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body data-nav="jobs">
+  <main class="page" id="page">
+    <a class="back-link" href="jobs.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>返回自定义任务</a>
+
+    <div class="page-head">
+      <div>
+        <h1 class="detail-title">train-llm-7b <span class="spill run"><span class="dot"></span>运行中</span></h1>
+        <div class="detail-sub">LLaMA-7B 全参微调</div>
+      </div>
+      <div class="actions">
+        <button class="btn btn-primary" data-toast="已创建运行 train-llm-7b-13"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 4l14 8-14 8z"/></svg>运行</button>
+        <button class="btn btn-danger" data-confirm="删除 Job train-llm-7b？" data-confirm-desc="删除后模板不可恢复；历史 Run 将一并级联软删。" data-confirm-info="有活跃 Run 时删除会被阻断（409 job-has-active-runs）。" data-confirm-ok="确认删除" data-confirm-toast="Job train-llm-7b 已删除">删除</button>
+      </div>
+    </div>
+
+    <div data-tabs>
+      <div class="tabs">
+        <button class="on" data-tab="info">任务信息</button>
+        <button data-tab="runs">运行记录<span class="cnt">4</span></button>
+      </div>
+
+      <!-- 任务信息 -->
+      <div class="tabpane on" data-pane="info">
+        <div class="panel">
+          <div class="panel-head"><h3>任务信息</h3><button class="btn btn-sm" data-toast="进入编辑（编辑只影响之后触发的 Run）">编辑</button></div>
+          <div class="panel-body">
+            <dl class="kv kv-lg">
+              <dt>名称</dt><dd><span class="cchip">train-llm-7b</span></dd>
+              <dt>描述</dt><dd>LLaMA-7B 全参微调</dd>
+              <dt>镜像</dt><dd><span class="cchip">pytorch:2.3-cu121</span></dd>
+              <dt>资源池</dt><dd><span class="cchip">gpu-a100 · A100 训练池</span></dd>
+              <dt>资源单元</dt><dd><span class="cchip">a100-4x-xlarge</span></dd>
+              <dt>副本数</dt><dd><span class="mono">4</span></dd>
+              <dt>数据卷</dt><dd><span class="cchip">training-data · 200 GiB → /data</span></dd>
+              <dt>运行策略</dt><dd>超时 <span class="mono">24h</span> · 重试 <span class="mono">2</span></dd>
+              <dt>创建人</dt><dd>张伟 · <span class="mono">2026-06-12</span></dd>
+            </dl>
+            <div style="margin-top:var(--space-6);padding-top:var(--space-5);border-top:1px solid var(--border-soft)">
+              <label class="muted" style="font-size:12px">启动命令</label>
+              <pre class="logbox" style="max-height:none;margin:6px 0 18px">torchrun --nproc_per_node=4 train.py \
+  --model_name llama-7b --lr 2e-5 \
+  --epochs 3 --batch_size 16 \
+  --data /data/sft.jsonl</pre>
+              <label class="muted" style="font-size:12px">环境变量</label>
+              <div class="chip-row" style="margin-top:8px"><span class="cchip">WANDB_DISABLED=true</span><span class="cchip">NCCL_DEBUG=INFO</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 运行记录 -->
+      <div class="tabpane" data-pane="runs">
+        <div class="toolbar">
+          <div class="field-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input placeholder="Run 名 / ID 搜索" /></div>
+          <select class="select"><option>状态：全部</option><option>运行中</option><option>成功</option><option>失败</option></select>
+          <select class="select"><option>触发人：全部</option><option>张伟</option><option>李娜</option></select>
+          <select class="select"><option>时间：近 7 天</option><option>近 24 小时</option><option>近 30 天</option><option>全部</option></select>
+          <button class="btn btn-ghost">重置</button>
+        </div>
+        <div class="panel"><div class="table-wrap"><table class="tbl">
+          <thead><tr><th>Run</th><th>状态</th><th>资源单元</th><th class="num-col">副本</th><th>触发人</th><th class="num-col">耗时</th><th style="text-align:right">操作</th></tr></thead>
+          <tbody>
+            <tr><td><a class="t-name mono" href="run-detail.html">train-llm-7b-12</a></td><td><span class="status status-running"><span class="dot"></span>运行中</span></td><td class="mono">gpu-a100/4x</td><td class="num-col">4</td><td>张伟</td><td class="num-col">02:14:30</td><td><div class="row-actions"><a class="act" href="run-detail.html" title="详情" aria-label="详情"></a><button class="act" title="日志" aria-label="日志"></button><button class="act" title="监控" aria-label="监控"></button><button class="act" title="取消" aria-label="取消" data-confirm="取消运行 train-llm-7b-12？" data-confirm-desc="取消后正在执行的 Pod 将被终止，已产出的 checkpoint 保留。" data-confirm-ok="确认取消" data-confirm-toast="运行已请求取消（Canceling）"></button></div></td></tr>
+            <tr><td><a class="t-name mono" href="run-detail.html">train-llm-7b-11</a></td><td><span class="status status-success"><span class="dot"></span>成功</span></td><td class="mono">gpu-a100/4x</td><td class="num-col">4</td><td>张伟</td><td class="num-col">03:40:02</td><td><div class="row-actions"><a class="act" href="run-detail.html" title="详情" aria-label="详情"></a><button class="act" title="日志" aria-label="日志"></button><button class="act" title="监控" aria-label="监控"></button><button class="act act-danger" title="删除" aria-label="删除" data-confirm="删除运行 train-llm-7b-11？" data-confirm-desc="删除后该 Run 记录与日志不可恢复。" data-confirm-ok="确认删除" data-confirm-toast="运行 train-llm-7b-11 已删除"></button></div></td></tr>
+            <tr><td><a class="t-name mono" href="run-detail.html">train-llm-7b-10</a></td><td><span class="status status-failed"><span class="dot"></span>失败</span></td><td class="mono">gpu-a100/8x</td><td class="num-col">8</td><td>李娜</td><td class="num-col">00:08:22</td><td><div class="row-actions"><a class="act" href="run-detail.html" title="详情" aria-label="详情"></a><button class="act" title="日志" aria-label="日志"></button><button class="act" title="监控" aria-label="监控"></button><button class="act act-danger" title="删除" aria-label="删除" data-confirm="删除运行 train-llm-7b-10？" data-confirm-desc="删除后该 Run 记录与日志不可恢复。" data-confirm-ok="确认删除" data-confirm-toast="运行 train-llm-7b-10 已删除"></button></div></td></tr>
+            <tr><td><a class="t-name mono" href="run-detail.html">train-llm-7b-9</a></td><td><span class="status status-success"><span class="dot"></span>成功</span></td><td class="mono">gpu-a100/4x</td><td class="num-col">4</td><td>张伟</td><td class="num-col">03:52:11</td><td><div class="row-actions"><a class="act" href="run-detail.html" title="详情" aria-label="详情"></a><button class="act" title="日志" aria-label="日志"></button><button class="act" title="监控" aria-label="监控"></button><button class="act act-danger" title="删除" aria-label="删除" data-confirm="删除运行 train-llm-7b-9？" data-confirm-desc="删除后该 Run 记录与日志不可恢复。" data-confirm-ok="确认删除" data-confirm-toast="运行 train-llm-7b-9 已删除"></button></div></td></tr>
+          </tbody>
+        </table></div></div>
+      </div>
+    </div>
+  </main>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

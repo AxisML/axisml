@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>资源池管理 · AxisML 控制台</title>
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body data-nav="pools">
+  <main class="page" id="page">
+    <div class="breadcrumb"><span>系统管理</span><span class="sep">/</span><span>资源池管理</span></div>
+    <div class="page-head">
+      <div><h1>资源池管理</h1><p class="sub">统一调度和管理计算、存储等资源池，提升资源利用率与任务运行稳定性。支持资源分配、监控与隔离，保障多业务场景下的高效运行。</p></div>
+      <div class="actions"><button class="btn btn-primary" data-drawer-open="poolDrawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>新建资源池</button></div>
+    </div>
+
+    <div class="toolbar">
+      <div class="field-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input placeholder="关键字搜索" /></div>
+      <button class="btn btn-ghost">重置</button>
+    </div>
+
+    <div class="panel">
+      <div class="table-wrap"><table class="tbl">
+        <thead><tr><th>名称</th><th>描述</th><th>节点选择器</th><th class="num-col">资源单元</th><th>创建时间</th><th style="text-align:right">操作</th></tr></thead>
+        <tbody>
+          <tr><td><a class="t-name mono" href="#" data-drawer-open="managePoolDrawer">gpu-a100</a></td><td>A100 训练池</td><td><div class="chip-row"><span class="tag mono">gpu.product=A100</span><span class="tag">+1</span></div></td><td class="num-col"><a class="link" href="#" data-drawer-open="managePoolDrawer">3</a></td><td class="muted mono">2026-03-08</td><td><div class="row-actions"><button class="act" title="管理" aria-label="管理" data-drawer-open="managePoolDrawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button><button class="act act-danger" title="删除" aria-label="删除" data-confirm="确定删除资源池 gpu-a100？" data-confirm-info="池内 3 个资源单元将随资源池级联删除（不阻断）：a100-1x-large / a100-4x-xlarge / a100-8x-xlarge-ib" data-confirm-block="<div>5 个活跃任务、2 个活跃服务正在引用本池<ul><li class='mono'>llm-lab / train-llm-7b-12</li><li class='mono'>llm-lab / svc-chat-api</li><li>…等 5 项</li></ul>请先清空活跃负载后重试。</div>" data-confirm-blocked><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg></button></div></td></tr>
+          <tr><td><a class="t-name mono" href="#" data-drawer-open="managePoolDrawer">gpu-h100</a></td><td>H100 训练/推理池</td><td><div class="chip-row"><span class="tag mono">product=H100</span><span class="tag mono">network=ib</span><span class="tag">+1</span></div></td><td class="num-col"><a class="link" href="#" data-drawer-open="managePoolDrawer">4</a></td><td class="muted mono">2026-04-02</td><td><div class="row-actions"><button class="act" title="管理" aria-label="管理" data-drawer-open="managePoolDrawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button><button class="act act-danger" title="删除" aria-label="删除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg></button></div></td></tr>
+          <tr><td><a class="t-name mono" href="#" data-drawer-open="managePoolDrawer">gpu-l40s</a></td><td>L40S 推理池</td><td><div class="chip-row"><span class="tag mono">gpu.product=L40S</span></div></td><td class="num-col"><a class="link" href="#" data-drawer-open="managePoolDrawer">2</a></td><td class="muted mono">2026-04-19</td><td><div class="row-actions"><button class="act" title="管理" aria-label="管理" data-drawer-open="managePoolDrawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button><button class="act act-danger" title="删除" aria-label="删除" data-confirm="确定删除资源池 gpu-l40s？" data-confirm-desc="该池暂无活跃负载引用。" data-confirm-info="池内 2 个资源单元将随资源池级联删除：l40s-1x / l40s-2x" data-confirm-ok="确认删除" data-confirm-toast="资源池 gpu-l40s 已删除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg></button></div></td></tr>
+          <tr><td><a class="t-name mono" href="#" data-drawer-open="managePoolDrawer">cpu-large</a></td><td>大内存 CPU 池</td><td><div class="chip-row"><span class="tag mono">arch=amd64</span><span class="tag mono">memory-tier=high</span></div></td><td class="num-col"><a class="link" href="#" data-drawer-open="managePoolDrawer">1</a></td><td class="muted mono">2026-01-22</td><td><div class="row-actions"><button class="act" title="管理" aria-label="管理" data-drawer-open="managePoolDrawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button><button class="act act-danger" title="删除" aria-label="删除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg></button></div></td></tr>
+          <tr><td><a class="t-name mono" href="#" data-drawer-open="managePoolDrawer">cpu-arm-edge</a></td><td>ARM 边缘推理池</td><td><div class="chip-row"><span class="tag mono">arch=arm64</span></div></td><td class="num-col"><a class="link" href="#" data-drawer-open="managePoolDrawer">0</a></td><td class="muted mono">2026-05-15</td><td><div class="row-actions"><button class="act" title="管理" aria-label="管理" data-drawer-open="managePoolDrawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button><button class="act act-danger" title="删除" aria-label="删除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg></button></div></td></tr>
+        </tbody>
+      </table></div>
+      <div class="pagination"><span>共 5 个资源池</span><div class="pages"><span class="pg">‹</span><span class="pg on">1</span><span class="pg">›</span></div><span>每页 20 条</span></div>
+    </div>
+  </main>
+
+  <!-- 新建资源池抽屉 -->
+  <aside class="drawer wide" id="poolDrawer">
+    <div class="drawer-head"><div><h3>新建资源池</h3><div class="sub">按节点标签划分一组计算资源 · 创建后维护资源单元</div></div><button class="icon-btn" data-drawer-close>✕</button></div>
+    <div class="drawer-body">
+      <div class="fieldset-title"><span class="n">1</span>基本信息</div>
+      <div class="form-grid">
+        <div class="field"><label>名称 <span class="req">*</span></label><input class="input mono" placeholder="gpu-a100" /></div>
+        <div class="field full"><label>描述</label><textarea class="textarea" placeholder="用途说明（可选）"></textarea></div>
+      </div>
+
+      <div class="fieldset-title"><span class="n">2</span>节点调度</div>
+      <div class="form-grid">
+        <div class="field full"><label>节点选择器（K=V）</label><div class="chip-row"><span class="tag mono">gpu.product=A100 ✕</span><span class="tag mono" style="border-style:dashed;color:var(--muted)">+ 添加</span></div></div>
+
+        <div class="field full"><label>容忍配置（tolerations）</label>
+          <div class="tol-head"><span>key</span><span>operator</span><span>value</span><span>effect</span><span></span></div>
+          <div class="vol-list tol-list" data-vol-list data-tol-list>
+            <div class="vol-row">
+              <input class="input mono" placeholder="污点键 如 nvidia.com/gpu" aria-label="key" />
+              <select class="input" data-tol-op aria-label="operator"><option>Equal</option><option>Exists</option></select>
+              <input class="input mono" placeholder="如 true" aria-label="value" data-tol-val />
+              <select class="input" aria-label="effect"><option>NoSchedule</option><option>PreferNoSchedule</option><option>NoExecute</option></select>
+              <button type="button" class="icon-btn" data-vol-remove title="移除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+            </div>
+          </div>
+          <a class="link vol-add" data-vol-add role="button" tabindex="0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>添加容忍</a>
+        </div>
+      </div>
+    </div>
+    <div class="drawer-foot"><span class="grow"></span><button class="btn" data-drawer-close>取消</button><button class="btn btn-primary" data-toast="资源池已创建，请添加资源单元" data-drawer-submit>创建资源池</button></div>
+  </aside>
+
+  <!-- 管理资源池抽屉：基本信息 + 节点调度 + 资源单元（融合编辑与资源单元维护）-->
+  <aside class="drawer wide" id="managePoolDrawer">
+    <div class="drawer-head"><div><h3 class="mono">gpu-a100</h3><div class="sub">A100 训练池 · 管理基本信息、节点调度与资源单元</div></div><button class="icon-btn" data-drawer-close>✕</button></div>
+    <div class="drawer-body">
+      <div class="fieldset-title"><span class="n">1</span>基本信息</div>
+      <div class="form-grid">
+        <div class="field"><label>名称</label><input class="input mono" value="gpu-a100" readonly aria-readonly="true" /></div>
+        <div class="field full"><label>描述</label><textarea class="textarea">A100 训练池</textarea></div>
+      </div>
+
+      <div class="fieldset-title"><span class="n">2</span>节点调度</div>
+      <div class="form-grid">
+        <div class="field full"><label>节点选择器（K=V）</label><div class="chip-row"><span class="tag mono">gpu.product=A100 ✕</span><span class="tag mono">arch=amd64 ✕</span><span class="tag mono" style="border-style:dashed;color:var(--muted)">+ 添加</span></div></div>
+
+        <div class="field full"><label>容忍配置（tolerations）</label>
+          <div class="tol-head"><span>key</span><span>operator</span><span>value</span><span>effect</span><span></span></div>
+          <div class="vol-list tol-list" data-vol-list data-tol-list>
+            <div class="vol-row">
+              <input class="input mono" value="nvidia.com/gpu" placeholder="污点键 如 nvidia.com/gpu" aria-label="key" />
+              <select class="input" data-tol-op aria-label="operator"><option>Equal</option><option selected>Exists</option></select>
+              <input class="input mono" placeholder="如 true" aria-label="value" data-tol-val />
+              <select class="input" aria-label="effect"><option selected>NoSchedule</option><option>PreferNoSchedule</option><option>NoExecute</option></select>
+              <button type="button" class="icon-btn" data-vol-remove title="移除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+            </div>
+          </div>
+          <a class="link vol-add" data-vol-add role="button" tabindex="0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>添加容忍</a>
+        </div>
+      </div>
+
+      <div class="fieldset-title"><span class="n">3</span>资源单元</div>
+      <div class="unit-grid">
+        <div class="unit-card">
+          <div class="uc-top">
+            <span class="uc-name">a100-1x-large</span>
+            <div class="uc-act">
+              <button class="act" aria-label="编辑" data-unit-edit data-name="a100-1x-large" data-cpu="8" data-mem="64" data-gpu="1" data-sel=""></button>
+              <button class="act act-danger" aria-label="删除"></button>
+            </div>
+          </div>
+          <div class="uc-spec">1×A100 · 8 vCPU · 64 GiB</div>
+        </div>
+
+        <div class="unit-card">
+          <div class="uc-top">
+            <span class="uc-name">a100-4x-xlarge</span>
+            <div class="uc-act">
+              <button class="act" aria-label="编辑" data-unit-edit data-name="a100-4x-xlarge" data-cpu="32" data-mem="256" data-gpu="4" data-sel=""></button>
+              <button class="act act-danger" aria-label="删除"></button>
+            </div>
+          </div>
+          <div class="uc-spec">4×A100 · 32 vCPU · 256 GiB</div>
+        </div>
+
+        <div class="unit-card">
+          <div class="uc-top">
+            <span class="uc-name">a100-8x-xlarge-ib</span>
+            <div class="uc-act">
+              <button class="act" aria-label="编辑" data-unit-edit data-name="a100-8x-xlarge-ib" data-cpu="64" data-mem="512" data-gpu="8" data-sel="network=ib"></button>
+              <button class="act act-danger" aria-label="删除"></button>
+            </div>
+          </div>
+          <div class="uc-spec">8×A100 · 64 vCPU · 512 GiB</div>
+        </div>
+
+        <button type="button" class="unit-add" data-unit-new title="新建资源单元" aria-label="新建资源单元"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></button>
+      </div>
+    </div>
+    <div class="drawer-foot"><span class="grow"></span><button class="btn" data-drawer-close>取消</button><button class="btn btn-primary" data-toast="资源池已保存" data-drawer-submit>保存</button></div>
+  </aside>
+
+  <!-- 资源单元表单抽屉：新建 / 编辑 复用 -->
+  <aside class="drawer wide" id="unitFormDrawer">
+    <div class="drawer-head"><div><h3 data-uf-title>新建资源单元</h3><div class="sub">gpu-a100 · 定义一种可被任务申请的资源规格</div></div><button class="icon-btn" data-drawer-close>✕</button></div>
+    <div class="drawer-body">
+      <div class="fieldset-title"><span class="n">1</span>基本信息</div>
+      <div class="form-grid">
+        <div class="field"><label>名称 <span class="req">*</span></label><input class="input mono" data-uf-name placeholder="a100-1x-large" /></div>
+        <div class="field full"><label>描述</label><textarea class="textarea" data-uf-desc placeholder="规格用途说明（可选），如：单卡训练 / 4 卡分布式"></textarea></div>
+      </div>
+
+      <div class="fieldset-title"><span class="n">2</span>资源规格<label class="rm-lock"><input type="checkbox" data-uf-lock checked /><span>limits 与 requests 保持一致</span></label></div>
+      <div class="res-matrix" data-uf-res>
+        <div class="rm-grid">
+          <span class="rm-h"></span><span class="rm-h">requests</span><span class="rm-h">limits</span>
+          <span class="rm-name">CPU <span class="req">*</span></span>
+          <div class="input-affix"><input data-uf-req="cpu" inputmode="numeric" placeholder="8" aria-label="CPU requests" /><span class="suf">核</span></div>
+          <div class="input-affix"><input data-uf-lim="cpu" inputmode="numeric" placeholder="8" aria-label="CPU limits" /><span class="suf">核</span></div>
+          <span class="rm-name">内存 <span class="req">*</span></span>
+          <div class="input-affix"><input data-uf-req="mem" inputmode="numeric" placeholder="64" aria-label="内存 requests" /><span class="suf">GiB</span></div>
+          <div class="input-affix"><input data-uf-lim="mem" inputmode="numeric" placeholder="64" aria-label="内存 limits" /><span class="suf">GiB</span></div>
+          <span class="rm-name">GPU</span>
+          <div class="input-affix"><input data-uf-gpu inputmode="numeric" placeholder="1" aria-label="GPU 卡数" /><span class="suf">卡</span></div>
+          <span class="rm-eq">requests = limits</span>
+        </div>
+      </div>
+
+      <div class="fieldset-title"><span class="n">3</span>节点调度</div>
+      <div class="form-grid">
+        <div class="field full"><label>额外节点选择器（K=V）</label><div class="chip-row" data-uf-sel><span class="tag mono" style="border-style:dashed;color:var(--muted)">+ 添加</span></div></div>
+        <div class="field full"><label>容忍配置（tolerations）</label>
+          <div class="tol-head"><span>key</span><span>operator</span><span>value</span><span>effect</span><span></span></div>
+          <div class="vol-list tol-list" data-vol-list data-tol-list>
+            <div class="vol-row">
+              <input class="input mono" placeholder="污点键 如 nvidia.com/gpu" aria-label="key" />
+              <select class="input" data-tol-op aria-label="operator"><option>Equal</option><option>Exists</option></select>
+              <input class="input mono" placeholder="如 true" aria-label="value" data-tol-val />
+              <select class="input" aria-label="effect"><option>NoSchedule</option><option>PreferNoSchedule</option><option>NoExecute</option></select>
+              <button type="button" class="icon-btn" data-vol-remove title="移除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+            </div>
+          </div>
+          <a class="link vol-add" data-vol-add role="button" tabindex="0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>添加容忍</a>
+        </div>
+      </div>
+    </div>
+    <div class="drawer-foot"><span class="grow"></span><button class="btn" data-drawer-close>取消</button><button class="btn btn-primary" data-toast="资源单元已创建" data-drawer-submit data-uf-submit>创建资源单元</button></div>
+  </aside>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>首页 · AxisML 控制台</title>
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body data-nav="dashboard">
+  <main class="page" id="page">
+    <div class="breadcrumb"><span>AxisML</span><span class="sep">/</span><span>首页</span></div>
+
+    <div class="page-head">
+      <div>
+        <h1>首页</h1>
+        <p class="sub" id="scopeDesc">大模型研究院 · 全部租户的运行概览 —— 看一眼负载、容量与资源用量。</p>
+      </div>
+      <div class="actions">
+        <div class="segmented" id="rangeSeg">
+          <button>1h</button><button class="on">24h</button><button>7d</button>
+        </div>
+        <button class="btn" data-toast="已刷新概览数据"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 7M21 3v4h-4"/></svg>刷新</button>
+      </div>
+    </div>
+
+    <!-- KPI 行 -->
+    <div class="grid cols-4" style="margin-bottom:var(--space-5)">
+      <a class="kpi focal" href="jobs.html">
+        <div class="k-top"><span class="k-label">活跃任务</span><span class="k-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h14a1 1 0 0 1 1 1v4H4V5a1 1 0 0 1 1-1zM4 9v10a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9"/><path d="M9 13h6"/></svg></span></div>
+        <div class="k-val num">23</div>
+        <div class="k-foot"><span class="trend up"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 19V5M5 12l7-7 7 7"/></svg>4</span> 运行 + 排队</div>
+      </a>
+      <a class="kpi" href="services.html">
+        <div class="k-top"><span class="k-label">在线服务</span><span class="k-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/><path d="M7 7h.01M7 17h.01"/></svg></span></div>
+        <div class="k-val num">9 <small>就绪 / 降级</small></div>
+        <div class="k-foot">7 就绪 · 2 降级</div>
+      </a>
+      <a class="kpi" href="workspace.html">
+        <div class="k-top"><span class="k-label">工作区</span><span class="k-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8M12 18v3M7 9l2 2-2 2M12 13h3"/></svg></span></div>
+        <div class="k-val num">17 <small>运行中</small></div>
+        <div class="k-foot">活跃开发实例</div>
+      </a>
+      <a class="kpi" href="models.html">
+        <div class="k-top"><span class="k-label">模型</span><span class="k-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4.5v9L12 20l-8-4.5v-9z"/><path d="M12 11l8-4.5M12 11v9M12 11L4 6.5"/></svg></span></div>
+        <div class="k-val num">128 <small>含公共</small></div>
+        <div class="k-foot">私有 + 公共仓库</div>
+      </a>
+    </div>
+
+    <!-- 集群 / 配额水位 + 趋势 -->
+    <div class="grid cols-3" style="margin-bottom:var(--space-5)">
+      <div class="panel span-2">
+        <div class="panel-head"><h3>集群资源用量</h3><span class="hint">全集群可分配容量 · 30s 轮询</span></div>
+        <div class="panel-body">
+          <div class="grid cols-3">
+            <div>
+              <div class="row-meter-head" style="display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px;margin-bottom:10px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="8" cy="12" r="2.5"/><path d="M14 10h5M14 14h5"/></svg>GPU</div>
+              <div class="num" style="font-size:22px;font-weight:600">38 <span class="muted" style="font-size:14px">/ 56 卡</span></div>
+              <div class="meter hot" style="margin-top:10px"><span style="width:68%"></span></div>
+              <div class="num muted" style="font-size:12px;margin-top:6px">68% 使用率</div>
+            </div>
+            <div>
+              <div style="display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px;margin-bottom:10px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="1.5"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3"/></svg>CPU</div>
+              <div class="num" style="font-size:22px;font-weight:600">410 <span class="muted" style="font-size:14px">/ 720 核</span></div>
+              <div class="meter warn" style="margin-top:10px"><span style="width:57%"></span></div>
+              <div class="num muted" style="font-size:12px;margin-top:6px">57% 使用率</div>
+            </div>
+            <div>
+              <div style="display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px;margin-bottom:10px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="10" rx="1.5"/><path d="M7 7V5M11 7V5M15 7V5M19 7V5"/></svg>内存</div>
+              <div class="num" style="font-size:22px;font-weight:600">2.1 <span class="muted" style="font-size:14px">/ 4.0 TiB</span></div>
+              <div class="meter ok" style="margin-top:10px"><span style="width:53%"></span></div>
+              <div class="num muted" style="font-size:12px;margin-top:6px">53% 使用率</div>
+            </div>
+          </div>
+          <hr class="divline" />
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+            <h3 style="font-size:14px">集群 GPU 利用率趋势</h3>
+            <div class="legend"><span><i style="background:var(--accent)"></i>GPU 利用率</span><span><i style="background:var(--muted)"></i>任务并发</span></div>
+          </div>
+          <svg class="chart" viewBox="0 0 720 200" preserveAspectRatio="none" style="height:200px">
+            <line class="grid-line" x1="0" y1="50" x2="720" y2="50"/><line class="grid-line" x1="0" y1="100" x2="720" y2="100"/><line class="grid-line" x1="0" y1="150" x2="720" y2="150"/>
+            <defs><linearGradient id="g1" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--accent)" stop-opacity="0.16"/><stop offset="1" stop-color="var(--accent)" stop-opacity="0"/></linearGradient></defs>
+            <path d="M0 150 L60 138 L120 120 L180 128 L240 96 L300 104 L360 70 L420 88 L480 58 L540 74 L600 50 L660 66 L720 56 L720 200 L0 200 Z" fill="url(#g1)"/>
+            <path d="M0 150 L60 138 L120 120 L180 128 L240 96 L300 104 L360 70 L420 88 L480 58 L540 74 L600 50 L660 66 L720 56" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M0 170 L60 168 L120 160 L180 165 L240 150 L300 158 L360 140 L420 150 L480 134 L540 148 L600 130 L660 142 L720 132" fill="none" stroke="var(--muted)" stroke-width="1.6" stroke-dasharray="4 4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- 快捷入口 + 最近活动 -->
+      <div class="stack" style="display:flex;flex-direction:column;gap:var(--space-5)">
+        <div class="panel">
+          <div class="panel-head"><h3>快捷入口</h3></div>
+          <div class="panel-body" style="display:flex;flex-direction:column;gap:10px">
+            <a class="btn btn-primary btn-lg" href="jobs.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>新建自定义任务</a>
+            <a class="btn btn-lg" href="services.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>部署在线服务</a>
+            <a class="btn btn-lg" href="workspace.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>启动工作区</a>
+          </div>
+        </div>
+        <div class="panel" style="flex:1">
+          <div class="panel-head"><h3>最近活动</h3><a class="link" href="jobs.html" style="font-size:12px">全部</a></div>
+          <div class="panel-body flush">
+            <div class="table-wrap"><table class="tbl">
+              <tbody>
+                <tr><td><div class="t-name mono">train-llm-7b-12</div><div class="t-sub">自定义任务 · 2 分钟前</div></td><td style="text-align:right"><span class="status status-running"><span class="dot"></span>运行中</span></td></tr>
+                <tr><td><div class="t-name mono">svc-chat-api</div><div class="t-sub">在线服务 · 18 分钟前</div></td><td style="text-align:right"><span class="status status-success"><span class="dot"></span>就绪</span></td></tr>
+                <tr><td><div class="t-name mono">llama3-sft-lr-sweep</div><div class="t-sub">实验 · 1 小时前</div></td><td style="text-align:right"><span class="status status-running"><span class="dot"></span>运行中</span></td></tr>
+                <tr><td><div class="t-name mono">rec-recall-train-07</div><div class="t-sub">自定义任务 · 3 小时前</div></td><td style="text-align:right"><span class="status status-success"><span class="dot"></span>成功</span></td></tr>
+              </tbody>
+            </table></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 各租户配额水位（系统管理员全局视图） -->
+    <div class="panel">
+      <div class="panel-head"><h3>租户配额水位</h3><a class="link" href="tenants.html" style="font-size:12px">租户管理 →</a></div>
+      <div class="panel-body flush">
+        <div class="table-wrap"><table class="tbl">
+          <thead><tr><th>租户</th><th>资源池</th><th class="num-col">GPU 用量 / max</th><th style="width:240px">水位</th><th class="num-col">活跃任务</th><th class="num-col">在线服务</th></tr></thead>
+          <tbody>
+            <tr><td class="t-name">大模型研究院</td><td><span class="tag mono">gpu-h100</span></td><td class="num-col">14 / 16</td><td><div class="qbar"><span class="used" style="width:88%"></span><span class="min-mark" style="left:50%"></span></div></td><td class="num-col">9</td><td class="num-col">3</td></tr>
+            <tr><td class="t-name">推荐算法团队</td><td><span class="tag mono">gpu-a100</span></td><td class="num-col">6 / 12</td><td><div class="qbar"><span class="used" style="width:50%"></span><span class="min-mark" style="left:33%"></span></div></td><td class="num-col">5</td><td class="num-col">2</td></tr>
+            <tr><td class="t-name">智能驾驶感知</td><td><span class="tag mono">gpu-l40s</span></td><td class="num-col">11 / 20</td><td><div class="qbar"><span class="used" style="width:55%"></span><span class="min-mark" style="left:40%"></span></div></td><td class="num-col">7</td><td class="num-col">3</td></tr>
+            <tr><td class="t-name">风控 AI</td><td><span class="tag mono">cpu-large</span></td><td class="num-col">0 / 0</td><td><div class="qbar"><span class="used" style="width:62%;background:var(--success)"></span></div></td><td class="num-col">2</td><td class="num-col">1</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+    </div>
+  </main>
+
+  <script src="js/app.js"></script>
+  <script>
+    // 首页描述随租户作用域联动
+    (function () {
+      var s = window.AxisUI && window.AxisUI.state;
+      var d = document.getElementById('scopeDesc');
+      if (s && d && s.tenant !== 'all') d.textContent = '当前租户的运行概览 —— 看一眼负载、配额与资源用量。';
+    })();
+  </script>
+</body>
+</html>

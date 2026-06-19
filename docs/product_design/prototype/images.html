@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>镜像仓 · AxisML 控制台</title>
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body data-nav="images">
+  <main class="page" id="page">
+    <div class="breadcrumb"><span>资产中心</span><span class="sep">/</span><span>镜像仓</span></div>
+    <div class="page-head">
+      <div><h1>镜像仓</h1><p class="sub">统一维护训练、推理等运行环境镜像，保障任务环境一致性与可复现性。支持镜像版本管理与快速分发，降低环境配置和迁移成本。</p></div>
+      <div class="actions"><button class="btn btn-primary" data-drawer-open="newImgDrawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>新建镜像</button></div>
+    </div>
+
+    <div class="toolbar">
+      <div class="field-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input placeholder="搜索名称 / 描述" data-model-search /></div>
+      <select class="select"><option>用途：全部</option><option>training</option><option>inference</option><option>dev</option></select>      <button class="btn btn-ghost">重置</button>
+      <div class="grow"></div>
+      <div class="segmented" data-view-switch="images" data-view-default="cards"><button data-view="cards">▦ 卡片</button><button data-view="list">☰ 列表</button></div>
+    </div>
+
+    <div data-view-pane="cards">
+      <div class="art-cards">
+        <div class="art-card" data-drawer-open="imgVerDrawer">
+          <div class="ac-top"><div class="ac-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="2"/><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></svg></div><div><div class="ac-name">pytorch</div></div></div>
+          <p class="ac-desc">PyTorch 训练镜像</p>          <div class="ac-foot"><span class="mono">2.3-cu121 · 6 版本</span><span>更新 4 天前</span></div>
+        </div>
+        <div class="art-card" data-drawer-open="imgVerDrawer">
+          <div class="ac-top"><div class="ac-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></svg></div><div><div class="ac-name">vllm-serve</div></div></div>
+          <p class="ac-desc">vLLM 推理服务</p>          <div class="ac-foot"><span class="mono">0.5.1 · 8 版本</span><span>更新 1 周前</span></div>
+        </div>
+        <div class="art-card" data-drawer-open="imgVerDrawer">
+          <div class="ac-top"><div class="ac-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m8 18-6-6 6-6M16 6l6 6-6 6"/></svg></div><div><div class="ac-name">jupyter-ds</div></div></div>
+          <p class="ac-desc">Jupyter 开发环境</p>          <div class="ac-foot"><span class="mono">2024.3 · 3 版本</span><span>更新 2 周前</span></div>
+        </div>
+        <div class="art-card" data-drawer-open="imgVerDrawer">
+          <div class="ac-top"><div class="ac-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="2"/><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></svg></div><div><div class="ac-name">megatron</div></div></div>
+          <p class="ac-desc">Megatron-LM 训练</p>          <div class="ac-foot"><span class="mono">24.05 · 2 版本</span><span>更新 6 天前</span></div>
+        </div>
+        <div class="art-card" data-drawer-open="imgVerDrawer">
+          <div class="ac-top"><div class="ac-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M8 17v-5M13 17V8M18 17v-8"/></svg></div><div><div class="ac-name">lm-eval-harness</div></div></div>
+          <p class="ac-desc">评测镜像</p>          <div class="ac-foot"><span class="mono">0.4 · 1 版本</span><span>更新 3 天前</span></div>
+        </div>
+      </div>
+      <div class="pagination" style="margin-top:var(--space-4)"><span>共 5 个</span><div class="pages"><span class="pg">‹</span><span class="pg on">1</span><span class="pg">›</span></div><span>每页 20 条</span></div>
+    </div>
+
+    <div data-view-pane="list" hidden>
+      <div class="panel">
+        <div class="table-wrap"><table class="tbl">
+          <thead><tr><th>名称</th><th>用途</th><th>最新版本</th><th class="num-col">版本数</th><th>更新时间</th><th style="text-align:right">操作</th></tr></thead>
+          <tbody>
+            <tr data-drawer-open="imgVerDrawer"><td><span class="t-name mono">pytorch</span><div class="t-sub">PyTorch 训练镜像</div></td><td><span class="badge badge-neutral">training</span></td><td class="mono">2.3-cu121</td><td class="num-col">6</td><td class="muted">4 天前</td><td><div class="row-actions"><button class="act" aria-label="添加版本"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg></button></div></td></tr>
+            <tr data-drawer-open="imgVerDrawer"><td><span class="t-name mono">vllm-serve</span><div class="t-sub">vLLM 推理服务</div></td><td><span class="badge badge-neutral">inference</span></td><td class="mono">0.5.1</td><td class="num-col">8</td><td class="muted">1 周前</td><td><div class="row-actions"><button class="act" aria-label="添加版本"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg></button></div></td></tr>
+            <tr data-drawer-open="imgVerDrawer"><td><span class="t-name mono">jupyter-ds</span><div class="t-sub">Jupyter 开发环境</div></td><td><span class="badge badge-neutral">dev</span></td><td class="mono">2024.3</td><td class="num-col">3</td><td class="muted">2 周前</td><td><div class="row-actions"><button class="act" aria-label="添加版本"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg></button></div></td></tr>
+            <tr data-drawer-open="imgVerDrawer"><td><span class="t-name mono">megatron</span><div class="t-sub">Megatron-LM 训练</div></td><td><span class="badge badge-neutral">training</span></td><td class="mono">24.05</td><td class="num-col">2</td><td class="muted">6 天前</td><td><div class="row-actions"><button class="act" aria-label="添加版本"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg></button></div></td></tr>
+            <tr data-drawer-open="imgVerDrawer"><td><span class="t-name mono">lm-eval-harness</span><div class="t-sub">评测镜像</div></td><td><span class="badge badge-neutral">inference</span></td><td class="mono">0.4</td><td class="num-col">1</td><td class="muted">3 天前</td><td><div class="row-actions"><button class="act" aria-label="添加版本"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg></button></div></td></tr>
+          </tbody>
+        </table></div>
+        <div class="pagination"><span>共 5 个</span><div class="pages"><span class="pg">‹</span><span class="pg on">1</span><span class="pg">›</span></div><span>每页 20 条</span></div>
+      </div>
+    </div>
+  </main>
+
+  <!-- 镜像 + 版本详情抽屉 -->
+  <aside class="drawer wide" id="imgVerDrawer">
+    <div class="drawer-head"><div><h3 class="mono">pytorch</h3><div class="sub">PyTorch 训练镜像 · training · 创建人 张伟</div></div><button class="icon-btn" data-drawer-close>✕</button></div>
+    <div class="drawer-body">
+      <div class="toolbar"><div class="field-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input placeholder="搜索版本名称 / 描述" data-ver-search /></div><div class="grow"></div><button class="btn btn-sm btn-primary" data-drawer-open="addImgVerDrawer">+ 添加版本</button></div>
+      <div class="ver-list">
+        <div class="ver-item">
+          <div class="ver-top">
+            <span class="ver-name">2.3-cu121</span>
+            <span class="status status-success"><span class="dot"></span>就绪</span>
+            <span class="badge badge-neutral ver-src">Docker 推送</span>
+            <div class="ver-actions">
+              <button class="act" aria-label="拉取命令" data-drawer-open="imgPullDrawer"></button>
+              <button class="act act-danger" aria-label="删除"></button>
+            </div>
+          </div>
+          <div class="ver-desc">PyTorch 2.3 + CUDA 12.1，集成 FlashAttention-2</div>
+          <div class="ver-meta"><span class="ver-addr">zot.axisml.internal/llm-lab/pytorch:2.3-cu121</span><button class="act ver-copy" aria-label="复制" data-toast="地址已复制"></button><span class="ver-by">张伟 · 4 天前</span></div>
+        </div>
+
+        <div class="ver-item">
+          <div class="ver-top">
+            <span class="ver-name">2.2-cu118</span>
+            <span class="status status-success"><span class="dot"></span>就绪</span>
+            <span class="badge badge-neutral ver-src">外部镜像</span>
+            <div class="ver-actions">
+              <button class="act" aria-label="拉取命令" data-drawer-open="imgPullDrawer"></button>
+              <button class="act act-danger" aria-label="删除"></button>
+            </div>
+          </div>
+          <div class="ver-desc">从 NGC 同步的基线训练镜像</div>
+          <div class="ver-meta"><span class="ver-addr">zot.axisml.internal/llm-lab/pytorch:2.2-cu118</span><button class="act ver-copy" aria-label="复制" data-toast="地址已复制"></button><span class="ver-by">李娜 · 2 周前</span></div>
+        </div>
+
+        <div class="ver-item">
+          <div class="ver-top">
+            <span class="ver-name">2.1-cu118</span>
+            <span class="status status-success"><span class="dot"></span>就绪</span>
+            <span class="badge badge-neutral ver-src">Docker 推送</span>
+            <div class="ver-actions">
+              <button class="act" aria-label="拉取命令" data-drawer-open="imgPullDrawer"></button>
+              <button class="act act-danger" aria-label="删除"></button>
+            </div>
+          </div>
+          <div class="ver-desc">兼容旧版 GPU 驱动</div>
+          <div class="ver-meta"><span class="ver-addr">zot.axisml.internal/llm-lab/pytorch:2.1-cu118</span><button class="act ver-copy" aria-label="复制" data-toast="地址已复制"></button><span class="ver-by">李娜 · 3 周前</span></div>
+        </div>
+
+        <div class="ver-item">
+          <div class="ver-top">
+            <span class="ver-name">2.4-cu124</span>
+            <span class="status status-pending"><span class="dot"></span>推送中</span>
+            <span class="badge badge-neutral ver-src">Docker 推送</span>
+            <div class="ver-actions">
+              <button class="act act-run" aria-label="查看进度"></button>
+            </div>
+          </div>
+          <div class="ver-desc">升级至 CUDA 12.4</div>
+          <div class="ver-meta"><span class="ver-addr muted">推送完成后生成…</span><span class="ver-by">张伟 · 刚刚</span></div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- 拉取命令抽屉 -->
+  <aside class="drawer" id="imgPullDrawer">
+    <div class="drawer-head"><div><h3>拉取命令</h3><div class="sub mono">pytorch:2.3-cu121</div></div><button class="icon-btn" data-drawer-close>✕</button></div>
+    <div class="drawer-body">
+      <p class="muted" style="font-size:13px;margin-bottom:12px">镜像存储于 OCI（zot），使用以下命令登录并拉取。临时凭证有效期 1 小时。</p>
+      <pre class="logbox" style="max-height:none">docker login zot.axisml.internal -u &lt;用户名&gt; -p &lt;token&gt;
+docker pull zot.axisml.internal/llm-lab/pytorch:2.3-cu121</pre>
+      <button class="btn" style="margin-top:14px" data-toast="命令已复制到剪贴板">复制命令</button>
+    </div>
+    <div class="drawer-foot"><button class="btn btn-primary" data-drawer-close>完成</button></div>
+  </aside>
+
+  <!-- 新建镜像抽屉（仅创建条目，不含具体版本）-->
+  <aside class="drawer wide" id="newImgDrawer">
+    <div class="drawer-head"><div><h3>新建镜像</h3><div class="sub">先创建镜像条目，再添加具体版本</div></div><button class="icon-btn" data-drawer-close>✕</button></div>
+    <div class="drawer-body">
+      <div class="fieldset-title"><span class="n">1</span>基本信息</div>
+      <div class="form-grid">
+        <div class="field"><label>镜像名 <span class="req">*</span></label><input class="input mono" data-en-only placeholder="my-image" /></div>
+        <div class="field"><label>用途</label><select class="input"><option>训练镜像</option><option>推理镜像</option><option>评估镜像</option><option>自定义</option></select></div>
+        <div class="field full"><label>描述</label><textarea class="textarea" placeholder="简要说明镜像用途、基础环境与适用场景"></textarea></div>
+      </div>
+
+      <div class="fieldset-title"><span class="n">2</span>自定义标签</div>
+      <div class="tag-group">
+        <div class="custom-tags" data-custom-tags>
+          <div class="chip-row" data-tag-list></div>
+          <div class="cta-input">
+            <input class="input mono" placeholder="键，如 cuda" data-tag-key />
+            <span class="cta-sep mono">:</span>
+            <input class="input mono" placeholder="值，如 12.1" data-tag-val />
+            <button class="btn btn-sm" type="button" data-tag-add>添加</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="drawer-foot"><span class="grow"></span><button class="btn" data-drawer-close>取消</button><button class="btn btn-primary" data-toast="镜像已创建，可在版本列表添加版本" data-drawer-submit>创建镜像</button></div>
+  </aside>
+
+  <!-- 添加版本向导抽屉 -->
+  <aside class="drawer wide" id="addImgVerDrawer">
+    <div class="drawer-head"><div><h3>添加版本</h3><div class="sub">向已有镜像添加新版本</div></div><button class="icon-btn" data-drawer-close>✕</button></div>
+    <div class="drawer-body">
+      <div class="fieldset-title"><span class="n">1</span>基本信息</div>
+      <div class="form-grid">
+        <div class="field"><label>镜像</label><input class="input mono" value="pytorch" disabled /></div>
+        <div class="field"><label>版本 / tag <span class="req">*</span></label><input class="input mono" data-tag-name placeholder="2.4-cu124" /></div>
+        <div class="field full"><label>描述</label><textarea class="textarea" placeholder="本次更新内容，如：升级 CUDA、集成 FlashAttention-2"></textarea></div>
+      </div>
+
+      <div class="fieldset-title"><span class="n">2</span>添加方式</div>
+      <div data-tabs>
+        <div class="tabs">
+          <button class="on" data-tab="remote">添加外部镜像</button>
+          <button data-tab="docker">通过 Docker 推送</button>
+        </div>
+
+        <div class="tabpane on" data-pane="remote">
+          <p class="help" style="margin-bottom:14px">引用外部仓库中的已有镜像，平台将其同步到镜像仓，适合从 Docker Hub、NGC、Harbor 等公开或私有仓库导入。</p>
+          <div class="form-grid">
+            <div class="field full"><label>源镜像地址（地址 + tag/digest）<span class="req">*</span></label><input class="input mono" placeholder="docker.io/pytorch/pytorch:2.4.0-cuda12.4-cudnn9-runtime" /></div>
+            <div class="field full"><label>拉取凭证</label><select class="input"><option>公开镜像，无需认证</option><option>ngc-cred（已保存）</option><option>harbor-cred（已保存）</option><option>+ 新建凭证…</option></select></div>
+          </div>
+        </div>
+
+        <div class="tabpane" data-pane="docker">
+          <p class="help" style="margin-bottom:14px">使用 <b>Docker</b> 将本地构建好的镜像直接推送到镜像仓，适合自建镜像与 CI 流水线。</p>
+
+          <div class="oras-step">
+            <div class="os-head">1 · 登录镜像仓</div>
+            <pre class="logbox" style="max-height:none"># 临时凭证有效期 1h
+docker login zot.axisml.internal -u &lt;用户名&gt; -p &lt;token&gt;</pre>
+            <button class="btn btn-sm" style="margin-top:10px" data-toast="登录命令已复制">复制命令</button>
+          </div>
+
+          <div class="oras-step">
+            <div class="os-head">2 · 打标签并推送</div>
+            <pre class="logbox" style="max-height:none"># 1. 为本地镜像打上目标 tag
+docker tag &lt;本地镜像&gt;:&lt;tag&gt; zot.axisml.internal/llm-lab/pytorch:2.4-cu124
+
+# 2. 推送到镜像仓
+docker push zot.axisml.internal/llm-lab/pytorch:2.4-cu124</pre>
+            <button class="btn btn-sm" style="margin-top:10px" data-toast="推送命令已复制">复制命令</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="drawer-foot"><span class="grow"></span><button class="btn" data-drawer-close>取消</button><button class="btn btn-primary" data-toast="已提交，版本将在推送 / 同步完成后就绪" data-drawer-submit>提交</button></div>
+  </aside>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

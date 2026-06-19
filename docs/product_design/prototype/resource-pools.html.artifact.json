@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "resource-pools.html",
+  "entry": "resource-pools.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-06-15T23:38:13.979Z",
+  "updatedAt": "2026-06-15T23:38:13.979Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>流量配置 · AxisML 控制台</title>
+  <link rel="stylesheet" href="css/app.css" />
+  <style>
+    .mini-split { display:flex; flex-direction:column; gap:6px; min-width:200px; }
+    .mini-split .ms { display:flex; align-items:center; gap:8px; font-size:12px; }
+    .mini-split .ms .bar { flex:1; height:6px; border-radius:99px; background:var(--surface); overflow:hidden; }
+    .mini-split .ms .bar > span { display:block; height:100%; background:var(--accent); }
+    .mini-split .ms .bar.alt > span { background:var(--muted); }
+    .mini-split .ms .w { font-family:var(--font-mono); width:30px; text-align:right; }
+    .mini-split .ms .nm { font-family:var(--font-mono); width:96px; color:var(--fg-2); }
+  </style>
+</head>
+<body data-nav="traffic">
+  <main class="page" id="page">
+    <div class="breadcrumb"><span>服务中心</span><span class="sep">/</span><span>流量配置</span></div>
+    <div class="page-head">
+      <div><h1>流量配置</h1><p class="sub">为在线服务编排多版本流量：加权切分、灰度放量与蓝绿式全量切换。一个对外入口按权重分发到多个后端服务。</p></div>
+      <div class="actions"><button class="btn btn-primary" data-drawer-open="tpDrawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>新建策略</button></div>
+    </div>
+
+    <div class="toolbar">
+      <div class="field-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input placeholder="名称搜索" /></div>
+      <select class="select"><option>模式：全部</option><option>加权</option><option>灰度</option></select>
+      <select class="select"><option>状态：全部</option><option>生效中</option><option>灰度中</option><option>未就绪</option></select>
+      <button class="btn btn-ghost">重置</button>
+    </div>
+
+    <div class="panel">
+      <div class="table-wrap"><table class="tbl">
+        <thead><tr><th>名称</th><th>模式</th><th>状态</th><th>后端（流量分布）</th><th>访问地址</th><th style="text-align:right">操作</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><a class="t-name mono" href="traffic-detail.html">rt-chat</a><div class="t-sub">对话服务灰度发布</div></td>
+            <td><span class="badge badge-neutral">灰度</span></td>
+            <td><span class="status status-pending"><span class="dot"></span>灰度中</span></td>
+            <td><div class="mini-split"><div class="ms"><span class="nm">svc-chat-v1</span><span class="bar"><span style="width:90%"></span></span><span class="w">90</span></div><div class="ms"><span class="nm">svc-chat-v2</span><span class="bar alt"><span style="width:10%"></span></span><span class="w">10</span></div></div></td>
+            <td><span class="mono muted" style="font-size:12px">/services/llm-lab/chat/</span></td>
+            <td><div class="row-actions"><a class="act" href="traffic-detail.html" title="详情" aria-label="详情"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a><button class="act" title="禁用" aria-label="禁用"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></svg></button></div></td>
+          </tr>
+          <tr>
+            <td><a class="t-name mono" href="traffic-detail-weighted.html">rt-embed</a><div class="t-sub">向量服务加权切分</div></td>
+            <td><span class="badge badge-neutral">加权</span></td>
+            <td><span class="status status-success"><span class="dot"></span>生效中</span></td>
+            <td><div class="mini-split"><div class="ms"><span class="nm">svc-embed-a</span><span class="bar"><span style="width:50%"></span></span><span class="w">50</span></div><div class="ms"><span class="nm">svc-embed-b</span><span class="bar alt"><span style="width:50%"></span></span><span class="w">50</span></div></div></td>
+            <td><span class="mono muted" style="font-size:12px">/services/llm-lab/embed/</span></td>
+            <td><div class="row-actions"><a class="act" href="traffic-detail-weighted.html" title="详情" aria-label="详情"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a><button class="act" title="禁用" aria-label="禁用"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></svg></button></div></td>
+          </tr>
+          <tr>
+            <td><a class="t-name mono" href="traffic-detail.html">rt-rerank</a><div class="t-sub">重排序灰度</div></td>
+            <td><span class="badge badge-neutral">灰度</span></td>
+            <td><span class="status status-stopped"><span class="dot"></span>未就绪</span></td>
+            <td><span class="muted" style="font-size:12px">svc-rerank-v2 0 · 稳定后端缺失</span></td>
+            <td class="muted">—</td>
+            <td><div class="row-actions"><a class="act" href="traffic-detail.html" title="详情" aria-label="详情"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a><button class="act" title="启用" aria-label="启用"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 4l14 8-14 8z"/></svg></button></div></td>
+          </tr>
+        </tbody>
+      </table></div>
+      <div class="pagination"><span>共 3 条策略</span><div class="pages"><span class="pg">‹</span><span class="pg on">1</span><span class="pg">›</span></div><span>每页 20 条</span></div>
+    </div>
+  </main>
+
+  <!-- 新建策略抽屉 -->
+  <aside class="drawer wide" id="tpDrawer">
+    <div class="drawer-head"><div><h3>新建流量策略</h3><div class="sub">绑定稳定对外入口，把流量分发到当前租户的在线服务后端</div></div><button class="icon-btn" data-drawer-close>✕</button></div>
+    <div class="drawer-body">
+      <div class="fieldset-title"><span class="n">1</span>基本信息与模式</div>
+      <div class="form-grid">
+        <div class="field"><label>名称 <span class="req">*</span></label><input class="input mono" placeholder="rt-chat" /></div>
+        <div class="field full"><label>描述</label><textarea class="textarea" placeholder="用途说明（可选）"></textarea></div>
+        <div class="field full"><label>模式 <span class="req">*</span></label>
+          <div class="pick-grid" data-pick-group style="grid-template-columns:1fr 1fr">
+            <div class="pick on" data-mode="canary"><div class="p-title">灰度（canary）</div><div class="p-spec">1 稳定 + 1 灰度，按百分比逐步放量</div></div>
+            <div class="pick" data-mode="weighted"><div class="p-title">加权（weighted）</div><div class="p-spec">N 个后端按权重切分，Σ=100</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="fieldset-title"><span class="n">2</span>对外入口</div>
+      <div class="form-grid">
+        <div class="field full"><label>Path</label><input class="input mono" placeholder="留空自动生成 /services/llm-lab/rt-chat/" /></div>
+      </div>
+
+      <!-- 后端服务：灰度模式 -->
+      <div data-mode-pane="canary">
+        <div class="fieldset-title"><span class="n">3</span>后端服务（灰度）</div>
+        <div class="form-grid">
+          <div class="field"><label>稳定后端 <span class="req">*</span></label><select class="input"><option>svc-chat-v1（Ready）</option><option>svc-rerank-v1（Ready）</option></select></div>
+          <div class="field"><label>灰度后端 <span class="req">*</span></label><select class="input"><option>svc-chat-v2（Ready）</option><option>svc-rerank-v2（Ready）</option></select></div>
+          <div class="field full"><label>初始灰度百分比</label><input class="input num" value="5" /><span class="help">1 个稳定后端 + 1 个灰度后端，按百分比逐步放量。后端下拉只列当前租户 Ready 且未被其它活跃策略占用的服务。</span></div>
+        </div>
+      </div>
+
+      <!-- 后端服务：加权模式 -->
+      <div data-mode-pane="weighted" hidden>
+        <div class="fieldset-title"><span class="n">3</span>后端服务（加权）</div>
+        <div class="form-grid">
+          <div class="field full"><label>后端与权重 <span class="req">*</span></label>
+            <div class="vol-list" data-vol-list>
+              <div class="vol-row">
+                <select class="input" aria-label="后端服务"><option>svc-embed-a（Ready）</option><option>svc-embed-b（Ready）</option><option>svc-chat-v1（Ready）</option></select>
+                <input class="input num" type="number" min="0" max="100" value="50" placeholder="权重 0–100" aria-label="权重" />
+                <button type="button" class="icon-btn" data-vol-remove title="移除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+              </div>
+              <div class="vol-row">
+                <select class="input" aria-label="后端服务"><option>svc-embed-b（Ready）</option><option>svc-embed-a（Ready）</option><option>svc-chat-v1（Ready）</option></select>
+                <input class="input num" type="number" min="0" max="100" value="50" placeholder="权重 0–100" aria-label="权重" />
+                <button type="button" class="icon-btn" data-vol-remove title="移除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+              </div>
+            </div>
+            <a class="link vol-add" data-vol-add role="button" tabindex="0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>添加后端</a>
+            <span class="help">N 个后端按权重切分，权重之和需为 100。后端下拉只列当前租户 Ready 且未被其它活跃策略占用的服务。</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="drawer-foot"><button class="btn" data-drawer-close>取消</button><button class="btn btn-primary" data-toast="流量策略已创建" data-drawer-submit>创建策略</button></div>
+  </aside>
+
+  <script src="js/app.js"></script>
+  <script>
+    // 新建策略：根据模式切换后端服务配置（灰度 / 加权）
+    (function () {
+      var drawer = document.getElementById('tpDrawer');
+      if (!drawer) return;
+      var picks = drawer.querySelectorAll('[data-pick-group] .pick');
+      var panes = drawer.querySelectorAll('[data-mode-pane]');
+      function setMode(m) {
+        panes.forEach(function (p) { p.hidden = p.getAttribute('data-mode-pane') !== m; });
+      }
+      picks.forEach(function (p) {
+        p.addEventListener('click', function () {
+          var m = p.getAttribute('data-mode');
+          if (m) setMode(m);
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

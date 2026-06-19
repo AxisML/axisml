@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>工作区 · AxisML 控制台</title>
+  <link rel="stylesheet" href="css/app.css" />
+  <style>
+    .ws-cards { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:var(--space-4); }
+    @media (max-width:1100px){ .ws-cards { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+    @media (max-width:680px){ .ws-cards { grid-template-columns:1fr; } }
+    .ws-card { background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-md); padding:var(--space-4); box-shadow:var(--elev-card); transition:border-color var(--motion-fast),box-shadow var(--motion-fast); }
+    .ws-card:hover { border-color:color-mix(in oklab,var(--accent) 40%,var(--border)); box-shadow:var(--elev-raised); }
+    .ws-card .wc-head { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+    .ws-card .wc-logo { width:38px; height:38px; border-radius:9px; display:grid; place-items:center; background:var(--surface); border:1px solid var(--border-soft); flex:none; }
+    .ws-card .wc-logo svg { width:23px; height:23px; }
+    .ws-card .wc-id { min-width:0; }
+    .ws-card .wc-name { font-family:var(--font-mono); font-weight:600; font-size:14px; color:var(--fg); text-decoration:none; }
+    .ws-card a.wc-name:hover { color:var(--accent); }
+    .ws-card .wc-meta { color:var(--muted); font-size:12px; line-height:1.65; }
+    .ws-card .wc-info { display:flex; align-items:center; gap:8px; margin-top:10px; }
+    .ws-card .wc-chip { display:inline-flex; align-items:center; gap:5px; padding:3px 9px 3px 7px; border:1px solid var(--border); border-radius:var(--radius-pill); background:var(--surface); color:var(--fg-2); font-family:var(--font-mono); font-size:11.5px; }
+    .ws-card .wc-chip svg { width:13px; height:13px; color:var(--muted); flex:none; }
+    .ws-card .wc-owner { display:inline-flex; align-items:center; gap:6px; margin-left:auto; color:var(--fg-2); font-size:12px; }
+    .ws-card .wc-ava { width:20px; height:20px; border-radius:50%; display:grid; place-items:center; font-size:10px; font-weight:600; line-height:1; color:var(--accent); background:color-mix(in oklab,var(--accent) 13%,var(--bg)); }
+    .ws-card .wc-divider { height:1px; background:var(--border-soft); margin:14px 0 10px; }
+    .ws-card .wc-actions { display:flex; align-items:center; gap:6px; }
+    .ws-card .wc-spacer { flex:1; }
+    .ws-card .wc-act { width:32px; height:32px; display:grid; place-items:center; border-radius:8px; border:1px solid transparent; background:transparent; color:var(--fg-2); cursor:pointer; transition:background var(--motion-fast),color var(--motion-fast),border-color var(--motion-fast); }
+    .ws-card .wc-act:hover { background:var(--surface); border-color:var(--border); color:var(--fg); }
+    .ws-card .wc-act svg { width:18px; height:18px; }
+    .ws-card .wc-act svg.brand { width:17px; height:17px; }
+    .ws-card .wc-act.start { color:var(--accent); }
+    .ws-card .wc-act.danger:hover { background:color-mix(in oklab,var(--danger) 9%,transparent); border-color:color-mix(in oklab,var(--danger) 35%,var(--border)); color:var(--danger); }
+    .ws-card .wc-act[disabled] { opacity:.36; pointer-events:none; }
+    .ws-card .wc-act[disabled] svg.brand { filter:grayscale(1); }
+    svg.brand { display:block; }
+  </style>
+</head>
+<body data-nav="workspace">
+  <!-- 工具品牌徽标（Jupyter / VS Code / PyTorch），按官方品牌色着色 -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <symbol id="ic-jupyter" viewBox="0 0 24 24"><path fill="#F37726" d="M7.157 22.201A1.784 1.784 0 0 1 5.374 24a1.784 1.784 0 0 1-1.784-1.799 1.784 1.784 0 0 1 1.784-1.799 1.784 1.784 0 0 1 1.783 1.799zM20.582 1.427a1.415 1.415 0 0 1-1.415 1.428 1.415 1.415 0 0 1-1.416-1.428A1.415 1.415 0 0 1 19.167 0a1.415 1.415 0 0 1 1.415 1.427zM4.992 3.336A1.781 1.781 0 0 1 3.21 5.135 1.781 1.781 0 0 1 1.427 3.336 1.781 1.781 0 0 1 3.21 1.537a1.781 1.781 0 0 1 1.782 1.799zM12 18.694c-3.945 0-7.394-1.417-9.191-3.506a9.799 9.799 0 0 0 18.382 0c-1.797 2.089-5.246 3.506-9.191 3.506zM12 5.306c3.945 0 7.394 1.417 9.191 3.506a9.799 9.799 0 0 0-18.382 0C4.606 6.723 8.055 5.306 12 5.306z"/></symbol>
+    <symbol id="ic-vscode" viewBox="0 0 24 24"><path fill="#007ACC" d="M23.15 2.587L18.21.21a1.494 1.494 0 0 0-1.705.29l-9.46 8.63-4.12-3.128a.999.999 0 0 0-1.276.057L.327 7.261A1 1 0 0 0 .326 8.74L3.899 12 .326 15.26a1 1 0 0 0 .001 1.479L1.65 17.94a.999.999 0 0 0 1.276.057l4.12-3.128 9.46 8.63a1.492 1.492 0 0 0 1.704.29l4.942-2.377A1.5 1.5 0 0 0 24 20.06V3.939a1.5 1.5 0 0 0-.85-1.352zm-5.146 14.861L10.826 12l7.178-5.448v10.896z"/></symbol>
+    <symbol id="ic-pytorch" viewBox="0 0 24 24"><path fill="#EE4C2C" d="M12.005 0L4.952 7.053a9.865 9.865 0 0 0 0 13.945 9.866 9.866 0 0 0 13.946 0c3.515-3.515 3.515-9.21 0-12.724l-1.508 1.508c2.682 2.682 2.682 7.026 0 9.708a6.865 6.865 0 0 1-9.71 0 6.865 6.865 0 0 1 0-9.708l4.317-4.34.008.008V0zm3.291 4.388a1.184 1.184 0 1 0 0 2.368 1.184 1.184 0 0 0 0-2.368z"/></symbol>
+    <symbol id="ic-terminal" viewBox="0 0 24 24"><rect x="1.5" y="3.5" width="21" height="17" rx="3.5" fill="#2B303B"/><path d="M5.6 9.1l3.3 2.9-3.3 2.9" fill="none" stroke="#36D399" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M11.6 15h6" fill="none" stroke="#C8CDD6" stroke-width="1.9" stroke-linecap="round"/></symbol>
+  </svg>
+  <main class="page" id="page">
+    <div class="breadcrumb"><span>训练中心</span><span class="sep">/</span><span>工作区</span></div>
+    <div class="page-head">
+      <div><h1>工作区</h1><p class="sub">用于交互式开发的容器环境，支持 Jupyter 和 VSCode，不用时随时停掉。</p></div>
+      <div class="actions"><button class="btn btn-primary" data-drawer-open="wsDrawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>新建工作区</button></div>
+    </div>
+
+    <div class="toolbar">
+      <div class="field-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input placeholder="名称搜索" /></div>
+      <select class="select"><option>状态：全部</option><option>运行中</option><option>启动中</option><option>已停止</option></select>
+      <select class="select"><option>资源池：全部</option><option>gpu-a100</option><option>gpu-l40s</option><option>cpu-medium</option></select>
+      <select class="select"><option>创建人：全部</option><option>张伟</option><option>李娜</option></select>
+      <button class="btn btn-ghost">重置</button>
+      <div class="grow"></div>
+      <div class="segmented" data-view-switch="workspace" data-view-default="cards"><button data-view="cards">▦ 卡片</button><button data-view="list">☰ 列表</button></div>
+    </div>
+
+    <!-- 卡片视图 -->
+    <div id="cardView" class="ws-cards" data-view-pane="cards">
+      <div class="ws-card" data-card-href="workspace-detail.html">
+        <div class="wc-head"><div class="wc-logo"><svg class="brand"><use href="#ic-jupyter"/></svg></div><div class="wc-id"><a class="wc-name" href="workspace-detail.html">ws-dev-zhang</a><div class="wc-meta">开发调试环境</div></div><span class="status status-running" style="margin-left:auto"><span class="dot"></span>运行中</span></div>
+        <div class="wc-info">
+          <span class="wc-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/></svg>cpu-medium/1x</span>
+          <span class="wc-owner"><span class="wc-ava">张</span>张伟</span>
+        </div>
+        <div class="wc-divider"></div>
+        <div class="wc-actions">
+          <button class="wc-act" title="打开 Jupyter" data-toast="正在打开 Jupyter…"><svg class="brand"><use href="#ic-jupyter"/></svg></button>
+          <button class="wc-act" title="打开 VS Code" data-toast="正在打开 VS Code…"><svg class="brand"><use href="#ic-vscode"/></svg></button>
+          <button class="wc-act" title="打开终端" data-toast="正在打开终端…"><svg class="brand"><use href="#ic-terminal"/></svg></button>
+          <span class="wc-spacer"></span>
+          <button class="wc-act" title="停止工作区" data-toast="工作区已停止"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v8"/><path d="M7.5 7a7 7 0 1 0 9 0"/></svg></button>
+          <button class="wc-act danger" title="删除工作区" data-confirm="删除工作区 ws-dev-zhang？" data-confirm-desc="运行中的工作区将先停止再删除，删除后不可恢复。" data-confirm-info="<label style='display:flex;align-items:center;gap:8px;margin-top:4px'><input type='checkbox' checked> 一并删除数据卷 PVC（50 GiB）</label>" data-confirm-ok="确认删除" data-confirm-toast="工作区已删除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M7 7l1 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-13"/></svg></button>
+        </div>
+      </div>
+      <div class="ws-card" data-card-href="workspace-detail.html">
+        <div class="wc-head"><div class="wc-logo"><svg class="brand"><use href="#ic-pytorch"/></svg></div><div class="wc-id"><a class="wc-name" href="workspace-detail.html">ws-train-li</a><div class="wc-meta">分布式训练调试</div></div><span class="status status-pending" style="margin-left:auto"><span class="dot"></span>启动中</span></div>
+        <div class="wc-info">
+          <span class="wc-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/></svg>gpu-a100/1x</span>
+          <span class="wc-owner"><span class="wc-ava">李</span>李娜</span>
+        </div>
+        <div class="wc-divider"></div>
+        <div class="wc-actions">
+          <button class="wc-act" title="工作区启动后可用" disabled><svg class="brand"><use href="#ic-jupyter"/></svg></button>
+          <button class="wc-act" title="工作区启动后可用" disabled><svg class="brand"><use href="#ic-vscode"/></svg></button>
+          <button class="wc-act" title="工作区启动后可用" disabled><svg class="brand"><use href="#ic-terminal"/></svg></button>
+          <span class="wc-spacer"></span>
+          <button class="wc-act" title="停止工作区" data-toast="工作区已停止"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v8"/><path d="M7.5 7a7 7 0 1 0 9 0"/></svg></button>
+        </div>
+      </div>
+      <div class="ws-card" data-card-href="workspace-detail.html">
+        <div class="wc-head"><div class="wc-logo"><svg class="brand"><use href="#ic-jupyter"/></svg></div><div class="wc-id"><a class="wc-name" href="workspace-detail.html">ws-notebook-chen</a><div class="wc-meta">推理实验环境</div></div><span class="status status-running" style="margin-left:auto"><span class="dot"></span>运行中</span></div>
+        <div class="wc-info">
+          <span class="wc-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/></svg>gpu-l40s/1x</span>
+          <span class="wc-owner"><span class="wc-ava">陈</span>陈曦</span>
+        </div>
+        <div class="wc-divider"></div>
+        <div class="wc-actions">
+          <button class="wc-act" title="打开 Jupyter" data-toast="正在打开 Jupyter…"><svg class="brand"><use href="#ic-jupyter"/></svg></button>
+          <button class="wc-act" title="打开 VS Code" data-toast="正在打开 VS Code…"><svg class="brand"><use href="#ic-vscode"/></svg></button>
+          <button class="wc-act" title="打开终端" data-toast="正在打开终端…"><svg class="brand"><use href="#ic-terminal"/></svg></button>
+          <span class="wc-spacer"></span>
+          <button class="wc-act" title="停止工作区" data-toast="工作区已停止"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v8"/><path d="M7.5 7a7 7 0 1 0 9 0"/></svg></button>
+          <button class="wc-act danger" title="删除工作区" data-confirm="删除工作区 ws-notebook-chen？" data-confirm-desc="运行中的工作区将先停止再删除，删除后不可恢复。" data-confirm-info="<label style='display:flex;align-items:center;gap:8px;margin-top:4px'><input type='checkbox' checked> 一并删除数据卷 PVC（100 GiB）</label>" data-confirm-ok="确认删除" data-confirm-toast="工作区已删除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M7 7l1 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-13"/></svg></button>
+        </div>
+      </div>
+      <div class="ws-card" data-card-href="workspace-detail.html">
+        <div class="wc-head"><div class="wc-logo"><svg class="brand"><use href="#ic-vscode"/></svg></div><div class="wc-id"><a class="wc-name" href="workspace-detail.html">ws-eval-wang</a><div class="wc-meta">评估脚本调试</div></div><span class="status status-stopped" style="margin-left:auto"><span class="dot"></span>已停止</span></div>
+        <div class="wc-info">
+          <span class="wc-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/></svg>cpu-medium/1x</span>
+          <span class="wc-owner"><span class="wc-ava">王</span>王磊</span>
+        </div>
+        <div class="wc-divider"></div>
+        <div class="wc-actions">
+          <button class="wc-act start" title="启动工作区" data-toast="工作区启动中…"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86A1 1 0 0 0 8 5.14z"/></svg></button>
+          <span class="wc-spacer"></span>
+          <button class="wc-act danger" title="删除工作区" data-confirm="删除工作区 ws-eval-wang？" data-confirm-desc="工作区已停止，删除后不可恢复。" data-confirm-info="<label style='display:flex;align-items:center;gap:8px;margin-top:4px'><input type='checkbox' checked> 一并删除数据卷 PVC（20 GiB）</label>" data-confirm-ok="确认删除" data-confirm-toast="工作区已删除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M7 7l1 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-13"/></svg></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 列表视图 -->
+    <div id="listView" class="panel" data-view-pane="list" hidden>
+      <div class="table-wrap"><table class="tbl">
+        <thead><tr><th>名称</th><th>状态</th><th>资源单元</th><th>镜像</th><th>创建人</th><th style="text-align:right">操作</th></tr></thead>
+        <tbody>
+          <tr><td><a class="t-name mono" href="workspace-detail.html">ws-dev-zhang</a></td><td><span class="status status-running"><span class="dot"></span>运行中</span></td><td class="mono">cpu-medium/1x</td><td class="mono muted">jupyter-ds:2024.3</td><td>张伟</td><td><div class="row-actions"><a class="act" href="workspace-detail.html" title="详情" aria-label="详情"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a><button class="act" title="停止" aria-label="停止"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="6" y="6" width="12" height="12" rx="1"/></svg></button><button class="act act-danger" title="删除" aria-label="删除" data-confirm="删除工作区 ws-dev-zhang？" data-confirm-desc="删除后不可恢复。" data-confirm-info="<label style='display:flex;align-items:center;gap:8px;margin-top:4px'><input type='checkbox' checked> 一并删除数据卷 PVC（50 GiB）</label>" data-confirm-ok="确认删除" data-confirm-toast="工作区已删除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg></button></div></td></tr>
+          <tr><td class="t-name mono">ws-train-li</td><td><span class="status status-pending"><span class="dot"></span>启动中</span></td><td class="mono">gpu-a100/1x</td><td class="mono muted">pytorch:2.3-cu121</td><td>李娜</td><td><div class="row-actions"><a class="act" href="workspace-detail.html" title="详情" aria-label="详情"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a><button class="act" title="停止" aria-label="停止"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="6" y="6" width="12" height="12" rx="1"/></svg></button><button class="act act-danger" title="删除" aria-label="删除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg></button></div></td></tr>
+          <tr><td class="t-name mono">ws-notebook-chen</td><td><span class="status status-running"><span class="dot"></span>运行中</span></td><td class="mono">gpu-l40s/1x</td><td class="mono muted">jupyter-tf:2.16</td><td>陈曦</td><td><div class="row-actions"><a class="act" href="workspace-detail.html" title="详情" aria-label="详情"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a><button class="act" title="停止" aria-label="停止"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="6" y="6" width="12" height="12" rx="1"/></svg></button><button class="act act-danger" title="删除" aria-label="删除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg></button></div></td></tr>
+          <tr><td class="t-name mono">ws-eval-wang</td><td><span class="status status-stopped"><span class="dot"></span>已停止</span></td><td class="mono">cpu-medium/1x</td><td class="mono muted">vscode-server:1.90</td><td>王磊</td><td><div class="row-actions"><a class="act" href="workspace-detail.html" title="详情" aria-label="详情"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a><button class="act" title="启动" aria-label="启动"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 4l14 8-14 8z"/></svg></button><button class="act act-danger" title="删除" aria-label="删除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg></button></div></td></tr>
+        </tbody>
+      </table></div>
+      <div class="pagination"><span>共 4 个工作区</span><div class="pages"><span class="pg">‹</span><span class="pg on">1</span><span class="pg">›</span></div><span>每页 20 条</span></div>
+    </div>
+  </main>
+
+  <!-- 新建工作区抽屉 -->
+  <aside class="drawer wide" id="wsDrawer">
+    <div class="drawer-head"><div><h3>新建工作区</h3><div class="sub">交互式开发容器 · 隶属当前租户</div></div><button class="icon-btn" data-drawer-close>✕</button></div>
+    <div class="drawer-body">
+      <div class="fieldset-title"><span class="n">1</span>基本信息</div>
+      <div class="form-grid">
+        <div class="field"><label>名称 <span class="req">*</span></label><input class="input" placeholder="开发调试环境" /><span class="help">用于在列表与详情中展示</span></div>
+        <div class="field full"><label>描述</label><textarea class="textarea" placeholder="用途说明（可选）"></textarea></div>
+      </div>
+
+      <div class="fieldset-title"><span class="n">2</span>镜像</div>
+      <div class="field"><label>开发镜像 <span class="req">*</span></label>
+        <div class="pick-grid" data-pick-group>
+          <div class="pick on" style="display:flex;align-items:center;gap:10px"><svg class="brand" style="width:22px;height:22px;flex:none"><use href="#ic-jupyter"/></svg><div><div class="p-title">jupyter-ds:2024.3</div><div class="p-spec">Jupyter 开发环境 · 公共</div></div></div>
+          <div class="pick" style="display:flex;align-items:center;gap:10px"><svg class="brand" style="width:22px;height:22px;flex:none"><use href="#ic-pytorch"/></svg><div><div class="p-title">pytorch:2.3-cu121</div><div class="p-spec">PyTorch 训练镜像</div></div></div>
+          <div class="pick" style="display:flex;align-items:center;gap:10px"><svg class="brand" style="width:22px;height:22px;flex:none"><use href="#ic-vscode"/></svg><div><div class="p-title">vscode-server:1.90</div><div class="p-spec">VS Code 开发环境 · 公共</div></div></div>
+        </div>
+      </div>
+
+      <div class="fieldset-title"><span class="n">3</span>资源选择</div>
+      <div class="form-grid">
+        <div class="field full"><label>资源池 <span class="req">*</span></label><select class="input"><option>gpu-a100 · A100 训练池</option><option>gpu-l40s · L40S 推理池</option><option selected>cpu-medium · 通用 CPU 池</option></select></div>
+      </div>
+      <div class="field" style="margin-top:var(--space-4)"><label>资源单元 <span class="req">*</span></label>
+        <div class="pick-grid" data-pick-group>
+          <div class="pick on"><div class="p-title">cpu-medium</div><div class="p-spec">8 vCPU · 32 GiB</div></div>
+          <div class="pick"><div class="p-title">cpu-large</div><div class="p-spec">16 vCPU · 64 GiB</div></div>
+          <div class="pick"><div class="p-title">a100-1x</div><div class="p-spec">1×A100 · 8 vCPU · 64 GiB</div></div>
+        </div>
+      </div>
+
+      <div class="fieldset-title"><span class="n">4</span>环境变量</div>
+      <div class="form-grid">
+        <div class="field full"><label>环境变量</label><textarea class="textarea" placeholder="HF_HOME=/data/hf&#10;CUDA_VISIBLE_DEVICES=0"></textarea><span class="help">每行一个 KEY=VALUE，注入到工作区容器。</span></div>
+      </div>
+
+      <div class="fieldset-title"><span class="n">5</span>数据卷</div>
+      <div class="form-grid">
+        <div class="field full"><label>数据卷 <span class="req">*</span></label>
+          <div class="vol-list" data-vol-list>
+            <div class="vol-row">
+              <select class="input" aria-label="数据卷"><option>新建数据卷（50 GiB · standard-rwo）</option><option>ws-shared-cache（200 GiB · fast-ssd）</option><option>team-datasets（1 TiB · standard-rwo）</option></select>
+              <input class="input mono" value="/workspace" placeholder="挂载路径" aria-label="挂载路径" />
+              <button type="button" class="icon-btn" data-vol-remove title="移除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+            </div>
+          </div>
+          <a class="link vol-add" data-vol-add role="button" tabindex="0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>添加数据卷</a>
+        </div>
+      </div>
+    </div>
+    <div class="drawer-foot"><span class="grow"></span><button class="btn" data-drawer-close>取消</button><button class="btn btn-primary" data-toast="工作区创建中…" data-drawer-submit>创建工作区</button></div>
+  </aside>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

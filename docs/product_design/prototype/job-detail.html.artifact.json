@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "job-detail.html",
+  "entry": "job-detail.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-06-15T23:36:33.489Z",
+  "updatedAt": "2026-06-15T23:36:33.489Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

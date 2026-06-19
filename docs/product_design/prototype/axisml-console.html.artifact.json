@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "AxisML 控制台 · 首页",
+  "entry": "axisml-console.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "primary": true,
+  "createdAt": "2026-06-15T23:30:17.614Z",
+  "updatedAt": "2026-06-15T23:30:17.617Z",
+  "sourceSkillId": "agent-browser",
+  "designSystemId": "ant",
+  "metadata": {
+    "identifier": "axisml-console",
+    "artifactType": "text/html",
+    "inferred": false
+  }
+}

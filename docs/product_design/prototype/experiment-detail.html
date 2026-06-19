@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>llama3-sft-lr-sweep · 实验 · AxisML</title>
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body data-nav="experiments">
+  <main class="page" id="page">
+    <a class="back-link" href="experiments.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>返回实验</a>
+
+    <div class="page-head">
+      <div>
+        <h1 class="detail-title mono">llama3-sft-lr-sweep <span class="spill run"><span class="dot"></span>运行中</span></h1>
+        <div class="detail-sub">LLaMA3-8B SFT 学习率扫描 · 8 个运行 · 创建人 张伟</div>
+      </div>
+      <div class="actions">
+        <button class="btn btn-primary" data-toast="已触发运行 llama3-sft-lr-sweep-9"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 4l14 8-14 8z"/></svg>运行</button>
+        <button class="btn" style="padding:0;width:34px" title="启动 TensorBoard" aria-label="启动 TensorBoard" data-toast="正在启动 TensorBoard…"><svg viewBox="0 0 24 24" fill="none" stroke="#FF6F00" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5M4 19h16M8 16v-5M12 16V8M16 16v-3"/></svg></button>
+        <button class="btn btn-danger" data-confirm="删除实验 llama3-sft-lr-sweep？" data-confirm-desc="删除后实验模板不可恢复；历史运行将一并级联软删。" data-confirm-info="有活跃运行时删除会被阻断。" data-confirm-ok="确认删除" data-confirm-toast="实验 llama3-sft-lr-sweep 已删除">删除</button>
+      </div>
+    </div>
+
+    <div data-tabs>
+      <div class="tabs">
+        <button class="on" data-tab="info">实验信息</button>
+        <button data-tab="runs">运行记录<span class="cnt">8</span></button>
+      </div>
+
+      <!-- ============ 实验信息（对照新建实验的各项配置） ============ -->
+      <div class="tabpane on" data-pane="info">
+        <div class="panel">
+          <div class="panel-head"><h3>实验信息</h3><button class="btn btn-sm" data-toast="进入编辑（编辑只影响之后触发的运行）">编辑</button></div>
+          <div class="panel-body">
+            <dl class="kv kv-lg">
+              <dt>实验名</dt><dd><span class="cchip">llama3-sft-lr-sweep</span></dd>
+              <dt>描述</dt><dd>LLaMA3-8B SFT 学习率扫描</dd>
+              <dt>训练镜像</dt><dd><span class="cchip">pytorch:2.3-cu121</span></dd>
+              <dt>资源池</dt><dd><span class="cchip">gpu-a100 · A100 训练池</span></dd>
+              <dt>资源单元</dt><dd><span class="cchip">a100-4x-xlarge</span></dd>
+              <dt>副本数</dt><dd><span class="mono">2</span><span class="muted" style="margin-left:8px">多机多卡</span></dd>
+              <dt>数据卷</dt><dd><span class="cchip">team-datasets · 1 TiB → /data</span><span class="cchip" style="margin-left:6px">ckpt-store · 500 GiB → /output</span></dd>
+              <dt>运行策略</dt><dd>超时 <span class="mono">48h</span> · 重试 <span class="mono">1</span></dd>
+              <dt>创建人</dt><dd>张伟 · <span class="mono">2026-06-10</span></dd>
+            </dl>
+            <div style="margin-top:var(--space-6);padding-top:var(--space-5);border-top:1px solid var(--border-soft)">
+              <label class="muted" style="font-size:12px">启动命令（超参写在命令 / 参数中）</label>
+              <pre class="logbox" style="max-height:none;margin:6px 0 18px">torchrun --nproc_per_node=4 sft.py \
+  --base llama3-8b-base --lr {{lr}} --epochs 3</pre>
+              <label class="muted" style="font-size:12px">环境变量</label>
+              <div class="chip-row" style="margin-top:8px"><span class="cchip">WANDB_DISABLED=true</span><span class="cchip">NCCL_DEBUG=INFO</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ 运行记录（列与自定义任务保持一致） ============ -->
+      <div class="tabpane" data-pane="runs">
+        <div class="toolbar">
+          <div class="field-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input placeholder="Run 名 / ID 搜索" /></div>
+          <select class="select"><option>状态：全部</option><option>运行中</option><option>成功</option><option>失败</option></select>
+          <select class="select"><option>触发人：全部</option><option>张伟</option><option>李娜</option></select>
+          <select class="select"><option>时间：近 7 天</option><option>近 24 小时</option><option>近 30 天</option><option>全部</option></select>
+          <button class="btn btn-ghost">重置</button>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><h3>运行记录</h3><span class="hint">按触发时间倒序 · 共 8 条</span></div>
+          <div class="table-wrap"><table class="tbl">
+            <thead><tr><th>Run</th><th>状态</th><th>资源单元</th><th class="num-col">副本</th><th>触发人</th><th class="num-col">耗时</th><th style="text-align:right">操作</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><a class="t-name mono" href="run-detail.html">llama3-sft-lr-sweep-8</a></td>
+                <td><span class="status status-running"><span class="dot"></span>运行中</span></td>
+                <td class="mono">a100-8x-xlarge-ib</td><td class="num-col">2</td><td>张伟</td><td class="num-col">01:12:30</td>
+                <td><div class="row-actions"><a class="act" href="run-detail.html" title="详情" aria-label="详情"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a><button class="act" title="日志" aria-label="日志"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M8 13h8M8 17h6"/></svg></button><button class="act" title="监控" aria-label="监控"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></button><button class="act" title="取消" aria-label="取消" data-confirm="取消运行 llama3-sft-lr-sweep-8？" data-confirm-desc="取消后正在执行的 Pod 将被终止，已产出的 checkpoint 保留。" data-confirm-ok="确认取消" data-confirm-toast="运行已请求取消"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M15 9l-6 6M9 9l6 6"/></svg></button></div></td>
+              </tr>
+              <tr>
+                <td><a class="t-name mono" href="run-detail.html">llama3-sft-lr-sweep-7</a></td>
+                <td><span class="status status-success"><span class="dot"></span>成功</span></td>
+                <td class="mono">a100-4x-xlarge</td><td class="num-col">2</td><td>张伟</td><td class="num-col">03:40:18</td>
+                <td><div class="row-actions"><a class="act" href="run-detail.html" title="详情" aria-label="详情"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a><button class="act" title="日志" aria-label="日志"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M8 13h8M8 17h6"/></svg></button><button class="act" title="监控" aria-label="监控"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></button><button class="act act-danger" title="删除" aria-label="删除" data-confirm="删除运行 llama3-sft-lr-sweep-7？" data-confirm-desc="删除后该 Run 记录与日志不可恢复。" data-confirm-ok="确认删除" data-confirm-toast="运行 llama3-sft-lr-sweep-7 已删除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg></button></div></td>
+              </tr>
+              <tr>
+                <td><a class="t-name mono" href="run-detail.html">llama3-sft-lr-sweep-6</a></td>
+                <td><span class="status status-success"><span class="dot"></span>成功</span></td>
+                <td class="mono">a100-4x-xlarge</td><td class="num-col">2</td><td>李娜</td><td class="num-col">03:33:40</td>
+                <td><div class="row-actions"><a class="act" href="run-detail.html" title="详情" aria-label="详情"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a><button class="act" title="日志" aria-label="日志"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M8 13h8M8 17h6"/></svg></button><button class="act" title="监控" aria-label="监控"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></button><button class="act act-danger" title="删除" aria-label="删除" data-confirm="删除运行 llama3-sft-lr-sweep-6？" data-confirm-desc="删除后该 Run 记录与日志不可恢复。" data-confirm-ok="确认删除" data-confirm-toast="运行 llama3-sft-lr-sweep-6 已删除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg></button></div></td>
+              </tr>
+              <tr>
+                <td><a class="t-name mono" href="run-detail.html">llama3-sft-lr-sweep-5</a></td>
+                <td><span class="status status-success"><span class="dot"></span>成功</span></td>
+                <td class="mono">a100-4x-xlarge</td><td class="num-col">2</td><td>张伟</td><td class="num-col">03:38:02</td>
+                <td><div class="row-actions"><a class="act" href="run-detail.html" title="详情" aria-label="详情"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a><button class="act" title="日志" aria-label="日志"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M8 13h8M8 17h6"/></svg></button><button class="act" title="监控" aria-label="监控"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></button><button class="act act-danger" title="删除" aria-label="删除" data-confirm="删除运行 llama3-sft-lr-sweep-5？" data-confirm-desc="删除后该 Run 记录与日志不可恢复。" data-confirm-ok="确认删除" data-confirm-toast="运行 llama3-sft-lr-sweep-5 已删除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg></button></div></td>
+              </tr>
+              <tr>
+                <td><a class="t-name mono" href="run-detail.html">llama3-sft-lr-sweep-4</a></td>
+                <td><span class="status status-failed"><span class="dot"></span>失败</span></td>
+                <td class="mono">a100-4x-xlarge</td><td class="num-col">2</td><td>李娜</td><td class="num-col">00:00:09</td>
+                <td><div class="row-actions"><a class="act" href="run-detail.html" title="详情" aria-label="详情"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a><button class="act" title="日志" aria-label="日志"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M8 13h8M8 17h6"/></svg></button><button class="act" title="监控" aria-label="监控"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></button><button class="act act-danger" title="删除" aria-label="删除" data-confirm="删除运行 llama3-sft-lr-sweep-4？" data-confirm-desc="删除后该 Run 记录与日志不可恢复。" data-confirm-ok="确认删除" data-confirm-toast="运行 llama3-sft-lr-sweep-4 已删除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg></button></div></td>
+              </tr>
+              <tr>
+                <td><a class="t-name mono" href="run-detail.html">llama3-sft-lr-sweep-3</a></td>
+                <td><span class="status status-success"><span class="dot"></span>成功</span></td>
+                <td class="mono">a100-4x-xlarge</td><td class="num-col">2</td><td>张伟</td><td class="num-col">03:51:22</td>
+                <td><div class="row-actions"><a class="act" href="run-detail.html" title="详情" aria-label="详情"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a><button class="act" title="日志" aria-label="日志"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M8 13h8M8 17h6"/></svg></button><button class="act" title="监控" aria-label="监控"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></button><button class="act act-danger" title="删除" aria-label="删除" data-confirm="删除运行 llama3-sft-lr-sweep-3？" data-confirm-desc="删除后该 Run 记录与日志不可恢复。" data-confirm-ok="确认删除" data-confirm-toast="运行 llama3-sft-lr-sweep-3 已删除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg></button></div></td>
+              </tr>
+              <tr>
+                <td><a class="t-name mono" href="run-detail.html">llama3-sft-lr-sweep-2</a></td>
+                <td><span class="status status-failed"><span class="dot"></span>失败</span></td>
+                <td class="mono">a100-4x-xlarge</td><td class="num-col">2</td><td>张伟</td><td class="num-col">00:00:06</td>
+                <td><div class="row-actions"><a class="act" href="run-detail.html" title="详情" aria-label="详情"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a><button class="act" title="日志" aria-label="日志"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M8 13h8M8 17h6"/></svg></button><button class="act" title="监控" aria-label="监控"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></button><button class="act act-danger" title="删除" aria-label="删除" data-confirm="删除运行 llama3-sft-lr-sweep-2？" data-confirm-desc="删除后该 Run 记录与日志不可恢复。" data-confirm-ok="确认删除" data-confirm-toast="运行 llama3-sft-lr-sweep-2 已删除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg></button></div></td>
+              </tr>
+              <tr>
+                <td><a class="t-name mono" href="run-detail.html">llama3-sft-lr-sweep-1</a></td>
+                <td><span class="status status-success"><span class="dot"></span>成功</span></td>
+                <td class="mono">a100-4x-xlarge</td><td class="num-col">2</td><td>张伟</td><td class="num-col">03:47:55</td>
+                <td><div class="row-actions"><a class="act" href="run-detail.html" title="详情" aria-label="详情"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a><button class="act" title="日志" aria-label="日志"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M8 13h8M8 17h6"/></svg></button><button class="act" title="监控" aria-label="监控"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></button><button class="act act-danger" title="删除" aria-label="删除" data-confirm="删除运行 llama3-sft-lr-sweep-1？" data-confirm-desc="删除后该 Run 记录与日志不可恢复。" data-confirm-ok="确认删除" data-confirm-toast="运行 llama3-sft-lr-sweep-1 已删除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg></button></div></td>
+              </tr>
+            </tbody>
+          </table></div>
+          <div class="pagination"><span>共 8 个运行</span><div class="pages"><span class="pg">‹</span><span class="pg on">1</span><span class="pg">›</span></div><span>每页 20 条</span></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

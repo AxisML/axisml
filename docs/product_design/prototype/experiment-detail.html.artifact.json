@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "experiment-detail.html",
+  "entry": "experiment-detail.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-06-16T01:44:14.490Z",
+  "updatedAt": "2026-06-16T01:44:14.490Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

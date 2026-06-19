@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>在线服务 · AxisML 控制台</title>
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body data-nav="services">
+  <main class="page" id="page">
+    <div class="breadcrumb"><span>服务中心</span><span class="sep">/</span><span>在线服务</span></div>
+    <div class="page-head">
+      <div><h1>在线服务</h1><p class="sub">常驻的在线推理服务，可对外提供访问并按需扩缩容。多版本灰度由「流量配置」承接。</p></div>
+      <div class="actions"><button class="btn btn-primary" data-drawer-open="svcDrawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>新建服务</button></div>
+    </div>
+
+    <div class="toolbar">
+      <div class="field-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input placeholder="名称搜索" /></div>
+      <select class="select"><option>状态：全部</option><option>就绪</option><option>降级</option><option>已停止</option></select>
+      <select class="select"><option>资源池：全部</option><option>gpu-h100</option><option>gpu-l40s</option><option>cpu-large</option></select>
+      <button class="btn btn-ghost">重置</button>
+    </div>
+
+    <div class="panel">
+      <div class="table-wrap"><table class="tbl">
+        <thead><tr><th>名称</th><th>状态</th><th class="num-col">副本</th><th>资源单元</th><th>访问地址</th><th style="text-align:right">操作</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><a class="t-name mono" href="service-detail.html">svc-chat-api</a><div class="t-sub">对话推理服务</div></td>
+            <td><span class="status status-success"><span class="dot"></span>就绪</span></td>
+            <td class="num-col">2 / 2</td><td class="mono">gpu-h100/1x</td>
+            <td><span class="mono muted" style="font-size:12px">/services/llm-lab/chat/</span></td>
+            <td><div class="row-actions"><button class="act" title="编辑" aria-label="编辑" data-drawer-open="editSvcDrawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg></button><button class="act" title="扩缩容" aria-label="扩缩容" data-drawer-open="scaleDrawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg></button><button class="act" title="停止" aria-label="停止"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="6" y="6" width="12" height="12" rx="1"/></svg></button><button class="act act-danger" title="删除" aria-label="删除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg></button></div></td>
+          </tr>
+          <tr>
+            <td><a class="t-name mono" href="service-detail.html">svc-embed</a><div class="t-sub">文本向量服务</div></td>
+            <td><span class="status status-pending"><span class="dot"></span>降级</span></td>
+            <td class="num-col">1 / 2</td><td class="mono">gpu-l40s/1x</td>
+            <td><span class="mono muted" style="font-size:12px">/services/llm-lab/embed/</span></td>
+            <td><div class="row-actions"><button class="act" title="编辑" aria-label="编辑" data-drawer-open="editSvcDrawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg></button><button class="act" title="扩缩容" aria-label="扩缩容" data-drawer-open="scaleDrawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg></button><button class="act" title="停止" aria-label="停止"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="6" y="6" width="12" height="12" rx="1"/></svg></button><button class="act act-danger" title="删除" aria-label="删除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg></button></div></td>
+          </tr>
+          <tr>
+            <td><a class="t-name mono" href="service-detail.html">svc-rerank</a><div class="t-sub">重排序服务</div></td>
+            <td><span class="status status-stopped"><span class="dot"></span>已停止</span></td>
+            <td class="num-col">0 / 0</td><td class="mono">cpu-large/1x</td>
+            <td class="muted">—</td>
+            <td><div class="row-actions"><button class="act" title="编辑" aria-label="编辑" data-drawer-open="editSvcDrawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg></button><button class="act" title="启动" aria-label="启动"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 4l14 8-14 8z"/></svg></button><button class="act act-danger" title="删除" aria-label="删除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg></button></div></td>
+          </tr>
+        </tbody>
+      </table></div>
+      <div class="pagination"><span>共 3 个服务</span><div class="pages"><span class="pg">‹</span><span class="pg on">1</span><span class="pg">›</span></div><span>每页 20 条</span></div>
+    </div>
+  </main>
+
+  <!-- 新建服务抽屉 -->
+  <aside class="drawer wide" id="svcDrawer">
+    <div class="drawer-head"><div><h3>新建在线服务</h3><div class="sub">从已注册模型版本部署常驻推理服务</div></div><button class="icon-btn" data-drawer-close>✕</button></div>
+    <div class="drawer-body">
+      <div class="fieldset-title"><span class="n">1</span>基本信息</div>
+      <div class="form-grid">
+        <div class="field"><label>名称 <span class="req">*</span></label><input class="input mono" placeholder="svc-chat-api" /><span class="help">用于在列表与详情中展示</span></div>
+        <div class="field full"><label>描述</label><textarea class="textarea" placeholder="用途说明（可选）"></textarea></div>
+      </div>
+
+      <div class="fieldset-title"><span class="n">2</span>模型与镜像</div>
+      <div class="form-grid">
+        <div class="field"><label>模型版本 <span class="req">*</span></label><select class="input"><option>llama3-8b-sft@v4</option><option>llama3-8b-sft@v3</option></select></div>
+        <div class="field"><label>推理镜像 <span class="req">*</span></label><select class="input"><option>vllm-serve:0.5.1</option><option>tgi:2.0</option></select></div>
+      </div>
+
+      <div class="fieldset-title"><span class="n">3</span>资源选择</div>
+      <div class="form-grid">
+        <div class="field full"><label>资源池 <span class="req">*</span></label><select class="input"><option>gpu-h100 · H100 推理池</option><option>gpu-l40s · L40S 推理池</option></select></div>
+      </div>
+      <div class="field" style="margin-top:var(--space-4)"><label>资源单元 <span class="req">*</span></label>
+        <div class="pick-grid" data-pick-group>
+          <div class="pick on"><div class="p-title">h100-1x</div><div class="p-spec">1×H100 · 16 vCPU · 128 GiB</div></div>
+          <div class="pick"><div class="p-title">l40s-1x</div><div class="p-spec">1×L40S · 8 vCPU · 64 GiB</div></div>
+        </div>
+      </div>
+      <div class="form-grid" style="margin-top:var(--space-4)">
+        <div class="field"><label>副本数 <span class="req">*</span></label><input class="input num mono" value="2" /></div>
+      </div>
+
+      <div class="fieldset-title"><span class="n">4</span>端口与路由</div>
+      <div class="form-grid">
+        <div class="field full"><label>端口 <span class="req">*</span></label>
+          <div class="vol-list" data-vol-list>
+            <div class="vol-row">
+              <input class="input mono" data-en-only value="http" placeholder="名称，如 http" aria-label="端口名" maxlength="15" />
+              <input class="input mono" value="8000" placeholder="端口号" aria-label="端口号" inputmode="numeric" />
+              <button type="button" class="icon-btn" data-vol-remove title="移除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+            </div>
+          </div>
+          <a class="link vol-add" data-vol-add role="button" tabindex="0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>添加端口</a>
+        </div>
+      </div>
+      <div class="form-grid">
+        <div class="field full" style="flex-direction:row;align-items:center;justify-content:space-between"><div><label style="margin:0">启用对外路由</label><span class="help">关闭后仅集群内可访问</span></div><button class="toggle on" aria-label="启用对外路由"></button></div>
+        <div class="field"><label>Path</label><input class="input mono" placeholder="/services/llm-lab/chat/" /></div>      </div>
+    </div>
+    <div class="drawer-foot"><span class="grow"></span><button class="btn" data-drawer-close>取消</button><button class="btn btn-primary" data-toast="服务上线中…" data-drawer-submit>上线服务</button></div>
+  </aside>
+
+  <!-- 编辑服务抽屉（UI 同新建服务） -->
+  <aside class="drawer wide" id="editSvcDrawer">
+    <div class="drawer-head"><div><h3>编辑服务</h3><div class="sub mono">svc-chat-api</div></div><button class="icon-btn" data-drawer-close>✕</button></div>
+    <div class="drawer-body">
+      <div class="fieldset-title"><span class="n">1</span>基本信息</div>
+      <div class="form-grid">
+        <div class="field"><label>名称 <span class="req">*</span></label><input class="input mono" value="svc-chat-api" /><span class="help">用于在列表与详情中展示</span></div>
+        <div class="field full"><label>描述</label><textarea class="textarea">对话推理服务</textarea></div>
+      </div>
+
+      <div class="fieldset-title"><span class="n">2</span>模型与镜像</div>
+      <div class="form-grid">
+        <div class="field"><label>模型版本 <span class="req">*</span></label><select class="input"><option>llama3-8b-sft@v4</option><option>llama3-8b-sft@v3</option></select></div>
+        <div class="field"><label>推理镜像 <span class="req">*</span></label><select class="input"><option>vllm-serve:0.5.1</option><option>tgi:2.0</option></select></div>
+      </div>
+
+      <div class="fieldset-title"><span class="n">3</span>资源选择</div>
+      <div class="form-grid">
+        <div class="field full"><label>资源池 <span class="req">*</span></label><select class="input"><option>gpu-h100 · H100 推理池</option><option>gpu-l40s · L40S 推理池</option></select></div>
+      </div>
+      <div class="field" style="margin-top:var(--space-4)"><label>资源单元 <span class="req">*</span></label>
+        <div class="pick-grid" data-pick-group>
+          <div class="pick on"><div class="p-title">h100-1x</div><div class="p-spec">1×H100 · 16 vCPU · 128 GiB</div></div>
+          <div class="pick"><div class="p-title">l40s-1x</div><div class="p-spec">1×L40S · 8 vCPU · 64 GiB</div></div>
+        </div>
+      </div>
+      <div class="form-grid" style="margin-top:var(--space-4)">
+        <div class="field"><label>副本数 <span class="req">*</span></label><input class="input num mono" value="2" /></div>
+      </div>
+
+      <div class="fieldset-title"><span class="n">4</span>端口与路由</div>
+      <div class="form-grid">
+        <div class="field full"><label>端口 <span class="req">*</span></label>
+          <div class="vol-list" data-vol-list>
+            <div class="vol-row">
+              <input class="input mono" data-en-only value="http" placeholder="名称，如 http" aria-label="端口名" maxlength="15" />
+              <input class="input mono" value="8000" placeholder="端口号" aria-label="端口号" inputmode="numeric" />
+              <button type="button" class="icon-btn" data-vol-remove title="移除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+            </div>
+            <div class="vol-row">
+              <input class="input mono" data-en-only value="grpc" placeholder="名称，如 http" aria-label="端口名" maxlength="15" />
+              <input class="input mono" value="8001" placeholder="端口号" aria-label="端口号" inputmode="numeric" />
+              <button type="button" class="icon-btn" data-vol-remove title="移除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+            </div>
+          </div>
+          <a class="link vol-add" data-vol-add role="button" tabindex="0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>添加端口</a>
+        </div>
+      </div>
+      <div class="form-grid">
+        <div class="field full" style="flex-direction:row;align-items:center;justify-content:space-between"><div><label style="margin:0">启用对外路由</label><span class="help">关闭后仅集群内可访问</span></div><button class="toggle on" aria-label="启用对外路由"></button></div>
+        <div class="field"><label>Path</label><input class="input mono" value="/services/llm-lab/chat/" /></div>      </div>
+    </div>
+    <div class="drawer-foot"><span class="grow"></span><button class="btn" data-drawer-close>取消</button><button class="btn btn-primary" data-toast="服务配置已保存" data-drawer-submit>保存</button></div>
+  </aside>
+
+  <!-- 扩缩容抽屉 -->
+  <aside class="drawer" id="scaleDrawer">
+    <div class="drawer-head"><div><h3>扩缩容</h3><div class="sub mono">svc-chat-api</div></div><button class="icon-btn" data-drawer-close>✕</button></div>
+    <div class="drawer-body">
+      <p class="muted" style="font-size:13px;margin-bottom:var(--space-5)">扩缩容仅修改副本数。</p>
+      <div class="field"><label>目标副本数</label><input class="input num" value="3" /><span class="help">当前 2 / 2 就绪 · 配额上限 gpu-h100 max=8</span></div>
+      <div class="panel" style="padding:var(--space-4);margin-top:var(--space-5)"><dl class="kv" style="grid-template-columns:96px 1fr">
+        <dt>资源单元</dt><dd class="mono">gpu-h100 / h100-1x</dd>
+        <dt>单副本</dt><dd class="mono">1×H100 · 16 vCPU · 128 GiB</dd>
+        <dt>扩容增量</dt><dd>+1 副本 = +1 H100</dd>
+      </dl></div>
+    </div>
+    <div class="drawer-foot"><button class="btn" data-drawer-close>取消</button><button class="btn btn-primary" data-toast="已扩容至 3 副本" data-drawer-submit>应用</button></div>
+  </aside>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

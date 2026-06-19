@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>rt-embed · 流量配置 · AxisML</title>
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body data-nav="traffic">
+  <main class="page" id="page">
+    <a class="back-link" href="traffic.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>返回流量策略列表</a>
+
+    <div class="page-head">
+      <div>
+        <h1 class="detail-title">rt-embed <span class="spill ok"><span class="dot"></span>生效中</span> <span class="badge badge-neutral">加权</span></h1>
+        <div class="detail-sub">向量服务加权切分</div>
+      </div>
+      <div class="actions"><button class="btn btn-danger" data-confirm="删除流量策略 rt-embed？" data-confirm-desc="将移除加权路由，流量回落到默认网关。该操作不可恢复。" data-confirm-ok="确认删除" data-confirm-toast="流量策略 rt-embed 已删除">删除</button></div>
+    </div>
+
+    <div data-tabs>
+      <div class="tabs">
+        <button class="on" data-tab="info">概览</button>
+        <button data-tab="dist">流量配置</button>
+        <button data-tab="mon">监控</button>
+        <button data-tab="ev">事件</button>
+      </div>
+
+      <!-- 基本信息 -->
+      <div class="tabpane on" data-pane="info">
+        <div class="panel">
+          <div class="panel-head"><h3>策略信息</h3><button class="btn btn-sm" data-toast="进入编辑（仅后端权重可改）">编辑</button></div>
+          <div class="panel-body"><dl class="kv kv-lg">
+            <dt>名称</dt><dd><span class="cchip">rt-embed</span></dd>
+            <dt>描述</dt><dd>把向量检索流量在 svc-embed-a / svc-embed-b 两个后端间按权重切分</dd>
+            <dt>模式</dt><dd><span class="cchip">加权</span></dd>
+            <dt>对外入口</dt><dd><span class="cchip">/services/team-a/embed/</span><button class="icon-mini" data-toast="入口地址已复制" title="复制" aria-label="复制入口地址"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></dd>
+            <dt>后端数</dt><dd><span class="mono">2</span></dd>
+            <dt>创建人</dt><dd>李娜</dd>
+            <dt>创建时间</dt><dd class="mono">2026-06-09 10:20:31</dd>
+          </dl></div>
+        </div>
+      </div>
+
+      <!-- 流量配置（加权模式）：权重编辑 + 实时分布合并为单面板 -->
+      <div class="tabpane" data-pane="dist">
+        <div class="panel">
+          <div class="panel-head"><h3>后端分布</h3><span class="hint">直接编辑目标权重，实时 Σ=100 校验</span></div>
+          <div class="table-wrap"><table class="tbl">
+            <thead><tr><th>在线服务</th><th>角色</th><th class="num-col">目标权重</th><th>实际流量占比</th><th>后端状态</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><a class="t-name mono" href="service-detail.html">svc-embed-a</a></td>
+                <td><span class="badge badge-neutral">成员</span></td>
+                <td class="num-col"><span class="wfield" style="justify-content:flex-end"><input class="input wt" type="number" min="0" max="100" value="50" id="wInA" aria-label="svc-embed-a 权重" /><span class="wpct">%</span></span></td>
+                <td><div class="flowbar"><span class="track"><span id="aBarA" style="width:50%"></span></span><span class="pct" id="aPctA">50%</span></div></td>
+                <td><span class="spill ok"><span class="dot"></span>就绪</span></td>
+              </tr>
+              <tr>
+                <td><a class="t-name mono" href="service-detail.html">svc-embed-b</a></td>
+                <td><span class="badge badge-neutral">成员</span></td>
+                <td class="num-col"><span class="wfield" style="justify-content:flex-end"><input class="input wt" type="number" min="0" max="100" value="50" id="wInB" aria-label="svc-embed-b 权重" /><span class="wpct">%</span></span></td>
+                <td><div class="flowbar"><span class="track"><span id="aBarB" style="width:50%"></span></span><span class="pct" id="aPctB">50%</span></div></td>
+                <td><span class="spill ok"><span class="dot"></span>就绪</span></td>
+              </tr>
+            </tbody>
+          </table></div>
+          <div class="panel-body" style="border-top:1px solid var(--border-soft);display:flex;align-items:center;gap:var(--space-4)">
+            <span class="wsum" id="wsum" style="padding:0">Σ = 100% ✓</span>
+            <span class="grow"></span>
+            <button class="btn btn-dark" id="applyW" data-toast="权重已应用（Σ=100）">应用权重</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 监控（各后端对比） -->
+      <div class="tabpane" data-pane="mon">
+        <div class="toolbar"><span class="hint">来自 compute 指标代理 · 按后端分组</span><div class="grow"></div><div class="segmented"><button>5m</button><button class="on">1h</button><button>24h</button></div></div>
+        <div class="grid cols-2">
+          <div class="mcard">
+            <div class="mc-head"><span class="mc-title">QPS</span><div class="legend"><span><i style="background:var(--info)"></i>svc-embed-a</span><span><i style="background:var(--success)"></i>svc-embed-b</span></div></div>
+            <svg class="mc-chart chart" viewBox="0 0 600 132" preserveAspectRatio="none">
+              <line class="grid-line" x1="0" y1="44" x2="600" y2="44"/><line class="grid-line" x1="0" y1="88" x2="600" y2="88"/>
+              <path d="M0 64 L60 52 L120 72 L180 48 L240 78 L300 46 L360 70 L420 50 L480 74 L540 48 L600 60" fill="none" stroke="var(--info)" stroke-width="2"/>
+              <path d="M0 70 L60 58 L120 76 L180 54 L240 82 L300 52 L360 74 L420 56 L480 78 L540 54 L600 66" fill="none" stroke="var(--success)" stroke-width="1.8"/>
+            </svg>
+          </div>
+          <div class="mcard">
+            <div class="mc-head"><span class="mc-title">延迟 p95</span><div class="legend"><span><i style="background:var(--info)"></i>svc-embed-a</span><span><i style="background:var(--success)"></i>svc-embed-b</span></div></div>
+            <svg class="mc-chart chart" viewBox="0 0 600 132" preserveAspectRatio="none">
+              <line class="grid-line" x1="0" y1="44" x2="600" y2="44"/><line class="grid-line" x1="0" y1="88" x2="600" y2="88"/>
+              <path d="M0 80 L60 66 L120 86 L180 60 L240 90 L300 56 L360 84 L420 58 L480 88 L540 64 L600 76" fill="none" stroke="var(--info)" stroke-width="2"/>
+              <path d="M0 76 L60 62 L120 82 L180 56 L240 86 L300 52 L360 80 L420 54 L480 84 L540 60 L600 72" fill="none" stroke="var(--success)" stroke-width="1.8"/>
+            </svg>
+          </div>
+          <div class="mcard">
+            <div class="mc-head"><span class="mc-title">错误率 (5xx)</span><div class="legend"><span><i style="background:var(--info)"></i>svc-embed-a</span><span><i style="background:var(--success)"></i>svc-embed-b</span></div></div>
+            <svg class="mc-chart chart" viewBox="0 0 600 132" preserveAspectRatio="none">
+              <line class="grid-line" x1="0" y1="44" x2="600" y2="44"/><line class="grid-line" x1="0" y1="88" x2="600" y2="88"/>
+              <path d="M0 116 L120 114 L240 116 L360 113 L480 116 L600 114" fill="none" stroke="var(--info)" stroke-width="1.8"/>
+              <path d="M0 115 L120 116 L240 113 L360 116 L480 114 L600 116" fill="none" stroke="var(--success)" stroke-width="1.8"/>
+            </svg>
+            <p class="muted" style="font-size:12px;margin-top:10px">两后端健康度相当，错误率均 &lt; 0.1%，权重均分稳定。</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 事件 -->
+      <div class="tabpane" data-pane="ev">
+        <div class="panel"><div class="panel-body">
+          <div class="timeline">
+            <div class="tl-item"><span class="tl-dot"></span><div class="tl-head"><span class="tl-name">WeightUpdated</span><span class="tl-tag">NORMAL</span><span class="tl-time">2026-06-09 14:08:55</span></div><div class="tl-desc">权重调整为 svc-embed-a 50 / svc-embed-b 50（Σ=100）</div></div>
+            <div class="tl-item"><span class="tl-dot"></span><div class="tl-head"><span class="tl-name">BackendReady</span><span class="tl-tag">NORMAL</span><span class="tl-time">2026-06-09 10:21:12</span></div><div class="tl-desc">后端 svc-embed-b 已就绪，纳入加权后端集</div></div>
+            <div class="tl-item is-muted"><span class="tl-dot"></span><div class="tl-head"><span class="tl-name">RouteDerived</span><span class="tl-tag">NORMAL</span><span class="tl-time">2026-06-09 10:20:38</span></div><div class="tl-desc">已派生加权路由（HTTPRoute 加权 backendRefs · 2 后端）</div></div>
+            <div class="tl-item is-muted"><span class="tl-dot"></span><div class="tl-head"><span class="tl-name">PolicyCreated</span><span class="tl-tag">NORMAL</span><span class="tl-time">2026-06-09 10:20:31</span></div><div class="tl-desc">创建加权策略，对外入口 /services/team-a/embed/</div></div>
+          </div>
+        </div></div>
+      </div>
+    </div>
+  </main>
+
+  <script src="js/app.js"></script>
+  <script>
+    (function () {
+      var inA = document.getElementById('wInA'), inB = document.getElementById('wInB');
+      var wsum = document.getElementById('wsum'), apply = document.getElementById('applyW');
+      function clamp(v){ v = parseInt(v, 10); if (isNaN(v)) v = 0; return Math.max(0, Math.min(100, v)); }
+      function recalc() {
+        var a = clamp(inA.value), b = clamp(inB.value), sum = a + b;
+        var ok = sum === 100;
+        wsum.textContent = 'Σ = ' + sum + '%' + (ok ? ' ✓' : ' ✕');
+        wsum.classList.toggle('bad', !ok);
+        apply.toggleAttribute('disabled', !ok);
+        var pa = sum ? Math.round(a / sum * 100) : 0, pb = sum ? 100 - pa : 0;
+        document.getElementById('aBarA').style.width = pa + '%';
+        document.getElementById('aBarB').style.width = pb + '%';
+        document.getElementById('aPctA').textContent = pa + '%';
+        document.getElementById('aPctB').textContent = pb + '%';
+      }
+      inA.addEventListener('input', recalc);
+      inB.addEventListener('input', recalc);
+      recalc();
+    })();
+  </script>
+</body>
+</html>

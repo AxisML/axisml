@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>train-llm-7b-12 · Run · AxisML</title>
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body data-nav="jobs">
+  <main class="page" id="page">
+    <a class="back-link" href="job-detail.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>返回 train-llm-7b</a>
+
+    <div class="page-head">
+      <div>
+        <h1 class="detail-title">train-llm-7b-12 <span class="spill run"><span class="dot"></span>运行中</span></h1>
+        <div class="detail-sub">第 12 次运行 · 触发人 张伟 · 已运行 02:14:30</div>
+      </div>
+      <div class="actions"><button class="btn btn-danger" data-confirm="取消运行 train-llm-7b-12？" data-confirm-desc="取消后正在执行的 Pod 将被终止，已产出的 checkpoint 保留。" data-confirm-ok="确认取消" data-confirm-toast="运行已请求取消（Canceling）">取消运行</button></div>
+    </div>
+
+    <div data-tabs>
+      <div class="tabs">
+        <button class="on" data-tab="info">概览</button>
+        <button data-tab="pods">实例</button>
+        <button data-tab="log">日志</button>
+        <button data-tab="ev">事件</button>
+      </div>
+
+      <!-- 概览：配置信息（居左整宽） -->
+      <div class="tabpane on" data-pane="info">
+          <div class="panel">
+            <div class="panel-head"><h3>配置信息</h3></div>
+            <div class="panel-body">
+              <dl class="kv kv-lg">
+                <dt>名称</dt><dd><span class="cchip">train-llm-7b</span></dd>
+                <dt>描述</dt><dd>LLaMA-7B 全参微调</dd>
+                <dt>镜像</dt><dd><span class="cchip">pytorch:2.3-cu121</span></dd>
+                <dt>资源池</dt><dd><span class="cchip">gpu-a100 · A100 训练池</span></dd>
+                <dt>资源单元</dt><dd><span class="cchip">a100-4x-xlarge</span></dd>
+                <dt>副本数</dt><dd><span class="mono">4</span></dd>
+                <dt>数据卷</dt><dd><span class="cchip">training-data · 200 GiB → /data</span></dd>
+                <dt>运行策略</dt><dd>超时 <span class="mono">24h</span> · 重试 <span class="mono">2</span></dd>
+              </dl>
+              <div style="margin-top:var(--space-6);padding-top:var(--space-5);border-top:1px solid var(--border-soft)">
+                <label class="muted" style="font-size:12px">启动命令</label>
+                <pre class="logbox" style="max-height:none;margin:6px 0 18px">torchrun --nproc_per_node=4 train.py \
+  --model_name llama-7b --lr 2e-5 \
+  --epochs 3 --batch_size 16 \
+  --data /data/sft.jsonl</pre>
+                <label class="muted" style="font-size:12px">环境变量</label>
+                <div class="chip-row" style="margin-top:8px"><span class="cchip">WANDB_DISABLED=true</span><span class="cchip">NCCL_DEBUG=INFO</span></div>
+              </div>
+            </div>
+          </div>
+      </div>
+
+      <!-- 实例 -->
+      <div class="tabpane" data-pane="pods">
+        <div class="panel"><div class="table-wrap"><table class="tbl">
+          <thead><tr><th>POD 名称</th><th>阶段</th><th>节点</th><th class="num-col">重启</th><th class="num-col">退出码</th><th>启动时间</th><th style="text-align:right">操作</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">train-llm-7b-12-worker-0</td><td><span class="spill run"><span class="dot"></span>Running</span></td><td class="mono muted">node-a100-03</td><td class="num-col">0</td><td class="num-col muted">—</td><td class="muted mono">2026-06-13 02:14:30</td><td><div class="row-actions"><button class="act" title="日志" aria-label="日志"></button><button class="act" title="事件" aria-label="事件"></button></div></td></tr>
+            <tr><td class="mono">train-llm-7b-12-worker-1</td><td><span class="spill run"><span class="dot"></span>Running</span></td><td class="mono muted">node-a100-03</td><td class="num-col">0</td><td class="num-col muted">—</td><td class="muted mono">2026-06-13 02:14:30</td><td><div class="row-actions"><button class="act" title="日志" aria-label="日志"></button><button class="act" title="事件" aria-label="事件"></button></div></td></tr>
+            <tr><td class="mono">train-llm-7b-12-worker-2</td><td><span class="spill run"><span class="dot"></span>Running</span></td><td class="mono muted">node-a100-07</td><td class="num-col">1</td><td class="num-col muted">—</td><td class="muted mono">2026-06-13 02:11:02</td><td><div class="row-actions"><button class="act" title="日志" aria-label="日志"></button><button class="act" title="事件" aria-label="事件"></button></div></td></tr>
+            <tr><td class="mono">train-llm-7b-12-worker-3</td><td><span class="spill run"><span class="dot"></span>Running</span></td><td class="mono muted">node-a100-07</td><td class="num-col">0</td><td class="num-col muted">—</td><td class="muted mono">2026-06-13 02:14:30</td><td><div class="row-actions"><button class="act" title="日志" aria-label="日志"></button><button class="act" title="事件" aria-label="事件"></button></div></td></tr>
+          </tbody>
+        </table></div></div>
+      </div>
+
+      <!-- 日志 -->
+      <div class="tabpane" data-pane="log">
+        <div class="panel"><div class="panel-body">
+          <div class="log-bar">
+            <div class="pod-pick"><span class="pp-tag">POD</span><select><option>worker-0</option><option>worker-1</option><option>worker-2</option><option>worker-3</option></select></div>
+            <div class="grow"></div>
+            <label class="follow">实时跟随 <button class="toggle on" aria-label="实时跟随"></button></label>
+          </div>
+          <pre class="logbox"><span class="l-time">02:14:31</span><span class="l-info">[I]</span> Initializing distributed: rank=0 world_size=4 backend=nccl
+<span class="l-time">02:14:34</span><span class="l-info">[I]</span> Loaded base model llama-7b-base@v1 (13.1 GB)
+<span class="l-time">02:14:52</span><span class="l-info">[I]</span> Dataset sft-dialog@v2 · 124,503 samples · 3 epochs
+<span class="l-time">02:31:10</span><span class="l-info">[I]</span> epoch 1 | step 0500 | loss 1.842 | lr 1.98e-5 | 3.2 it/s
+<span class="l-time">03:02:44</span><span class="l-info">[I]</span> epoch 1 | step 1000 | loss 1.231 | lr 1.91e-5 | 3.3 it/s
+<span class="l-time">03:40:08</span><span class="l-warn">[W]</span> worker-2 nccl timeout retry (1/3), recovered in 4.1s
+<span class="l-time">04:18:55</span><span class="l-info">[I]</span> epoch 2 | step 2000 | loss 0.948 | lr 1.62e-5 | 3.3 it/s
+<span class="l-time">04:29:01</span><span class="l-info">[I]</span> checkpoint saved → /output/ckpt-step-2200</pre>
+        </div></div>
+      </div>
+
+      <!-- 事件 -->
+      <div class="tabpane" data-pane="ev">
+        <!-- 运行事件（由概览迁移而来，居左整宽） -->
+        <div class="panel">
+          <div class="panel-head"><h3>运行事件</h3></div>
+          <div class="panel-body">
+            <div class="timeline">
+              <div class="tl-item"><span class="tl-dot"></span><div class="tl-head"><span class="tl-name">Scheduled</span><span class="tl-tag">NORMAL</span><span class="tl-time">2026-06-13 02:14:30</span></div><div class="tl-desc">Run 创建，PodGroup gang 调度就绪（koord-scheduler）</div></div>
+              <div class="tl-item is-muted"><span class="tl-dot"></span><div class="tl-head"><span class="tl-name">ArtifactsMounted</span><span class="tl-tag">NORMAL</span><span class="tl-time">2026-06-13 02:14:52</span></div><div class="tl-desc">制品挂载完成：sft-dialog@v2 / llama-7b-base@v1</div></div>
+              <div class="tl-item is-warn"><span class="tl-dot"></span><div class="tl-head"><span class="tl-name">BackOff</span><span class="tl-tag warn">WARNING</span><span class="tl-time">2026-06-13 03:40:08</span></div><div class="tl-desc">worker-2 重启一次（nccl timeout），已自愈</div></div>
+            </div>
+          </div>
+        </div>
+        <!-- 实例事件（按 POD 查看） -->
+        <div class="panel" style="margin-top:var(--space-5)">
+          <div class="panel-head"><h3>实例事件</h3></div>
+          <div class="panel-body">
+          <div class="log-bar">
+            <div class="pod-pick"><span class="pp-tag">POD</span><select><option>worker-0</option><option>worker-1</option><option>worker-2</option><option>worker-3</option></select></div>
+            <div class="grow"></div>
+            <label class="follow">实时跟随 <button class="toggle on" aria-label="实时跟随"></button></label>
+          </div>
+          <div class="timeline" style="margin-top:var(--space-5)">
+            <div class="tl-item"><span class="tl-dot"></span><div class="tl-head"><span class="tl-name">Scheduled</span><span class="tl-tag">NORMAL</span><span class="tl-time">2026-06-13 02:14:30</span></div><div class="tl-desc">worker-0 分配到节点 node-a100-03</div></div>
+            <div class="tl-item"><span class="tl-dot"></span><div class="tl-head"><span class="tl-name">Pulled</span><span class="tl-tag">NORMAL</span><span class="tl-time">2026-06-13 02:14:48</span></div><div class="tl-desc">镜像 pytorch:2.3-cu121 拉取完成（15.2s）</div></div>
+            <div class="tl-item"><span class="tl-dot"></span><div class="tl-head"><span class="tl-name">Created</span><span class="tl-tag">NORMAL</span><span class="tl-time">2026-06-13 02:14:49</span></div><div class="tl-desc">容器创建完成</div></div>
+            <div class="tl-item"><span class="tl-dot"></span><div class="tl-head"><span class="tl-name">Started</span><span class="tl-tag">NORMAL</span><span class="tl-time">2026-06-13 02:14:50</span></div><div class="tl-desc">容器启动，开始分布式训练 rank=0</div></div>
+          </div>
+        </div></div>
+      </div>
+    </div>
+  </main>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

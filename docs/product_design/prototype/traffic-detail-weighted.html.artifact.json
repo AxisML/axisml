@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "traffic-detail-weighted.html",
+  "entry": "traffic-detail-weighted.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-06-17T14:56:36.017Z",
+  "updatedAt": "2026-06-17T14:56:36.017Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>租户管理 · AxisML 控制台</title>
+  <link rel="stylesheet" href="css/app.css" />
+  <style>
+    /* 资源配额：多 Tab（每个 Tab 一个既有资源池），Tab 内为资源单元卡片 × 数量 */
+    .ptab-nav { display:flex; align-items:center; gap:var(--space-5); border-bottom:1px solid var(--border); margin-bottom:var(--space-5); overflow-x:auto; }
+    .ptab { flex:none; background:transparent; border:0; padding:var(--space-3) 0; font-size:14px; font-family:var(--font-mono); font-weight:600; color:var(--muted); cursor:pointer; position:relative; white-space:nowrap; transition:color var(--motion-fast) var(--ease-standard); }
+    .ptab:hover { color:var(--fg-2); }
+    .ptab.on { color:var(--fg); }
+    .ptab.on::after { content:""; position:absolute; left:0; right:0; bottom:-1px; height:2px; background:var(--accent); border-radius:2px; }
+    .ptab-pane { display:none; }
+    .ptab-pane.on { display:block; animation:fadein var(--motion-base) var(--ease-standard); }
+    .ptab-meta { font-size:12px; color:var(--muted); margin-bottom:var(--space-4); }
+    /* 每个资源池列出自有资源单元；卡片 × 数量，0 置灰，按数量排序 */
+    .qp-units { display:flex; flex-direction:column; gap:var(--space-3); }
+    .q-row { display:flex; align-items:center; gap:var(--space-4); }
+    .q-card { flex:1; min-width:0; padding:10px 14px; border:1px solid var(--border); border-radius:var(--radius-md); background:var(--bg); transition:border-color var(--motion-fast) var(--ease-standard), background var(--motion-fast) var(--ease-standard); }
+    .q-card:hover { border-color:color-mix(in oklab, var(--accent) 35%, var(--border)); }
+    .q-row.is-zero .q-card { background:var(--surface); border-color:var(--border-soft); }
+    .q-row.is-zero .q-card:hover { border-color:var(--border); }
+    .q-row.is-zero .uc-name, .q-row.is-zero .uc-spec { color:var(--muted); }
+    .qu-qty { display:flex; align-items:center; gap:var(--space-3); flex:none; }
+    .qu-qty::before { content:"×"; font-size:16px; color:var(--muted); line-height:1; }
+    .step-val { width:56px; height:32px; text-align:center; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--bg); font:inherit; font-size:13px; font-family:var(--font-mono); color:var(--fg); transition:border-color var(--motion-fast) var(--ease-standard), box-shadow var(--motion-fast) var(--ease-standard); -moz-appearance:textfield; }
+    .step-val::-webkit-outer-spin-button, .step-val::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
+    .step-val:focus { outline:none; border-color:var(--accent); box-shadow:var(--focus-ring); }
+    @media (max-width:720px){
+      .q-row { flex-wrap:wrap; }
+      .qu-qty { margin-left:auto; }
+    }
+  </style>
+</head>
+<body data-nav="tenants">
+  <main class="page" id="page">
+    <div class="breadcrumb"><span>系统管理</span><span class="sep">/</span><span>租户管理</span></div>
+    <div class="page-head">
+      <div><h1>租户管理</h1><p class="sub">支持多租户体系下的组织、用户与权限管理，满足不同团队的隔离与协作需求。通过精细化权限控制，提升平台运营与资源治理效率。</p></div>
+      <div class="actions"><button class="btn btn-primary" data-drawer-open="tenantDrawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>创建租户</button></div>
+    </div>
+
+    <div class="toolbar">
+      <div class="field-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input placeholder="租户名搜索" /></div>
+      <select class="select"><option>状态：全部</option><option>Active</option><option>已禁用</option></select>
+      <button class="btn btn-ghost">重置</button>
+    </div>
+
+    <div class="panel">
+      <div class="table-wrap"><table class="tbl">
+        <thead><tr><th>租户</th><th>状态</th><th>资源配额</th><th class="num-col">成员</th><th>创建时间</th><th style="text-align:right">操作</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="t-name mono">llm-lab</span><div class="t-sub">大模型研究院</div></td>
+            <td><span class="status status-running"><span class="dot"></span>已激活</span></td>
+            <td><div class="chip-row"><span class="tag mono">gpu-h100 14/16</span><span class="tag mono">cpu-large +1</span></div></td>
+            <td class="num-col">12</td><td class="muted">2026-03-08</td>
+            <td><div class="row-actions">
+              <button class="act" title="资源配额" aria-label="资源配额" data-drawer-open="quotaDrawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg></button>
+              <button class="act" title="成员管理" aria-label="成员管理" data-drawer-open="membersDrawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></button>
+              <button class="act" title="禁用" aria-label="禁用" data-confirm="禁用租户 llm-lab？" data-confirm-desc="禁用后该租户成员将无法登录控制台或提交新任务，运行中的任务会被暂停。" data-confirm-info="如需彻底清理，可在禁用后再执行删除。" data-confirm-ok="确认禁用" data-confirm-toast="租户 llm-lab 已禁用"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></svg></button>
+            </div></td>
+          </tr>
+          <tr>
+            <td><span class="t-name mono">rec-algo</span><div class="t-sub">推荐算法团队</div></td>
+            <td><span class="status status-running"><span class="dot"></span>已激活</span></td>
+            <td><div class="chip-row"><span class="tag mono">gpu-a100 6/12</span></div></td>
+            <td class="num-col">8</td><td class="muted">2026-04-02</td>
+            <td><div class="row-actions">
+              <button class="act" title="资源配额" aria-label="资源配额" data-drawer-open="quotaDrawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg></button>
+              <button class="act" title="成员管理" aria-label="成员管理" data-drawer-open="membersDrawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></button>
+              <button class="act" title="禁用" aria-label="禁用" data-confirm="禁用租户 rec-algo？" data-confirm-desc="禁用后该租户成员将无法登录控制台或提交新任务，运行中的任务会被暂停。" data-confirm-info="如需彻底清理，可在禁用后再执行删除。" data-confirm-ok="确认禁用" data-confirm-toast="租户 rec-algo 已禁用"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></svg></button>
+            </div></td>
+          </tr>
+          <tr>
+            <td><span class="t-name mono">av-perception</span><div class="t-sub">智能驾驶感知</div></td>
+            <td><span class="status status-running"><span class="dot"></span>已激活</span></td>
+            <td><div class="chip-row"><span class="tag mono">gpu-l40s 11/20</span><span class="tag mono">gpu-h100 +1</span></div></td>
+            <td class="num-col">15</td><td class="muted">2026-04-19</td>
+            <td><div class="row-actions">
+              <button class="act" title="资源配额" aria-label="资源配额" data-drawer-open="quotaDrawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg></button>
+              <button class="act" title="成员管理" aria-label="成员管理" data-drawer-open="membersDrawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></button>
+              <button class="act" title="禁用" aria-label="禁用" data-confirm="禁用租户 av-perception？" data-confirm-desc="禁用后该租户成员将无法登录控制台或提交新任务，运行中的任务会被暂停。" data-confirm-info="如需彻底清理，可在禁用后再执行删除。" data-confirm-ok="确认禁用" data-confirm-toast="租户 av-perception 已禁用"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></svg></button>
+            </div></td>
+          </tr>
+          <tr>
+            <td><span class="t-name mono">risk-ai</span><div class="t-sub">风控 AI</div></td>
+            <td><span class="status status-stopped"><span class="dot"></span>已禁用</span></td>
+            <td><div class="chip-row"><span class="tag mono">cpu-large 0/8</span></div></td>
+            <td class="num-col">6</td><td class="muted">2026-05-30</td>
+            <td><div class="row-actions">
+              <button class="act" title="资源配额" aria-label="资源配额" data-drawer-open="quotaDrawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg></button>
+              <button class="act" title="成员管理" aria-label="成员管理" data-drawer-open="membersDrawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></button>
+              <button class="act" title="启用" aria-label="启用" data-toast="租户 risk-ai 已启用"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 4l14 8-14 8z"/></svg></button>
+              <button class="act act-danger" title="删除" aria-label="删除" data-confirm="删除租户 risk-ai？" data-confirm-desc="将删除该租户的全部资源与配额，该操作不可恢复。" data-confirm-info="建议先确认租户内已无活跃任务 / 服务 / 工作区。" data-confirm-ok="确认删除租户" data-confirm-toast="租户 risk-ai 已删除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg></button>
+            </div></td>
+          </tr>
+        </tbody>
+      </table></div>
+      <div class="pagination"><span>共 4 个租户</span><div class="pages"><span class="pg">‹</span><span class="pg on">1</span><span class="pg">›</span></div><span>每页 20 条</span></div>
+    </div>
+  </main>
+
+  <!-- 创建租户抽屉 -->
+  <aside class="drawer wide" id="tenantDrawer">
+    <div class="drawer-head"><div><h3>创建租户</h3><div class="sub">提交后平台自动完成资源初始化与权限配置</div></div><button class="icon-btn" data-drawer-close>✕</button></div>
+    <div class="drawer-body">
+      <div class="fieldset-title"><span class="n">1</span>基本信息</div>
+      <div class="form-grid">
+        <div class="field"><label>租户名称 <span class="req">*</span></label><input class="input" placeholder="大模型研究院" /><span class="help">用于在列表与详情中展示</span></div>
+        <div class="field"><label>租户标识 <span class="req">*</span></label><input class="input mono" placeholder="llm-lab" /><span class="help">小写字母、数字、连字符</span></div>
+        <div class="field full"><label>初始管理员 <span class="req">*</span></label><input class="input" placeholder="zhangwei@corp.com" /></div>
+      </div>
+
+      <div class="fieldset-title"><span class="n">2</span>初始配额</div>
+      <div class="field"><label>资源配额 <span class="req">*</span></label>
+        <span class="help" style="margin-bottom:10px">按资源池分配可用的资源单元数量，切换上方 Tab 维护不同资源池。</span>
+        <div class="pool-tabs" data-pool-tabs>
+          <div class="ptab-nav" data-ptab-nav>
+            <button type="button" class="ptab on" data-ptab="gpu-h100">gpu-h100</button>
+            <button type="button" class="ptab" data-ptab="gpu-a100">gpu-a100</button>
+            <button type="button" class="ptab" data-ptab="cpu-large">cpu-large</button>
+          </div>
+          <div class="ptab-panes" data-ptab-panes>
+            <div class="ptab-pane on" data-ppane="gpu-h100">
+              <div class="ptab-meta">H100 训练/推理池</div>
+              <div class="qp-units">
+                <div class="q-row">
+                  <div class="q-card"><div class="uc-name">h100-4x-xlarge</div><div class="uc-spec">4×H100 · 48 vCPU · 384 GiB</div></div>
+                  <label class="qu-qty"><input class="step-val" type="number" min="0" step="1" inputmode="numeric" value="2" aria-label="配额数量" /></label>
+                </div>
+                <div class="q-row">
+                  <div class="q-card"><div class="uc-name">h100-8x-xlarge-ib</div><div class="uc-spec">8×H100 · 96 vCPU · 768 GiB</div></div>
+                  <label class="qu-qty"><input class="step-val" type="number" min="0" step="1" inputmode="numeric" value="1" aria-label="配额数量" /></label>
+                </div>
+                <div class="q-row is-zero">
+                  <div class="q-card"><div class="uc-name">h100-1x-large</div><div class="uc-spec">1×H100 · 12 vCPU · 96 GiB</div></div>
+                  <label class="qu-qty"><input class="step-val" type="number" min="0" step="1" inputmode="numeric" value="0" aria-label="配额数量" /></label>
+                </div>
+              </div>
+            </div>
+            <div class="ptab-pane" data-ppane="gpu-a100">
+              <div class="ptab-meta">A100 训练池</div>
+              <div class="qp-units">
+                <div class="q-row">
+                  <div class="q-card"><div class="uc-name">a100-1x-large</div><div class="uc-spec">1×A100 · 8 vCPU · 64 GiB</div></div>
+                  <label class="qu-qty"><input class="step-val" type="number" min="0" step="1" inputmode="numeric" value="4" aria-label="配额数量" /></label>
+                </div>
+                <div class="q-row">
+                  <div class="q-card"><div class="uc-name">a100-4x-xlarge</div><div class="uc-spec">4×A100 · 32 vCPU · 256 GiB</div></div>
+                  <label class="qu-qty"><input class="step-val" type="number" min="0" step="1" inputmode="numeric" value="2" aria-label="配额数量" /></label>
+                </div>
+                <div class="q-row is-zero">
+                  <div class="q-card"><div class="uc-name">a100-8x-xlarge-ib</div><div class="uc-spec">8×A100 · 64 vCPU · 512 GiB</div></div>
+                  <label class="qu-qty"><input class="step-val" type="number" min="0" step="1" inputmode="numeric" value="0" aria-label="配额数量" /></label>
+                </div>
+              </div>
+            </div>
+            <div class="ptab-pane" data-ppane="cpu-large">
+              <div class="ptab-meta">大内存 CPU 池</div>
+              <div class="qp-units">
+                <div class="q-row">
+                  <div class="q-card"><div class="uc-name">cpu-large-1</div><div class="uc-spec">64 vCPU · 512 GiB</div></div>
+                  <label class="qu-qty"><input class="step-val" type="number" min="0" step="1" inputmode="numeric" value="4" aria-label="配额数量" /></label>
+                </div>
+                <div class="q-row is-zero">
+                  <div class="q-card"><div class="uc-name">cpu-large-2</div><div class="uc-spec">32 vCPU · 256 GiB</div></div>
+                  <label class="qu-qty"><input class="step-val" type="number" min="0" step="1" inputmode="numeric" value="0" aria-label="配额数量" /></label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="drawer-foot"><span class="grow"></span><button class="btn" data-drawer-close>取消</button><button class="btn btn-primary" data-toast="租户创建中，正在初始化基础资源…" data-drawer-submit>创建租户</button></div>
+  </aside>
+
+  <!-- 资源配额抽屉 -->
+  <aside class="drawer wide" id="quotaDrawer">
+    <div class="drawer-head"><div><h3 class="mono">llm-lab</h3><div class="sub">大模型研究院 · 资源配额</div></div><button class="icon-btn" data-drawer-close>✕</button></div>
+    <div class="drawer-body">
+      <div class="pool-tabs" data-pool-tabs>
+        <div class="ptab-nav" data-ptab-nav>
+          <button type="button" class="ptab on" data-ptab="gpu-h100">gpu-h100</button>
+          <button type="button" class="ptab" data-ptab="gpu-a100">gpu-a100</button>
+          <button type="button" class="ptab" data-ptab="cpu-large">cpu-large</button>
+        </div>
+        <div class="ptab-panes" data-ptab-panes>
+          <div class="ptab-pane on" data-ppane="gpu-h100">
+            <div class="ptab-meta">H100 训练/推理池</div>
+            <div class="qp-units">
+              <div class="q-row">
+                <div class="q-card"><div class="uc-name">h100-8x-xlarge-ib</div><div class="uc-spec">8×H100 · 96 vCPU · 768 GiB</div></div>
+                <label class="qu-qty"><input class="step-val" type="number" min="0" step="1" inputmode="numeric" value="2" aria-label="配额数量" /></label>
+              </div>
+              <div class="q-row">
+                <div class="q-card"><div class="uc-name">h100-4x-xlarge</div><div class="uc-spec">4×H100 · 48 vCPU · 384 GiB</div></div>
+                <label class="qu-qty"><input class="step-val" type="number" min="0" step="1" inputmode="numeric" value="1" aria-label="配额数量" /></label>
+              </div>
+              <div class="q-row is-zero">
+                <div class="q-card"><div class="uc-name">h100-1x-large</div><div class="uc-spec">1×H100 · 12 vCPU · 96 GiB</div></div>
+                <label class="qu-qty"><input class="step-val" type="number" min="0" step="1" inputmode="numeric" value="0" aria-label="配额数量" /></label>
+              </div>
+            </div>
+          </div>
+          <div class="ptab-pane" data-ppane="gpu-a100">
+            <div class="ptab-meta">A100 训练池</div>
+            <div class="qp-units">
+              <div class="q-row">
+                <div class="q-card"><div class="uc-name">a100-1x-large</div><div class="uc-spec">1×A100 · 8 vCPU · 64 GiB</div></div>
+                <label class="qu-qty"><input class="step-val" type="number" min="0" step="1" inputmode="numeric" value="4" aria-label="配额数量" /></label>
+              </div>
+              <div class="q-row">
+                <div class="q-card"><div class="uc-name">a100-4x-xlarge</div><div class="uc-spec">4×A100 · 32 vCPU · 256 GiB</div></div>
+                <label class="qu-qty"><input class="step-val" type="number" min="0" step="1" inputmode="numeric" value="2" aria-label="配额数量" /></label>
+              </div>
+              <div class="q-row">
+                <div class="q-card"><div class="uc-name">a100-8x-xlarge-ib</div><div class="uc-spec">8×A100 · 64 vCPU · 512 GiB</div></div>
+                <label class="qu-qty"><input class="step-val" type="number" min="0" step="1" inputmode="numeric" value="1" aria-label="配额数量" /></label>
+              </div>
+            </div>
+          </div>
+          <div class="ptab-pane" data-ppane="cpu-large">
+            <div class="ptab-meta">大内存 CPU 池</div>
+            <div class="qp-units">
+              <div class="q-row">
+                <div class="q-card"><div class="uc-name">cpu-large-1</div><div class="uc-spec">64 vCPU · 512 GiB</div></div>
+                <label class="qu-qty"><input class="step-val" type="number" min="0" step="1" inputmode="numeric" value="2" aria-label="配额数量" /></label>
+              </div>
+              <div class="q-row is-zero">
+                <div class="q-card"><div class="uc-name">cpu-large-2</div><div class="uc-spec">32 vCPU · 256 GiB</div></div>
+                <label class="qu-qty"><input class="step-val" type="number" min="0" step="1" inputmode="numeric" value="0" aria-label="配额数量" /></label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="drawer-foot"><span class="grow"></span><button class="btn" data-drawer-close>取消</button><button class="btn btn-primary" data-toast="配额已保存" data-drawer-submit>保存</button></div>
+  </aside>
+
+  <!-- 成员管理抽屉 -->
+  <aside class="drawer wide" id="membersDrawer">
+    <div class="drawer-head"><div><h3 class="mono">llm-lab</h3><div class="sub">大模型研究院 · 成员管理</div></div><button class="icon-btn" data-drawer-close>✕</button></div>
+    <div class="drawer-body">
+      <div class="toolbar"><div class="field-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input placeholder="成员搜索" /></div><div class="grow"></div><button class="btn btn-sm btn-primary" data-drawer-open="memberDrawer">+ 添加成员</button></div>
+      <div class="panel"><div class="table-wrap"><table class="tbl">
+        <thead><tr><th>成员</th><th>角色</th><th>加入时间</th><th style="text-align:right">操作</th></tr></thead>
+        <tbody>
+          <tr><td><div class="row" style="gap:10px"><div class="avatar" style="width:28px;height:28px;font-size:12px">张</div>张伟</div></td><td><span class="badge badge-accent">租户管理员</span></td><td class="muted">2026-03-08</td><td><div class="row-actions"><button class="act act-danger" title="移除成员" aria-label="移除成员"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M16 11h6"/></svg></button></div></td></tr>
+          <tr><td><div class="row" style="gap:10px"><div class="avatar" style="width:28px;height:28px;font-size:12px;background:var(--fg-2)">李</div>李娜</div></td><td><span class="badge badge-neutral">普通用户</span></td><td class="muted">2026-03-12</td><td><div class="row-actions"><button class="act act-danger" title="移除成员" aria-label="移除成员"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M16 11h6"/></svg></button></div></td></tr>
+          <tr><td><div class="row" style="gap:10px"><div class="avatar" style="width:28px;height:28px;font-size:12px;background:var(--fg-2)">陈</div>陈曦</div></td><td><span class="badge badge-neutral">普通用户</span></td><td class="muted">2026-04-01</td><td><div class="row-actions"><button class="act act-danger" title="移除成员" aria-label="移除成员"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M16 11h6"/></svg></button></div></td></tr>
+        </tbody>
+      </table></div></div>
+    </div>
+    <div class="drawer-foot"><span class="grow"></span><button class="btn" data-drawer-close>关闭</button></div>
+  </aside>
+
+  <!-- 添加成员抽屉 -->
+  <aside class="drawer" id="memberDrawer">
+    <div class="drawer-head"><div><h3>添加成员</h3><div class="sub">为所选租户添加成员并分配角色</div></div><button class="icon-btn" data-drawer-close>✕</button></div>
+    <div class="drawer-body">
+      <div class="form-grid">
+        <div class="field full"><label>成员账号 <span class="req">*</span></label><input class="input" placeholder="name@corp.com" /><span class="help">输入企业邮箱或账号，支持邀请平台已有用户</span></div>
+        <div class="field full"><label>角色 <span class="req">*</span></label><select class="input"><option>普通用户</option><option>租户管理员</option></select></div>
+      </div>
+    </div>
+    <div class="drawer-foot"><span class="grow"></span><button class="btn" data-drawer-close>取消</button><button class="btn btn-primary" data-toast="成员邀请已发送" data-drawer-submit>添加成员</button></div>
+  </aside>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

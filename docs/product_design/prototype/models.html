@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>模型仓 · AxisML 控制台</title>
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body data-nav="models">
+  <main class="page" id="page">
+    <div class="breadcrumb"><span>资产中心</span><span class="sep">/</span><span>模型仓</span></div>
+    <div class="page-head">
+      <div><h1>模型仓</h1><p class="sub">集中管理模型版本、状态、来源与使用记录，实现模型资产的规范化沉淀。支持模型快速检索、发布与复用，加速从研发到应用的转化。</p></div>
+      <div class="actions"><button class="btn btn-primary" data-drawer-open="newModelDrawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>新建模型</button></div>
+    </div>
+
+    <div class="toolbar">
+      <div class="field-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input placeholder="搜索名称 / 描述" data-model-search /></div>
+      <div class="grow"></div>
+      <div class="segmented" data-view-switch="models" data-view-default="cards"><button data-view="cards">▦ 卡片</button><button data-view="list">☰ 列表</button></div>
+    </div>
+
+    <div data-view-pane="cards">
+    <div class="art-cards">
+      <div class="art-card" data-drawer-open="verDrawer">
+        <div class="ac-top"><div class="ac-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg></div><div><div class="ac-name">llama3-8b-sft</div></div></div>
+        <p class="ac-desc">LLaMA3-8B 监督微调权重</p>        <div class="ac-foot"><span class="mono">v4 · 4 版本</span><span>更新 2 天前</span></div>
+      </div>
+      <div class="art-card" data-drawer-open="verDrawer">
+        <div class="ac-top"><div class="ac-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg></div><div><div class="ac-name">bge-embed</div></div></div>
+        <p class="ac-desc">BGE 文本向量模型</p>        <div class="ac-foot"><span class="mono">1.5.0 · 5 版本</span><span>更新 1 周前</span></div>
+      </div>
+      <div class="art-card" data-drawer-open="verDrawer">
+        <div class="ac-top"><div class="ac-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.2 10.8 15.8 7.2M8.2 13.2l7.6 3.6"/></svg></div><div><div class="ac-name">resnet-cls</div></div></div>
+        <p class="ac-desc">ResNet 图像分类</p>        <div class="ac-foot"><span class="mono">2024-06 · 2 版本</span><span>更新 3 天前</span></div>
+      </div>
+      <div class="art-card" data-drawer-open="verDrawer">
+        <div class="ac-top"><div class="ac-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg></div><div><div class="ac-name">qwen2-vl-ft</div></div></div>
+        <p class="ac-desc">Qwen2-VL 视觉指令微调</p>        <div class="ac-foot"><span class="mono">v2 · 2 版本</span><span>更新 5 小时前</span></div>
+      </div>
+    </div>
+    <div class="pagination" style="margin-top:var(--space-4)"><span>共 4 个</span><div class="pages"><span class="pg">‹</span><span class="pg on">1</span><span class="pg">›</span></div><span>每页 20 条</span></div>
+    </div>
+
+    <div data-view-pane="list" hidden>
+      <div class="panel">
+        <div class="table-wrap"><table class="tbl">
+          <thead><tr><th>名称</th><th>框架</th><th>最新版本</th><th class="num-col">版本数</th><th>标签</th><th>更新时间</th><th style="text-align:right">操作</th></tr></thead>
+          <tbody>
+            <tr data-drawer-open="verDrawer"><td><span class="t-name mono">llama3-8b-sft</span><div class="t-sub">LLaMA3-8B 监督微调权重</div></td><td><span class="badge badge-neutral">pytorch</span></td><td class="mono">v4</td><td class="num-col">4</td><td><span class="tag">task=chat</span><span class="tag">lang=zh</span></td><td class="muted">2 天前</td><td><div class="row-actions"><button class="act" title="上传新版本" aria-label="上传新版本"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg></button></div></td></tr>
+            <tr data-drawer-open="verDrawer"><td><span class="t-name mono">bge-embed</span><div class="t-sub">BGE 文本向量模型</div></td><td><span class="badge badge-neutral">safetensors</span></td><td class="mono">1.5.0</td><td class="num-col">5</td><td><span class="tag">embed</span></td><td class="muted">1 周前</td><td></td></tr>
+            <tr data-drawer-open="verDrawer"><td><span class="t-name mono">resnet-cls</span><div class="t-sub">ResNet 图像分类</div></td><td><span class="badge badge-neutral">onnx</span></td><td class="mono">2024-06</td><td class="num-col">2</td><td><span class="tag">vision</span></td><td class="muted">3 天前</td><td><div class="row-actions"><button class="act" title="上传新版本" aria-label="上传新版本"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg></button></div></td></tr>
+            <tr data-drawer-open="verDrawer"><td><span class="t-name mono">qwen2-vl-ft</span><div class="t-sub">Qwen2-VL 视觉指令微调</div></td><td><span class="badge badge-neutral">pytorch</span></td><td class="mono">v2</td><td class="num-col">2</td><td><span class="tag">vision</span><span class="tag">chat</span></td><td class="muted">5 小时前</td><td><div class="row-actions"><button class="act" title="上传新版本" aria-label="上传新版本"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg></button></div></td></tr>
+          </tbody>
+        </table></div>
+        <div class="pagination"><span>共 4 个</span><div class="pages"><span class="pg">‹</span><span class="pg on">1</span><span class="pg">›</span></div><span>每页 20 条</span></div>
+      </div>
+    </div>
+  </main>
+
+  <!-- 模型 + 版本详情抽屉 -->
+  <aside class="drawer wide" id="verDrawer">
+    <div class="drawer-head"><div><h3 class="mono">llama3-8b-sft</h3><div class="sub">LLaMA3-8B 监督微调权重 · pytorch · 创建人 张伟</div></div><button class="icon-btn" data-drawer-close>✕</button></div>
+    <div class="drawer-body">
+      <div class="toolbar"><div class="field-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input placeholder="搜索版本名称 / 描述" data-ver-search /></div><div class="grow"></div><button class="btn btn-sm btn-primary" data-drawer-open="upDrawer">+ 上传新版本</button></div>
+      <div class="ver-list">
+        <div class="ver-item">
+          <div class="ver-top">
+            <span class="ver-name">v4</span>
+            <span class="status status-success"><span class="dot"></span>就绪</span>
+            <span class="badge badge-neutral ver-src">Oras 推送</span>
+            <div class="ver-actions">
+              <button class="act" aria-label="拉取命令" data-drawer-open="pullDrawer"></button>
+              <button class="act act-danger" aria-label="删除"></button>
+            </div>
+          </div>
+          <div class="ver-desc">扩充中文 SFT 数据，修复长文本截断</div>
+          <div class="ver-meta"><span class="ver-addr">zot.axisml.internal/llm-lab/llama3-8b-sft:v4</span><button class="act ver-copy" aria-label="复制" data-toast="地址已复制"></button><span class="ver-by">张伟 · 2 天前</span></div>
+        </div>
+
+        <div class="ver-item">
+          <div class="ver-top">
+            <span class="ver-name">v3</span>
+            <span class="status status-success"><span class="dot"></span>就绪</span>
+            <span class="badge badge-neutral ver-src">Web 上传</span>
+            <div class="ver-actions">
+              <button class="act" aria-label="拉取命令" data-drawer-open="pullDrawer"></button>
+              <button class="act act-danger" aria-label="删除"></button>
+            </div>
+          </div>
+          <div class="ver-desc">对齐 RLHF 偏好数据</div>
+          <div class="ver-meta"><span class="ver-addr">zot.axisml.internal/llm-lab/llama3-8b-sft:v3</span><button class="act ver-copy" aria-label="复制" data-toast="地址已复制"></button><span class="ver-by">张伟 · 5 天前</span></div>
+        </div>
+
+        <div class="ver-item">
+          <div class="ver-top">
+            <span class="ver-name">v2</span>
+            <span class="status status-success"><span class="dot"></span>就绪</span>
+            <span class="badge badge-neutral ver-src">S3 地址</span>
+            <div class="ver-actions">
+              <button class="act" aria-label="拉取命令" data-drawer-open="pullDrawer"></button>
+              <button class="act act-danger" aria-label="删除"></button>
+            </div>
+          </div>
+          <div class="ver-desc">基线 SFT 权重</div>
+          <div class="ver-meta"><span class="ver-addr">zot.axisml.internal/llm-lab/llama3-8b-sft:v2</span><button class="act ver-copy" aria-label="复制" data-toast="地址已复制"></button><span class="ver-by">李娜 · 1 周前</span></div>
+        </div>
+
+        <div class="ver-item">
+          <div class="ver-top">
+            <span class="ver-name">v1</span>
+            <span class="status status-pending"><span class="dot"></span>上传中</span>
+            <span class="badge badge-neutral ver-src">Web 上传</span>
+            <div class="ver-actions">
+              <button class="act act-run" aria-label="完成上传"></button>
+            </div>
+          </div>
+          <div class="ver-desc">首次导入权重</div>
+          <div class="ver-meta"><span class="ver-addr muted">地址生成中…</span><span class="ver-by">李娜 · 刚刚</span></div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- 拉取命令抽屉 -->
+  <aside class="drawer" id="pullDrawer">
+    <div class="drawer-head"><div><h3>拉取命令</h3><div class="sub mono">llama3-8b-sft@v4</div></div><button class="icon-btn" data-drawer-close>✕</button></div>
+    <div class="drawer-body">
+      <p class="muted" style="font-size:13px;margin-bottom:12px">模型存储于 OCI（zot），用以下命令拉取。临时凭证有效期 1 小时。</p>
+      <pre class="logbox" style="max-height:none">docker pull zot.axisml.internal/llm-lab/\
+  llama3-8b-sft@sha256:a1b2c3d4e5f6...</pre>
+      <button class="btn" style="margin-top:14px" data-toast="命令已复制到剪贴板">复制命令</button>
+    </div>
+    <div class="drawer-foot"><button class="btn btn-primary" data-drawer-close>完成</button></div>
+  </aside>
+
+  <!-- 新建模型抽屉（仅创建条目 / 壳，不含权重数据）-->
+  <aside class="drawer wide" id="newModelDrawer">
+    <div class="drawer-head"><div><h3>新建模型</h3><div class="sub">先创建模型条目，再上传具体版本权重</div></div><button class="icon-btn" data-drawer-close>✕</button></div>
+    <div class="drawer-body">
+      <div class="fieldset-title"><span class="n">1</span>基本信息</div>
+      <div class="form-grid">
+        <div class="field full"><label>模型名 <span class="req">*</span></label><input class="input mono" data-en-only placeholder="my-llm-model（仅英文、数字与连字符）" /></div>
+        <div class="field full"><label>描述</label><textarea class="textarea" placeholder="简要说明模型用途、训练数据与适用场景"></textarea></div>
+      </div>
+
+      <div class="fieldset-title"><span class="n">2</span>标签</div>
+
+      <div class="tag-group" data-tag-group="multi">
+        <span class="tg-label">Tasks</span>
+        <div class="chip-row" data-tag-list>
+          <span class="tag-opt">Text Generation</span>
+          <span class="tag-opt">Text Classification</span>
+          <span class="tag-opt">Question Answering</span>
+          <span class="tag-opt">Summarization</span>
+          <span class="tag-opt">Translation</span>
+          <span class="tag-opt">Feature Extraction</span>
+          <span class="tag-opt">Image Classification</span>
+          <span class="tag-opt">Object Detection</span>
+          <span class="tag-opt">Automatic Speech Recognition</span>
+          <span class="tag-opt">Text-to-Image</span>
+          <input class="tag-add-input" data-facet-input placeholder="自定义，回车添加" aria-label="添加自定义 Task" />
+        </div>
+      </div>
+
+      <div class="tag-group">
+        <span class="tg-label">Parameters</span>
+        <div class="param-slider" data-param-slider>
+          <div class="ps-row">
+            <input type="range" class="range" min="0" max="8" step="1" value="3" data-param-range aria-label="参数量" />
+            <input class="input mono ps-input" data-param-input aria-label="参数量" placeholder="7B" />
+          </div>
+          <div class="ps-ticks"><span>&lt;1B</span><span>1B</span><span>3B</span><span>7B</span><span>8B</span><span>13B</span><span>32B</span><span>70B</span><span>&gt;100B</span></div>
+        </div>
+      </div>
+
+      <div class="tag-group" data-tag-group="multi">
+        <span class="tg-label">Framework</span>
+        <div class="chip-row" data-tag-list>
+          <span class="tag-opt">PyTorch</span>
+          <span class="tag-opt">Safetensors</span>
+          <span class="tag-opt">Transformers</span>
+          <span class="tag-opt">TensorFlow</span>
+          <span class="tag-opt">JAX</span>
+          <span class="tag-opt">ONNX</span>
+          <span class="tag-opt">GGUF</span>
+          <input class="tag-add-input" data-facet-input placeholder="自定义，回车添加" aria-label="添加自定义 Framework" />
+        </div>
+      </div>
+
+      <div class="tag-group">
+        <span class="tg-label">自定义标签</span>
+        <div class="custom-tags" data-custom-tags>
+          <div class="chip-row" data-tag-list></div>
+          <div class="cta-input">
+            <input class="input mono" placeholder="键，如 license" data-tag-key />
+            <span class="cta-sep mono">:</span>
+            <input class="input mono" placeholder="值，如 apache-2.0" data-tag-val />
+            <button class="btn btn-sm" type="button" data-tag-add>添加</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="drawer-foot"><span class="grow"></span><button class="btn" data-drawer-close>取消</button><button class="btn btn-primary" data-toast="模型已创建，可在版本列表上传权重" data-drawer-submit>创建模型</button></div>
+  </aside>
+
+  <!-- 上传新版本向导抽屉 -->
+  <aside class="drawer wide" id="upDrawer">
+    <div class="drawer-head"><div><h3>上传新版本</h3><div class="sub">向已有模型推送新版本权重</div></div><button class="icon-btn" data-drawer-close>✕</button></div>
+    <div class="drawer-body">
+      <div class="fieldset-title"><span class="n">1</span>基本信息</div>
+      <div class="form-grid">
+        <div class="field"><label>模型</label><input class="input mono" value="llama3-8b-sft" disabled /></div>
+        <div class="field"><label>版本号 <span class="req">*</span></label><input class="input mono" data-tag-name placeholder="v5 / 1.5.0 / 2026-06" /></div>
+        <div class="field full"><label>描述</label><textarea class="textarea" placeholder="本次更新内容，如：扩充中文 SFT 数据、修复输出截断"></textarea></div>
+      </div>
+
+      <div class="fieldset-title"><span class="n">2</span>上传方式</div>
+      <div data-tabs>
+        <div class="tabs">
+          <button class="on" data-tab="web">通过 Web 上传</button>
+          <button data-tab="remote">添加外部模型</button>
+          <button data-tab="oras">使用 Oras 推送</button>
+        </div>
+
+        <div class="tabpane on" data-pane="web">
+          <label class="dropzone" data-dropzone>
+            <input type="file" multiple hidden data-dropzone-input />
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>
+            <div class="dz-title">拖拽文件到此处，或 <span class="dz-link">点击选择</span></div>
+            <div class="dz-hint">支持权重与配置文件（.safetensors / .bin / .json / .model 等），单文件最大 50GB</div>
+          </label>
+          <div class="dz-files" data-dropzone-files hidden></div>
+        </div>
+
+        <div class="tabpane" data-pane="remote">
+          <div class="form-grid">
+            <div class="field full"><label>存储类型 <span class="req">*</span></label><select class="input" data-addr-type><option value="s3">S3 / S3 兼容（MinIO）</option><option value="oci">OCI Registry</option><option value="http">HTTP(S) URL</option><option value="hf">HuggingFace Hub</option><option value="custom">自定义</option></select></div>
+            <div class="field full"><label>地址 <span class="req">*</span></label><input class="input mono" data-addr-input placeholder="s3://bucket/prefix" /></div>
+          </div>
+        </div>
+
+        <div class="tabpane" data-pane="oras">
+          <p class="help" style="margin-bottom:14px">使用 <b>ORAS</b> 将本地模型目录作为 OCI 制品直接推送到模型仓，适合大体积权重与 CI 流水线。</p>
+
+          <div class="oras-step">
+            <div class="os-head">1 · 下载 ORAS 工具</div>
+            <pre class="logbox" style="max-height:none"># Linux x86_64（其他平台见官方文档）
+curl -LO https://github.com/oras-project/oras/releases/download/v1.2.0/oras_1.2.0_linux_amd64.tar.gz
+tar -xzf oras_1.2.0_linux_amd64.tar.gz oras
+sudo mv oras /usr/local/bin/ &amp;&amp; oras version</pre>
+            <div class="chip-row" style="margin-top:10px;align-items:center">
+              <button class="btn btn-sm" data-toast="安装命令已复制">复制命令</button>
+              <a class="link" href="https://oras.land/docs/installation" target="_blank" rel="noopener">其他平台安装文档 ↗</a>
+            </div>
+          </div>
+
+          <div class="oras-step">
+            <div class="os-head">2 · 登录并推送模型</div>
+            <pre class="logbox" style="max-height:none"># 1. 登录模型仓（临时凭证有效期 1h）
+oras login zot.axisml.internal -u &lt;用户名&gt; -p &lt;token&gt;
+
+# 2. 进入本地模型目录，推送为指定版本
+cd ./llama3-8b-sft
+oras push zot.axisml.internal/llm-lab/llama3-8b-sft:v5 \
+  --artifact-type application/vnd.axisml.model.v1 \
+  ./*:application/octet-stream</pre>
+            <button class="btn btn-sm" style="margin-top:10px" data-toast="推送命令已复制">复制命令</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="drawer-foot"><span class="grow"></span><button class="btn" data-drawer-close>取消</button><button class="btn btn-primary" data-toast="已提交，版本正在上传 / 拉取" data-drawer-submit>提交</button></div>
+  </aside>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

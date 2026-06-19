@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>svc-chat-api · 在线服务 · AxisML</title>
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body data-nav="services">
+  <main class="page" id="page">
+    <a class="back-link" href="services.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>返回服务列表</a>
+
+    <div class="page-head">
+      <div>
+        <h1 class="detail-title">svc-chat-api <span class="spill ok"><span class="dot"></span>就绪</span></h1>
+        <div class="detail-sub">对话推理服务</div>
+      </div>
+      <div class="actions">
+        <button class="btn" data-drawer-open="editSvcDrawer">编辑</button>
+        <button class="btn btn-primary" data-drawer-open="scaleDrawer">扩缩容</button>
+        <button class="btn" data-toast="服务正在停止…">停止</button>
+        <button class="btn btn-danger" data-confirm="删除服务 svc-chat-api？" data-confirm-desc="将下线服务并回收副本，访问路由一并移除。该操作不可恢复。" data-confirm-ok="确认删除" data-confirm-toast="服务 svc-chat-api 已删除">删除</button>
+      </div>
+    </div>
+
+    <div data-tabs>
+      <div class="tabs">
+        <button class="on" data-tab="info">概览</button>
+        <button data-tab="mon">监控</button>
+        <button data-tab="pods">实例</button>
+        <button data-tab="log">日志</button>
+        <button data-tab="ev">事件</button>
+      </div>
+
+      <!-- 概览：基本信息（居左整宽） -->
+      <div class="tabpane on" data-pane="info">
+          <div class="panel">
+            <div class="panel-head"><h3>配置信息</h3></div>
+            <div class="panel-body"><dl class="kv kv-lg">
+              <dt>名称</dt><dd><span class="cchip">svc-chat-api</span></dd>
+              <dt>描述</dt><dd>线上对话接口，承接 App 端流量</dd>
+              <dt>模型版本</dt><dd><span class="cchip">llama3-8b-sft@v4</span></dd>
+              <dt>镜像</dt><dd><span class="cchip">triton-infer@sha256:5c4d3e</span></dd>
+              <dt>资源池</dt><dd><span class="cchip">gpu-h100 · H100 推理池</span></dd>
+              <dt>资源单元</dt><dd><span class="cchip">h100-1x-large</span></dd>
+              <dt>副本</dt><dd><span class="mono">2 / 2</span> 就绪</dd>
+              <dt>端口</dt><dd><div class="chip-row"><span class="cchip">http : 8000</span><span class="cchip">grpc : 8001</span><span class="cchip">metrics : 8002</span></div></dd>
+              <dt>访问地址</dt><dd><span class="cchip">/services/team-a/chat-api/</span><button class="icon-mini" data-toast="访问地址已复制" title="复制" aria-label="复制访问地址"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></dd>
+              <dt>创建人</dt><dd>张伟 · <span class="mono muted">zhang.wei</span></dd>
+              <dt>创建时间</dt><dd class="mono">2026-05-28 11:09:44</dd>
+            </dl></div>
+          </div>
+      </div>
+
+      <!-- 监控 -->
+      <div class="tabpane" data-pane="mon">
+        <div class="toolbar"><span class="hint">来自 Prometheus · 按副本聚合</span><div class="grow"></div><div class="segmented"><button>5m</button><button class="on">1h</button><button>24h</button></div></div>
+        <div class="grid cols-2">
+          <div class="mcard">
+            <div class="mc-head"><span class="mc-title">QPS</span><span class="mc-val">128 req/s</span></div>
+            <svg class="mc-chart chart" viewBox="0 0 600 132" preserveAspectRatio="none">
+              <line class="grid-line" x1="0" y1="44" x2="600" y2="44"/><line class="grid-line" x1="0" y1="88" x2="600" y2="88"/>
+              <defs><linearGradient id="g-qps" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--info)" stop-opacity="0.18"/><stop offset="1" stop-color="var(--info)" stop-opacity="0"/></linearGradient></defs>
+              <path d="M0 105 L50 96 L100 88 L150 92 L200 74 L250 78 L300 66 L350 70 L400 58 L450 64 L500 52 L550 58 L600 50 L600 132 L0 132 Z" fill="url(#g-qps)"/>
+              <path d="M0 105 L50 96 L100 88 L150 92 L200 74 L250 78 L300 66 L350 70 L400 58 L450 64 L500 52 L550 58 L600 50" fill="none" stroke="var(--info)" stroke-width="2"/>
+            </svg>
+          </div>
+          <div class="mcard">
+            <div class="mc-head"><span class="mc-title">延迟</span><div class="legend"><span><i style="background:var(--muted)"></i>p50</span><span><i style="background:var(--info)"></i>p95</span><span><i style="background:var(--danger)"></i>p99</span></div></div>
+            <svg class="mc-chart chart" viewBox="0 0 600 132" preserveAspectRatio="none">
+              <line class="grid-line" x1="0" y1="44" x2="600" y2="44"/><line class="grid-line" x1="0" y1="88" x2="600" y2="88"/>
+              <path d="M0 84 L60 72 L120 88 L180 66 L240 92 L300 62 L360 86 L420 60 L480 90 L540 68 L600 80" fill="none" stroke="var(--muted)" stroke-width="1.6"/>
+              <path d="M0 76 L60 62 L120 82 L180 56 L240 86 L300 52 L360 80 L420 50 L480 84 L540 60 L600 72" fill="none" stroke="var(--info)" stroke-width="1.8"/>
+              <path d="M0 70 L60 54 L120 78 L180 48 L240 82 L300 44 L360 76 L420 44 L480 80 L540 54 L600 66" fill="none" stroke="var(--danger)" stroke-width="1.8"/>
+            </svg>
+          </div>
+          <div class="mcard">
+            <div class="mc-head"><span class="mc-title">错误率 (5xx)</span><span class="mc-val">0.04%</span></div>
+            <svg class="mc-chart chart" viewBox="0 0 600 132" preserveAspectRatio="none">
+              <line class="grid-line" x1="0" y1="44" x2="600" y2="44"/><line class="grid-line" x1="0" y1="88" x2="600" y2="88"/>
+              <defs><linearGradient id="g-err" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--danger)" stop-opacity="0.16"/><stop offset="1" stop-color="var(--danger)" stop-opacity="0"/></linearGradient></defs>
+              <path d="M0 112 L60 108 L120 104 L180 112 L240 92 L300 84 L360 72 L420 64 L480 84 L540 102 L600 106 L600 132 L0 132 Z" fill="url(#g-err)"/>
+              <path d="M0 112 L60 108 L120 104 L180 112 L240 92 L300 84 L360 72 L420 64 L480 84 L540 102 L600 106" fill="none" stroke="var(--danger)" stroke-width="1.9"/>
+            </svg>
+          </div>
+          <div class="mcard">
+            <div class="mc-head"><span class="mc-title">CPU 利用率</span><span class="mc-val">62%</span></div>
+            <svg class="mc-chart chart" viewBox="0 0 600 132" preserveAspectRatio="none">
+              <line class="grid-line" x1="0" y1="44" x2="600" y2="44"/><line class="grid-line" x1="0" y1="88" x2="600" y2="88"/>
+              <defs><linearGradient id="g-cpu" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--info)" stop-opacity="0.18"/><stop offset="1" stop-color="var(--info)" stop-opacity="0"/></linearGradient></defs>
+              <path d="M0 80 L60 72 L120 92 L180 58 L240 74 L300 54 L360 70 L420 48 L480 66 L540 46 L600 58 L600 132 L0 132 Z" fill="url(#g-cpu)"/>
+              <path d="M0 80 L60 72 L120 92 L180 58 L240 74 L300 54 L360 70 L420 48 L480 66 L540 46 L600 58" fill="none" stroke="var(--info)" stroke-width="2"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- 实例 (Pods) -->
+      <div class="tabpane" data-pane="pods">
+        <div class="panel"><div class="table-wrap"><table class="tbl">
+          <thead><tr><th>POD 名称</th><th>阶段</th><th>节点</th><th class="num-col">重启</th><th>启动时间</th><th style="text-align:right">操作</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">svc-chat-api-7b9c-x4d2</td><td><span class="spill run"><span class="dot"></span>Running</span></td><td class="mono muted">node-h100-01</td><td class="num-col">0</td><td class="muted mono">2026-06-13 02:11:30</td><td><div class="row-actions"><button class="act" title="日志" aria-label="日志">日志</button><button class="act" title="事件" aria-label="事件">事件</button></div></td></tr>
+            <tr><td class="mono">svc-chat-api-7b9c-m8k1</td><td><span class="spill run"><span class="dot"></span>Running</span></td><td class="mono muted">node-h100-03</td><td class="num-col">0</td><td class="muted mono">2026-06-13 02:11:30</td><td><div class="row-actions"><button class="act" title="日志" aria-label="日志">日志</button><button class="act" title="事件" aria-label="事件">事件</button></div></td></tr>
+          </tbody>
+        </table></div></div>
+      </div>
+
+      <!-- 日志 -->
+      <div class="tabpane" data-pane="log">
+        <div class="panel"><div class="panel-body">
+          <div class="log-bar">
+            <div class="pod-pick"><span class="pp-tag">POD</span><select><option>svc-chat-api-7b9c-x4d2</option><option>svc-chat-api-7b9c-m8k1</option></select></div>
+            <div class="grow"></div>
+            <label class="follow">实时跟随 <button class="toggle on" aria-label="实时跟随"></button></label>
+          </div>
+          <pre class="logbox"><span class="l-time">02:11:42</span><span class="l-info">[I]</span> Triton server started, model chat-7b loaded on GPU 0
+<span class="l-time">02:11:43</span><span class="l-info">[I]</span> HTTP/gRPC endpoints ready on :8000 / :8001
+<span class="l-time">09:14:22</span><span class="l-info">[I]</span> inference id=8841 tokens=512 latency=86ms
+<span class="l-time">09:14:23</span><span class="l-info">[I]</span> inference id=8842 tokens=128 latency=41ms
+<span class="l-time">09:15:01</span><span class="l-warn">[W]</span> request id=8901 queued 120ms (batch full)
+<span class="l-time">09:15:44</span><span class="l-info">[I]</span> inference id=8950 tokens=256 latency=63ms</pre>
+        </div></div>
+      </div>
+
+      <!-- 事件 -->
+      <div class="tabpane" data-pane="ev">
+        <!-- 服务事件（由概览迁移而来，居左整宽） -->
+        <div class="panel">
+          <div class="panel-head"><h3>服务事件</h3></div>
+          <div class="panel-body">
+            <div class="timeline">
+              <div class="tl-item"><span class="tl-dot"></span><div class="tl-head"><span class="tl-name">ScaledUp</span><span class="tl-tag">NORMAL</span><span class="tl-time">2026-06-13 02:11:30</span></div><div class="tl-desc">服务扩容至 2 副本</div></div>
+              <div class="tl-item"><span class="tl-dot"></span><div class="tl-head"><span class="tl-name">RouteReady</span><span class="tl-tag">NORMAL</span><span class="tl-time">2026-06-13 02:11:46</span></div><div class="tl-desc">对外路由 /services/team-a/chat-api/ 已生效</div></div>
+              <div class="tl-item is-muted"><span class="tl-dot"></span><div class="tl-head"><span class="tl-name">Pulled</span><span class="tl-tag">NORMAL</span><span class="tl-time">2026-06-13 02:11:14</span></div><div class="tl-desc">镜像 triton-infer@sha256:5c4d3e 拉取完成</div></div>
+            </div>
+          </div>
+        </div>
+        <!-- 实例事件（按 POD 查看） -->
+        <div class="panel" style="margin-top:var(--space-5)">
+          <div class="panel-head"><h3>实例事件</h3></div>
+          <div class="panel-body">
+          <div class="log-bar">
+            <div class="pod-pick"><span class="pp-tag">POD</span><select><option>svc-chat-api-7b9c-x4d2</option><option>svc-chat-api-7b9c-m8k1</option></select></div>
+            <div class="grow"></div>
+            <label class="follow">实时跟随 <button class="toggle on" aria-label="实时跟随"></button></label>
+          </div>
+          <div class="timeline" style="margin-top:var(--space-5)">
+            <div class="tl-item"><span class="tl-dot"></span><div class="tl-head"><span class="tl-name">Scheduled</span><span class="tl-tag">NORMAL</span><span class="tl-time">2026-06-13 02:11:14</span></div><div class="tl-desc">x4d2 分配到节点 node-h100-01</div></div>
+            <div class="tl-item"><span class="tl-dot"></span><div class="tl-head"><span class="tl-name">Pulled</span><span class="tl-tag">NORMAL</span><span class="tl-time">2026-06-13 02:11:14</span></div><div class="tl-desc">镜像 triton-infer@sha256:5c4d3e 拉取完成</div></div>
+            <div class="tl-item"><span class="tl-dot"></span><div class="tl-head"><span class="tl-name">Started</span><span class="tl-tag">NORMAL</span><span class="tl-time">2026-06-13 02:11:30</span></div><div class="tl-desc">容器启动，加载模型 chat-7b 到 GPU 0</div></div>
+            <div class="tl-item"><span class="tl-dot"></span><div class="tl-head"><span class="tl-name">Ready</span><span class="tl-tag">NORMAL</span><span class="tl-time">2026-06-13 02:11:43</span></div><div class="tl-desc">就绪探针通过，HTTP/gRPC 端点开始接流</div></div>
+          </div>
+        </div></div>
+      </div>
+    </div>
+  </main>
+
+  <aside class="drawer" id="scaleDrawer">
+    <div class="drawer-head"><div><h3>扩缩容</h3><div class="sub mono">svc-chat-api</div></div><button class="icon-btn" data-drawer-close>✕</button></div>
+    <div class="drawer-body"><div class="field"><label>目标副本数</label><input class="input num" value="3" /><span class="help">当前 2 / 2 就绪 · 配额上限 gpu-h100 max=8</span></div></div>
+    <div class="drawer-foot"><button class="btn" data-drawer-close>取消</button><button class="btn btn-primary" data-toast="已扩容至 3 副本" data-drawer-submit>应用</button></div>
+  </aside>
+
+  <!-- 编辑服务抽屉（UI 同新建服务） -->
+  <aside class="drawer wide" id="editSvcDrawer">
+    <div class="drawer-head"><div><h3>编辑服务</h3><div class="sub mono">svc-chat-api</div></div><button class="icon-btn" data-drawer-close>✕</button></div>
+    <div class="drawer-body">
+      <div class="fieldset-title"><span class="n">1</span>基本信息</div>
+      <div class="form-grid">
+        <div class="field"><label>名称 <span class="req">*</span></label><input class="input mono" value="svc-chat-api" /><span class="help">用于在列表与详情中展示</span></div>
+        <div class="field full"><label>描述</label><textarea class="textarea">线上对话接口，承接 App 端流量</textarea></div>
+      </div>
+
+      <div class="fieldset-title"><span class="n">2</span>模型与镜像</div>
+      <div class="form-grid">
+        <div class="field"><label>模型版本 <span class="req">*</span></label><select class="input"><option>llama3-8b-sft@v4</option><option>llama3-8b-sft@v3</option></select></div>
+        <div class="field"><label>推理镜像 <span class="req">*</span></label><select class="input"><option>triton-infer:24.05</option><option>vllm-serve:0.5.1</option></select></div>
+      </div>
+
+      <div class="fieldset-title"><span class="n">3</span>资源选择</div>
+      <div class="form-grid">
+        <div class="field full"><label>资源池 <span class="req">*</span></label><select class="input"><option>gpu-h100 · H100 推理池</option><option>gpu-l40s · L40S 推理池</option></select></div>
+      </div>
+      <div class="field" style="margin-top:var(--space-4)"><label>资源单元 <span class="req">*</span></label>
+        <div class="pick-grid" data-pick-group>
+          <div class="pick on"><div class="p-title">h100-1x-large</div><div class="p-spec">1×H100 · 16 vCPU · 128 GiB</div></div>
+          <div class="pick"><div class="p-title">l40s-1x</div><div class="p-spec">1×L40S · 8 vCPU · 64 GiB</div></div>
+        </div>
+      </div>
+      <div class="form-grid" style="margin-top:var(--space-4)">
+        <div class="field"><label>副本数 <span class="req">*</span></label><input class="input num mono" value="2" /></div>
+      </div>
+
+      <div class="fieldset-title"><span class="n">4</span>端口与路由</div>
+      <div class="form-grid">
+        <div class="field full"><label>端口 <span class="req">*</span></label>
+          <div class="vol-list" data-vol-list>
+            <div class="vol-row">
+              <input class="input mono" data-en-only value="http" placeholder="名称，如 http" aria-label="端口名" maxlength="15" />
+              <input class="input mono" value="8000" placeholder="端口号" aria-label="端口号" inputmode="numeric" />
+              <button type="button" class="icon-btn" data-vol-remove title="移除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+            </div>
+            <div class="vol-row">
+              <input class="input mono" data-en-only value="grpc" placeholder="名称，如 http" aria-label="端口名" maxlength="15" />
+              <input class="input mono" value="8001" placeholder="端口号" aria-label="端口号" inputmode="numeric" />
+              <button type="button" class="icon-btn" data-vol-remove title="移除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+            </div>
+            <div class="vol-row">
+              <input class="input mono" data-en-only value="metrics" placeholder="名称，如 http" aria-label="端口名" maxlength="15" />
+              <input class="input mono" value="8002" placeholder="端口号" aria-label="端口号" inputmode="numeric" />
+              <button type="button" class="icon-btn" data-vol-remove title="移除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+            </div>
+          </div>
+          <a class="link vol-add" data-vol-add role="button" tabindex="0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>添加端口</a>
+        </div>
+      </div>
+      <div class="form-grid">
+        <div class="field full" style="flex-direction:row;align-items:center;justify-content:space-between"><div><label style="margin:0">启用对外路由</label><span class="help">关闭后仅集群内可访问</span></div><button class="toggle on" aria-label="启用对外路由"></button></div>
+        <div class="field"><label>Path</label><input class="input mono" value="/services/team-a/chat-api/" /></div>      </div>
+    </div>
+    <div class="drawer-foot"><span class="grow"></span><button class="btn" data-drawer-close>取消</button><button class="btn btn-primary" data-toast="服务配置已保存" data-drawer-submit>保存</button></div>
+  </aside>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
