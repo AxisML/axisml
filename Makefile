@@ -49,12 +49,10 @@ HELM_SYSTEM_IMAGE_SET := \
   --set tenantOperator.image.tag=$(IMAGE_TAG) \
   --set computeOperator.image.tag=$(IMAGE_TAG)
 
-# Platform still ships an nginx placeholder image (see axisml-platform values),
-# which does not track Chart.appVersion — so IMAGE_TAG is NOT forced onto it yet.
-# Uncomment once Platform publishes a real image tagged to appVersion.
-HELM_PLATFORM_IMAGE_SET :=
-# HELM_PLATFORM_IMAGE_SET := \
-#   --set platform.image.tag=$(IMAGE_TAG)
+# Platform ships the real axisml-platform-backend image; force IMAGE_TAG onto it
+# for parity with the system layer (the chart defaults the tag to appVersion).
+HELM_PLATFORM_IMAGE_SET := \
+  --set platform.image.tag=$(IMAGE_TAG)
 
 # Dev-only defaults the chart `required` gates demand. Production installs
 # should override these via HELM_EXTRA_ARGS or a values file with real

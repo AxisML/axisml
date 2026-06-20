@@ -31,6 +31,19 @@ system:
     port: 8080
 
 # =============================================================================
+# Shared PostgreSQL (Infra layer, cross-namespace). Platform reads the same DB
+# the System services use; the password must match the Infra chart's value.
+# =============================================================================
+database:
+  host: axisml-database.axisml-infra
+  port: 5432
+  name: axisml
+  user: axisml
+  sslMode: disable
+  auth:
+    password: axisml
+
+# =============================================================================
 # AxisML Platform
 # =============================================================================
 platform:
@@ -38,11 +51,22 @@ platform:
   replicaCount: 1
 
   image:
-    # Platform service is not yet implemented; use nginx as a placeholder.
-    registry: docker.io
-    repository: library/nginx
-    tag: "1.27-alpine"
+    registry: ghcr.io
+    repository: axisml/axisml-platform-backend
+    # Defaults to the chart's appVersion when empty (the top-level Makefile
+    # injects the system appVersion via --set for tag parity).
+    tag: ""
     pullPolicy: IfNotPresent
+
+  # Dedicated probes port (separate from the API port).
+  probesPort: 8082
+
+  bootstrap:
+    tenant: default
+    tenantNamespace: axisml-tenant
+    # Optionally source the initial system-admin password from a Secret.
+    # passwordSecret: { name: axisml-platform-bootstrap, key: password }
+    passwordSecret: {}
 
   service:
     type: ClusterIP

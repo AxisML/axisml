@@ -6,9 +6,21 @@ metadata:
   labels:
     {{- include "axisml.componentLabels" (dict "context" . "component" "platform") | nindent 4 }}
 data:
-  ML_CLUSTER_MANAGER_URL: "http://{{ .Values.system.clusterManager.name }}.{{ .Values.system.namespace }}:{{ .Values.system.clusterManager.port }}"
-  ML_COMPUTE_URL: "http://{{ .Values.system.computeService.name }}.{{ .Values.system.namespace }}:{{ .Values.system.computeService.port }}"
-  ML_ARTIFACTS_URL: "http://{{ .Values.system.artifactHub.name }}.{{ .Values.system.namespace }}:{{ .Values.system.artifactHub.port }}"
+  # Listeners
+  API_BIND_ADDRESS: ":{{ .Values.platform.service.port }}"
+  PROBES_BIND_ADDRESS: ":{{ .Values.platform.probesPort }}"
+  # Shared Postgres (Infra layer, cross-namespace)
+  DATABASE_HOST: {{ .Values.database.host | quote }}
+  DATABASE_PORT: {{ .Values.database.port | quote }}
+  DATABASE_NAME: {{ .Values.database.name | quote }}
+  DATABASE_USER: {{ .Values.database.user | quote }}
+  DATABASE_SSLMODE: {{ .Values.database.sslMode | quote }}
+  # System-layer service URLs (cluster-internal DNS)
+  CLUSTER_MANAGER_URL: "http://{{ .Values.system.clusterManager.name }}.{{ .Values.system.namespace }}:{{ .Values.system.clusterManager.port }}"
+  COMPUTE_URL: "http://{{ .Values.system.computeService.name }}.{{ .Values.system.namespace }}:{{ .Values.system.computeService.port }}"
+  ARTIFACTS_URL: "http://{{ .Values.system.artifactHub.name }}.{{ .Values.system.namespace }}:{{ .Values.system.artifactHub.port }}"
+  AXISML_BOOTSTRAP_TENANT: {{ .Values.platform.bootstrap.tenant | quote }}
+  AXISML_BOOTSTRAP_TENANT_NAMESPACE: {{ .Values.platform.bootstrap.tenantNamespace | quote }}
   {{- range $key, $value := .Values.platform.env }}
   {{ $key }}: {{ $value | quote }}
   {{- end }}

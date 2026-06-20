@@ -93,9 +93,13 @@ func seedDefaultTenant(ctx context.Context, cfg config.Config, tenants *store.Te
 		NamespaceName: cfg.BootstrapTenantNS,
 		DisplayName:   "Default",
 	}); err != nil {
-		// Roll back the durable row so a retry can re-attempt cleanly.
+		// Best-effort: cluster-manager may not be reachable yet during init.
+		// Roll back the durable row so the tenant can be (re)created later via
+		// the API, and let bootstrap succeed so admin + migrations are in place.
 		_ = tenants.Delete(ctx, cfg.BootstrapTenant)
-		return fmt.Errorf("materialise default tenant CR: %w", err)
+		log.Warn("bootstrap: default tenant CR not yet materialised (cluster-manager unreachable?); create it later via the API",
+			"tenant", cfg.BootstrapTenant, "err", err)
+		return nil
 	}
 	log.Info("bootstrap: created default tenant", "tenant", cfg.BootstrapTenant, "namespace", cfg.BootstrapTenantNS)
 	return nil
