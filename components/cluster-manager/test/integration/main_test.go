@@ -23,6 +23,7 @@ import (
 	axismlv1alpha1 "github.com/axisml/axisml/components/cluster-manager/api/v1alpha1"
 	cmapp "github.com/axisml/axisml/components/cluster-manager/internal/app"
 	cmk8sclient "github.com/axisml/axisml/components/cluster-manager/internal/k8sclient"
+	tenantv1alpha1 "github.com/axisml/axisml/components/tenant-operator/api/v1alpha1"
 
 	"github.com/axisml/axisml/test/testutil"
 )
@@ -45,6 +46,7 @@ func TestMain(m *testing.M) {
 	scheme := runtime.NewScheme()
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(axismlv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(tenantv1alpha1.AddToScheme(scheme))
 
 	testEnv, err = testutil.StartEnvtestE(testutil.EnvtestOptions{
 		Scheme: scheme,

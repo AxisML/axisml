@@ -1319,20 +1319,6 @@ components:
       - Deleting
       - Deleted
       type: string
-    Namespace:
-      properties:
-        annotations:
-          $ref: '#/components/schemas/StringMap'
-        labels:
-          $ref: '#/components/schemas/StringMap'
-        name:
-          maxLength: 63
-          minLength: 1
-          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
-          type: string
-      required:
-      - name
-      type: object
     Pod:
       properties:
         exitCode:
@@ -1982,10 +1968,6 @@ components:
       properties:
         annotations:
           $ref: '#/components/schemas/StringMap'
-        artifactsNamespace:
-          type: string
-        computeNamespace:
-          type: string
         createdAt:
           format: date-time
           type: string
@@ -1997,40 +1979,33 @@ components:
           type: string
         displayName:
           type: string
-        generation:
-          format: int64
-          minimum: 1
-          type: integer
+        identifier:
+          type: string
+        initResources:
+          $ref: '#/components/schemas/InitResources'
         labels:
           $ref: '#/components/schemas/StringMap'
-        name:
-          type: string
-        namespace:
-          maxLength: 100
-          type: string
-        observedGeneration:
-          format: int64
-          minimum: 0
-          type: integer
         owner:
           type: string
         phase:
           $ref: '#/components/schemas/TenantPhase'
-        spec:
-          $ref: '#/components/schemas/TenantSpec'
+        quotas:
+          items:
+            $ref: '#/components/schemas/Quota'
+          type: array
         status:
           $ref: '#/components/schemas/TenantStatus'
+        suspended:
+          type: boolean
         updatedAt:
           format: date-time
           type: string
       required:
       - createdAt
       - displayName
-      - generation
-      - name
-      - namespace
+      - identifier
       - phase
-      - spec
+      - suspended
       - updatedAt
       type: object
     TenantCreateRequest:
@@ -2044,22 +2019,25 @@ components:
           maxLength: 100
           minLength: 1
           type: string
-        initialAdmin:
-          type: string
-        labels:
-          $ref: '#/components/schemas/StringMap'
-        name:
+        identifier:
           maxLength: 40
           minLength: 3
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
-        spec:
-          $ref: '#/components/schemas/TenantSpec'
+        initResources:
+          $ref: '#/components/schemas/InitResources'
+        initialAdmin:
+          type: string
+        labels:
+          $ref: '#/components/schemas/StringMap'
+        quotas:
+          items:
+            $ref: '#/components/schemas/Quota'
+          type: array
       required:
       - displayName
+      - identifier
       - initialAdmin
-      - name
-      - spec
       type: object
     TenantList:
       properties:
@@ -2099,19 +2077,6 @@ components:
       - Deleting
       - Deleted
       type: string
-    TenantSpec:
-      properties:
-        initResources:
-          $ref: '#/components/schemas/InitResources'
-        namespace:
-          $ref: '#/components/schemas/Namespace'
-        quotas:
-          items:
-            $ref: '#/components/schemas/Quota'
-          type: array
-      required:
-      - namespace
-      type: object
     TenantStatus:
       properties:
         conditions:
@@ -8607,6 +8572,7 @@ paths:
         name: name
         required: true
         schema:
+          format: Tenant identifier (== cluster-manager Tenant name == namespace).
           maxLength: 40
           minLength: 3
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
@@ -8656,6 +8622,7 @@ paths:
         name: name
         required: true
         schema:
+          format: Tenant identifier (== cluster-manager Tenant name == namespace).
           maxLength: 40
           minLength: 3
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
@@ -8706,6 +8673,7 @@ paths:
         name: name
         required: true
         schema:
+          format: Tenant identifier (== cluster-manager Tenant name == namespace).
           maxLength: 40
           minLength: 3
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
@@ -8772,6 +8740,7 @@ paths:
         name: name
         required: true
         schema:
+          format: Tenant identifier (== cluster-manager Tenant name == namespace).
           maxLength: 40
           minLength: 3
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
@@ -8818,6 +8787,7 @@ paths:
         name: name
         required: true
         schema:
+          format: Tenant identifier (== cluster-manager Tenant name == namespace).
           maxLength: 40
           minLength: 3
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
@@ -8891,6 +8861,7 @@ paths:
         name: name
         required: true
         schema:
+          format: Tenant identifier (== cluster-manager Tenant name == namespace).
           maxLength: 40
           minLength: 3
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
@@ -8946,6 +8917,7 @@ paths:
         name: name
         required: true
         schema:
+          format: Tenant identifier (== cluster-manager Tenant name == namespace).
           maxLength: 40
           minLength: 3
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
@@ -9019,6 +8991,7 @@ paths:
         name: name
         required: true
         schema:
+          format: Tenant identifier (== cluster-manager Tenant name == namespace).
           maxLength: 40
           minLength: 3
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
@@ -9065,6 +9038,7 @@ paths:
         name: name
         required: true
         schema:
+          format: Tenant identifier (== cluster-manager Tenant name == namespace).
           maxLength: 40
           minLength: 3
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
@@ -9138,6 +9112,7 @@ paths:
         name: name
         required: true
         schema:
+          format: Tenant identifier (== cluster-manager Tenant name == namespace).
           maxLength: 40
           minLength: 3
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
@@ -9195,6 +9170,7 @@ paths:
         name: name
         required: true
         schema:
+          format: Tenant identifier (== cluster-manager Tenant name == namespace).
           maxLength: 40
           minLength: 3
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
@@ -9269,6 +9245,7 @@ paths:
         name: name
         required: true
         schema:
+          format: Tenant identifier (== cluster-manager Tenant name == namespace).
           maxLength: 40
           minLength: 3
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
@@ -9323,6 +9300,7 @@ paths:
         name: name
         required: true
         schema:
+          format: Tenant identifier (== cluster-manager Tenant name == namespace).
           maxLength: 40
           minLength: 3
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
@@ -9377,6 +9355,7 @@ paths:
         name: name
         required: true
         schema:
+          format: Tenant identifier (== cluster-manager Tenant name == namespace).
           maxLength: 40
           minLength: 3
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$

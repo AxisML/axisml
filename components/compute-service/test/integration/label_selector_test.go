@@ -9,67 +9,64 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	tenantmod "github.com/axisml/axisml/components/compute-service/internal/tenant"
 )
 
-// TestLabelSelector_Tenants creates two tenants with different labels and
-// verifies the K8s grammar selector filters correctly.
-func TestLabelSelector_Tenants(t *testing.T) {
+// TestLabelSelector_MLRuns creates two MLRuns with different labels and
+// verifies the K8s grammar selector filters correctly against the row's
+// labels jsonb.
+func TestLabelSelector_MLRuns(t *testing.T) {
 	if testEngine == nil {
 		t.Skip("test engine not bootstrapped")
 	}
 	ctx := context.Background()
+	seedResourcePool(t, ctx, "sel-pool", "sel-unit")
+	const ns = "sel-ns"
+	mustCreateNamespace(t, ctx, ns)
 
 	mk := func(name string, labels map[string]string) {
-		rr := doJSON(t, ctx, http.MethodPost, "/api/v1/namespaces", map[string]any{
-			"name":      name,
-			"namespace": map[string]any{"name": name + "-ns"},
-			"labels":    labels,
-		}, nil)
+		body := buildMLRunCreateBody(name, "sel-pool", "sel-unit")
+		body["labels"] = labels
+		rr := doJSON(t, ctx, http.MethodPost, "/api/v1/namespaces/"+ns+"/mlruns", body, nil)
 		requireStatus(t, rr, http.StatusCreated)
-		t.Cleanup(func() {
-			_ = doJSON(t, ctx, http.MethodDelete, "/api/v1/namespaces/"+name, nil, nil)
-		})
 	}
 	mk("sel-alpha", map[string]string{"axisml.io/project": "p1"})
 	mk("sel-beta", map[string]string{"axisml.io/project": "p2"})
 
 	// equality
-	expectNames(t, ctx, "axisml.io/project=p1", []string{"sel-alpha"})
+	expectNames(t, ctx, ns, "axisml.io/project=p1", []string{"sel-alpha"})
 
 	// inequality
-	expectNames(t, ctx, "axisml.io/project!=p1", []string{"sel-beta"})
+	expectNames(t, ctx, ns, "axisml.io/project!=p1", []string{"sel-beta"})
 
 	// existence
-	expectNames(t, ctx, "axisml.io/project", []string{"sel-alpha", "sel-beta"})
+	expectNames(t, ctx, ns, "axisml.io/project", []string{"sel-alpha", "sel-beta"})
 
 	// non-existence
 	rr := doJSON(t, ctx, http.MethodGet,
-		"/api/v1/namespaces?labelSelector="+url.QueryEscape("!axisml.io/project"),
+		"/api/v1/namespaces/"+ns+"/mlruns?labelSelector="+url.QueryEscape("!axisml.io/project"),
 		nil, nil)
 	requireStatus(t, rr, http.StatusOK)
-	var resp tenantmod.ListResponse
+	var resp mlrunListPage
 	require.NoError(t, decodeJSONBody(rr, &resp))
 	for _, item := range resp.Items {
 		require.NotContains(t, item.Labels, "axisml.io/project",
-			"tenant %s must not carry the label", item.Name)
+			"mlrun %s must not carry the label", item.Name)
 	}
 
 	// invalid selector → 400
 	rr = doJSON(t, ctx, http.MethodGet,
-		"/api/v1/namespaces?labelSelector=%21%21bad",
+		"/api/v1/namespaces/"+ns+"/mlruns?labelSelector=%21%21bad",
 		nil, nil)
 	require.GreaterOrEqual(t, rr.Code, 400)
 }
 
-func expectNames(t *testing.T, ctx context.Context, selector string, want []string) {
+func expectNames(t *testing.T, ctx context.Context, ns, selector string, want []string) {
 	t.Helper()
 	rr := doJSON(t, ctx, http.MethodGet,
-		"/api/v1/namespaces?labelSelector="+url.QueryEscape(selector),
+		"/api/v1/namespaces/"+ns+"/mlruns?labelSelector="+url.QueryEscape(selector),
 		nil, nil)
 	requireStatus(t, rr, http.StatusOK)
-	var resp tenantmod.ListResponse
+	var resp mlrunListPage
 	require.NoError(t, decodeJSONBody(rr, &resp))
 	got := map[string]struct{}{}
 	for _, item := range resp.Items {

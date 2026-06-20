@@ -2,6 +2,128 @@
 # Regenerate with: make doc-gen
 components:
   schemas:
+    Apiv1alpha1ConfigMapSpec:
+      properties:
+        name:
+          type: string
+        sourceConfigMapRef:
+          $ref: '#/components/schemas/Apiv1alpha1SourceConfigMapRef'
+      required:
+      - name
+      - sourceConfigMapRef
+      type: object
+    Apiv1alpha1ImagePullSecretSpec:
+      properties:
+        name:
+          type: string
+        sourceSecretRef:
+          $ref: '#/components/schemas/Apiv1alpha1SourceSecretRef'
+      required:
+      - name
+      - sourceSecretRef
+      type: object
+    Apiv1alpha1InitResources:
+      properties:
+        configMaps:
+          items:
+            $ref: '#/components/schemas/Apiv1alpha1ConfigMapSpec'
+          type: array
+        imagePullSecrets:
+          items:
+            $ref: '#/components/schemas/Apiv1alpha1ImagePullSecretSpec'
+          type: array
+        secrets:
+          items:
+            $ref: '#/components/schemas/Apiv1alpha1SecretSpec'
+          type: array
+        serviceAccounts:
+          items:
+            $ref: '#/components/schemas/Apiv1alpha1ServiceAccountSpec'
+          type: array
+      type: object
+    Apiv1alpha1NamespaceSpec:
+      properties:
+        annotations:
+          additionalProperties:
+            type: string
+          type: object
+        labels:
+          additionalProperties:
+            type: string
+          type: object
+        name:
+          type: string
+      required:
+      - name
+      type: object
+    Apiv1alpha1RBACRoleRef:
+      properties:
+        kind:
+          type: string
+        name:
+          type: string
+      required:
+      - kind
+      - name
+      type: object
+    Apiv1alpha1RBACSpec:
+      properties:
+        roleRef:
+          allOf:
+          - $ref: '#/components/schemas/Apiv1alpha1RBACRoleRef'
+          nullable: true
+        rules:
+          items:
+            $ref: '#/components/schemas/Rbacv1PolicyRule'
+          type: array
+      type: object
+    Apiv1alpha1SecretSpec:
+      properties:
+        name:
+          type: string
+        sourceSecretRef:
+          $ref: '#/components/schemas/Apiv1alpha1SourceSecretRef'
+        type:
+          type: string
+      required:
+      - name
+      - sourceSecretRef
+      type: object
+    Apiv1alpha1ServiceAccountSpec:
+      properties:
+        imagePullSecrets:
+          items:
+            type: string
+          type: array
+        name:
+          type: string
+        rbac:
+          allOf:
+          - $ref: '#/components/schemas/Apiv1alpha1RBACSpec'
+          nullable: true
+      required:
+      - name
+      type: object
+    Apiv1alpha1SourceConfigMapRef:
+      properties:
+        name:
+          type: string
+        namespace:
+          type: string
+      required:
+      - name
+      - namespace
+      type: object
+    Apiv1alpha1SourceSecretRef:
+      properties:
+        name:
+          type: string
+        namespace:
+          type: string
+      required:
+      - name
+      - namespace
+      type: object
     Corev1Toleration:
       properties:
         effect:
@@ -71,6 +193,38 @@ components:
           description: Map of resource name (cpu, memory, nvidia.com/gpu, …) to resource.Quantity.
           type: object
       type: object
+    CreateTenantRequest:
+      properties:
+        annotations:
+          additionalProperties:
+            type: string
+          type: object
+        initResources:
+          allOf:
+          - $ref: '#/components/schemas/Apiv1alpha1InitResources'
+          nullable: true
+        labels:
+          additionalProperties:
+            type: string
+          type: object
+        name:
+          type: string
+        namespace:
+          allOf:
+          - $ref: '#/components/schemas/Apiv1alpha1NamespaceSpec'
+          nullable: true
+        quotas:
+          items:
+            $ref: '#/components/schemas/ServerQuotaDTO'
+          type: array
+      type: object
+    PatchQuotaRequest:
+      properties:
+        units:
+          items:
+            $ref: '#/components/schemas/ServerQuotaUnitDTO'
+          type: array
+      type: object
     PatchResourcePoolRequest:
       properties:
         annotations:
@@ -119,6 +273,29 @@ components:
           description: Map of resource name (cpu, memory, nvidia.com/gpu, …) to resource.Quantity.
           type: object
       type: object
+    PatchTenantRequest:
+      properties:
+        annotations:
+          additionalProperties:
+            type: string
+          type: object
+        initResources:
+          allOf:
+          - $ref: '#/components/schemas/Apiv1alpha1InitResources'
+          nullable: true
+        labels:
+          additionalProperties:
+            type: string
+          type: object
+        namespaceAnnotations:
+          additionalProperties:
+            type: string
+          type: object
+        namespaceLabels:
+          additionalProperties:
+            type: string
+          type: object
+      type: object
     Problem:
       properties:
         code:
@@ -135,6 +312,55 @@ components:
       - status
       - title
       - type
+      type: object
+    QuotaDTO:
+      properties:
+        pool:
+          type: string
+        units:
+          items:
+            $ref: '#/components/schemas/ServerQuotaUnitDTO'
+          type: array
+      required:
+      - pool
+      - units
+      type: object
+    QuotaList:
+      properties:
+        count:
+          type: integer
+        items:
+          items:
+            $ref: '#/components/schemas/ServerQuotaDTO'
+          type: array
+      required:
+      - count
+      - items
+      type: object
+    Rbacv1PolicyRule:
+      properties:
+        apiGroups:
+          items:
+            type: string
+          type: array
+        nonResourceURLs:
+          items:
+            type: string
+          type: array
+        resourceNames:
+          items:
+            type: string
+          type: array
+        resources:
+          items:
+            type: string
+          type: array
+        verbs:
+          items:
+            type: string
+          type: array
+      required:
+      - verbs
       type: object
     ResourcePoolDTO:
       properties:
@@ -263,6 +489,44 @@ components:
       - name
       - requests
       type: object
+    ServerQuotaDTO:
+      properties:
+        pool:
+          type: string
+        units:
+          items:
+            $ref: '#/components/schemas/ServerQuotaUnitDTO'
+          type: array
+      required:
+      - pool
+      - units
+      type: object
+    ServerQuotaStatusDTO:
+      properties:
+        pool:
+          type: string
+        ready:
+          type: boolean
+        used:
+          additionalProperties:
+            description: Kubernetes resource.Quantity.
+            type: string
+          description: Map of resource name (cpu, memory, nvidia.com/gpu, …) to resource.Quantity.
+          type: object
+      required:
+      - pool
+      - ready
+      type: object
+    ServerQuotaUnitDTO:
+      properties:
+        quantity:
+          type: integer
+        unitName:
+          type: string
+      required:
+      - quantity
+      - unitName
+      type: object
     ServerResourcePoolDTO:
       properties:
         annotations:
@@ -333,8 +597,125 @@ components:
       - name
       - requests
       type: object
+    ServerTenantDTO:
+      properties:
+        annotations:
+          additionalProperties:
+            type: string
+          type: object
+        createdAt:
+          format: date-time
+          type: string
+        initResources:
+          allOf:
+          - $ref: '#/components/schemas/Apiv1alpha1InitResources'
+          nullable: true
+        labels:
+          additionalProperties:
+            type: string
+          type: object
+        name:
+          type: string
+        namespace:
+          $ref: '#/components/schemas/Apiv1alpha1NamespaceSpec'
+        phase:
+          type: string
+        quotas:
+          items:
+            $ref: '#/components/schemas/ServerQuotaDTO'
+          type: array
+        resourceVersion:
+          type: string
+        status:
+          allOf:
+          - $ref: '#/components/schemas/ServerTenantStatusDTO'
+          nullable: true
+      required:
+      - createdAt
+      - name
+      - namespace
+      - quotas
+      type: object
+    ServerTenantStatusDTO:
+      properties:
+        message:
+          type: string
+        namespaceReady:
+          type: boolean
+        observedGeneration:
+          format: int64
+          type: integer
+        phase:
+          type: string
+        quotas:
+          items:
+            $ref: '#/components/schemas/ServerQuotaStatusDTO'
+          type: array
+      type: object
+    SetQuotaRequest:
+      properties:
+        pool:
+          type: string
+        units:
+          items:
+            $ref: '#/components/schemas/ServerQuotaUnitDTO'
+          type: array
+      type: object
+    TenantDTO:
+      properties:
+        annotations:
+          additionalProperties:
+            type: string
+          type: object
+        createdAt:
+          format: date-time
+          type: string
+        initResources:
+          allOf:
+          - $ref: '#/components/schemas/Apiv1alpha1InitResources'
+          nullable: true
+        labels:
+          additionalProperties:
+            type: string
+          type: object
+        name:
+          type: string
+        namespace:
+          $ref: '#/components/schemas/Apiv1alpha1NamespaceSpec'
+        phase:
+          type: string
+        quotas:
+          items:
+            $ref: '#/components/schemas/ServerQuotaDTO'
+          type: array
+        resourceVersion:
+          type: string
+        status:
+          allOf:
+          - $ref: '#/components/schemas/ServerTenantStatusDTO'
+          nullable: true
+      required:
+      - createdAt
+      - name
+      - namespace
+      - quotas
+      type: object
+    TenantList:
+      properties:
+        continueToken:
+          type: string
+        count:
+          type: integer
+        items:
+          items:
+            $ref: '#/components/schemas/ServerTenantDTO'
+          type: array
+      required:
+      - count
+      - items
+      type: object
 info:
-  description: Stateless REST shell over the ResourcePool CRD (with embedded spec.units[]).
+  description: Stateless REST shell over the ResourcePool and Tenant CRDs (cluster-scoped).
     RFC7807 Problem responses on errors.
   title: AxisML Cluster Manager API
   version: 0.1.0
@@ -985,6 +1366,579 @@ paths:
       summary: Patch unit
       tags:
       - resource-units
+  /api/v1/tenants:
+    get:
+      operationId: listTenants
+      parameters:
+      - description: K8s-style label selector.
+        in: query
+        name: labelSelector
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantList'
+          description: Tenant page.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Missing or invalid X-Axisml-User.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict (already exists or concurrent modification).
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Invariant violated.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Internal error.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: List Tenants
+      tags:
+      - tenants
+    post:
+      operationId: createTenant
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTenantRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantDTO'
+          description: Tenant created.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Missing or invalid X-Axisml-User.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict (already exists or concurrent modification).
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Invariant violated.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Internal error.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: Create a Tenant
+      tags:
+      - tenants
+  /api/v1/tenants/{tenant}:
+    delete:
+      operationId: deleteTenant
+      parameters:
+      - description: Tenant name (== identifier == namespace).
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          description: Deleted (idempotent).
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Missing or invalid X-Axisml-User.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict (already exists or concurrent modification).
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Invariant violated.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Internal error.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: Delete Tenant
+      tags:
+      - tenants
+    get:
+      operationId: getTenant
+      parameters:
+      - description: Tenant name (== identifier == namespace).
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantDTO'
+          description: Tenant.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Missing or invalid X-Axisml-User.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict (already exists or concurrent modification).
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Invariant violated.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Internal error.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: Get Tenant
+      tags:
+      - tenants
+    patch:
+      operationId: updateTenant
+      parameters:
+      - description: Tenant name (== identifier == namespace).
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchTenantRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantDTO'
+          description: Updated Tenant.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Missing or invalid X-Axisml-User.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict (already exists or concurrent modification).
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Invariant violated.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Internal error.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: Patch Tenant
+      tags:
+      - tenants
+  /api/v1/tenants/{tenant}/quotas:
+    get:
+      operationId: listTenantQuotas
+      parameters:
+      - description: Tenant name (== identifier == namespace).
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuotaList'
+          description: Quota list.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Missing or invalid X-Axisml-User.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict (already exists or concurrent modification).
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Invariant violated.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Internal error.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: List tenant quotas
+      tags:
+      - tenant-quotas
+    post:
+      operationId: setTenantQuota
+      parameters:
+      - description: Tenant name (== identifier == namespace).
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetQuotaRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuotaDTO'
+          description: Quota set.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Missing or invalid X-Axisml-User.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict (already exists or concurrent modification).
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Invariant violated.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Internal error.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: Create or replace a pool quota
+      tags:
+      - tenant-quotas
+  /api/v1/tenants/{tenant}/quotas/{pool}:
+    delete:
+      operationId: deleteTenantQuota
+      parameters:
+      - description: Tenant name (== identifier == namespace).
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+      - description: ResourcePool the quota applies to.
+        in: path
+        name: pool
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          description: Deleted (idempotent).
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Missing or invalid X-Axisml-User.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict (already exists or concurrent modification).
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Invariant violated.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Internal error.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: Delete a pool quota
+      tags:
+      - tenant-quotas
+    patch:
+      operationId: updateTenantQuota
+      parameters:
+      - description: Tenant name (== identifier == namespace).
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+      - description: ResourcePool the quota applies to.
+        in: path
+        name: pool
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchQuotaRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuotaDTO'
+          description: Updated quota.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Missing or invalid X-Axisml-User.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Conflict (already exists or concurrent modification).
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Invariant violated.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Internal error.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected error.
+      summary: Update a pool quota
+      tags:
+      - tenant-quotas
   /healthz:
     get:
       operationId: healthz
@@ -1011,5 +1965,9 @@ tags:
   name: resource-pools
 - description: Sub-routes over pool.spec.units[].
   name: resource-units
+- description: Tenant CRD CRUD (cluster-manager is the REST writer).
+  name: tenants
+- description: Per-pool tenant quotas (unit × quantity, folded to ElasticQuota).
+  name: tenant-quotas
 - description: Liveness and readiness probes.
   name: system

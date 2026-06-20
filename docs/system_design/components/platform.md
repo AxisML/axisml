@@ -2,18 +2,18 @@
 
 ## 1. 定位与边界
 
-AxisML 系统中唯一直接面向用户的层；承担身份接入、业务编排与视图层映射，把用户视角的操作翻译为对 cluster-manager / compute / artifacts 三个 System 层服务的下游调用。此外自有 Job / 实验（Experiment）/ Model / Image 的 name 级**定义**（模板 / 定义），运行实例（Run）与制品版本仍由下游持有。
+AxisML 系统中唯一直接面向用户的层；承担身份接入、业务编排与视图层映射，把用户视角的操作翻译为对 cluster-manager / compute / artifacts 三个 System 层服务的下游调用。此外自有租户持久记录（`tenants` 表，生命周期 / 暂停 / 软删）以及 Job / 实验（Experiment）/ Model / Image 的 name 级**定义**（模板 / 定义），运行实例（Run）与制品版本仍由下游持有。
 
 | 做 | 不做 |
 | --- | --- |
-| 唯一外部 HTTP 入口（前端 SPA + 后端 REST） | 直接管理 K8s 资源（全部下沉下游服务，自身不持 K8s client） |
-| 身份认证 / JWT 颁发 / RBAC 校验 / access JWT 颁发 | 持有 Tenant / Quota / Run(MLRun) / Service / Workspace 权威（→ [compute-service.md](compute-service.md)） |
+| 唯一外部 HTTP 入口（前端 SPA + 后端 REST） | 直接管理 K8s 资源（全部下沉下游服务，自身不持 K8s client、不碰 Tenant CR） |
+| 身份认证 / JWT 颁发 / RBAC 校验 / access JWT 颁发 | 持有 Run(MLRun) / Service / Workspace 实例权威（→ [compute-service.md](compute-service.md)） |
+| **持有租户持久记录**（`tenants` 表，`identifier` 标识）+ 生命周期 / 暂停 / 软删与 restore | 配额折算 / Tenant CR 落地 / Namespace 解析（→ [cluster-manager.md](cluster-manager.md) / [tenant-operator.md](tenant-operator.md)） |
 | **持有 Job / 实验 / Model / Image 定义**（name 级，Platform 自有 PG 表） | 持有制品**版本**（artifact version）权威（→ [artifact-hub.md](artifact-hub.md)） |
-| 跨服务业务编排（创建 / 跨租户列表合并 / Dashboard 聚合） | 持有 ResourcePool / ResourceUnit 词汇（→ [cluster-manager.md](cluster-manager.md)） |
-| 视图层映射（用户 ↔ 租户绑定 ↔ `tenant_name`；workspace ↔ `MLService(kind=workspace)`） | 拼 ElasticQuota 名 / 解析 K8s namespace（均下沉 compute） |
-| — | 缓存下游可变**实例**状态（phase / status / conditions / digest / quota 用量 → 一律实时回源） |
+| 跨服务业务编排（创建 / 跨租户列表合并 / Dashboard 聚合）；租户经 cluster-manager REST 物化 Tenant CR | 持有 ResourcePool / ResourceUnit 词汇（→ [cluster-manager.md](cluster-manager.md)） |
+| 视图层映射（用户 ↔ 租户绑定 ↔ `identifier`；workspace ↔ `MLService(kind=workspace)`） | 缓存下游可变**实例**状态（phase / status / conditions / digest / quota 用量 → 一律实时回源） |
 
-**统一分区键**：compute / artifacts 的 REST URL `{namespace}` 段 = `tenant_name`，Platform 直接透传，**不解析 K8s namespace**——PVC 生命周期、ElasticQuota 名组装均由 compute 内部完成，`spec.namespace.name` 不进入编排路径。`compute.GetTenant` 仅服务于租户详情页 / 配额 Tab 的展示。
+**统一分区键**：compute / artifacts 的 REST URL `{namespace}` 段 = 租户 `identifier`，Platform 直接透传，**不解析 K8s namespace**（`identifier` 即 namespace，单一规范名）——PVC 生命周期、ElasticQuota 名组装均由 compute 内部完成。租户的运行态（phase / 配额用量）经 `clustermanager.GetTenant` 实时回源，仅服务于租户详情页 / 配额 Tab 的展示。
 
 ## 2. 架构
 
@@ -55,14 +55,17 @@ AxisML 系统中唯一直接面向用户的层；承担身份接入、业务编�
 │        │                              │                         │
 │        ▼                              ▼                         │
 │  Platform PG                    下游 ClusterIP 调用             │
-│  (身份  users / sessions / user_roles / audit_logs       │
+│  (租户 tenants                                                 │
+│   身份  users / sessions / user_roles / audit_logs       │
 │   定义 jobs / experiments / models / images)                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ## 3. 核心模型
 
-Platform 自有实体分两类：**身份 / 授权 / 会话 / 审计**，以及 **Job / Experiment / Model / Image 四张定义**。完整字段与索引见 [database.md §4](../database.md#4-platform)。
+Platform 自有实体分三类：**租户持久记录**（`tenants`）、**身份 / 授权 / 会话 / 审计**，以及 **Job / Experiment / Model / Image 四张定义**。完整字段与索引见 [database.md §4](../database.md#4-platform)。
+
+**租户（tenants）**：Platform 持有租户的持久记录与生命周期权威——`identifier`（DNS-1123，唯一，= Tenant CR 名 = K8s namespace = compute/artifacts 分区键）、展示元数据、`owner`、`suspended_at`（暂停态）、软删 / restore（retention 365 天）。Platform 经 cluster-manager REST 物化 / 回收 Tenant CR，**不直接操作 CR**；租户的运行态（phase / 配额用量）实时回源 `clustermanager.GetTenant`，不落 PG。
 
 ### 3.1 身份 / 授权 / 会话 / 审计
 
@@ -71,7 +74,7 @@ Platform 自有实体分两类：**身份 / 授权 / 会话 / 审计**，以及 
 | User | 内置用户 | `id` / `username` unique | bcrypt 密码；OIDC 预留 |
 | Role | RBAC 角色 | `name`（`system-admin` / `tenant-admin` / `user`） | 硬编码三档；不开放自建 |
 | Permission | 权限位 | `name` | 角色 × 权限矩阵详见 [auth.md §3](../auth.md#3-rbac-角色) |
-| UserTenantRole | 用户 ↔ 租户成员关系 | `(user_id, tenant_name, role)` | `tenant_name` 引用 compute `tenants.name`（稳定 FK，跨服务不约束） |
+| UserTenantRole | 用户 ↔ 租户成员关系 | `(user_id, tenant_name, role)` | `tenant_name` 引用本服务 `tenants.identifier`（同库，可建真实 FK） |
 | Session | JWT 会话 / 刷新 token | `jti` | TTL 与 JWKS 由 auth 模块管理 |
 | AuditLog | 操作流水 | `id` | `action` / `target` / `metadata` / `actor` |
 
@@ -88,7 +91,7 @@ Platform 自有实体分两类：**身份 / 授权 / 会话 / 审计**，以及 
 
 定义以 `(tenant_name, name)` 寻址，软删后同名可重建；定义可在**零 Run / 零版本**状态下存在（纯定义）。
 
-**关键不变量**：Platform 拥有 name 级**定义**，下游拥有**实例**——Job / 实验定义 ⊕ 触发期 overrides 快照 → compute `MLRun`（Run 命名 `<定义>-<n>`，分别打 `axisml.io/{job,experiment}` label）；Model/Image 定义 → artifacts 版本 `(namespace,kind,name,version)`。除四张定义与身份 / 审计外，Platform **不为任何下游对象建视图表**，也**不持久化** run / version / phase / conditions / digest / quota 用量——这些一律实时回源下游。用户 → 租户绑定（`user_roles`）与租户展示元数据（`compute.GetTenant` 现取）维持原状。
+**关键不变量**：Platform 拥有 name 级**定义**，下游拥有**实例**——Job / 实验定义 ⊕ 触发期 overrides 快照 → compute `MLRun`（Run 命名 `<定义>-<n>`，分别打 `axisml.io/{job,experiment}` label）；Model/Image 定义 → artifacts 版本 `(namespace,kind,name,version)`。除租户持久记录、四张定义与身份 / 审计外，Platform **不为任何下游对象建视图表**，也**不持久化** run / version / phase / conditions / digest / quota 用量——这些一律实时回源下游。用户 → 租户绑定（`user_roles`）维持原状；租户展示元数据取自 Platform 自有 `tenants` 表，运行态（phase / 配额用量）经 `clustermanager.GetTenant` 实时回源。
 
 ## 4. 核心功能
 
@@ -96,21 +99,21 @@ Platform 自有实体分两类：**身份 / 授权 / 会话 / 审计**，以及 
 
 ### 4.1 租户编排
 
-下游：compute。
+下游：cluster-manager（Tenant CR 物化 + 配额折算 + 运行态回源）。
 
 | 用户操作 | Platform 内部步骤 | 下游调用 | 一致性策略 |
 | --- | --- | --- | --- |
-| 创建租户 | RBAC `system-admin` → 字段校验 | `CreateTenant` | 单点透传；4xx/5xx 直返 |
-| 编辑展示元数据 | RBAC `system-admin` → 拦截不可变字段 | `UpdateTenant`（`display_name` / `description` / `labels` / `annotations`） | `400 immutable-field` Platform 兜底 |
-| 软删 / 恢复 | RBAC + 成员校验（非空 → `409 tenant-has-members`） | `DeleteTenant` / `RestoreTenant` | 成功后级联清理 `user_roles` |
-| **暂停 / 恢复** | RBAC `system-admin` → 透传 | `SuspendTenant` / `ResumeTenant`（`Active ⇄ Suspended`） | 单点透传；compute 在创建入口对 `Suspended` 租户返 `409 tenant-suspended`，已运行 workload 不受影响 |
-| 资源配额 CRUD | RBAC `system-admin` → 拦截 `pool` 不可变 | `Set/Update/DeleteQuota`（按 `pool` 下发资源单元 × 数量列表 `{unitName, quantity}[]`） | compute 据 cluster-manager 的 ResourceUnit 规格把「单元 × 数量」折算为 ElasticQuota；`400 immutable-field` Platform 兜底 |
+| 创建租户 | RBAC `system-admin` → 字段校验 → 写 `tenants` 行（`identifier`） | `clustermanager.CreateTenant`（物化 Tenant CR） | 先写 PG 再物化 CR；CR 失败标记重试 / 回滚 |
+| 编辑展示元数据 | RBAC `system-admin` → 拦截不可变字段 → 更新 `tenants` 行 | `clustermanager.UpdateTenant`（同步 display annotation，可选） | `400 immutable-field` Platform 兜底 |
+| 软删 / 恢复 | RBAC + 成员校验（非空 → `409 tenant-has-members`）→ 置 / 清 `deleted_at` | `clustermanager.DeleteTenant`（删 CR）/ `CreateTenant`（restore 重建 CR） | Platform `tenants` 持软删态与 365 天保留期；成功后级联清理 `user_roles` |
+| **暂停 / 恢复** | RBAC `system-admin` → 置 / 清 `tenants.suspended_at` | —（仅 Platform PG） | 暂停闸门由 Platform 在工作负载创建入口强制（见下「暂停语义」）；不下发 CR、不触达 cluster-manager |
+| 资源配额 CRUD | RBAC `system-admin` → 拦截 `pool` 不可变 | `clustermanager.Set/Update/DeleteQuota`（按 `pool` 下发资源单元 × 数量列表 `{unitName, quantity}[]`） | cluster-manager 据 ResourceUnit 规格把「单元 × 数量」折算为 ElasticQuota 写入 Tenant CR；`400 immutable-field` Platform 兜底 |
 | 成员管理 | RBAC + 自我保护（不能移除最后一个 `tenant-admin` → `409 last-tenant-admin`） | —（仅 Platform PG） | `user_roles` 内事务 |
-| 列表 | 按角色裁剪：非 `system-admin` 取绑定 tenant 集合 | `ListTenants`（query 下推） | 单租户失败 → `partial=true` |
+| 列表 | 按角色裁剪：非 `system-admin` 取绑定 tenant 集合 | Platform PG `tenants` + `clustermanager.GetTenant`（运行态实时回源） | 单租户运行态失败 → `partial=true` |
 
-**暂停语义**：`Suspended` 是**提交闸门**——锁定该租户下 Run 触发 / Service / Workspace 的**新建入口**（Job 定义本身为纯定义，可继续编辑），已派生工作负载继续运行、可继续 scale / stop / delete。闸门由 compute 在创建端点强制（返 `409 tenant-suspended`），Platform 按 phase 置灰前端新建 CTA；`tenant-operator` 不参与暂停。
+**暂停语义**：`suspended_at` 非空是**提交闸门**——Platform 在 Run 触发 / Service / Workspace 的**新建入口**查 `tenants.suspended_at`，非空即返 `409 tenant-suspended`（Job 定义本身为纯定义，可继续编辑），已派生工作负载继续运行、可继续 scale / stop / delete。暂停纯 Platform PG 态：不下发 Tenant CR、不触达 cluster-manager / tenant-operator；Platform 同时按暂停态置灰前端新建 CTA。
 
-关键不变量：Platform 不为租户建任何视图表；`name` 与 `namespace.name`（K8s 命名空间名 = 租户名，由租户名派生、非单独输入）/ 配额 `pool` 创建后不可变；配额以「资源单元 × 数量」表达，单元 → ResourceMap 的折算与 ElasticQuota 组装由 compute 据 cluster-manager 的 ResourceUnit 规格完成，Platform 只透传 `(pool, units[])`。成员数为 Platform 侧 `user_roles` 聚合，与 compute 无关。
+关键不变量：Platform 持有租户持久记录（`tenants`），但不缓存其运行态（phase / 配额用量实时回源 cluster-manager）；`identifier`（= K8s 命名空间名）/ 配额 `pool` 创建后不可变；配额以「资源单元 × 数量」表达，单元 → ResourceMap 的折算与 ElasticQuota 组装由 **cluster-manager** 据 ResourceUnit 规格完成，Platform 只透传 `(pool, units[])`。成员数为 Platform 侧 `user_roles` 聚合。
 
 ### 4.2 计算任务编排
 
@@ -121,7 +124,7 @@ Platform 自有实体分两类：**身份 / 授权 / 会话 / 审计**，以及 
 | 创建 Job（定义） | RBAC `user@self`+ → 校验模板字段 → 写 `jobs` 行 | —（仅 Platform PG） | `(tenant_name, name)` 唯一 |
 | 编辑 Job（定义） | RBAC `@owner` → PATCH 模板 `spec` / 展示元数据 | —（仅 Platform PG） | 模板可变；只影响**之后**触发的 Run（已有 Run 已快照） |
 | 删除 Job（定义） | RBAC `@owner`+ → 实时列 Run 判活跃 | `compute.ListMLRuns` → `compute.DeleteMLRun`（逐个） | 有活跃（非终态）Run → `409 job-has-active-runs`；否则级联软删全部 Run 后软删除定义 |
-| **触发运行（Run）** | RBAC `user@self`+ → 对 override 后的制品引用逐个 `GetArtifact` 预检 `Ready` → 快照 `Job.spec ⊕ overrides` → 推导序号 `n` → 命名 `<job>-<n>` + 打 `axisml.io/job` label | `compute.CreateMLRun(ns=tenant, body)` | 序号 `n` = 现有 Run 最大序号 +1；撞名（`409`）→ 重列重算 `n` 重试（有界） |
+| **触发运行（Run）** | RBAC `user@self`+ → 校验 `tenants.suspended_at` 为空（否则 `409 tenant-suspended`）→ 对 override 后的制品引用逐个 `GetArtifact` 预检 `Ready` → 快照 `Job.spec ⊕ overrides` → 推导序号 `n` → 命名 `<job>-<n>` + 打 `axisml.io/job` label | `compute.CreateMLRun(ns=tenant, body)` | 序号 `n` = 现有 Run 最大序号 +1；撞名（`409`）→ 重列重算 `n` 重试（有界） |
 | Job 列表（定义） | §5.2 active tenant：header 在 → 单租户；`system-admin` 无 header → §5.3 跨租户合并 | —（Platform PG `jobs`） | 跨租户部分失败 → `partial=true` |
 | Run 列表 | `RequireJobOwner` → 实时列该 Job 的 Run | `compute.ListMLRuns(ns, labelSelector=axisml.io/job=<job>, phase?)` | 按 job label 收敛 |
 | 取消 Run | `RequireJobOwner` → 透传 | `compute.CancelMLRun(<job>-<n>)` | 状态合法性由 compute 4xx 反馈 |
@@ -141,7 +144,7 @@ Platform 自有实体分两类：**身份 / 授权 / 会话 / 审计**，以及 
 
 | 用户操作 | Platform 内部步骤 | 下游调用 | 一致性策略 |
 | --- | --- | --- | --- |
-| 创建 | RBAC + 对 `(modelName, modelVersion)` 做 `GetArtifact` 预检 `Ready` → `route.path==""` 时自动拼 `/services/<tenant>/<name>/` 并注入 `AXISML_SERVICE_BASE_URL` env → 请求体携带 `(modelName, modelVersion)` + `ports[]{name,port}` + `scheduling{poolName, unitName, quota}` + `route{enabled, path}` | `compute.CreateMLService(ns, body{kind=service,...})` | 单点透传 |
+| 创建 | RBAC + 校验 `tenants.suspended_at` 为空（否则 `409 tenant-suspended`）+ 对 `(modelName, modelVersion)` 做 `GetArtifact` 预检 `Ready` → `route.path==""` 时自动拼 `/services/<tenant>/<name>/` 并注入 `AXISML_SERVICE_BASE_URL` env → 请求体携带 `(modelName, modelVersion)` + `ports[]{name,port}` + `scheduling{poolName, unitName, quota}` + `route{enabled, path}` | `compute.CreateMLService(ns, body{kind=service,...})` | 单点透传 |
 | 扩缩容 | `RequireServiceOwner` → 透传副本数 | `ScaleMLService` | 幂等；`Deleted` → `409 service-deleted` |
 | 停止 / 启动 | `RequireServiceOwner` → `stop` = scale 0 并把停前副本数写入 `annotations[platform.axisml.io/last-replicas]`；`start` = scale 回该 annotation（缺失 fallback 1） | `UpdateMLService`（元数据）+ `ScaleMLService` | annotation 为 PG-only 元数据，随时可写（§5.5） |
 | 删除 | 先 `GetMLService` 校验 `kind==service` 防误删工作区 → 透传 | `DeleteMLService` | 派生 K8s 资源由 ownerReference 级联 |
@@ -153,11 +156,11 @@ Platform 自有实体分两类：**身份 / 授权 / 会话 / 审计**，以及 
 
 ### 4.4 工作区编排
 
-下游：compute（services with `kind=workspace`；PVC 由 compute 同事务派生与回收，详见 [compute-service.md §4.4](compute-service.md#44-service)）。工作区 = 长驻交互式开发容器，**复用** `MLService(native, deployment)`，不引入新 CRD。
+下游：compute（services with `kind=workspace`；PVC 由 compute 同事务派生与回收，详见 [compute-service.md §4.2](compute-service.md#42-service)）。工作区 = 长驻交互式开发容器，**复用** `MLService(native, deployment)`，不引入新 CRD。
 
 | 用户操作 | Platform 内部步骤 | 下游调用 | 一致性策略 |
 | --- | --- | --- | --- |
-| 创建 | RBAC + `GetArtifact` 预检 → 生成 `workspace_name="ws-"+crockford32(rand40bit)` → 注入 `AXISML_WORKSPACE_BASE_URL` env / `spec.route` + `scheduling{poolName, unitName, quota}` + PVC `size`/`storageClass` | `compute.CreateMLService(kind=workspace, body)` | 单点透传；compute 同事务保证 MLService + PVC 同失同成、内部展开 pool/unit |
+| 创建 | RBAC + 校验 `tenants.suspended_at` 为空（否则 `409 tenant-suspended`）+ `GetArtifact` 预检 → 生成 `workspace_name="ws-"+crockford32(rand40bit)` → 注入 `AXISML_WORKSPACE_BASE_URL` env / `spec.route` + `scheduling{poolName, unitName, quota}` + PVC `size`/`storageClass` | `compute.CreateMLService(kind=workspace, body)` | 单点透传；compute 同事务保证 MLService + PVC 同失同成、内部展开 pool/unit |
 | 停止 / 启动 | `RequireWorkspaceOwner` → 同 §4.3：`stop`=scale 0（记 `last-replicas`，工作区恒为 1）、`start`=scale 回 | `ScaleMLService` | 幂等；`Deleted` → `409 workspace-deleted` |
 | 删除 | 校验 `kind==workspace` 防误删 service → 透传（带 `?deletePvc=`，默认 true） | `DeleteMLService` | 派生 K8s 资源 + PVC 由 compute 级联清理 |
 | 浏览器接入 | 颁发 `aud=axisml-workspace` 短 TTL access JWT（`--workspace-access-jwt-ttl`，上限 24h） | —（Platform 自签） | 数据面网关验签放行 |
@@ -231,7 +234,7 @@ Platform 自有实体分两类：**身份 / 授权 / 会话 / 审计**，以及 
 | 场景 | 触发 | 呈现 |
 | --- | --- | --- |
 | 集群容量为 `null` | cluster-manager 容量聚合未就绪 | gauge 显示 `—` + hover「指标同步中」 |
-| 配额用量为 `null` | compute Tenant Informer cache 未同步（[compute-service.md §5.3](compute-service.md#53-状态回流informer)） | 同上 |
+| 配额用量为 `null` | cluster-manager 读 Tenant CR `status.quotas[].used` 未就绪（ElasticQuota 用量尚未回流，见 [tenant-operator.md §5.3](tenant-operator.md#53-elasticquota-statusused-回流路径)） | 同上 |
 | metrics 查询失败 | compute / cluster-manager 指标端点返 `502` | 图区占位「指标服务暂不可用」，KPI / gauge 不受影响 |
 | 跨租户聚合部分失败 | overview `partial=true` | 页顶黄条「N 个租户暂时不可达，显示其余结果」 |
 
@@ -239,7 +242,7 @@ KPI + gauge 默认 30s 轮询；时序图随 range 选择器（`1h/24h/7d`）重
 
 ### 4.8 流量配置编排
 
-下游：compute（流量策略 + 加权路由派生 + 灰度指标代理）。流量策略把一个稳定对外入口的入站流量按权重分发到该租户下多个在线服务后端，支撑灰度发布、加权切分与蓝绿切换；加权路由（`(native,*)` → Envoy Gateway `HTTPRoute` 加权 `backendRefs`；`kserve` → `InferenceService` canary）由 compute 内部派生，Platform 不直连网关、不内嵌 PromQL。字段契约属 compute 在线服务路由域，见 [compute-service.md §4.5](compute-service.md#45-流量策略mltrafficpolicy)。
+下游：compute（流量策略 + 加权路由派生 + 灰度指标代理）。流量策略把一个稳定对外入口的入站流量按权重分发到该租户下多个在线服务后端，支撑灰度发布、加权切分与蓝绿切换；加权路由（`(native,*)` → Envoy Gateway `HTTPRoute` 加权 `backendRefs`；`kserve` → `InferenceService` canary）由 compute 内部派生，Platform 不直连网关、不内嵌 PromQL。字段契约属 compute 在线服务路由域，见 [compute-service.md §4.3](compute-service.md#43-流量策略mltrafficpolicy)。
 
 | 用户操作 | Platform 内部步骤 | 下游调用 | 一致性策略 |
 | --- | --- | --- | --- |
@@ -262,7 +265,7 @@ KPI + gauge 默认 30s 轮询；时序图随 range 选择器（`1h/24h/7d`）重
 | 创建实验（定义） | RBAC `user@self`+ → 校验训练模板字段 → 写 `experiments` 行 | —（仅 Platform PG） | `(tenant_name, name)` 唯一 |
 | 编辑实验（定义） | RBAC `@owner` → PATCH 模板 `spec` / 展示元数据 | —（仅 Platform PG） | 模板可变；只影响**之后**触发的 Run |
 | 删除实验（定义） | RBAC `@owner`+ → 实时列 Run 判活跃 | `compute.ListMLRuns` → `compute.DeleteMLRun`（逐个） | 有活跃 Run → `409 experiment-has-active-runs`；否则级联软删全部 Run 后软删定义 |
-| **触发运行（Run）** | RBAC `user@self`+ → 对 override 后的镜像 / 模型引用逐个 `GetArtifact` 预检 `Ready` → 快照 `Experiment.spec ⊕ overrides`（覆盖白名单同 §4.2）→ 命名 `<exp>-<n>` + 打 `axisml.io/experiment` label | `compute.CreateMLRun(ns=tenant, body)` | 序号 `n` 同 §4.2（撞名重算重试，有界） |
+| **触发运行（Run）** | RBAC `user@self`+ → 校验 `tenants.suspended_at` 为空（否则 `409 tenant-suspended`）→ 对 override 后的镜像 / 模型引用逐个 `GetArtifact` 预检 `Ready` → 快照 `Experiment.spec ⊕ overrides`（覆盖白名单同 §4.2）→ 命名 `<exp>-<n>` + 打 `axisml.io/experiment` label | `compute.CreateMLRun(ns=tenant, body)` | 序号 `n` 同 §4.2（撞名重算重试，有界） |
 | Run 列表 | `RequireExperimentOwner` → 实时列该实验的 Run | `compute.ListMLRuns(ns, labelSelector=axisml.io/experiment=<exp>, phase?)` | 按 experiment label 收敛 |
 | 取消 / 删除 Run / 副本 / 事件 / 日志 | 同 §4.2（`RequireExperimentOwner`） | `compute.{Cancel,Delete,GetMLRun{Pods,Events,Logs}}(<exp>-<n>)` | 同 §4.2 |
 | 在 TensorBoard 中对比 | `RequireExperimentOwner` → 选定 Run 集合 → 拉起 / 复用 TensorBoard（§4.10） | `compute.CreateMLService(kind=tensorboard)` | 指标与超参对比全在 TensorBoard（HParams / Scalars），Platform 不自建对比视图 |
@@ -271,7 +274,7 @@ KPI + gauge 默认 30s 轮询；时序图随 range 选择器（`1h/24h/7d`）重
 关键不变量：
 - 实验定义寻址 `(tenant_name, experiment_name)`，URL `/api/v1/experiments/{name}`；Run 为子资源 `/api/v1/experiments/{name}/runs/{run}`，`{run}` = `<exp>-<n>`，与 §4.2 同构；`experiments.spec` 与 `jobs.spec` 同构（训练超参即 args/env，Platform 不单独建模）。
 - Run（MLRun）spec 触发时快照冻结，创建后不可变；改模板只影响之后的 Run。
-- **训练指标 / checkpoint 不落 PG，也不经 Platform**：路径约定（`experiments/<exp>/runs/<run>/{tb,output}/`）与对象存储凭证由 compute 在渲染 Run / TensorBoard Pod 时注入（与 `schedulerName` 同处注入），Platform 全程只透传名字、不碰对象存储（[§2.1 不变量](#21-上下文)）；指标查看与多 Run 对比统一经 TensorBoard（§4.10）。Run 删除时由 compute 一并 GC 其对象存储产出，与 PVC GC 同档（[compute-service.md §4.4](compute-service.md#44-service)）。Platform **不建 `runs` 索引表**。
+- **训练指标 / checkpoint 不落 PG，也不经 Platform**：路径约定（`experiments/<exp>/runs/<run>/{tb,output}/`）与对象存储凭证由 compute 在渲染 Run / TensorBoard Pod 时注入（与 `schedulerName` 同处注入），Platform 全程只透传名字、不碰对象存储（[§2.1 不变量](#21-上下文)）；指标查看与多 Run 对比统一经 TensorBoard（§4.10）。Run 删除时由 compute 一并 GC 其对象存储产出，与 PVC GC 同档（[compute-service.md §4.2](compute-service.md#42-service)）。Platform **不建 `runs` 索引表**。
 
 ### 4.10 TensorBoard 编排
 
@@ -287,7 +290,7 @@ KPI + gauge 默认 30s 轮询；时序图随 range 选择器（`1h/24h/7d`）重
 - TensorBoard 实例是 compute `MLService(kind=tensorboard, native/deployment)`，**所有 Pod 仍走 koord-scheduler 与租户配额**；Platform 不自管 Pod、不碰对象存储（logdir 与凭证由 compute 注入）。
 - 临时、只读、可空闲回收（idle TTL）；不产出制品。
 - **启动 / 打开 / 停止均限 `owner` 或 `tenant-admin`**（`RequireExperimentOwner`；启动会拉起占配额的 workload，不开放给普通成员）。
-- 数据面访问复用工作区 access JWT（`aud=axisml-workspace`，见 [auth.md §5.2](../auth.md#52-工作区接入cookie--jwt)）；`kind=tensorboard` 与 `service` / `workspace` 同表区分（[compute-service.md §4.4](compute-service.md#44-service)），`kind` 创建后不可变。
+- 数据面访问复用工作区 access JWT（`aud=axisml-workspace`，见 [auth.md §5.2](../auth.md#52-工作区接入cookie--jwt)）；`kind=tensorboard` 与 `service` / `workspace` 同表区分（[compute-service.md §4.2](compute-service.md#42-service)），`kind` 创建后不可变。
 
 ## 5. 关键机制
 
@@ -313,7 +316,7 @@ KPI + gauge 默认 30s 轮询；时序图随 range 选择器（`1h/24h/7d`）重
 | 租户 / 资源池管理路径（`/api/v1/tenants/{name}/...`、`/api/v1/resourcepools/...`） | URL 内已带标识或为全集群对象，header 忽略 | 同上 |
 | dashboard（`/api/v1/dashboard/*`） | `system-admin` → 全局视图；非 admin → `400 active-tenant-required` | 收敛到该 tenant 视图 |
 
-**下游 namespace**：compute / artifacts 的 URL `{namespace}` 段直接用 `tenant_name`，**Platform 全程不解析 K8s namespace**。pool/unit 展开、ElasticQuota 名组装、PVC 生命周期均由 compute 内部完成，Platform 只透传名字三元组。`compute.GetTenant` 仅服务于租户详情 / 配额 Tab 展示，不进入创建编排。
+**下游 namespace**：compute / artifacts 的 URL `{namespace}` 段直接用租户 `identifier`，**Platform 全程不解析 K8s namespace**（`identifier` 即 namespace）。pool/unit 展开、ElasticQuota 名组装、PVC 生命周期均由 compute 内部完成，Platform 只透传名字三元组。`clustermanager.GetTenant` 仅服务于租户详情 / 配额 Tab 展示，不进入创建编排。
 
 ### 5.3 列表跨租户合并
 
@@ -335,7 +338,7 @@ Platform 需要在下游对象上挂载自定义元数据（审计标记、UI �
 
 | 维度 | 约定 |
 | --- | --- |
-| 写入路径 | `compute.{Create,Update}{Tenant,Job,Service}` / `artifacts.UpdateArtifact` 请求体携带 `labels` / `annotations` |
+| 写入路径 | `clustermanager.{Create,Update}Tenant` / `compute.{Create,Update}{Job,Service}` / `artifacts.UpdateArtifact` 请求体携带 `labels` / `annotations` |
 | 存储位置 | 下游 PG 表的 `labels jsonb` + `annotations jsonb` 列（[database.md §1.6](../database.md#16-扩展元数据-labels--annotations)） |
 | Key 命名空间 | Platform 内部固定 `platform.axisml.io/<key>` 前缀（如 `platform.axisml.io/last-replicas`）；终端用户透传走 `user.axisml.io/<key>` 或无前缀 |
 | 同步语义 | 修改不触发 CR patch（不 `+generation`），不引发 reconcile；纯 PG mutation，写后立即可读 |
@@ -365,8 +368,8 @@ RBAC 中间件装配细节归 [auth.md](../auth.md)，Platform 在路由层挂�
 | --- | --- | --- | --- |
 | PostgreSQL | 身份 / 授权 / 会话 / 审计 + Job / Experiment / Model / Image 四张定义；与 compute / artifacts 共享同一 DB，按表名前缀隔离 | — | [database.md §4](../database.md#4-platform) |
 | Envoy Gateway | 唯一外部入口；TLS 终止 / 路由匹配；数据面 access JWT SecurityPolicy | — | [infra.md](../infra.md) |
-| cluster-manager | ResourcePool / Unit CRUD 的 REST 入口；Dashboard 集群容量分母与集群时序 | `GetClusterCapacity`（GPU/CPU/内存 used/total 可分配口径）；`GetClusterMetrics`（集群级时序，内部查 Prometheus） | [cluster-manager.md](cluster-manager.md) |
-| compute | Tenant / Quota / Run(MLRun) / Service / Workspace / TrafficPolicy / TensorBoard 权威；写路径由 Outbox + reconciler 保证强一致；在线服务 / 工作负载运行指标代理 | Run 触发经 `CreateMLRun`（命名 `<定义>-<n>` + label `axisml.io/{job,experiment}`），列 Run 经 `ListMLRuns(labelSelector)`，Job / 实验定义在 Platform，TensorBoard 经 `CreateMLService(kind=tensorboard)`；创建体接收 `scheduling{poolName,unitName,quota}` 名字对，compute 据租户配额（资源单元 × 数量）校验 `(poolName,unitName)` 并组装 ElasticQuota；`Suspended` phase + 创建闸门（`409 tenant-suspended`）；`CountActiveWorkloads(labelSelector)` 活跃用量计数；`GetServiceMetrics` / `GetWorkloadMetrics`（backend-aware 时序，内部查 Prometheus） | [compute-service.md](compute-service.md) |
+| cluster-manager | ResourcePool / Unit CRUD + 租户 CR 物化（Tenant CRUD + 配额折算 + 运行态回源）的 REST 入口；Dashboard 集群容量分母与集群时序 | `Create/Update/DeleteTenant`、`Set/Update/DeleteQuota`、`GetTenant`（phase / 配额用量实时回源）；`GetClusterCapacity`（GPU/CPU/内存 used/total 可分配口径）；`GetClusterMetrics`（集群级时序，内部查 Prometheus） | [cluster-manager.md](cluster-manager.md) |
+| compute | Run(MLRun) / Service / Workspace / TrafficPolicy / TensorBoard 权威；写路径由 Outbox + reconciler 保证强一致；在线服务 / 工作负载运行指标代理 | Run 触发经 `CreateMLRun`（命名 `<定义>-<n>` + label `axisml.io/{job,experiment}`），列 Run 经 `ListMLRuns(labelSelector)`，Job / 实验定义在 Platform，TensorBoard 经 `CreateMLService(kind=tensorboard)`；创建体接收 `scheduling{poolName,unitName,quota}` 名字对，compute 自展开 pool/unit 并组装 ElasticQuota 名；`CountActiveWorkloads(labelSelector)` 活跃用量计数；`GetServiceMetrics` / `GetWorkloadMetrics`（backend-aware 时序，内部查 Prometheus） | [compute-service.md](compute-service.md) |
 | artifacts | 模型 / 镜像**版本**；两阶段写（initiate → 直推 → complete）或 `external` 远端登记；name 级定义在 Platform | 版本列表经 `ListArtifactsByKind(ns,kind,name)`；消费侧创建走 `GetArtifact` 预检 Ready；`resolve?usage=inspect` 专属 operator | [artifact-hub.md](artifact-hub.md) |
 
 ## 8. 运行时形态

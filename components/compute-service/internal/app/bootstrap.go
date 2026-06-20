@@ -8,11 +8,10 @@ import (
 	"github.com/axisml/axisml/components/compute-service/internal/db"
 )
 
-// Bootstrap runs the embedded golang-migrate migrations. Per the new
-// design, compute-service no longer seeds ResourcePool — the pool lives
-// in the cluster-scoped ResourcePool CRD, owned by cluster-manager.
-// Seed pool / unit / tenant rows are installed by the axisml-system Helm
-// chart's post-install hooks.
+// Bootstrap runs the embedded golang-migrate migrations. compute-service does
+// not seed ResourcePool or Tenant — those live in the cluster-scoped
+// ResourcePool / Tenant CRDs owned by cluster-manager. Seed pool / unit rows
+// are installed by the axisml-system Helm chart's post-install hooks.
 func Bootstrap(_ context.Context, cfg config.Config) error {
 	gormDB, err := db.Open(cfg)
 	if err != nil {

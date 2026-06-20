@@ -14,6 +14,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
 	axismlv1alpha1 "github.com/axisml/axisml/components/cluster-manager/api/v1alpha1"
+	tenantv1alpha1 "github.com/axisml/axisml/components/tenant-operator/api/v1alpha1"
 )
 
 // Build constructs a direct client wired with the ResourcePool CRD scheme.
@@ -30,6 +31,7 @@ func BuildWithConfig(cfg *rest.Config) (client.Client, error) {
 	scheme := runtime.NewScheme()
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(axismlv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(tenantv1alpha1.AddToScheme(scheme))
 
 	c, err := client.New(cfg, client.Options{Scheme: scheme})
 	if err != nil {

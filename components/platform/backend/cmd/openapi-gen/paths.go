@@ -131,7 +131,9 @@ func activeTenant(required bool) openapigen.Parameter {
 }
 
 // path-parameter constructors (one per distinct shape).
-func tenantNameP() openapigen.Parameter        { return pathParam("name", dns1123Pattern, 3, 40, "") }
+func tenantNameP() openapigen.Parameter {
+	return pathParam("name", dns1123Pattern, 3, 40, "Tenant identifier (== cluster-manager Tenant name == namespace).")
+}
 func tenantP() openapigen.Parameter            { return pathParam("tenant", dns1123Pattern, 3, 40, "") }
 func quotaPoolP() openapigen.Parameter         { return pathParam("pool", dns1123Pattern, 1, 63, "") }
 func userIDP() openapigen.Parameter            { return pathParam("id", "", 0, 0, "uuid") }

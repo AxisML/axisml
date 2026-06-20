@@ -23,7 +23,6 @@ import (
 	"github.com/axisml/axisml/components/compute-service/internal/mlrun"
 	servicemod "github.com/axisml/axisml/components/compute-service/internal/mlservice"
 	"github.com/axisml/axisml/components/compute-service/internal/server"
-	tenantmod "github.com/axisml/axisml/components/compute-service/internal/tenant"
 	trafficpolicymod "github.com/axisml/axisml/components/compute-service/internal/trafficpolicy"
 	apperrors "github.com/axisml/axisml/components/compute-service/pkg/errors"
 	"github.com/axisml/axisml/pkg/openapigen"
@@ -33,7 +32,6 @@ const defaultVersion = "0.0.0-dev"
 
 // Tag names. One source of truth so a typo can't silently split a group.
 const (
-	tagTenants         = "tenants"
 	tagMLRuns          = "mlruns"
 	tagMLServices      = "mlservices"
 	tagTrafficPolicies = "traffic-policies"
@@ -115,12 +113,6 @@ func buildDocument(version string) *openapigen.Document {
 
 	// Core component schemas (referenced from operations).
 	g.Register("Problem", server.Problem{}, openapigen.ResponseMode)
-	g.Register("TenantCreateInput", tenantmod.CreateInput{}, openapigen.InputMode)
-	g.Register("TenantPatchInput", tenantmod.PatchInput{}, openapigen.InputMode)
-	g.Register("TenantResponse", tenantmod.Response{}, openapigen.ResponseMode)
-	g.Register("TenantListResponse", tenantmod.ListResponse{}, openapigen.ResponseMode)
-	g.Register("TenantQuotaInput", tenantmod.QuotaPatchInput{}, openapigen.InputMode)
-	g.Register("TenantQuota", tenantmod.QuotaSpec{}, openapigen.ResponseMode)
 	g.Register("MLRunCreateInput", mlrun.CreateInput{}, openapigen.InputMode)
 	g.Register("MLRunPatchInput", mlrun.PatchInput{}, openapigen.InputMode)
 	g.Register("MLRunView", mlrun.View{}, openapigen.ResponseMode)
@@ -140,10 +132,8 @@ func buildDocument(version string) *openapigen.Document {
 	g.Set("TrafficPolicyList", openapigen.ListEnvelope("TrafficPolicyView"))
 	g.Set("PodList", openapigen.ListEnvelope("PodView"))
 	g.Set("EventList", openapigen.ListEnvelope("EventView"))
-	g.Set("TenantQuotaList", openapigen.ListEnvelope("TenantQuota"))
 
 	tags := []openapigen.TagEntry{
-		{Name: tagTenants, Description: "Tenant CRUD. Compute owns the Tenant CR; PG is authoritative, CR is derived."},
 		{Name: tagMLRuns, Description: "MLRun CRUD per namespace. ResourcePool/Unit referenced by name (read from K8s Informer cache)."},
 		{Name: tagMLServices, Description: "MLService CRUD per namespace."},
 		{Name: tagTrafficPolicies, Description: "MLTrafficPolicy CRUD per namespace: weighted / canary / blue-green traffic split over member online services."},
@@ -173,75 +163,6 @@ func buildDocument(version string) *openapigen.Document {
 			"503": openapigen.StringResp("dependency not yet ready"),
 		},
 	}}
-
-	// tenants (the URL token is the tenant name, mirroring the design's
-	// "namespace = tenant identifier" naming).
-	paths["/api/v1/namespaces"] = openapigen.PathItem{
-		Post: &openapigen.Operation{
-			Tags: []string{tagTenants}, Summary: "Create a tenant", OperationID: "createTenant",
-			RequestBody: openapigen.JSONBody("TenantCreateInput"),
-			Responses:   withErrors(map[string]openapigen.Response{"201": openapigen.JSONResp("Created.", "TenantResponse")}),
-		},
-		Get: &openapigen.Operation{
-			Tags: []string{tagTenants}, Summary: "List tenants", OperationID: "listTenants",
-			Parameters: []openapigen.Parameter{limitParam, continueParam, labelSelectorParam},
-			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Page.", "TenantListResponse")}),
-		},
-	}
-	paths["/api/v1/namespaces/{namespace}"] = openapigen.PathItem{
-		Get: &openapigen.Operation{
-			Tags: []string{tagTenants}, Summary: "Get tenant", OperationID: "getTenant",
-			Parameters: []openapigen.Parameter{nsParam},
-			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Tenant.", "TenantResponse")}),
-		},
-		Patch: &openapigen.Operation{
-			Tags: []string{tagTenants}, Summary: "Patch tenant", OperationID: "patchTenant",
-			Parameters:  []openapigen.Parameter{nsParam},
-			RequestBody: openapigen.JSONBody("TenantPatchInput"),
-			Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Updated.", "TenantResponse")}),
-		},
-		Delete: &openapigen.Operation{
-			Tags: []string{tagTenants}, Summary: "Delete tenant (soft delete)", OperationID: "deleteTenant",
-			Parameters: []openapigen.Parameter{nsParam},
-			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Soft-deleted tenant (phase=Deleting).", "TenantResponse")}),
-		},
-	}
-
-	paths["/api/v1/namespaces/{namespace}/restore"] = openapigen.PathItem{Post: &openapigen.Operation{
-		Tags: []string{tagTenants}, Summary: "Restore a soft-deleted tenant", OperationID: "restoreTenant",
-		Parameters: []openapigen.Parameter{nsParam},
-		Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Restored tenant.", "TenantResponse")}),
-	}}
-
-	poolParam := openapigen.PathParam("pool", "Pool name.")
-	quotaNameParam := openapigen.PathParam("quotaName", "Quota name (within the (tenant, pool)).")
-
-	paths["/api/v1/namespaces/{namespace}/quotas"] = openapigen.PathItem{
-		Get: &openapigen.Operation{
-			Tags: []string{tagTenants}, Summary: "List quotas of a tenant", OperationID: "listTenantQuotas",
-			Parameters: []openapigen.Parameter{nsParam},
-			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Quotas.", "TenantQuotaList")}),
-		},
-		Post: &openapigen.Operation{
-			Tags: []string{tagTenants}, Summary: "Add a quota to a tenant", OperationID: "addTenantQuota",
-			Parameters:  []openapigen.Parameter{nsParam},
-			RequestBody: openapigen.JSONBody("TenantQuotaInput"),
-			Responses:   withErrors(map[string]openapigen.Response{"201": openapigen.JSONResp("Added.", "TenantQuota")}),
-		},
-	}
-	paths["/api/v1/namespaces/{namespace}/quotas/{pool}/{quotaName}"] = openapigen.PathItem{
-		Patch: &openapigen.Operation{
-			Tags: []string{tagTenants}, Summary: "Patch a quota's min/max", OperationID: "patchTenantQuota",
-			Parameters:  []openapigen.Parameter{nsParam, poolParam, quotaNameParam},
-			RequestBody: openapigen.JSONBody("TenantQuotaInput"),
-			Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Updated.", "TenantQuota")}),
-		},
-		Delete: &openapigen.Operation{
-			Tags: []string{tagTenants}, Summary: "Delete a quota", OperationID: "deleteTenantQuota",
-			Parameters: []openapigen.Parameter{nsParam, poolParam, quotaNameParam},
-			Responses:  withErrors(map[string]openapigen.Response{"204": openapigen.NoContentResp}),
-		},
-	}
 
 	// mlruns (per namespace)
 	paths["/api/v1/namespaces/{namespace}/mlruns"] = openapigen.PathItem{
@@ -421,7 +342,7 @@ func buildDocument(version string) *openapigen.Document {
 		Info: openapigen.Info{
 			Title:       "AxisML Compute Service API",
 			Version:     version,
-			Description: "REST API for Tenant CRUD plus per-namespace Jobs and Services. ResourcePool/Unit live in the cluster-manager CRD; compute references them by name. RFC7807 Problem responses on errors.",
+			Description: "REST API for per-namespace Jobs, Services and traffic policies. Tenant/Quota and ResourcePool/Unit live in the cluster-manager CRDs; compute partitions on the bare namespace string (= tenant identifier) supplied by Platform. RFC7807 Problem responses on errors.",
 		},
 		Servers: []openapigen.ServerEntry{{URL: "/", Description: "Same-origin"}},
 		Tags:    tags,

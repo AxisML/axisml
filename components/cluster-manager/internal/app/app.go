@@ -20,6 +20,7 @@ import (
 	"github.com/axisml/axisml/components/cluster-manager/internal/k8sclient"
 	"github.com/axisml/axisml/components/cluster-manager/internal/resourcepool"
 	srv "github.com/axisml/axisml/components/cluster-manager/internal/server"
+	"github.com/axisml/axisml/components/cluster-manager/internal/tenant"
 )
 
 // Config groups the runtime knobs the binary exposes.
@@ -90,6 +91,7 @@ func NewRouter(c client.Client) *gin.Engine {
 
 	api := r.Group("/api/v1", srv.RequireUser)
 	(&resourcepool.Handler{Client: c}).Register(api)
+	(&tenant.Handler{Client: c}).Register(api)
 
 	return r
 }

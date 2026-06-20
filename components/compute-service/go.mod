@@ -4,7 +4,6 @@ go 1.26.0
 
 require (
 	github.com/axisml/axisml/components/compute-operator v0.0.0
-	github.com/axisml/axisml/components/tenant-operator v0.0.0
 	github.com/axisml/axisml/pkg/openapigen v0.0.0
 	github.com/gin-gonic/gin v1.10.0
 	github.com/go-logr/logr v1.4.3

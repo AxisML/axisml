@@ -2,11 +2,11 @@
 
 ## 1. 定位与边界
 
-把 [compute-service](compute-service.md) 下发的 `Tenant` CR 翻译为 K8s 侧的 Namespace、Koordinator `ElasticQuota`、租户私有的 Secret / ConfigMap / ServiceAccount + RBAC,并把执行状态回流到 `Tenant.status`。
+把 [cluster-manager](cluster-manager.md) 下发的 `Tenant` CR 翻译为 K8s 侧的 Namespace、Koordinator `ElasticQuota`、租户私有的 Secret / ConfigMap / ServiceAccount + RBAC,并把执行状态回流到 `Tenant.status`。
 
 | 做 | 不做 |
 | --- | --- |
-| Namespace 创建与 metadata 对齐 (永不删除) | Tenant CR / 配额的 CRUD API (→ [compute-service.md](compute-service.md)) |
+| Namespace 创建与 metadata 对齐 (永不删除) | Tenant CR / 配额的 CRUD API (→ [cluster-manager.md](cluster-manager.md)) |
 | 每条 `spec.quotas[]` 渲染为一个 ElasticQuota CR,回流 `status.used` | MLRun / MLService 生命周期 (→ [compute-operator.md](compute-operator.md)) |
 | `spec.initResources` 下发 ImagePullSecret / Secret / ConfigMap / SA + RBAC | 用户认证、平台 RBAC (→ [auth.md](../auth.md)) |
 | 周期 resync 收敛源 Secret / ConfigMap 漂移 | 跨集群 / 多 region 联邦 |
@@ -16,8 +16,8 @@
 ### 2.1 上下文
 
 ```
-   ┌──────────────────┐  patch Tenant CR    ┌──────────────────┐
-   │     compute      │ ───────────────────▶│   K8s API        │
+   ┌──────────────────┐  write Tenant CR    ┌──────────────────┐
+   │ cluster-manager  │ ───────────────────▶│   K8s API        │
    └──────────────────┘                     │   Tenant CR      │
                                             └────────┬─────────┘
                                                      │ watch
@@ -60,9 +60,9 @@
 
 | 实体 | 含义 | 标识键 | 备注 |
 | --- | --- | --- | --- |
-| Tenant | 租户 CR,cluster-scoped | `metadata.name` (DNS-1123, ≤40) | 上游唯一写者为 compute |
+| Tenant | 租户 CR,cluster-scoped | `metadata.name` (DNS-1123, ≤40) | 上游唯一写者为 cluster-manager |
 | Namespace | 运行租户 Pod 的 K8s namespace | `spec.namespace.name` | 可被多 Tenant 共享 (§5.1) |
-| ElasticQuota | Koordinator 配额 CR | `axisml-<tenant>-<pool>` | 每条 `spec.quotas[]` 1:1 渲染（`min` / `max` 由 compute 据资源单元 × 数量折算后写入 CR） |
+| ElasticQuota | Koordinator 配额 CR | `axisml-<tenant>-<pool>` | 每条 `spec.quotas[]` 1:1 渲染（`min` / `max` 由 cluster-manager 据资源单元 × 数量折算后写入 CR） |
 | InitResource | per-tenant Secret / CM / SA + RBAC | `axisml-tenant-<tenant>-<name>` | 由 `sourceXxxRef` 复制 |
 
 Tenant CR 字段定义见 [deploy/helm/axisml-system/crds/tenant-crd.yaml](../../../deploy/helm/axisml-system/crds/tenant-crd.yaml);ElasticQuota 调度行为见 [infra.md](../infra.md)。
@@ -102,7 +102,7 @@ reconcile 触发事件:
 
 #### 4.1.2 ElasticQuota 落地
 
-配额落地为每个 `(tenant, pool)` 一个 Koordinator `ElasticQuota`,均落在 `spec.namespace.name` 下:每条 `spec.quotas[]` 渲染为一个 ElasticQuota,其 `min` / `max` 由 compute-service 据 cluster-manager ResourceUnit 规格把「资源单元 × 数量」折算后写入 CR spec,operator 直传落地。
+配额落地为每个 `(tenant, pool)` 一个 Koordinator `ElasticQuota`,均落在 `spec.namespace.name` 下:每条 `spec.quotas[]` 渲染为一个 ElasticQuota,其 `min` / `max` 由 cluster-manager 据 ResourceUnit 规格把「资源单元 × 数量」折算后写入 CR spec,operator 直传落地。
 
 | 维度 | 行为 |
 | --- | --- |
@@ -174,19 +174,19 @@ Pod 调度 ──▶ koord-scheduler ──▶ ElasticQuota.status.used 累加
                                           ▼
                             Tenant.status.quotas[i].used (patch)  ← 链路终点
                                           │
-                                          │ watch (compute Tenant Informer)
+                                          │ GET 时实时读 CR status
                                           ▼
-                            compute in-memory cache (不入 PG)
+                            cluster-manager (无 cache,不入 PG)
 ```
 
-`status.used` 只读,不写回 ElasticQuota;**`used` 字段不持久化到 compute PG**,只活在 Tenant CR `status.quotas[].used` 与 compute Tenant Informer 的 in-memory cache 里。compute 在 `GET /api/v1/namespaces/{namespace}` 时从 cache 实时聚合返回,Informer 启动 `WaitForCacheSync` 通过前 `/readyz` 不就绪,避免冷启窗口。这样 PG 不脏存调度即变的 ephemeral 态,权威源单一收敛到 ElasticQuota CR (经 Tenant CR 抽象层暴露)。详见 [compute-service.md §5.3](compute-service.md#53-状态回流informer)。
+`status.used` 只读,不写回 ElasticQuota;它不被任何服务持久化,只活在 Tenant CR `status.quotas[].used` 里。cluster-manager 在 `GET /api/v1/tenants/{tenant}` 时直读 Tenant CR `status` 实时返回,无 cache、无 PG。这样调度即变的 ephemeral 态权威源单一收敛到 ElasticQuota CR (经 Tenant CR 抽象层暴露)。详见 [cluster-manager.md §4.3](cluster-manager.md#43-tenant-crud)。
 
 ## 6. 接口契约
 
 | 类别 | 内容 | 引用 |
 | --- | --- | --- |
 | 输入 CR | `Tenant` (`axisml.io/v1alpha1`, cluster-scoped, `shortName=tnt`) | [tenant-crd.yaml](../../../deploy/helm/axisml-system/crds/tenant-crd.yaml) |
-| 上游写者 | compute 是唯一写者 (`metadata` / `spec`);admission webhook 后续硬阻断外部写 | [compute-service.md](compute-service.md) |
+| 上游写者 | cluster-manager 是唯一写者 (`metadata` / `spec`);admission webhook 后续硬阻断外部写 | [cluster-manager.md](cluster-manager.md) |
 | status subresource | CRD 声明 `subresources.status`;tenant-operator 是唯一 `status` 写者 | — |
 | 字段归属 | `spec` 三块 `namespace` / `quotas[]` / `initResources` | 详见下表 |
 | 级联清理 | per-tenant 资源 ownerReference → Tenant CR;Tenant DELETE 由 K8s GC 异步清理;Namespace 永不删除 | — |
@@ -196,16 +196,16 @@ Pod 调度 ──▶ koord-scheduler ──▶ ElasticQuota.status.used 累加
 
 | 字段路径 | 写入方 | 可变? |
 | --- | --- | --- |
-| `metadata.name` / `labels[axisml.io/tenant-id]` | compute | 否 |
-| `spec.namespace.name` | compute | 否 (controller 拒绝,webhook 兜底) |
-| `spec.quotas[].pool` | compute | 否 (标识锚点) |
-| `spec.quotas[].{min, max}` | compute | 是 (据资源单元 × 数量折算) |
-| `spec.initResources.*` | compute | 是 (增删 → reconcile 创建 / 删除) |
+| `metadata.name` / `labels[axisml.io/tenant-id]` | cluster-manager | 否 |
+| `spec.namespace.name` | cluster-manager | 否 (controller 拒绝,webhook 兜底) |
+| `spec.quotas[].pool` | cluster-manager | 否 (标识锚点) |
+| `spec.quotas[].{min, max}` | cluster-manager | 是 (据资源单元 × 数量折算) |
+| `spec.initResources.*` | cluster-manager | 是 (增删 → reconcile 创建 / 删除) |
 | `status.*` | tenant-operator | — |
 
-**防御等级**:`metadata` / `spec` 单写约束 (compute 为唯一写者) 当前由 controller `Validate(spec)` 软兜底,**不防止外部直接 `kubectl patch` 改 CR 的攻击面** —— 系统目前在控制面信任边界内部署,admission webhook 是后续硬化路径 (见 §9)。
+**防御等级**:`metadata` / `spec` 单写约束 (cluster-manager 为唯一写者) 当前由 controller `Validate(spec)` 软兜底,**不防止外部直接 `kubectl patch` 改 CR 的攻击面** —— 系统目前在控制面信任边界内部署,admission webhook 是后续硬化路径 (见 §9)。
 
-**展示性元数据归属**:`display_name` / `description` / `labels` / `annotations` 这类纯展示与扩展位**不进 CR**,仅落 [compute-service `tenants` 表的同名列](compute-service.md#41-tenant) (扩展位见 [database.md §1.6](../database.md#16-扩展元数据-labels--annotations))。修改它们不 `+generation`,不触发 reconcile。
+**展示性元数据归属**:`display_name` / `description` 的权威在 [Platform `tenants` 表](../database.md#4-platform),仅存于 Platform,**不**下发到 Tenant CR;tenant-operator 与 cluster-manager 都不感知它们。租户的 `labels` / `annotations` 由 Platform 经 cluster-manager 透传到 CR `metadata`,但 tenant-operator 不据此 reconcile、不影响 phase。
 
 ## 7. 依赖
 
@@ -213,7 +213,7 @@ Pod 调度 ──▶ koord-scheduler ──▶ ElasticQuota.status.used 累加
 | --- | --- | --- |
 | Kubernetes API | Tenant CR watch、子资源 CRUD、leader Lease | — |
 | Koordinator ElasticQuota CRD | 渲染目标;`status.used` 回流来源 | [infra.md](../infra.md) |
-| compute | 上游唯一 Tenant CR 写者;status 回流消费方 | [compute-service.md](compute-service.md) |
+| cluster-manager | 上游唯一 Tenant CR 写者;status 回流消费方 (GET 时直读 CR) | [cluster-manager.md](cluster-manager.md) |
 | 受控 Namespace 中的源 Secret / ConfigMap | `sourceSecretRef` / `sourceConfigMapRef` 复制数据源 | — |
 
 ## 8. 运行时形态
@@ -231,10 +231,10 @@ Pod 调度 ──▶ koord-scheduler ──▶ ElasticQuota.status.used 累加
 
 - [overview.md](../overview.md) — 控制平面拓扑
 - [auth.md](../auth.md) — 平台用户身份与 RBAC 域 (tenant-operator 不直接参与)
-- [database.md](../database.md) — `tenants` 表 schema (PG 权威由 compute 持有)
+- [database.md](../database.md) — `tenants` 表 schema (PG 权威由 Platform 持有)
 - [deployment.md](../deployment.md) — Helm 模板与部署形态
 - [monitoring.md](../monitoring.md) — Metrics 与告警
 - [infra.md](../infra.md) — Koordinator / ElasticQuota / scheduler-plugins 依赖契约
-- [compute-service.md](compute-service.md) — Tenant CR 上游 producer
+- [cluster-manager.md](cluster-manager.md) — Tenant CR 上游 producer (REST 写 spec)
 - [compute-operator.md](compute-operator.md) — 兄弟 operator,承载 MLRun / MLService
 - [artifact-hub.md](artifact-hub.md) — `resolve?usage=inspect` 路径依赖 tenant-operator 下发的 per-tenant SA + 默认 ImagePullSecret / Secret

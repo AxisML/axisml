@@ -73,11 +73,6 @@ func TestRouteCoverage(t *testing.T) {
 	want := []struct{ method, path string }{
 		{"get", "/healthz"},
 		{"get", "/readyz"},
-		{"post", "/api/v1/namespaces"},
-		{"get", "/api/v1/namespaces"},
-		{"get", "/api/v1/namespaces/{namespace}"},
-		{"patch", "/api/v1/namespaces/{namespace}"},
-		{"delete", "/api/v1/namespaces/{namespace}"},
 		{"post", "/api/v1/namespaces/{namespace}/mlruns"},
 		{"get", "/api/v1/namespaces/{namespace}/mlruns"},
 		{"get", "/api/v1/namespaces/{namespace}/mlruns/{mlrun}"},
@@ -98,11 +93,6 @@ func TestRouteCoverage(t *testing.T) {
 		{"get", "/api/v1/namespaces/{namespace}/mlservices/{mlservice}/pods/{pod}/logs"},
 		{"get", "/api/v1/namespaces/{namespace}/mlservices/{mlservice}/pods/{pod}/events"},
 		{"get", "/api/v1/namespaces/{namespace}/mlservices/{mlservice}/events"},
-		{"post", "/api/v1/namespaces/{namespace}/restore"},
-		{"get", "/api/v1/namespaces/{namespace}/quotas"},
-		{"post", "/api/v1/namespaces/{namespace}/quotas"},
-		{"patch", "/api/v1/namespaces/{namespace}/quotas/{pool}/{quotaName}"},
-		{"delete", "/api/v1/namespaces/{namespace}/quotas/{pool}/{quotaName}"},
 	}
 	for _, w := range want {
 		item, ok := doc.Paths[w.path]
