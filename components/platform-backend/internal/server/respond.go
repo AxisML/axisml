@@ -75,3 +75,16 @@ func NotFound(msg string) error {
 func Conflict(reason, msg string) error {
 	return apperrors.New(apperrors.ClassConflict, msg).WithReason(reason)
 }
+
+// ActiveTenantRequired is the 400 returned when a list/name-addressed endpoint
+// needs an X-Axisml-Tenant header that the caller did not supply.
+func ActiveTenantRequired() error {
+	return apperrors.New(apperrors.ClassValidation, "active tenant required").WithReason("active-tenant-required")
+}
+
+// MetricsUnavailable is the 502 returned by metrics endpoints until the
+// compute-side PromQL surface is implemented (Platform must not query
+// Prometheus directly).
+func MetricsUnavailable() error {
+	return apperrors.New(apperrors.ClassUpstream, "workload metrics are not yet available").WithReason("metrics-unavailable")
+}

@@ -15,8 +15,11 @@ import (
 
 	"github.com/axisml/axisml/components/platform/internal/auth"
 	"github.com/axisml/axisml/components/platform/internal/clients/clustermanager"
+	"github.com/axisml/axisml/components/platform/internal/clients/computeservice"
 	"github.com/axisml/axisml/components/platform/internal/config"
 	"github.com/axisml/axisml/components/platform/internal/identity"
+	"github.com/axisml/axisml/components/platform/internal/job"
+	"github.com/axisml/axisml/components/platform/internal/resourcepool"
 	"github.com/axisml/axisml/components/platform/internal/server"
 	"github.com/axisml/axisml/components/platform/internal/store"
 	"github.com/axisml/axisml/components/platform/internal/tenant"
@@ -52,13 +55,21 @@ func BuildDeps(cfg config.Config, db *gorm.DB) (*Deps, error) {
 	if err != nil {
 		return nil, err
 	}
+	compute, err := computeservice.New(cfg.ComputeURL, cfg.UpstreamTimeout)
+	if err != nil {
+		return nil, err
+	}
 
 	identitySvc := identity.NewService(users, roles, sessions, idp, signer)
 	tenantSvc := tenant.NewService(tenants, roles, users, cm)
+	resourcePoolSvc := resourcepool.NewService(cm)
+	jobSvc := job.NewService(store.NewDefinitionRepo(db, store.TableJobs), tenants, compute)
 
 	modules := []server.Module{
 		identity.NewHandler(identitySvc, authn),
 		tenant.NewHandler(tenantSvc, authn),
+		resourcepool.NewHandler(resourcePoolSvc, authn),
+		job.NewHandler(jobSvc, authn),
 	}
 	return &Deps{Authn: authn, Signer: signer, Modules: modules}, nil
 }

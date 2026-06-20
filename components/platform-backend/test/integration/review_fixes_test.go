@@ -58,7 +58,9 @@ func TestUserReadsRequireAdmin(t *testing.T) {
 // TestUnimplementedRouteReturns501 pins that a documented-but-unwired endpoint
 // returns a problem+json 501, not a bare 404.
 func TestUnimplementedRouteReturns501(t *testing.T) {
-	code, body := do(t, http.MethodGet, "/api/v1/jobs", "", nil)
+	// An /api/v1 path with no registered handler must be a problem+json 501,
+	// not a bare 404.
+	code, body := do(t, http.MethodGet, "/api/v1/not-a-real-endpoint-xyz", "", nil)
 	require.Equal(t, http.StatusNotImplemented, code)
 	require.Equal(t, "not-implemented", body["code"])
 }
