@@ -4,7 +4,7 @@
 
 **AxisML** 是一款 AI 训练推理一体的一站式机器学习平台，覆盖模型开发、训练、制品管理、在线推理与系统运维。本文档从用户视角描述目标用户、核心概念与功能能力（"为谁做、做什么"）；架构与实现取舍见 [概要设计](../system_design/high_level_design.md)，字段级契约以 [docs/system_design/](../system_design) 与 [openapi/](../openapi) 为准。
 
-页面布局与交互见 [wireframe.md](wireframe.md)，交互原型见 [prototype/](prototype)。
+页面布局与交互以[交互原型 prototype/](prototype)为准，[wireframe.md](wireframe.md) 为布局与字段的速查。
 
 ## 2. 目标用户与角色
 
@@ -147,5 +147,5 @@
 
 ## 8. 参考
 
-- [概要设计 overview.md](../system_design/high_level_design.md) · [产品 UI wireframe.md](wireframe.md) · [交互原型 prototype/](prototype)
+- [概要设计 overview.md](../system_design/high_level_design.md) · [交互原型 prototype/](prototype) · [产品 UI wireframe.md](wireframe.md)
 - 组件设计：[platform](../system_design/platform/backend.md) · [cluster-manager](../system_design/system/cluster-manager.md) · [compute-service](../system_design/system/compute-service.md) · [compute-operator](../system_design/system/compute-operator.md) · [tenant-operator](../system_design/system/tenant-operator.md) · [artifact-hub](../system_design/system/artifact-hub.md)

@@ -2,7 +2,7 @@
 
 ## 1. 概述
 
-Platform 前端 UI 的对齐入口：页面结构、菜单导航、列表字段、详情 Tab、表单字段、状态展示与权限可见性。只描述**布局与字段呈现**；后端编排见 [platform.md](../system_design/platform/backend.md)，字段契约见 [openapi/platform.yaml](../openapi/platform.yaml)，RBAC 见 [auth.md](../system_design/platform/auth.md)，系统概念见 [high_level_design.md](../system_design/high_level_design.md)。交互原型见 [prototype/](prototype)。
+Platform 前端 UI 的布局与字段速查：页面结构、菜单导航、列表字段、详情 Tab、表单字段、状态展示与权限可见性，只描述**布局与字段呈现**。前端 UI 的权威是[交互原型 prototype/](prototype)，本文与原型不一致时以原型为准。后端编排见 [platform.md](../system_design/platform/backend.md)，字段契约见 [openapi/platform.yaml](../openapi/platform.yaml)，RBAC 见 [auth.md](../system_design/platform/auth.md)，系统概念见 [high_level_design.md](../system_design/high_level_design.md)。
 
 ---
 

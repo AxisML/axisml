@@ -17,4 +17,4 @@ Platform 层是 AxisML **唯一直接面向用户、唯一对外暴露**的层�
 - **持有**：租户持久记录（`tenants` 表，tenant scope / K8s Namespace 映射 / 停用 / 硬删除）、四张定义、用户 / 角色 / 会话。
 - **不持有**：任何 K8s 资源 / CR、运行实例（Run / Service / Workspace）、制品版本、配额折算与 namespace 解析——全部下沉 System 层。
 
-产品需求见 [PRD](../../product_design/prd.md)，页面设计见 [wireframe](../../product_design/wireframe.md)，系统全景见 [high_level_design.md](../high_level_design.md)。
+产品需求见 [PRD](../../product_design/prd.md)，页面设计以[交互原型 prototype/](../../product_design/prototype)为准（布局速查 [wireframe.md](../../product_design/wireframe.md)），系统全景见 [high_level_design.md](../high_level_design.md)。
