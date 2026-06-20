@@ -147,6 +147,12 @@ func buildDocument(version string) *openapigen.Document {
 	limitParam := openapigen.QueryParam("limit", "Page size (1–200, default 50).", openapigen.IntFormat32Param())
 	continueParam := openapigen.QueryParam("continue", "Opaque continuation token from a previous page.", &openapigen.Schema{Type: "string"})
 	labelSelectorParam := openapigen.QueryParam("labelSelector", "K8s-style label selector filtered against the row's labels jsonb.", &openapigen.Schema{Type: "string"})
+	logParams := []openapigen.Parameter{
+		openapigen.QueryParam("container", "Target container (defaults to the first).", &openapigen.Schema{Type: "string"}),
+		openapigen.QueryParam("tailLines", "Return only the last N lines.", openapigen.IntFormat32Param()),
+		openapigen.QueryParam("follow", "Stream new lines as Server-Sent Events (text/event-stream) instead of a one-shot text/plain body.", &openapigen.Schema{Type: "boolean"}),
+		openapigen.QueryParam("previous", "Read the previous (crashed) container instance's log.", &openapigen.Schema{Type: "boolean"}),
+	}
 
 	paths := map[string]openapigen.PathItem{}
 
@@ -209,7 +215,7 @@ func buildDocument(version string) *openapigen.Document {
 	}}
 	paths["/api/v1/namespaces/{namespace}/mlruns/{mlrun}/pods/{pod}/logs"] = openapigen.PathItem{Get: &openapigen.Operation{
 		Tags: []string{tagMLRuns}, Summary: "Stream a pod's container log", OperationID: "getMLRunPodLogs",
-		Parameters: []openapigen.Parameter{nsParam, mlrunParam, podParam},
+		Parameters: append([]openapigen.Parameter{nsParam, mlrunParam, podParam}, logParams...),
 		Responses: withErrors(map[string]openapigen.Response{
 			"200": openapigen.StringResp("text/plain stream of pod log"),
 		}),
@@ -271,7 +277,7 @@ func buildDocument(version string) *openapigen.Document {
 	}}
 	paths["/api/v1/namespaces/{namespace}/mlservices/{mlservice}/pods/{pod}/logs"] = openapigen.PathItem{Get: &openapigen.Operation{
 		Tags: []string{tagMLServices}, Summary: "Stream an MLService pod's container log", OperationID: "getMLServicePodLogs",
-		Parameters: []openapigen.Parameter{nsParam, mlserviceParam, podParam},
+		Parameters: append([]openapigen.Parameter{nsParam, mlserviceParam, podParam}, logParams...),
 		Responses: withErrors(map[string]openapigen.Response{
 			"200": openapigen.StringResp("text/plain stream of pod log"),
 		}),

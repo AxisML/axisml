@@ -42,6 +42,8 @@ components:
           format: date-time
           nullable: true
           type: string
+        source:
+          type: string
         spec:
           additionalProperties: {}
           type: object
@@ -87,6 +89,10 @@ components:
           additionalProperties:
             type: string
           type: object
+        source:
+          type: string
+        sourceUri:
+          type: string
         spec:
           additionalProperties: {}
           type: object

@@ -20,6 +20,7 @@ func toView(row *store.Artifact) server.Artifact {
 		Description: row.Description,
 		Owner:       row.OwnerUser,
 		Status:      row.Status,
+		Source:      row.Source,
 		Message:     row.Message,
 		Digest:      row.Digest,
 		ReadyAt:     row.ReadyAt,

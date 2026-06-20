@@ -2936,6 +2936,28 @@ paths:
         required: true
         schema:
           type: string
+      - description: Target container (defaults to the first).
+        in: query
+        name: container
+        schema:
+          type: string
+      - description: Return only the last N lines.
+        in: query
+        name: tailLines
+        schema:
+          format: int32
+          type: integer
+      - description: Stream new lines as Server-Sent Events (text/event-stream) instead
+          of a one-shot text/plain body.
+        in: query
+        name: follow
+        schema:
+          type: boolean
+      - description: Read the previous (crashed) container instance's log.
+        in: query
+        name: previous
+        schema:
+          type: boolean
       responses:
         "200":
           content:
@@ -3677,6 +3699,28 @@ paths:
         required: true
         schema:
           type: string
+      - description: Target container (defaults to the first).
+        in: query
+        name: container
+        schema:
+          type: string
+      - description: Return only the last N lines.
+        in: query
+        name: tailLines
+        schema:
+          format: int32
+          type: integer
+      - description: Stream new lines as Server-Sent Events (text/event-stream) instead
+          of a one-shot text/plain body.
+        in: query
+        name: follow
+        schema:
+          type: boolean
+      - description: Read the previous (crashed) container instance's log.
+        in: query
+        name: previous
+        schema:
+          type: boolean
       responses:
         "200":
           content:

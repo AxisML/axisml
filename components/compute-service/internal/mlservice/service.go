@@ -68,9 +68,12 @@ func (m *Module) Create(ctx context.Context, namespace string, in server.MLServi
 	if kind == "" {
 		kind = mlservicev1alpha1.ServiceKindService
 	}
-	if kind != mlservicev1alpha1.ServiceKindService && kind != mlservicev1alpha1.ServiceKindWorkspace {
+	if kind != mlservicev1alpha1.ServiceKindService &&
+		kind != mlservicev1alpha1.ServiceKindWorkspace &&
+		kind != mlservicev1alpha1.ServiceKindTensorBoard {
 		return nil, apperrors.Newf(apperrors.CodeValidation,
-			"kind must be %q or %q", mlservicev1alpha1.ServiceKindService, mlservicev1alpha1.ServiceKindWorkspace)
+			"kind must be %q, %q or %q", mlservicev1alpha1.ServiceKindService,
+			mlservicev1alpha1.ServiceKindWorkspace, mlservicev1alpha1.ServiceKindTensorBoard)
 	}
 	if existing, err := m.repo.GetByNamespaceName(ctx, namespace, in.Name); err == nil && existing != nil {
 		return nil, apperrors.New(apperrors.CodeConflict, "service already exists")

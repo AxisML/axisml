@@ -74,6 +74,15 @@ func (s *Service) Initiate(ctx context.Context, namespace, kind, name, ownerUser
 			"version %s already exists for %s/%s/%s (status=%s)", in.Version, namespace, kind, name, existing.Status)
 	}
 
+	source := in.Source
+	if source == "" {
+		source = SourceWebUpload
+	}
+	external := source == SourceExternal
+	if external && in.SourceURI == "" {
+		return nil, apperrors.New(apperrors.CodeValidation, "sourceUri is required when source=external")
+	}
+
 	specJSON, err := json.Marshal(in.Spec)
 	if err != nil {
 		return nil, apperrors.Wrap(apperrors.CodeValidation, "marshal spec", err)
@@ -94,11 +103,30 @@ func (s *Service) Initiate(ctx context.Context, namespace, kind, name, ownerUser
 		Annotations: annotations,
 		OwnerUser:   ownerUser,
 		Spec:        datatypes.JSON(specJSON),
+		Source:      source,
 		Status:      StatusUploading,
+	}
+	// external versions register a remote artifact with no upload: born Ready,
+	// referencing the remote URI (no push credentials issued).
+	if external {
+		now := time.Now().UTC()
+		row.Status = StatusReady
+		row.Digest = in.SourceURI
+		row.ReadyAt = &now
 	}
 
 	if err := s.rows.Create(ctx, nil, row); err != nil {
 		return nil, apperrors.Wrap(apperrors.CodeInternal, "insert artifact", err)
+	}
+
+	if external {
+		return &server.ArtifactInitiateResponse{
+			Artifact: toView(row),
+			Upload: server.UploadCredentials{
+				StorageKind: string(h.StorageKind()),
+				URI:         in.SourceURI,
+			},
+		}, nil
 	}
 
 	hArt := handler.Artifact{

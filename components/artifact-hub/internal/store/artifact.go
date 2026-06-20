@@ -27,6 +27,7 @@ type Artifact struct {
 	OwnerUser   string         `gorm:"type:text;not null;default:''"`
 	Spec        datatypes.JSON `gorm:"type:jsonb;not null"`
 	Status      string         `gorm:"size:16;not null"`
+	Source      string         `gorm:"size:32;not null;default:'webUpload'"`
 	Message     string         `gorm:"type:text;not null;default:''"`
 	Digest      string         `gorm:"type:text;not null;default:''"`
 	ReadyAt     *time.Time

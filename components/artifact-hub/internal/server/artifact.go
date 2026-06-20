@@ -25,6 +25,7 @@ type Artifact struct {
 	Owner       string            `json:"owner,omitempty"`
 	Spec        map[string]any    `json:"spec"`
 	Status      string            `json:"status"`
+	Source      string            `json:"source,omitempty"`
 	Message     string            `json:"message,omitempty"`
 	Digest      string            `json:"digest,omitempty"`
 	ReadyAt     *time.Time        `json:"readyAt,omitempty"`
@@ -34,9 +35,16 @@ type Artifact struct {
 }
 
 // ArtifactInitiateRequest is the API request body for the two-phase write step 1.
+//
+// Source selects the version's provenance: webUpload / oras / dockerPush all
+// return push credentials and follow the two-phase write; external registers a
+// remote artifact with NO upload (SourceURI is required) and is born Ready.
+// Empty Source defaults to webUpload.
 type ArtifactInitiateRequest struct {
 	Version     string            `json:"version" binding:"required,axisml_version"`
 	Spec        map[string]any    `json:"spec" binding:"required"`
+	Source      string            `json:"source,omitempty" binding:"omitempty,oneof=webUpload oras dockerPush external"`
+	SourceURI   string            `json:"sourceUri,omitempty"`
 	Visibility  string            `json:"visibility,omitempty"`
 	DisplayName string            `json:"displayName,omitempty"`
 	Description string            `json:"description,omitempty"`
