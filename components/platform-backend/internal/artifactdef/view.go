@@ -45,6 +45,7 @@ func versionView(v *artifacthub.Artifact, tenant string) server.Model {
 		DisplayName: strv(v.DisplayName),
 		Description: strv(v.Description),
 		Status:      server.ModelStatus(v.Status),
+		Source:      server.ArtifactSource(strv(v.Source)),
 		Digest:      strv(v.Digest),
 		Spec:        v.Spec,
 		Owner:       strv(v.Owner),

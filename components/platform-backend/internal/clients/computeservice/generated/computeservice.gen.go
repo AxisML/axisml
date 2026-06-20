@@ -1080,6 +1080,21 @@ type ListMLRunsParams struct {
 	LabelSelector *string `form:"labelSelector,omitempty" json:"labelSelector,omitempty"`
 }
 
+// GetMLRunPodLogsParams defines parameters for GetMLRunPodLogs.
+type GetMLRunPodLogsParams struct {
+	// Container Target container (defaults to the first).
+	Container *string `form:"container,omitempty" json:"container,omitempty"`
+
+	// TailLines Return only the last N lines.
+	TailLines *int32 `form:"tailLines,omitempty" json:"tailLines,omitempty"`
+
+	// Follow Stream new lines as Server-Sent Events (text/event-stream) instead of a one-shot text/plain body.
+	Follow *bool `form:"follow,omitempty" json:"follow,omitempty"`
+
+	// Previous Read the previous (crashed) container instance's log.
+	Previous *bool `form:"previous,omitempty" json:"previous,omitempty"`
+}
+
 // ListMLServicesParams defines parameters for ListMLServices.
 type ListMLServicesParams struct {
 	// Limit Page size (1–200, default 50).
@@ -1090,6 +1105,21 @@ type ListMLServicesParams struct {
 
 	// LabelSelector K8s-style label selector filtered against the row's labels jsonb.
 	LabelSelector *string `form:"labelSelector,omitempty" json:"labelSelector,omitempty"`
+}
+
+// GetMLServicePodLogsParams defines parameters for GetMLServicePodLogs.
+type GetMLServicePodLogsParams struct {
+	// Container Target container (defaults to the first).
+	Container *string `form:"container,omitempty" json:"container,omitempty"`
+
+	// TailLines Return only the last N lines.
+	TailLines *int32 `form:"tailLines,omitempty" json:"tailLines,omitempty"`
+
+	// Follow Stream new lines as Server-Sent Events (text/event-stream) instead of a one-shot text/plain body.
+	Follow *bool `form:"follow,omitempty" json:"follow,omitempty"`
+
+	// Previous Read the previous (crashed) container instance's log.
+	Previous *bool `form:"previous,omitempty" json:"previous,omitempty"`
 }
 
 // ListTrafficPoliciesParams defines parameters for ListTrafficPolicies.
@@ -1233,7 +1263,7 @@ type ClientInterface interface {
 	ListMLRunPodEvents(ctx context.Context, namespace string, mlrun string, pod string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetMLRunPodLogs request
-	GetMLRunPodLogs(ctx context.Context, namespace string, mlrun string, pod string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	GetMLRunPodLogs(ctx context.Context, namespace string, mlrun string, pod string, params *GetMLRunPodLogsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListMLServices request
 	ListMLServices(ctx context.Context, namespace string, params *ListMLServicesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1264,7 +1294,7 @@ type ClientInterface interface {
 	ListMLServicePodEvents(ctx context.Context, namespace string, mlservice string, pod string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetMLServicePodLogs request
-	GetMLServicePodLogs(ctx context.Context, namespace string, mlservice string, pod string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	GetMLServicePodLogs(ctx context.Context, namespace string, mlservice string, pod string, params *GetMLServicePodLogsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ScaleMLServiceWithBody request with any body
 	ScaleMLServiceWithBody(ctx context.Context, namespace string, mlservice string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1440,8 +1470,8 @@ func (c *Client) ListMLRunPodEvents(ctx context.Context, namespace string, mlrun
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetMLRunPodLogs(ctx context.Context, namespace string, mlrun string, pod string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetMLRunPodLogsRequest(c.Server, namespace, mlrun, pod)
+func (c *Client) GetMLRunPodLogs(ctx context.Context, namespace string, mlrun string, pod string, params *GetMLRunPodLogsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetMLRunPodLogsRequest(c.Server, namespace, mlrun, pod, params)
 	if err != nil {
 		return nil, err
 	}
@@ -1572,8 +1602,8 @@ func (c *Client) ListMLServicePodEvents(ctx context.Context, namespace string, m
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetMLServicePodLogs(ctx context.Context, namespace string, mlservice string, pod string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetMLServicePodLogsRequest(c.Server, namespace, mlservice, pod)
+func (c *Client) GetMLServicePodLogs(ctx context.Context, namespace string, mlservice string, pod string, params *GetMLServicePodLogsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetMLServicePodLogsRequest(c.Server, namespace, mlservice, pod, params)
 	if err != nil {
 		return nil, err
 	}
@@ -2207,7 +2237,7 @@ func NewListMLRunPodEventsRequest(server string, namespace string, mlrun string,
 }
 
 // NewGetMLRunPodLogsRequest generates requests for GetMLRunPodLogs
-func NewGetMLRunPodLogsRequest(server string, namespace string, mlrun string, pod string) (*http.Request, error) {
+func NewGetMLRunPodLogsRequest(server string, namespace string, mlrun string, pod string, params *GetMLRunPodLogsParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -2244,6 +2274,76 @@ func NewGetMLRunPodLogsRequest(server string, namespace string, mlrun string, po
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Container != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "container", runtime.ParamLocationQuery, *params.Container); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.TailLines != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "tailLines", runtime.ParamLocationQuery, *params.TailLines); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Follow != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "follow", runtime.ParamLocationQuery, *params.Follow); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Previous != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "previous", runtime.ParamLocationQuery, *params.Previous); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -2656,7 +2756,7 @@ func NewListMLServicePodEventsRequest(server string, namespace string, mlservice
 }
 
 // NewGetMLServicePodLogsRequest generates requests for GetMLServicePodLogs
-func NewGetMLServicePodLogsRequest(server string, namespace string, mlservice string, pod string) (*http.Request, error) {
+func NewGetMLServicePodLogsRequest(server string, namespace string, mlservice string, pod string, params *GetMLServicePodLogsParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -2693,6 +2793,76 @@ func NewGetMLServicePodLogsRequest(server string, namespace string, mlservice st
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Container != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "container", runtime.ParamLocationQuery, *params.Container); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.TailLines != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "tailLines", runtime.ParamLocationQuery, *params.TailLines); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Follow != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "follow", runtime.ParamLocationQuery, *params.Follow); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Previous != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "previous", runtime.ParamLocationQuery, *params.Previous); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -3293,7 +3463,7 @@ type ClientWithResponsesInterface interface {
 	ListMLRunPodEventsWithResponse(ctx context.Context, namespace string, mlrun string, pod string, reqEditors ...RequestEditorFn) (*ListMLRunPodEventsResponse, error)
 
 	// GetMLRunPodLogsWithResponse request
-	GetMLRunPodLogsWithResponse(ctx context.Context, namespace string, mlrun string, pod string, reqEditors ...RequestEditorFn) (*GetMLRunPodLogsResponse, error)
+	GetMLRunPodLogsWithResponse(ctx context.Context, namespace string, mlrun string, pod string, params *GetMLRunPodLogsParams, reqEditors ...RequestEditorFn) (*GetMLRunPodLogsResponse, error)
 
 	// ListMLServicesWithResponse request
 	ListMLServicesWithResponse(ctx context.Context, namespace string, params *ListMLServicesParams, reqEditors ...RequestEditorFn) (*ListMLServicesResponse, error)
@@ -3324,7 +3494,7 @@ type ClientWithResponsesInterface interface {
 	ListMLServicePodEventsWithResponse(ctx context.Context, namespace string, mlservice string, pod string, reqEditors ...RequestEditorFn) (*ListMLServicePodEventsResponse, error)
 
 	// GetMLServicePodLogsWithResponse request
-	GetMLServicePodLogsWithResponse(ctx context.Context, namespace string, mlservice string, pod string, reqEditors ...RequestEditorFn) (*GetMLServicePodLogsResponse, error)
+	GetMLServicePodLogsWithResponse(ctx context.Context, namespace string, mlservice string, pod string, params *GetMLServicePodLogsParams, reqEditors ...RequestEditorFn) (*GetMLServicePodLogsResponse, error)
 
 	// ScaleMLServiceWithBodyWithResponse request with any body
 	ScaleMLServiceWithBodyWithResponse(ctx context.Context, namespace string, mlservice string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ScaleMLServiceResponse, error)
@@ -4371,8 +4541,8 @@ func (c *ClientWithResponses) ListMLRunPodEventsWithResponse(ctx context.Context
 }
 
 // GetMLRunPodLogsWithResponse request returning *GetMLRunPodLogsResponse
-func (c *ClientWithResponses) GetMLRunPodLogsWithResponse(ctx context.Context, namespace string, mlrun string, pod string, reqEditors ...RequestEditorFn) (*GetMLRunPodLogsResponse, error) {
-	rsp, err := c.GetMLRunPodLogs(ctx, namespace, mlrun, pod, reqEditors...)
+func (c *ClientWithResponses) GetMLRunPodLogsWithResponse(ctx context.Context, namespace string, mlrun string, pod string, params *GetMLRunPodLogsParams, reqEditors ...RequestEditorFn) (*GetMLRunPodLogsResponse, error) {
+	rsp, err := c.GetMLRunPodLogs(ctx, namespace, mlrun, pod, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -4468,8 +4638,8 @@ func (c *ClientWithResponses) ListMLServicePodEventsWithResponse(ctx context.Con
 }
 
 // GetMLServicePodLogsWithResponse request returning *GetMLServicePodLogsResponse
-func (c *ClientWithResponses) GetMLServicePodLogsWithResponse(ctx context.Context, namespace string, mlservice string, pod string, reqEditors ...RequestEditorFn) (*GetMLServicePodLogsResponse, error) {
-	rsp, err := c.GetMLServicePodLogs(ctx, namespace, mlservice, pod, reqEditors...)
+func (c *ClientWithResponses) GetMLServicePodLogsWithResponse(ctx context.Context, namespace string, mlservice string, pod string, params *GetMLServicePodLogsParams, reqEditors ...RequestEditorFn) (*GetMLServicePodLogsResponse, error) {
+	rsp, err := c.GetMLServicePodLogs(ctx, namespace, mlservice, pod, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}

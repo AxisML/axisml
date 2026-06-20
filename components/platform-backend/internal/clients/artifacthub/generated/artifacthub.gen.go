@@ -47,6 +47,7 @@ type Artifact struct {
 	Namespace   string                 `json:"namespace"`
 	Owner       *string                `json:"owner,omitempty"`
 	ReadyAt     *time.Time             `json:"readyAt"`
+	Source      *string                `json:"source,omitempty"`
 	Spec        map[string]interface{} `json:"spec"`
 	Status      string                 `json:"status"`
 	UpdatedAt   time.Time              `json:"updatedAt"`
@@ -65,6 +66,8 @@ type ArtifactInitiateRequest struct {
 	Description *string                `json:"description,omitempty"`
 	DisplayName *string                `json:"displayName,omitempty"`
 	Labels      *map[string]string     `json:"labels,omitempty"`
+	Source      *string                `json:"source,omitempty"`
+	SourceUri   *string                `json:"sourceUri,omitempty"`
 	Spec        map[string]interface{} `json:"spec"`
 	Version     string                 `json:"version"`
 	Visibility  *string                `json:"visibility,omitempty"`

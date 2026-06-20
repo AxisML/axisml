@@ -157,17 +157,23 @@ type InitiateResult struct {
 	Upload map[string]any
 }
 
-// InitiateVersion starts a new version upload. external (no-upload) registration
-// and the source badge require the artifact-hub push-down (#4); until then a
-// source=external request is rejected.
-func (s *Service) InitiateVersion(ctx context.Context, tenant, name, version, displayName, description, source string, spec map[string]any) (*InitiateResult, error) {
+// InitiateVersion starts a new version. webUpload/oras/dockerPush return push
+// credentials; external (sourceURI required) registers a remote artifact with no
+// upload (born Ready). Source/external are backed by artifact-hub (push-down #4).
+func (s *Service) InitiateVersion(ctx context.Context, tenant, name, version, displayName, description, source, sourceURI string, spec map[string]any) (*InitiateResult, error) {
 	if _, err := s.getDef(ctx, tenant, name); err != nil {
 		return nil, err
 	}
-	if source == "external" {
-		return nil, apperrors.New(apperrors.ClassUnprocessable, "external (no-upload) registration is not yet supported").WithReason("external-unsupported")
+	if source == "external" && sourceURI == "" {
+		return nil, apperrors.New(apperrors.ClassValidation, "sourceUri is required when source=external").WithReason("source-uri-required")
 	}
 	in := artifacthub.InitiateRequest{Version: version, Spec: spec}
+	if source != "" {
+		in.Source = &source
+	}
+	if sourceURI != "" {
+		in.SourceUri = &sourceURI
+	}
 	if displayName != "" {
 		in.DisplayName = &displayName
 	}

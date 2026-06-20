@@ -213,12 +213,12 @@ func (h *Handler) runPodEvents(c *gin.Context) {
 }
 
 func (h *Handler) runPodLogs(c *gin.Context) {
-	logs, err := h.svc.RunPodLogs(c.Request.Context(), auth.ActiveTenant(c), c.Param("run"), c.Param("pod"))
+	resp, err := h.svc.RunPodLogs(c.Request.Context(), auth.ActiveTenant(c), c.Param("run"), c.Param("pod"), compview.LogOptions(c))
 	if err != nil {
 		server.Fail(c, err)
 		return
 	}
-	c.Data(http.StatusOK, "text/plain; charset=utf-8", logs)
+	compview.StreamLogs(c, resp)
 }
 
 func (h *Handler) getTB(c *gin.Context) {

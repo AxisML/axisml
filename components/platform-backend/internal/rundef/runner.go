@@ -7,6 +7,7 @@ package rundef
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 
@@ -145,8 +146,8 @@ func (r *Runner) Events(ctx context.Context, tenant, run string) ([]computeservi
 func (r *Runner) PodEvents(ctx context.Context, tenant, run, pod string) ([]computeservice.Event, error) {
 	return r.compute.ListMLRunPodEvents(ctx, tenant, run, pod)
 }
-func (r *Runner) PodLogs(ctx context.Context, tenant, run, pod string) ([]byte, error) {
-	return r.compute.GetMLRunPodLogs(ctx, tenant, run, pod)
+func (r *Runner) PodLogs(ctx context.Context, tenant, run, pod string, opt computeservice.LogOptions) (*http.Response, error) {
+	return r.compute.StreamMLRunPodLogs(ctx, tenant, run, pod, opt)
 }
 
 func (r *Runner) nextRunNumber(ctx context.Context, tenant, defName string) (int, error) {

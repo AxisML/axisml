@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
 
 	"gorm.io/gorm"
 
@@ -176,8 +177,8 @@ func (s *Service) RunEvents(ctx context.Context, tenant, run string) ([]computes
 func (s *Service) RunPodEvents(ctx context.Context, tenant, run, pod string) ([]computeservice.Event, error) {
 	return s.runner.PodEvents(ctx, tenant, run, pod)
 }
-func (s *Service) RunPodLogs(ctx context.Context, tenant, run, pod string) ([]byte, error) {
-	return s.runner.PodLogs(ctx, tenant, run, pod)
+func (s *Service) RunPodLogs(ctx context.Context, tenant, run, pod string, opt computeservice.LogOptions) (*http.Response, error) {
+	return s.runner.PodLogs(ctx, tenant, run, pod, opt)
 }
 
 // ---- TensorBoard (§4.10) ----

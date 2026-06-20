@@ -156,10 +156,10 @@ func (h *Handler) podEvents(c *gin.Context) {
 }
 
 func (h *Handler) podLogs(c *gin.Context) {
-	logs, err := h.svc.PodLogs(c.Request.Context(), auth.ActiveTenant(c), c.Param("name"), c.Param("pod"))
+	resp, err := h.svc.PodLogs(c.Request.Context(), auth.ActiveTenant(c), c.Param("name"), c.Param("pod"), compview.LogOptions(c))
 	if err != nil {
 		server.Fail(c, err)
 		return
 	}
-	c.Data(http.StatusOK, "text/plain; charset=utf-8", logs)
+	compview.StreamLogs(c, resp)
 }

@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strconv"
 
 	"github.com/axisml/axisml/components/platform/internal/clients/computeservice"
@@ -160,8 +161,8 @@ func (s *Service) Events(ctx context.Context, tenant, name string) ([]computeser
 func (s *Service) PodEvents(ctx context.Context, tenant, name, pod string) ([]computeservice.Event, error) {
 	return s.compute.ListMLServicePodEvents(ctx, tenant, name, pod)
 }
-func (s *Service) PodLogs(ctx context.Context, tenant, name, pod string) ([]byte, error) {
-	return s.compute.GetMLServicePodLogs(ctx, tenant, name, pod)
+func (s *Service) PodLogs(ctx context.Context, tenant, name, pod string, opt computeservice.LogOptions) (*http.Response, error) {
+	return s.compute.StreamMLServicePodLogs(ctx, tenant, name, pod, opt)
 }
 
 // getService loads a service and rejects non-service kinds.

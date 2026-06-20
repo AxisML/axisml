@@ -6,6 +6,7 @@ package computeservice
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"strconv"
 	"time"
@@ -171,16 +172,37 @@ func (c *Client) ListMLRunPodEvents(ctx context.Context, ns, name, pod string) (
 	return res.JSON200.Items, nil
 }
 
-// GetMLRunPodLogs returns a pod's raw logs.
-func (c *Client) GetMLRunPodLogs(ctx context.Context, ns, name, pod string) ([]byte, error) {
-	res, err := c.gen.GetMLRunPodLogsWithResponse(ctx, ns, name, pod)
+// LogOptions are the pod-log query knobs (container/tailLines/follow/previous).
+type LogOptions struct {
+	Container string
+	TailLines *int
+	Follow    bool
+	Previous  bool
+}
+
+// StreamMLRunPodLogs streams a pod's logs. It returns the raw upstream response
+// so the caller can pipe it through (one-shot text/plain, or SSE when
+// follow=true); the caller MUST close resp.Body.
+func (c *Client) StreamMLRunPodLogs(ctx context.Context, ns, name, pod string, opt LogOptions) (*http.Response, error) {
+	p := &gen.GetMLRunPodLogsParams{}
+	if opt.Container != "" {
+		p.Container = &opt.Container
+	}
+	if opt.TailLines != nil {
+		v := int32(*opt.TailLines)
+		p.TailLines = &v
+	}
+	if opt.Follow {
+		p.Follow = &opt.Follow
+	}
+	if opt.Previous {
+		p.Previous = &opt.Previous
+	}
+	resp, err := c.gen.GetMLRunPodLogs(ctx, ns, name, pod, p)
 	if err != nil {
 		return nil, clienterr.Transport(service, err)
 	}
-	if ok2xx(res.HTTPResponse) {
-		return res.Body, nil
-	}
-	return nil, clienterr.FromResponse(service, res.HTTPResponse, res.Body)
+	return checkStream(resp)
 }
 
 // ---- MLService ----
@@ -309,16 +331,38 @@ func (c *Client) ListMLServicePodEvents(ctx context.Context, ns, name, pod strin
 	return res.JSON200.Items, nil
 }
 
-// GetMLServicePodLogs returns a pod's raw logs.
-func (c *Client) GetMLServicePodLogs(ctx context.Context, ns, name, pod string) ([]byte, error) {
-	res, err := c.gen.GetMLServicePodLogsWithResponse(ctx, ns, name, pod)
+// StreamMLServicePodLogs streams an MLService pod's logs (see StreamMLRunPodLogs).
+func (c *Client) StreamMLServicePodLogs(ctx context.Context, ns, name, pod string, opt LogOptions) (*http.Response, error) {
+	p := &gen.GetMLServicePodLogsParams{}
+	if opt.Container != "" {
+		p.Container = &opt.Container
+	}
+	if opt.TailLines != nil {
+		v := int32(*opt.TailLines)
+		p.TailLines = &v
+	}
+	if opt.Follow {
+		p.Follow = &opt.Follow
+	}
+	if opt.Previous {
+		p.Previous = &opt.Previous
+	}
+	resp, err := c.gen.GetMLServicePodLogs(ctx, ns, name, pod, p)
 	if err != nil {
 		return nil, clienterr.Transport(service, err)
 	}
-	if ok2xx(res.HTTPResponse) {
-		return res.Body, nil
+	return checkStream(resp)
+}
+
+// checkStream returns the response for 2xx; otherwise reads the (bounded) error
+// body and maps it, closing the response.
+func checkStream(resp *http.Response) (*http.Response, error) {
+	if ok2xx(resp) {
+		return resp, nil
 	}
-	return nil, clienterr.FromResponse(service, res.HTTPResponse, res.Body)
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<16))
+	_ = resp.Body.Close()
+	return nil, clienterr.FromResponse(service, resp, body)
 }
 
 // ---- TrafficPolicy ----

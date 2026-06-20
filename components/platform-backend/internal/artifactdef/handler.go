@@ -129,7 +129,21 @@ type initiateBody struct {
 	DisplayName string         `json:"displayName"`
 	Description string         `json:"description"`
 	Source      string         `json:"source"`
+	SourceURI   string         `json:"sourceUri"`      // model: remote URI
+	RemoteURI   string         `json:"remoteUri"`      // model alias (contract field)
+	SourceImage string         `json:"sourceImageRef"` // image: remote image ref
 	Spec        map[string]any `json:"spec"`
+}
+
+// remote returns the external reference from whichever contract field carried it
+// (models use remoteUri/sourceUri, images use sourceImageRef).
+func (b initiateBody) remote() string {
+	for _, v := range []string{b.SourceURI, b.RemoteURI, b.SourceImage} {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 func (h *Handler) initiate(c *gin.Context) {
@@ -139,7 +153,7 @@ func (h *Handler) initiate(c *gin.Context) {
 		return
 	}
 	res, err := h.svc.InitiateVersion(c.Request.Context(), c.Param("tenant"), c.Param("name"),
-		req.Version, req.DisplayName, req.Description, req.Source, req.Spec)
+		req.Version, req.DisplayName, req.Description, req.Source, req.remote(), req.Spec)
 	if err != nil {
 		server.Fail(c, err)
 		return
