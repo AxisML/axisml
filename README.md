@@ -163,14 +163,13 @@ Architecture notes and gotchas live in [CLAUDE.md](CLAUDE.md); contributor conve
 
 - **[System Design Overview](docs/system_design/overview.md)** — start here
 - **Component designs** — [platform](docs/system_design/components/platform.md) · [cluster-manager](docs/system_design/components/cluster-manager.md) · [compute-service](docs/system_design/components/compute-service.md) · [tenant-operator](docs/system_design/components/tenant-operator.md) · [compute-operator](docs/system_design/components/compute-operator.md) · [artifact-hub](docs/system_design/components/artifact-hub.md)
-- **Cross-cutting** — [infra](docs/system_design/infra.md) · [deployment](docs/system_design/deployment.md) · [database](docs/system_design/database.md) · [auth](docs/system_design/auth.md) · [monitoring](docs/system_design/monitoring.md)
+- **Cross-cutting** — [infra](docs/system_design/infra.md) · [deployment](docs/system_design/deployment.md) · [database](docs/system_design/database.md) · [auth](docs/system_design/auth.md)
 - **Guides** — [Local Development Setup](docs/development/local-setup.md) · [Testing Guide](docs/development/testing.md)
-- **[Roadmap](docs/roadmap.md)** — what's in v0.1.0 and what's next
 - **[OpenAPI specs](docs/openapi/)** — generated REST contracts
 
 ## Project Status
 
-AxisML is in **early, active development**. The system design lives ahead of the code — when code and `docs/system_design/` disagree, the design doc is usually the intended target. See the [roadmap](docs/roadmap.md) for the feature matrix and current focus.
+AxisML is in **early, active development**. The system design lives ahead of the code — when code and `docs/system_design/` disagree, the design doc is usually the intended target. See the [feature matrix](docs/system_design/overview.md#3-功能矩阵) for current design coverage.
 
 ## Contributing
 

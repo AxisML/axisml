@@ -18,7 +18,7 @@ AxisML is a Kubernetes-native ML platform. The repo is a monorepo split into:
   - `deploy/helm/axisml-infra/` — Infra layer: third-party infrastructure (Envoy Gateway, RustFS, zot, Koordinator, GPU Operator, kube-prometheus-stack) **plus PostgreSQL**.
   - `deploy/helm/axisml-system/` — System layer: CRDs, both operators, Cluster Manager, Compute Service, Artifact Hub. No PostgreSQL — it consumes the infra DB cross-namespace.
   - `deploy/helm/axisml-platform/` — Platform layer: the user-facing entry point (Platform frontend + backend). The only externally-exposed layer.
-- `docs/system_design/` — authoritative design docs (overview, per-component, infra, platform, plus `auth.md` / `database.md`). Other doc trees: `docs/openapi/` (generated API specs), `docs/product_design/` (product/UX, incl. an interactive `prototype/`), `docs/development/` (dev guides), `docs/roadmap.md`.
+- `docs/system_design/` — authoritative design docs (overview, per-component, infra, platform, plus `auth.md` / `database.md`). Other doc trees: `docs/openapi/` (generated API specs), `docs/product_design/` (product/UX, incl. an interactive `prototype/`), `docs/development/` (dev guides).
 - `test/` — shared test infrastructure: `setup-envtest/` binary, `testutil/` helpers, `crds/external/` vendored upstream CRDs, and `e2e/` (the centralized real-cluster e2e suite — see testing section).
 
 The system design lives ahead of the code. When code and `docs/system_design/` disagree, the design doc is usually the intended target — confirm before "fixing" code to match incomplete scaffolding.

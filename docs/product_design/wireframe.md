@@ -2,1155 +2,445 @@
 
 ## 1. 概述
 
-本文是 Platform 前端 UI 的设计文档,集中描述页面结构、菜单与导航、列表页字段、详情页 Tab、创建/编辑表单字段、状态展示规则与权限可见性,作为前端开发与产品视觉评审的唯一对齐入口。
-
-- **后端业务编排** (跨服务调用顺序、写入路径、一致性策略、PG schema) 见 [components/platform.md](../system_design/components/platform.md)。
-- **用户认证与角色矩阵** (RBAC 完整定义、JWT 颁发、IdentityProvider 接口) 见 [auth.md](../system_design/auth.md)。
-- **REST API 字段契约** 见 [openapi/platform.yaml](../openapi/platform.yaml)。
-- **Dashboard / 服务指标数据来源** 见 [monitoring.md](../system_design/monitoring.md)。
-- **整体系统概念** (Tenant / ResourcePool / Job / Service / Artifact) 见 [overview.md](../system_design/overview.md)。
-
-> 各菜单按 §2.2 信息架构组织,列表 / 详情 / 表单布局在下文对应章节落档:首页 §3、资源池管理 §4、租户管理 §5、工作区 §6、自定义任务 §7、在线服务 §8、资产中心(数据集 / 模型 / 镜像)§9、流量策略 §10、实验管理 §11、评估任务 §12。本文只描述**布局与字段呈现**;字段契约见 [openapi/platform.yaml](../openapi/platform.yaml),状态机与编排见各服务文档,权限矩阵见 [auth.md](../system_design/auth.md)。
+Platform 前端 UI 的对齐入口：页面结构、菜单导航、列表字段、详情 Tab、表单字段、状态展示与权限可见性。只描述**布局与字段呈现**；后端编排见 [platform.md](../system_design/components/platform.md)，字段契约见 [openapi/platform.yaml](../openapi/platform.yaml)，RBAC 见 [auth.md](../system_design/auth.md)，系统概念见 [overview.md](../system_design/overview.md)。交互原型见 [prototype/](prototype/)。
 
 ---
 
-## 2. 整体外壳 (App Shell)
+## 2. 整体外壳（App Shell）
 
 ### 2.1 栅格结构
 
 ```
-┌──────────────────────────────────────────────────────────────────────┐
-│ Topbar (56px)                                                        │
-│  [A] AxisML │ Breadcrumbs ……………………………………… │ 📘 · 🔔 · 头像 │
-├────────────┬─────────────────────────────────────────────────────────┤
-│ Sidebar    │ Main (padding 28×32, max-w 1240)                        │
-│ (232px)    │                                                         │
-│            │   ┌ Page Head ─────────────────────────────┐            │
-│ • 首页     │   │ Page Title.                 [Actions]  │            │
-│            │   │ Page Desc                              │            │
-│ 训练中心   │   └────────────────────────────────────────┘            │
-│ • 工作区   │                                                         │
-│ • 实验管理 │                                                         │
-│ • 评估任务 │                                                         │
-│ • 自定义任务│                                                        │
-│            │   ┌ Filters (search · select · select · 重置) ────┐     │
-│ 服务中心   │   └────────────────────────────────────────────────┘     │
-│ • 在线服务 │                                                         │
-│ • 流量策略 │   ┌ Card / Section / Table ──────────────────────┐      │
-│            │   │                                              │      │
-│ 资产中心   │   └──────────────────────────────────────────────┘      │
-│ • 数据集   │                                                         │
-│ • 模型     │                                                         │
-│ • 镜像     │                                                         │
-│            │                                                         │
-│ 系统管理   │                                                         │
-│ • 租户管理 │                                                         │
-│ • 资源池管理│                                                        │
-└────────────┴─────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│ Topbar (56px)  [A] AxisML │ 面包屑 …… │ 📘 · 🔔 · 头像     │
+├────────────┬─────────────────────────────────────────────┤
+│ Sidebar    │ Main (Page Head → Filters → Card/Table)     │
+│ (232px)    │                                             │
+│ 首页        │   ┌ Page Head:  标题  [Actions] ┐           │
+│ 训练中心    │   └ 描述 ──────────────────────┘           │
+│ 服务中心    │   ┌ Filters: 搜索 · 筛选 · 重置 ┐           │
+│ 资产中心    │   └─────────────────────────────┘           │
+│ 系统管理    │   ┌ Card / Section / Table ─────┐           │
+└────────────┴─────────────────────────────────────────────┘
 ```
 
 | 项 | 规格 |
 | --- | --- |
-| 栅格 | `grid-template-columns: 232px 1fr` × `rows: 56px 1fr`,`min-width: 1280` |
-| Topbar | 品牌区 · 面包屑 · 文档 · 通知 · 头像 / 用户菜单 |
-| 用户菜单 | 头像下拉展示用户身份、所属租户切换、语言(中 / 英,§2.3 多语言)、主题、退出登录;「所属租户」子菜单的选中项即所有租户内菜单(工作区 / 自定义任务 / 在线服务 / 流量策略 / 制品)的操作上下文。`system-admin` 额外提供「全部租户」选项(跨租户聚合列表);单租户用户仅显示锁定租户 |
-| Sidebar | 五个分组:**首页** / **训练中心** / **服务中心** / **资产中心** / **系统管理**,mono 小字 label 区隔 |
-| Main | Page Head → Filters → Card / Table,复用整套 Geist 组件 |
+| 栅格 | `232px 1fr` × `56px 1fr`，`min-width 1280` |
+| Topbar | 品牌 · 面包屑 · 文档 · 通知 · 头像 / 用户菜单 |
+| 用户菜单 | 身份、**所属租户切换**、语言（中 / 英）、主题、退出。"所属租户"选中项即所有租户内菜单的操作上下文；`system-admin` 额外有"全部租户"跨租户聚合项 |
+| Sidebar | 五组：首页 / 训练中心 / 服务中心 / 资产中心 / 系统管理 |
 
 ### 2.2 信息架构
 
-| 菜单组 | 菜单项 | 生产路径 | 租户作用域 | UI 详设 |
+| 菜单组 | 菜单项 | 路径 | 作用域 | 详设 |
 | --- | --- | --- | :---: | :---: |
-| — | 首页 | `/dashboard` | 用户菜单租户联动 | §3 |
-| 训练中心 | 工作区 | `/workspaces` · `/workspaces/{name}` | 租户内 | §6 |
-|  | 实验管理 | `/experiments` | 租户内 | §11 |
-|  | 评估任务 | `/evaluations` | 租户内 | §12 |
-|  | 自定义任务 | `/jobs` · `/jobs/{name}` · `/jobs/{name}/runs/{run}` | 租户内 | §7 |
-| 服务中心 | 在线服务 | `/mlservices` · `/mlservices/{name}` | 租户内 | §8 |
-|  | 流量策略 | `/traffic` · `/traffic/{name}` | 租户内 | §10 |
-| 资产中心 | 数据集 | `/datasets` · `/datasets/{name}` | 租户内 | §9 |
-|  | 模型 | `/models` · `/models/{name}` | 租户内 | §9 |
-|  | 镜像 | `/images` · `/images/{name}` | 租户内 | §9 |
-| 系统管理 | **租户管理** | `/tenants` · `/tenants/{name}` | 全集群 | §5 |
-|  | **资源池管理** | `/resource-pools` · `/resource-pools/{name}` | 全集群 | §4 |
+| — | 首页 | `/dashboard` | 租户联动 | §3 |
+| 训练中心 | 工作区 | `/workspaces` · `/{name}` | 租户内 | §6 |
+|  | 实验 | `/experiments` · `/{name}` · `/{name}/runs/{run}` | 租户内 | §11 |
+|  | 自定义任务 | `/jobs` · `/{name}` · `/{name}/runs/{run}` | 租户内 | §7 |
+| 服务中心 | 在线服务 | `/mlservices` · `/{name}` | 租户内 | §8 |
+|  | 流量配置 | `/traffic` · `/{name}` | 租户内 | §10 |
+| 资产中心 | 模型 | `/models` · `/{name}` | 租户内 | §9 |
+|  | 镜像 | `/images` · `/{name}` | 租户内 | §9 |
+| 系统管理 | 租户管理 | `/tenants` · `/{name}` | 全集群 | §5 |
+|  | 资源池管理 | `/resource-pools` · `/{name}` | 全集群 | §4 |
 
-二级菜单的能力矩阵 (含横切的认证 / RBAC) 见 [components/platform.md §4 核心功能](../system_design/components/platform.md#4-核心功能)。
+> 数据集与评估为规划中能力，本期无菜单入口，见 §12。
 
-### 2.3 通用元素约定
+### 2.3 通用约定
 
-- **面包屑** — `一级 / 二级 / [资源名]`,详情页第三段可点击回到列表。
-- **空态** — 列表页无数据时渲染居中插画 + 「创建第一个 X」CTA + 引导链接;加载中用骨架行占位。
-- **视图切换** — 工作区(§6)与资产中心(§9,数据集 / 模型 / 镜像)列表页支持「列表 / 卡片」双视图,切换控件 `[☰ 列表 | ▦ 卡片]` 居 Filters 行右端,默认卡片视图,偏好持久化到 localStorage。两视图共享同一套过滤 / 排序 / 分页结果,仅呈现形态不同;卡片视图为响应式网格(每行 2–4 张)。其余列表页(自定义任务 / 在线服务 / 流量策略 / 租户 / 资源池)仅列表视图。
-- **多语言** — 界面支持中文 / 英文,切换入口在顶部用户菜单(§2.1「语言」);默认随浏览器语言,用户切换后偏好持久化到 localStorage,纯前端生效、不回传后端。界面文案 / 按钮 / 状态徽章 / 提示与错误信息按所选语言本地化,日期 / 数字 / 时区按 locale 格式化;用户自有自由文本(显示名 / 描述 / 标签 / 制品元数据等)按原文展示、不翻译。错误信息按后端返回的稳定错误码映射为本地化文案,契约见 [components/platform.md §5.6](../system_design/components/platform.md#56-多语言--i18n)。
-- **租户作用域** — 工作区 / 自定义任务 / 在线服务 / 流量策略 / 制品菜单的列表与创建均隶属用户菜单「所属租户」选中的当前租户;切换租户即整页刷新数据。系统管理(租户 / 资源池)为全集群,不受租户选择影响。
-- **错误条** — 跨租户并行 LIST 部分失败 → 列表顶部黄条「N 个租户暂时不可达,显示其余结果」(对应 `partial=true`)。
-- **二次确认** — 删除 / 取消 / 强制操作弹窗显示「前置阻断信息」(如使用此资源单元的活跃 Job / Service 计数)。
-- **状态徽章** — 见各章「状态展示规则」子节统一色板。`●` 实心 / `◐` 半实心 / `○` 描边表区分。
-- **mono 字体** — DNS-1123 内部名 / digest / namespace / 配额数值统一 mono 渲染;display name / 描述用普通字体。
-- **Tag chips** — 节点选择器 / labels / annotations / requests / limits 用 chip 渲染,溢出折叠 `+N`,hover 展开完整列表。
-- **KV grid** — 详情卡内的 label / value 双列网格,默认 `160px label / 1fr value`。
-- **back-nav** — 详情页头部恒为「← 返回 X 列表」单行,左对齐,点击回上一级 list。
+- **面包屑 / back-nav** — 详情页头部恒为"← 返回 X 列表"。
+- **空态 / 加载** — 列表无数据渲染"创建第一个 X"CTA；加载用骨架行。
+- **视图切换** — 工作区（§6）与资产中心（§9）列表支持`[☰ 列表 | ▦ 卡片]`，默认卡片，偏好存 localStorage；其余列表仅列表视图。
+- **租户作用域** — 租户内菜单隶属"所属租户"选中租户，切换即整页刷新；系统管理为全集群，不受影响。
+- **多语言** — 中 / 英切换在用户菜单，默认随浏览器、纯前端持久化；文案 / 状态徽章 / 错误按 locale 本地化，自由文本按原文。契约见 [platform.md §5.6](../system_design/components/platform.md#56-多语言--i18n)。
+- **错误条** — 跨租户并行 LIST 部分失败 → 列表顶部黄条（对应 `partial=true`）。
+- **二次确认** — 删除 / 停止等弹窗显示前置阻断信息（如引用此资源的活跃 Job / Service 计数）。
+- **状态徽章** — 各章"状态展示规则"统一色板：`●` 实心 / `◐` 半实心 / `○` 描边。
+- **mono 字体** — 内部名 / digest / namespace / 数值用 mono；显示名 / 描述用普通字体。
+- **chips / KV grid** — 节点选择器 / labels / requests / limits 用 chip（溢出折叠 `+N`）；详情卡用 `160px label / 1fr value` 双列网格。
 
 ---
 
-## 3. 首页 (登录默认落地页)
+## 3. 首页（默认落地页）
 
-登录后默认落地路由 `/dashboard`,**作用域随用户菜单「所属租户」联动**的概览页。数据来自两个端点:`GET /api/v1/dashboard/overview`(KPI + 资源用量快照)与 `GET /api/v1/dashboard/metrics`(时序图)。字段契约见 [openapi/platform.yaml](../openapi/platform.yaml) `Dashboard` tag,编排见 [components/platform.md §4.7](../system_design/components/platform.md#47-dashboard-编排),指标口径见 [monitoring.md](../system_design/monitoring.md)。
+`/dashboard`，作用域随用户菜单"所属租户"联动。两个端点：`GET /dashboard/overview`（KPI + 容量快照）与 `GET /dashboard/metrics`（时序图）。编排见 [platform.md §4.7](../system_design/components/platform.md#47-dashboard-编排)。
 
-### 3.1 作用域与视图
-
-首页不自带作用域控件,完全由用户菜单「所属租户」(§2.1)决定:
-
-| 租户选择 | overview / metrics 请求 | 视图 | 可见角色 |
-| --- | --- | --- | --- |
-| 「全部租户」 | **不带** `X-Axisml-Tenant` | **全局视图**(跨租户聚合) | 仅 `system-admin` |
-| 某个具体租户 | 带 `X-Axisml-Tenant: <tenant>` | **租户视图**(单租户聚合) | 该租户全部成员 |
-
-- 单租户用户:「所属租户」锁定,只有租户视图。
-- 非 `system-admin` 且无活跃租户 → 端点返 `400 active-tenant-required`;UI 正常流程下「所属租户」恒有选中项,此处仅作边界兜底。
-- 页面描述显示当前租户语境;面包屑由路由自动生成。
-
-### 3.2 全局视图(`system-admin` · 全部租户)
-
-> 当前 `legacy/index.html` 仅渲染 §3.3 的租户视图;全局视图是同一数据结构的 system-admin 变体,产品保留但不作为 legacy 原型的可见页面。
-
-```
-Page Head:  首页。                                      [刷新 ⟳]
-            全部租户的运行概览,看一眼负载、容量和资源用量。
-
-KPI 卡行
-┌ 租户 ───────┐ ┌ 活跃任务 ───┐ ┌ 在线服务 ───┐ ┌ 工作区 ─────┐ ┌ 模型 ───────┐
-│  14         │ │  23         │ │  9          │ │  17         │ │  128        │
-│ 12 活跃      │ │ 运行 + 排队  │ │ 就绪 / 降级  │ │ 运行中       │ │ 含公共       │
-└─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘
-
-集群资源用量
-┌ GPU ─────────────────┐ ┌ CPU ─────────────────┐ ┌ 内存 ────────────────┐
-│ 38 / 56 卡            │ │ 410 / 720 核          │ │ 2.1 / 4.0 TiB         │
-│ ▰▰▰▰▰▰▱▱  68%        │ │ ▰▰▰▰▱▱▱▱  57%        │ │ ▰▰▰▰▱▱▱▱  53%         │
-└───────────────────────┘ └───────────────────────┘ └───────────────────────┘
-
-时序图                                                  range: 1h · [24h] · 7d ▾
-┌ 集群 GPU 利用率 ───────────────────┐ ┌ 活跃任务并发 ──────────────────────┐
-│      ╱╲    ╱╲╱╲                    │ │        ╱╲___╱╲                     │
-│  ╱╲╱   ╲╱╲╱     ╲____              │ │   ____╱        ╲___                │
-└─────────────────────────────────────┘ └─────────────────────────────────────┘
-```
-
-KPI 卡(`DashboardOverview`):
-
-| 卡 | 字段 | 说明 |
+| 租户选择 | 视图 | 可见角色 |
 | --- | --- | --- |
-| 租户 | `tenantCount` · `activeTenantCount` | 总数 + `Active` 计数;点击跳 `/tenants` |
-| 活跃任务 | `activeJobCount` | 活跃 Run(`Running` + `Pending`);跳 `/jobs` |
-| 在线服务 | `runningServiceCount` | `Ready` + `Degraded`;跳 `/mlservices` |
-| 工作区 | `runningWorkspaceCount` | `Ready`;跳 `/workspaces` |
-| 模型 | `modelCount` | 含 `axisml-system` 公共;跳 `/models` |
-
-集群资源用量 gauge(`DashboardOverview`):
-
-| gauge | 字段 | 含义 |
-| --- | --- | --- |
-| GPU | `gpuUsed` / `gpuTotal` | 集群可分配 GPU 卡 |
-| CPU | `cpuUsedCores` / `cpuTotalCores` | 集群 CPU 核 |
-| 内存 | `memoryUsedGiB` / `memoryTotalGiB` | 集群内存 |
-
-### 3.3 租户视图(任意成员 · 单租户)
+| "全部租户" | **全局视图**：租户数 + 集群容量水位（GPU / CPU / 内存）+ 跨租户 KPI 与趋势 | 仅 `system-admin` |
+| 某具体租户 | **租户视图**：本租户活跃任务 / 在线服务 / 工作区 / 模型 KPI + 配额水位 + 用量趋势 + 快捷入口 | 该租户全部成员 |
 
 ```
-Page Head:  首页。                                      [刷新 ⟳]
-            Team A · 推理 租户的运行概览,看一眼负载、配额和资源用量。
+Page Head:  首页。                                   [刷新 ⟳]
+            <租户> 的运行概览，看一眼负载、配额和资源用量。
 
-KPI 卡行(无「租户」卡)
-┌ 活跃任务 ───┐ ┌ 在线服务 ───┐ ┌ 工作区 ─────┐ ┌ 模型 ───────┐
-│  6          │ │  3          │ │  4          │ │  21         │
-│ 运行 + 排队  │ │ 就绪 / 降级  │ │ 运行中       │ │ 本租户 + 公共 │
-└─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘
-
-配额用量(used / 本租户 Σ max)
-┌ GPU ─────────────────┐ ┌ CPU ─────────────────┐ ┌ 内存 ────────────────┐
-│ 6 / 10 卡             │ │ 48 / 80 核            │ │ 320 / 512 GiB         │
-│ ▰▰▰▰▰▰▱▱  60%        │ │ ▰▰▰▰▰▱▱▱  60%        │ │ ▰▰▰▰▰▱▱▱  63%         │
-└───────────────────────┘ └───────────────────────┘ └───────────────────────┘
-
-时序图  range: 1h · [24h] · 7d ▾         快捷入口
-┌ 本租户资源用量趋势 ────────────────┐   [+ 新建任务] [+ 新建服务] [+ 新建工作区]
-│  ▁▂▄▆▇▆▄▃▂▁▂▃▅▇                    │   最近任务  train-llm-7b   ● 运行中
-│                                     │   最近服务  svc-chat-api   ● 就绪
-└─────────────────────────────────────┘
+KPI 卡行   活跃任务 · 在线服务 · 工作区 · 模型   (全局视图额外含"租户"卡)
+资源用量   GPU / CPU / 内存 gauge   (全局=集群容量；租户=配额 used/Σmax，≥90% 加 ⚠)
+时序图     range 1h · [24h] · 7d     快捷入口  [+ 任务] [+ 服务] [+ 工作区] + 最近任务 / 服务
 ```
 
-- KPI / gauge 与全局视图同一套字段,但 overview 已按 `X-Axisml-Tenant` 收敛到本租户:GPU/CPU/内存的分母 = 本租户跨池 `Σ quota.max`(对齐 §5.3 Tab 2 配额合计口径),用量 ≥ 90% 加 `⚠`。
-- 「租户」KPI 卡在租户视图隐藏。
-- 右侧「快捷入口」为本租户成员的高频写操作 CTA + 最近任务 / 服务摘要(取各自列表首屏前若干条,纯前端裁剪,不新增端点)。
-
-### 3.4 时序图与时间范围
-
-- 时序图调 `GET /api/v1/dashboard/metrics?metric=&range=&step=`,返回 `MetricSeries`(`metric` / `unit` / `series[]`);range 选择器 `1h / 24h / 7d` 改写 `range` 与 `step` 后重查。
-- 全局视图查询不带 `X-Axisml-Tenant`(集群级);租户视图自动注入 label selector 收敛到本租户。
-- 具体 `metric` key 与 PromQL 模板由 [monitoring.md](../system_design/monitoring.md)(§2 集群 / GPU 层原生指标 + §6 查询模板)统一定义,UI 不内嵌 PromQL。
-
-### 3.5 数据来源与降级
-
-| 场景 | 触发 | UI 呈现 |
-| --- | --- | --- |
-| 全局视图集群容量为 `null` | cluster-manager 容量聚合未就绪 | gauge 显示 `—` + hover「指标同步中」 |
-| 租户视图配额用量为 `null` | compute-service Tenant Informer cache 未同步([compute-service.md §5.3](../system_design/components/compute-service.md#53-状态回流informer)) | gauge 显示 `—` + hover「指标同步中」 |
-| metrics 查询失败 | `/dashboard/metrics` 返 `502 Bad Gateway` | 图区占位「指标服务暂不可用」,KPI / gauge 不受影响 |
-| 跨租户聚合部分失败 | overview `partial=true` | 页顶黄条「N 个租户暂时不可达,显示其余结果」(§2.3 错误条) |
-
-刷新:KPI + gauge 默认 30s 轮询,亦可点 `[刷新 ⟳]` 手动拉取;时序图随 range 选择器或刷新重查。
-
-### 3.6 权限可见性
-
-| 视图 | system-admin | tenant-admin | user |
-| --- | :---: | :---: | :---: |
-| 全局视图(全部租户) | ✅ | ✗(用户菜单无此项) | ✗ |
-| 租户视图(本租户) | ✅ | ✅ | ✅ |
-| 快捷入口写操作 CTA | ✅ | ✅ | ✅(@self) |
-
-完整矩阵见 [auth.md §3](../system_design/auth.md#3-rbac-角色)。
+- KPI 卡可点击跳对应列表；快捷入口为本租户高频写操作 CTA。
+- **降级**：容量 / 配额用量为 `null` → gauge 显示 `—` + hover「指标同步中」；metrics 失败 → 图区占位，KPI 不受影响；跨租户部分失败 → 黄条。
+- 刷新：KPI + gauge 默认 30s 轮询，亦可手动；时序图随 range 重查。具体 metric 与 PromQL 由后端定义，UI 不内嵌 PromQL。
 
 ---
 
-## 4. 资源池管理 (系统管理 → 资源池)
+## 4. 资源池管理（系统管理 → 资源池）
 
-菜单只有「资源池管理」,**资源单元作为下属能力嵌在池详情 Tab**——这是 ResourceUnit 在 Platform UI 中的唯一入口。
+菜单只有"资源池管理"，**资源单元嵌在池详情**——这是 ResourceUnit 在 UI 中的唯一入口。资源池 / 单元都是全集群对象，不按租户过滤；已登录可读，`system-admin` 可写。
 
-### 4.1 页面入口
-
-| 入口 | 原型页 ID | 生产路径 | 权限 |
-| --- | --- | --- | --- |
-| 资源池列表 | `pools` | `/resource-pools` | 已登录 (读)、`system-admin` (写) |
-| 资源池详情 | `pool-detail` | `/resource-pools/{name}` | 已登录 (读)、`system-admin` (写) |
-
-资源池 / 资源单元都是全集群对象,不按租户过滤。
-
-### 4.2 列表页
+### 4.1 列表页
 
 ```
-Page Head:  资源池管理。                                [+ 新建资源池]
-            管理资源池的节点范围和调度配置,规格档位在池详情里维护。
+Page Head:  资源池管理。                              [+ 新建资源池]
+            管理节点范围和调度配置，规格档位在池详情里维护。
+Filters:    🔍 关键字  |  重置
 
-Filters:    🔍 关键字搜索  |  节点选择器 ▾  |  排序 ▾  |  重置
-
-Card › Table
-┌──────────┬──────────────────┬────────────────────────────┬──────┬───────────┬───────┐
-│ 名称      │ 描述              │ 节点选择器 (tag chips)      │ 单元 │ 创建时间   │ 操作   │
-├──────────┼──────────────────┼────────────────────────────┼──────┼───────────┼───────┤
-│ gpu-a100 │ A100 训练池       │ [gpu.product=A100…] +1     │  3   │ 2026-03…  │删除    │
-│ gpu-h100 │ H100 训练/推理…  │ [product=H100][network=ib]+1│  4   │ 2026-04…  │删除    │
-│ gpu-l40s │ L40S 推理池       │ [gpu.product=L40S]          │  2   │ 2026-04…  │删除    │
-│ cpu-medium│通用 CPU 池…      │ [arch=amd64][pool=cpu-medium]│ 2   │ 2026-02…  │删除    │
-│ cpu-large │大内存 CPU 池…    │ [arch=amd64][memory-tier]   │  1   │ 2026-01…  │删除    │
-│ cpu-arm-edge│ARM 边缘推理池…│ [arch=arm64]                │  —   │ 2026-05…  │删除    │
-└──────────┴──────────────────┴────────────────────────────┴──────┴───────────┴───────┘
-Footer: 共 6 个资源池                       ‹ [1] ›       每页 20 条
+│ 名称 │ 描述 │ 节点选择器(chips) │ 资源单元 │ 创建时间 │ 操作 │
+│ gpu-a100 │ A100 训练池 │ [gpu.product=A100] +1 │ 3 │ 2026-03… │ 管理 删除 │
 ```
 
-**列定义**:
+**列**：名称（mono link）· 描述 · 节点选择器（chips，溢出 `+N`）· 资源单元计数（随 LIST 内嵌 `spec.units[]` 返回）· 创建时间 · 操作（管理 / 删除）。
 
-| 列 | 来源 | 备注 |
-| --- | --- | --- |
-| 名称 | cluster-manager `ResourcePool.metadata.name` | mono link,点击进详情 |
-| 描述 | `description` | 截断 + hover |
-| 节点选择器 | `node_selector` | 渲染为 tag chips,溢出折叠 `+N` |
-| 单元 | cluster-manager LIST 内嵌 `spec.units[]` 计数 | mono |
-| 创建时间 | `created_at` | mono muted |
-| 操作 | — | 删除 (`system-admin`);详情通过名称链接进入 |
+### 4.2 详情页 Tab
 
-**过滤**:关键字搜索 (name / description) · 节点选择器筛选 · 排序 (创建时间 ▾ / 名称 ▾) · 重置。
-**可见性**:所有已登录用户可读;`system-admin` 写。
+头部：back-nav · 名称（mono）· 状态徽章 · 描述。Tabs：`[基本信息] [资源单元 N] [节点匹配预览]`。
 
-> 单元计数随 cluster-manager 的资源池 LIST 内嵌 `spec.units[]` 一并返回,无需按池二次查询。
+- **基本信息** — KV grid：名称（mono，不可改）· 描述 · 节点选择器（K=V chips）· 容忍配置（key·op·value·effect chips）· 扩展元数据 · 创建 / 更新时间。除名称外可编辑。固定提示块：Node label / taint 由管理员 `kubectl` 维护，**UI 不下发**。
+- **资源单元** — 工具栏 `🔍 搜索 [+ 新建资源单元]`；表：名称 · requests（chips）· limits（chips）· 额外节点选择器 · 操作（编辑 / 删除）。行可展开看 `pool ⊕ unit` 合并节点选择器（Pool 优先，规则见 [cluster-manager.md §3.2](../system_design/components/cluster-manager.md#32-展开合并规则)）。命名约定 `<accelerator>[-<count>x]-<tier>[-<variant>]`。删除前置阻断（使用此 unit 的活跃 Job / Service 计数）→ `409 unit-in-use`。
+- **节点匹配预览** — 规划中，仅保留 Tab 入口与计数。
 
-### 4.3 详情页 Tab
+### 4.3 创建 / 删除
 
-详情页头部固定四元素:back-nav · 标题 (mono) · 状态徽章 · 描述,以及右上角的当前 path 提示 (`resource-pools/<name>`)。
+- **资源池创建表单**：`name` / `description` / 节点选择器 / 容忍配置 / 扩展元数据（与 cluster-manager 请求 1:1）。资源单元在池详情里建。
+- **资源单元创建表单**：`name` / 描述 / 资源规格矩阵（CPU / 内存 / GPU 的 requests / limits，可锁定 limits=requests）/ 额外节点选择器与容忍。
+- **删除资源池二次确认**：池内 units 随池级联删除（不阻断）；活跃 Job / Service 引用本池（按 `labels.axisml.io/resource-pool=<name>` 反查）> 0 → `409 pool-in-use`，弹窗列示例与计数。
 
-```
-← 返回资源池列表
-gpu-a100.   [● 运行中]                                      [删除资源池]
-A100 训练池                                resource-pools/gpu-a100
-
-Tabs:  [基本信息]  [资源单元 3]  [节点匹配预览]  [审计日志]
-```
-
-#### Tab 1 · 基本信息
-
-```
-┌ 资源池信息                                      [编辑] ┐
-│  KV grid (160px label / 1fr value)                       │
-│   名称 (mono) · 描述                                       │
-│   节点选择器 (tag list)                                    │
-│   容忍配置  (tag list: key · op · value · effect)          │
-│   扩展元数据 · 创建时间 · 最近更新                          │
-└──────────────────────────────────────────────────────────┘
-
-┌ 管理提示 ────────────────────────────────────────────────┐
-│  说明:Node label / taint 由管理员 kubectl 维护            │
-│  将匹配的节点标签 (tags)                                  │
-└──────────────────────────────────────────────────────────┘
-```
-
-字段映射:
-
-| 字段 | 来源 | 可改 |
-| --- | --- | --- |
-| 名称 | `name` (mono · DNS-1123) | ✗ |
-| 描述 | `description` | ✅ |
-| 节点选择器 | `node_selector` (K=V tag chips) | ✅ |
-| 容忍配置 | `tolerations[]` (key · op · value · effect chips) | ✅ |
-| 扩展元数据 | `metadata` (labels / annotations) | ✅ |
-| 创建时间 / 最近更新 | `created_at` / `updated_at` (mono muted) | ✗ |
-
-「管理提示」是固定文案块,提醒 Node label / taint 由集群管理员通过 `kubectl` 维护,**UI 不下发**。
-
-#### Tab 2 · 资源单元
-
-```
-Filters: 🔍 搜索资源单元                       [+ 新建资源单元]
-
-┌──┬──────────────────┬──────────────────────┬──────────────────────┬──────────────┬──────┐
-│▸ │ 名称              │ requests (tags)      │ limits (tags)        │额外节点选择器 │操作   │
-├──┼──────────────────┼──────────────────────┼──────────────────────┼──────────────┼──────┤
-│▸ │ a100-1x-large    │ cpu=8 mem=64Gi gpu=1 │ cpu=8 mem=64Gi gpu=1 │ —            │编辑 删│
-│  └─ 展开行:命名约定 / 合并节点选择器 (pool ⊕ unit,Pool 优先)                              │
-│▸ │ a100-4x-xlarge   │ cpu=32 mem=256Gi gpu=4│ …                   │ —            │编辑 删│
-│▸ │ a100-8x-xlarge-ib│ cpu=64 mem=512Gi gpu=8│ + hostdev=1         │ [network=ib] │编辑 删│
-└──┴──────────────────┴──────────────────────┴──────────────────────┴──────────────┴──────┘
-Footer: 共 3 个资源单元 · 合并选择器在展开行查看
-```
-
-要点:
-- 行可展开 (`▸`),展开后渲染 `pool.nodeSelector` ⊕ `unit.nodeSelector` 合并预览 (Pool 优先;详细规则见 [components/cluster-manager.md §3.2](../system_design/components/cluster-manager.md#32-展开合并规则))。
-- 命名约定 `<accelerator>[-<count>x]-<tier>[-<variant>]`,如 `a100-1x-large` / `cpu-medium` / `a100-8x-xlarge-ib`,由 cluster-manager 服务兜底校验。
-- requests / limits 用 tag chips 渲染,limits 缺省时显示 `…` (沿用 requests)。
-- 删除前置阻断信息 (使用此 unit 的活跃 Job / Service 计数) 在二次确认弹窗呈现 → `409 unit-in-use`。
-
-#### Tab 3 · 节点匹配预览 / Tab 4 · 审计日志
-
-占位能力(规划中),当前只保留 Tab 入口与计数。
-
-- **节点匹配预览** (规划):K8s typed client 反查命中 Node,显示 allocatable / requested。
-- **审计日志** (规划):接入 audit_logs。
-
-### 4.4 资源池创建表单
-
-字段 = cluster-manager 创建请求 1:1 透传:`name` / `description` / `node_selector` / `tolerations` / `metadata`。
-
-UI 即时校验 + cluster-manager 兜底。详见 [openapi/platform.yaml](../openapi/platform.yaml) `ResourcePools` / `ResourceUnits` tag。
-
-> Node label / taint 由管理员通过 `kubectl` 维护,**UI 不下发**。
-
-### 4.5 资源池删除前置阻断
-
-删除按钮二次确认对话框逐级展示:
-
-```
-确定删除资源池 [a100-pool]?
-─────────────────────────────────
-ℹ 提示:池内 3 个资源单元将随资源池级联删除(不阻断)
-  - a100-1x-large / a100-2x-large / a100-4x-large
-× 阻断:5 个活跃任务、2 个活跃服务正在引用本池
-  示例:tenant-a/train-llm-7b, tenant-b/svc-id-xxx ...
-
-请先清空活跃负载后重试。
-[取消]
-```
-
-- 池内 `spec.units[]` 随 pool 级联删除,不构成删除阻断(`cluster-manager` DELETE 一并移除)。
-- `compute.ListMLRuns(pool, active)` / `compute.ListMLServices(pool, active)` > 0 → `409 pool-in-use`(按 `labels.axisml.io/resource-pool=<name>` 过滤),弹窗列示例 run / service name 与计数。
-
-### 4.6 状态展示规则
-
-详情头部状态徽章基于资源池是否有活跃 unit / job / service 派生:
+### 4.4 状态展示规则
 
 | 状态 | 视觉 | 含义 |
 | --- | --- | --- |
-| `● 运行中` | 绿色实心 | 池下存在 ≥ 1 个 unit,且 unit 被活跃 Job / Service 引用 |
-| `◐ 空载` | 灰色实心 | 池下存在 unit 但未被引用 |
-| `○ 未配置` | 灰色描边 | 池下尚无 unit (用户应先去 Tab 2 创建) |
-
-### 4.7 权限可见性
-
-| 操作 | system-admin | 其他已登录 |
-| --- | :---: | :---: |
-| 列表 / 详情 (含 ResourceUnit) | ✅ | ✅ (只读) |
-| 创建 / 编辑 / 删除 Pool 与 Unit | ✅ | ✗ |
-
-完整矩阵见 [auth.md §3](../system_design/auth.md#3-rbac-角色)。
+| `● 运行中` | 绿实心 | 池下有 unit 且被活跃 Job / Service 引用 |
+| `◐ 空载` | 灰实心 | 有 unit 但未被引用 |
+| `○ 未配置` | 灰描边 | 尚无 unit |
 
 ---
 
-## 5. 租户管理 (系统管理 → 租户)
+## 5. 租户管理（系统管理 → 租户）
 
-### 5.1 页面入口
-
-| 入口 | 原型页 ID | 生产路径 | 权限 |
-| --- | --- | --- | --- |
-| 租户列表 | `tenants` | `/tenants` | 已登录;按角色裁剪 |
-| 租户创建 | — | `/tenants/new` | `RequireSystemAdmin` |
-| 租户详情 | `tenant-detail` | `/tenants/{name}` | 该租户 `user+` 可读;不同 Tab 写权限不同 |
-
-### 5.2 列表页
+### 5.1 列表页
 
 ```
-Page Head:  租户管理。                                  [+ 新建租户]
-            开通、暂停或删除租户,配额和成员在详情页里管理。
+Page Head:  租户管理。                                [+ 新建租户]
+            开通、停用或删除租户，配额和成员在详情里管理。
+Filters:  🔍 名称  |  状态 ▾  |  重置
 
-Filters:  🔍 显示名 / 名称搜索  |  状态 ▾  |  业务线 ▾  |  重置
-
-Card › Table
-┌─────────────────┬──────────────┬───────────┬───────────┬─────────────┬─────┬──────────┬────────┐
-│ 显示名           │ 名称 (mono)   │ 业务线     │ 状态       │ 命名空间     │成员  │ 创建时间  │ 操作    │
-├─────────────────┼──────────────┼───────────┼───────────┼─────────────┼─────┼──────────┼────────┤
-│ Team A · 推理   │ team-a       │ [infra]    │ ● Active  │ team-a      │ 12  │ 2026-02… │暂停    │
-│ 推荐算法组       │ recsys-core  │ [recsys]   │ ● Active  │ recsys-core │ 28  │ 2025-12… │暂停    │
-│ 搜索算法组       │ search-rank  │ [search]   │ ● Active  │ search-rank │ 19  │ 2026-01… │暂停    │
-│ 平台 SRE        │ platform-sre │ [platform] │ ● Active  │ platform-sre│  6  │ 2025-09… │暂停    │
-│ 语音算法组       │ speech-asr   │ [recsys]   │ ◐ Suspended│ speech-asr │  8  │ 2026-03… │恢复    │
-│ 客户演示租户     │ demo-cus     │ [platform] │ ▲ Failed  │ demo-cus    │  3  │ 2026-05… │删除    │
-│ 视觉算法组       │ cv-percep    │ [recsys]   │ ● Active  │ cv-percep   │ 22  │ 2025-11… │暂停    │
-│ NLP 通用        │ nlp-general  │ [recsys]   │ ● Active  │ nlp-general │ 15  │ 2025-08… │暂停    │
-└─────────────────┴──────────────┴───────────┴───────────┴─────────────┴─────┴──────────┴────────┘
-Footer: 共 14 个租户 · 当前显示 1–8         ‹ [1] [2] ›      每页 8 条
+│ 租户(显示名) │ 名称(mono) │ 状态 │ 资源配额 │ 成员 │ 创建时间 │ 操作 │
+│ Team A·推理 │ team-a │ ● 启用 │ gpu-h100 14/16, +1 │ 12 │ 2026-02… │ 资源配额 成员管理 停用 │
+│ 语音算法组 │ speech-asr │ ◐ 停用 │ … │ 8 │ 2026-03… │ 启用 删除 │
 ```
 
-**列定义**:
+**列**：显示名（行点击进详情）· 名称（mono，DNS-1123，不可变）· 状态（§5.4）· 资源配额（各池配额 chips）· 成员计数 · 创建时间 · 操作。
+**操作**：资源配额 / 成员管理 / 停用 ⇄ 启用 / 删除（仅停用态可删）。
+**可见性**：`system-admin` 看全集群；其他角色按绑定租户裁剪。
 
-| 列 | 来源 (compute-service LIST) | 备注 |
+### 5.2 详情页 Tab
+
+头部：back-nav · 显示名 · 状态徽章 · 描述。Tabs：`[基本信息] [资源配额] [成员 N]`。
+
+- **基本信息** — 展示元数据（显示名 / 名称(mono,不可变) / 描述 / 命名空间 / 创建 / 更新）+ 租户状态（phase · NS 就绪 · 配额条目 · 成员数 Stat 卡 + Conditions 列表：`NamespaceReady` / `QuotaReady` / `InitResourcesReady`，异常行 `[False]` 红 pill）。`system-admin` 可编辑展示元数据。
+- **资源配额（按资源池分组）** — 每个资源池一张卡，列出该池下分配的资源单元与数量及用量：
+
+```
+┌ 资源池 gpu-a100                                          [+ 添加配额] ┐
+│ 资源单元        │ 数量 │ 折算(max cpu/gpu) │ 已用 │ 用量条      │ 操作  │
+│ a100-1x-large  │  2   │ cpu=16 gpu=2      │ gpu=2│ ▰▰▰ 93%⚠   │ 编辑 删│
+│ a100-4x-xlarge │  1   │ cpu=32 gpu=4      │ gpu=0│ ▱   0%     │ 编辑 删│
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+  - 用户填**资源单元 × 数量**；min/max 由 cluster-manager 据规格折算为 ElasticQuota（见 [cluster-manager.md §3.3](../system_design/components/cluster-manager.md#33-tenant-形状与配额折算)），用量条按 `used / max`（≥90% 加 `⚠`）。`pool` 创建后不可变。
+  - 写权限：`system-admin` 或本租户 `tenant-admin`。
+
+- **成员** — 工具栏 `🔍 用户名 / 邮箱 [+ 添加成员]`；表：用户名（mono）· 显示名 · 邮箱 · 角色（`tenant-admin` / `user` pill）· 加入时间 · 操作（改角色 / 移除）。添加输入用户名 + 选角色（不允许 `system-admin`）；不能移除 / 降级自己最后一个 `tenant-admin`（→ `409 last-tenant-admin`）。写权限同配额。
+
+### 5.3 创建表单 / 操作约束（`system-admin`）
+
+- **创建表单**：租户名称（显示名）· 租户 ID（mono，DNS-1123，= 命名空间，创建后不可变）· 初始管理员邮箱 · 初始配额（按资源池 tab 切换，每池填各资源单元数量）。
+- **删除** — 前置检查成员，非空 → `409 tenant-has-members`，弹窗列残留成员。
+- **停用 / 启用** — `启用 ⇄ 停用`；停用后锁定新建提交入口（任务 / 服务 / 工作区），已运行工作负载继续运行、可继续 scale / stop / delete，配额与成员保留。
+
+### 5.4 状态展示规则
+
+| 状态 | 视觉 | 含义 |
 | --- | --- | --- |
-| 显示名 | `displayName` | 行点击进详情 |
-| 名称 | `name` | mono;DNS-1123,创建后不可变 |
-| 业务线 | `namespace` (顶层组织维度,与 `spec.namespace.name` 这个 K8s namespace 区分) | pill 渲染 |
-| 状态 | `status.phase` | 见 §5.6 |
-| 命名空间 | `spec.namespace.name` | mono |
-| 成员 | `user_roles WHERE tenant_name = X` 计数 | Platform 内补充字段,聚合查询 |
-| 创建时间 | `createdAt` | mono muted |
-| 操作 | — | 暂停 / 恢复 / 删除 (按 `phase` 切换);详情通过显示名链接进入 |
-
-**过滤**:显示名 / 名称模糊搜索 · 状态 ▾ · 业务线 ▾ · 重置。`status` / `namespace` (业务线) 下推 compute-service;`q` (关键字) 由 Platform 内存二次筛选。
-**可见性**:`system-admin` 看全集群;其他角色按 `user_roles` 取 `tenant_name` 集合裁剪。
-
-### 5.3 详情页 Tab
-
-```
-← 返回租户列表
-Team A · 推理.    [● Active]  [infra]                         [暂停] [删除]
-推理团队接入租户                            tenants/team-a
-
-Tabs:  [基本信息]  [配额 5]  [成员 12]  [审计日志]
-```
-
-详情页头部:back-nav · 显示名 · 状态徽章 · 业务线 pill · 描述 · 右上角当前 path 提示 (`tenants/<name>`)。
-
-#### Tab 1 · 基本信息
-
-```
-┌ 展示元数据                          [编辑] [删除] ┐
-│ KV grid: 显示名 · 名称 (mono, DNS-1123, 不可变) · 描述    │
-│          业务线 (pill) · 命名空间 · 创建/更新时间          │
-└──────────────────────────────────────────────────────────┘
-
-┌ 租户状态     // source · cluster-manager / read-only      ┐
-│ 4 个 Stat 卡:                                             │
-│   ┌ phase ┐ ┌ NS 就绪 ┐ ┌ 配额条目 ┐ ┌ 成员 ┐              │
-│   │Active │ │  是    │ │ 5 (3池)  │ │ 12  │              │
-│   └───────┘ └────────┘ └──────────┘ └─────┘              │
-│                                                          │
-│ Conditions 列表 (cond-type · pill · 文案 · 时间):         │
-│   • NamespaceReady     [True]  NS 已就绪 …                │
-│   • QuotaReady         [True]  ElasticQuota 同步成功      │
-│   • InitResourcesReady [True]  imagePullSecrets 已下发    │
-└──────────────────────────────────────────────────────────┘
-```
-
-字段映射:
-
-| 区块 | 字段 | 来源 |
-| --- | --- | --- |
-| 展示元数据 | 显示名 / 名称 (mono · 不可变) / 描述 / 业务线 pill / 命名空间 / 创建+更新时间 | compute-service `tenants.*` |
-| Stat 卡 · phase | `Active` / `Failed` / `Deleting` … | `status.phase` (见 §5.6) |
-| Stat 卡 · NS 就绪 | `是` / `否` | `status.conditions[type=NamespaceReady].status` |
-| Stat 卡 · 配额条目 | `5 (3 池)` | `Σ quotas[].count` + 涉及 pool 数 |
-| Stat 卡 · 成员 | `12` | `user_roles WHERE tenant_name` 计数 |
-| Conditions 列表 | type / status pill / message / lastTransitionTime | `status.conditions[]` |
-
-`status.conditions[]` 异常 → Stat 卡 phase 旁加红点提示,Conditions 列表里对应行用 `[False]` 红色 pill。
-写权限:`system-admin` 可编辑展示元数据 + 删除 / 恢复;其他角色只读。
-
-#### Tab 2 · 配额 (按资源池分组)
-
-```
-信息条: 按 Pool 分组 · 合计 max cpu=210, gpu=14, mem=896Gi    [+ 新增配额]
-
-┌ 资源池 gpu-a100                          3 个配额 · max cpu=80, gpu=10 ┐
-│ ┌─────────┬───────────────┬───────────────┬──────────────┬──────────┬─────┐
-│ │ 配额名   │ min (tags)    │ max (tags)    │ 已用          │ 用量条    │操作 │
-│ │ default │ cpu=20 gpu=2  │ cpu=40 gpu=4  │ cpu=22 gpu=2 │ ▰▰▱ 55% │编辑删│
-│ │ training│ cpu=10 gpu=2  │ cpu=30 gpu=4  │ cpu=28 gpu=4 │ ▰▰▰ 93%⚠│编辑删│
-│ │ eval    │ cpu=2  gpu=0  │ cpu=10 gpu=2  │ cpu=0  gpu=0 │ ▱   0%  │编辑删│
-└────────────────────────────────────────────────────────────────────────┘
-
-┌ 资源池 gpu-h100                          1 个配额 · max cpu=80, gpu=4  ┐
-│ inference                cpu=40 gpu=2 → cpu=80 gpu=4    80%            │
-└────────────────────────────────────────────────────────────────────────┘
-
-┌ 资源池 cpu-medium                        1 个配额 · max cpu=50         ┐
-│ default                  cpu=10 → cpu=50                16%            │
-└────────────────────────────────────────────────────────────────────────┘
-```
-
-要点:
-- **信息条** — 顶部 1 行 `Σ max` 跨池合计 (cpu / gpu / memory) **仅作肉眼参考,不做硬阻断**,决策见 [components/platform.md §4.1 租户编排](../system_design/components/platform.md#41-租户编排)。
-- **分组卡** — 按 `quota.pool` 切分,卡头展示该 pool 的配额计数与 max 小计。多池则多个并列卡;单条配额时简化为一行内联表达 (见 `gpu-h100` / `cpu-medium` 示例)。
-- **行字段** — `name` (`(pool, name)` 创建后不可变,编辑态置灰) · `min` (tag chips) · `max` (tag chips) · `used` (实时 `compute.GetQuotaUsage`) · 用量条 (`used / max` 比例,≥ 90% 加 `⚠` 警示) · 操作 (编辑 / 删除)。
-
-写权限:`system-admin` 或本租户 `tenant-admin`。
-
-#### Tab 3 · 成员
-
-```
-Filters: 🔍 用户名 / 邮箱  |  角色 ▾                       [+ 添加成员]
-
-┌────────────┬──────┬──────────────────────┬───────────────┬──────────┬─────────┐
-│ 用户名(mono)│显示名│ 邮箱                  │ 角色           │ 加入时间  │ 操作     │
-├────────────┼──────┼──────────────────────┼───────────────┼──────────┼─────────┤
-│ zhang.wei  │ 张伟 │ zhang.wei@axisml.io  │[tenant-admin] │ 2026-02… │改角色 移除│
-│ li.na      │ 李娜 │ li.na@axisml.io      │[tenant-admin] │ 2026-02… │改角色 移除│
-│ wang.lei   │ 王磊 │ wang.lei@axisml.io   │[tenant-admin] │ 2026-03… │改角色 移除│
-│ chen.xi    │ 陈曦 │ chen.xi@axisml.io    │[user]         │ 2026-02… │改角色 移除│
-│ liu.yang   │ 刘洋 │ liu.yang@axisml.io   │[user]         │ 2026-02… │改角色 移除│
-│ zhao.min   │ 赵敏 │ zhao.min@axisml.io   │[user]         │ 2026-02… │改角色 移除│
-│ …          │ …    │ …                    │ …             │ …        │ …       │
-└────────────┴──────┴──────────────────────┴───────────────┴──────────┴─────────┘
-```
-
-字段映射:
-
-| 列 | 来源 |
-| --- | --- |
-| 用户名 | `users.username` (mono · 主键) |
-| 显示名 | `users.display_name` |
-| 邮箱 | `users.email` |
-| 角色 | `user_roles.role_name` pill (`tenant-admin` / `user`,不允许 `system-admin`) |
-| 加入时间 | `user_roles.created_at` |
-| 操作 | 改角色 / 移除 |
-
-操作约束:
-- **添加** — 输入用户名 + 选角色;`role_name` 不允许 `system-admin` → `400 role-not-bindable`。
-- **自我保护** — 不能移除 / 降级自己**最后一个** `tenant-admin` 角色 → `409 last-tenant-admin`,UI 提示「请先指定其他租户管理员」。
-
-写权限:`system-admin` 或本租户 `tenant-admin`。
-
-#### Tab 4 · 审计日志
-
-占位能力(规划中),当前只保留 Tab 入口与计数。
-
-### 5.4 租户创建表单 (`system-admin` only)
-
-字段 = compute-service 创建请求 1:1 透传:
-
-| 字段 | 说明 |
-| --- | --- |
-| `name` | 内部名,DNS-1123,创建后不可变 |
-| `displayName` / `description` / `namespace` (业务线) | 展示元数据,可改 |
-| `namespace.name` | 渲染目标 K8s namespace,创建后不可变 |
-| `quotas[]` | 初始配额数组,可后续从详情页 Tab 2 增删 |
-| `initResources` | 初始 Secret / ConfigMap / SA / RBAC (Vault / Sealed Secrets 接入为 TBD) |
-
-UI 即时校验 + compute-service 兜底。完整字段清单与校验规则见 [openapi/platform.yaml](../openapi/platform.yaml) `Tenants` tag。
-
-### 5.5 列表 / 详情通用操作约束
-
-- **DELETE 租户** — 前置检查 `user_roles WHERE tenant_name = :name`;非空 → `409 tenant-has-members`,二次确认弹窗列出残留成员。
-- **PATCH 租户** — 不可变字段 `name` / `namespace.name` / `quotas[].(pool, name)` 在表单中置灰。
-- **RESTORE 租户** — 仅 `system-admin`;对软删后的租户从 retention 窗口内恢复(详见 [components/compute-service.md](../system_design/components/compute-service.md#41-tenant))。
-- **SUSPEND / RESUME 租户** — 仅 `system-admin`;`Active ⇄ Suspended`;暂停后锁定该租户的新建提交入口(任务 / 服务 / 工作区),已运行工作负载继续运行、可继续 scale / stop / delete,配额与成员 / 元数据保留;恢复即回到 `Active`。
-
-### 5.6 状态展示规则
-
-| `phase` | 视觉 |
-| --- | --- |
-| `Creating` | 灰色 + spinner |
-| `Active` | 绿色实心 (前端解锁该租户的提交按钮) |
-| `Suspended` | 橙色实心 (管理员手动暂停;锁定新建提交入口,已运行工作负载继续运行) |
-| `Failed` | 红色 (初始 NS / Quota 同步失败) |
-| `Deleting` | 灰色 + spinner |
-| `Deleted` (软删) | 灰色 (列表默认隐藏,过滤器开启「显示已删除」时可见;`system-admin` 可恢复) |
-
-`conditions[]` 异常时在 Stat 卡 phase 旁加红点提示,详细原因在 Tab 1 的 Conditions 列表展开查看。
-
-### 5.7 权限可见性
-
-| 操作 | system-admin | tenant-admin (@self) | user (@self) |
-| --- | :---: | :---: | :---: |
-| 列出 | 全集群 | 本租户 | 本租户 |
-| 创建 / 删除 / 暂停 / 恢复 | ✅ | ✗ | ✗ |
-| 编辑展示元数据 (Tab 1) | ✅ | ✗ | ✗ |
-| 配额 CRUD (Tab 2) | ✅ | ✅ | ✗ |
-| 成员 CRUD (Tab 3) | ✅ | ✅ | ✗ |
-| 查看配额 / 成员 | ✅ | ✅ | ✅ (仅查看) |
-
-完整矩阵见 [auth.md §3](../system_design/auth.md#3-rbac-角色)。
+| 启用（Active） | ● 绿实心 | 就绪，解锁提交入口 |
+| 停用（Suspended） | ◐ 橙实心 | 管理员停用，锁定新建入口 |
+| 创建中 / 删除中 | 灰 + spinner | NS / Quota 同步中 |
+| 失败（Failed） | ▲ 红 | 初始 NS / Quota 同步失败 |
 
 ---
 
-## 6. 工作区 (训练中心 → 工作区)
+## 6. 工作区（训练中心 → 工作区）
 
-交互式开发容器(Jupyter / VSCode 等),隶属当前租户。字段权威见 [components/compute-service.md](../system_design/components/compute-service.md)。
+交互式开发容器（Jupyter / VSCode），隶属当前租户。本租户成员可读，`owner` / `tenant-admin` 可写。字段权威见 [compute-service.md](../system_design/components/compute-service.md)。
 
-### 6.0 资源选择链(工作区 / 自定义任务 / 在线服务通用)
-
-工作区 / 自定义任务 / 在线服务的创建表单共享同一条资源引用链,后一项依赖前一项。实验管理与评估任务当前仅保留入口;落地创建表单后复用本链路:
+### 6.0 资源选择链（工作区 / 自定义任务 / 实验 / 在线服务通用）
 
 ```
-资源池 ▾  →  资源单元 ▾  →  镜像 ▾
-(ResourcePool)  (池内 unit,带 cpu/mem/gpu 规格)  (本租户 + 公共镜像)
+资源池 ▾  →  资源单元 ▾（带 cpu/mem/gpu 规格）  →  镜像 ▾（本租户 + 公共）
 ```
 
-- 选定资源单元后,表单只读展示其 `requests / limits`(tag chips),用户不手填资源量。
-- 镜像下拉合并「当前租户」+「公共(`axisml-system`)」制品;可输入完整引用兜底。
-- 提交后 spec 不可变,「编辑」= 重新创建(服务的副本数除外,见 §8)。
+- 选定资源单元后只读展示其 requests / limits（chips），用户不手填资源量。
+- 提交后 spec 不可变，"编辑"= 重新创建（服务副本数与运行中工作区的显示名 / 描述除外）。
 
-### 6.1 页面入口
-
-| 入口 | 生产路径 | 权限 |
-| --- | --- | --- |
-| 工作区列表 | `/workspaces` | 本租户成员(读);`owner` / `tenant-admin`(写) |
-| 工作区详情 | `/workspaces/{name}` | 同上 |
-
-### 6.2 列表页
+### 6.1 列表页
 
 ```
-Page Head:  工作区。                                    [+ 新建工作区]
-            用于交互式开发的容器环境,支持 Jupyter 和 VSCode,不用时随时停掉。
+Page Head:  工作区。                                  [+ 新建工作区]
+            交互式开发容器，支持 Jupyter / VSCode，不用时随时停掉。
+Filters:  🔍 名称 | 状态 ▾ | 资源池 ▾ | 创建人 ▾ | 重置      [☰ 列表 | ▦ 卡片]
 
-Filters:  🔍 名称搜索  |  状态 ▾  |  资源池 ▾  |  创建人 ▾  |  重置          [☰ 列表 | ▦ 卡片]
-
-卡片视图 (默认,响应式网格,每行 2–4 张)
-┌ JD  ws-dev-zhang        ● 运行中 ┐ ┌ PY  ws-train-li        ◐ 启动中 ┐ ┌ JT  ws-notebook-chen ● 运行中 ┐
-│ cpu-medium/1x                    │ │ gpu-a100/1x                    │ │ gpu-l40s/1x                    │
-│ 张伟                              │ │ 李娜                            │ │ 陈曦                            │
-│ [Jupyter] [VSCode] [终端] [停] [删]│ │ [Jupyter] [VSCode] [终端] [停][删]│ │ [Jupyter] [VSCode] [终端] [停][删]│
-└──────────────────────────────────┘ └────────────────────────────────┘ └────────────────────────────────┘
-┌ VS  ws-eval-wang        ○ 已停止 ┐
-│ cpu-medium/1x                    │
-│ 王磊                              │
-│ [启动] [删除]                     │
-└──────────────────────────────────┘
-
-列表视图 (切换后)
-┌────────────────────┬──────────┬───────────────┬────────────────────┬─────────┬──────────────┐
-│ 名称                │ 状态      │ 资源单元       │ 镜像                │ 创建人  │ 操作          │
-├────────────────────┼──────────┼───────────────┼────────────────────┼─────────┼──────────────┤
-│ ws-dev-zhang       │ ● 运行中  │ cpu-medium/1x │ jupyter-ds:2024.3 │ 张伟    │打开 停止 删除 │
-│ ws-train-li        │ ◐ 启动中  │ gpu-a100/1x   │ pytorch:2.3-cu121 │ 李娜    │打开 停止 删除 │
-│ ws-notebook-chen   │ ● 运行中  │ gpu-l40s/1x   │ jupyter-tf:2.16   │ 陈曦    │打开 停止 删除 │
-│ ws-eval-wang       │ ○ 已停止  │ cpu-medium/1x │ vscode-server…    │ 王磊    │启动 删除      │
-└────────────────────┴──────────┴───────────────┴────────────────────┴─────────┴──────────────┘
-Footer: 共 4 个                                      ‹ [1] ›        每页 20 条
+卡片(默认)：图标 · 名称 · 描述 · 状态 · 资源单元 · 创建人 · [Jupyter][VSCode][终端][停止][删除]
+列表：名称 · 状态 · 资源单元(pool/unit) · 镜像 · 创建人 · 操作(打开/停止/删除)
 ```
 
-**视图切换**:Filters 行右端 `[☰ 列表 | ▦ 卡片]` 段控件切换,默认卡片视图(约定见 §2.3)。
-**字段**:名称(mono link)· 状态(phase 徽章,见 §6.6)· 资源单元(`pool/unit` mono)· 镜像(列表视图展示;卡片以镜像前缀 logo 表示)· 创建人 · 操作。
-**操作**:运行中 / 启动中卡片提供 Jupyter、VS Code、终端、停止、删除图标;列表压缩为打开 / 停止 / 删除。已停止仅启动 / 删除。删除二次确认含「是否一并删除数据卷 PVC」。
+运行中卡片提供 Jupyter / VSCode / 终端 / 停止 / 删除；已停止仅启动 / 删除。删除二次确认含"是否一并删除数据卷 PVC"（默认勾选）。
 
-### 6.3 详情页 Tab
+### 6.2 详情页 Tab
 
-```
-← 返回工作区列表
-ws-dev-zhang.   [● 运行中]                          workspaces/ws-dev-zhang
-开发调试环境
-[🔗 打开]  [停止]  [删除]
+头部：back-nav · 名称（mono）· 状态徽章 · 描述 · `[🔗 打开] [停止] [删除]`。Tabs：`[基本信息] [实例(Pods) N] [日志] [事件]`。
 
-Tabs:  [基本信息]  [实例 (Pods) 1]  [日志]  [事件]
-```
+- **基本信息** — KV grid：名称 · 显示名 · 描述 · 资源单元 · 镜像 · 访问地址（可复制）· 数据卷（PVC name / size / storageClass）· 环境变量（chips）· 创建人 / 时间。运行中仅显示名 / 描述可编辑，停止后可改全部。
+- **实例 / 日志 / 事件** —（各页通用）实例列出 Pod（名称 / 阶段 / 节点 / 重启 / 启动时间，行内日志入口）；日志按 Pod 选择 + follow，mono 终端；事件为 K8s Events 时间线。
 
-- **基本信息** — KV grid:名称(mono)· 显示名 · 描述 · 资源单元(`pool/unit`)· 镜像 · 访问地址(endpoint,可复制)· 数据卷(PVC name / size / storageClass)· 环境变量(chips)· 创建人 / 时间。`display_name` / `description` / labels 可编辑;其余只读。
-- **实例 (Pods)** — Pod 列表:名称 · 阶段 · 节点 · 重启数 · 启动时间;行内「日志」入口。
-- **日志** — 按 Pod 选择 + 实时跟随(follow)开关 + 行数选择;mono 终端样式。
-- **事件** — K8s Events 时间线(类型 / 原因 / 消息 / 时间)。
+### 6.3 创建表单
 
-### 6.4 创建表单
+`name`（不可变）· 显示名 / 描述 · **资源池 → 资源单元 → 镜像**（§6.0）· 数据卷（Volume + 挂载路径，可增删）· 环境变量。
 
-`name`(DNS-1123,不可变)· `display_name` / `description` · **资源池 → 资源单元 → 镜像**(§6.0)· 数据卷(PVC `size` + `storageClass`)· 环境变量 · 访问路由(可选开关)。即时校验 + compute-service 兜底。
-
-### 6.5 删除前置
-
-二次确认弹窗:展示是否一并删除数据卷 PVC(默认勾选删除)。
-
-### 6.6 状态展示规则
+### 6.4 状态展示规则（工作区 / 在线服务通用）
 
 | `phase` | 视觉 | 含义 |
 | --- | --- | --- |
-| `Creating` | 灰 + spinner | 资源创建中 |
-| `Pending` | 灰 + spinner | 已下发,副本未就绪 |
+| Creating / Pending | 灰 + spinner | 创建 / 副本未就绪 |
 | `Ready` | ● 绿 | `ready == desired > 0` |
 | `Degraded` | ◐ 橙 | `0 < ready < desired` |
-| `Failed` | ● 红 | 副本全不可用(可自愈) |
-| 已停止 | ○ 灰描边 | `desired == 0`(用户主动停止) |
-| `Deleting` | 灰 + spinner | 删除中 |
-
-### 6.7 权限可见性
-
-| 操作 | system-admin | tenant-admin | user(owner) | user(他人) |
-| --- | :---: | :---: | :---: | :---: |
-| 列表 / 详情 / 日志 | ✅ | ✅(本租户) | ✅ | ✅(只读) |
-| 创建 | ✅ | ✅ | ✅ | — |
-| 启停 / 删除 | ✅ | ✅(本租户) | ✅(自己) | ✗ |
+| `Failed` | ● 红 | 副本全不可用（可自愈） |
+| 已停止 | ○ 灰描边 | `desired == 0`（用户停止） |
+| Deleting | 灰 + spinner | 删除中 |
 
 ---
 
-## 7. 自定义任务 (训练中心 → 自定义任务)
+## 7. 自定义任务（训练中心 → 自定义任务）
 
-自定义任务采用 **Job(可复用模板)→ Run(每次运行)** 两级模型,隶属当前租户。Job 是 Platform 自有的模板定义;从 Job 触发的每次运行是一个 Run(对应 compute 的一个 `MLRun`,命名 `<job>-<n>`)。字段权威见 [components/platform.md §4.2](../system_design/components/platform.md#42-计算任务编排) 与 [components/compute-service.md](../system_design/components/compute-service.md)。
+**Job（可复用模板）→ Run（每次运行）** 两级模型，隶属当前租户。Job 是 Platform 自有模板；每次运行是一个 Run（对应 compute 的 `MLRun`，命名 `<job>-<n>`）。本租户成员可读，`owner` / `tenant-admin` 可写。编排见 [platform.md §4.2](../system_design/components/platform.md#42-计算任务编排)。
 
-### 7.1 页面入口
-
-| 入口 | 生产路径 | 权限 |
-| --- | --- | --- |
-| Job 列表 | `/jobs` | 本租户成员(读);`owner` / `tenant-admin`(写) |
-| Job 详情(含运行历史) | `/jobs/{name}` | 同上 |
-| Run 详情 | `/jobs/{name}/runs/{run}` | 同上 |
-
-### 7.2 列表页(Job)
+### 7.1 列表页（Job）
 
 ```
-Page Head:  自定义任务。                                [+ 新建 Job]
-            提交训练、微调或数据处理任务(Job),按需运行;每次运行生成一个 Run。
+Page Head:  自定义任务。                              [+ 新建 Job]
+            提交训练 / 微调 / 数据处理任务；每次运行生成一个 Run。
+Filters:  🔍 名称 | 创建人 ▾ | 重置
 
-Filters:  🔍 名称搜索  |  创建人 ▾  |  重置
-
-┌──────────────────┬───────────────┬────────┬─────────┬───────────┬────────────────────┐
-│ 名称              │ 最近运行状态   │ 运行数  │ 创建人  │ 更新时间   │ 操作                │
-├──────────────────┼───────────────┼────────┼─────────┼───────────┼────────────────────┤
-│ train-llm-7b     │ ● 运行中       │ 4      │ 张伟    │ 2d ago    │运行 详情 编辑 删除  │
-│ eval-recall      │ ● 成功         │ 3      │ 李娜    │ 5d ago    │运行 详情 编辑 删除  │
-│ sft-baseline     │ ○ 从未运行     │ 0      │ 王磊    │ 1h ago    │运行 详情 编辑 删除  │
-└──────────────────┴───────────────┴────────┴─────────┴───────────┴────────────────────┘
-Footer: 共 3 个 Job                                   ‹ [1] ›        每页 20 条
+│ 名称 │ 最近运行状态 │ 运行数 │ 创建人 │ 更新时间 │ 操作(运行/详情/编辑/删除) │
+│ train-llm-7b │ ● 运行中 │ 4 │ 张伟 │ 2d ago │ … │
 ```
 
-**列定义**:名称(mono link → Job 详情)· 最近运行状态(该 Job 最新 Run 的 phase 徽章,见 §7.6;实时取自 compute)· 运行数(实时计数)· 创建人 · 更新时间 · 操作。
-**操作**:运行(触发一次 Run,§7.5)· 详情 · 编辑(改模板,§7.4)· 删除(有活跃 Run 时禁用并提示 `409 job-has-active-runs`,否则级联软删全部 Run)。
-> 「最近运行状态」「运行数」由 Platform 实时回源 compute(`ListMLRuns(labelSelector=axisml.io/job=<job>)`),不落 Platform 表。
+- 名称（mono link → Job 详情）· 最近运行状态（最新 Run 的 phase，§7.4）· 运行数 · 创建人 · 更新时间 · 操作。
+- 删除：有活跃 Run 时禁用并提示 `409 job-has-active-runs`，否则级联软删全部 Run。
+- "最近运行状态""运行数"由 Platform 实时回源 compute（`ListMLRuns(labelSelector=axisml.io/job=<job>)`），不落 Platform 表。
 
-### 7.3 Job 详情页 Tab
+### 7.2 Job 详情页 Tab
 
-```
-← 返回 Job 列表
-train-llm-7b.   [● 运行中]                                  jobs/train-llm-7b
-LLaMA-7B 全参微调
-[▶ 运行]  [编辑]  [删除]
+头部：back-nav · 名称（mono）· 状态徽章 · 描述 · `[▶ 运行] [编辑] [删除]`。Tabs：`[配置] [运行历史(Runs)]`。
 
-Tabs:  [配置]  [运行历史 (Runs)]
-```
+- **配置** — Job 模板 KV grid：名称 · 显示名 · 描述 · 资源池 / 单元（默认）· 镜像 · 副本数 · 命令 / 参数（chips）· 环境变量 · 数据卷 · 运行策略（超时 / 重试 / TTL）。编辑只影响**之后**触发的 Run。
+- **运行历史** — Run 表（实时回源 compute）：Run（`<job>-<n>` mono link）· 状态 · 资源单元 · 副本 · 触发人 · 耗时 · 操作（取消仅 Pending / Running · 日志 · 详情 · 删除终态）。
 
-- **配置** — Job 模板 KV grid:名称 · 显示名 · 描述 · 资源池 / 单元(默认)· 镜像 · 副本数 · 命令 / 参数(chips)· 环境变量 · 运行策略(超时 / 重试 / TTL)· 制品引用(镜像 / 模型 / 数据集,`name` + `version`)。编辑只影响**之后**触发的 Run。
-- **运行历史 (Runs)** — 该 Job 的 Run 列表(实时回源 compute):
+### 7.3 Run 详情页（`/jobs/{name}/runs/{run}`）
 
-```
-┌──────────────────┬──────────┬───────────────┬────────┬─────────┬───────────┬──────────────┐
-│ Run               │ 状态      │ 资源单元       │ 副本    │ 触发人  │ 耗时       │ 操作          │
-├──────────────────┼──────────┼───────────────┼────────┼─────────┼───────────┼──────────────┤
-│ train-llm-7b-12  │ ● 运行中  │ gpu-a100/4x   │ 4      │ 张伟    │ 02:14:30  │取消 日志 详情 │
-│ train-llm-7b-11  │ ● 成功    │ gpu-a100/4x   │ 4      │ 张伟    │ 03:40:02  │日志 详情 删除 │
-│ train-llm-7b-10  │ ● 失败    │ gpu-a100/8x   │ 8      │ 李娜    │ 00:08:22  │日志 详情 删除 │
-└──────────────────┴──────────┴───────────────┴────────┴─────────┴───────────┴──────────────┘
-```
+头部：back-nav（→ Job）· Run 名（mono）· 状态徽章 · `[取消运行] [删除]`。Tabs：`[概览] [实例(Pods)] [日志] [事件]`。概览为该 Run 快照（资源单元 / 镜像 / 副本 / 命令 / 环境变量 / 运行策略 / 触发期 override / 起止时间 / 状态消息）。Run spec 创建后不可变。
 
-  Run 名 `<job>-<n>`(mono link → Run 详情)· 状态(phase 徽章)· 资源单元(`pool/unit`)· 副本 · 触发人 · 耗时(`finishedAt − startedAt`,运行中实时累计)· 操作:取消(仅 `Pending` / `Running`)· 日志 · 详情 · 删除(终态)。
+### 7.4 表单与触发
 
-### 7.3.1 Run 详情页 (`/jobs/{name}/runs/{run}`)
+- **Job 创建 / 编辑表单**：`name`（不可变）· 显示名 / 描述 · 镜像 · **资源池 → 资源单元 → 副本数** · 命令 / 参数 · 环境变量 · 数据卷 · 运行策略（超时 / 重试）。保存即写模板，**不触发运行**。
+- **触发运行对话框**：默认按模板直接运行；展开"高级 · 本次覆盖"可改镜像 / 模型版本 · 资源单元 · 副本与资源 · 超参（命令 / 参数 / 环境变量）。**不可**改 backend 与 role 拓扑（需改模板）。确认后对引用制品版本预检 `Ready`，失败 `400`；成功则创建 `<job>-<n>` 并跳 Run 详情。
 
-```
-← 返回 train-llm-7b
-train-llm-7b-12.   [● 运行中]                  jobs/train-llm-7b/runs/train-llm-7b-12
-[取消运行]  [删除]
+### 7.5 状态展示规则（Run phase）
 
-Tabs:  [基本信息]  [实例 (Pods)]  [日志]  [事件]
-```
+| `phase` | 视觉 | | `phase` | 视觉 |
+| --- | --- | --- | --- | --- |
+| Creating / Pending | 灰 + spinner | | `Succeeded` | ● 绿（终态） |
+| `Running` | ● 绿 | | `Failed` | ● 红（终态） |
+| Canceling | 灰 + spinner | | `Cancelled` | ○ 灰（终态） |
 
-- **基本信息** — 该 Run 快照的 KV grid:Run 名 · 资源单元 · 镜像 · 副本数 · 命令 / 参数 · 环境变量 · 运行策略 · 触发期 override(若有)· 开始 / 结束时间 · 状态消息(`message`,失败时高亮)。Run spec 创建后不可变。
-- **实例 (Pods)** — Pod 列表(阶段 / 节点 / 重启 / 退出码),行内日志入口。
-- **日志** — 按 Pod 选择 + follow;mono 终端。
-- **事件** — K8s Events 时间线。
-
-### 7.4 Job 创建 / 编辑表单(模板)
-
-`name`(创建后不可变)· `display_name` / `description` · **资源池 → 资源单元 → 镜像**(§6.0)· `replicas` · 命令 / 参数 · 环境变量 · 运行策略(`activeDeadlineSeconds` / `backoffLimit` / `ttlSecondsAfterFinished`)· 可选挂载模型 / 数据集制品(`name` + `version`)。保存即写模板,**不触发运行**。编辑(§7.3 [编辑])可改除 `name` 外的模板字段;改动只影响之后触发的 Run。
-
-### 7.5 触发运行(Run)对话框
-
-§7.2 / §7.3 的 [运行] 打开。默认按模板直接运行;展开「高级 · 本次覆盖」可选覆盖:镜像 / 模型 / 数据集**版本** · 资源单元(pool / unit)· `replicas` 与资源 · 超参(命令 / 参数 / 环境变量)。**不可**改 backend 与 role 拓扑(需改模板)。确认后 Platform 对引用制品版本预检 `Ready`,失败 `400` 阻断;成功则创建 `<job>-<n>` 并跳转 Run 详情。
-
-### 7.6 状态展示规则(Run phase)
-
-| `phase` | 视觉 | 含义 |
-| --- | --- | --- |
-| `Creating` / `Pending` | 灰 + spinner | 创建 / 排队等待调度 |
-| `Running` | ● 绿 | 至少一个 Pod 运行中 |
-| `Succeeded` | ● 绿(终态) | 全部成功 |
-| `Failed` | ● 红(终态) | 超出重试上限 |
-| `Canceling` | 灰 + spinner | 取消处理中 |
-| `Cancelled` | ○ 灰(终态) | 已取消 |
-| `Deleting` | 灰 + spinner | 删除中 |
-
-> Job 列表「最近运行状态」取该 Job 最新 Run 的 `phase`;无 Run 显示 `○ 从未运行`。
-
-### 7.7 权限可见性
-
-列表 / 详情 / 日志本租户可读;创建 Job / 触发运行任意成员;编辑配置 / 删除 Job / 取消 · 删除 Run 限 `owner` 或 `tenant-admin`(与 §6.7 工作区同档)。
+> Job 列表"最近运行状态"取最新 Run 的 phase；无 Run 显示 `○ 从未运行`。
 
 ---
 
-## 8. 在线服务 (服务中心 → 在线服务)
+## 8. 在线服务（服务中心 → 在线服务）
 
-常驻在线推理服务,隶属当前租户,可暴露路由对外访问。多版本灰度发布与加权切流由 §10 流量策略 承接。字段权威见 [components/compute-service.md](../system_design/components/compute-service.md)。
+常驻在线推理服务，隶属当前租户，可暴露路由对外访问；多版本灰度由 §10 承接。权限与可读写同工作区。字段权威见 [compute-service.md](../system_design/components/compute-service.md)。
 
-### 8.1 页面入口
-
-| 入口 | 生产路径 | 权限 |
-| --- | --- | --- |
-| 服务列表 | `/mlservices` | 本租户成员(读);`owner` / `tenant-admin`(写) |
-| 服务详情 | `/mlservices/{name}` | 同上 |
-
-### 8.2 列表页
+### 8.1 列表页
 
 ```
-Page Head:  在线服务。                                  [+ 新建服务]
-            常驻的在线推理服务,可对外提供访问并按需扩缩容。
+Page Head:  在线服务。                                [+ 新建服务]
+            常驻在线推理服务，可对外访问并按需扩缩容。
+Filters:  🔍 名称 | 状态 ▾ | 资源池 ▾ | 重置
 
-Filters:  🔍 名称搜索  |  状态 ▾  |  资源池 ▾  |  创建人 ▾  |  重置
-
-Card › Table
-┌──────────────────┬──────────┬───────────────┬────────┬──────────────────────┬─────────────────┐
-│ 名称              │ 状态      │ 资源单元       │ 副本    │ 访问地址              │ 操作             │
-├──────────────────┼──────────┼───────────────┼────────┼──────────────────────┼─────────────────┤
-│ svc-chat-api     │ ● 就绪    │ gpu-h100/1x   │ 2/2    │ /services/team-a/cha…│扩缩 停止 删除   │
-│ svc-embed        │ ◐ 降级    │ gpu-l40s/1x   │ 1/2    │ /services/team-a/emb…│扩缩 停止 删除   │
-│ svc-rerank       │ ○ 已停止  │ cpu-large/1x  │ 0/0    │ —                    │启动 删除        │
-└──────────────────┴──────────┴───────────────┴────────┴──────────────────────┴─────────────────┘
-Footer: 共 3 个服务                                    ‹ [1] ›        每页 20 条
+│ 名称 │ 状态 │ 副本(ready/desired) │ 资源单元 │ 访问地址 │ 操作 │
+│ svc-chat-api │ ● 就绪 │ 2/2 │ gpu-h100/1x │ /services/team-a/cha… │ 编辑 扩缩 停止 删除 │
 ```
 
-**列定义**:名称(mono link)· 状态(phase 徽章,见 §8.6)· 资源单元 · 副本(`ready/desired`)· 访问地址(路由 path / hostname,可复制;停止时 `—`)· 操作。
-**操作**:扩缩容(改副本数,服务唯一可变 spec)· 启动 / 停止 · 删除;详情通过名称链接进入。
+操作：编辑 · 扩缩容（改副本数）· 启动 / 停止（停 = 缩到 0）· 删除。状态规则同 §6.4。
 
-### 8.3 详情页 Tab
+### 8.2 详情页 Tab
 
-```
-← 返回服务列表
-svc-chat-api.   [● 就绪]                                services/svc-chat-api
-对话推理服务
-[扩缩容]  [停止]  [删除]
+头部：back-nav · 名称（mono）· 状态徽章 · 描述 · `[编辑] [扩缩容] [停止] [删除]`。Tabs：`[概览] [监控] [实例(Pods) N] [日志] [事件]`。
 
-Tabs:  [基本信息]  [监控]  [实例 (Pods) 2]  [日志]  [事件]
-```
+- **概览** — KV grid：名称 · 显示名 · 描述 · 模型版本 · 镜像 · 资源单元 · 副本（ready/desired）· 端口（`name:port` chips）· 访问地址 · 路由（path / hostname，**创建后不可变**）· 创建人 / 时间。
+- **监控** — 时序折线（取自 Prometheus）：QPS · 延迟 p50/p95/p99 · 错误率（5xx）· CPU / 内存 / GPU 利用率；时间范围 5m / 1h / 24h。
+- **实例 / 日志 / 事件** — 同 §6.2。
 
-- **基本信息** — KV grid:名称 · 显示名 · 描述 · 资源单元 · 镜像 · 副本(`ready/desired`)· 端口(`name:port` chips)· 访问地址 · 路由配置(path / hostname / 鉴权 type / 限流 / 超时,**创建后不可变**)· 创建人 / 时间。
-- **监控** — 时序折线图(取自 Prometheus,见 [monitoring.md](../system_design/monitoring.md)):QPS · 延迟 p50/p95/p99 · 错误率(5xx)· CPU / 内存 / GPU 利用率(按副本)。顶部带时间范围选择(5m / 1h / 24h)。
-- **实例 (Pods)** · **日志** · **事件** — 同 §6.3。
+### 8.3 创建表单 / 扩缩
 
-### 8.4 创建表单
-
-`name`(不可变)· `display_name` / `description` · **资源池 → 资源单元 → 镜像**(§6.0)· `replicas` · 端口 `ports[]`(`name` / `containerPort` / `protocol`)· 命令 / 参数 · 环境变量 · **路由**(可选,创建后不可变):开关 · `path`(留空自动生成 `/services/<租户>/<name>/`)· `hostname` · 鉴权(`none`;`apiKey` 规划中、本版本不提供,见 [auth.md §5.3](../system_design/auth.md#53-在线服务接入api-key规划中))· 限流 · 超时。
-
-### 8.5 扩缩容 / 启停
-
-- **扩缩容** — 弹窗仅改副本数(`spec.roles[*].replicas`),其余 spec 置灰。
-- **启动 / 停止** — 停止 = 副本缩到 0(`○ 已停止`);启动 = 恢复上次副本数。
-
-### 8.6 状态展示规则
-
-与 §6.6 工作区一致:`Ready`(● 绿)/ `Degraded`(◐ 橙,部分副本就绪)/ `Failed`(● 红,可自愈)/ `已停止`(○ 灰描边)/ `Creating·Pending·Deleting`(灰 + spinner)。
-
-### 8.7 权限可见性
-
-与 §6.7 一致;扩缩容 / 启停 / 删除限 `owner` 或 `tenant-admin`。
+- **创建表单**：`name`（不可变）· 显示名 / 描述 · 模型版本 + 推理镜像 · **资源池 → 资源单元 → 副本数** · 端口 `ports[]`（name / port）· 路由（可选开关 · path 留空自动生成 `/services/<租户>/<name>/`）。
+- **扩缩容** — 弹窗仅改副本数；启动 / 停止 = 副本恢复 / 缩到 0。
 
 ---
 
-## 9. 资产中心 (数据集 / 模型 / 镜像)
+## 9. 资产中心（模型 / 镜像）
 
-三个菜单(数据集 / 模型 / 镜像)共用同一列表 / 详情 / 上传模板,仅 **spec 字段** 与 **存储后端** 不同。制品身份为 `(租户, 类型, 名称, 版本)`;同名制品下挂多个版本。列表合并「当前租户」+「公共(`axisml-system`)」制品。字段权威见 [components/artifact-hub.md](../system_design/components/artifact-hub.md)。
+模型与镜像共用同一列表 / 详情 / 上传模板，仅 **spec 字段** 与 **存储后端** 不同。制品身份 `(租户, 类型, 名称, 版本)`；同名制品下挂多版本，列表合并"本租户 + 公共（`axisml-system`）"。字段权威见 [artifact-hub.md](../system_design/components/artifact-hub.md)。
 
-### 9.1 三类制品差异
+| 维度 | 模型 | 镜像 |
+| --- | --- | --- |
+| 路径 / 存储 | `/models` · OCI（zot） | `/images` · OCI（zot） |
+| 专属 spec | `framework`（+ 任务标签 / 参数量标签） | `purpose`（training / inference / dev / custom） |
+| 引用 / 拉取 | `name@version` · `docker pull` | `name@version` · `docker pull` |
 
-| 维度 | 数据集 | 模型 | 镜像 |
-| --- | --- | --- | --- |
-| 路径 | `/datasets` | `/models` | `/images` |
-| 存储 | S3 (RustFS) | OCI (zot) | OCI (zot) |
-| 专属 spec 字段 | `format`(parquet / jsonl / …) | `framework`(pytorch / …)+ `format` | `purpose`(training / inference / dev) |
-| 引用 | name + version(S3 路径) | `name@digest` | `name@digest` |
-| 拉取方式 | `aws s3 cp s3://…` | `docker pull <uri>` | `docker pull <uri>` |
-
-### 9.2 列表页(以模型为例)
+### 9.1 列表页（以模型为例）
 
 ```
-Page Head:  模型。                                      [+ 上传模型]
-            管理模型及其版本,可在任务和在线服务中按 name@digest 引用。
+Page Head:  模型。                                    [+ 新建模型]
+            管理模型及版本，可在任务和在线服务中按版本引用。
+Filters:  🔍 名称 | 框架 ▾ | 标签 ▾ | 重置          [☰ 列表 | ▦ 卡片]
 
-Filters:  🔍 名称搜索  |  框架 ▾  |  可见性 ▾  |  标签 ▾  |  重置          [☰ 列表 | ▦ 卡片]
-
-卡片视图 (默认,ArtifactHub 风格)
-┌ ◇ llama-7b-sft                                      ┐ ┌ ◇ bge-embed                         [已认证] ┐
-│ LLaMA-7B 监督微调权重                               │ │ BGE 文本向量模型                                │
-│ [pytorch]                         v3 · 3 版本 · 更新 2 天前 │ │ [safetensors]              1.5.0 · 5 版本 · 更新 1 周前 │
-└────────────────────────────────────────────────────┘ └──────────────────────────────────────────────┘
-┌ ◇ resnet-cls                                       ┐ ┌ ◇ qwen2-vl-ft                                      ┐
-│ ResNet 图像分类                                    │ │ Qwen2-VL 视觉指令微调                              │
-│ [onnx]                    2024-06 · 2 版本 · 更新 3 天前 │ │ [pytorch]                    v2 · 2 版本 · 更新 5 小时前 │
-└────────────────────────────────────────────────────┘ └──────────────────────────────────────────────┘
-
-列表视图 (切换后)
-┌──────────────────┬──────────────┬───────────┬────────┬─────────┬──────────────┐
-│ 名称              │ 框架          │ 最新版本   │ 版本数  │ 更新时间 │ 操作          │
-├──────────────────┼──────────────┼───────────┼────────┼─────────┼──────────────┤
-│ llama-7b-sft     │ [pytorch]    │ v3        │ 3      │ 2 天前  │上传新版本     │
-│ bge-embed 🌐     │ [safetensors]│ 1.5.0     │ 5      │ 1 周前  │              │
-│ resnet-cls       │ [onnx]       │ 2024-06   │ 2      │ 3 天前  │上传新版本     │
-│ qwen2-vl-ft      │ [pytorch]    │ v2        │ 2      │ 5 小时前│上传新版本     │
-└──────────────────┴──────────────┴───────────┴────────┴─────────┴──────────────┘
-Footer: 共 4 个 · 含 1 个公共                         ‹ [1] ›       每页 20 条
+卡片(默认)：图标 · 名称 · 描述 · 最新版本 + 版本数 · 更新时间
+列表：名称 · 框架 · 最新版本 · 版本数 · 标签 · 更新时间 · 操作(上传新版本)
 ```
 
-**视图切换**:Filters 行右端 `[☰ 列表 | ▦ 卡片]` 段控件切换,默认卡片视图(约定见 §2.3);数据集 / 模型 / 镜像三个菜单共用同一偏好键。
-**字段**:名称(mono link)· 专属 spec(数据集=`format` / 模型=`framework` / 镜像=`purpose`,pill)· 最新版本 · 版本数 · 更新时间 · 操作(列表视图里非公共资产显示上传新版本)。公共资产在名称旁显示公共图标 / 卡片角标「已认证」。
-**过滤**:名称搜索 · 专属 spec ▾ · 可见性 ▾ · 标签 ▾ · 重置。公共制品对当前租户只读,写入口在两视图中均隐藏。
+公共制品在名称旁显示公共图标、对当前租户只读（写入口隐藏）。
 
-### 9.3 详情页(制品 + 版本列表)
+### 9.2 详情页（制品 + 版本列表）
 
-```
-← 返回模型列表
-llama-7b-sft.                                         models/llama-7b-sft
-LLaMA-7B 监督微调权重                                 [+ 上传新版本]
-
-┌ 元数据 ──────────────────────[编辑] ┐  ┌ 标签 / 注解 ──────────────┐
-│ 框架 pytorch · 创建人 张伟          │  │ [task=chat][lang=zh] +2   │
-│ 创建 2026-05-01 · 更新 2026-06-11   │  └────────────────────────────┘
-└─────────────────────────────────────┘
-
-版本列表
-┌──────────┬──────────┬───────────────────────┬────────┬─────────┬──────────────────────┐
-│ 版本      │ 状态      │ digest                │ 大小    │ 创建人  │ 操作                  │
-├──────────┼──────────┼───────────────────────┼────────┼─────────┼──────────────────────┤
-│ v3       │ ● 就绪    │ sha256:a1b2…  📋      │ 13.4GB │ 张伟    │拉取命令 下载 删除     │
-│ v2       │ ● 就绪    │ sha256:9f8e…  📋      │ 13.4GB │ 张伟    │拉取命令 下载 删除     │
-│ v1       │ ● 就绪    │ sha256:77cd…  📋      │ 13.1GB │ 李娜    │拉取命令 下载 删除     │
-└──────────┴──────────┴───────────────────────┴────────┴─────────┴──────────────────────┘
-```
-
-- **元数据卡** — `display_name` / `description` / labels / annotations 可编辑;`spec`(框架等)/ 名称 / 可见性 创建后不可变。
-- **版本列表** — 版本(mono)· 状态(见 §9.5)· digest(mono 截断 + 📋 复制)· 大小 · 创建人 · 创建时间 · 操作(拉取命令 / 下载 / 删除;digest 通过行内复制图标复制)。
-- **拉取命令** — 弹窗按存储后端给出命令(数据集 `aws s3 cp` / 模型镜像 `docker pull`)+ 临时凭证有效期提示。
-
-### 9.4 上传流程(引导对话框)
+头部：back-nav · 名称（mono）· 描述 · `[+ 上传新版本]`。元数据卡（框架 / 创建人 / 时间 + 标签 / 注解，显示名 / 描述 / 标签可编辑；spec / 名称不可变）+ 版本列表：
 
 ```
-上传模型 › 新版本
-─────────────────────────────────────
-① 基本信息   名称(新建/选已有) · 版本(OCI tag 规则) · 框架 ▾ · 显示名 · 描述 · 标签
-② 获取凭证   [初始化上传] → 返回上传地址 + 临时凭证(有效期 1h)
-③ 推送数据   展示 docker push / aws s3 cp 命令,用户在本地执行
-④ 完成校验   [完成上传] 填入 digest → 服务端校验 → 状态转 ● 就绪
-─────────────────────────────────────
-[上一步]                                   [下一步 / 完成]
+│ 版本 │ 状态 │ 来源 │ digest │ 大小 │ 创建人 │ 操作(拉取命令 / 删除) │
+│ v3 │ ● 就绪 │ Oras 推送 │ sha256:a1b2… 📋 │ 13.4GB │ 张伟 │ … │
 ```
 
-- 数据集与模型 / 镜像三步一致,仅 ① 的专属 spec 字段(`format` / `framework`+`format` / `purpose`)与 ③ 的推送命令不同。
-- 上传未完成的版本停留 `◐ 上传中`,24h 未完成自动转 `失败`。
+- 版本（mono）· 状态（§9.4）· 来源（Web 上传 / Oras 推送 / 远端登记）· digest（mono + 复制）· 大小 · 创建人 · 操作。
+- **拉取命令** 弹窗按存储后端给出命令（`docker pull` / `aws s3 cp`）+ 临时凭证有效期（1h）提示。
 
-### 9.5 状态展示规则
+### 9.3 新建 / 上传
+
+- **新建制品表单**：名称（mono，英文）· 专属 spec（模型=框架 + 任务 / 参数量标签；镜像=用途）· 描述 · 自定义标签（K=V）。
+- **上传新版本（引导对话框）**：① 版本号 + 描述 → ② 选方式（Web 上传 / 远端登记 / ORAS / docker push）→ ③ 按方式展示推送命令或上传区 → ④ 完成校验（填 digest，服务端校验后转 `● 就绪`）。未完成停留 `◐ 上传中`，24h 超时转失败。
+
+### 9.4 状态展示规则
 
 | `status` | 视觉 | 含义 |
 | --- | --- | --- |
-| `Uploading` | ◐ 灰 + spinner | 已初始化,等待推送 / 完成 |
-| `Ready` | ● 绿 | digest 校验通过,可引用 |
+| `Uploading` | ◐ 灰 + spinner | 已初始化，待推送 / 完成 |
+| `Ready` | ● 绿 | digest 校验通过，可引用 |
 | `Failed` | ● 红 | 上传超时 / 校验失败 |
-| `Deleting` / `Deleted` | 灰 | 回收中 / 已删除 |
-
-### 9.6 权限可见性
-
-| 操作 | system-admin | tenant-admin | user(owner) | user(他人) |
-| --- | :---: | :---: | :---: | :---: |
-| 列表 / 详情(本租户 + 公共) | ✅ | ✅ | ✅ | ✅ |
-| 上传新版本 / 创建 | ✅ | ✅ | ✅ | — |
-| 编辑元数据 / 删除 | ✅ | ✅(本租户) | ✅(自己) | ✗ |
-| 设为公共(`axisml-system`) | ✅ | ✗ | ✗ | ✗ |
+| Deleting / Deleted | 灰 | 回收中 / 已删除 |
 
 ---
 
-## 10. 流量策略 (服务中心 → 流量策略)
+## 10. 流量配置（服务中心 → 流量配置）
 
-在线服务的多版本流量编排。每条**流量策略**绑定一个稳定对外入口(path / hostname),把入站请求按权重分发到当前租户下的多个**在线服务后端**,支撑灰度发布、加权切分与蓝绿式全量切换(由加权模式实现,不暴露独立 bluegreen 创建模式)。底层加权路由由 compute 派生(`(native,*)` → Envoy Gateway `HTTPRoute` 加权 `backendRefs`;`kserve` → `InferenceService` canary),Platform / UI 不直连网关、不内嵌 PromQL。字段权威见 [components/compute-service.md §4.4](../system_design/components/compute-service.md#44-service)。
+每条**流量策略**绑定一个稳定对外入口（path / hostname），把入站请求按权重分发到当前租户下多个**在线服务后端**，支撑灰度发布、加权切分与蓝绿式全量切换。底层加权路由由 compute 派生（`(native,*)` → Envoy `HTTPRoute` 加权 `backendRefs`；`kserve` → `InferenceService` canary）。建议成员服务建为内部服务（关闭自身 route）；一个在线服务至多被一条活跃策略引用。编排见 [platform.md §4.8](../system_design/components/platform.md#48-流量配置编排)。
 
-策略与成员服务解耦:成员是已存在的在线服务(§8),建议建为内部服务(关闭自身 route、仅 ClusterIP),由策略统一对外;一个在线服务至多被一条活跃策略引用。
+### 10.1 列表页
 
-### 10.1 页面入口
+```
+Page Head:  流量配置。                                [+ 新建策略]
+            为在线服务编排多版本流量：加权切分、灰度放量与蓝绿切换。
+Filters:  🔍 名称 | 模式 ▾ | 状态 ▾ | 重置
 
-| 入口 | 生产路径 | 权限 |
+│ 名称 │ 模式 │ 状态 │ 后端(流量分布) │ 访问地址 │ 操作 │
+│ rt-chat │ 灰度 │ ◐ 灰度中 │ v1 ▰▰▰▰▰▰▰▰▱ 90 / v2 ▰ 10 │ /services/team-a/cha… │ 详情 禁用 │
+```
+
+模式（加权 / 灰度 pill）· 状态（§10.4）· 后端（成员 + 权重 mini bar）· 访问地址 · 操作（详情 / 启用 / 禁用 / 删除）；调流量在详情页执行。
+
+### 10.2 详情页 Tab
+
+头部：back-nav · 名称（mono）· 状态徽章 · 模式徽章 · 描述 · `[删除]`。Tabs：`[概览] [流量配置] [监控] [事件]`。
+
+- **概览** — KV grid：名称 · 显示名 · 描述 · 模式 · 对外入口（path / hostname，**创建后不可变**）· 后端数 · 创建人 / 时间。
+- **流量配置** — 后端表：在线服务（mono link → §8）· 角色（稳定 / 灰度；加权模式为成员）· 目标权重 · 实际流量占比 · 后端状态（复用 §6.4 徽章）。灰度模式顶部带百分比 slider + `[提升] [回滚]`；加权模式各行可编辑权重（实时 `Σ=100` 校验 + `[应用权重]`）。
+- **监控** — 按后端分组对比的时序（QPS / 延迟 p95 / 错误率）；灰度模式叠加稳定 vs 灰度健康对比辅助放量。
+- **事件** — 策略与灰度操作流水（权重调整 / 提升 / 回滚 / 后端就绪 / 失联）。
+
+### 10.3 创建 / 操作
+
+- **创建表单**：`name`（不可变）· 显示名 / 描述 · **模式**（加权 / 灰度，创建后不可变）· **对外入口**（path 留空自动生成 · hostname，创建后不可变）· **后端**：加权 = N 个服务各设权重（Σ=100）；灰度 = 1 稳定 + 1 灰度 + 初始灰度百分比。后端下拉只列本租户 `Ready` 且未被占用的在线服务。
+- **操作**：调流量（加权改权重 / 灰度拖 slider）· 提升（灰度置 100 并升为新稳定基线）· 回滚（灰度归 0）· 蓝绿切换（加权模式下某后端置 100、其余置 0）。
+- **模式映射**：UI 的`加权` / `灰度`对应 compute 的 `weighted` / `canary`；`bluegreen` 不作独立创建模式，蓝绿在加权模式下全量切换实现。
+
+### 10.4 状态展示规则
+
+UI 标签是 compute `MLTrafficPolicy` phase 的展示映射（见 [compute-service.md §3](../system_design/components/compute-service.md#3-核心模型)）：
+
+| compute phase | UI 标签 | 视觉 |
 | --- | --- | --- |
-| 策略列表 | `/traffic` | 本租户成员(读);`owner` / `tenant-admin`(写) |
-| 策略详情 | `/traffic/{name}` | 同上 |
-
-### 10.2 列表页
-
-```
-Page Head:  流量策略。                                  [+ 新建策略]
-            为在线服务编排多版本流量:加权切分、灰度放量与蓝绿式全量切换。
-
-Filters:  🔍 名称搜索  |  模式 ▾  |  状态 ▾  |  重置
-
-Card › Table
-┌───────────────┬────────┬──────────┬─────────────────────────────┬──────────────────────┬───────────┐
-│ 名称           │ 模式    │ 状态      │ 后端 (流量分布)               │ 访问地址              │ 操作      │
-├───────────────┼────────┼──────────┼─────────────────────────────┼──────────────────────┼───────────┤
-│ rt-chat       │ 灰度    │ ◐ 灰度中 │ svc-chat-v1 ▰▰▰▰▰▰▰▰▱ 90    │ /services/team-a/cha…│禁用 删除 │
-│               │        │          │ svc-chat-v2 ▰▱▱▱▱▱▱▱▱ 10    │                      │          │
-│ rt-embed      │ 加权    │ ● 生效中 │ svc-embed-a 50 / svc-embed-b 50│ /services/team-a/emb…│禁用 删除 │
-│ rt-rerank     │ 灰度    │ ○ 未就绪 │ svc-rerank-v2 0 / 稳定缺失     │ —                    │启用 删除 │
-└───────────────┴────────┴──────────┴─────────────────────────────┴──────────────────────┴───────────┘
-Footer: 共 3 条策略                                    ‹ [1] ›        每页 20 条
-```
-
-**列定义**:名称(mono link)· 模式(`加权` / `灰度` pill)· 状态(phase 徽章,见 §10.6)· 后端(成员服务 + 权重 mini bar,灰度模式显示稳定 / 灰度两行)· 访问地址(对外 path / hostname,可复制;未就绪时 `—`)· 操作。
-**操作**:列表页仅启用 / 禁用与删除;调流量、提升、回滚在详情页「流量分布」Tab 内执行。详情通过名称链接进入。
-
-### 10.3 详情页 Tab
-
-```
-← 返回流量策略列表
-rt-chat.   [◐ 灰度中]                                   traffic/rt-chat
-对话服务灰度发布
-[删除]
-
-Tabs:  [基本信息]  [流量分布]  [监控]  [事件]
-```
-
-- **基本信息** — KV grid:名称 · 显示名 · 描述 · 模式 · 对外入口(path / hostname / 鉴权 type,**创建后不可变**)· 后端数 · 创建人 / 时间。
-- **流量分布** — 后端表:在线服务(mono link → §8 详情)· 角色(`稳定` / `灰度`,加权模式为 `成员`)· 目标权重 · 实际流量占比 · 后端状态(回源服务 phase,复用 §8.6 徽章)。灰度模式顶部带灰度百分比 slider + `[提升]` `[回滚]`;加权模式每行可编辑权重(实时 `Σ=100` 校验)。
-- **监控** — 按后端分组对比的时序折线图(取自 compute 指标代理,见 [monitoring.md](../system_design/monitoring.md)):各后端 QPS · 延迟 p95 · 错误率(5xx);灰度模式额外叠加**稳定 vs 灰度健康对比**(错误率 / 延迟差值)辅助放量决策。时间范围 5m / 1h / 24h。
-- **事件** — 策略与灰度操作流水:权重调整 / 提升 / 回滚 / 后端就绪 / 后端失联。
-
-### 10.4 创建表单
-
-`name`(不可变)· `display_name` / `description` · **模式**(`加权` / `灰度`,创建后不可变)· **对外入口**(创建后不可变):`path`(留空自动生成 `/services/<租户>/<name>/`)· `hostname` · 鉴权(`none`;`apiKey` 规划中、本版本不提供,见 [auth.md §5.3](../system_design/auth.md#53-在线服务接入api-key规划中))· **后端**:
-
-- **加权** — 添加 N 个在线服务,每个设权重(实时 `Σ=100` 校验)。
-- **灰度** — 选 1 个稳定后端 + 1 个灰度后端,设初始灰度百分比(默认 5)。
-
-> **模式映射**:UI 仅暴露 `加权` / `灰度` 两种创建模式,对应 compute `mode` 的 `weighted` / `canary`;compute 的 `bluegreen` mode 不作为独立创建模式呈现——蓝绿式切换在加权模式下通过全量切换实现(见 §10.5「版本切换(蓝绿)」)。
-
-后端下拉只列当前租户 `Ready` 的在线服务;已被其它活跃策略占用的服务置灰并提示。
-
-### 10.5 调整流量 / 灰度操作
-
-- **调整流量** — 在详情页「流量分布」Tab 内完成:加权模式编辑各后端权重并点 `[应用权重]`(实时 `Σ=100` 校验);灰度模式拖灰度百分比 slider(0–100)。
-- **提升(promote)** — 灰度后端权重置 100、稳定后端置 0,并将灰度后端标记为新稳定基线;二次确认展示当前灰度健康对比。
-- **回滚(rollback)** — 灰度百分比归 0,流量全回稳定后端,即时生效。
-- **版本切换(蓝绿)** — 加权模式下把某后端权重一键置 100、其余置 0 = 即时切换。
-
-### 10.6 状态展示规则
-
-UI 标签是 compute `MLTrafficPolicy` phase（`Creating | Pending | Ready | Degraded | Failed | Deleting | Deleted`，见 [compute-service.md §3](../system_design/components/compute-service.md#3-核心模型)）的展示映射：
-
-| compute `phase` | UI 标签 | 视觉 | 含义 |
-| --- | --- | --- | --- |
-| `Ready`(全量分发) | `生效中`(Active) | ● 绿 | 全部后端 `Ready`、权重已下发生效 |
-| `Ready`(灰度模式且灰度百分比 ∈ (0, 100)) | `灰度中`(Progressing) | ◐ 橙 | 灰度放量进行中 |
-| `Pending` / `Degraded` | `未就绪`(NotReady) | ○ 灰描边 | 至少一个成员服务非 `Ready` 或缺失 |
-| `Failed` | `失败`(Failed) | ▲ 红 | 网关派生失败,需人工介入 |
-| `Creating` / `Deleting` | `Creating` / `Deleting` | 灰 + spinner | 派生 / 回收中 |
-| `Deleted` | —(从列表移除) | — | 软删后不再展示 |
-
-后端行内单独显示成员服务 phase(复用 §8.6 在线服务徽章)。
-
-### 10.7 权限可见性
-
-与 §8.7 一致;新建 / 启用 / 禁用 / 调整流量 / 提升 / 回滚 / 删除限 `owner` 或 `tenant-admin`,普通成员只读。
+| `Ready`（全量分发） | 生效中 | ● 绿 |
+| `Ready`（灰度 ∈ (0,100)） | 灰度中 | ◐ 橙 |
+| `Pending` / `Degraded` | 未就绪 | ○ 灰描边 |
+| `Failed` | 失败 | ▲ 红 |
+| Creating / Deleting | 同名 | 灰 + spinner |
 
 ---
 
-## 11. 实验管理 (训练中心 → 实验管理)
+## 11. 实验（训练中心 → 实验）
 
-把多次训练 / 微调运行按实验聚合,记录每次运行的超参与指标,支持横向对比择优。**当前迭代仅保留菜单入口**,字段与交互定稿后落地。隶属当前租户。
+训练特化任务，沿用 §7 自定义任务的 **Job → Run** 两级模型与全部列表 / 详情 / 表单结构，差异如下。隶属当前租户。编排见 [platform.md §4.9](../system_design/components/platform.md#49-实验编排)。
 
-### 11.1 页面入口
+| 维度 | 相对自定义任务（§7）的差异 |
+| --- | --- |
+| 路径 | `/experiments` · `/{name}` · `/{name}/runs/{run}` |
+| 列表 | 同 §7.1，按钮为 `[+ 新建实验]`，行操作含运行 / 详情 / 编辑 |
+| 表单 | 命令支持**超参模板变量**（如 `{{lr}}`），触发运行时可覆盖；其余字段同 §7.4 |
+| 详情头部 | 额外 `[TensorBoard]` 动作；Tabs `[实验信息] [运行历史(Runs)]` |
+| 指标对比 | 经 **TensorBoard** 查看各 Run 训练指标与多 Run 对比（HParams / Scalars），UI 不自建对比视图 |
+| 登记模型 | Run 详情可一键把 checkpoint 登记为模型版本（复用 §9 上传流程） |
 
-| 入口 | 生产路径 | 权限 |
-| --- | --- | --- |
-| 实验列表(占位) | `/experiments` | 本租户成员 |
-
-实验管理尚无详情页 / Run 详情页,导航停在列表占位卡。
-
-### 11.2 占位页
-
-页面渲染「规划中」占位卡(`plan-stub`),给出菜单定位与待落地能力,不含可操作控件:
-
-```
-Page Head:  实验管理。
-            把多次训练 / 微调运行按实验聚合,记录每次运行的超参与指标,支持横向对比择优。
-
-┌ [规划中]  实验跟踪与对比 ───────────────────────────────────┐
-│ 一个实验聚合多次运行,自动记录超参(lr / batch / epochs…)与 │
-│ 指标(loss / accuracy / recall…),可在版本间横向对比、选出   │
-│ 最优并一键注册为模型版本。                                  │
-│   • 实验列表:实验名 · 运行数 · 最佳指标 · 负责人 · 更新时间  │
-│   • 实验详情:运行对比表 + 指标曲线叠加 + 超参 diff          │
-│   • 从「自定义任务」的 Run 关联归档到实验                    │
-│ 字段与交互定稿后落地,当前仅保留入口。                       │
-└─────────────────────────────────────────────────────────────┘
-```
-
-> 实验管理为规划中能力。落地后将复用 §6.0 资源选择链与自定义任务(§7)的 Job → Run 两级模型,详细 UI 字段、列表 / 详情布局与权限矩阵待产品设计定稿后补充本节。
+Run 状态与日志 / 实例 / 事件均同 §7.3 / §7.5。
 
 ---
 
-## 12. 评估任务 (训练中心 → 评估任务)
+## 12. 规划中（数据集 / 评估）
 
-面向模型评测的任务:选模型版本 + 评测数据集 + 指标,运行后查看分数,沿用 Job → Run 两级结构。**当前迭代仅保留菜单入口**,字段与交互定稿后落地。隶属当前租户。
+数据集与评估为规划中能力，本期无菜单入口与页面，仅在此登记定位：
 
-### 12.1 页面入口
+- **数据集** — 资产中心的第三类制品（S3 / RustFS 后端），供任务 / 实验按版本挂载；当前任务以内联数据卷（PVC）承载数据。系统设计已保留底层 `dataset` kind（[artifact-hub.md §4](../system_design/components/artifact-hub.md#4-核心功能)）。
+- **评估** — 沿用 Job → Run 两级结构的训练特化任务：选模型版本 + 评测数据集 + 指标，运行后看分数与对比报告。
 
-| 入口 | 生产路径 | 权限 |
-| --- | --- | --- |
-| 评估列表(占位) | `/evaluations` | 本租户成员 |
-
-评估任务尚无详情页 / Run 详情页,导航停在列表占位卡。
-
-### 12.2 占位页
-
-页面渲染「规划中」占位卡(`plan-stub`),给出菜单定位与待落地能力,不含可操作控件:
-
-```
-Page Head:  评估任务。
-            面向模型评测的任务:选模型版本 + 评测数据集 + 指标,运行后查看分数。沿用 Job → Run 两级结构。
-
-┌ [规划中]  模型评测任务 ─────────────────────────────────────┐
-│ 与「自定义任务」一致采用 Job(可复用配置)→ Run(每次运行)   │
-│ 两级结构,但专门用于评估:指定模型版本、评测数据集与指标集,  │
-│ 运行后产出分数与对比报告。                                  │
-│   • 评估 Job 列表:名称 · 最近运行状态 · 运行数 · 最近得分 · 更新时间 │
-│   • Run 详情:指标得分卡(accuracy / recall@k / BLEU…)+ 样例与日志  │
-│   • 跨 Run / 跨模型版本得分对比                             │
-│ 指标口径与字段定稿后落地,当前仅保留入口。                   │
-└─────────────────────────────────────────────────────────────┘
-```
-
-> 评估任务为规划中能力。落地后将复用 §6.0 资源选择链与自定义任务(§7)的 Job → Run 两级模型,详细 UI 字段、列表 / 详情布局、报告 / 榜单与权限矩阵待产品设计定稿后补充本节。
+落地后复用 §6.0 资源选择链与 §7 的两级模型，UI 字段定稿后补充本节。
 
 ---
 
 ## 13. 相关引用
 
-- [components/platform.md](../system_design/components/platform.md) — 后端业务编排、跨服务调用、PG schema
-- [auth.md](../system_design/auth.md) — RBAC 角色矩阵、JWT 颁发、IdentityProvider
-- [openapi/platform.yaml](../openapi/platform.yaml) — REST API 字段契约
-- [monitoring.md](../system_design/monitoring.md) — Dashboard 与服务指标数据来源
+- [platform.md](../system_design/components/platform.md) — 后端编排、跨服务调用、PG schema
+- [auth.md](../system_design/auth.md) — RBAC、JWT、数据面接入
+- [openapi/platform.yaml](../openapi/platform.yaml) — REST 字段契约
 - [overview.md](../system_design/overview.md) — 系统概念与组件关系
-- [components/compute-service.md](../system_design/components/compute-service.md) — Tenant / Quota / Job / Service / Workspace 字段权威
-- [components/cluster-manager.md](../system_design/components/cluster-manager.md) — ResourcePool / ResourceUnit 字段权威
-- [components/artifact-hub.md](../system_design/components/artifact-hub.md) — 资产中心字段权威
+- [compute-service.md](../system_design/components/compute-service.md) · [cluster-manager.md](../system_design/components/cluster-manager.md) · [artifact-hub.md](../system_design/components/artifact-hub.md) — 字段权威
