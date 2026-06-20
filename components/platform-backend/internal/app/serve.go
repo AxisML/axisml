@@ -1,0 +1,59 @@
+package app
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net/http"
+	"time"
+
+	"github.com/axisml/axisml/components/platform/internal/config"
+	"github.com/axisml/axisml/components/platform/internal/db"
+	"github.com/axisml/axisml/components/platform/pkg/logging"
+)
+
+// Serve boots the API server and the probes server, applying migrations first.
+func Serve(ctx context.Context, cfg config.Config) error {
+	log := logging.New(cfg.LogDevelopment)
+
+	gormDB, err := db.Open(cfg)
+	if err != nil {
+		return err
+	}
+	if err := db.Migrate(gormDB); err != nil {
+		return fmt.Errorf("migrate: %w", err)
+	}
+
+	api, err := NewAPIServer(cfg, gormDB, log)
+	if err != nil {
+		return err
+	}
+	probes := probeServer(cfg.ProbesBindAddress)
+
+	errCh := make(chan error, 2)
+	go func() {
+		log.Info("probes listening", "addr", cfg.ProbesBindAddress)
+		if err := probes.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			errCh <- fmt.Errorf("probes: %w", err)
+		}
+	}()
+	go func() {
+		if err := api.Start(ctx); err != nil {
+			errCh <- fmt.Errorf("api: %w", err)
+		}
+		errCh <- nil
+	}()
+
+	select {
+	case <-ctx.Done():
+	case err := <-errCh:
+		_ = probes.Close()
+		if err != nil {
+			return err
+		}
+	}
+	shutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	_ = probes.Shutdown(shutCtx)
+	return nil
+}

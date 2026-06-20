@@ -13,7 +13,7 @@ AxisML is a Kubernetes-native ML platform. The repo is a monorepo split into:
 - `components/cluster-manager/` — Stateless REST shell over the cluster-scoped `ResourcePool` CRD (CRUD of pools + inline `spec.units[]`) on the K8s API. Admin-tier entry point; no PG, no reconciler, no leader election — Kubernetes etcd is the source of truth.
 - `components/compute-service/` — Go service and business authority for Tenant / Quota / Job / Service / Workspace, with PG as the sole source of truth. Emits `Tenant` / `MLRun` / `MLService` CRs derived from PG and reads back their status; partitioned by namespace (= tenant name). Resolves `(poolName, unitName)` against the `ResourcePool` CRD via Informer (it does not own the ResourcePool/ResourceUnit vocabulary — that's cluster-manager).
 - `components/artifact-hub/` — Go service for the artifact registry. Partitioned by `(namespace, kind, name, version)` directly (no ArtifactRepo wrapper).
-- `components/platform/backend/` — the user-facing API authority and only external entry point, currently a **contract-only Go shell**: `internal/server` declares the request/response DTOs that generate `docs/openapi/platform.yaml` via `cmd/openapi-gen`, while `cmd/platform-backend` serves only health probes + a `501` fallback (real handlers are TODO). `components/platform/frontend/` is still a README-only scaffold.
+- `components/platform-backend/` — the user-facing API authority and only external entry point, currently a **contract-only Go shell**: `internal/server` declares the request/response DTOs that generate `docs/openapi/platform.yaml` via `cmd/openapi-gen`, while `cmd/platform-backend` serves only health probes + a `501` fallback (real handlers are TODO). `components/platform-frontend/` is still a README-only scaffold.
 - Deployment splits into three Helm charts along the Platform / System / Infra responsibility layers (install order infra → system → platform, uninstall reverse):
   - `deploy/helm/axisml-infra/` — Infra layer: third-party infrastructure (Envoy Gateway, RustFS, zot, Koordinator, GPU Operator, kube-prometheus-stack) **plus PostgreSQL**.
   - `deploy/helm/axisml-system/` — System layer: CRDs, both operators, Cluster Manager, Compute Service, Artifact Hub. No PostgreSQL — it consumes the infra DB cross-namespace.
@@ -49,8 +49,8 @@ components/compute-service/                       (production)
 components/compute-service/test/integration/      (integration tests, separate module — envtest + testcontainers Postgres)
 components/artifact-hub/                          (production)
 components/artifact-hub/test/integration/         (integration tests, separate module — testcontainers Postgres + httptest OCI stub)
-components/platform/backend/                       (production — contract-only API shell; generates docs/openapi/platform.yaml)
-components/platform/backend/test/integration/     (integration tests — drives in-process gin via httptest; no envtest/Docker)
+components/platform-backend/                       (production — contract-only API shell; generates docs/openapi/platform.yaml)
+components/platform-backend/test/integration/     (integration tests — drives in-process gin via httptest; no envtest/Docker)
 test/testutil/                                    (shared helpers, no operator deps)
 ```
 
@@ -100,7 +100,7 @@ make build / make image    # binary into bin/, container image
 
 Single test invocation: `go test -run TestTenant_HappyPath ./internal/...` (use `-tags=integration` for integration tests).
 
-Per-component shortcuts are auto-generated from the `COMPONENTS` list in the top-level Makefile. Pattern: `<basename>-{build,image,image-load,test,integration,coverage,fmt,tidy,clean}` (e.g., `make compute-operator-image-load`); API services also get `<basename>-{doc-gen,doc-test}`. **Basename = `notdir` of the path**, so `components/platform/backend` → `backend-test` / `backend-doc-gen` (not `platform-*`). Top-level `make fmt` walks every module via `GO_MODULES` (`gofmt -w` doesn't cross module boundaries on its own).
+Per-component shortcuts are auto-generated from the `COMPONENTS` list in the top-level Makefile. Pattern: `<basename>-{build,image,image-load,test,integration,coverage,fmt,tidy,clean}` (e.g., `make compute-operator-image-load`); API services also get `<basename>-{doc-gen,doc-test}`. **Basename = `notdir` of the path**, so `components/platform-backend` → `platform-backend-test` / `platform-backend-doc-gen`. Top-level `make fmt` walks every module via `GO_MODULES` (`gofmt -w` doesn't cross module boundaries on its own).
 
 Pre-commit hooks (`pre-commit` framework, see `.pre-commit-config.yaml`) are staged:
 - **pre-commit** (fast, <5s): gofmt, basic hygiene, `go vet` on touched modules, `make doc-test` when Go in `cluster-manager` / `compute-service` / `artifact-hub` changes, `make helm-lint` when `deploy/helm/**` changes.

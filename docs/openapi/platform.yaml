@@ -2021,6 +2021,8 @@ components:
           items:
             $ref: '#/components/schemas/Tenant'
           type: array
+        partial:
+          type: boolean
       required:
       - count
       - items
@@ -2300,6 +2302,8 @@ components:
         id:
           format: uuid
           type: string
+        mustChangePassword:
+          type: boolean
         updatedAt:
           format: date-time
           type: string
@@ -2334,6 +2338,7 @@ components:
     UserPatchRequest:
       properties:
         disabled:
+          nullable: true
           type: boolean
         displayName:
           maxLength: 100
@@ -9841,13 +9846,19 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Missing or invalid bearer JWT.
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Authenticated but insufficient role for the requested operation.
         "500":
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Unexpected server error.
-      summary: Search Platform users
+      summary: Search Platform users (system-admin only)
       tags:
       - Users
     post:
@@ -9969,6 +9980,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Missing or invalid bearer JWT.
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Authenticated but insufficient role for the requested operation.
         "404":
           content:
             application/problem+json:
@@ -9982,7 +9999,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Unexpected server error.
-      summary: Get a user by id
+      summary: Get a user by id (system-admin only)
       tags:
       - Users
     patch:

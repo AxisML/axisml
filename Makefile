@@ -155,13 +155,13 @@ COMPONENTS := \
   components/cluster-manager \
   components/compute-service \
   components/artifact-hub \
-  components/platform/backend
-# platform/backend is a contract-only shell today: cmd/platform-backend serves
-# health probes + a 501 fallback, and the API surface is declared as DTOs that
-# generate docs/openapi/platform.yaml. It builds/tests/images like a sibling so
-# the standard tooling carries it as handlers land.
+  components/platform-backend
+# platform-backend runs serve/migrate/bootstrap + the real HTTP API (Auth /
+# Tenants / Quotas / Members wired today; the rest of the declared surface 501s
+# until its handlers land), with the full contract declared as DTOs that
+# generate docs/openapi/platform.yaml. It builds/tests/images like a sibling.
 # Scaffolded components (uncomment as they ship code):
-# COMPONENTS += components/platform/frontend
+# COMPONENTS += components/platform-frontend
 
 # Coverage profiles are produced by each Go module under COMPONENTS.
 COVERAGE_COMPONENTS := \
@@ -170,30 +170,30 @@ COVERAGE_COMPONENTS := \
   components/cluster-manager \
   components/compute-service \
   components/artifact-hub \
-  components/platform/backend
+  components/platform-backend
 
 # Components participating in `make integration-test` and the matching
 # CI integration job. Most suites need either envtest (kubebuilder assets
 # cached via `make setup-envtest`) or testcontainers (Docker daemon), both of
-# which CI provides; platform/backend's suite needs neither (it drives the
-# in-process gin engine via httptest).
+# which CI provides; platform-backend's suite needs only testcontainers Postgres
+# (it drives the in-process gin engine via httptest, no envtest/K8s).
 INTEGRATION_COMPONENTS := \
   components/tenant-operator \
   components/compute-operator \
   components/cluster-manager \
   components/compute-service \
   components/artifact-hub \
-  components/platform/backend
+  components/platform-backend
 
 # Components that ship a public REST API and therefore an OpenAPI spec under
 # docs/openapi/. The two operators have no HTTP surface (they reconcile CRs),
-# so they're excluded. platform/backend is a contract-only shell (no server
-# yet) but still owns docs/openapi/platform.yaml, so it participates in doc-gen.
+# so they're excluded. platform-backend owns docs/openapi/platform.yaml, so it
+# participates in doc-gen.
 DOC_COMPONENTS := \
   components/cluster-manager \
   components/compute-service \
   components/artifact-hub \
-  components/platform/backend
+  components/platform-backend
 
 # Every Go module in the repo (each component + its integration sub-module
 # + shared test/testutil). `go fmt ./...` does not cross module boundaries,
@@ -265,7 +265,7 @@ doc-test: ## Verify OpenAPI specs are in sync with Go request/response types (CI
 # example: `make operator-image`, `make compute-test`.
 #
 # COMPONENT basenames must be unique. If you add a component whose basename
-# would collide (e.g., `components/platform/backend` would clash with any
+# would collide (e.g., `components/platform-backend` would clash with any
 # other `backend`), give it a distinct directory name or rework the mapping.
 define _COMPONENT_SHORTCUTS
 .PHONY: $(notdir $1)-build $(notdir $1)-image $(notdir $1)-image-load $(notdir $1)-test $(notdir $1)-integration $(notdir $1)-coverage $(notdir $1)-integration-coverage $(notdir $1)-coverage-html $(notdir $1)-fmt $(notdir $1)-tidy $(notdir $1)-clean
