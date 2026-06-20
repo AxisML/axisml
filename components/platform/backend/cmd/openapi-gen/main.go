@@ -43,11 +43,12 @@ const (
 	tagQuotas        = "Quotas"
 	tagMembers       = "Members"
 	tagWorkspaces    = "Workspaces"
+	tagExperiments   = "Experiments"
 	tagJobs          = "Jobs"
 	tagMLServices    = "MLServices"
+	tagTrafficPolicy = "TrafficPolicy"
 	tagModels        = "Models"
 	tagImages        = "Images"
-	tagDatasets      = "Datasets"
 	tagResourcePools = "ResourcePools"
 	tagResourceUnits = "ResourceUnits"
 	tagDashboard     = "Dashboard"
@@ -115,8 +116,8 @@ func buildDocument(version string) *openapigen.Document {
 			Version: version,
 			Description: "User-facing entrypoint to AxisML. Aggregates the internal services " +
 				"(cluster-manager / compute / artifacts) and adds platform-native features: " +
-				"identity, RBAC, workspace/job/service orchestration, the model/image/dataset " +
-				"artifact registry, and Prometheus-backed dashboards. All endpoints except " +
+				"identity, RBAC, workspace/job/experiment/service/traffic orchestration, the " +
+				"model/image artifact registry, and Prometheus-backed dashboards. All endpoints except " +
 				"POST /api/v1/auth/login require a bearer JWT issued by Platform; per-endpoint " +
 				"role requirements are noted in each operation. Errors use RFC 7807 " +
 				"application/problem+json bodies.",
@@ -140,11 +141,12 @@ func tags() []openapigen.TagEntry {
 		{Name: tagQuotas, Description: "ElasticQuota sub-resources of a Tenant (per-pool, per-quota)."},
 		{Name: tagMembers, Description: "Per-tenant user ↔ role bindings."},
 		{Name: tagWorkspaces, Description: "Long-running interactive dev containers (jupyter / code-server / ...)."},
+		{Name: tagExperiments, Description: "Training-experiment templates (Platform-owned) and their Runs; isomorphic to Jobs, plus on-demand TensorBoard."},
 		{Name: tagJobs, Description: "Reusable Job templates (Platform-owned definitions) and their Runs (compute MLRuns named <job>-<n>)."},
 		{Name: tagMLServices, Description: "Long-running online inference services."},
+		{Name: tagTrafficPolicy, Description: "Traffic policies fanning one stable entry across member online services (weighted / canary)."},
 		{Name: tagModels, Description: "Model definitions (Platform-owned); versions proxy artifacts (kind=model)."},
 		{Name: tagImages, Description: "Image definitions (Platform-owned); versions proxy artifacts (kind=image)."},
-		{Name: tagDatasets, Description: "Dataset definitions (Platform-owned); versions proxy artifacts (kind=dataset)."},
 		{Name: tagResourcePools, Description: "Cluster-scoped resource pools (admin-only writes; read by all)."},
 		{Name: tagResourceUnits, Description: "Per-pool resource unit specs (admin-only writes; read by all)."},
 		{Name: tagDashboard, Description: "Aggregated overview and Prometheus-backed metrics."},
@@ -186,95 +188,105 @@ func registerSchemas(g *openapigen.Generator) {
 		"ArtifactDefinitionPatchInput":  server.ArtifactDefinitionPatchInput{},
 		"ImageInitiateRequest":          server.ImageInitiateRequest{},
 		"ImageCompleteRequest":          server.ImageCompleteRequest{},
-		"DatasetInitiateRequest":        server.DatasetInitiateRequest{},
-		"DatasetCompleteRequest":        server.DatasetCompleteRequest{},
 		"ResourcePoolCreateRequest":     server.ResourcePoolCreateRequest{},
 		"ResourcePoolPatchRequest":      server.ResourcePoolPatchRequest{},
 		"ResourceUnitCreateRequest":     server.ResourceUnitCreateRequest{},
 		"ResourceUnitPatchRequest":      server.ResourceUnitPatchRequest{},
+		"ExperimentCreateInput":         server.ExperimentCreateInput{},
+		"ExperimentPatchInput":          server.ExperimentPatchInput{},
+		"TensorBoardRequest":            server.TensorBoardRequest{},
+		"TrafficPolicyCreateRequest":    server.TrafficPolicyCreateRequest{},
+		"TrafficPolicyPatchRequest":     server.TrafficPolicyPatchRequest{},
+		"TrafficPolicySplitRequest":     server.TrafficPolicySplitRequest{},
+		"TrafficPolicyBackendInput":     server.TrafficPolicyBackendInput{},
 	} {
 		g.Register(name, v, openapigen.InputMode)
 	}
 
 	// --- Response / nested DTOs (ResponseMode) ---
 	for name, v := range map[string]any{
-		"Problem":                   server.Problem{},
-		"ProblemFieldError":         server.ProblemFieldError{},
-		"HealthStatus":              server.HealthStatus{},
-		"EnvVar":                    server.EnvVar{},
-		"Condition":                 server.Condition{},
-		"LoginResponse":             server.LoginResponse{},
-		"RefreshResponse":           server.RefreshResponse{},
-		"UserTenantRole":            server.UserTenantRole{},
-		"MeResponse":                server.MeResponse{},
-		"User":                      server.User{},
-		"UserSummary":               server.UserSummary{},
-		"UserSummaryList":           server.UserSummaryList{},
-		"Quota":                     server.Quota{},
-		"QuotaStatus":               server.QuotaStatus{},
-		"QuotaList":                 server.QuotaList{},
-		"Namespace":                 server.Namespace{},
-		"SecretSourceRef":           server.SecretSourceRef{},
-		"ConfigMapSourceRef":        server.ConfigMapSourceRef{},
-		"ImagePullSecretInit":       server.ImagePullSecretInit{},
-		"SecretInit":                server.SecretInit{},
-		"ConfigMapInit":             server.ConfigMapInit{},
-		"ServiceAccountInit":        server.ServiceAccountInit{},
-		"InitResources":             server.InitResources{},
-		"Tenant":                    server.Tenant{},
-		"TenantSpec":                server.TenantSpec{},
-		"TenantStatus":              server.TenantStatus{},
-		"TenantList":                server.TenantList{},
-		"Member":                    server.Member{},
-		"MemberList":                server.MemberList{},
-		"WorkspaceLifecycle":        server.WorkspaceLifecycle{},
-		"WorkspacePersistentVolume": server.WorkspacePersistentVolume{},
-		"WorkspaceEndpoint":         server.WorkspaceEndpoint{},
-		"Workspace":                 server.Workspace{},
-		"WorkspaceList":             server.WorkspaceList{},
-		"WorkspaceAccess":           server.WorkspaceAccess{},
-		"Backend":                   server.Backend{},
-		"RoleTemplate":              server.RoleTemplate{},
-		"MLRunRole":                 server.MLRunRole{},
-		"MLRunRoleStatus":           server.MLRunRoleStatus{},
-		"RunPolicy":                 server.RunPolicy{},
-		"RunView":                   server.RunView{},
-		"MLRunSpec":                 server.MLRunSpec{},
-		"RunList":                   server.RunList{},
-		"ArtifactRef":               server.ArtifactRef{},
-		"JobSpec":                   server.JobSpec{},
-		"JobView":                   server.JobView{},
-		"JobList":                   server.JobList{},
-		"MLServiceRouteAuth":        server.MLServiceRouteAuth{},
-		"MLServiceRouteRateLimit":   server.MLServiceRouteRateLimit{},
-		"MLServiceRoute":            server.MLServiceRoute{},
-		"MLService":                 server.MLService{},
-		"MLServiceList":             server.MLServiceList{},
-		"MetricPoint":               server.MetricPoint{},
-		"MetricSeries":              server.MetricSeries{},
-		"Model":                     server.Model{},
-		"ModelList":                 server.ModelList{},
-		"ModelInitiateResponse":     server.ModelInitiateResponse{},
-		"ArtifactDefinitionView":    server.ArtifactDefinitionView{},
-		"ArtifactDefinitionList":    server.ArtifactDefinitionList{},
-		"ArtifactResolveResponse":   server.ArtifactResolveResponse{},
-		"Image":                     server.Image{},
-		"ImageList":                 server.ImageList{},
-		"ImageInitiateResponse":     server.ImageInitiateResponse{},
-		"Dataset":                   server.Dataset{},
-		"DatasetList":               server.DatasetList{},
-		"DatasetInitiateResponse":   server.DatasetInitiateResponse{},
-		"ResourcePool":              server.ResourcePool{},
-		"ResourcePoolList":          server.ResourcePoolList{},
-		"ResourceUnit":              server.ResourceUnit{},
-		"ResourceUnitList":          server.ResourceUnitList{},
-		"Pod":                       server.Pod{},
-		"PodList":                   server.PodList{},
-		"Event":                     server.Event{},
-		"EventList":                 server.EventList{},
-		"DashboardOverview":         server.DashboardOverview{},
-		"AuditLog":                  server.AuditLog{},
-		"AuditLogList":              server.AuditLogList{},
+		"Problem":                 server.Problem{},
+		"ProblemFieldError":       server.ProblemFieldError{},
+		"HealthStatus":            server.HealthStatus{},
+		"EnvVar":                  server.EnvVar{},
+		"Condition":               server.Condition{},
+		"LoginResponse":           server.LoginResponse{},
+		"RefreshResponse":         server.RefreshResponse{},
+		"UserTenantRole":          server.UserTenantRole{},
+		"MeResponse":              server.MeResponse{},
+		"User":                    server.User{},
+		"UserSummary":             server.UserSummary{},
+		"UserSummaryList":         server.UserSummaryList{},
+		"Quota":                   server.Quota{},
+		"QuotaUnit":               server.QuotaUnit{},
+		"QuotaUnitStatus":         server.QuotaUnitStatus{},
+		"QuotaStatus":             server.QuotaStatus{},
+		"QuotaList":               server.QuotaList{},
+		"Namespace":               server.Namespace{},
+		"SecretSourceRef":         server.SecretSourceRef{},
+		"ConfigMapSourceRef":      server.ConfigMapSourceRef{},
+		"ImagePullSecretInit":     server.ImagePullSecretInit{},
+		"SecretInit":              server.SecretInit{},
+		"ConfigMapInit":           server.ConfigMapInit{},
+		"ServiceAccountInit":      server.ServiceAccountInit{},
+		"InitResources":           server.InitResources{},
+		"Tenant":                  server.Tenant{},
+		"TenantSpec":              server.TenantSpec{},
+		"TenantStatus":            server.TenantStatus{},
+		"TenantList":              server.TenantList{},
+		"Member":                  server.Member{},
+		"MemberList":              server.MemberList{},
+		"WorkspaceLifecycle":      server.WorkspaceLifecycle{},
+		"WorkspaceVolume":         server.WorkspaceVolume{},
+		"WorkspaceEndpoint":       server.WorkspaceEndpoint{},
+		"Workspace":               server.Workspace{},
+		"WorkspaceList":           server.WorkspaceList{},
+		"WorkspaceAccess":         server.WorkspaceAccess{},
+		"Backend":                 server.Backend{},
+		"RoleTemplate":            server.RoleTemplate{},
+		"MLRunRole":               server.MLRunRole{},
+		"MLRunRoleStatus":         server.MLRunRoleStatus{},
+		"RunPolicy":               server.RunPolicy{},
+		"RunView":                 server.RunView{},
+		"MLRunSpec":               server.MLRunSpec{},
+		"RunList":                 server.RunList{},
+		"ArtifactRef":             server.ArtifactRef{},
+		"JobSpec":                 server.JobSpec{},
+		"JobView":                 server.JobView{},
+		"JobList":                 server.JobList{},
+		"ServicePort":             server.ServicePort{},
+		"MLServiceRoute":          server.MLServiceRoute{},
+		"MLService":               server.MLService{},
+		"MLServiceList":           server.MLServiceList{},
+		"MetricPoint":             server.MetricPoint{},
+		"MetricSeries":            server.MetricSeries{},
+		"Model":                   server.Model{},
+		"ModelList":               server.ModelList{},
+		"ModelInitiateResponse":   server.ModelInitiateResponse{},
+		"ArtifactDefinitionView":  server.ArtifactDefinitionView{},
+		"ArtifactDefinitionList":  server.ArtifactDefinitionList{},
+		"ArtifactResolveResponse": server.ArtifactResolveResponse{},
+		"Image":                   server.Image{},
+		"ImageList":               server.ImageList{},
+		"ImageInitiateResponse":   server.ImageInitiateResponse{},
+		"ExperimentView":          server.ExperimentView{},
+		"ExperimentList":          server.ExperimentList{},
+		"TensorBoard":             server.TensorBoard{},
+		"TrafficPolicyEndpoint":   server.TrafficPolicyEndpoint{},
+		"TrafficPolicyBackend":    server.TrafficPolicyBackend{},
+		"TrafficPolicy":           server.TrafficPolicy{},
+		"TrafficPolicyList":       server.TrafficPolicyList{},
+		"ResourcePool":            server.ResourcePool{},
+		"ResourcePoolList":        server.ResourcePoolList{},
+		"ResourceUnit":            server.ResourceUnit{},
+		"ResourceUnitList":        server.ResourceUnitList{},
+		"Pod":                     server.Pod{},
+		"PodList":                 server.PodList{},
+		"Event":                   server.Event{},
+		"EventList":               server.EventList{},
+		"DashboardOverview":       server.DashboardOverview{},
+		"AuditLog":                server.AuditLog{},
+		"AuditLogList":            server.AuditLogList{},
 	} {
 		g.Register(name, v, openapigen.ResponseMode)
 	}
@@ -288,11 +300,17 @@ func registerSchemas(g *openapigen.Generator) {
 	g.Set("RunPhase", enumSchema(server.RunPhaseValues,
 		"Run (compute MLRun) phase. The active (non-terminal) phases — Creating / Pending / Running / Canceling — block Job-definition deletion."))
 	g.Set("MLServicePhase", enumSchema(server.MLServicePhaseValues, ""))
-	g.Set("MLServiceRouteAuthType", enumSchema(server.MLServiceRouteAuthTypeValues, ""))
 	g.Set("MLServiceMetricName", enumSchema(server.MLServiceMetricNameValues, ""))
+	g.Set("WorkloadMetricName", enumSchema(server.WorkloadMetricNameValues, "Run / workload resource metric."))
 	g.Set("ModelStatus", enumSchema(server.ArtifactStatusValues, "Mirrors artifacts ArtifactStatus for kind=model."))
 	g.Set("ImageStatus", enumSchema(server.ArtifactStatusValues, "Mirrors artifacts ArtifactStatus for kind=image."))
-	g.Set("DatasetStatus", enumSchema(server.ArtifactStatusValues, "Mirrors artifacts ArtifactStatus for kind=dataset."))
+	g.Set("ImagePurpose", enumSchema(server.ImagePurposeValues, "Image definition intended use (list filter)."))
+	g.Set("ArtifactSource", enumSchema(server.ArtifactSourceValues, "How an artifact version was added."))
+	g.Set("RemoteSourceKind", enumSchema(server.RemoteSourceKindValues, "Backing store of an externally-registered model version."))
+	g.Set("TrafficPolicyMode", enumSchema(server.TrafficPolicyModeValues, ""))
+	g.Set("TrafficPolicyBackendRole", enumSchema(server.TrafficPolicyBackendRoleValues, ""))
+	g.Set("TrafficPolicyPhase", enumSchema(server.TrafficPolicyPhaseValues, ""))
+	g.Set("TensorBoardPhase", enumSchema(server.TensorBoardPhaseValues, ""))
 
 	// --- Named maps / free-form specs (referenced via $ref) ---
 	g.Set("StringMap", &openapigen.Schema{Type: "object", AdditionalProperties: &openapigen.Schema{Type: "string"}})
@@ -308,7 +326,6 @@ func registerSchemas(g *openapigen.Generator) {
 	})
 	g.Set("ModelSpec", freeFormSpec("Artifact-side spec for kind=model; pass-through to artifacts."))
 	g.Set("ImageSpec", freeFormSpec("Artifact-side spec for kind=image; pass-through to artifacts."))
-	g.Set("DatasetSpec", freeFormSpec("Artifact-side spec for kind=dataset; pass-through to artifacts."))
 }
 
 func enumSchema(values []string, desc string) *openapigen.Schema {
@@ -332,19 +349,23 @@ var (
 	tToleration  = reflect.TypeOf(server.Toleration(nil))
 	tModelSpec   = reflect.TypeOf(server.ModelSpec(nil))
 	tImageSpec   = reflect.TypeOf(server.ImageSpec(nil))
-	tDatasetSpec = reflect.TypeOf(server.DatasetSpec(nil))
 
-	tRoleName               = reflect.TypeOf(server.RoleName(""))
-	tTenantPhase            = reflect.TypeOf(server.TenantPhase(""))
-	tWorkspacePhase         = reflect.TypeOf(server.WorkspacePhase(""))
-	tWorkspaceDesiredState  = reflect.TypeOf(server.WorkspaceDesiredState(""))
-	tRunPhase               = reflect.TypeOf(server.RunPhase(""))
-	tMLServicePhase         = reflect.TypeOf(server.MLServicePhase(""))
-	tMLServiceRouteAuthType = reflect.TypeOf(server.MLServiceRouteAuthType(""))
-	tMLServiceMetricName    = reflect.TypeOf(server.MLServiceMetricName(""))
-	tModelStatus            = reflect.TypeOf(server.ModelStatus(""))
-	tImageStatus            = reflect.TypeOf(server.ImageStatus(""))
-	tDatasetStatus          = reflect.TypeOf(server.DatasetStatus(""))
+	tRoleName              = reflect.TypeOf(server.RoleName(""))
+	tTenantPhase           = reflect.TypeOf(server.TenantPhase(""))
+	tWorkspacePhase        = reflect.TypeOf(server.WorkspacePhase(""))
+	tWorkspaceDesiredState = reflect.TypeOf(server.WorkspaceDesiredState(""))
+	tRunPhase              = reflect.TypeOf(server.RunPhase(""))
+	tMLServicePhase        = reflect.TypeOf(server.MLServicePhase(""))
+	tMLServiceMetricName   = reflect.TypeOf(server.MLServiceMetricName(""))
+	tModelStatus           = reflect.TypeOf(server.ModelStatus(""))
+	tImageStatus           = reflect.TypeOf(server.ImageStatus(""))
+
+	tArtifactSource           = reflect.TypeOf(server.ArtifactSource(""))
+	tRemoteSourceKind         = reflect.TypeOf(server.RemoteSourceKind(""))
+	tTrafficPolicyMode        = reflect.TypeOf(server.TrafficPolicyMode(""))
+	tTrafficPolicyBackendRole = reflect.TypeOf(server.TrafficPolicyBackendRole(""))
+	tTrafficPolicyPhase       = reflect.TypeOf(server.TrafficPolicyPhase(""))
+	tTensorBoardPhase         = reflect.TypeOf(server.TensorBoardPhase(""))
 
 	tHealthState     = reflect.TypeOf(server.HealthState(""))
 	tConditionStatus = reflect.TypeOf(server.ConditionStatus(""))
@@ -354,7 +375,6 @@ var (
 	tArtifactKind    = reflect.TypeOf(server.ArtifactKind(""))
 	tStorageKind     = reflect.TypeOf(server.StorageKind(""))
 	tDefinitionKind  = reflect.TypeOf(server.DefinitionKind(""))
-	tVisibility      = reflect.TypeOf(server.Visibility(""))
 	tPodPhase        = reflect.TypeOf(server.PodPhase(""))
 	tEventType       = reflect.TypeOf(server.EventType(""))
 	tAuditResult     = reflect.TypeOf(server.AuditResult(""))
@@ -383,8 +403,6 @@ func wellKnown(t reflect.Type) *openapigen.Schema {
 		return openapigen.Ref("ModelSpec")
 	case tImageSpec:
 		return openapigen.Ref("ImageSpec")
-	case tDatasetSpec:
-		return openapigen.Ref("DatasetSpec")
 
 	case tRoleName:
 		return openapigen.Ref("RoleName")
@@ -398,16 +416,25 @@ func wellKnown(t reflect.Type) *openapigen.Schema {
 		return openapigen.Ref("RunPhase")
 	case tMLServicePhase:
 		return openapigen.Ref("MLServicePhase")
-	case tMLServiceRouteAuthType:
-		return openapigen.Ref("MLServiceRouteAuthType")
 	case tMLServiceMetricName:
 		return openapigen.Ref("MLServiceMetricName")
 	case tModelStatus:
 		return openapigen.Ref("ModelStatus")
 	case tImageStatus:
 		return openapigen.Ref("ImageStatus")
-	case tDatasetStatus:
-		return openapigen.Ref("DatasetStatus")
+
+	case tArtifactSource:
+		return openapigen.Ref("ArtifactSource")
+	case tRemoteSourceKind:
+		return openapigen.Ref("RemoteSourceKind")
+	case tTrafficPolicyMode:
+		return openapigen.Ref("TrafficPolicyMode")
+	case tTrafficPolicyBackendRole:
+		return openapigen.Ref("TrafficPolicyBackendRole")
+	case tTrafficPolicyPhase:
+		return openapigen.Ref("TrafficPolicyPhase")
+	case tTensorBoardPhase:
+		return openapigen.Ref("TensorBoardPhase")
 
 	case tHealthState:
 		return enumSchema(server.HealthStateValues, "")
@@ -425,8 +452,6 @@ func wellKnown(t reflect.Type) *openapigen.Schema {
 		return enumSchema(server.StorageKindValues, "")
 	case tDefinitionKind:
 		return enumSchema(server.DefinitionKindValues, "")
-	case tVisibility:
-		return enumSchema(server.VisibilityValues, "")
 	case tPodPhase:
 		return enumSchema(server.PodPhaseValues, "")
 	case tEventType:

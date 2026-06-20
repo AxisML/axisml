@@ -148,7 +148,7 @@ When adding a new handler:
 
 ## OpenAPI specs are generated, not hand-written
 
-Four components own a generated spec under `docs/openapi/<component>.yaml`, produced from their Go request/response DTOs: `cluster-manager`, `compute-service`, `artifact-hub`, and `platform/backend` (a server-less contract shell that nonetheless owns `docs/openapi/platform.yaml`). The two operators have no HTTP surface and are excluded. (`docs/system_design/apis/*.yaml` is a separate, hand-maintained legacy spec set being retired in favor of `docs/openapi/`.)
+Four components own a generated spec under `docs/openapi/<component>.yaml`, produced from their Go request/response DTOs: `cluster-manager`, `compute-service`, `artifact-hub`, and `platform/backend` (a server-less contract shell that nonetheless owns `docs/openapi/platform.yaml`). The two operators have no HTTP surface and are excluded. The generated specs under `docs/openapi/` are the single source of truth for HTTP API contracts.
 
 - `make doc-gen` (or `make <basename>-doc-gen`) regenerates the spec(s).
 - `make doc-test` (or `make <basename>-doc-test`) verifies that the spec matches the current Go types — this is the CI guard and the pre-commit hook described above.

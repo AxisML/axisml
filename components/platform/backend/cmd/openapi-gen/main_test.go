@@ -92,14 +92,14 @@ func TestEveryOperationIsTagged(t *testing.T) {
 }
 
 // TestExpectedCounts pins the surface size so an accidental drop of a route or
-// schema is caught. 69 paths / 126 component schemas mirror the design spec.
+// schema is caught.
 func TestExpectedCounts(t *testing.T) {
 	doc := buildDocument("test")
-	if got := len(doc.Paths); got != 69 {
-		t.Errorf("path count = %d, want 69", got)
+	if got := len(doc.Paths); got != 84 {
+		t.Errorf("path count = %d, want 84", got)
 	}
-	if got := len(doc.Components.Schemas); got != 126 {
-		t.Errorf("schema count = %d, want 126", got)
+	if got := len(doc.Components.Schemas); got != 141 {
+		t.Errorf("schema count = %d, want 141", got)
 	}
 }
 
@@ -109,7 +109,7 @@ func TestKeySchemasPresent(t *testing.T) {
 	doc := buildDocument("test")
 	for _, name := range []string{
 		"Problem", "Tenant", "Workspace", "JobView", "RunView", "MLService",
-		"Model", "Image", "Dataset", "ResourcePool", "AuditLog",
+		"Model", "Image", "ExperimentView", "TrafficPolicy", "ResourcePool", "AuditLog",
 		"StringMap", "ResourceMap", "ModelSpec",
 	} {
 		if _, ok := doc.Components.Schemas[name]; !ok {
@@ -139,13 +139,19 @@ func TestRouteCoverage(t *testing.T) {
 		{"post", "/api/v1/jobs/{name}/runs/{run}/cancel"},
 		{"post", "/api/v1/mlservices/{name}/scale"},
 		{"get", "/api/v1/mlservices/{name}/metrics"},
+		{"post", "/api/v1/tenants/{name}/suspend"},
+		{"post", "/api/v1/experiments"},
+		{"post", "/api/v1/experiments/{name}/runs"},
+		{"post", "/api/v1/experiments/{name}/tensorboard"},
+		{"post", "/api/v1/trafficpolicies"},
+		{"post", "/api/v1/trafficpolicies/{name}/split"},
+		{"post", "/api/v1/trafficpolicies/{name}/promote"},
 		{"post", "/api/v1/models/{tenant}/{name}/versions"},
 		{"post", "/api/v1/models/{tenant}/{name}/versions/{version}/complete"},
 		{"get", "/api/v1/images/{tenant}/{name}/versions/{version}/resolve"},
-		{"post", "/api/v1/datasets/{tenant}/{name}"},
-		{"post", "/api/v1/resource-pools/{pool}/units"},
+		{"post", "/api/v1/resourcepools/{pool}/units"},
 		{"get", "/api/v1/dashboard/overview"},
-		{"get", "/api/v1/audit-logs"},
+		{"get", "/api/v1/auditlogs"},
 	}
 	for _, w := range want {
 		item, ok := doc.Paths[w.path]

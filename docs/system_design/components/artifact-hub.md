@@ -65,13 +65,14 @@
 - `namespace` 是 tenant 标识符（= compute `tenants.name`），由 Platform 透传；Artifacts 不解析、不做存在性校验，仅作为不透明分区键使用。`axisml-system` 是平台内置 tenant，承载 `visibility=public` 全局可见制品。
 - `visibility` 枚举：`tenant`（默认，仅本 namespace 内可见）/ `public`（全局可见；仅允许在 `axisml-system` 内置 namespace 下创建，由调用方 Platform 做 RBAC 兜底）。
 - 状态机集合：`Uploading` / `Ready` / `Failed` / `Deleting` / `Deleted`（详见 [§6](#6-接口契约)）。
+- `source` 枚举：`webUpload`（直传）/ `oras`（model CLI 推送）/ `dockerPush`（image 本机推送）/ `external`（登记远端、免上传，见 [§5.1](#51-写路径两阶段提交)）——记录版本加入方式，进入 `Ready` 后冻结。
 - 扩展元数据 `labels` / `annotations` 双字段语义对齐 [database.md §1.6](../database.md#16-扩展元数据-labels--annotations)；artifacts 无 CR，扩展位天然只落 PG。
 
-字段级 schema 见 [database.md §3.1](../database.md#31-artifacts-表)；spec 子字段见 [apis/artifact-hub.yaml](../apis/artifact-hub.yaml)。
+字段级 schema 见 [database.md §3.1](../database.md#31-artifacts-表)；spec 子字段见 [openapi/artifact-hub.yaml](../../openapi/artifact-hub.yaml)。
 
 ## 4. 核心功能
 
-写路径统一见 [§5.1](#51-写路径两阶段提交)；读路径统一见 [§5.2](#52-读路径resolve)。完整 spec 字段以 [apis/artifact-hub.yaml](../apis/artifact-hub.yaml) 为准。
+写路径统一见 [§5.1](#51-写路径两阶段提交)；读路径统一见 [§5.2](#52-读路径resolve)。完整 spec 字段以 [openapi/artifact-hub.yaml](../../openapi/artifact-hub.yaml) 为准。
 
 ### 4.1 Model
 
@@ -82,6 +83,7 @@ OCI artifact，承载训练好的模型权重。
 | StorageKind | `oci`（zot） |
 | 必填 spec | `framework`（`pytorch` / `tensorflow` / `onnx` / `safetensors` / `gguf` / `custom`）、`format`（OCI artifact media type） |
 | URI 模板 | `<oci-host>/namespaces/<ns>/models/<name>:<version>`；ManifestType `application/vnd.oci.image.manifest.v1+json`，`artifactType` 承载 `spec.format` |
+| 外部登记 | `source=external` 时以 `remoteUri` + `remoteSourceKind`（`s3` / `oci` / `http` / `hf` / `custom`）登记远端权重、免上传（见 [§5.1](#51-写路径两阶段提交)） |
 | 主要消费方 | mlservice handler → KServe `predictor.storageUri`（补 `oci://`）或 native env `AXISML_MODEL_URI` |
 
 ### 4.2 Dataset
@@ -102,8 +104,9 @@ OCI 容器镜像，承载训练 / 推理 / 开发运行时；阶段 2 由调用�
 | 项 | 值 |
 | --- | --- |
 | StorageKind | `oci`（zot） |
-| 必填 spec | `purpose`（`training` / `inference` / `dev`） |
+| 必填 spec | `purpose`（`training` / `inference` / `workspace` / `custom`） |
 | URI 模板 | `<oci-host>/namespaces/<ns>/images/<name>:<version>` |
+| 外部登记 | `source=external` 时以 `sourceImageRef`（远端镜像地址）同步远端镜像、免本机 push |
 | 主要消费方 | mlrun / mlservice handler 用 URI 作为 Pod `spec.containers[].image`；imagePullSecret 由 tenant-operator 落地的 per-tenant ServiceAccount 默认携带，operator 不显式拼 secret 名 |
 
 ## 5. 关键机制
@@ -131,6 +134,8 @@ OCI 容器镜像，承载训练 / 推理 / 开发运行时；阶段 2 由调用�
 - 重复 initiate 同 `(namespace, kind, name, version)`：未过期 `Uploading` 返原凭证；其他终态均 409（同 version 不可复活，复用先 DELETE 旧行）。
 - 重复 complete：`Uploading` 正常推进；`Ready` 且 digest 一致 → 200，不一致 → 409 `DigestMismatch`；其他状态 → 409。
 - 未在 24h 内 complete 的 `Uploading` 由 GC 转 `Failed` 并清理后端残留 blob。
+
+**外部登记（`source=external`）**：initiate 给定远端来源（model `remoteUri` + `remoteSourceKind`；image `sourceImageRef`）即登记，不返回上传凭证、无客户端 push 阶段；Artifacts 异步从远端拉取 / 同步到 zot / RustFS，完成后凭后端 HEAD 通过转 `Ready`（拉取失败转 `Failed`，由 GC 按同档清理）。
 
 ### 5.2 读路径：resolve
 
@@ -168,14 +173,14 @@ GC worker（leader-only，每 5 分钟一轮）扫描 PG 三类谓词：
 
 | 类别 | 内容 | 引用 |
 | --- | --- | --- |
-| 对外 REST | `/api/v1/namespaces/{ns}/{kindPlural}/{name}[/{version}[/{complete,resolve}]]`；版本级 `GET` / `PATCH` / `DELETE` 同前缀。`kindPlural` 为 `ArtifactKind` 的 URL 复数形式（`model`↔`models`、`dataset`↔`datasets`、`image`↔`images`） | [apis/artifact-hub.yaml](../apis/artifact-hub.yaml) `Artifacts` tag |
+| 对外 REST | `/api/v1/namespaces/{ns}/{kindPlural}/{name}[/{version}[/{complete,resolve}]]`；版本级 `GET` / `PATCH` / `DELETE` 同前缀。`kindPlural` 为 `ArtifactKind` 的 URL 复数形式（`model`↔`models`、`dataset`↔`datasets`、`image`↔`images`） | [openapi/artifact-hub.yaml](../../openapi/artifact-hub.yaml) `Artifacts` tag |
 | Handler 接口 | 见下表 | — |
 | 身份头 | 调用方注入 `X-Axisml-User`，本服务仅做审计 | [auth.md §6](../auth.md#6-下游身份透传) |
 | 列表查询 | list 端点支持 `?labelSelector=` K8s grammar，可按任意 `labels` 过滤 | [database.md §1.6](../database.md#16-扩展元数据-labels--annotations) |
 | 错误格式 | HTTP 标准状态码 + RFC 7807 problem+json | — |
 | 写后语义 | initiate 在 PG 提交后返回上传凭证；Ready 由 complete 推进，调用方通过 GET 观察 status；PATCH 是纯 PG mutation，立即可读 | — |
 
-**PATCH 可变字段**（任何非终态状态生效）：`displayName` / `description` / `labels` / `annotations` 四项。其它字段一律不可变（含 `visibility`：创建后不可变）；submitting any other field returns `400 ImmutableField`。`Deleting` / `Deleted` 行 PATCH 返 `409 ArtifactTerminal`。`labels` / `annotations` 按整体 map 替换语义（无 per-entry 合并）；缺省 key 保持原值。详见 [apis/artifact-hub.yaml `updateArtifact`](../apis/artifact-hub.yaml)。
+**PATCH 可变字段**（任何非终态状态生效）：`displayName` / `description` / `labels` / `annotations` 四项。其它字段一律不可变（含 `visibility`：创建后不可变）；submitting any other field returns `400 ImmutableField`。`Deleting` / `Deleted` 行 PATCH 返 `409 ArtifactTerminal`。`labels` / `annotations` 按整体 map 替换语义（无 per-entry 合并）；缺省 key 保持原值。详见 [openapi/artifact-hub.yaml `updateArtifact`](../../openapi/artifact-hub.yaml)。
 
 **ArtifactHandler 接口**（编译期注册，key=`Kind()`）：
 
@@ -233,7 +238,7 @@ Ready / Failed ──(DELETE)──▶ Deleting ──(GCBackend 成功)──�
 - [deployment.md](../deployment.md) — Helm chart 与部署形态
 - [monitoring.md](../monitoring.md) — Metrics 与告警
 - [infra.md](../infra.md) — zot / RustFS / PostgreSQL 基础设施
-- [apis/artifact-hub.yaml](../apis/artifact-hub.yaml) — REST API 字段契约
+- [openapi/artifact-hub.yaml](../../openapi/artifact-hub.yaml) — REST API 字段契约
 - [tenant-operator.md](tenant-operator.md) — per-tenant SA + 默认 ImagePullSecret / Secret 落地契约（`resolve?usage=inspect` 的隐式凭证来源）
 - [compute-operator.md](compute-operator.md) — mlrun / mlservice handler 作为 resolve 消费方
 - [platform.md](platform.md) — 工作区到 Artifacts namespace 的映射

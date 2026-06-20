@@ -2,41 +2,50 @@ package server
 
 import "time"
 
-// Quota is one ElasticQuota slot within a (tenant, pool).
+// QuotaUnit allocates a quantity of one named resource unit within a pool.
+type QuotaUnit struct {
+	UnitName string `json:"unitName" binding:"required,dns1123,max=40"`
+	Quantity int    `json:"quantity" binding:"min=0"`
+}
+
+// Quota is a tenant's resource allocation in one pool, expressed as counts of
+// named resource units (product model: pool -> resource unit x quantity).
+// Platform derives the backing Koordinator ElasticQuota from
+// sum(unit.requests * quantity).
 type Quota struct {
-	Pool string      `json:"pool" binding:"dns1123"`
-	Name string      `json:"name" binding:"dns1123"`
-	Min  ResourceMap `json:"min,omitempty"`
-	Max  ResourceMap `json:"max"`
+	Pool  string      `json:"pool" binding:"dns1123,max=40"`
+	Units []QuotaUnit `json:"units"`
 }
 
-// QuotaStatus is the live status of one quota.
+// QuotaUnitStatus is the live usage of one allocated resource unit.
+type QuotaUnitStatus struct {
+	UnitName string `json:"unitName"`
+	Quantity int    `json:"quantity"`
+	Used     int    `json:"used,omitempty"`
+}
+
+// QuotaStatus is the live usage of one pool's quota.
 type QuotaStatus struct {
-	Pool             string      `json:"pool"`
-	Name             string      `json:"name"`
-	Used             ResourceMap `json:"used,omitempty"`
-	ElasticQuotaName string      `json:"elasticQuotaName,omitempty"`
+	Pool  string            `json:"pool"`
+	Units []QuotaUnitStatus `json:"units,omitempty"`
 }
 
-// QuotaList is a list of quotas plus their live statuses.
+// QuotaList is a tenant's per-pool quotas plus their live statuses.
 type QuotaList struct {
 	Items    []Quota       `json:"items"`
 	Statuses []QuotaStatus `json:"statuses,omitempty"`
 	Count    int           `json:"count" binding:"min=0"`
 }
 
-// QuotaCreateRequest adds a quota to a tenant.
+// QuotaCreateRequest sets a pool's quota for a tenant.
 type QuotaCreateRequest struct {
-	Pool string      `json:"pool" binding:"required"`
-	Name string      `json:"name" binding:"required"`
-	Min  ResourceMap `json:"min,omitempty"`
-	Max  ResourceMap `json:"max" binding:"required"`
+	Pool  string      `json:"pool" binding:"required,dns1123,max=40"`
+	Units []QuotaUnit `json:"units" binding:"required"`
 }
 
-// QuotaPatchRequest patches a quota's min/max only.
+// QuotaPatchRequest replaces a pool quota's unit allocations.
 type QuotaPatchRequest struct {
-	Min ResourceMap `json:"min,omitempty"`
-	Max ResourceMap `json:"max,omitempty"`
+	Units []QuotaUnit `json:"units" binding:"required"`
 }
 
 // Namespace is a tenant-owned Kubernetes Namespace declaration.
@@ -134,32 +143,26 @@ type TenantList struct {
 	ContinueToken string   `json:"continueToken,omitempty"`
 }
 
-// TenantCreateRequest is the body of POST /tenants.
+// TenantCreateRequest is the body of POST /tenants. InitialAdmin seeds the
+// first tenant-admin member, by email or username.
 type TenantCreateRequest struct {
-	Name        string     `json:"name" binding:"required,dns1123,min=3,max=40"`
-	Namespace   string     `json:"namespace" binding:"required,max=100"`
-	DisplayName string     `json:"displayName" binding:"required,min=1,max=100"`
-	Description string     `json:"description,omitempty" binding:"max=1000"`
-	Labels      StringMap  `json:"labels,omitempty"`
-	Annotations StringMap  `json:"annotations,omitempty"`
-	Spec        TenantSpec `json:"spec" binding:"required"`
+	Name         string     `json:"name" binding:"required,dns1123,min=3,max=40"`
+	DisplayName  string     `json:"displayName" binding:"required,min=1,max=100"`
+	Description  string     `json:"description,omitempty" binding:"max=1000"`
+	InitialAdmin string     `json:"initialAdmin" binding:"required"`
+	Labels       StringMap  `json:"labels,omitempty"`
+	Annotations  StringMap  `json:"annotations,omitempty"`
+	Spec         TenantSpec `json:"spec" binding:"required"`
 }
 
 // TenantPatchRequest is the JSON Merge Patch body of PATCH /tenants/{name}.
+// Only display metadata is editable here; quotas are managed via the quota
+// sub-resource endpoints.
 type TenantPatchRequest struct {
-	Namespace   string    `json:"namespace,omitempty" binding:"max=100"`
 	DisplayName string    `json:"displayName,omitempty" binding:"min=1,max=100"`
 	Description string    `json:"description,omitempty" binding:"max=1000"`
 	Labels      StringMap `json:"labels,omitempty"`
 	Annotations StringMap `json:"annotations,omitempty"`
-	Spec        struct {
-		Namespace struct {
-			Labels      StringMap `json:"labels,omitempty"`
-			Annotations StringMap `json:"annotations,omitempty"`
-		} `json:"namespace,omitempty"`
-		Quotas        []Quota       `json:"quotas,omitempty"`
-		InitResources InitResources `json:"initResources,omitempty"`
-	} `json:"spec,omitempty"`
 }
 
 // Member is a user↔role binding within a tenant.
@@ -179,9 +182,10 @@ type MemberList struct {
 	ContinueToken string   `json:"continueToken,omitempty"`
 }
 
-// MemberCreateRequest binds a user to a tenant role.
+// MemberCreateRequest binds a user to a tenant role. Account is the invitee's
+// email or username (invites an existing platform user).
 type MemberCreateRequest struct {
-	UserID   UUID           `json:"userId" binding:"required"`
+	Account  string         `json:"account" binding:"required"`
 	RoleName MemberRoleName `json:"roleName" binding:"required"`
 }
 

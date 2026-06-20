@@ -159,7 +159,7 @@ label 取值：
 | 指标 | 类型 | 用途 |
 | --- | --- | --- |
 | `platform_tenant_action_total{action, status}` | counter | `action ∈ {create, update_meta, delete, restore, quota_create, quota_update, quota_delete, member_add, member_update, member_remove}` |
-| `platform_tenant_orphan_role_cleanup_total{reason}` | counter | 孤儿 `user_tenant_roles` 行的级联清理次数；`reason ∈ {delete_cascade, list_reconcile}` |
+| `platform_tenant_orphan_role_cleanup_total{reason}` | counter | 孤儿 `user_roles` 行的级联清理次数；`reason ∈ {delete_cascade, list_reconcile}` |
 
 业务编排见 [platform.md §4.1 租户编排](components/platform.md#41-租户编排)。
 
@@ -218,7 +218,7 @@ Service 详情页指标 Tab 与 Dashboard 时序图的 Prometheus 查询由拥�
 - **在线服务 / 工作负载指标** 由 compute-service 执行（`GetServiceMetrics` / `GetWorkloadMetrics`），按 `spec.backend` 选 PromQL 模板；
 - **集群容量与集群时序** 由 cluster-manager 执行（`GetClusterCapacity` / `GetClusterMetrics`）。
 
-下表为在线服务指标 Tab 的查询模板，字段契约见 [apis/platform.yaml](apis/platform.yaml) `Services` tag `metrics` 端点。
+下表为在线服务指标 Tab 的查询模板，字段契约见 [openapi/platform.yaml](../openapi/platform.yaml) `Services` tag `metrics` 端点。
 
 | 指标 | 含义 | PromQL 来源 |
 | --- | --- | --- |
@@ -231,7 +231,7 @@ Service 详情页指标 Tab 与 Dashboard 时序图的 Prometheus 查询由拥�
 
 compute-service 与 cluster-manager 各自以启动参数 `--prometheus-url`（指向 `axisml-infra` namespace 下的 Prometheus）执行查询；Platform 不持有 Prometheus 连接。
 
-**训练指标 / 评估报告不走 Prometheus**：实验 Run 的训练指标以 TensorBoard event log 形式写入对象存储，由按需拉起的 TensorBoard 实例（compute `MLService(kind=tensorboard)`）读取展示；评估 Run 的结果以 `report.json` 写入对象存储，由 Platform 经 compute（`GetMLRunReport`）取回**临时只读地址**后直读渲染榜单（compute 只签发地址、不代理 bytes）。二者均为**文件态**指标，不被 Prometheus 抓取、不进 `MetricSeries` 代理通道（编排见 [platform.md §4.9–§4.11](components/platform.md#49-实验编排)）。
+**训练指标不走 Prometheus**：实验 Run 的训练指标以 TensorBoard event log 形式写入对象存储，由按需拉起的 TensorBoard 实例（compute `MLService(kind=tensorboard)`）读取展示。该指标为**文件态**，不被 Prometheus 抓取、不进 `MetricSeries` 代理通道（编排见 [platform.md §4.9–§4.10](components/platform.md#49-实验编排)）。
 
 ---
 
@@ -271,5 +271,5 @@ compute-service 与 cluster-manager 各自以启动参数 `--prometheus-url`（�
 
 - [overview.md](overview.md)：系统级导航；
 - [infra.md §4.7](infra.md#47-监控kube-prometheus-stack)：监控基础设施部署细节；
-- [apis/platform.yaml](apis/platform.yaml) `Services` tag `metrics` 端点：Service 详情页指标 Tab 字段契约；
+- [openapi/platform.yaml](../openapi/platform.yaml) `Services` tag `metrics` 端点：Service 详情页指标 Tab 字段契约；
 - [platform.md §4 核心功能](components/platform.md#4-核心功能)：各业务模块编排逻辑（度量 label 中的 `action` 与编排步骤一一对应）。

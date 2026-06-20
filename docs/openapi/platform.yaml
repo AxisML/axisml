@@ -76,7 +76,6 @@ components:
           enum:
           - model
           - image
-          - dataset
           type: string
         labels:
           $ref: '#/components/schemas/StringMap'
@@ -97,11 +96,6 @@ components:
         updatedAt:
           format: date-time
           type: string
-        visibility:
-          enum:
-          - tenant
-          - public
-          type: string
       required:
       - createdAt
       - id
@@ -117,7 +111,6 @@ components:
           enum:
           - image
           - model
-          - dataset
           type: string
         name:
           type: string
@@ -149,6 +142,14 @@ components:
       - storageKind
       - uri
       type: object
+    ArtifactSource:
+      description: How an artifact version was added.
+      enum:
+      - webUpload
+      - oras
+      - dockerPush
+      - external
+      type: string
     ArtifactUpdateRequest:
       properties:
         annotations:
@@ -304,133 +305,6 @@ components:
         tenantCount:
           type: integer
       type: object
-    Dataset:
-      properties:
-        createdAt:
-          format: date-time
-          type: string
-        description:
-          type: string
-        digest:
-          type: string
-        displayName:
-          type: string
-        id:
-          format: uuid
-          type: string
-        name:
-          type: string
-        namespace:
-          type: string
-        owner:
-          type: string
-        ownerId:
-          format: uuid
-          type: string
-        readyAt:
-          format: date-time
-          nullable: true
-          type: string
-        sizeBytes:
-          format: int64
-          type: integer
-        spec:
-          $ref: '#/components/schemas/DatasetSpec'
-        status:
-          $ref: '#/components/schemas/DatasetStatus'
-        tenantName:
-          type: string
-        updatedAt:
-          format: date-time
-          type: string
-        uri:
-          type: string
-        version:
-          type: string
-      required:
-      - createdAt
-      - id
-      - name
-      - namespace
-      - status
-      - tenantName
-      - version
-      type: object
-    DatasetCompleteRequest:
-      properties:
-        digest:
-          type: string
-      required:
-      - digest
-      type: object
-    DatasetInitiateRequest:
-      properties:
-        description:
-          type: string
-        displayName:
-          type: string
-        spec:
-          $ref: '#/components/schemas/DatasetSpec'
-        version:
-          maxLength: 64
-          minLength: 1
-          type: string
-      required:
-      - spec
-      - version
-      type: object
-    DatasetInitiateResponse:
-      properties:
-        expiresAt:
-          format: date-time
-          type: string
-        id:
-          format: uuid
-          type: string
-        storageKind:
-          enum:
-          - oci
-          - s3
-          type: string
-        uploadCredentials:
-          additionalProperties: {}
-          type: object
-        uri:
-          type: string
-      required:
-      - id
-      - uri
-      type: object
-    DatasetList:
-      properties:
-        continueToken:
-          type: string
-        count:
-          minimum: 0
-          type: integer
-        items:
-          items:
-            $ref: '#/components/schemas/Dataset'
-          type: array
-        partial:
-          type: boolean
-      required:
-      - count
-      - items
-      type: object
-    DatasetSpec:
-      additionalProperties: {}
-      description: Artifact-side spec for kind=dataset; pass-through to artifacts.
-      type: object
-    DatasetStatus:
-      description: Mirrors artifacts ArtifactStatus for kind=dataset.
-      enum:
-      - Uploading
-      - Ready
-      - Failed
-      - Deleting
-      - Deleted
-      type: string
     EnvVar:
       properties:
         name:
@@ -493,6 +367,103 @@ components:
       - count
       - items
       type: object
+    ExperimentCreateInput:
+      properties:
+        annotations:
+          $ref: '#/components/schemas/StringMap'
+        description:
+          maxLength: 1000
+          type: string
+        displayName:
+          maxLength: 100
+          type: string
+        labels:
+          $ref: '#/components/schemas/StringMap'
+        name:
+          maxLength: 63
+          minLength: 1
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+        spec:
+          $ref: '#/components/schemas/JobSpec'
+      required:
+      - name
+      - spec
+      type: object
+    ExperimentList:
+      properties:
+        continueToken:
+          type: string
+        count:
+          minimum: 0
+          type: integer
+        items:
+          items:
+            $ref: '#/components/schemas/ExperimentView'
+          type: array
+        partial:
+          type: boolean
+      required:
+      - count
+      - items
+      type: object
+    ExperimentPatchInput:
+      properties:
+        annotations:
+          $ref: '#/components/schemas/StringMap'
+        description:
+          maxLength: 1000
+          type: string
+        displayName:
+          maxLength: 100
+          type: string
+        labels:
+          $ref: '#/components/schemas/StringMap'
+        spec:
+          $ref: '#/components/schemas/JobSpec'
+      type: object
+    ExperimentView:
+      properties:
+        annotations:
+          $ref: '#/components/schemas/StringMap'
+        createdAt:
+          format: date-time
+          type: string
+        description:
+          type: string
+        displayName:
+          type: string
+        id:
+          format: uuid
+          type: string
+        labels:
+          $ref: '#/components/schemas/StringMap'
+        name:
+          type: string
+        namespace:
+          type: string
+        owner:
+          type: string
+        ownerId:
+          format: uuid
+          type: string
+        spec:
+          $ref: '#/components/schemas/JobSpec'
+        tenantName:
+          type: string
+        updatedAt:
+          format: date-time
+          type: string
+      required:
+      - createdAt
+      - id
+      - name
+      - namespace
+      - owner
+      - spec
+      - tenantName
+      - updatedAt
+      type: object
     HealthStatus:
       properties:
         components:
@@ -538,6 +509,8 @@ components:
         sizeBytes:
           format: int64
           type: integer
+        source:
+          $ref: '#/components/schemas/ArtifactSource'
         spec:
           $ref: '#/components/schemas/ImageSpec'
         status:
@@ -572,6 +545,10 @@ components:
         description:
           type: string
         displayName:
+          type: string
+        source:
+          $ref: '#/components/schemas/ArtifactSource'
+        sourceImageRef:
           type: string
         spec:
           $ref: '#/components/schemas/ImageSpec'
@@ -632,6 +609,14 @@ components:
       - name
       - sourceSecretRef
       type: object
+    ImagePurpose:
+      description: Image definition intended use (list filter).
+      enum:
+      - training
+      - inference
+      - workspace
+      - custom
+      type: string
     ImageSpec:
       additionalProperties: {}
       description: Artifact-side spec for kind=image; pass-through to artifacts.
@@ -889,18 +874,12 @@ components:
           type: array
         computeNamespace:
           type: string
-        containerPort:
-          maximum: 65535
-          minimum: 1
-          type: integer
         createdAt:
           format: date-time
           type: string
         description:
           type: string
         displayName:
-          type: string
-        endpoint:
           type: string
         env:
           items:
@@ -912,6 +891,10 @@ components:
         image:
           type: string
         message:
+          type: string
+        modelName:
+          type: string
+        modelVersion:
           type: string
         name:
           type: string
@@ -928,6 +911,10 @@ components:
           maxLength: 40
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
+        ports:
+          items:
+            $ref: '#/components/schemas/ServicePort'
+          type: array
         quota:
           type: string
         readyReplicas:
@@ -936,10 +923,6 @@ components:
         replicas:
           minimum: 0
           type: integer
-        resourcePoolName:
-          type: string
-        resourceUnitName:
-          type: string
         resources:
           $ref: '#/components/schemas/ResourceMap'
         route:
@@ -976,10 +959,6 @@ components:
           items:
             type: string
           type: array
-        containerPort:
-          maximum: 65535
-          minimum: 1
-          type: integer
         description:
           maxLength: 1000
           type: string
@@ -992,6 +971,10 @@ components:
           type: array
         image:
           type: string
+        modelName:
+          type: string
+        modelVersion:
+          type: string
         name:
           maxLength: 40
           minLength: 1
@@ -1001,9 +984,11 @@ components:
           maxLength: 40
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
-        progressDeadlineSeconds:
-          minimum: 1
-          type: integer
+        ports:
+          items:
+            $ref: '#/components/schemas/ServicePort'
+          minItems: 1
+          type: array
         quota:
           type: string
         replicas:
@@ -1016,11 +1001,12 @@ components:
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
       required:
-      - backend
-      - containerPort
       - image
+      - modelName
+      - modelVersion
       - name
       - poolName
+      - ports
       - replicas
       - unitName
       type: object
@@ -1072,61 +1058,10 @@ components:
       type: string
     MLServiceRoute:
       properties:
-        auth:
-          $ref: '#/components/schemas/MLServiceRouteAuth'
         enabled:
           type: boolean
-        hostname:
-          type: string
         path:
           type: string
-        rateLimit:
-          $ref: '#/components/schemas/MLServiceRouteRateLimit'
-        timeout:
-          type: string
-      type: object
-    MLServiceRouteAuth:
-      properties:
-        apiKey:
-          properties:
-            secretRef:
-              properties:
-                key:
-                  type: string
-                name:
-                  type: string
-              required:
-              - name
-              type: object
-          type: object
-        jwt:
-          properties:
-            audience:
-              type: string
-            issuer:
-              type: string
-            jwksUri:
-              type: string
-          type: object
-        type:
-          $ref: '#/components/schemas/MLServiceRouteAuthType'
-      required:
-      - type
-      type: object
-    MLServiceRouteAuthType:
-      enum:
-      - none
-      - jwt
-      - apiKey
-      type: string
-    MLServiceRouteRateLimit:
-      properties:
-        burst:
-          minimum: 1
-          type: integer
-        requestsPerSecond:
-          minimum: 1
-          type: integer
       type: object
     MLServiceScaleRequest:
       properties:
@@ -1181,17 +1116,16 @@ components:
       type: object
     MemberCreateRequest:
       properties:
+        account:
+          type: string
         roleName:
           enum:
           - tenant-admin
           - user
           type: string
-        userId:
-          format: uuid
-          type: string
       required:
+      - account
       - roleName
-      - userId
       type: object
     MemberList:
       properties:
@@ -1281,6 +1215,8 @@ components:
         sizeBytes:
           format: int64
           type: integer
+        source:
+          $ref: '#/components/schemas/ArtifactSource'
         spec:
           $ref: '#/components/schemas/ModelSpec'
         status:
@@ -1316,6 +1252,12 @@ components:
           type: string
         displayName:
           type: string
+        remoteSourceKind:
+          $ref: '#/components/schemas/RemoteSourceKind'
+        remoteUri:
+          type: string
+        source:
+          $ref: '#/components/schemas/ArtifactSource'
         spec:
           $ref: '#/components/schemas/ModelSpec'
         version:
@@ -1393,6 +1335,9 @@ components:
       type: object
     Pod:
       properties:
+        exitCode:
+          nullable: true
+          type: integer
         finishedAt:
           format: date-time
           nullable: true
@@ -1474,35 +1419,31 @@ components:
       type: object
     Quota:
       properties:
-        max:
-          $ref: '#/components/schemas/ResourceMap'
-        min:
-          $ref: '#/components/schemas/ResourceMap'
-        name:
-          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
-          type: string
         pool:
+          maxLength: 40
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
+        units:
+          items:
+            $ref: '#/components/schemas/QuotaUnit'
+          type: array
       required:
-      - max
-      - name
       - pool
+      - units
       type: object
     QuotaCreateRequest:
       properties:
-        max:
-          $ref: '#/components/schemas/ResourceMap'
-        min:
-          $ref: '#/components/schemas/ResourceMap'
-        name:
-          type: string
         pool:
+          maxLength: 40
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
+        units:
+          items:
+            $ref: '#/components/schemas/QuotaUnit'
+          type: array
       required:
-      - max
-      - name
       - pool
+      - units
       type: object
     QuotaList:
       properties:
@@ -1523,24 +1464,48 @@ components:
       type: object
     QuotaPatchRequest:
       properties:
-        max:
-          $ref: '#/components/schemas/ResourceMap'
-        min:
-          $ref: '#/components/schemas/ResourceMap'
+        units:
+          items:
+            $ref: '#/components/schemas/QuotaUnit'
+          type: array
+      required:
+      - units
       type: object
     QuotaStatus:
       properties:
-        elasticQuotaName:
-          type: string
-        name:
-          type: string
         pool:
           type: string
-        used:
-          $ref: '#/components/schemas/ResourceMap'
+        units:
+          items:
+            $ref: '#/components/schemas/QuotaUnitStatus'
+          type: array
       required:
-      - name
       - pool
+      type: object
+    QuotaUnit:
+      properties:
+        quantity:
+          minimum: 0
+          type: integer
+        unitName:
+          maxLength: 40
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      required:
+      - quantity
+      - unitName
+      type: object
+    QuotaUnitStatus:
+      properties:
+        quantity:
+          type: integer
+        unitName:
+          type: string
+        used:
+          type: integer
+      required:
+      - quantity
+      - unitName
       type: object
     RefreshResponse:
       properties:
@@ -1552,6 +1517,15 @@ components:
       required:
       - jwt
       type: object
+    RemoteSourceKind:
+      description: Backing store of an externally-registered model version.
+      enum:
+      - s3
+      - oci
+      - http
+      - hf
+      - custom
+      type: string
     ResourceMap:
       additionalProperties:
         type: string
@@ -1664,6 +1638,10 @@ components:
           $ref: '#/components/schemas/StringMap'
         requests:
           $ref: '#/components/schemas/ResourceMap'
+        tolerations:
+          items:
+            $ref: '#/components/schemas/Toleration'
+          type: array
       required:
       - limits
       - name
@@ -1687,6 +1665,10 @@ components:
           $ref: '#/components/schemas/StringMap'
         requests:
           $ref: '#/components/schemas/ResourceMap'
+        tolerations:
+          items:
+            $ref: '#/components/schemas/Toleration'
+          type: array
       required:
       - limits
       - name
@@ -1720,6 +1702,10 @@ components:
           $ref: '#/components/schemas/StringMap'
         requests:
           $ref: '#/components/schemas/ResourceMap'
+        tolerations:
+          items:
+            $ref: '#/components/schemas/Toleration'
+          type: array
       type: object
     RoleName:
       enum:
@@ -1891,10 +1877,6 @@ components:
           type: string
         quota:
           type: string
-        resourcePoolName:
-          type: string
-        resourceUnitName:
-          type: string
         resources:
           $ref: '#/components/schemas/ResourceMap'
         roles:
@@ -1966,6 +1948,19 @@ components:
           type: object
       required:
       - name
+      type: object
+    ServicePort:
+      properties:
+        name:
+          maxLength: 15
+          type: string
+        port:
+          maximum: 65535
+          minimum: 1
+          type: integer
+      required:
+      - name
+      - port
       type: object
     SetPasswordRequest:
       properties:
@@ -2049,6 +2044,8 @@ components:
           maxLength: 100
           minLength: 1
           type: string
+        initialAdmin:
+          type: string
         labels:
           $ref: '#/components/schemas/StringMap'
         name:
@@ -2056,15 +2053,12 @@ components:
           minLength: 3
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
-        namespace:
-          maxLength: 100
-          type: string
         spec:
           $ref: '#/components/schemas/TenantSpec'
       required:
       - displayName
+      - initialAdmin
       - name
-      - namespace
       - spec
       type: object
     TenantList:
@@ -2095,30 +2089,12 @@ components:
           type: string
         labels:
           $ref: '#/components/schemas/StringMap'
-        namespace:
-          maxLength: 100
-          type: string
-        spec:
-          properties:
-            initResources:
-              $ref: '#/components/schemas/InitResources'
-            namespace:
-              properties:
-                annotations:
-                  $ref: '#/components/schemas/StringMap'
-                labels:
-                  $ref: '#/components/schemas/StringMap'
-              type: object
-            quotas:
-              items:
-                $ref: '#/components/schemas/Quota'
-              type: array
-          type: object
       type: object
     TenantPhase:
       enum:
       - Creating
       - Active
+      - Suspended
       - Failed
       - Deleting
       - Deleted
@@ -2149,9 +2125,231 @@ components:
             $ref: '#/components/schemas/QuotaStatus'
           type: array
       type: object
+    TensorBoard:
+      properties:
+        createdAt:
+          format: date-time
+          type: string
+        message:
+          type: string
+        name:
+          type: string
+        phase:
+          $ref: '#/components/schemas/TensorBoardPhase'
+        url:
+          type: string
+      required:
+      - createdAt
+      - name
+      type: object
+    TensorBoardPhase:
+      enum:
+      - Pending
+      - Ready
+      - Failed
+      - Stopped
+      type: string
+    TensorBoardRequest:
+      properties:
+        runs:
+          items:
+            type: string
+          type: array
+      type: object
     Toleration:
       additionalProperties: {}
       description: Mirrors a Kubernetes corev1.Toleration.
+      type: object
+    TrafficPolicy:
+      properties:
+        accessUrl:
+          type: string
+        backends:
+          items:
+            $ref: '#/components/schemas/TrafficPolicyBackend'
+          type: array
+        canaryPercent:
+          type: integer
+        createdAt:
+          format: date-time
+          type: string
+        description:
+          type: string
+        displayName:
+          type: string
+        endpoint:
+          $ref: '#/components/schemas/TrafficPolicyEndpoint'
+        id:
+          format: uuid
+          type: string
+        message:
+          type: string
+        mode:
+          $ref: '#/components/schemas/TrafficPolicyMode'
+        name:
+          type: string
+        namespace:
+          type: string
+        owner:
+          type: string
+        ownerId:
+          format: uuid
+          type: string
+        phase:
+          $ref: '#/components/schemas/TrafficPolicyPhase'
+        tenantDisplayName:
+          type: string
+        tenantName:
+          type: string
+        updatedAt:
+          format: date-time
+          type: string
+      required:
+      - backends
+      - createdAt
+      - id
+      - mode
+      - name
+      - namespace
+      - owner
+      - tenantName
+      - updatedAt
+      type: object
+    TrafficPolicyBackend:
+      properties:
+        actualPct:
+          type: integer
+        ready:
+          type: boolean
+        role:
+          $ref: '#/components/schemas/TrafficPolicyBackendRole'
+        serviceName:
+          maxLength: 40
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+        weight:
+          maximum: 100
+          minimum: 0
+          type: integer
+      required:
+      - serviceName
+      - weight
+      type: object
+    TrafficPolicyBackendInput:
+      properties:
+        role:
+          $ref: '#/components/schemas/TrafficPolicyBackendRole'
+        serviceName:
+          maxLength: 40
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+        weight:
+          maximum: 100
+          minimum: 0
+          type: integer
+      required:
+      - serviceName
+      type: object
+    TrafficPolicyBackendRole:
+      enum:
+      - stable
+      - canary
+      - member
+      type: string
+    TrafficPolicyCreateRequest:
+      properties:
+        backends:
+          items:
+            $ref: '#/components/schemas/TrafficPolicyBackendInput'
+          minItems: 1
+          type: array
+        canaryPercent:
+          maximum: 100
+          minimum: 0
+          type: integer
+        description:
+          maxLength: 1000
+          type: string
+        displayName:
+          maxLength: 100
+          type: string
+        endpoint:
+          $ref: '#/components/schemas/TrafficPolicyEndpoint'
+        mode:
+          $ref: '#/components/schemas/TrafficPolicyMode'
+        name:
+          maxLength: 40
+          minLength: 1
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      required:
+      - backends
+      - mode
+      - name
+      type: object
+    TrafficPolicyEndpoint:
+      properties:
+        hostname:
+          type: string
+        path:
+          type: string
+      type: object
+    TrafficPolicyList:
+      properties:
+        continueToken:
+          type: string
+        count:
+          minimum: 0
+          type: integer
+        items:
+          items:
+            $ref: '#/components/schemas/TrafficPolicy'
+          type: array
+        partial:
+          type: boolean
+      required:
+      - count
+      - items
+      type: object
+    TrafficPolicyMode:
+      enum:
+      - weighted
+      - canary
+      type: string
+    TrafficPolicyPatchRequest:
+      properties:
+        annotations:
+          $ref: '#/components/schemas/StringMap'
+        description:
+          maxLength: 1000
+          type: string
+        displayName:
+          maxLength: 100
+          type: string
+        labels:
+          $ref: '#/components/schemas/StringMap'
+      type: object
+    TrafficPolicyPhase:
+      enum:
+      - Creating
+      - Pending
+      - Ready
+      - Degraded
+      - Failed
+      - Deleting
+      - Deleted
+      type: string
+    TrafficPolicySplitRequest:
+      properties:
+        backends:
+          items:
+            $ref: '#/components/schemas/TrafficPolicyBackendInput'
+          type: array
+        canaryPercent:
+          maximum: 100
+          minimum: 0
+          nullable: true
+          type: integer
       type: object
     User:
       properties:
@@ -2251,6 +2449,13 @@ components:
       - roleName
       - tenantName
       type: object
+    WorkloadMetricName:
+      description: Run / workload resource metric.
+      enum:
+      - cpu_util
+      - mem_util
+      - gpu_util
+      type: string
     Workspace:
       properties:
         args:
@@ -2308,19 +2513,11 @@ components:
         ownerId:
           format: uuid
           type: string
-        persistentVolume:
-          $ref: '#/components/schemas/WorkspacePersistentVolume'
         phase:
           $ref: '#/components/schemas/WorkspacePhase'
         poolName:
           maxLength: 40
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
-          type: string
-        pvcName:
-          type: string
-        pvcSize:
-          type: string
-        pvcUsed:
           type: string
         quota:
           type: string
@@ -2330,10 +2527,6 @@ components:
         replicas:
           minimum: 0
           type: integer
-        resourcePoolName:
-          type: string
-        resourceUnitName:
-          type: string
         resources:
           $ref: '#/components/schemas/ResourceMap'
         tenantDisplayName:
@@ -2347,6 +2540,10 @@ components:
         updatedAt:
           format: date-time
           type: string
+        volumes:
+          items:
+            $ref: '#/components/schemas/WorkspaceVolume'
+          type: array
       required:
       - containerPort
       - createdAt
@@ -2403,8 +2600,11 @@ components:
           type: string
         lifecycle:
           $ref: '#/components/schemas/WorkspaceLifecycle'
-        persistentVolume:
-          $ref: '#/components/schemas/WorkspacePersistentVolume'
+        name:
+          maxLength: 40
+          minLength: 1
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
         poolName:
           maxLength: 40
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
@@ -2415,9 +2615,13 @@ components:
           maxLength: 40
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
+        volumes:
+          items:
+            $ref: '#/components/schemas/WorkspaceVolume'
+          type: array
       required:
-      - containerPort
       - image
+      - name
       - poolName
       - unitName
       type: object
@@ -2472,13 +2676,6 @@ components:
         lifecycle:
           $ref: '#/components/schemas/WorkspaceLifecycle'
       type: object
-    WorkspacePersistentVolume:
-      properties:
-        size:
-          type: string
-        storageClassName:
-          type: string
-      type: object
     WorkspacePhase:
       description: Derived from compute service phase + replicas. Hoisted to the top
         of Workspace for B-tree filtering.
@@ -2493,18 +2690,34 @@ components:
       - Deleted
       - Pending
       type: string
+    WorkspaceVolume:
+      properties:
+        mountPath:
+          type: string
+        name:
+          type: string
+        size:
+          type: string
+        storageClass:
+          type: string
+        used:
+          type: string
+      required:
+      - mountPath
+      type: object
 info:
   description: 'User-facing entrypoint to AxisML. Aggregates the internal services
     (cluster-manager / compute / artifacts) and adds platform-native features: identity,
-    RBAC, workspace/job/service orchestration, the model/image/dataset artifact registry,
-    and Prometheus-backed dashboards. All endpoints except POST /api/v1/auth/login
-    require a bearer JWT issued by Platform; per-endpoint role requirements are noted
-    in each operation. Errors use RFC 7807 application/problem+json bodies.'
+    RBAC, workspace/job/experiment/service/traffic orchestration, the model/image
+    artifact registry, and Prometheus-backed dashboards. All endpoints except POST
+    /api/v1/auth/login require a bearer JWT issued by Platform; per-endpoint role
+    requirements are noted in each operation. Errors use RFC 7807 application/problem+json
+    bodies.'
   title: AxisML Platform API
   version: 0.1.0
 openapi: 3.0.3
 paths:
-  /api/v1/audit-logs:
+  /api/v1/auditlogs:
     get:
       operationId: listAuditLogs
       parameters:
@@ -2789,9 +3002,9 @@ paths:
       summary: Get the dashboard summary
       tags:
       - Dashboard
-  /api/v1/datasets:
+  /api/v1/experiments:
     get:
-      operationId: listDatasetDefinitions
+      operationId: listExperiments
       parameters:
       - description: Active tenant for the request.
         in: header
@@ -2801,22 +3014,15 @@ paths:
           minLength: 3
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
+      - description: Admin-only owner filter.
+        in: query
+        name: owner
+        schema:
+          type: string
       - description: Fuzzy keyword.
         in: query
         name: q
         schema:
-          type: string
-      - description: Filter by definition spec.format.
-        in: query
-        name: format
-        schema:
-          enum:
-          - parquet
-          - jsonl
-          - csv
-          - webdataset
-          - tfrecord
-          - custom
           type: string
       - description: Page size (default 50, max 200).
         in: query
@@ -2835,167 +3041,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ArtifactDefinitionList'
-          description: A page of dataset definitions.
-        "400":
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Malformed request (invalid syntax, missing required fields,
-            immutable field, etc.).
-        "401":
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Missing or invalid bearer JWT.
-        "500":
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Unexpected server error.
-      summary: List dataset definitions
-      tags:
-      - Datasets
-  /api/v1/datasets/{tenant}/{name}:
-    delete:
-      operationId: deleteDatasetDefinition
-      parameters:
-      - in: path
-        name: tenant
-        required: true
-        schema:
-          maxLength: 40
-          minLength: 3
-          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
-          type: string
-      - in: path
-        name: name
-        required: true
-        schema:
-          maxLength: 128
-          minLength: 1
-          pattern: ^[a-z0-9]([-a-z0-9._]*[a-z0-9])?$
-          type: string
-      responses:
-        "204":
-          description: Dataset definition and its versions deleted.
-        "401":
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Missing or invalid bearer JWT.
-        "403":
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Authenticated but insufficient role for the requested operation.
-        "404":
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Resource not found, OR the caller cannot see it. Platform deliberately
-            conflates these for non-admins to avoid information leak.
-        "500":
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Unexpected server error.
-      summary: Delete a dataset definition (cascade)
-      tags:
-      - Datasets
-    get:
-      operationId: getDatasetDefinition
-      parameters:
-      - in: path
-        name: tenant
-        required: true
-        schema:
-          maxLength: 40
-          minLength: 3
-          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
-          type: string
-      - in: path
-        name: name
-        required: true
-        schema:
-          maxLength: 128
-          minLength: 1
-          pattern: ^[a-z0-9]([-a-z0-9._]*[a-z0-9])?$
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ArtifactDefinitionView'
-          description: Dataset definition detail.
-        "401":
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Missing or invalid bearer JWT.
-        "403":
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Authenticated but insufficient role for the requested operation.
-        "404":
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Resource not found, OR the caller cannot see it. Platform deliberately
-            conflates these for non-admins to avoid information leak.
-        "500":
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Unexpected server error.
-      summary: Get a dataset definition
-      tags:
-      - Datasets
-    patch:
-      operationId: updateDatasetDefinition
-      parameters:
-      - in: path
-        name: tenant
-        required: true
-        schema:
-          maxLength: 40
-          minLength: 3
-          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
-          type: string
-      - in: path
-        name: name
-        required: true
-        schema:
-          maxLength: 128
-          minLength: 1
-          pattern: ^[a-z0-9]([-a-z0-9._]*[a-z0-9])?$
-          type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ArtifactDefinitionPatchInput'
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ArtifactDefinitionView'
-          description: Dataset definition updated.
+                $ref: '#/components/schemas/ExperimentList'
+          description: A page of experiments.
         "400":
           content:
             application/problem+json:
@@ -3015,54 +3062,40 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Authenticated but insufficient role for the requested operation.
-        "404":
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Resource not found, OR the caller cannot see it. Platform deliberately
-            conflates these for non-admins to avoid information leak.
         "500":
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Unexpected server error.
-      summary: Edit dataset definition metadata
+      summary: List experiments
       tags:
-      - Datasets
+      - Experiments
     post:
-      operationId: createDatasetDefinition
+      operationId: createExperiment
       parameters:
-      - in: path
-        name: tenant
+      - description: Active tenant for the request.
+        in: header
+        name: X-Axisml-Tenant
         required: true
         schema:
           maxLength: 40
           minLength: 3
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
-      - in: path
-        name: name
-        required: true
-        schema:
-          maxLength: 128
-          minLength: 1
-          pattern: ^[a-z0-9]([-a-z0-9._]*[a-z0-9])?$
-          type: string
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ArtifactDefinitionCreateInput'
+              $ref: '#/components/schemas/ExperimentCreateInput'
         required: true
       responses:
         "201":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ArtifactDefinitionView'
-          description: Dataset definition created.
+                $ref: '#/components/schemas/ExperimentView'
+          description: Experiment created.
         "400":
           content:
             application/problem+json:
@@ -3082,6 +3115,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Authenticated but insufficient role for the requested operation.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Resource not found, OR the caller cannot see it. Platform deliberately
+            conflates these for non-admins to avoid information leak.
         "409":
           content:
             application/problem+json:
@@ -3101,15 +3141,16 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Unexpected server error.
-      summary: Create a dataset definition
+      summary: Create an experiment (training template)
       tags:
-      - Datasets
-  /api/v1/datasets/{tenant}/{name}/versions:
-    get:
-      operationId: listDatasetVersions
+      - Experiments
+  /api/v1/experiments/{name}:
+    delete:
+      operationId: deleteExperiment
       parameters:
-      - in: path
-        name: tenant
+      - description: Active tenant for the request.
+        in: header
+        name: X-Axisml-Tenant
         required: true
         schema:
           maxLength: 40
@@ -3120,14 +3161,216 @@ paths:
         name: name
         required: true
         schema:
-          maxLength: 128
+          maxLength: 63
           minLength: 1
-          pattern: ^[a-z0-9]([-a-z0-9._]*[a-z0-9])?$
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      responses:
+        "204":
+          description: Experiment (and its terminal Runs) deleted.
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Malformed request (invalid syntax, missing required fields,
+            immutable field, etc.).
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Missing or invalid bearer JWT.
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Authenticated but insufficient role for the requested operation.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Resource not found, OR the caller cannot see it. Platform deliberately
+            conflates these for non-admins to avoid information leak.
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'Conflicts with a precondition: duplicate name, last-tenant-admin
+            protection, in-use blocker, immutable transition, etc.'
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected server error.
+      summary: Delete an experiment (cascade)
+      tags:
+      - Experiments
+    get:
+      operationId: getExperiment
+      parameters:
+      - description: Active tenant for the request.
+        in: header
+        name: X-Axisml-Tenant
+        required: true
+        schema:
+          maxLength: 40
+          minLength: 3
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      - in: path
+        name: name
+        required: true
+        schema:
+          maxLength: 63
+          minLength: 1
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExperimentView'
+          description: Experiment detail.
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Malformed request (invalid syntax, missing required fields,
+            immutable field, etc.).
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Missing or invalid bearer JWT.
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Authenticated but insufficient role for the requested operation.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Resource not found, OR the caller cannot see it. Platform deliberately
+            conflates these for non-admins to avoid information leak.
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected server error.
+      summary: Get an experiment
+      tags:
+      - Experiments
+    patch:
+      operationId: updateExperiment
+      parameters:
+      - description: Active tenant for the request.
+        in: header
+        name: X-Axisml-Tenant
+        required: true
+        schema:
+          maxLength: 40
+          minLength: 3
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      - in: path
+        name: name
+        required: true
+        schema:
+          maxLength: 63
+          minLength: 1
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExperimentPatchInput'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExperimentView'
+          description: Experiment updated.
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Malformed request (invalid syntax, missing required fields,
+            immutable field, etc.).
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Missing or invalid bearer JWT.
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Authenticated but insufficient role for the requested operation.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Resource not found, OR the caller cannot see it. Platform deliberately
+            conflates these for non-admins to avoid information leak.
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Semantically invalid request (e.g., cross-field violations).
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected server error.
+      summary: Edit an experiment template / metadata
+      tags:
+      - Experiments
+  /api/v1/experiments/{name}/runs:
+    get:
+      operationId: listExperimentRuns
+      parameters:
+      - description: Active tenant for the request.
+        in: header
+        name: X-Axisml-Tenant
+        required: true
+        schema:
+          maxLength: 40
+          minLength: 3
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      - in: path
+        name: name
+        required: true
+        schema:
+          maxLength: 63
+          minLength: 1
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
       - in: query
-        name: status
+        name: phase
         schema:
-          $ref: '#/components/schemas/DatasetStatus'
+          $ref: '#/components/schemas/RunPhase'
       - description: Page size (default 50, max 200).
         in: query
         name: limit
@@ -3145,8 +3388,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DatasetList'
-          description: A page of dataset versions.
+                $ref: '#/components/schemas/RunList'
+          description: A page of Runs.
         "400":
           content:
             application/problem+json:
@@ -3160,6 +3403,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Missing or invalid bearer JWT.
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Authenticated but insufficient role for the requested operation.
         "404":
           content:
             application/problem+json:
@@ -3173,14 +3422,15 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Unexpected server error.
-      summary: List versions of a dataset definition (live)
+      summary: List Runs of an experiment (live)
       tags:
-      - Datasets
+      - Experiments
     post:
-      operationId: initiateDataset
+      operationId: triggerExperimentRun
       parameters:
-      - in: path
-        name: tenant
+      - description: Active tenant for the request.
+        in: header
+        name: X-Axisml-Tenant
         required: true
         schema:
           maxLength: 40
@@ -3191,23 +3441,22 @@ paths:
         name: name
         required: true
         schema:
-          maxLength: 128
+          maxLength: 63
           minLength: 1
-          pattern: ^[a-z0-9]([-a-z0-9._]*[a-z0-9])?$
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/DatasetInitiateRequest'
-        required: true
+              $ref: '#/components/schemas/RunTriggerInput'
       responses:
-        "202":
+        "201":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DatasetInitiateResponse'
-          description: Upload initiated; returns credentials and a dataset handle.
+                $ref: '#/components/schemas/RunView'
+          description: Run triggered.
         "400":
           content:
             application/problem+json:
@@ -3253,15 +3502,16 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Unexpected server error.
-      summary: Initiate a dataset version upload
+      summary: Trigger a Run from an experiment
       tags:
-      - Datasets
-  /api/v1/datasets/{tenant}/{name}/versions/{version}:
+      - Experiments
+  /api/v1/experiments/{name}/runs/{run}:
     delete:
-      operationId: deleteDataset
+      operationId: deleteExperimentRun
       parameters:
-      - in: path
-        name: tenant
+      - description: Active tenant for the request.
+        in: header
+        name: X-Axisml-Tenant
         required: true
         schema:
           maxLength: 40
@@ -3272,164 +3522,21 @@ paths:
         name: name
         required: true
         schema:
-          maxLength: 128
+          maxLength: 63
           minLength: 1
-          pattern: ^[a-z0-9]([-a-z0-9._]*[a-z0-9])?$
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
       - in: path
-        name: version
+        name: run
         required: true
         schema:
-          maxLength: 128
+          maxLength: 63
           minLength: 1
-          pattern: ^[A-Za-z0-9_.-]{1,128}$
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
       responses:
         "204":
-          description: Dataset deleted.
-        "401":
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Missing or invalid bearer JWT.
-        "403":
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Authenticated but insufficient role for the requested operation.
-        "404":
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Resource not found, OR the caller cannot see it. Platform deliberately
-            conflates these for non-admins to avoid information leak.
-        "409":
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: 'Conflicts with a precondition: duplicate name, last-tenant-admin
-            protection, in-use blocker, immutable transition, etc.'
-        "500":
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Unexpected server error.
-      summary: Soft-delete a dataset artifact
-      tags:
-      - Datasets
-    get:
-      operationId: getDataset
-      parameters:
-      - in: path
-        name: tenant
-        required: true
-        schema:
-          maxLength: 40
-          minLength: 3
-          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
-          type: string
-      - in: path
-        name: name
-        required: true
-        schema:
-          maxLength: 128
-          minLength: 1
-          pattern: ^[a-z0-9]([-a-z0-9._]*[a-z0-9])?$
-          type: string
-      - in: path
-        name: version
-        required: true
-        schema:
-          maxLength: 128
-          minLength: 1
-          pattern: ^[A-Za-z0-9_.-]{1,128}$
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Dataset'
-          description: Dataset detail.
-        "401":
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Missing or invalid bearer JWT.
-        "403":
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Authenticated but insufficient role for the requested operation.
-        "404":
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Resource not found, OR the caller cannot see it. Platform deliberately
-            conflates these for non-admins to avoid information leak.
-        "410":
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Artifact has been soft-deleted; the tuple is permanently gone.
-        "500":
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Unexpected server error.
-      summary: Get a dataset artifact
-      tags:
-      - Datasets
-    patch:
-      operationId: updateDataset
-      parameters:
-      - in: path
-        name: tenant
-        required: true
-        schema:
-          maxLength: 40
-          minLength: 3
-          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
-          type: string
-      - in: path
-        name: name
-        required: true
-        schema:
-          maxLength: 128
-          minLength: 1
-          pattern: ^[a-z0-9]([-a-z0-9._]*[a-z0-9])?$
-          type: string
-      - in: path
-        name: version
-        required: true
-        schema:
-          maxLength: 128
-          minLength: 1
-          pattern: ^[A-Za-z0-9_.-]{1,128}$
-          type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ArtifactUpdateRequest'
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Dataset'
-          description: Dataset updated.
+          description: Run deleted.
         "400":
           content:
             application/problem+json:
@@ -3456,28 +3563,92 @@ paths:
                 $ref: '#/components/schemas/Problem'
           description: Resource not found, OR the caller cannot see it. Platform deliberately
             conflates these for non-admins to avoid information leak.
-        "409":
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: 'Conflicts with a precondition: duplicate name, last-tenant-admin
-            protection, in-use blocker, immutable transition, etc.'
         "500":
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Unexpected server error.
-      summary: Update mutable dataset metadata
+      summary: Delete a Run
       tags:
-      - Datasets
-  /api/v1/datasets/{tenant}/{name}/versions/{version}/complete:
+      - Experiments
+    get:
+      operationId: getExperimentRun
+      parameters:
+      - description: Active tenant for the request.
+        in: header
+        name: X-Axisml-Tenant
+        required: true
+        schema:
+          maxLength: 40
+          minLength: 3
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      - in: path
+        name: name
+        required: true
+        schema:
+          maxLength: 63
+          minLength: 1
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      - in: path
+        name: run
+        required: true
+        schema:
+          maxLength: 63
+          minLength: 1
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunView'
+          description: Run detail.
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Malformed request (invalid syntax, missing required fields,
+            immutable field, etc.).
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Missing or invalid bearer JWT.
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Authenticated but insufficient role for the requested operation.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Resource not found, OR the caller cannot see it. Platform deliberately
+            conflates these for non-admins to avoid information leak.
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected server error.
+      summary: Get a Run
+      tags:
+      - Experiments
+  /api/v1/experiments/{name}/runs/{run}/cancel:
     post:
-      operationId: completeDataset
+      operationId: cancelExperimentRun
       parameters:
-      - in: path
-        name: tenant
+      - description: Active tenant for the request.
+        in: header
+        name: X-Axisml-Tenant
         required: true
         schema:
           maxLength: 40
@@ -3488,31 +3659,25 @@ paths:
         name: name
         required: true
         schema:
-          maxLength: 128
+          maxLength: 63
           minLength: 1
-          pattern: ^[a-z0-9]([-a-z0-9._]*[a-z0-9])?$
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
       - in: path
-        name: version
+        name: run
         required: true
         schema:
-          maxLength: 128
+          maxLength: 63
           minLength: 1
-          pattern: ^[A-Za-z0-9_.-]{1,128}$
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/DatasetCompleteRequest'
-        required: true
       responses:
         "200":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Dataset'
-          description: Dataset finalized.
+                $ref: '#/components/schemas/RunView'
+          description: Cancel request accepted.
         "400":
           content:
             application/problem+json:
@@ -3546,27 +3711,22 @@ paths:
                 $ref: '#/components/schemas/Problem'
           description: 'Conflicts with a precondition: duplicate name, last-tenant-admin
             protection, in-use blocker, immutable transition, etc.'
-        "422":
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Semantically invalid request (e.g., cross-field violations).
         "500":
           content:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Unexpected server error.
-      summary: Mark a dataset upload complete
+      summary: Cancel a running Run
       tags:
-      - Datasets
-  /api/v1/datasets/{tenant}/{name}/versions/{version}/resolve:
+      - Experiments
+  /api/v1/experiments/{name}/runs/{run}/events:
     get:
-      operationId: resolveDataset
+      operationId: listExperimentRunEvents
       parameters:
-      - in: path
-        name: tenant
+      - description: Active tenant for the request.
+        in: header
+        name: X-Axisml-Tenant
         required: true
         schema:
           maxLength: 40
@@ -3577,25 +3737,375 @@ paths:
         name: name
         required: true
         schema:
-          maxLength: 128
+          maxLength: 63
           minLength: 1
-          pattern: ^[a-z0-9]([-a-z0-9._]*[a-z0-9])?$
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
       - in: path
-        name: version
+        name: run
         required: true
         schema:
-          maxLength: 128
+          maxLength: 63
           minLength: 1
-          pattern: ^[A-Za-z0-9_.-]{1,128}$
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
       responses:
         "200":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ArtifactResolveResponse'
-          description: Resolved download target.
+                $ref: '#/components/schemas/EventList'
+          description: Run-level event list.
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Malformed request (invalid syntax, missing required fields,
+            immutable field, etc.).
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Missing or invalid bearer JWT.
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Authenticated but insufficient role for the requested operation.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Resource not found, OR the caller cannot see it. Platform deliberately
+            conflates these for non-admins to avoid information leak.
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected server error.
+      summary: List Run-level Kubernetes events
+      tags:
+      - Experiments
+  /api/v1/experiments/{name}/runs/{run}/metrics:
+    get:
+      operationId: getExperimentRunMetrics
+      parameters:
+      - description: Active tenant for the request.
+        in: header
+        name: X-Axisml-Tenant
+        required: true
+        schema:
+          maxLength: 40
+          minLength: 3
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      - in: path
+        name: name
+        required: true
+        schema:
+          maxLength: 63
+          minLength: 1
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      - in: path
+        name: run
+        required: true
+        schema:
+          maxLength: 63
+          minLength: 1
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      - in: query
+        name: metric
+        required: true
+        schema:
+          $ref: '#/components/schemas/WorkloadMetricName'
+      - description: ISO 8601 duration (5m, 1h, 24h).
+        in: query
+        name: range
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: step
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricSeries'
+          description: Metric series.
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Malformed request (invalid syntax, missing required fields,
+            immutable field, etc.).
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Missing or invalid bearer JWT.
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Authenticated but insufficient role for the requested operation.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Resource not found, OR the caller cannot see it. Platform deliberately
+            conflates these for non-admins to avoid information leak.
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected server error.
+        "502":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Upstream service (cluster-manager / compute / artifacts / Prometheus)
+            failed.
+      summary: Query resource metrics for a Run
+      tags:
+      - Experiments
+  /api/v1/experiments/{name}/runs/{run}/pods:
+    get:
+      operationId: listExperimentRunPods
+      parameters:
+      - description: Active tenant for the request.
+        in: header
+        name: X-Axisml-Tenant
+        required: true
+        schema:
+          maxLength: 40
+          minLength: 3
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      - in: path
+        name: name
+        required: true
+        schema:
+          maxLength: 63
+          minLength: 1
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      - in: path
+        name: run
+        required: true
+        schema:
+          maxLength: 63
+          minLength: 1
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PodList'
+          description: Pod list.
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Malformed request (invalid syntax, missing required fields,
+            immutable field, etc.).
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Missing or invalid bearer JWT.
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Authenticated but insufficient role for the requested operation.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Resource not found, OR the caller cannot see it. Platform deliberately
+            conflates these for non-admins to avoid information leak.
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected server error.
+      summary: List Pods belonging to a Run
+      tags:
+      - Experiments
+  /api/v1/experiments/{name}/runs/{run}/pods/{pod}/events:
+    get:
+      operationId: listExperimentRunPodEvents
+      parameters:
+      - description: Active tenant for the request.
+        in: header
+        name: X-Axisml-Tenant
+        required: true
+        schema:
+          maxLength: 40
+          minLength: 3
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      - in: path
+        name: name
+        required: true
+        schema:
+          maxLength: 63
+          minLength: 1
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      - in: path
+        name: run
+        required: true
+        schema:
+          maxLength: 63
+          minLength: 1
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      - in: path
+        name: pod
+        required: true
+        schema:
+          maxLength: 253
+          minLength: 1
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventList'
+          description: Pod-scoped events.
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Malformed request (invalid syntax, missing required fields,
+            immutable field, etc.).
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Missing or invalid bearer JWT.
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Authenticated but insufficient role for the requested operation.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Resource not found, OR the caller cannot see it. Platform deliberately
+            conflates these for non-admins to avoid information leak.
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected server error.
+      summary: List K8s events for one pod of a Run
+      tags:
+      - Experiments
+  /api/v1/experiments/{name}/runs/{run}/pods/{pod}/logs:
+    get:
+      operationId: getExperimentRunPodLogs
+      parameters:
+      - description: Active tenant for the request.
+        in: header
+        name: X-Axisml-Tenant
+        required: true
+        schema:
+          maxLength: 40
+          minLength: 3
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      - in: path
+        name: name
+        required: true
+        schema:
+          maxLength: 63
+          minLength: 1
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      - in: path
+        name: run
+        required: true
+        schema:
+          maxLength: 63
+          minLength: 1
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      - in: path
+        name: pod
+        required: true
+        schema:
+          maxLength: 253
+          minLength: 1
+          type: string
+      - in: query
+        name: container
+        schema:
+          type: string
+      - in: query
+        name: tailLines
+        schema:
+          minimum: 1
+          type: integer
+      - description: Stream logs as SSE.
+        in: query
+        name: follow
+        schema:
+          type: boolean
+      - description: Read logs from the previous (crashed) container instance.
+        in: query
+        name: previous
+        schema:
+          type: boolean
+      responses:
+        "200":
+          content:
+            text/event-stream:
+              schema:
+                type: string
+            text/plain:
+              schema:
+                type: string
+          description: Log stream. text/plain for follow=false; text/event-stream
+            for follow=true.
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Malformed request (invalid syntax, missing required fields,
+            immutable field, etc.).
         "401":
           content:
             application/problem+json:
@@ -3627,9 +4137,204 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Unexpected server error.
-      summary: Resolve download credentials for a dataset version
+      summary: Fetch or stream a Run pod's logs
       tags:
-      - Datasets
+      - Experiments
+  /api/v1/experiments/{name}/tensorboard:
+    delete:
+      operationId: stopTensorBoard
+      parameters:
+      - description: Active tenant for the request.
+        in: header
+        name: X-Axisml-Tenant
+        required: true
+        schema:
+          maxLength: 40
+          minLength: 3
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      - in: path
+        name: name
+        required: true
+        schema:
+          maxLength: 63
+          minLength: 1
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      responses:
+        "204":
+          description: TensorBoard stopped.
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Malformed request (invalid syntax, missing required fields,
+            immutable field, etc.).
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Missing or invalid bearer JWT.
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Authenticated but insufficient role for the requested operation.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Resource not found, OR the caller cannot see it. Platform deliberately
+            conflates these for non-admins to avoid information leak.
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected server error.
+      summary: Stop the experiment's TensorBoard
+      tags:
+      - Experiments
+    get:
+      operationId: getTensorBoard
+      parameters:
+      - description: Active tenant for the request.
+        in: header
+        name: X-Axisml-Tenant
+        required: true
+        schema:
+          maxLength: 40
+          minLength: 3
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      - in: path
+        name: name
+        required: true
+        schema:
+          maxLength: 63
+          minLength: 1
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TensorBoard'
+          description: TensorBoard handle.
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Malformed request (invalid syntax, missing required fields,
+            immutable field, etc.).
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Missing or invalid bearer JWT.
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Authenticated but insufficient role for the requested operation.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Resource not found, OR the caller cannot see it. Platform deliberately
+            conflates these for non-admins to avoid information leak.
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected server error.
+      summary: Get the experiment's TensorBoard instance
+      tags:
+      - Experiments
+    post:
+      operationId: startTensorBoard
+      parameters:
+      - description: Active tenant for the request.
+        in: header
+        name: X-Axisml-Tenant
+        required: true
+        schema:
+          maxLength: 40
+          minLength: 3
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      - in: path
+        name: name
+        required: true
+        schema:
+          maxLength: 63
+          minLength: 1
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TensorBoardRequest'
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TensorBoard'
+          description: TensorBoard started.
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Malformed request (invalid syntax, missing required fields,
+            immutable field, etc.).
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Missing or invalid bearer JWT.
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Authenticated but insufficient role for the requested operation.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Resource not found, OR the caller cannot see it. Platform deliberately
+            conflates these for non-admins to avoid information leak.
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'Conflicts with a precondition: duplicate name, last-tenant-admin
+            protection, in-use blocker, immutable transition, etc.'
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected server error.
+      summary: Start (or reuse) a TensorBoard for the experiment
+      tags:
+      - Experiments
   /api/v1/images:
     get:
       operationId: listImageDefinitions
@@ -3651,11 +4356,7 @@ paths:
         in: query
         name: purpose
         schema:
-          enum:
-          - training
-          - inference
-          - dev
-          type: string
+          $ref: '#/components/schemas/ImagePurpose'
       - description: Page size (default 50, max 200).
         in: query
         name: limit
@@ -5257,6 +5958,99 @@ paths:
       summary: List Run-level Kubernetes events
       tags:
       - Jobs
+  /api/v1/jobs/{name}/runs/{run}/metrics:
+    get:
+      operationId: getRunMetrics
+      parameters:
+      - description: Active tenant for the request.
+        in: header
+        name: X-Axisml-Tenant
+        required: true
+        schema:
+          maxLength: 40
+          minLength: 3
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      - in: path
+        name: name
+        required: true
+        schema:
+          maxLength: 63
+          minLength: 1
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      - in: path
+        name: run
+        required: true
+        schema:
+          maxLength: 63
+          minLength: 1
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      - in: query
+        name: metric
+        required: true
+        schema:
+          $ref: '#/components/schemas/WorkloadMetricName'
+      - description: ISO 8601 duration (5m, 1h, 24h).
+        in: query
+        name: range
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: step
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricSeries'
+          description: Metric series.
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Malformed request (invalid syntax, missing required fields,
+            immutable field, etc.).
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Missing or invalid bearer JWT.
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Authenticated but insufficient role for the requested operation.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Resource not found, OR the caller cannot see it. Platform deliberately
+            conflates these for non-admins to avoid information leak.
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected server error.
+        "502":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Upstream service (cluster-manager / compute / artifacts / Prometheus)
+            failed.
+      summary: Query resource metrics for a Run
+      tags:
+      - Jobs
   /api/v1/jobs/{name}/runs/{run}/pods:
     get:
       operationId: listRunPods
@@ -5539,18 +6333,17 @@ paths:
         name: q
         schema:
           type: string
-      - in: query
-        name: backendName
+      - description: Filter by resource pool.
+        in: query
+        name: poolName
         schema:
           type: string
-      - in: query
-        name: backendEngine
+      - description: Only Ready services not bound to an active traffic policy (drives
+          traffic-policy backend pickers).
+        in: query
+        name: eligibleForTraffic
         schema:
-          type: string
-      - in: query
-        name: modelName
-        schema:
-          type: string
+          type: boolean
       - description: Page size (default 50, max 200).
         in: query
         name: limit
@@ -7139,7 +7932,7 @@ paths:
       summary: Resolve download credentials for a model version
       tags:
       - Models
-  /api/v1/resource-pools:
+  /api/v1/resourcepools:
     get:
       operationId: listResourcePools
       parameters:
@@ -7238,7 +8031,7 @@ paths:
       summary: Create a resource pool
       tags:
       - ResourcePools
-  /api/v1/resource-pools/{pool}:
+  /api/v1/resourcepools/{pool}:
     delete:
       operationId: deleteResourcePool
       parameters:
@@ -7393,7 +8186,7 @@ paths:
       summary: Update a resource pool
       tags:
       - ResourcePools
-  /api/v1/resource-pools/{pool}/units:
+  /api/v1/resourcepools/{pool}/units:
     get:
       operationId: listResourceUnits
       parameters:
@@ -7518,7 +8311,7 @@ paths:
       summary: Create a resource unit in a pool
       tags:
       - ResourceUnits
-  /api/v1/resource-pools/{pool}/units/{unit}:
+  /api/v1/resourcepools/{pool}/units/{unit}:
     delete:
       operationId: deleteResourceUnit
       parameters:
@@ -7706,11 +8499,6 @@ paths:
         name: q
         schema:
           type: string
-      - description: Exact-match organizational grouping filter.
-        in: query
-        name: namespace
-        schema:
-          type: string
       - description: Filter by tenant status.phase.
         in: query
         name: phase
@@ -7721,13 +8509,6 @@ paths:
         name: includeArchived
         schema:
           type: boolean
-      - in: query
-        name: sortBy
-        schema:
-          enum:
-          - created_at
-          - updated_at
-          type: string
       - description: Page size (default 50, max 200).
         in: query
         name: limit
@@ -8274,7 +9055,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Unexpected server error.
-      summary: List quotas for a tenant
+      summary: List per-pool quotas for a tenant
       tags:
       - Quotas
     post:
@@ -8300,7 +9081,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Tenant'
-          description: Quota added.
+          description: Quota set.
         "400":
           content:
             application/problem+json:
@@ -8346,10 +9127,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Unexpected server error.
-      summary: Add a new quota to a tenant
+      summary: Set a pool's quota (resource units × quantity)
       tags:
       - Quotas
-  /api/v1/tenants/{name}/quotas/{pool}/{quotaName}:
+  /api/v1/tenants/{name}/quotas/{pool}:
     delete:
       operationId: deleteTenantQuota
       parameters:
@@ -8363,14 +9144,6 @@ paths:
           type: string
       - in: path
         name: pool
-        required: true
-        schema:
-          maxLength: 63
-          minLength: 1
-          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
-          type: string
-      - in: path
-        name: quotaName
         required: true
         schema:
           maxLength: 63
@@ -8412,7 +9185,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Unexpected server error.
-      summary: Remove a quota from a tenant
+      summary: Remove a pool's quota from a tenant
       tags:
       - Quotas
     patch:
@@ -8428,14 +9201,6 @@ paths:
           type: string
       - in: path
         name: pool
-        required: true
-        schema:
-          maxLength: 63
-          minLength: 1
-          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
-          type: string
-      - in: path
-        name: quotaName
         required: true
         schema:
           maxLength: 63
@@ -8493,7 +9258,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Unexpected server error.
-      summary: Update a quota's min / max
+      summary: Update a pool quota's unit allocations
       tags:
       - Quotas
   /api/v1/tenants/{name}/restore:
@@ -8550,6 +9315,735 @@ paths:
       summary: Restore a soft-deleted tenant
       tags:
       - Tenants
+  /api/v1/tenants/{name}/resume:
+    post:
+      operationId: resumeTenant
+      parameters:
+      - in: path
+        name: name
+        required: true
+        schema:
+          maxLength: 40
+          minLength: 3
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+          description: Tenant resumed.
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Missing or invalid bearer JWT.
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Authenticated but insufficient role for the requested operation.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Resource not found, OR the caller cannot see it. Platform deliberately
+            conflates these for non-admins to avoid information leak.
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'Conflicts with a precondition: duplicate name, last-tenant-admin
+            protection, in-use blocker, immutable transition, etc.'
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected server error.
+      summary: Resume a suspended tenant
+      tags:
+      - Tenants
+  /api/v1/tenants/{name}/suspend:
+    post:
+      operationId: suspendTenant
+      parameters:
+      - in: path
+        name: name
+        required: true
+        schema:
+          maxLength: 40
+          minLength: 3
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+          description: Tenant suspended.
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Missing or invalid bearer JWT.
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Authenticated but insufficient role for the requested operation.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Resource not found, OR the caller cannot see it. Platform deliberately
+            conflates these for non-admins to avoid information leak.
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'Conflicts with a precondition: duplicate name, last-tenant-admin
+            protection, in-use blocker, immutable transition, etc.'
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected server error.
+      summary: Suspend a tenant (gates new-workload creation)
+      tags:
+      - Tenants
+  /api/v1/trafficpolicies:
+    get:
+      operationId: listTrafficPolicies
+      parameters:
+      - description: Active tenant for the request.
+        in: header
+        name: X-Axisml-Tenant
+        schema:
+          maxLength: 40
+          minLength: 3
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      - description: Admin-only owner filter.
+        in: query
+        name: owner
+        schema:
+          type: string
+      - description: Fuzzy keyword.
+        in: query
+        name: q
+        schema:
+          type: string
+      - in: query
+        name: mode
+        schema:
+          $ref: '#/components/schemas/TrafficPolicyMode'
+      - in: query
+        name: phase
+        schema:
+          $ref: '#/components/schemas/TrafficPolicyPhase'
+      - description: Page size (default 50, max 200).
+        in: query
+        name: limit
+        schema:
+          maximum: 200
+          minimum: 1
+          type: integer
+      - description: Opaque continue token from the previous response.
+        in: query
+        name: continue
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrafficPolicyList'
+          description: A page of traffic policies.
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Malformed request (invalid syntax, missing required fields,
+            immutable field, etc.).
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Missing or invalid bearer JWT.
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected server error.
+      summary: List traffic policies
+      tags:
+      - TrafficPolicy
+    post:
+      operationId: createTrafficPolicy
+      parameters:
+      - description: Active tenant for the request.
+        in: header
+        name: X-Axisml-Tenant
+        required: true
+        schema:
+          maxLength: 40
+          minLength: 3
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrafficPolicyCreateRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrafficPolicy'
+          description: Traffic policy created.
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Malformed request (invalid syntax, missing required fields,
+            immutable field, etc.).
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Missing or invalid bearer JWT.
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Authenticated but insufficient role for the requested operation.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Resource not found, OR the caller cannot see it. Platform deliberately
+            conflates these for non-admins to avoid information leak.
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'Conflicts with a precondition: duplicate name, last-tenant-admin
+            protection, in-use blocker, immutable transition, etc.'
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Semantically invalid request (e.g., cross-field violations).
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected server error.
+      summary: Create a traffic policy
+      tags:
+      - TrafficPolicy
+  /api/v1/trafficpolicies/{name}:
+    delete:
+      operationId: deleteTrafficPolicy
+      parameters:
+      - in: path
+        name: name
+        required: true
+        schema:
+          maxLength: 40
+          minLength: 1
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      responses:
+        "204":
+          description: Traffic policy deleted.
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Missing or invalid bearer JWT.
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Authenticated but insufficient role for the requested operation.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Resource not found, OR the caller cannot see it. Platform deliberately
+            conflates these for non-admins to avoid information leak.
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected server error.
+      summary: Delete a traffic policy
+      tags:
+      - TrafficPolicy
+    get:
+      operationId: getTrafficPolicy
+      parameters:
+      - in: path
+        name: name
+        required: true
+        schema:
+          maxLength: 40
+          minLength: 1
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrafficPolicy'
+          description: Traffic policy detail.
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Missing or invalid bearer JWT.
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Authenticated but insufficient role for the requested operation.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Resource not found, OR the caller cannot see it. Platform deliberately
+            conflates these for non-admins to avoid information leak.
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected server error.
+      summary: Get a traffic policy
+      tags:
+      - TrafficPolicy
+    patch:
+      operationId: updateTrafficPolicy
+      parameters:
+      - in: path
+        name: name
+        required: true
+        schema:
+          maxLength: 40
+          minLength: 1
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrafficPolicyPatchRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrafficPolicy'
+          description: Updated traffic policy.
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Malformed request (invalid syntax, missing required fields,
+            immutable field, etc.).
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Missing or invalid bearer JWT.
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Authenticated but insufficient role for the requested operation.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Resource not found, OR the caller cannot see it. Platform deliberately
+            conflates these for non-admins to avoid information leak.
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Semantically invalid request (e.g., cross-field violations).
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected server error.
+      summary: Update display metadata
+      tags:
+      - TrafficPolicy
+  /api/v1/trafficpolicies/{name}/events:
+    get:
+      operationId: getTrafficPolicyEvents
+      parameters:
+      - in: path
+        name: name
+        required: true
+        schema:
+          maxLength: 40
+          minLength: 1
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventList'
+          description: Event list.
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Missing or invalid bearer JWT.
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Authenticated but insufficient role for the requested operation.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Resource not found, OR the caller cannot see it. Platform deliberately
+            conflates these for non-admins to avoid information leak.
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected server error.
+      summary: List traffic-policy events
+      tags:
+      - TrafficPolicy
+  /api/v1/trafficpolicies/{name}/metrics:
+    get:
+      operationId: getTrafficPolicyMetrics
+      parameters:
+      - in: path
+        name: name
+        required: true
+        schema:
+          maxLength: 40
+          minLength: 1
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      - in: query
+        name: metric
+        required: true
+        schema:
+          $ref: '#/components/schemas/MLServiceMetricName'
+      - description: ISO 8601 duration (5m, 1h, 24h).
+        in: query
+        name: range
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: step
+        schema:
+          type: string
+      - description: Scope to one member backend (service name).
+        in: query
+        name: backend
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricSeries'
+          description: Metric series.
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Malformed request (invalid syntax, missing required fields,
+            immutable field, etc.).
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Missing or invalid bearer JWT.
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Authenticated but insufficient role for the requested operation.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Resource not found, OR the caller cannot see it. Platform deliberately
+            conflates these for non-admins to avoid information leak.
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected server error.
+        "502":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Upstream service (cluster-manager / compute / artifacts / Prometheus)
+            failed.
+      summary: Query per-backend metrics (grouped by backend)
+      tags:
+      - TrafficPolicy
+  /api/v1/trafficpolicies/{name}/promote:
+    post:
+      operationId: promoteTrafficPolicy
+      parameters:
+      - in: path
+        name: name
+        required: true
+        schema:
+          maxLength: 40
+          minLength: 1
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrafficPolicy'
+          description: Promoted.
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Malformed request (invalid syntax, missing required fields,
+            immutable field, etc.).
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Missing or invalid bearer JWT.
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Authenticated but insufficient role for the requested operation.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Resource not found, OR the caller cannot see it. Platform deliberately
+            conflates these for non-admins to avoid information leak.
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'Conflicts with a precondition: duplicate name, last-tenant-admin
+            protection, in-use blocker, immutable transition, etc.'
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected server error.
+      summary: Promote the canary backend to stable (canary only)
+      tags:
+      - TrafficPolicy
+  /api/v1/trafficpolicies/{name}/rollback:
+    post:
+      operationId: rollbackTrafficPolicy
+      parameters:
+      - in: path
+        name: name
+        required: true
+        schema:
+          maxLength: 40
+          minLength: 1
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrafficPolicy'
+          description: Rolled back.
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Malformed request (invalid syntax, missing required fields,
+            immutable field, etc.).
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Missing or invalid bearer JWT.
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Authenticated but insufficient role for the requested operation.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Resource not found, OR the caller cannot see it. Platform deliberately
+            conflates these for non-admins to avoid information leak.
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'Conflicts with a precondition: duplicate name, last-tenant-admin
+            protection, in-use blocker, immutable transition, etc.'
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected server error.
+      summary: Roll the canary back to the stable backend (canary only)
+      tags:
+      - TrafficPolicy
+  /api/v1/trafficpolicies/{name}/split:
+    post:
+      operationId: splitTrafficPolicy
+      parameters:
+      - in: path
+        name: name
+        required: true
+        schema:
+          maxLength: 40
+          minLength: 1
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrafficPolicySplitRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrafficPolicy'
+          description: Split applied.
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Malformed request (invalid syntax, missing required fields,
+            immutable field, etc.).
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Missing or invalid bearer JWT.
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Authenticated but insufficient role for the requested operation.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Resource not found, OR the caller cannot see it. Platform deliberately
+            conflates these for non-admins to avoid information leak.
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'Conflicts with a precondition: duplicate name, last-tenant-admin
+            protection, in-use blocker, immutable transition, etc.'
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Semantically invalid request (e.g., cross-field violations).
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected server error.
+      summary: Adjust traffic distribution (weights / canary percent)
+      tags:
+      - TrafficPolicy
   /api/v1/users:
     get:
       operationId: listUsers
@@ -9590,17 +11084,21 @@ tags:
   name: Members
 - description: Long-running interactive dev containers (jupyter / code-server / ...).
   name: Workspaces
+- description: Training-experiment templates (Platform-owned) and their Runs; isomorphic
+    to Jobs, plus on-demand TensorBoard.
+  name: Experiments
 - description: Reusable Job templates (Platform-owned definitions) and their Runs
     (compute MLRuns named <job>-<n>).
   name: Jobs
 - description: Long-running online inference services.
   name: MLServices
+- description: Traffic policies fanning one stable entry across member online services
+    (weighted / canary).
+  name: TrafficPolicy
 - description: Model definitions (Platform-owned); versions proxy artifacts (kind=model).
   name: Models
 - description: Image definitions (Platform-owned); versions proxy artifacts (kind=image).
   name: Images
-- description: Dataset definitions (Platform-owned); versions proxy artifacts (kind=dataset).
-  name: Datasets
 - description: Cluster-scoped resource pools (admin-only writes; read by all).
   name: ResourcePools
 - description: Per-pool resource unit specs (admin-only writes; read by all).

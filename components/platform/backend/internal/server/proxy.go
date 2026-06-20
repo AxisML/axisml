@@ -11,6 +11,7 @@ type Pod struct {
 	NodeName     string     `json:"nodeName,omitempty"`
 	StartedAt    *time.Time `json:"startedAt,omitempty"`
 	FinishedAt   *time.Time `json:"finishedAt,omitempty"`
+	ExitCode     *int       `json:"exitCode,omitempty"`
 	Message      string     `json:"message,omitempty"`
 	RestartCount int        `json:"restartCount,omitempty" binding:"min=0"`
 }

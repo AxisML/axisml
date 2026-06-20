@@ -11,7 +11,7 @@
 | Compute Service | `mlservices` | 常驻在线服务 / 工作区 |
 | Compute Service | `traffic_policies` | 流量策略（稳定入口按权重分发到多个在线服务） |
 | [artifact-hub](components/artifact-hub.md) | `artifacts` | 制品（model / dataset / image） |
-| [Platform](components/platform.md) | `users` / `user_tenant_roles` / `sessions` / `audit_logs` | 身份、授权、会话、审计（角色硬编码三档，不入表） |
+| [Platform](components/platform.md) | `users` / `user_roles` / `sessions` / `audit_logs` | 身份、授权、会话、审计（角色硬编码三档，不入表） |
 
 > [Cluster Manager](components/cluster-manager.md) **不入 PG**——ResourcePool（含内嵌 `spec.units[]`）持久化在 K8s etcd 上的 `ResourcePool` CRD，cluster-manager 是 REST + K8s API 调用层。
 
@@ -115,7 +115,7 @@ CREATE INDEX tenants_sync_pending
 
 `tenants.spec.namespace.name` 是 tenant 关联的 K8s namespace（不可变，多 tenant 可共享）。`mlruns` / `mlservices` / `artifacts` 的 `namespace` 字段 = `tenants.name`，作为逻辑分区键；Compute 写 CR 时 join 出 K8s namespace。
 
-`phase` 是 Tenant CR `status.phase` 的顶层冗余（便于 SQL 过滤与 B-tree 索引）；`status` jsonb 持剩余子字段 `{message, namespaceReady, conditions[], quotas[].{pool, name, ready}}` —— informer 在写 PG 时**主动 strip** `quotas[].used`，该字段属于 ephemeral 调度态，只活在 Tenant CR `status.quotas[].used` 与 compute Tenant Informer 的 in-memory cache 里，GET 端点实时聚合返回（详见 [compute-service.md §5.3](components/compute-service.md#53-状态回流informer)）。两者都由 informer 写。`Suspended` 与 `Creating` / `Deleting` 同属 API 直接写入 `phase` 的意图态（reconciler 无匹配谓词、不下发 CR）；informer 回流时**不覆盖** `phase='Suspended'` 的行，仅刷新其 `status` 子树（conditions / quotas），resume 把 `phase` 复位 `Active` 后恢复正常回流（详见 [compute-service.md §4.1](components/compute-service.md#41-tenant)）。
+`phase` 是 Tenant CR `status.phase` 的顶层冗余（便于 SQL 过滤与 B-tree 索引）；`status` jsonb 持剩余子字段 `{message, namespaceReady, conditions[], quotas[].{pool, ready}}` —— informer 在写 PG 时**主动 strip** `quotas[].used`，该字段属于 ephemeral 调度态，只活在 Tenant CR `status.quotas[].used` 与 compute Tenant Informer 的 in-memory cache 里，GET 端点实时聚合返回（详见 [compute-service.md §5.3](components/compute-service.md#53-状态回流informer)）。两者都由 informer 写。`Suspended` 与 `Creating` / `Deleting` 同属 API 直接写入 `phase` 的意图态（reconciler 无匹配谓词、不下发 CR）；informer 回流时**不覆盖** `phase='Suspended'` 的行，仅刷新其 `status` 子树（conditions / quotas），resume 把 `phase` 复位 `Active` 后恢复正常回流（详见 [compute-service.md §4.1](components/compute-service.md#41-tenant)）。
 
 **字段归属**
 
@@ -123,7 +123,7 @@ CREATE INDEX tenants_sync_pending
 | --- | --- | --- |
 | `id` | API | 同时写入 CR `metadata.labels[axisml.io/tenant-id]` |
 | `name` | API | 创建后不可变；集群内全局唯一 |
-| `spec` | API | `spec.namespace.name` / `spec.allocations[].pool` / `spec.quotas[].{pool,name}` 创建后不可变 |
+| `spec` | API | `spec.namespace.name`（= 租户名）/ `spec.quotas[].pool` 创建后不可变 |
 | `generation` | API | spec mutation 时 +1 |
 | `observed_generation` | reconciler | 成功 patch CR 后写入 |
 | `status` | informer | 从 Tenant CR `status` 整块回流 |
@@ -255,6 +255,7 @@ CREATE TABLE artifacts (
   labels        jsonb NOT NULL DEFAULT '{}',
   annotations   jsonb NOT NULL DEFAULT '{}',
   owner         text,                           -- 创建者；不可变
+  source        text,                           -- webUpload / oras / dockerPush / external；Ready 后冻结
 
   spec          jsonb NOT NULL,                 -- Kind 特化业务字段；Ready 后冻结
 
@@ -283,7 +284,7 @@ CREATE INDEX artifacts_labels_gin          ON artifacts USING GIN (labels jsonb_
 
 ## 4. Platform
 
-Platform PG 覆盖 **身份、授权、会话、审计** 四类，外加 **Job / Experiment / Evaluation / Model / Image / Dataset 六张定义**（§5.2）。**不缓存任何下游可变实例状态**——run / version / phase / conditions / digest / quota 用量一律向下游服务实时查询；Tenant / Workspace / Service 等无 Platform 视图表。
+Platform PG 覆盖 **身份、授权、会话、审计** 四类，外加 **Job / Experiment / Model / Image 四张定义**（§5.2）。**不缓存任何下游可变实例状态**——run / version / phase / conditions / digest / quota 用量一律向下游服务实时查询；Tenant / Workspace / Service / TrafficPolicy 等无 Platform 视图表。流量策略持久化在 compute `traffic_policies`（§3.4），经 Platform 代理、不建 Platform 表。
 
 ### 5.1 schema
 
@@ -303,14 +304,14 @@ CREATE UNIQUE INDEX users_username_uniq ON users (username);
 
 -- 角色硬编码三档（`system-admin` / `tenant-admin` / `user`），不入表；权限矩阵见 auth.md §3。
 
-CREATE TABLE user_tenant_roles (
+CREATE TABLE user_roles (
   user_id     uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   tenant_name text NOT NULL,                       -- 引用 compute `tenants.name`（稳定 FK，跨服务不约束）
   role        text NOT NULL,                       -- 'tenant-admin' | 'user'；硬编码枚举
   created_at  timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (user_id, tenant_name, role)
 );
-CREATE INDEX user_tenant_roles_user_tenant ON user_tenant_roles (user_id, tenant_name);
+CREATE INDEX user_roles_user_tenant ON user_roles (user_id, tenant_name);
 
 CREATE TABLE sessions (
   jti        text PRIMARY KEY,                     -- JWT ID
@@ -332,15 +333,15 @@ CREATE INDEX audit_logs_created_at      ON audit_logs (created_at DESC);
 CREATE INDEX audit_logs_user_created_at ON audit_logs (user_id, created_at DESC);
 ```
 
-`user_tenant_roles.tenant_name` 不做跨服务 FK——compute `tenants.name` 在 `WHERE deleted_at IS NULL` 上 partial unique 且创建后不可变，等价于稳定 FK；级联清理由 [platform.md §4.1](components/platform.md#41-租户编排) 在应用层实现。`user_tenant_roles.role` 是硬编码 text 枚举（`tenant-admin` / `user`），完整矩阵见 [auth.md §3](auth.md#3-rbac-角色)。`audit_logs` 保留期由 `--audit-log-retention-days` 配置（默认 90 天）。
+`user_roles.tenant_name` 不做跨服务 FK——compute `tenants.name` 在 `WHERE deleted_at IS NULL` 上 partial unique 且创建后不可变，等价于稳定 FK；级联清理由 [platform.md §4.1](components/platform.md#41-租户编排) 在应用层实现。`user_roles.role` 是硬编码 text 枚举（`tenant-admin` / `user`），完整矩阵见 [auth.md §3](auth.md#3-rbac-角色)。`audit_logs` 保留期由 `--audit-log-retention-days` 配置（默认 90 天）。
 
 **bootstrap 行为**：首次 `axisml-platform bootstrap` 会插入 `admin` 用户（密码 hash 默认 `admin`，`must_change_password=true`；可通过环境变量 `AXISML_BOOTSTRAP_PASSWORD` 覆盖），同时在 compute 中初始化内置租户 `axisml-system` 承载 `visibility=public` 制品。
 
-### 5.2 定义（jobs / experiments / evaluations / datasets / models / images）
+### 5.2 定义（jobs / experiments / models / images）
 
-这六张表是 Platform 自有的 name 级**定义 / 模板**实体；运行 / 版本**实例**由下游持有，二者实时关联，Platform **不建 run/version 索引表**（语义见 [platform.md §3.2](components/platform.md#32-定义jobs--experiments--evaluations--datasets--models--images)）。
+这四张表是 Platform 自有的 name 级**定义 / 模板**实体；运行 / 版本**实例**由下游持有，二者实时关联，Platform **不建 run/version 索引表**（语义见 [platform.md §3.2](components/platform.md#32-定义jobs--experiments--models--images)）。
 
-六张定义表同构；下给出 `jobs` 完整定义，`experiments` / `evaluations` / `datasets` / `models` / `images` 列与索引一致（仅表名与索引名前缀替换，`spec` 语义不同）。
+四张定义表同构；下给出 `jobs` 完整定义，`experiments` / `models` / `images` 列与索引一致（仅表名与索引名前缀替换，`spec` 语义不同）。
 
 ```sql
 CREATE TABLE jobs (
@@ -361,13 +362,13 @@ CREATE UNIQUE INDEX jobs_tenant_name_active_uniq ON jobs (tenant_name, name) WHE
 CREATE INDEX jobs_created_at ON jobs (created_at DESC);
 CREATE INDEX jobs_labels_gin ON jobs USING GIN (labels jsonb_path_ops);
 
--- experiments / evaluations：列与索引同 jobs（表名与索引名前缀替换）；spec 持训练 / 评测特化模板。
--- datasets / models / images：列与索引同 jobs（表名与索引名前缀替换）；spec 改持 name 级业务元数据。
+-- experiments：列与索引同 jobs（表名与索引名前缀替换）；spec 持训练特化模板。
+-- models / images：列与索引同 jobs（表名与索引名前缀替换）；spec 改持 name 级业务元数据。
 ```
 
 - `jobs.spec`：Job 可复用模板——`backend{name,engine,config}` / `roles[]`（含镜像引用）/ `scheduling{poolName,unitName,quota}`（仅名字，compute 内部展开）/ `runPolicy` / 制品引用 `(kind,name,version)`。**无 run 列**。
-- `experiments.spec`：与 `jobs.spec` 同构（训练超参即 `roles[*].template.{args,env}`，Platform 不单独建模）；`evaluations.spec`：评测特化（`targets[]`（被评 `model@version`）/ `dataset(name,version)` / `metrics[]` / `primaryMetric`），语义见 [platform.md §4.9 / §4.10](components/platform.md#49-实验编排)。**无 run 列**。
-- `models.spec` / `images.spec` / `datasets.spec`：name 级业务元数据（如 `framework` / `format` / `purpose`）；版本级硬校验在 artifacts。**无 version 列**。
-- **关联（实时，无索引表）**：Run 经 compute `MLRun` 的 `axisml.io/{job,experiment,evaluation}=<定义>` label 反查（Run 命名 `<定义>-<n>`）；制品版本经 artifacts `(namespace, kind, name)` 列举。
+- `experiments.spec`：与 `jobs.spec` 同构（训练超参即 `roles[*].template.{args,env}`，Platform 不单独建模），语义见 [platform.md §4.9](components/platform.md#49-实验编排)。**无 run 列**。
+- `models.spec` / `images.spec`：name 级业务元数据（如 `framework` / `purpose`）；版本级硬校验在 artifacts。**无 version 列**。
+- **关联（实时，无索引表）**：Run 经 compute `MLRun` 的 `axisml.io/{job,experiment}=<定义>` label 反查（Run 命名 `<定义>-<n>`）；制品版本经 artifacts `(namespace, kind, name)` 列举。
 - 软删后同名可重建（§1.2 partial unique）；定义可在零 Run / 零版本状态下存在。
-- **训练指标 / 评估报告 / checkpoint 不入 PG、不经 Platform**：实验 Run 的 TensorBoard event log（`experiments/<exp>/runs/<run>/tb/`）/ checkpoint（`.../output/`）、评估 Run 的 `report.json`（`evaluations/<eval>/runs/<run>/report.json`）由 compute 注入路径与凭证写入对象存储；TensorBoard 实例读 event log，评估报告由 compute 经 `GetMLRunReport` 签发临时只读地址、Platform 直读该地址（compute 不代理 bytes），Run 删除时由 compute 一并 GC（编排见 [platform.md §4.9–§4.11](components/platform.md#49-实验编排)）。PG 仅存定义。
+- **训练指标 / checkpoint 不入 PG、不经 Platform**：实验 Run 的 TensorBoard event log（`experiments/<exp>/runs/<run>/tb/`）/ checkpoint（`.../output/`）由 compute 注入路径与凭证写入对象存储；TensorBoard 实例读 event log，Run 删除时由 compute 一并 GC（编排见 [platform.md §4.9–§4.10](components/platform.md#49-实验编排)）。PG 仅存定义。

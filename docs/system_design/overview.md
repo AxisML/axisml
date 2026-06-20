@@ -10,7 +10,7 @@
 
 - **集群词汇层**：ResourcePool CRD（内嵌 `units[]` 数组）由 [Cluster Manager](components/cluster-manager.md) 通过 REST 维护——admin 视角的"K8s 写抽象"层，cluster-manager 调 K8s API 写 CR；compute 通过 Informer 直读 CR 完成展开。
 - **租户与工作负载层**：租户（Tenant）、配额（Quota）、运行（Run = `MLRun`）/ Service 与制品版本（Artifact version）由 [compute-service](components/compute-service.md) 与 [artifact-hub](components/artifact-hub.md) 承载；compute 持有 Tenant 权威并下发 Tenant CR 给 [tenant-operator](components/tenant-operator.md) 在 Kubernetes 上落地。
-- **定义 / 视图层**：[Platform](components/platform.md) 持有 Job / 实验（Experiment）/ 评估（Evaluation）/ Model / Image / Dataset 的 name 级**定义**，以及"用户 → 租户视图 → (compute_ns, artifacts_ns)"映射；运行（Run）与制品版本仍在下游，经 `axisml.io/{job,experiment,evaluation}` label 与 `(kind, name)` 实时关联。调 compute 触发运行时只透传 `(poolName, unitName)` 名字对，pool/unit 展开由 compute 自完成。
+- **定义 / 视图层**：[Platform](components/platform.md) 持有 Job / 实验（Experiment）/ Model / Image 的 name 级**定义**，以及"用户 → 租户视图 → (compute_ns, artifacts_ns)"映射；运行（Run）与制品版本仍在下游，经 `axisml.io/{job,experiment}` label 与 `(kind, name)` 实时关联。调 compute 触发运行时只透传 `(poolName, unitName)` 名字对，pool/unit 展开由 compute 自完成。
 
 ### 2.1 概念速查
 
@@ -19,17 +19,16 @@
 | 租户 | Tenant | 集群级 `Tenant` CR + PG `tenants` 行 | [compute-service #3](components/compute-service.md#3-核心模型) / [tenant-operator #3](components/tenant-operator.md#3-核心模型) |
 | 资源池 | ResourcePool | `ResourcePool` CRD（cluster-scoped）；`spec.units[]` 内嵌 unit 数组 | [cluster-manager #3](components/cluster-manager.md#3-核心模型) |
 | 资源单元 | ResourceUnit (unit) | ResourcePool `spec.units[]` 内嵌项, 同 pool 一起生灭 | [cluster-manager #3](components/cluster-manager.md#3-核心模型) |
-| 资源配额 | Allocation / Quota | `Tenant.spec.allocations[]`（总额度，system-admin 设）→ 父 `ElasticQuota`；`Tenant.spec.quotas[]`（子配额，tenant-admin 在总额度内拆分）→ 子 `ElasticQuota`（均 namespace-scoped） | [compute-service #3](components/compute-service.md#3-核心模型) / [tenant-operator #4](components/tenant-operator.md#4-核心功能) |
+| 资源配额 | Quota | `Tenant.spec.quotas[]`（按「资源单元 × 数量」，system-admin 设）→ 每 pool 一个 namespace-scoped `ElasticQuota`（`min`/`max` = `Σ unit × quantity`，据 cluster-manager ResourceUnit 规格折算） | [compute-service #3](components/compute-service.md#3-核心模型) / [tenant-operator #4](components/tenant-operator.md#4-核心功能) |
 | 计算负载 | Compute Workload | Run / Service 的概念伞 | [compute-service #3](components/compute-service.md#3-核心模型) |
-| 任务（定义） | Job | Platform PG `jobs` 行（可复用模板，name 级定义） | [platform #3.2](components/platform.md#32-定义jobs--experiments--evaluations--datasets--models--images) |
-| 运行 | Run | `MLRun` CRD（Job / 实验 / 评估的一次运行，命名 `<定义>-<n>`）；Platform 经 `axisml.io/{job,experiment,evaluation}` label 关联 | [compute-operator #3](components/compute-operator.md#3-核心模型) |
-| 实验（定义） | Experiment | Platform PG `experiments` 行（训练特化模板，name 级定义）；Run = `MLRun`，经 `axisml.io/experiment` label 关联 | [platform #3.2](components/platform.md#32-定义jobs--experiments--evaluations--datasets--models--images) |
-| 评估（定义） | Evaluation | Platform PG `evaluations` 行（评测特化模板，name 级定义）；Run = `MLRun`，经 `axisml.io/evaluation` label 关联 | [platform #3.2](components/platform.md#32-定义jobs--experiments--evaluations--datasets--models--images) |
+| 任务（定义） | Job | Platform PG `jobs` 行（可复用模板，name 级定义） | [platform #3.2](components/platform.md#32-定义jobs--experiments--models--images) |
+| 运行 | Run | `MLRun` CRD（Job / 实验的一次运行，命名 `<定义>-<n>`）；Platform 经 `axisml.io/{job,experiment}` label 关联 | [compute-operator #3](components/compute-operator.md#3-核心模型) |
+| 实验（定义） | Experiment | Platform PG `experiments` 行（训练特化模板，name 级定义）；Run = `MLRun`，经 `axisml.io/experiment` label 关联 | [platform #3.2](components/platform.md#32-定义jobs--experiments--models--images) |
 | 服务 | Service | `MLService` CRD | [compute-operator #3](components/compute-operator.md#3-核心模型) |
 | 工作区 | Workspace | Compute `mlservices` 表中 `kind='workspace'`（底层复用 `MLService(native, deployment)`） | [compute-service #3](components/compute-service.md#3-核心模型) |
 | TensorBoard | TensorBoard | Compute `mlservices` 表中 `kind='tensorboard'`（实验指标查看的按需临时实例，底层复用 `MLService(native, deployment)`） | [compute-service #3](components/compute-service.md#3-核心模型) |
 | 流量策略 | Traffic Policy | namespace-scoped `MLTrafficPolicy` CR + PG `traffic_policies` 行（一个稳定入口加权分发到多个在线服务） | [compute-service #4.5](components/compute-service.md#45-流量策略mltrafficpolicy) / [compute-operator #4.3](components/compute-operator.md#43-mltrafficpolicy-controller) |
-| 制品（定义） | Model / Image / Dataset | Platform PG `models` / `images` / `datasets` 行（name 级定义） | [platform #3.2](components/platform.md#32-定义jobs--experiments--evaluations--datasets--models--images) |
+| 制品（定义） | Model / Image | Platform PG `models` / `images` 行（name 级定义） | [platform #3.2](components/platform.md#32-定义jobs--experiments--models--images) |
 | 制品版本 | Artifact version | `(namespace, kind, name, version)` 四元组寻址；`namespace` = 租户名 | [artifacts #3](components/artifact-hub.md#3-核心模型) |
 
 ### 2.2 关键不变量
@@ -39,8 +38,8 @@
 - **Cluster Manager 是 K8s admin REST 抽象**：把 admin 视角的 K8s 写 / 读（ResourcePool CRD CRUD）收敛为 REST，让 Platform 全程不直接调 K8s API；无独立持久化、无 reconciler、无 leader election。
 - **所有 AxisML Pod 走 koord-scheduler**：任何 backend handler 渲染出的 Pod 必须设置 `schedulerName: koord-scheduler` 并携带 `quota.scheduling.koordinator.sh/name` label —— 不存在"绕过配额"的调度路径。
 - **Operator 之间不互相感知**：tenant-operator 不看 MLRun / MLService；compute-operator 不看 Tenant / ElasticQuota（仅透传 quota 名）。
-- **Platform 拥有定义、下游拥有实例**：Job / 实验 / 评估 / Model / Image / Dataset 的 name 级定义在 Platform PG；运行（Run = `MLRun`）与制品版本在下游。二者经 `axisml.io/{job,experiment,evaluation}` label 与 artifacts `(kind, name)` **实时关联**，Platform 不建 run/version 索引表，不缓存 phase / digest 等可变状态。
-- **分组维度走 labels**：Job / 实验（Experiment）/ 评估（Evaluation）定义都是任务的正式分组（Run 分别经 `axisml.io/{job,experiment,evaluation}` 归属）；其余自定义分组走 `labels.axisml.io/<dim>` 落下游 PG，list 端点支持 `?labelSelector=`；compute / artifacts 不感知 Platform 业务概念。
+- **Platform 拥有定义、下游拥有实例**：Job / 实验 / Model / Image 的 name 级定义在 Platform PG；运行（Run = `MLRun`）与制品版本在下游。二者经 `axisml.io/{job,experiment}` label 与 artifacts `(kind, name)` **实时关联**，Platform 不建 run/version 索引表，不缓存 phase / digest 等可变状态。
+- **分组维度走 labels**：Job / 实验（Experiment）定义都是任务的正式分组（Run 分别经 `axisml.io/{job,experiment}` 归属）；其余自定义分组走 `labels.axisml.io/<dim>` 落下游 PG，list 端点支持 `?labelSelector=`；compute / artifacts 不感知 Platform 业务概念。
 - **外部入口只在 Platform**：Cluster Manager / Compute Service / Artifact Hub 不暴露到集群外，仅接受 Platform 内部调用并信任 `X-Axisml-User` 身份透传。
 
 ## 3. 功能矩阵
@@ -52,13 +51,11 @@
 | 训练中心 | 模型定制 | TBD |
 | | 工作区 | ✅ |
 | | 实验管理 | ✅ |
-| | 评估任务 | ✅ |
 | | 自定义任务 | ✅ |
 | 服务中心 | 在线服务 | ✅ |
 | | 流量配置 | ✅ |
 | 资产中心 | 模型 | ✅ |
 | | 镜像 | ✅ |
-| | 数据集 | ✅ |
 | 系统管理 | 租户管理（compute） | ✅ |
 | | 资源池管理（cluster-manager） | ✅ |
 | | 资源单元管理（cluster-manager） | ✅ |
@@ -66,7 +63,7 @@
 
 图例：`✅` 表示已有对应详细设计；`TBD` 表示概要中保留能力入口，详细设计待补充或待稳定。
 
-> **删除 / 恢复语义**：仅 `Tenant` 支持软删 + restore（365 天 retention 后物理清理）；`Job` / `Experiment`（实验）/ `Evaluation`（评估）定义删除——有活跃 Run 则阻止，否则级联软删其全部 Run；`Run` / `Service` / `Workspace` / `TensorBoard` 删除即终态，无 restore 路径（重新触发 / 提交 / 拉起即可）；`Model` / `Image` / `Dataset` 定义删除直接级联软删其全部版本，`Artifact` 版本软删后 `(namespace, kind, name, version)` 永不复用。详见各组件 §4。
+> **删除 / 恢复语义**：仅 `Tenant` 支持软删 + restore（365 天 retention 后物理清理）；`Job` / `Experiment`（实验）定义删除——有活跃 Run 则阻止，否则级联软删其全部 Run；`Run` / `Service` / `Workspace` / `TrafficPolicy` / `TensorBoard` 删除即终态，无 restore 路径（重新触发 / 提交 / 拉起即可）；`Model` / `Image` 定义删除直接级联软删其全部版本，`Artifact` 版本软删后 `(namespace, kind, name, version)` 永不复用。详见各组件 §4。
 
 ## 4. 整体架构
 
@@ -117,7 +114,7 @@
 核心调用关系：
 
 - 外部流量经 Envoy Gateway 进入 Platform；下层服务仅接受 Platform 内部调用。
-- Platform → Cluster Manager（ResourcePool admin REST）、Compute（租户 / 配额 / 任务 / 服务；创建 workload 时仅传 pool/unit 名字, 由 compute 内部 Informer 直读 CR 展开）、Artifacts（模型 / 镜像 / 数据集）；compute / artifacts 以 namespace（tenant 名）为分区入参。
+- Platform → Cluster Manager（ResourcePool admin REST）、Compute（租户 / 配额 / 任务 / 服务；创建 workload 时仅传 pool/unit 名字, 由 compute 内部 Informer 直读 CR 展开）、Artifacts（模型 / 镜像）；compute / artifacts 以 namespace（tenant 名）为分区入参。
 - 租户与负载闭环：Compute 写 PG `tenants` / `mlruns` / `mlservices` / `traffic_policies` → reconciler patch Tenant / MLRun / MLService / MLTrafficPolicy CR → tenant-operator 落地 Namespace / ElasticQuota / 初始化资源；compute-operator 按 `spec.backend.{name, engine}` 路由 backend handler 渲染 K8s 与第三方 CR（MLTrafficPolicy 派生加权 `HTTPRoute`）。
 - 制品域：Artifacts 元数据走 PG；模型 / 镜像走 zot（OCI），数据集走 RustFS（S3），上传下载由消费方直连存储，Artifacts 不代理大文件 bytes。
 
@@ -142,7 +139,7 @@
 
 | 组件 | 一句话职责 | 关键模型 | 详细设计 |
 | --- | --- | --- | --- |
-| **Platform** | 用户入口与业务编排，持有 Job / 实验 / 评估 / Model / Image / Dataset 定义 + 租户视图层映射 | User / 定义 (jobs/experiments/evaluations/datasets/models/images) / 视图层 (compute_ns, artifacts_ns) 映射 | [platform.md](components/platform.md) |
+| **Platform** | 用户入口与业务编排，持有 Job / 实验 / Model / Image 定义 + 租户视图层映射 | User / 定义 (jobs/experiments/models/images) / 视图层 (compute_ns, artifacts_ns) 映射 | [platform.md](components/platform.md) |
 | **Cluster Manager** | admin 域 K8s REST 抽象（ResourcePool CRD CRUD；扩展端点见组件文档 §9） | ResourcePool CR (含内嵌 `spec.units[]`) | [cluster-manager.md](components/cluster-manager.md) |
 | **Compute** | 业务域计算服务，管理 Tenant / Quota / Run(MLRun) / Service / TrafficPolicy 与四类 CR | Tenant + MLRun + MLService + MLTrafficPolicy（PG tenants/mlruns/mlservices/traffic_policies，namespace 分区） | [compute-service.md](components/compute-service.md) |
 | **Artifacts** | 业务域制品服务，元数据 / 存储分离 | Artifact 四元组 `(namespace, kind, name, version)` | [artifact-hub.md](components/artifact-hub.md) |
@@ -200,13 +197,13 @@ axisml/
 | 决策项 | 决策 | 理由 |
 | --- | --- | --- |
 | 计算任务抽象 | 通过 CRD（MLRun / MLService / MLTrafficPolicy / Tenant）抽象 | 与 Kubernetes 原生集成，声明式管理，框架无关 |
-| 任务 / 制品定义层 | Platform 自有 Job / 实验 / 评估 / Model / Image / Dataset 六张 name 级定义；运行（Run = MLRun）与版本留在下游，经 `axisml.io/{job,experiment,evaluation}` label 与 `(kind, name)` 实时关联 | 给业务编排一个稳定的"定义 / 模板"抽象，便于后续扩展；下游只管实例，Platform 不缓存可变状态、不建索引表 |
+| 任务 / 制品定义层 | Platform 自有 Job / 实验 / Model / Image 四张 name 级定义；运行（Run = MLRun）与版本留在下游，经 `axisml.io/{job,experiment}` label 与 `(kind, name)` 实时关联 | 给业务编排一个稳定的"定义 / 模板"抽象，便于后续扩展；下游只管实例，Platform 不缓存可变状态、不建索引表 |
 | 控制平面拆分 | tenant-operator + compute-operator 两个独立二进制 | 管理员域与业务域按变更频率与权限边界分离 |
 | 租户与配额归属 | compute 持有 Tenant + Quota 权威，统一与 Job / Service 共驻一个 PG schema | 消除 cluster-manager 与 compute 间的 namespace 解析跨服务调用；compute 自己 join 出 K8s namespace；权威收敛到单一服务；详见 [compute-service #5](components/compute-service.md#5-关键机制) |
 | Pool/Unit 与租户分离 | ResourcePool CRD 由 cluster-manager 管 (内嵌 units), compute 通过 Informer 直读做展开 | pool/unit 是集群级 admin 词汇，跟租户生命周期解耦；写路径 (cluster-manager → K8s) 与读路径 (compute Informer) 都经 etcd 收敛, 无跨组件调用 |
 | Compute / Artifacts 分区模型 | 按 tenant 名作为 namespace 分区字符串，compute 内部 join 解析 K8s ns，artifacts 不解析 | 既保留分区清晰性，也避免在每次调用中传两套 namespace |
 | backend 扩展机制 | compute-operator 内部按 `spec.backend.{name, engine}` 路由 | 用户面向稳定 CRD，底层后端可按需接入 native / Kubeflow / KServe / custom；详见 [compute-operator #4](components/compute-operator.md#4-核心功能) |
-| 配额模型 | 两级配额内联在 Tenant spec：`spec.allocations[]`（总额度，system-admin）→ 父 `ElasticQuota`，`spec.quotas[]`（子配额，tenant-admin 在总额度内拆分）→ 子 `ElasticQuota`（namespace-scoped，纯 `min` / `max` 二维） | 对齐 Koordinator ElasticQuota 父 / 子层级语义，租户内可按团队再分且总量不超分，避免独立 Quota CRD |
+| 配额模型 | 配额内联在 Tenant spec：`spec.quotas[]` 按「资源单元 × 数量」（system-admin 设）→ 每 pool 一个 namespace-scoped `ElasticQuota`（`min` / `max` = `Σ unit × quantity`，据 cluster-manager ResourceUnit 规格折算） | 配额以业务可理解的「资源单元 × 数量」表达、由 compute 折算为 ElasticQuota，避免独立 Quota CRD |
 | 调度与配额收编 | 所有 Pod 强制 `schedulerName: koord-scheduler` + ElasticQuota label | 保证不存在绕过配额的调度路径 |
 | 制品抽象 | Artifact 直接以 `(namespace, kind, name, version)` 四元组寻址，无"仓库"两级空间 | 与 Compute 分区模型对齐，统一为裸 namespace |
 | 制品元数据存储 | PostgreSQL | 关系型 + 事务 + 生态成熟 |
@@ -216,4 +213,3 @@ axisml/
 | 前端框架 | TypeScript + React | 社区生态成熟，组件丰富 |
 | 系统管理归属 | 租户与配额归 compute；资源池、资源单元归 cluster-manager | compute 持有"租户 ↔ K8s namespace"映射后可独立解析 namespace；pool/unit 是集群级 admin 词汇，与租户生命周期解耦 |
 | 认证鉴权 | Platform 统一入口；内置用户体系 + RBAC 三档（硬编码）；OIDC 后续接入 | 外部入口收敛到 Platform，下层信任 `X-Axisml-User` 透传；详见 [auth.md](auth.md) |
-| 全局可见制品 | `axisml-system` 内置租户 + `artifacts.visibility=public` 字段 | 跨租户共享只在"平台基础镜像 / 公共数据集"这种 system-admin 维护的场景出现；不引入"租户 A 主动分享给租户 B" |

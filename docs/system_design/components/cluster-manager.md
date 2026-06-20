@@ -168,8 +168,8 @@ admin 域的集群事实由本服务即时聚合，供 [Platform](platform.md#47
 
 | 类别 | 内容 | 引用 |
 | --- | --- | --- |
-| 对外 REST | `/api/v1/resource-pools[/{pool}]`、`/api/v1/resource-pools/{pool}/units[/{unit}]` | [apis/cluster-manager.yaml](../apis/cluster-manager.yaml) `ResourcePools` tag |
-| 对外 REST（集群事实） | `/api/v1/cluster/capacity`、`/api/v1/cluster/metrics` | [apis/cluster-manager.yaml](../apis/cluster-manager.yaml) `Cluster` tag |
+| 对外 REST | `/api/v1/resource-pools[/{pool}]`、`/api/v1/resource-pools/{pool}/units[/{unit}]` | [openapi/cluster-manager.yaml](../../openapi/cluster-manager.yaml) `ResourcePools` tag |
+| 对外 REST（集群事实） | `/api/v1/cluster/capacity`、`/api/v1/cluster/metrics` | [openapi/cluster-manager.yaml](../../openapi/cluster-manager.yaml) `Cluster` tag |
 | 下发 CR | `ResourcePool`（`axisml.io/v1alpha1`，cluster-scoped）；cluster-manager 是 REST 写者，kubectl 路径也允许 | [resource-pool-crd.yaml](../../../deploy/helm/axisml-system/crds/resource-pool-crd.yaml) |
 | 身份头 | 调用方注入 `X-Axisml-User`，本服务仅做审计；同时透传为 CR annotation `axisml.io/last-modified-by` | [auth.md §6](../auth.md#6-下游身份透传) |
 | 错误格式 | HTTP 标准状态码 + RFC 7807 problem+json；K8s API 错误经 typed 映射 | — |
@@ -203,6 +203,6 @@ admin 域的集群事实由本服务即时聚合，供 [Platform](platform.md#47
 - [auth.md](../auth.md) — 身份与鉴权契约
 - [deployment.md](../deployment.md) — Helm / 部署
 - [monitoring.md](../monitoring.md) — Metrics
-- [apis/cluster-manager.yaml](../apis/cluster-manager.yaml) — REST 契约源
+- [openapi/cluster-manager.yaml](../../openapi/cluster-manager.yaml) — REST 契约源
 - [platform.md](platform.md) — Platform 调本服务做 pool/unit admin UI
 - [compute-service.md](compute-service.md) — pool/unit 的展开消费方（通过 K8s Informer 直读 CR）
