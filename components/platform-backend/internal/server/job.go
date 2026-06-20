@@ -42,12 +42,13 @@ type MLRunRoleStatus struct {
 	RestartPolicy     string       `json:"restartPolicy,omitempty"`
 }
 
-// RunPolicy carries run-level execution limits.
+// RunPolicy carries run-level execution limits. The bounded fields use
+// omitempty so an omitted (zero) RunPolicy doesn't trip the min validators.
 type RunPolicy struct {
-	ActiveDeadlineSeconds   int `json:"activeDeadlineSeconds,omitempty" binding:"min=1"`
-	TTLSecondsAfterFinished int `json:"ttlSecondsAfterFinished,omitempty" binding:"min=0"`
-	BackoffLimit            int `json:"backoffLimit,omitempty" binding:"min=0"`
-	ProgressDeadlineSeconds int `json:"progressDeadlineSeconds,omitempty" binding:"min=1"`
+	ActiveDeadlineSeconds   int `json:"activeDeadlineSeconds,omitempty" binding:"omitempty,min=1"`
+	TTLSecondsAfterFinished int `json:"ttlSecondsAfterFinished,omitempty" binding:"omitempty,min=0"`
+	BackoffLimit            int `json:"backoffLimit,omitempty" binding:"omitempty,min=0"`
+	ProgressDeadlineSeconds int `json:"progressDeadlineSeconds,omitempty" binding:"omitempty,min=1"`
 }
 
 // Run is a single Run (the compute MLRun produced by triggering a Job).

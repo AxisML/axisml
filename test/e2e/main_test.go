@@ -16,6 +16,10 @@ import (
 	tenantv1 "github.com/axisml/axisml/components/tenant-operator/api/v1alpha1"
 )
 
+// sharedTenantReady reports whether the System-layer shared tenant provisioned
+// (workload tests gate on it; Platform tests don't need it).
+var sharedTenantReady bool
+
 // TestMain wires up the process-wide harness: a K8s client against the ambient
 // kubeconfig, port-forwards to the three HTTP services, and the shared `e2e`
 // test tenant that the workload tests run inside. It assumes the cluster and
@@ -31,10 +35,15 @@ func TestMain(m *testing.M) {
 	h = s
 
 	ctx := context.Background()
+	// The shared tenant backs the System-layer workload tests. Its setup is
+	// non-fatal: the Platform tests provision their own tenants via the Platform
+	// API, so they run regardless. Workload tests that need the shared tenant
+	// detect its absence and skip.
 	if err := ensureSharedTenant(ctx); err != nil {
-		fmt.Fprintf(os.Stderr, "e2e: shared tenant setup failed: %v\n", err)
-		h.close()
-		os.Exit(1)
+		fmt.Fprintf(os.Stderr, "e2e: WARN shared tenant setup failed (workload tests will skip): %v\n", err)
+		sharedTenantReady = false
+	} else {
+		sharedTenantReady = true
 	}
 
 	code := m.Run()

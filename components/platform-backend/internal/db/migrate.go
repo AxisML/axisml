@@ -25,7 +25,12 @@ func Migrate(gormDB *gorm.DB) error {
 	if err != nil {
 		return err
 	}
-	driver, err := postgres.WithInstance(sqlDB, &postgres.Config{})
+	// Platform shares the `axisml` database with compute-service / artifact-hub;
+	// each service tracks its own migrations in a distinct table to avoid version
+	// collisions on the default schema_migrations table.
+	driver, err := postgres.WithInstance(sqlDB, &postgres.Config{
+		MigrationsTable: "platform_schema_migrations",
+	})
 	if err != nil {
 		return fmt.Errorf("postgres driver: %w", err)
 	}
