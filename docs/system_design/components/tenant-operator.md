@@ -7,7 +7,7 @@
 | 做 | 不做 |
 | --- | --- |
 | Namespace 创建与 metadata 对齐 (永不删除) | Tenant CR / 配额的 CRUD API (→ [compute-service.md](compute-service.md)) |
-| 每条 `spec.allocations[]` / `spec.quotas[]` 渲染为父 / 子 ElasticQuota CR,回流 `status.used` | MLRun / MLService 生命周期 (→ [compute-operator.md](compute-operator.md)) |
+| 每条 `spec.quotas[]` 渲染为一个 ElasticQuota CR,回流 `status.used` | MLRun / MLService 生命周期 (→ [compute-operator.md](compute-operator.md)) |
 | `spec.initResources` 下发 ImagePullSecret / Secret / ConfigMap / SA + RBAC | 用户认证、平台 RBAC (→ [auth.md](../auth.md)) |
 | 周期 resync 收敛源 Secret / ConfigMap 漂移 | 跨集群 / 多 region 联邦 |
 
@@ -62,8 +62,7 @@
 | --- | --- | --- | --- |
 | Tenant | 租户 CR,cluster-scoped | `metadata.name` (DNS-1123, ≤40) | 上游唯一写者为 compute |
 | Namespace | 运行租户 Pod 的 K8s namespace | `spec.namespace.name` | 可被多 Tenant 共享 (§5.1) |
-| ElasticQuota（父） | Koordinator 总额度 CR（cap） | `axisml-<tenant>-<pool>` | 每条 `spec.allocations[]` 渲染（`is-parent=true`） |
-| ElasticQuota（子） | Koordinator 子配额 CR | `axisml-<tenant>-<pool>-<quota>` | 每条 `spec.quotas[]` 1:1 渲染（`parent=axisml-<tenant>-<pool>`） |
+| ElasticQuota | Koordinator 配额 CR | `axisml-<tenant>-<pool>` | 每条 `spec.quotas[]` 1:1 渲染（`min` / `max` 由 compute 据资源单元 × 数量折算后写入 CR） |
 | InitResource | per-tenant Secret / CM / SA + RBAC | `axisml-tenant-<tenant>-<name>` | 由 `sourceXxxRef` 复制 |
 
 Tenant CR 字段定义见 [deploy/helm/axisml-system/crds/tenant-crd.yaml](../../../deploy/helm/axisml-system/crds/tenant-crd.yaml);ElasticQuota 调度行为见 [infra.md](../infra.md)。
@@ -101,20 +100,19 @@ reconcile 触发事件:
 
 **关键不变量**:`spec.namespace.name` 创建后不可变;controller 行为兜底拒绝,admission webhook 为最终兜底。`status.namespaceReady` 在 Namespace `phase=Active` 时为 `true`。
 
-#### 4.1.2 ElasticQuota 落地（父 / 子两级）
+#### 4.1.2 ElasticQuota 落地
 
-配额落地为 Koordinator `ElasticQuota` 的**两级树**,均落在 `spec.namespace.name` 下:每条 `spec.allocations[]` 渲染为**父**(总额度 cap),每条 `spec.quotas[]` 渲染为父下的**子**(子配额)。
+配额落地为每个 `(tenant, pool)` 一个 Koordinator `ElasticQuota`,均落在 `spec.namespace.name` 下:每条 `spec.quotas[]` 渲染为一个 ElasticQuota,其 `min` / `max` 由 compute-service 据 cluster-manager ResourceUnit 规格把「资源单元 × 数量」折算后写入 CR spec,operator 直传落地。
 
 | 维度 | 行为 |
 | --- | --- |
-| 命名 | 父 `axisml-<tenant>-<pool>`;子 `axisml-<tenant>-<pool>-<quota-name>` (集群内唯一) |
-| 层级 label | 父打 `quota.scheduling.koordinator.sh/is-parent=true`;子打 `quota.scheduling.koordinator.sh/parent=axisml-<tenant>-<pool>` |
-| 创建 / 删除 | `spec.min` / `max` 直传;空数组不创建;spec 增删项 → Create / Delete 对应 CR;删父前其子必须已清空 |
+| 命名 | `axisml-<tenant>-<pool>` (集群内唯一) |
+| 创建 / 删除 | `spec.min` / `max` 直传;空数组不创建;spec 增删项 → Create / Delete 对应 CR |
 | ownerReference | Tenant CR |
-| 漂移 | reconcile 按 `spec.allocations[i]` / `spec.quotas[i]` 的 `{min, max}` 覆盖对应 ElasticQuota |
-| status.used 回流 | watch 子 ElasticQuota,把 `status.used` 写入 `Tenant.status.quotas[i].used`;不写回 ElasticQuota |
+| 漂移 | reconcile 按 `spec.quotas[i]` 的 `{min, max}` 覆盖对应 ElasticQuota |
+| status.used 回流 | watch ElasticQuota,把 `status.used` 写入 `Tenant.status.quotas[i].used`;不写回 ElasticQuota |
 
-**关键不变量**:`allocations[].pool` 与 `quotas[].(pool, name)` 唯一且创建后不可变;`min[k] ≤ max[k]` 且均 ≥ 0;**额度不超分**——每个 pool 内 `Σ 子.min ≤ 父.min` 且 每个 `子.max ≤ 父.max`(compute-service 写前已校验,operator 兜底)。Pod 通过 label `quota.scheduling.koordinator.sh/name=<子-eq-name>` 跨 namespace 绑定子配额。
+**关键不变量**:`quotas[].pool` 唯一且创建后不可变;`min[k] ≤ max[k]` 且均 ≥ 0。Pod 通过 label `quota.scheduling.koordinator.sh/name=axisml-<tenant>-<pool>` 跨 namespace 绑定其 pool 的 ElasticQuota。
 
 #### 4.1.3 初始化资源落地
 
@@ -200,10 +198,8 @@ Pod 调度 ──▶ koord-scheduler ──▶ ElasticQuota.status.used 累加
 | --- | --- | --- |
 | `metadata.name` / `labels[axisml.io/tenant-id]` | compute | 否 |
 | `spec.namespace.name` | compute | 否 (controller 拒绝,webhook 兜底) |
-| `spec.allocations[].pool` | compute | 否 (标识锚点) |
-| `spec.allocations[].{min, max}` | compute | 是 (system-admin 设总额度) |
-| `spec.quotas[].{pool, name}` | compute | 否 (标识锚点) |
-| `spec.quotas[].{min, max}` | compute | 是 (tenant-admin,额度内拆分) |
+| `spec.quotas[].pool` | compute | 否 (标识锚点) |
+| `spec.quotas[].{min, max}` | compute | 是 (据资源单元 × 数量折算) |
 | `spec.initResources.*` | compute | 是 (增删 → reconcile 创建 / 删除) |
 | `status.*` | tenant-operator | — |
 

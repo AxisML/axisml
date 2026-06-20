@@ -66,9 +66,7 @@ type RunView struct {
 	OwnerID           UUID              `json:"ownerId,omitempty"`
 	Backend           Backend           `json:"backend"`
 	PoolName          string            `json:"poolName,omitempty" binding:"dns1123,max=40"`
-	ResourcePoolName  string            `json:"resourcePoolName,omitempty"`
 	UnitName          string            `json:"unitName,omitempty" binding:"dns1123,max=40"`
-	ResourceUnitName  string            `json:"resourceUnitName,omitempty"`
 	Quota             string            `json:"quota,omitempty"`
 	Resources         ResourceMap       `json:"resources,omitempty"`
 	Roles             []MLRunRoleStatus `json:"roles,omitempty"`

@@ -17,8 +17,9 @@ var RoleNameValues = []string{"system-admin", "tenant-admin", "user"}
 // TenantPhase is the lifecycle phase of a Tenant.
 type TenantPhase string
 
-// TenantPhaseValues enumerates TenantPhase.
-var TenantPhaseValues = []string{"Creating", "Active", "Failed", "Deleting", "Deleted"}
+// TenantPhaseValues enumerates TenantPhase. Suspended is a reversible admin
+// disable that gates new-workload creation.
+var TenantPhaseValues = []string{"Creating", "Active", "Suspended", "Failed", "Deleting", "Deleted"}
 
 // WorkspacePhase is derived from compute service phase + replicas.
 type WorkspacePhase string
@@ -50,12 +51,6 @@ var MLServicePhaseValues = []string{
 	"Creating", "Pending", "Ready", "Degraded", "Failed", "Stopped", "Deleting", "Deleted",
 }
 
-// MLServiceRouteAuthType selects the auth mode for an MLService route.
-type MLServiceRouteAuthType string
-
-// MLServiceRouteAuthTypeValues enumerates MLServiceRouteAuthType.
-var MLServiceRouteAuthTypeValues = []string{"none", "jwt", "apiKey"}
-
 // MLServiceMetricName names a queryable MLService metric.
 type MLServiceMetricName string
 
@@ -70,11 +65,60 @@ type ModelStatus string
 // ImageStatus mirrors artifacts ArtifactStatus for kind=image.
 type ImageStatus string
 
-// DatasetStatus mirrors artifacts ArtifactStatus for kind=dataset.
-type DatasetStatus string
-
-// ArtifactStatusValues enumerates the shared Model/Image/Dataset status set.
+// ArtifactStatusValues enumerates the shared Model/Image status set.
 var ArtifactStatusValues = []string{"Uploading", "Ready", "Failed", "Deleting", "Deleted"}
+
+// ImagePurpose classifies an image definition's intended use (list filter).
+type ImagePurpose string
+
+// ImagePurposeValues enumerates ImagePurpose.
+var ImagePurposeValues = []string{"training", "inference", "workspace", "custom"}
+
+// ArtifactSource records how an artifact version was added (source badge).
+type ArtifactSource string
+
+// ArtifactSourceValues enumerates ArtifactSource: webUpload / oras (model push) /
+// dockerPush (image push) / external (registered remote URI or image ref).
+var ArtifactSourceValues = []string{"webUpload", "oras", "dockerPush", "external"}
+
+// RemoteSourceKind names the backing store of an externally-registered model
+// version.
+type RemoteSourceKind string
+
+// RemoteSourceKindValues enumerates RemoteSourceKind.
+var RemoteSourceKindValues = []string{"s3", "oci", "http", "hf", "custom"}
+
+// WorkloadMetricName names a queryable Run / workload resource metric.
+type WorkloadMetricName string
+
+// WorkloadMetricNameValues enumerates WorkloadMetricName.
+var WorkloadMetricNameValues = []string{"cpu_util", "mem_util", "gpu_util"}
+
+// TrafficPolicyMode is a traffic policy's routing mode (immutable after creation).
+type TrafficPolicyMode string
+
+// TrafficPolicyModeValues enumerates TrafficPolicyMode. weighted = N backends split by
+// weight; canary = 1 stable + 1 canary ramped by percent (promote = full
+// blue-green cutover).
+var TrafficPolicyModeValues = []string{"weighted", "canary"}
+
+// TrafficPolicyBackendRole is a backend's role within a traffic policy.
+type TrafficPolicyBackendRole string
+
+// TrafficPolicyBackendRoleValues enumerates TrafficPolicyBackendRole.
+var TrafficPolicyBackendRoleValues = []string{"stable", "canary", "member"}
+
+// TrafficPolicyPhase is the lifecycle phase of a traffic policy.
+type TrafficPolicyPhase string
+
+// TrafficPolicyPhaseValues enumerates TrafficPolicyPhase.
+var TrafficPolicyPhaseValues = []string{"Creating", "Pending", "Ready", "Degraded", "Failed", "Deleting", "Deleted"}
+
+// TensorBoardPhase is the lifecycle phase of an on-demand TensorBoard instance.
+type TensorBoardPhase string
+
+// TensorBoardPhaseValues enumerates TensorBoardPhase.
+var TensorBoardPhaseValues = []string{"Pending", "Ready", "Failed", "Stopped"}
 
 // ---- Inline enums (rendered as `enum` on the using field) ----
 
@@ -112,7 +156,7 @@ var RestartPolicyValues = []string{"Never", "OnFailure", "Always"}
 type ArtifactKind string
 
 // ArtifactKindValues enumerates ArtifactKind.
-var ArtifactKindValues = []string{"image", "model", "dataset"}
+var ArtifactKindValues = []string{"image", "model"}
 
 // StorageKind names the backing store of an artifact version.
 type StorageKind string
@@ -124,13 +168,7 @@ var StorageKindValues = []string{"oci", "s3"}
 type DefinitionKind string
 
 // DefinitionKindValues enumerates DefinitionKind.
-var DefinitionKindValues = []string{"model", "image", "dataset"}
-
-// Visibility is an artifact definition's visibility scope.
-type Visibility string
-
-// VisibilityValues enumerates Visibility.
-var VisibilityValues = []string{"tenant", "public"}
+var DefinitionKindValues = []string{"model", "image"}
 
 // PodPhase is a pod's lifecycle phase.
 type PodPhase string

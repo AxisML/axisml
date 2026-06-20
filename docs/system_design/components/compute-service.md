@@ -63,8 +63,7 @@ ML 工作负载 + 多租户管控面：以 PostgreSQL 为权威，承载 Tenant 
 | 实体 | 含义 | 标识键 | 状态机 | 对应 CR |
 | --- | --- | --- | --- | --- |
 | Tenant | 租户 | `id` (uuid) / `name`（集群内全局唯一） | `Creating \| Active \| Suspended \| Failed \| Deleting \| Deleted` | `Tenant`（cluster-scoped） |
-| Allocation | 资源池总额度（cap），内联在 `tenants.spec.allocations[]`，由 system-admin 设定 | `(tenant.name, pool)` | 无独立状态 | 每条渲染为父 ElasticQuota CR（由 tenant-operator 落地） |
-| Quota | 子配额，内联在 `tenants.spec.quotas[]`，由 tenant-admin 在所属 pool 的 allocation 内拆分 | `(tenant.name, pool, name)` | 无独立状态 | 每条 1:1 渲染为子 ElasticQuota CR（父为对应 pool 的 allocation） |
+| Quota | 资源池配额，内联在 `tenants.spec.quotas[]`，按「资源单元 × 数量」由 system-admin 设定 | `(tenant.name, pool)` | 无独立状态 | 每条 1:1 渲染为 ElasticQuota CR（`min`/`max` = `Σ unit × quantity`，由 tenant-operator 落地） |
 | Job | 一次性训练 / 离线任务 | `id` (uuid) / `(namespace, name)` | `Creating \| Pending \| Running \| Succeeded \| Failed \| Canceling \| Cancelled \| Deleting \| Deleted` | `MLRun`（namespaced） |
 | Service | 常驻在线服务 / 工作区 / TensorBoard | `id` (uuid) / `(namespace, name)` | `Creating \| Pending \| Ready \| Degraded \| Failed \| Deleting \| Deleted` | `MLService`（namespaced） |
 | TrafficPolicy | 流量策略：稳定入口按权重分发到多个在线服务 | `id` (uuid) / `(namespace, name)` | `Creating \| Pending \| Ready \| Degraded \| Failed \| Deleting \| Deleted` | `MLTrafficPolicy`（namespaced） |
@@ -98,7 +97,7 @@ ML 工作负载 + 多租户管控面：以 PostgreSQL 为权威，承载 Tenant 
 | 操作 | PG 写 | CR 影响 | 备注 |
 | --- | --- | --- | --- |
 | 创建 | insert `Creating` 行（`generation=1`） | reconciler 创建 Tenant CR | DNS-1123 校验由 API 层兜底；`name` 集群内全局唯一 |
-| 更新 spec（`spec.allocations[].{min,max}` / `spec.quotas[].{min,max}` / `spec.initResources`） | update `spec` + `generation += 1` | reconciler patch CR | `spec.namespace.name` / `spec.allocations[].pool` / `spec.quotas[].{pool,name}` 不可变 |
+| 更新 spec（`spec.quotas[].units[]` / `spec.initResources`） | update `spec` + `generation += 1` | reconciler patch CR | `spec.namespace.name`（= 租户名）/ `spec.quotas[].pool` 不可变 |
 | 更新顶层 PG 元数据（`display_name` / `description` / `labels` / `annotations`） | update 行 | **不影响 CR** | 不 `+generation`；扩展位见 [database.md §1.6](../database.md#16-扩展元数据-labels--annotations)；包含 `namespace.labels` / `namespace.annotations` 这类纯展示位 |
 | 软删 | `phase='Deleting'` + `deleted_at = now()` + `generation += 1` | reconciler 删 CR | 行保留到 retention |
 | 恢复 | `deleted_at = NULL` + `generation += 1` | reconciler 重建 CR | 仅适用 `phase='Deleted'` 行 |
@@ -120,23 +119,19 @@ ML 工作负载 + 多租户管控面：以 PostgreSQL 为权威，承载 Tenant 
 
 `status.quotas[].used` **不入 PG**——由 tenant-operator 写到 Tenant CR `status.quotas[].used`，compute-service Tenant Informer 内存 cache 现读，GET 时与 PG 中的 spec / phase 合并返回。详见 [§5.3](#53-状态回流informer)。
 
-### 4.2 Allocation 与 Quota（两级配额）
+### 4.2 配额（资源单元 × 数量）
 
-配额是**两级模型**，均无独立 CRD、均内联在 Tenant spec：
-
-- **总额度 Allocation**（`tenants.spec.allocations[]`，键 `(pool)`）：system-admin 为租户在某资源池下设定的**总量上限（cap）**，渲染为该 `(tenant, pool)` 的**父** ElasticQuota。
-- **子配额 Quota**（`tenants.spec.quotas[]`，键 `(pool, name)`）：tenant-admin 在所属 pool 的 allocation 内**拆分**出的命名子额度（如按团队），渲染为父下的**子** ElasticQuota；workload 只绑定子配额。
+配额无独立 CRD，内联在 Tenant spec：每个 `tenants.spec.quotas[]` 项以键 `(pool)` 描述租户在某资源池下的配额，按「资源单元 × 数量」表达（`{pool, units:[{unitName, quantity}]}`），由 system-admin 设定。compute-service 据 cluster-manager 的 ResourceUnit 规格把 `Σ(unit.requests × quantity)` / `Σ(unit.limits × quantity)` 折算为该 `(tenant, pool)` 的 ElasticQuota `min` / `max`，1:1 渲染为 ElasticQuota CR（由 tenant-operator 落地）；workload 绑定其所属 pool 的 ElasticQuota。
 
 | 操作 | 角色 | PG 写 | CR 影响 |
 | --- | --- | --- | --- |
-| 设 / 改总额度 `allocations[]` | `system-admin` | upsert jsonb 项 + `generation += 1` | reconciler patch 父 ElasticQuota |
-| 删总额度 | `system-admin` | 该 pool 无子配额时移除项 + `generation += 1` | reconciler 删父 ElasticQuota |
-| 增 / 改 / 删子配额 `quotas[]` | `tenant-admin@self` | 写 jsonb 项 + `generation += 1` | reconciler patch / 删子 ElasticQuota |
+| 设 / 改某 pool 配额 `quotas[]` | `system-admin` | upsert jsonb 项 + `generation += 1` | reconciler patch ElasticQuota |
+| 删某 pool 配额 | `system-admin` | 该 pool 无活跃 workload 时移除项 + `generation += 1` | reconciler 删 ElasticQuota |
 | 用量回流 | — | 不入 PG；从 Tenant Informer cache 现读 `status.quotas[i].used` | — |
 
-**额度不超分**（compute-service 写前校验，超出返 `400 quota-exceeds-allocation`）：对每个 pool，`Σ quotas[].min ≤ allocations[pool].min` 且 每项 `quotas[].max ≤ allocations[pool].max`；子配额的 `pool` 必须存在对应 allocation。tenant-operator 落地时按同一约束兜底，Koordinator 按父 / 子 ElasticQuota 层级在调度期强制。
+**单元校验**（compute-service 写前校验）：`quotas[].units[].unitName` 必须存在于对应 `pool` 的 cluster-manager ResourceUnit 集合，否则返 `400 quota-unit-not-found`；`quantity ≥ 0`。tenant-operator 落地时按折算后的 ElasticQuota 兜底，Koordinator 在调度期按 ElasticQuota 强制。
 
-**不变约束**：`allocations[].pool` 与 `quotas[].(pool, name)` 一旦创建即不可变；子配额改名 = 先删后建；删总额度前该 pool 的子配额必须先清空。
+**不变约束**：`quotas[].pool` 一旦创建即不可变（改 pool = 先删后建）；`units[]` 可增删改。
 
 ### 4.3 Job
 
@@ -159,12 +154,12 @@ Creating ──(Informer ADD)──▶ Pending ──▶ Running ──▶ Succe
 | cancel | `phase='Canceling'` + `message='user cancelled'` | reconciler `patch spec.runPolicy.suspend=true` | `Creating` 状态拒绝；要求改用 DELETE |
 | 更新 PG 元数据（`display_name` / `description` / `labels` / `annotations`） | update 行 | **不影响 CR** | Job spec 不可变，但 PG 扩展位任意阶段可改 |
 | 软删 | `phase='Deleting'` + `deleted_at=now()` | reconciler `Delete()` CR；Informer DELETE → `Deleted` | 任一非 `Deleting`/`Deleted` 状态适用 |
-| Pod 列表 / Pod 日志 / Pod 事件 / Job 事件 | — | 按 `axisml.io/run-id` label list Pod；按 Pod 名透传 Pod Log；按 `involvedObject` 过滤 Event（Pod 端点只回 Pod 事件，Job 端点只回 MLRun/PodGroup 事件） | 详见 [apis/compute-service.yaml](../apis/compute-service.yaml) `MLRuns` tag |
+| Pod 列表 / Pod 日志 / Pod 事件 / Job 事件 | — | 按 `axisml.io/run-id` label list Pod；按 Pod 名透传 Pod Log；按 `involvedObject` 过滤 Event（Pod 端点只回 Pod 事件，Job 端点只回 MLRun/PodGroup 事件） | 详见 [openapi/compute-service.yaml](../../openapi/compute-service.yaml) `MLRuns` tag |
 | list 过滤 | — | `?labelSelector=` 支持 K8s 语法，常用 `axisml.io/project=<id>` | 见 [database.md §1.6](../database.md#16-扩展元数据-labels--annotations) |
 
 `Succeeded` / `Failed` / `Cancelled` 为运行终态；`Deleted` 为软删终态。`Cancelled` PG 行保留（`deleted_at IS NULL`），用户可再次 DELETE。
 
-**Run 对象存储产出**：实验 / 评估等 Run 把 TensorBoard event log / checkpoint / `report.json` 写到对象存储——路径（`{experiments|evaluations}/<def>/runs/<run>/...`）与凭证由 operator 渲染 Pod 时注入（[compute-operator.md §5.2](compute-operator.md#52-pod-注入约定)），compute-service 不缓存产出内容。`GetMLRunReport(ns, name)` 端点为 [Platform 评估编排](platform.md#410-评估编排) 返回 `report.json` 的**临时只读地址**：compute-service 用对象存储凭证签发短期 URL（**不代理 bytes**），Platform 直接 GET 该地址读取、自身不持对象存储 client / 凭证。Run 软删时按对象存储约定前缀一并 GC 这些产出（与 §4.4 工作区 PVC GC 同档）。
+**Run 对象存储产出**：实验等 Run 把 TensorBoard event log / checkpoint 写到对象存储——路径（`experiments/<def>/runs/<run>/...`）与凭证由 operator 渲染 Pod 时注入（[compute-operator.md §5.2](compute-operator.md#52-pod-注入约定)），compute-service 不缓存产出内容。Run 软删时按对象存储约定前缀一并 GC 这些产出（与 §4.4 工作区 PVC GC 同档）。
 
 **与 MLRun CR 契约**：
 
@@ -218,7 +213,7 @@ Service 无 cancel 语义；除 `roles[0].replicas` 外其他 spec 字段不可�
 | `ready_replicas == 0 && desired_replicas > 0` 且 CR `phase=Failed` | `Failed`（可自愈） |
 | `desired_replicas == 0` | `Pending` |
 
-**kind 过滤**：`GET /api/v1/namespaces/{ns}/mlservices?kind=workspace`（或 `=service` / `=tensorboard`）供 [Platform](platform.md) 在同一张表上区分 `kind='service'`（在线服务）/ `kind='workspace'`（交互式开发）/ `kind='tensorboard'`（实验指标查看的按需临时实例，编排见 [platform.md §4.11](platform.md#411-tensorboard-编排)）；`kind` 创建后不可变，Compute 不按 `kind` 改变行为，仅作分类与过滤。`kind='tensorboard'` 复用 `(native, deployment)`、**不派生 PVC**，logdir 与对象存储读凭证由 operator 渲染 Pod 时注入（[compute-operator.md §5.2](compute-operator.md#52-pod-注入约定)），可按空闲 TTL 回收（Platform 侧编排）。
+**kind 过滤**：`GET /api/v1/namespaces/{ns}/mlservices?kind=workspace`（或 `=service` / `=tensorboard`）供 [Platform](platform.md) 在同一张表上区分 `kind='service'`（在线服务）/ `kind='workspace'`（交互式开发）/ `kind='tensorboard'`（实验指标查看的按需临时实例，编排见 [platform.md §4.10](platform.md#410-tensorboard-编排)）；`kind` 创建后不可变，Compute 不按 `kind` 改变行为，仅作分类与过滤。`kind='tensorboard'` 复用 `(native, deployment)`、**不派生 PVC**，logdir 与对象存储读凭证由 operator 渲染 Pod 时注入（[compute-operator.md §5.2](compute-operator.md#52-pod-注入约定)），可按空闲 TTL 回收（Platform 侧编排）。
 
 ### 4.5 流量策略（MLTrafficPolicy）
 
@@ -315,7 +310,7 @@ Reconciler (leader-only)
 
 | 资源 | 是否启用 | 允许变更字段 |
 | --- | --- | --- |
-| Tenant | 是 | `spec.quotas[].{min,max}`、`spec.initResources` |
+| Tenant | 是 | `spec.quotas[].units[]`、`spec.initResources` |
 | Service | 是 | `spec.roles[0].replicas` |
 | TrafficPolicy | 是 | `spec.backends[*].{weight,role}`（split / rollback 仅改 weight；canary `promote` 同时互换 stable/canary 两后端的 role） |
 | Job | 否 | 不可变；cancel 走 `Canceling` 谓词单独 patch suspend |
@@ -326,7 +321,7 @@ Reconciler (leader-only)
 
 | Informer | 监听对象 | 主要回写字段 |
 | --- | --- | --- |
-| Tenant Informer | `Tenant` CR | 写 `tenants.status` jsonb（`{phase, message, namespaceReady, conditions[], quotas[].{pool, name, ready}}`）；**主动 strip `quotas[].used`**——该字段保留在 Informer in-memory cache 中，GET 时实时聚合返回；按 §4.1 phase 映射表推进，但 `phase='Suspended'` 的行只刷新 status 子树、不推进 phase（API 意图态） |
+| Tenant Informer | `Tenant` CR | 写 `tenants.status` jsonb（`{phase, message, namespaceReady, conditions[], quotas[].{pool, ready}}`）；**主动 strip `quotas[].used`**——该字段保留在 Informer in-memory cache 中，GET 时实时聚合返回；按 §4.1 phase 映射表推进，但 `phase='Suspended'` 的行只刷新 status 子树、不推进 phase（API 意图态） |
 | MLRun Informer | `MLRun` CR | 整块写 `mlruns.status` jsonb（`{phase, message, startedAt, finishedAt, conditions[]}`）；按 §4.3 phase 映射表推进 |
 | MLService Informer | `MLService` CR | 整块写 `mlservices.status` jsonb（`{phase, message, readyReplicas, endpoint, conditions[]}`）；按 §4.4 条件表推进 |
 | MLTrafficPolicy Informer | `MLTrafficPolicy` CR | 整块写 `traffic_policies.status` jsonb（`{phase, message, endpoint, backends[].{serviceName, weight, ready}, conditions[]}`）；按 §4.5 条件表推进 |
@@ -372,7 +367,7 @@ POST /api/v1/namespaces/{ns}/mlruns
 **校验失败语义**：
 - pool CR 不存在 → `400 pool-not-found`
 - unit 名在 `pool.spec.units[]` 内找不到 → `400 unit-not-found`
-- `(poolName, quota)` 不在 `tenant.spec.quotas[]` 中 → `400 quota-not-found`
+- `poolName` 不在 `tenant.spec.quotas[]` 的 pool 集合中 → `400 quota-not-found`
 - Informer cache 未 sync（compute-service 冷启） → `WaitForCacheSync` 通过前 `/readyz` 不就绪，Pod 不接流量，外部观察不到这种状态
 
 **quota 名组装**：Platform 仅传短 quota 名；compute 校验 `(poolName, quota) ∈ tenant.spec.quotas` 后组装全名 `axisml-<tenant>-<pool>-<quota>` 写入 `spec.scheduling.quota`，随展开结果一并 snapshot 冻结。
@@ -403,8 +398,8 @@ Compute **不反向重建 CR**。Informer 观察到 CR DELETE 事件后按 PG �
 
 | 类别 | 内容 | 引用 |
 | --- | --- | --- |
-| 对外 REST（K8s 风格） | `/api/v1/namespaces[/{namespace}]`（Tenant CRUD）、`/api/v1/namespaces/{namespace}/{restore,suspend,resume}`、`/api/v1/namespaces/{namespace}/quotas[/{pool}/{name}]`、`/api/v1/namespaces/{namespace}/mlruns[...]`、`/api/v1/namespaces/{namespace}/mlservices[...]`、`/api/v1/namespaces/{namespace}/mlservices/{name}/metrics`、`/api/v1/namespaces/{namespace}/traffic-policies[...]`（含 `/{name}/{split,promote,rollback,metrics}` 子路径） | [apis/compute-service.yaml](../apis/compute-service.yaml) `Tenants` / `Quotas` / `MLRuns` / `MLServices` / `TrafficPolicies` tag |
-| 跨 namespace 聚合 | `GET /api/v1/workloads/count?labelSelector=&active=true`（忽略分区按 label 统计活跃 Job/Service）、`GET /api/v1/workloads/metrics?...`（租户 / 集群级工作负载时序） | [apis/compute-service.yaml](../apis/compute-service.yaml) `Workloads` tag |
+| 对外 REST（K8s 风格） | `/api/v1/namespaces[/{namespace}]`（Tenant CRUD）、`/api/v1/namespaces/{namespace}/{restore,suspend,resume}`、`/api/v1/namespaces/{namespace}/quotas[/{pool}]`、`/api/v1/namespaces/{namespace}/mlruns[...]`、`/api/v1/namespaces/{namespace}/mlservices[...]`、`/api/v1/namespaces/{namespace}/mlservices/{name}/metrics`、`/api/v1/namespaces/{namespace}/traffic-policies[...]`（含 `/{name}/{split,promote,rollback,metrics}` 子路径） | [openapi/compute-service.yaml](../../openapi/compute-service.yaml) `Tenants` / `Quotas` / `MLRuns` / `MLServices` / `TrafficPolicies` tag |
+| 跨 namespace 聚合 | `GET /api/v1/workloads/count?labelSelector=&active=true`（忽略分区按 label 统计活跃 Job/Service）、`GET /api/v1/workloads/metrics?...`（租户 / 集群级工作负载时序） | [openapi/compute-service.yaml](../../openapi/compute-service.yaml) `Workloads` tag |
 | 下发 CR | `Tenant`（`axisml.io/v1alpha1`, cluster-scoped）、`MLRun` / `MLService` / `MLTrafficPolicy`（namespaced）；Compute 是唯一 `spec` 写者 | [tenant-operator.md](tenant-operator.md) / [compute-operator.md](compute-operator.md) |
 | 回流字段 | `tenants.status` / `mlruns.status` / `mlservices.status` / `traffic_policies.status`（jsonb 整块） | [database.md §2](../database.md#2-compute-service) |
 | 不变量 | CR `metadata` / `spec` 单写（Compute 写）；CR `status` 单读（operator 写）；API 不直接写 K8s | — |
@@ -425,7 +420,7 @@ Compute **不反向重建 CR**。Informer 观察到 CR DELETE 事件后按 PG �
 | ResourcePool CR | compute-service 通过 K8s Informer cache 直读, 创建 Job/Service 时按 `(poolName, unitName)` 展开为 Pod 原语 snapshot | [cluster-manager.md §3](cluster-manager.md#3-核心模型) |
 | artifacts | image / model / dataset 引用懒查询；**由 operator handler 侧调用 resolve API，Compute 自身不调用** | [artifact-hub.md](artifact-hub.md) |
 | Prometheus | 在线服务 / 工作负载运行指标查询（`GetServiceMetrics` / `GetWorkloadMetrics`，`--prometheus-url`）；只读 | [infra.md](../infra.md) / [monitoring.md](../monitoring.md) |
-| 对象存储（RustFS） | Run 对象存储产出的访问域：为 Run / TensorBoard Pod 注入读写凭证（event log / checkpoint / `report.json`）、`GetMLRunReport` 签发报告临时读地址（**不代理 bytes**）、Run 软删时 GC 产出 | [infra.md](../infra.md) / [artifact-hub.md](artifact-hub.md) |
+| 对象存储（RustFS） | Run 对象存储产出的访问域：为 Run / TensorBoard Pod 注入读写凭证（event log / checkpoint）、Run 软删时 GC 产出 | [infra.md](../infra.md) / [artifact-hub.md](artifact-hub.md) |
 
 Compute 不感知 ElasticQuota CR 内部结构——接收 Platform 传入的短 quota 名，校验 `(pool, quota) ∈ tenant.spec.quotas` 后组装全名 `axisml-<tenant>-<pool>-<quota>` 写入 `spec.scheduling.quota`，再字符串透传到 Tenant CR / MLRun / MLService。
 
@@ -448,7 +443,7 @@ Compute 不感知 ElasticQuota CR 内部结构——接收 Platform 传入的短
 - [deployment.md](../deployment.md) — Helm 模板与发布编排
 - [monitoring.md](../monitoring.md) — Compute Prometheus 指标列表
 - [infra.md](../infra.md) — Koordinator / koord-scheduler / ElasticQuota 依赖契约
-- [apis/compute-service.yaml](../apis/compute-service.yaml) — REST API 契约源
+- [openapi/compute-service.yaml](../../openapi/compute-service.yaml) — REST API 契约源
 - [tenant-operator.md](tenant-operator.md) — Tenant CR 字段契约与落地行为
 - [compute-operator.md](compute-operator.md) — `MLRun` / `MLService` CR 字段契约与 handler 实现
 - [artifact-hub.md](artifact-hub.md) — Job / Service 提交时引用懒查询（image / model / dataset）

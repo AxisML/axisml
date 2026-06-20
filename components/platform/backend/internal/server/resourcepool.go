@@ -47,12 +47,13 @@ type ResourcePoolPatchRequest struct {
 
 // ResourceUnit is an embedded entry of ResourcePool.spec.units[].
 type ResourceUnit struct {
-	Name         string      `json:"name"`
-	Description  string      `json:"description,omitempty"`
-	Requests     ResourceMap `json:"requests"`
-	Limits       ResourceMap `json:"limits"`
-	NodeSelector StringMap   `json:"nodeSelector,omitempty"`
-	Annotations  StringMap   `json:"annotations,omitempty"`
+	Name         string       `json:"name"`
+	Description  string       `json:"description,omitempty"`
+	Requests     ResourceMap  `json:"requests"`
+	Limits       ResourceMap  `json:"limits"`
+	NodeSelector StringMap    `json:"nodeSelector,omitempty"`
+	Tolerations  []Toleration `json:"tolerations,omitempty"`
+	Annotations  StringMap    `json:"annotations,omitempty"`
 }
 
 // ResourceUnitList is a page of ResourceUnit.
@@ -64,19 +65,21 @@ type ResourceUnitList struct {
 
 // ResourceUnitCreateRequest is the body of POST /resource-pools/{pool}/units.
 type ResourceUnitCreateRequest struct {
-	Name         string      `json:"name" binding:"required,dns1123,min=1,max=40"`
-	Description  string      `json:"description,omitempty" binding:"max=1000"`
-	Requests     ResourceMap `json:"requests" binding:"required"`
-	Limits       ResourceMap `json:"limits" binding:"required"`
-	NodeSelector StringMap   `json:"nodeSelector,omitempty"`
-	Annotations  StringMap   `json:"annotations,omitempty"`
+	Name         string       `json:"name" binding:"required,dns1123,min=1,max=40"`
+	Description  string       `json:"description,omitempty" binding:"max=1000"`
+	Requests     ResourceMap  `json:"requests" binding:"required"`
+	Limits       ResourceMap  `json:"limits" binding:"required"`
+	NodeSelector StringMap    `json:"nodeSelector,omitempty"`
+	Tolerations  []Toleration `json:"tolerations,omitempty"`
+	Annotations  StringMap    `json:"annotations,omitempty"`
 }
 
 // ResourceUnitPatchRequest patches a single unit.
 type ResourceUnitPatchRequest struct {
-	Description  string      `json:"description,omitempty" binding:"max=1000"`
-	Requests     ResourceMap `json:"requests,omitempty"`
-	Limits       ResourceMap `json:"limits,omitempty"`
-	NodeSelector StringMap   `json:"nodeSelector,omitempty"`
-	Annotations  StringMap   `json:"annotations,omitempty"`
+	Description  string       `json:"description,omitempty" binding:"max=1000"`
+	Requests     ResourceMap  `json:"requests,omitempty"`
+	Limits       ResourceMap  `json:"limits,omitempty"`
+	NodeSelector StringMap    `json:"nodeSelector,omitempty"`
+	Tolerations  []Toleration `json:"tolerations,omitempty"`
+	Annotations  StringMap    `json:"annotations,omitempty"`
 }

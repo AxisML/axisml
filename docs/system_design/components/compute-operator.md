@@ -72,7 +72,7 @@
 
 `spec.scheduling.quota` 是 compute-service 透传的 ElasticQuota CR 名字符串，对 operator 不透明——ElasticQuota 资源本身由 [tenant-operator](tenant-operator.md) 独占维护。
 
-实验 / 评估的 Run 复用 `(native,job)`（训练亦可走 `(kubeflow-trainer,*)`）、TensorBoard 复用 `(native,deployment)`——均为 Platform 业务编排在既有 backend 上的组合，operator **不新增 handler、不感知实验 / 评估 / TensorBoard 概念**；分组与编排靠 PG label（`axisml.io/{experiment,evaluation}`）+ Platform，见 [platform.md §4.9–§4.11](platform.md#49-实验编排)。
+实验的 Run 复用 `(native,job)`（训练亦可走 `(kubeflow-trainer,*)`）、TensorBoard 复用 `(native,deployment)`——均为 Platform 业务编排在既有 backend 上的组合，operator **不新增 handler、不感知实验 / TensorBoard 概念**；分组与编排靠 PG label（`axisml.io/experiment`）+ Platform，见 [platform.md §4.9–§4.10](platform.md#49-实验编排)。
 
 ## 4. 核心功能
 
@@ -268,7 +268,7 @@ spec:
 
 缺失任一前 5 项视为契约违反，Handler `Validate` 必须创建前拦截。第三方 backend（kserve / kubeflow-trainer / custom）接入时同样必须把 `schedulerName` + Quota label 透传到派生 Pod，否则视为不合规接入路径——具体透传策略待对应 backend 接入时设计（见 §9）。
 
-**对象存储产出注入**：实验 / 评估 Run 与 TensorBoard 服务的 Pod 还在此处注入对象存储访问（event log / checkpoint / `report.json` 的写或读路径 + 凭证，路径约定 `{experiments|evaluations}/<def>/runs/<run>/...`），使产出落对象存储而非 PG；operator 不感知实验 / 评估 / TensorBoard 概念，只按 [compute-service](compute-service.md) 在 spec 里给定的注入项透传。
+**对象存储产出注入**：实验 Run 与 TensorBoard 服务的 Pod 还在此处注入对象存储访问（event log / checkpoint 的写或读路径 + 凭证，路径约定 `experiments/<def>/runs/<run>/...`），使产出落对象存储而非 PG；operator 不感知实验 / TensorBoard 概念，只按 [compute-service](compute-service.md) 在 spec 里给定的注入项透传。
 
 MLTrafficPolicy handler 只派生网关路由资源（`HTTPRoute` / `SecurityPolicy`）、不派生任何 Pod，故本节 Pod 注入不变式对其不适用——计入 ElasticQuota 的算力始终来自被引用的成员 MLService 的 Pod，流量策略本身不占用配额。
 

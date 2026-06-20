@@ -1,6 +1,6 @@
 # AxisML 认证与权限模型
 
-本文档定义 AxisML 控制平面的认证（authn）、授权（authz）与下游身份透传契约。身份 / 会话的持久化 schema 见 [database.md §4](database.md#4-platform)，HTTP 端点见 [apis/platform.yaml](apis/platform.yaml)，系统级定位见 [overview.md](overview.md)。
+本文档定义 AxisML 控制平面的认证（authn）、授权（authz）与下游身份透传契约。身份 / 会话的持久化 schema 见 [database.md §4](database.md#4-platform)，HTTP 端点见 [openapi/platform.yaml](../openapi/platform.yaml)，系统级定位见 [overview.md](overview.md)。
 
 ---
 
@@ -40,7 +40,7 @@
 
 ### 2.3 登录 / 登出 / 续期
 
-端点见 [apis/platform.yaml](apis/platform.yaml) `Auth` tag：`POST /api/v1/auth/login` `/logout` `/refresh`、`GET /api/v1/auth/me`。
+端点见 [openapi/platform.yaml](../openapi/platform.yaml) `Auth` tag：`POST /api/v1/auth/login` `/logout` `/refresh`、`GET /api/v1/auth/me`。
 
 ---
 
@@ -63,8 +63,8 @@
 | 租户成员管理 | OK | OK (@self) | NO |
 | 租户配额 CRUD | OK | OK (@self) | NO |
 | 资源池 / 资源单元 CRUD | OK | NO | NO |
-| 工作区 / Job / 实验 / 评估 / Service 创建 | OK | OK (@self) | OK (@self) |
-| 工作区 / Job / 实验 / 评估 / Service 启停 / 删；TensorBoard 启动 / 停止 | OK | OK (@self, 跨 owner) | OK (@owner) |
+| 工作区 / Job / 实验 / Service 创建 | OK | OK (@self) | OK (@self) |
+| 工作区 / Job / 实验 / Service 启停 / 删；TensorBoard 启动 / 停止 | OK | OK (@self, 跨 owner) | OK (@owner) |
 | 制品 CRUD | OK | OK (@self, 跨 owner) | OK (@self, @owner) |
 | `axisml-system` 制品 `visibility=public` 写 | OK | NO | NO |
 | 跨租户读 | OK | NO | NO |
@@ -79,15 +79,15 @@
 
 ## 4. 租户内角色绑定
 
-- **关联表** `user_tenant_roles(user_id, tenant_name, role)` 表达「某用户在某租户内的角色」（schema 见 [database.md §4.1](database.md#51-schema)）。
-- **`tenant_name` 作稳定外键**：text 列直接引用 compute `tenants.name`，不在 PG 层做跨服务 FK；其稳定性依据是 `tenants.name` 在 `WHERE deleted_at IS NULL` 上 partial unique 且创建后不可变（见 [compute-service.md](components/compute-service.md)）。租户软删 / 硬删时由应用层级联清理本租户在 `user_tenant_roles` 的所有行（见 [platform.md §4.1](components/platform.md#41-租户编排)）。
+- **关联表** `user_roles(user_id, tenant_name, role)` 表达「某用户在某租户内的角色」（schema 见 [database.md §4.1](database.md#51-schema)）。
+- **`tenant_name` 作稳定外键**：text 列直接引用 compute `tenants.name`，不在 PG 层做跨服务 FK；其稳定性依据是 `tenants.name` 在 `WHERE deleted_at IS NULL` 上 partial unique 且创建后不可变（见 [compute-service.md](components/compute-service.md)）。租户软删 / 硬删时由应用层级联清理本租户在 `user_roles` 的所有行（见 [platform.md §4.1](components/platform.md#41-租户编排)）。
 - **绑定规则**：
   - 一个 `(user_id, tenant_name)` 组合最多一条记录；
   - 仅可绑定 `tenant-admin` / `user`；`system-admin` 由全局用户管理维护；
   - **自我保护**：操作者不能移除 / 降级自己在本租户的最后一个 `tenant-admin`，否则返回 `409 last-tenant-admin`；
   - 前端可见的租户列表 = 该用户绑定的所有 `tenant_name`，再调 compute-service `LIST tenants` 取展示元数据（租户归 compute 持有，见 [compute-service.md](components/compute-service.md)）。
 
-端点见 [apis/platform.yaml](apis/platform.yaml) `Members` tag。
+端点见 [openapi/platform.yaml](../openapi/platform.yaml) `Members` tag。
 
 ---
 
@@ -109,11 +109,11 @@
 工作区是 Web 服务，统一走 Cookie：
 
 1. 用户先以登录 token 通过 Platform 鉴权；
-2. 调 `GET /api/v1/workspaces/{name}/access`（见 [apis/platform.yaml](apis/platform.yaml) `Workspaces` tag），取得 workspace access JWT（`aud=axisml-workspace`）与目标 `url`；
+2. 调 `GET /api/v1/workspaces/{name}/access`（见 [openapi/platform.yaml](../openapi/platform.yaml) `Workspaces` tag），取得 workspace access JWT（`aud=axisml-workspace`）与目标 `url`；
 3. JWT 写入工作区域名下的 Cookie；
 4. 浏览器访问工作区 HTTPRoute 时自动携带 Cookie，Envoy SecurityPolicy 从 Cookie 提取 JWT，基于 JWKS（§5.4）验签 + 校验 `aud` 后放行。
 
-实验的 **TensorBoard**（`MLService(kind=tensorboard)`，见 [platform.md §4.11](components/platform.md#411-tensorboard-编排)）数据面同走本节路径：复用同一 `aud=axisml-workspace` access JWT 与 SecurityPolicy，其 `/tensorboard/<tenant>/<exp>/` HTTPRoute 在同一 audience 下放行；启动 / 打开本身限 `owner` / `tenant-admin`（§3.1）。
+实验的 **TensorBoard**（`MLService(kind=tensorboard)`，见 [platform.md §4.10](components/platform.md#410-tensorboard-编排)）数据面同走本节路径：复用同一 `aud=axisml-workspace` access JWT 与 SecurityPolicy，其 `/tensorboard/<tenant>/<exp>/` HTTPRoute 在同一 audience 下放行；启动 / 打开本身限 `owner` / `tenant-admin`（§3.1）。
 
 ### 5.3 在线服务接入（API KEY，规划中）
 
@@ -160,10 +160,9 @@ Platform 后端 `internal/auth` 暴露下列中间件供各功能 handler 拼装
 | `RequireServiceOwner(nameParam)` | `@owner` 或在 service 所属租户上有 ≥ `tenant-admin`；租户由 `X-Axisml-Tenant` 头解析 | `system-admin` 短路 |
 | `RequireJobOwner(nameParam)` | `@owner` 或在 job 所属租户上有 ≥ `tenant-admin`；租户由 `X-Axisml-Tenant` 头解析 | `system-admin` 短路 |
 | `RequireExperimentOwner(nameParam)` | `@owner` 或在 experiment 所属租户上有 ≥ `tenant-admin`；租户由 `X-Axisml-Tenant` 头解析 | `system-admin` 短路 |
-| `RequireEvaluationOwner(nameParam)` | `@owner` 或在 evaluation 所属租户上有 ≥ `tenant-admin`；租户由 `X-Axisml-Tenant` 头解析 | `system-admin` 短路 |
 
 实现要点：
 
-- `RequireWorkspaceOwner` / `RequireServiceOwner` / `RequireJobOwner` / `RequireExperimentOwner` / `RequireEvaluationOwner` 需先调下游 GET 拿 `owner`（实验 / 评估的 owner 取自 Platform PG 定义行），结果经 `gin.Context.Set(...)` 注入后续 handler，避免重复调用；TensorBoard 启动 / 打开 / 停止复用 `RequireExperimentOwner`（按所属实验判定，普通成员不可启动）；
+- `RequireWorkspaceOwner` / `RequireServiceOwner` / `RequireJobOwner` / `RequireExperimentOwner` 需先调下游 GET 拿 `owner`（实验的 owner 取自 Platform PG 定义行），结果经 `gin.Context.Set(...)` 注入后续 handler，避免重复调用；TensorBoard 启动 / 打开 / 停止复用 `RequireExperimentOwner`（按所属实验判定，普通成员不可启动）；
 - 角色升降序：`system-admin` > `tenant-admin` > `user`，所有 `≥` 比较按此序列；
 - 失败统一返回 RFC 7807 problem：`401 unauthenticated` / `403 forbidden` / `409 last-tenant-admin`。

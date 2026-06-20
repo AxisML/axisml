@@ -6,11 +6,11 @@
 
 - **后端业务编排** (跨服务调用顺序、写入路径、一致性策略、PG schema) 见 [components/platform.md](../system_design/components/platform.md)。
 - **用户认证与角色矩阵** (RBAC 完整定义、JWT 颁发、IdentityProvider 接口) 见 [auth.md](../system_design/auth.md)。
-- **REST API 字段契约** 见 [apis/platform.yaml](../system_design/apis/platform.yaml)。
+- **REST API 字段契约** 见 [openapi/platform.yaml](../openapi/platform.yaml)。
 - **Dashboard / 服务指标数据来源** 见 [monitoring.md](../system_design/monitoring.md)。
 - **整体系统概念** (Tenant / ResourcePool / Job / Service / Artifact) 见 [overview.md](../system_design/overview.md)。
 
-> 各菜单按 §2.2 信息架构组织,列表 / 详情 / 表单布局在下文对应章节落档:首页 §3、资源池管理 §4、租户管理 §5、工作区 §6、自定义任务 §7、在线服务 §8、资产中心(数据集 / 模型 / 镜像)§9、流量策略 §10、实验管理 §11、评估任务 §12。本文只描述**布局与字段呈现**;字段契约见 [apis/platform.yaml](../system_design/apis/platform.yaml),状态机与编排见各服务文档,权限矩阵见 [auth.md](../system_design/auth.md)。
+> 各菜单按 §2.2 信息架构组织,列表 / 详情 / 表单布局在下文对应章节落档:首页 §3、资源池管理 §4、租户管理 §5、工作区 §6、自定义任务 §7、在线服务 §8、资产中心(数据集 / 模型 / 镜像)§9、流量策略 §10、实验管理 §11、评估任务 §12。本文只描述**布局与字段呈现**;字段契约见 [openapi/platform.yaml](../openapi/platform.yaml),状态机与编排见各服务文档,权限矩阵见 [auth.md](../system_design/auth.md)。
 
 ---
 
@@ -94,7 +94,7 @@
 
 ## 3. 首页 (登录默认落地页)
 
-登录后默认落地路由 `/dashboard`,**作用域随用户菜单「所属租户」联动**的概览页。数据来自两个端点:`GET /api/v1/dashboard/overview`(KPI + 资源用量快照)与 `GET /api/v1/dashboard/metrics`(时序图)。字段契约见 [apis/platform.yaml](../system_design/apis/platform.yaml) `Dashboard` tag,编排见 [components/platform.md §4.7](../system_design/components/platform.md#47-dashboard-编排),指标口径见 [monitoring.md](../system_design/monitoring.md)。
+登录后默认落地路由 `/dashboard`,**作用域随用户菜单「所属租户」联动**的概览页。数据来自两个端点:`GET /api/v1/dashboard/overview`(KPI + 资源用量快照)与 `GET /api/v1/dashboard/metrics`(时序图)。字段契约见 [openapi/platform.yaml](../openapi/platform.yaml) `Dashboard` tag,编排见 [components/platform.md §4.7](../system_design/components/platform.md#47-dashboard-编排),指标口径见 [monitoring.md](../system_design/monitoring.md)。
 
 ### 3.1 作用域与视图
 
@@ -338,7 +338,7 @@ Footer: 共 3 个资源单元 · 合并选择器在展开行查看
 
 字段 = cluster-manager 创建请求 1:1 透传:`name` / `description` / `node_selector` / `tolerations` / `metadata`。
 
-UI 即时校验 + cluster-manager 兜底。详见 [apis/platform.yaml](../system_design/apis/platform.yaml) `ResourcePools` / `ResourceUnits` tag。
+UI 即时校验 + cluster-manager 兜底。详见 [openapi/platform.yaml](../openapi/platform.yaml) `ResourcePools` / `ResourceUnits` tag。
 
 > Node label / taint 由管理员通过 `kubectl` 维护,**UI 不下发**。
 
@@ -425,12 +425,12 @@ Footer: 共 14 个租户 · 当前显示 1–8         ‹ [1] [2] ›      每�
 | 业务线 | `namespace` (顶层组织维度,与 `spec.namespace.name` 这个 K8s namespace 区分) | pill 渲染 |
 | 状态 | `status.phase` | 见 §5.6 |
 | 命名空间 | `spec.namespace.name` | mono |
-| 成员 | `user_tenant_roles WHERE tenant_name = X` 计数 | Platform 内补充字段,聚合查询 |
+| 成员 | `user_roles WHERE tenant_name = X` 计数 | Platform 内补充字段,聚合查询 |
 | 创建时间 | `createdAt` | mono muted |
 | 操作 | — | 暂停 / 恢复 / 删除 (按 `phase` 切换);详情通过显示名链接进入 |
 
 **过滤**:显示名 / 名称模糊搜索 · 状态 ▾ · 业务线 ▾ · 重置。`status` / `namespace` (业务线) 下推 compute-service;`q` (关键字) 由 Platform 内存二次筛选。
-**可见性**:`system-admin` 看全集群;其他角色按 `user_tenant_roles` 取 `tenant_name` 集合裁剪。
+**可见性**:`system-admin` 看全集群;其他角色按 `user_roles` 取 `tenant_name` 集合裁剪。
 
 ### 5.3 详情页 Tab
 
@@ -473,7 +473,7 @@ Tabs:  [基本信息]  [配额 5]  [成员 12]  [审计日志]
 | Stat 卡 · phase | `Active` / `Failed` / `Deleting` … | `status.phase` (见 §5.6) |
 | Stat 卡 · NS 就绪 | `是` / `否` | `status.conditions[type=NamespaceReady].status` |
 | Stat 卡 · 配额条目 | `5 (3 池)` | `Σ quotas[].count` + 涉及 pool 数 |
-| Stat 卡 · 成员 | `12` | `user_tenant_roles WHERE tenant_name` 计数 |
+| Stat 卡 · 成员 | `12` | `user_roles WHERE tenant_name` 计数 |
 | Conditions 列表 | type / status pill / message / lastTransitionTime | `status.conditions[]` |
 
 `status.conditions[]` 异常 → Stat 卡 phase 旁加红点提示,Conditions 列表里对应行用 `[False]` 红色 pill。
@@ -533,8 +533,8 @@ Filters: 🔍 用户名 / 邮箱  |  角色 ▾                       [+ 添加�
 | 用户名 | `users.username` (mono · 主键) |
 | 显示名 | `users.display_name` |
 | 邮箱 | `users.email` |
-| 角色 | `user_tenant_roles.role_name` pill (`tenant-admin` / `user`,不允许 `system-admin`) |
-| 加入时间 | `user_tenant_roles.created_at` |
+| 角色 | `user_roles.role_name` pill (`tenant-admin` / `user`,不允许 `system-admin`) |
+| 加入时间 | `user_roles.created_at` |
 | 操作 | 改角色 / 移除 |
 
 操作约束:
@@ -559,11 +559,11 @@ Filters: 🔍 用户名 / 邮箱  |  角色 ▾                       [+ 添加�
 | `quotas[]` | 初始配额数组,可后续从详情页 Tab 2 增删 |
 | `initResources` | 初始 Secret / ConfigMap / SA / RBAC (Vault / Sealed Secrets 接入为 TBD) |
 
-UI 即时校验 + compute-service 兜底。完整字段清单与校验规则见 [apis/platform.yaml](../system_design/apis/platform.yaml) `Tenants` tag。
+UI 即时校验 + compute-service 兜底。完整字段清单与校验规则见 [openapi/platform.yaml](../openapi/platform.yaml) `Tenants` tag。
 
 ### 5.5 列表 / 详情通用操作约束
 
-- **DELETE 租户** — 前置检查 `user_tenant_roles WHERE tenant_name = :name`;非空 → `409 tenant-has-members`,二次确认弹窗列出残留成员。
+- **DELETE 租户** — 前置检查 `user_roles WHERE tenant_name = :name`;非空 → `409 tenant-has-members`,二次确认弹窗列出残留成员。
 - **PATCH 租户** — 不可变字段 `name` / `namespace.name` / `quotas[].(pool, name)` 在表单中置灰。
 - **RESTORE 租户** — 仅 `system-admin`;对软删后的租户从 retention 窗口内恢复(详见 [components/compute-service.md](../system_design/components/compute-service.md#41-tenant))。
 - **SUSPEND / RESUME 租户** — 仅 `system-admin`;`Active ⇄ Suspended`;暂停后锁定该租户的新建提交入口(任务 / 服务 / 工作区),已运行工作负载继续运行、可继续 scale / stop / delete,配额与成员 / 元数据保留;恢复即回到 `Active`。
@@ -1147,7 +1147,7 @@ Page Head:  评估任务。
 
 - [components/platform.md](../system_design/components/platform.md) — 后端业务编排、跨服务调用、PG schema
 - [auth.md](../system_design/auth.md) — RBAC 角色矩阵、JWT 颁发、IdentityProvider
-- [apis/platform.yaml](../system_design/apis/platform.yaml) — REST API 字段契约
+- [openapi/platform.yaml](../openapi/platform.yaml) — REST API 字段契约
 - [monitoring.md](../system_design/monitoring.md) — Dashboard 与服务指标数据来源
 - [overview.md](../system_design/overview.md) — 系统概念与组件关系
 - [components/compute-service.md](../system_design/components/compute-service.md) — Tenant / Quota / Job / Service / Workspace 字段权威

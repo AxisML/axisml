@@ -10,31 +10,30 @@ type (
 	ModelSpec map[string]any
 	// ImageSpec is the artifact-side spec for kind=image.
 	ImageSpec map[string]any
-	// DatasetSpec is the artifact-side spec for kind=dataset.
-	DatasetSpec map[string]any
 )
 
 // ---- Models ----
 
 // Model is a model artifact version (Platform view).
 type Model struct {
-	ID          UUID        `json:"id"`
-	Namespace   string      `json:"namespace"`
-	TenantName  string      `json:"tenantName"`
-	Name        string      `json:"name"`
-	Version     string      `json:"version"`
-	DisplayName string      `json:"displayName,omitempty"`
-	Description string      `json:"description,omitempty"`
-	Status      ModelStatus `json:"status"`
-	Digest      string      `json:"digest,omitempty"`
-	Spec        ModelSpec   `json:"spec,omitempty"`
-	Owner       string      `json:"owner,omitempty"`
-	OwnerID     UUID        `json:"ownerId,omitempty"`
-	URI         string      `json:"uri,omitempty"`
-	SizeBytes   int64       `json:"sizeBytes,omitempty"`
-	CreatedAt   time.Time   `json:"createdAt"`
-	ReadyAt     *time.Time  `json:"readyAt,omitempty"`
-	UpdatedAt   time.Time   `json:"updatedAt,omitempty"`
+	ID          UUID           `json:"id"`
+	Namespace   string         `json:"namespace"`
+	TenantName  string         `json:"tenantName"`
+	Name        string         `json:"name"`
+	Version     string         `json:"version"`
+	DisplayName string         `json:"displayName,omitempty"`
+	Description string         `json:"description,omitempty"`
+	Status      ModelStatus    `json:"status"`
+	Source      ArtifactSource `json:"source,omitempty"`
+	Digest      string         `json:"digest,omitempty"`
+	Spec        ModelSpec      `json:"spec,omitempty"`
+	Owner       string         `json:"owner,omitempty"`
+	OwnerID     UUID           `json:"ownerId,omitempty"`
+	URI         string         `json:"uri,omitempty"`
+	SizeBytes   int64          `json:"sizeBytes,omitempty"`
+	CreatedAt   time.Time      `json:"createdAt"`
+	ReadyAt     *time.Time     `json:"readyAt,omitempty"`
+	UpdatedAt   time.Time      `json:"updatedAt,omitempty"`
 }
 
 // ModelList is a page of Model.
@@ -45,12 +44,17 @@ type ModelList struct {
 	Partial       bool    `json:"partial,omitempty"`
 }
 
-// ModelInitiateRequest starts a new model version upload.
+// ModelInitiateRequest starts a new model version. Source selects the method:
+// empty/webUpload = direct upload, oras = CLI push (both return upload
+// credentials), external = register a remote URI with no upload.
 type ModelInitiateRequest struct {
-	Version     string    `json:"version" binding:"required,min=1,max=64"`
-	DisplayName string    `json:"displayName,omitempty"`
-	Description string    `json:"description,omitempty"`
-	Spec        ModelSpec `json:"spec,omitempty"`
+	Version          string           `json:"version" binding:"required,min=1,max=64"`
+	DisplayName      string           `json:"displayName,omitempty"`
+	Description      string           `json:"description,omitempty"`
+	Source           ArtifactSource   `json:"source,omitempty"`
+	RemoteURI        string           `json:"remoteUri,omitempty"`        // required when source=external
+	RemoteSourceKind RemoteSourceKind `json:"remoteSourceKind,omitempty"` // required when source=external
+	Spec             ModelSpec        `json:"spec,omitempty"`
 }
 
 // ModelInitiateResponse returns the push target for a model upload.
@@ -110,7 +114,6 @@ type ArtifactDefinitionView struct {
 	Labels      StringMap      `json:"labels,omitempty"`
 	Annotations StringMap      `json:"annotations,omitempty"`
 	Spec        map[string]any `json:"spec,omitempty"`
-	Visibility  Visibility     `json:"visibility,omitempty"`
 	CreatedAt   time.Time      `json:"createdAt"`
 	UpdatedAt   time.Time      `json:"updatedAt"`
 }
@@ -136,23 +139,24 @@ type ArtifactResolveResponse struct {
 
 // Image is an image artifact version (Platform view).
 type Image struct {
-	ID          UUID        `json:"id"`
-	Namespace   string      `json:"namespace"`
-	TenantName  string      `json:"tenantName"`
-	Name        string      `json:"name"`
-	Version     string      `json:"version"`
-	DisplayName string      `json:"displayName,omitempty"`
-	Description string      `json:"description,omitempty"`
-	Status      ImageStatus `json:"status"`
-	Digest      string      `json:"digest,omitempty"`
-	Spec        ImageSpec   `json:"spec,omitempty"`
-	Owner       string      `json:"owner,omitempty"`
-	OwnerID     UUID        `json:"ownerId,omitempty"`
-	URI         string      `json:"uri,omitempty"`
-	SizeBytes   int64       `json:"sizeBytes,omitempty"`
-	CreatedAt   time.Time   `json:"createdAt"`
-	ReadyAt     *time.Time  `json:"readyAt,omitempty"`
-	UpdatedAt   time.Time   `json:"updatedAt,omitempty"`
+	ID          UUID           `json:"id"`
+	Namespace   string         `json:"namespace"`
+	TenantName  string         `json:"tenantName"`
+	Name        string         `json:"name"`
+	Version     string         `json:"version"`
+	DisplayName string         `json:"displayName,omitempty"`
+	Description string         `json:"description,omitempty"`
+	Status      ImageStatus    `json:"status"`
+	Source      ArtifactSource `json:"source,omitempty"`
+	Digest      string         `json:"digest,omitempty"`
+	Spec        ImageSpec      `json:"spec,omitempty"`
+	Owner       string         `json:"owner,omitempty"`
+	OwnerID     UUID           `json:"ownerId,omitempty"`
+	URI         string         `json:"uri,omitempty"`
+	SizeBytes   int64          `json:"sizeBytes,omitempty"`
+	CreatedAt   time.Time      `json:"createdAt"`
+	ReadyAt     *time.Time     `json:"readyAt,omitempty"`
+	UpdatedAt   time.Time      `json:"updatedAt,omitempty"`
 }
 
 // ImageList is a page of Image.
@@ -163,12 +167,15 @@ type ImageList struct {
 	Partial       bool    `json:"partial,omitempty"`
 }
 
-// ImageInitiateRequest starts a new image version upload.
+// ImageInitiateRequest starts a new image version. Source selects the method:
+// dockerPush returns push credentials; external syncs a remote image ref.
 type ImageInitiateRequest struct {
-	Version     string    `json:"version" binding:"required,min=1,max=64"`
-	DisplayName string    `json:"displayName,omitempty"`
-	Description string    `json:"description,omitempty"`
-	Spec        ImageSpec `json:"spec" binding:"required"`
+	Version        string         `json:"version" binding:"required,min=1,max=64"`
+	DisplayName    string         `json:"displayName,omitempty"`
+	Description    string         `json:"description,omitempty"`
+	Source         ArtifactSource `json:"source,omitempty"`
+	SourceImageRef string         `json:"sourceImageRef,omitempty"` // required when source=external
+	Spec           ImageSpec      `json:"spec" binding:"required"`
 }
 
 // ImageInitiateResponse returns the push target for an image upload.
@@ -182,58 +189,5 @@ type ImageInitiateResponse struct {
 
 // ImageCompleteRequest finalizes an image version upload.
 type ImageCompleteRequest struct {
-	Digest string `json:"digest" binding:"required"`
-}
-
-// ---- Datasets ----
-
-// Dataset is a dataset artifact version (Platform view).
-type Dataset struct {
-	ID          UUID          `json:"id"`
-	Namespace   string        `json:"namespace"`
-	TenantName  string        `json:"tenantName"`
-	Name        string        `json:"name"`
-	Version     string        `json:"version"`
-	DisplayName string        `json:"displayName,omitempty"`
-	Description string        `json:"description,omitempty"`
-	Status      DatasetStatus `json:"status"`
-	Digest      string        `json:"digest,omitempty"`
-	Spec        DatasetSpec   `json:"spec,omitempty"`
-	Owner       string        `json:"owner,omitempty"`
-	OwnerID     UUID          `json:"ownerId,omitempty"`
-	URI         string        `json:"uri,omitempty"`
-	SizeBytes   int64         `json:"sizeBytes,omitempty"`
-	CreatedAt   time.Time     `json:"createdAt"`
-	ReadyAt     *time.Time    `json:"readyAt,omitempty"`
-	UpdatedAt   time.Time     `json:"updatedAt,omitempty"`
-}
-
-// DatasetList is a page of Dataset.
-type DatasetList struct {
-	Items         []Dataset `json:"items"`
-	Count         int       `json:"count" binding:"min=0"`
-	ContinueToken string    `json:"continueToken,omitempty"`
-	Partial       bool      `json:"partial,omitempty"`
-}
-
-// DatasetInitiateRequest starts a new dataset version upload.
-type DatasetInitiateRequest struct {
-	Version     string      `json:"version" binding:"required,min=1,max=64"`
-	DisplayName string      `json:"displayName,omitempty"`
-	Description string      `json:"description,omitempty"`
-	Spec        DatasetSpec `json:"spec" binding:"required"`
-}
-
-// DatasetInitiateResponse returns the push target for a dataset upload.
-type DatasetInitiateResponse struct {
-	ID                UUID           `json:"id"`
-	URI               string         `json:"uri"`
-	StorageKind       StorageKind    `json:"storageKind,omitempty"`
-	UploadCredentials map[string]any `json:"uploadCredentials,omitempty"`
-	ExpiresAt         time.Time      `json:"expiresAt,omitempty"`
-}
-
-// DatasetCompleteRequest finalizes a dataset version upload.
-type DatasetCompleteRequest struct {
 	Digest string `json:"digest" binding:"required"`
 }
