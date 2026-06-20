@@ -1,4 +1,4 @@
-# AxisML Tenant Operator 概要设计
+# AxisML Tenant Operator 设计
 
 ## 1. 定位与边界
 
@@ -8,7 +8,7 @@
 | --- | --- |
 | Namespace 创建与 metadata 对齐（永不删除） | Tenant CR / 配额的 CRUD API (→ [cluster-manager.md](cluster-manager.md)) |
 | 每条 `spec.quotas[]` 渲染为一个 ElasticQuota CR，回流 `status.used` | MLRun / MLService 生命周期 (→ [compute-operator.md](compute-operator.md)) |
-| `spec.initResources` 下发 ImagePullSecret / Secret / ConfigMap / SA + RBAC | 用户认证、平台 RBAC (→ [auth.md](../auth.md)) |
+| `spec.initResources` 下发 ImagePullSecret / Secret / ConfigMap / SA + RBAC | 用户认证、平台 RBAC (→ [auth.md](../platform/auth.md)) |
 | 周期 resync 收敛源 Secret / ConfigMap 漂移 | 跨集群 / 多 region 联邦 |
 
 ## 2. 架构
@@ -49,7 +49,7 @@
 | ElasticQuota | Koordinator 配额 CR | `axisml-<tenant>-<pool>` | 每条 `spec.quotas[]` 1:1 渲染（`min`/`max` 由 cluster-manager 折算后写入） |
 | InitResource | per-tenant Secret / CM / SA + RBAC | `axisml-tenant-<tenant>-<name>` | 由 `sourceXxxRef` 复制 |
 
-Tenant CR 字段见 [tenant-crd.yaml](../../../deploy/helm/axisml-system/crds/tenant-crd.yaml)；ElasticQuota 调度行为见 [infra.md](../infra.md)。
+Tenant CR 字段见 [tenant-crd.yaml](../../../deploy/helm/axisml-system/crds/tenant-crd.yaml)；ElasticQuota 调度行为见 [infra.md](../infra/overview.md)。
 
 ## 4. 核心功能
 
@@ -159,7 +159,7 @@ Pod 调度 ─▶ koord-scheduler ─▶ ElasticQuota.status.used 累加
 | 依赖 | 用途 |
 | --- | --- |
 | Kubernetes API | Tenant CR watch、子资源 CRUD、leader Lease |
-| Koordinator ElasticQuota CRD | 渲染目标；`status.used` 回流来源（[infra.md](../infra.md)） |
+| Koordinator ElasticQuota CRD | 渲染目标；`status.used` 回流来源（[infra.md](../infra/overview.md)） |
 | cluster-manager | 上游唯一 Tenant CR 写者；status 回流消费方（GET 时直读 CR）（[cluster-manager.md](cluster-manager.md)） |
 | 受控 Namespace 中的源 Secret / ConfigMap | `sourceSecretRef` / `sourceConfigMapRef` 复制数据源 |
 
@@ -176,8 +176,8 @@ Pod 调度 ─▶ koord-scheduler ─▶ ElasticQuota.status.used 累加
 
 ## 9. 相关引用
 
-- [overview.md](../overview.md) — 控制平面拓扑与系统不变量
-- [auth.md](../auth.md) · [database.md](../database.md) · [deployment.md](../deployment.md) · [infra.md](../infra.md)
+- [high_level_design.md](../high_level_design.md) — 控制平面拓扑与系统不变量
+- [auth.md](../platform/auth.md) · [database.md](../database.md) · [deployment.md](../deployment.md) · [infra.md](../infra/overview.md)
 - [cluster-manager.md](cluster-manager.md) — Tenant CR 上游 producer（REST 写 spec）
 - [compute-operator.md](compute-operator.md) — 兄弟 operator
 - [artifact-hub.md](artifact-hub.md) — `resolve?usage=inspect` 依赖 per-tenant SA + 默认 Secret 落地

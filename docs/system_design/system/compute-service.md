@@ -1,4 +1,4 @@
-# AxisML Compute Service 概要设计
+# AxisML Compute Service 设计
 
 ## 1. 定位与边界
 
@@ -10,10 +10,10 @@ ML 工作负载服务：以 PostgreSQL 为权威，承载 Job / Service / Worksp
 | 流量策略 CRUD、split / promote / rollback、指标代理；成员校验权威 | Namespace / ElasticQuota / initResources 落地 (→ [tenant-operator.md](tenant-operator.md)) |
 | 三类 CR spec 下发 + status 回流 | 直接创建 Pod / Deployment / PodGroup（→ [compute-operator.md](compute-operator.md)） |
 | Pod 列表 / 日志 / 事件透传 kube-apiserver | 加权 HTTPRoute / 灰度的网关派生 (→ [compute-operator.md](compute-operator.md)) |
-| 在线服务 / 工作负载运行指标代理（按 `spec.backend` 选 PromQL 查 Prometheus） | 用户认证与角色鉴权 (→ [auth.md](../auth.md)) |
+| 在线服务 / 工作负载运行指标代理（按 `spec.backend` 选 PromQL 查 Prometheus） | 用户认证与角色鉴权 (→ [auth.md](../platform/auth.md)) |
 | 跨 namespace 活跃 workload 按 label 计数（供上游 pool/unit 删除前置阻断） | ResourcePool / ResourceUnit 词汇 (→ [cluster-manager.md](cluster-manager.md)) |
 
-**namespace 字段语义**：`mlruns` / `mlservices` 表的 `namespace text` 是租户 `identifier`，同时就是 CR 下发的 K8s namespace（单一规范名，由上游传入）；Compute 不 join 任何租户表、不做名字解析（见 [overview §2.2](../overview.md#22-关键不变量)）。
+**namespace 字段语义**：`mlruns` / `mlservices` 表的 `namespace text` 是租户 `identifier`，同时就是 CR 下发的 K8s namespace（单一规范名，由上游传入）；Compute 不 join 任何租户表、不做名字解析（见 [high_level_design §2.2](../high_level_design.md#22-关键不变量)）。
 
 **Pool/Unit 展开归属**：上游仅传 `(poolName, unitName)` 名字对；compute-service 通过 K8s Informer 直读 `ResourcePool` CR cache 完成展开（合并 `nodeSelector` / `tolerations` / `requests` / `limits`），snapshot 到 `spec` jsonb。snapshot 一经写入即与 pool/unit CR 解耦（§5.4）。
 
@@ -215,7 +215,7 @@ Compute **不反向重建 CR**。Informer 观察 CR DELETE 后按 PG 当前 `sta
 | 下发 CR | `MLRun` / `MLService` / `MLTrafficPolicy`（`axisml.io/v1alpha1`, namespaced）；Compute 是唯一 `spec` 写者 | [compute-operator.md](compute-operator.md) |
 | 回流字段 | `mlruns.status` / `mlservices.status` / `traffic_policies.status`（jsonb 整块） | [database.md §2](../database.md#2-compute-service) |
 | 列表查询 | 所有 list 支持 `?labelSelector=`（K8s grammar） | [database.md §1.6](../database.md#16-扩展元数据-labels--annotations) |
-| 身份头 | 调用方注入 `X-Axisml-User`，本服务仅做 ownership 归属（[auth.md §6](../auth.md#6-下游身份透传)） | — |
+| 身份头 | 调用方注入 `X-Axisml-User`，本服务仅做 ownership 归属（[auth.md §6](../platform/auth.md#6-下游身份透传)） | — |
 | 错误格式 | HTTP 标准码 + RFC 7807 problem+json | — |
 | 写后语义 | mutation PG 提交后即返回；CR 同步异步进行，调用方 GET 观察 `status` | — |
 
@@ -232,7 +232,7 @@ Compute **不反向重建 CR**。Informer 观察 CR DELETE 后按 PG 当前 `sta
 | ResourcePool CR | 经 K8s Informer cache 直读，创建时展开为 Pod 原语 snapshot（[cluster-manager.md §3](cluster-manager.md#3-核心模型)） |
 | artifacts | image / model / dataset 引用懒查询；**由 operator handler 侧调 resolve，Compute 自身不调用**（[artifact-hub.md](artifact-hub.md)） |
 | Prometheus | 运行指标查询（`--prometheus-url`，只读） |
-| 对象存储（RustFS） | 为 Run / TensorBoard Pod 注入读写凭证、Run 软删时 GC 产出（[infra.md](../infra.md)） |
+| 对象存储（RustFS） | 为 Run / TensorBoard Pod 注入读写凭证、Run 软删时 GC 产出（[infra.md](../infra/overview.md)） |
 
 Compute 不感知 ElasticQuota CR 内部结构——以 `axisml-<identifier>-<pool>` 字符串透传到 CR，不校验配额是否存在。
 
@@ -249,10 +249,10 @@ Compute 不感知 ElasticQuota CR 内部结构——以 `axisml-<identifier>-<po
 
 ## 9. 相关引用
 
-- [overview.md](../overview.md) — Compute 在控制平面的位置与系统不变量
-- [auth.md](../auth.md) — `X-Axisml-User` 身份头与鉴权边界
+- [high_level_design.md](../high_level_design.md) — Compute 在控制平面的位置与系统不变量
+- [auth.md](../platform/auth.md) — `X-Axisml-User` 身份头与鉴权边界
 - [database.md](../database.md) — Compute 表结构（§2）
-- [deployment.md](../deployment.md) · [infra.md](../infra.md)
+- [deployment.md](../deployment.md) · [infra.md](../infra/overview.md)
 - [openapi/compute-service.yaml](../../openapi/compute-service.yaml) — REST 契约源
 - [compute-operator.md](compute-operator.md) — 下游 CR 消费者与 handler 实现
 - [cluster-manager.md](cluster-manager.md) — ResourcePool CRD 写入方；本服务经 Informer 直读做展开

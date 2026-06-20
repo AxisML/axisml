@@ -1,4 +1,4 @@
-# AxisML 概要设计
+# AxisML 高层设计（High-Level Design）
 
 ## 1. 概述
 
@@ -8,27 +8,27 @@
 
 平台采用 **两层业务模型 + 一层定义 / 视图**：
 
-- **集群词汇层**：`ResourcePool` CRD（内嵌 `units[]`）与集群级 `Tenant` CR，由 [cluster-manager](components/cluster-manager.md) 经 REST 维护（admin 视角的"K8s 写抽象"）。cluster-manager 据 ResourceUnit 规格把配额「资源单元 × 数量」折算进 `Tenant.spec.quotas[]`；compute 通过 Informer 直读 ResourcePool 展开，[tenant-operator](components/tenant-operator.md) 直读 Tenant CR 落地 Namespace / ElasticQuota / 初始化资源。
-- **工作负载层**：运行（Run = `MLRun`）/ Service / 制品版本，由 [compute-service](components/compute-service.md) 与 [artifact-hub](components/artifact-hub.md) 承载；二者以 namespace（= 租户 `identifier`）为分区写下游 CR，不持有 Tenant 权威。
-- **定义 / 视图层**：[Platform](components/platform.md) 持有租户持久记录与生命周期权威（自有 `tenants` 表，`identifier` 唯一标识），以及 Job / Experiment / Model / Image 的 name 级**定义**和"用户 → 租户 → namespace"映射。租户的 K8s 物化经 cluster-manager REST 下发，Platform 不直接操作任何 CR；运行与制品版本在下游，经 label 与 `(kind, name)` 实时关联。
+- **集群词汇层**：`ResourcePool` CRD（内嵌 `units[]`）与集群级 `Tenant` CR，由 [cluster-manager](system/cluster-manager.md) 经 REST 维护（admin 视角的"K8s 写抽象"）。cluster-manager 据 ResourceUnit 规格把配额「资源单元 × 数量」折算进 `Tenant.spec.quotas[]`；compute 通过 Informer 直读 ResourcePool 展开，[tenant-operator](system/tenant-operator.md) 直读 Tenant CR 落地 Namespace / ElasticQuota / 初始化资源。
+- **工作负载层**：运行（Run = `MLRun`）/ Service / 制品版本，由 [compute-service](system/compute-service.md) 与 [artifact-hub](system/artifact-hub.md) 承载；二者以 namespace（= 租户 `identifier`）为分区写下游 CR，不持有 Tenant 权威。
+- **定义 / 视图层**：[Platform](platform/backend.md) 持有租户持久记录与生命周期权威（自有 `tenants` 表，`identifier` 唯一标识），以及 Job / Experiment / Model / Image 的 name 级**定义**和"用户 → 租户 → namespace"映射。租户的 K8s 物化经 cluster-manager REST 下发，Platform 不直接操作任何 CR；运行与制品版本在下游，经 label 与 `(kind, name)` 实时关联。
 
 ### 2.1 概念速查
 
 | 术语 | 对应对象 | 详细设计 |
 | --- | --- | --- |
-| 租户 Tenant | 集群级 `Tenant` CR + Platform `tenants` 行（`identifier` 标识） | [cluster-manager #3](components/cluster-manager.md#3-核心模型) / [platform #3](components/platform.md#3-核心模型) |
-| 资源池 ResourcePool | `ResourcePool` CRD（cluster-scoped），`spec.units[]` 内嵌 | [cluster-manager #3](components/cluster-manager.md#3-核心模型) |
-| 资源单元 ResourceUnit | `ResourcePool.spec.units[]` 内嵌项，与 pool 同生灭 | [cluster-manager #3](components/cluster-manager.md#3-核心模型) |
-| 资源配额 Quota | `Tenant.spec.quotas[]`（「资源单元 × 数量」）→ 每 pool 一个 `ElasticQuota`（`min`/`max` 由 cluster-manager 折算） | [cluster-manager #4](components/cluster-manager.md#4-核心功能) / [tenant-operator #4](components/tenant-operator.md#4-核心功能) |
-| 任务（定义）Job | Platform `jobs` 行（可复用模板） | [platform #3.2](components/platform.md#32-定义jobs--experiments--models--images) |
-| 实验（定义）Experiment | Platform `experiments` 行（训练特化模板）；Run 经 `axisml.io/experiment` label 关联 | [platform #3.2](components/platform.md#32-定义jobs--experiments--models--images) |
-| 运行 Run | `MLRun` CR（Job / 实验的一次运行，`<定义>-<n>`），经 `axisml.io/{job,experiment}` label 关联 | [compute-operator #3](components/compute-operator.md#3-核心模型) |
-| 服务 Service | `MLService` CR | [compute-operator #3](components/compute-operator.md#3-核心模型) |
-| 工作区 Workspace | `mlservices.kind='workspace'`（复用 `MLService(native, deployment)`） | [compute-service #3](components/compute-service.md#3-核心模型) |
-| TensorBoard | `mlservices.kind='tensorboard'`（按需临时实例，复用同上） | [compute-service #3](components/compute-service.md#3-核心模型) |
-| 流量策略 Traffic Policy | `MLTrafficPolicy` CR + PG 行（一个稳定入口加权分发到多服务） | [compute-service #4.3](components/compute-service.md#43-流量策略mltrafficpolicy) |
-| 制品（定义）Model / Image | Platform `models` / `images` 行（name 级定义） | [platform #3.2](components/platform.md#32-定义jobs--experiments--models--images) |
-| 制品版本 Artifact version | `(namespace, kind, name, version)` 四元组；`namespace` = 租户名 | [artifact-hub #3](components/artifact-hub.md#3-核心模型) |
+| 租户 Tenant | 集群级 `Tenant` CR + Platform `tenants` 行（`identifier` 标识） | [cluster-manager #3](system/cluster-manager.md#3-核心模型) / [platform #3](platform/backend.md#3-核心模型) |
+| 资源池 ResourcePool | `ResourcePool` CRD（cluster-scoped），`spec.units[]` 内嵌 | [cluster-manager #3](system/cluster-manager.md#3-核心模型) |
+| 资源单元 ResourceUnit | `ResourcePool.spec.units[]` 内嵌项，与 pool 同生灭 | [cluster-manager #3](system/cluster-manager.md#3-核心模型) |
+| 资源配额 Quota | `Tenant.spec.quotas[]`（「资源单元 × 数量」）→ 每 pool 一个 `ElasticQuota`（`min`/`max` 由 cluster-manager 折算） | [cluster-manager #4](system/cluster-manager.md#4-核心功能) / [tenant-operator #4](system/tenant-operator.md#4-核心功能) |
+| 任务（定义）Job | Platform `jobs` 行（可复用模板） | [platform #3.2](platform/backend.md#32-定义jobs--experiments--models--images) |
+| 实验（定义）Experiment | Platform `experiments` 行（训练特化模板）；Run 经 `axisml.io/experiment` label 关联 | [platform #3.2](platform/backend.md#32-定义jobs--experiments--models--images) |
+| 运行 Run | `MLRun` CR（Job / 实验的一次运行，`<定义>-<n>`），经 `axisml.io/{job,experiment}` label 关联 | [compute-operator #3](system/compute-operator.md#3-核心模型) |
+| 服务 Service | `MLService` CR | [compute-operator #3](system/compute-operator.md#3-核心模型) |
+| 工作区 Workspace | `mlservices.kind='workspace'`（复用 `MLService(native, deployment)`） | [compute-service #3](system/compute-service.md#3-核心模型) |
+| TensorBoard | `mlservices.kind='tensorboard'`（按需临时实例，复用同上） | [compute-service #3](system/compute-service.md#3-核心模型) |
+| 流量策略 Traffic Policy | `MLTrafficPolicy` CR + PG 行（一个稳定入口加权分发到多服务） | [compute-service #4.3](system/compute-service.md#43-流量策略mltrafficpolicy) |
+| 制品（定义）Model / Image | Platform `models` / `images` 行（name 级定义） | [platform #3.2](platform/backend.md#32-定义jobs--experiments--models--images) |
+| 制品版本 Artifact version | `(namespace, kind, name, version)` 四元组；`namespace` = 租户名 | [artifact-hub #3](system/artifact-hub.md#3-核心模型) |
 
 ### 2.2 关键不变量
 
@@ -103,18 +103,29 @@
 - **负载闭环**：Platform 调 compute（创建 workload 时仅传 pool/unit 名字）→ compute 写 PG 并 patch MLRun / MLService / MLTrafficPolicy CR → compute-operator 按 `spec.backend.{name, engine}` 路由 handler 渲染 K8s 与第三方 CR。
 - **制品域**：artifacts 元数据走 PG；model / image 走 zot（OCI），dataset 走 RustFS（S3），上传下载由消费方直连存储，artifacts 不代理大文件。
 
-## 5. 组件职责与文档导航
+## 5. 文档导航
 
-| 组件 / 文档 | 一句话职责 | 关键模型 |
+设计文档按系统三层组织，每层一个 `overview.md`：
+
+**Platform 层**（用户面）— [platform/overview.md](platform/overview.md)
+| 文档 | 一句话职责 |
+| --- | --- |
+| [backend.md](platform/backend.md) | 用户入口与业务编排，持有租户持久记录 + 四张定义 + 视图层映射 |
+| [frontend.md](platform/frontend.md) | React 前端：路由 / 状态 / i18n / 数据面接入 |
+| [auth.md](platform/auth.md) | 认证 / RBAC / 数据面接入 / 下游身份透传 |
+
+**System 层**（控制面）— [system/overview.md](system/overview.md)
+| 文档 | 一句话职责 | 关键模型 |
 | --- | --- | --- |
-| [platform.md](components/platform.md) | 用户入口与业务编排，持有租户持久记录 + 四张定义 + 视图层映射 | User / `tenants` / 定义 (jobs/experiments/models/images) |
-| [cluster-manager.md](components/cluster-manager.md) | admin 域 K8s REST 抽象（ResourcePool + Tenant CRUD、配额折算、集群容量 / 指标） | ResourcePool CR（含 `units[]`）+ Tenant CR |
-| [compute-service.md](components/compute-service.md) | 业务域计算服务，管理 Run / Service / Workspace / TrafficPolicy 与三类 CR | MLRun + MLService + MLTrafficPolicy（PG，namespace 分区） |
-| [artifact-hub.md](components/artifact-hub.md) | 业务域制品服务，元数据 / 存储分离 | Artifact 四元组 `(namespace, kind, name, version)` |
-| [tenant-operator.md](components/tenant-operator.md) | Tenant CR → Namespace / ElasticQuota / 初始化资源 | Tenant CR（cluster-scoped） |
-| [compute-operator.md](components/compute-operator.md) | MLRun / MLService / MLTrafficPolicy → backend handler → K8s 与网关 CR | 三类 CR + backend handler registry |
+| [cluster-manager.md](system/cluster-manager.md) | admin 域 K8s REST 抽象（ResourcePool + Tenant CRUD、配额折算、集群容量 / 指标） | ResourcePool CR（含 `units[]`）+ Tenant CR |
+| [compute-service.md](system/compute-service.md) | 业务域计算服务，管理 Run / Service / Workspace / TrafficPolicy 与三类 CR | MLRun + MLService + MLTrafficPolicy（PG，namespace 分区） |
+| [artifact-hub.md](system/artifact-hub.md) | 业务域制品服务，元数据 / 存储分离 | Artifact 四元组 `(namespace, kind, name, version)` |
+| [tenant-operator.md](system/tenant-operator.md) | Tenant CR → Namespace / ElasticQuota / 初始化资源 | Tenant CR（cluster-scoped） |
+| [compute-operator.md](system/compute-operator.md) | 三类 CR → backend handler → K8s 与网关 CR | 三类 CR + backend handler registry |
 
-横切文档：[auth.md](auth.md)（认证 / RBAC / 身份透传）· [database.md](database.md)（PostgreSQL schema）· [deployment.md](deployment.md)（Helm 分层与部署顺序）· [infra.md](infra.md)（第三方基础设施契约）。
+**Infra 层**（第三方基础设施）— [infra/overview.md](infra/overview.md)：[gateway](infra/gateway.md) · [storage](infra/storage.md) · [accelerator](infra/accelerator.md) · [scheduler](infra/scheduler.md) · [monitoring](infra/monitoring.md)。
+
+**跨层文档**：[database.md](database.md)（PostgreSQL schema）· [deployment.md](deployment.md)（Helm 分层与部署顺序）。
 
 ## 6. 关键设计决策
 
@@ -141,7 +152,13 @@ axisml/
 ├── components/{platform/{backend,frontend}, cluster-manager, compute-service,
 │              tenant-operator, compute-operator, artifact-hub}
 ├── deploy/helm/{axisml-infra, axisml-system, axisml-platform}
-├── docs/{development, product_design, system_design, openapi}
+├── docs/
+│   ├── product_design/        # PRD / wireframe / prototype
+│   ├── system_design/         # high_level_design.md + database/deployment
+│   │   ├── infra/             # overview + gateway/storage/accelerator/scheduler/monitoring
+│   │   ├── system/            # overview + 5 组件设计
+│   │   └── platform/          # overview + backend/frontend/auth
+│   ├── development/  └── openapi/
 ├── scripts/  Makefile  README.md
 ```
 

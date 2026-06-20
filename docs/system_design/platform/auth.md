@@ -1,6 +1,6 @@
 # AxisML 认证与权限模型
 
-定义控制平面的认证（authn）、授权（authz）与下游身份透传契约。身份 / 会话 schema 见 [database.md §4](database.md#4-platform)，端点见 [openapi/platform.yaml](../openapi/platform.yaml)。
+定义控制平面的认证（authn）、授权（authz）与下游身份透传契约。身份 / 会话 schema 见 [database.md §4](../database.md#4-platform)，端点见 [openapi/platform.yaml](../../openapi/platform.yaml)。
 
 ## 1. 概述
 
@@ -8,7 +8,7 @@
 
 | 角色 | 职责 |
 | --- | --- |
-| [Platform](components/platform.md) | 控制面唯一外部入口：签发 / 校验登录 JWT，维护用户 / 角色 / 租户绑定，向下游注入身份头 |
+| [Platform](backend.md) | 控制面唯一外部入口：签发 / 校验登录 JWT，维护用户 / 角色 / 租户绑定，向下游注入身份头 |
 | cluster-manager / compute-service / artifact-hub | 仅接受集群内 ClusterIP 调用，信任 `X-Axisml-User`，自身不做角色鉴权（§6） |
 | Envoy Gateway | 数据面入口：校验工作区的 Cookie JWT（§5）；在线服务当前无鉴权 |
 
@@ -16,7 +16,7 @@
 
 ## 2. 身份与登录
 
-- 用户名 + bcrypt 密码存于 `users` 表；登录签发 JWT（`aud=axisml-platform`，TTL 12h）；登出 / 强制注销通过 `sessions` 表按 `jti` 黑名单实现（schema 见 [database.md §4](database.md#4-platform)）。
+- 用户名 + bcrypt 密码存于 `users` 表；登录签发 JWT（`aud=axisml-platform`，TTL 12h）；登出 / 强制注销通过 `sessions` 表按 `jti` 黑名单实现（schema 见 [database.md §4](../database.md#4-platform)）。
 - 端点：`POST /api/v1/auth/{login,logout,refresh}`、`GET /api/v1/auth/me`（`Auth` tag）。
 - **bootstrap**（`axisml-platform bootstrap`，首次安装）：创建内置角色；创建初始 `system-admin` 账号 `admin`/`admin`（**首登强制改密**，可由 `AXISML_BOOTSTRAP_PASSWORD` 覆盖）；创建内置租户 `axisml-system`（承载 `visibility=public` 制品）。
 

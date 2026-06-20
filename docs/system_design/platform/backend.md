@@ -1,4 +1,6 @@
-# AxisML Platform 概要设计
+# AxisML Platform Backend 设计
+
+本文档描述 Platform 层的**后端**（Go BFF）。前端架构见 [frontend.md](frontend.md)，认证 / RBAC / 数据面接入见 [auth.md](auth.md)，层概览见 [overview.md](overview.md)。
 
 ## 1. 定位与边界
 
@@ -14,7 +16,7 @@ AxisML 唯一直接面向用户的层：承担身份接入、业务编排与视�
 | 视图层映射（用户 ↔ 租户 ↔ `identifier`；workspace ↔ `MLService(kind=workspace)`） | 缓存下游可变实例状态（phase / status / digest / quota 用量 → 一律实时回源） |
 | 前端 UI 多语言（§5.6） | 按 `Accept-Language` 本地化响应（后端与下游 locale-neutral，只返稳定机读 code） |
 
-**统一分区键**：compute / artifacts 的 URL `{namespace}` 段 = 租户 `identifier`，Platform 直接透传，不解析 K8s namespace（见 [overview §2.2](../overview.md#22-关键不变量)）。租户运行态（phase / 配额用量）实时回源 cluster-manager，仅用于详情 / 配额展示。
+**统一分区键**：compute / artifacts 的 URL `{namespace}` 段 = 租户 `identifier`，Platform 直接透传，不解析 K8s namespace（见 [high_level_design §2.2](../high_level_design.md#22-关键不变量)）。租户运行态（phase / 配额用量）实时回源 cluster-manager，仅用于详情 / 配额展示。
 
 ## 2. 架构
 
@@ -57,7 +59,7 @@ Platform 自有实体三类：**租户持久记录**、**身份 / 授权 / 会�
 | UserTenantRole | 用户 ↔ 租户成员关系 | `(user_id, tenant_name, role)` | `tenant_name` 引用 `tenants.identifier`（同库真实 FK） |
 | Session | JWT 会话 / 刷新 token | `jti` | TTL 与 JWKS 由 auth 模块管理 |
 
-角色 × 权限矩阵见 [auth.md §3](../auth.md#3-rbac-角色)。
+角色 × 权限矩阵见 [auth.md §3](auth.md#3-rbac-角色)。
 
 ### 3.2 定义（jobs / experiments / models / images）
 
@@ -74,7 +76,7 @@ Platform 自有实体三类：**租户持久记录**、**身份 / 授权 / 会�
 
 ## 4. 核心功能
 
-每节定义编排动作；字段契约见 [openapi/platform.yaml](../../openapi/platform.yaml)，权限矩阵见 [auth.md §3](../auth.md#3-rbac-角色)。下游各自的强一致策略（compute Outbox + reconciler、PVC 同事务、artifacts 两阶段写）对 Platform 透明。
+每节定义编排动作；字段契约见 [openapi/platform.yaml](../../openapi/platform.yaml)，权限矩阵见 [auth.md §3](auth.md#3-rbac-角色)。下游各自的强一致策略（compute Outbox + reconciler、PVC 同事务、artifacts 两阶段写）对 Platform 透明。
 
 ### 4.0 编排通则
 
@@ -189,7 +191,7 @@ Platform 不为池 / 单元建表；Node label / taint 由管理员 `kubectl` �
 
 ### 4.8 流量配置编排
 
-下游：compute（流量策略 + 加权路由派生 + 灰度指标代理）。流量策略把一个稳定入口的流量按权重分发到本租户多个在线服务后端，加权路由由 compute 内部派生，Platform 不直连网关、不内嵌 PromQL。字段契约见 [compute-service.md §4.3](compute-service.md#43-流量策略mltrafficpolicy)。
+下游：compute（流量策略 + 加权路由派生 + 灰度指标代理）。流量策略把一个稳定入口的流量按权重分发到本租户多个在线服务后端，加权路由由 compute 内部派生，Platform 不直连网关、不内嵌 PromQL。字段契约见 [compute-service.md §4.3](../system/compute-service.md#43-流量策略mltrafficpolicy)。
 
 | 用户操作 | 内部步骤 / 下游调用 |
 | --- | --- |
@@ -223,7 +225,7 @@ Platform 不为池 / 单元建表；Node label / taint 由管理员 `kubectl` �
 
 - 临时、只读、可空闲回收；不产出制品；Pod 仍走 koord-scheduler 与租户配额。
 - 启动 / 打开 / 停止均限 `owner` 或 `tenant-admin`（会拉起占配额的 workload）。
-- 数据面访问复用工作区 access JWT（`aud=axisml-workspace`，见 [auth.md §5](../auth.md#5-数据面接入)）；`kind` 创建后不可变。
+- 数据面访问复用工作区 access JWT（`aud=axisml-workspace`，见 [auth.md §5](auth.md#5-数据面接入)）；`kind` 创建后不可变。
 
 ## 5. 关键机制
 
@@ -290,7 +292,7 @@ Platform 在下游对象上挂自定义元数据（`last-replicas` 副本基线�
 
 **关键不变量**：后端零文案，新增语言 = 加 catalog + AntD locale 包，后端与下游零改动；error `type` / 下游 code 是稳定契约（改文案不改 code）。
 
-RBAC 中间件装配见 [auth.md](../auth.md)；Platform 路由层挂载 `RequireSystemAdmin` / `RequireTenantRole` / `RequireJobOwner` / `RequireExperimentOwner` / `RequireServiceOwner` / `RequireTrafficPolicyOwner` / `RequireWorkspaceOwner`（均按 `name` 寻址）。
+RBAC 中间件装配见 [auth.md](auth.md)；Platform 路由层挂载 `RequireSystemAdmin` / `RequireTenantRole` / `RequireJobOwner` / `RequireExperimentOwner` / `RequireServiceOwner` / `RequireTrafficPolicyOwner` / `RequireWorkspaceOwner`（均按 `name` 寻址）。
 
 ## 6. 接口契约
 
@@ -300,8 +302,8 @@ RBAC 中间件装配见 [auth.md](../auth.md)；Platform 路由层挂载 `Requir
 | 状态 | 不暴露任何 K8s CR；下游运行态字段（phase / conditions / quota 用量）作只读透传 |
 | 错误格式 | HTTP 标准码 + RFC 7807 problem+json；下游 problem 透传或包装；`type` URI / 下游 code 为稳定机读标识（§5.6） |
 | 流式 | 日志 / 事件 `follow=true` 用 SSE；非 follow 用 `text/plain` chunked |
-| 身份头 | 入站校验主登录 JWT + `X-Axisml-Tenant`（§5.2）；出站注入 `X-Axisml-User`（[auth.md §6](../auth.md#6-下游身份透传)） |
-| 数据面接入 | 工作区走 access JWT（`aud=axisml-workspace`，Cookie）；在线服务设计为 API KEY（后续，当前无鉴权）（[auth.md §5](../auth.md#5-数据面接入)） |
+| 身份头 | 入站校验主登录 JWT + `X-Axisml-Tenant`（§5.2）；出站注入 `X-Axisml-User`（[auth.md §6](auth.md#6-下游身份透传)） |
+| 数据面接入 | 工作区走 access JWT（`aud=axisml-workspace`，Cookie）；在线服务设计为 API KEY（后续，当前无鉴权）（[auth.md §5](auth.md#5-数据面接入)） |
 | Prometheus | `platform_*` 自身指标 |
 
 ## 7. 依赖
@@ -309,7 +311,7 @@ RBAC 中间件装配见 [auth.md](../auth.md)；Platform 路由层挂载 `Requir
 | 依赖 | 用途 |
 | --- | --- |
 | PostgreSQL | 身份 / 授权 / 会话 + 四张定义；与 compute / artifacts 共享 DB，按表名前缀隔离（[database.md §4](../database.md#4-platform)） |
-| Envoy Gateway | 唯一外部入口；TLS 终止 / 路由；数据面 access JWT SecurityPolicy（[infra.md](../infra.md)） |
+| Envoy Gateway | 唯一外部入口；TLS 终止 / 路由；数据面 access JWT SecurityPolicy（[infra.md](../infra/overview.md)） |
 | cluster-manager | ResourcePool / Unit CRUD + 租户 CR 物化（含配额折算 + 运行态回源）；Dashboard 集群容量与时序 |
 | compute | Run / Service / Workspace / TrafficPolicy / TensorBoard 权威；创建体接 `scheduling{poolName,unitName,quota}` 名字对；`CountActiveWorkloads` 用量计数；运行指标代理 |
 | artifacts | 模型 / 镜像版本；两阶段写或 `external` 登记；消费侧 `GetArtifact` 预检；`resolve?usage=inspect` 专属 operator |
@@ -327,9 +329,9 @@ RBAC 中间件装配见 [auth.md](../auth.md)；Platform 路由层挂载 `Requir
 
 ## 9. 相关引用
 
-- [overview.md](../overview.md) — 控制平面拓扑与系统不变量
-- [auth.md](../auth.md) — 身份与鉴权契约、access JWT、中间件
+- [high_level_design.md](../high_level_design.md) — 控制平面拓扑与系统不变量
+- [auth.md](auth.md) — 身份与鉴权契约、access JWT、中间件
 - [database.md](../database.md) — Platform PG schema（§4）
-- [deployment.md](../deployment.md) · [infra.md](../infra.md)
+- [deployment.md](../deployment.md) · [infra.md](../infra/overview.md)
 - [openapi/platform.yaml](../../openapi/platform.yaml) — REST 契约源
-- 下游：[cluster-manager.md](cluster-manager.md) · [compute-service.md](compute-service.md) · [artifact-hub.md](artifact-hub.md) · [tenant-operator.md](tenant-operator.md) · [compute-operator.md](compute-operator.md)
+- 下游：[cluster-manager.md](../system/cluster-manager.md) · [compute-service.md](../system/compute-service.md) · [artifact-hub.md](../system/artifact-hub.md) · [tenant-operator.md](../system/tenant-operator.md) · [compute-operator.md](../system/compute-operator.md)

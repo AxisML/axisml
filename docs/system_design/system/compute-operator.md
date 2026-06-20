@@ -1,4 +1,4 @@
-# AxisML Compute Operator 概要设计
+# AxisML Compute Operator 设计
 
 ## 1. 定位与边界
 
@@ -10,7 +10,7 @@
 | 派生 Job / Pod / Deployment / StatefulSet / HTTPRoute（kubeflow-trainer / kserve / custom 保留扩展点） | 业务持久化、用量计费、Outbox 推进 (→ [compute-service.md](compute-service.md)) |
 | MLTrafficPolicy 派生加权 `HTTPRoute` / kserve canary | 流量策略的成员校验 / 权重权威 (→ [compute-service.md](compute-service.md)) |
 | `spec.route` 派生 Gateway API + Envoy Gateway 扩展资源 | 模型工件存储 (→ [artifact-hub.md](artifact-hub.md)) |
-| Cancel 推进信号（`Suspended` condition）单向回流 | 用户认证 / 鉴权 (→ [auth.md](../auth.md)) |
+| Cancel 推进信号（`Suspended` condition）单向回流 | 用户认证 / 鉴权 (→ [auth.md](../platform/auth.md)) |
 | Pod 注入 `schedulerName=koord-scheduler` + Quota label | 写 compute-service PG / 跨集群联邦 |
 
 ## 2. 架构
@@ -154,7 +154,7 @@ ADD ─▶ Pending ─(route programmed + 成员 Ready)─▶ Ready ◀──▶
 
 ### 5.2 Pod 注入约定
 
-所有 MLRun / MLService Handler 派生的 Pod 必须满足以下注入，体现 [overview §2.2](../overview.md#22-关键不变量) 的 Quota 全覆盖不变式（未来第三方 backend 需保证同样语义）：
+所有 MLRun / MLService Handler 派生的 Pod 必须满足以下注入，体现 [high_level_design §2.2](../high_level_design.md#22-关键不变量) 的 Quota 全覆盖不变式（未来第三方 backend 需保证同样语义）：
 
 | Pod 字段 / Label | 必填 | 取值 | 用途 |
 | --- | --- | --- | --- |
@@ -211,8 +211,8 @@ ADD ─▶ Pending ─(route programmed + 成员 Ready)─▶ Ready ◀──▶
 | 依赖 | 用途 |
 | --- | --- |
 | Kubernetes API | 主 CR + 派生资源 CRUD；leader Lease |
-| Koordinator | 所有派生 Pod 强制 schedulerName + Quota label 计入 ElasticQuota；ElasticQuota 资源由 tenant-operator 维护，operator 只透传名字（[infra.md](../infra.md) / [tenant-operator.md](tenant-operator.md)） |
-| Gateway API + Envoy 扩展 | `MLService.spec.route` 派生单后端 `HTTPRoute`；`MLTrafficPolicy` 派生多后端加权 `HTTPRoute`；`route.auth`/`rateLimit`/`timeout` 派生 `SecurityPolicy`/`BackendTrafficPolicy`（[infra.md](../infra.md)） |
+| Koordinator | 所有派生 Pod 强制 schedulerName + Quota label 计入 ElasticQuota；ElasticQuota 资源由 tenant-operator 维护，operator 只透传名字（[infra.md](../infra/overview.md) / [tenant-operator.md](tenant-operator.md)） |
+| Gateway API + Envoy 扩展 | `MLService.spec.route` 派生单后端 `HTTPRoute`；`MLTrafficPolicy` 派生多后端加权 `HTTPRoute`；`route.auth`/`rateLimit`/`timeout` 派生 `SecurityPolicy`/`BackendTrafficPolicy`（[infra.md](../infra/overview.md)） |
 | compute-service（上游 CR 写者） | 通过 `Create + Patch` 下发期望，status 单向回流；operator 不感知其 PG 与 Outbox（[compute-service.md](compute-service.md)） |
 | 对象存储（RustFS） | 按 spec 注入项把 Run / TensorBoard Pod 的 logdir / 产出路径 + 凭证透传进派生 Pod（§5.2） |
 
@@ -229,9 +229,9 @@ ADD ─▶ Pending ─(route programmed + 成员 Ready)─▶ Ready ◀──▶
 
 ## 9. 相关引用
 
-- [overview.md](../overview.md) — 控制平面拓扑与系统不变量
-- [auth.md](../auth.md) — 身份与鉴权契约（operator 不直接认证终端用户）
-- [database.md](../database.md) · [deployment.md](../deployment.md) · [infra.md](../infra.md)
+- [high_level_design.md](../high_level_design.md) — 控制平面拓扑与系统不变量
+- [auth.md](../platform/auth.md) — 身份与鉴权契约（operator 不直接认证终端用户）
+- [database.md](../database.md) · [deployment.md](../deployment.md) · [infra.md](../infra/overview.md)
 - [compute-service.md](compute-service.md) — 上游 CR 写者
 - [tenant-operator.md](tenant-operator.md) — 兄弟 operator；Tenant / ElasticQuota / Namespace 落地
 - CRD yaml：crds/{mlrun,mlservice,mltrafficpolicy}-crd.yaml

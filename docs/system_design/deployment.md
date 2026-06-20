@@ -62,7 +62,7 @@ make helm-install           # 一次性按 infra → system → platform 串装
 
 **Infra 组件部署形态**（默认 values）：Envoy Gateway（单 `axisml-gateway`，HTTP listener，`allowedRoutes` 放行工作负载 namespace）· RustFS（Standalone）· zot（Standalone filesystem，公共拉取 Secret 落 `axisml-system`）· GPU Operator（driver + toolkit + device plugin + DCGM + GFD，MIG 暂不启用）· Koordinator（koord-scheduler + koord-manager + ElasticQuota + PodGroup）· kube-prometheus-stack（不预置告警）· PostgreSQL（bitnami，Service `axisml-database`，`database.enabled=false` 时外接）。
 
-`tenant namespaces` 由 tenant-operator 在 `Tenant` CR reconcile 时创建（[tenant-operator.md §4.1.1](components/tenant-operator.md#411-namespace-落地)），不在 Helm chart 内静态声明。
+`tenant namespaces` 由 tenant-operator 在 `Tenant` CR reconcile 时创建（[tenant-operator.md §4.1.1](system/tenant-operator.md#411-namespace-落地)），不在 Helm chart 内静态声明。
 
 ## 6. Helm 模板清单
 
@@ -91,4 +91,4 @@ CRDs 随 System 层发布（operator 契约）；Platform 用户体系 bootstrap
 
 ## 9. 关联文档
 
-- [overview.md](overview.md) · [infra.md §4](infra.md#4-部署形态与设计决策)（infra 子组件部署细节）· [database.md](database.md)（PostgreSQL 形态）· 各组件详设 §8 运行时形态。
+- [high_level_design.md](high_level_design.md) · [infra/overview.md](infra/overview.md)（infra 层组件）· [database.md](database.md)（PostgreSQL 形态）· 各组件详设 §8 运行时形态。

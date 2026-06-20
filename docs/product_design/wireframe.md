@@ -2,7 +2,7 @@
 
 ## 1. 概述
 
-Platform 前端 UI 的对齐入口：页面结构、菜单导航、列表字段、详情 Tab、表单字段、状态展示与权限可见性。只描述**布局与字段呈现**；后端编排见 [platform.md](../system_design/components/platform.md)，字段契约见 [openapi/platform.yaml](../openapi/platform.yaml)，RBAC 见 [auth.md](../system_design/auth.md)，系统概念见 [overview.md](../system_design/overview.md)。交互原型见 [prototype/](prototype/)。
+Platform 前端 UI 的对齐入口：页面结构、菜单导航、列表字段、详情 Tab、表单字段、状态展示与权限可见性。只描述**布局与字段呈现**；后端编排见 [platform.md](../system_design/platform/backend.md)，字段契约见 [openapi/platform.yaml](../openapi/platform.yaml)，RBAC 见 [auth.md](../system_design/platform/auth.md)，系统概念见 [high_level_design.md](../system_design/high_level_design.md)。交互原型见 [prototype/](prototype)。
 
 ---
 
@@ -54,7 +54,7 @@ Platform 前端 UI 的对齐入口：页面结构、菜单导航、列表字段�
 - **空态 / 加载** — 列表无数据渲染"创建第一个 X"CTA；加载用骨架行。
 - **视图切换** — 工作区（§6）与资产中心（§9）列表支持`[☰ 列表 | ▦ 卡片]`，默认卡片，偏好存 localStorage；其余列表仅列表视图。
 - **租户作用域** — 租户内菜单隶属"所属租户"选中租户，切换即整页刷新；系统管理为全集群，不受影响。
-- **多语言** — 中 / 英切换在用户菜单，默认随浏览器、纯前端持久化；文案 / 状态徽章 / 错误按 locale 本地化，自由文本按原文。契约见 [platform.md §5.6](../system_design/components/platform.md#56-多语言--i18n)。
+- **多语言** — 中 / 英切换在用户菜单，默认随浏览器、纯前端持久化；文案 / 状态徽章 / 错误按 locale 本地化，自由文本按原文。契约见 [platform.md §5.6](../system_design/platform/backend.md#56-多语言--i18n)。
 - **错误条** — 跨租户并行 LIST 部分失败 → 列表顶部黄条（对应 `partial=true`）。
 - **二次确认** — 删除 / 停止等弹窗显示前置阻断信息（如引用此资源的活跃 Job / Service 计数）。
 - **状态徽章** — 各章"状态展示规则"统一色板：`●` 实心 / `◐` 半实心 / `○` 描边。
@@ -65,7 +65,7 @@ Platform 前端 UI 的对齐入口：页面结构、菜单导航、列表字段�
 
 ## 3. 首页（默认落地页）
 
-`/dashboard`，作用域随用户菜单"所属租户"联动。两个端点：`GET /dashboard/overview`（KPI + 容量快照）与 `GET /dashboard/metrics`（时序图）。编排见 [platform.md §4.7](../system_design/components/platform.md#47-dashboard-编排)。
+`/dashboard`，作用域随用户菜单"所属租户"联动。两个端点：`GET /dashboard/overview`（KPI + 容量快照）与 `GET /dashboard/metrics`（时序图）。编排见 [platform.md §4.7](../system_design/platform/backend.md#47-dashboard-编排)。
 
 | 租户选择 | 视图 | 可见角色 |
 | --- | --- | --- |
@@ -109,7 +109,7 @@ Filters:    🔍 关键字  |  重置
 头部：back-nav · 名称（mono）· 状态徽章 · 描述。Tabs：`[基本信息] [资源单元 N] [节点匹配预览]`。
 
 - **基本信息** — KV grid：名称（mono，不可改）· 描述 · 节点选择器（K=V chips）· 容忍配置（key·op·value·effect chips）· 扩展元数据 · 创建 / 更新时间。除名称外可编辑。固定提示块：Node label / taint 由管理员 `kubectl` 维护，**UI 不下发**。
-- **资源单元** — 工具栏 `🔍 搜索 [+ 新建资源单元]`；表：名称 · requests（chips）· limits（chips）· 额外节点选择器 · 操作（编辑 / 删除）。行可展开看 `pool ⊕ unit` 合并节点选择器（Pool 优先，规则见 [cluster-manager.md §3.2](../system_design/components/cluster-manager.md#32-展开合并规则)）。命名约定 `<accelerator>[-<count>x]-<tier>[-<variant>]`。删除前置阻断（使用此 unit 的活跃 Job / Service 计数）→ `409 unit-in-use`。
+- **资源单元** — 工具栏 `🔍 搜索 [+ 新建资源单元]`；表：名称 · requests（chips）· limits（chips）· 额外节点选择器 · 操作（编辑 / 删除）。行可展开看 `pool ⊕ unit` 合并节点选择器（Pool 优先，规则见 [cluster-manager.md §3.2](../system_design/system/cluster-manager.md#32-展开合并规则)）。命名约定 `<accelerator>[-<count>x]-<tier>[-<variant>]`。删除前置阻断（使用此 unit 的活跃 Job / Service 计数）→ `409 unit-in-use`。
 - **节点匹配预览** — 规划中，仅保留 Tab 入口与计数。
 
 ### 4.3 创建 / 删除
@@ -161,7 +161,7 @@ Filters:  🔍 名称  |  状态 ▾  |  重置
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-  - 用户填**资源单元 × 数量**；min/max 由 cluster-manager 据规格折算为 ElasticQuota（见 [cluster-manager.md §3.3](../system_design/components/cluster-manager.md#33-tenant-形状与配额折算)），用量条按 `used / max`（≥90% 加 `⚠`）。`pool` 创建后不可变。
+  - 用户填**资源单元 × 数量**；min/max 由 cluster-manager 据规格折算为 ElasticQuota（见 [cluster-manager.md §3.3](../system_design/system/cluster-manager.md#33-tenant-形状与配额折算)），用量条按 `used / max`（≥90% 加 `⚠`）。`pool` 创建后不可变。
   - 写权限：`system-admin` 或本租户 `tenant-admin`。
 
 - **成员** — 工具栏 `🔍 用户名 / 邮箱 [+ 添加成员]`；表：用户名（mono）· 显示名 · 邮箱 · 角色（`tenant-admin` / `user` pill）· 加入时间 · 操作（改角色 / 移除）。添加输入用户名 + 选角色（不允许 `system-admin`）；不能移除 / 降级自己最后一个 `tenant-admin`（→ `409 last-tenant-admin`）。写权限同配额。
@@ -185,7 +185,7 @@ Filters:  🔍 名称  |  状态 ▾  |  重置
 
 ## 6. 工作区（训练中心 → 工作区）
 
-交互式开发容器（Jupyter / VSCode），隶属当前租户。本租户成员可读，`owner` / `tenant-admin` 可写。字段权威见 [compute-service.md](../system_design/components/compute-service.md)。
+交互式开发容器（Jupyter / VSCode），隶属当前租户。本租户成员可读，`owner` / `tenant-admin` 可写。字段权威见 [compute-service.md](../system_design/system/compute-service.md)。
 
 ### 6.0 资源选择链（工作区 / 自定义任务 / 实验 / 在线服务通用）
 
@@ -235,7 +235,7 @@ Filters:  🔍 名称 | 状态 ▾ | 资源池 ▾ | 创建人 ▾ | 重置     
 
 ## 7. 自定义任务（训练中心 → 自定义任务）
 
-**Job（可复用模板）→ Run（每次运行）** 两级模型，隶属当前租户。Job 是 Platform 自有模板；每次运行是一个 Run（对应 compute 的 `MLRun`，命名 `<job>-<n>`）。本租户成员可读，`owner` / `tenant-admin` 可写。编排见 [platform.md §4.2](../system_design/components/platform.md#42-计算任务编排)。
+**Job（可复用模板）→ Run（每次运行）** 两级模型，隶属当前租户。Job 是 Platform 自有模板；每次运行是一个 Run（对应 compute 的 `MLRun`，命名 `<job>-<n>`）。本租户成员可读，`owner` / `tenant-admin` 可写。编排见 [platform.md §4.2](../system_design/platform/backend.md#42-计算任务编排)。
 
 ### 7.1 列表页（Job）
 
@@ -282,7 +282,7 @@ Filters:  🔍 名称 | 创建人 ▾ | 重置
 
 ## 8. 在线服务（服务中心 → 在线服务）
 
-常驻在线推理服务，隶属当前租户，可暴露路由对外访问；多版本灰度由 §10 承接。权限与可读写同工作区。字段权威见 [compute-service.md](../system_design/components/compute-service.md)。
+常驻在线推理服务，隶属当前租户，可暴露路由对外访问；多版本灰度由 §10 承接。权限与可读写同工作区。字段权威见 [compute-service.md](../system_design/system/compute-service.md)。
 
 ### 8.1 列表页
 
@@ -314,7 +314,7 @@ Filters:  🔍 名称 | 状态 ▾ | 资源池 ▾ | 重置
 
 ## 9. 资产中心（模型 / 镜像）
 
-模型与镜像共用同一列表 / 详情 / 上传模板，仅 **spec 字段** 与 **存储后端** 不同。制品身份 `(租户, 类型, 名称, 版本)`；同名制品下挂多版本，列表合并"本租户 + 公共（`axisml-system`）"。字段权威见 [artifact-hub.md](../system_design/components/artifact-hub.md)。
+模型与镜像共用同一列表 / 详情 / 上传模板，仅 **spec 字段** 与 **存储后端** 不同。制品身份 `(租户, 类型, 名称, 版本)`；同名制品下挂多版本，列表合并"本租户 + 公共（`axisml-system`）"。字段权威见 [artifact-hub.md](../system_design/system/artifact-hub.md)。
 
 | 维度 | 模型 | 镜像 |
 | --- | --- | --- |
@@ -365,7 +365,7 @@ Filters:  🔍 名称 | 框架 ▾ | 标签 ▾ | 重置          [☰ 列表 | 
 
 ## 10. 流量配置（服务中心 → 流量配置）
 
-每条**流量策略**绑定一个稳定对外入口（path / hostname），把入站请求按权重分发到当前租户下多个**在线服务后端**，支撑灰度发布、加权切分与蓝绿式全量切换。底层加权路由由 compute 派生（`(native,*)` → Envoy `HTTPRoute` 加权 `backendRefs`；`kserve` → `InferenceService` canary）。建议成员服务建为内部服务（关闭自身 route）；一个在线服务至多被一条活跃策略引用。编排见 [platform.md §4.8](../system_design/components/platform.md#48-流量配置编排)。
+每条**流量策略**绑定一个稳定对外入口（path / hostname），把入站请求按权重分发到当前租户下多个**在线服务后端**，支撑灰度发布、加权切分与蓝绿式全量切换。底层加权路由由 compute 派生（`(native,*)` → Envoy `HTTPRoute` 加权 `backendRefs`；`kserve` → `InferenceService` canary）。建议成员服务建为内部服务（关闭自身 route）；一个在线服务至多被一条活跃策略引用。编排见 [platform.md §4.8](../system_design/platform/backend.md#48-流量配置编排)。
 
 ### 10.1 列表页
 
@@ -397,7 +397,7 @@ Filters:  🔍 名称 | 模式 ▾ | 状态 ▾ | 重置
 
 ### 10.4 状态展示规则
 
-UI 标签是 compute `MLTrafficPolicy` phase 的展示映射（见 [compute-service.md §3](../system_design/components/compute-service.md#3-核心模型)）：
+UI 标签是 compute `MLTrafficPolicy` phase 的展示映射（见 [compute-service.md §3](../system_design/system/compute-service.md#3-核心模型)）：
 
 | compute phase | UI 标签 | 视觉 |
 | --- | --- | --- |
@@ -411,7 +411,7 @@ UI 标签是 compute `MLTrafficPolicy` phase 的展示映射（见 [compute-serv
 
 ## 11. 实验（训练中心 → 实验）
 
-训练特化任务，沿用 §7 自定义任务的 **Job → Run** 两级模型与全部列表 / 详情 / 表单结构，差异如下。隶属当前租户。编排见 [platform.md §4.9](../system_design/components/platform.md#49-实验编排)。
+训练特化任务，沿用 §7 自定义任务的 **Job → Run** 两级模型与全部列表 / 详情 / 表单结构，差异如下。隶属当前租户。编排见 [platform.md §4.9](../system_design/platform/backend.md#49-实验编排)。
 
 | 维度 | 相对自定义任务（§7）的差异 |
 | --- | --- |
@@ -430,7 +430,7 @@ Run 状态与日志 / 实例 / 事件均同 §7.3 / §7.5。
 
 数据集与评估为规划中能力，本期无菜单入口与页面，仅在此登记定位：
 
-- **数据集** — 资产中心的第三类制品（S3 / RustFS 后端），供任务 / 实验按版本挂载；当前任务以内联数据卷（PVC）承载数据。系统设计已保留底层 `dataset` kind（[artifact-hub.md §4](../system_design/components/artifact-hub.md#4-核心功能)）。
+- **数据集** — 资产中心的第三类制品（S3 / RustFS 后端），供任务 / 实验按版本挂载；当前任务以内联数据卷（PVC）承载数据。系统设计已保留底层 `dataset` kind（[artifact-hub.md §4](../system_design/system/artifact-hub.md#4-核心功能)）。
 - **评估** — 沿用 Job → Run 两级结构的训练特化任务：选模型版本 + 评测数据集 + 指标，运行后看分数与对比报告。
 
 落地后复用 §6.0 资源选择链与 §7 的两级模型，UI 字段定稿后补充本节。
@@ -439,8 +439,8 @@ Run 状态与日志 / 实例 / 事件均同 §7.3 / §7.5。
 
 ## 13. 相关引用
 
-- [platform.md](../system_design/components/platform.md) — 后端编排、跨服务调用、PG schema
-- [auth.md](../system_design/auth.md) — RBAC、JWT、数据面接入
+- [platform.md](../system_design/platform/backend.md) — 后端编排、跨服务调用、PG schema
+- [auth.md](../system_design/platform/auth.md) — RBAC、JWT、数据面接入
 - [openapi/platform.yaml](../openapi/platform.yaml) — REST 字段契约
-- [overview.md](../system_design/overview.md) — 系统概念与组件关系
-- [compute-service.md](../system_design/components/compute-service.md) · [cluster-manager.md](../system_design/components/cluster-manager.md) · [artifact-hub.md](../system_design/components/artifact-hub.md) — 字段权威
+- [high_level_design.md](../system_design/high_level_design.md) — 系统概念与组件关系
+- [compute-service.md](../system_design/system/compute-service.md) · [cluster-manager.md](../system_design/system/cluster-manager.md) · [artifact-hub.md](../system_design/system/artifact-hub.md) — 字段权威

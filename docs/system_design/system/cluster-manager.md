@@ -1,4 +1,4 @@
-# AxisML Cluster Manager 概要设计
+# AxisML Cluster Manager 设计
 
 ## 1. 定位与边界
 
@@ -147,7 +147,7 @@ admin 域集群事实由本服务即时聚合，供上游 Dashboard 全局视图
 | --- | --- | --- |
 | 对外 REST | `/api/v1/resourcepools[/{pool}[/units[/{unit}]]]`（`ResourcePools` tag）；`/api/v1/tenants[/{tenant}[/quotas[/{pool}]]]`（`Tenants` tag）；`/api/v1/cluster/{capacity,metrics}`（`Cluster` tag） | [openapi/cluster-manager.yaml](../../openapi/cluster-manager.yaml) |
 | 下发 CR | `ResourcePool` / `Tenant`（`axisml.io/v1alpha1`，cluster-scoped）；cluster-manager 是 `spec` 的 REST 写者，kubectl 路径也允许；Tenant `status` 由 tenant-operator 单写 | [resource-pool-crd.yaml](../../../deploy/helm/axisml-system/crds/resource-pool-crd.yaml) / [tenant-crd.yaml](../../../deploy/helm/axisml-system/crds/tenant-crd.yaml) |
-| 身份头 | 调用方注入 `X-Axisml-User`，本服务仅做 ownership 归属；透传为 CR annotation `axisml.io/last-modified-by`（[auth.md §6](../auth.md#6-下游身份透传)） | — |
+| 身份头 | 调用方注入 `X-Axisml-User`，本服务仅做 ownership 归属；透传为 CR annotation `axisml.io/last-modified-by`（[auth.md §6](../platform/auth.md#6-下游身份透传)） | — |
 | 错误格式 | HTTP 标准码 + RFC 7807 problem+json；K8s API 错误经 typed 映射 | — |
 | 写后语义 | mutation 经 K8s API 写入 etcd 后返回；强一致 | — |
 
@@ -176,8 +176,8 @@ admin 域集群事实由本服务即时聚合，供上游 Dashboard 全局视图
 
 ## 9. 相关引用
 
-- [overview.md](../overview.md) — 控制平面拓扑与系统不变量
-- [auth.md](../auth.md) — 身份与鉴权契约
+- [high_level_design.md](../high_level_design.md) — 控制平面拓扑与系统不变量
+- [auth.md](../platform/auth.md) — 身份与鉴权契约
 - [deployment.md](../deployment.md)
 - [openapi/cluster-manager.yaml](../../openapi/cluster-manager.yaml) — REST 契约源
 - [compute-service.md](compute-service.md) — pool/unit 的展开消费方（Informer 直读）

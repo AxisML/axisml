@@ -1,4 +1,4 @@
-# AxisML Artifact Hub 概要设计
+# AxisML Artifact Hub 设计
 
 ## 1. 定位与边界
 
@@ -7,7 +7,7 @@
 | 做 | 不做 |
 | --- | --- |
 | Artifact CRUD、两阶段写（initiate / complete）、resolve | 制品 bytes 存取（→ zot / RustFS 直连） |
-| 上传 / 下载凭证签发（OCI scope token / S3 prefix-scoped STS） | 用户认证与角色鉴权（→ [auth.md](../auth.md)） |
+| 上传 / 下载凭证签发（OCI scope token / S3 prefix-scoped STS） | 用户认证与角色鉴权（→ [auth.md](../platform/auth.md)） |
 | Kind 按 Handler 注册表分发（model / dataset / image） | tenant 存在性与权限校验（namespace 字段由 compute 兜底 tenant 语义） |
 | GC：Uploading TTL、Failed 留存、Deleting 推进 | 反向孤儿主动清理（仅告警）；跨 namespace 级联删除 |
 | `visibility=public` 全局可见制品（落 `axisml-system` 内置租户） | tenant Secret 落地（→ [tenant-operator.md](tenant-operator.md)） |
@@ -118,7 +118,7 @@ GC worker（leader-only，每 5 分钟）扫描 PG 三类谓词：
 | 类别 | 内容 | 引用 |
 | --- | --- | --- |
 | 对外 REST | `/api/v1/namespaces/{ns}/{kindPlural}/{name}[/{version}[/{complete,resolve}]]`；版本级 GET / PATCH / DELETE 同前缀。`kindPlural`：`models` / `datasets` / `images` | [openapi/artifact-hub.yaml](../../openapi/artifact-hub.yaml) `Artifacts` tag |
-| 身份头 | 调用方注入 `X-Axisml-User`，本服务仅做 ownership 归属（[auth.md §6](../auth.md#6-下游身份透传)） | — |
+| 身份头 | 调用方注入 `X-Axisml-User`，本服务仅做 ownership 归属（[auth.md §6](../platform/auth.md#6-下游身份透传)） | — |
 | 列表查询 | list 支持 `?labelSelector=`（K8s grammar） | [database.md §1.6](../database.md#16-扩展元数据-labels--annotations) |
 | 错误格式 | HTTP 标准码 + RFC 7807 problem+json | — |
 | 写后语义 | initiate PG 提交后返上传凭证；Ready 由 complete 推进；PATCH 纯 PG mutation 立即可读 | — |
@@ -158,10 +158,10 @@ Ready / Failed ─(DELETE)─▶ Deleting ─(GCBackend 成功)─▶ Deleted
 
 ## 9. 相关引用
 
-- [overview.md](../overview.md) — Artifacts 在控制平面的位置与系统不变量
-- [auth.md](../auth.md) — `X-Axisml-User` 注入与传播
+- [high_level_design.md](../high_level_design.md) — Artifacts 在控制平面的位置与系统不变量
+- [auth.md](../platform/auth.md) — `X-Axisml-User` 注入与传播
 - [database.md](../database.md) — `artifacts` 表 schema
-- [deployment.md](../deployment.md) · [infra.md](../infra.md)
+- [deployment.md](../deployment.md) · [infra.md](../infra/overview.md)
 - [openapi/artifact-hub.yaml](../../openapi/artifact-hub.yaml) — REST 契约源
 - [tenant-operator.md](tenant-operator.md) — per-tenant SA + 默认 Secret 落地契约（inspect 的隐式凭证来源）
 - [compute-operator.md](compute-operator.md) — mlrun / mlservice handler 作为 resolve 消费方
