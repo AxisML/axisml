@@ -1,6 +1,6 @@
 # AxisML Platform Frontend 设计
 
-平台唯一的用户界面：单页应用（SPA），消费 Platform [后端](backend.md) 的 REST API，不直接访问任何 System / Infra 层服务。页面级布局、字段与交互的权威是 [产品 UI 设计 wireframe.md](../../product_design/wireframe.md)；本文档只描述前端**工程架构**。
+平台唯一的用户界面：单页应用（SPA），消费 Platform [后端](backend.md) 的 REST API，不直接访问任何 System / Infra 层服务。页面级布局、字段与交互的权威是 [交互原型 prototype/](../../product_design/prototype)（[wireframe.md](../../product_design/wireframe.md) 仅作补充说明）；本文档只描述前端**工程架构**。
 
 > 当前前端为 README-only 脚手架，本文为目标架构。
 
@@ -8,14 +8,14 @@
 
 | 维度 | 选型 |
 | --- | --- |
-| 语言 / 框架 | TypeScript + React + Next.js |
+| 语言 / 框架 | TypeScript + React + Vite |
 | 组件库 | Ant Design（`ConfigProvider` 注入主题与 locale） |
 | 数据获取 | 对后端 REST 的 typed client；查询缓存 + 轮询 |
-| i18n | react-i18next / next-intl + dayjs |
+| i18n | react-i18next + dayjs |
 
 ## 2. 信息架构与路由
 
-侧栏五组（首页 / 训练中心 / 服务中心 / 资产中心 / 系统管理），路由与页面结构 1:1 对应 [wireframe.md §2.2](../../product_design/wireframe.md#22-信息架构)。租户内菜单的作用域由顶部"所属租户"切换器决定，切换即整页刷新；系统管理为全集群、不受租户选择影响。
+侧栏五组（首页 / 训练中心 / 服务中心 / 资产中心 / 系统管理），路由与页面结构 1:1 对应 [交互原型 prototype/](../../product_design/prototype)（信息架构概览见 [wireframe.md §2.2](../../product_design/wireframe.md#22-信息架构)）。租户内菜单的作用域由顶部"所属租户"切换器决定，切换即整页刷新；系统管理为全集群、不受租户选择影响。
 
 ## 3. 数据获取与状态
 
