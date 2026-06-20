@@ -40,8 +40,7 @@ type suite struct {
 	engine *gin.Engine
 	gcW    *gc.Worker
 
-	// namespace tests address artifacts under (post-#20 the service is
-	// de-tenanted; namespace is just an opaque K8s string).
+	// namespace is the legacy API name for the opaque logical tenant scope.
 	namespace string
 }
 

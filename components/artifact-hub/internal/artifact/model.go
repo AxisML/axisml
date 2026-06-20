@@ -18,13 +18,13 @@ const (
 
 // Visibility enumerates per-artifact visibility (design §3).
 const (
-	VisibilityTenant = "tenant" // default; visible only within the row's namespace
-	VisibilityPublic = "public" // global; only allowed in the axisml-system namespace
+	VisibilityTenant = "tenant" // default; visible only within the row's tenant scope
+	VisibilityPublic = "public" // global; only allowed in the default tenant scope
 )
 
-// PublicVisibilityNamespace is the only namespace where visibility='public'
-// is accepted; design §3 + database.md §3.1.
-const PublicVisibilityNamespace = "axisml-system"
+// PublicVisibilityNamespace is the only logical tenant scope where
+// visibility='public' is accepted; design §3 + database.md §3.1.
+const PublicVisibilityNamespace = "default"
 
 // Artifact is the GORM-backed `artifacts` row. Keyed on
 // (namespace, kind, name, version); namespace is a bare string with no

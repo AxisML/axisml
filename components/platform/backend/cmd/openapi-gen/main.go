@@ -51,7 +51,6 @@ const (
 	tagImages        = "Images"
 	tagResourcePools = "ResourcePools"
 	tagResourceUnits = "ResourceUnits"
-	tagDashboard     = "Dashboard"
 	tagAudit         = "Audit"
 	tagHealth        = "Health"
 )
@@ -117,7 +116,7 @@ func buildDocument(version string) *openapigen.Document {
 			Description: "User-facing entrypoint to AxisML. Aggregates the internal services " +
 				"(cluster-manager / compute / artifacts) and adds platform-native features: " +
 				"identity, RBAC, workspace/job/experiment/service/traffic orchestration, the " +
-				"model/image artifact registry, and Prometheus-backed dashboards. All endpoints except " +
+				"model/image artifact registry. All endpoints except " +
 				"POST /api/v1/auth/login require a bearer JWT issued by Platform; per-endpoint " +
 				"role requirements are noted in each operation. Errors use RFC 7807 " +
 				"application/problem+json bodies.",
@@ -149,7 +148,6 @@ func tags() []openapigen.TagEntry {
 		{Name: tagImages, Description: "Image definitions (Platform-owned); versions proxy artifacts (kind=image)."},
 		{Name: tagResourcePools, Description: "Cluster-scoped resource pools (admin-only writes; read by all)."},
 		{Name: tagResourceUnits, Description: "Per-pool resource unit specs (admin-only writes; read by all)."},
-		{Name: tagDashboard, Description: "Aggregated overview and Prometheus-backed metrics."},
 		{Name: tagAudit, Description: "Audit log queries (system-admin only)."},
 		{Name: tagHealth, Description: "Liveness and readiness probes."},
 	}
@@ -239,7 +237,6 @@ func registerSchemas(g *openapigen.Generator) {
 		"WorkspaceEndpoint":       server.WorkspaceEndpoint{},
 		"Workspace":               server.Workspace{},
 		"WorkspaceList":           server.WorkspaceList{},
-		"WorkspaceAccess":         server.WorkspaceAccess{},
 		"Backend":                 server.Backend{},
 		"RoleTemplate":            server.RoleTemplate{},
 		"MLRunRole":               server.MLRunRole{},
@@ -282,7 +279,6 @@ func registerSchemas(g *openapigen.Generator) {
 		"PodList":                 server.PodList{},
 		"Event":                   server.Event{},
 		"EventList":               server.EventList{},
-		"DashboardOverview":       server.DashboardOverview{},
 		"AuditLog":                server.AuditLog{},
 		"AuditLogList":            server.AuditLogList{},
 	} {

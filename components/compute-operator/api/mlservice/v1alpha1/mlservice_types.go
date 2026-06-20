@@ -183,11 +183,11 @@ const (
 	LabelResourceUnit = "axisml.io/resource-unit"
 
 	// ServiceKind enumerates the rows in compute-service's `services` table
-	// (kind='service' vs kind='workspace'). Stamped on the MLService CR via
-	// LabelServiceKind for kubectl / selector use; compute-operator does not
-	// branch on it.
-	ServiceKindService   = "service"
-	ServiceKindWorkspace = "workspace"
+	// (kind='service' vs protected interactive kinds). Stamped on the MLService
+	// CR via LabelServiceKind for selectors and fail-closed route validation.
+	ServiceKindService     = "service"
+	ServiceKindWorkspace   = "workspace"
+	ServiceKindTensorBoard = "tensorboard"
 
 	LabelKoordQuotaName = "quota.scheduling.koordinator.sh/name"
 

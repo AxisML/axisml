@@ -9,14 +9,14 @@
 平台采用 **两层业务模型 + 一层定义 / 视图**：
 
 - **集群词汇层**：`ResourcePool` CRD（内嵌 `units[]`）与集群级 `Tenant` CR，由 [cluster-manager](system/cluster-manager.md) 经 REST 维护（admin 视角的"K8s 写抽象"）。cluster-manager 据 ResourceUnit 规格把配额「资源单元 × 数量」折算进 `Tenant.spec.quotas[]`；compute 通过 Informer 直读 ResourcePool 展开，[tenant-operator](system/tenant-operator.md) 直读 Tenant CR 落地 Namespace / ElasticQuota / 初始化资源。
-- **工作负载层**：运行（Run = `MLRun`）/ Service / 制品版本，由 [compute-service](system/compute-service.md) 与 [artifact-hub](system/artifact-hub.md) 承载；二者以 namespace（= 租户 `identifier`）为分区写下游 CR，不持有 Tenant 权威。
-- **定义 / 视图层**：[Platform](platform/backend.md) 持有租户持久记录与生命周期权威（自有 `tenants` 表，`identifier` 唯一标识），以及 Job / Experiment / Model / Image 的 name 级**定义**和"用户 → 租户 → namespace"映射。租户的 K8s 物化经 cluster-manager REST 下发，Platform 不直接操作任何 CR；运行与制品版本在下游，经 label 与 `(kind, name)` 实时关联。
+- **工作负载层**：运行（Run = `MLRun`）/ Service / 制品版本，由 [compute-service](system/compute-service.md) 与 [artifact-hub](system/artifact-hub.md) 承载；二者以 **tenant scope**（租户逻辑作用域，等于 `identifier`）分区。现有 API / PG 字段仍名为 `namespace`，但它不是 Kubernetes Namespace。
+- **定义 / 视图层**：[Platform](platform/backend.md) 持有租户持久记录与生命周期权威（自有 `tenants` 表，`identifier` 唯一标识），以及 Job / Experiment / Model / Image 的 name 级**定义**和“用户 → tenant scope → Kubernetes Namespace”映射。租户的 K8s 物化经 cluster-manager REST 下发，Platform 不直接操作任何 CR；运行与制品版本在下游，经 label 与 `(kind, name)` 实时关联。
 
 ### 2.1 概念速查
 
 | 术语 | 对应对象 | 详细设计 |
 | --- | --- | --- |
-| 租户 Tenant | 集群级 `Tenant` CR + Platform `tenants` 行（`identifier` 标识） | [cluster-manager #3](system/cluster-manager.md#3-核心模型) / [platform #3](platform/backend.md#3-核心模型) |
+| 租户 Tenant | 集群级 `Tenant` CR + Platform `tenants` 行；`identifier` 是 tenant scope，`spec.namespace.name` 是 K8s Namespace | [cluster-manager #3](system/cluster-manager.md#3-核心模型) / [platform #3](platform/backend.md#3-核心模型) |
 | 资源池 ResourcePool | `ResourcePool` CRD（cluster-scoped），`spec.units[]` 内嵌 | [cluster-manager #3](system/cluster-manager.md#3-核心模型) |
 | 资源单元 ResourceUnit | `ResourcePool.spec.units[]` 内嵌项，与 pool 同生灭 | [cluster-manager #3](system/cluster-manager.md#3-核心模型) |
 | 资源配额 Quota | `Tenant.spec.quotas[]`（「资源单元 × 数量」）→ 每 pool 一个 `ElasticQuota`（`min`/`max` 由 cluster-manager 折算） | [cluster-manager #4](system/cluster-manager.md#4-核心功能) / [tenant-operator #4](system/tenant-operator.md#4-核心功能) |
@@ -28,14 +28,15 @@
 | TensorBoard | `mlservices.kind='tensorboard'`（按需临时实例，复用同上） | [compute-service #3](system/compute-service.md#3-核心模型) |
 | 流量策略 Traffic Policy | `MLTrafficPolicy` CR + PG 行（一个稳定入口加权分发到多服务） | [compute-service #4.3](system/compute-service.md#43-流量策略mltrafficpolicy) |
 | 制品（定义）Model / Image | Platform `models` / `images` 行（name 级定义） | [platform #3.2](platform/backend.md#32-定义jobs--experiments--models--images) |
-| 制品版本 Artifact version | `(namespace, kind, name, version)` 四元组；`namespace` = 租户名 | [artifact-hub #3](system/artifact-hub.md#3-核心模型) |
+| 制品版本 Artifact version | `(tenantScope, kind, name, version)` 四元组；兼容字段名仍为 `namespace` | [artifact-hub #3](system/artifact-hub.md#3-核心模型) |
 
 ### 2.2 关键不变量
 
 系统级不变量在此处定义一次，各组件文档引用而不重述：
 
-- **namespace = 租户 `identifier`（单一规范名）**：`identifier` 同时是 Tenant CR 名、K8s namespace 名、compute / artifacts 的分区字符串——全程一个字符串，无跨服务名字解析。
-- **Tenant CR 即权威态**：cluster-manager 以 REST 直接读写 etcd 上的 `Tenant` / `ResourcePool` CR（无 PG 派生、无 reconciler）；Platform `tenants` 表持有生命周期意图（展示元数据 / 停用 / 软删 / 保留期），经 cluster-manager REST 物化 / 回收 CR。
+- **tenant scope = 租户 `identifier`**：`identifier` 同时是 Tenant CR 名和 compute / artifacts 的逻辑分区键。现有 API / PG 的 `namespace` 字段表示 tenant scope，不表示 K8s Namespace。
+- **Kubernetes Namespace 独立建模**：`Tenant.spec.namespace.name` 是物理落地点，可被多个 Tenant 共享；per-tenant 资源靠 tenant ID、命名前缀和 label 隔离。
+- **Tenant CR 即权威态**：cluster-manager 以 REST 直接读写 etcd 上的 `Tenant` / `ResourcePool` CR（无 PG 派生、无 reconciler）；Platform `tenants` 表持有展示元数据、停用状态与物理 namespace 映射，经 cluster-manager REST 物化 / 回收 CR。
 - **Cluster Manager 是 K8s admin REST 抽象**：把 admin 视角的 K8s 写 / 读收敛为 REST，让 Platform 全程不直接调 K8s API；无独立持久化、无 reconciler、无 leader election。
 - **所有 AxisML Pod 走 koord-scheduler**：任何 backend handler 渲染的 Pod 必须设 `schedulerName: koord-scheduler` 并带 `quota.scheduling.koordinator.sh/name` label——不存在绕过配额的调度路径。
 - **Operator 互不感知**：tenant-operator 不看 MLRun / MLService；compute-operator 不看 Tenant / ElasticQuota（仅透传 quota 名）。
@@ -57,7 +58,7 @@
 | 系统管理 | 租户管理 / 资源池 / 资源单元 / 资源配额 | ✅ |
 | 训练中心 | 评估 | TBD（沿用 Job → Run 两级模型） |
 
-> **删除 / 恢复语义**：仅 `Tenant` 支持软删 + restore（365 天 retention 后物理清理）；`Job` / `Experiment` 定义删除——有活跃 Run 则阻止，否则级联软删全部 Run；`Run` / `Service` / `Workspace` / `TrafficPolicy` / `TensorBoard` 删除即终态，无 restore（重新触发即可）；`Model` / `Image` 定义删除级联软删全部版本，`Artifact` 版本软删后四元组永不复用。详见各组件 §4。
+> **删除语义**：`Tenant` 删除前必须清空成员和活跃资源，随后同步删除持久记录与 Tenant CR，不提供 restore；`Job` / `Experiment` 定义删除——有活跃 Run 则阻止，否则级联软删全部 Run；`Run` / `Service` / `Workspace` / `TrafficPolicy` / `TensorBoard` 删除即终态；`Model` / `Image` 定义删除级联软删全部版本，`Artifact` 版本软删后四元组永不复用。详见各组件 §4。
 
 ## 4. 整体架构
 
@@ -134,7 +135,7 @@
 | 计算抽象 | 通过 CRD（MLRun / MLService / MLTrafficPolicy / Tenant）声明式管理，框架无关 |
 | 定义 / 实例分层 | Platform 自有四张 name 级定义；运行与版本留下游，经 label 与 `(kind, name)` 实时关联，不缓存可变状态 |
 | 控制平面拆分 | tenant-operator + compute-operator 两个独立二进制，按变更频率与权限边界分离 |
-| 租户与配额归属 | cluster-manager 持 Tenant CR + 配额折算（与 ResourcePool 同为集群级 admin CR）；Platform 持租户持久记录与生命周期 / 停用 / 软删 |
+| 租户与配额归属 | cluster-manager 持 Tenant CR + 配额折算（与 ResourcePool 同为集群级 admin CR）；Platform 持租户持久记录、K8s Namespace 映射与停用状态；租户删除为硬删除 |
 | Pool/Unit 解耦 | ResourcePool CRD 由 cluster-manager 管（内嵌 units），compute 经 Informer 直读展开；写 / 读路径都经 etcd 收敛 |
 | 配额模型 | 配额内联 `Tenant.spec.quotas[]`（「资源单元 × 数量」）→ cluster-manager 折算为每 pool 一个 ElasticQuota，避免独立 Quota CRD |
 | 调度收编 | 所有 Pod 强制 `schedulerName: koord-scheduler` + ElasticQuota label |

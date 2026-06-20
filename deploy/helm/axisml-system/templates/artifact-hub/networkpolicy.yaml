@@ -1,0 +1,33 @@
+{{- if and .Values.artifactHub.enabled .Values.artifactHub.networkPolicy.enabled }}
+{{- $svc := .Values.artifactHub }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "axisml.fullname" . }}-artifact-hub
+  labels:
+    {{- include "axisml.componentLabels" (dict "context" . "component" "artifact-hub") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "axisml.componentSelectorLabels" (dict "context" . "component" "artifact-hub") | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $svc.networkPolicy.platformNamespace | quote }}
+      ports:
+        - protocol: TCP
+          port: {{ $svc.service.port }}
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $svc.networkPolicy.monitoringNamespace | quote }}
+      ports:
+        - protocol: TCP
+          port: {{ $svc.metricsPort }}
+    - ports:
+        - protocol: TCP
+          port: {{ $svc.probesPort }}
+{{- end }}

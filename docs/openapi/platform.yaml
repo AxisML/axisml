@@ -272,39 +272,6 @@ components:
       - name
       - namespace
       type: object
-    DashboardOverview:
-      properties:
-        activeJobCount:
-          type: integer
-        activeTenantCount:
-          type: integer
-        cpuTotalCores:
-          format: double
-          type: number
-        cpuUsedCores:
-          format: double
-          type: number
-        gpuTotal:
-          format: double
-          type: number
-        gpuUsed:
-          format: double
-          type: number
-        memoryTotalGiB:
-          format: double
-          type: number
-        memoryUsedGiB:
-          format: double
-          type: number
-        modelCount:
-          type: integer
-        runningServiceCount:
-          type: integer
-        runningWorkspaceCount:
-          type: integer
-        tenantCount:
-          type: integer
-      type: object
     EnvVar:
       properties:
         name:
@@ -1971,10 +1938,6 @@ components:
         createdAt:
           format: date-time
           type: string
-        deletedAt:
-          format: date-time
-          nullable: true
-          type: string
         description:
           type: string
         displayName:
@@ -1983,6 +1946,8 @@ components:
           type: string
         initResources:
           $ref: '#/components/schemas/InitResources'
+        kubernetesNamespace:
+          type: string
         labels:
           $ref: '#/components/schemas/StringMap'
         owner:
@@ -2004,6 +1969,7 @@ components:
       - createdAt
       - displayName
       - identifier
+      - kubernetesNamespace
       - phase
       - suspended
       - updatedAt
@@ -2028,6 +1994,10 @@ components:
           $ref: '#/components/schemas/InitResources'
         initialAdmin:
           type: string
+        kubernetesNamespace:
+          maxLength: 63
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
         labels:
           $ref: '#/components/schemas/StringMap'
         quotas:
@@ -2038,6 +2008,7 @@ components:
       - displayName
       - identifier
       - initialAdmin
+      - kubernetesNamespace
       type: object
     TenantList:
       properties:
@@ -2074,8 +2045,6 @@ components:
       - Active
       - Suspended
       - Failed
-      - Deleting
-      - Deleted
       type: string
     TenantStatus:
       properties:
@@ -2520,23 +2489,6 @@ components:
       - tenantName
       - updatedAt
       type: object
-    WorkspaceAccess:
-      properties:
-        expiresAt:
-          format: date-time
-          type: string
-        headerName:
-          type: string
-        jwt:
-          type: string
-        url:
-          type: string
-      required:
-      - expiresAt
-      - headerName
-      - jwt
-      - url
-      type: object
     WorkspaceCreateRequest:
       properties:
         args:
@@ -2674,10 +2626,9 @@ info:
   description: 'User-facing entrypoint to AxisML. Aggregates the internal services
     (cluster-manager / compute / artifacts) and adds platform-native features: identity,
     RBAC, workspace/job/experiment/service/traffic orchestration, the model/image
-    artifact registry, and Prometheus-backed dashboards. All endpoints except POST
-    /api/v1/auth/login require a bearer JWT issued by Platform; per-endpoint role
-    requirements are noted in each operation. Errors use RFC 7807 application/problem+json
-    bodies.'
+    artifact registry. All endpoints except POST /api/v1/auth/login require a bearer
+    JWT issued by Platform; per-endpoint role requirements are noted in each operation.
+    Errors use RFC 7807 application/problem+json bodies.'
   title: AxisML Platform API
   version: 0.1.0
 openapi: 3.0.3
@@ -2864,109 +2815,6 @@ paths:
       summary: Refresh the current bearer JWT
       tags:
       - Auth
-  /api/v1/dashboard/metrics:
-    get:
-      operationId: getDashboardMetrics
-      parameters:
-      - description: Active tenant for the request.
-        in: header
-        name: X-Axisml-Tenant
-        schema:
-          maxLength: 40
-          minLength: 3
-          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
-          type: string
-      - in: query
-        name: metric
-        required: true
-        schema:
-          type: string
-      - in: query
-        name: range
-        required: true
-        schema:
-          type: string
-      - in: query
-        name: step
-        schema:
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MetricSeries'
-          description: Metric series.
-        "400":
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Malformed request (invalid syntax, missing required fields,
-            immutable field, etc.).
-        "401":
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Missing or invalid bearer JWT.
-        "500":
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Unexpected server error.
-        "502":
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Upstream service (cluster-manager / compute / artifacts / Prometheus)
-            failed.
-      summary: Query Prometheus through Platform
-      tags:
-      - Dashboard
-  /api/v1/dashboard/overview:
-    get:
-      operationId: getDashboardOverview
-      parameters:
-      - description: Active tenant for the request.
-        in: header
-        name: X-Axisml-Tenant
-        schema:
-          maxLength: 40
-          minLength: 3
-          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DashboardOverview'
-          description: Dashboard overview.
-        "400":
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Malformed request (invalid syntax, missing required fields,
-            immutable field, etc.).
-        "401":
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Missing or invalid bearer JWT.
-        "500":
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Unexpected server error.
-      summary: Get the dashboard summary
-      tags:
-      - Dashboard
   /api/v1/experiments:
     get:
       operationId: listExperiments
@@ -8469,11 +8317,6 @@ paths:
         name: phase
         schema:
           $ref: '#/components/schemas/TenantPhase'
-      - description: Include soft-deleted tenants.
-        in: query
-        name: includeArchived
-        schema:
-          type: boolean
       - description: Page size (default 50, max 200).
         in: query
         name: limit
@@ -8572,14 +8415,14 @@ paths:
         name: name
         required: true
         schema:
-          format: Tenant identifier (== cluster-manager Tenant name == namespace).
+          format: Tenant identifier and logical tenant scope; not a Kubernetes Namespace.
           maxLength: 40
           minLength: 3
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
       responses:
         "204":
-          description: Tenant soft-deleted.
+          description: Tenant deleted.
         "401":
           content:
             application/problem+json:
@@ -8612,7 +8455,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Unexpected server error.
-      summary: Soft-delete a tenant
+      summary: Delete a tenant
       tags:
       - Tenants
     get:
@@ -8622,15 +8465,11 @@ paths:
         name: name
         required: true
         schema:
-          format: Tenant identifier (== cluster-manager Tenant name == namespace).
+          format: Tenant identifier and logical tenant scope; not a Kubernetes Namespace.
           maxLength: 40
           minLength: 3
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
-      - in: query
-        name: includeArchived
-        schema:
-          type: boolean
       responses:
         "200":
           content:
@@ -8673,7 +8512,7 @@ paths:
         name: name
         required: true
         schema:
-          format: Tenant identifier (== cluster-manager Tenant name == namespace).
+          format: Tenant identifier and logical tenant scope; not a Kubernetes Namespace.
           maxLength: 40
           minLength: 3
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
@@ -8740,7 +8579,7 @@ paths:
         name: name
         required: true
         schema:
-          format: Tenant identifier (== cluster-manager Tenant name == namespace).
+          format: Tenant identifier and logical tenant scope; not a Kubernetes Namespace.
           maxLength: 40
           minLength: 3
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
@@ -8787,7 +8626,7 @@ paths:
         name: name
         required: true
         schema:
-          format: Tenant identifier (== cluster-manager Tenant name == namespace).
+          format: Tenant identifier and logical tenant scope; not a Kubernetes Namespace.
           maxLength: 40
           minLength: 3
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
@@ -8861,7 +8700,7 @@ paths:
         name: name
         required: true
         schema:
-          format: Tenant identifier (== cluster-manager Tenant name == namespace).
+          format: Tenant identifier and logical tenant scope; not a Kubernetes Namespace.
           maxLength: 40
           minLength: 3
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
@@ -8917,7 +8756,7 @@ paths:
         name: name
         required: true
         schema:
-          format: Tenant identifier (== cluster-manager Tenant name == namespace).
+          format: Tenant identifier and logical tenant scope; not a Kubernetes Namespace.
           maxLength: 40
           minLength: 3
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
@@ -8991,7 +8830,7 @@ paths:
         name: name
         required: true
         schema:
-          format: Tenant identifier (== cluster-manager Tenant name == namespace).
+          format: Tenant identifier and logical tenant scope; not a Kubernetes Namespace.
           maxLength: 40
           minLength: 3
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
@@ -9038,7 +8877,7 @@ paths:
         name: name
         required: true
         schema:
-          format: Tenant identifier (== cluster-manager Tenant name == namespace).
+          format: Tenant identifier and logical tenant scope; not a Kubernetes Namespace.
           maxLength: 40
           minLength: 3
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
@@ -9101,7 +8940,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Unexpected server error.
-      summary: Set a pool's quota (resource units × quantity)
+      summary: Set a pool's quota (system-admin only)
       tags:
       - Quotas
   /api/v1/tenants/{name}/quotas/{pool}:
@@ -9112,7 +8951,7 @@ paths:
         name: name
         required: true
         schema:
-          format: Tenant identifier (== cluster-manager Tenant name == namespace).
+          format: Tenant identifier and logical tenant scope; not a Kubernetes Namespace.
           maxLength: 40
           minLength: 3
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
@@ -9160,7 +8999,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Unexpected server error.
-      summary: Remove a pool's quota from a tenant
+      summary: Remove a pool quota (system-admin only)
       tags:
       - Quotas
     patch:
@@ -9170,7 +9009,7 @@ paths:
         name: name
         required: true
         schema:
-          format: Tenant identifier (== cluster-manager Tenant name == namespace).
+          format: Tenant identifier and logical tenant scope; not a Kubernetes Namespace.
           maxLength: 40
           minLength: 3
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
@@ -9234,64 +9073,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
           description: Unexpected server error.
-      summary: Update a pool quota's unit allocations
+      summary: Update a pool quota (system-admin only)
       tags:
       - Quotas
-  /api/v1/tenants/{name}/restore:
-    post:
-      operationId: restoreTenant
-      parameters:
-      - in: path
-        name: name
-        required: true
-        schema:
-          format: Tenant identifier (== cluster-manager Tenant name == namespace).
-          maxLength: 40
-          minLength: 3
-          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Tenant'
-          description: Restored tenant.
-        "401":
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Missing or invalid bearer JWT.
-        "403":
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Authenticated but insufficient role for the requested operation.
-        "404":
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Resource not found, OR the caller cannot see it. Platform deliberately
-            conflates these for non-admins to avoid information leak.
-        "409":
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: 'Conflicts with a precondition: duplicate name, last-tenant-admin
-            protection, in-use blocker, immutable transition, etc.'
-        "500":
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Unexpected server error.
-      summary: Restore a soft-deleted tenant
-      tags:
-      - Tenants
   /api/v1/tenants/{name}/resume:
     post:
       operationId: resumeTenant
@@ -9300,7 +9084,7 @@ paths:
         name: name
         required: true
         schema:
-          format: Tenant identifier (== cluster-manager Tenant name == namespace).
+          format: Tenant identifier and logical tenant scope; not a Kubernetes Namespace.
           maxLength: 40
           minLength: 3
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
@@ -9355,7 +9139,7 @@ paths:
         name: name
         required: true
         schema:
-          format: Tenant identifier (== cluster-manager Tenant name == namespace).
+          format: Tenant identifier and logical tenant scope; not a Kubernetes Namespace.
           maxLength: 40
           minLength: 3
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
@@ -10623,53 +10407,6 @@ paths:
       summary: Update workspace display metadata
       tags:
       - Workspaces
-  /api/v1/workspaces/{name}/access:
-    get:
-      operationId: getWorkspaceAccess
-      parameters:
-      - in: path
-        name: name
-        required: true
-        schema:
-          maxLength: 63
-          minLength: 1
-          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkspaceAccess'
-          description: Workspace access credentials.
-        "401":
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Missing or invalid bearer JWT.
-        "403":
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Authenticated but insufficient role for the requested operation.
-        "404":
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Resource not found, OR the caller cannot see it. Platform deliberately
-            conflates these for non-admins to avoid information leak.
-        "500":
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-          description: Unexpected server error.
-      summary: Get a short-TTL JWT for IDE access
-      tags:
-      - Workspaces
   /api/v1/workspaces/{name}/events:
     get:
       operationId: getWorkspaceEvents
@@ -11082,8 +10819,6 @@ tags:
   name: ResourcePools
 - description: Per-pool resource unit specs (admin-only writes; read by all).
   name: ResourceUnits
-- description: Aggregated overview and Prometheus-backed metrics.
-  name: Dashboard
 - description: Audit log queries (system-admin only).
   name: Audit
 - description: Liveness and readiness probes.

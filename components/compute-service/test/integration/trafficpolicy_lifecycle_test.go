@@ -77,6 +77,11 @@ func TestTrafficPolicy_CanaryLifecycle(t *testing.T) {
 	rr := doJSON(t, ctx, http.MethodPost, "/api/v1/namespaces/"+ns+"/traffic-policies", body, nil)
 	requireStatus(t, rr, http.StatusCreated)
 
+	// A member service cannot be deleted while the active policy references it.
+	rr = doJSON(t, ctx, http.MethodDelete,
+		"/api/v1/namespaces/"+ns+"/mlservices/chat-v1", nil, nil)
+	requireStatus(t, rr, http.StatusConflict)
+
 	key := types.NamespacedName{Namespace: ns, Name: policyName}
 	var cr mltp.MLTrafficPolicy
 	require.Eventually(t, func() bool {
@@ -140,6 +145,11 @@ func TestTrafficPolicy_CanaryLifecycle(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return c.Get(ctx, key, &mltp.MLTrafficPolicy{}) != nil
 	}, 10*time.Second, 200*time.Millisecond, "MLTrafficPolicy CR was not deleted")
+
+	// Removing the policy releases its members for deletion.
+	rr = doJSON(t, ctx, http.MethodDelete,
+		"/api/v1/namespaces/"+ns+"/mlservices/chat-v1", nil, nil)
+	requireStatus(t, rr, http.StatusNoContent)
 }
 
 func weightOf(backends []mltp.BackendMember, name string) int32 {

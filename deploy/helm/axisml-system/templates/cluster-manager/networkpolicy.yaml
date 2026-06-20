@@ -1,8 +1,7 @@
 {{- if and .Values.clusterManager.enabled .Values.clusterManager.networkPolicy.enabled }}
 {{- $cm := .Values.clusterManager }}
-# cluster-manager trusts X-Axisml-User as an audit field; the upstream
-# gateway is the authn boundary. This NetworkPolicy enforces that boundary
-# at the network layer so other in-cluster workloads cannot spoof callers.
+# cluster-manager trusts X-Axisml-User. Restrict the API port to Platform;
+# metrics remain scrapeable from Infra and probes remain reachable by kubelet.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -17,16 +16,20 @@ spec:
     - Ingress
   ingress:
     - from:
-        {{- range $ns := $cm.networkPolicy.ingressFromNamespaces }}
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: {{ $ns | quote }}
-        {{- end }}
+              kubernetes.io/metadata.name: {{ $cm.networkPolicy.platformNamespace | quote }}
       ports:
         - protocol: TCP
           port: {{ $cm.service.port }}
-        - protocol: TCP
-          port: {{ $cm.probesPort }}
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $cm.networkPolicy.monitoringNamespace | quote }}
+      ports:
         - protocol: TCP
           port: {{ $cm.metricsPort }}
+    - ports:
+        - protocol: TCP
+          port: {{ $cm.probesPort }}
 {{- end }}

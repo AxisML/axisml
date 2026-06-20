@@ -79,6 +79,16 @@ func (r *Repository) FindActiveReferencing(ctx context.Context, namespace, servi
 	return rows, err
 }
 
+// ActiveReferenceName returns one active policy referencing serviceName, or an
+// empty string when the service is not in use.
+func (r *Repository) ActiveReferenceName(ctx context.Context, namespace, serviceName string) (string, error) {
+	rows, err := r.FindActiveReferencing(ctx, namespace, serviceName)
+	if err != nil || len(rows) == 0 {
+		return "", err
+	}
+	return rows[0].Name, nil
+}
+
 type WorkSet struct {
 	Creating  []TrafficPolicy
 	Deleting  []TrafficPolicy

@@ -54,7 +54,7 @@ func TestArtifact_PATCH_ImmutableField(t *testing.T) {
 }
 
 // TestArtifact_Visibility_PublicGate enforces that visibility=public is
-// only accepted under the axisml-system namespace; any other namespace
+// only accepted under the default tenant scope; any other scope
 // returns 403 Forbidden per design §3.
 func TestArtifact_Visibility_PublicGate(t *testing.T) {
 	s := setup(t)
@@ -72,4 +72,8 @@ func TestArtifact_Visibility_PublicGate(t *testing.T) {
 		s.nsPath("/models/public-only"), body)
 	require.GreaterOrEqual(t, rr.Code, 400)
 	require.Less(t, rr.Code, 500)
+
+	rr = s.drive(t, http.MethodPost,
+		"/api/v1/namespaces/default/models/public-allowed", body)
+	require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
 }

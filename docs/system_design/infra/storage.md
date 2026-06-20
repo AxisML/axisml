@@ -37,7 +37,7 @@
 | Bearer token 鉴权 | scope-limited（`repository:<repo>:push`/`pull`） |
 | Manifest 校验 | `HEAD /v2/<repo>/manifests/<ref>` 返回 digest，调用方据此做完整性校验 |
 
-Infra 层提供 zot endpoint（ConfigMap）、admin 凭证（平台级 Secret）、公共拉取凭证（`axisml-system` Namespace Secret）；repo 路径命名 / 租户隔离 / scope token 形态由调用方决定。部署：Standalone（filesystem）/ HA 3×（共享 S3 后端）。
+Infra 层提供 zot endpoint（ConfigMap）、admin 凭证（平台级 Secret）、公共拉取凭证（`axisml-tenant` Namespace Secret，由 `default` Tenant 管理）；repo 路径命名 / 租户隔离 / scope token 形态由调用方决定。部署：Standalone（filesystem）/ HA 3×（共享 S3 后端）。
 
 ## 3. 数据库
 

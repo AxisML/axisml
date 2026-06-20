@@ -128,8 +128,8 @@ func (h *Handler) Validate(spec *axisml.MLServiceSpec) handler.Validation {
 					spec.Route.TargetRole, role.Name))
 		}
 		if spec.Route.Auth != nil && spec.Route.Auth.Type != "" && spec.Route.Auth.Type != axisml.RouteAuthNone {
-			v.Warnings = append(v.Warnings,
-				"route.auth is not yet wired; SecurityPolicy creation deferred to a follow-up")
+			v.Errors = append(v.Errors,
+				"route.auth is not yet supported (SecurityPolicy derivation pending); use auth.type=none")
 		}
 		if spec.Route.RateLimit != nil || spec.Route.Timeout != "" {
 			v.Warnings = append(v.Warnings,

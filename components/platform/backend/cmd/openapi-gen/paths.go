@@ -132,7 +132,7 @@ func activeTenant(required bool) openapigen.Parameter {
 
 // path-parameter constructors (one per distinct shape).
 func tenantNameP() openapigen.Parameter {
-	return pathParam("name", dns1123Pattern, 3, 40, "Tenant identifier (== cluster-manager Tenant name == namespace).")
+	return pathParam("name", dns1123Pattern, 3, 40, "Tenant identifier and logical tenant scope; not a Kubernetes Namespace.")
 }
 func tenantP() openapigen.Parameter            { return pathParam("tenant", dns1123Pattern, 3, 40, "") }
 func quotaPoolP() openapigen.Parameter         { return pathParam("pool", dns1123Pattern, 1, 63, "") }
@@ -224,21 +224,18 @@ func paths() map[string]openapigen.PathItem {
 			[]openapigen.Parameter{
 				qp("q", "Fuzzy keyword on name / displayName.", strSchema()),
 				qp("phase", "Filter by tenant status.phase.", openapigen.Ref("TenantPhase")),
-				qp("includeArchived", "Include soft-deleted tenants.", boolSchema()),
 				limitParam, continueParam,
 			}, nil, resp(sc("200", "A page of visible tenants.", "TenantList"), "401", "500")),
 	}
 	p["/api/v1/tenants/{name}"] = openapigen.PathItem{
 		Get: newOp(tagTenants, "getTenant", "Get a tenant",
-			[]openapigen.Parameter{tenantNameP(), qp("includeArchived", "", boolSchema())},
+			[]openapigen.Parameter{tenantNameP()},
 			nil, resp(sc("200", "Tenant detail.", "Tenant"), "401", "403", "404", "500")),
 		Patch: newOp(tagTenants, "updateTenant", "Update tenant display metadata",
 			[]openapigen.Parameter{tenantNameP()}, body("TenantPatchRequest"), resp(sc("200", "Updated tenant.", "Tenant"), "400", "401", "403", "404", "422", "500")),
-		Delete: newOp(tagTenants, "deleteTenant", "Soft-delete a tenant",
-			[]openapigen.Parameter{tenantNameP()}, nil, resp(sc("204", "Tenant soft-deleted.", ""), "401", "403", "404", "409", "500")),
+		Delete: newOp(tagTenants, "deleteTenant", "Delete a tenant",
+			[]openapigen.Parameter{tenantNameP()}, nil, resp(sc("204", "Tenant deleted.", ""), "401", "403", "404", "409", "500")),
 	}
-	p["/api/v1/tenants/{name}/restore"] = openapigen.PathItem{Post: newOp(tagTenants, "restoreTenant", "Restore a soft-deleted tenant",
-		[]openapigen.Parameter{tenantNameP()}, nil, resp(sc("200", "Restored tenant.", "Tenant"), "401", "403", "404", "409", "500"))}
 	p["/api/v1/tenants/{name}/suspend"] = openapigen.PathItem{Post: newOp(tagTenants, "suspendTenant", "Suspend a tenant (gates new-workload creation)",
 		[]openapigen.Parameter{tenantNameP()}, nil, resp(sc("200", "Tenant suspended.", "Tenant"), "401", "403", "404", "409", "500"))}
 	p["/api/v1/tenants/{name}/resume"] = openapigen.PathItem{Post: newOp(tagTenants, "resumeTenant", "Resume a suspended tenant",
@@ -248,14 +245,14 @@ func paths() map[string]openapigen.PathItem {
 	p["/api/v1/tenants/{name}/quotas"] = openapigen.PathItem{
 		Get: newOp(tagQuotas, "listTenantQuotas", "List per-pool quotas for a tenant",
 			[]openapigen.Parameter{tenantNameP()}, nil, resp(sc("200", "Quota list.", "QuotaList"), "401", "403", "404", "500")),
-		Post: newOp(tagQuotas, "createTenantQuota", "Set a pool's quota (resource units × quantity)",
+		Post: newOp(tagQuotas, "createTenantQuota", "Set a pool's quota (system-admin only)",
 			[]openapigen.Parameter{tenantNameP()}, body("QuotaCreateRequest"), resp(sc("201", "Quota set.", "Tenant"), "400", "401", "403", "404", "409", "422", "500")),
 	}
 	p["/api/v1/tenants/{name}/quotas/{pool}"] = openapigen.PathItem{
-		Patch: newOp(tagQuotas, "updateTenantQuota", "Update a pool quota's unit allocations",
+		Patch: newOp(tagQuotas, "updateTenantQuota", "Update a pool quota (system-admin only)",
 			[]openapigen.Parameter{tenantNameP(), quotaPoolP()}, body("QuotaPatchRequest"),
 			resp(sc("200", "Quota updated; returns the updated tenant.", "Tenant"), "400", "401", "403", "404", "422", "500")),
-		Delete: newOp(tagQuotas, "deleteTenantQuota", "Remove a pool's quota from a tenant",
+		Delete: newOp(tagQuotas, "deleteTenantQuota", "Remove a pool quota (system-admin only)",
 			[]openapigen.Parameter{tenantNameP(), quotaPoolP()}, nil,
 			resp(sc("204", "Quota removed.", ""), "401", "403", "404", "409", "500")),
 	}
@@ -298,8 +295,6 @@ func paths() map[string]openapigen.PathItem {
 		[]openapigen.Parameter{workspaceNameP()}, nil, resp(sc("200", "Workspace started.", "Workspace"), "401", "403", "404", "409", "500"))}
 	p["/api/v1/workspaces/{name}/stop"] = openapigen.PathItem{Post: newOp(tagWorkspaces, "stopWorkspace", "Stop a workspace (scale to 0 replicas)",
 		[]openapigen.Parameter{workspaceNameP()}, nil, resp(sc("200", "Workspace stopped.", "Workspace"), "401", "403", "404", "409", "500"))}
-	p["/api/v1/workspaces/{name}/access"] = openapigen.PathItem{Get: newOp(tagWorkspaces, "getWorkspaceAccess", "Get a short-TTL JWT for IDE access",
-		[]openapigen.Parameter{workspaceNameP()}, nil, resp(sc("200", "Workspace access credentials.", "WorkspaceAccess"), "401", "403", "404", "500"))}
 	p["/api/v1/workspaces/{name}/events"] = openapigen.PathItem{Get: newOp(tagWorkspaces, "getWorkspaceEvents", "List service-level Kubernetes events for the workspace",
 		[]openapigen.Parameter{workspaceNameP()}, nil, resp(sc("200", "Service-level event list.", "EventList"), "401", "403", "404", "500"))}
 	p["/api/v1/workspaces/{name}/pods"] = openapigen.PathItem{Get: newOp(tagWorkspaces, "listWorkspacePods", "List Pods backing the workspace",
@@ -511,13 +506,6 @@ func paths() map[string]openapigen.PathItem {
 		Delete: newOp(tagResourceUnits, "deleteResourceUnit", "Delete a resource unit",
 			[]openapigen.Parameter{poolNameP(), unitNameP()}, nil, resp(sc("204", "Resource unit deleted.", ""), "401", "403", "404", "409", "500")),
 	}
-
-	// ---- Dashboard ----
-	p["/api/v1/dashboard/overview"] = openapigen.PathItem{Get: newOp(tagDashboard, "getDashboardOverview", "Get the dashboard summary",
-		[]openapigen.Parameter{activeTenant(false)}, nil, resp(sc("200", "Dashboard overview.", "DashboardOverview"), "400", "401", "500"))}
-	p["/api/v1/dashboard/metrics"] = openapigen.PathItem{Get: newOp(tagDashboard, "getDashboardMetrics", "Query Prometheus through Platform",
-		[]openapigen.Parameter{activeTenant(false), qpReq("metric", "", strSchema()), qpReq("range", "", strSchema()), qp("step", "", strSchema())},
-		nil, resp(sc("200", "Metric series.", "MetricSeries"), "400", "401", "502", "500"))}
 
 	// ---- Audit ----
 	p["/api/v1/auditlogs"] = openapigen.PathItem{Get: newOp(tagAudit, "listAuditLogs", "Query the audit log",

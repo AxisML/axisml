@@ -2,22 +2,6 @@ package server
 
 import "time"
 
-// DashboardOverview is the aggregated platform overview. All fields optional.
-type DashboardOverview struct {
-	TenantCount           int     `json:"tenantCount,omitempty"`
-	ActiveTenantCount     int     `json:"activeTenantCount,omitempty"`
-	ActiveJobCount        int     `json:"activeJobCount,omitempty"`
-	RunningServiceCount   int     `json:"runningServiceCount,omitempty"`
-	RunningWorkspaceCount int     `json:"runningWorkspaceCount,omitempty"`
-	GPUTotal              float64 `json:"gpuTotal,omitempty"`
-	GPUUsed               float64 `json:"gpuUsed,omitempty"`
-	CPUTotalCores         float64 `json:"cpuTotalCores,omitempty"`
-	CPUUsedCores          float64 `json:"cpuUsedCores,omitempty"`
-	MemoryTotalGiB        float64 `json:"memoryTotalGiB,omitempty"`
-	MemoryUsedGiB         float64 `json:"memoryUsedGiB,omitempty"`
-	ModelCount            int     `json:"modelCount,omitempty"`
-}
-
 // AuditLog is a single audit-log entry.
 type AuditLog struct {
 	ID        UUID           `json:"id"`

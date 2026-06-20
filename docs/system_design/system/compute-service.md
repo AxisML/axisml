@@ -11,9 +11,9 @@ ML 工作负载服务：以 PostgreSQL 为权威，承载 Job / Service / Worksp
 | 三类 CR spec 下发 + status 回流 | 直接创建 Pod / Deployment / PodGroup（→ [compute-operator.md](compute-operator.md)） |
 | Pod 列表 / 日志 / 事件透传 kube-apiserver | 加权 HTTPRoute / 灰度的网关派生 (→ [compute-operator.md](compute-operator.md)) |
 | 在线服务 / 工作负载运行指标代理（按 `spec.backend` 选 PromQL 查 Prometheus） | 用户认证与角色鉴权 (→ [auth.md](../platform/auth.md)) |
-| 跨 namespace 活跃 workload 按 label 计数（供上游 pool/unit 删除前置阻断） | ResourcePool / ResourceUnit 词汇 (→ [cluster-manager.md](cluster-manager.md)) |
+| 按 tenant scope 列出 MLRun / MLService，支持 `labelSelector` 过滤（供上游 pool/unit 删除前置阻断） | ResourcePool / ResourceUnit 词汇 (→ [cluster-manager.md](cluster-manager.md)) |
 
-**namespace 字段语义**：`mlruns` / `mlservices` 表的 `namespace text` 是租户 `identifier`，同时就是 CR 下发的 K8s namespace（单一规范名，由上游传入）；Compute 不 join 任何租户表、不做名字解析（见 [high_level_design §2.2](../high_level_design.md#22-关键不变量)）。
+**namespace 字段语义**：`mlruns` / `mlservices` 表的 `namespace text` 是兼容字段名，实际表示 tenant scope（租户 `identifier`），不是 K8s Namespace。代码与新接口描述优先使用 `tenantScope`；物理落地点使用 `kubernetesNamespace` 明确表达（见 [high_level_design §2.2](../high_level_design.md#22-关键不变量)）。
 
 **Pool/Unit 展开归属**：上游仅传 `(poolName, unitName)` 名字对；compute-service 通过 K8s Informer 直读 `ResourcePool` CR cache 完成展开（合并 `nodeSelector` / `tolerations` / `requests` / `limits`），snapshot 到 `spec` jsonb。snapshot 一经写入即与 pool/unit CR 解耦（§5.4）。
 
@@ -96,7 +96,7 @@ Creating ─(Informer ADD)─▶ Pending ─(ready=desired>0)─▶ Ready ⇄ De
 | 创建 | insert `Creating` + spec 快照 | `Create()` MLService（含 `axisml.io/service-{id,kind}` label）；`kind='workspace'` 时同事务派生 PVC `axisml-ws-<name>-data` 挂到 `roles[0].template.volumes[]` |
 | scale | `spec.roles[0].replicas` + `generation += 1` | `generation>observed_generation` 触发 patch replicas |
 | 更新 PG 元数据 | update 行 | 不影响 CR、不 `+generation` |
-| 软删 | `phase='Deleting'` + `deleted_at` | `Delete()` CR；`kind='workspace'` 按 `?deletePvc=true`（默认）一并删 PVC |
+| 软删 | 在线服务先检查是否被活跃 TrafficPolicy 引用，命中则 `409 service-in-use`；通过后写 `phase='Deleting'` + `deleted_at` | `Delete()` CR；`kind='workspace'` 按 `?deletePvc=true`（默认）一并删 PVC |
 | Pod 列表 / 日志 / 事件 / 指标 | — | 同 Job；指标按 `spec.backend` 选 PromQL 查 Prometheus，返 `MetricSeries`（QPS / 延迟 / 错误率 / CPU·内存·GPU） |
 
 Service 无 cancel；除 `roles[0].replicas` 与 `kind` 外其他 spec 不可变。
@@ -142,7 +142,7 @@ Service 无 cancel；除 `roles[0].replicas` 与 `kind` 外其他 spec 不可变
 
 `endpoint`（path / hostname / auth）与 `mode` 创建后不可变——改模式 / 入口 = 先删后建。
 
-**成员校验（创建时，本服务为权威闸门）**：每个成员经内部 `GetService` 预检 `kind=='service'`（拒绝 workspace）且 `Ready`；成员须同租户；一个 MLService 同时只能被一个活跃策略引用（应用层事务内维护）；成员后端类型同构（全 `native` 或全 `kserve`，`kserve` 要求 `mode='canary'` 且恰好 2 成员）；校验后把派生的 `spec.backend` 元组写入 CR 供 operator 路由；`endpoint.path==""` 时自动拼 `/services/<tenant>/<name>/`。上游创建编排也做同组预检，但仅为快速失败 UX；本服务校验是事务内的权威闸门。
+**成员引用完整性（本服务为权威闸门）**：创建策略时，每个成员经内部 `GetService` 预检 `kind=='service'`（拒绝 workspace）且 `Ready`；成员须同租户；一个 MLService 同时只能被一个活跃策略引用（应用层事务内维护）。删除在线服务时反查活跃 TrafficPolicy，仍被引用则拒绝删除。成员后端类型同构（全 `native` 或全 `kserve`，`kserve` 要求 `mode='canary'` 且恰好 2 成员）；校验后把派生的 `spec.backend` 元组写入 CR 供 operator 路由；`endpoint.path==""` 时自动拼 `/services/<tenant>/<name>/`。上游预检仅用于快速失败 UX。
 
 **MLTrafficPolicy CR 契约**：route programmed 且全成员 ready → `Ready`；部分 ready / degraded → `Degraded`；未 programmed 或全未就绪且 CR `Pending` → `Pending`；CR `Failed` → `Failed`（可自愈）。`status` jsonb 持 `{phase, message, endpoint, backends[].{serviceName, weight, ready}, conditions[]}`，由 Informer 整块回流（§5.3）。权重 / 灰度态 / 成员 phase 始终以本服务为权威源回源。
 
@@ -185,7 +185,7 @@ POST .../mlruns  body: { name, scheduling:{poolName, unitName, quota}, ... }
 
 **校验失败**：pool 不存在 → `400 pool-not-found`；unit 名不在 `pool.spec.units[]` → `400 unit-not-found`；Informer 未 sync（冷启）→ `WaitForCacheSync` 通过前 `/readyz` 不就绪。
 
-**quota 名组装**：compute 以 namespace（= `identifier`）+ `poolName` 组装 ElasticQuota 全名 `axisml-<identifier>-<pool>` 写入 `spec.scheduling.quota`，随展开一并 snapshot；不校验配额是否存在（由 cluster-manager / tenant-operator 维护，koord-scheduler 调度期强制）。
+**quota 名组装**：compute 以 tenant scope（= `identifier`）+ `poolName` 组装 ElasticQuota 全名 `axisml-<identifier>-<pool>` 写入 `spec.scheduling.quota`，随展开一并 snapshot；不校验配额是否存在（由 cluster-manager / tenant-operator 维护，koord-scheduler 调度期强制）。
 
 **snapshot 语义**：pool/unit CR 仅在 Create 入口读一次，展开结果固化进 PG `spec`；后续 reconciler 透传到 CR，compute-operator 直接读 spec 渲染 Pod，全程不感知 pool/unit。pool 删除或 unit 改值不影响已创建 workload。
 
@@ -211,7 +211,6 @@ Compute **不反向重建 CR**。Informer 观察 CR DELETE 后按 PG 当前 `sta
 | 类别 | 内容 | 引用 |
 | --- | --- | --- |
 | 对外 REST（K8s 风格） | `/api/v1/namespaces/{ns}/{mlruns,mlservices,traffic-policies}[...]`，含 `/{name}/{metrics,split,promote,rollback}` 子路径 | [openapi/compute-service.yaml](../../openapi/compute-service.yaml) |
-| 跨 namespace 聚合 | `GET /api/v1/workloads/count?labelSelector=&active=true`（忽略分区按 label 统计活跃 Job/Service）、`GET /api/v1/workloads/metrics`（租户 / 集群级时序） | `Workloads` tag |
 | 下发 CR | `MLRun` / `MLService` / `MLTrafficPolicy`（`axisml.io/v1alpha1`, namespaced）；Compute 是唯一 `spec` 写者 | [compute-operator.md](compute-operator.md) |
 | 回流字段 | `mlruns.status` / `mlservices.status` / `traffic_policies.status`（jsonb 整块） | [database.md §2](../database.md#2-compute-service) |
 | 列表查询 | 所有 list 支持 `?labelSelector=`（K8s grammar） | [database.md §1.6](../database.md#16-扩展元数据-labels--annotations) |
@@ -230,7 +229,7 @@ Compute **不反向重建 CR**。Informer 观察 CR DELETE 后按 PG 当前 `sta
 | compute-operator | 下游 CR 消费者，把三类 CR 落地为底层资源（含加权路由 / 灰度派生）（[compute-operator.md](compute-operator.md)） |
 | 上游调用方 | 唯一调用方，注入 `X-Axisml-User`；请求体仅携带 `(poolName, unitName)` 名字对，由本服务展开 |
 | ResourcePool CR | 经 K8s Informer cache 直读，创建时展开为 Pod 原语 snapshot（[cluster-manager.md §3](cluster-manager.md#3-核心模型)） |
-| artifacts | image / model / dataset 引用懒查询；**由 operator handler 侧调 resolve，Compute 自身不调用**（[artifact-hub.md](artifact-hub.md)） |
+| artifacts | Compute 与 operator 均不直接调用；Platform 在创建入口完成 resolve，并把 URI / digest 快照随 spec 下发（[artifact-hub.md](artifact-hub.md)） |
 | Prometheus | 运行指标查询（`--prometheus-url`，只读） |
 | 对象存储（RustFS） | 为 Run / TensorBoard Pod 注入读写凭证、Run 软删时 GC 产出（[infra.md](../infra/overview.md)） |
 

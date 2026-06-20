@@ -96,11 +96,3 @@ type WorkspacePatchRequest struct {
 type WorkspaceDeleteRequest struct {
 	DeletePVC bool `json:"deletePvc,omitempty"`
 }
-
-// WorkspaceAccess is a short-lived access grant for a workspace endpoint.
-type WorkspaceAccess struct {
-	URL        string    `json:"url"`
-	JWT        string    `json:"jwt"`
-	HeaderName string    `json:"headerName"`
-	ExpiresAt  time.Time `json:"expiresAt"`
-}

@@ -10,7 +10,7 @@
 | --- | --- |
 | [Platform](backend.md) | 控制面唯一外部入口：签发 / 校验登录 JWT，维护用户 / 角色 / 租户绑定，向下游注入身份头 |
 | cluster-manager / compute-service / artifact-hub | 仅接受集群内 ClusterIP 调用，信任 `X-Axisml-User`，自身不做角色鉴权（§6） |
-| Envoy Gateway | 数据面入口：校验工作区的 Cookie JWT（§5）；在线服务当前无鉴权 |
+| Envoy Gateway | 数据面入口；工作区 JWT SecurityPolicy 尚未交付，相关路由当前 fail-closed；在线服务当前无鉴权 |
 
 约束：控制面所有外部流量必须先经 Platform 鉴权再到下游；下游 Service 为 ClusterIP，由 NetworkPolicy 限定只允许 Platform namespace 及必要管理路径入站。数据面（工作区 / 在线服务）经 Envoy Gateway 直达业务 Pod，不经 Platform。当前仅内置用户体系（用户名 + bcrypt）；OIDC / SAML 留待后续。
 
@@ -18,7 +18,7 @@
 
 - 用户名 + bcrypt 密码存于 `users` 表；登录签发 JWT（`aud=axisml-platform`，TTL 12h）；登出 / 强制注销通过 `sessions` 表按 `jti` 黑名单实现（schema 见 [database.md §4](../database.md#4-platform)）。
 - 端点：`POST /api/v1/auth/{login,logout,refresh}`、`GET /api/v1/auth/me`（`Auth` tag）。
-- **bootstrap**（`axisml-platform bootstrap`，首次安装）：创建内置角色；创建初始 `system-admin` 账号 `admin`/`admin`（**首登强制改密**，可由 `AXISML_BOOTSTRAP_PASSWORD` 覆盖）；创建内置租户 `axisml-system`（承载 `visibility=public` 制品）。
+- **bootstrap**（`axisml-platform bootstrap`，首次安装）：创建内置角色；创建初始 `system-admin` 账号 `admin`/`admin`（**首登强制改密**，可由 `AXISML_BOOTSTRAP_PASSWORD` 覆盖）；创建内置租户 `default`，其 K8s Namespace 为 `axisml-tenant`（承载 `visibility=public` 制品）。
 
 ## 3. RBAC 角色
 
@@ -26,8 +26,8 @@
 
 | 角色 | 范围 | 能力 |
 | --- | --- | --- |
-| `system-admin` | 全局 | 用户 / 租户 CRUD；资源池 / 资源单元 CRUD；读所有租户；维护内置租户 `axisml-system`（含 `public` 制品） |
-| `tenant-admin` | 单租户 | 本租户成员管理、配额申请；对本租户全部业务对象读写，**含跨 owner 启停 / 删** |
+| `system-admin` | 全局 | 用户 / 租户 / 配额 CRUD；资源池 / 资源单元 CRUD；读所有租户；维护内置租户 `default`（含 `public` 制品） |
+| `tenant-admin` | 单租户 | 本租户成员管理；对本租户全部业务对象读写，**含跨 owner 启停 / 删** |
 | `user` | 单租户 | 提交 / 管理自己创建的业务对象；读取本租户共享资产 |
 
 ### 3.1 权限矩阵
@@ -36,12 +36,13 @@
 | --- | :---: | :---: | :---: |
 | 用户 CRUD | OK | NO | NO |
 | 租户 CRUD（创建 / 停用 / 启用 / 删除） | OK | NO | NO |
-| 租户成员管理 / 配额 CRUD | OK | OK (@self) | NO |
+| 租户成员管理 | OK | OK (@self) | NO |
+| 配额 CRUD | OK | NO | NO |
 | 资源池 / 资源单元 CRUD | OK | NO | NO |
 | 工作区 / Job / 实验 / Service 创建 | OK | OK (@self) | OK (@self) |
 | 工作区 / Job / 实验 / Service 启停 / 删；TensorBoard 启停 | OK | OK (@self, 跨 owner) | OK (@owner) |
 | 制品 CRUD | OK | OK (@self, 跨 owner) | OK (@self, @owner) |
-| `axisml-system` 制品 `visibility=public` 写 | OK | NO | NO |
+| `default` 租户制品 `visibility=public` 写 | OK | NO | NO |
 | 跨租户读 | OK | NO | NO |
 
 记号：`@self` = 仅对当前用户绑定的租户生效；`@owner` = 仅对 `owner == X-Axisml-User` 的对象生效；`@self, 跨 owner` = `tenant-admin` 在本租户内可操作任意 owner 的对象；`system-admin` 在所有 tenant / owner 级判断上**短路放行**。
@@ -59,11 +60,11 @@
 | 用途 | `aud` | 传输 | TTL | 默认 / 上限 |
 | --- | --- | --- | --- | --- |
 | 控制面登录 | `axisml-platform` | 前端持有 | 不可配 | 12h |
-| 工作区接入 | `axisml-workspace` | Cookie | `--workspace-access-jwt-ttl` | 1h / 24h |
+| 工作区接入（规划） | `axisml-workspace` | Cookie | `--workspace-access-jwt-ttl` | 1h / 24h |
 
 两 audience **共享签名密钥**，但 Envoy SecurityPolicy 严格校验 `aud` 防滥用。
 
-- **工作区接入（Cookie + JWT）**：① 用户先经 Platform 登录鉴权 → ② 调 `GET /api/v1/workspaces/{name}/access` 取 workspace access JWT（`aud=axisml-workspace`）与目标 `url` → ③ JWT 写入工作区域名下 Cookie → ④ 浏览器访问工作区 HTTPRoute 时携带 Cookie，Envoy SecurityPolicy 从 Cookie 提取 JWT，基于 JWKS（见下）验签 + 校验 `aud` 后放行。实验的 **TensorBoard**（`MLService(kind=tensorboard)`）数据面同走本路径（复用同一 audience 与 SecurityPolicy）；启动 / 打开本身限 `owner` / `tenant-admin`。
+- **工作区接入（规划，当前 fail-closed）**：目标流程仍是 Cookie + `aud=axisml-workspace` JWT + Envoy SecurityPolicy；但 SecurityPolicy 派生尚未交付，因此 compute-operator 当前拒绝 `kind=workspace|tensorboard` 的任何外部 route，并拒绝其他 MLService 的 `route.auth.type != none`。Platform 不暴露 workspace access 端点，不会创建看似受保护但实际裸露的 HTTPRoute。
 - **在线服务接入（API KEY，规划中）**：设计为 API KEY，由后续独立"API KEY 管理"功能提供。**本版本不实现**，故当前在线服务数据面**无鉴权保护**。
 - **JWKS**：Platform 在 `axisml-platform` namespace 暴露 `/.well-known/jwks.json`，**走 ClusterIP、不暴露到 Gateway**；Envoy `SecurityPolicy` 经 cluster-local URL 拉公钥；公钥旋转 = 新旧 `kid` 并挂、网关自动发现；compute-operator 渲染数据面 HTTPRoute 时引用同一 `jwksUri`。
 
@@ -77,7 +78,7 @@ Platform 鉴权通过后，对下游出站请求自动注入 `X-Axisml-User: <us
 | compute | NO | 写 `mlservices.owner` / `mlruns.owner`；列表按 `@owner` 过滤 |
 | artifacts | NO | ownership 归属 |
 
-下游网络面只接受 ClusterIP；operator 直连时仅持 controller service identity，权限受限（如 artifacts 仅允许 `resolve?usage=inspect`）。下游完全信任 `X-Axisml-User`，靠 NetworkPolicy 隔离；集群内 mTLS 不在本文范围。
+下游网络面只接受 ClusterIP；Cluster Manager / Compute Service / Artifact Hub 的 API `:8080` 由 NetworkPolicy 限定仅 `axisml-platform` namespace 可访问，metrics 单独允许监控 namespace，probes 单独放行 kubelet。下游完全信任 `X-Axisml-User`，靠该网络边界隔离；集群内 mTLS 不在本文范围。
 
 ## 7. 中间件契约
 

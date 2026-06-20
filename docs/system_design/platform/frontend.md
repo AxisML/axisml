@@ -21,13 +21,13 @@
 
 - **后端调用**：所有数据来自 Platform 后端 REST（契约见 [openapi/platform.yaml](../../openapi/platform.yaml)）；前端不感知下游服务、不内嵌 PromQL、不解析 K8s namespace。
 - **Active tenant**：租户内请求携带 `X-Axisml-Tenant: <name>` 头（由"所属租户"决定）；`system-admin` 选"全部租户"时不带该头，由后端走跨租户聚合。
-- **实时性**：Dashboard KPI / gauge 默认 30s 轮询；日志 / 事件用 SSE（`follow=true`）；运行态（phase / 配额用量 / digest）始终实时回源，前端不缓存为权威。
+- **实时性**：日志 / 事件用 SSE（`follow=true`）；运行态（phase / 配额用量 / digest）始终实时回源，前端不缓存为权威。Dashboard 待后续专项设计。
 - **偏好持久化**：列表 / 卡片视图切换、语言等偏好存 localStorage。
 
 ## 4. 鉴权与数据面接入
 
 - **控制面**：登录获得主 JWT（`aud=axisml-platform`），随后端请求携带；失效走 `/auth/refresh`。RBAC 由后端裁剪，前端按返回的能力 / 角色置灰不可用入口。
-- **数据面**（工作区 / TensorBoard）：前端调 `GET /workspaces/{name}/access` 取 `aud=axisml-workspace` 的 access JWT，写入工作区域名 Cookie，浏览器直连 Envoy Gateway 守卫的工作区 HTTPRoute。在线服务数据面鉴权（API KEY）规划中。详见 [auth.md §5](auth.md#5-数据面接入)。
+- **数据面**（工作区 / TensorBoard）：Cookie JWT + Envoy SecurityPolicy 是目标方案；当前 SecurityPolicy 派生未交付，后端不提供 access 端点，相关外部入口保持 fail-closed。在线服务数据面鉴权（API KEY）同样规划中。详见 [auth.md §5](auth.md#5-数据面接入)。
 
 ## 5. 多语言 / i18n
 
