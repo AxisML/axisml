@@ -70,7 +70,7 @@ func (h *Handler) ListByKind(c *gin.Context) {
 		_ = c.Error(err)
 		return
 	}
-	items := make([]View, 0, len(rows))
+	items := make([]server.Artifact, 0, len(rows))
 	for i := range rows {
 		items = append(items, toView(&rows[i]))
 	}
@@ -95,7 +95,7 @@ func kindOf(c *gin.Context) string { return c.GetString("kind") }
 
 func (h *Handler) Initiate(c *gin.Context) {
 	user := auth.User(c.Request.Context())
-	var in InitiateInput
+	var in server.ArtifactInitiateRequest
 	if err := c.ShouldBindJSON(&in); err != nil {
 		_ = c.Error(err)
 		return
@@ -124,7 +124,7 @@ func (h *Handler) List(c *gin.Context) {
 		_ = c.Error(err)
 		return
 	}
-	items := make([]View, 0, len(rows))
+	items := make([]server.Artifact, 0, len(rows))
 	for i := range rows {
 		items = append(items, toView(&rows[i]))
 	}
@@ -172,7 +172,7 @@ func (h *Handler) Patch(c *gin.Context) {
 			return
 		}
 	}
-	var in PatchInput
+	var in server.ArtifactPatchRequest
 	if len(raw) > 0 {
 		b, err := json.Marshal(raw)
 		if err != nil {
@@ -193,7 +193,7 @@ func (h *Handler) Patch(c *gin.Context) {
 }
 
 func (h *Handler) Complete(c *gin.Context) {
-	var in CompleteInput
+	var in server.ArtifactCompleteRequest
 	if err := c.ShouldBindJSON(&in); err != nil {
 		_ = c.Error(err)
 		return

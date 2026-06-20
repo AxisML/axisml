@@ -1,7 +1,7 @@
 // Package runutil holds the shared Run logic used by both the Jobs and
 // Experiments modules: building a compute MLRun create request from a definition
-// spec ⊕ trigger overrides, and projecting a compute MLRunView into the contract
-// RunView. The two modules differ only in the grouping label key and naming.
+// spec ⊕ trigger overrides, and projecting a compute MLRun view into the contract
+// Run. The two modules differ only in the grouping label key and naming.
 package runutil
 
 import (
@@ -15,7 +15,7 @@ import (
 // BuildRunInput snapshots a definition spec with the trigger-time override
 // whitelist (§4.2) into a compute MLRun create request. It builds the wire shape
 // as JSON so the deeply-nested generated types are populated by tag, not by hand.
-func BuildRunInput(spec server.JobSpec, ov *server.RunTriggerInput, runName, displayName string, labels, annotations map[string]string) (computeservice.MLRunInput, error) {
+func BuildRunInput(spec server.JobSpec, ov *server.RunTriggerRequest, runName, displayName string, labels, annotations map[string]string) (computeservice.MLRunCreate, error) {
 	pool, unit, quota := spec.PoolName, spec.UnitName, spec.Quota
 	var resourceOverride server.ResourceMap
 	roleArgs := map[string][]string{}
@@ -106,7 +106,7 @@ func BuildRunInput(spec server.JobSpec, ov *server.RunTriggerInput, runName, dis
 		input["runPolicy"] = rp
 	}
 
-	var out computeservice.MLRunInput
+	var out computeservice.MLRunCreate
 	b, err := json.Marshal(input)
 	if err != nil {
 		return out, err
@@ -134,10 +134,10 @@ func runPolicyMap(p server.RunPolicy) map[string]any {
 	return m
 }
 
-// RunToView projects a compute MLRunView into the contract RunView. tenantName
+// RunToView projects a compute MLRun view into the contract Run. tenantName
 // is the active tenant; defName is the owning Job/Experiment name.
-func RunToView(r *computeservice.MLRunView, tenantName, defName string) server.RunView {
-	v := server.RunView{
+func RunToView(r *computeservice.MLRun, tenantName, defName string) server.Run {
+	v := server.Run{
 		ID:          server.UUID(r.Id.String()),
 		Namespace:   r.Namespace,
 		TenantName:  tenantName,

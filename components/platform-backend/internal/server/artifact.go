@@ -81,8 +81,8 @@ type ArtifactUpdateRequest struct {
 	Annotations StringMap `json:"annotations,omitempty"`
 }
 
-// ArtifactDefinitionCreateInput creates a Platform-owned artifact definition.
-type ArtifactDefinitionCreateInput struct {
+// ArtifactDefinitionCreateRequest creates a Platform-owned artifact definition.
+type ArtifactDefinitionCreateRequest struct {
 	Name        string         `json:"name" binding:"required,artifactname,min=1,max=128"`
 	DisplayName string         `json:"displayName,omitempty" binding:"max=256"`
 	Description string         `json:"description,omitempty" binding:"max=4096"`
@@ -91,8 +91,8 @@ type ArtifactDefinitionCreateInput struct {
 	Spec        map[string]any `json:"spec,omitempty"`
 }
 
-// ArtifactDefinitionPatchInput patches an artifact definition.
-type ArtifactDefinitionPatchInput struct {
+// ArtifactDefinitionPatchRequest patches an artifact definition.
+type ArtifactDefinitionPatchRequest struct {
 	DisplayName string         `json:"displayName,omitempty" binding:"max=256"`
 	Description string         `json:"description,omitempty" binding:"max=4096"`
 	Labels      StringMap      `json:"labels,omitempty"`
@@ -100,8 +100,8 @@ type ArtifactDefinitionPatchInput struct {
 	Spec        map[string]any `json:"spec,omitempty"`
 }
 
-// ArtifactDefinitionView is a Platform-owned artifact definition (name-level).
-type ArtifactDefinitionView struct {
+// ArtifactDefinition is a Platform-owned artifact definition (name-level).
+type ArtifactDefinition struct {
 	ID          UUID           `json:"id"`
 	Namespace   string         `json:"namespace"`
 	TenantName  string         `json:"tenantName"`
@@ -118,12 +118,12 @@ type ArtifactDefinitionView struct {
 	UpdatedAt   time.Time      `json:"updatedAt"`
 }
 
-// ArtifactDefinitionList is a page of ArtifactDefinitionView.
+// ArtifactDefinitionList is a page of ArtifactDefinition.
 type ArtifactDefinitionList struct {
-	Items         []ArtifactDefinitionView `json:"items"`
-	Count         int                      `json:"count" binding:"min=0"`
-	ContinueToken string                   `json:"continueToken,omitempty"`
-	Partial       bool                     `json:"partial,omitempty"`
+	Items         []ArtifactDefinition `json:"items"`
+	Count         int                  `json:"count" binding:"min=0"`
+	ContinueToken string               `json:"continueToken,omitempty"`
+	Partial       bool                 `json:"partial,omitempty"`
 }
 
 // ArtifactResolveResponse returns a download target for an artifact version.

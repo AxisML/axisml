@@ -49,7 +49,7 @@ func (h *Handler) Register(rg *gin.RouterGroup) {
 }
 
 func (h *Handler) create(c *gin.Context) {
-	var req server.ExperimentCreateInput
+	var req server.ExperimentCreateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		server.Fail(c, err)
 		return
@@ -106,7 +106,7 @@ func (h *Handler) get(c *gin.Context) {
 }
 
 func (h *Handler) update(c *gin.Context) {
-	var req server.ExperimentPatchInput
+	var req server.ExperimentPatchRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		server.Fail(c, err)
 		return
@@ -128,7 +128,7 @@ func (h *Handler) delete(c *gin.Context) {
 }
 
 func (h *Handler) triggerRun(c *gin.Context) {
-	var req server.RunTriggerInput
+	var req server.RunTriggerRequest
 	hasBody := c.Request.ContentLength != 0
 	if hasBody {
 		if err := c.ShouldBindJSON(&req); err != nil {
@@ -136,7 +136,7 @@ func (h *Handler) triggerRun(c *gin.Context) {
 			return
 		}
 	}
-	var ov *server.RunTriggerInput
+	var ov *server.RunTriggerRequest
 	if hasBody {
 		ov = &req
 	}

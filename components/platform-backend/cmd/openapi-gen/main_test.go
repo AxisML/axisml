@@ -103,13 +103,13 @@ func TestExpectedCounts(t *testing.T) {
 	}
 }
 
-// TestKeySchemasPresent spot-checks the headline DTOs and that named enums
+// TestKeySchemasPresent spot-checks the headline schemas and that named enums
 // carry their value sets.
 func TestKeySchemasPresent(t *testing.T) {
 	doc := buildDocument("test")
 	for _, name := range []string{
-		"Problem", "Tenant", "Workspace", "JobView", "RunView", "MLService",
-		"Model", "Image", "ExperimentView", "TrafficPolicy", "ResourcePool",
+		"Problem", "Tenant", "Workspace", "Job", "Run", "MLService",
+		"Model", "Image", "Experiment", "TrafficPolicy", "ResourcePool",
 		"StringMap", "ResourceMap", "ModelSpec",
 	} {
 		if _, ok := doc.Components.Schemas[name]; !ok {

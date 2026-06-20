@@ -12,63 +12,11 @@ import (
 	"github.com/axisml/axisml/components/artifact-hub/internal/artifact/handler"
 	"github.com/axisml/axisml/components/artifact-hub/internal/config"
 	"github.com/axisml/axisml/components/artifact-hub/internal/dbjson"
+	"github.com/axisml/axisml/components/artifact-hub/internal/server"
+	"github.com/axisml/axisml/components/artifact-hub/internal/store"
 	apperrors "github.com/axisml/axisml/components/artifact-hub/pkg/errors"
 	"github.com/axisml/axisml/components/artifact-hub/pkg/strutil"
 )
-
-// InitiateInput is the API request body for the two-phase write step 1.
-type InitiateInput struct {
-	Version     string            `json:"version" binding:"required,axisml_version"`
-	Spec        map[string]any    `json:"spec" binding:"required"`
-	Visibility  string            `json:"visibility,omitempty"`
-	DisplayName string            `json:"displayName,omitempty"`
-	Description string            `json:"description,omitempty"`
-	Labels      map[string]string `json:"labels,omitempty"`
-	Annotations map[string]string `json:"annotations,omitempty"`
-}
-
-// PatchInput is the body for PATCH .../{kindPlural}/{name}/{version}.
-// Only the four "displayable" fields are mutable post-Ready (design §6).
-type PatchInput struct {
-	DisplayName *string           `json:"displayName,omitempty"`
-	Description *string           `json:"description,omitempty"`
-	Labels      map[string]string `json:"labels,omitempty"`
-	Annotations map[string]string `json:"annotations,omitempty"`
-}
-
-// UploadCredentials wraps the storage-backend credential + storage URI
-// returned alongside the artifact row on Initiate (design yaml).
-type UploadCredentials struct {
-	StorageKind string              `json:"storageKind"`
-	URI         string              `json:"uri"`
-	Credentials handler.Credentials `json:"credentials"`
-	ExpiresAt   time.Time           `json:"expiresAt"`
-}
-
-// InitiateResult is what we return to the cli after step 1. Per design
-// yaml, it bundles the newly persisted Artifact view with the upload
-// credentials so the caller has a one-stop reply.
-type InitiateResult struct {
-	Artifact View              `json:"artifact"`
-	Upload   UploadCredentials `json:"upload"`
-}
-
-// CompleteInput is the API request body for the two-phase write step 2.
-type CompleteInput struct {
-	Digest string `json:"digest" binding:"required"`
-}
-
-// ResolveResult is what we return on /resolve. CamelCase per design yaml;
-// `visibility` is the artifact's persisted visibility (tenant|public) so
-// callers don't need a second GET.
-type ResolveResult struct {
-	StorageKind     string               `json:"storageKind"`
-	URI             string               `json:"uri"`
-	Digest          string               `json:"digest,omitempty"`
-	Visibility      string               `json:"visibility,omitempty"`
-	PullCredentials *handler.Credentials `json:"pullCredentials,omitempty"`
-	ExpiresAt       *time.Time           `json:"expiresAt,omitempty"`
-}
 
 // Service holds Artifact CRUD + state-machine logic. Rows are addressed
 // by (namespace, kind, name, version) directly — there's no parent
@@ -85,7 +33,7 @@ func NewService(cfg config.Config, db *gorm.DB) *Service {
 
 // Initiate is two-phase write step 1. Validates, inserts an Uploading row,
 // and asks the Kind handler to mint upload credentials.
-func (s *Service) Initiate(ctx context.Context, namespace, kind, name, ownerUser string, in InitiateInput) (*InitiateResult, error) {
+func (s *Service) Initiate(ctx context.Context, namespace, kind, name, ownerUser string, in server.ArtifactInitiateRequest) (*server.ArtifactInitiateResponse, error) {
 	if !strutil.IsValidVersion(in.Version) {
 		return nil, apperrors.New(apperrors.CodeValidation, "version does not satisfy OCI tag-safe charset (A-Za-z0-9_.-) or length 1..128")
 	}
@@ -133,7 +81,7 @@ func (s *Service) Initiate(ctx context.Context, namespace, kind, name, ownerUser
 	labels, _ := dbjson.MapToJSON(in.Labels)
 	annotations, _ := dbjson.MapToJSON(in.Annotations)
 
-	row := &Artifact{
+	row := &store.Artifact{
 		ID:          uuid.New(),
 		Namespace:   namespace,
 		Kind:        kind,
@@ -166,9 +114,9 @@ func (s *Service) Initiate(ctx context.Context, namespace, kind, name, ownerUser
 		return nil, apperrors.Wrap(apperrors.CodeUnavailable, "issue upload credentials", err)
 	}
 
-	return &InitiateResult{
+	return &server.ArtifactInitiateResponse{
 		Artifact: toView(row),
-		Upload: UploadCredentials{
+		Upload: server.UploadCredentials{
 			StorageKind: string(h.StorageKind()),
 			URI:         h.BuildStorageURI(namespace, name, in.Version),
 			Credentials: creds,
@@ -178,7 +126,7 @@ func (s *Service) Initiate(ctx context.Context, namespace, kind, name, ownerUser
 }
 
 // Complete is two-phase write step 2.
-func (s *Service) Complete(ctx context.Context, namespace, kind, name, version string, in CompleteInput) (*Artifact, error) {
+func (s *Service) Complete(ctx context.Context, namespace, kind, name, version string, in server.ArtifactCompleteRequest) (*store.Artifact, error) {
 	row, err := s.loadRow(ctx, namespace, kind, name, version)
 	if err != nil {
 		return nil, err
@@ -232,7 +180,7 @@ func (s *Service) Complete(ctx context.Context, namespace, kind, name, version s
 }
 
 // Get returns a single artifact by coord.
-func (s *Service) Get(ctx context.Context, namespace, kind, name, version string) (*Artifact, error) {
+func (s *Service) Get(ctx context.Context, namespace, kind, name, version string) (*store.Artifact, error) {
 	return s.loadRow(ctx, namespace, kind, name, version)
 }
 
@@ -240,7 +188,7 @@ func (s *Service) Get(ctx context.Context, namespace, kind, name, version string
 // to list every artifact name+version under (namespace, kind). labelClause
 // and labelArgs come from server.JSONLabelsSQL applied to the ?labelSelector
 // query — empty for no filtering.
-func (s *Service) List(ctx context.Context, namespace, kind, name, status string, limit, offset int, labelClause string, labelArgs []any) ([]Artifact, int64, error) {
+func (s *Service) List(ctx context.Context, namespace, kind, name, status string, limit, offset int, labelClause string, labelArgs []any) ([]store.Artifact, int64, error) {
 	rows, total, err := s.rows.ListByCoord(ctx, namespace, kind, name, status, limit, offset, labelClause, labelArgs)
 	if err != nil {
 		return nil, 0, apperrors.Wrap(apperrors.CodeInternal, "list artifacts", err)
@@ -249,7 +197,7 @@ func (s *Service) List(ctx context.Context, namespace, kind, name, status string
 }
 
 // Resolve returns storage coordinates and (optionally) pull credentials.
-func (s *Service) Resolve(ctx context.Context, namespace, kind, name, version, usage string) (*ResolveResult, error) {
+func (s *Service) Resolve(ctx context.Context, namespace, kind, name, version, usage string) (*server.ArtifactResolveResponse, error) {
 	row, err := s.loadRow(ctx, namespace, kind, name, version)
 	if err != nil {
 		return nil, err
@@ -269,7 +217,7 @@ func (s *Service) Resolve(ctx context.Context, namespace, kind, name, version, u
 	}
 
 	uri := h.BuildStorageURI(namespace, name, version)
-	res := &ResolveResult{
+	res := &server.ArtifactResolveResponse{
 		StorageKind: string(h.StorageKind()),
 		URI:         uri,
 		Digest:      row.Digest,
@@ -304,7 +252,7 @@ func (s *Service) Resolve(ctx context.Context, namespace, kind, name, version, u
 //   - labels / annotations follow whole-map replace semantics; if a key
 //     is absent from the patch, the column is left as-is unless the
 //     payload supplies a non-nil map (then it replaces).
-func (s *Service) Patch(ctx context.Context, namespace, kind, name, version string, in PatchInput) (*Artifact, error) {
+func (s *Service) Patch(ctx context.Context, namespace, kind, name, version string, in server.ArtifactPatchRequest) (*store.Artifact, error) {
 	row, err := s.loadRow(ctx, namespace, kind, name, version)
 	if err != nil {
 		return nil, err
@@ -356,7 +304,7 @@ func (s *Service) MarkDeleting(ctx context.Context, namespace, kind, name, versi
 // this so a client can still observe a row's terminal Deleted status after
 // GC has finalised it (Initiate keeps using the deleted_at-filtered
 // GetByCoord so a tombstone doesn't block a re-create on the same coord).
-func (s *Service) loadRow(ctx context.Context, namespace, kind, name, version string) (*Artifact, error) {
+func (s *Service) loadRow(ctx context.Context, namespace, kind, name, version string) (*store.Artifact, error) {
 	row, err := s.rows.GetByCoordIncludingDeleted(ctx, namespace, kind, name, version)
 	if err != nil {
 		if IsNotFound(err) {

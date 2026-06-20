@@ -13,6 +13,8 @@ import (
 
 	"github.com/axisml/axisml/components/compute-service/internal/auth"
 	"github.com/axisml/axisml/components/compute-service/internal/poolcache"
+	"github.com/axisml/axisml/components/compute-service/internal/server"
+	"github.com/axisml/axisml/components/compute-service/internal/store"
 	apperrors "github.com/axisml/axisml/components/compute-service/pkg/errors"
 	"github.com/axisml/axisml/components/compute-service/pkg/strutil"
 )
@@ -34,47 +36,8 @@ func NewService(db *gorm.DB, pools *poolcache.Reader) *Service {
 	}
 }
 
-// CreateInput is the API request body. Caller selects pool/unit by NAME
-// (the ResourcePool CRD lives in K8s; compute reads it via Informer cache).
-// `Quota` is the ElasticQuota CR name (cluster-unique string) stamped onto
-// Pod labels — compute treats it as opaque.
-type CreateInput struct {
-	Name          string                       `json:"name" binding:"required,axisml_name"`
-	DisplayName   string                       `json:"displayName"`
-	Description   string                       `json:"description"`
-	Labels        map[string]string            `json:"labels,omitempty"`
-	Annotations   map[string]string            `json:"annotations,omitempty"`
-	PoolName      string                       `json:"poolName" binding:"required"`
-	UnitName      string                       `json:"unitName" binding:"required"`
-	Quota         string                       `json:"quota" binding:"required"`
-	PriorityClass string                       `json:"priorityClass,omitempty"`
-	Backend       *mlrunv1alpha1.BackendSpec   `json:"backend"`
-	Roles         []mlrunv1alpha1.RoleSpec     `json:"roles" binding:"required,min=1"`
-	RunPolicy     *mlrunv1alpha1.RunPolicySpec `json:"runPolicy"`
-}
-
-// View is the HTTP response payload. Mirrors the design yaml: nested
-// spec / status sub-trees, phase at the top level, owner / labels /
-// annotations carried separately.
-type View struct {
-	ID          uuid.UUID               `json:"id"`
-	Namespace   string                  `json:"namespace"`
-	Name        string                  `json:"name"`
-	DisplayName string                  `json:"displayName,omitempty"`
-	Description string                  `json:"description,omitempty"`
-	Owner       string                  `json:"owner,omitempty"`
-	Labels      map[string]string       `json:"labels,omitempty"`
-	Annotations map[string]string       `json:"annotations,omitempty"`
-	Phase       string                  `json:"phase"`
-	Spec        mlrunv1alpha1.MLRunSpec `json:"spec"`
-	Status      StatusFields            `json:"status"`
-	CreatedAt   time.Time               `json:"createdAt"`
-	UpdatedAt   time.Time               `json:"updatedAt"`
-	DeletedAt   *time.Time              `json:"deletedAt,omitempty"`
-}
-
 // Create writes a new job row. CR is reconciled asynchronously.
-func (s *Service) Create(ctx context.Context, namespace string, in CreateInput) (*View, error) {
+func (s *Service) Create(ctx context.Context, namespace string, in server.MLRunCreateRequest) (*server.MLRun, error) {
 	if !strutil.IsValidName(in.Name) {
 		return nil, apperrors.New(apperrors.CodeValidation, "invalid job name")
 	}
@@ -143,7 +106,7 @@ func (s *Service) Create(ctx context.Context, namespace string, in CreateInput) 
 		mlrunv1alpha1.LabelResourcePool: in.PoolName,
 		mlrunv1alpha1.LabelResourceUnit: in.UnitName,
 	})
-	j := &MLRun{
+	j := &store.MLRun{
 		ID:          uuid.New(),
 		Namespace:   namespace,
 		Name:        in.Name,
@@ -162,7 +125,7 @@ func (s *Service) Create(ctx context.Context, namespace string, in CreateInput) 
 	return s.toView(j)
 }
 
-func (s *Service) Get(ctx context.Context, namespace, name string) (*View, error) {
+func (s *Service) Get(ctx context.Context, namespace, name string) (*server.MLRun, error) {
 	j, err := s.repo.GetByNamespaceName(ctx, namespace, name)
 	if err != nil {
 		if IsNotFound(err) {
@@ -173,12 +136,12 @@ func (s *Service) Get(ctx context.Context, namespace, name string) (*View, error
 	return s.toView(j)
 }
 
-func (s *Service) List(ctx context.Context, namespace string, limit, offset int, labelClause string, labelArgs []any) ([]View, int64, error) {
+func (s *Service) List(ctx context.Context, namespace string, limit, offset int, labelClause string, labelArgs []any) ([]server.MLRun, int64, error) {
 	rows, total, err := s.repo.ListByNamespace(ctx, namespace, limit, offset, labelClause, labelArgs)
 	if err != nil {
 		return nil, 0, err
 	}
-	out := make([]View, 0, len(rows))
+	out := make([]server.MLRun, 0, len(rows))
 	for i := range rows {
 		v, err := s.toView(&rows[i])
 		if err != nil {
@@ -189,7 +152,7 @@ func (s *Service) List(ctx context.Context, namespace string, limit, offset int,
 	return out, total, nil
 }
 
-func (s *Service) Cancel(ctx context.Context, namespace, name string) (*View, error) {
+func (s *Service) Cancel(ctx context.Context, namespace, name string) (*server.MLRun, error) {
 	j, err := s.repo.GetByNamespaceName(ctx, namespace, name)
 	if err != nil {
 		if IsNotFound(err) {
@@ -204,7 +167,7 @@ func (s *Service) Cancel(ctx context.Context, namespace, name string) (*View, er
 		return nil, apperrors.New(apperrors.CodePrecondition, "job is not cancellable in current state")
 	}
 	// Merge "user cancelled" into status.message; preserve other status fields.
-	var sf StatusFields
+	var sf server.MLRunStatus
 	if len(j.StatusJSON) > 0 {
 		_ = json.Unmarshal(j.StatusJSON, &sf)
 	}
@@ -222,19 +185,9 @@ func (s *Service) Cancel(ctx context.Context, namespace, name string) (*View, er
 	return s.toView(j)
 }
 
-// PatchInput is the body for PATCH /api/v1/namespaces/{ns}/mlruns/{mlrun}.
-// Per design §4.3, only the four "PG-only display" fields are mutable
-// after create — the rest of the spec is frozen.
-type PatchInput struct {
-	DisplayName *string           `json:"displayName,omitempty"`
-	Description *string           `json:"description,omitempty"`
-	Labels      map[string]string `json:"labels,omitempty"`
-	Annotations map[string]string `json:"annotations,omitempty"`
-}
-
 // Patch updates the row's display-tier metadata. Pure PG mutation —
 // no CR is touched, no generation bump (compute-service.md §4.3).
-func (s *Service) Patch(ctx context.Context, namespace, name string, in PatchInput) (*View, error) {
+func (s *Service) Patch(ctx context.Context, namespace, name string, in server.MLRunPatchRequest) (*server.MLRun, error) {
 	j, err := s.repo.GetByNamespaceName(ctx, namespace, name)
 	if err != nil {
 		if IsNotFound(err) {
@@ -308,16 +261,16 @@ func mapBytes(m map[string]string) datatypes.JSON {
 	return b
 }
 
-func (s *Service) toView(j *MLRun) (*View, error) {
+func (s *Service) toView(j *store.MLRun) (*server.MLRun, error) {
 	var spec mlrunv1alpha1.MLRunSpec
 	if len(j.Spec) > 0 {
 		_ = json.Unmarshal(j.Spec, &spec)
 	}
-	var status StatusFields
+	var status server.MLRunStatus
 	if len(j.StatusJSON) > 0 {
 		_ = json.Unmarshal(j.StatusJSON, &status)
 	}
-	return &View{
+	return &server.MLRun{
 		ID:          j.ID,
 		Namespace:   j.Namespace,
 		Name:        j.Name,

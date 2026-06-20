@@ -10,6 +10,8 @@ import (
 	"gorm.io/datatypes"
 
 	mlrunv1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlrun/v1alpha1"
+
+	"github.com/axisml/axisml/components/compute-service/internal/store"
 )
 
 func TestToCR_StampsLabelsAndCopiesSpec(t *testing.T) {
@@ -27,7 +29,7 @@ func TestToCR_StampsLabelsAndCopiesSpec(t *testing.T) {
 	specJSON, err := json.Marshal(spec)
 	require.NoError(t, err)
 
-	row := &MLRun{
+	row := &store.MLRun{
 		ID:        id,
 		Namespace: "team-a",
 		Name:      "trainer",
@@ -47,7 +49,7 @@ func TestToCR_StampsLabelsAndCopiesSpec(t *testing.T) {
 }
 
 func TestToCR_EmptySpec_StillRenders(t *testing.T) {
-	row := &MLRun{
+	row := &store.MLRun{
 		ID:        uuid.New(),
 		Namespace: "team-b",
 		Name:      "no-spec",
@@ -60,7 +62,7 @@ func TestToCR_EmptySpec_StillRenders(t *testing.T) {
 }
 
 func TestToCR_BadJSON_ReturnsError(t *testing.T) {
-	row := &MLRun{
+	row := &store.MLRun{
 		ID:        uuid.New(),
 		Namespace: "team-c",
 		Name:      "bad",

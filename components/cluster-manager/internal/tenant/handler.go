@@ -68,12 +68,12 @@ func (h *Handler) Create(c *gin.Context) {
 		h.writeQuotaError(c, err)
 		return
 	}
-	cr := srv.DTOToTenant(req, folded, anno, c.GetHeader(srv.HeaderUser))
+	cr := srv.APIToTenant(req, folded, anno, c.GetHeader(srv.HeaderUser))
 	if err := h.Client.Create(c.Request.Context(), cr); err != nil {
 		writeK8sError(c, err, req.Name)
 		return
 	}
-	c.JSON(http.StatusCreated, srv.TenantToDTO(cr))
+	c.JSON(http.StatusCreated, srv.TenantToAPI(cr))
 }
 
 // Get handles GET /api/v1/tenants/{tenant}.
@@ -84,7 +84,7 @@ func (h *Handler) Get(c *gin.Context) {
 		writeK8sError(c, err, name)
 		return
 	}
-	c.JSON(http.StatusOK, srv.TenantToDTO(cr))
+	c.JSON(http.StatusOK, srv.TenantToAPI(cr))
 }
 
 // List handles GET /api/v1/tenants. Supports ?labelSelector, ?limit (1-500,
@@ -116,9 +116,9 @@ func (h *Handler) List(c *gin.Context) {
 		writeK8sError(c, err, "")
 		return
 	}
-	resp := srv.TenantList{Items: make([]srv.TenantDTO, 0, len(list.Items))}
+	resp := srv.TenantList{Items: make([]srv.Tenant, 0, len(list.Items))}
 	for i := range list.Items {
-		resp.Items = append(resp.Items, srv.TenantToDTO(&list.Items[i]))
+		resp.Items = append(resp.Items, srv.TenantToAPI(&list.Items[i]))
 	}
 	resp.Count = len(resp.Items)
 	resp.ContinueToken = list.Continue
@@ -147,7 +147,7 @@ func (h *Handler) Patch(c *gin.Context) {
 		writeK8sError(c, err, name)
 		return
 	}
-	c.JSON(http.StatusOK, srv.TenantToDTO(result))
+	c.JSON(http.StatusOK, srv.TenantToAPI(result))
 }
 
 // applyTenantPatch mutates the Tenant CR in place per the PATCH request. Kept
@@ -216,7 +216,7 @@ func (h *Handler) ListQuotas(c *gin.Context) {
 		writeK8sError(c, err, c.Param("tenant"))
 		return
 	}
-	items := srv.TenantToDTO(cr).Quotas
+	items := srv.TenantToAPI(cr).Quotas
 	c.JSON(http.StatusOK, srv.QuotaList{Items: items, Count: len(items)})
 }
 
@@ -232,10 +232,10 @@ func (h *Handler) SetQuota(c *gin.Context) {
 		srv.AbortWithProblem(c, http.StatusBadRequest, "InvalidQuota", "pool is required", "")
 		return
 	}
-	q := srv.QuotaDTO(req)
-	var result srv.QuotaDTO
+	q := srv.Quota(req)
+	var result srv.Quota
 	err := h.mutateQuotas(c.Request.Context(), tenant, c.GetHeader(srv.HeaderUser),
-		func(quotas []srv.QuotaDTO) ([]srv.QuotaDTO, error) {
+		func(quotas []srv.Quota) ([]srv.Quota, error) {
 			result = q
 			return replacePoolQuota(quotas, q), nil
 		})
@@ -254,9 +254,9 @@ func (h *Handler) PatchQuota(c *gin.Context) {
 		srv.AbortWithProblem(c, http.StatusBadRequest, "InvalidBody", "request body malformed", err.Error())
 		return
 	}
-	var result srv.QuotaDTO
+	var result srv.Quota
 	err := h.mutateQuotas(c.Request.Context(), tenant, c.GetHeader(srv.HeaderUser),
-		func(quotas []srv.QuotaDTO) ([]srv.QuotaDTO, error) {
+		func(quotas []srv.Quota) ([]srv.Quota, error) {
 			idx := indexOfPool(quotas, pool)
 			if idx == -1 {
 				return nil, errQuotaNotFound
@@ -276,7 +276,7 @@ func (h *Handler) PatchQuota(c *gin.Context) {
 func (h *Handler) DeleteQuota(c *gin.Context) {
 	tenant, pool := c.Param("tenant"), c.Param("pool")
 	err := h.mutateQuotas(c.Request.Context(), tenant, c.GetHeader(srv.HeaderUser),
-		func(quotas []srv.QuotaDTO) ([]srv.QuotaDTO, error) {
+		func(quotas []srv.Quota) ([]srv.Quota, error) {
 			out := quotas[:0]
 			for _, q := range quotas {
 				if q.Pool == pool {
@@ -306,7 +306,7 @@ func (h *Handler) getTenant(ctx context.Context, name string) (*tenantv1alpha1.T
 // foldQuotas fetches the referenced ResourcePools and folds the business-form
 // selection into ElasticQuota min/max plus the round-trip annotation. An empty
 // selection clears both.
-func (h *Handler) foldQuotas(ctx context.Context, quotas []srv.QuotaDTO) ([]tenantv1alpha1.QuotaSpec, string, error) {
+func (h *Handler) foldQuotas(ctx context.Context, quotas []srv.Quota) ([]tenantv1alpha1.QuotaSpec, string, error) {
 	if len(quotas) == 0 {
 		return nil, "", nil
 	}
@@ -366,14 +366,14 @@ func (h *Handler) mutateWithRetry(ctx context.Context, name string, mutate func(
 // mutateQuotas loads the tenant, runs `transform` on its business-form quotas,
 // re-folds the result into spec.quotas[] + the round-trip annotation, and
 // patches with one optimistic-lock retry.
-func (h *Handler) mutateQuotas(ctx context.Context, name, user string, transform func([]srv.QuotaDTO) ([]srv.QuotaDTO, error)) error {
+func (h *Handler) mutateQuotas(ctx context.Context, name, user string, transform func([]srv.Quota) ([]srv.Quota, error)) error {
 	for attempt := 0; attempt < 2; attempt++ {
 		cr, err := h.getTenant(ctx, name)
 		if err != nil {
 			return err
 		}
 		base := cr.DeepCopy()
-		next, err := transform(srv.TenantToDTO(cr).Quotas)
+		next, err := transform(srv.TenantToAPI(cr).Quotas)
 		if err != nil {
 			return err
 		}
@@ -413,7 +413,7 @@ func setQuotaAnnotation(cr *tenantv1alpha1.Tenant, anno string) {
 	cr.Annotations[srv.QuotasAnnotation] = anno
 }
 
-func indexOfPool(quotas []srv.QuotaDTO, pool string) int {
+func indexOfPool(quotas []srv.Quota, pool string) int {
 	for i := range quotas {
 		if quotas[i].Pool == pool {
 			return i
@@ -422,7 +422,7 @@ func indexOfPool(quotas []srv.QuotaDTO, pool string) int {
 	return -1
 }
 
-func replacePoolQuota(quotas []srv.QuotaDTO, q srv.QuotaDTO) []srv.QuotaDTO {
+func replacePoolQuota(quotas []srv.Quota, q srv.Quota) []srv.Quota {
 	for i := range quotas {
 		if quotas[i].Pool == q.Pool {
 			quotas[i] = q

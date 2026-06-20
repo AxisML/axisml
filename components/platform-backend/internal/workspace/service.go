@@ -138,7 +138,7 @@ func patchMap(m map[string]any) computeservice.MLServicePatch {
 	return out
 }
 
-func (s *Service) getWorkspace(ctx context.Context, tenant, name string) (*computeservice.MLServiceView, error) {
+func (s *Service) getWorkspace(ctx context.Context, tenant, name string) (*computeservice.MLService, error) {
 	svc, err := s.compute.GetMLService(ctx, tenant, name)
 	if err != nil {
 		return nil, err

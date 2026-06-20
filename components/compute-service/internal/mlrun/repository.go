@@ -7,6 +7,8 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+
+	"github.com/axisml/axisml/components/compute-service/internal/store"
 )
 
 type Repository struct{ db *gorm.DB }
@@ -15,8 +17,8 @@ func NewRepository(db *gorm.DB) *Repository { return &Repository{db: db} }
 
 func IsNotFound(err error) bool { return errors.Is(err, gorm.ErrRecordNotFound) }
 
-func (r *Repository) Get(ctx context.Context, id uuid.UUID) (*MLRun, error) {
-	var j MLRun
+func (r *Repository) Get(ctx context.Context, id uuid.UUID) (*store.MLRun, error) {
+	var j store.MLRun
 	if err := r.db.WithContext(ctx).Where("id = ?", id).First(&j).Error; err != nil {
 		return nil, err
 	}
@@ -26,8 +28,8 @@ func (r *Repository) Get(ctx context.Context, id uuid.UUID) (*MLRun, error) {
 // GetByNamespaceName looks up the live row for (namespace, name). Soft-
 // deleted rows (deleted_at IS NOT NULL) are excluded so the name becomes
 // reusable.
-func (r *Repository) GetByNamespaceName(ctx context.Context, namespace, name string) (*MLRun, error) {
-	var j MLRun
+func (r *Repository) GetByNamespaceName(ctx context.Context, namespace, name string) (*store.MLRun, error) {
+	var j store.MLRun
 	if err := r.db.WithContext(ctx).
 		Where("namespace = ? AND name = ? AND deleted_at IS NULL", namespace, name).
 		First(&j).Error; err != nil {
@@ -36,10 +38,10 @@ func (r *Repository) GetByNamespaceName(ctx context.Context, namespace, name str
 	return &j, nil
 }
 
-func (r *Repository) ListByNamespace(ctx context.Context, namespace string, limit, offset int, labelClause string, labelArgs []any) ([]MLRun, int64, error) {
-	var rows []MLRun
+func (r *Repository) ListByNamespace(ctx context.Context, namespace string, limit, offset int, labelClause string, labelArgs []any) ([]store.MLRun, int64, error) {
+	var rows []store.MLRun
 	var total int64
-	q := r.db.WithContext(ctx).Model(&MLRun{}).Where("namespace = ? AND deleted_at IS NULL", namespace)
+	q := r.db.WithContext(ctx).Model(&store.MLRun{}).Where("namespace = ? AND deleted_at IS NULL", namespace)
 	if labelClause != "" {
 		q = q.Where(labelClause, labelArgs...)
 	}
@@ -52,16 +54,16 @@ func (r *Repository) ListByNamespace(ctx context.Context, namespace string, limi
 	return rows, total, nil
 }
 
-func (r *Repository) Create(ctx context.Context, j *MLRun) error {
+func (r *Repository) Create(ctx context.Context, j *store.MLRun) error {
 	return r.db.WithContext(ctx).Create(j).Error
 }
 
 func (r *Repository) Update(ctx context.Context, id uuid.UUID, fields map[string]any) error {
-	return r.db.WithContext(ctx).Model(&MLRun{}).Where("id = ?", id).Updates(fields).Error
+	return r.db.WithContext(ctx).Model(&store.MLRun{}).Where("id = ?", id).Updates(fields).Error
 }
 
 func (r *Repository) MarkDeleting(ctx context.Context, id uuid.UUID) error {
-	return r.db.WithContext(ctx).Model(&MLRun{}).Where("id = ?", id).Updates(map[string]any{
+	return r.db.WithContext(ctx).Model(&store.MLRun{}).Where("id = ?", id).Updates(map[string]any{
 		"phase":      string(StatusDeleting),
 		"deleted_at": time.Now().UTC(),
 	}).Error
@@ -69,9 +71,9 @@ func (r *Repository) MarkDeleting(ctx context.Context, id uuid.UUID) error {
 
 // WorkSet groups rows that match reconciler predicates.
 type WorkSet struct {
-	Creating  []MLRun
-	Canceling []MLRun
-	Deleting  []MLRun
+	Creating  []store.MLRun
+	Canceling []store.MLRun
+	Deleting  []store.MLRun
 }
 
 const workSetBatch = 100

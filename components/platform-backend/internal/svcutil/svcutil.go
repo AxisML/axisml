@@ -1,6 +1,6 @@
 // Package svcutil holds the shared MLService logic for the MLServices and
 // Workspaces modules: building a compute MLService create request and projecting
-// the MLServiceView into the contract MLService / Workspace DTOs.
+// the compute MLService view into the contract MLService / Workspace types.
 package svcutil
 
 import (
@@ -40,7 +40,7 @@ type decodedStatus struct {
 	Message       string `json:"message"`
 }
 
-func decode(s *computeservice.MLServiceView) (decodedSpec, decodedStatus) {
+func decode(s *computeservice.MLService) (decodedSpec, decodedStatus) {
 	var spec decodedSpec
 	if b, err := json.Marshal(s.Spec); err == nil {
 		_ = json.Unmarshal(b, &spec)
@@ -54,7 +54,7 @@ func decode(s *computeservice.MLServiceView) (decodedSpec, decodedStatus) {
 
 // BuildServiceInput assembles a kind=service MLService create request from the
 // contract request (a single "default" role carries the image/ports/command).
-func BuildServiceInput(req server.MLServiceCreateRequest) (computeservice.MLServiceInput, error) {
+func BuildServiceInput(req server.MLServiceCreateRequest) (computeservice.MLServiceCreate, error) {
 	ports := make([]map[string]any, 0, len(req.Ports))
 	for _, p := range req.Ports {
 		ports = append(ports, map[string]any{"name": p.Name, "containerPort": p.Port})
@@ -102,7 +102,7 @@ func BuildServiceInput(req server.MLServiceCreateRequest) (computeservice.MLServ
 }
 
 // BuildWorkspaceInput assembles a kind=workspace MLService create request.
-func BuildWorkspaceInput(req server.WorkspaceCreateRequest) (computeservice.MLServiceInput, error) {
+func BuildWorkspaceInput(req server.WorkspaceCreateRequest) (computeservice.MLServiceCreate, error) {
 	tmpl := map[string]any{"image": req.Image}
 	if len(req.Command) > 0 {
 		tmpl["command"] = req.Command
@@ -145,8 +145,8 @@ func BuildWorkspaceInput(req server.WorkspaceCreateRequest) (computeservice.MLSe
 	return marshalInput(input)
 }
 
-func marshalInput(m map[string]any) (computeservice.MLServiceInput, error) {
-	var out computeservice.MLServiceInput
+func marshalInput(m map[string]any) (computeservice.MLServiceCreate, error) {
+	var out computeservice.MLServiceCreate
 	b, err := json.Marshal(m)
 	if err != nil {
 		return out, err
@@ -154,8 +154,8 @@ func marshalInput(m map[string]any) (computeservice.MLServiceInput, error) {
 	return out, json.Unmarshal(b, &out)
 }
 
-// ServiceToView projects a compute MLServiceView into the contract MLService.
-func ServiceToView(s *computeservice.MLServiceView, tenant string) server.MLService {
+// ServiceToView projects a compute MLService view into the contract MLService.
+func ServiceToView(s *computeservice.MLService, tenant string) server.MLService {
 	spec, st := decode(s)
 	v := server.MLService{
 		ID:            server.UUID(s.Id.String()),
@@ -190,9 +190,9 @@ func ServiceToView(s *computeservice.MLServiceView, tenant string) server.MLServ
 	return v
 }
 
-// WorkspaceToView projects a compute workspace MLServiceView into the contract
+// WorkspaceToView projects a compute workspace MLService view into the contract
 // Workspace.
-func WorkspaceToView(s *computeservice.MLServiceView, tenant string) server.Workspace {
+func WorkspaceToView(s *computeservice.MLService, tenant string) server.Workspace {
 	spec, st := decode(s)
 	v := server.Workspace{
 		ID:            server.UUID(s.Id.String()),

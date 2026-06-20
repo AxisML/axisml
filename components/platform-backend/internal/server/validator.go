@@ -14,7 +14,7 @@ var (
 )
 
 // RegisterValidators wires AxisML-specific binding tags. Tags must match the
-// `binding:"..."` tags used by the DTOs (dns1123 / artifactname).
+// `binding:"..."` tags used by the request/response types (dns1123 / artifactname).
 func RegisterValidators() error {
 	v, ok := binding.Validator.Engine().(*validator.Validate)
 	if !ok {

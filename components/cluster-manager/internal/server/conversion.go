@@ -7,28 +7,28 @@ import (
 	axismlv1alpha1 "github.com/axisml/axisml/components/cluster-manager/api/v1alpha1"
 )
 
-// PoolToDTO renders a ResourcePool CR into its REST DTO.
-func PoolToDTO(p *axismlv1alpha1.ResourcePool) ResourcePoolDTO {
-	dto := ResourcePoolDTO{
+// PoolToAPI renders a ResourcePool CR into its REST representation.
+func PoolToAPI(p *axismlv1alpha1.ResourcePool) ResourcePool {
+	dto := ResourcePool{
 		Name:            p.Name,
 		Description:     p.Annotations[DescriptionAnnotation],
 		NodeSelector:    p.Spec.NodeSelector,
 		Tolerations:     p.Spec.Tolerations,
-		Units:           make([]ResourceUnitDTO, 0, len(p.Spec.Units)),
+		Units:           make([]ResourceUnit, 0, len(p.Spec.Units)),
 		Labels:          p.Labels,
 		Annotations:     stripReservedAnnotations(p.Annotations),
 		ResourceVersion: p.ResourceVersion,
 		CreatedAt:       p.CreationTimestamp.Time,
 	}
 	for _, u := range p.Spec.Units {
-		dto.Units = append(dto.Units, UnitToDTO(u))
+		dto.Units = append(dto.Units, UnitToAPI(u))
 	}
 	return dto
 }
 
-// UnitToDTO renders a ResourceUnit embedded entry into its REST DTO.
-func UnitToDTO(u axismlv1alpha1.ResourceUnit) ResourceUnitDTO {
-	return ResourceUnitDTO{
+// UnitToAPI renders a ResourceUnit embedded entry into its REST representation.
+func UnitToAPI(u axismlv1alpha1.ResourceUnit) ResourceUnit {
+	return ResourceUnit{
 		Name:         u.Name,
 		Description:  u.Annotations[DescriptionAnnotation],
 		Requests:     u.Requests,
@@ -38,9 +38,9 @@ func UnitToDTO(u axismlv1alpha1.ResourceUnit) ResourceUnitDTO {
 	}
 }
 
-// DTOToPool maps a create request into a fresh ResourcePool CR. The caller
+// APIToPool maps a create request into a fresh ResourcePool CR. The caller
 // is responsible for ObjectMeta.ResourceVersion / Annotations[user].
-func DTOToPool(req CreateResourcePoolRequest, lastModifiedBy string) *axismlv1alpha1.ResourcePool {
+func APIToPool(req CreateResourcePoolRequest, lastModifiedBy string) *axismlv1alpha1.ResourcePool {
 	pool := &axismlv1alpha1.ResourcePool{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        req.Name,
@@ -64,8 +64,8 @@ func DTOToPool(req CreateResourcePoolRequest, lastModifiedBy string) *axismlv1al
 	return pool
 }
 
-// DTOToUnit converts a unit create request into the embedded array entry.
-func DTOToUnit(req CreateResourceUnitRequest) axismlv1alpha1.ResourceUnit {
+// APIToUnit converts a unit create request into the embedded array entry.
+func APIToUnit(req CreateResourceUnitRequest) axismlv1alpha1.ResourceUnit {
 	return axismlv1alpha1.ResourceUnit{
 		Name:         req.Name,
 		Requests:     req.Requests,

@@ -30,7 +30,7 @@ func NewService(defs *store.DefinitionRepo, artifacts *artifacthub.Client, kind 
 // ---- definitions ----
 
 // CreateDef writes a definition.
-func (s *Service) CreateDef(ctx context.Context, tenant, name, owner string, in server.ArtifactDefinitionCreateInput) (*server.ArtifactDefinitionView, error) {
+func (s *Service) CreateDef(ctx context.Context, tenant, name, owner string, in server.ArtifactDefinitionCreateRequest) (*server.ArtifactDefinition, error) {
 	d := &store.Definition{
 		TenantName:  tenant,
 		Name:        name,
@@ -52,7 +52,7 @@ func (s *Service) CreateDef(ctx context.Context, tenant, name, owner string, in 
 }
 
 // GetDef returns a definition.
-func (s *Service) GetDef(ctx context.Context, tenant, name string) (*server.ArtifactDefinitionView, error) {
+func (s *Service) GetDef(ctx context.Context, tenant, name string) (*server.ArtifactDefinition, error) {
 	d, err := s.getDef(ctx, tenant, name)
 	if err != nil {
 		return nil, err
@@ -63,13 +63,13 @@ func (s *Service) GetDef(ctx context.Context, tenant, name string) (*server.Arti
 
 // ListDefs lists definitions visible to the caller, merging public ones from the
 // built-in tenant.
-func (s *Service) ListDefs(ctx context.Context, scope []string, q string, limit, offset int) ([]server.ArtifactDefinitionView, error) {
+func (s *Service) ListDefs(ctx context.Context, scope []string, q string, limit, offset int) ([]server.ArtifactDefinition, error) {
 	defs, err := s.defs.List(ctx, scope, "", q, limit, offset)
 	if err != nil {
 		return nil, apperrors.Wrap(apperrors.ClassInternal, "list "+s.kind, err)
 	}
 	seen := map[string]bool{}
-	out := make([]server.ArtifactDefinitionView, 0, len(defs))
+	out := make([]server.ArtifactDefinition, 0, len(defs))
 	for i := range defs {
 		seen[defs[i].TenantName+"/"+defs[i].Name] = true
 		out = append(out, defView(&defs[i], s.defKind))
@@ -90,7 +90,7 @@ func (s *Service) ListDefs(ctx context.Context, scope []string, q string, limit,
 }
 
 // UpdateDef edits definition metadata.
-func (s *Service) UpdateDef(ctx context.Context, tenant, name string, in server.ArtifactDefinitionPatchInput) (*server.ArtifactDefinitionView, error) {
+func (s *Service) UpdateDef(ctx context.Context, tenant, name string, in server.ArtifactDefinitionPatchRequest) (*server.ArtifactDefinition, error) {
 	d, err := s.getDef(ctx, tenant, name)
 	if err != nil {
 		return nil, err
@@ -167,7 +167,7 @@ func (s *Service) InitiateVersion(ctx context.Context, tenant, name, version, di
 	if source == "external" {
 		return nil, apperrors.New(apperrors.ClassUnprocessable, "external (no-upload) registration is not yet supported").WithReason("external-unsupported")
 	}
-	in := artifacthub.InitiateInput{Version: version, Spec: spec}
+	in := artifacthub.InitiateRequest{Version: version, Spec: spec}
 	if displayName != "" {
 		in.DisplayName = &displayName
 	}
@@ -209,7 +209,7 @@ func (s *Service) GetVersion(ctx context.Context, tenant, name, version string) 
 
 // UpdateVersion patches mutable version metadata.
 func (s *Service) UpdateVersion(ctx context.Context, tenant, name, version string, in server.ArtifactUpdateRequest) (*server.Model, error) {
-	patch := artifacthub.PatchInput{}
+	patch := artifacthub.PatchRequest{}
 	if in.DisplayName != "" {
 		patch.DisplayName = &in.DisplayName
 	}

@@ -12,7 +12,7 @@ import (
 
 // clusterManagerStub is a minimal in-memory cluster-manager used by the
 // integration tests. It implements just the tenant + quota endpoints the
-// Tenants/Quotas slice exercises, returning the cluster-manager DTO shapes the
+// Tenants/Quotas slice exercises, returning the cluster-manager wire shapes the
 // generated client decodes.
 type clusterManagerStub struct {
 	mu      sync.Mutex

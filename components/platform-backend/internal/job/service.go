@@ -32,7 +32,7 @@ func NewService(defs *store.DefinitionRepo, tenants *store.TenantRepo, compute *
 // ---- Job definitions ----
 
 // Create writes a Job definition.
-func (s *Service) Create(ctx context.Context, tenant, owner string, in server.JobCreateInput) (*server.JobView, error) {
+func (s *Service) Create(ctx context.Context, tenant, owner string, in server.JobCreateRequest) (*server.Job, error) {
 	d := &store.Definition{
 		TenantName:  tenant,
 		Name:        in.Name,
@@ -54,7 +54,7 @@ func (s *Service) Create(ctx context.Context, tenant, owner string, in server.Jo
 }
 
 // Get returns a Job definition.
-func (s *Service) Get(ctx context.Context, tenant, name string) (*server.JobView, error) {
+func (s *Service) Get(ctx context.Context, tenant, name string) (*server.Job, error) {
 	d, err := s.get(ctx, tenant, name)
 	if err != nil {
 		return nil, err
@@ -64,12 +64,12 @@ func (s *Service) Get(ctx context.Context, tenant, name string) (*server.JobView
 }
 
 // List returns Job definitions visible to the caller.
-func (s *Service) List(ctx context.Context, tenants []string, owner, q string, limit, offset int) ([]server.JobView, error) {
+func (s *Service) List(ctx context.Context, tenants []string, owner, q string, limit, offset int) ([]server.Job, error) {
 	defs, err := s.defs.List(ctx, tenants, owner, q, limit, offset)
 	if err != nil {
 		return nil, apperrors.Wrap(apperrors.ClassInternal, "list jobs", err)
 	}
-	out := make([]server.JobView, 0, len(defs))
+	out := make([]server.Job, 0, len(defs))
 	for i := range defs {
 		out = append(out, toView(&defs[i]))
 	}
@@ -77,7 +77,7 @@ func (s *Service) List(ctx context.Context, tenants []string, owner, q string, l
 }
 
 // Update edits a Job template / metadata (affects only later Runs).
-func (s *Service) Update(ctx context.Context, id *auth.Identity, tenant, name string, in server.JobPatchInput) (*server.JobView, error) {
+func (s *Service) Update(ctx context.Context, id *auth.Identity, tenant, name string, in server.JobPatchRequest) (*server.Job, error) {
 	d, err := s.get(ctx, tenant, name)
 	if err != nil {
 		return nil, err
@@ -134,7 +134,7 @@ func (s *Service) Delete(ctx context.Context, id *auth.Identity, tenant, name st
 // ---- Runs (delegated to the shared Runner) ----
 
 // TriggerRun snapshots the Job spec ⊕ overrides into a new MLRun.
-func (s *Service) TriggerRun(ctx context.Context, tenant, name, displayName string, ov *server.RunTriggerInput) (*server.RunView, error) {
+func (s *Service) TriggerRun(ctx context.Context, tenant, name, displayName string, ov *server.RunTriggerRequest) (*server.Run, error) {
 	d, err := s.get(ctx, tenant, name)
 	if err != nil {
 		return nil, err
@@ -146,13 +146,13 @@ func (s *Service) TriggerRun(ctx context.Context, tenant, name, displayName stri
 	return s.runner.Trigger(ctx, tenant, name, displayName, spec, ov)
 }
 
-func (s *Service) ListRuns(ctx context.Context, tenant, name, phase string) ([]server.RunView, error) {
+func (s *Service) ListRuns(ctx context.Context, tenant, name, phase string) ([]server.Run, error) {
 	return s.runner.List(ctx, tenant, name, phase)
 }
-func (s *Service) GetRun(ctx context.Context, tenant, name, run string) (*server.RunView, error) {
+func (s *Service) GetRun(ctx context.Context, tenant, name, run string) (*server.Run, error) {
 	return s.runner.Get(ctx, tenant, name, run)
 }
-func (s *Service) CancelRun(ctx context.Context, tenant, name, run string) (*server.RunView, error) {
+func (s *Service) CancelRun(ctx context.Context, tenant, name, run string) (*server.Run, error) {
 	return s.runner.Cancel(ctx, tenant, name, run)
 }
 func (s *Service) DeleteRun(ctx context.Context, tenant, run string) error {

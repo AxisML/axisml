@@ -2,7 +2,7 @@
 // API to docs/openapi/platform.yaml at the repo root.
 //
 // Platform is not yet implemented; this generator is the contract-only "shell".
-// Schemas are derived from the Go DTO structs in internal/api via the shared
+// Schemas are derived from the Go request/response structs in internal/api via the shared
 // pkg/openapigen reflection engine (the same one cluster-manager /
 // compute-service / artifact-hub use), so when the service is built the spec
 // will already be in lock-step with its request/response types. Routes are
@@ -94,7 +94,7 @@ func buildDocument(version string) *openapigen.Document {
 			{Tag: "dns1123", Pattern: dns1123Pattern},
 			{Tag: "artifactname", Pattern: artifactNamePattern},
 		},
-		// All DTOs live in internal/api; map that package to an empty prefix so
+		// All types live in internal/api; map that package to an empty prefix so
 		// each component schema's name is exactly its Go type name (and nested
 		// $refs resolve to the same names).
 		PackageNamer: func(pkg string) (string, bool) {
@@ -151,55 +151,55 @@ func tags() []openapigen.TagEntry {
 	}
 }
 
-// registerSchemas declares every component schema. Struct DTOs are reflected
+// registerSchemas declares every component schema. Struct types are reflected
 // (InputMode for request bodies, ResponseMode for everything else); named
 // enums / maps / free-form specs are set directly because they are surfaced via
 // the WellKnown $ref hook rather than reflected from a struct.
 func registerSchemas(g *openapigen.Generator) {
-	// --- Request-body DTOs (InputMode) ---
+	// --- Request-body types (InputMode) ---
 	for name, v := range map[string]any{
-		"LoginRequest":                  server.LoginRequest{},
-		"UserCreateRequest":             server.UserCreateRequest{},
-		"UserPatchRequest":              server.UserPatchRequest{},
-		"SetPasswordRequest":            server.SetPasswordRequest{},
-		"QuotaCreateRequest":            server.QuotaCreateRequest{},
-		"QuotaPatchRequest":             server.QuotaPatchRequest{},
-		"TenantCreateRequest":           server.TenantCreateRequest{},
-		"TenantPatchRequest":            server.TenantPatchRequest{},
-		"MemberCreateRequest":           server.MemberCreateRequest{},
-		"MemberPatchRequest":            server.MemberPatchRequest{},
-		"WorkspaceCreateRequest":        server.WorkspaceCreateRequest{},
-		"WorkspacePatchRequest":         server.WorkspacePatchRequest{},
-		"WorkspaceDeleteRequest":        server.WorkspaceDeleteRequest{},
-		"JobCreateInput":                server.JobCreateInput{},
-		"JobPatchInput":                 server.JobPatchInput{},
-		"RunTriggerInput":               server.RunTriggerInput{},
-		"MLServiceCreateRequest":        server.MLServiceCreateRequest{},
-		"MLServicePatchRequest":         server.MLServicePatchRequest{},
-		"MLServiceScaleRequest":         server.MLServiceScaleRequest{},
-		"ModelInitiateRequest":          server.ModelInitiateRequest{},
-		"ModelCompleteRequest":          server.ModelCompleteRequest{},
-		"ArtifactUpdateRequest":         server.ArtifactUpdateRequest{},
-		"ArtifactDefinitionCreateInput": server.ArtifactDefinitionCreateInput{},
-		"ArtifactDefinitionPatchInput":  server.ArtifactDefinitionPatchInput{},
-		"ImageInitiateRequest":          server.ImageInitiateRequest{},
-		"ImageCompleteRequest":          server.ImageCompleteRequest{},
-		"ResourcePoolCreateRequest":     server.ResourcePoolCreateRequest{},
-		"ResourcePoolPatchRequest":      server.ResourcePoolPatchRequest{},
-		"ResourceUnitCreateRequest":     server.ResourceUnitCreateRequest{},
-		"ResourceUnitPatchRequest":      server.ResourceUnitPatchRequest{},
-		"ExperimentCreateInput":         server.ExperimentCreateInput{},
-		"ExperimentPatchInput":          server.ExperimentPatchInput{},
-		"TensorBoardRequest":            server.TensorBoardRequest{},
-		"TrafficPolicyCreateRequest":    server.TrafficPolicyCreateRequest{},
-		"TrafficPolicyPatchRequest":     server.TrafficPolicyPatchRequest{},
-		"TrafficPolicySplitRequest":     server.TrafficPolicySplitRequest{},
-		"TrafficPolicyBackendInput":     server.TrafficPolicyBackendInput{},
+		"LoginRequest":                    server.LoginRequest{},
+		"UserCreateRequest":               server.UserCreateRequest{},
+		"UserPatchRequest":                server.UserPatchRequest{},
+		"SetPasswordRequest":              server.SetPasswordRequest{},
+		"QuotaCreateRequest":              server.QuotaCreateRequest{},
+		"QuotaPatchRequest":               server.QuotaPatchRequest{},
+		"TenantCreateRequest":             server.TenantCreateRequest{},
+		"TenantPatchRequest":              server.TenantPatchRequest{},
+		"MemberCreateRequest":             server.MemberCreateRequest{},
+		"MemberPatchRequest":              server.MemberPatchRequest{},
+		"WorkspaceCreateRequest":          server.WorkspaceCreateRequest{},
+		"WorkspacePatchRequest":           server.WorkspacePatchRequest{},
+		"WorkspaceDeleteRequest":          server.WorkspaceDeleteRequest{},
+		"JobCreateRequest":                server.JobCreateRequest{},
+		"JobPatchRequest":                 server.JobPatchRequest{},
+		"RunTriggerRequest":               server.RunTriggerRequest{},
+		"MLServiceCreateRequest":          server.MLServiceCreateRequest{},
+		"MLServicePatchRequest":           server.MLServicePatchRequest{},
+		"MLServiceScaleRequest":           server.MLServiceScaleRequest{},
+		"ModelInitiateRequest":            server.ModelInitiateRequest{},
+		"ModelCompleteRequest":            server.ModelCompleteRequest{},
+		"ArtifactUpdateRequest":           server.ArtifactUpdateRequest{},
+		"ArtifactDefinitionCreateRequest": server.ArtifactDefinitionCreateRequest{},
+		"ArtifactDefinitionPatchRequest":  server.ArtifactDefinitionPatchRequest{},
+		"ImageInitiateRequest":            server.ImageInitiateRequest{},
+		"ImageCompleteRequest":            server.ImageCompleteRequest{},
+		"ResourcePoolCreateRequest":       server.ResourcePoolCreateRequest{},
+		"ResourcePoolPatchRequest":        server.ResourcePoolPatchRequest{},
+		"ResourceUnitCreateRequest":       server.ResourceUnitCreateRequest{},
+		"ResourceUnitPatchRequest":        server.ResourceUnitPatchRequest{},
+		"ExperimentCreateRequest":         server.ExperimentCreateRequest{},
+		"ExperimentPatchRequest":          server.ExperimentPatchRequest{},
+		"TensorBoardRequest":              server.TensorBoardRequest{},
+		"TrafficPolicyCreateRequest":      server.TrafficPolicyCreateRequest{},
+		"TrafficPolicyPatchRequest":       server.TrafficPolicyPatchRequest{},
+		"TrafficPolicySplitRequest":       server.TrafficPolicySplitRequest{},
+		"TrafficPolicyBackendSpec":        server.TrafficPolicyBackendSpec{},
 	} {
 		g.Register(name, v, openapigen.InputMode)
 	}
 
-	// --- Response / nested DTOs (ResponseMode) ---
+	// --- Response / nested types (ResponseMode) ---
 	for name, v := range map[string]any{
 		"Problem":                 server.Problem{},
 		"ProblemFieldError":       server.ProblemFieldError{},
@@ -240,12 +240,12 @@ func registerSchemas(g *openapigen.Generator) {
 		"MLRunRole":               server.MLRunRole{},
 		"MLRunRoleStatus":         server.MLRunRoleStatus{},
 		"RunPolicy":               server.RunPolicy{},
-		"RunView":                 server.RunView{},
+		"Run":                     server.Run{},
 		"MLRunSpec":               server.MLRunSpec{},
 		"RunList":                 server.RunList{},
 		"ArtifactRef":             server.ArtifactRef{},
 		"JobSpec":                 server.JobSpec{},
-		"JobView":                 server.JobView{},
+		"Job":                     server.Job{},
 		"JobList":                 server.JobList{},
 		"ServicePort":             server.ServicePort{},
 		"MLServiceRoute":          server.MLServiceRoute{},
@@ -256,13 +256,13 @@ func registerSchemas(g *openapigen.Generator) {
 		"Model":                   server.Model{},
 		"ModelList":               server.ModelList{},
 		"ModelInitiateResponse":   server.ModelInitiateResponse{},
-		"ArtifactDefinitionView":  server.ArtifactDefinitionView{},
+		"ArtifactDefinition":      server.ArtifactDefinition{},
 		"ArtifactDefinitionList":  server.ArtifactDefinitionList{},
 		"ArtifactResolveResponse": server.ArtifactResolveResponse{},
 		"Image":                   server.Image{},
 		"ImageList":               server.ImageList{},
 		"ImageInitiateResponse":   server.ImageInitiateResponse{},
-		"ExperimentView":          server.ExperimentView{},
+		"Experiment":              server.Experiment{},
 		"ExperimentList":          server.ExperimentList{},
 		"TensorBoard":             server.TensorBoard{},
 		"TrafficPolicyEndpoint":   server.TrafficPolicyEndpoint{},

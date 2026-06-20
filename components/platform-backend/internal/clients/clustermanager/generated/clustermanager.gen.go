@@ -123,12 +123,12 @@ type CreateTenantRequest struct {
 	Labels        *map[string]string        `json:"labels,omitempty"`
 	Name          *string                   `json:"name,omitempty"`
 	Namespace     *Apiv1alpha1NamespaceSpec `json:"namespace"`
-	Quotas        *[]ServerQuotaDTO         `json:"quotas,omitempty"`
+	Quotas        *[]ServerQuota            `json:"quotas,omitempty"`
 }
 
 // PatchQuotaRequest defines model for PatchQuotaRequest.
 type PatchQuotaRequest struct {
-	Units *[]ServerQuotaUnitDTO `json:"units,omitempty"`
+	Units *[]ServerQuotaUnit `json:"units,omitempty"`
 }
 
 // PatchResourcePoolRequest defines model for PatchResourcePoolRequest.
@@ -171,16 +171,16 @@ type Problem struct {
 	Type   string  `json:"type"`
 }
 
-// QuotaDTO defines model for QuotaDTO.
-type QuotaDTO struct {
-	Pool  string               `json:"pool"`
-	Units []ServerQuotaUnitDTO `json:"units"`
+// Quota defines model for Quota.
+type Quota struct {
+	Pool  string            `json:"pool"`
+	Units []ServerQuotaUnit `json:"units"`
 }
 
 // QuotaList defines model for QuotaList.
 type QuotaList struct {
-	Count int              `json:"count"`
-	Items []ServerQuotaDTO `json:"items"`
+	Count int           `json:"count"`
+	Items []ServerQuota `json:"items"`
 }
 
 // Rbacv1PolicyRule defines model for Rbacv1PolicyRule.
@@ -192,29 +192,29 @@ type Rbacv1PolicyRule struct {
 	Verbs           []string  `json:"verbs"`
 }
 
-// ResourcePoolDTO defines model for ResourcePoolDTO.
-type ResourcePoolDTO struct {
-	Annotations     *map[string]string      `json:"annotations,omitempty"`
-	CreatedAt       time.Time               `json:"createdAt"`
-	Description     *string                 `json:"description,omitempty"`
-	Labels          *map[string]string      `json:"labels,omitempty"`
-	Name            string                  `json:"name"`
-	NodeSelector    *map[string]string      `json:"nodeSelector,omitempty"`
-	ResourceVersion *string                 `json:"resourceVersion,omitempty"`
-	Tolerations     *[]Corev1Toleration     `json:"tolerations,omitempty"`
-	Units           []ServerResourceUnitDTO `json:"units"`
-	UpdatedAt       *time.Time              `json:"updatedAt,omitempty"`
+// ResourcePool defines model for ResourcePool.
+type ResourcePool struct {
+	Annotations     *map[string]string   `json:"annotations,omitempty"`
+	CreatedAt       time.Time            `json:"createdAt"`
+	Description     *string              `json:"description,omitempty"`
+	Labels          *map[string]string   `json:"labels,omitempty"`
+	Name            string               `json:"name"`
+	NodeSelector    *map[string]string   `json:"nodeSelector,omitempty"`
+	ResourceVersion *string              `json:"resourceVersion,omitempty"`
+	Tolerations     *[]Corev1Toleration  `json:"tolerations,omitempty"`
+	Units           []ServerResourceUnit `json:"units"`
+	UpdatedAt       *time.Time           `json:"updatedAt,omitempty"`
 }
 
 // ResourcePoolList defines model for ResourcePoolList.
 type ResourcePoolList struct {
-	ContinueToken *string                 `json:"continueToken,omitempty"`
-	Count         int                     `json:"count"`
-	Items         []ServerResourcePoolDTO `json:"items"`
+	ContinueToken *string              `json:"continueToken,omitempty"`
+	Count         int                  `json:"count"`
+	Items         []ServerResourcePool `json:"items"`
 }
 
-// ResourceUnitDTO defines model for ResourceUnitDTO.
-type ResourceUnitDTO struct {
+// ResourceUnit defines model for ResourceUnit.
+type ResourceUnit struct {
 	Annotations *map[string]string `json:"annotations,omitempty"`
 	Description *string            `json:"description,omitempty"`
 
@@ -229,8 +229,8 @@ type ResourceUnitDTO struct {
 
 // ResourceUnitList defines model for ResourceUnitList.
 type ResourceUnitList struct {
-	Count int                     `json:"count"`
-	Items []ServerResourceUnitDTO `json:"items"`
+	Count int                  `json:"count"`
+	Items []ServerResourceUnit `json:"items"`
 }
 
 // ServerCreateResourceUnitRequest defines model for ServerCreateResourceUnitRequest.
@@ -247,14 +247,14 @@ type ServerCreateResourceUnitRequest struct {
 	Requests map[string]string `json:"requests"`
 }
 
-// ServerQuotaDTO defines model for ServerQuotaDTO.
-type ServerQuotaDTO struct {
-	Pool  string               `json:"pool"`
-	Units []ServerQuotaUnitDTO `json:"units"`
+// ServerQuota defines model for ServerQuota.
+type ServerQuota struct {
+	Pool  string            `json:"pool"`
+	Units []ServerQuotaUnit `json:"units"`
 }
 
-// ServerQuotaStatusDTO defines model for ServerQuotaStatusDTO.
-type ServerQuotaStatusDTO struct {
+// ServerQuotaStatus defines model for ServerQuotaStatus.
+type ServerQuotaStatus struct {
 	Pool  string `json:"pool"`
 	Ready bool   `json:"ready"`
 
@@ -262,28 +262,28 @@ type ServerQuotaStatusDTO struct {
 	Used *map[string]string `json:"used,omitempty"`
 }
 
-// ServerQuotaUnitDTO defines model for ServerQuotaUnitDTO.
-type ServerQuotaUnitDTO struct {
+// ServerQuotaUnit defines model for ServerQuotaUnit.
+type ServerQuotaUnit struct {
 	Quantity int    `json:"quantity"`
 	UnitName string `json:"unitName"`
 }
 
-// ServerResourcePoolDTO defines model for ServerResourcePoolDTO.
-type ServerResourcePoolDTO struct {
-	Annotations     *map[string]string      `json:"annotations,omitempty"`
-	CreatedAt       time.Time               `json:"createdAt"`
-	Description     *string                 `json:"description,omitempty"`
-	Labels          *map[string]string      `json:"labels,omitempty"`
-	Name            string                  `json:"name"`
-	NodeSelector    *map[string]string      `json:"nodeSelector,omitempty"`
-	ResourceVersion *string                 `json:"resourceVersion,omitempty"`
-	Tolerations     *[]Corev1Toleration     `json:"tolerations,omitempty"`
-	Units           []ServerResourceUnitDTO `json:"units"`
-	UpdatedAt       *time.Time              `json:"updatedAt,omitempty"`
+// ServerResourcePool defines model for ServerResourcePool.
+type ServerResourcePool struct {
+	Annotations     *map[string]string   `json:"annotations,omitempty"`
+	CreatedAt       time.Time            `json:"createdAt"`
+	Description     *string              `json:"description,omitempty"`
+	Labels          *map[string]string   `json:"labels,omitempty"`
+	Name            string               `json:"name"`
+	NodeSelector    *map[string]string   `json:"nodeSelector,omitempty"`
+	ResourceVersion *string              `json:"resourceVersion,omitempty"`
+	Tolerations     *[]Corev1Toleration  `json:"tolerations,omitempty"`
+	Units           []ServerResourceUnit `json:"units"`
+	UpdatedAt       *time.Time           `json:"updatedAt,omitempty"`
 }
 
-// ServerResourceUnitDTO defines model for ServerResourceUnitDTO.
-type ServerResourceUnitDTO struct {
+// ServerResourceUnit defines model for ServerResourceUnit.
+type ServerResourceUnit struct {
 	Annotations *map[string]string `json:"annotations,omitempty"`
 	Description *string            `json:"description,omitempty"`
 
@@ -296,8 +296,8 @@ type ServerResourceUnitDTO struct {
 	Requests map[string]string `json:"requests"`
 }
 
-// ServerTenantDTO defines model for ServerTenantDTO.
-type ServerTenantDTO struct {
+// ServerTenant defines model for ServerTenant.
+type ServerTenant struct {
 	Annotations     *map[string]string        `json:"annotations,omitempty"`
 	CreatedAt       time.Time                 `json:"createdAt"`
 	InitResources   *Apiv1alpha1InitResources `json:"initResources"`
@@ -305,28 +305,28 @@ type ServerTenantDTO struct {
 	Name            string                    `json:"name"`
 	Namespace       Apiv1alpha1NamespaceSpec  `json:"namespace"`
 	Phase           *string                   `json:"phase,omitempty"`
-	Quotas          []ServerQuotaDTO          `json:"quotas"`
+	Quotas          []ServerQuota             `json:"quotas"`
 	ResourceVersion *string                   `json:"resourceVersion,omitempty"`
-	Status          *ServerTenantStatusDTO    `json:"status"`
+	Status          *ServerTenantStatus       `json:"status"`
 }
 
-// ServerTenantStatusDTO defines model for ServerTenantStatusDTO.
-type ServerTenantStatusDTO struct {
-	Message            *string                 `json:"message,omitempty"`
-	NamespaceReady     *bool                   `json:"namespaceReady,omitempty"`
-	ObservedGeneration *int64                  `json:"observedGeneration,omitempty"`
-	Phase              *string                 `json:"phase,omitempty"`
-	Quotas             *[]ServerQuotaStatusDTO `json:"quotas,omitempty"`
+// ServerTenantStatus defines model for ServerTenantStatus.
+type ServerTenantStatus struct {
+	Message            *string              `json:"message,omitempty"`
+	NamespaceReady     *bool                `json:"namespaceReady,omitempty"`
+	ObservedGeneration *int64               `json:"observedGeneration,omitempty"`
+	Phase              *string              `json:"phase,omitempty"`
+	Quotas             *[]ServerQuotaStatus `json:"quotas,omitempty"`
 }
 
 // SetQuotaRequest defines model for SetQuotaRequest.
 type SetQuotaRequest struct {
-	Pool  *string               `json:"pool,omitempty"`
-	Units *[]ServerQuotaUnitDTO `json:"units,omitempty"`
+	Pool  *string            `json:"pool,omitempty"`
+	Units *[]ServerQuotaUnit `json:"units,omitempty"`
 }
 
-// TenantDTO defines model for TenantDTO.
-type TenantDTO struct {
+// Tenant defines model for Tenant.
+type Tenant struct {
 	Annotations     *map[string]string        `json:"annotations,omitempty"`
 	CreatedAt       time.Time                 `json:"createdAt"`
 	InitResources   *Apiv1alpha1InitResources `json:"initResources"`
@@ -334,16 +334,16 @@ type TenantDTO struct {
 	Name            string                    `json:"name"`
 	Namespace       Apiv1alpha1NamespaceSpec  `json:"namespace"`
 	Phase           *string                   `json:"phase,omitempty"`
-	Quotas          []ServerQuotaDTO          `json:"quotas"`
+	Quotas          []ServerQuota             `json:"quotas"`
 	ResourceVersion *string                   `json:"resourceVersion,omitempty"`
-	Status          *ServerTenantStatusDTO    `json:"status"`
+	Status          *ServerTenantStatus       `json:"status"`
 }
 
 // TenantList defines model for TenantList.
 type TenantList struct {
-	ContinueToken *string           `json:"continueToken,omitempty"`
-	Count         int               `json:"count"`
-	Items         []ServerTenantDTO `json:"items"`
+	ContinueToken *string        `json:"continueToken,omitempty"`
+	Count         int            `json:"count"`
+	Items         []ServerTenant `json:"items"`
 }
 
 // ListResourcePoolsParams defines parameters for ListResourcePools.
@@ -1921,7 +1921,7 @@ func (r ListResourcePoolsResponse) StatusCode() int {
 type CreateResourcePoolResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON201      *ResourcePoolDTO
+	JSON201      *ResourcePool
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON404      *Problem
@@ -1978,7 +1978,7 @@ func (r DeleteResourcePoolResponse) StatusCode() int {
 type GetResourcePoolResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *ResourcePoolDTO
+	JSON200      *ResourcePool
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON404      *Problem
@@ -2007,7 +2007,7 @@ func (r GetResourcePoolResponse) StatusCode() int {
 type UpdateResourcePoolResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *ResourcePoolDTO
+	JSON200      *ResourcePool
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON404      *Problem
@@ -2065,7 +2065,7 @@ func (r ListResourceUnitsResponse) StatusCode() int {
 type CreateResourceUnitResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON201      *ResourceUnitDTO
+	JSON201      *ResourceUnit
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON404      *Problem
@@ -2122,7 +2122,7 @@ func (r DeleteResourceUnitResponse) StatusCode() int {
 type GetResourceUnitResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *ResourceUnitDTO
+	JSON200      *ResourceUnit
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON404      *Problem
@@ -2151,7 +2151,7 @@ func (r GetResourceUnitResponse) StatusCode() int {
 type UpdateResourceUnitResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *ResourceUnitDTO
+	JSON200      *ResourceUnit
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON404      *Problem
@@ -2209,7 +2209,7 @@ func (r ListTenantsResponse) StatusCode() int {
 type CreateTenantResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON201      *TenantDTO
+	JSON201      *Tenant
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON404      *Problem
@@ -2266,7 +2266,7 @@ func (r DeleteTenantResponse) StatusCode() int {
 type GetTenantResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *TenantDTO
+	JSON200      *Tenant
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON404      *Problem
@@ -2295,7 +2295,7 @@ func (r GetTenantResponse) StatusCode() int {
 type UpdateTenantResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *TenantDTO
+	JSON200      *Tenant
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON404      *Problem
@@ -2353,7 +2353,7 @@ func (r ListTenantQuotasResponse) StatusCode() int {
 type SetTenantQuotaResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *QuotaDTO
+	JSON200      *Quota
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON404      *Problem
@@ -2410,7 +2410,7 @@ func (r DeleteTenantQuotaResponse) StatusCode() int {
 type UpdateTenantQuotaResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *QuotaDTO
+	JSON200      *Quota
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON404      *Problem
@@ -2821,7 +2821,7 @@ func ParseCreateResourcePoolResponse(rsp *http.Response) (*CreateResourcePoolRes
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest ResourcePoolDTO
+		var dest ResourcePool
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -2964,7 +2964,7 @@ func ParseGetResourcePoolResponse(rsp *http.Response) (*GetResourcePoolResponse,
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ResourcePoolDTO
+		var dest ResourcePool
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -3039,7 +3039,7 @@ func ParseUpdateResourcePoolResponse(rsp *http.Response) (*UpdateResourcePoolRes
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ResourcePoolDTO
+		var dest ResourcePool
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -3189,7 +3189,7 @@ func ParseCreateResourceUnitResponse(rsp *http.Response) (*CreateResourceUnitRes
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest ResourceUnitDTO
+		var dest ResourceUnit
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -3332,7 +3332,7 @@ func ParseGetResourceUnitResponse(rsp *http.Response) (*GetResourceUnitResponse,
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ResourceUnitDTO
+		var dest ResourceUnit
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -3407,7 +3407,7 @@ func ParseUpdateResourceUnitResponse(rsp *http.Response) (*UpdateResourceUnitRes
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ResourceUnitDTO
+		var dest ResourceUnit
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -3557,7 +3557,7 @@ func ParseCreateTenantResponse(rsp *http.Response) (*CreateTenantResponse, error
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest TenantDTO
+		var dest Tenant
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -3700,7 +3700,7 @@ func ParseGetTenantResponse(rsp *http.Response) (*GetTenantResponse, error) {
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest TenantDTO
+		var dest Tenant
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -3775,7 +3775,7 @@ func ParseUpdateTenantResponse(rsp *http.Response) (*UpdateTenantResponse, error
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest TenantDTO
+		var dest Tenant
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -3925,7 +3925,7 @@ func ParseSetTenantQuotaResponse(rsp *http.Response) (*SetTenantQuotaResponse, e
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest QuotaDTO
+		var dest Quota
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4068,7 +4068,7 @@ func ParseUpdateTenantQuotaResponse(rsp *http.Response) (*UpdateTenantQuotaRespo
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest QuotaDTO
+		var dest Quota
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

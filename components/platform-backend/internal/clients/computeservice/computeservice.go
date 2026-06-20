@@ -19,35 +19,35 @@ const service = "compute"
 
 // Clean-named aliases for the generated wire types used by callers.
 type (
-	MLRunView     = gen.MLRunView
-	MLRunInput    = gen.MLRunCreateInput
+	MLRun         = gen.MLRun
+	MLRunCreate   = gen.MLRunCreateRequest
 	MLRunRole     = gen.MLRunRoleSpec
 	MLRunBackend  = gen.MLRunBackendSpec
 	MLRunTemplate = gen.MLRunPodTemplateSubset
 	MLRunPolicy   = gen.MLRunRunPolicySpec
-	MLRunPatch    = gen.MLRunPatchInput
+	MLRunPatch    = gen.MLRunPatchRequest
 	EnvVar        = gen.Corev1EnvVar
 	ResourceReqs  = gen.Corev1ResourceRequirements
 
-	MLServiceView    = gen.MLServiceView
-	MLServiceInput   = gen.MLServiceCreateInput
+	MLService        = gen.MLService
+	MLServiceCreate  = gen.MLServiceCreateRequest
 	MLServiceRole    = gen.MLServiceRoleSpec
 	MLServiceBackend = gen.MLServiceBackend
 	MLServiceTmpl    = gen.MLServicePodTemplate
 	MLServiceRoute   = gen.MLServiceRoute
-	MLServicePatch   = gen.MLServicePatchInput
-	WorkspaceStorage = gen.MlserviceWorkspaceStorageSpec
+	MLServicePatch   = gen.MLServicePatchRequest
+	WorkspaceStorage = gen.MLServiceWorkspaceStorageSpec
 	ServicePort      = gen.MLServicePodPort
 
-	TrafficView     = gen.TrafficPolicyView
-	TrafficInput    = gen.TrafficPolicyCreateInput
+	TrafficPolicy   = gen.TrafficPolicy
+	TrafficCreate   = gen.TrafficPolicyCreateRequest
 	TrafficBackend  = gen.MLTrafficPolicyBackendMember
 	TrafficEndpoint = gen.MLTrafficPolicyEndpoint
-	TrafficPatch    = gen.TrafficPolicyPatchInput
-	WeightUpdate    = gen.TrafficpolicyWeightUpdate
+	TrafficPatch    = gen.TrafficPolicyPatchRequest
+	WeightUpdate    = gen.TrafficPolicyWeightUpdate
 
-	Pod   = gen.PodView
-	Event = gen.EventView
+	Pod   = gen.Pod
+	Event = gen.Event
 )
 
 // Client wraps the generated compute client.
@@ -76,7 +76,7 @@ func listParams(labelSelector string) *gen.ListMLRunsParams {
 // ---- MLRun ----
 
 // CreateMLRun creates a run.
-func (c *Client) CreateMLRun(ctx context.Context, ns string, in MLRunInput) (*MLRunView, error) {
+func (c *Client) CreateMLRun(ctx context.Context, ns string, in MLRunCreate) (*MLRun, error) {
 	res, err := c.gen.CreateMLRunWithResponse(ctx, ns, in)
 	if err != nil {
 		return nil, clienterr.Transport(service, err)
@@ -88,7 +88,7 @@ func (c *Client) CreateMLRun(ctx context.Context, ns string, in MLRunInput) (*ML
 }
 
 // GetMLRun returns a run.
-func (c *Client) GetMLRun(ctx context.Context, ns, name string) (*MLRunView, error) {
+func (c *Client) GetMLRun(ctx context.Context, ns, name string) (*MLRun, error) {
 	res, err := c.gen.GetMLRunWithResponse(ctx, ns, name)
 	if err != nil {
 		return nil, clienterr.Transport(service, err)
@@ -100,7 +100,7 @@ func (c *Client) GetMLRun(ctx context.Context, ns, name string) (*MLRunView, err
 }
 
 // ListMLRuns lists runs filtered by labelSelector.
-func (c *Client) ListMLRuns(ctx context.Context, ns, labelSelector string) ([]MLRunView, error) {
+func (c *Client) ListMLRuns(ctx context.Context, ns, labelSelector string) ([]MLRun, error) {
 	res, err := c.gen.ListMLRunsWithResponse(ctx, ns, listParams(labelSelector))
 	if err != nil {
 		return nil, clienterr.Transport(service, err)
@@ -124,7 +124,7 @@ func (c *Client) DeleteMLRun(ctx context.Context, ns, name string) error {
 }
 
 // CancelMLRun requests cancellation.
-func (c *Client) CancelMLRun(ctx context.Context, ns, name string) (*MLRunView, error) {
+func (c *Client) CancelMLRun(ctx context.Context, ns, name string) (*MLRun, error) {
 	res, err := c.gen.CancelMLRunWithResponse(ctx, ns, name)
 	if err != nil {
 		return nil, clienterr.Transport(service, err)
@@ -186,7 +186,7 @@ func (c *Client) GetMLRunPodLogs(ctx context.Context, ns, name, pod string) ([]b
 // ---- MLService ----
 
 // CreateMLService creates a service / workspace / tensorboard.
-func (c *Client) CreateMLService(ctx context.Context, ns string, in MLServiceInput) (*MLServiceView, error) {
+func (c *Client) CreateMLService(ctx context.Context, ns string, in MLServiceCreate) (*MLService, error) {
 	res, err := c.gen.CreateMLServiceWithResponse(ctx, ns, in)
 	if err != nil {
 		return nil, clienterr.Transport(service, err)
@@ -198,7 +198,7 @@ func (c *Client) CreateMLService(ctx context.Context, ns string, in MLServiceInp
 }
 
 // GetMLService returns a service.
-func (c *Client) GetMLService(ctx context.Context, ns, name string) (*MLServiceView, error) {
+func (c *Client) GetMLService(ctx context.Context, ns, name string) (*MLService, error) {
 	res, err := c.gen.GetMLServiceWithResponse(ctx, ns, name)
 	if err != nil {
 		return nil, clienterr.Transport(service, err)
@@ -210,7 +210,7 @@ func (c *Client) GetMLService(ctx context.Context, ns, name string) (*MLServiceV
 }
 
 // ListMLServices lists services filtered by labelSelector.
-func (c *Client) ListMLServices(ctx context.Context, ns, labelSelector string) ([]MLServiceView, error) {
+func (c *Client) ListMLServices(ctx context.Context, ns, labelSelector string) ([]MLService, error) {
 	p := &gen.ListMLServicesParams{}
 	if labelSelector != "" {
 		p.LabelSelector = &labelSelector
@@ -227,7 +227,7 @@ func (c *Client) ListMLServices(ctx context.Context, ns, labelSelector string) (
 
 // PatchMLService updates display metadata / labels / annotations (used for the
 // last-replicas annotation in stop/start, §5.5).
-func (c *Client) PatchMLService(ctx context.Context, ns, name string, in MLServicePatch) (*MLServiceView, error) {
+func (c *Client) PatchMLService(ctx context.Context, ns, name string, in MLServicePatch) (*MLService, error) {
 	res, err := c.gen.PatchMLServiceWithResponse(ctx, ns, name, in)
 	if err != nil {
 		return nil, clienterr.Transport(service, err)
@@ -239,8 +239,8 @@ func (c *Client) PatchMLService(ctx context.Context, ns, name string, in MLServi
 }
 
 // ScaleMLService sets the replica count.
-func (c *Client) ScaleMLService(ctx context.Context, ns, name string, replicas int) (*MLServiceView, error) {
-	res, err := c.gen.ScaleMLServiceWithResponse(ctx, ns, name, gen.MLServiceScaleInput{Replicas: int32(replicas)})
+func (c *Client) ScaleMLService(ctx context.Context, ns, name string, replicas int) (*MLService, error) {
+	res, err := c.gen.ScaleMLServiceWithResponse(ctx, ns, name, gen.MLServiceScaleRequest{Replicas: int32(replicas)})
 	if err != nil {
 		return nil, clienterr.Transport(service, err)
 	}
@@ -324,7 +324,7 @@ func (c *Client) GetMLServicePodLogs(ctx context.Context, ns, name, pod string) 
 // ---- TrafficPolicy ----
 
 // CreateTrafficPolicy creates a traffic policy.
-func (c *Client) CreateTrafficPolicy(ctx context.Context, ns string, in TrafficInput) (*TrafficView, error) {
+func (c *Client) CreateTrafficPolicy(ctx context.Context, ns string, in TrafficCreate) (*TrafficPolicy, error) {
 	res, err := c.gen.CreateTrafficPolicyWithResponse(ctx, ns, in)
 	if err != nil {
 		return nil, clienterr.Transport(service, err)
@@ -336,7 +336,7 @@ func (c *Client) CreateTrafficPolicy(ctx context.Context, ns string, in TrafficI
 }
 
 // GetTrafficPolicy returns a policy.
-func (c *Client) GetTrafficPolicy(ctx context.Context, ns, name string) (*TrafficView, error) {
+func (c *Client) GetTrafficPolicy(ctx context.Context, ns, name string) (*TrafficPolicy, error) {
 	res, err := c.gen.GetTrafficPolicyWithResponse(ctx, ns, name)
 	if err != nil {
 		return nil, clienterr.Transport(service, err)
@@ -348,7 +348,7 @@ func (c *Client) GetTrafficPolicy(ctx context.Context, ns, name string) (*Traffi
 }
 
 // ListTrafficPolicies lists policies filtered by labelSelector.
-func (c *Client) ListTrafficPolicies(ctx context.Context, ns, labelSelector string) ([]TrafficView, error) {
+func (c *Client) ListTrafficPolicies(ctx context.Context, ns, labelSelector string) ([]TrafficPolicy, error) {
 	p := &gen.ListTrafficPoliciesParams{}
 	if labelSelector != "" {
 		p.LabelSelector = &labelSelector
@@ -376,8 +376,8 @@ func (c *Client) DeleteTrafficPolicy(ctx context.Context, ns, name string) error
 }
 
 // SplitTrafficPolicy adjusts per-backend weights.
-func (c *Client) SplitTrafficPolicy(ctx context.Context, ns, name string, backends []WeightUpdate) (*TrafficView, error) {
-	res, err := c.gen.SplitTrafficPolicyWithResponse(ctx, ns, name, gen.TrafficPolicySplitInput{Backends: backends})
+func (c *Client) SplitTrafficPolicy(ctx context.Context, ns, name string, backends []WeightUpdate) (*TrafficPolicy, error) {
+	res, err := c.gen.SplitTrafficPolicyWithResponse(ctx, ns, name, gen.TrafficPolicySplitRequest{Backends: backends})
 	if err != nil {
 		return nil, clienterr.Transport(service, err)
 	}
@@ -388,7 +388,7 @@ func (c *Client) SplitTrafficPolicy(ctx context.Context, ns, name string, backen
 }
 
 // PromoteTrafficPolicy promotes the canary to stable.
-func (c *Client) PromoteTrafficPolicy(ctx context.Context, ns, name string) (*TrafficView, error) {
+func (c *Client) PromoteTrafficPolicy(ctx context.Context, ns, name string) (*TrafficPolicy, error) {
 	res, err := c.gen.PromoteTrafficPolicyWithResponse(ctx, ns, name)
 	if err != nil {
 		return nil, clienterr.Transport(service, err)
@@ -400,7 +400,7 @@ func (c *Client) PromoteTrafficPolicy(ctx context.Context, ns, name string) (*Tr
 }
 
 // RollbackTrafficPolicy rolls the canary back to the stable backend.
-func (c *Client) RollbackTrafficPolicy(ctx context.Context, ns, name string) (*TrafficView, error) {
+func (c *Client) RollbackTrafficPolicy(ctx context.Context, ns, name string) (*TrafficPolicy, error) {
 	res, err := c.gen.RollbackTrafficPolicyWithResponse(ctx, ns, name)
 	if err != nil {
 		return nil, clienterr.Transport(service, err)

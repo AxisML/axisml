@@ -50,8 +50,8 @@ type RunPolicy struct {
 	ProgressDeadlineSeconds int `json:"progressDeadlineSeconds,omitempty" binding:"min=1"`
 }
 
-// RunView is a single Run (the compute MLRun produced by triggering a Job).
-type RunView struct {
+// Run is a single Run (the compute MLRun produced by triggering a Job).
+type Run struct {
 	ID                UUID              `json:"id,omitempty"`
 	Namespace         string            `json:"namespace"`
 	TenantName        string            `json:"tenantName"`
@@ -81,7 +81,7 @@ type RunView struct {
 }
 
 // MLRunSpec is a pass-through mirror of compute's MLRun spec, surfaced on
-// RunView so the UI can render a full YAML view. The authoritative shape lives
+// Run so the UI can render a full YAML view. The authoritative shape lives
 // in compute.
 type MLRunSpec struct {
 	Backend    Backend        `json:"backend,omitempty"`
@@ -90,12 +90,12 @@ type MLRunSpec struct {
 	RunPolicy  RunPolicy      `json:"runPolicy,omitempty"`
 }
 
-// RunList is a page of RunView.
+// RunList is a page of Run.
 type RunList struct {
-	Items         []RunView `json:"items"`
-	Count         int       `json:"count" binding:"min=0"`
-	ContinueToken string    `json:"continueToken,omitempty"`
-	Partial       bool      `json:"partial,omitempty"`
+	Items         []Run  `json:"items"`
+	Count         int    `json:"count" binding:"min=0"`
+	ContinueToken string `json:"continueToken,omitempty"`
+	Partial       bool   `json:"partial,omitempty"`
 }
 
 // ArtifactRef references an artifact version consumed by a run.
@@ -116,8 +116,8 @@ type JobSpec struct {
 	Artifacts []ArtifactRef `json:"artifacts,omitempty"`
 }
 
-// JobView is a Platform-owned reusable Job template.
-type JobView struct {
+// Job is a Platform-owned reusable Job template.
+type Job struct {
 	ID          UUID      `json:"id"`
 	Namespace   string    `json:"namespace"`
 	TenantName  string    `json:"tenantName"`
@@ -133,16 +133,16 @@ type JobView struct {
 	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
-// JobList is a page of JobView.
+// JobList is a page of Job.
 type JobList struct {
-	Items         []JobView `json:"items"`
-	Count         int       `json:"count" binding:"min=0"`
-	ContinueToken string    `json:"continueToken,omitempty"`
-	Partial       bool      `json:"partial,omitempty"`
+	Items         []Job  `json:"items"`
+	Count         int    `json:"count" binding:"min=0"`
+	ContinueToken string `json:"continueToken,omitempty"`
+	Partial       bool   `json:"partial,omitempty"`
 }
 
-// JobCreateInput is the body of POST /jobs.
-type JobCreateInput struct {
+// JobCreateRequest is the body of POST /jobs.
+type JobCreateRequest struct {
 	Name        string    `json:"name" binding:"required,dns1123,min=1,max=63"`
 	DisplayName string    `json:"displayName,omitempty" binding:"max=100"`
 	Description string    `json:"description,omitempty" binding:"max=1000"`
@@ -151,8 +151,8 @@ type JobCreateInput struct {
 	Spec        JobSpec   `json:"spec" binding:"required"`
 }
 
-// JobPatchInput is the body of PATCH /jobs/{name}.
-type JobPatchInput struct {
+// JobPatchRequest is the body of PATCH /jobs/{name}.
+type JobPatchRequest struct {
 	DisplayName string    `json:"displayName,omitempty" binding:"max=100"`
 	Description string    `json:"description,omitempty" binding:"max=1000"`
 	Labels      StringMap `json:"labels,omitempty"`
@@ -160,8 +160,8 @@ type JobPatchInput struct {
 	Spec        JobSpec   `json:"spec,omitempty"`
 }
 
-// RunTriggerInput holds the narrow set of trigger-time overrides for a run.
-type RunTriggerInput struct {
+// RunTriggerRequest holds the narrow set of trigger-time overrides for a run.
+type RunTriggerRequest struct {
 	DisplayName string        `json:"displayName,omitempty" binding:"max=100"`
 	Labels      StringMap     `json:"labels,omitempty"`
 	Annotations StringMap     `json:"annotations,omitempty"`

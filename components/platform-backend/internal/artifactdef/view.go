@@ -13,10 +13,10 @@ import (
 	"github.com/axisml/axisml/components/platform/internal/store"
 )
 
-func defView(d *store.Definition, kind server.DefinitionKind) server.ArtifactDefinitionView {
+func defView(d *store.Definition, kind server.DefinitionKind) server.ArtifactDefinition {
 	var spec map[string]any
 	_ = json.Unmarshal([]byte(specJSON(d.Spec)), &spec)
-	return server.ArtifactDefinitionView{
+	return server.ArtifactDefinition{
 		ID:          server.UUID(d.ID),
 		Namespace:   d.TenantName,
 		TenantName:  d.TenantName,
@@ -35,7 +35,7 @@ func defView(d *store.Definition, kind server.DefinitionKind) server.ArtifactDef
 
 // versionView projects an artifact-hub View into the contract Model shape (Image
 // has identical JSON, so the same projection serves both kinds).
-func versionView(v *artifacthub.View, tenant string) server.Model {
+func versionView(v *artifacthub.Artifact, tenant string) server.Model {
 	out := server.Model{
 		ID:          server.UUID(v.Id.String()),
 		Namespace:   v.Namespace,

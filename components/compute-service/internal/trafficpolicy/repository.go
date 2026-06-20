@@ -7,6 +7,8 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+
+	"github.com/axisml/axisml/components/compute-service/internal/store"
 )
 
 type Repository struct{ db *gorm.DB }
@@ -15,16 +17,16 @@ func NewRepository(db *gorm.DB) *Repository { return &Repository{db: db} }
 
 func IsNotFound(err error) bool { return errors.Is(err, gorm.ErrRecordNotFound) }
 
-func (r *Repository) Get(ctx context.Context, id uuid.UUID) (*TrafficPolicy, error) {
-	var p TrafficPolicy
+func (r *Repository) Get(ctx context.Context, id uuid.UUID) (*store.TrafficPolicy, error) {
+	var p store.TrafficPolicy
 	if err := r.db.WithContext(ctx).Where("id = ?", id).First(&p).Error; err != nil {
 		return nil, err
 	}
 	return &p, nil
 }
 
-func (r *Repository) GetByNamespaceName(ctx context.Context, namespace, name string) (*TrafficPolicy, error) {
-	var p TrafficPolicy
+func (r *Repository) GetByNamespaceName(ctx context.Context, namespace, name string) (*store.TrafficPolicy, error) {
+	var p store.TrafficPolicy
 	if err := r.db.WithContext(ctx).
 		Where("namespace = ? AND name = ? AND deleted_at IS NULL", namespace, name).
 		First(&p).Error; err != nil {
@@ -33,10 +35,10 @@ func (r *Repository) GetByNamespaceName(ctx context.Context, namespace, name str
 	return &p, nil
 }
 
-func (r *Repository) ListByNamespace(ctx context.Context, namespace string, limit, offset int, labelClause string, labelArgs []any) ([]TrafficPolicy, int64, error) {
-	var rows []TrafficPolicy
+func (r *Repository) ListByNamespace(ctx context.Context, namespace string, limit, offset int, labelClause string, labelArgs []any) ([]store.TrafficPolicy, int64, error) {
+	var rows []store.TrafficPolicy
 	var total int64
-	q := r.db.WithContext(ctx).Model(&TrafficPolicy{}).Where("namespace = ? AND deleted_at IS NULL", namespace)
+	q := r.db.WithContext(ctx).Model(&store.TrafficPolicy{}).Where("namespace = ? AND deleted_at IS NULL", namespace)
 	if labelClause != "" {
 		q = q.Where(labelClause, labelArgs...)
 	}
@@ -49,16 +51,16 @@ func (r *Repository) ListByNamespace(ctx context.Context, namespace string, limi
 	return rows, total, nil
 }
 
-func (r *Repository) Create(ctx context.Context, p *TrafficPolicy) error {
+func (r *Repository) Create(ctx context.Context, p *store.TrafficPolicy) error {
 	return r.db.WithContext(ctx).Create(p).Error
 }
 
 func (r *Repository) Update(ctx context.Context, id uuid.UUID, fields map[string]any) error {
-	return r.db.WithContext(ctx).Model(&TrafficPolicy{}).Where("id = ?", id).Updates(fields).Error
+	return r.db.WithContext(ctx).Model(&store.TrafficPolicy{}).Where("id = ?", id).Updates(fields).Error
 }
 
 func (r *Repository) MarkDeleting(ctx context.Context, id uuid.UUID) error {
-	return r.db.WithContext(ctx).Model(&TrafficPolicy{}).Where("id = ?", id).Updates(map[string]any{
+	return r.db.WithContext(ctx).Model(&store.TrafficPolicy{}).Where("id = ?", id).Updates(map[string]any{
 		"phase":      string(StatusDeleting),
 		"deleted_at": time.Now().UTC(),
 	}).Error
@@ -69,8 +71,8 @@ func (r *Repository) MarkDeleting(ctx context.Context, id uuid.UUID) error {
 // "a service is referenced by at most one active policy" occupancy rule
 // (compute-service.md §4.5) — there is no DB constraint for it because the
 // membership lives inside a jsonb array.
-func (r *Repository) FindActiveReferencing(ctx context.Context, namespace, serviceName string) ([]TrafficPolicy, error) {
-	var rows []TrafficPolicy
+func (r *Repository) FindActiveReferencing(ctx context.Context, namespace, serviceName string) ([]store.TrafficPolicy, error) {
+	var rows []store.TrafficPolicy
 	err := r.db.WithContext(ctx).
 		Where("namespace = ? AND deleted_at IS NULL AND EXISTS ("+
 			"SELECT 1 FROM jsonb_array_elements(spec->'backends') AS b "+
@@ -90,9 +92,9 @@ func (r *Repository) ActiveReferenceName(ctx context.Context, namespace, service
 }
 
 type WorkSet struct {
-	Creating  []TrafficPolicy
-	Deleting  []TrafficPolicy
-	SpecDirty []TrafficPolicy
+	Creating  []store.TrafficPolicy
+	Deleting  []store.TrafficPolicy
+	SpecDirty []store.TrafficPolicy
 }
 
 const workSetBatch = 100

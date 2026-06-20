@@ -46,7 +46,7 @@ func TestResourcePool_Lifecycle(t *testing.T) {
 	rr := doRequest(t, "POST", "/api/v1/resourcepools", body)
 	require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
 
-	var created srv.ResourcePoolDTO
+	var created srv.ResourcePool
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &created))
 	require.Equal(t, name, created.Name)
 	require.Equal(t, "A100 80GB single-node pool", created.Description)
@@ -56,7 +56,7 @@ func TestResourcePool_Lifecycle(t *testing.T) {
 	// Get returns the same thing.
 	rr = doRequest(t, "GET", "/api/v1/resourcepools/"+name, "")
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
-	var got srv.ResourcePoolDTO
+	var got srv.ResourcePool
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &got))
 	require.Equal(t, name, got.Name)
 	cpuQ := got.Units[0].Requests["cpu"]

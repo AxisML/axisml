@@ -2,63 +2,7 @@
 # Regenerate with: make doc-gen
 components:
   schemas:
-    ArtifactDefinitionCreateInput:
-      properties:
-        annotations:
-          $ref: '#/components/schemas/StringMap'
-        description:
-          maxLength: 4096
-          type: string
-        displayName:
-          maxLength: 256
-          type: string
-        labels:
-          $ref: '#/components/schemas/StringMap'
-        name:
-          maxLength: 128
-          minLength: 1
-          pattern: ^[a-z0-9]([-a-z0-9._]*[a-z0-9])?$
-          type: string
-        spec:
-          additionalProperties: {}
-          type: object
-      required:
-      - name
-      type: object
-    ArtifactDefinitionList:
-      properties:
-        continueToken:
-          type: string
-        count:
-          minimum: 0
-          type: integer
-        items:
-          items:
-            $ref: '#/components/schemas/ArtifactDefinitionView'
-          type: array
-        partial:
-          type: boolean
-      required:
-      - count
-      - items
-      type: object
-    ArtifactDefinitionPatchInput:
-      properties:
-        annotations:
-          $ref: '#/components/schemas/StringMap'
-        description:
-          maxLength: 4096
-          type: string
-        displayName:
-          maxLength: 256
-          type: string
-        labels:
-          $ref: '#/components/schemas/StringMap'
-        spec:
-          additionalProperties: {}
-          type: object
-      type: object
-    ArtifactDefinitionView:
+    ArtifactDefinition:
       properties:
         annotations:
           $ref: '#/components/schemas/StringMap'
@@ -104,6 +48,62 @@ components:
       - namespace
       - tenantName
       - updatedAt
+      type: object
+    ArtifactDefinitionCreateRequest:
+      properties:
+        annotations:
+          $ref: '#/components/schemas/StringMap'
+        description:
+          maxLength: 4096
+          type: string
+        displayName:
+          maxLength: 256
+          type: string
+        labels:
+          $ref: '#/components/schemas/StringMap'
+        name:
+          maxLength: 128
+          minLength: 1
+          pattern: ^[a-z0-9]([-a-z0-9._]*[a-z0-9])?$
+          type: string
+        spec:
+          additionalProperties: {}
+          type: object
+      required:
+      - name
+      type: object
+    ArtifactDefinitionList:
+      properties:
+        continueToken:
+          type: string
+        count:
+          minimum: 0
+          type: integer
+        items:
+          items:
+            $ref: '#/components/schemas/ArtifactDefinition'
+          type: array
+        partial:
+          type: boolean
+      required:
+      - count
+      - items
+      type: object
+    ArtifactDefinitionPatchRequest:
+      properties:
+        annotations:
+          $ref: '#/components/schemas/StringMap'
+        description:
+          maxLength: 4096
+          type: string
+        displayName:
+          maxLength: 256
+          type: string
+        labels:
+          $ref: '#/components/schemas/StringMap'
+        spec:
+          additionalProperties: {}
+          type: object
       type: object
     ArtifactRef:
       properties:
@@ -284,62 +284,7 @@ components:
       - count
       - items
       type: object
-    ExperimentCreateInput:
-      properties:
-        annotations:
-          $ref: '#/components/schemas/StringMap'
-        description:
-          maxLength: 1000
-          type: string
-        displayName:
-          maxLength: 100
-          type: string
-        labels:
-          $ref: '#/components/schemas/StringMap'
-        name:
-          maxLength: 63
-          minLength: 1
-          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
-          type: string
-        spec:
-          $ref: '#/components/schemas/JobSpec'
-      required:
-      - name
-      - spec
-      type: object
-    ExperimentList:
-      properties:
-        continueToken:
-          type: string
-        count:
-          minimum: 0
-          type: integer
-        items:
-          items:
-            $ref: '#/components/schemas/ExperimentView'
-          type: array
-        partial:
-          type: boolean
-      required:
-      - count
-      - items
-      type: object
-    ExperimentPatchInput:
-      properties:
-        annotations:
-          $ref: '#/components/schemas/StringMap'
-        description:
-          maxLength: 1000
-          type: string
-        displayName:
-          maxLength: 100
-          type: string
-        labels:
-          $ref: '#/components/schemas/StringMap'
-        spec:
-          $ref: '#/components/schemas/JobSpec'
-      type: object
-    ExperimentView:
+    Experiment:
       properties:
         annotations:
           $ref: '#/components/schemas/StringMap'
@@ -380,6 +325,61 @@ components:
       - spec
       - tenantName
       - updatedAt
+      type: object
+    ExperimentCreateRequest:
+      properties:
+        annotations:
+          $ref: '#/components/schemas/StringMap'
+        description:
+          maxLength: 1000
+          type: string
+        displayName:
+          maxLength: 100
+          type: string
+        labels:
+          $ref: '#/components/schemas/StringMap'
+        name:
+          maxLength: 63
+          minLength: 1
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+        spec:
+          $ref: '#/components/schemas/JobSpec'
+      required:
+      - name
+      - spec
+      type: object
+    ExperimentList:
+      properties:
+        continueToken:
+          type: string
+        count:
+          minimum: 0
+          type: integer
+        items:
+          items:
+            $ref: '#/components/schemas/Experiment'
+          type: array
+        partial:
+          type: boolean
+      required:
+      - count
+      - items
+      type: object
+    ExperimentPatchRequest:
+      properties:
+        annotations:
+          $ref: '#/components/schemas/StringMap'
+        description:
+          maxLength: 1000
+          type: string
+        displayName:
+          maxLength: 100
+          type: string
+        labels:
+          $ref: '#/components/schemas/StringMap'
+        spec:
+          $ref: '#/components/schemas/JobSpec'
       type: object
     HealthStatus:
       properties:
@@ -566,7 +566,49 @@ components:
             $ref: '#/components/schemas/ServiceAccountInit'
           type: array
       type: object
-    JobCreateInput:
+    Job:
+      properties:
+        annotations:
+          $ref: '#/components/schemas/StringMap'
+        createdAt:
+          format: date-time
+          type: string
+        description:
+          type: string
+        displayName:
+          type: string
+        id:
+          format: uuid
+          type: string
+        labels:
+          $ref: '#/components/schemas/StringMap'
+        name:
+          type: string
+        namespace:
+          type: string
+        owner:
+          type: string
+        ownerId:
+          format: uuid
+          type: string
+        spec:
+          $ref: '#/components/schemas/JobSpec'
+        tenantName:
+          type: string
+        updatedAt:
+          format: date-time
+          type: string
+      required:
+      - createdAt
+      - id
+      - name
+      - namespace
+      - owner
+      - spec
+      - tenantName
+      - updatedAt
+      type: object
+    JobCreateRequest:
       properties:
         annotations:
           $ref: '#/components/schemas/StringMap'
@@ -598,7 +640,7 @@ components:
           type: integer
         items:
           items:
-            $ref: '#/components/schemas/JobView'
+            $ref: '#/components/schemas/Job'
           type: array
         partial:
           type: boolean
@@ -606,7 +648,7 @@ components:
       - count
       - items
       type: object
-    JobPatchInput:
+    JobPatchRequest:
       properties:
         annotations:
           $ref: '#/components/schemas/StringMap'
@@ -649,48 +691,6 @@ components:
       required:
       - backend
       - roles
-      type: object
-    JobView:
-      properties:
-        annotations:
-          $ref: '#/components/schemas/StringMap'
-        createdAt:
-          format: date-time
-          type: string
-        description:
-          type: string
-        displayName:
-          type: string
-        id:
-          format: uuid
-          type: string
-        labels:
-          $ref: '#/components/schemas/StringMap'
-        name:
-          type: string
-        namespace:
-          type: string
-        owner:
-          type: string
-        ownerId:
-          format: uuid
-          type: string
-        spec:
-          $ref: '#/components/schemas/JobSpec'
-        tenantName:
-          type: string
-        updatedAt:
-          format: date-time
-          type: string
-      required:
-      - createdAt
-      - id
-      - name
-      - namespace
-      - owner
-      - spec
-      - tenantName
-      - updatedAt
       type: object
     LoginRequest:
       properties:
@@ -1650,96 +1650,7 @@ components:
             type: object
           type: array
       type: object
-    RunList:
-      properties:
-        continueToken:
-          type: string
-        count:
-          minimum: 0
-          type: integer
-        items:
-          items:
-            $ref: '#/components/schemas/RunView'
-          type: array
-        partial:
-          type: boolean
-      required:
-      - count
-      - items
-      type: object
-    RunPhase:
-      description: Run (compute MLRun) phase. The active (non-terminal) phases — Creating
-        / Pending / Running / Canceling — block Job-definition deletion.
-      enum:
-      - Creating
-      - Pending
-      - Running
-      - Succeeded
-      - Failed
-      - Canceling
-      - Cancelled
-      - Deleting
-      - Deleted
-      type: string
-    RunPolicy:
-      properties:
-        activeDeadlineSeconds:
-          minimum: 1
-          type: integer
-        backoffLimit:
-          minimum: 0
-          type: integer
-        progressDeadlineSeconds:
-          minimum: 1
-          type: integer
-        ttlSecondsAfterFinished:
-          minimum: 0
-          type: integer
-      type: object
-    RunTriggerInput:
-      properties:
-        annotations:
-          $ref: '#/components/schemas/StringMap'
-        artifacts:
-          items:
-            $ref: '#/components/schemas/ArtifactRef'
-          type: array
-        displayName:
-          maxLength: 100
-          type: string
-        labels:
-          $ref: '#/components/schemas/StringMap'
-        poolName:
-          maxLength: 40
-          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
-          type: string
-        quota:
-          type: string
-        resources:
-          $ref: '#/components/schemas/ResourceMap'
-        roles:
-          items:
-            properties:
-              args:
-                items:
-                  type: string
-                type: array
-              env:
-                items:
-                  $ref: '#/components/schemas/EnvVar'
-                type: array
-              name:
-                type: string
-            required:
-            - name
-            type: object
-          type: array
-        unitName:
-          maxLength: 40
-          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
-          type: string
-      type: object
-    RunView:
+    Run:
       properties:
         backend:
           $ref: '#/components/schemas/Backend'
@@ -1815,6 +1726,95 @@ components:
       - owner
       - tenantName
       - updatedAt
+      type: object
+    RunList:
+      properties:
+        continueToken:
+          type: string
+        count:
+          minimum: 0
+          type: integer
+        items:
+          items:
+            $ref: '#/components/schemas/Run'
+          type: array
+        partial:
+          type: boolean
+      required:
+      - count
+      - items
+      type: object
+    RunPhase:
+      description: Run (compute MLRun) phase. The active (non-terminal) phases — Creating
+        / Pending / Running / Canceling — block Job-definition deletion.
+      enum:
+      - Creating
+      - Pending
+      - Running
+      - Succeeded
+      - Failed
+      - Canceling
+      - Cancelled
+      - Deleting
+      - Deleted
+      type: string
+    RunPolicy:
+      properties:
+        activeDeadlineSeconds:
+          minimum: 1
+          type: integer
+        backoffLimit:
+          minimum: 0
+          type: integer
+        progressDeadlineSeconds:
+          minimum: 1
+          type: integer
+        ttlSecondsAfterFinished:
+          minimum: 0
+          type: integer
+      type: object
+    RunTriggerRequest:
+      properties:
+        annotations:
+          $ref: '#/components/schemas/StringMap'
+        artifacts:
+          items:
+            $ref: '#/components/schemas/ArtifactRef'
+          type: array
+        displayName:
+          maxLength: 100
+          type: string
+        labels:
+          $ref: '#/components/schemas/StringMap'
+        poolName:
+          maxLength: 40
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+        quota:
+          type: string
+        resources:
+          $ref: '#/components/schemas/ResourceMap'
+        roles:
+          items:
+            properties:
+              args:
+                items:
+                  type: string
+                type: array
+              env:
+                items:
+                  $ref: '#/components/schemas/EnvVar'
+                type: array
+              name:
+                type: string
+            required:
+            - name
+            type: object
+          type: array
+        unitName:
+          maxLength: 40
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
       type: object
     SecretInit:
       properties:
@@ -2121,7 +2121,13 @@ components:
       - serviceName
       - weight
       type: object
-    TrafficPolicyBackendInput:
+    TrafficPolicyBackendRole:
+      enum:
+      - stable
+      - canary
+      - member
+      type: string
+    TrafficPolicyBackendSpec:
       properties:
         role:
           $ref: '#/components/schemas/TrafficPolicyBackendRole'
@@ -2136,17 +2142,11 @@ components:
       required:
       - serviceName
       type: object
-    TrafficPolicyBackendRole:
-      enum:
-      - stable
-      - canary
-      - member
-      type: string
     TrafficPolicyCreateRequest:
       properties:
         backends:
           items:
-            $ref: '#/components/schemas/TrafficPolicyBackendInput'
+            $ref: '#/components/schemas/TrafficPolicyBackendSpec'
           minItems: 1
           type: array
         canaryPercent:
@@ -2229,7 +2229,7 @@ components:
       properties:
         backends:
           items:
-            $ref: '#/components/schemas/TrafficPolicyBackendInput'
+            $ref: '#/components/schemas/TrafficPolicyBackendSpec'
           type: array
         canaryPercent:
           maximum: 100
@@ -2788,14 +2788,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ExperimentCreateInput'
+              $ref: '#/components/schemas/ExperimentCreateRequest'
         required: true
       responses:
         "201":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ExperimentView'
+                $ref: '#/components/schemas/Experiment'
           description: Experiment created.
         "400":
           content:
@@ -2936,7 +2936,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ExperimentView'
+                $ref: '#/components/schemas/Experiment'
           description: Experiment detail.
         "400":
           content:
@@ -2997,14 +2997,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ExperimentPatchInput'
+              $ref: '#/components/schemas/ExperimentPatchRequest'
         required: true
       responses:
         "200":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ExperimentView'
+                $ref: '#/components/schemas/Experiment'
           description: Experiment updated.
         "400":
           content:
@@ -3150,13 +3150,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RunTriggerInput'
+              $ref: '#/components/schemas/RunTriggerRequest'
       responses:
         "201":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RunView'
+                $ref: '#/components/schemas/Run'
           description: Run triggered.
         "400":
           content:
@@ -3306,7 +3306,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RunView'
+                $ref: '#/components/schemas/Run'
           description: Run detail.
         "400":
           content:
@@ -3377,7 +3377,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RunView'
+                $ref: '#/components/schemas/Run'
           description: Cancel request accepted.
         "400":
           content:
@@ -4174,7 +4174,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ArtifactDefinitionView'
+                $ref: '#/components/schemas/ArtifactDefinition'
           description: Image definition detail.
         "401":
           content:
@@ -4227,14 +4227,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ArtifactDefinitionPatchInput'
+              $ref: '#/components/schemas/ArtifactDefinitionPatchRequest'
         required: true
       responses:
         "200":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ArtifactDefinitionView'
+                $ref: '#/components/schemas/ArtifactDefinition'
           description: Image definition updated.
         "400":
           content:
@@ -4294,14 +4294,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ArtifactDefinitionCreateInput'
+              $ref: '#/components/schemas/ArtifactDefinitionCreateRequest'
         required: true
       responses:
         "201":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ArtifactDefinitionView'
+                $ref: '#/components/schemas/ArtifactDefinition'
           description: Image definition created.
         "400":
           content:
@@ -4955,14 +4955,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/JobCreateInput'
+              $ref: '#/components/schemas/JobCreateRequest'
         required: true
       responses:
         "201":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/JobView'
+                $ref: '#/components/schemas/Job'
           description: Job created.
         "400":
           content:
@@ -5103,7 +5103,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/JobView'
+                $ref: '#/components/schemas/Job'
           description: Job detail.
         "400":
           content:
@@ -5164,14 +5164,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/JobPatchInput'
+              $ref: '#/components/schemas/JobPatchRequest'
         required: true
       responses:
         "200":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/JobView'
+                $ref: '#/components/schemas/Job'
           description: Job updated.
         "400":
           content:
@@ -5317,13 +5317,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RunTriggerInput'
+              $ref: '#/components/schemas/RunTriggerRequest'
       responses:
         "201":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RunView'
+                $ref: '#/components/schemas/Run'
           description: Run triggered.
         "400":
           content:
@@ -5473,7 +5473,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RunView'
+                $ref: '#/components/schemas/Run'
           description: Run detail.
         "400":
           content:
@@ -5544,7 +5544,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RunView'
+                $ref: '#/components/schemas/Run'
           description: Cancel request accepted.
         "400":
           content:
@@ -6937,7 +6937,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ArtifactDefinitionView'
+                $ref: '#/components/schemas/ArtifactDefinition'
           description: Model definition detail.
         "401":
           content:
@@ -6990,14 +6990,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ArtifactDefinitionPatchInput'
+              $ref: '#/components/schemas/ArtifactDefinitionPatchRequest'
         required: true
       responses:
         "200":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ArtifactDefinitionView'
+                $ref: '#/components/schemas/ArtifactDefinition'
           description: Model definition updated.
         "400":
           content:
@@ -7057,14 +7057,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ArtifactDefinitionCreateInput'
+              $ref: '#/components/schemas/ArtifactDefinitionCreateRequest'
         required: true
       responses:
         "201":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ArtifactDefinitionView'
+                $ref: '#/components/schemas/ArtifactDefinition'
           description: Model definition created.
         "400":
           content:

@@ -165,7 +165,7 @@ func (s *Service) PodLogs(ctx context.Context, tenant, name, pod string) ([]byte
 }
 
 // getService loads a service and rejects non-service kinds.
-func (s *Service) getService(ctx context.Context, tenant, name string) (*computeservice.MLServiceView, error) {
+func (s *Service) getService(ctx context.Context, tenant, name string) (*computeservice.MLService, error) {
 	svc, err := s.compute.GetMLService(ctx, tenant, name)
 	if err != nil {
 		return nil, err
@@ -176,7 +176,7 @@ func (s *Service) getService(ctx context.Context, tenant, name string) (*compute
 	return svc, nil
 }
 
-func lastReplicas(svc *computeservice.MLServiceView, fallback int) int {
+func lastReplicas(svc *computeservice.MLService, fallback int) int {
 	if svc.Annotations == nil {
 		return fallback
 	}

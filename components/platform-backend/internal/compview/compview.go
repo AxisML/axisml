@@ -1,5 +1,5 @@
 // Package compview projects compute-service pod/event wire types into the
-// Platform contract Pod/Event DTOs. Shared by the jobs/experiments/mlservices/
+// Platform contract Pod/Event types. Shared by the jobs/experiments/mlservices/
 // workspaces modules.
 package compview
 

@@ -71,7 +71,7 @@ func (h *Handler) listDefs(c *gin.Context) {
 }
 
 func (h *Handler) createDef(c *gin.Context) {
-	var req server.ArtifactDefinitionCreateInput
+	var req server.ArtifactDefinitionCreateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		server.Fail(c, err)
 		return
@@ -94,7 +94,7 @@ func (h *Handler) getDef(c *gin.Context) {
 }
 
 func (h *Handler) updateDef(c *gin.Context) {
-	var req server.ArtifactDefinitionPatchInput
+	var req server.ArtifactDefinitionPatchRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		server.Fail(c, err)
 		return

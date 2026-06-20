@@ -30,7 +30,7 @@ func (h *Handler) Register(rg *gin.RouterGroup) {
 }
 
 func (h *Handler) Create(c *gin.Context) {
-	var in CreateInput
+	var in server.TrafficPolicyCreateRequest
 	if err := c.ShouldBindJSON(&in); err != nil {
 		_ = c.Error(err)
 		return
@@ -77,7 +77,7 @@ func (h *Handler) Get(c *gin.Context) {
 }
 
 func (h *Handler) Patch(c *gin.Context) {
-	var in PatchInput
+	var in server.TrafficPolicyPatchRequest
 	if err := c.ShouldBindJSON(&in); err != nil {
 		_ = c.Error(err)
 		return
@@ -99,7 +99,7 @@ func (h *Handler) Delete(c *gin.Context) {
 }
 
 func (h *Handler) Split(c *gin.Context) {
-	var in SplitInput
+	var in server.TrafficPolicySplitRequest
 	if err := c.ShouldBindJSON(&in); err != nil {
 		_ = c.Error(err)
 		return

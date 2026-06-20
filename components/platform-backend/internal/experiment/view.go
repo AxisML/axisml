@@ -11,10 +11,10 @@ import (
 // LabelExperiment ties a Run (MLRun) to its Experiment.
 const LabelExperiment = "axisml.io/experiment"
 
-func toView(d *store.Definition) server.ExperimentView {
+func toView(d *store.Definition) server.Experiment {
 	var spec server.JobSpec
 	_ = json.Unmarshal([]byte(specJSON(d.Spec)), &spec)
-	return server.ExperimentView{
+	return server.Experiment{
 		ID:          server.UUID(d.ID),
 		Namespace:   d.TenantName,
 		TenantName:  d.TenantName,
@@ -50,7 +50,7 @@ func jsonUnmarshalSpec(j store.JSONB, out *server.JobSpec) error {
 }
 
 // tbToView projects a compute tensorboard MLService into the contract TensorBoard.
-func tbToView(s *computeservice.MLServiceView) server.TensorBoard {
+func tbToView(s *computeservice.MLService) server.TensorBoard {
 	v := server.TensorBoard{
 		Name:      s.Name,
 		Phase:     server.TensorBoardPhase(s.Phase),

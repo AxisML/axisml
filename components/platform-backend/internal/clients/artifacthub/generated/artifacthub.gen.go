@@ -31,62 +31,8 @@ const (
 	ValidationFailed   ProblemCode = "validation_failed"
 )
 
-// ArtifactCompleteInput defines model for ArtifactCompleteInput.
-type ArtifactCompleteInput struct {
-	Digest string `json:"digest"`
-}
-
-// ArtifactInitiateInput defines model for ArtifactInitiateInput.
-type ArtifactInitiateInput struct {
-	Annotations *map[string]string     `json:"annotations,omitempty"`
-	Description *string                `json:"description,omitempty"`
-	DisplayName *string                `json:"displayName,omitempty"`
-	Labels      *map[string]string     `json:"labels,omitempty"`
-	Spec        map[string]interface{} `json:"spec"`
-	Version     string                 `json:"version"`
-	Visibility  *string                `json:"visibility,omitempty"`
-}
-
-// ArtifactInitiateResult defines model for ArtifactInitiateResult.
-type ArtifactInitiateResult struct {
-	Artifact ArtifactView              `json:"artifact"`
-	Upload   ArtifactUploadCredentials `json:"upload"`
-}
-
-// ArtifactList defines model for ArtifactList.
-type ArtifactList struct {
-	Items []ArtifactView `json:"items"`
-	Total int64          `json:"total"`
-}
-
-// ArtifactPatchInput defines model for ArtifactPatchInput.
-type ArtifactPatchInput struct {
-	Annotations *map[string]string `json:"annotations,omitempty"`
-	Description *string            `json:"description"`
-	DisplayName *string            `json:"displayName"`
-	Labels      *map[string]string `json:"labels,omitempty"`
-}
-
-// ArtifactResolveResult defines model for ArtifactResolveResult.
-type ArtifactResolveResult struct {
-	Digest          *string         `json:"digest,omitempty"`
-	ExpiresAt       *time.Time      `json:"expiresAt"`
-	PullCredentials *OciCredentials `json:"pullCredentials"`
-	StorageKind     string          `json:"storageKind"`
-	Uri             string          `json:"uri"`
-	Visibility      *string         `json:"visibility,omitempty"`
-}
-
-// ArtifactUploadCredentials defines model for ArtifactUploadCredentials.
-type ArtifactUploadCredentials struct {
-	Credentials OciCredentials `json:"credentials"`
-	ExpiresAt   time.Time      `json:"expiresAt"`
-	StorageKind string         `json:"storageKind"`
-	Uri         string         `json:"uri"`
-}
-
-// ArtifactView defines model for ArtifactView.
-type ArtifactView struct {
+// Artifact defines model for Artifact.
+type Artifact struct {
 	Annotations *map[string]string     `json:"annotations,omitempty"`
 	CreatedAt   time.Time              `json:"createdAt"`
 	DeletedAt   *time.Time             `json:"deletedAt"`
@@ -106,6 +52,52 @@ type ArtifactView struct {
 	UpdatedAt   time.Time              `json:"updatedAt"`
 	Version     string                 `json:"version"`
 	Visibility  string                 `json:"visibility"`
+}
+
+// ArtifactCompleteRequest defines model for ArtifactCompleteRequest.
+type ArtifactCompleteRequest struct {
+	Digest string `json:"digest"`
+}
+
+// ArtifactInitiateRequest defines model for ArtifactInitiateRequest.
+type ArtifactInitiateRequest struct {
+	Annotations *map[string]string     `json:"annotations,omitempty"`
+	Description *string                `json:"description,omitempty"`
+	DisplayName *string                `json:"displayName,omitempty"`
+	Labels      *map[string]string     `json:"labels,omitempty"`
+	Spec        map[string]interface{} `json:"spec"`
+	Version     string                 `json:"version"`
+	Visibility  *string                `json:"visibility,omitempty"`
+}
+
+// ArtifactInitiateResponse defines model for ArtifactInitiateResponse.
+type ArtifactInitiateResponse struct {
+	Artifact Artifact          `json:"artifact"`
+	Upload   UploadCredentials `json:"upload"`
+}
+
+// ArtifactList defines model for ArtifactList.
+type ArtifactList struct {
+	Items []Artifact `json:"items"`
+	Total int64      `json:"total"`
+}
+
+// ArtifactPatchRequest defines model for ArtifactPatchRequest.
+type ArtifactPatchRequest struct {
+	Annotations *map[string]string `json:"annotations,omitempty"`
+	Description *string            `json:"description"`
+	DisplayName *string            `json:"displayName"`
+	Labels      *map[string]string `json:"labels,omitempty"`
+}
+
+// ArtifactResolveResponse defines model for ArtifactResolveResponse.
+type ArtifactResolveResponse struct {
+	Digest          *string         `json:"digest,omitempty"`
+	ExpiresAt       *time.Time      `json:"expiresAt"`
+	PullCredentials *OciCredentials `json:"pullCredentials"`
+	StorageKind     string          `json:"storageKind"`
+	Uri             string          `json:"uri"`
+	Visibility      *string         `json:"visibility,omitempty"`
 }
 
 // OciCredentials defines model for OciCredentials.
@@ -129,6 +121,14 @@ type Problem struct {
 
 // ProblemCode Discrete business error class.
 type ProblemCode string
+
+// UploadCredentials defines model for UploadCredentials.
+type UploadCredentials struct {
+	Credentials OciCredentials `json:"credentials"`
+	ExpiresAt   time.Time      `json:"expiresAt"`
+	StorageKind string         `json:"storageKind"`
+	Uri         string         `json:"uri"`
+}
 
 // ListDatasetsParams defines parameters for ListDatasets.
 type ListDatasetsParams struct {
@@ -239,31 +239,31 @@ type ResolveModelParams struct {
 }
 
 // InitiateDatasetJSONRequestBody defines body for InitiateDataset for application/json ContentType.
-type InitiateDatasetJSONRequestBody = ArtifactInitiateInput
+type InitiateDatasetJSONRequestBody = ArtifactInitiateRequest
 
 // UpdateDatasetJSONRequestBody defines body for UpdateDataset for application/json ContentType.
-type UpdateDatasetJSONRequestBody = ArtifactPatchInput
+type UpdateDatasetJSONRequestBody = ArtifactPatchRequest
 
 // CompleteDatasetJSONRequestBody defines body for CompleteDataset for application/json ContentType.
-type CompleteDatasetJSONRequestBody = ArtifactCompleteInput
+type CompleteDatasetJSONRequestBody = ArtifactCompleteRequest
 
 // InitiateImageJSONRequestBody defines body for InitiateImage for application/json ContentType.
-type InitiateImageJSONRequestBody = ArtifactInitiateInput
+type InitiateImageJSONRequestBody = ArtifactInitiateRequest
 
 // UpdateImageJSONRequestBody defines body for UpdateImage for application/json ContentType.
-type UpdateImageJSONRequestBody = ArtifactPatchInput
+type UpdateImageJSONRequestBody = ArtifactPatchRequest
 
 // CompleteImageJSONRequestBody defines body for CompleteImage for application/json ContentType.
-type CompleteImageJSONRequestBody = ArtifactCompleteInput
+type CompleteImageJSONRequestBody = ArtifactCompleteRequest
 
 // InitiateModelJSONRequestBody defines body for InitiateModel for application/json ContentType.
-type InitiateModelJSONRequestBody = ArtifactInitiateInput
+type InitiateModelJSONRequestBody = ArtifactInitiateRequest
 
 // UpdateModelJSONRequestBody defines body for UpdateModel for application/json ContentType.
-type UpdateModelJSONRequestBody = ArtifactPatchInput
+type UpdateModelJSONRequestBody = ArtifactPatchRequest
 
 // CompleteModelJSONRequestBody defines body for CompleteModel for application/json ContentType.
-type CompleteModelJSONRequestBody = ArtifactCompleteInput
+type CompleteModelJSONRequestBody = ArtifactCompleteRequest
 
 // RequestEditorFn  is the function signature for the RequestEditor callback function
 type RequestEditorFn func(ctx context.Context, req *http.Request) error
@@ -2785,7 +2785,7 @@ func (r ListDatasetVersionsResponse) StatusCode() int {
 type InitiateDatasetResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON201      *ArtifactInitiateResult
+	JSON201      *ArtifactInitiateResponse
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON403      *Problem
@@ -2816,7 +2816,7 @@ func (r InitiateDatasetResponse) StatusCode() int {
 type DeleteDatasetResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *ArtifactView
+	JSON200      *Artifact
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON403      *Problem
@@ -2847,7 +2847,7 @@ func (r DeleteDatasetResponse) StatusCode() int {
 type GetDatasetResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *ArtifactView
+	JSON200      *Artifact
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON403      *Problem
@@ -2878,7 +2878,7 @@ func (r GetDatasetResponse) StatusCode() int {
 type UpdateDatasetResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *ArtifactView
+	JSON200      *Artifact
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON403      *Problem
@@ -2909,7 +2909,7 @@ func (r UpdateDatasetResponse) StatusCode() int {
 type CompleteDatasetResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *ArtifactView
+	JSON200      *Artifact
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON403      *Problem
@@ -2940,7 +2940,7 @@ func (r CompleteDatasetResponse) StatusCode() int {
 type ResolveDatasetResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *ArtifactResolveResult
+	JSON200      *ArtifactResolveResponse
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON403      *Problem
@@ -3033,7 +3033,7 @@ func (r ListImageVersionsResponse) StatusCode() int {
 type InitiateImageResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON201      *ArtifactInitiateResult
+	JSON201      *ArtifactInitiateResponse
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON403      *Problem
@@ -3064,7 +3064,7 @@ func (r InitiateImageResponse) StatusCode() int {
 type DeleteImageResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *ArtifactView
+	JSON200      *Artifact
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON403      *Problem
@@ -3095,7 +3095,7 @@ func (r DeleteImageResponse) StatusCode() int {
 type GetImageResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *ArtifactView
+	JSON200      *Artifact
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON403      *Problem
@@ -3126,7 +3126,7 @@ func (r GetImageResponse) StatusCode() int {
 type UpdateImageResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *ArtifactView
+	JSON200      *Artifact
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON403      *Problem
@@ -3157,7 +3157,7 @@ func (r UpdateImageResponse) StatusCode() int {
 type CompleteImageResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *ArtifactView
+	JSON200      *Artifact
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON403      *Problem
@@ -3188,7 +3188,7 @@ func (r CompleteImageResponse) StatusCode() int {
 type ResolveImageResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *ArtifactResolveResult
+	JSON200      *ArtifactResolveResponse
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON403      *Problem
@@ -3281,7 +3281,7 @@ func (r ListModelVersionsResponse) StatusCode() int {
 type InitiateModelResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON201      *ArtifactInitiateResult
+	JSON201      *ArtifactInitiateResponse
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON403      *Problem
@@ -3312,7 +3312,7 @@ func (r InitiateModelResponse) StatusCode() int {
 type DeleteModelResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *ArtifactView
+	JSON200      *Artifact
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON403      *Problem
@@ -3343,7 +3343,7 @@ func (r DeleteModelResponse) StatusCode() int {
 type GetModelResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *ArtifactView
+	JSON200      *Artifact
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON403      *Problem
@@ -3374,7 +3374,7 @@ func (r GetModelResponse) StatusCode() int {
 type UpdateModelResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *ArtifactView
+	JSON200      *Artifact
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON403      *Problem
@@ -3405,7 +3405,7 @@ func (r UpdateModelResponse) StatusCode() int {
 type CompleteModelResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *ArtifactView
+	JSON200      *Artifact
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON403      *Problem
@@ -3436,7 +3436,7 @@ func (r CompleteModelResponse) StatusCode() int {
 type ResolveModelResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *ArtifactResolveResult
+	JSON200      *ArtifactResolveResponse
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON403      *Problem
@@ -4005,7 +4005,7 @@ func ParseInitiateDatasetResponse(rsp *http.Response) (*InitiateDatasetResponse,
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest ArtifactInitiateResult
+		var dest ArtifactInitiateResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4094,7 +4094,7 @@ func ParseDeleteDatasetResponse(rsp *http.Response) (*DeleteDatasetResponse, err
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ArtifactView
+		var dest Artifact
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4183,7 +4183,7 @@ func ParseGetDatasetResponse(rsp *http.Response) (*GetDatasetResponse, error) {
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ArtifactView
+		var dest Artifact
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4272,7 +4272,7 @@ func ParseUpdateDatasetResponse(rsp *http.Response) (*UpdateDatasetResponse, err
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ArtifactView
+		var dest Artifact
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4361,7 +4361,7 @@ func ParseCompleteDatasetResponse(rsp *http.Response) (*CompleteDatasetResponse,
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ArtifactView
+		var dest Artifact
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4450,7 +4450,7 @@ func ParseResolveDatasetResponse(rsp *http.Response) (*ResolveDatasetResponse, e
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ArtifactResolveResult
+		var dest ArtifactResolveResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4717,7 +4717,7 @@ func ParseInitiateImageResponse(rsp *http.Response) (*InitiateImageResponse, err
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest ArtifactInitiateResult
+		var dest ArtifactInitiateResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4806,7 +4806,7 @@ func ParseDeleteImageResponse(rsp *http.Response) (*DeleteImageResponse, error) 
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ArtifactView
+		var dest Artifact
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4895,7 +4895,7 @@ func ParseGetImageResponse(rsp *http.Response) (*GetImageResponse, error) {
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ArtifactView
+		var dest Artifact
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4984,7 +4984,7 @@ func ParseUpdateImageResponse(rsp *http.Response) (*UpdateImageResponse, error) 
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ArtifactView
+		var dest Artifact
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -5073,7 +5073,7 @@ func ParseCompleteImageResponse(rsp *http.Response) (*CompleteImageResponse, err
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ArtifactView
+		var dest Artifact
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -5162,7 +5162,7 @@ func ParseResolveImageResponse(rsp *http.Response) (*ResolveImageResponse, error
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ArtifactResolveResult
+		var dest ArtifactResolveResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -5429,7 +5429,7 @@ func ParseInitiateModelResponse(rsp *http.Response) (*InitiateModelResponse, err
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest ArtifactInitiateResult
+		var dest ArtifactInitiateResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -5518,7 +5518,7 @@ func ParseDeleteModelResponse(rsp *http.Response) (*DeleteModelResponse, error) 
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ArtifactView
+		var dest Artifact
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -5607,7 +5607,7 @@ func ParseGetModelResponse(rsp *http.Response) (*GetModelResponse, error) {
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ArtifactView
+		var dest Artifact
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -5696,7 +5696,7 @@ func ParseUpdateModelResponse(rsp *http.Response) (*UpdateModelResponse, error) 
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ArtifactView
+		var dest Artifact
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -5785,7 +5785,7 @@ func ParseCompleteModelResponse(rsp *http.Response) (*CompleteModelResponse, err
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ArtifactView
+		var dest Artifact
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -5874,7 +5874,7 @@ func ParseResolveModelResponse(rsp *http.Response) (*ResolveModelResponse, error
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ArtifactResolveResult
+		var dest ArtifactResolveResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

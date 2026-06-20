@@ -2,121 +2,7 @@
 # Regenerate with: make doc-gen
 components:
   schemas:
-    ArtifactCompleteInput:
-      properties:
-        digest:
-          type: string
-      required:
-      - digest
-      type: object
-    ArtifactInitiateInput:
-      properties:
-        annotations:
-          additionalProperties:
-            type: string
-          type: object
-        description:
-          type: string
-        displayName:
-          type: string
-        labels:
-          additionalProperties:
-            type: string
-          type: object
-        spec:
-          additionalProperties: {}
-          type: object
-        version:
-          maxLength: 64
-          minLength: 1
-          pattern: ^[a-zA-Z0-9._-]+$
-          type: string
-        visibility:
-          type: string
-      required:
-      - spec
-      - version
-      type: object
-    ArtifactInitiateResult:
-      properties:
-        artifact:
-          $ref: '#/components/schemas/ArtifactView'
-        upload:
-          $ref: '#/components/schemas/ArtifactUploadCredentials'
-      required:
-      - artifact
-      - upload
-      type: object
-    ArtifactList:
-      properties:
-        items:
-          items:
-            $ref: '#/components/schemas/ArtifactView'
-          type: array
-        total:
-          format: int64
-          type: integer
-      required:
-      - items
-      - total
-      type: object
-    ArtifactPatchInput:
-      properties:
-        annotations:
-          additionalProperties:
-            type: string
-          type: object
-        description:
-          nullable: true
-          type: string
-        displayName:
-          nullable: true
-          type: string
-        labels:
-          additionalProperties:
-            type: string
-          type: object
-      type: object
-    ArtifactResolveResult:
-      properties:
-        digest:
-          type: string
-        expiresAt:
-          format: date-time
-          nullable: true
-          type: string
-        pullCredentials:
-          allOf:
-          - $ref: '#/components/schemas/OciCredentials'
-          nullable: true
-        storageKind:
-          type: string
-        uri:
-          type: string
-        visibility:
-          type: string
-      required:
-      - storageKind
-      - uri
-      type: object
-    ArtifactUploadCredentials:
-      properties:
-        credentials:
-          $ref: '#/components/schemas/OciCredentials'
-        expiresAt:
-          format: date-time
-          type: string
-        storageKind:
-          type: string
-        uri:
-          type: string
-      required:
-      - credentials
-      - expiresAt
-      - storageKind
-      - uri
-      type: object
-    ArtifactView:
+    Artifact:
       properties:
         annotations:
           additionalProperties:
@@ -180,6 +66,103 @@ components:
       - version
       - visibility
       type: object
+    ArtifactCompleteRequest:
+      properties:
+        digest:
+          type: string
+      required:
+      - digest
+      type: object
+    ArtifactInitiateRequest:
+      properties:
+        annotations:
+          additionalProperties:
+            type: string
+          type: object
+        description:
+          type: string
+        displayName:
+          type: string
+        labels:
+          additionalProperties:
+            type: string
+          type: object
+        spec:
+          additionalProperties: {}
+          type: object
+        version:
+          maxLength: 64
+          minLength: 1
+          pattern: ^[a-zA-Z0-9._-]+$
+          type: string
+        visibility:
+          type: string
+      required:
+      - spec
+      - version
+      type: object
+    ArtifactInitiateResponse:
+      properties:
+        artifact:
+          $ref: '#/components/schemas/Artifact'
+        upload:
+          $ref: '#/components/schemas/UploadCredentials'
+      required:
+      - artifact
+      - upload
+      type: object
+    ArtifactList:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/Artifact'
+          type: array
+        total:
+          format: int64
+          type: integer
+      required:
+      - items
+      - total
+      type: object
+    ArtifactPatchRequest:
+      properties:
+        annotations:
+          additionalProperties:
+            type: string
+          type: object
+        description:
+          nullable: true
+          type: string
+        displayName:
+          nullable: true
+          type: string
+        labels:
+          additionalProperties:
+            type: string
+          type: object
+      type: object
+    ArtifactResolveResponse:
+      properties:
+        digest:
+          type: string
+        expiresAt:
+          format: date-time
+          nullable: true
+          type: string
+        pullCredentials:
+          allOf:
+          - $ref: '#/components/schemas/OciCredentials'
+          nullable: true
+        storageKind:
+          type: string
+        uri:
+          type: string
+        visibility:
+          type: string
+      required:
+      - storageKind
+      - uri
+      type: object
     OciCredentials:
       properties:
         expires_at:
@@ -227,6 +210,23 @@ components:
       - status
       - title
       - type
+      type: object
+    UploadCredentials:
+      properties:
+        credentials:
+          $ref: '#/components/schemas/OciCredentials'
+        expiresAt:
+          format: date-time
+          type: string
+        storageKind:
+          type: string
+        uri:
+          type: string
+      required:
+      - credentials
+      - expiresAt
+      - storageKind
+      - uri
       type: object
 info:
   description: REST API for the artifact registry. Items are keyed by (namespace,
@@ -450,14 +450,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ArtifactInitiateInput'
+              $ref: '#/components/schemas/ArtifactInitiateRequest'
         required: true
       responses:
         "201":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ArtifactInitiateResult'
+                $ref: '#/components/schemas/ArtifactInitiateResponse'
           description: Initiated.
         "400":
           content:
@@ -543,7 +543,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ArtifactView'
+                $ref: '#/components/schemas/Artifact'
           description: Soft-deleted artifact (status=Deleting).
         "400":
           content:
@@ -628,7 +628,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ArtifactView'
+                $ref: '#/components/schemas/Artifact'
           description: Artifact.
         "400":
           content:
@@ -712,14 +712,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ArtifactPatchInput'
+              $ref: '#/components/schemas/ArtifactPatchRequest'
         required: true
       responses:
         "200":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ArtifactView'
+                $ref: '#/components/schemas/Artifact'
           description: Updated.
         "400":
           content:
@@ -804,14 +804,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ArtifactCompleteInput'
+              $ref: '#/components/schemas/ArtifactCompleteRequest'
         required: true
       responses:
         "200":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ArtifactView'
+                $ref: '#/components/schemas/Artifact'
           description: Completed artifact.
         "400":
           content:
@@ -902,7 +902,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ArtifactResolveResult'
+                $ref: '#/components/schemas/ArtifactResolveResponse'
           description: Resolved.
         "400":
           content:
@@ -1176,14 +1176,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ArtifactInitiateInput'
+              $ref: '#/components/schemas/ArtifactInitiateRequest'
         required: true
       responses:
         "201":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ArtifactInitiateResult'
+                $ref: '#/components/schemas/ArtifactInitiateResponse'
           description: Initiated.
         "400":
           content:
@@ -1269,7 +1269,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ArtifactView'
+                $ref: '#/components/schemas/Artifact'
           description: Soft-deleted artifact (status=Deleting).
         "400":
           content:
@@ -1354,7 +1354,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ArtifactView'
+                $ref: '#/components/schemas/Artifact'
           description: Artifact.
         "400":
           content:
@@ -1438,14 +1438,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ArtifactPatchInput'
+              $ref: '#/components/schemas/ArtifactPatchRequest'
         required: true
       responses:
         "200":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ArtifactView'
+                $ref: '#/components/schemas/Artifact'
           description: Updated.
         "400":
           content:
@@ -1530,14 +1530,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ArtifactCompleteInput'
+              $ref: '#/components/schemas/ArtifactCompleteRequest'
         required: true
       responses:
         "200":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ArtifactView'
+                $ref: '#/components/schemas/Artifact'
           description: Completed artifact.
         "400":
           content:
@@ -1628,7 +1628,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ArtifactResolveResult'
+                $ref: '#/components/schemas/ArtifactResolveResponse'
           description: Resolved.
         "400":
           content:
@@ -1902,14 +1902,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ArtifactInitiateInput'
+              $ref: '#/components/schemas/ArtifactInitiateRequest'
         required: true
       responses:
         "201":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ArtifactInitiateResult'
+                $ref: '#/components/schemas/ArtifactInitiateResponse'
           description: Initiated.
         "400":
           content:
@@ -1995,7 +1995,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ArtifactView'
+                $ref: '#/components/schemas/Artifact'
           description: Soft-deleted artifact (status=Deleting).
         "400":
           content:
@@ -2080,7 +2080,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ArtifactView'
+                $ref: '#/components/schemas/Artifact'
           description: Artifact.
         "400":
           content:
@@ -2164,14 +2164,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ArtifactPatchInput'
+              $ref: '#/components/schemas/ArtifactPatchRequest'
         required: true
       responses:
         "200":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ArtifactView'
+                $ref: '#/components/schemas/Artifact'
           description: Updated.
         "400":
           content:
@@ -2256,14 +2256,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ArtifactCompleteInput'
+              $ref: '#/components/schemas/ArtifactCompleteRequest'
         required: true
       responses:
         "200":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ArtifactView'
+                $ref: '#/components/schemas/Artifact'
           description: Completed artifact.
         "400":
           content:
@@ -2354,7 +2354,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ArtifactResolveResult'
+                $ref: '#/components/schemas/ArtifactResolveResponse'
           description: Resolved.
         "400":
           content:

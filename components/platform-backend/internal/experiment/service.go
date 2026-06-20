@@ -42,7 +42,7 @@ func NewService(defs *store.DefinitionRepo, tenants *store.TenantRepo, compute *
 // ---- Experiment definitions ----
 
 // Create writes an Experiment definition.
-func (s *Service) Create(ctx context.Context, tenant, owner string, in server.ExperimentCreateInput) (*server.ExperimentView, error) {
+func (s *Service) Create(ctx context.Context, tenant, owner string, in server.ExperimentCreateRequest) (*server.Experiment, error) {
 	d := &store.Definition{
 		TenantName:  tenant,
 		Name:        in.Name,
@@ -64,7 +64,7 @@ func (s *Service) Create(ctx context.Context, tenant, owner string, in server.Ex
 }
 
 // Get returns an Experiment definition.
-func (s *Service) Get(ctx context.Context, tenant, name string) (*server.ExperimentView, error) {
+func (s *Service) Get(ctx context.Context, tenant, name string) (*server.Experiment, error) {
 	d, err := s.get(ctx, tenant, name)
 	if err != nil {
 		return nil, err
@@ -74,12 +74,12 @@ func (s *Service) Get(ctx context.Context, tenant, name string) (*server.Experim
 }
 
 // List returns Experiment definitions visible to the caller.
-func (s *Service) List(ctx context.Context, tenants []string, owner, q string, limit, offset int) ([]server.ExperimentView, error) {
+func (s *Service) List(ctx context.Context, tenants []string, owner, q string, limit, offset int) ([]server.Experiment, error) {
 	defs, err := s.defs.List(ctx, tenants, owner, q, limit, offset)
 	if err != nil {
 		return nil, apperrors.Wrap(apperrors.ClassInternal, "list experiments", err)
 	}
-	out := make([]server.ExperimentView, 0, len(defs))
+	out := make([]server.Experiment, 0, len(defs))
 	for i := range defs {
 		out = append(out, toView(&defs[i]))
 	}
@@ -87,7 +87,7 @@ func (s *Service) List(ctx context.Context, tenants []string, owner, q string, l
 }
 
 // Update edits an Experiment template / metadata.
-func (s *Service) Update(ctx context.Context, id *auth.Identity, tenant, name string, in server.ExperimentPatchInput) (*server.ExperimentView, error) {
+func (s *Service) Update(ctx context.Context, id *auth.Identity, tenant, name string, in server.ExperimentPatchRequest) (*server.Experiment, error) {
 	d, err := s.get(ctx, tenant, name)
 	if err != nil {
 		return nil, err
@@ -143,7 +143,7 @@ func (s *Service) Delete(ctx context.Context, id *auth.Identity, tenant, name st
 // ---- Runs (delegated) ----
 
 // TriggerRun snapshots the Experiment spec ⊕ overrides into a new MLRun.
-func (s *Service) TriggerRun(ctx context.Context, tenant, name, displayName string, ov *server.RunTriggerInput) (*server.RunView, error) {
+func (s *Service) TriggerRun(ctx context.Context, tenant, name, displayName string, ov *server.RunTriggerRequest) (*server.Run, error) {
 	d, err := s.get(ctx, tenant, name)
 	if err != nil {
 		return nil, err
@@ -155,13 +155,13 @@ func (s *Service) TriggerRun(ctx context.Context, tenant, name, displayName stri
 	return s.runner.Trigger(ctx, tenant, name, displayName, spec, ov)
 }
 
-func (s *Service) ListRuns(ctx context.Context, tenant, name, phase string) ([]server.RunView, error) {
+func (s *Service) ListRuns(ctx context.Context, tenant, name, phase string) ([]server.Run, error) {
 	return s.runner.List(ctx, tenant, name, phase)
 }
-func (s *Service) GetRun(ctx context.Context, tenant, name, run string) (*server.RunView, error) {
+func (s *Service) GetRun(ctx context.Context, tenant, name, run string) (*server.Run, error) {
 	return s.runner.Get(ctx, tenant, name, run)
 }
-func (s *Service) CancelRun(ctx context.Context, tenant, name, run string) (*server.RunView, error) {
+func (s *Service) CancelRun(ctx context.Context, tenant, name, run string) (*server.Run, error) {
 	return s.runner.Cancel(ctx, tenant, name, run)
 }
 func (s *Service) DeleteRun(ctx context.Context, tenant, run string) error {
@@ -245,7 +245,7 @@ func (s *Service) StopTensorBoard(ctx context.Context, tenant, exp string) error
 // experiment + selected runs are passed as annotations for compute to resolve
 // the object-store logdir prefix; the route stays disabled (no external access
 // until the SecurityPolicy lands).
-func buildTensorBoardInput(name, exp string, spec server.JobSpec, runs []string) (computeservice.MLServiceInput, error) {
+func buildTensorBoardInput(name, exp string, spec server.JobSpec, runs []string) (computeservice.MLServiceCreate, error) {
 	annos := map[string]any{"axisml.io/experiment": exp}
 	if len(runs) > 0 {
 		annos["axisml.io/tensorboard-runs"] = runs
@@ -264,7 +264,7 @@ func buildTensorBoardInput(name, exp string, spec server.JobSpec, runs []string)
 		}},
 		"route": map[string]any{"enabled": false},
 	}
-	var out computeservice.MLServiceInput
+	var out computeservice.MLServiceCreate
 	b, err := json.Marshal(input)
 	if err != nil {
 		return out, err

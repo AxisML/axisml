@@ -141,7 +141,7 @@ func (s *Service) Events(ctx context.Context, tenant, name string) ([]computeser
 	return nil, nil
 }
 
-func buildInput(req server.TrafficPolicyCreateRequest) (computeservice.TrafficInput, error) {
+func buildInput(req server.TrafficPolicyCreateRequest) (computeservice.TrafficCreate, error) {
 	backends := make([]map[string]any, 0, len(req.Backends))
 	for _, b := range req.Backends {
 		m := map[string]any{"serviceName": b.ServiceName, "weight": b.Weight}
@@ -162,7 +162,7 @@ func buildInput(req server.TrafficPolicyCreateRequest) (computeservice.TrafficIn
 	if req.Description != "" {
 		input["description"] = req.Description
 	}
-	var out computeservice.TrafficInput
+	var out computeservice.TrafficCreate
 	b, err := json.Marshal(input)
 	if err != nil {
 		return out, err

@@ -307,34 +307,34 @@ func paths() map[string]openapigen.PathItem {
 	// ---- Jobs + Runs ----
 	p["/api/v1/jobs"] = openapigen.PathItem{
 		Post: newOp(tagJobs, "createJob", "Create a Job (reusable template)",
-			[]openapigen.Parameter{activeTenant(true)}, body("JobCreateInput"), resp(sc("201", "Job created.", "JobView"), "400", "401", "403", "404", "409", "422", "500")),
+			[]openapigen.Parameter{activeTenant(true)}, body("JobCreateRequest"), resp(sc("201", "Job created.", "Job"), "400", "401", "403", "404", "409", "422", "500")),
 		Get: newOp(tagJobs, "listJobs", "List Jobs",
 			[]openapigen.Parameter{activeTenant(false), ownerParam, qParam, limitParam, continueParam},
 			nil, resp(sc("200", "A page of Jobs.", "JobList"), "400", "401", "403", "500")),
 	}
 	p["/api/v1/jobs/{name}"] = openapigen.PathItem{
 		Get: newOp(tagJobs, "getJob", "Get a Job",
-			[]openapigen.Parameter{activeTenant(true), jobNameP()}, nil, resp(sc("200", "Job detail.", "JobView"), "400", "401", "403", "404", "500")),
+			[]openapigen.Parameter{activeTenant(true), jobNameP()}, nil, resp(sc("200", "Job detail.", "Job"), "400", "401", "403", "404", "500")),
 		Patch: newOp(tagJobs, "updateJob", "Edit a Job template / metadata",
-			[]openapigen.Parameter{activeTenant(true), jobNameP()}, body("JobPatchInput"), resp(sc("200", "Job updated.", "JobView"), "400", "401", "403", "404", "422", "500")),
+			[]openapigen.Parameter{activeTenant(true), jobNameP()}, body("JobPatchRequest"), resp(sc("200", "Job updated.", "Job"), "400", "401", "403", "404", "422", "500")),
 		Delete: newOp(tagJobs, "deleteJob", "Delete a Job (cascade)",
 			[]openapigen.Parameter{activeTenant(true), jobNameP()}, nil, resp(sc("204", "Job (and its terminal Runs) deleted.", ""), "400", "401", "403", "404", "409", "500")),
 	}
 	p["/api/v1/jobs/{name}/runs"] = openapigen.PathItem{
 		Post: newOp(tagJobs, "triggerRun", "Trigger a Run from a Job",
-			[]openapigen.Parameter{activeTenant(true), jobNameP()}, optBody("RunTriggerInput"), resp(sc("201", "Run triggered.", "RunView"), "400", "401", "403", "404", "409", "422", "500")),
+			[]openapigen.Parameter{activeTenant(true), jobNameP()}, optBody("RunTriggerRequest"), resp(sc("201", "Run triggered.", "Run"), "400", "401", "403", "404", "409", "422", "500")),
 		Get: newOp(tagJobs, "listRuns", "List Runs of a Job (live)",
 			[]openapigen.Parameter{activeTenant(true), jobNameP(), qp("phase", "", openapigen.Ref("RunPhase")), limitParam, continueParam},
 			nil, resp(sc("200", "A page of Runs.", "RunList"), "400", "401", "403", "404", "500")),
 	}
 	p["/api/v1/jobs/{name}/runs/{run}"] = openapigen.PathItem{
 		Get: newOp(tagJobs, "getRun", "Get a Run",
-			[]openapigen.Parameter{activeTenant(true), jobNameP(), runNameP()}, nil, resp(sc("200", "Run detail.", "RunView"), "400", "401", "403", "404", "500")),
+			[]openapigen.Parameter{activeTenant(true), jobNameP(), runNameP()}, nil, resp(sc("200", "Run detail.", "Run"), "400", "401", "403", "404", "500")),
 		Delete: newOp(tagJobs, "deleteRun", "Delete a Run",
 			[]openapigen.Parameter{activeTenant(true), jobNameP(), runNameP()}, nil, resp(sc("204", "Run deleted.", ""), "400", "401", "403", "404", "500")),
 	}
 	p["/api/v1/jobs/{name}/runs/{run}/cancel"] = openapigen.PathItem{Post: newOp(tagJobs, "cancelRun", "Cancel a running Run",
-		[]openapigen.Parameter{activeTenant(true), jobNameP(), runNameP()}, nil, resp(sc("200", "Cancel request accepted.", "RunView"), "400", "401", "403", "404", "409", "500"))}
+		[]openapigen.Parameter{activeTenant(true), jobNameP(), runNameP()}, nil, resp(sc("200", "Cancel request accepted.", "Run"), "400", "401", "403", "404", "409", "500"))}
 	p["/api/v1/jobs/{name}/runs/{run}/metrics"] = openapigen.PathItem{Get: newOp(tagJobs, "getRunMetrics", "Query resource metrics for a Run",
 		append([]openapigen.Parameter{activeTenant(true), jobNameP(), runNameP()}, runMetricsParams()...), nil, resp(sc("200", "Metric series.", "MetricSeries"), "400", "401", "403", "404", "502", "500"))}
 	p["/api/v1/jobs/{name}/runs/{run}/pods"] = openapigen.PathItem{Get: newOp(tagJobs, "listRunPods", "List Pods belonging to a Run",
@@ -390,34 +390,34 @@ func paths() map[string]openapigen.PathItem {
 	// ---- Experiments + Runs ----
 	p["/api/v1/experiments"] = openapigen.PathItem{
 		Post: newOp(tagExperiments, "createExperiment", "Create an experiment (training template)",
-			[]openapigen.Parameter{activeTenant(true)}, body("ExperimentCreateInput"), resp(sc("201", "Experiment created.", "ExperimentView"), "400", "401", "403", "404", "409", "422", "500")),
+			[]openapigen.Parameter{activeTenant(true)}, body("ExperimentCreateRequest"), resp(sc("201", "Experiment created.", "Experiment"), "400", "401", "403", "404", "409", "422", "500")),
 		Get: newOp(tagExperiments, "listExperiments", "List experiments",
 			[]openapigen.Parameter{activeTenant(false), ownerParam, qParam, limitParam, continueParam},
 			nil, resp(sc("200", "A page of experiments.", "ExperimentList"), "400", "401", "403", "500")),
 	}
 	p["/api/v1/experiments/{name}"] = openapigen.PathItem{
 		Get: newOp(tagExperiments, "getExperiment", "Get an experiment",
-			[]openapigen.Parameter{activeTenant(true), experimentNameP()}, nil, resp(sc("200", "Experiment detail.", "ExperimentView"), "400", "401", "403", "404", "500")),
+			[]openapigen.Parameter{activeTenant(true), experimentNameP()}, nil, resp(sc("200", "Experiment detail.", "Experiment"), "400", "401", "403", "404", "500")),
 		Patch: newOp(tagExperiments, "updateExperiment", "Edit an experiment template / metadata",
-			[]openapigen.Parameter{activeTenant(true), experimentNameP()}, body("ExperimentPatchInput"), resp(sc("200", "Experiment updated.", "ExperimentView"), "400", "401", "403", "404", "422", "500")),
+			[]openapigen.Parameter{activeTenant(true), experimentNameP()}, body("ExperimentPatchRequest"), resp(sc("200", "Experiment updated.", "Experiment"), "400", "401", "403", "404", "422", "500")),
 		Delete: newOp(tagExperiments, "deleteExperiment", "Delete an experiment (cascade)",
 			[]openapigen.Parameter{activeTenant(true), experimentNameP()}, nil, resp(sc("204", "Experiment (and its terminal Runs) deleted.", ""), "400", "401", "403", "404", "409", "500")),
 	}
 	p["/api/v1/experiments/{name}/runs"] = openapigen.PathItem{
 		Post: newOp(tagExperiments, "triggerExperimentRun", "Trigger a Run from an experiment",
-			[]openapigen.Parameter{activeTenant(true), experimentNameP()}, optBody("RunTriggerInput"), resp(sc("201", "Run triggered.", "RunView"), "400", "401", "403", "404", "409", "422", "500")),
+			[]openapigen.Parameter{activeTenant(true), experimentNameP()}, optBody("RunTriggerRequest"), resp(sc("201", "Run triggered.", "Run"), "400", "401", "403", "404", "409", "422", "500")),
 		Get: newOp(tagExperiments, "listExperimentRuns", "List Runs of an experiment (live)",
 			[]openapigen.Parameter{activeTenant(true), experimentNameP(), qp("phase", "", openapigen.Ref("RunPhase")), limitParam, continueParam},
 			nil, resp(sc("200", "A page of Runs.", "RunList"), "400", "401", "403", "404", "500")),
 	}
 	p["/api/v1/experiments/{name}/runs/{run}"] = openapigen.PathItem{
 		Get: newOp(tagExperiments, "getExperimentRun", "Get a Run",
-			[]openapigen.Parameter{activeTenant(true), experimentNameP(), runNameP()}, nil, resp(sc("200", "Run detail.", "RunView"), "400", "401", "403", "404", "500")),
+			[]openapigen.Parameter{activeTenant(true), experimentNameP(), runNameP()}, nil, resp(sc("200", "Run detail.", "Run"), "400", "401", "403", "404", "500")),
 		Delete: newOp(tagExperiments, "deleteExperimentRun", "Delete a Run",
 			[]openapigen.Parameter{activeTenant(true), experimentNameP(), runNameP()}, nil, resp(sc("204", "Run deleted.", ""), "400", "401", "403", "404", "500")),
 	}
 	p["/api/v1/experiments/{name}/runs/{run}/cancel"] = openapigen.PathItem{Post: newOp(tagExperiments, "cancelExperimentRun", "Cancel a running Run",
-		[]openapigen.Parameter{activeTenant(true), experimentNameP(), runNameP()}, nil, resp(sc("200", "Cancel request accepted.", "RunView"), "400", "401", "403", "404", "409", "500"))}
+		[]openapigen.Parameter{activeTenant(true), experimentNameP(), runNameP()}, nil, resp(sc("200", "Cancel request accepted.", "Run"), "400", "401", "403", "404", "409", "500"))}
 	p["/api/v1/experiments/{name}/runs/{run}/metrics"] = openapigen.PathItem{Get: newOp(tagExperiments, "getExperimentRunMetrics", "Query resource metrics for a Run",
 		append([]openapigen.Parameter{activeTenant(true), experimentNameP(), runNameP()}, runMetricsParams()...), nil, resp(sc("200", "Metric series.", "MetricSeries"), "400", "401", "403", "404", "502", "500"))}
 	p["/api/v1/experiments/{name}/runs/{run}/pods"] = openapigen.PathItem{Get: newOp(tagExperiments, "listExperimentRunPods", "List Pods belonging to a Run",
@@ -524,14 +524,14 @@ func addArtifactKind(p map[string]openapigen.PathItem, seg, tag, kind, view, sta
 	defPath := "/api/v1/" + seg + "/{tenant}/{name}"
 	p[defPath] = openapigen.PathItem{
 		Post: newOp(tag, "create"+K+"Definition", "Create a "+kind+" definition",
-			[]openapigen.Parameter{tenantP(), artifactNameP()}, body("ArtifactDefinitionCreateInput"),
-			resp(sc("201", K+" definition created.", "ArtifactDefinitionView"), "400", "401", "403", "409", "422", "500")),
+			[]openapigen.Parameter{tenantP(), artifactNameP()}, body("ArtifactDefinitionCreateRequest"),
+			resp(sc("201", K+" definition created.", "ArtifactDefinition"), "400", "401", "403", "409", "422", "500")),
 		Get: newOp(tag, "get"+K+"Definition", "Get a "+kind+" definition",
 			[]openapigen.Parameter{tenantP(), artifactNameP()}, nil,
-			resp(sc("200", K+" definition detail.", "ArtifactDefinitionView"), "401", "403", "404", "500")),
+			resp(sc("200", K+" definition detail.", "ArtifactDefinition"), "401", "403", "404", "500")),
 		Patch: newOp(tag, "update"+K+"Definition", "Edit "+kind+" definition metadata",
-			[]openapigen.Parameter{tenantP(), artifactNameP()}, body("ArtifactDefinitionPatchInput"),
-			resp(sc("200", K+" definition updated.", "ArtifactDefinitionView"), "400", "401", "403", "404", "500")),
+			[]openapigen.Parameter{tenantP(), artifactNameP()}, body("ArtifactDefinitionPatchRequest"),
+			resp(sc("200", K+" definition updated.", "ArtifactDefinition"), "400", "401", "403", "404", "500")),
 		Delete: newOp(tag, "delete"+K+"Definition", "Delete a "+kind+" definition (cascade)",
 			[]openapigen.Parameter{tenantP(), artifactNameP()}, nil,
 			resp(sc("204", K+" definition and its versions deleted.", ""), "401", "403", "404", "500")),

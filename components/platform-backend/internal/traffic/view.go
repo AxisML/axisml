@@ -30,7 +30,7 @@ type statusShape struct {
 	} `json:"backends"`
 }
 
-func decode(t *computeservice.TrafficView) (specShape, statusShape) {
+func decode(t *computeservice.TrafficPolicy) (specShape, statusShape) {
 	var sp specShape
 	if b, err := json.Marshal(t.Spec); err == nil {
 		_ = json.Unmarshal(b, &sp)
@@ -42,7 +42,7 @@ func decode(t *computeservice.TrafficView) (specShape, statusShape) {
 	return sp, st
 }
 
-func toView(t *computeservice.TrafficView, tenant string) server.TrafficPolicy {
+func toView(t *computeservice.TrafficPolicy, tenant string) server.TrafficPolicy {
 	sp, st := decode(t)
 	v := server.TrafficPolicy{
 		ID:          server.UUID(t.Id.String()),

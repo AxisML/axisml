@@ -1,7 +1,7 @@
 // Package rundef holds the Run orchestration shared by the Jobs and Experiments
 // modules. A Runner is parameterised by the grouping label key
 // (axisml.io/job | axisml.io/experiment); both modules layer their own
-// definition CRUD + DTO mapping on top.
+// definition CRUD + type mapping on top.
 package rundef
 
 import (
@@ -38,7 +38,7 @@ func (r *Runner) selector(defName string) string { return r.labelKey + "=" + def
 
 // Trigger snapshots spec ⊕ overrides into a new MLRun named <def>-<n> with the
 // grouping label. The tenant must be active (suspension gate).
-func (r *Runner) Trigger(ctx context.Context, tenant, defName, displayName string, spec server.JobSpec, ov *server.RunTriggerInput) (*server.RunView, error) {
+func (r *Runner) Trigger(ctx context.Context, tenant, defName, displayName string, spec server.JobSpec, ov *server.RunTriggerRequest) (*server.Run, error) {
 	if err := guard.TenantActive(ctx, r.tenants, tenant); err != nil {
 		return nil, err
 	}
@@ -70,12 +70,12 @@ func (r *Runner) Trigger(ctx context.Context, tenant, defName, displayName strin
 }
 
 // List lists a definition's Runs, optionally filtered by phase.
-func (r *Runner) List(ctx context.Context, tenant, defName, phase string) ([]server.RunView, error) {
+func (r *Runner) List(ctx context.Context, tenant, defName, phase string) ([]server.Run, error) {
 	runs, err := r.compute.ListMLRuns(ctx, tenant, r.selector(defName))
 	if err != nil {
 		return nil, err
 	}
-	out := make([]server.RunView, 0, len(runs))
+	out := make([]server.Run, 0, len(runs))
 	for i := range runs {
 		if phase != "" && runs[i].Phase != phase {
 			continue
@@ -86,7 +86,7 @@ func (r *Runner) List(ctx context.Context, tenant, defName, phase string) ([]ser
 }
 
 // Get returns one Run.
-func (r *Runner) Get(ctx context.Context, tenant, defName, run string) (*server.RunView, error) {
+func (r *Runner) Get(ctx context.Context, tenant, defName, run string) (*server.Run, error) {
 	v, err := r.compute.GetMLRun(ctx, tenant, run)
 	if err != nil {
 		return nil, err
@@ -96,7 +96,7 @@ func (r *Runner) Get(ctx context.Context, tenant, defName, run string) (*server.
 }
 
 // Cancel cancels a Run.
-func (r *Runner) Cancel(ctx context.Context, tenant, defName, run string) (*server.RunView, error) {
+func (r *Runner) Cancel(ctx context.Context, tenant, defName, run string) (*server.Run, error) {
 	v, err := r.compute.CancelMLRun(ctx, tenant, run)
 	if err != nil {
 		return nil, err
@@ -167,14 +167,14 @@ func (r *Runner) nextRunNumber(ctx context.Context, tenant, defName string) (int
 	return max + 1, nil
 }
 
-func ovLabels(ov *server.RunTriggerInput) map[string]string {
+func ovLabels(ov *server.RunTriggerRequest) map[string]string {
 	if ov == nil {
 		return nil
 	}
 	return ov.Labels
 }
 
-func ovAnnotations(ov *server.RunTriggerInput) map[string]string {
+func ovAnnotations(ov *server.RunTriggerRequest) map[string]string {
 	if ov == nil {
 		return nil
 	}

@@ -17,8 +17,8 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 
-	"github.com/axisml/axisml/components/artifact-hub/internal/artifact"
 	"github.com/axisml/axisml/components/artifact-hub/internal/server"
 	apperrors "github.com/axisml/axisml/components/artifact-hub/pkg/errors"
 	"github.com/axisml/axisml/pkg/openapigen"
@@ -101,17 +101,26 @@ func buildDocument(version string) *openapigen.Document {
 			{Tag: "axisml_name", Pattern: axisMLNamePattern, MinLength: 3, MaxLength: 40},
 			{Tag: "axisml_version", Pattern: axisMLVersionPattern, MinLength: 1, MaxLength: 64},
 		},
+		// The API DTO types carry their own descriptive names (Artifact,
+		// UploadCredentials, …); map the package to an empty prefix so nested
+		// $refs resolve to the bare type name instead of stuttering (ArtifactArtifact).
+		PackageNamer: func(pkg string) (string, bool) {
+			if strings.HasSuffix(pkg, "/components/artifact-hub/internal/server") {
+				return "", true
+			}
+			return "", false
+		},
 	})
 
 	g.Register("Problem", server.Problem{}, openapigen.ResponseMode)
-	g.Register("ArtifactInitiateInput", artifact.InitiateInput{}, openapigen.InputMode)
-	g.Register("ArtifactInitiateResult", artifact.InitiateResult{}, openapigen.ResponseMode)
-	g.Register("ArtifactCompleteInput", artifact.CompleteInput{}, openapigen.InputMode)
-	g.Register("ArtifactPatchInput", artifact.PatchInput{}, openapigen.InputMode)
-	g.Register("ArtifactResolveResult", artifact.ResolveResult{}, openapigen.ResponseMode)
-	g.Register("ArtifactView", artifact.View{}, openapigen.ResponseMode)
+	g.Register("ArtifactInitiateRequest", server.ArtifactInitiateRequest{}, openapigen.InputMode)
+	g.Register("ArtifactInitiateResponse", server.ArtifactInitiateResponse{}, openapigen.ResponseMode)
+	g.Register("ArtifactCompleteRequest", server.ArtifactCompleteRequest{}, openapigen.InputMode)
+	g.Register("ArtifactPatchRequest", server.ArtifactPatchRequest{}, openapigen.InputMode)
+	g.Register("ArtifactResolveResponse", server.ArtifactResolveResponse{}, openapigen.ResponseMode)
+	g.Register("Artifact", server.Artifact{}, openapigen.ResponseMode)
 
-	g.Set("ArtifactList", openapigen.ListEnvelope("ArtifactView"))
+	g.Set("ArtifactList", openapigen.ListEnvelope("Artifact"))
 
 	tags := []openapigen.TagEntry{
 		{Name: tagArtifacts, Description: "Artifact registry partitioned by (namespace, kind, name, version)."},
@@ -164,8 +173,8 @@ func buildDocument(version string) *openapigen.Document {
 				Tags: []string{tagArtifacts}, Summary: "Initiate a " + k.singular + " version (two-phase write step 1)",
 				OperationID: "initiate" + k.tag,
 				Parameters:  []openapigen.Parameter{nsParam, nameParam},
-				RequestBody: openapigen.JSONBody("ArtifactInitiateInput"),
-				Responses:   withErrors(map[string]openapigen.Response{"201": openapigen.JSONResp("Initiated.", "ArtifactInitiateResult")}),
+				RequestBody: openapigen.JSONBody("ArtifactInitiateRequest"),
+				Responses:   withErrors(map[string]openapigen.Response{"201": openapigen.JSONResp("Initiated.", "ArtifactInitiateResponse")}),
 			},
 			Get: &openapigen.Operation{
 				Tags: []string{tagArtifacts}, Summary: "List versions of a " + k.singular,
@@ -179,34 +188,34 @@ func buildDocument(version string) *openapigen.Document {
 				Tags: []string{tagArtifacts}, Summary: "Get a " + k.singular + " version",
 				OperationID: "get" + k.tag,
 				Parameters:  []openapigen.Parameter{nsParam, nameParam, versionParam},
-				Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Artifact.", "ArtifactView")}),
+				Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Artifact.", "Artifact")}),
 			},
 			Patch: &openapigen.Operation{
 				Tags: []string{tagArtifacts}, Summary: "Patch a " + k.singular + "'s display_name / description / labels / annotations",
 				OperationID: "update" + k.tag,
 				Parameters:  []openapigen.Parameter{nsParam, nameParam, versionParam},
-				RequestBody: openapigen.JSONBody("ArtifactPatchInput"),
-				Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Updated.", "ArtifactView")}),
+				RequestBody: openapigen.JSONBody("ArtifactPatchRequest"),
+				Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Updated.", "Artifact")}),
 			},
 			Delete: &openapigen.Operation{
 				Tags: []string{tagArtifacts}, Summary: "Delete a " + k.singular + " version",
 				OperationID: "delete" + k.tag,
 				Parameters:  []openapigen.Parameter{nsParam, nameParam, versionParam},
-				Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Soft-deleted artifact (status=Deleting).", "ArtifactView")}),
+				Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Soft-deleted artifact (status=Deleting).", "Artifact")}),
 			},
 		}
 		paths[base+"/{name}/{version}/complete"] = openapigen.PathItem{Post: &openapigen.Operation{
 			Tags: []string{tagArtifacts}, Summary: "Complete " + k.singular + " upload (two-phase write step 2)",
 			OperationID: "complete" + k.tag,
 			Parameters:  []openapigen.Parameter{nsParam, nameParam, versionParam},
-			RequestBody: openapigen.JSONBody("ArtifactCompleteInput"),
-			Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Completed artifact.", "ArtifactView")}),
+			RequestBody: openapigen.JSONBody("ArtifactCompleteRequest"),
+			Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Completed artifact.", "Artifact")}),
 		}}
 		paths[base+"/{name}/{version}/resolve"] = openapigen.PathItem{Get: &openapigen.Operation{
 			Tags: []string{tagArtifacts}, Summary: "Resolve " + k.singular + " for download",
 			OperationID: "resolve" + k.tag,
 			Parameters:  []openapigen.Parameter{nsParam, nameParam, versionParam, usageParam},
-			Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Resolved.", "ArtifactResolveResult")}),
+			Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Resolved.", "ArtifactResolveResponse")}),
 		}}
 	}
 

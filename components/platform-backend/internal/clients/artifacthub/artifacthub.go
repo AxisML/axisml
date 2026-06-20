@@ -23,11 +23,11 @@ const service = "artifacts"
 
 // Re-exported generated types.
 type (
-	View           = gen.ArtifactView
-	InitiateInput  = gen.ArtifactInitiateInput
-	InitiateResult = gen.ArtifactInitiateResult
-	ResolveResult  = gen.ArtifactResolveResult
-	PatchInput     = gen.ArtifactPatchInput
+	Artifact         = gen.Artifact
+	InitiateRequest  = gen.ArtifactInitiateRequest
+	InitiateResponse = gen.ArtifactInitiateResponse
+	ResolveResponse  = gen.ArtifactResolveResponse
+	PatchRequest     = gen.ArtifactPatchRequest
 )
 
 // Client wraps the generated artifact-hub client.
@@ -50,7 +50,7 @@ func badKind(kind string) error {
 }
 
 // Initiate starts a new version upload.
-func (c *Client) Initiate(ctx context.Context, ns, kind, name string, in InitiateInput) (*InitiateResult, error) {
+func (c *Client) Initiate(ctx context.Context, ns, kind, name string, in InitiateRequest) (*InitiateResponse, error) {
 	switch kind {
 	case "model":
 		res, err := c.gen.InitiateModelWithResponse(ctx, ns, name, in)
@@ -75,7 +75,7 @@ func (c *Client) Initiate(ctx context.Context, ns, kind, name string, in Initiat
 }
 
 // Get returns one artifact version.
-func (c *Client) Get(ctx context.Context, ns, kind, name, version string) (*View, error) {
+func (c *Client) Get(ctx context.Context, ns, kind, name, version string) (*Artifact, error) {
 	switch kind {
 	case "model":
 		res, err := c.gen.GetModelWithResponse(ctx, ns, name, version)
@@ -88,7 +88,7 @@ func (c *Client) Get(ctx context.Context, ns, kind, name, version string) (*View
 }
 
 // Update patches mutable version metadata.
-func (c *Client) Update(ctx context.Context, ns, kind, name, version string, in PatchInput) (*View, error) {
+func (c *Client) Update(ctx context.Context, ns, kind, name, version string, in PatchRequest) (*Artifact, error) {
 	switch kind {
 	case "model":
 		res, err := c.gen.UpdateModelWithResponse(ctx, ns, name, version, in)
@@ -114,8 +114,8 @@ func (c *Client) Delete(ctx context.Context, ns, kind, name, version string) err
 }
 
 // Complete finalizes a version upload with its digest.
-func (c *Client) Complete(ctx context.Context, ns, kind, name, version, digest string) (*View, error) {
-	body := gen.ArtifactCompleteInput{Digest: digest}
+func (c *Client) Complete(ctx context.Context, ns, kind, name, version, digest string) (*Artifact, error) {
+	body := gen.ArtifactCompleteRequest{Digest: digest}
 	switch kind {
 	case "model":
 		res, err := c.gen.CompleteModelWithResponse(ctx, ns, name, version, body)
@@ -128,7 +128,7 @@ func (c *Client) Complete(ctx context.Context, ns, kind, name, version, digest s
 }
 
 // Resolve returns download credentials / inspect URI for a version.
-func (c *Client) Resolve(ctx context.Context, ns, kind, name, version, usage string) (*ResolveResult, error) {
+func (c *Client) Resolve(ctx context.Context, ns, kind, name, version, usage string) (*ResolveResponse, error) {
 	switch kind {
 	case "model":
 		res, err := c.gen.ResolveModelWithResponse(ctx, ns, name, version, &gen.ResolveModelParams{Usage: &usage})
@@ -153,7 +153,7 @@ func (c *Client) Resolve(ctx context.Context, ns, kind, name, version, usage str
 }
 
 // ListVersions lists a definition's versions.
-func (c *Client) ListVersions(ctx context.Context, ns, kind, name string) ([]View, error) {
+func (c *Client) ListVersions(ctx context.Context, ns, kind, name string) ([]Artifact, error) {
 	switch kind {
 	case "model":
 		res, err := c.gen.ListModelVersionsWithResponse(ctx, ns, name, &gen.ListModelVersionsParams{})
@@ -177,7 +177,7 @@ func (c *Client) ListVersions(ctx context.Context, ns, kind, name string) ([]Vie
 	return nil, badKind(kind)
 }
 
-func view(j *View, resp *http.Response, body []byte, err error) (*View, error) {
+func view(j *Artifact, resp *http.Response, body []byte, err error) (*Artifact, error) {
 	if err != nil {
 		return nil, clienterr.Transport(service, err)
 	}

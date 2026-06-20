@@ -94,7 +94,7 @@ type InitResources struct {
 	ServiceAccounts  []ServiceAccountInit  `json:"serviceAccounts,omitempty"`
 }
 
-// Tenant is the Platform-facing Tenant DTO. Platform owns the durable tenant
+// Tenant is the Platform-facing Tenant type. Platform owns the durable tenant
 // record (this row); the live Kubernetes materialization — Namespace,
 // ElasticQuota, per-tenant init resources — is owned by cluster-manager via
 // the Tenant CR, which Platform drives over REST and never touches directly.

@@ -215,14 +215,14 @@ components:
           nullable: true
         quotas:
           items:
-            $ref: '#/components/schemas/ServerQuotaDTO'
+            $ref: '#/components/schemas/ServerQuota'
           type: array
       type: object
     PatchQuotaRequest:
       properties:
         units:
           items:
-            $ref: '#/components/schemas/ServerQuotaUnitDTO'
+            $ref: '#/components/schemas/ServerQuotaUnit'
           type: array
       type: object
     PatchResourcePoolRequest:
@@ -313,13 +313,13 @@ components:
       - title
       - type
       type: object
-    QuotaDTO:
+    Quota:
       properties:
         pool:
           type: string
         units:
           items:
-            $ref: '#/components/schemas/ServerQuotaUnitDTO'
+            $ref: '#/components/schemas/ServerQuotaUnit'
           type: array
       required:
       - pool
@@ -331,7 +331,7 @@ components:
           type: integer
         items:
           items:
-            $ref: '#/components/schemas/ServerQuotaDTO'
+            $ref: '#/components/schemas/ServerQuota'
           type: array
       required:
       - count
@@ -362,7 +362,7 @@ components:
       required:
       - verbs
       type: object
-    ResourcePoolDTO:
+    ResourcePool:
       properties:
         annotations:
           additionalProperties:
@@ -391,7 +391,7 @@ components:
           type: array
         units:
           items:
-            $ref: '#/components/schemas/ServerResourceUnitDTO'
+            $ref: '#/components/schemas/ServerResourceUnit'
           type: array
         updatedAt:
           format: date-time
@@ -409,13 +409,13 @@ components:
           type: integer
         items:
           items:
-            $ref: '#/components/schemas/ServerResourcePoolDTO'
+            $ref: '#/components/schemas/ServerResourcePool'
           type: array
       required:
       - count
       - items
       type: object
-    ResourceUnitDTO:
+    ResourceUnit:
       properties:
         annotations:
           additionalProperties:
@@ -452,7 +452,7 @@ components:
           type: integer
         items:
           items:
-            $ref: '#/components/schemas/ServerResourceUnitDTO'
+            $ref: '#/components/schemas/ServerResourceUnit'
           type: array
       required:
       - count
@@ -489,19 +489,19 @@ components:
       - name
       - requests
       type: object
-    ServerQuotaDTO:
+    ServerQuota:
       properties:
         pool:
           type: string
         units:
           items:
-            $ref: '#/components/schemas/ServerQuotaUnitDTO'
+            $ref: '#/components/schemas/ServerQuotaUnit'
           type: array
       required:
       - pool
       - units
       type: object
-    ServerQuotaStatusDTO:
+    ServerQuotaStatus:
       properties:
         pool:
           type: string
@@ -517,7 +517,7 @@ components:
       - pool
       - ready
       type: object
-    ServerQuotaUnitDTO:
+    ServerQuotaUnit:
       properties:
         quantity:
           type: integer
@@ -527,7 +527,7 @@ components:
       - quantity
       - unitName
       type: object
-    ServerResourcePoolDTO:
+    ServerResourcePool:
       properties:
         annotations:
           additionalProperties:
@@ -556,7 +556,7 @@ components:
           type: array
         units:
           items:
-            $ref: '#/components/schemas/ServerResourceUnitDTO'
+            $ref: '#/components/schemas/ServerResourceUnit'
           type: array
         updatedAt:
           format: date-time
@@ -566,7 +566,7 @@ components:
       - name
       - units
       type: object
-    ServerResourceUnitDTO:
+    ServerResourceUnit:
       properties:
         annotations:
           additionalProperties:
@@ -597,7 +597,7 @@ components:
       - name
       - requests
       type: object
-    ServerTenantDTO:
+    ServerTenant:
       properties:
         annotations:
           additionalProperties:
@@ -622,13 +622,13 @@ components:
           type: string
         quotas:
           items:
-            $ref: '#/components/schemas/ServerQuotaDTO'
+            $ref: '#/components/schemas/ServerQuota'
           type: array
         resourceVersion:
           type: string
         status:
           allOf:
-          - $ref: '#/components/schemas/ServerTenantStatusDTO'
+          - $ref: '#/components/schemas/ServerTenantStatus'
           nullable: true
       required:
       - createdAt
@@ -636,7 +636,7 @@ components:
       - namespace
       - quotas
       type: object
-    ServerTenantStatusDTO:
+    ServerTenantStatus:
       properties:
         message:
           type: string
@@ -649,7 +649,7 @@ components:
           type: string
         quotas:
           items:
-            $ref: '#/components/schemas/ServerQuotaStatusDTO'
+            $ref: '#/components/schemas/ServerQuotaStatus'
           type: array
       type: object
     SetQuotaRequest:
@@ -658,10 +658,10 @@ components:
           type: string
         units:
           items:
-            $ref: '#/components/schemas/ServerQuotaUnitDTO'
+            $ref: '#/components/schemas/ServerQuotaUnit'
           type: array
       type: object
-    TenantDTO:
+    Tenant:
       properties:
         annotations:
           additionalProperties:
@@ -686,13 +686,13 @@ components:
           type: string
         quotas:
           items:
-            $ref: '#/components/schemas/ServerQuotaDTO'
+            $ref: '#/components/schemas/ServerQuota'
           type: array
         resourceVersion:
           type: string
         status:
           allOf:
-          - $ref: '#/components/schemas/ServerTenantStatusDTO'
+          - $ref: '#/components/schemas/ServerTenantStatus'
           nullable: true
       required:
       - createdAt
@@ -708,7 +708,7 @@ components:
           type: integer
         items:
           items:
-            $ref: '#/components/schemas/ServerTenantDTO'
+            $ref: '#/components/schemas/ServerTenant'
           type: array
       required:
       - count
@@ -795,7 +795,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ResourcePoolDTO'
+                $ref: '#/components/schemas/ResourcePool'
           description: ResourcePool created.
         "400":
           content:
@@ -914,7 +914,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ResourcePoolDTO'
+                $ref: '#/components/schemas/ResourcePool'
           description: ResourcePool.
         "400":
           content:
@@ -981,7 +981,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ResourcePoolDTO'
+                $ref: '#/components/schemas/ResourcePool'
           description: Updated ResourcePool.
         "400":
           content:
@@ -1115,7 +1115,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ResourceUnitDTO'
+                $ref: '#/components/schemas/ResourceUnit'
           description: Unit created.
         "400":
           content:
@@ -1246,7 +1246,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ResourceUnitDTO'
+                $ref: '#/components/schemas/ResourceUnit'
           description: Unit.
         "400":
           content:
@@ -1319,7 +1319,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ResourceUnitDTO'
+                $ref: '#/components/schemas/ResourceUnit'
           description: Updated unit.
         "400":
           content:
@@ -1440,7 +1440,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TenantDTO'
+                $ref: '#/components/schemas/Tenant'
           description: Tenant created.
         "400":
           content:
@@ -1559,7 +1559,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TenantDTO'
+                $ref: '#/components/schemas/Tenant'
           description: Tenant.
         "400":
           content:
@@ -1626,7 +1626,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TenantDTO'
+                $ref: '#/components/schemas/Tenant'
           description: Updated Tenant.
         "400":
           content:
@@ -1755,7 +1755,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/QuotaDTO'
+                $ref: '#/components/schemas/Quota'
           description: Quota set.
         "400":
           content:
@@ -1892,7 +1892,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/QuotaDTO'
+                $ref: '#/components/schemas/Quota'
           description: Updated quota.
         "400":
           content:

@@ -1,4 +1,4 @@
-// Package server declares the AxisML Platform HTTP API surface as Go DTO types.
+// Package server declares the AxisML Platform HTTP API surface as Go request/response types.
 //
 // Platform is not yet implemented; this package is a contract-only "shell".
 // Its sole consumer is cmd/openapi-gen, which reflects these structs into
@@ -9,7 +9,7 @@
 //
 // Conventions (mirrored by cmd/openapi-gen's generator options):
 //
-//   - Every exported struct's name is its OpenAPI component name. All DTOs live
+//   - Every exported struct's name is its OpenAPI component name. All types live
 //     in this one package so the generator's PackageNamer can map the package
 //     path to an empty prefix, making component name == Go type name.
 //   - Scalar string formats (uuid / email / password / uri) are modelled as the

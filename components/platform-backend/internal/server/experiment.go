@@ -2,12 +2,12 @@ package server
 
 import "time"
 
-// ExperimentView is a Platform-owned reusable training-experiment template. It
+// Experiment is a Platform-owned reusable training-experiment template. It
 // is the training-specialized form of a Job: its Spec is isomorphic to JobSpec
 // (training hyperparameters are role args/env, not separately modelled). Each
 // run produces a compute MLRun named <experiment>-<n> labelled
 // axisml.io/experiment.
-type ExperimentView struct {
+type Experiment struct {
 	ID          UUID      `json:"id"`
 	Namespace   string    `json:"namespace"`
 	TenantName  string    `json:"tenantName"`
@@ -23,16 +23,16 @@ type ExperimentView struct {
 	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
-// ExperimentList is a page of ExperimentView.
+// ExperimentList is a page of Experiment.
 type ExperimentList struct {
-	Items         []ExperimentView `json:"items"`
-	Count         int              `json:"count" binding:"min=0"`
-	ContinueToken string           `json:"continueToken,omitempty"`
-	Partial       bool             `json:"partial,omitempty"`
+	Items         []Experiment `json:"items"`
+	Count         int          `json:"count" binding:"min=0"`
+	ContinueToken string       `json:"continueToken,omitempty"`
+	Partial       bool         `json:"partial,omitempty"`
 }
 
-// ExperimentCreateInput is the body of POST /experiments.
-type ExperimentCreateInput struct {
+// ExperimentCreateRequest is the body of POST /experiments.
+type ExperimentCreateRequest struct {
 	Name        string    `json:"name" binding:"required,dns1123,min=1,max=63"`
 	DisplayName string    `json:"displayName,omitempty" binding:"max=100"`
 	Description string    `json:"description,omitempty" binding:"max=1000"`
@@ -41,9 +41,9 @@ type ExperimentCreateInput struct {
 	Spec        JobSpec   `json:"spec" binding:"required"`
 }
 
-// ExperimentPatchInput is the body of PATCH /experiments/{name}. Edits only
+// ExperimentPatchRequest is the body of PATCH /experiments/{name}. Edits only
 // affect Runs triggered afterwards.
-type ExperimentPatchInput struct {
+type ExperimentPatchRequest struct {
 	DisplayName string    `json:"displayName,omitempty" binding:"max=100"`
 	Description string    `json:"description,omitempty" binding:"max=1000"`
 	Labels      StringMap `json:"labels,omitempty"`

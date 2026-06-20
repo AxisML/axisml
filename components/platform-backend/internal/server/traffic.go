@@ -52,8 +52,8 @@ type TrafficPolicyList struct {
 	Partial       bool            `json:"partial,omitempty"`
 }
 
-// TrafficPolicyBackendInput is one backend in a create / split request.
-type TrafficPolicyBackendInput struct {
+// TrafficPolicyBackendSpec is one backend in a create / split request.
+type TrafficPolicyBackendSpec struct {
 	ServiceName string                   `json:"serviceName" binding:"required,dns1123,max=40"`
 	Role        TrafficPolicyBackendRole `json:"role,omitempty"`
 	Weight      int                      `json:"weight,omitempty" binding:"min=0,max=100"`
@@ -63,13 +63,13 @@ type TrafficPolicyBackendInput struct {
 // one stable + one canary backend and an initial CanaryPercent; for weighted,
 // supply N backends whose weights sum to 100.
 type TrafficPolicyCreateRequest struct {
-	Name          string                      `json:"name" binding:"required,dns1123,min=1,max=40"`
-	DisplayName   string                      `json:"displayName,omitempty" binding:"max=100"`
-	Description   string                      `json:"description,omitempty" binding:"max=1000"`
-	Mode          TrafficPolicyMode           `json:"mode" binding:"required"`
-	Endpoint      TrafficPolicyEndpoint       `json:"endpoint,omitempty"`
-	Backends      []TrafficPolicyBackendInput `json:"backends" binding:"required,min=1"`
-	CanaryPercent int                         `json:"canaryPercent,omitempty" binding:"min=0,max=100"`
+	Name          string                     `json:"name" binding:"required,dns1123,min=1,max=40"`
+	DisplayName   string                     `json:"displayName,omitempty" binding:"max=100"`
+	Description   string                     `json:"description,omitempty" binding:"max=1000"`
+	Mode          TrafficPolicyMode          `json:"mode" binding:"required"`
+	Endpoint      TrafficPolicyEndpoint      `json:"endpoint,omitempty"`
+	Backends      []TrafficPolicyBackendSpec `json:"backends" binding:"required,min=1"`
+	CanaryPercent int                        `json:"canaryPercent,omitempty" binding:"min=0,max=100"`
 }
 
 // TrafficPolicyPatchRequest edits display metadata only; weights go via /split.
@@ -83,6 +83,6 @@ type TrafficPolicyPatchRequest struct {
 // TrafficPolicySplitRequest adjusts the distribution. Weighted policies set
 // backends[*].weight (Σ=100); canary policies set canaryPercent (stable=100−p).
 type TrafficPolicySplitRequest struct {
-	Backends      []TrafficPolicyBackendInput `json:"backends,omitempty"`
-	CanaryPercent *int                        `json:"canaryPercent,omitempty" binding:"omitempty,min=0,max=100"`
+	Backends      []TrafficPolicyBackendSpec `json:"backends,omitempty"`
+	CanaryPercent *int                       `json:"canaryPercent,omitempty" binding:"omitempty,min=0,max=100"`
 }

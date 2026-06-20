@@ -19,12 +19,12 @@ import (
 const service = "cluster-manager"
 
 // Clean-named aliases for the generated wire types, so callers never handle the
-// spec-derived *DTO names. The generated package remains the source of truth.
+// spec-derived, package-prefixed names. The generated package remains the source of truth.
 type (
-	Tenant      = gen.TenantDTO
-	Quota       = gen.ServerQuotaDTO
-	QuotaUnit   = gen.ServerQuotaUnitDTO
-	QuotaStatus = gen.ServerQuotaStatusDTO
+	Tenant      = gen.Tenant
+	Quota       = gen.ServerQuota
+	QuotaUnit   = gen.ServerQuotaUnit
+	QuotaStatus = gen.ServerQuotaStatus
 	Namespace   = gen.Apiv1alpha1NamespaceSpec
 )
 

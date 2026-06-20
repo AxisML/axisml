@@ -544,20 +544,38 @@ type Corev1VsphereVirtualDiskVolumeSource struct {
 	VolumePath        string  `json:"volumePath"`
 }
 
-// EventList defines model for EventList.
-type EventList struct {
-	Items []EventView `json:"items"`
-	Total int64       `json:"total"`
-}
-
-// EventView defines model for EventView.
-type EventView struct {
+// Event defines model for Event.
+type Event struct {
 	EventTime           *Metav1Time `json:"eventTime"`
 	Note                *string     `json:"note,omitempty"`
 	Object              string      `json:"object"`
 	Reason              string      `json:"reason"`
 	ReportingController *string     `json:"reportingController,omitempty"`
 	Type                string      `json:"type"`
+}
+
+// EventList defines model for EventList.
+type EventList struct {
+	Items []Event `json:"items"`
+	Total int64   `json:"total"`
+}
+
+// MLRun defines model for MLRun.
+type MLRun struct {
+	Annotations *map[string]string `json:"annotations,omitempty"`
+	CreatedAt   time.Time          `json:"createdAt"`
+	DeletedAt   *time.Time         `json:"deletedAt"`
+	Description *string            `json:"description,omitempty"`
+	DisplayName *string            `json:"displayName,omitempty"`
+	Id          openapi_types.UUID `json:"id"`
+	Labels      *map[string]string `json:"labels,omitempty"`
+	Name        string             `json:"name"`
+	Namespace   string             `json:"namespace"`
+	Owner       *string            `json:"owner,omitempty"`
+	Phase       string             `json:"phase"`
+	Spec        MLRunSpec          `json:"spec"`
+	Status      MLRunStatus        `json:"status"`
+	UpdatedAt   time.Time          `json:"updatedAt"`
 }
 
 // MLRunBackendSpec defines model for MLRunBackendSpec.
@@ -568,8 +586,17 @@ type MLRunBackendSpec struct {
 	Name   string                  `json:"name"`
 }
 
-// MLRunCreateInput defines model for MLRunCreateInput.
-type MLRunCreateInput struct {
+// MLRunCondition defines model for MLRunCondition.
+type MLRunCondition struct {
+	LastTransitionTime *time.Time `json:"lastTransitionTime,omitempty"`
+	Message            *string    `json:"message,omitempty"`
+	Reason             *string    `json:"reason,omitempty"`
+	Status             string     `json:"status"`
+	Type               string     `json:"type"`
+}
+
+// MLRunCreateRequest defines model for MLRunCreateRequest.
+type MLRunCreateRequest struct {
 	Annotations   *map[string]string  `json:"annotations,omitempty"`
 	Backend       *MLRunBackendSpec   `json:"backend"`
 	Description   *string             `json:"description,omitempty"`
@@ -586,12 +613,12 @@ type MLRunCreateInput struct {
 
 // MLRunList defines model for MLRunList.
 type MLRunList struct {
-	Items []MLRunView `json:"items"`
-	Total int64       `json:"total"`
+	Items []MLRun `json:"items"`
+	Total int64   `json:"total"`
 }
 
-// MLRunPatchInput defines model for MLRunPatchInput.
-type MLRunPatchInput struct {
+// MLRunPatchRequest defines model for MLRunPatchRequest.
+type MLRunPatchRequest struct {
 	Annotations *map[string]string `json:"annotations,omitempty"`
 	Description *string            `json:"description"`
 	DisplayName *string            `json:"displayName"`
@@ -642,22 +669,33 @@ type MLRunSpec struct {
 	Scheduling MLRunSchedulingSpec `json:"scheduling"`
 }
 
-// MLRunView defines model for MLRunView.
-type MLRunView struct {
-	Annotations *map[string]string `json:"annotations,omitempty"`
-	CreatedAt   time.Time          `json:"createdAt"`
-	DeletedAt   *time.Time         `json:"deletedAt"`
-	Description *string            `json:"description,omitempty"`
-	DisplayName *string            `json:"displayName,omitempty"`
-	Id          openapi_types.UUID `json:"id"`
-	Labels      *map[string]string `json:"labels,omitempty"`
-	Name        string             `json:"name"`
-	Namespace   string             `json:"namespace"`
-	Owner       *string            `json:"owner,omitempty"`
-	Phase       string             `json:"phase"`
-	Spec        MLRunSpec          `json:"spec"`
-	Status      MlrunStatusFields  `json:"status"`
-	UpdatedAt   time.Time          `json:"updatedAt"`
+// MLRunStatus defines model for MLRunStatus.
+type MLRunStatus struct {
+	Conditions *[]MLRunCondition `json:"conditions,omitempty"`
+	FinishedAt *time.Time        `json:"finishedAt"`
+	Message    *string           `json:"message,omitempty"`
+	StartedAt  *time.Time        `json:"startedAt"`
+}
+
+// MLService defines model for MLService.
+type MLService struct {
+	Annotations        *map[string]string `json:"annotations,omitempty"`
+	CreatedAt          time.Time          `json:"createdAt"`
+	DeletedAt          *time.Time         `json:"deletedAt"`
+	Description        *string            `json:"description,omitempty"`
+	DisplayName        *string            `json:"displayName,omitempty"`
+	Generation         int64              `json:"generation"`
+	Id                 openapi_types.UUID `json:"id"`
+	Kind               string             `json:"kind"`
+	Labels             *map[string]string `json:"labels,omitempty"`
+	Name               string             `json:"name"`
+	Namespace          string             `json:"namespace"`
+	ObservedGeneration int64              `json:"observedGeneration"`
+	Owner              *string            `json:"owner,omitempty"`
+	Phase              string             `json:"phase"`
+	Spec               MLServiceSpec      `json:"spec"`
+	Status             MLServiceStatus    `json:"status"`
+	UpdatedAt          time.Time          `json:"updatedAt"`
 }
 
 // MLServiceBackend defines model for MLServiceBackend.
@@ -668,8 +706,17 @@ type MLServiceBackend struct {
 	Name   string                  `json:"name"`
 }
 
-// MLServiceCreateInput defines model for MLServiceCreateInput.
-type MLServiceCreateInput struct {
+// MLServiceCondition defines model for MLServiceCondition.
+type MLServiceCondition struct {
+	LastTransitionTime *time.Time `json:"lastTransitionTime,omitempty"`
+	Message            *string    `json:"message,omitempty"`
+	Reason             *string    `json:"reason,omitempty"`
+	Status             string     `json:"status"`
+	Type               string     `json:"type"`
+}
+
+// MLServiceCreateRequest defines model for MLServiceCreateRequest.
+type MLServiceCreateRequest struct {
 	Annotations      *map[string]string             `json:"annotations,omitempty"`
 	Backend          *MLServiceBackend              `json:"backend"`
 	Description      *string                        `json:"description,omitempty"`
@@ -684,17 +731,17 @@ type MLServiceCreateInput struct {
 	Route            *MLServiceRoute                `json:"route"`
 	RunPolicy        *MLServiceRunPolicy            `json:"runPolicy"`
 	UnitName         string                         `json:"unitName"`
-	WorkspaceStorage *MlserviceWorkspaceStorageSpec `json:"workspaceStorage"`
+	WorkspaceStorage *MLServiceWorkspaceStorageSpec `json:"workspaceStorage"`
 }
 
 // MLServiceList defines model for MLServiceList.
 type MLServiceList struct {
-	Items []MLServiceView `json:"items"`
-	Total int64           `json:"total"`
+	Items []MLService `json:"items"`
+	Total int64       `json:"total"`
 }
 
-// MLServicePatchInput defines model for MLServicePatchInput.
-type MLServicePatchInput struct {
+// MLServicePatchRequest defines model for MLServicePatchRequest.
+type MLServicePatchRequest struct {
 	Annotations *map[string]string `json:"annotations,omitempty"`
 	Description *string            `json:"description"`
 	DisplayName *string            `json:"displayName"`
@@ -771,8 +818,8 @@ type MLServiceRunPolicy struct {
 	ProgressDeadlineSeconds *int32 `json:"progressDeadlineSeconds"`
 }
 
-// MLServiceScaleInput defines model for MLServiceScaleInput.
-type MLServiceScaleInput struct {
+// MLServiceScaleRequest defines model for MLServiceScaleRequest.
+type MLServiceScaleRequest struct {
 	Replicas int32 `json:"replicas"`
 }
 
@@ -793,25 +840,18 @@ type MLServiceSpec struct {
 	Scheduling MLServiceScheduling `json:"scheduling"`
 }
 
-// MLServiceView defines model for MLServiceView.
-type MLServiceView struct {
-	Annotations        *map[string]string    `json:"annotations,omitempty"`
-	CreatedAt          time.Time             `json:"createdAt"`
-	DeletedAt          *time.Time            `json:"deletedAt"`
-	Description        *string               `json:"description,omitempty"`
-	DisplayName        *string               `json:"displayName,omitempty"`
-	Generation         int64                 `json:"generation"`
-	Id                 openapi_types.UUID    `json:"id"`
-	Kind               string                `json:"kind"`
-	Labels             *map[string]string    `json:"labels,omitempty"`
-	Name               string                `json:"name"`
-	Namespace          string                `json:"namespace"`
-	ObservedGeneration int64                 `json:"observedGeneration"`
-	Owner              *string               `json:"owner,omitempty"`
-	Phase              string                `json:"phase"`
-	Spec               MLServiceSpec         `json:"spec"`
-	Status             MlserviceStatusFields `json:"status"`
-	UpdatedAt          time.Time             `json:"updatedAt"`
+// MLServiceStatus defines model for MLServiceStatus.
+type MLServiceStatus struct {
+	Conditions    *[]MLServiceCondition `json:"conditions,omitempty"`
+	Endpoint      *string               `json:"endpoint,omitempty"`
+	Message       *string               `json:"message,omitempty"`
+	ReadyReplicas int32                 `json:"readyReplicas"`
+}
+
+// MLServiceWorkspaceStorageSpec defines model for MLServiceWorkspaceStorageSpec.
+type MLServiceWorkspaceStorageSpec struct {
+	Size         string  `json:"size"`
+	StorageClass *string `json:"storageClass,omitempty"`
 }
 
 // MLTrafficPolicyBackend defines model for MLTrafficPolicyBackend.
@@ -916,59 +956,19 @@ type Metav1OwnerReference struct {
 // Metav1Time defines model for Metav1Time.
 type Metav1Time = map[string]interface{}
 
-// MlrunConditionRow defines model for MlrunConditionRow.
-type MlrunConditionRow struct {
-	LastTransitionTime *time.Time `json:"lastTransitionTime,omitempty"`
-	Message            *string    `json:"message,omitempty"`
-	Reason             *string    `json:"reason,omitempty"`
-	Status             string     `json:"status"`
-	Type               string     `json:"type"`
-}
-
-// MlrunStatusFields defines model for MlrunStatusFields.
-type MlrunStatusFields struct {
-	Conditions *[]MlrunConditionRow `json:"conditions,omitempty"`
-	FinishedAt *time.Time           `json:"finishedAt"`
-	Message    *string              `json:"message,omitempty"`
-	StartedAt  *time.Time           `json:"startedAt"`
-}
-
-// MlserviceConditionRow defines model for MlserviceConditionRow.
-type MlserviceConditionRow struct {
-	LastTransitionTime *time.Time `json:"lastTransitionTime,omitempty"`
-	Message            *string    `json:"message,omitempty"`
-	Reason             *string    `json:"reason,omitempty"`
-	Status             string     `json:"status"`
-	Type               string     `json:"type"`
-}
-
-// MlserviceStatusFields defines model for MlserviceStatusFields.
-type MlserviceStatusFields struct {
-	Conditions    *[]MlserviceConditionRow `json:"conditions,omitempty"`
-	Endpoint      *string                  `json:"endpoint,omitempty"`
-	Message       *string                  `json:"message,omitempty"`
-	ReadyReplicas int32                    `json:"readyReplicas"`
-}
-
-// MlserviceWorkspaceStorageSpec defines model for MlserviceWorkspaceStorageSpec.
-type MlserviceWorkspaceStorageSpec struct {
-	Size         string  `json:"size"`
-	StorageClass *string `json:"storageClass,omitempty"`
-}
-
-// PodList defines model for PodList.
-type PodList struct {
-	Items []PodView `json:"items"`
-	Total int64     `json:"total"`
-}
-
-// PodView defines model for PodView.
-type PodView struct {
+// Pod defines model for Pod.
+type Pod struct {
 	Labels    *map[string]string `json:"labels,omitempty"`
 	Name      string             `json:"name"`
 	Namespace string             `json:"namespace"`
 	NodeName  *string            `json:"nodeName,omitempty"`
 	Phase     string             `json:"phase"`
+}
+
+// PodList defines model for PodList.
+type PodList struct {
+	Items []Pod `json:"items"`
+	Total int64 `json:"total"`
 }
 
 // Problem defines model for Problem.
@@ -986,8 +986,45 @@ type Problem struct {
 // ProblemCode Discrete business error class.
 type ProblemCode string
 
-// TrafficPolicyCreateInput defines model for TrafficPolicyCreateInput.
-type TrafficPolicyCreateInput struct {
+// TrafficPolicy defines model for TrafficPolicy.
+type TrafficPolicy struct {
+	Annotations        *map[string]string  `json:"annotations,omitempty"`
+	CreatedAt          time.Time           `json:"createdAt"`
+	DeletedAt          *time.Time          `json:"deletedAt"`
+	Description        *string             `json:"description,omitempty"`
+	DisplayName        *string             `json:"displayName,omitempty"`
+	Generation         int64               `json:"generation"`
+	Id                 openapi_types.UUID  `json:"id"`
+	Labels             *map[string]string  `json:"labels,omitempty"`
+	Mode               string              `json:"mode"`
+	Name               string              `json:"name"`
+	Namespace          string              `json:"namespace"`
+	ObservedGeneration int64               `json:"observedGeneration"`
+	Owner              *string             `json:"owner,omitempty"`
+	Phase              string              `json:"phase"`
+	Spec               MLTrafficPolicySpec `json:"spec"`
+	Status             TrafficPolicyStatus `json:"status"`
+	UpdatedAt          time.Time           `json:"updatedAt"`
+}
+
+// TrafficPolicyBackendStatus defines model for TrafficPolicyBackendStatus.
+type TrafficPolicyBackendStatus struct {
+	Ready       bool   `json:"ready"`
+	ServiceName string `json:"serviceName"`
+	Weight      int32  `json:"weight"`
+}
+
+// TrafficPolicyCondition defines model for TrafficPolicyCondition.
+type TrafficPolicyCondition struct {
+	LastTransitionTime *time.Time `json:"lastTransitionTime,omitempty"`
+	Message            *string    `json:"message,omitempty"`
+	Reason             *string    `json:"reason,omitempty"`
+	Status             string     `json:"status"`
+	Type               string     `json:"type"`
+}
+
+// TrafficPolicyCreateRequest defines model for TrafficPolicyCreateRequest.
+type TrafficPolicyCreateRequest struct {
 	Annotations *map[string]string             `json:"annotations,omitempty"`
 	Backends    []MLTrafficPolicyBackendMember `json:"backends"`
 	Description *string                        `json:"description,omitempty"`
@@ -1000,70 +1037,33 @@ type TrafficPolicyCreateInput struct {
 
 // TrafficPolicyList defines model for TrafficPolicyList.
 type TrafficPolicyList struct {
-	Items []TrafficPolicyView `json:"items"`
-	Total int64               `json:"total"`
+	Items []TrafficPolicy `json:"items"`
+	Total int64           `json:"total"`
 }
 
-// TrafficPolicyPatchInput defines model for TrafficPolicyPatchInput.
-type TrafficPolicyPatchInput struct {
+// TrafficPolicyPatchRequest defines model for TrafficPolicyPatchRequest.
+type TrafficPolicyPatchRequest struct {
 	Annotations *map[string]string `json:"annotations,omitempty"`
 	Description *string            `json:"description"`
 	DisplayName *string            `json:"displayName"`
 	Labels      *map[string]string `json:"labels,omitempty"`
 }
 
-// TrafficPolicySplitInput defines model for TrafficPolicySplitInput.
-type TrafficPolicySplitInput struct {
-	Backends []TrafficpolicyWeightUpdate `json:"backends"`
+// TrafficPolicySplitRequest defines model for TrafficPolicySplitRequest.
+type TrafficPolicySplitRequest struct {
+	Backends []TrafficPolicyWeightUpdate `json:"backends"`
 }
 
-// TrafficPolicyView defines model for TrafficPolicyView.
-type TrafficPolicyView struct {
-	Annotations        *map[string]string        `json:"annotations,omitempty"`
-	CreatedAt          time.Time                 `json:"createdAt"`
-	DeletedAt          *time.Time                `json:"deletedAt"`
-	Description        *string                   `json:"description,omitempty"`
-	DisplayName        *string                   `json:"displayName,omitempty"`
-	Generation         int64                     `json:"generation"`
-	Id                 openapi_types.UUID        `json:"id"`
-	Labels             *map[string]string        `json:"labels,omitempty"`
-	Mode               string                    `json:"mode"`
-	Name               string                    `json:"name"`
-	Namespace          string                    `json:"namespace"`
-	ObservedGeneration int64                     `json:"observedGeneration"`
-	Owner              *string                   `json:"owner,omitempty"`
-	Phase              string                    `json:"phase"`
-	Spec               MLTrafficPolicySpec       `json:"spec"`
-	Status             TrafficpolicyStatusFields `json:"status"`
-	UpdatedAt          time.Time                 `json:"updatedAt"`
+// TrafficPolicyStatus defines model for TrafficPolicyStatus.
+type TrafficPolicyStatus struct {
+	Backends   *[]TrafficPolicyBackendStatus `json:"backends,omitempty"`
+	Conditions *[]TrafficPolicyCondition     `json:"conditions,omitempty"`
+	Endpoint   *string                       `json:"endpoint,omitempty"`
+	Message    *string                       `json:"message,omitempty"`
 }
 
-// TrafficpolicyBackendStatusRow defines model for TrafficpolicyBackendStatusRow.
-type TrafficpolicyBackendStatusRow struct {
-	Ready       bool   `json:"ready"`
-	ServiceName string `json:"serviceName"`
-	Weight      int32  `json:"weight"`
-}
-
-// TrafficpolicyConditionRow defines model for TrafficpolicyConditionRow.
-type TrafficpolicyConditionRow struct {
-	LastTransitionTime *time.Time `json:"lastTransitionTime,omitempty"`
-	Message            *string    `json:"message,omitempty"`
-	Reason             *string    `json:"reason,omitempty"`
-	Status             string     `json:"status"`
-	Type               string     `json:"type"`
-}
-
-// TrafficpolicyStatusFields defines model for TrafficpolicyStatusFields.
-type TrafficpolicyStatusFields struct {
-	Backends   *[]TrafficpolicyBackendStatusRow `json:"backends,omitempty"`
-	Conditions *[]TrafficpolicyConditionRow     `json:"conditions,omitempty"`
-	Endpoint   *string                          `json:"endpoint,omitempty"`
-	Message    *string                          `json:"message,omitempty"`
-}
-
-// TrafficpolicyWeightUpdate defines model for TrafficpolicyWeightUpdate.
-type TrafficpolicyWeightUpdate struct {
+// TrafficPolicyWeightUpdate defines model for TrafficPolicyWeightUpdate.
+type TrafficPolicyWeightUpdate struct {
 	ServiceName string `json:"serviceName"`
 	Weight      int32  `json:"weight"`
 }
@@ -1105,28 +1105,28 @@ type ListTrafficPoliciesParams struct {
 }
 
 // CreateMLRunJSONRequestBody defines body for CreateMLRun for application/json ContentType.
-type CreateMLRunJSONRequestBody = MLRunCreateInput
+type CreateMLRunJSONRequestBody = MLRunCreateRequest
 
 // PatchMLRunJSONRequestBody defines body for PatchMLRun for application/json ContentType.
-type PatchMLRunJSONRequestBody = MLRunPatchInput
+type PatchMLRunJSONRequestBody = MLRunPatchRequest
 
 // CreateMLServiceJSONRequestBody defines body for CreateMLService for application/json ContentType.
-type CreateMLServiceJSONRequestBody = MLServiceCreateInput
+type CreateMLServiceJSONRequestBody = MLServiceCreateRequest
 
 // PatchMLServiceJSONRequestBody defines body for PatchMLService for application/json ContentType.
-type PatchMLServiceJSONRequestBody = MLServicePatchInput
+type PatchMLServiceJSONRequestBody = MLServicePatchRequest
 
 // ScaleMLServiceJSONRequestBody defines body for ScaleMLService for application/json ContentType.
-type ScaleMLServiceJSONRequestBody = MLServiceScaleInput
+type ScaleMLServiceJSONRequestBody = MLServiceScaleRequest
 
 // CreateTrafficPolicyJSONRequestBody defines body for CreateTrafficPolicy for application/json ContentType.
-type CreateTrafficPolicyJSONRequestBody = TrafficPolicyCreateInput
+type CreateTrafficPolicyJSONRequestBody = TrafficPolicyCreateRequest
 
 // PatchTrafficPolicyJSONRequestBody defines body for PatchTrafficPolicy for application/json ContentType.
-type PatchTrafficPolicyJSONRequestBody = TrafficPolicyPatchInput
+type PatchTrafficPolicyJSONRequestBody = TrafficPolicyPatchRequest
 
 // SplitTrafficPolicyJSONRequestBody defines body for SplitTrafficPolicy for application/json ContentType.
-type SplitTrafficPolicyJSONRequestBody = TrafficPolicySplitInput
+type SplitTrafficPolicyJSONRequestBody = TrafficPolicySplitRequest
 
 // RequestEditorFn  is the function signature for the RequestEditor callback function
 type RequestEditorFn func(ctx context.Context, req *http.Request) error
@@ -3402,7 +3402,7 @@ func (r ListMLRunsResponse) StatusCode() int {
 type CreateMLRunResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON201      *MLRunView
+	JSON201      *MLRun
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON403      *Problem
@@ -3463,7 +3463,7 @@ func (r DeleteMLRunResponse) StatusCode() int {
 type GetMLRunResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *MLRunView
+	JSON200      *MLRun
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON403      *Problem
@@ -3494,7 +3494,7 @@ func (r GetMLRunResponse) StatusCode() int {
 type PatchMLRunResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *MLRunView
+	JSON200      *MLRun
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON403      *Problem
@@ -3525,7 +3525,7 @@ func (r PatchMLRunResponse) StatusCode() int {
 type CancelMLRunResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON202      *MLRunView
+	JSON202      *MLRun
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON403      *Problem
@@ -3710,7 +3710,7 @@ func (r ListMLServicesResponse) StatusCode() int {
 type CreateMLServiceResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON201      *MLServiceView
+	JSON201      *MLService
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON403      *Problem
@@ -3771,7 +3771,7 @@ func (r DeleteMLServiceResponse) StatusCode() int {
 type GetMLServiceResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *MLServiceView
+	JSON200      *MLService
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON403      *Problem
@@ -3802,7 +3802,7 @@ func (r GetMLServiceResponse) StatusCode() int {
 type PatchMLServiceResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *MLServiceView
+	JSON200      *MLService
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON403      *Problem
@@ -3956,7 +3956,7 @@ func (r GetMLServicePodLogsResponse) StatusCode() int {
 type ScaleMLServiceResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON202      *MLServiceView
+	JSON202      *MLService
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON403      *Problem
@@ -4018,7 +4018,7 @@ func (r ListTrafficPoliciesResponse) StatusCode() int {
 type CreateTrafficPolicyResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON201      *TrafficPolicyView
+	JSON201      *TrafficPolicy
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON403      *Problem
@@ -4079,7 +4079,7 @@ func (r DeleteTrafficPolicyResponse) StatusCode() int {
 type GetTrafficPolicyResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *TrafficPolicyView
+	JSON200      *TrafficPolicy
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON403      *Problem
@@ -4110,7 +4110,7 @@ func (r GetTrafficPolicyResponse) StatusCode() int {
 type PatchTrafficPolicyResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *TrafficPolicyView
+	JSON200      *TrafficPolicy
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON403      *Problem
@@ -4141,7 +4141,7 @@ func (r PatchTrafficPolicyResponse) StatusCode() int {
 type PromoteTrafficPolicyResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON202      *TrafficPolicyView
+	JSON202      *TrafficPolicy
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON403      *Problem
@@ -4172,7 +4172,7 @@ func (r PromoteTrafficPolicyResponse) StatusCode() int {
 type RollbackTrafficPolicyResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON202      *TrafficPolicyView
+	JSON202      *TrafficPolicy
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON403      *Problem
@@ -4203,7 +4203,7 @@ func (r RollbackTrafficPolicyResponse) StatusCode() int {
 type SplitTrafficPolicyResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON202      *TrafficPolicyView
+	JSON202      *TrafficPolicy
 	JSON400      *Problem
 	JSON401      *Problem
 	JSON403      *Problem
@@ -4711,7 +4711,7 @@ func ParseCreateMLRunResponse(rsp *http.Response) (*CreateMLRunResponse, error) 
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest MLRunView
+		var dest MLRun
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4882,7 +4882,7 @@ func ParseGetMLRunResponse(rsp *http.Response) (*GetMLRunResponse, error) {
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest MLRunView
+		var dest MLRun
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4971,7 +4971,7 @@ func ParsePatchMLRunResponse(rsp *http.Response) (*PatchMLRunResponse, error) {
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest MLRunView
+		var dest MLRun
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -5060,7 +5060,7 @@ func ParseCancelMLRunResponse(rsp *http.Response) (*CancelMLRunResponse, error) 
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 202:
-		var dest MLRunView
+		var dest MLRun
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -5587,7 +5587,7 @@ func ParseCreateMLServiceResponse(rsp *http.Response) (*CreateMLServiceResponse,
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest MLServiceView
+		var dest MLService
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -5758,7 +5758,7 @@ func ParseGetMLServiceResponse(rsp *http.Response) (*GetMLServiceResponse, error
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest MLServiceView
+		var dest MLService
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -5847,7 +5847,7 @@ func ParsePatchMLServiceResponse(rsp *http.Response) (*PatchMLServiceResponse, e
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest MLServiceView
+		var dest MLService
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -6285,7 +6285,7 @@ func ParseScaleMLServiceResponse(rsp *http.Response) (*ScaleMLServiceResponse, e
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 202:
-		var dest MLServiceView
+		var dest MLService
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -6463,7 +6463,7 @@ func ParseCreateTrafficPolicyResponse(rsp *http.Response) (*CreateTrafficPolicyR
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest TrafficPolicyView
+		var dest TrafficPolicy
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -6634,7 +6634,7 @@ func ParseGetTrafficPolicyResponse(rsp *http.Response) (*GetTrafficPolicyRespons
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest TrafficPolicyView
+		var dest TrafficPolicy
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -6723,7 +6723,7 @@ func ParsePatchTrafficPolicyResponse(rsp *http.Response) (*PatchTrafficPolicyRes
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest TrafficPolicyView
+		var dest TrafficPolicy
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -6812,7 +6812,7 @@ func ParsePromoteTrafficPolicyResponse(rsp *http.Response) (*PromoteTrafficPolic
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 202:
-		var dest TrafficPolicyView
+		var dest TrafficPolicy
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -6901,7 +6901,7 @@ func ParseRollbackTrafficPolicyResponse(rsp *http.Response) (*RollbackTrafficPol
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 202:
-		var dest TrafficPolicyView
+		var dest TrafficPolicy
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -6990,7 +6990,7 @@ func ParseSplitTrafficPolicyResponse(rsp *http.Response) (*SplitTrafficPolicyRes
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 202:
-		var dest TrafficPolicyView
+		var dest TrafficPolicy
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

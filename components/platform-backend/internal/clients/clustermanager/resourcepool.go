@@ -10,8 +10,8 @@ import (
 
 // Clean-named aliases for the generated ResourcePool / ResourceUnit wire types.
 type (
-	Pool       = gen.ResourcePoolDTO
-	Unit       = gen.ServerResourceUnitDTO
+	Pool       = gen.ResourcePool
+	Unit       = gen.ServerResourceUnit
 	PoolCreate = gen.CreateResourcePoolRequest
 	PoolPatch  = gen.PatchResourcePoolRequest
 	UnitCreate = gen.CreateResourceUnitRequest
@@ -129,9 +129,9 @@ func (c *Client) UpdateResourceUnit(ctx context.Context, pool, unit string, body
 	return nil, clienterr.FromResponse(service, res.HTTPResponse, res.Body)
 }
 
-// asUnit normalises the single-op ResourceUnitDTO to the Unit (ServerResourceUnitDTO)
+// asUnit normalises the single-op ResourceUnit to the Unit (ServerResourceUnit)
 // shape used for embedded pool units (the two generated types are identical).
-func asUnit(in *gen.ResourceUnitDTO) (*Unit, error) {
+func asUnit(in *gen.ResourceUnit) (*Unit, error) {
 	var u Unit
 	b, _ := json.Marshal(in)
 	if err := json.Unmarshal(b, &u); err != nil {

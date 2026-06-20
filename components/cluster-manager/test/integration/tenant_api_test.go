@@ -52,7 +52,7 @@ func TestTenant_Lifecycle(t *testing.T) {
 	rr := doRequest(t, "POST", "/api/v1/tenants", body)
 	require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
 
-	var created srv.TenantDTO
+	var created srv.Tenant
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &created))
 	require.Equal(t, name, created.Name)
 	require.Equal(t, name, created.Namespace.Name) // namespace defaults to name
@@ -76,7 +76,7 @@ func TestTenant_Lifecycle(t *testing.T) {
 	// Get round-trips the business form from the annotation.
 	rr = doRequest(t, "GET", "/api/v1/tenants/"+name, "")
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
-	var got srv.TenantDTO
+	var got srv.Tenant
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &got))
 	require.Len(t, got.Quotas, 1)
 	require.Equal(t, 3, got.Quotas[0].Units[0].Quantity)
@@ -126,7 +126,7 @@ func TestTenant_QuotaSubRoutes(t *testing.T) {
 	rr = doRequest(t, "PATCH", "/api/v1/tenants/"+name+"/quotas/"+pool,
 		`{"units": [{"unitName": "cpu-small", "quantity": 5}]}`)
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
-	var q srv.QuotaDTO
+	var q srv.Quota
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &q))
 	require.Equal(t, 5, q.Units[0].Quantity)
 

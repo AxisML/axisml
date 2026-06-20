@@ -19,11 +19,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/axisml/axisml/components/compute-service/internal/kubeproxy"
-	"github.com/axisml/axisml/components/compute-service/internal/mlrun"
-	servicemod "github.com/axisml/axisml/components/compute-service/internal/mlservice"
 	"github.com/axisml/axisml/components/compute-service/internal/server"
-	trafficpolicymod "github.com/axisml/axisml/components/compute-service/internal/trafficpolicy"
 	apperrors "github.com/axisml/axisml/components/compute-service/pkg/errors"
 	"github.com/axisml/axisml/pkg/openapigen"
 )
@@ -108,30 +104,33 @@ func buildDocument(version string) *openapigen.Document {
 		PatternRules: []openapigen.PatternRule{
 			{Tag: "axisml_name", Pattern: axisMLNamePattern, MinLength: 3, MaxLength: 40},
 		},
-		PackageNamer: operatorAPIPrefix,
+		PackageNamer: packageNamer,
 	})
 
-	// Core component schemas (referenced from operations).
+	// Core component schemas (referenced from operations). All request /
+	// response DTOs live in the flat internal/server package, so the
+	// PackageNamer maps it to an empty prefix and the schema name equals the
+	// Go type name verbatim.
 	g.Register("Problem", server.Problem{}, openapigen.ResponseMode)
-	g.Register("MLRunCreateInput", mlrun.CreateInput{}, openapigen.InputMode)
-	g.Register("MLRunPatchInput", mlrun.PatchInput{}, openapigen.InputMode)
-	g.Register("MLRunView", mlrun.View{}, openapigen.ResponseMode)
-	g.Register("MLServiceCreateInput", servicemod.CreateInput{}, openapigen.InputMode)
-	g.Register("MLServicePatchInput", servicemod.PatchInput{}, openapigen.InputMode)
-	g.Register("MLServiceScaleInput", servicemod.ScaleInput{}, openapigen.InputMode)
-	g.Register("MLServiceView", servicemod.View{}, openapigen.ResponseMode)
-	g.Register("TrafficPolicyCreateInput", trafficpolicymod.CreateInput{}, openapigen.InputMode)
-	g.Register("TrafficPolicyPatchInput", trafficpolicymod.PatchInput{}, openapigen.InputMode)
-	g.Register("TrafficPolicySplitInput", trafficpolicymod.SplitInput{}, openapigen.InputMode)
-	g.Register("TrafficPolicyView", trafficpolicymod.View{}, openapigen.ResponseMode)
-	g.Register("PodView", kubeproxy.PodView{}, openapigen.ResponseMode)
-	g.Register("EventView", kubeproxy.EventView{}, openapigen.ResponseMode)
+	g.Register("MLRunCreateRequest", server.MLRunCreateRequest{}, openapigen.InputMode)
+	g.Register("MLRunPatchRequest", server.MLRunPatchRequest{}, openapigen.InputMode)
+	g.Register("MLRun", server.MLRun{}, openapigen.ResponseMode)
+	g.Register("MLServiceCreateRequest", server.MLServiceCreateRequest{}, openapigen.InputMode)
+	g.Register("MLServicePatchRequest", server.MLServicePatchRequest{}, openapigen.InputMode)
+	g.Register("MLServiceScaleRequest", server.MLServiceScaleRequest{}, openapigen.InputMode)
+	g.Register("MLService", server.MLService{}, openapigen.ResponseMode)
+	g.Register("TrafficPolicyCreateRequest", server.TrafficPolicyCreateRequest{}, openapigen.InputMode)
+	g.Register("TrafficPolicyPatchRequest", server.TrafficPolicyPatchRequest{}, openapigen.InputMode)
+	g.Register("TrafficPolicySplitRequest", server.TrafficPolicySplitRequest{}, openapigen.InputMode)
+	g.Register("TrafficPolicy", server.TrafficPolicy{}, openapigen.ResponseMode)
+	g.Register("Pod", server.Pod{}, openapigen.ResponseMode)
+	g.Register("Event", server.Event{}, openapigen.ResponseMode)
 
-	g.Set("MLRunList", openapigen.ListEnvelope("MLRunView"))
-	g.Set("MLServiceList", openapigen.ListEnvelope("MLServiceView"))
-	g.Set("TrafficPolicyList", openapigen.ListEnvelope("TrafficPolicyView"))
-	g.Set("PodList", openapigen.ListEnvelope("PodView"))
-	g.Set("EventList", openapigen.ListEnvelope("EventView"))
+	g.Set("MLRunList", openapigen.ListEnvelope("MLRun"))
+	g.Set("MLServiceList", openapigen.ListEnvelope("MLService"))
+	g.Set("TrafficPolicyList", openapigen.ListEnvelope("TrafficPolicy"))
+	g.Set("PodList", openapigen.ListEnvelope("Pod"))
+	g.Set("EventList", openapigen.ListEnvelope("Event"))
 
 	tags := []openapigen.TagEntry{
 		{Name: tagMLRuns, Description: "MLRun CRUD per namespace. ResourcePool/Unit referenced by name (read from K8s Informer cache)."},
@@ -169,8 +168,8 @@ func buildDocument(version string) *openapigen.Document {
 		Post: &openapigen.Operation{
 			Tags: []string{tagMLRuns}, Summary: "Submit an MLRun", OperationID: "createMLRun",
 			Parameters:  []openapigen.Parameter{nsParam},
-			RequestBody: openapigen.JSONBody("MLRunCreateInput"),
-			Responses:   withErrors(map[string]openapigen.Response{"201": openapigen.JSONResp("Created.", "MLRunView")}),
+			RequestBody: openapigen.JSONBody("MLRunCreateRequest"),
+			Responses:   withErrors(map[string]openapigen.Response{"201": openapigen.JSONResp("Created.", "MLRun")}),
 		},
 		Get: &openapigen.Operation{
 			Tags: []string{tagMLRuns}, Summary: "List MLRuns in a namespace", OperationID: "listMLRuns",
@@ -182,13 +181,13 @@ func buildDocument(version string) *openapigen.Document {
 		Get: &openapigen.Operation{
 			Tags: []string{tagMLRuns}, Summary: "Get MLRun", OperationID: "getMLRun",
 			Parameters: []openapigen.Parameter{nsParam, mlrunParam},
-			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("MLRun.", "MLRunView")}),
+			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("MLRun.", "MLRun")}),
 		},
 		Patch: &openapigen.Operation{
 			Tags: []string{tagMLRuns}, Summary: "Patch MLRun display fields", OperationID: "patchMLRun",
 			Parameters:  []openapigen.Parameter{nsParam, mlrunParam},
-			RequestBody: openapigen.JSONBody("MLRunPatchInput"),
-			Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Patched MLRun.", "MLRunView")}),
+			RequestBody: openapigen.JSONBody("MLRunPatchRequest"),
+			Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Patched MLRun.", "MLRun")}),
 		},
 		Delete: &openapigen.Operation{
 			Tags: []string{tagMLRuns}, Summary: "Delete MLRun", OperationID: "deleteMLRun",
@@ -199,7 +198,7 @@ func buildDocument(version string) *openapigen.Document {
 	paths["/api/v1/namespaces/{namespace}/mlruns/{mlrun}/cancel"] = openapigen.PathItem{Post: &openapigen.Operation{
 		Tags: []string{tagMLRuns}, Summary: "Cancel a running MLRun", OperationID: "cancelMLRun",
 		Parameters: []openapigen.Parameter{nsParam, mlrunParam},
-		Responses:  withErrors(map[string]openapigen.Response{"202": openapigen.JSONResp("Cancellation queued (row is Canceling).", "MLRunView")}),
+		Responses:  withErrors(map[string]openapigen.Response{"202": openapigen.JSONResp("Cancellation queued (row is Canceling).", "MLRun")}),
 	}}
 
 	podParam := openapigen.PathParam("pod", "Pod name.")
@@ -231,8 +230,8 @@ func buildDocument(version string) *openapigen.Document {
 		Post: &openapigen.Operation{
 			Tags: []string{tagMLServices}, Summary: "Submit an MLService", OperationID: "createMLService",
 			Parameters:  []openapigen.Parameter{nsParam},
-			RequestBody: openapigen.JSONBody("MLServiceCreateInput"),
-			Responses:   withErrors(map[string]openapigen.Response{"201": openapigen.JSONResp("Created.", "MLServiceView")}),
+			RequestBody: openapigen.JSONBody("MLServiceCreateRequest"),
+			Responses:   withErrors(map[string]openapigen.Response{"201": openapigen.JSONResp("Created.", "MLService")}),
 		},
 		Get: &openapigen.Operation{
 			Tags: []string{tagMLServices}, Summary: "List MLServices in a namespace", OperationID: "listMLServices",
@@ -244,13 +243,13 @@ func buildDocument(version string) *openapigen.Document {
 		Get: &openapigen.Operation{
 			Tags: []string{tagMLServices}, Summary: "Get MLService", OperationID: "getMLService",
 			Parameters: []openapigen.Parameter{nsParam, mlserviceParam},
-			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("MLService.", "MLServiceView")}),
+			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("MLService.", "MLService")}),
 		},
 		Patch: &openapigen.Operation{
 			Tags: []string{tagMLServices}, Summary: "Patch MLService display fields", OperationID: "patchMLService",
 			Parameters:  []openapigen.Parameter{nsParam, mlserviceParam},
-			RequestBody: openapigen.JSONBody("MLServicePatchInput"),
-			Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Patched service.", "MLServiceView")}),
+			RequestBody: openapigen.JSONBody("MLServicePatchRequest"),
+			Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Patched service.", "MLService")}),
 		},
 		Delete: &openapigen.Operation{
 			Tags: []string{tagMLServices}, Summary: "Delete MLService", OperationID: "deleteMLService",
@@ -261,8 +260,8 @@ func buildDocument(version string) *openapigen.Document {
 	paths["/api/v1/namespaces/{namespace}/mlservices/{mlservice}/scale"] = openapigen.PathItem{Post: &openapigen.Operation{
 		Tags: []string{tagMLServices}, Summary: "Scale an MLService", OperationID: "scaleMLService",
 		Parameters:  []openapigen.Parameter{nsParam, mlserviceParam},
-		RequestBody: openapigen.JSONBody("MLServiceScaleInput"),
-		Responses:   withErrors(map[string]openapigen.Response{"202": openapigen.JSONResp("Scale queued (generation bumped).", "MLServiceView")}),
+		RequestBody: openapigen.JSONBody("MLServiceScaleRequest"),
+		Responses:   withErrors(map[string]openapigen.Response{"202": openapigen.JSONResp("Scale queued (generation bumped).", "MLService")}),
 	}}
 
 	paths["/api/v1/namespaces/{namespace}/mlservices/{mlservice}/pods"] = openapigen.PathItem{Get: &openapigen.Operation{
@@ -293,8 +292,8 @@ func buildDocument(version string) *openapigen.Document {
 		Post: &openapigen.Operation{
 			Tags: []string{tagTrafficPolicies}, Summary: "Create a traffic policy", OperationID: "createTrafficPolicy",
 			Parameters:  []openapigen.Parameter{nsParam},
-			RequestBody: openapigen.JSONBody("TrafficPolicyCreateInput"),
-			Responses:   withErrors(map[string]openapigen.Response{"201": openapigen.JSONResp("Created.", "TrafficPolicyView")}),
+			RequestBody: openapigen.JSONBody("TrafficPolicyCreateRequest"),
+			Responses:   withErrors(map[string]openapigen.Response{"201": openapigen.JSONResp("Created.", "TrafficPolicy")}),
 		},
 		Get: &openapigen.Operation{
 			Tags: []string{tagTrafficPolicies}, Summary: "List traffic policies in a namespace", OperationID: "listTrafficPolicies",
@@ -306,13 +305,13 @@ func buildDocument(version string) *openapigen.Document {
 		Get: &openapigen.Operation{
 			Tags: []string{tagTrafficPolicies}, Summary: "Get traffic policy", OperationID: "getTrafficPolicy",
 			Parameters: []openapigen.Parameter{nsParam, policyParam},
-			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Traffic policy.", "TrafficPolicyView")}),
+			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Traffic policy.", "TrafficPolicy")}),
 		},
 		Patch: &openapigen.Operation{
 			Tags: []string{tagTrafficPolicies}, Summary: "Patch traffic policy display fields", OperationID: "patchTrafficPolicy",
 			Parameters:  []openapigen.Parameter{nsParam, policyParam},
-			RequestBody: openapigen.JSONBody("TrafficPolicyPatchInput"),
-			Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Patched traffic policy.", "TrafficPolicyView")}),
+			RequestBody: openapigen.JSONBody("TrafficPolicyPatchRequest"),
+			Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Patched traffic policy.", "TrafficPolicy")}),
 		},
 		Delete: &openapigen.Operation{
 			Tags: []string{tagTrafficPolicies}, Summary: "Delete traffic policy (members retained)", OperationID: "deleteTrafficPolicy",
@@ -323,18 +322,18 @@ func buildDocument(version string) *openapigen.Document {
 	paths["/api/v1/namespaces/{namespace}/traffic-policies/{policy}/split"] = openapigen.PathItem{Post: &openapigen.Operation{
 		Tags: []string{tagTrafficPolicies}, Summary: "Adjust per-backend weights", OperationID: "splitTrafficPolicy",
 		Parameters:  []openapigen.Parameter{nsParam, policyParam},
-		RequestBody: openapigen.JSONBody("TrafficPolicySplitInput"),
-		Responses:   withErrors(map[string]openapigen.Response{"202": openapigen.JSONResp("Split queued (generation bumped).", "TrafficPolicyView")}),
+		RequestBody: openapigen.JSONBody("TrafficPolicySplitRequest"),
+		Responses:   withErrors(map[string]openapigen.Response{"202": openapigen.JSONResp("Split queued (generation bumped).", "TrafficPolicy")}),
 	}}
 	paths["/api/v1/namespaces/{namespace}/traffic-policies/{policy}/promote"] = openapigen.PathItem{Post: &openapigen.Operation{
 		Tags: []string{tagTrafficPolicies}, Summary: "Promote the canary to stable (canary mode)", OperationID: "promoteTrafficPolicy",
 		Parameters: []openapigen.Parameter{nsParam, policyParam},
-		Responses:  withErrors(map[string]openapigen.Response{"202": openapigen.JSONResp("Promote queued (generation bumped).", "TrafficPolicyView")}),
+		Responses:  withErrors(map[string]openapigen.Response{"202": openapigen.JSONResp("Promote queued (generation bumped).", "TrafficPolicy")}),
 	}}
 	paths["/api/v1/namespaces/{namespace}/traffic-policies/{policy}/rollback"] = openapigen.PathItem{Post: &openapigen.Operation{
 		Tags: []string{tagTrafficPolicies}, Summary: "Roll the canary back to 0 (canary mode)", OperationID: "rollbackTrafficPolicy",
 		Parameters: []openapigen.Parameter{nsParam, policyParam},
-		Responses:  withErrors(map[string]openapigen.Response{"202": openapigen.JSONResp("Rollback queued (generation bumped).", "TrafficPolicyView")}),
+		Responses:  withErrors(map[string]openapigen.Response{"202": openapigen.JSONResp("Rollback queued (generation bumped).", "TrafficPolicy")}),
 	}}
 
 	return &openapigen.Document{
@@ -351,6 +350,18 @@ func buildDocument(version string) *openapigen.Document {
 			Schemas: g.Schemas(),
 		},
 	}
+}
+
+// packageNamer routes a Go type's package path to its schema-name prefix.
+// The flat internal/server package (which now owns every request / response
+// DTO) maps to an empty prefix so the schema name equals the Go type name
+// verbatim — no "Server" stutter. The compute-operator's nested API packages
+// fall through to operatorAPIPrefix.
+func packageNamer(pkg string) (string, bool) {
+	if strings.HasSuffix(pkg, "/components/compute-service/internal/server") {
+		return "", true
+	}
+	return operatorAPIPrefix(pkg)
 }
 
 // operatorAPIPrefix maps the compute-operator's nested API package paths

@@ -10,10 +10,10 @@ import (
 // LabelJob is the grouping label that ties a Run (MLRun) to its Job.
 const LabelJob = "axisml.io/job"
 
-func toView(d *store.Definition) server.JobView {
+func toView(d *store.Definition) server.Job {
 	var spec server.JobSpec
 	_ = json.Unmarshal([]byte(specJSON(d.Spec)), &spec)
-	return server.JobView{
+	return server.Job{
 		ID:          server.UUID(d.ID),
 		Namespace:   d.TenantName,
 		TenantName:  d.TenantName,

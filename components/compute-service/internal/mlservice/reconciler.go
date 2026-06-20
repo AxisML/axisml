@@ -14,6 +14,7 @@ import (
 	mlservicev1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
 
 	"github.com/axisml/axisml/components/compute-service/internal/metrics"
+	"github.com/axisml/axisml/components/compute-service/internal/store"
 )
 
 // Reconciler implements the service Outbox loop. Namespace is read from
@@ -65,7 +66,7 @@ func (r *Reconciler) runOnce(ctx context.Context) {
 	}
 }
 
-func (r *Reconciler) handleCreate(ctx context.Context, s *MLService) {
+func (r *Reconciler) handleCreate(ctx context.Context, s *store.MLService) {
 	cr, err := ToCR(s)
 	if err != nil {
 		r.log.Error(err, "render service CR")
@@ -86,7 +87,7 @@ func (r *Reconciler) handleCreate(ctx context.Context, s *MLService) {
 	metrics.ReconcilerActions.WithLabelValues("mlservice", "creating", "success").Inc()
 }
 
-func (r *Reconciler) handleDelete(ctx context.Context, s *MLService) {
+func (r *Reconciler) handleDelete(ctx context.Context, s *store.MLService) {
 	cr := &mlservicev1alpha1.MLService{ObjectMeta: metav1.ObjectMeta{Name: s.Name, Namespace: s.Namespace}}
 	err := r.k8sClient.Delete(ctx, cr)
 	if err == nil {
@@ -102,7 +103,7 @@ func (r *Reconciler) handleDelete(ctx context.Context, s *MLService) {
 	metrics.ReconcilerActions.WithLabelValues("mlservice", "deleting", "error").Inc()
 }
 
-func (r *Reconciler) handleSpecSync(ctx context.Context, s *MLService) {
+func (r *Reconciler) handleSpecSync(ctx context.Context, s *store.MLService) {
 	current := &mlservicev1alpha1.MLService{}
 	if err := r.k8sClient.Get(ctx, client.ObjectKey{Namespace: s.Namespace, Name: s.Name}, current); err != nil {
 		if apierrors.IsNotFound(err) {
