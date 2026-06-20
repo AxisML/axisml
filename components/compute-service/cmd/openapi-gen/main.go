@@ -32,10 +32,10 @@ const defaultVersion = "0.0.0-dev"
 
 // Tag names. One source of truth so a typo can't silently split a group.
 const (
-	tagMLRuns          = "mlruns"
-	tagMLServices      = "mlservices"
-	tagTrafficPolicies = "traffic-policies"
-	tagSystem          = "system"
+	tagMLRuns          = "MLRuns"
+	tagMLServices      = "MLServices"
+	tagTrafficPolicies = "TrafficPolicies"
+	tagHealth          = "Health"
 )
 
 // AxisML §6.1 name policy is duplicated here as a regex rather than imported
@@ -137,7 +137,7 @@ func buildDocument(version string) *openapigen.Document {
 		{Name: tagMLRuns, Description: "MLRun CRUD per namespace. ResourcePool/Unit referenced by name (read from K8s Informer cache)."},
 		{Name: tagMLServices, Description: "MLService CRUD per namespace."},
 		{Name: tagTrafficPolicies, Description: "MLTrafficPolicy CRUD per namespace: weighted / canary / blue-green traffic split over member online services."},
-		{Name: tagSystem, Description: "Liveness and readiness probes."},
+		{Name: tagHealth, Description: "Liveness and readiness probes."},
 	}
 
 	nsParam := openapigen.PathParam("namespace", "Tenant name (= mlruns/mlservices partition key).")
@@ -153,11 +153,11 @@ func buildDocument(version string) *openapigen.Document {
 
 	// system probes
 	paths["/healthz"] = openapigen.PathItem{Get: &openapigen.Operation{
-		Tags: []string{tagSystem}, Summary: "Liveness probe", OperationID: "healthz",
+		Tags: []string{tagHealth}, Summary: "Liveness probe", OperationID: "healthz",
 		Responses: map[string]openapigen.Response{"200": openapigen.StringResp("ok")},
 	}}
 	paths["/readyz"] = openapigen.PathItem{Get: &openapigen.Operation{
-		Tags: []string{tagSystem}, Summary: "Readiness probe", OperationID: "readyz",
+		Tags: []string{tagHealth}, Summary: "Readiness probe", OperationID: "readyz",
 		Responses: map[string]openapigen.Response{
 			"200": openapigen.StringResp("ok"),
 			"503": openapigen.StringResp("dependency not yet ready"),

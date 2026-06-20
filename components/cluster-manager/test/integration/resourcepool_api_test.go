@@ -43,7 +43,7 @@ func TestResourcePool_Lifecycle(t *testing.T) {
 	  ]
 	}`
 
-	rr := doRequest(t, "POST", "/api/v1/resource-pools", body)
+	rr := doRequest(t, "POST", "/api/v1/resourcepools", body)
 	require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
 
 	var created srv.ResourcePoolDTO
@@ -54,7 +54,7 @@ func TestResourcePool_Lifecycle(t *testing.T) {
 	require.Equal(t, "a100", created.Labels["axisml.io/accelerator"])
 
 	// Get returns the same thing.
-	rr = doRequest(t, "GET", "/api/v1/resource-pools/"+name, "")
+	rr = doRequest(t, "GET", "/api/v1/resourcepools/"+name, "")
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 	var got srv.ResourcePoolDTO
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &got))
@@ -63,24 +63,24 @@ func TestResourcePool_Lifecycle(t *testing.T) {
 	require.Equal(t, "16", cpuQ.String())
 
 	// List by label selector picks it up.
-	rr = doRequest(t, "GET", "/api/v1/resource-pools?labelSelector=axisml.io/accelerator=a100", "")
+	rr = doRequest(t, "GET", "/api/v1/resourcepools?labelSelector=axisml.io/accelerator=a100", "")
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 	var list srv.ResourcePoolList
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &list))
 	require.GreaterOrEqual(t, list.Count, 1)
 
 	// Patch description.
-	rr = doRequest(t, "PATCH", "/api/v1/resource-pools/"+name, `{"description": "updated"}`)
+	rr = doRequest(t, "PATCH", "/api/v1/resourcepools/"+name, `{"description": "updated"}`)
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &got))
 	require.Equal(t, "updated", got.Description)
 
 	// Delete.
-	rr = doRequest(t, "DELETE", "/api/v1/resource-pools/"+name, "")
+	rr = doRequest(t, "DELETE", "/api/v1/resourcepools/"+name, "")
 	require.Equal(t, http.StatusNoContent, rr.Code, rr.Body.String())
 
 	// Get now 404s.
-	rr = doRequest(t, "GET", "/api/v1/resource-pools/"+name, "")
+	rr = doRequest(t, "GET", "/api/v1/resourcepools/"+name, "")
 	require.Equal(t, http.StatusNotFound, rr.Code)
 }
 
@@ -96,18 +96,18 @@ func TestResourcePool_Create_DuplicateName(t *testing.T) {
 	  ]
 	}`
 
-	rr := doRequest(t, "POST", "/api/v1/resource-pools", body)
+	rr := doRequest(t, "POST", "/api/v1/resourcepools", body)
 	require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
-	t.Cleanup(func() { _ = doRequest(t, "DELETE", "/api/v1/resource-pools/"+name, "") })
+	t.Cleanup(func() { _ = doRequest(t, "DELETE", "/api/v1/resourcepools/"+name, "") })
 
-	rr = doRequest(t, "POST", "/api/v1/resource-pools", body)
+	rr = doRequest(t, "POST", "/api/v1/resourcepools", body)
 	require.Equal(t, http.StatusConflict, rr.Code)
 }
 
 // TestResourcePool_Create_BadName ensures an invalid name is rejected
 // before the K8s API is contacted.
 func TestResourcePool_Create_BadName(t *testing.T) {
-	rr := doRequest(t, "POST", "/api/v1/resource-pools",
+	rr := doRequest(t, "POST", "/api/v1/resourcepools",
 		`{"name": "BadName_With_Underscores"}`)
 	require.Equal(t, http.StatusBadRequest, rr.Code)
 }
@@ -115,6 +115,6 @@ func TestResourcePool_Create_BadName(t *testing.T) {
 // TestResourcePool_Auth_RequiresUser confirms /api/v1 routes 401 without
 // X-Axisml-User.
 func TestResourcePool_Auth_RequiresUser(t *testing.T) {
-	rr := doRequestAs(t, "GET", "/api/v1/resource-pools", "", "")
+	rr := doRequestAs(t, "GET", "/api/v1/resourcepools", "", "")
 	require.Equal(t, http.StatusUnauthorized, rr.Code)
 }

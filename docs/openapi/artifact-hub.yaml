@@ -329,7 +329,7 @@ paths:
           description: Unexpected error.
       summary: List every dataset (across all names) in a namespace
       tags:
-      - artifacts
+      - Artifacts
   /api/v1/namespaces/{namespace}/datasets/{name}:
     get:
       operationId: listDatasetVersions
@@ -430,7 +430,7 @@ paths:
           description: Unexpected error.
       summary: List versions of a dataset
       tags:
-      - artifacts
+      - Artifacts
     post:
       operationId: initiateDataset
       parameters:
@@ -515,7 +515,7 @@ paths:
           description: Unexpected error.
       summary: Initiate a dataset version (two-phase write step 1)
       tags:
-      - artifacts
+      - Artifacts
   /api/v1/namespaces/{namespace}/datasets/{name}/{version}:
     delete:
       operationId: deleteDataset
@@ -601,7 +601,7 @@ paths:
           description: Unexpected error.
       summary: Delete a dataset version
       tags:
-      - artifacts
+      - Artifacts
     get:
       operationId: getDataset
       parameters:
@@ -686,7 +686,7 @@ paths:
           description: Unexpected error.
       summary: Get a dataset version
       tags:
-      - artifacts
+      - Artifacts
     patch:
       operationId: updateDataset
       parameters:
@@ -777,7 +777,7 @@ paths:
           description: Unexpected error.
       summary: Patch a dataset's display_name / description / labels / annotations
       tags:
-      - artifacts
+      - Artifacts
   /api/v1/namespaces/{namespace}/datasets/{name}/{version}/complete:
     post:
       operationId: completeDataset
@@ -869,7 +869,7 @@ paths:
           description: Unexpected error.
       summary: Complete dataset upload (two-phase write step 2)
       tags:
-      - artifacts
+      - Artifacts
   /api/v1/namespaces/{namespace}/datasets/{name}/{version}/resolve:
     get:
       operationId: resolveDataset
@@ -960,7 +960,7 @@ paths:
           description: Unexpected error.
       summary: Resolve dataset for download
       tags:
-      - artifacts
+      - Artifacts
   /api/v1/namespaces/{namespace}/images:
     get:
       operationId: listImages
@@ -1055,7 +1055,7 @@ paths:
           description: Unexpected error.
       summary: List every image (across all names) in a namespace
       tags:
-      - artifacts
+      - Artifacts
   /api/v1/namespaces/{namespace}/images/{name}:
     get:
       operationId: listImageVersions
@@ -1156,7 +1156,7 @@ paths:
           description: Unexpected error.
       summary: List versions of a image
       tags:
-      - artifacts
+      - Artifacts
     post:
       operationId: initiateImage
       parameters:
@@ -1241,7 +1241,7 @@ paths:
           description: Unexpected error.
       summary: Initiate a image version (two-phase write step 1)
       tags:
-      - artifacts
+      - Artifacts
   /api/v1/namespaces/{namespace}/images/{name}/{version}:
     delete:
       operationId: deleteImage
@@ -1327,7 +1327,7 @@ paths:
           description: Unexpected error.
       summary: Delete a image version
       tags:
-      - artifacts
+      - Artifacts
     get:
       operationId: getImage
       parameters:
@@ -1412,7 +1412,7 @@ paths:
           description: Unexpected error.
       summary: Get a image version
       tags:
-      - artifacts
+      - Artifacts
     patch:
       operationId: updateImage
       parameters:
@@ -1503,7 +1503,7 @@ paths:
           description: Unexpected error.
       summary: Patch a image's display_name / description / labels / annotations
       tags:
-      - artifacts
+      - Artifacts
   /api/v1/namespaces/{namespace}/images/{name}/{version}/complete:
     post:
       operationId: completeImage
@@ -1595,7 +1595,7 @@ paths:
           description: Unexpected error.
       summary: Complete image upload (two-phase write step 2)
       tags:
-      - artifacts
+      - Artifacts
   /api/v1/namespaces/{namespace}/images/{name}/{version}/resolve:
     get:
       operationId: resolveImage
@@ -1686,7 +1686,7 @@ paths:
           description: Unexpected error.
       summary: Resolve image for download
       tags:
-      - artifacts
+      - Artifacts
   /api/v1/namespaces/{namespace}/models:
     get:
       operationId: listModels
@@ -1781,7 +1781,7 @@ paths:
           description: Unexpected error.
       summary: List every model (across all names) in a namespace
       tags:
-      - artifacts
+      - Artifacts
   /api/v1/namespaces/{namespace}/models/{name}:
     get:
       operationId: listModelVersions
@@ -1882,7 +1882,7 @@ paths:
           description: Unexpected error.
       summary: List versions of a model
       tags:
-      - artifacts
+      - Artifacts
     post:
       operationId: initiateModel
       parameters:
@@ -1967,7 +1967,7 @@ paths:
           description: Unexpected error.
       summary: Initiate a model version (two-phase write step 1)
       tags:
-      - artifacts
+      - Artifacts
   /api/v1/namespaces/{namespace}/models/{name}/{version}:
     delete:
       operationId: deleteModel
@@ -2053,7 +2053,7 @@ paths:
           description: Unexpected error.
       summary: Delete a model version
       tags:
-      - artifacts
+      - Artifacts
     get:
       operationId: getModel
       parameters:
@@ -2138,7 +2138,7 @@ paths:
           description: Unexpected error.
       summary: Get a model version
       tags:
-      - artifacts
+      - Artifacts
     patch:
       operationId: updateModel
       parameters:
@@ -2229,7 +2229,7 @@ paths:
           description: Unexpected error.
       summary: Patch a model's display_name / description / labels / annotations
       tags:
-      - artifacts
+      - Artifacts
   /api/v1/namespaces/{namespace}/models/{name}/{version}/complete:
     post:
       operationId: completeModel
@@ -2321,7 +2321,7 @@ paths:
           description: Unexpected error.
       summary: Complete model upload (two-phase write step 2)
       tags:
-      - artifacts
+      - Artifacts
   /api/v1/namespaces/{namespace}/models/{name}/{version}/resolve:
     get:
       operationId: resolveModel
@@ -2412,7 +2412,7 @@ paths:
           description: Unexpected error.
       summary: Resolve model for download
       tags:
-      - artifacts
+      - Artifacts
   /healthz:
     get:
       operationId: healthz
@@ -2425,7 +2425,7 @@ paths:
           description: ok
       summary: Liveness probe
       tags:
-      - system
+      - Health
   /readyz:
     get:
       operationId: readyz
@@ -2444,12 +2444,12 @@ paths:
           description: dependency not yet ready
       summary: Readiness probe
       tags:
-      - system
+      - Health
 servers:
 - description: Same-origin
   url: /
 tags:
 - description: Artifact registry partitioned by (namespace, kind, name, version).
-  name: artifacts
+  name: Artifacts
 - description: Liveness and readiness probes.
-  name: system
+  name: Health

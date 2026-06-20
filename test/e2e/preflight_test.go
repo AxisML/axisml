@@ -57,7 +57,7 @@ func TestPreflight_CRDsEstablished(t *testing.T) {
 
 func TestPreflight_SeedDefaultPool(t *testing.T) {
 	ctx := context.Background()
-	r := h.clusterManager.mustDo(t, ctx, http.MethodGet, "/api/v1/resource-pools/"+h.cfg.DefaultPool, nil)
+	r := h.clusterManager.mustDo(t, ctx, http.MethodGet, "/api/v1/resourcepools/"+h.cfg.DefaultPool, nil)
 	require.True(t, r.is2xx(), "GET default pool: status %d: %s", r.status, string(r.body))
 
 	var pool cmPoolDTO
@@ -73,7 +73,7 @@ func TestPreflight_SeedDefaultPool(t *testing.T) {
 func TestPreflight_HTTPReachable(t *testing.T) {
 	ctx := context.Background()
 	// cluster-manager
-	r := h.clusterManager.mustDo(t, ctx, http.MethodGet, "/api/v1/resource-pools", nil)
+	r := h.clusterManager.mustDo(t, ctx, http.MethodGet, "/api/v1/resourcepools", nil)
 	assert.True(t, r.is2xx(), "cluster-manager list pools: %d", r.status)
 	// compute-service
 	r = h.computeService.mustDo(t, ctx, http.MethodGet, "/api/v1/namespaces", nil)

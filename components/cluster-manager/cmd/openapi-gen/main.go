@@ -22,11 +22,10 @@ import (
 const defaultVersion = "0.0.0-dev"
 
 const (
-	tagResourcePools = "resource-pools"
-	tagResourceUnits = "resource-units"
-	tagTenants       = "tenants"
-	tagTenantQuotas  = "tenant-quotas"
-	tagSystem        = "system"
+	tagResourcePools = "ResourcePools"
+	tagResourceUnits = "ResourceUnits"
+	tagTenants       = "Tenants"
+	tagHealth        = "Health"
 )
 
 func main() {
@@ -93,9 +92,8 @@ func buildDocument(version string) *openapigen.Document {
 	tags := []openapigen.TagEntry{
 		{Name: tagResourcePools, Description: "ResourcePool CRD CRUD."},
 		{Name: tagResourceUnits, Description: "Sub-routes over pool.spec.units[]."},
-		{Name: tagTenants, Description: "Tenant CRD CRUD (cluster-manager is the REST writer)."},
-		{Name: tagTenantQuotas, Description: "Per-pool tenant quotas (unit × quantity, folded to ElasticQuota)."},
-		{Name: tagSystem, Description: "Liveness and readiness probes."},
+		{Name: tagTenants, Description: "Tenant CRD CRUD and per-pool tenant quotas (unit × quantity, folded to ElasticQuota); cluster-manager is the REST writer."},
+		{Name: tagHealth, Description: "Liveness and readiness probes."},
 	}
 
 	poolParam := openapigen.PathParam("pool", "ResourcePool name.")
@@ -107,15 +105,15 @@ func buildDocument(version string) *openapigen.Document {
 	paths := map[string]openapigen.PathItem{}
 
 	paths["/healthz"] = openapigen.PathItem{Get: &openapigen.Operation{
-		Tags: []string{tagSystem}, Summary: "Liveness probe", OperationID: "healthz",
+		Tags: []string{tagHealth}, Summary: "Liveness probe", OperationID: "healthz",
 		Responses: map[string]openapigen.Response{"200": {Description: "ok"}},
 	}}
 	paths["/readyz"] = openapigen.PathItem{Get: &openapigen.Operation{
-		Tags: []string{tagSystem}, Summary: "Readiness probe", OperationID: "readyz",
+		Tags: []string{tagHealth}, Summary: "Readiness probe", OperationID: "readyz",
 		Responses: map[string]openapigen.Response{"200": {Description: "ok"}},
 	}}
 
-	paths["/api/v1/resource-pools"] = openapigen.PathItem{
+	paths["/api/v1/resourcepools"] = openapigen.PathItem{
 		Post: &openapigen.Operation{
 			Tags: []string{tagResourcePools}, Summary: "Create a ResourcePool", OperationID: "createResourcePool",
 			RequestBody: openapigen.JSONBody("CreateResourcePoolRequest"),
@@ -128,7 +126,7 @@ func buildDocument(version string) *openapigen.Document {
 		},
 	}
 
-	paths["/api/v1/resource-pools/{pool}"] = openapigen.PathItem{
+	paths["/api/v1/resourcepools/{pool}"] = openapigen.PathItem{
 		Get: &openapigen.Operation{
 			Tags: []string{tagResourcePools}, Summary: "Get ResourcePool", OperationID: "getResourcePool",
 			Parameters: []openapigen.Parameter{poolParam},
@@ -147,7 +145,7 @@ func buildDocument(version string) *openapigen.Document {
 		},
 	}
 
-	paths["/api/v1/resource-pools/{pool}/units"] = openapigen.PathItem{
+	paths["/api/v1/resourcepools/{pool}/units"] = openapigen.PathItem{
 		Post: &openapigen.Operation{
 			Tags: []string{tagResourceUnits}, Summary: "Add a unit to the pool", OperationID: "createResourceUnit",
 			Parameters:  []openapigen.Parameter{poolParam},
@@ -161,7 +159,7 @@ func buildDocument(version string) *openapigen.Document {
 		},
 	}
 
-	paths["/api/v1/resource-pools/{pool}/units/{unit}"] = openapigen.PathItem{
+	paths["/api/v1/resourcepools/{pool}/units/{unit}"] = openapigen.PathItem{
 		Get: &openapigen.Operation{
 			Tags: []string{tagResourceUnits}, Summary: "Get unit", OperationID: "getResourceUnit",
 			Parameters: []openapigen.Parameter{poolParam, unitParam},
@@ -214,12 +212,12 @@ func buildDocument(version string) *openapigen.Document {
 
 	paths["/api/v1/tenants/{tenant}/quotas"] = openapigen.PathItem{
 		Get: &openapigen.Operation{
-			Tags: []string{tagTenantQuotas}, Summary: "List tenant quotas", OperationID: "listTenantQuotas",
+			Tags: []string{tagTenants}, Summary: "List tenant quotas", OperationID: "listTenantQuotas",
 			Parameters: []openapigen.Parameter{tenantParam},
 			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Quota list.", "QuotaList")}),
 		},
 		Post: &openapigen.Operation{
-			Tags: []string{tagTenantQuotas}, Summary: "Create or replace a pool quota", OperationID: "setTenantQuota",
+			Tags: []string{tagTenants}, Summary: "Create or replace a pool quota", OperationID: "setTenantQuota",
 			Parameters:  []openapigen.Parameter{tenantParam},
 			RequestBody: openapigen.JSONBody("SetQuotaRequest"),
 			Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Quota set.", "QuotaDTO")}),
@@ -228,13 +226,13 @@ func buildDocument(version string) *openapigen.Document {
 
 	paths["/api/v1/tenants/{tenant}/quotas/{pool}"] = openapigen.PathItem{
 		Patch: &openapigen.Operation{
-			Tags: []string{tagTenantQuotas}, Summary: "Update a pool quota", OperationID: "updateTenantQuota",
+			Tags: []string{tagTenants}, Summary: "Update a pool quota", OperationID: "updateTenantQuota",
 			Parameters:  []openapigen.Parameter{tenantParam, quotaPoolParam},
 			RequestBody: openapigen.JSONBody("PatchQuotaRequest"),
 			Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Updated quota.", "QuotaDTO")}),
 		},
 		Delete: &openapigen.Operation{
-			Tags: []string{tagTenantQuotas}, Summary: "Delete a pool quota", OperationID: "deleteTenantQuota",
+			Tags: []string{tagTenants}, Summary: "Delete a pool quota", OperationID: "deleteTenantQuota",
 			Parameters: []openapigen.Parameter{tenantParam, quotaPoolParam},
 			Responses:  withErrors(map[string]openapigen.Response{"204": openapigen.NoContentResp}),
 		},

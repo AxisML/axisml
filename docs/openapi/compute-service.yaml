@@ -2268,7 +2268,7 @@ paths:
           description: Unexpected error.
       summary: List MLRuns in a namespace
       tags:
-      - mlruns
+      - MLRuns
     post:
       operationId: createMLRun
       parameters:
@@ -2347,7 +2347,7 @@ paths:
           description: Unexpected error.
       summary: Submit an MLRun
       tags:
-      - mlruns
+      - MLRuns
   /api/v1/namespaces/{namespace}/mlruns/{mlrun}:
     delete:
       operationId: deleteMLRun
@@ -2423,7 +2423,7 @@ paths:
           description: Unexpected error.
       summary: Delete MLRun
       tags:
-      - mlruns
+      - MLRuns
     get:
       operationId: getMLRun
       parameters:
@@ -2502,7 +2502,7 @@ paths:
           description: Unexpected error.
       summary: Get MLRun
       tags:
-      - mlruns
+      - MLRuns
     patch:
       operationId: patchMLRun
       parameters:
@@ -2587,7 +2587,7 @@ paths:
           description: Unexpected error.
       summary: Patch MLRun display fields
       tags:
-      - mlruns
+      - MLRuns
   /api/v1/namespaces/{namespace}/mlruns/{mlrun}/cancel:
     post:
       operationId: cancelMLRun
@@ -2667,7 +2667,7 @@ paths:
           description: Unexpected error.
       summary: Cancel a running MLRun
       tags:
-      - mlruns
+      - MLRuns
   /api/v1/namespaces/{namespace}/mlruns/{mlrun}/events:
     get:
       operationId: listMLRunEvents
@@ -2747,7 +2747,7 @@ paths:
           description: Unexpected error.
       summary: List events targeted at the MLRun CR
       tags:
-      - mlruns
+      - MLRuns
   /api/v1/namespaces/{namespace}/mlruns/{mlrun}/pods:
     get:
       operationId: listMLRunPods
@@ -2827,7 +2827,7 @@ paths:
           description: Unexpected error.
       summary: List pods of an MLRun
       tags:
-      - mlruns
+      - MLRuns
   /api/v1/namespaces/{namespace}/mlruns/{mlrun}/pods/{pod}/events:
     get:
       operationId: listMLRunPodEvents
@@ -2913,7 +2913,7 @@ paths:
           description: Unexpected error.
       summary: List events targeted at a pod
       tags:
-      - mlruns
+      - MLRuns
   /api/v1/namespaces/{namespace}/mlruns/{mlrun}/pods/{pod}/logs:
     get:
       operationId: getMLRunPodLogs
@@ -2999,7 +2999,7 @@ paths:
           description: Unexpected error.
       summary: Stream a pod's container log
       tags:
-      - mlruns
+      - MLRuns
   /api/v1/namespaces/{namespace}/mlservices:
     get:
       operationId: listMLServices
@@ -3089,7 +3089,7 @@ paths:
           description: Unexpected error.
       summary: List MLServices in a namespace
       tags:
-      - mlservices
+      - MLServices
     post:
       operationId: createMLService
       parameters:
@@ -3168,7 +3168,7 @@ paths:
           description: Unexpected error.
       summary: Submit an MLService
       tags:
-      - mlservices
+      - MLServices
   /api/v1/namespaces/{namespace}/mlservices/{mlservice}:
     delete:
       operationId: deleteMLService
@@ -3244,7 +3244,7 @@ paths:
           description: Unexpected error.
       summary: Delete MLService
       tags:
-      - mlservices
+      - MLServices
     get:
       operationId: getMLService
       parameters:
@@ -3323,7 +3323,7 @@ paths:
           description: Unexpected error.
       summary: Get MLService
       tags:
-      - mlservices
+      - MLServices
     patch:
       operationId: patchMLService
       parameters:
@@ -3408,7 +3408,7 @@ paths:
           description: Unexpected error.
       summary: Patch MLService display fields
       tags:
-      - mlservices
+      - MLServices
   /api/v1/namespaces/{namespace}/mlservices/{mlservice}/events:
     get:
       operationId: listMLServiceEvents
@@ -3488,7 +3488,7 @@ paths:
           description: Unexpected error.
       summary: List events targeted at the MLService CR
       tags:
-      - mlservices
+      - MLServices
   /api/v1/namespaces/{namespace}/mlservices/{mlservice}/pods:
     get:
       operationId: listMLServicePods
@@ -3568,7 +3568,7 @@ paths:
           description: Unexpected error.
       summary: List pods of an MLService
       tags:
-      - mlservices
+      - MLServices
   /api/v1/namespaces/{namespace}/mlservices/{mlservice}/pods/{pod}/events:
     get:
       operationId: listMLServicePodEvents
@@ -3654,7 +3654,7 @@ paths:
           description: Unexpected error.
       summary: List events targeted at an MLService pod
       tags:
-      - mlservices
+      - MLServices
   /api/v1/namespaces/{namespace}/mlservices/{mlservice}/pods/{pod}/logs:
     get:
       operationId: getMLServicePodLogs
@@ -3740,7 +3740,7 @@ paths:
           description: Unexpected error.
       summary: Stream an MLService pod's container log
       tags:
-      - mlservices
+      - MLServices
   /api/v1/namespaces/{namespace}/mlservices/{mlservice}/scale:
     post:
       operationId: scaleMLService
@@ -3826,7 +3826,7 @@ paths:
           description: Unexpected error.
       summary: Scale an MLService
       tags:
-      - mlservices
+      - MLServices
   /api/v1/namespaces/{namespace}/traffic-policies:
     get:
       operationId: listTrafficPolicies
@@ -3916,7 +3916,7 @@ paths:
           description: Unexpected error.
       summary: List traffic policies in a namespace
       tags:
-      - traffic-policies
+      - TrafficPolicies
     post:
       operationId: createTrafficPolicy
       parameters:
@@ -3995,7 +3995,7 @@ paths:
           description: Unexpected error.
       summary: Create a traffic policy
       tags:
-      - traffic-policies
+      - TrafficPolicies
   /api/v1/namespaces/{namespace}/traffic-policies/{policy}:
     delete:
       operationId: deleteTrafficPolicy
@@ -4071,7 +4071,7 @@ paths:
           description: Unexpected error.
       summary: Delete traffic policy (members retained)
       tags:
-      - traffic-policies
+      - TrafficPolicies
     get:
       operationId: getTrafficPolicy
       parameters:
@@ -4150,7 +4150,7 @@ paths:
           description: Unexpected error.
       summary: Get traffic policy
       tags:
-      - traffic-policies
+      - TrafficPolicies
     patch:
       operationId: patchTrafficPolicy
       parameters:
@@ -4235,7 +4235,7 @@ paths:
           description: Unexpected error.
       summary: Patch traffic policy display fields
       tags:
-      - traffic-policies
+      - TrafficPolicies
   /api/v1/namespaces/{namespace}/traffic-policies/{policy}/promote:
     post:
       operationId: promoteTrafficPolicy
@@ -4315,7 +4315,7 @@ paths:
           description: Unexpected error.
       summary: Promote the canary to stable (canary mode)
       tags:
-      - traffic-policies
+      - TrafficPolicies
   /api/v1/namespaces/{namespace}/traffic-policies/{policy}/rollback:
     post:
       operationId: rollbackTrafficPolicy
@@ -4395,7 +4395,7 @@ paths:
           description: Unexpected error.
       summary: Roll the canary back to 0 (canary mode)
       tags:
-      - traffic-policies
+      - TrafficPolicies
   /api/v1/namespaces/{namespace}/traffic-policies/{policy}/split:
     post:
       operationId: splitTrafficPolicy
@@ -4481,7 +4481,7 @@ paths:
           description: Unexpected error.
       summary: Adjust per-backend weights
       tags:
-      - traffic-policies
+      - TrafficPolicies
   /healthz:
     get:
       operationId: healthz
@@ -4494,7 +4494,7 @@ paths:
           description: ok
       summary: Liveness probe
       tags:
-      - system
+      - Health
   /readyz:
     get:
       operationId: readyz
@@ -4513,18 +4513,18 @@ paths:
           description: dependency not yet ready
       summary: Readiness probe
       tags:
-      - system
+      - Health
 servers:
 - description: Same-origin
   url: /
 tags:
 - description: MLRun CRUD per namespace. ResourcePool/Unit referenced by name (read
     from K8s Informer cache).
-  name: mlruns
+  name: MLRuns
 - description: MLService CRUD per namespace.
-  name: mlservices
+  name: MLServices
 - description: 'MLTrafficPolicy CRUD per namespace: weighted / canary / blue-green
     traffic split over member online services.'
-  name: traffic-policies
+  name: TrafficPolicies
 - description: Liveness and readiness probes.
-  name: system
+  name: Health

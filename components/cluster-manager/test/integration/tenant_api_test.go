@@ -30,7 +30,7 @@ func seedPool(t *testing.T, name string) {
 	    }
 	  ]
 	}`
-	rr := doRequest(t, "POST", "/api/v1/resource-pools", body)
+	rr := doRequest(t, "POST", "/api/v1/resourcepools", body)
 	require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
 }
 

@@ -68,16 +68,16 @@ func TestRouteCoverage(t *testing.T) {
 	want := []struct{ method, path string }{
 		{"get", "/healthz"},
 		{"get", "/readyz"},
-		{"post", "/api/v1/resource-pools"},
-		{"get", "/api/v1/resource-pools"},
-		{"get", "/api/v1/resource-pools/{pool}"},
-		{"patch", "/api/v1/resource-pools/{pool}"},
-		{"delete", "/api/v1/resource-pools/{pool}"},
-		{"post", "/api/v1/resource-pools/{pool}/units"},
-		{"get", "/api/v1/resource-pools/{pool}/units"},
-		{"get", "/api/v1/resource-pools/{pool}/units/{unit}"},
-		{"patch", "/api/v1/resource-pools/{pool}/units/{unit}"},
-		{"delete", "/api/v1/resource-pools/{pool}/units/{unit}"},
+		{"post", "/api/v1/resourcepools"},
+		{"get", "/api/v1/resourcepools"},
+		{"get", "/api/v1/resourcepools/{pool}"},
+		{"patch", "/api/v1/resourcepools/{pool}"},
+		{"delete", "/api/v1/resourcepools/{pool}"},
+		{"post", "/api/v1/resourcepools/{pool}/units"},
+		{"get", "/api/v1/resourcepools/{pool}/units"},
+		{"get", "/api/v1/resourcepools/{pool}/units/{unit}"},
+		{"patch", "/api/v1/resourcepools/{pool}/units/{unit}"},
+		{"delete", "/api/v1/resourcepools/{pool}/units/{unit}"},
 	}
 	for _, w := range want {
 		item, ok := doc.Paths[w.path]

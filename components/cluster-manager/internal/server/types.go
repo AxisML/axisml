@@ -42,7 +42,7 @@ type ResourceUnitDTO struct {
 	Annotations  map[string]string   `json:"annotations,omitempty"`
 }
 
-// CreateResourcePoolRequest is the body for POST /api/v1/resource-pools.
+// CreateResourcePoolRequest is the body for POST /api/v1/resourcepools.
 type CreateResourcePoolRequest struct {
 	Name         string                      `json:"name"`
 	Description  string                      `json:"description,omitempty"`

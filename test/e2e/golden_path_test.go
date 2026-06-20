@@ -26,7 +26,7 @@ func TestGoldenPath_TrainAndServeJourney(t *testing.T) {
 	ns := tenant
 
 	// 1) cluster-manager: the seeded default pool is available.
-	pr := h.clusterManager.mustDo(t, ctx, http.MethodGet, "/api/v1/resource-pools/"+h.cfg.DefaultPool, nil)
+	pr := h.clusterManager.mustDo(t, ctx, http.MethodGet, "/api/v1/resourcepools/"+h.cfg.DefaultPool, nil)
 	require.True(t, pr.is2xx(), "default pool must exist: %d", pr.status)
 
 	// 2) compute-service: create tenant + quota -> tenant-operator provisions ns.

@@ -27,8 +27,8 @@ import (
 const defaultVersion = "0.0.0-dev"
 
 const (
-	tagArtifacts = "artifacts"
-	tagSystem    = "system"
+	tagArtifacts = "Artifacts"
+	tagHealth    = "Health"
 )
 
 // Artifact name / version policies. Duplicated here as regex rather than
@@ -115,7 +115,7 @@ func buildDocument(version string) *openapigen.Document {
 
 	tags := []openapigen.TagEntry{
 		{Name: tagArtifacts, Description: "Artifact registry partitioned by (namespace, kind, name, version)."},
-		{Name: tagSystem, Description: "Liveness and readiness probes."},
+		{Name: tagHealth, Description: "Liveness and readiness probes."},
 	}
 
 	nsParam := openapigen.PathParam("namespace", "Tenant namespace (= compute tenants.name).")
@@ -131,11 +131,11 @@ func buildDocument(version string) *openapigen.Document {
 	paths := map[string]openapigen.PathItem{}
 
 	paths["/healthz"] = openapigen.PathItem{Get: &openapigen.Operation{
-		Tags: []string{tagSystem}, Summary: "Liveness probe", OperationID: "healthz",
+		Tags: []string{tagHealth}, Summary: "Liveness probe", OperationID: "healthz",
 		Responses: map[string]openapigen.Response{"200": openapigen.StringResp("ok")},
 	}}
 	paths["/readyz"] = openapigen.PathItem{Get: &openapigen.Operation{
-		Tags: []string{tagSystem}, Summary: "Readiness probe", OperationID: "readyz",
+		Tags: []string{tagHealth}, Summary: "Readiness probe", OperationID: "readyz",
 		Responses: map[string]openapigen.Response{
 			"200": openapigen.StringResp("ok"),
 			"503": openapigen.StringResp("dependency not yet ready"),

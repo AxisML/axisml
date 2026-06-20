@@ -18,7 +18,7 @@ import (
 	srv "github.com/axisml/axisml/components/cluster-manager/internal/server"
 )
 
-// Handler implements the /api/v1/resource-pools[/{pool}[/units...]]
+// Handler implements the /api/v1/resourcepools[/{pool}[/units...]]
 // HTTP surface. It owns no state; all mutations go straight to the K8s API
 // server via client.Client.
 type Handler struct {
@@ -27,7 +27,7 @@ type Handler struct {
 
 // Register attaches all routes to the provided /api/v1 group.
 func (h *Handler) Register(rg *gin.RouterGroup) {
-	pools := rg.Group("/resource-pools")
+	pools := rg.Group("/resourcepools")
 	pools.POST("", h.Create)
 	pools.GET("", h.List)
 	pools.GET("/:pool", h.Get)
@@ -44,7 +44,7 @@ func (h *Handler) Register(rg *gin.RouterGroup) {
 
 // ─────────────────────────────────────────────────────────────── Pools
 
-// Create handles POST /api/v1/resource-pools.
+// Create handles POST /api/v1/resourcepools.
 func (h *Handler) Create(c *gin.Context) {
 	var req srv.CreateResourcePoolRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -75,7 +75,7 @@ func (h *Handler) Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, srv.PoolToDTO(pool))
 }
 
-// Get handles GET /api/v1/resource-pools/{pool}.
+// Get handles GET /api/v1/resourcepools/{pool}.
 func (h *Handler) Get(c *gin.Context) {
 	name := c.Param("pool")
 	pool, err := h.getPool(c.Request.Context(), name)
@@ -86,7 +86,7 @@ func (h *Handler) Get(c *gin.Context) {
 	c.JSON(http.StatusOK, srv.PoolToDTO(pool))
 }
 
-// List handles GET /api/v1/resource-pools. Supports ?labelSelector,
+// List handles GET /api/v1/resourcepools. Supports ?labelSelector,
 // ?limit (1-500, default 100), and ?continue (opaque cursor returned by
 // a previous page). Mirrors apis/cluster-manager.yaml.
 func (h *Handler) List(c *gin.Context) {
@@ -128,7 +128,7 @@ func (h *Handler) List(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-// Patch handles PATCH /api/v1/resource-pools/{pool}.
+// Patch handles PATCH /api/v1/resourcepools/{pool}.
 func (h *Handler) Patch(c *gin.Context) {
 	name := c.Param("pool")
 	var req srv.PatchResourcePoolRequest
@@ -192,7 +192,7 @@ func applyPoolPatch(pool *axismlv1alpha1.ResourcePool, req srv.PatchResourcePool
 	}
 }
 
-// Delete handles DELETE /api/v1/resource-pools/{pool}.
+// Delete handles DELETE /api/v1/resourcepools/{pool}.
 func (h *Handler) Delete(c *gin.Context) {
 	name := c.Param("pool")
 	pool := &axismlv1alpha1.ResourcePool{}

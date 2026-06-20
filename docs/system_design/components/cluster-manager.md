@@ -184,7 +184,7 @@ REST 入参以业务形态 `{pool, units:[{unitName, quantity}]}` 表达配额�
 
 | 操作 | 内部行为 |
 | --- | --- |
-| 创建（POST `/api/v1/resource-pools`） | K8s create ResourcePool CR；admission webhook 校验 name 唯一性、units 数组内 name 唯一 |
+| 创建（POST `/api/v1/resourcepools`） | K8s create ResourcePool CR；admission webhook 校验 name 唯一性、units 数组内 name 唯一 |
 | GET / LIST | 直接读 K8s API（或 Informer cache）；list 支持 `?labelSelector=` （K8s 原生 selector grammar） |
 | PATCH（pool 级字段） | K8s strategic merge patch；`metadata.name` 不可变（admission 拒绝） |
 | DELETE | K8s delete ResourcePool CR；units 跟随一起删（无独立 ResourceUnit 资源） |
@@ -193,10 +193,10 @@ REST 入参以业务形态 `{pool, units:[{unitName, quantity}]}` 表达配额�
 
 | 操作 | 内部行为 |
 | --- | --- |
-| GET `/api/v1/resource-pools/{pool}/units` | 返回 `pool.spec.units[]`；不另起 K8s 调用 |
-| POST `/api/v1/resource-pools/{pool}/units` | 先 GET pool → append `units[]` → JSON Patch（带 resourceVersion 乐观锁）→ 重试一次防冲突 |
-| PATCH `/api/v1/resource-pools/{pool}/units/{name}` | 同上，定位数组项后局部更新 |
-| DELETE `/api/v1/resource-pools/{pool}/units/{name}` | 同上，移除数组项 |
+| GET `/api/v1/resourcepools/{pool}/units` | 返回 `pool.spec.units[]`；不另起 K8s 调用 |
+| POST `/api/v1/resourcepools/{pool}/units` | 先 GET pool → append `units[]` → JSON Patch（带 resourceVersion 乐观锁）→ 重试一次防冲突 |
+| PATCH `/api/v1/resourcepools/{pool}/units/{name}` | 同上，定位数组项后局部更新 |
+| DELETE `/api/v1/resourcepools/{pool}/units/{name}` | 同上，移除数组项 |
 
 每个 unit 端点都映射为"读 pool CR → 局部改 `spec.units[]` → 写回 CR"的原子封装。UI / API 客户端不需要关心 CR 整体形状。
 
@@ -243,7 +243,7 @@ admin 域的集群事实由本服务即时聚合，供 [Platform](platform.md#47
 
 | 类别 | 内容 | 引用 |
 | --- | --- | --- |
-| 对外 REST | `/api/v1/resource-pools[/{pool}]`、`/api/v1/resource-pools/{pool}/units[/{unit}]` | [openapi/cluster-manager.yaml](../../openapi/cluster-manager.yaml) `ResourcePools` tag |
+| 对外 REST | `/api/v1/resourcepools[/{pool}]`、`/api/v1/resourcepools/{pool}/units[/{unit}]` | [openapi/cluster-manager.yaml](../../openapi/cluster-manager.yaml) `ResourcePools` tag |
 | 对外 REST（租户） | `/api/v1/tenants[/{tenant}]`、`/api/v1/tenants/{tenant}/quotas[/{pool}]` | [openapi/cluster-manager.yaml](../../openapi/cluster-manager.yaml) `Tenants` tag |
 | 对外 REST（集群事实） | `/api/v1/cluster/capacity`、`/api/v1/cluster/metrics` | [openapi/cluster-manager.yaml](../../openapi/cluster-manager.yaml) `Cluster` tag |
 | 下发 CR | `ResourcePool` / `Tenant`（`axisml.io/v1alpha1`，cluster-scoped）；cluster-manager 是 `spec` 的 REST 写者，kubectl 路径也允许；Tenant `status` 由 tenant-operator 单写 | [resource-pool-crd.yaml](../../../deploy/helm/axisml-system/crds/resource-pool-crd.yaml) / [tenant-crd.yaml](../../../deploy/helm/axisml-system/crds/tenant-crd.yaml) |

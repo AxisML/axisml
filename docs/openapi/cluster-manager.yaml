@@ -721,7 +721,7 @@ info:
   version: 0.1.0
 openapi: 3.0.3
 paths:
-  /api/v1/resource-pools:
+  /api/v1/resourcepools:
     get:
       operationId: listResourcePools
       parameters:
@@ -781,7 +781,7 @@ paths:
           description: Unexpected error.
       summary: List ResourcePools
       tags:
-      - resource-pools
+      - ResourcePools
     post:
       operationId: createResourcePool
       requestBody:
@@ -841,8 +841,8 @@ paths:
           description: Unexpected error.
       summary: Create a ResourcePool
       tags:
-      - resource-pools
-  /api/v1/resource-pools/{pool}:
+      - ResourcePools
+  /api/v1/resourcepools/{pool}:
     delete:
       operationId: deleteResourcePool
       parameters:
@@ -899,7 +899,7 @@ paths:
           description: Unexpected error.
       summary: Delete ResourcePool
       tags:
-      - resource-pools
+      - ResourcePools
     get:
       operationId: getResourcePool
       parameters:
@@ -960,7 +960,7 @@ paths:
           description: Unexpected error.
       summary: Get ResourcePool
       tags:
-      - resource-pools
+      - ResourcePools
     patch:
       operationId: updateResourcePool
       parameters:
@@ -1027,8 +1027,8 @@ paths:
           description: Unexpected error.
       summary: Patch ResourcePool
       tags:
-      - resource-pools
-  /api/v1/resource-pools/{pool}/units:
+      - ResourcePools
+  /api/v1/resourcepools/{pool}/units:
     get:
       operationId: listResourceUnits
       parameters:
@@ -1094,7 +1094,7 @@ paths:
           description: Unexpected error.
       summary: List units in a pool
       tags:
-      - resource-units
+      - ResourceUnits
     post:
       operationId: createResourceUnit
       parameters:
@@ -1161,8 +1161,8 @@ paths:
           description: Unexpected error.
       summary: Add a unit to the pool
       tags:
-      - resource-units
-  /api/v1/resource-pools/{pool}/units/{unit}:
+      - ResourceUnits
+  /api/v1/resourcepools/{pool}/units/{unit}:
     delete:
       operationId: deleteResourceUnit
       parameters:
@@ -1225,7 +1225,7 @@ paths:
           description: Unexpected error.
       summary: Remove unit from pool
       tags:
-      - resource-units
+      - ResourceUnits
     get:
       operationId: getResourceUnit
       parameters:
@@ -1292,7 +1292,7 @@ paths:
           description: Unexpected error.
       summary: Get unit
       tags:
-      - resource-units
+      - ResourceUnits
     patch:
       operationId: updateResourceUnit
       parameters:
@@ -1365,7 +1365,7 @@ paths:
           description: Unexpected error.
       summary: Patch unit
       tags:
-      - resource-units
+      - ResourceUnits
   /api/v1/tenants:
     get:
       operationId: listTenants
@@ -1426,7 +1426,7 @@ paths:
           description: Unexpected error.
       summary: List Tenants
       tags:
-      - tenants
+      - Tenants
     post:
       operationId: createTenant
       requestBody:
@@ -1486,7 +1486,7 @@ paths:
           description: Unexpected error.
       summary: Create a Tenant
       tags:
-      - tenants
+      - Tenants
   /api/v1/tenants/{tenant}:
     delete:
       operationId: deleteTenant
@@ -1544,7 +1544,7 @@ paths:
           description: Unexpected error.
       summary: Delete Tenant
       tags:
-      - tenants
+      - Tenants
     get:
       operationId: getTenant
       parameters:
@@ -1605,7 +1605,7 @@ paths:
           description: Unexpected error.
       summary: Get Tenant
       tags:
-      - tenants
+      - Tenants
     patch:
       operationId: updateTenant
       parameters:
@@ -1672,7 +1672,7 @@ paths:
           description: Unexpected error.
       summary: Patch Tenant
       tags:
-      - tenants
+      - Tenants
   /api/v1/tenants/{tenant}/quotas:
     get:
       operationId: listTenantQuotas
@@ -1734,7 +1734,7 @@ paths:
           description: Unexpected error.
       summary: List tenant quotas
       tags:
-      - tenant-quotas
+      - Tenants
     post:
       operationId: setTenantQuota
       parameters:
@@ -1801,7 +1801,7 @@ paths:
           description: Unexpected error.
       summary: Create or replace a pool quota
       tags:
-      - tenant-quotas
+      - Tenants
   /api/v1/tenants/{tenant}/quotas/{pool}:
     delete:
       operationId: deleteTenantQuota
@@ -1865,7 +1865,7 @@ paths:
           description: Unexpected error.
       summary: Delete a pool quota
       tags:
-      - tenant-quotas
+      - Tenants
     patch:
       operationId: updateTenantQuota
       parameters:
@@ -1938,7 +1938,7 @@ paths:
           description: Unexpected error.
       summary: Update a pool quota
       tags:
-      - tenant-quotas
+      - Tenants
   /healthz:
     get:
       operationId: healthz
@@ -1947,7 +1947,7 @@ paths:
           description: ok
       summary: Liveness probe
       tags:
-      - system
+      - Health
   /readyz:
     get:
       operationId: readyz
@@ -1956,18 +1956,17 @@ paths:
           description: ok
       summary: Readiness probe
       tags:
-      - system
+      - Health
 servers:
 - description: Same-origin
   url: /
 tags:
 - description: ResourcePool CRD CRUD.
-  name: resource-pools
+  name: ResourcePools
 - description: Sub-routes over pool.spec.units[].
-  name: resource-units
-- description: Tenant CRD CRUD (cluster-manager is the REST writer).
-  name: tenants
-- description: Per-pool tenant quotas (unit × quantity, folded to ElasticQuota).
-  name: tenant-quotas
+  name: ResourceUnits
+- description: Tenant CRD CRUD and per-pool tenant quotas (unit × quantity, folded
+    to ElasticQuota); cluster-manager is the REST writer.
+  name: Tenants
 - description: Liveness and readiness probes.
-  name: system
+  name: Health

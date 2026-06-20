@@ -29,10 +29,10 @@ func TestClusterManager_CreatePoolRoundTripsToCR(t *testing.T) {
 			Limits:   corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("1"), corev1.ResourceMemory: resource.MustParse("2Gi")},
 		}},
 	}
-	r := h.clusterManager.mustDo(t, ctx, http.MethodPost, "/api/v1/resource-pools", req)
+	r := h.clusterManager.mustDo(t, ctx, http.MethodPost, "/api/v1/resourcepools", req)
 	require.True(t, r.is2xx(), "create pool: %d: %s", r.status, string(r.body))
 	t.Cleanup(func() {
-		_, _ = h.clusterManager.do(context.Background(), http.MethodDelete, "/api/v1/resource-pools/"+pool, nil)
+		_, _ = h.clusterManager.do(context.Background(), http.MethodDelete, "/api/v1/resourcepools/"+pool, nil)
 	})
 
 	// The ResourcePool CR materializes in-cluster.
@@ -45,13 +45,13 @@ func TestClusterManager_CreatePoolRoundTripsToCR(t *testing.T) {
 func TestClusterManager_AddAndPatchUnit(t *testing.T) {
 	ctx := context.Background()
 	pool := uniqueName("e2e-pool")
-	require.True(t, h.clusterManager.mustDo(t, ctx, http.MethodPost, "/api/v1/resource-pools",
+	require.True(t, h.clusterManager.mustDo(t, ctx, http.MethodPost, "/api/v1/resourcepools",
 		cmCreatePoolReq{Name: pool}).is2xx())
 	t.Cleanup(func() {
-		_, _ = h.clusterManager.do(context.Background(), http.MethodDelete, "/api/v1/resource-pools/"+pool, nil)
+		_, _ = h.clusterManager.do(context.Background(), http.MethodDelete, "/api/v1/resourcepools/"+pool, nil)
 	})
 
-	unitPath := "/api/v1/resource-pools/" + pool + "/units"
+	unitPath := "/api/v1/resourcepools/" + pool + "/units"
 	add := cmCreateUnitReq{
 		Name:     "unit-a",
 		Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("2")},
@@ -66,7 +66,7 @@ func TestClusterManager_AddAndPatchUnit(t *testing.T) {
 	r = h.clusterManager.mustDo(t, ctx, http.MethodPatch, unitPath+"/unit-a", patch)
 	require.True(t, r.is2xx(), "patch unit: %d: %s", r.status, string(r.body))
 
-	g := h.clusterManager.mustDo(t, ctx, http.MethodGet, "/api/v1/resource-pools/"+pool, nil)
+	g := h.clusterManager.mustDo(t, ctx, http.MethodGet, "/api/v1/resourcepools/"+pool, nil)
 	var dto cmPoolDTO
 	require.NoError(t, g.decode(&dto))
 	require.Len(t, dto.Units, 1)
@@ -76,10 +76,10 @@ func TestClusterManager_AddAndPatchUnit(t *testing.T) {
 func TestClusterManager_DeletePoolGC(t *testing.T) {
 	ctx := context.Background()
 	pool := uniqueName("e2e-pool")
-	require.True(t, h.clusterManager.mustDo(t, ctx, http.MethodPost, "/api/v1/resource-pools",
+	require.True(t, h.clusterManager.mustDo(t, ctx, http.MethodPost, "/api/v1/resourcepools",
 		cmCreatePoolReq{Name: pool}).is2xx())
 
-	r := h.clusterManager.mustDo(t, ctx, http.MethodDelete, "/api/v1/resource-pools/"+pool, nil)
+	r := h.clusterManager.mustDo(t, ctx, http.MethodDelete, "/api/v1/resourcepools/"+pool, nil)
 	require.True(t, r.is2xx(), "delete pool: %d", r.status)
 
 	eventually(t, h.cfg.CRProvisionTimeout, func() error {
@@ -97,7 +97,7 @@ func TestClusterManager_DeletePoolGC(t *testing.T) {
 
 func TestClusterManager_MissingIdentity401(t *testing.T) {
 	ctx := context.Background()
-	r, err := h.clusterManager.doNoAuth(ctx, http.MethodGet, "/api/v1/resource-pools", nil)
+	r, err := h.clusterManager.doNoAuth(ctx, http.MethodGet, "/api/v1/resourcepools", nil)
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusUnauthorized, r.status, "missing %s must be 401", headerUser)
 }
