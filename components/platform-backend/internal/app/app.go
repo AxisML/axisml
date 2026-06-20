@@ -20,10 +20,13 @@ import (
 	"github.com/axisml/axisml/components/platform/internal/experiment"
 	"github.com/axisml/axisml/components/platform/internal/identity"
 	"github.com/axisml/axisml/components/platform/internal/job"
+	"github.com/axisml/axisml/components/platform/internal/mlservice"
 	"github.com/axisml/axisml/components/platform/internal/resourcepool"
 	"github.com/axisml/axisml/components/platform/internal/server"
 	"github.com/axisml/axisml/components/platform/internal/store"
 	"github.com/axisml/axisml/components/platform/internal/tenant"
+	"github.com/axisml/axisml/components/platform/internal/traffic"
+	"github.com/axisml/axisml/components/platform/internal/workspace"
 
 	"gorm.io/gorm"
 	"log/slog"
@@ -66,6 +69,9 @@ func BuildDeps(cfg config.Config, db *gorm.DB) (*Deps, error) {
 	resourcePoolSvc := resourcepool.NewService(cm)
 	jobSvc := job.NewService(store.NewDefinitionRepo(db, store.TableJobs), tenants, compute)
 	experimentSvc := experiment.NewService(store.NewDefinitionRepo(db, store.TableExperiments), tenants, compute)
+	mlserviceSvc := mlservice.NewService(compute, tenants)
+	workspaceSvc := workspace.NewService(compute, tenants)
+	trafficSvc := traffic.NewService(compute, tenants)
 
 	modules := []server.Module{
 		identity.NewHandler(identitySvc, authn),
@@ -73,6 +79,9 @@ func BuildDeps(cfg config.Config, db *gorm.DB) (*Deps, error) {
 		resourcepool.NewHandler(resourcePoolSvc, authn),
 		job.NewHandler(jobSvc, authn),
 		experiment.NewHandler(experimentSvc, authn),
+		mlservice.NewHandler(mlserviceSvc, authn),
+		workspace.NewHandler(workspaceSvc, authn),
+		traffic.NewHandler(trafficSvc, authn),
 	}
 	return &Deps{Authn: authn, Signer: signer, Modules: modules}, nil
 }
