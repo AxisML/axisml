@@ -1,19 +1,20 @@
-package job
+package experiment
 
 import (
 	"encoding/json"
 
+	"github.com/axisml/axisml/components/platform/internal/clients/computeservice"
 	"github.com/axisml/axisml/components/platform/internal/server"
 	"github.com/axisml/axisml/components/platform/internal/store"
 )
 
-// LabelJob is the grouping label that ties a Run (MLRun) to its Job.
-const LabelJob = "axisml.io/job"
+// LabelExperiment ties a Run (MLRun) to its Experiment.
+const LabelExperiment = "axisml.io/experiment"
 
-func toView(d *store.Definition) server.JobView {
+func toView(d *store.Definition) server.ExperimentView {
 	var spec server.JobSpec
 	_ = json.Unmarshal([]byte(specJSON(d.Spec)), &spec)
-	return server.JobView{
+	return server.ExperimentView{
 		ID:          server.UUID(d.ID),
 		Namespace:   d.TenantName,
 		TenantName:  d.TenantName,
@@ -46,4 +47,24 @@ func marshalSpec(spec server.JobSpec) store.JSONB {
 
 func jsonUnmarshalSpec(j store.JSONB, out *server.JobSpec) error {
 	return json.Unmarshal([]byte(specJSON(j)), out)
+}
+
+// tbToView projects a compute tensorboard MLService into the contract TensorBoard.
+func tbToView(s *computeservice.MLServiceView) server.TensorBoard {
+	v := server.TensorBoard{
+		Name:      s.Name,
+		Phase:     server.TensorBoardPhase(s.Phase),
+		CreatedAt: s.CreatedAt,
+	}
+	// endpoint URL + message live in the service status (best-effort extract).
+	var st struct {
+		Message  string `json:"message"`
+		Endpoint string `json:"endpoint"`
+	}
+	if b, err := json.Marshal(s.Status); err == nil {
+		_ = json.Unmarshal(b, &st)
+	}
+	v.URL = st.Endpoint
+	v.Message = st.Message
+	return v
 }

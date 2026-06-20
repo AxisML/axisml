@@ -17,6 +17,7 @@ import (
 	"github.com/axisml/axisml/components/platform/internal/clients/clustermanager"
 	"github.com/axisml/axisml/components/platform/internal/clients/computeservice"
 	"github.com/axisml/axisml/components/platform/internal/config"
+	"github.com/axisml/axisml/components/platform/internal/experiment"
 	"github.com/axisml/axisml/components/platform/internal/identity"
 	"github.com/axisml/axisml/components/platform/internal/job"
 	"github.com/axisml/axisml/components/platform/internal/resourcepool"
@@ -64,12 +65,14 @@ func BuildDeps(cfg config.Config, db *gorm.DB) (*Deps, error) {
 	tenantSvc := tenant.NewService(tenants, roles, users, cm)
 	resourcePoolSvc := resourcepool.NewService(cm)
 	jobSvc := job.NewService(store.NewDefinitionRepo(db, store.TableJobs), tenants, compute)
+	experimentSvc := experiment.NewService(store.NewDefinitionRepo(db, store.TableExperiments), tenants, compute)
 
 	modules := []server.Module{
 		identity.NewHandler(identitySvc, authn),
 		tenant.NewHandler(tenantSvc, authn),
 		resourcepool.NewHandler(resourcePoolSvc, authn),
 		job.NewHandler(jobSvc, authn),
+		experiment.NewHandler(experimentSvc, authn),
 	}
 	return &Deps{Authn: authn, Signer: signer, Modules: modules}, nil
 }
