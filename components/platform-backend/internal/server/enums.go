@@ -181,9 +181,3 @@ type EventType string
 
 // EventTypeValues enumerates EventType.
 var EventTypeValues = []string{"Normal", "Warning"}
-
-// AuditResult is the outcome of an audited action.
-type AuditResult string
-
-// AuditResultValues enumerates AuditResult.
-var AuditResultValues = []string{"success", "failure"}

@@ -507,17 +507,6 @@ func paths() map[string]openapigen.PathItem {
 			[]openapigen.Parameter{poolNameP(), unitNameP()}, nil, resp(sc("204", "Resource unit deleted.", ""), "401", "403", "404", "409", "500")),
 	}
 
-	// ---- Audit ----
-	p["/api/v1/auditlogs"] = openapigen.PathItem{Get: newOp(tagAudit, "listAuditLogs", "Query the audit log",
-		[]openapigen.Parameter{
-			qp("userId", "", &openapigen.Schema{Type: "string", Format: "uuid"}),
-			qp("action", "", strSchema()),
-			qp("target", "", strSchema()),
-			qp("since", "", &openapigen.Schema{Type: "string", Format: "date-time"}),
-			qp("until", "", &openapigen.Schema{Type: "string", Format: "date-time"}),
-			limitParam, continueParam,
-		}, nil, resp(sc("200", "A page of audit logs.", "AuditLogList"), "401", "403", "500"))}
-
 	return p
 }
 

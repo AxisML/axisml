@@ -95,11 +95,11 @@ func TestEveryOperationIsTagged(t *testing.T) {
 // schema is caught.
 func TestExpectedCounts(t *testing.T) {
 	doc := buildDocument("test")
-	if got := len(doc.Paths); got != 80 {
-		t.Errorf("path count = %d, want 80", got)
+	if got := len(doc.Paths); got != 79 {
+		t.Errorf("path count = %d, want 79", got)
 	}
-	if got := len(doc.Components.Schemas); got != 137 {
-		t.Errorf("schema count = %d, want 137", got)
+	if got := len(doc.Components.Schemas); got != 135 {
+		t.Errorf("schema count = %d, want 135", got)
 	}
 }
 
@@ -109,7 +109,7 @@ func TestKeySchemasPresent(t *testing.T) {
 	doc := buildDocument("test")
 	for _, name := range []string{
 		"Problem", "Tenant", "Workspace", "JobView", "RunView", "MLService",
-		"Model", "Image", "ExperimentView", "TrafficPolicy", "ResourcePool", "AuditLog",
+		"Model", "Image", "ExperimentView", "TrafficPolicy", "ResourcePool",
 		"StringMap", "ResourceMap", "ModelSpec",
 	} {
 		if _, ok := doc.Components.Schemas[name]; !ok {
@@ -150,7 +150,6 @@ func TestRouteCoverage(t *testing.T) {
 		{"post", "/api/v1/models/{tenant}/{name}/versions/{version}/complete"},
 		{"get", "/api/v1/images/{tenant}/{name}/versions/{version}/resolve"},
 		{"post", "/api/v1/resourcepools/{pool}/units"},
-		{"get", "/api/v1/auditlogs"},
 	}
 	for _, w := range want {
 		item, ok := doc.Paths[w.path]

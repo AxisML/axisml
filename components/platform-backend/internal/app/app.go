@@ -13,7 +13,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/axisml/axisml/components/platform/internal/artifactdef"
 	"github.com/axisml/axisml/components/platform/internal/auth"
+	"github.com/axisml/axisml/components/platform/internal/clients/artifacthub"
 	"github.com/axisml/axisml/components/platform/internal/clients/clustermanager"
 	"github.com/axisml/axisml/components/platform/internal/clients/computeservice"
 	"github.com/axisml/axisml/components/platform/internal/config"
@@ -63,6 +65,10 @@ func BuildDeps(cfg config.Config, db *gorm.DB) (*Deps, error) {
 	if err != nil {
 		return nil, err
 	}
+	artifacts, err := artifacthub.New(cfg.ArtifactsURL, cfg.UpstreamTimeout)
+	if err != nil {
+		return nil, err
+	}
 
 	identitySvc := identity.NewService(users, roles, sessions, idp, signer)
 	tenantSvc := tenant.NewService(tenants, roles, users, cm)
@@ -72,6 +78,8 @@ func BuildDeps(cfg config.Config, db *gorm.DB) (*Deps, error) {
 	mlserviceSvc := mlservice.NewService(compute, tenants)
 	workspaceSvc := workspace.NewService(compute, tenants)
 	trafficSvc := traffic.NewService(compute, tenants)
+	modelSvc := artifactdef.NewService(store.NewDefinitionRepo(db, store.TableModels), artifacts, "model", cfg.PublicTenantScope)
+	imageSvc := artifactdef.NewService(store.NewDefinitionRepo(db, store.TableImages), artifacts, "image", cfg.PublicTenantScope)
 
 	modules := []server.Module{
 		identity.NewHandler(identitySvc, authn),
@@ -82,6 +90,8 @@ func BuildDeps(cfg config.Config, db *gorm.DB) (*Deps, error) {
 		mlservice.NewHandler(mlserviceSvc, authn),
 		workspace.NewHandler(workspaceSvc, authn),
 		traffic.NewHandler(trafficSvc, authn),
+		artifactdef.NewHandler(modelSvc, authn, "models"),
+		artifactdef.NewHandler(imageSvc, authn, "images"),
 	}
 	return &Deps{Authn: authn, Signer: signer, Modules: modules}, nil
 }

@@ -51,7 +51,6 @@ const (
 	tagImages        = "Images"
 	tagResourcePools = "ResourcePools"
 	tagResourceUnits = "ResourceUnits"
-	tagAudit         = "Audit"
 	tagHealth        = "Health"
 )
 
@@ -148,7 +147,6 @@ func tags() []openapigen.TagEntry {
 		{Name: tagImages, Description: "Image definitions (Platform-owned); versions proxy artifacts (kind=image)."},
 		{Name: tagResourcePools, Description: "Cluster-scoped resource pools (admin-only writes; read by all)."},
 		{Name: tagResourceUnits, Description: "Per-pool resource unit specs (admin-only writes; read by all)."},
-		{Name: tagAudit, Description: "Audit log queries (system-admin only)."},
 		{Name: tagHealth, Description: "Liveness and readiness probes."},
 	}
 }
@@ -279,8 +277,6 @@ func registerSchemas(g *openapigen.Generator) {
 		"PodList":                 server.PodList{},
 		"Event":                   server.Event{},
 		"EventList":               server.EventList{},
-		"AuditLog":                server.AuditLog{},
-		"AuditLogList":            server.AuditLogList{},
 	} {
 		g.Register(name, v, openapigen.ResponseMode)
 	}
@@ -371,7 +367,6 @@ var (
 	tDefinitionKind  = reflect.TypeOf(server.DefinitionKind(""))
 	tPodPhase        = reflect.TypeOf(server.PodPhase(""))
 	tEventType       = reflect.TypeOf(server.EventType(""))
-	tAuditResult     = reflect.TypeOf(server.AuditResult(""))
 )
 
 // wellKnown returns a freshly-allocated schema each call so that per-field
@@ -450,8 +445,6 @@ func wellKnown(t reflect.Type) *openapigen.Schema {
 		return enumSchema(server.PodPhaseValues, "")
 	case tEventType:
 		return enumSchema(server.EventTypeValues, "")
-	case tAuditResult:
-		return enumSchema(server.AuditResultValues, "")
 	}
 	return nil
 }
