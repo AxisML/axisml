@@ -12,6 +12,7 @@ AxisML 系统中唯一直接面向用户的层；承担身份接入、业务编�
 | **持有 Job / 实验 / Model / Image 定义**（name 级，Platform 自有 PG 表） | 持有制品**版本**（artifact version）权威（→ [artifact-hub.md](artifact-hub.md)） |
 | 跨服务业务编排（创建 / 跨租户列表合并 / Dashboard 聚合）；租户经 cluster-manager REST 物化 Tenant CR | 持有 ResourcePool / ResourceUnit 词汇（→ [cluster-manager.md](cluster-manager.md)） |
 | 视图层映射（用户 ↔ 租户绑定 ↔ `identifier`；workspace ↔ `MLService(kind=workspace)`） | 缓存下游可变**实例**状态（phase / status / conditions / digest / quota 用量 → 一律实时回源） |
+| **前端 UI 多语言**（i18n catalog 映射 + 本地化展示，§5.6） | 按 `Accept-Language` 本地化响应文案（后端与下游一律 locale-neutral，仅返稳定机读 code） |
 
 **统一分区键**：compute / artifacts 的 REST URL `{namespace}` 段 = 租户 `identifier`，Platform 直接透传，**不解析 K8s namespace**（`identifier` 即 namespace，单一规范名）——PVC 生命周期、ElasticQuota 名组装均由 compute 内部完成。租户的运行态（phase / 配额用量）经 `clustermanager.GetTenant` 实时回源，仅服务于租户详情页 / 配额 Tab 的展示。
 
@@ -348,6 +349,29 @@ Platform 需要在下游对象上挂载自定义元数据（审计标记、UI �
 
 **反模式**：不向 K8s CR 的 `metadata.{labels,annotations}` 写业务扩展位（Platform 本就不直接调 K8s API）；不在 Platform PG 镜像下游**实例**状态（phase / digest / 版本 / Run 等一律实时回源；Platform PG 仅覆盖身份 / 授权 / 会话 / 审计 + 四张定义）。
 
+### 5.6 多语言 / i18n
+
+多语言是**前端**职责；Platform 后端与下游三服务（cluster-manager / compute / artifacts）一律保持 **locale-neutral**——不读 `Accept-Language`、不本地化任何响应文案，只产出稳定机读标识，由前端按当前 locale 映射为本地化文案。首批语言 `zh-CN` / `en-US`，catalog 结构按可扩展设计，新增语言不触达后端。
+
+**i18n 契约 = 稳定机读标识**：
+
+| 机读标识（后端 / 下游产出） | 前端本地化方式 |
+| --- | --- |
+| RFC 7807 problem 的 `type` URI（如 `https://axisml.io/errors/tenant-suspended`）+ 下游 error code | 作为文案映射 key；`title` / `detail` 仅英文调试兜底、**UI 不直接展示给终端用户**，按 `type` 取本地化文案（缺映射时回退 `title`） |
+| 机读枚举（`phase` / `status` / `source` / `kind` / `role` / `purpose` 等） | 展示层映射为本地化标签；枚举原值不翻译，保持与下游一致 |
+| 时间戳（一律 RFC3339 UTC）/ 数值 | 按 locale 格式化（`Intl` / dayjs locale：日期、相对时间、时区、数字千分位） |
+
+**前端实现**：Next.js 应用文案经 react-i18next / next-intl 维护 message catalog；Ant Design 组件经 `ConfigProvider` 注入 locale 包切换；`Intl` / dayjs 负责日期 / 数字 / 时区格式化。
+
+**语言选择与持久化**：locale 选择**纯浏览器端持久化**（localStorage），初值取 `navigator.language`，用户可在 UI 切换；不落 Platform PG、不入会话、不随出站请求传播。解析优先级 `localStorage` → `navigator.language`（即浏览器 `Accept-Language`）→ 配置默认（`zh-CN`）。
+
+**不本地化的内容**：用户自由文本（`display_name` / `description` / `labels` / 制品 metadata / 日志正文）原样存储与回显，不翻译；审计 `action` / `target` 存机读 key，渲染期前端本地化。
+
+关键不变量：
+- 后端零文案：任何面向用户的可读串都不在 Platform / 下游生成，i18n catalog 全在前端；新增语言 = 加 catalog + AntD locale 包，后端与下游零改动、无 schema 变更。
+- error `type` / 下游 code 是**稳定契约**：改文案不改 code，改 code 视为破坏性变更（与 [§6 错误格式](#6-接口契约)一致）。
+- 机读枚举值穿透不翻译，仅展示层映射，避免把本地化串回写下游。
+
 RBAC 中间件装配细节归 [auth.md](../auth.md)，Platform 在路由层挂载 `RequireSystemAdmin` / `RequireTenantRole` / `RequireJobOwner` / `RequireExperimentOwner` / `RequireServiceOwner` / `RequireTrafficPolicyOwner` / `RequireWorkspaceOwner` 标准件（均按 `name` 寻址）。
 
 ## 6. 接口契约
@@ -356,7 +380,7 @@ RBAC 中间件装配细节归 [auth.md](../auth.md)，Platform 在路由层挂�
 | --- | --- | --- |
 | 对外 REST | 业务 tag：`Auth` / `Tenants` / `Quotas` / `Members` / `Jobs` / `Experiments` / `MLServices` / `TrafficPolicy` / `Workspaces` / `Models` / `Images` / `ResourcePools` / `ResourceUnits` / `Dashboard`；jobs / experiments / mlservices / workspaces 一律 `/api/v1/{kind}/{name}` name 寻址（Run 为 jobs / experiments 的子资源 `/{kind}/{name}/runs/{run}`；TensorBoard 为 experiments 子资源 `/experiments/{name}/tensorboard`）；流量策略走 `/api/v1/trafficpolicies/{name}`（`/split` `/promote` `/rollback` 等动作子资源）；制品定义走 `/api/v1/{kind-plural}/{tenant}/{name}` tuple 寻址（版本为子资源 `/versions/{version}`，`{kind-plural} ∈ {models, images}`）；系统类 tag（`Users` / `Audit` / `Health`）见 yaml | [openapi/platform.yaml](../../openapi/platform.yaml) |
 | 状态 | 不暴露任何 K8s CR；下游运行态字段（phase / conditions / status / quota 用量）作为只读字段透传 | — |
-| 错误格式 | HTTP 标准状态码 + RFC 7807 `application/problem+json`；下游 problem 由 typed client 解析后透传或包装 | — |
+| 错误格式 | HTTP 标准状态码 + RFC 7807 `application/problem+json`；下游 problem 由 typed client 解析后透传或包装；`type` URI / 下游 error code 为稳定机读标识，作前端 i18n 文案映射 key（§5.6），`title` / `detail` 仅英文调试兜底、UI 不直接展示 | — |
 | 流式 | 日志 / 事件 `follow=true` 采用 `text/event-stream` SSE；非 follow 用 `text/plain` chunked | — |
 | 身份头 | 入站校验主登录 JWT；单租户操作的 active tenant 由入站 `X-Axisml-Tenant` 头携带（§5.2）；出站注入 `X-Axisml-User` | [auth.md §6](../auth.md#6-下游身份透传) |
 | 数据面接入 | 工作区数据面走 access JWT（`aud=axisml-workspace`，Cookie 携带），由 Platform 颁发、Envoy SecurityPolicy 验签；在线服务设计为 API KEY（后续实现，当前无鉴权） | [auth.md §5](../auth.md#5-数据面接入) |
