@@ -8,10 +8,12 @@ package app
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 
 	"github.com/axisml/axisml/components/platform/internal/artifactdef"
 	"github.com/axisml/axisml/components/platform/internal/auth"
@@ -29,9 +31,6 @@ import (
 	"github.com/axisml/axisml/components/platform/internal/tenant"
 	"github.com/axisml/axisml/components/platform/internal/traffic"
 	"github.com/axisml/axisml/components/platform/internal/workspace"
-
-	"gorm.io/gorm"
-	"log/slog"
 )
 
 // Deps groups the constructed collaborators shared across modules.

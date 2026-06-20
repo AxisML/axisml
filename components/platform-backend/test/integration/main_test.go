@@ -55,7 +55,7 @@ func run(m *testing.M) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer func() { _ = ctr.Container.Terminate(context.Background()) }()
+	defer func() { _ = ctr.Terminate(context.Background()) }()
 
 	host, err := ctr.Host(ctx)
 	if err != nil {
