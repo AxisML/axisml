@@ -176,7 +176,7 @@ spec:
 
 ### 4.3 MLTrafficPolicy Controller
 
-把一个稳定对外入口的入站流量按权重分发到同 namespace 下多个在线服务（`MLService`，`kind=service`）后端。compute-service 已完成成员校验、占用判定与同构判定，并把派生的 `spec.backend` 元组写入 CR（见 [compute-service.md §4.5](compute-service.md#45-流量策略mltrafficpolicy)）；operator 只消费 CR、解析成员 K8s Service、派生网关资源。
+把一个稳定对外入口的入站流量按权重分发到同 namespace 下多个在线服务（`MLService`，`kind=service`）后端。compute-service 已完成成员校验、占用判定与同构判定，并把派生的 `spec.backend` 元组写入 CR（见 [compute-service.md §4.3](compute-service.md#43-流量策略mltrafficpolicy)）；operator 只消费 CR、解析成员 K8s Service、派生网关资源。
 
 #### 4.3.1 MLTrafficPolicy spec 高层结构
 

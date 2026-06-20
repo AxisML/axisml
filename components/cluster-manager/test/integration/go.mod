@@ -4,6 +4,7 @@ go 1.26.0
 
 require (
 	github.com/axisml/axisml/components/cluster-manager v0.0.0
+	github.com/axisml/axisml/components/tenant-operator v0.0.0-00010101000000-000000000000
 	github.com/axisml/axisml/test/testutil v0.0.0
 	github.com/gin-gonic/gin v1.10.0
 	github.com/stretchr/testify v1.11.1

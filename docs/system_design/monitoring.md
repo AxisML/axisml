@@ -68,19 +68,19 @@ label 取值规则：
 | --- | --- | --- |
 | `axisml_compute_is_leader` | gauge | 当前副本是否为 leader（0/1） |
 | `axisml_compute_reconciler_oldest_pending_seconds{resource,predicate}` | gauge | 工作集最老未处理行的 age |
-| `axisml_compute_reconciler_actions_total{resource,predicate,result}` | counter | reconciler 动作计数（含 tenant CR sync） |
+| `axisml_compute_reconciler_actions_total{resource,predicate,result}` | counter | reconciler 动作计数（MLRun / MLService / MLTrafficPolicy CR sync） |
 | `axisml_compute_informer_workqueue_depth{resource}` | gauge | 各模块 Informer work queue 深度 |
-| `axisml_compute_informer_cache_size{resource}` | gauge | Informer in-memory cache 条目数（`resource ∈ {tenant, job, service}`；Tenant cache 直接承担 `quotas[].used` 实时查询） |
-| `axisml_compute_informer_cache_synced{resource}` | gauge | Informer cache 是否完成首次 list（0/1）；`tenant=0` 时 GET tenant 在 `quotas[].used` 上返 `null` + warning |
-| `axisml_compute_informer_last_sync_age_seconds{resource}` | gauge | 距离上次成功 watch 事件的秒数；超过 stale TTL（默认 30s）时 used 字段视为不可信 |
+| `axisml_compute_informer_cache_size{resource}` | gauge | Informer in-memory cache 条目数（`resource ∈ {job, service, traffic}`） |
+| `axisml_compute_informer_cache_synced{resource}` | gauge | Informer cache 是否完成首次 list（0/1） |
+| `axisml_compute_informer_last_sync_age_seconds{resource}` | gauge | 距离上次成功 watch 事件的秒数 |
 | `axisml_compute_spec_sync_pending_total{resource}` | gauge | 待同步行数（`generation <> observed_generation`） |
-| `axisml_compute_external_drift_total{resource,field}` | counter | 检测到非 compute 字段管理者写入 CR 的次数（Tenant / MLRun / MLService） |
+| `axisml_compute_external_drift_total{resource,field}` | counter | 检测到非 compute 字段管理者写入 CR 的次数（MLRun / MLService / MLTrafficPolicy） |
 | `axisml_compute_api_request_duration_seconds{route,status}` | histogram | API 请求延迟分布 |
 | `axisml_compute_metrics_query_duration_seconds{scope,result}` | histogram | 经 compute 代理的 Prometheus 指标查询耗时（`scope ∈ {service, workload}`） |
 
 label 取值：
 
-- `resource ∈ {tenant, job, service}`；
+- `resource ∈ {job, service, traffic}`；
 - `predicate ∈ {creating, canceling, deleting, spec_sync}`；
 - `result ∈ {success, conflict, not_found, error, skipped}`。
 
@@ -171,7 +171,7 @@ label 取值：
 | `platform_workspace_state{tenant_name, state}` | gauge | 按租户聚合各派生 `status` 的 workspace 数；定期采样 |
 | `platform_workspace_access_jwt_issued_total{result}` | counter | access JWT 颁发量 + 失败原因 |
 
-> Workspace PVC 生命周期由 compute-service 同事务派生与回收（详见 [compute-service.md §4.4](components/compute-service.md#44-service)）；孤儿 PVC / 回滚相关指标归 compute 侧暴露，不在 Platform 模块。
+> Workspace PVC 生命周期由 compute-service 同事务派生与回收（详见 [compute-service.md §4.2](components/compute-service.md#42-service)）；孤儿 PVC / 回滚相关指标归 compute 侧暴露，不在 Platform 模块。
 
 业务编排见 [platform.md §4.4 工作区编排](components/platform.md#44-工作区编排)。
 

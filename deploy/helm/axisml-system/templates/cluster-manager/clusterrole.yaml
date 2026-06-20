@@ -11,6 +11,12 @@ rules:
     resources: ["resourcepools"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 
+  # Tenant CR — full CRUD: cluster-manager is the REST writer; tenant-operator
+  # reconciles it and writes status (which cluster-manager reads on GET).
+  - apiGroups: ["axisml.io"]
+    resources: ["tenants"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
   # Events: emit audit events on REST mutations.
   - apiGroups: [""]
     resources: ["events"]

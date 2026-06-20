@@ -62,7 +62,7 @@
 | Artifact | 版本化制品 | `(namespace, kind, name, version)` | 四元组创建后不复用；spec / digest 进入 `Ready` 后冻结 |
 
 - `kind` 枚举：`model` / `dataset` / `image`，由 Handler registry 校验。
-- `namespace` 是 tenant 标识符（= compute `tenants.name`），由 Platform 透传；Artifacts 不解析、不做存在性校验，仅作为不透明分区键使用。`axisml-system` 是平台内置 tenant，承载 `visibility=public` 全局可见制品。
+- `namespace` 是租户 `identifier`（= Platform `tenants.identifier`，亦即 K8s namespace 名），由 Platform 透传；Artifacts 不解析、不做存在性校验，仅作为不透明分区键使用。`axisml-system` 是平台内置 tenant，承载 `visibility=public` 全局可见制品。
 - `visibility` 枚举：`tenant`（默认，仅本 namespace 内可见）/ `public`（全局可见；仅允许在 `axisml-system` 内置 namespace 下创建，由调用方 Platform 做 RBAC 兜底）。
 - 状态机集合：`Uploading` / `Ready` / `Failed` / `Deleting` / `Deleted`（详见 [§6](#6-接口契约)）。
 - `source` 枚举：`webUpload`（直传）/ `oras`（model CLI 推送）/ `dockerPush`（image 本机推送）/ `external`（登记远端、免上传，见 [§5.1](#51-写路径两阶段提交)）——记录版本加入方式，进入 `Ready` 后冻结。

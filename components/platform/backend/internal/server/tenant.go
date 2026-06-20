@@ -48,13 +48,6 @@ type QuotaPatchRequest struct {
 	Units []QuotaUnit `json:"units" binding:"required"`
 }
 
-// Namespace is a tenant-owned Kubernetes Namespace declaration.
-type Namespace struct {
-	Name        string    `json:"name" binding:"dns1123,min=1,max=63"`
-	Labels      StringMap `json:"labels,omitempty"`
-	Annotations StringMap `json:"annotations,omitempty"`
-}
-
 // SecretSourceRef references a Secret in another namespace.
 type SecretSourceRef struct {
 	Namespace string `json:"namespace"`
@@ -101,32 +94,31 @@ type InitResources struct {
 	ServiceAccounts  []ServiceAccountInit  `json:"serviceAccounts,omitempty"`
 }
 
-// Tenant is the Platform-facing Tenant DTO.
+// Tenant is the Platform-facing Tenant DTO. Platform owns the durable tenant
+// record (this row); the live Kubernetes materialization — Namespace,
+// ElasticQuota, per-tenant init resources — is owned by cluster-manager via
+// the Tenant CR, which Platform drives over REST and never touches directly.
+//
+// Identifier is the single canonical name: it is Platform's stable handle, the
+// cluster-manager Tenant CR name, the K8s namespace, and the compute/artifacts
+// partition string all at once. Phase / Status are read live from
+// cluster-manager (not cached); Suspended and soft-delete are Platform-owned
+// and enforced at the workload-create entry point.
 type Tenant struct {
-	Name               string       `json:"name"`
-	Namespace          string       `json:"namespace" binding:"max=100"`
-	DisplayName        string       `json:"displayName"`
-	Description        string       `json:"description,omitempty"`
-	Owner              string       `json:"owner,omitempty"`
-	Labels             StringMap    `json:"labels,omitempty"`
-	Annotations        StringMap    `json:"annotations,omitempty"`
-	Spec               TenantSpec   `json:"spec"`
-	Generation         int64        `json:"generation" binding:"min=1"`
-	ObservedGeneration int64        `json:"observedGeneration,omitempty" binding:"min=0"`
-	Phase              TenantPhase  `json:"phase"`
-	Status             TenantStatus `json:"status,omitempty"`
-	ComputeNamespace   string       `json:"computeNamespace,omitempty"`
-	ArtifactsNamespace string       `json:"artifactsNamespace,omitempty"`
-	CreatedAt          time.Time    `json:"createdAt"`
-	UpdatedAt          time.Time    `json:"updatedAt"`
-	DeletedAt          *time.Time   `json:"deletedAt,omitempty"`
-}
-
-// TenantSpec is the declarative tenant spec.
-type TenantSpec struct {
-	Namespace     Namespace     `json:"namespace"`
+	Identifier    string        `json:"identifier"`
+	DisplayName   string        `json:"displayName"`
+	Description   string        `json:"description,omitempty"`
+	Owner         string        `json:"owner,omitempty"`
+	Labels        StringMap     `json:"labels,omitempty"`
+	Annotations   StringMap     `json:"annotations,omitempty"`
 	Quotas        []Quota       `json:"quotas,omitempty"`
 	InitResources InitResources `json:"initResources,omitempty"`
+	Phase         TenantPhase   `json:"phase"`
+	Status        TenantStatus  `json:"status,omitempty"`
+	Suspended     bool          `json:"suspended"`
+	CreatedAt     time.Time     `json:"createdAt"`
+	UpdatedAt     time.Time     `json:"updatedAt"`
+	DeletedAt     *time.Time    `json:"deletedAt,omitempty"`
 }
 
 // TenantStatus is the tenant status sub-object (phase lives on Tenant).
@@ -143,16 +135,18 @@ type TenantList struct {
 	ContinueToken string   `json:"continueToken,omitempty"`
 }
 
-// TenantCreateRequest is the body of POST /tenants. InitialAdmin seeds the
+// TenantCreateRequest is the body of POST /tenants. Identifier becomes the
+// cluster-manager Tenant CR name (== K8s namespace). InitialAdmin seeds the
 // first tenant-admin member, by email or username.
 type TenantCreateRequest struct {
-	Name         string     `json:"name" binding:"required,dns1123,min=3,max=40"`
-	DisplayName  string     `json:"displayName" binding:"required,min=1,max=100"`
-	Description  string     `json:"description,omitempty" binding:"max=1000"`
-	InitialAdmin string     `json:"initialAdmin" binding:"required"`
-	Labels       StringMap  `json:"labels,omitempty"`
-	Annotations  StringMap  `json:"annotations,omitempty"`
-	Spec         TenantSpec `json:"spec" binding:"required"`
+	Identifier    string        `json:"identifier" binding:"required,dns1123,min=3,max=40"`
+	DisplayName   string        `json:"displayName" binding:"required,min=1,max=100"`
+	Description   string        `json:"description,omitempty" binding:"max=1000"`
+	InitialAdmin  string        `json:"initialAdmin" binding:"required"`
+	Labels        StringMap     `json:"labels,omitempty"`
+	Annotations   StringMap     `json:"annotations,omitempty"`
+	Quotas        []Quota       `json:"quotas,omitempty"`
+	InitResources InitResources `json:"initResources,omitempty"`
 }
 
 // TenantPatchRequest is the JSON Merge Patch body of PATCH /tenants/{name}.

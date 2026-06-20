@@ -2,24 +2,24 @@
 
 本文档汇总 AxisML 控制平面所有持久化在 PostgreSQL 中的表 schema。所有控制面服务共用同一个 database `axisml`，按表名前缀逻辑隔离；schema 迁移由各服务二进制内嵌 `golang-migrate` 在启动时执行。Postgres 部署形态见 [infra.md §4.4](infra.md#44-数据库postgresql)；系统级位置见 [overview.md](overview.md)。
 
-**连接契约**：PostgreSQL 引擎归 Infra 层（`axisml-infra` chart，Service `axisml-database`）。System 层服务（compute-service / artifact-hub）经跨 namespace FQDN `axisml-database.axisml-infra:5432` 连接；连接凭据由 System 层从与 Infra 层同值的 `database.auth.password` 在本 namespace 自渲染为 Secret——Secret 为 namespace-scoped 不跨 namespace 引用，故密码作为两 chart 的共享输入各出现一次（生产环境两边指向同一外部托管实例 / 凭据）。Platform 层不直连 DB。
+**连接契约**：PostgreSQL 引擎归 Infra 层（`axisml-infra` chart，Service `axisml-database`）。System 层服务（compute-service / artifact-hub）与 Platform 层 backend 都经跨 namespace FQDN `axisml-database.axisml-infra:5432` 连接；连接凭据由各消费层从与 Infra 层同值的 `database.auth.password` 在本 namespace 自渲染为 Secret——Secret 为 namespace-scoped 不跨 namespace 引用，故密码作为各 chart 的共享输入各出现一次（生产环境均指向同一外部托管实例 / 凭据）。cluster-manager 与两个 operator 不连 DB。
 
 | 服务 | 表 | 用途 |
 | --- | --- | --- |
-| [compute-service](components/compute-service.md) | `tenants` | 租户 / 配额 / namespace spec（写路径权威） |
-| Compute Service | `mlruns` | 一次性计算任务 |
+| [Compute Service](components/compute-service.md) | `mlruns` | 一次性计算任务 |
 | Compute Service | `mlservices` | 常驻在线服务 / 工作区 |
 | Compute Service | `traffic_policies` | 流量策略（稳定入口按权重分发到多个在线服务） |
 | [artifact-hub](components/artifact-hub.md) | `artifacts` | 制品（model / dataset / image） |
-| [Platform](components/platform.md) | `users` / `user_roles` / `sessions` / `audit_logs` | 身份、授权、会话、审计（角色硬编码三档，不入表） |
+| [Platform](components/platform.md) | `tenants` | 租户持久记录 / 生命周期 / 暂停 / 软删（`identifier` 标识） |
+| Platform | `users` / `user_roles` / `sessions` / `audit_logs` | 身份、授权、会话、审计（角色硬编码三档，不入表） |
 
-> [Cluster Manager](components/cluster-manager.md) **不入 PG**——ResourcePool（含内嵌 `spec.units[]`）持久化在 K8s etcd 上的 `ResourcePool` CRD，cluster-manager 是 REST + K8s API 调用层。
+> [Cluster Manager](components/cluster-manager.md) **不入 PG**——ResourcePool（含内嵌 `spec.units[]`）与 `Tenant` CR 持久化在 K8s etcd 上，cluster-manager 是 REST + K8s API 调用层；租户的持久业务记录（生命周期 / 暂停 / 软删）在 Platform `tenants` 表（§4）。
 
 ---
 
 ## 1. 通用约定
 
-下列约定对**业务表**生效（`tenants` / `mlruns` / `mlservices` / `traffic_policies` / `artifacts`）；Platform 的身份 / 会话 / 审计表（§4）按需自定义，不强制遵循。新增业务表或扩展现有表时必须满足。
+下列约定对**业务表**生效（`mlruns` / `mlservices` / `traffic_policies` / `artifacts`，以及 Platform `tenants`）；Platform 的身份 / 会话 / 审计表（§4）按需自定义，不强制遵循。新增业务表或扩展现有表时必须满足。
 
 ### 1.1 通用字段
 
@@ -33,7 +33,7 @@
 
 ### 1.3 命名校验
 
-承载业务标识并会映射到 K8s 对象名的 `name` 字段（Tenant / ResourcePool / Job / Service / Artifact）：
+承载业务标识并会映射到 K8s 对象名的标识字段（Tenant `identifier` / ResourcePool / Job / Service / Artifact）：
 
 - 字符集 `[a-z0-9-]`；首尾为字母或数字；长度 3–40；不允许连续 `--`；
 - **DNS-1123 兼容**；
@@ -42,7 +42,7 @@
 
 ### 1.4 generation / observed_generation
 
-允许变更 spec 的 CR-backed 表（当前为 `tenants` / `mlservices` / `traffic_policies`）采用 K8s 风格的 generation 双字段做 outbox 信号：
+允许变更 spec 的 CR-backed 表（当前为 `mlservices` / `traffic_policies`）采用 K8s 风格的 generation 双字段做 outbox 信号：
 
 | 字段 | 类型 | 写入方 | 含义 |
 | --- | --- | --- | --- |
@@ -77,65 +77,14 @@ reconciler 通过 partial index `WHERE generation <> observed_generation AND del
 ---
 
 ## 2. Compute Service
-`tenants` / `mlruns` / `mlservices` 的 `namespace text` 字段是 tenant 标识符（= `tenants.name`）；Compute 内部通过 join `tenants` 表得到 `spec.namespace.name` 用于 CR 下发的 `metadata.namespace`。
+`mlruns` / `mlservices` / `traffic_policies` 的 `namespace text` 字段是租户 `identifier`，同时就是 CR 下发的 K8s `metadata.namespace`（单一规范名，由 Platform 传入）；Compute 不 join 任何租户表、不做名字解析。
 
-### 3.1 `tenants` 表
-
-```sql
-CREATE TABLE tenants (
-  id                   uuid PRIMARY KEY,
-  name                 text NOT NULL,                       -- tenant 标识符；集群内全局唯一；创建后不可变
-  display_name         text,
-  description          text,
-  owner                text,                                -- 创建者；来自 X-Axisml-User；不可变
-  labels               jsonb NOT NULL DEFAULT '{}',
-  annotations          jsonb NOT NULL DEFAULT '{}',
-
-  spec                 jsonb NOT NULL,                      -- 与 Tenant CR spec 一一对应；字段以 CRD yaml 为准
-  generation           bigint NOT NULL DEFAULT 1,
-  observed_generation  bigint NOT NULL DEFAULT 0,
-
-  phase                text NOT NULL DEFAULT 'Creating',    -- 顶层高频过滤字段；API 写意图态（Creating/Suspended/Deleting）+ informer 回流观测态
-  status               jsonb NOT NULL DEFAULT '{}',         -- phase 之外的 status 子树（message / conditions / quotas）；informer 回流
-
-  last_modified_by     text NOT NULL DEFAULT '',
-  created_at           timestamptz NOT NULL DEFAULT now(),
-  updated_at           timestamptz NOT NULL DEFAULT now(),
-  deleted_at           timestamptz
-);
-
-CREATE UNIQUE INDEX tenants_name_active_uniq
-  ON tenants (name) WHERE deleted_at IS NULL;
-CREATE INDEX tenants_deleted_at  ON tenants (deleted_at);
-CREATE INDEX tenants_created_at  ON tenants (created_at DESC);
-CREATE INDEX tenants_phase       ON tenants (phase) WHERE deleted_at IS NULL;
-CREATE INDEX tenants_sync_pending
-  ON tenants (id) WHERE generation <> observed_generation AND deleted_at IS NULL;
-```
-
-`tenants.spec.namespace.name` 是 tenant 关联的 K8s namespace（不可变，多 tenant 可共享）。`mlruns` / `mlservices` / `artifacts` 的 `namespace` 字段 = `tenants.name`，作为逻辑分区键；Compute 写 CR 时 join 出 K8s namespace。
-
-`phase` 是 Tenant CR `status.phase` 的顶层冗余（便于 SQL 过滤与 B-tree 索引）；`status` jsonb 持剩余子字段 `{message, namespaceReady, conditions[], quotas[].{pool, ready}}` —— informer 在写 PG 时**主动 strip** `quotas[].used`，该字段属于 ephemeral 调度态，只活在 Tenant CR `status.quotas[].used` 与 compute Tenant Informer 的 in-memory cache 里，GET 端点实时聚合返回（详见 [compute-service.md §5.3](components/compute-service.md#53-状态回流informer)）。两者都由 informer 写。`Suspended` 与 `Creating` / `Deleting` 同属 API 直接写入 `phase` 的意图态（reconciler 无匹配谓词、不下发 CR）；informer 回流时**不覆盖** `phase='Suspended'` 的行，仅刷新其 `status` 子树（conditions / quotas），resume 把 `phase` 复位 `Active` 后恢复正常回流（详见 [compute-service.md §4.1](components/compute-service.md#41-tenant)）。
-
-**字段归属**
-
-| 字段 | 写入方 | 备注 |
-| --- | --- | --- |
-| `id` | API | 同时写入 CR `metadata.labels[axisml.io/tenant-id]` |
-| `name` | API | 创建后不可变；集群内全局唯一 |
-| `spec` | API | `spec.namespace.name`（= 租户名）/ `spec.quotas[].pool` 创建后不可变 |
-| `generation` | API | spec mutation 时 +1 |
-| `observed_generation` | reconciler | 成功 patch CR 后写入 |
-| `status` | informer | 从 Tenant CR `status` 整块回流 |
-| `last_modified_by` | API | 每次 mutation 用 `X-Axisml-User` 刷新 |
-| `deleted_at` | DELETE / restore | retention 365 天后 GC 物理清理 |
-
-### 3.2 `mlruns` 表
+### 3.1 `mlruns` 表
 
 ```sql
 CREATE TABLE mlruns (
   id                   uuid PRIMARY KEY,
-  namespace            text NOT NULL,                 -- tenant 标识符（= tenants.name）
+  namespace            text NOT NULL,                 -- 租户 identifier（= Platform tenants.identifier）
   name                 text NOT NULL,
   display_name         text,
   description          text,
@@ -163,14 +112,14 @@ CREATE INDEX mlruns_namespace_job_created
 
 GIN + 复合表达式索引支持 `?labelSelector=axisml.io/job=...`（列某 Job 的 Run）的过滤路径（详见 [§1.6](#16-扩展元数据-labels--annotations) 与 [compute.md §6](components/compute-service.md#6-接口契约)）。
 
-### 3.3 `mlservices` 表
+### 3.2 `mlservices` 表
 
 `mlservices` 表同时承载普通在线服务（`kind='service'`）和 [Platform 工作区](components/platform.md#44-工作区编排)（`kind='workspace'`）。
 
 ```sql
 CREATE TABLE mlservices (
   id                   uuid PRIMARY KEY,
-  namespace            text NOT NULL,                       -- tenant 标识符（= tenants.name）
+  namespace            text NOT NULL,                       -- 租户 identifier（= Platform tenants.identifier）
   name                 text NOT NULL,
   kind                 text NOT NULL DEFAULT 'service',     -- 'service' | 'workspace' | 'tensorboard'；不可变；冗余到 CR label axisml.io/service-kind
   display_name         text,
@@ -201,14 +150,14 @@ CREATE INDEX mlservices_namespace_created
 
 `phase` 是 MLService CR `status.phase` 的顶层冗余；`status` jsonb 持剩余子字段 `{message, readyReplicas, endpoint, conditions[]}`。两者由 informer 写。`spec` 中仅 `spec.roles[0].replicas` 可变（`/scale` 写入并 `+generation`）。`spec.backend` 缺省时 Compute 补 `{name: "native", engine: "deployment"}`。label GIN 索引服务于 labelSelector 查询；`(namespace, created_at)` 复合索引服务于租户内按时间列表（services 无 Job 父级，不按 job 分组）。
 
-### 3.4 `traffic_policies` 表
+### 3.3 `traffic_policies` 表
 
-把一个稳定对外入口的入站流量按权重分发到同 `namespace` 下多个在线服务（`mlservices` 表 `kind='service'` 的行）；CR 派生与契约见 [compute-service.md §4.5](components/compute-service.md#45-流量策略mltrafficpolicy) / [compute-operator.md §4.3](components/compute-operator.md#43-mltrafficpolicy-controller)。
+把一个稳定对外入口的入站流量按权重分发到同 `namespace` 下多个在线服务（`mlservices` 表 `kind='service'` 的行）；CR 派生与契约见 [compute-service.md §4.3](components/compute-service.md#43-流量策略mltrafficpolicy) / [compute-operator.md §4.3](components/compute-operator.md#43-mltrafficpolicy-controller)。
 
 ```sql
 CREATE TABLE traffic_policies (
   id                   uuid PRIMARY KEY,
-  namespace            text NOT NULL,                       -- tenant 标识符（= tenants.name）
+  namespace            text NOT NULL,                       -- 租户 identifier（= Platform tenants.identifier）
   name                 text NOT NULL,
   mode                 text NOT NULL,                       -- 'weighted' | 'canary' | 'bluegreen'；创建后不可变
   display_name         text,
@@ -235,7 +184,7 @@ CREATE INDEX traffic_policies_labels_gin   ON traffic_policies USING GIN (labels
 
 `phase` 是 MLTrafficPolicy CR `status.phase` 的顶层冗余；`status` jsonb 持剩余子字段 `{message, endpoint, backends[].{serviceName, weight, ready}, conditions[]}`，由 informer 整块回流。`spec` 持 `{mode, endpoint{path,hostname,auth}, backends[].{serviceName,role,weight}, backend{name,engine}}`——其中 `backends[*].weight` 由 `/split` `/rollback` 改、canary `/promote` 额外互换两后端的 `role`，均 `+generation`。canary 当前基线即 `role=stable` 的后端，**不设独立 `baselineRef` 指针**。成员以 `serviceName` 引用同 `namespace` 的 `mlservices` 行，**不冗余成员 spec**。
 
-**成员占用唯一性**（一个在线服务同时只能被一个活跃策略引用）是跨 `traffic_policies.spec.backends[]` jsonb 数组的约束，PG 难以用单一索引表达，由 compute-service 在创建 / 删除事务内于应用层维护（见 [compute-service.md §4.5](components/compute-service.md#45-流量策略mltrafficpolicy)）。
+**成员占用唯一性**（一个在线服务同时只能被一个活跃策略引用）是跨 `traffic_policies.spec.backends[]` jsonb 数组的约束，PG 难以用单一索引表达，由 compute-service 在创建 / 删除事务内于应用层维护（见 [compute-service.md §4.3](components/compute-service.md#43-流量策略mltrafficpolicy)）。
 
 ---
 
@@ -276,7 +225,7 @@ CREATE INDEX artifacts_created_at          ON artifacts (created_at DESC);
 CREATE INDEX artifacts_labels_gin          ON artifacts USING GIN (labels jsonb_path_ops);
 ```
 
-`(namespace, kind, name, version)` 是 §1.2 软删唯一性的例外——一旦创建即不复用、软删后也不释放，因此 unique index **不带** `WHERE deleted_at IS NULL`。`spec` / `digest` Ready 后冻结，"改"= 同 `(namespace, kind, name)` 下新建 `version`。`display_name` / `description` / `labels` / `annotations` 任何阶段可改；`visibility` 创建后不可变。`namespace` 是 tenant 标识符（= compute `tenants.name`），Artifacts 不解析；`visibility='public'` 仅允许在 `axisml-system` 内置 namespace 下创建（由调用方 Platform RBAC 兜底）。
+`(namespace, kind, name, version)` 是 §1.2 软删唯一性的例外——一旦创建即不复用、软删后也不释放，因此 unique index **不带** `WHERE deleted_at IS NULL`。`spec` / `digest` Ready 后冻结，"改"= 同 `(namespace, kind, name)` 下新建 `version`。`display_name` / `description` / `labels` / `annotations` 任何阶段可改；`visibility` 创建后不可变。`namespace` 是租户 `identifier`（= Platform `tenants.identifier`），Artifacts 不解析；`visibility='public'` 仅允许在 `axisml-system` 内置 namespace 下创建（由调用方 Platform RBAC 兜底）。
 
 存储地址不入表：`storage_kind` 是 `kind` 的纯函数，`uri` 由 `Handler.BuildStorageURI(namespace, name, version)` 即时构造。新增 Kind 无需 schema 迁移（`spec jsonb` + `kind text` 兼容），只需新增 handler 与 OpenAPI 枚举。
 
@@ -284,11 +233,30 @@ CREATE INDEX artifacts_labels_gin          ON artifacts USING GIN (labels jsonb_
 
 ## 4. Platform
 
-Platform PG 覆盖 **身份、授权、会话、审计** 四类，外加 **Job / Experiment / Model / Image 四张定义**（§5.2）。**不缓存任何下游可变实例状态**——run / version / phase / conditions / digest / quota 用量一律向下游服务实时查询；Tenant / Workspace / Service / TrafficPolicy 等无 Platform 视图表。流量策略持久化在 compute `traffic_policies`（§3.4），经 Platform 代理、不建 Platform 表。
+Platform PG 覆盖 **租户持久记录**（`tenants`，§5.1）、**身份、授权、会话、审计** 四类，外加 **Job / Experiment / Model / Image 四张定义**（§5.2）。`tenants` 持租户生命周期意图（`identifier` / 展示元数据 / 暂停 / 软删），经 cluster-manager REST 物化为 Tenant CR；**不缓存任何下游可变实例状态**——run / version / phase / conditions / digest / quota 用量（含租户 phase 与配额用量）一律向下游服务实时查询；Workspace / Service / TrafficPolicy 等无 Platform 视图表。流量策略持久化在 compute `traffic_policies`（§3.3），经 Platform 代理、不建 Platform 表。
 
 ### 5.1 schema
 
 ```sql
+CREATE TABLE tenants (
+  id                uuid PRIMARY KEY,
+  identifier        text NOT NULL,                       -- 租户唯一标识 = Tenant CR 名 = K8s namespace = compute/artifacts 分区键；DNS-1123；创建后不可变
+  display_name      text,
+  description       text,
+  owner             text,                                -- 创建者；来自 X-Axisml-User；不可变
+  labels            jsonb NOT NULL DEFAULT '{}',
+  annotations       jsonb NOT NULL DEFAULT '{}',
+  suspended_at      timestamptz,                         -- 非空 = 暂停态；新建工作负载闸门由 Platform 在创建入口强制
+  last_modified_by  text NOT NULL DEFAULT '',
+  created_at        timestamptz NOT NULL DEFAULT now(),
+  updated_at        timestamptz NOT NULL DEFAULT now(),
+  deleted_at        timestamptz                          -- 软删；retention 365 天后物理清理
+);
+CREATE UNIQUE INDEX tenants_identifier_active_uniq ON tenants (identifier) WHERE deleted_at IS NULL;
+CREATE INDEX tenants_deleted_at ON tenants (deleted_at);
+CREATE INDEX tenants_suspended  ON tenants (suspended_at) WHERE deleted_at IS NULL;
+CREATE INDEX tenants_created_at ON tenants (created_at DESC);
+
 CREATE TABLE users (
   id                    uuid PRIMARY KEY,
   username              text NOT NULL,
@@ -306,7 +274,7 @@ CREATE UNIQUE INDEX users_username_uniq ON users (username);
 
 CREATE TABLE user_roles (
   user_id     uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  tenant_name text NOT NULL,                       -- 引用 compute `tenants.name`（稳定 FK，跨服务不约束）
+  tenant_name text NOT NULL,                       -- = tenants.identifier（同库，可建真实 FK；当前走应用层约束）
   role        text NOT NULL,                       -- 'tenant-admin' | 'user'；硬编码枚举
   created_at  timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (user_id, tenant_name, role)
@@ -333,9 +301,9 @@ CREATE INDEX audit_logs_created_at      ON audit_logs (created_at DESC);
 CREATE INDEX audit_logs_user_created_at ON audit_logs (user_id, created_at DESC);
 ```
 
-`user_roles.tenant_name` 不做跨服务 FK——compute `tenants.name` 在 `WHERE deleted_at IS NULL` 上 partial unique 且创建后不可变，等价于稳定 FK；级联清理由 [platform.md §4.1](components/platform.md#41-租户编排) 在应用层实现。`user_roles.role` 是硬编码 text 枚举（`tenant-admin` / `user`），完整矩阵见 [auth.md §3](auth.md#3-rbac-角色)。`audit_logs` 保留期由 `--audit-log-retention-days` 配置（默认 90 天）。
+`user_roles.tenant_name` 引用本服务 `tenants.identifier`（同库，可建真实 FK；当前与下游对象一致走应用层约束）——`tenants.identifier` 在 `WHERE deleted_at IS NULL` 上 partial unique 且创建后不可变；租户软删时由 [platform.md §4.1](components/platform.md#41-租户编排) 在应用层级联清理本租户的 `user_roles` 行。`user_roles.role` 是硬编码 text 枚举（`tenant-admin` / `user`），完整矩阵见 [auth.md §3](auth.md#3-rbac-角色)。`audit_logs` 保留期由 `--audit-log-retention-days` 配置（默认 90 天）。
 
-**bootstrap 行为**：首次 `axisml-platform bootstrap` 会插入 `admin` 用户（密码 hash 默认 `admin`，`must_change_password=true`；可通过环境变量 `AXISML_BOOTSTRAP_PASSWORD` 覆盖），同时在 compute 中初始化内置租户 `axisml-system` 承载 `visibility=public` 制品。
+**bootstrap 行为**：首次 `axisml-platform bootstrap` 会插入 `admin` 用户（密码 hash 默认 `admin`，`must_change_password=true`；可通过环境变量 `AXISML_BOOTSTRAP_PASSWORD` 覆盖），同时在 Platform `tenants` 表登记内置租户 `axisml-system`（`identifier=axisml-system`）并经 cluster-manager 创建其 Tenant CR，承载 `visibility=public` 制品。
 
 ### 5.2 定义（jobs / experiments / models / images）
 
@@ -346,7 +314,7 @@ CREATE INDEX audit_logs_user_created_at ON audit_logs (user_id, created_at DESC)
 ```sql
 CREATE TABLE jobs (
   id            uuid PRIMARY KEY,
-  tenant_name   text NOT NULL,                 -- 分区键（= compute tenants.name）
+  tenant_name   text NOT NULL,                 -- 分区键（= tenants.identifier）
   name          text NOT NULL,
   display_name  text,
   description   text,

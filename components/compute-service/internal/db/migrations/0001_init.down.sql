@@ -1,3 +1,2 @@
 DROP TABLE IF EXISTS mlservices;
 DROP TABLE IF EXISTS mlruns;
-DROP TABLE IF EXISTS tenants;

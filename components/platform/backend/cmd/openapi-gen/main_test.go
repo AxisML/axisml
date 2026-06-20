@@ -98,8 +98,8 @@ func TestExpectedCounts(t *testing.T) {
 	if got := len(doc.Paths); got != 84 {
 		t.Errorf("path count = %d, want 84", got)
 	}
-	if got := len(doc.Components.Schemas); got != 141 {
-		t.Errorf("schema count = %d, want 141", got)
+	if got := len(doc.Components.Schemas); got != 139 {
+		t.Errorf("schema count = %d, want 139", got)
 	}
 }
 

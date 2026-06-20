@@ -98,7 +98,7 @@ func stripReservedAnnotations(in map[string]string) map[string]string {
 	}
 	out := make(map[string]string, len(in))
 	for k, v := range in {
-		if k == DescriptionAnnotation || k == LastModifiedByAnnotation {
+		if k == DescriptionAnnotation || k == LastModifiedByAnnotation || k == QuotasAnnotation {
 			continue
 		}
 		out[k] = v

@@ -31,7 +31,6 @@ import (
 	mlrunv1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlrun/v1alpha1"
 	mlservicev1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
 	mltrafficpolicyv1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mltrafficpolicy/v1alpha1"
-	tenantv1alpha1 "github.com/axisml/axisml/components/tenant-operator/api/v1alpha1"
 
 	computeapp "github.com/axisml/axisml/components/compute-service/internal/app"
 	computeconfig "github.com/axisml/axisml/components/compute-service/internal/config"
@@ -63,7 +62,6 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(testScheme))
 	utilruntime.Must(axismlv1alpha1.AddToScheme(testScheme))
-	utilruntime.Must(tenantv1alpha1.AddToScheme(testScheme))
 	utilruntime.Must(mlrunv1alpha1.AddToScheme(testScheme))
 	utilruntime.Must(mlservicev1alpha1.AddToScheme(testScheme))
 	utilruntime.Must(mltrafficpolicyv1alpha1.AddToScheme(testScheme))
@@ -218,11 +216,11 @@ var testManager ctrl.Manager
 // runtime allows late Add until the manager actually starts work, which
 // is gated on cache sync).
 //
-// The existing tenant_lifecycle_test.go scenarios construct their own
-// reconcilers/informers inline. Those are harmless duplicates: each test
-// uses unique tenant names, so the global pipeline either does the work
-// first (and the inline one no-ops on a found CR) or the inline one does
-// (and the global no-ops). Either ordering passes the assertions.
+// Lifecycle test scenarios that construct their own reconcilers/informers
+// inline are harmless duplicates: each test uses unique resource names, so the
+// global pipeline either does the work first (and the inline one no-ops on a
+// found CR) or the inline one does (and the global no-ops). Either ordering
+// passes the assertions.
 func bootstrapHandlers() error {
 	cfg := pgCfg
 	cfg.ReconcileInterval = 100 * time.Millisecond

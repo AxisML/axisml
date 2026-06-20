@@ -43,7 +43,7 @@ func serveCmd() *cobra.Command {
 func bootstrapCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "bootstrap",
-		Short: "Idempotently seed default tenant / pool / unit / quota (Helm post-install)",
+		Short: "Run database migrations (Helm post-install)",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg, err := config.Load()
 			if err != nil {
