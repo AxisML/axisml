@@ -1,0 +1,11 @@
+{{- if .Values.seed.tenant.enabled }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.seed.tenant.namespace | quote }}
+  annotations:
+    helm.sh/resource-policy: keep
+  labels:
+    axisml.io/managed-by: tenant-operator
+    app.kubernetes.io/part-of: axisml
+{{- end }}

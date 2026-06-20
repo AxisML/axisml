@@ -17,9 +17,9 @@ var RoleNameValues = []string{"system-admin", "tenant-admin", "user"}
 // TenantPhase is the lifecycle phase of a Tenant.
 type TenantPhase string
 
-// TenantPhaseValues enumerates TenantPhase. Suspended is a reversible admin
-// disable that gates new-workload creation.
-var TenantPhaseValues = []string{"Creating", "Active", "Suspended", "Failed", "Deleting", "Deleted"}
+// TenantPhaseValues enumerates TenantPhase. Deletion is a guarded hard delete,
+// so archived Deleting / Deleted phases are not exposed by Platform.
+var TenantPhaseValues = []string{"Creating", "Active", "Suspended", "Failed"}
 
 // WorkspacePhase is derived from compute service phase + replicas.
 type WorkspacePhase string

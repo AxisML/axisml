@@ -109,7 +109,7 @@ func TestValidate_RejectsRouteWithUnknownPortName(t *testing.T) {
 	}
 }
 
-func TestValidate_WarnsOnDeferredPolicies(t *testing.T) {
+func TestValidate_RejectsDeferredAuthAndWarnsOnTrafficPolicy(t *testing.T) {
 	spec := minimalSpec()
 	spec.Route = &axisml.Route{
 		Enabled:   true,
@@ -118,11 +118,11 @@ func TestValidate_WarnsOnDeferredPolicies(t *testing.T) {
 	}
 	h := &Handler{}
 	v := h.Validate(spec)
-	if !v.OK() {
-		t.Fatalf("expected validation to pass with warnings; got errors %v", v.Errors)
+	if v.OK() {
+		t.Fatal("expected validation to reject auth until SecurityPolicy is implemented")
 	}
-	if len(v.Warnings) < 2 {
-		t.Errorf("expected ≥2 warnings; got %v", v.Warnings)
+	if len(v.Warnings) < 1 {
+		t.Errorf("expected a rateLimit warning; got %v", v.Warnings)
 	}
 }
 

@@ -27,8 +27,10 @@ func BuildModules(
 	pools := poolcache.New(mgr.GetClient())
 
 	jobs := jobmod.NewService(gormDB, pools)
-	services := servicemod.NewMLService(gormDB, pools, mgr.GetClient())
-	trafficPolicies := trafficpolicymod.NewService(gormDB, servicemod.NewRepository(gormDB))
+	serviceRepo := servicemod.NewRepository(gormDB)
+	trafficPolicyRepo := trafficpolicymod.NewRepository(gormDB)
+	services := servicemod.NewMLService(gormDB, pools, mgr.GetClient(), trafficPolicyRepo)
+	trafficPolicies := trafficpolicymod.NewService(gormDB, serviceRepo, trafficPolicyRepo)
 
 	jobRecon := jobmod.NewReconciler(gormDB, mgr.GetClient(), log.WithName("mlrun-reconciler"), cfg.ReconcileInterval)
 	serviceRecon := servicemod.NewReconciler(gormDB, mgr.GetClient(), log.WithName("mlservice-reconciler"), cfg.ReconcileInterval)

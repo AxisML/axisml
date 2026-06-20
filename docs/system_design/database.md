@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | [compute-service](system/compute-service.md) | `mlruns` / `mlservices` / `traffic_policies` | 计算任务 / 在线服务·工作区·TensorBoard / 流量策略 |
 | [artifact-hub](system/artifact-hub.md) | `artifacts` | 制品（model / dataset / image） |
-| [Platform](platform/backend.md) | `tenants` | 租户持久记录 / 生命周期 / 停用 / 软删（`identifier` 标识） |
+| [Platform](platform/backend.md) | `tenants` | 租户持久记录 / K8s Namespace 映射 / 停用 / 硬删除（`identifier` 标识） |
 | Platform | `users` / `user_roles` / `sessions` + `jobs` / `experiments` / `models` / `images` | 身份 / 授权 / 会话 + 四张 name 级定义 |
 
 > [cluster-manager](system/cluster-manager.md) **不入 PG**——ResourcePool（含 `spec.units[]`）与 `Tenant` CR 持久化在 K8s etcd，cluster-manager 是 REST + K8s API 调用层。
@@ -19,11 +19,11 @@
 
 ### 1.1 通用字段
 
-每张业务表带 `id uuid` 主键、`created_at` / `updated_at` / `deleted_at timestamptz`（时间戳一律 `timestamptz`）；字段归属表只列业务特有字段。
+除 `tenants`（硬删除）外，每张业务表带 `id uuid` 主键、`created_at` / `updated_at` / `deleted_at timestamptz`（时间戳一律 `timestamptz`）；字段归属表只列业务特有字段。
 
 ### 1.2 软删与 UNIQUE 约束
 
-唯一键统一为 PG **partial unique index** `WHERE deleted_at IS NULL`（软删行不占唯一键，同名可再创建，与 K8s namespace 复用一致）；`id` 永久唯一不复用，作跨服务持久引用键。**例外**：`artifacts` 的 `(namespace, kind, name, version)` 一旦创建即不复用、删除也不释放，以保证跨组件持久引用。
+唯一键统一为 PG **partial unique index** `WHERE deleted_at IS NULL`（软删行不占唯一键，同名可再创建）；`id` 永久唯一不复用，作跨服务持久引用键。**例外**：`tenants.identifier` 使用普通 UNIQUE 并硬删除；`artifacts` 的 `(namespace, kind, name, version)` 一旦创建即不复用、删除也不释放，以保证跨组件持久引用。
 
 ### 1.3 命名校验
 
@@ -43,14 +43,14 @@ CR-backed 对象在 `id` 之外向对应 CR 打 label `axisml.io/<resource>-id=<
 
 ## 2. Compute Service
 
-`namespace text` 字段是租户 `identifier`，同时就是 CR 下发的 K8s `metadata.namespace`（单一规范名，由 Platform 传入）；Compute 不 join 租户表、不做名字解析。
+`namespace text` 是历史兼容字段名，语义是 **tenant scope**（租户 `identifier`），不是 K8s Namespace。K8s 落地点来自租户映射中的 `kubernetes_namespace`；新接口与代码变量应优先使用 `tenantScope` / `kubernetesNamespace` 明确区分。
 
 ### 2.1 `mlruns`
 
 ```sql
 CREATE TABLE mlruns (
   id           uuid PRIMARY KEY,
-  namespace    text NOT NULL,                 -- 租户 identifier
+  namespace    text NOT NULL,                 -- tenant scope（兼容字段名），= 租户 identifier
   name         text NOT NULL,
   display_name text,  description text,
   owner        text,                          -- 创建者；不可变
@@ -148,7 +148,7 @@ CREATE TABLE artifacts (
   kind         text NOT NULL,                  -- model / dataset / image
   name         text NOT NULL,
   version      text NOT NULL,                  -- OCI tag-safe
-  visibility   text NOT NULL DEFAULT 'tenant', -- 'tenant' | 'public'（仅 axisml-system namespace 允许）
+  visibility   text NOT NULL DEFAULT 'tenant', -- 'tenant' | 'public'（仅 default tenant scope 允许）
   display_name text,  description text,
   labels       jsonb NOT NULL DEFAULT '{}',
   annotations  jsonb NOT NULL DEFAULT '{}',
@@ -174,14 +174,15 @@ CREATE INDEX artifacts_labels_gin        ON artifacts USING GIN (labels jsonb_pa
 
 ## 4. Platform
 
-覆盖**租户持久记录**（`tenants`）、**身份 / 授权 / 会话**、**四张定义**。`tenants` 持租户生命周期意图（`identifier` / 展示元数据 / 停用 / 软删），经 cluster-manager REST 物化为 Tenant CR；**不缓存任何下游可变实例状态**（run / version / phase / digest / quota 用量一律实时回源），Workspace / Service / TrafficPolicy 等无 Platform 视图表。
+覆盖**租户持久记录**（`tenants`）、**身份 / 授权 / 会话**、**四张定义**。`tenants` 持 `identifier`、K8s Namespace 映射、展示元数据与停用状态，经 cluster-manager REST 物化为 Tenant CR；租户采用受保护的硬删除。Platform **不缓存任何下游可变实例状态**（run / version / phase / digest / quota 用量一律实时回源），Workspace / Service / TrafficPolicy 等无 Platform 视图表。
 
 ### 4.1 身份 / 租户
 
 ```sql
 CREATE TABLE tenants (
   id           uuid PRIMARY KEY,
-  identifier   text NOT NULL,                 -- = Tenant CR 名 = K8s namespace = 分区键；DNS-1123；创建后不可变
+  identifier   text NOT NULL,                 -- = Tenant CR 名 = tenant scope；DNS-1123；创建后不可变
+  kubernetes_namespace text NOT NULL,         -- = Tenant.spec.namespace.name；可被多个 Tenant 共享
   display_name text,  description text,
   owner        text,                          -- 来自 X-Axisml-User；不可变
   labels       jsonb NOT NULL DEFAULT '{}',
@@ -189,12 +190,11 @@ CREATE TABLE tenants (
   suspended_at timestamptz,                   -- 非空 = 停用态；新建工作负载闸门由 Platform 在创建入口强制
   last_modified_by text NOT NULL DEFAULT '',
   created_at   timestamptz NOT NULL DEFAULT now(),
-  updated_at   timestamptz NOT NULL DEFAULT now(),
-  deleted_at   timestamptz                    -- 软删；retention 365 天后物理清理
+  updated_at   timestamptz NOT NULL DEFAULT now()
 );
-CREATE UNIQUE INDEX tenants_identifier_active_uniq ON tenants (identifier) WHERE deleted_at IS NULL;
-CREATE INDEX tenants_deleted_at ON tenants (deleted_at);
-CREATE INDEX tenants_suspended  ON tenants (suspended_at) WHERE deleted_at IS NULL;
+CREATE UNIQUE INDEX tenants_identifier_uniq ON tenants (identifier);
+CREATE INDEX tenants_kubernetes_namespace ON tenants (kubernetes_namespace);
+CREATE INDEX tenants_suspended  ON tenants (suspended_at);
 CREATE INDEX tenants_created_at ON tenants (created_at DESC);
 
 CREATE TABLE users (
@@ -228,7 +228,7 @@ CREATE TABLE sessions (
 CREATE INDEX sessions_expires_at ON sessions (expires_at);
 ```
 
-`user_roles.tenant_name` 引用 `tenants.identifier`（partial unique 且不可变）；租户软删时由 [platform.md §4.1](platform/backend.md#41-租户编排) 在应用层级联清理本租户的 `user_roles` 行。**bootstrap**：首次 `axisml-platform bootstrap` 插入 `admin` 用户（默认密码 `admin`，`must_change_password=true`，可由 `AXISML_BOOTSTRAP_PASSWORD` 覆盖），并登记内置租户 `axisml-system` 并经 cluster-manager 创建其 Tenant CR（承载 `public` 制品）。
+`user_roles.tenant_name` 引用 `tenants.identifier`（唯一且不可变）；租户硬删前必须清空成员，随后删除 Tenant 行与 Tenant CR。**bootstrap**：首次 `axisml-platform bootstrap` 插入 `admin` 用户（默认密码 `admin`，`must_change_password=true`，可由 `AXISML_BOOTSTRAP_PASSWORD` 覆盖），并登记内置租户 `default`，映射到 K8s Namespace `axisml-tenant`，经 cluster-manager 创建 Tenant CR（承载 `public` 制品）。
 
 ### 4.2 定义（jobs / experiments / models / images）
 

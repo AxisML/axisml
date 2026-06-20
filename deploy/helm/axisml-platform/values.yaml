@@ -20,6 +20,9 @@ commonAnnotations: {}
 # URLs are fully-qualified `<service>.<namespace>` rather than bare names.
 system:
   namespace: axisml-system
+  clusterManager:
+    name: axisml-cluster-manager
+    port: 8080
   computeService:
     name: axisml-compute-service
     port: 8080
@@ -45,12 +48,13 @@ platform:
     type: ClusterIP
     port: 8080
 
-  ingress:
+  httpRoute:
     enabled: false
-    className: nginx
+    gatewayName: axisml-gateway
+    gatewayNamespace: axisml-infra
+    sectionName: http
     host: axisml.local
-    tls: []
-    annotations: {}
+    path: /
 
   resources:
     requests:

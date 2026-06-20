@@ -5,12 +5,13 @@ AxisML Platform has been installed successfully!
 {{- end }}
 
 Downstream system-layer services (namespace: {{ .Values.system.namespace }}):
+  - Cluster Manager: {{ .Values.system.clusterManager.name }}.{{ .Values.system.namespace }}:{{ .Values.system.clusterManager.port }}
   - Compute Service: {{ .Values.system.computeService.name }}.{{ .Values.system.namespace }}:{{ .Values.system.computeService.port }}
   - Artifact Hub:    {{ .Values.system.artifactHub.name }}.{{ .Values.system.namespace }}:{{ .Values.system.artifactHub.port }}
 
-{{- if .Values.platform.ingress.enabled }}
+{{- if .Values.platform.httpRoute.enabled }}
 
-Access the platform at: http://{{ .Values.platform.ingress.host }}
+Access the platform at: http://{{ .Values.platform.httpRoute.host }}
 {{- else }}
 
 To access the platform, run:

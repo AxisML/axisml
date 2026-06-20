@@ -106,7 +106,7 @@ ADD ─▶ Pending ─┬─▶ Ready ◀──▶ Degraded
 
 | | `(native, deployment)` | `(native, statefulset)` |
 | --- | --- | --- |
-| 底层资源 | `Deployment` + `Service`；`route.enabled` 时追加 HTTPRoute(+ 可选 SecurityPolicy / BackendTrafficPolicy) | `StatefulSet` + headless Service；透传 `apps.kubernetes.io/pod-index → axisml.io/replica-index` |
+| 底层资源 | `Deployment` + `Service`；`route.enabled` 时追加 HTTPRoute；SecurityPolicy / BackendTrafficPolicy 尚未交付 | `StatefulSet` + headless Service；透传 `apps.kubernetes.io/pod-index → axisml.io/replica-index` |
 | 必填 | 单 role `predictor`，`template.image` + `ports[]` | 同左 |
 | 映射 | `replicas → Deployment.replicas`；`volumes/volumeMounts → PodSpec`（`Validate` 强制 volumeMounts 在同 role volumes、PVC 同 namespace） | `replicas → StatefulSet.replicas`；`config.podManagementPolicy`（默认 `OrderedReady`）、`config.serviceName`（默认 = MLService 名） |
 | RBAC | `deployments.apps` / `services` / `pods` / `events` + Gateway / Envoy CRD（按 `route`）；`secrets` RO（仅 `apiKey`） | `statefulsets.apps` / `services` / `pods` / `events` |
@@ -176,8 +176,8 @@ ADD ─▶ Pending ─(route programmed + 成员 Ready)─▶ Ready ◀──▶
 | 资源 | GVK | 触发 | 关键字段 |
 | --- | --- | --- | --- |
 | `HTTPRoute` | `gateway.networking.k8s.io/v1` | 总开关 | `parentRefs → axisml-gateway`（跨 ns 经 `ReferenceGrant`）；`backendRefs → route.targetRole` 对应 Service；`hostnames` / `path` 来自 `route` |
-| `SecurityPolicy` | `gateway.envoyproxy.io/v1alpha1` | `auth.type != none` | `spec.jwt` 或 `spec.apiKeyAuth`（`secretRef`） |
-| `BackendTrafficPolicy` | `gateway.envoyproxy.io/v1alpha1` | `rateLimit` / `timeout` 非空 | `spec.rateLimit` / `spec.timeout` |
+| `SecurityPolicy` | `gateway.envoyproxy.io/v1alpha1` | 规划中 | 当前不派生；`auth.type != none` 校验失败，避免未鉴权路由被创建 |
+| `BackendTrafficPolicy` | `gateway.envoyproxy.io/v1alpha1` | 规划中 | 当前不派生，仅返回未生效 warning |
 
 **与 MLTrafficPolicy 的职责切分**：`MLService.spec.route` 派生**单后端**对外入口（一条 HTTPRoute 指向自己的 Service）；`MLTrafficPolicy`（§4.3）派生**多后端加权**入口。二者互斥：被流量策略接管对外入口的成员 MLService 不应再开 `spec.route`（保持 ClusterIP 作 `backendRefs` 目标），由上游编排层在创建时保证，避免同一 hostname/path 路由冲突。
 
@@ -212,7 +212,7 @@ ADD ─▶ Pending ─(route programmed + 成员 Ready)─▶ Ready ◀──▶
 | --- | --- |
 | Kubernetes API | 主 CR + 派生资源 CRUD；leader Lease |
 | Koordinator | 所有派生 Pod 强制 schedulerName + Quota label 计入 ElasticQuota；ElasticQuota 资源由 tenant-operator 维护，operator 只透传名字（[infra.md](../infra/overview.md) / [tenant-operator.md](tenant-operator.md)） |
-| Gateway API + Envoy 扩展 | `MLService.spec.route` 派生单后端 `HTTPRoute`；`MLTrafficPolicy` 派生多后端加权 `HTTPRoute`；`route.auth`/`rateLimit`/`timeout` 派生 `SecurityPolicy`/`BackendTrafficPolicy`（[infra.md](../infra/overview.md)） |
+| Gateway API + Envoy 扩展 | 当前派生 `HTTPRoute`；`SecurityPolicy` / `BackendTrafficPolicy` 尚未交付，认证配置 fail-closed（[infra.md](../infra/overview.md)） |
 | compute-service（上游 CR 写者） | 通过 `Create + Patch` 下发期望，status 单向回流；operator 不感知其 PG 与 Outbox（[compute-service.md](compute-service.md)） |
 | 对象存储（RustFS） | 按 spec 注入项把 Run / TensorBoard Pod 的 logdir / 产出路径 + 凭证透传进派生 Pod（§5.2） |
 

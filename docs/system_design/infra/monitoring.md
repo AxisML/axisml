@@ -26,4 +26,4 @@
 
 当前**不预置** AlertManager 告警规则——AlertManager 随栈部署但无业务规则，调用方按需自定义。参考方向：节点 NotReady、GPU 异常（DCGM 上报错误率高）、PVC 容量、配额耗尽（ElasticQuota `min` 持续不可满足）、调度滞后（PodGroup gang 长时间 Pending）、API 5xx 比例超阈值。
 
-> 控制面业务指标的 Prometheus 查询（在线服务指标、Dashboard 时序）由拥有该域的 System 服务执行并以 `MetricSeries` 回传，PromQL 模板在各服务内部维护；训练指标走对象存储 + TensorBoard，不进 Prometheus。
+> 控制面业务指标查询由拥有该域的服务负责；Dashboard 聚合接口待后续专项设计。训练指标走对象存储 + TensorBoard，不进 Prometheus。

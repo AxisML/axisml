@@ -43,14 +43,14 @@ seed:
   tenant:
     enabled: true
     # Built-in platform tenant; hosts visibility=public artifacts.
-    name: axisml-system
+    name: default
     # Stable UUID stamped on the seed Tenant CR as
     # metadata.labels[axisml.io/tenant-id] for external selectors. tenant-
     # operator's reconciler propagates this id onto the namespace + child
     # resources it provisions.
     id: 00000000-0000-0000-0000-000000000001
-    # K8s namespace tenant-operator should create.
-    namespace: axisml-system
+    # Shared K8s namespace used by the built-in tenant.
+    namespace: axisml-tenant
 
 # =============================================================================
 # AxisML Compute Service
@@ -83,6 +83,11 @@ computeService:
     enabled: false       # opt-in once kube-prometheus-stack is deployed
     labels: {}
     interval: 30s
+
+  networkPolicy:
+    enabled: true
+    platformNamespace: axisml-platform
+    monitoringNamespace: axisml-infra
 
   bootstrap:
     enabled: true
@@ -134,6 +139,11 @@ artifactHub:
     enabled: false
     interval: 30s
     labels: {}
+
+  networkPolicy:
+    enabled: true
+    platformNamespace: axisml-platform
+    monitoringNamespace: axisml-infra
 
   storage:
     oci:
@@ -204,13 +214,8 @@ clusterManager:
   # be spoofed by other in-cluster workloads.
   networkPolicy:
     enabled: true
-    # Namespaces allowed to call cluster-manager's REST surface. Platform is
-    # the normal caller; infra/system are kept for gateway probes and in-cluster
-    # administrative bootstrap paths.
-    ingressFromNamespaces:
-      - axisml-infra
-      - axisml-system
-      - axisml-platform
+    platformNamespace: axisml-platform
+    monitoringNamespace: axisml-infra
 
   resources:
     requests:

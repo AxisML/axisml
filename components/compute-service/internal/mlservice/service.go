@@ -26,20 +26,33 @@ import (
 
 // Module wraps the service business layer. Keyed on bare namespace strings.
 type Module struct {
-	repo  *Repository
-	db    *gorm.DB
-	pools *poolcache.Reader
-	k8s   client.Client
+	repo       *Repository
+	db         *gorm.DB
+	pools      *poolcache.Reader
+	k8s        client.Client
+	policyRefs ActivePolicyReferenceChecker
+}
+
+// ActivePolicyReferenceChecker prevents deleting an online service while a
+// live traffic policy still routes to it.
+type ActivePolicyReferenceChecker interface {
+	ActiveReferenceName(ctx context.Context, namespace, serviceName string) (string, error)
 }
 
 // NewMLService builds the service module wiring. The k8sClient is used for
 // workspace PVC management (kind=workspace) and may be nil in pure-DB tests.
-func NewMLService(db *gorm.DB, pools *poolcache.Reader, k8sClient client.Client) *Module {
+func NewMLService(
+	db *gorm.DB,
+	pools *poolcache.Reader,
+	k8sClient client.Client,
+	policyRefs ActivePolicyReferenceChecker,
+) *Module {
 	return &Module{
-		repo:  NewRepository(db),
-		db:    db,
-		pools: pools,
-		k8s:   k8sClient,
+		repo:       NewRepository(db),
+		db:         db,
+		pools:      pools,
+		k8s:        k8sClient,
+		policyRefs: policyRefs,
 	}
 }
 
@@ -353,6 +366,11 @@ func (m *Module) Delete(ctx context.Context, namespace, name string, deletePVC b
 	case StatusDeleting, StatusDeleted:
 		return nil
 	}
+	if row.Kind == mlservicev1alpha1.ServiceKindService && m.policyRefs != nil {
+		if err := checkActivePolicyReference(ctx, m.policyRefs, namespace, name); err != nil {
+			return err
+		}
+	}
 	if err := m.repo.MarkDeleting(ctx, row.ID); err != nil {
 		return err
 	}
@@ -371,6 +389,23 @@ func (m *Module) Delete(ctx context.Context, namespace, name string, deletePVC b
 		}
 	}
 	return nil
+}
+
+func checkActivePolicyReference(
+	ctx context.Context,
+	checker ActivePolicyReferenceChecker,
+	namespace string,
+	name string,
+) error {
+	policyName, err := checker.ActiveReferenceName(ctx, namespace, name)
+	if err != nil {
+		return err
+	}
+	if policyName == "" {
+		return nil
+	}
+	return apperrors.Newf(apperrors.CodeConflict,
+		"service %q is referenced by active traffic policy %q", name, policyName)
 }
 
 func mergeSvcLabels(user, system map[string]string) map[string]string {

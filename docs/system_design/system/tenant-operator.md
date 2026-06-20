@@ -45,7 +45,7 @@
 | 实体 | 含义 | 标识键 | 备注 |
 | --- | --- | --- | --- |
 | Tenant | 租户 CR，cluster-scoped | `metadata.name`（DNS-1123, ≤40） | 上游唯一写者为 cluster-manager |
-| Namespace | 运行租户 Pod 的 K8s namespace | `spec.namespace.name` | 可被多 Tenant 共享（§5.1） |
+| Kubernetes Namespace | 运行租户 Pod 的物理 namespace | `spec.namespace.name` | 与 tenant scope 分离，可被多 Tenant 共享（§5.1） |
 | ElasticQuota | Koordinator 配额 CR | `axisml-<tenant>-<pool>` | 每条 `spec.quotas[]` 1:1 渲染（`min`/`max` 由 cluster-manager 折算后写入） |
 | InitResource | per-tenant Secret / CM / SA + RBAC | `axisml-tenant-<tenant>-<name>` | 由 `sourceXxxRef` 复制 |
 
@@ -66,7 +66,7 @@ Tenant CR 字段见 [tenant-crd.yaml](../../../deploy/helm/axisml-system/crds/te
 
 #### 4.1.1 Namespace 落地
 
-命名 `spec.namespace.name`（创建后不可变）。不存在 → 创建，附 `spec.namespace.labels`/`annotations` + `axisml.io/managed-by`，受 denylist 约束（默认拒 `kube-*` / `default` / `axisml-system` / `axisml-infra`）；已存在 → 仅补 `managed-by` label，**不覆盖**既有 label / annotation；**不设 ownerReference**（不属任何单一 Tenant）；**永不删除**（避免误删 PV / 外部资源；空 Namespace 由管理员清理）。`status.namespaceReady` 在 Namespace `phase=Active` 时为 `true`。
+命名 `spec.namespace.name`（创建后不可变），它是物理 K8s Namespace，不要求等于 Tenant `metadata.name`。不存在 → 创建，附 `spec.namespace.labels`/`annotations` + `axisml.io/managed-by`，受 denylist 约束（默认拒 `kube-*` / `default` / `axisml-system` / `axisml-infra`）；已存在 → 仅补 `managed-by` label，**不覆盖**既有 label / annotation；**不设 ownerReference**（不属任何单一 Tenant）；**永不删除**（避免误删 PV / 外部资源；空 Namespace 由管理员清理）。`status.namespaceReady` 在 Namespace `phase=Active` 时为 `true`。
 
 #### 4.1.2 ElasticQuota 落地
 
@@ -96,13 +96,13 @@ Tenant CR 字段见 [tenant-crd.yaml](../../../deploy/helm/axisml-system/crds/te
 
 通用行为：**复制**（`Get()` 源对象 → 写本端 `data`；源不存在 → 对应 `ready=false`）；**漂移**（reconcile 检测本端 ≠ 源时覆盖，源 watch 不建立，延迟 ≤ resync）；**删除**（spec 删项 → 显式 Delete；Tenant 删除 → ownerReference GC）。
 
-**不变量**：`serviceAccounts[].imagePullSecrets[]` 中每个 name 必须能在 `imagePullSecrets[].name` 找到，否则 Validate 失败。per-tenant SA + 默认 imagePullSecrets / Secret 是 [artifact-hub.md](artifact-hub.md) 的 `resolve?usage=inspect` 路径上 workload 拉取 zot / RustFS 的唯一凭证来源——artifacts 自身不签发也不返回任何 Secret 引用。
+**不变量**：`serviceAccounts[].imagePullSecrets[]` 中每个 name 必须能在 `imagePullSecrets[].name` 找到，否则 Validate 失败。per-tenant SA + 默认 imagePullSecrets / Secret 是 workload 拉取 zot / RustFS 的凭证来源；Artifact Hub 不签发或返回 K8s Secret 引用。
 
 ## 5. 关键机制
 
 ### 5.1 多 Tenant 共享 Namespace 隔离
 
-`spec.namespace.name` 允许多 Tenant 指向同一 Namespace，隔离靠命名前缀 + label：
+`spec.namespace.name` 允许多 Tenant 指向同一 K8s Namespace；tenant scope 仍是各自的 Tenant `metadata.name`，物理资源隔离靠命名前缀 + tenant ID label：
 
 | 维度 | 隔离方式 |
 | --- | --- |
@@ -180,4 +180,4 @@ Pod 调度 ─▶ koord-scheduler ─▶ ElasticQuota.status.used 累加
 - [auth.md](../platform/auth.md) · [database.md](../database.md) · [deployment.md](../deployment.md) · [infra.md](../infra/overview.md)
 - [cluster-manager.md](cluster-manager.md) — Tenant CR 上游 producer（REST 写 spec）
 - [compute-operator.md](compute-operator.md) — 兄弟 operator
-- [artifact-hub.md](artifact-hub.md) — `resolve?usage=inspect` 依赖 per-tenant SA + 默认 Secret 落地
+- [artifact-hub.md](artifact-hub.md) — workload 消费制品依赖 per-tenant SA + 默认 Secret 落地

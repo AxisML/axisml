@@ -119,6 +119,14 @@ func TestValidate_Namespace(t *testing.T) {
 	}
 }
 
+func TestValidate_Namespace_AllowsSharedTenantNamespace(t *testing.T) {
+	s := validSpec()
+	s.Namespace.Name = "axisml-tenant"
+	if err := validate.Validate(s, defaultOpts()); err != nil {
+		t.Fatalf("Validate() error = %v, want nil", err)
+	}
+}
+
 func TestValidate_Quotas(t *testing.T) {
 	t.Run("duplicate pool/name", func(t *testing.T) {
 		s := validSpec()

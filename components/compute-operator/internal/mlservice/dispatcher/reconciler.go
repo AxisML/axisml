@@ -102,6 +102,13 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			fmt.Sprintf("missing required label %q; Compute must stamp it before CR creation", axisml.LabelServiceID))
 	}
 
+	serviceKind := mls.Labels[axisml.LabelServiceKind]
+	if mls.Spec.Route != nil && mls.Spec.Route.Enabled &&
+		(serviceKind == axisml.ServiceKindWorkspace || serviceKind == axisml.ServiceKindTensorBoard) {
+		return ctrl.Result{}, r.writeFailedStatus(ctx, mls,
+			fmt.Sprintf("%s external routes are disabled until SecurityPolicy derivation is implemented", serviceKind))
+	}
+
 	key := hpkg.Key{Backend: mls.Spec.Backend.Name, Engine: mls.Spec.Backend.Engine}
 	h, ok := r.handlers[key]
 	if !ok {

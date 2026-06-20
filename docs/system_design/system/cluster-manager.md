@@ -2,15 +2,14 @@
 
 ## 1. 定位与边界
 
-集群级 admin REST 抽象层：把 admin 视角的 K8s 写 / 读收敛成简单 REST，让上游全程不直接调 Kubernetes API。承载 `ResourcePool` CRD 的 CRUD（含内嵌 `units[]`）与集群级 `Tenant` CRD 的 CRUD（含配额「资源单元 × 数量」折算为 ElasticQuota `min`/`max` 写入 CR）；admin 域的 K8s 操作（节点 / 集群容量聚合等）统一收纳在本服务内。仅接受上游内部调用并信任 `X-Axisml-User` 透传。
+集群级 admin REST 抽象层：把 admin 视角的 K8s 写 / 读收敛成简单 REST，让上游全程不直接调 Kubernetes API。承载 `ResourcePool` CRD 的 CRUD（含内嵌 `units[]`）与集群级 `Tenant` CRD 的 CRUD（含配额「资源单元 × 数量」折算为 ElasticQuota `min`/`max` 写入 CR）。仅接受 Platform 内部调用并信任 `X-Axisml-User` 透传。
 
 | 做 | 不做 |
 | --- | --- |
 | ResourcePool CRD CRUD（pool + 内嵌 units） | 修改 Node label / taint（admin 手工维护） |
-| Tenant CRD CRUD + 配额折算（「资源单元 × 数量」→ ElasticQuota `min`/`max`） | 租户持久记录 / 展示元数据 / 停用 / 软删（→ 上游业务编排层） |
+| Tenant CRD CRUD + 配额折算（「资源单元 × 数量」→ ElasticQuota `min`/`max`） | 租户持久记录 / 展示元数据 / 停用状态（→ 上游业务编排层） |
 | 默认 `default` pool 初始化（Helm post-install） | Namespace / ElasticQuota / initResources 落地 (→ [tenant-operator.md](tenant-operator.md)) |
 | `?labelSelector=` 列表过滤 | 计算负载 / 工作区 PVC / Pod 日志（属 workload 域，归 compute） |
-| 集群容量聚合 + 集群级指标代理（节点 allocatable/used、集群时序） | 工作负载 / 租户级指标 (→ [compute-service.md](compute-service.md)) |
 
 形态：**REST 网关层**，无独立持久化（CRD 落 K8s etcd），无 reconciler，无 leader election，多副本对等运行。
 
@@ -85,7 +84,7 @@ metadata:
     axisml.io/quotas: '[{"pool":"gpu-a100","units":[...]}]'  # 业务形态配额（GET 往返用）
     axisml.io/last-modified-by: <user>                        # 来自 X-Axisml-User
 spec:
-  namespace: { name: team-alpha } # = identifier（单一规范名）；创建后不可变
+  namespace: { name: axisml-tenant } # 物理 K8s Namespace，可共享；创建后不可变
   quotas:                         # 每 pool 一项；min/max 由折算写入
     - { pool: gpu-a100, name: gpu-a100,
         min: {cpu:"16",memory:128Gi,nvidia.com/gpu:"1"},
@@ -122,20 +121,11 @@ REST 入参以业务形态 `{pool, units:[{unitName, quantity}]}` 表达配额�
 | PATCH | JSON Patch（乐观锁重试）；`metadata.name` / `spec.namespace.name` / `quotas[].pool` 不可变；display 元数据不在此（归上游表） |
 | DELETE | delete CR（硬删，幂等 204）；子资源经 ownerReference GC，Namespace 永不删除 |
 
-> cluster-manager 不持有停用 / 软删 / 保留期语义——这些是上游业务编排层 `tenants` 表的职责；本服务只物化 / 回收 Tenant CR。
+> cluster-manager 不持有停用语义或历史归档；这些是上游业务编排层的职责。本服务只物化 / 回收 Tenant CR。
 
 ### 4.4 Tenant 配额子路径
 
 `GET/POST .../tenants/{tenant}/quotas` 与 `PATCH/DELETE .../quotas/{pool}`：每个端点映射为"读 Tenant CR → 据 ResourceUnit 折算 → 局部改 `spec.quotas[]` → 写回 CR"的原子封装。GET 时一并从 CR `status.quotas[].used` 实时读用量。
-
-### 4.5 集群容量与指标
-
-admin 域集群事实由本服务即时聚合，供上游 Dashboard 全局视图使用（不引入持久化）：
-
-| 端点 | 内部行为 |
-| --- | --- |
-| `GET /api/v1/cluster/capacity` | K8s typed client 聚合 Node `allocatable` 得 GPU / CPU / 内存总量，扣减已调度 Pod requests 得已用量，返 `{gpu,cpu,memory}{used,total}` |
-| `GET /api/v1/cluster/metrics?metric=&range=&step=` | 按 `metric` 选 PromQL 模板查 Prometheus，返集群级 `MetricSeries` |
 
 ## 5. 关键机制
 
@@ -145,7 +135,7 @@ admin 域集群事实由本服务即时聚合，供上游 Dashboard 全局视图
 
 | 类别 | 内容 | 引用 |
 | --- | --- | --- |
-| 对外 REST | `/api/v1/resourcepools[/{pool}[/units[/{unit}]]]`（`ResourcePools` tag）；`/api/v1/tenants[/{tenant}[/quotas[/{pool}]]]`（`Tenants` tag）；`/api/v1/cluster/{capacity,metrics}`（`Cluster` tag） | [openapi/cluster-manager.yaml](../../openapi/cluster-manager.yaml) |
+| 对外 REST | `/api/v1/resourcepools[/{pool}[/units[/{unit}]]]`（`ResourcePools` tag）；`/api/v1/tenants[/{tenant}[/quotas[/{pool}]]]`（`Tenants` tag） | [openapi/cluster-manager.yaml](../../openapi/cluster-manager.yaml) |
 | 下发 CR | `ResourcePool` / `Tenant`（`axisml.io/v1alpha1`，cluster-scoped）；cluster-manager 是 `spec` 的 REST 写者，kubectl 路径也允许；Tenant `status` 由 tenant-operator 单写 | [resource-pool-crd.yaml](../../../deploy/helm/axisml-system/crds/resource-pool-crd.yaml) / [tenant-crd.yaml](../../../deploy/helm/axisml-system/crds/tenant-crd.yaml) |
 | 身份头 | 调用方注入 `X-Axisml-User`，本服务仅做 ownership 归属；透传为 CR annotation `axisml.io/last-modified-by`（[auth.md §6](../platform/auth.md#6-下游身份透传)） | — |
 | 错误格式 | HTTP 标准码 + RFC 7807 problem+json；K8s API 错误经 typed 映射 | — |
@@ -157,9 +147,8 @@ admin 域集群事实由本服务即时聚合，供上游 Dashboard 全局视图
 
 | 依赖 | 用途 |
 | --- | --- |
-| Kubernetes API | ResourcePool / Tenant CR CRUD + Node `allocatable` / Pod requests 读（容量聚合） |
-| Prometheus | 集群级时序查询（`/cluster/metrics`，只读） |
-| 上游调用方 | 唯一外部调用方；admin 域 UI 入口（资源池 + 租户）+ Dashboard 集群容量 / 时序 |
+| Kubernetes API | ResourcePool / Tenant CR CRUD |
+| 上游调用方 | 唯一外部调用方；admin 域 UI 入口（资源池 + 租户） |
 | tenant-operator | 下游 Tenant CR 消费者，经 etcd watch 落地；非直接调用（[tenant-operator.md](tenant-operator.md)） |
 
 不依赖 PostgreSQL、compute、artifacts；与 tenant-operator 经 etcd（Tenant CR）解耦，无直接调用。
@@ -171,7 +160,7 @@ admin 域集群事实由本服务即时聚合，供上游 Dashboard 全局视图
 | 进程 | 单二进制 `axisml-cluster-manager`；子命令 `serve` / `bootstrap`（创建默认 pool） |
 | 副本 | 任意（无状态对等运行；无 leader election） |
 | 暴露端口 | API `:8080`；Metrics `:8081`；Probes `:8082`（`/readyz` 校验 K8s API 可达），均不对外 |
-| RBAC scope | ClusterRole：`resourcepools` / `tenants.axisml.io`（`get/list/watch/create/update/patch/delete`）、`nodes` / `pods` `get/list`（容量聚合）、`events` `create/patch` |
+| RBAC scope | ClusterRole：`resourcepools` / `tenants.axisml.io`（`get/list/watch/create/update/patch/delete`）、`events` `create/patch` |
 | Helm / 镜像 | 见 [deployment.md](../deployment.md) |
 
 ## 9. 相关引用

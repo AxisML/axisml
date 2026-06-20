@@ -2,10 +2,9 @@
 {{- if not .Values.seed.resourcePool.enabled }}
 {{- fail "seed.tenant.enabled=true requires seed.resourcePool.enabled=true (the seed Tenant references the seed pool in spec.quotas[0].pool)" }}
 {{- end }}
-# Seed Tenant: the platform-built-in tenant referenced by docs/system_design/
-# overview.md §9 ("全局可见制品"). Carries the namespace `axisml-system` and
-# is the home for `visibility=public` artifacts. Installed via Helm hooks so
-# it's picked up only on first install.
+# Seed Tenant: the platform-built-in `default` tenant. Its logical tenant
+# scope is the Tenant name, while its Kubernetes resources are placed in the
+# shared `axisml-tenant` namespace. It is the home for public artifacts.
 apiVersion: axisml.io/v1alpha1
 kind: Tenant
 metadata:

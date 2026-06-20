@@ -19,7 +19,7 @@ Kubernetes Cluster
 ├── axisml-infra：Envoy Gateway · RustFS · zot · GPU Operator · Koordinator · kube-prometheus-stack · PostgreSQL(axisml-database)
 ├── axisml-system：Cluster Manager · Compute Service · Artifact Hub（Deployment+Service）· tenant-operator · compute-operator（Deployment）
 ├── axisml-platform：Platform（Deployment+Service，Frontend+Backend）
-└── tenant namespaces：Tenant resources / workloads / routes / secrets / ElasticQuota
+└── tenant namespaces：默认 `axisml-tenant`；可被多个 Tenant 共享，承载 workloads / routes / secrets / ElasticQuota
 ```
 
 跨 namespace 访问走 `<service>.<namespace>.svc.cluster.local`（如 `axisml-database.axisml-infra:5432`、`axisml-compute-service.axisml-system:8080`）。端口约定：自研服务 HTTP API `:8080`、metrics `:8081`、probes `:8082`（operator 无 API 端口）。
@@ -60,18 +60,18 @@ make helm-install           # 一次性按 infra → system → platform 串装
 | tenant-operator / compute-operator | `1`(leader)+N 备 | `:8081`/`:8082`（无 API） | controller-runtime Lease | 单 leader |
 | Platform | `1` 默认 | 当前 nginx placeholder 仅 `:8080` | 无 | 真实 backend 目标 API `:8080` / metrics `:8081` / probes `:8082`；经 FQDN 调 System 服务 |
 
-**Infra 组件部署形态**（默认 values）：Envoy Gateway（单 `axisml-gateway`，HTTP listener，`allowedRoutes` 放行工作负载 namespace）· RustFS（Standalone）· zot（Standalone filesystem，公共拉取 Secret 落 `axisml-system`）· GPU Operator（driver + toolkit + device plugin + DCGM + GFD，MIG 暂不启用）· Koordinator（koord-scheduler + koord-manager + ElasticQuota + PodGroup）· kube-prometheus-stack（不预置告警）· PostgreSQL（bitnami，Service `axisml-database`，`database.enabled=false` 时外接）。
+**Infra 组件部署形态**（默认 values）：Envoy Gateway（单 `axisml-gateway`，HTTP listener，`allowedRoutes` 放行工作负载 namespace）· RustFS（Standalone）· zot（Standalone filesystem，公共拉取 Secret 落 `axisml-tenant`）· GPU Operator（driver + toolkit + device plugin + DCGM + GFD，MIG 暂不启用）· Koordinator（koord-scheduler + koord-manager + ElasticQuota + PodGroup）· kube-prometheus-stack（不预置告警）· PostgreSQL（bitnami，Service `axisml-database`，`database.enabled=false` 时外接）。
 
-`tenant namespaces` 由 tenant-operator 在 `Tenant` CR reconcile 时创建（[tenant-operator.md §4.1.1](system/tenant-operator.md#411-namespace-落地)），不在 Helm chart 内静态声明。
+默认共享 K8s Namespace `axisml-tenant` 由 System chart 声明并标记 `helm.sh/resource-policy=keep`；其他 tenant namespace 由 tenant-operator 在 `Tenant` CR reconcile 时按需创建（[tenant-operator.md §4.1.1](system/tenant-operator.md#411-namespace-落地)）。
 
 ## 6. Helm 模板清单
 
 System 层模板在 `deploy/helm/axisml-system/templates/<component>/` 下：
 
-- **Cluster Manager / Compute Service / Artifact Hub**：`configmap.yaml`（DB 连接 / 日志 / 下游 URL）· `secret-db.yaml`（从共享 `database.auth.password` 投影到本 namespace）· `deployment.yaml`（含 `/healthz` `/readyz`）· `service.yaml`（ClusterIP）· `serviceaccount.yaml` · `rbac.yaml`（ClusterRole + Binding）· `role.yaml`/`rolebinding.yaml`（leader Lease）· `servicemonitor.yaml`（opt-in）· `post-install-job.yaml`。默认数据由 `templates/seed/` post-install hook 落地：`resource-pool-default.yaml`（default ResourcePool，内嵌 cpu-small/cpu-medium）、`tenant-system.yaml`（内置租户 `axisml-system`）。
+- **Cluster Manager / Compute Service / Artifact Hub**：`configmap.yaml`（DB 连接 / 日志 / 下游 URL）· `secret-db.yaml`（从共享 `database.auth.password` 投影到本 namespace）· `deployment.yaml`（含 `/healthz` `/readyz`）· `service.yaml`（ClusterIP）· `networkpolicy.yaml`（API `:8080` 仅允许 `axisml-platform`，metrics 仅允许监控 namespace）· `serviceaccount.yaml` · `rbac.yaml`（ClusterRole + Binding）· `role.yaml`/`rolebinding.yaml`（leader Lease）· `servicemonitor.yaml`（opt-in）· `post-install-job.yaml`。Cluster Manager 的默认数据模板位于 `templates/cluster-manager/`：`resource-pool-default.yaml`、`namespace-tenant.yaml`（`axisml-tenant`）和 `tenant-default.yaml`（内置租户 `default`）。
 - **tenant-operator / compute-operator**：`deployment.yaml` · `serviceaccount.yaml` · `clusterrole.yaml`/`clusterrolebinding.yaml` · `role.yaml`/`rolebinding.yaml`（leader Lease）· `servicemonitor.yaml`。
 - **CRDs**（在 `crds/`，非 `templates/`，由 `make helm-install-system` 的 `kubectl apply` 保证 schema 升级）：`tenant-crd.yaml`（tenant-operator）· `mlrun/mlservice/mltrafficpolicy-crd.yaml`（compute-operator）· `resource-pool-crd.yaml`（cluster-manager 写 / compute-service Informer 读）。
-- **Platform**（`deploy/helm/axisml-platform/templates/`）：`configmap.yaml`（下游 URL）· `deployment.yaml` · `service.yaml` · `ingress.yaml`（唯一对外入口，`platform.ingress.enabled` 开关）· `bootstrap-job.yaml`（规划中：创建初始 `system-admin`，依赖 System 层就绪，故最后安装）。
+- **Platform**（`deploy/helm/axisml-platform/templates/`）：`configmap.yaml`（下游 URL）· `deployment.yaml` · `service.yaml` · `httproute.yaml`（挂载 Infra 层 `axisml-gateway`，`platform.httpRoute.enabled` 开关）· `bootstrap-job.yaml`（规划中：创建初始 `system-admin`，依赖 System 层就绪，故最后安装）。
 
 CRDs 随 System 层发布（operator 契约）；Platform 用户体系 bootstrap 随 Platform 层发布，两者不交叉。
 

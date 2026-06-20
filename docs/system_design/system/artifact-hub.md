@@ -2,7 +2,7 @@
 
 ## 1. 定位与边界
 
-平台的制品元数据服务：以 PostgreSQL `artifacts` 表为元数据权威，按 `(namespace, kind, name, version)` 四元组寻址，bytes 由调用方凭短期凭证直连 zot / RustFS。仅接受上游内部调用并信任 `X-Axisml-User` 透传。
+平台的制品元数据服务：以 PostgreSQL `artifacts` 表为元数据权威，按 `(tenantScope, kind, name, version)` 四元组寻址，bytes 由调用方凭短期凭证直连 zot / RustFS。REST / PG 中兼容字段仍名为 `namespace`，但其语义是 tenant scope，不是 K8s Namespace。
 
 | 做 | 不做 |
 | --- | --- |
@@ -10,14 +10,12 @@
 | 上传 / 下载凭证签发（OCI scope token / S3 prefix-scoped STS） | 用户认证与角色鉴权（→ [auth.md](../platform/auth.md)） |
 | Kind 按 Handler 注册表分发（model / dataset / image） | tenant 存在性与权限校验（namespace 字段由 compute 兜底 tenant 语义） |
 | GC：Uploading TTL、Failed 留存、Deleting 推进 | 反向孤儿主动清理（仅告警）；跨 namespace 级联删除 |
-| `visibility=public` 全局可见制品（落 `axisml-system` 内置租户） | tenant Secret 落地（→ [tenant-operator.md](tenant-operator.md)） |
+| `visibility=public` 全局可见制品（落 `default` 内置 tenant scope） | tenant Secret 落地（→ [tenant-operator.md](tenant-operator.md)） |
 
 ## 2. 架构
 
 ```
-  上游调用方 ──REST──┐                 Operators (compute-op)
-                     ▼                        │ resolve?usage=inspect
-              Artifact Hub ◀──────────────────┘
+  Platform ──REST──▶ Artifact Hub
                 ├─ PG 读写 ──▶ PostgreSQL (artifacts 表)
                 └─ 签 token / HEAD / GC ──▶ zot(OCI) / RustFS(S3)
                                               ▲ 直传 / 直拉（短期凭证）
@@ -38,11 +36,11 @@
 
 | 实体 | 含义 | 寻址键 | 备注 |
 | --- | --- | --- | --- |
-| Artifact | 版本化制品 | `(namespace, kind, name, version)` | 四元组创建后不复用；spec / digest 进 `Ready` 后冻结 |
+| Artifact | 版本化制品 | `(tenantScope, kind, name, version)` | 四元组创建后不复用；兼容字段名为 `namespace` |
 
 - `kind`：`model` / `dataset` / `image`，由 Handler registry 校验。
-- `namespace` 是租户 `identifier`（= K8s namespace 名），上游透传；Artifacts 不解析、不做存在性校验，仅作不透明分区键。`axisml-system` 是内置 tenant，承载 `visibility=public` 制品。
-- `visibility`：`tenant`（默认，仅本 namespace 可见）/ `public`（全局可见；仅允许在 `axisml-system` 下创建，由上游做 RBAC 兜底）。
+- `namespace` 是历史兼容字段名，表示租户 `identifier` 对应的 tenant scope；Artifacts 不解析、不做存在性校验，仅作不透明分区键。`default` 是内置 tenant scope，承载 `visibility=public` 制品，其 K8s Namespace 是 `axisml-tenant`。
+- `visibility`：`tenant`（默认，仅本 tenant scope 可见）/ `public`（全局可见；仅允许在 `default` 下创建，由上游做 RBAC 兜底）。
 - `source`：`webUpload` / `oras`（model CLI 推送）/ `dockerPush`（image 本机推送）/ `external`（登记远端、免上传，§5.1）——进 `Ready` 后冻结。
 - 状态机：`Uploading` / `Ready` / `Failed` / `Deleting` / `Deleted`（§6）。
 - 扩展元数据 `labels` / `annotations` 对齐 [database.md §1.6](../database.md#16-扩展元数据-labels--annotations)；artifacts 无 CR，扩展位只落 PG。
@@ -144,7 +142,7 @@ Ready / Failed ─(DELETE)─▶ Deleting ─(GCBackend 成功)─▶ Deleted
 | PostgreSQL | 元数据权威；与 compute 共享 database，表前缀 `artifact_*`（[database.md](../database.md)） |
 | zot | OCI 后端；Artifacts 持 admin 凭证签 scope token / HEAD 校验 / GC 删 blob，客户端持短期 token 直连 |
 | RustFS | S3 后端；签 prefix-scoped STS / HEAD `artifact-manifest.json` 校验 / GC 删 prefix，bucket `axisml-artifact-hub` |
-| tenant-operator | `resolve?usage=inspect` 路径依赖其在 workload namespace 落地的 per-tenant ServiceAccount + Secrets（默认 imagePullSecret 拉 zot、env / volume 读 RustFS）；Artifacts 不参与 Secret 落地、不在 resolve 返回 secret 名（[tenant-operator.md](tenant-operator.md)） |
+| tenant-operator | 在 workload namespace 落地 per-tenant ServiceAccount + Secrets（默认 imagePullSecret 拉 zot、env / volume 读 RustFS）；Artifacts 不参与 Secret 落地、不在 resolve 返回 secret 名（[tenant-operator.md](tenant-operator.md)） |
 
 ## 8. 运行时形态
 
@@ -164,4 +162,4 @@ Ready / Failed ─(DELETE)─▶ Deleting ─(GCBackend 成功)─▶ Deleted
 - [deployment.md](../deployment.md) · [infra.md](../infra/overview.md)
 - [openapi/artifact-hub.yaml](../../openapi/artifact-hub.yaml) — REST 契约源
 - [tenant-operator.md](tenant-operator.md) — per-tenant SA + 默认 Secret 落地契约（inspect 的隐式凭证来源）
-- [compute-operator.md](compute-operator.md) — mlrun / mlservice handler 作为 resolve 消费方
+- [compute-operator.md](compute-operator.md) — 消费 Platform 已解析并快照到 workload spec 的制品引用

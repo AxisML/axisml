@@ -29,8 +29,11 @@ type Module struct {
 
 // NewService builds the traffic-policy module. members is the services
 // repository, used to validate referenced online services.
-func NewService(db *gorm.DB, members *servicemod.Repository) *Module {
-	return &Module{repo: NewRepository(db), db: db, members: members}
+func NewService(db *gorm.DB, members *servicemod.Repository, repo *Repository) *Module {
+	if repo == nil {
+		repo = NewRepository(db)
+	}
+	return &Module{repo: repo, db: db, members: members}
 }
 
 // CreateInput is the API request body. The backend tuple is derived (not

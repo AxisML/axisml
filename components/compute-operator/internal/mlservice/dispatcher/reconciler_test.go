@@ -166,6 +166,41 @@ func TestReconcile_MissingServiceIDLabel_WritesFailedStatus(t *testing.T) {
 	}
 }
 
+func TestReconcile_ProtectedServiceRouteFailsClosed(t *testing.T) {
+	mls := &axisml.MLService{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "workspace",
+			Namespace: "axisml-tenant",
+			Labels: map[string]string{
+				axisml.LabelServiceID:   "uuid-1",
+				axisml.LabelServiceKind: axisml.ServiceKindWorkspace,
+			},
+		},
+		Spec: axisml.MLServiceSpec{
+			Backend: axisml.Backend{Name: "native", Engine: "deployment"},
+			Route:   &axisml.Route{Enabled: true},
+		},
+	}
+	r, cli := newReconcilerWithMLS(t, mls, map[hpkg.Key]hpkg.Handler{})
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: types.NamespacedName{Name: mls.Name, Namespace: mls.Namespace},
+	}); err != nil {
+		t.Fatalf("Reconcile returned error: %v", err)
+	}
+
+	got := &axisml.MLService{}
+	if err := cli.Get(context.Background(), types.NamespacedName{Name: mls.Name, Namespace: mls.Namespace}, got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Status.Phase != axisml.PhaseFailed {
+		t.Errorf("phase = %s; want Failed", got.Status.Phase)
+	}
+	if !strings.Contains(got.Status.Message, "SecurityPolicy") {
+		t.Errorf("status.message = %q; want SecurityPolicy failure", got.Status.Message)
+	}
+}
+
 func TestWriteStatus_NoOpWhenStatusUnchanged(t *testing.T) {
 	mls := &axisml.MLService{
 		ObjectMeta: metav1.ObjectMeta{

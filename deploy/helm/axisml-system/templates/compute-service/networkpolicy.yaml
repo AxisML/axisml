@@ -1,0 +1,33 @@
+{{- if and .Values.computeService.enabled .Values.computeService.networkPolicy.enabled }}
+{{- $svc := .Values.computeService }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "axisml.fullname" . }}-compute-service
+  labels:
+    {{- include "axisml.componentLabels" (dict "context" . "component" "compute-service") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "axisml.componentSelectorLabels" (dict "context" . "component" "compute-service") | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $svc.networkPolicy.platformNamespace | quote }}
+      ports:
+        - protocol: TCP
+          port: {{ $svc.service.port }}
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $svc.networkPolicy.monitoringNamespace | quote }}
+      ports:
+        - protocol: TCP
+          port: {{ $svc.metricsPort }}
+    - ports:
+        - protocol: TCP
+          port: {{ $svc.probesPort }}
+{{- end }}
