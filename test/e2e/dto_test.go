@@ -50,35 +50,49 @@ type cmPoolDTO struct {
 	Units []cmUnitDTO `json:"units"`
 }
 
-// ---------- compute-service: tenant ----------
+// ---------- cluster-manager: tenant ----------
+//
+// Tenant ownership lives in cluster-manager (REST writer over the Tenant CR).
+// Quotas are expressed in business form (per pool, unit × quantity);
+// cluster-manager folds them into the ElasticQuota min/max on the CR.
 
-type csNamespaceSpec struct {
+type cmNamespaceSpec struct {
 	Name        string            `json:"name"`
 	Labels      map[string]string `json:"labels,omitempty"`
 	Annotations map[string]string `json:"annotations,omitempty"`
 }
 
-type csQuotaSpec struct {
-	Pool string            `json:"pool"`
-	Name string            `json:"name"`
-	Min  map[string]string `json:"min,omitempty"`
-	Max  map[string]string `json:"max"`
+// cmQuotaUnit selects a ResourceUnit and how many of it the tenant gets.
+type cmQuotaUnit struct {
+	UnitName string `json:"unitName"`
+	Quantity int    `json:"quantity"`
 }
 
-type csCreateTenantReq struct {
+// cmQuota is one pool's quota in business form.
+type cmQuota struct {
+	Pool  string        `json:"pool"`
+	Units []cmQuotaUnit `json:"units"`
+}
+
+type cmCreateTenantReq struct {
 	Name        string          `json:"name"`
 	DisplayName string          `json:"displayName,omitempty"`
 	Description string          `json:"description,omitempty"`
-	Namespace   csNamespaceSpec `json:"namespace"`
-	Quotas      []csQuotaSpec   `json:"quotas,omitempty"`
+	Namespace   cmNamespaceSpec `json:"namespace"`
+	Quotas      []cmQuota       `json:"quotas,omitempty"`
 }
 
-type csTenantResp struct {
-	ID        string          `json:"id"`
+// cmSetQuotaReq is the body for POST /tenants/{tenant}/quotas.
+type cmSetQuotaReq struct {
+	Pool  string        `json:"pool"`
+	Units []cmQuotaUnit `json:"units"`
+}
+
+type cmTenantResp struct {
 	Name      string          `json:"name"`
-	Namespace csNamespaceSpec `json:"namespace"`
-	Quotas    []csQuotaSpec   `json:"quotas,omitempty"`
-	Phase     string          `json:"phase"`
+	Namespace cmNamespaceSpec `json:"namespace"`
+	Quotas    []cmQuota       `json:"quotas,omitempty"`
+	Phase     string          `json:"phase,omitempty"`
 }
 
 // ---------- compute-service: job ----------

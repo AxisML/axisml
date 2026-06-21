@@ -20,6 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/uuid"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cmv1alpha1 "github.com/axisml/axisml/components/cluster-manager/api/v1alpha1"
@@ -69,6 +70,16 @@ func (h *Handler) Create(c *gin.Context) {
 		return
 	}
 	cr := srv.APIToTenant(req, folded, anno, c.GetHeader(srv.HeaderUser))
+	// tenant-operator requires a non-empty tenant-id label (its orphan-detection
+	// anchor) before it will provision the namespace. Stamp a stable UUID when
+	// the caller didn't supply one so every REST-created tenant provisions like
+	// the Helm-seeded one.
+	if cr.Labels == nil {
+		cr.Labels = map[string]string{}
+	}
+	if cr.Labels[tenantv1alpha1.LabelTenantID] == "" {
+		cr.Labels[tenantv1alpha1.LabelTenantID] = string(uuid.NewUUID())
+	}
 	if err := h.Client.Create(c.Request.Context(), cr); err != nil {
 		writeK8sError(c, err, req.Name)
 		return

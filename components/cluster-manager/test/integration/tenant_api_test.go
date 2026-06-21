@@ -65,6 +65,10 @@ func TestTenant_Lifecycle(t *testing.T) {
 	// for min; 3×{cpu2,mem4Gi} for max).
 	var cr tenantv1alpha1.Tenant
 	require.NoError(t, testCli.Get(context.Background(), types.NamespacedName{Name: name}, &cr))
+	// cluster-manager stamps the tenant-id orphan-anchor label that tenant-operator
+	// requires before it provisions the namespace; caller labels are preserved.
+	require.NotEmpty(t, cr.Labels[tenantv1alpha1.LabelTenantID], "tenant-id label must be auto-stamped")
+	require.Equal(t, "gold", cr.Labels["axisml.io/tier"], "caller-supplied labels preserved")
 	require.Len(t, cr.Spec.Quotas, 1)
 	minCPU := cr.Spec.Quotas[0].Min["cpu"]
 	maxCPU := cr.Spec.Quotas[0].Max["cpu"]

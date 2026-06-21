@@ -1,1 +1,0 @@
-ALTER TABLE artifacts DROP COLUMN IF EXISTS source;

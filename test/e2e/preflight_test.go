@@ -75,10 +75,11 @@ func TestPreflight_HTTPReachable(t *testing.T) {
 	// cluster-manager
 	r := h.clusterManager.mustDo(t, ctx, http.MethodGet, "/api/v1/resourcepools", nil)
 	assert.True(t, r.is2xx(), "cluster-manager list pools: %d", r.status)
-	// compute-service
-	r = h.computeService.mustDo(t, ctx, http.MethodGet, "/api/v1/namespaces", nil)
-	assert.True(t, r.is2xx(), "compute-service list namespaces: %d", r.status)
+	// compute-service (list mlruns in the shared namespace — it serves no
+	// top-level /namespaces collection; tenant CRUD lives in cluster-manager).
+	r = h.computeService.mustDo(t, ctx, http.MethodGet, "/api/v1/namespaces/"+sharedNS(t)+"/mlruns", nil)
+	assert.True(t, r.is2xx(), "compute-service list mlruns: %d", r.status)
 	// artifact-hub (list models in the shared namespace)
-	r = h.artifactHub.mustDo(t, ctx, http.MethodGet, "/api/v1/namespaces/"+sharedNS()+"/models", nil)
+	r = h.artifactHub.mustDo(t, ctx, http.MethodGet, "/api/v1/namespaces/"+sharedNS(t)+"/models", nil)
 	assert.True(t, r.is2xx(), "artifact-hub list models: %d", r.status)
 }

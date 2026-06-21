@@ -74,7 +74,7 @@ func httpRouteBackendWeights(ctx context.Context, ns, name string) (map[string]i
 
 func TestTrafficPolicy_CanaryThroughGateway(t *testing.T) {
 	ctx := context.Background()
-	ns := sharedNS()
+	ns := sharedNS(t)
 	quota := sharedQuota(t, ctx)
 
 	stable := uniqueName("e2e-tp-stable")
