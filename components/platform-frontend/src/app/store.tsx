@@ -9,65 +9,61 @@ import {
 } from "react";
 import { useSession } from "./session";
 
-// ── Navigation config (single source of truth, ported from js/app.js NAV) ──────
+// ── Navigation config (single source of truth) ────────────────────────────────
+// `labelKey` / `groupKey` are i18next keys resolved at render time by the
+// Sidebar; `icon` is a stable name mapped to an AntD icon there.
 export interface NavItem {
   key: string;
-  label: string;
+  labelKey: string;
   icon: string;
   path: string;
   roles?: Role[];
 }
 export interface NavGroup {
-  group?: string;
+  groupKey?: string;
   items: NavItem[];
 }
 
 export const NAV: NavGroup[] = [
-  { items: [{ key: "dashboard", label: "首页", icon: "dashboard", path: "/" }] },
+  { items: [{ key: "dashboard", labelKey: "nav.dashboard", icon: "dashboard", path: "/" }] },
   {
-    group: "训练中心",
+    groupKey: "nav.trainingCenter",
     items: [
-      { key: "workspace", label: "工作区", icon: "workspace", path: "/workspaces" },
-      { key: "experiments", label: "实验管理", icon: "experiment", path: "/experiments" },
-      { key: "jobs", label: "自定义任务", icon: "job", path: "/jobs" },
+      { key: "workspace", labelKey: "nav.workspace", icon: "workspace", path: "/workspaces" },
+      { key: "experiments", labelKey: "nav.experiments", icon: "experiment", path: "/experiments" },
+      { key: "jobs", labelKey: "nav.jobs", icon: "job", path: "/jobs" },
     ],
   },
   {
-    group: "服务中心",
+    groupKey: "nav.serviceCenter",
     items: [
-      { key: "services", label: "在线服务", icon: "service", path: "/services" },
-      { key: "traffic", label: "流量配置", icon: "traffic", path: "/traffic" },
+      { key: "services", labelKey: "nav.services", icon: "service", path: "/services" },
+      { key: "traffic", labelKey: "nav.traffic", icon: "traffic", path: "/traffic" },
     ],
   },
   {
-    group: "资产中心",
+    groupKey: "nav.assetCenter",
     items: [
-      { key: "models", label: "模型仓", icon: "model", path: "/models" },
-      { key: "images", label: "镜像仓", icon: "image", path: "/images" },
+      { key: "models", labelKey: "nav.models", icon: "model", path: "/models" },
+      { key: "images", labelKey: "nav.images", icon: "image", path: "/images" },
     ],
   },
   {
-    group: "系统管理",
+    groupKey: "nav.systemMgmt",
     items: [
       {
         key: "tenants",
-        label: "租户管理",
+        labelKey: "nav.tenants",
         icon: "tenant",
         path: "/tenants",
         roles: ["system-admin", "tenant-admin"],
       },
-      { key: "pools", label: "资源池管理", icon: "pool", path: "/resource-pools", roles: ["system-admin"] },
+      { key: "pools", labelKey: "nav.pools", icon: "pool", path: "/resource-pools", roles: ["system-admin"] },
     ],
   },
 ];
 
 export type Role = "system-admin" | "tenant-admin" | "user";
-
-export const ROLE_LABELS: Record<Role, string> = {
-  "system-admin": "系统管理员",
-  "tenant-admin": "租户管理员",
-  user: "普通用户",
-};
 
 export type ThemePref = "light" | "dark" | "system";
 export type Lang = "zh" | "en";

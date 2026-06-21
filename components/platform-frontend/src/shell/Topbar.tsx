@@ -1,186 +1,174 @@
-import { useEffect, useRef, useState } from "react";
+import { Layout, Input, Dropdown, Popover, Avatar, Badge, Button, Segmented, Divider, Tooltip } from "antd";
+import {
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
+  SearchOutlined,
+  QuestionCircleOutlined,
+  BellOutlined,
+  RightOutlined,
+  LogoutOutlined,
+} from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useApp, type Lang, type ThemePref } from "@/app/store";
 import { useSession } from "@/app/session";
 import { useUI } from "@/app/ui";
-import { Icon } from "@/components/Icon";
 import { useTenantOptions } from "@/api/hooks";
-
-const THEME_NAMES: Record<ThemePref, string> = { light: "浅色", dark: "深色", system: "跟随系统" };
 
 export function Topbar() {
   const app = useApp();
   const session = useSession();
   const { toast, confirm } = useUI();
   const navigate = useNavigate();
-  const [openMenu, setOpenMenu] = useState<"user" | null>(null);
-  const wrapRef = useRef<HTMLElement>(null);
+  const { t } = useTranslation();
 
-  useEffect(() => {
-    const onDoc = (e: MouseEvent) => {
-      if (!(e.target as HTMLElement).closest("[data-menu-anchor]")) setOpenMenu(null);
-    };
-    document.addEventListener("click", onDoc);
-    return () => document.removeEventListener("click", onDoc);
-  }, []);
-
-  // Identity comes straight from the authenticated session — no demo fallbacks.
   const initials = session.initials;
   const person = session.displayName || session.me?.user.username || "";
   const email = session.email || session.me?.user.username || "";
-  // Tenant scope options (no "all" — exactly one tenant is always selected).
   const tenantOptions = useTenantOptions();
+  const currentTenant = tenantOptions.find((x) => x.id === app.tenant);
+
+  const themeNames: Record<ThemePref, string> = {
+    light: t("topbar.themeLight"),
+    dark: t("topbar.themeDark"),
+    system: t("topbar.themeSystem"),
+  };
+
+  const onLang = (l: Lang) => {
+    if (app.lang === l) return;
+    app.setLang(l);
+    toast(l === "en" ? t("topbar.langSwitchedEn") : t("topbar.langSwitchedZh"));
+  };
+  const onTheme = (val: ThemePref) => {
+    app.setTheme(val);
+    toast(t("topbar.themeSwitched", { name: themeNames[val] }));
+  };
+  const onLogout = () =>
+    confirm({
+      title: t("topbar.logoutConfirmTitle"),
+      desc: t("topbar.logoutConfirmDesc"),
+      okLabel: t("topbar.logout"),
+      danger: false,
+      onConfirm: () => void session.logout().then(() => navigate("/login", { replace: true })),
+    });
 
   return (
-    <header className="topbar" id="topbar" ref={wrapRef}>
-      <button className="icon-btn menu-trigger" aria-label="菜单">
-        <Icon name="menu" />
-      </button>
-      <button className="icon-btn" aria-label="折叠" title="折叠侧栏" onClick={app.toggleCollapsed}>
-        <Icon name="layers" />
-      </button>
-      <div className="search">
-        <span>
-          <Icon name="search" />
-        </span>
-        <input placeholder="搜索任务 / 服务 / 模型 / 镜像…" />
-        <kbd>⌘K</kbd>
-      </div>
-      <div className="spacer" />
+    <Layout.Header className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b border-border-soft bg-bg px-4">
+      <Button
+        type="text"
+        aria-label={t("topbar.collapse")}
+        icon={app.collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+        onClick={app.toggleCollapsed}
+      />
 
-      <button className="icon-btn" title="帮助">
-        <Icon name="help" />
-      </button>
-      <button className="icon-btn" title="通知">
-        <Icon name="bell" />
-        <span className="ping" />
-      </button>
+      <Input
+        allowClear
+        prefix={<SearchOutlined className="text-muted" />}
+        placeholder={t("topbar.searchPlaceholder")}
+        className="max-w-sm"
+      />
 
-      {/* user menu */}
-      <div className="user-wrap" data-menu-anchor>
-        <button
-          className="avatar"
-          aria-label="用户菜单"
-          title={person}
-          onClick={(e) => {
-            e.stopPropagation();
-            setOpenMenu(openMenu === "user" ? null : "user");
-          }}
-        >
-          {initials}
-        </button>
-        <div className={"menu user-menu" + (openMenu === "user" ? " open" : "")}>
-          <div className="user-card">
-            <div className="avatar">{initials}</div>
-            <div className="u-meta">
-              <div className="u-name">{person}</div>
-              <div className="u-sub">{email}</div>
-            </div>
-          </div>
-          <hr />
-          <div className="menu-sub">
-            <div className="menu-item tenant-trigger has-flyout">
-              <div className="ti-text">
-                <span className="ti-label">所属租户</span>
-                <span className="ti-val">
-                  {tenantOptions.find((t) => t.id === app.tenant)?.name || app.tenant || "—"}
-                </span>
+      <div className="flex-1" />
+
+      <Tooltip title={t("topbar.help")}>
+        <Button type="text" aria-label={t("topbar.help")} icon={<QuestionCircleOutlined />} />
+      </Tooltip>
+      <Tooltip title={t("topbar.notifications")}>
+        <Badge dot offset={[-2, 2]}>
+          <Button type="text" aria-label={t("topbar.notifications")} icon={<BellOutlined />} />
+        </Badge>
+      </Tooltip>
+
+      <Dropdown
+        trigger={["click"]}
+        placement="bottomRight"
+        dropdownRender={() => (
+          <div className="w-64 rounded-lg border border-border-soft bg-bg p-1 shadow-lg">
+            <div className="flex items-center gap-3 p-3">
+              <Avatar className="!bg-accent">{initials}</Avatar>
+              <div className="min-w-0">
+                <div className="truncate font-semibold text-fg">{person}</div>
+                <div className="truncate text-xs text-muted">{email}</div>
               </div>
-              <Icon name="chevronR" className="caret" />
             </div>
-            <div className="flyout">
-              <div className="menu-label">切换租户作用域</div>
-              {tenantOptions.map((t) => (
-                <a
-                  key={t.id}
-                  className={"menu-item" + (app.tenant === t.id ? " sel" : "")}
-                  onClick={() => app.setTenant(t.id)}
-                >
-                  <div>
-                    {t.name}
-                    <small>{t.note}</small>
-                  </div>
-                  {app.tenant === t.id && (
-                    <span className="ck">
-                      <Icon name="check" />
-                    </span>
+            <Divider className="my-1" />
+            {/* Tenant scope switcher — a left flyout, per the product prototype.
+                Exactly one tenant is always active. */}
+            <Popover
+              trigger="hover"
+              placement="leftTop"
+              arrow={false}
+              overlayInnerStyle={{ padding: 4 }}
+              content={
+                <div className="w-52">
+                  <div className="px-3 py-1.5 text-xs text-muted">{t("topbar.switchTenant")}</div>
+                  {tenantOptions.length ? (
+                    tenantOptions.map((tn) => (
+                      <div
+                        key={tn.id}
+                        onClick={() => app.setTenant(tn.id)}
+                        className={
+                          "flex cursor-pointer items-center justify-between gap-6 rounded px-3 py-1.5 hover:bg-surface " +
+                          (app.tenant === tn.id ? "text-accent" : "text-fg")
+                        }
+                      >
+                        <span>{tn.name}</span>
+                        <span className="text-xs text-muted">{tn.note}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="px-3 py-1.5 text-xs text-muted">{t("topbar.noTenants")}</div>
                   )}
-                </a>
-              ))}
-              {tenantOptions.length === 0 && (
-                <div className="menu-label" style={{ opacity: 0.7 }}>
-                  暂无可切换的租户
                 </div>
-              )}
+              }
+            >
+              <div className="flex cursor-pointer items-center justify-between rounded px-3 py-2 hover:bg-surface">
+                <div className="flex min-w-0 flex-col">
+                  <span className="text-xs text-muted">{t("topbar.tenant")}</span>
+                  <span className="truncate text-sm text-fg">
+                    {currentTenant?.name || app.tenant || t("topbar.noTenants")}
+                  </span>
+                </div>
+                <RightOutlined className="text-xs text-muted" />
+              </div>
+            </Popover>
+            <Divider className="my-1" />
+            <div className="flex items-center justify-between px-3 py-2">
+              <span className="text-sm text-fg-2">{t("topbar.language")}</span>
+              <Segmented<Lang>
+                size="small"
+                value={app.lang}
+                onChange={onLang}
+                options={[
+                  { label: "中文", value: "zh" },
+                  { label: "EN", value: "en" },
+                ]}
+              />
             </div>
-          </div>
-          <hr />
-          <div className="opt-row">
-            <span className="opt-label">语言</span>
-            <div className="segmented lang-seg">
-              {(["zh", "en"] as Lang[]).map((l) => (
-                <button
-                  key={l}
-                  className={app.lang === l ? "on" : ""}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (app.lang === l) return;
-                    app.setLang(l);
-                    toast(l === "en" ? "界面语言已切换为 English（演示）" : "界面语言已切换为简体中文");
-                  }}
-                >
-                  {l === "zh" ? "中文" : "English"}
-                </button>
-              ))}
+            <div className="flex items-center justify-between px-3 py-2">
+              <span className="text-sm text-fg-2">{t("topbar.theme")}</span>
+              <Segmented<ThemePref>
+                size="small"
+                value={app.theme}
+                onChange={onTheme}
+                options={[
+                  { label: themeNames.light, value: "light" },
+                  { label: themeNames.dark, value: "dark" },
+                  { label: themeNames.system, value: "system" },
+                ]}
+              />
             </div>
+            <Divider className="my-1" />
+            <Button type="text" danger block className="!justify-start" icon={<LogoutOutlined />} onClick={onLogout}>
+              {t("topbar.logout")}
+            </Button>
           </div>
-          <div className="opt-row">
-            <span className="opt-label">主题</span>
-            <div className="segmented theme-seg">
-              {(
-                [
-                  ["light", "sun"],
-                  ["dark", "moon"],
-                  ["system", "monitor"],
-                ] as [ThemePref, string][]
-              ).map(([val, icon]) => (
-                <button
-                  key={val}
-                  title={THEME_NAMES[val]}
-                  aria-label={THEME_NAMES[val]}
-                  className={app.theme === val ? "on" : ""}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    app.setTheme(val);
-                    toast("主题已切换为「" + THEME_NAMES[val] + "」");
-                  }}
-                >
-                  <Icon name={icon} className="seg-ic" />
-                </button>
-              ))}
-            </div>
-          </div>
-          <hr />
-          <a
-            className="menu-item danger logout-row"
-            onClick={(e) => {
-              e.preventDefault();
-              setOpenMenu(null);
-              confirm({
-                title: "退出登录",
-                desc: "确定要退出当前登录吗？退出后需要重新登录才能继续访问控制台。",
-                okLabel: "退出登录",
-                onConfirm: () => {
-                  void session.logout().then(() => navigate("/login", { replace: true }));
-                },
-              });
-            }}
-          >
-            <span>退出登录</span>
-            <Icon name="logout" className="mi" />
-          </a>
-        </div>
-      </div>
-    </header>
+        )}
+      >
+        <span title={person} className="cursor-pointer">
+          <Avatar className="!bg-accent">{initials}</Avatar>
+        </span>
+      </Dropdown>
+    </Layout.Header>
   );
 }

@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useUI } from "@/app/ui";
-import { errorText } from "@/components/states";
+import { errorText } from "@/lib/errors";
 
 type SdkResult<T> = Promise<{ data?: T; error?: unknown }>;
 

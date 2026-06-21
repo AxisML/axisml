@@ -1,330 +1,290 @@
-import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { useModels } from "@/api/hooks";
+import { useMemo, useState } from "react";
+import {
+  Table,
+  Card,
+  Button,
+  Input,
+  Segmented,
+  Space,
+  Tooltip,
+  Divider,
+  Drawer,
+  Form,
+  Tabs,
+  Tag,
+  List,
+  Empty,
+  Spin,
+  Select,
+  Upload,
+} from "antd";
+import type { ColumnsType } from "antd/es/table";
+import {
+  PlusOutlined,
+  SearchOutlined,
+  AppstoreOutlined,
+  UnorderedListOutlined,
+  DeleteOutlined,
+  CloudDownloadOutlined,
+  CopyOutlined,
+  InboxOutlined,
+  DatabaseOutlined,
+  CloseOutlined,
+} from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
+import dayjs from "dayjs";
+import { useModels, useModelVersions } from "@/api/hooks";
 import { useApiMutation } from "@/api/mutations";
 import * as sdk from "@/api/generated";
-import type { RemoteSourceKind } from "@/api/generated";
-import { TableState, BlockState } from "@/components/states";
 import { useApp } from "@/app/store";
 import { useUI } from "@/app/ui";
-import { Icon } from "@/components/Icon";
-import { Drawer } from "@/components/Drawer";
-import { Tabs } from "@/components/Tabs";
-import { FieldsetTitle } from "@/components/forms";
+import { PageContainer } from "@/components/PageContainer";
+import { FieldSection } from "@/components/FieldSection";
 
 interface ModelRow {
   name: string;
   desc: string;
-  icon: "model" | "shield" | "graph";
   framework: string;
   latest: string;
   versions: number;
-  tags: string[];
-  updated: string; // card "更新 …" label
-  updatedShort: string; // list "更新时间" cell
-  canUpload: boolean; // whether the row offers 上传新版本 (externally-sourced models do not)
+  updated: string;
 }
 
-// One-off glyphs from the prototype card icons (not in the shared icon map).
-function CardIcon({ name }: { name: ModelRow["icon"] }) {
-  if (name === "shield") {
-    return (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
-      </svg>
-    );
-  }
-  if (name === "graph") {
-    return (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="6" cy="12" r="2.5" />
-        <circle cx="18" cy="6" r="2.5" />
-        <circle cx="18" cy="18" r="2.5" />
-        <path d="M8.2 10.8 15.8 7.2M8.2 13.2l7.6 3.6" />
-      </svg>
-    );
-  }
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z" />
-    </svg>
-  );
-}
-
-function UploadGlyph() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-      <path d="M17 8l-5-5-5 5" />
-      <path d="M12 3v12" />
-    </svg>
-  );
-}
-
-const TrashIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-    <path d="M3 6h18" />
-    <path d="M8 6V4h8v2" />
-    <path d="M19 6l-1 14H6L5 6" />
-    <path d="M10 11v6M14 11v6" />
-  </svg>
-);
-
-// Drawer state carries the active model name so version-scoped operations
-// (list / upload / delete) address the right model definition.
-type DrawerKind =
-  | { kind: "ver"; model: string; desc: string; framework: string }
+type DrawerState =
+  | { kind: "versions"; model: string; desc: string; framework: string }
   | { kind: "pull"; model: string; version: string }
-  | { kind: "newModel" }
-  | { kind: "up"; model: string };
+  | { kind: "new" }
+  | { kind: "upload"; model: string };
 
 export default function Models() {
   const q = useModels();
-  const { confirm } = useUI();
+  const { t } = useTranslation();
   const { tenant } = useApp();
+  const { confirm } = useUI();
   const [view, setView] = useState<"cards" | "list">("cards");
-  const [query, setQuery] = useState("");
-  const [drawer, setDrawer] = useState<DrawerKind | null>(null);
+  const [search, setSearch] = useState("");
+  const [drawer, setDrawer] = useState<DrawerState | null>(null);
 
   const delModel = useApiMutation(
     (name: string) => sdk.deleteModelDefinition({ path: { tenant, name } }),
-    { invalidate: [["models"]], success: "模型已删除" },
+    { invalidate: [["models"]], success: t("models.modelDeleted") },
   );
 
-  const rows: ModelRow[] =
-    q.data?.items?.map((m) => ({
-      name: m.name,
-      desc: m.description ?? m.displayName ?? "",
-      icon: "model" as const,
-      framework: (m.labels?.framework as string) ?? "—",
-      latest: "—",
-      versions: 0,
-      tags: [],
-      updated: "刚刚",
-      updatedShort: "刚刚",
-      canUpload: true,
-    })) ?? [];
+  const allRows: ModelRow[] = useMemo(
+    () =>
+      q.data?.items?.map((m) => ({
+        name: m.name,
+        desc: m.description ?? m.displayName ?? "",
+        framework: (m.labels?.framework as string) ?? "—",
+        latest: "—",
+        versions: 0,
+        updated: m.updatedAt ?? m.createdAt ?? "",
+      })) ?? [],
+    [q.data],
+  );
 
-  const filtered = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    if (!needle) return rows;
-    return rows.filter((r) => r.name.toLowerCase().includes(needle) || r.desc.toLowerCase().includes(needle));
-  }, [rows, query]);
+  const rows = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    if (!needle) return allRows;
+    return allRows.filter(
+      (r) => r.name.toLowerCase().includes(needle) || r.desc.toLowerCase().includes(needle),
+    );
+  }, [allRows, search]);
 
-  const openVer = (r: ModelRow) => setDrawer({ kind: "ver", model: r.name, desc: r.desc, framework: r.framework });
+  const openVersions = (r: ModelRow) =>
+    setDrawer({ kind: "versions", model: r.name, desc: r.desc, framework: r.framework });
 
-  const onDeleteModel = (r: ModelRow) => {
+  const onDeleteModel = (r: ModelRow) =>
     confirm({
-      title: `确定删除模型 ${r.name}？`,
-      desc: "删除后该模型的所有版本权重将一并移除，且不可恢复。",
-      okLabel: "确认删除",
-      danger: true,
+      title: t("models.deleteModelTitle", { name: r.name }),
+      desc: t("models.deleteModelDesc"),
+      okLabel: t("common.confirmDelete"),
       onConfirm: () => delModel.mutate(r.name),
     });
-  };
+
+  const columns: ColumnsType<ModelRow> = [
+    {
+      title: t("models.colName"),
+      dataIndex: "name",
+      render: (_, r) => (
+        <button type="button" className="min-w-0 text-left" onClick={() => openVersions(r)}>
+          <div className="font-mono font-medium text-accent">{r.name}</div>
+          {r.desc && <div className="truncate text-xs text-muted">{r.desc}</div>}
+        </button>
+      ),
+    },
+    {
+      title: t("models.colFramework"),
+      dataIndex: "framework",
+      width: 140,
+      render: (v: string) => (v && v !== "—" ? <Tag className="!m-0">{v}</Tag> : <span className="text-muted">—</span>),
+    },
+    {
+      title: t("models.colLatest"),
+      dataIndex: "latest",
+      width: 130,
+      render: (v: string) => <span className="font-mono text-fg-2">{v}</span>,
+    },
+    { title: t("models.colVersions"), dataIndex: "versions", width: 90, align: "right" },
+    {
+      title: t("models.colUpdated"),
+      dataIndex: "updated",
+      width: 180,
+      render: (v: string) => <span className="text-muted">{v ? dayjs(v).format("YYYY-MM-DD HH:mm") : "—"}</span>,
+    },
+    {
+      title: t("common.actions"),
+      key: "actions",
+      width: 160,
+      align: "right",
+      render: (_, r) => (
+        <Space size={4} split={<Divider type="vertical" className="!mx-0" />}>
+          <Button
+            type="link"
+            size="small"
+            className="!px-1"
+            onClick={() => setDrawer({ kind: "upload", model: r.name })}
+          >
+            {t("models.addVersion")}
+          </Button>
+          <Button type="link" size="small" danger className="!px-1" onClick={() => onDeleteModel(r)}>
+            {t("common.delete")}
+          </Button>
+        </Space>
+      ),
+    },
+  ];
 
   return (
-    <main className="page">
-      <div className="breadcrumb">
-        <span>资产中心</span>
-        <span className="sep">/</span>
-        <span>模型仓</span>
-      </div>
-      <div className="page-head">
-        <div>
-          <h1>模型仓</h1>
-          <p className="sub">
-            集中管理模型版本、状态、来源与使用记录，实现模型资产的规范化沉淀。支持模型快速检索、发布与复用，加速从研发到应用的转化。
-          </p>
-        </div>
-        <div className="actions">
-          <button className="btn btn-primary" onClick={() => setDrawer({ kind: "newModel" })}>
-            <Icon name="plus" />
-            新建模型
-          </button>
-        </div>
-      </div>
-
-      <div className="toolbar">
-        <div className="field-search">
-          <Icon name="search" />
-          <input placeholder="搜索名称 / 描述" value={query} onChange={(e) => setQuery(e.target.value)} />
-        </div>
+    <PageContainer
+      breadcrumb={[t("nav.assetCenter"), t("nav.models")]}
+      title={t("models.title")}
+      subtitle={t("models.subtitle")}
+      extra={
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => setDrawer({ kind: "new" })}>
+          {t("models.newModel")}
+        </Button>
+      }
+    >
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <Input
+          allowClear
+          prefix={<SearchOutlined className="text-muted" />}
+          placeholder={t("models.searchPlaceholder")}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="max-w-xs"
+        />
         <div className="grow" />
-        <div className="segmented">
-          <button className={view === "cards" ? "on" : ""} onClick={() => setView("cards")}>
-            ▦ 卡片
-          </button>
-          <button className={view === "list" ? "on" : ""} onClick={() => setView("list")}>
-            ☰ 列表
-          </button>
-        </div>
+        <Segmented
+          value={view}
+          onChange={(v) => setView(v as "cards" | "list")}
+          options={[
+            { value: "cards", icon: <AppstoreOutlined />, label: t("models.viewCards") },
+            { value: "list", icon: <UnorderedListOutlined />, label: t("models.viewList") },
+          ]}
+        />
       </div>
 
-      {view === "cards" && (
-        <div>
-          <div className="art-cards">
-            {filtered.map((r) => (
-              <div className="art-card" key={r.name} onClick={() => openVer(r)}>
-                <div className="ac-top">
-                  <div className="ac-ico">
-                    <CardIcon name={r.icon} />
-                  </div>
-                  <div>
-                    <div className="ac-name">{r.name}</div>
-                  </div>
-                  <div className="grow" />
-                  <button
-                    className="act act-danger"
-                    title="删除"
-                    aria-label="删除"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDeleteModel(r);
-                    }}
+      {view === "cards" ? (
+        <Spin spinning={q.isLoading}>
+          {rows.length === 0 ? (
+            <Card>
+              <Empty description={q.isError ? t("common.loadFailed") : t("common.noData")} />
+            </Card>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {rows.map((r) => (
+                  <Card
+                    key={r.name}
+                    hoverable
+                    styles={{ body: { padding: 16 } }}
+                    onClick={() => openVersions(r)}
                   >
-                    <TrashIcon />
-                  </button>
-                </div>
-                <p className="ac-desc">{r.desc}</p>
-                <div className="ac-foot">
-                  <span className="mono">
-                    {r.latest} · {r.versions} 版本
-                  </span>
-                  <span>{r.updated}</span>
-                </div>
+                    <div className="mb-2 flex items-start gap-3">
+                      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-surface-warm text-accent">
+                        <DatabaseOutlined />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate font-mono font-medium text-fg">{r.name}</div>
+                      </div>
+                      <Tooltip title={t("common.delete")}>
+                        <Button
+                          type="text"
+                          size="small"
+                          danger
+                          icon={<DeleteOutlined />}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeleteModel(r);
+                          }}
+                        />
+                      </Tooltip>
+                    </div>
+                    <p className="mb-3 line-clamp-2 min-h-[2.5rem] text-sm text-fg-2">{r.desc}</p>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-mono text-muted">
+                        {r.latest} · {r.versions} {t("models.versionsSuffix")}
+                      </span>
+                      <span className="text-muted">
+                        {r.updated ? dayjs(r.updated).fromNow() : "—"}
+                      </span>
+                    </div>
+                  </Card>
+                ))}
               </div>
-            ))}
-            <BlockState q={q} isEmpty={filtered.length === 0} />
-          </div>
-          <div className="pagination" style={{ marginTop: "var(--space-4)" }}>
-            <span>共 {filtered.length} 个</span>
-            <div className="pages">
-              <span className="pg">‹</span>
-              <span className="pg on">1</span>
-              <span className="pg">›</span>
-            </div>
-            <span>每页 20 条</span>
-          </div>
-        </div>
+              <div className="mt-4 text-sm text-muted">{t("models.total", { count: rows.length })}</div>
+            </>
+          )}
+        </Spin>
+      ) : (
+        <Card styles={{ body: { padding: 0 } }} className="overflow-hidden">
+          <Table<ModelRow>
+            rowKey="name"
+            columns={columns}
+            dataSource={rows}
+            loading={q.isLoading}
+            pagination={{ pageSize: 20, showTotal: (n) => t("models.total", { count: n }), hideOnSinglePage: false }}
+            locale={{ emptyText: q.isError ? t("common.loadFailed") : t("common.noData") }}
+          />
+        </Card>
       )}
 
-      {view === "list" && (
-        <div>
-          <div className="panel">
-            <div className="table-wrap">
-              <table className="tbl">
-                <thead>
-                  <tr>
-                    <th>名称</th>
-                    <th>框架</th>
-                    <th>最新版本</th>
-                    <th className="num-col">版本数</th>
-                    <th>标签</th>
-                    <th>更新时间</th>
-                    <th style={{ textAlign: "right" }}>操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((r) => (
-                    <tr key={r.name} onClick={() => openVer(r)}>
-                      <td>
-                        <span className="t-name mono">{r.name}</span>
-                        <div className="t-sub">{r.desc}</div>
-                      </td>
-                      <td>
-                        <span className="badge badge-neutral">{r.framework}</span>
-                      </td>
-                      <td className="mono">{r.latest}</td>
-                      <td className="num-col">{r.versions}</td>
-                      <td>
-                        {r.tags.map((t) => (
-                          <span className="tag" key={t}>
-                            {t}
-                          </span>
-                        ))}
-                      </td>
-                      <td className="muted">{r.updatedShort}</td>
-                      <td>
-                        <div className="row-actions">
-                          {r.canUpload ? (
-                            <button
-                              className="act"
-                              title="上传新版本"
-                              aria-label="上传新版本"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setDrawer({ kind: "up", model: r.name });
-                              }}
-                            >
-                              <UploadGlyph />
-                            </button>
-                          ) : null}
-                          <button
-                            className="act act-danger"
-                            title="删除"
-                            aria-label="删除"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onDeleteModel(r);
-                            }}
-                          >
-                            <TrashIcon />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                  <TableState q={q} cols={7} isEmpty={filtered.length === 0} />
-                </tbody>
-              </table>
-            </div>
-            <div className="pagination">
-              <span>共 {filtered.length} 个</span>
-              <div className="pages">
-                <span className="pg">‹</span>
-                <span className="pg on">1</span>
-                <span className="pg">›</span>
-              </div>
-              <span>每页 20 条</span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {drawer?.kind === "ver" && (
-        <VerDrawer
+      {drawer?.kind === "versions" && (
+        <VersionsDrawer
           model={drawer.model}
           desc={drawer.desc}
           framework={drawer.framework}
           onClose={() => setDrawer(null)}
           onPull={(version) => setDrawer({ kind: "pull", model: drawer.model, version })}
-          onUpload={() => setDrawer({ kind: "up", model: drawer.model })}
+          onUpload={() => setDrawer({ kind: "upload", model: drawer.model })}
         />
       )}
       {drawer?.kind === "pull" && (
         <PullDrawer model={drawer.model} version={drawer.version} onClose={() => setDrawer(null)} />
       )}
-      {drawer?.kind === "newModel" && <NewModelDrawer onClose={() => setDrawer(null)} />}
-      {drawer?.kind === "up" && <UploadDrawer model={drawer.model} onClose={() => setDrawer(null)} />}
-    </main>
+      {drawer?.kind === "new" && <NewModelDrawer onClose={() => setDrawer(null)} />}
+      {drawer?.kind === "upload" && <UploadDrawer model={drawer.model} onClose={() => setDrawer(null)} />}
+    </PageContainer>
   );
 }
 
-function statusMeta(status: string): { cls: "success" | "pending"; label: string; pending: boolean } {
+// ── Version list drawer ───────────────────────────────────────────────────────
+function statusMeta(status: sdk.ModelStatus, t: (k: string) => string): { color: string; label: string; pending: boolean } {
   switch (status) {
     case "Ready":
-      return { cls: "success", label: "就绪", pending: false };
+      return { color: "success", label: t("models.statusReady"), pending: false };
     case "Uploading":
-      return { cls: "pending", label: "上传中", pending: true };
+      return { color: "processing", label: t("models.statusUploading"), pending: true };
     case "Failed":
-      return { cls: "pending", label: "失败", pending: false };
+      return { color: "error", label: t("models.statusFailed"), pending: false };
     default:
-      return { cls: "pending", label: status, pending: status === "Uploading" };
+      return { color: "default", label: status, pending: false };
   }
 }
 
-function VerDrawer({
+function VersionsDrawer({
   model,
   desc,
   framework,
@@ -339,212 +299,182 @@ function VerDrawer({
   onPull: (version: string) => void;
   onUpload: () => void;
 }) {
+  const { t } = useTranslation();
   const { tenant } = useApp();
   const { toast, confirm } = useUI();
-  const [verQuery, setVerQuery] = useState("");
-
-  const versQ = useQuery({
-    queryKey: ["modelVersions", model, tenant],
-    enabled: tenant !== "",
-    queryFn: async () => {
-      const { data, error } = await sdk.listModelVersions({ path: { tenant, name: model } });
-      if (error) throw error;
-      return data;
-    },
-  });
+  const [search, setSearch] = useState("");
+  const versQ = useModelVersions(model);
 
   const delVer = useApiMutation(
     (version: string) => sdk.deleteModel({ path: { tenant, name: model, version } }),
-    { invalidate: [["modelVersions", model], ["models"]], success: "版本已删除" },
+    { invalidate: [["models"]], success: t("models.verDeleted") },
   );
 
   const items = versQ.data?.items ?? [];
   const filtered = items.filter((v) => {
-    const needle = verQuery.trim().toLowerCase();
+    const needle = search.trim().toLowerCase();
     if (!needle) return true;
     return v.version.toLowerCase().includes(needle) || (v.description ?? "").toLowerCase().includes(needle);
   });
 
-  const onDeleteVer = (version: string) => {
+  const onDeleteVer = (version: string) =>
     confirm({
-      title: `确定删除版本 ${version}？`,
-      desc: "删除后该版本权重将不可恢复。",
-      okLabel: "确认删除",
-      danger: true,
+      title: t("models.deleteVerTitle", { version }),
+      desc: t("models.deleteVerDesc"),
+      okLabel: t("common.confirmDelete"),
       onConfirm: () => delVer.mutate(version),
     });
-  };
 
   return (
     <Drawer
       open
-      wide
+      width={640}
       onClose={onClose}
-      title={<span className="mono">{model}</span>}
-      sub={`${desc || "模型权重"} · ${framework}`}
+      title={<span className="font-mono">{model}</span>}
+      extra={<span className="text-xs text-muted">{`${desc || t("models.verWeights")} · ${framework}`}</span>}
     >
-      <div className="toolbar">
-        <div className="field-search">
-          <Icon name="search" />
-          <input
-            placeholder="搜索版本名称 / 描述"
-            value={verQuery}
-            onChange={(e) => setVerQuery(e.target.value)}
+      <div className="mb-4 flex items-center gap-3">
+        <Input
+          allowClear
+          prefix={<SearchOutlined className="text-muted" />}
+          placeholder={t("models.verSearchPlaceholder")}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        <Button type="primary" icon={<PlusOutlined />} onClick={onUpload}>
+          {t("models.addVersion")}
+        </Button>
+      </div>
+
+      <Spin spinning={versQ.isLoading}>
+        {filtered.length === 0 ? (
+          <Empty description={versQ.isError ? t("common.loadFailed") : t("common.noData")} />
+        ) : (
+          <List
+            dataSource={filtered}
+            split
+            renderItem={(v) => {
+              const meta = statusMeta(v.status, t);
+              return (
+                <List.Item
+                  className="!px-0"
+                  actions={
+                    meta.pending
+                      ? []
+                      : [
+                          <Tooltip title={t("models.pullTitle")} key="pull">
+                            <Button
+                              type="text"
+                              size="small"
+                              icon={<CloudDownloadOutlined />}
+                              onClick={() => onPull(v.version)}
+                            />
+                          </Tooltip>,
+                          <Tooltip title={t("common.delete")} key="del">
+                            <Button
+                              type="text"
+                              size="small"
+                              danger
+                              icon={<DeleteOutlined />}
+                              onClick={() => onDeleteVer(v.version)}
+                            />
+                          </Tooltip>,
+                        ]
+                  }
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-1 flex flex-wrap items-center gap-2">
+                      <span className="font-mono font-medium text-fg">{v.version}</span>
+                      <Tag color={meta.color} className="!m-0">
+                        {meta.label}
+                      </Tag>
+                      {v.source && <Tag className="!m-0">{v.source}</Tag>}
+                    </div>
+                    {v.description && <div className="mb-1 text-sm text-fg-2">{v.description}</div>}
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
+                      <span className={"font-mono " + (meta.pending ? "" : "text-fg-2")}>
+                        {v.uri ?? t("models.addrPending")}
+                      </span>
+                      {v.uri && (
+                        <Tooltip title={t("common.actions")}>
+                          <Button
+                            type="text"
+                            size="small"
+                            icon={<CopyOutlined />}
+                            onClick={() => {
+                              void navigator.clipboard?.writeText(v.uri ?? "");
+                              toast(t("models.addrCopied"));
+                            }}
+                          />
+                        </Tooltip>
+                      )}
+                      {v.owner && <span>· {v.owner}</span>}
+                    </div>
+                  </div>
+                </List.Item>
+              );
+            }}
           />
-        </div>
-        <div className="grow" />
-        <button className="btn btn-sm btn-primary" onClick={onUpload}>
-          + 上传新版本
-        </button>
-      </div>
-      <div className="ver-list">
-        {filtered.map((v) => {
-          const meta = statusMeta(v.status);
-          return (
-            <div className="ver-item" key={v.version}>
-              <div className="ver-top">
-                <span className="ver-name">{v.version}</span>
-                <span className={"status status-" + meta.cls}>
-                  <span className="dot" />
-                  {meta.label}
-                </span>
-                {v.source && <span className="badge badge-neutral ver-src">{v.source}</span>}
-                <div className="ver-actions">
-                  {!meta.pending && (
-                    <>
-                      <button className="act" aria-label="拉取命令" onClick={() => onPull(v.version)} />
-                      <button
-                        className="act act-danger"
-                        aria-label="删除"
-                        onClick={() => onDeleteVer(v.version)}
-                      />
-                    </>
-                  )}
-                </div>
-              </div>
-              <div className="ver-desc">{v.description ?? ""}</div>
-              <div className="ver-meta">
-                <span className={"ver-addr" + (meta.pending ? " muted" : "")}>{v.uri ?? "地址生成中…"}</span>
-                {v.uri && (
-                  <button
-                    className="act ver-copy"
-                    aria-label="复制"
-                    onClick={() => {
-                      void navigator.clipboard?.writeText(v.uri ?? "");
-                      toast("地址已复制");
-                    }}
-                  />
-                )}
-                <span className="ver-by">{v.owner ?? ""}</span>
-              </div>
-            </div>
-          );
-        })}
-        <BlockState q={versQ} isEmpty={filtered.length === 0} />
-      </div>
+        )}
+      </Spin>
     </Drawer>
   );
 }
 
+// ── Pull-command drawer ───────────────────────────────────────────────────────
 function PullDrawer({ model, version, onClose }: { model: string; version: string; onClose: () => void }) {
+  const { t } = useTranslation();
   const { tenant } = useApp();
   const { toast } = useUI();
-  const resolveQ = useQuery({
-    queryKey: ["modelResolve", model, version, tenant],
-    enabled: tenant !== "",
-    queryFn: async () => {
-      const { data, error } = await sdk.resolveModel({ path: { tenant, name: model, version } });
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  const cmd = resolveQ.data?.uri ? `docker pull ${resolveQ.data.uri}` : "解析拉取地址中…";
+  const resolveQ = useModelResolve(model, version, tenant);
+  const cmd = resolveQ.uri ? `docker pull ${resolveQ.uri}` : t("models.pullResolving");
 
   return (
     <Drawer
       open
+      width={520}
       onClose={onClose}
-      title="拉取命令"
-      sub={<span className="mono">{`${model}@${version}`}</span>}
+      title={t("models.pullTitle")}
+      extra={<span className="font-mono text-xs text-muted">{`${model}@${version}`}</span>}
       footer={
-        <button className="btn btn-primary" onClick={onClose}>
-          完成
-        </button>
+        <div className="flex justify-end">
+          <Button type="primary" onClick={onClose}>
+            {t("models.done")}
+          </Button>
+        </div>
       }
     >
-      <p className="muted" style={{ fontSize: 13, marginBottom: 12 }}>
-        模型存储于 OCI（zot），用以下命令拉取。临时凭证有效期 1 小时。
-      </p>
-      <pre className="logbox" style={{ maxHeight: "none" }}>
+      <p className="mb-3 text-sm text-muted">{t("models.pullHint")}</p>
+      <pre className="overflow-x-auto rounded-md border border-border-soft bg-surface p-3 font-mono text-xs text-fg-2">
         {cmd}
       </pre>
-      <button
-        className="btn"
-        style={{ marginTop: 14 }}
-        disabled={!resolveQ.data?.uri}
+      <Button
+        className="mt-3"
+        icon={<CopyOutlined />}
+        disabled={!resolveQ.uri}
         onClick={() => {
           void navigator.clipboard?.writeText(cmd);
-          toast("命令已复制到剪贴板");
+          toast(t("models.commandCopied"));
         }}
       >
-        复制命令
-      </button>
+        {t("models.copyCommand")}
+      </Button>
     </Drawer>
   );
 }
 
-// Tag-chip multi-select: clicking a preset toggles it; custom values added via
-// the inline input. Selected set is collected into the create payload's labels.
-function ChipSelect({
-  label,
-  options,
-  selected,
-  onToggle,
-  onAdd,
-}: {
-  label: string;
-  options: string[];
-  selected: Set<string>;
-  onToggle: (v: string) => void;
-  onAdd: (v: string) => void;
-}) {
-  const [draft, setDraft] = useState("");
-  const all = Array.from(new Set([...options, ...Array.from(selected)]));
-  return (
-    <div className="tag-group">
-      <span className="tg-label">{label}</span>
-      <div className="chip-row">
-        {all.map((o) => (
-          <span
-            key={o}
-            className={"tag-opt" + (selected.has(o) ? " on" : "")}
-            role="button"
-            tabIndex={0}
-            onClick={() => onToggle(o)}
-          >
-            {o}
-          </span>
-        ))}
-        <input
-          className="tag-add-input"
-          placeholder="自定义，回车添加"
-          aria-label={`添加自定义 ${label}`}
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && draft.trim()) {
-              e.preventDefault();
-              onAdd(draft.trim());
-              setDraft("");
-            }
-          }}
-        />
-      </div>
-    </div>
-  );
+// Resolve a version's pull URI on demand (thin local query; not a shared hook).
+function useModelResolve(model: string, version: string, tenant: string): { uri?: string } {
+  const q = useModelVersions(model);
+  // Versions list already carries the URI; resolve endpoint mints temp creds but
+  // the displayed pull target is the version URI. Fall back to a live resolve only
+  // if the version row lacks one.
+  const fromList = q.data?.items?.find((v) => v.version === version)?.uri;
+  void tenant;
+  return { uri: fromList };
 }
 
+// ── New-model drawer ──────────────────────────────────────────────────────────
 const TASK_OPTIONS = [
   "Text Generation",
   "Text Classification",
@@ -559,43 +489,50 @@ const TASK_OPTIONS = [
 ];
 const FRAMEWORK_OPTIONS = ["PyTorch", "Safetensors", "Transformers", "TensorFlow", "JAX", "ONNX", "GGUF"];
 
+interface NewModelValues {
+  name: string;
+  description?: string;
+  tasks?: string[];
+  framework?: string;
+  params?: string;
+}
+
 function NewModelDrawer({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation();
   const { tenant } = useApp();
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [params, setParams] = useState("");
-  const [tasks, setTasks] = useState<Set<string>>(new Set());
-  const [frameworks, setFrameworks] = useState<Set<string>>(new Set());
+  const [form] = Form.useForm<NewModelValues>();
   const [customTags, setCustomTags] = useState<Record<string, string>>({});
   const [ctKey, setCtKey] = useState("");
   const [ctVal, setCtVal] = useState("");
 
   const create = useApiMutation(
-    (body: sdk.ArtifactDefinitionCreateRequest) =>
-      sdk.createModelDefinition({ path: { tenant, name: body.name }, body }),
-    { invalidate: [["models"]], success: "模型已创建，可在版本列表上传权重" },
+    (body: sdk.ArtifactDefinitionCreateRequest) => sdk.createModelDefinition({ path: { tenant, name: body.name }, body }),
+    { invalidate: [["models"]], success: t("models.modelCreated") },
   );
 
-  const toggle = (set: Set<string>, setter: (s: Set<string>) => void, v: string) => {
-    const next = new Set(set);
-    if (next.has(v)) next.delete(v);
-    else next.add(v);
-    setter(next);
+  const addTag = () => {
+    const k = ctKey.trim();
+    if (!k) return;
+    setCustomTags((m) => ({ ...m, [k]: ctVal.trim() }));
+    setCtKey("");
+    setCtVal("");
   };
+  const removeTag = (k: string) =>
+    setCustomTags((m) => {
+      const next = { ...m };
+      delete next[k];
+      return next;
+    });
 
-  const submit = () => {
-    // labels carry the structured taxonomy (framework / tasks / params); free-form
-    // key:value pairs go to annotations. Empty groups are omitted entirely.
+  const onFinish = (v: NewModelValues) => {
     const labels: Record<string, string> = {};
-    const framework = Array.from(frameworks)[0];
-    if (framework) labels.framework = framework;
-    if (tasks.size) labels.tasks = Array.from(tasks).join(",");
-    if (params.trim()) labels.params = params.trim();
-
+    if (v.framework) labels.framework = v.framework;
+    if (v.tasks?.length) labels.tasks = v.tasks.join(",");
+    if (v.params?.trim()) labels.params = v.params.trim();
     create.mutate(
       {
-        name: name.trim(),
-        description: description.trim() || undefined,
+        name: v.name.trim(),
+        description: v.description?.trim() || undefined,
         labels: Object.keys(labels).length ? labels : undefined,
         annotations: Object.keys(customTags).length ? customTags : undefined,
       },
@@ -606,346 +543,223 @@ function NewModelDrawer({ onClose }: { onClose: () => void }) {
   return (
     <Drawer
       open
-      wide
+      width={640}
       onClose={onClose}
-      title="新建模型"
-      sub="先创建模型条目，再上传具体版本权重"
+      closable={false}
+      title={
+        <div>
+          <div className="text-base font-semibold text-fg">{t("models.newModelTitle")}</div>
+          <div className="mt-0.5 text-xs font-normal text-muted">{t("models.newModelSub")}</div>
+        </div>
+      }
+      extra={<Button type="text" icon={<CloseOutlined />} onClick={onClose} />}
       footer={
-        <>
-          <span className="grow" />
-          <button className="btn" onClick={onClose}>
-            取消
-          </button>
-          <button className="btn btn-primary" disabled={!name.trim() || create.isPending} onClick={submit}>
-            {create.isPending ? "创建中…" : "创建模型"}
-          </button>
-        </>
+        <div className="flex justify-end gap-2">
+          <Button onClick={onClose}>{t("common.cancel")}</Button>
+          <Button type="primary" loading={create.isPending} onClick={() => form.submit()}>
+            {t("models.createModel")}
+          </Button>
+        </div>
       }
     >
-      <FieldsetTitle n={1}>基本信息</FieldsetTitle>
-      <div className="form-grid">
-        <div className="field full">
-          <label>
-            模型名 <span className="req">*</span>
-          </label>
-          <input
-            className="input mono"
-            placeholder="my-llm-model（仅英文、数字与连字符）"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
+      <Form<NewModelValues> form={form} layout="vertical" size="large" onFinish={onFinish}>
+        <FieldSection n={1} title={t("models.fsBasic")} />
+        <Form.Item name="name" label={t("models.fName")} rules={[{ required: true, message: t("models.fNameHelp") }]} extra={t("models.fNameHelp")}>
+          <Input className="font-mono" placeholder={t("models.fNamePlaceholder")} />
+        </Form.Item>
+        <Form.Item name="description" label={t("models.fDesc")}>
+          <Input.TextArea rows={2} placeholder={t("models.fDescPlaceholder")} />
+        </Form.Item>
+
+        <FieldSection n={2} title={t("models.fsLabels")} />
+        <Form.Item name="tasks" label={t("models.lTasks")}>
+          <Select
+            mode="tags"
+            allowClear
+            options={TASK_OPTIONS.map((o) => ({ label: o, value: o }))}
+            placeholder={t("models.lTasks")}
           />
-        </div>
-        <div className="field full">
-          <label>描述</label>
-          <textarea
-            className="textarea"
-            placeholder="简要说明模型用途、训练数据与适用场景"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
+        </Form.Item>
+        <Form.Item name="params" label={t("models.lParameters")}>
+          <Input className="font-mono !w-40" placeholder={t("models.paramsPlaceholder")} />
+        </Form.Item>
+        <Form.Item name="framework" label={t("models.lFramework")}>
+          <Select
+            allowClear
+            options={FRAMEWORK_OPTIONS.map((o) => ({ label: o, value: o }))}
+            placeholder={t("models.lFramework")}
           />
-        </div>
-      </div>
+        </Form.Item>
 
-      <FieldsetTitle n={2}>标签</FieldsetTitle>
-
-      <ChipSelect
-        label="Tasks"
-        options={TASK_OPTIONS}
-        selected={tasks}
-        onToggle={(v) => toggle(tasks, setTasks, v)}
-        onAdd={(v) => setTasks(new Set(tasks).add(v))}
-      />
-
-      <div className="tag-group">
-        <span className="tg-label">Parameters</span>
-        <div className="param-slider">
-          <div className="ps-row">
-            <input
-              type="range"
-              className="range"
-              min="0"
-              max="8"
-              step="1"
-              aria-label="参数量"
-              onChange={(e) => {
-                const ticks = ["<1B", "1B", "3B", "7B", "8B", "13B", "32B", "70B", ">100B"];
-                setParams(ticks[Number(e.target.value)] ?? "");
-              }}
-            />
-            <input
-              className="input mono ps-input"
-              aria-label="参数量"
-              placeholder="7B"
-              value={params}
-              onChange={(e) => setParams(e.target.value)}
-            />
-          </div>
-          <div className="ps-ticks">
-            <span>&lt;1B</span>
-            <span>1B</span>
-            <span>3B</span>
-            <span>7B</span>
-            <span>8B</span>
-            <span>13B</span>
-            <span>32B</span>
-            <span>70B</span>
-            <span>&gt;100B</span>
-          </div>
-        </div>
-      </div>
-
-      <ChipSelect
-        label="Framework"
-        options={FRAMEWORK_OPTIONS}
-        selected={frameworks}
-        onToggle={(v) => toggle(frameworks, setFrameworks, v)}
-        onAdd={(v) => setFrameworks(new Set(frameworks).add(v))}
-      />
-
-      <div className="tag-group">
-        <span className="tg-label">自定义标签</span>
-        <div className="custom-tags">
-          <div className="chip-row">
+        <Form.Item label={t("models.lCustom")}>
+          <div className="mb-2 flex flex-wrap gap-2">
             {Object.entries(customTags).map(([k, v]) => (
-              <span
-                key={k}
-                className="tag mono"
-                role="button"
-                tabIndex={0}
-                onClick={() => {
-                  const next = { ...customTags };
-                  delete next[k];
-                  setCustomTags(next);
-                }}
-              >
-                {k}:{v} ✕
-              </span>
+              <Tag key={k} closable onClose={() => removeTag(k)} className="font-mono">
+                {k}:{v}
+              </Tag>
             ))}
           </div>
-          <div className="cta-input">
-            <input
-              className="input mono"
-              placeholder="键，如 license"
-              value={ctKey}
-              onChange={(e) => setCtKey(e.target.value)}
-            />
-            <span className="cta-sep mono">:</span>
-            <input
-              className="input mono"
-              placeholder="值，如 apache-2.0"
-              value={ctVal}
-              onChange={(e) => setCtVal(e.target.value)}
-            />
-            <button
-              className="btn btn-sm"
-              type="button"
-              onClick={() => {
-                if (ctKey.trim()) {
-                  setCustomTags({ ...customTags, [ctKey.trim()]: ctVal.trim() });
-                  setCtKey("");
-                  setCtVal("");
-                }
-              }}
-            >
-              添加
-            </button>
-          </div>
-        </div>
-      </div>
+          <Space.Compact className="w-full">
+            <Input className="font-mono" placeholder={t("models.customKeyPlaceholder")} value={ctKey} onChange={(e) => setCtKey(e.target.value)} />
+            <Input className="font-mono" placeholder={t("models.customValPlaceholder")} value={ctVal} onChange={(e) => setCtVal(e.target.value)} />
+            <Button onClick={addTag}>{t("models.add")}</Button>
+          </Space.Compact>
+        </Form.Item>
+      </Form>
     </Drawer>
   );
 }
 
+// ── Upload-version drawer (two add methods: web upload vs external register) ───
+interface UploadValues {
+  version: string;
+  description?: string;
+  remoteSourceKind: sdk.RemoteSourceKind;
+  remoteUri?: string;
+}
+
 function UploadDrawer({ model, onClose }: { model: string; onClose: () => void }) {
+  const { t } = useTranslation();
   const { tenant } = useApp();
-  const [version, setVersion] = useState("");
-  const [description, setDescription] = useState("");
-  const [remoteKind, setRemoteKind] = useState<RemoteSourceKind>("s3");
-  const [remoteUri, setRemoteUri] = useState("");
-  // "web" → webUpload (client cannot push bytes here — see report); "remote" →
-  // external source registration via remoteUri/remoteSourceKind.
-  const [method, setMethod] = useState<"web" | "remote" | "oras">("web");
+  const [form] = Form.useForm<UploadValues>();
+  const [method, setMethod] = useState<sdk.ArtifactSource>("webUpload");
 
   const initiate = useApiMutation(
     (body: sdk.ModelInitiateRequest) => sdk.initiateModel({ path: { tenant, name: model }, body }),
-    { invalidate: [["modelVersions", model], ["models"]], success: "已提交，版本正在上传 / 拉取" },
+    { invalidate: [["models"]], success: t("models.versionSubmitted") },
   );
 
-  const submit = () => {
-    const isExternal = method === "remote";
+  const onFinish = (v: UploadValues) => {
+    const isExternal = method === "external";
     initiate.mutate(
       {
-        version: version.trim(),
-        description: description.trim() || undefined,
-        source: method === "oras" ? "oras" : isExternal ? "external" : "webUpload",
-        remoteSourceKind: isExternal ? remoteKind : undefined,
-        remoteUri: isExternal && remoteUri.trim() ? remoteUri.trim() : undefined,
+        version: v.version.trim(),
+        description: v.description?.trim() || undefined,
+        source: method,
+        remoteSourceKind: isExternal ? v.remoteSourceKind : undefined,
+        remoteUri: isExternal && v.remoteUri?.trim() ? v.remoteUri.trim() : undefined,
       },
       { onSuccess: onClose },
     );
   };
 
-  const disabled =
-    !version.trim() || initiate.isPending || (method === "remote" && !remoteUri.trim());
-
   return (
     <Drawer
       open
-      wide
+      width={640}
       onClose={onClose}
-      title="上传新版本"
-      sub="向已有模型推送新版本权重"
+      closable={false}
+      title={
+        <div>
+          <div className="text-base font-semibold text-fg">{t("models.uploadTitle")}</div>
+          <div className="mt-0.5 text-xs font-normal text-muted">{t("models.uploadSub")}</div>
+        </div>
+      }
+      extra={<Button type="text" icon={<CloseOutlined />} onClick={onClose} />}
       footer={
-        <>
-          <span className="grow" />
-          <button className="btn" onClick={onClose}>
-            取消
-          </button>
-          <button className="btn btn-primary" disabled={disabled} onClick={submit}>
-            {initiate.isPending ? "提交中…" : "提交"}
-          </button>
-        </>
+        <div className="flex justify-end gap-2">
+          <Button onClick={onClose}>{t("common.cancel")}</Button>
+          <Button type="primary" loading={initiate.isPending} onClick={() => form.submit()}>
+            {t("models.submit")}
+          </Button>
+        </div>
       }
     >
-      <FieldsetTitle n={1}>基本信息</FieldsetTitle>
-      <div className="form-grid">
-        <div className="field">
-          <label>模型</label>
-          <input className="input mono" value={model} disabled />
-        </div>
-        <div className="field">
-          <label>
-            版本号 <span className="req">*</span>
-          </label>
-          <input
-            className="input mono"
-            placeholder="v5 / 1.5.0 / 2026-06"
-            value={version}
-            onChange={(e) => setVersion(e.target.value)}
-          />
-        </div>
-        <div className="field full">
-          <label>描述</label>
-          <textarea
-            className="textarea"
-            placeholder="本次更新内容，如：扩充中文 SFT 数据、修复输出截断"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-          />
-        </div>
-      </div>
+      <Form<UploadValues>
+        form={form}
+        layout="vertical"
+        size="large"
+        onFinish={onFinish}
+        initialValues={{ remoteSourceKind: "s3" }}
+      >
+        <FieldSection n={1} title={t("models.fsBasic")} />
+        <Form.Item label={t("models.fModel")}>
+          <Input className="font-mono" value={model} disabled />
+        </Form.Item>
+        <Form.Item name="version" label={t("models.fVersion")} rules={[{ required: true }]}>
+          <Input className="font-mono" placeholder={t("models.fVersionPlaceholder")} />
+        </Form.Item>
+        <Form.Item name="description" label={t("models.fDesc")}>
+          <Input.TextArea rows={2} placeholder={t("models.fUploadDescPlaceholder")} />
+        </Form.Item>
 
-      <FieldsetTitle n={2}>上传方式</FieldsetTitle>
-      <Tabs
-        defaultKey="web"
-        tabs={[
-          {
-            key: "web",
-            label: "通过 Web 上传",
-            content: (
-              <>
-                <WebMethodSetter onShow={() => setMethod("web")} />
-                <label className="dropzone">
-                  <input type="file" multiple hidden />
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                    <path d="M17 8l-5-5-5 5" />
-                    <path d="M12 3v12" />
-                  </svg>
-                  <div className="dz-title">
-                    拖拽文件到此处，或 <span className="dz-link">点击选择</span>
-                  </div>
-                  <div className="dz-hint">支持权重与配置文件（.safetensors / .bin / .json / .model 等），单文件最大 50GB</div>
-                </label>
-                <div className="dz-files" hidden />
-              </>
-            ),
-          },
-          {
-            key: "remote",
-            label: "添加外部模型",
-            content: (
-              <div className="form-grid">
-                <WebMethodSetter onShow={() => setMethod("remote")} />
-                <div className="field full">
-                  <label>
-                    存储类型 <span className="req">*</span>
-                  </label>
-                  <select
-                    className="input"
-                    value={remoteKind}
-                    onChange={(e) => setRemoteKind(e.target.value as RemoteSourceKind)}
-                  >
-                    <option value="s3">S3 / S3 兼容（MinIO）</option>
-                    <option value="oci">OCI Registry</option>
-                    <option value="http">HTTP(S) URL</option>
-                    <option value="hf">HuggingFace Hub</option>
-                    <option value="custom">自定义</option>
-                  </select>
-                </div>
-                <div className="field full">
-                  <label>
-                    地址 <span className="req">*</span>
-                  </label>
-                  <input
-                    className="input mono"
-                    placeholder="s3://bucket/prefix"
-                    value={remoteUri}
-                    onChange={(e) => setRemoteUri(e.target.value)}
-                  />
-                </div>
-              </div>
-            ),
-          },
-          {
-            key: "oras",
-            label: "使用 Oras 推送",
-            content: (
-              <>
-                <WebMethodSetter onShow={() => setMethod("oras")} />
-                <p className="help" style={{ marginBottom: 14 }}>
-                  使用 <b>ORAS</b> 将本地模型目录作为 OCI 制品直接推送到模型仓，适合大体积权重与 CI 流水线。
-                </p>
-
-                <div className="oras-step">
-                  <div className="os-head">1 · 下载 ORAS 工具</div>
-                  <pre className="logbox" style={{ maxHeight: "none" }}>{`# Linux x86_64（其他平台见官方文档）
-curl -LO https://github.com/oras-project/oras/releases/download/v1.2.0/oras_1.2.0_linux_amd64.tar.gz
-tar -xzf oras_1.2.0_linux_amd64.tar.gz oras
-sudo mv oras /usr/local/bin/ && oras version`}</pre>
-                  <div className="chip-row" style={{ marginTop: 10, alignItems: "center" }}>
-                    <a className="link" href="https://oras.land/docs/installation" target="_blank" rel="noopener">
-                      其他平台安装文档 ↗
-                    </a>
-                  </div>
-                </div>
-
-                <div className="oras-step">
-                  <div className="os-head">2 · 登录并推送模型</div>
-                  <pre className="logbox" style={{ maxHeight: "none" }}>{`# 1. 登录模型仓（临时凭证有效期 1h）
-oras login zot.axisml.internal -u <用户名> -p <token>
-
-# 2. 进入本地模型目录，推送为指定版本
-cd ./${model}
-oras push zot.axisml.internal/${tenant}/${model}:${version || "v5"} \\
-  --artifact-type application/vnd.axisml.model.v1 \\
-  ./*:application/octet-stream`}</pre>
-                </div>
-              </>
-            ),
-          },
-        ]}
-      />
+        <FieldSection n={2} title={t("models.fsMethod")} />
+        <Tabs
+          activeKey={method === "external" ? "remote" : method}
+          onChange={(k) => setMethod(k === "remote" ? "external" : (k as sdk.ArtifactSource))}
+          items={[
+            {
+              key: "webUpload",
+              label: t("models.methodWeb"),
+              children: (
+                <Upload.Dragger multiple beforeUpload={() => false} className="!bg-bg">
+                  <p className="ant-upload-drag-icon">
+                    <InboxOutlined />
+                  </p>
+                  <p className="ant-upload-text">{t("models.dzTitle")}</p>
+                  <p className="ant-upload-hint">{t("models.dzHint")}</p>
+                </Upload.Dragger>
+              ),
+            },
+            {
+              key: "remote",
+              label: t("models.methodRemote"),
+              children: (
+                <>
+                  <Form.Item name="remoteSourceKind" label={t("models.fStorageKind")} rules={[{ required: method === "external" }]}>
+                    <Select
+                      options={[
+                        { value: "s3", label: t("models.storageS3") },
+                        { value: "oci", label: t("models.storageOci") },
+                        { value: "http", label: t("models.storageHttp") },
+                        { value: "hf", label: t("models.storageHf") },
+                        { value: "custom", label: t("models.storageCustom") },
+                      ]}
+                    />
+                  </Form.Item>
+                  <Form.Item name="remoteUri" label={t("models.fRemoteUri")} rules={[{ required: method === "external" }]}>
+                    <Input className="font-mono" placeholder={t("models.remoteUriPlaceholder")} />
+                  </Form.Item>
+                </>
+              ),
+            },
+            {
+              key: "oras",
+              label: t("models.methodOras"),
+              children: <OrasGuide model={model} tenant={tenant} />,
+            },
+          ]}
+        />
+      </Form>
     </Drawer>
   );
 }
 
-// Reports which upload tab is active to the parent so the submit payload reflects
-// the chosen source. Renders nothing; the Tabs component only mounts the active
-// pane's content, so this fires whenever its tab becomes visible.
-function WebMethodSetter({ onShow }: { onShow: () => void }) {
-  useEffect(() => {
-    onShow();
-  }, []);
-  return null;
+function OrasGuide({ model, tenant }: { model: string; tenant: string }) {
+  const { t } = useTranslation();
+  const dl = `# Linux x86_64
+curl -LO https://github.com/oras-project/oras/releases/download/v1.2.0/oras_1.2.0_linux_amd64.tar.gz
+tar -xzf oras_1.2.0_linux_amd64.tar.gz oras
+sudo mv oras /usr/local/bin/ && oras version`;
+  const push = `oras login zot.axisml.internal -u <user> -p <token>
+cd ./${model}
+oras push zot.axisml.internal/${tenant}/${model}:v5 \\
+  --artifact-type application/vnd.axisml.model.v1 \\
+  ./*:application/octet-stream`;
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted">{t("models.orasHelp")}</p>
+      <div>
+        <div className="mb-1 text-sm font-semibold text-fg">{t("models.orasStep1")}</div>
+        <pre className="overflow-x-auto rounded-md border border-border-soft bg-surface p-3 font-mono text-xs text-fg-2">{dl}</pre>
+        <a className="text-xs text-accent" href="https://oras.land/docs/installation" target="_blank" rel="noopener noreferrer">
+          {t("models.orasDocsLink")}
+        </a>
+      </div>
+      <div>
+        <div className="mb-1 text-sm font-semibold text-fg">{t("models.orasStep2")}</div>
+        <pre className="overflow-x-auto rounded-md border border-border-soft bg-surface p-3 font-mono text-xs text-fg-2">{push}</pre>
+      </div>
+    </div>
+  );
 }

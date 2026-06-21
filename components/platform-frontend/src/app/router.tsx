@@ -1,24 +1,37 @@
 import { createBrowserRouter, Navigate, useLocation } from "react-router-dom";
-import type { ReactNode } from "react";
+import { lazy, Suspense, type ReactNode } from "react";
+import { Spin } from "antd";
 import { useSession } from "@/app/session";
 import { AppShell } from "@/shell/AppShell";
-import Login from "@/pages/Login";
-import Dashboard from "@/pages/Dashboard";
-import Workspaces from "@/pages/Workspaces";
-import WorkspaceDetail from "@/pages/WorkspaceDetail";
-import Experiments from "@/pages/Experiments";
-import ExperimentDetail from "@/pages/ExperimentDetail";
-import Jobs from "@/pages/Jobs";
-import JobDetail from "@/pages/JobDetail";
-import RunDetail from "@/pages/RunDetail";
-import Services from "@/pages/Services";
-import ServiceDetail from "@/pages/ServiceDetail";
-import Traffic from "@/pages/Traffic";
-import TrafficDetail from "@/pages/TrafficDetail";
-import Models from "@/pages/Models";
-import Images from "@/pages/Images";
-import Tenants from "@/pages/Tenants";
-import ResourcePools from "@/pages/ResourcePools";
+
+// Pages are code-split (React.lazy) so the initial bundle stays small and the
+// chart-heavy pages (Dashboard) load on demand. AppShell renders the Suspense
+// boundary around the routed <Outlet>; /login gets its own below.
+const Login = lazy(() => import("@/pages/Login"));
+const Dashboard = lazy(() => import("@/pages/Dashboard"));
+const Workspaces = lazy(() => import("@/pages/Workspaces"));
+const WorkspaceDetail = lazy(() => import("@/pages/WorkspaceDetail"));
+const Experiments = lazy(() => import("@/pages/Experiments"));
+const ExperimentDetail = lazy(() => import("@/pages/ExperimentDetail"));
+const Jobs = lazy(() => import("@/pages/Jobs"));
+const JobDetail = lazy(() => import("@/pages/JobDetail"));
+const RunDetail = lazy(() => import("@/pages/RunDetail"));
+const Services = lazy(() => import("@/pages/Services"));
+const ServiceDetail = lazy(() => import("@/pages/ServiceDetail"));
+const Traffic = lazy(() => import("@/pages/Traffic"));
+const TrafficDetail = lazy(() => import("@/pages/TrafficDetail"));
+const Models = lazy(() => import("@/pages/Models"));
+const Images = lazy(() => import("@/pages/Images"));
+const Tenants = lazy(() => import("@/pages/Tenants"));
+const ResourcePools = lazy(() => import("@/pages/ResourcePools"));
+
+function PageFallback() {
+  return (
+    <div className="grid h-full place-items-center py-24">
+      <Spin size="large" />
+    </div>
+  );
+}
 
 // Auth gate: hold rendering while the session hydrates, send anonymous users to
 // /login (remembering where they were headed), admit authenticated users.
@@ -26,7 +39,7 @@ function RequireAuth({ children }: { children: ReactNode }) {
   const { status } = useSession();
   const location = useLocation();
   if (status === "loading") {
-    return <div className="auth-splash" aria-busy="true" />;
+    return <PageFallback />;
   }
   if (status === "anon") {
     return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />;
@@ -35,7 +48,14 @@ function RequireAuth({ children }: { children: ReactNode }) {
 }
 
 export const router = createBrowserRouter([
-  { path: "/login", element: <Login /> },
+  {
+    path: "/login",
+    element: (
+      <Suspense fallback={<PageFallback />}>
+        <Login />
+      </Suspense>
+    ),
+  },
   {
     element: (
       <RequireAuth>

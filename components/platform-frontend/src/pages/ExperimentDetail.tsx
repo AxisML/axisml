@@ -1,347 +1,422 @@
+import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { useQuery, type UseQueryResult } from "@tanstack/react-query";
+import {
+  Table,
+  Card,
+  Tabs,
+  Descriptions,
+  Tag,
+  Button,
+  Space,
+  Tooltip,
+  Input,
+  Select,
+  Spin,
+  Result,
+  Breadcrumb,
+  Divider,
+} from "antd";
+import type { ColumnsType } from "antd/es/table";
+import {
+  ArrowLeftOutlined,
+  CaretRightOutlined,
+  DeleteOutlined,
+  SearchOutlined,
+  FundOutlined,
+} from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
+import dayjs from "dayjs";
+import * as sdk from "@/api/generated";
+import { useApp } from "@/app/store";
+import { useApiMutation } from "@/api/mutations";
 import { useUI } from "@/app/ui";
-import { Tabs } from "@/components/Tabs";
+import { PageContainer } from "@/components/PageContainer";
+import { PhaseTag } from "@/components/PhaseTag";
 
-type RunStatus = "running" | "success" | "failed";
+// Experiments are specialized training Jobs (Job→Run model); this detail page
+// mirrors JobDetail — an "experiment info" pane plus a runs table. Both the
+// definition and its Runs come from the live API, scoped to the active tenant.
+const ACTIVE_RUN_PHASES: sdk.RunPhase[] = ["Creating", "Pending", "Running", "Canceling"];
 
-interface RunRow {
-  run: string;
-  status: RunStatus;
-  statusLabel: string;
-  unit: string;
-  replicas: number;
-  by: string;
-  cost: string;
-  cancelable?: boolean;
-}
-
-const RUNS: RunRow[] = [
-  { run: "llama3-sft-lr-sweep-8", status: "running", statusLabel: "运行中", unit: "a100-8x-xlarge-ib", replicas: 2, by: "张伟", cost: "01:12:30", cancelable: true },
-  { run: "llama3-sft-lr-sweep-7", status: "success", statusLabel: "成功", unit: "a100-4x-xlarge", replicas: 2, by: "张伟", cost: "03:40:18" },
-  { run: "llama3-sft-lr-sweep-6", status: "success", statusLabel: "成功", unit: "a100-4x-xlarge", replicas: 2, by: "李娜", cost: "03:33:40" },
-  { run: "llama3-sft-lr-sweep-5", status: "success", statusLabel: "成功", unit: "a100-4x-xlarge", replicas: 2, by: "张伟", cost: "03:38:02" },
-  { run: "llama3-sft-lr-sweep-4", status: "failed", statusLabel: "失败", unit: "a100-4x-xlarge", replicas: 2, by: "李娜", cost: "00:00:09" },
-  { run: "llama3-sft-lr-sweep-3", status: "success", statusLabel: "成功", unit: "a100-4x-xlarge", replicas: 2, by: "张伟", cost: "03:51:22" },
-  { run: "llama3-sft-lr-sweep-2", status: "failed", statusLabel: "失败", unit: "a100-4x-xlarge", replicas: 2, by: "张伟", cost: "00:00:06" },
-  { run: "llama3-sft-lr-sweep-1", status: "success", statusLabel: "成功", unit: "a100-4x-xlarge", replicas: 2, by: "张伟", cost: "03:47:55" },
-];
-
-// One-off glyphs not present in the shared icon map (Icon.tsx).
-function EyeIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
-      <circle cx="12" cy="12" r="3" />
-    </svg>
-  );
-}
-function LogIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-      <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-      <path d="M14 3v5h5M8 13h8M8 17h6" />
-    </svg>
-  );
-}
-function MonitorIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-      <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
-    </svg>
-  );
-}
-function CancelIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-      <circle cx="12" cy="12" r="9" />
-      <path d="M15 9l-6 6M9 9l6 6" />
-    </svg>
-  );
-}
-function DeleteIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-      <path d="M3 6h18" />
-      <path d="M8 6V4h8v2" />
-      <path d="M19 6l-1 14H6L5 6" />
-      <path d="M10 11v6M14 11v6" />
-    </svg>
-  );
+function fmtDuration(start?: string | null, end?: string | null): string {
+  if (!start) return "—";
+  const from = dayjs(start);
+  const to = end ? dayjs(end) : dayjs();
+  const secs = Math.max(0, to.diff(from, "second"));
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = secs % 60;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(h)}:${pad(m)}:${pad(s)}`;
 }
 
 export default function ExperimentDetail() {
-  const { name } = useParams<{ name: string }>();
-  const expName = name ?? "llama3-sft-lr-sweep";
-  const { toast, confirm } = useUI();
+  const { name = "" } = useParams<{ name: string }>();
+  const { tenant } = useApp();
+  const { t } = useTranslation();
+  const { confirm } = useUI();
 
-  const infoPane = (
-    <div className="panel">
-      <div className="panel-head">
-        <h3>实验信息</h3>
-        <button className="btn btn-sm" onClick={() => toast("进入编辑（编辑只影响之后触发的运行）")}>
-          编辑
-        </button>
-      </div>
-      <div className="panel-body">
-        <dl className="kv kv-lg">
-          <dt>实验名</dt>
-          <dd>
-            <span className="cchip">{expName}</span>
-          </dd>
-          <dt>描述</dt>
-          <dd>LLaMA3-8B SFT 学习率扫描</dd>
-          <dt>训练镜像</dt>
-          <dd>
-            <span className="cchip">pytorch:2.3-cu121</span>
-          </dd>
-          <dt>资源池</dt>
-          <dd>
-            <span className="cchip">gpu-a100 · A100 训练池</span>
-          </dd>
-          <dt>资源单元</dt>
-          <dd>
-            <span className="cchip">a100-4x-xlarge</span>
-          </dd>
-          <dt>副本数</dt>
-          <dd>
-            <span className="mono">2</span>
-            <span className="muted" style={{ marginLeft: 8 }}>
-              多机多卡
-            </span>
-          </dd>
-          <dt>数据卷</dt>
-          <dd>
-            <span className="cchip">team-datasets · 1 TiB → /data</span>
-            <span className="cchip" style={{ marginLeft: 6 }}>
-              ckpt-store · 500 GiB → /output
-            </span>
-          </dd>
-          <dt>运行策略</dt>
-          <dd>
-            超时 <span className="mono">48h</span> · 重试 <span className="mono">1</span>
-          </dd>
-          <dt>创建人</dt>
-          <dd>
-            张伟 · <span className="mono">2026-06-10</span>
-          </dd>
-        </dl>
-        <div
-          style={{
-            marginTop: "var(--space-6)",
-            paddingTop: "var(--space-5)",
-            borderTop: "1px solid var(--border-soft)",
-          }}
-        >
-          <label className="muted" style={{ fontSize: 12 }}>
-            启动命令（超参写在命令 / 参数中）
-          </label>
-          <pre className="logbox" style={{ maxHeight: "none", margin: "6px 0 18px" }}>
-            {`torchrun --nproc_per_node=4 sft.py \\
-  --base llama3-8b-base --lr {{lr}} --epochs 3`}
-          </pre>
-          <label className="muted" style={{ fontSize: 12 }}>
-            环境变量
-          </label>
-          <div className="chip-row" style={{ marginTop: 8 }}>
-            <span className="cchip">WANDB_DISABLED=true</span>
-            <span className="cchip">NCCL_DEBUG=INFO</span>
-          </div>
-        </div>
-      </div>
-    </div>
+  const expQ = useQuery({
+    queryKey: ["experiments", tenant, name],
+    enabled: tenant !== "" && name !== "",
+    queryFn: async () => {
+      const { data, error } = await sdk.getExperiment({ path: { name } });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const runsQ = useQuery({
+    queryKey: ["experiments", tenant, name, "runs"],
+    enabled: tenant !== "" && name !== "",
+    queryFn: async () => {
+      const { data, error } = await sdk.listExperimentRuns({ path: { name } });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const delExp = useApiMutation(() => sdk.deleteExperiment({ path: { name } }), {
+    invalidate: [["experiments"]],
+    success: t("experiments.deleted"),
+  });
+  const triggerExp = useApiMutation(() => sdk.triggerExperimentRun({ path: { name }, body: {} }), {
+    invalidate: [["experiments"]],
+    success: t("experiments.runTriggered"),
+  });
+
+  const breadcrumb = (
+    <Breadcrumb
+      className="mb-3"
+      items={[
+        { title: t("nav.trainingCenter") },
+        { title: <Link to="/experiments">{t("nav.experiments")}</Link> },
+        { title: name },
+      ]}
+    />
   );
 
-  const runsPane = (
-    <>
-      <div className="toolbar">
-        <div className="field-search">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="11" cy="11" r="7" />
-            <path d="m20 20-3.5-3.5" />
-          </svg>
-          <input placeholder="Run 名 / ID 搜索" />
-        </div>
-        <select className="select">
-          <option>状态：全部</option>
-          <option>运行中</option>
-          <option>成功</option>
-          <option>失败</option>
-        </select>
-        <select className="select">
-          <option>触发人：全部</option>
-          <option>张伟</option>
-          <option>李娜</option>
-        </select>
-        <select className="select">
-          <option>时间：近 7 天</option>
-          <option>近 24 小时</option>
-          <option>近 30 天</option>
-          <option>全部</option>
-        </select>
-        <button className="btn btn-ghost">重置</button>
+  if (expQ.isError) {
+    return (
+      <div className="mx-auto max-w-[1200px] p-6">
+        {breadcrumb}
+        <Result status="error" title={t("common.loadFailed")} extra={<Link to="/experiments"><Button>{t("experiments.backToList")}</Button></Link>} />
       </div>
+    );
+  }
 
-      <div className="panel">
-        <div className="panel-head">
-          <h3>运行记录</h3>
-          <span className="hint">按触发时间倒序 · 共 8 条</span>
-        </div>
-        <div className="table-wrap">
-          <table className="tbl">
-            <thead>
-              <tr>
-                <th>Run</th>
-                <th>状态</th>
-                <th>资源单元</th>
-                <th className="num-col">副本</th>
-                <th>触发人</th>
-                <th className="num-col">耗时</th>
-                <th style={{ textAlign: "right" }}>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {RUNS.map((r) => (
-                <tr key={r.run}>
-                  <td>
-                    <Link className="t-name mono" to={`/experiments/${expName}/runs/${r.run}`}>
-                      {r.run}
-                    </Link>
-                  </td>
-                  <td>
-                    <span className={"status status-" + r.status}>
-                      <span className="dot" />
-                      {r.statusLabel}
-                    </span>
-                  </td>
-                  <td className="mono">{r.unit}</td>
-                  <td className="num-col">{r.replicas}</td>
-                  <td>{r.by}</td>
-                  <td className="num-col">{r.cost}</td>
-                  <td>
-                    <div className="row-actions">
-                      <Link className="act" to={`/experiments/${expName}/runs/${r.run}`} title="详情" aria-label="详情">
-                        <EyeIcon />
-                      </Link>
-                      <button className="act" title="日志" aria-label="日志">
-                        <LogIcon />
-                      </button>
-                      <button className="act" title="监控" aria-label="监控">
-                        <MonitorIcon />
-                      </button>
-                      {r.cancelable ? (
-                        <button
-                          className="act"
-                          title="取消"
-                          aria-label="取消"
-                          onClick={() =>
-                            confirm({
-                              title: `取消运行 ${r.run}？`,
-                              desc: "取消后正在执行的 Pod 将被终止，已产出的 checkpoint 保留。",
-                              okLabel: "确认取消",
-                              toast: "运行已请求取消",
-                            })
-                          }
-                        >
-                          <CancelIcon />
-                        </button>
-                      ) : (
-                        <button
-                          className="act act-danger"
-                          title="删除"
-                          aria-label="删除"
-                          onClick={() =>
-                            confirm({
-                              title: `删除运行 ${r.run}？`,
-                              desc: "删除后该 Run 记录与日志不可恢复。",
-                              okLabel: "确认删除",
-                              toast: `运行 ${r.run} 已删除`,
-                            })
-                          }
-                        >
-                          <DeleteIcon />
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <div className="pagination">
-          <span>共 8 个运行</span>
-          <div className="pages">
-            <span className="pg">‹</span>
-            <span className="pg on">1</span>
-            <span className="pg">›</span>
-          </div>
-          <span>每页 20 条</span>
+  if (expQ.isLoading || !expQ.data) {
+    return (
+      <div className="mx-auto max-w-[1200px] p-6">
+        {breadcrumb}
+        <div className="grid place-items-center py-24">
+          <Spin size="large" />
         </div>
       </div>
-    </>
-  );
+    );
+  }
+
+  const exp = expQ.data;
+  const runCount = runsQ.data?.count ?? 0;
+  const onRun = () =>
+    confirm({
+      title: t("experiments.runTitle", { name }),
+      desc: t("experiments.runDesc"),
+      okLabel: t("experiments.confirmRun"),
+      danger: false,
+      onConfirm: () => triggerExp.mutate(undefined),
+    });
+  const onDelete = () =>
+    confirm({
+      title: t("experiments.deleteTitle", { name }),
+      desc: t("experiments.deleteDesc"),
+      info: t("experiments.deleteInfo"),
+      okLabel: t("common.confirmDelete"),
+      onConfirm: () => delExp.mutate(undefined),
+    });
 
   return (
-    <main className="page">
-      <Link className="back-link" to="/experiments">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M15 18l-6-6 6-6" />
-        </svg>
-        返回实验
-      </Link>
-
-      <div className="page-head">
-        <div>
-          <h1 className="detail-title mono">
-            {expName}{" "}
-            <span className="spill run">
-              <span className="dot" />
-              运行中
-            </span>
-          </h1>
-          <div className="detail-sub">LLaMA3-8B SFT 学习率扫描 · 8 个运行 · 创建人 张伟</div>
-        </div>
-        <div className="actions">
-          <button className="btn btn-primary" onClick={() => toast(`已触发运行 ${expName}-9`)}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-              <path d="M6 4l14 8-14 8z" />
-            </svg>
-            运行
-          </button>
-          <button
-            className="btn"
-            style={{ padding: 0, width: 34 }}
-            title="启动 TensorBoard"
-            aria-label="启动 TensorBoard"
-            onClick={() => toast("正在启动 TensorBoard…")}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="#FF6F00" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M4 19V5M4 19h16M8 16v-5M12 16V8M16 16v-3" />
-            </svg>
-          </button>
-          <button
-            className="btn btn-danger"
-            onClick={() =>
-              confirm({
-                title: `删除实验 ${expName}？`,
-                desc: "删除后实验模板不可恢复；历史运行将一并级联软删。",
-                info: "有活跃运行时删除会被阻断。",
-                okLabel: "确认删除",
-                toast: `实验 ${expName} 已删除`,
-              })
-            }
-          >
-            删除
-          </button>
-        </div>
-      </div>
-
+    <PageContainer
+      breadcrumb={[t("nav.trainingCenter"), t("nav.experiments")]}
+      title={
+        <Space size="middle" align="center" className="min-w-0">
+          <span className="font-mono">{name}</span>
+        </Space>
+      }
+      subtitle={
+        <span>
+          {exp.description || exp.displayName || "—"}
+          <span className="ml-2 text-muted">· {t("experiments.headRunsSummary", { count: runCount, owner: exp.owner ?? "—" })}</span>
+        </span>
+      }
+      extra={
+        <Space>
+          <Link to="/experiments">
+            <Button icon={<ArrowLeftOutlined />}>{t("experiments.backToList")}</Button>
+          </Link>
+          <Tooltip title={t("experiments.tensorboard")}>
+            <Button icon={<FundOutlined style={{ color: "#FF6F00" }} />} />
+          </Tooltip>
+          <Button type="primary" icon={<CaretRightOutlined />} onClick={onRun}>
+            {t("experiments.runAction")}
+          </Button>
+          <Button danger icon={<DeleteOutlined />} onClick={onDelete}>
+            {t("common.delete")}
+          </Button>
+        </Space>
+      }
+    >
       <Tabs
-        tabs={[
-          { key: "info", label: "实验信息", content: infoPane },
-          { key: "runs", label: "运行记录", count: 8, content: runsPane },
+        items={[
+          { key: "info", label: t("experiments.tabInfo"), children: <InfoPane exp={exp} /> },
+          {
+            key: "runs",
+            label: (
+              <span>
+                {t("experiments.tabRuns")}
+                <Tag className="!ml-2 !mr-0" bordered={false}>
+                  {runCount}
+                </Tag>
+              </span>
+            ),
+            children: <RunsPane name={name} q={runsQ} />,
+          },
         ]}
       />
-    </main>
+    </PageContainer>
+  );
+}
+
+function chip(text?: string | null) {
+  if (!text) return <span className="text-muted">—</span>;
+  return <span className="font-mono rounded bg-surface-warm px-1.5 py-0.5 text-sm">{text}</span>;
+}
+
+function InfoPane({ exp }: { exp: sdk.Experiment }) {
+  const { t } = useTranslation();
+  const role = exp.spec.roles?.[0];
+  const tpl = role?.template;
+  const command = tpl?.command ?? [];
+  const env = tpl?.env ?? [];
+  const policy = exp.spec.runPolicy;
+  const timeout = policy?.activeDeadlineSeconds != null ? `${policy.activeDeadlineSeconds}s` : "—";
+  const retries = policy?.backoffLimit != null ? String(policy.backoffLimit) : "—";
+
+  return (
+    <Card title={t("experiments.infoTitle")}>
+      <Descriptions column={1} size="middle" styles={{ label: { width: 120 } }}>
+        <Descriptions.Item label={t("experiments.diName")}>{chip(exp.name)}</Descriptions.Item>
+        <Descriptions.Item label={t("experiments.diDesc")}>{exp.description || "—"}</Descriptions.Item>
+        <Descriptions.Item label={t("experiments.diImage")}>{chip(tpl?.image)}</Descriptions.Item>
+        <Descriptions.Item label={t("experiments.diPool")}>{chip(exp.spec.poolName)}</Descriptions.Item>
+        <Descriptions.Item label={t("experiments.diUnit")}>{chip(exp.spec.unitName)}</Descriptions.Item>
+        <Descriptions.Item label={t("experiments.diReplicas")}>
+          <span className="font-mono">{role?.replicas ?? "—"}</span>
+        </Descriptions.Item>
+        <Descriptions.Item label={t("experiments.diRunPolicy")}>
+          {t("experiments.runPolicyValue", { timeout, retries })}
+        </Descriptions.Item>
+        <Descriptions.Item label={t("experiments.diCreator")}>
+          {exp.owner}
+          <span className="ml-2 font-mono text-muted">{exp.createdAt ? dayjs(exp.createdAt).format("YYYY-MM-DD") : ""}</span>
+        </Descriptions.Item>
+      </Descriptions>
+
+      <div className="mt-6 border-t border-border-soft pt-5">
+        <div className="mb-1.5 text-xs text-muted">{t("experiments.diCommand")}</div>
+        <pre className="m-0 mb-4 overflow-auto rounded-md bg-bg p-3 font-mono text-sm text-fg-2">
+          {command.length ? command.join(" ") : "—"}
+        </pre>
+        <div className="mb-2 text-xs text-muted">{t("experiments.diEnv")}</div>
+        <Space size={[8, 8]} wrap>
+          {env.length ? (
+            env.map((e) => (
+              <span key={e.name} className="font-mono rounded bg-surface-warm px-1.5 py-0.5 text-sm">
+                {e.name}
+                {e.value != null && e.value !== "" ? `=${e.value}` : ""}
+              </span>
+            ))
+          ) : (
+            <span className="text-muted">—</span>
+          )}
+        </Space>
+      </div>
+    </Card>
+  );
+}
+
+interface RunRow {
+  name: string;
+  phase?: sdk.RunPhase;
+  unit: string;
+  replicas: number;
+  owner: string;
+  duration: string;
+}
+
+function RunsPane({ name, q }: { name: string; q: UseQueryResult<sdk.RunList> }) {
+  const { t } = useTranslation();
+  const { confirm } = useUI();
+  const [search, setSearch] = useState("");
+  const [phase, setPhase] = useState<string>("");
+  const [trigger, setTrigger] = useState<string>("");
+
+  const delRun = useApiMutation(
+    (run: string) => sdk.deleteExperimentRun({ path: { name, run } }),
+    { invalidate: [["experiments"]] },
+  );
+  const cancelRun = useApiMutation(
+    (run: string) => sdk.cancelExperimentRun({ path: { name, run } }),
+    { invalidate: [["experiments"]], success: t("experiments.runCanceled") },
+  );
+
+  const allRows: RunRow[] = useMemo(
+    () =>
+      q.data?.items?.map((r) => ({
+        name: r.name,
+        phase: r.phase,
+        unit: r.unitName ?? "—",
+        replicas: r.roles?.[0]?.replicas ?? r.spec?.roles?.[0]?.replicas ?? 0,
+        owner: r.owner ?? "—",
+        duration: fmtDuration(r.startedAt, r.finishedAt),
+      })) ?? [],
+    [q.data],
+  );
+
+  const triggerOptions = useMemo(
+    () => Array.from(new Set(allRows.map((r) => r.owner).filter((o) => o && o !== "—"))),
+    [allRows],
+  );
+
+  const rows = allRows.filter(
+    (r) =>
+      (!search || r.name.includes(search)) &&
+      (!phase || r.phase === phase) &&
+      (!trigger || r.owner === trigger),
+  );
+
+  const phaseOptions: sdk.RunPhase[] = ["Running", "Succeeded", "Failed", "Pending", "Canceling", "Cancelled"];
+
+  const onDeleteRun = (r: RunRow) =>
+    confirm({
+      title: t("experiments.runDeleteTitle", { name: r.name }),
+      desc: t("experiments.runDeleteDesc"),
+      okLabel: t("common.confirmDelete"),
+      toast: t("experiments.runDeleted", { name: r.name }),
+      onConfirm: () => delRun.mutate(r.name),
+    });
+  const onCancelRun = (r: RunRow) =>
+    confirm({
+      title: t("experiments.runCancelTitle", { name: r.name }),
+      desc: t("experiments.runCancelDesc"),
+      okLabel: t("experiments.confirmCancel"),
+      danger: false,
+      onConfirm: () => cancelRun.mutate(r.name),
+    });
+
+  const columns: ColumnsType<RunRow> = [
+    {
+      title: t("experiments.colRun"),
+      dataIndex: "name",
+      render: (_, r) => (
+        <Link to={`/experiments/${name}/runs/${r.name}`} className="font-mono font-medium">
+          {r.name}
+        </Link>
+      ),
+    },
+    {
+      title: t("experiments.colRunStatus"),
+      dataIndex: "phase",
+      width: 130,
+      render: (p: sdk.RunPhase | undefined) => <PhaseTag phase={p} />,
+    },
+    { title: t("experiments.colRunUnit"), dataIndex: "unit", width: 180, render: (v: string) => <span className="font-mono">{v}</span> },
+    { title: t("experiments.colRunReplicas"), dataIndex: "replicas", width: 90, align: "right" },
+    { title: t("experiments.colRunTrigger"), dataIndex: "owner", width: 130 },
+    { title: t("experiments.colRunDuration"), dataIndex: "duration", width: 120, align: "right", render: (v: string) => <span className="font-mono">{v}</span> },
+    {
+      title: t("common.actions"),
+      key: "actions",
+      width: 170,
+      align: "right",
+      render: (_, r) => {
+        const active = r.phase ? ACTIVE_RUN_PHASES.includes(r.phase) : false;
+        return (
+          <Space size={4} split={<Divider type="vertical" className="!mx-0" />}>
+            <Link to={`/experiments/${name}/runs/${r.name}`}>
+              <Button type="link" size="small" className="!px-1">
+                {t("common.detail")}
+              </Button>
+            </Link>
+            <Button type="link" size="small" className="!px-1">
+              {t("experiments.actLog")}
+            </Button>
+            <Button type="link" size="small" className="!px-1">
+              {t("experiments.actMonitor")}
+            </Button>
+            {active ? (
+              <Button type="link" size="small" className="!px-1" onClick={() => onCancelRun(r)}>
+                {t("experiments.actCancel")}
+              </Button>
+            ) : (
+              <Button type="link" size="small" danger className="!px-1" onClick={() => onDeleteRun(r)}>
+                {t("common.delete")}
+              </Button>
+            )}
+          </Space>
+        );
+      },
+    },
+  ];
+
+  return (
+    <>
+      <Card styles={{ body: { padding: 0 } }} className="overflow-hidden">
+        <div className="flex flex-wrap items-center gap-3 border-b border-border-soft p-4">
+          <Input
+            allowClear
+            prefix={<SearchOutlined className="text-muted" />}
+            placeholder={t("experiments.runsSearchPlaceholder")}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="max-w-xs"
+          />
+          <Select
+            value={phase || undefined}
+            onChange={(v) => setPhase(v ?? "")}
+            placeholder={t("experiments.runStatusAll")}
+            allowClear
+            className="min-w-40"
+            options={phaseOptions.map((p) => ({ label: <PhaseTag phase={p} />, value: p }))}
+          />
+          <Select
+            value={trigger || undefined}
+            onChange={(v) => setTrigger(v ?? "")}
+            placeholder={t("experiments.runTriggerAll")}
+            allowClear
+            className="min-w-40"
+            options={triggerOptions.map((o) => ({ label: o, value: o }))}
+          />
+          <Button
+            onClick={() => {
+              setSearch("");
+              setPhase("");
+              setTrigger("");
+            }}
+          >
+            {t("common.reset")}
+          </Button>
+        </div>
+        <Table<RunRow>
+          rowKey="name"
+          columns={columns}
+          dataSource={rows}
+          loading={q.isLoading}
+          pagination={{ pageSize: 20, showTotal: (n) => t("experiments.runTotal", { count: n }), hideOnSinglePage: false }}
+          locale={{ emptyText: q.isError ? t("common.loadFailed") : t("common.noData") }}
+        />
+      </Card>
+    </>
   );
 }

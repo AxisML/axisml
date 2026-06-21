@@ -1,61 +1,55 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import {
+  Table,
+  Button,
+  Input,
+  Select,
+  Space,
+  Card,
+  Tooltip,
+  Divider,
+  Drawer,
+  Form,
+  InputNumber,
+  Tag,
+  Empty,
+  Spin,
+} from "antd";
+import type { ColumnsType } from "antd/es/table";
+import {
+  PlusOutlined,
+  SearchOutlined,
+  UserAddOutlined,
+  StopOutlined,
+  DeleteOutlined,
+  CloseOutlined,
+} from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
+import dayjs from "dayjs";
 import { useTenants } from "@/api/hooks";
 import { useApiMutation } from "@/api/mutations";
 import * as sdk from "@/api/generated";
 import { useUI } from "@/app/ui";
-import { Icon } from "@/components/Icon";
-import { Drawer } from "@/components/Drawer";
-import { FieldsetTitle } from "@/components/forms";
-import { TableState, errorText } from "@/components/states";
+import { errorText } from "@/lib/errors";
+import { PageContainer } from "@/components/PageContainer";
+import { FieldSection } from "@/components/FieldSection";
 
-// Page-scoped styles ported verbatim from prototype/tenants.html <style>: the
-// multi-tab quota editor (one tab per resource pool → resource-unit cards ×
-// quantity). Kept here because they are tenant-page-specific, not part of the
-// shared design system in app.css.
-const QUOTA_STYLES = `
-.ptab-nav { display:flex; align-items:center; gap:var(--space-5); border-bottom:1px solid var(--border); margin-bottom:var(--space-5); overflow-x:auto; }
-.ptab { flex:none; background:transparent; border:0; padding:var(--space-3) 0; font-size:14px; font-family:var(--font-mono); font-weight:600; color:var(--muted); cursor:pointer; position:relative; white-space:nowrap; transition:color var(--motion-fast) var(--ease-standard); }
-.ptab:hover { color:var(--fg-2); }
-.ptab.on { color:var(--fg); }
-.ptab.on::after { content:""; position:absolute; left:0; right:0; bottom:-1px; height:2px; background:var(--accent); border-radius:2px; }
-.ptab-pane { display:none; }
-.ptab-pane.on { display:block; animation:fadein var(--motion-base) var(--ease-standard); }
-.ptab-meta { font-size:12px; color:var(--muted); margin-bottom:var(--space-4); }
-.qp-units { display:flex; flex-direction:column; gap:var(--space-3); }
-.q-row { display:flex; align-items:center; gap:var(--space-4); }
-.q-card { flex:1; min-width:0; padding:10px 14px; border:1px solid var(--border); border-radius:var(--radius-md); background:var(--bg); transition:border-color var(--motion-fast) var(--ease-standard), background var(--motion-fast) var(--ease-standard); }
-.q-card:hover { border-color:color-mix(in oklab, var(--accent) 35%, var(--border)); }
-.q-row.is-zero .q-card { background:var(--surface); border-color:var(--border-soft); }
-.q-row.is-zero .q-card:hover { border-color:var(--border); }
-.q-row.is-zero .uc-name, .q-row.is-zero .uc-spec { color:var(--muted); }
-.qu-qty { display:flex; align-items:center; gap:var(--space-3); flex:none; }
-.qu-qty::before { content:"×"; font-size:16px; color:var(--muted); line-height:1; }
-.step-val { width:56px; height:32px; text-align:center; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--bg); font:inherit; font-size:13px; font-family:var(--font-mono); color:var(--fg); transition:border-color var(--motion-fast) var(--ease-standard), box-shadow var(--motion-fast) var(--ease-standard); -moz-appearance:textfield; }
-.step-val::-webkit-outer-spin-button, .step-val::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
-.step-val:focus { outline:none; border-color:var(--accent); box-shadow:var(--focus-ring); }
-@media (max-width:720px){
-  .q-row { flex-wrap:wrap; }
-  .qu-qty { margin-left:auto; }
-}
-/* list-row resource quota: one line per pool (pool + 用量 / 水位) */
-.q-meters { display:flex; flex-direction:column; gap:8px; }
-.qm-row { display:grid; grid-template-columns:92px 60px 1fr; align-items:center; gap:10px; }
-.qm-num { font-family:var(--font-mono); font-size:12px; color:var(--fg-2); text-align:right; white-space:nowrap; }
-`;
+// Placeholder pool / unit catalogs for the quota editor's Select options. The
+// authoritative source is the ResourcePool CRD; until the create-tenant flow is
+// wired to live pools, these mirror the prototype's sample pools/units.
+const POOL_OPTIONS = ["gpu-h100", "gpu-a100", "cpu-large"];
+const UNIT_OPTIONS = ["h100-4x-xlarge", "h100-8x-xlarge-ib", "a100-1x-large", "a100-4x-xlarge", "cpu-large-1"];
+const MEMBER_ROLES: ("user" | "tenant-admin")[] = ["user", "tenant-admin"];
 
-interface PoolQuota {
-  pool: string;
-  allocated: number; // sum of unit quantities granted in this pool
-}
 interface TenantRow {
   ident: string;
   display: string;
   active: boolean;
-  pools: PoolQuota[];
+  pools: { pool: string; allocated: number }[];
   members: number;
-  activeTasks: number; // active job runs + active experiment runs
-  services: number; // online services
+  activeTasks: number;
+  services: number;
   created: string;
 }
 
@@ -67,233 +61,236 @@ type DrawerKind =
 
 export default function Tenants() {
   const q = useTenants();
+  const { t } = useTranslation();
   const { confirm } = useUI();
   const [drawer, setDrawer] = useState<DrawerKind | null>(null);
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState<"all" | "active" | "suspended">("all");
 
-  const delTenant = useApiMutation(
-    (name: string) => sdk.deleteTenant({ path: { name } }),
-    { invalidate: [["tenants"]], success: "租户已删除" },
-  );
-  const suspend = useApiMutation(
-    (name: string) => sdk.suspendTenant({ path: { name } }),
-    { invalidate: [["tenants"]], success: "租户已禁用" },
-  );
-  const resume = useApiMutation(
-    (name: string) => sdk.resumeTenant({ path: { name } }),
-    { invalidate: [["tenants"]], success: "租户已启用" },
+  const delTenant = useApiMutation((name: string) => sdk.deleteTenant({ path: { name } }), {
+    invalidate: [["tenants"]],
+    success: t("tenants.deleted"),
+  });
+  const suspend = useApiMutation((name: string) => sdk.suspendTenant({ path: { name } }), {
+    invalidate: [["tenants"]],
+    success: t("tenants.suspended"),
+  });
+  const resume = useApiMutation((name: string) => sdk.resumeTenant({ path: { name } }), {
+    invalidate: [["tenants"]],
+    success: t("tenants.resumed"),
+  });
+
+  const allRows: TenantRow[] = useMemo(
+    () =>
+      q.data?.items?.map((tenant) => ({
+        ident: tenant.identifier,
+        display: tenant.displayName,
+        active: !tenant.suspended,
+        pools: (tenant.quotas ?? []).map((quota) => ({
+          pool: quota.pool,
+          allocated: (quota.units ?? []).reduce((sum, u) => sum + (u.quantity ?? 0), 0),
+        })),
+        members: tenant.memberCount ?? 0,
+        activeTasks: (tenant.activeJobRuns ?? 0) + (tenant.activeExperimentRuns ?? 0),
+        services: tenant.onlineServices ?? 0,
+        created: tenant.createdAt,
+      })) ?? [],
+    [q.data],
   );
 
-  const rows: TenantRow[] =
-    q.data?.items?.map((t) => ({
-      ident: t.identifier,
-      display: t.displayName,
-      active: !t.suspended,
-      // listTenants?stats=true enriches each row with live roll-ups. The quota
-      // payload carries the allocated unit total per pool; live usage (水位) has
-      // no metrics source yet, so the meter renders against allocated with 0 used.
-      pools: (t.quotas ?? []).map((quota) => ({
-        pool: quota.pool,
-        allocated: (quota.units ?? []).reduce((sum, u) => sum + (u.quantity ?? 0), 0),
-      })),
-      members: t.memberCount ?? 0,
-      activeTasks: (t.activeJobRuns ?? 0) + (t.activeExperimentRuns ?? 0),
-      services: t.onlineServices ?? 0,
-      created: t.createdAt,
-    })) ?? [];
+  const rows = useMemo(
+    () =>
+      allRows.filter(
+        (r) =>
+          (!search || r.ident.includes(search) || r.display.includes(search)) &&
+          (status === "all" || (status === "active" ? r.active : !r.active)),
+      ),
+    [allRows, search, status],
+  );
+
+  const onSuspend = (r: TenantRow) =>
+    confirm({
+      title: t("tenants.suspendTitle", { name: r.ident }),
+      desc: t("tenants.suspendDesc"),
+      info: t("tenants.suspendInfo"),
+      okLabel: t("tenants.confirmSuspend"),
+      danger: false,
+      onConfirm: () => suspend.mutate(r.ident),
+    });
+
+  const onDelete = (r: TenantRow) =>
+    confirm({
+      title: t("tenants.deleteTitle", { name: r.ident }),
+      desc: t("tenants.deleteDesc"),
+      info: t("tenants.deleteInfo"),
+      okLabel: t("tenants.confirmDelete"),
+      onConfirm: () => delTenant.mutate(r.ident),
+    });
+
+  const columns: ColumnsType<TenantRow> = [
+    {
+      title: t("tenants.colTenant"),
+      dataIndex: "ident",
+      render: (_, r) => (
+        <div className="min-w-0">
+          <button
+            type="button"
+            className="font-mono font-medium text-accent hover:underline"
+            onClick={() => setDrawer({ kind: "quota", ident: r.ident, display: r.display })}
+          >
+            {r.ident}
+          </button>
+          <div className="truncate text-xs text-muted">{r.display}</div>
+        </div>
+      ),
+    },
+    {
+      title: t("tenants.colStatus"),
+      key: "status",
+      width: 110,
+      render: (_, r) =>
+        r.active ? (
+          <Tag color="success" className="!m-0">
+            {t("tenants.statusActive")}
+          </Tag>
+        ) : (
+          <Tag color="default" className="!m-0">
+            {t("tenants.statusSuspended")}
+          </Tag>
+        ),
+    },
+    {
+      title: t("tenants.colQuota"),
+      key: "quota",
+      width: 240,
+      render: (_, r) =>
+        r.pools.length === 0 ? (
+          <span className="text-muted">{t("tenants.noQuota")}</span>
+        ) : (
+          <div className="flex flex-col gap-1">
+            {r.pools.map((p) => (
+              <div key={p.pool} className="flex items-center gap-2">
+                <Tag className="!m-0 font-mono">{p.pool}</Tag>
+                <span className="font-mono text-xs text-muted">
+                  {t("tenants.quotaAllocated", { count: p.allocated })}
+                </span>
+              </div>
+            ))}
+          </div>
+        ),
+    },
+    { title: t("tenants.colMembers"), dataIndex: "members", width: 80, align: "right" },
+    { title: t("tenants.colActiveTasks"), dataIndex: "activeTasks", width: 90, align: "right" },
+    { title: t("tenants.colServices"), dataIndex: "services", width: 90, align: "right" },
+    {
+      title: t("tenants.colCreated"),
+      dataIndex: "created",
+      width: 160,
+      render: (v: string) => (
+        <span className="text-muted">{v ? dayjs(v).format("YYYY-MM-DD") : "—"}</span>
+      ),
+    },
+    {
+      title: t("common.actions"),
+      key: "actions",
+      width: 180,
+      align: "right",
+      render: (_, r) => (
+        <Space size={4} split={<Divider type="vertical" className="!mx-0" />}>
+          <Button
+            type="link"
+            size="small"
+            className="!px-1"
+            onClick={() => setDrawer({ kind: "quota", ident: r.ident, display: r.display })}
+          >
+            {t("tenants.editQuota")}
+          </Button>
+          <Button
+            type="link"
+            size="small"
+            className="!px-1"
+            onClick={() => setDrawer({ kind: "members", ident: r.ident, display: r.display })}
+          >
+            {t("tenants.manageMembers")}
+          </Button>
+          <Button
+            type="link"
+            size="small"
+            className="!px-1"
+            onClick={() => setDrawer({ kind: "member", ident: r.ident })}
+          >
+            {t("tenants.addMember")}
+          </Button>
+          {r.active ? (
+            <Button type="link" size="small" className="!px-1" onClick={() => onSuspend(r)}>
+              {t("tenants.suspend")}
+            </Button>
+          ) : (
+            <Button type="link" size="small" className="!px-1" onClick={() => resume.mutate(r.ident)}>
+              {t("tenants.resume")}
+            </Button>
+          )}
+          <Button type="link" size="small" danger className="!px-1" onClick={() => onDelete(r)}>
+            {t("common.delete")}
+          </Button>
+        </Space>
+      ),
+    },
+  ];
 
   return (
-    <main className="page">
-      <style dangerouslySetInnerHTML={{ __html: QUOTA_STYLES }} />
-      <div className="breadcrumb">
-        <span>系统管理</span>
-        <span className="sep">/</span>
-        <span>租户管理</span>
-      </div>
-      <div className="page-head">
-        <div>
-          <h1>租户管理</h1>
-          <p className="sub">
-            支持多租户体系下的组织、用户与权限管理，满足不同团队的隔离与协作需求。通过精细化权限控制，提升平台运营与资源治理效率。
-          </p>
+    <PageContainer
+      breadcrumb={[t("nav.systemMgmt"), t("nav.tenants")]}
+      title={t("tenants.title")}
+      subtitle={t("tenants.subtitle")}
+      extra={
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => setDrawer({ kind: "tenant" })}>
+          {t("tenants.newTenant")}
+        </Button>
+      }
+    >
+      <Card styles={{ body: { padding: 0 } }} className="overflow-hidden">
+        <div className="flex flex-wrap items-center gap-3 border-b border-border-soft p-4">
+          <Input
+            allowClear
+            prefix={<SearchOutlined className="text-muted" />}
+            placeholder={t("tenants.searchPlaceholder")}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="max-w-xs"
+          />
+          <Select
+            value={status}
+            onChange={setStatus}
+            className="min-w-40"
+            options={[
+              { label: t("tenants.statusAll"), value: "all" },
+              { label: t("tenants.statusActive"), value: "active" },
+              { label: t("tenants.statusSuspended"), value: "suspended" },
+            ]}
+          />
+          <Button
+            onClick={() => {
+              setSearch("");
+              setStatus("all");
+            }}
+          >
+            {t("common.reset")}
+          </Button>
         </div>
-        <div className="actions">
-          <button className="btn btn-primary" onClick={() => setDrawer({ kind: "tenant" })}>
-            <Icon name="plus" />
-            创建租户
-          </button>
-        </div>
-      </div>
-
-      <div className="toolbar">
-        <div className="field-search">
-          <Icon name="search" />
-          <input placeholder="租户名搜索" />
-        </div>
-        <select className="select">
-          <option>状态：全部</option>
-          <option>Active</option>
-          <option>已禁用</option>
-        </select>
-        <button className="btn btn-ghost">重置</button>
-      </div>
-
-      <div className="panel">
-        <div className="table-wrap">
-          <table className="tbl">
-            <thead>
-              <tr>
-                <th>租户</th>
-                <th>状态</th>
-                <th style={{ width: 300 }}>资源配额（用量 / 水位）</th>
-                <th className="num-col">成员</th>
-                <th className="num-col">活跃任务</th>
-                <th className="num-col">在线服务</th>
-                <th>创建时间</th>
-                <th style={{ textAlign: "right" }}>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.ident}>
-                  <td>
-                    <span className="t-name mono">{r.ident}</span>
-                    <div className="t-sub">{r.display}</div>
-                  </td>
-                  <td>
-                    {r.active ? (
-                      <span className="status status-running">
-                        <span className="dot" />
-                        已激活
-                      </span>
-                    ) : (
-                      <span className="status status-stopped">
-                        <span className="dot" />
-                        已禁用
-                      </span>
-                    )}
-                  </td>
-                  <td>
-                    {r.pools.length === 0 ? (
-                      <span className="muted">—</span>
-                    ) : (
-                      <div className="q-meters">
-                        {r.pools.map((p) => (
-                          <div className="qm-row" key={p.pool}>
-                            <span className="tag mono">{p.pool}</span>
-                            <span className="qm-num">0 / {p.allocated}</span>
-                            <div className="qbar">
-                              <span className="used" style={{ width: "0%" }} />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </td>
-                  <td className="num-col">{r.members}</td>
-                  <td className="num-col">{r.activeTasks}</td>
-                  <td className="num-col">{r.services}</td>
-                  <td className="muted">{r.created}</td>
-                  <td>
-                    <div className="row-actions">
-                      <button
-                        className="act"
-                        title="资源配额"
-                        aria-label="资源配额"
-                        onClick={() => setDrawer({ kind: "quota", ident: r.ident, display: r.display })}
-                      >
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M12 2 2 7l10 5 10-5-10-5z" />
-                          <path d="m2 17 10 5 10-5" />
-                          <path d="m2 12 10 5 10-5" />
-                        </svg>
-                      </button>
-                      <button
-                        className="act"
-                        title="成员管理"
-                        aria-label="成员管理"
-                        onClick={() => setDrawer({ kind: "members", ident: r.ident, display: r.display })}
-                      >
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                          <circle cx="9" cy="7" r="4" />
-                          <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                        </svg>
-                      </button>
-                      {r.active ? (
-                        <button
-                          className="act"
-                          title="禁用"
-                          aria-label="禁用"
-                          onClick={() =>
-                            confirm({
-                              title: `禁用租户 ${r.ident}？`,
-                              desc: "禁用后该租户成员将无法登录控制台或提交新任务，运行中的任务会被暂停。",
-                              info: "如需彻底清理，可在禁用后再执行删除。",
-                              okLabel: "确认禁用",
-                              onConfirm: () => suspend.mutate(r.ident),
-                            })
-                          }
-                        >
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                            <circle cx="12" cy="12" r="9" />
-                            <path d="M5.6 5.6l12.8 12.8" />
-                          </svg>
-                        </button>
-                      ) : (
-                        <>
-                          <button
-                            className="act"
-                            title="启用"
-                            aria-label="启用"
-                            onClick={() => resume.mutate(r.ident)}
-                          >
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                              <path d="M6 4l14 8-14 8z" />
-                            </svg>
-                          </button>
-                          <button
-                            className="act act-danger"
-                            title="删除"
-                            aria-label="删除"
-                            onClick={() =>
-                              confirm({
-                                title: `删除租户 ${r.ident}？`,
-                                desc: "将删除该租户的全部资源与配额，该操作不可恢复。",
-                                info: "建议先确认租户内已无活跃任务 / 服务 / 工作区。",
-                                okLabel: "确认删除租户",
-                                danger: true,
-                                onConfirm: () => delTenant.mutate(r.ident),
-                              })
-                            }
-                          >
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                              <path d="M3 6h18" />
-                              <path d="M8 6V4h8v2" />
-                              <path d="M19 6l-1 14H6L5 6" />
-                              <path d="M10 11v6M14 11v6" />
-                            </svg>
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              <TableState q={q} cols={8} isEmpty={rows.length === 0} />
-            </tbody>
-          </table>
-        </div>
-        <div className="pagination">
-          <span>共 {rows.length} 个租户</span>
-          <div className="pages">
-            <span className="pg">‹</span>
-            <span className="pg on">1</span>
-            <span className="pg">›</span>
-          </div>
-          <span>每页 20 条</span>
-        </div>
-      </div>
+        <Table<TenantRow>
+          rowKey="ident"
+          columns={columns}
+          dataSource={rows}
+          loading={q.isLoading}
+          pagination={{
+            pageSize: 20,
+            showTotal: (n) => t("tenants.total", { count: n }),
+            hideOnSinglePage: false,
+          }}
+          locale={{ emptyText: q.isError ? t("common.loadFailed") : t("common.noData") }}
+        />
+      </Card>
 
       {drawer?.kind === "tenant" && <TenantDrawer onClose={() => setDrawer(null)} />}
       {drawer?.kind === "quota" && (
@@ -308,32 +305,35 @@ export default function Tenants() {
         />
       )}
       {drawer?.kind === "member" && <MemberDrawer ident={drawer.ident} onClose={() => setDrawer(null)} />}
-    </main>
+    </PageContainer>
   );
 }
 
-// ── Create-tenant drawer (controlled form → createTenant) ─────────────────────
+// ── Create-tenant drawer (numbered FieldSections → createTenant) ───────────────
+interface TenantFormValues {
+  displayName: string;
+  identifier: string;
+  initialAdmin: string;
+}
+
 function TenantDrawer({ onClose }: { onClose: () => void }) {
-  const [displayName, setDisplayName] = useState("");
-  const [identifier, setIdentifier] = useState("");
-  const [admin, setAdmin] = useState("");
+  const { t } = useTranslation();
+  const [form] = Form.useForm<TenantFormValues>();
 
-  const create = useApiMutation(
-    (body: sdk.TenantCreateRequest) => sdk.createTenant({ body }),
-    { invalidate: [["tenants"]], success: "租户已创建，正在初始化基础资源…" },
-  );
+  const create = useApiMutation((body: sdk.TenantCreateRequest) => sdk.createTenant({ body }), {
+    invalidate: [["tenants"]],
+    success: t("tenants.created"),
+  });
 
-  const valid = displayName.trim() && identifier.trim() && admin.trim();
-
-  const submit = () => {
-    const ident = identifier.trim();
+  const onFinish = (v: TenantFormValues) => {
+    const ident = v.identifier.trim();
     create.mutate(
       {
-        displayName: displayName.trim(),
+        displayName: v.displayName.trim(),
         identifier: ident,
-        initialAdmin: admin.trim(),
-        // The tenant identifier is a dns1123-valid slug; reuse it as the
-        // physical namespace (tenant name = namespace convention).
+        initialAdmin: v.initialAdmin.trim(),
+        // The identifier is a dns1123 slug; reuse it as the physical namespace
+        // (tenant name = namespace convention).
         kubernetesNamespace: ident,
       },
       { onSuccess: onClose },
@@ -343,74 +343,66 @@ function TenantDrawer({ onClose }: { onClose: () => void }) {
   return (
     <Drawer
       open
-      wide
+      width={560}
       onClose={onClose}
-      title="创建租户"
-      sub="提交后平台自动完成资源初始化与权限配置"
+      closable={false}
+      title={
+        <div>
+          <div className="text-base font-semibold text-fg">{t("tenants.drawerNew")}</div>
+          <div className="mt-0.5 text-xs font-normal text-muted">{t("tenants.drawerNewSub")}</div>
+        </div>
+      }
+      extra={<Button type="text" icon={<CloseOutlined />} onClick={onClose} />}
       footer={
-        <>
-          <span className="grow" />
-          <button className="btn" onClick={onClose}>
-            取消
-          </button>
-          <button className="btn btn-primary" disabled={!valid || create.isPending} onClick={submit}>
-            {create.isPending ? "创建中…" : "创建租户"}
-          </button>
-        </>
+        <div className="flex justify-end gap-2">
+          <Button onClick={onClose}>{t("common.cancel")}</Button>
+          <Button type="primary" loading={create.isPending} onClick={() => form.submit()}>
+            {t("tenants.createTenant")}
+          </Button>
+        </div>
       }
     >
-      <FieldsetTitle n={1}>基本信息</FieldsetTitle>
-      <div className="form-grid">
-        <div className="field">
-          <label>
-            租户名称 <span className="req">*</span>
-          </label>
-          <input
-            className="input"
-            placeholder="大模型研究院"
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-          />
-          <span className="help">用于在列表与详情中展示</span>
-        </div>
-        <div className="field">
-          <label>
-            租户标识 <span className="req">*</span>
-          </label>
-          <input
-            className="input mono"
-            placeholder="llm-lab"
-            value={identifier}
-            onChange={(e) => setIdentifier(e.target.value)}
-          />
-          <span className="help">小写字母、数字、连字符（同时作为 Kubernetes 命名空间）</span>
-        </div>
-        <div className="field full">
-          <label>
-            初始管理员 <span className="req">*</span>
-          </label>
-          <input
-            className="input"
-            placeholder="zhangwei@corp.com"
-            value={admin}
-            onChange={(e) => setAdmin(e.target.value)}
-          />
-        </div>
-      </div>
+      <Form<TenantFormValues> form={form} layout="vertical" size="large" onFinish={onFinish}>
+        <FieldSection n={1} title={t("tenants.fsBasic")} />
+        <Form.Item
+          name="displayName"
+          label={t("tenants.fDisplayName")}
+          rules={[{ required: true }]}
+          extra={t("tenants.fDisplayNameHelp")}
+        >
+          <Input placeholder={t("tenants.fDisplayNamePlaceholder")} />
+        </Form.Item>
+        <Form.Item
+          name="identifier"
+          label={t("tenants.fIdentifier")}
+          rules={[{ required: true }]}
+          extra={t("tenants.fIdentifierHelp")}
+        >
+          <Input className="font-mono" placeholder={t("tenants.fIdentifierPlaceholder")} />
+        </Form.Item>
+        <Form.Item name="initialAdmin" label={t("tenants.fAdmin")} rules={[{ required: true }]}>
+          <Input placeholder={t("tenants.fAdminPlaceholder")} />
+        </Form.Item>
 
-      <FieldsetTitle n={2}>初始配额</FieldsetTitle>
-      <div className="field">
-        <span className="help">
-          租户创建后，可在列表的「资源配额」操作中按资源池逐项分配资源单元数量。
-        </span>
-      </div>
+        <FieldSection n={2} title={t("tenants.fsQuota")} />
+        <p className="text-xs text-muted">{t("tenants.quotaHint")}</p>
+      </Form>
     </Drawer>
   );
 }
 
-// ── Quota editor drawer (live quotas → create / update / delete) ──────────────
+// ── Quota editor drawer (live quotas → Form.List rows grouped by pool) ─────────
+interface QuotaRow {
+  pool?: string;
+  unitName?: string;
+  quantity?: number;
+}
+
 function QuotaDrawer({ ident, display, onClose }: { ident: string; display: string; onClose: () => void }) {
+  const { t } = useTranslation();
   const { confirm } = useUI();
+  const [form] = Form.useForm<{ rows: QuotaRow[] }>();
+
   const quotasQ = useQuery({
     queryKey: ["tenant-quotas", ident],
     queryFn: async () => {
@@ -423,153 +415,190 @@ function QuotaDrawer({ ident, display, onClose }: { ident: string; display: stri
   const updateQuota = useApiMutation(
     (arg: { pool: string; units: sdk.QuotaUnit[] }) =>
       sdk.updateTenantQuota({ path: { name: ident, pool: arg.pool }, body: { units: arg.units } }),
-    { invalidate: [["tenant-quotas", ident], ["tenants"]], success: "配额已保存" },
+    { invalidate: [["tenant-quotas", ident], ["tenants"]], success: t("tenants.quotaSaved") },
   );
-  const delQuota = useApiMutation(
-    (pool: string) => sdk.deleteTenantQuota({ path: { name: ident, pool } }),
-    { invalidate: [["tenant-quotas", ident], ["tenants"]], success: "配额已移除" },
+  const createQuota = useApiMutation(
+    (arg: { pool: string; units: sdk.QuotaUnit[] }) =>
+      sdk.createTenantQuota({ path: { name: ident }, body: { pool: arg.pool, units: arg.units } }),
+    { invalidate: [["tenant-quotas", ident], ["tenants"]], success: t("tenants.quotaSaved") },
   );
+  const delQuota = useApiMutation((pool: string) => sdk.deleteTenantQuota({ path: { name: ident, pool } }), {
+    invalidate: [["tenant-quotas", ident], ["tenants"]],
+    success: t("tenants.quotaRemoved"),
+  });
 
   const quotas = quotasQ.data?.items ?? [];
+  const existingPools = useMemo(() => new Set(quotas.map((quota) => quota.pool)), [quotas]);
+
+  const initialRows: QuotaRow[] = useMemo(
+    () =>
+      quotas.flatMap((quota) =>
+        (quota.units ?? []).map((u) => ({
+          pool: quota.pool,
+          unitName: u.unitName,
+          quantity: u.quantity,
+        })),
+      ),
+    [quotas],
+  );
+
+  const onFinish = (v: { rows: QuotaRow[] }) => {
+    // Group rows by pool, then upsert each pool (PATCH if it already exists,
+    // POST otherwise). Backend owns the (pool/unit/quantity) vocabulary.
+    const byPool = new Map<string, sdk.QuotaUnit[]>();
+    for (const r of v.rows ?? []) {
+      const pool = r.pool?.trim();
+      const unitName = r.unitName?.trim();
+      if (!pool || !unitName) continue;
+      const units = byPool.get(pool) ?? [];
+      units.push({ unitName, quantity: Math.max(0, Number(r.quantity) || 0) });
+      byPool.set(pool, units);
+    }
+    if (byPool.size === 0) {
+      onClose();
+      return;
+    }
+    let done = 0;
+    const total = byPool.size;
+    const tick = () => {
+      done += 1;
+      if (done === total) onClose();
+    };
+    for (const [pool, units] of byPool) {
+      const mutation = existingPools.has(pool) ? updateQuota : createQuota;
+      mutation.mutate({ pool, units }, { onSuccess: tick });
+    }
+  };
+
+  const onRemovePool = (pool: string) =>
+    confirm({
+      title: t("tenants.removePoolTitle", { pool }),
+      desc: t("tenants.removePoolDesc"),
+      okLabel: t("tenants.confirmRemovePool"),
+      onConfirm: () => delQuota.mutate(pool),
+    });
+
+  const saving = updateQuota.isPending || createQuota.isPending;
 
   return (
     <Drawer
       open
-      wide
+      width={680}
       onClose={onClose}
-      title={<span className="mono">{ident}</span>}
-      sub={`${display} · 资源配额`}
+      closable={false}
+      title={
+        <div>
+          <div className="text-base font-semibold text-fg">{t("tenants.quotaDrawerTitle")}</div>
+          <div className="mt-0.5 text-xs font-normal text-muted">
+            <span className="font-mono">{ident}</span>
+          </div>
+        </div>
+      }
+      extra={<Button type="text" icon={<CloseOutlined />} onClick={onClose} />}
       footer={
-        <>
-          <span className="grow" />
-          <button className="btn" onClick={onClose}>
-            关闭
-          </button>
-        </>
+        <div className="flex justify-end gap-2">
+          <Button onClick={onClose}>{t("common.cancel")}</Button>
+          <Button type="primary" loading={saving} onClick={() => form.submit()}>
+            {t("tenants.saveQuota")}
+          </Button>
+        </div>
       }
     >
-      {quotasQ.isLoading && <p className="muted">加载中…</p>}
-      {quotasQ.isError && <p className="muted">{errorText(quotasQ.error)}</p>}
-      {!quotasQ.isLoading && !quotasQ.isError && quotas.length === 0 && (
-        <p className="muted">该租户暂无资源配额。</p>
-      )}
-      {quotas.length > 0 && (
-        <QuotaPoolTabs
-          quotas={quotas}
-          saving={updateQuota.isPending}
-          onSave={(pool, units) => updateQuota.mutate({ pool, units })}
-          onDelete={(pool) =>
-            confirm({
-              title: `移除资源池 ${pool} 的配额？`,
-              desc: "移除后该租户将不再拥有此资源池的可用资源单元。",
-              okLabel: "确认移除",
-              danger: true,
-              onConfirm: () => delQuota.mutate(pool),
-            })
-          }
-        />
+      <p className="mb-4 text-xs text-muted">{t("tenants.quotaDrawerSub", { name: display })}</p>
+      {quotasQ.isLoading ? (
+        <div className="flex justify-center py-8">
+          <Spin />
+        </div>
+      ) : quotasQ.isError ? (
+        <Empty description={t("common.loadFailed")} />
+      ) : (
+        <>
+          {delQuota.isPending && (
+            <div className="mb-3 flex justify-center">
+              <Spin size="small" />
+            </div>
+          )}
+          <Form<{ rows: QuotaRow[] }>
+            form={form}
+            layout="vertical"
+            size="large"
+            onFinish={onFinish}
+            initialValues={{ rows: initialRows }}
+          >
+            <FieldSection n={1} title={t("tenants.fsQuotaRows")} />
+            <p className="mb-3 text-xs text-muted">{t("tenants.quotaRowsSub")}</p>
+            <Form.List name="rows">
+              {(fields, { add, remove }) => (
+                <div className="space-y-3">
+                  {fields.length === 0 && <Empty description={t("tenants.quotaEmpty")} />}
+                  {fields.map((field) => {
+                    const pool = form.getFieldValue(["rows", field.name, "pool"]) as string | undefined;
+                    const canRemovePool = !!pool && existingPools.has(pool);
+                    return (
+                      <Card key={field.key} size="small" className="bg-surface-warm">
+                        <div className="grid grid-cols-[1fr_1fr_auto_auto] items-end gap-x-3">
+                          <Form.Item
+                            name={[field.name, "pool"]}
+                            label={t("tenants.qPool")}
+                            rules={[{ required: true }]}
+                          >
+                            <Select
+                              placeholder={t("tenants.qPoolPlaceholder")}
+                              options={POOL_OPTIONS.map((p) => ({ label: p, value: p }))}
+                            />
+                          </Form.Item>
+                          <Form.Item
+                            name={[field.name, "unitName"]}
+                            label={t("tenants.qUnit")}
+                            rules={[{ required: true }]}
+                          >
+                            <Select
+                              placeholder={t("tenants.qUnitPlaceholder")}
+                              options={UNIT_OPTIONS.map((u) => ({ label: u, value: u }))}
+                            />
+                          </Form.Item>
+                          <Form.Item name={[field.name, "quantity"]} label={t("tenants.qQuantity")}>
+                            <InputNumber min={0} className="!w-24" />
+                          </Form.Item>
+                          <Form.Item label=" ">
+                            <Space size="small">
+                              {canRemovePool && (
+                                <Tooltip title={t("tenants.removePool")}>
+                                  <Button
+                                    type="text"
+                                    size="small"
+                                    icon={<StopOutlined />}
+                                    onClick={() => onRemovePool(pool!)}
+                                  />
+                                </Tooltip>
+                              )}
+                              <Button
+                                type="text"
+                                size="small"
+                                danger
+                                icon={<DeleteOutlined />}
+                                onClick={() => remove(field.name)}
+                              />
+                            </Space>
+                          </Form.Item>
+                        </div>
+                      </Card>
+                    );
+                  })}
+                  <Button type="dashed" block icon={<PlusOutlined />} onClick={() => add({ quantity: 0 })}>
+                    {t("tenants.addQuotaRow")}
+                  </Button>
+                </div>
+              )}
+            </Form.List>
+          </Form>
+        </>
       )}
     </Drawer>
   );
 }
 
-// Tabbed quota editor over live Quota[]: one tab per pool, each unit editable.
-function QuotaPoolTabs({
-  quotas,
-  saving,
-  onSave,
-  onDelete,
-}: {
-  quotas: sdk.Quota[];
-  saving: boolean;
-  onSave: (pool: string, units: sdk.QuotaUnit[]) => void;
-  onDelete: (pool: string) => void;
-}) {
-  const [active, setActive] = useState(quotas[0]?.pool);
-  return (
-    <div className="pool-tabs">
-      <div className="ptab-nav">
-        {quotas.map((p) => (
-          <button
-            key={p.pool}
-            type="button"
-            className={"ptab" + (p.pool === active ? " on" : "")}
-            onClick={() => setActive(p.pool)}
-          >
-            {p.pool}
-          </button>
-        ))}
-      </div>
-      <div className="ptab-panes">
-        {quotas.map((p) => (
-          <div key={p.pool} className={"ptab-pane" + (p.pool === active ? " on" : "")}>
-            <QuotaPoolPane quota={p} saving={saving} onSave={onSave} onDelete={onDelete} />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function QuotaPoolPane({
-  quota,
-  saving,
-  onSave,
-  onDelete,
-}: {
-  quota: sdk.Quota;
-  saving: boolean;
-  onSave: (pool: string, units: sdk.QuotaUnit[]) => void;
-  onDelete: (pool: string) => void;
-}) {
-  const [units, setUnits] = useState<sdk.QuotaUnit[]>(() =>
-    (quota.units ?? []).map((u) => ({ unitName: u.unitName, quantity: u.quantity })),
-  );
-  const setQty = (unitName: string, qty: number) =>
-    setUnits((arr) => arr.map((u) => (u.unitName === unitName ? { ...u, quantity: qty } : u)));
-
-  return (
-    <>
-      <div className="ptab-meta">{quota.pool}</div>
-      <div className="qp-units">
-        {units.map((u) => (
-          <div className={"q-row" + (u.quantity === 0 ? " is-zero" : "")} key={u.unitName}>
-            <div className="q-card">
-              <div className="uc-name">{u.unitName}</div>
-            </div>
-            <label className="qu-qty">
-              <input
-                className="step-val"
-                type="number"
-                min="0"
-                step="1"
-                inputMode="numeric"
-                value={u.quantity}
-                aria-label="配额数量"
-                onChange={(e) => setQty(u.unitName, Math.max(0, Number(e.target.value) || 0))}
-              />
-            </label>
-          </div>
-        ))}
-        {units.length === 0 && <p className="muted">该资源池暂无资源单元。</p>}
-      </div>
-      <div className="row-actions" style={{ marginTop: "var(--space-5)" }}>
-        <button
-          className="btn btn-sm btn-primary"
-          disabled={saving}
-          onClick={() => onSave(quota.pool, units)}
-        >
-          {saving ? "保存中…" : "保存配额"}
-        </button>
-        <button className="btn btn-sm btn-danger" onClick={() => onDelete(quota.pool)}>
-          移除资源池配额
-        </button>
-      </div>
-    </>
-  );
-}
-
-// ── Members drawer (live members → add / remove / update role) ────────────────
+// ── Members drawer (live members → remove / update role) ───────────────────────
 function MembersDrawer({
   ident,
   display,
@@ -581,7 +610,10 @@ function MembersDrawer({
   onAddMember: () => void;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const { confirm } = useUI();
+  const [search, setSearch] = useState("");
+
   const membersQ = useQuery({
     queryKey: ["tenant-members", ident],
     queryFn: async () => {
@@ -593,205 +625,203 @@ function MembersDrawer({
 
   const removeMember = useApiMutation(
     (userId: string) => sdk.removeTenantMember({ path: { name: ident, userId } }),
-    { invalidate: [["tenant-members", ident]], success: "成员已移除" },
+    { invalidate: [["tenant-members", ident]], success: t("tenants.memberRemoved") },
   );
   const updateRole = useApiMutation(
     (arg: { userId: string; roleName: "tenant-admin" | "user" }) =>
       sdk.updateTenantMember({ path: { name: ident, userId: arg.userId }, body: { roleName: arg.roleName } }),
-    { invalidate: [["tenant-members", ident]], success: "成员角色已更新" },
+    { invalidate: [["tenant-members", ident]], success: t("tenants.roleUpdated") },
   );
 
-  const members = membersQ.data?.items ?? [];
-  const roleLabel = (r: string) => (r === "tenant-admin" ? "租户管理员" : "普通用户");
+  const roleLabel = (r: string) => t(`role.${r}`, { defaultValue: r });
+  const allMembers = membersQ.data?.items ?? [];
+  const members = useMemo(
+    () =>
+      allMembers.filter((m) => {
+        if (!search) return true;
+        const name = m.displayName || m.username || m.email || m.userId;
+        return name.includes(search);
+      }),
+    [allMembers, search],
+  );
+
+  const columns: ColumnsType<sdk.Member> = [
+    {
+      title: t("tenants.mColMember"),
+      key: "member",
+      render: (_, m) => {
+        const name = m.displayName || m.username || m.email || m.userId;
+        const initial = (name || "?").trim().charAt(0).toUpperCase();
+        return (
+          <div className="flex items-center gap-2.5">
+            <span className="grid h-7 w-7 place-items-center rounded-full bg-accent text-xs font-semibold text-accent-on">
+              {initial}
+            </span>
+            <span className="text-sm text-fg">{name}</span>
+          </div>
+        );
+      },
+    },
+    {
+      title: t("tenants.mColRole"),
+      key: "role",
+      width: 160,
+      render: (_, m) => (
+        <Select
+          size="small"
+          value={m.roleName === "tenant-admin" ? "tenant-admin" : "user"}
+          disabled={updateRole.isPending}
+          className="w-full"
+          onChange={(v) => updateRole.mutate({ userId: m.userId, roleName: v as "tenant-admin" | "user" })}
+          options={MEMBER_ROLES.map((r) => ({ label: roleLabel(r), value: r }))}
+        />
+      ),
+    },
+    {
+      title: t("tenants.mColJoined"),
+      dataIndex: "addedAt",
+      width: 120,
+      render: (v: string) => <span className="text-muted">{v ? dayjs(v).format("YYYY-MM-DD") : "—"}</span>,
+    },
+    {
+      title: t("common.actions"),
+      key: "actions",
+      width: 80,
+      align: "right",
+      render: (_, m) => {
+        const name = m.displayName || m.username || m.email || m.userId;
+        return (
+          <Button
+            type="link"
+            size="small"
+            danger
+            className="!px-1"
+            onClick={() =>
+              confirm({
+                title: t("tenants.removeMemberTitle", { name }),
+                desc: t("tenants.removeMemberDesc"),
+                okLabel: t("tenants.confirmRemoveMember"),
+                onConfirm: () => removeMember.mutate(m.userId),
+              })
+            }
+          >
+            {t("tenants.removeMember")}
+          </Button>
+        );
+      },
+    },
+  ];
 
   return (
     <Drawer
       open
-      wide
+      width={680}
       onClose={onClose}
-      title={<span className="mono">{ident}</span>}
-      sub={`${display} · 成员管理`}
+      closable={false}
+      title={
+        <div>
+          <div className="text-base font-semibold text-fg">{t("tenants.membersDrawerTitle")}</div>
+          <div className="mt-0.5 text-xs font-normal text-muted">
+            <span className="font-mono">{ident}</span>
+          </div>
+        </div>
+      }
+      extra={<Button type="text" icon={<CloseOutlined />} onClick={onClose} />}
       footer={
-        <>
-          <span className="grow" />
-          <button className="btn" onClick={onClose}>
-            关闭
-          </button>
-        </>
+        <div className="flex justify-end">
+          <Button onClick={onClose}>{t("common.cancel")}</Button>
+        </div>
       }
     >
-      <div className="toolbar">
-        <div className="field-search">
-          <Icon name="search" />
-          <input placeholder="成员搜索" />
-        </div>
-        <div className="grow" />
-        <button className="btn btn-sm btn-primary" onClick={onAddMember}>
-          + 添加成员
-        </button>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <p className="m-0 text-xs text-muted">{t("tenants.membersDrawerSub", { name: display })}</p>
+        <Button type="primary" size="small" icon={<UserAddOutlined />} onClick={onAddMember}>
+          {t("tenants.addMember")}
+        </Button>
       </div>
-      <div className="panel">
-        <div className="table-wrap">
-          <table className="tbl">
-            <thead>
-              <tr>
-                <th>成员</th>
-                <th>角色</th>
-                <th>加入时间</th>
-                <th style={{ textAlign: "right" }}>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {members.map((m) => {
-                const name = m.displayName || m.username || m.email || m.userId;
-                const initial = (name || "?").trim().charAt(0).toUpperCase();
-                const isAdmin = m.roleName === "tenant-admin";
-                return (
-                  <tr key={m.userId}>
-                    <td>
-                      <div className="row" style={{ gap: 10 }}>
-                        <div className="avatar" style={{ width: 28, height: 28, fontSize: 12 }}>
-                          {initial}
-                        </div>
-                        {name}
-                      </div>
-                    </td>
-                    <td>
-                      <select
-                        className="input"
-                        value={isAdmin ? "tenant-admin" : "user"}
-                        disabled={updateRole.isPending}
-                        aria-label="角色"
-                        onChange={(e) =>
-                          updateRole.mutate({
-                            userId: m.userId,
-                            roleName: e.target.value as "tenant-admin" | "user",
-                          })
-                        }
-                      >
-                        <option value="user">{roleLabel("user")}</option>
-                        <option value="tenant-admin">{roleLabel("tenant-admin")}</option>
-                      </select>
-                    </td>
-                    <td className="muted">{m.addedAt}</td>
-                    <td>
-                      <div className="row-actions">
-                        <button
-                          className="act act-danger"
-                          title="移除成员"
-                          aria-label="移除成员"
-                          onClick={() =>
-                            confirm({
-                              title: `移除成员 ${name}？`,
-                              desc: "移除后该成员将失去对此租户的访问权限。",
-                              okLabel: "确认移除",
-                              danger: true,
-                              onConfirm: () => removeMember.mutate(m.userId),
-                            })
-                          }
-                        >
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                            <circle cx="9" cy="7" r="4" />
-                            <path d="M16 11h6" />
-                          </svg>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-              {membersQ.isLoading && (
-                <tr>
-                  <td colSpan={4} className="muted">
-                    加载中…
-                  </td>
-                </tr>
-              )}
-              {membersQ.isError && (
-                <tr>
-                  <td colSpan={4} className="muted">
-                    {errorText(membersQ.error)}
-                  </td>
-                </tr>
-              )}
-              {!membersQ.isLoading && !membersQ.isError && members.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="muted">
-                    暂无成员
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <Input
+        allowClear
+        prefix={<SearchOutlined className="text-muted" />}
+        placeholder={t("tenants.memberSearchPlaceholder")}
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        className="mb-3 max-w-xs"
+      />
+      <Table<sdk.Member>
+        rowKey="userId"
+        size="small"
+        columns={columns}
+        dataSource={members}
+        loading={membersQ.isLoading}
+        pagination={false}
+        locale={{ emptyText: membersQ.isError ? t("common.loadFailed") : t("tenants.membersEmpty") }}
+      />
     </Drawer>
   );
 }
 
-// ── Add-member drawer (controlled form → addTenantMember) ─────────────────────
+// ── Add-member drawer (controlled form → addTenantMember) ──────────────────────
+interface MemberFormValues {
+  account: string;
+  roleName: "tenant-admin" | "user";
+}
+
 function MemberDrawer({ ident, onClose }: { ident: string; onClose: () => void }) {
-  const [account, setAccount] = useState("");
-  const [roleName, setRoleName] = useState<"tenant-admin" | "user">("user");
+  const { t } = useTranslation();
+  const [form] = Form.useForm<MemberFormValues>();
 
   const add = useApiMutation(
     (body: sdk.MemberCreateRequest) => sdk.addTenantMember({ path: { name: ident }, body }),
-    { invalidate: [["tenant-members", ident]], success: "成员已添加" },
+    { invalidate: [["tenant-members", ident]], success: t("tenants.memberAdded") },
   );
 
-  const submit = () =>
-    add.mutate({ account: account.trim(), roleName }, { onSuccess: onClose });
+  const onFinish = (v: MemberFormValues) =>
+    add.mutate({ account: v.account.trim(), roleName: v.roleName }, { onSuccess: onClose });
 
   return (
     <Drawer
       open
+      width={480}
       onClose={onClose}
-      title="添加成员"
-      sub="为所选租户添加成员并分配角色"
+      closable={false}
+      title={
+        <div>
+          <div className="text-base font-semibold text-fg">{t("tenants.memberDrawerTitle")}</div>
+          <div className="mt-0.5 text-xs font-normal text-muted">
+            <span className="font-mono">{ident}</span>
+          </div>
+        </div>
+      }
+      extra={<Button type="text" icon={<CloseOutlined />} onClick={onClose} />}
       footer={
-        <>
-          <span className="grow" />
-          <button className="btn" onClick={onClose}>
-            取消
-          </button>
-          <button
-            className="btn btn-primary"
-            disabled={!account.trim() || add.isPending}
-            onClick={submit}
-          >
-            {add.isPending ? "添加中…" : "添加成员"}
-          </button>
-        </>
+        <div className="flex justify-end gap-2">
+          <Button onClick={onClose}>{t("common.cancel")}</Button>
+          <Button type="primary" loading={add.isPending} onClick={() => form.submit()}>
+            {t("tenants.addMember")}
+          </Button>
+        </div>
       }
     >
-      <div className="form-grid">
-        <div className="field full">
-          <label>
-            成员账号 <span className="req">*</span>
-          </label>
-          <input
-            className="input"
-            placeholder="name@corp.com"
-            value={account}
-            onChange={(e) => setAccount(e.target.value)}
-          />
-          <span className="help">输入企业邮箱或账号，支持邀请平台已有用户</span>
-        </div>
-        <div className="field full">
-          <label>
-            角色 <span className="req">*</span>
-          </label>
-          <select
-            className="input"
-            value={roleName}
-            onChange={(e) => setRoleName(e.target.value as "tenant-admin" | "user")}
-          >
-            <option value="user">普通用户</option>
-            <option value="tenant-admin">租户管理员</option>
-          </select>
-        </div>
-      </div>
+      <Form<MemberFormValues>
+        form={form}
+        layout="vertical"
+        size="large"
+        onFinish={onFinish}
+        initialValues={{ roleName: "user" }}
+      >
+        <FieldSection n={1} title={t("tenants.memberDrawerSub", { name: ident })} />
+        <Form.Item
+          name="account"
+          label={t("tenants.fAccount")}
+          rules={[{ required: true }]}
+          extra={t("tenants.fAccountHelp")}
+        >
+          <Input placeholder={t("tenants.fAccountPlaceholder")} />
+        </Form.Item>
+        <Form.Item name="roleName" label={t("tenants.fRole")} rules={[{ required: true }]}>
+          <Select options={MEMBER_ROLES.map((r) => ({ label: t(`role.${r}`), value: r }))} />
+        </Form.Item>
+      </Form>
     </Drawer>
   );
 }

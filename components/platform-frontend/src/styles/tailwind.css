@@ -1,0 +1,15 @@
+/* Tailwind entry. The layer declaration is what lets Tailwind and Ant Design v5
+   coexist: AntD's CSS-in-JS is emitted into `@layer antd` (see StyleProvider
+   `layer` in app/theme.tsx). We park Tailwind's preflight reset in
+   `tailwind-base`, declared *before* `antd`, so AntD component styles win over
+   the reset (preflight won't strip Button/Input borders). Tailwind components &
+   utilities stay unlayered → highest priority → utility classes still override
+   AntD when we intentionally reach for them. */
+@layer tailwind-base, antd;
+
+@layer tailwind-base {
+  @tailwind base;
+}
+
+@tailwind components;
+@tailwind utilities;

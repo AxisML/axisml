@@ -2,12 +2,14 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "react-router-dom";
+import "./i18n";
 import "./api/setup";
 import { SessionProvider } from "./app/session";
 import { AppStoreProvider } from "./app/store";
-import { UIProvider } from "./app/ui";
+import { AntdProvider } from "./app/theme";
 import { router } from "./app/router";
-import "./styles/app.css";
+import "./styles/tokens.css";
+import "./styles/tailwind.css";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -24,9 +26,9 @@ createRoot(document.getElementById("root")!).render(
     <QueryClientProvider client={queryClient}>
       <SessionProvider>
         <AppStoreProvider>
-          <UIProvider>
+          <AntdProvider>
             <RouterProvider router={router} />
-          </UIProvider>
+          </AntdProvider>
         </AppStoreProvider>
       </SessionProvider>
     </QueryClientProvider>

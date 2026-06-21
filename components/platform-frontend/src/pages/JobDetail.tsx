@@ -1,268 +1,395 @@
 import { Link, useParams } from "react-router-dom";
+import {
+  Card,
+  Tabs,
+  Table,
+  Descriptions,
+  Button,
+  Space,
+  Divider,
+  Tag,
+  Empty,
+  Spin,
+  Result,
+} from "antd";
+import type { ColumnsType } from "antd/es/table";
+import {
+  CaretRightOutlined,
+  DeleteOutlined,
+  ArrowLeftOutlined,
+} from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
+import { useQuery } from "@tanstack/react-query";
+import dayjs from "dayjs";
+import { useApp } from "@/app/store";
 import { useUI } from "@/app/ui";
-import { Tabs } from "@/components/Tabs";
+import { useApiMutation } from "@/api/mutations";
+import { PageContainer } from "@/components/PageContainer";
+import { PhaseTag } from "@/components/PhaseTag";
+import * as sdk from "@/api/generated";
 
-// Faithful port of prototype/job-detail.html. Detail page → static demo content
-// (no list hook); the :name param drives the title / run links.
+// ── Shared detail helpers (reused by RunDetail) ───────────────────────────────
+export function fmtDateTime(v?: string | null): string {
+  return v ? dayjs(v).format("YYYY-MM-DD HH:mm") : "—";
+}
+
+// Humanize a second count into a compact h/m/s string.
+export function fmtDuration(secs: number): string {
+  if (!Number.isFinite(secs) || secs < 0) return "—";
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = Math.floor(secs % 60);
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
+// The first defined role carries the Job/Run's primary spec (image, command, …).
+export function primaryRole(roles?: sdk.MlRunRole[]): sdk.MlRunRole | undefined {
+  return roles?.[0];
+}
+
+// Replica count of a Run, summed across role statuses.
+export function runReplicas(r: sdk.Run): number | undefined {
+  if (!r.roles?.length) return undefined;
+  const total = r.roles.reduce((n, role) => n + (role.replicas ?? 0), 0);
+  return total > 0 ? total : undefined;
+}
+
+// 自定义任务详情 / Job detail. Metadata comes from getJob; the run list comes
+// from listRuns. Both are tenant-scoped, real backend reads — no fabricated rows.
 export default function JobDetail() {
-  const { name = "train-llm-7b" } = useParams();
+  const { name = "" } = useParams();
+  const { t } = useTranslation();
+  const { tenant } = useApp();
+
+  const jobQ = useQuery({
+    queryKey: ["jobs", tenant, name],
+    enabled: tenant !== "" && name !== "",
+    queryFn: async () => {
+      const { data, error } = await sdk.getJob({ path: { name } });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const job = jobQ.data;
+  const role = job ? primaryRole(job.spec.roles) : undefined;
 
   return (
-    <main className="page">
-      <Link className="back-link" to="/jobs">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M15 18l-6-6 6-6" />
-        </svg>
-        返回自定义任务
-      </Link>
-
-      <div className="page-head">
-        <div>
-          <h1 className="detail-title">
-            {name}{" "}
-            <span className="spill run">
-              <span className="dot" />
-              运行中
-            </span>
-          </h1>
-          <div className="detail-sub">LLaMA-7B 全参微调</div>
+    <PageContainer
+      breadcrumb={[t("nav.trainingCenter"), t("nav.jobs"), name]}
+      title={
+        <span className="flex items-center gap-3">
+          <span className="font-mono">{name}</span>
+        </span>
+      }
+      subtitle={
+        <Link to="/jobs" className="inline-flex items-center gap-1 text-sm">
+          <ArrowLeftOutlined /> {t("jobDetail.backJobs")}
+        </Link>
+      }
+      extra={job && <Actions name={name} />}
+    >
+      {jobQ.isLoading ? (
+        <div className="grid place-items-center py-24">
+          <Spin />
         </div>
-        <div className="actions">
-          <PageActions name={name} />
-        </div>
-      </div>
-
-      <Tabs
-        tabs={[
-          { key: "info", label: "任务信息", content: <InfoPane /> },
-          { key: "runs", label: "运行记录", count: 4, content: <RunsPane name={name} /> },
-        ]}
-      />
-    </main>
+      ) : jobQ.isError || !job ? (
+        <Result status="error" title={t("common.loadFailed")} />
+      ) : (
+        <Tabs
+          items={[
+            { key: "info", label: t("jobDetail.tabInfo"), children: <InfoPane job={job} role={role} /> },
+            { key: "runs", label: t("jobDetail.tabRuns"), children: <RunsPane name={name} /> },
+          ]}
+        />
+      )}
+    </PageContainer>
   );
 }
 
-function PageActions({ name }: { name: string }) {
-  const { toast, confirm } = useUI();
+function Actions({ name }: { name: string }) {
+  const { t } = useTranslation();
+  const { confirm } = useUI();
+
+  const trigger = useApiMutation((body: sdk.RunTriggerRequest) => sdk.triggerRun({ path: { name }, body }), {
+    invalidate: [["jobs"], ["runs"]],
+    success: t("jobDetail.triggered"),
+  });
+  const del = useApiMutation(() => sdk.deleteJob({ path: { name } }), {
+    invalidate: [["jobs"]],
+    success: t("jobDetail.deleted"),
+  });
+
   return (
-    <>
-      <button className="btn btn-primary" onClick={() => toast(`已创建运行 ${name}-13`)}>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-          <path d="M6 4l14 8-14 8z" />
-        </svg>
-        运行
-      </button>
-      <button
-        className="btn btn-danger"
+    <Space>
+      <Button type="primary" icon={<CaretRightOutlined />} loading={trigger.isPending} onClick={() => trigger.mutate({})}>
+        {t("jobDetail.runNow")}
+      </Button>
+      <Button
+        danger
+        icon={<DeleteOutlined />}
         onClick={() =>
           confirm({
-            title: `删除 Job ${name}？`,
-            desc: "删除后模板不可恢复；历史 Run 将一并级联软删。",
-            info: "有活跃 Run 时删除会被阻断（409 job-has-active-runs）。",
-            okLabel: "确认删除",
-            toast: `Job ${name} 已删除`,
+            title: t("jobDetail.deleteTitle", { name }),
+            desc: t("jobDetail.deleteDesc"),
+            info: t("jobDetail.deleteInfo"),
+            okLabel: t("common.confirmDelete"),
+            onConfirm: () => del.mutate(undefined),
           })
         }
       >
-        删除
-      </button>
-    </>
+        {t("common.delete")}
+      </Button>
+    </Space>
   );
 }
 
-function InfoPane() {
-  const { toast } = useUI();
+function InfoPane({ job, role }: { job: sdk.Job; role?: sdk.MlRunRole }) {
+  const { t } = useTranslation();
+  const tpl = role?.template;
+  const policy = job.spec.runPolicy;
+
   return (
-    <div className="panel">
-      <div className="panel-head">
-        <h3>任务信息</h3>
-        <button className="btn btn-sm" onClick={() => toast("进入编辑（编辑只影响之后触发的 Run）")}>
-          编辑
-        </button>
+    <Card title={t("jobDetail.sectionInfo")} extra={<span className="text-xs text-muted">{t("jobDetail.editHint")}</span>}>
+      <Descriptions column={{ xs: 1, md: 2 }} bordered size="middle">
+        <Descriptions.Item label={t("jobDetail.fName")}>
+          <span className="font-mono">{job.name}</span>
+        </Descriptions.Item>
+        <Descriptions.Item label={t("jobDetail.fDesc")}>{job.description || "—"}</Descriptions.Item>
+        <Descriptions.Item label={t("jobDetail.fImage")}>
+          {tpl?.image ? <Tag className="!m-0 font-mono">{tpl.image}</Tag> : "—"}
+        </Descriptions.Item>
+        <Descriptions.Item label={t("jobDetail.fPool")}>
+          {job.spec.poolName ? <span className="font-mono">{job.spec.poolName}</span> : "—"}
+        </Descriptions.Item>
+        <Descriptions.Item label={t("jobDetail.fUnit")}>
+          {job.spec.unitName ? <span className="font-mono">{job.spec.unitName}</span> : "—"}
+        </Descriptions.Item>
+        <Descriptions.Item label={t("jobDetail.fReplicas")}>
+          <span className="font-mono">{role?.replicas ?? "—"}</span>
+        </Descriptions.Item>
+        <Descriptions.Item label={t("jobDetail.fArtifacts")} span={2}>
+          <ArtifactTags artifacts={job.spec.artifacts} />
+        </Descriptions.Item>
+        <Descriptions.Item label={t("jobDetail.fRunPolicy")} span={2}>
+          <PolicyText policy={policy} />
+        </Descriptions.Item>
+        <Descriptions.Item label={t("jobDetail.fCreator")} span={2}>
+          {job.owner} · <span className="font-mono">{fmtDateTime(job.createdAt)}</span>
+        </Descriptions.Item>
+      </Descriptions>
+
+      <div className="mt-6 border-t border-border-soft pt-5">
+        <CommandBlock tpl={tpl} />
+        <EnvBlock tpl={tpl} />
       </div>
-      <div className="panel-body">
-        <dl className="kv kv-lg">
-          <dt>名称</dt>
-          <dd>
-            <span className="cchip">train-llm-7b</span>
-          </dd>
-          <dt>描述</dt>
-          <dd>LLaMA-7B 全参微调</dd>
-          <dt>镜像</dt>
-          <dd>
-            <span className="cchip">pytorch:2.3-cu121</span>
-          </dd>
-          <dt>资源池</dt>
-          <dd>
-            <span className="cchip">gpu-a100 · A100 训练池</span>
-          </dd>
-          <dt>资源单元</dt>
-          <dd>
-            <span className="cchip">a100-4x-xlarge</span>
-          </dd>
-          <dt>副本数</dt>
-          <dd>
-            <span className="mono">4</span>
-          </dd>
-          <dt>数据卷</dt>
-          <dd>
-            <span className="cchip">training-data · 200 GiB → /data</span>
-          </dd>
-          <dt>运行策略</dt>
-          <dd>
-            超时 <span className="mono">24h</span> · 重试 <span className="mono">2</span>
-          </dd>
-          <dt>创建人</dt>
-          <dd>
-            张伟 · <span className="mono">2026-06-12</span>
-          </dd>
-        </dl>
-        <div style={{ marginTop: "var(--space-6)", paddingTop: "var(--space-5)", borderTop: "1px solid var(--border-soft)" }}>
-          <label className="muted" style={{ fontSize: 12 }}>
-            启动命令
-          </label>
-          <pre className="logbox" style={{ maxHeight: "none", margin: "6px 0 18px" }}>
-            {`torchrun --nproc_per_node=4 train.py \\
-  --model_name llama-7b --lr 2e-5 \\
-  --epochs 3 --batch_size 16 \\
-  --data /data/sft.jsonl`}
-          </pre>
-          <label className="muted" style={{ fontSize: 12 }}>
-            环境变量
-          </label>
-          <div className="chip-row" style={{ marginTop: 8 }}>
-            <span className="cchip">WANDB_DISABLED=true</span>
-            <span className="cchip">NCCL_DEBUG=INFO</span>
-          </div>
-        </div>
-      </div>
+    </Card>
+  );
+}
+
+export function ArtifactTags({ artifacts }: { artifacts?: sdk.ArtifactRef[] }) {
+  if (!artifacts || artifacts.length === 0) return <span className="text-muted">—</span>;
+  return (
+    <Space size={[4, 4]} wrap>
+      {artifacts.map((a) => (
+        <Tag key={`${a.kind}/${a.name}/${a.version}`} className="!m-0 font-mono">
+          {a.name}@{a.version}
+        </Tag>
+      ))}
+    </Space>
+  );
+}
+
+export function PolicyText({ policy }: { policy?: sdk.RunPolicy }) {
+  const { t } = useTranslation();
+  if (!policy || (policy.activeDeadlineSeconds == null && policy.backoffLimit == null))
+    return <span className="text-muted">—</span>;
+  const parts: string[] = [];
+  if (policy.activeDeadlineSeconds != null)
+    parts.push(`${t("jobDetail.policyTimeout")} ${fmtDuration(policy.activeDeadlineSeconds)}`);
+  if (policy.backoffLimit != null) parts.push(`${t("jobDetail.policyRetries")} ${policy.backoffLimit}`);
+  return <span className="font-mono">{parts.join(" · ")}</span>;
+}
+
+export function CommandBlock({ tpl }: { tpl?: sdk.RoleTemplate }) {
+  const { t } = useTranslation();
+  const cmd = [...(tpl?.command ?? []), ...(tpl?.args ?? [])];
+  return (
+    <div className="mb-5">
+      <div className="mb-1.5 text-xs text-muted">{t("jobDetail.command")}</div>
+      {cmd.length ? (
+        <pre className="m-0 overflow-auto rounded-md bg-surface-warm p-3 font-mono text-xs text-fg-2">
+          {cmd.join(" ")}
+        </pre>
+      ) : (
+        <div className="text-sm text-muted">{t("jobDetail.noCommand")}</div>
+      )}
     </div>
   );
 }
 
-interface RunRow {
-  run: string;
-  status: "running" | "success" | "failed";
-  label: string;
-  unit: string;
-  replicas: number;
-  owner: string;
-  duration: string;
-  cancel?: boolean;
+export function EnvBlock({ tpl }: { tpl?: sdk.RoleTemplate }) {
+  const { t } = useTranslation();
+  const env = tpl?.env ?? [];
+  return (
+    <div>
+      <div className="mb-1.5 text-xs text-muted">{t("jobDetail.env")}</div>
+      {env.length ? (
+        <Space size={[6, 6]} wrap>
+          {env.map((e) => (
+            <Tag key={e.name} className="!m-0 font-mono">
+              {e.name}={e.value ?? ""}
+            </Tag>
+          ))}
+        </Space>
+      ) : (
+        <div className="text-sm text-muted">{t("jobDetail.noEnv")}</div>
+      )}
+    </div>
+  );
 }
 
-const RUN_ROWS: RunRow[] = [
-  { run: "train-llm-7b-12", status: "running", label: "运行中", unit: "gpu-a100/4x", replicas: 4, owner: "张伟", duration: "02:14:30", cancel: true },
-  { run: "train-llm-7b-11", status: "success", label: "成功", unit: "gpu-a100/4x", replicas: 4, owner: "张伟", duration: "03:40:02" },
-  { run: "train-llm-7b-10", status: "failed", label: "失败", unit: "gpu-a100/8x", replicas: 8, owner: "李娜", duration: "00:08:22" },
-  { run: "train-llm-7b-9", status: "success", label: "成功", unit: "gpu-a100/4x", replicas: 4, owner: "张伟", duration: "03:52:11" },
-];
-
 function RunsPane({ name }: { name: string }) {
+  const { t } = useTranslation();
+  const { tenant } = useApp();
   const { confirm } = useUI();
+
+  const runsQ = useQuery({
+    queryKey: ["runs", tenant, name],
+    enabled: tenant !== "" && name !== "",
+    queryFn: async () => {
+      const { data, error } = await sdk.listRuns({ path: { name } });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const cancel = useApiMutation((run: string) => sdk.cancelRun({ path: { name, run } }), {
+    invalidate: [["runs"]],
+    success: t("jobDetail.cancelled"),
+  });
+  const del = useApiMutation((run: string) => sdk.deleteRun({ path: { name, run } }), {
+    invalidate: [["runs"]],
+    success: t("jobDetail.runDeleted"),
+  });
+
+  const active = (p?: string) => p === "Creating" || p === "Pending" || p === "Running" || p === "Canceling";
+
+  const columns: ColumnsType<sdk.Run> = [
+    {
+      title: t("jobDetail.colRun"),
+      dataIndex: "name",
+      render: (_, r) => (
+        <Link to={`/jobs/${name}/runs/${r.name}`} className="font-mono font-medium">
+          {r.name}
+        </Link>
+      ),
+    },
+    { title: t("jobDetail.colStatus"), key: "phase", width: 120, render: (_, r) => <PhaseTag phase={r.phase} /> },
+    {
+      title: t("jobDetail.colUnit"),
+      dataIndex: "unitName",
+      width: 160,
+      render: (v: string) => <span className="font-mono">{v || "—"}</span>,
+    },
+    {
+      title: t("jobDetail.colReplicas"),
+      key: "replicas",
+      width: 80,
+      align: "right",
+      render: (_, r) => runReplicas(r) ?? "—",
+    },
+    { title: t("jobDetail.colCreator"), dataIndex: "owner", width: 120, render: (v: string) => v || "—" },
+    {
+      title: t("jobDetail.colStarted"),
+      dataIndex: "startedAt",
+      width: 170,
+      render: (v: string) => <span className="text-muted">{fmtDateTime(v)}</span>,
+    },
+    {
+      title: t("jobDetail.colDuration"),
+      key: "duration",
+      width: 110,
+      align: "right",
+      render: (_, r) => <span className="font-mono">{durationOf(r)}</span>,
+    },
+    {
+      title: t("common.actions"),
+      key: "actions",
+      width: 130,
+      align: "right",
+      render: (_, r) => (
+        <Space size={4} split={<Divider type="vertical" className="!mx-0" />}>
+          <Link to={`/jobs/${name}/runs/${r.name}`}>
+            <Button type="link" size="small" className="!px-1">
+              {t("common.detail")}
+            </Button>
+          </Link>
+          {active(r.phase) ? (
+            <Button
+              type="link"
+              size="small"
+              className="!px-1"
+              onClick={() =>
+                confirm({
+                  title: t("jobDetail.cancelTitle", { run: r.name }),
+                  desc: t("jobDetail.cancelDesc"),
+                  okLabel: t("jobDetail.cancelOk"),
+                  danger: false,
+                  onConfirm: () => cancel.mutate(r.name),
+                })
+              }
+            >
+              {t("runDetail.cancelRun")}
+            </Button>
+          ) : (
+            <Button
+              type="link"
+              size="small"
+              danger
+              className="!px-1"
+              onClick={() =>
+                confirm({
+                  title: t("jobDetail.runDeleteTitle", { run: r.name }),
+                  desc: t("jobDetail.runDeleteDesc"),
+                  okLabel: t("common.confirmDelete"),
+                  onConfirm: () => del.mutate(r.name),
+                })
+              }
+            >
+              {t("common.delete")}
+            </Button>
+          )}
+        </Space>
+      ),
+    },
+  ];
+
   return (
-    <>
-      <div className="toolbar">
-        <div className="field-search">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="11" cy="11" r="7" />
-            <path d="m20 20-3.5-3.5" />
-          </svg>
-          <input placeholder="Run 名 / ID 搜索" />
-        </div>
-        <select className="select">
-          <option>状态：全部</option>
-          <option>运行中</option>
-          <option>成功</option>
-          <option>失败</option>
-        </select>
-        <select className="select">
-          <option>触发人：全部</option>
-          <option>张伟</option>
-          <option>李娜</option>
-        </select>
-        <select className="select">
-          <option>时间：近 7 天</option>
-          <option>近 24 小时</option>
-          <option>近 30 天</option>
-          <option>全部</option>
-        </select>
-        <button className="btn btn-ghost">重置</button>
-      </div>
-      <div className="panel">
-        <div className="table-wrap">
-          <table className="tbl">
-            <thead>
-              <tr>
-                <th>Run</th>
-                <th>状态</th>
-                <th>资源单元</th>
-                <th className="num-col">副本</th>
-                <th>触发人</th>
-                <th className="num-col">耗时</th>
-                <th style={{ textAlign: "right" }}>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {RUN_ROWS.map((r) => (
-                <tr key={r.run}>
-                  <td>
-                    <Link className="t-name mono" to={`/jobs/${name}/runs/${r.run}`}>
-                      {r.run}
-                    </Link>
-                  </td>
-                  <td>
-                    <span className={"status status-" + r.status}>
-                      <span className="dot" />
-                      {r.label}
-                    </span>
-                  </td>
-                  <td className="mono">{r.unit}</td>
-                  <td className="num-col">{r.replicas}</td>
-                  <td>{r.owner}</td>
-                  <td className="num-col">{r.duration}</td>
-                  <td>
-                    <div className="row-actions">
-                      <Link className="act" to={`/jobs/${name}/runs/${r.run}`} title="详情" aria-label="详情" />
-                      <button className="act" title="日志" aria-label="日志" />
-                      <button className="act" title="监控" aria-label="监控" />
-                      {r.cancel ? (
-                        <button
-                          className="act"
-                          title="取消"
-                          aria-label="取消"
-                          onClick={() =>
-                            confirm({
-                              title: `取消运行 ${r.run}？`,
-                              desc: "取消后正在执行的 Pod 将被终止，已产出的 checkpoint 保留。",
-                              okLabel: "确认取消",
-                              toast: "运行已请求取消（Canceling）",
-                            })
-                          }
-                        />
-                      ) : (
-                        <button
-                          className="act act-danger"
-                          title="删除"
-                          aria-label="删除"
-                          onClick={() =>
-                            confirm({
-                              title: `删除运行 ${r.run}？`,
-                              desc: "删除后该 Run 记录与日志不可恢复。",
-                              okLabel: "确认删除",
-                              toast: `运行 ${r.run} 已删除`,
-                            })
-                          }
-                        />
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </>
+    <Card styles={{ body: { padding: 0 } }} className="overflow-hidden">
+      <Table<sdk.Run>
+        rowKey="name"
+        columns={columns}
+        dataSource={runsQ.data?.items ?? []}
+        loading={runsQ.isLoading}
+        pagination={{ pageSize: 20, hideOnSinglePage: true }}
+        locale={{
+          emptyText: runsQ.isError ? (
+            <Empty description={t("common.loadFailed")} />
+          ) : (
+            <Empty description={t("jobDetail.noRuns")} />
+          ),
+        }}
+      />
+    </Card>
   );
+}
+
+function durationOf(r: sdk.Run): string {
+  if (!r.startedAt) return "—";
+  const end = r.finishedAt ? dayjs(r.finishedAt) : dayjs();
+  const secs = end.diff(dayjs(r.startedAt), "second");
+  return secs >= 0 ? fmtDuration(secs) : "—";
 }

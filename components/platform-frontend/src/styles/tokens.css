@@ -1,0 +1,63 @@
+/* ============================================================================
+   AxisML 控制台 · 设计 token 契约
+   设计语言：Ant（企业级、数据密集），品牌强调色 = dust red。
+   这些 CSS 变量同时驱动：AntD ConfigProvider 主题、Tailwind 颜色映射
+   (tailwind.config.js) 以及任何裸 CSS。深色主题由 <html data-theme="dark">
+   切换（app/store.tsx 写入，AntD darkAlgorithm 读取）。
+   ========================================================================== */
+:root {
+  --bg: #ffffff;
+  --surface: #f7f8fa;
+  --surface-warm: #fff1f0;
+  --fg: #1f1f1f;
+  --fg-2: #4b5563;
+  --muted: #697386;
+  --border: #d9dce3;
+  --border-soft: #eef0f4;
+  --accent: #d32029;
+  --accent-on: #ffffff;
+  --success: #22a06b;
+  --warn: #faad14;
+  --danger: #cf1322;
+  --info: #1677ff;
+  --info-soft: color-mix(in oklab, var(--info) 11%, var(--bg));
+  --font-mono: "SF Mono", ui-monospace, Menlo, monospace;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+
+  /* 控制台骨架尺寸（非品牌 token） */
+  --side-w: 232px;
+  --side-w-collapsed: 64px;
+  --topbar-h: 56px;
+}
+
+/* Full-viewport app skeleton — independent of legacy app.css so it survives the
+   Phase 3 cleanup that deletes it. */
+html,
+body,
+#root {
+  height: 100%;
+}
+body {
+  margin: 0;
+}
+
+:root[data-theme="dark"] {
+  --bg: #1f2024;
+  --surface: #16171b;
+  --surface-warm: #2c1619;
+  --fg: #f0f1f3;
+  --fg-2: #c3c7ce;
+  --muted: #8b909b;
+  --border: #2f323a;
+  --border-soft: #272a31;
+  --accent: #f04a4c;
+  --accent-on: #ffffff;
+  --success: #3fbd86;
+  --warn: #f0b13a;
+  --danger: #ff5a5f;
+  --info: #4a90ff;
+  --info-soft: color-mix(in oklab, var(--info) 18%, var(--bg));
+  color-scheme: dark;
+}

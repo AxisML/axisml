@@ -1,12 +1,22 @@
-import { type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { Card, Segmented, Button, Tabs, Progress, List, Empty } from "antd";
+import {
+  ReloadOutlined,
+  DesktopOutlined,
+  ExperimentOutlined,
+  ThunderboltOutlined,
+  CloudServerOutlined,
+  DatabaseOutlined,
+} from "@ant-design/icons";
+import { Area } from "@ant-design/charts";
+import { useTranslation } from "react-i18next";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
+import dayjs from "dayjs";
 import { useApp } from "@/app/store";
 import { useUI } from "@/app/ui";
-import { Icon } from "@/components/Icon";
-import { Segmented } from "@/components/Segmented";
-import { Tabs, type TabDef } from "@/components/Tabs";
-import { BlockState, type QueryLike } from "@/components/states";
+import { PageContainer } from "@/components/PageContainer";
+import { PhaseTag } from "@/components/PhaseTag";
 import {
   useWorkspaces,
   useExperiments,
@@ -19,13 +29,14 @@ import {
 import * as sdk from "@/api/generated";
 
 // 首页 / Dashboard. KPI counts and recent activity come from the live list
-// endpoints (scoped to the active tenant); the active-tenant run roll-ups
-// (实验/任务 "运行") come from getTenant?stats. Cluster utilisation has no
-// metrics source yet — it renders a structured zero state (GPU 利用率 / GPU
-// 使用额度 are a separate, pending topic) rather than fabricated numbers.
+// endpoints (scoped to the active tenant); active-run roll-ups come from
+// getTenant. Cluster utilisation has no metrics source yet → it renders an
+// honest zero / "指标接入中" state rather than fabricated numbers (frontend.md §6).
 export default function Dashboard() {
   const { tenant } = useApp();
   const { toast } = useUI();
+  const { t } = useTranslation();
+  const [, setRange] = useState("24h");
 
   const ws = useWorkspaces();
   const exp = useExperiments();
@@ -35,13 +46,10 @@ export default function Dashboard() {
   const images = useImages();
   const pools = useResourcePools();
 
-  // Active-tenant workload roll-ups (active job/experiment runs). getTenant is
-  // enriched server-side; skip the all-tenants pseudo-scope where it 404s.
   const statsQ = useQuery({
     queryKey: ["tenant", tenant, "stats"],
     enabled: tenant !== "" && tenant !== "all",
     queryFn: async () => {
-      // getTenant is always enriched server-side (member / active-run counts).
       const { data, error } = await sdk.getTenant({ path: { name: tenant } });
       if (error) throw error;
       return data;
@@ -51,219 +59,144 @@ export default function Dashboard() {
   const wsRunning = (ws.data?.items ?? []).filter((w) => w.phase === "Running").length;
   const svcReady = (svc.data?.items ?? []).filter((s) => s.phase === "Ready").length;
   const svcDegraded = (svc.data?.items ?? []).filter((s) => s.phase === "Degraded").length;
+  const assetErr = models.isLoading || models.isError || images.isLoading || images.isError;
   const assetTotal = (models.data?.count ?? 0) + (images.data?.count ?? 0);
 
+  const refresh = () => {
+    [ws, exp, jobs, svc, models, images, statsQ].forEach((q) => void q.refetch());
+    toast(t("dashboard.refreshed"));
+  };
+
+  const poolNames = (pools.data?.items ?? []).map((p) => p.name);
+
   return (
-    <main className="page">
-      <div className="breadcrumb">
-        <span>AxisML</span>
-        <span className="sep">/</span>
-        <span>首页</span>
+    <PageContainer
+      breadcrumb={["AxisML", t("dashboard.home")]}
+      title={t("dashboard.home")}
+      subtitle={t("dashboard.subtitle")}
+      extra={
+        <div className="flex items-center gap-3">
+          <Segmented options={["1h", "24h", "7d"]} defaultValue="24h" onChange={(v) => setRange(String(v))} />
+          <Button icon={<ReloadOutlined />} onClick={refresh}>
+            {t("dashboard.refresh")}
+          </Button>
+        </div>
+      }
+    >
+      {/* KPI row */}
+      <div className="mb-5 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
+        <Kpi to="/workspaces" icon={<DesktopOutlined />} label={t("dashboard.kpiWorkspace")} value={countText(ws)} foot={t("dashboard.running", { count: wsRunning })} />
+        <Kpi to="/experiments" icon={<ExperimentOutlined />} label={t("dashboard.kpiExperiment")} value={countText(exp)} foot={t("dashboard.running", { count: runText(statsQ.data?.activeExperimentRuns, statsQ) })} />
+        <Kpi to="/jobs" icon={<ThunderboltOutlined />} label={t("dashboard.kpiJob")} value={countText(jobs)} foot={t("dashboard.running", { count: runText(statsQ.data?.activeJobRuns, statsQ) })} />
+        <Kpi to="/services" icon={<CloudServerOutlined />} label={t("dashboard.kpiService")} value={countText(svc)} foot={t("dashboard.readyDegraded", { ready: svcReady, degraded: svcDegraded })} />
+        <Kpi to="/models" icon={<DatabaseOutlined />} label={t("dashboard.kpiAsset")} value={assetErr ? "—" : String(assetTotal)} foot={t("dashboard.modelsImages", { models: models.data?.count ?? 0, images: images.data?.count ?? 0 })} />
       </div>
 
-      <div className="page-head">
-        <div>
-          <h1>首页</h1>
-          <p className="sub">当前租户的运行概览 —— 看一眼负载、容量与资源用量。</p>
-        </div>
-        <div className="actions">
-          <Segmented options={["1h", "24h", "7d"]} defaultValue="24h" />
-          <button className="btn" onClick={() => toast("已刷新概览数据")}>
-            <Icon name="refresh" />
-            刷新
-          </button>
-        </div>
-      </div>
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <Card
+          className="xl:col-span-2"
+          title={t("dashboard.clusterUsage")}
+          extra={<span className="text-xs text-muted">{t("dashboard.metricsHint")}</span>}
+        >
+          <Tabs
+            items={[
+              { key: "all", label: t("dashboard.all"), children: <ClusterPane /> },
+              ...poolNames.map((name) => ({ key: name, label: name, children: <ClusterPane /> })),
+            ]}
+          />
+        </Card>
 
-      {/* KPI row: 工作区 · 实验 · 自定义任务 · 在线服务 · 资产 */}
-      <div className="grid cols-5" style={{ marginBottom: "var(--space-5)" }}>
-        <Kpi to="/workspaces" icon="workspace" label="工作区" value={countText(ws)} foot={<>{wsRunning} 运行</>} />
-        <Kpi
-          to="/experiments"
-          icon="experiment"
-          label="实验"
-          value={countText(exp)}
-          foot={<>{runText(statsQ, statsQ.data?.activeExperimentRuns)} 运行</>}
-        />
-        <Kpi
-          to="/jobs"
-          icon="job"
-          label="自定义任务"
-          value={countText(jobs)}
-          foot={<>{runText(statsQ, statsQ.data?.activeJobRuns)} 运行</>}
-        />
-        <Kpi
-          to="/services"
-          icon="service"
-          label="在线服务"
-          value={countText(svc)}
-          foot={
-            <>
-              {svcReady} 就绪 · {svcDegraded} 降级
-            </>
-          }
-        />
-        <Kpi
-          to="/models"
-          icon="layers"
-          label="资产"
-          value={anyLoadErr([models, images]) ? "—" : String(assetTotal)}
-          foot={
-            <>
-              {models.data?.count ?? 0} 模型 · {images.data?.count ?? 0} 镜像
-            </>
-          }
-        />
+        <Card title={t("dashboard.recentActivity")} styles={{ body: { padding: 0 } }}>
+          <RecentActivity ws={ws} svc={svc} />
+        </Card>
       </div>
-
-      {/* cluster usage (tabs: 全部 + per pool) + recent activity */}
-      <div className="grid cols-3" style={{ marginBottom: "var(--space-5)" }}>
-        <div className="panel span-2">
-          <div className="panel-head">
-            <h3>集群资源用量</h3>
-            <span className="hint">指标接入中 · GPU 利用率 / 额度待对接</span>
-          </div>
-          <div className="panel-body">
-            <Tabs tabs={clusterTabs(pools)} />
-          </div>
-        </div>
-
-        {/* recent activity (real: workspaces + services by updatedAt) */}
-        <div className="panel">
-          <div className="panel-head">
-            <h3>最近活动</h3>
-          </div>
-          <div className="panel-body flush">
-            <RecentActivity ws={ws} svc={svc} />
-          </div>
-        </div>
-      </div>
-    </main>
+    </PageContainer>
   );
 }
 
-// ── KPI card ──────────────────────────────────────────────────────────────────
-function Kpi({
-  to,
-  icon,
-  label,
-  value,
-  foot,
-}: {
-  to: string;
-  icon: string;
-  label: string;
-  value: ReactNode;
-  foot: ReactNode;
-}) {
+function Kpi({ to, icon, label, value, foot }: { to: string; icon: ReactNode; label: string; value: ReactNode; foot: ReactNode }) {
   return (
-    <Link className="kpi focal" to={to}>
-      <div className="k-top">
-        <span className="k-label">{label}</span>
-        <span className="k-ico">
-          <Icon name={icon} />
-        </span>
-      </div>
-      <div className="k-val num">{value}</div>
-      <div className="k-foot">{foot}</div>
+    <Link to={to}>
+      <Card hoverable styles={{ body: { padding: 16 } }} className="h-full bg-surface-warm">
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-sm text-fg-2">{label}</span>
+          <span className="grid h-7 w-7 place-items-center rounded-md bg-bg text-accent">{icon}</span>
+        </div>
+        <div className="font-mono text-2xl font-semibold text-fg">{value}</div>
+        <div className="mt-1 text-xs text-muted">{foot}</div>
+      </Card>
     </Link>
   );
 }
 
-// countText renders the list total, or a loading/error placeholder so a KPI
-// never shows a fabricated number.
 function countText(q: UseQueryResult<{ count?: number }>): ReactNode {
   if (q.isLoading) return "…";
   if (q.isError) return "—";
   return String(q.data?.count ?? 0);
 }
 
-// runText renders an active-run roll-up from the tenant stats query.
-function runText(q: UseQueryResult<unknown>, n: number | undefined): ReactNode {
+function runText(n: number | undefined, q: UseQueryResult<unknown>): number | string {
   if (q.isLoading) return "…";
   if (q.isError || n == null) return "—";
-  return String(n);
+  return n;
 }
 
-function anyLoadErr(qs: UseQueryResult<unknown>[]): boolean {
-  return qs.some((q) => q.isLoading || q.isError);
-}
-
-// ── Cluster usage (zero state until a metrics source exists) ──────────────────
-function clusterTabs(pools: UseQueryResult<{ items?: Array<{ name: string }> }>): TabDef[] {
-  const poolNames = (pools.data?.items ?? []).map((p) => p.name);
-  return [
-    { key: "all", label: "全部", content: <ClusterPane /> },
-    ...poolNames.map((name) => ({ key: name, label: name, content: <ClusterPane /> })),
-  ];
-}
-
+// Cluster usage — honest zero state until a metrics source is wired.
 function ClusterPane() {
+  const { t } = useTranslation();
+  const trend = Array.from({ length: 24 }, (_, i) => ({ t: `${i}:00`, v: 0 }));
   return (
-    <>
-      <div className="grid cols-3">
-        <MeterStat icon="gpu" label="GPU" unit="卡" />
-        <MeterStat icon="cpu" label="CPU" unit="核" />
-        <MeterStat icon="mem" label="内存" unit="TiB" />
+    <div>
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
+        <MeterStat label="GPU" unit={t("dashboard.gpuUnit")} />
+        <MeterStat label="CPU" unit={t("dashboard.cpuUnit")} />
+        <MeterStat label={t("dashboard.memLabel")} unit="TiB" />
       </div>
-      <hr className="divline" />
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-        <h3 style={{ fontSize: 14 }}>GPU 趋势</h3>
-        <div className="legend">
-          <span>
-            <i style={{ background: "var(--accent)" }} />
-            GPU 利用率
+      <div className="my-4 border-t border-border-soft" />
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-sm font-semibold text-fg">{t("dashboard.gpuTrend")}</span>
+        <div className="flex items-center gap-4 text-xs text-muted">
+          <span className="flex items-center gap-1.5">
+            <i className="inline-block h-2 w-2 rounded-full bg-accent" />
+            {t("dashboard.gpuUtil")}
           </span>
-          <span>
-            <i style={{ background: "var(--muted)" }} />
-            GPU 使用额度
+          <span className="flex items-center gap-1.5">
+            <i className="inline-block h-2 w-2 rounded-full bg-muted" />
+            {t("dashboard.gpuQuota")}
           </span>
         </div>
       </div>
-      <svg className="chart" viewBox="0 0 720 200" preserveAspectRatio="none" style={{ height: 200 }}>
-        <line className="grid-line" x1="0" y1="50" x2="720" y2="50" />
-        <line className="grid-line" x1="0" y1="100" x2="720" y2="100" />
-        <line className="grid-line" x1="0" y1="150" x2="720" y2="150" />
-        {/* No metrics yet → both series flat at 0 (baseline). */}
-        <path d="M0 196 L720 196" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" />
-        <path
-          d="M0 198 L720 198"
-          fill="none"
-          stroke="var(--muted)"
-          strokeWidth="1.6"
-          strokeDasharray="4 4"
-          strokeLinecap="round"
-        />
-      </svg>
-    </>
-  );
-}
-
-function MeterStat({ icon, label, unit }: { icon: string; label: string; unit: string }) {
-  return (
-    <div>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--muted)", fontSize: 13, marginBottom: 10 }}>
-        <Icon name={icon} size={16} />
-        {label}
-      </div>
-      <div className="num" style={{ fontSize: 22, fontWeight: 600 }}>
-        0 <span className="muted" style={{ fontSize: 14 }}>/ — {unit}</span>
-      </div>
-      <div className="meter" style={{ marginTop: 10 }}>
-        <span style={{ width: "0%" }} />
-      </div>
-      <div className="num muted" style={{ fontSize: 12, marginTop: 6 }}>
-        指标接入中
-      </div>
+      <Area
+        data={trend}
+        xField="t"
+        yField="v"
+        height={180}
+        shapeField="smooth"
+        scale={{ y: { domainMin: 0, domainMax: 100 } }}
+        axis={{ y: { labelFormatter: (v: number) => `${v}%` } }}
+        style={{ fill: "var(--accent)", fillOpacity: 0.08 }}
+      />
+      <div className="mt-1 text-center text-xs text-muted">{t("dashboard.metricsSyncing")}</div>
     </div>
   );
 }
 
-// ── Recent activity (workspaces + services, newest first) ─────────────────────
+function MeterStat({ label, unit }: { label: string; unit: string }) {
+  return (
+    <div>
+      <div className="mb-2 text-sm text-muted">{label}</div>
+      <div className="font-mono text-xl font-semibold text-fg">
+        0 <span className="text-sm text-muted">/ — {unit}</span>
+      </div>
+      <Progress percent={0} showInfo={false} strokeColor="var(--accent)" className="mt-2" />
+    </div>
+  );
+}
+
 interface Activity {
   name: string;
   type: string;
-  at: string;
+  at?: string;
   phase?: string;
 }
 
@@ -274,78 +207,29 @@ function RecentActivity({
   ws: UseQueryResult<sdk.ListWorkspacesResponse>;
   svc: UseQueryResult<sdk.ListMlServicesResponse>;
 }) {
+  const { t } = useTranslation();
   const items: Activity[] = [
-    ...(ws.data?.items ?? []).map((w) => ({ name: w.name, type: "工作区", at: w.updatedAt, phase: w.phase })),
-    ...(svc.data?.items ?? []).map((s) => ({ name: s.name, type: "在线服务", at: s.updatedAt, phase: s.phase })),
+    ...(ws.data?.items ?? []).map((w) => ({ name: w.name, type: t("dashboard.typeWorkspace"), at: w.updatedAt, phase: w.phase })),
+    ...(svc.data?.items ?? []).map((s) => ({ name: s.name, type: t("dashboard.typeService"), at: s.updatedAt, phase: s.phase })),
   ]
     .sort((a, b) => (b.at || "").localeCompare(a.at || ""))
     .slice(0, 6);
 
-  const stateQ: QueryLike = {
-    isLoading: ws.isLoading || svc.isLoading,
-    isError: ws.isError || svc.isError,
-    error: ws.error || svc.error,
-    refetch: ws.refetch,
-  };
-
-  return (
-    <div className="table-wrap">
-      <table className="tbl">
-        <tbody>
-          {items.map((a) => {
-            const st = phaseStatus(a.phase);
-            return (
-              <tr key={a.type + a.name}>
-                <td>
-                  <div className="t-name mono">{a.name}</div>
-                  <div className="t-sub">
-                    {a.type} · {timeAgo(a.at)}
-                  </div>
-                </td>
-                <td style={{ textAlign: "right" }}>
-                  <span className={"status status-" + st.cls}>
-                    <span className="dot" />
-                    {st.label}
-                  </span>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-      <BlockState q={stateQ} isEmpty={items.length === 0} empty="暂无活动" />
-    </div>
-  );
-}
-
-function phaseStatus(phase?: string): { cls: string; label: string } {
-  switch (phase) {
-    case "Running":
-      return { cls: "running", label: "运行中" };
-    case "Ready":
-      return { cls: "success", label: "就绪" };
-    case "Succeeded":
-      return { cls: "success", label: "成功" };
-    case "Degraded":
-      return { cls: "pending", label: "降级" };
-    case "Creating":
-    case "Starting":
-    case "Pending":
-      return { cls: "pending", label: "准备中" };
-    default: // Stopped / Failed / Deleting / Deleted / undefined
-      return { cls: "stopped", label: phase || "—" };
+  if (!items.length) {
+    return <div className="py-10"><Empty description={t("dashboard.noActivity")} /></div>;
   }
-}
-
-function timeAgo(iso?: string): string {
-  if (!iso) return "—";
-  const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) return "—";
-  const sec = Math.max(0, Math.floor((Date.now() - then) / 1000));
-  if (sec < 60) return "刚刚";
-  const min = Math.floor(sec / 60);
-  if (min < 60) return `${min} 分钟前`;
-  const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr} 小时前`;
-  return `${Math.floor(hr / 24)} 天前`;
+  return (
+    <List
+      dataSource={items}
+      renderItem={(a) => (
+        <List.Item className="!px-4">
+          <List.Item.Meta
+            title={<span className="font-mono text-sm">{a.name}</span>}
+            description={`${a.type} · ${a.at ? dayjs(a.at).fromNow() : "—"}`}
+          />
+          <PhaseTag phase={a.phase} />
+        </List.Item>
+      )}
+    />
+  );
 }

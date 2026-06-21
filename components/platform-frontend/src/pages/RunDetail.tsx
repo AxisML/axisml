@@ -1,339 +1,406 @@
-import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import {
+  Card,
+  Tabs,
+  Table,
+  Descriptions,
+  Tag,
+  Button,
+  Space,
+  Steps,
+  Empty,
+  Spin,
+  Result,
+} from "antd";
+import type { ColumnsType } from "antd/es/table";
+import { ArrowLeftOutlined, StopOutlined, ReloadOutlined } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
+import { useQuery } from "@tanstack/react-query";
+import { useApp } from "@/app/store";
 import { useUI } from "@/app/ui";
-import { Tabs } from "@/components/Tabs";
+import { useApiMutation } from "@/api/mutations";
+import { PageContainer } from "@/components/PageContainer";
+import { PhaseTag } from "@/components/PhaseTag";
+import * as sdk from "@/api/generated";
+import { PolicyText, fmtDateTime, primaryRole } from "./JobDetail";
 
-// Faithful port of prototype/run-detail.html. The router passes `kind` so the
-// back link returns to the owning Job or Experiment. Static demo content.
-export default function RunDetail({ kind }: { kind: "job" | "experiment" }) {
-  const { name = "train-llm-7b", run = "train-llm-7b-12" } = useParams();
-  const backTo = kind === "job" ? `/jobs/${name}` : `/experiments/${name}`;
+// Run detail for both Job-runs (/jobs/:name/runs/:run) and Experiment-runs
+// (/experiments/:name/runs/:run). The `kind` prop (preserved from the router)
+// selects the back link, breadcrumb and which tenant-scoped SDK family to call —
+// the Run/Pod/Event shapes are identical across both. No fabricated data: logs
+// surface an Empty placeholder until backend log streaming lands.
+
+const ACTIVE_PHASES: sdk.RunPhase[] = ["Creating", "Pending", "Running", "Canceling"];
+
+// Phase → lifecycle Steps mapping (current step index + status).
+function lifecycleState(phase?: sdk.RunPhase): { current: number; error: boolean } {
+  switch (phase) {
+    case "Creating":
+      return { current: 0, error: false };
+    case "Pending":
+      return { current: 1, error: false };
+    case "Running":
+    case "Canceling":
+      return { current: 2, error: false };
+    case "Succeeded":
+      return { current: 3, error: false };
+    case "Failed":
+      return { current: 3, error: true };
+    case "Cancelled":
+    case "Deleting":
+    case "Deleted":
+      return { current: 3, error: false };
+    default:
+      return { current: 0, error: false };
+  }
+}
+
+export default function RunDetail({ kind }: { kind: "experiment" | "job" }) {
+  const { name = "", run = "" } = useParams();
+  const { t } = useTranslation();
+  const { tenant } = useApp();
   const { confirm } = useUI();
 
+  const isExp = kind === "experiment";
+  const base = isExp ? `/experiments/${name}` : `/jobs/${name}`;
+  const navParent = isExp ? t("nav.experiments") : t("nav.jobs");
+
+  const runQ = useQuery({
+    queryKey: ["runDetail", kind, tenant, name, run],
+    enabled: tenant !== "" && name !== "" && run !== "",
+    queryFn: async () => {
+      const { data, error } = isExp
+        ? await sdk.getExperimentRun({ path: { name, run } })
+        : await sdk.getRun({ path: { name, run } });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const cancel = useApiMutation(
+    () =>
+      isExp
+        ? sdk.cancelExperimentRun({ path: { name, run } })
+        : sdk.cancelRun({ path: { name, run } }),
+    { invalidate: [["runDetail"], ["runs"], ["experiments"]], success: t("runDetail.cancelled") },
+  );
+
+  const r = runQ.data;
+  const active = r?.phase ? ACTIVE_PHASES.includes(r.phase) : false;
+
   return (
-    <main className="page">
-      <Link className="back-link" to={backTo}>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M15 18l-6-6 6-6" />
-        </svg>
-        返回 {name}
-      </Link>
-
-      <div className="page-head">
-        <div>
-          <h1 className="detail-title">
-            {run}{" "}
-            <span className="spill run">
-              <span className="dot" />
-              运行中
+    <PageContainer
+      breadcrumb={[t("nav.trainingCenter"), navParent, name, run]}
+      title={
+        <Space size="middle" align="center" className="min-w-0">
+          <span className="font-mono">{run}</span>
+          {r && <PhaseTag phase={r.phase} />}
+        </Space>
+      }
+      subtitle={
+        <span>
+          <Link to={base} className="inline-flex items-center gap-1 text-sm">
+            <ArrowLeftOutlined /> {t("runDetail.backTo", { name })}
+          </Link>
+          {r && (
+            <span className="ml-3 text-muted">
+              {t("runDetail.subtitle", { num: r.runNumber ?? "—", owner: r.owner || "—" })}
             </span>
-          </h1>
-          <div className="detail-sub">第 12 次运行 · 触发人 张伟 · 已运行 02:14:30</div>
+          )}
+        </span>
+      }
+      extra={
+        r && (
+          <Space>
+            <Button icon={<ReloadOutlined />} onClick={() => runQ.refetch()}>
+              {t("runDetail.refresh")}
+            </Button>
+            {active && (
+              <Button
+                danger
+                icon={<StopOutlined />}
+                loading={cancel.isPending}
+                onClick={() =>
+                  confirm({
+                    title: t("runDetail.cancelTitle", { run }),
+                    desc: t("runDetail.cancelDesc"),
+                    okLabel: t("runDetail.cancelOk"),
+                    danger: false,
+                    onConfirm: () => cancel.mutate(undefined),
+                  })
+                }
+              >
+                {t("runDetail.cancelRun")}
+              </Button>
+            )}
+          </Space>
+        )
+      }
+    >
+      {runQ.isLoading ? (
+        <div className="grid place-items-center py-24">
+          <Spin size="large" />
         </div>
-        <div className="actions">
-          <button
-            className="btn btn-danger"
-            onClick={() =>
-              confirm({
-                title: `取消运行 ${run}？`,
-                desc: "取消后正在执行的 Pod 将被终止，已产出的 checkpoint 保留。",
-                okLabel: "确认取消",
-                toast: "运行已请求取消（Canceling）",
-              })
-            }
-          >
-            取消运行
-          </button>
-        </div>
-      </div>
+      ) : runQ.isError || !r ? (
+        <Result
+          status="error"
+          title={t("common.loadFailed")}
+          extra={
+            <Link to={base}>
+              <Button>{t("runDetail.backTo", { name })}</Button>
+            </Link>
+          }
+        />
+      ) : (
+        <>
+          <Lifecycle run={r} />
+          <Tabs
+            items={[
+              { key: "info", label: t("runDetail.tabInfo"), children: <InfoPane run={r} /> },
+              { key: "pods", label: t("runDetail.tabPods"), children: <PodsPane kind={kind} name={name} run={run} /> },
+              { key: "log", label: t("runDetail.tabLog"), children: <LogPane /> },
+              { key: "ev", label: t("runDetail.tabEvents"), children: <EventsPane kind={kind} name={name} run={run} /> },
+            ]}
+          />
+        </>
+      )}
+    </PageContainer>
+  );
+}
 
-      <Tabs
-        tabs={[
-          { key: "info", label: "概览", content: <InfoPane /> },
-          { key: "pods", label: "实例", content: <PodsPane /> },
-          { key: "log", label: "日志", content: <LogPane /> },
-          { key: "ev", label: "事件", content: <EventsPane /> },
+function Lifecycle({ run }: { run: sdk.Run }) {
+  const { t } = useTranslation();
+  const { current, error } = lifecycleState(run.phase);
+  return (
+    <Card className="mb-4">
+      <Steps
+        size="small"
+        current={current}
+        status={error ? "error" : "process"}
+        items={[
+          { title: t("runDetail.stepCreated"), description: fmtDateTime(run.createdAt) },
+          { title: t("runDetail.stepScheduled") },
+          { title: t("runDetail.stepRunning"), description: fmtDateTime(run.startedAt) },
+          { title: t("runDetail.stepFinished"), description: fmtDateTime(run.finishedAt) },
         ]}
       />
-    </main>
+    </Card>
   );
 }
 
-function InfoPane() {
+function InfoPane({ run }: { run: sdk.Run }) {
+  const { t } = useTranslation();
+  const role = primaryRole(run.spec?.roles);
+  const tpl = role?.template;
+  const command = [...(tpl?.command ?? []), ...(tpl?.args ?? [])];
+  const env = tpl?.env ?? [];
+
   return (
-    <div className="panel">
-      <div className="panel-head">
-        <h3>配置信息</h3>
-      </div>
-      <div className="panel-body">
-        <dl className="kv kv-lg">
-          <dt>名称</dt>
-          <dd>
-            <span className="cchip">train-llm-7b</span>
-          </dd>
-          <dt>描述</dt>
-          <dd>LLaMA-7B 全参微调</dd>
-          <dt>镜像</dt>
-          <dd>
-            <span className="cchip">pytorch:2.3-cu121</span>
-          </dd>
-          <dt>资源池</dt>
-          <dd>
-            <span className="cchip">gpu-a100 · A100 训练池</span>
-          </dd>
-          <dt>资源单元</dt>
-          <dd>
-            <span className="cchip">a100-4x-xlarge</span>
-          </dd>
-          <dt>副本数</dt>
-          <dd>
-            <span className="mono">4</span>
-          </dd>
-          <dt>数据卷</dt>
-          <dd>
-            <span className="cchip">training-data · 200 GiB → /data</span>
-          </dd>
-          <dt>运行策略</dt>
-          <dd>
-            超时 <span className="mono">24h</span> · 重试 <span className="mono">2</span>
-          </dd>
-        </dl>
-        <div style={{ marginTop: "var(--space-6)", paddingTop: "var(--space-5)", borderTop: "1px solid var(--border-soft)" }}>
-          <label className="muted" style={{ fontSize: 12 }}>
-            启动命令
-          </label>
-          <pre className="logbox" style={{ maxHeight: "none", margin: "6px 0 18px" }}>
-            {`torchrun --nproc_per_node=4 train.py \\
-  --model_name llama-7b --lr 2e-5 \\
-  --epochs 3 --batch_size 16 \\
-  --data /data/sft.jsonl`}
+    <Card title={t("runDetail.sectionConfig")}>
+      <Descriptions column={{ xs: 1, md: 2 }} bordered size="middle">
+        <Descriptions.Item label={t("runDetail.fName")}>
+          <span className="font-mono">{run.name}</span>
+        </Descriptions.Item>
+        <Descriptions.Item label={t("runDetail.fDesc")}>{run.description || "—"}</Descriptions.Item>
+        <Descriptions.Item label={t("runDetail.fImage")}>
+          {tpl?.image ? <Tag className="!m-0 font-mono">{tpl.image}</Tag> : "—"}
+        </Descriptions.Item>
+        <Descriptions.Item label={t("runDetail.fPool")}>
+          {run.poolName ? <span className="font-mono">{run.poolName}</span> : "—"}
+        </Descriptions.Item>
+        <Descriptions.Item label={t("runDetail.fUnit")}>
+          {run.unitName ? <span className="font-mono">{run.unitName}</span> : "—"}
+        </Descriptions.Item>
+        <Descriptions.Item label={t("runDetail.fReplicas")}>
+          <span className="font-mono">{role?.replicas ?? "—"}</span>
+        </Descriptions.Item>
+        <Descriptions.Item label={t("runDetail.fRunPolicy")} span={2}>
+          <PolicyText policy={run.runPolicy ?? run.spec?.runPolicy} />
+        </Descriptions.Item>
+        <Descriptions.Item label={t("runDetail.fStarted")}>
+          <span className="font-mono text-muted">{fmtDateTime(run.startedAt)}</span>
+        </Descriptions.Item>
+        <Descriptions.Item label={t("runDetail.fFinished")}>
+          <span className="font-mono text-muted">{fmtDateTime(run.finishedAt)}</span>
+        </Descriptions.Item>
+      </Descriptions>
+
+      <div className="mt-6 border-t border-border-soft pt-5">
+        <div className="mb-1.5 text-xs text-muted">{t("runDetail.command")}</div>
+        {command.length ? (
+          <pre className="m-0 mb-5 overflow-auto rounded-md bg-surface-warm p-3 font-mono text-xs text-fg-2">
+            {command.join(" ")}
           </pre>
-          <label className="muted" style={{ fontSize: 12 }}>
-            环境变量
-          </label>
-          <div className="chip-row" style={{ marginTop: 8 }}>
-            <span className="cchip">WANDB_DISABLED=true</span>
-            <span className="cchip">NCCL_DEBUG=INFO</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-interface PodRow {
-  name: string;
-  node: string;
-  restarts: number;
-  started: string;
-}
-
-const POD_ROWS: PodRow[] = [
-  { name: "train-llm-7b-12-worker-0", node: "node-a100-03", restarts: 0, started: "2026-06-13 02:14:30" },
-  { name: "train-llm-7b-12-worker-1", node: "node-a100-03", restarts: 0, started: "2026-06-13 02:14:30" },
-  { name: "train-llm-7b-12-worker-2", node: "node-a100-07", restarts: 1, started: "2026-06-13 02:11:02" },
-  { name: "train-llm-7b-12-worker-3", node: "node-a100-07", restarts: 0, started: "2026-06-13 02:14:30" },
-];
-
-function PodsPane() {
-  return (
-    <div className="panel">
-      <div className="table-wrap">
-        <table className="tbl">
-          <thead>
-            <tr>
-              <th>POD 名称</th>
-              <th>阶段</th>
-              <th>节点</th>
-              <th className="num-col">重启</th>
-              <th className="num-col">退出码</th>
-              <th>启动时间</th>
-              <th style={{ textAlign: "right" }}>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {POD_ROWS.map((p) => (
-              <tr key={p.name}>
-                <td className="mono">{p.name}</td>
-                <td>
-                  <span className="spill run">
-                    <span className="dot" />
-                    Running
-                  </span>
-                </td>
-                <td className="mono muted">{p.node}</td>
-                <td className="num-col">{p.restarts}</td>
-                <td className="num-col muted">—</td>
-                <td className="muted mono">{p.started}</td>
-                <td>
-                  <div className="row-actions">
-                    <button className="act" title="日志" aria-label="日志" />
-                    <button className="act" title="事件" aria-label="事件" />
-                  </div>
-                </td>
-              </tr>
+        ) : (
+          <div className="mb-5 text-sm text-muted">{t("runDetail.noCommand")}</div>
+        )}
+        <div className="mb-1.5 text-xs text-muted">{t("runDetail.env")}</div>
+        {env.length ? (
+          <Space size={[6, 6]} wrap>
+            {env.map((e) => (
+              <Tag key={e.name} className="!m-0 font-mono">
+                {e.name}={e.value ?? ""}
+              </Tag>
             ))}
-          </tbody>
-        </table>
+          </Space>
+        ) : (
+          <div className="text-sm text-muted">{t("runDetail.noEnv")}</div>
+        )}
       </div>
-    </div>
+    </Card>
   );
 }
 
-function PodPick() {
+function PodsPane({ kind, name, run }: { kind: "experiment" | "job"; name: string; run: string }) {
+  const { t } = useTranslation();
+  const { tenant } = useApp();
+  const isExp = kind === "experiment";
+
+  const podsQ = useQuery({
+    queryKey: ["runDetail", kind, tenant, name, run, "pods"],
+    enabled: tenant !== "" && name !== "" && run !== "",
+    queryFn: async () => {
+      const { data, error } = isExp
+        ? await sdk.listExperimentRunPods({ path: { name, run } })
+        : await sdk.listRunPods({ path: { name, run } });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const columns: ColumnsType<sdk.Pod> = [
+    {
+      title: t("runDetail.colPod"),
+      dataIndex: "name",
+      render: (v: string) => <span className="font-mono">{v}</span>,
+    },
+    {
+      title: t("runDetail.colPhase"),
+      dataIndex: "phase",
+      width: 120,
+      render: (p: string) => <PhaseTag phase={p} />,
+    },
+    {
+      title: t("runDetail.colRole"),
+      dataIndex: "role",
+      width: 140,
+      render: (v?: string) => <span className="font-mono">{v || "—"}</span>,
+    },
+    {
+      title: t("runDetail.colReady"),
+      key: "restarts",
+      width: 90,
+      align: "right",
+      render: (_, p) => <span className="font-mono">{p.restartCount ?? 0}</span>,
+    },
+    {
+      title: t("runDetail.fStarted"),
+      dataIndex: "startedAt",
+      width: 170,
+      render: (v?: string | null) => <span className="text-muted">{fmtDateTime(v)}</span>,
+    },
+  ];
+
   return (
-    <div className="pod-pick">
-      <span className="pp-tag">POD</span>
-      <select>
-        <option>worker-0</option>
-        <option>worker-1</option>
-        <option>worker-2</option>
-        <option>worker-3</option>
-      </select>
-    </div>
+    <Card styles={{ body: { padding: 0 } }} className="overflow-hidden">
+      <Table<sdk.Pod>
+        rowKey="name"
+        columns={columns}
+        dataSource={podsQ.data?.items ?? []}
+        loading={podsQ.isLoading}
+        pagination={{ pageSize: 20, hideOnSinglePage: true }}
+        locale={{
+          emptyText: podsQ.isError ? (
+            <Empty description={t("common.loadFailed")} />
+          ) : (
+            <Empty description={t("runDetail.noPods")} />
+          ),
+        }}
+      />
+    </Card>
   );
 }
 
-function FollowToggle() {
-  const [on, setOn] = useState(true);
-  return (
-    <label className="follow">
-      实时跟随{" "}
-      <button className={"toggle" + (on ? " on" : "")} aria-label="实时跟随" onClick={() => setOn((v) => !v)} />
-    </label>
-  );
-}
-
+// Real per-Pod log streaming is a future backend feature (GET .../pods/{pod}/logs
+// with follow=SSE). Until the UI wiring for pod selection + follow lands, show a
+// placeholder rather than fabricating log lines.
 function LogPane() {
+  const { t } = useTranslation();
   return (
-    <div className="panel">
-      <div className="panel-body">
-        <div className="log-bar">
-          <PodPick />
-          <div className="grow" />
-          <FollowToggle />
-        </div>
-        <pre className="logbox">
-          <span className="l-time">02:14:31</span>
-          <span className="l-info">[I]</span> Initializing distributed: rank=0 world_size=4 backend=nccl
-          {"\n"}
-          <span className="l-time">02:14:34</span>
-          <span className="l-info">[I]</span> Loaded base model llama-7b-base@v1 (13.1 GB)
-          {"\n"}
-          <span className="l-time">02:14:52</span>
-          <span className="l-info">[I]</span> Dataset sft-dialog@v2 · 124,503 samples · 3 epochs
-          {"\n"}
-          <span className="l-time">02:31:10</span>
-          <span className="l-info">[I]</span> epoch 1 | step 0500 | loss 1.842 | lr 1.98e-5 | 3.2 it/s
-          {"\n"}
-          <span className="l-time">03:02:44</span>
-          <span className="l-info">[I]</span> epoch 1 | step 1000 | loss 1.231 | lr 1.91e-5 | 3.3 it/s
-          {"\n"}
-          <span className="l-time">03:40:08</span>
-          <span className="l-warn">[W]</span> worker-2 nccl timeout retry (1/3), recovered in 4.1s
-          {"\n"}
-          <span className="l-time">04:18:55</span>
-          <span className="l-info">[I]</span> epoch 2 | step 2000 | loss 0.948 | lr 1.62e-5 | 3.3 it/s
-          {"\n"}
-          <span className="l-time">04:29:01</span>
-          <span className="l-info">[I]</span> checkpoint saved → /output/ckpt-step-2200
-        </pre>
+    <Card title={t("runDetail.logTitle")}>
+      <div className="rounded-md bg-surface-warm p-6">
+        <Empty description={t("runDetail.noLog")} />
       </div>
-    </div>
+    </Card>
   );
 }
 
-function EventsPane() {
+function EventsPane({ kind, name, run }: { kind: "experiment" | "job"; name: string; run: string }) {
+  const { t } = useTranslation();
+  const { tenant } = useApp();
+  const isExp = kind === "experiment";
+
+  const eventsQ = useQuery({
+    queryKey: ["runDetail", kind, tenant, name, run, "events"],
+    enabled: tenant !== "" && name !== "" && run !== "",
+    queryFn: async () => {
+      const { data, error } = isExp
+        ? await sdk.listExperimentRunEvents({ path: { name, run } })
+        : await sdk.listRunEvents({ path: { name, run } });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const columns: ColumnsType<sdk.Event> = [
+    {
+      title: t("runDetail.colReason"),
+      dataIndex: "reason",
+      width: 180,
+      render: (v: string) => <span className="font-mono">{v}</span>,
+    },
+    {
+      title: t("runDetail.colType"),
+      dataIndex: "type",
+      width: 120,
+      render: (v: string) => (
+        <Tag color={v === "Warning" ? "warning" : "default"} className="!m-0">
+          {v === "Warning" ? t("runDetail.eventWarning") : t("runDetail.eventNormal")}
+        </Tag>
+      ),
+    },
+    { title: t("runDetail.colMessage"), dataIndex: "message", render: (v: string) => <span className="text-fg-2">{v}</span> },
+    {
+      title: t("runDetail.colCount"),
+      dataIndex: "count",
+      width: 80,
+      align: "right",
+      render: (v?: number) => <span className="font-mono">{v ?? 1}</span>,
+    },
+    {
+      title: t("runDetail.colTime"),
+      dataIndex: "lastTimestamp",
+      width: 170,
+      render: (v: string) => <span className="text-muted">{fmtDateTime(v)}</span>,
+    },
+  ];
+
   return (
-    <>
-      {/* 运行事件 */}
-      <div className="panel">
-        <div className="panel-head">
-          <h3>运行事件</h3>
-        </div>
-        <div className="panel-body">
-          <div className="timeline">
-            <div className="tl-item">
-              <span className="tl-dot" />
-              <div className="tl-head">
-                <span className="tl-name">Scheduled</span>
-                <span className="tl-tag">NORMAL</span>
-                <span className="tl-time">2026-06-13 02:14:30</span>
-              </div>
-              <div className="tl-desc">Run 创建，PodGroup gang 调度就绪（koord-scheduler）</div>
-            </div>
-            <div className="tl-item is-muted">
-              <span className="tl-dot" />
-              <div className="tl-head">
-                <span className="tl-name">ArtifactsMounted</span>
-                <span className="tl-tag">NORMAL</span>
-                <span className="tl-time">2026-06-13 02:14:52</span>
-              </div>
-              <div className="tl-desc">制品挂载完成：sft-dialog@v2 / llama-7b-base@v1</div>
-            </div>
-            <div className="tl-item is-warn">
-              <span className="tl-dot" />
-              <div className="tl-head">
-                <span className="tl-name">BackOff</span>
-                <span className="tl-tag warn">WARNING</span>
-                <span className="tl-time">2026-06-13 03:40:08</span>
-              </div>
-              <div className="tl-desc">worker-2 重启一次（nccl timeout），已自愈</div>
-            </div>
-          </div>
-        </div>
-      </div>
-      {/* 实例事件 */}
-      <div className="panel" style={{ marginTop: "var(--space-5)" }}>
-        <div className="panel-head">
-          <h3>实例事件</h3>
-        </div>
-        <div className="panel-body">
-          <div className="log-bar">
-            <PodPick />
-            <div className="grow" />
-            <FollowToggle />
-          </div>
-          <div className="timeline" style={{ marginTop: "var(--space-5)" }}>
-            <div className="tl-item">
-              <span className="tl-dot" />
-              <div className="tl-head">
-                <span className="tl-name">Scheduled</span>
-                <span className="tl-tag">NORMAL</span>
-                <span className="tl-time">2026-06-13 02:14:30</span>
-              </div>
-              <div className="tl-desc">worker-0 分配到节点 node-a100-03</div>
-            </div>
-            <div className="tl-item">
-              <span className="tl-dot" />
-              <div className="tl-head">
-                <span className="tl-name">Pulled</span>
-                <span className="tl-tag">NORMAL</span>
-                <span className="tl-time">2026-06-13 02:14:48</span>
-              </div>
-              <div className="tl-desc">镜像 pytorch:2.3-cu121 拉取完成（15.2s）</div>
-            </div>
-            <div className="tl-item">
-              <span className="tl-dot" />
-              <div className="tl-head">
-                <span className="tl-name">Created</span>
-                <span className="tl-tag">NORMAL</span>
-                <span className="tl-time">2026-06-13 02:14:49</span>
-              </div>
-              <div className="tl-desc">容器创建完成</div>
-            </div>
-            <div className="tl-item">
-              <span className="tl-dot" />
-              <div className="tl-head">
-                <span className="tl-name">Started</span>
-                <span className="tl-tag">NORMAL</span>
-                <span className="tl-time">2026-06-13 02:14:50</span>
-              </div>
-              <div className="tl-desc">容器启动，开始分布式训练 rank=0</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </>
+    <Card title={t("runDetail.eventsTitle")} styles={{ body: { padding: 0 } }} className="overflow-hidden">
+      <Table<sdk.Event>
+        rowKey={(e) => `${e.reason}-${e.lastTimestamp}-${e.message}`}
+        columns={columns}
+        dataSource={eventsQ.data?.items ?? []}
+        loading={eventsQ.isLoading}
+        pagination={{ pageSize: 20, hideOnSinglePage: true }}
+        locale={{
+          emptyText: eventsQ.isError ? (
+            <Empty description={t("common.loadFailed")} />
+          ) : (
+            <Empty description={t("runDetail.noEvents")} />
+          ),
+        }}
+      />
+    </Card>
   );
 }
