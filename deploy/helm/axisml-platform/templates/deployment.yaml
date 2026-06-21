@@ -2,18 +2,18 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "axisml.fullname" . }}-platform
+  name: {{ include "axisml.fullname" . }}-backend
   labels:
-    {{- include "axisml.componentLabels" (dict "context" . "component" "platform") | nindent 4 }}
+    {{- include "axisml.componentLabels" (dict "context" . "component" "backend") | nindent 4 }}
 spec:
   replicas: {{ .Values.platform.replicaCount }}
   selector:
     matchLabels:
-      {{- include "axisml.componentSelectorLabels" (dict "context" . "component" "platform") | nindent 6 }}
+      {{- include "axisml.componentSelectorLabels" (dict "context" . "component" "backend") | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "axisml.componentLabels" (dict "context" . "component" "platform") | nindent 8 }}
+        {{- include "axisml.componentLabels" (dict "context" . "component" "backend") | nindent 8 }}
     spec:
       {{- with .Values.global.imagePullSecrets }}
       imagePullSecrets:
@@ -29,12 +29,12 @@ spec:
           args: ["bootstrap"]
           envFrom:
             - configMapRef:
-                name: {{ include "axisml.fullname" . }}-platform
+                name: {{ include "axisml.fullname" . }}-backend
           env:
             - name: DATABASE_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "axisml.fullname" . }}-platform-db
+                  name: {{ include "axisml.fullname" . }}-backend-db
                   key: password
             {{- with .Values.platform.bootstrap.passwordSecret }}
             - name: AXISML_BOOTSTRAP_PASSWORD
@@ -44,7 +44,7 @@ spec:
                   key: {{ .key }}
             {{- end }}
       containers:
-        - name: platform
+        - name: backend
           image: {{ include "axisml.image" (dict "imageRoot" .Values.platform.image "global" .Values.global "chart" .Chart) }}
           imagePullPolicy: {{ .Values.platform.image.pullPolicy }}
           args: ["serve"]
@@ -57,12 +57,12 @@ spec:
               protocol: TCP
           envFrom:
             - configMapRef:
-                name: {{ include "axisml.fullname" . }}-platform
+                name: {{ include "axisml.fullname" . }}-backend
           env:
             - name: DATABASE_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "axisml.fullname" . }}-platform-db
+                  name: {{ include "axisml.fullname" . }}-backend-db
                   key: password
           livenessProbe:
             httpGet:

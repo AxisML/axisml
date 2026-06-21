@@ -91,7 +91,7 @@ func platform(t *testing.T) (*platformClient, string) {
 	t.Helper()
 	platformOnce.Do(func() {
 		ns := envOr("E2E_PLATFORM_NAMESPACE", "axisml-platform")
-		svc := envOr("E2E_PLATFORM_SVC", "axisml-platform-platform")
+		svc := envOr("E2E_PLATFORM_SVC", "axisml-platform-backend")
 		pf, err := startPortForward(ns, svc, 8080)
 		if err != nil {
 			platformErr = fmt.Errorf("port-forward platform %s/%s: %w", ns, svc, err)
