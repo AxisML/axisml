@@ -13,12 +13,14 @@ const TENANT_KEY = "axisml.tenant";
 client.interceptors.request.use((request) => {
   const token = localStorage.getItem(TOKEN_KEY);
   if (token) request.headers.set("Authorization", `Bearer ${token}`);
-  // Active-tenant scope for name-addressed endpoints. The backend reads
-  // X-Axisml-Tenant to scope tenant-partitioned resources (services, workspaces,
-  // traffic policies, jobs/experiments, their detail & mutations). There is no
-  // "all-tenants" view — exactly one tenant is always selected.
+  // Active-tenant scope is carried by the `axisml.tenant` cookie (the backend
+  // reads it cookie-first, header-fallback). Sync the cookie from the selected
+  // tenant here — synchronous, so it's present on this very request regardless of
+  // React timing. There is no "all-tenants" view: exactly one tenant is selected.
   const tenant = localStorage.getItem(TENANT_KEY);
-  if (tenant && tenant !== "all") request.headers.set("X-Axisml-Tenant", tenant);
+  if (tenant && tenant !== "all") {
+    document.cookie = `${TENANT_KEY}=${tenant}; path=/; SameSite=Lax`;
+  }
   return request;
 });
 

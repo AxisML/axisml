@@ -474,7 +474,7 @@ function NewImgDrawer({ onClose }: { onClose: () => void }) {
   const [tags, setTags] = useState<Record<string, string>>({});
 
   const create = useApiMutation(
-    (body: sdk.ArtifactDefinitionCreateInput) =>
+    (body: sdk.ArtifactDefinitionCreateRequest) =>
       sdk.createImageDefinition({ path: { tenant, name: body.name }, body }),
     { invalidate: [["images"]], success: "镜像已创建，可在版本列表添加版本" },
   );

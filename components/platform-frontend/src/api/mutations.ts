@@ -4,14 +4,6 @@ import { errorText } from "@/components/states";
 
 type SdkResult<T> = Promise<{ data?: T; error?: unknown }>;
 
-// Tenant-scoped mutation generated types REQUIRE the X-Axisml-Tenant header at
-// the call site (the request interceptor also injects it at runtime, but the
-// types demand it statically). Spread this into such SDK calls:
-//   sdk.createWorkspace({ body, headers: tenantHeader() })
-export function tenantHeader(): { "X-Axisml-Tenant": string } {
-  return { "X-Axisml-Tenant": localStorage.getItem("axisml.tenant") ?? "" };
-}
-
 // Shared write-path wrapper over the generated SDK. Every create/update/delete/
 // action flows through here so it: surfaces backend errors as a toast (no silent
 // failures), shows a success toast, and invalidates the affected list queries so

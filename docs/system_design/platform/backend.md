@@ -86,7 +86,7 @@ Platform 自有实体三类：**租户持久记录**、**身份 / 授权 / 会�
 - **写定义** — RBAC 校验 → 字段校验 → 写 Platform PG（`(tenant_name, name)` 唯一）；不触下游。
 - **触发实例**（Run / Service / Workspace / TensorBoard）— RBAC → 校验 `tenants.suspended_at` 为空（否则 `409 tenant-suspended`）→ 对引用制品版本逐个 `GetArtifact` 预检 `Ready`（失败 `400` 阻断）→ 快照 `定义.spec ⊕ overrides` → 透传名字三元组 `(poolName, unitName, quota)`，由 compute 内部展开 pool/unit 并组装 ElasticQuota 名。Platform **不拼 ElasticQuota 名、不展开 pool/unit、不解析 namespace、不建索引表**。
 - **删除定义** — 实时列实例判活跃 → 有活跃则 `409 *-has-active-runs`，否则级联软删全部实例后软删定义（best-effort，部分失败上报）。
-- **列表** — 租户分区端点**始终**要求 `X-Axisml-Tenant`，scoped 到该单一租户（§5.3）；无对应绑定且非 admin → `404`；`system-admin` 可 scope 到任意租户。
+- **列表** — 租户分区端点**始终**要求活跃租户（`axisml.tenant` Cookie 优先，`X-Axisml-Tenant` 头兜底），scoped 到该单一租户（§5.3）；无对应绑定且非 admin → `404`；`system-admin` 可 scope 到任意租户。
 - **身份** — 出站注入 `X-Axisml-User`；active tenant 解析见 §5.2。
 
 ### 4.1 租户编排
@@ -118,7 +118,7 @@ Platform 自有实体三类：**租户持久记录**、**身份 / 授权 / 会�
 
 **触发期 override 白名单**：镜像 / 模型**版本**、`roles[*].template.resources`、`scheduling{poolName,unitName,quota}`、超参（`args` / `env`）。**禁止** override `backend.{name,engine}` 与 role 拓扑（增删 role / 改 replicas 结构）——只能改模板后重新触发。
 
-寻址：Job `/api/v1/jobs/{name}`（`X-Axisml-Tenant` 头携带 tenant）；Run 为子资源 `/jobs/{name}/runs/{run}`，`{run}` = `<job>-<n>`。Run spec 触发时由 `Job.spec ⊕ overrides` 快照冻结，创建后不可变。
+寻址：Job `/api/v1/jobs/{name}`（活跃租户由 `axisml.tenant` Cookie/`X-Axisml-Tenant` 头携带）；Run 为子资源 `/jobs/{name}/runs/{run}`，`{run}` = `<job>-<n>`。Run spec 触发时由 `Job.spec ⊕ overrides` 快照冻结，创建后不可变。
 
 ### 4.3 在线服务编排
 
@@ -233,7 +233,7 @@ Dashboard 的聚合模型与接口暂不在本版系统设计中定义，待后�
 
 ### 5.2 上下文解析
 
-**Active tenant 来源**：名寻址路径（jobs / experiments / workspaces / mlservices / trafficpolicies）由 `X-Axisml-Tenant: <name>` 头携带；tuple 寻址路径（`{kind}/{tenant}/{name}`）已在 URL 内带 tenant。RBAC 中间件：
+**Active tenant 来源**：名寻址路径（jobs / experiments / workspaces / mlservices / trafficpolicies）由活跃租户携带——`axisml.tenant` Cookie 优先，`X-Axisml-Tenant` 头兜底（供 CLI / e2e / 服务间调用）；tuple 寻址路径（`{kind}/{tenant}/{name}`）已在 URL 内带 tenant。RBAC 中间件：
 
 | 端点形态 | header 缺省 | header 存在 |
 | --- | --- | --- |
@@ -245,7 +245,7 @@ Dashboard 的聚合模型与接口暂不在本版系统设计中定义，待后�
 
 ### 5.3 列表租户作用域
 
-租户分区端点的 list **始终**要求 `X-Axisml-Tenant`，只查该单一租户，无跨租户 fanout / 合并。缺 header → `400 active-tenant-required`；非 admin 且对该租户无绑定 → `404`；`system-admin` 可 scope 到任意租户（逐个，不聚合）。租户管理 / 资源池等全集群端点为集群对象，忽略该 header（§5.2）。
+租户分区端点的 list **始终**要求活跃租户（`axisml.tenant` Cookie 优先，`X-Axisml-Tenant` 头兜底），只查该单一租户，无跨租户 fanout / 合并。两者皆缺 → `400 active-tenant-required`；非 admin 且对该租户无绑定 → `404`；`system-admin` 可 scope 到任意租户（逐个，不聚合）。租户管理 / 资源池等全集群端点为集群对象，忽略租户作用域（§5.2）。
 
 ### 5.4 失败语义
 
@@ -294,7 +294,7 @@ RBAC 中间件装配见 [auth.md](auth.md)；Platform 路由层挂载 `RequireSy
 | 状态 | 不暴露任何 K8s CR；下游运行态字段（phase / conditions / quota 用量）作只读透传 |
 | 错误格式 | HTTP 标准码 + RFC 7807 problem+json；下游 problem 透传或包装；`type` URI / 下游 code 为稳定机读标识（§5.6） |
 | 流式 | 日志 / 事件 `follow=true` 用 SSE；非 follow 用 `text/plain` chunked |
-| 身份头 | 入站校验主登录 JWT + `X-Axisml-Tenant`（§5.2）；出站注入 `X-Axisml-User`（[auth.md §6](auth.md#6-下游身份透传)） |
+| 身份头 | 入站校验主登录 JWT + 活跃租户（`axisml.tenant` Cookie / `X-Axisml-Tenant` 头，§5.2）；出站注入 `X-Axisml-User`（[auth.md §6](auth.md#6-下游身份透传)） |
 | 数据面接入 | 工作区 / TensorBoard JWT SecurityPolicy 与在线服务 API KEY 均未交付；受保护入口 fail-closed（[auth.md §5](auth.md#5-数据面接入)） |
 | Prometheus | `platform_*` 自身指标 |
 

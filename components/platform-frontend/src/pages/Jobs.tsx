@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useJobs } from "@/api/hooks";
-import { useApiMutation, tenantHeader } from "@/api/mutations";
+import { useApiMutation } from "@/api/mutations";
 import * as sdk from "@/api/generated";
 import { useUI } from "@/app/ui";
 import { TableState } from "@/components/states";
@@ -28,7 +28,7 @@ export default function Jobs() {
   const [drawer, setDrawer] = useState<{ mode: DrawerMode; name?: string } | null>(null);
 
   const delJob = useApiMutation(
-    (name: string) => sdk.deleteJob({ path: { name }, headers: tenantHeader() }),
+    (name: string) => sdk.deleteJob({ path: { name } }),
     { invalidate: [["jobs"]], success: "Job 已删除" },
   );
 
@@ -244,15 +244,15 @@ function JobDrawer({ mode, name: initialName, onClose }: { mode: DrawerMode; nam
   };
 
   const create = useApiMutation(
-    (body: sdk.JobCreateInput) => sdk.createJob({ body, headers: tenantHeader() }),
+    (body: sdk.JobCreateRequest) => sdk.createJob({ body }),
     { invalidate: [["jobs"]], success: "Job 模板已保存" },
   );
   const update = useApiMutation(
-    (vars: { name: string; body: sdk.JobPatchInput }) => sdk.updateJob({ path: { name: vars.name }, body: vars.body, headers: tenantHeader() }),
+    (vars: { name: string; body: sdk.JobPatchRequest }) => sdk.updateJob({ path: { name: vars.name }, body: vars.body }),
     { invalidate: [["jobs"]], success: "Job 已保存" },
   );
   const trigger = useApiMutation(
-    (vars: { name: string; body: sdk.RunTriggerInput }) => sdk.triggerRun({ path: { name: vars.name }, body: vars.body, headers: tenantHeader() }),
+    (vars: { name: string; body: sdk.RunTriggerRequest }) => sdk.triggerRun({ path: { name: vars.name }, body: vars.body }),
     { invalidate: [["jobs"]], success: "已创建运行" },
   );
 

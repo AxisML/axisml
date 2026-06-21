@@ -122,10 +122,16 @@ func pathParam(name, pattern string, min, max int, format string) openapigen.Par
 	return openapigen.Parameter{Name: name, In: "path", Required: true, Schema: s}
 }
 
-func activeTenant(required bool) openapigen.Parameter {
+// activeTenant declares the optional X-Axisml-Tenant header. The active tenant is
+// normally carried by the `axisml.tenant` cookie (preferred); this header is a
+// fallback for non-browser callers. It is never marked required — endpoints that
+// need a tenant enforce it at runtime (400 active-tenant-required) regardless of
+// which channel supplied it. The bool arg is retained for call-site readability
+// (true = endpoint requires a tenant scope at runtime).
+func activeTenant(bool) openapigen.Parameter {
 	return openapigen.Parameter{
-		Name: "X-Axisml-Tenant", In: "header", Required: required,
-		Description: "Active tenant for the request.",
+		Name: "X-Axisml-Tenant", In: "header", Required: false,
+		Description: "Active tenant for the request (fallback for the axisml.tenant cookie).",
 		Schema:      &openapigen.Schema{Type: "string", Pattern: dns1123Pattern, MinLength: iptr(3), MaxLength: iptr(40)},
 	}
 }

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTrafficPolicies, useServices } from "@/api/hooks";
-import { useApiMutation, tenantHeader } from "@/api/mutations";
+import { useApiMutation } from "@/api/mutations";
 import * as sdk from "@/api/generated";
 import { TableState } from "@/components/states";
 import { useUI } from "@/app/ui";
@@ -349,7 +349,7 @@ function TrafficDrawer({ onClose }: { onClose: () => void }) {
     setWeightRows((r) => r.map((x) => (x.id === id ? { ...x, ...patch } : x)));
 
   const create = useApiMutation(
-    (body: sdk.TrafficPolicyCreateRequest) => sdk.createTrafficPolicy({ body, headers: tenantHeader() }),
+    (body: sdk.TrafficPolicyCreateRequest) => sdk.createTrafficPolicy({ body }),
     { invalidate: [["trafficpolicies"]], success: "流量策略已创建" },
   );
 

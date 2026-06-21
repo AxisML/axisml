@@ -8,7 +8,7 @@ import {
   useModelVersions,
   useImageVersions,
 } from "@/api/hooks";
-import { useApiMutation, tenantHeader } from "@/api/mutations";
+import { useApiMutation } from "@/api/mutations";
 import * as sdk from "@/api/generated";
 import { useUI } from "@/app/ui";
 import { Icon } from "@/components/Icon";
@@ -401,7 +401,7 @@ function NewSvcDrawer({ onClose }: { onClose: () => void }) {
   const pools = useResourcePools();
 
   const create = useApiMutation(
-    (body: sdk.MlServiceCreateRequest) => sdk.createMlService({ body, headers: tenantHeader() }),
+    (body: sdk.MlServiceCreateRequest) => sdk.createMlService({ body }),
     { invalidate: INVALIDATE, success: "服务上线中…" },
   );
 

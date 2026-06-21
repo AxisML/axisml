@@ -2707,7 +2707,8 @@ paths:
     get:
       operationId: listExperiments
       parameters:
-      - description: Active tenant for the request.
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
         in: header
         name: X-Axisml-Tenant
         schema:
@@ -2775,10 +2776,10 @@ paths:
     post:
       operationId: createExperiment
       parameters:
-      - description: Active tenant for the request.
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
         in: header
         name: X-Axisml-Tenant
-        required: true
         schema:
           maxLength: 40
           minLength: 3
@@ -2849,10 +2850,10 @@ paths:
     delete:
       operationId: deleteExperiment
       parameters:
-      - description: Active tenant for the request.
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
         in: header
         name: X-Axisml-Tenant
-        required: true
         schema:
           maxLength: 40
           minLength: 3
@@ -2914,10 +2915,10 @@ paths:
     get:
       operationId: getExperiment
       parameters:
-      - description: Active tenant for the request.
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
         in: header
         name: X-Axisml-Tenant
-        required: true
         schema:
           maxLength: 40
           minLength: 3
@@ -2976,10 +2977,10 @@ paths:
     patch:
       operationId: updateExperiment
       parameters:
-      - description: Active tenant for the request.
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
         in: header
         name: X-Axisml-Tenant
-        required: true
         schema:
           maxLength: 40
           minLength: 3
@@ -3051,10 +3052,10 @@ paths:
     get:
       operationId: listExperimentRuns
       parameters:
-      - description: Active tenant for the request.
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
         in: header
         name: X-Axisml-Tenant
-        required: true
         schema:
           maxLength: 40
           minLength: 3
@@ -3129,10 +3130,10 @@ paths:
     post:
       operationId: triggerExperimentRun
       parameters:
-      - description: Active tenant for the request.
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
         in: header
         name: X-Axisml-Tenant
-        required: true
         schema:
           maxLength: 40
           minLength: 3
@@ -3210,10 +3211,10 @@ paths:
     delete:
       operationId: deleteExperimentRun
       parameters:
-      - description: Active tenant for the request.
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
         in: header
         name: X-Axisml-Tenant
-        required: true
         schema:
           maxLength: 40
           minLength: 3
@@ -3276,10 +3277,10 @@ paths:
     get:
       operationId: getExperimentRun
       parameters:
-      - description: Active tenant for the request.
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
         in: header
         name: X-Axisml-Tenant
-        required: true
         schema:
           maxLength: 40
           minLength: 3
@@ -3347,10 +3348,10 @@ paths:
     post:
       operationId: cancelExperimentRun
       parameters:
-      - description: Active tenant for the request.
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
         in: header
         name: X-Axisml-Tenant
-        required: true
         schema:
           maxLength: 40
           minLength: 3
@@ -3425,10 +3426,10 @@ paths:
     get:
       operationId: listExperimentRunEvents
       parameters:
-      - description: Active tenant for the request.
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
         in: header
         name: X-Axisml-Tenant
-        required: true
         schema:
           maxLength: 40
           minLength: 3
@@ -3496,10 +3497,10 @@ paths:
     get:
       operationId: getExperimentRunMetrics
       parameters:
-      - description: Active tenant for the request.
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
         in: header
         name: X-Axisml-Tenant
-        required: true
         schema:
           maxLength: 40
           minLength: 3
@@ -3589,10 +3590,10 @@ paths:
     get:
       operationId: listExperimentRunPods
       parameters:
-      - description: Active tenant for the request.
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
         in: header
         name: X-Axisml-Tenant
-        required: true
         schema:
           maxLength: 40
           minLength: 3
@@ -3660,10 +3661,10 @@ paths:
     get:
       operationId: listExperimentRunPodEvents
       parameters:
-      - description: Active tenant for the request.
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
         in: header
         name: X-Axisml-Tenant
-        required: true
         schema:
           maxLength: 40
           minLength: 3
@@ -3738,10 +3739,10 @@ paths:
     get:
       operationId: getExperimentRunPodLogs
       parameters:
-      - description: Active tenant for the request.
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
         in: header
         name: X-Axisml-Tenant
-        required: true
         schema:
           maxLength: 40
           minLength: 3
@@ -3845,10 +3846,10 @@ paths:
     delete:
       operationId: stopTensorBoard
       parameters:
-      - description: Active tenant for the request.
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
         in: header
         name: X-Axisml-Tenant
-        required: true
         schema:
           maxLength: 40
           minLength: 3
@@ -3903,10 +3904,10 @@ paths:
     get:
       operationId: getTensorBoard
       parameters:
-      - description: Active tenant for the request.
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
         in: header
         name: X-Axisml-Tenant
-        required: true
         schema:
           maxLength: 40
           minLength: 3
@@ -3965,10 +3966,10 @@ paths:
     post:
       operationId: startTensorBoard
       parameters:
-      - description: Active tenant for the request.
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
         in: header
         name: X-Axisml-Tenant
-        required: true
         schema:
           maxLength: 40
           minLength: 3
@@ -4040,7 +4041,8 @@ paths:
     get:
       operationId: listImageDefinitions
       parameters:
-      - description: Active tenant for the request.
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
         in: header
         name: X-Axisml-Tenant
         schema:
@@ -4874,7 +4876,8 @@ paths:
     get:
       operationId: listJobs
       parameters:
-      - description: Active tenant for the request.
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
         in: header
         name: X-Axisml-Tenant
         schema:
@@ -4942,10 +4945,10 @@ paths:
     post:
       operationId: createJob
       parameters:
-      - description: Active tenant for the request.
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
         in: header
         name: X-Axisml-Tenant
-        required: true
         schema:
           maxLength: 40
           minLength: 3
@@ -5016,10 +5019,10 @@ paths:
     delete:
       operationId: deleteJob
       parameters:
-      - description: Active tenant for the request.
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
         in: header
         name: X-Axisml-Tenant
-        required: true
         schema:
           maxLength: 40
           minLength: 3
@@ -5081,10 +5084,10 @@ paths:
     get:
       operationId: getJob
       parameters:
-      - description: Active tenant for the request.
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
         in: header
         name: X-Axisml-Tenant
-        required: true
         schema:
           maxLength: 40
           minLength: 3
@@ -5143,10 +5146,10 @@ paths:
     patch:
       operationId: updateJob
       parameters:
-      - description: Active tenant for the request.
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
         in: header
         name: X-Axisml-Tenant
-        required: true
         schema:
           maxLength: 40
           minLength: 3
@@ -5218,10 +5221,10 @@ paths:
     get:
       operationId: listRuns
       parameters:
-      - description: Active tenant for the request.
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
         in: header
         name: X-Axisml-Tenant
-        required: true
         schema:
           maxLength: 40
           minLength: 3
@@ -5296,10 +5299,10 @@ paths:
     post:
       operationId: triggerRun
       parameters:
-      - description: Active tenant for the request.
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
         in: header
         name: X-Axisml-Tenant
-        required: true
         schema:
           maxLength: 40
           minLength: 3
@@ -5377,10 +5380,10 @@ paths:
     delete:
       operationId: deleteRun
       parameters:
-      - description: Active tenant for the request.
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
         in: header
         name: X-Axisml-Tenant
-        required: true
         schema:
           maxLength: 40
           minLength: 3
@@ -5443,10 +5446,10 @@ paths:
     get:
       operationId: getRun
       parameters:
-      - description: Active tenant for the request.
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
         in: header
         name: X-Axisml-Tenant
-        required: true
         schema:
           maxLength: 40
           minLength: 3
@@ -5514,10 +5517,10 @@ paths:
     post:
       operationId: cancelRun
       parameters:
-      - description: Active tenant for the request.
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
         in: header
         name: X-Axisml-Tenant
-        required: true
         schema:
           maxLength: 40
           minLength: 3
@@ -5592,10 +5595,10 @@ paths:
     get:
       operationId: listRunEvents
       parameters:
-      - description: Active tenant for the request.
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
         in: header
         name: X-Axisml-Tenant
-        required: true
         schema:
           maxLength: 40
           minLength: 3
@@ -5663,10 +5666,10 @@ paths:
     get:
       operationId: getRunMetrics
       parameters:
-      - description: Active tenant for the request.
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
         in: header
         name: X-Axisml-Tenant
-        required: true
         schema:
           maxLength: 40
           minLength: 3
@@ -5756,10 +5759,10 @@ paths:
     get:
       operationId: listRunPods
       parameters:
-      - description: Active tenant for the request.
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
         in: header
         name: X-Axisml-Tenant
-        required: true
         schema:
           maxLength: 40
           minLength: 3
@@ -5827,10 +5830,10 @@ paths:
     get:
       operationId: listRunPodEvents
       parameters:
-      - description: Active tenant for the request.
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
         in: header
         name: X-Axisml-Tenant
-        required: true
         schema:
           maxLength: 40
           minLength: 3
@@ -5905,10 +5908,10 @@ paths:
     get:
       operationId: getRunPodLogs
       parameters:
-      - description: Active tenant for the request.
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
         in: header
         name: X-Axisml-Tenant
-        required: true
         schema:
           maxLength: 40
           minLength: 3
@@ -6012,7 +6015,8 @@ paths:
     get:
       operationId: listMLServices
       parameters:
-      - description: Active tenant for the request.
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
         in: header
         name: X-Axisml-Tenant
         schema:
@@ -6089,10 +6093,10 @@ paths:
     post:
       operationId: createMLService
       parameters:
-      - description: Active tenant for the request.
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
         in: header
         name: X-Axisml-Tenant
-        required: true
         schema:
           maxLength: 40
           minLength: 3
@@ -6808,7 +6812,8 @@ paths:
     get:
       operationId: listModelDefinitions
       parameters:
-      - description: Active tenant for the request.
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
         in: header
         name: X-Axisml-Tenant
         schema:
@@ -9078,7 +9083,8 @@ paths:
     get:
       operationId: listTrafficPolicies
       parameters:
-      - description: Active tenant for the request.
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
         in: header
         name: X-Axisml-Tenant
         schema:
@@ -9148,10 +9154,10 @@ paths:
     post:
       operationId: createTrafficPolicy
       parameters:
-      - description: Active tenant for the request.
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
         in: header
         name: X-Axisml-Tenant
-        required: true
         schema:
           maxLength: 40
           minLength: 3
@@ -10012,7 +10018,8 @@ paths:
     get:
       operationId: listWorkspaces
       parameters:
-      - description: Active tenant for the request.
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
         in: header
         name: X-Axisml-Tenant
         schema:
@@ -10078,10 +10085,10 @@ paths:
     post:
       operationId: createWorkspace
       parameters:
-      - description: Active tenant for the request.
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
         in: header
         name: X-Axisml-Tenant
-        required: true
         schema:
           maxLength: 40
           minLength: 3

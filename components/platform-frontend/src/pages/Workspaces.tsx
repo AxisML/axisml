@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useWorkspaces } from "@/api/hooks";
-import { useApiMutation, tenantHeader } from "@/api/mutations";
+import { useApiMutation } from "@/api/mutations";
 import * as sdk from "@/api/generated";
 import { useUI } from "@/app/ui";
 import { Icon } from "@/components/Icon";
@@ -526,7 +526,7 @@ function WsDrawer({ onClose }: { onClose: () => void }) {
   const [volSize, setVolSize] = useState("50Gi");
 
   const create = useApiMutation(
-    (body: sdk.WorkspaceCreateRequest) => sdk.createWorkspace({ body, headers: tenantHeader() }),
+    (body: sdk.WorkspaceCreateRequest) => sdk.createWorkspace({ body }),
     { invalidate: [["workspaces"]], success: "工作区创建中…" },
   );
 

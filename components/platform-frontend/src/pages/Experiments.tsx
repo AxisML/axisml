@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useExperiments } from "@/api/hooks";
-import { useApiMutation, tenantHeader } from "@/api/mutations";
+import { useApiMutation } from "@/api/mutations";
 import * as sdk from "@/api/generated";
 import { useUI } from "@/app/ui";
 import { Icon } from "@/components/Icon";
@@ -38,11 +38,11 @@ export default function Experiments() {
   const [drawer, setDrawer] = useState<{ mode: DrawerMode; name?: string } | null>(null);
 
   const del = useApiMutation(
-    (name: string) => sdk.deleteExperiment({ path: { name }, headers: tenantHeader() }),
+    (name: string) => sdk.deleteExperiment({ path: { name } }),
     { invalidate: [["experiments"]], success: "实验已删除" },
   );
   const trigger = useApiMutation(
-    (name: string) => sdk.triggerExperimentRun({ path: { name }, body: {}, headers: tenantHeader() }),
+    (name: string) => sdk.triggerExperimentRun({ path: { name }, body: {} }),
     { invalidate: [["experiments"]], success: "已触发运行" },
   );
 
@@ -254,15 +254,15 @@ function ExpDrawer({ mode, name, onClose }: { mode: DrawerMode; name?: string; o
   const [backoff, setBackoff] = useState("1");
 
   const create = useApiMutation(
-    (body: sdk.ExperimentCreateInput) => sdk.createExperiment({ body, headers: tenantHeader() }),
+    (body: sdk.ExperimentCreateRequest) => sdk.createExperiment({ body }),
     { invalidate: [["experiments"]], success: "实验已创建" },
   );
   const update = useApiMutation(
-    (body: sdk.ExperimentPatchInput) => sdk.updateExperiment({ path: { name: expName }, body, headers: tenantHeader() }),
+    (body: sdk.ExperimentPatchRequest) => sdk.updateExperiment({ path: { name: expName }, body }),
     { invalidate: [["experiments"]], success: "实验已保存" },
   );
   const triggerRun = useApiMutation(
-    (body: sdk.RunTriggerInput) => sdk.triggerExperimentRun({ path: { name: expName }, body, headers: tenantHeader() }),
+    (body: sdk.RunTriggerRequest) => sdk.triggerExperimentRun({ path: { name: expName }, body }),
     { invalidate: [["experiments"]], success: `已触发运行 ${expName}` },
   );
 

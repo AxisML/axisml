@@ -20,7 +20,7 @@
 ## 3. 数据获取与状态
 
 - **后端调用**：所有数据来自 Platform 后端 REST（契约见 [openapi/platform.yaml](../../openapi/platform.yaml)）；前端不感知下游服务、不内嵌 PromQL、不解析 K8s namespace。
-- **Active tenant**：顶部"所属租户"恒选中且仅选中一个租户（默认为用户的首个租户），租户内请求**始终**携带 `X-Axisml-Tenant: <name>` 头；`system-admin` 可逐个切换到任意租户。
+- **Active tenant**：顶部"所属租户"恒选中且仅选中一个租户（默认为用户的首个租户），当前租户由 `axisml.tenant` Cookie 携带（后端 Cookie 优先、`X-Axisml-Tenant` 头兜底）；`system-admin` 可逐个切换到任意租户。
 - **实时性**：日志 / 事件用 SSE（`follow=true`）；运行态（phase / 配额用量 / digest）始终实时回源，前端不缓存为权威。Dashboard 待后续专项设计。
 - **偏好持久化**：列表 / 卡片视图切换、语言等偏好存 localStorage。
 

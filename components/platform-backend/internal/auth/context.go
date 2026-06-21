@@ -9,7 +9,8 @@ import (
 // Downstream identity / scope headers (backend.md §5.1–5.2).
 const (
 	HeaderUser   = "X-Axisml-User"   // injected outbound to System-layer services
-	HeaderTenant = "X-Axisml-Tenant" // active tenant for name-addressed endpoints
+	HeaderTenant = "X-Axisml-Tenant" // active tenant for name-addressed endpoints (fallback)
+	CookieTenant = "axisml.tenant"   // active tenant carried as a cookie (preferred)
 )
 
 const (
@@ -49,8 +50,15 @@ func WithUser(ctx context.Context, username string) context.Context {
 	return context.WithValue(ctx, userCtxKey{}, username)
 }
 
-// ActiveTenant returns the X-Axisml-Tenant header value (empty when unset).
-func ActiveTenant(c *gin.Context) string { return c.GetHeader(HeaderTenant) }
+// ActiveTenant returns the active tenant scope for the request. The cookie
+// (set by the frontend) is preferred; the X-Axisml-Tenant header is a fallback
+// for non-browser callers (CLI, e2e, service-to-service). Empty when unset.
+func ActiveTenant(c *gin.Context) string {
+	if v, err := c.Cookie(CookieTenant); err == nil && v != "" {
+		return v
+	}
+	return c.GetHeader(HeaderTenant)
+}
 
 // JTI returns the verified token's jti (for logout / refresh revocation).
 func JTI(c *gin.Context) string { return c.GetString(ctxJTIKey) }

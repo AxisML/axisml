@@ -571,7 +571,7 @@ function NewModelDrawer({ onClose }: { onClose: () => void }) {
   const [ctVal, setCtVal] = useState("");
 
   const create = useApiMutation(
-    (body: sdk.ArtifactDefinitionCreateInput) =>
+    (body: sdk.ArtifactDefinitionCreateRequest) =>
       sdk.createModelDefinition({ path: { tenant, name: body.name }, body }),
     { invalidate: [["models"]], success: "模型已创建，可在版本列表上传权重" },
   );
