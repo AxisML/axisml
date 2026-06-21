@@ -75,7 +75,8 @@ func (h *Handler) listTenants(c *gin.Context) {
 		scope = id.VisibleTenants()
 	}
 	page := server.ParsePage(c)
-	items, partial, err := h.svc.List(c.Request.Context(), scope, c.Query("q"), page.Limit, page.Offset())
+	stats := c.Query("stats") == "true"
+	items, partial, err := h.svc.List(c.Request.Context(), scope, c.Query("q"), stats, page.Limit, page.Offset())
 	if err != nil {
 		server.Fail(c, err)
 		return

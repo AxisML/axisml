@@ -83,8 +83,13 @@ export const useTrafficPolicies = () =>
   useApi<ListTrafficPoliciesResponse>(["trafficpolicies"], () => sdk.listTrafficPolicies());
 export const useModels = () => useApi<ListModelDefinitionsResponse>(["models"], () => sdk.listModelDefinitions());
 export const useImages = () => useApi<ListImageDefinitionsResponse>(["images"], () => sdk.listImageDefinitions());
+// The tenant-management table needs live workload roll-ups (member / active-run
+// / online-service counts), so it opts into ?stats=true. The topbar switcher
+// uses useTenantOptions (a separate, count-free listTenants) to stay cheap.
 export const useTenants = () =>
-  useApi<ListTenantsResponse>(["tenants"], () => sdk.listTenants(), { scoped: false });
+  useApi<ListTenantsResponse>(["tenants", "stats"], () => sdk.listTenants({ query: { stats: true } }), {
+    scoped: false,
+  });
 export const useResourcePools = () =>
   useApi<ListResourcePoolsResponse>(["resourcepools"], () => sdk.listResourcePools(), { scoped: false });
 

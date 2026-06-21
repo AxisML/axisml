@@ -1,14 +1,57 @@
+import { type ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { useApp } from "@/app/store";
 import { useUI } from "@/app/ui";
 import { Icon } from "@/components/Icon";
 import { Segmented } from "@/components/Segmented";
+import { Tabs, type TabDef } from "@/components/Tabs";
+import { BlockState, type QueryLike } from "@/components/states";
+import {
+  useWorkspaces,
+  useExperiments,
+  useJobs,
+  useServices,
+  useModels,
+  useImages,
+  useResourcePools,
+} from "@/api/hooks";
+import * as sdk from "@/api/generated";
 
-// 首页 / Dashboard — faithful port of prototype/index.html. Content is the
-// scope-overview demo data; the active-tenant scope (store) drives the subtitle.
+// 首页 / Dashboard. KPI counts and recent activity come from the live list
+// endpoints (scoped to the active tenant); the active-tenant run roll-ups
+// (实验/任务 "运行") come from getTenant?stats. Cluster utilisation has no
+// metrics source yet — it renders a structured zero state (GPU 利用率 / GPU
+// 使用额度 are a separate, pending topic) rather than fabricated numbers.
 export default function Dashboard() {
   const { tenant } = useApp();
   const { toast } = useUI();
+
+  const ws = useWorkspaces();
+  const exp = useExperiments();
+  const jobs = useJobs();
+  const svc = useServices();
+  const models = useModels();
+  const images = useImages();
+  const pools = useResourcePools();
+
+  // Active-tenant workload roll-ups (active job/experiment runs). getTenant is
+  // enriched server-side; skip the all-tenants pseudo-scope where it 404s.
+  const statsQ = useQuery({
+    queryKey: ["tenant", tenant, "stats"],
+    enabled: tenant !== "" && tenant !== "all",
+    queryFn: async () => {
+      // getTenant is always enriched server-side (member / active-run counts).
+      const { data, error } = await sdk.getTenant({ path: { name: tenant } });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const wsRunning = (ws.data?.items ?? []).filter((w) => w.phase === "Running").length;
+  const svcReady = (svc.data?.items ?? []).filter((s) => s.phase === "Ready").length;
+  const svcDegraded = (svc.data?.items ?? []).filter((s) => s.phase === "Degraded").length;
+  const assetTotal = (models.data?.count ?? 0) + (images.data?.count ?? 0);
 
   return (
     <main className="page">
@@ -21,11 +64,7 @@ export default function Dashboard() {
       <div className="page-head">
         <div>
           <h1>首页</h1>
-          <p className="sub">
-            {tenant === "all"
-              ? "大模型研究院 · 全部租户的运行概览 —— 看一眼负载、容量与资源用量。"
-              : "当前租户的运行概览 —— 看一眼负载、配额与资源用量。"}
-          </p>
+          <p className="sub">当前租户的运行概览 —— 看一眼负载、容量与资源用量。</p>
         </div>
         <div className="actions">
           <Segmented options={["1h", "24h", "7d"]} defaultValue="24h" />
@@ -36,195 +75,66 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* KPI row */}
-      <div className="grid cols-4" style={{ marginBottom: "var(--space-5)" }}>
-        <Link className="kpi focal" to="/jobs">
-          <div className="k-top">
-            <span className="k-label">活跃任务</span>
-            <span className="k-ico">
-              <Icon name="job" />
-            </span>
-          </div>
-          <div className="k-val num">23</div>
-          <div className="k-foot">
-            <span className="trend up">
-              <Icon name="arrowUp" size={12} />4
-            </span>{" "}
-            运行 + 排队
-          </div>
-        </Link>
-        <Link className="kpi" to="/services">
-          <div className="k-top">
-            <span className="k-label">在线服务</span>
-            <span className="k-ico">
-              <Icon name="service" />
-            </span>
-          </div>
-          <div className="k-val num">
-            9 <small>就绪 / 降级</small>
-          </div>
-          <div className="k-foot">7 就绪 · 2 降级</div>
-        </Link>
-        <Link className="kpi" to="/workspaces">
-          <div className="k-top">
-            <span className="k-label">工作区</span>
-            <span className="k-ico">
-              <Icon name="workspace" />
-            </span>
-          </div>
-          <div className="k-val num">
-            17 <small>运行中</small>
-          </div>
-          <div className="k-foot">活跃开发实例</div>
-        </Link>
-        <Link className="kpi" to="/models">
-          <div className="k-top">
-            <span className="k-label">模型</span>
-            <span className="k-ico">
-              <Icon name="model" />
-            </span>
-          </div>
-          <div className="k-val num">
-            128 <small>含公共</small>
-          </div>
-          <div className="k-foot">私有 + 公共仓库</div>
-        </Link>
+      {/* KPI row: 工作区 · 实验 · 自定义任务 · 在线服务 · 资产 */}
+      <div className="grid cols-5" style={{ marginBottom: "var(--space-5)" }}>
+        <Kpi to="/workspaces" icon="workspace" label="工作区" value={countText(ws)} foot={<>{wsRunning} 运行</>} />
+        <Kpi
+          to="/experiments"
+          icon="experiment"
+          label="实验"
+          value={countText(exp)}
+          foot={<>{runText(statsQ, statsQ.data?.activeExperimentRuns)} 运行</>}
+        />
+        <Kpi
+          to="/jobs"
+          icon="job"
+          label="自定义任务"
+          value={countText(jobs)}
+          foot={<>{runText(statsQ, statsQ.data?.activeJobRuns)} 运行</>}
+        />
+        <Kpi
+          to="/services"
+          icon="service"
+          label="在线服务"
+          value={countText(svc)}
+          foot={
+            <>
+              {svcReady} 就绪 · {svcDegraded} 降级
+            </>
+          }
+        />
+        <Kpi
+          to="/models"
+          icon="layers"
+          label="资产"
+          value={anyLoadErr([models, images]) ? "—" : String(assetTotal)}
+          foot={
+            <>
+              {models.data?.count ?? 0} 模型 · {images.data?.count ?? 0} 镜像
+            </>
+          }
+        />
       </div>
 
-      {/* cluster usage + trend */}
+      {/* cluster usage (tabs: 全部 + per pool) + recent activity */}
       <div className="grid cols-3" style={{ marginBottom: "var(--space-5)" }}>
         <div className="panel span-2">
           <div className="panel-head">
             <h3>集群资源用量</h3>
-            <span className="hint">全集群可分配容量 · 30s 轮询</span>
+            <span className="hint">指标接入中 · GPU 利用率 / 额度待对接</span>
           </div>
           <div className="panel-body">
-            <div className="grid cols-3">
-              <MeterStat icon="gpu" label="GPU" value="38" total="/ 56 卡" pct={68} cls="hot" />
-              <MeterStat icon="cpu" label="CPU" value="410" total="/ 720 核" pct={57} cls="warn" />
-              <MeterStat icon="mem" label="内存" value="2.1" total="/ 4.0 TiB" pct={53} cls="ok" />
-            </div>
-            <hr className="divline" />
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-              <h3 style={{ fontSize: 14 }}>集群 GPU 利用率趋势</h3>
-              <div className="legend">
-                <span>
-                  <i style={{ background: "var(--accent)" }} />
-                  GPU 利用率
-                </span>
-                <span>
-                  <i style={{ background: "var(--muted)" }} />
-                  任务并发
-                </span>
-              </div>
-            </div>
-            <svg className="chart" viewBox="0 0 720 200" preserveAspectRatio="none" style={{ height: 200 }}>
-              <line className="grid-line" x1="0" y1="50" x2="720" y2="50" />
-              <line className="grid-line" x1="0" y1="100" x2="720" y2="100" />
-              <line className="grid-line" x1="0" y1="150" x2="720" y2="150" />
-              <defs>
-                <linearGradient id="g1" x1="0" x2="0" y1="0" y2="1">
-                  <stop offset="0" stopColor="var(--accent)" stopOpacity="0.16" />
-                  <stop offset="1" stopColor="var(--accent)" stopOpacity="0" />
-                </linearGradient>
-              </defs>
-              <path
-                d="M0 150 L60 138 L120 120 L180 128 L240 96 L300 104 L360 70 L420 88 L480 58 L540 74 L600 50 L660 66 L720 56 L720 200 L0 200 Z"
-                fill="url(#g1)"
-              />
-              <path
-                d="M0 150 L60 138 L120 120 L180 128 L240 96 L300 104 L360 70 L420 88 L480 58 L540 74 L600 50 L660 66 L720 56"
-                fill="none"
-                stroke="var(--accent)"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M0 170 L60 168 L120 160 L180 165 L240 150 L300 158 L360 140 L420 150 L480 134 L540 148 L600 130 L660 142 L720 132"
-                fill="none"
-                stroke="var(--muted)"
-                strokeWidth="1.6"
-                strokeDasharray="4 4"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
+            <Tabs tabs={clusterTabs(pools)} />
           </div>
         </div>
 
-        {/* quick actions + recent activity */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-5)" }}>
-          <div className="panel">
-            <div className="panel-head">
-              <h3>快捷入口</h3>
-            </div>
-            <div className="panel-body" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <Link className="btn btn-primary btn-lg" to="/jobs">
-                <Icon name="plus" />
-                新建自定义任务
-              </Link>
-              <Link className="btn btn-lg" to="/services">
-                <Icon name="plus" />
-                部署在线服务
-              </Link>
-              <Link className="btn btn-lg" to="/workspaces">
-                <Icon name="plus" />
-                启动工作区
-              </Link>
-            </div>
+        {/* recent activity (real: workspaces + services by updatedAt) */}
+        <div className="panel">
+          <div className="panel-head">
+            <h3>最近活动</h3>
           </div>
-          <div className="panel" style={{ flex: 1 }}>
-            <div className="panel-head">
-              <h3>最近活动</h3>
-              <Link className="link" to="/jobs" style={{ fontSize: 12 }}>
-                全部
-              </Link>
-            </div>
-            <div className="panel-body flush">
-              <div className="table-wrap">
-                <table className="tbl">
-                  <tbody>
-                    <RecentRow name="train-llm-7b-12" sub="自定义任务 · 2 分钟前" status="running" label="运行中" />
-                    <RecentRow name="svc-chat-api" sub="在线服务 · 18 分钟前" status="success" label="就绪" />
-                    <RecentRow name="llama3-sft-lr-sweep" sub="实验 · 1 小时前" status="running" label="运行中" />
-                    <RecentRow name="rec-recall-train-07" sub="自定义任务 · 3 小时前" status="success" label="成功" />
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* per-tenant quota water level */}
-      <div className="panel">
-        <div className="panel-head">
-          <h3>租户配额水位</h3>
-          <Link className="link" to="/tenants" style={{ fontSize: 12 }}>
-            租户管理 →
-          </Link>
-        </div>
-        <div className="panel-body flush">
-          <div className="table-wrap">
-            <table className="tbl">
-              <thead>
-                <tr>
-                  <th>租户</th>
-                  <th>资源池</th>
-                  <th className="num-col">GPU 用量 / max</th>
-                  <th style={{ width: 240 }}>水位</th>
-                  <th className="num-col">活跃任务</th>
-                  <th className="num-col">在线服务</th>
-                </tr>
-              </thead>
-              <tbody>
-                <QuotaRow t="大模型研究院" pool="gpu-h100" usage="14 / 16" pct={88} min={50} jobs={9} svcs={3} />
-                <QuotaRow t="推荐算法团队" pool="gpu-a100" usage="6 / 12" pct={50} min={33} jobs={5} svcs={2} />
-                <QuotaRow t="智能驾驶感知" pool="gpu-l40s" usage="11 / 20" pct={55} min={40} jobs={7} svcs={3} />
-                <QuotaRow t="风控 AI" pool="cpu-large" usage="0 / 0" pct={62} jobs={2} svcs={1} success />
-              </tbody>
-            </table>
+          <div className="panel-body flush">
+            <RecentActivity ws={ws} svc={svc} />
           </div>
         </div>
       </div>
@@ -232,21 +142,104 @@ export default function Dashboard() {
   );
 }
 
-function MeterStat({
+// ── KPI card ──────────────────────────────────────────────────────────────────
+function Kpi({
+  to,
   icon,
   label,
   value,
-  total,
-  pct,
-  cls,
+  foot,
 }: {
+  to: string;
   icon: string;
   label: string;
-  value: string;
-  total: string;
-  pct: number;
-  cls: string;
+  value: ReactNode;
+  foot: ReactNode;
 }) {
+  return (
+    <Link className="kpi focal" to={to}>
+      <div className="k-top">
+        <span className="k-label">{label}</span>
+        <span className="k-ico">
+          <Icon name={icon} />
+        </span>
+      </div>
+      <div className="k-val num">{value}</div>
+      <div className="k-foot">{foot}</div>
+    </Link>
+  );
+}
+
+// countText renders the list total, or a loading/error placeholder so a KPI
+// never shows a fabricated number.
+function countText(q: UseQueryResult<{ count?: number }>): ReactNode {
+  if (q.isLoading) return "…";
+  if (q.isError) return "—";
+  return String(q.data?.count ?? 0);
+}
+
+// runText renders an active-run roll-up from the tenant stats query.
+function runText(q: UseQueryResult<unknown>, n: number | undefined): ReactNode {
+  if (q.isLoading) return "…";
+  if (q.isError || n == null) return "—";
+  return String(n);
+}
+
+function anyLoadErr(qs: UseQueryResult<unknown>[]): boolean {
+  return qs.some((q) => q.isLoading || q.isError);
+}
+
+// ── Cluster usage (zero state until a metrics source exists) ──────────────────
+function clusterTabs(pools: UseQueryResult<{ items?: Array<{ name: string }> }>): TabDef[] {
+  const poolNames = (pools.data?.items ?? []).map((p) => p.name);
+  return [
+    { key: "all", label: "全部", content: <ClusterPane /> },
+    ...poolNames.map((name) => ({ key: name, label: name, content: <ClusterPane /> })),
+  ];
+}
+
+function ClusterPane() {
+  return (
+    <>
+      <div className="grid cols-3">
+        <MeterStat icon="gpu" label="GPU" unit="卡" />
+        <MeterStat icon="cpu" label="CPU" unit="核" />
+        <MeterStat icon="mem" label="内存" unit="TiB" />
+      </div>
+      <hr className="divline" />
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+        <h3 style={{ fontSize: 14 }}>GPU 趋势</h3>
+        <div className="legend">
+          <span>
+            <i style={{ background: "var(--accent)" }} />
+            GPU 利用率
+          </span>
+          <span>
+            <i style={{ background: "var(--muted)" }} />
+            GPU 使用额度
+          </span>
+        </div>
+      </div>
+      <svg className="chart" viewBox="0 0 720 200" preserveAspectRatio="none" style={{ height: 200 }}>
+        <line className="grid-line" x1="0" y1="50" x2="720" y2="50" />
+        <line className="grid-line" x1="0" y1="100" x2="720" y2="100" />
+        <line className="grid-line" x1="0" y1="150" x2="720" y2="150" />
+        {/* No metrics yet → both series flat at 0 (baseline). */}
+        <path d="M0 196 L720 196" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" />
+        <path
+          d="M0 198 L720 198"
+          fill="none"
+          stroke="var(--muted)"
+          strokeWidth="1.6"
+          strokeDasharray="4 4"
+          strokeLinecap="round"
+        />
+      </svg>
+    </>
+  );
+}
+
+function MeterStat({ icon, label, unit }: { icon: string; label: string; unit: string }) {
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--muted)", fontSize: 13, marginBottom: 10 }}>
@@ -254,69 +247,105 @@ function MeterStat({
         {label}
       </div>
       <div className="num" style={{ fontSize: 22, fontWeight: 600 }}>
-        {value} <span className="muted" style={{ fontSize: 14 }}>{total}</span>
+        0 <span className="muted" style={{ fontSize: 14 }}>/ — {unit}</span>
       </div>
-      <div className={"meter " + cls} style={{ marginTop: 10 }}>
-        <span style={{ width: pct + "%" }} />
+      <div className="meter" style={{ marginTop: 10 }}>
+        <span style={{ width: "0%" }} />
       </div>
       <div className="num muted" style={{ fontSize: 12, marginTop: 6 }}>
-        {pct}% 使用率
+        指标接入中
       </div>
     </div>
   );
 }
 
-function RecentRow({ name, sub, status, label }: { name: string; sub: string; status: string; label: string }) {
+// ── Recent activity (workspaces + services, newest first) ─────────────────────
+interface Activity {
+  name: string;
+  type: string;
+  at: string;
+  phase?: string;
+}
+
+function RecentActivity({
+  ws,
+  svc,
+}: {
+  ws: UseQueryResult<sdk.ListWorkspacesResponse>;
+  svc: UseQueryResult<sdk.ListMlServicesResponse>;
+}) {
+  const items: Activity[] = [
+    ...(ws.data?.items ?? []).map((w) => ({ name: w.name, type: "工作区", at: w.updatedAt, phase: w.phase })),
+    ...(svc.data?.items ?? []).map((s) => ({ name: s.name, type: "在线服务", at: s.updatedAt, phase: s.phase })),
+  ]
+    .sort((a, b) => (b.at || "").localeCompare(a.at || ""))
+    .slice(0, 6);
+
+  const stateQ: QueryLike = {
+    isLoading: ws.isLoading || svc.isLoading,
+    isError: ws.isError || svc.isError,
+    error: ws.error || svc.error,
+    refetch: ws.refetch,
+  };
+
   return (
-    <tr>
-      <td>
-        <div className="t-name mono">{name}</div>
-        <div className="t-sub">{sub}</div>
-      </td>
-      <td style={{ textAlign: "right" }}>
-        <span className={"status status-" + status}>
-          <span className="dot" />
-          {label}
-        </span>
-      </td>
-    </tr>
+    <div className="table-wrap">
+      <table className="tbl">
+        <tbody>
+          {items.map((a) => {
+            const st = phaseStatus(a.phase);
+            return (
+              <tr key={a.type + a.name}>
+                <td>
+                  <div className="t-name mono">{a.name}</div>
+                  <div className="t-sub">
+                    {a.type} · {timeAgo(a.at)}
+                  </div>
+                </td>
+                <td style={{ textAlign: "right" }}>
+                  <span className={"status status-" + st.cls}>
+                    <span className="dot" />
+                    {st.label}
+                  </span>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <BlockState q={stateQ} isEmpty={items.length === 0} empty="暂无活动" />
+    </div>
   );
 }
 
-function QuotaRow({
-  t,
-  pool,
-  usage,
-  pct,
-  min,
-  jobs,
-  svcs,
-  success,
-}: {
-  t: string;
-  pool: string;
-  usage: string;
-  pct: number;
-  min?: number;
-  jobs: number;
-  svcs: number;
-  success?: boolean;
-}) {
-  return (
-    <tr>
-      <td className="t-name">{t}</td>
-      <td>
-        <span className="tag mono">{pool}</span>
-      </td>
-      <td className="num-col">{usage}</td>
-      <td>
-        <div className="qbar">
-          <span className="used" style={{ width: pct + "%", ...(success ? { background: "var(--success)" } : {}) }} />
-          {min != null && <span className="min-mark" style={{ left: min + "%" }} />}
-        </div>
-      </td>
-      <td className="num-col">{jobs}</td>
-      <td className="num-col">{svcs}</td>
-    </tr>
-  );
+function phaseStatus(phase?: string): { cls: string; label: string } {
+  switch (phase) {
+    case "Running":
+      return { cls: "running", label: "运行中" };
+    case "Ready":
+      return { cls: "success", label: "就绪" };
+    case "Succeeded":
+      return { cls: "success", label: "成功" };
+    case "Degraded":
+      return { cls: "pending", label: "降级" };
+    case "Creating":
+    case "Starting":
+    case "Pending":
+      return { cls: "pending", label: "准备中" };
+    default: // Stopped / Failed / Deleting / Deleted / undefined
+      return { cls: "stopped", label: phase || "—" };
+  }
+}
+
+function timeAgo(iso?: string): string {
+  if (!iso) return "—";
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return "—";
+  const sec = Math.max(0, Math.floor((Date.now() - then) / 1000));
+  if (sec < 60) return "刚刚";
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min} 分钟前`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr} 小时前`;
+  return `${Math.floor(hr / 24)} 天前`;
 }

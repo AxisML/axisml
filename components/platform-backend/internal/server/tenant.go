@@ -117,8 +117,16 @@ type Tenant struct {
 	Phase               TenantPhase   `json:"phase"`
 	Status              TenantStatus  `json:"status,omitempty"`
 	Suspended           bool          `json:"suspended"`
-	CreatedAt           time.Time     `json:"createdAt"`
-	UpdatedAt           time.Time     `json:"updatedAt"`
+	// Live workload roll-ups, best-effort. Populated on getTenant and on
+	// listTenants?stats=true; left at zero when the compute-service enrichment
+	// is skipped (e.g. the tenant-switcher list) or temporarily unavailable.
+	// ActiveJobRuns + ActiveExperimentRuns is the tenant's "active task" count.
+	MemberCount          int       `json:"memberCount"`
+	ActiveJobRuns        int       `json:"activeJobRuns"`
+	ActiveExperimentRuns int       `json:"activeExperimentRuns"`
+	OnlineServices       int       `json:"onlineServices"`
+	CreatedAt            time.Time `json:"createdAt"`
+	UpdatedAt            time.Time `json:"updatedAt"`
 }
 
 // TenantStatus is the tenant status sub-object (phase lives on Tenant).

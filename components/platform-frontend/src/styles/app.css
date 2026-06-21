@@ -372,9 +372,10 @@ p { margin: 0; text-wrap: pretty; }
 .cols-2 { grid-template-columns: repeat(2, 1fr); }
 .cols-3 { grid-template-columns: repeat(3, 1fr); }
 .cols-4 { grid-template-columns: repeat(4, 1fr); }
+.cols-5 { grid-template-columns: repeat(5, 1fr); }
 .span-2 { grid-column: span 2; }
-@media (max-width: 1080px) { .cols-4 { grid-template-columns: repeat(2, 1fr); } .cols-3 { grid-template-columns: 1fr; } }
-@media (max-width: 760px) { .cols-2, .cols-4 { grid-template-columns: 1fr; } .span-2 { grid-column: auto; } }
+@media (max-width: 1080px) { .cols-4 { grid-template-columns: repeat(2, 1fr); } .cols-5 { grid-template-columns: repeat(3, 1fr); } .cols-3 { grid-template-columns: 1fr; } }
+@media (max-width: 760px) { .cols-2, .cols-4, .cols-5 { grid-template-columns: 1fr; } .span-2 { grid-column: auto; } }
 
 /* ─── KPI / stat card ────────────────────────────────────────────────────── */
 .kpi { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--space-5); box-shadow: var(--elev-card); position: relative; overflow: hidden; }

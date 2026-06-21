@@ -777,6 +777,8 @@ export type StringMap = {
 };
 
 export type Tenant = {
+    activeExperimentRuns: number;
+    activeJobRuns: number;
     annotations?: StringMap;
     createdAt: string;
     description?: string;
@@ -785,6 +787,8 @@ export type Tenant = {
     initResources?: InitResources;
     kubernetesNamespace: string;
     labels?: StringMap;
+    memberCount: number;
+    onlineServices: number;
     owner?: string;
     phase: TenantPhase;
     quotas?: Array<Quota>;
@@ -5156,6 +5160,10 @@ export type ListTenantsData = {
          * Filter by tenant status.phase.
          */
         phase?: TenantPhase;
+        /**
+         * Enrich each row with live workload roll-ups (member / active-run / online-service counts). Costs one compute-service call pair per tenant; omit for the cheap name-only listing.
+         */
+        stats?: boolean;
         /**
          * Page size (default 50, max 200).
          */

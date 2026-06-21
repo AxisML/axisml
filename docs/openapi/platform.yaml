@@ -1883,6 +1883,10 @@ components:
       type: object
     Tenant:
       properties:
+        activeExperimentRuns:
+          type: integer
+        activeJobRuns:
+          type: integer
         annotations:
           $ref: '#/components/schemas/StringMap'
         createdAt:
@@ -1900,6 +1904,10 @@ components:
           type: string
         labels:
           $ref: '#/components/schemas/StringMap'
+        memberCount:
+          type: integer
+        onlineServices:
+          type: integer
         owner:
           type: string
         phase:
@@ -1916,10 +1924,14 @@ components:
           format: date-time
           type: string
       required:
+      - activeExperimentRuns
+      - activeJobRuns
       - createdAt
       - displayName
       - identifier
       - kubernetesNamespace
+      - memberCount
+      - onlineServices
       - phase
       - suspended
       - updatedAt
@@ -8210,6 +8222,13 @@ paths:
         name: phase
         schema:
           $ref: '#/components/schemas/TenantPhase'
+      - description: Enrich each row with live workload roll-ups (member / active-run
+          / online-service counts). Costs one compute-service call pair per tenant;
+          omit for the cheap name-only listing.
+        in: query
+        name: stats
+        schema:
+          type: boolean
       - description: Page size (default 50, max 200).
         in: query
         name: limit

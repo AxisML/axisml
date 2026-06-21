@@ -14,10 +14,23 @@ import (
 
 	"github.com/axisml/axisml/components/platform/internal/auth"
 	"github.com/axisml/axisml/components/platform/internal/clients/clustermanager"
+	"github.com/axisml/axisml/components/platform/internal/clients/computeservice"
 	"github.com/axisml/axisml/components/platform/internal/server"
 	"github.com/axisml/axisml/components/platform/internal/store"
 	apperrors "github.com/axisml/axisml/components/platform/pkg/errors"
 )
+
+// Grouping labels carried by a Run's backing MLRun, and the non-terminal run
+// phases that make a run "active". Kept local to avoid coupling the tenant
+// module to the job/experiment packages.
+const (
+	labelJob        = "axisml.io/job"
+	labelExperiment = "axisml.io/experiment"
+)
+
+var activeRunPhases = map[string]bool{
+	"Creating": true, "Pending": true, "Running": true, "Canceling": true,
+}
 
 // Service holds tenant/quota/member business logic.
 type Service struct {
@@ -25,12 +38,14 @@ type Service struct {
 	roles      *store.RoleRepo
 	users      *store.UserRepo
 	cm         *clustermanager.Client
+	compute    *computeservice.Client
 	invalidate func(ctx context.Context, userID string)
 }
 
-// NewService constructs a tenant Service.
-func NewService(tenants *store.TenantRepo, roles *store.RoleRepo, users *store.UserRepo, cm *clustermanager.Client) *Service {
-	return &Service{tenants: tenants, roles: roles, users: users, cm: cm}
+// NewService constructs a tenant Service. compute may be nil (counts are then
+// skipped); it is used only for best-effort live workload roll-ups.
+func NewService(tenants *store.TenantRepo, roles *store.RoleRepo, users *store.UserRepo, cm *clustermanager.Client, compute *computeservice.Client) *Service {
+	return &Service{tenants: tenants, roles: roles, users: users, cm: cm, compute: compute}
 }
 
 // OnIdentityChange registers a hook invoked after any membership change, so the
@@ -114,23 +129,25 @@ func (s *Service) Create(ctx context.Context, in CreateInput, owner string) (*se
 	return buildView(row, cr), nil
 }
 
-// Get returns a tenant with live status from cluster-manager.
+// Get returns a tenant with live status from cluster-manager and best-effort
+// workload roll-ups (member / active-run / online-service counts).
 func (s *Service) Get(ctx context.Context, identifier string) (*server.Tenant, error) {
 	row, err := s.getRow(ctx, identifier)
 	if err != nil {
 		return nil, err
 	}
-	cr, err := s.cm.GetTenant(ctx, identifier)
-	if err != nil {
-		// durable record exists but CR read failed: surface the row without live status.
-		return buildView(row, nil), nil
-	}
-	return buildView(row, cr), nil
+	cr, _ := s.cm.GetTenant(ctx, identifier) // CR read is best-effort; nil ⇒ no live status
+	view := buildView(row, cr)
+	s.enrichCounts(ctx, view)
+	return view, nil
 }
 
 // List returns tenants visible to the caller, enriched with live status
-// (best-effort). partial reports whether any live enrichment failed.
-func (s *Service) List(ctx context.Context, scope []string, q string, limit, offset int) (items []*server.Tenant, partial bool, err error) {
+// (best-effort). When stats is set, each row is also enriched with workload
+// roll-up counts (one compute-service call pair per tenant) — callers that only
+// need names/scope (e.g. the tenant switcher) leave it off to stay cheap.
+// partial reports whether any live enrichment failed.
+func (s *Service) List(ctx context.Context, scope []string, q string, stats bool, limit, offset int) (items []*server.Tenant, partial bool, err error) {
 	rows, err := s.tenants.List(ctx, q, scope, limit, offset)
 	if err != nil {
 		return nil, false, apperrors.Wrap(apperrors.ClassInternal, "list tenants", err)
@@ -142,9 +159,63 @@ func (s *Service) List(ctx context.Context, scope []string, q string, limit, off
 			partial = true
 			cr = nil
 		}
-		out = append(out, buildView(&rows[i], cr))
+		view := buildView(&rows[i], cr)
+		if stats {
+			if !s.enrichCounts(ctx, view) {
+				partial = true
+			}
+		}
+		out = append(out, view)
 	}
 	return out, partial, nil
+}
+
+// enrichCounts fills the tenant's best-effort workload roll-ups in place and
+// reports whether every source resolved cleanly. Failures are swallowed (the
+// counts stay at zero) so a flaky compute-service never breaks the tenant list.
+func (s *Service) enrichCounts(ctx context.Context, t *server.Tenant) bool {
+	ok := true
+	if n, err := s.roles.CountByTenant(ctx, t.Identifier); err == nil {
+		t.MemberCount = int(n)
+	} else {
+		ok = false
+	}
+	if s.compute == nil {
+		return ok
+	}
+	if runs, err := s.compute.ListMLRuns(ctx, t.Identifier, ""); err == nil {
+		for i := range runs {
+			if !activeRunPhases[runs[i].Phase] {
+				continue
+			}
+			switch {
+			case hasLabel(runs[i].Labels, labelExperiment):
+				t.ActiveExperimentRuns++
+			case hasLabel(runs[i].Labels, labelJob):
+				t.ActiveJobRuns++
+			}
+		}
+	} else {
+		ok = false
+	}
+	if svcs, err := s.compute.ListMLServices(ctx, t.Identifier, ""); err == nil {
+		for i := range svcs {
+			if svcs[i].Kind == "service" {
+				t.OnlineServices++
+			}
+		}
+	} else {
+		ok = false
+	}
+	return ok
+}
+
+func hasLabel(m *map[string]string, key string) bool {
+	if m == nil {
+		return false
+	}
+	_, ok := (*m)[key]
+	return ok
 }
 
 // UpdateMeta edits display metadata and syncs labels/annotations to the CR.

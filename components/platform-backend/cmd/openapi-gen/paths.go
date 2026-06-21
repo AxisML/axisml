@@ -230,6 +230,7 @@ func paths() map[string]openapigen.PathItem {
 			[]openapigen.Parameter{
 				qp("q", "Fuzzy keyword on name / displayName.", strSchema()),
 				qp("phase", "Filter by tenant status.phase.", openapigen.Ref("TenantPhase")),
+				qp("stats", "Enrich each row with live workload roll-ups (member / active-run / online-service counts). Costs one compute-service call pair per tenant; omit for the cheap name-only listing.", &openapigen.Schema{Type: "boolean"}),
 				limitParam, continueParam,
 			}, nil, resp(sc("200", "A page of visible tenants.", "TenantList"), "401", "500")),
 	}

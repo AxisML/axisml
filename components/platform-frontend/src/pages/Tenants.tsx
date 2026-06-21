@@ -38,17 +38,24 @@ const QUOTA_STYLES = `
   .q-row { flex-wrap:wrap; }
   .qu-qty { margin-left:auto; }
 }
+/* list-row resource quota: one line per pool (pool + 用量 / 水位) */
+.q-meters { display:flex; flex-direction:column; gap:8px; }
+.qm-row { display:grid; grid-template-columns:92px 60px 1fr; align-items:center; gap:10px; }
+.qm-num { font-family:var(--font-mono); font-size:12px; color:var(--fg-2); text-align:right; white-space:nowrap; }
 `;
 
-interface QuotaChip {
-  text: string;
+interface PoolQuota {
+  pool: string;
+  allocated: number; // sum of unit quantities granted in this pool
 }
 interface TenantRow {
   ident: string;
   display: string;
   active: boolean;
-  chips: QuotaChip[];
-  members: number | string; // "—" when the count isn't in the list payload (live data)
+  pools: PoolQuota[];
+  members: number;
+  activeTasks: number; // active job runs + active experiment runs
+  services: number; // online services
   created: string;
 }
 
@@ -81,14 +88,16 @@ export default function Tenants() {
       ident: t.identifier,
       display: t.displayName,
       active: !t.suspended,
-      // List payload carries allocated quota (pool + unit quantities) but no
-      // live usage and no member count — show the allocated total, and "—" for
-      // members (resolved lazily via the members drawer / its own endpoint).
-      chips: (t.quotas ?? []).map((quota) => {
-        const total = (quota.units ?? []).reduce((sum, u) => sum + (u.quantity ?? 0), 0);
-        return { text: total ? `${quota.pool} ×${total}` : quota.pool };
-      }),
-      members: "—",
+      // listTenants?stats=true enriches each row with live roll-ups. The quota
+      // payload carries the allocated unit total per pool; live usage (水位) has
+      // no metrics source yet, so the meter renders against allocated with 0 used.
+      pools: (t.quotas ?? []).map((quota) => ({
+        pool: quota.pool,
+        allocated: (quota.units ?? []).reduce((sum, u) => sum + (u.quantity ?? 0), 0),
+      })),
+      members: t.memberCount ?? 0,
+      activeTasks: (t.activeJobRuns ?? 0) + (t.activeExperimentRuns ?? 0),
+      services: t.onlineServices ?? 0,
       created: t.createdAt,
     })) ?? [];
 
@@ -135,8 +144,10 @@ export default function Tenants() {
               <tr>
                 <th>租户</th>
                 <th>状态</th>
-                <th>资源配额</th>
+                <th style={{ width: 300 }}>资源配额（用量 / 水位）</th>
                 <th className="num-col">成员</th>
+                <th className="num-col">活跃任务</th>
+                <th className="num-col">在线服务</th>
                 <th>创建时间</th>
                 <th style={{ textAlign: "right" }}>操作</th>
               </tr>
@@ -162,15 +173,25 @@ export default function Tenants() {
                     )}
                   </td>
                   <td>
-                    <div className="chip-row">
-                      {r.chips.map((c) => (
-                        <span className="tag mono" key={c.text}>
-                          {c.text}
-                        </span>
-                      ))}
-                    </div>
+                    {r.pools.length === 0 ? (
+                      <span className="muted">—</span>
+                    ) : (
+                      <div className="q-meters">
+                        {r.pools.map((p) => (
+                          <div className="qm-row" key={p.pool}>
+                            <span className="tag mono">{p.pool}</span>
+                            <span className="qm-num">0 / {p.allocated}</span>
+                            <div className="qbar">
+                              <span className="used" style={{ width: "0%" }} />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </td>
                   <td className="num-col">{r.members}</td>
+                  <td className="num-col">{r.activeTasks}</td>
+                  <td className="num-col">{r.services}</td>
                   <td className="muted">{r.created}</td>
                   <td>
                     <div className="row-actions">
@@ -259,7 +280,7 @@ export default function Tenants() {
                   </td>
                 </tr>
               ))}
-              <TableState q={q} cols={6} isEmpty={rows.length === 0} />
+              <TableState q={q} cols={8} isEmpty={rows.length === 0} />
             </tbody>
           </table>
         </div>

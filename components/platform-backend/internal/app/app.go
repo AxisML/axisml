@@ -79,7 +79,7 @@ func BuildDeps(cfg config.Config, db *gorm.DB, log *slog.Logger) (*Deps, error) 
 
 	identitySvc := identity.NewService(users, roles, sessionStore, idp, signer).
 		OnIdentityChange(identityStore.Invalidate)
-	tenantSvc := tenant.NewService(tenants, roles, users, cm).
+	tenantSvc := tenant.NewService(tenants, roles, users, cm, compute).
 		OnIdentityChange(identityStore.Invalidate)
 	resourcePoolSvc := resourcepool.NewService(cm)
 	jobSvc := job.NewService(store.NewDefinitionRepo(db, store.TableJobs), tenants, compute)
