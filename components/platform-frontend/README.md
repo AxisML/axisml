@@ -67,6 +67,18 @@ make clean           # remove dist/, build/, and the local build cache
 `IMAGE_TAG` defaults to `0.1.0` and must track the `appVersion` in
 [`deploy/helm/axisml-system/Chart.yaml`](../../deploy/helm/axisml-system/Chart.yaml).
 
+### Mock mode (no backend)
+
+Set `VITE_USE_MOCK_API=true` to serve the whole app from in-browser fixtures — the
+frontend then never contacts the backend or the dev proxy. Useful for UI work and
+demos when the backend has no data or isn't running.
+
+```sh
+VITE_USE_MOCK_API=true make dev    # or: VITE_USE_MOCK_API=true pnpm dev
+```
+
+Log in with any username / password. See [`src/api/mock/README.md`](src/api/mock/README.md).
+
 ## Deployment
 
 Platform frontend ships as part of the `axisml-platform` chart
