@@ -1,5 +1,8 @@
-import { createBrowserRouter } from "react-router-dom";
+import { createBrowserRouter, Navigate, useLocation } from "react-router-dom";
+import type { ReactNode } from "react";
+import { useSession } from "@/app/session";
 import { AppShell } from "@/shell/AppShell";
+import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
 import Workspaces from "@/pages/Workspaces";
 import WorkspaceDetail from "@/pages/WorkspaceDetail";
@@ -17,9 +20,28 @@ import Images from "@/pages/Images";
 import Tenants from "@/pages/Tenants";
 import ResourcePools from "@/pages/ResourcePools";
 
+// Auth gate: hold rendering while the session hydrates, send anonymous users to
+// /login (remembering where they were headed), admit authenticated users.
+function RequireAuth({ children }: { children: ReactNode }) {
+  const { status } = useSession();
+  const location = useLocation();
+  if (status === "loading") {
+    return <div className="auth-splash" aria-busy="true" />;
+  }
+  if (status === "anon") {
+    return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />;
+  }
+  return <>{children}</>;
+}
+
 export const router = createBrowserRouter([
+  { path: "/login", element: <Login /> },
   {
-    element: <AppShell />,
+    element: (
+      <RequireAuth>
+        <AppShell />
+      </RequireAuth>
+    ),
     children: [
       { path: "/", element: <Dashboard /> },
       { path: "/workspaces", element: <Workspaces /> },

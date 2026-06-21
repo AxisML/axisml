@@ -1,10 +1,15 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useImages } from "@/api/hooks";
+import { useApiMutation } from "@/api/mutations";
+import * as sdk from "@/api/generated";
+import { useApp } from "@/app/store";
 import { useUI } from "@/app/ui";
 import { Icon } from "@/components/Icon";
 import { Drawer } from "@/components/Drawer";
 import { Tabs } from "@/components/Tabs";
 import { FieldsetTitle } from "@/components/forms";
+import { TableState, BlockState } from "@/components/states";
 
 interface ImageRow {
   name: string;
@@ -16,17 +21,6 @@ interface ImageRow {
   updated: string; // card "更新 …" label
   updatedShort: string; // list "更新时间" cell
 }
-
-// Faithful demo rows from prototype/images.html — rendered when the backend
-// (contract-only shell) returns no items. Each row carries its own update label
-// so search/filter never reassigns another image's timestamp.
-const FALLBACK: ImageRow[] = [
-  { name: "pytorch", desc: "PyTorch 训练镜像", icon: "box", purpose: "training", latest: "2.3-cu121", versions: 6, updated: "更新 4 天前", updatedShort: "4 天前" },
-  { name: "vllm-serve", desc: "vLLM 推理服务", icon: "bolt", purpose: "inference", latest: "0.5.1", versions: 8, updated: "更新 1 周前", updatedShort: "1 周前" },
-  { name: "jupyter-ds", desc: "Jupyter 开发环境", icon: "code", purpose: "dev", latest: "2024.3", versions: 3, updated: "更新 2 周前", updatedShort: "2 周前" },
-  { name: "megatron", desc: "Megatron-LM 训练", icon: "box", purpose: "training", latest: "24.05", versions: 2, updated: "更新 6 天前", updatedShort: "6 天前" },
-  { name: "lm-eval-harness", desc: "评测镜像", icon: "chart", purpose: "inference", latest: "0.4", versions: 1, updated: "更新 3 天前", updatedShort: "3 天前" },
-];
 
 // One-off card glyphs from the prototype (not in the shared icon map).
 function CardIcon({ name }: { name: ImageRow["icon"] }) {
@@ -71,16 +65,34 @@ function UploadGlyph() {
   );
 }
 
-type DrawerKind = "ver" | "pull" | "newImg" | "addVer";
+const PURPOSE_OPTIONS = [
+  { value: "training", label: "训练镜像" },
+  { value: "inference", label: "推理镜像" },
+  { value: "workspace", label: "评估镜像" },
+  { value: "custom", label: "自定义" },
+] as const;
+
+type DrawerKind =
+  | { kind: "ver"; image: string; desc: string }
+  | { kind: "pull"; image: string; version: string; uri: string }
+  | { kind: "newImg" }
+  | { kind: "addVer"; image: string };
 
 export default function Images() {
-  const { data } = useImages();
+  const q = useImages();
+  const { tenant } = useApp();
+  const { confirm } = useUI();
   const [view, setView] = useState<"cards" | "list">("cards");
   const [query, setQuery] = useState("");
   const [drawer, setDrawer] = useState<DrawerKind | null>(null);
 
+  const delDef = useApiMutation(
+    (name: string) => sdk.deleteImageDefinition({ path: { tenant, name } }),
+    { invalidate: [["images"]], success: "镜像已删除" },
+  );
+
   const rows: ImageRow[] =
-    data?.items?.map((m) => ({
+    q.data?.items?.map((m) => ({
       name: m.name,
       desc: m.description ?? m.displayName ?? "",
       icon: "box" as const,
@@ -89,13 +101,23 @@ export default function Images() {
       versions: 0,
       updated: "刚刚",
       updatedShort: "刚刚",
-    })) ?? FALLBACK;
+    })) ?? [];
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter((r) => r.name.toLowerCase().includes(q) || r.desc.toLowerCase().includes(q));
+    const term = query.trim().toLowerCase();
+    if (!term) return rows;
+    return rows.filter((r) => r.name.toLowerCase().includes(term) || r.desc.toLowerCase().includes(term));
   }, [rows, query]);
+
+  const onDelete = (r: ImageRow) => {
+    confirm({
+      title: `确定删除镜像 ${r.name}？`,
+      desc: "删除后该镜像下所有版本将一并移除，且不可恢复。",
+      okLabel: "确认删除",
+      danger: true,
+      onConfirm: () => delDef.mutate(r.name),
+    });
+  };
 
   return (
     <main className="page">
@@ -112,7 +134,7 @@ export default function Images() {
           </p>
         </div>
         <div className="actions">
-          <button className="btn btn-primary" onClick={() => setDrawer("newImg")}>
+          <button className="btn btn-primary" onClick={() => setDrawer({ kind: "newImg" })}>
             <Icon name="plus" />
             新建镜像
           </button>
@@ -146,7 +168,7 @@ export default function Images() {
         <div>
           <div className="art-cards">
             {filtered.map((r) => (
-              <div className="art-card" key={r.name} onClick={() => setDrawer("ver")}>
+              <div className="art-card" key={r.name} onClick={() => setDrawer({ kind: "ver", image: r.name, desc: r.desc })}>
                 <div className="ac-top">
                   <div className="ac-ico">
                     <CardIcon name={r.icon} />
@@ -164,6 +186,7 @@ export default function Images() {
                 </div>
               </div>
             ))}
+            <BlockState q={q} isEmpty={filtered.length === 0} />
           </div>
           <div className="pagination" style={{ marginTop: "var(--space-4)" }}>
             <span>共 {filtered.length} 个</span>
@@ -194,7 +217,7 @@ export default function Images() {
                 </thead>
                 <tbody>
                   {filtered.map((r) => (
-                    <tr key={r.name} onClick={() => setDrawer("ver")}>
+                    <tr key={r.name} onClick={() => setDrawer({ kind: "ver", image: r.name, desc: r.desc })}>
                       <td>
                         <span className="t-name mono">{r.name}</span>
                         <div className="t-sub">{r.desc}</div>
@@ -212,15 +235,24 @@ export default function Images() {
                             aria-label="添加版本"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setDrawer("addVer");
+                              setDrawer({ kind: "addVer", image: r.name });
                             }}
                           >
                             <UploadGlyph />
                           </button>
+                          <button
+                            className="act act-danger"
+                            aria-label="删除"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onDelete(r);
+                            }}
+                          />
                         </div>
                       </td>
                     </tr>
                   ))}
+                  <TableState q={q} cols={6} isEmpty={filtered.length === 0} />
                 </tbody>
               </table>
             </div>
@@ -237,40 +269,113 @@ export default function Images() {
         </div>
       )}
 
-      <VerDrawer open={drawer === "ver"} onClose={() => setDrawer(null)} onPull={() => setDrawer("pull")} onAdd={() => setDrawer("addVer")} />
-      <PullDrawer open={drawer === "pull"} onClose={() => setDrawer(null)} />
-      <NewImgDrawer open={drawer === "newImg"} onClose={() => setDrawer(null)} />
-      <AddVerDrawer open={drawer === "addVer"} onClose={() => setDrawer(null)} />
+      {drawer?.kind === "ver" && (
+        <VerDrawer
+          image={drawer.image}
+          desc={drawer.desc}
+          onClose={() => setDrawer(null)}
+          onPull={(version, uri) => setDrawer({ kind: "pull", image: drawer.image, version, uri })}
+          onAdd={() => setDrawer({ kind: "addVer", image: drawer.image })}
+        />
+      )}
+      {drawer?.kind === "pull" && (
+        <PullDrawer image={drawer.image} version={drawer.version} uri={drawer.uri} onClose={() => setDrawer(null)} />
+      )}
+      {drawer?.kind === "newImg" && <NewImgDrawer onClose={() => setDrawer(null)} />}
+      {drawer?.kind === "addVer" && <AddVerDrawer image={drawer.image} onClose={() => setDrawer(null)} />}
     </main>
   );
 }
 
-interface VerItem {
-  name: string;
-  status: "success" | "pending";
+interface VerView {
+  version: string;
+  status: string; // raw ImageStatus
   statusLabel: string;
+  statusClass: "success" | "pending";
   src: string;
   desc: string;
   addr: string;
   by: string;
-  pending?: boolean;
+  pending: boolean;
 }
 
-const VERSIONS: VerItem[] = [
-  { name: "2.3-cu121", status: "success", statusLabel: "就绪", src: "Docker 推送", desc: "PyTorch 2.3 + CUDA 12.1，集成 FlashAttention-2", addr: "zot.axisml.internal/llm-lab/pytorch:2.3-cu121", by: "张伟 · 4 天前" },
-  { name: "2.2-cu118", status: "success", statusLabel: "就绪", src: "外部镜像", desc: "从 NGC 同步的基线训练镜像", addr: "zot.axisml.internal/llm-lab/pytorch:2.2-cu118", by: "李娜 · 2 周前" },
-  { name: "2.1-cu118", status: "success", statusLabel: "就绪", src: "Docker 推送", desc: "兼容旧版 GPU 驱动", addr: "zot.axisml.internal/llm-lab/pytorch:2.1-cu118", by: "李娜 · 3 周前" },
-  { name: "2.4-cu124", status: "pending", statusLabel: "推送中", src: "Docker 推送", desc: "升级至 CUDA 12.4", addr: "推送完成后生成…", by: "张伟 · 刚刚", pending: true },
-];
+const SOURCE_LABEL: Record<string, string> = {
+  dockerPush: "Docker 推送",
+  oras: "ORAS 推送",
+  webUpload: "页面上传",
+  external: "外部镜像",
+};
 
-function VerDrawer({ open, onClose, onPull, onAdd }: { open: boolean; onClose: () => void; onPull: () => void; onAdd: () => void }) {
-  const { toast } = useUI();
+function VerDrawer({
+  image,
+  desc,
+  onClose,
+  onPull,
+  onAdd,
+}: {
+  image: string;
+  desc: string;
+  onClose: () => void;
+  onPull: (version: string, uri: string) => void;
+  onAdd: () => void;
+}) {
+  const { tenant } = useApp();
+  const { toast, confirm } = useUI();
+  const [search, setSearch] = useState("");
+
+  const versionsQ = useQuery({
+    queryKey: ["images", "versions", tenant, image],
+    enabled: !!image,
+    queryFn: async () => {
+      const { data, error } = await sdk.listImageVersions({ path: { tenant, name: image } });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const delVer = useApiMutation(
+    (version: string) => sdk.deleteImage({ path: { tenant, name: image, version } }),
+    { invalidate: [["images"], ["images", "versions", tenant, image]], success: "版本已删除" },
+  );
+
+  const items: VerView[] =
+    versionsQ.data?.items?.map((v) => {
+      const pending = v.status !== "Ready";
+      return {
+        version: v.version,
+        status: v.status,
+        statusLabel: pending ? "推送中" : "就绪",
+        statusClass: pending ? "pending" : "success",
+        src: SOURCE_LABEL[v.source ?? ""] ?? "—",
+        desc: v.description ?? v.displayName ?? "",
+        addr: v.uri || (pending ? "推送完成后生成…" : "—"),
+        by: v.owner ?? "—",
+        pending,
+      };
+    }) ?? [];
+
+  const filtered = items.filter((v) => {
+    const term = search.trim().toLowerCase();
+    if (!term) return true;
+    return v.version.toLowerCase().includes(term) || v.desc.toLowerCase().includes(term);
+  });
+
+  const onDeleteVer = (v: VerView) => {
+    confirm({
+      title: `确定删除版本 ${v.version}？`,
+      desc: "删除后该版本镜像不可恢复。",
+      okLabel: "确认删除",
+      danger: true,
+      onConfirm: () => delVer.mutate(v.version),
+    });
+  };
+
   return (
-    <Drawer open={open} wide onClose={onClose} title={<span className="mono">pytorch</span>} sub="PyTorch 训练镜像 · training · 创建人 张伟">
+    <Drawer open wide onClose={onClose} title={<span className="mono">{image}</span>} sub={desc || "镜像版本"}>
       <div className="toolbar">
         <div className="field-search">
           <Icon name="search" />
-          <input placeholder="搜索版本名称 / 描述" />
+          <input placeholder="搜索版本名称 / 描述" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <div className="grow" />
         <button className="btn btn-sm btn-primary" onClick={onAdd}>
@@ -278,11 +383,11 @@ function VerDrawer({ open, onClose, onPull, onAdd }: { open: boolean; onClose: (
         </button>
       </div>
       <div className="ver-list">
-        {VERSIONS.map((v) => (
-          <div className="ver-item" key={v.name}>
+        {filtered.map((v) => (
+          <div className="ver-item" key={v.version}>
             <div className="ver-top">
-              <span className="ver-name">{v.name}</span>
-              <span className={"status status-" + v.status}>
+              <span className="ver-name">{v.version}</span>
+              <span className={"status status-" + v.statusClass}>
                 <span className="dot" />
                 {v.statusLabel}
               </span>
@@ -292,8 +397,12 @@ function VerDrawer({ open, onClose, onPull, onAdd }: { open: boolean; onClose: (
                   <button className="act act-run" aria-label="查看进度" />
                 ) : (
                   <>
-                    <button className="act" aria-label="拉取命令" onClick={onPull} />
-                    <button className="act act-danger" aria-label="删除" />
+                    <button className="act" aria-label="拉取命令" onClick={() => onPull(v.version, v.addr)} />
+                    <button
+                      className="act act-danger"
+                      aria-label="删除"
+                      onClick={() => onDeleteVer(v)}
+                    />
                   </>
                 )}
               </div>
@@ -301,24 +410,36 @@ function VerDrawer({ open, onClose, onPull, onAdd }: { open: boolean; onClose: (
             <div className="ver-desc">{v.desc}</div>
             <div className="ver-meta">
               <span className={"ver-addr" + (v.pending ? " muted" : "")}>{v.addr}</span>
-              {!v.pending && <button className="act ver-copy" aria-label="复制" onClick={() => toast("地址已复制")} />}
+              {!v.pending && (
+                <button
+                  className="act ver-copy"
+                  aria-label="复制"
+                  onClick={() => {
+                    void navigator.clipboard?.writeText(v.addr);
+                    toast("地址已复制");
+                  }}
+                />
+              )}
               <span className="ver-by">{v.by}</span>
             </div>
           </div>
         ))}
+        <BlockState q={versionsQ} isEmpty={filtered.length === 0} />
       </div>
     </Drawer>
   );
 }
 
-function PullDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
+function PullDrawer({ image, version, uri, onClose }: { image: string; version: string; uri: string; onClose: () => void }) {
   const { toast } = useUI();
+  const ref = uri || `zot.axisml.internal/<tenant>/${image}:${version}`;
+  const cmd = `docker login zot.axisml.internal -u <用户名> -p <token>\ndocker pull ${ref}`;
   return (
     <Drawer
-      open={open}
+      open
       onClose={onClose}
       title="拉取命令"
-      sub={<span className="mono">pytorch:2.3-cu121</span>}
+      sub={<span className="mono">{image}:{version}</span>}
       footer={
         <button className="btn btn-primary" onClick={onClose}>
           完成
@@ -328,20 +449,65 @@ function PullDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
       <p className="muted" style={{ fontSize: 13, marginBottom: 12 }}>
         镜像存储于 OCI（zot），使用以下命令登录并拉取。临时凭证有效期 1 小时。
       </p>
-      <pre className="logbox" style={{ maxHeight: "none" }}>{`docker login zot.axisml.internal -u <用户名> -p <token>
-docker pull zot.axisml.internal/llm-lab/pytorch:2.3-cu121`}</pre>
-      <button className="btn" style={{ marginTop: 14 }} onClick={() => toast("命令已复制到剪贴板")}>
+      <pre className="logbox" style={{ maxHeight: "none" }}>{cmd}</pre>
+      <button
+        className="btn"
+        style={{ marginTop: 14 }}
+        onClick={() => {
+          void navigator.clipboard?.writeText(cmd);
+          toast("命令已复制到剪贴板");
+        }}
+      >
         复制命令
       </button>
     </Drawer>
   );
 }
 
-function NewImgDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { toast } = useUI();
+function NewImgDrawer({ onClose }: { onClose: () => void }) {
+  const { tenant } = useApp();
+  const [name, setName] = useState("");
+  const [purpose, setPurpose] = useState<string>(PURPOSE_OPTIONS[0].value);
+  const [description, setDescription] = useState("");
+  const [tagKey, setTagKey] = useState("");
+  const [tagVal, setTagVal] = useState("");
+  const [tags, setTags] = useState<Record<string, string>>({});
+
+  const create = useApiMutation(
+    (body: sdk.ArtifactDefinitionCreateInput) =>
+      sdk.createImageDefinition({ path: { tenant, name: body.name }, body }),
+    { invalidate: [["images"]], success: "镜像已创建，可在版本列表添加版本" },
+  );
+
+  const addTag = () => {
+    const k = tagKey.trim();
+    if (!k) return;
+    setTags((t) => ({ ...t, [k]: tagVal.trim() }));
+    setTagKey("");
+    setTagVal("");
+  };
+  const removeTag = (k: string) =>
+    setTags((t) => {
+      const next = { ...t };
+      delete next[k];
+      return next;
+    });
+
+  const submit = () => {
+    const labels: Record<string, string> = { ...tags, purpose };
+    create.mutate(
+      {
+        name: name.trim(),
+        description: description.trim() || undefined,
+        labels,
+      },
+      { onSuccess: onClose },
+    );
+  };
+
   return (
     <Drawer
-      open={open}
+      open
       wide
       onClose={onClose}
       title="新建镜像"
@@ -352,14 +518,8 @@ function NewImgDrawer({ open, onClose }: { open: boolean; onClose: () => void })
           <button className="btn" onClick={onClose}>
             取消
           </button>
-          <button
-            className="btn btn-primary"
-            onClick={() => {
-              toast("镜像已创建，可在版本列表添加版本");
-              onClose();
-            }}
-          >
-            创建镜像
+          <button className="btn btn-primary" disabled={!name.trim() || create.isPending} onClick={submit}>
+            {create.isPending ? "创建中…" : "创建镜像"}
           </button>
         </>
       }
@@ -370,32 +530,62 @@ function NewImgDrawer({ open, onClose }: { open: boolean; onClose: () => void })
           <label>
             镜像名 <span className="req">*</span>
           </label>
-          <input className="input mono" placeholder="my-image" />
+          <input
+            className="input mono"
+            placeholder="my-image"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
         </div>
         <div className="field">
           <label>用途</label>
-          <select className="input">
-            <option>训练镜像</option>
-            <option>推理镜像</option>
-            <option>评估镜像</option>
-            <option>自定义</option>
+          <select className="input" value={purpose} onChange={(e) => setPurpose(e.target.value)}>
+            {PURPOSE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
           </select>
         </div>
         <div className="field full">
           <label>描述</label>
-          <textarea className="textarea" placeholder="简要说明镜像用途、基础环境与适用场景" />
+          <textarea
+            className="textarea"
+            placeholder="简要说明镜像用途、基础环境与适用场景"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
         </div>
       </div>
 
       <FieldsetTitle n={2}>自定义标签</FieldsetTitle>
       <div className="tag-group">
         <div className="custom-tags">
-          <div className="chip-row" />
+          <div className="chip-row">
+            {Object.entries(tags).map(([k, v]) => (
+              <span className="tag mono" key={k}>
+                {k}:{v}{" "}
+                <button type="button" className="chip-x" aria-label="移除" onClick={() => removeTag(k)}>
+                  ✕
+                </button>
+              </span>
+            ))}
+          </div>
           <div className="cta-input">
-            <input className="input mono" placeholder="键，如 cuda" />
+            <input
+              className="input mono"
+              placeholder="键，如 cuda"
+              value={tagKey}
+              onChange={(e) => setTagKey(e.target.value)}
+            />
             <span className="cta-sep mono">:</span>
-            <input className="input mono" placeholder="值，如 12.1" />
-            <button className="btn btn-sm" type="button">
+            <input
+              className="input mono"
+              placeholder="值，如 12.1"
+              value={tagVal}
+              onChange={(e) => setTagVal(e.target.value)}
+            />
+            <button className="btn btn-sm" type="button" onClick={addTag}>
               添加
             </button>
           </div>
@@ -405,11 +595,56 @@ function NewImgDrawer({ open, onClose }: { open: boolean; onClose: () => void })
   );
 }
 
-function AddVerDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
+function AddVerDrawer({ image, onClose }: { image: string; onClose: () => void }) {
+  const { tenant } = useApp();
   const { toast } = useUI();
+  const [version, setVersion] = useState("");
+  const [description, setDescription] = useState("");
+  const [mode, setMode] = useState<"remote" | "docker">("remote");
+  const [sourceRef, setSourceRef] = useState("");
+
+  const initiate = useApiMutation(
+    (body: sdk.ImageInitiateRequest) =>
+      sdk.initiateImage({ path: { tenant, name: image }, body }),
+    { invalidate: [["images"], ["images", "versions", tenant, image]] },
+  );
+
+  const submit = () => {
+    const v = version.trim();
+    if (!v) return;
+    // "remote" registers an external image (no client upload); "docker" creates
+    // the version record so the user can push against the returned URI. Both go
+    // through initiate; the resulting URI / status is read back in the version
+    // list. completeImage requires a content digest the form does not capture,
+    // so the push path is left for the server-side sync / push to finalize.
+    const body: sdk.ImageInitiateRequest =
+      mode === "remote"
+        ? {
+            version: v,
+            spec: {},
+            description: description.trim() || undefined,
+            source: "external",
+            sourceImageRef: sourceRef.trim() || undefined,
+          }
+        : {
+            version: v,
+            spec: {},
+            description: description.trim() || undefined,
+            source: "dockerPush",
+          };
+    initiate.mutate(body, {
+      onSuccess: () => {
+        toast("已提交，版本将在推送 / 同步完成后就绪");
+        onClose();
+      },
+    });
+  };
+
+  const canSubmit = !!version.trim() && (mode !== "remote" || !!sourceRef.trim()) && !initiate.isPending;
+
   return (
     <Drawer
-      open={open}
+      open
       wide
       onClose={onClose}
       title="添加版本"
@@ -420,14 +655,8 @@ function AddVerDrawer({ open, onClose }: { open: boolean; onClose: () => void })
           <button className="btn" onClick={onClose}>
             取消
           </button>
-          <button
-            className="btn btn-primary"
-            onClick={() => {
-              toast("已提交，版本将在推送 / 同步完成后就绪");
-              onClose();
-            }}
-          >
-            提交
+          <button className="btn btn-primary" disabled={!canSubmit} onClick={submit}>
+            {initiate.isPending ? "提交中…" : "提交"}
           </button>
         </>
       }
@@ -436,28 +665,40 @@ function AddVerDrawer({ open, onClose }: { open: boolean; onClose: () => void })
       <div className="form-grid">
         <div className="field">
           <label>镜像</label>
-          <input className="input mono" value="pytorch" disabled />
+          <input className="input mono" value={image} disabled />
         </div>
         <div className="field">
           <label>
             版本 / tag <span className="req">*</span>
           </label>
-          <input className="input mono" placeholder="2.4-cu124" />
+          <input
+            className="input mono"
+            placeholder="2.4-cu124"
+            value={version}
+            onChange={(e) => setVersion(e.target.value)}
+          />
         </div>
         <div className="field full">
           <label>描述</label>
-          <textarea className="textarea" placeholder="本次更新内容，如：升级 CUDA、集成 FlashAttention-2" />
+          <textarea
+            className="textarea"
+            placeholder="本次更新内容，如：升级 CUDA、集成 FlashAttention-2"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
         </div>
       </div>
 
       <FieldsetTitle n={2}>添加方式</FieldsetTitle>
       <Tabs
+        defaultKey="remote"
         tabs={[
           {
             key: "remote",
             label: "添加外部镜像",
             content: (
               <>
+                <MethodSetter onShow={() => setMode("remote")} />
                 <p className="help" style={{ marginBottom: 14 }}>
                   引用外部仓库中的已有镜像，平台将其同步到镜像仓，适合从 Docker Hub、NGC、Harbor 等公开或私有仓库导入。
                 </p>
@@ -466,7 +707,12 @@ function AddVerDrawer({ open, onClose }: { open: boolean; onClose: () => void })
                     <label>
                       源镜像地址（地址 + tag/digest）<span className="req">*</span>
                     </label>
-                    <input className="input mono" placeholder="docker.io/pytorch/pytorch:2.4.0-cuda12.4-cudnn9-runtime" />
+                    <input
+                      className="input mono"
+                      placeholder="docker.io/pytorch/pytorch:2.4.0-cuda12.4-cudnn9-runtime"
+                      value={sourceRef}
+                      onChange={(e) => setSourceRef(e.target.value)}
+                    />
                   </div>
                   <div className="field full">
                     <label>拉取凭证</label>
@@ -486,6 +732,7 @@ function AddVerDrawer({ open, onClose }: { open: boolean; onClose: () => void })
             label: "通过 Docker 推送",
             content: (
               <>
+                <MethodSetter onShow={() => setMode("docker")} />
                 <p className="help" style={{ marginBottom: 14 }}>
                   使用 <b>Docker</b> 将本地构建好的镜像直接推送到镜像仓，适合自建镜像与 CI 流水线。
                 </p>
@@ -502,10 +749,10 @@ docker login zot.axisml.internal -u <用户名> -p <token>`}</pre>
                 <div className="oras-step">
                   <div className="os-head">2 · 打标签并推送</div>
                   <pre className="logbox" style={{ maxHeight: "none" }}>{`# 1. 为本地镜像打上目标 tag
-docker tag <本地镜像>:<tag> zot.axisml.internal/llm-lab/pytorch:2.4-cu124
+docker tag <本地镜像>:<tag> zot.axisml.internal/<tenant>/${image}:${version || "<tag>"}
 
 # 2. 推送到镜像仓
-docker push zot.axisml.internal/llm-lab/pytorch:2.4-cu124`}</pre>
+docker push zot.axisml.internal/<tenant>/${image}:${version || "<tag>"}`}</pre>
                   <button className="btn btn-sm" style={{ marginTop: 10 }} onClick={() => toast("推送命令已复制")}>
                     复制命令
                   </button>
@@ -517,4 +764,13 @@ docker push zot.axisml.internal/llm-lab/pytorch:2.4-cu124`}</pre>
       />
     </Drawer>
   );
+}
+
+// Tabs renders only the active pane, so mounting a pane signals the active add
+// method back to the form (Tabs has no onChange) — mirrors Models' WebMethodSetter.
+function MethodSetter({ onShow }: { onShow: () => void }) {
+  useEffect(() => {
+    onShow();
+  }, []);
+  return null;
 }

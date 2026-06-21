@@ -1,11 +1,14 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useJobs } from "@/api/hooks";
+import { useApiMutation, tenantHeader } from "@/api/mutations";
+import * as sdk from "@/api/generated";
 import { useUI } from "@/app/ui";
+import { TableState } from "@/components/states";
 import { Icon } from "@/components/Icon";
 import { Drawer } from "@/components/Drawer";
 import { RunBar, type RunState } from "@/components/RunBar";
-import { PickGrid, FieldsetTitle, VolList } from "@/components/forms";
+import { FieldsetTitle, VolList } from "@/components/forms";
 
 interface JobRow {
   name: string;
@@ -17,31 +20,37 @@ interface JobRow {
   deletable?: boolean;
 }
 
-// Faithful demo rows from prototype/jobs.html — rendered when the backend
-// (contract-only shell) returns no items.
-const FALLBACK: JobRow[] = [
-  { name: "train-llm-7b", desc: "LLaMA-7B 全参微调", runs: ["ok", "fail", "ok", "run", "none"], runCount: 4, owner: "张伟", updated: "2 天前" },
-  { name: "eval-recall", desc: "召回模型离线评估", runs: ["none", "none", "fail", "ok", "ok"], runCount: 3, owner: "李娜", updated: "5 天前" },
-  { name: "data-clean-etl", desc: "训练数据清洗", runs: ["ok", "ok", "fail", "ok", "fail"], runCount: 7, owner: "陈曦", updated: "6 小时前" },
-  { name: "sft-baseline", desc: "SFT 基线训练", runs: ["none", "none", "none", "none", "none"], runCount: 0, owner: "王磊", updated: "1 小时前", deletable: true },
-];
-
 type DrawerMode = "new" | "run" | "edit";
 
 export default function Jobs() {
-  const { data } = useJobs();
+  const q = useJobs();
   const { confirm } = useUI();
   const [drawer, setDrawer] = useState<{ mode: DrawerMode; name?: string } | null>(null);
 
+  const delJob = useApiMutation(
+    (name: string) => sdk.deleteJob({ path: { name }, headers: tenantHeader() }),
+    { invalidate: [["jobs"]], success: "Job 已删除" },
+  );
+
   const rows: JobRow[] =
-    data?.items?.map((j) => ({
+    q.data?.items?.map((j) => ({
       name: j.name,
       desc: j.description ?? j.displayName ?? "",
       runs: ["none", "none", "none", "none", "none"],
       runCount: 0,
       owner: j.owner ?? "—",
       updated: j.updatedAt ?? j.createdAt ?? "",
-    })) ?? FALLBACK;
+    })) ?? [];
+
+  const onDelete = (r: JobRow) =>
+    confirm({
+      title: `删除 Job ${r.name}？`,
+      desc: "删除后模板不可恢复；若存在历史 Run 将一并级联软删。",
+      info: "有活跃 Run 时删除会被阻断（409 job-has-active-runs）。",
+      okLabel: "确认删除",
+      danger: true,
+      onConfirm: () => delJob.mutate(r.name),
+    });
 
   return (
     <main className="page">
@@ -111,27 +120,13 @@ export default function Jobs() {
                     <div className="row-actions">
                       <button className="act act-run" aria-label="运行" onClick={() => setDrawer({ mode: "run", name: r.name })} />
                       <Link className="act" to={`/jobs/${r.name}`} aria-label="详情" />
-                      {r.deletable ? (
-                        <button
-                          className="act act-danger"
-                          aria-label="删除"
-                          onClick={() =>
-                            confirm({
-                              title: `删除 Job ${r.name}？`,
-                              desc: "该 Job 暂无运行记录。删除后模板不可恢复；若存在历史 Run 将一并级联软删。",
-                              info: "有活跃 Run 时删除会被阻断（409 job-has-active-runs）。",
-                              okLabel: "确认删除",
-                              toast: `Job ${r.name} 已删除`,
-                            })
-                          }
-                        />
-                      ) : (
-                        <button className="act" aria-label="编辑" onClick={() => setDrawer({ mode: "edit", name: r.name })} />
-                      )}
+                      <button className="act" aria-label="编辑" onClick={() => setDrawer({ mode: "edit", name: r.name })} />
+                      <button className="act act-danger" aria-label="删除" onClick={() => onDelete(r)} />
                     </div>
                   </td>
                 </tr>
               ))}
+              <TableState q={q} cols={6} isEmpty={rows.length === 0} />
             </tbody>
           </table>
         </div>
@@ -159,22 +154,157 @@ const UNITS = [
   { title: "a100-4x-xlarge", spec: "4×A100 · 32 vCPU · 256 GiB" },
   { title: "a100-8x-xlarge-ib", spec: "8×A100 · IB · 64 vCPU · 512 GiB" },
 ];
+const POOLS = ["gpu-a100", "gpu-h100"];
 const CMD = `torchrun --nproc_per_node=4 train.py \\
   --model_name llama-7b --lr 2e-5 --epochs 3 \\
   --batch_size 16 --data /data/sft.jsonl`;
 
-function JobDrawer({ mode, name, onClose }: { mode: DrawerMode; name?: string; onClose: () => void }) {
-  const { toast } = useUI();
+// Controlled radio-card grid (mirrors PickGrid styling) so the form can submit
+// the chosen value. PickGrid itself is uncontrolled and exposes no callback.
+function ControlledPickGrid({
+  options,
+  value,
+  onChange,
+}: {
+  options: { title: string; spec: string }[];
+  value: string;
+  onChange: (title: string) => void;
+}) {
+  return (
+    <div className="pick-grid">
+      {options.map((o) => (
+        <div key={o.title} className={"pick" + (o.title === value ? " on" : "")} onClick={() => onChange(o.title)}>
+          <div className="p-title">{o.title}</div>
+          <div className="p-spec">{o.spec}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Parse "KEY=VALUE" lines into EnvVar[] (skips blank lines).
+function parseEnv(text: string): sdk.EnvVar[] {
+  return text
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((l) => {
+      const [name, ...rest] = l.split("=");
+      return { name: name.trim(), value: rest.join("=") };
+    })
+    .filter((e) => e.name);
+}
+
+// Split a multi-line / multi-word command into a shell-style command array.
+function parseCommand(text: string): string[] {
+  return text
+    .split(/\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function JobDrawer({ mode, name: initialName, onClose }: { mode: DrawerMode; name?: string; onClose: () => void }) {
+  const locked = mode === "run";
+
+  const [name, setName] = useState(mode === "new" ? "" : initialName ?? "");
+  const [description, setDescription] = useState("");
+  const [image, setImage] = useState(IMAGES[0].title);
+  const [poolName, setPoolName] = useState(POOLS[0]);
+  const [unitName, setUnitName] = useState(UNITS[0].title);
+  const [replicas, setReplicas] = useState("4");
+  const [command, setCommand] = useState(CMD);
+  const [env, setEnv] = useState("WANDB_DISABLED=true\nNCCL_DEBUG=INFO");
+  const [timeout, setTimeoutS] = useState("86400");
+  const [retries, setRetries] = useState("2");
+
+  // Assemble a minimal-but-valid JobSpec from the controlled fields.
+  const buildSpec = (): sdk.JobSpec => {
+    const reps = Number(replicas);
+    const role: sdk.MlRunRole = {
+      name: "worker",
+      replicas: Number.isFinite(reps) && reps > 0 ? reps : 1,
+      template: {
+        image: image.trim() || undefined,
+        command: parseCommand(command),
+        env: parseEnv(env),
+      },
+    };
+    const deadline = Number(timeout);
+    const backoff = Number(retries);
+    return {
+      backend: { name: "native", engine: "job" },
+      poolName: poolName.trim() || undefined,
+      unitName: unitName.trim() || undefined,
+      roles: [role],
+      runPolicy: {
+        activeDeadlineSeconds: Number.isFinite(deadline) && deadline > 0 ? deadline : undefined,
+        backoffLimit: Number.isFinite(backoff) && backoff >= 0 ? backoff : undefined,
+      },
+    };
+  };
+
+  const create = useApiMutation(
+    (body: sdk.JobCreateInput) => sdk.createJob({ body, headers: tenantHeader() }),
+    { invalidate: [["jobs"]], success: "Job 模板已保存" },
+  );
+  const update = useApiMutation(
+    (vars: { name: string; body: sdk.JobPatchInput }) => sdk.updateJob({ path: { name: vars.name }, body: vars.body, headers: tenantHeader() }),
+    { invalidate: [["jobs"]], success: "Job 已保存" },
+  );
+  const trigger = useApiMutation(
+    (vars: { name: string; body: sdk.RunTriggerInput }) => sdk.triggerRun({ path: { name: vars.name }, body: vars.body, headers: tenantHeader() }),
+    { invalidate: [["jobs"]], success: "已创建运行" },
+  );
+
+  const pending = create.isPending || update.isPending || trigger.isPending;
+
+  const submit = () => {
+    if (mode === "new") {
+      create.mutate(
+        {
+          name: name.trim(),
+          displayName: name.trim() || undefined,
+          description: description.trim() || undefined,
+          spec: buildSpec(),
+        },
+        { onSuccess: onClose },
+      );
+    } else if (mode === "edit") {
+      update.mutate(
+        { name: name.trim(), body: { description: description.trim() || undefined, spec: buildSpec() } },
+        { onSuccess: onClose },
+      );
+    } else {
+      // run: trigger a new Run, optionally overriding pool/unit/role inputs.
+      trigger.mutate(
+        {
+          name: name.trim(),
+          body: {
+            poolName: poolName.trim() || undefined,
+            unitName: unitName.trim() || undefined,
+            roles: [{ name: "worker", args: parseCommand(command), env: parseEnv(env) }],
+          },
+        },
+        { onSuccess: onClose },
+      );
+    }
+  };
+
   const title = mode === "new" ? "新建 Job" : mode === "run" ? "触发运行" : "编辑 Job";
   const sub =
-    mode === "new" ? "保存即写模板，不触发运行" : <span className="mono">{name ?? "train-llm-7b"}</span>;
-  const locked = mode === "run";
-  const submit =
+    mode === "new" ? "保存即写模板，不触发运行" : <span className="mono">{initialName ?? name}</span>;
+  const submitLabel =
     mode === "new"
-      ? { label: "保存模板", toast: "Job 模板已保存" }
+      ? pending
+        ? "保存中…"
+        : "保存模板"
       : mode === "run"
-        ? { label: "确认运行", toast: `已创建运行 ${name ?? "train-llm-7b"}-13` }
-        : { label: "保存", toast: "Job 已保存" };
+        ? pending
+          ? "运行中…"
+          : "确认运行"
+        : pending
+          ? "保存中…"
+          : "保存";
 
   return (
     <Drawer
@@ -191,12 +321,10 @@ function JobDrawer({ mode, name, onClose }: { mode: DrawerMode; name?: string; o
           </button>
           <button
             className="btn btn-primary"
-            onClick={() => {
-              toast(submit.toast);
-              onClose();
-            }}
+            disabled={!name.trim() || pending}
+            onClick={submit}
           >
-            {submit.label}
+            {submitLabel}
           </button>
         </>
       }
@@ -210,14 +338,21 @@ function JobDrawer({ mode, name, onClose }: { mode: DrawerMode; name?: string; o
           <input
             className="input mono"
             placeholder="train-llm-7b"
-            defaultValue={mode === "new" ? "" : name ?? "train-llm-7b"}
-            disabled={locked}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            disabled={locked || mode === "edit"}
           />
           {mode !== "run" && <span className="help">DNS-1123，同时作为显示名</span>}
         </div>
         <div className="field full">
           <label>描述</label>
-          <textarea className="textarea" placeholder="任务用途说明" disabled={locked} defaultValue={mode === "new" ? "" : "LLaMA-7B 全参微调"} />
+          <textarea
+            className="textarea"
+            placeholder="任务用途说明"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            disabled={locked}
+          />
         </div>
       </div>
 
@@ -226,7 +361,7 @@ function JobDrawer({ mode, name, onClose }: { mode: DrawerMode; name?: string; o
         <label>
           训练镜像 <span className="req">*</span>
         </label>
-        <PickGrid options={IMAGES} />
+        <ControlledPickGrid options={IMAGES} value={image} onChange={setImage} />
       </div>
 
       <FieldsetTitle n={3}>资源选择</FieldsetTitle>
@@ -235,9 +370,12 @@ function JobDrawer({ mode, name, onClose }: { mode: DrawerMode; name?: string; o
           <label>
             资源池 <span className="req">*</span>
           </label>
-          <select className="input">
-            <option>gpu-a100 · A100 训练池</option>
-            <option>gpu-h100 · H100 训练/推理池</option>
+          <select className="input" value={poolName} onChange={(e) => setPoolName(e.target.value)}>
+            {POOLS.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
           </select>
         </div>
       </div>
@@ -245,14 +383,14 @@ function JobDrawer({ mode, name, onClose }: { mode: DrawerMode; name?: string; o
         <label>
           资源单元 <span className="req">*</span>
         </label>
-        <PickGrid options={UNITS} />
+        <ControlledPickGrid options={UNITS} value={unitName} onChange={setUnitName} />
       </div>
       <div className="form-grid" style={{ marginTop: "var(--space-4)" }}>
         <div className="field">
           <label>
             副本数 <span className="req">*</span>
           </label>
-          <input className="input num" defaultValue="4" />
+          <input className="input num" value={replicas} onChange={(e) => setReplicas(e.target.value)} />
         </div>
       </div>
 
@@ -260,12 +398,17 @@ function JobDrawer({ mode, name, onClose }: { mode: DrawerMode; name?: string; o
       <div className="form-grid">
         <div className="field full">
           <label>启动命令 / 参数</label>
-          <textarea className="textarea" defaultValue={CMD} />
+          <textarea className="textarea" value={command} onChange={(e) => setCommand(e.target.value)} />
           {mode !== "run" && <span className="help">训练超参即命令 / 参数 / 环境变量，平台不单独建模。</span>}
         </div>
         <div className="field full">
           <label>环境变量</label>
-          <textarea className="textarea" style={{ minHeight: 60 }} defaultValue={"WANDB_DISABLED=true\nNCCL_DEBUG=INFO"} />
+          <textarea
+            className="textarea"
+            style={{ minHeight: 60 }}
+            value={env}
+            onChange={(e) => setEnv(e.target.value)}
+          />
           {mode !== "run" && <span className="help">每行一个 KEY=VALUE，注入到训练容器。</span>}
         </div>
       </div>
@@ -285,11 +428,11 @@ function JobDrawer({ mode, name, onClose }: { mode: DrawerMode; name?: string; o
         <div className="form-grid" style={{ marginTop: "var(--space-4)" }}>
           <div className="field">
             <label>超时 (s)</label>
-            <input className="input num" defaultValue="86400" />
+            <input className="input num" value={timeout} onChange={(e) => setTimeoutS(e.target.value)} />
           </div>
           <div className="field">
             <label>重试次数</label>
-            <input className="input num" defaultValue="2" />
+            <input className="input num" value={retries} onChange={(e) => setRetries(e.target.value)} />
           </div>
         </div>
       </details>

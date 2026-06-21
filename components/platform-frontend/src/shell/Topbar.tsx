@@ -1,16 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ROLES, TENANTS, useApp, type Lang, type Role, type ThemePref } from "@/app/store";
+import { useApp, type Lang, type ThemePref } from "@/app/store";
+import { useSession } from "@/app/session";
 import { useUI } from "@/app/ui";
 import { Icon } from "@/components/Icon";
+import { useTenantOptions } from "@/api/hooks";
 
 const THEME_NAMES: Record<ThemePref, string> = { light: "浅色", dark: "深色", system: "跟随系统" };
 
 export function Topbar() {
   const app = useApp();
+  const session = useSession();
   const { toast, confirm } = useUI();
   const navigate = useNavigate();
-  const [openMenu, setOpenMenu] = useState<"role" | "user" | null>(null);
+  const [openMenu, setOpenMenu] = useState<"user" | null>(null);
   const wrapRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -21,19 +24,12 @@ export function Topbar() {
     return () => document.removeEventListener("click", onDoc);
   }, []);
 
-  const r = ROLES[app.role];
-  const isAdmin = app.role === "system-admin";
-
-  const pickRole = (k: Role) => {
-    app.setRole(k);
-    setOpenMenu(null);
-    const restricted: Record<string, Role[]> = {
-      "/tenants": ["system-admin", "tenant-admin"],
-      "/resource-pools": ["system-admin"],
-    };
-    const path = window.location.pathname;
-    if (restricted[path] && !restricted[path].includes(k)) navigate("/");
-  };
+  // Identity comes straight from the authenticated session — no demo fallbacks.
+  const initials = session.initials;
+  const person = session.displayName || session.me?.user.username || "";
+  const email = session.email || session.me?.user.username || "";
+  // Tenant scope options (no "all" — exactly one tenant is always selected).
+  const tenantOptions = useTenantOptions();
 
   return (
     <header className="topbar" id="topbar" ref={wrapRef}>
@@ -52,43 +48,6 @@ export function Topbar() {
       </div>
       <div className="spacer" />
 
-      {/* role switcher */}
-      <div style={{ position: "relative" }} data-menu-anchor>
-        <button
-          className="switch"
-          onClick={(e) => {
-            e.stopPropagation();
-            setOpenMenu(openMenu === "role" ? null : "role");
-          }}
-        >
-          <span className="cap">角色</span>
-          <span>{r.short}</span>
-          <span className="chev">
-            <Icon name="chevron" />
-          </span>
-        </button>
-        <div className={"menu" + (openMenu === "role" ? " open" : "")}>
-          <div className="menu-label">切换演示角色</div>
-          {(Object.keys(ROLES) as Role[]).map((k) => (
-            <a
-              key={k}
-              className={"menu-item" + (app.role === k ? " sel" : "")}
-              onClick={() => pickRole(k)}
-            >
-              <div>
-                {ROLES[k].name}
-                <small>{ROLES[k].note}</small>
-              </div>
-              {app.role === k && (
-                <span className="ck">
-                  <Icon name="check" />
-                </span>
-              )}
-            </a>
-          ))}
-        </div>
-      </div>
-
       <button className="icon-btn" title="帮助">
         <Icon name="help" />
       </button>
@@ -102,20 +61,20 @@ export function Topbar() {
         <button
           className="avatar"
           aria-label="用户菜单"
-          title={r.person}
+          title={person}
           onClick={(e) => {
             e.stopPropagation();
             setOpenMenu(openMenu === "user" ? null : "user");
           }}
         >
-          {r.initials}
+          {initials}
         </button>
         <div className={"menu user-menu" + (openMenu === "user" ? " open" : "")}>
           <div className="user-card">
-            <div className="avatar">{r.initials}</div>
+            <div className="avatar">{initials}</div>
             <div className="u-meta">
-              <div className="u-name">{r.person}</div>
-              <div className="u-sub">{r.email}</div>
+              <div className="u-name">{person}</div>
+              <div className="u-sub">{email}</div>
             </div>
           </div>
           <hr />
@@ -123,31 +82,15 @@ export function Topbar() {
             <div className="menu-item tenant-trigger has-flyout">
               <div className="ti-text">
                 <span className="ti-label">所属租户</span>
-                <span className="ti-val">{app.tenantLabel()}</span>
+                <span className="ti-val">
+                  {tenantOptions.find((t) => t.id === app.tenant)?.name || app.tenant || "—"}
+                </span>
               </div>
               <Icon name="chevronR" className="caret" />
             </div>
             <div className="flyout">
               <div className="menu-label">切换租户作用域</div>
-              {isAdmin && (
-                <>
-                  <a
-                    className={"menu-item" + (app.tenant === "all" ? " sel" : "")}
-                    onClick={() => app.setTenant("all")}
-                  >
-                    <div>
-                      全部租户<small>平台全局视图</small>
-                    </div>
-                    {app.tenant === "all" && (
-                      <span className="ck">
-                        <Icon name="check" />
-                      </span>
-                    )}
-                  </a>
-                  <hr />
-                </>
-              )}
-              {TENANTS.map((t) => (
+              {tenantOptions.map((t) => (
                 <a
                   key={t.id}
                   className={"menu-item" + (app.tenant === t.id ? " sel" : "")}
@@ -164,6 +107,11 @@ export function Topbar() {
                   )}
                 </a>
               ))}
+              {tenantOptions.length === 0 && (
+                <div className="menu-label" style={{ opacity: 0.7 }}>
+                  暂无可切换的租户
+                </div>
+              )}
             </div>
           </div>
           <hr />
@@ -222,7 +170,9 @@ export function Topbar() {
                 title: "退出登录",
                 desc: "确定要退出当前登录吗？退出后需要重新登录才能继续访问控制台。",
                 okLabel: "退出登录",
-                toast: "已退出登录（演示）",
+                onConfirm: () => {
+                  void session.logout().then(() => navigate("/login", { replace: true }));
+                },
               });
             }}
           >

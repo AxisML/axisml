@@ -20,7 +20,7 @@
 ## 3. 数据获取与状态
 
 - **后端调用**：所有数据来自 Platform 后端 REST（契约见 [openapi/platform.yaml](../../openapi/platform.yaml)）；前端不感知下游服务、不内嵌 PromQL、不解析 K8s namespace。
-- **Active tenant**：租户内请求携带 `X-Axisml-Tenant: <name>` 头（由"所属租户"决定）；`system-admin` 选"全部租户"时不带该头，由后端走跨租户聚合。
+- **Active tenant**：顶部"所属租户"恒选中且仅选中一个租户（默认为用户的首个租户），租户内请求**始终**携带 `X-Axisml-Tenant: <name>` 头；`system-admin` 可逐个切换到任意租户。
 - **实时性**：日志 / 事件用 SSE（`follow=true`）；运行态（phase / 配额用量 / digest）始终实时回源，前端不缓存为权威。Dashboard 待后续专项设计。
 - **偏好持久化**：列表 / 卡片视图切换、语言等偏好存 localStorage。
 
@@ -48,5 +48,4 @@ i18n 后端契约见 [backend.md §5.6](backend.md#56-多语言--i18n)。
 ## 6. 错误与降级展示
 
 - RFC 7807 problem → 按 `type` 取本地化文案；表单字段错误就地高亮。
-- 跨租户列表 `partial=true` → 列表顶部黄条「N 个租户暂时不可达，显示其余结果」。
 - 指标 / 容量为 `null` 或查询失败 → gauge 显示 `—` + hover「指标同步中」/ 图区占位，不影响其余区块。

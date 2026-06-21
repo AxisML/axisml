@@ -876,3 +876,8 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
 .unit-add:hover { border-color: var(--accent); color: var(--accent); }
 .unit-add svg { width: 22px; height: 22px; }
 @media (max-width: 560px) { .unit-grid { grid-template-columns: 1fr; } }
+
+/* ── Async data states (loading / error / empty) — no demo fallback ─────────── */
+.data-state { padding: var(--space-6) var(--space-4); text-align: center; font-size: 13px; }
+td.data-state { color: var(--muted); }
+.data-state-err { color: var(--danger); display: inline-flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 4px; }

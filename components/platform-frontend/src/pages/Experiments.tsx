@@ -1,15 +1,19 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useExperiments } from "@/api/hooks";
+import { useApiMutation, tenantHeader } from "@/api/mutations";
+import * as sdk from "@/api/generated";
 import { useUI } from "@/app/ui";
 import { Icon } from "@/components/Icon";
 import { Drawer } from "@/components/Drawer";
 import { RunBar, type RunState } from "@/components/RunBar";
-import { PickGrid, FieldsetTitle, VolList } from "@/components/forms";
+import { FieldsetTitle, VolList } from "@/components/forms";
+import { TableState } from "@/components/states";
 
 interface ExpRow {
   name: string;
   desc: string;
+  displayName?: string;
   runs: RunState[];
   runLabel: string;
   runCount: number;
@@ -17,63 +21,59 @@ interface ExpRow {
   updated: string;
 }
 
-// Faithful demo rows from prototype/experiments.html — rendered when the backend
-// (contract-only shell) returns no items.
-const FALLBACK: ExpRow[] = [
-  {
-    name: "llama3-sft-lr-sweep",
-    desc: "LLaMA3-8B SFT 学习率扫描",
-    runs: ["ok", "fail", "ok", "run", "none"],
-    runLabel: "查看 llama3-sft-lr-sweep 历史运行",
-    runCount: 8,
-    owner: "张伟",
-    updated: "12 分钟前",
-  },
-  {
-    name: "resnet-aug-search",
-    desc: "ResNet 数据增强搜索",
-    runs: ["ok", "ok", "fail", "ok", "ok"],
-    runLabel: "查看 resnet-aug-search 历史运行",
-    runCount: 12,
-    owner: "李娜",
-    updated: "2 小时前",
-  },
-  {
-    name: "qwen-vl-finetune",
-    desc: "Qwen2-VL 指令微调",
-    runs: ["none", "fail", "ok", "ok", "ok"],
-    runLabel: "查看 qwen-vl-finetune 历史运行",
-    runCount: 5,
-    owner: "陈曦",
-    updated: "1 天前",
-  },
-  {
-    name: "embed-contrastive",
-    desc: "向量模型对比学习",
-    runs: ["none", "none", "ok", "ok", "pend"],
-    runLabel: "查看 embed-contrastive 历史运行",
-    runCount: 3,
-    owner: "王磊",
-    updated: "3 天前",
-  },
-];
-
 type DrawerMode = "new" | "run" | "edit";
 
+const TrashIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+    <path d="M3 6h18" />
+    <path d="M8 6V4h8v2" />
+    <path d="M19 6l-1 14H6L5 6" />
+    <path d="M10 11v6M14 11v6" />
+  </svg>
+);
+
 export default function Experiments() {
-  const { data } = useExperiments();
+  const q = useExperiments();
+  const { confirm } = useUI();
   const [drawer, setDrawer] = useState<{ mode: DrawerMode; name?: string } | null>(null);
 
+  const del = useApiMutation(
+    (name: string) => sdk.deleteExperiment({ path: { name }, headers: tenantHeader() }),
+    { invalidate: [["experiments"]], success: "实验已删除" },
+  );
+  const trigger = useApiMutation(
+    (name: string) => sdk.triggerExperimentRun({ path: { name }, body: {}, headers: tenantHeader() }),
+    { invalidate: [["experiments"]], success: "已触发运行" },
+  );
+
   const rows: ExpRow[] =
-    data?.items?.map((e) => ({
+    q.data?.items?.map((e) => ({
       name: e.name,
       desc: e.description ?? e.displayName ?? "",
+      displayName: e.displayName,
       runs: ["none", "none", "none", "none", "none"],
       runLabel: `查看 ${e.name} 历史运行`,
       runCount: 0,
       owner: e.owner ?? "—",
       updated: e.updatedAt ?? e.createdAt ?? "",
-    })) ?? FALLBACK;
+    })) ?? [];
+
+  const onDelete = (r: ExpRow) =>
+    confirm({
+      title: `确定删除实验 ${r.name}？`,
+      desc: "删除后该实验及其终态运行将一并移除，且不可恢复。",
+      okLabel: "确认删除",
+      danger: true,
+      onConfirm: () => del.mutate(r.name),
+    });
+
+  const onRun = (r: ExpRow) =>
+    confirm({
+      title: `确定触发运行 ${r.name}？`,
+      desc: "将按实验模板创建一次新的运行（Run）。",
+      okLabel: "确认运行",
+      onConfirm: () => trigger.mutate(r.name),
+    });
 
   return (
     <main className="page">
@@ -146,7 +146,7 @@ export default function Experiments() {
                         className="act act-run"
                         title="运行"
                         aria-label="运行"
-                        onClick={() => setDrawer({ mode: "run", name: r.name })}
+                        onClick={() => onRun(r)}
                       />
                       <Link className="act" to={`/experiments/${r.name}`} title="详情" aria-label="详情" />
                       <button
@@ -155,10 +155,19 @@ export default function Experiments() {
                         aria-label="编辑"
                         onClick={() => setDrawer({ mode: "edit", name: r.name })}
                       />
+                      <button
+                        className="act act-danger"
+                        title="删除"
+                        aria-label="删除"
+                        onClick={() => onDelete(r)}
+                      >
+                        <TrashIcon />
+                      </button>
                     </div>
                   </td>
                 </tr>
               ))}
+              <TableState q={q} cols={6} isEmpty={rows.length === 0} />
             </tbody>
           </table>
         </div>
@@ -178,13 +187,17 @@ export default function Experiments() {
   );
 }
 
-const IMAGES = [
-  { title: "pytorch:2.3-cu121", spec: "PyTorch 训练镜像" },
-  { title: "megatron:24.05", spec: "Megatron-LM 训练镜像" },
+const IMAGE_OPTIONS = [
+  { value: "pytorch:2.3-cu121", label: "pytorch:2.3-cu121 · PyTorch 训练镜像" },
+  { value: "megatron:24.05", label: "megatron:24.05 · Megatron-LM 训练镜像" },
 ];
-const UNITS = [
-  { title: "a100-4x-xlarge", spec: "4×A100 · 32 vCPU · 256 GiB" },
-  { title: "a100-8x-xlarge-ib", spec: "8×A100 · IB · 64 vCPU · 512 GiB" },
+const POOL_OPTIONS = [
+  { value: "gpu-a100", label: "gpu-a100 · A100 训练池" },
+  { value: "gpu-h100", label: "gpu-h100 · H100 训练/推理池" },
+];
+const UNIT_OPTIONS = [
+  { value: "a100-4x-xlarge", label: "a100-4x-xlarge · 4×A100 · 32 vCPU · 256 GiB" },
+  { value: "a100-8x-xlarge-ib", label: "a100-8x-xlarge-ib · 8×A100 · IB · 64 vCPU · 512 GiB" },
 ];
 const CMD_TPL = `torchrun --nproc_per_node=4 sft.py \\
   --base llama3-8b-base --lr {{lr}} --epochs 3`;
@@ -199,20 +212,124 @@ const EXP_VOLS = [
   { options: ["ckpt-store · 500 GiB", "team-datasets · 1 TiB", "新建数据卷…"], path: "/output" },
 ];
 
+// Parse a textarea command into argv tokens (whitespace-split, dropping the
+// shell line-continuation backslashes the placeholder uses for readability).
+function parseCommand(s: string): string[] | undefined {
+  const toks = s
+    .replace(/\\\s*\n/g, " ")
+    .split(/\s+/)
+    .filter((t) => t && t !== "\\");
+  return toks.length ? toks : undefined;
+}
+
+// Parse "KEY=VALUE" lines into env vars (skips blanks).
+function parseEnv(s: string): { name: string; value: string }[] | undefined {
+  const out: { name: string; value: string }[] = [];
+  for (const line of s.split("\n")) {
+    const t = line.trim();
+    if (!t) continue;
+    const [k, ...rest] = t.split("=");
+    const name = k.trim();
+    if (name) out.push({ name, value: rest.join("=").trim() });
+  }
+  return out.length ? out : undefined;
+}
+
 function ExpDrawer({ mode, name, onClose }: { mode: DrawerMode; name?: string; onClose: () => void }) {
-  const { toast } = useUI();
   const expName = name ?? "llama3-sft-lr-sweep";
   const title = mode === "new" ? "新建实验" : mode === "run" ? "触发运行" : "编辑实验";
   const sub =
     mode === "new" ? "保存模板，不触发运行" : <span className="mono">{expName}</span>;
   const locked = mode === "run";
-  const submit =
+
+  const [expNameInput, setExpNameInput] = useState(mode === "new" ? "" : expName);
+  const [description, setDescription] = useState(mode === "new" ? "" : "LLaMA3-8B SFT 学习率扫描");
+  const [image, setImage] = useState(IMAGE_OPTIONS[0].value);
+  const [pool, setPool] = useState(POOL_OPTIONS[0].value);
+  const [unit, setUnit] = useState(UNIT_OPTIONS[0].value);
+  const [replicas, setReplicas] = useState("2");
+  const [command, setCommand] = useState(mode === "run" ? CMD_RUN : CMD_TPL);
+  const [env, setEnv] = useState(mode === "new" ? "" : "WANDB_DISABLED=true\nNCCL_DEBUG=INFO");
+  const [deadline, setDeadline] = useState("172800");
+  const [backoff, setBackoff] = useState("1");
+
+  const create = useApiMutation(
+    (body: sdk.ExperimentCreateInput) => sdk.createExperiment({ body, headers: tenantHeader() }),
+    { invalidate: [["experiments"]], success: "实验已创建" },
+  );
+  const update = useApiMutation(
+    (body: sdk.ExperimentPatchInput) => sdk.updateExperiment({ path: { name: expName }, body, headers: tenantHeader() }),
+    { invalidate: [["experiments"]], success: "实验已保存" },
+  );
+  const triggerRun = useApiMutation(
+    (body: sdk.RunTriggerInput) => sdk.triggerExperimentRun({ path: { name: expName }, body, headers: tenantHeader() }),
+    { invalidate: [["experiments"]], success: `已触发运行 ${expName}` },
+  );
+
+  // Compose the JobSpec common to create + edit. `native/job` is the default
+  // MLRun backend; the role template carries image + launch command, and the
+  // pool/unit selectors resolve to the ResourcePool addressing the backend uses.
+  const buildSpec = (): sdk.JobSpec => ({
+    backend: { name: "native", engine: "job" },
+    poolName: pool || undefined,
+    unitName: unit || undefined,
+    roles: [
+      {
+        name: "worker",
+        replicas: Number(replicas) || 1,
+        template: {
+          image,
+          command: parseCommand(command),
+          env: parseEnv(env),
+        },
+      },
+    ],
+    runPolicy: {
+      activeDeadlineSeconds: Number(deadline) || undefined,
+      backoffLimit: Number(backoff) || undefined,
+    },
+  });
+
+  const submit = () => {
+    if (mode === "new") {
+      const n = expNameInput.trim();
+      if (!n) return;
+      create.mutate(
+        { name: n, description: description.trim() || undefined, spec: buildSpec() },
+        { onSuccess: onClose },
+      );
+    } else if (mode === "edit") {
+      update.mutate(
+        { description: description.trim() || undefined, spec: buildSpec() },
+        { onSuccess: onClose },
+      );
+    } else {
+      // run: override the launch command for this Run only.
+      triggerRun.mutate(
+        {
+          poolName: pool || undefined,
+          unitName: unit || undefined,
+          roles: [{ name: "worker", args: parseCommand(command) }],
+        },
+        { onSuccess: onClose },
+      );
+    }
+  };
+
+  const mut = mode === "new" ? create : mode === "edit" ? update : triggerRun;
+  const submitLabel =
     mode === "new"
-      ? { label: "创建实验", toast: "实验已创建" }
+      ? mut.isPending
+        ? "创建中…"
+        : "创建实验"
       : mode === "run"
-        ? { label: "确认运行", toast: `已触发运行 ${expName}-9` }
-        : { label: "保存", toast: "实验已保存" };
-  const cmd = mode === "run" ? CMD_RUN : CMD_TPL;
+        ? mut.isPending
+          ? "运行中…"
+          : "确认运行"
+        : mut.isPending
+          ? "保存中…"
+          : "保存";
+  const disabled = mut.isPending || (mode === "new" && !expNameInput.trim());
 
   return (
     <Drawer
@@ -227,14 +344,8 @@ function ExpDrawer({ mode, name, onClose }: { mode: DrawerMode; name?: string; o
           <button className="btn" onClick={onClose}>
             取消
           </button>
-          <button
-            className="btn btn-primary"
-            onClick={() => {
-              toast(submit.toast);
-              onClose();
-            }}
-          >
-            {submit.label}
+          <button className="btn btn-primary" disabled={disabled} onClick={submit}>
+            {submitLabel}
           </button>
         </>
       }
@@ -248,7 +359,8 @@ function ExpDrawer({ mode, name, onClose }: { mode: DrawerMode; name?: string; o
           <input
             className="input mono"
             placeholder="llama3-sft-lr-sweep"
-            defaultValue={mode === "new" ? "" : expName}
+            value={expNameInput}
+            onChange={(e) => setExpNameInput(e.target.value)}
             disabled={locked}
           />
         </div>
@@ -258,7 +370,8 @@ function ExpDrawer({ mode, name, onClose }: { mode: DrawerMode; name?: string; o
             className="textarea"
             placeholder="围绕同一训练目标，扫描不同学习率以择优"
             disabled={locked}
-            defaultValue={mode === "new" ? "" : "LLaMA3-8B SFT 学习率扫描"}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
           />
         </div>
       </div>
@@ -268,7 +381,18 @@ function ExpDrawer({ mode, name, onClose }: { mode: DrawerMode; name?: string; o
         <label>
           训练镜像 <span className="req">*</span>
         </label>
-        <PickGrid options={IMAGES} />
+        <select
+          className="input mono"
+          value={image}
+          disabled={locked}
+          onChange={(e) => setImage(e.target.value)}
+        >
+          {IMAGE_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
       </div>
 
       <FieldsetTitle n={3}>资源选择</FieldsetTitle>
@@ -277,9 +401,17 @@ function ExpDrawer({ mode, name, onClose }: { mode: DrawerMode; name?: string; o
           <label>
             资源池 <span className="req">*</span>
           </label>
-          <select className="input">
-            <option>gpu-a100 · A100 训练池</option>
-            <option>gpu-h100 · H100 训练/推理池</option>
+          <select
+            className="input"
+            value={pool}
+            disabled={locked}
+            onChange={(e) => setPool(e.target.value)}
+          >
+            {POOL_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
           </select>
         </div>
       </div>
@@ -287,14 +419,30 @@ function ExpDrawer({ mode, name, onClose }: { mode: DrawerMode; name?: string; o
         <label>
           资源单元 <span className="req">*</span>
         </label>
-        <PickGrid options={UNITS} />
+        <select
+          className="input mono"
+          value={unit}
+          disabled={locked}
+          onChange={(e) => setUnit(e.target.value)}
+        >
+          {UNIT_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
       </div>
       <div className="form-grid" style={{ marginTop: "var(--space-4)" }}>
         <div className="field">
           <label>
             副本数 <span className="req">*</span>
           </label>
-          <input className="input num" defaultValue="2" />
+          <input
+            className="input num"
+            value={replicas}
+            disabled={locked}
+            onChange={(e) => setReplicas(e.target.value)}
+          />
         </div>
       </div>
 
@@ -304,7 +452,11 @@ function ExpDrawer({ mode, name, onClose }: { mode: DrawerMode; name?: string; o
           <label>
             {mode === "run" ? "启动命令（本次运行可覆盖超参）" : "启动命令（超参写在命令 / 参数中）"}
           </label>
-          <textarea className="textarea" defaultValue={cmd} />
+          <textarea
+            className="textarea"
+            value={command}
+            onChange={(e) => setCommand(e.target.value)}
+          />
           <span className="help">
             {mode === "run" ? "将 {{lr}} 替换为本次运行的取值。" : "触发运行时可对 lr 等参数做本次覆盖。"}
           </span>
@@ -315,7 +467,9 @@ function ExpDrawer({ mode, name, onClose }: { mode: DrawerMode; name?: string; o
             className="textarea"
             style={{ minHeight: 60 }}
             placeholder={mode === "new" ? "WANDB_DISABLED=true\nNCCL_DEBUG=INFO" : undefined}
-            defaultValue={mode === "new" ? "" : "WANDB_DISABLED=true\nNCCL_DEBUG=INFO"}
+            value={env}
+            disabled={locked}
+            onChange={(e) => setEnv(e.target.value)}
           />
           {mode !== "run" && <span className="help">每行一个 KEY=VALUE，注入到训练容器。</span>}
         </div>
@@ -341,11 +495,21 @@ function ExpDrawer({ mode, name, onClose }: { mode: DrawerMode; name?: string; o
         <div className="form-grid" style={{ marginTop: "var(--space-4)" }}>
           <div className="field">
             <label>超时 (s)</label>
-            <input className="input num" defaultValue="172800" />
+            <input
+              className="input num"
+              value={deadline}
+              disabled={locked}
+              onChange={(e) => setDeadline(e.target.value)}
+            />
           </div>
           <div className="field">
             <label>重试次数</label>
-            <input className="input num" defaultValue="1" />
+            <input
+              className="input num"
+              value={backoff}
+              disabled={locked}
+              onChange={(e) => setBackoff(e.target.value)}
+            />
           </div>
         </div>
       </details>

@@ -1,9 +1,13 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useTenants } from "@/api/hooks";
+import { useApiMutation } from "@/api/mutations";
+import * as sdk from "@/api/generated";
 import { useUI } from "@/app/ui";
 import { Icon } from "@/components/Icon";
 import { Drawer } from "@/components/Drawer";
 import { FieldsetTitle } from "@/components/forms";
+import { TableState, errorText } from "@/components/states";
 
 // Page-scoped styles ported verbatim from prototype/tenants.html <style>: the
 // multi-tab quota editor (one tab per resource pool → resource-unit cards ×
@@ -48,139 +52,45 @@ interface TenantRow {
   created: string;
 }
 
-// Faithful demo rows from prototype/tenants.html — rendered when the backend
-// (contract-only shell) returns no items.
-const FALLBACK: TenantRow[] = [
-  {
-    ident: "llm-lab",
-    display: "大模型研究院",
-    active: true,
-    chips: [{ text: "gpu-h100 14/16" }, { text: "cpu-large +1" }],
-    members: 12,
-    created: "2026-03-08",
-  },
-  {
-    ident: "rec-algo",
-    display: "推荐算法团队",
-    active: true,
-    chips: [{ text: "gpu-a100 6/12" }],
-    members: 8,
-    created: "2026-04-02",
-  },
-  {
-    ident: "av-perception",
-    display: "智能驾驶感知",
-    active: true,
-    chips: [{ text: "gpu-l40s 11/20" }, { text: "gpu-h100 +1" }],
-    members: 15,
-    created: "2026-04-19",
-  },
-  {
-    ident: "risk-ai",
-    display: "风控 AI",
-    active: false,
-    chips: [{ text: "cpu-large 0/8" }],
-    members: 6,
-    created: "2026-05-30",
-  },
-];
-
-// 资源配额数据 — one entry per resource pool, each listing its resource units.
-interface QuotaUnit {
-  name: string;
-  spec: string;
-  qty: number;
-}
-interface QuotaPool {
-  pool: string;
-  meta: string;
-  units: QuotaUnit[];
-}
-
-const CREATE_QUOTA: QuotaPool[] = [
-  {
-    pool: "gpu-h100",
-    meta: "H100 训练/推理池",
-    units: [
-      { name: "h100-4x-xlarge", spec: "4×H100 · 48 vCPU · 384 GiB", qty: 2 },
-      { name: "h100-8x-xlarge-ib", spec: "8×H100 · 96 vCPU · 768 GiB", qty: 1 },
-      { name: "h100-1x-large", spec: "1×H100 · 12 vCPU · 96 GiB", qty: 0 },
-    ],
-  },
-  {
-    pool: "gpu-a100",
-    meta: "A100 训练池",
-    units: [
-      { name: "a100-1x-large", spec: "1×A100 · 8 vCPU · 64 GiB", qty: 4 },
-      { name: "a100-4x-xlarge", spec: "4×A100 · 32 vCPU · 256 GiB", qty: 2 },
-      { name: "a100-8x-xlarge-ib", spec: "8×A100 · 64 vCPU · 512 GiB", qty: 0 },
-    ],
-  },
-  {
-    pool: "cpu-large",
-    meta: "大内存 CPU 池",
-    units: [
-      { name: "cpu-large-1", spec: "64 vCPU · 512 GiB", qty: 4 },
-      { name: "cpu-large-2", spec: "32 vCPU · 256 GiB", qty: 0 },
-    ],
-  },
-];
-
-const EDIT_QUOTA: QuotaPool[] = [
-  {
-    pool: "gpu-h100",
-    meta: "H100 训练/推理池",
-    units: [
-      { name: "h100-8x-xlarge-ib", spec: "8×H100 · 96 vCPU · 768 GiB", qty: 2 },
-      { name: "h100-4x-xlarge", spec: "4×H100 · 48 vCPU · 384 GiB", qty: 1 },
-      { name: "h100-1x-large", spec: "1×H100 · 12 vCPU · 96 GiB", qty: 0 },
-    ],
-  },
-  {
-    pool: "gpu-a100",
-    meta: "A100 训练池",
-    units: [
-      { name: "a100-1x-large", spec: "1×A100 · 8 vCPU · 64 GiB", qty: 4 },
-      { name: "a100-4x-xlarge", spec: "4×A100 · 32 vCPU · 256 GiB", qty: 2 },
-      { name: "a100-8x-xlarge-ib", spec: "8×A100 · 64 vCPU · 512 GiB", qty: 1 },
-    ],
-  },
-  {
-    pool: "cpu-large",
-    meta: "大内存 CPU 池",
-    units: [
-      { name: "cpu-large-1", spec: "64 vCPU · 512 GiB", qty: 2 },
-      { name: "cpu-large-2", spec: "32 vCPU · 256 GiB", qty: 0 },
-    ],
-  },
-];
-
 type DrawerKind =
   | { kind: "tenant" }
   | { kind: "quota"; ident: string; display: string }
   | { kind: "members"; ident: string; display: string }
-  | { kind: "member" };
+  | { kind: "member"; ident: string };
 
 export default function Tenants() {
-  const { data } = useTenants();
-  const { confirm, toast } = useUI();
+  const q = useTenants();
+  const { confirm } = useUI();
   const [drawer, setDrawer] = useState<DrawerKind | null>(null);
 
+  const delTenant = useApiMutation(
+    (name: string) => sdk.deleteTenant({ path: { name } }),
+    { invalidate: [["tenants"]], success: "租户已删除" },
+  );
+  const suspend = useApiMutation(
+    (name: string) => sdk.suspendTenant({ path: { name } }),
+    { invalidate: [["tenants"]], success: "租户已禁用" },
+  );
+  const resume = useApiMutation(
+    (name: string) => sdk.resumeTenant({ path: { name } }),
+    { invalidate: [["tenants"]], success: "租户已启用" },
+  );
+
   const rows: TenantRow[] =
-    data?.items?.map((t) => ({
+    q.data?.items?.map((t) => ({
       ident: t.identifier,
       display: t.displayName,
       active: !t.suspended,
       // List payload carries allocated quota (pool + unit quantities) but no
       // live usage and no member count — show the allocated total, and "—" for
       // members (resolved lazily via the members drawer / its own endpoint).
-      chips: (t.quotas ?? []).map((q) => {
-        const total = (q.units ?? []).reduce((sum, u) => sum + (u.quantity ?? 0), 0);
-        return { text: total ? `${q.pool} ×${total}` : q.pool };
+      chips: (t.quotas ?? []).map((quota) => {
+        const total = (quota.units ?? []).reduce((sum, u) => sum + (u.quantity ?? 0), 0);
+        return { text: total ? `${quota.pool} ×${total}` : quota.pool };
       }),
       members: "—",
       created: t.createdAt,
-    })) ?? FALLBACK;
+    })) ?? [];
 
   return (
     <main className="page">
@@ -300,7 +210,7 @@ export default function Tenants() {
                               desc: "禁用后该租户成员将无法登录控制台或提交新任务，运行中的任务会被暂停。",
                               info: "如需彻底清理，可在禁用后再执行删除。",
                               okLabel: "确认禁用",
-                              toast: `租户 ${r.ident} 已禁用`,
+                              onConfirm: () => suspend.mutate(r.ident),
                             })
                           }
                         >
@@ -315,7 +225,7 @@ export default function Tenants() {
                             className="act"
                             title="启用"
                             aria-label="启用"
-                            onClick={() => toast(`租户 ${r.ident} 已启用`)}
+                            onClick={() => resume.mutate(r.ident)}
                           >
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
                               <path d="M6 4l14 8-14 8z" />
@@ -331,7 +241,8 @@ export default function Tenants() {
                                 desc: "将删除该租户的全部资源与配额，该操作不可恢复。",
                                 info: "建议先确认租户内已无活跃任务 / 服务 / 工作区。",
                                 okLabel: "确认删除租户",
-                                toast: `租户 ${r.ident} 已删除`,
+                                danger: true,
+                                onConfirm: () => delTenant.mutate(r.ident),
                               })
                             }
                           >
@@ -348,6 +259,7 @@ export default function Tenants() {
                   </td>
                 </tr>
               ))}
+              <TableState q={q} cols={6} isEmpty={rows.length === 0} />
             </tbody>
           </table>
         </div>
@@ -370,74 +282,43 @@ export default function Tenants() {
         <MembersDrawer
           ident={drawer.ident}
           display={drawer.display}
-          onAddMember={() => setDrawer({ kind: "member" })}
+          onAddMember={() => setDrawer({ kind: "member", ident: drawer.ident })}
           onClose={() => setDrawer(null)}
         />
       )}
-      {drawer?.kind === "member" && <MemberDrawer onClose={() => setDrawer(null)} />}
+      {drawer?.kind === "member" && <MemberDrawer ident={drawer.ident} onClose={() => setDrawer(null)} />}
     </main>
   );
 }
 
-// ── Multi-tab quota editor (reused by create + quota drawers) ─────────────────
-function PoolTabs({ pools }: { pools: QuotaPool[] }) {
-  const [active, setActive] = useState(pools[0]?.pool);
-  return (
-    <div className="pool-tabs">
-      <div className="ptab-nav">
-        {pools.map((p) => (
-          <button
-            key={p.pool}
-            type="button"
-            className={"ptab" + (p.pool === active ? " on" : "")}
-            onClick={() => setActive(p.pool)}
-          >
-            {p.pool}
-          </button>
-        ))}
-      </div>
-      <div className="ptab-panes">
-        {pools.map((p) => (
-          <div key={p.pool} className={"ptab-pane" + (p.pool === active ? " on" : "")}>
-            <div className="ptab-meta">{p.meta}</div>
-            <div className="qp-units">
-              {p.units.map((u) => (
-                <QtyRow key={u.name} unit={u} />
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function QtyRow({ unit }: { unit: QuotaUnit }) {
-  const [qty, setQty] = useState(unit.qty);
-  return (
-    <div className={"q-row" + (qty === 0 ? " is-zero" : "")}>
-      <div className="q-card">
-        <div className="uc-name">{unit.name}</div>
-        <div className="uc-spec">{unit.spec}</div>
-      </div>
-      <label className="qu-qty">
-        <input
-          className="step-val"
-          type="number"
-          min="0"
-          step="1"
-          inputMode="numeric"
-          value={qty}
-          aria-label="配额数量"
-          onChange={(e) => setQty(Math.max(0, Number(e.target.value) || 0))}
-        />
-      </label>
-    </div>
-  );
-}
-
+// ── Create-tenant drawer (controlled form → createTenant) ─────────────────────
 function TenantDrawer({ onClose }: { onClose: () => void }) {
-  const { toast } = useUI();
+  const [displayName, setDisplayName] = useState("");
+  const [identifier, setIdentifier] = useState("");
+  const [admin, setAdmin] = useState("");
+
+  const create = useApiMutation(
+    (body: sdk.TenantCreateRequest) => sdk.createTenant({ body }),
+    { invalidate: [["tenants"]], success: "租户已创建，正在初始化基础资源…" },
+  );
+
+  const valid = displayName.trim() && identifier.trim() && admin.trim();
+
+  const submit = () => {
+    const ident = identifier.trim();
+    create.mutate(
+      {
+        displayName: displayName.trim(),
+        identifier: ident,
+        initialAdmin: admin.trim(),
+        // The tenant identifier is a dns1123-valid slug; reuse it as the
+        // physical namespace (tenant name = namespace convention).
+        kubernetesNamespace: ident,
+      },
+      { onSuccess: onClose },
+    );
+  };
+
   return (
     <Drawer
       open
@@ -451,14 +332,8 @@ function TenantDrawer({ onClose }: { onClose: () => void }) {
           <button className="btn" onClick={onClose}>
             取消
           </button>
-          <button
-            className="btn btn-primary"
-            onClick={() => {
-              toast("租户创建中，正在初始化基础资源…");
-              onClose();
-            }}
-          >
-            创建租户
+          <button className="btn btn-primary" disabled={!valid || create.isPending} onClick={submit}>
+            {create.isPending ? "创建中…" : "创建租户"}
           </button>
         </>
       }
@@ -469,40 +344,73 @@ function TenantDrawer({ onClose }: { onClose: () => void }) {
           <label>
             租户名称 <span className="req">*</span>
           </label>
-          <input className="input" placeholder="大模型研究院" />
+          <input
+            className="input"
+            placeholder="大模型研究院"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+          />
           <span className="help">用于在列表与详情中展示</span>
         </div>
         <div className="field">
           <label>
             租户标识 <span className="req">*</span>
           </label>
-          <input className="input mono" placeholder="llm-lab" />
-          <span className="help">小写字母、数字、连字符</span>
+          <input
+            className="input mono"
+            placeholder="llm-lab"
+            value={identifier}
+            onChange={(e) => setIdentifier(e.target.value)}
+          />
+          <span className="help">小写字母、数字、连字符（同时作为 Kubernetes 命名空间）</span>
         </div>
         <div className="field full">
           <label>
             初始管理员 <span className="req">*</span>
           </label>
-          <input className="input" placeholder="zhangwei@corp.com" />
+          <input
+            className="input"
+            placeholder="zhangwei@corp.com"
+            value={admin}
+            onChange={(e) => setAdmin(e.target.value)}
+          />
         </div>
       </div>
 
       <FieldsetTitle n={2}>初始配额</FieldsetTitle>
       <div className="field">
-        <label>
-          资源配额 <span className="req">*</span>
-        </label>
-        <span className="help" style={{ marginBottom: 10 }}>
-          按资源池分配可用的资源单元数量，切换上方 Tab 维护不同资源池。
+        <span className="help">
+          租户创建后，可在列表的「资源配额」操作中按资源池逐项分配资源单元数量。
         </span>
-        <PoolTabs pools={CREATE_QUOTA} />
       </div>
     </Drawer>
   );
 }
 
+// ── Quota editor drawer (live quotas → create / update / delete) ──────────────
 function QuotaDrawer({ ident, display, onClose }: { ident: string; display: string; onClose: () => void }) {
-  const { toast } = useUI();
+  const { confirm } = useUI();
+  const quotasQ = useQuery({
+    queryKey: ["tenant-quotas", ident],
+    queryFn: async () => {
+      const { data, error } = await sdk.listTenantQuotas({ path: { name: ident } });
+      if (error) throw new Error(errorText(error));
+      return data;
+    },
+  });
+
+  const updateQuota = useApiMutation(
+    (arg: { pool: string; units: sdk.QuotaUnit[] }) =>
+      sdk.updateTenantQuota({ path: { name: ident, pool: arg.pool }, body: { units: arg.units } }),
+    { invalidate: [["tenant-quotas", ident], ["tenants"]], success: "配额已保存" },
+  );
+  const delQuota = useApiMutation(
+    (pool: string) => sdk.deleteTenantQuota({ path: { name: ident, pool } }),
+    { invalidate: [["tenant-quotas", ident], ["tenants"]], success: "配额已移除" },
+  );
+
+  const quotas = quotasQ.data?.items ?? [];
+
   return (
     <Drawer
       open
@@ -514,39 +422,133 @@ function QuotaDrawer({ ident, display, onClose }: { ident: string; display: stri
         <>
           <span className="grow" />
           <button className="btn" onClick={onClose}>
-            取消
-          </button>
-          <button
-            className="btn btn-primary"
-            onClick={() => {
-              toast("配额已保存");
-              onClose();
-            }}
-          >
-            保存
+            关闭
           </button>
         </>
       }
     >
-      <PoolTabs pools={EDIT_QUOTA} />
+      {quotasQ.isLoading && <p className="muted">加载中…</p>}
+      {quotasQ.isError && <p className="muted">{errorText(quotasQ.error)}</p>}
+      {!quotasQ.isLoading && !quotasQ.isError && quotas.length === 0 && (
+        <p className="muted">该租户暂无资源配额。</p>
+      )}
+      {quotas.length > 0 && (
+        <QuotaPoolTabs
+          quotas={quotas}
+          saving={updateQuota.isPending}
+          onSave={(pool, units) => updateQuota.mutate({ pool, units })}
+          onDelete={(pool) =>
+            confirm({
+              title: `移除资源池 ${pool} 的配额？`,
+              desc: "移除后该租户将不再拥有此资源池的可用资源单元。",
+              okLabel: "确认移除",
+              danger: true,
+              onConfirm: () => delQuota.mutate(pool),
+            })
+          }
+        />
+      )}
     </Drawer>
   );
 }
 
-interface MemberRow {
-  initial: string;
-  name: string;
-  role: string;
-  badge: "accent" | "neutral";
-  joined: string;
-  bg?: string;
+// Tabbed quota editor over live Quota[]: one tab per pool, each unit editable.
+function QuotaPoolTabs({
+  quotas,
+  saving,
+  onSave,
+  onDelete,
+}: {
+  quotas: sdk.Quota[];
+  saving: boolean;
+  onSave: (pool: string, units: sdk.QuotaUnit[]) => void;
+  onDelete: (pool: string) => void;
+}) {
+  const [active, setActive] = useState(quotas[0]?.pool);
+  return (
+    <div className="pool-tabs">
+      <div className="ptab-nav">
+        {quotas.map((p) => (
+          <button
+            key={p.pool}
+            type="button"
+            className={"ptab" + (p.pool === active ? " on" : "")}
+            onClick={() => setActive(p.pool)}
+          >
+            {p.pool}
+          </button>
+        ))}
+      </div>
+      <div className="ptab-panes">
+        {quotas.map((p) => (
+          <div key={p.pool} className={"ptab-pane" + (p.pool === active ? " on" : "")}>
+            <QuotaPoolPane quota={p} saving={saving} onSave={onSave} onDelete={onDelete} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
-const MEMBERS: MemberRow[] = [
-  { initial: "张", name: "张伟", role: "租户管理员", badge: "accent", joined: "2026-03-08" },
-  { initial: "李", name: "李娜", role: "普通用户", badge: "neutral", joined: "2026-03-12", bg: "var(--fg-2)" },
-  { initial: "陈", name: "陈曦", role: "普通用户", badge: "neutral", joined: "2026-04-01", bg: "var(--fg-2)" },
-];
 
+function QuotaPoolPane({
+  quota,
+  saving,
+  onSave,
+  onDelete,
+}: {
+  quota: sdk.Quota;
+  saving: boolean;
+  onSave: (pool: string, units: sdk.QuotaUnit[]) => void;
+  onDelete: (pool: string) => void;
+}) {
+  const [units, setUnits] = useState<sdk.QuotaUnit[]>(() =>
+    (quota.units ?? []).map((u) => ({ unitName: u.unitName, quantity: u.quantity })),
+  );
+  const setQty = (unitName: string, qty: number) =>
+    setUnits((arr) => arr.map((u) => (u.unitName === unitName ? { ...u, quantity: qty } : u)));
+
+  return (
+    <>
+      <div className="ptab-meta">{quota.pool}</div>
+      <div className="qp-units">
+        {units.map((u) => (
+          <div className={"q-row" + (u.quantity === 0 ? " is-zero" : "")} key={u.unitName}>
+            <div className="q-card">
+              <div className="uc-name">{u.unitName}</div>
+            </div>
+            <label className="qu-qty">
+              <input
+                className="step-val"
+                type="number"
+                min="0"
+                step="1"
+                inputMode="numeric"
+                value={u.quantity}
+                aria-label="配额数量"
+                onChange={(e) => setQty(u.unitName, Math.max(0, Number(e.target.value) || 0))}
+              />
+            </label>
+          </div>
+        ))}
+        {units.length === 0 && <p className="muted">该资源池暂无资源单元。</p>}
+      </div>
+      <div className="row-actions" style={{ marginTop: "var(--space-5)" }}>
+        <button
+          className="btn btn-sm btn-primary"
+          disabled={saving}
+          onClick={() => onSave(quota.pool, units)}
+        >
+          {saving ? "保存中…" : "保存配额"}
+        </button>
+        <button className="btn btn-sm btn-danger" onClick={() => onDelete(quota.pool)}>
+          移除资源池配额
+        </button>
+      </div>
+    </>
+  );
+}
+
+// ── Members drawer (live members → add / remove / update role) ────────────────
 function MembersDrawer({
   ident,
   display,
@@ -558,6 +560,29 @@ function MembersDrawer({
   onAddMember: () => void;
   onClose: () => void;
 }) {
+  const { confirm } = useUI();
+  const membersQ = useQuery({
+    queryKey: ["tenant-members", ident],
+    queryFn: async () => {
+      const { data, error } = await sdk.listTenantMembers({ path: { name: ident } });
+      if (error) throw new Error(errorText(error));
+      return data;
+    },
+  });
+
+  const removeMember = useApiMutation(
+    (userId: string) => sdk.removeTenantMember({ path: { name: ident, userId } }),
+    { invalidate: [["tenant-members", ident]], success: "成员已移除" },
+  );
+  const updateRole = useApiMutation(
+    (arg: { userId: string; roleName: "tenant-admin" | "user" }) =>
+      sdk.updateTenantMember({ path: { name: ident, userId: arg.userId }, body: { roleName: arg.roleName } }),
+    { invalidate: [["tenant-members", ident]], success: "成员角色已更新" },
+  );
+
+  const members = membersQ.data?.items ?? [];
+  const roleLabel = (r: string) => (r === "tenant-admin" ? "租户管理员" : "普通用户");
+
   return (
     <Drawer
       open
@@ -596,36 +621,86 @@ function MembersDrawer({
               </tr>
             </thead>
             <tbody>
-              {MEMBERS.map((m) => (
-                <tr key={m.name}>
-                  <td>
-                    <div className="row" style={{ gap: 10 }}>
-                      <div
-                        className="avatar"
-                        style={{ width: 28, height: 28, fontSize: 12, ...(m.bg ? { background: m.bg } : {}) }}
-                      >
-                        {m.initial}
+              {members.map((m) => {
+                const name = m.displayName || m.username || m.email || m.userId;
+                const initial = (name || "?").trim().charAt(0).toUpperCase();
+                const isAdmin = m.roleName === "tenant-admin";
+                return (
+                  <tr key={m.userId}>
+                    <td>
+                      <div className="row" style={{ gap: 10 }}>
+                        <div className="avatar" style={{ width: 28, height: 28, fontSize: 12 }}>
+                          {initial}
+                        </div>
+                        {name}
                       </div>
-                      {m.name}
-                    </div>
-                  </td>
-                  <td>
-                    <span className={"badge badge-" + m.badge}>{m.role}</span>
-                  </td>
-                  <td className="muted">{m.joined}</td>
-                  <td>
-                    <div className="row-actions">
-                      <button className="act act-danger" title="移除成员" aria-label="移除成员">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                          <circle cx="9" cy="7" r="4" />
-                          <path d="M16 11h6" />
-                        </svg>
-                      </button>
-                    </div>
+                    </td>
+                    <td>
+                      <select
+                        className="input"
+                        value={isAdmin ? "tenant-admin" : "user"}
+                        disabled={updateRole.isPending}
+                        aria-label="角色"
+                        onChange={(e) =>
+                          updateRole.mutate({
+                            userId: m.userId,
+                            roleName: e.target.value as "tenant-admin" | "user",
+                          })
+                        }
+                      >
+                        <option value="user">{roleLabel("user")}</option>
+                        <option value="tenant-admin">{roleLabel("tenant-admin")}</option>
+                      </select>
+                    </td>
+                    <td className="muted">{m.addedAt}</td>
+                    <td>
+                      <div className="row-actions">
+                        <button
+                          className="act act-danger"
+                          title="移除成员"
+                          aria-label="移除成员"
+                          onClick={() =>
+                            confirm({
+                              title: `移除成员 ${name}？`,
+                              desc: "移除后该成员将失去对此租户的访问权限。",
+                              okLabel: "确认移除",
+                              danger: true,
+                              onConfirm: () => removeMember.mutate(m.userId),
+                            })
+                          }
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                            <circle cx="9" cy="7" r="4" />
+                            <path d="M16 11h6" />
+                          </svg>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+              {membersQ.isLoading && (
+                <tr>
+                  <td colSpan={4} className="muted">
+                    加载中…
                   </td>
                 </tr>
-              ))}
+              )}
+              {membersQ.isError && (
+                <tr>
+                  <td colSpan={4} className="muted">
+                    {errorText(membersQ.error)}
+                  </td>
+                </tr>
+              )}
+              {!membersQ.isLoading && !membersQ.isError && members.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="muted">
+                    暂无成员
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -634,8 +709,19 @@ function MembersDrawer({
   );
 }
 
-function MemberDrawer({ onClose }: { onClose: () => void }) {
-  const { toast } = useUI();
+// ── Add-member drawer (controlled form → addTenantMember) ─────────────────────
+function MemberDrawer({ ident, onClose }: { ident: string; onClose: () => void }) {
+  const [account, setAccount] = useState("");
+  const [roleName, setRoleName] = useState<"tenant-admin" | "user">("user");
+
+  const add = useApiMutation(
+    (body: sdk.MemberCreateRequest) => sdk.addTenantMember({ path: { name: ident }, body }),
+    { invalidate: [["tenant-members", ident]], success: "成员已添加" },
+  );
+
+  const submit = () =>
+    add.mutate({ account: account.trim(), roleName }, { onSuccess: onClose });
+
   return (
     <Drawer
       open
@@ -650,12 +736,10 @@ function MemberDrawer({ onClose }: { onClose: () => void }) {
           </button>
           <button
             className="btn btn-primary"
-            onClick={() => {
-              toast("成员邀请已发送");
-              onClose();
-            }}
+            disabled={!account.trim() || add.isPending}
+            onClick={submit}
           >
-            添加成员
+            {add.isPending ? "添加中…" : "添加成员"}
           </button>
         </>
       }
@@ -665,16 +749,25 @@ function MemberDrawer({ onClose }: { onClose: () => void }) {
           <label>
             成员账号 <span className="req">*</span>
           </label>
-          <input className="input" placeholder="name@corp.com" />
+          <input
+            className="input"
+            placeholder="name@corp.com"
+            value={account}
+            onChange={(e) => setAccount(e.target.value)}
+          />
           <span className="help">输入企业邮箱或账号，支持邀请平台已有用户</span>
         </div>
         <div className="field full">
           <label>
             角色 <span className="req">*</span>
           </label>
-          <select className="input">
-            <option>普通用户</option>
-            <option>租户管理员</option>
+          <select
+            className="input"
+            value={roleName}
+            onChange={(e) => setRoleName(e.target.value as "tenant-admin" | "user")}
+          >
+            <option value="user">普通用户</option>
+            <option value="tenant-admin">租户管理员</option>
           </select>
         </div>
       </div>

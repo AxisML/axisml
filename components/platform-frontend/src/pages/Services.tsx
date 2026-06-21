@@ -1,10 +1,20 @@
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { Link } from "react-router-dom";
-import { useServices } from "@/api/hooks";
+import {
+  useServices,
+  useModels,
+  useImages,
+  useResourcePools,
+  useModelVersions,
+  useImageVersions,
+} from "@/api/hooks";
+import { useApiMutation, tenantHeader } from "@/api/mutations";
+import * as sdk from "@/api/generated";
 import { useUI } from "@/app/ui";
 import { Icon } from "@/components/Icon";
 import { Drawer } from "@/components/Drawer";
-import { PickGrid, FieldsetTitle } from "@/components/forms";
+import { FieldsetTitle } from "@/components/forms";
+import { TableState } from "@/components/states";
 
 type SvcStatus = "success" | "pending" | "stopped";
 
@@ -14,44 +24,12 @@ interface SvcRow {
   status: SvcStatus;
   statusLabel: string;
   replicas: string;
+  replicaCount: number;
   unit: string;
   url?: string;
   running: boolean; // true → 停止 action; false → 启动 action
+  displayName?: string;
 }
-
-// Faithful demo rows from prototype/services.html — rendered when the backend
-// (contract-only shell) returns no items.
-const FALLBACK: SvcRow[] = [
-  {
-    name: "svc-chat-api",
-    desc: "对话推理服务",
-    status: "success",
-    statusLabel: "就绪",
-    replicas: "2 / 2",
-    unit: "gpu-h100/1x",
-    url: "/services/llm-lab/chat/",
-    running: true,
-  },
-  {
-    name: "svc-embed",
-    desc: "文本向量服务",
-    status: "pending",
-    statusLabel: "降级",
-    replicas: "1 / 2",
-    unit: "gpu-l40s/1x",
-    url: "/services/llm-lab/embed/",
-    running: true,
-  },
-  {
-    name: "svc-rerank",
-    desc: "重排序服务",
-    status: "stopped",
-    statusLabel: "已停止",
-    replicas: "0 / 0",
-    unit: "cpu-large/1x",
-    running: false,
-  },
-];
 
 const PHASE_MAP: Record<string, { status: SvcStatus; label: string; running: boolean }> = {
   Ready: { status: "success", label: "就绪", running: true },
@@ -66,13 +44,28 @@ const PHASE_MAP: Record<string, { status: SvcStatus; label: string; running: boo
 
 type DrawerMode = "new" | "edit" | "scale";
 
+const INVALIDATE = [["mlservices"]];
+
 export default function Services() {
-  const { data } = useServices();
-  const { toast, confirm } = useUI();
-  const [drawer, setDrawer] = useState<{ mode: DrawerMode; name?: string } | null>(null);
+  const q = useServices();
+  const { confirm } = useUI();
+  const [drawer, setDrawer] = useState<{ mode: DrawerMode; row?: SvcRow } | null>(null);
+
+  const del = useApiMutation(
+    (name: string) => sdk.deleteMlService({ path: { name } }),
+    { invalidate: INVALIDATE, success: "服务已删除" },
+  );
+  const start = useApiMutation(
+    (name: string) => sdk.startMlService({ path: { name } }),
+    { invalidate: INVALIDATE, success: "服务启动中…" },
+  );
+  const stop = useApiMutation(
+    (name: string) => sdk.stopMlService({ path: { name } }),
+    { invalidate: INVALIDATE, success: "服务停止中…" },
+  );
 
   const rows: SvcRow[] =
-    data?.items?.map((s) => {
+    q.data?.items?.map((s) => {
       const p = PHASE_MAP[s.phase ?? "Pending"] ?? PHASE_MAP.Pending;
       return {
         name: s.name,
@@ -80,11 +73,22 @@ export default function Services() {
         status: p.status,
         statusLabel: p.label,
         replicas: `${s.readyReplicas ?? 0} / ${s.replicas ?? 0}`,
+        replicaCount: s.replicas ?? 0,
         unit: `${s.poolName ?? "—"}/${s.unitName ?? "—"}`,
         url: s.accessUrl,
         running: p.running,
+        displayName: s.displayName,
       };
-    }) ?? FALLBACK;
+    }) ?? [];
+
+  const onDelete = (r: SvcRow) =>
+    confirm({
+      title: `删除服务 ${r.name}？`,
+      desc: "将下线服务并回收副本，访问路由一并移除。该操作不可恢复。",
+      okLabel: "确认删除",
+      danger: true,
+      onConfirm: () => del.mutate(r.name),
+    });
 
   return (
     <main className="page">
@@ -171,7 +175,7 @@ export default function Services() {
                         className="act"
                         title="编辑"
                         aria-label="编辑"
-                        onClick={() => setDrawer({ mode: "edit", name: r.name })}
+                        onClick={() => setDrawer({ mode: "edit", row: r })}
                       >
                         <EditIcon />
                       </button>
@@ -179,7 +183,7 @@ export default function Services() {
                         className="act"
                         title="扩缩容"
                         aria-label="扩缩容"
-                        onClick={() => setDrawer({ mode: "scale", name: r.name })}
+                        onClick={() => setDrawer({ mode: "scale", row: r })}
                       >
                         <ScaleIcon />
                       </button>
@@ -188,7 +192,8 @@ export default function Services() {
                           className="act"
                           title="停止"
                           aria-label="停止"
-                          onClick={() => toast(`服务 ${r.name} 正在停止…`)}
+                          disabled={stop.isPending}
+                          onClick={() => stop.mutate(r.name)}
                         >
                           <StopIcon />
                         </button>
@@ -197,7 +202,8 @@ export default function Services() {
                           className="act"
                           title="启动"
                           aria-label="启动"
-                          onClick={() => toast(`服务 ${r.name} 正在启动…`)}
+                          disabled={start.isPending}
+                          onClick={() => start.mutate(r.name)}
                         >
                           <PlayIcon />
                         </button>
@@ -206,14 +212,7 @@ export default function Services() {
                         className="act act-danger"
                         title="删除"
                         aria-label="删除"
-                        onClick={() =>
-                          confirm({
-                            title: `删除服务 ${r.name}？`,
-                            desc: "将下线服务并回收副本，访问路由一并移除。该操作不可恢复。",
-                            okLabel: "确认删除",
-                            toast: `服务 ${r.name} 已删除`,
-                          })
-                        }
+                        onClick={() => onDelete(r)}
                       >
                         <TrashIcon />
                       </button>
@@ -221,6 +220,7 @@ export default function Services() {
                   </td>
                 </tr>
               ))}
+              <TableState q={q} cols={6} isEmpty={rows.length === 0} />
             </tbody>
           </table>
         </div>
@@ -235,9 +235,13 @@ export default function Services() {
         </div>
       </div>
 
-      {drawer?.mode === "new" && <SvcFormDrawer mode="new" onClose={() => setDrawer(null)} />}
-      {drawer?.mode === "edit" && <SvcFormDrawer mode="edit" name={drawer.name} onClose={() => setDrawer(null)} />}
-      {drawer?.mode === "scale" && <ScaleDrawer name={drawer.name} onClose={() => setDrawer(null)} />}
+      {drawer?.mode === "new" && <NewSvcDrawer onClose={() => setDrawer(null)} />}
+      {drawer?.mode === "edit" && drawer.row && (
+        <EditSvcDrawer row={drawer.row} onClose={() => setDrawer(null)} />
+      )}
+      {drawer?.mode === "scale" && drawer.row && (
+        <ScaleDrawer row={drawer.row} onClose={() => setDrawer(null)} />
+      )}
     </main>
   );
 }
@@ -286,17 +290,24 @@ function TrashIcon() {
   );
 }
 
-// ── Port rows (端口) — local repeatable widget, mirrors VolList shape ─────────
+// ── Port rows (端口) — controlled repeatable widget feeding ServicePort[] ──────
 interface PortRow {
   id: number;
   name: string;
   port: string;
 }
 let portSeq = 0;
-function PortList({ initial }: { initial: { name: string; port: string }[] }) {
-  const [rows, setRows] = useState<PortRow[]>(() => initial.map((r) => ({ ...r, id: ++portSeq })));
+function PortList({
+  rows,
+  setRows,
+}: {
+  rows: PortRow[];
+  setRows: Dispatch<SetStateAction<PortRow[]>>;
+}) {
   const add = () => setRows((r) => [...r, { id: ++portSeq, name: "", port: "" }]);
   const remove = (id: number) => setRows((r) => (r.length <= 1 ? r : r.filter((x) => x.id !== id)));
+  const update = (id: number, patch: Partial<PortRow>) =>
+    setRows((r) => r.map((x) => (x.id === id ? { ...x, ...patch } : x)));
   return (
     <>
       <div className="vol-list">
@@ -304,14 +315,16 @@ function PortList({ initial }: { initial: { name: string; port: string }[] }) {
           <div className="vol-row" key={row.id}>
             <input
               className="input mono"
-              defaultValue={row.name}
+              value={row.name}
+              onChange={(e) => update(row.id, { name: e.target.value })}
               placeholder="名称，如 http"
               aria-label="端口名"
               maxLength={15}
             />
             <input
               className="input mono"
-              defaultValue={row.port}
+              value={row.port}
+              onChange={(e) => update(row.id, { port: e.target.value })}
               placeholder="端口号"
               aria-label="端口号"
               inputMode="numeric"
@@ -330,48 +343,184 @@ function PortList({ initial }: { initial: { name: string; port: string }[] }) {
   );
 }
 
-const UNITS = [
-  { title: "h100-1x", spec: "1×H100 · 16 vCPU · 128 GiB" },
-  { title: "l40s-1x", spec: "1×L40S · 8 vCPU · 64 GiB" },
-];
+// Build the ServicePort[] payload from the controlled port rows (drops blanks).
+function toServicePorts(rows: PortRow[]): sdk.ServicePort[] {
+  return rows
+    .filter((r) => r.name.trim() && r.port.trim())
+    .map((r) => ({ name: r.name.trim(), port: Number(r.port) }));
+}
 
-function SvcFormDrawer({ mode, name, onClose }: { mode: "new" | "edit"; name?: string; onClose: () => void }) {
-  const { toast } = useUI();
-  const isEdit = mode === "edit";
-  const svcName = name ?? "svc-chat-api";
-  const title = isEdit ? "编辑服务" : "新建在线服务";
-  const sub: ReactNode = isEdit ? <span className="mono">{svcName}</span> : "从已注册模型版本部署常驻推理服务";
-  const submit = isEdit
-    ? { label: "保存", toast: "服务配置已保存" }
-    : { label: "上线服务", toast: "服务上线中…" };
-  const ports = isEdit
-    ? [
-        { name: "http", port: "8000" },
-        { name: "grpc", port: "8001" },
-      ]
-    : [{ name: "http", port: "8000" }];
+interface UnitPick {
+  title: string;
+  spec: string;
+}
+
+// Controlled radio-card grid (mirrors shared PickGrid styling) so the chosen
+// resource unit name flows into the create payload.
+function UnitPickGrid({
+  options,
+  value,
+  onChange,
+}: {
+  options: UnitPick[];
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  if (options.length === 0) {
+    return <span className="muted">请先选择资源池</span>;
+  }
+  return (
+    <div className="pick-grid">
+      {options.map((o) => (
+        <div
+          key={o.title}
+          className={"pick" + (o.title === value ? " on" : "")}
+          onClick={() => onChange(o.title)}
+        >
+          <div className="p-title">{o.title}</div>
+          <div className="p-spec">{o.spec}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Compact human spec from a ResourceUnit's requests map (best-effort display).
+function unitSpec(u: sdk.ResourceUnit): string {
+  const r = (u.requests ?? {}) as Record<string, string | undefined>;
+  const parts: string[] = [];
+  for (const [k, v] of Object.entries(r)) {
+    if (v) parts.push(`${k}=${v}`);
+  }
+  return parts.join(" · ") || u.name;
+}
+
+function NewSvcDrawer({ onClose }: { onClose: () => void }) {
+  const models = useModels();
+  const images = useImages();
+  const pools = useResourcePools();
+
+  const create = useApiMutation(
+    (body: sdk.MlServiceCreateRequest) => sdk.createMlService({ body, headers: tenantHeader() }),
+    { invalidate: INVALIDATE, success: "服务上线中…" },
+  );
+
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  // Model is chosen by name; the version comes from that model's version list,
+  // which the create LIST item (ArtifactDefinitionView) does not carry.
+  const [modelName, setModelName] = useState("");
+  const [modelVersion, setModelVersion] = useState("");
+  // Image, like model, is chosen by name + version; the body's `image` string is
+  // the selected version's pull URI.
+  const [imageName, setImageName] = useState("");
+  const [imageVersion, setImageVersion] = useState("");
+  const [poolName, setPoolName] = useState("");
+  const [unitName, setUnitName] = useState("");
+  const [replicas, setReplicas] = useState("1");
+  const [ports, setPorts] = useState<PortRow[]>(() => [{ id: ++portSeq, name: "http", port: "8000" }]);
+  const [routeEnabled, setRouteEnabled] = useState(true);
+  const [routePath, setRoutePath] = useState("");
+
+  const modelVersions = useModelVersions(modelName);
+  const modelOptions = useMemo(
+    () =>
+      (models.data?.items ?? []).map((m) => ({
+        name: m.name,
+        label: m.displayName || m.name,
+      })),
+    [models.data],
+  );
+  const versionOptions = useMemo(
+    () => (modelVersions.data?.items ?? []).map((v) => v.version),
+    [modelVersions.data],
+  );
+
+  // Reset version when the model changes so a stale version can't be submitted.
+  const onPickModel = (v: string) => {
+    setModelName(v);
+    setModelVersion("");
+  };
+  const imageVersions = useImageVersions(imageName);
+  const imageOptions = useMemo(
+    () =>
+      (images.data?.items ?? []).map((i) => ({
+        name: i.name,
+        label: i.displayName || i.name,
+      })),
+    [images.data],
+  );
+  // Map version string → pull URI so the submit body sends a usable image ref.
+  const imageVersionOptions = useMemo(
+    () =>
+      (imageVersions.data?.items ?? []).map((v) => ({
+        version: v.version,
+        uri: v.uri || `${imageName}:${v.version}`,
+      })),
+    [imageVersions.data, imageName],
+  );
+  const selectedImage = imageVersionOptions.find((v) => v.version === imageVersion)?.uri ?? "";
+
+  const onPickImage = (v: string) => {
+    setImageName(v);
+    setImageVersion("");
+  };
+  const unitOptions: UnitPick[] = useMemo(() => {
+    const pool = (pools.data?.items ?? []).find((p) => p.name === poolName);
+    return (pool?.units ?? []).map((u) => ({ title: u.name, spec: unitSpec(u) }));
+  }, [pools.data, poolName]);
+
+  const onPickPool = (v: string) => {
+    setPoolName(v);
+    setUnitName(""); // reset unit when pool changes
+  };
+
+  const validPorts = toServicePorts(ports);
+  const canSubmit =
+    !!name.trim() &&
+    !!modelName &&
+    !!modelVersion &&
+    !!selectedImage &&
+    !!poolName &&
+    !!unitName &&
+    Number(replicas) >= 0 &&
+    validPorts.length > 0 &&
+    !create.isPending;
+
+  const submit = () => {
+    const route: sdk.MlServiceRoute | undefined = routeEnabled
+      ? { enabled: true, ...(routePath.trim() ? { path: routePath.trim() } : {}) }
+      : { enabled: false };
+    const body: sdk.MlServiceCreateRequest = {
+      name: name.trim(),
+      modelName,
+      modelVersion,
+      image: selectedImage,
+      poolName,
+      unitName,
+      replicas: Number(replicas),
+      ports: validPorts,
+      ...(description.trim() ? { description: description.trim() } : {}),
+      route,
+    };
+    create.mutate(body, { onSuccess: onClose });
+  };
 
   return (
     <Drawer
       open
       wide
       onClose={onClose}
-      title={title}
-      sub={sub}
+      title="新建在线服务"
+      sub="从已注册模型版本部署常驻推理服务"
       footer={
         <>
           <span className="grow" />
           <button className="btn" onClick={onClose}>
             取消
           </button>
-          <button
-            className="btn btn-primary"
-            onClick={() => {
-              toast(submit.toast);
-              onClose();
-            }}
-          >
-            {submit.label}
+          <button className="btn btn-primary" disabled={!canSubmit} onClick={submit}>
+            {create.isPending ? "上线中…" : "上线服务"}
           </button>
         </>
       }
@@ -382,12 +531,22 @@ function SvcFormDrawer({ mode, name, onClose }: { mode: "new" | "edit"; name?: s
           <label>
             名称 <span className="req">*</span>
           </label>
-          <input className="input mono" placeholder="svc-chat-api" defaultValue={isEdit ? svcName : ""} />
+          <input
+            className="input mono"
+            placeholder="svc-chat-api"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
           <span className="help">用于在列表与详情中展示</span>
         </div>
         <div className="field full">
           <label>描述</label>
-          <textarea className="textarea" placeholder="用途说明（可选）" defaultValue={isEdit ? "对话推理服务" : ""} />
+          <textarea
+            className="textarea"
+            placeholder="用途说明（可选）"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
         </div>
       </div>
 
@@ -395,20 +554,80 @@ function SvcFormDrawer({ mode, name, onClose }: { mode: "new" | "edit"; name?: s
       <div className="form-grid">
         <div className="field">
           <label>
+            模型 <span className="req">*</span>
+          </label>
+          <select className="input" value={modelName} onChange={(e) => onPickModel(e.target.value)}>
+            <option value="">{models.isLoading ? "加载中…" : "请选择模型"}</option>
+            {modelOptions.map((m) => (
+              <option key={m.name} value={m.name}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="field">
+          <label>
             模型版本 <span className="req">*</span>
           </label>
-          <select className="input">
-            <option>llama3-8b-sft@v4</option>
-            <option>llama3-8b-sft@v3</option>
+          <select
+            className="input"
+            value={modelVersion}
+            disabled={!modelName}
+            onChange={(e) => setModelVersion(e.target.value)}
+          >
+            <option value="">
+              {!modelName
+                ? "请先选择模型"
+                : modelVersions.isLoading
+                  ? "加载中…"
+                  : versionOptions.length === 0
+                    ? "无可用版本"
+                    : "请选择版本"}
+            </option>
+            {versionOptions.map((v) => (
+              <option key={v} value={v}>
+                {v}
+              </option>
+            ))}
           </select>
         </div>
         <div className="field">
           <label>
             推理镜像 <span className="req">*</span>
           </label>
-          <select className="input">
-            <option>vllm-serve:0.5.1</option>
-            <option>tgi:2.0</option>
+          <select className="input" value={imageName} onChange={(e) => onPickImage(e.target.value)}>
+            <option value="">{images.isLoading ? "加载中…" : "请选择推理镜像"}</option>
+            {imageOptions.map((i) => (
+              <option key={i.name} value={i.name}>
+                {i.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="field">
+          <label>
+            镜像版本 <span className="req">*</span>
+          </label>
+          <select
+            className="input"
+            value={imageVersion}
+            disabled={!imageName}
+            onChange={(e) => setImageVersion(e.target.value)}
+          >
+            <option value="">
+              {!imageName
+                ? "请先选择镜像"
+                : imageVersions.isLoading
+                  ? "加载中…"
+                  : imageVersionOptions.length === 0
+                    ? "无可用版本"
+                    : "请选择版本"}
+            </option>
+            {imageVersionOptions.map((v) => (
+              <option key={v.version} value={v.version}>
+                {v.version}
+              </option>
+            ))}
           </select>
         </div>
       </div>
@@ -419,9 +638,14 @@ function SvcFormDrawer({ mode, name, onClose }: { mode: "new" | "edit"; name?: s
           <label>
             资源池 <span className="req">*</span>
           </label>
-          <select className="input">
-            <option>gpu-h100 · H100 推理池</option>
-            <option>gpu-l40s · L40S 推理池</option>
+          <select className="input" value={poolName} onChange={(e) => onPickPool(e.target.value)}>
+            <option value="">{pools.isLoading ? "加载中…" : "请选择资源池"}</option>
+            {(pools.data?.items ?? []).map((p) => (
+              <option key={p.name} value={p.name}>
+                {p.name}
+                {p.description ? ` · ${p.description}` : ""}
+              </option>
+            ))}
           </select>
         </div>
       </div>
@@ -429,14 +653,19 @@ function SvcFormDrawer({ mode, name, onClose }: { mode: "new" | "edit"; name?: s
         <label>
           资源单元 <span className="req">*</span>
         </label>
-        <PickGrid options={UNITS} />
+        <UnitPickGrid options={unitOptions} value={unitName} onChange={setUnitName} />
       </div>
       <div className="form-grid" style={{ marginTop: "var(--space-4)" }}>
         <div className="field">
           <label>
             副本数 <span className="req">*</span>
           </label>
-          <input className="input num mono" defaultValue="2" />
+          <input
+            className="input num mono"
+            inputMode="numeric"
+            value={replicas}
+            onChange={(e) => setReplicas(e.target.value)}
+          />
         </div>
       </div>
 
@@ -446,7 +675,7 @@ function SvcFormDrawer({ mode, name, onClose }: { mode: "new" | "edit"; name?: s
           <label>
             端口 <span className="req">*</span>
           </label>
-          <PortList initial={ports} />
+          <PortList rows={ports} setRows={setPorts} />
         </div>
       </div>
       <div className="form-grid">
@@ -458,14 +687,16 @@ function SvcFormDrawer({ mode, name, onClose }: { mode: "new" | "edit"; name?: s
             <label style={{ margin: 0 }}>启用对外路由</label>
             <span className="help">关闭后仅集群内可访问</span>
           </div>
-          <RouteToggle />
+          <RouteToggle on={routeEnabled} setOn={setRouteEnabled} />
         </div>
         <div className="field">
           <label>Path</label>
           <input
             className="input mono"
             placeholder="/services/llm-lab/chat/"
-            defaultValue={isEdit ? "/services/llm-lab/chat/" : ""}
+            value={routePath}
+            disabled={!routeEnabled}
+            onChange={(e) => setRoutePath(e.target.value)}
           />
         </div>
       </div>
@@ -473,25 +704,100 @@ function SvcFormDrawer({ mode, name, onClose }: { mode: "new" | "edit"; name?: s
   );
 }
 
-function RouteToggle() {
-  const [on, setOn] = useState(true);
+function RouteToggle({ on, setOn }: { on: boolean; setOn: (v: boolean) => void }) {
   return (
     <button
       className={"toggle" + (on ? " on" : "")}
       aria-label="启用对外路由"
-      onClick={() => setOn((v) => !v)}
+      onClick={() => setOn(!on)}
     />
   );
 }
 
-function ScaleDrawer({ name, onClose }: { name?: string; onClose: () => void }) {
-  const { toast } = useUI();
+// Edit only patches display metadata (the API exposes MlServicePatchRequest:
+// description / displayName); replica + spec changes go through scale / recreate.
+function EditSvcDrawer({ row, onClose }: { row: SvcRow; onClose: () => void }) {
+  const [displayName, setDisplayName] = useState(row.displayName ?? "");
+  const [description, setDescription] = useState(row.desc ?? "");
+  const update = useApiMutation(
+    (body: sdk.MlServicePatchRequest) => sdk.updateMlService({ path: { name: row.name }, body }),
+    { invalidate: INVALIDATE, success: "服务配置已保存" },
+  );
+
+  const submit = () =>
+    update.mutate(
+      {
+        displayName: displayName.trim() || undefined,
+        description: description.trim() || undefined,
+      },
+      { onSuccess: onClose },
+    );
+
+  return (
+    <Drawer
+      open
+      wide
+      onClose={onClose}
+      title="编辑服务"
+      sub={<span className="mono">{row.name}</span>}
+      footer={
+        <>
+          <span className="grow" />
+          <button className="btn" onClick={onClose}>
+            取消
+          </button>
+          <button className="btn btn-primary" disabled={update.isPending} onClick={submit}>
+            {update.isPending ? "保存中…" : "保存"}
+          </button>
+        </>
+      }
+    >
+      <FieldsetTitle n={1}>基本信息</FieldsetTitle>
+      <p className="muted" style={{ fontSize: 13, marginBottom: "var(--space-4)" }}>
+        仅可修改展示信息；副本数请使用「扩缩容」，模型与资源规格不可在线变更。
+      </p>
+      <div className="form-grid">
+        <div className="field">
+          <label>显示名称</label>
+          <input
+            className="input"
+            placeholder="（可选）"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+          />
+        </div>
+        <div className="field full">
+          <label>描述</label>
+          <textarea
+            className="textarea"
+            placeholder="用途说明（可选）"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
+        </div>
+      </div>
+    </Drawer>
+  );
+}
+
+function ScaleDrawer({ row, onClose }: { row: SvcRow; onClose: () => void }) {
+  const [replicas, setReplicas] = useState(String(row.replicaCount));
+  const scale = useApiMutation(
+    (body: sdk.MlServiceScaleRequest) => sdk.scaleMlService({ path: { name: row.name }, body }),
+    { invalidate: INVALIDATE, success: "扩缩容请求已提交" },
+  );
+
+  const n = Number(replicas);
+  const valid = replicas.trim() !== "" && Number.isInteger(n) && n >= 0;
+
+  const submit = () => scale.mutate({ replicas: n }, { onSuccess: onClose });
+
   return (
     <Drawer
       open
       onClose={onClose}
       title="扩缩容"
-      sub={<span className="mono">{name ?? "svc-chat-api"}</span>}
+      sub={<span className="mono">{row.name}</span>}
       footer={
         <>
           <button className="btn" onClick={onClose}>
@@ -499,12 +805,10 @@ function ScaleDrawer({ name, onClose }: { name?: string; onClose: () => void }) 
           </button>
           <button
             className="btn btn-primary"
-            onClick={() => {
-              toast("已扩容至 3 副本");
-              onClose();
-            }}
+            disabled={!valid || scale.isPending}
+            onClick={submit}
           >
-            应用
+            {scale.isPending ? "应用中…" : "应用"}
           </button>
         </>
       }
@@ -514,18 +818,13 @@ function ScaleDrawer({ name, onClose }: { name?: string; onClose: () => void }) 
       </p>
       <div className="field">
         <label>目标副本数</label>
-        <input className="input num" defaultValue="3" />
-        <span className="help">当前 2 / 2 就绪 · 配额上限 gpu-h100 max=8</span>
-      </div>
-      <div className="panel" style={{ padding: "var(--space-4)", marginTop: "var(--space-5)" }}>
-        <dl className="kv" style={{ gridTemplateColumns: "96px 1fr" }}>
-          <dt>资源单元</dt>
-          <dd className="mono">gpu-h100 / h100-1x</dd>
-          <dt>单副本</dt>
-          <dd className="mono">1×H100 · 16 vCPU · 128 GiB</dd>
-          <dt>扩容增量</dt>
-          <dd>+1 副本 = +1 H100</dd>
-        </dl>
+        <input
+          className="input num"
+          inputMode="numeric"
+          value={replicas}
+          onChange={(e) => setReplicas(e.target.value)}
+        />
+        <span className="help">当前 {row.replicas} 就绪 · 资源单元 {row.unit}</span>
       </div>
     </Drawer>
   );

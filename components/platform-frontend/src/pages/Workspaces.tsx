@@ -1,10 +1,13 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useWorkspaces } from "@/api/hooks";
+import { useApiMutation, tenantHeader } from "@/api/mutations";
+import * as sdk from "@/api/generated";
 import { useUI } from "@/app/ui";
 import { Icon } from "@/components/Icon";
 import { Drawer } from "@/components/Drawer";
 import { FieldsetTitle } from "@/components/forms";
+import { BlockState } from "@/components/states";
 
 // Page-local styles ported verbatim from prototype/workspace.html's <head> <style>
 // block (the .ws-card grid is page-specific, not part of the shared app.css design
@@ -159,22 +162,27 @@ interface WsRow {
   pvc?: string; // PVC size shown in delete confirm; absent rows have no delete (pending)
 }
 
-// Faithful demo rows from prototype/workspace.html — rendered when the backend
-// (contract-only shell) returns no items.
-const FALLBACK: WsRow[] = [
-  { name: "ws-dev-zhang", desc: "开发调试环境", status: "running", brand: "jupyter", unit: "cpu-medium/1x", image: "jupyter-ds:2024.3", owner: "张伟", ava: "张", pvc: "50 GiB" },
-  { name: "ws-train-li", desc: "分布式训练调试", status: "pending", brand: "pytorch", unit: "gpu-a100/1x", image: "pytorch:2.3-cu121", owner: "李娜", ava: "李" },
-  { name: "ws-notebook-chen", desc: "推理实验环境", status: "running", brand: "jupyter", unit: "gpu-l40s/1x", image: "jupyter-tf:2.16", owner: "陈曦", ava: "陈", pvc: "100 GiB" },
-  { name: "ws-eval-wang", desc: "评估脚本调试", status: "stopped", brand: "vscode", unit: "cpu-medium/1x", image: "vscode-server:1.90", owner: "王磊", ava: "王", pvc: "20 GiB" },
-];
-
 export default function Workspaces() {
-  const { data } = useWorkspaces();
-  const { toast, confirm } = useUI();
+  const q = useWorkspaces();
+  const { confirm } = useUI();
   const [view, setView] = useState<"cards" | "list">("cards");
   const [drawer, setDrawer] = useState(false);
 
-  const rows: WsRow[] = data?.items?.map((w) => ({
+  const start = useApiMutation(
+    (name: string) => sdk.startWorkspace({ path: { name } }),
+    { invalidate: [["workspaces"]], success: "工作区启动中…" },
+  );
+  const stop = useApiMutation(
+    (name: string) => sdk.stopWorkspace({ path: { name } }),
+    { invalidate: [["workspaces"]], success: "工作区已停止" },
+  );
+  const del = useApiMutation(
+    ({ name, deletePvc }: { name: string; deletePvc: boolean }) =>
+      sdk.deleteWorkspace({ path: { name }, body: { deletePvc } }),
+    { invalidate: [["workspaces"]], success: "工作区已删除" },
+  );
+
+  const rows: WsRow[] = q.data?.items?.map((w) => ({
     name: w.name,
     desc: w.description ?? w.displayName ?? "",
     status: phaseToStatus(w.phase),
@@ -184,20 +192,32 @@ export default function Workspaces() {
     owner: w.owner ?? "—",
     ava: (w.owner ?? "—").slice(0, 1),
     pvc: w.volumes?.length ? "—" : undefined,
-  })) ?? FALLBACK;
+  })) ?? [];
 
-  const delConfirm = (name: string, desc: string, pvc: string) =>
+  // Delete with the "also delete PVC" toggle surfaced in the confirm dialog. The
+  // checkbox state is captured in a closure so onConfirm reads the latest value.
+  const onDelete = (name: string, desc: string, pvc?: string) => {
+    let deletePvc = pvc != null;
     confirm({
       title: `删除工作区 ${name}？`,
       desc,
-      info: (
+      info: pvc != null ? (
         <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
-          <input type="checkbox" defaultChecked /> 一并删除数据卷 PVC（{pvc}）
+          <input
+            type="checkbox"
+            defaultChecked
+            onChange={(e) => {
+              deletePvc = e.target.checked;
+            }}
+          />{" "}
+          一并删除数据卷 PVC（{pvc}）
         </label>
-      ),
+      ) : undefined,
       okLabel: "确认删除",
-      toast: "工作区已删除",
+      danger: true,
+      onConfirm: () => del.mutate({ name, deletePvc }),
     });
+  };
 
   return (
     <main className="page">
@@ -259,8 +279,15 @@ export default function Workspaces() {
       {view === "cards" && (
         <div className="ws-cards">
           {rows.map((r) => (
-            <WsCard key={r.name} row={r} onToast={toast} onDelete={delConfirm} />
+            <WsCard
+              key={r.name}
+              row={r}
+              onStart={(name) => start.mutate(name)}
+              onStop={(name) => stop.mutate(name)}
+              onDelete={onDelete}
+            />
           ))}
+          <BlockState q={q} isEmpty={rows.length === 0} />
         </div>
       )}
 
@@ -302,11 +329,11 @@ export default function Workspaces() {
                           <EyeGlyph />
                         </Link>
                         {r.status === "stopped" ? (
-                          <button className="act" title="启动" aria-label="启动" onClick={() => toast("工作区启动中…")}>
+                          <button className="act" title="启动" aria-label="启动" onClick={() => start.mutate(r.name)}>
                             <PlayTri />
                           </button>
                         ) : (
-                          <button className="act" title="停止" aria-label="停止" onClick={() => toast("工作区已停止")}>
+                          <button className="act" title="停止" aria-label="停止" onClick={() => stop.mutate(r.name)}>
                             <StopSquare />
                           </button>
                         )}
@@ -314,11 +341,7 @@ export default function Workspaces() {
                           className="act act-danger"
                           title="删除"
                           aria-label="删除"
-                          onClick={() =>
-                            r.pvc
-                              ? delConfirm(r.name, "删除后不可恢复。", r.pvc)
-                              : confirm({ title: `删除工作区 ${r.name}？`, okLabel: "确认删除", toast: "工作区已删除" })
-                          }
+                          onClick={() => onDelete(r.name, "删除后不可恢复。", r.pvc)}
                         >
                           <TrashRow />
                         </button>
@@ -348,12 +371,14 @@ export default function Workspaces() {
 
 function WsCard({
   row,
-  onToast,
+  onStart,
+  onStop,
   onDelete,
 }: {
   row: WsRow;
-  onToast: (m: string) => void;
-  onDelete: (name: string, desc: string, pvc: string) => void;
+  onStart: (name: string) => void;
+  onStop: (name: string) => void;
+  onDelete: (name: string, desc: string, pvc?: string) => void;
 }) {
   const running = row.status === "running";
   const stopped = row.status === "stopped";
@@ -406,50 +431,50 @@ function WsCard({
               </svg>
             </button>
             <span className="wc-spacer" />
-            <button className="wc-act" title="停止工作区" onClick={() => onToast("工作区已停止")}>
+            <button className="wc-act" title="停止工作区" onClick={() => onStop(row.name)}>
               <StopGlyph />
             </button>
           </>
         ) : stopped ? (
           <>
-            <button className="wc-act start" title="启动工作区" onClick={() => onToast("工作区启动中…")}>
+            <button className="wc-act start" title="启动工作区" onClick={() => onStart(row.name)}>
               <PlayFill />
             </button>
             <span className="wc-spacer" />
             <button
               className="wc-act danger"
               title="删除工作区"
-              onClick={() => onDelete(row.name, "工作区已停止，删除后不可恢复。", row.pvc ?? "")}
+              onClick={() => onDelete(row.name, "工作区已停止，删除后不可恢复。", row.pvc)}
             >
               <TrashGlyph />
             </button>
           </>
         ) : (
           <>
-            <button className="wc-act" title="打开 Jupyter" onClick={() => onToast("正在打开 Jupyter…")}>
+            <Link className="wc-act" title="打开 Jupyter" to={`/workspaces/${row.name}`}>
               <svg className="brand">
                 <use href="#ic-jupyter" />
               </svg>
-            </button>
-            <button className="wc-act" title="打开 VS Code" onClick={() => onToast("正在打开 VS Code…")}>
+            </Link>
+            <Link className="wc-act" title="打开 VS Code" to={`/workspaces/${row.name}`}>
               <svg className="brand">
                 <use href="#ic-vscode" />
               </svg>
-            </button>
-            <button className="wc-act" title="打开终端" onClick={() => onToast("正在打开终端…")}>
+            </Link>
+            <Link className="wc-act" title="打开终端" to={`/workspaces/${row.name}`}>
               <svg className="brand">
                 <use href="#ic-terminal" />
               </svg>
-            </button>
+            </Link>
             <span className="wc-spacer" />
-            <button className="wc-act" title="停止工作区" onClick={() => onToast("工作区已停止")}>
+            <button className="wc-act" title="停止工作区" onClick={() => onStop(row.name)}>
               <StopGlyph />
             </button>
             {running && (
               <button
                 className="wc-act danger"
                 title="删除工作区"
-                onClick={() => onDelete(row.name, "运行中的工作区将先停止再删除，删除后不可恢复。", row.pvc ?? "")}
+                onClick={() => onDelete(row.name, "运行中的工作区将先停止再删除，删除后不可恢复。", row.pvc)}
               >
                 <TrashGlyph />
               </button>
@@ -461,8 +486,70 @@ function WsCard({
   );
 }
 
+// Image options for the brand picker — `image` is the value mapped into the
+// WorkspaceCreateRequest.image required field.
+const WS_IMAGES: { brand: string; image: string; spec: string }[] = [
+  { brand: "ic-jupyter", image: "jupyter-ds:2024.3", spec: "Jupyter 开发环境 · 公共" },
+  { brand: "ic-pytorch", image: "pytorch:2.3-cu121", spec: "PyTorch 训练镜像" },
+  { brand: "ic-vscode", image: "vscode-server:1.90", spec: "VS Code 开发环境 · 公共" },
+];
+
+// Resource-unit options — `pool`/`unit` map to the required poolName/unitName.
+const WS_UNITS: { pool: string; unit: string; spec: string }[] = [
+  { pool: "cpu-medium", unit: "cpu-medium", spec: "8 vCPU · 32 GiB" },
+  { pool: "cpu-medium", unit: "cpu-large", spec: "16 vCPU · 64 GiB" },
+  { pool: "gpu-a100", unit: "a100-1x", spec: "1×A100 · 8 vCPU · 64 GiB" },
+];
+
+// Parse the env textarea (one KEY=VALUE per line) into the EnvVar[] DTO shape.
+function parseEnv(s: string): sdk.EnvVar[] {
+  const out: sdk.EnvVar[] = [];
+  for (const line of s.split("\n")) {
+    const t = line.trim();
+    if (!t) continue;
+    const eq = t.indexOf("=");
+    const name = (eq === -1 ? t : t.slice(0, eq)).trim();
+    if (!name) continue;
+    out.push({ name, value: eq === -1 ? "" : t.slice(eq + 1).trim() });
+  }
+  return out;
+}
+
 function WsDrawer({ onClose }: { onClose: () => void }) {
-  const { toast } = useUI();
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [imageIdx, setImageIdx] = useState(0);
+  const [unitIdx, setUnitIdx] = useState(0);
+  const [port, setPort] = useState("8888");
+  const [env, setEnv] = useState("");
+  const [mountPath, setMountPath] = useState("/workspace");
+  const [volSize, setVolSize] = useState("50Gi");
+
+  const create = useApiMutation(
+    (body: sdk.WorkspaceCreateRequest) => sdk.createWorkspace({ body, headers: tenantHeader() }),
+    { invalidate: [["workspaces"]], success: "工作区创建中…" },
+  );
+
+  const submit = () => {
+    const img = WS_IMAGES[imageIdx];
+    const u = WS_UNITS[unitIdx];
+    const envVars = parseEnv(env);
+    const portNum = Number(port.trim());
+    const body: sdk.WorkspaceCreateRequest = {
+      name: name.trim(),
+      image: img.image,
+      poolName: u.pool,
+      unitName: u.unit,
+      description: description.trim() || undefined,
+      containerPort: Number.isFinite(portNum) && portNum > 0 ? portNum : undefined,
+      env: envVars.length ? envVars : undefined,
+      volumes: mountPath.trim()
+        ? [{ mountPath: mountPath.trim(), size: volSize.trim() || undefined }]
+        : undefined,
+    };
+    create.mutate(body, { onSuccess: onClose });
+  };
+
   return (
     <Drawer
       open
@@ -478,12 +565,10 @@ function WsDrawer({ onClose }: { onClose: () => void }) {
           </button>
           <button
             className="btn btn-primary"
-            onClick={() => {
-              toast("工作区创建中…");
-              onClose();
-            }}
+            disabled={!name.trim() || create.isPending}
+            onClick={submit}
           >
-            创建工作区
+            {create.isPending ? "创建中…" : "创建工作区"}
           </button>
         </>
       }
@@ -494,12 +579,22 @@ function WsDrawer({ onClose }: { onClose: () => void }) {
           <label>
             名称 <span className="req">*</span>
           </label>
-          <input className="input" placeholder="开发调试环境" />
+          <input
+            className="input"
+            placeholder="开发调试环境"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
           <span className="help">用于在列表与详情中展示</span>
         </div>
         <div className="field full">
           <label>描述</label>
-          <textarea className="textarea" placeholder="用途说明（可选）" />
+          <textarea
+            className="textarea"
+            placeholder="用途说明（可选）"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
         </div>
       </div>
 
@@ -508,34 +603,72 @@ function WsDrawer({ onClose }: { onClose: () => void }) {
         <label>
           开发镜像 <span className="req">*</span>
         </label>
-        <BrandPickGrid />
+        <div className="pick-grid">
+          {WS_IMAGES.map((o, i) => (
+            <div
+              key={o.image}
+              className={"pick" + (i === imageIdx ? " on" : "")}
+              style={{ display: "flex", alignItems: "center", gap: 10 }}
+              onClick={() => setImageIdx(i)}
+            >
+              <svg className="brand" style={{ width: 22, height: 22, flex: "none" }}>
+                <use href={`#${o.brand}`} />
+              </svg>
+              <div>
+                <div className="p-title">{o.image}</div>
+                <div className="p-spec">{o.spec}</div>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
       <FieldsetTitle n={3}>资源选择</FieldsetTitle>
-      <div className="form-grid">
-        <div className="field full">
-          <label>
-            资源池 <span className="req">*</span>
-          </label>
-          <select className="input" defaultValue="cpu-medium · 通用 CPU 池">
-            <option>gpu-a100 · A100 训练池</option>
-            <option>gpu-l40s · L40S 推理池</option>
-            <option>cpu-medium · 通用 CPU 池</option>
-          </select>
-        </div>
-      </div>
-      <div className="field" style={{ marginTop: "var(--space-4)" }}>
+      <div className="field">
         <label>
           资源单元 <span className="req">*</span>
         </label>
-        <UnitPickGrid />
+        <div className="pick-grid">
+          {WS_UNITS.map((o, i) => (
+            <div
+              key={o.unit}
+              className={"pick" + (i === unitIdx ? " on" : "")}
+              onClick={() => setUnitIdx(i)}
+            >
+              <div className="p-title">{o.unit}</div>
+              <div className="p-spec">
+                {o.pool} · {o.spec}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="form-grid" style={{ marginTop: "var(--space-4)" }}>
+        <div className="field">
+          <label>
+            容器端口 <span className="req">*</span>
+          </label>
+          <input
+            className="input mono"
+            inputMode="numeric"
+            placeholder="8888"
+            value={port}
+            onChange={(e) => setPort(e.target.value)}
+          />
+          <span className="help">工作区主进程监听的端口。</span>
+        </div>
       </div>
 
       <FieldsetTitle n={4}>环境变量</FieldsetTitle>
       <div className="form-grid">
         <div className="field full">
           <label>环境变量</label>
-          <textarea className="textarea" placeholder={"HF_HOME=/data/hf\nCUDA_VISIBLE_DEVICES=0"} />
+          <textarea
+            className="textarea"
+            placeholder={"HF_HOME=/data/hf\nCUDA_VISIBLE_DEVICES=0"}
+            value={env}
+            onChange={(e) => setEnv(e.target.value)}
+          />
           <span className="help">每行一个 KEY=VALUE，注入到工作区容器。</span>
         </div>
       </div>
@@ -543,86 +676,28 @@ function WsDrawer({ onClose }: { onClose: () => void }) {
       <FieldsetTitle n={5}>数据卷</FieldsetTitle>
       <div className="form-grid">
         <div className="field full">
-          <label>
-            数据卷 <span className="req">*</span>
-          </label>
-          <WsVolList />
+          <label>数据卷</label>
+          <div className="vol-list">
+            <div className="vol-row">
+              <input
+                className="input mono"
+                placeholder="50Gi"
+                aria-label="数据卷大小"
+                value={volSize}
+                onChange={(e) => setVolSize(e.target.value)}
+              />
+              <input
+                className="input mono"
+                placeholder="挂载路径"
+                aria-label="挂载路径"
+                value={mountPath}
+                onChange={(e) => setMountPath(e.target.value)}
+              />
+            </div>
+          </div>
+          <span className="help">留空挂载路径则不创建数据卷。</span>
         </div>
       </div>
     </Drawer>
-  );
-}
-
-// Brand image radio cards (with leading brand glyph) — one-off variant of PickGrid.
-function BrandPickGrid() {
-  const items: { brand: string; title: string; spec: string }[] = [
-    { brand: "ic-jupyter", title: "jupyter-ds:2024.3", spec: "Jupyter 开发环境 · 公共" },
-    { brand: "ic-pytorch", title: "pytorch:2.3-cu121", spec: "PyTorch 训练镜像" },
-    { brand: "ic-vscode", title: "vscode-server:1.90", spec: "VS Code 开发环境 · 公共" },
-  ];
-  const [sel, setSel] = useState(0);
-  return (
-    <div className="pick-grid">
-      {items.map((o, i) => (
-        <div
-          key={o.title}
-          className={"pick" + (i === sel ? " on" : "")}
-          style={{ display: "flex", alignItems: "center", gap: 10 }}
-          onClick={() => setSel(i)}
-        >
-          <svg className="brand" style={{ width: 22, height: 22, flex: "none" }}>
-            <use href={`#${o.brand}`} />
-          </svg>
-          <div>
-            <div className="p-title">{o.title}</div>
-            <div className="p-spec">{o.spec}</div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function UnitPickGrid() {
-  const items = [
-    { title: "cpu-medium", spec: "8 vCPU · 32 GiB" },
-    { title: "cpu-large", spec: "16 vCPU · 64 GiB" },
-    { title: "a100-1x", spec: "1×A100 · 8 vCPU · 64 GiB" },
-  ];
-  const [sel, setSel] = useState(0);
-  return (
-    <div className="pick-grid">
-      {items.map((o, i) => (
-        <div key={o.title} className={"pick" + (i === sel ? " on" : "")} onClick={() => setSel(i)}>
-          <div className="p-title">{o.title}</div>
-          <div className="p-spec">{o.spec}</div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// One-off vol-list matching the create-drawer's single row (new-volume options).
-function WsVolList() {
-  return (
-    <>
-      <div className="vol-list">
-        <div className="vol-row">
-          <select className="input" aria-label="数据卷">
-            <option>新建数据卷（50 GiB · standard-rwo）</option>
-            <option>ws-shared-cache（200 GiB · fast-ssd）</option>
-            <option>team-datasets（1 TiB · standard-rwo）</option>
-          </select>
-          <input className="input mono" defaultValue="/workspace" placeholder="挂载路径" aria-label="挂载路径" />
-          <button type="button" className="icon-btn" title="移除">
-            <Icon name="x" />
-          </button>
-        </div>
-      </div>
-      <a className="link vol-add" role="button" tabIndex={0}>
-        <Icon name="plus" />
-        添加数据卷
-      </a>
-    </>
   );
 }

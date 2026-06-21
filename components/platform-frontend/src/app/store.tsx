@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useSession } from "./session";
 
 // ── Navigation config (single source of truth, ported from js/app.js NAV) ──────
 export interface NavItem {
@@ -62,53 +63,16 @@ export const NAV: NavGroup[] = [
 
 export type Role = "system-admin" | "tenant-admin" | "user";
 
-export const ROLES: Record<
-  Role,
-  { name: string; short: string; note: string; person: string; email: string; initials: string }
-> = {
-  "system-admin": {
-    name: "系统管理员",
-    short: "系统管理员",
-    note: "平台级超管",
-    person: "张伟",
-    email: "zhangwei@axisml.io",
-    initials: "ZW",
-  },
-  "tenant-admin": {
-    name: "租户管理员",
-    short: "租户管理员",
-    note: "本租户负责人",
-    person: "李娜",
-    email: "lina@axisml.io",
-    initials: "LN",
-  },
-  user: {
-    name: "普通用户",
-    short: "普通用户",
-    note: "算法 / 推理工程师",
-    person: "王芳",
-    email: "wangfang@axisml.io",
-    initials: "WF",
-  },
+export const ROLE_LABELS: Record<Role, string> = {
+  "system-admin": "系统管理员",
+  "tenant-admin": "租户管理员",
+  user: "普通用户",
 };
-
-export interface Tenant {
-  id: string;
-  name: string;
-  note: string;
-}
-export const TENANTS: Tenant[] = [
-  { id: "llm-lab", name: "大模型研究院", note: "12 成员 · A100/H100" },
-  { id: "rec-algo", name: "推荐算法团队", note: "8 成员 · A100" },
-  { id: "av-perception", name: "智能驾驶感知", note: "15 成员 · H100/L40S" },
-  { id: "risk-ai", name: "风控 AI", note: "6 成员 · 通用 CPU" },
-];
 
 export type ThemePref = "light" | "dark" | "system";
 export type Lang = "zh" | "en";
 
 const LS = {
-  role: "axisml.role",
   tenant: "axisml.tenant",
   collapsed: "axisml.collapsed",
   theme: "axisml.theme",
@@ -116,12 +80,11 @@ const LS = {
 } as const;
 
 interface AppState {
-  role: Role;
+  role: Role; // sourced from the real auth session, not a demo picker
   tenant: string; // "all" or a tenant id
   collapsed: boolean;
   theme: ThemePref;
   lang: Lang;
-  setRole: (r: Role) => void;
   setTenant: (t: string) => void;
   toggleCollapsed: () => void;
   setTheme: (t: ThemePref) => void;
@@ -140,10 +103,14 @@ function resolveTheme(p: ThemePref) {
 }
 
 export function AppStoreProvider({ children }: { children: ReactNode }) {
-  const [role, setRoleState] = useState<Role>(
-    () => (localStorage.getItem(LS.role) as Role) || "system-admin",
-  );
-  const [tenant, setTenantState] = useState<string>(() => localStorage.getItem(LS.tenant) || "all");
+  const { role } = useSession();
+  // Active tenant scope. There is no "all-tenants" view — the switcher always
+  // selects exactly one tenant (a default is chosen on bootstrap). Legacy "all"
+  // values are migrated to unset.
+  const [tenant, setTenantState] = useState<string>(() => {
+    const stored = localStorage.getItem(LS.tenant);
+    return stored && stored !== "all" ? stored : "";
+  });
   const [collapsed, setCollapsed] = useState<boolean>(() => localStorage.getItem(LS.collapsed) === "1");
   const [theme, setThemeState] = useState<ThemePref>(
     () => (localStorage.getItem(LS.theme) as ThemePref) || "light",
@@ -164,10 +131,6 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     document.documentElement.setAttribute("lang", lang === "en" ? "en" : "zh-CN");
   }, [lang]);
 
-  const setRole = useCallback((r: Role) => {
-    localStorage.setItem(LS.role, r);
-    setRoleState(r);
-  }, []);
   const setTenant = useCallback((t: string) => {
     localStorage.setItem(LS.tenant, t);
     setTenantState(t);
@@ -195,16 +158,14 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       collapsed,
       theme,
       lang,
-      setRole,
       setTenant,
       toggleCollapsed,
       setTheme,
       setLang,
-      tenantLabel: () =>
-        tenant === "all" ? "全部租户" : TENANTS.find((t) => t.id === tenant)?.name || "全部租户",
+      tenantLabel: () => tenant,
       canSee: (item: NavItem) => !item.roles || item.roles.includes(role),
     }),
-    [role, tenant, collapsed, theme, lang, setRole, setTenant, toggleCollapsed, setTheme, setLang],
+    [role, tenant, collapsed, theme, lang, setTenant, toggleCollapsed, setTheme, setLang],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

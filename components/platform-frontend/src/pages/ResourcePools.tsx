@@ -1,9 +1,12 @@
 import { useState } from "react";
 import { useResourcePools } from "@/api/hooks";
+import { useApiMutation } from "@/api/mutations";
+import * as sdk from "@/api/generated";
 import { useUI } from "@/app/ui";
 import { Icon } from "@/components/Icon";
 import { Drawer } from "@/components/Drawer";
 import { FieldsetTitle } from "@/components/forms";
+import { TableState } from "@/components/states";
 
 interface PoolRow {
   name: string;
@@ -17,65 +20,6 @@ interface PoolRow {
     | { kind: "blocked"; info: string }
     | { kind: "confirm"; desc: string; info: string };
 }
-
-// Faithful demo rows from prototype/resource-pools.html — rendered when the
-// backend (contract-only shell) returns no items.
-const FALLBACK: PoolRow[] = [
-  {
-    name: "gpu-a100",
-    desc: "A100 训练池",
-    selectors: [{ text: "gpu.product=A100", mono: true }, { text: "+1" }],
-    units: 3,
-    created: "2026-03-08",
-    del: {
-      kind: "blocked",
-      info: "池内 3 个资源单元将随资源池级联删除（不阻断）：a100-1x-large / a100-4x-xlarge / a100-8x-xlarge-ib",
-    },
-  },
-  {
-    name: "gpu-h100",
-    desc: "H100 训练/推理池",
-    selectors: [
-      { text: "product=H100", mono: true },
-      { text: "network=ib", mono: true },
-      { text: "+1" },
-    ],
-    units: 4,
-    created: "2026-04-02",
-    del: { kind: "plain" },
-  },
-  {
-    name: "gpu-l40s",
-    desc: "L40S 推理池",
-    selectors: [{ text: "gpu.product=L40S", mono: true }],
-    units: 2,
-    created: "2026-04-19",
-    del: {
-      kind: "confirm",
-      desc: "该池暂无活跃负载引用。",
-      info: "池内 2 个资源单元将随资源池级联删除：l40s-1x / l40s-2x",
-    },
-  },
-  {
-    name: "cpu-large",
-    desc: "大内存 CPU 池",
-    selectors: [
-      { text: "arch=amd64", mono: true },
-      { text: "memory-tier=high", mono: true },
-    ],
-    units: 1,
-    created: "2026-01-22",
-    del: { kind: "plain" },
-  },
-  {
-    name: "cpu-arm-edge",
-    desc: "ARM 边缘推理池",
-    selectors: [{ text: "arch=arm64", mono: true }],
-    units: 0,
-    created: "2026-05-15",
-    del: { kind: "plain" },
-  },
-];
 
 const GearIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -99,51 +43,34 @@ type DrawerKind =
   | { kind: "unit"; pool: string; editing?: UnitData };
 
 export default function ResourcePools() {
-  const { data } = useResourcePools();
+  const q = useResourcePools();
   const { confirm } = useUI();
   const [drawer, setDrawer] = useState<DrawerKind | null>(null);
+  const delPool = useApiMutation(
+    (pool: string) => sdk.deleteResourcePool({ path: { pool } }),
+    { invalidate: [["resourcepools"]], success: "资源池已删除" },
+  );
 
   const rows: PoolRow[] =
-    data?.items?.map((p) => ({
+    q.data?.items?.map((p) => ({
       name: p.name,
       desc: p.description ?? "",
       selectors: Object.entries(p.nodeSelector ?? {}).map(([k, v]) => ({ text: `${k}=${v}`, mono: true })),
       units: p.units?.length ?? 0,
       created: p.createdAt,
       del: { kind: "plain" },
-    })) ?? FALLBACK;
+    })) ?? [];
 
   const openManage = (r: PoolRow) => setDrawer({ kind: "manage", pool: r.name, desc: r.desc });
 
   const onDelete = (r: PoolRow) => {
-    if (r.del.kind === "blocked") {
-      confirm({
-        title: `确定删除资源池 ${r.name}？`,
-        info: r.del.info,
-        block: (
-          <div>
-            5 个活跃任务、2 个活跃服务正在引用本池
-            <ul>
-              <li className="mono">llm-lab / train-llm-7b-12</li>
-              <li className="mono">llm-lab / svc-chat-api</li>
-              <li>…等 5 项</li>
-            </ul>
-            请先清空活跃负载后重试。
-          </div>
-        ),
-        blocked: true,
-      });
-    } else if (r.del.kind === "confirm") {
-      confirm({
-        title: `确定删除资源池 ${r.name}？`,
-        desc: r.del.desc,
-        info: r.del.info,
-        okLabel: "确认删除",
-        toast: `资源池 ${r.name} 已删除`,
-      });
-    } else {
-      confirm({ title: `确定删除资源池 ${r.name}？` });
-    }
+    confirm({
+      title: `确定删除资源池 ${r.name}？`,
+      desc: "删除后池内资源单元将一并移除，且不可恢复。",
+      okLabel: "确认删除",
+      danger: true,
+      onConfirm: () => delPool.mutate(r.name),
+    });
   };
 
   return (
@@ -239,6 +166,7 @@ export default function ResourcePools() {
                   </td>
                 </tr>
               ))}
+              <TableState q={q} cols={6} isEmpty={rows.length === 0} />
             </tbody>
           </table>
         </div>
@@ -352,8 +280,38 @@ function TolList({ initial }: { initial?: TolRow[] }) {
   );
 }
 
+// Parse a "k=v, k2=v2" string into a label/selector map (skips blanks).
+function parseKV(s: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const part of s.split(",")) {
+    const [k, ...rest] = part.split("=");
+    const key = k.trim();
+    if (key) out[key] = rest.join("=").trim();
+  }
+  return out;
+}
+
 function PoolDrawer({ onClose }: { onClose: () => void }) {
-  const { toast } = useUI();
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [selector, setSelector] = useState("");
+  const create = useApiMutation(
+    (body: sdk.ResourcePoolCreateRequest) => sdk.createResourcePool({ body }),
+    { invalidate: [["resourcepools"]], success: "资源池已创建，请添加资源单元" },
+  );
+
+  const submit = () => {
+    const ns = parseKV(selector);
+    create.mutate(
+      {
+        name: name.trim(),
+        description: description.trim() || undefined,
+        nodeSelector: Object.keys(ns).length ? ns : undefined,
+      },
+      { onSuccess: onClose },
+    );
+  };
+
   return (
     <Drawer
       open
@@ -369,12 +327,10 @@ function PoolDrawer({ onClose }: { onClose: () => void }) {
           </button>
           <button
             className="btn btn-primary"
-            onClick={() => {
-              toast("资源池已创建，请添加资源单元");
-              onClose();
-            }}
+            disabled={!name.trim() || create.isPending}
+            onClick={submit}
           >
-            创建资源池
+            {create.isPending ? "创建中…" : "创建资源池"}
           </button>
         </>
       }
@@ -385,29 +341,34 @@ function PoolDrawer({ onClose }: { onClose: () => void }) {
           <label>
             名称 <span className="req">*</span>
           </label>
-          <input className="input mono" placeholder="gpu-a100" />
+          <input
+            className="input mono"
+            placeholder="gpu-a100"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
         </div>
         <div className="field full">
           <label>描述</label>
-          <textarea className="textarea" placeholder="用途说明（可选）" />
+          <textarea
+            className="textarea"
+            placeholder="用途说明（可选）"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
         </div>
       </div>
 
       <FieldsetTitle n={2}>节点调度</FieldsetTitle>
       <div className="form-grid">
         <div className="field full">
-          <label>节点选择器（K=V）</label>
-          <div className="chip-row">
-            <span className="tag mono">gpu.product=A100 ✕</span>
-            <span className="tag mono" style={{ borderStyle: "dashed", color: "var(--muted)" }}>
-              + 添加
-            </span>
-          </div>
-        </div>
-
-        <div className="field full">
-          <label>容忍配置（tolerations）</label>
-          <TolList />
+          <label>节点选择器（K=V，逗号分隔，可选）</label>
+          <input
+            className="input mono"
+            placeholder="gpu.product=A100, arch=amd64"
+            value={selector}
+            onChange={(e) => setSelector(e.target.value)}
+          />
         </div>
       </div>
     </Drawer>
