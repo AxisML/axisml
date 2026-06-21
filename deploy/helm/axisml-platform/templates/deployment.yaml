@@ -71,6 +71,20 @@ spec:
                   name: {{ include "axisml.fullname" . }}-backend-cache
                   key: password
             {{- end }}
+            # Stable RS256 signing key so login tokens survive pod restarts and
+            # stay consistent across replicas (see secret-jwt.yaml).
+            - name: JWT_KEY_ID
+              value: {{ .Values.platform.auth.jwt.keyId | quote }}
+            - name: JWT_PRIVATE_KEY_PEM
+              valueFrom:
+                secretKeyRef:
+                  {{- with .Values.platform.auth.jwt.privateKeySecret }}
+                  name: {{ .name }}
+                  key: {{ .key }}
+                  {{- else }}
+                  name: {{ include "axisml.fullname" . }}-backend-jwt
+                  key: private-key.pem
+                  {{- end }}
           livenessProbe:
             httpGet:
               path: /healthz

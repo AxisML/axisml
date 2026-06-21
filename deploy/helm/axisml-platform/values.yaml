@@ -83,6 +83,20 @@ platform:
     # passwordSecret: { name: axisml-platform-bootstrap, key: password }
     passwordSecret: {}
 
+  # RS256 signing key for login JWTs. The backend generates an ephemeral key when
+  # none is provided, which invalidates every session on each pod restart and
+  # breaks JWKS consistency across replicas. To keep tokens valid across restarts:
+  #   - if `privateKeySecret` is set, that externally-managed Secret is used;
+  #   - else if `privateKey` (inline PEM) is set, the chart renders a Secret from it;
+  #   - else the chart generates a key ONCE and persists it in a chart-managed
+  #     Secret, reusing it on subsequent upgrades via `lookup`.
+  # `keyId` is published as the JWKS `kid`.
+  auth:
+    jwt:
+      keyId: axisml-platform-key-1
+      privateKeySecret: {} # { name: my-jwt-secret, key: private-key.pem }
+      privateKey: "" # inline PEM (PKCS#1 or PKCS#8 RSA private key)
+
   service:
     type: ClusterIP
     port: 8080
