@@ -154,10 +154,6 @@
       '<button class="icon-btn" id="sideCollapse" aria-label="折叠" title="折叠侧栏">' + svg("layers") + '</button>' +
       '<div class="search"><span>' + svg("search") + '</span><input placeholder="搜索任务 / 服务 / 模型 / 镜像…" /><kbd>⌘K</kbd></div>' +
       '<div class="spacer"></div>' +
-      '<div style="position:relative">' +
-        '<button class="switch" id="roleBtn"><span class="cap">角色</span><span>' + r.short + '</span><span class="chev">' + svg("chevron") + '</span></button>' +
-        roleMenu() +
-      '</div>' +
       '<button class="icon-btn" title="帮助">' + svg("help") + '</button>' +
       '<button class="icon-btn" title="通知">' + svg("bell") + '<span class="ping"></span></button>' +
       '<div class="user-wrap">' +
