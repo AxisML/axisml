@@ -21,6 +21,11 @@ data:
   ARTIFACTS_URL: "http://{{ .Values.system.artifactHub.name }}.{{ .Values.system.namespace }}:{{ .Values.system.artifactHub.port }}"
   AXISML_BOOTSTRAP_TENANT: {{ .Values.platform.bootstrap.tenant | quote }}
   AXISML_BOOTSTRAP_TENANT_NAMESPACE: {{ .Values.platform.bootstrap.tenantNamespace | quote }}
+  {{- if .Values.cache.enabled }}
+  # Shared Redis (Infra layer, cross-namespace). Optional auth-path cache.
+  REDIS_ADDR: "{{ .Values.cache.host }}:{{ .Values.cache.port }}"
+  REDIS_DB: {{ .Values.cache.db | quote }}
+  {{- end }}
   {{- range $key, $value := .Values.platform.env }}
   {{ $key }}: {{ $value | quote }}
   {{- end }}

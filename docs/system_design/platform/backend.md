@@ -12,7 +12,7 @@ AxisML 唯一直接面向用户的层：承担身份接入、业务编排与视�
 | 身份认证 / JWT 颁发 / RBAC 校验 / access JWT 颁发 | 持有 Run / Service / Workspace 实例权威（→ compute） |
 | 持有租户持久记录（`tenants`，`identifier` 标识）+ K8s Namespace 映射 / 停用 / 删除 | 配额折算 / Tenant CR 与物理资源落地（→ cluster-manager / tenant-operator） |
 | 持有 Job / 实验 / Model / Image 定义（name 级 PG 表） | 持有制品**版本**权威（→ artifacts） |
-| 跨服务业务编排（创建 / 跨租户列表合并） | 持有 ResourcePool / ResourceUnit 词汇（→ cluster-manager） |
+| 跨服务业务编排（创建 / 租户内列表透传） | 持有 ResourcePool / ResourceUnit 词汇（→ cluster-manager） |
 | 视图层映射（用户 ↔ 租户 ↔ `identifier`；workspace ↔ `MLService(kind=workspace)`） | 缓存下游可变实例状态（phase / status / digest / quota 用量 → 一律实时回源） |
 | 前端 UI 多语言（§5.6） | 按 `Accept-Language` 本地化响应（后端与下游 locale-neutral，只返稳定机读 code） |
 
@@ -34,13 +34,14 @@ External Users → Envoy Gateway → Platform ─┬─▶ cluster-manager
 │      │ REST                                         │
 │ Backend (Go + Gin + Cobra)                          │
 │  ├─ auth (JWT + RBAC + access JWT + IdP 接口)       │
-│  ├─ orchestrator (跨服务编排 / 跨租户 fanout 合并)  │
+│  ├─ orchestrator (跨服务编排 / 租户内列表透传)      │
 │  ├─ business modules (tenant/job/service/workspace/ │
 │  │                    artifact/resourcepool)           │
 │  └─ typed clients (clustermanager/compute/artifacts)│
 │      │                                              │
 │ Platform PG: tenants · users/sessions/user_roles    │
 │   · 定义 jobs/experiments/models/images             │
+│ Redis（可选）: 会话有效性 + 身份/RBAC 缓存          │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -85,7 +86,7 @@ Platform 自有实体三类：**租户持久记录**、**身份 / 授权 / 会�
 - **写定义** — RBAC 校验 → 字段校验 → 写 Platform PG（`(tenant_name, name)` 唯一）；不触下游。
 - **触发实例**（Run / Service / Workspace / TensorBoard）— RBAC → 校验 `tenants.suspended_at` 为空（否则 `409 tenant-suspended`）→ 对引用制品版本逐个 `GetArtifact` 预检 `Ready`（失败 `400` 阻断）→ 快照 `定义.spec ⊕ overrides` → 透传名字三元组 `(poolName, unitName, quota)`，由 compute 内部展开 pool/unit 并组装 ElasticQuota 名。Platform **不拼 ElasticQuota 名、不展开 pool/unit、不解析 namespace、不建索引表**。
 - **删除定义** — 实时列实例判活跃 → 有活跃则 `409 *-has-active-runs`，否则级联软删全部实例后软删定义（best-effort，部分失败上报）。
-- **列表** — `system-admin` 不带 `X-Axisml-Tenant` → 跨租户 fanout（§5.3）；带 header → 单租户。跨租户部分失败 → `partial=true`。
+- **列表** — 租户分区端点**始终**要求 `X-Axisml-Tenant`，scoped 到该单一租户（§5.3）；无对应绑定且非 admin → `404`；`system-admin` 可 scope 到任意租户。
 - **身份** — 出站注入 `X-Axisml-User`；active tenant 解析见 §5.2。
 
 ### 4.1 租户编排
@@ -236,15 +237,15 @@ Dashboard 的聚合模型与接口暂不在本版系统设计中定义，待后�
 
 | 端点形态 | header 缺省 | header 存在 |
 | --- | --- | --- |
-| list | `system-admin` 走 §5.3 跨租户 fanout；非 admin → `400 active-tenant-required` | scoped 到该 tenant（无 binding 且非 admin → `404`） |
+| list | `400 active-tenant-required`（租户分区端点恒需 header） | scoped 到该 tenant（无 binding 且非 admin → `404`；§5.3） |
 | create / name 寻址 detail | `400 active-tenant-required` | 用 header 取 `tenant_name` 作分区键 |
 | tuple / 租户 / 资源池路径 | URL 内已带标识或为全集群对象，header 忽略 | 同上 |
 
 **下游 tenant scope**：URL `{namespace}` 兼容段直接用 `identifier`；物理 K8s Namespace 从 `kubernetes_namespace` 映射取得并单独传递。pool/unit 展开、ElasticQuota 名组装、PVC 生命周期均由 compute 内部完成。
 
-### 5.3 列表跨租户合并
+### 5.3 列表租户作用域
 
-`system-admin` 不带 `X-Axisml-Tenant` 调 list 时：按 RBAC 取可见租户集合 → 并行 LIST → 内存合并。单租户失败不中断整体，响应附 `partial=true` + `error.detail`，前端黄条提示。带 header 的请求只查单租户，走快速路径。
+租户分区端点的 list **始终**要求 `X-Axisml-Tenant`，只查该单一租户，无跨租户 fanout / 合并。缺 header → `400 active-tenant-required`；非 admin 且对该租户无绑定 → `404`；`system-admin` 可 scope 到任意租户（逐个，不聚合）。租户管理 / 资源池等全集群端点为集群对象，忽略该 header（§5.2）。
 
 ### 5.4 失败语义
 
@@ -252,7 +253,7 @@ Platform 持有定义与身份数据，不持有任何下游实例状态，且�
 
 - 定义 CRUD：Platform PG 单点写，失败本地 4xx。
 - 实例操作（触发 / 上传 / 取消 / 删除 / 级联软删）：单点透传下游，4xx / 5xx 透传；无 outbox 无补偿队列；级联软删 best-effort。
-- 跨租户列表聚合：`partial=true` 标记，不阻断主响应。
+- 列表：单租户透传下游 LIST，下游失败 4xx / 5xx 透传。
 
 ### 5.5 扩展元数据写入约定
 
@@ -302,6 +303,7 @@ RBAC 中间件装配见 [auth.md](auth.md)；Platform 路由层挂载 `RequireSy
 | 依赖 | 用途 |
 | --- | --- |
 | PostgreSQL | 身份 / 授权 / 会话 + 四张定义；与 compute / artifacts 共享 DB，按表名前缀隔离（[database.md §4](../database.md#4-platform)） |
+| Redis（可选） | 认证热点读缓存（会话有效性 + 身份 / RBAC），key 前缀 `platform:`；权威仍是 PostgreSQL，不可达即回退（[auth.md §2.1](auth.md#21-会话与身份缓存)） |
 | Envoy Gateway | 唯一外部入口；TLS 终止 / HTTPRoute；数据面 SecurityPolicy 待交付（[infra.md](../infra/overview.md)） |
 | cluster-manager | ResourcePool / Unit CRUD + 租户 CR 物化（含配额折算 + 运行态回源） |
 | compute | Run / Service / Workspace / TrafficPolicy / TensorBoard 权威；创建体接 `scheduling{poolName,unitName,quota}` 名字对；资源池删除检查复用按 tenant scope 的 labelSelector 列表查询 |
@@ -313,7 +315,8 @@ RBAC 中间件装配见 [auth.md](auth.md)；Platform 路由层挂载 `RequireSy
 | --- | --- |
 | 进程 | 单二进制 `axisml-platform`；子命令 `serve` / `migrate` / `bootstrap` |
 | 副本 | chart 默认 `replicas=1`；无状态，后续可水平扩 |
-| 启动子命令 | `serve` 启 HTTP API + 后台任务；`migrate` 执行 GORM 迁移；`bootstrap` 创建内置角色、初始 `system-admin`（默认 `admin/admin`，首登强制改密，可由 `AXISML_BOOTSTRAP_PASSWORD` 覆盖）及内置 `default` 租户（K8s Namespace `axisml-tenant`） |
+| 启动子命令 | `serve` 启 HTTP API + 后台任务（含过期会话清理 sweep，`SESSION_SWEEP_INTERVAL` 默认 1h）；`migrate` 执行 GORM 迁移；`bootstrap` 创建内置角色、初始 `system-admin`（默认 `admin/admin`，首登强制改密，可由 `AXISML_BOOTSTRAP_PASSWORD` 覆盖）及内置 `default` 租户（K8s Namespace `axisml-tenant`） |
+| 缓存 | 可选 Redis 前置认证热点读；`REDIS_ADDR` 空则直连 PostgreSQL（[auth.md §2.1](auth.md#21-会话与身份缓存)） |
 | 暴露端口 | 目标 API `:8080`、Metrics `:8081`、Probes `:8082`（`/healthz` / `/readyz`），JWKS `/.well-known/jwks.json` 走 ClusterIP（当前 workload 镜像仍为 nginx placeholder） |
 | RBAC scope | 无 K8s API 需求（全部下沉下游服务） |
 | Helm / 镜像 | 见 [deployment.md](../deployment.md) |

@@ -31,6 +31,20 @@ type Config struct {
 	ArtifactsURL      string
 	UpstreamTimeout   time.Duration
 
+	// Cache (Redis). Optional accelerator for the auth hot path: an empty
+	// RedisAddr disables caching entirely (every lookup hits PostgreSQL), and a
+	// transient Redis error falls back to PostgreSQL per-operation. See
+	// internal/cache.
+	RedisAddr        string        // host:port; empty disables the cache (noop)
+	RedisPassword    string        // optional AUTH password
+	RedisDB          int           // logical DB index
+	SessionCacheTTL  time.Duration // session-validity entry lifetime (short backstop)
+	IdentityCacheTTL time.Duration // identity/RBAC entry lifetime (short backstop)
+
+	// SessionSweepInterval is how often `serve` purges expired session rows
+	// from PostgreSQL (Redis entries self-expire via TTL).
+	SessionSweepInterval time.Duration
+
 	// Auth / JWT.
 	JWTPrivateKeyPEM  string        // RS256 private key (PEM); generated ephemerally when empty
 	JWTKeyID          string        // kid published in JWKS
@@ -54,6 +68,10 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	redisDB, err := envInt("REDIS_DB", 0)
+	if err != nil {
+		return Config{}, err
+	}
 
 	cfg := Config{
 		DatabaseHost:     env("DATABASE_HOST", "localhost"),
@@ -70,6 +88,14 @@ func Load() (Config, error) {
 		ComputeURL:        env("COMPUTE_URL", "http://axisml-compute-service.axisml-system:8081"),
 		ArtifactsURL:      env("ARTIFACTS_URL", "http://axisml-artifact-hub.axisml-system:8080"),
 		UpstreamTimeout:   envDuration("UPSTREAM_TIMEOUT", 30*time.Second),
+
+		RedisAddr:        env("REDIS_ADDR", ""),
+		RedisPassword:    env("REDIS_PASSWORD", ""),
+		RedisDB:          redisDB,
+		SessionCacheTTL:  envDuration("SESSION_CACHE_TTL", 5*time.Minute),
+		IdentityCacheTTL: envDuration("IDENTITY_CACHE_TTL", time.Minute),
+
+		SessionSweepInterval: envDuration("SESSION_SWEEP_INTERVAL", time.Hour),
 
 		JWTPrivateKeyPEM:  env("JWT_PRIVATE_KEY_PEM", ""),
 		JWTKeyID:          env("JWT_KEY_ID", "axisml-platform-key-1"),

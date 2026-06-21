@@ -64,6 +64,13 @@ spec:
                 secretKeyRef:
                   name: {{ include "axisml.fullname" . }}-backend-db
                   key: password
+            {{- if .Values.cache.enabled }}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "axisml.fullname" . }}-backend-cache
+                  key: password
+            {{- end }}
           livenessProbe:
             httpGet:
               path: /healthz

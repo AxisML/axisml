@@ -21,15 +21,30 @@ import (
 
 // Service holds tenant/quota/member business logic.
 type Service struct {
-	tenants *store.TenantRepo
-	roles   *store.RoleRepo
-	users   *store.UserRepo
-	cm      *clustermanager.Client
+	tenants    *store.TenantRepo
+	roles      *store.RoleRepo
+	users      *store.UserRepo
+	cm         *clustermanager.Client
+	invalidate func(ctx context.Context, userID string)
 }
 
 // NewService constructs a tenant Service.
 func NewService(tenants *store.TenantRepo, roles *store.RoleRepo, users *store.UserRepo, cm *clustermanager.Client) *Service {
 	return &Service{tenants: tenants, roles: roles, users: users, cm: cm}
+}
+
+// OnIdentityChange registers a hook invoked after any membership change, so the
+// affected user's cached identity (which carries their tenant bindings) can be
+// busted. No-op when unset.
+func (s *Service) OnIdentityChange(f func(ctx context.Context, userID string)) *Service {
+	s.invalidate = f
+	return s
+}
+
+func (s *Service) bust(ctx context.Context, userID string) {
+	if s.invalidate != nil {
+		s.invalidate(ctx, userID)
+	}
 }
 
 // CreateInput is the create-tenant payload.
@@ -95,6 +110,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput, owner string) (*se
 		_ = s.tenants.Delete(ctx, in.Identifier)
 		return nil, apperrors.Wrap(apperrors.ClassInternal, "bind initial admin", err)
 	}
+	s.bust(ctx, admin.ID)
 	return buildView(row, cr), nil
 }
 

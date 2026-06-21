@@ -54,6 +54,7 @@ func (s *Service) AddMember(ctx context.Context, tenant, account, role string) (
 	if err != nil {
 		return nil, apperrors.Wrap(apperrors.ClassInternal, "add member", err)
 	}
+	s.bust(ctx, u.ID)
 	return ptr(toMember(u, *ur)), nil
 }
 
@@ -70,6 +71,7 @@ func (s *Service) UpdateMember(ctx context.Context, tenant, userID, role string)
 	if err != nil {
 		return nil, mapMemberErr(err, "update member")
 	}
+	s.bust(ctx, userID)
 	u, err := s.users.GetByID(ctx, userID)
 	if err != nil {
 		return nil, apperrors.Wrap(apperrors.ClassInternal, "load member", err)
@@ -85,6 +87,7 @@ func (s *Service) RemoveMember(ctx context.Context, tenant, userID string) error
 	if err := s.roles.GuardedRemove(ctx, userID, tenant); err != nil {
 		return mapMemberErr(err, "remove member")
 	}
+	s.bust(ctx, userID)
 	return nil
 }
 

@@ -44,6 +44,21 @@ database:
     password: axisml
 
 # =============================================================================
+# Shared Redis (Infra layer, cross-namespace). Optional accelerator for the
+# auth hot path (session validity + identity/RBAC); the backend degrades to
+# direct PostgreSQL reads when it cannot reach Redis. The password must match
+# the Infra chart's `cache.auth.password`. Set `enabled: false` to run with no
+# cache at all (REDIS_ADDR stays unset).
+# =============================================================================
+cache:
+  enabled: true
+  host: axisml-redis-master.axisml-infra
+  port: 6379
+  db: 0
+  auth:
+    password: axisml
+
+# =============================================================================
 # AxisML Platform
 # =============================================================================
 platform:

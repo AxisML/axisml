@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/axisml/axisml/components/platform/internal/config"
 	"github.com/axisml/axisml/components/platform/internal/db"
+	"github.com/axisml/axisml/components/platform/internal/store"
 	"github.com/axisml/axisml/components/platform/pkg/logging"
 )
 
@@ -29,6 +31,8 @@ func Serve(ctx context.Context, cfg config.Config) error {
 		return err
 	}
 	probes := probeServer(cfg.ProbesBindAddress)
+
+	go sweepExpiredSessions(ctx, store.NewSessionRepo(gormDB), cfg.SessionSweepInterval, log)
 
 	errCh := make(chan error, 2)
 	go func() {
@@ -56,4 +60,29 @@ func Serve(ctx context.Context, cfg config.Config) error {
 	defer cancel()
 	_ = probes.Shutdown(shutCtx)
 	return nil
+}
+
+// sweepExpiredSessions periodically purges expired session rows from PostgreSQL
+// (Redis entries self-expire via TTL). It runs until ctx is cancelled.
+func sweepExpiredSessions(ctx context.Context, sessions *store.SessionRepo, every time.Duration, log *slog.Logger) {
+	if every <= 0 {
+		return
+	}
+	ticker := time.NewTicker(every)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			n, err := sessions.DeleteExpired(ctx)
+			if err != nil {
+				log.Warn("session sweep failed", "error", err)
+				continue
+			}
+			if n > 0 {
+				log.Info("session sweep purged expired rows", "count", n)
+			}
+		}
+	}
 }

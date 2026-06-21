@@ -45,3 +45,11 @@ func (r *SessionRepo) Revoke(ctx context.Context, jti string) error {
 	return r.db.WithContext(ctx).Model(&Session{}).Where("jti = ?", jti).
 		Update("revoked", true).Error
 }
+
+// DeleteExpired purges sessions whose tokens have already expired, returning the
+// number of rows removed. Run periodically: IsActive ignores expired rows, but
+// nothing else GCs them, so the table would grow unbounded.
+func (r *SessionRepo) DeleteExpired(ctx context.Context) (int64, error) {
+	res := r.db.WithContext(ctx).Where("expires_at < ?", time.Now().UTC()).Delete(&Session{})
+	return res.RowsAffected, res.Error
+}

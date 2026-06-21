@@ -17,6 +17,7 @@ import (
 
 	"github.com/axisml/axisml/components/platform/internal/artifactdef"
 	"github.com/axisml/axisml/components/platform/internal/auth"
+	"github.com/axisml/axisml/components/platform/internal/cache"
 	"github.com/axisml/axisml/components/platform/internal/clients/artifacthub"
 	"github.com/axisml/axisml/components/platform/internal/clients/clustermanager"
 	"github.com/axisml/axisml/components/platform/internal/clients/computeservice"
@@ -38,11 +39,12 @@ type Deps struct {
 	Authn   *auth.Authenticator
 	Signer  *auth.Signer
 	Modules []server.Module
+	Cache   cache.Cache
 }
 
 // BuildDeps constructs the auth stack, typed clients, services and modules from
 // a live DB handle and config. Shared by Serve and the integration tests.
-func BuildDeps(cfg config.Config, db *gorm.DB) (*Deps, error) {
+func BuildDeps(cfg config.Config, db *gorm.DB, log *slog.Logger) (*Deps, error) {
 	signer, err := auth.NewSigner(cfg.JWTPrivateKeyPEM, cfg.JWTKeyID, cfg.LoginTokenTTL)
 	if err != nil {
 		return nil, err
@@ -54,7 +56,13 @@ func BuildDeps(cfg config.Config, db *gorm.DB) (*Deps, error) {
 	tenants := store.NewTenantRepo(db)
 	idp := store.NewIdentityProvider(db)
 
-	authn := auth.NewAuthenticator(signer, idp, sessions)
+	// Front the auth hot path (session validity + identity/RBAC) with Redis when
+	// configured; both decorators fall back to PostgreSQL on a miss or error.
+	c := cache.New(cfg, log)
+	sessionStore := cache.NewSessionCache(sessions, c, cfg.SessionCacheTTL, log)
+	identityStore := cache.NewIdentityCache(idp, c, cfg.IdentityCacheTTL, log)
+
+	authn := auth.NewAuthenticator(signer, identityStore, sessionStore)
 
 	cm, err := clustermanager.New(cfg.ClusterManagerURL, cfg.UpstreamTimeout)
 	if err != nil {
@@ -69,8 +77,10 @@ func BuildDeps(cfg config.Config, db *gorm.DB) (*Deps, error) {
 		return nil, err
 	}
 
-	identitySvc := identity.NewService(users, roles, sessions, idp, signer)
-	tenantSvc := tenant.NewService(tenants, roles, users, cm)
+	identitySvc := identity.NewService(users, roles, sessionStore, idp, signer).
+		OnIdentityChange(identityStore.Invalidate)
+	tenantSvc := tenant.NewService(tenants, roles, users, cm).
+		OnIdentityChange(identityStore.Invalidate)
 	resourcePoolSvc := resourcepool.NewService(cm)
 	jobSvc := job.NewService(store.NewDefinitionRepo(db, store.TableJobs), tenants, compute)
 	experimentSvc := experiment.NewService(store.NewDefinitionRepo(db, store.TableExperiments), tenants, compute)
@@ -92,7 +102,7 @@ func BuildDeps(cfg config.Config, db *gorm.DB) (*Deps, error) {
 		artifactdef.NewHandler(modelSvc, authn, "models"),
 		artifactdef.NewHandler(imageSvc, authn, "images"),
 	}
-	return &Deps{Authn: authn, Signer: signer, Modules: modules}, nil
+	return &Deps{Authn: authn, Signer: signer, Modules: modules, Cache: c}, nil
 }
 
 // NewAPIServer builds the API server (modules + JWKS + probes).
@@ -102,7 +112,7 @@ func NewAPIServer(cfg config.Config, db *gorm.DB, log *slog.Logger) (*server.Ser
 			"All sessions are invalidated on restart and multi-replica deployments will fail to verify each other's tokens. " +
 			"Inject a stable RSA key in production.")
 	}
-	deps, err := BuildDeps(cfg, db)
+	deps, err := BuildDeps(cfg, db, log)
 	if err != nil {
 		return nil, err
 	}

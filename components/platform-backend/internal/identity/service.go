@@ -19,16 +19,33 @@ import (
 
 // Service holds identity business logic.
 type Service struct {
-	users    *store.UserRepo
-	roles    *store.RoleRepo
-	sessions *store.SessionRepo
-	ident    *store.IdentityProvider
-	signer   *auth.Signer
+	users      *store.UserRepo
+	roles      *store.RoleRepo
+	sessions   auth.SessionStore
+	ident      *store.IdentityProvider
+	signer     *auth.Signer
+	invalidate func(ctx context.Context, userID string)
 }
 
-// NewService constructs an identity Service.
-func NewService(users *store.UserRepo, roles *store.RoleRepo, sessions *store.SessionRepo, ident *store.IdentityProvider, signer *auth.Signer) *Service {
+// NewService constructs an identity Service. sessions is an auth.SessionStore so
+// the caching decorator can write-through login/logout; *store.SessionRepo
+// satisfies it directly.
+func NewService(users *store.UserRepo, roles *store.RoleRepo, sessions auth.SessionStore, ident *store.IdentityProvider, signer *auth.Signer) *Service {
 	return &Service{users: users, roles: roles, sessions: sessions, ident: ident, signer: signer}
+}
+
+// OnIdentityChange registers a hook invoked after any account mutation that
+// affects a user's resolved identity, so a cached identity can be busted. No-op
+// when unset.
+func (s *Service) OnIdentityChange(f func(ctx context.Context, userID string)) *Service {
+	s.invalidate = f
+	return s
+}
+
+func (s *Service) bust(ctx context.Context, userID string) {
+	if s.invalidate != nil {
+		s.invalidate(ctx, userID)
+	}
 }
 
 // LoginResult bundles a freshly issued token with the caller's profile.
@@ -158,6 +175,7 @@ func (s *Service) UpdateUser(ctx context.Context, id, displayName, email string,
 	if err := s.users.Update(ctx, u); err != nil {
 		return nil, apperrors.Wrap(apperrors.ClassInternal, "update user", err)
 	}
+	s.bust(ctx, u.ID) // disabled/profile change alters the resolved identity
 	return u, nil
 }
 
@@ -169,6 +187,7 @@ func (s *Service) DeleteUser(ctx context.Context, id string) error {
 	if err := s.users.Delete(ctx, id); err != nil {
 		return apperrors.Wrap(apperrors.ClassInternal, "delete user", err)
 	}
+	s.bust(ctx, id)
 	return nil
 }
 
@@ -191,5 +210,6 @@ func (s *Service) SetPassword(ctx context.Context, id, current, next string, isA
 	if err := s.users.SetPassword(ctx, id, hash); err != nil {
 		return apperrors.Wrap(apperrors.ClassInternal, "set password", err)
 	}
+	s.bust(ctx, id) // clears must_change_password, part of the resolved identity
 	return nil
 }
