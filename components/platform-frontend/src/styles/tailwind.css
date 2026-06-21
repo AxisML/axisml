@@ -13,3 +13,17 @@
 
 @tailwind components;
 @tailwind utilities;
+
+/* Running-status dot pulse — the prototype's animated `.status-running .dot`. */
+@keyframes axis-status-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--success) 34%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--success) 0%, transparent);
+  }
+}
+.status-pulse {
+  animation: axis-status-pulse 1.6s cubic-bezier(0.2, 0, 0, 1) infinite;
+}

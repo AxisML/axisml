@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   Card,
@@ -38,6 +38,7 @@ import * as sdk from "@/api/generated";
 import { useUI } from "@/app/ui";
 import { PageContainer } from "@/components/PageContainer";
 import { PhaseTag } from "@/components/PhaseTag";
+import { LogViewer } from "@/components/LogViewer";
 
 const isRunning = (phase?: string) =>
   phase === "Running" || phase === "Degraded" || phase === "Starting" || phase === "Creating" || phase === "Pending";
@@ -270,6 +271,7 @@ function LogPane({ name }: { name: string }) {
   const { t } = useTranslation();
   const { tenant } = useApp();
   const [follow, setFollow] = useState(true);
+  const [pod, setPod] = useState<string>("");
   const podsQ = useQuery<sdk.PodList>({
     queryKey: ["workspaces", tenant, name, "pods"],
     enabled: tenant !== "" && name !== "",
@@ -281,13 +283,27 @@ function LogPane({ name }: { name: string }) {
   });
 
   const pods = podsQ.data?.items ?? [];
+  useEffect(() => {
+    if (!pod && pods.length) setPod(pods[0].name);
+  }, [pod, pods]);
+
+  const logsQ = useQuery({
+    queryKey: ["workspaces", tenant, name, "logs", pod],
+    enabled: tenant !== "" && name !== "" && pod !== "",
+    queryFn: async () => {
+      const { data, error } = await sdk.getWorkspacePodLogs({ path: { name, pod } });
+      if (error) throw error;
+      return data as unknown as string;
+    },
+  });
 
   return (
     <Card>
       <div className="mb-3 flex items-center gap-3">
         <Select
           className="min-w-56"
-          value={pods[0]?.name}
+          value={pod || undefined}
+          onChange={setPod}
           placeholder={t("workspaces.noPods")}
           prefix={<Tag className="!m-0">{t("workspaces.podLabel")}</Tag>}
           options={pods.map((p) => ({ label: p.name, value: p.name }))}
@@ -299,9 +315,11 @@ function LogPane({ name }: { name: string }) {
           <Switch checked={follow} onChange={setFollow} size="small" />
         </span>
       </div>
-      {/* Live log streaming (SSE follow) is a backend feature not yet wired here;
-          render an honest hint rather than fabricate log lines. */}
-      <Alert type="info" showIcon icon={<InfoCircleOutlined />} message={t("workspaces.logHint")} />
+      {!pods.length ? (
+        <Alert type="info" showIcon icon={<InfoCircleOutlined />} message={t("workspaces.logHint")} />
+      ) : (
+        <LogViewer text={logsQ.data} empty={t("workspaces.logHint")} />
+      )}
     </Card>
   );
 }

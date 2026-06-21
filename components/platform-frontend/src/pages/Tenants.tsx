@@ -12,7 +12,6 @@ import {
   Drawer,
   Form,
   InputNumber,
-  Tag,
   Empty,
   Spin,
 } from "antd";
@@ -34,6 +33,8 @@ import { useUI } from "@/app/ui";
 import { errorText } from "@/lib/errors";
 import { PageContainer } from "@/components/PageContainer";
 import { FieldSection } from "@/components/FieldSection";
+import { PhaseTag } from "@/components/PhaseTag";
+import { USE_MOCK } from "@/api/mock";
 
 // Placeholder pool / unit catalogs for the quota editor's Select options. The
 // authoritative source is the ResourcePool CRD; until the create-tenant flow is
@@ -46,11 +47,43 @@ interface TenantRow {
   ident: string;
   display: string;
   active: boolean;
-  pools: { pool: string; allocated: number }[];
+  pools: { pool: string; allocated: number; used?: number }[];
   members: number;
   activeTasks: number;
   services: number;
   created: string;
+}
+
+// Demo-only quota utilisation ratio (deterministic per pool name). Real quota
+// usage has no metrics source, so the meter only renders under mock; otherwise
+// the column shows the honest allocated-quantity text.
+function mockUsedRatio(pool: string): number {
+  const h = [...pool].reduce((a, c) => a + c.charCodeAt(0), 0);
+  return 0.5 + ((h % 45) / 100); // 0.50 – 0.94
+}
+
+// Per-pool quota row: pool name + (under mock) a used/allocated meter, else the
+// honest allocated-quantity text. Mirrors the prototype's quota usage bars.
+function QuotaBar({ pool, allocated, used }: { pool: string; allocated: number; used?: number }) {
+  if (used == null) {
+    return (
+      <div className="flex items-center gap-2">
+        <span className="w-[88px] shrink-0 truncate font-mono text-xs text-fg-2">{pool}</span>
+        <span className="font-mono text-xs text-muted">{allocated} 单元</span>
+      </div>
+    );
+  }
+  const pct = allocated === 0 ? 0 : Math.min(100, Math.round((used / allocated) * 100));
+  const fill = pct >= 80 ? "bg-danger" : pct >= 60 ? "bg-warn" : "bg-success";
+  return (
+    <div className="flex items-center gap-2">
+      <span className="w-[88px] shrink-0 truncate font-mono text-xs text-fg-2">{pool}</span>
+      <div className="h-[7px] flex-1 overflow-hidden rounded-full bg-surface">
+        <div className={`h-full rounded-full ${fill}`} style={{ width: `${pct}%` }} />
+      </div>
+      <span className="w-11 shrink-0 text-right font-mono text-xs text-muted">{used}/{allocated}</span>
+    </div>
+  );
 }
 
 type DrawerKind =
@@ -86,10 +119,14 @@ export default function Tenants() {
         ident: tenant.identifier,
         display: tenant.displayName,
         active: !tenant.suspended,
-        pools: (tenant.quotas ?? []).map((quota) => ({
-          pool: quota.pool,
-          allocated: (quota.units ?? []).reduce((sum, u) => sum + (u.quantity ?? 0), 0),
-        })),
+        pools: (tenant.quotas ?? []).map((quota) => {
+          const allocated = (quota.units ?? []).reduce((sum, u) => sum + (u.quantity ?? 0), 0);
+          return {
+            pool: quota.pool,
+            allocated,
+            used: USE_MOCK ? Math.round(allocated * mockUsedRatio(quota.pool)) : undefined,
+          };
+        }),
         members: tenant.memberCount ?? 0,
         activeTasks: (tenant.activeJobRuns ?? 0) + (tenant.activeExperimentRuns ?? 0),
         services: tenant.onlineServices ?? 0,
@@ -148,16 +185,7 @@ export default function Tenants() {
       title: t("tenants.colStatus"),
       key: "status",
       width: 110,
-      render: (_, r) =>
-        r.active ? (
-          <Tag color="success" className="!m-0">
-            {t("tenants.statusActive")}
-          </Tag>
-        ) : (
-          <Tag color="default" className="!m-0">
-            {t("tenants.statusSuspended")}
-          </Tag>
-        ),
+      render: (_, r) => <PhaseTag phase={r.active ? "Active" : "Suspended"} />,
     },
     {
       title: t("tenants.colQuota"),
@@ -167,14 +195,9 @@ export default function Tenants() {
         r.pools.length === 0 ? (
           <span className="text-muted">{t("tenants.noQuota")}</span>
         ) : (
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1.5">
             {r.pools.map((p) => (
-              <div key={p.pool} className="flex items-center gap-2">
-                <Tag className="!m-0 font-mono">{p.pool}</Tag>
-                <span className="font-mono text-xs text-muted">
-                  {t("tenants.quotaAllocated", { count: p.allocated })}
-                </span>
-              </div>
+              <QuotaBar key={p.pool} pool={p.pool} allocated={p.allocated} used={p.used} />
             ))}
           </div>
         ),

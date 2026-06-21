@@ -52,6 +52,8 @@ export const zhCN = {
     Failed: "失败",
     Deleting: "删除中",
     Deleted: "已删除",
+    Active: "已激活",
+    Suspended: "已禁用",
     Unknown: "未知",
   },
   nav: {

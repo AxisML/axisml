@@ -53,6 +53,8 @@ export const enUS: Catalog = {
     Failed: "Failed",
     Deleting: "Deleting",
     Deleted: "Deleted",
+    Active: "Active",
+    Suspended: "Suspended",
     Unknown: "Unknown",
   },
   nav: {

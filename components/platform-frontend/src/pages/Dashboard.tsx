@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { Card, Segmented, Button, Tabs, Progress, List, Empty } from "antd";
+import { Card, Segmented, Button, Tabs, List, Empty } from "antd";
 import {
   ReloadOutlined,
   DesktopOutlined,
@@ -8,8 +8,8 @@ import {
   ThunderboltOutlined,
   CloudServerOutlined,
   DatabaseOutlined,
+  ArrowRightOutlined,
 } from "@ant-design/icons";
-import { Area } from "@ant-design/charts";
 import { useTranslation } from "react-i18next";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import dayjs from "dayjs";
@@ -26,12 +26,16 @@ import {
   useImages,
   useResourcePools,
 } from "@/api/hooks";
+import { USE_MOCK } from "@/api/mock";
+import { clusterUsage, type ClusterUsage, type UsageMetric } from "@/api/mock/data";
 import * as sdk from "@/api/generated";
 
 // 首页 / Dashboard. KPI counts and recent activity come from the live list
 // endpoints (scoped to the active tenant); active-run roll-ups come from
-// getTenant. Cluster utilisation has no metrics source yet → it renders an
-// honest zero / "指标接入中" state rather than fabricated numbers (frontend.md §6).
+// getTenant. Cluster utilisation has no metrics source in the platform contract:
+// in the real app it renders an honest zero / "指标接入中" state (frontend.md §6);
+// under VITE_USE_MOCK_API it reads the demo fixtures so the page matches the
+// product prototype.
 export default function Dashboard() {
   const { tenant } = useApp();
   const { toast } = useUI();
@@ -96,12 +100,12 @@ export default function Dashboard() {
         <Card
           className="xl:col-span-2"
           title={t("dashboard.clusterUsage")}
-          extra={<span className="text-xs text-muted">{t("dashboard.metricsHint")}</span>}
+          extra={<span className="text-xs text-muted">{t(USE_MOCK ? "dashboard.metricsHintMock" : "dashboard.metricsHint")}</span>}
         >
           <Tabs
             items={[
-              { key: "all", label: t("dashboard.all"), children: <ClusterPane /> },
-              ...poolNames.map((name) => ({ key: name, label: name, children: <ClusterPane /> })),
+              { key: "all", label: t("dashboard.all"), children: <ClusterPane pool="all" /> },
+              ...poolNames.map((name) => ({ key: name, label: name, children: <ClusterPane pool={name} /> })),
             ]}
           />
         </Card>
@@ -114,17 +118,30 @@ export default function Dashboard() {
   );
 }
 
+// Focal KPI card — the prototype's `.kpi.focal`: a subtle accent gradient, large
+// accent-red mono value, and a hover lift that reveals a forward arrow.
 function Kpi({ to, icon, label, value, foot }: { to: string; icon: ReactNode; label: string; value: ReactNode; foot: ReactNode }) {
   return (
-    <Link to={to}>
-      <Card hoverable styles={{ body: { padding: 16 } }} className="h-full bg-surface-warm">
-        <div className="mb-2 flex items-center justify-between">
-          <span className="text-sm text-fg-2">{label}</span>
-          <span className="grid h-7 w-7 place-items-center rounded-md bg-bg text-accent">{icon}</span>
-        </div>
-        <div className="font-mono text-2xl font-semibold text-fg">{value}</div>
-        <div className="mt-1 text-xs text-muted">{foot}</div>
-      </Card>
+    <Link
+      to={to}
+      className="group relative block h-full overflow-hidden rounded-md border p-5 shadow-sm transition-all duration-150 hover:-translate-y-0.5 hover:shadow-lg"
+      style={{
+        background: "linear-gradient(180deg, color-mix(in oklab, var(--accent) 7%, var(--bg)), var(--bg))",
+        borderColor: "color-mix(in oklab, var(--accent) 30%, var(--border))",
+      }}
+    >
+      <div className="flex items-center justify-between">
+        <span className="text-[13px] text-muted">{label}</span>
+        <span
+          className="grid h-[30px] w-[30px] place-items-center rounded-md text-accent"
+          style={{ background: "color-mix(in oklab, var(--accent) 12%, transparent)" }}
+        >
+          {icon}
+        </span>
+      </div>
+      <div className="mt-3 font-mono text-[30px] font-semibold leading-none tracking-tight text-accent">{value}</div>
+      <div className="mt-3 text-xs text-muted">{foot}</div>
+      <ArrowRightOutlined className="absolute bottom-4 right-4 -translate-x-1 text-accent opacity-0 transition-all duration-150 group-hover:translate-x-0 group-hover:opacity-100" />
     </Link>
   );
 }
@@ -141,19 +158,19 @@ function runText(n: number | undefined, q: UseQueryResult<unknown>): number | st
   return n;
 }
 
-// Cluster usage — honest zero state until a metrics source is wired.
-function ClusterPane() {
+// Cluster usage — demo fixtures under mock, honest zero otherwise.
+function ClusterPane({ pool }: { pool: string }) {
   const { t } = useTranslation();
-  const trend = Array.from({ length: 24 }, (_, i) => ({ t: `${i}:00`, v: 0 }));
+  const usage: ClusterUsage | null = USE_MOCK ? clusterUsage(pool) : null;
   return (
     <div>
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
-        <MeterStat label="GPU" unit={t("dashboard.gpuUnit")} />
-        <MeterStat label="CPU" unit={t("dashboard.cpuUnit")} />
-        <MeterStat label={t("dashboard.memLabel")} unit="TiB" />
+        <MeterStat label="GPU" icon={<GpuIcon />} m={usage?.gpu} />
+        <MeterStat label="CPU" icon={<CpuIcon />} m={usage?.cpu} />
+        <MeterStat label={t("dashboard.memLabel")} icon={<MemIcon />} m={usage?.mem} />
       </div>
       <div className="my-4 border-t border-border-soft" />
-      <div className="mb-2 flex items-center justify-between">
+      <div className="mb-3 flex items-center justify-between">
         <span className="text-sm font-semibold text-fg">{t("dashboard.gpuTrend")}</span>
         <div className="flex items-center gap-4 text-xs text-muted">
           <span className="flex items-center gap-1.5">
@@ -166,30 +183,93 @@ function ClusterPane() {
           </span>
         </div>
       </div>
-      <Area
-        data={trend}
-        xField="t"
-        yField="v"
-        height={180}
-        shapeField="smooth"
-        scale={{ y: { domainMin: 0, domainMax: 100 } }}
-        axis={{ y: { labelFormatter: (v: number) => `${v}%` } }}
-        style={{ fill: "var(--accent)", fillOpacity: 0.08 }}
-      />
-      <div className="mt-1 text-center text-xs text-muted">{t("dashboard.metricsSyncing")}</div>
+      <TrendChart trend={usage?.trend} />
+      {!usage && <div className="mt-1 text-center text-xs text-muted">{t("dashboard.metricsSyncing")}</div>}
     </div>
   );
 }
 
-function MeterStat({ label, unit }: { label: string; unit: string }) {
+function MeterStat({ label, icon, m }: { label: string; icon: ReactNode; m?: UsageMetric }) {
+  const { t } = useTranslation();
+  const fill = m?.state === "hot" ? "bg-danger" : m?.state === "warn" ? "bg-warn" : "bg-success";
+  const na = m?.state === "na";
   return (
-    <div>
-      <div className="mb-2 text-sm text-muted">{label}</div>
-      <div className="font-mono text-xl font-semibold text-fg">
-        0 <span className="text-sm text-muted">/ — {unit}</span>
+    <div className={na ? "opacity-50" : undefined}>
+      <div className="mb-2.5 flex items-center gap-2 text-[13px] text-muted">
+        {icon}
+        {label}
       </div>
-      <Progress percent={0} showInfo={false} strokeColor="var(--accent)" className="mt-2" />
+      <div className="font-mono text-[22px] font-semibold text-fg">
+        {m ? m.display : "0"}{" "}
+        <span className="text-sm font-normal text-muted">/ {m ? `${m.total} ${m.unit}` : `— ${label === "GPU" ? "卡" : ""}`}</span>
+      </div>
+      <div className="mt-2.5 h-[7px] overflow-hidden rounded-full bg-surface">
+        <div className={`h-full rounded-full ${fill}`} style={{ width: `${m?.pct ?? 0}%` }} />
+      </div>
+      <div className="mt-1.5 font-mono text-xs text-muted">
+        {na ? t("dashboard.noGpu") : m ? `${m.pct}% ${t("dashboard.utilization")}` : t("dashboard.metricsSyncing")}
+      </div>
     </div>
+  );
+}
+
+// Hand-drawn SVG trend (area + util line + dashed concurrency line), matching the
+// prototype's inline chart exactly. viewBox stretches to fill width.
+function TrendChart({ trend }: { trend?: ClusterUsage["trend"] }) {
+  const W = 720;
+  const H = 200;
+  const data = trend ?? Array.from({ length: 13 }, (_, i) => ({ t: `${i * 2}:00`, util: 0, tasks: 0 }));
+  const n = data.length;
+  const x = (i: number) => (i / (n - 1)) * W;
+  const yUtil = (v: number) => H - (Math.max(0, Math.min(100, v)) / 100) * (H - 16) - 6;
+  const maxTasks = Math.max(...data.map((d) => d.tasks), 1);
+  const yTask = (v: number) => H - (v / maxTasks) * (H * 0.32) - 16;
+  const utilPts = data.map((d, i) => `${x(i)} ${yUtil(d.util)}`);
+  const linePath = "M" + utilPts.join(" L");
+  const areaPath = `M0 ${H} L${utilPts.join(" L")} L${W} ${H} Z`;
+  const taskPath = "M" + data.map((d, i) => `${x(i)} ${yTask(d.tasks)}`).join(" L");
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="h-[180px] w-full">
+      <defs>
+        <linearGradient id="gtrend" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0" stopColor="var(--accent)" stopOpacity="0.16" />
+          <stop offset="1" stopColor="var(--accent)" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      {[50, 100, 150].map((y) => (
+        <line key={y} x1="0" y1={y} x2={W} y2={y} stroke="var(--border-soft)" strokeWidth="1" />
+      ))}
+      <path d={areaPath} fill="url(#gtrend)" />
+      <path d={linePath} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d={taskPath} fill="none" stroke="var(--muted)" strokeWidth="1.6" strokeDasharray="4 4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+const ICO = "h-4 w-4";
+function GpuIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" className={ICO}>
+      <rect x="2" y="6" width="20" height="12" rx="2" />
+      <circle cx="8" cy="12" r="2.5" />
+      <path d="M14 10h5M14 14h5" />
+    </svg>
+  );
+}
+function CpuIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" className={ICO}>
+      <rect x="6" y="6" width="12" height="12" rx="1.5" />
+      <path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3" />
+    </svg>
+  );
+}
+function MemIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" className={ICO}>
+      <rect x="3" y="7" width="18" height="10" rx="1.5" />
+      <path d="M7 7V5M11 7V5M15 7V5M19 7V5" />
+    </svg>
   );
 }
 
@@ -222,10 +302,10 @@ function RecentActivity({
     <List
       dataSource={items}
       renderItem={(a) => (
-        <List.Item className="!px-4">
+        <List.Item className="!px-5">
           <List.Item.Meta
-            title={<span className="font-mono text-sm">{a.name}</span>}
-            description={`${a.type} · ${a.at ? dayjs(a.at).fromNow() : "—"}`}
+            title={<span className="font-mono text-sm font-medium text-fg">{a.name}</span>}
+            description={<span className="text-xs text-muted">{`${a.type} · ${a.at ? dayjs(a.at).fromNow() : "—"}`}</span>}
           />
           <PhaseTag phase={a.phase} />
         </List.Item>

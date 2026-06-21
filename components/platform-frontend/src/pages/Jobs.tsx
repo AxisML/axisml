@@ -24,29 +24,20 @@ import { useUI } from "@/app/ui";
 import { PageContainer } from "@/components/PageContainer";
 import { FieldSection } from "@/components/FieldSection";
 import { CardRadio } from "@/components/CardRadio";
+import { RunStrip } from "@/components/RunStrip";
+import { USE_MOCK } from "@/api/mock";
+import { runSummary } from "@/api/mock/data";
 
 interface JobRow {
   name: string;
   desc: string;
   runCount: number;
+  recent: string[];
   owner: string;
   updated: string;
 }
 
 type DrawerMode = "new" | "run" | "edit";
-
-// Recent-run status strip placeholder (the prototype's run-bar of circles).
-// Run-status roll-ups are a backend feature not yet served, so we render the
-// inert "no runs" outline-circle state rather than fabricate run results.
-function RunStrip() {
-  return (
-    <div className="flex items-center gap-1.5" aria-hidden>
-      {Array.from({ length: 5 }).map((_, i) => (
-        <span key={i} className="h-4 w-4 rounded-full border-[1.5px] border-border-default" />
-      ))}
-    </div>
-  );
-}
 
 export default function Jobs() {
   const q = useJobs();
@@ -63,13 +54,17 @@ export default function Jobs() {
 
   const allRows: JobRow[] = useMemo(
     () =>
-      q.data?.items?.map((j) => ({
-        name: j.name,
-        desc: j.description ?? j.displayName ?? "",
-        runCount: 0,
-        owner: j.owner ?? "—",
-        updated: j.updatedAt ?? j.createdAt ?? "",
-      })) ?? [],
+      q.data?.items?.map((j) => {
+        const summary = USE_MOCK ? runSummary(j.name) : { count: 0, recent: [] as string[] };
+        return {
+          name: j.name,
+          desc: j.description ?? j.displayName ?? "",
+          runCount: summary.count,
+          recent: summary.recent,
+          owner: j.owner ?? "—",
+          updated: j.updatedAt ?? j.createdAt ?? "",
+        };
+      }) ?? [],
     [q.data],
   );
 
@@ -104,14 +99,19 @@ export default function Jobs() {
         </div>
       ),
     },
-    { title: t("jobs.colStatus"), key: "runs", width: 140, render: () => <RunStrip /> },
-    { title: t("jobs.colRuns"), dataIndex: "runCount", width: 90, align: "right" },
+    {
+      title: t("jobs.colStatus"),
+      key: "runs",
+      width: 150,
+      render: (_, r) => <RunStrip phases={r.recent} to={`/jobs/${r.name}`} />,
+    },
+    { title: t("jobs.colRuns"), dataIndex: "runCount", width: 90, align: "right", render: (v: number) => <span className="font-mono">{v}</span> },
     { title: t("jobs.colCreator"), dataIndex: "owner", width: 140 },
     {
       title: t("jobs.colUpdated"),
       dataIndex: "updated",
-      width: 180,
-      render: (v: string) => <span className="text-muted">{v ? dayjs(v).format("YYYY-MM-DD HH:mm") : "—"}</span>,
+      width: 150,
+      render: (v: string) => <span className="text-muted">{v ? dayjs(v).fromNow() : "—"}</span>,
     },
     {
       title: t("common.actions"),

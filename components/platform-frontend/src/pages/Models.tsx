@@ -40,6 +40,8 @@ import { useApp } from "@/app/store";
 import { useUI } from "@/app/ui";
 import { PageContainer } from "@/components/PageContainer";
 import { FieldSection } from "@/components/FieldSection";
+import { USE_MOCK } from "@/api/mock";
+import { modelVersions } from "@/api/mock/data";
 
 interface ModelRow {
   name: string;
@@ -72,14 +74,20 @@ export default function Models() {
 
   const allRows: ModelRow[] = useMemo(
     () =>
-      q.data?.items?.map((m) => ({
-        name: m.name,
-        desc: m.description ?? m.displayName ?? "",
-        framework: (m.labels?.framework as string) ?? "—",
-        latest: "—",
-        versions: 0,
-        updated: m.updatedAt ?? m.createdAt ?? "",
-      })) ?? [],
+      q.data?.items?.map((m) => {
+        // Version roll-ups aren't carried by the list endpoint; under mock we
+        // derive latest/count from the version fixtures so cards read like the
+        // prototype, otherwise stay honest ("—" / 0).
+        const vs = USE_MOCK ? modelVersions(m.name) : [];
+        return {
+          name: m.name,
+          desc: m.description ?? m.displayName ?? "",
+          framework: (m.labels?.framework as string) ?? "—",
+          latest: vs[0]?.version ?? "—",
+          versions: vs.length,
+          updated: m.updatedAt ?? m.createdAt ?? "",
+        };
+      }) ?? [],
     [q.data],
   );
 
@@ -129,8 +137,8 @@ export default function Models() {
     {
       title: t("models.colUpdated"),
       dataIndex: "updated",
-      width: 180,
-      render: (v: string) => <span className="text-muted">{v ? dayjs(v).format("YYYY-MM-DD HH:mm") : "—"}</span>,
+      width: 150,
+      render: (v: string) => <span className="text-muted">{v ? dayjs(v).fromNow() : "—"}</span>,
     },
     {
       title: t("common.actions"),

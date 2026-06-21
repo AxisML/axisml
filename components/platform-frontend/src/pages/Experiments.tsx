@@ -24,28 +24,20 @@ import { useUI } from "@/app/ui";
 import { PageContainer } from "@/components/PageContainer";
 import { FieldSection } from "@/components/FieldSection";
 import { CardRadio } from "@/components/CardRadio";
+import { RunStrip } from "@/components/RunStrip";
+import { USE_MOCK } from "@/api/mock";
+import { runSummary } from "@/api/mock/data";
 
 interface ExpRow {
   name: string;
   desc: string;
   runCount: number;
+  recent: string[];
   owner: string;
   updated: string;
 }
 
 type DrawerMode = "new" | "run" | "edit";
-
-// Recent-run status strip placeholder. Run-status roll-ups are a backend feature
-// not yet served, so we render an inert muted strip rather than fabricate states.
-function RunStrip() {
-  return (
-    <div className="flex gap-1" aria-hidden>
-      {Array.from({ length: 5 }).map((_, i) => (
-        <span key={i} className="h-4 w-2.5 rounded-sm bg-border-soft" />
-      ))}
-    </div>
-  );
-}
 
 export default function Experiments() {
   const q = useExperiments();
@@ -66,13 +58,17 @@ export default function Experiments() {
 
   const allRows: ExpRow[] = useMemo(
     () =>
-      q.data?.items?.map((e) => ({
-        name: e.name,
-        desc: e.description ?? e.displayName ?? "",
-        runCount: 0,
-        owner: e.owner ?? "—",
-        updated: e.updatedAt ?? e.createdAt ?? "",
-      })) ?? [],
+      q.data?.items?.map((e) => {
+        const summary = USE_MOCK ? runSummary(e.name) : { count: 0, recent: [] as string[] };
+        return {
+          name: e.name,
+          desc: e.description ?? e.displayName ?? "",
+          runCount: summary.count,
+          recent: summary.recent,
+          owner: e.owner ?? "—",
+          updated: e.updatedAt ?? e.createdAt ?? "",
+        };
+      }) ?? [],
     [q.data],
   );
 
@@ -116,14 +112,19 @@ export default function Experiments() {
         </div>
       ),
     },
-    { title: t("experiments.colStatus"), key: "runs", width: 140, render: () => <RunStrip /> },
-    { title: t("experiments.colRuns"), dataIndex: "runCount", width: 90, align: "right" },
+    {
+      title: t("experiments.colStatus"),
+      key: "runs",
+      width: 150,
+      render: (_, r) => <RunStrip phases={r.recent} to={`/experiments/${r.name}`} />,
+    },
+    { title: t("experiments.colRuns"), dataIndex: "runCount", width: 90, align: "right", render: (v: number) => <span className="font-mono">{v}</span> },
     { title: t("experiments.colCreator"), dataIndex: "owner", width: 140 },
     {
       title: t("experiments.colUpdated"),
       dataIndex: "updated",
-      width: 180,
-      render: (v: string) => <span className="text-muted">{v ? dayjs(v).format("YYYY-MM-DD HH:mm") : "—"}</span>,
+      width: 150,
+      render: (v: string) => <span className="text-muted">{v ? dayjs(v).fromNow() : "—"}</span>,
     },
     {
       title: t("common.actions"),

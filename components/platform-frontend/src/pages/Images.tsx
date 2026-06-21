@@ -38,6 +38,8 @@ import { useApp } from "@/app/store";
 import { useUI } from "@/app/ui";
 import { PageContainer } from "@/components/PageContainer";
 import { FieldSection } from "@/components/FieldSection";
+import { USE_MOCK } from "@/api/mock";
+import { imageVersions } from "@/api/mock/data";
 
 interface ImageRow {
   name: string;
@@ -70,14 +72,17 @@ export default function Images() {
 
   const allRows: ImageRow[] = useMemo(
     () =>
-      q.data?.items?.map((m) => ({
-        name: m.name,
-        desc: m.description ?? m.displayName ?? "",
-        purpose: (m.labels?.purpose as string) ?? "—",
-        latest: "—",
-        versions: 0,
-        updated: m.updatedAt ?? m.createdAt ?? "",
-      })) ?? [],
+      q.data?.items?.map((m) => {
+        const vs = USE_MOCK ? imageVersions(m.name) : [];
+        return {
+          name: m.name,
+          desc: m.description ?? m.displayName ?? "",
+          purpose: (m.labels?.purpose as string) ?? "—",
+          latest: vs[0]?.version ?? "—",
+          versions: vs.length,
+          updated: m.updatedAt ?? m.createdAt ?? "",
+        };
+      }) ?? [],
     [q.data],
   );
 
@@ -126,8 +131,8 @@ export default function Images() {
     {
       title: t("images.colUpdated"),
       dataIndex: "updated",
-      width: 180,
-      render: (v: string) => <span className="text-muted">{v ? dayjs(v).format("YYYY-MM-DD HH:mm") : "—"}</span>,
+      width: 150,
+      render: (v: string) => <span className="text-muted">{v ? dayjs(v).fromNow() : "—"}</span>,
     },
     {
       title: t("common.actions"),

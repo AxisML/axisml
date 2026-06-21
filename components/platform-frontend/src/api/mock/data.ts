@@ -192,7 +192,7 @@ export const quotasByTenant: Record<string, Quota[]> = Object.fromEntries(
 );
 
 // ── jobs ────────────────────────────────────────────────────────────────────────
-function job(name: string, displayName: string, description: string, engine: string): Job {
+function job(name: string, displayName: string, description: string, engine: string, owner: string, updatedH: number): Job {
   return {
     id: `job-${name}`,
     name,
@@ -200,9 +200,9 @@ function job(name: string, displayName: string, description: string, engine: str
     description,
     namespace: "tenant-llm-lab",
     tenantName: "llm-lab",
-    owner: "zhangwei",
+    owner,
     createdAt: ago(24 * 10),
-    updatedAt: ago(5),
+    updatedAt: ago(updatedH),
     spec: {
       backend: { name: "native", engine },
       poolName: "a100-pool",
@@ -211,7 +211,15 @@ function job(name: string, displayName: string, description: string, engine: str
         {
           name: "worker",
           replicas: 4,
-          template: { image: "harbor.axisml.io/llm/pytorch-train:2.3", resources: { "nvidia.com/gpu": "8" } },
+          template: {
+            image: "harbor.axisml.io/llm/pytorch-train:2.3",
+            command: ["torchrun", "--nproc_per_node=4", "train.py", "--model_name", "llama-7b", "--lr", "2e-5", "--epochs", "3", "--batch_size", "16", "--data", "/data/sft.jsonl"],
+            env: [
+              { name: "WANDB_DISABLED", value: "true" },
+              { name: "NCCL_DEBUG", value: "INFO" },
+            ],
+            resources: { "nvidia.com/gpu": "8" },
+          },
         },
       ],
     },
@@ -219,14 +227,14 @@ function job(name: string, displayName: string, description: string, engine: str
 }
 
 export const jobs: Job[] = [
-  job("train-llm-7b", "LLaMA 7B 预训练", "7B 基座模型全参数预训练", "pytorchjob"),
-  job("sft-baseline", "SFT 基线", "指令微调基线任务", "pytorchjob"),
-  job("qwen-vl-finetune", "Qwen-VL 微调", "多模态视觉语言模型微调", "pytorchjob"),
-  job("embedding-distill", "向量模型蒸馏", "BGE embedding 蒸馏任务", "pytorchjob"),
+  job("train-llm-7b", "LLaMA 7B 预训练", "7B 基座模型全参数预训练", "pytorchjob", "张伟", 48),
+  job("eval-recall", "召回离线评估", "召回模型离线评估", "job", "李娜", 24 * 5),
+  job("data-clean-etl", "训练数据清洗", "训练数据清洗 ETL", "job", "陈曦", 6),
+  job("sft-baseline", "SFT 基线", "SFT 基线训练", "pytorchjob", "王磊", 1),
 ];
 
 // ── experiments ─────────────────────────────────────────────────────────────────
-function experiment(name: string, displayName: string, description: string): Experiment {
+function experiment(name: string, displayName: string, description: string, owner = "刘洋", updatedH = 2): Experiment {
   return {
     id: `exp-${name}`,
     name,
@@ -234,22 +242,35 @@ function experiment(name: string, displayName: string, description: string): Exp
     description,
     namespace: "tenant-llm-lab",
     tenantName: "llm-lab",
-    owner: "liuyang",
+    owner,
     createdAt: ago(24 * 8),
-    updatedAt: ago(2),
+    updatedAt: ago(updatedH),
     spec: {
       backend: nativeJob,
       poolName: "a100-pool",
       unitName: "a100-4x",
-      roles: [{ name: "worker", replicas: 1, template: { image: "harbor.axisml.io/llm/pytorch-train:2.3" } }],
+      roles: [
+        {
+          name: "worker",
+          replicas: 1,
+          template: {
+            image: "harbor.axisml.io/llm/pytorch-train:2.3",
+            command: ["torchrun", "--nproc_per_node=4", "sft.py", "--base", "llama3-8b-base", "--lr", "{{lr}}", "--epochs", "3"],
+            env: [
+              { name: "WANDB_DISABLED", value: "true" },
+              { name: "NCCL_DEBUG", value: "INFO" },
+            ],
+          },
+        },
+      ],
     },
   };
 }
 
 export const experiments: Experiment[] = [
-  experiment("llama3-sft-lr-sweep", "LLaMA3 SFT 学习率搜索", "对 SFT 学习率做网格搜索"),
-  experiment("resnet-aug-search", "ResNet 数据增强搜索", "图像增强策略对比实验"),
-  experiment("qwen-vl-finetune", "Qwen-VL 微调对比", "不同微调策略效果评估"),
+  experiment("llama3-sft-lr-sweep", "LLaMA3 SFT 学习率搜索", "对 SFT 学习率做网格搜索", "刘洋", 2),
+  experiment("resnet-aug-search", "ResNet 数据增强搜索", "图像增强策略对比实验", "李娜", 24 * 3),
+  experiment("qwen-vl-finetune", "Qwen-VL 微调对比", "不同微调策略效果评估", "张伟", 9),
 ];
 
 // ── runs (shared generator for jobs & experiments) ──────────────────────────────
@@ -268,7 +289,7 @@ export function runsFor(parent: string, kind: "job" | "experiment"): Run[] {
       namespace: "tenant-llm-lab",
       tenantName: "llm-lab",
       tenantDisplayName: "大模型研究院",
-      owner: kind === "job" ? "zhangwei" : "liuyang",
+      owner: kind === "job" ? "张伟" : "刘洋",
       phase,
       backend: nativeJob,
       poolName: "a100-pool",
@@ -278,10 +299,38 @@ export function runsFor(parent: string, kind: "job" | "experiment"): Run[] {
       startedAt: started,
       finishedAt: finished,
       resources: { "nvidia.com/gpu": "8", cpu: "96", memory: "1Ti" },
-      roles: [{ name: "worker", replicas: 4, readyReplicas: phase === "Running" ? 4 : 0, succeededReplicas: phase === "Succeeded" ? 4 : 0 }],
+      roles: [
+        {
+          name: "worker",
+          replicas: 4,
+          readyReplicas: phase === "Running" ? 4 : 0,
+          succeededReplicas: phase === "Succeeded" ? 4 : 0,
+          template: {
+            image: "harbor.axisml.io/llm/pytorch-train:2.3",
+            command: ["torchrun", "--nproc_per_node=4", "train.py", "--lr", "2e-5", "--epochs", "3"],
+            env: [{ name: "NCCL_DEBUG", value: "INFO" }],
+          },
+        },
+      ],
       message: phase === "Failed" ? "OOMKilled on worker-2" : undefined,
     };
   });
+}
+
+// Deterministic run roll-up for list pages (run count + last-5 phases for the
+// status-dot strip). Demo-only: real list endpoints don't carry run history, so
+// the Jobs/Experiments lists fall back to an empty strip outside mock mode.
+const RUN_SUMMARY: Record<string, { count: number; recent: string[] }> = {
+  "train-llm-7b": { count: 4, recent: ["Succeeded", "Failed", "Succeeded", "Running"] },
+  "eval-recall": { count: 3, recent: ["Succeeded", "Succeeded", "Succeeded"] },
+  "data-clean-etl": { count: 7, recent: ["Succeeded", "Failed", "Succeeded", "Succeeded", "Failed"] },
+  "sft-baseline": { count: 0, recent: [] },
+  "llama3-sft-lr-sweep": { count: 5, recent: ["Succeeded", "Running", "Succeeded", "Failed", "Succeeded"] },
+  "resnet-aug-search": { count: 2, recent: ["Succeeded", "Succeeded"] },
+  "qwen-vl-finetune": { count: 1, recent: ["Running"] },
+};
+export function runSummary(name: string): { count: number; recent: string[] } {
+  return RUN_SUMMARY[name] ?? { count: 0, recent: [] };
 }
 
 // ── workspaces ──────────────────────────────────────────────────────────────────
@@ -293,7 +342,7 @@ export const workspaces: Workspace[] = [
     description: "Jupyter + CUDA 调试环境",
     namespace: "tenant-llm-lab",
     tenantName: "llm-lab",
-    owner: "zhangwei",
+    owner: "张伟",
     image: "harbor.axisml.io/base/jupyter-cuda:12.1",
     containerPort: 8888,
     phase: "Running",
@@ -315,7 +364,7 @@ export const workspaces: Workspace[] = [
     description: "CPU 数据清洗工作空间",
     namespace: "tenant-llm-lab",
     tenantName: "llm-lab",
-    owner: "liuyang",
+    owner: "刘洋",
     image: "harbor.axisml.io/base/python-data:3.11",
     containerPort: 8080,
     phase: "Stopped",
@@ -341,7 +390,7 @@ export const services: MlService[] = [
     namespace: "tenant-llm-lab",
     tenantName: "llm-lab",
     tenantDisplayName: "大模型研究院",
-    owner: "zhangwei",
+    owner: "张伟",
     phase: "Ready",
     backend: { name: "kserve", engine: "llminference" },
     image: "harbor.axisml.io/serve/vllm:0.5",
@@ -365,7 +414,7 @@ export const services: MlService[] = [
     namespace: "tenant-llm-lab",
     tenantName: "llm-lab",
     tenantDisplayName: "大模型研究院",
-    owner: "liuyang",
+    owner: "刘洋",
     phase: "Degraded",
     backend: nativeDeploy,
     image: "harbor.axisml.io/serve/bge:1.5",
@@ -394,7 +443,7 @@ export const trafficPolicies: TrafficPolicy[] = [
     namespace: "tenant-llm-lab",
     tenantName: "llm-lab",
     tenantDisplayName: "大模型研究院",
-    owner: "zhangwei",
+    owner: "张伟",
     phase: "Ready",
     mode: "canary",
     canaryPercent: 20,
@@ -419,7 +468,7 @@ function modelDef(name: string, displayName: string, description: string, framew
     description,
     namespace: "tenant-llm-lab",
     tenantName: "llm-lab",
-    owner: "zhangwei",
+    owner: "张伟",
     labels: { framework },
     createdAt: ago(24 * 20),
     updatedAt: ago(6),
@@ -442,7 +491,7 @@ function imageDef(name: string, displayName: string, description: string): Artif
     description,
     namespace: "tenant-llm-lab",
     tenantName: "llm-lab",
-    owner: "liuyang",
+    owner: "刘洋",
     createdAt: ago(24 * 25),
     updatedAt: ago(10),
   };
@@ -461,7 +510,7 @@ export function modelVersions(name: string): Model[] {
     displayName: `${name} ${v}`,
     namespace: "tenant-llm-lab",
     tenantName: "llm-lab",
-    owner: "zhangwei",
+    owner: "张伟",
     status: "Ready",
     sizeBytes: 16_000_000_000 - i * 2_000_000_000,
     digest: `sha256:${name}${v}`,
@@ -480,7 +529,7 @@ export function imageVersions(name: string): Image[] {
     displayName: `${name}:${v}`,
     namespace: "tenant-llm-lab",
     tenantName: "llm-lab",
-    owner: "liuyang",
+    owner: "刘洋",
     status: "Ready",
     sizeBytes: 8_000_000_000 - i * 1_000_000_000,
     digest: `sha256:${name}${v}`,
@@ -520,6 +569,82 @@ export function metricSeries(metric: string) {
     value: Math.round((40 + 30 * Math.sin(i / 3) + i) % 100),
   }));
   return { metric, range: "24h", step: "1h", unit: "%", series };
+}
+
+// ── cluster resource usage (dashboard) ──────────────────────────────────────────
+// Demo-only: there is no cluster-metrics endpoint in the platform contract, so the
+// real Dashboard renders an honest zero state. Under VITE_USE_MOCK_API the
+// Dashboard reads these fixtures instead, so the landing page looks like the
+// product prototype (docs/product_design/prototype/index.html).
+export type MeterState = "ok" | "warn" | "hot" | "na";
+export interface UsageMetric {
+  used: number;
+  total: number;
+  unit: string;
+  pct: number;
+  state: MeterState;
+  display: string; // formatted "used" value (mem keeps one decimal)
+}
+export interface ClusterUsage {
+  key: string;
+  label: string;
+  gpu: UsageMetric;
+  cpu: UsageMetric;
+  mem: UsageMetric;
+  /** 24-point GPU/CPU utilisation trend (%) + concurrent-task count. */
+  trend: { t: string; util: number; tasks: number }[];
+}
+
+const meter = (used: number, total: number, unit: string, decimals = 0): UsageMetric => {
+  const pct = total === 0 ? 0 : Math.round((used / total) * 100);
+  const state: MeterState = total === 0 ? "na" : pct >= 80 ? "hot" : pct >= 60 ? "warn" : "ok";
+  return { used, total, unit, pct, state, display: decimals ? used.toFixed(decimals) : String(used) };
+};
+
+const trendFor = (base: number) =>
+  Array.from({ length: 13 }, (_, i) => ({
+    t: `${i * 2}:00`,
+    util: Math.max(8, Math.round(base - 18 + i * 1.6 + 6 * Math.sin(i / 1.7))),
+    tasks: Math.max(2, Math.round(base / 6 + 3 * Math.sin(i / 2))),
+  }));
+
+const clusterUsageMap: Record<string, ClusterUsage> = {
+  all: {
+    key: "all",
+    label: "全部",
+    gpu: meter(36, 48, "卡"),
+    cpu: meter(740, 1152, "核"),
+    mem: { ...meter(3.4, 5.5, "TiB", 1) },
+    trend: trendFor(72),
+  },
+  "a100-pool": {
+    key: "a100-pool",
+    label: "a100-pool",
+    gpu: meter(22, 32, "卡"),
+    cpu: meter(240, 384, "核"),
+    mem: meter(1.2, 2.0, "TiB", 1),
+    trend: trendFor(69),
+  },
+  "h100-pool": {
+    key: "h100-pool",
+    label: "h100-pool",
+    gpu: meter(14, 16, "卡"),
+    cpu: meter(180, 256, "核"),
+    mem: meter(1.4, 2.0, "TiB", 1),
+    trend: trendFor(86),
+  },
+  "cpu-pool": {
+    key: "cpu-pool",
+    label: "cpu-pool",
+    gpu: meter(0, 0, "卡"),
+    cpu: meter(320, 512, "核"),
+    mem: meter(0.8, 1.5, "TiB", 1),
+    trend: trendFor(60),
+  },
+};
+
+export function clusterUsage(pool?: string): ClusterUsage {
+  return clusterUsageMap[pool ?? "all"] ?? clusterUsageMap.all;
 }
 
 export function podLogs(pod: string): string {

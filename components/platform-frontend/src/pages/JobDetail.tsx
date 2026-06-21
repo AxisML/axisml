@@ -26,6 +26,8 @@ import { useUI } from "@/app/ui";
 import { useApiMutation } from "@/api/mutations";
 import { PageContainer } from "@/components/PageContainer";
 import { PhaseTag } from "@/components/PhaseTag";
+import { USE_MOCK } from "@/api/mock";
+import { runSummary } from "@/api/mock/data";
 import * as sdk from "@/api/generated";
 
 // ── Shared detail helpers (reused by RunDetail) ───────────────────────────────
@@ -75,6 +77,7 @@ export default function JobDetail() {
 
   const job = jobQ.data;
   const role = job ? primaryRole(job.spec.roles) : undefined;
+  const latestPhase = USE_MOCK ? runSummary(name).recent.at(-1) : undefined;
 
   return (
     <PageContainer
@@ -82,6 +85,7 @@ export default function JobDetail() {
       title={
         <span className="flex items-center gap-3">
           <span className="font-mono">{name}</span>
+          {latestPhase && <PhaseTag phase={latestPhase} />}
         </span>
       }
       subtitle={
@@ -220,7 +224,10 @@ export function CommandBlock({ tpl }: { tpl?: sdk.RoleTemplate }) {
     <div className="mb-5">
       <div className="mb-1.5 text-xs text-muted">{t("jobDetail.command")}</div>
       {cmd.length ? (
-        <pre className="m-0 overflow-auto rounded-md bg-surface-warm p-3 font-mono text-xs text-fg-2">
+        <pre
+          className="m-0 overflow-auto rounded-md p-4 font-mono text-xs leading-relaxed"
+          style={{ background: "#16181d", color: "#e6e6e6" }}
+        >
           {cmd.join(" ")}
         </pre>
       ) : (

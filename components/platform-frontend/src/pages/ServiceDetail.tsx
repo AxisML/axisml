@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   Button,
   Card,
   Tabs,
+  Table,
+  Select,
   Descriptions,
   Tag,
   Empty,
@@ -16,6 +18,7 @@ import {
   InputNumber,
   Input,
 } from "antd";
+import type { ColumnsType } from "antd/es/table";
 import {
   ArrowLeftOutlined,
   ExpandOutlined,
@@ -24,6 +27,7 @@ import {
   CaretRightOutlined,
   DeleteOutlined,
   CopyOutlined,
+  ReloadOutlined,
   CloseOutlined,
 } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
@@ -35,6 +39,8 @@ import * as sdk from "@/api/generated";
 import { useUI } from "@/app/ui";
 import { PageContainer } from "@/components/PageContainer";
 import { PhaseTag } from "@/components/PhaseTag";
+import { LogViewer } from "@/components/LogViewer";
+import { fmtDateTime } from "./JobDetail";
 
 const INVALIDATE = [["mlservices"]];
 const RUNNING_PHASES = new Set(["Ready", "Degraded", "Creating", "Pending"]);
@@ -146,10 +152,10 @@ export default function ServiceDetail() {
       <Tabs
         items={[
           { key: "info", label: t("services.tabInfo"), children: <InfoPane svc={svc} /> },
-          { key: "mon", label: t("services.tabMonitor"), children: <EmptyPane msg={t("services.monitorEmpty")} /> },
-          { key: "pods", label: t("services.tabPods"), children: <EmptyPane msg={t("services.podsEmpty")} /> },
-          { key: "log", label: t("services.tabLog"), children: <EmptyPane msg={t("services.logEmpty")} /> },
-          { key: "ev", label: t("services.tabEvents"), children: <EmptyPane msg={t("services.eventsEmpty")} /> },
+          { key: "mon", label: t("services.tabMonitor"), children: <MonitorPane name={svc.name} /> },
+          { key: "pods", label: t("services.tabPods"), children: <PodsPane name={svc.name} /> },
+          { key: "log", label: t("services.tabLog"), children: <LogPane name={svc.name} /> },
+          { key: "ev", label: t("services.tabEvents"), children: <EventsPane name={svc.name} /> },
         ]}
       />
 
@@ -227,13 +233,178 @@ function InfoPane({ svc }: { svc: sdk.MlService }) {
   );
 }
 
-// Monitoring / Pods / Logs / Events have no backend feed yet → honest empty pane.
-function EmptyPane({ msg }: { msg: string }) {
+// ── Monitoring: request-rate trend (mini SVG, mirrors the dashboard style) ──────
+function MonitorPane({ name }: { name: string }) {
+  const { t } = useTranslation();
+  const { tenant } = useApp();
+  const q = useQuery({
+    queryKey: ["mlservices", tenant, name, "metrics"],
+    enabled: tenant !== "" && name !== "",
+    queryFn: async () => {
+      const { data, error } = await sdk.getMlServiceMetrics({ path: { name }, query: { metric: "request_rate", range: "24h" } });
+      if (error) throw error;
+      return data;
+    },
+  });
+  const series = (q.data?.series ?? []).map((p) => p.value ?? 0);
   return (
-    <Card>
-      <div className="py-12">
-        <Empty description={msg} />
-      </div>
+    <Card title={t("services.tabMonitor")}>
+      {q.isLoading ? (
+        <div className="grid place-items-center py-16"><Spin /></div>
+      ) : series.length ? (
+        <MiniTrend values={series} />
+      ) : (
+        <div className="py-12"><Empty description={t("services.monitorEmpty")} /></div>
+      )}
+    </Card>
+  );
+}
+
+function MiniTrend({ values }: { values: number[] }) {
+  const W = 720;
+  const H = 200;
+  const n = values.length;
+  const max = Math.max(...values, 1);
+  const x = (i: number) => (i / Math.max(1, n - 1)) * W;
+  const y = (v: number) => H - (v / max) * (H - 16) - 6;
+  const pts = values.map((v, i) => `${x(i)} ${y(v)}`);
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="h-[200px] w-full">
+      <defs>
+        <linearGradient id="svc-trend" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0" stopColor="var(--accent)" stopOpacity="0.16" />
+          <stop offset="1" stopColor="var(--accent)" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      {[50, 100, 150].map((gy) => (
+        <line key={gy} x1="0" y1={gy} x2={W} y2={gy} stroke="var(--border-soft)" strokeWidth="1" />
+      ))}
+      <path d={`M0 ${H} L${pts.join(" L")} L${W} ${H} Z`} fill="url(#svc-trend)" />
+      <path d={`M${pts.join(" L")}`} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+// ── Pods ───────────────────────────────────────────────────────────────────────
+function PodsPane({ name }: { name: string }) {
+  const { t } = useTranslation();
+  const { tenant } = useApp();
+  const q = useQuery({
+    queryKey: ["mlservices", tenant, name, "pods"],
+    enabled: tenant !== "" && name !== "",
+    queryFn: async () => {
+      const { data, error } = await sdk.listMlServicePods({ path: { name } });
+      if (error) throw error;
+      return data;
+    },
+  });
+  const columns: ColumnsType<sdk.Pod> = [
+    { title: t("services.colPod"), dataIndex: "name", render: (v: string) => <span className="font-mono">{v}</span> },
+    { title: t("services.colPhase"), dataIndex: "phase", width: 120, render: (p: string) => <PhaseTag phase={p} /> },
+    { title: t("services.colNode"), dataIndex: "nodeName", width: 160, render: (v?: string) => <span className="font-mono">{v || "—"}</span> },
+    { title: t("services.colRestarts"), dataIndex: "restartCount", width: 90, align: "right", render: (v?: number) => <span className="font-mono">{v ?? 0}</span> },
+    { title: t("services.colStarted"), dataIndex: "startedAt", width: 170, render: (v?: string) => <span className="text-muted">{fmtDateTime(v)}</span> },
+  ];
+  return (
+    <Card styles={{ body: { padding: 0 } }} className="overflow-hidden">
+      <Table<sdk.Pod>
+        rowKey="name"
+        columns={columns}
+        dataSource={q.data?.items ?? []}
+        loading={q.isLoading}
+        pagination={{ pageSize: 20, hideOnSinglePage: true }}
+        locale={{ emptyText: <Empty description={q.isError ? t("common.loadFailed") : t("services.podsEmpty")} /> }}
+      />
+    </Card>
+  );
+}
+
+// ── Logs (shared dark LogViewer) ─────────────────────────────────────────────────
+function LogPane({ name }: { name: string }) {
+  const { t } = useTranslation();
+  const { tenant } = useApp();
+  const [pod, setPod] = useState<string>("");
+  const podsQ = useQuery({
+    queryKey: ["mlservices", tenant, name, "pods"],
+    enabled: tenant !== "" && name !== "",
+    queryFn: async () => {
+      const { data, error } = await sdk.listMlServicePods({ path: { name } });
+      if (error) throw error;
+      return data;
+    },
+  });
+  const pods = podsQ.data?.items ?? [];
+  useEffect(() => {
+    if (!pod && pods.length) setPod(pods[0].name);
+  }, [pod, pods]);
+  const logsQ = useQuery({
+    queryKey: ["mlservices", tenant, name, "logs", pod],
+    enabled: tenant !== "" && name !== "" && pod !== "",
+    queryFn: async () => {
+      const { data, error } = await sdk.getMlServicePodLogs({ path: { name, pod } });
+      if (error) throw error;
+      return data as unknown as string;
+    },
+  });
+  return (
+    <Card
+      title={t("services.tabLog")}
+      extra={
+        <Space>
+          <Select size="small" value={pod || undefined} onChange={setPod} className="min-w-52" options={pods.map((p) => ({ label: p.name, value: p.name }))} />
+          <Button size="small" icon={<ReloadOutlined />} onClick={() => logsQ.refetch()} />
+        </Space>
+      }
+    >
+      {podsQ.isLoading || logsQ.isLoading ? (
+        <div className="grid place-items-center py-16"><Spin /></div>
+      ) : !pods.length ? (
+        <div className="py-12"><Empty description={t("services.logEmpty")} /></div>
+      ) : (
+        <LogViewer text={logsQ.data} empty={t("services.logEmpty")} />
+      )}
+    </Card>
+  );
+}
+
+// ── Events ───────────────────────────────────────────────────────────────────────
+function EventsPane({ name }: { name: string }) {
+  const { t } = useTranslation();
+  const { tenant } = useApp();
+  const q = useQuery({
+    queryKey: ["mlservices", tenant, name, "events"],
+    enabled: tenant !== "" && name !== "",
+    queryFn: async () => {
+      const { data, error } = await sdk.getMlServiceEvents({ path: { name } });
+      if (error) throw error;
+      return data;
+    },
+  });
+  const columns: ColumnsType<sdk.Event> = [
+    { title: t("services.colReason"), dataIndex: "reason", width: 180, render: (v: string) => <span className="font-mono">{v}</span> },
+    {
+      title: t("services.colType"),
+      dataIndex: "type",
+      width: 110,
+      render: (v: string) => (
+        <Tag color={v === "Warning" ? "warning" : "default"} className="!m-0">
+          {v}
+        </Tag>
+      ),
+    },
+    { title: t("services.colMessage"), dataIndex: "message" },
+    { title: t("services.colTime"), dataIndex: "lastTimestamp", width: 170, render: (v?: string) => <span className="text-muted">{fmtDateTime(v)}</span> },
+  ];
+  return (
+    <Card styles={{ body: { padding: 0 } }} className="overflow-hidden">
+      <Table<sdk.Event>
+        rowKey={(e, i) => `${e.reason}-${i}`}
+        columns={columns}
+        dataSource={q.data?.items ?? []}
+        loading={q.isLoading}
+        pagination={{ pageSize: 20, hideOnSinglePage: true }}
+        locale={{ emptyText: <Empty description={q.isError ? t("common.loadFailed") : t("services.eventsEmpty")} /> }}
+      />
     </Card>
   );
 }

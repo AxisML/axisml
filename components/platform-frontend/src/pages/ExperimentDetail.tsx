@@ -225,7 +225,10 @@ function InfoPane({ exp }: { exp: sdk.Experiment }) {
 
       <div className="mt-6 border-t border-border-soft pt-5">
         <div className="mb-1.5 text-xs text-muted">{t("experiments.diCommand")}</div>
-        <pre className="m-0 mb-4 overflow-auto rounded-md bg-bg p-3 font-mono text-sm text-fg-2">
+        <pre
+          className="m-0 mb-4 overflow-auto rounded-md p-4 font-mono text-xs leading-relaxed"
+          style={{ background: "#16181d", color: "#e6e6e6" }}
+        >
           {command.length ? command.join(" ") : "—"}
         </pre>
         <div className="mb-2 text-xs text-muted">{t("experiments.diEnv")}</div>

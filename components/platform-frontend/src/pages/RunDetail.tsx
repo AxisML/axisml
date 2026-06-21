@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   Card,
@@ -7,6 +8,7 @@ import {
   Tag,
   Button,
   Space,
+  Select,
   Steps,
   Empty,
   Spin,
@@ -21,6 +23,7 @@ import { useUI } from "@/app/ui";
 import { useApiMutation } from "@/api/mutations";
 import { PageContainer } from "@/components/PageContainer";
 import { PhaseTag } from "@/components/PhaseTag";
+import { LogViewer } from "@/components/LogViewer";
 import * as sdk from "@/api/generated";
 import { PolicyText, fmtDateTime, primaryRole } from "./JobDetail";
 
@@ -158,7 +161,7 @@ export default function RunDetail({ kind }: { kind: "experiment" | "job" }) {
             items={[
               { key: "info", label: t("runDetail.tabInfo"), children: <InfoPane run={r} /> },
               { key: "pods", label: t("runDetail.tabPods"), children: <PodsPane kind={kind} name={name} run={run} /> },
-              { key: "log", label: t("runDetail.tabLog"), children: <LogPane /> },
+              { key: "log", label: t("runDetail.tabLog"), children: <LogPane kind={kind} name={name} run={run} /> },
               { key: "ev", label: t("runDetail.tabEvents"), children: <EventsPane kind={kind} name={name} run={run} /> },
             ]}
           />
@@ -321,16 +324,72 @@ function PodsPane({ kind, name, run }: { kind: "experiment" | "job"; name: strin
   );
 }
 
-// Real per-Pod log streaming is a future backend feature (GET .../pods/{pod}/logs
-// with follow=SSE). Until the UI wiring for pod selection + follow lands, show a
-// placeholder rather than fabricating log lines.
-function LogPane() {
+// Pod log viewer — the prototype's dark `.logbox` (shared <LogViewer/>). Pods come
+// from the run's pod list; the selected pod's logs are fetched on demand (the
+// snapshot endpoint; SSE follow is a future backend feature).
+function LogPane({ kind, name, run }: { kind: "experiment" | "job"; name: string; run: string }) {
   const { t } = useTranslation();
+  const { tenant } = useApp();
+  const isExp = kind === "experiment";
+  const [pod, setPod] = useState<string>("");
+
+  const podsQ = useQuery({
+    queryKey: ["runDetail", kind, tenant, name, run, "pods"],
+    enabled: tenant !== "" && name !== "" && run !== "",
+    queryFn: async () => {
+      const { data, error } = isExp
+        ? await sdk.listExperimentRunPods({ path: { name, run } })
+        : await sdk.listRunPods({ path: { name, run } });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const pods = podsQ.data?.items ?? [];
+  useEffect(() => {
+    if (!pod && pods.length) setPod(pods[0].name);
+  }, [pod, pods]);
+
+  const logsQ = useQuery({
+    queryKey: ["runDetail", kind, tenant, name, run, "logs", pod],
+    enabled: tenant !== "" && name !== "" && run !== "" && pod !== "",
+    queryFn: async () => {
+      const { data, error } = isExp
+        ? await sdk.getExperimentRunPodLogs({ path: { name, run, pod } })
+        : await sdk.getRunPodLogs({ path: { name, run, pod } });
+      if (error) throw error;
+      return data as unknown as string;
+    },
+  });
+
   return (
-    <Card title={t("runDetail.logTitle")}>
-      <div className="rounded-md bg-surface-warm p-6">
-        <Empty description={t("runDetail.noLog")} />
-      </div>
+    <Card
+      title={t("runDetail.logTitle")}
+      extra={
+        <Space>
+          <Select
+            size="small"
+            value={pod || undefined}
+            placeholder={t("runDetail.colPod")}
+            onChange={setPod}
+            className="min-w-52"
+            options={pods.map((p) => ({ label: p.name, value: p.name }))}
+          />
+          <Button size="small" icon={<ReloadOutlined />} onClick={() => logsQ.refetch()} />
+        </Space>
+      }
+    >
+      {podsQ.isLoading || logsQ.isLoading ? (
+        <div className="grid place-items-center py-16">
+          <Spin />
+        </div>
+      ) : !pods.length ? (
+        <div className="rounded-md bg-surface-warm p-6">
+          <Empty description={t("runDetail.noLog")} />
+        </div>
+      ) : (
+        <LogViewer text={logsQ.data} empty={t("runDetail.noLog")} />
+      )}
     </Card>
   );
 }
