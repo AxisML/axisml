@@ -31,6 +31,34 @@ system:
     port: 8080
 
 # =============================================================================
+# Shared PostgreSQL (Infra layer, cross-namespace). Platform reads the same DB
+# the System services use; the password must match the Infra chart's value.
+# =============================================================================
+database:
+  host: axisml-database.axisml-infra
+  port: 5432
+  name: axisml
+  user: axisml
+  sslMode: disable
+  auth:
+    password: axisml
+
+# =============================================================================
+# Shared Redis (Infra layer, cross-namespace). Optional accelerator for the
+# auth hot path (session validity + identity/RBAC); the backend degrades to
+# direct PostgreSQL reads when it cannot reach Redis. The password must match
+# the Infra chart's `cache.auth.password`. Set `enabled: false` to run with no
+# cache at all (REDIS_ADDR stays unset).
+# =============================================================================
+cache:
+  enabled: true
+  host: axisml-redis-master.axisml-infra
+  port: 6379
+  db: 0
+  auth:
+    password: axisml
+
+# =============================================================================
 # AxisML Platform
 # =============================================================================
 platform:
@@ -38,11 +66,36 @@ platform:
   replicaCount: 1
 
   image:
-    # Platform service is not yet implemented; use nginx as a placeholder.
-    registry: docker.io
-    repository: library/nginx
-    tag: "1.27-alpine"
+    registry: ghcr.io
+    repository: axisml/axisml-platform-backend
+    # Defaults to the chart's appVersion when empty (the top-level Makefile
+    # injects the system appVersion via --set for tag parity).
+    tag: ""
     pullPolicy: IfNotPresent
+
+  # Dedicated probes port (separate from the API port).
+  probesPort: 8082
+
+  bootstrap:
+    tenant: default
+    tenantNamespace: axisml-tenant
+    # Optionally source the initial system-admin password from a Secret.
+    # passwordSecret: { name: axisml-platform-bootstrap, key: password }
+    passwordSecret: {}
+
+  # RS256 signing key for login JWTs. The backend generates an ephemeral key when
+  # none is provided, which invalidates every session on each pod restart and
+  # breaks JWKS consistency across replicas. To keep tokens valid across restarts:
+  #   - if `privateKeySecret` is set, that externally-managed Secret is used;
+  #   - else if `privateKey` (inline PEM) is set, the chart renders a Secret from it;
+  #   - else the chart generates a key ONCE and persists it in a chart-managed
+  #     Secret, reusing it on subsequent upgrades via `lookup`.
+  # `keyId` is published as the JWKS `kid`.
+  auth:
+    jwt:
+      keyId: axisml-platform-key-1
+      privateKeySecret: {} # { name: my-jwt-secret, key: private-key.pem }
+      privateKey: "" # inline PEM (PKCS#1 or PKCS#8 RSA private key)
 
   service:
     type: ClusterIP

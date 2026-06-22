@@ -35,7 +35,7 @@ func TestResourceUnit_Lifecycle(t *testing.T) {
 	  "limits":   {"cpu": "4", "memory": "8Gi"}
 	}`)
 	require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
-	var added srv.ResourceUnitDTO
+	var added srv.ResourceUnit
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &added))
 	require.Equal(t, "cpu-medium", added.Name)
 	cpuQ := added.Requests["cpu"]
@@ -56,7 +56,7 @@ func TestResourceUnit_Lifecycle(t *testing.T) {
 	rr = doRequest(t, "PATCH", "/api/v1/resourcepools/"+poolName+"/units/cpu-medium",
 		`{"limits": {"cpu": "8", "memory": "16Gi"}}`)
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
-	var patched srv.ResourceUnitDTO
+	var patched srv.ResourceUnit
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &patched))
 	cpuLim := patched.Limits["cpu"]
 	require.Equal(t, "8", cpuLim.String())

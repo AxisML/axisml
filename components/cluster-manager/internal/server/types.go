@@ -1,4 +1,4 @@
-// Package server defines request/response DTOs and shared error helpers
+// Package server defines request/response types and shared error helpers
 // for the cluster-manager REST API. The service is a stateless shell over
 // the ResourcePool CRD (cluster-scoped, axisml.io/v1alpha1) plus the
 // embedded `spec.units[]` array; types here mirror the OpenAPI contract
@@ -15,15 +15,15 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ResourcePoolDTO matches the OpenAPI ResourcePool schema. It wraps the
+// ResourcePool matches the OpenAPI ResourcePool schema. It wraps the
 // underlying CR's metadata.{name,labels,annotations,resourceVersion} and
 // spec fields. No separate id — CR name is the stable handle.
-type ResourcePoolDTO struct {
+type ResourcePool struct {
 	Name            string              `json:"name"`
 	Description     string              `json:"description,omitempty"`
 	NodeSelector    map[string]string   `json:"nodeSelector,omitempty"`
 	Tolerations     []corev1.Toleration `json:"tolerations,omitempty"`
-	Units           []ResourceUnitDTO   `json:"units"`
+	Units           []ResourceUnit      `json:"units"`
 	Labels          map[string]string   `json:"labels,omitempty"`
 	Annotations     map[string]string   `json:"annotations,omitempty"`
 	ResourceVersion string              `json:"resourceVersion,omitempty"`
@@ -31,9 +31,9 @@ type ResourcePoolDTO struct {
 	UpdatedAt       time.Time           `json:"updatedAt,omitempty"`
 }
 
-// ResourceUnitDTO is one entry of pool.spec.units[]. Identified by the
+// ResourceUnit is one entry of pool.spec.units[]. Identified by the
 // (poolName, name) tuple in the URL — no independent CR.
-type ResourceUnitDTO struct {
+type ResourceUnit struct {
 	Name         string              `json:"name"`
 	Description  string              `json:"description,omitempty"`
 	Requests     corev1.ResourceList `json:"requests"`
@@ -85,15 +85,15 @@ type PatchResourceUnitRequest struct {
 
 // ResourcePoolList is the LIST response.
 type ResourcePoolList struct {
-	Items         []ResourcePoolDTO `json:"items"`
-	Count         int               `json:"count"`
-	ContinueToken string            `json:"continueToken,omitempty"`
+	Items         []ResourcePool `json:"items"`
+	Count         int            `json:"count"`
+	ContinueToken string         `json:"continueToken,omitempty"`
 }
 
 // ResourceUnitList is the LIST response for units inside one pool.
 type ResourceUnitList struct {
-	Items []ResourceUnitDTO `json:"items"`
-	Count int               `json:"count"`
+	Items []ResourceUnit `json:"items"`
+	Count int            `json:"count"`
 }
 
 // Problem mirrors RFC 7807 application/problem+json.
@@ -125,7 +125,7 @@ type HealthStatus struct {
 // most recent mutation (audit hint; the K8s API also persists this).
 const LastModifiedByAnnotation = "axisml.io/last-modified-by"
 
-// DescriptionAnnotation surfaces the DTO's `description` field through
+// DescriptionAnnotation surfaces the API type's `description` field through
 // the CR's metadata.annotations[axisml.io/description] (no dedicated CR
 // field — keeps the API admin-friendly without polluting spec).
 const DescriptionAnnotation = "axisml.io/description"

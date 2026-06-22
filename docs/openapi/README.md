@@ -10,7 +10,7 @@ directory. Do not hand-edit — your changes will be overwritten by the next
 | `compute-service.yaml` | `components/compute-service/internal/{job,service,resourcepool,resourceunit}/service.go` | `components/compute-service/cmd/openapi-gen` |
 | `artifact-hub.yaml` | `components/artifact-hub/internal/artifact/{service,render}.go` | `components/artifact-hub/cmd/openapi-gen` |
 | `cluster-manager.yaml` | `components/cluster-manager/internal/server/types.go` | `components/cluster-manager/cmd/openapi-gen` |
-| `platform.yaml` | `components/platform/backend/internal/server/*.go` | `components/platform/backend/cmd/openapi-gen` |
+| `platform.yaml` | `components/platform-backend/internal/server/*.go` | `components/platform-backend/cmd/openapi-gen` |
 
 `platform.yaml` is a special case: Platform's server is not implemented yet, so
 its handlers don't exist — but the component carries the standard skeleton and

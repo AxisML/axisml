@@ -16,8 +16,21 @@
 
 ## 2. 身份与登录
 
-- 用户名 + bcrypt 密码存于 `users` 表；登录签发 JWT（`aud=axisml-platform`，TTL 12h）；登出 / 强制注销通过 `sessions` 表按 `jti` 黑名单实现（schema 见 [database.md §4](../database.md#4-platform)）。
+- 用户名 + bcrypt 密码存于 `users` 表；登录签发 JWT（`aud=axisml-platform`，TTL 12h）；会话校验为**白名单**——`sessions` 表按 `jti` 记录有效会话，仅当会话行存在且未吊销 / 未过期时 token 有效，登出 / 强制注销将其置吊销（schema 见 [database.md §4](../database.md#4-platform)）。过期会话行由 `serve` 后台周期清理（`SESSION_SWEEP_INTERVAL`，默认 1h）。
 - 端点：`POST /api/v1/auth/{login,logout,refresh}`、`GET /api/v1/auth/me`（`Auth` tag）。
+
+### 2.1 会话与身份缓存
+
+每个已认证请求在进入业务 handler 前都要做两类读：**会话有效性**（按 `jti`）与**身份 / RBAC 解析**（用户行 + 租户绑定）。两者由 Infra 层 Redis（[storage.md §4](../infra/storage.md#4-缓存)）前置加速，**PostgreSQL 始终为权威**：
+
+| 缓存对象 | key | 写入 / 失效 | TTL（兜底） |
+| --- | --- | --- | --- |
+| 会话有效性（仅缓存「有效」正项） | `platform:sess:<jti>` | 登录写入、登出 / 吊销删除；命中即有效，未命中回源 | `SESSION_CACHE_TTL`，默认 5m |
+| 身份 / RBAC（`auth.Identity` JSON） | `platform:identity:<userID>` | 成员增改删、角色变更、账号停用 / 删除 / 改密后显式失效 | `IDENTITY_CACHE_TTL`，默认 1m |
+
+- **可选与降级**：未配置 `REDIS_ADDR` 时全程直连 PostgreSQL；运行中 Redis 出错按操作回退源库，请求不因缓存不健康而失败。故吊销 / 停用以 PostgreSQL 为准，不会因缓存丢失而「复活」已登出的 token。
+- **失效优先于兜底**：身份缓存在每个绑定 / 账号变更点显式删除，短 TTL 仅作兜底（防遗漏）。会话仅缓存正项，吊销即删 key，绝不缓存「有效」以外的状态。
+- **身份解析为权威闸门**：中间件先查会话、再解析身份；删除 / 停用用户会使身份解析失败（用户不存在 / 已停用），即便会话缓存项尚未到期也即时拒绝。
 - **bootstrap**（`axisml-platform bootstrap`，首次安装）：创建内置角色；创建初始 `system-admin` 账号 `admin`/`admin`（**首登强制改密**，可由 `AXISML_BOOTSTRAP_PASSWORD` 覆盖）；创建内置租户 `default`，其 K8s Namespace 为 `axisml-tenant`（承载 `visibility=public` 制品）。
 
 ## 3. RBAC 角色
@@ -26,7 +39,7 @@
 
 | 角色 | 范围 | 能力 |
 | --- | --- | --- |
-| `system-admin` | 全局 | 用户 / 租户 / 配额 CRUD；资源池 / 资源单元 CRUD；读所有租户；维护内置租户 `default`（含 `public` 制品） |
+| `system-admin` | 全局 | 用户 / 租户 / 配额 CRUD；资源池 / 资源单元 CRUD；可逐个 scope 到任意租户读写；维护内置租户 `default`（含 `public` 制品） |
 | `tenant-admin` | 单租户 | 本租户成员管理；对本租户全部业务对象读写，**含跨 owner 启停 / 删** |
 | `user` | 单租户 | 提交 / 管理自己创建的业务对象；读取本租户共享资产 |
 
@@ -43,7 +56,7 @@
 | 工作区 / Job / 实验 / Service 启停 / 删；TensorBoard 启停 | OK | OK (@self, 跨 owner) | OK (@owner) |
 | 制品 CRUD | OK | OK (@self, 跨 owner) | OK (@self, @owner) |
 | `default` 租户制品 `visibility=public` 写 | OK | NO | NO |
-| 跨租户读 | OK | NO | NO |
+| scope 到任意租户读写 | OK | NO | NO |
 
 记号：`@self` = 仅对当前用户绑定的租户生效；`@owner` = 仅对 `owner == X-Axisml-User` 的对象生效；`@self, 跨 owner` = `tenant-admin` 在本租户内可操作任意 owner 的对象；`system-admin` 在所有 tenant / owner 级判断上**短路放行**。
 

@@ -103,7 +103,7 @@ func (h *Handler) MLRunEvents(c *gin.Context) {
 
 func (h *Handler) Create(c *gin.Context) {
 	ns := c.Param("namespace")
-	var in CreateInput
+	var in server.MLRunCreateRequest
 	if err := c.ShouldBindJSON(&in); err != nil {
 		_ = c.Error(err)
 		return
@@ -142,7 +142,7 @@ func (h *Handler) List(c *gin.Context) {
 }
 
 func (h *Handler) Patch(c *gin.Context) {
-	var in PatchInput
+	var in server.MLRunPatchRequest
 	if err := c.ShouldBindJSON(&in); err != nil {
 		_ = c.Error(err)
 		return

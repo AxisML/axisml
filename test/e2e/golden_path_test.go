@@ -29,15 +29,15 @@ func TestGoldenPath_TrainAndServeJourney(t *testing.T) {
 	pr := h.clusterManager.mustDo(t, ctx, http.MethodGet, "/api/v1/resourcepools/"+h.cfg.DefaultPool, nil)
 	require.True(t, pr.is2xx(), "default pool must exist: %d", pr.status)
 
-	// 2) compute-service: create tenant + quota -> tenant-operator provisions ns.
-	cr, err := h.createTenant(ctx, csCreateTenantReq{
+	// 2) cluster-manager: create tenant + quota -> tenant-operator provisions ns.
+	cr, err := h.createTenant(ctx, cmCreateTenantReq{
 		Name:      tenant,
-		Namespace: csNamespaceSpec{Name: ns},
-		Quotas:    []csQuotaSpec{{Pool: h.cfg.DefaultPool, Name: "default", Max: map[string]string{"cpu": "4", "memory": "8Gi"}}},
+		Namespace: cmNamespaceSpec{Name: ns},
+		Quotas:    []cmQuota{{Pool: h.cfg.DefaultPool, Units: []cmQuotaUnit{{UnitName: h.cfg.DefaultUnit, Quantity: 2}}}},
 	})
 	require.NoError(t, err)
 	require.True(t, cr.is2xx(), "create golden tenant: %d: %s", cr.status, string(cr.body))
-	t.Cleanup(func() { _, _ = h.deleteTenant(context.Background(), tenant) })
+	t.Cleanup(func() { removeTenant(tenant, ns) })
 	eventually(t, h.cfg.CRProvisionTimeout, func() error { return h.namespaceExists(ctx, ns) })
 
 	var quota string

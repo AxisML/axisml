@@ -10,6 +10,8 @@ import (
 	"gorm.io/datatypes"
 
 	mlservicev1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
+
+	"github.com/axisml/axisml/components/compute-service/internal/store"
 )
 
 func TestMLServiceToCR_StampsLabelsAndCopiesSpec(t *testing.T) {
@@ -25,7 +27,7 @@ func TestMLServiceToCR_StampsLabelsAndCopiesSpec(t *testing.T) {
 	specJSON, err := json.Marshal(spec)
 	require.NoError(t, err)
 
-	row := &MLService{
+	row := &store.MLService{
 		ID:        id,
 		Namespace: "team-a",
 		Name:      "predictor",
@@ -43,7 +45,7 @@ func TestMLServiceToCR_StampsLabelsAndCopiesSpec(t *testing.T) {
 }
 
 func TestMLServiceToCR_BadJSON_ReturnsError(t *testing.T) {
-	row := &MLService{
+	row := &store.MLService{
 		ID:        uuid.New(),
 		Namespace: "team-b",
 		Name:      "bad",

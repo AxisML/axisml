@@ -1,19 +1,28 @@
 package metrics
 
 import (
+	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus"
-	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
+	"github.com/prometheus/client_golang/prometheus/collectors"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
+// registry is artifact-hub's own collector registry. It is independent of any
+// controller-runtime registry — the service runs no manager — and is served
+// directly via Handler.
+var registry = prometheus.NewRegistry()
+
 var (
-	// IsLeader is set to 1 once this replica wins leader election.
+	// IsLeader is set to 1 while this replica runs the GC worker, i.e. holds
+	// the GC advisory lock (or runs unconditionally when leader election is
+	// disabled).
 	IsLeader = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "axisml_artifacts_is_leader",
-		Help: "1 when this replica currently holds the controller-runtime leader lease.",
+		Help: "1 when this replica currently runs the GC worker (holds the GC advisory lock).",
 	})
 
 	// HTTPRequestDuration captures per-route timing.
@@ -43,16 +52,24 @@ var (
 	}, []string{"kind", "usage", "result"})
 )
 
-// Register installs all collectors into the controller-runtime metrics
-// registry (which the manager also serves on /metrics).
+// Register installs all collectors into the service registry. Call once at
+// startup before Handler is served.
 func Register() {
-	ctrlmetrics.Registry.MustRegister(
+	registry.MustRegister(
+		collectors.NewGoCollector(),
+		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
 		IsLeader,
 		HTTPRequestDuration,
 		UploadingCount,
 		GCActions,
 		ResolveRequests,
 	)
+}
+
+// Handler serves the registered collectors in Prometheus text format. Mount it
+// on the metrics listener (GET /metrics).
+func Handler() http.Handler {
+	return promhttp.HandlerFor(registry, promhttp.HandlerOpts{})
 }
 
 // GinMiddleware records request duration histograms.

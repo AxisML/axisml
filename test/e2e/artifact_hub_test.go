@@ -25,14 +25,14 @@ func modelPath(ns, name string) string {
 // request still succeeds rather than 401.
 func TestArtifactHub_AnonymousAllowed(t *testing.T) {
 	ctx := context.Background()
-	r, err := h.artifactHub.doNoAuth(ctx, http.MethodGet, "/api/v1/namespaces/"+sharedNS()+"/models", nil)
+	r, err := h.artifactHub.doNoAuth(ctx, http.MethodGet, "/api/v1/namespaces/"+sharedNS(t)+"/models", nil)
 	require.NoError(t, err)
 	assert.True(t, r.is2xx(), "anonymous list should succeed, got %d", r.status)
 }
 
 func TestArtifactHub_ModelInitiateReturnsUpload(t *testing.T) {
 	ctx := context.Background()
-	ns := sharedNS()
+	ns := sharedNS(t)
 	name := uniqueName("e2e-model")
 	res := initiateModel(t, ctx, ns, name, "1.0.0")
 	assert.NotEmpty(t, res.Upload.StorageKind, "initiate should return a storage kind")
@@ -46,7 +46,7 @@ func TestArtifactHub_ModelInitiateReturnsUpload(t *testing.T) {
 // complete -> resolve against the real registry.
 func TestArtifactHub_ModelTwoPhaseUploadResolve(t *testing.T) {
 	ctx := context.Background()
-	ns := sharedNS()
+	ns := sharedNS(t)
 	name := uniqueName("e2e-2phase")
 	res := initiateModel(t, ctx, ns, name, "1.0.0")
 	t.Cleanup(func() {
@@ -89,7 +89,7 @@ func TestArtifactHub_ModelTwoPhaseUploadResolve(t *testing.T) {
 
 func TestArtifactHub_PatchMetadata(t *testing.T) {
 	ctx := context.Background()
-	ns := sharedNS()
+	ns := sharedNS(t)
 	name := uniqueName("e2e-patch")
 	initiateModel(t, ctx, ns, name, "1.0.0")
 	t.Cleanup(func() {
@@ -109,7 +109,7 @@ func TestArtifactHub_PatchMetadata(t *testing.T) {
 
 func TestArtifactHub_ListAndLabelSelector(t *testing.T) {
 	ctx := context.Background()
-	ns := sharedNS()
+	ns := sharedNS(t)
 	name := uniqueName("e2e-list")
 	res := initiateModelWithLabels(t, ctx, ns, name, "1.0.0", map[string]string{"suite": "e2elist"})
 	_ = res
@@ -130,7 +130,7 @@ func TestArtifactHub_ListAndLabelSelector(t *testing.T) {
 // status transition — rather than waiting on GC.
 func TestArtifactHub_SoftDelete(t *testing.T) {
 	ctx := context.Background()
-	ns := sharedNS()
+	ns := sharedNS(t)
 	name := uniqueName("e2e-del")
 	initiateModel(t, ctx, ns, name, "1.0.0")
 

@@ -3,6 +3,10 @@ global:
   imageRegistry: ""
   imagePullSecrets: []
   storageClass: ""
+  # Bitnami sub-charts (redis) refuse to deploy the `bitnamilegacy/*` mirror
+  # images we pin (see cache.image) unless image verification is waived.
+  security:
+    allowInsecureImages: true
 
 # Naming convention: sub-charts are scoped by the `axisml-infra` namespace, so
 # fullnameOverride drops the redundant `axisml-infra-` prefix. Cross-namespace
@@ -195,4 +199,37 @@ database:
   primary:
     persistence:
       size: 10Gi
+      # storageClass: ""
+
+# =============================================================================
+# Cache (Redis)
+# =============================================================================
+# Sub-chart: oci://registry-1.docker.io/bitnamicharts/redis (aliased as cache)
+# All values under this key are passed through to the bitnami/redis sub-chart.
+# The platform-backend reaches this instance cross-namespace at
+# `axisml-redis-master.axisml-infra.svc.cluster.local:6379`; the `auth.password`
+# set here MUST match `cache.auth.password` in the axisml-platform chart, which
+# renders its own connection Secret from that shared value. Redis is an optional
+# accelerator — the platform-backend degrades to direct PostgreSQL reads when it
+# cannot reach Redis — so disabling this only removes the auth-path cache.
+#
+# Standalone (single master, no sentinel/replica): the cache holds only
+# regenerable session/identity entries, so HA replication is unnecessary.
+cache:
+  enabled: true
+  fullnameOverride: axisml-redis
+  architecture: standalone
+  # Bitnami removed their free `bitnami/*` images from Docker Hub in 2025;
+  # pin the sub-chart image to the `bitnamilegacy` mirror instead.
+  image:
+    registry: docker.io
+    repository: bitnamilegacy/redis
+    tag: 7.4.3-debian-12-r0
+  auth:
+    enabled: true
+    password: axisml
+    # existingSecret: ""
+  master:
+    persistence:
+      size: 2Gi
       # storageClass: ""

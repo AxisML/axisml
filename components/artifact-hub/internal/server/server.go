@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"time"
 
@@ -11,6 +10,7 @@ import (
 
 	"github.com/axisml/axisml/components/artifact-hub/internal/auth"
 	"github.com/axisml/axisml/components/artifact-hub/internal/metrics"
+	"github.com/axisml/axisml/components/artifact-hub/pkg/httpx"
 )
 
 // Module is anything that wires its routes into a /api/v1 sub-group.
@@ -18,7 +18,7 @@ type Module interface {
 	Register(rg *gin.RouterGroup)
 }
 
-// Server wraps a gin engine and exposes Manager-friendly Start/NeedLeaderElection.
+// Server wraps a gin engine into a long-running HTTP listener.
 type Server struct {
 	addr   string
 	engine *gin.Engine
@@ -72,35 +72,33 @@ func New(opts Options) (*Server, error) {
 	return &Server{addr: opts.Addr, engine: r, log: opts.Log}, nil
 }
 
-// Start runs the HTTP server until ctx is cancelled. Implements
-// sigs.k8s.io/controller-runtime/pkg/manager.Runnable.
+// Start runs the HTTP API server until ctx is cancelled, then drains in-flight
+// requests. The API serves on every replica (no leader election).
 func (s *Server) Start(ctx context.Context) error {
-	srv := &http.Server{
-		Addr:              s.addr,
-		Handler:           s.engine,
-		ReadHeaderTimeout: 10 * time.Second,
-	}
-	errCh := make(chan error, 1)
-	go func() {
-		s.log.Info("http server listening", "addr", s.addr)
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			errCh <- err
-		}
-		close(errCh)
-	}()
-	select {
-	case <-ctx.Done():
-		shutCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		defer cancel()
-		_ = srv.Shutdown(shutCtx)
-		return nil
-	case err := <-errCh:
-		return err
-	}
+	return httpx.Serve(ctx, s.addr, s.engine, s.log, "http api")
 }
 
-// NeedLeaderElection returns false: the API is served from every replica.
-func (s *Server) NeedLeaderElection() bool { return false }
+// ProbesHandler builds the kubelet liveness/readiness endpoints. They run on
+// a dedicated port so probe traffic is independent of the API listener; ready
+// is consulted on /readyz (nil means "always ready").
+func ProbesHandler(ready func(context.Context) error) http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("ok"))
+	})
+	mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
+		if ready != nil {
+			cctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+			defer cancel()
+			if err := ready(cctx); err != nil {
+				http.Error(w, "not ready: "+err.Error(), http.StatusServiceUnavailable)
+				return
+			}
+		}
+		_, _ = w.Write([]byte("ok"))
+	})
+	return mux
+}
 
 // Engine exposes the underlying Gin engine for tests that drive the API
 // in-process via httptest.NewRecorder + engine.ServeHTTP.

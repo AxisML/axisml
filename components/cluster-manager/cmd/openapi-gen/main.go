@@ -76,17 +76,17 @@ func buildDocument(version string) *openapigen.Document {
 	g.Register("PatchResourcePoolRequest", server.PatchResourcePoolRequest{}, openapigen.InputMode)
 	g.Register("CreateResourceUnitRequest", server.CreateResourceUnitRequest{}, openapigen.InputMode)
 	g.Register("PatchResourceUnitRequest", server.PatchResourceUnitRequest{}, openapigen.InputMode)
-	g.Register("ResourcePoolDTO", server.ResourcePoolDTO{}, openapigen.ResponseMode)
-	g.Register("ResourceUnitDTO", server.ResourceUnitDTO{}, openapigen.ResponseMode)
+	g.Register("ResourcePool", server.ResourcePool{}, openapigen.ResponseMode)
+	g.Register("ResourceUnit", server.ResourceUnit{}, openapigen.ResponseMode)
 	g.Register("ResourcePoolList", server.ResourcePoolList{}, openapigen.ResponseMode)
 	g.Register("ResourceUnitList", server.ResourceUnitList{}, openapigen.ResponseMode)
 	g.Register("CreateTenantRequest", server.CreateTenantRequest{}, openapigen.InputMode)
 	g.Register("PatchTenantRequest", server.PatchTenantRequest{}, openapigen.InputMode)
 	g.Register("SetQuotaRequest", server.SetQuotaRequest{}, openapigen.InputMode)
 	g.Register("PatchQuotaRequest", server.PatchQuotaRequest{}, openapigen.InputMode)
-	g.Register("TenantDTO", server.TenantDTO{}, openapigen.ResponseMode)
+	g.Register("Tenant", server.Tenant{}, openapigen.ResponseMode)
 	g.Register("TenantList", server.TenantList{}, openapigen.ResponseMode)
-	g.Register("QuotaDTO", server.QuotaDTO{}, openapigen.ResponseMode)
+	g.Register("Quota", server.Quota{}, openapigen.ResponseMode)
 	g.Register("QuotaList", server.QuotaList{}, openapigen.ResponseMode)
 
 	tags := []openapigen.TagEntry{
@@ -117,7 +117,7 @@ func buildDocument(version string) *openapigen.Document {
 		Post: &openapigen.Operation{
 			Tags: []string{tagResourcePools}, Summary: "Create a ResourcePool", OperationID: "createResourcePool",
 			RequestBody: openapigen.JSONBody("CreateResourcePoolRequest"),
-			Responses:   withErrors(map[string]openapigen.Response{"201": openapigen.JSONResp("ResourcePool created.", "ResourcePoolDTO")}),
+			Responses:   withErrors(map[string]openapigen.Response{"201": openapigen.JSONResp("ResourcePool created.", "ResourcePool")}),
 		},
 		Get: &openapigen.Operation{
 			Tags: []string{tagResourcePools}, Summary: "List ResourcePools", OperationID: "listResourcePools",
@@ -130,13 +130,13 @@ func buildDocument(version string) *openapigen.Document {
 		Get: &openapigen.Operation{
 			Tags: []string{tagResourcePools}, Summary: "Get ResourcePool", OperationID: "getResourcePool",
 			Parameters: []openapigen.Parameter{poolParam},
-			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("ResourcePool.", "ResourcePoolDTO")}),
+			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("ResourcePool.", "ResourcePool")}),
 		},
 		Patch: &openapigen.Operation{
 			Tags: []string{tagResourcePools}, Summary: "Patch ResourcePool", OperationID: "updateResourcePool",
 			Parameters:  []openapigen.Parameter{poolParam},
 			RequestBody: openapigen.JSONBody("PatchResourcePoolRequest"),
-			Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Updated ResourcePool.", "ResourcePoolDTO")}),
+			Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Updated ResourcePool.", "ResourcePool")}),
 		},
 		Delete: &openapigen.Operation{
 			Tags: []string{tagResourcePools}, Summary: "Delete ResourcePool", OperationID: "deleteResourcePool",
@@ -150,7 +150,7 @@ func buildDocument(version string) *openapigen.Document {
 			Tags: []string{tagResourceUnits}, Summary: "Add a unit to the pool", OperationID: "createResourceUnit",
 			Parameters:  []openapigen.Parameter{poolParam},
 			RequestBody: openapigen.JSONBody("CreateResourceUnitRequest"),
-			Responses:   withErrors(map[string]openapigen.Response{"201": openapigen.JSONResp("Unit created.", "ResourceUnitDTO")}),
+			Responses:   withErrors(map[string]openapigen.Response{"201": openapigen.JSONResp("Unit created.", "ResourceUnit")}),
 		},
 		Get: &openapigen.Operation{
 			Tags: []string{tagResourceUnits}, Summary: "List units in a pool", OperationID: "listResourceUnits",
@@ -163,13 +163,13 @@ func buildDocument(version string) *openapigen.Document {
 		Get: &openapigen.Operation{
 			Tags: []string{tagResourceUnits}, Summary: "Get unit", OperationID: "getResourceUnit",
 			Parameters: []openapigen.Parameter{poolParam, unitParam},
-			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Unit.", "ResourceUnitDTO")}),
+			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Unit.", "ResourceUnit")}),
 		},
 		Patch: &openapigen.Operation{
 			Tags: []string{tagResourceUnits}, Summary: "Patch unit", OperationID: "updateResourceUnit",
 			Parameters:  []openapigen.Parameter{poolParam, unitParam},
 			RequestBody: openapigen.JSONBody("PatchResourceUnitRequest"),
-			Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Updated unit.", "ResourceUnitDTO")}),
+			Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Updated unit.", "ResourceUnit")}),
 		},
 		Delete: &openapigen.Operation{
 			Tags: []string{tagResourceUnits}, Summary: "Remove unit from pool", OperationID: "deleteResourceUnit",
@@ -182,7 +182,7 @@ func buildDocument(version string) *openapigen.Document {
 		Post: &openapigen.Operation{
 			Tags: []string{tagTenants}, Summary: "Create a Tenant", OperationID: "createTenant",
 			RequestBody: openapigen.JSONBody("CreateTenantRequest"),
-			Responses:   withErrors(map[string]openapigen.Response{"201": openapigen.JSONResp("Tenant created.", "TenantDTO")}),
+			Responses:   withErrors(map[string]openapigen.Response{"201": openapigen.JSONResp("Tenant created.", "Tenant")}),
 		},
 		Get: &openapigen.Operation{
 			Tags: []string{tagTenants}, Summary: "List Tenants", OperationID: "listTenants",
@@ -195,13 +195,13 @@ func buildDocument(version string) *openapigen.Document {
 		Get: &openapigen.Operation{
 			Tags: []string{tagTenants}, Summary: "Get Tenant", OperationID: "getTenant",
 			Parameters: []openapigen.Parameter{tenantParam},
-			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Tenant.", "TenantDTO")}),
+			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Tenant.", "Tenant")}),
 		},
 		Patch: &openapigen.Operation{
 			Tags: []string{tagTenants}, Summary: "Patch Tenant", OperationID: "updateTenant",
 			Parameters:  []openapigen.Parameter{tenantParam},
 			RequestBody: openapigen.JSONBody("PatchTenantRequest"),
-			Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Updated Tenant.", "TenantDTO")}),
+			Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Updated Tenant.", "Tenant")}),
 		},
 		Delete: &openapigen.Operation{
 			Tags: []string{tagTenants}, Summary: "Delete Tenant", OperationID: "deleteTenant",
@@ -220,7 +220,7 @@ func buildDocument(version string) *openapigen.Document {
 			Tags: []string{tagTenants}, Summary: "Create or replace a pool quota", OperationID: "setTenantQuota",
 			Parameters:  []openapigen.Parameter{tenantParam},
 			RequestBody: openapigen.JSONBody("SetQuotaRequest"),
-			Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Quota set.", "QuotaDTO")}),
+			Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Quota set.", "Quota")}),
 		},
 	}
 
@@ -229,7 +229,7 @@ func buildDocument(version string) *openapigen.Document {
 			Tags: []string{tagTenants}, Summary: "Update a pool quota", OperationID: "updateTenantQuota",
 			Parameters:  []openapigen.Parameter{tenantParam, quotaPoolParam},
 			RequestBody: openapigen.JSONBody("PatchQuotaRequest"),
-			Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Updated quota.", "QuotaDTO")}),
+			Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Updated quota.", "Quota")}),
 		},
 		Delete: &openapigen.Operation{
 			Tags: []string{tagTenants}, Summary: "Delete a pool quota", OperationID: "deleteTenantQuota",

@@ -12,6 +12,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	mltp "github.com/axisml/axisml/components/compute-operator/api/mltrafficpolicy/v1alpha1"
+
+	"github.com/axisml/axisml/components/compute-service/internal/server"
 )
 
 // Informer reflects MLTrafficPolicy CR status into PG. Writes go to phase
@@ -77,7 +79,7 @@ func (i *Informer) onChange(ctx context.Context, obj any) {
 		newPhase = string(StatusFailed)
 	}
 
-	var sf StatusFields
+	var sf server.TrafficPolicyStatus
 	if len(row.StatusJSON) > 0 {
 		_ = json.Unmarshal(row.StatusJSON, &sf)
 	}
@@ -85,7 +87,7 @@ func (i *Informer) onChange(ctx context.Context, obj any) {
 	sf.Message = cr.Status.Message
 	sf.Backends = sf.Backends[:0]
 	for _, b := range cr.Status.Backends {
-		sf.Backends = append(sf.Backends, BackendStatusRow{
+		sf.Backends = append(sf.Backends, server.TrafficPolicyBackendStatus{
 			ServiceName: b.ServiceName,
 			Weight:      b.Weight,
 			Ready:       b.Ready,

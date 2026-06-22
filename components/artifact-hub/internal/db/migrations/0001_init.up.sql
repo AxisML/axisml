@@ -21,6 +21,10 @@ CREATE TABLE artifacts (
     owner_user   text        NOT NULL DEFAULT '',
     spec         jsonb       NOT NULL,
     status       text        NOT NULL,
+    -- Version provenance: webUpload / oras / dockerPush / external. External
+    -- versions are born Ready and reference a remote URI (no upload). See
+    -- database.md §3.
+    source       text        NOT NULL DEFAULT 'webUpload',
     message      text        NOT NULL DEFAULT '',
     digest       text        NOT NULL DEFAULT '',
     ready_at     timestamptz,

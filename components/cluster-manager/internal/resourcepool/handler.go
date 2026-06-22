@@ -67,12 +67,12 @@ func (h *Handler) Create(c *gin.Context) {
 		}
 	}
 
-	pool := srv.DTOToPool(req, c.GetHeader(srv.HeaderUser))
+	pool := srv.APIToPool(req, c.GetHeader(srv.HeaderUser))
 	if err := h.Client.Create(c.Request.Context(), pool); err != nil {
 		writeK8sError(c, err, req.Name)
 		return
 	}
-	c.JSON(http.StatusCreated, srv.PoolToDTO(pool))
+	c.JSON(http.StatusCreated, srv.PoolToAPI(pool))
 }
 
 // Get handles GET /api/v1/resourcepools/{pool}.
@@ -83,7 +83,7 @@ func (h *Handler) Get(c *gin.Context) {
 		writeK8sError(c, err, name)
 		return
 	}
-	c.JSON(http.StatusOK, srv.PoolToDTO(pool))
+	c.JSON(http.StatusOK, srv.PoolToAPI(pool))
 }
 
 // List handles GET /api/v1/resourcepools. Supports ?labelSelector,
@@ -119,9 +119,9 @@ func (h *Handler) List(c *gin.Context) {
 		return
 	}
 
-	resp := srv.ResourcePoolList{Items: make([]srv.ResourcePoolDTO, 0, len(pools.Items))}
+	resp := srv.ResourcePoolList{Items: make([]srv.ResourcePool, 0, len(pools.Items))}
 	for i := range pools.Items {
-		resp.Items = append(resp.Items, srv.PoolToDTO(&pools.Items[i]))
+		resp.Items = append(resp.Items, srv.PoolToAPI(&pools.Items[i]))
 	}
 	resp.Count = len(resp.Items)
 	resp.ContinueToken = pools.Continue
@@ -148,7 +148,7 @@ func (h *Handler) Patch(c *gin.Context) {
 		writeK8sError(c, err, name)
 		return
 	}
-	c.JSON(http.StatusOK, srv.PoolToDTO(result))
+	c.JSON(http.StatusOK, srv.PoolToAPI(result))
 }
 
 // applyPoolPatch mutates `pool` in place per the PATCH request. Kept as a
@@ -237,7 +237,7 @@ func (h *Handler) CreateUnit(c *gin.Context) {
 					poolName+"/units/"+req.Name)
 			}
 		}
-		pool.Spec.Units = append(pool.Spec.Units, srv.DTOToUnit(req))
+		pool.Spec.Units = append(pool.Spec.Units, srv.APIToUnit(req))
 		if pool.Annotations == nil {
 			pool.Annotations = map[string]string{}
 		}
@@ -251,7 +251,7 @@ func (h *Handler) CreateUnit(c *gin.Context) {
 		writeK8sError(c, err, poolName)
 		return
 	}
-	c.JSON(http.StatusCreated, srv.UnitToDTO(added))
+	c.JSON(http.StatusCreated, srv.UnitToAPI(added))
 }
 
 // ListUnits handles GET .../units. Returns pool.spec.units[].
@@ -261,9 +261,9 @@ func (h *Handler) ListUnits(c *gin.Context) {
 		writeK8sError(c, err, c.Param("pool"))
 		return
 	}
-	items := make([]srv.ResourceUnitDTO, 0, len(pool.Spec.Units))
+	items := make([]srv.ResourceUnit, 0, len(pool.Spec.Units))
 	for _, u := range pool.Spec.Units {
-		items = append(items, srv.UnitToDTO(u))
+		items = append(items, srv.UnitToAPI(u))
 	}
 	c.JSON(http.StatusOK, srv.ResourceUnitList{Items: items, Count: len(items)})
 }
@@ -277,7 +277,7 @@ func (h *Handler) GetUnit(c *gin.Context) {
 	}
 	for _, u := range pool.Spec.Units {
 		if u.Name == c.Param("unit") {
-			c.JSON(http.StatusOK, srv.UnitToDTO(u))
+			c.JSON(http.StatusOK, srv.UnitToAPI(u))
 			return
 		}
 	}
@@ -323,7 +323,7 @@ func (h *Handler) PatchUnit(c *gin.Context) {
 		writeK8sError(c, err, poolName)
 		return
 	}
-	c.JSON(http.StatusOK, srv.UnitToDTO(patched))
+	c.JSON(http.StatusOK, srv.UnitToAPI(patched))
 }
 
 // applyUnitPatch mutates one unit in place per the PATCH request. Kept

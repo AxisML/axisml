@@ -12,6 +12,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	mlservicev1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
+
+	"github.com/axisml/axisml/components/compute-service/internal/server"
 )
 
 // Informer reflects MLService CR status into PG. Writes go to phase
@@ -83,7 +85,7 @@ func (i *Informer) onChange(ctx context.Context, obj any) {
 		newPhase = string(StatusFailed)
 	}
 
-	var sf StatusFields
+	var sf server.MLServiceStatus
 	if len(row.StatusJSON) > 0 {
 		_ = json.Unmarshal(row.StatusJSON, &sf)
 	}
@@ -122,7 +124,7 @@ func (i *Informer) onDelete(ctx context.Context, obj any) {
 		})
 	case StatusPending, StatusReady, StatusDegraded, StatusFailed:
 		// External delete during run → mark Deleting per design §5.4.
-		var sf StatusFields
+		var sf server.MLServiceStatus
 		if len(row.StatusJSON) > 0 {
 			_ = json.Unmarshal(row.StatusJSON, &sf)
 		}

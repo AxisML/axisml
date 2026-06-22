@@ -14,6 +14,7 @@ import (
 	mltp "github.com/axisml/axisml/components/compute-operator/api/mltrafficpolicy/v1alpha1"
 
 	"github.com/axisml/axisml/components/compute-service/internal/metrics"
+	"github.com/axisml/axisml/components/compute-service/internal/store"
 )
 
 // Reconciler implements the traffic-policy Outbox loop (leader-only). It scans
@@ -66,7 +67,7 @@ func (r *Reconciler) runOnce(ctx context.Context) {
 	}
 }
 
-func (r *Reconciler) handleCreate(ctx context.Context, p *TrafficPolicy) {
+func (r *Reconciler) handleCreate(ctx context.Context, p *store.TrafficPolicy) {
 	cr, err := ToCR(p)
 	if err != nil {
 		r.log.Error(err, "render traffic-policy CR")
@@ -87,7 +88,7 @@ func (r *Reconciler) handleCreate(ctx context.Context, p *TrafficPolicy) {
 	metrics.ReconcilerActions.WithLabelValues("traffic_policy", "creating", "success").Inc()
 }
 
-func (r *Reconciler) handleDelete(ctx context.Context, p *TrafficPolicy) {
+func (r *Reconciler) handleDelete(ctx context.Context, p *store.TrafficPolicy) {
 	cr := &mltp.MLTrafficPolicy{ObjectMeta: metav1.ObjectMeta{Name: p.Name, Namespace: p.Namespace}}
 	err := r.k8sClient.Delete(ctx, cr)
 	if err == nil {
@@ -103,7 +104,7 @@ func (r *Reconciler) handleDelete(ctx context.Context, p *TrafficPolicy) {
 	metrics.ReconcilerActions.WithLabelValues("traffic_policy", "deleting", "error").Inc()
 }
 
-func (r *Reconciler) handleSpecSync(ctx context.Context, p *TrafficPolicy) {
+func (r *Reconciler) handleSpecSync(ctx context.Context, p *store.TrafficPolicy) {
 	current := &mltp.MLTrafficPolicy{}
 	if err := r.k8sClient.Get(ctx, client.ObjectKey{Namespace: p.Namespace, Name: p.Name}, current); err != nil {
 		if apierrors.IsNotFound(err) {

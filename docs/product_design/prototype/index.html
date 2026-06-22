@@ -5,6 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>首页 · AxisML 控制台</title>
   <link rel="stylesheet" href="css/app.css" />
+  <style>
+    /* KPI 5 列 */
+    .cols-5 { grid-template-columns: repeat(5, 1fr); }
+    @media (max-width:1080px){ .cols-5 { grid-template-columns: repeat(3, 1fr); } }
+    @media (max-width:760px){ .cols-5 { grid-template-columns: repeat(2, 1fr); } }
+
+    /* 集群资源用量：每个 Tab 内的 GPU/CPU/内存三联 */
+    .u-head { display:flex; align-items:center; gap:8px; color:var(--muted); font-size:13px; margin-bottom:10px; }
+    .u-head svg { width:16px; height:16px; }
+    .u-row.is-na { opacity:.5; }
+  </style>
 </head>
 <body data-nav="dashboard">
   <main class="page" id="page">
@@ -23,109 +34,241 @@
       </div>
     </div>
 
-    <!-- KPI 行 -->
-    <div class="grid cols-4" style="margin-bottom:var(--space-5)">
-      <a class="kpi focal" href="jobs.html">
-        <div class="k-top"><span class="k-label">活跃任务</span><span class="k-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h14a1 1 0 0 1 1 1v4H4V5a1 1 0 0 1 1-1zM4 9v10a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9"/><path d="M9 13h6"/></svg></span></div>
-        <div class="k-val num">23</div>
-        <div class="k-foot"><span class="trend up"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 19V5M5 12l7-7 7 7"/></svg>4</span> 运行 + 排队</div>
+    <!-- KPI 行：工作区 · 实验 · 自定义任务 · 在线服务 · 资产 -->
+    <div class="grid cols-5" style="margin-bottom:var(--space-5)">
+      <a class="kpi focal" href="workspace.html">
+        <div class="k-top"><span class="k-label">工作区</span><span class="k-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8M12 18v3M7 9l2 2-2 2M12 13h3"/></svg></span></div>
+        <div class="k-val num">17</div>
+        <div class="k-foot">15 运行 · 2 排队</div>
       </a>
-      <a class="kpi" href="services.html">
+      <a class="kpi focal" href="experiments.html">
+        <div class="k-top"><span class="k-label">实验</span><span class="k-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6.5L5.2 18A2 2 0 0 0 7 21h10a2 2 0 0 0 1.8-3L14 9.5V3"/><path d="M8 14h8"/></svg></span></div>
+        <div class="k-val num">6</div>
+        <div class="k-foot">5 运行 · 1 排队</div>
+      </a>
+      <a class="kpi focal" href="jobs.html">
+        <div class="k-top"><span class="k-label">自定义任务</span><span class="k-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h14a1 1 0 0 1 1 1v4H4V5a1 1 0 0 1 1-1zM4 9v10a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9"/><path d="M9 13h6"/></svg></span></div>
+        <div class="k-val num">23</div>
+        <div class="k-foot">19 运行 · 4 排队</div>
+      </a>
+      <a class="kpi focal" href="services.html">
         <div class="k-top"><span class="k-label">在线服务</span><span class="k-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/><path d="M7 7h.01M7 17h.01"/></svg></span></div>
-        <div class="k-val num">9 <small>就绪 / 降级</small></div>
+        <div class="k-val num">9</div>
         <div class="k-foot">7 就绪 · 2 降级</div>
       </a>
-      <a class="kpi" href="workspace.html">
-        <div class="k-top"><span class="k-label">工作区</span><span class="k-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8M12 18v3M7 9l2 2-2 2M12 13h3"/></svg></span></div>
-        <div class="k-val num">17 <small>运行中</small></div>
-        <div class="k-foot">活跃开发实例</div>
-      </a>
-      <a class="kpi" href="models.html">
-        <div class="k-top"><span class="k-label">模型</span><span class="k-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4.5v9L12 20l-8-4.5v-9z"/><path d="M12 11l8-4.5M12 11v9M12 11L4 6.5"/></svg></span></div>
-        <div class="k-val num">128 <small>含公共</small></div>
-        <div class="k-foot">私有 + 公共仓库</div>
+      <a class="kpi focal" href="models.html">
+        <div class="k-top"><span class="k-label">资产</span><span class="k-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg></span></div>
+        <div class="k-val num">174</div>
+        <div class="k-foot">128 模型 · 46 镜像</div>
       </a>
     </div>
 
-    <!-- 集群 / 配额水位 + 趋势 -->
+    <!-- 集群资源用量（多 Tab：全部 + 每个资源池）+ 最近活动 -->
     <div class="grid cols-3" style="margin-bottom:var(--space-5)">
-      <div class="panel span-2">
+      <div class="panel span-2" data-tabs>
         <div class="panel-head"><h3>集群资源用量</h3><span class="hint">全集群可分配容量 · 30s 轮询</span></div>
         <div class="panel-body">
-          <div class="grid cols-3">
-            <div>
-              <div class="row-meter-head" style="display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px;margin-bottom:10px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="8" cy="12" r="2.5"/><path d="M14 10h5M14 14h5"/></svg>GPU</div>
-              <div class="num" style="font-size:22px;font-weight:600">38 <span class="muted" style="font-size:14px">/ 56 卡</span></div>
-              <div class="meter hot" style="margin-top:10px"><span style="width:68%"></span></div>
-              <div class="num muted" style="font-size:12px;margin-top:6px">68% 使用率</div>
-            </div>
-            <div>
-              <div style="display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px;margin-bottom:10px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="1.5"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3"/></svg>CPU</div>
-              <div class="num" style="font-size:22px;font-weight:600">410 <span class="muted" style="font-size:14px">/ 720 核</span></div>
-              <div class="meter warn" style="margin-top:10px"><span style="width:57%"></span></div>
-              <div class="num muted" style="font-size:12px;margin-top:6px">57% 使用率</div>
-            </div>
-            <div>
-              <div style="display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px;margin-bottom:10px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="10" rx="1.5"/><path d="M7 7V5M11 7V5M15 7V5M19 7V5"/></svg>内存</div>
-              <div class="num" style="font-size:22px;font-weight:600">2.1 <span class="muted" style="font-size:14px">/ 4.0 TiB</span></div>
-              <div class="meter ok" style="margin-top:10px"><span style="width:53%"></span></div>
-              <div class="num muted" style="font-size:12px;margin-top:6px">53% 使用率</div>
-            </div>
+          <div class="tabs">
+            <button class="on" data-tab="all">全部</button>
+            <button data-tab="gpu-h100">gpu-h100</button>
+            <button data-tab="gpu-a100">gpu-a100</button>
+            <button data-tab="gpu-l40s">gpu-l40s</button>
+            <button data-tab="cpu-large">cpu-large</button>
           </div>
-          <hr class="divline" />
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-            <h3 style="font-size:14px">集群 GPU 利用率趋势</h3>
-            <div class="legend"><span><i style="background:var(--accent)"></i>GPU 利用率</span><span><i style="background:var(--muted)"></i>任务并发</span></div>
+
+          <svg width="0" height="0" style="position:absolute"><defs><linearGradient id="gtrend" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--accent)" stop-opacity="0.16"/><stop offset="1" stop-color="var(--accent)" stop-opacity="0"/></linearGradient></defs></svg>
+
+          <!-- 全部 -->
+          <div class="tabpane on" data-pane="all">
+            <div class="grid cols-3">
+              <div class="u-block">
+                <div class="u-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="8" cy="12" r="2.5"/><path d="M14 10h5M14 14h5"/></svg>GPU</div>
+                <div class="num" style="font-size:22px;font-weight:600">38 <span class="muted" style="font-size:14px">/ 56 卡</span></div>
+                <div class="meter hot" style="margin-top:10px"><span style="width:68%"></span></div>
+                <div class="num muted" style="font-size:12px;margin-top:6px">68% 使用率</div>
+              </div>
+              <div class="u-block">
+                <div class="u-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="1.5"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3"/></svg>CPU</div>
+                <div class="num" style="font-size:22px;font-weight:600">410 <span class="muted" style="font-size:14px">/ 720 核</span></div>
+                <div class="meter warn" style="margin-top:10px"><span style="width:57%"></span></div>
+                <div class="num muted" style="font-size:12px;margin-top:6px">57% 使用率</div>
+              </div>
+              <div class="u-block">
+                <div class="u-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="10" rx="1.5"/><path d="M7 7V5M11 7V5M15 7V5M19 7V5"/></svg>内存</div>
+                <div class="num" style="font-size:22px;font-weight:600">2.1 <span class="muted" style="font-size:14px">/ 4.0 TiB</span></div>
+                <div class="meter ok" style="margin-top:10px"><span style="width:53%"></span></div>
+                <div class="num muted" style="font-size:12px;margin-top:6px">53% 使用率</div>
+              </div>
+            </div>
+            <hr class="divline" />
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+              <h3 style="font-size:14px">全集群 GPU 利用率趋势</h3>
+              <div class="legend"><span><i style="background:var(--accent)"></i>GPU 利用率</span><span><i style="background:var(--muted)"></i>任务并发</span></div>
+            </div>
+            <svg class="chart" viewBox="0 0 720 200" preserveAspectRatio="none" style="height:200px">
+              <line class="grid-line" x1="0" y1="50" x2="720" y2="50"/><line class="grid-line" x1="0" y1="100" x2="720" y2="100"/><line class="grid-line" x1="0" y1="150" x2="720" y2="150"/>
+              <path d="M0 150 L60 138 L120 120 L180 128 L240 96 L300 104 L360 70 L420 88 L480 58 L540 74 L600 50 L660 66 L720 56 L720 200 L0 200 Z" fill="url(#gtrend)"/>
+              <path d="M0 150 L60 138 L120 120 L180 128 L240 96 L300 104 L360 70 L420 88 L480 58 L540 74 L600 50 L660 66 L720 56" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M0 170 L60 168 L120 160 L180 165 L240 150 L300 158 L360 140 L420 150 L480 134 L540 148 L600 130 L660 142 L720 132" fill="none" stroke="var(--muted)" stroke-width="1.6" stroke-dasharray="4 4" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
           </div>
-          <svg class="chart" viewBox="0 0 720 200" preserveAspectRatio="none" style="height:200px">
-            <line class="grid-line" x1="0" y1="50" x2="720" y2="50"/><line class="grid-line" x1="0" y1="100" x2="720" y2="100"/><line class="grid-line" x1="0" y1="150" x2="720" y2="150"/>
-            <defs><linearGradient id="g1" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--accent)" stop-opacity="0.16"/><stop offset="1" stop-color="var(--accent)" stop-opacity="0"/></linearGradient></defs>
-            <path d="M0 150 L60 138 L120 120 L180 128 L240 96 L300 104 L360 70 L420 88 L480 58 L540 74 L600 50 L660 66 L720 56 L720 200 L0 200 Z" fill="url(#g1)"/>
-            <path d="M0 150 L60 138 L120 120 L180 128 L240 96 L300 104 L360 70 L420 88 L480 58 L540 74 L600 50 L660 66 L720 56" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M0 170 L60 168 L120 160 L180 165 L240 150 L300 158 L360 140 L420 150 L480 134 L540 148 L600 130 L660 142 L720 132" fill="none" stroke="var(--muted)" stroke-width="1.6" stroke-dasharray="4 4" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
+
+          <!-- gpu-h100 -->
+          <div class="tabpane" data-pane="gpu-h100">
+            <div class="grid cols-3">
+              <div class="u-block">
+                <div class="u-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="8" cy="12" r="2.5"/><path d="M14 10h5M14 14h5"/></svg>GPU</div>
+                <div class="num" style="font-size:22px;font-weight:600">14 <span class="muted" style="font-size:14px">/ 16 卡</span></div>
+                <div class="meter hot" style="margin-top:10px"><span style="width:88%"></span></div>
+                <div class="num muted" style="font-size:12px;margin-top:6px">88% 使用率</div>
+              </div>
+              <div class="u-block">
+                <div class="u-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="1.5"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3"/></svg>CPU</div>
+                <div class="num" style="font-size:22px;font-weight:600">180 <span class="muted" style="font-size:14px">/ 256 核</span></div>
+                <div class="meter warn" style="margin-top:10px"><span style="width:70%"></span></div>
+                <div class="num muted" style="font-size:12px;margin-top:6px">70% 使用率</div>
+              </div>
+              <div class="u-block">
+                <div class="u-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="10" rx="1.5"/><path d="M7 7V5M11 7V5M15 7V5M19 7V5"/></svg>内存</div>
+                <div class="num" style="font-size:22px;font-weight:600">1.1 <span class="muted" style="font-size:14px">/ 1.6 TiB</span></div>
+                <div class="meter warn" style="margin-top:10px"><span style="width:69%"></span></div>
+                <div class="num muted" style="font-size:12px;margin-top:6px">69% 使用率</div>
+              </div>
+            </div>
+            <hr class="divline" />
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+              <h3 style="font-size:14px">gpu-h100 GPU 利用率趋势</h3>
+              <div class="legend"><span><i style="background:var(--accent)"></i>GPU 利用率</span><span><i style="background:var(--muted)"></i>任务并发</span></div>
+            </div>
+            <svg class="chart" viewBox="0 0 720 200" preserveAspectRatio="none" style="height:200px">
+              <line class="grid-line" x1="0" y1="50" x2="720" y2="50"/><line class="grid-line" x1="0" y1="100" x2="720" y2="100"/><line class="grid-line" x1="0" y1="150" x2="720" y2="150"/>
+              <path d="M0 120 L60 110 L120 96 L180 100 L240 74 L300 80 L360 56 L420 64 L480 42 L540 50 L600 36 L660 44 L720 38 L720 200 L0 200 Z" fill="url(#gtrend)"/>
+              <path d="M0 120 L60 110 L120 96 L180 100 L240 74 L300 80 L360 56 L420 64 L480 42 L540 50 L600 36 L660 44 L720 38" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M0 150 L60 146 L120 140 L180 144 L240 130 L300 136 L360 122 L420 130 L480 116 L540 126 L600 112 L660 122 L720 114" fill="none" stroke="var(--muted)" stroke-width="1.6" stroke-dasharray="4 4" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+
+          <!-- gpu-a100 -->
+          <div class="tabpane" data-pane="gpu-a100">
+            <div class="grid cols-3">
+              <div class="u-block">
+                <div class="u-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="8" cy="12" r="2.5"/><path d="M14 10h5M14 14h5"/></svg>GPU</div>
+                <div class="num" style="font-size:22px;font-weight:600">6 <span class="muted" style="font-size:14px">/ 12 卡</span></div>
+                <div class="meter ok" style="margin-top:10px"><span style="width:50%"></span></div>
+                <div class="num muted" style="font-size:12px;margin-top:6px">50% 使用率</div>
+              </div>
+              <div class="u-block">
+                <div class="u-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="1.5"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3"/></svg>CPU</div>
+                <div class="num" style="font-size:22px;font-weight:600">90 <span class="muted" style="font-size:14px">/ 192 核</span></div>
+                <div class="meter ok" style="margin-top:10px"><span style="width:47%"></span></div>
+                <div class="num muted" style="font-size:12px;margin-top:6px">47% 使用率</div>
+              </div>
+              <div class="u-block">
+                <div class="u-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="10" rx="1.5"/><path d="M7 7V5M11 7V5M15 7V5M19 7V5"/></svg>内存</div>
+                <div class="num" style="font-size:22px;font-weight:600">0.5 <span class="muted" style="font-size:14px">/ 1.2 TiB</span></div>
+                <div class="meter ok" style="margin-top:10px"><span style="width:42%"></span></div>
+                <div class="num muted" style="font-size:12px;margin-top:6px">42% 使用率</div>
+              </div>
+            </div>
+            <hr class="divline" />
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+              <h3 style="font-size:14px">gpu-a100 GPU 利用率趋势</h3>
+              <div class="legend"><span><i style="background:var(--accent)"></i>GPU 利用率</span><span><i style="background:var(--muted)"></i>任务并发</span></div>
+            </div>
+            <svg class="chart" viewBox="0 0 720 200" preserveAspectRatio="none" style="height:200px">
+              <line class="grid-line" x1="0" y1="50" x2="720" y2="50"/><line class="grid-line" x1="0" y1="100" x2="720" y2="100"/><line class="grid-line" x1="0" y1="150" x2="720" y2="150"/>
+              <path d="M0 150 L60 146 L120 132 L180 140 L240 120 L300 128 L360 110 L420 118 L480 104 L540 112 L600 100 L660 108 L720 100 L720 200 L0 200 Z" fill="url(#gtrend)"/>
+              <path d="M0 150 L60 146 L120 132 L180 140 L240 120 L300 128 L360 110 L420 118 L480 104 L540 112 L600 100 L660 108 L720 100" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M0 168 L60 166 L120 158 L180 162 L240 150 L300 156 L360 146 L420 152 L480 142 L540 150 L600 140 L660 148 L720 142" fill="none" stroke="var(--muted)" stroke-width="1.6" stroke-dasharray="4 4" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+
+          <!-- gpu-l40s -->
+          <div class="tabpane" data-pane="gpu-l40s">
+            <div class="grid cols-3">
+              <div class="u-block">
+                <div class="u-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="8" cy="12" r="2.5"/><path d="M14 10h5M14 14h5"/></svg>GPU</div>
+                <div class="num" style="font-size:22px;font-weight:600">11 <span class="muted" style="font-size:14px">/ 20 卡</span></div>
+                <div class="meter warn" style="margin-top:10px"><span style="width:55%"></span></div>
+                <div class="num muted" style="font-size:12px;margin-top:6px">55% 使用率</div>
+              </div>
+              <div class="u-block">
+                <div class="u-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="1.5"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3"/></svg>CPU</div>
+                <div class="num" style="font-size:22px;font-weight:600">88 <span class="muted" style="font-size:14px">/ 160 核</span></div>
+                <div class="meter warn" style="margin-top:10px"><span style="width:55%"></span></div>
+                <div class="num muted" style="font-size:12px;margin-top:6px">55% 使用率</div>
+              </div>
+              <div class="u-block">
+                <div class="u-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="10" rx="1.5"/><path d="M7 7V5M11 7V5M15 7V5M19 7V5"/></svg>内存</div>
+                <div class="num" style="font-size:22px;font-weight:600">0.4 <span class="muted" style="font-size:14px">/ 0.9 TiB</span></div>
+                <div class="meter ok" style="margin-top:10px"><span style="width:44%"></span></div>
+                <div class="num muted" style="font-size:12px;margin-top:6px">44% 使用率</div>
+              </div>
+            </div>
+            <hr class="divline" />
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+              <h3 style="font-size:14px">gpu-l40s GPU 利用率趋势</h3>
+              <div class="legend"><span><i style="background:var(--accent)"></i>GPU 利用率</span><span><i style="background:var(--muted)"></i>任务并发</span></div>
+            </div>
+            <svg class="chart" viewBox="0 0 720 200" preserveAspectRatio="none" style="height:200px">
+              <line class="grid-line" x1="0" y1="50" x2="720" y2="50"/><line class="grid-line" x1="0" y1="100" x2="720" y2="100"/><line class="grid-line" x1="0" y1="150" x2="720" y2="150"/>
+              <path d="M0 140 L60 134 L120 128 L180 122 L240 118 L300 112 L360 116 L420 108 L480 104 L540 110 L600 98 L660 106 L720 96 L720 200 L0 200 Z" fill="url(#gtrend)"/>
+              <path d="M0 140 L60 134 L120 128 L180 122 L240 118 L300 112 L360 116 L420 108 L480 104 L540 110 L600 98 L660 106 L720 96" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M0 162 L60 160 L120 156 L180 152 L240 150 L300 146 L360 150 L420 144 L480 142 L540 148 L600 138 L660 144 L720 138" fill="none" stroke="var(--muted)" stroke-width="1.6" stroke-dasharray="4 4" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+
+          <!-- cpu-large -->
+          <div class="tabpane" data-pane="cpu-large">
+            <div class="grid cols-3">
+              <div class="u-block u-row is-na">
+                <div class="u-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="8" cy="12" r="2.5"/><path d="M14 10h5M14 14h5"/></svg>GPU</div>
+                <div class="num" style="font-size:22px;font-weight:600">0 <span class="muted" style="font-size:14px">/ 0 卡</span></div>
+                <div class="meter" style="margin-top:10px"><span style="width:0%"></span></div>
+                <div class="num muted" style="font-size:12px;margin-top:6px">无 GPU</div>
+              </div>
+              <div class="u-block">
+                <div class="u-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="1.5"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3"/></svg>CPU</div>
+                <div class="num" style="font-size:22px;font-weight:600">52 <span class="muted" style="font-size:14px">/ 112 核</span></div>
+                <div class="meter ok" style="margin-top:10px"><span style="width:46%"></span></div>
+                <div class="num muted" style="font-size:12px;margin-top:6px">46% 使用率</div>
+              </div>
+              <div class="u-block">
+                <div class="u-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="10" rx="1.5"/><path d="M7 7V5M11 7V5M15 7V5M19 7V5"/></svg>内存</div>
+                <div class="num" style="font-size:22px;font-weight:600">0.3 <span class="muted" style="font-size:14px">/ 0.6 TiB</span></div>
+                <div class="meter ok" style="margin-top:10px"><span style="width:50%"></span></div>
+                <div class="num muted" style="font-size:12px;margin-top:6px">50% 使用率</div>
+              </div>
+            </div>
+            <hr class="divline" />
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+              <h3 style="font-size:14px">cpu-large CPU 利用率趋势</h3>
+              <div class="legend"><span><i style="background:var(--accent)"></i>CPU 利用率</span><span><i style="background:var(--muted)"></i>任务并发</span></div>
+            </div>
+            <svg class="chart" viewBox="0 0 720 200" preserveAspectRatio="none" style="height:200px">
+              <line class="grid-line" x1="0" y1="50" x2="720" y2="50"/><line class="grid-line" x1="0" y1="100" x2="720" y2="100"/><line class="grid-line" x1="0" y1="150" x2="720" y2="150"/>
+              <path d="M0 150 L60 148 L120 144 L180 146 L240 138 L300 142 L360 134 L420 140 L480 132 L540 138 L600 130 L660 136 L720 130 L720 200 L0 200 Z" fill="url(#gtrend)"/>
+              <path d="M0 150 L60 148 L120 144 L180 146 L240 138 L300 142 L360 134 L420 140 L480 132 L540 138 L600 130 L660 136 L720 130" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M0 170 L60 169 L120 166 L180 167 L240 162 L300 165 L360 160 L420 164 L480 158 L540 162 L600 156 L660 160 L720 156" fill="none" stroke="var(--muted)" stroke-width="1.6" stroke-dasharray="4 4" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
         </div>
       </div>
 
-      <!-- 快捷入口 + 最近活动 -->
-      <div class="stack" style="display:flex;flex-direction:column;gap:var(--space-5)">
-        <div class="panel">
-          <div class="panel-head"><h3>快捷入口</h3></div>
-          <div class="panel-body" style="display:flex;flex-direction:column;gap:10px">
-            <a class="btn btn-primary btn-lg" href="jobs.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>新建自定义任务</a>
-            <a class="btn btn-lg" href="services.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>部署在线服务</a>
-            <a class="btn btn-lg" href="workspace.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>启动工作区</a>
-          </div>
+      <!-- 最近活动 -->
+      <div class="panel">
+        <div class="panel-head"><h3>最近活动</h3></div>
+        <div class="panel-body flush">
+          <div class="table-wrap"><table class="tbl">
+            <tbody>
+              <tr><td><div class="t-name mono">train-llm-7b-12</div><div class="t-sub">自定义任务 · 2 分钟前</div></td><td style="text-align:right"><span class="status status-running"><span class="dot"></span>运行中</span></td></tr>
+              <tr><td><div class="t-name mono">svc-chat-api</div><div class="t-sub">在线服务 · 18 分钟前</div></td><td style="text-align:right"><span class="status status-success"><span class="dot"></span>就绪</span></td></tr>
+              <tr><td><div class="t-name mono">llama3-sft-lr-sweep</div><div class="t-sub">实验 · 1 小时前</div></td><td style="text-align:right"><span class="status status-running"><span class="dot"></span>运行中</span></td></tr>
+              <tr><td><div class="t-name mono">rec-recall-train-07</div><div class="t-sub">自定义任务 · 3 小时前</div></td><td style="text-align:right"><span class="status status-success"><span class="dot"></span>成功</span></td></tr>
+              <tr><td><div class="t-name mono">vision-eval-batch-3</div><div class="t-sub">评估 · 5 小时前</div></td><td style="text-align:right"><span class="status status-success"><span class="dot"></span>成功</span></td></tr>
+            </tbody>
+          </table></div>
         </div>
-        <div class="panel" style="flex:1">
-          <div class="panel-head"><h3>最近活动</h3><a class="link" href="jobs.html" style="font-size:12px">全部</a></div>
-          <div class="panel-body flush">
-            <div class="table-wrap"><table class="tbl">
-              <tbody>
-                <tr><td><div class="t-name mono">train-llm-7b-12</div><div class="t-sub">自定义任务 · 2 分钟前</div></td><td style="text-align:right"><span class="status status-running"><span class="dot"></span>运行中</span></td></tr>
-                <tr><td><div class="t-name mono">svc-chat-api</div><div class="t-sub">在线服务 · 18 分钟前</div></td><td style="text-align:right"><span class="status status-success"><span class="dot"></span>就绪</span></td></tr>
-                <tr><td><div class="t-name mono">llama3-sft-lr-sweep</div><div class="t-sub">实验 · 1 小时前</div></td><td style="text-align:right"><span class="status status-running"><span class="dot"></span>运行中</span></td></tr>
-                <tr><td><div class="t-name mono">rec-recall-train-07</div><div class="t-sub">自定义任务 · 3 小时前</div></td><td style="text-align:right"><span class="status status-success"><span class="dot"></span>成功</span></td></tr>
-              </tbody>
-            </table></div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 各租户配额水位（系统管理员全局视图） -->
-    <div class="panel">
-      <div class="panel-head"><h3>租户配额水位</h3><a class="link" href="tenants.html" style="font-size:12px">租户管理 →</a></div>
-      <div class="panel-body flush">
-        <div class="table-wrap"><table class="tbl">
-          <thead><tr><th>租户</th><th>资源池</th><th class="num-col">GPU 用量 / max</th><th style="width:240px">水位</th><th class="num-col">活跃任务</th><th class="num-col">在线服务</th></tr></thead>
-          <tbody>
-            <tr><td class="t-name">大模型研究院</td><td><span class="tag mono">gpu-h100</span></td><td class="num-col">14 / 16</td><td><div class="qbar"><span class="used" style="width:88%"></span><span class="min-mark" style="left:50%"></span></div></td><td class="num-col">9</td><td class="num-col">3</td></tr>
-            <tr><td class="t-name">推荐算法团队</td><td><span class="tag mono">gpu-a100</span></td><td class="num-col">6 / 12</td><td><div class="qbar"><span class="used" style="width:50%"></span><span class="min-mark" style="left:33%"></span></div></td><td class="num-col">5</td><td class="num-col">2</td></tr>
-            <tr><td class="t-name">智能驾驶感知</td><td><span class="tag mono">gpu-l40s</span></td><td class="num-col">11 / 20</td><td><div class="qbar"><span class="used" style="width:55%"></span><span class="min-mark" style="left:40%"></span></div></td><td class="num-col">7</td><td class="num-col">3</td></tr>
-            <tr><td class="t-name">风控 AI</td><td><span class="tag mono">cpu-large</span></td><td class="num-col">0 / 0</td><td><div class="qbar"><span class="used" style="width:62%;background:var(--success)"></span></div></td><td class="num-col">2</td><td class="num-col">1</td></tr>
-          </tbody>
-        </table></div>
       </div>
     </div>
   </main>

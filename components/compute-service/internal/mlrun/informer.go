@@ -13,6 +13,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	mlrunv1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlrun/v1alpha1"
+
+	"github.com/axisml/axisml/components/compute-service/internal/server"
 )
 
 // Informer reflects MLRun CR status into PG.
@@ -64,7 +66,7 @@ func (i *Informer) onChange(ctx context.Context, obj any) {
 
 	// Build the next phase + status sub-tree by merging CR status into
 	// the existing PG row.
-	var prevStatus StatusFields
+	var prevStatus server.MLRunStatus
 	if len(j.StatusJSON) > 0 {
 		_ = json.Unmarshal(j.StatusJSON, &prevStatus)
 	}
@@ -138,7 +140,7 @@ func (i *Informer) onDelete(ctx context.Context, obj any) {
 	case StatusPending, StatusRunning:
 		// External delete during run → mark Cancelled per design §5.4.
 		now := time.Now().UTC()
-		next := mergeStatusFields(j.StatusJSON, func(s *StatusFields) {
+		next := mergeStatusFields(j.StatusJSON, func(s *server.MLRunStatus) {
 			s.Message = "external delete"
 			s.FinishedAt = &now
 		})
@@ -148,7 +150,7 @@ func (i *Informer) onDelete(ctx context.Context, obj any) {
 		})
 	case StatusCanceling:
 		now := time.Now().UTC()
-		next := mergeStatusFields(j.StatusJSON, func(s *StatusFields) {
+		next := mergeStatusFields(j.StatusJSON, func(s *server.MLRunStatus) {
 			s.FinishedAt = &now
 		})
 		_ = i.repo.Update(ctx, id, map[string]any{
@@ -158,8 +160,8 @@ func (i *Informer) onDelete(ctx context.Context, obj any) {
 	}
 }
 
-func mergeStatusFields(raw []byte, mutate func(*StatusFields)) []byte {
-	var sf StatusFields
+func mergeStatusFields(raw []byte, mutate func(*server.MLRunStatus)) []byte {
+	var sf server.MLRunStatus
 	if len(raw) > 0 {
 		_ = json.Unmarshal(raw, &sf)
 	}

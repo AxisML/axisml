@@ -50,8 +50,8 @@ internal/
   ├── db/               GORM client + golang-migrate (migrations/*.sql)
   ├── server/           Gin engine, middleware, RFC7807 error rendering
   ├── auth/             X-Axisml-User parser
-  ├── metrics/          Prometheus + Gin middleware
-  ├── k8sclient/        controller-runtime Manager (leader election + probes)
+  ├── metrics/          Prometheus registry + Gin middleware (/metrics handler)
+  ├── leaderelection/   PG advisory-lock elector (GC singleton; no K8s Lease)
   ├── tenantresolver/   Read-only `tenants` lookup (shared PG)
   ├── repo/             ArtifactRepo CRUD + state
   ├── artifact/         Artifact CRUD + state machine + initiate/complete/resolve
@@ -59,7 +59,7 @@ internal/
   ├── storage/oci/      zot client (HEAD / DELETE manifest, credential issuance)
   ├── gc/               Leader-only GC worker (Uploading TTL, Deleting cleanup)
   └── integration/      Build-tag `integration` end-to-end tests (testcontainers)
-pkg/{logging,errors,strutil}/   Shared utilities (mirror compute-service/pkg)
+pkg/{logging,errors,strutil,httpx}/  Shared utilities (httpx: graceful net/http runner)
 deploy/Dockerfile     Container image build (multi-stage, repo-root context)
 ```
 
@@ -85,8 +85,9 @@ artifact-hub ships as part of the `axisml-system` chart at
 [`deploy/helm/axisml-system/templates/artifact-hub/`](../../deploy/helm/axisml-system/templates/artifact-hub/).
 The chart provisions a `Deployment`, `Service`, `ConfigMap`, two `Secret`s
 (`-artifact-hub-db` for PG password, `-artifact-hub-zot` for OCI admin creds),
-`ServiceAccount`, leader-election `Role`/`RoleBinding`, and an optional
-`ServiceMonitor`.
+a `ServiceAccount`, and an optional `ServiceMonitor`. No RBAC is provisioned:
+the service makes no Kubernetes API calls — GC singleton election uses a
+Postgres advisory lock, not a Lease.
 
 For end-to-end deploy:
 

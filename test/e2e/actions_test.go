@@ -17,18 +17,26 @@ import (
 // Reusable client actions shared across the layer test files. Each returns the
 // raw resp so callers decide how strictly to assert.
 
-// ----- compute-service: tenants -----
+// ----- cluster-manager: tenants -----
+//
+// Tenant lifecycle is owned by cluster-manager (REST writer over the Tenant CR);
+// compute-service no longer serves /namespaces tenant CRUD.
 
-func (s *suite) createTenant(ctx context.Context, req csCreateTenantReq) (resp, error) {
-	return s.computeService.do(ctx, http.MethodPost, "/api/v1/namespaces", req)
+func (s *suite) createTenant(ctx context.Context, req cmCreateTenantReq) (resp, error) {
+	return s.clusterManager.do(ctx, http.MethodPost, "/api/v1/tenants", req)
 }
 
 func (s *suite) getTenant(ctx context.Context, name string) (resp, error) {
-	return s.computeService.do(ctx, http.MethodGet, "/api/v1/namespaces/"+name, nil)
+	return s.clusterManager.do(ctx, http.MethodGet, "/api/v1/tenants/"+name, nil)
 }
 
 func (s *suite) deleteTenant(ctx context.Context, name string) (resp, error) {
-	return s.computeService.do(ctx, http.MethodDelete, "/api/v1/namespaces/"+name, nil)
+	return s.clusterManager.do(ctx, http.MethodDelete, "/api/v1/tenants/"+name, nil)
+}
+
+// setTenantQuota creates or replaces one pool's quota for a tenant.
+func (s *suite) setTenantQuota(ctx context.Context, tenant string, req cmSetQuotaReq) (resp, error) {
+	return s.clusterManager.do(ctx, http.MethodPost, "/api/v1/tenants/"+tenant+"/quotas", req)
 }
 
 // ----- compute-service: mlruns -----

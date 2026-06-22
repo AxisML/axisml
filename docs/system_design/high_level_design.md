@@ -150,7 +150,7 @@ Monorepo 管理所有组件：
 
 ```
 axisml/
-├── components/{platform/{backend,frontend}, cluster-manager, compute-service,
+├── components/{platform-backend, platform-frontend, cluster-manager, compute-service,
 │              tenant-operator, compute-operator, artifact-hub}
 ├── deploy/helm/{axisml-infra, axisml-system, axisml-platform}
 ├── docs/

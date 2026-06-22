@@ -22,47 +22,47 @@ import (
 // CR spec.quotas[]. The original selection round-trips through the
 // `axisml.io/quotas` annotation so GET can return the business form.
 
-// TenantDTO is the REST representation of a Tenant CR.
-type TenantDTO struct {
+// Tenant is the REST representation of a Tenant CR.
+type Tenant struct {
 	Name            string                        `json:"name"`
 	Namespace       tenantv1alpha1.NamespaceSpec  `json:"namespace"`
-	Quotas          []QuotaDTO                    `json:"quotas"`
+	Quotas          []Quota                       `json:"quotas"`
 	InitResources   *tenantv1alpha1.InitResources `json:"initResources,omitempty"`
 	Labels          map[string]string             `json:"labels,omitempty"`
 	Annotations     map[string]string             `json:"annotations,omitempty"`
 	ResourceVersion string                        `json:"resourceVersion,omitempty"`
 	Phase           string                        `json:"phase,omitempty"`
-	Status          *TenantStatusDTO              `json:"status,omitempty"`
+	Status          *TenantStatus                 `json:"status,omitempty"`
 	CreatedAt       time.Time                     `json:"createdAt"`
 }
 
-// QuotaDTO is the business form of one pool's quota: a list of
+// Quota is the business form of one pool's quota: a list of
 // `unit × quantity` selections under that pool.
-type QuotaDTO struct {
-	Pool  string         `json:"pool"`
-	Units []QuotaUnitDTO `json:"units"`
+type Quota struct {
+	Pool  string      `json:"pool"`
+	Units []QuotaUnit `json:"units"`
 }
 
-// QuotaUnitDTO selects a ResourceUnit and how many of it the tenant is
+// QuotaUnit selects a ResourceUnit and how many of it the tenant is
 // granted under the pool.
-type QuotaUnitDTO struct {
+type QuotaUnit struct {
 	UnitName string `json:"unitName"`
 	Quantity int    `json:"quantity"`
 }
 
-// TenantStatusDTO surfaces the operator-written CR status, read live from
+// TenantStatus surfaces the operator-written CR status, read live from
 // etcd on every GET (no cache). `used` flows from koord-scheduler through
 // the ElasticQuota and is never persisted anywhere but the CR.
-type TenantStatusDTO struct {
-	ObservedGeneration int64            `json:"observedGeneration,omitempty"`
-	Phase              string           `json:"phase,omitempty"`
-	Message            string           `json:"message,omitempty"`
-	NamespaceReady     bool             `json:"namespaceReady,omitempty"`
-	Quotas             []QuotaStatusDTO `json:"quotas,omitempty"`
+type TenantStatus struct {
+	ObservedGeneration int64         `json:"observedGeneration,omitempty"`
+	Phase              string        `json:"phase,omitempty"`
+	Message            string        `json:"message,omitempty"`
+	NamespaceReady     bool          `json:"namespaceReady,omitempty"`
+	Quotas             []QuotaStatus `json:"quotas,omitempty"`
 }
 
-// QuotaStatusDTO is the per-pool quota readiness + live usage.
-type QuotaStatusDTO struct {
+// QuotaStatus is the per-pool quota readiness + live usage.
+type QuotaStatus struct {
 	Pool  string              `json:"pool"`
 	Ready bool                `json:"ready"`
 	Used  corev1.ResourceList `json:"used,omitempty"`
@@ -72,7 +72,7 @@ type QuotaStatusDTO struct {
 type CreateTenantRequest struct {
 	Name          string                        `json:"name"`
 	Namespace     *tenantv1alpha1.NamespaceSpec `json:"namespace,omitempty"`
-	Quotas        []QuotaDTO                    `json:"quotas,omitempty"`
+	Quotas        []Quota                       `json:"quotas,omitempty"`
 	InitResources *tenantv1alpha1.InitResources `json:"initResources,omitempty"`
 	Labels        map[string]string             `json:"labels,omitempty"`
 	Annotations   map[string]string             `json:"annotations,omitempty"`
@@ -91,30 +91,30 @@ type PatchTenantRequest struct {
 // SetQuotaRequest is the body for POST /api/v1/tenants/{tenant}/quotas — it
 // creates or replaces the quota for one pool.
 type SetQuotaRequest struct {
-	Pool  string         `json:"pool"`
-	Units []QuotaUnitDTO `json:"units"`
+	Pool  string      `json:"pool"`
+	Units []QuotaUnit `json:"units"`
 }
 
 // PatchQuotaRequest is the body for PATCH .../quotas/{pool}; `pool` is the
 // path param.
 type PatchQuotaRequest struct {
-	Units []QuotaUnitDTO `json:"units"`
+	Units []QuotaUnit `json:"units"`
 }
 
 // TenantList is the LIST response.
 type TenantList struct {
-	Items         []TenantDTO `json:"items"`
-	Count         int         `json:"count"`
-	ContinueToken string      `json:"continueToken,omitempty"`
+	Items         []Tenant `json:"items"`
+	Count         int      `json:"count"`
+	ContinueToken string   `json:"continueToken,omitempty"`
 }
 
 // QuotaList is the LIST response for a tenant's quotas.
 type QuotaList struct {
-	Items []QuotaDTO `json:"items"`
-	Count int        `json:"count"`
+	Items []Quota `json:"items"`
+	Count int     `json:"count"`
 }
 
 // QuotasAnnotation stores the business-form quota selection (JSON-encoded
-// []QuotaDTO) on the Tenant CR so GET can round-trip `unit × quantity`
+// []Quota) on the Tenant CR so GET can round-trip `unit × quantity`
 // after the spec.quotas[] has been folded to ElasticQuota min/max.
 const QuotasAnnotation = "axisml.io/quotas"

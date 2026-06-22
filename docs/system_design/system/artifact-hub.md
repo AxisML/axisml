@@ -149,9 +149,9 @@ Ready / Failed ─(DELETE)─▶ Deleting ─(GCBackend 成功)─▶ Deleted
 | 维度 | 值 |
 | --- | --- |
 | 进程 | 单二进制 `axisml-artifact-hub`；启动执行 golang-migrate embedded migration |
-| 副本 | API 默认 `replicas=1`（无状态可水平扩）；GC worker 单 leader（K8s Lease） |
+| 副本 | API 默认 `replicas=1`（无状态可水平扩）；GC worker 单 leader，经 PG session 级 advisory lock（`pg_try_advisory_lock`）选主，leader 崩溃时连接断开即自动释放锁 |
 | 暴露端口 | API `:8080`；Metrics `:8081`；Probes `:8082`（`/readyz` 校验 PG），均不对外 |
-| RBAC scope | 自身 ns 的 `leases`（GC leader election）；不需其他 K8s RBAC（只读 PG + 调后端 HTTP） |
+| K8s 依赖 | 无。Artifacts 不连 K8s API（不 watch CRD、不持 Lease、不需 client-go / controller-runtime），因此不需要任何 K8s RBAC，只读写 PG + 调后端 HTTP；选主权威与数据权威统一在 PG |
 | Helm / 镜像 | 见 [deployment.md](../deployment.md) |
 
 ## 9. 相关引用

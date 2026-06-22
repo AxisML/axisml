@@ -1,0 +1,9 @@
+# oapi-codegen config for the artifact-hub typed client.
+# Generated from docs/openapi/artifact-hub.yaml — run `make client-gen`.
+package: generated
+output: internal/clients/artifacthub/generated/artifacthub.gen.go
+generate:
+  models: true
+  client: true
+output-options:
+  skip-prune: false

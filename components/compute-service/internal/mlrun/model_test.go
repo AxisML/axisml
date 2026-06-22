@@ -10,9 +10,3 @@ func TestIsTerminal_UnknownStatus(t *testing.T) {
 		t.Error("empty status should not be terminal")
 	}
 }
-
-func TestMLRun_TableName(t *testing.T) {
-	if (MLRun{}).TableName() != "mlruns" {
-		t.Error("table name mismatch")
-	}
-}

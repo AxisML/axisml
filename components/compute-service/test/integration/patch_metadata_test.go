@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	jobmod "github.com/axisml/axisml/components/compute-service/internal/mlrun"
+	computeserver "github.com/axisml/axisml/components/compute-service/internal/server"
 )
 
 // TestMLRun_PatchMetadata verifies PATCH /mlruns/{job} updates display-tier
@@ -32,7 +32,7 @@ func TestMLRun_PatchMetadata(t *testing.T) {
 		"description": "patched desc",
 		"labels":      map[string]string{"axisml.io/project": "p9"},
 	}
-	var patched jobmod.View
+	var patched computeserver.MLRun
 	rr = doJSON(t, ctx, http.MethodPatch,
 		"/api/v1/namespaces/"+ns+"/mlruns/patchable", body, &patched)
 	requireStatus(t, rr, http.StatusOK)
