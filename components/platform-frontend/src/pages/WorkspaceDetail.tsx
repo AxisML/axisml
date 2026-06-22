@@ -1,34 +1,14 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
-  Card,
-  Tabs,
-  Descriptions,
-  Button,
-  Space,
-  Tag,
-  Timeline,
-  Empty,
-  Spin,
-  Result,
-  Select,
-  Switch,
-  Drawer,
-  Form,
-  Input,
-  Alert,
-  Tooltip,
-} from "antd";
-import {
-  ArrowLeftOutlined,
-  CaretRightOutlined,
-  PoweroffOutlined,
-  DeleteOutlined,
-  CopyOutlined,
-  CodeOutlined,
-  InfoCircleOutlined,
-  CloseOutlined,
-} from "@ant-design/icons";
+  ArrowLeft,
+  Play,
+  Power,
+  Trash2,
+  Copy,
+  Code2,
+  Info,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import dayjs from "dayjs";
@@ -39,6 +19,42 @@ import { useUI } from "@/app/ui";
 import { PageContainer } from "@/components/PageContainer";
 import { PhaseTag } from "@/components/PhaseTag";
 import { LogViewer } from "@/components/LogViewer";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardAction,
+} from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { Spinner } from "@/components/ui/spinner";
+import { Switch } from "@/components/ui/switch";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Sheet,
+  SheetContent,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 const isRunning = (phase?: string) =>
   phase === "Running" || phase === "Degraded" || phase === "Starting" || phase === "Creating" || phase === "Pending";
@@ -78,8 +94,11 @@ export default function WorkspaceDetail() {
   );
 
   const back = (
-    <Link to="/workspaces" className="mb-3 inline-flex items-center gap-1.5 text-sm text-fg-2 hover:text-accent">
-      <ArrowLeftOutlined />
+    <Link
+      to="/workspaces"
+      className="mb-3 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-info"
+    >
+      <ArrowLeft className="size-4" />
       {t("workspaces.backToList")}
     </Link>
   );
@@ -89,7 +108,7 @@ export default function WorkspaceDetail() {
       <PageContainer breadcrumb={[t("nav.trainingCenter"), t("nav.workspace")]} title={name}>
         {back}
         <div className="grid place-items-center py-20">
-          <Spin />
+          <Spinner className="size-7 text-muted-foreground" />
         </div>
       </PageContainer>
     );
@@ -99,7 +118,11 @@ export default function WorkspaceDetail() {
       <PageContainer breadcrumb={[t("nav.trainingCenter"), t("nav.workspace")]} title={name}>
         {back}
         <Card>
-          <Result status="404" title={t("workspaces.notFound")} />
+          <Empty>
+            <EmptyHeader>
+              <EmptyTitle>{t("workspaces.notFound")}</EmptyTitle>
+            </EmptyHeader>
+          </Empty>
         </Card>
       </PageContainer>
     );
@@ -137,37 +160,62 @@ export default function WorkspaceDetail() {
       }
       subtitle={`${w.description ?? w.displayName ?? ""}${w.owner ? ` · ${t("common.creator")} ${w.owner}` : ""}`}
       extra={
-        <Space>
+        <div className="flex items-center gap-2">
           {running ? (
-            <Button icon={<PoweroffOutlined />} onClick={() => stop.mutate(w.name)} loading={stop.isPending}>
+            <Button variant="outline" onClick={() => stop.mutate(w.name)} disabled={stop.isPending}>
+              {stop.isPending ? <Spinner data-icon="inline-start" /> : <Power data-icon="inline-start" />}
               {t("phase.Stopped")}
             </Button>
           ) : (
-            <Button type="primary" icon={<CaretRightOutlined />} onClick={() => start.mutate(w.name)} loading={start.isPending}>
+            <Button onClick={() => start.mutate(w.name)} disabled={start.isPending}>
+              {start.isPending ? <Spinner data-icon="inline-start" /> : <Play data-icon="inline-start" />}
               {t("workspaces.start")}
             </Button>
           )}
-          <Button danger icon={<DeleteOutlined />} onClick={onDelete}>
+          <Button variant="outline" className="text-destructive" onClick={onDelete}>
+            <Trash2 data-icon="inline-start" />
             {t("common.delete")}
           </Button>
-        </Space>
+        </div>
       }
     >
       <div className="-mt-2">{back}</div>
-      <Tabs
-        items={[
-          { key: "info", label: t("workspaces.tabInfo"), children: <InfoPane w={w} running={running} onEdit={() => setEdit(true)} /> },
-          { key: "log", label: t("workspaces.tabLog"), children: <LogPane name={w.name} /> },
-          { key: "ev", label: t("workspaces.tabEvents"), children: <EventsPane name={w.name} /> },
-        ]}
-      />
+      <Tabs defaultValue="info">
+        <TabsList>
+          <TabsTrigger value="info">{t("workspaces.tabInfo")}</TabsTrigger>
+          <TabsTrigger value="log">{t("workspaces.tabLog")}</TabsTrigger>
+          <TabsTrigger value="ev">{t("workspaces.tabEvents")}</TabsTrigger>
+        </TabsList>
+        <TabsContent value="info" className="mt-4">
+          <InfoPane w={w} running={running} onEdit={() => setEdit(true)} />
+        </TabsContent>
+        <TabsContent value="log" className="mt-4">
+          <LogPane name={w.name} />
+        </TabsContent>
+        <TabsContent value="ev" className="mt-4">
+          <EventsPane name={w.name} />
+        </TabsContent>
+      </Tabs>
       {edit && <EditDrawer w={w} onClose={() => setEdit(false)} />}
     </PageContainer>
   );
 }
 
 function Chip({ children }: { children: ReactNode }) {
-  return <span className="rounded-md border border-border-soft bg-surface px-2 py-0.5 font-mono text-sm text-fg-2">{children}</span>;
+  return (
+    <span className="rounded-md border bg-muted px-2 py-0.5 font-mono text-sm text-muted-foreground">
+      {children}
+    </span>
+  );
+}
+
+function Row({ label, children }: { label: ReactNode; children: ReactNode }) {
+  return (
+    <>
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="min-w-0">{children}</dd>
+    </>
+  );
 }
 
 function InfoPane({ w, running, onEdit }: { w: sdk.Workspace; running: boolean; onEdit: () => void }) {
@@ -177,92 +225,102 @@ function InfoPane({ w, running, onEdit }: { w: sdk.Workspace; running: boolean; 
   const vol = w.volumes?.find((v) => v.size) ?? w.volumes?.[0];
 
   return (
-    <Card
-      title={t("workspaces.configTitle")}
-      extra={
-        running ? (
-          <Button size="small" onClick={onEdit}>
-            {t("common.edit")}
-          </Button>
-        ) : undefined
-      }
-    >
-      <Descriptions column={1} size="middle" colon={false} labelStyle={{ width: 120 }}>
-        <Descriptions.Item label={t("common.name")}>
-          <Chip>{w.name}</Chip>
-        </Descriptions.Item>
-        {(w.description || w.displayName) && (
-          <Descriptions.Item label={t("common.description")}>{w.description ?? w.displayName}</Descriptions.Item>
+    <Card>
+      <CardHeader>
+        <CardTitle>{t("workspaces.configTitle")}</CardTitle>
+        {running && (
+          <CardAction>
+            <Button variant="outline" size="sm" onClick={onEdit}>
+              {t("common.edit")}
+            </Button>
+          </CardAction>
         )}
-        <Descriptions.Item label={t("workspaces.fPool")}>
-          {w.poolName ? <Chip>{w.poolName}</Chip> : <span className="text-muted">—</span>}
-        </Descriptions.Item>
-        <Descriptions.Item label={t("workspaces.fUnit")}>
-          {w.unitName ? <Chip>{w.unitName}</Chip> : <span className="text-muted">—</span>}
-        </Descriptions.Item>
-        <Descriptions.Item label={t("workspaces.fImage")}>
-          <Chip>{w.image}</Chip>
-        </Descriptions.Item>
-        <Descriptions.Item label={t("workspaces.fPort")}>
-          <span className="font-mono">{w.containerPort}</span>
-        </Descriptions.Item>
-        {accessUrl && (
-          <Descriptions.Item label={t("workspaces.fAccessUrl")}>
-            <span className="inline-flex items-center gap-1.5">
-              <Chip>{accessUrl}</Chip>
-              <Tooltip title={t("workspaces.copyAddr")}>
-                <Button
-                  type="text"
-                  size="small"
-                  icon={<CopyOutlined />}
-                  onClick={() => {
-                    void navigator.clipboard?.writeText(accessUrl);
-                    toast(t("workspaces.addrCopied"));
-                  }}
-                />
-              </Tooltip>
-            </span>
-          </Descriptions.Item>
-        )}
-        {w.endpoint?.internalDns && (
-          <Descriptions.Item label={t("workspaces.fInternalDns")}>
-            <Chip>{w.endpoint.internalDns}</Chip>
-          </Descriptions.Item>
-        )}
-        <Descriptions.Item label={t("workspaces.fVolume")}>
-          {vol ? (
-            <span className="inline-flex items-center gap-2">
-              <Chip>{vol.name ?? vol.mountPath}</Chip>
-              <span className="text-sm text-muted">
-                {[vol.size, vol.storageClass].filter(Boolean).join(" · ") || "—"}
+      </CardHeader>
+      <CardContent>
+        <dl className="grid grid-cols-[120px_1fr] items-baseline gap-x-4 gap-y-2.5 text-sm">
+          <Row label={t("common.name")}>
+            <Chip>{w.name}</Chip>
+          </Row>
+          {(w.description || w.displayName) && (
+            <Row label={t("common.description")}>{w.description ?? w.displayName}</Row>
+          )}
+          <Row label={t("workspaces.fPool")}>
+            {w.poolName ? <Chip>{w.poolName}</Chip> : <span className="text-muted-foreground">—</span>}
+          </Row>
+          <Row label={t("workspaces.fUnit")}>
+            {w.unitName ? <Chip>{w.unitName}</Chip> : <span className="text-muted-foreground">—</span>}
+          </Row>
+          <Row label={t("workspaces.fImage")}>
+            <Chip>{w.image}</Chip>
+          </Row>
+          <Row label={t("workspaces.fPort")}>
+            <span className="font-mono">{w.containerPort}</span>
+          </Row>
+          {accessUrl && (
+            <Row label={t("workspaces.fAccessUrl")}>
+              <span className="inline-flex items-center gap-1.5">
+                <Chip>{accessUrl}</Chip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => {
+                        void navigator.clipboard?.writeText(accessUrl);
+                        toast(t("workspaces.addrCopied"));
+                      }}
+                    >
+                      <Copy />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{t("workspaces.copyAddr")}</TooltipContent>
+                </Tooltip>
               </span>
+            </Row>
+          )}
+          {w.endpoint?.internalDns && (
+            <Row label={t("workspaces.fInternalDns")}>
+              <Chip>{w.endpoint.internalDns}</Chip>
+            </Row>
+          )}
+          <Row label={t("workspaces.fVolume")}>
+            {vol ? (
+              <span className="inline-flex items-center gap-2">
+                <Chip>{vol.name ?? vol.mountPath}</Chip>
+                <span className="text-sm text-muted-foreground">
+                  {[vol.size, vol.storageClass].filter(Boolean).join(" · ") || "—"}
+                </span>
+              </span>
+            ) : (
+              <span className="text-muted-foreground">{t("workspaces.noVolume")}</span>
+            )}
+          </Row>
+          {vol?.mountPath && (
+            <Row label={t("workspaces.fMountPath")}>
+              <Chip>{vol.mountPath}</Chip>
+            </Row>
+          )}
+          <Row label={t("workspaces.fEnv")}>
+            {w.env?.length ? (
+              <div className="flex flex-wrap gap-1.5">
+                {w.env.map((e) => (
+                  <Chip key={e.name}>
+                    {e.name}={e.value}
+                  </Chip>
+                ))}
+              </div>
+            ) : (
+              <span className="text-muted-foreground">{t("workspaces.noEnv")}</span>
+            )}
+          </Row>
+          <Row label={t("common.creator")}>
+            {w.owner} ·{" "}
+            <span className="font-mono text-muted-foreground">
+              {dayjs(w.createdAt).format("YYYY-MM-DD HH:mm")}
             </span>
-          ) : (
-            <span className="text-muted">{t("workspaces.noVolume")}</span>
-          )}
-        </Descriptions.Item>
-        {vol?.mountPath && (
-          <Descriptions.Item label={t("workspaces.fMountPath")}>
-            <Chip>{vol.mountPath}</Chip>
-          </Descriptions.Item>
-        )}
-        <Descriptions.Item label={t("workspaces.fEnv")}>
-          {w.env?.length ? (
-            <div className="flex flex-wrap gap-1.5">
-              {w.env.map((e) => (
-                <Chip key={e.name}>
-                  {e.name}={e.value}
-                </Chip>
-              ))}
-            </div>
-          ) : (
-            <span className="text-muted">{t("workspaces.noEnv")}</span>
-          )}
-        </Descriptions.Item>
-        <Descriptions.Item label={t("common.creator")}>
-          {w.owner} · <span className="font-mono text-muted">{dayjs(w.createdAt).format("YYYY-MM-DD HH:mm")}</span>
-        </Descriptions.Item>
-      </Descriptions>
+          </Row>
+        </dl>
+      </CardContent>
     </Card>
   );
 }
@@ -299,27 +357,38 @@ function LogPane({ name }: { name: string }) {
 
   return (
     <Card>
-      <div className="mb-3 flex items-center gap-3">
-        <Select
-          className="min-w-56"
-          value={pod || undefined}
-          onChange={setPod}
-          placeholder={t("workspaces.noPods")}
-          prefix={<Tag className="!m-0">{t("workspaces.podLabel")}</Tag>}
-          options={pods.map((p) => ({ label: p.name, value: p.name }))}
-          notFoundContent={podsQ.isError ? t("common.loadFailed") : t("workspaces.noPods")}
-        />
-        <div className="grow" />
-        <span className="flex items-center gap-2 text-sm text-fg-2">
-          {t("workspaces.follow")}
-          <Switch checked={follow} onChange={setFollow} size="small" />
-        </span>
-      </div>
-      {!pods.length ? (
-        <Alert type="info" showIcon icon={<InfoCircleOutlined />} message={t("workspaces.logHint")} />
-      ) : (
-        <LogViewer text={logsQ.data} empty={t("workspaces.logHint")} />
-      )}
+      <CardContent>
+        <div className="mb-3 flex items-center gap-3">
+          <Select value={pod || undefined} onValueChange={setPod} disabled={!pods.length}>
+            <SelectTrigger className="min-w-56">
+              <Badge variant="secondary" className="font-mono">
+                {t("workspaces.podLabel")}
+              </Badge>
+              <SelectValue placeholder={podsQ.isError ? t("common.loadFailed") : t("workspaces.noPods")} />
+            </SelectTrigger>
+            <SelectContent>
+              {pods.map((p) => (
+                <SelectItem key={p.name} value={p.name}>
+                  {p.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="grow" />
+          <label className="flex items-center gap-2 text-sm text-muted-foreground">
+            {t("workspaces.follow")}
+            <Switch checked={follow} onCheckedChange={setFollow} size="sm" />
+          </label>
+        </div>
+        {!pods.length ? (
+          <Alert variant="info">
+            <Info />
+            <AlertDescription>{t("workspaces.logHint")}</AlertDescription>
+          </Alert>
+        ) : (
+          <LogViewer text={logsQ.data} empty={t("workspaces.logHint")} />
+        )}
+      </CardContent>
     </Card>
   );
 }
@@ -340,9 +409,11 @@ function EventsPane({ name }: { name: string }) {
   if (q.isLoading) {
     return (
       <Card>
-        <div className="grid place-items-center py-10">
-          <Spin />
-        </div>
+        <CardContent>
+          <div className="grid place-items-center py-10">
+            <Spinner className="size-7 text-muted-foreground" />
+          </div>
+        </CardContent>
       </Card>
     );
   }
@@ -350,41 +421,60 @@ function EventsPane({ name }: { name: string }) {
   if (q.isError || items.length === 0) {
     return (
       <Card>
-        <Empty description={q.isError ? t("common.loadFailed") : t("workspaces.noEvents")} />
+        <Empty>
+          <EmptyHeader>
+            <EmptyTitle>{q.isError ? t("common.loadFailed") : t("workspaces.noEvents")}</EmptyTitle>
+          </EmptyHeader>
+        </Empty>
       </Card>
     );
   }
   return (
     <Card>
-      <Timeline
-        items={items.map((e) => ({
-          color: e.type === "Warning" ? "orange" : "blue",
-          children: (
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="font-medium text-fg">{e.reason}</span>
-                <Tag color={e.type === "Warning" ? "warning" : "default"} className="!m-0">
-                  {e.type}
-                </Tag>
-                <span className="font-mono text-xs text-muted">{dayjs(e.lastTimestamp).format("YYYY-MM-DD HH:mm:ss")}</span>
+      <CardContent>
+        <div className="flex flex-col gap-4">
+          {items.map((e, i) => (
+            <div key={i} className="flex gap-3">
+              <div className="flex flex-col items-center pt-1.5">
+                <span
+                  className={
+                    "size-2 shrink-0 rounded-full " +
+                    (e.type === "Warning" ? "bg-warning" : "bg-info")
+                  }
+                />
+                {i < items.length - 1 && <span className="mt-1 w-px flex-1 bg-border" />}
               </div>
-              <div className="mt-0.5 text-sm text-fg-2">{e.message}</div>
+              <div className="min-w-0 pb-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium text-foreground">{e.reason}</span>
+                  <Badge variant={e.type === "Warning" ? "warning" : "secondary"}>{e.type}</Badge>
+                  <span className="font-mono text-xs text-muted-foreground">
+                    {dayjs(e.lastTimestamp).format("YYYY-MM-DD HH:mm:ss")}
+                  </span>
+                </div>
+                <div className="mt-0.5 text-sm text-muted-foreground">{e.message}</div>
+              </div>
             </div>
-          ),
-        }))}
-      />
+          ))}
+        </div>
+      </CardContent>
     </Card>
   );
 }
 
 interface EditFormValues {
-  displayName?: string;
-  description?: string;
+  displayName: string;
+  description: string;
 }
 
 function EditDrawer({ w, onClose }: { w: sdk.Workspace; onClose: () => void }) {
   const { t } = useTranslation();
-  const [form] = Form.useForm<EditFormValues>();
+  const [v, setV] = useState<EditFormValues>({
+    displayName: w.displayName ?? w.name,
+    description: w.description ?? "",
+  });
+  const set = <K extends keyof EditFormValues>(k: K, val: EditFormValues[K]) =>
+    setV((prev) => ({ ...prev, [k]: val }));
 
   const update = useApiMutation(
     (vars: { name: string; body: sdk.WorkspacePatchRequest }) =>
@@ -392,7 +482,7 @@ function EditDrawer({ w, onClose }: { w: sdk.Workspace; onClose: () => void }) {
     { invalidate: [["workspaces"]], success: t("workspaces.updated") },
   );
 
-  const onFinish = (v: EditFormValues) => {
+  const submit = () => {
     update.mutate(
       {
         name: w.name,
@@ -403,60 +493,61 @@ function EditDrawer({ w, onClose }: { w: sdk.Workspace; onClose: () => void }) {
   };
 
   return (
-    <Drawer
-      open
-      width={560}
-      onClose={onClose}
-      closable={false}
-      title={
-        <div>
-          <div className="text-base font-semibold text-fg">{t("workspaces.drawerEdit")}</div>
-          <div className="mt-0.5 text-xs font-normal text-muted">
+    <Sheet open onOpenChange={(o) => !o && onClose()}>
+      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[560px]">
+        <SheetHeader className="border-b">
+          <SheetTitle>{t("workspaces.drawerEdit")}</SheetTitle>
+          <p className="text-xs text-muted-foreground">
             <span className="font-mono">{w.name}</span>
+          </p>
+        </SheetHeader>
+
+        <div className="flex-1 overflow-auto px-6 py-4">
+          <Alert variant="info" className="mb-4">
+            <Info />
+            <AlertDescription>{t("workspaces.editNotice")}</AlertDescription>
+          </Alert>
+          <Field className="mb-4">
+            <FieldLabel htmlFor="ws-edit-name">{t("workspaces.fName")}</FieldLabel>
+            <Input
+              id="ws-edit-name"
+              value={v.displayName}
+              onChange={(e) => set("displayName", e.target.value)}
+            />
+            <FieldDescription>{t("workspaces.fNameHelp")}</FieldDescription>
+          </Field>
+          <Field className="mb-4">
+            <FieldLabel htmlFor="ws-edit-desc">{t("workspaces.fDesc")}</FieldLabel>
+            <Textarea
+              id="ws-edit-desc"
+              rows={2}
+              placeholder={t("workspaces.fDescPlaceholder")}
+              value={v.description}
+              onChange={(e) => set("description", e.target.value)}
+            />
+          </Field>
+          <div className="rounded-lg border bg-muted p-3 text-sm text-muted-foreground">
+            <Code2 className="mr-2 inline size-4 text-foreground" />
+            {t("workspaces.fImage")}: <span className="font-mono text-foreground">{w.image}</span>
+            {w.unitName && (
+              <>
+                {" · "}
+                {t("workspaces.fUnit")}: <span className="font-mono text-foreground">{w.unitName}</span>
+              </>
+            )}
           </div>
         </div>
-      }
-      extra={<Button type="text" icon={<CloseOutlined />} onClick={onClose} />}
-      footer={
-        <div className="flex justify-end gap-2">
-          <Button onClick={onClose}>{t("common.cancel")}</Button>
-          <Button type="primary" loading={update.isPending} onClick={() => form.submit()}>
+
+        <SheetFooter className="flex-row justify-end border-t">
+          <Button variant="outline" onClick={onClose}>
+            {t("common.cancel")}
+          </Button>
+          <Button onClick={submit} disabled={update.isPending}>
+            {update.isPending && <Spinner data-icon="inline-start" />}
             {t("workspaces.saveChanges")}
           </Button>
-        </div>
-      }
-    >
-      <Alert
-        type="info"
-        showIcon
-        icon={<InfoCircleOutlined />}
-        className="mb-4"
-        message={t("workspaces.editNotice")}
-      />
-      <Form<EditFormValues>
-        form={form}
-        layout="vertical"
-        size="large"
-        onFinish={onFinish}
-        initialValues={{ displayName: w.displayName ?? w.name, description: w.description }}
-      >
-        <Form.Item name="displayName" label={t("workspaces.fName")} extra={t("workspaces.fNameHelp")}>
-          <Input />
-        </Form.Item>
-        <Form.Item name="description" label={t("workspaces.fDesc")}>
-          <Input.TextArea rows={2} placeholder={t("workspaces.fDescPlaceholder")} />
-        </Form.Item>
-        <div className="rounded-lg border border-border-soft bg-surface-warm p-3 text-sm text-muted">
-          <CodeOutlined className="mr-2 text-accent" />
-          {t("workspaces.fImage")}: <span className="font-mono text-fg-2">{w.image}</span>
-          {w.unitName && (
-            <>
-              {" · "}
-              {t("workspaces.fUnit")}: <span className="font-mono text-fg-2">{w.unitName}</span>
-            </>
-          )}
-        </div>
-      </Form>
-    </Drawer>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }

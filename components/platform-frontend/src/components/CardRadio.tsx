@@ -1,6 +1,8 @@
+import { cn } from "@/lib/utils";
+
 // Controlled radio-card group — the prototype's `.pick-grid`. Each option is a
-// clickable card; the selected one gets an accent ring. Integrates with AntD
-// Form.Item out of the box via the `value` / `onChange` contract.
+// clickable card; the selected one gets an accent ring. Drives a simple
+// `value` / `onChange` contract so it slots into form controllers.
 export interface CardOption {
   value: string;
   title: string;
@@ -30,16 +32,17 @@ export function CardRadio({
             key={o.value}
             disabled={disabled}
             onClick={() => onChange?.(o.value)}
-            className={[
-              "rounded-lg border px-3 py-2.5 text-left transition-colors",
+            className={cn(
+              "rounded-lg border px-3 py-2.5 text-left transition-colors outline-none",
+              "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
               "disabled:cursor-not-allowed disabled:opacity-60",
               selected
-                ? "border-accent ring-1 ring-accent bg-surface-warm"
-                : "border-border-default bg-bg hover:border-accent",
-            ].join(" ")}
+                ? "border-foreground bg-accent ring-1 ring-foreground"
+                : "border-border bg-card hover:border-foreground/30",
+            )}
           >
-            <div className="font-mono text-sm font-medium text-fg">{o.title}</div>
-            {o.desc && <div className="mt-0.5 text-xs text-muted">{o.desc}</div>}
+            <div className="font-mono text-sm font-medium">{o.title}</div>
+            {o.desc && <div className="mt-0.5 text-xs text-muted-foreground">{o.desc}</div>}
           </button>
         );
       })}

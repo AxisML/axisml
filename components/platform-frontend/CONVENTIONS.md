@@ -1,44 +1,47 @@
 # platform-frontend — page authoring conventions
 
-This SPA is built on **Ant Design v6 + Tailwind CSS v3 + react-i18next**, per the
-engineering design in `docs/system_design/platform/frontend.md`. The product
-prototype in `docs/product_design/prototype/` is the reference for page structure,
-fields, and copy — but pages are **adapted to Ant Design**, not ported verbatim.
-Each prototype `*.html` becomes one React page under `src/pages/`. The shared
-shell (Sider + Header) is provided by `AppShell`; pages render only their content.
+This SPA is built on **shadcn/ui (Radix primitives) + Tailwind CSS v3 + react-i18next**,
+per the engineering design in `docs/system_design/platform/frontend.md`. The product
+prototype in `docs/product_design/prototype/` is the authority for page **structure,
+fields, and interactions**; the **visual skin** (color / type / radius / spacing / cards)
+follows the root `DESIGN.md` (Geist: near-black ink on a near-white canvas, hairline
+cards, blue link/focus). Each prototype `*.html` becomes one React page under
+`src/pages/`. The shared shell (Sidebar + Topbar) is provided by `AppShell`; pages
+render only their content.
 
 ## Reference implementations
-- `src/pages/Jobs.tsx` — canonical LIST page (PageContainer + Card toolbar + AntD
-  `Table` + `Drawer`/`Form` create·run·edit + `Modal.confirm` delete).
-- `src/pages/Dashboard.tsx` — cards / `Statistic` / `Tabs` / `List` / charts.
-- Detail pages (`JobDetail`, `ServiceDetail`, …) — `Descriptions` + `Tabs` +
-  `Timeline`/`Steps`, with a back `<Link>` and breadcrumb parent section.
+- `src/pages/Jobs.tsx` — canonical LIST page (PageContainer + toolbar Card + `DataTable`
+  + `Sheet` create·run·edit form + `confirm()` delete).
+- `src/pages/Dashboard.tsx` — metric cards / Tabs / lists / Recharts charts.
+- Detail pages (`JobDetail`, `ServiceDetail`, …) — `Descriptions`-style key/value grid +
+  `Tabs` + timeline/steps, with a back `<Link>` and breadcrumb parent section.
 
-## Building blocks
-- Page chrome: `<PageContainer breadcrumb title subtitle extra>` (`@/components`).
+## Building blocks (`@/components`)
+- Page chrome: `<PageContainer breadcrumb title subtitle extra>`.
 - Numbered form sections: `<FieldSection n title>`. Radio-card pickers: `<CardRadio>`.
-- Phase/status: `<PhaseTag phase={...} />` (maps enums → colored AntD `Tag` + i18n).
-- Toasts / confirm modals: `const { toast, confirm } = useUI()` (`@/app/ui`, backed
-  by AntD `App` message + Modal).
+- Phase/status: `<PhaseTag phase={...} />` (maps enums → colored `Badge` + i18n).
+- Tables: `<DataTable>` wrapper over shadcn `Table` (sorting/pagination/empty/loading).
+- Toasts / confirm: `const { toast, confirm } = useUI()` (`@/app/ui`, backed by `sonner`
+  + a global `AlertDialog`).
 
-## Styling
-- **UI = Ant Design components.** Reach for third-party libs from the AntD
-  recommendation list (https://ant.design/docs/react/recommendation) only when AntD
-  has no equivalent; hand-roll as a last resort. Charts use `@ant-design/charts`.
-- **Layout / spacing = Tailwind utilities.** Use the token color classes
-  (`text-fg`, `text-fg-2`, `text-muted`, `text-accent`, `bg-bg`, `bg-surface`,
-  `bg-surface-warm`, `border-border-soft`, `font-mono`) which map to the design
-  tokens in `src/styles/tokens.css` — never hard-code hex. The red brand accent and
-  light/dark algorithms are injected by `ConfigProvider` in `src/app/theme.tsx`.
-- AntD + Tailwind coexist via `@layer` ordering (`src/styles/tailwind.css`) +
-  `<StyleProvider layer>`. Tailwind utilities win over AntD; for the rare forced
-  override use the `!` prefix (e.g. `!bg-accent`).
-- Icons: `@ant-design/icons`.
+## shadcn usage rules
+- **Use shadcn components before custom markup.** Primitives live in `src/components/ui/`
+  (added via `pnpm dlx shadcn@latest add`). Compose `Card`/`Sheet`/`Dialog`/`Tabs`/
+  `Table`/`Select`/`Badge`/`Alert`/`Empty`/`Skeleton` rather than styled `div`s.
+- **`className` is for layout, not color/typography.** Use semantic tokens
+  (`bg-background`, `text-muted-foreground`, `border-border`, `text-primary`) — never raw
+  hex or `bg-blue-500`. Status hues come from `<PhaseTag>` / `Badge` variants.
+- Spacing: `flex`/`grid` + `gap-*`, never `space-y-*`. Equal dims: `size-*`.
+- Icons: **lucide-react**. Inside `<Button>` use `data-icon`; no manual size classes.
+- Forms: React Hook Form + `zod` via shadcn `Form`/`Field`; validation through
+  `aria-invalid` + `FormMessage`. The required marker is a trailing red `*`.
+- Overlays (`Dialog`/`Sheet`/`Popover`/`AlertDialog`) manage their own z-index — don't
+  add manual `z-*`.
 
 ## Data
-- List pages call their hook from `@/api/hooks` (`useJobs`, `useServices`, …),
-  scoped to the active tenant. Render genuine async states — `Table loading` +
-  `locale.emptyText` (loadFailed vs noData), `<Spin>` / `<Empty>` for card grids.
+- List pages call their hook from `@/api/hooks` (`useJobs`, `useServices`, …), scoped to
+  the active tenant. Render genuine async states — `DataTable` `loading` + empty/error
+  (loadFailed vs noData), `Skeleton`/`Empty` for card grids.
   **Never fabricate fallback / demo rows** — a failed call must surface as an error.
 - Writes go through `useApiMutation` (`@/api/mutations`) wrapping the generated SDK
   (`import * as sdk from "@/api/generated"`), with `{ invalidate: [[queryKey]],
@@ -47,15 +50,15 @@ shell (Sider + Header) is provided by `AppShell`; pages render only their conten
 
 ## i18n
 - Every user-facing string goes through `t(...)`. Shared keys live in
-  `src/i18n/locales/{zh,en}.ts` (`common.*`, `phase.*`, `nav.*`, `role.*`); each
-  feature adds `src/i18n/locales/features/<feature>.{zh,en}.ts` exporting
-  `default { <feature>: {...} }` — these are glob-merged, so no shared-file edits.
-  Keep zh and en key sets identical. Dates/relative-time via `dayjs`.
-- Do not localize free user text (display names, descriptions, log bodies) or raw
-  machine enums — only their display labels.
+  `src/i18n/locales/{zh,en}.ts` (`common.*`, `phase.*`, `nav.*`, `role.*`); each feature
+  adds `src/i18n/locales/features/<feature>.{zh,en}.ts` exporting
+  `default { <feature>: {...} }` — glob-merged, so no shared-file edits. Keep zh and en
+  key sets identical. Dates/relative-time via `dayjs`.
+- Do not localize free user text (display names, descriptions, log bodies) or raw machine
+  enums — only their display labels.
 
 ## Don't
-- Don't hard-code colors or use removed legacy CSS classes (`panel`, `tbl`, `btn`,
-  `page`, `kpi`, …) — `src/styles/app.css` and the old hand-rolled components are gone.
-- Don't fabricate data to fill a UI a backend endpoint doesn't serve yet — show an
-  honest empty/placeholder state (see the metrics/logs panes).
+- Don't hard-code colors or override component colors/typography via `className`.
+- Don't fabricate data to fill a UI a backend endpoint doesn't serve yet — show an honest
+  empty/placeholder state (see the metrics/logs panes).
+- Don't import from `antd` / `@ant-design/*` — they are removed.

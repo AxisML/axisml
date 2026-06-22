@@ -30,7 +30,7 @@ External Users → Envoy Gateway → Platform ─┬─▶ cluster-manager
 
 ```
 ┌──────── AxisML Platform ────────┐
-│ Frontend (TS + React + Vite + Ant Design)        │
+│ Frontend (TS + React + Vite + shadcn/ui)         │
 │      │ REST                                         │
 │ Backend (Go + Gin + Cobra)                          │
 │  ├─ auth (JWT + RBAC + access JWT + IdP 接口)       │
@@ -280,9 +280,9 @@ Platform 在下游对象上挂自定义元数据（`last-replicas` 副本基线�
 | 机读枚举（`phase` / `status` / `source` / `kind` / `role` 等） | 展示层映射为本地化标签；枚举原值不翻译 |
 | 时间戳（RFC3339 UTC）/ 数值 | 按 locale 格式化（`Intl` / dayjs） |
 
-**前端实现**：文案经 react-i18next 维护；Ant Design 经 `ConfigProvider` 注入 locale。**语言选择**纯浏览器端持久化（localStorage，初值 `navigator.language`），不落 PG、不入会话、不随出站请求传播。**不本地化**：用户自由文本与日志正文原样回显。
+**前端实现**：文案经 react-i18next 维护（前端自带所有 locale 文案，不依赖组件库 locale 包）。**语言选择**纯浏览器端持久化（localStorage，初值 `navigator.language`），不落 PG、不入会话、不随出站请求传播。**不本地化**：用户自由文本与日志正文原样回显。
 
-**关键不变量**：后端零文案，新增语言 = 加 catalog + AntD locale 包，后端与下游零改动；error `type` / 下游 code 是稳定契约（改文案不改 code）。
+**关键不变量**：后端零文案，新增语言 = 加 catalog（前端独立维护），后端与下游零改动；error `type` / 下游 code 是稳定契约（改文案不改 code）。
 
 RBAC 中间件装配见 [auth.md](auth.md)；Platform 路由层挂载 `RequireSystemAdmin` / `RequireTenantRole` / `RequireJobOwner` / `RequireExperimentOwner` / `RequireServiceOwner` / `RequireTrafficPolicyOwner` / `RequireWorkspaceOwner`（均按 `name` 寻址）。
 

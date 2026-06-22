@@ -1,15 +1,14 @@
-import { useState, type ReactNode } from "react";
+import { useState, type ComponentType, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { Card, Segmented, Button, Tabs, List, Empty } from "antd";
 import {
-  ReloadOutlined,
-  DesktopOutlined,
-  ExperimentOutlined,
-  ThunderboltOutlined,
-  CloudServerOutlined,
-  DatabaseOutlined,
-  ArrowRightOutlined,
-} from "@ant-design/icons";
+  RotateCw,
+  Monitor,
+  FlaskConical,
+  Zap,
+  Server,
+  Database,
+  ArrowRight,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import dayjs from "dayjs";
@@ -29,6 +28,13 @@ import {
 import { USE_MOCK } from "@/api/mock";
 import { clusterUsage, type ClusterUsage, type UsageMetric } from "@/api/mock/data";
 import * as sdk from "@/api/generated";
+import { Card, CardContent, CardHeader, CardTitle, CardAction } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Empty, EmptyDescription, EmptyHeader } from "@/components/ui/empty";
+import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
 
 // 首页 / Dashboard. KPI counts and recent activity come from the live list
 // endpoints (scoped to the active tenant); active-run roll-ups come from
@@ -40,7 +46,7 @@ export default function Dashboard() {
   const { tenant } = useApp();
   const { toast } = useUI();
   const { t } = useTranslation();
-  const [, setRange] = useState("24h");
+  const [range, setRange] = useState("24h");
 
   const ws = useWorkspaces();
   const exp = useExperiments();
@@ -80,8 +86,13 @@ export default function Dashboard() {
       subtitle={t("dashboard.subtitle")}
       extra={
         <div className="flex items-center gap-3">
-          <Segmented options={["1h", "24h", "7d"]} defaultValue="24h" onChange={(v) => setRange(String(v))} />
-          <Button icon={<ReloadOutlined />} onClick={refresh}>
+          <ToggleGroup type="single" value={range} onValueChange={(v) => v && setRange(v)}>
+            <ToggleGroupItem value="1h">1h</ToggleGroupItem>
+            <ToggleGroupItem value="24h">24h</ToggleGroupItem>
+            <ToggleGroupItem value="7d">7d</ToggleGroupItem>
+          </ToggleGroup>
+          <Button variant="outline" onClick={refresh}>
+            <RotateCw data-icon="inline-start" />
             {t("dashboard.refresh")}
           </Button>
         </div>
@@ -89,59 +100,87 @@ export default function Dashboard() {
     >
       {/* KPI row */}
       <div className="mb-5 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
-        <Kpi to="/workspaces" icon={<DesktopOutlined />} label={t("dashboard.kpiWorkspace")} value={countText(ws)} foot={t("dashboard.running", { count: wsRunning })} />
-        <Kpi to="/experiments" icon={<ExperimentOutlined />} label={t("dashboard.kpiExperiment")} value={countText(exp)} foot={t("dashboard.running", { count: runText(statsQ.data?.activeExperimentRuns, statsQ) })} />
-        <Kpi to="/jobs" icon={<ThunderboltOutlined />} label={t("dashboard.kpiJob")} value={countText(jobs)} foot={t("dashboard.running", { count: runText(statsQ.data?.activeJobRuns, statsQ) })} />
-        <Kpi to="/services" icon={<CloudServerOutlined />} label={t("dashboard.kpiService")} value={countText(svc)} foot={t("dashboard.readyDegraded", { ready: svcReady, degraded: svcDegraded })} />
-        <Kpi to="/models" icon={<DatabaseOutlined />} label={t("dashboard.kpiAsset")} value={assetErr ? "—" : String(assetTotal)} foot={t("dashboard.modelsImages", { models: models.data?.count ?? 0, images: images.data?.count ?? 0 })} />
+        <Kpi to="/workspaces" icon={Monitor} label={t("dashboard.kpiWorkspace")} value={countText(ws)} foot={t("dashboard.running", { count: wsRunning })} />
+        <Kpi to="/experiments" icon={FlaskConical} label={t("dashboard.kpiExperiment")} value={countText(exp)} foot={t("dashboard.running", { count: runText(statsQ.data?.activeExperimentRuns, statsQ) })} />
+        <Kpi to="/jobs" icon={Zap} label={t("dashboard.kpiJob")} value={countText(jobs)} foot={t("dashboard.running", { count: runText(statsQ.data?.activeJobRuns, statsQ) })} />
+        <Kpi to="/services" icon={Server} label={t("dashboard.kpiService")} value={countText(svc)} foot={t("dashboard.readyDegraded", { ready: svcReady, degraded: svcDegraded })} />
+        <Kpi to="/models" icon={Database} label={t("dashboard.kpiAsset")} value={assetErr ? "—" : String(assetTotal)} foot={t("dashboard.modelsImages", { models: models.data?.count ?? 0, images: images.data?.count ?? 0 })} />
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <Card
-          className="xl:col-span-2"
-          title={t("dashboard.clusterUsage")}
-          extra={<span className="text-xs text-muted">{t(USE_MOCK ? "dashboard.metricsHintMock" : "dashboard.metricsHint")}</span>}
-        >
-          <Tabs
-            items={[
-              { key: "all", label: t("dashboard.all"), children: <ClusterPane pool="all" /> },
-              ...poolNames.map((name) => ({ key: name, label: name, children: <ClusterPane pool={name} /> })),
-            ]}
-          />
+        <Card className="gap-0 xl:col-span-2">
+          <CardHeader className="border-b">
+            <CardTitle>{t("dashboard.clusterUsage")}</CardTitle>
+            <CardAction>
+              <span className="text-xs text-muted-foreground">
+                {t(USE_MOCK ? "dashboard.metricsHintMock" : "dashboard.metricsHint")}
+              </span>
+            </CardAction>
+          </CardHeader>
+          <CardContent className="pt-4">
+            <Tabs defaultValue="all">
+              <TabsList className="mb-4">
+                <TabsTrigger value="all">{t("dashboard.all")}</TabsTrigger>
+                {poolNames.map((name) => (
+                  <TabsTrigger key={name} value={name}>
+                    {name}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+              <TabsContent value="all">
+                <ClusterPane pool="all" />
+              </TabsContent>
+              {poolNames.map((name) => (
+                <TabsContent key={name} value={name}>
+                  <ClusterPane pool={name} />
+                </TabsContent>
+              ))}
+            </Tabs>
+          </CardContent>
         </Card>
 
-        <Card title={t("dashboard.recentActivity")} styles={{ body: { padding: 0 } }}>
-          <RecentActivity ws={ws} svc={svc} />
+        <Card className="gap-0">
+          <CardHeader className="border-b">
+            <CardTitle>{t("dashboard.recentActivity")}</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <RecentActivity ws={ws} svc={svc} />
+          </CardContent>
         </Card>
       </div>
     </PageContainer>
   );
 }
 
-// Focal KPI card — the prototype's `.kpi.focal`: a subtle accent gradient, large
-// accent-red mono value, and a hover lift that reveals a forward arrow.
-function Kpi({ to, icon, label, value, foot }: { to: string; icon: ReactNode; label: string; value: ReactNode; foot: ReactNode }) {
+// Focal KPI card — the prototype's `.kpi.focal`: a hover lift that reveals a
+// forward arrow. Geist skin: ink value, hairline card, no chromatic fill.
+function Kpi({
+  to,
+  icon: Icon,
+  label,
+  value,
+  foot,
+}: {
+  to: string;
+  icon: ComponentType<{ className?: string }>;
+  label: string;
+  value: ReactNode;
+  foot: ReactNode;
+}) {
   return (
     <Link
       to={to}
-      className="group relative block h-full overflow-hidden rounded-md border p-5 shadow-sm transition-all duration-150 hover:-translate-y-0.5 hover:shadow-lg"
-      style={{
-        background: "linear-gradient(180deg, color-mix(in oklab, var(--accent) 7%, var(--bg)), var(--bg))",
-        borderColor: "color-mix(in oklab, var(--accent) 30%, var(--border))",
-      }}
+      className="group relative block h-full overflow-hidden rounded-lg border bg-card p-5 shadow-xs transition-all duration-150 hover:-translate-y-0.5 hover:border-foreground/20 hover:shadow-md"
     >
       <div className="flex items-center justify-between">
-        <span className="text-[13px] text-muted">{label}</span>
-        <span
-          className="grid h-[30px] w-[30px] place-items-center rounded-md text-accent"
-          style={{ background: "color-mix(in oklab, var(--accent) 12%, transparent)" }}
-        >
-          {icon}
+        <span className="text-[13px] text-muted-foreground">{label}</span>
+        <span className="grid size-[30px] place-items-center rounded-md bg-muted text-muted-foreground">
+          <Icon className="size-4" />
         </span>
       </div>
-      <div className="mt-3 font-mono text-[30px] font-semibold leading-none tracking-tight text-accent">{value}</div>
-      <div className="mt-3 text-xs text-muted">{foot}</div>
-      <ArrowRightOutlined className="absolute bottom-4 right-4 -translate-x-1 text-accent opacity-0 transition-all duration-150 group-hover:translate-x-0 group-hover:opacity-100" />
+      <div className="mt-3 font-mono text-3xl leading-none font-semibold tracking-tight">{value}</div>
+      <div className="mt-3 text-xs text-muted-foreground">{foot}</div>
+      <ArrowRight className="absolute right-4 bottom-4 size-4 -translate-x-1 text-muted-foreground opacity-0 transition-all duration-150 group-hover:translate-x-0 group-hover:opacity-100" />
     </Link>
   );
 }
@@ -169,44 +208,46 @@ function ClusterPane({ pool }: { pool: string }) {
         <MeterStat label="CPU" icon={<CpuIcon />} m={usage?.cpu} />
         <MeterStat label={t("dashboard.memLabel")} icon={<MemIcon />} m={usage?.mem} />
       </div>
-      <div className="my-4 border-t border-border-soft" />
+      <Separator className="my-4" />
       <div className="mb-3 flex items-center justify-between">
-        <span className="text-sm font-semibold text-fg">{t("dashboard.gpuTrend")}</span>
-        <div className="flex items-center gap-4 text-xs text-muted">
+        <span className="text-sm font-semibold">{t("dashboard.gpuTrend")}</span>
+        <div className="flex items-center gap-4 text-xs text-muted-foreground">
           <span className="flex items-center gap-1.5">
-            <i className="inline-block h-2 w-2 rounded-full bg-accent" />
+            <i className="inline-block size-2 rounded-full bg-info" />
             {t("dashboard.gpuUtil")}
           </span>
           <span className="flex items-center gap-1.5">
-            <i className="inline-block h-2 w-2 rounded-full bg-muted" />
+            <i className="inline-block size-2 rounded-full bg-muted-foreground" />
             {t("dashboard.gpuQuota")}
           </span>
         </div>
       </div>
       <TrendChart trend={usage?.trend} />
-      {!usage && <div className="mt-1 text-center text-xs text-muted">{t("dashboard.metricsSyncing")}</div>}
+      {!usage && <div className="mt-1 text-center text-xs text-muted-foreground">{t("dashboard.metricsSyncing")}</div>}
     </div>
   );
 }
 
 function MeterStat({ label, icon, m }: { label: string; icon: ReactNode; m?: UsageMetric }) {
   const { t } = useTranslation();
-  const fill = m?.state === "hot" ? "bg-danger" : m?.state === "warn" ? "bg-warn" : "bg-success";
+  const fill = m?.state === "hot" ? "bg-destructive" : m?.state === "warn" ? "bg-warning" : "bg-success";
   const na = m?.state === "na";
   return (
     <div className={na ? "opacity-50" : undefined}>
-      <div className="mb-2.5 flex items-center gap-2 text-[13px] text-muted">
+      <div className="mb-2.5 flex items-center gap-2 text-[13px] text-muted-foreground">
         {icon}
         {label}
       </div>
-      <div className="font-mono text-[22px] font-semibold text-fg">
+      <div className="font-mono text-[22px] font-semibold">
         {m ? m.display : "0"}{" "}
-        <span className="text-sm font-normal text-muted">/ {m ? `${m.total} ${m.unit}` : `— ${label === "GPU" ? "卡" : ""}`}</span>
+        <span className="text-sm font-normal text-muted-foreground">
+          / {m ? `${m.total} ${m.unit}` : `— ${label === "GPU" ? "卡" : ""}`}
+        </span>
       </div>
-      <div className="mt-2.5 h-[7px] overflow-hidden rounded-full bg-surface">
-        <div className={`h-full rounded-full ${fill}`} style={{ width: `${m?.pct ?? 0}%` }} />
+      <div className="mt-2.5 h-[7px] overflow-hidden rounded-full bg-muted">
+        <div className={cn("h-full rounded-full", fill)} style={{ width: `${m?.pct ?? 0}%` }} />
       </div>
-      <div className="mt-1.5 font-mono text-xs text-muted">
+      <div className="mt-1.5 font-mono text-xs text-muted-foreground">
         {na ? t("dashboard.noGpu") : m ? `${m.pct}% ${t("dashboard.utilization")}` : t("dashboard.metricsSyncing")}
       </div>
     </div>
@@ -214,7 +255,7 @@ function MeterStat({ label, icon, m }: { label: string; icon: ReactNode; m?: Usa
 }
 
 // Hand-drawn SVG trend (area + util line + dashed concurrency line), matching the
-// prototype's inline chart exactly. viewBox stretches to fill width.
+// prototype's inline chart. viewBox stretches to fill width.
 function TrendChart({ trend }: { trend?: ClusterUsage["trend"] }) {
   const W = 720;
   const H = 200;
@@ -232,21 +273,21 @@ function TrendChart({ trend }: { trend?: ClusterUsage["trend"] }) {
     <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="h-[180px] w-full">
       <defs>
         <linearGradient id="gtrend" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0" stopColor="var(--accent)" stopOpacity="0.16" />
-          <stop offset="1" stopColor="var(--accent)" stopOpacity="0" />
+          <stop offset="0" stopColor="var(--info)" stopOpacity="0.16" />
+          <stop offset="1" stopColor="var(--info)" stopOpacity="0" />
         </linearGradient>
       </defs>
       {[50, 100, 150].map((y) => (
-        <line key={y} x1="0" y1={y} x2={W} y2={y} stroke="var(--border-soft)" strokeWidth="1" />
+        <line key={y} x1="0" y1={y} x2={W} y2={y} stroke="var(--border)" strokeWidth="1" />
       ))}
       <path d={areaPath} fill="url(#gtrend)" />
-      <path d={linePath} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      <path d={taskPath} fill="none" stroke="var(--muted)" strokeWidth="1.6" strokeDasharray="4 4" strokeLinecap="round" strokeLinejoin="round" />
+      <path d={linePath} fill="none" stroke="var(--info)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d={taskPath} fill="none" stroke="var(--muted-foreground)" strokeWidth="1.6" strokeDasharray="4 4" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
 
-const ICO = "h-4 w-4";
+const ICO = "size-4";
 function GpuIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" className={ICO}>
@@ -296,20 +337,25 @@ function RecentActivity({
     .slice(0, 6);
 
   if (!items.length) {
-    return <div className="py-10"><Empty description={t("dashboard.noActivity")} /></div>;
+    return (
+      <Empty className="py-10">
+        <EmptyHeader>
+          <EmptyDescription>{t("dashboard.noActivity")}</EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    );
   }
   return (
-    <List
-      dataSource={items}
-      renderItem={(a) => (
-        <List.Item className="!px-5">
-          <List.Item.Meta
-            title={<span className="font-mono text-sm font-medium text-fg">{a.name}</span>}
-            description={<span className="text-xs text-muted">{`${a.type} · ${a.at ? dayjs(a.at).fromNow() : "—"}`}</span>}
-          />
+    <ul className="divide-y">
+      {items.map((a, i) => (
+        <li key={i} className="flex items-center justify-between gap-3 px-5 py-3">
+          <div className="min-w-0">
+            <div className="truncate font-mono text-sm font-medium">{a.name}</div>
+            <div className="text-xs text-muted-foreground">{`${a.type} · ${a.at ? dayjs(a.at).fromNow() : "—"}`}</div>
+          </div>
           <PhaseTag phase={a.phase} />
-        </List.Item>
-      )}
-    />
+        </li>
+      ))}
+    </ul>
   );
 }

@@ -20,6 +20,7 @@ export const enUS: Catalog = {
     loadFailed: "Failed to load",
     retry: "Retry",
     noData: "No data",
+    totalItems: "{{count}} items",
     all: "All",
     yes: "Yes",
     no: "No",

@@ -1,8 +1,8 @@
 import { useEffect, Suspense } from "react";
-import { Layout, Spin } from "antd";
 import { Outlet } from "react-router-dom";
 import { useApp } from "@/app/store";
 import { useTenantOptions } from "@/api/hooks";
+import { Spinner } from "@/components/ui/spinner";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 
@@ -16,16 +16,22 @@ export function AppShell() {
   }, [tenant, tenantOptions, setTenant]);
 
   return (
-    <Layout className="h-screen">
+    <div className="flex h-screen overflow-hidden bg-background text-foreground">
       <Sidebar />
-      <Layout className="min-w-0">
+      <div className="flex min-w-0 flex-1 flex-col">
         <Topbar />
-        <Layout.Content className="overflow-auto bg-surface">
-          <Suspense fallback={<div className="grid h-full place-items-center py-24"><Spin size="large" /></div>}>
+        <main className="flex-1 overflow-auto">
+          <Suspense
+            fallback={
+              <div className="grid h-full place-items-center py-24">
+                <Spinner className="size-7 text-muted-foreground" />
+              </div>
+            }
+          >
             <Outlet />
           </Suspense>
-        </Layout.Content>
-      </Layout>
-    </Layout>
+        </main>
+      </div>
+    </div>
   );
 }

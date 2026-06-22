@@ -1,35 +1,16 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
-  Button,
-  Card,
-  Tabs,
-  Table,
-  Select,
-  Descriptions,
-  Tag,
-  Empty,
-  Spin,
-  Result,
-  Space,
-  Tooltip,
-  Drawer,
-  Form,
-  InputNumber,
-  Input,
-} from "antd";
-import type { ColumnsType } from "antd/es/table";
-import {
-  ArrowLeftOutlined,
-  ExpandOutlined,
-  EditOutlined,
-  PauseOutlined,
-  CaretRightOutlined,
-  DeleteOutlined,
-  CopyOutlined,
-  ReloadOutlined,
-  CloseOutlined,
-} from "@ant-design/icons";
+  ArrowLeft,
+  Maximize2,
+  Pencil,
+  Pause,
+  Play,
+  Trash2,
+  Copy,
+  RotateCw,
+  OctagonX,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import dayjs from "dayjs";
@@ -40,6 +21,32 @@ import { useUI } from "@/app/ui";
 import { PageContainer } from "@/components/PageContainer";
 import { PhaseTag } from "@/components/PhaseTag";
 import { LogViewer } from "@/components/LogViewer";
+import { DataTable, type Column } from "@/components/DataTable";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Spinner } from "@/components/ui/spinner";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Sheet,
+  SheetContent,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { fmtDateTime } from "./JobDetail";
 
 const INVALIDATE = [["mlservices"]];
@@ -51,6 +58,7 @@ export default function ServiceDetail() {
   const { t } = useTranslation();
   const { confirm } = useUI();
   const [drawer, setDrawer] = useState<"edit" | "scale" | null>(null);
+  const [tab, setTab] = useState("info");
 
   const q = useQuery({
     queryKey: ["mlservices", tenant, name],
@@ -77,11 +85,12 @@ export default function ServiceDetail() {
 
   const breadcrumb = [t("nav.serviceCenter"), t("nav.services"), name];
   const back = (
-    <Link to="/services">
-      <Button type="text" size="small" icon={<ArrowLeftOutlined />}>
+    <Button variant="ghost" size="sm" asChild>
+      <Link to="/services">
+        <ArrowLeft data-icon="inline-start" />
         {t("services.backToList")}
-      </Button>
-    </Link>
+      </Link>
+    </Button>
   );
 
   if (q.isLoading) {
@@ -89,7 +98,7 @@ export default function ServiceDetail() {
       <PageContainer breadcrumb={breadcrumb} title={name}>
         {back}
         <div className="grid place-items-center py-24">
-          <Spin />
+          <Spinner className="size-7 text-muted-foreground" />
         </div>
       </PageContainer>
     );
@@ -99,7 +108,11 @@ export default function ServiceDetail() {
     return (
       <PageContainer breadcrumb={breadcrumb} title={name}>
         {back}
-        <Result status="error" title={t("services.notFound")} subTitle={t("services.loadFailedDesc")} />
+        <Alert variant="destructive" className="mt-4">
+          <OctagonX />
+          <AlertTitle>{t("services.notFound")}</AlertTitle>
+          <AlertDescription>{t("services.loadFailedDesc")}</AlertDescription>
+        </Alert>
       </PageContainer>
     );
   }
@@ -126,38 +139,58 @@ export default function ServiceDetail() {
       }
       subtitle={svc.description ?? svc.displayName ?? undefined}
       extra={
-        <Space>
-          <Button icon={<EditOutlined />} onClick={() => setDrawer("edit")}>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setDrawer("edit")}>
+            <Pencil data-icon="inline-start" />
             {t("common.edit")}
           </Button>
-          <Button icon={<ExpandOutlined />} onClick={() => setDrawer("scale")}>
+          <Button variant="outline" onClick={() => setDrawer("scale")}>
+            <Maximize2 data-icon="inline-start" />
             {t("services.scale")}
           </Button>
           {running ? (
-            <Button icon={<PauseOutlined />} loading={stop.isPending} onClick={() => stop.mutate(undefined)}>
+            <Button variant="outline" disabled={stop.isPending} onClick={() => stop.mutate(undefined)}>
+              {stop.isPending ? <Spinner data-icon="inline-start" /> : <Pause data-icon="inline-start" />}
               {t("services.stop")}
             </Button>
           ) : (
-            <Button icon={<CaretRightOutlined />} loading={start.isPending} onClick={() => start.mutate(undefined)}>
+            <Button variant="outline" disabled={start.isPending} onClick={() => start.mutate(undefined)}>
+              {start.isPending ? <Spinner data-icon="inline-start" /> : <Play data-icon="inline-start" />}
               {t("services.start")}
             </Button>
           )}
-          <Button danger icon={<DeleteOutlined />} onClick={onDelete}>
+          <Button variant="outline" className="text-destructive" onClick={onDelete}>
+            <Trash2 data-icon="inline-start" />
             {t("common.delete")}
           </Button>
-        </Space>
+        </div>
       }
     >
       <div className="mb-4">{back}</div>
-      <Tabs
-        items={[
-          { key: "info", label: t("services.tabInfo"), children: <InfoPane svc={svc} /> },
-          { key: "mon", label: t("services.tabMonitor"), children: <MonitorPane name={svc.name} /> },
-          { key: "pods", label: t("services.tabPods"), children: <PodsPane name={svc.name} /> },
-          { key: "log", label: t("services.tabLog"), children: <LogPane name={svc.name} /> },
-          { key: "ev", label: t("services.tabEvents"), children: <EventsPane name={svc.name} /> },
-        ]}
-      />
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList>
+          <TabsTrigger value="info">{t("services.tabInfo")}</TabsTrigger>
+          <TabsTrigger value="mon">{t("services.tabMonitor")}</TabsTrigger>
+          <TabsTrigger value="pods">{t("services.tabPods")}</TabsTrigger>
+          <TabsTrigger value="log">{t("services.tabLog")}</TabsTrigger>
+          <TabsTrigger value="ev">{t("services.tabEvents")}</TabsTrigger>
+        </TabsList>
+        <TabsContent value="info" className="mt-4">
+          <InfoPane svc={svc} />
+        </TabsContent>
+        <TabsContent value="mon" className="mt-4">
+          <MonitorPane name={svc.name} />
+        </TabsContent>
+        <TabsContent value="pods" className="mt-4">
+          <PodsPane name={svc.name} />
+        </TabsContent>
+        <TabsContent value="log" className="mt-4">
+          <LogPane name={svc.name} />
+        </TabsContent>
+        <TabsContent value="ev" className="mt-4">
+          <EventsPane name={svc.name} />
+        </TabsContent>
+      </Tabs>
 
       {drawer === "edit" && <EditSvcDrawer svc={svc} onClose={() => setDrawer(null)} />}
       {drawer === "scale" && <ScaleDrawer svc={svc} onClose={() => setDrawer(null)} />}
@@ -166,69 +199,104 @@ export default function ServiceDetail() {
 }
 
 // ── Overview ──────────────────────────────────────────────────────────────────
+function DescRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <>
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="min-w-0">{children}</dd>
+    </>
+  );
+}
+
 function InfoPane({ svc }: { svc: sdk.MlService }) {
   const { t } = useTranslation();
   const { toast } = useUI();
 
-  const dash = <span className="text-muted">—</span>;
-  const chip = (v?: string) => (v ? <Tag className="!m-0 font-mono">{v}</Tag> : dash);
+  const dash = <span className="text-muted-foreground">—</span>;
+  const chip = (v?: string) =>
+    v ? (
+      <Badge variant="outline" className="font-mono">
+        {v}
+      </Badge>
+    ) : (
+      dash
+    );
 
   return (
-    <Card title={t("services.configInfo")}>
-      <Descriptions column={1} bordered size="middle">
-        <Descriptions.Item label={t("services.dName")}>{chip(svc.name)}</Descriptions.Item>
-        <Descriptions.Item label={t("services.dDesc")}>{svc.description ?? dash}</Descriptions.Item>
-        <Descriptions.Item label={t("services.dModelVersion")}>
-          {svc.modelName ? chip(svc.modelVersion ? `${svc.modelName}@${svc.modelVersion}` : svc.modelName) : dash}
-        </Descriptions.Item>
-        <Descriptions.Item label={t("services.dImage")}>{chip(svc.image)}</Descriptions.Item>
-        <Descriptions.Item label={t("services.dPool")}>{chip(svc.poolName)}</Descriptions.Item>
-        <Descriptions.Item label={t("services.dUnit")}>{chip(svc.unitName)}</Descriptions.Item>
-        <Descriptions.Item label={t("services.dReplicas")}>
-          <span className="font-mono">
-            {t("services.replicasReady", { ready: svc.readyReplicas ?? 0, total: svc.replicas ?? 0 })}
-          </span>
-        </Descriptions.Item>
-        <Descriptions.Item label={t("services.dPorts")}>
-          {svc.ports && svc.ports.length > 0 ? (
-            <Space size={[6, 6]} wrap>
-              {svc.ports.map((p) => (
-                <Tag key={`${p.name}:${p.port}`} className="!m-0 font-mono">
-                  {p.name} : {p.port}
-                </Tag>
-              ))}
-            </Space>
-          ) : (
-            dash
-          )}
-        </Descriptions.Item>
-        <Descriptions.Item label={t("services.dAccess")}>
-          {svc.accessUrl ? (
-            <span className="flex items-center gap-2">
-              <Tag className="!m-0 font-mono">{svc.accessUrl}</Tag>
-              <Tooltip title={t("services.copyAccess")}>
-                <Button
-                  type="text"
-                  size="small"
-                  icon={<CopyOutlined />}
-                  onClick={() => {
-                    void navigator.clipboard?.writeText(svc.accessUrl ?? "");
-                    toast(t("services.accessCopied"));
-                  }}
-                />
-              </Tooltip>
+    <Card className="p-0">
+      <CardHeader className="border-b py-4">
+        <CardTitle>{t("services.configInfo")}</CardTitle>
+      </CardHeader>
+      <CardContent className="py-4">
+        <dl className="grid grid-cols-[140px_1fr] items-center gap-x-4 gap-y-3 text-sm">
+          <DescRow label={t("services.dName")}>{chip(svc.name)}</DescRow>
+          <DescRow label={t("services.dDesc")}>{svc.description ?? dash}</DescRow>
+          <DescRow label={t("services.dModelVersion")}>
+            {svc.modelName
+              ? chip(svc.modelVersion ? `${svc.modelName}@${svc.modelVersion}` : svc.modelName)
+              : dash}
+          </DescRow>
+          <DescRow label={t("services.dImage")}>{chip(svc.image)}</DescRow>
+          <DescRow label={t("services.dPool")}>{chip(svc.poolName)}</DescRow>
+          <DescRow label={t("services.dUnit")}>{chip(svc.unitName)}</DescRow>
+          <DescRow label={t("services.dReplicas")}>
+            <span className="font-mono">
+              {t("services.replicasReady", { ready: svc.readyReplicas ?? 0, total: svc.replicas ?? 0 })}
             </span>
-          ) : (
-            dash
-          )}
-        </Descriptions.Item>
-        <Descriptions.Item label={t("services.dCreator")}>
-          {svc.owner ? <span className="font-mono">{svc.owner}</span> : dash}
-        </Descriptions.Item>
-        <Descriptions.Item label={t("services.dCreatedAt")}>
-          {svc.createdAt ? <span className="font-mono text-muted">{dayjs(svc.createdAt).format("YYYY-MM-DD HH:mm:ss")}</span> : dash}
-        </Descriptions.Item>
-      </Descriptions>
+          </DescRow>
+          <DescRow label={t("services.dPorts")}>
+            {svc.ports && svc.ports.length > 0 ? (
+              <span className="flex flex-wrap gap-1.5">
+                {svc.ports.map((p) => (
+                  <Badge key={`${p.name}:${p.port}`} variant="outline" className="font-mono">
+                    {p.name} : {p.port}
+                  </Badge>
+                ))}
+              </span>
+            ) : (
+              dash
+            )}
+          </DescRow>
+          <DescRow label={t("services.dAccess")}>
+            {svc.accessUrl ? (
+              <span className="flex items-center gap-2">
+                <Badge variant="outline" className="font-mono">
+                  {svc.accessUrl}
+                </Badge>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => {
+                        void navigator.clipboard?.writeText(svc.accessUrl ?? "");
+                        toast(t("services.accessCopied"));
+                      }}
+                    >
+                      <Copy />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{t("services.copyAccess")}</TooltipContent>
+                </Tooltip>
+              </span>
+            ) : (
+              dash
+            )}
+          </DescRow>
+          <DescRow label={t("services.dCreator")}>
+            {svc.owner ? <span className="font-mono">{svc.owner}</span> : dash}
+          </DescRow>
+          <DescRow label={t("services.dCreatedAt")}>
+            {svc.createdAt ? (
+              <span className="font-mono text-muted-foreground">
+                {dayjs(svc.createdAt).format("YYYY-MM-DD HH:mm:ss")}
+              </span>
+            ) : (
+              dash
+            )}
+          </DescRow>
+        </dl>
+      </CardContent>
     </Card>
   );
 }
@@ -241,21 +309,35 @@ function MonitorPane({ name }: { name: string }) {
     queryKey: ["mlservices", tenant, name, "metrics"],
     enabled: tenant !== "" && name !== "",
     queryFn: async () => {
-      const { data, error } = await sdk.getMlServiceMetrics({ path: { name }, query: { metric: "request_rate", range: "24h" } });
+      const { data, error } = await sdk.getMlServiceMetrics({
+        path: { name },
+        query: { metric: "request_rate", range: "24h" },
+      });
       if (error) throw error;
       return data;
     },
   });
   const series = (q.data?.series ?? []).map((p) => p.value ?? 0);
   return (
-    <Card title={t("services.tabMonitor")}>
-      {q.isLoading ? (
-        <div className="grid place-items-center py-16"><Spin /></div>
-      ) : series.length ? (
-        <MiniTrend values={series} />
-      ) : (
-        <div className="py-12"><Empty description={t("services.monitorEmpty")} /></div>
-      )}
+    <Card className="p-0">
+      <CardHeader className="border-b py-4">
+        <CardTitle>{t("services.tabMonitor")}</CardTitle>
+      </CardHeader>
+      <CardContent className="py-4">
+        {q.isLoading ? (
+          <div className="grid place-items-center py-16">
+            <Spinner className="size-7 text-muted-foreground" />
+          </div>
+        ) : series.length ? (
+          <MiniTrend values={series} />
+        ) : (
+          <Empty className="py-12">
+            <EmptyHeader>
+              <EmptyTitle>{t("services.monitorEmpty")}</EmptyTitle>
+            </EmptyHeader>
+          </Empty>
+        )}
+      </CardContent>
     </Card>
   );
 }
@@ -272,15 +354,22 @@ function MiniTrend({ values }: { values: number[] }) {
     <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="h-[200px] w-full">
       <defs>
         <linearGradient id="svc-trend" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0" stopColor="var(--accent)" stopOpacity="0.16" />
-          <stop offset="1" stopColor="var(--accent)" stopOpacity="0" />
+          <stop offset="0" stopColor="var(--info)" stopOpacity="0.16" />
+          <stop offset="1" stopColor="var(--info)" stopOpacity="0" />
         </linearGradient>
       </defs>
       {[50, 100, 150].map((gy) => (
-        <line key={gy} x1="0" y1={gy} x2={W} y2={gy} stroke="var(--border-soft)" strokeWidth="1" />
+        <line key={gy} x1="0" y1={gy} x2={W} y2={gy} stroke="var(--border)" strokeWidth="1" />
       ))}
       <path d={`M0 ${H} L${pts.join(" L")} L${W} ${H} Z`} fill="url(#svc-trend)" />
-      <path d={`M${pts.join(" L")}`} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d={`M${pts.join(" L")}`}
+        fill="none"
+        stroke="var(--info)"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -298,22 +387,47 @@ function PodsPane({ name }: { name: string }) {
       return data;
     },
   });
-  const columns: ColumnsType<sdk.Pod> = [
-    { title: t("services.colPod"), dataIndex: "name", render: (v: string) => <span className="font-mono">{v}</span> },
-    { title: t("services.colPhase"), dataIndex: "phase", width: 120, render: (p: string) => <PhaseTag phase={p} /> },
-    { title: t("services.colNode"), dataIndex: "nodeName", width: 160, render: (v?: string) => <span className="font-mono">{v || "—"}</span> },
-    { title: t("services.colRestarts"), dataIndex: "restartCount", width: 90, align: "right", render: (v?: number) => <span className="font-mono">{v ?? 0}</span> },
-    { title: t("services.colStarted"), dataIndex: "startedAt", width: 170, render: (v?: string) => <span className="text-muted">{fmtDateTime(v)}</span> },
+  const columns: Column<sdk.Pod>[] = [
+    {
+      key: "name",
+      title: t("services.colPod"),
+      render: (p) => <span className="font-mono">{p.name}</span>,
+    },
+    {
+      key: "phase",
+      title: t("services.colPhase"),
+      width: 120,
+      render: (p) => <PhaseTag phase={p.phase} />,
+    },
+    {
+      key: "node",
+      title: t("services.colNode"),
+      width: 160,
+      render: (p) => <span className="font-mono">{p.nodeName || "—"}</span>,
+    },
+    {
+      key: "restarts",
+      title: t("services.colRestarts"),
+      width: 90,
+      align: "right",
+      render: (p) => <span className="font-mono">{p.restartCount ?? 0}</span>,
+    },
+    {
+      key: "started",
+      title: t("services.colStarted"),
+      width: 170,
+      render: (p) => <span className="text-muted-foreground">{fmtDateTime(p.startedAt)}</span>,
+    },
   ];
   return (
-    <Card styles={{ body: { padding: 0 } }} className="overflow-hidden">
-      <Table<sdk.Pod>
-        rowKey="name"
+    <Card className="overflow-hidden p-0">
+      <DataTable
         columns={columns}
-        dataSource={q.data?.items ?? []}
+        data={q.data?.items ?? []}
+        rowKey={(p) => p.name}
         loading={q.isLoading}
-        pagination={{ pageSize: 20, hideOnSinglePage: true }}
-        locale={{ emptyText: <Empty description={q.isError ? t("common.loadFailed") : t("services.podsEmpty")} /> }}
+        error={q.isError}
+        empty={t("services.podsEmpty")}
       />
     </Card>
   );
@@ -347,22 +461,42 @@ function LogPane({ name }: { name: string }) {
     },
   });
   return (
-    <Card
-      title={t("services.tabLog")}
-      extra={
-        <Space>
-          <Select size="small" value={pod || undefined} onChange={setPod} className="min-w-52" options={pods.map((p) => ({ label: p.name, value: p.name }))} />
-          <Button size="small" icon={<ReloadOutlined />} onClick={() => logsQ.refetch()} />
-        </Space>
-      }
-    >
-      {podsQ.isLoading || logsQ.isLoading ? (
-        <div className="grid place-items-center py-16"><Spin /></div>
-      ) : !pods.length ? (
-        <div className="py-12"><Empty description={t("services.logEmpty")} /></div>
-      ) : (
-        <LogViewer text={logsQ.data} empty={t("services.logEmpty")} />
-      )}
+    <Card className="p-0">
+      <CardHeader className="flex flex-row items-center justify-between gap-2 border-b py-4">
+        <CardTitle>{t("services.tabLog")}</CardTitle>
+        <div className="flex items-center gap-2">
+          <Select value={pod || undefined} onValueChange={setPod}>
+            <SelectTrigger size="sm" className="min-w-52">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {pods.map((p) => (
+                <SelectItem key={p.name} value={p.name}>
+                  {p.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button variant="outline" size="icon-sm" onClick={() => logsQ.refetch()}>
+            <RotateCw />
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="py-4">
+        {podsQ.isLoading || logsQ.isLoading ? (
+          <div className="grid place-items-center py-16">
+            <Spinner className="size-7 text-muted-foreground" />
+          </div>
+        ) : !pods.length ? (
+          <Empty className="py-12">
+            <EmptyHeader>
+              <EmptyTitle>{t("services.logEmpty")}</EmptyTitle>
+            </EmptyHeader>
+          </Empty>
+        ) : (
+          <LogViewer text={logsQ.data} empty={t("services.logEmpty")} />
+        )}
+      </CardContent>
     </Card>
   );
 }
@@ -380,30 +514,38 @@ function EventsPane({ name }: { name: string }) {
       return data;
     },
   });
-  const columns: ColumnsType<sdk.Event> = [
-    { title: t("services.colReason"), dataIndex: "reason", width: 180, render: (v: string) => <span className="font-mono">{v}</span> },
+  const columns: Column<sdk.Event>[] = [
     {
+      key: "reason",
+      title: t("services.colReason"),
+      width: 180,
+      render: (e) => <span className="font-mono">{e.reason}</span>,
+    },
+    {
+      key: "type",
       title: t("services.colType"),
-      dataIndex: "type",
       width: 110,
-      render: (v: string) => (
-        <Tag color={v === "Warning" ? "warning" : "default"} className="!m-0">
-          {v}
-        </Tag>
+      render: (e) => (
+        <Badge variant={e.type === "Warning" ? "warning" : "outline"}>{e.type}</Badge>
       ),
     },
-    { title: t("services.colMessage"), dataIndex: "message" },
-    { title: t("services.colTime"), dataIndex: "lastTimestamp", width: 170, render: (v?: string) => <span className="text-muted">{fmtDateTime(v)}</span> },
+    { key: "message", title: t("services.colMessage"), dataIndex: "message" },
+    {
+      key: "time",
+      title: t("services.colTime"),
+      width: 170,
+      render: (e) => <span className="text-muted-foreground">{fmtDateTime(e.lastTimestamp)}</span>,
+    },
   ];
   return (
-    <Card styles={{ body: { padding: 0 } }} className="overflow-hidden">
-      <Table<sdk.Event>
-        rowKey={(e, i) => `${e.reason}-${i}`}
+    <Card className="overflow-hidden p-0">
+      <DataTable
         columns={columns}
-        dataSource={q.data?.items ?? []}
+        data={q.data?.items ?? []}
+        rowKey={(e, i) => `${e.reason}-${i}`}
         loading={q.isLoading}
-        pagination={{ pageSize: 20, hideOnSinglePage: true }}
-        locale={{ emptyText: <Empty description={q.isError ? t("common.loadFailed") : t("services.eventsEmpty")} /> }}
+        error={q.isError}
+        empty={t("services.eventsEmpty")}
       />
     </Card>
   );
@@ -429,48 +571,49 @@ function EditSvcDrawer({ svc, onClose }: { svc: sdk.MlService; onClose: () => vo
     );
 
   return (
-    <Drawer
-      open
-      width={640}
-      onClose={onClose}
-      closable={false}
-      title={
-        <div>
-          <div className="text-base font-semibold text-fg">{t("services.drawerEdit")}</div>
-          <div className="mt-0.5 text-xs font-normal text-muted">
+    <Sheet open onOpenChange={(o) => !o && onClose()}>
+      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[640px]">
+        <SheetHeader className="border-b">
+          <SheetTitle>{t("services.drawerEdit")}</SheetTitle>
+          <p className="text-xs text-muted-foreground">
             <span className="font-mono">{svc.name}</span>
-          </div>
+          </p>
+        </SheetHeader>
+
+        <div className="flex-1 overflow-auto px-6 py-4">
+          <p className="mb-4 text-sm text-muted-foreground">{t("services.editNote")}</p>
+          <Field className="mb-4">
+            <FieldLabel htmlFor="svc-display">{t("services.fDisplayName")}</FieldLabel>
+            <Input
+              id="svc-display"
+              placeholder={t("services.fDisplayNamePlaceholder")}
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+            />
+          </Field>
+          <Field className="mb-4">
+            <FieldLabel htmlFor="svc-edit-desc">{t("services.fDesc")}</FieldLabel>
+            <Textarea
+              id="svc-edit-desc"
+              rows={2}
+              placeholder={t("services.fDescPlaceholder")}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+          </Field>
         </div>
-      }
-      extra={<Button type="text" icon={<CloseOutlined />} onClick={onClose} />}
-      footer={
-        <div className="flex justify-end gap-2">
-          <Button onClick={onClose}>{t("common.cancel")}</Button>
-          <Button type="primary" loading={update.isPending} onClick={submit}>
+
+        <SheetFooter className="flex-row justify-end border-t">
+          <Button variant="outline" onClick={onClose}>
+            {t("common.cancel")}
+          </Button>
+          <Button disabled={update.isPending} onClick={submit}>
+            {update.isPending && <Spinner data-icon="inline-start" />}
             {t("common.save")}
           </Button>
-        </div>
-      }
-    >
-      <Form layout="vertical" size="large">
-        <p className="mb-4 text-sm text-muted">{t("services.editNote")}</p>
-        <Form.Item label={t("services.fDisplayName")}>
-          <Input
-            placeholder={t("services.fDisplayNamePlaceholder")}
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-          />
-        </Form.Item>
-        <Form.Item label={t("services.fDesc")}>
-          <Input.TextArea
-            rows={2}
-            placeholder={t("services.fDescPlaceholder")}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-          />
-        </Form.Item>
-      </Form>
-    </Drawer>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }
 
@@ -488,41 +631,46 @@ function ScaleDrawer({ svc, onClose }: { svc: sdk.MlService; onClose: () => void
   const unit = `${svc.poolName ?? "—"}/${svc.unitName ?? "—"}`;
 
   return (
-    <Drawer
-      open
-      width={420}
-      onClose={onClose}
-      closable={false}
-      title={
-        <div>
-          <div className="text-base font-semibold text-fg">{t("services.drawerScale")}</div>
-          <div className="mt-0.5 text-xs font-normal text-muted">
+    <Sheet open onOpenChange={(o) => !o && onClose()}>
+      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[420px]">
+        <SheetHeader className="border-b">
+          <SheetTitle>{t("services.drawerScale")}</SheetTitle>
+          <p className="text-xs text-muted-foreground">
             <span className="font-mono">{svc.name}</span>
-          </div>
+          </p>
+        </SheetHeader>
+
+        <div className="flex-1 overflow-auto px-6 py-4">
+          <p className="mb-5 text-sm text-muted-foreground">{t("services.scaleNote")}</p>
+          <Field className="mb-4">
+            <FieldLabel htmlFor="svc-scale-replicas">{t("services.fTargetReplicas")}</FieldLabel>
+            <Input
+              id="svc-scale-replicas"
+              type="number"
+              min={0}
+              className="w-40"
+              value={replicas}
+              onChange={(e) => setReplicas(Number(e.target.value))}
+            />
+            <FieldDescription>
+              {t("services.scaleHint", {
+                ready: `${svc.readyReplicas ?? 0} / ${svc.replicas ?? 0}`,
+                unit,
+              })}
+            </FieldDescription>
+          </Field>
         </div>
-      }
-      extra={<Button type="text" icon={<CloseOutlined />} onClick={onClose} />}
-      footer={
-        <div className="flex justify-end gap-2">
-          <Button onClick={onClose}>{t("common.cancel")}</Button>
-          <Button type="primary" loading={scale.isPending} disabled={!valid} onClick={submit}>
+
+        <SheetFooter className="flex-row justify-end border-t">
+          <Button variant="outline" onClick={onClose}>
+            {t("common.cancel")}
+          </Button>
+          <Button disabled={!valid || scale.isPending} onClick={submit}>
+            {scale.isPending && <Spinner data-icon="inline-start" />}
             {t("common.save")}
           </Button>
-        </div>
-      }
-    >
-      <p className="mb-5 text-sm text-muted">{t("services.scaleNote")}</p>
-      <Form layout="vertical" size="large">
-        <Form.Item
-          label={t("services.fTargetReplicas")}
-          extra={t("services.scaleHint", {
-            ready: `${svc.readyReplicas ?? 0} / ${svc.replicas ?? 0}`,
-            unit,
-          })}
-        >
-          <InputNumber min={0} value={replicas} onChange={(v) => setReplicas(v ?? 0)} className="!w-40" />
-        </Form.Item>
-      </Form>
-    </Drawer>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }

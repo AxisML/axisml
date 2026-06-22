@@ -18,6 +18,7 @@ export const zhCN = {
     loadFailed: "加载失败",
     retry: "重试",
     noData: "暂无数据",
+    totalItems: "共 {{count}} 条",
     all: "全部",
     yes: "是",
     no: "否",

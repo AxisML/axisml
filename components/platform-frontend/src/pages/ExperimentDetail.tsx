@@ -1,30 +1,7 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
-import {
-  Table,
-  Card,
-  Tabs,
-  Descriptions,
-  Tag,
-  Button,
-  Space,
-  Tooltip,
-  Input,
-  Select,
-  Spin,
-  Result,
-  Breadcrumb,
-  Divider,
-} from "antd";
-import type { ColumnsType } from "antd/es/table";
-import {
-  ArrowLeftOutlined,
-  CaretRightOutlined,
-  DeleteOutlined,
-  SearchOutlined,
-  FundOutlined,
-} from "@ant-design/icons";
+import { ArrowLeft, Play, Search, Trash2, LineChart } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import dayjs from "dayjs";
 import * as sdk from "@/api/generated";
@@ -33,11 +10,36 @@ import { useApiMutation } from "@/api/mutations";
 import { useUI } from "@/app/ui";
 import { PageContainer } from "@/components/PageContainer";
 import { PhaseTag } from "@/components/PhaseTag";
+import { DataTable, type Column } from "@/components/DataTable";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 // Experiments are specialized training Jobs (Job→Run model); this detail page
 // mirrors JobDetail — an "experiment info" pane plus a runs table. Both the
 // definition and its Runs come from the live API, scoped to the active tenant.
 const ACTIVE_RUN_PHASES: sdk.RunPhase[] = ["Creating", "Pending", "Running", "Canceling"];
+const ALL = "__all__";
 
 function fmtDuration(start?: string | null, end?: string | null): string {
   if (!start) return "—";
@@ -86,34 +88,32 @@ export default function ExperimentDetail() {
     success: t("experiments.runTriggered"),
   });
 
-  const breadcrumb = (
-    <Breadcrumb
-      className="mb-3"
-      items={[
-        { title: t("nav.trainingCenter") },
-        { title: <Link to="/experiments">{t("nav.experiments")}</Link> },
-        { title: name },
-      ]}
-    />
-  );
-
   if (expQ.isError) {
     return (
-      <div className="mx-auto max-w-[1200px] p-6">
-        {breadcrumb}
-        <Result status="error" title={t("common.loadFailed")} extra={<Link to="/experiments"><Button>{t("experiments.backToList")}</Button></Link>} />
-      </div>
+      <PageContainer
+        breadcrumb={[t("nav.trainingCenter"), t("nav.experiments"), name]}
+        title={<span className="font-mono">{name}</span>}
+      >
+        <div className="grid place-items-center gap-4 py-24 text-center">
+          <p className="text-destructive">{t("common.loadFailed")}</p>
+          <Button variant="outline" asChild>
+            <Link to="/experiments">{t("experiments.backToList")}</Link>
+          </Button>
+        </div>
+      </PageContainer>
     );
   }
 
   if (expQ.isLoading || !expQ.data) {
     return (
-      <div className="mx-auto max-w-[1200px] p-6">
-        {breadcrumb}
+      <PageContainer
+        breadcrumb={[t("nav.trainingCenter"), t("nav.experiments"), name]}
+        title={<span className="font-mono">{name}</span>}
+      >
         <div className="grid place-items-center py-24">
-          <Spin size="large" />
+          <Spinner className="size-7 text-muted-foreground" />
         </div>
-      </div>
+      </PageContainer>
     );
   }
 
@@ -138,59 +138,76 @@ export default function ExperimentDetail() {
 
   return (
     <PageContainer
-      breadcrumb={[t("nav.trainingCenter"), t("nav.experiments")]}
-      title={
-        <Space size="middle" align="center" className="min-w-0">
-          <span className="font-mono">{name}</span>
-        </Space>
-      }
+      breadcrumb={[t("nav.trainingCenter"), t("nav.experiments"), name]}
+      title={<span className="font-mono">{name}</span>}
       subtitle={
         <span>
           {exp.description || exp.displayName || "—"}
-          <span className="ml-2 text-muted">· {t("experiments.headRunsSummary", { count: runCount, owner: exp.owner ?? "—" })}</span>
+          <span className="ml-2 text-muted-foreground">
+            · {t("experiments.headRunsSummary", { count: runCount, owner: exp.owner ?? "—" })}
+          </span>
         </span>
       }
       extra={
-        <Space>
-          <Link to="/experiments">
-            <Button icon={<ArrowLeftOutlined />}>{t("experiments.backToList")}</Button>
-          </Link>
-          <Tooltip title={t("experiments.tensorboard")}>
-            <Button icon={<FundOutlined style={{ color: "#FF6F00" }} />} />
+        <div className="flex items-center gap-2">
+          <Button variant="outline" asChild>
+            <Link to="/experiments">
+              <ArrowLeft data-icon="inline-start" />
+              {t("experiments.backToList")}
+            </Link>
+          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="outline" size="icon">
+                <LineChart className="text-warning" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t("experiments.tensorboard")}</TooltipContent>
           </Tooltip>
-          <Button type="primary" icon={<CaretRightOutlined />} onClick={onRun}>
+          <Button onClick={onRun}>
+            <Play data-icon="inline-start" />
             {t("experiments.runAction")}
           </Button>
-          <Button danger icon={<DeleteOutlined />} onClick={onDelete}>
+          <Button variant="outline" className="text-destructive" onClick={onDelete}>
+            <Trash2 data-icon="inline-start" />
             {t("common.delete")}
           </Button>
-        </Space>
+        </div>
       }
     >
-      <Tabs
-        items={[
-          { key: "info", label: t("experiments.tabInfo"), children: <InfoPane exp={exp} /> },
-          {
-            key: "runs",
-            label: (
-              <span>
-                {t("experiments.tabRuns")}
-                <Tag className="!ml-2 !mr-0" bordered={false}>
-                  {runCount}
-                </Tag>
-              </span>
-            ),
-            children: <RunsPane name={name} q={runsQ} />,
-          },
-        ]}
-      />
+      <Tabs defaultValue="info">
+        <TabsList variant="line">
+          <TabsTrigger value="info">{t("experiments.tabInfo")}</TabsTrigger>
+          <TabsTrigger value="runs">
+            {t("experiments.tabRuns")}
+            <Badge variant="secondary" className="ml-2">
+              {runCount}
+            </Badge>
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="info" className="mt-4">
+          <InfoPane exp={exp} />
+        </TabsContent>
+        <TabsContent value="runs" className="mt-4">
+          <RunsPane name={name} q={runsQ} />
+        </TabsContent>
+      </Tabs>
     </PageContainer>
   );
 }
 
 function chip(text?: string | null) {
-  if (!text) return <span className="text-muted">—</span>;
-  return <span className="font-mono rounded bg-surface-warm px-1.5 py-0.5 text-sm">{text}</span>;
+  if (!text) return <span className="text-muted-foreground">—</span>;
+  return <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-sm">{text}</span>;
+}
+
+function Row({ label, children }: { label: ReactNode; children: ReactNode }) {
+  return (
+    <>
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="min-w-0">{children}</dd>
+    </>
+  );
 }
 
 function InfoPane({ exp }: { exp: sdk.Experiment }) {
@@ -204,47 +221,51 @@ function InfoPane({ exp }: { exp: sdk.Experiment }) {
   const retries = policy?.backoffLimit != null ? String(policy.backoffLimit) : "—";
 
   return (
-    <Card title={t("experiments.infoTitle")}>
-      <Descriptions column={1} size="middle" styles={{ label: { width: 120 } }}>
-        <Descriptions.Item label={t("experiments.diName")}>{chip(exp.name)}</Descriptions.Item>
-        <Descriptions.Item label={t("experiments.diDesc")}>{exp.description || "—"}</Descriptions.Item>
-        <Descriptions.Item label={t("experiments.diImage")}>{chip(tpl?.image)}</Descriptions.Item>
-        <Descriptions.Item label={t("experiments.diPool")}>{chip(exp.spec.poolName)}</Descriptions.Item>
-        <Descriptions.Item label={t("experiments.diUnit")}>{chip(exp.spec.unitName)}</Descriptions.Item>
-        <Descriptions.Item label={t("experiments.diReplicas")}>
-          <span className="font-mono">{role?.replicas ?? "—"}</span>
-        </Descriptions.Item>
-        <Descriptions.Item label={t("experiments.diRunPolicy")}>
-          {t("experiments.runPolicyValue", { timeout, retries })}
-        </Descriptions.Item>
-        <Descriptions.Item label={t("experiments.diCreator")}>
-          {exp.owner}
-          <span className="ml-2 font-mono text-muted">{exp.createdAt ? dayjs(exp.createdAt).format("YYYY-MM-DD") : ""}</span>
-        </Descriptions.Item>
-      </Descriptions>
+    <Card>
+      <CardHeader>
+        <CardTitle>{t("experiments.infoTitle")}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <dl className="grid grid-cols-[120px_1fr] gap-x-4 gap-y-2.5 text-sm">
+          <Row label={t("experiments.diName")}>{chip(exp.name)}</Row>
+          <Row label={t("experiments.diDesc")}>{exp.description || "—"}</Row>
+          <Row label={t("experiments.diImage")}>{chip(tpl?.image)}</Row>
+          <Row label={t("experiments.diPool")}>{chip(exp.spec.poolName)}</Row>
+          <Row label={t("experiments.diUnit")}>{chip(exp.spec.unitName)}</Row>
+          <Row label={t("experiments.diReplicas")}>
+            <span className="font-mono">{role?.replicas ?? "—"}</span>
+          </Row>
+          <Row label={t("experiments.diRunPolicy")}>
+            {t("experiments.runPolicyValue", { timeout, retries })}
+          </Row>
+          <Row label={t("experiments.diCreator")}>
+            {exp.owner}
+            <span className="ml-2 font-mono text-muted-foreground">
+              {exp.createdAt ? dayjs(exp.createdAt).format("YYYY-MM-DD") : ""}
+            </span>
+          </Row>
+        </dl>
 
-      <div className="mt-6 border-t border-border-soft pt-5">
-        <div className="mb-1.5 text-xs text-muted">{t("experiments.diCommand")}</div>
-        <pre
-          className="m-0 mb-4 overflow-auto rounded-md p-4 font-mono text-xs leading-relaxed"
-          style={{ background: "#16181d", color: "#e6e6e6" }}
-        >
-          {command.length ? command.join(" ") : "—"}
-        </pre>
-        <div className="mb-2 text-xs text-muted">{t("experiments.diEnv")}</div>
-        <Space size={[8, 8]} wrap>
-          {env.length ? (
-            env.map((e) => (
-              <span key={e.name} className="font-mono rounded bg-surface-warm px-1.5 py-0.5 text-sm">
-                {e.name}
-                {e.value != null && e.value !== "" ? `=${e.value}` : ""}
-              </span>
-            ))
-          ) : (
-            <span className="text-muted">—</span>
-          )}
-        </Space>
-      </div>
+        <div className="mt-6 border-t pt-5">
+          <div className="mb-1.5 text-xs text-muted-foreground">{t("experiments.diCommand")}</div>
+          <pre className="m-0 mb-4 overflow-auto rounded-md bg-foreground p-4 font-mono text-xs leading-relaxed text-background">
+            {command.length ? command.join(" ") : "—"}
+          </pre>
+          <div className="mb-2 text-xs text-muted-foreground">{t("experiments.diEnv")}</div>
+          <div className="flex flex-wrap gap-2">
+            {env.length ? (
+              env.map((e) => (
+                <span key={e.name} className="rounded bg-muted px-1.5 py-0.5 font-mono text-sm">
+                  {e.name}
+                  {e.value != null && e.value !== "" ? `=${e.value}` : ""}
+                </span>
+              ))
+            ) : (
+              <span className="text-muted-foreground">—</span>
+            )}
+          </div>
+        </div>
+      </CardContent>
     </Card>
   );
 }
@@ -318,108 +339,129 @@ function RunsPane({ name, q }: { name: string; q: UseQueryResult<sdk.RunList> })
       onConfirm: () => cancelRun.mutate(r.name),
     });
 
-  const columns: ColumnsType<RunRow> = [
+  const columns: Column<RunRow>[] = [
     {
+      key: "name",
       title: t("experiments.colRun"),
-      dataIndex: "name",
-      render: (_, r) => (
-        <Link to={`/experiments/${name}/runs/${r.name}`} className="font-mono font-medium">
+      render: (r) => (
+        <Link
+          to={`/experiments/${name}/runs/${r.name}`}
+          className="font-mono font-medium text-foreground hover:text-info hover:underline"
+        >
           {r.name}
         </Link>
       ),
     },
     {
+      key: "phase",
       title: t("experiments.colRunStatus"),
-      dataIndex: "phase",
       width: 130,
-      render: (p: sdk.RunPhase | undefined) => <PhaseTag phase={p} />,
+      render: (r) => <PhaseTag phase={r.phase} />,
     },
-    { title: t("experiments.colRunUnit"), dataIndex: "unit", width: 180, render: (v: string) => <span className="font-mono">{v}</span> },
-    { title: t("experiments.colRunReplicas"), dataIndex: "replicas", width: 90, align: "right" },
-    { title: t("experiments.colRunTrigger"), dataIndex: "owner", width: 130 },
-    { title: t("experiments.colRunDuration"), dataIndex: "duration", width: 120, align: "right", render: (v: string) => <span className="font-mono">{v}</span> },
     {
-      title: t("common.actions"),
-      key: "actions",
-      width: 170,
+      key: "unit",
+      title: t("experiments.colRunUnit"),
+      width: 180,
+      render: (r) => <span className="font-mono">{r.unit}</span>,
+    },
+    { key: "replicas", title: t("experiments.colRunReplicas"), width: 90, align: "right", dataIndex: "replicas" },
+    { key: "owner", title: t("experiments.colRunTrigger"), width: 130, dataIndex: "owner" },
+    {
+      key: "duration",
+      title: t("experiments.colRunDuration"),
+      width: 120,
       align: "right",
-      render: (_, r) => {
+      render: (r) => <span className="font-mono">{r.duration}</span>,
+    },
+    {
+      key: "actions",
+      title: t("common.actions"),
+      width: 200,
+      align: "right",
+      render: (r) => {
         const active = r.phase ? ACTIVE_RUN_PHASES.includes(r.phase) : false;
         return (
-          <Space size={4} split={<Divider type="vertical" className="!mx-0" />}>
-            <Link to={`/experiments/${name}/runs/${r.name}`}>
-              <Button type="link" size="small" className="!px-1">
-                {t("common.detail")}
-              </Button>
-            </Link>
-            <Button type="link" size="small" className="!px-1">
+          <div className="flex items-center justify-end gap-0.5">
+            <Button variant="link" size="sm" asChild>
+              <Link to={`/experiments/${name}/runs/${r.name}`}>{t("common.detail")}</Link>
+            </Button>
+            <Button variant="link" size="sm">
               {t("experiments.actLog")}
             </Button>
-            <Button type="link" size="small" className="!px-1">
+            <Button variant="link" size="sm">
               {t("experiments.actMonitor")}
             </Button>
             {active ? (
-              <Button type="link" size="small" className="!px-1" onClick={() => onCancelRun(r)}>
+              <Button variant="link" size="sm" onClick={() => onCancelRun(r)}>
                 {t("experiments.actCancel")}
               </Button>
             ) : (
-              <Button type="link" size="small" danger className="!px-1" onClick={() => onDeleteRun(r)}>
+              <Button variant="link" size="sm" className="text-destructive" onClick={() => onDeleteRun(r)}>
                 {t("common.delete")}
               </Button>
             )}
-          </Space>
+          </div>
         );
       },
     },
   ];
 
   return (
-    <>
-      <Card styles={{ body: { padding: 0 } }} className="overflow-hidden">
-        <div className="flex flex-wrap items-center gap-3 border-b border-border-soft p-4">
+    <Card className="overflow-hidden p-0">
+      <div className="flex flex-wrap items-center gap-3 border-b p-4">
+        <div className="relative max-w-xs flex-1">
+          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            allowClear
-            prefix={<SearchOutlined className="text-muted" />}
+            className="pl-8"
             placeholder={t("experiments.runsSearchPlaceholder")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="max-w-xs"
           />
-          <Select
-            value={phase || undefined}
-            onChange={(v) => setPhase(v ?? "")}
-            placeholder={t("experiments.runStatusAll")}
-            allowClear
-            className="min-w-40"
-            options={phaseOptions.map((p) => ({ label: <PhaseTag phase={p} />, value: p }))}
-          />
-          <Select
-            value={trigger || undefined}
-            onChange={(v) => setTrigger(v ?? "")}
-            placeholder={t("experiments.runTriggerAll")}
-            allowClear
-            className="min-w-40"
-            options={triggerOptions.map((o) => ({ label: o, value: o }))}
-          />
-          <Button
-            onClick={() => {
-              setSearch("");
-              setPhase("");
-              setTrigger("");
-            }}
-          >
-            {t("common.reset")}
-          </Button>
         </div>
-        <Table<RunRow>
-          rowKey="name"
-          columns={columns}
-          dataSource={rows}
-          loading={q.isLoading}
-          pagination={{ pageSize: 20, showTotal: (n) => t("experiments.runTotal", { count: n }), hideOnSinglePage: false }}
-          locale={{ emptyText: q.isError ? t("common.loadFailed") : t("common.noData") }}
-        />
-      </Card>
-    </>
+        <Select value={phase || ALL} onValueChange={(v) => setPhase(v === ALL ? "" : v)}>
+          <SelectTrigger className="min-w-40">
+            <SelectValue placeholder={t("experiments.runStatusAll")} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>{t("experiments.runStatusAll")}</SelectItem>
+            {phaseOptions.map((p) => (
+              <SelectItem key={p} value={p}>
+                <PhaseTag phase={p} />
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={trigger || ALL} onValueChange={(v) => setTrigger(v === ALL ? "" : v)}>
+          <SelectTrigger className="min-w-40">
+            <SelectValue placeholder={t("experiments.runTriggerAll")} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>{t("experiments.runTriggerAll")}</SelectItem>
+            {triggerOptions.map((o) => (
+              <SelectItem key={o} value={o}>
+                {o}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button
+          variant="outline"
+          onClick={() => {
+            setSearch("");
+            setPhase("");
+            setTrigger("");
+          }}
+        >
+          {t("common.reset")}
+        </Button>
+      </div>
+      <DataTable
+        columns={columns}
+        data={rows}
+        rowKey={(r) => r.name}
+        loading={q.isLoading}
+        error={q.isError}
+      />
+    </Card>
   );
 }

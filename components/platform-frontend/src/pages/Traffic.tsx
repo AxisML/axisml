@@ -1,25 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import {
-  Table,
-  Button,
-  Input,
-  Select,
-  Space,
-  Card,
-  Divider,
-  Drawer,
-  Form,
-  InputNumber,
-  Progress,
-} from "antd";
-import type { ColumnsType } from "antd/es/table";
-import {
-  PlusOutlined,
-  SearchOutlined,
-  MinusCircleOutlined,
-  CloseOutlined,
-} from "@ant-design/icons";
+import { Plus, Search, MinusCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useTrafficPolicies, useServices } from "@/api/hooks";
 import { useApiMutation } from "@/api/mutations";
@@ -29,6 +10,28 @@ import { PageContainer } from "@/components/PageContainer";
 import { FieldSection } from "@/components/FieldSection";
 import { CardRadio } from "@/components/CardRadio";
 import { PhaseTag } from "@/components/PhaseTag";
+import { DataTable, type Column } from "@/components/DataTable";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Sheet,
+  SheetContent,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
+import { Spinner } from "@/components/ui/spinner";
+import { cn } from "@/lib/utils";
 
 interface SplitBackend {
   serviceName: string;
@@ -46,22 +49,23 @@ interface TrafficRow {
   endpoint?: string;
 }
 
-// Compact per-row split bars: one accent bar (first backend) + muted bars for the
+const ALL = "__all__";
+
+// Compact per-row split bars: one ink bar (first backend) + muted bars for the
 // rest, each filled to the backend's actual traffic share.
 function MiniSplit({ split }: { split: SplitBackend[] }) {
-  if (!split.length) return <span className="text-xs text-muted">—</span>;
+  if (!split.length) return <span className="text-xs text-muted-foreground">—</span>;
   return (
     <div className="flex min-w-[200px] flex-col gap-1.5">
       {split.map((b, i) => (
         <div key={b.serviceName} className="flex items-center gap-2 text-xs">
-          <span className="w-24 truncate font-mono text-fg-2">{b.serviceName}</span>
-          <Progress
-            percent={b.actualPct}
-            showInfo={false}
-            size="small"
-            strokeColor={i === 0 ? "var(--accent)" : "var(--muted)"}
-            className="flex-1"
-          />
+          <span className="w-24 truncate font-mono text-muted-foreground">{b.serviceName}</span>
+          <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+            <span
+              className={cn("block h-full rounded-full", i === 0 ? "bg-foreground" : "bg-muted-foreground")}
+              style={{ width: `${b.actualPct}%` }}
+            />
+          </span>
           <span className="w-8 text-right font-mono">{b.weight}</span>
         </div>
       ))}
@@ -141,72 +145,77 @@ export default function Traffic() {
       onConfirm: () => rollback.mutate(r.name),
     });
 
-  const columns: ColumnsType<TrafficRow> = [
+  const columns: Column<TrafficRow>[] = [
     {
+      key: "name",
       title: t("traffic.colName"),
-      dataIndex: "name",
-      render: (_, r) => (
+      render: (r) => (
         <div className="min-w-0">
-          <Link to={`/traffic/${r.name}`} className="font-mono font-medium">
+          <Link
+            to={`/traffic/${r.name}`}
+            className="font-mono font-medium text-foreground hover:text-info hover:underline"
+          >
             {r.name}
           </Link>
-          {r.desc && <div className="truncate text-xs text-muted">{r.desc}</div>}
+          {r.desc && <div className="truncate text-xs text-muted-foreground">{r.desc}</div>}
         </div>
       ),
     },
     {
+      key: "mode",
       title: t("traffic.colMode"),
-      dataIndex: "mode",
       width: 90,
-      render: (m: sdk.TrafficPolicyMode) => <span className="text-fg-2">{modeLabel(m)}</span>,
+      render: (r) => <span className="text-muted-foreground">{modeLabel(r.mode)}</span>,
     },
     {
+      key: "phase",
       title: t("traffic.colStatus"),
-      dataIndex: "phase",
       width: 110,
-      render: (p?: string) => <PhaseTag phase={p} />,
+      render: (r) => <PhaseTag phase={r.phase} />,
     },
     {
-      title: t("traffic.colBackends"),
       key: "split",
+      title: t("traffic.colBackends"),
       width: 280,
-      render: (_, r) => <MiniSplit split={r.split} />,
+      render: (r) => <MiniSplit split={r.split} />,
     },
     {
+      key: "endpoint",
       title: t("traffic.colEndpoint"),
-      dataIndex: "endpoint",
-      render: (v?: string) =>
-        v ? <span className="font-mono text-xs text-muted">{v}</span> : <span className="text-muted">—</span>,
+      render: (r) =>
+        r.endpoint ? (
+          <span className="font-mono text-xs text-muted-foreground">{r.endpoint}</span>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
     },
     {
-      title: t("common.actions"),
       key: "actions",
+      title: t("common.actions"),
       width: 260,
       align: "right",
-      render: (_, r) => (
-        <Space size={4} split={<Divider type="vertical" className="!mx-0" />}>
-          <Link to={`/traffic/${r.name}`}>
-            <Button type="link" size="small" className="!px-1">
-              {t("common.detail")}
-            </Button>
-          </Link>
-          <Button type="link" size="small" className="!px-1" onClick={() => setDrawer({ kind: "split", row: r })}>
+      render: (r) => (
+        <div className="flex items-center justify-end gap-0.5">
+          <Button variant="link" size="sm" asChild>
+            <Link to={`/traffic/${r.name}`}>{t("common.detail")}</Link>
+          </Button>
+          <Button variant="link" size="sm" onClick={() => setDrawer({ kind: "split", row: r })}>
             {r.mode === "canary" ? t("traffic.actSplitCanary") : t("traffic.actSplitWeighted")}
           </Button>
           {r.mode === "canary" && (
-            <Button type="link" size="small" className="!px-1" onClick={() => onPromote(r)}>
+            <Button variant="link" size="sm" onClick={() => onPromote(r)}>
               {t("traffic.actPromote")}
             </Button>
           )}
           {r.mode === "canary" && (
-            <Button type="link" size="small" className="!px-1" onClick={() => onRollback(r)}>
+            <Button variant="link" size="sm" onClick={() => onRollback(r)}>
               {t("traffic.actRollback")}
             </Button>
           )}
-          <Button type="link" size="small" danger className="!px-1" onClick={() => onDelete(r)}>
+          <Button variant="link" size="sm" className="text-destructive" onClick={() => onDelete(r)}>
             {t("common.delete")}
           </Button>
-        </Space>
+        </div>
       ),
     },
   ];
@@ -217,44 +226,48 @@ export default function Traffic() {
       title={t("traffic.title")}
       subtitle={t("traffic.subtitle")}
       extra={
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setDrawer({ kind: "create" })}>
+        <Button onClick={() => setDrawer({ kind: "create" })}>
+          <Plus data-icon="inline-start" />
           {t("traffic.newPolicy")}
         </Button>
       }
     >
-      <Card styles={{ body: { padding: 0 } }} className="overflow-hidden">
-        <div className="flex flex-wrap items-center gap-3 border-b border-border-soft p-4">
-          <Input
-            allowClear
-            prefix={<SearchOutlined className="text-muted" />}
-            placeholder={t("traffic.searchPlaceholder")}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="max-w-xs"
-          />
-          <Select
-            value={mode || undefined}
-            onChange={(v) => setMode(v ?? "")}
-            placeholder={t("traffic.modeAll")}
-            allowClear
-            className="min-w-36"
-            options={[
-              { label: t("traffic.modeWeighted"), value: "weighted" },
-              { label: t("traffic.modeCanary"), value: "canary" },
-            ]}
-          />
-          <Select
-            value={phase || undefined}
-            onChange={(v) => setPhase(v ?? "")}
-            placeholder={t("traffic.statusAll")}
-            allowClear
-            className="min-w-36"
-            options={(["Ready", "Pending", "Creating", "Degraded", "Failed"] as sdk.TrafficPolicyPhase[]).map((p) => ({
-              label: t(`phase.${p}`, { defaultValue: p }),
-              value: p,
-            }))}
-          />
+      <Card className="overflow-hidden p-0">
+        <div className="flex flex-wrap items-center gap-3 border-b p-4">
+          <div className="relative max-w-xs flex-1">
+            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              className="pl-8"
+              placeholder={t("traffic.searchPlaceholder")}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <Select value={mode || ALL} onValueChange={(v) => setMode(v === ALL ? "" : (v as sdk.TrafficPolicyMode))}>
+            <SelectTrigger className="min-w-36">
+              <SelectValue placeholder={t("traffic.modeAll")} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>{t("traffic.modeAll")}</SelectItem>
+              <SelectItem value="weighted">{t("traffic.modeWeighted")}</SelectItem>
+              <SelectItem value="canary">{t("traffic.modeCanary")}</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={phase || ALL} onValueChange={(v) => setPhase(v === ALL ? "" : (v as sdk.TrafficPolicyPhase))}>
+            <SelectTrigger className="min-w-36">
+              <SelectValue placeholder={t("traffic.statusAll")} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>{t("traffic.statusAll")}</SelectItem>
+              {(["Ready", "Pending", "Creating", "Degraded", "Failed"] as sdk.TrafficPolicyPhase[]).map((p) => (
+                <SelectItem key={p} value={p}>
+                  {t(`phase.${p}`, { defaultValue: p })}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Button
+            variant="outline"
             onClick={() => {
               setSearch("");
               setMode("");
@@ -264,13 +277,12 @@ export default function Traffic() {
             {t("common.reset")}
           </Button>
         </div>
-        <Table<TrafficRow>
-          rowKey="name"
+        <DataTable
           columns={columns}
-          dataSource={rows}
+          data={rows}
+          rowKey={(r) => r.name}
           loading={q.isLoading}
-          pagination={{ pageSize: 20, showTotal: (n) => t("traffic.total", { count: n }), hideOnSinglePage: false }}
-          locale={{ emptyText: q.isError ? t("common.loadFailed") : t("common.noData") }}
+          error={q.isError}
         />
       </Card>
 
@@ -288,39 +300,52 @@ function useReadyServiceNames(): string[] {
 
 // ── Create drawer ─────────────────────────────────────────────────────────────
 interface WeightRow {
-  id: number;
   service?: string;
   weight: number;
 }
 
 interface TrafficFormValues {
   name: string;
-  description?: string;
+  description: string;
   mode: sdk.TrafficPolicyMode;
-  path?: string;
+  path: string;
   stable?: string;
   canary?: string;
-  canaryPercent?: number;
+  canaryPercent: number;
   weights: WeightRow[];
 }
 
 function TrafficDrawer({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
-  const [form] = Form.useForm<TrafficFormValues>();
   const services = useReadyServiceNames();
-  const mode = Form.useWatch("mode", form) ?? "canary";
-
-  const serviceOptions = services.map((s) => ({ label: t("traffic.serviceReady", { name: s }), value: s }));
+  const [submitted, setSubmitted] = useState(false);
+  const [v, setV] = useState<TrafficFormValues>({
+    name: "",
+    description: "",
+    mode: "canary",
+    path: "",
+    canaryPercent: 5,
+    weights: [
+      { weight: 50 },
+      { weight: 50 },
+    ],
+  });
+  const set = <K extends keyof TrafficFormValues>(k: K, val: TrafficFormValues[K]) =>
+    setV((prev) => ({ ...prev, [k]: val }));
+  const mode = v.mode;
 
   const create = useApiMutation((body: sdk.TrafficPolicyCreateRequest) => sdk.createTrafficPolicy({ body }), {
     invalidate: [["trafficpolicies"]],
     success: t("traffic.created"),
   });
 
-  const onFinish = (v: TrafficFormValues) => {
+  const submit = () => {
+    setSubmitted(true);
+    if (!v.name.trim()) return;
     const endpoint = v.path?.trim() ? { path: v.path.trim() } : undefined;
     let body: sdk.TrafficPolicyCreateRequest;
     if (v.mode === "canary") {
+      if (!v.stable || !v.canary) return;
       body = {
         name: v.name.trim(),
         mode: "canary",
@@ -328,14 +353,15 @@ function TrafficDrawer({ onClose }: { onClose: () => void }) {
         endpoint,
         canaryPercent: v.canaryPercent,
         backends: [
-          { serviceName: v.stable!, role: "stable" },
-          { serviceName: v.canary!, role: "canary" },
+          { serviceName: v.stable, role: "stable" },
+          { serviceName: v.canary, role: "canary" },
         ],
       };
     } else {
       const backends = (v.weights ?? [])
         .filter((row) => row.service)
         .map((row) => ({ serviceName: row.service!, role: "member" as const, weight: Number(row.weight) || 0 }));
+      if (!backends.length) return;
       body = {
         name: v.name.trim(),
         mode: "weighted",
@@ -348,112 +374,196 @@ function TrafficDrawer({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <Drawer
-      open
-      width={640}
-      onClose={onClose}
-      closable={false}
-      title={
-        <div>
-          <div className="text-base font-semibold text-fg">{t("traffic.drawerNew")}</div>
-          <div className="mt-0.5 text-xs font-normal text-muted">{t("traffic.drawerNewSub")}</div>
+    <Sheet open onOpenChange={(o) => !o && onClose()}>
+      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[640px]">
+        <SheetHeader className="border-b">
+          <SheetTitle>{t("traffic.drawerNew")}</SheetTitle>
+          <p className="text-xs text-muted-foreground">{t("traffic.drawerNewSub")}</p>
+        </SheetHeader>
+
+        <div className="flex-1 overflow-auto px-6 py-4">
+          <FieldSection n={1} title={t("traffic.fsBasic")} />
+          <Field className="mb-4">
+            <FieldLabel htmlFor="tp-name">
+              {t("traffic.fName")}
+              <span className="text-destructive">*</span>
+            </FieldLabel>
+            <Input
+              id="tp-name"
+              className="font-mono"
+              placeholder={t("traffic.fNamePlaceholder")}
+              value={v.name}
+              aria-invalid={submitted && !v.name.trim()}
+              onChange={(e) => set("name", e.target.value)}
+            />
+          </Field>
+          <Field className="mb-4">
+            <FieldLabel htmlFor="tp-desc">{t("traffic.fDesc")}</FieldLabel>
+            <Textarea
+              id="tp-desc"
+              rows={2}
+              placeholder={t("traffic.fDescPlaceholder")}
+              value={v.description}
+              onChange={(e) => set("description", e.target.value)}
+            />
+          </Field>
+          <Field className="mb-4">
+            <FieldLabel>
+              {t("traffic.fMode")}
+              <span className="text-destructive">*</span>
+            </FieldLabel>
+            <CardRadio
+              options={[
+                { value: "canary", title: t("traffic.modeCanary"), desc: t("traffic.modeCanaryDesc") },
+                { value: "weighted", title: t("traffic.modeWeighted"), desc: t("traffic.modeWeightedDesc") },
+              ]}
+              value={v.mode}
+              onChange={(val) => set("mode", val as sdk.TrafficPolicyMode)}
+            />
+          </Field>
+
+          <FieldSection n={2} title={t("traffic.fsEndpoint")} />
+          <Field className="mb-4">
+            <FieldLabel htmlFor="tp-path">{t("traffic.fPath")}</FieldLabel>
+            <Input
+              id="tp-path"
+              className="font-mono"
+              placeholder={t("traffic.fPathPlaceholder")}
+              value={v.path}
+              onChange={(e) => set("path", e.target.value)}
+            />
+          </Field>
+
+          {mode === "canary" ? (
+            <>
+              <FieldSection n={3} title={t("traffic.fsBackendCanary")} />
+              <div className="flex gap-4">
+                <Field className="mb-4 flex-1">
+                  <FieldLabel>
+                    {t("traffic.fStable")}
+                    <span className="text-destructive">*</span>
+                  </FieldLabel>
+                  <Select value={v.stable} onValueChange={(val) => set("stable", val)}>
+                    <SelectTrigger className="w-full" aria-invalid={submitted && !v.stable}>
+                      <SelectValue placeholder={t("traffic.pickService")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {services.map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {t("traffic.serviceReady", { name: s })}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field className="mb-4 flex-1">
+                  <FieldLabel>
+                    {t("traffic.fCanary")}
+                    <span className="text-destructive">*</span>
+                  </FieldLabel>
+                  <Select value={v.canary} onValueChange={(val) => set("canary", val)}>
+                    <SelectTrigger className="w-full" aria-invalid={submitted && !v.canary}>
+                      <SelectValue placeholder={t("traffic.pickService")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {services.map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {t("traffic.serviceReady", { name: s })}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              </div>
+              <Field className="mb-4">
+                <FieldLabel htmlFor="tp-canary-pct">{t("traffic.fCanaryPercent")}</FieldLabel>
+                <Input
+                  id="tp-canary-pct"
+                  type="number"
+                  min={0}
+                  max={100}
+                  className="w-40"
+                  value={v.canaryPercent}
+                  onChange={(e) => set("canaryPercent", Number(e.target.value))}
+                />
+                <FieldDescription>{t("traffic.fCanaryHelp")}</FieldDescription>
+              </Field>
+            </>
+          ) : (
+            <>
+              <FieldSection n={3} title={t("traffic.fsBackendWeighted")} />
+              <Field className="mb-4">
+                <FieldLabel>
+                  {t("traffic.fBackendWeights")}
+                  <span className="text-destructive">*</span>
+                </FieldLabel>
+                <div className="flex flex-col gap-2">
+                  {v.weights.map((row, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <Select
+                        value={row.service}
+                        onValueChange={(val) =>
+                          set("weights", v.weights.map((x, j) => (j === i ? { ...x, service: val } : x)))
+                        }
+                      >
+                        <SelectTrigger className="flex-1" aria-invalid={submitted && !row.service}>
+                          <SelectValue placeholder={t("traffic.pickService")} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {services.map((s) => (
+                            <SelectItem key={s} value={s}>
+                              {t("traffic.serviceReady", { name: s })}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={100}
+                        className="w-32"
+                        placeholder={t("traffic.weightPlaceholder")}
+                        value={row.weight}
+                        onChange={(e) =>
+                          set("weights", v.weights.map((x, j) => (j === i ? { ...x, weight: Number(e.target.value) } : x)))
+                        }
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        disabled={v.weights.length <= 1}
+                        onClick={() => set("weights", v.weights.filter((_, j) => j !== i))}
+                      >
+                        <MinusCircle />
+                      </Button>
+                    </div>
+                  ))}
+                  <Button
+                    variant="link"
+                    className="self-start px-0"
+                    onClick={() => set("weights", [...v.weights, { weight: 0 }])}
+                  >
+                    <Plus data-icon="inline-start" />
+                    {t("traffic.addBackend")}
+                  </Button>
+                </div>
+                <FieldDescription>{t("traffic.fWeightHelp")}</FieldDescription>
+              </Field>
+            </>
+          )}
         </div>
-      }
-      extra={<Button type="text" icon={<CloseOutlined />} onClick={onClose} />}
-      footer={
-        <div className="flex justify-end gap-2">
-          <Button onClick={onClose}>{t("common.cancel")}</Button>
-          <Button type="primary" loading={create.isPending} onClick={() => form.submit()}>
+
+        <SheetFooter className="flex-row justify-end border-t">
+          <Button variant="outline" onClick={onClose}>
+            {t("common.cancel")}
+          </Button>
+          <Button onClick={submit} disabled={create.isPending}>
+            {create.isPending && <Spinner data-icon="inline-start" />}
             {t("traffic.createPolicy")}
           </Button>
-        </div>
-      }
-    >
-      <Form<TrafficFormValues>
-        form={form}
-        layout="vertical"
-        size="large"
-        onFinish={onFinish}
-        initialValues={{
-          name: "",
-          mode: "canary",
-          canaryPercent: 5,
-          weights: [
-            { id: 0, weight: 50 },
-            { id: 1, weight: 50 },
-          ],
-        }}
-      >
-        <FieldSection n={1} title={t("traffic.fsBasic")} />
-        <Form.Item name="name" label={t("traffic.fName")} rules={[{ required: true }]}>
-          <Input className="font-mono" placeholder={t("traffic.fNamePlaceholder")} />
-        </Form.Item>
-        <Form.Item name="description" label={t("traffic.fDesc")}>
-          <Input.TextArea rows={2} placeholder={t("traffic.fDescPlaceholder")} />
-        </Form.Item>
-        <Form.Item name="mode" label={t("traffic.fMode")} rules={[{ required: true }]}>
-          <CardRadio
-            options={[
-              { value: "canary", title: t("traffic.modeCanary"), desc: t("traffic.modeCanaryDesc") },
-              { value: "weighted", title: t("traffic.modeWeighted"), desc: t("traffic.modeWeightedDesc") },
-            ]}
-          />
-        </Form.Item>
-
-        <FieldSection n={2} title={t("traffic.fsEndpoint")} />
-        <Form.Item name="path" label={t("traffic.fPath")}>
-          <Input className="font-mono" placeholder={t("traffic.fPathPlaceholder")} />
-        </Form.Item>
-
-        {mode === "canary" ? (
-          <>
-            <FieldSection n={3} title={t("traffic.fsBackendCanary")} />
-            <div className="flex gap-4">
-              <Form.Item name="stable" label={t("traffic.fStable")} rules={[{ required: true }]} className="flex-1">
-                <Select placeholder={t("traffic.pickService")} options={serviceOptions} />
-              </Form.Item>
-              <Form.Item name="canary" label={t("traffic.fCanary")} rules={[{ required: true }]} className="flex-1">
-                <Select placeholder={t("traffic.pickService")} options={serviceOptions} />
-              </Form.Item>
-            </div>
-            <Form.Item name="canaryPercent" label={t("traffic.fCanaryPercent")} extra={t("traffic.fCanaryHelp")}>
-              <InputNumber min={0} max={100} className="!w-40" />
-            </Form.Item>
-          </>
-        ) : (
-          <>
-            <FieldSection n={3} title={t("traffic.fsBackendWeighted")} />
-            <Form.Item label={t("traffic.fBackendWeights")} required extra={t("traffic.fWeightHelp")}>
-              <Form.List name="weights">
-                {(fields, { add, remove }) => (
-                  <div className="flex flex-col gap-2">
-                    {fields.map((field) => (
-                      <div key={field.key} className="flex items-center gap-2">
-                        <Form.Item name={[field.name, "service"]} noStyle rules={[{ required: true }]}>
-                          <Select placeholder={t("traffic.pickService")} options={serviceOptions} className="flex-1" />
-                        </Form.Item>
-                        <Form.Item name={[field.name, "weight"]} noStyle>
-                          <InputNumber min={0} max={100} placeholder={t("traffic.weightPlaceholder")} className="!w-32" />
-                        </Form.Item>
-                        <Button
-                          type="text"
-                          icon={<MinusCircleOutlined />}
-                          disabled={fields.length <= 1}
-                          onClick={() => remove(field.name)}
-                        />
-                      </div>
-                    ))}
-                    <Button type="link" icon={<PlusOutlined />} className="self-start !px-0" onClick={() => add({ weight: 0 })}>
-                      {t("traffic.addBackend")}
-                    </Button>
-                  </div>
-                )}
-              </Form.List>
-            </Form.Item>
-          </>
-        )}
-      </Form>
-    </Drawer>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }
 
@@ -481,65 +591,69 @@ function SplitDrawer({ row, onClose }: { row: TrafficRow; onClose: () => void })
   };
 
   return (
-    <Drawer
-      open
-      width={480}
-      onClose={onClose}
-      closable={false}
-      title={
-        <div>
-          <div className="text-base font-semibold text-fg">
+    <Sheet open onOpenChange={(o) => !o && onClose()}>
+      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[480px]">
+        <SheetHeader className="border-b">
+          <SheetTitle>
             {row.mode === "canary" ? t("traffic.drawerSplitCanary") : t("traffic.drawerSplitWeighted")}
-          </div>
-          <div className="mt-0.5 text-xs font-normal text-muted">
+          </SheetTitle>
+          <p className="text-xs text-muted-foreground">
             <span className="font-mono">{row.name}</span>
-          </div>
-        </div>
-      }
-      extra={<Button type="text" icon={<CloseOutlined />} onClick={onClose} />}
-      footer={
-        <div className="flex justify-end gap-2">
-          <Button onClick={onClose}>{t("common.cancel")}</Button>
-          <Button type="primary" loading={split.isPending} onClick={submit}>
-            {t("traffic.splitApply")}
-          </Button>
-        </div>
-      }
-    >
-      {row.mode === "canary" ? (
-        <>
-          <FieldSection n={1} title={t("traffic.fsCanaryPercent")} />
-          <label className="mb-1 block text-sm text-fg-2">{t("traffic.fCanaryPercentLabel")}</label>
-          <InputNumber
-            min={0}
-            max={100}
-            value={canaryPercent}
-            onChange={(v) => setCanaryPercent(v ?? 0)}
-            className="!w-40"
-          />
-          <p className="mt-2 text-xs text-muted">{t("traffic.canaryPercentHelp")}</p>
-        </>
-      ) : (
-        <>
-          <FieldSection n={1} title={t("traffic.fsBackendWeight")} />
-          <div className="flex flex-col gap-2">
-            {weights.map((w, i) => (
-              <div key={w.serviceName} className="flex items-center gap-2">
-                <Input className="flex-1 font-mono" value={w.serviceName} readOnly />
-                <InputNumber
+          </p>
+        </SheetHeader>
+
+        <div className="flex-1 overflow-auto px-6 py-4">
+          {row.mode === "canary" ? (
+            <>
+              <FieldSection n={1} title={t("traffic.fsCanaryPercent")} />
+              <Field>
+                <FieldLabel htmlFor="sp-canary-pct">{t("traffic.fCanaryPercentLabel")}</FieldLabel>
+                <Input
+                  id="sp-canary-pct"
+                  type="number"
                   min={0}
                   max={100}
-                  value={w.weight}
-                  onChange={(v) =>
-                    setWeights((prev) => prev.map((x, j) => (j === i ? { ...x, weight: v ?? 0 } : x)))
-                  }
-                  className="!w-32"
+                  className="w-40"
+                  value={canaryPercent}
+                  onChange={(e) => setCanaryPercent(Number(e.target.value))}
                 />
+                <FieldDescription>{t("traffic.canaryPercentHelp")}</FieldDescription>
+              </Field>
+            </>
+          ) : (
+            <>
+              <FieldSection n={1} title={t("traffic.fsBackendWeight")} />
+              <div className="flex flex-col gap-2">
+                {weights.map((w, i) => (
+                  <div key={w.serviceName} className="flex items-center gap-2">
+                    <Input className="flex-1 font-mono" value={w.serviceName} readOnly />
+                    <Input
+                      type="number"
+                      min={0}
+                      max={100}
+                      className="w-32"
+                      value={w.weight}
+                      onChange={(e) =>
+                        setWeights((prev) => prev.map((x, j) => (j === i ? { ...x, weight: Number(e.target.value) } : x)))
+                      }
+                    />
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </>
-      )}
-    </Drawer>
+            </>
+          )}
+        </div>
+
+        <SheetFooter className="flex-row justify-end border-t">
+          <Button variant="outline" onClick={onClose}>
+            {t("common.cancel")}
+          </Button>
+          <Button onClick={submit} disabled={split.isPending}>
+            {split.isPending && <Spinner data-icon="inline-start" />}
+            {t("traffic.splitApply")}
+          </Button>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }

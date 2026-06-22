@@ -1,25 +1,6 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import {
-  Card,
-  Tabs,
-  Descriptions,
-  Table,
-  Tag,
-  Button,
-  Space,
-  Slider,
-  InputNumber,
-  Progress,
-  Tooltip,
-  Breadcrumb,
-  Spin,
-  Result,
-  Alert,
-  List,
-} from "antd";
-import type { ColumnsType } from "antd/es/table";
-import { ArrowLeftOutlined, CopyOutlined, DeleteOutlined } from "@ant-design/icons";
+import { ArrowLeft, Copy, Trash2, CircleCheck, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import dayjs from "dayjs";
@@ -29,6 +10,21 @@ import { useApiMutation } from "@/api/mutations";
 import * as sdk from "@/api/generated";
 import { PageContainer } from "@/components/PageContainer";
 import { PhaseTag } from "@/components/PhaseTag";
+import { DataTable, type Column } from "@/components/DataTable";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
+import { Slider } from "@/components/ui/slider";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Spinner } from "@/components/ui/spinner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface BackendView {
   serviceName: string;
@@ -59,39 +55,36 @@ export default function TrafficDetail() {
     success: t("traffic.deleted"),
   });
 
-  const breadcrumb = (
-    <Breadcrumb
-      className="mb-3"
-      items={[{ title: t("nav.serviceCenter") }, { title: <Link to="/traffic">{t("nav.traffic")}</Link> }, { title: name }]}
-    />
-  );
-
   const back = (
-    <Link to="/traffic" className="mb-3 inline-flex items-center gap-1 text-sm text-muted hover:text-accent">
-      <ArrowLeftOutlined />
+    <Link
+      to="/traffic"
+      className="mb-3 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-info"
+    >
+      <ArrowLeft className="size-4" />
       {t("traffic.backToList")}
     </Link>
   );
 
   if (q.isLoading) {
     return (
-      <div className="mx-auto max-w-[1200px] p-6">
-        {breadcrumb}
+      <PageContainer breadcrumb={[t("nav.serviceCenter"), t("nav.traffic"), name]} title={name}>
         {back}
         <div className="grid place-items-center py-24">
-          <Spin />
+          <Spinner className="size-7 text-muted-foreground" />
         </div>
-      </div>
+      </PageContainer>
     );
   }
 
   if (q.isError || !q.data) {
     return (
-      <div className="mx-auto max-w-[1200px] p-6">
-        {breadcrumb}
+      <PageContainer breadcrumb={[t("nav.serviceCenter"), t("nav.traffic"), name]} title={t("traffic.loadFailedTitle")}>
         {back}
-        <Result status="error" title={t("traffic.loadFailedTitle")} subTitle={t("common.loadFailed")} />
-      </div>
+        <Alert variant="destructive">
+          <TriangleAlert />
+          <AlertDescription>{t("common.loadFailed")}</AlertDescription>
+        </Alert>
+      </PageContainer>
     );
   }
 
@@ -117,36 +110,41 @@ export default function TrafficDetail() {
     <PageContainer
       breadcrumb={[t("nav.serviceCenter"), t("nav.traffic"), p.name]}
       title={
-        <Space size="middle" align="center">
+        <span className="flex items-center gap-3">
           <span className="font-mono">{p.name}</span>
           <PhaseTag phase={p.phase} />
-          <Tag>{modeLabel}</Tag>
-        </Space>
+          <Badge variant="outline">{modeLabel}</Badge>
+        </span>
       }
       subtitle={p.description ?? p.displayName ?? undefined}
       extra={
-        <Button danger icon={<DeleteOutlined />} loading={del.isPending} onClick={onDelete}>
+        <Button variant="outline" className="text-destructive" disabled={del.isPending} onClick={onDelete}>
+          {del.isPending ? <Spinner data-icon="inline-start" /> : <Trash2 data-icon="inline-start" />}
           {t("traffic.delete")}
         </Button>
       }
     >
       {back}
-      <Tabs
-        items={[
-          { key: "overview", label: t("traffic.tabOverview"), children: <Overview policy={p} backendCount={backends.length} /> },
-          {
-            key: "dist",
-            label: t("traffic.tabDistribution"),
-            children:
-              p.mode === "canary" ? (
-                <CanaryDistribution name={p.name} initial={p.canaryPercent ?? 0} backends={backends} />
-              ) : (
-                <WeightedDistribution name={p.name} backends={backends} />
-              ),
-          },
-          { key: "events", label: t("traffic.tabEvents"), children: <Events name={p.name} /> },
-        ]}
-      />
+      <Tabs defaultValue="overview" className="gap-4">
+        <TabsList>
+          <TabsTrigger value="overview">{t("traffic.tabOverview")}</TabsTrigger>
+          <TabsTrigger value="dist">{t("traffic.tabDistribution")}</TabsTrigger>
+          <TabsTrigger value="events">{t("traffic.tabEvents")}</TabsTrigger>
+        </TabsList>
+        <TabsContent value="overview">
+          <Overview policy={p} backendCount={backends.length} />
+        </TabsContent>
+        <TabsContent value="dist">
+          {p.mode === "canary" ? (
+            <CanaryDistribution name={p.name} initial={p.canaryPercent ?? 0} backends={backends} />
+          ) : (
+            <WeightedDistribution name={p.name} backends={backends} />
+          )}
+        </TabsContent>
+        <TabsContent value="events">
+          <Events name={p.name} />
+        </TabsContent>
+      </Tabs>
     </PageContainer>
   );
 }
@@ -165,37 +163,54 @@ function Overview({ policy, backendCount }: { policy: sdk.TrafficPolicy; backend
   };
 
   return (
-    <Card title={t("traffic.policyInfo")}>
-      <Descriptions column={1} size="middle" colon={false} labelStyle={{ width: 120 }}>
-        <Descriptions.Item label={t("traffic.fieldName")}>
-          <span className="font-mono">{policy.name}</span>
-        </Descriptions.Item>
-        <Descriptions.Item label={t("traffic.fieldDesc")}>
-          {policy.description ?? policy.displayName ?? "—"}
-        </Descriptions.Item>
-        <Descriptions.Item label={t("traffic.fieldMode")}>
-          <Tag>{modeLabel}</Tag>
-        </Descriptions.Item>
-        <Descriptions.Item label={t("traffic.fieldEndpoint")}>
-          {endpoint ? (
-            <Space size="small">
-              <span className="font-mono">{endpoint}</span>
-              <Tooltip title={t("traffic.copyEndpoint")}>
-                <Button type="text" size="small" icon={<CopyOutlined />} onClick={copy} />
-              </Tooltip>
-            </Space>
-          ) : (
-            "—"
-          )}
-        </Descriptions.Item>
-        <Descriptions.Item label={t("traffic.fieldBackendCount")}>
-          <span className="font-mono">{backendCount}</span>
-        </Descriptions.Item>
-        <Descriptions.Item label={t("traffic.fieldOwner")}>{policy.owner || "—"}</Descriptions.Item>
-        <Descriptions.Item label={t("traffic.fieldCreatedAt")}>
-          <span className="font-mono">{policy.createdAt ? dayjs(policy.createdAt).format("YYYY-MM-DD HH:mm:ss") : "—"}</span>
-        </Descriptions.Item>
-      </Descriptions>
+    <Card>
+      <CardHeader className="border-b">
+        <CardTitle>{t("traffic.policyInfo")}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <dl className="grid grid-cols-[120px_1fr] gap-x-4 gap-y-3 text-sm">
+          <dt className="text-muted-foreground">{t("traffic.fieldName")}</dt>
+          <dd className="font-mono">{policy.name}</dd>
+
+          <dt className="text-muted-foreground">{t("traffic.fieldDesc")}</dt>
+          <dd>{policy.description ?? policy.displayName ?? "—"}</dd>
+
+          <dt className="text-muted-foreground">{t("traffic.fieldMode")}</dt>
+          <dd>
+            <Badge variant="outline">{modeLabel}</Badge>
+          </dd>
+
+          <dt className="text-muted-foreground">{t("traffic.fieldEndpoint")}</dt>
+          <dd>
+            {endpoint ? (
+              <span className="inline-flex items-center gap-1">
+                <span className="font-mono">{endpoint}</span>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon-sm" onClick={copy}>
+                      <Copy />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{t("traffic.copyEndpoint")}</TooltipContent>
+                </Tooltip>
+              </span>
+            ) : (
+              "—"
+            )}
+          </dd>
+
+          <dt className="text-muted-foreground">{t("traffic.fieldBackendCount")}</dt>
+          <dd className="font-mono">{backendCount}</dd>
+
+          <dt className="text-muted-foreground">{t("traffic.fieldOwner")}</dt>
+          <dd>{policy.owner || "—"}</dd>
+
+          <dt className="text-muted-foreground">{t("traffic.fieldCreatedAt")}</dt>
+          <dd className="font-mono">
+            {policy.createdAt ? dayjs(policy.createdAt).format("YYYY-MM-DD HH:mm:ss") : "—"}
+          </dd>
+        </dl>
+      </CardContent>
     </Card>
   );
 }
@@ -209,42 +224,46 @@ function roleLabel(t: (k: string) => string, role?: sdk.TrafficPolicyBackendRole
 
 function backendColumns(
   t: (k: string) => string,
-  weightCol: ColumnsType<BackendView>[number],
-): ColumnsType<BackendView> {
+  weightCol: Column<BackendView>,
+): Column<BackendView>[] {
   return [
     {
+      key: "serviceName",
       title: t("traffic.colService"),
-      dataIndex: "serviceName",
-      render: (v: string) => (
-        <Link to={`/services/${v}`} className="font-mono">
-          {v}
+      render: (r) => (
+        <Link to={`/services/${r.serviceName}`} className="font-mono text-foreground hover:text-info hover:underline">
+          {r.serviceName}
         </Link>
       ),
     },
     {
+      key: "role",
       title: t("traffic.colRole"),
-      dataIndex: "role",
       width: 90,
-      render: (r?: sdk.TrafficPolicyBackendRole) => <Tag>{roleLabel(t, r)}</Tag>,
+      render: (r) => <Badge variant="outline">{roleLabel(t, r.role)}</Badge>,
     },
     weightCol,
     {
+      key: "actualPct",
       title: t("traffic.colActualPct"),
-      dataIndex: "actualPct",
       width: 220,
-      render: (v: number) => (
+      render: (r) => (
         <div className="flex items-center gap-2">
-          <Progress percent={v} showInfo={false} size="small" strokeColor="var(--accent)" className="flex-1" />
-          <span className="w-10 text-right font-mono text-xs">{v}%</span>
+          <Progress value={r.actualPct} className="flex-1" />
+          <span className="w-10 text-right font-mono text-xs">{r.actualPct}%</span>
         </div>
       ),
     },
     {
+      key: "ready",
       title: t("traffic.colBackendStatus"),
-      dataIndex: "ready",
       width: 110,
-      render: (ready?: boolean) =>
-        ready ? <Tag color="success">{t("traffic.backendReady")}</Tag> : <Tag>{t("traffic.backendNotReady")}</Tag>,
+      render: (r) =>
+        r.ready ? (
+          <Badge variant="success">{t("traffic.backendReady")}</Badge>
+        ) : (
+          <Badge variant="outline">{t("traffic.backendNotReady")}</Badge>
+        ),
     },
   ];
 }
@@ -273,53 +292,59 @@ function CanaryDistribution({ name, initial, backends }: { name: string; initial
         : b,
   );
 
-  const weightCol: ColumnsType<BackendView>[number] = {
+  const weightCol: Column<BackendView> = {
+    key: "weight",
     title: t("traffic.colTargetWeight"),
-    dataIndex: "weight",
     width: 110,
     align: "right",
-    render: (v: number) => <span className="font-mono">{v}</span>,
+    render: (r) => <span className="font-mono">{r.weight}</span>,
   };
 
   return (
     <div className="flex flex-col gap-5">
-      <Card title={t("traffic.canaryPercentTitle")}>
-        <div className="mb-3 flex items-center justify-between">
-          <span className="text-sm text-fg-2">{t("traffic.canaryShare")}</span>
-          <span className="font-mono text-2xl font-semibold">
-            {canary}
-            <span className="text-sm text-muted">%</span>
-          </span>
-        </div>
-        <Slider min={0} max={100} value={canary} onChange={setCanary} />
-        <div className="mt-2 flex gap-7 text-sm text-fg-2">
-          <span>
-            {t("traffic.stableShare")} <b className="font-mono text-info">{stable}%</b>
-          </span>
-          <span>
-            {t("traffic.canaryShare")} <b className="font-mono text-warn">{canary}%</b>
-          </span>
-        </div>
-        <div className="mt-4 flex gap-2">
-          <Button
-            type="primary"
-            loading={split.isPending}
-            onClick={() => split.mutate({ canaryPercent: canary })}
-          >
-            {t("traffic.applyCanary")}
-          </Button>
-          <Button loading={promote.isPending} onClick={() => promote.mutate(undefined)}>
-            {t("traffic.promoteToStable")}
-          </Button>
-        </div>
+      <Card>
+        <CardHeader className="border-b">
+          <CardTitle>{t("traffic.canaryPercentTitle")}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="mb-3 flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">{t("traffic.canaryShare")}</span>
+            <span className="font-mono text-2xl font-semibold">
+              {canary}
+              <span className="text-sm text-muted-foreground">%</span>
+            </span>
+          </div>
+          <Slider min={0} max={100} value={[canary]} onValueChange={(vals) => setCanary(vals[0])} />
+          <div className="mt-2 flex gap-7 text-sm text-muted-foreground">
+            <span>
+              {t("traffic.stableShare")} <b className="font-mono text-info">{stable}%</b>
+            </span>
+            <span>
+              {t("traffic.canaryShare")} <b className="font-mono text-warning">{canary}%</b>
+            </span>
+          </div>
+          <div className="mt-4 flex gap-2">
+            <Button disabled={split.isPending} onClick={() => split.mutate({ canaryPercent: canary })}>
+              {split.isPending && <Spinner data-icon="inline-start" />}
+              {t("traffic.applyCanary")}
+            </Button>
+            <Button variant="outline" disabled={promote.isPending} onClick={() => promote.mutate(undefined)}>
+              {promote.isPending && <Spinner data-icon="inline-start" />}
+              {t("traffic.promoteToStable")}
+            </Button>
+          </div>
+        </CardContent>
       </Card>
 
-      <Card title={t("traffic.backendDist")} styles={{ body: { padding: 0 } }}>
-        <Table<BackendView>
-          rowKey="serviceName"
+      <Card className="p-0">
+        <CardHeader className="border-b py-4">
+          <CardTitle>{t("traffic.backendDist")}</CardTitle>
+        </CardHeader>
+        <DataTable
           columns={backendColumns(t, weightCol)}
-          dataSource={rows}
-          pagination={false}
+          data={rows}
+          rowKey={(r) => r.serviceName}
+          pageSize={rows.length || 1}
         />
       </Card>
     </div>
@@ -346,18 +371,19 @@ function WeightedDistribution({ name, backends }: { name: string; backends: Back
     return { ...b, weight: w, actualPct: sum ? Math.round((w / sum) * 100) : 0 };
   });
 
-  const weightCol: ColumnsType<BackendView>[number] = {
+  const weightCol: Column<BackendView> = {
+    key: "weight",
     title: t("traffic.colTargetWeight"),
-    dataIndex: "weight",
     width: 130,
     align: "right",
-    render: (_: number, r) => (
-      <InputNumber
+    render: (r) => (
+      <Input
+        type="number"
         min={0}
         max={100}
+        className="ml-auto w-24"
         value={weights[r.serviceName] ?? 0}
-        onChange={(v) => setWeights((prev) => ({ ...prev, [r.serviceName]: v ?? 0 }))}
-        className="!w-24"
+        onChange={(e) => setWeights((prev) => ({ ...prev, [r.serviceName]: Number(e.target.value) }))}
       />
     ),
   };
@@ -372,21 +398,27 @@ function WeightedDistribution({ name, backends }: { name: string; backends: Back
     });
 
   return (
-    <Card
-      title={t("traffic.backendDist")}
-      extra={<span className="text-xs text-muted">{t("traffic.weightedHint")}</span>}
-      styles={{ body: { padding: 0 } }}
-    >
-      <Table<BackendView> rowKey="serviceName" columns={backendColumns(t, weightCol)} dataSource={rows} pagination={false} />
-      <div className="flex items-center gap-4 border-t border-border-soft p-4">
-        <Alert
-          type={ok ? "success" : "warning"}
-          showIcon
-          message={ok ? t("traffic.sumOk", { sum }) : t("traffic.sumBad", { sum })}
-          className="!py-1"
-        />
+    <Card className="p-0">
+      <CardHeader className="flex-row items-center justify-between gap-2 border-b py-4">
+        <CardTitle>{t("traffic.backendDist")}</CardTitle>
+        <span className="text-xs text-muted-foreground">{t("traffic.weightedHint")}</span>
+      </CardHeader>
+      <DataTable
+        columns={backendColumns(t, weightCol)}
+        data={rows}
+        rowKey={(r) => r.serviceName}
+        pageSize={rows.length || 1}
+      />
+      <div className="flex items-center gap-4 border-t p-4">
+        <Alert variant={ok ? "default" : "warning"} className="w-auto">
+          {ok ? <CircleCheck className="text-success" /> : <TriangleAlert />}
+          <AlertDescription className={ok ? "text-success" : undefined}>
+            {ok ? t("traffic.sumOk", { sum }) : t("traffic.sumBad", { sum })}
+          </AlertDescription>
+        </Alert>
         <span className="flex-1" />
-        <Button type="primary" disabled={!ok} loading={split.isPending} onClick={apply}>
+        <Button disabled={!ok || split.isPending} onClick={apply}>
+          {split.isPending && <Spinner data-icon="inline-start" />}
           {t("traffic.applyWeights")}
         </Button>
       </div>
@@ -408,29 +440,39 @@ function Events({ name }: { name: string }) {
     },
   });
 
+  const items = q.data?.items ?? [];
+
   return (
-    <Card styles={{ body: { padding: 0 } }}>
-      <List
-        loading={q.isLoading}
-        dataSource={q.data?.items ?? []}
-        locale={{ emptyText: q.isError ? t("common.loadFailed") : t("traffic.noEvents") }}
-        renderItem={(e) => (
-          <List.Item className="!px-4">
-            <List.Item.Meta
-              title={
-                <Space size="small">
+    <Card className="p-0">
+      {q.isLoading ? (
+        <div className="grid place-items-center py-16">
+          <Spinner className="size-7 text-muted-foreground" />
+        </div>
+      ) : items.length === 0 ? (
+        <div className="py-16 text-center text-sm text-muted-foreground">
+          {q.isError ? t("common.loadFailed") : t("traffic.noEvents")}
+        </div>
+      ) : (
+        <ul className="flex flex-col">
+          {items.map((e, i) => (
+            <li
+              key={i}
+              className="flex items-start justify-between gap-4 border-b px-4 py-3 last:border-b-0"
+            >
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
                   <span className="font-medium">{e.reason}</span>
-                  <Tag color={e.type === "Warning" ? "warning" : "default"}>{e.type}</Tag>
-                </Space>
-              }
-              description={e.message}
-            />
-            <span className="font-mono text-xs text-muted">
-              {e.lastTimestamp ? dayjs(e.lastTimestamp).format("YYYY-MM-DD HH:mm:ss") : "—"}
-            </span>
-          </List.Item>
-        )}
-      />
+                  <Badge variant={e.type === "Warning" ? "warning" : "outline"}>{e.type}</Badge>
+                </div>
+                <div className="mt-0.5 text-sm text-muted-foreground">{e.message}</div>
+              </div>
+              <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                {e.lastTimestamp ? dayjs(e.lastTimestamp).format("YYYY-MM-DD HH:mm:ss") : "—"}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </Card>
   );
 }

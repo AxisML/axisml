@@ -1,5 +1,11 @@
-import type { ReactNode } from "react";
-import { Breadcrumb, Typography, Flex } from "antd";
+import { Fragment, type ReactNode } from "react";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 
 // Standard page chrome shared by every list/detail page: a breadcrumb, a title
 // with optional subtitle, and a right-aligned action slot — followed by the page
@@ -20,21 +26,34 @@ export function PageContainer({
   return (
     <div className="mx-auto max-w-[1200px] p-6">
       {breadcrumb && breadcrumb.length > 0 && (
-        <Breadcrumb className="mb-3" items={breadcrumb.map((b) => ({ title: b }))} />
+        <Breadcrumb className="mb-3">
+          <BreadcrumbList>
+            {breadcrumb.map((b, i) => (
+              <Fragment key={i}>
+                {i > 0 && <BreadcrumbSeparator />}
+                <BreadcrumbItem>
+                  <BreadcrumbPage
+                    className={i < breadcrumb.length - 1 ? "text-muted-foreground" : undefined}
+                  >
+                    {b}
+                  </BreadcrumbPage>
+                </BreadcrumbItem>
+              </Fragment>
+            ))}
+          </BreadcrumbList>
+        </Breadcrumb>
       )}
-      <Flex align="flex-start" justify="space-between" gap={16} className="mb-5">
+      <div className="mb-5 flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <Typography.Title level={2} className="!mb-1.5 !font-bold">
-            {title}
-          </Typography.Title>
+          <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
           {subtitle && (
-            <Typography.Paragraph type="secondary" className="!mb-0 max-w-3xl !text-[13px] !leading-relaxed">
+            <p className="mt-1.5 max-w-3xl text-[13px] leading-relaxed text-muted-foreground">
               {subtitle}
-            </Typography.Paragraph>
+            </p>
           )}
         </div>
         {extra && <div className="shrink-0">{extra}</div>}
-      </Flex>
+      </div>
       {children}
     </div>
   );

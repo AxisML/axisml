@@ -1,17 +1,18 @@
 # AxisML Platform Frontend 设计
 
-平台唯一的用户界面：单页应用（SPA），消费 Platform [后端](backend.md) 的 REST API，不直接访问任何 System / Infra 层服务。页面级布局、字段与交互的权威是 [交互原型 prototype/](../../product_design/prototype)（[wireframe.md](../../product_design/wireframe.md) 仅作补充说明）；本文档只描述前端**工程架构**。
-
-> 当前前端为 README-only 脚手架，本文为目标架构。
+平台唯一的用户界面：单页应用（SPA），消费 Platform [后端](backend.md) 的 REST API，不直接访问任何 System / Infra 层服务。页面级布局、字段与交互的权威是 [交互原型 prototype/](../../product_design/prototype)（[wireframe.md](../../product_design/wireframe.md) 仅作补充说明）；视觉皮肤（配色 / 字体 / 圆角 / 间距 / 卡片）的权威是仓库根目录的 [DESIGN.md](../../../DESIGN.md)（Geist 极简体系：近黑墨水 on 近白画布、hairline 卡片、蓝色 link / focus）。本文档只描述前端**工程架构**。
 
 ## 1. 技术栈
 
 | 维度 | 选型 |
 | --- | --- |
 | 语言 / 框架 | TypeScript + React + Vite |
-| 组件库 | Ant Design（`ConfigProvider` 注入主题与 locale） |
-| 数据获取 | 对后端 REST 的 typed client；查询缓存 + 轮询 |
+| 组件库 | shadcn/ui（源码内置的 Radix primitives）+ Tailwind CSS；图标 lucide-react |
+| 图表 / 反馈 | Recharts（图表）、sonner（toast）、Radix 弹层（Dialog / Sheet / Popover / AlertDialog） |
+| 数据获取 | 对后端 REST 的 typed client（`@hey-api` 从 [openapi/platform.yaml](../../openapi/platform.yaml) 生成）；TanStack Query 缓存 + 轮询 |
 | i18n | react-i18next + dayjs |
+
+设计 token 以 CSS 变量承载（语义令牌：`background` / `foreground` / `primary` / `muted` / `border` / `card` / `destructive` / `ring` 等），同时驱动 Tailwind 与 shadcn 组件；深浅主题由 `<html data-theme>` 切换。组件库不携带任何业务语义，主题与 locale 由前端集中注入，不依赖第三方组件库的 locale 包。
 
 ## 2. 信息架构与路由
 
@@ -39,7 +40,7 @@
 | 机读枚举（`phase` / `status` / `source` / `kind` / `role` …） | 展示层映射为本地化标签；枚举原值不翻译 |
 | 时间戳（RFC3339 UTC）/ 数值 | 按 locale 格式化（`Intl` / dayjs：日期、相对时间、时区、千分位） |
 
-- 首批 `zh-CN` / `en-US`；新增语言 = 加 message catalog + AntD locale 包，后端零改动。
+- 首批 `zh-CN` / `en-US`；新增语言 = 加 message catalog（前端自带所有文案，无需组件库 locale 包），后端零改动。
 - 语言选择**纯浏览器端持久化**（localStorage，初值 `navigator.language`），不回传后端、不入会话。
 - **不本地化**：用户自由文本（显示名 / 描述 / 标签 / 制品元数据）与日志正文原样展示。
 

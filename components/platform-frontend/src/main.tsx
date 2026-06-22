@@ -6,9 +6,8 @@ import "./i18n";
 import "./api/setup";
 import { SessionProvider } from "./app/session";
 import { AppStoreProvider } from "./app/store";
-import { AntdProvider } from "./app/theme";
+import { UIProvider } from "./app/ui";
 import { router } from "./app/router";
-import "./styles/tokens.css";
 import "./styles/tailwind.css";
 
 const queryClient = new QueryClient({
@@ -26,9 +25,9 @@ createRoot(document.getElementById("root")!).render(
     <QueryClientProvider client={queryClient}>
       <SessionProvider>
         <AppStoreProvider>
-          <AntdProvider>
+          <UIProvider>
             <RouterProvider router={router} />
-          </AntdProvider>
+          </UIProvider>
         </AppStoreProvider>
       </SessionProvider>
     </QueryClientProvider>

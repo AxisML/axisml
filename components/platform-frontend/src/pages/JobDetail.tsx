@@ -1,23 +1,5 @@
 import { Link, useParams } from "react-router-dom";
-import {
-  Card,
-  Tabs,
-  Table,
-  Descriptions,
-  Button,
-  Space,
-  Divider,
-  Tag,
-  Empty,
-  Spin,
-  Result,
-} from "antd";
-import type { ColumnsType } from "antd/es/table";
-import {
-  CaretRightOutlined,
-  DeleteOutlined,
-  ArrowLeftOutlined,
-} from "@ant-design/icons";
+import { Play, Trash2, ArrowLeft } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import dayjs from "dayjs";
@@ -26,9 +8,16 @@ import { useUI } from "@/app/ui";
 import { useApiMutation } from "@/api/mutations";
 import { PageContainer } from "@/components/PageContainer";
 import { PhaseTag } from "@/components/PhaseTag";
+import { DataTable, type Column } from "@/components/DataTable";
 import { USE_MOCK } from "@/api/mock";
 import { runSummary } from "@/api/mock/data";
 import * as sdk from "@/api/generated";
+import { Button } from "@/components/ui/button";
+import { Card, CardHeader, CardTitle, CardAction, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Spinner } from "@/components/ui/spinner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // ── Shared detail helpers (reused by RunDetail) ───────────────────────────────
 export function fmtDateTime(v?: string | null): string {
@@ -56,6 +45,24 @@ export function runReplicas(r: sdk.Run): number | undefined {
   if (!r.roles?.length) return undefined;
   const total = r.roles.reduce((n, role) => n + (role.replicas ?? 0), 0);
   return total > 0 ? total : undefined;
+}
+
+// Key/value detail grid — the Descriptions replacement (two columns on md+).
+function DescGrid({ children }: { children: React.ReactNode }) {
+  return (
+    <dl className="grid grid-cols-[120px_1fr] gap-x-4 gap-y-3 text-sm md:grid-cols-[120px_1fr_120px_1fr]">
+      {children}
+    </dl>
+  );
+}
+
+function DescItem({ label, span, children }: { label: string; span?: boolean; children: React.ReactNode }) {
+  return (
+    <div className={span ? "contents md:col-span-4 md:grid md:grid-cols-[120px_1fr]" : "contents"}>
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="min-w-0">{children}</dd>
+    </div>
+  );
 }
 
 // 自定义任务详情 / Job detail. Metadata comes from getJob; the run list comes
@@ -89,25 +96,35 @@ export default function JobDetail() {
         </span>
       }
       subtitle={
-        <Link to="/jobs" className="inline-flex items-center gap-1 text-sm">
-          <ArrowLeftOutlined /> {t("jobDetail.backJobs")}
+        <Link to="/jobs" className="inline-flex items-center gap-1 text-sm text-info hover:underline">
+          <ArrowLeft className="size-3.5" /> {t("jobDetail.backJobs")}
         </Link>
       }
       extra={job && <Actions name={name} />}
     >
       {jobQ.isLoading ? (
         <div className="grid place-items-center py-24">
-          <Spin />
+          <Spinner className="size-7 text-muted-foreground" />
         </div>
       ) : jobQ.isError || !job ? (
-        <Result status="error" title={t("common.loadFailed")} />
+        <Card>
+          <CardContent className="py-16 text-center text-sm text-muted-foreground">
+            {t("common.loadFailed")}
+          </CardContent>
+        </Card>
       ) : (
-        <Tabs
-          items={[
-            { key: "info", label: t("jobDetail.tabInfo"), children: <InfoPane job={job} role={role} /> },
-            { key: "runs", label: t("jobDetail.tabRuns"), children: <RunsPane name={name} /> },
-          ]}
-        />
+        <Tabs defaultValue="info">
+          <TabsList variant="line">
+            <TabsTrigger value="info">{t("jobDetail.tabInfo")}</TabsTrigger>
+            <TabsTrigger value="runs">{t("jobDetail.tabRuns")}</TabsTrigger>
+          </TabsList>
+          <TabsContent value="info" className="mt-4">
+            <InfoPane job={job} role={role} />
+          </TabsContent>
+          <TabsContent value="runs" className="mt-4">
+            <RunsPane name={name} />
+          </TabsContent>
+        </Tabs>
       )}
     </PageContainer>
   );
@@ -127,13 +144,14 @@ function Actions({ name }: { name: string }) {
   });
 
   return (
-    <Space>
-      <Button type="primary" icon={<CaretRightOutlined />} loading={trigger.isPending} onClick={() => trigger.mutate({})}>
+    <div className="flex items-center gap-2">
+      <Button disabled={trigger.isPending} onClick={() => trigger.mutate({})}>
+        {trigger.isPending ? <Spinner data-icon="inline-start" /> : <Play data-icon="inline-start" />}
         {t("jobDetail.runNow")}
       </Button>
       <Button
-        danger
-        icon={<DeleteOutlined />}
+        variant="outline"
+        className="text-destructive"
         onClick={() =>
           confirm({
             title: t("jobDetail.deleteTitle", { name }),
@@ -144,9 +162,10 @@ function Actions({ name }: { name: string }) {
           })
         }
       >
+        <Trash2 data-icon="inline-start" />
         {t("common.delete")}
       </Button>
-    </Space>
+    </div>
   );
 }
 
@@ -156,60 +175,73 @@ function InfoPane({ job, role }: { job: sdk.Job; role?: sdk.MlRunRole }) {
   const policy = job.spec.runPolicy;
 
   return (
-    <Card title={t("jobDetail.sectionInfo")} extra={<span className="text-xs text-muted">{t("jobDetail.editHint")}</span>}>
-      <Descriptions column={{ xs: 1, md: 2 }} bordered size="middle">
-        <Descriptions.Item label={t("jobDetail.fName")}>
-          <span className="font-mono">{job.name}</span>
-        </Descriptions.Item>
-        <Descriptions.Item label={t("jobDetail.fDesc")}>{job.description || "—"}</Descriptions.Item>
-        <Descriptions.Item label={t("jobDetail.fImage")}>
-          {tpl?.image ? <Tag className="!m-0 font-mono">{tpl.image}</Tag> : "—"}
-        </Descriptions.Item>
-        <Descriptions.Item label={t("jobDetail.fPool")}>
-          {job.spec.poolName ? <span className="font-mono">{job.spec.poolName}</span> : "—"}
-        </Descriptions.Item>
-        <Descriptions.Item label={t("jobDetail.fUnit")}>
-          {job.spec.unitName ? <span className="font-mono">{job.spec.unitName}</span> : "—"}
-        </Descriptions.Item>
-        <Descriptions.Item label={t("jobDetail.fReplicas")}>
-          <span className="font-mono">{role?.replicas ?? "—"}</span>
-        </Descriptions.Item>
-        <Descriptions.Item label={t("jobDetail.fArtifacts")} span={2}>
-          <ArtifactTags artifacts={job.spec.artifacts} />
-        </Descriptions.Item>
-        <Descriptions.Item label={t("jobDetail.fRunPolicy")} span={2}>
-          <PolicyText policy={policy} />
-        </Descriptions.Item>
-        <Descriptions.Item label={t("jobDetail.fCreator")} span={2}>
-          {job.owner} · <span className="font-mono">{fmtDateTime(job.createdAt)}</span>
-        </Descriptions.Item>
-      </Descriptions>
+    <Card>
+      <CardHeader className="border-b">
+        <CardTitle>{t("jobDetail.sectionInfo")}</CardTitle>
+        <CardAction>
+          <span className="text-xs text-muted-foreground">{t("jobDetail.editHint")}</span>
+        </CardAction>
+      </CardHeader>
+      <CardContent>
+        <DescGrid>
+          <DescItem label={t("jobDetail.fName")}>
+            <span className="font-mono">{job.name}</span>
+          </DescItem>
+          <DescItem label={t("jobDetail.fDesc")}>{job.description || "—"}</DescItem>
+          <DescItem label={t("jobDetail.fImage")}>
+            {tpl?.image ? (
+              <Badge variant="secondary" className="font-mono">
+                {tpl.image}
+              </Badge>
+            ) : (
+              "—"
+            )}
+          </DescItem>
+          <DescItem label={t("jobDetail.fPool")}>
+            {job.spec.poolName ? <span className="font-mono">{job.spec.poolName}</span> : "—"}
+          </DescItem>
+          <DescItem label={t("jobDetail.fUnit")}>
+            {job.spec.unitName ? <span className="font-mono">{job.spec.unitName}</span> : "—"}
+          </DescItem>
+          <DescItem label={t("jobDetail.fReplicas")}>
+            <span className="font-mono">{role?.replicas ?? "—"}</span>
+          </DescItem>
+          <DescItem label={t("jobDetail.fArtifacts")} span>
+            <ArtifactTags artifacts={job.spec.artifacts} />
+          </DescItem>
+          <DescItem label={t("jobDetail.fRunPolicy")} span>
+            <PolicyText policy={policy} />
+          </DescItem>
+          <DescItem label={t("jobDetail.fCreator")} span>
+            {job.owner} · <span className="font-mono">{fmtDateTime(job.createdAt)}</span>
+          </DescItem>
+        </DescGrid>
 
-      <div className="mt-6 border-t border-border-soft pt-5">
+        <Separator className="my-5" />
         <CommandBlock tpl={tpl} />
         <EnvBlock tpl={tpl} />
-      </div>
+      </CardContent>
     </Card>
   );
 }
 
 export function ArtifactTags({ artifacts }: { artifacts?: sdk.ArtifactRef[] }) {
-  if (!artifacts || artifacts.length === 0) return <span className="text-muted">—</span>;
+  if (!artifacts || artifacts.length === 0) return <span className="text-muted-foreground">—</span>;
   return (
-    <Space size={[4, 4]} wrap>
+    <div className="flex flex-wrap gap-1">
       {artifacts.map((a) => (
-        <Tag key={`${a.kind}/${a.name}/${a.version}`} className="!m-0 font-mono">
+        <Badge key={`${a.kind}/${a.name}/${a.version}`} variant="secondary" className="font-mono">
           {a.name}@{a.version}
-        </Tag>
+        </Badge>
       ))}
-    </Space>
+    </div>
   );
 }
 
 export function PolicyText({ policy }: { policy?: sdk.RunPolicy }) {
   const { t } = useTranslation();
   if (!policy || (policy.activeDeadlineSeconds == null && policy.backoffLimit == null))
-    return <span className="text-muted">—</span>;
+    return <span className="text-muted-foreground">—</span>;
   const parts: string[] = [];
   if (policy.activeDeadlineSeconds != null)
     parts.push(`${t("jobDetail.policyTimeout")} ${fmtDuration(policy.activeDeadlineSeconds)}`);
@@ -222,7 +254,7 @@ export function CommandBlock({ tpl }: { tpl?: sdk.RoleTemplate }) {
   const cmd = [...(tpl?.command ?? []), ...(tpl?.args ?? [])];
   return (
     <div className="mb-5">
-      <div className="mb-1.5 text-xs text-muted">{t("jobDetail.command")}</div>
+      <div className="mb-1.5 text-xs text-muted-foreground">{t("jobDetail.command")}</div>
       {cmd.length ? (
         <pre
           className="m-0 overflow-auto rounded-md p-4 font-mono text-xs leading-relaxed"
@@ -231,7 +263,7 @@ export function CommandBlock({ tpl }: { tpl?: sdk.RoleTemplate }) {
           {cmd.join(" ")}
         </pre>
       ) : (
-        <div className="text-sm text-muted">{t("jobDetail.noCommand")}</div>
+        <div className="text-sm text-muted-foreground">{t("jobDetail.noCommand")}</div>
       )}
     </div>
   );
@@ -242,17 +274,17 @@ export function EnvBlock({ tpl }: { tpl?: sdk.RoleTemplate }) {
   const env = tpl?.env ?? [];
   return (
     <div>
-      <div className="mb-1.5 text-xs text-muted">{t("jobDetail.env")}</div>
+      <div className="mb-1.5 text-xs text-muted-foreground">{t("jobDetail.env")}</div>
       {env.length ? (
-        <Space size={[6, 6]} wrap>
+        <div className="flex flex-wrap gap-1.5">
           {env.map((e) => (
-            <Tag key={e.name} className="!m-0 font-mono">
+            <Badge key={e.name} variant="secondary" className="font-mono">
               {e.name}={e.value ?? ""}
-            </Tag>
+            </Badge>
           ))}
-        </Space>
+        </div>
       ) : (
-        <div className="text-sm text-muted">{t("jobDetail.noEnv")}</div>
+        <div className="text-sm text-muted-foreground">{t("jobDetail.noEnv")}</div>
       )}
     </div>
   );
@@ -284,61 +316,61 @@ function RunsPane({ name }: { name: string }) {
 
   const active = (p?: string) => p === "Creating" || p === "Pending" || p === "Running" || p === "Canceling";
 
-  const columns: ColumnsType<sdk.Run> = [
+  const columns: Column<sdk.Run>[] = [
     {
+      key: "name",
       title: t("jobDetail.colRun"),
-      dataIndex: "name",
-      render: (_, r) => (
-        <Link to={`/jobs/${name}/runs/${r.name}`} className="font-mono font-medium">
+      render: (r) => (
+        <Link
+          to={`/jobs/${name}/runs/${r.name}`}
+          className="font-mono font-medium text-foreground hover:text-info hover:underline"
+        >
           {r.name}
         </Link>
       ),
     },
-    { title: t("jobDetail.colStatus"), key: "phase", width: 120, render: (_, r) => <PhaseTag phase={r.phase} /> },
+    { key: "phase", title: t("jobDetail.colStatus"), width: 120, render: (r) => <PhaseTag phase={r.phase} /> },
     {
+      key: "unitName",
       title: t("jobDetail.colUnit"),
-      dataIndex: "unitName",
       width: 160,
-      render: (v: string) => <span className="font-mono">{v || "—"}</span>,
+      render: (r) => <span className="font-mono">{r.unitName || "—"}</span>,
     },
     {
-      title: t("jobDetail.colReplicas"),
       key: "replicas",
+      title: t("jobDetail.colReplicas"),
       width: 80,
       align: "right",
-      render: (_, r) => runReplicas(r) ?? "—",
+      render: (r) => runReplicas(r) ?? "—",
     },
-    { title: t("jobDetail.colCreator"), dataIndex: "owner", width: 120, render: (v: string) => v || "—" },
+    { key: "owner", title: t("jobDetail.colCreator"), width: 120, render: (r) => r.owner || "—" },
     {
+      key: "startedAt",
       title: t("jobDetail.colStarted"),
-      dataIndex: "startedAt",
       width: 170,
-      render: (v: string) => <span className="text-muted">{fmtDateTime(v)}</span>,
+      render: (r) => <span className="text-muted-foreground">{fmtDateTime(r.startedAt)}</span>,
     },
     {
-      title: t("jobDetail.colDuration"),
       key: "duration",
+      title: t("jobDetail.colDuration"),
       width: 110,
       align: "right",
-      render: (_, r) => <span className="font-mono">{durationOf(r)}</span>,
+      render: (r) => <span className="font-mono">{durationOf(r)}</span>,
     },
     {
-      title: t("common.actions"),
       key: "actions",
+      title: t("common.actions"),
       width: 130,
       align: "right",
-      render: (_, r) => (
-        <Space size={4} split={<Divider type="vertical" className="!mx-0" />}>
-          <Link to={`/jobs/${name}/runs/${r.name}`}>
-            <Button type="link" size="small" className="!px-1">
-              {t("common.detail")}
-            </Button>
-          </Link>
+      render: (r) => (
+        <div className="flex items-center justify-end gap-0.5">
+          <Button variant="link" size="sm" asChild>
+            <Link to={`/jobs/${name}/runs/${r.name}`}>{t("common.detail")}</Link>
+          </Button>
           {active(r.phase) ? (
             <Button
-              type="link"
-              size="small"
-              className="!px-1"
+              variant="link"
+              size="sm"
               onClick={() =>
                 confirm({
                   title: t("jobDetail.cancelTitle", { run: r.name }),
@@ -353,10 +385,9 @@ function RunsPane({ name }: { name: string }) {
             </Button>
           ) : (
             <Button
-              type="link"
-              size="small"
-              danger
-              className="!px-1"
+              variant="link"
+              size="sm"
+              className="text-destructive"
               onClick={() =>
                 confirm({
                   title: t("jobDetail.runDeleteTitle", { run: r.name }),
@@ -369,26 +400,20 @@ function RunsPane({ name }: { name: string }) {
               {t("common.delete")}
             </Button>
           )}
-        </Space>
+        </div>
       ),
     },
   ];
 
   return (
-    <Card styles={{ body: { padding: 0 } }} className="overflow-hidden">
-      <Table<sdk.Run>
-        rowKey="name"
+    <Card className="overflow-hidden p-0">
+      <DataTable
         columns={columns}
-        dataSource={runsQ.data?.items ?? []}
+        data={runsQ.data?.items ?? []}
+        rowKey={(r) => r.name}
         loading={runsQ.isLoading}
-        pagination={{ pageSize: 20, hideOnSinglePage: true }}
-        locale={{
-          emptyText: runsQ.isError ? (
-            <Empty description={t("common.loadFailed")} />
-          ) : (
-            <Empty description={t("jobDetail.noRuns")} />
-          ),
-        }}
+        error={runsQ.isError}
+        empty={t("jobDetail.noRuns")}
       />
     </Card>
   );

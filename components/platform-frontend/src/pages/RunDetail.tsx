@@ -1,21 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import {
-  Card,
-  Tabs,
-  Table,
-  Descriptions,
-  Tag,
-  Button,
-  Space,
-  Select,
-  Steps,
-  Empty,
-  Spin,
-  Result,
-} from "antd";
-import type { ColumnsType } from "antd/es/table";
-import { ArrowLeftOutlined, StopOutlined, ReloadOutlined } from "@ant-design/icons";
+import { ArrowLeft, Ban, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { useApp } from "@/app/store";
@@ -24,8 +9,24 @@ import { useApiMutation } from "@/api/mutations";
 import { PageContainer } from "@/components/PageContainer";
 import { PhaseTag } from "@/components/PhaseTag";
 import { LogViewer } from "@/components/LogViewer";
+import { DataTable, type Column } from "@/components/DataTable";
 import * as sdk from "@/api/generated";
 import { PolicyText, fmtDateTime, primaryRole } from "./JobDetail";
+import { Button } from "@/components/ui/button";
+import { Card, CardHeader, CardTitle, CardAction, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Spinner } from "@/components/ui/spinner";
+import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 
 // Run detail for both Job-runs (/jobs/:name/runs/:run) and Experiment-runs
 // (/experiments/:name/runs/:run). The `kind` prop (preserved from the router)
@@ -56,6 +57,24 @@ function lifecycleState(phase?: sdk.RunPhase): { current: number; error: boolean
     default:
       return { current: 0, error: false };
   }
+}
+
+// Key/value detail grid — the Descriptions replacement (two columns on md+).
+function DescGrid({ children }: { children: React.ReactNode }) {
+  return (
+    <dl className="grid grid-cols-[120px_1fr] gap-x-4 gap-y-3 text-sm md:grid-cols-[120px_1fr_120px_1fr]">
+      {children}
+    </dl>
+  );
+}
+
+function DescItem({ label, span, children }: { label: string; span?: boolean; children: React.ReactNode }) {
+  return (
+    <div className={span ? "contents md:col-span-4 md:grid md:grid-cols-[120px_1fr]" : "contents"}>
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="min-w-0">{children}</dd>
+    </div>
+  );
 }
 
 export default function RunDetail({ kind }: { kind: "experiment" | "job" }) {
@@ -95,18 +114,18 @@ export default function RunDetail({ kind }: { kind: "experiment" | "job" }) {
     <PageContainer
       breadcrumb={[t("nav.trainingCenter"), navParent, name, run]}
       title={
-        <Space size="middle" align="center" className="min-w-0">
+        <span className="flex min-w-0 items-center gap-3">
           <span className="font-mono">{run}</span>
           {r && <PhaseTag phase={r.phase} />}
-        </Space>
+        </span>
       }
       subtitle={
         <span>
-          <Link to={base} className="inline-flex items-center gap-1 text-sm">
-            <ArrowLeftOutlined /> {t("runDetail.backTo", { name })}
+          <Link to={base} className="inline-flex items-center gap-1 text-sm text-info hover:underline">
+            <ArrowLeft className="size-3.5" /> {t("runDetail.backTo", { name })}
           </Link>
           {r && (
-            <span className="ml-3 text-muted">
+            <span className="ml-3 text-muted-foreground">
               {t("runDetail.subtitle", { num: r.runNumber ?? "—", owner: r.owner || "—" })}
             </span>
           )}
@@ -114,15 +133,16 @@ export default function RunDetail({ kind }: { kind: "experiment" | "job" }) {
       }
       extra={
         r && (
-          <Space>
-            <Button icon={<ReloadOutlined />} onClick={() => runQ.refetch()}>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => runQ.refetch()}>
+              <RefreshCw data-icon="inline-start" />
               {t("runDetail.refresh")}
             </Button>
             {active && (
               <Button
-                danger
-                icon={<StopOutlined />}
-                loading={cancel.isPending}
+                variant="outline"
+                className="text-destructive"
+                disabled={cancel.isPending}
                 onClick={() =>
                   confirm({
                     title: t("runDetail.cancelTitle", { run }),
@@ -133,39 +153,51 @@ export default function RunDetail({ kind }: { kind: "experiment" | "job" }) {
                   })
                 }
               >
+                {cancel.isPending ? <Spinner data-icon="inline-start" /> : <Ban data-icon="inline-start" />}
                 {t("runDetail.cancelRun")}
               </Button>
             )}
-          </Space>
+          </div>
         )
       }
     >
       {runQ.isLoading ? (
         <div className="grid place-items-center py-24">
-          <Spin size="large" />
+          <Spinner className="size-7 text-muted-foreground" />
         </div>
       ) : runQ.isError || !r ? (
-        <Result
-          status="error"
-          title={t("common.loadFailed")}
-          extra={
-            <Link to={base}>
-              <Button>{t("runDetail.backTo", { name })}</Button>
-            </Link>
-          }
-        />
+        <Card>
+          <CardContent className="flex flex-col items-center gap-4 py-16 text-center">
+            <span className="text-sm text-muted-foreground">{t("common.loadFailed")}</span>
+            <Button variant="outline" asChild>
+              <Link to={base}>{t("runDetail.backTo", { name })}</Link>
+            </Button>
+          </CardContent>
+        </Card>
       ) : (
-        <>
+        <div className="flex flex-col gap-4">
           <Lifecycle run={r} />
-          <Tabs
-            items={[
-              { key: "info", label: t("runDetail.tabInfo"), children: <InfoPane run={r} /> },
-              { key: "pods", label: t("runDetail.tabPods"), children: <PodsPane kind={kind} name={name} run={run} /> },
-              { key: "log", label: t("runDetail.tabLog"), children: <LogPane kind={kind} name={name} run={run} /> },
-              { key: "ev", label: t("runDetail.tabEvents"), children: <EventsPane kind={kind} name={name} run={run} /> },
-            ]}
-          />
-        </>
+          <Tabs defaultValue="info">
+            <TabsList variant="line">
+              <TabsTrigger value="info">{t("runDetail.tabInfo")}</TabsTrigger>
+              <TabsTrigger value="pods">{t("runDetail.tabPods")}</TabsTrigger>
+              <TabsTrigger value="log">{t("runDetail.tabLog")}</TabsTrigger>
+              <TabsTrigger value="ev">{t("runDetail.tabEvents")}</TabsTrigger>
+            </TabsList>
+            <TabsContent value="info" className="mt-4">
+              <InfoPane run={r} />
+            </TabsContent>
+            <TabsContent value="pods" className="mt-4">
+              <PodsPane kind={kind} name={name} run={run} />
+            </TabsContent>
+            <TabsContent value="log" className="mt-4">
+              <LogPane kind={kind} name={name} run={run} />
+            </TabsContent>
+            <TabsContent value="ev" className="mt-4">
+              <EventsPane kind={kind} name={name} run={run} />
+            </TabsContent>
+          </Tabs>
+        </div>
       )}
     </PageContainer>
   );
@@ -174,19 +206,60 @@ export default function RunDetail({ kind }: { kind: "experiment" | "job" }) {
 function Lifecycle({ run }: { run: sdk.Run }) {
   const { t } = useTranslation();
   const { current, error } = lifecycleState(run.phase);
+  const steps = [
+    { title: t("runDetail.stepCreated"), description: fmtDateTime(run.createdAt) },
+    { title: t("runDetail.stepScheduled"), description: undefined as string | undefined },
+    { title: t("runDetail.stepRunning"), description: fmtDateTime(run.startedAt) },
+    { title: t("runDetail.stepFinished"), description: fmtDateTime(run.finishedAt) },
+  ];
+
   return (
-    <Card className="mb-4">
-      <Steps
-        size="small"
-        current={current}
-        status={error ? "error" : "process"}
-        items={[
-          { title: t("runDetail.stepCreated"), description: fmtDateTime(run.createdAt) },
-          { title: t("runDetail.stepScheduled") },
-          { title: t("runDetail.stepRunning"), description: fmtDateTime(run.startedAt) },
-          { title: t("runDetail.stepFinished"), description: fmtDateTime(run.finishedAt) },
-        ]}
-      />
+    <Card>
+      <CardContent>
+        <ol className="flex items-start">
+          {steps.map((step, i) => {
+            const done = i < current;
+            const isCurrent = i === current;
+            const isErr = error && isCurrent;
+            const dot = isErr
+              ? "border-destructive bg-destructive text-destructive-foreground"
+              : done || isCurrent
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-border bg-card text-muted-foreground";
+            const lineDone = i < current;
+            return (
+              <li key={i} className={cn("flex min-w-0 flex-1 items-start", i === steps.length - 1 && "flex-none")}>
+                <div className="flex flex-col items-center">
+                  <span
+                    className={cn(
+                      "grid size-6 shrink-0 place-items-center rounded-full border text-xs font-medium",
+                      dot,
+                    )}
+                  >
+                    {i + 1}
+                  </span>
+                </div>
+                <div className="mt-0.5 ml-2 min-w-0">
+                  <div className={cn("text-sm font-medium", isErr ? "text-destructive" : "text-foreground")}>
+                    {step.title}
+                  </div>
+                  {step.description && (
+                    <div className="text-xs text-muted-foreground">{step.description}</div>
+                  )}
+                </div>
+                {i < steps.length - 1 && (
+                  <div
+                    className={cn(
+                      "mx-3 mt-3 h-px flex-1",
+                      lineDone ? "bg-primary" : "bg-border",
+                    )}
+                  />
+                )}
+              </li>
+            );
+          })}
+        </ol>
+      </CardContent>
     </Card>
   );
 }
@@ -199,57 +272,70 @@ function InfoPane({ run }: { run: sdk.Run }) {
   const env = tpl?.env ?? [];
 
   return (
-    <Card title={t("runDetail.sectionConfig")}>
-      <Descriptions column={{ xs: 1, md: 2 }} bordered size="middle">
-        <Descriptions.Item label={t("runDetail.fName")}>
-          <span className="font-mono">{run.name}</span>
-        </Descriptions.Item>
-        <Descriptions.Item label={t("runDetail.fDesc")}>{run.description || "—"}</Descriptions.Item>
-        <Descriptions.Item label={t("runDetail.fImage")}>
-          {tpl?.image ? <Tag className="!m-0 font-mono">{tpl.image}</Tag> : "—"}
-        </Descriptions.Item>
-        <Descriptions.Item label={t("runDetail.fPool")}>
-          {run.poolName ? <span className="font-mono">{run.poolName}</span> : "—"}
-        </Descriptions.Item>
-        <Descriptions.Item label={t("runDetail.fUnit")}>
-          {run.unitName ? <span className="font-mono">{run.unitName}</span> : "—"}
-        </Descriptions.Item>
-        <Descriptions.Item label={t("runDetail.fReplicas")}>
-          <span className="font-mono">{role?.replicas ?? "—"}</span>
-        </Descriptions.Item>
-        <Descriptions.Item label={t("runDetail.fRunPolicy")} span={2}>
-          <PolicyText policy={run.runPolicy ?? run.spec?.runPolicy} />
-        </Descriptions.Item>
-        <Descriptions.Item label={t("runDetail.fStarted")}>
-          <span className="font-mono text-muted">{fmtDateTime(run.startedAt)}</span>
-        </Descriptions.Item>
-        <Descriptions.Item label={t("runDetail.fFinished")}>
-          <span className="font-mono text-muted">{fmtDateTime(run.finishedAt)}</span>
-        </Descriptions.Item>
-      </Descriptions>
+    <Card>
+      <CardHeader className="border-b">
+        <CardTitle>{t("runDetail.sectionConfig")}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <DescGrid>
+          <DescItem label={t("runDetail.fName")}>
+            <span className="font-mono">{run.name}</span>
+          </DescItem>
+          <DescItem label={t("runDetail.fDesc")}>{run.description || "—"}</DescItem>
+          <DescItem label={t("runDetail.fImage")}>
+            {tpl?.image ? (
+              <Badge variant="secondary" className="font-mono">
+                {tpl.image}
+              </Badge>
+            ) : (
+              "—"
+            )}
+          </DescItem>
+          <DescItem label={t("runDetail.fPool")}>
+            {run.poolName ? <span className="font-mono">{run.poolName}</span> : "—"}
+          </DescItem>
+          <DescItem label={t("runDetail.fUnit")}>
+            {run.unitName ? <span className="font-mono">{run.unitName}</span> : "—"}
+          </DescItem>
+          <DescItem label={t("runDetail.fReplicas")}>
+            <span className="font-mono">{role?.replicas ?? "—"}</span>
+          </DescItem>
+          <DescItem label={t("runDetail.fRunPolicy")} span>
+            <PolicyText policy={run.runPolicy ?? run.spec?.runPolicy} />
+          </DescItem>
+          <DescItem label={t("runDetail.fStarted")}>
+            <span className="font-mono text-muted-foreground">{fmtDateTime(run.startedAt)}</span>
+          </DescItem>
+          <DescItem label={t("runDetail.fFinished")}>
+            <span className="font-mono text-muted-foreground">{fmtDateTime(run.finishedAt)}</span>
+          </DescItem>
+        </DescGrid>
 
-      <div className="mt-6 border-t border-border-soft pt-5">
-        <div className="mb-1.5 text-xs text-muted">{t("runDetail.command")}</div>
+        <Separator className="my-5" />
+        <div className="mb-1.5 text-xs text-muted-foreground">{t("runDetail.command")}</div>
         {command.length ? (
-          <pre className="m-0 mb-5 overflow-auto rounded-md bg-surface-warm p-3 font-mono text-xs text-fg-2">
+          <pre
+            className="m-0 mb-5 overflow-auto rounded-md p-4 font-mono text-xs leading-relaxed"
+            style={{ background: "#16181d", color: "#e6e6e6" }}
+          >
             {command.join(" ")}
           </pre>
         ) : (
-          <div className="mb-5 text-sm text-muted">{t("runDetail.noCommand")}</div>
+          <div className="mb-5 text-sm text-muted-foreground">{t("runDetail.noCommand")}</div>
         )}
-        <div className="mb-1.5 text-xs text-muted">{t("runDetail.env")}</div>
+        <div className="mb-1.5 text-xs text-muted-foreground">{t("runDetail.env")}</div>
         {env.length ? (
-          <Space size={[6, 6]} wrap>
+          <div className="flex flex-wrap gap-1.5">
             {env.map((e) => (
-              <Tag key={e.name} className="!m-0 font-mono">
+              <Badge key={e.name} variant="secondary" className="font-mono">
                 {e.name}={e.value ?? ""}
-              </Tag>
+              </Badge>
             ))}
-          </Space>
+          </div>
         ) : (
-          <div className="text-sm text-muted">{t("runDetail.noEnv")}</div>
+          <div className="text-sm text-muted-foreground">{t("runDetail.noEnv")}</div>
         )}
-      </div>
+      </CardContent>
     </Card>
   );
 }
@@ -271,54 +357,48 @@ function PodsPane({ kind, name, run }: { kind: "experiment" | "job"; name: strin
     },
   });
 
-  const columns: ColumnsType<sdk.Pod> = [
+  const columns: Column<sdk.Pod>[] = [
     {
+      key: "name",
       title: t("runDetail.colPod"),
-      dataIndex: "name",
-      render: (v: string) => <span className="font-mono">{v}</span>,
+      render: (p) => <span className="font-mono">{p.name}</span>,
     },
     {
+      key: "phase",
       title: t("runDetail.colPhase"),
-      dataIndex: "phase",
       width: 120,
-      render: (p: string) => <PhaseTag phase={p} />,
+      render: (p) => <PhaseTag phase={p.phase} />,
     },
     {
+      key: "role",
       title: t("runDetail.colRole"),
-      dataIndex: "role",
       width: 140,
-      render: (v?: string) => <span className="font-mono">{v || "—"}</span>,
+      render: (p) => <span className="font-mono">{p.role || "—"}</span>,
     },
     {
-      title: t("runDetail.colReady"),
       key: "restarts",
+      title: t("runDetail.colReady"),
       width: 90,
       align: "right",
-      render: (_, p) => <span className="font-mono">{p.restartCount ?? 0}</span>,
+      render: (p) => <span className="font-mono">{p.restartCount ?? 0}</span>,
     },
     {
+      key: "startedAt",
       title: t("runDetail.fStarted"),
-      dataIndex: "startedAt",
       width: 170,
-      render: (v?: string | null) => <span className="text-muted">{fmtDateTime(v)}</span>,
+      render: (p) => <span className="text-muted-foreground">{fmtDateTime(p.startedAt)}</span>,
     },
   ];
 
   return (
-    <Card styles={{ body: { padding: 0 } }} className="overflow-hidden">
-      <Table<sdk.Pod>
-        rowKey="name"
+    <Card className="overflow-hidden p-0">
+      <DataTable
         columns={columns}
-        dataSource={podsQ.data?.items ?? []}
+        data={podsQ.data?.items ?? []}
+        rowKey={(p) => p.name}
         loading={podsQ.isLoading}
-        pagination={{ pageSize: 20, hideOnSinglePage: true }}
-        locale={{
-          emptyText: podsQ.isError ? (
-            <Empty description={t("common.loadFailed")} />
-          ) : (
-            <Empty description={t("runDetail.noPods")} />
-          ),
-        }}
+        error={podsQ.isError}
+        empty={t("runDetail.noPods")}
       />
     </Card>
   );
@@ -363,33 +443,44 @@ function LogPane({ kind, name, run }: { kind: "experiment" | "job"; name: string
   });
 
   return (
-    <Card
-      title={t("runDetail.logTitle")}
-      extra={
-        <Space>
-          <Select
-            size="small"
-            value={pod || undefined}
-            placeholder={t("runDetail.colPod")}
-            onChange={setPod}
-            className="min-w-52"
-            options={pods.map((p) => ({ label: p.name, value: p.name }))}
-          />
-          <Button size="small" icon={<ReloadOutlined />} onClick={() => logsQ.refetch()} />
-        </Space>
-      }
-    >
-      {podsQ.isLoading || logsQ.isLoading ? (
-        <div className="grid place-items-center py-16">
-          <Spin />
-        </div>
-      ) : !pods.length ? (
-        <div className="rounded-md bg-surface-warm p-6">
-          <Empty description={t("runDetail.noLog")} />
-        </div>
-      ) : (
-        <LogViewer text={logsQ.data} empty={t("runDetail.noLog")} />
-      )}
+    <Card>
+      <CardHeader className="border-b">
+        <CardTitle>{t("runDetail.logTitle")}</CardTitle>
+        <CardAction>
+          <div className="flex items-center gap-2">
+            <Select value={pod || undefined} onValueChange={setPod} disabled={!pods.length}>
+              <SelectTrigger size="sm" className="min-w-52">
+                <SelectValue placeholder={t("runDetail.colPod")} />
+              </SelectTrigger>
+              <SelectContent>
+                {pods.map((p) => (
+                  <SelectItem key={p.name} value={p.name}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button variant="outline" size="icon-sm" onClick={() => logsQ.refetch()} aria-label={t("runDetail.refresh")}>
+              <RefreshCw />
+            </Button>
+          </div>
+        </CardAction>
+      </CardHeader>
+      <CardContent>
+        {podsQ.isLoading || logsQ.isLoading ? (
+          <div className="grid place-items-center py-16">
+            <Spinner className="size-7 text-muted-foreground" />
+          </div>
+        ) : !pods.length ? (
+          <Empty className="border bg-muted">
+            <EmptyHeader>
+              <EmptyTitle>{t("runDetail.noLog")}</EmptyTitle>
+            </EmptyHeader>
+          </Empty>
+        ) : (
+          <LogViewer text={logsQ.data} empty={t("runDetail.noLog")} />
+        )}
+      </CardContent>
     </Card>
   );
 }
@@ -411,54 +502,55 @@ function EventsPane({ kind, name, run }: { kind: "experiment" | "job"; name: str
     },
   });
 
-  const columns: ColumnsType<sdk.Event> = [
+  const columns: Column<sdk.Event>[] = [
     {
+      key: "reason",
       title: t("runDetail.colReason"),
-      dataIndex: "reason",
       width: 180,
-      render: (v: string) => <span className="font-mono">{v}</span>,
+      render: (e) => <span className="font-mono">{e.reason}</span>,
     },
     {
+      key: "type",
       title: t("runDetail.colType"),
-      dataIndex: "type",
       width: 120,
-      render: (v: string) => (
-        <Tag color={v === "Warning" ? "warning" : "default"} className="!m-0">
-          {v === "Warning" ? t("runDetail.eventWarning") : t("runDetail.eventNormal")}
-        </Tag>
+      render: (e) => (
+        <Badge variant={e.type === "Warning" ? "warning" : "secondary"}>
+          {e.type === "Warning" ? t("runDetail.eventWarning") : t("runDetail.eventNormal")}
+        </Badge>
       ),
     },
-    { title: t("runDetail.colMessage"), dataIndex: "message", render: (v: string) => <span className="text-fg-2">{v}</span> },
     {
-      title: t("runDetail.colCount"),
-      dataIndex: "count",
-      width: 80,
-      align: "right",
-      render: (v?: number) => <span className="font-mono">{v ?? 1}</span>,
+      key: "message",
+      title: t("runDetail.colMessage"),
+      render: (e) => <span className="text-muted-foreground">{e.message}</span>,
     },
     {
+      key: "count",
+      title: t("runDetail.colCount"),
+      width: 80,
+      align: "right",
+      render: (e) => <span className="font-mono">{e.count ?? 1}</span>,
+    },
+    {
+      key: "lastTimestamp",
       title: t("runDetail.colTime"),
-      dataIndex: "lastTimestamp",
       width: 170,
-      render: (v: string) => <span className="text-muted">{fmtDateTime(v)}</span>,
+      render: (e) => <span className="text-muted-foreground">{fmtDateTime(e.lastTimestamp)}</span>,
     },
   ];
 
   return (
-    <Card title={t("runDetail.eventsTitle")} styles={{ body: { padding: 0 } }} className="overflow-hidden">
-      <Table<sdk.Event>
-        rowKey={(e) => `${e.reason}-${e.lastTimestamp}-${e.message}`}
+    <Card className="overflow-hidden p-0">
+      <CardHeader className="border-b p-4">
+        <CardTitle>{t("runDetail.eventsTitle")}</CardTitle>
+      </CardHeader>
+      <DataTable
         columns={columns}
-        dataSource={eventsQ.data?.items ?? []}
+        data={eventsQ.data?.items ?? []}
+        rowKey={(e) => `${e.reason}-${e.lastTimestamp}-${e.message}`}
         loading={eventsQ.isLoading}
-        pagination={{ pageSize: 20, hideOnSinglePage: true }}
-        locale={{
-          emptyText: eventsQ.isError ? (
-            <Empty description={t("common.loadFailed")} />
-          ) : (
-            <Empty description={t("runDetail.noEvents")} />
-          ),
-        }}
+        error={eventsQ.isError}
+        empty={t("runDetail.noEvents")}
       />
     </Card>
   );

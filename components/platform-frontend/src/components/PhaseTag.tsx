@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { cn } from "@/lib/utils";
 
 // Maps a backend phase/status enum to the prototype's dot + label `.status`
 // indicator (a small coloured dot followed by a localized label) rather than a
@@ -31,28 +32,34 @@ const TONE: Record<string, Tone> = {
 
 const TEXT: Record<Tone, string> = {
   running: "text-success",
-  success: "text-fg-2",
-  pending: "text-warn",
-  failed: "text-danger",
-  stopped: "text-muted",
+  success: "text-foreground",
+  pending: "text-warning",
+  failed: "text-destructive",
+  stopped: "text-muted-foreground",
 };
 
 const DOT: Record<Tone, string> = {
   running: "bg-success",
   success: "bg-success",
-  pending: "bg-warn",
-  failed: "bg-danger",
-  stopped: "bg-muted",
+  pending: "bg-warning",
+  failed: "bg-destructive",
+  stopped: "bg-muted-foreground",
 };
 
 export function PhaseTag({ phase }: { phase?: string | null }) {
   const { t } = useTranslation();
-  if (!phase) return <span className="text-muted">—</span>;
+  if (!phase) return <span className="text-muted-foreground">—</span>;
   const tone = TONE[phase] ?? "stopped";
   const label = t(`phase.${phase}`, { defaultValue: phase });
   return (
-    <span className={`inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-medium ${TEXT[tone]}`}>
-      <span className={`h-[7px] w-[7px] shrink-0 rounded-full ${DOT[tone]} ${tone === "running" ? "status-pulse" : ""}`} />
+    <span className={cn("inline-flex items-center gap-1.5 text-xs font-medium whitespace-nowrap", TEXT[tone])}>
+      <span
+        className={cn(
+          "size-[7px] shrink-0 rounded-full",
+          DOT[tone],
+          tone === "running" && "status-pulse",
+        )}
+      />
       {label}
     </span>
   );

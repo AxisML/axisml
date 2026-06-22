@@ -1,34 +1,15 @@
 import { useMemo, useState } from "react";
 import {
-  Table,
-  Card,
-  Button,
-  Input,
-  Segmented,
-  Space,
-  Tooltip,
-  Divider,
-  Drawer,
-  Form,
-  Tabs,
-  Tag,
-  List,
-  Empty,
-  Spin,
-  Select,
-} from "antd";
-import type { ColumnsType } from "antd/es/table";
-import {
-  PlusOutlined,
-  SearchOutlined,
-  AppstoreOutlined,
-  UnorderedListOutlined,
-  DeleteOutlined,
-  CloudDownloadOutlined,
-  CopyOutlined,
-  ContainerOutlined,
-  CloseOutlined,
-} from "@ant-design/icons";
+  Plus,
+  Search,
+  Trash2,
+  CloudDownload,
+  Copy,
+  Container,
+  X,
+  LayoutGrid,
+  List as ListIcon,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import dayjs from "dayjs";
 import { useImages, useImageVersions } from "@/api/hooks";
@@ -38,8 +19,36 @@ import { useApp } from "@/app/store";
 import { useUI } from "@/app/ui";
 import { PageContainer } from "@/components/PageContainer";
 import { FieldSection } from "@/components/FieldSection";
+import { DataTable, type Column } from "@/components/DataTable";
 import { USE_MOCK } from "@/api/mock";
 import { imageVersions } from "@/api/mock/data";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Spinner } from "@/components/ui/spinner";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Sheet,
+  SheetContent,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
 
 interface ImageRow {
   name: string;
@@ -104,55 +113,63 @@ export default function Images() {
       onConfirm: () => delImage.mutate(r.name),
     });
 
-  const columns: ColumnsType<ImageRow> = [
+  const columns: Column<ImageRow>[] = [
     {
+      key: "name",
       title: t("images.colName"),
-      dataIndex: "name",
-      render: (_, r) => (
+      render: (r) => (
         <button type="button" className="min-w-0 text-left" onClick={() => openVersions(r)}>
-          <div className="font-mono font-medium text-accent">{r.name}</div>
-          {r.desc && <div className="truncate text-xs text-muted">{r.desc}</div>}
+          <div className="font-mono font-medium text-info hover:underline">{r.name}</div>
+          {r.desc && <div className="truncate text-xs text-muted-foreground">{r.desc}</div>}
         </button>
       ),
     },
     {
+      key: "purpose",
       title: t("images.colPurpose"),
-      dataIndex: "purpose",
       width: 140,
-      render: (v: string) => (v && v !== "—" ? <Tag className="!m-0">{v}</Tag> : <span className="text-muted">—</span>),
+      render: (r) =>
+        r.purpose && r.purpose !== "—" ? (
+          <Badge variant="secondary">{r.purpose}</Badge>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
     },
     {
+      key: "latest",
       title: t("images.colLatest"),
-      dataIndex: "latest",
       width: 130,
-      render: (v: string) => <span className="font-mono text-fg-2">{v}</span>,
+      render: (r) => <span className="font-mono text-muted-foreground">{r.latest}</span>,
     },
-    { title: t("images.colVersions"), dataIndex: "versions", width: 90, align: "right" },
     {
+      key: "versions",
+      title: t("images.colVersions"),
+      width: 90,
+      align: "right",
+      render: (r) => <span className="font-mono">{r.versions}</span>,
+    },
+    {
+      key: "updated",
       title: t("images.colUpdated"),
-      dataIndex: "updated",
       width: 150,
-      render: (v: string) => <span className="text-muted">{v ? dayjs(v).fromNow() : "—"}</span>,
+      render: (r) => (
+        <span className="text-muted-foreground">{r.updated ? dayjs(r.updated).fromNow() : "—"}</span>
+      ),
     },
     {
-      title: t("common.actions"),
       key: "actions",
+      title: t("common.actions"),
       width: 160,
       align: "right",
-      render: (_, r) => (
-        <Space size={4} split={<Divider type="vertical" className="!mx-0" />}>
-          <Button
-            type="link"
-            size="small"
-            className="!px-1"
-            onClick={() => setDrawer({ kind: "add", image: r.name })}
-          >
+      render: (r) => (
+        <div className="flex items-center justify-end gap-0.5">
+          <Button variant="link" size="sm" onClick={() => setDrawer({ kind: "add", image: r.name })}>
             {t("images.addVersion")}
           </Button>
-          <Button type="link" size="small" danger className="!px-1" onClick={() => onDeleteImage(r)}>
+          <Button variant="link" size="sm" className="text-destructive" onClick={() => onDeleteImage(r)}>
             {t("common.delete")}
           </Button>
-        </Space>
+        </div>
       ),
     },
   ];
@@ -163,90 +180,122 @@ export default function Images() {
       title={t("images.title")}
       subtitle={t("images.subtitle")}
       extra={
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setDrawer({ kind: "new" })}>
+        <Button onClick={() => setDrawer({ kind: "new" })}>
+          <Plus data-icon="inline-start" />
           {t("images.newImage")}
         </Button>
       }
     >
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <Input
-          allowClear
-          prefix={<SearchOutlined className="text-muted" />}
-          placeholder={t("images.searchPlaceholder")}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="max-w-xs"
-        />
+        <div className="relative max-w-xs flex-1">
+          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            className="pl-8"
+            placeholder={t("images.searchPlaceholder")}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
         <div className="grow" />
-        <Segmented
+        <ToggleGroup
+          type="single"
+          variant="outline"
+          spacing={0}
           value={view}
-          onChange={(v) => setView(v as "cards" | "list")}
-          options={[
-            { value: "cards", icon: <AppstoreOutlined />, label: t("images.viewCards") },
-            { value: "list", icon: <UnorderedListOutlined />, label: t("images.viewList") },
-          ]}
-        />
+          onValueChange={(v) => v && setView(v as "cards" | "list")}
+        >
+          <ToggleGroupItem value="cards" aria-label={t("images.viewCards")}>
+            <LayoutGrid data-icon="inline-start" />
+            {t("images.viewCards")}
+          </ToggleGroupItem>
+          <ToggleGroupItem value="list" aria-label={t("images.viewList")}>
+            <ListIcon data-icon="inline-start" />
+            {t("images.viewList")}
+          </ToggleGroupItem>
+        </ToggleGroup>
       </div>
 
       {view === "cards" ? (
-        <Spin spinning={q.isLoading}>
-          {rows.length === 0 ? (
-            <Card>
-              <Empty description={q.isError ? t("common.loadFailed") : t("common.noData")} />
-            </Card>
-          ) : (
-            <>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                {rows.map((r) => (
-                  <Card
-                    key={r.name}
-                    hoverable
-                    styles={{ body: { padding: 16 } }}
-                    onClick={() => openVersions(r)}
-                  >
-                    <div className="mb-2 flex items-start gap-3">
-                      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-surface-warm text-accent">
-                        <ContainerOutlined />
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate font-mono font-medium text-fg">{r.name}</div>
-                      </div>
-                      <Tooltip title={t("common.delete")}>
+        q.isLoading ? (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Card key={i} className="p-4">
+                <div className="flex items-center gap-3">
+                  <Skeleton className="size-9 rounded-md" />
+                  <Skeleton className="h-4 w-32" />
+                </div>
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-3 w-40" />
+              </Card>
+            ))}
+          </div>
+        ) : rows.length === 0 ? (
+          <Empty className="border">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <Container />
+              </EmptyMedia>
+              <EmptyTitle>{q.isError ? t("common.loadFailed") : t("common.noData")}</EmptyTitle>
+            </EmptyHeader>
+          </Empty>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {rows.map((r) => (
+                <Card
+                  key={r.name}
+                  className="cursor-pointer gap-0 p-4 transition-shadow hover:ring-foreground/20"
+                  onClick={() => openVersions(r)}
+                >
+                  <div className="mb-2 flex items-start gap-3">
+                    <span className="grid size-9 shrink-0 place-items-center rounded-md bg-muted text-foreground">
+                      <Container className="size-4" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate font-mono font-medium text-foreground">{r.name}</div>
+                    </div>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
                         <Button
-                          type="text"
-                          size="small"
-                          danger
-                          icon={<DeleteOutlined />}
+                          variant="ghost"
+                          size="icon-sm"
+                          className="text-destructive"
                           onClick={(e) => {
                             e.stopPropagation();
                             onDeleteImage(r);
                           }}
-                        />
-                      </Tooltip>
-                    </div>
-                    <p className="mb-3 line-clamp-2 min-h-[2.5rem] text-sm text-fg-2">{r.desc}</p>
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-mono text-muted">
-                        {r.latest} · {r.versions} {t("images.versionsSuffix")}
-                      </span>
-                      <span className="text-muted">{r.updated ? dayjs(r.updated).fromNow() : "—"}</span>
-                    </div>
-                  </Card>
-                ))}
-              </div>
-              <div className="mt-4 text-sm text-muted">{t("images.total", { count: rows.length })}</div>
-            </>
-          )}
-        </Spin>
+                        >
+                          <Trash2 />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>{t("common.delete")}</TooltipContent>
+                    </Tooltip>
+                  </div>
+                  <p className="mb-3 line-clamp-2 min-h-[2.5rem] text-sm text-muted-foreground">{r.desc}</p>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-mono text-muted-foreground">
+                      {r.latest} · {r.versions} {t("images.versionsSuffix")}
+                    </span>
+                    <span className="text-muted-foreground">
+                      {r.updated ? dayjs(r.updated).fromNow() : "—"}
+                    </span>
+                  </div>
+                </Card>
+              ))}
+            </div>
+            <div className="mt-4 text-sm text-muted-foreground">
+              {t("images.total", { count: rows.length })}
+            </div>
+          </>
+        )
       ) : (
-        <Card styles={{ body: { padding: 0 } }} className="overflow-hidden">
-          <Table<ImageRow>
-            rowKey="name"
+        <Card className="overflow-hidden p-0">
+          <DataTable
             columns={columns}
-            dataSource={rows}
+            data={rows}
+            rowKey={(r) => r.name}
             loading={q.isLoading}
-            pagination={{ pageSize: 20, showTotal: (n) => t("images.total", { count: n }), hideOnSinglePage: false }}
-            locale={{ emptyText: q.isError ? t("common.loadFailed") : t("common.noData") }}
+            error={q.isError}
           />
         </Card>
       )}
@@ -270,16 +319,21 @@ export default function Images() {
 }
 
 // ── Version list drawer ───────────────────────────────────────────────────────
-function statusMeta(status: sdk.ImageStatus, t: (k: string) => string): { color: string; label: string; pending: boolean } {
+type StatusVariant = "success" | "info" | "destructive" | "secondary";
+
+function statusMeta(
+  status: sdk.ImageStatus,
+  t: (k: string) => string,
+): { variant: StatusVariant; label: string; pending: boolean } {
   switch (status) {
     case "Ready":
-      return { color: "success", label: t("images.statusReady"), pending: false };
+      return { variant: "success", label: t("images.statusReady"), pending: false };
     case "Uploading":
-      return { color: "processing", label: t("images.statusUploading"), pending: true };
+      return { variant: "info", label: t("images.statusUploading"), pending: true };
     case "Failed":
-      return { color: "error", label: t("images.statusFailed"), pending: false };
+      return { variant: "destructive", label: t("images.statusFailed"), pending: false };
     default:
-      return { color: "default", label: status, pending: false };
+      return { variant: "secondary", label: status, pending: false };
   }
 }
 
@@ -323,98 +377,119 @@ function VersionsDrawer({
     });
 
   return (
-    <Drawer
-      open
-      width={640}
-      onClose={onClose}
-      title={<span className="font-mono">{image}</span>}
-      extra={<span className="text-xs text-muted">{desc || t("images.verImage")}</span>}
-    >
-      <div className="mb-4 flex items-center gap-3">
-        <Input
-          allowClear
-          prefix={<SearchOutlined className="text-muted" />}
-          placeholder={t("images.verSearchPlaceholder")}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-        <Button type="primary" icon={<PlusOutlined />} onClick={onAdd}>
-          {t("images.addVersion")}
-        </Button>
-      </div>
+    <Sheet open onOpenChange={(o) => !o && onClose()}>
+      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[640px]">
+        <SheetHeader className="border-b">
+          <SheetTitle className="font-mono">{image}</SheetTitle>
+          <p className="text-xs text-muted-foreground">{desc || t("images.verImage")}</p>
+        </SheetHeader>
 
-      <Spin spinning={versQ.isLoading}>
-        {filtered.length === 0 ? (
-          <Empty description={versQ.isError ? t("common.loadFailed") : t("common.noData")} />
-        ) : (
-          <List
-            dataSource={filtered}
-            split
-            renderItem={(v) => {
-              const meta = statusMeta(v.status, t);
-              return (
-                <List.Item
-                  className="!px-0"
-                  actions={
-                    meta.pending
-                      ? []
-                      : [
-                          <Tooltip title={t("images.pullTitle")} key="pull">
-                            <Button
-                              type="text"
-                              size="small"
-                              icon={<CloudDownloadOutlined />}
-                              onClick={() => onPull(v.version, v.uri ?? "")}
-                            />
-                          </Tooltip>,
-                          <Tooltip title={t("common.delete")} key="del">
-                            <Button
-                              type="text"
-                              size="small"
-                              danger
-                              icon={<DeleteOutlined />}
-                              onClick={() => onDeleteVer(v.version)}
-                            />
-                          </Tooltip>,
-                        ]
-                  }
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="mb-1 flex flex-wrap items-center gap-2">
-                      <span className="font-mono font-medium text-fg">{v.version}</span>
-                      <Tag color={meta.color} className="!m-0">
-                        {meta.label}
-                      </Tag>
-                      {v.source && <Tag className="!m-0">{v.source}</Tag>}
-                    </div>
-                    {v.description && <div className="mb-1 text-sm text-fg-2">{v.description}</div>}
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
-                      <span className={"font-mono " + (meta.pending ? "" : "text-fg-2")}>
-                        {v.uri ?? t("images.addrPending")}
-                      </span>
-                      {v.uri && (
-                        <Tooltip title={t("common.actions")}>
-                          <Button
-                            type="text"
-                            size="small"
-                            icon={<CopyOutlined />}
-                            onClick={() => {
-                              void navigator.clipboard?.writeText(v.uri ?? "");
-                              toast(t("images.addrCopied"));
-                            }}
-                          />
-                        </Tooltip>
+        <div className="flex flex-1 flex-col overflow-auto px-6 py-4">
+          <div className="mb-4 flex items-center gap-3">
+            <div className="relative flex-1">
+              <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                className="pl-8"
+                placeholder={t("images.verSearchPlaceholder")}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            <Button onClick={onAdd}>
+              <Plus data-icon="inline-start" />
+              {t("images.addVersion")}
+            </Button>
+          </div>
+
+          {versQ.isLoading ? (
+            <div className="grid place-items-center py-12">
+              <Spinner className="size-7 text-muted-foreground" />
+            </div>
+          ) : filtered.length === 0 ? (
+            <Empty className="border">
+              <EmptyHeader>
+                <EmptyTitle>{versQ.isError ? t("common.loadFailed") : t("common.noData")}</EmptyTitle>
+              </EmptyHeader>
+            </Empty>
+          ) : (
+            <ul className="flex flex-col">
+              {filtered.map((v, i) => {
+                const meta = statusMeta(v.status, t);
+                return (
+                  <li key={v.version}>
+                    {i > 0 && <Separator />}
+                    <div className="flex items-start gap-3 py-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-1 flex flex-wrap items-center gap-2">
+                          <span className="font-mono font-medium text-foreground">{v.version}</span>
+                          <Badge variant={meta.variant}>{meta.label}</Badge>
+                          {v.source && <Badge variant="outline">{v.source}</Badge>}
+                        </div>
+                        {v.description && (
+                          <div className="mb-1 text-sm text-muted-foreground">{v.description}</div>
+                        )}
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                          <span className={"font-mono " + (meta.pending ? "" : "text-foreground")}>
+                            {v.uri ?? t("images.addrPending")}
+                          </span>
+                          {v.uri && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon-xs"
+                                  onClick={() => {
+                                    void navigator.clipboard?.writeText(v.uri ?? "");
+                                    toast(t("images.addrCopied"));
+                                  }}
+                                >
+                                  <Copy />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>{t("common.actions")}</TooltipContent>
+                            </Tooltip>
+                          )}
+                          {v.owner && <span>· {v.owner}</span>}
+                        </div>
+                      </div>
+                      {!meta.pending && (
+                        <div className="flex items-center gap-0.5">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                onClick={() => onPull(v.version, v.uri ?? "")}
+                              >
+                                <CloudDownload />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>{t("images.pullTitle")}</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                className="text-destructive"
+                                onClick={() => onDeleteVer(v.version)}
+                              >
+                                <Trash2 />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>{t("common.delete")}</TooltipContent>
+                          </Tooltip>
+                        </div>
                       )}
-                      {v.owner && <span>· {v.owner}</span>}
                     </div>
-                  </div>
-                </List.Item>
-              );
-            }}
-          />
-        )}
-      </Spin>
-    </Drawer>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 }
 
@@ -426,43 +501,53 @@ function PullDrawer({ image, version, uri, onClose }: { image: string; version: 
   const cmd = `docker login zot.axisml.internal -u <user> -p <token>\ndocker pull ${ref}`;
 
   return (
-    <Drawer
-      open
-      width={520}
-      onClose={onClose}
-      title={t("images.pullTitle")}
-      extra={<span className="font-mono text-xs text-muted">{`${image}:${version}`}</span>}
-      footer={
-        <div className="flex justify-end">
-          <Button type="primary" onClick={onClose}>
-            {t("images.done")}
+    <Sheet open onOpenChange={(o) => !o && onClose()}>
+      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[520px]">
+        <SheetHeader className="border-b">
+          <SheetTitle>{t("images.pullTitle")}</SheetTitle>
+          <p className="font-mono text-xs text-muted-foreground">{`${image}:${version}`}</p>
+        </SheetHeader>
+
+        <div className="flex-1 overflow-auto px-6 py-4">
+          <p className="mb-3 text-sm text-muted-foreground">{t("images.pullHint")}</p>
+          <pre className="overflow-x-auto rounded-md border bg-muted p-3 font-mono text-xs text-foreground">
+            {cmd}
+          </pre>
+          <Button
+            variant="outline"
+            className="mt-3"
+            onClick={() => {
+              void navigator.clipboard?.writeText(cmd);
+              toast(t("images.commandCopied"));
+            }}
+          >
+            <Copy data-icon="inline-start" />
+            {t("images.copyCommand")}
           </Button>
         </div>
-      }
-    >
-      <p className="mb-3 text-sm text-muted">{t("images.pullHint")}</p>
-      <pre className="overflow-x-auto rounded-md border border-border-soft bg-surface p-3 font-mono text-xs text-fg-2">
-        {cmd}
-      </pre>
-      <Button
-        className="mt-3"
-        icon={<CopyOutlined />}
-        onClick={() => {
-          void navigator.clipboard?.writeText(cmd);
-          toast(t("images.commandCopied"));
-        }}
-      >
-        {t("images.copyCommand")}
-      </Button>
-    </Drawer>
+
+        <SheetFooter className="flex-row justify-end border-t">
+          <Button onClick={onClose}>{t("images.done")}</Button>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }
 
 // ── New-image drawer ──────────────────────────────────────────────────────────
+interface NewImageValues {
+  name: string;
+  purpose: string;
+  description: string;
+}
+
 function NewImageDrawer({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
   const { tenant } = useApp();
-  const [form] = Form.useForm<NewImageValues>();
+  const [submitted, setSubmitted] = useState(false);
+  const [v, setV] = useState<NewImageValues>({ name: "", purpose: "training", description: "" });
+  const set = <K extends keyof NewImageValues>(k: K, val: NewImageValues[K]) =>
+    setV((prev) => ({ ...prev, [k]: val }));
   const [customTags, setCustomTags] = useState<Record<string, string>>({});
   const [ctKey, setCtKey] = useState("");
   const [ctVal, setCtVal] = useState("");
@@ -493,13 +578,15 @@ function NewImageDrawer({ onClose }: { onClose: () => void }) {
       return next;
     });
 
-  const onFinish = (v: NewImageValues) => {
+  const submit = () => {
+    setSubmitted(true);
+    if (!v.name.trim()) return;
     const labels: Record<string, string> = { ...customTags };
     if (v.purpose) labels.purpose = v.purpose;
     create.mutate(
       {
         name: v.name.trim(),
-        description: v.description?.trim() || undefined,
+        description: v.description.trim() || undefined,
         labels: Object.keys(labels).length ? labels : undefined,
       },
       { onSuccess: onClose },
@@ -507,177 +594,250 @@ function NewImageDrawer({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <Drawer
-      open
-      width={640}
-      onClose={onClose}
-      closable={false}
-      title={
-        <div>
-          <div className="text-base font-semibold text-fg">{t("images.newImageTitle")}</div>
-          <div className="mt-0.5 text-xs font-normal text-muted">{t("images.newImageSub")}</div>
+    <Sheet open onOpenChange={(o) => !o && onClose()}>
+      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[640px]">
+        <SheetHeader className="border-b">
+          <SheetTitle>{t("images.newImageTitle")}</SheetTitle>
+          <p className="text-xs text-muted-foreground">{t("images.newImageSub")}</p>
+        </SheetHeader>
+
+        <div className="flex-1 overflow-auto px-6 py-4">
+          <FieldSection n={1} title={t("images.fsBasic")} />
+          <Field className="mb-4">
+            <FieldLabel htmlFor="image-name">
+              {t("images.fName")}
+              <span className="text-destructive">*</span>
+            </FieldLabel>
+            <Input
+              id="image-name"
+              className="font-mono"
+              placeholder={t("images.fNamePlaceholder")}
+              value={v.name}
+              aria-invalid={submitted && !v.name.trim()}
+              onChange={(e) => set("name", e.target.value)}
+            />
+            <FieldDescription>{t("images.fNameHelp")}</FieldDescription>
+          </Field>
+          <Field className="mb-4">
+            <FieldLabel>{t("images.fPurpose")}</FieldLabel>
+            <Select value={v.purpose} onValueChange={(val) => set("purpose", val)}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PURPOSE_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field className="mb-4">
+            <FieldLabel htmlFor="image-desc">{t("images.fDesc")}</FieldLabel>
+            <Textarea
+              id="image-desc"
+              rows={2}
+              placeholder={t("images.fDescPlaceholder")}
+              value={v.description}
+              onChange={(e) => set("description", e.target.value)}
+            />
+          </Field>
+
+          <FieldSection n={2} title={t("images.fsLabels")} />
+          <Field className="mb-4">
+            <FieldLabel>{t("images.lCustom")}</FieldLabel>
+            {Object.keys(customTags).length > 0 && (
+              <div className="mb-2 flex flex-wrap gap-2">
+                {Object.entries(customTags).map(([k, val]) => (
+                  <Badge key={k} variant="outline" className="gap-1 pr-1 font-mono">
+                    {k}:{val}
+                    <button
+                      type="button"
+                      className="grid size-3.5 place-items-center rounded-sm hover:bg-muted"
+                      onClick={() => removeTag(k)}
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <Input
+                className="font-mono"
+                placeholder={t("images.customKeyPlaceholder")}
+                value={ctKey}
+                onChange={(e) => setCtKey(e.target.value)}
+              />
+              <Input
+                className="font-mono"
+                placeholder={t("images.customValPlaceholder")}
+                value={ctVal}
+                onChange={(e) => setCtVal(e.target.value)}
+              />
+              <Button variant="outline" onClick={addTag}>
+                {t("images.add")}
+              </Button>
+            </div>
+          </Field>
         </div>
-      }
-      extra={<Button type="text" icon={<CloseOutlined />} onClick={onClose} />}
-      footer={
-        <div className="flex justify-end gap-2">
-          <Button onClick={onClose}>{t("common.cancel")}</Button>
-          <Button type="primary" loading={create.isPending} onClick={() => form.submit()}>
+
+        <SheetFooter className="flex-row justify-end border-t">
+          <Button variant="outline" onClick={onClose}>
+            {t("common.cancel")}
+          </Button>
+          <Button onClick={submit} disabled={create.isPending}>
+            {create.isPending && <Spinner data-icon="inline-start" />}
             {t("images.createImage")}
           </Button>
-        </div>
-      }
-    >
-      <Form<NewImageValues> form={form} layout="vertical" size="large" onFinish={onFinish} initialValues={{ purpose: "training" }}>
-        <FieldSection n={1} title={t("images.fsBasic")} />
-        <Form.Item name="name" label={t("images.fName")} rules={[{ required: true, message: t("images.fNameHelp") }]} extra={t("images.fNameHelp")}>
-          <Input className="font-mono" placeholder={t("images.fNamePlaceholder")} />
-        </Form.Item>
-        <Form.Item name="purpose" label={t("images.fPurpose")}>
-          <Select options={PURPOSE_OPTIONS} />
-        </Form.Item>
-        <Form.Item name="description" label={t("images.fDesc")}>
-          <Input.TextArea rows={2} placeholder={t("images.fDescPlaceholder")} />
-        </Form.Item>
-
-        <FieldSection n={2} title={t("images.fsLabels")} />
-        <Form.Item label={t("images.lCustom")}>
-          <div className="mb-2 flex flex-wrap gap-2">
-            {Object.entries(customTags).map(([k, v]) => (
-              <Tag key={k} closable onClose={() => removeTag(k)} className="font-mono">
-                {k}:{v}
-              </Tag>
-            ))}
-          </div>
-          <Space.Compact className="w-full">
-            <Input className="font-mono" placeholder={t("images.customKeyPlaceholder")} value={ctKey} onChange={(e) => setCtKey(e.target.value)} />
-            <Input className="font-mono" placeholder={t("images.customValPlaceholder")} value={ctVal} onChange={(e) => setCtVal(e.target.value)} />
-            <Button onClick={addTag}>{t("images.add")}</Button>
-          </Space.Compact>
-        </Form.Item>
-      </Form>
-    </Drawer>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
-}
-
-interface NewImageValues {
-  name: string;
-  purpose?: string;
-  description?: string;
 }
 
 // ── Add-version drawer (two methods: external register vs Docker push) ─────────
 interface AddVersionValues {
   version: string;
-  description?: string;
-  sourceImageRef?: string;
+  description: string;
+  sourceImageRef: string;
 }
 
 function AddVersionDrawer({ image, onClose }: { image: string; onClose: () => void }) {
   const { t } = useTranslation();
   const { tenant } = useApp();
   const { toast } = useUI();
-  const [form] = Form.useForm<AddVersionValues>();
+  const [submitted, setSubmitted] = useState(false);
   const [method, setMethod] = useState<"external" | "dockerPush">("external");
+  const [v, setV] = useState<AddVersionValues>({ version: "", description: "", sourceImageRef: "" });
+  const set = <K extends keyof AddVersionValues>(k: K, val: AddVersionValues[K]) =>
+    setV((prev) => ({ ...prev, [k]: val }));
 
   const initiate = useApiMutation(
     (body: sdk.ImageInitiateRequest) => sdk.initiateImage({ path: { tenant, name: image }, body }),
     { invalidate: [["images"]], success: t("images.versionSubmitted") },
   );
 
-  const onFinish = (v: AddVersionValues) => {
+  const submit = () => {
+    setSubmitted(true);
+    if (!v.version.trim()) return;
+    if (method === "external" && !v.sourceImageRef.trim()) return;
     const body: sdk.ImageInitiateRequest =
       method === "external"
         ? {
             version: v.version.trim(),
             spec: {},
-            description: v.description?.trim() || undefined,
+            description: v.description.trim() || undefined,
             source: "external",
-            sourceImageRef: v.sourceImageRef?.trim() || undefined,
+            sourceImageRef: v.sourceImageRef.trim() || undefined,
           }
         : {
             version: v.version.trim(),
             spec: {},
-            description: v.description?.trim() || undefined,
+            description: v.description.trim() || undefined,
             source: "dockerPush",
           };
     initiate.mutate(body, { onSuccess: onClose });
   };
 
   return (
-    <Drawer
-      open
-      width={640}
-      onClose={onClose}
-      closable={false}
-      title={
-        <div>
-          <div className="text-base font-semibold text-fg">{t("images.addVerTitle")}</div>
-          <div className="mt-0.5 text-xs font-normal text-muted">{t("images.addVerSub")}</div>
+    <Sheet open onOpenChange={(o) => !o && onClose()}>
+      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[640px]">
+        <SheetHeader className="border-b">
+          <SheetTitle>{t("images.addVerTitle")}</SheetTitle>
+          <p className="text-xs text-muted-foreground">{t("images.addVerSub")}</p>
+        </SheetHeader>
+
+        <div className="flex-1 overflow-auto px-6 py-4">
+          <FieldSection n={1} title={t("images.fsBasic")} />
+          <Field className="mb-4">
+            <FieldLabel>{t("images.fImage")}</FieldLabel>
+            <Input className="font-mono" value={image} disabled />
+          </Field>
+          <Field className="mb-4">
+            <FieldLabel htmlFor="addver-version">
+              {t("images.fVersion")}
+              <span className="text-destructive">*</span>
+            </FieldLabel>
+            <Input
+              id="addver-version"
+              className="font-mono"
+              placeholder={t("images.fVersionPlaceholder")}
+              value={v.version}
+              aria-invalid={submitted && !v.version.trim()}
+              onChange={(e) => set("version", e.target.value)}
+            />
+          </Field>
+          <Field className="mb-4">
+            <FieldLabel htmlFor="addver-desc">{t("images.fDesc")}</FieldLabel>
+            <Textarea
+              id="addver-desc"
+              rows={2}
+              placeholder={t("images.fAddVerDescPlaceholder")}
+              value={v.description}
+              onChange={(e) => set("description", e.target.value)}
+            />
+          </Field>
+
+          <FieldSection n={2} title={t("images.fsMethod")} />
+          <Tabs value={method} onValueChange={(k) => setMethod(k as "external" | "dockerPush")}>
+            <TabsList>
+              <TabsTrigger value="external">{t("images.methodExternal")}</TabsTrigger>
+              <TabsTrigger value="dockerPush">{t("images.methodDocker")}</TabsTrigger>
+            </TabsList>
+            <TabsContent value="external" className="flex flex-col gap-4 pt-4">
+              <p className="text-sm text-muted-foreground">{t("images.externalHelp")}</p>
+              <Field>
+                <FieldLabel htmlFor="source-ref">{t("images.fSourceRef")}</FieldLabel>
+                <Input
+                  id="source-ref"
+                  className="font-mono"
+                  placeholder={t("images.sourceRefPlaceholder")}
+                  value={v.sourceImageRef}
+                  aria-invalid={submitted && method === "external" && !v.sourceImageRef.trim()}
+                  onChange={(e) => set("sourceImageRef", e.target.value)}
+                />
+              </Field>
+              <Field>
+                <FieldLabel>{t("images.fPullCred")}</FieldLabel>
+                <Select defaultValue="public">
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="public">{t("images.credPublic")}</SelectItem>
+                    <SelectItem value="ngc">{t("images.credNgc")}</SelectItem>
+                    <SelectItem value="harbor">{t("images.credHarbor")}</SelectItem>
+                    <SelectItem value="new">{t("images.credNew")}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+            </TabsContent>
+            <TabsContent value="dockerPush" className="pt-4">
+              <DockerGuide
+                image={image}
+                tenant={tenant}
+                onCopy={(text) => {
+                  void navigator.clipboard?.writeText(text);
+                  toast(t("images.commandCopied"));
+                }}
+              />
+            </TabsContent>
+          </Tabs>
         </div>
-      }
-      extra={<Button type="text" icon={<CloseOutlined />} onClick={onClose} />}
-      footer={
-        <div className="flex justify-end gap-2">
-          <Button onClick={onClose}>{t("common.cancel")}</Button>
-          <Button type="primary" loading={initiate.isPending} onClick={() => form.submit()}>
+
+        <SheetFooter className="flex-row justify-end border-t">
+          <Button variant="outline" onClick={onClose}>
+            {t("common.cancel")}
+          </Button>
+          <Button onClick={submit} disabled={initiate.isPending}>
+            {initiate.isPending && <Spinner data-icon="inline-start" />}
             {t("images.submit")}
           </Button>
-        </div>
-      }
-    >
-      <Form<AddVersionValues> form={form} layout="vertical" size="large" onFinish={onFinish}>
-        <FieldSection n={1} title={t("images.fsBasic")} />
-        <Form.Item label={t("images.fImage")}>
-          <Input className="font-mono" value={image} disabled />
-        </Form.Item>
-        <Form.Item name="version" label={t("images.fVersion")} rules={[{ required: true }]}>
-          <Input className="font-mono" placeholder={t("images.fVersionPlaceholder")} />
-        </Form.Item>
-        <Form.Item name="description" label={t("images.fDesc")}>
-          <Input.TextArea rows={2} placeholder={t("images.fAddVerDescPlaceholder")} />
-        </Form.Item>
-
-        <FieldSection n={2} title={t("images.fsMethod")} />
-        <Tabs
-          activeKey={method}
-          onChange={(k) => setMethod(k as "external" | "dockerPush")}
-          items={[
-            {
-              key: "external",
-              label: t("images.methodExternal"),
-              children: (
-                <>
-                  <p className="mb-3 text-sm text-muted">{t("images.externalHelp")}</p>
-                  <Form.Item name="sourceImageRef" label={t("images.fSourceRef")} rules={[{ required: method === "external" }]}>
-                    <Input className="font-mono" placeholder={t("images.sourceRefPlaceholder")} />
-                  </Form.Item>
-                  <Form.Item label={t("images.fPullCred")}>
-                    <Select
-                      defaultValue="public"
-                      options={[
-                        { value: "public", label: t("images.credPublic") },
-                        { value: "ngc", label: t("images.credNgc") },
-                        { value: "harbor", label: t("images.credHarbor") },
-                        { value: "new", label: t("images.credNew") },
-                      ]}
-                    />
-                  </Form.Item>
-                </>
-              ),
-            },
-            {
-              key: "dockerPush",
-              label: t("images.methodDocker"),
-              children: <DockerGuide image={image} tenant={tenant} onCopy={(text) => {
-                void navigator.clipboard?.writeText(text);
-                toast(t("images.commandCopied"));
-              }} />,
-            },
-          ]}
-        />
-      </Form>
-    </Drawer>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }
 
@@ -691,19 +851,21 @@ docker tag <local-image>:<tag> zot.axisml.internal/${tenant}/${image}:<tag>
 # 2. 推送到镜像仓
 docker push zot.axisml.internal/${tenant}/${image}:<tag>`;
   return (
-    <div className="space-y-4">
-      <p className="text-sm text-muted">{t("images.dockerHelp")}</p>
+    <div className="flex flex-col gap-4">
+      <p className="text-sm text-muted-foreground">{t("images.dockerHelp")}</p>
       <div>
-        <div className="mb-1 text-sm font-semibold text-fg">{t("images.dockerStep1")}</div>
-        <pre className="overflow-x-auto rounded-md border border-border-soft bg-surface p-3 font-mono text-xs text-fg-2">{login}</pre>
-        <Button className="mt-2" size="small" icon={<CopyOutlined />} onClick={() => onCopy(login)}>
+        <div className="mb-1 text-sm font-semibold text-foreground">{t("images.dockerStep1")}</div>
+        <pre className="overflow-x-auto rounded-md border bg-muted p-3 font-mono text-xs text-foreground">{login}</pre>
+        <Button variant="outline" size="sm" className="mt-2" onClick={() => onCopy(login)}>
+          <Copy data-icon="inline-start" />
           {t("images.copyCommand")}
         </Button>
       </div>
       <div>
-        <div className="mb-1 text-sm font-semibold text-fg">{t("images.dockerStep2")}</div>
-        <pre className="overflow-x-auto rounded-md border border-border-soft bg-surface p-3 font-mono text-xs text-fg-2">{push}</pre>
-        <Button className="mt-2" size="small" icon={<CopyOutlined />} onClick={() => onCopy(push)}>
+        <div className="mb-1 text-sm font-semibold text-foreground">{t("images.dockerStep2")}</div>
+        <pre className="overflow-x-auto rounded-md border bg-muted p-3 font-mono text-xs text-foreground">{push}</pre>
+        <Button variant="outline" size="sm" className="mt-2" onClick={() => onCopy(push)}>
+          <Copy data-icon="inline-start" />
           {t("images.copyCommand")}
         </Button>
       </div>

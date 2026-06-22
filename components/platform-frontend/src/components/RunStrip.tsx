@@ -31,10 +31,10 @@ function toSlot(phase?: string): Slot {
 
 const COLOR: Record<Slot, string> = {
   ok: "text-success",
-  fail: "text-danger",
+  fail: "text-destructive",
   run: "text-info",
-  pend: "text-warn",
-  none: "text-border-default",
+  pend: "text-warning",
+  none: "text-border",
 };
 
 function Glyph({ slot }: { slot: Slot }) {
@@ -64,7 +64,7 @@ export function RunStrip({ phases = [], to }: { phases?: string[]; to?: string }
     ...recent.map(toSlot),
   ];
   const inner = (
-    <span className="-mx-1.5 -my-1 inline-flex items-center gap-1.5 rounded-sm px-1.5 py-1 transition-colors hover:bg-surface">
+    <span className="-mx-1.5 -my-1 inline-flex items-center gap-1.5 rounded-sm px-1.5 py-1 transition-colors hover:bg-muted">
       {slots.map((s, i) => (
         <span key={i} className={`inline-grid h-5 w-5 place-items-center ${COLOR[s]}`}>
           <Glyph slot={s} />

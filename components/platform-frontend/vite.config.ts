@@ -1,5 +1,6 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
 import path from "node:path";
 
 // SPA build → dist/. Dev server proxies /api to the platform-backend so the
@@ -8,7 +9,7 @@ import path from "node:path";
 // Set VITE_USE_MOCK_API=true to serve the whole app from an in-browser mock
 // (src/api/mock) — the frontend then never touches the backend or the proxy.
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   resolve: {
     alias: { "@": path.resolve(__dirname, "src") },
   },

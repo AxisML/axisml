@@ -1,6 +1,6 @@
 import { createBrowserRouter, Navigate, useLocation } from "react-router-dom";
 import { lazy, Suspense, type ReactNode } from "react";
-import { Spin } from "antd";
+import { Spinner } from "@/components/ui/spinner";
 import { useSession } from "@/app/session";
 import { AppShell } from "@/shell/AppShell";
 
@@ -28,7 +28,7 @@ const ResourcePools = lazy(() => import("@/pages/ResourcePools"));
 function PageFallback() {
   return (
     <div className="grid h-full place-items-center py-24">
-      <Spin size="large" />
+      <Spinner className="size-7 text-muted-foreground" />
     </div>
   );
 }
