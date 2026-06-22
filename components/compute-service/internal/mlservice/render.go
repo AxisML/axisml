@@ -6,6 +6,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	mlservicev1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
+
+	"github.com/axisml/axisml/components/compute-service/internal/store"
 )
 
 // ToCR materialises an MLService CR from a PG row. Per design §6 / §5.2
@@ -13,7 +15,7 @@ import (
 // service-kind (`service`|`workspace`, for kubectl selectors), tenant
 // (= partition namespace), and quota. Pool/unit provenance is read from
 // the row's labels jsonb.
-func ToCR(s *MLService) (*mlservicev1alpha1.MLService, error) {
+func ToCR(s *store.MLService) (*mlservicev1alpha1.MLService, error) {
 	var spec mlservicev1alpha1.MLServiceSpec
 	if len(s.Spec) > 0 {
 		if err := json.Unmarshal(s.Spec, &spec); err != nil {

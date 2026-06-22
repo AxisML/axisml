@@ -125,9 +125,10 @@ artifactHub:
   metricsPort: 8081
   probesPort: 8082
 
+  # GC worker leader election uses a Postgres advisory lock (no K8s Lease /
+  # RBAC). All replicas contend on the same database; the winner runs GC.
   leaderElection:
     enabled: true
-    id: axisml-artifact-hub.axisml.io
 
   gcInterval: 5m
   uploadingTTL: 24h

@@ -3,7 +3,6 @@ package trafficpolicy
 import (
 	"context"
 	"encoding/json"
-	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/datatypes"
@@ -14,6 +13,8 @@ import (
 
 	"github.com/axisml/axisml/components/compute-service/internal/auth"
 	servicemod "github.com/axisml/axisml/components/compute-service/internal/mlservice"
+	"github.com/axisml/axisml/components/compute-service/internal/server"
+	"github.com/axisml/axisml/components/compute-service/internal/store"
 	apperrors "github.com/axisml/axisml/components/compute-service/pkg/errors"
 	"github.com/axisml/axisml/components/compute-service/pkg/strutil"
 )
@@ -36,61 +37,7 @@ func NewService(db *gorm.DB, members *servicemod.Repository, repo *Repository) *
 	return &Module{repo: repo, db: db, members: members}
 }
 
-// CreateInput is the API request body. The backend tuple is derived (not
-// supplied) from the member services' family.
-type CreateInput struct {
-	Name        string               `json:"name" binding:"required,axisml_name"`
-	DisplayName string               `json:"displayName"`
-	Description string               `json:"description"`
-	Labels      map[string]string    `json:"labels,omitempty"`
-	Annotations map[string]string    `json:"annotations,omitempty"`
-	Mode        string               `json:"mode" binding:"required"`
-	Endpoint    mltp.Endpoint        `json:"endpoint"`
-	Backends    []mltp.BackendMember `json:"backends" binding:"required,min=1"`
-}
-
-// SplitInput adjusts per-backend weights. Only listed backends change.
-type SplitInput struct {
-	Backends []WeightUpdate `json:"backends" binding:"required,min=1"`
-}
-
-// WeightUpdate is one (serviceName, weight) pair.
-type WeightUpdate struct {
-	ServiceName string `json:"serviceName" binding:"required"`
-	Weight      int32  `json:"weight"`
-}
-
-// PatchInput mutates display-tier metadata only (no CR touch, no generation
-// bump).
-type PatchInput struct {
-	DisplayName *string           `json:"displayName,omitempty"`
-	Description *string           `json:"description,omitempty"`
-	Labels      map[string]string `json:"labels,omitempty"`
-	Annotations map[string]string `json:"annotations,omitempty"`
-}
-
-// View is the HTTP response.
-type View struct {
-	ID                 uuid.UUID                `json:"id"`
-	Namespace          string                   `json:"namespace"`
-	Name               string                   `json:"name"`
-	Mode               string                   `json:"mode"`
-	DisplayName        string                   `json:"displayName,omitempty"`
-	Description        string                   `json:"description,omitempty"`
-	Owner              string                   `json:"owner,omitempty"`
-	Labels             map[string]string        `json:"labels,omitempty"`
-	Annotations        map[string]string        `json:"annotations,omitempty"`
-	Generation         int64                    `json:"generation"`
-	ObservedGeneration int64                    `json:"observedGeneration"`
-	Phase              string                   `json:"phase"`
-	Spec               mltp.MLTrafficPolicySpec `json:"spec"`
-	Status             StatusFields             `json:"status"`
-	CreatedAt          time.Time                `json:"createdAt"`
-	UpdatedAt          time.Time                `json:"updatedAt"`
-	DeletedAt          *time.Time               `json:"deletedAt,omitempty"`
-}
-
-func (m *Module) Create(ctx context.Context, namespace string, in CreateInput) (*View, error) {
+func (m *Module) Create(ctx context.Context, namespace string, in server.TrafficPolicyCreateRequest) (*server.TrafficPolicy, error) {
 	if !strutil.IsValidName(in.Name) {
 		return nil, apperrors.New(apperrors.CodeValidation, "invalid traffic-policy name")
 	}
@@ -141,7 +88,7 @@ func (m *Module) Create(ctx context.Context, namespace string, in CreateInput) (
 		return nil, err
 	}
 
-	row := &TrafficPolicy{
+	row := &store.TrafficPolicy{
 		ID:          uuid.New(),
 		Namespace:   namespace,
 		Name:        in.Name,
@@ -162,7 +109,7 @@ func (m *Module) Create(ctx context.Context, namespace string, in CreateInput) (
 	return m.toView(row)
 }
 
-func (m *Module) Get(ctx context.Context, namespace, name string) (*View, error) {
+func (m *Module) Get(ctx context.Context, namespace, name string) (*server.TrafficPolicy, error) {
 	row, err := m.repo.GetByNamespaceName(ctx, namespace, name)
 	if err != nil {
 		if IsNotFound(err) {
@@ -173,12 +120,12 @@ func (m *Module) Get(ctx context.Context, namespace, name string) (*View, error)
 	return m.toView(row)
 }
 
-func (m *Module) List(ctx context.Context, namespace string, limit, offset int, labelClause string, labelArgs []any) ([]View, int64, error) {
+func (m *Module) List(ctx context.Context, namespace string, limit, offset int, labelClause string, labelArgs []any) ([]server.TrafficPolicy, int64, error) {
 	rows, total, err := m.repo.ListByNamespace(ctx, namespace, limit, offset, labelClause, labelArgs)
 	if err != nil {
 		return nil, 0, err
 	}
-	out := make([]View, 0, len(rows))
+	out := make([]server.TrafficPolicy, 0, len(rows))
 	for i := range rows {
 		v, err := m.toView(&rows[i])
 		if err != nil {
@@ -189,7 +136,7 @@ func (m *Module) List(ctx context.Context, namespace string, limit, offset int, 
 	return out, total, nil
 }
 
-func (m *Module) Patch(ctx context.Context, namespace, name string, in PatchInput) (*View, error) {
+func (m *Module) Patch(ctx context.Context, namespace, name string, in server.TrafficPolicyPatchRequest) (*server.TrafficPolicy, error) {
 	row, err := m.repo.GetByNamespaceName(ctx, namespace, name)
 	if err != nil {
 		if IsNotFound(err) {
@@ -236,7 +183,7 @@ func (m *Module) Delete(ctx context.Context, namespace, name string) error {
 
 // Split applies per-backend weight changes, validates the result against the
 // mode, and bumps generation so the reconciler patches the CR.
-func (m *Module) Split(ctx context.Context, namespace, name string, in SplitInput) (*View, error) {
+func (m *Module) Split(ctx context.Context, namespace, name string, in server.TrafficPolicySplitRequest) (*server.TrafficPolicy, error) {
 	row, spec, err := m.load(ctx, namespace, name)
 	if err != nil {
 		return nil, err
@@ -259,7 +206,7 @@ func (m *Module) Split(ctx context.Context, namespace, name string, in SplitInpu
 // Promote (canary only) makes the canary backend the new stable: it swaps the
 // stable/canary roles and sets the new stable to 100, old stable to 0. The
 // canary baseline is implied by role=stable — there is no separate pointer.
-func (m *Module) Promote(ctx context.Context, namespace, name string) (*View, error) {
+func (m *Module) Promote(ctx context.Context, namespace, name string) (*server.TrafficPolicy, error) {
 	row, spec, err := m.load(ctx, namespace, name)
 	if err != nil {
 		return nil, err
@@ -278,7 +225,7 @@ func (m *Module) Promote(ctx context.Context, namespace, name string) (*View, er
 
 // Rollback (canary only) returns all traffic to the stable baseline by zeroing
 // the canary weight. Roles are unchanged.
-func (m *Module) Rollback(ctx context.Context, namespace, name string) (*View, error) {
+func (m *Module) Rollback(ctx context.Context, namespace, name string) (*server.TrafficPolicy, error) {
 	row, spec, err := m.load(ctx, namespace, name)
 	if err != nil {
 		return nil, err
@@ -296,7 +243,7 @@ func (m *Module) Rollback(ctx context.Context, namespace, name string) (*View, e
 }
 
 // load fetches the row + unmarshals its spec.
-func (m *Module) load(ctx context.Context, namespace, name string) (*TrafficPolicy, mltp.MLTrafficPolicySpec, error) {
+func (m *Module) load(ctx context.Context, namespace, name string) (*store.TrafficPolicy, mltp.MLTrafficPolicySpec, error) {
 	var spec mltp.MLTrafficPolicySpec
 	row, err := m.repo.GetByNamespaceName(ctx, namespace, name)
 	if err != nil {
@@ -311,7 +258,7 @@ func (m *Module) load(ctx context.Context, namespace, name string) (*TrafficPoli
 	return row, spec, nil
 }
 
-func (m *Module) persistSpec(ctx context.Context, row *TrafficPolicy, spec mltp.MLTrafficPolicySpec) (*View, error) {
+func (m *Module) persistSpec(ctx context.Context, row *store.TrafficPolicy, spec mltp.MLTrafficPolicySpec) (*server.TrafficPolicy, error) {
 	specJSON, err := json.Marshal(spec)
 	if err != nil {
 		return nil, err
@@ -325,7 +272,7 @@ func (m *Module) persistSpec(ctx context.Context, row *TrafficPolicy, spec mltp.
 	return m.reread(ctx, row.ID)
 }
 
-func (m *Module) reread(ctx context.Context, id uuid.UUID) (*View, error) {
+func (m *Module) reread(ctx context.Context, id uuid.UUID) (*server.TrafficPolicy, error) {
 	fresh, err := m.repo.Get(ctx, id)
 	if err != nil {
 		return nil, err
@@ -473,16 +420,16 @@ func mapBytes(m map[string]string) datatypes.JSON {
 	return b
 }
 
-func (m *Module) toView(p *TrafficPolicy) (*View, error) {
+func (m *Module) toView(p *store.TrafficPolicy) (*server.TrafficPolicy, error) {
 	var spec mltp.MLTrafficPolicySpec
 	if len(p.Spec) > 0 {
 		_ = json.Unmarshal(p.Spec, &spec)
 	}
-	var status StatusFields
+	var status server.TrafficPolicyStatus
 	if len(p.StatusJSON) > 0 {
 		_ = json.Unmarshal(p.StatusJSON, &status)
 	}
-	return &View{
+	return &server.TrafficPolicy{
 		ID:                 p.ID,
 		Namespace:          p.Namespace,
 		Name:               p.Name,

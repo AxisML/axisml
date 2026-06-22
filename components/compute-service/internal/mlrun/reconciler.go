@@ -13,6 +13,7 @@ import (
 	mlrunv1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlrun/v1alpha1"
 
 	"github.com/axisml/axisml/components/compute-service/internal/metrics"
+	"github.com/axisml/axisml/components/compute-service/internal/store"
 )
 
 // Reconciler implements the job Outbox loop. Reads namespace directly off
@@ -75,7 +76,7 @@ func (r *Reconciler) runOnce(ctx context.Context) {
 	}
 }
 
-func (r *Reconciler) handleCreate(ctx context.Context, j *MLRun) {
+func (r *Reconciler) handleCreate(ctx context.Context, j *store.MLRun) {
 	cr, err := ToCR(j)
 	if err != nil {
 		r.log.Error(err, "render job CR")
@@ -94,7 +95,7 @@ func (r *Reconciler) handleCreate(ctx context.Context, j *MLRun) {
 	metrics.ReconcilerActions.WithLabelValues("mlrun", "creating", "success").Inc()
 }
 
-func (r *Reconciler) handleCancel(ctx context.Context, j *MLRun) {
+func (r *Reconciler) handleCancel(ctx context.Context, j *store.MLRun) {
 	cr := &mlrunv1alpha1.MLRun{ObjectMeta: metav1.ObjectMeta{Name: j.Name, Namespace: j.Namespace}}
 	patch := client.RawPatch(client.Merge.Type(), []byte(`{"spec":{"runPolicy":{"suspend":true}}}`))
 	if err := r.k8sClient.Patch(ctx, cr, patch); err != nil {
@@ -109,7 +110,7 @@ func (r *Reconciler) handleCancel(ctx context.Context, j *MLRun) {
 	metrics.ReconcilerActions.WithLabelValues("mlrun", "canceling", "success").Inc()
 }
 
-func (r *Reconciler) handleDelete(ctx context.Context, j *MLRun) {
+func (r *Reconciler) handleDelete(ctx context.Context, j *store.MLRun) {
 	cr := &mlrunv1alpha1.MLRun{ObjectMeta: metav1.ObjectMeta{Name: j.Name, Namespace: j.Namespace}}
 	err := r.k8sClient.Delete(ctx, cr)
 	if err == nil {

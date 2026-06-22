@@ -7,11 +7,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"gorm.io/datatypes"
+
+	"github.com/axisml/axisml/components/artifact-hub/internal/store"
 )
 
 func TestToView_PopulatesAllJSONFields(t *testing.T) {
 	now := time.Now().UTC()
-	row := &Artifact{
+	row := &store.Artifact{
 		ID:          uuid.New(),
 		Namespace:   "team-a",
 		Kind:        "model",
@@ -48,7 +50,7 @@ func TestToView_PopulatesAllJSONFields(t *testing.T) {
 }
 
 func TestToView_EmptySpecYieldsNilMap(t *testing.T) {
-	row := &Artifact{
+	row := &store.Artifact{
 		ID:        uuid.New(),
 		Namespace: "team-b",
 		Kind:      "model",
@@ -63,7 +65,7 @@ func TestToView_EmptySpecYieldsNilMap(t *testing.T) {
 func TestToView_BadSpecJSONIsTolerated(t *testing.T) {
 	// toView swallows json.Unmarshal errors so a corrupted row still renders.
 	// This is intentional — render must never fail an HTTP response.
-	row := &Artifact{
+	row := &store.Artifact{
 		ID:        uuid.New(),
 		Namespace: "team-c",
 		Kind:      "model",

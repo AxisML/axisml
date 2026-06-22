@@ -10,10 +10,10 @@ import (
 	tenantv1alpha1 "github.com/axisml/axisml/components/tenant-operator/api/v1alpha1"
 )
 
-// TenantToDTO renders a Tenant CR into its REST DTO. Quotas come from the
+// TenantToAPI renders a Tenant CR into its REST representation. Quotas come from the
 // round-trip annotation (business form); status is read live from the CR.
-func TenantToDTO(t *tenantv1alpha1.Tenant) TenantDTO {
-	dto := TenantDTO{
+func TenantToAPI(t *tenantv1alpha1.Tenant) Tenant {
+	dto := Tenant{
 		Name:            t.Name,
 		Namespace:       t.Spec.Namespace,
 		Quotas:          quotasFromAnnotation(t.Annotations),
@@ -27,14 +27,14 @@ func TenantToDTO(t *tenantv1alpha1.Tenant) TenantDTO {
 		ir := t.Spec.InitResources
 		dto.InitResources = &ir
 	}
-	dto.Status = tenantStatusToDTO(t.Status)
+	dto.Status = tenantStatusToAPI(t.Status)
 	return dto
 }
 
-// DTOToTenant builds a fresh Tenant CR from a create request. `folded` is the
+// APIToTenant builds a fresh Tenant CR from a create request. `folded` is the
 // pre-computed ElasticQuota min/max (see FoldQuotas); `quotaAnno` is the
 // JSON-encoded business-form selection stored for round-trip GET.
-func DTOToTenant(req CreateTenantRequest, folded []tenantv1alpha1.QuotaSpec, quotaAnno, lastModifiedBy string) *tenantv1alpha1.Tenant {
+func APIToTenant(req CreateTenantRequest, folded []tenantv1alpha1.QuotaSpec, quotaAnno, lastModifiedBy string) *tenantv1alpha1.Tenant {
 	ns := tenantv1alpha1.NamespaceSpec{Name: req.Name}
 	if req.Namespace != nil {
 		ns = *req.Namespace
@@ -63,7 +63,7 @@ func DTOToTenant(req CreateTenantRequest, folded []tenantv1alpha1.QuotaSpec, quo
 // into ElasticQuota min/max by summing each unit's requests/limits scaled by
 // its quantity, resolving units against the supplied ResourcePools. The result
 // is written 1:1 to Tenant.spec.quotas[] for tenant-operator to render.
-func FoldQuotas(selections []QuotaDTO, pools map[string]*axismlv1alpha1.ResourcePool) ([]tenantv1alpha1.QuotaSpec, error) {
+func FoldQuotas(selections []Quota, pools map[string]*axismlv1alpha1.ResourcePool) ([]tenantv1alpha1.QuotaSpec, error) {
 	out := make([]tenantv1alpha1.QuotaSpec, 0, len(selections))
 	for _, q := range selections {
 		pool, ok := pools[q.Pool]
@@ -95,7 +95,7 @@ func FoldQuotas(selections []QuotaDTO, pools map[string]*axismlv1alpha1.Resource
 
 // PoolNames returns the distinct pool names referenced by the selection, so
 // the handler can fetch exactly the ResourcePools it needs for folding.
-func PoolNames(selections []QuotaDTO) []string {
+func PoolNames(selections []Quota) []string {
 	seen := map[string]struct{}{}
 	out := []string{}
 	for _, q := range selections {
@@ -110,7 +110,7 @@ func PoolNames(selections []QuotaDTO) []string {
 
 // QuotasToAnnotation JSON-encodes the business-form selection for the
 // round-trip annotation; an empty selection clears it.
-func QuotasToAnnotation(quotas []QuotaDTO) (string, error) {
+func QuotasToAnnotation(quotas []Quota) (string, error) {
 	if len(quotas) == 0 {
 		return "", nil
 	}
@@ -121,31 +121,31 @@ func QuotasToAnnotation(quotas []QuotaDTO) (string, error) {
 	return string(b), nil
 }
 
-func quotasFromAnnotation(ann map[string]string) []QuotaDTO {
+func quotasFromAnnotation(ann map[string]string) []Quota {
 	raw := ann[QuotasAnnotation]
 	if raw == "" {
-		return []QuotaDTO{}
+		return []Quota{}
 	}
-	var out []QuotaDTO
+	var out []Quota
 	if err := json.Unmarshal([]byte(raw), &out); err != nil {
-		return []QuotaDTO{}
+		return []Quota{}
 	}
 	return out
 }
 
-func tenantStatusToDTO(s tenantv1alpha1.TenantStatus) *TenantStatusDTO {
+func tenantStatusToAPI(s tenantv1alpha1.TenantStatus) *TenantStatus {
 	if s.Phase == "" && s.ObservedGeneration == 0 && !s.NamespaceReady &&
 		s.Message == "" && len(s.Quotas) == 0 {
 		return nil
 	}
-	dto := &TenantStatusDTO{
+	dto := &TenantStatus{
 		ObservedGeneration: s.ObservedGeneration,
 		Phase:              string(s.Phase),
 		Message:            s.Message,
 		NamespaceReady:     s.NamespaceReady,
 	}
 	for _, q := range s.Quotas {
-		dto.Quotas = append(dto.Quotas, QuotaStatusDTO{Pool: q.Pool, Ready: q.Ready, Used: q.Used})
+		dto.Quotas = append(dto.Quotas, QuotaStatus{Pool: q.Pool, Ready: q.Ready, Used: q.Used})
 	}
 	return dto
 }

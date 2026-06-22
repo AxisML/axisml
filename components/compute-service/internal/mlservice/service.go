@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/datatypes"
@@ -20,6 +19,8 @@ import (
 
 	"github.com/axisml/axisml/components/compute-service/internal/auth"
 	"github.com/axisml/axisml/components/compute-service/internal/poolcache"
+	"github.com/axisml/axisml/components/compute-service/internal/server"
+	"github.com/axisml/axisml/components/compute-service/internal/store"
 	apperrors "github.com/axisml/axisml/components/compute-service/pkg/errors"
 	"github.com/axisml/axisml/components/compute-service/pkg/strutil"
 )
@@ -56,68 +57,7 @@ func NewMLService(
 	}
 }
 
-// CreateInput is the API request body. Caller selects pool/unit by NAME
-// (the ResourcePool CRD lives in K8s; compute reads it via Informer cache).
-// `Quota` is the ElasticQuota CR name (cluster-unique string) Compute stamps
-// onto Pod labels — opaque, no existence check. `Kind` distinguishes a
-// regular online service from a Platform workspace; immutable after create.
-// When kind=workspace, `WorkspaceStorage` describes the PVC backing the
-// workspace (size required; storageClass optional, falls back to the
-// cluster default).
-type CreateInput struct {
-	Name             string                       `json:"name" binding:"required,axisml_name"`
-	Kind             string                       `json:"kind,omitempty"`
-	DisplayName      string                       `json:"displayName"`
-	Description      string                       `json:"description"`
-	Labels           map[string]string            `json:"labels,omitempty"`
-	Annotations      map[string]string            `json:"annotations,omitempty"`
-	PoolName         string                       `json:"poolName" binding:"required"`
-	UnitName         string                       `json:"unitName" binding:"required"`
-	Quota            string                       `json:"quota" binding:"required"`
-	PriorityClass    string                       `json:"priorityClass,omitempty"`
-	Backend          *mlservicev1alpha1.Backend   `json:"backend"`
-	Roles            []mlservicev1alpha1.RoleSpec `json:"roles" binding:"required,min=1"`
-	RunPolicy        *mlservicev1alpha1.RunPolicy `json:"runPolicy"`
-	Route            *mlservicev1alpha1.Route     `json:"route"`
-	WorkspaceStorage *WorkspaceStorageSpec        `json:"workspaceStorage,omitempty"`
-}
-
-// WorkspaceStorageSpec carries the PVC sizing for kind=workspace mlservices.
-type WorkspaceStorageSpec struct {
-	Size         string `json:"size" binding:"required"`
-	StorageClass string `json:"storageClass,omitempty"`
-}
-
-// ScaleInput is the body for /:scale.
-type ScaleInput struct {
-	Replicas int32 `json:"replicas" binding:"required,gte=0"`
-}
-
-// View is the HTTP response. Mirrors the design yaml: nested spec / status
-// sub-trees, phase at the top level, owner / labels / annotations as
-// first-class fields. generation / observedGeneration support the K8s-
-// style sync signal.
-type View struct {
-	ID                 uuid.UUID                       `json:"id"`
-	Namespace          string                          `json:"namespace"`
-	Name               string                          `json:"name"`
-	Kind               string                          `json:"kind"`
-	DisplayName        string                          `json:"displayName,omitempty"`
-	Description        string                          `json:"description,omitempty"`
-	Owner              string                          `json:"owner,omitempty"`
-	Labels             map[string]string               `json:"labels,omitempty"`
-	Annotations        map[string]string               `json:"annotations,omitempty"`
-	Generation         int64                           `json:"generation"`
-	ObservedGeneration int64                           `json:"observedGeneration"`
-	Phase              string                          `json:"phase"`
-	Spec               mlservicev1alpha1.MLServiceSpec `json:"spec"`
-	Status             StatusFields                    `json:"status"`
-	CreatedAt          time.Time                       `json:"createdAt"`
-	UpdatedAt          time.Time                       `json:"updatedAt"`
-	DeletedAt          *time.Time                      `json:"deletedAt,omitempty"`
-}
-
-func (m *Module) Create(ctx context.Context, namespace string, in CreateInput) (*View, error) {
+func (m *Module) Create(ctx context.Context, namespace string, in server.MLServiceCreateRequest) (*server.MLService, error) {
 	if !strutil.IsValidName(in.Name) {
 		return nil, apperrors.New(apperrors.CodeValidation, "invalid service name")
 	}
@@ -128,9 +68,12 @@ func (m *Module) Create(ctx context.Context, namespace string, in CreateInput) (
 	if kind == "" {
 		kind = mlservicev1alpha1.ServiceKindService
 	}
-	if kind != mlservicev1alpha1.ServiceKindService && kind != mlservicev1alpha1.ServiceKindWorkspace {
+	if kind != mlservicev1alpha1.ServiceKindService &&
+		kind != mlservicev1alpha1.ServiceKindWorkspace &&
+		kind != mlservicev1alpha1.ServiceKindTensorBoard {
 		return nil, apperrors.Newf(apperrors.CodeValidation,
-			"kind must be %q or %q", mlservicev1alpha1.ServiceKindService, mlservicev1alpha1.ServiceKindWorkspace)
+			"kind must be %q, %q or %q", mlservicev1alpha1.ServiceKindService,
+			mlservicev1alpha1.ServiceKindWorkspace, mlservicev1alpha1.ServiceKindTensorBoard)
 	}
 	if existing, err := m.repo.GetByNamespaceName(ctx, namespace, in.Name); err == nil && existing != nil {
 		return nil, apperrors.New(apperrors.CodeConflict, "service already exists")
@@ -211,7 +154,7 @@ func (m *Module) Create(ctx context.Context, namespace string, in CreateInput) (
 	// status.readyReplicas starts at 0; the desired-replica value lives only
 	// in spec.roles[0].replicas (no separate `replicas` column anymore).
 	_ = replicas
-	row := &MLService{
+	row := &store.MLService{
 		ID:          uuid.New(),
 		Namespace:   namespace,
 		Kind:        kind,
@@ -243,7 +186,7 @@ func (m *Module) Create(ctx context.Context, namespace string, in CreateInput) (
 	return m.toView(row)
 }
 
-func (m *Module) Get(ctx context.Context, namespace, name string) (*View, error) {
+func (m *Module) Get(ctx context.Context, namespace, name string) (*server.MLService, error) {
 	row, err := m.repo.GetByNamespaceName(ctx, namespace, name)
 	if err != nil {
 		if IsNotFound(err) {
@@ -254,12 +197,12 @@ func (m *Module) Get(ctx context.Context, namespace, name string) (*View, error)
 	return m.toView(row)
 }
 
-func (m *Module) List(ctx context.Context, namespace, kind string, limit, offset int, labelClause string, labelArgs []any) ([]View, int64, error) {
+func (m *Module) List(ctx context.Context, namespace, kind string, limit, offset int, labelClause string, labelArgs []any) ([]server.MLService, int64, error) {
 	rows, total, err := m.repo.ListByNamespace(ctx, namespace, kind, limit, offset, labelClause, labelArgs)
 	if err != nil {
 		return nil, 0, err
 	}
-	out := make([]View, 0, len(rows))
+	out := make([]server.MLService, 0, len(rows))
 	for i := range rows {
 		v, err := m.toView(&rows[i])
 		if err != nil {
@@ -270,7 +213,7 @@ func (m *Module) List(ctx context.Context, namespace, kind string, limit, offset
 	return out, total, nil
 }
 
-func (m *Module) Scale(ctx context.Context, namespace, name string, in ScaleInput) (*View, error) {
+func (m *Module) Scale(ctx context.Context, namespace, name string, in server.MLServiceScaleRequest) (*server.MLService, error) {
 	row, err := m.repo.GetByNamespaceName(ctx, namespace, name)
 	if err != nil {
 		if IsNotFound(err) {
@@ -308,19 +251,9 @@ func (m *Module) Scale(ctx context.Context, namespace, name string, in ScaleInpu
 	return m.toView(fresh)
 }
 
-// PatchInput is the body for PATCH /api/v1/namespaces/{ns}/mlservices/{svc}.
-// Only the four display-tier fields are mutable post-create per
-// compute-service.md §4.4; spec mutations go through /scale.
-type PatchInput struct {
-	DisplayName *string           `json:"displayName,omitempty"`
-	Description *string           `json:"description,omitempty"`
-	Labels      map[string]string `json:"labels,omitempty"`
-	Annotations map[string]string `json:"annotations,omitempty"`
-}
-
 // Patch updates the row's display-tier metadata. Pure PG mutation —
 // no CR is touched, no generation bump.
-func (m *Module) Patch(ctx context.Context, namespace, name string, in PatchInput) (*View, error) {
+func (m *Module) Patch(ctx context.Context, namespace, name string, in server.MLServicePatchRequest) (*server.MLService, error) {
 	row, err := m.repo.GetByNamespaceName(ctx, namespace, name)
 	if err != nil {
 		if IsNotFound(err) {
@@ -485,7 +418,7 @@ func WorkspacePVCName(serviceName string) string {
 // Idempotent: AlreadyExists is treated as success so retries don't fail the
 // Create. When the K8s client isn't wired (unit / pure-DB tests), the call
 // is a no-op.
-func (m *Module) ensureWorkspacePVC(ctx context.Context, namespace, name string, spec *WorkspaceStorageSpec) error {
+func (m *Module) ensureWorkspacePVC(ctx context.Context, namespace, name string, spec *server.MLServiceWorkspaceStorageSpec) error {
 	if m.k8s == nil {
 		return nil
 	}
@@ -526,16 +459,16 @@ func (m *Module) ensureWorkspacePVC(ctx context.Context, namespace, name string,
 	return nil
 }
 
-func (m *Module) toView(s *MLService) (*View, error) {
+func (m *Module) toView(s *store.MLService) (*server.MLService, error) {
 	var spec mlservicev1alpha1.MLServiceSpec
 	if len(s.Spec) > 0 {
 		_ = json.Unmarshal(s.Spec, &spec)
 	}
-	var status StatusFields
+	var status server.MLServiceStatus
 	if len(s.StatusJSON) > 0 {
 		_ = json.Unmarshal(s.StatusJSON, &status)
 	}
-	return &View{
+	return &server.MLService{
 		ID:                 s.ID,
 		Namespace:          s.Namespace,
 		Name:               s.Name,

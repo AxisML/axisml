@@ -7,6 +7,8 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+
+	"github.com/axisml/axisml/components/compute-service/internal/store"
 )
 
 type Repository struct{ db *gorm.DB }
@@ -15,16 +17,16 @@ func NewRepository(db *gorm.DB) *Repository { return &Repository{db: db} }
 
 func IsNotFound(err error) bool { return errors.Is(err, gorm.ErrRecordNotFound) }
 
-func (r *Repository) Get(ctx context.Context, id uuid.UUID) (*MLService, error) {
-	var s MLService
+func (r *Repository) Get(ctx context.Context, id uuid.UUID) (*store.MLService, error) {
+	var s store.MLService
 	if err := r.db.WithContext(ctx).Where("id = ?", id).First(&s).Error; err != nil {
 		return nil, err
 	}
 	return &s, nil
 }
 
-func (r *Repository) GetByNamespaceName(ctx context.Context, namespace, name string) (*MLService, error) {
-	var s MLService
+func (r *Repository) GetByNamespaceName(ctx context.Context, namespace, name string) (*store.MLService, error) {
+	var s store.MLService
 	if err := r.db.WithContext(ctx).
 		Where("namespace = ? AND name = ? AND deleted_at IS NULL", namespace, name).
 		First(&s).Error; err != nil {
@@ -33,10 +35,10 @@ func (r *Repository) GetByNamespaceName(ctx context.Context, namespace, name str
 	return &s, nil
 }
 
-func (r *Repository) ListByNamespace(ctx context.Context, namespace, kind string, limit, offset int, labelClause string, labelArgs []any) ([]MLService, int64, error) {
-	var rows []MLService
+func (r *Repository) ListByNamespace(ctx context.Context, namespace, kind string, limit, offset int, labelClause string, labelArgs []any) ([]store.MLService, int64, error) {
+	var rows []store.MLService
 	var total int64
-	q := r.db.WithContext(ctx).Model(&MLService{}).Where("namespace = ? AND deleted_at IS NULL", namespace)
+	q := r.db.WithContext(ctx).Model(&store.MLService{}).Where("namespace = ? AND deleted_at IS NULL", namespace)
 	if kind != "" {
 		q = q.Where("kind = ?", kind)
 	}
@@ -52,25 +54,25 @@ func (r *Repository) ListByNamespace(ctx context.Context, namespace, kind string
 	return rows, total, nil
 }
 
-func (r *Repository) Create(ctx context.Context, s *MLService) error {
+func (r *Repository) Create(ctx context.Context, s *store.MLService) error {
 	return r.db.WithContext(ctx).Create(s).Error
 }
 
 func (r *Repository) Update(ctx context.Context, id uuid.UUID, fields map[string]any) error {
-	return r.db.WithContext(ctx).Model(&MLService{}).Where("id = ?", id).Updates(fields).Error
+	return r.db.WithContext(ctx).Model(&store.MLService{}).Where("id = ?", id).Updates(fields).Error
 }
 
 func (r *Repository) MarkDeleting(ctx context.Context, id uuid.UUID) error {
-	return r.db.WithContext(ctx).Model(&MLService{}).Where("id = ?", id).Updates(map[string]any{
+	return r.db.WithContext(ctx).Model(&store.MLService{}).Where("id = ?", id).Updates(map[string]any{
 		"phase":      string(StatusDeleting),
 		"deleted_at": time.Now().UTC(),
 	}).Error
 }
 
 type WorkSet struct {
-	Creating  []MLService
-	Deleting  []MLService
-	SpecDirty []MLService
+	Creating  []store.MLService
+	Deleting  []store.MLService
+	SpecDirty []store.MLService
 }
 
 const workSetBatch = 100

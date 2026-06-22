@@ -4,7 +4,7 @@
 
 **AxisML** 是一款 AI 训练推理一体的一站式机器学习平台，覆盖模型开发、训练、制品管理、在线推理与系统运维。本文档从用户视角描述目标用户、核心概念与功能能力（"为谁做、做什么"）；架构与实现取舍见 [概要设计](../system_design/high_level_design.md)，字段级契约以 [docs/system_design/](../system_design) 与 [openapi/](../openapi) 为准。
 
-页面布局与交互见 [wireframe.md](wireframe.md)，交互原型见 [prototype/](prototype)。
+页面布局与交互以 [交互原型 prototype/](prototype) 为权威，[wireframe.md](wireframe.md) 仅作补充说明。
 
 ## 2. 目标用户与角色
 
@@ -52,8 +52,8 @@
 
 按"所属租户"作用域呈现概览与快捷入口。
 
-- **租户视图**（全角色）：本租户活跃任务 / 在线服务 / 工作区 / 模型 KPI、配额水位（GPU / CPU / 内存）、用量趋势图、快捷新建入口。
-- **全局视图**（仅 system-admin，切到"全部租户"）：租户数、集群容量水位与跨租户 KPI 总量及趋势。
+- **租户视图**（全角色）：当前"所属租户"的活跃任务 / 在线服务 / 工作区 / 模型 KPI、配额水位（GPU / CPU / 内存）、用量趋势图、快捷新建入口。
+- **集群容量**（仅 system-admin）：集群容量水位作为系统管理员看板呈现，属全集群信息，不依赖任何租户作用域选择。
 - **关系**：所有菜单的导航起点。
 
 ### 5.2 训练中心
@@ -147,5 +147,5 @@
 
 ## 8. 参考
 
-- [概要设计 overview.md](../system_design/high_level_design.md) · [产品 UI wireframe.md](wireframe.md) · [交互原型 prototype/](prototype)
+- [概要设计 overview.md](../system_design/high_level_design.md) · [交互原型 prototype/（页面权威）](prototype) · [产品 UI wireframe.md（补充）](wireframe.md)
 - 组件设计：[platform](../system_design/platform/backend.md) · [cluster-manager](../system_design/system/cluster-manager.md) · [compute-service](../system_design/system/compute-service.md) · [compute-operator](../system_design/system/compute-operator.md) · [tenant-operator](../system_design/system/tenant-operator.md) · [artifact-hub](../system_design/system/artifact-hub.md)

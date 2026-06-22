@@ -21,6 +21,7 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/axisml/axisml/components/compute-service/internal/server"
 	apperrors "github.com/axisml/axisml/components/compute-service/pkg/errors"
 )
 
@@ -172,7 +173,7 @@ func (c *Client) PodsByLabel(g *gin.Context, namespace, labelKey, labelValue str
 		_ = g.Error(err)
 		return
 	}
-	items := make([]PodView, 0, len(pods))
+	items := make([]server.Pod, 0, len(pods))
 	for i := range pods {
 		items = append(items, projectPod(&pods[i]))
 	}
@@ -233,7 +234,7 @@ func (c *Client) EventsByInvolved(g *gin.Context, namespace string, targets ...E
 		_ = g.Error(err)
 		return
 	}
-	items := make([]EventView, 0, len(evs))
+	items := make([]server.Event, 0, len(evs))
 	for i := range evs {
 		items = append(items, projectEvent(&evs[i]))
 	}
@@ -250,17 +251,8 @@ func AbortIfMissingNamespace(g *gin.Context) bool {
 	return false
 }
 
-// PodView is the stable projection returned to clients.
-type PodView struct {
-	Name      string            `json:"name"`
-	Namespace string            `json:"namespace"`
-	Phase     string            `json:"phase"`
-	NodeName  string            `json:"nodeName,omitempty"`
-	Labels    map[string]string `json:"labels,omitempty"`
-}
-
-func projectPod(p *corev1.Pod) PodView {
-	return PodView{
+func projectPod(p *corev1.Pod) server.Pod {
+	return server.Pod{
 		Name:      p.Name,
 		Namespace: p.Namespace,
 		Phase:     string(p.Status.Phase),
@@ -269,18 +261,8 @@ func projectPod(p *corev1.Pod) PodView {
 	}
 }
 
-// EventView projects an events.k8s.io/v1 Event down to its useful fields.
-type EventView struct {
-	Reason    string       `json:"reason"`
-	Note      string       `json:"note,omitempty"`
-	Type      string       `json:"type"`
-	Object    string       `json:"object"` // "<kind>/<name>"
-	Reporter  string       `json:"reportingController,omitempty"`
-	EventTime *metav1.Time `json:"eventTime,omitempty"`
-}
-
-func projectEvent(e *eventsv1.Event) EventView {
-	return EventView{
+func projectEvent(e *eventsv1.Event) server.Event {
+	return server.Event{
 		Reason:    e.Reason,
 		Note:      e.Note,
 		Type:      e.Type,

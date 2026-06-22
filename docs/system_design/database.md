@@ -228,7 +228,7 @@ CREATE TABLE sessions (
 CREATE INDEX sessions_expires_at ON sessions (expires_at);
 ```
 
-`user_roles.tenant_name` 引用 `tenants.identifier`（唯一且不可变）；租户硬删前必须清空成员，随后删除 Tenant 行与 Tenant CR。**bootstrap**：首次 `axisml-platform bootstrap` 插入 `admin` 用户（默认密码 `admin`，`must_change_password=true`，可由 `AXISML_BOOTSTRAP_PASSWORD` 覆盖），并登记内置租户 `default`，映射到 K8s Namespace `axisml-tenant`，经 cluster-manager 创建 Tenant CR（承载 `public` 制品）。
+`user_roles.tenant_name` 引用 `tenants.identifier`（唯一且不可变）；租户硬删前必须清空成员，随后删除 Tenant 行与 Tenant CR。`sessions` 为会话白名单（`jti` 存在且未 `revoked` / 未过期才有效），认证路径对其有效性校验与身份 / RBAC 解析由可选 Redis 缓存前置加速（PostgreSQL 始终为权威，[platform/auth.md §2.1](platform/auth.md#21-会话与身份缓存)）；过期行由 `serve` 后台 sweep 周期清理（`sessions_expires_at` 索引支撑）。**bootstrap**：首次 `axisml-platform bootstrap` 插入 `admin` 用户（默认密码 `admin`，`must_change_password=true`，可由 `AXISML_BOOTSTRAP_PASSWORD` 覆盖），并登记内置租户 `default`，映射到 K8s Namespace `axisml-tenant`，经 cluster-manager 创建 Tenant CR（承载 `public` 制品）。
 
 ### 4.2 定义（jobs / experiments / models / images）
 

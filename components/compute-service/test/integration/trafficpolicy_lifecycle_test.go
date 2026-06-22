@@ -18,7 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	mltp "github.com/axisml/axisml/components/compute-operator/api/mltrafficpolicy/v1alpha1"
-	servicemod "github.com/axisml/axisml/components/compute-service/internal/mlservice"
+	"github.com/axisml/axisml/components/compute-service/internal/store"
 )
 
 // seedReadyMLService inserts a services row already in phase=Ready so the
@@ -26,7 +26,7 @@ import (
 // passes without a running compute-operator.
 func seedReadyMLService(t *testing.T, ctx context.Context, ns, name string) {
 	t.Helper()
-	row := &servicemod.MLService{
+	row := &store.MLService{
 		ID:          uuid.New(),
 		Namespace:   ns,
 		Name:        name,

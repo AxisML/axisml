@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-AxisML is a Kubernetes-native monorepo of independent Go modules. Active components live under `components/`: `tenant-operator`, `compute-operator`, `cluster-manager`, `compute-service`, `artifact-hub`, and `platform/backend` (a contract-only shell that generates `docs/openapi/platform.yaml`; `components/platform/frontend` is still a scaffold). Shared Go test helpers are in `test/testutil`, external CRDs in `test/crds/external`, the manual real-cluster e2e suite in `test/e2e`, and generated OpenAPI specs in `docs/openapi`. Helm charts are split by layer: `deploy/helm/axisml-infra`, `deploy/helm/axisml-system`, and `deploy/helm/axisml-platform`; install order is infra -> system -> platform. Design documents live in `docs/system_design`; update them when behavior or contracts change.
+AxisML is a Kubernetes-native monorepo of independent Go modules. Active components live under `components/`: `tenant-operator`, `compute-operator`, `cluster-manager`, `compute-service`, `artifact-hub`, and `platform/backend` (a contract-only shell that generates `docs/openapi/platform.yaml`; `components/platform-frontend` is still a scaffold). Shared Go test helpers are in `test/testutil`, external CRDs in `test/crds/external`, the manual real-cluster e2e suite in `test/e2e`, and generated OpenAPI specs in `docs/openapi`. Helm charts are split by layer: `deploy/helm/axisml-infra`, `deploy/helm/axisml-system`, and `deploy/helm/axisml-platform`; install order is infra -> system -> platform. Design documents live in `docs/system_design`; update them when behavior or contracts change.
 
 ## Build, Test, and Development Commands
 
@@ -18,7 +18,7 @@ Use the top-level `Makefile` as the command entry point:
 - `make doc-gen` regenerates OpenAPI specs for HTTP services.
 - `make doc-test` verifies generated specs match Go DTOs.
 
-Per-component shortcuts follow `<basename>-<target>`, for example `make compute-service-test` or `make artifact-hub-doc-gen`; the basename is the directory name, so `components/platform/backend` → `backend-test` / `backend-doc-gen`.
+Per-component shortcuts follow `<basename>-<target>`, for example `make compute-service-test` or `make artifact-hub-doc-gen`; the basename is the directory name, so `components/platform-backend` → `platform-backend-test` / `platform-backend-doc-gen`.
 
 ## Coding Style & Naming Conventions
 

@@ -20,63 +20,9 @@ import (
 // compute-service. Drive the HTTP API; assert on the HTTP response, the
 // materialized CR, and (for jobs/services) the real workload.
 
-func TestComputeService_CreateTenantViaAPI(t *testing.T) {
-	ctx := context.Background()
-	name := uniqueName("e2e-apitenant")
-	r, err := h.createTenant(ctx, csCreateTenantReq{
-		Name:      name,
-		Namespace: csNamespaceSpec{Name: name},
-		Quotas:    []csQuotaSpec{{Pool: h.cfg.DefaultPool, Name: "default", Max: map[string]string{"cpu": "2", "memory": "4Gi"}}},
-	})
-	require.NoError(t, err)
-	require.True(t, r.is2xx(), "create tenant: %d: %s", r.status, string(r.body))
-	t.Cleanup(func() { _, _ = h.deleteTenant(context.Background(), name) })
-
-	// Namespace provisioned by tenant-operator.
-	eventually(t, h.cfg.CRProvisionTimeout, func() error { return h.namespaceExists(ctx, name) })
-
-	// GET reflects it.
-	g, err := h.getTenant(ctx, name)
-	require.NoError(t, err)
-	require.True(t, g.is2xx())
-	var tn csTenantResp
-	require.NoError(t, g.decode(&tn))
-	assert.Equal(t, name, tn.Name)
-}
-
-func TestComputeService_QuotaAllocationViaAPI(t *testing.T) {
-	ctx := context.Background()
-	name := uniqueName("e2e-apiquota")
-	r, err := h.createTenant(ctx, csCreateTenantReq{
-		Name:      name,
-		Namespace: csNamespaceSpec{Name: name},
-	})
-	require.NoError(t, err)
-	require.True(t, r.is2xx(), "create tenant: %d: %s", r.status, string(r.body))
-	t.Cleanup(func() { _, _ = h.deleteTenant(context.Background(), name) })
-	eventually(t, h.cfg.CRProvisionTimeout, func() error { return h.namespaceExists(ctx, name) })
-
-	// Allocate a quota via the API.
-	q := csQuotaSpec{Pool: h.cfg.DefaultPool, Name: "default", Max: map[string]string{"cpu": "2", "memory": "4Gi"}}
-	r = h.computeService.mustDo(t, ctx, http.MethodPost, "/api/v1/namespaces/"+name+"/quotas", q)
-	require.True(t, r.is2xx(), "create quota: %d: %s", r.status, string(r.body))
-
-	// ElasticQuota materializes in the namespace.
-	eventually(t, h.cfg.CRProvisionTimeout, func() error {
-		names, err := elasticQuotaNames(ctx, name)
-		if err != nil {
-			return err
-		}
-		if len(names) == 0 {
-			return assertErr("no ElasticQuota in %s yet", name)
-		}
-		return nil
-	})
-}
-
 func TestComputeService_MLRunLifecycleTopToBottom(t *testing.T) {
 	ctx := context.Background()
-	ns := sharedNS()
+	ns := sharedNS(t)
 	quota := sharedQuota(t, ctx)
 	name := uniqueName("e2e-apijob")
 
@@ -114,7 +60,7 @@ func TestComputeService_MLRunLifecycleTopToBottom(t *testing.T) {
 
 func TestComputeService_MLRunCancel(t *testing.T) {
 	ctx := context.Background()
-	ns := sharedNS()
+	ns := sharedNS(t)
 	quota := sharedQuota(t, ctx)
 	name := uniqueName("e2e-apicancel")
 
@@ -147,7 +93,7 @@ func TestComputeService_MLRunCancel(t *testing.T) {
 
 func TestComputeService_KubeproxyPodsAndLogs(t *testing.T) {
 	ctx := context.Background()
-	ns := sharedNS()
+	ns := sharedNS(t)
 	quota := sharedQuota(t, ctx)
 	name := uniqueName("e2e-proxy")
 
@@ -174,7 +120,7 @@ func TestComputeService_KubeproxyPodsAndLogs(t *testing.T) {
 
 func TestComputeService_ServiceLifecycleScaleDelete(t *testing.T) {
 	ctx := context.Background()
-	ns := sharedNS()
+	ns := sharedNS(t)
 	quota := sharedQuota(t, ctx)
 	name := uniqueName("e2e-apisvc")
 
@@ -228,7 +174,7 @@ func TestComputeService_ServiceLifecycleScaleDelete(t *testing.T) {
 
 func TestComputeService_WorkspacePVC(t *testing.T) {
 	ctx := context.Background()
-	ns := sharedNS()
+	ns := sharedNS(t)
 	quota := sharedQuota(t, ctx)
 	name := uniqueName("e2e-workspace")
 
@@ -272,7 +218,7 @@ func TestComputeService_WorkspacePVC(t *testing.T) {
 
 func TestComputeService_UnknownPoolRejected(t *testing.T) {
 	ctx := context.Background()
-	ns := sharedNS()
+	ns := sharedNS(t)
 	quota := sharedQuota(t, ctx)
 	name := uniqueName("e2e-badpool")
 

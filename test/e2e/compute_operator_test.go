@@ -24,7 +24,7 @@ import (
 
 func TestComputeOperator_MLRunRunsToCompletion(t *testing.T) {
 	ctx := context.Background()
-	ns := sharedNS()
+	ns := sharedNS(t)
 	quota := sharedQuota(t, ctx)
 	name := uniqueName("e2e-job")
 
@@ -47,7 +47,7 @@ func TestComputeOperator_MLRunRunsToCompletion(t *testing.T) {
 
 func TestComputeOperator_SchedulerAndQuotaLabels(t *testing.T) {
 	ctx := context.Background()
-	ns := sharedNS()
+	ns := sharedNS(t)
 	quota := sharedQuota(t, ctx)
 	name := uniqueName("e2e-sched")
 
@@ -77,7 +77,7 @@ func TestComputeOperator_SchedulerAndQuotaLabels(t *testing.T) {
 
 func TestComputeOperator_MLRunCancelSuspends(t *testing.T) {
 	ctx := context.Background()
-	ns := sharedNS()
+	ns := sharedNS(t)
 	quota := sharedQuota(t, ctx)
 	name := uniqueName("e2e-cancel")
 
@@ -106,7 +106,7 @@ func TestComputeOperator_MLRunCancelSuspends(t *testing.T) {
 
 func TestComputeOperator_MLServiceDeploymentServes(t *testing.T) {
 	ctx := context.Background()
-	ns := sharedNS()
+	ns := sharedNS(t)
 	quota := sharedQuota(t, ctx)
 	name := uniqueName("e2e-svc")
 
@@ -146,7 +146,7 @@ func TestComputeOperator_MLServiceDeploymentServes(t *testing.T) {
 
 func TestComputeOperator_MLServiceRouteThroughEnvoy(t *testing.T) {
 	ctx := context.Background()
-	ns := sharedNS()
+	ns := sharedNS(t)
 	quota := sharedQuota(t, ctx)
 	name := uniqueName("e2e-route")
 
@@ -178,7 +178,7 @@ func TestComputeOperator_MLServiceRouteThroughEnvoy(t *testing.T) {
 
 func TestComputeOperator_StatefulSetEngine(t *testing.T) {
 	ctx := context.Background()
-	ns := sharedNS()
+	ns := sharedNS(t)
 	quota := sharedQuota(t, ctx)
 	name := uniqueName("e2e-sts")
 
@@ -204,7 +204,7 @@ func TestComputeOperator_StatefulSetEngine(t *testing.T) {
 
 func TestComputeOperator_MLServiceScaleViaCR(t *testing.T) {
 	ctx := context.Background()
-	ns := sharedNS()
+	ns := sharedNS(t)
 	quota := sharedQuota(t, ctx)
 	name := uniqueName("e2e-scale")
 

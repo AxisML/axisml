@@ -56,3 +56,9 @@ dependencies:
     version: "16.2.3"
     repository: "oci://registry-1.docker.io/bitnamicharts"
     condition: database.enabled
+
+  - name: redis
+    alias: cache
+    version: "20.13.4"
+    repository: "oci://registry-1.docker.io/bitnamicharts"
+    condition: cache.enabled

@@ -29,6 +29,10 @@
 
 **AxisML** is a Kubernetes-native ML platform that manages the entire model lifecycle — development, distributed training, artifact management, online inference, and operations — behind one coherent control plane. It pairs a clean tenant/quota model with [Koordinator](https://koordinator.sh) elastic scheduling so teams share GPU capacity without stepping on each other, and routes every workload — native Jobs, Kubeflow trainers, KServe inference — through a single quota-enforced scheduling path.
 
+<p align="center">
+  <img src="docs/screenshots/index.png" alt="AxisML console" width="860">
+</p>
+
 > [!WARNING]
 > **AxisML is in early, active development.** APIs, CRDs, and Helm values change
 > frequently and without notice. Not yet recommended for production — expect

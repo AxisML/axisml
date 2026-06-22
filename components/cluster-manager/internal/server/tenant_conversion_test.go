@@ -28,7 +28,7 @@ func testPool() *axismlv1alpha1.ResourcePool {
 
 func TestFoldQuotas_SumsUnitsByQuantity(t *testing.T) {
 	pools := map[string]*axismlv1alpha1.ResourcePool{"p1": testPool()}
-	sel := []QuotaDTO{{Pool: "p1", Units: []QuotaUnitDTO{{UnitName: "cpu-small", Quantity: 3}}}}
+	sel := []Quota{{Pool: "p1", Units: []QuotaUnit{{UnitName: "cpu-small", Quantity: 3}}}}
 
 	folded, err := FoldQuotas(sel, pools)
 	if err != nil {
@@ -60,12 +60,12 @@ func TestFoldQuotas_Errors(t *testing.T) {
 
 	cases := []struct {
 		name   string
-		sel    []QuotaDTO
+		sel    []Quota
 		reason QuotaErrorReason
 	}{
-		{"unknown pool", []QuotaDTO{{Pool: "ghost", Units: []QuotaUnitDTO{{UnitName: "cpu-small", Quantity: 1}}}}, QuotaPoolNotFound},
-		{"unknown unit", []QuotaDTO{{Pool: "p1", Units: []QuotaUnitDTO{{UnitName: "ghost", Quantity: 1}}}}, QuotaUnitNotFound},
-		{"bad quantity", []QuotaDTO{{Pool: "p1", Units: []QuotaUnitDTO{{UnitName: "cpu-small", Quantity: -1}}}}, QuotaBadQuantity},
+		{"unknown pool", []Quota{{Pool: "ghost", Units: []QuotaUnit{{UnitName: "cpu-small", Quantity: 1}}}}, QuotaPoolNotFound},
+		{"unknown unit", []Quota{{Pool: "p1", Units: []QuotaUnit{{UnitName: "ghost", Quantity: 1}}}}, QuotaUnitNotFound},
+		{"bad quantity", []Quota{{Pool: "p1", Units: []QuotaUnit{{UnitName: "cpu-small", Quantity: -1}}}}, QuotaBadQuantity},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -82,7 +82,7 @@ func TestFoldQuotas_Errors(t *testing.T) {
 }
 
 func TestQuotaAnnotationRoundTrip(t *testing.T) {
-	sel := []QuotaDTO{{Pool: "p1", Units: []QuotaUnitDTO{{UnitName: "cpu-small", Quantity: 3}}}}
+	sel := []Quota{{Pool: "p1", Units: []QuotaUnit{{UnitName: "cpu-small", Quantity: 3}}}}
 	anno, err := QuotasToAnnotation(sel)
 	if err != nil {
 		t.Fatalf("QuotasToAnnotation: %v", err)

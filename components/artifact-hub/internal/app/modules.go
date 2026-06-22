@@ -5,7 +5,6 @@ import (
 
 	"github.com/go-logr/logr"
 	"gorm.io/gorm"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	artmod "github.com/axisml/axisml/components/artifact-hub/internal/artifact"
 	"github.com/axisml/axisml/components/artifact-hub/internal/artifact/handler"
@@ -15,14 +14,14 @@ import (
 	"github.com/axisml/axisml/components/artifact-hub/internal/storage/oci"
 )
 
-// BuildModules constructs the full domain wiring (HTTP routes + background
-// runnables).
+// BuildModules constructs the full domain wiring: the HTTP API modules and the
+// background GC worker. The worker is returned to the caller, which gates it
+// behind leader election.
 func BuildModules(
 	cfg config.Config,
 	gormDB *gorm.DB,
-	_ manager.Manager,
 	log logr.Logger,
-) ([]server.Module, []manager.Runnable, error) {
+) ([]server.Module, *gc.Worker, error) {
 	ociClient := oci.New(oci.Config{
 		Endpoint:    cfg.OCIEndpoint,
 		Scheme:      cfg.OCIScheme,
@@ -37,10 +36,8 @@ func BuildModules(
 	modules := []server.Module{
 		artmod.NewHandler(artifacts),
 	}
-	runnables := []manager.Runnable{
-		gc.New(cfg, gormDB, log.WithName("gc-worker")),
-	}
-	return modules, runnables, nil
+	worker := gc.New(cfg, gormDB, log.WithName("gc-worker"))
+	return modules, worker, nil
 }
 
 // registerHandlers wires Kind handlers into the process-global registry.

@@ -47,7 +47,7 @@ func (h *Handler) ListPods(c *gin.Context) {
 }
 
 func (h *Handler) Patch(c *gin.Context) {
-	var in PatchInput
+	var in server.MLServicePatchRequest
 	if err := c.ShouldBindJSON(&in); err != nil {
 		_ = c.Error(err)
 		return
@@ -112,7 +112,7 @@ func (h *Handler) MLServiceEvents(c *gin.Context) {
 
 func (h *Handler) Create(c *gin.Context) {
 	ns := c.Param("namespace")
-	var in CreateInput
+	var in server.MLServiceCreateRequest
 	if err := c.ShouldBindJSON(&in); err != nil {
 		_ = c.Error(err)
 		return
@@ -160,7 +160,7 @@ func (h *Handler) Get(c *gin.Context) {
 }
 
 func (h *Handler) Scale(c *gin.Context) {
-	var in ScaleInput
+	var in server.MLServiceScaleRequest
 	if err := c.ShouldBindJSON(&in); err != nil {
 		_ = c.Error(err)
 		return

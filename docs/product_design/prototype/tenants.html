@@ -32,6 +32,10 @@
       .q-row { flex-wrap:wrap; }
       .qu-qty { margin-left:auto; }
     }
+    /* 列表内资源配额：多行（资源池 + 用量 / 水位） */
+    .q-meters { display:flex; flex-direction:column; gap:8px; }
+    .qm-row { display:grid; grid-template-columns:92px 60px 1fr; align-items:center; gap:10px; }
+    .qm-num { font-family:var(--font-mono); font-size:12px; color:var(--fg-2); text-align:right; white-space:nowrap; }
   </style>
 </head>
 <body data-nav="tenants">
@@ -50,13 +54,16 @@
 
     <div class="panel">
       <div class="table-wrap"><table class="tbl">
-        <thead><tr><th>租户</th><th>状态</th><th>资源配额</th><th class="num-col">成员</th><th>创建时间</th><th style="text-align:right">操作</th></tr></thead>
+        <thead><tr><th>租户</th><th>状态</th><th style="width:300px">资源配额（用量 / 水位）</th><th class="num-col">成员</th><th class="num-col">活跃任务</th><th class="num-col">在线服务</th><th>创建时间</th><th style="text-align:right">操作</th></tr></thead>
         <tbody>
           <tr>
             <td><span class="t-name mono">llm-lab</span><div class="t-sub">大模型研究院</div></td>
             <td><span class="status status-running"><span class="dot"></span>已激活</span></td>
-            <td><div class="chip-row"><span class="tag mono">gpu-h100 14/16</span><span class="tag mono">cpu-large +1</span></div></td>
-            <td class="num-col">12</td><td class="muted">2026-03-08</td>
+            <td><div class="q-meters">
+              <div class="qm-row"><span class="tag mono">gpu-h100</span><span class="qm-num">14 / 16</span><div class="qbar"><span class="used" style="width:88%"></span><span class="min-mark" style="left:50%"></span></div></div>
+              <div class="qm-row"><span class="tag mono">cpu-large</span><span class="qm-num">3 / 8</span><div class="qbar"><span class="used" style="width:38%;background:var(--success)"></span></div></div>
+            </div></td>
+            <td class="num-col">12</td><td class="num-col">9</td><td class="num-col">3</td><td class="muted">2026-03-08</td>
             <td><div class="row-actions">
               <button class="act" title="资源配额" aria-label="资源配额" data-drawer-open="quotaDrawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg></button>
               <button class="act" title="成员管理" aria-label="成员管理" data-drawer-open="membersDrawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></button>
@@ -66,8 +73,10 @@
           <tr>
             <td><span class="t-name mono">rec-algo</span><div class="t-sub">推荐算法团队</div></td>
             <td><span class="status status-running"><span class="dot"></span>已激活</span></td>
-            <td><div class="chip-row"><span class="tag mono">gpu-a100 6/12</span></div></td>
-            <td class="num-col">8</td><td class="muted">2026-04-02</td>
+            <td><div class="q-meters">
+              <div class="qm-row"><span class="tag mono">gpu-a100</span><span class="qm-num">6 / 12</span><div class="qbar"><span class="used" style="width:50%"></span><span class="min-mark" style="left:33%"></span></div></div>
+            </div></td>
+            <td class="num-col">8</td><td class="num-col">5</td><td class="num-col">2</td><td class="muted">2026-04-02</td>
             <td><div class="row-actions">
               <button class="act" title="资源配额" aria-label="资源配额" data-drawer-open="quotaDrawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg></button>
               <button class="act" title="成员管理" aria-label="成员管理" data-drawer-open="membersDrawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></button>
@@ -77,8 +86,11 @@
           <tr>
             <td><span class="t-name mono">av-perception</span><div class="t-sub">智能驾驶感知</div></td>
             <td><span class="status status-running"><span class="dot"></span>已激活</span></td>
-            <td><div class="chip-row"><span class="tag mono">gpu-l40s 11/20</span><span class="tag mono">gpu-h100 +1</span></div></td>
-            <td class="num-col">15</td><td class="muted">2026-04-19</td>
+            <td><div class="q-meters">
+              <div class="qm-row"><span class="tag mono">gpu-l40s</span><span class="qm-num">11 / 20</span><div class="qbar"><span class="used" style="width:55%"></span><span class="min-mark" style="left:40%"></span></div></div>
+              <div class="qm-row"><span class="tag mono">gpu-h100</span><span class="qm-num">2 / 8</span><div class="qbar"><span class="used" style="width:25%;background:var(--success)"></span></div></div>
+            </div></td>
+            <td class="num-col">15</td><td class="num-col">7</td><td class="num-col">3</td><td class="muted">2026-04-19</td>
             <td><div class="row-actions">
               <button class="act" title="资源配额" aria-label="资源配额" data-drawer-open="quotaDrawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg></button>
               <button class="act" title="成员管理" aria-label="成员管理" data-drawer-open="membersDrawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></button>
@@ -88,8 +100,10 @@
           <tr>
             <td><span class="t-name mono">risk-ai</span><div class="t-sub">风控 AI</div></td>
             <td><span class="status status-stopped"><span class="dot"></span>已禁用</span></td>
-            <td><div class="chip-row"><span class="tag mono">cpu-large 0/8</span></div></td>
-            <td class="num-col">6</td><td class="muted">2026-05-30</td>
+            <td><div class="q-meters">
+              <div class="qm-row"><span class="tag mono">cpu-large</span><span class="qm-num">0 / 8</span><div class="qbar"><span class="used" style="width:0%"></span></div></div>
+            </div></td>
+            <td class="num-col">6</td><td class="num-col">2</td><td class="num-col">1</td><td class="muted">2026-05-30</td>
             <td><div class="row-actions">
               <button class="act" title="资源配额" aria-label="资源配额" data-drawer-open="quotaDrawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg></button>
               <button class="act" title="成员管理" aria-label="成员管理" data-drawer-open="membersDrawer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></button>
