@@ -50,6 +50,9 @@ func TestMain(m *testing.M) {
 	code := m.Run()
 
 	cleanupSharedTenant(ctx)
+	if platformPF != nil {
+		platformPF.Stop() // lazily started by the platform tests; not owned by h
+	}
 	h.close()
 	os.Exit(code)
 }

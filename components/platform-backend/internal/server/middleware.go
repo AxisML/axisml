@@ -49,7 +49,8 @@ func Recovery(log *slog.Logger) gin.HandlerFunc {
 					"panic", rec,
 					"stack", string(debug.Stack()),
 				)
-				WriteError(c, apperrors.Newf(apperrors.ClassInternal, "internal panic: %v", rec))
+				// The panic value is logged above; never render it to the client.
+				WriteError(c, apperrors.New(apperrors.ClassInternal, "internal error"))
 			}
 		}()
 		c.Next()
@@ -57,13 +58,23 @@ func Recovery(log *slog.Logger) gin.HandlerFunc {
 }
 
 // ErrorHandler converts c.Error() entries into problem responses. Runs last so
-// handlers/middleware Next() returns before the error is rendered.
-func ErrorHandler() gin.HandlerFunc {
+// handlers/middleware Next() returns before the error is rendered. For 5xx it
+// logs the full error chain (which WriteError deliberately omits from the
+// response body) keyed by requestID, so the suppressed cause isn't lost.
+func ErrorHandler(log *slog.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Next()
 		if len(c.Errors) == 0 || c.Writer.Written() {
 			return
 		}
-		WriteError(c, c.Errors.Last().Err)
+		err := c.Errors.Last().Err
+		if isServerError(err) {
+			log.Error("request failed",
+				"requestID", c.GetString("requestID"),
+				"path", c.Request.URL.Path,
+				"error", err.Error(),
+			)
+		}
+		WriteError(c, err)
 	}
 }

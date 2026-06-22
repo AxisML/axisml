@@ -72,7 +72,7 @@ func attempt(ctx context.Context, cfg Config, retry time.Duration, fn func(conte
 	if err != nil {
 		return false, fmt.Errorf("acquire lock connection: %w", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	var locked bool
 	if err := conn.QueryRowContext(ctx, "SELECT pg_try_advisory_lock($1)", cfg.Key).Scan(&locked); err != nil {

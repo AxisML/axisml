@@ -44,7 +44,7 @@ func New(opts Options) (*Server, error) {
 		RequestID(),
 		AccessLog(opts.Log),
 		Recovery(opts.Log),
-		ErrorHandler(),
+		ErrorHandler(opts.Log),
 	)
 
 	r.GET("/healthz", func(c *gin.Context) { c.String(http.StatusOK, "ok") })

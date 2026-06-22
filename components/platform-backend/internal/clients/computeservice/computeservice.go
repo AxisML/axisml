@@ -51,8 +51,11 @@ type (
 	Event = gen.Event
 )
 
-// Client wraps the generated compute client.
-type Client struct{ gen *gen.ClientWithResponses }
+// Client wraps the generated compute client. A second client (stream) is used
+// for log-follow / SSE endpoints, which must not carry an overall http.Client
+// timeout (that deadline covers the whole body read and would sever a
+// long-lived follow stream); their lifetime is governed by the request context.
+type Client struct{ gen, stream *gen.ClientWithResponses }
 
 // New builds a compute client for baseURL.
 func New(baseURL string, timeout time.Duration) (*Client, error) {
@@ -63,7 +66,19 @@ func New(baseURL string, timeout time.Duration) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Client{gen: c}, nil
+	// Streaming client: bound connection setup and time-to-first-byte with
+	// timeout, but no overall deadline — the stream runs until the caller's
+	// context is cancelled.
+	tr := http.DefaultTransport.(*http.Transport).Clone()
+	tr.ResponseHeaderTimeout = timeout
+	sc, err := gen.NewClientWithResponses(baseURL,
+		gen.WithHTTPClient(&http.Client{Transport: tr}),
+		gen.WithRequestEditorFn(reqedit.Identity),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &Client{gen: c, stream: sc}, nil
 }
 
 func listParams(labelSelector string) *gen.ListMLRunsParams {
