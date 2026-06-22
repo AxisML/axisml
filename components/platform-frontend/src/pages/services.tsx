@@ -231,54 +231,54 @@ export default function Services() {
         </Button>
       }
     >
-      <Card className="overflow-hidden p-0">
-        <div className="flex flex-wrap items-center gap-3 border-b p-4">
-          <div className="relative max-w-xs flex-1">
-            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              className="pl-8"
-              placeholder={t("services.searchPlaceholder")}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-          <Select value={phase || ALL} onValueChange={(v) => setPhase(v === ALL ? "" : v)}>
-            <SelectTrigger className="min-w-40">
-              <SelectValue placeholder={t("services.statusAll")} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>{t("services.statusAll")}</SelectItem>
-              {phaseOptions.map((p) => (
-                <SelectItem key={p} value={p}>
-                  {t(`phase.${p}`, { defaultValue: p })}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={pool || ALL} onValueChange={(v) => setPool(v === ALL ? "" : v)}>
-            <SelectTrigger className="min-w-40">
-              <SelectValue placeholder={t("services.poolAll")} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>{t("services.poolAll")}</SelectItem>
-              {poolOptions.map((p) => (
-                <SelectItem key={p} value={p}>
-                  {p}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button
-            variant="outline"
-            onClick={() => {
-              setSearch("");
-              setPhase("");
-              setPool("");
-            }}
-          >
-            {t("common.reset")}
-          </Button>
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <div className="relative max-w-xs flex-1">
+          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            className="pl-8"
+            placeholder={t("services.searchPlaceholder")}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
+        <Select value={phase || ALL} onValueChange={(v) => setPhase(v === ALL ? "" : v)}>
+          <SelectTrigger className="min-w-40">
+            <SelectValue placeholder={t("services.statusAll")} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>{t("services.statusAll")}</SelectItem>
+            {phaseOptions.map((p) => (
+              <SelectItem key={p} value={p}>
+                {t(`phase.${p}`, { defaultValue: p })}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={pool || ALL} onValueChange={(v) => setPool(v === ALL ? "" : v)}>
+          <SelectTrigger className="min-w-40">
+            <SelectValue placeholder={t("services.poolAll")} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>{t("services.poolAll")}</SelectItem>
+            {poolOptions.map((p) => (
+              <SelectItem key={p} value={p}>
+                {p}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button
+          variant="outline"
+          onClick={() => {
+            setSearch("");
+            setPhase("");
+            setPool("");
+          }}
+        >
+          {t("common.reset")}
+        </Button>
+      </div>
+      <Card className="overflow-hidden p-0">
         <DataTable
           columns={columns}
           data={rows}

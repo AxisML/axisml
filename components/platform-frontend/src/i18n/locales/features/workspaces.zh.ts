@@ -22,7 +22,7 @@ export default {
     openTerminal: "打开终端",
     availableAfterStart: "工作区启动后可用",
     start: "启动工作区",
-    stop: "停止工作区",
+    stop: "停止",
     remove: "删除工作区",
     // 操作反馈
     starting: "工作区启动中…",

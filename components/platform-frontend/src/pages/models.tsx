@@ -51,6 +51,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Field, FieldGroup, FieldLabel, FieldDescription } from "@/components/ui/field";
+import { cn } from "@/lib/utils";
 
 interface ModelRow {
   name: string;
@@ -334,21 +335,22 @@ export default function Models() {
 }
 
 // ── Version list drawer ───────────────────────────────────────────────────────
-type StatusVariant = "success" | "info" | "destructive" | "secondary";
-
+// Prototype renders version status as a dot + label `.status` indicator (see
+// PhaseTag) rather than a filled badge — tone drives the dot/text colour and
+// `pending` adds the breathing pulse used while a version is still uploading.
 function statusMeta(
   status: sdk.ModelStatus,
   t: (k: string) => string,
-): { variant: StatusVariant; label: string; pending: boolean } {
+): { dot: string; text: string; label: string; pending: boolean } {
   switch (status) {
     case "Ready":
-      return { variant: "success", label: t("models.statusReady"), pending: false };
+      return { dot: "bg-success", text: "text-foreground", label: t("models.statusReady"), pending: false };
     case "Uploading":
-      return { variant: "info", label: t("models.statusUploading"), pending: true };
+      return { dot: "bg-warning", text: "text-warning", label: t("models.statusUploading"), pending: true };
     case "Failed":
-      return { variant: "destructive", label: t("models.statusFailed"), pending: false };
+      return { dot: "bg-destructive", text: "text-destructive", label: t("models.statusFailed"), pending: false };
     default:
-      return { variant: "secondary", label: status, pending: false };
+      return { dot: "bg-muted-foreground", text: "text-muted-foreground", label: status, pending: false };
   }
 }
 
@@ -429,48 +431,29 @@ function VersionsDrawer({
               </EmptyHeader>
             </Empty>
           ) : (
-            <ul className="flex flex-col">
-              {filtered.map((v, i) => {
+            <div className="flex flex-col gap-3">
+              {filtered.map((v) => {
                 const meta = statusMeta(v.status, t);
                 return (
-                  <li key={v.version}>
-                    {i > 0 && <Separator />}
-                    <div className="flex items-start gap-3 py-3">
-                      <div className="min-w-0 flex-1">
-                        <div className="mb-1 flex flex-wrap items-center gap-2">
-                          <span className="font-mono font-medium text-foreground">{v.version}</span>
-                          <Badge variant={meta.variant}>{meta.label}</Badge>
-                          {v.source && <Badge variant="outline">{v.source}</Badge>}
-                        </div>
-                        {v.description && (
-                          <div className="mb-1 text-sm text-muted-foreground">{v.description}</div>
-                        )}
-                        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                          <span className={"font-mono " + (meta.pending ? "" : "text-foreground")}>
-                            {v.uri ?? t("models.addrPending")}
-                          </span>
-                          {v.uri && (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon-xs"
-                                  onClick={() => {
-                                    void navigator.clipboard?.writeText(v.uri ?? "");
-                                    toast(t("models.addrCopied"));
-                                  }}
-                                >
-                                  <Copy />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>{t("common.actions")}</TooltipContent>
-                            </Tooltip>
+                  <div
+                    key={v.version}
+                    className="rounded-lg border p-4 transition-colors hover:border-primary/30"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono text-[15px] font-semibold text-foreground">{v.version}</span>
+                      <span className={cn("inline-flex items-center gap-1.5 text-xs font-medium", meta.text)}>
+                        <span
+                          className={cn(
+                            "size-[7px] shrink-0 rounded-full",
+                            meta.dot,
+                            meta.pending && "status-pulse",
                           )}
-                          {v.owner && <span>· {v.owner}</span>}
-                        </div>
-                      </div>
+                        />
+                        {meta.label}
+                      </span>
+                      {v.source && <Badge variant="outline">{v.source}</Badge>}
                       {!meta.pending && (
-                        <div className="flex items-center gap-0.5">
+                        <div className="ml-auto flex items-center gap-0.5">
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button variant="ghost" size="icon-sm" onClick={() => onPull(v.version)}>
@@ -495,10 +478,42 @@ function VersionsDrawer({
                         </div>
                       )}
                     </div>
-                  </li>
+                    {v.description && (
+                      <div className="mt-2 text-sm text-muted-foreground">{v.description}</div>
+                    )}
+                    <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                      <span className={cn("font-mono break-all", meta.pending ? "" : "text-foreground")}>
+                        {v.uri ?? t("models.addrPending")}
+                      </span>
+                      {v.uri && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon-xs"
+                              onClick={() => {
+                                void navigator.clipboard?.writeText(v.uri ?? "");
+                                toast(t("models.addrCopied"));
+                              }}
+                            >
+                              <Copy />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>{t("common.actions")}</TooltipContent>
+                        </Tooltip>
+                      )}
+                      {(v.owner || v.createdAt) && (
+                        <span className="ml-auto whitespace-nowrap pl-3">
+                          {[v.owner, v.createdAt && dayjs(v.createdAt).fromNow()]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 );
               })}
-            </ul>
+            </div>
           )}
         </div>
       </SheetContent>

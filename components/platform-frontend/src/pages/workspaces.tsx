@@ -224,84 +224,84 @@ export default function Workspaces() {
         </Button>
       }
     >
-      <Card className="mb-4 p-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative max-w-xs flex-1">
-            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              className="pl-8"
-              placeholder={t("workspaces.searchPlaceholder")}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-          <Select value={phase || ALL} onValueChange={(v) => setPhase(v === ALL ? "" : v)}>
-            <SelectTrigger className="min-w-36">
-              <SelectValue placeholder={t("workspaces.statusAll")} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>{t("workspaces.statusAll")}</SelectItem>
-              {["Running", "Starting", "Stopped"].map((p) => (
-                <SelectItem key={p} value={p}>
-                  {t(`phase.${p}`)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={pool || ALL} onValueChange={(v) => setPool(v === ALL ? "" : v)}>
-            <SelectTrigger className="min-w-36">
-              <SelectValue placeholder={t("workspaces.poolAll")} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>{t("workspaces.poolAll")}</SelectItem>
-              {poolOptions.map((o) => (
-                <SelectItem key={o} value={o}>
-                  {o}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={creator || ALL} onValueChange={(v) => setCreator(v === ALL ? "" : v)}>
-            <SelectTrigger className="min-w-36">
-              <SelectValue placeholder={t("workspaces.creatorAll")} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>{t("workspaces.creatorAll")}</SelectItem>
-              {creatorOptions.map((o) => (
-                <SelectItem key={o} value={o}>
-                  {o}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button
-            variant="outline"
-            onClick={() => {
-              setSearch("");
-              setPhase("");
-              setPool("");
-              setCreator("");
-            }}
-          >
-            {t("common.reset")}
-          </Button>
-          <div className="grow" />
-          <ToggleGroup
-            type="single"
-            value={view}
-            onValueChange={(v) => v && setView(v as "cards" | "list")}
-          >
-            <ToggleGroupItem value="cards" aria-label={t("workspaces.viewCards")}>
-              <LayoutGrid data-icon="inline-start" />
-              {t("workspaces.viewCards")}
-            </ToggleGroupItem>
-            <ToggleGroupItem value="list" aria-label={t("workspaces.viewList")}>
-              <ListIcon data-icon="inline-start" />
-              {t("workspaces.viewList")}
-            </ToggleGroupItem>
-          </ToggleGroup>
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <div className="relative max-w-xs flex-1">
+          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            className="pl-8"
+            placeholder={t("workspaces.searchPlaceholder")}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
-      </Card>
+        <Select value={phase || ALL} onValueChange={(v) => setPhase(v === ALL ? "" : v)}>
+          <SelectTrigger className="min-w-36">
+            <SelectValue placeholder={t("workspaces.statusAll")} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>{t("workspaces.statusAll")}</SelectItem>
+            {["Running", "Starting", "Stopped"].map((p) => (
+              <SelectItem key={p} value={p}>
+                {t(`phase.${p}`)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={pool || ALL} onValueChange={(v) => setPool(v === ALL ? "" : v)}>
+          <SelectTrigger className="min-w-36">
+            <SelectValue placeholder={t("workspaces.poolAll")} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>{t("workspaces.poolAll")}</SelectItem>
+            {poolOptions.map((o) => (
+              <SelectItem key={o} value={o}>
+                {o}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={creator || ALL} onValueChange={(v) => setCreator(v === ALL ? "" : v)}>
+          <SelectTrigger className="min-w-36">
+            <SelectValue placeholder={t("workspaces.creatorAll")} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>{t("workspaces.creatorAll")}</SelectItem>
+            {creatorOptions.map((o) => (
+              <SelectItem key={o} value={o}>
+                {o}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button
+          variant="outline"
+          onClick={() => {
+            setSearch("");
+            setPhase("");
+            setPool("");
+            setCreator("");
+          }}
+        >
+          {t("common.reset")}
+        </Button>
+        <div className="grow" />
+        <ToggleGroup
+          type="single"
+          variant="outline"
+          spacing={0}
+          value={view}
+          onValueChange={(v) => v && setView(v as "cards" | "list")}
+        >
+          <ToggleGroupItem value="cards" aria-label={t("workspaces.viewCards")}>
+            <LayoutGrid data-icon="inline-start" />
+            {t("workspaces.viewCards")}
+          </ToggleGroupItem>
+          <ToggleGroupItem value="list" aria-label={t("workspaces.viewList")}>
+            <ListIcon data-icon="inline-start" />
+            {t("workspaces.viewList")}
+          </ToggleGroupItem>
+        </ToggleGroup>
+      </div>
 
       {view === "cards" ? (
         <CardsView
