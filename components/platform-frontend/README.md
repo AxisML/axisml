@@ -29,10 +29,11 @@ src/
   │   ├── generated/    GENERATED client + types (do not edit; run `make gen-api`)
   │   └── hooks/        react-query wrappers over the generated SDK
   ├── app/              Store (role/tenant/theme/lang), UI services (toast/confirm), router
-  ├── shell/            App shell — Sidebar + Topbar (ported from the prototype shell)
-  ├── components/       Shared UI (Icon, Drawer, Tabs, Segmented, RunBar, form widgets)
+  ├── components/       Shared UI widgets (page-container, data-table, run-strip, …)
+  │   ├── layout/       App shell — app-shell + sidebar + topbar
+  │   └── ui/           shadcn/ui primitives (added via the shadcn CLI)
   ├── pages/            One component per prototype page
-  └── styles/app.css    Design system (ported from the prototype)
+  └── styles/tailwind.css  Tailwind layers + design tokens
 CONVENTIONS.md          Page-authoring rules (prototype → JSX)
 ```
 

@@ -5,23 +5,24 @@ import {
   Trash2,
   CloudDownload,
   Copy,
-  Container,
+  Database,
+  Inbox,
   X,
   LayoutGrid,
   List as ListIcon,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import dayjs from "dayjs";
-import { useImages, useImageVersions } from "@/api/hooks";
+import { useModels, useModelVersions } from "@/api/hooks";
 import { useApiMutation } from "@/api/mutations";
 import * as sdk from "@/api/generated";
 import { useApp } from "@/app/store";
 import { useUI } from "@/app/ui";
-import { PageContainer } from "@/components/PageContainer";
-import { FieldSection } from "@/components/FieldSection";
-import { DataTable, type Column } from "@/components/DataTable";
+import { PageContainer } from "@/components/page-container";
+import { FieldSection } from "@/components/field-section";
+import { DataTable, type Column } from "@/components/data-table";
 import { USE_MOCK } from "@/api/mock";
-import { imageVersions } from "@/api/mock/data";
+import { modelVersions } from "@/api/mock/data";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -50,23 +51,23 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
 
-interface ImageRow {
+interface ModelRow {
   name: string;
   desc: string;
-  purpose: string;
+  framework: string;
   latest: string;
   versions: number;
   updated: string;
 }
 
 type DrawerState =
-  | { kind: "versions"; image: string; desc: string }
-  | { kind: "pull"; image: string; version: string; uri: string }
+  | { kind: "versions"; model: string; desc: string; framework: string }
+  | { kind: "pull"; model: string; version: string }
   | { kind: "new" }
-  | { kind: "add"; image: string };
+  | { kind: "upload"; model: string };
 
-export default function Images() {
-  const q = useImages();
+export default function Models() {
+  const q = useModels();
   const { t } = useTranslation();
   const { tenant } = useApp();
   const { confirm } = useUI();
@@ -74,19 +75,22 @@ export default function Images() {
   const [search, setSearch] = useState("");
   const [drawer, setDrawer] = useState<DrawerState | null>(null);
 
-  const delImage = useApiMutation(
-    (name: string) => sdk.deleteImageDefinition({ path: { tenant, name } }),
-    { invalidate: [["images"]], success: t("images.imageDeleted") },
+  const delModel = useApiMutation(
+    (name: string) => sdk.deleteModelDefinition({ path: { tenant, name } }),
+    { invalidate: [["models"]], success: t("models.modelDeleted") },
   );
 
-  const allRows: ImageRow[] = useMemo(
+  const allRows: ModelRow[] = useMemo(
     () =>
       q.data?.items?.map((m) => {
-        const vs = USE_MOCK ? imageVersions(m.name) : [];
+        // Version roll-ups aren't carried by the list endpoint; under mock we
+        // derive latest/count from the version fixtures so cards read like the
+        // prototype, otherwise stay honest ("—" / 0).
+        const vs = USE_MOCK ? modelVersions(m.name) : [];
         return {
           name: m.name,
           desc: m.description ?? m.displayName ?? "",
-          purpose: (m.labels?.purpose as string) ?? "—",
+          framework: (m.labels?.framework as string) ?? "—",
           latest: vs[0]?.version ?? "—",
           versions: vs.length,
           updated: m.updatedAt ?? m.createdAt ?? "",
@@ -103,20 +107,21 @@ export default function Images() {
     );
   }, [allRows, search]);
 
-  const openVersions = (r: ImageRow) => setDrawer({ kind: "versions", image: r.name, desc: r.desc });
+  const openVersions = (r: ModelRow) =>
+    setDrawer({ kind: "versions", model: r.name, desc: r.desc, framework: r.framework });
 
-  const onDeleteImage = (r: ImageRow) =>
+  const onDeleteModel = (r: ModelRow) =>
     confirm({
-      title: t("images.deleteImageTitle", { name: r.name }),
-      desc: t("images.deleteImageDesc"),
+      title: t("models.deleteModelTitle", { name: r.name }),
+      desc: t("models.deleteModelDesc"),
       okLabel: t("common.confirmDelete"),
-      onConfirm: () => delImage.mutate(r.name),
+      onConfirm: () => delModel.mutate(r.name),
     });
 
-  const columns: Column<ImageRow>[] = [
+  const columns: Column<ModelRow>[] = [
     {
       key: "name",
-      title: t("images.colName"),
+      title: t("models.colName"),
       render: (r) => (
         <button type="button" className="min-w-0 text-left" onClick={() => openVersions(r)}>
           <div className="font-mono font-medium text-info hover:underline">{r.name}</div>
@@ -125,32 +130,32 @@ export default function Images() {
       ),
     },
     {
-      key: "purpose",
-      title: t("images.colPurpose"),
+      key: "framework",
+      title: t("models.colFramework"),
       width: 140,
       render: (r) =>
-        r.purpose && r.purpose !== "—" ? (
-          <Badge variant="secondary">{r.purpose}</Badge>
+        r.framework && r.framework !== "—" ? (
+          <Badge variant="secondary">{r.framework}</Badge>
         ) : (
           <span className="text-muted-foreground">—</span>
         ),
     },
     {
       key: "latest",
-      title: t("images.colLatest"),
+      title: t("models.colLatest"),
       width: 130,
       render: (r) => <span className="font-mono text-muted-foreground">{r.latest}</span>,
     },
     {
       key: "versions",
-      title: t("images.colVersions"),
+      title: t("models.colVersions"),
       width: 90,
       align: "right",
       render: (r) => <span className="font-mono">{r.versions}</span>,
     },
     {
       key: "updated",
-      title: t("images.colUpdated"),
+      title: t("models.colUpdated"),
       width: 150,
       render: (r) => (
         <span className="text-muted-foreground">{r.updated ? dayjs(r.updated).fromNow() : "—"}</span>
@@ -163,10 +168,10 @@ export default function Images() {
       align: "right",
       render: (r) => (
         <div className="flex items-center justify-end gap-0.5">
-          <Button variant="link" size="sm" onClick={() => setDrawer({ kind: "add", image: r.name })}>
-            {t("images.addVersion")}
+          <Button variant="link" size="sm" onClick={() => setDrawer({ kind: "upload", model: r.name })}>
+            {t("models.addVersion")}
           </Button>
-          <Button variant="link" size="sm" className="text-destructive" onClick={() => onDeleteImage(r)}>
+          <Button variant="link" size="sm" className="text-destructive" onClick={() => onDeleteModel(r)}>
             {t("common.delete")}
           </Button>
         </div>
@@ -176,13 +181,13 @@ export default function Images() {
 
   return (
     <PageContainer
-      breadcrumb={[t("nav.assetCenter"), t("nav.images")]}
-      title={t("images.title")}
-      subtitle={t("images.subtitle")}
+      breadcrumb={[t("nav.assetCenter"), t("nav.models")]}
+      title={t("models.title")}
+      subtitle={t("models.subtitle")}
       extra={
         <Button onClick={() => setDrawer({ kind: "new" })}>
           <Plus data-icon="inline-start" />
-          {t("images.newImage")}
+          {t("models.newModel")}
         </Button>
       }
     >
@@ -191,7 +196,7 @@ export default function Images() {
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             className="pl-8"
-            placeholder={t("images.searchPlaceholder")}
+            placeholder={t("models.searchPlaceholder")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -204,13 +209,13 @@ export default function Images() {
           value={view}
           onValueChange={(v) => v && setView(v as "cards" | "list")}
         >
-          <ToggleGroupItem value="cards" aria-label={t("images.viewCards")}>
+          <ToggleGroupItem value="cards" aria-label={t("models.viewCards")}>
             <LayoutGrid data-icon="inline-start" />
-            {t("images.viewCards")}
+            {t("models.viewCards")}
           </ToggleGroupItem>
-          <ToggleGroupItem value="list" aria-label={t("images.viewList")}>
+          <ToggleGroupItem value="list" aria-label={t("models.viewList")}>
             <ListIcon data-icon="inline-start" />
-            {t("images.viewList")}
+            {t("models.viewList")}
           </ToggleGroupItem>
         </ToggleGroup>
       </div>
@@ -233,7 +238,7 @@ export default function Images() {
           <Empty className="border">
             <EmptyHeader>
               <EmptyMedia variant="icon">
-                <Container />
+                <Database />
               </EmptyMedia>
               <EmptyTitle>{q.isError ? t("common.loadFailed") : t("common.noData")}</EmptyTitle>
             </EmptyHeader>
@@ -249,7 +254,7 @@ export default function Images() {
                 >
                   <div className="mb-2 flex items-start gap-3">
                     <span className="grid size-9 shrink-0 place-items-center rounded-md bg-muted text-foreground">
-                      <Container className="size-4" />
+                      <Database className="size-4" />
                     </span>
                     <div className="min-w-0 flex-1">
                       <div className="truncate font-mono font-medium text-foreground">{r.name}</div>
@@ -262,7 +267,7 @@ export default function Images() {
                           className="text-destructive"
                           onClick={(e) => {
                             e.stopPropagation();
-                            onDeleteImage(r);
+                            onDeleteModel(r);
                           }}
                         >
                           <Trash2 />
@@ -274,7 +279,7 @@ export default function Images() {
                   <p className="mb-3 line-clamp-2 min-h-[2.5rem] text-sm text-muted-foreground">{r.desc}</p>
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-mono text-muted-foreground">
-                      {r.latest} · {r.versions} {t("images.versionsSuffix")}
+                      {r.latest} · {r.versions} {t("models.versionsSuffix")}
                     </span>
                     <span className="text-muted-foreground">
                       {r.updated ? dayjs(r.updated).fromNow() : "—"}
@@ -284,7 +289,7 @@ export default function Images() {
               ))}
             </div>
             <div className="mt-4 text-sm text-muted-foreground">
-              {t("images.total", { count: rows.length })}
+              {t("models.total", { count: rows.length })}
             </div>
           </>
         )
@@ -302,18 +307,19 @@ export default function Images() {
 
       {drawer?.kind === "versions" && (
         <VersionsDrawer
-          image={drawer.image}
+          model={drawer.model}
           desc={drawer.desc}
+          framework={drawer.framework}
           onClose={() => setDrawer(null)}
-          onPull={(version, uri) => setDrawer({ kind: "pull", image: drawer.image, version, uri })}
-          onAdd={() => setDrawer({ kind: "add", image: drawer.image })}
+          onPull={(version) => setDrawer({ kind: "pull", model: drawer.model, version })}
+          onUpload={() => setDrawer({ kind: "upload", model: drawer.model })}
         />
       )}
       {drawer?.kind === "pull" && (
-        <PullDrawer image={drawer.image} version={drawer.version} uri={drawer.uri} onClose={() => setDrawer(null)} />
+        <PullDrawer model={drawer.model} version={drawer.version} onClose={() => setDrawer(null)} />
       )}
-      {drawer?.kind === "new" && <NewImageDrawer onClose={() => setDrawer(null)} />}
-      {drawer?.kind === "add" && <AddVersionDrawer image={drawer.image} onClose={() => setDrawer(null)} />}
+      {drawer?.kind === "new" && <NewModelDrawer onClose={() => setDrawer(null)} />}
+      {drawer?.kind === "upload" && <UploadDrawer model={drawer.model} onClose={() => setDrawer(null)} />}
     </PageContainer>
   );
 }
@@ -322,43 +328,45 @@ export default function Images() {
 type StatusVariant = "success" | "info" | "destructive" | "secondary";
 
 function statusMeta(
-  status: sdk.ImageStatus,
+  status: sdk.ModelStatus,
   t: (k: string) => string,
 ): { variant: StatusVariant; label: string; pending: boolean } {
   switch (status) {
     case "Ready":
-      return { variant: "success", label: t("images.statusReady"), pending: false };
+      return { variant: "success", label: t("models.statusReady"), pending: false };
     case "Uploading":
-      return { variant: "info", label: t("images.statusUploading"), pending: true };
+      return { variant: "info", label: t("models.statusUploading"), pending: true };
     case "Failed":
-      return { variant: "destructive", label: t("images.statusFailed"), pending: false };
+      return { variant: "destructive", label: t("models.statusFailed"), pending: false };
     default:
       return { variant: "secondary", label: status, pending: false };
   }
 }
 
 function VersionsDrawer({
-  image,
+  model,
   desc,
+  framework,
   onClose,
   onPull,
-  onAdd,
+  onUpload,
 }: {
-  image: string;
+  model: string;
   desc: string;
+  framework: string;
   onClose: () => void;
-  onPull: (version: string, uri: string) => void;
-  onAdd: () => void;
+  onPull: (version: string) => void;
+  onUpload: () => void;
 }) {
   const { t } = useTranslation();
   const { tenant } = useApp();
   const { toast, confirm } = useUI();
   const [search, setSearch] = useState("");
-  const versQ = useImageVersions(image);
+  const versQ = useModelVersions(model);
 
   const delVer = useApiMutation(
-    (version: string) => sdk.deleteImage({ path: { tenant, name: image, version } }),
-    { invalidate: [["images"]], success: t("images.verDeleted") },
+    (version: string) => sdk.deleteModel({ path: { tenant, name: model, version } }),
+    { invalidate: [["models"]], success: t("models.verDeleted") },
   );
 
   const items = versQ.data?.items ?? [];
@@ -370,18 +378,18 @@ function VersionsDrawer({
 
   const onDeleteVer = (version: string) =>
     confirm({
-      title: t("images.deleteVerTitle", { version }),
-      desc: t("images.deleteVerDesc"),
+      title: t("models.deleteVerTitle", { version }),
+      desc: t("models.deleteVerDesc"),
       okLabel: t("common.confirmDelete"),
       onConfirm: () => delVer.mutate(version),
     });
 
   return (
     <Sheet open onOpenChange={(o) => !o && onClose()}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[640px]">
+      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[760px]">
         <SheetHeader className="border-b">
-          <SheetTitle className="font-mono">{image}</SheetTitle>
-          <p className="text-xs text-muted-foreground">{desc || t("images.verImage")}</p>
+          <SheetTitle className="font-mono">{model}</SheetTitle>
+          <p className="text-xs text-muted-foreground">{`${desc || t("models.verWeights")} · ${framework}`}</p>
         </SheetHeader>
 
         <div className="flex flex-1 flex-col overflow-auto px-6 py-4">
@@ -390,14 +398,14 @@ function VersionsDrawer({
               <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 className="pl-8"
-                placeholder={t("images.verSearchPlaceholder")}
+                placeholder={t("models.verSearchPlaceholder")}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-            <Button onClick={onAdd}>
+            <Button onClick={onUpload}>
               <Plus data-icon="inline-start" />
-              {t("images.addVersion")}
+              {t("models.addVersion")}
             </Button>
           </div>
 
@@ -430,7 +438,7 @@ function VersionsDrawer({
                         )}
                         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                           <span className={"font-mono " + (meta.pending ? "" : "text-foreground")}>
-                            {v.uri ?? t("images.addrPending")}
+                            {v.uri ?? t("models.addrPending")}
                           </span>
                           {v.uri && (
                             <Tooltip>
@@ -440,7 +448,7 @@ function VersionsDrawer({
                                   size="icon-xs"
                                   onClick={() => {
                                     void navigator.clipboard?.writeText(v.uri ?? "");
-                                    toast(t("images.addrCopied"));
+                                    toast(t("models.addrCopied"));
                                   }}
                                 >
                                   <Copy />
@@ -456,15 +464,11 @@ function VersionsDrawer({
                         <div className="flex items-center gap-0.5">
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                onClick={() => onPull(v.version, v.uri ?? "")}
-                              >
+                              <Button variant="ghost" size="icon-sm" onClick={() => onPull(v.version)}>
                                 <CloudDownload />
                               </Button>
                             </TooltipTrigger>
-                            <TooltipContent>{t("images.pullTitle")}</TooltipContent>
+                            <TooltipContent>{t("models.pullTitle")}</TooltipContent>
                           </Tooltip>
                           <Tooltip>
                             <TooltipTrigger asChild>
@@ -494,75 +498,113 @@ function VersionsDrawer({
 }
 
 // ── Pull-command drawer ───────────────────────────────────────────────────────
-function PullDrawer({ image, version, uri, onClose }: { image: string; version: string; uri: string; onClose: () => void }) {
+function PullDrawer({ model, version, onClose }: { model: string; version: string; onClose: () => void }) {
   const { t } = useTranslation();
+  const { tenant } = useApp();
   const { toast } = useUI();
-  const ref = uri || `zot.axisml.internal/<tenant>/${image}:${version}`;
-  const cmd = `docker login zot.axisml.internal -u <user> -p <token>\ndocker pull ${ref}`;
+  const resolveQ = useModelResolve(model, version, tenant);
+  const cmd = resolveQ.uri ? `docker pull ${resolveQ.uri}` : t("models.pullResolving");
 
   return (
     <Sheet open onOpenChange={(o) => !o && onClose()}>
       <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[520px]">
         <SheetHeader className="border-b">
-          <SheetTitle>{t("images.pullTitle")}</SheetTitle>
-          <p className="font-mono text-xs text-muted-foreground">{`${image}:${version}`}</p>
+          <SheetTitle>{t("models.pullTitle")}</SheetTitle>
+          <p className="font-mono text-xs text-muted-foreground">{`${model}@${version}`}</p>
         </SheetHeader>
 
         <div className="flex-1 overflow-auto px-6 py-4">
-          <p className="mb-3 text-sm text-muted-foreground">{t("images.pullHint")}</p>
+          <p className="mb-3 text-sm text-muted-foreground">{t("models.pullHint")}</p>
           <pre className="overflow-x-auto rounded-md border bg-muted p-3 font-mono text-xs text-foreground">
             {cmd}
           </pre>
           <Button
             variant="outline"
             className="mt-3"
+            disabled={!resolveQ.uri}
             onClick={() => {
               void navigator.clipboard?.writeText(cmd);
-              toast(t("images.commandCopied"));
+              toast(t("models.commandCopied"));
             }}
           >
             <Copy data-icon="inline-start" />
-            {t("images.copyCommand")}
+            {t("models.copyCommand")}
           </Button>
         </div>
 
         <SheetFooter className="flex-row justify-end border-t">
-          <Button onClick={onClose}>{t("images.done")}</Button>
+          <Button onClick={onClose}>{t("models.done")}</Button>
         </SheetFooter>
       </SheetContent>
     </Sheet>
   );
 }
 
-// ── New-image drawer ──────────────────────────────────────────────────────────
-interface NewImageValues {
-  name: string;
-  purpose: string;
-  description: string;
+// Resolve a version's pull URI on demand (thin local query; not a shared hook).
+function useModelResolve(model: string, version: string, tenant: string): { uri?: string } {
+  const q = useModelVersions(model);
+  // Versions list already carries the URI; resolve endpoint mints temp creds but
+  // the displayed pull target is the version URI. Fall back to a live resolve only
+  // if the version row lacks one.
+  const fromList = q.data?.items?.find((v) => v.version === version)?.uri;
+  void tenant;
+  return { uri: fromList };
 }
 
-function NewImageDrawer({ onClose }: { onClose: () => void }) {
+// ── New-model drawer ──────────────────────────────────────────────────────────
+const TASK_OPTIONS = [
+  "Text Generation",
+  "Text Classification",
+  "Question Answering",
+  "Summarization",
+  "Translation",
+  "Feature Extraction",
+  "Image Classification",
+  "Object Detection",
+  "Automatic Speech Recognition",
+  "Text-to-Image",
+];
+const FRAMEWORK_OPTIONS = ["PyTorch", "Safetensors", "Transformers", "TensorFlow", "JAX", "ONNX", "GGUF"];
+const NONE = "__none__";
+
+interface NewModelValues {
+  name: string;
+  description: string;
+  tasks: string[];
+  framework: string;
+  params: string;
+}
+
+function NewModelDrawer({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
   const { tenant } = useApp();
   const [submitted, setSubmitted] = useState(false);
-  const [v, setV] = useState<NewImageValues>({ name: "", purpose: "training", description: "" });
-  const set = <K extends keyof NewImageValues>(k: K, val: NewImageValues[K]) =>
+  const [v, setV] = useState<NewModelValues>({
+    name: "",
+    description: "",
+    tasks: [],
+    framework: "",
+    params: "",
+  });
+  const set = <K extends keyof NewModelValues>(k: K, val: NewModelValues[K]) =>
     setV((prev) => ({ ...prev, [k]: val }));
+  const [taskInput, setTaskInput] = useState("");
   const [customTags, setCustomTags] = useState<Record<string, string>>({});
   const [ctKey, setCtKey] = useState("");
   const [ctVal, setCtVal] = useState("");
 
-  const PURPOSE_OPTIONS = [
-    { value: "training", label: t("images.purposeTraining") },
-    { value: "inference", label: t("images.purposeInference") },
-    { value: "workspace", label: t("images.purposeWorkspace") },
-    { value: "custom", label: t("images.purposeCustom") },
-  ];
-
   const create = useApiMutation(
-    (body: sdk.ArtifactDefinitionCreateRequest) => sdk.createImageDefinition({ path: { tenant, name: body.name }, body }),
-    { invalidate: [["images"]], success: t("images.imageCreated") },
+    (body: sdk.ArtifactDefinitionCreateRequest) => sdk.createModelDefinition({ path: { tenant, name: body.name }, body }),
+    { invalidate: [["models"]], success: t("models.modelCreated") },
   );
+
+  const addTask = (task: string) => {
+    const tk = task.trim();
+    if (!tk || v.tasks.includes(tk)) return;
+    set("tasks", [...v.tasks, tk]);
+    setTaskInput("");
+  };
+  const removeTask = (task: string) => set("tasks", v.tasks.filter((x) => x !== task));
 
   const addTag = () => {
     const k = ctKey.trim();
@@ -581,13 +623,16 @@ function NewImageDrawer({ onClose }: { onClose: () => void }) {
   const submit = () => {
     setSubmitted(true);
     if (!v.name.trim()) return;
-    const labels: Record<string, string> = { ...customTags };
-    if (v.purpose) labels.purpose = v.purpose;
+    const labels: Record<string, string> = {};
+    if (v.framework) labels.framework = v.framework;
+    if (v.tasks.length) labels.tasks = v.tasks.join(",");
+    if (v.params.trim()) labels.params = v.params.trim();
     create.mutate(
       {
         name: v.name.trim(),
         description: v.description.trim() || undefined,
         labels: Object.keys(labels).length ? labels : undefined,
+        annotations: Object.keys(customTags).length ? customTags : undefined,
       },
       { onSuccess: onClose },
     );
@@ -595,58 +640,110 @@ function NewImageDrawer({ onClose }: { onClose: () => void }) {
 
   return (
     <Sheet open onOpenChange={(o) => !o && onClose()}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[640px]">
+      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[760px]">
         <SheetHeader className="border-b">
-          <SheetTitle>{t("images.newImageTitle")}</SheetTitle>
-          <p className="text-xs text-muted-foreground">{t("images.newImageSub")}</p>
+          <SheetTitle>{t("models.newModelTitle")}</SheetTitle>
+          <p className="text-xs text-muted-foreground">{t("models.newModelSub")}</p>
         </SheetHeader>
 
         <div className="flex-1 overflow-auto px-6 py-4">
-          <FieldSection n={1} title={t("images.fsBasic")} />
+          <FieldSection n={1} title={t("models.fsBasic")} />
           <Field className="mb-4">
-            <FieldLabel htmlFor="image-name">
-              {t("images.fName")}
+            <FieldLabel htmlFor="model-name">
+              {t("models.fName")}
               <span className="text-destructive">*</span>
             </FieldLabel>
             <Input
-              id="image-name"
+              id="model-name"
               className="font-mono"
-              placeholder={t("images.fNamePlaceholder")}
+              placeholder={t("models.fNamePlaceholder")}
               value={v.name}
               aria-invalid={submitted && !v.name.trim()}
               onChange={(e) => set("name", e.target.value)}
             />
-            <FieldDescription>{t("images.fNameHelp")}</FieldDescription>
+            <FieldDescription>{t("models.fNameHelp")}</FieldDescription>
           </Field>
           <Field className="mb-4">
-            <FieldLabel>{t("images.fPurpose")}</FieldLabel>
-            <Select value={v.purpose} onValueChange={(val) => set("purpose", val)}>
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {PURPOSE_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>
-                    {o.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field className="mb-4">
-            <FieldLabel htmlFor="image-desc">{t("images.fDesc")}</FieldLabel>
+            <FieldLabel htmlFor="model-desc">{t("models.fDesc")}</FieldLabel>
             <Textarea
-              id="image-desc"
+              id="model-desc"
               rows={2}
-              placeholder={t("images.fDescPlaceholder")}
+              placeholder={t("models.fDescPlaceholder")}
               value={v.description}
               onChange={(e) => set("description", e.target.value)}
             />
           </Field>
 
-          <FieldSection n={2} title={t("images.fsLabels")} />
+          <FieldSection n={2} title={t("models.fsLabels")} />
           <Field className="mb-4">
-            <FieldLabel>{t("images.lCustom")}</FieldLabel>
+            <FieldLabel htmlFor="model-tasks">{t("models.lTasks")}</FieldLabel>
+            {v.tasks.length > 0 && (
+              <div className="mb-2 flex flex-wrap gap-2">
+                {v.tasks.map((task) => (
+                  <Badge key={task} variant="outline" className="gap-1 pr-1">
+                    {task}
+                    <button
+                      type="button"
+                      className="grid size-3.5 place-items-center rounded-sm hover:bg-muted"
+                      onClick={() => removeTask(task)}
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+            )}
+            <Input
+              id="model-tasks"
+              placeholder={t("models.lTasks")}
+              value={taskInput}
+              list="model-task-options"
+              onChange={(e) => setTaskInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  addTask(taskInput);
+                }
+              }}
+            />
+            <datalist id="model-task-options">
+              {TASK_OPTIONS.map((o) => (
+                <option key={o} value={o} />
+              ))}
+            </datalist>
+          </Field>
+          <Field className="mb-4">
+            <FieldLabel htmlFor="model-params">{t("models.lParameters")}</FieldLabel>
+            <Input
+              id="model-params"
+              className="w-40 font-mono"
+              placeholder={t("models.paramsPlaceholder")}
+              value={v.params}
+              onChange={(e) => set("params", e.target.value)}
+            />
+          </Field>
+          <Field className="mb-4">
+            <FieldLabel>{t("models.lFramework")}</FieldLabel>
+            <Select
+              value={v.framework || NONE}
+              onValueChange={(val) => set("framework", val === NONE ? "" : val)}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder={t("models.lFramework")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NONE}>{t("models.lFramework")}</SelectItem>
+                {FRAMEWORK_OPTIONS.map((o) => (
+                  <SelectItem key={o} value={o}>
+                    {o}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+
+          <Field className="mb-4">
+            <FieldLabel>{t("models.lCustom")}</FieldLabel>
             {Object.keys(customTags).length > 0 && (
               <div className="mb-2 flex flex-wrap gap-2">
                 {Object.entries(customTags).map(([k, val]) => (
@@ -666,18 +763,18 @@ function NewImageDrawer({ onClose }: { onClose: () => void }) {
             <div className="flex items-center gap-2">
               <Input
                 className="font-mono"
-                placeholder={t("images.customKeyPlaceholder")}
+                placeholder={t("models.customKeyPlaceholder")}
                 value={ctKey}
                 onChange={(e) => setCtKey(e.target.value)}
               />
               <Input
                 className="font-mono"
-                placeholder={t("images.customValPlaceholder")}
+                placeholder={t("models.customValPlaceholder")}
                 value={ctVal}
                 onChange={(e) => setCtVal(e.target.value)}
               />
               <Button variant="outline" onClick={addTag}>
-                {t("images.add")}
+                {t("models.add")}
               </Button>
             </div>
           </Field>
@@ -689,7 +786,7 @@ function NewImageDrawer({ onClose }: { onClose: () => void }) {
           </Button>
           <Button onClick={submit} disabled={create.isPending}>
             {create.isPending && <Spinner data-icon="inline-start" />}
-            {t("images.createImage")}
+            {t("models.createModel")}
           </Button>
         </SheetFooter>
       </SheetContent>
@@ -697,132 +794,139 @@ function NewImageDrawer({ onClose }: { onClose: () => void }) {
   );
 }
 
-// ── Add-version drawer (two methods: external register vs Docker push) ─────────
-interface AddVersionValues {
+// ── Upload-version drawer (two add methods: web upload vs external register) ───
+interface UploadValues {
   version: string;
   description: string;
-  sourceImageRef: string;
+  remoteSourceKind: sdk.RemoteSourceKind;
+  remoteUri: string;
 }
 
-function AddVersionDrawer({ image, onClose }: { image: string; onClose: () => void }) {
+function UploadDrawer({ model, onClose }: { model: string; onClose: () => void }) {
   const { t } = useTranslation();
   const { tenant } = useApp();
-  const { toast } = useUI();
   const [submitted, setSubmitted] = useState(false);
-  const [method, setMethod] = useState<"external" | "dockerPush">("external");
-  const [v, setV] = useState<AddVersionValues>({ version: "", description: "", sourceImageRef: "" });
-  const set = <K extends keyof AddVersionValues>(k: K, val: AddVersionValues[K]) =>
+  const [method, setMethod] = useState<sdk.ArtifactSource>("webUpload");
+  const [v, setV] = useState<UploadValues>({
+    version: "",
+    description: "",
+    remoteSourceKind: "s3",
+    remoteUri: "",
+  });
+  const set = <K extends keyof UploadValues>(k: K, val: UploadValues[K]) =>
     setV((prev) => ({ ...prev, [k]: val }));
 
   const initiate = useApiMutation(
-    (body: sdk.ImageInitiateRequest) => sdk.initiateImage({ path: { tenant, name: image }, body }),
-    { invalidate: [["images"]], success: t("images.versionSubmitted") },
+    (body: sdk.ModelInitiateRequest) => sdk.initiateModel({ path: { tenant, name: model }, body }),
+    { invalidate: [["models"]], success: t("models.versionSubmitted") },
   );
 
   const submit = () => {
     setSubmitted(true);
+    const isExternal = method === "external";
     if (!v.version.trim()) return;
-    if (method === "external" && !v.sourceImageRef.trim()) return;
-    const body: sdk.ImageInitiateRequest =
-      method === "external"
-        ? {
-            version: v.version.trim(),
-            spec: {},
-            description: v.description.trim() || undefined,
-            source: "external",
-            sourceImageRef: v.sourceImageRef.trim() || undefined,
-          }
-        : {
-            version: v.version.trim(),
-            spec: {},
-            description: v.description.trim() || undefined,
-            source: "dockerPush",
-          };
-    initiate.mutate(body, { onSuccess: onClose });
+    if (isExternal && !v.remoteUri.trim()) return;
+    initiate.mutate(
+      {
+        version: v.version.trim(),
+        description: v.description.trim() || undefined,
+        source: method,
+        remoteSourceKind: isExternal ? v.remoteSourceKind : undefined,
+        remoteUri: isExternal && v.remoteUri.trim() ? v.remoteUri.trim() : undefined,
+      },
+      { onSuccess: onClose },
+    );
   };
 
   return (
     <Sheet open onOpenChange={(o) => !o && onClose()}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[640px]">
+      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[760px]">
         <SheetHeader className="border-b">
-          <SheetTitle>{t("images.addVerTitle")}</SheetTitle>
-          <p className="text-xs text-muted-foreground">{t("images.addVerSub")}</p>
+          <SheetTitle>{t("models.uploadTitle")}</SheetTitle>
+          <p className="text-xs text-muted-foreground">{t("models.uploadSub")}</p>
         </SheetHeader>
 
         <div className="flex-1 overflow-auto px-6 py-4">
-          <FieldSection n={1} title={t("images.fsBasic")} />
+          <FieldSection n={1} title={t("models.fsBasic")} />
           <Field className="mb-4">
-            <FieldLabel>{t("images.fImage")}</FieldLabel>
-            <Input className="font-mono" value={image} disabled />
+            <FieldLabel>{t("models.fModel")}</FieldLabel>
+            <Input className="font-mono" value={model} disabled />
           </Field>
           <Field className="mb-4">
-            <FieldLabel htmlFor="addver-version">
-              {t("images.fVersion")}
+            <FieldLabel htmlFor="upload-version">
+              {t("models.fVersion")}
               <span className="text-destructive">*</span>
             </FieldLabel>
             <Input
-              id="addver-version"
+              id="upload-version"
               className="font-mono"
-              placeholder={t("images.fVersionPlaceholder")}
+              placeholder={t("models.fVersionPlaceholder")}
               value={v.version}
               aria-invalid={submitted && !v.version.trim()}
               onChange={(e) => set("version", e.target.value)}
             />
           </Field>
           <Field className="mb-4">
-            <FieldLabel htmlFor="addver-desc">{t("images.fDesc")}</FieldLabel>
+            <FieldLabel htmlFor="upload-desc">{t("models.fDesc")}</FieldLabel>
             <Textarea
-              id="addver-desc"
+              id="upload-desc"
               rows={2}
-              placeholder={t("images.fAddVerDescPlaceholder")}
+              placeholder={t("models.fUploadDescPlaceholder")}
               value={v.description}
               onChange={(e) => set("description", e.target.value)}
             />
           </Field>
 
-          <FieldSection n={2} title={t("images.fsMethod")} />
-          <Tabs value={method} onValueChange={(k) => setMethod(k as "external" | "dockerPush")}>
+          <FieldSection n={2} title={t("models.fsMethod")} />
+          <Tabs
+            value={method === "external" ? "remote" : method}
+            onValueChange={(k) => setMethod(k === "remote" ? "external" : (k as sdk.ArtifactSource))}
+          >
             <TabsList>
-              <TabsTrigger value="external">{t("images.methodExternal")}</TabsTrigger>
-              <TabsTrigger value="dockerPush">{t("images.methodDocker")}</TabsTrigger>
+              <TabsTrigger value="webUpload">{t("models.methodWeb")}</TabsTrigger>
+              <TabsTrigger value="remote">{t("models.methodRemote")}</TabsTrigger>
+              <TabsTrigger value="oras">{t("models.methodOras")}</TabsTrigger>
             </TabsList>
-            <TabsContent value="external" className="flex flex-col gap-4 pt-4">
-              <p className="text-sm text-muted-foreground">{t("images.externalHelp")}</p>
+            <TabsContent value="webUpload" className="pt-4">
+              <div className="grid place-items-center gap-2 rounded-lg border border-dashed bg-card p-8 text-center">
+                <Inbox className="size-8 text-muted-foreground" />
+                <div className="text-sm font-medium text-foreground">{t("models.dzTitle")}</div>
+                <div className="text-xs text-muted-foreground">{t("models.dzHint")}</div>
+              </div>
+            </TabsContent>
+            <TabsContent value="remote" className="flex flex-col gap-4 pt-4">
               <Field>
-                <FieldLabel htmlFor="source-ref">{t("images.fSourceRef")}</FieldLabel>
-                <Input
-                  id="source-ref"
-                  className="font-mono"
-                  placeholder={t("images.sourceRefPlaceholder")}
-                  value={v.sourceImageRef}
-                  aria-invalid={submitted && method === "external" && !v.sourceImageRef.trim()}
-                  onChange={(e) => set("sourceImageRef", e.target.value)}
-                />
-              </Field>
-              <Field>
-                <FieldLabel>{t("images.fPullCred")}</FieldLabel>
-                <Select defaultValue="public">
+                <FieldLabel>{t("models.fStorageKind")}</FieldLabel>
+                <Select
+                  value={v.remoteSourceKind}
+                  onValueChange={(val) => set("remoteSourceKind", val as sdk.RemoteSourceKind)}
+                >
                   <SelectTrigger className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="public">{t("images.credPublic")}</SelectItem>
-                    <SelectItem value="ngc">{t("images.credNgc")}</SelectItem>
-                    <SelectItem value="harbor">{t("images.credHarbor")}</SelectItem>
-                    <SelectItem value="new">{t("images.credNew")}</SelectItem>
+                    <SelectItem value="s3">{t("models.storageS3")}</SelectItem>
+                    <SelectItem value="oci">{t("models.storageOci")}</SelectItem>
+                    <SelectItem value="http">{t("models.storageHttp")}</SelectItem>
+                    <SelectItem value="hf">{t("models.storageHf")}</SelectItem>
+                    <SelectItem value="custom">{t("models.storageCustom")}</SelectItem>
                   </SelectContent>
                 </Select>
               </Field>
+              <Field>
+                <FieldLabel htmlFor="remote-uri">{t("models.fRemoteUri")}</FieldLabel>
+                <Input
+                  id="remote-uri"
+                  className="font-mono"
+                  placeholder={t("models.remoteUriPlaceholder")}
+                  value={v.remoteUri}
+                  aria-invalid={submitted && method === "external" && !v.remoteUri.trim()}
+                  onChange={(e) => set("remoteUri", e.target.value)}
+                />
+              </Field>
             </TabsContent>
-            <TabsContent value="dockerPush" className="pt-4">
-              <DockerGuide
-                image={image}
-                tenant={tenant}
-                onCopy={(text) => {
-                  void navigator.clipboard?.writeText(text);
-                  toast(t("images.commandCopied"));
-                }}
-              />
+            <TabsContent value="oras" className="pt-4">
+              <OrasGuide model={model} tenant={tenant} />
             </TabsContent>
           </Tabs>
         </div>
@@ -833,7 +937,7 @@ function AddVersionDrawer({ image, onClose }: { image: string; onClose: () => vo
           </Button>
           <Button onClick={submit} disabled={initiate.isPending}>
             {initiate.isPending && <Spinner data-icon="inline-start" />}
-            {t("images.submit")}
+            {t("models.submit")}
           </Button>
         </SheetFooter>
       </SheetContent>
@@ -841,33 +945,30 @@ function AddVersionDrawer({ image, onClose }: { image: string; onClose: () => vo
   );
 }
 
-function DockerGuide({ image, tenant, onCopy }: { image: string; tenant: string; onCopy: (text: string) => void }) {
+function OrasGuide({ model, tenant }: { model: string; tenant: string }) {
   const { t } = useTranslation();
-  const login = `# 临时凭证有效期 1h
-docker login zot.axisml.internal -u <user> -p <token>`;
-  const push = `# 1. 为本地镜像打上目标 tag
-docker tag <local-image>:<tag> zot.axisml.internal/${tenant}/${image}:<tag>
-
-# 2. 推送到镜像仓
-docker push zot.axisml.internal/${tenant}/${image}:<tag>`;
+  const dl = `# Linux x86_64
+curl -LO https://github.com/oras-project/oras/releases/download/v1.2.0/oras_1.2.0_linux_amd64.tar.gz
+tar -xzf oras_1.2.0_linux_amd64.tar.gz oras
+sudo mv oras /usr/local/bin/ && oras version`;
+  const push = `oras login zot.axisml.internal -u <user> -p <token>
+cd ./${model}
+oras push zot.axisml.internal/${tenant}/${model}:v5 \\
+  --artifact-type application/vnd.axisml.model.v1 \\
+  ./*:application/octet-stream`;
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-sm text-muted-foreground">{t("images.dockerHelp")}</p>
+      <p className="text-sm text-muted-foreground">{t("models.orasHelp")}</p>
       <div>
-        <div className="mb-1 text-sm font-semibold text-foreground">{t("images.dockerStep1")}</div>
-        <pre className="overflow-x-auto rounded-md border bg-muted p-3 font-mono text-xs text-foreground">{login}</pre>
-        <Button variant="outline" size="sm" className="mt-2" onClick={() => onCopy(login)}>
-          <Copy data-icon="inline-start" />
-          {t("images.copyCommand")}
-        </Button>
+        <div className="mb-1 text-sm font-semibold text-foreground">{t("models.orasStep1")}</div>
+        <pre className="overflow-x-auto rounded-md border bg-muted p-3 font-mono text-xs text-foreground">{dl}</pre>
+        <a className="text-xs text-info hover:underline" href="https://oras.land/docs/installation" target="_blank" rel="noopener noreferrer">
+          {t("models.orasDocsLink")}
+        </a>
       </div>
       <div>
-        <div className="mb-1 text-sm font-semibold text-foreground">{t("images.dockerStep2")}</div>
+        <div className="mb-1 text-sm font-semibold text-foreground">{t("models.orasStep2")}</div>
         <pre className="overflow-x-auto rounded-md border bg-muted p-3 font-mono text-xs text-foreground">{push}</pre>
-        <Button variant="outline" size="sm" className="mt-2" onClick={() => onCopy(push)}>
-          <Copy data-icon="inline-start" />
-          {t("images.copyCommand")}
-        </Button>
       </div>
     </div>
   );

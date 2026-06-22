@@ -10,11 +10,20 @@ cards, blue link/focus). Each prototype `*.html` becomes one React page under
 render only their content.
 
 ## Reference implementations
-- `src/pages/Jobs.tsx` — canonical LIST page (PageContainer + toolbar Card + `DataTable`
+- `src/pages/jobs.tsx` — canonical LIST page (PageContainer + toolbar Card + `DataTable`
   + `Sheet` create·run·edit form + `confirm()` delete).
-- `src/pages/Dashboard.tsx` — metric cards / Tabs / lists / Recharts charts.
+- `src/pages/dashboard.tsx` — metric cards / Tabs / lists / Recharts charts.
 - Detail pages (`JobDetail`, `ServiceDetail`, …) — `Descriptions`-style key/value grid +
   `Tabs` + timeline/steps, with a back `<Link>` and breadcrumb parent section.
+
+## File & folder naming
+- **All files are `kebab-case`** (`page-container.tsx`, `service-detail.tsx`) — matching
+  shadcn's own `ui/` files. The React component / hook *exports* stay `PascalCase` /
+  `camelCase`; only the filename is kebab.
+- Layout is type-based: `src/pages/` (one file per page), `src/components/` (shared
+  widgets), `src/components/layout/` (app-shell + sidebar + topbar), `src/components/ui/`
+  (shadcn primitives — added via the CLI, never hand-renamed), `src/app/` (router /
+  session / store / ui providers), `src/api/`, `src/i18n/`, `src/lib/`, `src/styles/`.
 
 ## Building blocks (`@/components`)
 - Page chrome: `<PageContainer breadcrumb title subtitle extra>`.

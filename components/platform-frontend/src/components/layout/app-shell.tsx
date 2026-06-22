@@ -3,8 +3,8 @@ import { Outlet } from "react-router-dom";
 import { useApp } from "@/app/store";
 import { useTenantOptions } from "@/api/hooks";
 import { Spinner } from "@/components/ui/spinner";
-import { Sidebar } from "./Sidebar";
-import { Topbar } from "./Topbar";
+import { Sidebar } from "./sidebar";
+import { Topbar } from "./topbar";
 
 export function AppShell() {
   const { tenant, setTenant } = useApp();

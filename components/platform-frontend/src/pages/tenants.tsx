@@ -8,10 +8,10 @@ import { useApiMutation } from "@/api/mutations";
 import * as sdk from "@/api/generated";
 import { useUI } from "@/app/ui";
 import { errorText } from "@/lib/errors";
-import { PageContainer } from "@/components/PageContainer";
-import { FieldSection } from "@/components/FieldSection";
-import { PhaseTag } from "@/components/PhaseTag";
-import { DataTable, type Column } from "@/components/DataTable";
+import { PageContainer } from "@/components/page-container";
+import { FieldSection } from "@/components/field-section";
+import { PhaseTag } from "@/components/phase-tag";
+import { DataTable, type Column } from "@/components/data-table";
 import { USE_MOCK } from "@/api/mock";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -537,7 +537,7 @@ function QuotaDrawer({ ident, display, onClose }: { ident: string; display: stri
 
   return (
     <Sheet open onOpenChange={(o) => !o && onClose()}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[680px]">
+      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[760px]">
         <SheetHeader className="border-b">
           <SheetTitle>{t("tenants.quotaDrawerTitle")}</SheetTitle>
           <p className="text-xs text-muted-foreground">
@@ -801,7 +801,7 @@ function MembersDrawer({
 
   return (
     <Sheet open onOpenChange={(o) => !o && onClose()}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[680px]">
+      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[760px]">
         <SheetHeader className="border-b">
           <SheetTitle>{t("tenants.membersDrawerTitle")}</SheetTitle>
           <p className="text-xs text-muted-foreground">

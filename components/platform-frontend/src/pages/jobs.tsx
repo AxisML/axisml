@@ -1,17 +1,17 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import dayjs from "dayjs";
-import { useExperiments } from "@/api/hooks";
+import { useJobs } from "@/api/hooks";
 import { useApiMutation } from "@/api/mutations";
 import * as sdk from "@/api/generated";
 import { useUI } from "@/app/ui";
-import { PageContainer } from "@/components/PageContainer";
-import { FieldSection } from "@/components/FieldSection";
-import { CardRadio } from "@/components/CardRadio";
-import { RunStrip } from "@/components/RunStrip";
-import { DataTable, type Column } from "@/components/DataTable";
+import { PageContainer } from "@/components/page-container";
+import { FieldSection } from "@/components/field-section";
+import { CardRadio } from "@/components/card-radio";
+import { RunStrip } from "@/components/run-strip";
+import { DataTable, type Column } from "@/components/data-table";
 import { USE_MOCK } from "@/api/mock";
 import { runSummary } from "@/api/mock/data";
 import { Button } from "@/components/ui/button";
@@ -40,7 +40,7 @@ import {
 } from "@/components/ui/collapsible";
 import { Spinner } from "@/components/ui/spinner";
 
-interface ExpRow {
+interface JobRow {
   name: string;
   desc: string;
   runCount: number;
@@ -52,34 +52,30 @@ interface ExpRow {
 type DrawerMode = "new" | "run" | "edit";
 const ALL = "__all__";
 
-export default function Experiments() {
-  const q = useExperiments();
+export default function Jobs() {
+  const q = useJobs();
   const { t } = useTranslation();
   const { confirm } = useUI();
   const [drawer, setDrawer] = useState<{ mode: DrawerMode; name?: string } | null>(null);
   const [search, setSearch] = useState("");
   const [creator, setCreator] = useState<string>("");
 
-  const delExp = useApiMutation((name: string) => sdk.deleteExperiment({ path: { name } }), {
-    invalidate: [["experiments"]],
-    success: t("experiments.deleted"),
+  const delJob = useApiMutation((name: string) => sdk.deleteJob({ path: { name } }), {
+    invalidate: [["jobs"]],
+    success: t("jobs.deleted"),
   });
-  const triggerExp = useApiMutation(
-    (name: string) => sdk.triggerExperimentRun({ path: { name }, body: {} }),
-    { invalidate: [["experiments"]], success: t("experiments.runTriggered") },
-  );
 
-  const allRows: ExpRow[] = useMemo(
+  const allRows: JobRow[] = useMemo(
     () =>
-      q.data?.items?.map((e) => {
-        const summary = USE_MOCK ? runSummary(e.name) : { count: 0, recent: [] as string[] };
+      q.data?.items?.map((j) => {
+        const summary = USE_MOCK ? runSummary(j.name) : { count: 0, recent: [] as string[] };
         return {
-          name: e.name,
-          desc: e.description ?? e.displayName ?? "",
+          name: j.name,
+          desc: j.description ?? j.displayName ?? "",
           runCount: summary.count,
           recent: summary.recent,
-          owner: e.owner ?? "—",
-          updated: e.updatedAt ?? e.createdAt ?? "",
+          owner: j.owner ?? "—",
+          updated: j.updatedAt ?? j.createdAt ?? "",
         };
       }) ?? [],
     [q.data],
@@ -94,34 +90,22 @@ export default function Experiments() {
     (r) => (!search || r.name.includes(search)) && (!creator || r.owner === creator),
   );
 
-  const onDelete = (r: ExpRow) =>
+  const onDelete = (r: JobRow) =>
     confirm({
-      title: t("experiments.deleteTitle", { name: r.name }),
-      desc: t("experiments.deleteDesc"),
-      info: t("experiments.deleteInfo"),
+      title: t("jobs.deleteTitle", { name: r.name }),
+      desc: t("jobs.deleteDesc"),
+      info: t("jobs.deleteInfo"),
       okLabel: t("common.confirmDelete"),
-      onConfirm: () => delExp.mutate(r.name),
+      onConfirm: () => delJob.mutate(r.name),
     });
 
-  const onRun = (r: ExpRow) =>
-    confirm({
-      title: t("experiments.runTitle", { name: r.name }),
-      desc: t("experiments.runDesc"),
-      okLabel: t("experiments.confirmRun"),
-      danger: false,
-      onConfirm: () => triggerExp.mutate(r.name),
-    });
-
-  const columns: Column<ExpRow>[] = [
+  const columns: Column<JobRow>[] = [
     {
       key: "name",
-      title: t("experiments.colName"),
+      title: t("jobs.colName"),
       render: (r) => (
         <div className="min-w-0">
-          <Link
-            to={`/experiments/${r.name}`}
-            className="font-mono font-medium text-foreground hover:text-info hover:underline"
-          >
+          <Link to={`/jobs/${r.name}`} className="font-mono font-medium text-foreground hover:text-info hover:underline">
             {r.name}
           </Link>
           {r.desc && <div className="truncate text-xs text-muted-foreground">{r.desc}</div>}
@@ -130,21 +114,21 @@ export default function Experiments() {
     },
     {
       key: "runs",
-      title: t("experiments.colStatus"),
+      title: t("jobs.colStatus"),
       width: 150,
-      render: (r) => <RunStrip phases={r.recent} to={`/experiments/${r.name}`} />,
+      render: (r) => <RunStrip phases={r.recent} to={`/jobs/${r.name}`} />,
     },
     {
       key: "runCount",
-      title: t("experiments.colRuns"),
+      title: t("jobs.colRuns"),
       width: 90,
       align: "right",
       render: (r) => <span className="font-mono">{r.runCount}</span>,
     },
-    { key: "owner", title: t("experiments.colCreator"), width: 140, dataIndex: "owner" },
+    { key: "owner", title: t("jobs.colCreator"), width: 140, dataIndex: "owner" },
     {
       key: "updated",
-      title: t("experiments.colUpdated"),
+      title: t("jobs.colUpdated"),
       width: 150,
       render: (r) => (
         <span className="text-muted-foreground">{r.updated ? dayjs(r.updated).fromNow() : "—"}</span>
@@ -157,16 +141,21 @@ export default function Experiments() {
       align: "right",
       render: (r) => (
         <div className="flex items-center justify-end gap-0.5">
-          <Button variant="link" size="sm" onClick={() => onRun(r)}>
+          <Button variant="link" size="sm" onClick={() => setDrawer({ mode: "run", name: r.name })}>
             {t("common.run")}
           </Button>
           <Button variant="link" size="sm" asChild>
-            <Link to={`/experiments/${r.name}`}>{t("common.detail")}</Link>
+            <Link to={`/jobs/${r.name}`}>{t("common.detail")}</Link>
           </Button>
           <Button variant="link" size="sm" onClick={() => setDrawer({ mode: "edit", name: r.name })}>
             {t("common.edit")}
           </Button>
-          <Button variant="link" size="sm" className="text-destructive" onClick={() => onDelete(r)}>
+          <Button
+            variant="link"
+            size="sm"
+            className="text-destructive"
+            onClick={() => onDelete(r)}
+          >
             {t("common.delete")}
           </Button>
         </div>
@@ -176,13 +165,13 @@ export default function Experiments() {
 
   return (
     <PageContainer
-      breadcrumb={[t("nav.trainingCenter"), t("nav.experiments")]}
-      title={t("experiments.title")}
-      subtitle={t("experiments.subtitle")}
+      breadcrumb={[t("nav.trainingCenter"), t("nav.jobs")]}
+      title={t("jobs.title")}
+      subtitle={t("jobs.subtitle")}
       extra={
         <Button onClick={() => setDrawer({ mode: "new" })}>
           <Plus data-icon="inline-start" />
-          {t("experiments.newExperiment")}
+          {t("jobs.newJob")}
         </Button>
       }
     >
@@ -192,17 +181,17 @@ export default function Experiments() {
             <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               className="pl-8"
-              placeholder={t("experiments.searchPlaceholder")}
+              placeholder={t("jobs.searchPlaceholder")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
           <Select value={creator || ALL} onValueChange={(v) => setCreator(v === ALL ? "" : v)}>
             <SelectTrigger className="min-w-44">
-              <SelectValue placeholder={t("experiments.creatorAll")} />
+              <SelectValue placeholder={t("jobs.creatorAll")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={ALL}>{t("experiments.creatorAll")}</SelectItem>
+              <SelectItem value={ALL}>{t("jobs.creatorAll")}</SelectItem>
               {creatorOptions.map((o) => (
                 <SelectItem key={o} value={o}>
                   {o}
@@ -229,7 +218,7 @@ export default function Experiments() {
         />
       </Card>
 
-      {drawer && <ExpDrawer mode={drawer.mode} name={drawer.name} onClose={() => setDrawer(null)} />}
+      {drawer && <JobDrawer mode={drawer.mode} name={drawer.name} onClose={() => setDrawer(null)} />}
     </PageContainer>
   );
 }
@@ -244,10 +233,15 @@ const UNITS = [
   { value: "a100-8x-xlarge-ib", title: "a100-8x-xlarge-ib", desc: "8×A100 · IB · 64 vCPU · 512 GiB" },
 ];
 const POOLS = ["gpu-a100", "gpu-h100"];
-const CMD = `torchrun --nproc_per_node=4 sft.py \\
-  --base llama3-8b-base --lr {{lr}} --epochs 3`;
+const VOLUMES = [
+  { value: "training-data", label: "training-data · 200 GiB" },
+  { value: "shared-cache", label: "shared-cache · 500 GiB" },
+];
+const CMD = `torchrun --nproc_per_node=4 train.py \\
+  --model_name llama-7b --lr 2e-5 --epochs 3 \\
+  --batch_size 16 --data /data/sft.jsonl`;
 
-interface ExpFormValues {
+interface JobFormValues {
   name: string;
   description: string;
   image: string;
@@ -256,6 +250,7 @@ interface ExpFormValues {
   replicas: number;
   command: string;
   env: string;
+  volumes: { name?: string; mountPath?: string }[];
   timeout: number;
   retries: number;
 }
@@ -273,30 +268,27 @@ function parseEnv(text: string): sdk.EnvVar[] {
 }
 
 function parseCommand(text: string): string[] {
-  return text
-    .replace(/\\\s*\n/g, " ")
-    .split(/\s+/)
-    .map((s) => s.trim())
-    .filter((s) => s && s !== "\\");
+  return text.split(/\s+/).map((s) => s.trim()).filter(Boolean);
 }
 
-function ExpDrawer({ mode, name: initialName, onClose }: { mode: DrawerMode; name?: string; onClose: () => void }) {
+function JobDrawer({ mode, name: initialName, onClose }: { mode: DrawerMode; name?: string; onClose: () => void }) {
   const { t } = useTranslation();
   const locked = mode === "run";
   const [submitted, setSubmitted] = useState(false);
-  const [v, setV] = useState<ExpFormValues>({
+  const [v, setV] = useState<JobFormValues>({
     name: mode === "new" ? "" : (initialName ?? ""),
     description: "",
     image: IMAGES[0].value,
     poolName: POOLS[0],
     unitName: UNITS[0].value,
-    replicas: 2,
+    replicas: 4,
     command: CMD,
     env: "WANDB_DISABLED=true\nNCCL_DEBUG=INFO",
-    timeout: 172800,
-    retries: 1,
+    volumes: [{ name: "training-data", mountPath: "/data" }],
+    timeout: 86400,
+    retries: 2,
   });
-  const set = <K extends keyof ExpFormValues>(k: K, val: ExpFormValues[K]) =>
+  const set = <K extends keyof JobFormValues>(k: K, val: JobFormValues[K]) =>
     setV((prev) => ({ ...prev, [k]: val }));
 
   const buildSpec = (): sdk.JobSpec => {
@@ -322,19 +314,19 @@ function ExpDrawer({ mode, name: initialName, onClose }: { mode: DrawerMode; nam
     };
   };
 
-  const create = useApiMutation((body: sdk.ExperimentCreateRequest) => sdk.createExperiment({ body }), {
-    invalidate: [["experiments"]],
-    success: t("experiments.created"),
+  const create = useApiMutation((body: sdk.JobCreateRequest) => sdk.createJob({ body }), {
+    invalidate: [["jobs"]],
+    success: t("jobs.savedTemplate"),
   });
   const update = useApiMutation(
-    (vars: { name: string; body: sdk.ExperimentPatchRequest }) =>
-      sdk.updateExperiment({ path: { name: vars.name }, body: vars.body }),
-    { invalidate: [["experiments"]], success: t("experiments.saved") },
+    (vars: { name: string; body: sdk.JobPatchRequest }) =>
+      sdk.updateJob({ path: { name: vars.name }, body: vars.body }),
+    { invalidate: [["jobs"]], success: t("jobs.saved") },
   );
   const trigger = useApiMutation(
     (vars: { name: string; body: sdk.RunTriggerRequest }) =>
-      sdk.triggerExperimentRun({ path: { name: vars.name }, body: vars.body }),
-    { invalidate: [["experiments"]], success: t("experiments.runTriggered") },
+      sdk.triggerRun({ path: { name: vars.name }, body: vars.body }),
+    { invalidate: [["jobs"]], success: t("jobs.runCreated") },
   );
   const pending = create.isPending || update.isPending || trigger.isPending;
 
@@ -371,58 +363,58 @@ function ExpDrawer({ mode, name: initialName, onClose }: { mode: DrawerMode; nam
     }
   };
 
-  const title = mode === "new" ? t("experiments.drawerNew") : mode === "run" ? t("experiments.drawerRun") : t("experiments.drawerEdit");
-  const submitLabel = mode === "new" ? t("experiments.createExperiment") : mode === "run" ? t("experiments.confirmRun") : t("experiments.save");
+  const title = mode === "new" ? t("jobs.drawerNew") : mode === "run" ? t("jobs.drawerRun") : t("jobs.drawerEdit");
+  const submitLabel = mode === "new" ? t("jobs.saveTemplate") : mode === "run" ? t("jobs.confirmRun") : t("common.save");
 
   return (
     <Sheet open onOpenChange={(o) => !o && onClose()}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[640px]">
+      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[760px]">
         <SheetHeader className="border-b">
           <SheetTitle>{title}</SheetTitle>
           <p className="text-xs text-muted-foreground">
-            {mode === "new" ? t("experiments.drawerNewSub") : <span className="font-mono">{initialName}</span>}
+            {mode === "new" ? t("jobs.drawerNewSub") : <span className="font-mono">{initialName}</span>}
           </p>
         </SheetHeader>
 
         <div className="flex-1 overflow-auto px-6 py-4">
-          <FieldSection n={1} title={t("experiments.fsBasic")} />
+          <FieldSection n={1} title={t("jobs.fsBasic")} />
           <Field className="mb-4">
-            <FieldLabel htmlFor="exp-name">
-              {t("experiments.fName")}
+            <FieldLabel htmlFor="job-name">
+              {t("jobs.fName")}
               {mode !== "run" && <span className="text-destructive">*</span>}
             </FieldLabel>
             <Input
-              id="exp-name"
+              id="job-name"
               className="font-mono"
-              placeholder={t("experiments.fNamePlaceholder")}
+              placeholder={t("jobs.fNamePlaceholder")}
               value={v.name}
               disabled={locked || mode === "edit"}
               aria-invalid={submitted && mode !== "run" && !v.name.trim()}
               onChange={(e) => set("name", e.target.value)}
             />
-            {mode !== "run" && <FieldDescription>{t("experiments.fNameHelp")}</FieldDescription>}
+            {mode !== "run" && <FieldDescription>{t("jobs.fNameHelp")}</FieldDescription>}
           </Field>
           <Field className="mb-4">
-            <FieldLabel htmlFor="exp-desc">{t("experiments.fDesc")}</FieldLabel>
+            <FieldLabel htmlFor="job-desc">{t("jobs.fDesc")}</FieldLabel>
             <Textarea
-              id="exp-desc"
+              id="job-desc"
               rows={2}
-              placeholder={t("experiments.fDescPlaceholder")}
+              placeholder={t("jobs.fDescPlaceholder")}
               value={v.description}
               disabled={locked}
               onChange={(e) => set("description", e.target.value)}
             />
           </Field>
 
-          <FieldSection n={2} title={t("experiments.fsImage")} />
+          <FieldSection n={2} title={t("jobs.fsImage")} />
           <Field className="mb-4">
-            <FieldLabel>{t("experiments.fImage")}</FieldLabel>
+            <FieldLabel>{t("jobs.fImage")}</FieldLabel>
             <CardRadio options={IMAGES} value={v.image} onChange={(val) => set("image", val)} disabled={locked} />
           </Field>
 
-          <FieldSection n={3} title={t("experiments.fsResource")} />
+          <FieldSection n={3} title={t("jobs.fsResource")} />
           <Field className="mb-4">
-            <FieldLabel>{t("experiments.fPool")}</FieldLabel>
+            <FieldLabel>{t("jobs.fPool")}</FieldLabel>
             <Select value={v.poolName} onValueChange={(val) => set("poolName", val)} disabled={locked}>
               <SelectTrigger className="w-full">
                 <SelectValue />
@@ -437,13 +429,13 @@ function ExpDrawer({ mode, name: initialName, onClose }: { mode: DrawerMode; nam
             </Select>
           </Field>
           <Field className="mb-4">
-            <FieldLabel>{t("experiments.fUnit")}</FieldLabel>
+            <FieldLabel>{t("jobs.fUnit")}</FieldLabel>
             <CardRadio options={UNITS} value={v.unitName} onChange={(val) => set("unitName", val)} disabled={locked} />
           </Field>
           <Field className="mb-4">
-            <FieldLabel htmlFor="exp-replicas">{t("experiments.fReplicas")}</FieldLabel>
+            <FieldLabel htmlFor="job-replicas">{t("jobs.fReplicas")}</FieldLabel>
             <Input
-              id="exp-replicas"
+              id="job-replicas"
               type="number"
               min={1}
               className="w-40"
@@ -453,35 +445,83 @@ function ExpDrawer({ mode, name: initialName, onClose }: { mode: DrawerMode; nam
             />
           </Field>
 
-          <FieldSection n={4} title={t("experiments.fsCommand")} />
+          <FieldSection n={4} title={t("jobs.fsCommand")} />
           <Field className="mb-4">
-            <FieldLabel htmlFor="exp-cmd">
-              {mode === "run" ? t("experiments.fCommandRun") : t("experiments.fCommandTpl")}
-            </FieldLabel>
+            <FieldLabel htmlFor="job-cmd">{t("jobs.fCommand")}</FieldLabel>
             <Textarea
-              id="exp-cmd"
+              id="job-cmd"
               rows={3}
               className="font-mono"
               value={v.command}
               disabled={locked}
               onChange={(e) => set("command", e.target.value)}
             />
-            <FieldDescription>
-              {mode === "run" ? t("experiments.fCommandHelpRun") : t("experiments.fCommandHelpTpl")}
-            </FieldDescription>
+            {mode !== "run" && <FieldDescription>{t("jobs.fCommandHelp")}</FieldDescription>}
           </Field>
           <Field className="mb-4">
-            <FieldLabel htmlFor="exp-env">{t("experiments.fEnv")}</FieldLabel>
+            <FieldLabel htmlFor="job-env">{t("jobs.fEnv")}</FieldLabel>
             <Textarea
-              id="exp-env"
+              id="job-env"
               rows={2}
               className="font-mono"
               value={v.env}
               disabled={locked}
               onChange={(e) => set("env", e.target.value)}
             />
-            {mode !== "run" && <FieldDescription>{t("experiments.fEnvHelp")}</FieldDescription>}
+            {mode !== "run" && <FieldDescription>{t("jobs.fEnvHelp")}</FieldDescription>}
           </Field>
+
+          <FieldSection n={5} title={t("jobs.fsVolume")} />
+          <div className="flex flex-col gap-2.5">
+            {v.volumes.map((vol, i) => (
+              <div key={i} className="flex items-start gap-2">
+                <Select
+                  value={vol.name}
+                  onValueChange={(val) =>
+                    set("volumes", v.volumes.map((x, j) => (j === i ? { ...x, name: val } : x)))
+                  }
+                  disabled={locked}
+                >
+                  <SelectTrigger className="flex-1">
+                    <SelectValue placeholder={t("jobs.fVolume")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {VOLUMES.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input
+                  className="flex-1 font-mono"
+                  placeholder={t("jobs.fMountPath")}
+                  value={vol.mountPath ?? ""}
+                  disabled={locked}
+                  onChange={(e) =>
+                    set("volumes", v.volumes.map((x, j) => (j === i ? { ...x, mountPath: e.target.value } : x)))
+                  }
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-destructive"
+                  disabled={locked}
+                  onClick={() => set("volumes", v.volumes.filter((_, j) => j !== i))}
+                >
+                  <Trash2 />
+                </Button>
+              </div>
+            ))}
+            <Button
+              variant="outline"
+              className="w-full border-dashed"
+              disabled={locked}
+              onClick={() => set("volumes", [...v.volumes, { mountPath: "/data" }])}
+            >
+              + {t("jobs.addVolume")}
+            </Button>
+          </div>
 
           <Collapsible className="mt-4">
             <CollapsibleTrigger className="text-sm font-semibold text-info hover:underline">
@@ -489,9 +529,9 @@ function ExpDrawer({ mode, name: initialName, onClose }: { mode: DrawerMode; nam
             </CollapsibleTrigger>
             <CollapsibleContent className="mt-3 flex gap-4">
               <Field className="flex-1">
-                <FieldLabel htmlFor="exp-timeout">{t("experiments.fTimeout")}</FieldLabel>
+                <FieldLabel htmlFor="job-timeout">{t("jobs.fTimeout")}</FieldLabel>
                 <Input
-                  id="exp-timeout"
+                  id="job-timeout"
                   type="number"
                   min={0}
                   value={v.timeout}
@@ -500,9 +540,9 @@ function ExpDrawer({ mode, name: initialName, onClose }: { mode: DrawerMode; nam
                 />
               </Field>
               <Field className="flex-1">
-                <FieldLabel htmlFor="exp-retries">{t("experiments.fRetries")}</FieldLabel>
+                <FieldLabel htmlFor="job-retries">{t("jobs.fRetries")}</FieldLabel>
                 <Input
-                  id="exp-retries"
+                  id="job-retries"
                   type="number"
                   min={0}
                   value={v.retries}

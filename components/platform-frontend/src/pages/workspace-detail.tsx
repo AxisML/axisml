@@ -16,9 +16,9 @@ import { useApp } from "@/app/store";
 import { useApiMutation } from "@/api/mutations";
 import * as sdk from "@/api/generated";
 import { useUI } from "@/app/ui";
-import { PageContainer } from "@/components/PageContainer";
-import { PhaseTag } from "@/components/PhaseTag";
-import { LogViewer } from "@/components/LogViewer";
+import { PageContainer } from "@/components/page-container";
+import { PhaseTag } from "@/components/phase-tag";
+import { LogViewer } from "@/components/log-viewer";
 import { Button } from "@/components/ui/button";
 import {
   Card,

@@ -2,28 +2,28 @@ import { createBrowserRouter, Navigate, useLocation } from "react-router-dom";
 import { lazy, Suspense, type ReactNode } from "react";
 import { Spinner } from "@/components/ui/spinner";
 import { useSession } from "@/app/session";
-import { AppShell } from "@/shell/AppShell";
+import { AppShell } from "@/components/layout/app-shell";
 
 // Pages are code-split (React.lazy) so the initial bundle stays small and the
 // chart-heavy pages (Dashboard) load on demand. AppShell renders the Suspense
 // boundary around the routed <Outlet>; /login gets its own below.
-const Login = lazy(() => import("@/pages/Login"));
-const Dashboard = lazy(() => import("@/pages/Dashboard"));
-const Workspaces = lazy(() => import("@/pages/Workspaces"));
-const WorkspaceDetail = lazy(() => import("@/pages/WorkspaceDetail"));
-const Experiments = lazy(() => import("@/pages/Experiments"));
-const ExperimentDetail = lazy(() => import("@/pages/ExperimentDetail"));
-const Jobs = lazy(() => import("@/pages/Jobs"));
-const JobDetail = lazy(() => import("@/pages/JobDetail"));
-const RunDetail = lazy(() => import("@/pages/RunDetail"));
-const Services = lazy(() => import("@/pages/Services"));
-const ServiceDetail = lazy(() => import("@/pages/ServiceDetail"));
-const Traffic = lazy(() => import("@/pages/Traffic"));
-const TrafficDetail = lazy(() => import("@/pages/TrafficDetail"));
-const Models = lazy(() => import("@/pages/Models"));
-const Images = lazy(() => import("@/pages/Images"));
-const Tenants = lazy(() => import("@/pages/Tenants"));
-const ResourcePools = lazy(() => import("@/pages/ResourcePools"));
+const Login = lazy(() => import("@/pages/login"));
+const Dashboard = lazy(() => import("@/pages/dashboard"));
+const Workspaces = lazy(() => import("@/pages/workspaces"));
+const WorkspaceDetail = lazy(() => import("@/pages/workspace-detail"));
+const Experiments = lazy(() => import("@/pages/experiments"));
+const ExperimentDetail = lazy(() => import("@/pages/experiment-detail"));
+const Jobs = lazy(() => import("@/pages/jobs"));
+const JobDetail = lazy(() => import("@/pages/job-detail"));
+const RunDetail = lazy(() => import("@/pages/run-detail"));
+const Services = lazy(() => import("@/pages/services"));
+const ServiceDetail = lazy(() => import("@/pages/service-detail"));
+const Traffic = lazy(() => import("@/pages/traffic"));
+const TrafficDetail = lazy(() => import("@/pages/traffic-detail"));
+const Models = lazy(() => import("@/pages/models"));
+const Images = lazy(() => import("@/pages/images"));
+const Tenants = lazy(() => import("@/pages/tenants"));
+const ResourcePools = lazy(() => import("@/pages/resource-pools"));
 
 function PageFallback() {
   return (

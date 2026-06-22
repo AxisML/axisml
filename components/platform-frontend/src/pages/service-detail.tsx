@@ -18,10 +18,10 @@ import { useApp } from "@/app/store";
 import { useApiMutation } from "@/api/mutations";
 import * as sdk from "@/api/generated";
 import { useUI } from "@/app/ui";
-import { PageContainer } from "@/components/PageContainer";
-import { PhaseTag } from "@/components/PhaseTag";
-import { LogViewer } from "@/components/LogViewer";
-import { DataTable, type Column } from "@/components/DataTable";
+import { PageContainer } from "@/components/page-container";
+import { PhaseTag } from "@/components/phase-tag";
+import { LogViewer } from "@/components/log-viewer";
+import { DataTable, type Column } from "@/components/data-table";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -47,7 +47,7 @@ import {
 import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { fmtDateTime } from "./JobDetail";
+import { fmtDateTime } from "./job-detail";
 
 const INVALIDATE = [["mlservices"]];
 const RUNNING_PHASES = new Set(["Ready", "Degraded", "Creating", "Pending"]);
@@ -572,7 +572,7 @@ function EditSvcDrawer({ svc, onClose }: { svc: sdk.MlService; onClose: () => vo
 
   return (
     <Sheet open onOpenChange={(o) => !o && onClose()}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[640px]">
+      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[760px]">
         <SheetHeader className="border-b">
           <SheetTitle>{t("services.drawerEdit")}</SheetTitle>
           <p className="text-xs text-muted-foreground">

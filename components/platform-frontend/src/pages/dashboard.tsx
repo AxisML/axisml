@@ -14,8 +14,8 @@ import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import dayjs from "dayjs";
 import { useApp } from "@/app/store";
 import { useUI } from "@/app/ui";
-import { PageContainer } from "@/components/PageContainer";
-import { PhaseTag } from "@/components/PhaseTag";
+import { PageContainer } from "@/components/page-container";
+import { PhaseTag } from "@/components/phase-tag";
 import {
   useWorkspaces,
   useExperiments,

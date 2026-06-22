@@ -15,11 +15,11 @@ import { useWorkspaces } from "@/api/hooks";
 import { useApiMutation } from "@/api/mutations";
 import * as sdk from "@/api/generated";
 import { useUI } from "@/app/ui";
-import { PageContainer } from "@/components/PageContainer";
-import { PhaseTag } from "@/components/PhaseTag";
-import { FieldSection } from "@/components/FieldSection";
-import { CardRadio } from "@/components/CardRadio";
-import { DataTable, type Column } from "@/components/DataTable";
+import { PageContainer } from "@/components/page-container";
+import { PhaseTag } from "@/components/phase-tag";
+import { FieldSection } from "@/components/field-section";
+import { CardRadio } from "@/components/card-radio";
+import { DataTable, type Column } from "@/components/data-table";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -571,7 +571,7 @@ function WsDrawer({ onClose }: { onClose: () => void }) {
 
   return (
     <Sheet open onOpenChange={(o) => !o && onClose()}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[640px]">
+      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[760px]">
         <SheetHeader className="border-b">
           <SheetTitle>{t("workspaces.drawerNew")}</SheetTitle>
           <p className="text-xs text-muted-foreground">{t("workspaces.drawerNewSub")}</p>
