@@ -176,7 +176,7 @@ export default function ExperimentDetail() {
       }
     >
       <Tabs defaultValue="info">
-        <TabsList variant="line">
+        <TabsList>
           <TabsTrigger value="info">{t("experiments.tabInfo")}</TabsTrigger>
           <TabsTrigger value="runs">
             {t("experiments.tabRuns")}

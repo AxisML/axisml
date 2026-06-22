@@ -48,7 +48,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
+import { Field, FieldLabel, FieldDescription, FieldGroup } from "@/components/ui/field";
 
 interface ImageRow {
   name: string;
@@ -603,84 +603,88 @@ function NewImageDrawer({ onClose }: { onClose: () => void }) {
 
         <div className="flex-1 overflow-auto px-6 py-4">
           <FieldSection n={1} title={t("images.fsBasic")} />
-          <Field className="mb-4">
-            <FieldLabel htmlFor="image-name">
-              {t("images.fName")}
-              <span className="text-destructive">*</span>
-            </FieldLabel>
-            <Input
-              id="image-name"
-              className="font-mono"
-              placeholder={t("images.fNamePlaceholder")}
-              value={v.name}
-              aria-invalid={submitted && !v.name.trim()}
-              onChange={(e) => set("name", e.target.value)}
-            />
-            <FieldDescription>{t("images.fNameHelp")}</FieldDescription>
-          </Field>
-          <Field className="mb-4">
-            <FieldLabel>{t("images.fPurpose")}</FieldLabel>
-            <Select value={v.purpose} onValueChange={(val) => set("purpose", val)}>
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {PURPOSE_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>
-                    {o.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field className="mb-4">
-            <FieldLabel htmlFor="image-desc">{t("images.fDesc")}</FieldLabel>
-            <Textarea
-              id="image-desc"
-              rows={2}
-              placeholder={t("images.fDescPlaceholder")}
-              value={v.description}
-              onChange={(e) => set("description", e.target.value)}
-            />
-          </Field>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="image-name">
+                {t("images.fName")}
+                <span className="text-destructive">*</span>
+              </FieldLabel>
+              <Input
+                id="image-name"
+                className="font-mono"
+                placeholder={t("images.fNamePlaceholder")}
+                value={v.name}
+                aria-invalid={submitted && !v.name.trim()}
+                onChange={(e) => set("name", e.target.value)}
+              />
+              <FieldDescription>{t("images.fNameHelp")}</FieldDescription>
+            </Field>
+            <Field>
+              <FieldLabel>{t("images.fPurpose")}</FieldLabel>
+              <Select value={v.purpose} onValueChange={(val) => set("purpose", val)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PURPOSE_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="image-desc">{t("images.fDesc")}</FieldLabel>
+              <Textarea
+                id="image-desc"
+                rows={2}
+                placeholder={t("images.fDescPlaceholder")}
+                value={v.description}
+                onChange={(e) => set("description", e.target.value)}
+              />
+            </Field>
+          </FieldGroup>
 
           <FieldSection n={2} title={t("images.fsLabels")} />
-          <Field className="mb-4">
-            <FieldLabel>{t("images.lCustom")}</FieldLabel>
-            {Object.keys(customTags).length > 0 && (
-              <div className="mb-2 flex flex-wrap gap-2">
-                {Object.entries(customTags).map(([k, val]) => (
-                  <Badge key={k} variant="outline" className="gap-1 pr-1 font-mono">
-                    {k}:{val}
-                    <button
-                      type="button"
-                      className="grid size-3.5 place-items-center rounded-sm hover:bg-muted"
-                      onClick={() => removeTag(k)}
-                    >
-                      <X className="size-3" />
-                    </button>
-                  </Badge>
-                ))}
+          <FieldGroup>
+            <Field>
+              <FieldLabel>{t("images.lCustom")}</FieldLabel>
+              {Object.keys(customTags).length > 0 && (
+                <div className="mb-2 flex flex-wrap gap-2">
+                  {Object.entries(customTags).map(([k, val]) => (
+                    <Badge key={k} variant="outline" className="gap-1 pr-1 font-mono">
+                      {k}:{val}
+                      <button
+                        type="button"
+                        className="grid size-3.5 place-items-center rounded-sm hover:bg-muted"
+                        onClick={() => removeTag(k)}
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                <Input
+                  className="font-mono"
+                  placeholder={t("images.customKeyPlaceholder")}
+                  value={ctKey}
+                  onChange={(e) => setCtKey(e.target.value)}
+                />
+                <Input
+                  className="font-mono"
+                  placeholder={t("images.customValPlaceholder")}
+                  value={ctVal}
+                  onChange={(e) => setCtVal(e.target.value)}
+                />
+                <Button variant="outline" onClick={addTag}>
+                  {t("images.add")}
+                </Button>
               </div>
-            )}
-            <div className="flex items-center gap-2">
-              <Input
-                className="font-mono"
-                placeholder={t("images.customKeyPlaceholder")}
-                value={ctKey}
-                onChange={(e) => setCtKey(e.target.value)}
-              />
-              <Input
-                className="font-mono"
-                placeholder={t("images.customValPlaceholder")}
-                value={ctVal}
-                onChange={(e) => setCtVal(e.target.value)}
-              />
-              <Button variant="outline" onClick={addTag}>
-                {t("images.add")}
-              </Button>
-            </div>
-          </Field>
+            </Field>
+          </FieldGroup>
         </div>
 
         <SheetFooter className="flex-row justify-end border-t">
@@ -751,34 +755,36 @@ function AddVersionDrawer({ image, onClose }: { image: string; onClose: () => vo
 
         <div className="flex-1 overflow-auto px-6 py-4">
           <FieldSection n={1} title={t("images.fsBasic")} />
-          <Field className="mb-4">
-            <FieldLabel>{t("images.fImage")}</FieldLabel>
-            <Input className="font-mono" value={image} disabled />
-          </Field>
-          <Field className="mb-4">
-            <FieldLabel htmlFor="addver-version">
-              {t("images.fVersion")}
-              <span className="text-destructive">*</span>
-            </FieldLabel>
-            <Input
-              id="addver-version"
-              className="font-mono"
-              placeholder={t("images.fVersionPlaceholder")}
-              value={v.version}
-              aria-invalid={submitted && !v.version.trim()}
-              onChange={(e) => set("version", e.target.value)}
-            />
-          </Field>
-          <Field className="mb-4">
-            <FieldLabel htmlFor="addver-desc">{t("images.fDesc")}</FieldLabel>
-            <Textarea
-              id="addver-desc"
-              rows={2}
-              placeholder={t("images.fAddVerDescPlaceholder")}
-              value={v.description}
-              onChange={(e) => set("description", e.target.value)}
-            />
-          </Field>
+          <FieldGroup>
+            <Field>
+              <FieldLabel>{t("images.fImage")}</FieldLabel>
+              <Input className="font-mono" value={image} disabled />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="addver-version">
+                {t("images.fVersion")}
+                <span className="text-destructive">*</span>
+              </FieldLabel>
+              <Input
+                id="addver-version"
+                className="font-mono"
+                placeholder={t("images.fVersionPlaceholder")}
+                value={v.version}
+                aria-invalid={submitted && !v.version.trim()}
+                onChange={(e) => set("version", e.target.value)}
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="addver-desc">{t("images.fDesc")}</FieldLabel>
+              <Textarea
+                id="addver-desc"
+                rows={2}
+                placeholder={t("images.fAddVerDescPlaceholder")}
+                value={v.description}
+                onChange={(e) => set("description", e.target.value)}
+              />
+            </Field>
+          </FieldGroup>
 
           <FieldSection n={2} title={t("images.fsMethod")} />
           <Tabs value={method} onValueChange={(k) => setMethod(k as "external" | "dockerPush")}>
@@ -788,31 +794,33 @@ function AddVersionDrawer({ image, onClose }: { image: string; onClose: () => vo
             </TabsList>
             <TabsContent value="external" className="flex flex-col gap-4 pt-4">
               <p className="text-sm text-muted-foreground">{t("images.externalHelp")}</p>
-              <Field>
-                <FieldLabel htmlFor="source-ref">{t("images.fSourceRef")}</FieldLabel>
-                <Input
-                  id="source-ref"
-                  className="font-mono"
-                  placeholder={t("images.sourceRefPlaceholder")}
-                  value={v.sourceImageRef}
-                  aria-invalid={submitted && method === "external" && !v.sourceImageRef.trim()}
-                  onChange={(e) => set("sourceImageRef", e.target.value)}
-                />
-              </Field>
-              <Field>
-                <FieldLabel>{t("images.fPullCred")}</FieldLabel>
-                <Select defaultValue="public">
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="public">{t("images.credPublic")}</SelectItem>
-                    <SelectItem value="ngc">{t("images.credNgc")}</SelectItem>
-                    <SelectItem value="harbor">{t("images.credHarbor")}</SelectItem>
-                    <SelectItem value="new">{t("images.credNew")}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
+              <FieldGroup>
+                <Field>
+                  <FieldLabel htmlFor="source-ref">{t("images.fSourceRef")}</FieldLabel>
+                  <Input
+                    id="source-ref"
+                    className="font-mono"
+                    placeholder={t("images.sourceRefPlaceholder")}
+                    value={v.sourceImageRef}
+                    aria-invalid={submitted && method === "external" && !v.sourceImageRef.trim()}
+                    onChange={(e) => set("sourceImageRef", e.target.value)}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel>{t("images.fPullCred")}</FieldLabel>
+                  <Select defaultValue="public">
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="public">{t("images.credPublic")}</SelectItem>
+                      <SelectItem value="ngc">{t("images.credNgc")}</SelectItem>
+                      <SelectItem value="harbor">{t("images.credHarbor")}</SelectItem>
+                      <SelectItem value="new">{t("images.credNew")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+              </FieldGroup>
             </TabsContent>
             <TabsContent value="dockerPush" className="pt-4">
               <DockerGuide

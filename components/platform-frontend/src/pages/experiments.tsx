@@ -32,7 +32,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
+import { Field, FieldLabel, FieldDescription, FieldGroup } from "@/components/ui/field";
 import {
   Collapsible,
   CollapsibleContent,
@@ -386,132 +386,140 @@ function ExpDrawer({ mode, name: initialName, onClose }: { mode: DrawerMode; nam
 
         <div className="flex-1 overflow-auto px-6 py-4">
           <FieldSection n={1} title={t("experiments.fsBasic")} />
-          <Field className="mb-4">
-            <FieldLabel htmlFor="exp-name">
-              {t("experiments.fName")}
-              {mode !== "run" && <span className="text-destructive">*</span>}
-            </FieldLabel>
-            <Input
-              id="exp-name"
-              className="font-mono"
-              placeholder={t("experiments.fNamePlaceholder")}
-              value={v.name}
-              disabled={locked || mode === "edit"}
-              aria-invalid={submitted && mode !== "run" && !v.name.trim()}
-              onChange={(e) => set("name", e.target.value)}
-            />
-            {mode !== "run" && <FieldDescription>{t("experiments.fNameHelp")}</FieldDescription>}
-          </Field>
-          <Field className="mb-4">
-            <FieldLabel htmlFor="exp-desc">{t("experiments.fDesc")}</FieldLabel>
-            <Textarea
-              id="exp-desc"
-              rows={2}
-              placeholder={t("experiments.fDescPlaceholder")}
-              value={v.description}
-              disabled={locked}
-              onChange={(e) => set("description", e.target.value)}
-            />
-          </Field>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="exp-name">
+                {t("experiments.fName")}
+                {mode !== "run" && <span className="text-destructive">*</span>}
+              </FieldLabel>
+              <Input
+                id="exp-name"
+                className="font-mono"
+                placeholder={t("experiments.fNamePlaceholder")}
+                value={v.name}
+                disabled={locked || mode === "edit"}
+                aria-invalid={submitted && mode !== "run" && !v.name.trim()}
+                onChange={(e) => set("name", e.target.value)}
+              />
+              {mode !== "run" && <FieldDescription>{t("experiments.fNameHelp")}</FieldDescription>}
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="exp-desc">{t("experiments.fDesc")}</FieldLabel>
+              <Textarea
+                id="exp-desc"
+                rows={2}
+                placeholder={t("experiments.fDescPlaceholder")}
+                value={v.description}
+                disabled={locked}
+                onChange={(e) => set("description", e.target.value)}
+              />
+            </Field>
+          </FieldGroup>
 
           <FieldSection n={2} title={t("experiments.fsImage")} />
-          <Field className="mb-4">
-            <FieldLabel>{t("experiments.fImage")}</FieldLabel>
-            <CardRadio options={IMAGES} value={v.image} onChange={(val) => set("image", val)} disabled={locked} />
-          </Field>
+          <FieldGroup>
+            <Field>
+              <FieldLabel>{t("experiments.fImage")}</FieldLabel>
+              <CardRadio options={IMAGES} value={v.image} onChange={(val) => set("image", val)} disabled={locked} />
+            </Field>
+          </FieldGroup>
 
           <FieldSection n={3} title={t("experiments.fsResource")} />
-          <Field className="mb-4">
-            <FieldLabel>{t("experiments.fPool")}</FieldLabel>
-            <Select value={v.poolName} onValueChange={(val) => set("poolName", val)} disabled={locked}>
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {POOLS.map((p) => (
-                  <SelectItem key={p} value={p}>
-                    {p}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field className="mb-4">
-            <FieldLabel>{t("experiments.fUnit")}</FieldLabel>
-            <CardRadio options={UNITS} value={v.unitName} onChange={(val) => set("unitName", val)} disabled={locked} />
-          </Field>
-          <Field className="mb-4">
-            <FieldLabel htmlFor="exp-replicas">{t("experiments.fReplicas")}</FieldLabel>
-            <Input
-              id="exp-replicas"
-              type="number"
-              min={1}
-              className="w-40"
-              value={v.replicas}
-              disabled={locked}
-              onChange={(e) => set("replicas", Number(e.target.value))}
-            />
-          </Field>
+          <FieldGroup>
+            <Field>
+              <FieldLabel>{t("experiments.fPool")}</FieldLabel>
+              <Select value={v.poolName} onValueChange={(val) => set("poolName", val)} disabled={locked}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {POOLS.map((p) => (
+                    <SelectItem key={p} value={p}>
+                      {p}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field>
+              <FieldLabel>{t("experiments.fUnit")}</FieldLabel>
+              <CardRadio options={UNITS} value={v.unitName} onChange={(val) => set("unitName", val)} disabled={locked} />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="exp-replicas">{t("experiments.fReplicas")}</FieldLabel>
+              <Input
+                id="exp-replicas"
+                type="number"
+                min={1}
+                className="w-40"
+                value={v.replicas}
+                disabled={locked}
+                onChange={(e) => set("replicas", Number(e.target.value))}
+              />
+            </Field>
+          </FieldGroup>
 
           <FieldSection n={4} title={t("experiments.fsCommand")} />
-          <Field className="mb-4">
-            <FieldLabel htmlFor="exp-cmd">
-              {mode === "run" ? t("experiments.fCommandRun") : t("experiments.fCommandTpl")}
-            </FieldLabel>
-            <Textarea
-              id="exp-cmd"
-              rows={3}
-              className="font-mono"
-              value={v.command}
-              disabled={locked}
-              onChange={(e) => set("command", e.target.value)}
-            />
-            <FieldDescription>
-              {mode === "run" ? t("experiments.fCommandHelpRun") : t("experiments.fCommandHelpTpl")}
-            </FieldDescription>
-          </Field>
-          <Field className="mb-4">
-            <FieldLabel htmlFor="exp-env">{t("experiments.fEnv")}</FieldLabel>
-            <Textarea
-              id="exp-env"
-              rows={2}
-              className="font-mono"
-              value={v.env}
-              disabled={locked}
-              onChange={(e) => set("env", e.target.value)}
-            />
-            {mode !== "run" && <FieldDescription>{t("experiments.fEnvHelp")}</FieldDescription>}
-          </Field>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="exp-cmd">
+                {mode === "run" ? t("experiments.fCommandRun") : t("experiments.fCommandTpl")}
+              </FieldLabel>
+              <Textarea
+                id="exp-cmd"
+                rows={3}
+                className="font-mono"
+                value={v.command}
+                disabled={locked}
+                onChange={(e) => set("command", e.target.value)}
+              />
+              <FieldDescription>
+                {mode === "run" ? t("experiments.fCommandHelpRun") : t("experiments.fCommandHelpTpl")}
+              </FieldDescription>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="exp-env">{t("experiments.fEnv")}</FieldLabel>
+              <Textarea
+                id="exp-env"
+                rows={2}
+                className="font-mono"
+                value={v.env}
+                disabled={locked}
+                onChange={(e) => set("env", e.target.value)}
+              />
+              {mode !== "run" && <FieldDescription>{t("experiments.fEnvHelp")}</FieldDescription>}
+            </Field>
 
-          <Collapsible className="mt-4">
-            <CollapsibleTrigger className="text-sm font-semibold text-info hover:underline">
-              {t("common.advanced")}
-            </CollapsibleTrigger>
-            <CollapsibleContent className="mt-3 flex gap-4">
-              <Field className="flex-1">
-                <FieldLabel htmlFor="exp-timeout">{t("experiments.fTimeout")}</FieldLabel>
-                <Input
-                  id="exp-timeout"
-                  type="number"
-                  min={0}
-                  value={v.timeout}
-                  disabled={locked}
-                  onChange={(e) => set("timeout", Number(e.target.value))}
-                />
-              </Field>
-              <Field className="flex-1">
-                <FieldLabel htmlFor="exp-retries">{t("experiments.fRetries")}</FieldLabel>
-                <Input
-                  id="exp-retries"
-                  type="number"
-                  min={0}
-                  value={v.retries}
-                  disabled={locked}
-                  onChange={(e) => set("retries", Number(e.target.value))}
-                />
-              </Field>
-            </CollapsibleContent>
-          </Collapsible>
+            <Collapsible className="mt-4">
+              <CollapsibleTrigger className="text-sm font-semibold text-info hover:underline">
+                {t("common.advanced")}
+              </CollapsibleTrigger>
+              <CollapsibleContent className="mt-3 flex gap-4">
+                <Field className="flex-1">
+                  <FieldLabel htmlFor="exp-timeout">{t("experiments.fTimeout")}</FieldLabel>
+                  <Input
+                    id="exp-timeout"
+                    type="number"
+                    min={0}
+                    value={v.timeout}
+                    disabled={locked}
+                    onChange={(e) => set("timeout", Number(e.target.value))}
+                  />
+                </Field>
+                <Field className="flex-1">
+                  <FieldLabel htmlFor="exp-retries">{t("experiments.fRetries")}</FieldLabel>
+                  <Input
+                    id="exp-retries"
+                    type="number"
+                    min={0}
+                    value={v.retries}
+                    disabled={locked}
+                    onChange={(e) => set("retries", Number(e.target.value))}
+                  />
+                </Field>
+              </CollapsibleContent>
+            </Collapsible>
+          </FieldGroup>
         </div>
 
         <SheetFooter className="flex-row justify-end border-t">

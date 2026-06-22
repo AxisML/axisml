@@ -29,7 +29,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
+import { Field, FieldLabel, FieldDescription, FieldGroup } from "@/components/ui/field";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
@@ -383,172 +383,180 @@ function TrafficDrawer({ onClose }: { onClose: () => void }) {
 
         <div className="flex-1 overflow-auto px-6 py-4">
           <FieldSection n={1} title={t("traffic.fsBasic")} />
-          <Field className="mb-4">
-            <FieldLabel htmlFor="tp-name">
-              {t("traffic.fName")}
-              <span className="text-destructive">*</span>
-            </FieldLabel>
-            <Input
-              id="tp-name"
-              className="font-mono"
-              placeholder={t("traffic.fNamePlaceholder")}
-              value={v.name}
-              aria-invalid={submitted && !v.name.trim()}
-              onChange={(e) => set("name", e.target.value)}
-            />
-          </Field>
-          <Field className="mb-4">
-            <FieldLabel htmlFor="tp-desc">{t("traffic.fDesc")}</FieldLabel>
-            <Textarea
-              id="tp-desc"
-              rows={2}
-              placeholder={t("traffic.fDescPlaceholder")}
-              value={v.description}
-              onChange={(e) => set("description", e.target.value)}
-            />
-          </Field>
-          <Field className="mb-4">
-            <FieldLabel>
-              {t("traffic.fMode")}
-              <span className="text-destructive">*</span>
-            </FieldLabel>
-            <CardRadio
-              options={[
-                { value: "canary", title: t("traffic.modeCanary"), desc: t("traffic.modeCanaryDesc") },
-                { value: "weighted", title: t("traffic.modeWeighted"), desc: t("traffic.modeWeightedDesc") },
-              ]}
-              value={v.mode}
-              onChange={(val) => set("mode", val as sdk.TrafficPolicyMode)}
-            />
-          </Field>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="tp-name">
+                {t("traffic.fName")}
+                <span className="text-destructive">*</span>
+              </FieldLabel>
+              <Input
+                id="tp-name"
+                className="font-mono"
+                placeholder={t("traffic.fNamePlaceholder")}
+                value={v.name}
+                aria-invalid={submitted && !v.name.trim()}
+                onChange={(e) => set("name", e.target.value)}
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="tp-desc">{t("traffic.fDesc")}</FieldLabel>
+              <Textarea
+                id="tp-desc"
+                rows={2}
+                placeholder={t("traffic.fDescPlaceholder")}
+                value={v.description}
+                onChange={(e) => set("description", e.target.value)}
+              />
+            </Field>
+            <Field>
+              <FieldLabel>
+                {t("traffic.fMode")}
+                <span className="text-destructive">*</span>
+              </FieldLabel>
+              <CardRadio
+                options={[
+                  { value: "canary", title: t("traffic.modeCanary"), desc: t("traffic.modeCanaryDesc") },
+                  { value: "weighted", title: t("traffic.modeWeighted"), desc: t("traffic.modeWeightedDesc") },
+                ]}
+                value={v.mode}
+                onChange={(val) => set("mode", val as sdk.TrafficPolicyMode)}
+              />
+            </Field>
+          </FieldGroup>
 
           <FieldSection n={2} title={t("traffic.fsEndpoint")} />
-          <Field className="mb-4">
-            <FieldLabel htmlFor="tp-path">{t("traffic.fPath")}</FieldLabel>
-            <Input
-              id="tp-path"
-              className="font-mono"
-              placeholder={t("traffic.fPathPlaceholder")}
-              value={v.path}
-              onChange={(e) => set("path", e.target.value)}
-            />
-          </Field>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="tp-path">{t("traffic.fPath")}</FieldLabel>
+              <Input
+                id="tp-path"
+                className="font-mono"
+                placeholder={t("traffic.fPathPlaceholder")}
+                value={v.path}
+                onChange={(e) => set("path", e.target.value)}
+              />
+            </Field>
+          </FieldGroup>
 
           {mode === "canary" ? (
             <>
               <FieldSection n={3} title={t("traffic.fsBackendCanary")} />
-              <div className="flex gap-4">
-                <Field className="mb-4 flex-1">
-                  <FieldLabel>
-                    {t("traffic.fStable")}
-                    <span className="text-destructive">*</span>
-                  </FieldLabel>
-                  <Select value={v.stable} onValueChange={(val) => set("stable", val)}>
-                    <SelectTrigger className="w-full" aria-invalid={submitted && !v.stable}>
-                      <SelectValue placeholder={t("traffic.pickService")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {services.map((s) => (
-                        <SelectItem key={s} value={s}>
-                          {t("traffic.serviceReady", { name: s })}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+              <FieldGroup>
+                <div className="flex gap-4">
+                  <Field className="flex-1">
+                    <FieldLabel>
+                      {t("traffic.fStable")}
+                      <span className="text-destructive">*</span>
+                    </FieldLabel>
+                    <Select value={v.stable} onValueChange={(val) => set("stable", val)}>
+                      <SelectTrigger className="w-full" aria-invalid={submitted && !v.stable}>
+                        <SelectValue placeholder={t("traffic.pickService")} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {services.map((s) => (
+                          <SelectItem key={s} value={s}>
+                            {t("traffic.serviceReady", { name: s })}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                  <Field className="flex-1">
+                    <FieldLabel>
+                      {t("traffic.fCanary")}
+                      <span className="text-destructive">*</span>
+                    </FieldLabel>
+                    <Select value={v.canary} onValueChange={(val) => set("canary", val)}>
+                      <SelectTrigger className="w-full" aria-invalid={submitted && !v.canary}>
+                        <SelectValue placeholder={t("traffic.pickService")} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {services.map((s) => (
+                          <SelectItem key={s} value={s}>
+                            {t("traffic.serviceReady", { name: s })}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                </div>
+                <Field>
+                  <FieldLabel htmlFor="tp-canary-pct">{t("traffic.fCanaryPercent")}</FieldLabel>
+                  <Input
+                    id="tp-canary-pct"
+                    type="number"
+                    min={0}
+                    max={100}
+                    className="w-40"
+                    value={v.canaryPercent}
+                    onChange={(e) => set("canaryPercent", Number(e.target.value))}
+                  />
+                  <FieldDescription>{t("traffic.fCanaryHelp")}</FieldDescription>
                 </Field>
-                <Field className="mb-4 flex-1">
-                  <FieldLabel>
-                    {t("traffic.fCanary")}
-                    <span className="text-destructive">*</span>
-                  </FieldLabel>
-                  <Select value={v.canary} onValueChange={(val) => set("canary", val)}>
-                    <SelectTrigger className="w-full" aria-invalid={submitted && !v.canary}>
-                      <SelectValue placeholder={t("traffic.pickService")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {services.map((s) => (
-                        <SelectItem key={s} value={s}>
-                          {t("traffic.serviceReady", { name: s })}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </Field>
-              </div>
-              <Field className="mb-4">
-                <FieldLabel htmlFor="tp-canary-pct">{t("traffic.fCanaryPercent")}</FieldLabel>
-                <Input
-                  id="tp-canary-pct"
-                  type="number"
-                  min={0}
-                  max={100}
-                  className="w-40"
-                  value={v.canaryPercent}
-                  onChange={(e) => set("canaryPercent", Number(e.target.value))}
-                />
-                <FieldDescription>{t("traffic.fCanaryHelp")}</FieldDescription>
-              </Field>
+              </FieldGroup>
             </>
           ) : (
             <>
               <FieldSection n={3} title={t("traffic.fsBackendWeighted")} />
-              <Field className="mb-4">
-                <FieldLabel>
-                  {t("traffic.fBackendWeights")}
-                  <span className="text-destructive">*</span>
-                </FieldLabel>
-                <div className="flex flex-col gap-2">
-                  {v.weights.map((row, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      <Select
-                        value={row.service}
-                        onValueChange={(val) =>
-                          set("weights", v.weights.map((x, j) => (j === i ? { ...x, service: val } : x)))
-                        }
-                      >
-                        <SelectTrigger className="flex-1" aria-invalid={submitted && !row.service}>
-                          <SelectValue placeholder={t("traffic.pickService")} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {services.map((s) => (
-                            <SelectItem key={s} value={s}>
-                              {t("traffic.serviceReady", { name: s })}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Input
-                        type="number"
-                        min={0}
-                        max={100}
-                        className="w-32"
-                        placeholder={t("traffic.weightPlaceholder")}
-                        value={row.weight}
-                        onChange={(e) =>
-                          set("weights", v.weights.map((x, j) => (j === i ? { ...x, weight: Number(e.target.value) } : x)))
-                        }
-                      />
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        disabled={v.weights.length <= 1}
-                        onClick={() => set("weights", v.weights.filter((_, j) => j !== i))}
-                      >
-                        <MinusCircle />
-                      </Button>
-                    </div>
-                  ))}
-                  <Button
-                    variant="link"
-                    className="self-start px-0"
-                    onClick={() => set("weights", [...v.weights, { weight: 0 }])}
-                  >
-                    <Plus data-icon="inline-start" />
-                    {t("traffic.addBackend")}
-                  </Button>
-                </div>
-                <FieldDescription>{t("traffic.fWeightHelp")}</FieldDescription>
-              </Field>
+              <FieldGroup>
+                <Field>
+                  <FieldLabel>
+                    {t("traffic.fBackendWeights")}
+                    <span className="text-destructive">*</span>
+                  </FieldLabel>
+                  <div className="flex flex-col gap-2">
+                    {v.weights.map((row, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <Select
+                          value={row.service}
+                          onValueChange={(val) =>
+                            set("weights", v.weights.map((x, j) => (j === i ? { ...x, service: val } : x)))
+                          }
+                        >
+                          <SelectTrigger className="flex-1" aria-invalid={submitted && !row.service}>
+                            <SelectValue placeholder={t("traffic.pickService")} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {services.map((s) => (
+                              <SelectItem key={s} value={s}>
+                                {t("traffic.serviceReady", { name: s })}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={100}
+                          className="w-32"
+                          placeholder={t("traffic.weightPlaceholder")}
+                          value={row.weight}
+                          onChange={(e) =>
+                            set("weights", v.weights.map((x, j) => (j === i ? { ...x, weight: Number(e.target.value) } : x)))
+                          }
+                        />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          disabled={v.weights.length <= 1}
+                          onClick={() => set("weights", v.weights.filter((_, j) => j !== i))}
+                        >
+                          <MinusCircle />
+                        </Button>
+                      </div>
+                    ))}
+                    <Button
+                      variant="link"
+                      className="self-start px-0"
+                      onClick={() => set("weights", [...v.weights, { weight: 0 }])}
+                    >
+                      <Plus data-icon="inline-start" />
+                      {t("traffic.addBackend")}
+                    </Button>
+                  </div>
+                  <FieldDescription>{t("traffic.fWeightHelp")}</FieldDescription>
+                </Field>
+              </FieldGroup>
             </>
           )}
         </div>
@@ -606,40 +614,44 @@ function SplitDrawer({ row, onClose }: { row: TrafficRow; onClose: () => void })
           {row.mode === "canary" ? (
             <>
               <FieldSection n={1} title={t("traffic.fsCanaryPercent")} />
-              <Field>
-                <FieldLabel htmlFor="sp-canary-pct">{t("traffic.fCanaryPercentLabel")}</FieldLabel>
-                <Input
-                  id="sp-canary-pct"
-                  type="number"
-                  min={0}
-                  max={100}
-                  className="w-40"
-                  value={canaryPercent}
-                  onChange={(e) => setCanaryPercent(Number(e.target.value))}
-                />
-                <FieldDescription>{t("traffic.canaryPercentHelp")}</FieldDescription>
-              </Field>
+              <FieldGroup>
+                <Field>
+                  <FieldLabel htmlFor="sp-canary-pct">{t("traffic.fCanaryPercentLabel")}</FieldLabel>
+                  <Input
+                    id="sp-canary-pct"
+                    type="number"
+                    min={0}
+                    max={100}
+                    className="w-40"
+                    value={canaryPercent}
+                    onChange={(e) => setCanaryPercent(Number(e.target.value))}
+                  />
+                  <FieldDescription>{t("traffic.canaryPercentHelp")}</FieldDescription>
+                </Field>
+              </FieldGroup>
             </>
           ) : (
             <>
               <FieldSection n={1} title={t("traffic.fsBackendWeight")} />
-              <div className="flex flex-col gap-2">
-                {weights.map((w, i) => (
-                  <div key={w.serviceName} className="flex items-center gap-2">
-                    <Input className="flex-1 font-mono" value={w.serviceName} readOnly />
-                    <Input
-                      type="number"
-                      min={0}
-                      max={100}
-                      className="w-32"
-                      value={w.weight}
-                      onChange={(e) =>
-                        setWeights((prev) => prev.map((x, j) => (j === i ? { ...x, weight: Number(e.target.value) } : x)))
-                      }
-                    />
-                  </div>
-                ))}
-              </div>
+              <FieldGroup>
+                <div className="flex flex-col gap-2">
+                  {weights.map((w, i) => (
+                    <div key={w.serviceName} className="flex items-center gap-2">
+                      <Input className="flex-1 font-mono" value={w.serviceName} readOnly />
+                      <Input
+                        type="number"
+                        min={0}
+                        max={100}
+                        className="w-32"
+                        value={w.weight}
+                        onChange={(e) =>
+                          setWeights((prev) => prev.map((x, j) => (j === i ? { ...x, weight: Number(e.target.value) } : x)))
+                        }
+                      />
+                    </div>
+                  ))}
+                </div>
+              </FieldGroup>
             </>
           )}
         </div>

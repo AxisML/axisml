@@ -5,16 +5,16 @@
 function LogLine({ line }: { line: string }) {
   const tsMatch = line.match(/^(\[?\d[\d:.\- TZ]*\]?)\s+(.*)$/);
   const lvl = /\b(ERROR|ERR|FATAL)\b|\[ERR/i.test(line)
-    ? "text-[#eb5757]"
+    ? "text-red-400"
     : /\b(WARN|WARNING)\b|\[WARN/i.test(line)
-      ? "text-[#f2c94c]"
+      ? "text-amber-300"
       : /\b(INFO)\b|\[INFO/i.test(line)
-        ? "text-[#9fb4d4]"
-        : "text-[#e6e6e6]";
+        ? "text-sky-300"
+        : "text-zinc-100";
   if (tsMatch) {
     return (
       <div>
-        <span className="mr-2.5 text-[#8a8f98]">{tsMatch[1]}</span>
+        <span className="mr-2.5 text-zinc-500">{tsMatch[1]}</span>
         <span className={lvl}>{tsMatch[2]}</span>
       </div>
     );
@@ -25,14 +25,11 @@ function LogLine({ line }: { line: string }) {
 export function LogViewer({ text, empty }: { text?: string | null; empty?: string }) {
   const lines = typeof text === "string" ? text.split("\n").filter((l) => l.length) : [];
   return (
-    <div
-      className="max-h-[440px] overflow-auto rounded-md p-4 font-mono text-xs leading-[1.7]"
-      style={{ background: "#16181d" }}
-    >
+    <div className="max-h-[440px] overflow-auto rounded-md bg-zinc-950 p-4 font-mono text-xs leading-[1.7]">
       {lines.length ? (
         lines.map((l, i) => <LogLine key={i} line={l} />)
       ) : (
-        <span className="text-[#8a8f98]">{empty ?? "暂无日志"}</span>
+        <span className="text-zinc-500">{empty ?? "暂无日志"}</span>
       )}
     </div>
   );

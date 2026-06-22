@@ -125,16 +125,16 @@ export default function TrafficDetail() {
       }
     >
       {back}
-      <Tabs defaultValue="overview" className="gap-4">
+      <Tabs defaultValue="overview">
         <TabsList>
           <TabsTrigger value="overview">{t("traffic.tabOverview")}</TabsTrigger>
           <TabsTrigger value="dist">{t("traffic.tabDistribution")}</TabsTrigger>
           <TabsTrigger value="events">{t("traffic.tabEvents")}</TabsTrigger>
         </TabsList>
-        <TabsContent value="overview">
+        <TabsContent value="overview" className="mt-4">
           <Overview policy={p} backendCount={backends.length} />
         </TabsContent>
-        <TabsContent value="dist">
+        <TabsContent value="dist" className="mt-4">
           {p.mode === "canary" ? (
             <CanaryDistribution name={p.name} initial={p.canaryPercent ?? 0} backends={backends} />
           ) : (

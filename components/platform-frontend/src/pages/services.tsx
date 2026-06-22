@@ -38,7 +38,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
+import { Field, FieldLabel, FieldDescription, FieldGroup } from "@/components/ui/field";
 
 interface SvcRow {
   name: string;
@@ -475,202 +475,210 @@ function NewSvcDrawer({ onClose }: { onClose: () => void }) {
 
         <div className="flex-1 overflow-auto px-6 py-4">
           <FieldSection n={1} title={t("services.fsBasic")} />
-          <Field className="mb-4">
-            <FieldLabel htmlFor="svc-name">
-              {t("services.fName")}
-              <span className="text-destructive">*</span>
-            </FieldLabel>
-            <Input
-              id="svc-name"
-              className="font-mono"
-              placeholder={t("services.fNamePlaceholder")}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-            <FieldDescription>{t("services.fNameHelp")}</FieldDescription>
-          </Field>
-          <Field className="mb-4">
-            <FieldLabel htmlFor="svc-desc">{t("services.fDesc")}</FieldLabel>
-            <Textarea
-              id="svc-desc"
-              rows={2}
-              placeholder={t("services.fDescPlaceholder")}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
-          </Field>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="svc-name">
+                {t("services.fName")}
+                <span className="text-destructive">*</span>
+              </FieldLabel>
+              <Input
+                id="svc-name"
+                className="font-mono"
+                placeholder={t("services.fNamePlaceholder")}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+              <FieldDescription>{t("services.fNameHelp")}</FieldDescription>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="svc-desc">{t("services.fDesc")}</FieldLabel>
+              <Textarea
+                id="svc-desc"
+                rows={2}
+                placeholder={t("services.fDescPlaceholder")}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </Field>
+          </FieldGroup>
 
           <FieldSection n={2} title={t("services.fsModelImage")} />
-          <div className="grid grid-cols-2 gap-4">
-            <Field>
-              <FieldLabel>
-                {t("services.fModel")}
-                <span className="text-destructive">*</span>
-              </FieldLabel>
-              <Select value={modelName || undefined} onValueChange={onPickModel}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder={t("services.selectModel")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {modelOptions.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>
-                      {o.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field>
-              <FieldLabel>
-                {t("services.fModelVersion")}
-                <span className="text-destructive">*</span>
-              </FieldLabel>
-              <Select
-                value={modelVersion || undefined}
-                onValueChange={setModelVersion}
-                disabled={!modelName}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue
-                    placeholder={
-                      !modelName
-                        ? t("services.selectModelFirst")
-                        : modelVersionOptions.length === 0
-                          ? t("services.noVersion")
-                          : t("services.selectVersion")
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {modelVersionOptions.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>
-                      {o.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field>
-              <FieldLabel>
-                {t("services.fImage")}
-                <span className="text-destructive">*</span>
-              </FieldLabel>
-              <Select value={imageName || undefined} onValueChange={onPickImage}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder={t("services.selectImage")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {imageOptions.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>
-                      {o.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field>
-              <FieldLabel>
-                {t("services.fImageVersion")}
-                <span className="text-destructive">*</span>
-              </FieldLabel>
-              <Select
-                value={imageVersion || undefined}
-                onValueChange={setImageVersion}
-                disabled={!imageName}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue
-                    placeholder={
-                      !imageName
-                        ? t("services.selectImageFirst")
-                        : imageVersionOptions.length === 0
-                          ? t("services.noVersion")
-                          : t("services.selectVersion")
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {imageVersionOptions.map((v) => (
-                    <SelectItem key={v.value} value={v.value}>
-                      {v.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-          </div>
+          <FieldGroup>
+            <div className="grid grid-cols-2 gap-4">
+              <Field>
+                <FieldLabel>
+                  {t("services.fModel")}
+                  <span className="text-destructive">*</span>
+                </FieldLabel>
+                <Select value={modelName || undefined} onValueChange={onPickModel}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder={t("services.selectModel")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {modelOptions.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field>
+                <FieldLabel>
+                  {t("services.fModelVersion")}
+                  <span className="text-destructive">*</span>
+                </FieldLabel>
+                <Select
+                  value={modelVersion || undefined}
+                  onValueChange={setModelVersion}
+                  disabled={!modelName}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue
+                      placeholder={
+                        !modelName
+                          ? t("services.selectModelFirst")
+                          : modelVersionOptions.length === 0
+                            ? t("services.noVersion")
+                            : t("services.selectVersion")
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {modelVersionOptions.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field>
+                <FieldLabel>
+                  {t("services.fImage")}
+                  <span className="text-destructive">*</span>
+                </FieldLabel>
+                <Select value={imageName || undefined} onValueChange={onPickImage}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder={t("services.selectImage")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {imageOptions.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field>
+                <FieldLabel>
+                  {t("services.fImageVersion")}
+                  <span className="text-destructive">*</span>
+                </FieldLabel>
+                <Select
+                  value={imageVersion || undefined}
+                  onValueChange={setImageVersion}
+                  disabled={!imageName}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue
+                      placeholder={
+                        !imageName
+                          ? t("services.selectImageFirst")
+                          : imageVersionOptions.length === 0
+                            ? t("services.noVersion")
+                            : t("services.selectVersion")
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {imageVersionOptions.map((v) => (
+                      <SelectItem key={v.value} value={v.value}>
+                        {v.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+            </div>
+          </FieldGroup>
 
           <FieldSection n={3} title={t("services.fsResource")} />
-          <Field className="mb-4">
-            <FieldLabel>
-              {t("services.fPool")}
-              <span className="text-destructive">*</span>
-            </FieldLabel>
-            <Select value={poolName || undefined} onValueChange={onPickPool}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder={t("services.selectPool")} />
-              </SelectTrigger>
-              <SelectContent>
-                {poolOptions.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>
-                    {o.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field className="mb-4">
-            <FieldLabel>
-              {t("services.fUnit")}
-              <span className="text-destructive">*</span>
-            </FieldLabel>
-            {unitOptions.length === 0 ? (
-              <span className="text-sm text-muted-foreground">{t("services.pickPoolFirst")}</span>
-            ) : (
-              <CardRadio options={unitOptions} value={unitName} onChange={setUnitName} />
-            )}
-          </Field>
-          <Field className="mb-4">
-            <FieldLabel htmlFor="svc-replicas">
-              {t("services.fReplicas")}
-              <span className="text-destructive">*</span>
-            </FieldLabel>
-            <Input
-              id="svc-replicas"
-              type="number"
-              min={0}
-              className="w-40"
-              value={replicas}
-              onChange={(e) => setReplicas(Number(e.target.value))}
-            />
-          </Field>
+          <FieldGroup>
+            <Field>
+              <FieldLabel>
+                {t("services.fPool")}
+                <span className="text-destructive">*</span>
+              </FieldLabel>
+              <Select value={poolName || undefined} onValueChange={onPickPool}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder={t("services.selectPool")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {poolOptions.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field>
+              <FieldLabel>
+                {t("services.fUnit")}
+                <span className="text-destructive">*</span>
+              </FieldLabel>
+              {unitOptions.length === 0 ? (
+                <span className="text-sm text-muted-foreground">{t("services.pickPoolFirst")}</span>
+              ) : (
+                <CardRadio options={unitOptions} value={unitName} onChange={setUnitName} />
+              )}
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="svc-replicas">
+                {t("services.fReplicas")}
+                <span className="text-destructive">*</span>
+              </FieldLabel>
+              <Input
+                id="svc-replicas"
+                type="number"
+                min={0}
+                className="w-40"
+                value={replicas}
+                onChange={(e) => setReplicas(Number(e.target.value))}
+              />
+            </Field>
+          </FieldGroup>
 
           <FieldSection n={4} title={t("services.fsPortRoute")} />
-          <Field className="mb-4">
-            <FieldLabel>
-              {t("services.fPorts")}
-              <span className="text-destructive">*</span>
-            </FieldLabel>
-            <PortList rows={ports} setRows={setPorts} />
-          </Field>
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <div className="text-sm">{t("services.fRouteEnabled")}</div>
-              <div className="text-xs text-muted-foreground">{t("services.fRouteHelp")}</div>
+          <FieldGroup>
+            <Field>
+              <FieldLabel>
+                {t("services.fPorts")}
+                <span className="text-destructive">*</span>
+              </FieldLabel>
+              <PortList rows={ports} setRows={setPorts} />
+            </Field>
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm">{t("services.fRouteEnabled")}</div>
+                <div className="text-xs text-muted-foreground">{t("services.fRouteHelp")}</div>
+              </div>
+              <Switch checked={routeEnabled} onCheckedChange={setRouteEnabled} />
             </div>
-            <Switch checked={routeEnabled} onCheckedChange={setRouteEnabled} />
-          </div>
-          <Field className="mb-4">
-            <FieldLabel htmlFor="svc-path">{t("services.fPath")}</FieldLabel>
-            <Input
-              id="svc-path"
-              className="font-mono"
-              placeholder={t("services.fPathPlaceholder")}
-              value={routePath}
-              disabled={!routeEnabled}
-              onChange={(e) => setRoutePath(e.target.value)}
-            />
-          </Field>
+            <Field>
+              <FieldLabel htmlFor="svc-path">{t("services.fPath")}</FieldLabel>
+              <Input
+                id="svc-path"
+                className="font-mono"
+                placeholder={t("services.fPathPlaceholder")}
+                value={routePath}
+                disabled={!routeEnabled}
+                onChange={(e) => setRoutePath(e.target.value)}
+              />
+            </Field>
+          </FieldGroup>
         </div>
 
         <SheetFooter className="flex-row justify-end border-t">
@@ -719,25 +727,27 @@ function EditSvcDrawer({ row, onClose }: { row: SvcRow; onClose: () => void }) {
         <div className="flex-1 overflow-auto px-6 py-4">
           <FieldSection n={1} title={t("services.fsBasic")} />
           <p className="mb-4 text-sm text-muted-foreground">{t("services.editNote")}</p>
-          <Field className="mb-4">
-            <FieldLabel htmlFor="svc-display">{t("services.fDisplayName")}</FieldLabel>
-            <Input
-              id="svc-display"
-              placeholder={t("services.fDisplayNamePlaceholder")}
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-            />
-          </Field>
-          <Field className="mb-4">
-            <FieldLabel htmlFor="svc-edit-desc">{t("services.fDesc")}</FieldLabel>
-            <Textarea
-              id="svc-edit-desc"
-              rows={2}
-              placeholder={t("services.fDescPlaceholder")}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
-          </Field>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="svc-display">{t("services.fDisplayName")}</FieldLabel>
+              <Input
+                id="svc-display"
+                placeholder={t("services.fDisplayNamePlaceholder")}
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="svc-edit-desc">{t("services.fDesc")}</FieldLabel>
+              <Textarea
+                id="svc-edit-desc"
+                rows={2}
+                placeholder={t("services.fDescPlaceholder")}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </Field>
+          </FieldGroup>
         </div>
 
         <SheetFooter className="flex-row justify-end border-t">
@@ -778,20 +788,22 @@ function ScaleDrawer({ row, onClose }: { row: SvcRow; onClose: () => void }) {
 
         <div className="flex-1 overflow-auto px-6 py-4">
           <p className="mb-5 text-sm text-muted-foreground">{t("services.scaleNote")}</p>
-          <Field className="mb-4">
-            <FieldLabel htmlFor="svc-scale-replicas">{t("services.fTargetReplicas")}</FieldLabel>
-            <Input
-              id="svc-scale-replicas"
-              type="number"
-              min={0}
-              className="w-40"
-              value={replicas}
-              onChange={(e) => setReplicas(Number(e.target.value))}
-            />
-            <FieldDescription>
-              {t("services.scaleHint", { ready: row.replicas, unit: row.unit })}
-            </FieldDescription>
-          </Field>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="svc-scale-replicas">{t("services.fTargetReplicas")}</FieldLabel>
+              <Input
+                id="svc-scale-replicas"
+                type="number"
+                min={0}
+                className="w-40"
+                value={replicas}
+                onChange={(e) => setReplicas(Number(e.target.value))}
+              />
+              <FieldDescription>
+                {t("services.scaleHint", { ready: row.replicas, unit: row.unit })}
+              </FieldDescription>
+            </Field>
+          </FieldGroup>
         </div>
 
         <SheetFooter className="flex-row justify-end border-t">

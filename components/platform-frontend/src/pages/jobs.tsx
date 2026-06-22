@@ -32,7 +32,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
+import { Field, FieldLabel, FieldDescription, FieldGroup } from "@/components/ui/field";
 import {
   Collapsible,
   CollapsibleContent,
@@ -378,100 +378,109 @@ function JobDrawer({ mode, name: initialName, onClose }: { mode: DrawerMode; nam
 
         <div className="flex-1 overflow-auto px-6 py-4">
           <FieldSection n={1} title={t("jobs.fsBasic")} />
-          <Field className="mb-4">
-            <FieldLabel htmlFor="job-name">
-              {t("jobs.fName")}
-              {mode !== "run" && <span className="text-destructive">*</span>}
-            </FieldLabel>
-            <Input
-              id="job-name"
-              className="font-mono"
-              placeholder={t("jobs.fNamePlaceholder")}
-              value={v.name}
-              disabled={locked || mode === "edit"}
-              aria-invalid={submitted && mode !== "run" && !v.name.trim()}
-              onChange={(e) => set("name", e.target.value)}
-            />
-            {mode !== "run" && <FieldDescription>{t("jobs.fNameHelp")}</FieldDescription>}
-          </Field>
-          <Field className="mb-4">
-            <FieldLabel htmlFor="job-desc">{t("jobs.fDesc")}</FieldLabel>
-            <Textarea
-              id="job-desc"
-              rows={2}
-              placeholder={t("jobs.fDescPlaceholder")}
-              value={v.description}
-              disabled={locked}
-              onChange={(e) => set("description", e.target.value)}
-            />
-          </Field>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="job-name">
+                {t("jobs.fName")}
+                {mode !== "run" && <span className="text-destructive">*</span>}
+              </FieldLabel>
+              <Input
+                id="job-name"
+                className="font-mono"
+                placeholder={t("jobs.fNamePlaceholder")}
+                value={v.name}
+                disabled={locked || mode === "edit"}
+                aria-invalid={submitted && mode !== "run" && !v.name.trim()}
+                onChange={(e) => set("name", e.target.value)}
+              />
+              {mode !== "run" && <FieldDescription>{t("jobs.fNameHelp")}</FieldDescription>}
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="job-desc">{t("jobs.fDesc")}</FieldLabel>
+              <Textarea
+                id="job-desc"
+                rows={2}
+                placeholder={t("jobs.fDescPlaceholder")}
+                value={v.description}
+                disabled={locked}
+                onChange={(e) => set("description", e.target.value)}
+              />
+            </Field>
+          </FieldGroup>
 
           <FieldSection n={2} title={t("jobs.fsImage")} />
-          <Field className="mb-4">
-            <FieldLabel>{t("jobs.fImage")}</FieldLabel>
-            <CardRadio options={IMAGES} value={v.image} onChange={(val) => set("image", val)} disabled={locked} />
-          </Field>
+          <FieldGroup>
+            <Field>
+              <FieldLabel>{t("jobs.fImage")}</FieldLabel>
+              <CardRadio options={IMAGES} value={v.image} onChange={(val) => set("image", val)} disabled={locked} />
+            </Field>
+          </FieldGroup>
 
           <FieldSection n={3} title={t("jobs.fsResource")} />
-          <Field className="mb-4">
-            <FieldLabel>{t("jobs.fPool")}</FieldLabel>
-            <Select value={v.poolName} onValueChange={(val) => set("poolName", val)} disabled={locked}>
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {POOLS.map((p) => (
-                  <SelectItem key={p} value={p}>
-                    {p}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field className="mb-4">
-            <FieldLabel>{t("jobs.fUnit")}</FieldLabel>
-            <CardRadio options={UNITS} value={v.unitName} onChange={(val) => set("unitName", val)} disabled={locked} />
-          </Field>
-          <Field className="mb-4">
-            <FieldLabel htmlFor="job-replicas">{t("jobs.fReplicas")}</FieldLabel>
-            <Input
-              id="job-replicas"
-              type="number"
-              min={1}
-              className="w-40"
-              value={v.replicas}
-              disabled={locked}
-              onChange={(e) => set("replicas", Number(e.target.value))}
-            />
-          </Field>
+          <FieldGroup>
+            <Field>
+              <FieldLabel>{t("jobs.fPool")}</FieldLabel>
+              <Select value={v.poolName} onValueChange={(val) => set("poolName", val)} disabled={locked}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {POOLS.map((p) => (
+                    <SelectItem key={p} value={p}>
+                      {p}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field>
+              <FieldLabel>{t("jobs.fUnit")}</FieldLabel>
+              <CardRadio options={UNITS} value={v.unitName} onChange={(val) => set("unitName", val)} disabled={locked} />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="job-replicas">{t("jobs.fReplicas")}</FieldLabel>
+              <Input
+                id="job-replicas"
+                type="number"
+                min={1}
+                className="w-40"
+                value={v.replicas}
+                disabled={locked}
+                onChange={(e) => set("replicas", Number(e.target.value))}
+              />
+            </Field>
+          </FieldGroup>
 
           <FieldSection n={4} title={t("jobs.fsCommand")} />
-          <Field className="mb-4">
-            <FieldLabel htmlFor="job-cmd">{t("jobs.fCommand")}</FieldLabel>
-            <Textarea
-              id="job-cmd"
-              rows={3}
-              className="font-mono"
-              value={v.command}
-              disabled={locked}
-              onChange={(e) => set("command", e.target.value)}
-            />
-            {mode !== "run" && <FieldDescription>{t("jobs.fCommandHelp")}</FieldDescription>}
-          </Field>
-          <Field className="mb-4">
-            <FieldLabel htmlFor="job-env">{t("jobs.fEnv")}</FieldLabel>
-            <Textarea
-              id="job-env"
-              rows={2}
-              className="font-mono"
-              value={v.env}
-              disabled={locked}
-              onChange={(e) => set("env", e.target.value)}
-            />
-            {mode !== "run" && <FieldDescription>{t("jobs.fEnvHelp")}</FieldDescription>}
-          </Field>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="job-cmd">{t("jobs.fCommand")}</FieldLabel>
+              <Textarea
+                id="job-cmd"
+                rows={3}
+                className="font-mono"
+                value={v.command}
+                disabled={locked}
+                onChange={(e) => set("command", e.target.value)}
+              />
+              {mode !== "run" && <FieldDescription>{t("jobs.fCommandHelp")}</FieldDescription>}
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="job-env">{t("jobs.fEnv")}</FieldLabel>
+              <Textarea
+                id="job-env"
+                rows={2}
+                className="font-mono"
+                value={v.env}
+                disabled={locked}
+                onChange={(e) => set("env", e.target.value)}
+              />
+              {mode !== "run" && <FieldDescription>{t("jobs.fEnvHelp")}</FieldDescription>}
+            </Field>
+          </FieldGroup>
 
           <FieldSection n={5} title={t("jobs.fsVolume")} />
+          <FieldGroup>
           <div className="flex flex-col gap-2.5">
             {v.volumes.map((vol, i) => (
               <div key={i} className="flex items-start gap-2">
@@ -552,6 +561,7 @@ function JobDrawer({ mode, name: initialName, onClose }: { mode: DrawerMode; nam
               </Field>
             </CollapsibleContent>
           </Collapsible>
+          </FieldGroup>
         </div>
 
         <SheetFooter className="flex-row justify-end border-t">

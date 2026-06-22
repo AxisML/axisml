@@ -49,7 +49,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
+import { Field, FieldGroup, FieldLabel, FieldDescription } from "@/components/ui/field";
 import {
   Tooltip,
   TooltipContent,
@@ -507,26 +507,28 @@ function EditDrawer({ w, onClose }: { w: sdk.Workspace; onClose: () => void }) {
             <Info />
             <AlertDescription>{t("workspaces.editNotice")}</AlertDescription>
           </Alert>
-          <Field className="mb-4">
-            <FieldLabel htmlFor="ws-edit-name">{t("workspaces.fName")}</FieldLabel>
-            <Input
-              id="ws-edit-name"
-              value={v.displayName}
-              onChange={(e) => set("displayName", e.target.value)}
-            />
-            <FieldDescription>{t("workspaces.fNameHelp")}</FieldDescription>
-          </Field>
-          <Field className="mb-4">
-            <FieldLabel htmlFor="ws-edit-desc">{t("workspaces.fDesc")}</FieldLabel>
-            <Textarea
-              id="ws-edit-desc"
-              rows={2}
-              placeholder={t("workspaces.fDescPlaceholder")}
-              value={v.description}
-              onChange={(e) => set("description", e.target.value)}
-            />
-          </Field>
-          <div className="rounded-lg border bg-muted p-3 text-sm text-muted-foreground">
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="ws-edit-name">{t("workspaces.fName")}</FieldLabel>
+              <Input
+                id="ws-edit-name"
+                value={v.displayName}
+                onChange={(e) => set("displayName", e.target.value)}
+              />
+              <FieldDescription>{t("workspaces.fNameHelp")}</FieldDescription>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="ws-edit-desc">{t("workspaces.fDesc")}</FieldLabel>
+              <Textarea
+                id="ws-edit-desc"
+                rows={2}
+                placeholder={t("workspaces.fDescPlaceholder")}
+                value={v.description}
+                onChange={(e) => set("description", e.target.value)}
+              />
+            </Field>
+          </FieldGroup>
+          <div className="mt-5 rounded-lg border bg-muted p-3 text-sm text-muted-foreground">
             <Code2 className="mr-2 inline size-4 text-foreground" />
             {t("workspaces.fImage")}: <span className="font-mono text-foreground">{w.image}</span>
             {w.unitName && (

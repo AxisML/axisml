@@ -34,6 +34,14 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Empty, EmptyDescription, EmptyHeader } from "@/components/ui/empty";
 import { Separator } from "@/components/ui/separator";
+import { Progress } from "@/components/ui/progress";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
+import { Area, CartesianGrid, ComposedChart, Line, XAxis, YAxis } from "recharts";
 import { cn } from "@/lib/utils";
 
 // 首页 / Dashboard. KPI counts and recent activity come from the live list
@@ -119,7 +127,7 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent className="pt-4">
             <Tabs defaultValue="all">
-              <TabsList className="mb-4">
+              <TabsList>
                 <TabsTrigger value="all">{t("dashboard.all")}</TabsTrigger>
                 {poolNames.map((name) => (
                   <TabsTrigger key={name} value={name}>
@@ -127,11 +135,11 @@ export default function Dashboard() {
                   </TabsTrigger>
                 ))}
               </TabsList>
-              <TabsContent value="all">
+              <TabsContent value="all" className="mt-4">
                 <ClusterPane pool="all" />
               </TabsContent>
               {poolNames.map((name) => (
-                <TabsContent key={name} value={name}>
+                <TabsContent key={name} value={name} className="mt-4">
                   <ClusterPane pool={name} />
                 </TabsContent>
               ))}
@@ -230,7 +238,12 @@ function ClusterPane({ pool }: { pool: string }) {
 
 function MeterStat({ label, icon, m }: { label: string; icon: ReactNode; m?: UsageMetric }) {
   const { t } = useTranslation();
-  const fill = m?.state === "hot" ? "bg-destructive" : m?.state === "warn" ? "bg-warning" : "bg-success";
+  const fill =
+    m?.state === "hot"
+      ? "[&_[data-slot=progress-indicator]]:bg-destructive"
+      : m?.state === "warn"
+        ? "[&_[data-slot=progress-indicator]]:bg-warning"
+        : "[&_[data-slot=progress-indicator]]:bg-success";
   const na = m?.state === "na";
   return (
     <div className={na ? "opacity-50" : undefined}>
@@ -244,9 +257,7 @@ function MeterStat({ label, icon, m }: { label: string; icon: ReactNode; m?: Usa
           / {m ? `${m.total} ${m.unit}` : `— ${label === "GPU" ? "卡" : ""}`}
         </span>
       </div>
-      <div className="mt-2.5 h-[7px] overflow-hidden rounded-full bg-muted">
-        <div className={cn("h-full rounded-full", fill)} style={{ width: `${m?.pct ?? 0}%` }} />
-      </div>
+      <Progress value={m?.pct ?? 0} className={cn("mt-2.5 h-1.5", fill)} />
       <div className="mt-1.5 font-mono text-xs text-muted-foreground">
         {na ? t("dashboard.noGpu") : m ? `${m.pct}% ${t("dashboard.utilization")}` : t("dashboard.metricsSyncing")}
       </div>
@@ -254,36 +265,49 @@ function MeterStat({ label, icon, m }: { label: string; icon: ReactNode; m?: Usa
   );
 }
 
-// Hand-drawn SVG trend (area + util line + dashed concurrency line), matching the
-// prototype's inline chart. viewBox stretches to fill width.
+// GPU utilisation trend (filled util area + dashed concurrency line). recharts
+// ComposedChart via the shadcn Chart wrapper; the dashed series rides a hidden
+// secondary axis so its count scale stays independent of the util percentage.
 function TrendChart({ trend }: { trend?: ClusterUsage["trend"] }) {
-  const W = 720;
-  const H = 200;
+  const { t } = useTranslation();
   const data = trend ?? Array.from({ length: 13 }, (_, i) => ({ t: `${i * 2}:00`, util: 0, tasks: 0 }));
-  const n = data.length;
-  const x = (i: number) => (i / (n - 1)) * W;
-  const yUtil = (v: number) => H - (Math.max(0, Math.min(100, v)) / 100) * (H - 16) - 6;
-  const maxTasks = Math.max(...data.map((d) => d.tasks), 1);
-  const yTask = (v: number) => H - (v / maxTasks) * (H * 0.32) - 16;
-  const utilPts = data.map((d, i) => `${x(i)} ${yUtil(d.util)}`);
-  const linePath = "M" + utilPts.join(" L");
-  const areaPath = `M0 ${H} L${utilPts.join(" L")} L${W} ${H} Z`;
-  const taskPath = "M" + data.map((d, i) => `${x(i)} ${yTask(d.tasks)}`).join(" L");
+  const chartConfig = {
+    util: { label: t("dashboard.gpuUtil"), color: "var(--info)" },
+    tasks: { label: t("dashboard.gpuQuota"), color: "var(--muted-foreground)" },
+  } satisfies ChartConfig;
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="h-[180px] w-full">
-      <defs>
-        <linearGradient id="gtrend" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0" stopColor="var(--info)" stopOpacity="0.16" />
-          <stop offset="1" stopColor="var(--info)" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      {[50, 100, 150].map((y) => (
-        <line key={y} x1="0" y1={y} x2={W} y2={y} stroke="var(--border)" strokeWidth="1" />
-      ))}
-      <path d={areaPath} fill="url(#gtrend)" />
-      <path d={linePath} fill="none" stroke="var(--info)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      <path d={taskPath} fill="none" stroke="var(--muted-foreground)" strokeWidth="1.6" strokeDasharray="4 4" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
+    <ChartContainer config={chartConfig} className="h-[180px] w-full">
+      <ComposedChart data={data} margin={{ left: 0, right: 0, top: 8, bottom: 0 }}>
+        <defs>
+          <linearGradient id="fillUtil" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor="var(--color-util)" stopOpacity={0.16} />
+            <stop offset="95%" stopColor="var(--color-util)" stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid vertical={false} />
+        <XAxis dataKey="t" tickLine={false} axisLine={false} tickMargin={8} minTickGap={28} />
+        <YAxis yAxisId="util" hide domain={[0, 100]} />
+        <YAxis yAxisId="tasks" hide domain={[0, "dataMax"]} />
+        <ChartTooltip content={<ChartTooltipContent />} />
+        <Area
+          yAxisId="util"
+          dataKey="util"
+          type="monotone"
+          fill="url(#fillUtil)"
+          stroke="var(--color-util)"
+          strokeWidth={2}
+        />
+        <Line
+          yAxisId="tasks"
+          dataKey="tasks"
+          type="monotone"
+          stroke="var(--color-tasks)"
+          strokeWidth={1.6}
+          strokeDasharray="4 4"
+          dot={false}
+        />
+      </ComposedChart>
+    </ChartContainer>
   );
 }
 

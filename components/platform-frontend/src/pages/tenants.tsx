@@ -30,7 +30,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
+import { Field, FieldLabel, FieldDescription, FieldGroup } from "@/components/ui/field";
 import { Spinner } from "@/components/ui/spinner";
 import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -378,48 +378,50 @@ function TenantDrawer({ onClose }: { onClose: () => void }) {
 
         <div className="flex-1 overflow-auto px-6 py-4">
           <FieldSection n={1} title={t("tenants.fsBasic")} />
-          <Field className="mb-4">
-            <FieldLabel htmlFor="tenant-display">
-              {t("tenants.fDisplayName")}
-              <span className="text-destructive">*</span>
-            </FieldLabel>
-            <Input
-              id="tenant-display"
-              placeholder={t("tenants.fDisplayNamePlaceholder")}
-              value={v.displayName}
-              aria-invalid={submitted && !v.displayName.trim()}
-              onChange={(e) => set("displayName", e.target.value)}
-            />
-            <FieldDescription>{t("tenants.fDisplayNameHelp")}</FieldDescription>
-          </Field>
-          <Field className="mb-4">
-            <FieldLabel htmlFor="tenant-ident">
-              {t("tenants.fIdentifier")}
-              <span className="text-destructive">*</span>
-            </FieldLabel>
-            <Input
-              id="tenant-ident"
-              className="font-mono"
-              placeholder={t("tenants.fIdentifierPlaceholder")}
-              value={v.identifier}
-              aria-invalid={submitted && !v.identifier.trim()}
-              onChange={(e) => set("identifier", e.target.value)}
-            />
-            <FieldDescription>{t("tenants.fIdentifierHelp")}</FieldDescription>
-          </Field>
-          <Field className="mb-4">
-            <FieldLabel htmlFor="tenant-admin">
-              {t("tenants.fAdmin")}
-              <span className="text-destructive">*</span>
-            </FieldLabel>
-            <Input
-              id="tenant-admin"
-              placeholder={t("tenants.fAdminPlaceholder")}
-              value={v.initialAdmin}
-              aria-invalid={submitted && !v.initialAdmin.trim()}
-              onChange={(e) => set("initialAdmin", e.target.value)}
-            />
-          </Field>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="tenant-display">
+                {t("tenants.fDisplayName")}
+                <span className="text-destructive">*</span>
+              </FieldLabel>
+              <Input
+                id="tenant-display"
+                placeholder={t("tenants.fDisplayNamePlaceholder")}
+                value={v.displayName}
+                aria-invalid={submitted && !v.displayName.trim()}
+                onChange={(e) => set("displayName", e.target.value)}
+              />
+              <FieldDescription>{t("tenants.fDisplayNameHelp")}</FieldDescription>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="tenant-ident">
+                {t("tenants.fIdentifier")}
+                <span className="text-destructive">*</span>
+              </FieldLabel>
+              <Input
+                id="tenant-ident"
+                className="font-mono"
+                placeholder={t("tenants.fIdentifierPlaceholder")}
+                value={v.identifier}
+                aria-invalid={submitted && !v.identifier.trim()}
+                onChange={(e) => set("identifier", e.target.value)}
+              />
+              <FieldDescription>{t("tenants.fIdentifierHelp")}</FieldDescription>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="tenant-admin">
+                {t("tenants.fAdmin")}
+                <span className="text-destructive">*</span>
+              </FieldLabel>
+              <Input
+                id="tenant-admin"
+                placeholder={t("tenants.fAdminPlaceholder")}
+                value={v.initialAdmin}
+                aria-invalid={submitted && !v.initialAdmin.trim()}
+                onChange={(e) => set("initialAdmin", e.target.value)}
+              />
+            </Field>
+          </FieldGroup>
 
           <FieldSection n={2} title={t("tenants.fsQuota")} />
           <p className="text-xs text-muted-foreground">{t("tenants.quotaHint")}</p>
@@ -566,6 +568,7 @@ function QuotaDrawer({ ident, display, onClose }: { ident: string; display: stri
               )}
               <FieldSection n={1} title={t("tenants.fsQuotaRows")} />
               <p className="mb-3 text-xs text-muted-foreground">{t("tenants.quotaRowsSub")}</p>
+              <FieldGroup>
               <div className="flex flex-col gap-3">
                 {editRows.length === 0 && (
                   <Empty>
@@ -658,6 +661,7 @@ function QuotaDrawer({ ident, display, onClose }: { ident: string; display: stri
                   {t("tenants.addQuotaRow")}
                 </Button>
               </div>
+              </FieldGroup>
             </>
           )}
         </div>
@@ -883,35 +887,37 @@ function MemberDrawer({ ident, onClose }: { ident: string; onClose: () => void }
 
         <div className="flex-1 overflow-auto px-6 py-4">
           <FieldSection n={1} title={t("tenants.memberDrawerSub", { name: ident })} />
-          <Field className="mb-4">
-            <FieldLabel htmlFor="member-account">
-              {t("tenants.fAccount")}
-              <span className="text-destructive">*</span>
-            </FieldLabel>
-            <Input
-              id="member-account"
-              placeholder={t("tenants.fAccountPlaceholder")}
-              value={v.account}
-              aria-invalid={submitted && !v.account.trim()}
-              onChange={(e) => set("account", e.target.value)}
-            />
-            <FieldDescription>{t("tenants.fAccountHelp")}</FieldDescription>
-          </Field>
-          <Field className="mb-4">
-            <FieldLabel>{t("tenants.fRole")}</FieldLabel>
-            <Select value={v.roleName} onValueChange={(val) => set("roleName", val as MemberFormValues["roleName"])}>
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {MEMBER_ROLES.map((r) => (
-                  <SelectItem key={r} value={r}>
-                    {t(`role.${r}`)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="member-account">
+                {t("tenants.fAccount")}
+                <span className="text-destructive">*</span>
+              </FieldLabel>
+              <Input
+                id="member-account"
+                placeholder={t("tenants.fAccountPlaceholder")}
+                value={v.account}
+                aria-invalid={submitted && !v.account.trim()}
+                onChange={(e) => set("account", e.target.value)}
+              />
+              <FieldDescription>{t("tenants.fAccountHelp")}</FieldDescription>
+            </Field>
+            <Field>
+              <FieldLabel>{t("tenants.fRole")}</FieldLabel>
+              <Select value={v.roleName} onValueChange={(val) => set("roleName", val as MemberFormValues["roleName"])}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {MEMBER_ROLES.map((r) => (
+                    <SelectItem key={r} value={r}>
+                      {t(`role.${r}`)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+          </FieldGroup>
         </div>
 
         <SheetFooter className="flex-row justify-end border-t">

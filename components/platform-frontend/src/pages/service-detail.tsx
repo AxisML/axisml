@@ -44,7 +44,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
+import { Field, FieldGroup, FieldLabel, FieldDescription } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { fmtDateTime } from "./job-detail";
@@ -582,25 +582,27 @@ function EditSvcDrawer({ svc, onClose }: { svc: sdk.MlService; onClose: () => vo
 
         <div className="flex-1 overflow-auto px-6 py-4">
           <p className="mb-4 text-sm text-muted-foreground">{t("services.editNote")}</p>
-          <Field className="mb-4">
-            <FieldLabel htmlFor="svc-display">{t("services.fDisplayName")}</FieldLabel>
-            <Input
-              id="svc-display"
-              placeholder={t("services.fDisplayNamePlaceholder")}
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-            />
-          </Field>
-          <Field className="mb-4">
-            <FieldLabel htmlFor="svc-edit-desc">{t("services.fDesc")}</FieldLabel>
-            <Textarea
-              id="svc-edit-desc"
-              rows={2}
-              placeholder={t("services.fDescPlaceholder")}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
-          </Field>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="svc-display">{t("services.fDisplayName")}</FieldLabel>
+              <Input
+                id="svc-display"
+                placeholder={t("services.fDisplayNamePlaceholder")}
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="svc-edit-desc">{t("services.fDesc")}</FieldLabel>
+              <Textarea
+                id="svc-edit-desc"
+                rows={2}
+                placeholder={t("services.fDescPlaceholder")}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </Field>
+          </FieldGroup>
         </div>
 
         <SheetFooter className="flex-row justify-end border-t">
@@ -642,23 +644,25 @@ function ScaleDrawer({ svc, onClose }: { svc: sdk.MlService; onClose: () => void
 
         <div className="flex-1 overflow-auto px-6 py-4">
           <p className="mb-5 text-sm text-muted-foreground">{t("services.scaleNote")}</p>
-          <Field className="mb-4">
-            <FieldLabel htmlFor="svc-scale-replicas">{t("services.fTargetReplicas")}</FieldLabel>
-            <Input
-              id="svc-scale-replicas"
-              type="number"
-              min={0}
-              className="w-40"
-              value={replicas}
-              onChange={(e) => setReplicas(Number(e.target.value))}
-            />
-            <FieldDescription>
-              {t("services.scaleHint", {
-                ready: `${svc.readyReplicas ?? 0} / ${svc.replicas ?? 0}`,
-                unit,
-              })}
-            </FieldDescription>
-          </Field>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="svc-scale-replicas">{t("services.fTargetReplicas")}</FieldLabel>
+              <Input
+                id="svc-scale-replicas"
+                type="number"
+                min={0}
+                className="w-40"
+                value={replicas}
+                onChange={(e) => setReplicas(Number(e.target.value))}
+              />
+              <FieldDescription>
+                {t("services.scaleHint", {
+                  ready: `${svc.readyReplicas ?? 0} / ${svc.replicas ?? 0}`,
+                  unit,
+                })}
+              </FieldDescription>
+            </Field>
+          </FieldGroup>
         </div>
 
         <SheetFooter className="flex-row justify-end border-t">

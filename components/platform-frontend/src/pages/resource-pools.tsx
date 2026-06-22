@@ -22,7 +22,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
+import { Field, FieldLabel, FieldDescription, FieldGroup } from "@/components/ui/field";
 import { Spinner } from "@/components/ui/spinner";
 import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 
@@ -371,45 +371,49 @@ function PoolFormDrawer({ pool, onClose }: { pool?: sdk.ResourcePool; onClose: (
 
         <div className="flex-1 overflow-auto px-6 py-4">
           <FieldSection n={1} title={t("pools.fsBasic")} />
-          <Field className="mb-4">
-            <FieldLabel htmlFor="pool-name">
-              {t("pools.fName")}
-              {!editing && <span className="text-destructive">*</span>}
-            </FieldLabel>
-            <Input
-              id="pool-name"
-              className="font-mono"
-              placeholder={t("pools.fNamePlaceholder")}
-              value={v.name}
-              disabled={editing}
-              aria-invalid={submitted && !editing && !v.name.trim()}
-              onChange={(e) => set("name", e.target.value)}
-            />
-            {!editing && <FieldDescription>{t("pools.fNameHelp")}</FieldDescription>}
-          </Field>
-          <Field className="mb-4">
-            <FieldLabel htmlFor="pool-desc">{t("pools.fDesc")}</FieldLabel>
-            <Textarea
-              id="pool-desc"
-              rows={2}
-              placeholder={t("pools.fDescPlaceholder")}
-              value={v.description}
-              onChange={(e) => set("description", e.target.value)}
-            />
-          </Field>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="pool-name">
+                {t("pools.fName")}
+                {!editing && <span className="text-destructive">*</span>}
+              </FieldLabel>
+              <Input
+                id="pool-name"
+                className="font-mono"
+                placeholder={t("pools.fNamePlaceholder")}
+                value={v.name}
+                disabled={editing}
+                aria-invalid={submitted && !editing && !v.name.trim()}
+                onChange={(e) => set("name", e.target.value)}
+              />
+              {!editing && <FieldDescription>{t("pools.fNameHelp")}</FieldDescription>}
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="pool-desc">{t("pools.fDesc")}</FieldLabel>
+              <Textarea
+                id="pool-desc"
+                rows={2}
+                placeholder={t("pools.fDescPlaceholder")}
+                value={v.description}
+                onChange={(e) => set("description", e.target.value)}
+              />
+            </Field>
+          </FieldGroup>
 
           <FieldSection n={2} title={t("pools.fsSchedule")} />
-          <Field className="mb-4">
-            <FieldLabel htmlFor="pool-selector">{t("pools.fSelector")}</FieldLabel>
-            <Input
-              id="pool-selector"
-              className="font-mono"
-              placeholder={t("pools.fSelectorPlaceholder")}
-              value={v.selector}
-              onChange={(e) => set("selector", e.target.value)}
-            />
-            <FieldDescription>{t("pools.fSelectorHelp")}</FieldDescription>
-          </Field>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="pool-selector">{t("pools.fSelector")}</FieldLabel>
+              <Input
+                id="pool-selector"
+                className="font-mono"
+                placeholder={t("pools.fSelectorPlaceholder")}
+                value={v.selector}
+                onChange={(e) => set("selector", e.target.value)}
+              />
+              <FieldDescription>{t("pools.fSelectorHelp")}</FieldDescription>
+            </Field>
+          </FieldGroup>
         </div>
 
         <SheetFooter className="flex-row justify-end border-t">
@@ -529,7 +533,8 @@ function ManageUnitsDrawer({ pool, onClose }: { pool: sdk.ResourcePool; onClose:
           )}
           <p className="mb-4 text-xs text-muted-foreground">{t("pools.unitsDrawerSub")}</p>
           <FieldSection n={1} title={t("pools.fsUnits")} />
-          <div className="flex flex-col gap-3">
+          <FieldGroup>
+            <div className="flex flex-col gap-3">
             {units.map((row, i) => {
               const isExisting = !!row.name && existing.has(row.name);
               return (
@@ -618,7 +623,8 @@ function ManageUnitsDrawer({ pool, onClose }: { pool: sdk.ResourcePool; onClose:
               <Plus data-icon="inline-start" />
               {t("pools.addUnit")}
             </Button>
-          </div>
+            </div>
+          </FieldGroup>
         </div>
 
         <SheetFooter className="flex-row justify-end border-t">

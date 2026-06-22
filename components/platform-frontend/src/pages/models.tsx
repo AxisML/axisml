@@ -49,7 +49,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
+import { Field, FieldGroup, FieldLabel, FieldDescription } from "@/components/ui/field";
 
 interface ModelRow {
   name: string;
@@ -648,136 +648,140 @@ function NewModelDrawer({ onClose }: { onClose: () => void }) {
 
         <div className="flex-1 overflow-auto px-6 py-4">
           <FieldSection n={1} title={t("models.fsBasic")} />
-          <Field className="mb-4">
-            <FieldLabel htmlFor="model-name">
-              {t("models.fName")}
-              <span className="text-destructive">*</span>
-            </FieldLabel>
-            <Input
-              id="model-name"
-              className="font-mono"
-              placeholder={t("models.fNamePlaceholder")}
-              value={v.name}
-              aria-invalid={submitted && !v.name.trim()}
-              onChange={(e) => set("name", e.target.value)}
-            />
-            <FieldDescription>{t("models.fNameHelp")}</FieldDescription>
-          </Field>
-          <Field className="mb-4">
-            <FieldLabel htmlFor="model-desc">{t("models.fDesc")}</FieldLabel>
-            <Textarea
-              id="model-desc"
-              rows={2}
-              placeholder={t("models.fDescPlaceholder")}
-              value={v.description}
-              onChange={(e) => set("description", e.target.value)}
-            />
-          </Field>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="model-name">
+                {t("models.fName")}
+                <span className="text-destructive">*</span>
+              </FieldLabel>
+              <Input
+                id="model-name"
+                className="font-mono"
+                placeholder={t("models.fNamePlaceholder")}
+                value={v.name}
+                aria-invalid={submitted && !v.name.trim()}
+                onChange={(e) => set("name", e.target.value)}
+              />
+              <FieldDescription>{t("models.fNameHelp")}</FieldDescription>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="model-desc">{t("models.fDesc")}</FieldLabel>
+              <Textarea
+                id="model-desc"
+                rows={2}
+                placeholder={t("models.fDescPlaceholder")}
+                value={v.description}
+                onChange={(e) => set("description", e.target.value)}
+              />
+            </Field>
+          </FieldGroup>
 
           <FieldSection n={2} title={t("models.fsLabels")} />
-          <Field className="mb-4">
-            <FieldLabel htmlFor="model-tasks">{t("models.lTasks")}</FieldLabel>
-            {v.tasks.length > 0 && (
-              <div className="mb-2 flex flex-wrap gap-2">
-                {v.tasks.map((task) => (
-                  <Badge key={task} variant="outline" className="gap-1 pr-1">
-                    {task}
-                    <button
-                      type="button"
-                      className="grid size-3.5 place-items-center rounded-sm hover:bg-muted"
-                      onClick={() => removeTask(task)}
-                    >
-                      <X className="size-3" />
-                    </button>
-                  </Badge>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="model-tasks">{t("models.lTasks")}</FieldLabel>
+              {v.tasks.length > 0 && (
+                <div className="mb-2 flex flex-wrap gap-2">
+                  {v.tasks.map((task) => (
+                    <Badge key={task} variant="outline" className="gap-1 pr-1">
+                      {task}
+                      <button
+                        type="button"
+                        className="grid size-3.5 place-items-center rounded-sm hover:bg-muted"
+                        onClick={() => removeTask(task)}
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
+              <Input
+                id="model-tasks"
+                placeholder={t("models.lTasks")}
+                value={taskInput}
+                list="model-task-options"
+                onChange={(e) => setTaskInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addTask(taskInput);
+                  }
+                }}
+              />
+              <datalist id="model-task-options">
+                {TASK_OPTIONS.map((o) => (
+                  <option key={o} value={o} />
                 ))}
-              </div>
-            )}
-            <Input
-              id="model-tasks"
-              placeholder={t("models.lTasks")}
-              value={taskInput}
-              list="model-task-options"
-              onChange={(e) => setTaskInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  addTask(taskInput);
-                }
-              }}
-            />
-            <datalist id="model-task-options">
-              {TASK_OPTIONS.map((o) => (
-                <option key={o} value={o} />
-              ))}
-            </datalist>
-          </Field>
-          <Field className="mb-4">
-            <FieldLabel htmlFor="model-params">{t("models.lParameters")}</FieldLabel>
-            <Input
-              id="model-params"
-              className="w-40 font-mono"
-              placeholder={t("models.paramsPlaceholder")}
-              value={v.params}
-              onChange={(e) => set("params", e.target.value)}
-            />
-          </Field>
-          <Field className="mb-4">
-            <FieldLabel>{t("models.lFramework")}</FieldLabel>
-            <Select
-              value={v.framework || NONE}
-              onValueChange={(val) => set("framework", val === NONE ? "" : val)}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder={t("models.lFramework")} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NONE}>{t("models.lFramework")}</SelectItem>
-                {FRAMEWORK_OPTIONS.map((o) => (
-                  <SelectItem key={o} value={o}>
-                    {o}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
+              </datalist>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="model-params">{t("models.lParameters")}</FieldLabel>
+              <Input
+                id="model-params"
+                className="w-40 font-mono"
+                placeholder={t("models.paramsPlaceholder")}
+                value={v.params}
+                onChange={(e) => set("params", e.target.value)}
+              />
+            </Field>
+            <Field>
+              <FieldLabel>{t("models.lFramework")}</FieldLabel>
+              <Select
+                value={v.framework || NONE}
+                onValueChange={(val) => set("framework", val === NONE ? "" : val)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder={t("models.lFramework")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>{t("models.lFramework")}</SelectItem>
+                  {FRAMEWORK_OPTIONS.map((o) => (
+                    <SelectItem key={o} value={o}>
+                      {o}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
 
-          <Field className="mb-4">
-            <FieldLabel>{t("models.lCustom")}</FieldLabel>
-            {Object.keys(customTags).length > 0 && (
-              <div className="mb-2 flex flex-wrap gap-2">
-                {Object.entries(customTags).map(([k, val]) => (
-                  <Badge key={k} variant="outline" className="gap-1 pr-1 font-mono">
-                    {k}:{val}
-                    <button
-                      type="button"
-                      className="grid size-3.5 place-items-center rounded-sm hover:bg-muted"
-                      onClick={() => removeTag(k)}
-                    >
-                      <X className="size-3" />
-                    </button>
-                  </Badge>
-                ))}
+            <Field>
+              <FieldLabel>{t("models.lCustom")}</FieldLabel>
+              {Object.keys(customTags).length > 0 && (
+                <div className="mb-2 flex flex-wrap gap-2">
+                  {Object.entries(customTags).map(([k, val]) => (
+                    <Badge key={k} variant="outline" className="gap-1 pr-1 font-mono">
+                      {k}:{val}
+                      <button
+                        type="button"
+                        className="grid size-3.5 place-items-center rounded-sm hover:bg-muted"
+                        onClick={() => removeTag(k)}
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                <Input
+                  className="font-mono"
+                  placeholder={t("models.customKeyPlaceholder")}
+                  value={ctKey}
+                  onChange={(e) => setCtKey(e.target.value)}
+                />
+                <Input
+                  className="font-mono"
+                  placeholder={t("models.customValPlaceholder")}
+                  value={ctVal}
+                  onChange={(e) => setCtVal(e.target.value)}
+                />
+                <Button variant="outline" onClick={addTag}>
+                  {t("models.add")}
+                </Button>
               </div>
-            )}
-            <div className="flex items-center gap-2">
-              <Input
-                className="font-mono"
-                placeholder={t("models.customKeyPlaceholder")}
-                value={ctKey}
-                onChange={(e) => setCtKey(e.target.value)}
-              />
-              <Input
-                className="font-mono"
-                placeholder={t("models.customValPlaceholder")}
-                value={ctVal}
-                onChange={(e) => setCtVal(e.target.value)}
-              />
-              <Button variant="outline" onClick={addTag}>
-                {t("models.add")}
-              </Button>
-            </div>
-          </Field>
+            </Field>
+          </FieldGroup>
         </div>
 
         <SheetFooter className="flex-row justify-end border-t">
@@ -848,34 +852,36 @@ function UploadDrawer({ model, onClose }: { model: string; onClose: () => void }
 
         <div className="flex-1 overflow-auto px-6 py-4">
           <FieldSection n={1} title={t("models.fsBasic")} />
-          <Field className="mb-4">
-            <FieldLabel>{t("models.fModel")}</FieldLabel>
-            <Input className="font-mono" value={model} disabled />
-          </Field>
-          <Field className="mb-4">
-            <FieldLabel htmlFor="upload-version">
-              {t("models.fVersion")}
-              <span className="text-destructive">*</span>
-            </FieldLabel>
-            <Input
-              id="upload-version"
-              className="font-mono"
-              placeholder={t("models.fVersionPlaceholder")}
-              value={v.version}
-              aria-invalid={submitted && !v.version.trim()}
-              onChange={(e) => set("version", e.target.value)}
-            />
-          </Field>
-          <Field className="mb-4">
-            <FieldLabel htmlFor="upload-desc">{t("models.fDesc")}</FieldLabel>
-            <Textarea
-              id="upload-desc"
-              rows={2}
-              placeholder={t("models.fUploadDescPlaceholder")}
-              value={v.description}
-              onChange={(e) => set("description", e.target.value)}
-            />
-          </Field>
+          <FieldGroup>
+            <Field>
+              <FieldLabel>{t("models.fModel")}</FieldLabel>
+              <Input className="font-mono" value={model} disabled />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="upload-version">
+                {t("models.fVersion")}
+                <span className="text-destructive">*</span>
+              </FieldLabel>
+              <Input
+                id="upload-version"
+                className="font-mono"
+                placeholder={t("models.fVersionPlaceholder")}
+                value={v.version}
+                aria-invalid={submitted && !v.version.trim()}
+                onChange={(e) => set("version", e.target.value)}
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="upload-desc">{t("models.fDesc")}</FieldLabel>
+              <Textarea
+                id="upload-desc"
+                rows={2}
+                placeholder={t("models.fUploadDescPlaceholder")}
+                value={v.description}
+                onChange={(e) => set("description", e.target.value)}
+              />
+            </Field>
+          </FieldGroup>
 
           <FieldSection n={2} title={t("models.fsMethod")} />
           <Tabs
@@ -895,35 +901,37 @@ function UploadDrawer({ model, onClose }: { model: string; onClose: () => void }
               </div>
             </TabsContent>
             <TabsContent value="remote" className="flex flex-col gap-4 pt-4">
-              <Field>
-                <FieldLabel>{t("models.fStorageKind")}</FieldLabel>
-                <Select
-                  value={v.remoteSourceKind}
-                  onValueChange={(val) => set("remoteSourceKind", val as sdk.RemoteSourceKind)}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="s3">{t("models.storageS3")}</SelectItem>
-                    <SelectItem value="oci">{t("models.storageOci")}</SelectItem>
-                    <SelectItem value="http">{t("models.storageHttp")}</SelectItem>
-                    <SelectItem value="hf">{t("models.storageHf")}</SelectItem>
-                    <SelectItem value="custom">{t("models.storageCustom")}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="remote-uri">{t("models.fRemoteUri")}</FieldLabel>
-                <Input
-                  id="remote-uri"
-                  className="font-mono"
-                  placeholder={t("models.remoteUriPlaceholder")}
-                  value={v.remoteUri}
-                  aria-invalid={submitted && method === "external" && !v.remoteUri.trim()}
-                  onChange={(e) => set("remoteUri", e.target.value)}
-                />
-              </Field>
+              <FieldGroup>
+                <Field>
+                  <FieldLabel>{t("models.fStorageKind")}</FieldLabel>
+                  <Select
+                    value={v.remoteSourceKind}
+                    onValueChange={(val) => set("remoteSourceKind", val as sdk.RemoteSourceKind)}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="s3">{t("models.storageS3")}</SelectItem>
+                      <SelectItem value="oci">{t("models.storageOci")}</SelectItem>
+                      <SelectItem value="http">{t("models.storageHttp")}</SelectItem>
+                      <SelectItem value="hf">{t("models.storageHf")}</SelectItem>
+                      <SelectItem value="custom">{t("models.storageCustom")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="remote-uri">{t("models.fRemoteUri")}</FieldLabel>
+                  <Input
+                    id="remote-uri"
+                    className="font-mono"
+                    placeholder={t("models.remoteUriPlaceholder")}
+                    value={v.remoteUri}
+                    aria-invalid={submitted && method === "external" && !v.remoteUri.trim()}
+                    onChange={(e) => set("remoteUri", e.target.value)}
+                  />
+                </Field>
+              </FieldGroup>
             </TabsContent>
             <TabsContent value="oras" className="pt-4">
               <OrasGuide model={model} tenant={tenant} />

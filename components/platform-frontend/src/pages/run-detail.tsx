@@ -178,7 +178,7 @@ export default function RunDetail({ kind }: { kind: "experiment" | "job" }) {
         <div className="flex flex-col gap-4">
           <Lifecycle run={r} />
           <Tabs defaultValue="info">
-            <TabsList variant="line">
+            <TabsList>
               <TabsTrigger value="info">{t("runDetail.tabInfo")}</TabsTrigger>
               <TabsTrigger value="pods">{t("runDetail.tabPods")}</TabsTrigger>
               <TabsTrigger value="log">{t("runDetail.tabLog")}</TabsTrigger>

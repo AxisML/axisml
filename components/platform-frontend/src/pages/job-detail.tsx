@@ -114,7 +114,7 @@ export default function JobDetail() {
         </Card>
       ) : (
         <Tabs defaultValue="info">
-          <TabsList variant="line">
+          <TabsList>
             <TabsTrigger value="info">{t("jobDetail.tabInfo")}</TabsTrigger>
             <TabsTrigger value="runs">{t("jobDetail.tabRuns")}</TabsTrigger>
           </TabsList>

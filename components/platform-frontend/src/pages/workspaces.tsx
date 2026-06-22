@@ -41,7 +41,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
+import { Field, FieldGroup, FieldLabel, FieldDescription } from "@/components/ui/field";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   Tooltip,
@@ -579,95 +579,105 @@ function WsDrawer({ onClose }: { onClose: () => void }) {
 
         <div className="flex-1 overflow-auto px-6 py-4">
           <FieldSection n={1} title={t("workspaces.fsBasic")} />
-          <Field className="mb-4">
-            <FieldLabel htmlFor="ws-name">
-              {t("workspaces.fName")}
-              <span className="text-destructive">*</span>
-            </FieldLabel>
-            <Input
-              id="ws-name"
-              className="font-mono"
-              placeholder={t("workspaces.fNamePlaceholder")}
-              value={v.name}
-              aria-invalid={submitted && !v.name.trim()}
-              onChange={(e) => set("name", e.target.value)}
-            />
-            <FieldDescription>{t("workspaces.fNameHelp")}</FieldDescription>
-          </Field>
-          <Field className="mb-4">
-            <FieldLabel htmlFor="ws-desc">{t("workspaces.fDesc")}</FieldLabel>
-            <Textarea
-              id="ws-desc"
-              rows={2}
-              placeholder={t("workspaces.fDescPlaceholder")}
-              value={v.description}
-              onChange={(e) => set("description", e.target.value)}
-            />
-          </Field>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="ws-name">
+                {t("workspaces.fName")}
+                <span className="text-destructive">*</span>
+              </FieldLabel>
+              <Input
+                id="ws-name"
+                className="font-mono"
+                placeholder={t("workspaces.fNamePlaceholder")}
+                value={v.name}
+                aria-invalid={submitted && !v.name.trim()}
+                onChange={(e) => set("name", e.target.value)}
+              />
+              <FieldDescription>{t("workspaces.fNameHelp")}</FieldDescription>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="ws-desc">{t("workspaces.fDesc")}</FieldLabel>
+              <Textarea
+                id="ws-desc"
+                rows={2}
+                placeholder={t("workspaces.fDescPlaceholder")}
+                value={v.description}
+                onChange={(e) => set("description", e.target.value)}
+              />
+            </Field>
+          </FieldGroup>
 
           <FieldSection n={2} title={t("workspaces.fsImage")} />
-          <Field className="mb-4">
-            <FieldLabel>{t("workspaces.fImage")}</FieldLabel>
-            <CardRadio options={WS_IMAGES} value={v.image} onChange={(val) => set("image", val)} />
-          </Field>
+          <FieldGroup>
+            <Field>
+              <FieldLabel>{t("workspaces.fImage")}</FieldLabel>
+              <CardRadio options={WS_IMAGES} value={v.image} onChange={(val) => set("image", val)} />
+            </Field>
+          </FieldGroup>
 
           <FieldSection n={3} title={t("workspaces.fsResource")} />
-          <Field className="mb-4">
-            <FieldLabel>{t("workspaces.fUnit")}</FieldLabel>
-            <CardRadio options={WS_UNITS} value={v.unitName} onChange={(val) => set("unitName", val)} />
-          </Field>
-          <Field className="mb-4">
-            <FieldLabel htmlFor="ws-port">{t("workspaces.fContainerPort")}</FieldLabel>
-            <Input
-              id="ws-port"
-              type="number"
-              min={1}
-              max={65535}
-              className="w-40 font-mono"
-              value={v.containerPort}
-              onChange={(e) => set("containerPort", Number(e.target.value))}
-            />
-            <FieldDescription>{t("workspaces.fPortHelp")}</FieldDescription>
-          </Field>
+          <FieldGroup>
+            <Field>
+              <FieldLabel>{t("workspaces.fUnit")}</FieldLabel>
+              <CardRadio options={WS_UNITS} value={v.unitName} onChange={(val) => set("unitName", val)} />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="ws-port">{t("workspaces.fContainerPort")}</FieldLabel>
+              <Input
+                id="ws-port"
+                type="number"
+                min={1}
+                max={65535}
+                className="w-40 font-mono"
+                value={v.containerPort}
+                onChange={(e) => set("containerPort", Number(e.target.value))}
+              />
+              <FieldDescription>{t("workspaces.fPortHelp")}</FieldDescription>
+            </Field>
+          </FieldGroup>
 
           <FieldSection n={4} title={t("workspaces.fsEnv")} />
-          <Field className="mb-4">
-            <FieldLabel htmlFor="ws-env">{t("workspaces.fEnv")}</FieldLabel>
-            <Textarea
-              id="ws-env"
-              rows={2}
-              className="font-mono"
-              placeholder={"HF_HOME=/data/hf\nCUDA_VISIBLE_DEVICES=0"}
-              value={v.env}
-              onChange={(e) => set("env", e.target.value)}
-            />
-            <FieldDescription>{t("workspaces.fEnvHelp")}</FieldDescription>
-          </Field>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="ws-env">{t("workspaces.fEnv")}</FieldLabel>
+              <Textarea
+                id="ws-env"
+                rows={2}
+                className="font-mono"
+                placeholder={"HF_HOME=/data/hf\nCUDA_VISIBLE_DEVICES=0"}
+                value={v.env}
+                onChange={(e) => set("env", e.target.value)}
+              />
+              <FieldDescription>{t("workspaces.fEnvHelp")}</FieldDescription>
+            </Field>
+          </FieldGroup>
 
           <FieldSection n={5} title={t("workspaces.fsVolume")} />
-          <div className="flex gap-3">
-            <Field className="w-40">
-              <FieldLabel htmlFor="ws-volsize">{t("workspaces.fVolSize")}</FieldLabel>
-              <Input
-                id="ws-volsize"
-                className="font-mono"
-                placeholder="50Gi"
-                value={v.volSize}
-                onChange={(e) => set("volSize", e.target.value)}
-              />
-            </Field>
-            <Field className="flex-1">
-              <FieldLabel htmlFor="ws-mount">{t("workspaces.fMountPath")}</FieldLabel>
-              <Input
-                id="ws-mount"
-                className="font-mono"
-                placeholder="/workspace"
-                value={v.mountPath}
-                onChange={(e) => set("mountPath", e.target.value)}
-              />
-              <FieldDescription>{t("workspaces.fVolSizeHelp")}</FieldDescription>
-            </Field>
-          </div>
+          <FieldGroup>
+            <div className="flex gap-3">
+              <Field className="w-40">
+                <FieldLabel htmlFor="ws-volsize">{t("workspaces.fVolSize")}</FieldLabel>
+                <Input
+                  id="ws-volsize"
+                  className="font-mono"
+                  placeholder="50Gi"
+                  value={v.volSize}
+                  onChange={(e) => set("volSize", e.target.value)}
+                />
+              </Field>
+              <Field className="flex-1">
+                <FieldLabel htmlFor="ws-mount">{t("workspaces.fMountPath")}</FieldLabel>
+                <Input
+                  id="ws-mount"
+                  className="font-mono"
+                  placeholder="/workspace"
+                  value={v.mountPath}
+                  onChange={(e) => set("mountPath", e.target.value)}
+                />
+                <FieldDescription>{t("workspaces.fVolSizeHelp")}</FieldDescription>
+              </Field>
+            </div>
+          </FieldGroup>
         </div>
 
         <SheetFooter className="flex-row justify-end border-t">
