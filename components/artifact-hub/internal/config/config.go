@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"os"
 	"strconv"
 	"time"
@@ -25,14 +26,12 @@ type Config struct {
 	ProbesBindAddress  string
 	MetricsBindAddress string
 
-	// Leader election (only the GC worker is leader-gated; HTTP serves on every replica)
-	LeaderElect         bool
-	LeaderElectionID    string
-	LeaderLeaseDuration time.Duration
-	LeaderRenewDeadline time.Duration
-	LeaderRetryPeriod   time.Duration
-	LeaderResourceLock  string
-	LeaderResourceNS    string
+	// Leader election (only the GC worker is leader-gated; HTTP serves on every
+	// replica). Election is backed by a Postgres session-level advisory lock —
+	// no Kubernetes Lease, no client-go, no RBAC.
+	LeaderElect       bool
+	LeaderLockKey     int64         // pg_advisory_lock key shared by all replicas
+	LeaderRetryPeriod time.Duration // acquisition retry + watchdog cadence
 
 	// GC worker
 	GCInterval     time.Duration
@@ -70,13 +69,9 @@ func Load() (Config, error) {
 		ProbesBindAddress:  env("PROBES_BIND_ADDRESS", ":8083"),
 		MetricsBindAddress: env("METRICS_BIND_ADDRESS", ":8080"),
 
-		LeaderElect:         envBool("LEADER_ELECT", true),
-		LeaderElectionID:    env("LEADER_ELECTION_ID", "axisml-artifact-hub.axisml.io"),
-		LeaderLeaseDuration: envDuration("LEADER_LEASE_DURATION", 15*time.Second),
-		LeaderRenewDeadline: envDuration("LEADER_RENEW_DEADLINE", 10*time.Second),
-		LeaderRetryPeriod:   envDuration("LEADER_RETRY_PERIOD", 2*time.Second),
-		LeaderResourceLock:  env("LEADER_RESOURCE_LOCK", "leases"),
-		LeaderResourceNS:    env("LEADER_NAMESPACE", "axisml-system"),
+		LeaderElect:       envBool("LEADER_ELECT", true),
+		LeaderLockKey:     envInt64("LEADER_LOCK_KEY", defaultLockKey("axisml-artifact-hub-gc")),
+		LeaderRetryPeriod: envDuration("LEADER_RETRY_PERIOD", 2*time.Second),
 
 		GCInterval:     envDuration("GC_INTERVAL", 5*time.Minute),
 		UploadingTTL:   envDuration("UPLOADING_TTL", 24*time.Hour),
@@ -133,6 +128,26 @@ func envBool(key string, def bool) bool {
 		return false
 	}
 	return def
+}
+
+// defaultLockKey derives a stable advisory-lock key from a service name so
+// distinct services on the same database don't collide.
+func defaultLockKey(name string) int64 {
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(name))
+	return int64(h.Sum64())
+}
+
+func envInt64(key string, def int64) int64 {
+	v, ok := os.LookupEnv(key)
+	if !ok || v == "" {
+		return def
+	}
+	n, err := strconv.ParseInt(v, 10, 64)
+	if err != nil {
+		return def
+	}
+	return n
 }
 
 func envInt(key string, def int) (int, error) {

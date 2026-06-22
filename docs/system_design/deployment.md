@@ -58,7 +58,7 @@ make helm-install           # 一次性按 infra → system → platform 串装
 | --- | --- | --- | --- | --- |
 | Cluster Manager | `1` 默认 | `:8080`/`:8081`/`:8082` | 无 | 多副本对等；无 reconciler；bootstrap Job 初始化默认 ResourcePool |
 | Compute Service | `1` 默认 | 同上 | controller-runtime Lease | API 无状态可水平扩；reconciler / informer 单 leader；workspace 同事务派生 PVC |
-| Artifact Hub | `1` 默认 | 同上 | `coordination.k8s.io/Lease` | GC worker 选主；API 无状态 |
+| Artifact Hub | `1` 默认 | 同上 | PG advisory lock | GC worker 经 `pg_try_advisory_lock` 选主；不连 K8s API；API 无状态 |
 | tenant-operator / compute-operator | `1`(leader)+N 备 | `:8081`/`:8082`（无 API） | controller-runtime Lease | 单 leader |
 | Platform | `1` 默认 | 当前 nginx placeholder 仅 `:8080` | 无 | 真实 backend 目标 API `:8080` / metrics `:8081` / probes `:8082`；经 FQDN 调 System 服务 |
 

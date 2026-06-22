@@ -14,8 +14,6 @@ data:
   PROBES_BIND_ADDRESS: {{ printf ":%d" (int .Values.artifactHub.probesPort) | quote }}
   METRICS_BIND_ADDRESS: {{ printf ":%d" (int .Values.artifactHub.metricsPort) | quote }}
   LEADER_ELECT: {{ .Values.artifactHub.leaderElection.enabled | quote }}
-  LEADER_ELECTION_ID: {{ .Values.artifactHub.leaderElection.id | quote }}
-  LEADER_NAMESPACE: {{ .Release.Namespace | quote }}
   GC_INTERVAL: {{ .Values.artifactHub.gcInterval | quote }}
   UPLOADING_TTL: {{ .Values.artifactHub.uploadingTTL | quote }}
   UPLOAD_TOKEN_TTL: {{ .Values.artifactHub.uploadTokenTTL | quote }}

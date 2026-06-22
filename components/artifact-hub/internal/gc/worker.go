@@ -35,9 +35,9 @@ type realClock struct{}
 
 func (realClock) Now() time.Time { return time.Now().UTC() }
 
-// Worker is the leader-elected GC ticker. Implements
-// sigs.k8s.io/controller-runtime/pkg/manager.Runnable +
-// LeaderElectionRunnable.
+// Worker is the GC ticker. It runs only while this replica holds GC
+// leadership; the caller (app.Serve) gates Start behind the Postgres
+// advisory-lock elector.
 type Worker struct {
 	cfg   config.Config
 	rows  *artmod.Repository
@@ -58,10 +58,8 @@ func New(cfg config.Config, db *gorm.DB, log logr.Logger) *Worker {
 // SetClock replaces the clock; tests use it to fast-forward.
 func (w *Worker) SetClock(c Clock) { w.clock = c }
 
-// NeedLeaderElection makes the worker leader-only.
-func (w *Worker) NeedLeaderElection() bool { return true }
-
-// Start runs the GC loop until ctx is cancelled.
+// Start runs the GC loop until ctx is cancelled. IsLeader tracks the worker's
+// active lifetime, so it reflects which replica currently holds GC leadership.
 func (w *Worker) Start(ctx context.Context) error {
 	w.log.Info("gc worker started", "interval", w.cfg.GCInterval)
 	metrics.IsLeader.Set(1)
