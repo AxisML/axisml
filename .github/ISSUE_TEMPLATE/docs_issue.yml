@@ -1,0 +1,24 @@
+name: 📝 Documentation issue
+description: Report a problem with docs (system design, OpenAPI, READMEs, guides).
+title: "[docs]: "
+labels: ["kind/docs", "needs-triage"]
+body:
+  - type: input
+    id: location
+    attributes:
+      label: Doc location
+      description: Path or URL of the affected doc (e.g. docs/system_design/...).
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What's wrong or missing?
+    validations:
+      required: true
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested fix
+    validations:
+      required: false

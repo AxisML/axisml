@@ -1,0 +1,56 @@
+name: ✨ Feature request
+description: Propose a new capability or enhancement.
+title: "[feature]: "
+labels: ["kind/feature", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the idea! Significant features are best discussed before code
+        is written. For open-ended discussion, consider
+        [Discussions](https://github.com/AxisML/axisml/discussions) first.
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Preflight checklist
+      options:
+        - label: I searched existing issues/discussions and this is not a duplicate.
+          required: true
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected component
+      multiple: true
+      options:
+        - tenant-operator
+        - compute-operator
+        - cluster-manager
+        - compute-service
+        - artifact-hub
+        - platform-backend
+        - platform-frontend
+        - deploy/helm (charts)
+        - docs
+        - cross-cutting / not sure
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+      description: What problem does this solve? What's the use case?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the behavior or API you'd like. Link to design docs if relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: false

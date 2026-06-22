@@ -1,0 +1,36 @@
+<!--
+PR title MUST be a valid Conventional Commit — it becomes the squash-merge commit message.
+e.g. feat(compute-operator): add kserve llminference handler
+Scope should match a component basename where applicable.
+-->
+
+## Summary
+
+<!-- What does this PR change and why? -->
+
+## Related issues
+
+Closes #
+
+## Type of change
+
+- [ ] fix — bug fix
+- [ ] feat — new feature
+- [ ] docs — documentation only
+- [ ] refactor / chore — no behavior change
+- [ ] test / build / ci
+
+## Checklist
+
+- [ ] PR title is a valid Conventional Commit.
+- [ ] `make fmt` is clean; component-level `make vet` checks pass.
+- [ ] Relevant tests pass: `make <component>-test` (and `-integration` for behavior changes).
+- [ ] `make doc-test` passes if HTTP DTOs changed (regenerated with `make doc-gen`; not hand-edited).
+- [ ] `make helm-lint` / `make helm-template` pass if `deploy/helm/**` changed.
+- [ ] New external CRDs are vendored under `test/crds/external/`.
+- [ ] `docs/system_design/` updated for behavior/contract changes.
+- [ ] Screenshots included for UI changes.
+
+## Notes for reviewers
+
+<!-- Anything that needs special attention, trade-offs, follow-ups. -->
