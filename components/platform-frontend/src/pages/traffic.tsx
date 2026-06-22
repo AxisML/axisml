@@ -30,6 +30,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Field, FieldLabel, FieldDescription, FieldGroup } from "@/components/ui/field";
+import { Slider } from "@/components/ui/slider";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
@@ -86,14 +87,6 @@ export default function Traffic() {
     invalidate: [["trafficpolicies"]],
     success: t("traffic.deleted"),
   });
-  const promote = useApiMutation((name: string) => sdk.promoteTrafficPolicy({ path: { name } }), {
-    invalidate: [["trafficpolicies"]],
-    success: t("traffic.promoted"),
-  });
-  const rollback = useApiMutation((name: string) => sdk.rollbackTrafficPolicy({ path: { name } }), {
-    invalidate: [["trafficpolicies"]],
-    success: t("traffic.rolledBack"),
-  });
 
   const allRows: TrafficRow[] = useMemo(
     () =>
@@ -125,24 +118,6 @@ export default function Traffic() {
       desc: t("traffic.deleteDesc"),
       okLabel: t("common.confirmDelete"),
       onConfirm: () => del.mutate(r.name),
-    });
-
-  const onPromote = (r: TrafficRow) =>
-    confirm({
-      title: t("traffic.promoteTitle", { name: r.name }),
-      desc: t("traffic.promoteDesc"),
-      okLabel: t("traffic.promoteOk"),
-      danger: false,
-      onConfirm: () => promote.mutate(r.name),
-    });
-
-  const onRollback = (r: TrafficRow) =>
-    confirm({
-      title: t("traffic.rollbackTitle", { name: r.name }),
-      desc: t("traffic.rollbackDesc"),
-      okLabel: t("traffic.rollbackOk"),
-      danger: false,
-      onConfirm: () => rollback.mutate(r.name),
     });
 
   const columns: Column<TrafficRow>[] = [
@@ -192,7 +167,7 @@ export default function Traffic() {
     {
       key: "actions",
       title: t("common.actions"),
-      width: 260,
+      width: 180,
       align: "right",
       render: (r) => (
         <div className="flex items-center justify-end gap-0.5">
@@ -202,16 +177,6 @@ export default function Traffic() {
           <Button variant="link" size="sm" onClick={() => setDrawer({ kind: "split", row: r })}>
             {r.mode === "canary" ? t("traffic.actSplitCanary") : t("traffic.actSplitWeighted")}
           </Button>
-          {r.mode === "canary" && (
-            <Button variant="link" size="sm" onClick={() => onPromote(r)}>
-              {t("traffic.actPromote")}
-            </Button>
-          )}
-          {r.mode === "canary" && (
-            <Button variant="link" size="sm" onClick={() => onRollback(r)}>
-              {t("traffic.actRollback")}
-            </Button>
-          )}
           <Button variant="link" size="sm" className="text-destructive" onClick={() => onDelete(r)}>
             {t("common.delete")}
           </Button>
@@ -375,7 +340,7 @@ function TrafficDrawer({ onClose }: { onClose: () => void }) {
 
   return (
     <Sheet open onOpenChange={(o) => !o && onClose()}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[760px]">
+      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[560px]">
         <SheetHeader className="border-b">
           <SheetTitle>{t("traffic.drawerNew")}</SheetTitle>
           <p className="text-xs text-muted-foreground">{t("traffic.drawerNewSub")}</p>
@@ -617,16 +582,23 @@ function SplitDrawer({ row, onClose }: { row: TrafficRow; onClose: () => void })
               <FieldGroup>
                 <Field>
                   <FieldLabel htmlFor="sp-canary-pct">{t("traffic.fCanaryPercentLabel")}</FieldLabel>
-                  <Input
-                    id="sp-canary-pct"
-                    type="number"
-                    min={0}
-                    max={100}
-                    className="w-40"
-                    value={canaryPercent}
-                    onChange={(e) => setCanaryPercent(Number(e.target.value))}
-                  />
-                  <FieldDescription>{t("traffic.canaryPercentHelp")}</FieldDescription>
+                  <div className="flex items-center gap-4">
+                    <Slider
+                      id="sp-canary-pct"
+                      min={0}
+                      max={100}
+                      step={1}
+                      value={[canaryPercent]}
+                      onValueChange={(v) => setCanaryPercent(v[0])}
+                      className="flex-1"
+                    />
+                    <span className="w-12 shrink-0 text-right font-mono text-sm tabular-nums">
+                      {canaryPercent}%
+                    </span>
+                  </div>
+                  <FieldDescription>
+                    {t("traffic.canarySplitHint", { canary: canaryPercent, stable: 100 - canaryPercent })}
+                  </FieldDescription>
                 </Field>
               </FieldGroup>
             </>

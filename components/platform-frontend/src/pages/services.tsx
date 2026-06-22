@@ -467,7 +467,7 @@ function NewSvcDrawer({ onClose }: { onClose: () => void }) {
 
   return (
     <Sheet open onOpenChange={(o) => !o && onClose()}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[760px]">
+      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[560px]">
         <SheetHeader className="border-b">
           <SheetTitle>{t("services.drawerNew")}</SheetTitle>
           <p className="text-xs text-muted-foreground">{t("services.drawerNewSub")}</p>
@@ -716,7 +716,7 @@ function EditSvcDrawer({ row, onClose }: { row: SvcRow; onClose: () => void }) {
 
   return (
     <Sheet open onOpenChange={(o) => !o && onClose()}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[760px]">
+      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[560px]">
         <SheetHeader className="border-b">
           <SheetTitle>{t("services.drawerEdit")}</SheetTitle>
           <p className="text-xs text-muted-foreground">

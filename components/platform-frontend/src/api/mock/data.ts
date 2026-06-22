@@ -456,6 +456,27 @@ export const trafficPolicies: TrafficPolicy[] = [
     createdAt: ago(24 * 3),
     updatedAt: ago(1),
   },
+  {
+    id: "tp-2",
+    name: "bge-embed-weighted",
+    displayName: "BGE 向量 多版本加权",
+    description: "三个版本按权重承接流量，做 A/B/C 对比",
+    namespace: "tenant-llm-lab",
+    tenantName: "llm-lab",
+    tenantDisplayName: "大模型研究院",
+    owner: "刘洋",
+    phase: "Ready",
+    mode: "weighted",
+    accessUrl: "https://bge-embed.llm-lab.axisml.io",
+    endpoint: { hostname: "bge-embed.llm-lab.axisml.io", path: "/" },
+    backends: [
+      { serviceName: "bge-embed-svc", role: "member", weight: 50, actualPct: 50, ready: true },
+      { serviceName: "bge-embed-svc-v2", role: "member", weight: 30, actualPct: 30, ready: true },
+      { serviceName: "bge-embed-svc-v3", role: "member", weight: 20, actualPct: 20, ready: false },
+    ],
+    createdAt: ago(24 * 5),
+    updatedAt: ago(2),
+  },
 ];
 
 // ── model & image definitions + versions ────────────────────────────────────────
@@ -591,8 +612,8 @@ export interface ClusterUsage {
   gpu: UsageMetric;
   cpu: UsageMetric;
   mem: UsageMetric;
-  /** 24-point GPU/CPU utilisation trend (%) + concurrent-task count. */
-  trend: { t: string; util: number; tasks: number }[];
+  /** GPU utilisation (%) and GPU quota usage (%) trend points. */
+  trend: { t: string; util: number; quota: number }[];
 }
 
 const meter = (used: number, total: number, unit: string, decimals = 0): UsageMetric => {
@@ -602,11 +623,15 @@ const meter = (used: number, total: number, unit: string, decimals = 0): UsageMe
 };
 
 const trendFor = (base: number) =>
-  Array.from({ length: 13 }, (_, i) => ({
-    t: `${i * 2}:00`,
-    util: Math.max(8, Math.round(base - 18 + i * 1.6 + 6 * Math.sin(i / 1.7))),
-    tasks: Math.max(2, Math.round(base / 6 + 3 * Math.sin(i / 2))),
-  }));
+  Array.from({ length: 13 }, (_, i) => {
+    const util = Math.max(8, Math.round(base - 18 + i * 1.6 + 6 * Math.sin(i / 1.7)));
+    return {
+      t: `${i * 2}:00`,
+      util,
+      // 已分配的 GPU 配额(%)，通常略高于实际利用率。
+      quota: Math.min(100, util + 8 + Math.round(4 * Math.sin(i / 2.3))),
+    };
+  });
 
 const clusterUsageMap: Record<string, ClusterUsage> = {
   all: {

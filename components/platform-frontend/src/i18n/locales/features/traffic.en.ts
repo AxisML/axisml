@@ -23,7 +23,7 @@ export default {
     modeCanaryDesc: "1 stable + 1 canary, ramp by percentage",
 
     // row actions
-    actSplitCanary: "Adjust canary ratio",
+    actSplitCanary: "Adjust ratio",
     actSplitWeighted: "Adjust weights",
     actPromote: "Promote to full",
     actRollback: "Roll back",
@@ -78,6 +78,7 @@ export default {
     fsCanaryPercent: "Canary percent",
     fCanaryPercentLabel: "Canary backend ramp percent",
     canaryPercentHelp: "Percentage of traffic the canary backend receives; the rest goes to the stable backend.",
+    canarySplitHint: "Canary {{canary}}% · Stable {{stable}}%",
     fsBackendWeight: "Backend weights",
 
     // detail

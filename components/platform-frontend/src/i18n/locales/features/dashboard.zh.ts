@@ -18,7 +18,7 @@ export default {
     all: "全部",
     gpuTrend: "GPU 利用率趋势",
     gpuUtil: "GPU 利用率",
-    gpuQuota: "任务并发",
+    gpuQuota: "GPU 使用额度",
     metricsSyncing: "指标接入中",
     utilization: "使用率",
     noGpu: "无 GPU",

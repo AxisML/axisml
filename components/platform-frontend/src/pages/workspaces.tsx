@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import {
   Plus,
@@ -8,7 +8,8 @@ import {
   Power,
   LayoutGrid,
   List as ListIcon,
-  Code2,
+  Cpu,
+  SquareTerminal,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useWorkspaces } from "@/api/hooks";
@@ -379,6 +380,45 @@ function CardsView({
   );
 }
 
+// Tool brand marks (official colours), matching the prototype's `svg.brand`.
+function JupyterMark({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden focusable="false">
+      <path
+        fill="#F37726"
+        d="M7.157 22.201A1.784 1.784 0 0 1 5.374 24a1.784 1.784 0 0 1-1.784-1.799 1.784 1.784 0 0 1 1.784-1.799 1.784 1.784 0 0 1 1.783 1.799zM20.582 1.427a1.415 1.415 0 0 1-1.415 1.428 1.415 1.415 0 0 1-1.416-1.428A1.415 1.415 0 0 1 19.167 0a1.415 1.415 0 0 1 1.415 1.427zM4.992 3.336A1.781 1.781 0 0 1 3.21 5.135 1.781 1.781 0 0 1 1.427 3.336 1.781 1.781 0 0 1 3.21 1.537a1.781 1.781 0 0 1 1.782 1.799zM12 18.694c-3.945 0-7.394-1.417-9.191-3.506a9.799 9.799 0 0 0 18.382 0c-1.797 2.089-5.246 3.506-9.191 3.506zM12 5.306c3.945 0 7.394 1.417 9.191 3.506a9.799 9.799 0 0 0-18.382 0C4.606 6.723 8.055 5.306 12 5.306z"
+      />
+    </svg>
+  );
+}
+function VscodeMark({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden focusable="false">
+      <path
+        fill="#007ACC"
+        d="M23.15 2.587L18.21.21a1.494 1.494 0 0 0-1.705.29l-9.46 8.63-4.12-3.128a.999.999 0 0 0-1.276.057L.327 7.261A1 1 0 0 0 .326 8.74L3.899 12 .326 15.26a1 1 0 0 0 .001 1.479L1.65 17.94a.999.999 0 0 0 1.276.057l4.12-3.128 9.46 8.63a1.492 1.492 0 0 0 1.704.29l4.942-2.377A1.5 1.5 0 0 0 24 20.06V3.939a1.5 1.5 0 0 0-.85-1.352zm-5.146 14.861L10.826 12l7.178-5.448v10.896z"
+      />
+    </svg>
+  );
+}
+function PytorchMark({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden focusable="false">
+      <path
+        fill="#EE4C2C"
+        d="M12.005 0L4.952 7.053a9.865 9.865 0 0 0 0 13.945 9.866 9.866 0 0 0 13.946 0c3.515-3.515 3.515-9.21 0-12.724l-1.508 1.508c2.682 2.682 2.682 7.026 0 9.708a6.865 6.865 0 0 1-9.71 0 6.865 6.865 0 0 1 0-9.708l4.317-4.34.008.008V0zm3.291 4.388a1.184 1.184 0 1 0 0 2.368 1.184 1.184 0 0 0 0-2.368z"
+      />
+    </svg>
+  );
+}
+
+function wsBrand(image: string): "jupyter" | "vscode" | "pytorch" {
+  const s = (image || "").toLowerCase();
+  if (s.includes("vscode") || s.includes("code-server")) return "vscode";
+  if (s.includes("pytorch") || s.includes("torch")) return "pytorch";
+  return "jupyter";
+}
+
 function WsCard({
   row,
   onStart,
@@ -393,37 +433,66 @@ function WsCard({
   const { t } = useTranslation();
   const running = row.phase === "Running" || row.phase === "Degraded";
   const stopped = isStopped(row.phase);
+  const brand = wsBrand(row.image);
+  const Logo = brand === "vscode" ? VscodeMark : brand === "pytorch" ? PytorchMark : JupyterMark;
+
+  // One launch-tool button (brand mark on the bottom-left action row).
+  const launch = (key: string, title: string, mark: ReactNode) => (
+    <Tooltip key={key}>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          disabled={!running}
+          asChild={running}
+          aria-label={title}
+        >
+          {running ? <Link to={`/workspaces/${row.name}`}>{mark}</Link> : mark}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{running ? title : t("workspaces.availableAfterStart")}</TooltipContent>
+    </Tooltip>
+  );
 
   return (
-    <Card className="h-full p-4 transition-shadow hover:shadow-md">
-      <div className="mb-3 flex items-start gap-3">
-        <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted text-foreground">
-          <Code2 className="size-4" />
+    <Card className="gap-0 p-4 transition-shadow hover:border-primary/30 hover:shadow-md">
+      <div className="flex items-center gap-2.5">
+        <div className="grid size-[38px] shrink-0 place-items-center rounded-[9px] border bg-muted">
+          <Logo className="size-[22px]" />
         </div>
         <div className="min-w-0 flex-1">
-          <Link to={`/workspaces/${row.name}`} className="font-mono text-sm font-semibold text-foreground hover:text-info hover:underline">
+          <Link
+            to={`/workspaces/${row.name}`}
+            className="font-mono text-sm font-semibold text-foreground hover:text-info hover:underline"
+          >
             {row.name}
           </Link>
           {row.desc && <div className="truncate text-xs text-muted-foreground">{row.desc}</div>}
         </div>
         <PhaseTag phase={row.phase} />
       </div>
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <span className="rounded-full border bg-muted px-2 py-0.5 font-mono">{row.unit}</span>
-        <span className="ml-auto inline-flex items-center gap-1.5">
+
+      <div className="mt-2.5 flex items-center gap-2">
+        <span className="inline-flex items-center gap-1.5 rounded-full border bg-muted px-2 py-0.5 font-mono text-[11.5px] text-foreground/80">
+          <Cpu className="size-3.5 text-muted-foreground" />
+          {row.unit}
+        </span>
+        <span className="ml-auto inline-flex items-center gap-1.5 text-xs text-foreground/80">
           <span className="grid size-5 place-items-center rounded-full bg-muted text-[10px] font-semibold text-foreground">
             {row.owner.slice(0, 1)}
           </span>
           {row.owner}
         </span>
       </div>
-      <Separator className="my-3" />
+
+      <Separator className="mt-3.5 mb-2.5" />
+
       <div className="flex items-center gap-1">
         {stopped ? (
           <>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon-sm" onClick={() => onStart(row.name)}>
+                <Button variant="ghost" size="icon-sm" onClick={() => onStart(row.name)} aria-label={t("workspaces.start")}>
                   <Play />
                 </Button>
               </TooltipTrigger>
@@ -432,12 +501,7 @@ function WsCard({
             <div className="grow" />
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  className="text-destructive"
-                  onClick={() => onDelete(row, "stopped")}
-                >
+                <Button variant="ghost" size="icon-sm" className="text-destructive" onClick={() => onDelete(row, "stopped")} aria-label={t("workspaces.remove")}>
                   <Trash2 />
                 </Button>
               </TooltipTrigger>
@@ -446,26 +510,13 @@ function WsCard({
           </>
         ) : (
           <>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon-sm" disabled={!running} asChild={running}>
-                  {running ? (
-                    <Link to={`/workspaces/${row.name}`}>
-                      <Code2 />
-                    </Link>
-                  ) : (
-                    <Code2 />
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                {running ? t("workspaces.openJupyter") : t("workspaces.availableAfterStart")}
-              </TooltipContent>
-            </Tooltip>
+            {launch("jupyter", t("workspaces.openJupyter"), <JupyterMark className="size-[18px]" />)}
+            {launch("vscode", t("workspaces.openVscode"), <VscodeMark className="size-[18px]" />)}
+            {launch("terminal", t("workspaces.openTerminal"), <SquareTerminal />)}
             <div className="grow" />
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon-sm" onClick={() => onStop(row.name)}>
+                <Button variant="ghost" size="icon-sm" onClick={() => onStop(row.name)} aria-label={t("workspaces.stop")}>
                   <Power />
                 </Button>
               </TooltipTrigger>
@@ -474,12 +525,7 @@ function WsCard({
             {running && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    className="text-destructive"
-                    onClick={() => onDelete(row, "running")}
-                  >
+                  <Button variant="ghost" size="icon-sm" className="text-destructive" onClick={() => onDelete(row, "running")} aria-label={t("workspaces.remove")}>
                     <Trash2 />
                   </Button>
                 </TooltipTrigger>
@@ -571,7 +617,7 @@ function WsDrawer({ onClose }: { onClose: () => void }) {
 
   return (
     <Sheet open onOpenChange={(o) => !o && onClose()}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[760px]">
+      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[560px]">
         <SheetHeader className="border-b">
           <SheetTitle>{t("workspaces.drawerNew")}</SheetTitle>
           <p className="text-xs text-muted-foreground">{t("workspaces.drawerNewSub")}</p>

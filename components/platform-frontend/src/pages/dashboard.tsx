@@ -270,10 +270,10 @@ function MeterStat({ label, icon, m }: { label: string; icon: ReactNode; m?: Usa
 // secondary axis so its count scale stays independent of the util percentage.
 function TrendChart({ trend }: { trend?: ClusterUsage["trend"] }) {
   const { t } = useTranslation();
-  const data = trend ?? Array.from({ length: 13 }, (_, i) => ({ t: `${i * 2}:00`, util: 0, tasks: 0 }));
+  const data = trend ?? Array.from({ length: 13 }, (_, i) => ({ t: `${i * 2}:00`, util: 0, quota: 0 }));
   const chartConfig = {
     util: { label: t("dashboard.gpuUtil"), color: "var(--info)" },
-    tasks: { label: t("dashboard.gpuQuota"), color: "var(--muted-foreground)" },
+    quota: { label: t("dashboard.gpuQuota"), color: "var(--muted-foreground)" },
   } satisfies ChartConfig;
   return (
     <ChartContainer config={chartConfig} className="h-[180px] w-full">
@@ -286,11 +286,9 @@ function TrendChart({ trend }: { trend?: ClusterUsage["trend"] }) {
         </defs>
         <CartesianGrid vertical={false} />
         <XAxis dataKey="t" tickLine={false} axisLine={false} tickMargin={8} minTickGap={28} />
-        <YAxis yAxisId="util" hide domain={[0, 100]} />
-        <YAxis yAxisId="tasks" hide domain={[0, "dataMax"]} />
+        <YAxis hide domain={[0, 100]} unit="%" />
         <ChartTooltip content={<ChartTooltipContent />} />
         <Area
-          yAxisId="util"
           dataKey="util"
           type="monotone"
           fill="url(#fillUtil)"
@@ -298,10 +296,9 @@ function TrendChart({ trend }: { trend?: ClusterUsage["trend"] }) {
           strokeWidth={2}
         />
         <Line
-          yAxisId="tasks"
-          dataKey="tasks"
+          dataKey="quota"
           type="monotone"
-          stroke="var(--color-tasks)"
+          stroke="var(--color-quota)"
           strokeWidth={1.6}
           strokeDasharray="4 4"
           dot={false}

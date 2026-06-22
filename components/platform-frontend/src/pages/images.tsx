@@ -6,6 +6,7 @@ import {
   CloudDownload,
   Copy,
   Container,
+  Tag,
   X,
   LayoutGrid,
   List as ListIcon,
@@ -217,7 +218,7 @@ export default function Images() {
 
       {view === "cards" ? (
         q.isLoading ? (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {Array.from({ length: 6 }).map((_, i) => (
               <Card key={i} className="p-4">
                 <div className="flex items-center gap-3">
@@ -240,20 +241,36 @@ export default function Images() {
           </Empty>
         ) : (
           <>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
               {rows.map((r) => (
                 <Card
                   key={r.name}
-                  className="cursor-pointer gap-0 p-4 transition-shadow hover:ring-foreground/20"
+                  className="cursor-pointer gap-0 p-4 transition-shadow hover:border-primary/30 hover:shadow-md"
                   onClick={() => openVersions(r)}
                 >
-                  <div className="mb-2 flex items-start gap-3">
-                    <span className="grid size-9 shrink-0 place-items-center rounded-md bg-muted text-foreground">
-                      <Container className="size-4" />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate font-mono font-medium text-foreground">{r.name}</div>
+                  <div className="flex items-center gap-2.5">
+                    <div className="grid size-[38px] shrink-0 place-items-center rounded-[9px] border bg-muted">
+                      <Container className="size-[20px] text-muted-foreground" />
                     </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate font-mono text-sm font-semibold text-foreground">{r.name}</div>
+                      {r.desc && <div className="truncate text-xs text-muted-foreground">{r.desc}</div>}
+                    </div>
+                    <Badge variant="secondary">{r.purpose}</Badge>
+                  </div>
+                  <div className="mt-2.5 flex items-center gap-2 text-xs">
+                    <span className="inline-flex items-center gap-1.5 rounded-full border bg-muted px-2 py-0.5 font-mono text-[11.5px] text-foreground/80">
+                      <Tag className="size-3.5 text-muted-foreground" />
+                      {r.latest}
+                    </span>
+                    <span className="ml-auto text-muted-foreground">
+                      {r.updated ? dayjs(r.updated).fromNow() : "—"}
+                    </span>
+                  </div>
+                  <Separator className="mt-3.5 mb-2.5" />
+                  <div className="flex items-center text-xs text-muted-foreground">
+                    <span>{r.versions} {t("images.versionsSuffix")}</span>
+                    <div className="grow" />
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button
@@ -264,21 +281,13 @@ export default function Images() {
                             e.stopPropagation();
                             onDeleteImage(r);
                           }}
+                          aria-label={t("common.delete")}
                         >
                           <Trash2 />
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>{t("common.delete")}</TooltipContent>
                     </Tooltip>
-                  </div>
-                  <p className="mb-3 line-clamp-2 min-h-[2.5rem] text-sm text-muted-foreground">{r.desc}</p>
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-mono text-muted-foreground">
-                      {r.latest} · {r.versions} {t("images.versionsSuffix")}
-                    </span>
-                    <span className="text-muted-foreground">
-                      {r.updated ? dayjs(r.updated).fromNow() : "—"}
-                    </span>
                   </div>
                 </Card>
               ))}
@@ -378,7 +387,7 @@ function VersionsDrawer({
 
   return (
     <Sheet open onOpenChange={(o) => !o && onClose()}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[760px]">
+      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[560px]">
         <SheetHeader className="border-b">
           <SheetTitle className="font-mono">{image}</SheetTitle>
           <p className="text-xs text-muted-foreground">{desc || t("images.verImage")}</p>
@@ -595,7 +604,7 @@ function NewImageDrawer({ onClose }: { onClose: () => void }) {
 
   return (
     <Sheet open onOpenChange={(o) => !o && onClose()}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[760px]">
+      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[560px]">
         <SheetHeader className="border-b">
           <SheetTitle>{t("images.newImageTitle")}</SheetTitle>
           <p className="text-xs text-muted-foreground">{t("images.newImageSub")}</p>
@@ -747,7 +756,7 @@ function AddVersionDrawer({ image, onClose }: { image: string; onClose: () => vo
 
   return (
     <Sheet open onOpenChange={(o) => !o && onClose()}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[760px]">
+      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[560px]">
         <SheetHeader className="border-b">
           <SheetTitle>{t("images.addVerTitle")}</SheetTitle>
           <p className="text-xs text-muted-foreground">{t("images.addVerSub")}</p>

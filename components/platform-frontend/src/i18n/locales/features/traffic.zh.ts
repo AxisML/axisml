@@ -23,7 +23,7 @@ export default {
     modeCanaryDesc: "1 稳定 + 1 灰度，按百分比逐步放量",
 
     // 行内操作
-    actSplitCanary: "调整灰度比例",
+    actSplitCanary: "调整比例",
     actSplitWeighted: "调整权重",
     actPromote: "提升为全量",
     actRollback: "回滚",
@@ -76,6 +76,7 @@ export default {
     fsCanaryPercent: "灰度百分比",
     fCanaryPercentLabel: "灰度后端放量百分比",
     canaryPercentHelp: "灰度后端接收的流量百分比，剩余流量由稳定后端承接。",
+    canarySplitHint: "灰度 {{canary}}% · 稳定 {{stable}}%",
     fsBackendWeight: "后端权重",
 
     // 详情

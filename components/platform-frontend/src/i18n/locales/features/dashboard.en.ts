@@ -18,7 +18,7 @@ export default {
     all: "All",
     gpuTrend: "GPU Utilization Trend",
     gpuUtil: "GPU utilization",
-    gpuQuota: "Concurrent tasks",
+    gpuQuota: "GPU quota used",
     metricsSyncing: "Metrics syncing",
     utilization: "used",
     noGpu: "No GPU",
