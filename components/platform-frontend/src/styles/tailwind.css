@@ -6,6 +6,16 @@
    not the default `.dark` class — remap the `dark:` variant accordingly. */
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
+/* shadcn/Radix state shorthands. Radix renders `data-state="active|open|…"`,
+   so the bare `data-active:` / `data-open:` utilities the ui/ components rely on
+   must be mapped onto it — without these the active tab, open menus, and checked
+   controls render with no state styling. */
+@custom-variant data-active (&[data-state="active"]);
+@custom-variant data-open (&[data-state="open"]);
+@custom-variant data-closed (&[data-state="closed"]);
+@custom-variant data-checked (&[data-state="checked"]);
+@custom-variant data-unchecked (&[data-state="unchecked"]);
+
 /* ============================================================================
    Design tokens — Geist skin (see root DESIGN.md).
    Near-black ink on a near-white canvas, hairline borders, blue link/focus.
