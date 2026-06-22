@@ -26,7 +26,6 @@ export default {
     deleted: "服务已删除",
     // drawer (create / edit / scale)
     drawerNew: "新建在线服务",
-    drawerNewSub: "从已注册模型版本部署常驻推理服务",
     drawerEdit: "编辑服务",
     drawerScale: "扩缩容",
     online: "上线服务",
@@ -98,6 +97,12 @@ export default {
     replicasReady: "{{ready}} / {{total}} 就绪",
     copyAccess: "复制访问地址",
     accessCopied: "访问地址已复制",
+    // monitoring
+    monitorHint: "来自 Prometheus · 按副本聚合",
+    mQps: "QPS",
+    mLatency: "延迟",
+    mError: "错误率 (5xx)",
+    mCpu: "CPU 利用率",
     // honest empty states for sources without a backend feed yet
     monitorEmpty: "指标接入中 · 监控数据待对接",
     podsEmpty: "实例列表接入中 · 暂无数据",
@@ -108,10 +113,6 @@ export default {
     colNode: "节点",
     colRestarts: "重启",
     colStarted: "启动时间",
-    colReason: "原因",
-    colType: "类型",
-    colMessage: "信息",
-    colTime: "时间",
     notFound: "未找到该服务",
     loadFailedDesc: "加载服务详情失败，请稍后重试。",
   },

@@ -49,7 +49,7 @@ export default function Login() {
     <div className="grid min-h-screen place-items-center bg-background p-6">
       <Card className="w-full max-w-sm">
         <CardContent className="p-8">
-          <div className="mb-1 flex items-center gap-2.5">
+          <div className="mb-6 flex items-center gap-2.5">
             <div className="grid size-9 place-items-center rounded-md bg-primary text-lg font-bold text-primary-foreground">
               A
             </div>
@@ -57,7 +57,6 @@ export default function Login() {
               Axis<span className="text-muted-foreground">ML</span>
             </div>
           </div>
-          <p className="mb-6 text-sm text-muted-foreground">{t("login.subtitle")}</p>
 
           {err && (
             <Alert variant="destructive" className="mb-4">

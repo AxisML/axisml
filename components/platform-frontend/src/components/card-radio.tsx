@@ -1,12 +1,15 @@
+import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 // Controlled radio-card group — the prototype's `.pick-grid`. Each option is a
 // clickable card; the selected one gets an accent ring. Drives a simple
-// `value` / `onChange` contract so it slots into form controllers.
+// `value` / `onChange` contract so it slots into form controllers. An optional
+// `icon` renders to the left of the text (the prototype's image picker layout).
 export interface CardOption {
   value: string;
   title: string;
   desc?: string;
+  icon?: ReactNode;
 }
 
 export function CardRadio({
@@ -36,13 +39,17 @@ export function CardRadio({
               "rounded-lg border px-3 py-2.5 text-left transition-colors outline-none",
               "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
               "disabled:cursor-not-allowed disabled:opacity-60",
+              o.icon && "flex items-center gap-2.5",
               selected
                 ? "border-foreground bg-accent ring-1 ring-foreground"
                 : "border-border bg-card hover:border-foreground/30",
             )}
           >
-            <div className="font-mono text-sm font-medium">{o.title}</div>
-            {o.desc && <div className="mt-0.5 text-xs text-muted-foreground">{o.desc}</div>}
+            {o.icon && <span className="grid size-[22px] shrink-0 place-items-center">{o.icon}</span>}
+            <span className="min-w-0">
+              <span className="block truncate font-mono text-sm font-medium">{o.title}</span>
+              {o.desc && <span className="mt-0.5 block truncate text-xs text-muted-foreground">{o.desc}</span>}
+            </span>
           </button>
         );
       })}

@@ -22,7 +22,6 @@ export default {
     // version drawer
     verSearchPlaceholder: "Search version name / description",
     addVersion: "Upload version",
-    verWeights: "Model weights",
     addrPending: "Generating address…",
     addrCopied: "Address copied",
     deleteVerTitle: "Delete version {{version}}?",
@@ -41,7 +40,6 @@ export default {
     done: "Done",
     // new model drawer
     newModelTitle: "New Model",
-    newModelSub: "Create the model entry first, then upload version weights",
     fsBasic: "Basic info",
     fName: "Model name",
     fNamePlaceholder: "my-llm-model (letters, digits and hyphens only)",
@@ -62,7 +60,6 @@ export default {
     modelCreated: "Model created. Upload weights from the version list.",
     // upload version drawer
     uploadTitle: "Upload version",
-    uploadSub: "Push a new version of weights to an existing model",
     fModel: "Model",
     fVersion: "Version",
     fVersionPlaceholder: "v5 / 1.5.0 / 2026-06",

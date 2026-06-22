@@ -1,5 +1,5 @@
 import { Link, useParams } from "react-router-dom";
-import { Play, Trash2, ArrowLeft } from "lucide-react";
+import { Play, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import dayjs from "dayjs";
@@ -8,6 +8,11 @@ import { useUI } from "@/app/ui";
 import { useApiMutation } from "@/api/mutations";
 import { PageContainer } from "@/components/page-container";
 import { PhaseTag } from "@/components/phase-tag";
+import { CodeBlock } from "@/components/code-block";
+import { BackLink } from "@/components/back-link";
+import { Descriptions, Desc } from "@/components/descriptions";
+import { PageLoading, DetailError } from "@/components/page-state";
+import { fmtDateTime, fmtDuration } from "@/lib/format";
 import { DataTable, type Column } from "@/components/data-table";
 import { USE_MOCK } from "@/api/mock";
 import { runSummary } from "@/api/mock/data";
@@ -20,21 +25,6 @@ import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // ── Shared detail helpers (reused by RunDetail) ───────────────────────────────
-export function fmtDateTime(v?: string | null): string {
-  return v ? dayjs(v).format("YYYY-MM-DD HH:mm") : "—";
-}
-
-// Humanize a second count into a compact h/m/s string.
-export function fmtDuration(secs: number): string {
-  if (!Number.isFinite(secs) || secs < 0) return "—";
-  const h = Math.floor(secs / 3600);
-  const m = Math.floor((secs % 3600) / 60);
-  const s = Math.floor(secs % 60);
-  if (h > 0) return `${h}h ${m}m`;
-  if (m > 0) return `${m}m ${s}s`;
-  return `${s}s`;
-}
-
 // The first defined role carries the Job/Run's primary spec (image, command, …).
 export function primaryRole(roles?: sdk.MlRunRole[]): sdk.MlRunRole | undefined {
   return roles?.[0];
@@ -45,24 +35,6 @@ export function runReplicas(r: sdk.Run): number | undefined {
   if (!r.roles?.length) return undefined;
   const total = r.roles.reduce((n, role) => n + (role.replicas ?? 0), 0);
   return total > 0 ? total : undefined;
-}
-
-// Key/value detail grid — the Descriptions replacement (two columns on md+).
-function DescGrid({ children }: { children: React.ReactNode }) {
-  return (
-    <dl className="grid grid-cols-[120px_1fr] gap-x-4 gap-y-3 text-sm md:grid-cols-[120px_1fr_120px_1fr]">
-      {children}
-    </dl>
-  );
-}
-
-function DescItem({ label, span, children }: { label: string; span?: boolean; children: React.ReactNode }) {
-  return (
-    <div className={span ? "contents md:col-span-4 md:grid md:grid-cols-[120px_1fr]" : "contents"}>
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="min-w-0">{children}</dd>
-    </div>
-  );
 }
 
 // 自定义任务详情 / Job detail. Metadata comes from getJob; the run list comes
@@ -95,23 +67,13 @@ export default function JobDetail() {
           {latestPhase && <PhaseTag phase={latestPhase} />}
         </span>
       }
-      subtitle={
-        <Link to="/jobs" className="inline-flex items-center gap-1 text-sm text-info hover:underline">
-          <ArrowLeft className="size-3.5" /> {t("jobDetail.backJobs")}
-        </Link>
-      }
+      subtitle={<BackLink to="/jobs">{t("jobDetail.backJobs")}</BackLink>}
       extra={job && <Actions name={name} />}
     >
       {jobQ.isLoading ? (
-        <div className="grid place-items-center py-24">
-          <Spinner className="size-7 text-muted-foreground" />
-        </div>
+        <PageLoading />
       ) : jobQ.isError || !job ? (
-        <Card>
-          <CardContent className="py-16 text-center text-sm text-muted-foreground">
-            {t("common.loadFailed")}
-          </CardContent>
-        </Card>
+        <DetailError message={t("common.loadFailed")} />
       ) : (
         <Tabs defaultValue="info">
           <TabsList>
@@ -183,12 +145,12 @@ function InfoPane({ job, role }: { job: sdk.Job; role?: sdk.MlRunRole }) {
         </CardAction>
       </CardHeader>
       <CardContent>
-        <DescGrid>
-          <DescItem label={t("jobDetail.fName")}>
+        <Descriptions columns="double">
+          <Desc label={t("jobDetail.fName")}>
             <span className="font-mono">{job.name}</span>
-          </DescItem>
-          <DescItem label={t("jobDetail.fDesc")}>{job.description || "—"}</DescItem>
-          <DescItem label={t("jobDetail.fImage")}>
+          </Desc>
+          <Desc label={t("jobDetail.fDesc")}>{job.description || "—"}</Desc>
+          <Desc label={t("jobDetail.fImage")}>
             {tpl?.image ? (
               <Badge variant="secondary" className="font-mono">
                 {tpl.image}
@@ -196,26 +158,26 @@ function InfoPane({ job, role }: { job: sdk.Job; role?: sdk.MlRunRole }) {
             ) : (
               "—"
             )}
-          </DescItem>
-          <DescItem label={t("jobDetail.fPool")}>
+          </Desc>
+          <Desc label={t("jobDetail.fPool")}>
             {job.spec.poolName ? <span className="font-mono">{job.spec.poolName}</span> : "—"}
-          </DescItem>
-          <DescItem label={t("jobDetail.fUnit")}>
+          </Desc>
+          <Desc label={t("jobDetail.fUnit")}>
             {job.spec.unitName ? <span className="font-mono">{job.spec.unitName}</span> : "—"}
-          </DescItem>
-          <DescItem label={t("jobDetail.fReplicas")}>
+          </Desc>
+          <Desc label={t("jobDetail.fReplicas")}>
             <span className="font-mono">{role?.replicas ?? "—"}</span>
-          </DescItem>
-          <DescItem label={t("jobDetail.fArtifacts")} span>
+          </Desc>
+          <Desc label={t("jobDetail.fArtifacts")} span>
             <ArtifactTags artifacts={job.spec.artifacts} />
-          </DescItem>
-          <DescItem label={t("jobDetail.fRunPolicy")} span>
+          </Desc>
+          <Desc label={t("jobDetail.fRunPolicy")} span>
             <PolicyText policy={policy} />
-          </DescItem>
-          <DescItem label={t("jobDetail.fCreator")} span>
+          </Desc>
+          <Desc label={t("jobDetail.fCreator")} span>
             {job.owner} · <span className="font-mono">{fmtDateTime(job.createdAt)}</span>
-          </DescItem>
-        </DescGrid>
+          </Desc>
+        </Descriptions>
 
         <Separator className="my-5" />
         <CommandBlock tpl={tpl} />
@@ -256,12 +218,7 @@ export function CommandBlock({ tpl }: { tpl?: sdk.RoleTemplate }) {
     <div className="mb-5">
       <div className="mb-1.5 text-xs text-muted-foreground">{t("jobDetail.command")}</div>
       {cmd.length ? (
-        <pre
-          className="m-0 overflow-auto rounded-md p-4 font-mono text-xs leading-relaxed"
-          style={{ background: "#16181d", color: "#e6e6e6" }}
-        >
-          {cmd.join(" ")}
-        </pre>
+        <CodeBlock>{cmd.join(" ")}</CodeBlock>
       ) : (
         <div className="text-sm text-muted-foreground">{t("jobDetail.noCommand")}</div>
       )}

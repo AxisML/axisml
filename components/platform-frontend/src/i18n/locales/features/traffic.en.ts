@@ -43,7 +43,6 @@ export default {
 
     // create drawer
     drawerNew: "New traffic policy",
-    drawerNewSub: "Bind a stable endpoint and distribute traffic to this tenant's online services",
     created: "Traffic policy created",
     createPolicy: "Create policy",
     fsBasic: "Basics & mode",
@@ -90,6 +89,7 @@ export default {
     // detail tabs
     tabOverview: "Overview",
     tabDistribution: "Traffic config",
+    tabMonitor: "Monitor",
     tabEvents: "Events",
     policyInfo: "Policy info",
 
@@ -106,13 +106,17 @@ export default {
 
     // distribution (canary)
     canaryPercentTitle: "Canary percent",
+    canaryCurrent: "Current",
+    canaryPending: "Pending",
+    canaryPresets: "Ramp",
     stableShare: "Stable",
     canaryShare: "Canary",
     promoteToStable: "Promote to stable",
     applyCanary: "Apply",
+    rollback: "Roll back",
 
-    // backend distribution table
-    backendDist: "Backend distribution",
+    // traffic distribution table
+    backendDist: "Traffic distribution",
     colService: "Online service",
     colRole: "Role",
     colTargetWeight: "Target weight",
@@ -130,6 +134,14 @@ export default {
     sumBad: "Σ = {{sum}}% ✕",
     applyWeights: "Apply weights",
     weightsApplied: "Weights applied",
+
+    // monitor
+    monGrouped: "From the compute metrics agent · grouped by backend",
+    monQps: "QPS",
+    monLatency: "Latency p95",
+    monErrorRate: "Error rate (5xx)",
+    monitorEmpty: "No metrics available",
+    monitorNoBackends: "The policy has no backends yet, so no metrics are available.",
 
     // events
     noEvents: "No events",

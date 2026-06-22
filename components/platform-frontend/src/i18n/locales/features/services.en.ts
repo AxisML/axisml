@@ -26,7 +26,6 @@ export default {
     deleted: "Service deleted",
     // drawer (create / edit / scale)
     drawerNew: "New Online Service",
-    drawerNewSub: "Deploy a long-running inference service from a registered model version",
     drawerEdit: "Edit Service",
     drawerScale: "Scale",
     online: "Deploy",
@@ -98,6 +97,12 @@ export default {
     replicasReady: "{{ready}} / {{total}} ready",
     copyAccess: "Copy access URL",
     accessCopied: "Access URL copied",
+    // monitoring
+    monitorHint: "From Prometheus · aggregated across replicas",
+    mQps: "QPS",
+    mLatency: "Latency",
+    mError: "Error rate (5xx)",
+    mCpu: "CPU utilization",
     // honest empty states for sources without a backend feed yet
     monitorEmpty: "Metrics integration in progress · monitoring data pending",
     podsEmpty: "Pod list integration in progress · no data yet",
@@ -108,10 +113,6 @@ export default {
     colNode: "Node",
     colRestarts: "Restarts",
     colStarted: "Started",
-    colReason: "Reason",
-    colType: "Type",
-    colMessage: "Message",
-    colTime: "Time",
     notFound: "Service not found",
     loadFailedDesc: "Failed to load service detail. Please try again later.",
   },

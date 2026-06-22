@@ -5,6 +5,7 @@ export const zhCN = {
     save: "保存",
     saving: "保存中…",
     cancel: "取消",
+    close: "关闭",
     delete: "删除",
     confirmDelete: "确认删除",
     confirmAction: "确认操作",
@@ -32,6 +33,8 @@ export const zhCN = {
     name: "名称",
     description: "描述",
     status: "状态",
+    podLabel: "POD",
+    follow: "实时跟随",
   },
   role: {
     "system-admin": "系统管理员",
@@ -94,7 +97,6 @@ export const zhCN = {
     themeSwitched: "主题已切换为「{{name}}」",
   },
   login: {
-    subtitle: "登录到 AI 训练与推理平台控制台",
     username: "用户名",
     password: "密码",
     usernamePlaceholder: "请输入用户名",
@@ -125,7 +127,6 @@ export const zhCN = {
     drawerNew: "新建 Job",
     drawerRun: "触发运行",
     drawerEdit: "编辑 Job",
-    drawerNewSub: "保存即写模板，不触发运行",
     fsBasic: "基本信息",
     fsImage: "镜像",
     fsResource: "资源选择",

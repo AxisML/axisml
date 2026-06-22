@@ -7,6 +7,7 @@ export const enUS: Catalog = {
     save: "Save",
     saving: "Saving…",
     cancel: "Cancel",
+    close: "Close",
     delete: "Delete",
     confirmDelete: "Confirm delete",
     confirmAction: "Confirm action",
@@ -34,6 +35,8 @@ export const enUS: Catalog = {
     name: "Name",
     description: "Description",
     status: "Status",
+    podLabel: "POD",
+    follow: "Live follow",
   },
   role: {
     "system-admin": "System admin",
@@ -95,7 +98,6 @@ export const enUS: Catalog = {
     themeSwitched: "Theme switched to “{{name}}”",
   },
   login: {
-    subtitle: "Sign in to the AI training & inference platform console",
     username: "Username",
     password: "Password",
     usernamePlaceholder: "Enter your username",
@@ -125,7 +127,6 @@ export const enUS: Catalog = {
     drawerNew: "New Job",
     drawerRun: "Trigger Run",
     drawerEdit: "Edit Job",
-    drawerNewSub: "Saving writes the template only; it does not trigger a run",
     fsBasic: "Basics",
     fsImage: "Image",
     fsResource: "Resources",

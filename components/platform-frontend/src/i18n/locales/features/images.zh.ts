@@ -22,7 +22,6 @@ export default {
     // version drawer
     verSearchPlaceholder: "搜索版本名称 / 描述",
     addVersion: "添加版本",
-    verImage: "镜像版本",
     addrPending: "推送完成后生成…",
     addrCopied: "地址已复制",
     deleteVerTitle: "确定删除版本 {{version}}？",
@@ -39,7 +38,6 @@ export default {
     done: "完成",
     // new image drawer
     newImageTitle: "新建镜像",
-    newImageSub: "先创建镜像条目，再添加具体版本",
     fsBasic: "基本信息",
     fName: "镜像名",
     fNamePlaceholder: "my-image（仅英文、数字与连字符）",
@@ -61,7 +59,6 @@ export default {
     imageCreated: "镜像已创建，可在版本列表添加版本",
     // add version drawer
     addVerTitle: "添加版本",
-    addVerSub: "向已有镜像添加新版本",
     fImage: "镜像",
     fVersion: "版本 / tag",
     fVersionPlaceholder: "2.4-cu124",

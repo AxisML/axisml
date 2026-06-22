@@ -21,7 +21,7 @@ export default {
     openVscode: "打开 VS Code",
     openTerminal: "打开终端",
     availableAfterStart: "工作区启动后可用",
-    start: "启动工作区",
+    start: "启动",
     stop: "停止",
     remove: "删除工作区",
     // 操作反馈
@@ -60,7 +60,6 @@ export default {
     notFound: "工作区不存在或无访问权限",
     // 抽屉
     drawerNew: "新建工作区",
-    drawerNewSub: "交互式开发容器 · 隶属当前租户",
     drawerEdit: "编辑工作区",
     editNotice: "工作区运行中，仅可修改名称与描述。镜像、资源、数据卷、环境变量需先停止工作区后才能修改。",
     fsBasic: "基本信息",
@@ -79,8 +78,7 @@ export default {
     fContainerPort: "容器端口",
     fPortHelp: "工作区主进程监听的端口。",
     fEnvHelp: "每行一个 KEY=VALUE，注入到工作区容器。",
-    fVolSize: "数据卷大小",
-    fVolSizeHelp: "留空挂载路径则不创建数据卷。",
+    fVolumeHelp: "选择数据卷并指定容器内挂载路径；留空挂载路径则不挂载。",
     createWorkspace: "创建工作区",
     saveChanges: "保存修改",
   },

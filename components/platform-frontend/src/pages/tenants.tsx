@@ -1,20 +1,23 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Search, Ban, Trash2 } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import dayjs from "dayjs";
-import { useTenants } from "@/api/hooks";
+import { useTenants, useResourcePools } from "@/api/hooks";
 import { useApiMutation } from "@/api/mutations";
 import * as sdk from "@/api/generated";
 import { useUI } from "@/app/ui";
 import { errorText } from "@/lib/errors";
+import { cn } from "@/lib/utils";
 import { PageContainer } from "@/components/page-container";
 import { FieldSection } from "@/components/field-section";
 import { PhaseTag } from "@/components/phase-tag";
+import { SearchInput } from "@/components/search-input";
 import { DataTable, type Column } from "@/components/data-table";
 import { USE_MOCK } from "@/api/mock";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -23,23 +26,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Sheet,
-  SheetContent,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { FormDrawer } from "@/components/form-drawer";
 import { Field, FieldLabel, FieldDescription, FieldGroup } from "@/components/ui/field";
 import { Spinner } from "@/components/ui/spinner";
 import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-// Placeholder pool / unit catalogs for the quota editor's Select options. The
-// authoritative source is the ResourcePool CRD; until the create-tenant flow is
-// wired to live pools, these mirror the prototype's sample pools/units.
-const POOL_OPTIONS = ["gpu-h100", "gpu-a100", "cpu-large"];
-const UNIT_OPTIONS = ["h100-4x-xlarge", "h100-8x-xlarge-ib", "a100-1x-large", "a100-4x-xlarge", "cpu-large-1"];
 const MEMBER_ROLES: ("user" | "tenant-admin")[] = ["user", "tenant-admin"];
 
 interface TenantRow {
@@ -53,21 +45,40 @@ interface TenantRow {
   created: string;
 }
 
+// pool name → (unit name → quantity). The shared shape edited by QuotaPoolEditor
+// and consumed by both the create-tenant and edit-quota drawers.
+type QuotaMap = Record<string, Record<string, number>>;
+
+// Human-readable spec line for a resource unit, derived from its requests/limits
+// (e.g. "8 GPU · 96 vCPU · 768 GiB"). Mirrors the prototype's unit-card spec text.
+function unitSpec(u: sdk.ResourceUnit): string {
+  const m = u.requests ?? u.limits ?? {};
+  const parts: string[] = [];
+  if (m["nvidia.com/gpu"]) parts.push(`${m["nvidia.com/gpu"]} GPU`);
+  if (m["cpu"]) parts.push(`${m["cpu"]} vCPU`);
+  if (m["memory"])
+    parts.push(m["memory"].replace(/Ti$/, " TiB").replace(/Gi$/, " GiB").replace(/Mi$/, " MiB"));
+  return parts.join(" · ");
+}
+
 // Demo-only quota utilisation ratio (deterministic per pool name). Real quota
-// usage has no metrics source, so the meter only renders under mock; otherwise
-// the column shows the honest allocated-quantity text.
+// usage comes from the tenant status when present; otherwise the meter only
+// renders under mock, and live deployments fall back to honest allocated text.
 function mockUsedRatio(pool: string): number {
   const h = [...pool].reduce((a, c) => a + c.charCodeAt(0), 0);
   return 0.5 + ((h % 45) / 100); // 0.50 – 0.94
 }
 
-// Per-pool quota row: pool name + (under mock) a used/allocated meter, else the
-// honest allocated-quantity text. Mirrors the prototype's quota usage bars.
-function QuotaBar({ pool, allocated, used }: { pool: string; allocated: number; used?: number }) {
+// Per-pool quota row: pool tag + used/allocated number + water-level bar — mirrors
+// the prototype's `.q-meters` (tag · number · bar). When no usage is known the
+// bar is dropped and only the honest allocated quantity is shown.
+function QuotaMeter({ pool, allocated, used }: { pool: string; allocated: number; used?: number }) {
   if (used == null) {
     return (
-      <div className="flex items-center gap-2">
-        <span className="w-[88px] shrink-0 truncate font-mono text-xs text-muted-foreground">{pool}</span>
+      <div className="grid grid-cols-[92px_1fr] items-center gap-2.5">
+        <Badge variant="outline" className="justify-start font-mono">
+          {pool}
+        </Badge>
         <span className="font-mono text-xs text-muted-foreground">{allocated} 单元</span>
       </div>
     );
@@ -75,20 +86,24 @@ function QuotaBar({ pool, allocated, used }: { pool: string; allocated: number; 
   const pct = allocated === 0 ? 0 : Math.min(100, Math.round((used / allocated) * 100));
   const fill = pct >= 80 ? "bg-destructive" : pct >= 60 ? "bg-warning" : "bg-success";
   return (
-    <div className="flex items-center gap-2">
-      <span className="w-[88px] shrink-0 truncate font-mono text-xs text-muted-foreground">{pool}</span>
-      <div className="h-[7px] flex-1 overflow-hidden rounded-full bg-muted">
+    <div className="grid grid-cols-[92px_52px_1fr] items-center gap-2.5">
+      <Badge variant="outline" className="justify-start font-mono">
+        {pool}
+      </Badge>
+      <span className="text-right font-mono text-xs text-muted-foreground">
+        {used} / {allocated}
+      </span>
+      <div className="h-[9px] overflow-hidden rounded-full bg-muted">
         <div className={`h-full rounded-full ${fill}`} style={{ width: `${pct}%` }} />
       </div>
-      <span className="w-11 shrink-0 text-right font-mono text-xs text-muted-foreground">{used}/{allocated}</span>
     </div>
   );
 }
 
 type DrawerKind =
   | { kind: "tenant" }
-  | { kind: "quota"; ident: string; display: string }
-  | { kind: "members"; ident: string; display: string }
+  | { kind: "quota"; ident: string }
+  | { kind: "members"; ident: string }
   | { kind: "member"; ident: string };
 
 export default function Tenants() {
@@ -120,10 +135,16 @@ export default function Tenants() {
         active: !tenant.suspended,
         pools: (tenant.quotas ?? []).map((quota) => {
           const allocated = (quota.units ?? []).reduce((sum, u) => sum + (u.quantity ?? 0), 0);
+          const statusUnits = tenant.status?.quotas?.find((s) => s.pool === quota.pool)?.units ?? [];
+          const hasReal = statusUnits.some((u) => u.used != null);
           return {
             pool: quota.pool,
             allocated,
-            used: USE_MOCK ? Math.round(allocated * mockUsedRatio(quota.pool)) : undefined,
+            used: hasReal
+              ? statusUnits.reduce((sum, u) => sum + (u.used ?? 0), 0)
+              : USE_MOCK
+                ? Math.round(allocated * mockUsedRatio(quota.pool))
+                : undefined,
           };
         }),
         members: tenant.memberCount ?? 0,
@@ -172,7 +193,7 @@ export default function Tenants() {
           <button
             type="button"
             className="font-mono font-medium text-foreground hover:text-info hover:underline"
-            onClick={() => setDrawer({ kind: "quota", ident: r.ident, display: r.display })}
+            onClick={() => setDrawer({ kind: "quota", ident: r.ident })}
           >
             {r.ident}
           </button>
@@ -189,14 +210,14 @@ export default function Tenants() {
     {
       key: "quota",
       title: t("tenants.colQuota"),
-      width: 240,
+      width: 300,
       render: (r) =>
         r.pools.length === 0 ? (
           <span className="text-muted-foreground">{t("tenants.noQuota")}</span>
         ) : (
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-2">
             {r.pools.map((p) => (
-              <QuotaBar key={p.pool} pool={p.pool} allocated={p.allocated} used={p.used} />
+              <QuotaMeter key={p.pool} pool={p.pool} allocated={p.allocated} used={p.used} />
             ))}
           </div>
         ),
@@ -222,23 +243,16 @@ export default function Tenants() {
           <Button
             variant="link"
             size="sm"
-            onClick={() => setDrawer({ kind: "quota", ident: r.ident, display: r.display })}
+            onClick={() => setDrawer({ kind: "quota", ident: r.ident })}
           >
             {t("tenants.editQuota")}
           </Button>
           <Button
             variant="link"
             size="sm"
-            onClick={() => setDrawer({ kind: "members", ident: r.ident, display: r.display })}
+            onClick={() => setDrawer({ kind: "members", ident: r.ident })}
           >
             {t("tenants.manageMembers")}
-          </Button>
-          <Button
-            variant="link"
-            size="sm"
-            onClick={() => setDrawer({ kind: "member", ident: r.ident })}
-          >
-            {t("tenants.addMember")}
           </Button>
           {r.active ? (
             <Button variant="link" size="sm" onClick={() => onSuspend(r)}>
@@ -271,15 +285,12 @@ export default function Tenants() {
     >
       <Card className="overflow-hidden p-0">
         <div className="flex flex-wrap items-center gap-3 border-b p-4">
-          <div className="relative max-w-xs flex-1">
-            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              className="pl-8"
-              placeholder={t("tenants.searchPlaceholder")}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
+          <SearchInput
+            className="max-w-xs flex-1"
+            placeholder={t("tenants.searchPlaceholder")}
+            value={search}
+            onChange={setSearch}
+          />
           <Select value={status} onValueChange={(v) => setStatus(v as typeof status)}>
             <SelectTrigger className="min-w-40">
               <SelectValue />
@@ -311,12 +322,11 @@ export default function Tenants() {
 
       {drawer?.kind === "tenant" && <TenantDrawer onClose={() => setDrawer(null)} />}
       {drawer?.kind === "quota" && (
-        <QuotaDrawer ident={drawer.ident} display={drawer.display} onClose={() => setDrawer(null)} />
+        <QuotaDrawer ident={drawer.ident} onClose={() => setDrawer(null)} />
       )}
       {drawer?.kind === "members" && (
         <MembersDrawer
           ident={drawer.ident}
-          display={drawer.display}
           onAddMember={() => setDrawer({ kind: "member", ident: drawer.ident })}
           onClose={() => setDrawer(null)}
         />
@@ -326,7 +336,116 @@ export default function Tenants() {
   );
 }
 
-// ── Create-tenant drawer (numbered FieldSections → createTenant) ───────────────
+// ── Quota editor: per-pool tabs, each listing the pool's resource units as cards
+// with an inline quantity stepper (zero rows dimmed). Mirrors the prototype's
+// `.pool-tabs` / `.qp-units`. Shared by the create-tenant and edit-quota flows. ──
+function QuotaPoolEditor({
+  pools,
+  value,
+  onChange,
+}: {
+  pools: sdk.ResourcePool[];
+  value: QuotaMap;
+  onChange: (next: QuotaMap) => void;
+}) {
+  const { t } = useTranslation();
+  const [tab, setTab] = useState(pools[0]?.name ?? "");
+
+  if (pools.length === 0) {
+    return (
+      <Empty>
+        <EmptyHeader>
+          <EmptyTitle>{t("tenants.noPools")}</EmptyTitle>
+        </EmptyHeader>
+      </Empty>
+    );
+  }
+
+  const setQty = (pool: string, unit: string, qty: number) =>
+    onChange({ ...value, [pool]: { ...value[pool], [unit]: Math.max(0, qty) } });
+
+  return (
+    <Tabs value={tab || pools[0].name} onValueChange={setTab}>
+      <TabsList>
+        {pools.map((p) => (
+          <TabsTrigger key={p.name} value={p.name} className="font-mono">
+            {p.name}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+      {pools.map((p) => {
+        const units = p.units ?? [];
+        return (
+          <TabsContent key={p.name} value={p.name} className="pt-4">
+            {p.description && <p className="mb-3 text-xs text-muted-foreground">{p.description}</p>}
+            {units.length === 0 ? (
+              <Empty>
+                <EmptyHeader>
+                  <EmptyTitle>{t("tenants.noUnits")}</EmptyTitle>
+                </EmptyHeader>
+              </Empty>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {units.map((u) => {
+                  const qty = value[p.name]?.[u.name] ?? 0;
+                  const zero = qty === 0;
+                  return (
+                    <div key={u.name} className="flex items-center gap-4">
+                      <Card
+                        className={cn(
+                          "flex-1 gap-0 p-3 transition-colors",
+                          zero ? "border-border/60 bg-muted/40" : "bg-card",
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            "font-mono text-sm font-medium",
+                            zero ? "text-muted-foreground" : "text-foreground",
+                          )}
+                        >
+                          {u.name}
+                        </div>
+                        <div className="mt-0.5 text-xs text-muted-foreground">
+                          {u.description || unitSpec(u) || "—"}
+                        </div>
+                      </Card>
+                      <label className="flex shrink-0 items-center gap-2">
+                        <span className="text-muted-foreground">×</span>
+                        <Input
+                          type="number"
+                          min={0}
+                          aria-label={t("tenants.qQuantity")}
+                          className="w-14 text-center font-mono"
+                          value={qty}
+                          onChange={(e) => setQty(p.name, u.name, Number(e.target.value) || 0)}
+                        />
+                      </label>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </TabsContent>
+        );
+      })}
+    </Tabs>
+  );
+}
+
+// Collapse a QuotaMap into the API's quota array, dropping zero-quantity units
+// and pools that end up empty.
+function quotasFromMap(map: QuotaMap): sdk.Quota[] {
+  return Object.entries(map)
+    .map(([pool, units]) => ({
+      pool,
+      units: Object.entries(units)
+        .filter(([, qty]) => qty > 0)
+        .map(([unitName, quantity]) => ({ unitName, quantity })),
+    }))
+    .filter((quota) => quota.units.length > 0);
+}
+
+// ── Create-tenant drawer (basic info + initial per-pool quota → createTenant) ───
 interface TenantFormValues {
   displayName: string;
   identifier: string;
@@ -335,12 +454,15 @@ interface TenantFormValues {
 
 function TenantDrawer({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
+  const poolsQ = useResourcePools();
+  const pools = poolsQ.data?.items ?? [];
   const [submitted, setSubmitted] = useState(false);
   const [v, setV] = useState<TenantFormValues>({
     displayName: "",
     identifier: "",
     initialAdmin: "",
   });
+  const [quota, setQuota] = useState<QuotaMap>({});
   const set = <K extends keyof TenantFormValues>(k: K, val: TenantFormValues[K]) =>
     setV((prev) => ({ ...prev, [k]: val }));
 
@@ -355,6 +477,7 @@ function TenantDrawer({ onClose }: { onClose: () => void }) {
     const ident = v.identifier.trim();
     const admin = v.initialAdmin.trim();
     if (!display || !ident || !admin) return;
+    const quotas = quotasFromMap(quota);
     create.mutate(
       {
         displayName: display,
@@ -363,94 +486,85 @@ function TenantDrawer({ onClose }: { onClose: () => void }) {
         // The identifier is a dns1123 slug; reuse it as the physical namespace
         // (tenant name = namespace convention).
         kubernetesNamespace: ident,
+        quotas: quotas.length ? quotas : undefined,
       },
       { onSuccess: onClose },
     );
   };
 
   return (
-    <Sheet open onOpenChange={(o) => !o && onClose()}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[560px]">
-        <SheetHeader className="border-b">
-          <SheetTitle>{t("tenants.drawerNew")}</SheetTitle>
-          <p className="text-xs text-muted-foreground">{t("tenants.drawerNewSub")}</p>
-        </SheetHeader>
+    <FormDrawer
+      title={t("tenants.drawerNew")}
+      onClose={onClose}
+      onSubmit={submit}
+      submitLabel={t("tenants.createTenant")}
+      submitting={create.isPending}
+    >
+      <FieldSection n={1} title={t("tenants.fsBasic")} />
+      <FieldGroup>
+        <Field>
+          <FieldLabel htmlFor="tenant-display">
+            {t("tenants.fDisplayName")}
+            <span className="text-destructive">*</span>
+          </FieldLabel>
+          <Input
+            id="tenant-display"
+            placeholder={t("tenants.fDisplayNamePlaceholder")}
+            value={v.displayName}
+            aria-invalid={submitted && !v.displayName.trim()}
+            onChange={(e) => set("displayName", e.target.value)}
+          />
+          <FieldDescription>{t("tenants.fDisplayNameHelp")}</FieldDescription>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="tenant-ident">
+            {t("tenants.fIdentifier")}
+            <span className="text-destructive">*</span>
+          </FieldLabel>
+          <Input
+            id="tenant-ident"
+            className="font-mono"
+            placeholder={t("tenants.fIdentifierPlaceholder")}
+            value={v.identifier}
+            aria-invalid={submitted && !v.identifier.trim()}
+            onChange={(e) => set("identifier", e.target.value)}
+          />
+          <FieldDescription>{t("tenants.fIdentifierHelp")}</FieldDescription>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="tenant-admin">
+            {t("tenants.fAdmin")}
+            <span className="text-destructive">*</span>
+          </FieldLabel>
+          <Input
+            id="tenant-admin"
+            placeholder={t("tenants.fAdminPlaceholder")}
+            value={v.initialAdmin}
+            aria-invalid={submitted && !v.initialAdmin.trim()}
+            onChange={(e) => set("initialAdmin", e.target.value)}
+          />
+        </Field>
+      </FieldGroup>
 
-        <div className="flex-1 overflow-auto px-6 py-4">
-          <FieldSection n={1} title={t("tenants.fsBasic")} />
-          <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor="tenant-display">
-                {t("tenants.fDisplayName")}
-                <span className="text-destructive">*</span>
-              </FieldLabel>
-              <Input
-                id="tenant-display"
-                placeholder={t("tenants.fDisplayNamePlaceholder")}
-                value={v.displayName}
-                aria-invalid={submitted && !v.displayName.trim()}
-                onChange={(e) => set("displayName", e.target.value)}
-              />
-              <FieldDescription>{t("tenants.fDisplayNameHelp")}</FieldDescription>
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="tenant-ident">
-                {t("tenants.fIdentifier")}
-                <span className="text-destructive">*</span>
-              </FieldLabel>
-              <Input
-                id="tenant-ident"
-                className="font-mono"
-                placeholder={t("tenants.fIdentifierPlaceholder")}
-                value={v.identifier}
-                aria-invalid={submitted && !v.identifier.trim()}
-                onChange={(e) => set("identifier", e.target.value)}
-              />
-              <FieldDescription>{t("tenants.fIdentifierHelp")}</FieldDescription>
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="tenant-admin">
-                {t("tenants.fAdmin")}
-                <span className="text-destructive">*</span>
-              </FieldLabel>
-              <Input
-                id="tenant-admin"
-                placeholder={t("tenants.fAdminPlaceholder")}
-                value={v.initialAdmin}
-                aria-invalid={submitted && !v.initialAdmin.trim()}
-                onChange={(e) => set("initialAdmin", e.target.value)}
-              />
-            </Field>
-          </FieldGroup>
-
-          <FieldSection n={2} title={t("tenants.fsQuota")} />
-          <p className="text-xs text-muted-foreground">{t("tenants.quotaHint")}</p>
+      <FieldSection n={2} title={t("tenants.fsQuota")} />
+      <p className="mb-3 text-xs text-muted-foreground">{t("tenants.quotaHint")}</p>
+      {poolsQ.isLoading ? (
+        <div className="flex justify-center py-8">
+          <Spinner className="size-7 text-muted-foreground" />
         </div>
-
-        <SheetFooter className="flex-row justify-end border-t">
-          <Button variant="outline" onClick={onClose}>
-            {t("common.cancel")}
-          </Button>
-          <Button onClick={submit} disabled={create.isPending}>
-            {create.isPending && <Spinner data-icon="inline-start" />}
-            {t("tenants.createTenant")}
-          </Button>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+      ) : (
+        <QuotaPoolEditor pools={pools} value={quota} onChange={setQuota} />
+      )}
+    </FormDrawer>
   );
 }
 
-// ── Quota editor drawer (live quotas → rows grouped by pool) ───────────────────
-interface QuotaRow {
-  pool?: string;
-  unitName?: string;
-  quantity?: number;
-}
-
-function QuotaDrawer({ ident, display, onClose }: { ident: string; display: string; onClose: () => void }) {
+// ── Quota editor drawer (live quotas hydrate the per-pool editor) ──────────────
+function QuotaDrawer({ ident, onClose }: { ident: string; onClose: () => void }) {
   const { t } = useTranslation();
-  const { confirm } = useUI();
+  const { toast } = useUI();
+  const poolsQ = useResourcePools();
+  const pools = poolsQ.data?.items ?? [];
 
   const quotasQ = useQuery({
     queryKey: ["tenant-quotas", ident],
@@ -464,231 +578,98 @@ function QuotaDrawer({ ident, display, onClose }: { ident: string; display: stri
   const updateQuota = useApiMutation(
     (arg: { pool: string; units: sdk.QuotaUnit[] }) =>
       sdk.updateTenantQuota({ path: { name: ident, pool: arg.pool }, body: { units: arg.units } }),
-    { invalidate: [["tenant-quotas", ident], ["tenants"]], success: t("tenants.quotaSaved") },
+    { invalidate: [["tenant-quotas", ident], ["tenants"]] },
   );
   const createQuota = useApiMutation(
     (arg: { pool: string; units: sdk.QuotaUnit[] }) =>
       sdk.createTenantQuota({ path: { name: ident }, body: { pool: arg.pool, units: arg.units } }),
-    { invalidate: [["tenant-quotas", ident], ["tenants"]], success: t("tenants.quotaSaved") },
+    { invalidate: [["tenant-quotas", ident], ["tenants"]] },
   );
   const delQuota = useApiMutation((pool: string) => sdk.deleteTenantQuota({ path: { name: ident, pool } }), {
     invalidate: [["tenant-quotas", ident], ["tenants"]],
-    success: t("tenants.quotaRemoved"),
   });
 
   const quotas = quotasQ.data?.items ?? [];
   const existingPools = useMemo(() => new Set(quotas.map((quota) => quota.pool)), [quotas]);
 
-  const initialRows: QuotaRow[] = useMemo(
-    () =>
-      quotas.flatMap((quota) =>
-        (quota.units ?? []).map((u) => ({
-          pool: quota.pool,
-          unitName: u.unitName,
-          quantity: u.quantity,
-        })),
-      ),
-    [quotas],
-  );
-
-  // Editable rows hydrate once from live quotas (mirrors antd Form.List initialValues).
-  const [rows, setRows] = useState<QuotaRow[] | null>(null);
-  const editRows = rows ?? initialRows;
-  const setRow = (i: number, patch: Partial<QuotaRow>) =>
-    setRows(editRows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
-  const addRow = () => setRows([...editRows, { quantity: 0 }]);
-  const removeRow = (i: number) => setRows(editRows.filter((_, j) => j !== i));
-
-  const onFinish = () => {
-    // Group rows by pool, then upsert each pool (PATCH if it already exists,
-    // POST otherwise). Backend owns the (pool/unit/quantity) vocabulary.
-    const byPool = new Map<string, sdk.QuotaUnit[]>();
-    for (const r of editRows) {
-      const pool = r.pool?.trim();
-      const unitName = r.unitName?.trim();
-      if (!pool || !unitName) continue;
-      const units = byPool.get(pool) ?? [];
-      units.push({ unitName, quantity: Math.max(0, Number(r.quantity) || 0) });
-      byPool.set(pool, units);
+  // Editable map hydrates once from the live quotas.
+  const initial: QuotaMap = useMemo(() => {
+    const m: QuotaMap = {};
+    for (const quota of quotas) {
+      m[quota.pool] = {};
+      for (const u of quota.units ?? []) m[quota.pool][u.unitName] = u.quantity;
     }
-    if (byPool.size === 0) {
+    return m;
+  }, [quotas]);
+  const [value, setValue] = useState<QuotaMap | null>(null);
+  const editValue = value ?? initial;
+
+  const onFinish = async () => {
+    const desired = new Map<string, sdk.QuotaUnit[]>();
+    for (const quota of quotasFromMap(editValue)) desired.set(quota.pool, quota.units);
+
+    const ops: Promise<unknown>[] = [];
+    for (const [pool, units] of desired) {
+      ops.push(
+        existingPools.has(pool)
+          ? updateQuota.mutateAsync({ pool, units })
+          : createQuota.mutateAsync({ pool, units }),
+      );
+    }
+    // Pools that previously had a quota but were zeroed out are removed.
+    for (const pool of existingPools) {
+      if (!desired.has(pool)) ops.push(delQuota.mutateAsync(pool));
+    }
+
+    if (ops.length === 0) {
       onClose();
       return;
     }
-    let done = 0;
-    const total = byPool.size;
-    const tick = () => {
-      done += 1;
-      if (done === total) onClose();
-    };
-    for (const [pool, units] of byPool) {
-      const mutation = existingPools.has(pool) ? updateQuota : createQuota;
-      mutation.mutate({ pool, units }, { onSuccess: tick });
+    try {
+      await Promise.all(ops);
+      toast(t("tenants.quotaSaved"));
+      onClose();
+    } catch {
+      // Per-mutation errors already surfaced as toasts by useApiMutation.
     }
   };
 
-  const onRemovePool = (pool: string) =>
-    confirm({
-      title: t("tenants.removePoolTitle", { pool }),
-      desc: t("tenants.removePoolDesc"),
-      okLabel: t("tenants.confirmRemovePool"),
-      onConfirm: () => delQuota.mutate(pool),
-    });
-
-  const saving = updateQuota.isPending || createQuota.isPending;
+  const loading = quotasQ.isLoading || poolsQ.isLoading;
+  const saving = updateQuota.isPending || createQuota.isPending || delQuota.isPending;
 
   return (
-    <Sheet open onOpenChange={(o) => !o && onClose()}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[560px]">
-        <SheetHeader className="border-b">
-          <SheetTitle>{t("tenants.quotaDrawerTitle")}</SheetTitle>
-          <p className="text-xs text-muted-foreground">
-            <span className="font-mono">{ident}</span>
-          </p>
-        </SheetHeader>
-
-        <div className="flex-1 overflow-auto px-6 py-4">
-          <p className="mb-4 text-xs text-muted-foreground">{t("tenants.quotaDrawerSub", { name: display })}</p>
-          {quotasQ.isLoading ? (
-            <div className="flex justify-center py-8">
-              <Spinner className="size-7 text-muted-foreground" />
-            </div>
-          ) : quotasQ.isError ? (
-            <Empty>
-              <EmptyHeader>
-                <EmptyTitle>{t("common.loadFailed")}</EmptyTitle>
-              </EmptyHeader>
-            </Empty>
-          ) : (
-            <>
-              {delQuota.isPending && (
-                <div className="mb-3 flex justify-center">
-                  <Spinner className="size-5 text-muted-foreground" />
-                </div>
-              )}
-              <FieldSection n={1} title={t("tenants.fsQuotaRows")} />
-              <p className="mb-3 text-xs text-muted-foreground">{t("tenants.quotaRowsSub")}</p>
-              <FieldGroup>
-              <div className="flex flex-col gap-3">
-                {editRows.length === 0 && (
-                  <Empty>
-                    <EmptyHeader>
-                      <EmptyTitle>{t("tenants.quotaEmpty")}</EmptyTitle>
-                    </EmptyHeader>
-                  </Empty>
-                )}
-                {editRows.map((row, i) => {
-                  const canRemovePool = !!row.pool && existingPools.has(row.pool);
-                  return (
-                    <Card key={i} className="gap-0 bg-muted p-3">
-                      <div className="grid grid-cols-[1fr_1fr_auto_auto] items-end gap-x-3">
-                        <Field>
-                          <FieldLabel>{t("tenants.qPool")}</FieldLabel>
-                          <Select
-                            value={row.pool}
-                            onValueChange={(val) => setRow(i, { pool: val })}
-                          >
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder={t("tenants.qPoolPlaceholder")} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {POOL_OPTIONS.map((p) => (
-                                <SelectItem key={p} value={p}>
-                                  {p}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </Field>
-                        <Field>
-                          <FieldLabel>{t("tenants.qUnit")}</FieldLabel>
-                          <Select
-                            value={row.unitName}
-                            onValueChange={(val) => setRow(i, { unitName: val })}
-                          >
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder={t("tenants.qUnitPlaceholder")} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {UNIT_OPTIONS.map((u) => (
-                                <SelectItem key={u} value={u}>
-                                  {u}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </Field>
-                        <Field>
-                          <FieldLabel>{t("tenants.qQuantity")}</FieldLabel>
-                          <Input
-                            type="number"
-                            min={0}
-                            className="w-24"
-                            value={row.quantity ?? ""}
-                            onChange={(e) => setRow(i, { quantity: Number(e.target.value) })}
-                          />
-                        </Field>
-                        <div className="flex items-center gap-1 pb-1">
-                          {canRemovePool && (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon-sm"
-                                  onClick={() => onRemovePool(row.pool!)}
-                                >
-                                  <Ban />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>{t("tenants.removePool")}</TooltipContent>
-                            </Tooltip>
-                          )}
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            className="text-destructive"
-                            onClick={() => removeRow(i)}
-                          >
-                            <Trash2 />
-                          </Button>
-                        </div>
-                      </div>
-                    </Card>
-                  );
-                })}
-                <Button variant="outline" className="w-full border-dashed" onClick={addRow}>
-                  <Plus data-icon="inline-start" />
-                  {t("tenants.addQuotaRow")}
-                </Button>
-              </div>
-              </FieldGroup>
-            </>
-          )}
+    <FormDrawer
+      title={t("tenants.editQuota")}
+      subtitle={<span className="font-mono">{ident}</span>}
+      onClose={onClose}
+      onSubmit={onFinish}
+      submitLabel={t("tenants.saveQuota")}
+      submitting={saving}
+    >
+      {loading ? (
+        <div className="flex justify-center py-8">
+          <Spinner className="size-7 text-muted-foreground" />
         </div>
-
-        <SheetFooter className="flex-row justify-end border-t">
-          <Button variant="outline" onClick={onClose}>
-            {t("common.cancel")}
-          </Button>
-          <Button onClick={onFinish} disabled={saving}>
-            {saving && <Spinner data-icon="inline-start" />}
-            {t("tenants.saveQuota")}
-          </Button>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+      ) : quotasQ.isError ? (
+        <Empty>
+          <EmptyHeader>
+            <EmptyTitle>{t("common.loadFailed")}</EmptyTitle>
+          </EmptyHeader>
+        </Empty>
+      ) : (
+        <QuotaPoolEditor pools={pools} value={editValue} onChange={setValue} />
+      )}
+    </FormDrawer>
   );
 }
 
 // ── Members drawer (live members → remove / update role) ───────────────────────
 function MembersDrawer({
   ident,
-  display,
   onAddMember,
   onClose,
 }: {
   ident: string;
-  display: string;
   onAddMember: () => void;
   onClose: () => void;
 }) {
@@ -804,49 +785,37 @@ function MembersDrawer({
   ];
 
   return (
-    <Sheet open onOpenChange={(o) => !o && onClose()}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[560px]">
-        <SheetHeader className="border-b">
-          <SheetTitle>{t("tenants.membersDrawerTitle")}</SheetTitle>
-          <p className="text-xs text-muted-foreground">
-            <span className="font-mono">{ident}</span>
-          </p>
-        </SheetHeader>
-
-        <div className="flex-1 overflow-auto px-6 py-4">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <p className="m-0 text-xs text-muted-foreground">{t("tenants.membersDrawerSub", { name: display })}</p>
-            <Button size="sm" onClick={onAddMember}>
-              <Plus data-icon="inline-start" />
-              {t("tenants.addMember")}
-            </Button>
-          </div>
-          <div className="relative mb-3 max-w-xs">
-            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              className="pl-8"
-              placeholder={t("tenants.memberSearchPlaceholder")}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-          <DataTable
-            columns={columns}
-            data={members}
-            rowKey={(m) => m.userId}
-            loading={membersQ.isLoading}
-            error={membersQ.isError}
-            empty={t("tenants.membersEmpty")}
-          />
-        </div>
-
-        <SheetFooter className="flex-row justify-end border-t">
-          <Button variant="outline" onClick={onClose}>
-            {t("common.cancel")}
-          </Button>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+    <FormDrawer
+      title={t("tenants.manageMembers")}
+      subtitle={<span className="font-mono">{ident}</span>}
+      onClose={onClose}
+      footer={
+        <Button variant="outline" onClick={onClose}>
+          {t("common.close")}
+        </Button>
+      }
+    >
+      <div className="mb-3 flex items-center gap-3">
+        <SearchInput
+          className="max-w-xs flex-1"
+          placeholder={t("tenants.memberSearchPlaceholder")}
+          value={search}
+          onChange={setSearch}
+        />
+        <Button size="sm" onClick={onAddMember}>
+          <Plus data-icon="inline-start" />
+          {t("tenants.addMember")}
+        </Button>
+      </div>
+      <DataTable
+        columns={columns}
+        data={members}
+        rowKey={(m) => m.userId}
+        loading={membersQ.isLoading}
+        error={membersQ.isError}
+        empty={t("tenants.membersEmpty")}
+      />
+    </FormDrawer>
   );
 }
 
@@ -876,60 +845,45 @@ function MemberDrawer({ ident, onClose }: { ident: string; onClose: () => void }
   };
 
   return (
-    <Sheet open onOpenChange={(o) => !o && onClose()}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[480px]">
-        <SheetHeader className="border-b">
-          <SheetTitle>{t("tenants.memberDrawerTitle")}</SheetTitle>
-          <p className="text-xs text-muted-foreground">
-            <span className="font-mono">{ident}</span>
-          </p>
-        </SheetHeader>
-
-        <div className="flex-1 overflow-auto px-6 py-4">
-          <FieldSection n={1} title={t("tenants.memberDrawerSub", { name: ident })} />
-          <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor="member-account">
-                {t("tenants.fAccount")}
-                <span className="text-destructive">*</span>
-              </FieldLabel>
-              <Input
-                id="member-account"
-                placeholder={t("tenants.fAccountPlaceholder")}
-                value={v.account}
-                aria-invalid={submitted && !v.account.trim()}
-                onChange={(e) => set("account", e.target.value)}
-              />
-              <FieldDescription>{t("tenants.fAccountHelp")}</FieldDescription>
-            </Field>
-            <Field>
-              <FieldLabel>{t("tenants.fRole")}</FieldLabel>
-              <Select value={v.roleName} onValueChange={(val) => set("roleName", val as MemberFormValues["roleName"])}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {MEMBER_ROLES.map((r) => (
-                    <SelectItem key={r} value={r}>
-                      {t(`role.${r}`)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-          </FieldGroup>
-        </div>
-
-        <SheetFooter className="flex-row justify-end border-t">
-          <Button variant="outline" onClick={onClose}>
-            {t("common.cancel")}
-          </Button>
-          <Button onClick={submit} disabled={add.isPending}>
-            {add.isPending && <Spinner data-icon="inline-start" />}
-            {t("tenants.addMember")}
-          </Button>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+    <FormDrawer
+      title={t("tenants.memberDrawerTitle")}
+      size="compact"
+      onClose={onClose}
+      onSubmit={submit}
+      submitLabel={t("tenants.addMember")}
+      submitting={add.isPending}
+    >
+      <FieldGroup>
+        <Field>
+          <FieldLabel htmlFor="member-account">
+            {t("tenants.fAccount")}
+            <span className="text-destructive">*</span>
+          </FieldLabel>
+          <Input
+            id="member-account"
+            placeholder={t("tenants.fAccountPlaceholder")}
+            value={v.account}
+            aria-invalid={submitted && !v.account.trim()}
+            onChange={(e) => set("account", e.target.value)}
+          />
+          <FieldDescription>{t("tenants.fAccountHelp")}</FieldDescription>
+        </Field>
+        <Field>
+          <FieldLabel>{t("tenants.fRole")}</FieldLabel>
+          <Select value={v.roleName} onValueChange={(val) => set("roleName", val as MemberFormValues["roleName"])}>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {MEMBER_ROLES.map((r) => (
+                <SelectItem key={r} value={r}>
+                  {t(`role.${r}`)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+      </FieldGroup>
+    </FormDrawer>
   );
 }

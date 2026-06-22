@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { cn } from "@/lib/utils";
 
 // Recent-run status strip — the prototype's `.runbar`: up to 5 small circular
 // glyphs (✓ success / ✗ failure / ◔ running / dashed = no run) showing a job or
@@ -38,10 +39,10 @@ const COLOR: Record<Slot, string> = {
 };
 
 function Glyph({ slot }: { slot: Slot }) {
-  const common = { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeLinecap: "round" as const, strokeLinejoin: "round" as const, strokeWidth: 2, className: "h-5 w-5" };
+  const common = { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeLinecap: "round" as const, strokeLinejoin: "round" as const, strokeWidth: 2, className: "size-5" };
   if (slot === "run") {
     return (
-      <svg {...common} className="h-5 w-5 animate-spin">
+      <svg {...common} className="size-5 animate-spin">
         <path d="M21 12a9 9 0 1 1-6.22-8.56" />
       </svg>
     );
@@ -66,7 +67,7 @@ export function RunStrip({ phases = [], to }: { phases?: string[]; to?: string }
   const inner = (
     <span className="-mx-1.5 -my-1 inline-flex items-center gap-1.5 rounded-sm px-1.5 py-1 transition-colors hover:bg-muted">
       {slots.map((s, i) => (
-        <span key={i} className={`inline-grid h-5 w-5 place-items-center ${COLOR[s]}`}>
+        <span key={i} className={cn("inline-grid size-5 place-items-center", COLOR[s])}>
           <Glyph slot={s} />
         </span>
       ))}

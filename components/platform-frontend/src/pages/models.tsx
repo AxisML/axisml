@@ -1,13 +1,11 @@
 import { useMemo, useState } from "react";
 import {
   Plus,
-  Search,
   Trash2,
   CloudDownload,
   Copy,
   Database,
   Inbox,
-  Tag,
   X,
   LayoutGrid,
   List as ListIcon,
@@ -21,6 +19,10 @@ import { useApp } from "@/app/store";
 import { useUI } from "@/app/ui";
 import { PageContainer } from "@/components/page-container";
 import { FieldSection } from "@/components/field-section";
+import { StatusDot } from "@/components/phase-tag";
+import { SearchInput } from "@/components/search-input";
+import { AssetCard } from "@/components/asset-card";
+import { CodeBlock } from "@/components/code-block";
 import { DataTable, type Column } from "@/components/data-table";
 import { USE_MOCK } from "@/api/mock";
 import { modelVersions } from "@/api/mock/data";
@@ -29,7 +31,6 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
@@ -40,17 +41,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Sheet,
-  SheetContent,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+import { FormDrawer } from "@/components/form-drawer";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Field, FieldGroup, FieldLabel, FieldDescription } from "@/components/ui/field";
+import { phaseTone } from "@/lib/phase";
 import { cn } from "@/lib/utils";
 
 interface ModelRow {
@@ -194,15 +190,12 @@ export default function Models() {
       }
     >
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <div className="relative max-w-xs flex-1">
-          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            className="pl-8"
-            placeholder={t("models.searchPlaceholder")}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
+        <SearchInput
+          className="max-w-xs flex-1"
+          placeholder={t("models.searchPlaceholder")}
+          value={search}
+          onChange={setSearch}
+        />
         <div className="grow" />
         <ToggleGroup
           type="single"
@@ -249,53 +242,19 @@ export default function Models() {
           <>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
               {rows.map((r) => (
-                <Card
+                <AssetCard
                   key={r.name}
-                  className="cursor-pointer gap-0 p-4 transition-shadow hover:border-primary/30 hover:shadow-md"
-                  onClick={() => openVersions(r)}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <div className="grid size-[38px] shrink-0 place-items-center rounded-[9px] border bg-muted">
-                      <Database className="size-[20px] text-muted-foreground" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate font-mono text-sm font-semibold text-foreground">{r.name}</div>
-                      {r.desc && <div className="truncate text-xs text-muted-foreground">{r.desc}</div>}
-                    </div>
-                    <Badge variant="secondary">{r.framework}</Badge>
-                  </div>
-                  <div className="mt-2.5 flex items-center gap-2 text-xs">
-                    <span className="inline-flex items-center gap-1.5 rounded-full border bg-muted px-2 py-0.5 font-mono text-[11.5px] text-foreground/80">
-                      <Tag className="size-3.5 text-muted-foreground" />
-                      {r.latest}
-                    </span>
-                    <span className="ml-auto text-muted-foreground">
-                      {r.updated ? dayjs(r.updated).fromNow() : "—"}
-                    </span>
-                  </div>
-                  <Separator className="mt-3.5 mb-2.5" />
-                  <div className="flex items-center text-xs text-muted-foreground">
-                    <span>{r.versions} {t("models.versionsSuffix")}</span>
-                    <div className="grow" />
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="text-destructive"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onDeleteModel(r);
-                          }}
-                          aria-label={t("common.delete")}
-                        >
-                          <Trash2 />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>{t("common.delete")}</TooltipContent>
-                    </Tooltip>
-                  </div>
-                </Card>
+                  icon={Database}
+                  name={r.name}
+                  desc={r.desc}
+                  badge={r.framework}
+                  latest={r.latest}
+                  updated={r.updated ? dayjs(r.updated).fromNow() : "—"}
+                  versionsText={`${r.versions} ${t("models.versionsSuffix")}`}
+                  onOpen={() => openVersions(r)}
+                  onDelete={() => onDeleteModel(r)}
+                  deleteLabel={t("common.delete")}
+                />
               ))}
             </div>
             <div className="mt-4 text-sm text-muted-foreground">
@@ -335,25 +294,6 @@ export default function Models() {
 }
 
 // ── Version list drawer ───────────────────────────────────────────────────────
-// Prototype renders version status as a dot + label `.status` indicator (see
-// PhaseTag) rather than a filled badge — tone drives the dot/text colour and
-// `pending` adds the breathing pulse used while a version is still uploading.
-function statusMeta(
-  status: sdk.ModelStatus,
-  t: (k: string) => string,
-): { dot: string; text: string; label: string; pending: boolean } {
-  switch (status) {
-    case "Ready":
-      return { dot: "bg-success", text: "text-foreground", label: t("models.statusReady"), pending: false };
-    case "Uploading":
-      return { dot: "bg-warning", text: "text-warning", label: t("models.statusUploading"), pending: true };
-    case "Failed":
-      return { dot: "bg-destructive", text: "text-destructive", label: t("models.statusFailed"), pending: false };
-    default:
-      return { dot: "bg-muted-foreground", text: "text-muted-foreground", label: status, pending: false };
-  }
-}
-
 function VersionsDrawer({
   model,
   desc,
@@ -396,128 +336,126 @@ function VersionsDrawer({
     });
 
   return (
-    <Sheet open onOpenChange={(o) => !o && onClose()}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[560px]">
-        <SheetHeader className="border-b">
-          <SheetTitle className="font-mono">{model}</SheetTitle>
-          <p className="text-xs text-muted-foreground">{`${desc || t("models.verWeights")} · ${framework}`}</p>
-        </SheetHeader>
+    <FormDrawer
+      title={model}
+      titleClassName="font-mono"
+      subtitle={
+        desc || (framework && framework !== "—") ? (
+          <span className="mt-1 flex flex-col gap-2">
+            {desc && <span>{desc}</span>}
+            {framework && framework !== "—" && (
+              <span>
+                <Badge variant="secondary">{framework}</Badge>
+              </span>
+            )}
+          </span>
+        ) : undefined
+      }
+      onClose={onClose}
+      bodyClassName="flex flex-col"
+    >
+      <div className="mb-4 flex items-center gap-3">
+        <SearchInput
+          className="flex-1"
+          placeholder={t("models.verSearchPlaceholder")}
+          value={search}
+          onChange={setSearch}
+        />
+        <Button onClick={onUpload}>
+          <Plus data-icon="inline-start" />
+          {t("models.addVersion")}
+        </Button>
+      </div>
 
-        <div className="flex flex-1 flex-col overflow-auto px-6 py-4">
-          <div className="mb-4 flex items-center gap-3">
-            <div className="relative flex-1">
-              <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                className="pl-8"
-                placeholder={t("models.verSearchPlaceholder")}
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
-            <Button onClick={onUpload}>
-              <Plus data-icon="inline-start" />
-              {t("models.addVersion")}
-            </Button>
-          </div>
-
-          {versQ.isLoading ? (
-            <div className="grid place-items-center py-12">
-              <Spinner className="size-7 text-muted-foreground" />
-            </div>
-          ) : filtered.length === 0 ? (
-            <Empty className="border">
-              <EmptyHeader>
-                <EmptyTitle>{versQ.isError ? t("common.loadFailed") : t("common.noData")}</EmptyTitle>
-              </EmptyHeader>
-            </Empty>
-          ) : (
-            <div className="flex flex-col gap-3">
-              {filtered.map((v) => {
-                const meta = statusMeta(v.status, t);
-                return (
-                  <div
-                    key={v.version}
-                    className="rounded-lg border p-4 transition-colors hover:border-primary/30"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="font-mono text-[15px] font-semibold text-foreground">{v.version}</span>
-                      <span className={cn("inline-flex items-center gap-1.5 text-xs font-medium", meta.text)}>
-                        <span
-                          className={cn(
-                            "size-[7px] shrink-0 rounded-full",
-                            meta.dot,
-                            meta.pending && "status-pulse",
-                          )}
-                        />
-                        {meta.label}
-                      </span>
-                      {v.source && <Badge variant="outline">{v.source}</Badge>}
-                      {!meta.pending && (
-                        <div className="ml-auto flex items-center gap-0.5">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button variant="ghost" size="icon-sm" onClick={() => onPull(v.version)}>
-                                <CloudDownload />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>{t("models.pullTitle")}</TooltipContent>
-                          </Tooltip>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                className="text-destructive"
-                                onClick={() => onDeleteVer(v.version)}
-                              >
-                                <Trash2 />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>{t("common.delete")}</TooltipContent>
-                          </Tooltip>
-                        </div>
-                      )}
-                    </div>
-                    {v.description && (
-                      <div className="mt-2 text-sm text-muted-foreground">{v.description}</div>
-                    )}
-                    <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-                      <span className={cn("font-mono break-all", meta.pending ? "" : "text-foreground")}>
-                        {v.uri ?? t("models.addrPending")}
-                      </span>
-                      {v.uri && (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon-xs"
-                              onClick={() => {
-                                void navigator.clipboard?.writeText(v.uri ?? "");
-                                toast(t("models.addrCopied"));
-                              }}
-                            >
-                              <Copy />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>{t("common.actions")}</TooltipContent>
-                        </Tooltip>
-                      )}
-                      {(v.owner || v.createdAt) && (
-                        <span className="ml-auto whitespace-nowrap pl-3">
-                          {[v.owner, v.createdAt && dayjs(v.createdAt).fromNow()]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+      {versQ.isLoading ? (
+        <div className="grid place-items-center py-12">
+          <Spinner className="size-7 text-muted-foreground" />
         </div>
-      </SheetContent>
-    </Sheet>
+      ) : filtered.length === 0 ? (
+        <Empty className="border">
+          <EmptyHeader>
+            <EmptyTitle>{versQ.isError ? t("common.loadFailed") : t("common.noData")}</EmptyTitle>
+          </EmptyHeader>
+        </Empty>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {filtered.map((v) => {
+            const pending = v.status === "Uploading";
+            return (
+              <div
+                key={v.version}
+                className="rounded-lg border p-4 transition-colors hover:border-primary/30"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="font-mono text-[15px] font-semibold text-foreground">{v.version}</span>
+                  <StatusDot tone={phaseTone(v.status)} pulse={pending}>
+                    {t(`models.status${v.status}`, { defaultValue: v.status })}
+                  </StatusDot>
+                  {v.source && <Badge variant="outline">{v.source}</Badge>}
+                  {!pending && (
+                    <div className="ml-auto flex items-center gap-0.5">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button variant="ghost" size="icon-sm" onClick={() => onPull(v.version)}>
+                            <CloudDownload />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>{t("models.pullTitle")}</TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            className="text-destructive"
+                            onClick={() => onDeleteVer(v.version)}
+                          >
+                            <Trash2 />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>{t("common.delete")}</TooltipContent>
+                      </Tooltip>
+                    </div>
+                  )}
+                </div>
+                {v.description && (
+                  <div className="mt-2 text-sm text-muted-foreground">{v.description}</div>
+                )}
+                <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                  <span className={cn("font-mono break-all", pending ? "" : "text-foreground")}>
+                    {v.uri ?? t("models.addrPending")}
+                  </span>
+                  {v.uri && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          onClick={() => {
+                            void navigator.clipboard?.writeText(v.uri ?? "");
+                            toast(t("models.addrCopied"));
+                          }}
+                        >
+                          <Copy />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>{t("common.actions")}</TooltipContent>
+                    </Tooltip>
+                  )}
+                  {(v.owner || v.createdAt) && (
+                    <span className="ml-auto whitespace-nowrap pl-3">
+                      {[v.owner, v.createdAt && dayjs(v.createdAt).fromNow()]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </FormDrawer>
   );
 }
 
@@ -525,42 +463,19 @@ function VersionsDrawer({
 function PullDrawer({ model, version, onClose }: { model: string; version: string; onClose: () => void }) {
   const { t } = useTranslation();
   const { tenant } = useApp();
-  const { toast } = useUI();
   const resolveQ = useModelResolve(model, version, tenant);
   const cmd = resolveQ.uri ? `docker pull ${resolveQ.uri}` : t("models.pullResolving");
 
   return (
-    <Sheet open onOpenChange={(o) => !o && onClose()}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[520px]">
-        <SheetHeader className="border-b">
-          <SheetTitle>{t("models.pullTitle")}</SheetTitle>
-          <p className="font-mono text-xs text-muted-foreground">{`${model}@${version}`}</p>
-        </SheetHeader>
-
-        <div className="flex-1 overflow-auto px-6 py-4">
-          <p className="mb-3 text-sm text-muted-foreground">{t("models.pullHint")}</p>
-          <pre className="overflow-x-auto rounded-md border bg-muted p-3 font-mono text-xs text-foreground">
-            {cmd}
-          </pre>
-          <Button
-            variant="outline"
-            className="mt-3"
-            disabled={!resolveQ.uri}
-            onClick={() => {
-              void navigator.clipboard?.writeText(cmd);
-              toast(t("models.commandCopied"));
-            }}
-          >
-            <Copy data-icon="inline-start" />
-            {t("models.copyCommand")}
-          </Button>
-        </div>
-
-        <SheetFooter className="flex-row justify-end border-t">
-          <Button onClick={onClose}>{t("models.done")}</Button>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+    <FormDrawer
+      title={t("models.pullTitle")}
+      subtitle={<span className="font-mono">{`${model}@${version}`}</span>}
+      onClose={onClose}
+      footer={<Button onClick={onClose}>{t("models.done")}</Button>}
+    >
+      <p className="mb-3 text-sm text-muted-foreground">{t("models.pullHint")}</p>
+      <CodeBlock copy={resolveQ.uri ? cmd : undefined}>{cmd}</CodeBlock>
+    </FormDrawer>
   );
 }
 
@@ -663,162 +578,149 @@ function NewModelDrawer({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <Sheet open onOpenChange={(o) => !o && onClose()}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[560px]">
-        <SheetHeader className="border-b">
-          <SheetTitle>{t("models.newModelTitle")}</SheetTitle>
-          <p className="text-xs text-muted-foreground">{t("models.newModelSub")}</p>
-        </SheetHeader>
+    <FormDrawer
+      title={t("models.newModelTitle")}
+      onClose={onClose}
+      onSubmit={submit}
+      submitLabel={t("models.createModel")}
+      submitting={create.isPending}
+    >
+      <FieldSection n={1} title={t("models.fsBasic")} />
+      <FieldGroup>
+        <Field>
+          <FieldLabel htmlFor="model-name">
+            {t("models.fName")}
+            <span className="text-destructive">*</span>
+          </FieldLabel>
+          <Input
+            id="model-name"
+            className="font-mono"
+            placeholder={t("models.fNamePlaceholder")}
+            value={v.name}
+            aria-invalid={submitted && !v.name.trim()}
+            onChange={(e) => set("name", e.target.value)}
+          />
+          <FieldDescription>{t("models.fNameHelp")}</FieldDescription>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="model-desc">{t("models.fDesc")}</FieldLabel>
+          <Textarea
+            id="model-desc"
+            rows={2}
+            placeholder={t("models.fDescPlaceholder")}
+            value={v.description}
+            onChange={(e) => set("description", e.target.value)}
+          />
+        </Field>
+      </FieldGroup>
 
-        <div className="flex-1 overflow-auto px-6 py-4">
-          <FieldSection n={1} title={t("models.fsBasic")} />
-          <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor="model-name">
-                {t("models.fName")}
-                <span className="text-destructive">*</span>
-              </FieldLabel>
-              <Input
-                id="model-name"
-                className="font-mono"
-                placeholder={t("models.fNamePlaceholder")}
-                value={v.name}
-                aria-invalid={submitted && !v.name.trim()}
-                onChange={(e) => set("name", e.target.value)}
-              />
-              <FieldDescription>{t("models.fNameHelp")}</FieldDescription>
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="model-desc">{t("models.fDesc")}</FieldLabel>
-              <Textarea
-                id="model-desc"
-                rows={2}
-                placeholder={t("models.fDescPlaceholder")}
-                value={v.description}
-                onChange={(e) => set("description", e.target.value)}
-              />
-            </Field>
-          </FieldGroup>
+      <FieldSection n={2} title={t("models.fsLabels")} />
+      <FieldGroup>
+        <Field>
+          <FieldLabel htmlFor="model-tasks">{t("models.lTasks")}</FieldLabel>
+          {v.tasks.length > 0 && (
+            <div className="mb-2 flex flex-wrap gap-2">
+              {v.tasks.map((task) => (
+                <Badge key={task} variant="outline" className="gap-1 pr-1">
+                  {task}
+                  <button
+                    type="button"
+                    className="grid size-3.5 place-items-center rounded-sm hover:bg-muted"
+                    onClick={() => removeTask(task)}
+                  >
+                    <X className="size-3" />
+                  </button>
+                </Badge>
+              ))}
+            </div>
+          )}
+          <Input
+            id="model-tasks"
+            placeholder={t("models.lTasks")}
+            value={taskInput}
+            list="model-task-options"
+            onChange={(e) => setTaskInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                addTask(taskInput);
+              }
+            }}
+          />
+          <datalist id="model-task-options">
+            {TASK_OPTIONS.map((o) => (
+              <option key={o} value={o} />
+            ))}
+          </datalist>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="model-params">{t("models.lParameters")}</FieldLabel>
+          <Input
+            id="model-params"
+            className="w-40 font-mono"
+            placeholder={t("models.paramsPlaceholder")}
+            value={v.params}
+            onChange={(e) => set("params", e.target.value)}
+          />
+        </Field>
+        <Field>
+          <FieldLabel>{t("models.lFramework")}</FieldLabel>
+          <Select
+            value={v.framework || NONE}
+            onValueChange={(val) => set("framework", val === NONE ? "" : val)}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder={t("models.lFramework")} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NONE}>{t("models.lFramework")}</SelectItem>
+              {FRAMEWORK_OPTIONS.map((o) => (
+                <SelectItem key={o} value={o}>
+                  {o}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
 
-          <FieldSection n={2} title={t("models.fsLabels")} />
-          <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor="model-tasks">{t("models.lTasks")}</FieldLabel>
-              {v.tasks.length > 0 && (
-                <div className="mb-2 flex flex-wrap gap-2">
-                  {v.tasks.map((task) => (
-                    <Badge key={task} variant="outline" className="gap-1 pr-1">
-                      {task}
-                      <button
-                        type="button"
-                        className="grid size-3.5 place-items-center rounded-sm hover:bg-muted"
-                        onClick={() => removeTask(task)}
-                      >
-                        <X className="size-3" />
-                      </button>
-                    </Badge>
-                  ))}
-                </div>
-              )}
-              <Input
-                id="model-tasks"
-                placeholder={t("models.lTasks")}
-                value={taskInput}
-                list="model-task-options"
-                onChange={(e) => setTaskInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    addTask(taskInput);
-                  }
-                }}
-              />
-              <datalist id="model-task-options">
-                {TASK_OPTIONS.map((o) => (
-                  <option key={o} value={o} />
-                ))}
-              </datalist>
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="model-params">{t("models.lParameters")}</FieldLabel>
-              <Input
-                id="model-params"
-                className="w-40 font-mono"
-                placeholder={t("models.paramsPlaceholder")}
-                value={v.params}
-                onChange={(e) => set("params", e.target.value)}
-              />
-            </Field>
-            <Field>
-              <FieldLabel>{t("models.lFramework")}</FieldLabel>
-              <Select
-                value={v.framework || NONE}
-                onValueChange={(val) => set("framework", val === NONE ? "" : val)}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder={t("models.lFramework")} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NONE}>{t("models.lFramework")}</SelectItem>
-                  {FRAMEWORK_OPTIONS.map((o) => (
-                    <SelectItem key={o} value={o}>
-                      {o}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-
-            <Field>
-              <FieldLabel>{t("models.lCustom")}</FieldLabel>
-              {Object.keys(customTags).length > 0 && (
-                <div className="mb-2 flex flex-wrap gap-2">
-                  {Object.entries(customTags).map(([k, val]) => (
-                    <Badge key={k} variant="outline" className="gap-1 pr-1 font-mono">
-                      {k}:{val}
-                      <button
-                        type="button"
-                        className="grid size-3.5 place-items-center rounded-sm hover:bg-muted"
-                        onClick={() => removeTag(k)}
-                      >
-                        <X className="size-3" />
-                      </button>
-                    </Badge>
-                  ))}
-                </div>
-              )}
-              <div className="flex items-center gap-2">
-                <Input
-                  className="font-mono"
-                  placeholder={t("models.customKeyPlaceholder")}
-                  value={ctKey}
-                  onChange={(e) => setCtKey(e.target.value)}
-                />
-                <Input
-                  className="font-mono"
-                  placeholder={t("models.customValPlaceholder")}
-                  value={ctVal}
-                  onChange={(e) => setCtVal(e.target.value)}
-                />
-                <Button variant="outline" onClick={addTag}>
-                  {t("models.add")}
-                </Button>
-              </div>
-            </Field>
-          </FieldGroup>
-        </div>
-
-        <SheetFooter className="flex-row justify-end border-t">
-          <Button variant="outline" onClick={onClose}>
-            {t("common.cancel")}
-          </Button>
-          <Button onClick={submit} disabled={create.isPending}>
-            {create.isPending && <Spinner data-icon="inline-start" />}
-            {t("models.createModel")}
-          </Button>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+        <Field>
+          <FieldLabel>{t("models.lCustom")}</FieldLabel>
+          {Object.keys(customTags).length > 0 && (
+            <div className="mb-2 flex flex-wrap gap-2">
+              {Object.entries(customTags).map(([k, val]) => (
+                <Badge key={k} variant="outline" className="gap-1 pr-1 font-mono">
+                  {k}:{val}
+                  <button
+                    type="button"
+                    className="grid size-3.5 place-items-center rounded-sm hover:bg-muted"
+                    onClick={() => removeTag(k)}
+                  >
+                    <X className="size-3" />
+                  </button>
+                </Badge>
+              ))}
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <Input
+              className="font-mono"
+              placeholder={t("models.customKeyPlaceholder")}
+              value={ctKey}
+              onChange={(e) => setCtKey(e.target.value)}
+            />
+            <Input
+              className="font-mono"
+              placeholder={t("models.customValPlaceholder")}
+              value={ctVal}
+              onChange={(e) => setCtVal(e.target.value)}
+            />
+            <Button variant="outline" onClick={addTag}>
+              {t("models.add")}
+            </Button>
+          </div>
+        </Field>
+      </FieldGroup>
+    </FormDrawer>
   );
 }
 
@@ -867,113 +769,100 @@ function UploadDrawer({ model, onClose }: { model: string; onClose: () => void }
   };
 
   return (
-    <Sheet open onOpenChange={(o) => !o && onClose()}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[560px]">
-        <SheetHeader className="border-b">
-          <SheetTitle>{t("models.uploadTitle")}</SheetTitle>
-          <p className="text-xs text-muted-foreground">{t("models.uploadSub")}</p>
-        </SheetHeader>
+    <FormDrawer
+      title={t("models.uploadTitle")}
+      onClose={onClose}
+      onSubmit={submit}
+      submitLabel={t("models.submit")}
+      submitting={initiate.isPending}
+    >
+      <FieldSection n={1} title={t("models.fsBasic")} />
+      <FieldGroup>
+        <Field>
+          <FieldLabel>{t("models.fModel")}</FieldLabel>
+          <Input className="font-mono" value={model} disabled />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="upload-version">
+            {t("models.fVersion")}
+            <span className="text-destructive">*</span>
+          </FieldLabel>
+          <Input
+            id="upload-version"
+            className="font-mono"
+            placeholder={t("models.fVersionPlaceholder")}
+            value={v.version}
+            aria-invalid={submitted && !v.version.trim()}
+            onChange={(e) => set("version", e.target.value)}
+          />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="upload-desc">{t("models.fDesc")}</FieldLabel>
+          <Textarea
+            id="upload-desc"
+            rows={2}
+            placeholder={t("models.fUploadDescPlaceholder")}
+            value={v.description}
+            onChange={(e) => set("description", e.target.value)}
+          />
+        </Field>
+      </FieldGroup>
 
-        <div className="flex-1 overflow-auto px-6 py-4">
-          <FieldSection n={1} title={t("models.fsBasic")} />
+      <FieldSection n={2} title={t("models.fsMethod")} />
+      <Tabs
+        value={method === "external" ? "remote" : method}
+        onValueChange={(k) => setMethod(k === "remote" ? "external" : (k as sdk.ArtifactSource))}
+      >
+        <TabsList>
+          <TabsTrigger value="webUpload">{t("models.methodWeb")}</TabsTrigger>
+          <TabsTrigger value="remote">{t("models.methodRemote")}</TabsTrigger>
+          <TabsTrigger value="oras">{t("models.methodOras")}</TabsTrigger>
+        </TabsList>
+        <TabsContent value="webUpload" className="pt-4">
+          <div className="grid place-items-center gap-2 rounded-lg border border-dashed bg-card p-8 text-center">
+            <Inbox className="size-8 text-muted-foreground" />
+            <div className="text-sm font-medium text-foreground">{t("models.dzTitle")}</div>
+            <div className="text-xs text-muted-foreground">{t("models.dzHint")}</div>
+          </div>
+        </TabsContent>
+        <TabsContent value="remote" className="flex flex-col gap-4 pt-4">
           <FieldGroup>
             <Field>
-              <FieldLabel>{t("models.fModel")}</FieldLabel>
-              <Input className="font-mono" value={model} disabled />
+              <FieldLabel>{t("models.fStorageKind")}</FieldLabel>
+              <Select
+                value={v.remoteSourceKind}
+                onValueChange={(val) => set("remoteSourceKind", val as sdk.RemoteSourceKind)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="s3">{t("models.storageS3")}</SelectItem>
+                  <SelectItem value="oci">{t("models.storageOci")}</SelectItem>
+                  <SelectItem value="http">{t("models.storageHttp")}</SelectItem>
+                  <SelectItem value="hf">{t("models.storageHf")}</SelectItem>
+                  <SelectItem value="custom">{t("models.storageCustom")}</SelectItem>
+                </SelectContent>
+              </Select>
             </Field>
             <Field>
-              <FieldLabel htmlFor="upload-version">
-                {t("models.fVersion")}
-                <span className="text-destructive">*</span>
-              </FieldLabel>
+              <FieldLabel htmlFor="remote-uri">{t("models.fRemoteUri")}</FieldLabel>
               <Input
-                id="upload-version"
+                id="remote-uri"
                 className="font-mono"
-                placeholder={t("models.fVersionPlaceholder")}
-                value={v.version}
-                aria-invalid={submitted && !v.version.trim()}
-                onChange={(e) => set("version", e.target.value)}
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="upload-desc">{t("models.fDesc")}</FieldLabel>
-              <Textarea
-                id="upload-desc"
-                rows={2}
-                placeholder={t("models.fUploadDescPlaceholder")}
-                value={v.description}
-                onChange={(e) => set("description", e.target.value)}
+                placeholder={t("models.remoteUriPlaceholder")}
+                value={v.remoteUri}
+                aria-invalid={submitted && method === "external" && !v.remoteUri.trim()}
+                onChange={(e) => set("remoteUri", e.target.value)}
               />
             </Field>
           </FieldGroup>
-
-          <FieldSection n={2} title={t("models.fsMethod")} />
-          <Tabs
-            value={method === "external" ? "remote" : method}
-            onValueChange={(k) => setMethod(k === "remote" ? "external" : (k as sdk.ArtifactSource))}
-          >
-            <TabsList>
-              <TabsTrigger value="webUpload">{t("models.methodWeb")}</TabsTrigger>
-              <TabsTrigger value="remote">{t("models.methodRemote")}</TabsTrigger>
-              <TabsTrigger value="oras">{t("models.methodOras")}</TabsTrigger>
-            </TabsList>
-            <TabsContent value="webUpload" className="pt-4">
-              <div className="grid place-items-center gap-2 rounded-lg border border-dashed bg-card p-8 text-center">
-                <Inbox className="size-8 text-muted-foreground" />
-                <div className="text-sm font-medium text-foreground">{t("models.dzTitle")}</div>
-                <div className="text-xs text-muted-foreground">{t("models.dzHint")}</div>
-              </div>
-            </TabsContent>
-            <TabsContent value="remote" className="flex flex-col gap-4 pt-4">
-              <FieldGroup>
-                <Field>
-                  <FieldLabel>{t("models.fStorageKind")}</FieldLabel>
-                  <Select
-                    value={v.remoteSourceKind}
-                    onValueChange={(val) => set("remoteSourceKind", val as sdk.RemoteSourceKind)}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="s3">{t("models.storageS3")}</SelectItem>
-                      <SelectItem value="oci">{t("models.storageOci")}</SelectItem>
-                      <SelectItem value="http">{t("models.storageHttp")}</SelectItem>
-                      <SelectItem value="hf">{t("models.storageHf")}</SelectItem>
-                      <SelectItem value="custom">{t("models.storageCustom")}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="remote-uri">{t("models.fRemoteUri")}</FieldLabel>
-                  <Input
-                    id="remote-uri"
-                    className="font-mono"
-                    placeholder={t("models.remoteUriPlaceholder")}
-                    value={v.remoteUri}
-                    aria-invalid={submitted && method === "external" && !v.remoteUri.trim()}
-                    onChange={(e) => set("remoteUri", e.target.value)}
-                  />
-                </Field>
-              </FieldGroup>
-            </TabsContent>
-            <TabsContent value="oras" className="pt-4">
-              <OrasGuide model={model} tenant={tenant} />
-            </TabsContent>
-          </Tabs>
-        </div>
-
-        <SheetFooter className="flex-row justify-end border-t">
-          <Button variant="outline" onClick={onClose}>
-            {t("common.cancel")}
-          </Button>
-          <Button onClick={submit} disabled={initiate.isPending}>
-            {initiate.isPending && <Spinner data-icon="inline-start" />}
-            {t("models.submit")}
-          </Button>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+        </TabsContent>
+        <TabsContent value="oras" className="pt-4">
+          <OrasGuide model={model} tenant={tenant} />
+        </TabsContent>
+      </Tabs>
+    </FormDrawer>
   );
 }
 
@@ -993,14 +882,14 @@ oras push zot.axisml.internal/${tenant}/${model}:v5 \\
       <p className="text-sm text-muted-foreground">{t("models.orasHelp")}</p>
       <div>
         <div className="mb-1 text-sm font-semibold text-foreground">{t("models.orasStep1")}</div>
-        <pre className="overflow-x-auto rounded-md border bg-muted p-3 font-mono text-xs text-foreground">{dl}</pre>
+        <CodeBlock copy={dl}>{dl}</CodeBlock>
         <a className="text-xs text-info hover:underline" href="https://oras.land/docs/installation" target="_blank" rel="noopener noreferrer">
           {t("models.orasDocsLink")}
         </a>
       </div>
       <div>
         <div className="mb-1 text-sm font-semibold text-foreground">{t("models.orasStep2")}</div>
-        <pre className="overflow-x-auto rounded-md border bg-muted p-3 font-mono text-xs text-foreground">{push}</pre>
+        <CodeBlock copy={push}>{push}</CodeBlock>
       </div>
     </div>
   );

@@ -1,47 +1,115 @@
 import { useMemo, useState } from "react";
-import { Plus, Search, Trash2 } from "lucide-react";
+import { Plus, Trash2, Pencil, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import dayjs from "dayjs";
 import { useResourcePools } from "@/api/hooks";
 import { useApiMutation } from "@/api/mutations";
 import * as sdk from "@/api/generated";
 import { useUI } from "@/app/ui";
 import { PageContainer } from "@/components/page-container";
 import { FieldSection } from "@/components/field-section";
+import { SearchInput } from "@/components/search-input";
 import { DataTable, type Column } from "@/components/data-table";
+import { fmtDateTime } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Sheet,
-  SheetContent,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+  InputGroupText,
+} from "@/components/ui/input-group";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { FormDrawer } from "@/components/form-drawer";
 import { Field, FieldLabel, FieldDescription, FieldGroup } from "@/components/ui/field";
-import { Spinner } from "@/components/ui/spinner";
 import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 
-type PoolDrawer =
-  | { kind: "new" }
-  | { kind: "edit"; pool: sdk.ResourcePool }
-  | { kind: "detail"; pool: sdk.ResourcePool }
-  | { kind: "units"; pool: sdk.ResourcePool };
+// ── Node-selector / toleration value helpers ──────────────────────────────────
+// nodeSelector is a flat StringMap; we edit it as an ordered list of [k,v] pairs
+// so empty values and ordering survive a round-trip. Toleration is opaque in the
+// generated SDK ({} — the backend mirrors corev1.Toleration without exposing the
+// schema), so we model the standard K8s fields locally and pass them through.
+type Pair = [string, string];
 
-function selectorPairs(sel?: sdk.StringMap): string[] {
-  return Object.entries(sel ?? {}).map(([k, v]) => `${k}=${v}`);
+interface TolRow {
+  key: string;
+  operator: "Equal" | "Exists";
+  value: string;
+  effect: "" | "NoSchedule" | "PreferNoSchedule" | "NoExecute";
+}
+
+function toPairs(sel?: sdk.StringMap): Pair[] {
+  return Object.entries(sel ?? {});
+}
+
+function pairsToSelector(pairs: Pair[]): sdk.StringMap | undefined {
+  const out: sdk.StringMap = {};
+  for (const [k, v] of pairs) {
+    const key = k.trim();
+    if (key) out[key] = v.trim();
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+function tolFromApi(arr?: Array<sdk.Toleration>): TolRow[] {
+  return (arr ?? []).map((t) => {
+    const o = t as Record<string, string>;
+    return {
+      key: o.key ?? "",
+      operator: o.operator === "Exists" ? "Exists" : "Equal",
+      value: o.value ?? "",
+      effect: (o.effect as TolRow["effect"]) ?? "",
+    };
+  });
+}
+
+function tolToApi(rows: TolRow[]): Array<sdk.Toleration> | undefined {
+  const out = rows
+    .filter((r) => r.key.trim())
+    .map((r) => {
+      const o: Record<string, string> = { key: r.key.trim(), operator: r.operator };
+      if (r.operator === "Equal" && r.value.trim()) o.value = r.value.trim();
+      if (r.effect) o.effect = r.effect;
+      return o as sdk.Toleration;
+    });
+  return out.length ? out : undefined;
+}
+
+const num = (m: sdk.ResourceMap | undefined, k: string): number | undefined => {
+  const v = m?.[k];
+  if (v == null) return undefined;
+  const n = parseFloat(String(v));
+  return Number.isFinite(n) ? n : undefined;
+};
+
+// "1×GPU · 8 vCPU · 64 GiB" — derived from the unit's requests.
+function unitSpecLine(u: sdk.ResourceUnit, gpuUnit: string): string {
+  const cpu = num(u.requests, "cpu");
+  const mem = num(u.requests, "memory");
+  const gpu = num(u.requests, "nvidia.com/gpu");
+  const parts: string[] = [];
+  if (gpu) parts.push(`${gpu}×${gpuUnit}`);
+  if (cpu != null) parts.push(`${cpu} vCPU`);
+  if (mem != null) parts.push(`${mem} GiB`);
+  return parts.join(" · ") || "—";
 }
 
 export default function ResourcePools() {
   const q = useResourcePools();
   const { t } = useTranslation();
   const { confirm } = useUI();
-  const [drawer, setDrawer] = useState<PoolDrawer | null>(null);
   const [search, setSearch] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [manageName, setManageName] = useState<string | null>(null);
 
   const delPool = useApiMutation((pool: string) => sdk.deleteResourcePool({ path: { pool } }), {
     invalidate: [["resourcepools"]],
@@ -53,6 +121,9 @@ export default function ResourcePools() {
     () => allRows.filter((p) => !search || p.name.includes(search)),
     [allRows, search],
   );
+  // The manage drawer re-derives its pool from live query data so unit edits
+  // (which invalidate the list) reflect immediately without a stale snapshot.
+  const managePool = manageName ? allRows.find((p) => p.name === manageName) : undefined;
 
   const onDelete = (p: sdk.ResourcePool) =>
     confirm({
@@ -71,7 +142,7 @@ export default function ResourcePools() {
         <button
           type="button"
           className="font-mono font-medium text-foreground hover:text-info hover:underline"
-          onClick={() => setDrawer({ kind: "detail", pool: p })}
+          onClick={() => setManageName(p.name)}
         >
           {p.name}
         </button>
@@ -86,15 +157,18 @@ export default function ResourcePools() {
       key: "selector",
       title: t("pools.colSelector"),
       render: (p) => {
-        const pairs = selectorPairs(p.nodeSelector);
+        const pairs = toPairs(p.nodeSelector);
         if (!pairs.length) return <span className="text-muted-foreground">{t("pools.noSelector")}</span>;
+        const shown = pairs.slice(0, 2);
+        const overflow = pairs.length - shown.length;
         return (
-          <div className="flex flex-wrap gap-1">
-            {pairs.map((s) => (
-              <Badge key={s} variant="outline" className="font-mono">
-                {s}
+          <div className="flex flex-wrap items-center gap-1">
+            {shown.map(([k, v]) => (
+              <Badge key={k} variant="outline" className="font-mono">
+                {k}={v}
               </Badge>
             ))}
+            {overflow > 0 && <Badge variant="outline">{t("pools.more", { count: overflow })}</Badge>}
           </div>
         );
       },
@@ -107,8 +181,8 @@ export default function ResourcePools() {
       render: (p) => (
         <button
           type="button"
-          className="text-info hover:underline"
-          onClick={() => setDrawer({ kind: "units", pool: p })}
+          className="font-mono text-info hover:underline"
+          onClick={() => setManageName(p.name)}
         >
           {p.units?.length ?? 0}
         </button>
@@ -118,27 +192,17 @@ export default function ResourcePools() {
       key: "createdAt",
       title: t("pools.colCreated"),
       width: 180,
-      render: (p) => (
-        <span className="text-muted-foreground">
-          {p.createdAt ? dayjs(p.createdAt).format("YYYY-MM-DD HH:mm") : "—"}
-        </span>
-      ),
+      render: (p) => <span className="text-muted-foreground">{fmtDateTime(p.createdAt)}</span>,
     },
     {
       key: "actions",
       title: t("common.actions"),
-      width: 200,
+      width: 140,
       align: "right",
       render: (p) => (
         <div className="flex items-center justify-end gap-0.5">
-          <Button variant="link" size="sm" onClick={() => setDrawer({ kind: "detail", pool: p })}>
-            {t("common.detail")}
-          </Button>
-          <Button variant="link" size="sm" onClick={() => setDrawer({ kind: "edit", pool: p })}>
-            {t("common.edit")}
-          </Button>
-          <Button variant="link" size="sm" onClick={() => setDrawer({ kind: "units", pool: p })}>
-            {t("pools.manageUnits")}
+          <Button variant="link" size="sm" onClick={() => setManageName(p.name)}>
+            {t("pools.manage")}
           </Button>
           <Button variant="link" size="sm" className="text-destructive" onClick={() => onDelete(p)}>
             {t("common.delete")}
@@ -154,7 +218,7 @@ export default function ResourcePools() {
       title={t("pools.title")}
       subtitle={t("pools.subtitle")}
       extra={
-        <Button onClick={() => setDrawer({ kind: "new" })}>
+        <Button onClick={() => setCreating(true)}>
           <Plus data-icon="inline-start" />
           {t("pools.newPool")}
         </Button>
@@ -162,15 +226,12 @@ export default function ResourcePools() {
     >
       <Card className="overflow-hidden p-0">
         <div className="flex flex-wrap items-center gap-3 border-b p-4">
-          <div className="relative max-w-xs flex-1">
-            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              className="pl-8"
-              placeholder={t("pools.searchPlaceholder")}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
+          <SearchInput
+            className="max-w-xs flex-1"
+            placeholder={t("pools.searchPlaceholder")}
+            value={search}
+            onChange={setSearch}
+          />
           <Button variant="outline" onClick={() => setSearch("")}>
             {t("common.reset")}
           </Button>
@@ -184,459 +245,608 @@ export default function ResourcePools() {
         />
       </Card>
 
-      {drawer?.kind === "new" && <PoolFormDrawer onClose={() => setDrawer(null)} />}
-      {drawer?.kind === "edit" && (
-        <PoolFormDrawer pool={drawer.pool} onClose={() => setDrawer(null)} />
-      )}
-      {drawer?.kind === "detail" && (
-        <PoolDetailDrawer pool={drawer.pool} onClose={() => setDrawer(null)} />
-      )}
-      {drawer?.kind === "units" && (
-        <ManageUnitsDrawer pool={drawer.pool} onClose={() => setDrawer(null)} />
+      {creating && <PoolCreateDrawer onClose={() => setCreating(false)} />}
+      {managePool && (
+        <ManagePoolDrawer
+          key={managePool.name}
+          pool={managePool}
+          onClose={() => setManageName(null)}
+        />
       )}
     </PageContainer>
   );
 }
 
-// ── Detail drawer (Tabs + key/value grid, read-only) ──────────────────────────
-function DescRow({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <>
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="min-w-0">{children}</dd>
-    </>
-  );
-}
-
-function PoolDetailDrawer({ pool, onClose }: { pool: sdk.ResourcePool; onClose: () => void }) {
+// ── Node-selector chip editor ─────────────────────────────────────────────────
+function SelectorChips({
+  pairs,
+  onChange,
+}: {
+  pairs: Pair[];
+  onChange: (next: Pair[]) => void;
+}) {
   const { t } = useTranslation();
-  const pairs = selectorPairs(pool.nodeSelector);
-  const units = pool.units ?? [];
+  const [k, setK] = useState("");
+  const [v, setV] = useState("");
 
-  return (
-    <Sheet open onOpenChange={(o) => !o && onClose()}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[560px]">
-        <SheetHeader className="border-b">
-          <SheetTitle>{t("pools.detailTitle")}</SheetTitle>
-          <p className="text-xs text-muted-foreground">
-            <span className="font-mono">{pool.name}</span>
-          </p>
-        </SheetHeader>
-
-        <div className="flex-1 overflow-auto px-6 py-4">
-          <Tabs defaultValue="basic">
-            <TabsList>
-              <TabsTrigger value="basic">{t("pools.tabBasic")}</TabsTrigger>
-              <TabsTrigger value="units">{t("pools.tabUnits")}</TabsTrigger>
-            </TabsList>
-            <TabsContent value="basic" className="pt-4">
-              <dl className="grid grid-cols-[140px_1fr] gap-x-4 gap-y-2.5 text-sm">
-                <DescRow label={t("pools.dName")}>
-                  <span className="font-mono">{pool.name}</span>
-                </DescRow>
-                <DescRow label={t("pools.dDesc")}>
-                  {pool.description || <span className="text-muted-foreground">—</span>}
-                </DescRow>
-                <DescRow label={t("pools.dSelector")}>
-                  {pairs.length ? (
-                    <div className="flex flex-wrap gap-1">
-                      {pairs.map((s) => (
-                        <Badge key={s} variant="outline" className="font-mono">
-                          {s}
-                        </Badge>
-                      ))}
-                    </div>
-                  ) : (
-                    <span className="text-muted-foreground">{t("pools.noSelector")}</span>
-                  )}
-                </DescRow>
-                <DescRow label={t("pools.dNodeCount")}>{pool.nodeCount ?? "—"}</DescRow>
-                <DescRow label={t("pools.dUnitCount")}>{units.length}</DescRow>
-                <DescRow label={t("pools.dCreated")}>
-                  {pool.createdAt ? dayjs(pool.createdAt).format("YYYY-MM-DD HH:mm") : "—"}
-                </DescRow>
-                <DescRow label={t("pools.dUpdated")}>
-                  {pool.updatedAt ? dayjs(pool.updatedAt).format("YYYY-MM-DD HH:mm") : "—"}
-                </DescRow>
-              </dl>
-            </TabsContent>
-            <TabsContent value="units" className="pt-4">
-              {units.length ? (
-                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-                  {units.map((u) => (
-                    <Card key={u.name} className="gap-0 bg-muted p-3">
-                      <div className="font-mono text-sm font-medium text-foreground">{u.name}</div>
-                      {u.description && (
-                        <div className="mt-0.5 text-xs text-muted-foreground">{u.description}</div>
-                      )}
-                      <div className="mt-2 flex flex-wrap gap-1">
-                        {Object.entries(u.requests ?? {}).map(([k, v]) => (
-                          <Badge key={k} variant="outline" className="font-mono">
-                            {k}={v}
-                          </Badge>
-                        ))}
-                      </div>
-                    </Card>
-                  ))}
-                </div>
-              ) : (
-                <Empty>
-                  <EmptyHeader>
-                    <EmptyTitle>{t("pools.unitsEmpty")}</EmptyTitle>
-                  </EmptyHeader>
-                </Empty>
-              )}
-            </TabsContent>
-          </Tabs>
-        </div>
-      </SheetContent>
-    </Sheet>
-  );
-}
-
-// ── Pool create / edit drawer (numbered FieldSections, mirrors workspace form) ─
-interface PoolFormValues {
-  name: string;
-  description: string;
-  selector: string;
-}
-
-function parseSelector(s?: string): sdk.StringMap | undefined {
-  const out: sdk.StringMap = {};
-  for (const part of (s ?? "").split(",")) {
-    const [k, ...rest] = part.split("=");
+  const add = () => {
     const key = k.trim();
-    if (key) out[key] = rest.join("=").trim();
-  }
-  return Object.keys(out).length ? out : undefined;
+    if (!key) return;
+    onChange([...pairs.filter(([pk]) => pk !== key), [key, v.trim()]]);
+    setK("");
+    setV("");
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      {pairs.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {pairs.map(([pk, pv], i) => (
+            <Badge key={`${pk}-${i}`} variant="outline" className="gap-1 font-mono">
+              {pk}={pv}
+              <button
+                type="button"
+                className="text-muted-foreground hover:text-foreground"
+                aria-label={t("common.delete")}
+                onClick={() => onChange(pairs.filter((_, j) => j !== i))}
+              >
+                <X className="size-3" />
+              </button>
+            </Badge>
+          ))}
+        </div>
+      )}
+      <div className="flex items-center gap-2">
+        <Input
+          className="font-mono"
+          placeholder={t("pools.selectorKey")}
+          value={k}
+          onChange={(e) => setK(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), add())}
+        />
+        <span className="text-muted-foreground">=</span>
+        <Input
+          className="font-mono"
+          placeholder={t("pools.selectorValue")}
+          value={v}
+          onChange={(e) => setV(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), add())}
+        />
+        <Button type="button" variant="outline" onClick={add} disabled={!k.trim()}>
+          {t("pools.selectorAdd")}
+        </Button>
+      </div>
+    </div>
+  );
 }
 
-function PoolFormDrawer({ pool, onClose }: { pool?: sdk.ResourcePool; onClose: () => void }) {
+// ── Tolerations editor (key / operator / value / effect rows) ─────────────────
+const TOL_EFFECTS: TolRow["effect"][] = ["NoSchedule", "PreferNoSchedule", "NoExecute"];
+
+function TolerationsEditor({
+  rows,
+  onChange,
+}: {
+  rows: TolRow[];
+  onChange: (next: TolRow[]) => void;
+}) {
   const { t } = useTranslation();
-  const editing = !!pool;
+  const set = (i: number, patch: Partial<TolRow>) =>
+    onChange(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  const remove = (i: number) => onChange(rows.filter((_, j) => j !== i));
+  const add = () => onChange([...rows, { key: "", operator: "Equal", value: "", effect: "" }]);
+
+  return (
+    <div className="flex flex-col gap-2">
+      {rows.length > 0 && (
+        <>
+          <div className="grid grid-cols-[minmax(0,1.4fr)_104px_minmax(0,1fr)_136px_32px] items-center gap-2 px-0.5 text-[11px] text-muted-foreground">
+            <span className="font-mono">{t("pools.tolKey")}</span>
+            <span className="font-mono">{t("pools.tolOp")}</span>
+            <span className="font-mono">{t("pools.tolVal")}</span>
+            <span className="font-mono">{t("pools.tolEffect")}</span>
+            <span />
+          </div>
+          {rows.map((r, i) => (
+            <div
+              key={i}
+              className="grid grid-cols-[minmax(0,1.4fr)_104px_minmax(0,1fr)_136px_32px] items-center gap-2"
+            >
+              <Input
+                className="font-mono"
+                placeholder={t("pools.tolKeyPlaceholder")}
+                value={r.key}
+                onChange={(e) => set(i, { key: e.target.value })}
+              />
+              <Select value={r.operator} onValueChange={(val) => set(i, { operator: val as TolRow["operator"] })}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Equal">Equal</SelectItem>
+                  <SelectItem value="Exists">Exists</SelectItem>
+                </SelectContent>
+              </Select>
+              <Input
+                className="font-mono"
+                placeholder={t("pools.tolValPlaceholder")}
+                value={r.value}
+                disabled={r.operator === "Exists"}
+                onChange={(e) => set(i, { value: e.target.value })}
+              />
+              <Select value={r.effect || "all"} onValueChange={(val) => set(i, { effect: val === "all" ? "" : (val as TolRow["effect"]) })}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">*</SelectItem>
+                  {TOL_EFFECTS.map((e) => (
+                    <SelectItem key={e} value={e!}>
+                      {e}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t("common.delete")}
+                onClick={() => remove(i)}
+              >
+                <X />
+              </Button>
+            </div>
+          ))}
+        </>
+      )}
+      <Button type="button" variant="link" size="sm" className="self-start px-0" onClick={add}>
+        <Plus data-icon="inline-start" />
+        {t("pools.addToleration")}
+      </Button>
+    </div>
+  );
+}
+
+// ── Create-pool drawer (basics + node scheduling; units added after) ──────────
+function PoolCreateDrawer({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation();
   const [submitted, setSubmitted] = useState(false);
-  const [v, setV] = useState<PoolFormValues>({
-    name: pool?.name ?? "",
-    description: pool?.description ?? "",
-    selector: selectorPairs(pool?.nodeSelector).join(", "),
-  });
-  const set = <K extends keyof PoolFormValues>(k: K, val: PoolFormValues[K]) =>
-    setV((prev) => ({ ...prev, [k]: val }));
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [pairs, setPairs] = useState<Pair[]>([]);
+  const [tols, setTols] = useState<TolRow[]>([]);
 
   const create = useApiMutation(
     (body: sdk.ResourcePoolCreateRequest) => sdk.createResourcePool({ body }),
     { invalidate: [["resourcepools"]], success: t("pools.created2") },
   );
+
+  const submit = () => {
+    setSubmitted(true);
+    const n = name.trim();
+    if (!n) return;
+    create.mutate(
+      {
+        name: n,
+        description: description.trim() || undefined,
+        nodeSelector: pairsToSelector(pairs),
+        tolerations: tolToApi(tols),
+      },
+      { onSuccess: onClose },
+    );
+  };
+
+  return (
+    <FormDrawer
+      title={t("pools.drawerNew")}
+      onClose={onClose}
+      onSubmit={submit}
+      submitLabel={t("pools.createPool")}
+      submitting={create.isPending}
+    >
+      <FieldSection n={1} title={t("pools.fsBasic")} />
+      <FieldGroup>
+        <Field>
+          <FieldLabel htmlFor="pool-name">
+            {t("pools.fName")}
+            <span className="text-destructive">*</span>
+          </FieldLabel>
+          <Input
+            id="pool-name"
+            className="font-mono"
+            placeholder={t("pools.fNamePlaceholder")}
+            value={name}
+            aria-invalid={submitted && !name.trim()}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <FieldDescription>{t("pools.fNameHelp")}</FieldDescription>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="pool-desc">{t("pools.fDesc")}</FieldLabel>
+          <Textarea
+            id="pool-desc"
+            rows={2}
+            placeholder={t("pools.fDescPlaceholder")}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
+        </Field>
+      </FieldGroup>
+
+      <FieldSection n={2} title={t("pools.fsSchedule")} />
+      <FieldGroup>
+        <Field>
+          <FieldLabel>{t("pools.fSelector")}</FieldLabel>
+          <SelectorChips pairs={pairs} onChange={setPairs} />
+        </Field>
+        <Field>
+          <FieldLabel>{t("pools.fTolerations")}</FieldLabel>
+          <TolerationsEditor rows={tols} onChange={setTols} />
+        </Field>
+      </FieldGroup>
+    </FormDrawer>
+  );
+}
+
+// ── Manage-pool drawer: basics + scheduling (staged, saved together) +
+//    resource-unit cards (live CRUD via the nested unit-form drawer) ───────────
+type UnitDrawer = { kind: "new" } | { kind: "edit"; unit: sdk.ResourceUnit };
+
+function ManagePoolDrawer({ pool, onClose }: { pool: sdk.ResourcePool; onClose: () => void }) {
+  const { t } = useTranslation();
+  const { confirm } = useUI();
+  const [description, setDescription] = useState(pool.description ?? "");
+  const [pairs, setPairs] = useState<Pair[]>(() => toPairs(pool.nodeSelector));
+  const [tols, setTols] = useState<TolRow[]>(() => tolFromApi(pool.tolerations));
+  const [unitDrawer, setUnitDrawer] = useState<UnitDrawer | null>(null);
+
+  const units = pool.units ?? [];
+
   const update = useApiMutation(
-    (vars: { pool: string; body: sdk.ResourcePoolPatchRequest }) =>
-      sdk.updateResourcePool({ path: { pool: vars.pool }, body: vars.body }),
+    (body: sdk.ResourcePoolPatchRequest) =>
+      sdk.updateResourcePool({ path: { pool: pool.name }, body }),
     { invalidate: [["resourcepools"]], success: t("pools.saved") },
+  );
+  const delUnit = useApiMutation(
+    (unit: string) => sdk.deleteResourceUnit({ path: { pool: pool.name, unit } }),
+    { invalidate: [["resourcepools"]], success: t("pools.unitDeleted") },
+  );
+
+  const save = () =>
+    update.mutate(
+      {
+        description: description.trim() || undefined,
+        nodeSelector: pairsToSelector(pairs),
+        tolerations: tolToApi(tols),
+      },
+      { onSuccess: onClose },
+    );
+
+  const removeUnit = (u: sdk.ResourceUnit) =>
+    confirm({
+      title: t("pools.unitDeleteTitle", { name: u.name }),
+      desc: t("pools.unitDeleteDesc"),
+      okLabel: t("common.confirmDelete"),
+      onConfirm: () => delUnit.mutate(u.name),
+    });
+
+  return (
+    <>
+      <FormDrawer
+        title={<span className="font-mono">{pool.name}</span>}
+        onClose={onClose}
+        onSubmit={save}
+        submitLabel={t("common.save")}
+        submitting={update.isPending}
+      >
+        <FieldSection n={1} title={t("pools.fsBasic")} />
+        <FieldGroup>
+          <Field>
+            <FieldLabel>{t("pools.fName")}</FieldLabel>
+            <Input className="font-mono" value={pool.name} readOnly aria-readonly />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="mp-desc">{t("pools.fDesc")}</FieldLabel>
+            <Textarea
+              id="mp-desc"
+              rows={2}
+              placeholder={t("pools.fDescPlaceholder")}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+          </Field>
+        </FieldGroup>
+
+        <FieldSection n={2} title={t("pools.fsSchedule")} />
+        <FieldGroup>
+          <Field>
+            <FieldLabel>{t("pools.fSelector")}</FieldLabel>
+            <SelectorChips pairs={pairs} onChange={setPairs} />
+          </Field>
+          <Field>
+            <FieldLabel>{t("pools.fTolerations")}</FieldLabel>
+            <TolerationsEditor rows={tols} onChange={setTols} />
+          </Field>
+        </FieldGroup>
+
+        <FieldSection n={3} title={t("pools.fsUnits")} />
+        {units.length === 0 ? (
+          <Empty>
+            <EmptyHeader>
+              <EmptyTitle>{t("pools.unitsEmpty")}</EmptyTitle>
+            </EmptyHeader>
+          </Empty>
+        ) : (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {units.map((u) => (
+              <Card key={u.name} className="group gap-0 p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <span className="truncate font-mono text-sm font-semibold">{u.name}</span>
+                  <div className="flex shrink-0 items-center gap-0.5">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={t("common.edit")}
+                      onClick={() => setUnitDrawer({ kind: "edit", unit: u })}
+                    >
+                      <Pencil />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="text-destructive"
+                      aria-label={t("common.delete")}
+                      onClick={() => removeUnit(u)}
+                    >
+                      <Trash2 />
+                    </Button>
+                  </div>
+                </div>
+                <div className="mt-1.5 font-mono text-xs text-muted-foreground">
+                  {unitSpecLine(u, t("pools.uGpu"))}
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+        <Button
+          variant="outline"
+          className="mt-3 w-full border-dashed"
+          onClick={() => setUnitDrawer({ kind: "new" })}
+        >
+          <Plus data-icon="inline-start" />
+          {t("pools.newUnit")}
+        </Button>
+      </FormDrawer>
+
+      {unitDrawer && (
+        <UnitFormDrawer
+          poolName={pool.name}
+          unit={unitDrawer.kind === "edit" ? unitDrawer.unit : undefined}
+          onClose={() => setUnitDrawer(null)}
+        />
+      )}
+    </>
+  );
+}
+
+// ── Unit form drawer: basics + requests/limits matrix + node scheduling ───────
+interface UnitForm {
+  name: string;
+  description: string;
+  cpuReq?: number;
+  cpuLim?: number;
+  memReq?: number;
+  memLim?: number;
+  gpu?: number;
+  lock: boolean;
+  pairs: Pair[];
+  tols: TolRow[];
+}
+
+function unitToForm(u?: sdk.ResourceUnit): UnitForm {
+  const cpuReq = num(u?.requests, "cpu");
+  const cpuLim = num(u?.limits, "cpu");
+  const memReq = num(u?.requests, "memory");
+  const memLim = num(u?.limits, "memory");
+  return {
+    name: u?.name ?? "",
+    description: u?.description ?? "",
+    cpuReq,
+    cpuLim,
+    memReq,
+    memLim,
+    gpu: num(u?.requests, "nvidia.com/gpu"),
+    lock: !u || (cpuReq === cpuLim && memReq === memLim),
+    pairs: toPairs(u?.nodeSelector),
+    tols: tolFromApi(u?.tolerations),
+  };
+}
+
+function formToMaps(f: UnitForm): { requests: sdk.ResourceMap; limits: sdk.ResourceMap } {
+  const requests: sdk.ResourceMap = {};
+  const limits: sdk.ResourceMap = {};
+  if (f.cpuReq != null) requests.cpu = String(f.cpuReq);
+  if (f.memReq != null) requests.memory = `${f.memReq}Gi`;
+  const cpuLim = f.lock ? f.cpuReq : f.cpuLim;
+  const memLim = f.lock ? f.memReq : f.memLim;
+  if (cpuLim != null) limits.cpu = String(cpuLim);
+  if (memLim != null) limits.memory = `${memLim}Gi`;
+  if (f.gpu != null && f.gpu > 0) {
+    requests["nvidia.com/gpu"] = String(f.gpu);
+    limits["nvidia.com/gpu"] = String(f.gpu);
+  }
+  return { requests, limits };
+}
+
+function UnitFormDrawer({
+  poolName,
+  unit,
+  onClose,
+}: {
+  poolName: string;
+  unit?: sdk.ResourceUnit;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+  const editing = !!unit;
+  const [submitted, setSubmitted] = useState(false);
+  const [f, setF] = useState<UnitForm>(() => unitToForm(unit));
+  const set = <K extends keyof UnitForm>(k: K, v: UnitForm[K]) =>
+    setF((prev) => ({ ...prev, [k]: v }));
+  const numInput = (v: string) => (v === "" ? undefined : Number(v));
+
+  const create = useApiMutation(
+    (body: sdk.ResourceUnitCreateRequest) =>
+      sdk.createResourceUnit({ path: { pool: poolName }, body }),
+    { invalidate: [["resourcepools"]], success: t("pools.unitCreated") },
+  );
+  const update = useApiMutation(
+    (vars: { unit: string; body: sdk.ResourceUnitPatchRequest }) =>
+      sdk.updateResourceUnit({ path: { pool: poolName, unit: vars.unit }, body: vars.body }),
+    { invalidate: [["resourcepools"]], success: t("pools.unitSaved") },
   );
   const pending = create.isPending || update.isPending;
 
   const submit = () => {
     setSubmitted(true);
-    const nodeSelector = parseSelector(v.selector);
+    const name = f.name.trim();
+    if (!name || f.cpuReq == null || f.memReq == null) return;
+    const { requests, limits } = formToMaps(f);
+    const nodeSelector = pairsToSelector(f.pairs);
+    const tolerations = tolToApi(f.tols);
+    const description = f.description.trim() || undefined;
     if (editing) {
       update.mutate(
-        {
-          pool: pool!.name,
-          body: { description: v.description.trim() || undefined, nodeSelector },
-        },
+        { unit: unit!.name, body: { description, requests, limits, nodeSelector, tolerations } },
         { onSuccess: onClose },
       );
     } else {
-      const name = v.name.trim();
-      if (!name) return;
       create.mutate(
-        {
-          name,
-          description: v.description.trim() || undefined,
-          nodeSelector,
-        },
+        { name, description, requests, limits, nodeSelector, tolerations },
         { onSuccess: onClose },
       );
     }
   };
 
-  return (
-    <Sheet open onOpenChange={(o) => !o && onClose()}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[560px]">
-        <SheetHeader className="border-b">
-          <SheetTitle>{editing ? t("pools.drawerEdit") : t("pools.drawerNew")}</SheetTitle>
-          <p className="text-xs text-muted-foreground">
-            {editing ? <span className="font-mono">{pool!.name}</span> : t("pools.drawerNewSub")}
-          </p>
-        </SheetHeader>
-
-        <div className="flex-1 overflow-auto px-6 py-4">
-          <FieldSection n={1} title={t("pools.fsBasic")} />
-          <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor="pool-name">
-                {t("pools.fName")}
-                {!editing && <span className="text-destructive">*</span>}
-              </FieldLabel>
-              <Input
-                id="pool-name"
-                className="font-mono"
-                placeholder={t("pools.fNamePlaceholder")}
-                value={v.name}
-                disabled={editing}
-                aria-invalid={submitted && !editing && !v.name.trim()}
-                onChange={(e) => set("name", e.target.value)}
-              />
-              {!editing && <FieldDescription>{t("pools.fNameHelp")}</FieldDescription>}
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="pool-desc">{t("pools.fDesc")}</FieldLabel>
-              <Textarea
-                id="pool-desc"
-                rows={2}
-                placeholder={t("pools.fDescPlaceholder")}
-                value={v.description}
-                onChange={(e) => set("description", e.target.value)}
-              />
-            </Field>
-          </FieldGroup>
-
-          <FieldSection n={2} title={t("pools.fsSchedule")} />
-          <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor="pool-selector">{t("pools.fSelector")}</FieldLabel>
-              <Input
-                id="pool-selector"
-                className="font-mono"
-                placeholder={t("pools.fSelectorPlaceholder")}
-                value={v.selector}
-                onChange={(e) => set("selector", e.target.value)}
-              />
-              <FieldDescription>{t("pools.fSelectorHelp")}</FieldDescription>
-            </Field>
-          </FieldGroup>
-        </div>
-
-        <SheetFooter className="flex-row justify-end border-t">
-          <Button variant="outline" onClick={onClose}>
-            {t("common.cancel")}
-          </Button>
-          <Button onClick={submit} disabled={pending}>
-            {pending && <Spinner data-icon="inline-start" />}
-            {editing ? t("common.save") : t("pools.createPool")}
-          </Button>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+  const affix = (
+    value: number | undefined,
+    onChange: (v: number | undefined) => void,
+    suffix: string,
+    invalid?: boolean,
+  ) => (
+    <InputGroup aria-invalid={invalid}>
+      <InputGroupInput
+        type="number"
+        min={0}
+        inputMode="numeric"
+        value={value ?? ""}
+        onChange={(e) => onChange(numInput(e.target.value))}
+      />
+      <InputGroupAddon align="inline-end">
+        <InputGroupText>{suffix}</InputGroupText>
+      </InputGroupAddon>
+    </InputGroup>
   );
-}
-
-// ── Manage-units drawer: CRUD the pool's inline units[] via local rows ─────────
-interface UnitFormRow {
-  name: string;
-  description?: string;
-  cpu?: number;
-  memory?: number;
-  gpu?: number;
-}
-
-function unitToRow(u: sdk.ResourceUnit): UnitFormRow {
-  const num = (m: sdk.ResourceMap | undefined, k: string) => {
-    const v = m?.[k];
-    const n = v != null ? Number(v) : NaN;
-    return Number.isFinite(n) ? n : undefined;
-  };
-  return {
-    name: u.name,
-    description: u.description,
-    cpu: num(u.requests, "cpu"),
-    memory: num(u.requests, "memory"),
-    gpu: num(u.requests, "nvidia.com/gpu"),
-  };
-}
-
-function rowToRequest(r: UnitFormRow): sdk.ResourceUnitCreateRequest {
-  const map: sdk.ResourceMap = {};
-  if (r.cpu != null) map["cpu"] = String(r.cpu);
-  if (r.memory != null) map["memory"] = `${r.memory}Gi`;
-  if (r.gpu != null && r.gpu > 0) map["nvidia.com/gpu"] = String(r.gpu);
-  return {
-    name: r.name.trim(),
-    description: r.description?.trim() || undefined,
-    requests: map,
-    limits: map,
-  };
-}
-
-function ManageUnitsDrawer({ pool, onClose }: { pool: sdk.ResourcePool; onClose: () => void }) {
-  const { t } = useTranslation();
-  const { confirm } = useUI();
-  const existing = useMemo(() => new Set((pool.units ?? []).map((u) => u.name)), [pool.units]);
-  const [units, setUnits] = useState<UnitFormRow[]>(() => (pool.units ?? []).map(unitToRow));
-  const setUnit = (i: number, patch: Partial<UnitFormRow>) =>
-    setUnits(units.map((u, j) => (j === i ? { ...u, ...patch } : u)));
-  const removeUnit = (i: number) => setUnits(units.filter((_, j) => j !== i));
-
-  const createUnit = useApiMutation(
-    (body: sdk.ResourceUnitCreateRequest) =>
-      sdk.createResourceUnit({ path: { pool: pool.name }, body }),
-    { invalidate: [["resourcepools"]], success: t("pools.unitsSaved") },
-  );
-  const delUnit = useApiMutation(
-    (unit: string) => sdk.deleteResourceUnit({ path: { pool: pool.name, unit } }),
-    { invalidate: [["resourcepools"]], success: t("pools.unitsSaved") },
-  );
-
-  const onFinish = () => {
-    // Persist only newly added units; existing ones are managed via delete.
-    const toCreate = units.filter((r) => r.name?.trim() && !existing.has(r.name.trim()));
-    if (!toCreate.length) {
-      onClose();
-      return;
-    }
-    let done = 0;
-    toCreate.forEach((r) =>
-      createUnit.mutate(rowToRequest(r), {
-        onSuccess: () => {
-          done += 1;
-          if (done === toCreate.length) onClose();
-        },
-      }),
-    );
-  };
-
-  const removeExisting = (name: string, i: number) =>
-    confirm({
-      title: t("pools.deleteTitle", { name }),
-      desc: t("pools.deleteDesc"),
-      okLabel: t("common.confirmDelete"),
-      onConfirm: () => {
-        delUnit.mutate(name);
-        removeUnit(i);
-      },
-    });
 
   return (
-    <Sheet open onOpenChange={(o) => !o && onClose()}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[560px]">
-        <SheetHeader className="border-b">
-          <SheetTitle>{t("pools.unitsDrawerTitle")}</SheetTitle>
-          <p className="text-xs text-muted-foreground">
-            <span className="font-mono">{pool.name}</span>
-          </p>
-        </SheetHeader>
+    <FormDrawer
+      title={editing ? t("pools.unitDrawerEdit") : t("pools.unitDrawerNew")}
+      subtitle={<span className="font-mono">{poolName}</span>}
+      onClose={onClose}
+      onSubmit={submit}
+      submitLabel={editing ? t("common.save") : t("pools.createUnit")}
+      submitting={pending}
+    >
+      <FieldSection n={1} title={t("pools.fsBasic")} />
+      <FieldGroup>
+        <Field>
+          <FieldLabel htmlFor="uf-name">
+            {t("pools.uName")}
+            <span className="text-destructive">*</span>
+          </FieldLabel>
+          <Input
+            id="uf-name"
+            className="font-mono"
+            placeholder={t("pools.uNamePlaceholder")}
+            value={f.name}
+            disabled={editing}
+            aria-invalid={submitted && !editing && !f.name.trim()}
+            onChange={(e) => set("name", e.target.value)}
+          />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="uf-desc">{t("pools.uDesc")}</FieldLabel>
+          <Textarea
+            id="uf-desc"
+            rows={2}
+            placeholder={t("pools.uDescPlaceholder")}
+            value={f.description}
+            onChange={(e) => set("description", e.target.value)}
+          />
+        </Field>
+      </FieldGroup>
 
-        <div className="flex-1 overflow-auto px-6 py-4">
-          {delUnit.isPending && (
-            <div className="mb-3 flex justify-center">
-              <Spinner className="size-5 text-muted-foreground" />
-            </div>
-          )}
-          <p className="mb-4 text-xs text-muted-foreground">{t("pools.unitsDrawerSub")}</p>
-          <FieldSection n={1} title={t("pools.fsUnits")} />
-          <FieldGroup>
-            <div className="flex flex-col gap-3">
-            {units.map((row, i) => {
-              const isExisting = !!row.name && existing.has(row.name);
-              return (
-                <Card key={i} className="gap-0 bg-muted p-3">
-                  <div className="mb-2 flex items-center justify-between">
-                    <span className="text-xs font-semibold text-foreground">
-                      {row.name || t("pools.uName")}
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      className="text-destructive"
-                      onClick={() => (isExisting ? removeExisting(row.name, i) : removeUnit(i))}
-                    >
-                      <Trash2 />
-                    </Button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field>
-                      <FieldLabel>
-                        {t("pools.uName")}
-                        <span className="text-destructive">*</span>
-                      </FieldLabel>
-                      <Input
-                        className="font-mono"
-                        placeholder={t("pools.uNamePlaceholder")}
-                        value={row.name}
-                        disabled={isExisting}
-                        onChange={(e) => setUnit(i, { name: e.target.value })}
-                      />
-                    </Field>
-                    <Field>
-                      <FieldLabel>{t("pools.uDesc")}</FieldLabel>
-                      <Input
-                        placeholder={t("pools.uDescPlaceholder")}
-                        value={row.description ?? ""}
-                        disabled={isExisting}
-                        onChange={(e) => setUnit(i, { description: e.target.value })}
-                      />
-                    </Field>
-                    <Field>
-                      <FieldLabel>{`${t("pools.uCpu")} (${t("pools.uCpuUnit")})`}</FieldLabel>
-                      <Input
-                        type="number"
-                        min={0}
-                        value={row.cpu ?? ""}
-                        disabled={isExisting}
-                        onChange={(e) =>
-                          setUnit(i, { cpu: e.target.value === "" ? undefined : Number(e.target.value) })
-                        }
-                      />
-                    </Field>
-                    <Field>
-                      <FieldLabel>{`${t("pools.uMem")} (${t("pools.uMemUnit")})`}</FieldLabel>
-                      <Input
-                        type="number"
-                        min={0}
-                        value={row.memory ?? ""}
-                        disabled={isExisting}
-                        onChange={(e) =>
-                          setUnit(i, { memory: e.target.value === "" ? undefined : Number(e.target.value) })
-                        }
-                      />
-                    </Field>
-                    <Field>
-                      <FieldLabel>{`${t("pools.uGpu")} (${t("pools.uGpuUnit")})`}</FieldLabel>
-                      <Input
-                        type="number"
-                        min={0}
-                        value={row.gpu ?? ""}
-                        disabled={isExisting}
-                        onChange={(e) =>
-                          setUnit(i, { gpu: e.target.value === "" ? undefined : Number(e.target.value) })
-                        }
-                      />
-                    </Field>
-                  </div>
-                </Card>
-              );
-            })}
-            <Button
-              variant="outline"
-              className="w-full border-dashed"
-              onClick={() => setUnits([...units, { name: "" }])}
-            >
-              <Plus data-icon="inline-start" />
-              {t("pools.addUnit")}
-            </Button>
-            </div>
-          </FieldGroup>
+      <FieldSection n={2} title={t("pools.fsSpec")}>
+        <label className="ml-auto flex cursor-pointer items-center gap-1.5 text-xs font-normal text-muted-foreground">
+          <Checkbox checked={f.lock} onCheckedChange={(c) => set("lock", c === true)} />
+          {t("pools.lockLabel")}
+        </label>
+      </FieldSection>
+      {f.lock ? (
+        <div className="grid grid-cols-[56px_1fr] items-center gap-x-4 gap-y-3">
+          <span className="text-sm font-medium">
+            {t("pools.uCpu")}
+            <span className="text-destructive">*</span>
+          </span>
+          {affix(f.cpuReq, (v) => set("cpuReq", v), t("pools.uCpuUnit"), submitted && f.cpuReq == null)}
+          <span className="text-sm font-medium">
+            {t("pools.uMem")}
+            <span className="text-destructive">*</span>
+          </span>
+          {affix(f.memReq, (v) => set("memReq", v), t("pools.uMemUnit"), submitted && f.memReq == null)}
+          <span className="text-sm font-medium">{t("pools.uGpu")}</span>
+          {affix(f.gpu, (v) => set("gpu", v), t("pools.uGpuUnit"))}
+          <span />
+          <span className="font-mono text-xs text-muted-foreground">{t("pools.reqEqLim")}</span>
         </div>
+      ) : (
+        <div className="grid grid-cols-[56px_1fr_1fr] items-center gap-x-4 gap-y-3">
+          <span />
+          <span className="text-xs text-muted-foreground">{t("pools.uReq")}</span>
+          <span className="text-xs text-muted-foreground">{t("pools.uLim")}</span>
+          <span className="text-sm font-medium">
+            {t("pools.uCpu")}
+            <span className="text-destructive">*</span>
+          </span>
+          {affix(f.cpuReq, (v) => set("cpuReq", v), t("pools.uCpuUnit"), submitted && f.cpuReq == null)}
+          {affix(f.cpuLim, (v) => set("cpuLim", v), t("pools.uCpuUnit"))}
+          <span className="text-sm font-medium">
+            {t("pools.uMem")}
+            <span className="text-destructive">*</span>
+          </span>
+          {affix(f.memReq, (v) => set("memReq", v), t("pools.uMemUnit"), submitted && f.memReq == null)}
+          {affix(f.memLim, (v) => set("memLim", v), t("pools.uMemUnit"))}
+          <span className="text-sm font-medium">{t("pools.uGpu")}</span>
+          {affix(f.gpu, (v) => set("gpu", v), t("pools.uGpuUnit"))}
+          <span className="self-center font-mono text-xs text-muted-foreground">
+            {t("pools.reqEqLim")}
+          </span>
+        </div>
+      )}
 
-        <SheetFooter className="flex-row justify-end border-t">
-          <Button variant="outline" onClick={onClose}>
-            {t("common.cancel")}
-          </Button>
-          <Button onClick={onFinish} disabled={createUnit.isPending}>
-            {createUnit.isPending && <Spinner data-icon="inline-start" />}
-            {t("common.save")}
-          </Button>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+      <FieldSection n={3} title={t("pools.fsSchedule")} />
+      <FieldGroup>
+        <Field>
+          <FieldLabel>{t("pools.uSelector")}</FieldLabel>
+          <SelectorChips pairs={f.pairs} onChange={(p) => set("pairs", p)} />
+        </Field>
+        <Field>
+          <FieldLabel>{t("pools.fTolerations")}</FieldLabel>
+          <TolerationsEditor rows={f.tols} onChange={(r) => set("tols", r)} />
+        </Field>
+      </FieldGroup>
+    </FormDrawer>
   );
 }

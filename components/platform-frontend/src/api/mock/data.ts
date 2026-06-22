@@ -108,7 +108,7 @@ export const me: MeResponse = {
   user: {
     id: "u-admin",
     username: "admin",
-    displayName: "黄振洛",
+    displayName: "Admin",
     email: "admin@axisml.io",
     createdAt: ago(24 * 120),
     updatedAt: ago(24),
@@ -126,6 +126,8 @@ export const pools: ResourcePool[] = [
     createdAt: ago(24 * 120),
     updatedAt: ago(24),
     labels: { "gpu.type": "a100" },
+    nodeSelector: { "gpu.product": "A100", arch: "amd64", "network": "ib" },
+    tolerations: [{ key: "nvidia.com/gpu", operator: "Exists", effect: "NoSchedule" }],
     units: [
       {
         name: "a100-8x",
@@ -148,6 +150,8 @@ export const pools: ResourcePool[] = [
     createdAt: ago(24 * 90),
     updatedAt: ago(24),
     labels: { "gpu.type": "h100" },
+    nodeSelector: { "gpu.product": "H100", network: "ib" },
+    tolerations: [{ key: "nvidia.com/gpu", operator: "Exists", effect: "NoSchedule" }],
     units: [
       {
         name: "h100-8x",
@@ -163,6 +167,7 @@ export const pools: ResourcePool[] = [
     nodeCount: 16,
     createdAt: ago(24 * 120),
     updatedAt: ago(48),
+    nodeSelector: { arch: "amd64" },
     units: [
       {
         name: "cpu-large",
@@ -177,7 +182,7 @@ export const pools: ResourcePool[] = [
 // ── members & quotas (keyed by tenant identifier) ───────────────────────────────
 export const membersByTenant: Record<string, Member[]> = {
   "llm-lab": [
-    { userId: "u-admin", username: "admin", displayName: "黄振洛", email: "admin@axisml.io", roleName: "tenant-admin", addedAt: ago(24 * 90) },
+    { userId: "u-admin", username: "admin", displayName: "Admin", email: "admin@axisml.io", roleName: "tenant-admin", addedAt: ago(24 * 90) },
     { userId: "u-zhang", username: "zhangwei", displayName: "张伟", email: "zhangwei@axisml.io", roleName: "user", addedAt: ago(24 * 40) },
     { userId: "u-liu", username: "liuyang", displayName: "刘洋", email: "liuyang@axisml.io", roleName: "user", addedAt: ago(24 * 20) },
   ],

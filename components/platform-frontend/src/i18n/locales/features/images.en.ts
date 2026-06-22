@@ -22,7 +22,6 @@ export default {
     // version drawer
     verSearchPlaceholder: "Search version name / description",
     addVersion: "Add version",
-    verImage: "Image versions",
     addrPending: "Generated after push completes…",
     addrCopied: "Address copied",
     deleteVerTitle: "Delete version {{version}}?",
@@ -40,7 +39,6 @@ export default {
     done: "Done",
     // new image drawer
     newImageTitle: "New Image",
-    newImageSub: "Create the image entry first, then add versions",
     fsBasic: "Basic info",
     fName: "Image name",
     fNamePlaceholder: "my-image (letters, digits and hyphens only)",
@@ -62,7 +60,6 @@ export default {
     imageCreated: "Image created. Add versions from the version list.",
     // add version drawer
     addVerTitle: "Add version",
-    addVerSub: "Add a new version to an existing image",
     fImage: "Image",
     fVersion: "Version / tag",
     fVersionPlaceholder: "2.4-cu124",

@@ -15,6 +15,10 @@
 @custom-variant data-closed (&[data-state="closed"]);
 @custom-variant data-checked (&[data-state="checked"]);
 @custom-variant data-unchecked (&[data-state="unchecked"]);
+/* Radix orientation variants — the Slider track/range size themselves via these;
+   without them the track collapses to zero height and the rail line disappears. */
+@custom-variant data-horizontal (&[data-orientation="horizontal"]);
+@custom-variant data-vertical (&[data-orientation="vertical"]);
 
 /* ============================================================================
    Design tokens — Geist skin (see root DESIGN.md).

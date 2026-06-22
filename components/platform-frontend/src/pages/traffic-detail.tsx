@@ -1,24 +1,30 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, Copy, Trash2, CircleCheck, TriangleAlert } from "lucide-react";
+import { Copy, Trash2, CircleCheck, TriangleAlert, Undo2, ArrowUpToLine } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useQuery } from "@tanstack/react-query";
-import dayjs from "dayjs";
+import { useQuery, useQueries } from "@tanstack/react-query";
 import { useApp } from "@/app/store";
 import { useUI } from "@/app/ui";
 import { useApiMutation } from "@/api/mutations";
 import * as sdk from "@/api/generated";
 import { PageContainer } from "@/components/page-container";
 import { PhaseTag } from "@/components/phase-tag";
+import { BackLink } from "@/components/back-link";
+import { Descriptions, Desc } from "@/components/descriptions";
+import { PageLoading, DetailError } from "@/components/page-state";
 import { DataTable, type Column } from "@/components/data-table";
+import { fmtDateTimeSec } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { Slider } from "@/components/ui/slider";
+import { CanaryRollout } from "@/components/canary-rollout";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
+import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Tooltip,
@@ -55,35 +61,20 @@ export default function TrafficDetail() {
     success: t("traffic.deleted"),
   });
 
-  const back = (
-    <Link
-      to="/traffic"
-      className="mb-3 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-info"
-    >
-      <ArrowLeft className="size-4" />
-      {t("traffic.backToList")}
-    </Link>
-  );
+  const backLink = <BackLink to="/traffic">{t("traffic.backToList")}</BackLink>;
 
   if (q.isLoading) {
     return (
-      <PageContainer breadcrumb={[t("nav.serviceCenter"), t("nav.traffic"), name]} title={name}>
-        {back}
-        <div className="grid place-items-center py-24">
-          <Spinner className="size-7 text-muted-foreground" />
-        </div>
+      <PageContainer breadcrumb={[t("nav.serviceCenter"), t("nav.traffic"), name]} title={name} subtitle={backLink}>
+        <PageLoading />
       </PageContainer>
     );
   }
 
   if (q.isError || !q.data) {
     return (
-      <PageContainer breadcrumb={[t("nav.serviceCenter"), t("nav.traffic"), name]} title={t("traffic.loadFailedTitle")}>
-        {back}
-        <Alert variant="destructive">
-          <TriangleAlert />
-          <AlertDescription>{t("common.loadFailed")}</AlertDescription>
-        </Alert>
+      <PageContainer breadcrumb={[t("nav.serviceCenter"), t("nav.traffic"), name]} title={t("traffic.loadFailedTitle")} subtitle={backLink}>
+        <DetailError message={t("common.loadFailed")} />
       </PageContainer>
     );
   }
@@ -116,7 +107,7 @@ export default function TrafficDetail() {
           <Badge variant="outline">{modeLabel}</Badge>
         </span>
       }
-      subtitle={p.description ?? p.displayName ?? undefined}
+      subtitle={backLink}
       extra={
         <Button variant="outline" className="text-destructive" disabled={del.isPending} onClick={onDelete}>
           {del.isPending ? <Spinner data-icon="inline-start" /> : <Trash2 data-icon="inline-start" />}
@@ -124,11 +115,11 @@ export default function TrafficDetail() {
         </Button>
       }
     >
-      {back}
       <Tabs defaultValue="overview">
         <TabsList>
           <TabsTrigger value="overview">{t("traffic.tabOverview")}</TabsTrigger>
           <TabsTrigger value="dist">{t("traffic.tabDistribution")}</TabsTrigger>
+          <TabsTrigger value="monitor">{t("traffic.tabMonitor")}</TabsTrigger>
           <TabsTrigger value="events">{t("traffic.tabEvents")}</TabsTrigger>
         </TabsList>
         <TabsContent value="overview" className="mt-4">
@@ -141,7 +132,10 @@ export default function TrafficDetail() {
             <WeightedDistribution name={p.name} backends={backends} />
           )}
         </TabsContent>
-        <TabsContent value="events">
+        <TabsContent value="monitor" className="mt-4">
+          <MonitorPane name={p.name} backends={backends} />
+        </TabsContent>
+        <TabsContent value="events" className="mt-4">
           <Events name={p.name} />
         </TabsContent>
       </Tabs>
@@ -168,20 +162,15 @@ function Overview({ policy, backendCount }: { policy: sdk.TrafficPolicy; backend
         <CardTitle>{t("traffic.policyInfo")}</CardTitle>
       </CardHeader>
       <CardContent>
-        <dl className="grid grid-cols-[120px_1fr] gap-x-4 gap-y-3 text-sm">
-          <dt className="text-muted-foreground">{t("traffic.fieldName")}</dt>
-          <dd className="font-mono">{policy.name}</dd>
-
-          <dt className="text-muted-foreground">{t("traffic.fieldDesc")}</dt>
-          <dd>{policy.description ?? policy.displayName ?? "—"}</dd>
-
-          <dt className="text-muted-foreground">{t("traffic.fieldMode")}</dt>
-          <dd>
+        <Descriptions columns="single">
+          <Desc label={t("traffic.fieldName")}>
+            <span className="font-mono">{policy.name}</span>
+          </Desc>
+          <Desc label={t("traffic.fieldDesc")}>{policy.description ?? policy.displayName ?? "—"}</Desc>
+          <Desc label={t("traffic.fieldMode")}>
             <Badge variant="outline">{modeLabel}</Badge>
-          </dd>
-
-          <dt className="text-muted-foreground">{t("traffic.fieldEndpoint")}</dt>
-          <dd>
+          </Desc>
+          <Desc label={t("traffic.fieldEndpoint")}>
             {endpoint ? (
               <span className="inline-flex items-center gap-1">
                 <span className="font-mono">{endpoint}</span>
@@ -197,19 +186,15 @@ function Overview({ policy, backendCount }: { policy: sdk.TrafficPolicy; backend
             ) : (
               "—"
             )}
-          </dd>
-
-          <dt className="text-muted-foreground">{t("traffic.fieldBackendCount")}</dt>
-          <dd className="font-mono">{backendCount}</dd>
-
-          <dt className="text-muted-foreground">{t("traffic.fieldOwner")}</dt>
-          <dd>{policy.owner || "—"}</dd>
-
-          <dt className="text-muted-foreground">{t("traffic.fieldCreatedAt")}</dt>
-          <dd className="font-mono">
-            {policy.createdAt ? dayjs(policy.createdAt).format("YYYY-MM-DD HH:mm:ss") : "—"}
-          </dd>
-        </dl>
+          </Desc>
+          <Desc label={t("traffic.fieldBackendCount")}>
+            <span className="font-mono">{backendCount}</span>
+          </Desc>
+          <Desc label={t("traffic.fieldOwner")}>{policy.owner || "—"}</Desc>
+          <Desc label={t("traffic.fieldCreatedAt")}>
+            <span className="font-mono">{fmtDateTimeSec(policy.createdAt)}</span>
+          </Desc>
+        </Descriptions>
       </CardContent>
     </Card>
   );
@@ -271,8 +256,13 @@ function backendColumns(
 // ── Canary distribution ───────────────────────────────────────────────────────
 function CanaryDistribution({ name, initial, backends }: { name: string; initial: number; backends: BackendView[] }) {
   const { t } = useTranslation();
+  const { confirm } = useUI();
   const [canary, setCanary] = useState(initial);
   const stable = 100 - canary;
+  const dirty = canary !== initial;
+
+  // Re-sync the slider to the live value after an apply / promote / rollback refetch.
+  useEffect(() => setCanary(initial), [initial]);
 
   const split = useApiMutation(
     (body: sdk.TrafficPolicySplitRequest) => sdk.splitTrafficPolicy({ path: { name }, body }),
@@ -282,8 +272,29 @@ function CanaryDistribution({ name, initial, backends }: { name: string; initial
     invalidate: [["trafficpolicies"]],
     success: t("traffic.promoted"),
   });
+  const rollback = useApiMutation(() => sdk.rollbackTrafficPolicy({ path: { name } }), {
+    invalidate: [["trafficpolicies"]],
+    success: t("traffic.rolledBack"),
+  });
 
-  // Reflect the live slider value into the table's actual share for an immediate preview.
+  const onPromote = () =>
+    confirm({
+      title: t("traffic.promoteTitle", { name }),
+      desc: t("traffic.promoteDesc"),
+      okLabel: t("traffic.promoteOk"),
+      danger: false,
+      onConfirm: () => promote.mutate(undefined),
+    });
+  const onRollback = () =>
+    confirm({
+      title: t("traffic.rollbackTitle", { name }),
+      desc: t("traffic.rollbackDesc"),
+      okLabel: t("traffic.rollbackOk"),
+      danger: false,
+      onConfirm: () => rollback.mutate(undefined),
+    });
+
+  // Reflect the live slider value into each backend's actual share for an immediate preview.
   const rows: BackendView[] = backends.map((b) =>
     b.role === "canary"
       ? { ...b, weight: canary, actualPct: canary }
@@ -292,62 +303,68 @@ function CanaryDistribution({ name, initial, backends }: { name: string; initial
         : b,
   );
 
-  const weightCol: Column<BackendView> = {
-    key: "weight",
-    title: t("traffic.colTargetWeight"),
-    width: 110,
-    align: "right",
-    render: (r) => <span className="font-mono">{r.weight}</span>,
-  };
+  const busy = split.isPending || promote.isPending || rollback.isPending;
 
   return (
-    <div className="flex flex-col gap-5">
-      <Card>
-        <CardHeader className="border-b">
-          <CardTitle>{t("traffic.canaryPercentTitle")}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="mb-3 flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">{t("traffic.canaryShare")}</span>
-            <span className="font-mono text-2xl font-semibold">
-              {canary}
-              <span className="text-sm text-muted-foreground">%</span>
-            </span>
-          </div>
-          <Slider min={0} max={100} value={[canary]} onValueChange={(vals) => setCanary(vals[0])} />
-          <div className="mt-2 flex gap-7 text-sm text-muted-foreground">
-            <span>
-              {t("traffic.stableShare")} <b className="font-mono text-info">{stable}%</b>
-            </span>
-            <span>
-              {t("traffic.canaryShare")} <b className="font-mono text-warning">{canary}%</b>
-            </span>
-          </div>
-          <div className="mt-4 flex gap-2">
-            <Button disabled={split.isPending} onClick={() => split.mutate({ canaryPercent: canary })}>
-              {split.isPending && <Spinner data-icon="inline-start" />}
-              {t("traffic.applyCanary")}
-            </Button>
-            <Button variant="outline" disabled={promote.isPending} onClick={() => promote.mutate(undefined)}>
-              {promote.isPending && <Spinner data-icon="inline-start" />}
-              {t("traffic.promoteToStable")}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+    <Card>
+      <CardHeader className="border-b">
+        <CardTitle>{t("traffic.canaryPercentTitle")}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <CanaryRollout value={canary} onChange={setCanary} />
 
-      <Card className="p-0">
-        <CardHeader className="border-b py-4">
-          <CardTitle>{t("traffic.backendDist")}</CardTitle>
-        </CardHeader>
-        <DataTable
-          columns={backendColumns(t, weightCol)}
-          data={rows}
-          rowKey={(r) => r.serviceName}
-          pageSize={rows.length || 1}
-        />
-      </Card>
-    </div>
+        {/* per-backend identity + health; the share tracks the live slider value */}
+        <div className="mt-5 border-t pt-4">
+          <div className="mb-1 text-xs font-medium text-muted-foreground">{t("traffic.backendDist")}</div>
+          <div className="divide-y">
+            {rows.map((r) => (
+              <div key={r.serviceName} className="flex items-center gap-3 py-2.5 text-sm">
+                <span
+                  className={cn("size-2 shrink-0 rounded-full", r.role === "canary" ? "bg-warning" : "bg-info")}
+                />
+                <Badge variant="outline" className="shrink-0">
+                  {roleLabel(t, r.role)}
+                </Badge>
+                <Link
+                  to={`/services/${r.serviceName}`}
+                  className="truncate font-mono text-foreground hover:text-info hover:underline"
+                >
+                  {r.serviceName}
+                </Link>
+                <span className="flex-1" />
+                <Progress value={r.actualPct} className="w-28" />
+                <span className="w-10 text-right font-mono text-xs tabular-nums">{r.actualPct}%</span>
+                {r.ready ? (
+                  <Badge variant="success" className="shrink-0">
+                    {t("traffic.backendReady")}
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="shrink-0">
+                    {t("traffic.backendNotReady")}
+                  </Badge>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-1 flex items-center gap-2 border-t pt-4">
+          <Button disabled={!dirty || busy} onClick={() => split.mutate({ canaryPercent: canary })}>
+            {split.isPending && <Spinner data-icon="inline-start" />}
+            {t("traffic.applyCanary")}
+          </Button>
+          <span className="flex-1" />
+          <Button variant="outline" disabled={busy} onClick={onRollback}>
+            {rollback.isPending ? <Spinner data-icon="inline-start" /> : <Undo2 data-icon="inline-start" />}
+            {t("traffic.rollback")}
+          </Button>
+          <Button variant="secondary" disabled={busy} onClick={onPromote}>
+            {promote.isPending ? <Spinner data-icon="inline-start" /> : <ArrowUpToLine data-icon="inline-start" />}
+            {t("traffic.promoteToStable")}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -410,9 +427,9 @@ function WeightedDistribution({ name, backends }: { name: string; backends: Back
         pageSize={rows.length || 1}
       />
       <div className="flex items-center gap-4 border-t p-4">
-        <Alert variant={ok ? "default" : "warning"} className="w-auto">
-          {ok ? <CircleCheck className="text-success" /> : <TriangleAlert />}
-          <AlertDescription className={ok ? "text-success" : undefined}>
+        <Alert variant={ok ? "success" : "warning"} className="w-auto">
+          {ok ? <CircleCheck /> : <TriangleAlert />}
+          <AlertDescription>
             {ok ? t("traffic.sumOk", { sum }) : t("traffic.sumBad", { sum })}
           </AlertDescription>
         </Alert>
@@ -426,7 +443,166 @@ function WeightedDistribution({ name, backends }: { name: string; backends: Back
   );
 }
 
-// ── Events ────────────────────────────────────────────────────────────────────
+// ── Monitoring: per-backend QPS / latency / error-rate trends ──────────────────
+const MONITOR_RANGES = ["5m", "1h", "24h"] as const;
+// Per-series colours, assigned by backend order — mirrors the prototype legend
+// (stable=info / canary=warn, or member-a / member-b for weighted).
+const SERIES_COLORS = ["var(--info)", "var(--warning)", "var(--success)"];
+
+interface MetricSpec {
+  metric: sdk.MlServiceMetricName;
+  title: string;
+}
+
+function MonitorPane({ name, backends }: { name: string; backends: BackendView[] }) {
+  const { t } = useTranslation();
+  const [range, setRange] = useState<string>("1h");
+
+  if (!backends.length) {
+    return (
+      <Card className="p-0">
+        <CardContent className="py-4">
+          <Empty className="py-12">
+            <EmptyHeader>
+              <EmptyTitle>{t("traffic.monitorNoBackends")}</EmptyTitle>
+            </EmptyHeader>
+          </Empty>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const series = backends.map((b, i) => ({
+    serviceName: b.serviceName,
+    color: SERIES_COLORS[i % SERIES_COLORS.length],
+  }));
+  const metrics: MetricSpec[] = [
+    { metric: "request_rate", title: t("traffic.monQps") },
+    { metric: "latency", title: t("traffic.monLatency") },
+    { metric: "error_rate", title: t("traffic.monErrorRate") },
+  ];
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center gap-3">
+        <span className="text-xs text-muted-foreground">{t("traffic.monGrouped")}</span>
+        <span className="flex-1" />
+        <ToggleGroup type="single" value={range} onValueChange={(v) => v && setRange(v)}>
+          {MONITOR_RANGES.map((r) => (
+            <ToggleGroupItem key={r} value={r}>
+              {r}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+      </div>
+      <div className="grid gap-4 md:grid-cols-2">
+        {metrics.map((m) => (
+          <MetricCard key={m.metric} name={name} spec={m} series={series} range={range} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MetricCard({
+  name,
+  spec,
+  series,
+  range,
+}: {
+  name: string;
+  spec: MetricSpec;
+  series: { serviceName: string; color: string }[];
+  range: string;
+}) {
+  const { t } = useTranslation();
+  const { tenant } = useApp();
+  const results = useQueries({
+    queries: series.map((s) => ({
+      queryKey: ["trafficpolicies", tenant, name, "metrics", spec.metric, range, s.serviceName],
+      enabled: tenant !== "" && name !== "",
+      queryFn: async () => {
+        const { data, error } = await sdk.getTrafficPolicyMetrics({
+          path: { name },
+          query: { metric: spec.metric, range, backend: s.serviceName },
+        });
+        if (error) throw error;
+        return data;
+      },
+    })),
+  });
+
+  const loading = results.some((r) => r.isLoading);
+  const lines = series.map((s, i) => ({
+    ...s,
+    values: (results[i].data?.series ?? []).map((p) => p.value ?? 0),
+  }));
+  const hasData = lines.some((l) => l.values.length > 0);
+
+  return (
+    <Card className="p-0">
+      <CardHeader className="flex-row items-center justify-between gap-2 border-b py-3">
+        <CardTitle className="text-sm">{spec.title}</CardTitle>
+        <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
+          {series.map((s) => (
+            <span key={s.serviceName} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span className="size-2 rounded-full" style={{ background: s.color }} />
+              <span className="font-mono">{s.serviceName}</span>
+            </span>
+          ))}
+        </div>
+      </CardHeader>
+      <CardContent className="py-4">
+        {loading ? (
+          <div className="grid h-[132px] place-items-center">
+            <Spinner className="size-6 text-muted-foreground" />
+          </div>
+        ) : hasData ? (
+          <MultiLineChart lines={lines} />
+        ) : (
+          <div className="grid h-[132px] place-items-center text-sm text-muted-foreground">
+            {t("traffic.monitorEmpty")}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// Overlaid multi-series line chart, matching the prototype's 600×132 SVG with two
+// horizontal grid lines. Each backend gets its own coloured path.
+function MultiLineChart({ lines }: { lines: { serviceName: string; color: string; values: number[] }[] }) {
+  const W = 600;
+  const H = 132;
+  const max = Math.max(1, ...lines.flatMap((l) => l.values));
+  const path = (values: number[]) => {
+    const n = values.length;
+    if (!n) return "";
+    const x = (i: number) => (n === 1 ? W : (i / (n - 1)) * W);
+    const y = (v: number) => H - (v / max) * (H - 24) - 12;
+    return "M" + values.map((v, i) => `${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join(" L");
+  };
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="h-[132px] w-full">
+      {[44, 88].map((gy) => (
+        <line key={gy} x1="0" y1={gy} x2={W} y2={gy} stroke="var(--border)" strokeWidth="1" />
+      ))}
+      {lines.map((l) => (
+        <path
+          key={l.serviceName}
+          d={path(l.values)}
+          fill="none"
+          stroke={l.color}
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      ))}
+    </svg>
+  );
+}
+
+// ── Events (timeline) ──────────────────────────────────────────────────────────
 function Events({ name }: { name: string }) {
   const { t } = useTranslation();
   const { tenant } = useApp();
@@ -443,36 +619,39 @@ function Events({ name }: { name: string }) {
   const items = q.data?.items ?? [];
 
   return (
-    <Card className="p-0">
-      {q.isLoading ? (
-        <div className="grid place-items-center py-16">
-          <Spinner className="size-7 text-muted-foreground" />
-        </div>
-      ) : items.length === 0 ? (
-        <div className="py-16 text-center text-sm text-muted-foreground">
-          {q.isError ? t("common.loadFailed") : t("traffic.noEvents")}
-        </div>
-      ) : (
-        <ul className="flex flex-col">
-          {items.map((e, i) => (
-            <li
-              key={i}
-              className="flex items-start justify-between gap-4 border-b px-4 py-3 last:border-b-0"
-            >
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
+    <Card>
+      <CardContent className="py-5">
+        {q.isLoading ? (
+          <div className="grid place-items-center py-12">
+            <Spinner className="size-7 text-muted-foreground" />
+          </div>
+        ) : items.length === 0 ? (
+          <div className="py-12 text-center text-sm text-muted-foreground">
+            {q.isError ? t("common.loadFailed") : t("traffic.noEvents")}
+          </div>
+        ) : (
+          <ol className="flex flex-col gap-5 border-l border-border pl-6">
+            {items.map((e, i) => (
+              <li key={i} className="relative">
+                <span
+                  className={cn(
+                    "absolute top-1 -left-[29px] size-2.5 rounded-full border-2 border-background ring-1 ring-border",
+                    e.type === "Warning" ? "bg-warning" : "bg-muted-foreground",
+                  )}
+                />
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium">{e.reason}</span>
                   <Badge variant={e.type === "Warning" ? "warning" : "outline"}>{e.type}</Badge>
+                  <span className="font-mono text-xs text-muted-foreground">
+                    {fmtDateTimeSec(e.lastTimestamp)}
+                  </span>
                 </div>
-                <div className="mt-0.5 text-sm text-muted-foreground">{e.message}</div>
-              </div>
-              <span className="shrink-0 font-mono text-xs text-muted-foreground">
-                {e.lastTimestamp ? dayjs(e.lastTimestamp).format("YYYY-MM-DD HH:mm:ss") : "—"}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
+                {e.message && <div className="mt-1 text-sm text-muted-foreground">{e.message}</div>}
+              </li>
+            ))}
+          </ol>
+        )}
+      </CardContent>
     </Card>
   );
 }

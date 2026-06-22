@@ -43,7 +43,6 @@ export default {
 
     // 创建抽屉
     drawerNew: "新建流量策略",
-    drawerNewSub: "绑定稳定对外入口，把流量分发到当前租户的在线服务后端",
     created: "流量策略已创建",
     createPolicy: "创建策略",
     fsBasic: "基本信息与模式",
@@ -88,6 +87,7 @@ export default {
     // 详情标签页
     tabOverview: "概览",
     tabDistribution: "流量配置",
+    tabMonitor: "监控",
     tabEvents: "事件",
     policyInfo: "策略信息",
 
@@ -104,13 +104,17 @@ export default {
 
     // 流量配置（灰度）
     canaryPercentTitle: "灰度百分比",
+    canaryCurrent: "当前",
+    canaryPending: "待应用",
+    canaryPresets: "放量预设",
     stableShare: "稳定",
     canaryShare: "灰度",
     promoteToStable: "提升为稳定",
     applyCanary: "应用",
+    rollback: "回滚",
 
-    // 后端分布表
-    backendDist: "后端分布",
+    // 流量分布表
+    backendDist: "流量分布",
     colService: "在线服务",
     colRole: "角色",
     colTargetWeight: "目标权重",
@@ -128,6 +132,14 @@ export default {
     sumBad: "Σ = {{sum}}% ✕",
     applyWeights: "应用权重",
     weightsApplied: "权重已应用",
+
+    // 监控
+    monGrouped: "来自 compute 指标代理 · 按后端分组",
+    monQps: "QPS",
+    monLatency: "延迟 p95",
+    monErrorRate: "错误率 (5xx)",
+    monitorEmpty: "暂无监控数据",
+    monitorNoBackends: "策略尚无后端，暂无监控数据。",
 
     // 事件
     noEvents: "暂无事件",

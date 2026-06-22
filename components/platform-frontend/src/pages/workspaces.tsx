@@ -1,16 +1,22 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   Plus,
-  Search,
   Trash2,
   Play,
   Power,
   LayoutGrid,
   List as ListIcon,
   Cpu,
-  SquareTerminal,
+  Terminal,
 } from "lucide-react";
+import {
+  JupyterMark,
+  VscodeMark,
+  PytorchMark,
+  WorkspaceMark,
+  wsBrand,
+} from "@/components/workspace-brand";
 import { useTranslation } from "react-i18next";
 import { useWorkspaces } from "@/api/hooks";
 import { useApiMutation } from "@/api/mutations";
@@ -20,14 +26,21 @@ import { PageContainer } from "@/components/page-container";
 import { PhaseTag } from "@/components/phase-tag";
 import { FieldSection } from "@/components/field-section";
 import { CardRadio } from "@/components/card-radio";
+import { SearchInput } from "@/components/search-input";
+import { FilterSelect } from "@/components/filter-select";
 import { DataTable, type Column } from "@/components/data-table";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { FormDrawer } from "@/components/form-drawer";
+import { parseEnv } from "@/lib/run-spec";
+import { Field, FieldGroup, FieldLabel, FieldDescription } from "@/components/ui/field";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   Select,
   SelectContent,
@@ -35,15 +48,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Sheet,
-  SheetContent,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import { Field, FieldGroup, FieldLabel, FieldDescription } from "@/components/ui/field";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   Tooltip,
   TooltipContent,
@@ -59,8 +63,6 @@ interface WsRow {
   owner: string;
   pvc?: string;
 }
-
-const ALL = "__all__";
 
 const isRunning = (phase?: string) =>
   phase === "Running" || phase === "Degraded" || phase === "Starting" || phase === "Creating" || phase === "Pending";
@@ -136,7 +138,7 @@ export default function Workspaces() {
       info:
         r.pvc != null ? (
           <label className="flex items-center gap-2">
-            <input type="checkbox" defaultChecked onChange={(e) => (deletePvc = e.target.checked)} />
+            <Checkbox defaultChecked onCheckedChange={(c) => (deletePvc = c === true)} />
             {t("workspaces.deletePvc", { size: r.pvc })}
           </label>
         ) : undefined,
@@ -225,54 +227,30 @@ export default function Workspaces() {
       }
     >
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <div className="relative max-w-xs flex-1">
-          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            className="pl-8"
-            placeholder={t("workspaces.searchPlaceholder")}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-        <Select value={phase || ALL} onValueChange={(v) => setPhase(v === ALL ? "" : v)}>
-          <SelectTrigger className="min-w-36">
-            <SelectValue placeholder={t("workspaces.statusAll")} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>{t("workspaces.statusAll")}</SelectItem>
-            {["Running", "Starting", "Stopped"].map((p) => (
-              <SelectItem key={p} value={p}>
-                {t(`phase.${p}`)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={pool || ALL} onValueChange={(v) => setPool(v === ALL ? "" : v)}>
-          <SelectTrigger className="min-w-36">
-            <SelectValue placeholder={t("workspaces.poolAll")} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>{t("workspaces.poolAll")}</SelectItem>
-            {poolOptions.map((o) => (
-              <SelectItem key={o} value={o}>
-                {o}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={creator || ALL} onValueChange={(v) => setCreator(v === ALL ? "" : v)}>
-          <SelectTrigger className="min-w-36">
-            <SelectValue placeholder={t("workspaces.creatorAll")} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>{t("workspaces.creatorAll")}</SelectItem>
-            {creatorOptions.map((o) => (
-              <SelectItem key={o} value={o}>
-                {o}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SearchInput
+          className="max-w-xs flex-1"
+          placeholder={t("workspaces.searchPlaceholder")}
+          value={search}
+          onChange={setSearch}
+        />
+        <FilterSelect
+          value={phase}
+          onChange={setPhase}
+          options={["Running", "Starting", "Stopped"].map((p) => ({ value: p, label: t(`phase.${p}`) }))}
+          allLabel={t("workspaces.statusAll")}
+        />
+        <FilterSelect
+          value={pool}
+          onChange={setPool}
+          options={poolOptions}
+          allLabel={t("workspaces.poolAll")}
+        />
+        <FilterSelect
+          value={creator}
+          onChange={setCreator}
+          options={creatorOptions}
+          allLabel={t("workspaces.creatorAll")}
+        />
         <Button
           variant="outline"
           onClick={() => {
@@ -380,45 +358,6 @@ function CardsView({
   );
 }
 
-// Tool brand marks (official colours), matching the prototype's `svg.brand`.
-function JupyterMark({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" className={className} aria-hidden focusable="false">
-      <path
-        fill="#F37726"
-        d="M7.157 22.201A1.784 1.784 0 0 1 5.374 24a1.784 1.784 0 0 1-1.784-1.799 1.784 1.784 0 0 1 1.784-1.799 1.784 1.784 0 0 1 1.783 1.799zM20.582 1.427a1.415 1.415 0 0 1-1.415 1.428 1.415 1.415 0 0 1-1.416-1.428A1.415 1.415 0 0 1 19.167 0a1.415 1.415 0 0 1 1.415 1.427zM4.992 3.336A1.781 1.781 0 0 1 3.21 5.135 1.781 1.781 0 0 1 1.427 3.336 1.781 1.781 0 0 1 3.21 1.537a1.781 1.781 0 0 1 1.782 1.799zM12 18.694c-3.945 0-7.394-1.417-9.191-3.506a9.799 9.799 0 0 0 18.382 0c-1.797 2.089-5.246 3.506-9.191 3.506zM12 5.306c3.945 0 7.394 1.417 9.191 3.506a9.799 9.799 0 0 0-18.382 0C4.606 6.723 8.055 5.306 12 5.306z"
-      />
-    </svg>
-  );
-}
-function VscodeMark({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" className={className} aria-hidden focusable="false">
-      <path
-        fill="#007ACC"
-        d="M23.15 2.587L18.21.21a1.494 1.494 0 0 0-1.705.29l-9.46 8.63-4.12-3.128a.999.999 0 0 0-1.276.057L.327 7.261A1 1 0 0 0 .326 8.74L3.899 12 .326 15.26a1 1 0 0 0 .001 1.479L1.65 17.94a.999.999 0 0 0 1.276.057l4.12-3.128 9.46 8.63a1.492 1.492 0 0 0 1.704.29l4.942-2.377A1.5 1.5 0 0 0 24 20.06V3.939a1.5 1.5 0 0 0-.85-1.352zm-5.146 14.861L10.826 12l7.178-5.448v10.896z"
-      />
-    </svg>
-  );
-}
-function PytorchMark({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" className={className} aria-hidden focusable="false">
-      <path
-        fill="#EE4C2C"
-        d="M12.005 0L4.952 7.053a9.865 9.865 0 0 0 0 13.945 9.866 9.866 0 0 0 13.946 0c3.515-3.515 3.515-9.21 0-12.724l-1.508 1.508c2.682 2.682 2.682 7.026 0 9.708a6.865 6.865 0 0 1-9.71 0 6.865 6.865 0 0 1 0-9.708l4.317-4.34.008.008V0zm3.291 4.388a1.184 1.184 0 1 0 0 2.368 1.184 1.184 0 0 0 0-2.368z"
-      />
-    </svg>
-  );
-}
-
-function wsBrand(image: string): "jupyter" | "vscode" | "pytorch" {
-  const s = (image || "").toLowerCase();
-  if (s.includes("vscode") || s.includes("code-server")) return "vscode";
-  if (s.includes("pytorch") || s.includes("torch")) return "pytorch";
-  return "jupyter";
-}
-
 function WsCard({
   row,
   onStart,
@@ -431,10 +370,10 @@ function WsCard({
   onDelete: (r: WsRow, descKey: "running" | "stopped" | "default") => void;
 }) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const running = row.phase === "Running" || row.phase === "Degraded";
   const stopped = isStopped(row.phase);
   const brand = wsBrand(row.image);
-  const Logo = brand === "vscode" ? VscodeMark : brand === "pytorch" ? PytorchMark : JupyterMark;
 
   // One launch-tool button (brand mark on the bottom-left action row).
   const launch = (key: string, title: string, mark: ReactNode) => (
@@ -455,10 +394,21 @@ function WsCard({
   );
 
   return (
-    <Card className="gap-0 p-4 transition-shadow hover:border-primary/30 hover:shadow-md">
+    <Card
+      role="link"
+      tabIndex={0}
+      onClick={() => navigate(`/workspaces/${row.name}`)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          navigate(`/workspaces/${row.name}`);
+        }
+      }}
+      className="cursor-pointer gap-0 p-4 transition-shadow hover:border-primary/30 hover:shadow-md focus-visible:border-primary/30 focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
+    >
       <div className="flex items-center gap-2.5">
         <div className="grid size-[38px] shrink-0 place-items-center rounded-[9px] border bg-muted">
-          <Logo className="size-[22px]" />
+          <WorkspaceMark brand={brand} className="size-[22px]" />
         </div>
         <div className="min-w-0 flex-1">
           <Link
@@ -487,13 +437,13 @@ function WsCard({
 
       <Separator className="mt-3.5 mb-2.5" />
 
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
         {stopped ? (
           <>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button variant="ghost" size="icon-sm" onClick={() => onStart(row.name)} aria-label={t("workspaces.start")}>
-                  <Play />
+                  <Play className="fill-current" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>{t("workspaces.start")}</TooltipContent>
@@ -512,7 +462,7 @@ function WsCard({
           <>
             {launch("jupyter", t("workspaces.openJupyter"), <JupyterMark className="size-[18px]" />)}
             {launch("vscode", t("workspaces.openVscode"), <VscodeMark className="size-[18px]" />)}
-            {launch("terminal", t("workspaces.openTerminal"), <SquareTerminal />)}
+            {launch("terminal", t("workspaces.openTerminal"), <Terminal />)}
             <div className="grow" />
             <Tooltip>
               <TooltipTrigger asChild>
@@ -540,39 +490,54 @@ function WsCard({
 }
 
 // ── Create drawer ─────────────────────────────────────────────────────────────
-const WS_IMAGES: { value: string; title: string; desc: string }[] = [
-  { value: "jupyter-ds:2024.3", title: "jupyter-ds:2024.3", desc: "Jupyter 开发环境 · 公共" },
-  { value: "pytorch:2.3-cu121", title: "pytorch:2.3-cu121", desc: "PyTorch 训练镜像" },
-  { value: "vscode-server:1.90", title: "vscode-server:1.90", desc: "VS Code 开发环境 · 公共" },
+const WS_IMAGES: { value: string; title: string; desc: string; icon: ReactNode }[] = [
+  {
+    value: "jupyter-ds:2024.3",
+    title: "jupyter-ds:2024.3",
+    desc: "Jupyter 开发环境 · 公共",
+    icon: <JupyterMark className="size-[22px]" />,
+  },
+  {
+    value: "pytorch:2.3-cu121",
+    title: "pytorch:2.3-cu121",
+    desc: "PyTorch 训练镜像",
+    icon: <PytorchMark className="size-[22px]" />,
+  },
+  {
+    value: "vscode-server:1.90",
+    title: "vscode-server:1.90",
+    desc: "VS Code 开发环境 · 公共",
+    icon: <VscodeMark className="size-[22px]" />,
+  },
+];
+const WS_POOLS: { value: string; label: string }[] = [
+  { value: "gpu-a100", label: "gpu-a100 · A100 训练池" },
+  { value: "gpu-l40s", label: "gpu-l40s · L40S 推理池" },
+  { value: "cpu-medium", label: "cpu-medium · 通用 CPU 池" },
+];
+const WS_VOLUMES: { value: string; label: string }[] = [
+  { value: "50Gi", label: "新建数据卷 · 50 GiB（standard-rwo）" },
+  { value: "100Gi", label: "新建数据卷 · 100 GiB（standard-rwo）" },
+  { value: "200Gi", label: "新建数据卷 · 200 GiB（fast-ssd）" },
+  { value: "1Ti", label: "新建数据卷 · 1 TiB（standard-rwo）" },
 ];
 const WS_UNITS: { value: string; pool: string; title: string; desc: string }[] = [
   { value: "cpu-medium", pool: "cpu-medium", title: "cpu-medium", desc: "8 vCPU · 32 GiB" },
   { value: "cpu-large", pool: "cpu-medium", title: "cpu-large", desc: "16 vCPU · 64 GiB" },
   { value: "a100-1x", pool: "gpu-a100", title: "a100-1x", desc: "1×A100 · 8 vCPU · 64 GiB" },
+  { value: "l40s-1x", pool: "gpu-l40s", title: "l40s-1x", desc: "1×L40S · 8 vCPU · 48 GiB" },
 ];
 
 interface WsFormValues {
   name: string;
   description: string;
   image: string;
+  poolName: string;
   unitName: string;
   containerPort: number;
   env: string;
-  volSize: string;
+  volume: string;
   mountPath: string;
-}
-
-function parseEnv(text: string): sdk.EnvVar[] {
-  return text
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean)
-    .map((l) => {
-      const eq = l.indexOf("=");
-      const name = (eq === -1 ? l : l.slice(0, eq)).trim();
-      return { name, value: eq === -1 ? "" : l.slice(eq + 1).trim() };
-    })
-    .filter((e) => e.name);
 }
 
 function WsDrawer({ onClose }: { onClose: () => void }) {
@@ -582,14 +547,23 @@ function WsDrawer({ onClose }: { onClose: () => void }) {
     name: "",
     description: "",
     image: WS_IMAGES[0].value,
+    poolName: WS_UNITS[0].pool,
     unitName: WS_UNITS[0].value,
     containerPort: 8888,
     env: "",
-    volSize: "50Gi",
+    volume: WS_VOLUMES[0].value,
     mountPath: "/workspace",
   });
   const set = <K extends keyof WsFormValues>(k: K, val: WsFormValues[K]) =>
     setV((prev) => ({ ...prev, [k]: val }));
+
+  // Pool drives which units are offered (the prototype scopes the unit grid to
+  // the selected pool); picking a pool resets the unit to the first match.
+  const unitsForPool = WS_UNITS.filter((u) => u.pool === v.poolName);
+  const onPoolChange = (poolName: string) => {
+    const first = WS_UNITS.find((u) => u.pool === poolName);
+    setV((prev) => ({ ...prev, poolName, unitName: first?.value ?? prev.unitName }));
+  };
 
   const create = useApiMutation((body: sdk.WorkspaceCreateRequest) => sdk.createWorkspace({ body }), {
     invalidate: [["workspaces"]],
@@ -599,143 +573,165 @@ function WsDrawer({ onClose }: { onClose: () => void }) {
   const submit = () => {
     setSubmitted(true);
     if (!v.name.trim()) return;
-    const unit = WS_UNITS.find((u) => u.value === v.unitName) ?? WS_UNITS[0];
+    const unit = unitsForPool.find((u) => u.value === v.unitName) ?? unitsForPool[0] ?? WS_UNITS[0];
     const envVars = parseEnv(v.env || "");
     const mountPath = v.mountPath?.trim();
     const body: sdk.WorkspaceCreateRequest = {
       name: v.name.trim(),
       image: v.image,
-      poolName: unit.pool,
+      poolName: v.poolName,
       unitName: unit.value,
       description: v.description?.trim() || undefined,
       containerPort: v.containerPort && v.containerPort > 0 ? v.containerPort : undefined,
       env: envVars.length ? envVars : undefined,
-      volumes: mountPath ? [{ mountPath, size: v.volSize?.trim() || undefined }] : undefined,
+      volumes: mountPath ? [{ mountPath, size: v.volume || undefined }] : undefined,
     };
     create.mutate(body, { onSuccess: onClose });
   };
 
   return (
-    <Sheet open onOpenChange={(o) => !o && onClose()}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[560px]">
-        <SheetHeader className="border-b">
-          <SheetTitle>{t("workspaces.drawerNew")}</SheetTitle>
-          <p className="text-xs text-muted-foreground">{t("workspaces.drawerNewSub")}</p>
-        </SheetHeader>
+    <FormDrawer
+      title={t("workspaces.drawerNew")}
+      onClose={onClose}
+      onSubmit={submit}
+      submitLabel={t("workspaces.createWorkspace")}
+      submitting={create.isPending}
+    >
+      <FieldSection n={1} title={t("workspaces.fsBasic")} />
+      <FieldGroup>
+        <Field>
+          <FieldLabel htmlFor="ws-name">
+            {t("workspaces.fName")}
+            <span className="text-destructive">*</span>
+          </FieldLabel>
+          <Input
+            id="ws-name"
+            className="font-mono"
+            placeholder={t("workspaces.fNamePlaceholder")}
+            value={v.name}
+            aria-invalid={submitted && !v.name.trim()}
+            onChange={(e) => set("name", e.target.value)}
+          />
+          <FieldDescription>{t("workspaces.fNameHelp")}</FieldDescription>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="ws-desc">{t("workspaces.fDesc")}</FieldLabel>
+          <Textarea
+            id="ws-desc"
+            rows={2}
+            placeholder={t("workspaces.fDescPlaceholder")}
+            value={v.description}
+            onChange={(e) => set("description", e.target.value)}
+          />
+        </Field>
+      </FieldGroup>
 
-        <div className="flex-1 overflow-auto px-6 py-4">
-          <FieldSection n={1} title={t("workspaces.fsBasic")} />
-          <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor="ws-name">
-                {t("workspaces.fName")}
-                <span className="text-destructive">*</span>
-              </FieldLabel>
-              <Input
-                id="ws-name"
-                className="font-mono"
-                placeholder={t("workspaces.fNamePlaceholder")}
-                value={v.name}
-                aria-invalid={submitted && !v.name.trim()}
-                onChange={(e) => set("name", e.target.value)}
-              />
-              <FieldDescription>{t("workspaces.fNameHelp")}</FieldDescription>
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="ws-desc">{t("workspaces.fDesc")}</FieldLabel>
-              <Textarea
-                id="ws-desc"
-                rows={2}
-                placeholder={t("workspaces.fDescPlaceholder")}
-                value={v.description}
-                onChange={(e) => set("description", e.target.value)}
-              />
-            </Field>
-          </FieldGroup>
+      <FieldSection n={2} title={t("workspaces.fsImage")} />
+      <FieldGroup>
+        <Field>
+          <FieldLabel>
+            {t("workspaces.fImage")}
+            <span className="text-destructive">*</span>
+          </FieldLabel>
+          <CardRadio columns={1} options={WS_IMAGES} value={v.image} onChange={(val) => set("image", val)} />
+        </Field>
+      </FieldGroup>
 
-          <FieldSection n={2} title={t("workspaces.fsImage")} />
-          <FieldGroup>
-            <Field>
-              <FieldLabel>{t("workspaces.fImage")}</FieldLabel>
-              <CardRadio options={WS_IMAGES} value={v.image} onChange={(val) => set("image", val)} />
-            </Field>
-          </FieldGroup>
+      <FieldSection n={3} title={t("workspaces.fsResource")} />
+      <FieldGroup>
+        <Field>
+          <FieldLabel htmlFor="ws-pool">
+            {t("workspaces.fPool")}
+            <span className="text-destructive">*</span>
+          </FieldLabel>
+          <Select value={v.poolName} onValueChange={onPoolChange}>
+            <SelectTrigger id="ws-pool" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {WS_POOLS.map((p) => (
+                <SelectItem key={p.value} value={p.value}>
+                  {p.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field>
+          <FieldLabel>
+            {t("workspaces.fUnit")}
+            <span className="text-destructive">*</span>
+          </FieldLabel>
+          <CardRadio options={unitsForPool} value={v.unitName} onChange={(val) => set("unitName", val)} />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="ws-port">{t("workspaces.fContainerPort")}</FieldLabel>
+          <Input
+            id="ws-port"
+            type="number"
+            min={1}
+            max={65535}
+            className="w-40 font-mono"
+            value={v.containerPort}
+            onChange={(e) => set("containerPort", Number(e.target.value))}
+          />
+          <FieldDescription>{t("workspaces.fPortHelp")}</FieldDescription>
+        </Field>
+      </FieldGroup>
 
-          <FieldSection n={3} title={t("workspaces.fsResource")} />
-          <FieldGroup>
-            <Field>
-              <FieldLabel>{t("workspaces.fUnit")}</FieldLabel>
-              <CardRadio options={WS_UNITS} value={v.unitName} onChange={(val) => set("unitName", val)} />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="ws-port">{t("workspaces.fContainerPort")}</FieldLabel>
-              <Input
-                id="ws-port"
-                type="number"
-                min={1}
-                max={65535}
-                className="w-40 font-mono"
-                value={v.containerPort}
-                onChange={(e) => set("containerPort", Number(e.target.value))}
-              />
-              <FieldDescription>{t("workspaces.fPortHelp")}</FieldDescription>
-            </Field>
-          </FieldGroup>
+      <FieldSection n={4} title={t("workspaces.fsEnv")} />
+      <FieldGroup>
+        <Field>
+          <FieldLabel htmlFor="ws-env">{t("workspaces.fEnv")}</FieldLabel>
+          <Textarea
+            id="ws-env"
+            rows={2}
+            className="font-mono"
+            placeholder={"HF_HOME=/data/hf\nCUDA_VISIBLE_DEVICES=0"}
+            value={v.env}
+            onChange={(e) => set("env", e.target.value)}
+          />
+          <FieldDescription>{t("workspaces.fEnvHelp")}</FieldDescription>
+        </Field>
+      </FieldGroup>
 
-          <FieldSection n={4} title={t("workspaces.fsEnv")} />
-          <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor="ws-env">{t("workspaces.fEnv")}</FieldLabel>
-              <Textarea
-                id="ws-env"
-                rows={2}
-                className="font-mono"
-                placeholder={"HF_HOME=/data/hf\nCUDA_VISIBLE_DEVICES=0"}
-                value={v.env}
-                onChange={(e) => set("env", e.target.value)}
-              />
-              <FieldDescription>{t("workspaces.fEnvHelp")}</FieldDescription>
-            </Field>
-          </FieldGroup>
-
-          <FieldSection n={5} title={t("workspaces.fsVolume")} />
-          <FieldGroup>
-            <div className="flex gap-3">
-              <Field className="w-40">
-                <FieldLabel htmlFor="ws-volsize">{t("workspaces.fVolSize")}</FieldLabel>
-                <Input
-                  id="ws-volsize"
-                  className="font-mono"
-                  placeholder="50Gi"
-                  value={v.volSize}
-                  onChange={(e) => set("volSize", e.target.value)}
-                />
-              </Field>
-              <Field className="flex-1">
-                <FieldLabel htmlFor="ws-mount">{t("workspaces.fMountPath")}</FieldLabel>
-                <Input
-                  id="ws-mount"
-                  className="font-mono"
-                  placeholder="/workspace"
-                  value={v.mountPath}
-                  onChange={(e) => set("mountPath", e.target.value)}
-                />
-                <FieldDescription>{t("workspaces.fVolSizeHelp")}</FieldDescription>
-              </Field>
-            </div>
-          </FieldGroup>
+      <FieldSection n={5} title={t("workspaces.fsVolume")} />
+      <FieldGroup>
+        <div className="flex gap-3">
+          <Field className="flex-1">
+            <FieldLabel htmlFor="ws-volume">
+              {t("workspaces.fVolume")}
+              <span className="text-destructive">*</span>
+            </FieldLabel>
+            <Select value={v.volume} onValueChange={(val) => set("volume", val)}>
+              <SelectTrigger id="ws-volume" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {WS_VOLUMES.map((vol) => (
+                  <SelectItem key={vol.value} value={vol.value}>
+                    {vol.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field className="w-56">
+            <FieldLabel htmlFor="ws-mount">
+              {t("workspaces.fMountPath")}
+              <span className="text-destructive">*</span>
+            </FieldLabel>
+            <Input
+              id="ws-mount"
+              className="font-mono"
+              placeholder="/workspace"
+              value={v.mountPath}
+              onChange={(e) => set("mountPath", e.target.value)}
+            />
+          </Field>
         </div>
-
-        <SheetFooter className="flex-row justify-end border-t">
-          <Button variant="outline" onClick={onClose}>
-            {t("common.cancel")}
-          </Button>
-          <Button onClick={submit} disabled={create.isPending}>
-            {create.isPending && <Spinner data-icon="inline-start" />}
-            {t("workspaces.createWorkspace")}
-          </Button>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+        <FieldDescription>{t("workspaces.fVolumeHelp")}</FieldDescription>
+      </FieldGroup>
+    </FormDrawer>
   );
 }

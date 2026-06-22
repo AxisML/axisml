@@ -1,12 +1,10 @@
 import { useMemo, useState } from "react";
 import {
   Plus,
-  Search,
   Trash2,
   CloudDownload,
   Copy,
   Container,
-  Tag,
   X,
   LayoutGrid,
   List as ListIcon,
@@ -20,6 +18,10 @@ import { useApp } from "@/app/store";
 import { useUI } from "@/app/ui";
 import { PageContainer } from "@/components/page-container";
 import { FieldSection } from "@/components/field-section";
+import { StatusDot } from "@/components/phase-tag";
+import { SearchInput } from "@/components/search-input";
+import { AssetCard } from "@/components/asset-card";
+import { CodeBlock } from "@/components/code-block";
 import { DataTable, type Column } from "@/components/data-table";
 import { USE_MOCK } from "@/api/mock";
 import { imageVersions } from "@/api/mock/data";
@@ -28,7 +30,6 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
@@ -39,17 +40,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Sheet,
-  SheetContent,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+import { FormDrawer } from "@/components/form-drawer";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Field, FieldLabel, FieldDescription, FieldGroup } from "@/components/ui/field";
+import { phaseTone } from "@/lib/phase";
 import { cn } from "@/lib/utils";
 
 interface ImageRow {
@@ -62,7 +58,7 @@ interface ImageRow {
 }
 
 type DrawerState =
-  | { kind: "versions"; image: string; desc: string }
+  | { kind: "versions"; image: string; desc: string; purpose: string }
   | { kind: "pull"; image: string; version: string; uri: string }
   | { kind: "new" }
   | { kind: "add"; image: string };
@@ -105,7 +101,8 @@ export default function Images() {
     );
   }, [allRows, search]);
 
-  const openVersions = (r: ImageRow) => setDrawer({ kind: "versions", image: r.name, desc: r.desc });
+  const openVersions = (r: ImageRow) =>
+    setDrawer({ kind: "versions", image: r.name, desc: r.desc, purpose: r.purpose });
 
   const onDeleteImage = (r: ImageRow) =>
     confirm({
@@ -189,15 +186,12 @@ export default function Images() {
       }
     >
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <div className="relative max-w-xs flex-1">
-          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            className="pl-8"
-            placeholder={t("images.searchPlaceholder")}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
+        <SearchInput
+          className="max-w-xs flex-1"
+          placeholder={t("images.searchPlaceholder")}
+          value={search}
+          onChange={setSearch}
+        />
         <div className="grow" />
         <ToggleGroup
           type="single"
@@ -244,53 +238,19 @@ export default function Images() {
           <>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
               {rows.map((r) => (
-                <Card
+                <AssetCard
                   key={r.name}
-                  className="cursor-pointer gap-0 p-4 transition-shadow hover:border-primary/30 hover:shadow-md"
-                  onClick={() => openVersions(r)}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <div className="grid size-[38px] shrink-0 place-items-center rounded-[9px] border bg-muted">
-                      <Container className="size-[20px] text-muted-foreground" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate font-mono text-sm font-semibold text-foreground">{r.name}</div>
-                      {r.desc && <div className="truncate text-xs text-muted-foreground">{r.desc}</div>}
-                    </div>
-                    <Badge variant="secondary">{r.purpose}</Badge>
-                  </div>
-                  <div className="mt-2.5 flex items-center gap-2 text-xs">
-                    <span className="inline-flex items-center gap-1.5 rounded-full border bg-muted px-2 py-0.5 font-mono text-[11.5px] text-foreground/80">
-                      <Tag className="size-3.5 text-muted-foreground" />
-                      {r.latest}
-                    </span>
-                    <span className="ml-auto text-muted-foreground">
-                      {r.updated ? dayjs(r.updated).fromNow() : "—"}
-                    </span>
-                  </div>
-                  <Separator className="mt-3.5 mb-2.5" />
-                  <div className="flex items-center text-xs text-muted-foreground">
-                    <span>{r.versions} {t("images.versionsSuffix")}</span>
-                    <div className="grow" />
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="text-destructive"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onDeleteImage(r);
-                          }}
-                          aria-label={t("common.delete")}
-                        >
-                          <Trash2 />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>{t("common.delete")}</TooltipContent>
-                    </Tooltip>
-                  </div>
-                </Card>
+                  icon={Container}
+                  name={r.name}
+                  desc={r.desc}
+                  badge={r.purpose}
+                  latest={r.latest}
+                  updated={r.updated ? dayjs(r.updated).fromNow() : "—"}
+                  versionsText={`${r.versions} ${t("images.versionsSuffix")}`}
+                  onOpen={() => openVersions(r)}
+                  onDelete={() => onDeleteImage(r)}
+                  deleteLabel={t("common.delete")}
+                />
               ))}
             </div>
             <div className="mt-4 text-sm text-muted-foreground">
@@ -314,6 +274,7 @@ export default function Images() {
         <VersionsDrawer
           image={drawer.image}
           desc={drawer.desc}
+          purpose={drawer.purpose}
           onClose={() => setDrawer(null)}
           onPull={(version, uri) => setDrawer({ kind: "pull", image: drawer.image, version, uri })}
           onAdd={() => setDrawer({ kind: "add", image: drawer.image })}
@@ -329,34 +290,17 @@ export default function Images() {
 }
 
 // ── Version list drawer ───────────────────────────────────────────────────────
-// Prototype renders version status as a dot + label `.status` indicator (see
-// PhaseTag) rather than a filled badge — tone drives the dot/text colour and
-// `pending` adds the breathing pulse used while a version is still pushing.
-function statusMeta(
-  status: sdk.ImageStatus,
-  t: (k: string) => string,
-): { dot: string; text: string; label: string; pending: boolean } {
-  switch (status) {
-    case "Ready":
-      return { dot: "bg-success", text: "text-foreground", label: t("images.statusReady"), pending: false };
-    case "Uploading":
-      return { dot: "bg-warning", text: "text-warning", label: t("images.statusUploading"), pending: true };
-    case "Failed":
-      return { dot: "bg-destructive", text: "text-destructive", label: t("images.statusFailed"), pending: false };
-    default:
-      return { dot: "bg-muted-foreground", text: "text-muted-foreground", label: status, pending: false };
-  }
-}
-
 function VersionsDrawer({
   image,
   desc,
+  purpose,
   onClose,
   onPull,
   onAdd,
 }: {
   image: string;
   desc: string;
+  purpose: string;
   onClose: () => void;
   onPull: (version: string, uri: string) => void;
   onAdd: () => void;
@@ -388,173 +332,149 @@ function VersionsDrawer({
     });
 
   return (
-    <Sheet open onOpenChange={(o) => !o && onClose()}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[560px]">
-        <SheetHeader className="border-b">
-          <SheetTitle className="font-mono">{image}</SheetTitle>
-          <p className="text-xs text-muted-foreground">{desc || t("images.verImage")}</p>
-        </SheetHeader>
+    <FormDrawer
+      title={image}
+      titleClassName="font-mono"
+      subtitle={
+        desc || (purpose && purpose !== "—") ? (
+          <span className="mt-1 flex flex-col gap-2">
+            {desc && <span>{desc}</span>}
+            {purpose && purpose !== "—" && (
+              <span>
+                <Badge variant="secondary">{purpose}</Badge>
+              </span>
+            )}
+          </span>
+        ) : undefined
+      }
+      onClose={onClose}
+      bodyClassName="flex flex-col"
+    >
+      <div className="mb-4 flex items-center gap-3">
+        <SearchInput
+          className="flex-1"
+          placeholder={t("images.verSearchPlaceholder")}
+          value={search}
+          onChange={setSearch}
+        />
+        <Button onClick={onAdd}>
+          <Plus data-icon="inline-start" />
+          {t("images.addVersion")}
+        </Button>
+      </div>
 
-        <div className="flex flex-1 flex-col overflow-auto px-6 py-4">
-          <div className="mb-4 flex items-center gap-3">
-            <div className="relative flex-1">
-              <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                className="pl-8"
-                placeholder={t("images.verSearchPlaceholder")}
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
-            <Button onClick={onAdd}>
-              <Plus data-icon="inline-start" />
-              {t("images.addVersion")}
-            </Button>
-          </div>
-
-          {versQ.isLoading ? (
-            <div className="grid place-items-center py-12">
-              <Spinner className="size-7 text-muted-foreground" />
-            </div>
-          ) : filtered.length === 0 ? (
-            <Empty className="border">
-              <EmptyHeader>
-                <EmptyTitle>{versQ.isError ? t("common.loadFailed") : t("common.noData")}</EmptyTitle>
-              </EmptyHeader>
-            </Empty>
-          ) : (
-            <div className="flex flex-col gap-3">
-              {filtered.map((v) => {
-                const meta = statusMeta(v.status, t);
-                return (
-                  <div
-                    key={v.version}
-                    className="rounded-lg border p-4 transition-colors hover:border-primary/30"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="font-mono text-[15px] font-semibold text-foreground">{v.version}</span>
-                      <span className={cn("inline-flex items-center gap-1.5 text-xs font-medium", meta.text)}>
-                        <span
-                          className={cn(
-                            "size-[7px] shrink-0 rounded-full",
-                            meta.dot,
-                            meta.pending && "status-pulse",
-                          )}
-                        />
-                        {meta.label}
-                      </span>
-                      {v.source && <Badge variant="outline">{v.source}</Badge>}
-                      {!meta.pending && (
-                        <div className="ml-auto flex items-center gap-0.5">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                onClick={() => onPull(v.version, v.uri ?? "")}
-                              >
-                                <CloudDownload />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>{t("images.pullTitle")}</TooltipContent>
-                          </Tooltip>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                className="text-destructive"
-                                onClick={() => onDeleteVer(v.version)}
-                              >
-                                <Trash2 />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>{t("common.delete")}</TooltipContent>
-                          </Tooltip>
-                        </div>
-                      )}
-                    </div>
-                    {v.description && (
-                      <div className="mt-2 text-sm text-muted-foreground">{v.description}</div>
-                    )}
-                    <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-                      <span className={cn("font-mono break-all", meta.pending ? "" : "text-foreground")}>
-                        {v.uri ?? t("images.addrPending")}
-                      </span>
-                      {v.uri && (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon-xs"
-                              onClick={() => {
-                                void navigator.clipboard?.writeText(v.uri ?? "");
-                                toast(t("images.addrCopied"));
-                              }}
-                            >
-                              <Copy />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>{t("common.actions")}</TooltipContent>
-                        </Tooltip>
-                      )}
-                      {(v.owner || v.createdAt) && (
-                        <span className="ml-auto whitespace-nowrap pl-3">
-                          {[v.owner, v.createdAt && dayjs(v.createdAt).fromNow()]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+      {versQ.isLoading ? (
+        <div className="grid place-items-center py-12">
+          <Spinner className="size-7 text-muted-foreground" />
         </div>
-      </SheetContent>
-    </Sheet>
+      ) : filtered.length === 0 ? (
+        <Empty className="border">
+          <EmptyHeader>
+            <EmptyTitle>{versQ.isError ? t("common.loadFailed") : t("common.noData")}</EmptyTitle>
+          </EmptyHeader>
+        </Empty>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {filtered.map((v) => {
+            const pending = v.status === "Uploading";
+            return (
+              <div
+                key={v.version}
+                className="rounded-lg border p-4 transition-colors hover:border-primary/30"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="font-mono text-[15px] font-semibold text-foreground">{v.version}</span>
+                  <StatusDot tone={phaseTone(v.status)} pulse={pending}>
+                    {t(`images.status${v.status}`, { defaultValue: v.status })}
+                  </StatusDot>
+                  {v.source && <Badge variant="outline">{v.source}</Badge>}
+                  {!pending && (
+                    <div className="ml-auto flex items-center gap-0.5">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={() => onPull(v.version, v.uri ?? "")}
+                          >
+                            <CloudDownload />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>{t("images.pullTitle")}</TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            className="text-destructive"
+                            onClick={() => onDeleteVer(v.version)}
+                          >
+                            <Trash2 />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>{t("common.delete")}</TooltipContent>
+                      </Tooltip>
+                    </div>
+                  )}
+                </div>
+                {v.description && (
+                  <div className="mt-2 text-sm text-muted-foreground">{v.description}</div>
+                )}
+                <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                  <span className={cn("font-mono break-all", pending ? "" : "text-foreground")}>
+                    {v.uri ?? t("images.addrPending")}
+                  </span>
+                  {v.uri && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          onClick={() => {
+                            void navigator.clipboard?.writeText(v.uri ?? "");
+                            toast(t("images.addrCopied"));
+                          }}
+                        >
+                          <Copy />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>{t("common.actions")}</TooltipContent>
+                    </Tooltip>
+                  )}
+                  {(v.owner || v.createdAt) && (
+                    <span className="ml-auto whitespace-nowrap pl-3">
+                      {[v.owner, v.createdAt && dayjs(v.createdAt).fromNow()]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </FormDrawer>
   );
 }
 
 // ── Pull-command drawer ───────────────────────────────────────────────────────
 function PullDrawer({ image, version, uri, onClose }: { image: string; version: string; uri: string; onClose: () => void }) {
   const { t } = useTranslation();
-  const { toast } = useUI();
   const ref = uri || `zot.axisml.internal/<tenant>/${image}:${version}`;
   const cmd = `docker login zot.axisml.internal -u <user> -p <token>\ndocker pull ${ref}`;
 
   return (
-    <Sheet open onOpenChange={(o) => !o && onClose()}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[520px]">
-        <SheetHeader className="border-b">
-          <SheetTitle>{t("images.pullTitle")}</SheetTitle>
-          <p className="font-mono text-xs text-muted-foreground">{`${image}:${version}`}</p>
-        </SheetHeader>
-
-        <div className="flex-1 overflow-auto px-6 py-4">
-          <p className="mb-3 text-sm text-muted-foreground">{t("images.pullHint")}</p>
-          <pre className="overflow-x-auto rounded-md border bg-muted p-3 font-mono text-xs text-foreground">
-            {cmd}
-          </pre>
-          <Button
-            variant="outline"
-            className="mt-3"
-            onClick={() => {
-              void navigator.clipboard?.writeText(cmd);
-              toast(t("images.commandCopied"));
-            }}
-          >
-            <Copy data-icon="inline-start" />
-            {t("images.copyCommand")}
-          </Button>
-        </div>
-
-        <SheetFooter className="flex-row justify-end border-t">
-          <Button onClick={onClose}>{t("images.done")}</Button>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+    <FormDrawer
+      title={t("images.pullTitle")}
+      subtitle={<span className="font-mono">{`${image}:${version}`}</span>}
+      onClose={onClose}
+      footer={<Button onClick={onClose}>{t("images.done")}</Button>}
+    >
+      <p className="mb-3 text-sm text-muted-foreground">{t("images.pullHint")}</p>
+      <CodeBlock copy={cmd}>{cmd}</CodeBlock>
+    </FormDrawer>
   );
 }
 
@@ -618,110 +538,97 @@ function NewImageDrawer({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <Sheet open onOpenChange={(o) => !o && onClose()}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[560px]">
-        <SheetHeader className="border-b">
-          <SheetTitle>{t("images.newImageTitle")}</SheetTitle>
-          <p className="text-xs text-muted-foreground">{t("images.newImageSub")}</p>
-        </SheetHeader>
+    <FormDrawer
+      title={t("images.newImageTitle")}
+      onClose={onClose}
+      onSubmit={submit}
+      submitLabel={t("images.createImage")}
+      submitting={create.isPending}
+    >
+      <FieldSection n={1} title={t("images.fsBasic")} />
+      <FieldGroup>
+        <Field>
+          <FieldLabel htmlFor="image-name">
+            {t("images.fName")}
+            <span className="text-destructive">*</span>
+          </FieldLabel>
+          <Input
+            id="image-name"
+            className="font-mono"
+            placeholder={t("images.fNamePlaceholder")}
+            value={v.name}
+            aria-invalid={submitted && !v.name.trim()}
+            onChange={(e) => set("name", e.target.value)}
+          />
+          <FieldDescription>{t("images.fNameHelp")}</FieldDescription>
+        </Field>
+        <Field>
+          <FieldLabel>{t("images.fPurpose")}</FieldLabel>
+          <Select value={v.purpose} onValueChange={(val) => set("purpose", val)}>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PURPOSE_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="image-desc">{t("images.fDesc")}</FieldLabel>
+          <Textarea
+            id="image-desc"
+            rows={2}
+            placeholder={t("images.fDescPlaceholder")}
+            value={v.description}
+            onChange={(e) => set("description", e.target.value)}
+          />
+        </Field>
+      </FieldGroup>
 
-        <div className="flex-1 overflow-auto px-6 py-4">
-          <FieldSection n={1} title={t("images.fsBasic")} />
-          <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor="image-name">
-                {t("images.fName")}
-                <span className="text-destructive">*</span>
-              </FieldLabel>
-              <Input
-                id="image-name"
-                className="font-mono"
-                placeholder={t("images.fNamePlaceholder")}
-                value={v.name}
-                aria-invalid={submitted && !v.name.trim()}
-                onChange={(e) => set("name", e.target.value)}
-              />
-              <FieldDescription>{t("images.fNameHelp")}</FieldDescription>
-            </Field>
-            <Field>
-              <FieldLabel>{t("images.fPurpose")}</FieldLabel>
-              <Select value={v.purpose} onValueChange={(val) => set("purpose", val)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PURPOSE_OPTIONS.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>
-                      {o.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="image-desc">{t("images.fDesc")}</FieldLabel>
-              <Textarea
-                id="image-desc"
-                rows={2}
-                placeholder={t("images.fDescPlaceholder")}
-                value={v.description}
-                onChange={(e) => set("description", e.target.value)}
-              />
-            </Field>
-          </FieldGroup>
-
-          <FieldSection n={2} title={t("images.fsLabels")} />
-          <FieldGroup>
-            <Field>
-              <FieldLabel>{t("images.lCustom")}</FieldLabel>
-              {Object.keys(customTags).length > 0 && (
-                <div className="mb-2 flex flex-wrap gap-2">
-                  {Object.entries(customTags).map(([k, val]) => (
-                    <Badge key={k} variant="outline" className="gap-1 pr-1 font-mono">
-                      {k}:{val}
-                      <button
-                        type="button"
-                        className="grid size-3.5 place-items-center rounded-sm hover:bg-muted"
-                        onClick={() => removeTag(k)}
-                      >
-                        <X className="size-3" />
-                      </button>
-                    </Badge>
-                  ))}
-                </div>
-              )}
-              <div className="flex items-center gap-2">
-                <Input
-                  className="font-mono"
-                  placeholder={t("images.customKeyPlaceholder")}
-                  value={ctKey}
-                  onChange={(e) => setCtKey(e.target.value)}
-                />
-                <Input
-                  className="font-mono"
-                  placeholder={t("images.customValPlaceholder")}
-                  value={ctVal}
-                  onChange={(e) => setCtVal(e.target.value)}
-                />
-                <Button variant="outline" onClick={addTag}>
-                  {t("images.add")}
-                </Button>
-              </div>
-            </Field>
-          </FieldGroup>
-        </div>
-
-        <SheetFooter className="flex-row justify-end border-t">
-          <Button variant="outline" onClick={onClose}>
-            {t("common.cancel")}
-          </Button>
-          <Button onClick={submit} disabled={create.isPending}>
-            {create.isPending && <Spinner data-icon="inline-start" />}
-            {t("images.createImage")}
-          </Button>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+      <FieldSection n={2} title={t("images.fsLabels")} />
+      <FieldGroup>
+        <Field>
+          <FieldLabel>{t("images.lCustom")}</FieldLabel>
+          {Object.keys(customTags).length > 0 && (
+            <div className="mb-2 flex flex-wrap gap-2">
+              {Object.entries(customTags).map(([k, val]) => (
+                <Badge key={k} variant="outline" className="gap-1 pr-1 font-mono">
+                  {k}:{val}
+                  <button
+                    type="button"
+                    className="grid size-3.5 place-items-center rounded-sm hover:bg-muted"
+                    onClick={() => removeTag(k)}
+                  >
+                    <X className="size-3" />
+                  </button>
+                </Badge>
+              ))}
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <Input
+              className="font-mono"
+              placeholder={t("images.customKeyPlaceholder")}
+              value={ctKey}
+              onChange={(e) => setCtKey(e.target.value)}
+            />
+            <Input
+              className="font-mono"
+              placeholder={t("images.customValPlaceholder")}
+              value={ctVal}
+              onChange={(e) => setCtVal(e.target.value)}
+            />
+            <Button variant="outline" onClick={addTag}>
+              {t("images.add")}
+            </Button>
+          </div>
+        </Field>
+      </FieldGroup>
+    </FormDrawer>
   );
 }
 
@@ -735,7 +642,6 @@ interface AddVersionValues {
 function AddVersionDrawer({ image, onClose }: { image: string; onClose: () => void }) {
   const { t } = useTranslation();
   const { tenant } = useApp();
-  const { toast } = useUI();
   const [submitted, setSubmitted] = useState(false);
   const [method, setMethod] = useState<"external" | "dockerPush">("external");
   const [v, setV] = useState<AddVersionValues>({ version: "", description: "", sourceImageRef: "" });
@@ -770,110 +676,90 @@ function AddVersionDrawer({ image, onClose }: { image: string; onClose: () => vo
   };
 
   return (
-    <Sheet open onOpenChange={(o) => !o && onClose()}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[560px]">
-        <SheetHeader className="border-b">
-          <SheetTitle>{t("images.addVerTitle")}</SheetTitle>
-          <p className="text-xs text-muted-foreground">{t("images.addVerSub")}</p>
-        </SheetHeader>
+    <FormDrawer
+      title={t("images.addVerTitle")}
+      onClose={onClose}
+      onSubmit={submit}
+      submitLabel={t("images.submit")}
+      submitting={initiate.isPending}
+    >
+      <FieldSection n={1} title={t("images.fsBasic")} />
+      <FieldGroup>
+        <Field>
+          <FieldLabel>{t("images.fImage")}</FieldLabel>
+          <Input className="font-mono" value={image} disabled />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="addver-version">
+            {t("images.fVersion")}
+            <span className="text-destructive">*</span>
+          </FieldLabel>
+          <Input
+            id="addver-version"
+            className="font-mono"
+            placeholder={t("images.fVersionPlaceholder")}
+            value={v.version}
+            aria-invalid={submitted && !v.version.trim()}
+            onChange={(e) => set("version", e.target.value)}
+          />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="addver-desc">{t("images.fDesc")}</FieldLabel>
+          <Textarea
+            id="addver-desc"
+            rows={2}
+            placeholder={t("images.fAddVerDescPlaceholder")}
+            value={v.description}
+            onChange={(e) => set("description", e.target.value)}
+          />
+        </Field>
+      </FieldGroup>
 
-        <div className="flex-1 overflow-auto px-6 py-4">
-          <FieldSection n={1} title={t("images.fsBasic")} />
+      <FieldSection n={2} title={t("images.fsMethod")} />
+      <Tabs value={method} onValueChange={(k) => setMethod(k as "external" | "dockerPush")}>
+        <TabsList>
+          <TabsTrigger value="external">{t("images.methodExternal")}</TabsTrigger>
+          <TabsTrigger value="dockerPush">{t("images.methodDocker")}</TabsTrigger>
+        </TabsList>
+        <TabsContent value="external" className="flex flex-col gap-4 pt-4">
+          <p className="text-sm text-muted-foreground">{t("images.externalHelp")}</p>
           <FieldGroup>
             <Field>
-              <FieldLabel>{t("images.fImage")}</FieldLabel>
-              <Input className="font-mono" value={image} disabled />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="addver-version">
-                {t("images.fVersion")}
-                <span className="text-destructive">*</span>
-              </FieldLabel>
+              <FieldLabel htmlFor="source-ref">{t("images.fSourceRef")}</FieldLabel>
               <Input
-                id="addver-version"
+                id="source-ref"
                 className="font-mono"
-                placeholder={t("images.fVersionPlaceholder")}
-                value={v.version}
-                aria-invalid={submitted && !v.version.trim()}
-                onChange={(e) => set("version", e.target.value)}
+                placeholder={t("images.sourceRefPlaceholder")}
+                value={v.sourceImageRef}
+                aria-invalid={submitted && method === "external" && !v.sourceImageRef.trim()}
+                onChange={(e) => set("sourceImageRef", e.target.value)}
               />
             </Field>
             <Field>
-              <FieldLabel htmlFor="addver-desc">{t("images.fDesc")}</FieldLabel>
-              <Textarea
-                id="addver-desc"
-                rows={2}
-                placeholder={t("images.fAddVerDescPlaceholder")}
-                value={v.description}
-                onChange={(e) => set("description", e.target.value)}
-              />
+              <FieldLabel>{t("images.fPullCred")}</FieldLabel>
+              <Select defaultValue="public">
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="public">{t("images.credPublic")}</SelectItem>
+                  <SelectItem value="ngc">{t("images.credNgc")}</SelectItem>
+                  <SelectItem value="harbor">{t("images.credHarbor")}</SelectItem>
+                  <SelectItem value="new">{t("images.credNew")}</SelectItem>
+                </SelectContent>
+              </Select>
             </Field>
           </FieldGroup>
-
-          <FieldSection n={2} title={t("images.fsMethod")} />
-          <Tabs value={method} onValueChange={(k) => setMethod(k as "external" | "dockerPush")}>
-            <TabsList>
-              <TabsTrigger value="external">{t("images.methodExternal")}</TabsTrigger>
-              <TabsTrigger value="dockerPush">{t("images.methodDocker")}</TabsTrigger>
-            </TabsList>
-            <TabsContent value="external" className="flex flex-col gap-4 pt-4">
-              <p className="text-sm text-muted-foreground">{t("images.externalHelp")}</p>
-              <FieldGroup>
-                <Field>
-                  <FieldLabel htmlFor="source-ref">{t("images.fSourceRef")}</FieldLabel>
-                  <Input
-                    id="source-ref"
-                    className="font-mono"
-                    placeholder={t("images.sourceRefPlaceholder")}
-                    value={v.sourceImageRef}
-                    aria-invalid={submitted && method === "external" && !v.sourceImageRef.trim()}
-                    onChange={(e) => set("sourceImageRef", e.target.value)}
-                  />
-                </Field>
-                <Field>
-                  <FieldLabel>{t("images.fPullCred")}</FieldLabel>
-                  <Select defaultValue="public">
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="public">{t("images.credPublic")}</SelectItem>
-                      <SelectItem value="ngc">{t("images.credNgc")}</SelectItem>
-                      <SelectItem value="harbor">{t("images.credHarbor")}</SelectItem>
-                      <SelectItem value="new">{t("images.credNew")}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </Field>
-              </FieldGroup>
-            </TabsContent>
-            <TabsContent value="dockerPush" className="pt-4">
-              <DockerGuide
-                image={image}
-                tenant={tenant}
-                onCopy={(text) => {
-                  void navigator.clipboard?.writeText(text);
-                  toast(t("images.commandCopied"));
-                }}
-              />
-            </TabsContent>
-          </Tabs>
-        </div>
-
-        <SheetFooter className="flex-row justify-end border-t">
-          <Button variant="outline" onClick={onClose}>
-            {t("common.cancel")}
-          </Button>
-          <Button onClick={submit} disabled={initiate.isPending}>
-            {initiate.isPending && <Spinner data-icon="inline-start" />}
-            {t("images.submit")}
-          </Button>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+        </TabsContent>
+        <TabsContent value="dockerPush" className="pt-4">
+          <DockerGuide image={image} tenant={tenant} />
+        </TabsContent>
+      </Tabs>
+    </FormDrawer>
   );
 }
 
-function DockerGuide({ image, tenant, onCopy }: { image: string; tenant: string; onCopy: (text: string) => void }) {
+function DockerGuide({ image, tenant }: { image: string; tenant: string }) {
   const { t } = useTranslation();
   const login = `# 临时凭证有效期 1h
 docker login zot.axisml.internal -u <user> -p <token>`;
@@ -887,19 +773,11 @@ docker push zot.axisml.internal/${tenant}/${image}:<tag>`;
       <p className="text-sm text-muted-foreground">{t("images.dockerHelp")}</p>
       <div>
         <div className="mb-1 text-sm font-semibold text-foreground">{t("images.dockerStep1")}</div>
-        <pre className="overflow-x-auto rounded-md border bg-muted p-3 font-mono text-xs text-foreground">{login}</pre>
-        <Button variant="outline" size="sm" className="mt-2" onClick={() => onCopy(login)}>
-          <Copy data-icon="inline-start" />
-          {t("images.copyCommand")}
-        </Button>
+        <CodeBlock copy={login}>{login}</CodeBlock>
       </div>
       <div>
         <div className="mb-1 text-sm font-semibold text-foreground">{t("images.dockerStep2")}</div>
-        <pre className="overflow-x-auto rounded-md border bg-muted p-3 font-mono text-xs text-foreground">{push}</pre>
-        <Button variant="outline" size="sm" className="mt-2" onClick={() => onCopy(push)}>
-          <Copy data-icon="inline-start" />
-          {t("images.copyCommand")}
-        </Button>
+        <CodeBlock copy={push}>{push}</CodeBlock>
       </div>
     </div>
   );

@@ -1,21 +1,27 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
-import { ArrowLeft, Play, Search, Trash2, LineChart } from "lucide-react";
+import { Play, Trash2, LineChart } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import dayjs from "dayjs";
 import * as sdk from "@/api/generated";
 import { useApp } from "@/app/store";
 import { useApiMutation } from "@/api/mutations";
 import { useUI } from "@/app/ui";
 import { PageContainer } from "@/components/page-container";
 import { PhaseTag } from "@/components/phase-tag";
+import { BackLink } from "@/components/back-link";
 import { DataTable, type Column } from "@/components/data-table";
+import { SearchInput } from "@/components/search-input";
+import { FilterSelect } from "@/components/filter-select";
+import { MonoChip } from "@/components/mono-chip";
+import { ExpDrawer } from "@/components/exp-drawer";
+import { CodeBlock } from "@/components/code-block";
+import { Descriptions, Desc } from "@/components/descriptions";
+import { PageLoading, DetailError } from "@/components/page-state";
+import { fmtRange, fmtDateTime } from "@/lib/format";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Spinner } from "@/components/ui/spinner";
 import {
   Tabs,
   TabsContent,
@@ -27,37 +33,18 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 // Experiments are specialized training Jobs (Job→Run model); this detail page
 // mirrors JobDetail — an "experiment info" pane plus a runs table. Both the
 // definition and its Runs come from the live API, scoped to the active tenant.
 const ACTIVE_RUN_PHASES: sdk.RunPhase[] = ["Creating", "Pending", "Running", "Canceling"];
-const ALL = "__all__";
-
-function fmtDuration(start?: string | null, end?: string | null): string {
-  if (!start) return "—";
-  const from = dayjs(start);
-  const to = end ? dayjs(end) : dayjs();
-  const secs = Math.max(0, to.diff(from, "second"));
-  const h = Math.floor(secs / 3600);
-  const m = Math.floor((secs % 3600) / 60);
-  const s = secs % 60;
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${pad(h)}:${pad(m)}:${pad(s)}`;
-}
 
 export default function ExperimentDetail() {
   const { name = "" } = useParams<{ name: string }>();
   const { tenant } = useApp();
   const { t } = useTranslation();
   const { confirm } = useUI();
+  const [editing, setEditing] = useState(false);
 
   const expQ = useQuery({
     queryKey: ["experiments", tenant, name],
@@ -88,18 +75,16 @@ export default function ExperimentDetail() {
     success: t("experiments.runTriggered"),
   });
 
+  const backLink = <BackLink to="/experiments">{t("experiments.backToList")}</BackLink>;
+
   if (expQ.isError) {
     return (
       <PageContainer
         breadcrumb={[t("nav.trainingCenter"), t("nav.experiments"), name]}
         title={<span className="font-mono">{name}</span>}
+        subtitle={backLink}
       >
-        <div className="grid place-items-center gap-4 py-24 text-center">
-          <p className="text-destructive">{t("common.loadFailed")}</p>
-          <Button variant="outline" asChild>
-            <Link to="/experiments">{t("experiments.backToList")}</Link>
-          </Button>
-        </div>
+        <DetailError message={t("common.loadFailed")} />
       </PageContainer>
     );
   }
@@ -109,10 +94,9 @@ export default function ExperimentDetail() {
       <PageContainer
         breadcrumb={[t("nav.trainingCenter"), t("nav.experiments"), name]}
         title={<span className="font-mono">{name}</span>}
+        subtitle={backLink}
       >
-        <div className="grid place-items-center py-24">
-          <Spinner className="size-7 text-muted-foreground" />
-        </div>
+        <PageLoading />
       </PageContainer>
     );
   }
@@ -140,26 +124,13 @@ export default function ExperimentDetail() {
     <PageContainer
       breadcrumb={[t("nav.trainingCenter"), t("nav.experiments"), name]}
       title={<span className="font-mono">{name}</span>}
-      subtitle={
-        <span>
-          {exp.description || exp.displayName || "—"}
-          <span className="ml-2 text-muted-foreground">
-            · {t("experiments.headRunsSummary", { count: runCount, owner: exp.owner ?? "—" })}
-          </span>
-        </span>
-      }
+      subtitle={backLink}
       extra={
         <div className="flex items-center gap-2">
-          <Button variant="outline" asChild>
-            <Link to="/experiments">
-              <ArrowLeft data-icon="inline-start" />
-              {t("experiments.backToList")}
-            </Link>
-          </Button>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="outline" size="icon">
-                <LineChart className="text-warning" />
+                <LineChart />
               </Button>
             </TooltipTrigger>
             <TooltipContent>{t("experiments.tensorboard")}</TooltipContent>
@@ -186,79 +157,98 @@ export default function ExperimentDetail() {
           </TabsTrigger>
         </TabsList>
         <TabsContent value="info" className="mt-4">
-          <InfoPane exp={exp} />
+          <InfoPane exp={exp} onEdit={() => setEditing(true)} />
         </TabsContent>
         <TabsContent value="runs" className="mt-4">
           <RunsPane name={name} q={runsQ} />
         </TabsContent>
       </Tabs>
+
+      {editing && <ExpDrawer mode="edit" name={name} onClose={() => setEditing(false)} />}
     </PageContainer>
   );
 }
 
 function chip(text?: string | null) {
   if (!text) return <span className="text-muted-foreground">—</span>;
-  return <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-sm">{text}</span>;
+  return <MonoChip>{text}</MonoChip>;
 }
 
-function Row({ label, children }: { label: ReactNode; children: ReactNode }) {
-  return (
-    <>
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="min-w-0">{children}</dd>
-    </>
-  );
+interface VolumeMount {
+  name?: string;
+  mountPath?: string;
 }
 
-function InfoPane({ exp }: { exp: sdk.Experiment }) {
+function InfoPane({ exp, onEdit }: { exp: sdk.Experiment; onEdit: () => void }) {
   const { t } = useTranslation();
   const role = exp.spec.roles?.[0];
   const tpl = role?.template;
   const command = tpl?.command ?? [];
   const env = tpl?.env ?? [];
+  const mounts = (tpl?.volumeMounts ?? []) as VolumeMount[];
   const policy = exp.spec.runPolicy;
   const timeout = policy?.activeDeadlineSeconds != null ? `${policy.activeDeadlineSeconds}s` : "—";
   const retries = policy?.backoffLimit != null ? String(policy.backoffLimit) : "—";
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="border-b">
         <CardTitle>{t("experiments.infoTitle")}</CardTitle>
+        <CardAction>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="outline" size="sm" onClick={onEdit}>
+                {t("experiments.edit")}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t("experiments.editHint")}</TooltipContent>
+          </Tooltip>
+        </CardAction>
       </CardHeader>
       <CardContent>
-        <dl className="grid grid-cols-[120px_1fr] gap-x-4 gap-y-2.5 text-sm">
-          <Row label={t("experiments.diName")}>{chip(exp.name)}</Row>
-          <Row label={t("experiments.diDesc")}>{exp.description || "—"}</Row>
-          <Row label={t("experiments.diImage")}>{chip(tpl?.image)}</Row>
-          <Row label={t("experiments.diPool")}>{chip(exp.spec.poolName)}</Row>
-          <Row label={t("experiments.diUnit")}>{chip(exp.spec.unitName)}</Row>
-          <Row label={t("experiments.diReplicas")}>
+        <Descriptions columns="single">
+          <Desc label={t("experiments.diName")}>{chip(exp.name)}</Desc>
+          <Desc label={t("experiments.diDesc")}>{exp.description || "—"}</Desc>
+          <Desc label={t("experiments.diImage")}>{chip(tpl?.image)}</Desc>
+          <Desc label={t("experiments.diPool")}>{chip(exp.spec.poolName)}</Desc>
+          <Desc label={t("experiments.diUnit")}>{chip(exp.spec.unitName)}</Desc>
+          <Desc label={t("experiments.diReplicas")}>
             <span className="font-mono">{role?.replicas ?? "—"}</span>
-          </Row>
-          <Row label={t("experiments.diRunPolicy")}>
+          </Desc>
+          <Desc label={t("experiments.diVolume")}>
+            {mounts.length ? (
+              <div className="flex flex-wrap gap-2">
+                {mounts.map((m, i) => (
+                  <MonoChip key={i}>
+                    {m.name}
+                    {m.mountPath ? ` → ${m.mountPath}` : ""}
+                  </MonoChip>
+                ))}
+              </div>
+            ) : (
+              <span className="text-muted-foreground">—</span>
+            )}
+          </Desc>
+          <Desc label={t("experiments.diRunPolicy")}>
             {t("experiments.runPolicyValue", { timeout, retries })}
-          </Row>
-          <Row label={t("experiments.diCreator")}>
+          </Desc>
+          <Desc label={t("experiments.diCreator")}>
             {exp.owner}
-            <span className="ml-2 font-mono text-muted-foreground">
-              {exp.createdAt ? dayjs(exp.createdAt).format("YYYY-MM-DD") : ""}
-            </span>
-          </Row>
-        </dl>
+            <span className="ml-2 font-mono text-muted-foreground">{fmtDateTime(exp.createdAt)}</span>
+          </Desc>
+        </Descriptions>
 
         <div className="mt-6 border-t pt-5">
           <div className="mb-1.5 text-xs text-muted-foreground">{t("experiments.diCommand")}</div>
-          <pre className="m-0 mb-4 overflow-auto rounded-md bg-foreground p-4 font-mono text-xs leading-relaxed text-background">
-            {command.length ? command.join(" ") : "—"}
-          </pre>
+          <CodeBlock className="mb-4">{command.length ? command.join(" ") : "—"}</CodeBlock>
           <div className="mb-2 text-xs text-muted-foreground">{t("experiments.diEnv")}</div>
           <div className="flex flex-wrap gap-2">
             {env.length ? (
               env.map((e) => (
-                <span key={e.name} className="rounded bg-muted px-1.5 py-0.5 font-mono text-sm">
+                <MonoChip key={e.name}>
                   {e.name}
                   {e.value != null && e.value !== "" ? `=${e.value}` : ""}
-                </span>
+                </MonoChip>
               ))
             ) : (
               <span className="text-muted-foreground">—</span>
@@ -303,7 +293,7 @@ function RunsPane({ name, q }: { name: string; q: UseQueryResult<sdk.RunList> })
         unit: r.unitName ?? "—",
         replicas: r.roles?.[0]?.replicas ?? r.spec?.roles?.[0]?.replicas ?? 0,
         owner: r.owner ?? "—",
-        duration: fmtDuration(r.startedAt, r.finishedAt),
+        duration: fmtRange(r.startedAt, r.finishedAt),
       })) ?? [],
     [q.data],
   );
@@ -409,41 +399,24 @@ function RunsPane({ name, q }: { name: string; q: UseQueryResult<sdk.RunList> })
   return (
     <Card className="overflow-hidden p-0">
       <div className="flex flex-wrap items-center gap-3 border-b p-4">
-        <div className="relative max-w-xs flex-1">
-          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            className="pl-8"
-            placeholder={t("experiments.runsSearchPlaceholder")}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-        <Select value={phase || ALL} onValueChange={(v) => setPhase(v === ALL ? "" : v)}>
-          <SelectTrigger className="min-w-40">
-            <SelectValue placeholder={t("experiments.runStatusAll")} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>{t("experiments.runStatusAll")}</SelectItem>
-            {phaseOptions.map((p) => (
-              <SelectItem key={p} value={p}>
-                <PhaseTag phase={p} />
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={trigger || ALL} onValueChange={(v) => setTrigger(v === ALL ? "" : v)}>
-          <SelectTrigger className="min-w-40">
-            <SelectValue placeholder={t("experiments.runTriggerAll")} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>{t("experiments.runTriggerAll")}</SelectItem>
-            {triggerOptions.map((o) => (
-              <SelectItem key={o} value={o}>
-                {o}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SearchInput
+          className="max-w-xs flex-1"
+          placeholder={t("experiments.runsSearchPlaceholder")}
+          value={search}
+          onChange={setSearch}
+        />
+        <FilterSelect
+          value={phase}
+          onChange={setPhase}
+          options={phaseOptions.map((p) => ({ value: p, label: t(`phase.${p}`, { defaultValue: p }) }))}
+          allLabel={t("experiments.runStatusAll")}
+        />
+        <FilterSelect
+          value={trigger}
+          onChange={setTrigger}
+          options={triggerOptions}
+          allLabel={t("experiments.runTriggerAll")}
+        />
         <Button
           variant="outline"
           onClick={() => {
@@ -454,6 +427,9 @@ function RunsPane({ name, q }: { name: string; q: UseQueryResult<sdk.RunList> })
         >
           {t("common.reset")}
         </Button>
+        <span className="ml-auto text-xs text-muted-foreground">
+          {t("experiments.runsHint", { count: rows.length })}
+        </span>
       </div>
       <DataTable
         columns={columns}

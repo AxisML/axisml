@@ -22,7 +22,6 @@ export default {
     // version drawer
     verSearchPlaceholder: "搜索版本名称 / 描述",
     addVersion: "上传新版本",
-    verWeights: "模型权重",
     addrPending: "地址生成中…",
     addrCopied: "地址已复制",
     deleteVerTitle: "确定删除版本 {{version}}？",
@@ -40,7 +39,6 @@ export default {
     done: "完成",
     // new model drawer
     newModelTitle: "新建模型",
-    newModelSub: "先创建模型条目，再上传具体版本权重",
     fsBasic: "基本信息",
     fName: "模型名",
     fNamePlaceholder: "my-llm-model（仅英文、数字与连字符）",
@@ -61,7 +59,6 @@ export default {
     modelCreated: "模型已创建，可在版本列表上传权重",
     // upload version drawer
     uploadTitle: "上传新版本",
-    uploadSub: "向已有模型推送新版本权重",
     fModel: "模型",
     fVersion: "版本号",
     fVersionPlaceholder: "v5 / 1.5.0 / 2026-06",
