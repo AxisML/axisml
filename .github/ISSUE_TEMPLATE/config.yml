@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Questions & Discussions
+    url: https://github.com/AxisML/axisml/discussions
+    about: Ask usage questions or discuss ideas here instead of opening an issue.
+  - name: 🔒 Report a security vulnerability
+    url: https://github.com/AxisML/axisml/security/policy
+    about: Do not file public issues for security problems — follow our security policy.

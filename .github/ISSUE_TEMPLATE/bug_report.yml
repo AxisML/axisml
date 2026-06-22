@@ -1,0 +1,80 @@
+name: 🐛 Bug report
+description: Report a reproducible problem in AxisML.
+title: "[bug]: "
+labels: ["kind/bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug! Please fill in the fields below so we can
+        reproduce and triage it quickly. For questions, use
+        [Discussions](https://github.com/AxisML/axisml/discussions);
+        for security issues, follow [SECURITY.md](https://github.com/AxisML/axisml/security/policy).
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Preflight checklist
+      options:
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
+        - label: This is a bug, not a usage question (those go to Discussions).
+          required: true
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected component
+      description: Which part of AxisML is affected?
+      multiple: true
+      options:
+        - tenant-operator
+        - compute-operator
+        - cluster-manager
+        - compute-service
+        - artifact-hub
+        - platform-backend
+        - platform-frontend
+        - deploy/helm (charts)
+        - docs
+        - other / not sure
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug, including the actual vs. expected behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Minimal, deterministic steps. Include commands, CR YAML, or requests.
+      placeholder: |
+        1. helm install ...
+        2. kubectl apply -f ...
+        3. observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs / output
+      description: Operator logs, `kubectl describe`, HTTP responses. Will be rendered as code.
+      render: shell
+    validations:
+      required: false
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: |
+        Output of `kubectl version --short`, AxisML version / commit SHA,
+        Helm chart version, and how it was installed (minikube, real cluster, etc.).
+      placeholder: |
+        - AxisML commit/version:
+        - kubectl version:
+        - Helm chart version:
+        - Install method:
+    validations:
+      required: true
