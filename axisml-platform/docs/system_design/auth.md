@@ -1,6 +1,6 @@
 # AxisML 认证与权限模型
 
-定义控制平面的认证（authn）、授权（authz）与下游身份透传契约。身份 / 会话 schema 见 [database.md §4](../../../docs/system_design/database.md#4-platform)，端点见 [openapi/platform.yaml](../apis/platform.yaml)。
+定义控制平面的认证（authn）、授权（authz）与下游身份透传契约。身份 / 会话 schema 见 [database.md §2](database.md#2-身份--租户)，端点见 [openapi/platform.yaml](../apis/platform.yaml)。
 
 ## 1. 概述
 
@@ -16,7 +16,7 @@
 
 ## 2. 身份与登录
 
-- 用户名 + bcrypt 密码存于 `users` 表；登录签发 JWT（`aud=axisml-platform`，TTL 12h）；会话校验为**白名单**——`sessions` 表按 `jti` 记录有效会话，仅当会话行存在且未吊销 / 未过期时 token 有效，登出 / 强制注销将其置吊销（schema 见 [database.md §4](../../../docs/system_design/database.md#4-platform)）。过期会话行由 `serve` 后台周期清理（`SESSION_SWEEP_INTERVAL`，默认 1h）。
+- 用户名 + bcrypt 密码存于 `users` 表；登录签发 JWT（`aud=axisml-platform`，TTL 12h）；会话校验为**白名单**——`sessions` 表按 `jti` 记录有效会话，仅当会话行存在且未吊销 / 未过期时 token 有效，登出 / 强制注销将其置吊销（schema 见 [database.md §2](database.md#2-身份--租户)）。过期会话行由 `serve` 后台周期清理（`SESSION_SWEEP_INTERVAL`，默认 1h）。
 - 端点：`POST /api/v1/auth/{login,logout,refresh}`、`GET /api/v1/auth/me`（`Auth` tag）。
 
 ### 2.1 会话与身份缓存

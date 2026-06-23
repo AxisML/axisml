@@ -47,7 +47,7 @@ External Users → Envoy Gateway → Platform ─┬─▶ cluster-manager
 
 ## 3. 核心模型
 
-Platform 自有实体三类：**租户持久记录**、**身份 / 授权 / 会话**、**四张定义**。字段与索引见 [database.md §4](../../../docs/system_design/database.md#4-platform)。
+Platform 自有实体三类：**租户持久记录**、**身份 / 授权 / 会话**、**四张定义**。字段与索引见 [database.md](database.md)。
 
 **租户（tenants）**：持有租户持久记录与生命周期权威——`identifier`（DNS-1123，唯一 tenant scope）、`kubernetes_namespace`（物理落地点，可共享）、展示元数据、`owner`、`suspended_at`（停用态）。经 cluster-manager REST 物化 / 回收 Tenant CR，不直接操作 CR；删除为硬删除，不提供 restore。
 
@@ -262,7 +262,7 @@ Platform 在下游对象上挂自定义元数据（`last-replicas` 副本基线�
 | 维度 | 约定 |
 | --- | --- |
 | 写入路径 | `clustermanager.{Create,Update}Tenant` / `compute.{Create,Update}{Job,Service}` / `artifacts.UpdateArtifact` 请求体携带 `labels` / `annotations` |
-| 存储 | 下游 PG 表的 `labels`/`annotations` jsonb 列（[database.md §1.6](../../../docs/system_design/database.md#16-扩展元数据-labels--annotations)） |
+| 存储 | 下游 PG 表的 `labels`/`annotations` jsonb 列（[database.md §1.5](database.md#15-扩展元数据-labels--annotations)） |
 | Key 命名空间 | Platform 内部 `platform.axisml.io/<key>`；终端用户透传走 `user.axisml.io/<key>` 或无前缀 |
 | 同步语义 | 不触发 CR patch（不 `+generation`）、不引发 reconcile；纯 PG mutation，写后即读 |
 
@@ -302,7 +302,7 @@ RBAC 中间件装配见 [auth.md](auth.md)；Platform 路由层挂载 `RequireSy
 
 | 依赖 | 用途 |
 | --- | --- |
-| PostgreSQL | 身份 / 授权 / 会话 + 四张定义；与 compute / artifacts 共享 DB，按表名前缀隔离（[database.md §4](../../../docs/system_design/database.md#4-platform)） |
+| PostgreSQL | 身份 / 授权 / 会话 + 四张定义；与 compute / artifacts 共享 DB，按表名前缀隔离（[database.md](database.md)） |
 | Redis（可选） | 认证热点读缓存（会话有效性 + 身份 / RBAC），key 前缀 `platform:`；权威仍是 PostgreSQL，不可达即回退（[auth.md §2.1](auth.md#21-会话与身份缓存)） |
 | Envoy Gateway | 唯一外部入口；TLS 终止 / HTTPRoute；数据面 SecurityPolicy 待交付（[infra.md](../../../axisml-infra/docs/system_design/overview.md)） |
 | cluster-manager | ResourcePool / Unit CRUD + 租户 CR 物化（含配额折算 + 运行态回源） |
@@ -325,7 +325,7 @@ RBAC 中间件装配见 [auth.md](auth.md)；Platform 路由层挂载 `RequireSy
 
 - [high_level_design.md](../../../docs/system_design/high_level_design.md) — 控制平面拓扑与系统不变量
 - [auth.md](auth.md) — 身份与鉴权契约、access JWT、中间件
-- [database.md](../../../docs/system_design/database.md) — Platform PG schema（§4）
+- [database.md](database.md) — Platform PG schema
 - [deployment.md](../../../docs/system_design/deployment.md) · [infra.md](../../../axisml-infra/docs/system_design/overview.md)
 - [openapi/platform.yaml](../apis/platform.yaml) — REST 契约源
 - 下游：[cluster-manager.md](../../../axisml-system/docs/system_design/cluster-manager.md) · [compute-service.md](../../../axisml-system/docs/system_design/compute-service.md) · [artifact-hub.md](../../../axisml-system/docs/system_design/artifact-hub.md) · [tenant-operator.md](../../../axisml-system/docs/system_design/tenant-operator.md) · [compute-operator.md](../../../axisml-system/docs/system_design/compute-operator.md)

@@ -50,11 +50,11 @@ ML 工作负载服务：以 PostgreSQL 为权威，承载 Job / Service / Worksp
 | Service | 常驻服务 / 工作区 / TensorBoard | `id` / `(namespace, name)` | `Creating｜Pending｜Ready｜Degraded｜Failed｜Deleting｜Deleted` | `MLService` |
 | TrafficPolicy | 流量策略：稳定入口按权重分发到多服务 | `id` / `(namespace, name)` | 同 Service | `MLTrafficPolicy` |
 
-字段级 schema 见 [database.md §2](../../../docs/system_design/database.md#2-compute-service)；CR spec 字段见 [compute-operator.md](compute-operator.md)。
+字段级 schema 见 [database.md §2](database.md#2-compute-service)；CR spec 字段见 [compute-operator.md](compute-operator.md)。
 
 **通用 PG 约定**：所有表带 `id uuid` / `created_at` / `updated_at` / `deleted_at`；UNIQUE 为 partial index `WHERE deleted_at IS NULL`（软删行不占唯一键）；`name` DNS-1123、长度 3–40。CR-backed 对象打 `axisml.io/{run,service,traffic-policy}-id=<uuid>` label 作稳定锚点（`metadata.name` 可重用，UUID 永久唯一）；`mlservices` 还同步打 `axisml.io/service-kind=<service|workspace|tensorboard>` label 便于 selector 区分（compute / operator 不按 kind 改变行为）。
 
-**扩展元数据 + 分组**：三表均带 `labels` / `annotations` jsonb，对齐 K8s 语义（[database.md §1.6](../../../docs/system_design/database.md#16-扩展元数据-labels--annotations)）；list 端点支持 `?labelSelector=`。两类扩展位 **PG-only、不下发 CR、不 `+generation`**。
+**扩展元数据 + 分组**：三表均带 `labels` / `annotations` jsonb，对齐 K8s 语义（[database.md §1.6](database.md#16-扩展元数据-labels--annotations)）；list 端点支持 `?labelSelector=`。两类扩展位 **PG-only、不下发 CR、不 `+generation`**。
 
 ## 4. 核心功能
 
@@ -163,7 +163,7 @@ Service 无 cancel；除 `roles[0].replicas` 与 `kind` 外其他 spec 不可变
 
 ### 5.2 generation spec 同步
 
-API mutation 在事务内 spec 写入 + `generation += 1`；partial index `WHERE generation <> observed_generation AND deleted_at IS NULL` 触发 reconciler patch CR → `observed_generation = generation`。语义对齐 K8s（[database.md §1.4](../../../docs/system_design/database.md#14-generation--observed_generation)）。允许变更字段：Service `spec.roles[0].replicas`；TrafficPolicy `spec.backends[*].{weight,role}`；Job 不可变（cancel 走 `Canceling` 谓词单独 patch suspend）。
+API mutation 在事务内 spec 写入 + `generation += 1`；partial index `WHERE generation <> observed_generation AND deleted_at IS NULL` 触发 reconciler patch CR → `observed_generation = generation`。语义对齐 K8s（[database.md §1.4](database.md#14-generation--observed_generation)）。允许变更字段：Service `spec.roles[0].replicas`；TrafficPolicy `spec.backends[*].{weight,role}`；Job 不可变（cancel 走 `Canceling` 谓词单独 patch suspend）。
 
 ### 5.3 状态回流（Informer）
 
@@ -212,8 +212,8 @@ Compute **不反向重建 CR**。Informer 观察 CR DELETE 后按 PG 当前 `sta
 | --- | --- | --- |
 | 对外 REST（K8s 风格） | `/api/v1/namespaces/{ns}/{mlruns,mlservices,traffic-policies}[...]`，含 `/{name}/{metrics,split,promote,rollback}` 子路径 | [openapi/compute-service.yaml](../apis/compute-service.yaml) |
 | 下发 CR | `MLRun` / `MLService` / `MLTrafficPolicy`（`axisml.io/v1alpha1`, namespaced）；Compute 是唯一 `spec` 写者 | [compute-operator.md](compute-operator.md) |
-| 回流字段 | `mlruns.status` / `mlservices.status` / `traffic_policies.status`（jsonb 整块） | [database.md §2](../../../docs/system_design/database.md#2-compute-service) |
-| 列表查询 | 所有 list 支持 `?labelSelector=`（K8s grammar） | [database.md §1.6](../../../docs/system_design/database.md#16-扩展元数据-labels--annotations) |
+| 回流字段 | `mlruns.status` / `mlservices.status` / `traffic_policies.status`（jsonb 整块） | [database.md §2](database.md#2-compute-service) |
+| 列表查询 | 所有 list 支持 `?labelSelector=`（K8s grammar） | [database.md §1.6](database.md#16-扩展元数据-labels--annotations) |
 | 身份头 | 调用方注入 `X-Axisml-User`，本服务仅做 ownership 归属（[auth.md §6](../../../axisml-platform/docs/system_design/auth.md#6-下游身份透传)） | — |
 | 错误格式 | HTTP 标准码 + RFC 7807 problem+json | — |
 | 写后语义 | mutation PG 提交后即返回；CR 同步异步进行，调用方 GET 观察 `status` | — |
@@ -224,7 +224,7 @@ Compute **不反向重建 CR**。Informer 观察 CR DELETE 后按 PG 当前 `sta
 
 | 依赖 | 用途 |
 | --- | --- |
-| PostgreSQL | 业务元数据权威；与 artifacts 共享 database，表前缀隔离（[database.md §2](../../../docs/system_design/database.md#2-compute-service)） |
+| PostgreSQL | 业务元数据权威；与 artifacts 共享 database，表前缀隔离（[database.md §2](database.md#2-compute-service)） |
 | Kubernetes API | 三类 CR 下发 + status watch + Pod log / Event 透传 + leader Lease |
 | compute-operator | 下游 CR 消费者，把三类 CR 落地为底层资源（含加权路由 / 灰度派生）（[compute-operator.md](compute-operator.md)） |
 | 上游调用方 | 唯一调用方，注入 `X-Axisml-User`；请求体仅携带 `(poolName, unitName)` 名字对，由本服务展开 |
@@ -250,7 +250,7 @@ Compute 不感知 ElasticQuota CR 内部结构——以 `axisml-<identifier>-<po
 
 - [high_level_design.md](../../../docs/system_design/high_level_design.md) — Compute 在控制平面的位置与系统不变量
 - [auth.md](../../../axisml-platform/docs/system_design/auth.md) — `X-Axisml-User` 身份头与鉴权边界
-- [database.md](../../../docs/system_design/database.md) — Compute 表结构（§2）
+- [database.md](database.md) — Compute 表结构（§2）
 - [deployment.md](../../../docs/system_design/deployment.md) · [infra.md](../../../axisml-infra/docs/system_design/overview.md)
 - [openapi/compute-service.yaml](../apis/compute-service.yaml) — REST 契约源
 - [compute-operator.md](compute-operator.md) — 下游 CR 消费者与 handler 实现

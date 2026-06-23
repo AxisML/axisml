@@ -167,7 +167,7 @@ Architecture notes and gotchas live in [CLAUDE.md](CLAUDE.md); contributor conve
 
 - **[System Design Overview](docs/system_design/high_level_design.md)** — start here
 - **By layer** — [Platform](docs/axisml-platform/docs/overview.md) · [System](docs/axisml-system/docs/overview.md) · [Infra](docs/axisml-infra/docs/overview.md) (each layer dir has an `overview.md` + per-component docs)
-- **Cross-cutting** — [database](docs/system_design/database.md) · [deployment](docs/system_design/deployment.md)
+- **Cross-cutting** — [deployment](docs/system_design/deployment.md) (DB schema now lives per-layer under each `<layer>/docs/system_design/database.md`)
 - **Guides** — [Development Workflow](docs/development_workflow.md) (setup · build/test · testing layers)
 - **OpenAPI specs** — generated REST contracts under each layer's `docs/apis/` ([system](axisml-system/docs/apis) · [platform](axisml-platform/docs/apis))
 

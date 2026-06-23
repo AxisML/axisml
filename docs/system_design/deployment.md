@@ -79,7 +79,7 @@ CRDs 随 System 层发布（operator 契约）；Platform 用户体系 bootstrap
 
 ## 7. PostgreSQL 部署模式
 
-由 `axisml-infra` chart 提供（Infra 层第三方依赖），两种模式：**内置**（bitnami/postgresql 子 chart，StatefulSet + PVC，Service `axisml-database`；开发 / 测试 / 轻量生产）与**外部**（System 层 `database.enabled=false` + `externalDatabase.*` 对接自建 / RDS；中大型生产）。内置模式下 System 层经 FQDN `axisml-database.axisml-infra:5432` 连接，凭据由 System 层从共享 `database.auth.password` 在本 namespace 自渲染为 Secret。所有控制面服务共用 database `axisml`，按表名前缀逻辑隔离（[database.md](database.md)）。
+由 `axisml-infra` chart 提供（Infra 层第三方依赖），两种模式：**内置**（bitnami/postgresql 子 chart，StatefulSet + PVC，Service `axisml-database`；开发 / 测试 / 轻量生产）与**外部**（System 层 `database.enabled=false` + `externalDatabase.*` 对接自建 / RDS；中大型生产）。内置模式下 System 层经 FQDN `axisml-database.axisml-infra:5432` 连接，凭据由 System 层从共享 `database.auth.password` 在本 namespace 自渲染为 Secret。所有控制面服务共用 database `axisml`，按表名前缀逻辑隔离（schema 见各层 database.md：[system](../../axisml-system/docs/system_design/database.md) / [platform](../../axisml-platform/docs/system_design/database.md)）。
 
 ## 8. Redis 缓存部署模式
 
@@ -100,4 +100,4 @@ CRDs 随 System 层发布（operator 契约）；Platform 用户体系 bootstrap
 
 ## 10. 关联文档
 
-- [high_level_design.md](high_level_design.md) · [infra/overview.md](../../axisml-infra/docs/system_design/overview.md)（infra 层组件）· [database.md](database.md)（PostgreSQL 形态）· 各组件详设 §8 运行时形态。
+- [high_level_design.md](high_level_design.md) · [infra/overview.md](../../axisml-infra/docs/system_design/overview.md)（infra 层组件）· 各组件详设 §8 运行时形态。

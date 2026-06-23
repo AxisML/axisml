@@ -152,7 +152,7 @@ Pod 调度 ─▶ koord-scheduler ─▶ ElasticQuota.status.used 累加
 
 **防御等级**：`metadata` / `spec` 单写约束当前由 controller `Validate(spec)` 软兜底，**不防外部 `kubectl patch`**——系统在控制面信任边界内部署，admission webhook 是后续硬化路径。
 
-**展示性元数据归属**：`display_name` / `description` 的权威在上游 `tenants` 表（[database.md §4](../../../docs/system_design/database.md#4-platform)），**不**下发到 Tenant CR；tenant-operator 与 cluster-manager 都不感知。租户的 `labels` / `annotations` 经 cluster-manager 透传到 CR `metadata`，但 tenant-operator 不据此 reconcile、不影响 phase。
+**展示性元数据归属**：`display_name` / `description` 的权威在上游 Platform 的 `tenants` 表，**不**下发到 Tenant CR；tenant-operator 与 cluster-manager 都不感知。租户的 `labels` / `annotations` 经 cluster-manager 透传到 CR `metadata`，但 tenant-operator 不据此 reconcile、不影响 phase。
 
 ## 7. 依赖
 
@@ -177,7 +177,7 @@ Pod 调度 ─▶ koord-scheduler ─▶ ElasticQuota.status.used 累加
 ## 9. 相关引用
 
 - [high_level_design.md](../../../docs/system_design/high_level_design.md) — 控制平面拓扑与系统不变量
-- [auth.md](../../../axisml-platform/docs/system_design/auth.md) · [database.md](../../../docs/system_design/database.md) · [deployment.md](../../../docs/system_design/deployment.md) · [infra.md](../../../axisml-infra/docs/system_design/overview.md)
+- [auth.md](../../../axisml-platform/docs/system_design/auth.md) · [deployment.md](../../../docs/system_design/deployment.md) · [infra.md](../../../axisml-infra/docs/system_design/overview.md)
 - [cluster-manager.md](cluster-manager.md) — Tenant CR 上游 producer（REST 写 spec）
 - [compute-operator.md](compute-operator.md) — 兄弟 operator
 - [artifact-hub.md](artifact-hub.md) — workload 消费制品依赖 per-tenant SA + 默认 Secret 落地

@@ -22,4 +22,4 @@ System 层是 AxisML 的**控制面**：100% 自研领域能力，承接 Platfor
 - **租户作用域与落地点分离**：compute / artifacts 的 `namespace` 兼容字段表示 tenant scope；Tenant CR 的 `spec.namespace.name` 才是 K8s Namespace，可由多个 Tenant 共享。
 - **配额与调度收编**：所有派生 Pod 强制 `schedulerName: koord-scheduler` + ElasticQuota label，不存在绕过配额的路径。
 
-完整系统级不变量见 [high_level_design.md §2.2](../../../docs/system_design/high_level_design.md#22-关键不变量)。schema 见 [database.md](../../../docs/system_design/database.md)，部署见 [deployment.md](../../../docs/system_design/deployment.md)，基础设施依赖见 [infra/overview.md](../../../axisml-infra/docs/system_design/overview.md)。
+完整系统级不变量见 [high_level_design.md §2.2](../../../docs/system_design/high_level_design.md#22-关键不变量)。schema 见 [database.md](database.md)，部署见 [deployment.md](../../../docs/system_design/deployment.md)，基础设施依赖见 [infra/overview.md](../../../axisml-infra/docs/system_design/overview.md)。

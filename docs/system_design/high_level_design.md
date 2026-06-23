@@ -126,7 +126,7 @@
 
 **Infra 层**（第三方基础设施）— [infra/overview.md](../../axisml-infra/docs/system_design/overview.md)：[gateway](../../axisml-infra/docs/system_design/gateway.md) · [storage](../../axisml-infra/docs/system_design/storage.md) · [accelerator](../../axisml-infra/docs/system_design/accelerator.md) · [scheduler](../../axisml-infra/docs/system_design/scheduler.md) · [monitoring](../../axisml-infra/docs/system_design/monitoring.md)。
 
-**跨层文档**：[database.md](database.md)（PostgreSQL schema）· [deployment.md](deployment.md)（Helm 分层与部署顺序）。
+**跨层文档**：[deployment.md](deployment.md)（Helm 分层与部署顺序）。PostgreSQL schema 按层归各自 docs：[system/database.md](../../axisml-system/docs/system_design/database.md) · [platform/database.md](../../axisml-platform/docs/system_design/database.md)。
 
 ## 6. 关键设计决策
 
@@ -164,7 +164,7 @@ axisml/                        # 按部署层组织，每层一个自包含目�
 ├── axisml-infra/              # 第三方基础设施
 │   ├── deploy/helm/  docs/  scripts/minikube.sh
 ├── axisml-lite/               # 无 K8s 的 Docker Compose 形态（当前仅 docs/）
-├── docs/system_design/        # 跨层：high_level_design.md + database.md + deployment.md
+├── docs/system_design/        # 跨层：high_level_design.md + deployment.md
 ├── docs/development_workflow.md # 开发指南（环境 / 构建测试 / 测试分层）
 ├── pkg/openapigen/  test/e2e/ # 共享：OpenAPI 引擎 / 集中式 e2e 套件
 ├── Makefile                   # 根编排器（委派给各层 Makefile）

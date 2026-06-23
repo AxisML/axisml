@@ -231,7 +231,7 @@ ADD ─▶ Pending ─(route programmed + 成员 Ready)─▶ Ready ◀──▶
 
 - [high_level_design.md](../../../docs/system_design/high_level_design.md) — 控制平面拓扑与系统不变量
 - [auth.md](../../../axisml-platform/docs/system_design/auth.md) — 身份与鉴权契约（operator 不直接认证终端用户）
-- [database.md](../../../docs/system_design/database.md) · [deployment.md](../../../docs/system_design/deployment.md) · [infra.md](../../../axisml-infra/docs/system_design/overview.md)
+- [database.md](database.md) · [deployment.md](../../../docs/system_design/deployment.md) · [infra.md](../../../axisml-infra/docs/system_design/overview.md)
 - [compute-service.md](compute-service.md) — 上游 CR 写者
 - [tenant-operator.md](tenant-operator.md) — 兄弟 operator；Tenant / ElasticQuota / Namespace 落地
 - CRD yaml：crds/{mlrun,mlservice,mltrafficpolicy}-crd.yaml

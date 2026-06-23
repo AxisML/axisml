@@ -55,7 +55,7 @@ Infra 层提供 zot endpoint（ConfigMap）、admin 凭证（平台级 Secret）
 - 模式：内置（StatefulSet + PVC）/ 外部（`database.enabled=false` + `externalDatabase.*` 接自建 / RDS）。
 - schema 迁移由各调用方二进制内嵌 `golang-migrate` 在启动时执行（依赖 PG advisory lock 避免并发迁移）。
 
-schema 细节见 [database.md](../../../docs/system_design/database.md)；部署模式见 [deployment.md §7](../../../docs/system_design/deployment.md#7-postgresql-部署模式)。
+部署模式见 [deployment.md §7](../../../docs/system_design/deployment.md#7-postgresql-部署模式)。
 
 ## 4. 缓存
 
