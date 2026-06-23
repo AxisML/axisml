@@ -13,12 +13,12 @@
 #                   in CI.
 
 # Files we never want hooks to touch:
-#   - test/crds/external/* are vendored upstream CRDs (intentionally read-only,
-#     see test/crds/external/README.md) — they must mirror upstream verbatim.
+#   - axisml-system/test/crds/external/* are vendored upstream CRDs (intentionally read-only,
+#     see axisml-system/test/crds/external/README.md) — they must mirror upstream verbatim.
 #   - axisml-*/deploy/helm/charts/* holds vendored sub-chart tarballs/dirs.
 exclude: |
   (?x)^(
-    test/crds/external/.*|
+    axisml-system/test/crds/external/.*|
     axisml-(infra|system|platform)/deploy/helm/charts/.*
   )$
 

@@ -149,18 +149,26 @@
 Monorepo 管理所有组件：
 
 ```
-axisml/
-├── components/{platform-backend, platform-frontend, cluster-manager, compute-service,
-│              tenant-operator, compute-operator, artifact-hub}
-├── deploy/helm/{axisml-infra, axisml-system, axisml-platform}
-├── docs/
-│   ├── product_design/        # PRD / wireframe / prototype
-│   ├── system_design/         # high_level_design.md + database/deployment
-│   │   ├── infra/             # overview + gateway/storage/accelerator/scheduler/monitoring
-│   │   ├── system/            # overview + 5 组件设计
-│   │   └── platform/          # overview + backend/frontend/auth
-│   ├── development/  └── openapi/
-├── scripts/  Makefile  README.md
+axisml/                        # 按部署层组织，每层一个自包含目录 + 一个 Makefile
+├── axisml-platform/           # 用户面
+│   ├── backend/ frontend/     # 代码
+│   ├── deploy/helm/           # Platform Helm chart
+│   ├── docs/                  # overview + backend/frontend/auth
+│   ├── docs/apis/             # 生成的 platform.yaml
+│   └── docs/product_design/   # PRD / prototype
+├── axisml-system/             # 控制面
+│   ├── {tenant-operator, compute-operator, cluster-manager, compute-service, artifact-hub}/
+│   ├── deploy/helm/           # System Helm chart (+ crds/)
+│   ├── docs/  docs/apis/      # 5 组件设计 + 生成的 OpenAPI specs
+│   └── test/                  # testutil / crds/external / setup-envtest（System 集成测试基建）
+├── axisml-infra/              # 第三方基础设施
+│   ├── deploy/helm/  docs/  scripts/minikube.sh
+├── axisml-lite/               # 无 K8s 的 Docker Compose 形态（当前仅 docs/）
+├── docs/system_design/        # 跨层：high_level_design.md + database.md + deployment.md
+├── docs/development/          # 开发指南
+├── pkg/openapigen/  test/e2e/ # 共享：OpenAPI 引擎 / 集中式 e2e 套件
+├── Makefile                   # 根编排器（委派给各层 Makefile）
+└── README.md
 ```
 
 部署按三层各为一个 Helm chart，安装顺序 infra → system → platform，卸载反向（详见 [deployment.md](deployment.md)）。

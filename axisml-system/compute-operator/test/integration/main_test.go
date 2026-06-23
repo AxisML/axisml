@@ -8,7 +8,7 @@
 //
 //   - MLRun: axisml-system/deploy/helm/crds/mlrun-crd.yaml
 //   - MLService: axisml-system/deploy/helm/crds/mlservice-crd.yaml
-//   - HTTPRoute: test/crds/external/gateway-api-httproute.yaml
+//   - HTTPRoute: axisml-system/test/crds/external/gateway-api-httproute.yaml
 //
 // envtest has no kubelet, so workload controllers (Job, Deployment) don't
 // progress on their own. Tests simulate progress by directly patching
@@ -75,7 +75,7 @@ func TestMain(m *testing.M) {
 		Scheme: testScheme,
 		CRDPaths: []string{
 			filepath.Join(repoRoot, "axisml-system", "deploy", "helm", "crds"),
-			filepath.Join(repoRoot, "test", "crds", "external"),
+			filepath.Join(repoRoot, "axisml-system", "test", "crds", "external"),
 		},
 	})
 	if err != nil {

@@ -19,8 +19,9 @@ AxisML is a Kubernetes-native ML platform. The repo is a monorepo organized by d
   - `axisml-system/deploy/helm/` — System layer: CRDs, both operators, Cluster Manager, Compute Service, Artifact Hub. No PostgreSQL — it consumes the infra DB cross-namespace.
   - `axisml-platform/deploy/helm/` — Platform layer: the user-facing entry point (Platform frontend + backend). The only externally-exposed layer.
 - `axisml-lite/` — the no-Kubernetes single-host Docker Compose form (design doc only today, at `axisml-lite/docs/overview.md`; `cmd/` · `internal/` · `deploy/compose/` to be built per that doc).
-- Design docs: each layer owns its per-component docs under `<layer>/docs/` (`axisml-system/docs/`, `axisml-platform/docs/`, `axisml-infra/docs/`, `axisml-lite/docs/`). Cross-cutting design docs stay in `docs/system_design/` — `high_level_design.md` (system-level overview), `database.md`, `deployment.md`. Generated API specs live in each layer's `docs/apis/`. Other doc trees: `docs/product_design/` (product/UX, incl. an interactive `prototype/`), `docs/development/` (dev guides).
-- `test/` — shared test infrastructure: `setup-envtest/` binary, `testutil/` helpers, `crds/external/` vendored upstream CRDs, and `e2e/` (the centralized real-cluster e2e suite — see testing section).
+- Design docs: each layer owns its per-component docs under `<layer>/docs/` (`axisml-system/docs/`, `axisml-platform/docs/`, `axisml-infra/docs/`, `axisml-lite/docs/`). Cross-cutting design docs stay in `docs/system_design/` — `high_level_design.md` (system-level overview), `database.md`, `deployment.md`. Generated API specs live in each layer's `docs/apis/`. Other doc trees: `docs/development/` (dev guides); product/UX docs live in `axisml-platform/docs/product_design/` (incl. an interactive `prototype/`).
+- `axisml-system/test/` — System-layer test infrastructure used by the System integration suites: `setup-envtest/` binary, `testutil/` helpers, `crds/external/` vendored upstream CRDs.
+- `test/` — repo-level shared tests: `e2e/`, the centralized real-cluster e2e suite (see testing section). It's the only cross-layer test tree left at the root.
 
 The system design lives ahead of the code. When code and `docs/system_design/` disagree, the design doc is usually the intended target — confirm before "fixing" code to match incomplete scaffolding.
 
@@ -52,7 +53,7 @@ axisml-system/artifact-hub/                          (production)
 axisml-system/artifact-hub/test/integration/         (integration tests, separate module — testcontainers Postgres + httptest OCI stub)
 axisml-platform/backend/                       (production — contract-only API shell; generates axisml-platform/docs/apis/platform.yaml)
 axisml-platform/backend/test/integration/     (integration tests — drives in-process gin via httptest; no envtest/Docker)
-test/testutil/                                    (shared helpers, no operator deps)
+axisml-system/test/testutil/                                    (shared helpers, no operator deps)
 ```
 
 Why split: keeps test-only deps (`testify`, `testcontainers-go`, `testutil`) out of each component's production `go.mod` and Dockerfile build context. `testutil` is imported via `replace` from each test module — keep it operator-agnostic to avoid circular deps.
@@ -64,50 +65,41 @@ Practical implications:
 
 ## Build / test / install commands
 
-The top-level `Makefile` is the command hub. The most common targets:
+There are exactly **four Makefiles**: the repo-root orchestrator plus one per layer (`axisml-infra/`, `axisml-system/`, `axisml-platform/`). The root Makefile is a thin delegator — its aggregate targets fan out to the layer Makefiles, which hold the real build/test/helm logic. The most common root targets:
 
 ```sh
-make help                # list targets + auto-generated per-component shortcuts
-make build               # fan out `make build` to every active component
-make test                # unit tests across every component (no cluster)
-make integration-test    # integration tests for every component (envtest + testcontainers, needs Docker; ~30-60s)
+make help                # list root targets (delegated to layers)
+make build               # → make -C each Go layer build (system 5 components + platform backend)
+make test                # unit tests across every layer
+make integration-test    # integration tests across layers (envtest + testcontainers, needs Docker)
+make doc-gen / doc-test  # regenerate / verify every OpenAPI spec
+make coverage            # unit + integration coverage, merged into coverage/coverage.out
 
-# Per-component shortcuts (auto-generated from the COMPONENTS list:
-# tenant-operator, compute-operator, cluster-manager, compute-service, artifact-hub,
-# plus platform/backend whose basename is `backend` — so `make backend-test`):
-make tenant-operator-test
-make tenant-operator-integration
-make compute-operator-test
-make compute-operator-integration
-make cluster-manager-test
-make cluster-manager-integration
-make compute-service-test
-make compute-service-integration
-make artifact-hub-test
-make artifact-hub-integration
-
-# Cluster + Helm:
-make cluster-up                      # minikube profile "axisml"
+# Cluster + Helm (root orchestrates ordering; per-layer logic lives in each layer Makefile):
+make cluster-up                      # delegates to axisml-infra (minikube profile "axisml")
 make helm-install                    # infra → system → platform (idempotent upgrade --install)
 make helm-template                   # render all three charts for review
 ```
 
-Per-component dev loop (run from inside the component dir):
+Per-component work runs through the **layer** Makefile, which owns both layer aggregates and per-component shortcuts:
 
 ```sh
-make fmt vet               # before every commit
-make build / make image    # binary into bin/, container image
+make -C axisml-system build                    # all 5 system components
+make -C axisml-system compute-service-test     # one component
+make -C axisml-system cluster-manager-doc-gen  # API services also get doc-gen/doc-test
+make -C axisml-platform integration            # backend httptest suite
+make -C axisml-platform frontend-dev           # frontend (pnpm; not in the default aggregate)
 ```
 
-Single test invocation: `go test -run TestTenant_HappyPath ./internal/...` (use `-tags=integration` for integration tests).
+Single test invocation: `cd axisml-system/compute-service && go test -run TestX ./internal/...` (use `-tags=integration` inside the `test/integration` submodule).
 
-Per-component shortcuts are auto-generated from the `COMPONENTS` list in the top-level Makefile. Pattern: `<basename>-{build,image,image-load,test,integration,coverage,fmt,tidy,clean}` (e.g., `make compute-operator-image-load`); API services also get `<basename>-{doc-gen,doc-test}`. **Basename = `notdir` of the path**, so `axisml-platform/backend` → `platform-backend-test` / `platform-backend-doc-gen`. Top-level `make fmt` walks every module via `GO_MODULES` (`gofmt -w` doesn't cross module boundaries on its own).
+The system layer Makefile generates each component's targets from its `COMPONENTS` list (`<component>-{build,image,image-load,test,integration,coverage,integration-coverage,coverage-html,fmt,vet,tidy,clean}`; the three API services also get `<component>-{doc-gen,doc-test}`). Generated as explicit targets (not pattern rules) so overlapping suffixes like `-test` / `-doc-test` never collide. Root `make fmt` delegates to each layer's `fmt`.
 
 Pre-commit hooks (`pre-commit` framework, see `.pre-commit-config.yaml`) are staged:
 - **pre-commit** (fast, <5s): gofmt, basic hygiene, `go vet` on touched modules, `make doc-test` when Go in `cluster-manager` / `compute-service` / `artifact-hub` changes, `make helm-lint` when `deploy/helm/**` changes.
 - **pre-push** (30-60s): `golangci-lint` and `go test -short` on every Go module containing a pushed file.
 
-Install once per clone: `make install-hooks`. Bypass for a single commit: `git commit --no-verify`. Vendored CRDs (`test/crds/external/`) and Helm sub-charts are excluded from hooks. If `doc-test` fails after editing DTOs, run `make <component>-doc-gen` (or top-level `make doc-gen`) to regenerate `the layer's docs/apis/<component>.yaml` and re-stage — see next section.
+Install once per clone: `make install-hooks`. Bypass for a single commit: `git commit --no-verify`. Vendored CRDs (`axisml-system/test/crds/external/`) and Helm sub-charts are excluded from hooks. If `doc-test` fails after editing DTOs, run `make <component>-doc-gen` (or top-level `make doc-gen`) to regenerate `the layer's docs/apis/<component>.yaml` and re-stage — see next section.
 
 ## Testing layers
 
@@ -124,8 +116,8 @@ The e2e suite is **manual and not in CI**: run `make e2e-test` after `make clust
 Conventions that bite if you don't know them:
 - **Framework is plain `testing` + `testify`** (`require` for setup, `assert` for checks). **No Ginkgo/Gomega** — don't add them.
 - Each gated test file needs a sibling `doc.go` (no build tag) so the package compiles cleanly under `go test ./...`.
-- Polling: use `testutil.Eventually` / `EventuallyExists` / `EventuallyGone` from `test/testutil/`.
-- **External CRDs**: any CRD the operator imports from outside this repo (Koordinator's ElasticQuota, scheduler-plugins' PodGroup, gateway-api's HTTPRoute, etc.) must be vendored under `test/crds/external/` and added to the merged TestMain's `CRDPaths`. Tests hang on "no matches for kind X" otherwise.
+- Polling: use `testutil.Eventually` / `EventuallyExists` / `EventuallyGone` from `axisml-system/test/testutil/`.
+- **External CRDs**: any CRD the operator imports from outside this repo (Koordinator's ElasticQuota, scheduler-plugins' PodGroup, gateway-api's HTTPRoute, etc.) must be vendored under `axisml-system/test/crds/external/` and added to the merged TestMain's `CRDPaths`. Tests hang on "no matches for kind X" otherwise.
 
 ## Operator architecture: backend handler routing
 
@@ -144,24 +136,24 @@ When adding a new handler:
 1. Implement under `internal/<backend>/<engine>/`.
 2. Wire it into the dispatch table in the operator's reconciler.
 3. **All backend-derived Pods MUST set `schedulerName: koord-scheduler` and carry the `quota.scheduling.koordinator.sh/name` label** — this is non-negotiable; bypassing koord-scheduler bypasses ElasticQuota.
-4. Vendor any new external CRDs into `test/crds/external/` in the same PR.
+4. Vendor any new external CRDs into `axisml-system/test/crds/external/` in the same PR.
 5. Pair an integration happy-path with the unit tests.
 
 ## OpenAPI specs are generated, not hand-written
 
 Four components own a generated spec under their layer's `docs/apis/<component>.yaml`, produced from their Go request/response DTOs: `cluster-manager`, `compute-service`, `artifact-hub` (under `axisml-system/docs/apis/`), and `platform/backend` (a server-less contract shell that owns `axisml-platform/docs/apis/platform.yaml`). The two operators have no HTTP surface and are excluded. The generated specs under each layer's `docs/apis/` are the single source of truth for HTTP API contracts.
 
-- `make doc-gen` (or `make <basename>-doc-gen`) regenerates the spec(s).
-- `make doc-test` (or `make <basename>-doc-test`) verifies that the spec matches the current Go types — this is the CI guard and the pre-commit hook described above.
+- `make doc-gen` (root, all specs) or per-component, e.g. `make -C axisml-system compute-service-doc-gen`, regenerates the spec(s). Platform's is `make -C axisml-platform doc-gen` (backend is its only API component).
+- `make doc-test` (root) or per-component verifies the spec matches the current Go types — this is the CI guard and the pre-commit hook described above.
 
-When you change a handler signature or DTO, regenerate before committing and never hand-edit `<layer>/docs/apis/*.yaml`. **Gotcha:** the pre-commit `doc-test` hook only watches `cluster-manager` / `compute-service` / `artifact-hub` Go files, so editing `platform/backend` DTOs won't trip it — run `make backend-doc-gen` yourself (its basename is `backend`, not `platform`).
+When you change a handler signature or DTO, regenerate before committing and never hand-edit `<layer>/docs/apis/*.yaml`. **Gotcha:** the pre-commit `doc-test` hook only watches `axisml-system/{cluster-manager,compute-service,artifact-hub}` Go files, so editing Platform backend DTOs won't trip it — run `make -C axisml-platform doc-gen` yourself.
 
 ## Image tag synchronization
 
-Operator images are pulled by Helm using `Chart.appVersion` as the default tag. `axisml-system/deploy/helm/Chart.yaml`'s `appVersion` is the single version authority across all three charts: the top-level Makefile exports `IMAGE_TAG` from it and injects it into both the system and platform charts' `--set <component>.image.tag`, overriding each component's local default. (Platform still ships an nginx placeholder image, so `HELM_PLATFORM_IMAGE_SET` is intentionally empty until Platform publishes a real appVersion-tracked image.) This means:
+Images are pulled by Helm using `Chart.appVersion` as the default tag. `axisml-system/deploy/helm/Chart.yaml`'s `appVersion` is the single version authority across all three charts: the root Makefile exports `IMAGE_TAG` from it; each layer Makefile defaults `IMAGE_TAG` to the same value and injects it into its chart's `--set <component>.image.tag`. This means:
 
-- `make image` from the repo root tags images to match what the chart will pull.
-- `make image` from inside a component dir uses the component's local default (`0.1.0`) — fine for ad-hoc testing, but `minikube image load` won't satisfy the rendered Deployment unless the tags match.
+- `make image` from the repo root (or `make -C <layer> image`) tags images to match what the chart will pull.
+- Each layer Makefile recomputes `IMAGE_TAG` from the system chart's appVersion when invoked standalone, so the tags stay aligned without the root.
 - For dev loops: `make image-load IMAGE_TAG=dev` and override the chart's `image.tag` in a values override.
 
 ## Helm: install order matters
@@ -170,11 +162,11 @@ Three charts, installed infra → system → platform (uninstall reverse). `axis
 
 PostgreSQL lives in the infra namespace, so the system services reach it cross-namespace at `axisml-database.axisml-infra:5432`. Because Secrets are namespace-scoped, each system service renders its own DB-credentials Secret from `database.auth.password` — that password must match `database.auth.password` in the infra chart (a shared input present in both values files).
 
-`make helm-install-system` runs `helm-crds-system` first, which `kubectl apply`s `axisml-system/deploy/helm/crds/` directly — Helm only installs files under `crds/` on initial install, so this picks up schema upgrades. If you add or change a CRD, the chart upgrade alone won't apply it; the make target handles this.
+The system layer's `helm-install` / `helm-upgrade` depend on `helm-crds`, which `kubectl apply`s `axisml-system/deploy/helm/crds/` directly — Helm only installs files under `crds/` on initial install, so this picks up schema upgrades. If you add or change a CRD, the chart upgrade alone won't apply it; the make target handles this. (`make helm-install` at root runs the whole infra → system → platform chain.)
 
 ## Conventions worth knowing
 
 - Conventional Commit subjects: `docs:`, `feat(operator):`, `chore(build):`, `fix:`, etc. Keep scoped and imperative.
-- Component basenames must be unique across the `COMPONENTS` list in the top-level Makefile (the per-component shortcut targets are derived from `notdir`).
+- The build system is four Makefiles: root (orchestrator) + one per layer. The system layer Makefile owns the `COMPONENTS` list; component dir names must stay unique within it (per-component shortcut targets are `<component>-<target>`).
 - `bin/` directories are build artifacts — never commit.
 - Lint config (`.golangci.yml`) is shared across all Go modules; CI runs `golangci-lint` once per module (matrix in `.github/workflows/ci.yml`). Active linters: `errcheck`, `govet`, `ineffassign`, `staticcheck`, `unused`, `misspell`, plus `gofmt` + `goimports` formatters. The `integration` build tag is enabled so tagged files are linted too.

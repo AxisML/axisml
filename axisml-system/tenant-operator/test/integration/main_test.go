@@ -7,7 +7,7 @@
 // CRDs loaded:
 //
 //   - Tenant: axisml-system/deploy/helm/crds/tenant-crd.yaml
-//   - ElasticQuota: test/crds/external/koordinator-elasticquota.yaml
+//   - ElasticQuota: axisml-system/test/crds/external/koordinator-elasticquota.yaml
 package integration_test
 
 import (
@@ -67,7 +67,7 @@ func TestMain(m *testing.M) {
 		Scheme: testScheme,
 		CRDPaths: []string{
 			filepath.Join(repoRoot, "axisml-system", "deploy", "helm", "crds"),
-			filepath.Join(repoRoot, "test", "crds", "external"),
+			filepath.Join(repoRoot, "axisml-system", "test", "crds", "external"),
 		},
 	})
 	if err != nil {

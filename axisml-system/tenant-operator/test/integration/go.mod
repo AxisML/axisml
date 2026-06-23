@@ -75,4 +75,4 @@ replace k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20250910181357-589584f
 
 replace github.com/axisml/axisml/components/tenant-operator => ../..
 
-replace github.com/axisml/axisml/test/testutil => ../../../../test/testutil
+replace github.com/axisml/axisml/test/testutil => ../../../test/testutil

@@ -1,5 +1,5 @@
 // In-memory mock fixtures for VITE_USE_MOCK_API mode. Values are grounded in the
-// product prototype (docs/product_design/prototype) so the demo reads like the
+// product prototype (axisml-platform/docs/product_design/prototype) so the demo reads like the
 // real product. Every shape here is the generated API type — the mock router
 // (router.ts) returns these verbatim, so pages render exactly as they would
 // against a live backend.
@@ -601,7 +601,7 @@ export function metricSeries(metric: string) {
 // Demo-only: there is no cluster-metrics endpoint in the platform contract, so the
 // real Dashboard renders an honest zero state. Under VITE_USE_MOCK_API the
 // Dashboard reads these fixtures instead, so the landing page looks like the
-// product prototype (docs/product_design/prototype/index.html).
+// product prototype (axisml-platform/docs/product_design/prototype/index.html).
 export type MeterState = "ok" | "warn" | "hot" | "na";
 export interface UsageMetric {
   used: number;

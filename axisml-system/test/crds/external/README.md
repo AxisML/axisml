@@ -32,7 +32,7 @@ When the Go module version of an upstream changes:
    Koordinator's renamed schema (group `scheduling.sigs.k8s.io`):
    ```sh
    cp ~/go/pkg/mod/github.com/koordinator-sh/koordinator@<version>/apis/thirdparty/scheduler-plugins/config/crd/bases/scheduling.sigs.k8s.io_podgroups.yaml \
-      test/crds/external/scheduler-plugins-podgroup.yaml
+      axisml-system/test/crds/external/scheduler-plugins-podgroup.yaml
    ```
 3. Update the version cell in the table above.
 4. Run `make integration-test` to confirm the new schema still satisfies the operator.

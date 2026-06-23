@@ -29,4 +29,4 @@ go.work.sum
 axisml-*/deploy/helm/charts/*.tgz
 
 # Shared envtest binary (downloaded by `make setup-envtest`)
-test/setup-envtest/setup-envtest
+axisml-system/test/setup-envtest/setup-envtest

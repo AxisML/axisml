@@ -157,7 +157,7 @@ replace (
 	github.com/axisml/axisml/components/compute-operator => ../../../compute-operator
 	github.com/axisml/axisml/components/compute-service => ../..
 	github.com/axisml/axisml/components/tenant-operator => ../../../tenant-operator
-	github.com/axisml/axisml/test/testutil => ../../../../test/testutil
+	github.com/axisml/axisml/test/testutil => ../../../test/testutil
 )
 
 replace k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912

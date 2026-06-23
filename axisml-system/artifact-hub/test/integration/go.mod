@@ -123,7 +123,7 @@ require (
 
 replace (
 	github.com/axisml/axisml/components/artifact-hub => ../..
-	github.com/axisml/axisml/test/testutil => ../../../../test/testutil
+	github.com/axisml/axisml/test/testutil => ../../../test/testutil
 )
 
 // Mirror the parent module pin: koordinator v1.8.0's transitive go.mod

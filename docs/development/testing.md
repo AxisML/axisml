@@ -31,7 +31,7 @@ existing per-package unit tests.
 ## Running locally
 
 ```sh
-# Once per machine: install the shared setup-envtest binary into test/setup-envtest/.
+# Once per machine: install the shared setup-envtest binary into axisml-system/test/setup-envtest/.
 make setup-envtest
 
 # Unit tests across every component. ~10 seconds.
@@ -43,12 +43,13 @@ make test
 # assets are downloaded on demand.
 make integration-test
 
-# Per-component slices.
-make tenant-operator-integration
-make compute-operator-integration
-make cluster-manager-integration
-make compute-integration
-make artifacts-integration
+# Per-component slices (run through the layer Makefile).
+make -C axisml-system tenant-operator-integration
+make -C axisml-system compute-operator-integration
+make -C axisml-system cluster-manager-integration
+make -C axisml-system compute-service-integration
+make -C axisml-system artifact-hub-integration
+make -C axisml-platform integration            # backend httptest suite
 ```
 
 ## Conventions
@@ -59,7 +60,7 @@ make artifacts-integration
 - **Framework**: plain `testing` + `github.com/stretchr/testify`
   (`require` for setup, `assert` for individual checks). No Ginkgo/Gomega.
 - **Polling**: use `testutil.Eventually` / `EventuallyExists` /
-  `EventuallyGone` from `test/testutil/`. They wrap the `Eventually(timeout,
+  `EventuallyGone` from `axisml-system/test/testutil/`. They wrap the `Eventually(timeout,
   interval, func() error)` shape so async assertions stay readable.
 - **Naming**: per-scenario file `<feature>_<scenario>_test.go`,
   `Test<Subject>_<Scenario>` function name (e.g.
@@ -77,7 +78,7 @@ component's production `go.mod` stays free of test-only deps (`testify`,
 clean — sibling-test replace directives would otherwise fall outside the
 build context.
 
-The shared `test/testutil/` is a tiny module with no operator deps; it's
+The shared `axisml-system/test/testutil/` is a tiny module with no operator deps; it's
 imported via `replace` from each test module. If you need an operator-
 specific helper (e.g., a Tenant fixture builder), put it inside the
 operator's `test/integration/` package, NOT in testutil — testutil must
@@ -88,12 +89,12 @@ remain operator-agnostic to avoid circular deps.
 The controller-runtime envtest apiserver only knows about CRDs you feed
 it. Any CRD an operator imports from outside the repo (Koordinator's
 ElasticQuota, scheduler-plugins' PodGroup, gateway-api's HTTPRoute, etc.)
-must be vendored under `test/crds/external/` and added to the per-operator
-TestMain's `CRDPaths`. See `test/crds/external/README.md` for the upstream
+must be vendored under `axisml-system/test/crds/external/` and added to the per-operator
+TestMain's `CRDPaths`. See `axisml-system/test/crds/external/README.md` for the upstream
 sources, version pins, and refresh procedure.
 
 When you add a new handler that imports an external API package, copy its
-CRD into `test/crds/external/` in the same PR — tests will hang on
+CRD into `axisml-system/test/crds/external/` in the same PR — tests will hang on
 "no matches for kind X" otherwise. Don't worry about CRDs that the
 operator only references via the scheme but never creates resources for;
 those still need to be loaded if the controller-runtime SetupWithManager
@@ -106,7 +107,7 @@ sets up a watch on them.
 - **lint**: `golangci-lint` per Go module (matrix). Build tag
   `integration` so lint covers tagged files too.
 - **unit**: `make test`.
-- **integration**: `make integration-test` with `test/setup-envtest/` and
+- **integration**: `make integration-test` with `axisml-system/test/setup-envtest/` and
   `~/.local/share/kubebuilder-envtest/` cached.
 
 ## Coverage

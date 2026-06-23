@@ -1,4 +1,4 @@
-# test/setup-envtest
+# axisml-system/test/setup-envtest
 
 This directory holds the shared `setup-envtest` binary used by every operator's
 L1 integration target (the embedded apiserver+etcd is provided by
@@ -17,5 +17,5 @@ manages (`etcd`, `kube-apiserver`, `kubectl`) are stored in the
 Linux; the equivalent under `~/Library/Application Support` on macOS), not
 inside this directory.
 
-Each operator's `Makefile` references `$(REPO_ROOT)/test/setup-envtest/setup-envtest`
+Each operator's `Makefile` references `$(REPO_ROOT)/axisml-system/test/setup-envtest/setup-envtest`
 when running `make <op>-integration`, so all three operators share one binary.

@@ -137,7 +137,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            test/setup-envtest
+            axisml-system/test/setup-envtest
             ~/.local/share/kubebuilder-envtest
           key: envtest-${{ runner.os }}-k8s-1.31.0
       - name: Install setup-envtest binary if missing

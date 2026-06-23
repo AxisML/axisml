@@ -1,6 +1,6 @@
 # AxisML Platform Frontend 设计
 
-平台唯一的用户界面：单页应用（SPA），消费 Platform [后端](backend.md) 的 REST API，不直接访问任何 System / Infra 层服务。页面级布局、字段与交互的权威是 [交互原型 prototype/](../../docs/product_design/prototype)（[wireframe.md](../../docs/product_design/wireframe.md) 仅作补充说明）；视觉皮肤（配色 / 字体 / 圆角 / 间距 / 卡片）的权威是仓库根目录的 [DESIGN.md](../../DESIGN.md)（Geist 极简体系：近黑墨水 on 近白画布、hairline 卡片、蓝色 link / focus）。本文档只描述前端**工程架构**。
+平台唯一的用户界面：单页应用（SPA），消费 Platform [后端](backend.md) 的 REST API，不直接访问任何 System / Infra 层服务。页面级布局、字段与交互的权威是 [交互原型 prototype/](product_design/prototype)；视觉皮肤（配色 / 字体 / 圆角 / 间距 / 卡片）的权威是仓库根目录的 [DESIGN.md](../../DESIGN.md)（Geist 极简体系：近黑墨水 on 近白画布、hairline 卡片、蓝色 link / focus）。本文档只描述前端**工程架构**。
 
 ## 1. 技术栈
 
@@ -16,7 +16,7 @@
 
 ## 2. 信息架构与路由
 
-侧栏五组（首页 / 训练中心 / 服务中心 / 资产中心 / 系统管理），路由与页面结构 1:1 对应 [交互原型 prototype/](../../docs/product_design/prototype)（信息架构概览见 [wireframe.md §2.2](../../docs/product_design/wireframe.md#22-信息架构)）。租户内菜单的作用域由顶部"所属租户"切换器决定，切换即整页刷新；系统管理为全集群、不受租户选择影响。
+侧栏五组（首页 / 训练中心 / 服务中心 / 资产中心 / 系统管理），路由与页面结构 1:1 对应 [交互原型 prototype/](product_design/prototype)。租户内菜单的作用域由顶部"所属租户"切换器决定，切换即整页刷新；系统管理为全集群、不受租户选择影响。
 
 ## 3. 数据获取与状态
 

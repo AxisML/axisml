@@ -2,7 +2,7 @@
 
 This SPA is built on **shadcn/ui (Radix primitives) + Tailwind CSS v3 + react-i18next**,
 per the engineering design in `docs/system_design/platform/frontend.md`. The product
-prototype in `docs/product_design/prototype/` is the authority for page **structure,
+prototype in `axisml-platform/docs/product_design/prototype/` is the authority for page **structure,
 fields, and interactions**; the **visual skin** (color / type / radius / spacing / cards)
 follows the root `DESIGN.md` (Geist: near-black ink on a near-white canvas, hairline
 cards, blue link/focus). Each prototype `*.html` becomes one React page under

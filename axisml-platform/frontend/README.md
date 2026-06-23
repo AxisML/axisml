@@ -2,7 +2,7 @@
 
 Frontend for AxisML Platform — the Web UI delivered to users. A React + Vite +
 TypeScript single-page app that faithfully implements the product prototype in
-[`docs/product_design/prototype/`](../../docs/product_design/prototype) and talks
+[`axisml-platform/docs/product_design/prototype/`](../docs/product_design/prototype) and talks
 to the platform-backend through a **typed client generated from the OpenAPI spec**.
 
 ## Tech stack

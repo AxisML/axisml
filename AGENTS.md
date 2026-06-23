@@ -2,23 +2,20 @@
 
 ## Project Structure & Module Organization
 
-AxisML is a Kubernetes-native monorepo of independent Go modules, organized by deployment layer at the top level. `axisml-system/` holds the control-plane components — `tenant-operator`, `compute-operator`, `cluster-manager`, `compute-service`, `artifact-hub`. `axisml-platform/` holds the user-facing layer — `backend` (a contract-only shell that generates `axisml-platform/docs/apis/platform.yaml`) and `frontend` (still a scaffold). `axisml-infra/` and the Helm chart in each layer's `deploy/helm/` carry third-party infrastructure and packaging. `axisml-lite/` is the no-Kubernetes Docker Compose form (design doc only today). Each layer also keeps its design docs under `<layer>/docs/`. Shared Go test helpers are in `test/testutil`, external CRDs in `test/crds/external`, the manual real-cluster e2e suite in `test/e2e`, and generated OpenAPI specs in each layer's `docs/apis`. Helm install order is infra -> system -> platform. Cross-cutting design documents live in `docs/system_design`; update them when behavior or contracts change.
+AxisML is a Kubernetes-native monorepo of independent Go modules, organized by deployment layer at the top level. `axisml-system/` holds the control-plane components — `tenant-operator`, `compute-operator`, `cluster-manager`, `compute-service`, `artifact-hub`. `axisml-platform/` holds the user-facing layer — `backend` (a contract-only shell that generates `axisml-platform/docs/apis/platform.yaml`) and `frontend` (still a scaffold). `axisml-infra/` and the Helm chart in each layer's `deploy/helm/` carry third-party infrastructure and packaging. `axisml-lite/` is the no-Kubernetes Docker Compose form (design doc only today). Each layer also keeps its design docs under `<layer>/docs/`. Shared Go test helpers are in `axisml-system/test/testutil`, external CRDs in `axisml-system/test/crds/external`, the manual real-cluster e2e suite in `test/e2e`, and generated OpenAPI specs in each layer's `docs/apis`. Helm install order is infra -> system -> platform. Cross-cutting design documents live in `docs/system_design`; update them when behavior or contracts change.
 
 ## Build, Test, and Development Commands
 
-Use the top-level `Makefile` as the command entry point:
+There are four Makefiles: the repo-root orchestrator plus one per layer (`axisml-infra/`, `axisml-system/`, `axisml-platform/`). The root delegates to the layer Makefiles. Use the root `Makefile` as the entry point:
 
-- `make help` lists aggregate and per-component targets.
-- `make build` builds all active components.
-- `make test` runs unit tests across active components.
+- `make help` lists root targets (delegated to layers).
+- `make build` / `make test` build / unit-test every Go layer.
 - `make integration-test` runs envtest/testcontainers integration suites and requires Docker.
-- `make fmt` runs `gofmt` across every Go module.
-- `make helm-template` renders all three Helm charts locally.
-- `make helm-lint` lints chart changes.
-- `make doc-gen` regenerates OpenAPI specs for HTTP services.
-- `make doc-test` verifies generated specs match Go DTOs.
+- `make fmt` / `make vet` run across every layer.
+- `make helm-template` / `make helm-lint` render / lint all three Helm charts.
+- `make doc-gen` / `make doc-test` regenerate / verify OpenAPI specs for HTTP services.
 
-Per-component shortcuts follow `<basename>-<target>`, for example `make compute-service-test` or `make artifact-hub-doc-gen`; the basename is the directory name, so `axisml-platform/backend` → `platform-backend-test` / `platform-backend-doc-gen`.
+Per-component work goes through the layer Makefile, e.g. `make -C axisml-system compute-service-test` or `make -C axisml-system artifact-hub-doc-gen`. The system layer Makefile generates these from its `COMPONENTS` list (target = `<component>-<verb>`); component directory names must stay unique within it.
 
 ## Coding Style & Naming Conventions
 
@@ -26,7 +23,7 @@ Go code must be formatted with `gofmt`; hooks also run `go vet` and push-time `g
 
 ## Testing Guidelines
 
-Unit tests sit next to packages as `*_test.go` and use Go `testing` with `testify`. Integration tests live in each component's `test/integration` submodule and are gated by the `integration` build tag. A manual, real-cluster e2e suite lives in `test/e2e` (gated by the `e2e` build tag, run via `make e2e-test` — not part of CI). Prefer `test/testutil` polling helpers for reconciler assertions. Add required external CRDs under `test/crds/external` when a new controller dependency needs them.
+Unit tests sit next to packages as `*_test.go` and use Go `testing` with `testify`. Integration tests live in each component's `test/integration` submodule and are gated by the `integration` build tag. A manual, real-cluster e2e suite lives in `test/e2e` (gated by the `e2e` build tag, run via `make e2e-test` — not part of CI). Prefer `axisml-system/test/testutil` polling helpers for reconciler assertions. Add required external CRDs under `axisml-system/test/crds/external` when a new controller dependency needs them.
 
 ## Commit & Pull Request Guidelines
 

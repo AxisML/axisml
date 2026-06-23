@@ -92,4 +92,4 @@ replace github.com/axisml/axisml/components/cluster-manager => ../..
 
 replace github.com/axisml/axisml/components/tenant-operator => ../../../tenant-operator
 
-replace github.com/axisml/axisml/test/testutil => ../../../../test/testutil
+replace github.com/axisml/axisml/test/testutil => ../../../test/testutil

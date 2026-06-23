@@ -29,7 +29,7 @@ api/client.ts ── createClientConfig() sets { fetch: mockFetch } when USE_MOC
 
 - `data.ts` — the fixtures. Shapes are the generated types, so anything that
   compiles renders exactly as it would against a live backend. Values are grounded
-  in `docs/product_design/prototype`.
+  in `axisml-platform/docs/product_design/prototype`.
 - `router.ts` — one line per endpoint. Unknown GETs fall back to an empty list and
   unknown writes to `{}`, so a missing route degrades gracefully instead of hanging.
 - `index.ts` — the `fetch` shim + the `VITE_USE_MOCK_API` flag.

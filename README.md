@@ -159,7 +159,7 @@ make doc-test            # verify specs match Go types (CI guard)
 
 - **Each component is its own Go module** with a sibling `test/integration/` submodule — `go test ./...` from the root won't traverse everything; use the `make` targets.
 - **OpenAPI specs are generated, not hand-written.** After changing a handler signature or DTO in `cluster-manager` / `compute-service` / `artifact-hub` / `platform/backend`, run `make doc-gen` before committing.
-- **External CRDs** the operators import (Koordinator's ElasticQuota, scheduler-plugins' PodGroup, …) are vendored under `test/crds/external/`.
+- **External CRDs** the operators import (Koordinator's ElasticQuota, scheduler-plugins' PodGroup, …) are vendored under `axisml-system/test/crds/external/`.
 
 Architecture notes and gotchas live in [CLAUDE.md](CLAUDE.md); contributor conventions in [AGENTS.md](AGENTS.md).
 

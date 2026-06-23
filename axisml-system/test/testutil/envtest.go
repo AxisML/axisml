@@ -15,7 +15,7 @@ import (
 type EnvtestOptions struct {
 	// CRDPaths is the list of directories that envtest scans for CRD manifests.
 	// Pass paths to both repo-local CRDs (axisml-system/deploy/helm/crds) and
-	// vendored external CRDs (test/crds/external) as needed.
+	// vendored external CRDs (axisml-system/test/crds/external) as needed.
 	CRDPaths []string
 
 	// Scheme is the runtime scheme used to construct the test client. Callers
@@ -52,7 +52,7 @@ func (h *EnvtestHandle) Stop() error {
 //
 // KUBEBUILDER_ASSETS must point at a directory containing etcd, kube-apiserver,
 // and kubectl; each component's `make integration` target sets it via the
-// shared setup-envtest binary at test/setup-envtest/setup-envtest.
+// shared setup-envtest binary at axisml-system/test/setup-envtest/setup-envtest.
 func StartEnvtestE(opts EnvtestOptions) (*EnvtestHandle, error) {
 	if opts.Scheme == nil {
 		return nil, errors.New("StartEnvtestE: opts.Scheme is required")
