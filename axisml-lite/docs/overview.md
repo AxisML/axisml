@@ -634,8 +634,8 @@ Job、Service、Workspace、TensorBoard 和 TrafficPolicy 在目标环境通过 
 ## 11. 关联文档
 
 - [AxisML 高层设计](../../docs/system_design/high_level_design.md)
-- [System 层概要](../../axisml-system/docs/overview.md)
-- [Compute Service](../../axisml-system/docs/compute-service.md)
-- [Compute Operator](../../axisml-system/docs/compute-operator.md)
-- [Cluster Manager](../../axisml-system/docs/cluster-manager.md)
-- [Artifact Hub](../../axisml-system/docs/artifact-hub.md)
+- [System 层概要](../../axisml-system/docs/system_design/overview.md)
+- [Compute Service](../../axisml-system/docs/system_design/compute-service.md)
+- [Compute Operator](../../axisml-system/docs/system_design/compute-operator.md)
+- [Cluster Manager](../../axisml-system/docs/system_design/cluster-manager.md)
+- [Artifact Hub](../../axisml-system/docs/system_design/artifact-hub.md)

@@ -8,7 +8,7 @@
 | --- | --- |
 | Namespace 创建与 metadata 对齐（永不删除） | Tenant CR / 配额的 CRUD API (→ [cluster-manager.md](cluster-manager.md)) |
 | 每条 `spec.quotas[]` 渲染为一个 ElasticQuota CR，回流 `status.used` | MLRun / MLService 生命周期 (→ [compute-operator.md](compute-operator.md)) |
-| `spec.initResources` 下发 ImagePullSecret / Secret / ConfigMap / SA + RBAC | 用户认证、平台 RBAC (→ [auth.md](../../axisml-platform/docs/auth.md)) |
+| `spec.initResources` 下发 ImagePullSecret / Secret / ConfigMap / SA + RBAC | 用户认证、平台 RBAC (→ [auth.md](../../../axisml-platform/docs/system_design/auth.md)) |
 | 周期 resync 收敛源 Secret / ConfigMap 漂移 | 跨集群 / 多 region 联邦 |
 
 ## 2. 架构
@@ -49,7 +49,7 @@
 | ElasticQuota | Koordinator 配额 CR | `axisml-<tenant>-<pool>` | 每条 `spec.quotas[]` 1:1 渲染（`min`/`max` 由 cluster-manager 折算后写入） |
 | InitResource | per-tenant Secret / CM / SA + RBAC | `axisml-tenant-<tenant>-<name>` | 由 `sourceXxxRef` 复制 |
 
-Tenant CR 字段见 [tenant-crd.yaml](../deploy/helm/crds/tenant-crd.yaml)；ElasticQuota 调度行为见 [infra.md](../../axisml-infra/docs/overview.md)。
+Tenant CR 字段见 [tenant-crd.yaml](../../deploy/helm/crds/tenant-crd.yaml)；ElasticQuota 调度行为见 [infra.md](../../../axisml-infra/docs/system_design/overview.md)。
 
 ## 4. 核心功能
 
@@ -142,7 +142,7 @@ Pod 调度 ─▶ koord-scheduler ─▶ ElasticQuota.status.used 累加
 
 | 类别 | 内容 |
 | --- | --- |
-| 输入 CR | `Tenant`（`axisml.io/v1alpha1`, cluster-scoped, `shortName=tnt`）；schema 见 [tenant-crd.yaml](../deploy/helm/crds/tenant-crd.yaml) |
+| 输入 CR | `Tenant`（`axisml.io/v1alpha1`, cluster-scoped, `shortName=tnt`）；schema 见 [tenant-crd.yaml](../../deploy/helm/crds/tenant-crd.yaml) |
 | 上游写者 | cluster-manager 是唯一写者（`metadata`/`spec`）；admission webhook 后续硬阻断外部写 |
 | status subresource | CRD 声明 `subresources.status`；tenant-operator 是唯一 `status` 写者 |
 | 级联清理 | per-tenant 资源 ownerReference → Tenant CR；Tenant DELETE 由 K8s GC 异步清理；Namespace 永不删除 |
@@ -152,14 +152,14 @@ Pod 调度 ─▶ koord-scheduler ─▶ ElasticQuota.status.used 累加
 
 **防御等级**：`metadata` / `spec` 单写约束当前由 controller `Validate(spec)` 软兜底，**不防外部 `kubectl patch`**——系统在控制面信任边界内部署，admission webhook 是后续硬化路径。
 
-**展示性元数据归属**：`display_name` / `description` 的权威在上游 `tenants` 表（[database.md §4](../../docs/system_design/database.md#4-platform)），**不**下发到 Tenant CR；tenant-operator 与 cluster-manager 都不感知。租户的 `labels` / `annotations` 经 cluster-manager 透传到 CR `metadata`，但 tenant-operator 不据此 reconcile、不影响 phase。
+**展示性元数据归属**：`display_name` / `description` 的权威在上游 `tenants` 表（[database.md §4](../../../docs/system_design/database.md#4-platform)），**不**下发到 Tenant CR；tenant-operator 与 cluster-manager 都不感知。租户的 `labels` / `annotations` 经 cluster-manager 透传到 CR `metadata`，但 tenant-operator 不据此 reconcile、不影响 phase。
 
 ## 7. 依赖
 
 | 依赖 | 用途 |
 | --- | --- |
 | Kubernetes API | Tenant CR watch、子资源 CRUD、leader Lease |
-| Koordinator ElasticQuota CRD | 渲染目标；`status.used` 回流来源（[infra.md](../../axisml-infra/docs/overview.md)） |
+| Koordinator ElasticQuota CRD | 渲染目标；`status.used` 回流来源（[infra.md](../../../axisml-infra/docs/system_design/overview.md)） |
 | cluster-manager | 上游唯一 Tenant CR 写者；status 回流消费方（GET 时直读 CR）（[cluster-manager.md](cluster-manager.md)） |
 | 受控 Namespace 中的源 Secret / ConfigMap | `sourceSecretRef` / `sourceConfigMapRef` 复制数据源 |
 
@@ -172,12 +172,12 @@ Pod 调度 ─▶ koord-scheduler ─▶ ElasticQuota.status.used 累加
 | 暴露端口 | Metrics `:8081`、Probes `:8082`；无 API 端口，无对外服务 |
 | RBAC scope | ClusterRole：`tenants.axisml.io`（`get/list/watch/patch`）、`namespaces`（`create/get/list/watch/update/patch`，**无 delete**）、`elasticquotas.scheduling.sigs.k8s.io` RW、目标 ns `secrets/configmaps/serviceaccounts/roles/rolebindings` RW、源 ns `secrets/configmaps` RO、`events` `create/patch`；Role：自身 ns `leases` RW |
 | Cache 过滤 | 子资源用 `axisml.io/managed-by=tenant-operator` selector，避免拉全集群；Tenant CR 不过滤 |
-| Helm / 镜像 | `tenantOperator.*`，见 [deployment.md](../../docs/system_design/deployment.md) |
+| Helm / 镜像 | `tenantOperator.*`，见 [deployment.md](../../../docs/system_design/deployment.md) |
 
 ## 9. 相关引用
 
-- [high_level_design.md](../../docs/system_design/high_level_design.md) — 控制平面拓扑与系统不变量
-- [auth.md](../../axisml-platform/docs/auth.md) · [database.md](../../docs/system_design/database.md) · [deployment.md](../../docs/system_design/deployment.md) · [infra.md](../../axisml-infra/docs/overview.md)
+- [high_level_design.md](../../../docs/system_design/high_level_design.md) — 控制平面拓扑与系统不变量
+- [auth.md](../../../axisml-platform/docs/system_design/auth.md) · [database.md](../../../docs/system_design/database.md) · [deployment.md](../../../docs/system_design/deployment.md) · [infra.md](../../../axisml-infra/docs/system_design/overview.md)
 - [cluster-manager.md](cluster-manager.md) — Tenant CR 上游 producer（REST 写 spec）
 - [compute-operator.md](compute-operator.md) — 兄弟 operator
 - [artifact-hub.md](artifact-hub.md) — workload 消费制品依赖 per-tenant SA + 默认 Secret 落地

@@ -42,8 +42,8 @@
 
 | 实体 | 含义 | 标识键 | 备注 |
 | --- | --- | --- | --- |
-| ResourcePool | 节点切分维度 + 内嵌 `units[]` | `metadata.name`（cluster-scoped，全局唯一） | admin 给目标节点打 label/taint；schema 见 [resource-pool-crd.yaml](../deploy/helm/crds/resource-pool-crd.yaml) |
-| Tenant | 租户的 K8s 物化 CR：namespace + 配额 + 初始化资源 | `metadata.name` = `identifier`（cluster-scoped，全局唯一） | 本服务写 `spec`，tenant-operator 写 `status`；schema 见 [tenant-crd.yaml](../deploy/helm/crds/tenant-crd.yaml) |
+| ResourcePool | 节点切分维度 + 内嵌 `units[]` | `metadata.name`（cluster-scoped，全局唯一） | admin 给目标节点打 label/taint；schema 见 [resource-pool-crd.yaml](../../deploy/helm/crds/resource-pool-crd.yaml) |
+| Tenant | 租户的 K8s 物化 CR：namespace + 配额 + 初始化资源 | `metadata.name` = `identifier`（cluster-scoped，全局唯一） | 本服务写 `spec`，tenant-operator 写 `status`；schema 见 [tenant-crd.yaml](../../deploy/helm/crds/tenant-crd.yaml) |
 
 > 无独立 ResourceUnit CR——`units` 是 `ResourcePool.spec.units[]` 数组项，与 pool 同生灭、原子编辑。无独立配额 CRD——内联 `Tenant.spec.quotas[]`，折算后写入（§3.3）。
 
@@ -135,9 +135,9 @@ REST 入参以业务形态 `{pool, units:[{unitName, quantity}]}` 表达配额�
 
 | 类别 | 内容 | 引用 |
 | --- | --- | --- |
-| 对外 REST | `/api/v1/resourcepools[/{pool}[/units[/{unit}]]]`（`ResourcePools` tag）；`/api/v1/tenants[/{tenant}[/quotas[/{pool}]]]`（`Tenants` tag） | [openapi/cluster-manager.yaml](apis/cluster-manager.yaml) |
-| 下发 CR | `ResourcePool` / `Tenant`（`axisml.io/v1alpha1`，cluster-scoped）；cluster-manager 是 `spec` 的 REST 写者，kubectl 路径也允许；Tenant `status` 由 tenant-operator 单写 | [resource-pool-crd.yaml](../deploy/helm/crds/resource-pool-crd.yaml) / [tenant-crd.yaml](../deploy/helm/crds/tenant-crd.yaml) |
-| 身份头 | 调用方注入 `X-Axisml-User`，本服务仅做 ownership 归属；透传为 CR annotation `axisml.io/last-modified-by`（[auth.md §6](../../axisml-platform/docs/auth.md#6-下游身份透传)） | — |
+| 对外 REST | `/api/v1/resourcepools[/{pool}[/units[/{unit}]]]`（`ResourcePools` tag）；`/api/v1/tenants[/{tenant}[/quotas[/{pool}]]]`（`Tenants` tag） | [openapi/cluster-manager.yaml](../apis/cluster-manager.yaml) |
+| 下发 CR | `ResourcePool` / `Tenant`（`axisml.io/v1alpha1`，cluster-scoped）；cluster-manager 是 `spec` 的 REST 写者，kubectl 路径也允许；Tenant `status` 由 tenant-operator 单写 | [resource-pool-crd.yaml](../../deploy/helm/crds/resource-pool-crd.yaml) / [tenant-crd.yaml](../../deploy/helm/crds/tenant-crd.yaml) |
+| 身份头 | 调用方注入 `X-Axisml-User`，本服务仅做 ownership 归属；透传为 CR annotation `axisml.io/last-modified-by`（[auth.md §6](../../../axisml-platform/docs/system_design/auth.md#6-下游身份透传)） | — |
 | 错误格式 | HTTP 标准码 + RFC 7807 problem+json；K8s API 错误经 typed 映射 | — |
 | 写后语义 | mutation 经 K8s API 写入 etcd 后返回；强一致 | — |
 
@@ -161,13 +161,13 @@ REST 入参以业务形态 `{pool, units:[{unitName, quantity}]}` 表达配额�
 | 副本 | 任意（无状态对等运行；无 leader election） |
 | 暴露端口 | API `:8080`；Metrics `:8081`；Probes `:8082`（`/readyz` 校验 K8s API 可达），均不对外 |
 | RBAC scope | ClusterRole：`resourcepools` / `tenants.axisml.io`（`get/list/watch/create/update/patch/delete`）、`events` `create/patch` |
-| Helm / 镜像 | 见 [deployment.md](../../docs/system_design/deployment.md) |
+| Helm / 镜像 | 见 [deployment.md](../../../docs/system_design/deployment.md) |
 
 ## 9. 相关引用
 
-- [high_level_design.md](../../docs/system_design/high_level_design.md) — 控制平面拓扑与系统不变量
-- [auth.md](../../axisml-platform/docs/auth.md) — 身份与鉴权契约
-- [deployment.md](../../docs/system_design/deployment.md)
-- [openapi/cluster-manager.yaml](apis/cluster-manager.yaml) — REST 契约源
+- [high_level_design.md](../../../docs/system_design/high_level_design.md) — 控制平面拓扑与系统不变量
+- [auth.md](../../../axisml-platform/docs/system_design/auth.md) — 身份与鉴权契约
+- [deployment.md](../../../docs/system_design/deployment.md)
+- [openapi/cluster-manager.yaml](../apis/cluster-manager.yaml) — REST 契约源
 - [compute-service.md](compute-service.md) — pool/unit 的展开消费方（Informer 直读）
 - [tenant-operator.md](tenant-operator.md) — Tenant CR 的落地消费方

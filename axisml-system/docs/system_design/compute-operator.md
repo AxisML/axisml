@@ -10,7 +10,7 @@
 | 派生 Job / Pod / Deployment / StatefulSet / HTTPRoute（kubeflow-trainer / kserve / custom 保留扩展点） | 业务持久化、用量计费、Outbox 推进 (→ [compute-service.md](compute-service.md)) |
 | MLTrafficPolicy 派生加权 `HTTPRoute` / kserve canary | 流量策略的成员校验 / 权重权威 (→ [compute-service.md](compute-service.md)) |
 | `spec.route` 派生 Gateway API + Envoy Gateway 扩展资源 | 模型工件存储 (→ [artifact-hub.md](artifact-hub.md)) |
-| Cancel 推进信号（`Suspended` condition）单向回流 | 用户认证 / 鉴权 (→ [auth.md](../../axisml-platform/docs/auth.md)) |
+| Cancel 推进信号（`Suspended` condition）单向回流 | 用户认证 / 鉴权 (→ [auth.md](../../../axisml-platform/docs/system_design/auth.md)) |
 | Pod 注入 `schedulerName=koord-scheduler` + Quota label | 写 compute-service PG / 跨集群联邦 |
 
 ## 2. 架构
@@ -154,7 +154,7 @@ ADD ─▶ Pending ─(route programmed + 成员 Ready)─▶ Ready ◀──▶
 
 ### 5.2 Pod 注入约定
 
-所有 MLRun / MLService Handler 派生的 Pod 必须满足以下注入，体现 [high_level_design §2.2](../../docs/system_design/high_level_design.md#22-关键不变量) 的 Quota 全覆盖不变式（未来第三方 backend 需保证同样语义）：
+所有 MLRun / MLService Handler 派生的 Pod 必须满足以下注入，体现 [high_level_design §2.2](../../../docs/system_design/high_level_design.md#22-关键不变量) 的 Quota 全覆盖不变式（未来第三方 backend 需保证同样语义）：
 
 | Pod 字段 / Label | 必填 | 取值 | 用途 |
 | --- | --- | --- | --- |
@@ -211,8 +211,8 @@ ADD ─▶ Pending ─(route programmed + 成员 Ready)─▶ Ready ◀──▶
 | 依赖 | 用途 |
 | --- | --- |
 | Kubernetes API | 主 CR + 派生资源 CRUD；leader Lease |
-| Koordinator | 所有派生 Pod 强制 schedulerName + Quota label 计入 ElasticQuota；ElasticQuota 资源由 tenant-operator 维护，operator 只透传名字（[infra.md](../../axisml-infra/docs/overview.md) / [tenant-operator.md](tenant-operator.md)） |
-| Gateway API + Envoy 扩展 | 当前派生 `HTTPRoute`；`SecurityPolicy` / `BackendTrafficPolicy` 尚未交付，认证配置 fail-closed（[infra.md](../../axisml-infra/docs/overview.md)） |
+| Koordinator | 所有派生 Pod 强制 schedulerName + Quota label 计入 ElasticQuota；ElasticQuota 资源由 tenant-operator 维护，operator 只透传名字（[infra.md](../../../axisml-infra/docs/system_design/overview.md) / [tenant-operator.md](tenant-operator.md)） |
+| Gateway API + Envoy 扩展 | 当前派生 `HTTPRoute`；`SecurityPolicy` / `BackendTrafficPolicy` 尚未交付，认证配置 fail-closed（[infra.md](../../../axisml-infra/docs/system_design/overview.md)） |
 | compute-service（上游 CR 写者） | 通过 `Create + Patch` 下发期望，status 单向回流；operator 不感知其 PG 与 Outbox（[compute-service.md](compute-service.md)） |
 | 对象存储（RustFS） | 按 spec 注入项把 Run / TensorBoard Pod 的 logdir / 产出路径 + 凭证透传进派生 Pod（§5.2） |
 
@@ -225,13 +225,13 @@ ADD ─▶ Pending ─(route programmed + 成员 Ready)─▶ Ready ◀──▶
 | 暴露端口 | Metrics `:8081`、Probes `:8082`；无 API 端口，无对外服务 |
 | RBAC scope | 三 dispatcher 权限并集（含 `mltrafficpolicies` + `httproutes` / `securitypolicies` / `services` RO），按 `--enable-*` 分段渲染；**不含** `tenants` / `elasticquotas` / `namespaces` / `secrets` / `configmaps` / `serviceaccounts`（属 tenant-operator） |
 | Flag | `--enable-ml{run,service,trafficpolicy}`（默认 `true`，`false` 时不挂 reconciler、不渲染 ClusterRole 分段）；`--leader-elect` / `--leader-election-id` / `--metrics-bind-address :8081` / `--health-probe-bind-address :8082` |
-| 镜像 / Helm | 见 [deployment.md](../../docs/system_design/deployment.md) |
+| 镜像 / Helm | 见 [deployment.md](../../../docs/system_design/deployment.md) |
 
 ## 9. 相关引用
 
-- [high_level_design.md](../../docs/system_design/high_level_design.md) — 控制平面拓扑与系统不变量
-- [auth.md](../../axisml-platform/docs/auth.md) — 身份与鉴权契约（operator 不直接认证终端用户）
-- [database.md](../../docs/system_design/database.md) · [deployment.md](../../docs/system_design/deployment.md) · [infra.md](../../axisml-infra/docs/overview.md)
+- [high_level_design.md](../../../docs/system_design/high_level_design.md) — 控制平面拓扑与系统不变量
+- [auth.md](../../../axisml-platform/docs/system_design/auth.md) — 身份与鉴权契约（operator 不直接认证终端用户）
+- [database.md](../../../docs/system_design/database.md) · [deployment.md](../../../docs/system_design/deployment.md) · [infra.md](../../../axisml-infra/docs/system_design/overview.md)
 - [compute-service.md](compute-service.md) — 上游 CR 写者
 - [tenant-operator.md](tenant-operator.md) — 兄弟 operator；Tenant / ElasticQuota / Namespace 落地
 - CRD yaml：crds/{mlrun,mlservice,mltrafficpolicy}-crd.yaml

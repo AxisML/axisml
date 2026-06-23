@@ -1,6 +1,6 @@
 # AxisML Infra 层概要
 
-Infra 层是平台的基础设施底座，为工作负载与控制面服务提供底层支撑。**设计单位是平台需要的“功能 / 能力”**——每个功能选用一个成熟的开源技术组件来实现，组件是可替换的实现细节而非设计本身。Infra 自身不承载业务逻辑，AxisML 只负责定义功能契约、选型组装并补必要的 glue 资源（Gateway、HTTPRoute、Secret、ConfigMap、ServiceAccount 等）。全部由 Infra 层 chart `axisml-infra` 统一管理（[deployment.md](../../docs/system_design/deployment.md)）。
+Infra 层是平台的基础设施底座，为工作负载与控制面服务提供底层支撑。**设计单位是平台需要的“功能 / 能力”**——每个功能选用一个成熟的开源技术组件来实现，组件是可替换的实现细节而非设计本身。Infra 自身不承载业务逻辑，AxisML 只负责定义功能契约、选型组装并补必要的 glue 资源（Gateway、HTTPRoute、Secret、ConfigMap、ServiceAccount 等）。全部由 Infra 层 chart `axisml-infra` 统一管理（[deployment.md](../../../docs/system_design/deployment.md)）。
 
 | 功能（能力） | 实现技术 | 文档 |
 | --- | --- | --- |
@@ -50,4 +50,4 @@ Infra 层是平台的基础设施底座，为工作负载与控制面服务提�
 | 调度与配额 | Koordinator——scheduler-plugins ElasticQuota 提供 namespace-scoped `min`/`max`，PodGroup 提供 Gang Scheduling，统一 koord-scheduler 承载，与 kube-scheduler 按 `schedulerName` 共存 |
 | 监控 | kube-prometheus-stack——K8s 生态事实标准，ServiceMonitor 自动发现免维护 |
 
-部署细节（chart 组织、命名空间、安装顺序、依赖清单、fullnameOverride）见 [deployment.md](../../docs/system_design/deployment.md)；三层架构见 [high_level_design.md §4](../../docs/system_design/high_level_design.md#4-整体架构)。
+部署细节（chart 组织、命名空间、安装顺序、依赖清单、fullnameOverride）见 [deployment.md](../../../docs/system_design/deployment.md)；三层架构见 [high_level_design.md §4](../../../docs/system_design/high_level_design.md#4-整体架构)。

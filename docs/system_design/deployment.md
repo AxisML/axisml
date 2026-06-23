@@ -64,7 +64,7 @@ make helm-install           # 一次性按 infra → system → platform 串装
 
 **Infra 组件部署形态**（默认 values）：Envoy Gateway（单 `axisml-gateway`，HTTP listener，`allowedRoutes` 放行工作负载 namespace）· RustFS（Standalone）· zot（Standalone filesystem，公共拉取 Secret 落 `axisml-tenant`）· GPU Operator（driver + toolkit + device plugin + DCGM + GFD，MIG 暂不启用）· Koordinator（koord-scheduler + koord-manager + ElasticQuota + PodGroup）· kube-prometheus-stack（不预置告警）· PostgreSQL（bitnami，Service `axisml-database`，`database.enabled=false` 时外接）· Redis（bitnami，standalone，Service `axisml-redis-master`，`cache.enabled=false` 时关闭）。
 
-默认共享 K8s Namespace `axisml-tenant` 由 System chart 声明并标记 `helm.sh/resource-policy=keep`；其他 tenant namespace 由 tenant-operator 在 `Tenant` CR reconcile 时按需创建（[tenant-operator.md §4.1.1](../../axisml-system/docs/tenant-operator.md#411-namespace-落地)）。
+默认共享 K8s Namespace `axisml-tenant` 由 System chart 声明并标记 `helm.sh/resource-policy=keep`；其他 tenant namespace 由 tenant-operator 在 `Tenant` CR reconcile 时按需创建（[tenant-operator.md §4.1.1](../../axisml-system/docs/system_design/tenant-operator.md#411-namespace-落地)）。
 
 ## 6. Helm 模板清单
 
@@ -85,7 +85,7 @@ CRDs 随 System 层发布（operator 契约）；Platform 用户体系 bootstrap
 
 由 `axisml-infra` chart 提供（Infra 层第三方依赖，bitnami/redis 子 chart，`architecture: standalone`，StatefulSet + PVC，Service `axisml-redis-master`）。Platform 经跨 namespace FQDN `axisml-redis-master.axisml-infra:6379` 连接，凭据由 Platform 从共享 `cache.auth.password` 在本 namespace 自渲染为 Secret。
 
-缓存仅承载可重建的会话有效性与身份 / RBAC 数据（[platform/auth.md §2.1](../../axisml-platform/docs/auth.md#21-会话与身份缓存)），故为**可选加速器**：`axisml-platform` 的 `cache.enabled=false` 即不下发 `REDIS_ADDR`，Backend 全程直连 PostgreSQL；运行中 Redis 不可达按操作回退源库。单实例无需 HA——宕机 / 重启只触发一次回源（及会话强制重登），不丢业务真相。开发 / 测试 / CI 默认不依赖 Redis（`REDIS_ADDR` 空即 noop）。
+缓存仅承载可重建的会话有效性与身份 / RBAC 数据（[platform/auth.md §2.1](../../axisml-platform/docs/system_design/auth.md#21-会话与身份缓存)），故为**可选加速器**：`axisml-platform` 的 `cache.enabled=false` 即不下发 `REDIS_ADDR`，Backend 全程直连 PostgreSQL；运行中 Redis 不可达按操作回退源库。单实例无需 HA——宕机 / 重启只触发一次回源（及会话强制重登），不丢业务真相。开发 / 测试 / CI 默认不依赖 Redis（`REDIS_ADDR` 空即 noop）。
 
 ## 9. 部署相关设计决策
 
@@ -100,4 +100,4 @@ CRDs 随 System 层发布（operator 契约）；Platform 用户体系 bootstrap
 
 ## 10. 关联文档
 
-- [high_level_design.md](high_level_design.md) · [infra/overview.md](../../axisml-infra/docs/overview.md)（infra 层组件）· [database.md](database.md)（PostgreSQL 形态）· 各组件详设 §8 运行时形态。
+- [high_level_design.md](high_level_design.md) · [infra/overview.md](../../axisml-infra/docs/system_design/overview.md)（infra 层组件）· [database.md](database.md)（PostgreSQL 形态）· 各组件详设 §8 运行时形态。

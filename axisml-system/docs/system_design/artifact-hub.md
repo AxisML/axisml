@@ -7,7 +7,7 @@
 | 做 | 不做 |
 | --- | --- |
 | Artifact CRUD、两阶段写（initiate / complete）、resolve | 制品 bytes 存取（→ zot / RustFS 直连） |
-| 上传 / 下载凭证签发（OCI scope token / S3 prefix-scoped STS） | 用户认证与角色鉴权（→ [auth.md](../../axisml-platform/docs/auth.md)） |
+| 上传 / 下载凭证签发（OCI scope token / S3 prefix-scoped STS） | 用户认证与角色鉴权（→ [auth.md](../../../axisml-platform/docs/system_design/auth.md)） |
 | Kind 按 Handler 注册表分发（model / dataset / image） | tenant 存在性与权限校验（namespace 字段由 compute 兜底 tenant 语义） |
 | GC：Uploading TTL、Failed 留存、Deleting 推进 | 反向孤儿主动清理（仅告警）；跨 namespace 级联删除 |
 | `visibility=public` 全局可见制品（落 `default` 内置 tenant scope） | tenant Secret 落地（→ [tenant-operator.md](tenant-operator.md)） |
@@ -43,9 +43,9 @@
 - `visibility`：`tenant`（默认，仅本 tenant scope 可见）/ `public`（全局可见；仅允许在 `default` 下创建，由上游做 RBAC 兜底）。
 - `source`：`webUpload` / `oras`（model CLI 推送）/ `dockerPush`（image 本机推送）/ `external`（登记远端、免上传，§5.1）——进 `Ready` 后冻结。
 - 状态机：`Uploading` / `Ready` / `Failed` / `Deleting` / `Deleted`（§6）。
-- 扩展元数据 `labels` / `annotations` 对齐 [database.md §1.6](../../docs/system_design/database.md#16-扩展元数据-labels--annotations)；artifacts 无 CR，扩展位只落 PG。
+- 扩展元数据 `labels` / `annotations` 对齐 [database.md §1.6](../../../docs/system_design/database.md#16-扩展元数据-labels--annotations)；artifacts 无 CR，扩展位只落 PG。
 
-字段级 schema 见 [database.md §3](../../docs/system_design/database.md#3-artifact-hub)；spec 子字段见 [openapi/artifact-hub.yaml](apis/artifact-hub.yaml)。
+字段级 schema 见 [database.md §3](../../../docs/system_design/database.md#3-artifact-hub)；spec 子字段见 [openapi/artifact-hub.yaml](../apis/artifact-hub.yaml)。
 
 ## 4. 核心功能
 
@@ -115,9 +115,9 @@ GC worker（leader-only，每 5 分钟）扫描 PG 三类谓词：
 
 | 类别 | 内容 | 引用 |
 | --- | --- | --- |
-| 对外 REST | `/api/v1/namespaces/{ns}/{kindPlural}/{name}[/{version}[/{complete,resolve}]]`；版本级 GET / PATCH / DELETE 同前缀。`kindPlural`：`models` / `datasets` / `images` | [openapi/artifact-hub.yaml](apis/artifact-hub.yaml) `Artifacts` tag |
-| 身份头 | 调用方注入 `X-Axisml-User`，本服务仅做 ownership 归属（[auth.md §6](../../axisml-platform/docs/auth.md#6-下游身份透传)） | — |
-| 列表查询 | list 支持 `?labelSelector=`（K8s grammar） | [database.md §1.6](../../docs/system_design/database.md#16-扩展元数据-labels--annotations) |
+| 对外 REST | `/api/v1/namespaces/{ns}/{kindPlural}/{name}[/{version}[/{complete,resolve}]]`；版本级 GET / PATCH / DELETE 同前缀。`kindPlural`：`models` / `datasets` / `images` | [openapi/artifact-hub.yaml](../apis/artifact-hub.yaml) `Artifacts` tag |
+| 身份头 | 调用方注入 `X-Axisml-User`，本服务仅做 ownership 归属（[auth.md §6](../../../axisml-platform/docs/system_design/auth.md#6-下游身份透传)） | — |
+| 列表查询 | list 支持 `?labelSelector=`（K8s grammar） | [database.md §1.6](../../../docs/system_design/database.md#16-扩展元数据-labels--annotations) |
 | 错误格式 | HTTP 标准码 + RFC 7807 problem+json | — |
 | 写后语义 | initiate PG 提交后返上传凭证；Ready 由 complete 推进；PATCH 纯 PG mutation 立即可读 | — |
 
@@ -139,7 +139,7 @@ Ready / Failed ─(DELETE)─▶ Deleting ─(GCBackend 成功)─▶ Deleted
 
 | 依赖 | 用途 |
 | --- | --- |
-| PostgreSQL | 元数据权威；与 compute 共享 database，表前缀 `artifact_*`（[database.md](../../docs/system_design/database.md)） |
+| PostgreSQL | 元数据权威；与 compute 共享 database，表前缀 `artifact_*`（[database.md](../../../docs/system_design/database.md)） |
 | zot | OCI 后端；Artifacts 持 admin 凭证签 scope token / HEAD 校验 / GC 删 blob，客户端持短期 token 直连 |
 | RustFS | S3 后端；签 prefix-scoped STS / HEAD `artifact-manifest.json` 校验 / GC 删 prefix，bucket `axisml-artifact-hub` |
 | tenant-operator | 在 workload namespace 落地 per-tenant ServiceAccount + Secrets（默认 imagePullSecret 拉 zot、env / volume 读 RustFS）；Artifacts 不参与 Secret 落地、不在 resolve 返回 secret 名（[tenant-operator.md](tenant-operator.md)） |
@@ -152,14 +152,14 @@ Ready / Failed ─(DELETE)─▶ Deleting ─(GCBackend 成功)─▶ Deleted
 | 副本 | API 默认 `replicas=1`（无状态可水平扩）；GC worker 单 leader，经 PG session 级 advisory lock（`pg_try_advisory_lock`）选主，leader 崩溃时连接断开即自动释放锁 |
 | 暴露端口 | API `:8080`；Metrics `:8081`；Probes `:8082`（`/readyz` 校验 PG），均不对外 |
 | K8s 依赖 | 无。Artifacts 不连 K8s API（不 watch CRD、不持 Lease、不需 client-go / controller-runtime），因此不需要任何 K8s RBAC，只读写 PG + 调后端 HTTP；选主权威与数据权威统一在 PG |
-| Helm / 镜像 | 见 [deployment.md](../../docs/system_design/deployment.md) |
+| Helm / 镜像 | 见 [deployment.md](../../../docs/system_design/deployment.md) |
 
 ## 9. 相关引用
 
-- [high_level_design.md](../../docs/system_design/high_level_design.md) — Artifacts 在控制平面的位置与系统不变量
-- [auth.md](../../axisml-platform/docs/auth.md) — `X-Axisml-User` 注入与传播
-- [database.md](../../docs/system_design/database.md) — `artifacts` 表 schema
-- [deployment.md](../../docs/system_design/deployment.md) · [infra.md](../../axisml-infra/docs/overview.md)
-- [openapi/artifact-hub.yaml](apis/artifact-hub.yaml) — REST 契约源
+- [high_level_design.md](../../../docs/system_design/high_level_design.md) — Artifacts 在控制平面的位置与系统不变量
+- [auth.md](../../../axisml-platform/docs/system_design/auth.md) — `X-Axisml-User` 注入与传播
+- [database.md](../../../docs/system_design/database.md) — `artifacts` 表 schema
+- [deployment.md](../../../docs/system_design/deployment.md) · [infra.md](../../../axisml-infra/docs/system_design/overview.md)
+- [openapi/artifact-hub.yaml](../apis/artifact-hub.yaml) — REST 契约源
 - [tenant-operator.md](tenant-operator.md) — per-tenant SA + 默认 Secret 落地契约（inspect 的隐式凭证来源）
 - [compute-operator.md](compute-operator.md) — 消费 Platform 已解析并快照到 workload spec 的制品引用

@@ -35,7 +35,7 @@ detect_driver() {
         return
     fi
 
-    error "No container runtime found. Please install Docker Desktop or Podman (see docs/development/local-setup.md)."
+    error "No container runtime found. Please install Docker Desktop or Podman (see docs/development_workflow.md)."
 }
 
 check_prerequisites() {
@@ -47,7 +47,7 @@ check_prerequisites() {
     done
 
     if [[ ${#missing[@]} -gt 0 ]]; then
-        error "Missing required tools: ${missing[*]}. Please install them first (see docs/development/local-setup.md)."
+        error "Missing required tools: ${missing[*]}. Please install them first (see docs/development_workflow.md)."
     fi
 
     detect_driver

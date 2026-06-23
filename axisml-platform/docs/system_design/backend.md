@@ -16,7 +16,7 @@ AxisML 唯一直接面向用户的层：承担身份接入、业务编排与视�
 | 视图层映射（用户 ↔ 租户 ↔ `identifier`；workspace ↔ `MLService(kind=workspace)`） | 缓存下游可变实例状态（phase / status / digest / quota 用量 → 一律实时回源） |
 | 前端 UI 多语言（§5.6） | 按 `Accept-Language` 本地化响应（后端与下游 locale-neutral，只返稳定机读 code） |
 
-**统一 tenant scope**：compute / artifacts 的 URL `{namespace}` 兼容段表示租户 `identifier`，Platform 直接透传；它不是 K8s Namespace。物理落地点由 `tenants.kubernetes_namespace` / `Tenant.spec.namespace.name` 表达，可被多个 Tenant 共享（见 [high_level_design §2.2](../../docs/system_design/high_level_design.md#22-关键不变量)）。
+**统一 tenant scope**：compute / artifacts 的 URL `{namespace}` 兼容段表示租户 `identifier`，Platform 直接透传；它不是 K8s Namespace。物理落地点由 `tenants.kubernetes_namespace` / `Tenant.spec.namespace.name` 表达，可被多个 Tenant 共享（见 [high_level_design §2.2](../../../docs/system_design/high_level_design.md#22-关键不变量)）。
 
 ## 2. 架构
 
@@ -47,7 +47,7 @@ External Users → Envoy Gateway → Platform ─┬─▶ cluster-manager
 
 ## 3. 核心模型
 
-Platform 自有实体三类：**租户持久记录**、**身份 / 授权 / 会话**、**四张定义**。字段与索引见 [database.md §4](../../docs/system_design/database.md#4-platform)。
+Platform 自有实体三类：**租户持久记录**、**身份 / 授权 / 会话**、**四张定义**。字段与索引见 [database.md §4](../../../docs/system_design/database.md#4-platform)。
 
 **租户（tenants）**：持有租户持久记录与生命周期权威——`identifier`（DNS-1123，唯一 tenant scope）、`kubernetes_namespace`（物理落地点，可共享）、展示元数据、`owner`、`suspended_at`（停用态）。经 cluster-manager REST 物化 / 回收 Tenant CR，不直接操作 CR；删除为硬删除，不提供 restore。
 
@@ -77,7 +77,7 @@ Platform 自有实体三类：**租户持久记录**、**身份 / 授权 / 会�
 
 ## 4. 核心功能
 
-每节定义编排动作；字段契约见 [openapi/platform.yaml](apis/platform.yaml)，权限矩阵见 [auth.md §3](auth.md#3-rbac-角色)。下游各自的强一致策略（compute Outbox + reconciler、PVC 同事务、artifacts 两阶段写）对 Platform 透明。
+每节定义编排动作；字段契约见 [openapi/platform.yaml](../apis/platform.yaml)，权限矩阵见 [auth.md §3](auth.md#3-rbac-角色)。下游各自的强一致策略（compute Outbox + reconciler、PVC 同事务、artifacts 两阶段写）对 Platform 透明。
 
 ### 4.0 编排通则
 
@@ -184,7 +184,7 @@ Dashboard 的聚合模型与接口暂不在本版系统设计中定义，待后�
 
 ### 4.8 流量配置编排
 
-下游：compute（流量策略 + 加权路由派生 + 灰度指标代理）。流量策略把一个稳定入口的流量按权重分发到本租户多个在线服务后端，加权路由由 compute 内部派生，Platform 不直连网关、不内嵌 PromQL。字段契约见 [compute-service.md §4.3](../../axisml-system/docs/compute-service.md#43-流量策略mltrafficpolicy)。
+下游：compute（流量策略 + 加权路由派生 + 灰度指标代理）。流量策略把一个稳定入口的流量按权重分发到本租户多个在线服务后端，加权路由由 compute 内部派生，Platform 不直连网关、不内嵌 PromQL。字段契约见 [compute-service.md §4.3](../../../axisml-system/docs/system_design/compute-service.md#43-流量策略mltrafficpolicy)。
 
 | 用户操作 | 内部步骤 / 下游调用 |
 | --- | --- |
@@ -262,7 +262,7 @@ Platform 在下游对象上挂自定义元数据（`last-replicas` 副本基线�
 | 维度 | 约定 |
 | --- | --- |
 | 写入路径 | `clustermanager.{Create,Update}Tenant` / `compute.{Create,Update}{Job,Service}` / `artifacts.UpdateArtifact` 请求体携带 `labels` / `annotations` |
-| 存储 | 下游 PG 表的 `labels`/`annotations` jsonb 列（[database.md §1.6](../../docs/system_design/database.md#16-扩展元数据-labels--annotations)） |
+| 存储 | 下游 PG 表的 `labels`/`annotations` jsonb 列（[database.md §1.6](../../../docs/system_design/database.md#16-扩展元数据-labels--annotations)） |
 | Key 命名空间 | Platform 内部 `platform.axisml.io/<key>`；终端用户透传走 `user.axisml.io/<key>` 或无前缀 |
 | 同步语义 | 不触发 CR patch（不 `+generation`）、不引发 reconcile；纯 PG mutation，写后即读 |
 
@@ -290,7 +290,7 @@ RBAC 中间件装配见 [auth.md](auth.md)；Platform 路由层挂载 `RequireSy
 
 | 类别 | 内容 |
 | --- | --- |
-| 对外 REST | 业务 tag：`Auth` / `Tenants` / `Quotas` / `Members` / `Jobs` / `Experiments` / `MLServices` / `TrafficPolicy` / `Workspaces` / `Models` / `Images` / `ResourcePools` / `ResourceUnits`；name 寻址 `/api/v1/{kind}/{name}`（Run / TensorBoard 为子资源），制品 tuple 寻址 `/{kind-plural}/{tenant}/{name}`；系统 tag（`Users` / `Health`）见 yaml。契约源 [openapi/platform.yaml](apis/platform.yaml) |
+| 对外 REST | 业务 tag：`Auth` / `Tenants` / `Quotas` / `Members` / `Jobs` / `Experiments` / `MLServices` / `TrafficPolicy` / `Workspaces` / `Models` / `Images` / `ResourcePools` / `ResourceUnits`；name 寻址 `/api/v1/{kind}/{name}`（Run / TensorBoard 为子资源），制品 tuple 寻址 `/{kind-plural}/{tenant}/{name}`；系统 tag（`Users` / `Health`）见 yaml。契约源 [openapi/platform.yaml](../apis/platform.yaml) |
 | 状态 | 不暴露任何 K8s CR；下游运行态字段（phase / conditions / quota 用量）作只读透传 |
 | 错误格式 | HTTP 标准码 + RFC 7807 problem+json；下游 problem 透传或包装；`type` URI / 下游 code 为稳定机读标识（§5.6） |
 | 流式 | 日志 / 事件 `follow=true` 用 SSE；非 follow 用 `text/plain` chunked |
@@ -302,9 +302,9 @@ RBAC 中间件装配见 [auth.md](auth.md)；Platform 路由层挂载 `RequireSy
 
 | 依赖 | 用途 |
 | --- | --- |
-| PostgreSQL | 身份 / 授权 / 会话 + 四张定义；与 compute / artifacts 共享 DB，按表名前缀隔离（[database.md §4](../../docs/system_design/database.md#4-platform)） |
+| PostgreSQL | 身份 / 授权 / 会话 + 四张定义；与 compute / artifacts 共享 DB，按表名前缀隔离（[database.md §4](../../../docs/system_design/database.md#4-platform)） |
 | Redis（可选） | 认证热点读缓存（会话有效性 + 身份 / RBAC），key 前缀 `platform:`；权威仍是 PostgreSQL，不可达即回退（[auth.md §2.1](auth.md#21-会话与身份缓存)） |
-| Envoy Gateway | 唯一外部入口；TLS 终止 / HTTPRoute；数据面 SecurityPolicy 待交付（[infra.md](../../axisml-infra/docs/overview.md)） |
+| Envoy Gateway | 唯一外部入口；TLS 终止 / HTTPRoute；数据面 SecurityPolicy 待交付（[infra.md](../../../axisml-infra/docs/system_design/overview.md)） |
 | cluster-manager | ResourcePool / Unit CRUD + 租户 CR 物化（含配额折算 + 运行态回源） |
 | compute | Run / Service / Workspace / TrafficPolicy / TensorBoard 权威；创建体接 `scheduling{poolName,unitName,quota}` 名字对；资源池删除检查复用按 tenant scope 的 labelSelector 列表查询 |
 | artifacts | 模型 / 镜像版本；两阶段写或 `external` 登记；Platform 负责 `GetArtifact` 预检与 `resolve?usage=inspect` 快照 |
@@ -319,13 +319,13 @@ RBAC 中间件装配见 [auth.md](auth.md)；Platform 路由层挂载 `RequireSy
 | 缓存 | 可选 Redis 前置认证热点读；`REDIS_ADDR` 空则直连 PostgreSQL（[auth.md §2.1](auth.md#21-会话与身份缓存)） |
 | 暴露端口 | 目标 API `:8080`、Metrics `:8081`、Probes `:8082`（`/healthz` / `/readyz`），JWKS `/.well-known/jwks.json` 走 ClusterIP（当前 workload 镜像仍为 nginx placeholder） |
 | RBAC scope | 无 K8s API 需求（全部下沉下游服务） |
-| Helm / 镜像 | 见 [deployment.md](../../docs/system_design/deployment.md) |
+| Helm / 镜像 | 见 [deployment.md](../../../docs/system_design/deployment.md) |
 
 ## 9. 相关引用
 
-- [high_level_design.md](../../docs/system_design/high_level_design.md) — 控制平面拓扑与系统不变量
+- [high_level_design.md](../../../docs/system_design/high_level_design.md) — 控制平面拓扑与系统不变量
 - [auth.md](auth.md) — 身份与鉴权契约、access JWT、中间件
-- [database.md](../../docs/system_design/database.md) — Platform PG schema（§4）
-- [deployment.md](../../docs/system_design/deployment.md) · [infra.md](../../axisml-infra/docs/overview.md)
-- [openapi/platform.yaml](apis/platform.yaml) — REST 契约源
-- 下游：[cluster-manager.md](../../axisml-system/docs/cluster-manager.md) · [compute-service.md](../../axisml-system/docs/compute-service.md) · [artifact-hub.md](../../axisml-system/docs/artifact-hub.md) · [tenant-operator.md](../../axisml-system/docs/tenant-operator.md) · [compute-operator.md](../../axisml-system/docs/compute-operator.md)
+- [database.md](../../../docs/system_design/database.md) — Platform PG schema（§4）
+- [deployment.md](../../../docs/system_design/deployment.md) · [infra.md](../../../axisml-infra/docs/system_design/overview.md)
+- [openapi/platform.yaml](../apis/platform.yaml) — REST 契约源
+- 下游：[cluster-manager.md](../../../axisml-system/docs/system_design/cluster-manager.md) · [compute-service.md](../../../axisml-system/docs/system_design/compute-service.md) · [artifact-hub.md](../../../axisml-system/docs/system_design/artifact-hub.md) · [tenant-operator.md](../../../axisml-system/docs/system_design/tenant-operator.md) · [compute-operator.md](../../../axisml-system/docs/system_design/compute-operator.md)

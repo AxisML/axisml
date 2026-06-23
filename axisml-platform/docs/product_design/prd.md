@@ -2,7 +2,7 @@
 
 ## 1. 概述
 
-**AxisML** 是一款 AI 训练推理一体的一站式机器学习平台，覆盖模型开发、训练、制品管理、在线推理与系统运维。本文档从用户视角描述目标用户、核心概念与功能能力（"为谁做、做什么"）；架构与实现取舍见 [概要设计](../../../docs/system_design/high_level_design.md)，字段级契约以 [docs/system_design/](../system_design) 与 [openapi/](../openapi) 为准。
+**AxisML** 是一款 AI 训练推理一体的一站式机器学习平台，覆盖模型开发、训练、制品管理、在线推理与系统运维。本文档从用户视角描述目标用户、核心概念与功能能力（"为谁做、做什么"）；架构与实现取舍见 [概要设计](../../../docs/system_design/high_level_design.md)，字段级契约以 [docs/system_design/](../system_design) 与 [openapi/](../apis) 为准。
 
 页面布局与交互以 [交互原型 prototype/](prototype) 为权威。
 
@@ -136,7 +136,7 @@
 - **语言范围**：首批简体中文与英文，按可扩展设计，后续增补语言不改动既有功能。
 - **本地化范围**：覆盖全部菜单、列表 / 详情 / 表单文案、按钮、状态标签、提示与错误；日期 / 数字 / 时区按所选语言呈现。用户自有自由文本（显示名 / 描述 / 标签等）按原文存储与展示，不翻译。
 - **切换与记忆**：入口在顶部用户菜单，默认随浏览器语言，即时生效并在本浏览器记住。
-- **实现取向**：多语言是前端职责，后端与下游服务语言中立（只返回稳定机读错误码），契约见 [platform.md §5.6](../system_design/platform/backend.md#56-多语言--i18n)。
+- **实现取向**：多语言是前端职责，后端与下游服务语言中立（只返回稳定机读错误码），契约见 [platform.md §5.6](../system_design/backend.md#56-多语言--i18n)。
 
 ## 7. 范围外与后续工作
 
@@ -148,4 +148,4 @@
 ## 8. 参考
 
 - [概要设计 overview.md](../../../docs/system_design/high_level_design.md) · [交互原型 prototype/（页面权威）](prototype)
-- 组件设计：[platform](../system_design/platform/backend.md) · [cluster-manager](../system_design/system/cluster-manager.md) · [compute-service](../system_design/system/compute-service.md) · [compute-operator](../system_design/system/compute-operator.md) · [tenant-operator](../system_design/system/tenant-operator.md) · [artifact-hub](../system_design/system/artifact-hub.md)
+- 组件设计：[platform](../system_design/backend.md) · [cluster-manager](../../../axisml-system/docs/system_design/cluster-manager.md) · [compute-service](../../../axisml-system/docs/system_design/compute-service.md) · [compute-operator](../../../axisml-system/docs/system_design/compute-operator.md) · [tenant-operator](../../../axisml-system/docs/system_design/tenant-operator.md) · [artifact-hub](../../../axisml-system/docs/system_design/artifact-hub.md)

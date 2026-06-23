@@ -34,4 +34,4 @@ GatewayClass (envoy-gateway)
 | 认证鉴权 | `SecurityPolicy`（附加到 Gateway / HTTPRoute） | JWT 验证（issuer + JWKS）· OIDC 集成 · ExtAuth · per-Service（`targetRefs`）。具体 IdP 由调用方决定，本功能只保证能力就位 |
 | 流量控制 | `BackendTrafficPolicy` | 限流 · 熔断 · 超时 / 重试 · 负载均衡 |
 
-本功能只提供 `Gateway` 与 listener 能力，不感知业务语义、不内置用户态鉴权策略。部署形态见 [deployment.md §5](../../docs/system_design/deployment.md#5-控制面-deployment)。
+本功能只提供 `Gateway` 与 listener 能力，不感知业务语义、不内置用户态鉴权策略。部署形态见 [deployment.md §5](../../../docs/system_design/deployment.md#5-控制面-deployment)。
