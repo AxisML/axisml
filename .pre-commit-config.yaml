@@ -23,6 +23,16 @@ exclude: |
   )$
 
 repos:
+  # ── commit-msg stage ──────────────────────────────────────────────────
+  # Validate the commit subject against Conventional Commits + the closed
+  # scope list in .commitlintrc.yml. Fires on `git commit`, not on push.
+  - repo: https://github.com/alessandrojcm/commitlint-pre-commit-hook
+    rev: v9.20.0
+    hooks:
+      - id: commitlint
+        stages: [commit-msg]
+        additional_dependencies: ["@commitlint/config-conventional@19.5.0"]
+
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:

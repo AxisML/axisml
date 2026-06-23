@@ -189,6 +189,25 @@ jobs:
         # missing dependencies but still validates Chart.yaml + templates.
         run: make helm-lint
 
+  commitlint:
+    name: commitlint
+    # PRs are squash-merged, so the PR title becomes the commit subject on
+    # main. Validate it against Conventional Commits + the closed scope list
+    # in .commitlintrc.yml. PR-only — push events have no title to check.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install commitlint
+        run: npm install --no-save @commitlint/cli@19 @commitlint/config-conventional@19
+      - name: Lint PR title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: printf '%s' "$PR_TITLE" | npx commitlint
+
   doc-test:
     name: doc-test
     runs-on: ubuntu-latest

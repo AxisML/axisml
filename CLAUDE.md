@@ -182,7 +182,7 @@ The system layer's `helm-install` / `helm-upgrade` depend on `helm-crds`, which 
 
 ## Conventions worth knowing
 
-- Conventional Commit subjects: `docs:`, `feat(operator):`, `chore(build):`, `fix:`, etc. Keep scoped and imperative.
+- Conventional Commit subjects, scoped and imperative. The scope is constrained to the four deployment layers — `feat(infra|system|platform|lite)` — plus the cross-cutting scopes `build` (Makefiles/CI/tooling), `repo` (repo-wide reorg), and `deps` (dependency bumps); omit it for changes that span everything (`docs:`, `chore:`). Enforced by commitlint (`.commitlintrc.yml`) via the `commit-msg` hook and on PR titles in CI.
 - The build system is four Makefiles: root (orchestrator) + one per layer. The system layer Makefile owns the `COMPONENTS` list; component dir names must stay unique within it (per-component shortcut targets are `<component>-<target>`).
 - `bin/` directories are build artifacts — never commit.
 - Lint config (`.golangci.yml`) is shared across all Go modules; CI runs `golangci-lint` once per module. Active linters: `errcheck`, `govet`, `ineffassign`, `staticcheck`, `unused`, `misspell`, plus `gofmt` + `goimports` formatters. The `integration` build tag is enabled so tagged files are linted too.

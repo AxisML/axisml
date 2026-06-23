@@ -28,7 +28,7 @@ Unit tests sit next to packages as `*_test.go` and use Go `testing` plus `testif
 
 ## Commit & Pull Request Guidelines
 
-Use Conventional Commit subjects, e.g. `feat(compute-service): add cache probe` or `docs(system_design): clarify runtime contract`. PR titles must also be valid Conventional Commits because PRs are squash-merged. Before opening a PR, run the relevant component tests plus `make fmt`, `make doc-test` for DTO/API changes, and `make helm-template`/`make helm-lint` for chart changes. Link issues, describe behavior changes, and include screenshots for UI-facing work.
+Use Conventional Commit subjects, e.g. `feat(system): add cache probe` or `docs(platform): clarify runtime contract`. The scope must be one of the four deployment layers — `infra`, `system`, `platform`, `lite` — or, for cross-cutting changes, `build` (Makefiles/CI/tooling), `repo` (repo-wide reorg), or `deps` (dependency bumps); omit it when a change spans everything (`docs:`, `chore:`). This is enforced by commitlint (`.commitlintrc.yml`) via the `commit-msg` hook and on PR titles in CI. PR titles must also be valid Conventional Commits because PRs are squash-merged. Before opening a PR, run the relevant component tests plus `make fmt`, `make doc-test` for DTO/API changes, and `make helm-template`/`make helm-lint` for chart changes. Link issues, describe behavior changes, and include screenshots for UI-facing work.
 
 ## Security & Configuration Tips
 

@@ -136,8 +136,9 @@ install-hooks: ## Install pre-commit + pre-push hooks (requires `pre-commit` on 
 	@command -v pre-commit >/dev/null || { echo "pre-commit not found. Install: brew install pre-commit"; exit 1; }
 	@pre-commit install
 	@pre-commit install --hook-type pre-push
+	@pre-commit install --hook-type commit-msg
 uninstall-hooks: ## Remove pre-commit + pre-push hooks
-	@command -v pre-commit >/dev/null && { pre-commit uninstall; pre-commit uninstall --hook-type pre-push; } || true
+	@command -v pre-commit >/dev/null && { pre-commit uninstall; pre-commit uninstall --hook-type pre-push; pre-commit uninstall --hook-type commit-msg; } || true
 pre-commit-run: ## Run all pre-commit hooks against every tracked file
 	@pre-commit run --all-files
 pre-push-run: ## Run all pre-push hooks against every tracked file
