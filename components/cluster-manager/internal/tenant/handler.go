@@ -19,19 +19,25 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/uuid"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cmv1alpha1 "github.com/axisml/axisml/components/cluster-manager/api/v1alpha1"
 	srv "github.com/axisml/axisml/components/cluster-manager/internal/server"
+	"github.com/axisml/axisml/components/cluster-manager/pkg/provider"
 	tenantv1alpha1 "github.com/axisml/axisml/components/tenant-operator/api/v1alpha1"
 )
 
 // Handler implements /api/v1/tenants[/{tenant}[/quotas...]]. It owns no state;
-// all reads/writes go to the K8s API via client.Client.
+// reads/writes go through the injected stores (Kubernetes CRD or Lite config).
+// Quota folding reads the ResourcePool store.
 type Handler struct {
-	Client client.Client
+	tenants provider.TenantStore
+	pools   provider.ResourcePoolStore
+}
+
+// NewHandler builds a tenant handler over the given stores.
+func NewHandler(tenants provider.TenantStore, pools provider.ResourcePoolStore) *Handler {
+	return &Handler{tenants: tenants, pools: pools}
 }
 
 // Register attaches all routes to the provided /api/v1 group.
@@ -80,7 +86,7 @@ func (h *Handler) Create(c *gin.Context) {
 	if cr.Labels[tenantv1alpha1.LabelTenantID] == "" {
 		cr.Labels[tenantv1alpha1.LabelTenantID] = string(uuid.NewUUID())
 	}
-	if err := h.Client.Create(c.Request.Context(), cr); err != nil {
+	if err := h.tenants.Create(c.Request.Context(), cr); err != nil {
 		writeK8sError(c, err, req.Name)
 		return
 	}
@@ -101,14 +107,13 @@ func (h *Handler) Get(c *gin.Context) {
 // List handles GET /api/v1/tenants. Supports ?labelSelector, ?limit (1-500,
 // default server-side), and ?continue (opaque cursor).
 func (h *Handler) List(c *gin.Context) {
-	opts := []client.ListOption{}
+	params := provider.ListParams{}
 	if sel := c.Query("labelSelector"); sel != "" {
-		ps, err := labels.Parse(sel)
-		if err != nil {
+		if _, err := labels.Parse(sel); err != nil {
 			srv.AbortWithProblem(c, http.StatusBadRequest, "InvalidSelector", "labelSelector parse error", err.Error())
 			return
 		}
-		opts = append(opts, client.MatchingLabelsSelector{Selector: ps})
+		params.Selector = sel
 	}
 	if v := c.Query("limit"); v != "" {
 		n, err := strconv.Atoi(v)
@@ -116,14 +121,12 @@ func (h *Handler) List(c *gin.Context) {
 			srv.AbortWithProblem(c, http.StatusBadRequest, "InvalidLimit", "limit must be an integer in [1, 500]", v)
 			return
 		}
-		opts = append(opts, client.Limit(int64(n)))
+		params.Limit = n
 	}
-	if cont := c.Query("continue"); cont != "" {
-		opts = append(opts, client.Continue(cont))
-	}
+	params.Continue = c.Query("continue")
 
-	var list tenantv1alpha1.TenantList
-	if err := h.Client.List(c.Request.Context(), &list, opts...); err != nil {
+	list, err := h.tenants.List(c.Request.Context(), params)
+	if err != nil {
 		writeK8sError(c, err, "")
 		return
 	}
@@ -205,9 +208,7 @@ func applyTenantPatch(t *tenantv1alpha1.Tenant, req srv.PatchTenantRequest, user
 // durable tenant record and soft-delete/retention live in Platform.
 func (h *Handler) Delete(c *gin.Context) {
 	name := c.Param("tenant")
-	cr := &tenantv1alpha1.Tenant{}
-	cr.Name = name
-	if err := h.Client.Delete(c.Request.Context(), cr); err != nil {
+	if err := h.tenants.Delete(c.Request.Context(), name); err != nil {
 		if apierrors.IsNotFound(err) {
 			c.Status(http.StatusNoContent)
 			return
@@ -307,11 +308,7 @@ func (h *Handler) DeleteQuota(c *gin.Context) {
 // ─────────────────────────────────────────────────────────────── helpers
 
 func (h *Handler) getTenant(ctx context.Context, name string) (*tenantv1alpha1.Tenant, error) {
-	cr := &tenantv1alpha1.Tenant{}
-	if err := h.Client.Get(ctx, types.NamespacedName{Name: name}, cr); err != nil {
-		return nil, err
-	}
-	return cr, nil
+	return h.tenants.Get(ctx, name)
 }
 
 // foldQuotas fetches the referenced ResourcePools and folds the business-form
@@ -339,8 +336,8 @@ func (h *Handler) foldQuotas(ctx context.Context, quotas []srv.Quota) ([]tenantv
 func (h *Handler) fetchPools(ctx context.Context, names []string) (map[string]*cmv1alpha1.ResourcePool, error) {
 	out := make(map[string]*cmv1alpha1.ResourcePool, len(names))
 	for _, n := range names {
-		pool := &cmv1alpha1.ResourcePool{}
-		if err := h.Client.Get(ctx, types.NamespacedName{Name: n}, pool); err != nil {
+		pool, err := h.pools.Get(ctx, n)
+		if err != nil {
 			if apierrors.IsNotFound(err) {
 				return nil, &srv.QuotaError{Reason: srv.QuotaPoolNotFound, Pool: n}
 			}
@@ -363,7 +360,7 @@ func (h *Handler) mutateWithRetry(ctx context.Context, name string, mutate func(
 		if err := mutate(cr); err != nil {
 			return err
 		}
-		err = h.Client.Patch(ctx, cr, client.MergeFrom(base))
+		err = h.tenants.Patch(ctx, cr, base)
 		if err == nil {
 			return nil
 		}
@@ -400,7 +397,7 @@ func (h *Handler) mutateQuotas(ctx context.Context, name, user string, transform
 			}
 			cr.Annotations[srv.LastModifiedByAnnotation] = user
 		}
-		err = h.Client.Patch(ctx, cr, client.MergeFrom(base))
+		err = h.tenants.Patch(ctx, cr, base)
 		if err == nil {
 			return nil
 		}
@@ -467,6 +464,9 @@ func tenantGroupResource() schema.GroupResource {
 
 func writeK8sError(c *gin.Context, err error, name string) {
 	switch {
+	case errors.Is(err, provider.ErrCapabilityUnavailable):
+		srv.AbortWithProblem(c, http.StatusConflict, "CapabilityUnavailable",
+			"operation not supported in this deployment form", name)
 	case apierrors.IsAlreadyExists(err):
 		srv.AbortWithProblem(c, http.StatusConflict, "AlreadyExists", "resource already exists", name)
 	case apierrors.IsNotFound(err):

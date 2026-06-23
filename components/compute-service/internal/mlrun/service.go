@@ -12,10 +12,10 @@ import (
 	mlrunv1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlrun/v1alpha1"
 
 	"github.com/axisml/axisml/components/compute-service/internal/auth"
-	"github.com/axisml/axisml/components/compute-service/internal/poolcache"
 	"github.com/axisml/axisml/components/compute-service/internal/server"
 	"github.com/axisml/axisml/components/compute-service/internal/store"
 	apperrors "github.com/axisml/axisml/components/compute-service/pkg/errors"
+	"github.com/axisml/axisml/components/compute-service/pkg/provider"
 	"github.com/axisml/axisml/components/compute-service/pkg/strutil"
 )
 
@@ -24,11 +24,11 @@ import (
 type Service struct {
 	repo  *Repository
 	db    *gorm.DB
-	pools *poolcache.Reader
+	pools provider.ResourceCatalog
 }
 
 // NewService constructs the job service.
-func NewService(db *gorm.DB, pools *poolcache.Reader) *Service {
+func NewService(db *gorm.DB, pools provider.ResourceCatalog) *Service {
 	return &Service{
 		repo:  NewRepository(db),
 		db:    db,
@@ -69,7 +69,7 @@ func (s *Service) Create(ctx context.Context, namespace string, in server.MLRunC
 	roles := make([]mlrunv1alpha1.RoleSpec, len(in.Roles))
 	for i, r := range in.Roles {
 		role := r
-		role.Template.Resources = poolcache.BuildResources(expanded.Requests, expanded.Limits)
+		role.Template.Resources = provider.BuildResources(expanded.Requests, expanded.Limits)
 		roles[i] = role
 	}
 

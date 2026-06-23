@@ -2,36 +2,33 @@ package mlservice
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	"github.com/go-logr/logr"
 	"gorm.io/gorm"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	mlservicev1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/axisml/axisml/components/compute-service/internal/metrics"
 	"github.com/axisml/axisml/components/compute-service/internal/store"
+	"github.com/axisml/axisml/components/compute-service/pkg/computeruntime"
 )
 
 // Reconciler implements the service Outbox loop. Namespace is read from
-// the row directly.
+// the row directly; workloads are driven through the ComputeRuntime contract.
 type Reconciler struct {
-	db        *gorm.DB
-	repo      *Repository
-	k8sClient client.Client
-	log       logr.Logger
-	interval  time.Duration
+	db       *gorm.DB
+	repo     *Repository
+	runtime  computeruntime.ComputeRuntime
+	log      logr.Logger
+	interval time.Duration
 }
 
-func NewReconciler(db *gorm.DB, cl client.Client, log logr.Logger, interval time.Duration) *Reconciler {
+func NewReconciler(db *gorm.DB, rt computeruntime.ComputeRuntime, log logr.Logger, interval time.Duration) *Reconciler {
 	if interval <= 0 {
 		interval = 2 * time.Second
 	}
-	return &Reconciler{db: db, repo: NewRepository(db), k8sClient: cl, log: log, interval: interval}
+	return &Reconciler{db: db, repo: NewRepository(db), runtime: rt, log: log, interval: interval}
 }
 
 func (r *Reconciler) NeedLeaderElection() bool { return true }
@@ -66,19 +63,17 @@ func (r *Reconciler) runOnce(ctx context.Context) {
 	}
 }
 
+// handleCreate applies the desired MLService. ApplyMLService is idempotent:
+// it creates the CR when absent and is a no-op when present, so observed_-
+// generation advances on first success.
 func (r *Reconciler) handleCreate(ctx context.Context, s *store.MLService) {
 	cr, err := ToCR(s)
 	if err != nil {
 		r.log.Error(err, "render service CR")
 		return
 	}
-	if err := r.k8sClient.Create(ctx, cr); err != nil {
-		if apierrors.IsAlreadyExists(err) {
-			_ = r.repo.Update(ctx, s.ID, map[string]any{"observed_generation": s.Generation})
-			metrics.ReconcilerActions.WithLabelValues("mlservice", "creating", "noop").Inc()
-			return
-		}
-		r.log.Error(err, "create MLService")
+	if err := r.runtime.ApplyMLService(ctx, cr); err != nil {
+		r.log.Error(err, "apply MLService")
 		_ = r.repo.Update(ctx, s.ID, map[string]any{"message": err.Error()})
 		metrics.ReconcilerActions.WithLabelValues("mlservice", "creating", "error").Inc()
 		return
@@ -88,46 +83,34 @@ func (r *Reconciler) handleCreate(ctx context.Context, s *store.MLService) {
 }
 
 func (r *Reconciler) handleDelete(ctx context.Context, s *store.MLService) {
-	cr := &mlservicev1alpha1.MLService{ObjectMeta: metav1.ObjectMeta{Name: s.Name, Namespace: s.Namespace}}
-	err := r.k8sClient.Delete(ctx, cr)
-	if err == nil {
-		metrics.ReconcilerActions.WithLabelValues("mlservice", "deleting", "success").Inc()
+	key := types.NamespacedName{Namespace: s.Namespace, Name: s.Name}
+	if err := r.runtime.DeleteMLService(ctx, key); err != nil {
+		r.log.Error(err, "delete MLService")
+		metrics.ReconcilerActions.WithLabelValues("mlservice", "deleting", "error").Inc()
 		return
 	}
-	if apierrors.IsNotFound(err) {
-		_ = r.repo.Update(ctx, s.ID, map[string]any{"status": string(StatusDeleted)})
+	if _, err := r.runtime.ObserveMLService(ctx, key); apierrors.IsNotFound(err) {
+		now := time.Now().UTC()
+		_ = r.repo.Update(ctx, s.ID, map[string]any{
+			"phase":      string(StatusDeleted),
+			"deleted_at": now,
+		})
 		metrics.ReconcilerActions.WithLabelValues("mlservice", "deleting", "noop").Inc()
 		return
 	}
-	r.log.Error(err, "delete MLService")
-	metrics.ReconcilerActions.WithLabelValues("mlservice", "deleting", "error").Inc()
+	metrics.ReconcilerActions.WithLabelValues("mlservice", "deleting", "success").Inc()
 }
 
+// handleSpecSync converges the CR onto the PG spec snapshot (only
+// roles[0].replicas changes after create) and records observed_generation.
 func (r *Reconciler) handleSpecSync(ctx context.Context, s *store.MLService) {
-	current := &mlservicev1alpha1.MLService{}
-	if err := r.k8sClient.Get(ctx, client.ObjectKey{Namespace: s.Namespace, Name: s.Name}, current); err != nil {
-		if apierrors.IsNotFound(err) {
-			r.handleCreate(ctx, s)
-			return
-		}
-		r.log.Error(err, "get MLService")
+	cr, err := ToCR(s)
+	if err != nil {
+		r.log.Error(err, "render service CR")
 		return
 	}
-	var desiredSpec mlservicev1alpha1.MLServiceSpec
-	if err := json.Unmarshal(s.Spec, &desiredSpec); err != nil {
-		return
-	}
-	if len(current.Spec.Roles) == 0 || len(desiredSpec.Roles) == 0 {
-		return
-	}
-	if current.Spec.Roles[0].Replicas == desiredSpec.Roles[0].Replicas {
-		_ = r.repo.Update(ctx, s.ID, map[string]any{"observed_generation": s.Generation})
-		metrics.ReconcilerActions.WithLabelValues("mlservice", "spec_sync", "noop").Inc()
-		return
-	}
-	current.Spec.Roles[0].Replicas = desiredSpec.Roles[0].Replicas
-	if err := r.k8sClient.Update(ctx, current); err != nil {
-		r.log.Error(err, "patch MLService replicas")
+	if err := r.runtime.ApplyMLService(ctx, cr); err != nil {
+		r.log.Error(err, "apply MLService spec")
 		metrics.ReconcilerActions.WithLabelValues("mlservice", "spec_sync", "error").Inc()
 		return
 	}

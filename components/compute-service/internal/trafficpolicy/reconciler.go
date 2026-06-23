@@ -2,37 +2,34 @@ package trafficpolicy
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	"github.com/go-logr/logr"
 	"gorm.io/gorm"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	mltp "github.com/axisml/axisml/components/compute-operator/api/mltrafficpolicy/v1alpha1"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/axisml/axisml/components/compute-service/internal/metrics"
 	"github.com/axisml/axisml/components/compute-service/internal/store"
+	"github.com/axisml/axisml/components/compute-service/pkg/computeruntime"
 )
 
 // Reconciler implements the traffic-policy Outbox loop (leader-only). It scans
-// the predicate work set and Create/Patch/Delete the MLTrafficPolicy CR to
-// match PG (compute-service.md §5.1).
+// the predicate work set and drives the MLTrafficPolicy workload through the
+// ComputeRuntime contract to match PG (compute-service.md §5.1).
 type Reconciler struct {
-	db        *gorm.DB
-	repo      *Repository
-	k8sClient client.Client
-	log       logr.Logger
-	interval  time.Duration
+	db       *gorm.DB
+	repo     *Repository
+	runtime  computeruntime.ComputeRuntime
+	log      logr.Logger
+	interval time.Duration
 }
 
-func NewReconciler(db *gorm.DB, cl client.Client, log logr.Logger, interval time.Duration) *Reconciler {
+func NewReconciler(db *gorm.DB, rt computeruntime.ComputeRuntime, log logr.Logger, interval time.Duration) *Reconciler {
 	if interval <= 0 {
 		interval = 2 * time.Second
 	}
-	return &Reconciler{db: db, repo: NewRepository(db), k8sClient: cl, log: log, interval: interval}
+	return &Reconciler{db: db, repo: NewRepository(db), runtime: rt, log: log, interval: interval}
 }
 
 func (r *Reconciler) NeedLeaderElection() bool { return true }
@@ -73,13 +70,8 @@ func (r *Reconciler) handleCreate(ctx context.Context, p *store.TrafficPolicy) {
 		r.log.Error(err, "render traffic-policy CR")
 		return
 	}
-	if err := r.k8sClient.Create(ctx, cr); err != nil {
-		if apierrors.IsAlreadyExists(err) {
-			_ = r.repo.Update(ctx, p.ID, map[string]any{"observed_generation": p.Generation})
-			metrics.ReconcilerActions.WithLabelValues("traffic_policy", "creating", "noop").Inc()
-			return
-		}
-		r.log.Error(err, "create MLTrafficPolicy")
+	if err := r.runtime.ApplyMLTrafficPolicy(ctx, cr); err != nil {
+		r.log.Error(err, "apply MLTrafficPolicy")
 		_ = r.repo.Update(ctx, p.ID, map[string]any{"message": err.Error()})
 		metrics.ReconcilerActions.WithLabelValues("traffic_policy", "creating", "error").Inc()
 		return
@@ -89,40 +81,35 @@ func (r *Reconciler) handleCreate(ctx context.Context, p *store.TrafficPolicy) {
 }
 
 func (r *Reconciler) handleDelete(ctx context.Context, p *store.TrafficPolicy) {
-	cr := &mltp.MLTrafficPolicy{ObjectMeta: metav1.ObjectMeta{Name: p.Name, Namespace: p.Namespace}}
-	err := r.k8sClient.Delete(ctx, cr)
-	if err == nil {
-		metrics.ReconcilerActions.WithLabelValues("traffic_policy", "deleting", "success").Inc()
+	key := types.NamespacedName{Namespace: p.Namespace, Name: p.Name}
+	if err := r.runtime.DeleteMLTrafficPolicy(ctx, key); err != nil {
+		r.log.Error(err, "delete MLTrafficPolicy")
+		metrics.ReconcilerActions.WithLabelValues("traffic_policy", "deleting", "error").Inc()
 		return
 	}
-	if apierrors.IsNotFound(err) {
-		_ = r.repo.Update(ctx, p.ID, map[string]any{"status": string(StatusDeleted)})
+	if _, err := r.runtime.ObserveMLTrafficPolicy(ctx, key); apierrors.IsNotFound(err) {
+		now := time.Now().UTC()
+		_ = r.repo.Update(ctx, p.ID, map[string]any{
+			"phase":      string(StatusDeleted),
+			"deleted_at": now,
+		})
 		metrics.ReconcilerActions.WithLabelValues("traffic_policy", "deleting", "noop").Inc()
 		return
 	}
-	r.log.Error(err, "delete MLTrafficPolicy")
-	metrics.ReconcilerActions.WithLabelValues("traffic_policy", "deleting", "error").Inc()
+	metrics.ReconcilerActions.WithLabelValues("traffic_policy", "deleting", "success").Inc()
 }
 
+// handleSpecSync converges the CR onto the PG spec snapshot. Only
+// backends (weight + role) change after create; mode / endpoint / backend
+// are immutable.
 func (r *Reconciler) handleSpecSync(ctx context.Context, p *store.TrafficPolicy) {
-	current := &mltp.MLTrafficPolicy{}
-	if err := r.k8sClient.Get(ctx, client.ObjectKey{Namespace: p.Namespace, Name: p.Name}, current); err != nil {
-		if apierrors.IsNotFound(err) {
-			r.handleCreate(ctx, p)
-			return
-		}
-		r.log.Error(err, "get MLTrafficPolicy")
+	cr, err := ToCR(p)
+	if err != nil {
+		r.log.Error(err, "render traffic-policy CR")
 		return
 	}
-	var desiredSpec mltp.MLTrafficPolicySpec
-	if err := json.Unmarshal(p.Spec, &desiredSpec); err != nil {
-		return
-	}
-	// Only backends (weight + role) change after create; mode / endpoint /
-	// backend are immutable. Patch the whole backends slice.
-	current.Spec.Backends = desiredSpec.Backends
-	if err := r.k8sClient.Update(ctx, current); err != nil {
-		r.log.Error(err, "patch MLTrafficPolicy backends")
+	if err := r.runtime.ApplyMLTrafficPolicy(ctx, cr); err != nil {
+		r.log.Error(err, "apply MLTrafficPolicy spec")
 		metrics.ReconcilerActions.WithLabelValues("traffic_policy", "spec_sync", "error").Inc()
 		return
 	}

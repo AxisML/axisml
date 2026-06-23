@@ -1,58 +1,69 @@
 package app
 
 import (
+	"fmt"
+
 	"github.com/go-logr/logr"
 	"gorm.io/gorm"
+	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	"github.com/axisml/axisml/components/compute-service/internal/config"
-	"github.com/axisml/axisml/components/compute-service/internal/kubeproxy"
+	"github.com/axisml/axisml/components/compute-service/internal/k8svolume"
 	jobmod "github.com/axisml/axisml/components/compute-service/internal/mlrun"
 	servicemod "github.com/axisml/axisml/components/compute-service/internal/mlservice"
 	"github.com/axisml/axisml/components/compute-service/internal/poolcache"
 	"github.com/axisml/axisml/components/compute-service/internal/server"
 	trafficpolicymod "github.com/axisml/axisml/components/compute-service/internal/trafficpolicy"
+	"github.com/axisml/axisml/components/compute-service/pkg/computeruntime/kuberuntime"
+	computemodule "github.com/axisml/axisml/components/compute-service/pkg/module"
 )
 
-// BuildModules constructs the full domain wiring (HTTP routes + background
-// runnables). Jobs and services partition on bare namespace strings.
-// ResourcePool is fed from the K8s Informer cache (controller-runtime
-// manager client), not PG.
+// BuildModules is the Kubernetes composition root. It derives the form-neutral
+// dependencies from the controller-runtime manager — the ComputeRuntime adapter
+// (typed client + clientset), the ResourcePool informer-cache catalog and the
+// PVC-backed workspace volume provisioner — hands them to the shared
+// pkg/module assembly, then appends the Kubernetes-specific status reflow
+// (apiserver informers, design §4.2) as additional runnables.
 func BuildModules(
 	cfg config.Config,
 	gormDB *gorm.DB,
 	mgr manager.Manager,
 	log logr.Logger,
 ) ([]server.Module, []manager.Runnable, error) {
-	pools := poolcache.New(mgr.GetClient())
+	clientset, err := kubernetes.NewForConfig(mgr.GetConfig())
+	if err != nil {
+		return nil, nil, fmt.Errorf("build clientset: %w", err)
+	}
 
-	jobs := jobmod.NewService(gormDB, pools)
-	serviceRepo := servicemod.NewRepository(gormDB)
-	trafficPolicyRepo := trafficpolicymod.NewRepository(gormDB)
-	services := servicemod.NewMLService(gormDB, pools, mgr.GetClient(), trafficPolicyRepo)
-	trafficPolicies := trafficpolicymod.NewService(gormDB, serviceRepo, trafficPolicyRepo)
-
-	jobRecon := jobmod.NewReconciler(gormDB, mgr.GetClient(), log.WithName("mlrun-reconciler"), cfg.ReconcileInterval)
-	serviceRecon := servicemod.NewReconciler(gormDB, mgr.GetClient(), log.WithName("mlservice-reconciler"), cfg.ReconcileInterval)
-	trafficRecon := trafficpolicymod.NewReconciler(gormDB, mgr.GetClient(), log.WithName("traffic-policy-reconciler"), cfg.ReconcileInterval)
-
-	jobInf := jobmod.NewInformer(gormDB, mgr, log.WithName("mlrun-informer"))
-	serviceInf := servicemod.NewInformer(gormDB, mgr, log.WithName("mlservice-informer"))
-	trafficInf := trafficpolicymod.NewInformer(gormDB, mgr, log.WithName("traffic-policy-informer"))
-
-	kube, err := kubeproxy.New(mgr.GetConfig(), mgr.GetClient())
+	mod, err := computemodule.New(computemodule.Deps{
+		DB:                gormDB,
+		Runtime:           kuberuntime.New(mgr.GetClient(), clientset),
+		Catalog:           poolcache.New(mgr.GetClient()),
+		Volumes:           k8svolume.New(mgr.GetClient()),
+		Log:               log,
+		ReconcileInterval: cfg.ReconcileInterval,
+	})
 	if err != nil {
 		return nil, nil, err
 	}
 
-	modules := []server.Module{
-		jobmod.NewHandler(jobs, kube),
-		servicemod.NewHandler(services, kube),
-		trafficpolicymod.NewHandler(trafficPolicies),
+	modules := make([]server.Module, 0, len(mod.Routes()))
+	for _, r := range mod.Routes() {
+		modules = append(modules, r)
 	}
-	runnables := []manager.Runnable{
-		jobRecon, serviceRecon, trafficRecon,
-		jobInf, serviceInf, trafficInf,
+
+	runnables := make([]manager.Runnable, 0, len(mod.Runnables())+3)
+	for _, r := range mod.Runnables() {
+		runnables = append(runnables, r)
 	}
+	// Kubernetes status reflow: apiserver informers mirror CR status into PG
+	// (leader-only). The Lite form replaces these with a runtime Observe poll.
+	runnables = append(runnables,
+		jobmod.NewInformer(gormDB, mgr, log.WithName("mlrun-informer")),
+		servicemod.NewInformer(gormDB, mgr, log.WithName("mlservice-informer")),
+		trafficpolicymod.NewInformer(gormDB, mgr, log.WithName("traffic-policy-informer")),
+	)
+
 	return modules, runnables, nil
 }

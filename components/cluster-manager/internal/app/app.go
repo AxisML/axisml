@@ -18,9 +18,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/axisml/axisml/components/cluster-manager/internal/k8sclient"
-	"github.com/axisml/axisml/components/cluster-manager/internal/resourcepool"
+	"github.com/axisml/axisml/components/cluster-manager/internal/k8sstore"
 	srv "github.com/axisml/axisml/components/cluster-manager/internal/server"
-	"github.com/axisml/axisml/components/cluster-manager/internal/tenant"
+	clustermodule "github.com/axisml/axisml/components/cluster-manager/pkg/module"
 )
 
 // Config groups the runtime knobs the binary exposes.
@@ -89,9 +89,14 @@ func NewRouter(c client.Client) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Recovery())
 
+	// Kubernetes composition root: back the form-neutral stores with the
+	// cluster-scoped CRs, then assemble via the shared pkg/module.
+	mod := clustermodule.New(clustermodule.Deps{
+		Pools:   k8sstore.NewResourcePoolStore(c),
+		Tenants: k8sstore.NewTenantStore(c),
+	})
 	api := r.Group("/api/v1", srv.RequireUser)
-	(&resourcepool.Handler{Client: c}).Register(api)
-	(&tenant.Handler{Client: c}).Register(api)
+	mod.RegisterRoutes(api)
 
 	return r
 }

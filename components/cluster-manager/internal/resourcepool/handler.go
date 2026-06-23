@@ -11,18 +11,22 @@ import (
 
 	"github.com/gin-gonic/gin"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	axismlv1alpha1 "github.com/axisml/axisml/components/cluster-manager/api/v1alpha1"
 	srv "github.com/axisml/axisml/components/cluster-manager/internal/server"
+	"github.com/axisml/axisml/components/cluster-manager/pkg/provider"
 )
 
 // Handler implements the /api/v1/resourcepools[/{pool}[/units...]]
-// HTTP surface. It owns no state; all mutations go straight to the K8s API
-// server via client.Client.
+// HTTP surface. It owns no state; all reads/writes go through the injected
+// ResourcePoolStore (Kubernetes CRD or Lite config).
 type Handler struct {
-	Client client.Client
+	pools provider.ResourcePoolStore
+}
+
+// NewHandler builds a resourcepool handler over the given store.
+func NewHandler(pools provider.ResourcePoolStore) *Handler {
+	return &Handler{pools: pools}
 }
 
 // Register attaches all routes to the provided /api/v1 group.
@@ -68,7 +72,7 @@ func (h *Handler) Create(c *gin.Context) {
 	}
 
 	pool := srv.APIToPool(req, c.GetHeader(srv.HeaderUser))
-	if err := h.Client.Create(c.Request.Context(), pool); err != nil {
+	if err := h.pools.Create(c.Request.Context(), pool); err != nil {
 		writeK8sError(c, err, req.Name)
 		return
 	}
@@ -90,15 +94,14 @@ func (h *Handler) Get(c *gin.Context) {
 // ?limit (1-500, default 100), and ?continue (opaque cursor returned by
 // a previous page). Mirrors apis/cluster-manager.yaml.
 func (h *Handler) List(c *gin.Context) {
-	opts := []client.ListOption{}
+	params := provider.ListParams{}
 	if sel := c.Query("labelSelector"); sel != "" {
-		ps, err := labelSelectorFrom(sel)
-		if err != nil {
+		if _, err := labelSelectorFrom(sel); err != nil {
 			srv.AbortWithProblem(c, http.StatusBadRequest, "InvalidSelector",
 				"labelSelector parse error", err.Error())
 			return
 		}
-		opts = append(opts, client.MatchingLabelsSelector{Selector: ps})
+		params.Selector = sel
 	}
 	if v := c.Query("limit"); v != "" {
 		n, err := strconv.Atoi(v)
@@ -107,14 +110,12 @@ func (h *Handler) List(c *gin.Context) {
 				"limit must be an integer in [1, 500]", v)
 			return
 		}
-		opts = append(opts, client.Limit(int64(n)))
+		params.Limit = n
 	}
-	if cont := c.Query("continue"); cont != "" {
-		opts = append(opts, client.Continue(cont))
-	}
+	params.Continue = c.Query("continue")
 
-	var pools axismlv1alpha1.ResourcePoolList
-	if err := h.Client.List(c.Request.Context(), &pools, opts...); err != nil {
+	pools, err := h.pools.List(c.Request.Context(), params)
+	if err != nil {
 		writeK8sError(c, err, "")
 		return
 	}
@@ -195,9 +196,7 @@ func applyPoolPatch(pool *axismlv1alpha1.ResourcePool, req srv.PatchResourcePool
 // Delete handles DELETE /api/v1/resourcepools/{pool}.
 func (h *Handler) Delete(c *gin.Context) {
 	name := c.Param("pool")
-	pool := &axismlv1alpha1.ResourcePool{}
-	pool.Name = name
-	if err := h.Client.Delete(c.Request.Context(), pool); err != nil {
+	if err := h.pools.Delete(c.Request.Context(), name); err != nil {
 		if apierrors.IsNotFound(err) {
 			c.Status(http.StatusNoContent)
 			return
@@ -404,11 +403,7 @@ var errNoMutationNeeded = errors.New("no mutation needed")
 // ─────────────────────────────────────────────────────────────── helpers
 
 func (h *Handler) getPool(ctx context.Context, name string) (*axismlv1alpha1.ResourcePool, error) {
-	pool := &axismlv1alpha1.ResourcePool{}
-	if err := h.Client.Get(ctx, types.NamespacedName{Name: name}, pool); err != nil {
-		return nil, err
-	}
-	return pool, nil
+	return h.pools.Get(ctx, name)
 }
 
 // mutateWithRetry runs `mutate` against a fresh ResourcePool read; if the
@@ -437,7 +432,7 @@ func (h *Handler) mutateWithRetry(ctx context.Context, poolName string, mutate f
 			}
 			return err
 		}
-		err = h.Client.Patch(ctx, pool, client.MergeFrom(base))
+		err = h.pools.Patch(ctx, pool, base)
 		if err == nil {
 			return nil
 		}
@@ -455,6 +450,9 @@ func (h *Handler) mutateWithRetry(ctx context.Context, poolName string, mutate f
 
 func writeK8sError(c *gin.Context, err error, name string) {
 	switch {
+	case errors.Is(err, provider.ErrCapabilityUnavailable):
+		srv.AbortWithProblem(c, http.StatusConflict, "CapabilityUnavailable",
+			"operation not supported in this deployment form", name)
 	case apierrors.IsAlreadyExists(err):
 		srv.AbortWithProblem(c, http.StatusConflict, "AlreadyExists",
 			"resource already exists", name)
