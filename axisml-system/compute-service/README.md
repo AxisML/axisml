@@ -2,7 +2,7 @@
 
 AxisML Compute Service is the internal compute service: it owns the business metadata for jobs, services, tenants, resource pools, resource units, and quotas, and translates user intent into `MLRun` / `MLService` / `Tenant` CRs for the operators to act on.
 
-> **Status: scaffold.** The directory and Makefile are in place; the Go implementation is not yet committed. See [`axisml-system/docs/compute-service.md`](../../axisml-system/docs/compute-service.md) for the design and the API surface this service will expose.
+> **Status: scaffold.** The directory and Makefile are in place; the Go implementation is not yet committed. See [`axisml-system/docs/system_design/compute-service.md`](../docs/system_design/compute-service.md) for the design and the API surface this service will expose.
 
 ## Responsibilities
 
@@ -41,7 +41,7 @@ make openapi         # regenerate axisml-system/docs/apis/compute-service.yaml
 make clean           # remove build artifacts
 ```
 
-The OpenAPI 3.0 description of the HTTP API lives at [`axisml-system/docs/apis/compute-service.yaml`](axisml-system/docs/apis/compute-service.yaml). It is generated from the same Go request/response structs the runtime handlers use; regenerate via `make openapi` after touching any handler signature, route, or `*Input` / `View` struct.
+The OpenAPI 3.0 description of the HTTP API lives at [`axisml-system/docs/apis/compute-service.yaml`](../docs/apis/compute-service.yaml). It is generated from the same Go request/response structs the runtime handlers use; regenerate via `make openapi` after touching any handler signature, route, or `*Input` / `View` struct.
 
 `IMAGE_TAG` defaults to `0.1.0` and must track the `appVersion` in [`axisml-system/deploy/helm/Chart.yaml`](../../axisml-system/deploy/helm/Chart.yaml).
 

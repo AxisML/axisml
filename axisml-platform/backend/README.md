@@ -10,7 +10,7 @@ Backend for AxisML Platform — the user-facing entry point that orchestrates bu
 > [`axisml-platform/docs/apis/platform.yaml`](../docs/apis/platform.yaml) by
 > [`cmd/openapi-gen`](cmd/openapi-gen/) via the shared `pkg/openapigen` engine —
 > the same code-first flow used by cluster-manager / compute-service /
-> artifact-hub. See [`docs/system_design/platform.md`](../../../docs/system_design/platform.md)
+> artifact-hub. See [`axisml-platform/docs/system_design/backend.md`](../docs/system_design/backend.md)
 > for the design. When the handlers land, they reuse these same DTOs, so the
 > spec stays in lock-step automatically.
 
@@ -65,7 +65,7 @@ make image           # docker build -> ghcr.io/axisml/axisml-platform-backend:0.
 make clean           # remove build artifacts
 ```
 
-`IMAGE_TAG` defaults to `0.1.0` and must track the `appVersion` in [`axisml-system/deploy/helm/Chart.yaml`](../../../axisml-system/deploy/helm/Chart.yaml).
+`IMAGE_TAG` defaults to `0.1.0` and must track the `appVersion` in [`axisml-system/deploy/helm/Chart.yaml`](../../axisml-system/deploy/helm/Chart.yaml).
 
 ## Deployment
 

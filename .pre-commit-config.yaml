@@ -49,6 +49,17 @@ repos:
         exclude: |
           (?x)^axisml-(infra|system|platform)/deploy/helm/templates/
 
+  # ── markdown link check (internal links only, no external) ────────────
+  # --offline validates in-repo relative paths + anchors without any network
+  # request → fast and deterministic, matching the pre-commit "<5s + reliable"
+  # policy. See lychee.toml at the repo root for the config.
+  - repo: https://github.com/lycheeverse/lychee.git
+    rev: lychee-v0.24.2
+    hooks:
+      - id: lychee
+        args: ["--offline", "--no-progress"]
+        types: [markdown]
+
   - repo: local
     hooks:
       - id: gofmt

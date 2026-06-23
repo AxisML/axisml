@@ -125,7 +125,7 @@ Infra 层提供 zot endpoint（ConfigMap）、admin 凭证（平台级 Secret）
 
 部署模式见 [deployment.md §5.3](../../../docs/deployment.md#53-redis-缓存可选)；Platform 的具体缓存对象与失效策略见 [platform/auth.md §2.1](../../../axisml-platform/docs/system_design/auth.md#21-会话与身份缓存)。
 
-## 5. GPU管理
+## 5. 加速器管理
 
 **需求**：把节点上的物理 GPU 暴露为 Kubernetes 可调度资源并保持可观测，要求：把 GPU 暴露为 extended resource `nvidia.com/gpu` 供调度器分配；自动化驱动 / 设备插件 / 运行时集成的生命周期（免节点手工装驱动）；按 GPU 型号给节点打标以支持亲和；导出 GPU 利用率 / 显存 / 温度等指标。
 
