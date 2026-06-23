@@ -108,7 +108,7 @@ make cluster-status      # verify it's healthy
 make help                # discover every available target
 ```
 
-Full walkthrough: [Local Development Environment Setup](docs/development/local-setup.md).
+Full walkthrough: [Development Workflow](docs/development_workflow.md).
 
 ### 2. Install AxisML
 
@@ -130,7 +130,7 @@ make test                # unit tests across every component (no cluster needed)
 make integration-test    # envtest + testcontainers integration tests (needs Docker, ~30–60s)
 ```
 
-See the [Testing Guide](docs/development/testing.md) for the full testing layers (unit / integration / manual e2e via `make e2e-test`).
+See the [Development Workflow](docs/development_workflow.md) for the full testing layers (unit / integration / manual e2e via `make e2e-test`).
 
 ## Components
 
@@ -168,7 +168,7 @@ Architecture notes and gotchas live in [CLAUDE.md](CLAUDE.md); contributor conve
 - **[System Design Overview](docs/system_design/high_level_design.md)** — start here
 - **By layer** — [Platform](docs/axisml-platform/docs/overview.md) · [System](docs/axisml-system/docs/overview.md) · [Infra](docs/axisml-infra/docs/overview.md) (each layer dir has an `overview.md` + per-component docs)
 - **Cross-cutting** — [database](docs/system_design/database.md) · [deployment](docs/system_design/deployment.md)
-- **Guides** — [Local Development Setup](docs/development/local-setup.md) · [Testing Guide](docs/development/testing.md)
+- **Guides** — [Development Workflow](docs/development_workflow.md) (setup · build/test · testing layers)
 - **OpenAPI specs** — generated REST contracts under each layer's `docs/apis/` ([system](axisml-system/docs/apis) · [platform](axisml-platform/docs/apis))
 
 ## Project Status

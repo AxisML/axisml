@@ -33,22 +33,12 @@ By participating you agree to abide by our
 
 ## Development workflow
 
-This is a monorepo of independent Go modules; `go test ./...` from the root does
-**not** traverse them all. Use the top-level `Makefile` as the entry point:
-
-```sh
-make help                 # list all targets + per-component shortcuts
-make build                # build every active component
-make test                 # unit tests (no cluster)
-make integration-test     # envtest + testcontainers (needs Docker)
-make fmt                  # format every Go module
-make doc-gen              # regenerate generated OpenAPI specs
-make doc-test             # verify generated OpenAPI specs
-make helm-lint            # when touching deploy/helm/**
-```
-
-Per-component shortcuts live in the layer Makefile and follow `<component>-<target>`, e.g.
-`make -C axisml-system compute-service-test`.
+Local setup, the full build/test/lint command reference, and the testing layers
+live in **[`docs/development_workflow.md`](docs/development_workflow.md)**. The
+essentials: this is a monorepo of independent Go modules, so `go test ./...` from
+the root does **not** traverse them all — drive everything through the layered
+`Makefile`s (`make test`, `make build`, `make doc-gen`, and per-component
+`make -C axisml-system compute-service-test`).
 
 Key gotchas (full list in [`CLAUDE.md`](CLAUDE.md) and
 [`AGENTS.md`](AGENTS.md)):

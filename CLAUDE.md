@@ -19,7 +19,7 @@ AxisML is a Kubernetes-native ML platform. The repo is a monorepo organized by d
   - `axisml-system/deploy/helm/` — System layer: CRDs, both operators, Cluster Manager, Compute Service, Artifact Hub. No PostgreSQL — it consumes the infra DB cross-namespace.
   - `axisml-platform/deploy/helm/` — Platform layer: the user-facing entry point (Platform frontend + backend). The only externally-exposed layer.
 - `axisml-lite/` — the no-Kubernetes single-host Docker Compose form (design doc only today, at `axisml-lite/docs/overview.md`; `cmd/` · `internal/` · `deploy/compose/` to be built per that doc).
-- Design docs: each layer owns its per-component docs under `<layer>/docs/` (`axisml-system/docs/`, `axisml-platform/docs/`, `axisml-infra/docs/`, `axisml-lite/docs/`). Cross-cutting design docs stay in `docs/system_design/` — `high_level_design.md` (system-level overview), `database.md`, `deployment.md`. Generated API specs live in each layer's `docs/apis/`. Other doc trees: `docs/development/` (dev guides); product/UX docs live in `axisml-platform/docs/product_design/` (incl. an interactive `prototype/`).
+- Design docs: each layer owns its per-component docs under `<layer>/docs/` (`axisml-system/docs/`, `axisml-platform/docs/`, `axisml-infra/docs/`, `axisml-lite/docs/`). Cross-cutting design docs stay in `docs/system_design/` — `high_level_design.md` (system-level overview), `database.md`, `deployment.md`. Generated API specs live in each layer's `docs/apis/`. Other doc trees: `docs/development_workflow.md` (the single dev guide — setup, build/test, testing layers); product/UX docs live in `axisml-platform/docs/product_design/` (incl. an interactive `prototype/`).
 - `axisml-system/test/` — System-layer test infrastructure used by the System integration suites: `setup-envtest/` binary, `testutil/` helpers, `crds/external/` vendored upstream CRDs.
 - `test/` — repo-level shared tests: `e2e/`, the centralized real-cluster e2e suite (see testing section). It's the only cross-layer test tree left at the root.
 
@@ -103,7 +103,7 @@ Install once per clone: `make install-hooks`. Bypass for a single commit: `git c
 
 ## Testing layers
 
-Documented in detail in `docs/development/testing.md`. The short version:
+Documented in detail in `docs/development_workflow.md`. The short version:
 
 | Layer | Build tag | Where | Backing |
 |---|---|---|---|
