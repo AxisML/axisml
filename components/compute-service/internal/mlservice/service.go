@@ -9,19 +9,14 @@ import (
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/resource"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	mlservicev1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
 
 	"github.com/axisml/axisml/components/compute-service/internal/auth"
-	"github.com/axisml/axisml/components/compute-service/internal/poolcache"
 	"github.com/axisml/axisml/components/compute-service/internal/server"
 	"github.com/axisml/axisml/components/compute-service/internal/store"
 	apperrors "github.com/axisml/axisml/components/compute-service/pkg/errors"
+	"github.com/axisml/axisml/components/compute-service/pkg/provider"
 	"github.com/axisml/axisml/components/compute-service/pkg/strutil"
 )
 
@@ -29,8 +24,8 @@ import (
 type Module struct {
 	repo       *Repository
 	db         *gorm.DB
-	pools      *poolcache.Reader
-	k8s        client.Client
+	pools      provider.ResourceCatalog
+	volumes    provider.WorkspaceVolumeProvisioner
 	policyRefs ActivePolicyReferenceChecker
 }
 
@@ -40,19 +35,19 @@ type ActivePolicyReferenceChecker interface {
 	ActiveReferenceName(ctx context.Context, namespace, serviceName string) (string, error)
 }
 
-// NewMLService builds the service module wiring. The k8sClient is used for
-// workspace PVC management (kind=workspace) and may be nil in pure-DB tests.
+// NewMLService builds the service module wiring. The volume provisioner backs
+// kind=workspace services and may be nil in pure-DB tests.
 func NewMLService(
 	db *gorm.DB,
-	pools *poolcache.Reader,
-	k8sClient client.Client,
+	pools provider.ResourceCatalog,
+	volumes provider.WorkspaceVolumeProvisioner,
 	policyRefs ActivePolicyReferenceChecker,
 ) *Module {
 	return &Module{
 		repo:       NewRepository(db),
 		db:         db,
 		pools:      pools,
-		k8s:        k8sClient,
+		volumes:    volumes,
 		policyRefs: policyRefs,
 	}
 }
@@ -100,7 +95,7 @@ func (m *Module) Create(ctx context.Context, namespace string, in server.MLServi
 	replicas := int32(0)
 	for i, r := range in.Roles {
 		role := r
-		role.Template.Resources = poolcache.BuildResources(expanded.Requests, expanded.Limits)
+		role.Template.Resources = provider.BuildResources(expanded.Requests, expanded.Limits)
 		roles[i] = role
 		if i == 0 {
 			replicas = role.Replicas
@@ -135,8 +130,15 @@ func (m *Module) Create(ctx context.Context, namespace string, in server.MLServi
 	// PG row + PVC are a logical pair, and the PVC must be wired into
 	// roles[0].template.{volumes,volumeMounts} so the Pod actually mounts it.
 	if kind == mlservicev1alpha1.ServiceKindWorkspace {
-		if err := m.ensureWorkspacePVC(ctx, namespace, in.Name, in.WorkspaceStorage); err != nil {
-			return nil, err
+		if m.volumes != nil {
+			size, storageClass := "", ""
+			if in.WorkspaceStorage != nil {
+				size = in.WorkspaceStorage.Size
+				storageClass = in.WorkspaceStorage.StorageClass
+			}
+			if err := m.volumes.EnsureWorkspaceVolume(ctx, namespace, in.Name, size, storageClass); err != nil {
+				return nil, err
+			}
 		}
 		if len(spec.Roles) > 0 {
 			injectWorkspaceVolume(&spec.Roles[0], in.Name)
@@ -170,16 +172,10 @@ func (m *Module) Create(ctx context.Context, namespace string, in server.MLServi
 		StatusJSON:  []byte("{}"),
 	}
 	if err := m.repo.Create(ctx, row); err != nil {
-		// Workspace path created a PVC first; clean it up so we don't leak
-		// orphan storage on a unique-violation or other terminal DB error.
-		if kind == mlservicev1alpha1.ServiceKindWorkspace && m.k8s != nil {
-			pvc := &corev1.PersistentVolumeClaim{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      WorkspacePVCName(in.Name),
-					Namespace: namespace,
-				},
-			}
-			_ = m.k8s.Delete(ctx, pvc)
+		// Workspace path provisioned the volume first; clean it up so we don't
+		// leak orphan storage on a unique-violation or other terminal DB error.
+		if kind == mlservicev1alpha1.ServiceKindWorkspace && m.volumes != nil {
+			_ = m.volumes.DeleteWorkspaceVolume(ctx, namespace, in.Name)
 		}
 		return nil, err
 	}
@@ -307,18 +303,12 @@ func (m *Module) Delete(ctx context.Context, namespace, name string, deletePVC b
 	if err := m.repo.MarkDeleting(ctx, row.ID); err != nil {
 		return err
 	}
-	// For workspaces, default behaviour is to delete the backing PVC alongside
-	// the row. Callers that want to preserve the volume must pass
+	// For workspaces, default behaviour is to delete the backing volume
+	// alongside the row. Callers that want to preserve the volume must pass
 	// deletePVC=false (the ?deletePvc=false query in the HTTP layer).
-	if row.Kind == mlservicev1alpha1.ServiceKindWorkspace && deletePVC && m.k8s != nil {
-		pvc := &corev1.PersistentVolumeClaim{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      WorkspacePVCName(name),
-				Namespace: namespace,
-			},
-		}
-		if delErr := m.k8s.Delete(ctx, pvc); delErr != nil && !apierrors.IsNotFound(delErr) {
-			return apperrors.Wrap(apperrors.CodeUnavailable, "delete workspace pvc", delErr)
+	if row.Kind == mlservicev1alpha1.ServiceKindWorkspace && deletePVC && m.volumes != nil {
+		if err := m.volumes.DeleteWorkspaceVolume(ctx, namespace, name); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -412,51 +402,6 @@ func injectWorkspaceVolume(role *mlservicev1alpha1.RoleSpec, serviceName string)
 // mlservices (design §4.4).
 func WorkspacePVCName(serviceName string) string {
 	return fmt.Sprintf("axisml-ws-%s-data", serviceName)
-}
-
-// ensureWorkspacePVC creates the backing PVC for a kind=workspace service.
-// Idempotent: AlreadyExists is treated as success so retries don't fail the
-// Create. When the K8s client isn't wired (unit / pure-DB tests), the call
-// is a no-op.
-func (m *Module) ensureWorkspacePVC(ctx context.Context, namespace, name string, spec *server.MLServiceWorkspaceStorageSpec) error {
-	if m.k8s == nil {
-		return nil
-	}
-	if spec == nil || spec.Size == "" {
-		return apperrors.New(apperrors.CodeValidation,
-			"workspaceStorage.size is required when kind=workspace")
-	}
-	q, err := resource.ParseQuantity(spec.Size)
-	if err != nil {
-		return apperrors.Newf(apperrors.CodeValidation,
-			"workspaceStorage.size %q is not a valid Quantity: %v", spec.Size, err)
-	}
-	pvc := &corev1.PersistentVolumeClaim{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      WorkspacePVCName(name),
-			Namespace: namespace,
-			Labels: map[string]string{
-				mlservicev1alpha1.LabelServiceKind: mlservicev1alpha1.ServiceKindWorkspace,
-				"axisml.io/workspace":              name,
-			},
-		},
-		Spec: corev1.PersistentVolumeClaimSpec{
-			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
-			Resources: corev1.VolumeResourceRequirements{
-				Requests: corev1.ResourceList{corev1.ResourceStorage: q},
-			},
-		},
-	}
-	if spec.StorageClass != "" {
-		sc := spec.StorageClass
-		pvc.Spec.StorageClassName = &sc
-	}
-	if err := m.k8s.Create(ctx, pvc); err != nil && !apierrors.IsAlreadyExists(err) {
-		return apperrors.Wrap(apperrors.CodeUnavailable, "create workspace pvc", err)
-	}
-	// Re-read so callers / tests can verify the bound PVC if needed.
-	_ = m.k8s.Get(ctx, types.NamespacedName{Namespace: namespace, Name: WorkspacePVCName(name)}, pvc)
-	return nil
 }
 
 func (m *Module) toView(s *store.MLService) (*server.MLService, error) {

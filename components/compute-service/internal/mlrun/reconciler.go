@@ -7,28 +7,27 @@ import (
 	"github.com/go-logr/logr"
 	"gorm.io/gorm"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	mlrunv1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlrun/v1alpha1"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/axisml/axisml/components/compute-service/internal/metrics"
 	"github.com/axisml/axisml/components/compute-service/internal/store"
+	"github.com/axisml/axisml/components/compute-service/pkg/computeruntime"
 )
 
 // Reconciler implements the job Outbox loop. Reads namespace directly off
-// the row.
+// the row and drives the workload through the ComputeRuntime contract rather
+// than a raw apiserver client, so the same loop serves any runtime form.
 type Reconciler struct {
-	db        *gorm.DB
-	repo      *Repository
-	k8sClient client.Client
-	log       logr.Logger
-	interval  time.Duration
+	db       *gorm.DB
+	repo     *Repository
+	runtime  computeruntime.ComputeRuntime
+	log      logr.Logger
+	interval time.Duration
 }
 
 func NewReconciler(
 	db *gorm.DB,
-	cl client.Client,
+	rt computeruntime.ComputeRuntime,
 	log logr.Logger,
 	interval time.Duration,
 ) *Reconciler {
@@ -36,11 +35,11 @@ func NewReconciler(
 		interval = 2 * time.Second
 	}
 	return &Reconciler{
-		db:        db,
-		repo:      NewRepository(db),
-		k8sClient: cl,
-		log:       log,
-		interval:  interval,
+		db:       db,
+		repo:     NewRepository(db),
+		runtime:  rt,
+		log:      log,
+		interval: interval,
 	}
 }
 
@@ -82,12 +81,8 @@ func (r *Reconciler) handleCreate(ctx context.Context, j *store.MLRun) {
 		r.log.Error(err, "render job CR")
 		return
 	}
-	if err := r.k8sClient.Create(ctx, cr); err != nil {
-		if apierrors.IsAlreadyExists(err) {
-			metrics.ReconcilerActions.WithLabelValues("mlrun", "creating", "noop").Inc()
-			return
-		}
-		r.log.Error(err, "create MLRun", "name", j.Name)
+	if err := r.runtime.ApplyMLRun(ctx, cr); err != nil {
+		r.log.Error(err, "apply MLRun", "name", j.Name)
 		_ = r.repo.Update(ctx, j.ID, map[string]any{"message": err.Error()})
 		metrics.ReconcilerActions.WithLabelValues("mlrun", "creating", "error").Inc()
 		return
@@ -96,14 +91,9 @@ func (r *Reconciler) handleCreate(ctx context.Context, j *store.MLRun) {
 }
 
 func (r *Reconciler) handleCancel(ctx context.Context, j *store.MLRun) {
-	cr := &mlrunv1alpha1.MLRun{ObjectMeta: metav1.ObjectMeta{Name: j.Name, Namespace: j.Namespace}}
-	patch := client.RawPatch(client.Merge.Type(), []byte(`{"spec":{"runPolicy":{"suspend":true}}}`))
-	if err := r.k8sClient.Patch(ctx, cr, patch); err != nil {
-		if apierrors.IsNotFound(err) {
-			metrics.ReconcilerActions.WithLabelValues("mlrun", "canceling", "noop").Inc()
-			return
-		}
-		r.log.Error(err, "patch suspend", "mlrun", j.Name)
+	key := types.NamespacedName{Namespace: j.Namespace, Name: j.Name}
+	if err := r.runtime.CancelMLRun(ctx, key); err != nil {
+		r.log.Error(err, "cancel MLRun", "mlrun", j.Name)
 		metrics.ReconcilerActions.WithLabelValues("mlrun", "canceling", "error").Inc()
 		return
 	}
@@ -111,17 +101,22 @@ func (r *Reconciler) handleCancel(ctx context.Context, j *store.MLRun) {
 }
 
 func (r *Reconciler) handleDelete(ctx context.Context, j *store.MLRun) {
-	cr := &mlrunv1alpha1.MLRun{ObjectMeta: metav1.ObjectMeta{Name: j.Name, Namespace: j.Namespace}}
-	err := r.k8sClient.Delete(ctx, cr)
-	if err == nil {
-		metrics.ReconcilerActions.WithLabelValues("mlrun", "deleting", "success").Inc()
+	key := types.NamespacedName{Namespace: j.Namespace, Name: j.Name}
+	if err := r.runtime.DeleteMLRun(ctx, key); err != nil {
+		r.log.Error(err, "delete MLRun", "name", j.Name)
+		metrics.ReconcilerActions.WithLabelValues("mlrun", "deleting", "error").Inc()
 		return
 	}
-	if apierrors.IsNotFound(err) {
-		_ = r.repo.Update(ctx, j.ID, map[string]any{"status": string(StatusDeleted)})
+	// Confirm the workload is gone so the row advances even when no informer
+	// DELETE event arrives (e.g. the CR was already absent).
+	if _, err := r.runtime.ObserveMLRun(ctx, key); apierrors.IsNotFound(err) {
+		now := time.Now().UTC()
+		_ = r.repo.Update(ctx, j.ID, map[string]any{
+			"phase":      string(StatusDeleted),
+			"deleted_at": now,
+		})
 		metrics.ReconcilerActions.WithLabelValues("mlrun", "deleting", "noop").Inc()
 		return
 	}
-	r.log.Error(err, "delete MLRun", "name", j.Name)
-	metrics.ReconcilerActions.WithLabelValues("mlrun", "deleting", "error").Inc()
+	metrics.ReconcilerActions.WithLabelValues("mlrun", "deleting", "success").Inc()
 }

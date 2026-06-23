@@ -1,24 +1,25 @@
 package mlservice
 
 import (
+	"io"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-
-	mlservicev1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/axisml/axisml/components/compute-service/internal/kubeproxy"
 	"github.com/axisml/axisml/components/compute-service/internal/server"
+	"github.com/axisml/axisml/components/compute-service/pkg/computeruntime"
 )
 
 // Handler exposes /namespaces/:namespace/mlservices routes.
 type Handler struct {
-	svc  *Module
-	kube *kubeproxy.Client
+	svc     *Module
+	runtime computeruntime.ComputeRuntime
 }
 
-func NewHandler(svc *Module, kube *kubeproxy.Client) *Handler {
-	return &Handler{svc: svc, kube: kube}
+func NewHandler(svc *Module, runtime computeruntime.ComputeRuntime) *Handler {
+	return &Handler{svc: svc, runtime: runtime}
 }
 
 func (h *Handler) Register(rg *gin.RouterGroup) {
@@ -29,7 +30,7 @@ func (h *Handler) Register(rg *gin.RouterGroup) {
 	g.PATCH("/:mlservice", h.Patch)
 	g.POST("/:mlservice/scale", h.Scale)
 	g.DELETE("/:mlservice", h.Delete)
-	if h.kube != nil {
+	if h.runtime != nil {
 		g.GET("/:mlservice/pods", h.ListPods)
 		g.GET("/:mlservice/pods/:pod/logs", h.PodLog)
 		g.GET("/:mlservice/pods/:pod/events", h.PodEvents)
@@ -37,13 +38,28 @@ func (h *Handler) Register(rg *gin.RouterGroup) {
 	}
 }
 
-func (h *Handler) ListPods(c *gin.Context) {
+// keyFor resolves the row (checking the :namespace path param against it) and
+// returns the workload key.
+func (h *Handler) keyFor(c *gin.Context) (types.NamespacedName, bool) {
 	s, err := h.svc.Get(c.Request.Context(), c.Param("namespace"), c.Param("mlservice"))
 	if err != nil {
 		_ = c.Error(err)
+		return types.NamespacedName{}, false
+	}
+	return types.NamespacedName{Namespace: s.Namespace, Name: s.Name}, true
+}
+
+func (h *Handler) ListPods(c *gin.Context) {
+	key, ok := h.keyFor(c)
+	if !ok {
 		return
 	}
-	h.kube.PodsByLabel(c, s.Namespace, mlservicev1alpha1.LabelServiceID, s.ID.String())
+	pods, err := h.runtime.ListMLServiceInstances(c.Request.Context(), key)
+	if err != nil {
+		_ = c.Error(kubeproxy.MapErr(err))
+		return
+	}
+	kubeproxy.WritePods(c, pods)
 }
 
 func (h *Handler) Patch(c *gin.Context) {
@@ -60,54 +76,46 @@ func (h *Handler) Patch(c *gin.Context) {
 	c.JSON(http.StatusOK, v)
 }
 
-// PodLog streams the pod's log. The pod must carry
-// axisml.io/service-id=<row.id>; the URL :namespace is checked against
-// the row, not blindly forwarded to kube-apiserver.
+// PodLog streams an instance's log. The runtime verifies the instance belongs
+// to the addressed Service before streaming.
 func (h *Handler) PodLog(c *gin.Context) {
-	s, err := h.svc.Get(c.Request.Context(), c.Param("namespace"), c.Param("mlservice"))
-	if err != nil {
-		_ = c.Error(err)
+	key, ok := h.keyFor(c)
+	if !ok {
 		return
 	}
-	if err := h.kube.VerifyPodHasLabel(c.Request.Context(), s.Namespace, c.Param("pod"),
-		mlservicev1alpha1.LabelServiceID, s.ID.String()); err != nil {
-		_ = c.Error(err)
-		return
-	}
-	h.kube.PodLog(c, s.Namespace, c.Param("pod"))
+	opts, follow := kubeproxy.PodLogQuery(c)
+	kubeproxy.StreamLog(c, follow, func() (io.ReadCloser, error) {
+		return h.runtime.GetMLServiceInstanceLogs(c.Request.Context(), key, c.Param("pod"), opts)
+	})
 }
 
 func (h *Handler) PodEvents(c *gin.Context) {
-	s, err := h.svc.Get(c.Request.Context(), c.Param("namespace"), c.Param("mlservice"))
+	key, ok := h.keyFor(c)
+	if !ok {
+		return
+	}
+	evs, err := h.runtime.GetMLServiceInstanceEvents(c.Request.Context(), key, c.Param("pod"))
 	if err != nil {
-		_ = c.Error(err)
+		_ = c.Error(kubeproxy.MapErr(err))
 		return
 	}
-	if err := h.kube.VerifyPodHasLabel(c.Request.Context(), s.Namespace, c.Param("pod"),
-		mlservicev1alpha1.LabelServiceID, s.ID.String()); err != nil {
-		_ = c.Error(err)
-		return
-	}
-	h.kube.EventsByInvolved(c, s.Namespace,
-		kubeproxy.EventTarget{Kind: "Pod", Name: c.Param("pod")})
+	kubeproxy.WriteEvents(c, evs)
 }
 
 // MLServiceEvents lists events targeting the MLService CR or its underlying
 // workload primitives (Deployment / StatefulSet) and exposed HTTPRoute
-// per design §4.4. Row lookup confirms the URL :namespace/:mlservice tuple
-// before forwarding.
+// per design §4.4.
 func (h *Handler) MLServiceEvents(c *gin.Context) {
-	s, err := h.svc.Get(c.Request.Context(), c.Param("namespace"), c.Param("mlservice"))
-	if err != nil {
-		_ = c.Error(err)
+	key, ok := h.keyFor(c)
+	if !ok {
 		return
 	}
-	h.kube.EventsByInvolved(c, s.Namespace,
-		kubeproxy.EventTarget{Kind: "MLService", Name: s.Name},
-		kubeproxy.EventTarget{Kind: "Deployment", Name: s.Name},
-		kubeproxy.EventTarget{Kind: "StatefulSet", Name: s.Name},
-		kubeproxy.EventTarget{Kind: "HTTPRoute", Name: s.Name},
-	)
+	evs, err := h.runtime.GetMLServiceEvents(c.Request.Context(), key)
+	if err != nil {
+		_ = c.Error(kubeproxy.MapErr(err))
+		return
+	}
+	kubeproxy.WriteEvents(c, evs)
 }
 
 func (h *Handler) Create(c *gin.Context) {

@@ -1,27 +1,28 @@
 package mlrun
 
 import (
+	"io"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-
-	mlrunv1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlrun/v1alpha1"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/axisml/axisml/components/compute-service/internal/kubeproxy"
 	"github.com/axisml/axisml/components/compute-service/internal/server"
+	"github.com/axisml/axisml/components/compute-service/pkg/computeruntime"
 )
 
 // Handler exposes /namespaces/:namespace/mlruns routes. Namespace is the bare
 // URL partition key; Compute does no existence / activation check on it.
 type Handler struct {
-	svc  *Service
-	kube *kubeproxy.Client
+	svc     *Service
+	runtime computeruntime.ComputeRuntime
 }
 
-// NewHandler builds a job HTTP handler. kube may be nil in pure-DB tests;
+// NewHandler builds a job HTTP handler. runtime may be nil in pure-DB tests;
 // the pods / log / events sub-routes are skipped when so.
-func NewHandler(svc *Service, kube *kubeproxy.Client) *Handler {
-	return &Handler{svc: svc, kube: kube}
+func NewHandler(svc *Service, runtime computeruntime.ComputeRuntime) *Handler {
+	return &Handler{svc: svc, runtime: runtime}
 }
 
 // Register implements server.Module.
@@ -33,7 +34,7 @@ func (h *Handler) Register(rg *gin.RouterGroup) {
 	g.PATCH("/:mlrun", h.Patch)
 	g.POST("/:mlrun/cancel", h.Cancel)
 	g.DELETE("/:mlrun", h.Delete)
-	if h.kube != nil {
+	if h.runtime != nil {
 		g.GET("/:mlrun/pods", h.ListPods)
 		g.GET("/:mlrun/pods/:pod/logs", h.PodLog)
 		g.GET("/:mlrun/pods/:pod/events", h.PodEvents)
@@ -41,64 +42,71 @@ func (h *Handler) Register(rg *gin.RouterGroup) {
 	}
 }
 
-// ListPods lists Pods labeled axisml.io/run-id=<row.id>.
+// keyFor resolves the row (so the :namespace path param is checked against it)
+// and returns the workload key.
+func (h *Handler) keyFor(c *gin.Context) (types.NamespacedName, bool) {
+	j, err := h.svc.Get(c.Request.Context(), c.Param("namespace"), c.Param("mlrun"))
+	if err != nil {
+		_ = c.Error(err)
+		return types.NamespacedName{}, false
+	}
+	return types.NamespacedName{Namespace: j.Namespace, Name: j.Name}, true
+}
+
+// ListPods lists the Run's instances.
 func (h *Handler) ListPods(c *gin.Context) {
-	j, err := h.svc.Get(c.Request.Context(), c.Param("namespace"), c.Param("mlrun"))
-	if err != nil {
-		_ = c.Error(err)
+	key, ok := h.keyFor(c)
+	if !ok {
 		return
 	}
-	h.kube.PodsByLabel(c, j.Namespace, mlrunv1alpha1.LabelRunID, j.ID.String())
+	pods, err := h.runtime.ListMLRunInstances(c.Request.Context(), key)
+	if err != nil {
+		_ = c.Error(kubeproxy.MapErr(err))
+		return
+	}
+	kubeproxy.WritePods(c, pods)
 }
 
-// PodLog streams a pod's log. The pod must carry
-// axisml.io/run-id=<row.id>; otherwise the pod is reachable only via the
-// kube-apiserver itself and not through this REST surface.
+// PodLog streams an instance's log. The runtime verifies the instance belongs
+// to the addressed Run before streaming.
 func (h *Handler) PodLog(c *gin.Context) {
-	j, err := h.svc.Get(c.Request.Context(), c.Param("namespace"), c.Param("mlrun"))
-	if err != nil {
-		_ = c.Error(err)
+	key, ok := h.keyFor(c)
+	if !ok {
 		return
 	}
-	if err := h.kube.VerifyPodHasLabel(c.Request.Context(), j.Namespace, c.Param("pod"),
-		mlrunv1alpha1.LabelRunID, j.ID.String()); err != nil {
-		_ = c.Error(err)
-		return
-	}
-	h.kube.PodLog(c, j.Namespace, c.Param("pod"))
+	opts, follow := kubeproxy.PodLogQuery(c)
+	kubeproxy.StreamLog(c, follow, func() (io.ReadCloser, error) {
+		return h.runtime.GetMLRunInstanceLogs(c.Request.Context(), key, c.Param("pod"), opts)
+	})
 }
 
-// PodEvents lists events whose involvedObject is the pod. Same scoping
-// as PodLog: the pod must be tagged with the job's id.
+// PodEvents lists events regarding the named instance.
 func (h *Handler) PodEvents(c *gin.Context) {
-	j, err := h.svc.Get(c.Request.Context(), c.Param("namespace"), c.Param("mlrun"))
+	key, ok := h.keyFor(c)
+	if !ok {
+		return
+	}
+	evs, err := h.runtime.GetMLRunInstanceEvents(c.Request.Context(), key, c.Param("pod"))
 	if err != nil {
-		_ = c.Error(err)
+		_ = c.Error(kubeproxy.MapErr(err))
 		return
 	}
-	if err := h.kube.VerifyPodHasLabel(c.Request.Context(), j.Namespace, c.Param("pod"),
-		mlrunv1alpha1.LabelRunID, j.ID.String()); err != nil {
-		_ = c.Error(err)
-		return
-	}
-	h.kube.EventsByInvolved(c, j.Namespace,
-		kubeproxy.EventTarget{Kind: "Pod", Name: c.Param("pod")})
+	kubeproxy.WriteEvents(c, evs)
 }
 
 // MLRunEvents lists events targeting the MLRun CR or its peer scheduling
-// primitive (PodGroup) per design §4.3. We resolve the row first so the
-// :namespace path parameter is checked against the row, not blindly
-// forwarded.
+// primitive (PodGroup) per design §4.3.
 func (h *Handler) MLRunEvents(c *gin.Context) {
-	j, err := h.svc.Get(c.Request.Context(), c.Param("namespace"), c.Param("mlrun"))
-	if err != nil {
-		_ = c.Error(err)
+	key, ok := h.keyFor(c)
+	if !ok {
 		return
 	}
-	h.kube.EventsByInvolved(c, j.Namespace,
-		kubeproxy.EventTarget{Kind: "MLRun", Name: j.Name},
-		kubeproxy.EventTarget{Kind: "PodGroup", Name: j.Name},
-	)
+	evs, err := h.runtime.GetMLRunEvents(c.Request.Context(), key)
+	if err != nil {
+		_ = c.Error(kubeproxy.MapErr(err))
+		return
+	}
+	kubeproxy.WriteEvents(c, evs)
 }
 
 func (h *Handler) Create(c *gin.Context) {
