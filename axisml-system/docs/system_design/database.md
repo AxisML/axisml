@@ -1,6 +1,6 @@
 # AxisML System 层数据库设计
 
-汇总 System 层服务持久化在 PostgreSQL 中的表 schema：compute-service 的 `mlruns` / `mlservices` / `traffic_policies` 与 artifact-hub 的 `artifacts`。所有控制面服务共用同一个 database `axisml`，按表名前缀逻辑隔离；schema 迁移由各服务二进制内嵌 `golang-migrate` 在启动时执行。Postgres 部署形态见 [infra/storage.md §3](../../../axisml-infra/docs/system_design/storage.md#3-数据库)。
+汇总 System 层服务持久化在 PostgreSQL 中的表 schema：compute-service 的 `mlruns` / `mlservices` / `traffic_policies` 与 artifact-hub 的 `artifacts`。所有控制面服务共用同一个 database `axisml`，按表名前缀逻辑隔离；schema 迁移由各服务二进制内嵌 `golang-migrate` 在启动时执行。Postgres 部署形态见 [infra/overview.md §4.3](../../../axisml-infra/docs/system_design/overview.md#43-数据库)。
 
 **连接契约**：PostgreSQL 引擎归 Infra 层（`axisml-infra` chart，Service `axisml-database`）。System 层服务（compute-service / artifact-hub）经跨 namespace FQDN `axisml-database.axisml-infra:5432` 连接；凭据由本层从与 Infra 层同值的 `database.auth.password` 在本 namespace 自渲染为 Secret（Secret namespace-scoped 不跨 namespace 引用，故密码作为各 chart 的共享输入各出现一次）。cluster-manager 与两个 operator 不连 DB。
 

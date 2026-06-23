@@ -1,6 +1,6 @@
 # AxisML Platform 层数据库设计
 
-汇总 Platform backend 持久化在 PostgreSQL 中的表 schema：**租户持久记录**（`tenants`）、**身份 / 授权 / 会话**（`users` / `user_roles` / `sessions`）、**四张定义**（`jobs` / `experiments` / `models` / `images`）。与 System 层服务共用同一个 database `axisml`，按表名前缀逻辑隔离；schema 迁移由 backend 二进制内嵌 `golang-migrate` 在启动时执行。Postgres 部署形态见 [infra/storage.md §3](../../../axisml-infra/docs/system_design/storage.md#3-数据库)。System 层表 schema 见 [system/database.md](../../../axisml-system/docs/system_design/database.md)。
+汇总 Platform backend 持久化在 PostgreSQL 中的表 schema：**租户持久记录**（`tenants`）、**身份 / 授权 / 会话**（`users` / `user_roles` / `sessions`）、**四张定义**（`jobs` / `experiments` / `models` / `images`）。与 System 层服务共用同一个 database `axisml`，按表名前缀逻辑隔离；schema 迁移由 backend 二进制内嵌 `golang-migrate` 在启动时执行。Postgres 部署形态见 [infra/overview.md §4.3](../../../axisml-infra/docs/system_design/overview.md#43-数据库)。System 层表 schema 见 [system/database.md](../../../axisml-system/docs/system_design/database.md)。
 
 **连接契约**：PostgreSQL 引擎归 Infra 层（`axisml-infra` chart，Service `axisml-database`）。Platform backend 经跨 namespace FQDN `axisml-database.axisml-infra:5432` 连接；凭据从与 Infra 层同值的 `database.auth.password` 在本 namespace 自渲染为 Secret（Secret namespace-scoped 不跨 namespace 引用，故密码作为各 chart 的共享输入各出现一次）。
 

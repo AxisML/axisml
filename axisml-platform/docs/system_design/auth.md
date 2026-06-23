@@ -21,7 +21,7 @@
 
 ### 2.1 会话与身份缓存
 
-每个已认证请求在进入业务 handler 前都要做两类读：**会话有效性**（按 `jti`）与**身份 / RBAC 解析**（用户行 + 租户绑定）。两者由 Infra 层 Redis（[storage.md §4](../../../axisml-infra/docs/system_design/storage.md#4-缓存)）前置加速，**PostgreSQL 始终为权威**：
+每个已认证请求在进入业务 handler 前都要做两类读：**会话有效性**（按 `jti`）与**身份 / RBAC 解析**（用户行 + 租户绑定）。两者由 Infra 层 Redis（[overview.md §4.4](../../../axisml-infra/docs/system_design/overview.md#44-缓存)）前置加速，**PostgreSQL 始终为权威**：
 
 | 缓存对象 | key | 写入 / 失效 | TTL（兜底） |
 | --- | --- | --- | --- |

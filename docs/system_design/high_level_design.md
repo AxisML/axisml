@@ -124,7 +124,7 @@
 | [tenant-operator.md](../../axisml-system/docs/system_design/tenant-operator.md) | Tenant CR → Namespace / ElasticQuota / 初始化资源 | Tenant CR（cluster-scoped） |
 | [compute-operator.md](../../axisml-system/docs/system_design/compute-operator.md) | 三类 CR → backend handler → K8s 与网关 CR | 三类 CR + backend handler registry |
 
-**Infra 层**（第三方基础设施）— [infra/overview.md](../../axisml-infra/docs/system_design/overview.md)：[gateway](../../axisml-infra/docs/system_design/gateway.md) · [storage](../../axisml-infra/docs/system_design/storage.md) · [accelerator](../../axisml-infra/docs/system_design/accelerator.md) · [scheduler](../../axisml-infra/docs/system_design/scheduler.md) · [monitoring](../../axisml-infra/docs/system_design/monitoring.md)。
+**Infra 层**（第三方基础设施）— [infra/overview.md](../../axisml-infra/docs/system_design/overview.md)：[服务网关](../../axisml-infra/docs/system_design/overview.md#3-服务网关) · [存储](../../axisml-infra/docs/system_design/overview.md#4-存储) · [加速器管理](../../axisml-infra/docs/system_design/overview.md#5-加速器管理) · [调度与配额](../../axisml-infra/docs/system_design/overview.md#6-调度与配额) · [监控](../../axisml-infra/docs/system_design/overview.md#7-监控)。
 
 **跨层文档**：[deployment.md](deployment.md)（Helm 分层与部署顺序）。PostgreSQL schema 按层归各自 docs：[system/database.md](../../axisml-system/docs/system_design/database.md) · [platform/database.md](../../axisml-platform/docs/system_design/database.md)。
 
