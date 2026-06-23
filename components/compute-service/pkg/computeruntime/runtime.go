@@ -22,6 +22,7 @@ package computeruntime
 
 import (
 	"context"
+	"errors"
 	"io"
 
 	corev1 "k8s.io/api/core/v1"
@@ -32,6 +33,12 @@ import (
 	mlservicev1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
 	mltrafficpolicyv1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mltrafficpolicy/v1alpha1"
 )
+
+// ErrInstanceNotOwned is returned by instance log / event lookups when the
+// named instance exists but does not belong to the addressed workload. Callers
+// map it to 403 Forbidden (distinct from a 404 for a missing instance), so the
+// workload URL space cannot leak instances owned by other workloads.
+var ErrInstanceNotOwned = errors.New("instance does not belong to this workload")
 
 // ComputeRuntime executes and observes the AxisML workload contract.
 //

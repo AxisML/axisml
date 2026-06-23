@@ -7,6 +7,7 @@
 package kubeproxy
 
 import (
+	"errors"
 	"io"
 	"net/http"
 	"strconv"
@@ -18,18 +19,23 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/axisml/axisml/components/compute-service/internal/server"
+	"github.com/axisml/axisml/components/compute-service/pkg/computeruntime"
 	apperrors "github.com/axisml/axisml/components/compute-service/pkg/errors"
 )
 
 // MapErr translates a runtime error into the typed app error the HTTP error
-// middleware understands. A Kubernetes NotFound (missing workload / instance)
-// becomes CodeNotFound; anything else is surfaced as CodeUnavailable.
+// middleware understands. An instance that exists but belongs to another
+// workload becomes CodeForbidden (403); a Kubernetes NotFound (missing
+// instance) becomes CodeNotFound (404); anything else is CodeUnavailable.
 func MapErr(err error) error {
 	if err == nil {
 		return nil
 	}
 	if _, ok := apperrors.As(err); ok {
 		return err
+	}
+	if errors.Is(err, computeruntime.ErrInstanceNotOwned) {
+		return apperrors.Wrap(apperrors.CodeForbidden, "instance does not belong to this resource", err)
 	}
 	if apierrors.IsNotFound(err) {
 		return apperrors.Wrap(apperrors.CodeNotFound, "instance not found", err)

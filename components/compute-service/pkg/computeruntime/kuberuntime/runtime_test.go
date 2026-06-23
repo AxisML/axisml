@@ -21,6 +21,8 @@ import (
 	mlrunv1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlrun/v1alpha1"
 	mlservicev1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
 	mltrafficpolicyv1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mltrafficpolicy/v1alpha1"
+
+	"github.com/axisml/axisml/components/compute-service/pkg/computeruntime"
 )
 
 func testScheme(t *testing.T) *runtime.Scheme {
@@ -153,9 +155,20 @@ func TestGetMLRunInstanceLogs_VerifiesOwnership(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEmpty(t, body)
 
-	// A pod that doesn't belong to the Run must be rejected before streaming.
+	// A pod that doesn't belong to the Run must be rejected before streaming,
+	// with a typed sentinel callers map to 403 (not a generic 5xx).
 	_, err = rt.GetMLRunInstanceLogs(ctx, runKey(), "p-foreign", nil)
 	require.Error(t, err)
+	assert.ErrorIs(t, err, computeruntime.ErrInstanceNotOwned)
+}
+
+func TestListMLRunInstances_AbsentCRYieldsEmpty(t *testing.T) {
+	ctx := context.Background()
+	rt := newRuntime(t) // no MLRun CR materialized yet
+
+	pods, err := rt.ListMLRunInstances(ctx, runKey())
+	require.NoError(t, err, "a not-yet-materialized Run must list empty, not error")
+	assert.Empty(t, pods.Items)
 }
 
 func TestGetMLRunEvents_FiltersRegarding(t *testing.T) {

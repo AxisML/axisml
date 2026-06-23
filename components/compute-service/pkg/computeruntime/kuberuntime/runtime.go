@@ -83,9 +83,14 @@ func (r *KubernetesRuntime) DeleteMLRun(ctx context.Context, key types.Namespace
 	return ignoreNotFound(r.ctrl.Delete(ctx, cr))
 }
 
-// ListMLRunInstances lists the Pods that carry the Run's stable id label.
+// ListMLRunInstances lists the Pods that carry the Run's stable id label. A Run
+// whose CR has not yet been materialized (no instances exist yet) yields an
+// empty list rather than a NotFound.
 func (r *KubernetesRuntime) ListMLRunInstances(ctx context.Context, key types.NamespacedName) (*corev1.PodList, error) {
 	id, err := r.runLabelID(ctx, key)
+	if apierrors.IsNotFound(err) {
+		return &corev1.PodList{}, nil
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -159,8 +164,14 @@ func (r *KubernetesRuntime) DeleteMLService(ctx context.Context, key types.Names
 	return ignoreNotFound(r.ctrl.Delete(ctx, cr))
 }
 
+// ListMLServiceInstances lists the Pods that carry the Service's stable id
+// label. A Service whose CR has not yet been materialized yields an empty list
+// rather than a NotFound.
 func (r *KubernetesRuntime) ListMLServiceInstances(ctx context.Context, key types.NamespacedName) (*corev1.PodList, error) {
 	id, err := r.serviceLabelID(ctx, key)
+	if apierrors.IsNotFound(err) {
+		return &corev1.PodList{}, nil
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -289,7 +300,7 @@ func (r *KubernetesRuntime) verifyInstance(ctx context.Context, namespace, insta
 		return err
 	}
 	if p.Labels[labelKey] != labelValue {
-		return fmt.Errorf("instance %s/%s does not belong to this workload", namespace, instance)
+		return fmt.Errorf("instance %s/%s: %w", namespace, instance, computeruntime.ErrInstanceNotOwned)
 	}
 	return nil
 }
