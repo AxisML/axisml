@@ -26,7 +26,7 @@ go.work
 go.work.sum
 
 # Helm-fetched dependency tarballs
-deploy/helm/*/charts/*.tgz
+axisml-*/deploy/helm/charts/*.tgz
 
 # Shared envtest binary (downloaded by `make setup-envtest`)
-test/setup-envtest/setup-envtest
+axisml-system/test/setup-envtest/setup-envtest

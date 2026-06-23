@@ -3,7 +3,7 @@ package openapigen
 import "sigs.k8s.io/yaml"
 
 // MarshalYAML renders the document as YAML with a leading "do not edit"
-// header. Per-service generators write the result to docs/openapi/<svc>.yaml.
+// header. Per-service generators write the result to each layer's docs/apis/<svc>.yaml.
 func MarshalYAML(d *Document) ([]byte, error) {
 	body, err := yaml.Marshal(d)
 	if err != nil {

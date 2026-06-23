@@ -27,8 +27,8 @@ Closes #
 - [ ] Relevant tests pass: `make <component>-test` (and `-integration` for behavior changes).
 - [ ] `make doc-test` passes if HTTP DTOs changed (regenerated with `make doc-gen`; not hand-edited).
 - [ ] `make helm-lint` / `make helm-template` pass if `deploy/helm/**` changed.
-- [ ] New external CRDs are vendored under `test/crds/external/`.
-- [ ] `docs/system_design/` updated for behavior/contract changes.
+- [ ] New external CRDs are vendored under `axisml-system/test/crds/external/`.
+- [ ] Design docs updated for behavior/contract changes.
 - [ ] Screenshots included for UI changes.
 
 ## Notes for reviewers

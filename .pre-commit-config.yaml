@@ -13,16 +13,26 @@
 #                   in CI.
 
 # Files we never want hooks to touch:
-#   - test/crds/external/* are vendored upstream CRDs (intentionally read-only,
-#     see test/crds/external/README.md) — they must mirror upstream verbatim.
-#   - deploy/helm/*/charts/* holds vendored sub-chart tarballs/dirs.
+#   - axisml-system/test/crds/external/* are vendored upstream CRDs (intentionally read-only,
+#     see axisml-system/test/crds/external/README.md) — they must mirror upstream verbatim.
+#   - axisml-*/deploy/helm/charts/* holds vendored sub-chart tarballs/dirs.
 exclude: |
   (?x)^(
-    test/crds/external/.*|
-    deploy/helm/[^/]+/charts/.*
+    axisml-system/test/crds/external/.*|
+    axisml-(infra|system|platform)/deploy/helm/charts/.*
   )$
 
 repos:
+  # ── commit-msg stage ──────────────────────────────────────────────────
+  # Validate the commit subject against Conventional Commits + the closed
+  # scope list in .commitlintrc.yml. Fires on `git commit`, not on push.
+  - repo: https://github.com/alessandrojcm/commitlint-pre-commit-hook
+    rev: v9.20.0
+    hooks:
+      - id: commitlint
+        stages: [commit-msg]
+        additional_dependencies: ["@commitlint/config-conventional@19.5.0"]
+
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
@@ -37,7 +47,18 @@ repos:
         args: [--allow-multiple-documents]
         # Helm templates use Go template syntax that isn't valid YAML.
         exclude: |
-          (?x)^deploy/helm/[^/]+/templates/
+          (?x)^axisml-(infra|system|platform)/deploy/helm/templates/
+
+  # ── markdown link check (internal links only, no external) ────────────
+  # --offline validates in-repo relative paths + anchors without any network
+  # request → fast and deterministic, matching the pre-commit "<5s + reliable"
+  # policy. See lychee.toml at the repo root for the config.
+  - repo: https://github.com/lycheeverse/lychee.git
+    rev: lychee-v0.24.2
+    hooks:
+      - id: lychee
+        args: ["--offline", "--no-progress"]
+        types: [markdown]
 
   - repo: local
     hooks:
@@ -70,7 +91,7 @@ repos:
         # have no HTTP surface and are excluded. The action is ~10s locally.
         entry: make doc-test
         language: system
-        files: ^components/(cluster-manager|compute-service|artifact-hub)/.*\.go$
+        files: ^axisml-system/(cluster-manager|compute-service|artifact-hub)/.*\.go$
         pass_filenames: false
         require_serial: true
 
@@ -79,7 +100,7 @@ repos:
         description: Lint the Helm charts when chart files change.
         entry: make helm-lint
         language: system
-        files: ^deploy/helm/.*
+        files: ^axisml-(infra|system|platform)/deploy/helm/.*
         pass_filenames: false
         require_serial: true
 

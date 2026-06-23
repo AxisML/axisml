@@ -1,0 +1,8 @@
+# Code owners for AxisML.
+#
+# Owners listed here are automatically requested for review on any PR that
+# touches a matching path (see CONTRIBUTING.md). Order matters: the last
+# matching pattern takes precedence.
+
+# Default owner for everything in the repo.
+*       @zhenlohuang

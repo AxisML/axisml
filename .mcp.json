@@ -4,7 +4,7 @@
       "command": "sh",
       "args": [
         "-c",
-        "cd components/platform-frontend && exec npx shadcn@latest mcp"
+        "cd axisml-platform/frontend && exec npx shadcn@latest mcp"
       ]
     }
   }

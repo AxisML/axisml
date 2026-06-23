@@ -33,31 +33,21 @@ By participating you agree to abide by our
 
 ## Development workflow
 
-This is a monorepo of independent Go modules; `go test ./...` from the root does
-**not** traverse them all. Use the top-level `Makefile` as the entry point:
-
-```sh
-make help                 # list all targets + per-component shortcuts
-make build                # build every active component
-make test                 # unit tests (no cluster)
-make integration-test     # envtest + testcontainers (needs Docker)
-make fmt                  # format every Go module
-make doc-gen              # regenerate generated OpenAPI specs
-make doc-test             # verify generated OpenAPI specs
-make helm-lint            # when touching deploy/helm/**
-```
-
-Per-component shortcuts follow `<basename>-<target>`, e.g.
-`make compute-service-test`.
+Local setup, the full build/test/lint command reference, and the testing layers
+live in **[`docs/development_workflow.md`](docs/development_workflow.md)**. The
+essentials: this is a monorepo of independent Go modules, so `go test ./...` from
+the root does **not** traverse them all — drive everything through the layered
+`Makefile`s (`make test`, `make build`, `make doc-gen`, and per-component
+`make -C axisml-system compute-service-test`).
 
 Key gotchas (full list in [`CLAUDE.md`](CLAUDE.md) and
 [`AGENTS.md`](AGENTS.md)):
 
-- **Never hand-edit generated files** — `docs/openapi/*.yaml` and
+- **Never hand-edit generated files** — `<layer>/docs/apis/*.yaml` and
   `zz_generated_deepcopy.go`. Run `make doc-gen` and re-stage instead.
-- **Vendor new external CRDs** under `test/crds/external/` in the same PR that
+- **Vendor new external CRDs** under `axisml-system/test/crds/external/` in the same PR that
   introduces the dependency, or integration tests will hang.
-- **Update `docs/system_design/`** in the same PR when you change behavior or a
+- **Update the relevant design docs** in the same PR when you change behavior or a
   contract. The design docs describe the *final intended state* only — no
   "before/after" narration.
 
@@ -89,8 +79,8 @@ Before opening a PR, make sure:
       `make doc-gen` / `make <basename>-doc-gen`).
 - [ ] `make helm-lint` / `make helm-template` pass if you touched
       `deploy/helm/**`.
-- [ ] New external CRDs are vendored under `test/crds/external/`.
-- [ ] `docs/system_design/` is updated for behavior/contract changes.
+- [ ] New external CRDs are vendored under `axisml-system/test/crds/external/`.
+- [ ] the design docs are updated for behavior/contract changes.
 - [ ] UI changes include before/after screenshots.
 - [ ] The PR links the issue it closes (`Closes #123`).
 

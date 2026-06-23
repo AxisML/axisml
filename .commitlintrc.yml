@@ -1,0 +1,21 @@
+# Commitlint config — enforces Conventional Commits with a closed scope list.
+#
+# Scope must be one of the four deployment layers, or a cross-cutting scope
+# (build / repo / deps). An empty scope is allowed (e.g. `docs:`, `chore:`).
+#
+# Enforced locally via the commit-msg pre-commit hook (`make install-hooks`)
+# and in CI on PR titles (PRs are squash-merged, so the title becomes the
+# commit subject on main).
+extends:
+  - "@commitlint/config-conventional"
+rules:
+  scope-enum:
+    - 2 # error
+    - always
+    - - infra
+      - system
+      - platform
+      - lite
+      - build
+      - repo
+      - deps

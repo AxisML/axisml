@@ -1,0 +1,17 @@
+# lychee config — internal markdown link checking (pre-commit runs it with --offline)
+#
+# Only relative in-repo links and anchors are checked; external links are not
+# checked in the pre-commit stage.
+
+# Verify that #anchor fragments actually resolve to a heading in the target doc
+# (the link type most likely to break when a doc is split apart).
+include_fragments = "full"
+
+# Vendored upstream content — don't check links inside these trees.
+exclude_path = [
+  "axisml-system/test/crds/external",
+  "axisml-infra/deploy/helm/charts",
+  "axisml-system/deploy/helm/charts",
+  "axisml-platform/deploy/helm/charts",
+  "node_modules",
+]
