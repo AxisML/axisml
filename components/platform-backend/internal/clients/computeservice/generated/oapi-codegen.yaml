@@ -1,9 +1,0 @@
-# oapi-codegen config for the compute-service typed client.
-# Generated from docs/openapi/compute-service.yaml — run `make client-gen`.
-package: generated
-output: internal/clients/computeservice/generated/computeservice.gen.go
-generate:
-  models: true
-  client: true
-output-options:
-  skip-prune: false

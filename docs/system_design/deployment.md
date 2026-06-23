@@ -8,9 +8,9 @@
 
 | Chart | 路径 | Release | Namespace | 内容 |
 | --- | --- | --- | --- | --- |
-| `axisml-infra` | `deploy/helm/axisml-infra` | `axisml-infra` | `axisml-infra` | 第三方基础设施（Envoy Gateway / RustFS / zot / GPU Operator / Koordinator / kube-prometheus-stack）+ PostgreSQL + Redis |
-| `axisml-system` | `deploy/helm/axisml-system` | `axisml` | `axisml-system` | 自研控制面（Cluster Manager / Compute / Artifact Hub / tenant-operator / compute-operator）+ CRDs |
-| `axisml-platform` | `deploy/helm/axisml-platform` | `axisml-platform` | `axisml-platform` | 用户面（Frontend + Backend），唯一对外入口 |
+| `axisml-infra` | `axisml-infra/deploy/helm` | `axisml-infra` | `axisml-infra` | 第三方基础设施（Envoy Gateway / RustFS / zot / GPU Operator / Koordinator / kube-prometheus-stack）+ PostgreSQL + Redis |
+| `axisml-system` | `axisml-system/deploy/helm` | `axisml` | `axisml-system` | 自研控制面（Cluster Manager / Compute / Artifact Hub / tenant-operator / compute-operator）+ CRDs |
+| `axisml-platform` | `axisml-platform/deploy/helm` | `axisml-platform` | `axisml-platform` | 用户面（Frontend + Backend），唯一对外入口 |
 
 三层职责边界：**Platform 唯一对外**、**System 100% 自研但不对外**、**Infra 100% 第三方**。三者通过 namespace + Service DNS 解耦，并通过 chart `condition` 支持按需关闭并对接外部实例。
 
@@ -32,7 +32,7 @@ make helm-install           # 一次性按 infra → system → platform 串装
 # 或分步：helm-install-infra → helm-install-system → helm-install-platform
 ```
 
-卸载顺序相反。`make helm-install-system` 内部先 `kubectl apply deploy/helm/axisml-system/crds/` 再 `helm upgrade --install`——Helm 只在初次安装时处理 `crds/`，CRD schema 升级靠这一步保证。
+卸载顺序相反。`make helm-install-system` 内部先 `kubectl apply axisml-system/deploy/helm/crds/` 再 `helm upgrade --install`——Helm 只在初次安装时处理 `crds/`，CRD schema 升级靠这一步保证。
 
 **顺序约束**：`axisml-infra` 提供 Koordinator / Envoy CRDs 与 PostgreSQL，先于 system（否则 Tenant / MLRun CR 找不到 ElasticQuota / HTTPRoute kind、服务连不上 DB）；`axisml-platform` 最后装（Platform 启动即依赖 System 层就绪，bootstrap 需调 compute）。
 
@@ -48,7 +48,7 @@ make helm-install           # 一次性按 infra → system → platform 串装
 
 ## 4. 镜像版本
 
-所有控制面组件镜像 tag 由 `deploy/helm/axisml-system/Chart.yaml` 的 `appVersion` 统一注入（`ghcr.io/axisml/axisml-<component>:<appVersion>`，含 cluster-manager / compute-service / artifact-hub / platform-{backend,frontend} / tenant-operator / compute-operator）。顶层 `Makefile` 的 `IMAGE_TAG` 从该 `appVersion` 读取，作三层 chart 统一版本源，并在 `helm-install` / `helm-template` 注入 system 与 platform 的 `--set <component>.image.tag`。
+所有控制面组件镜像 tag 由 `axisml-system/deploy/helm/Chart.yaml` 的 `appVersion` 统一注入（`ghcr.io/axisml/axisml-<component>:<appVersion>`，含 cluster-manager / compute-service / artifact-hub / platform-{backend,frontend} / tenant-operator / compute-operator）。顶层 `Makefile` 的 `IMAGE_TAG` 从该 `appVersion` 读取，作三层 chart 统一版本源，并在 `helm-install` / `helm-template` 注入 system 与 platform 的 `--set <component>.image.tag`。
 
 > Platform 当前仍是 nginx 占位镜像（不跟 appVersion），故 `HELM_PLATFORM_IMAGE_SET` 暂留空。**Dev loop**：`make image-load IMAGE_TAG=dev` 后在 values override 覆盖 `image.tag=dev`。
 
@@ -64,16 +64,16 @@ make helm-install           # 一次性按 infra → system → platform 串装
 
 **Infra 组件部署形态**（默认 values）：Envoy Gateway（单 `axisml-gateway`，HTTP listener，`allowedRoutes` 放行工作负载 namespace）· RustFS（Standalone）· zot（Standalone filesystem，公共拉取 Secret 落 `axisml-tenant`）· GPU Operator（driver + toolkit + device plugin + DCGM + GFD，MIG 暂不启用）· Koordinator（koord-scheduler + koord-manager + ElasticQuota + PodGroup）· kube-prometheus-stack（不预置告警）· PostgreSQL（bitnami，Service `axisml-database`，`database.enabled=false` 时外接）· Redis（bitnami，standalone，Service `axisml-redis-master`，`cache.enabled=false` 时关闭）。
 
-默认共享 K8s Namespace `axisml-tenant` 由 System chart 声明并标记 `helm.sh/resource-policy=keep`；其他 tenant namespace 由 tenant-operator 在 `Tenant` CR reconcile 时按需创建（[tenant-operator.md §4.1.1](system/tenant-operator.md#411-namespace-落地)）。
+默认共享 K8s Namespace `axisml-tenant` 由 System chart 声明并标记 `helm.sh/resource-policy=keep`；其他 tenant namespace 由 tenant-operator 在 `Tenant` CR reconcile 时按需创建（[tenant-operator.md §4.1.1](../../axisml-system/docs/tenant-operator.md#411-namespace-落地)）。
 
 ## 6. Helm 模板清单
 
-System 层模板在 `deploy/helm/axisml-system/templates/<component>/` 下：
+System 层模板在 `axisml-system/deploy/helm/templates/<component>/` 下：
 
 - **Cluster Manager / Compute Service / Artifact Hub**：`configmap.yaml`（DB 连接 / 日志 / 下游 URL）· `secret-db.yaml`（从共享 `database.auth.password` 投影到本 namespace）· `deployment.yaml`（含 `/healthz` `/readyz`）· `service.yaml`（ClusterIP）· `networkpolicy.yaml`（API `:8080` 仅允许 `axisml-platform`，metrics 仅允许监控 namespace）· `serviceaccount.yaml` · `rbac.yaml`（ClusterRole + Binding）· `role.yaml`/`rolebinding.yaml`（leader Lease）· `servicemonitor.yaml`（opt-in）· `post-install-job.yaml`。Cluster Manager 的默认数据模板位于 `templates/cluster-manager/`：`resource-pool-default.yaml`、`namespace-tenant.yaml`（`axisml-tenant`）和 `tenant-default.yaml`（内置租户 `default`）。
 - **tenant-operator / compute-operator**：`deployment.yaml` · `serviceaccount.yaml` · `clusterrole.yaml`/`clusterrolebinding.yaml` · `role.yaml`/`rolebinding.yaml`（leader Lease）· `servicemonitor.yaml`。
 - **CRDs**（在 `crds/`，非 `templates/`，由 `make helm-install-system` 的 `kubectl apply` 保证 schema 升级）：`tenant-crd.yaml`（tenant-operator）· `mlrun/mlservice/mltrafficpolicy-crd.yaml`（compute-operator）· `resource-pool-crd.yaml`（cluster-manager 写 / compute-service Informer 读）。
-- **Platform**（`deploy/helm/axisml-platform/templates/`）：`configmap.yaml`（下游 URL）· `deployment.yaml` · `service.yaml` · `httproute.yaml`（挂载 Infra 层 `axisml-gateway`，`platform.httpRoute.enabled` 开关）· `bootstrap-job.yaml`（规划中：创建初始 `system-admin`，依赖 System 层就绪，故最后安装）。
+- **Platform**（`axisml-platform/deploy/helm/templates/`）：`configmap.yaml`（下游 URL）· `deployment.yaml` · `service.yaml` · `httproute.yaml`（挂载 Infra 层 `axisml-gateway`，`platform.httpRoute.enabled` 开关）· `bootstrap-job.yaml`（规划中：创建初始 `system-admin`，依赖 System 层就绪，故最后安装）。
 
 CRDs 随 System 层发布（operator 契约）；Platform 用户体系 bootstrap 随 Platform 层发布，两者不交叉。
 
@@ -85,7 +85,7 @@ CRDs 随 System 层发布（operator 契约）；Platform 用户体系 bootstrap
 
 由 `axisml-infra` chart 提供（Infra 层第三方依赖，bitnami/redis 子 chart，`architecture: standalone`，StatefulSet + PVC，Service `axisml-redis-master`）。Platform 经跨 namespace FQDN `axisml-redis-master.axisml-infra:6379` 连接，凭据由 Platform 从共享 `cache.auth.password` 在本 namespace 自渲染为 Secret。
 
-缓存仅承载可重建的会话有效性与身份 / RBAC 数据（[platform/auth.md §2.1](platform/auth.md#21-会话与身份缓存)），故为**可选加速器**：`axisml-platform` 的 `cache.enabled=false` 即不下发 `REDIS_ADDR`，Backend 全程直连 PostgreSQL；运行中 Redis 不可达按操作回退源库。单实例无需 HA——宕机 / 重启只触发一次回源（及会话强制重登），不丢业务真相。开发 / 测试 / CI 默认不依赖 Redis（`REDIS_ADDR` 空即 noop）。
+缓存仅承载可重建的会话有效性与身份 / RBAC 数据（[platform/auth.md §2.1](../../axisml-platform/docs/auth.md#21-会话与身份缓存)），故为**可选加速器**：`axisml-platform` 的 `cache.enabled=false` 即不下发 `REDIS_ADDR`，Backend 全程直连 PostgreSQL；运行中 Redis 不可达按操作回退源库。单实例无需 HA——宕机 / 重启只触发一次回源（及会话强制重登），不丢业务真相。开发 / 测试 / CI 默认不依赖 Redis（`REDIS_ADDR` 空即 noop）。
 
 ## 9. 部署相关设计决策
 
@@ -100,4 +100,4 @@ CRDs 随 System 层发布（operator 契约）；Platform 用户体系 bootstrap
 
 ## 10. 关联文档
 
-- [high_level_design.md](high_level_design.md) · [infra/overview.md](infra/overview.md)（infra 层组件）· [database.md](database.md)（PostgreSQL 形态）· 各组件详设 §8 运行时形态。
+- [high_level_design.md](high_level_design.md) · [infra/overview.md](../../axisml-infra/docs/overview.md)（infra 层组件）· [database.md](database.md)（PostgreSQL 形态）· 各组件详设 §8 运行时形态。

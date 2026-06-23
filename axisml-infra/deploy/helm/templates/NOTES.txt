@@ -1,0 +1,25 @@
+AxisML Infra has been installed successfully into namespace {{ .Release.Namespace }}.
+
+Components deployed:
+{{- if (index .Values "envoy-gateway").enabled }}
+  - Envoy Gateway:        envoy-gateway
+  - Shared Gateway:       {{ .Release.Namespace }}/axisml-gateway (className={{ .Values.gateway.className | default "eg" }}, port={{ .Values.gateway.httpPort | default 80 }})
+{{- end }}
+{{- if .Values.rustfs.enabled }}
+  - RustFS (S3):          rustfs-svc:9000
+{{- end }}
+{{- if .Values.zot.enabled }}
+  - zot (OCI):            zot:5000 (default user: admin / admin)
+{{- end }}
+{{- if (index .Values "gpu-operator").enabled }}
+  - GPU Operator:         gpu-operator
+{{- end }}
+{{- if .Values.koordinator.enabled }}
+  - Koordinator:          koord-scheduler / koord-manager (all AxisML workload Pods set schedulerName: koord-scheduler and consume ElasticQuota)
+{{- end }}
+{{- if (index .Values "kube-prometheus-stack").enabled }}
+  - Prometheus / Grafana: prometheus / grafana
+{{- end }}
+
+Install the control plane next:
+  helm install axisml axisml-system/deploy -n axisml-system --create-namespace

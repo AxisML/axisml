@@ -53,7 +53,7 @@ Per-component shortcuts follow `<basename>-<target>`, e.g.
 Key gotchas (full list in [`CLAUDE.md`](CLAUDE.md) and
 [`AGENTS.md`](AGENTS.md)):
 
-- **Never hand-edit generated files** — `docs/openapi/*.yaml` and
+- **Never hand-edit generated files** — `<layer>/docs/apis/*.yaml` and
   `zz_generated_deepcopy.go`. Run `make doc-gen` and re-stage instead.
 - **Vendor new external CRDs** under `test/crds/external/` in the same PR that
   introduces the dependency, or integration tests will hang.

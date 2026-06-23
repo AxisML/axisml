@@ -96,31 +96,31 @@ jobs:
       - name: Upload tenant-operator coverage
         uses: codecov/codecov-action@v4
         with:
-          files: ./components/tenant-operator/coverage/coverage.out
+          files: ./axisml-system/tenant-operator/coverage/coverage.out
           flags: test,tenant-operator
           fail_ci_if_error: false
       - name: Upload compute-operator coverage
         uses: codecov/codecov-action@v4
         with:
-          files: ./components/compute-operator/coverage/coverage.out
+          files: ./axisml-system/compute-operator/coverage/coverage.out
           flags: test,compute-operator
           fail_ci_if_error: false
       - name: Upload cluster-manager coverage
         uses: codecov/codecov-action@v4
         with:
-          files: ./components/cluster-manager/coverage/coverage.out
+          files: ./axisml-system/cluster-manager/coverage/coverage.out
           flags: test,cluster-manager
           fail_ci_if_error: false
       - name: Upload compute coverage
         uses: codecov/codecov-action@v4
         with:
-          files: ./components/compute-service/coverage/coverage.out
+          files: ./axisml-system/compute-service/coverage/coverage.out
           flags: test,compute
           fail_ci_if_error: false
       - name: Upload artifacts coverage
         uses: codecov/codecov-action@v4
         with:
-          files: ./components/artifact-hub/coverage/coverage.out
+          files: ./axisml-system/artifact-hub/coverage/coverage.out
           flags: test,artifacts
           fail_ci_if_error: false
 
@@ -147,31 +147,31 @@ jobs:
       - name: Upload tenant-operator integration coverage
         uses: codecov/codecov-action@v4
         with:
-          files: ./components/tenant-operator/coverage/integration-coverage.out
+          files: ./axisml-system/tenant-operator/coverage/integration-coverage.out
           flags: integration,tenant-operator
           fail_ci_if_error: false
       - name: Upload compute-operator integration coverage
         uses: codecov/codecov-action@v4
         with:
-          files: ./components/compute-operator/coverage/integration-coverage.out
+          files: ./axisml-system/compute-operator/coverage/integration-coverage.out
           flags: integration,compute-operator
           fail_ci_if_error: false
       - name: Upload cluster-manager integration coverage
         uses: codecov/codecov-action@v4
         with:
-          files: ./components/cluster-manager/coverage/integration-coverage.out
+          files: ./axisml-system/cluster-manager/coverage/integration-coverage.out
           flags: integration,cluster-manager
           fail_ci_if_error: false
       - name: Upload compute integration coverage
         uses: codecov/codecov-action@v4
         with:
-          files: ./components/compute-service/coverage/integration-coverage.out
+          files: ./axisml-system/compute-service/coverage/integration-coverage.out
           flags: integration,compute
           fail_ci_if_error: false
       - name: Upload artifacts integration coverage
         uses: codecov/codecov-action@v4
         with:
-          files: ./components/artifact-hub/coverage/integration-coverage.out
+          files: ./axisml-system/artifact-hub/coverage/integration-coverage.out
           flags: integration,artifacts
           fail_ci_if_error: false
 
@@ -196,7 +196,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-go-cached
       - name: Verify generated OpenAPI specs are in sync with Go types
-        # Regenerates docs/openapi/{compute,artifacts,cluster-manager}.yaml
+        # Regenerates axisml-system/docs/apis/{compute-service,artifact-hub,cluster-manager}.yaml
         # from each service's request/response structs and fails the job if
         # any committed spec drifted. Run `make doc-gen` locally and commit
         # the result to fix.
@@ -218,11 +218,11 @@ jobs:
       matrix:
         component:
           # All Dockerfiles build from the repo root for consistency.
-          - { name: tenant-operator,  image: axisml-tenant-operator,  context: ., dockerfile: components/tenant-operator/Dockerfile }
-          - { name: compute-operator, image: axisml-compute-operator, context: ., dockerfile: components/compute-operator/Dockerfile }
-          - { name: cluster-manager,  image: axisml-cluster-manager,  context: ., dockerfile: components/cluster-manager/Dockerfile }
-          - { name: compute,          image: axisml-compute-service,          context: ., dockerfile: components/compute-service/Dockerfile }
-          - { name: artifacts,        image: axisml-artifact-hub,        context: ., dockerfile: components/artifact-hub/Dockerfile }
+          - { name: tenant-operator,  image: axisml-tenant-operator,  context: ., dockerfile: axisml-system/tenant-operator/Dockerfile }
+          - { name: compute-operator, image: axisml-compute-operator, context: ., dockerfile: axisml-system/compute-operator/Dockerfile }
+          - { name: cluster-manager,  image: axisml-cluster-manager,  context: ., dockerfile: axisml-system/cluster-manager/Dockerfile }
+          - { name: compute,          image: axisml-compute-service,          context: ., dockerfile: axisml-system/compute-service/Dockerfile }
+          - { name: artifacts,        image: axisml-artifact-hub,        context: ., dockerfile: axisml-system/artifact-hub/Dockerfile }
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-qemu-action@v3

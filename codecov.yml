@@ -26,4 +26,4 @@ ignore:
   - "**/*_mock.go"
   - "**/mocks/**"
   - "test/**"
-  - "components/operator/cmd/**"
+  - "axisml-system/*-operator/cmd/**"

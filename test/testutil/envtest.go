@@ -14,7 +14,7 @@ import (
 // EnvtestOptions configures StartEnvtest.
 type EnvtestOptions struct {
 	// CRDPaths is the list of directories that envtest scans for CRD manifests.
-	// Pass paths to both repo-local CRDs (deploy/helm/axisml-system/crds) and
+	// Pass paths to both repo-local CRDs (axisml-system/deploy/helm/crds) and
 	// vendored external CRDs (test/crds/external) as needed.
 	CRDPaths []string
 

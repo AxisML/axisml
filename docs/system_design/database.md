@@ -1,17 +1,17 @@
 # AxisML 数据库设计
 
-汇总控制平面持久化在 PostgreSQL 中的表 schema。所有控制面服务共用同一个 database `axisml`，按表名前缀逻辑隔离；schema 迁移由各服务二进制内嵌 `golang-migrate` 在启动时执行。Postgres 部署形态见 [infra/storage.md §3](infra/storage.md#3-数据库)。
+汇总控制平面持久化在 PostgreSQL 中的表 schema。所有控制面服务共用同一个 database `axisml`，按表名前缀逻辑隔离；schema 迁移由各服务二进制内嵌 `golang-migrate` 在启动时执行。Postgres 部署形态见 [infra/storage.md §3](../../axisml-infra/docs/storage.md#3-数据库)。
 
 **连接契约**：PostgreSQL 引擎归 Infra 层（`axisml-infra` chart，Service `axisml-database`）。System 层服务（compute-service / artifact-hub）与 Platform backend 都经跨 namespace FQDN `axisml-database.axisml-infra:5432` 连接；凭据由各消费层从与 Infra 层同值的 `database.auth.password` 在本 namespace 自渲染为 Secret（Secret namespace-scoped 不跨 namespace 引用，故密码作为各 chart 的共享输入各出现一次）。cluster-manager 与两个 operator 不连 DB。
 
 | 服务 | 表 | 用途 |
 | --- | --- | --- |
-| [compute-service](system/compute-service.md) | `mlruns` / `mlservices` / `traffic_policies` | 计算任务 / 在线服务·工作区·TensorBoard / 流量策略 |
-| [artifact-hub](system/artifact-hub.md) | `artifacts` | 制品（model / dataset / image） |
-| [Platform](platform/backend.md) | `tenants` | 租户持久记录 / K8s Namespace 映射 / 停用 / 硬删除（`identifier` 标识） |
+| [compute-service](../../axisml-system/docs/compute-service.md) | `mlruns` / `mlservices` / `traffic_policies` | 计算任务 / 在线服务·工作区·TensorBoard / 流量策略 |
+| [artifact-hub](../../axisml-system/docs/artifact-hub.md) | `artifacts` | 制品（model / dataset / image） |
+| [Platform](../../axisml-platform/docs/backend.md) | `tenants` | 租户持久记录 / K8s Namespace 映射 / 停用 / 硬删除（`identifier` 标识） |
 | Platform | `users` / `user_roles` / `sessions` + `jobs` / `experiments` / `models` / `images` | 身份 / 授权 / 会话 + 四张 name 级定义 |
 
-> [cluster-manager](system/cluster-manager.md) **不入 PG**——ResourcePool（含 `spec.units[]`）与 `Tenant` CR 持久化在 K8s etcd，cluster-manager 是 REST + K8s API 调用层。
+> [cluster-manager](../../axisml-system/docs/cluster-manager.md) **不入 PG**——ResourcePool（含 `spec.units[]`）与 `Tenant` CR 持久化在 K8s etcd，cluster-manager 是 REST + K8s API 调用层。
 
 ## 1. 通用约定
 
@@ -71,7 +71,7 @@ CREATE INDEX mlruns_namespace_job_created
   ON mlruns (namespace, (labels->>'axisml.io/job'), created_at DESC) WHERE deleted_at IS NULL;
 ```
 
-`phase` 是 MLRun CR `status.phase` 顶层冗余，`status` jsonb 持 `{message, startedAt, finishedAt, conditions[]}`（informer 写）。`spec` 含 compute 已展开的 `nodeSelector` / `tolerations` / `resources` snapshot，并保留 `scheduling.poolName` / `unitName` 做溯源（展开见 [compute-service.md §5.4](system/compute-service.md#54-resourcepool-展开)）；`spec.backend` 缺省补 `{native, job}`，创建后不可变。GIN + 复合索引支持 `?labelSelector=axisml.io/job=...`。
+`phase` 是 MLRun CR `status.phase` 顶层冗余，`status` jsonb 持 `{message, startedAt, finishedAt, conditions[]}`（informer 写）。`spec` 含 compute 已展开的 `nodeSelector` / `tolerations` / `resources` snapshot，并保留 `scheduling.poolName` / `unitName` 做溯源（展开见 [compute-service.md §5.4](../../axisml-system/docs/compute-service.md#54-resourcepool-展开)）；`spec.backend` 缺省补 `{native, job}`，创建后不可变。GIN + 复合索引支持 `?labelSelector=axisml.io/job=...`。
 
 ### 2.2 `mlservices`
 
@@ -109,7 +109,7 @@ CREATE INDEX mlservices_namespace_created ON mlservices (namespace, created_at D
 
 ### 2.3 `traffic_policies`
 
-把稳定入口的流量按权重分发到同 `namespace` 下多个在线服务（`mlservices` `kind='service'`）；CR 派生见 [compute-service.md §4.3](system/compute-service.md#43-流量策略mltrafficpolicy)。
+把稳定入口的流量按权重分发到同 `namespace` 下多个在线服务（`mlservices` `kind='service'`）；CR 派生见 [compute-service.md §4.3](../../axisml-system/docs/compute-service.md#43-流量策略mltrafficpolicy)。
 
 ```sql
 CREATE TABLE traffic_policies (
@@ -228,11 +228,11 @@ CREATE TABLE sessions (
 CREATE INDEX sessions_expires_at ON sessions (expires_at);
 ```
 
-`user_roles.tenant_name` 引用 `tenants.identifier`（唯一且不可变）；租户硬删前必须清空成员，随后删除 Tenant 行与 Tenant CR。`sessions` 为会话白名单（`jti` 存在且未 `revoked` / 未过期才有效），认证路径对其有效性校验与身份 / RBAC 解析由可选 Redis 缓存前置加速（PostgreSQL 始终为权威，[platform/auth.md §2.1](platform/auth.md#21-会话与身份缓存)）；过期行由 `serve` 后台 sweep 周期清理（`sessions_expires_at` 索引支撑）。**bootstrap**：首次 `axisml-platform bootstrap` 插入 `admin` 用户（默认密码 `admin`，`must_change_password=true`，可由 `AXISML_BOOTSTRAP_PASSWORD` 覆盖），并登记内置租户 `default`，映射到 K8s Namespace `axisml-tenant`，经 cluster-manager 创建 Tenant CR（承载 `public` 制品）。
+`user_roles.tenant_name` 引用 `tenants.identifier`（唯一且不可变）；租户硬删前必须清空成员，随后删除 Tenant 行与 Tenant CR。`sessions` 为会话白名单（`jti` 存在且未 `revoked` / 未过期才有效），认证路径对其有效性校验与身份 / RBAC 解析由可选 Redis 缓存前置加速（PostgreSQL 始终为权威，[platform/auth.md §2.1](../../axisml-platform/docs/auth.md#21-会话与身份缓存)）；过期行由 `serve` 后台 sweep 周期清理（`sessions_expires_at` 索引支撑）。**bootstrap**：首次 `axisml-platform bootstrap` 插入 `admin` 用户（默认密码 `admin`，`must_change_password=true`，可由 `AXISML_BOOTSTRAP_PASSWORD` 覆盖），并登记内置租户 `default`，映射到 K8s Namespace `axisml-tenant`，经 cluster-manager 创建 Tenant CR（承载 `public` 制品）。
 
 ### 4.2 定义（jobs / experiments / models / images）
 
-四张 name 级**定义 / 模板**表，运行 / 版本实例由下游持有、实时关联，Platform **不建 run/version 索引表**（语义见 [platform.md §3.2](platform/backend.md#32-定义jobs--experiments--models--images)）。四表同构，下给出 `jobs`：
+四张 name 级**定义 / 模板**表，运行 / 版本实例由下游持有、实时关联，Platform **不建 run/version 索引表**（语义见 [platform.md §3.2](../../axisml-platform/docs/backend.md#32-定义jobs--experiments--models--images)）。四表同构，下给出 `jobs`：
 
 ```sql
 CREATE TABLE jobs (

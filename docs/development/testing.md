@@ -66,7 +66,7 @@ make artifacts-integration
   `TestTenant_HappyPath`).
 - **Namespaces in tests**: use `testutil.RandomNamespace`.
 - **HTTP API tests**: drive the gin engine in-process via
-  `engine.ServeHTTP(rr, req)` — see `components/compute-service/test/integration/httptest_helpers_test.go`
+  `engine.ServeHTTP(rr, req)` — see `axisml-system/compute-service/test/integration/httptest_helpers_test.go`
   for the canonical `doJSON` / `requireStatus` helpers.
 
 ## Module layout

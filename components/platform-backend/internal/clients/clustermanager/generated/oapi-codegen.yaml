@@ -1,9 +1,0 @@
-# oapi-codegen config for the cluster-manager typed client.
-# Generated from docs/openapi/cluster-manager.yaml — run `make client-gen`.
-package: generated
-output: internal/clients/clustermanager/generated/clustermanager.gen.go
-generate:
-  models: true
-  client: true
-output-options:
-  skip-prune: false

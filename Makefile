@@ -11,15 +11,15 @@ export MINIKUBE_DRIVER  ?=
 # --- Helm Configuration ---
 HELM_INFRA_RELEASE    ?= axisml-infra
 HELM_INFRA_NAMESPACE  ?= axisml-infra
-HELM_INFRA_CHART      ?= deploy/helm/axisml-infra
+HELM_INFRA_CHART      ?= axisml-infra/deploy/helm
 
 HELM_SYSTEM_RELEASE   ?= axisml
 HELM_SYSTEM_NAMESPACE ?= axisml-system
-HELM_SYSTEM_CHART     ?= deploy/helm/axisml-system
+HELM_SYSTEM_CHART     ?= axisml-system/deploy/helm
 
 HELM_PLATFORM_RELEASE   ?= axisml-platform
 HELM_PLATFORM_NAMESPACE ?= axisml-platform
-HELM_PLATFORM_CHART     ?= deploy/helm/axisml-platform
+HELM_PLATFORM_CHART     ?= axisml-platform/deploy/helm
 
 # --- Image Tag (shared across components) ---
 #
@@ -148,27 +148,27 @@ helm-template: ## Render all charts locally
 # Each entry is a directory that contains a Makefile honouring the contract.
 # Add scaffolded components here as they ship working build targets.
 COMPONENTS := \
-  components/tenant-operator \
-  components/compute-operator \
-  components/cluster-manager \
-  components/compute-service \
-  components/artifact-hub \
-  components/platform-backend
+  axisml-system/tenant-operator \
+  axisml-system/compute-operator \
+  axisml-system/cluster-manager \
+  axisml-system/compute-service \
+  axisml-system/artifact-hub \
+  axisml-platform/backend
 # platform-backend runs serve/migrate/bootstrap + the real HTTP API (Auth /
 # Tenants / Quotas / Members wired today; the rest of the declared surface 501s
 # until its handlers land), with the full contract declared as DTOs that
-# generate docs/openapi/platform.yaml. It builds/tests/images like a sibling.
+# generate axisml-platform/docs/apis/platform.yaml. It builds/tests/images like a sibling.
 # Scaffolded components (uncomment as they ship code):
-# COMPONENTS += components/platform-frontend
+# COMPONENTS += axisml-platform/frontend
 
 # Coverage profiles are produced by each Go module under COMPONENTS.
 COVERAGE_COMPONENTS := \
-  components/tenant-operator \
-  components/compute-operator \
-  components/cluster-manager \
-  components/compute-service \
-  components/artifact-hub \
-  components/platform-backend
+  axisml-system/tenant-operator \
+  axisml-system/compute-operator \
+  axisml-system/cluster-manager \
+  axisml-system/compute-service \
+  axisml-system/artifact-hub \
+  axisml-platform/backend
 
 # Components participating in `make integration-test` and the matching
 # CI integration job. Most suites need either envtest (kubebuilder assets
@@ -176,22 +176,22 @@ COVERAGE_COMPONENTS := \
 # which CI provides; platform-backend's suite needs only testcontainers Postgres
 # (it drives the in-process gin engine via httptest, no envtest/K8s).
 INTEGRATION_COMPONENTS := \
-  components/tenant-operator \
-  components/compute-operator \
-  components/cluster-manager \
-  components/compute-service \
-  components/artifact-hub \
-  components/platform-backend
+  axisml-system/tenant-operator \
+  axisml-system/compute-operator \
+  axisml-system/cluster-manager \
+  axisml-system/compute-service \
+  axisml-system/artifact-hub \
+  axisml-platform/backend
 
 # Components that ship a public REST API and therefore an OpenAPI spec under
-# docs/openapi/. The two operators have no HTTP surface (they reconcile CRs),
-# so they're excluded. platform-backend owns docs/openapi/platform.yaml, so it
+# their layer's docs/apis/. The two operators have no HTTP surface (they reconcile CRs),
+# so they're excluded. platform-backend owns axisml-platform/docs/apis/platform.yaml, so it
 # participates in doc-gen.
 DOC_COMPONENTS := \
-  components/cluster-manager \
-  components/compute-service \
-  components/artifact-hub \
-  components/platform-backend
+  axisml-system/cluster-manager \
+  axisml-system/compute-service \
+  axisml-system/artifact-hub \
+  axisml-platform/backend
 
 # Every Go module in the repo (each component + its integration sub-module
 # + shared test/testutil). `go fmt ./...` does not cross module boundaries,
@@ -244,7 +244,7 @@ clean: ## Remove build artifacts across every component
 	@$(call _RUN_COMPONENTS,clean)
 
 .PHONY: doc-gen doc-test
-doc-gen: ## Regenerate OpenAPI specs (docs/openapi/*.yaml) for every API service
+doc-gen: ## Regenerate OpenAPI specs (<layer>/docs/apis/*.yaml) for every API service
 	@set -e; for c in $(DOC_COMPONENTS); do \
 	  printf '\n>>> %s (doc-gen)\n' "$$c"; \
 	  $(MAKE) -C $$c doc-gen; \
@@ -263,7 +263,7 @@ doc-test: ## Verify OpenAPI specs are in sync with Go request/response types (CI
 # example: `make operator-image`, `make compute-test`.
 #
 # COMPONENT basenames must be unique. If you add a component whose basename
-# would collide (e.g., `components/platform-backend` would clash with any
+# would collide (e.g., `axisml-platform/backend` would clash with any
 # other `backend`), give it a distinct directory name or rework the mapping.
 define _COMPONENT_SHORTCUTS
 .PHONY: $(notdir $1)-build $(notdir $1)-image $(notdir $1)-image-load $(notdir $1)-test $(notdir $1)-integration $(notdir $1)-coverage $(notdir $1)-integration-coverage $(notdir $1)-coverage-html $(notdir $1)-fmt $(notdir $1)-tidy $(notdir $1)-clean

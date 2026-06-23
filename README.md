@@ -138,14 +138,14 @@ AxisML is a monorepo of independent Go modules organized into three layers.
 
 | Component | Layer | What it does |
 | --- | --- | --- |
-| **[platform](docs/system_design/platform/backend.md)** | View | Go BFF + React frontend. The only externally exposed entry point; holds the user → tenant-view mapping and orchestrates the system services. _(backend is currently a contract-only shell generating `docs/openapi/platform.yaml`; frontend scaffolded)_ |
-| **[cluster-manager](docs/system_design/system/cluster-manager.md)** | Cluster vocab | Stateless REST shell over the cluster-scoped `ResourcePool` CRD (with inline `spec.units[]`). No PG, no reconciler — Kubernetes etcd is the source of truth. |
-| **[compute-service](docs/system_design/system/compute-service.md)** | Tenant + workload | REST service and business authority for **Tenant / Quota / Job / Service / Workspace**, with PG as the sole source of truth. Emits `Tenant` / `MLRun` / `MLService` CRs and reads back status. |
-| **[tenant-operator](docs/system_design/system/tenant-operator.md)** | Tenant + workload | Reconciles the `Tenant` CR into a Namespace, Koordinator `ElasticQuota`, and per-tenant Secret / ConfigMap / ServiceAccount / RBAC. |
-| **[compute-operator](docs/system_design/system/compute-operator.md)** | Tenant + workload | Reconciles `MLRun` / `MLService` / `MLTrafficPolicy` via a dispatcher + handler model (`native`, `kubeflow-trainer`, `kserve`, `custom`). All derived Pods route through `koord-scheduler`. |
-| **[artifact-hub](docs/system_design/system/artifact-hub.md)** | Tenant + workload | Registry for models, datasets, images, and eval reports, addressed by `(namespace, kind, name, version)`. PG holds metadata; bytes live in zot (OCI) and RustFS (S3). |
+| **[platform](docs/axisml-platform/docs/backend.md)** | View | Go BFF + React frontend. The only externally exposed entry point; holds the user → tenant-view mapping and orchestrates the system services. _(backend is currently a contract-only shell generating `axisml-platform/docs/apis/platform.yaml`; frontend scaffolded)_ |
+| **[cluster-manager](docs/axisml-system/docs/cluster-manager.md)** | Cluster vocab | Stateless REST shell over the cluster-scoped `ResourcePool` CRD (with inline `spec.units[]`). No PG, no reconciler — Kubernetes etcd is the source of truth. |
+| **[compute-service](docs/axisml-system/docs/compute-service.md)** | Tenant + workload | REST service and business authority for **Tenant / Quota / Job / Service / Workspace**, with PG as the sole source of truth. Emits `Tenant` / `MLRun` / `MLService` CRs and reads back status. |
+| **[tenant-operator](docs/axisml-system/docs/tenant-operator.md)** | Tenant + workload | Reconciles the `Tenant` CR into a Namespace, Koordinator `ElasticQuota`, and per-tenant Secret / ConfigMap / ServiceAccount / RBAC. |
+| **[compute-operator](docs/axisml-system/docs/compute-operator.md)** | Tenant + workload | Reconciles `MLRun` / `MLService` / `MLTrafficPolicy` via a dispatcher + handler model (`native`, `kubeflow-trainer`, `kserve`, `custom`). All derived Pods route through `koord-scheduler`. |
+| **[artifact-hub](docs/axisml-system/docs/artifact-hub.md)** | Tenant + workload | Registry for models, datasets, images, and eval reports, addressed by `(namespace, kind, name, version)`. PG holds metadata; bytes live in zot (OCI) and RustFS (S3). |
 
-**Infrastructure** (`axisml-infra` chart): Envoy Gateway, RustFS, zot, Koordinator, NVIDIA GPU Operator, kube-prometheus-stack, and PostgreSQL. See the [infra design](docs/system_design/infra/overview.md).
+**Infrastructure** (`axisml-infra` chart): Envoy Gateway, RustFS, zot, Koordinator, NVIDIA GPU Operator, kube-prometheus-stack, and PostgreSQL. See the [infra design](docs/axisml-infra/docs/overview.md).
 
 ## Development
 
@@ -166,10 +166,10 @@ Architecture notes and gotchas live in [CLAUDE.md](CLAUDE.md); contributor conve
 ## Documentation
 
 - **[System Design Overview](docs/system_design/high_level_design.md)** — start here
-- **By layer** — [Platform](docs/system_design/platform/overview.md) · [System](docs/system_design/system/overview.md) · [Infra](docs/system_design/infra/overview.md) (each layer dir has an `overview.md` + per-component docs)
+- **By layer** — [Platform](docs/axisml-platform/docs/overview.md) · [System](docs/axisml-system/docs/overview.md) · [Infra](docs/axisml-infra/docs/overview.md) (each layer dir has an `overview.md` + per-component docs)
 - **Cross-cutting** — [database](docs/system_design/database.md) · [deployment](docs/system_design/deployment.md)
 - **Guides** — [Local Development Setup](docs/development/local-setup.md) · [Testing Guide](docs/development/testing.md)
-- **[OpenAPI specs](docs/openapi)** — generated REST contracts
+- **OpenAPI specs** — generated REST contracts under each layer's `docs/apis/` ([system](axisml-system/docs/apis) · [platform](axisml-platform/docs/apis))
 
 ## Project Status
 
