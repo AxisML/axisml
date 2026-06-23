@@ -14,12 +14,12 @@ import (
 
 	"github.com/axisml/axisml/components/artifact-hub/internal/config"
 	"github.com/axisml/axisml/components/artifact-hub/internal/db"
-	"github.com/axisml/axisml/components/artifact-hub/internal/gc"
 	"github.com/axisml/axisml/components/artifact-hub/internal/leaderelection"
 	"github.com/axisml/axisml/components/artifact-hub/internal/metrics"
 	"github.com/axisml/axisml/components/artifact-hub/internal/server"
 	"github.com/axisml/axisml/components/artifact-hub/pkg/httpx"
 	"github.com/axisml/axisml/components/artifact-hub/pkg/logging"
+	artifactmodule "github.com/axisml/axisml/components/artifact-hub/pkg/module"
 )
 
 // Serve boots the long-running artifacts service: the HTTP API, the metrics
@@ -88,7 +88,7 @@ func Serve(ctx context.Context, cfg config.Config) error {
 
 // runGC runs the GC worker, gated behind leader election when enabled. With
 // election disabled (single replica / local dev) the worker runs directly.
-func runGC(ctx context.Context, cfg config.Config, gormDB *gorm.DB, worker *gc.Worker, log logr.Logger) error {
+func runGC(ctx context.Context, cfg config.Config, gormDB *gorm.DB, worker artifactmodule.Runnable, log logr.Logger) error {
 	if !cfg.LeaderElect {
 		return worker.Start(ctx)
 	}
