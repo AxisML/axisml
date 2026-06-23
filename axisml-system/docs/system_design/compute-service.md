@@ -13,7 +13,7 @@ ML 工作负载服务：以 PostgreSQL 为权威，承载 Job / Service / Worksp
 | 在线服务 / 工作负载运行指标代理（按 `spec.backend` 选 PromQL 查 Prometheus） | 用户认证与角色鉴权 (→ [auth.md](../../../axisml-platform/docs/system_design/auth.md)) |
 | 按 tenant scope 列出 MLRun / MLService，支持 `labelSelector` 过滤（供上游 pool/unit 删除前置阻断） | ResourcePool / ResourceUnit 词汇 (→ [cluster-manager.md](cluster-manager.md)) |
 
-**namespace 字段语义**：`mlruns` / `mlservices` 表的 `namespace text` 是兼容字段名，实际表示 tenant scope（租户 `identifier`），不是 K8s Namespace。代码与新接口描述优先使用 `tenantScope`；物理落地点使用 `kubernetesNamespace` 明确表达（见 [high_level_design §2.2](../../../docs/system_design/high_level_design.md#22-关键不变量)）。
+**namespace 字段语义**：`mlruns` / `mlservices` 表的 `namespace text` 是兼容字段名，实际表示 tenant scope（租户 `identifier`），不是 K8s Namespace。代码与新接口描述优先使用 `tenantScope`；物理落地点使用 `kubernetesNamespace` 明确表达（见 [high_level_design §2.2](../../../docs/high_level_design.md#22-关键不变量)）。
 
 **Pool/Unit 展开归属**：上游仅传 `(poolName, unitName)` 名字对；compute-service 通过 K8s Informer 直读 `ResourcePool` CR cache 完成展开（合并 `nodeSelector` / `tolerations` / `requests` / `limits`），snapshot 到 `spec` jsonb。snapshot 一经写入即与 pool/unit CR 解耦（§5.4）。
 
@@ -244,14 +244,14 @@ Compute 不感知 ElasticQuota CR 内部结构——以 `axisml-<identifier>-<po
 | Leader Election | K8s `Lease`（`axisml-compute-service.axisml.io`）；`/metrics` 暴露 `axisml_compute_is_leader` |
 | 暴露端口 | API `:8080`；Metrics `:8081`；Probes `:8082`（`/readyz` 校验 PG）；ClusterIP，无外部 HTTPRoute |
 | RBAC scope | `mlruns`/`mlservices`/`mltrafficpolicies.axisml.io` 全权 + `resourcepools` `get/list/watch`（展开）+ 跨 ns `persistentvolumeclaims` `get/list/watch/create/delete`（仅 workspace）+ `pods`/`pods/log`/`events` RO + 自身 ns `leases`；**不含** `tenants` / `elasticquotas` / `namespaces` / `secrets` |
-| Helm / 镜像 | 见 [deployment.md §6](../../../docs/system_design/deployment.md#6-helm-模板清单) |
+| Helm / 镜像 | 见 [deployment.md §8.3](../../../docs/deployment.md#83-helm-模板清单) |
 
 ## 9. 相关引用
 
-- [high_level_design.md](../../../docs/system_design/high_level_design.md) — Compute 在控制平面的位置与系统不变量
+- [high_level_design.md](../../../docs/high_level_design.md) — Compute 在控制平面的位置与系统不变量
 - [auth.md](../../../axisml-platform/docs/system_design/auth.md) — `X-Axisml-User` 身份头与鉴权边界
 - [database.md](database.md) — Compute 表结构（§2）
-- [deployment.md](../../../docs/system_design/deployment.md) · [infra.md](../../../axisml-infra/docs/system_design/overview.md)
+- [deployment.md](../../../docs/deployment.md) · [infra.md](../../../axisml-infra/docs/system_design/overview.md)
 - [openapi/compute-service.yaml](../apis/compute-service.yaml) — REST 契约源
 - [compute-operator.md](compute-operator.md) — 下游 CR 消费者与 handler 实现
 - [cluster-manager.md](cluster-manager.md) — ResourcePool CRD 写入方；本服务经 Informer 直读做展开

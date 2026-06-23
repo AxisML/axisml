@@ -154,7 +154,7 @@ ADD ─▶ Pending ─(route programmed + 成员 Ready)─▶ Ready ◀──▶
 
 ### 5.2 Pod 注入约定
 
-所有 MLRun / MLService Handler 派生的 Pod 必须满足以下注入，体现 [high_level_design §2.2](../../../docs/system_design/high_level_design.md#22-关键不变量) 的 Quota 全覆盖不变式（未来第三方 backend 需保证同样语义）：
+所有 MLRun / MLService Handler 派生的 Pod 必须满足以下注入，体现 [high_level_design §2.2](../../../docs/high_level_design.md#22-关键不变量) 的 Quota 全覆盖不变式（未来第三方 backend 需保证同样语义）：
 
 | Pod 字段 / Label | 必填 | 取值 | 用途 |
 | --- | --- | --- | --- |
@@ -225,13 +225,13 @@ ADD ─▶ Pending ─(route programmed + 成员 Ready)─▶ Ready ◀──▶
 | 暴露端口 | Metrics `:8081`、Probes `:8082`；无 API 端口，无对外服务 |
 | RBAC scope | 三 dispatcher 权限并集（含 `mltrafficpolicies` + `httproutes` / `securitypolicies` / `services` RO），按 `--enable-*` 分段渲染；**不含** `tenants` / `elasticquotas` / `namespaces` / `secrets` / `configmaps` / `serviceaccounts`（属 tenant-operator） |
 | Flag | `--enable-ml{run,service,trafficpolicy}`（默认 `true`，`false` 时不挂 reconciler、不渲染 ClusterRole 分段）；`--leader-elect` / `--leader-election-id` / `--metrics-bind-address :8081` / `--health-probe-bind-address :8082` |
-| 镜像 / Helm | 见 [deployment.md](../../../docs/system_design/deployment.md) |
+| 镜像 / Helm | 见 [deployment.md](../../../docs/deployment.md) |
 
 ## 9. 相关引用
 
-- [high_level_design.md](../../../docs/system_design/high_level_design.md) — 控制平面拓扑与系统不变量
+- [high_level_design.md](../../../docs/high_level_design.md) — 控制平面拓扑与系统不变量
 - [auth.md](../../../axisml-platform/docs/system_design/auth.md) — 身份与鉴权契约（operator 不直接认证终端用户）
-- [database.md](database.md) · [deployment.md](../../../docs/system_design/deployment.md) · [infra.md](../../../axisml-infra/docs/system_design/overview.md)
+- [database.md](database.md) · [deployment.md](../../../docs/deployment.md) · [infra.md](../../../axisml-infra/docs/system_design/overview.md)
 - [compute-service.md](compute-service.md) — 上游 CR 写者
 - [tenant-operator.md](tenant-operator.md) — 兄弟 operator；Tenant / ElasticQuota / Namespace 落地
 - CRD yaml：crds/{mlrun,mlservice,mltrafficpolicy}-crd.yaml

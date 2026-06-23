@@ -1,6 +1,6 @@
 # AxisML Infra 层设计
 
-Infra 层是平台的基础设施底座，为工作负载与控制面服务提供底层支撑。**设计单位是平台需要的“功能 / 能力”**——每个功能选用一个成熟的开源技术组件来实现，组件是可替换的实现细节而非设计本身。Infra 自身不承载业务逻辑，AxisML 只负责定义功能契约、选型组装并补必要的 glue 资源（Gateway、HTTPRoute、Secret、ConfigMap、ServiceAccount 等）。全部由 Infra 层 chart `axisml-infra` 统一管理（[deployment.md](../../../docs/system_design/deployment.md)）。
+Infra 层是平台的基础设施底座，为工作负载与控制面服务提供底层支撑。**设计单位是平台需要的“功能 / 能力”**——每个功能选用一个成熟的开源技术组件来实现，组件是可替换的实现细节而非设计本身。Infra 自身不承载业务逻辑，AxisML 只负责定义功能契约、选型组装并补必要的 glue 资源（Gateway、HTTPRoute、Secret、ConfigMap、ServiceAccount 等）。全部由 Infra 层 chart `axisml-infra` 统一管理（[deployment.md](../../../docs/deployment.md)）。
 
 | 功能（能力） | 实现技术 | 章节 |
 | --- | --- | --- |
@@ -62,7 +62,7 @@ GatewayClass (envoy-gateway)
 | 认证鉴权 | `SecurityPolicy`（附加到 Gateway / HTTPRoute） | JWT 验证（issuer + JWKS）· OIDC 集成 · ExtAuth · per-Service（`targetRefs`）。具体 IdP 由调用方决定，本功能只保证能力就位 |
 | 流量控制 | `BackendTrafficPolicy` | 限流 · 熔断 · 超时 / 重试 · 负载均衡 |
 
-本功能只提供 `Gateway` 与 listener 能力，不感知业务语义、不内置用户态鉴权策略。部署形态见 [deployment.md §5](../../../docs/system_design/deployment.md#5-控制面-deployment)。
+本功能只提供 `Gateway` 与 listener 能力，不感知业务语义、不内置用户态鉴权策略。部署形态见 [deployment.md §8.1](../../../docs/deployment.md#81-控制面-deployment)。
 
 ## 4. 存储
 
@@ -109,7 +109,7 @@ Infra 层提供 zot endpoint（ConfigMap）、admin 凭证（平台级 Secret）
 - 模式：内置（StatefulSet + PVC）/ 外部（`database.enabled=false` + `externalDatabase.*` 接自建 / RDS）。
 - schema 迁移由各调用方二进制内嵌 `golang-migrate` 在启动时执行（依赖 PG advisory lock 避免并发迁移）。
 
-库内表 schema 按消费层归各自 docs：System 层见 [system/database.md](../../../axisml-system/docs/system_design/database.md)，Platform 层见 [platform/database.md](../../../axisml-platform/docs/system_design/database.md)。部署模式见 [deployment.md §7](../../../docs/system_design/deployment.md#7-postgresql-部署模式)。
+库内表 schema 按消费层归各自 docs：System 层见 [system/database.md](../../../axisml-system/docs/system_design/database.md)，Platform 层见 [platform/database.md](../../../axisml-platform/docs/system_design/database.md)。部署模式见 [deployment.md §5.2](../../../docs/deployment.md#52-postgresql内置或外接)。
 
 ### 4.4 缓存
 
@@ -123,9 +123,9 @@ Infra 层提供 zot endpoint（ConfigMap）、admin 凭证（平台级 Secret）
 - 可选依赖：调用方未配置地址即跳过缓存（直连源库）；运行中缓存出错按操作回退源库，不影响请求成功。
 - key 隔离：调用方按 key 前缀自行命名（如 Platform 用 `platform:`）。
 
-部署模式见 [deployment.md §8](../../../docs/system_design/deployment.md#8-redis-缓存部署模式)；Platform 的具体缓存对象与失效策略见 [platform/auth.md §2.1](../../../axisml-platform/docs/system_design/auth.md#21-会话与身份缓存)。
+部署模式见 [deployment.md §5.3](../../../docs/deployment.md#53-redis-缓存可选)；Platform 的具体缓存对象与失效策略见 [platform/auth.md §2.1](../../../axisml-platform/docs/system_design/auth.md#21-会话与身份缓存)。
 
-## 5. 加速器管理
+## 5. GPU管理
 
 **需求**：把节点上的物理 GPU 暴露为 Kubernetes 可调度资源并保持可观测，要求：把 GPU 暴露为 extended resource `nvidia.com/gpu` 供调度器分配；自动化驱动 / 设备插件 / 运行时集成的生命周期（免节点手工装驱动）；按 GPU 型号给节点打标以支持亲和；导出 GPU 利用率 / 显存 / 温度等指标。
 
@@ -199,4 +199,4 @@ Infra 层提供 zot endpoint（ConfigMap）、admin 凭证（平台级 Secret）
 
 ---
 
-部署细节（chart 组织、命名空间、安装顺序、依赖清单、fullnameOverride）见 [deployment.md](../../../docs/system_design/deployment.md)；三层架构见 [high_level_design.md §4](../../../docs/system_design/high_level_design.md#4-整体架构)。
+部署细节（chart 组织、命名空间、安装顺序、依赖清单、fullnameOverride）见 [deployment.md](../../../docs/deployment.md)；三层架构见 [high_level_design.md §4](../../../docs/high_level_design.md#4-整体架构)。

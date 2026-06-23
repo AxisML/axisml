@@ -633,7 +633,7 @@ Job、Service、Workspace、TensorBoard 和 TrafficPolicy 在目标环境通过 
 
 ## 11. 关联文档
 
-- [AxisML 高层设计](../../docs/system_design/high_level_design.md)
+- [AxisML 高层设计](../../docs/high_level_design.md)
 - [System 层概要](../../axisml-system/docs/system_design/overview.md)
 - [Compute Service](../../axisml-system/docs/system_design/compute-service.md)
 - [Compute Operator](../../axisml-system/docs/system_design/compute-operator.md)

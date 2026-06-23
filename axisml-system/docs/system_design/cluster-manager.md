@@ -161,13 +161,13 @@ REST 入参以业务形态 `{pool, units:[{unitName, quantity}]}` 表达配额�
 | 副本 | 任意（无状态对等运行；无 leader election） |
 | 暴露端口 | API `:8080`；Metrics `:8081`；Probes `:8082`（`/readyz` 校验 K8s API 可达），均不对外 |
 | RBAC scope | ClusterRole：`resourcepools` / `tenants.axisml.io`（`get/list/watch/create/update/patch/delete`）、`events` `create/patch` |
-| Helm / 镜像 | 见 [deployment.md](../../../docs/system_design/deployment.md) |
+| Helm / 镜像 | 见 [deployment.md](../../../docs/deployment.md) |
 
 ## 9. 相关引用
 
-- [high_level_design.md](../../../docs/system_design/high_level_design.md) — 控制平面拓扑与系统不变量
+- [high_level_design.md](../../../docs/high_level_design.md) — 控制平面拓扑与系统不变量
 - [auth.md](../../../axisml-platform/docs/system_design/auth.md) — 身份与鉴权契约
-- [deployment.md](../../../docs/system_design/deployment.md)
+- [deployment.md](../../../docs/deployment.md)
 - [openapi/cluster-manager.yaml](../apis/cluster-manager.yaml) — REST 契约源
 - [compute-service.md](compute-service.md) — pool/unit 的展开消费方（Informer 直读）
 - [tenant-operator.md](tenant-operator.md) — Tenant CR 的落地消费方

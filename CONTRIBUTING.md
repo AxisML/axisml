@@ -47,7 +47,7 @@ Key gotchas (full list in [`CLAUDE.md`](CLAUDE.md) and
   `zz_generated_deepcopy.go`. Run `make doc-gen` and re-stage instead.
 - **Vendor new external CRDs** under `axisml-system/test/crds/external/` in the same PR that
   introduces the dependency, or integration tests will hang.
-- **Update `docs/system_design/`** in the same PR when you change behavior or a
+- **Update the relevant design docs** in the same PR when you change behavior or a
   contract. The design docs describe the *final intended state* only — no
   "before/after" narration.
 
@@ -80,7 +80,7 @@ Before opening a PR, make sure:
 - [ ] `make helm-lint` / `make helm-template` pass if you touched
       `deploy/helm/**`.
 - [ ] New external CRDs are vendored under `axisml-system/test/crds/external/`.
-- [ ] `docs/system_design/` is updated for behavior/contract changes.
+- [ ] the design docs are updated for behavior/contract changes.
 - [ ] UI changes include before/after screenshots.
 - [ ] The PR links the issue it closes (`Closes #123`).
 

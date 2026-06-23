@@ -94,7 +94,7 @@ flowchart TD
 - **Operators don't know about each other.** tenant-operator never reads `MLRun`/`MLService`/`MLTrafficPolicy`; compute-operator never reads `Tenant`/`ElasticQuota` (it only passes the quota name through).
 - **Only Platform is exposed.** System services accept internal calls and trust the `X-Axisml-User` identity header.
 
-See the [System Design Overview](docs/system_design/high_level_design.md) for the full picture.
+See the [System Design Overview](docs/high_level_design.md) for the full picture.
 
 ## Quick Start
 
@@ -165,15 +165,15 @@ Architecture notes and gotchas live in [CLAUDE.md](CLAUDE.md); contributor conve
 
 ## Documentation
 
-- **[System Design Overview](docs/system_design/high_level_design.md)** — start here
+- **[System Design Overview](docs/high_level_design.md)** — start here
 - **By layer** — [Platform](docs/axisml-platform/docs/overview.md) · [System](docs/axisml-system/docs/overview.md) · [Infra](docs/axisml-infra/docs/overview.md) (each layer dir has an `overview.md` + per-component docs)
-- **Cross-cutting** — [deployment](docs/system_design/deployment.md) (DB schema now lives per-layer under each `<layer>/docs/system_design/database.md`)
+- **Cross-cutting** — [deployment](docs/deployment.md) (DB schema now lives per-layer under each `<layer>/docs/system_design/database.md`)
 - **Guides** — [Development Workflow](docs/development_workflow.md) (setup · build/test · testing layers)
 - **OpenAPI specs** — generated REST contracts under each layer's `docs/apis/` ([system](axisml-system/docs/apis) · [platform](axisml-platform/docs/apis))
 
 ## Project Status
 
-AxisML is in **early, active development**. The system design lives ahead of the code — when code and `docs/system_design/` disagree, the design doc is usually the intended target. See the [feature matrix](docs/system_design/high_level_design.md#3-功能矩阵) for current design coverage.
+AxisML is in **early, active development**. The system design lives ahead of the code — when code and the design docs disagree, the design doc is usually the intended target. See the [feature matrix](docs/high_level_design.md#3-功能矩阵) for current design coverage.
 
 ## Contributing
 

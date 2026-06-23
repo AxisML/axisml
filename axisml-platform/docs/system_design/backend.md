@@ -16,7 +16,7 @@ AxisML 唯一直接面向用户的层：承担身份接入、业务编排与视�
 | 视图层映射（用户 ↔ 租户 ↔ `identifier`；workspace ↔ `MLService(kind=workspace)`） | 缓存下游可变实例状态（phase / status / digest / quota 用量 → 一律实时回源） |
 | 前端 UI 多语言（§5.6） | 按 `Accept-Language` 本地化响应（后端与下游 locale-neutral，只返稳定机读 code） |
 
-**统一 tenant scope**：compute / artifacts 的 URL `{namespace}` 兼容段表示租户 `identifier`，Platform 直接透传；它不是 K8s Namespace。物理落地点由 `tenants.kubernetes_namespace` / `Tenant.spec.namespace.name` 表达，可被多个 Tenant 共享（见 [high_level_design §2.2](../../../docs/system_design/high_level_design.md#22-关键不变量)）。
+**统一 tenant scope**：compute / artifacts 的 URL `{namespace}` 兼容段表示租户 `identifier`，Platform 直接透传；它不是 K8s Namespace。物理落地点由 `tenants.kubernetes_namespace` / `Tenant.spec.namespace.name` 表达，可被多个 Tenant 共享（见 [high_level_design §2.2](../../../docs/high_level_design.md#22-关键不变量)）。
 
 ## 2. 架构
 
@@ -319,13 +319,13 @@ RBAC 中间件装配见 [auth.md](auth.md)；Platform 路由层挂载 `RequireSy
 | 缓存 | 可选 Redis 前置认证热点读；`REDIS_ADDR` 空则直连 PostgreSQL（[auth.md §2.1](auth.md#21-会话与身份缓存)） |
 | 暴露端口 | 目标 API `:8080`、Metrics `:8081`、Probes `:8082`（`/healthz` / `/readyz`），JWKS `/.well-known/jwks.json` 走 ClusterIP（当前 workload 镜像仍为 nginx placeholder） |
 | RBAC scope | 无 K8s API 需求（全部下沉下游服务） |
-| Helm / 镜像 | 见 [deployment.md](../../../docs/system_design/deployment.md) |
+| Helm / 镜像 | 见 [deployment.md](../../../docs/deployment.md) |
 
 ## 9. 相关引用
 
-- [high_level_design.md](../../../docs/system_design/high_level_design.md) — 控制平面拓扑与系统不变量
+- [high_level_design.md](../../../docs/high_level_design.md) — 控制平面拓扑与系统不变量
 - [auth.md](auth.md) — 身份与鉴权契约、access JWT、中间件
 - [database.md](database.md) — Platform PG schema
-- [deployment.md](../../../docs/system_design/deployment.md) · [infra.md](../../../axisml-infra/docs/system_design/overview.md)
+- [deployment.md](../../../docs/deployment.md) · [infra.md](../../../axisml-infra/docs/system_design/overview.md)
 - [openapi/platform.yaml](../apis/platform.yaml) — REST 契约源
 - 下游：[cluster-manager.md](../../../axisml-system/docs/system_design/cluster-manager.md) · [compute-service.md](../../../axisml-system/docs/system_design/compute-service.md) · [artifact-hub.md](../../../axisml-system/docs/system_design/artifact-hub.md) · [tenant-operator.md](../../../axisml-system/docs/system_design/tenant-operator.md) · [compute-operator.md](../../../axisml-system/docs/system_design/compute-operator.md)

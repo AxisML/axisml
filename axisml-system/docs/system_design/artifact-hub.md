@@ -152,14 +152,14 @@ Ready / Failed ─(DELETE)─▶ Deleting ─(GCBackend 成功)─▶ Deleted
 | 副本 | API 默认 `replicas=1`（无状态可水平扩）；GC worker 单 leader，经 PG session 级 advisory lock（`pg_try_advisory_lock`）选主，leader 崩溃时连接断开即自动释放锁 |
 | 暴露端口 | API `:8080`；Metrics `:8081`；Probes `:8082`（`/readyz` 校验 PG），均不对外 |
 | K8s 依赖 | 无。Artifacts 不连 K8s API（不 watch CRD、不持 Lease、不需 client-go / controller-runtime），因此不需要任何 K8s RBAC，只读写 PG + 调后端 HTTP；选主权威与数据权威统一在 PG |
-| Helm / 镜像 | 见 [deployment.md](../../../docs/system_design/deployment.md) |
+| Helm / 镜像 | 见 [deployment.md](../../../docs/deployment.md) |
 
 ## 9. 相关引用
 
-- [high_level_design.md](../../../docs/system_design/high_level_design.md) — Artifacts 在控制平面的位置与系统不变量
+- [high_level_design.md](../../../docs/high_level_design.md) — Artifacts 在控制平面的位置与系统不变量
 - [auth.md](../../../axisml-platform/docs/system_design/auth.md) — `X-Axisml-User` 注入与传播
 - [database.md](database.md) — `artifacts` 表 schema
-- [deployment.md](../../../docs/system_design/deployment.md) · [infra.md](../../../axisml-infra/docs/system_design/overview.md)
+- [deployment.md](../../../docs/deployment.md) · [infra.md](../../../axisml-infra/docs/system_design/overview.md)
 - [openapi/artifact-hub.yaml](../apis/artifact-hub.yaml) — REST 契约源
 - [tenant-operator.md](tenant-operator.md) — per-tenant SA + 默认 Secret 落地契约（inspect 的隐式凭证来源）
 - [compute-operator.md](compute-operator.md) — 消费 Platform 已解析并快照到 workload spec 的制品引用

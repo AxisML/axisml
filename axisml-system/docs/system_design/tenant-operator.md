@@ -172,12 +172,12 @@ Pod 调度 ─▶ koord-scheduler ─▶ ElasticQuota.status.used 累加
 | 暴露端口 | Metrics `:8081`、Probes `:8082`；无 API 端口，无对外服务 |
 | RBAC scope | ClusterRole：`tenants.axisml.io`（`get/list/watch/patch`）、`namespaces`（`create/get/list/watch/update/patch`，**无 delete**）、`elasticquotas.scheduling.sigs.k8s.io` RW、目标 ns `secrets/configmaps/serviceaccounts/roles/rolebindings` RW、源 ns `secrets/configmaps` RO、`events` `create/patch`；Role：自身 ns `leases` RW |
 | Cache 过滤 | 子资源用 `axisml.io/managed-by=tenant-operator` selector，避免拉全集群；Tenant CR 不过滤 |
-| Helm / 镜像 | `tenantOperator.*`，见 [deployment.md](../../../docs/system_design/deployment.md) |
+| Helm / 镜像 | `tenantOperator.*`，见 [deployment.md](../../../docs/deployment.md) |
 
 ## 9. 相关引用
 
-- [high_level_design.md](../../../docs/system_design/high_level_design.md) — 控制平面拓扑与系统不变量
-- [auth.md](../../../axisml-platform/docs/system_design/auth.md) · [deployment.md](../../../docs/system_design/deployment.md) · [infra.md](../../../axisml-infra/docs/system_design/overview.md)
+- [high_level_design.md](../../../docs/high_level_design.md) — 控制平面拓扑与系统不变量
+- [auth.md](../../../axisml-platform/docs/system_design/auth.md) · [deployment.md](../../../docs/deployment.md) · [infra.md](../../../axisml-infra/docs/system_design/overview.md)
 - [cluster-manager.md](cluster-manager.md) — Tenant CR 上游 producer（REST 写 spec）
 - [compute-operator.md](compute-operator.md) — 兄弟 operator
 - [artifact-hub.md](artifact-hub.md) — workload 消费制品依赖 per-tenant SA + 默认 Secret 落地
