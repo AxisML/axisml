@@ -14,6 +14,7 @@ import (
 	mlservicev1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
 
 	"github.com/axisml/axisml/components/compute-service/internal/server"
+	"github.com/axisml/axisml/components/compute-service/pkg/statusmap"
 )
 
 // Informer reflects MLService CR status into PG. Writes go to phase
@@ -71,29 +72,21 @@ func (i *Informer) onChange(ctx context.Context, obj any) {
 	if len(cr.Spec.Roles) > 0 {
 		desired = cr.Spec.Roles[0].Replicas
 	}
-	newPhase := row.Phase
-	switch {
-	case desired == 0:
-		newPhase = string(StatusPending)
-	case cr.Status.ReadyReplicas == 0 && cr.Status.Phase == mlservicev1alpha1.PhasePending:
-		newPhase = string(StatusPending)
-	case cr.Status.ReadyReplicas == desired:
-		newPhase = string(StatusReady)
-	case cr.Status.ReadyReplicas > 0 && cr.Status.ReadyReplicas < desired:
-		newPhase = string(StatusDegraded)
-	case cr.Status.ReadyReplicas == 0 && cr.Status.Phase == mlservicev1alpha1.PhaseFailed:
-		newPhase = string(StatusFailed)
-	}
 
 	var sf server.MLServiceStatus
 	if len(row.StatusJSON) > 0 {
 		_ = json.Unmarshal(row.StatusJSON, &sf)
 	}
-	sf.ReadyReplicas = cr.Status.ReadyReplicas
-	sf.Endpoint = cr.Status.Endpoint
-	if cr.Status.Phase == mlservicev1alpha1.PhaseFailed && cr.Status.Message != "" {
-		sf.Message = cr.Status.Message
-	}
+	// Reflect the observed CR status onto the next phase + status via the
+	// shared mapping (design §9.1); preserve PG-only fields (conditions).
+	newPhase, mapped := statusmap.MapService(row.Phase, statusmap.ServiceStatus{
+		Message:       sf.Message,
+		ReadyReplicas: sf.ReadyReplicas,
+		Endpoint:      sf.Endpoint,
+	}, desired, cr.Status)
+	sf.Message = mapped.Message
+	sf.ReadyReplicas = mapped.ReadyReplicas
+	sf.Endpoint = mapped.Endpoint
 	b, _ := json.Marshal(sf)
 
 	_ = i.repo.Update(ctx, id, map[string]any{

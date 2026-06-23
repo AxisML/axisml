@@ -1,0 +1,23 @@
+package mlservice
+
+import (
+	"testing"
+
+	"github.com/axisml/axisml/components/compute-service/pkg/statusmap"
+)
+
+// TestPhaseValuesMatchStatusmap guards against drift between the internal
+// Service phase enum and the published statusmap constants.
+func TestPhaseValuesMatchStatusmap(t *testing.T) {
+	cases := map[Status]string{
+		StatusPending:  statusmap.ServicePending,
+		StatusReady:    statusmap.ServiceReady,
+		StatusDegraded: statusmap.ServiceDegraded,
+		StatusFailed:   statusmap.ServiceFailed,
+	}
+	for internal, shared := range cases {
+		if string(internal) != shared {
+			t.Errorf("phase drift: internal %q != statusmap %q", internal, shared)
+		}
+	}
+}

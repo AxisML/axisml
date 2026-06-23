@@ -14,6 +14,7 @@ import (
 	mltp "github.com/axisml/axisml/components/compute-operator/api/mltrafficpolicy/v1alpha1"
 
 	"github.com/axisml/axisml/components/compute-service/internal/server"
+	"github.com/axisml/axisml/components/compute-service/pkg/statusmap"
 )
 
 // Informer reflects MLTrafficPolicy CR status into PG. Writes go to phase
@@ -66,27 +67,23 @@ func (i *Informer) onChange(ctx context.Context, obj any) {
 		return
 	}
 
-	// CR phase (Pending/Ready/Degraded/Failed) maps 1:1 onto the PG phase.
-	newPhase := row.Phase
-	switch cr.Status.Phase {
-	case mltp.PhasePending:
-		newPhase = string(StatusPending)
-	case mltp.PhaseReady:
-		newPhase = string(StatusReady)
-	case mltp.PhaseDegraded:
-		newPhase = string(StatusDegraded)
-	case mltp.PhaseFailed:
-		newPhase = string(StatusFailed)
-	}
-
 	var sf server.TrafficPolicyStatus
 	if len(row.StatusJSON) > 0 {
 		_ = json.Unmarshal(row.StatusJSON, &sf)
 	}
-	sf.Endpoint = cr.Status.Endpoint
-	sf.Message = cr.Status.Message
+	// Reflect the observed CR status onto the next phase + status via the
+	// shared mapping (design §9.1); preserve PG-only fields (conditions).
+	cur := statusmap.TrafficStatus{Message: sf.Message, Endpoint: sf.Endpoint}
+	for _, b := range sf.Backends {
+		cur.Backends = append(cur.Backends, statusmap.TrafficBackend{
+			ServiceName: b.ServiceName, Weight: b.Weight, Ready: b.Ready,
+		})
+	}
+	newPhase, mapped := statusmap.MapTraffic(row.Phase, cur, cr.Status)
+	sf.Message = mapped.Message
+	sf.Endpoint = mapped.Endpoint
 	sf.Backends = sf.Backends[:0]
-	for _, b := range cr.Status.Backends {
+	for _, b := range mapped.Backends {
 		sf.Backends = append(sf.Backends, server.TrafficPolicyBackendStatus{
 			ServiceName: b.ServiceName,
 			Weight:      b.Weight,

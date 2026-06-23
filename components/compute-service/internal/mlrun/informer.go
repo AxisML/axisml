@@ -8,13 +8,13 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	mlrunv1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlrun/v1alpha1"
 
 	"github.com/axisml/axisml/components/compute-service/internal/server"
+	"github.com/axisml/axisml/components/compute-service/pkg/statusmap"
 )
 
 // Informer reflects MLRun CR status into PG.
@@ -64,47 +64,23 @@ func (i *Informer) onChange(ctx context.Context, obj any) {
 		return
 	}
 
-	// Build the next phase + status sub-tree by merging CR status into
-	// the existing PG row.
+	// Reflect the observed CR status onto the next phase + status via the
+	// shared mapping (design §9.1); preserve PG-only status fields
+	// (conditions) by starting from the existing row's status.
 	var prevStatus server.MLRunStatus
 	if len(j.StatusJSON) > 0 {
 		_ = json.Unmarshal(j.StatusJSON, &prevStatus)
 	}
+	newPhase, mapped := statusmap.MapRun(j.Phase, statusmap.RunStatus{
+		Message:    prevStatus.Message,
+		StartedAt:  prevStatus.StartedAt,
+		FinishedAt: prevStatus.FinishedAt,
+	}, cr.Status, time.Now().UTC())
+
 	nextStatus := prevStatus
-	newPhase := j.Phase
-
-	switch cr.Status.Phase {
-	case mlrunv1alpha1.PhasePending:
-		if j.Phase == string(StatusCreating) {
-			newPhase = string(StatusPending)
-		}
-	case mlrunv1alpha1.PhaseRunning:
-		if Status(j.Phase) == StatusCreating || Status(j.Phase) == StatusPending {
-			newPhase = string(StatusRunning)
-		}
-		if prevStatus.StartedAt == nil && cr.Status.StartedAt != nil {
-			t := cr.Status.StartedAt.Time
-			nextStatus.StartedAt = &t
-		}
-	case mlrunv1alpha1.PhaseSucceeded:
-		newPhase = string(StatusSucceeded)
-		t := terminalTime(cr)
-		nextStatus.FinishedAt = &t
-	case mlrunv1alpha1.PhaseFailed:
-		newPhase = string(StatusFailed)
-		t := terminalTime(cr)
-		nextStatus.FinishedAt = &t
-		if cr.Status.Message != "" {
-			nextStatus.Message = cr.Status.Message
-		}
-	}
-
-	// Suspended condition with reason=CancelRequested → Cancelled.
-	if Status(j.Phase) == StatusCanceling && hasCondition(cr.Status.Conditions, mlrunv1alpha1.ConditionSuspended, mlrunv1alpha1.ReasonCancelRequested) {
-		newPhase = string(StatusCancelled)
-		t := time.Now().UTC()
-		nextStatus.FinishedAt = &t
-	}
+	nextStatus.Message = mapped.Message
+	nextStatus.StartedAt = mapped.StartedAt
+	nextStatus.FinishedAt = mapped.FinishedAt
 
 	b, _ := json.Marshal(nextStatus)
 	prevB, _ := json.Marshal(prevStatus)
@@ -175,22 +151,6 @@ func jobIDFromLabels(cr *mlrunv1alpha1.MLRun) (uuid.UUID, error) {
 		return uuid.Parse(v)
 	}
 	return uuid.Nil, errMissingID
-}
-
-func terminalTime(cr *mlrunv1alpha1.MLRun) time.Time {
-	if cr.Status.FinishedAt != nil {
-		return cr.Status.FinishedAt.Time
-	}
-	return time.Now().UTC()
-}
-
-func hasCondition(conds []metav1.Condition, kind, reason string) bool {
-	for _, c := range conds {
-		if c.Type == kind && c.Reason == reason && c.Status == metav1.ConditionTrue {
-			return true
-		}
-	}
-	return false
 }
 
 var errMissingID = sentinel("missing axisml.io/run-id label")
