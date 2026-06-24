@@ -59,7 +59,7 @@ Lite 支持的操作保持现有 REST 资源、请求结构、状态枚举和错
        │                              │
        │                              │ 调用 System API
        │                              ▼
-       │                       axisml-system
+       │                       axisml-core
        │                 ┌─────────────────────────┐
        │                 │ Cluster Manager module  │
        │                 │ Compute Service module      │
@@ -88,8 +88,8 @@ Docker Compose 管理三个 AxisML binary、数据库、缓存、制品存储、
 API 调用边界如下：
 
 - 浏览器和 CLI 通过 Traefik 访问 Platform API。
-- `axisml-platform` 通过 HTTP 调用 `axisml-system`。
-- `axisml-system` 的 Compute Reconciler 调用 `axisml-runtime`。
+- `axisml-platform` 通过 HTTP 调用 `axisml-core`。
+- `axisml-core` 的 Compute Reconciler 调用 `axisml-runtime`。
 - Traefik 代理 Platform API 和动态 workload 路由。
 
 ### 3.1 Standalone 进程模型
@@ -98,13 +98,13 @@ Standalone 形态固定编译和部署三个独立可执行文件：
 
 | Binary | 组成 | 权限 |
 | --- | --- | --- |
-| `axisml-platform` | Platform、认证、RBAC 和 BFF | 对外 HTTP、PostgreSQL、Redis；通过 HTTP 调用 `axisml-system`，**无 Docker socket** |
-| `axisml-system` | Cluster Manager、Compute 领域层与 API、Artifact Hub | 内部 HTTP、PostgreSQL、zot、S3；**无 Docker socket** |
+| `axisml-platform` | Platform、认证、RBAC 和 BFF | 对外 HTTP、PostgreSQL、Redis；通过 HTTP 调用 `axisml-core`，**无 Docker socket** |
+| `axisml-core` | Cluster Manager、Compute 领域层与 API、Artifact Hub | 内部 HTTP、PostgreSQL、zot、S3；**无 Docker socket** |
 | `axisml-runtime` | Runtime Controller、容器/volume/network/route 管理、运行态采集 | 内部 Runtime API、Traefik 动态目录、Docker Engine Adapter；唯一可访问 Docker socket，**不访问 PostgreSQL** |
 
-Platform 保持独立进程和现有 HTTP client 边界。Cluster Manager、Compute 和 Artifact Hub 组合进 `axisml-system`，并各自维护业务逻辑、数据库 schema 和 migration。Kubernetes 形态继续构建和部署现有独立 binary。
+Platform 保持独立进程和现有 HTTP client 边界。Cluster Manager、Compute 和 Artifact Hub 组合进 `axisml-core`，并各自维护业务逻辑、数据库 schema 和 migration。Kubernetes 形态继续构建和部署现有独立 binary。
 
-`axisml-system` 负责 Compute 业务状态和 PostgreSQL 持久化，并通过内部 Runtime API 驱动 `axisml-runtime`。`axisml-runtime` 不访问数据库，只负责将 AxisML workload contract 映射为 Docker、volume、network 和 Traefik 资源，并返回运行状态。
+`axisml-core` 负责 Compute 业务状态和 PostgreSQL 持久化，并通过内部 Runtime API 驱动 `axisml-runtime`。`axisml-runtime` 不访问数据库，只负责将 AxisML workload contract 映射为 Docker、volume、network 和 Traefik 资源，并返回运行状态。
 
 ### 3.2 代码组织
 
@@ -113,10 +113,10 @@ AxisML Lite 是 AxisML monorepo 的顶层 `axisml-lite/` 目录，与 `axisml-pl
 ```text
 axisml-lite/
 ├── cmd/
-│   ├── axisml-system/             # Standalone System composition root
+│   ├── axisml-core/               # Standalone System composition root
 │   └── axisml-runtime/            # Standalone Runtime Controller
 ├── internal/
-│   ├── system/                    # 模块装配、配置型 provider、PG coordination
+│   ├── core/                      # 模块装配、配置型 provider、PG coordination
 │   └── runtime/                   # Docker/volume/network/Traefik adapter
 ├── deploy/compose/
 │   ├── compose.yaml
@@ -131,7 +131,7 @@ axisml-lite/
 └── VERSION_MATRIX.md              # Platform 镜像与数据库 schema 兼容版本
 ```
 
-`axisml-platform` 使用 monorepo 发布的 Platform 镜像。`axisml-system` 依赖 Cluster Manager、Compute Service 和 Artifact Hub Go modules，并注入 Standalone provider。`axisml-runtime`、Docker Engine Adapter、配置型资源目录和 Compose 资产由 `axisml-lite/` 维护。
+`axisml-platform` 使用 monorepo 发布的 Platform 镜像。`axisml-core` 依赖 Cluster Manager、Compute Service 和 Artifact Hub Go modules，并注入 Standalone provider。`axisml-runtime`、Docker Engine Adapter、配置型资源目录和 Compose 资产由 `axisml-lite/` 维护。
 
 monorepo 为三个 System 服务提供公共装配 API：
 
@@ -142,9 +142,9 @@ axisml-system/<service>/pkg/module
   Migrate(...)
 ```
 
-公共装配 API 包含构造器、路由注册、migration 和装配 DTO。handler、repository、Kubernetes adapter 和业务实现保留在各组件 `internal` 中。Kubernetes binary 和 Lite 的 `axisml-system` 共用该 API。
+公共装配 API 包含构造器、路由注册、migration 和装配 DTO。handler、repository、Kubernetes adapter 和业务实现保留在各组件 `internal` 中。Kubernetes binary 和 Lite 的 `axisml-core` 共用该 API。
 
-`axisml-system` 在同一个 `:8080` router 注册三组互不冲突的现有业务路由，并保留原 API path；Platform 的现有三个 downstream client 均指向该地址。Standalone composition root 根据已装配模块和部署形态注册 `/api/v1/capabilities`。模块间通过公开 module contract 协作，各自维护私有 repository。
+`axisml-core` 在同一个 `:8080` router 注册三组互不冲突的现有业务路由，并保留原 API path；Platform 的现有三个 downstream client 均指向该地址。Standalone composition root 根据已装配模块和部署形态注册 `/api/v1/capabilities`。模块间通过公开 module contract 协作，各自维护私有 repository。
 
 依赖与发布规则：
 
@@ -340,9 +340,9 @@ spec:
 - `Tenant.spec.namespace.name` 固定为 `default`。
 - `Tenant.spec.initResources` 必须为空；Standalone workload 的 volume 和凭证由 Runtime Controller 按 workload 需要创建。
 - 配置不得包含 `status`、`metadata.uid`、`resourceVersion`、`generation` 或 `managedFields` 等 apiserver 生成字段。
-- 任一对象校验失败时 `axisml-system` 保持 not ready。
+- 任一对象校验失败时 `axisml-core` 保持 not ready。
 
-`ConfigResourceCatalog` 和 `StaticTenantStoreProvider` 持有启动时解析出的不可变快照。配置变更需要重启 `axisml-system` 并重新执行跨对象校验；已持久化的 workload Spec 保留原 ResourceUnit 快照。
+`ConfigResourceCatalog` 和 `StaticTenantStoreProvider` 持有启动时解析出的不可变快照。配置变更需要重启 `axisml-core` 并重新执行跨对象校验；已持久化的 workload Spec 保留原 ResourceUnit 快照。
 
 ### 5.2 Compute Service
 
@@ -352,11 +352,11 @@ Standalone Compute 流程：
 
 ```text
 API transaction
-  └── axisml-system 校验业务规则与 ResourceUnit
+  └── axisml-core 校验业务规则与 ResourceUnit
         └── 写入 desired Spec；Service / TrafficPolicy 变更时推进 generation
 
 Compute reconciliation
-  └── axisml-system 单实例运行 Compute Reconciler
+  └── axisml-core 单实例运行 Compute Reconciler
         ├── 从 PG 构造 MLRun / MLService / MLTrafficPolicy
         ├── 执行业务状态迁移、取消/删除/scale 规则
         ├── 调用 Runtime API apply / cancel / delete / observe
@@ -371,7 +371,7 @@ Runtime convergence
 
 Compute Reconciler 是 Compute 业务表中 `phase`、`status` 和 `observed_generation` 的唯一写入者。Runtime Controller 收敛 Docker、volume、network 和 route，并生成对应 CR Status。
 
-每个 Standalone handler 提供 capability validator。`axisml-system` 在持久化前校验请求，`axisml-runtime` 在 apply 时再次校验。字段映射规则如下：
+每个 Standalone handler 提供 capability validator。`axisml-core` 在持久化前校验请求，`axisml-runtime` 在 apply 时再次校验。字段映射规则如下：
 
 - `image`、`command/args`、普通 `env`、working directory、ports、resource limits 和 restart policy 映射为 Docker 等价配置。
 - `requests` 保留在 contract 和状态展示中；`limits` 映射为 cgroup / DeviceRequest。
@@ -420,7 +420,7 @@ Kubernetes handler 继续由现有 `compute-operator` 原样执行；Standalone 
 Artifact Hub 使用 PostgreSQL、OCI 和 S3：
 
 - GC worker 提供可取消启动入口 `Start(ctx) error`。
-- Kubernetes binary 使用 PG session 级 advisory lock（`pg_try_advisory_lock`）选主；Lite 在单副本 `axisml-system` 中直接运行。Artifact Hub 的两种构建均只依赖 PostgreSQL 完成单活控制。
+- Kubernetes binary 使用 PG session 级 advisory lock（`pg_try_advisory_lock`）选主；Lite 在单副本 `axisml-core` 中直接运行。Artifact Hub 的两种构建均只依赖 PostgreSQL 完成单活控制。
 - zot 和 S3 分别配置服务间地址与浏览器/CLI 地址。
 - workload 拉取容器镜像由 Standalone Compute Runtime 通过 Docker Engine Adapter 执行；模型 / 数据集通过 init container 等价步骤或受管 volume 下载。
 - Standalone Compute Runtime 从受控 secret 目录读取凭证，并只向目标 workload 注入最小范围的凭证。
@@ -430,12 +430,12 @@ Artifact Hub 使用 PostgreSQL、OCI 和 S3：
 System capability 由 composition root 根据已装配模块构造。每个部署入口注册一个 capability endpoint：
 
 - Kubernetes：各独立 System binary 的 composition root 返回该服务的静态能力；Platform 调用已配置的 System capability endpoints 并合并结果。
-- Standalone：`axisml-system` 返回 Cluster Manager、Compute 和 Artifact Hub 的完整静态能力。
+- Standalone：`axisml-core` 返回 Cluster Manager、Compute 和 Artifact Hub 的完整静态能力。
 
 Platform 对外提供 `GET /api/v1/capabilities`：
 
 - Kubernetes：Platform 合并各 System 服务返回的组件能力。
-- Standalone：Platform 调用单个 `axisml-system` capability endpoint 并转发其结果。
+- Standalone：Platform 调用单个 `axisml-core` capability endpoint 并转发其结果。
 - 必要 System capability 无法读取时返回 `503 UpstreamUnavailable`。
 
 响应按组件组织：
@@ -483,7 +483,7 @@ Standalone Runtime 接收带必要 AxisML metadata 的 `MLRun`、`MLService` 或
 | Workspace | 一个 container + 独立 volume | `unless-stopped` |
 | TensorBoard | 一个临时 container + 只读日志挂载 | `unless-stopped`，另有空闲 TTL |
 
-`axisml-system` 校验 ResourceUnit，并将展开结果写入 `MLRunSpec`。Docker run handler 按 pull image → 创建全部容器 → 启动的顺序执行；失败时回滚本次创建的容器并返回失败 `MLRunStatus`。多角色任务采用本机 best-effort 创建和失败回滚。
+`axisml-core` 校验 ResourceUnit，并将展开结果写入 `MLRunSpec`。Docker run handler 按 pull image → 创建全部容器 → 启动的顺序执行；失败时回滚本次创建的容器并返回失败 `MLRunStatus`。多角色任务采用本机 best-effort 创建和失败回滚。
 
 ### 6.2 网络与服务发现
 
@@ -554,13 +554,13 @@ Standalone Runtime 返回 CR Status，Compute Reconciler 通过共享的 CR Stat
 
 - PostgreSQL 的现有业务表是权威，Docker / Traefik 是派生运行态。
 - API 写请求只承诺 desired state 已持久化；Compute Reconciler 在 Runtime 成功 apply Service / TrafficPolicy 后推进 `observed_generation`，再通过 Observe 结果持续更新实际 `phase/status`。
-- Docker Compose 固定 `axisml-system` 和 `axisml-runtime` 的 `replicas=1`。
+- Docker Compose 固定 `axisml-core` 和 `axisml-runtime` 的 `replicas=1`。
 - Runtime API 的所有变更操作必须幂等，以覆盖 Runtime 调用成功但 PG 状态尚未提交时的进程崩溃。
 - 每次 apply 记录 spec hash；hash 未变化时不得无意义重建容器。
 
 ### 7.2 Docker socket
 
-Docker socket 等价于宿主机 root 权限。只有 `axisml-runtime` 可通过受限的 Docker socket proxy 访问必需 API；`axisml-platform`、`axisml-system` 和用户 workload 均不可挂载。AxisML Lite 使用独占主机部署。
+Docker socket 等价于宿主机 root 权限。只有 `axisml-runtime` 可通过受限的 Docker socket proxy 访问必需 API；`axisml-platform`、`axisml-core` 和用户 workload 均不可挂载。AxisML Lite 使用独占主机部署。
 
 其他要求：
 
@@ -587,7 +587,7 @@ Kubernetes 与 Lite 共用业务 schema 和 API contract。迁移范围仅包含
 
 Job、Service、Workspace、TensorBoard 和 TrafficPolicy 在目标环境通过 API 重新创建。
 
-- `axisml-platform` 只执行 Platform migration；`axisml-system` 按 Compute → Artifact Hub 的固定顺序执行各模块 migration。
+- `axisml-platform` 只执行 Platform migration；`axisml-core` 按 Compute → Artifact Hub 的固定顺序执行各模块 migration。
 - schema migration 使用 `golang-migrate` PostgreSQL driver 自带的 advisory lock 进行并发互斥。
 - `axisml-runtime` 不持有数据库凭证。
 - Cluster Manager 的 `default` ResourcePool、ResourceUnit 和静态 tenant view 由配置文件提供。
@@ -604,7 +604,7 @@ Job、Service、Workspace、TensorBoard 和 TrafficPolicy 在目标环境通过 
 
 1. **Contract 准备**：在 Compute Service 公共包中发布 Runtime contract，包括 CR apply / observe、MLRun / MLService instance list / logs / events、资源级 events、共享默认值、不可变字段检查、Spec 校验和 Status 映射；不修改 `compute-operator`。
 2. **公共装配面与 Kubernetes adapter**：为 Cluster Manager、Compute Service 和 Artifact Hub 提供 `pkg/module` API；在 Compute Service 内以 adapter 封装现有 `client.Client`、informer 和 kubeproxy，并接入现有 Kubernetes binary。既有 `compute-operator` 保持不变。
-3. **Lite 基础控制面**：创建 `axisml-lite` 仓库，构建 `axisml-system` 和 `axisml-runtime`，接入 `axisml-platform`、Compose、PostgreSQL、zot、S3 和 Traefik。
+3. **Lite 基础控制面**：创建 `axisml-lite` 仓库，构建 `axisml-core` 和 `axisml-runtime`，接入 `axisml-platform`、Compose、PostgreSQL、zot、S3 和 Traefik。
 4. **Run 能力**：Docker job、Kubernetes Pod / Event 投影、日志、取消、状态收敛和 CPU/memory/GPU limits。
 5. **Service 能力**：deployment/stateful workload、volume、health、scale、路由。
 6. **流量与制品闭环**：TrafficPolicy、模型/数据集注入、Workspace/TensorBoard。
@@ -618,11 +618,11 @@ Job、Service、Workspace、TensorBoard 和 TrafficPolicy 在目标环境通过 
 | --- | --- |
 | 代码组织 | AxisML monorepo 顶层 `axisml-lite/` 目录，经仓库内 `go.work` / `replace` 依赖公共装配 API |
 | 部署入口 | Docker Compose 管固定服务，Standalone Compute Runtime 动态管用户 workload |
-| Standalone binary | `axisml-platform` + `axisml-system` + `axisml-runtime`；Platform 保持 HTTP 边界，Runtime 按 Docker socket 权限隔离 |
+| Standalone binary | `axisml-platform` + `axisml-core` + `axisml-runtime`；Platform 保持 HTTP 边界，Runtime 按 Docker socket 权限隔离 |
 | 运行时 | Docker Engine API |
 | Workload contract | `MLRun` / `MLService` / `MLTrafficPolicy` API 类型 |
 | 兼容策略 | 共享 CR Spec、backend key、状态和 condition；环境差异由 capability 和 validation 表达 |
-| Capability | System composition root 声明部署形态能力；Standalone 由 `axisml-system` 直接返回完整能力；Platform 统一对外 |
+| Capability | System composition root 声明部署形态能力；Standalone 由 `axisml-core` 直接返回完整能力；Platform 统一对外 |
 | 多租户 | 配置定义唯一 `default` tenant；PG 保存其 Platform 业务记录 |
 | 资源池 | 配置定义只读 `default` pool 和 ResourceUnit |
 | 调度 | ResourceUnit 快照、Docker limits 和 best-effort 运行 |
