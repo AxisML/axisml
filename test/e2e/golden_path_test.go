@@ -51,6 +51,12 @@ func TestGoldenPath_TrainAndServeJourney(t *testing.T) {
 	jobName := uniqueName("golden-job")
 	svcName := uniqueName("golden-svc")
 
+	// Tear the tenant (and its namespace) down only after the whole journey
+	// completes. Registered on the parent t — a subtest-scoped t.Cleanup would
+	// fire when the `tenant` subtest returns and delete the namespace out from
+	// under the later train/serve subtests.
+	t.Cleanup(func() { removeTenant(tenant, ns) })
+
 	// --- tenant: cluster-manager -> tenant-operator -> namespace + ElasticQuota.
 	ok := t.Run("tenant", func(t *testing.T) {
 		pr, err := h.clusterManager.GetResourcePoolWithResponse(ctx, h.cfg.DefaultPool)
@@ -67,7 +73,6 @@ func TestGoldenPath_TrainAndServeJourney(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.True(t, is2xx(cr.StatusCode()), "create golden tenant: %d: %s", cr.StatusCode(), string(cr.Body))
-		t.Cleanup(func() { removeTenant(tenant, ns) })
 
 		// Contract: the cluster-manager write fans out to a real namespace and a
 		// real koord ElasticQuota the rest of the journey will schedule into.

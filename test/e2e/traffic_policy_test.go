@@ -85,6 +85,11 @@ func TestTrafficPolicy_CanaryThroughGateway(t *testing.T) {
 	createReadyService(t, ctx, ns, quota, stable)
 	createReadyService(t, ctx, ns, quota, canary)
 
+	// Tear the policy down after the whole state machine runs. Registered on the
+	// parent t — a subtest-scoped t.Cleanup would fire when `create` returns and
+	// delete the policy before split/promote/delete run against it.
+	cleanupTrafficPolicy(t, ns, policy)
+
 	// The phases below form a single canary state machine (create -> split ->
 	// promote -> delete): each depends on the prior, so they run as ordered
 	// subtests and short-circuit on the first failure (a failed split would make
@@ -96,7 +101,6 @@ func TestTrafficPolicy_CanaryThroughGateway(t *testing.T) {
 		r, err := h.createTrafficPolicy(ctx, ns, canaryTrafficReq(policy, stable, canary))
 		require.NoError(t, err)
 		require.True(t, is2xx(r.StatusCode()), "create traffic policy: %d: %s", r.StatusCode(), string(r.Body))
-		cleanupTrafficPolicy(t, ns, policy)
 
 		// HTTP response carries the derived backend tuple + auto-filled endpoint path.
 		view := r.JSON201
