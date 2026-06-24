@@ -1,4 +1,4 @@
-//go:build e2e
+//go:build (e2e || standard) && !lite
 
 package e2e
 
@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
 	"testing"
 	"time"
 
@@ -29,40 +28,6 @@ var requiredCRDs = []string{
 	"podgroups.scheduling.sigs.k8s.io",
 	"httproutes.gateway.networking.k8s.io",
 	"gateways.gateway.networking.k8s.io",
-}
-
-// TestMain wires up the process-wide harness — a K8s client against the ambient
-// kubeconfig and port-forwards to the three HTTP services — then runs a
-// fail-fast readiness gate and exits with guidance if the infra + system Helm
-// layers are not installed. There is no process-wide shared tenant: each test
-// file provisions its own via provisionTenant.
-func TestMain(m *testing.M) {
-	s, err := newSuite()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "e2e: cannot reach the axisml cluster: %v\n", err)
-		fmt.Fprintf(os.Stderr, "e2e: bring it up first: `make cluster-up && make helm-install`\n")
-		os.Exit(1)
-	}
-	h = s
-
-	// Gate before m.Run() so a half-installed cluster fails fast with a clear
-	// message instead of every workload test timing out. (Test functions are not
-	// guaranteed to run preflight-first — execution order is by file name — so
-	// the gate cannot live in a Test func.)
-	if err := gateReady(context.Background()); err != nil {
-		fmt.Fprintf(os.Stderr, "e2e: cluster not ready: %v\n", err)
-		fmt.Fprintf(os.Stderr, "e2e: ensure infra + system are installed: `make helm-install`\n")
-		h.close()
-		os.Exit(1)
-	}
-
-	code := m.Run()
-
-	if platformPF != nil {
-		platformPF.Stop() // lazily started by the platform tests; not owned by h
-	}
-	h.close()
-	os.Exit(code)
 }
 
 // gateReady is the fail-fast readiness gate. It checks the conditions whose

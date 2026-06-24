@@ -1,14 +1,11 @@
-//go:build e2e
+//go:build (e2e || standard) && !lite
 
 package e2e
 
 import (
 	"bufio"
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"os"
@@ -16,7 +13,6 @@ import (
 	"regexp"
 	"strings"
 	"sync"
-	"testing"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -62,10 +58,10 @@ type suite struct {
 // h is the global harness handle. TestMain populates it before any test runs.
 var h *suite
 
-// buildScheme registers every typed API the suite reads or writes. Koordinator
-// ElasticQuota and gateway-api HTTPRoute are intentionally accessed as
-// unstructured objects (see quotaObj / httpRouteObj) to avoid pulling those
-// heavyweight modules into the e2e go.mod.
+// buildScheme registers every typed API the suite reads or writes. The
+// gateway-api HTTPRoute is intentionally accessed as an unstructured object
+// (see httpRouteObj) to avoid pulling that heavyweight module into the e2e
+// go.mod.
 func buildScheme() *runtime.Scheme {
 	s := runtime.NewScheme()
 	utilruntime.Must(clientgoscheme.AddToScheme(s))
@@ -123,22 +119,6 @@ func newSuite() (*suite, error) {
 	}
 	return s, nil
 }
-
-// setUser is a client-wide request editor that stamps the suite's identity
-// header on every System-component call. The generated per-package
-// RequestEditorFn types share this underlying signature, so one func value is
-// assignable to all three.
-func setUser(user string) func(context.Context, *http.Request) error {
-	return func(_ context.Context, req *http.Request) error {
-		if user != "" {
-			req.Header.Set(headerUser, user)
-		}
-		return nil
-	}
-}
-
-// is2xx classifies a status code from a generated response's StatusCode().
-func is2xx(code int) bool { return code >= 200 && code < 300 }
 
 func (s *suite) forward(ns, svc string, remotePort int) (*portForward, error) {
 	pf, err := startPortForward(ns, svc, remotePort)
@@ -277,73 +257,8 @@ func waitListen(port int, timeout time.Duration) error {
 }
 
 // ---------------------------------------------------------------------------
-// Raw HTTP client (deployed-workload probes only)
+// Unstructured accessor for the external gateway-api HTTPRoute CRD
 // ---------------------------------------------------------------------------
-//
-// The AxisML HTTP components are reached through their typed, generated clients
-// (the suite fields). This bare client exists only for probing arbitrary
-// in-cluster workloads over a port-forward — e.g. GET / against a deployed nginx
-// MLService — which have no OpenAPI contract to generate a client from.
-
-const headerUser = "X-Axisml-User"
-
-type httpClient struct {
-	baseURL string
-	c       *http.Client
-}
-
-func newHTTPClient(baseURL string) *httpClient {
-	return &httpClient{baseURL: baseURL, c: &http.Client{Timeout: 30 * time.Second}}
-}
-
-// resp is the result of a raw HTTP call.
-type resp struct {
-	status int
-	body   []byte
-}
-
-// do issues a request. body may be nil.
-func (hc *httpClient) do(ctx context.Context, method, path string, body any) (resp, error) {
-	var rdr io.Reader
-	if body != nil {
-		b, err := json.Marshal(body)
-		if err != nil {
-			return resp{}, err
-		}
-		rdr = bytes.NewReader(b)
-	}
-	req, err := http.NewRequestWithContext(ctx, method, hc.baseURL+path, rdr)
-	if err != nil {
-		return resp{}, err
-	}
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
-	httpResp, err := hc.c.Do(req)
-	if err != nil {
-		return resp{}, err
-	}
-	defer func() { _ = httpResp.Body.Close() }()
-	b, err := io.ReadAll(httpResp.Body)
-	if err != nil {
-		return resp{}, err
-	}
-	return resp{status: httpResp.StatusCode, body: b}, nil
-}
-
-// ---------------------------------------------------------------------------
-// Unstructured accessors for external CRDs (ElasticQuota, HTTPRoute)
-// ---------------------------------------------------------------------------
-
-func quotaObj() *unstructured.Unstructured {
-	o := &unstructured.Unstructured{}
-	o.SetGroupVersionKind(schema.GroupVersionKind{
-		Group:   "scheduling.sigs.k8s.io",
-		Version: "v1alpha1",
-		Kind:    "ElasticQuota",
-	})
-	return o
-}
 
 func httpRouteObj() *unstructured.Unstructured {
 	o := &unstructured.Unstructured{}
@@ -353,42 +268,6 @@ func httpRouteObj() *unstructured.Unstructured {
 		Kind:    "HTTPRoute",
 	})
 	return o
-}
-
-// ---------------------------------------------------------------------------
-// Polling helpers (e2e budgets; thin wrappers over the stdlib)
-// ---------------------------------------------------------------------------
-
-// eventually polls fn until it returns nil or the timeout elapses, using the
-// suite's poll interval. Mirrors testutil.Eventually but keeps the e2e budgets.
-func eventually(t *testing.T, timeout time.Duration, fn func() error) {
-	t.Helper()
-	deadline := time.Now().Add(timeout)
-	var last error
-	for time.Now().Before(deadline) {
-		if last = fn(); last == nil {
-			return
-		}
-		time.Sleep(h.cfg.PollInterval)
-	}
-	if last == nil {
-		last = fmt.Errorf("condition not met")
-	}
-	t.Fatalf("eventually: timed out after %s: %v", timeout, last)
-}
-
-// consistently asserts fn returns nil on every poll across the whole window
-// (the inverse of eventually). Used for "must STAY in state X" checks where a
-// single immediate read could pass before the system has had a chance to act.
-func consistently(t *testing.T, window time.Duration, fn func() error) {
-	t.Helper()
-	deadline := time.Now().Add(window)
-	for time.Now().Before(deadline) {
-		if err := fn(); err != nil {
-			t.Fatalf("consistently: condition violated within %s: %v", window, err)
-		}
-		time.Sleep(h.cfg.PollInterval)
-	}
 }
 
 func (s *suite) get(ctx context.Context, ns, name string, obj client.Object) error {
