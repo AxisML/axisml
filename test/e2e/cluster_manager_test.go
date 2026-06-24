@@ -10,101 +10,20 @@ import (
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	poolv1 "github.com/axisml/axisml/components/cluster-manager/api/v1alpha1"
 	tenantv1 "github.com/axisml/axisml/components/tenant-operator/api/v1alpha1"
 
 	"github.com/axisml/axisml/test/e2e/internal/clients/clustermanager"
 )
 
-// cluster-manager: REST over the cluster-scoped ResourcePool CRD.
-
-func TestClusterManager_CreatePoolRoundTripsToCR(t *testing.T) {
-	ctx := context.Background()
-	pool := uniqueName("e2e-pool")
-	rl := map[string]string{"cpu": "1", "memory": "2Gi"}
-	r, err := h.clusterManager.CreateResourcePoolWithResponse(ctx, clustermanager.CreateResourcePoolRequest{
-		Name: ptr(pool),
-		Units: &[]clustermanager.ServerCreateResourceUnitRequest{{
-			Name:     "small",
-			Requests: rl,
-			Limits:   rl,
-		}},
-	})
-	require.NoError(t, err)
-	require.True(t, is2xx(r.StatusCode()), "create pool: %d: %s", r.StatusCode(), string(r.Body))
-	t.Cleanup(func() {
-		_, _ = h.clusterManager.DeleteResourcePoolWithResponse(context.Background(), pool)
-	})
-
-	// The ResourcePool CR materializes in-cluster.
-	eventually(t, h.cfg.CRProvisionTimeout, func() error {
-		var rp poolv1.ResourcePool
-		return h.k8s.Get(ctx, client.ObjectKey{Name: pool}, &rp)
-	})
-}
-
-func TestClusterManager_AddAndPatchUnit(t *testing.T) {
-	ctx := context.Background()
-	pool := uniqueName("e2e-pool")
-	cp, err := h.clusterManager.CreateResourcePoolWithResponse(ctx, clustermanager.CreateResourcePoolRequest{Name: ptr(pool)})
-	require.NoError(t, err)
-	require.True(t, is2xx(cp.StatusCode()))
-	t.Cleanup(func() {
-		_, _ = h.clusterManager.DeleteResourcePoolWithResponse(context.Background(), pool)
-	})
-
-	addRL := map[string]string{"cpu": "2"}
-	r, err := h.clusterManager.CreateResourceUnitWithResponse(ctx, pool, clustermanager.CreateResourceUnitRequest{
-		Name:     ptr("unit-a"),
-		Requests: &addRL,
-		Limits:   &addRL,
-	})
-	require.NoError(t, err)
-	require.True(t, is2xx(r.StatusCode()), "add unit: %d: %s", r.StatusCode(), string(r.Body))
-
-	// Unit fields are mutable (only the unit name is immutable). PATCH the
-	// requests and confirm the change is reflected in the pool.
-	patchRL := map[string]string{"cpu": "4"}
-	pr, err := h.clusterManager.UpdateResourceUnitWithResponse(ctx, pool, "unit-a", clustermanager.PatchResourceUnitRequest{
-		Requests: &patchRL,
-		Limits:   &patchRL,
-	})
-	require.NoError(t, err)
-	require.True(t, is2xx(pr.StatusCode()), "patch unit: %d: %s", pr.StatusCode(), string(pr.Body))
-
-	g, err := h.clusterManager.GetResourcePoolWithResponse(ctx, pool)
-	require.NoError(t, err)
-	require.True(t, is2xx(g.StatusCode()))
-	require.NotNil(t, g.JSON200)
-	require.Len(t, g.JSON200.Units, 1)
-	assert.Equal(t, "4", g.JSON200.Units[0].Requests["cpu"], "patched unit cpu should be 4")
-}
-
-func TestClusterManager_DeletePoolGC(t *testing.T) {
-	ctx := context.Background()
-	pool := uniqueName("e2e-pool")
-	cp, err := h.clusterManager.CreateResourcePoolWithResponse(ctx, clustermanager.CreateResourcePoolRequest{Name: ptr(pool)})
-	require.NoError(t, err)
-	require.True(t, is2xx(cp.StatusCode()))
-
-	d, err := h.clusterManager.DeleteResourcePoolWithResponse(ctx, pool)
-	require.NoError(t, err)
-	require.True(t, is2xx(d.StatusCode()), "delete pool: %d", d.StatusCode())
-
-	eventually(t, h.cfg.CRProvisionTimeout, func() error {
-		var rp poolv1.ResourcePool
-		err := h.k8s.Get(ctx, client.ObjectKey{Name: pool}, &rp)
-		if isNotFound(err) {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		return assertErr("ResourcePool %s still present", pool)
-	})
-}
+// cluster-manager: tenant lifecycle that fans out to the real tenant-operator.
+//
+// Pure ResourcePool / ResourceUnit CRUD is NOT exercised here — cluster-manager
+// is a stateless REST shell with no reconciler, so that path is fully covered by
+// the hermetic integration suite (TestResourcePool_Lifecycle /
+// TestResourceUnit_Lifecycle). These e2e tests cover only what needs a real
+// cluster: the cross-component chain cluster-manager -> Tenant CR ->
+// tenant-operator -> namespace + koord ElasticQuota.
 
 // removeTenant best-effort cleans up a tenant: soft-delete via the API, then
 // hard-remove the CR + namespace via the admin client (the operator never

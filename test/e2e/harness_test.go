@@ -137,17 +137,8 @@ func setUser(user string) func(context.Context, *http.Request) error {
 	}
 }
 
-// anon is a per-call request editor that strips the identity header (client-wide
-// editors run first, so this clears it afterward). Used for the artifact-hub
-// anonymous-read test, where a missing X-Axisml-User must still succeed.
-func anon(_ context.Context, req *http.Request) error {
-	req.Header.Del(headerUser)
-	return nil
-}
-
-// is2xx / is4xx classify a status code from a generated response's StatusCode().
+// is2xx classifies a status code from a generated response's StatusCode().
 func is2xx(code int) bool { return code >= 200 && code < 300 }
-func is4xx(code int) bool { return code >= 400 && code < 500 }
 
 func (s *suite) forward(ns, svc string, remotePort int) (*portForward, error) {
 	pf, err := startPortForward(ns, svc, remotePort)

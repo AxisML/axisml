@@ -47,11 +47,11 @@ cd test/e2e && go test -tags=e2e -run TestComputeService_JobLifecycleTopToBottom
 | `oci_test.go` | minimal OCI-distribution push for artifact-hub |
 | `preflight_test.go` | environment-readiness diagnostics (the gate itself runs in `TestMain`) |
 | `tenant_operator_test.go` | tenant-operator (incl. real ElasticQuota admission) |
-| `cluster_manager_test.go` | cluster-manager ResourcePool CRUD |
+| `cluster_manager_test.go` | cluster-manager tenant lifecycle -> tenant-operator -> namespace + ElasticQuota (pure pool/unit CRUD lives at the integration layer) |
 | `compute_operator_test.go` | MLRun/MLService -> real workloads, scheduler labels, route |
 | `compute_service_test.go` | HTTP -> CR -> running pod chain, scale, workspace PVC |
 | `traffic_policy_test.go` | HTTP -> MLTrafficPolicy CR -> weighted HTTPRoute; canary split / promote / delete |
-| `artifact_hub_test.go` | artifact metadata lifecycle + real zot two-phase upload |
+| `artifact_hub_test.go` | real zot two-phase upload + resolve (metadata-only lifecycle lives at the integration layer) |
 | `golden_path_test.go` | cross-service train-and-serve journey |
 
 ## Test organization

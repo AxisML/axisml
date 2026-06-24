@@ -221,26 +221,7 @@ func TestComputeService(t *testing.T) {
 		})
 	})
 
-	t.Run("UnknownPoolRejected", func(t *testing.T) {
-		ctx := context.Background()
-		name := uniqueName("e2e-badpool")
-
-		r, err := h.createMLRun(ctx, ns, busyboxMLRunReq(name, "does-not-exist", "nope", quota))
-		require.NoError(t, err)
-		assert.True(t, is4xx(r.StatusCode()), "unknown pool should be 4xx, got %d", r.StatusCode())
-
-		// No MLRun CR was created.
-		var job mlrunv1.MLRun
-		err = h.get(ctx, ns, name, &job)
-		assert.True(t, isNotFound(err), "no MLRun should exist for a rejected request")
-	})
-
-	t.Run("MLRunIntoUnknownNamespace", func(t *testing.T) {
-		ctx := context.Background()
-		// Independent of the file's tenant: targets a namespace with no tenant.
-		badNS := uniqueName("nope-ns")
-		r, err := h.createMLRun(ctx, badNS, busyboxMLRunReq("j", h.cfg.DefaultPool, h.cfg.DefaultUnit, "whatever"))
-		require.NoError(t, err)
-		assert.True(t, is4xx(r.StatusCode()), "job into unknown namespace should be 4xx, got %d", r.StatusCode())
-	})
+	// Note: input-validation negatives (unknown pool, unknown namespace -> 4xx, no
+	// CR) are NOT covered here — they schedule no workload and gain nothing from a
+	// real cluster. The hermetic integration suite owns them (TestMLRunValidation).
 }
