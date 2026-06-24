@@ -72,15 +72,15 @@ func fail(format string, args ...any) {
 // internal/server/problem.go's statusFor.
 func withErrors(success map[string]openapigen.Response) map[string]openapigen.Response {
 	out := map[string]openapigen.Response{
-		"400":     openapigen.JSONResp("Validation error.", "Problem"),
-		"401":     openapigen.JSONResp("Unauthorized.", "Problem"),
-		"403":     openapigen.JSONResp("Forbidden.", "Problem"),
-		"404":     openapigen.JSONResp("Not found.", "Problem"),
-		"409":     openapigen.JSONResp("Conflict.", "Problem"),
-		"412":     openapigen.JSONResp("Precondition failed.", "Problem"),
-		"422":     openapigen.JSONResp("Quota exceeded.", "Problem"),
-		"503":     openapigen.JSONResp("Service unavailable.", "Problem"),
-		"default": openapigen.JSONResp("Unexpected error.", "Problem"),
+		"400":     openapigen.JSONResp("Validation error.", "ComputeServiceError"),
+		"401":     openapigen.JSONResp("Unauthorized.", "ComputeServiceError"),
+		"403":     openapigen.JSONResp("Forbidden.", "ComputeServiceError"),
+		"404":     openapigen.JSONResp("Not found.", "ComputeServiceError"),
+		"409":     openapigen.JSONResp("Conflict.", "ComputeServiceError"),
+		"412":     openapigen.JSONResp("Precondition failed.", "ComputeServiceError"),
+		"422":     openapigen.JSONResp("Quota exceeded.", "ComputeServiceError"),
+		"503":     openapigen.JSONResp("Service unavailable.", "ComputeServiceError"),
+		"default": openapigen.JSONResp("Unexpected error.", "ComputeServiceError"),
 	}
 	for k, v := range success {
 		out[k] = v
@@ -112,7 +112,7 @@ func buildDocument(version string) *openapigen.Document {
 	// response DTOs live in the flat internal/server package, so the
 	// PackageNamer maps it to an empty prefix and the schema name equals the
 	// Go type name verbatim.
-	g.Register("Problem", server.Problem{}, openapigen.ResponseMode)
+	g.Register("ComputeServiceError", server.Error{}, openapigen.ResponseMode)
 	g.Register("MLRunCreateRequest", server.MLRunCreateRequest{}, openapigen.InputMode)
 	g.Register("MLRunPatchRequest", server.MLRunPatchRequest{}, openapigen.InputMode)
 	g.Register("MLRun", server.MLRun{}, openapigen.ResponseMode)

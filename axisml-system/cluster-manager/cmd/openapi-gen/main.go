@@ -55,13 +55,13 @@ func fail(format string, args ...any) {
 
 func withErrors(success map[string]openapigen.Response) map[string]openapigen.Response {
 	out := map[string]openapigen.Response{
-		"400":     openapigen.JSONResp("Validation error.", "Problem"),
-		"401":     openapigen.JSONResp("Missing or invalid X-Axisml-User.", "Problem"),
-		"404":     openapigen.JSONResp("Not found.", "Problem"),
-		"409":     openapigen.JSONResp("Conflict (already exists or concurrent modification).", "Problem"),
-		"422":     openapigen.JSONResp("Invariant violated.", "Problem"),
-		"500":     openapigen.JSONResp("Internal error.", "Problem"),
-		"default": openapigen.JSONResp("Unexpected error.", "Problem"),
+		"400":     openapigen.JSONResp("Validation error.", "ClusterManagerError"),
+		"401":     openapigen.JSONResp("Missing or invalid X-Axisml-User.", "ClusterManagerError"),
+		"404":     openapigen.JSONResp("Not found.", "ClusterManagerError"),
+		"409":     openapigen.JSONResp("Conflict (already exists or concurrent modification).", "ClusterManagerError"),
+		"422":     openapigen.JSONResp("Invariant violated.", "ClusterManagerError"),
+		"500":     openapigen.JSONResp("Internal error.", "ClusterManagerError"),
+		"default": openapigen.JSONResp("Unexpected error.", "ClusterManagerError"),
 	}
 	for k, v := range success {
 		out[k] = v
@@ -72,7 +72,7 @@ func withErrors(success map[string]openapigen.Response) map[string]openapigen.Re
 func buildDocument(version string) *openapigen.Document {
 	g := openapigen.New(openapigen.Options{})
 
-	g.Register("Problem", server.Problem{}, openapigen.ResponseMode)
+	g.Register("ClusterManagerError", server.Error{}, openapigen.ResponseMode)
 	g.Register("CreateResourcePoolRequest", server.CreateResourcePoolRequest{}, openapigen.InputMode)
 	g.Register("PatchResourcePoolRequest", server.PatchResourcePoolRequest{}, openapigen.InputMode)
 	g.Register("CreateResourceUnitRequest", server.CreateResourceUnitRequest{}, openapigen.InputMode)

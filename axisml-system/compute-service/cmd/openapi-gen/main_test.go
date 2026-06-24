@@ -111,16 +111,16 @@ func TestRouteCoverage(t *testing.T) {
 // typed accessor and stay in sync with this component's error codes.
 func TestProblemEnumIsSourced(t *testing.T) {
 	doc := buildDocument("test")
-	prob, ok := doc.Components.Schemas["Problem"]
+	prob, ok := doc.Components.Schemas["ComputeServiceError"]
 	if !ok {
-		t.Fatal("Problem schema missing")
+		t.Fatal("ComputeServiceError schema missing")
 	}
 	codeProp := prob.Properties["code"]
 	if codeProp == nil {
-		t.Fatal("Problem.code missing")
+		t.Fatal("ComputeServiceError.code missing")
 	}
 	if len(codeProp.Enum) != len(apperrors.AllCodes()) {
-		t.Errorf("Problem.code enum len = %d, want %d", len(codeProp.Enum), len(apperrors.AllCodes()))
+		t.Errorf("ComputeServiceError.code enum len = %d, want %d", len(codeProp.Enum), len(apperrors.AllCodes()))
 	}
 }
 

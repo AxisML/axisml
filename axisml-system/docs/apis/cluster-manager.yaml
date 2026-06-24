@@ -134,6 +134,23 @@ components:
       - multiTenant
       - resourcePoolsWritable
       type: object
+    ClusterManagerError:
+      properties:
+        code:
+          type: string
+        detail:
+          type: string
+        status:
+          type: integer
+        title:
+          type: string
+        type:
+          type: string
+      required:
+      - status
+      - title
+      - type
+      type: object
     Corev1Toleration:
       properties:
         effect:
@@ -305,23 +322,6 @@ components:
           additionalProperties:
             type: string
           type: object
-      type: object
-    Problem:
-      properties:
-        code:
-          type: string
-        detail:
-          type: string
-        status:
-          type: integer
-        title:
-          type: string
-        type:
-          type: string
-      required:
-      - status
-      - title
-      - type
       type: object
     Quota:
       properties:
@@ -764,43 +764,43 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Missing or invalid X-Axisml-User.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Conflict (already exists or concurrent modification).
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Invariant violated.
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Internal error.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Unexpected error.
       summary: List ResourcePools
       tags:
@@ -824,43 +824,43 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Missing or invalid X-Axisml-User.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Conflict (already exists or concurrent modification).
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Invariant violated.
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Internal error.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Unexpected error.
       summary: Create a ResourcePool
       tags:
@@ -882,43 +882,43 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Missing or invalid X-Axisml-User.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Conflict (already exists or concurrent modification).
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Invariant violated.
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Internal error.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Unexpected error.
       summary: Delete ResourcePool
       tags:
@@ -943,43 +943,43 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Missing or invalid X-Axisml-User.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Conflict (already exists or concurrent modification).
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Invariant violated.
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Internal error.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Unexpected error.
       summary: Get ResourcePool
       tags:
@@ -1010,43 +1010,43 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Missing or invalid X-Axisml-User.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Conflict (already exists or concurrent modification).
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Invariant violated.
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Internal error.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Unexpected error.
       summary: Patch ResourcePool
       tags:
@@ -1077,43 +1077,43 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Missing or invalid X-Axisml-User.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Conflict (already exists or concurrent modification).
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Invariant violated.
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Internal error.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Unexpected error.
       summary: List units in a pool
       tags:
@@ -1144,43 +1144,43 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Missing or invalid X-Axisml-User.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Conflict (already exists or concurrent modification).
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Invariant violated.
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Internal error.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Unexpected error.
       summary: Add a unit to the pool
       tags:
@@ -1208,43 +1208,43 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Missing or invalid X-Axisml-User.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Conflict (already exists or concurrent modification).
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Invariant violated.
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Internal error.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Unexpected error.
       summary: Remove unit from pool
       tags:
@@ -1275,43 +1275,43 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Missing or invalid X-Axisml-User.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Conflict (already exists or concurrent modification).
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Invariant violated.
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Internal error.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Unexpected error.
       summary: Get unit
       tags:
@@ -1348,43 +1348,43 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Missing or invalid X-Axisml-User.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Conflict (already exists or concurrent modification).
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Invariant violated.
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Internal error.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Unexpected error.
       summary: Patch unit
       tags:
@@ -1409,43 +1409,43 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Missing or invalid X-Axisml-User.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Conflict (already exists or concurrent modification).
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Invariant violated.
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Internal error.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Unexpected error.
       summary: List Tenants
       tags:
@@ -1469,43 +1469,43 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Missing or invalid X-Axisml-User.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Conflict (already exists or concurrent modification).
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Invariant violated.
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Internal error.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Unexpected error.
       summary: Create a Tenant
       tags:
@@ -1527,43 +1527,43 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Missing or invalid X-Axisml-User.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Conflict (already exists or concurrent modification).
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Invariant violated.
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Internal error.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Unexpected error.
       summary: Delete Tenant
       tags:
@@ -1588,43 +1588,43 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Missing or invalid X-Axisml-User.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Conflict (already exists or concurrent modification).
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Invariant violated.
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Internal error.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Unexpected error.
       summary: Get Tenant
       tags:
@@ -1655,43 +1655,43 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Missing or invalid X-Axisml-User.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Conflict (already exists or concurrent modification).
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Invariant violated.
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Internal error.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Unexpected error.
       summary: Patch Tenant
       tags:
@@ -1717,43 +1717,43 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Missing or invalid X-Axisml-User.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Conflict (already exists or concurrent modification).
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Invariant violated.
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Internal error.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Unexpected error.
       summary: List tenant quotas
       tags:
@@ -1784,43 +1784,43 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Missing or invalid X-Axisml-User.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Conflict (already exists or concurrent modification).
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Invariant violated.
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Internal error.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Unexpected error.
       summary: Create or replace a pool quota
       tags:
@@ -1848,43 +1848,43 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Missing or invalid X-Axisml-User.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Conflict (already exists or concurrent modification).
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Invariant violated.
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Internal error.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Unexpected error.
       summary: Delete a pool quota
       tags:
@@ -1921,43 +1921,43 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Missing or invalid X-Axisml-User.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Conflict (already exists or concurrent modification).
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Invariant violated.
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Internal error.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ClusterManagerError'
           description: Unexpected error.
       summary: Update a pool quota
       tags:

@@ -98,16 +98,16 @@ func TestRouteCoverage(t *testing.T) {
 
 func TestProblemEnumIsSourced(t *testing.T) {
 	doc := buildDocument("test")
-	prob, ok := doc.Components.Schemas["Problem"]
+	prob, ok := doc.Components.Schemas["ArtifactHubError"]
 	if !ok {
-		t.Fatal("Problem schema missing")
+		t.Fatal("ArtifactHubError schema missing")
 	}
 	codeProp := prob.Properties["code"]
 	if codeProp == nil {
-		t.Fatal("Problem.code missing")
+		t.Fatal("ArtifactHubError.code missing")
 	}
 	if len(codeProp.Enum) != len(apperrors.AllCodes()) {
-		t.Errorf("Problem.code enum len = %d, want %d", len(codeProp.Enum), len(apperrors.AllCodes()))
+		t.Errorf("ArtifactHubError.code enum len = %d, want %d", len(codeProp.Enum), len(apperrors.AllCodes()))
 	}
 }
 

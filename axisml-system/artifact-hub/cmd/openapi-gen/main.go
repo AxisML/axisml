@@ -68,15 +68,15 @@ func fail(format string, args ...any) {
 // artifacts has no 422 (no quotas) but emits 410 Gone.
 func withErrors(success map[string]openapigen.Response) map[string]openapigen.Response {
 	out := map[string]openapigen.Response{
-		"400":     openapigen.JSONResp("Validation error.", "Problem"),
-		"401":     openapigen.JSONResp("Unauthorized.", "Problem"),
-		"403":     openapigen.JSONResp("Forbidden.", "Problem"),
-		"404":     openapigen.JSONResp("Not found.", "Problem"),
-		"409":     openapigen.JSONResp("Conflict.", "Problem"),
-		"410":     openapigen.JSONResp("Gone.", "Problem"),
-		"412":     openapigen.JSONResp("Precondition failed.", "Problem"),
-		"503":     openapigen.JSONResp("Service unavailable.", "Problem"),
-		"default": openapigen.JSONResp("Unexpected error.", "Problem"),
+		"400":     openapigen.JSONResp("Validation error.", "ArtifactHubError"),
+		"401":     openapigen.JSONResp("Unauthorized.", "ArtifactHubError"),
+		"403":     openapigen.JSONResp("Forbidden.", "ArtifactHubError"),
+		"404":     openapigen.JSONResp("Not found.", "ArtifactHubError"),
+		"409":     openapigen.JSONResp("Conflict.", "ArtifactHubError"),
+		"410":     openapigen.JSONResp("Gone.", "ArtifactHubError"),
+		"412":     openapigen.JSONResp("Precondition failed.", "ArtifactHubError"),
+		"503":     openapigen.JSONResp("Service unavailable.", "ArtifactHubError"),
+		"default": openapigen.JSONResp("Unexpected error.", "ArtifactHubError"),
 	}
 	for k, v := range success {
 		out[k] = v
@@ -113,7 +113,7 @@ func buildDocument(version string) *openapigen.Document {
 		},
 	})
 
-	g.Register("Problem", server.Problem{}, openapigen.ResponseMode)
+	g.Register("ArtifactHubError", server.Error{}, openapigen.ResponseMode)
 	g.Register("ArtifactInitiateRequest", server.ArtifactInitiateRequest{}, openapigen.InputMode)
 	g.Register("ArtifactInitiateResponse", server.ArtifactInitiateResponse{}, openapigen.ResponseMode)
 	g.Register("ArtifactCompleteRequest", server.ArtifactCompleteRequest{}, openapigen.InputMode)

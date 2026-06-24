@@ -12,8 +12,8 @@ import (
 	apperrors "github.com/axisml/axisml/components/artifact-hub/pkg/errors"
 )
 
-// Problem is RFC7807 application/problem+json.
-type Problem struct {
+// Error is RFC7807 application/problem+json.
+type Error struct {
 	Type     string         `json:"type"`
 	Title    string         `json:"title"`
 	Status   int            `json:"status"`
@@ -51,7 +51,7 @@ func statusFor(code apperrors.Code) int {
 func WriteError(c *gin.Context, err error) {
 	if e, ok := apperrors.As(err); ok {
 		status := statusFor(e.Code)
-		c.AbortWithStatusJSON(status, Problem{
+		c.AbortWithStatusJSON(status, Error{
 			Type:     "https://axisml.io/errors/" + string(e.Code),
 			Title:    e.Message,
 			Status:   status,
@@ -63,7 +63,7 @@ func WriteError(c *gin.Context, err error) {
 		return
 	}
 	if isBindingError(err) {
-		c.AbortWithStatusJSON(http.StatusBadRequest, Problem{
+		c.AbortWithStatusJSON(http.StatusBadRequest, Error{
 			Type:     "https://axisml.io/errors/" + string(apperrors.CodeValidation),
 			Title:    "invalid request body",
 			Status:   http.StatusBadRequest,
@@ -73,7 +73,7 @@ func WriteError(c *gin.Context, err error) {
 		})
 		return
 	}
-	c.AbortWithStatusJSON(http.StatusInternalServerError, Problem{
+	c.AbortWithStatusJSON(http.StatusInternalServerError, Error{
 		Type:     "https://axisml.io/errors/internal_error",
 		Title:    "internal error",
 		Status:   http.StatusInternalServerError,

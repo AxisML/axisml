@@ -75,6 +75,40 @@ components:
       required:
       - digest
       type: object
+    ArtifactHubError:
+      properties:
+        code:
+          description: Discrete business error class.
+          enum:
+          - validation_failed
+          - not_found
+          - conflict
+          - precondition_failed
+          - unauthorized
+          - forbidden
+          - service_unavailable
+          - internal_error
+          - gone
+          type: string
+        detail:
+          type: string
+        details:
+          additionalProperties: {}
+          type: object
+        instance:
+          type: string
+        status:
+          type: integer
+        title:
+          type: string
+        type:
+          type: string
+      required:
+      - code
+      - status
+      - title
+      - type
+      type: object
     ArtifactInitiateRequest:
       properties:
         annotations:
@@ -195,40 +229,6 @@ components:
       - password
       - username
       type: object
-    Problem:
-      properties:
-        code:
-          description: Discrete business error class.
-          enum:
-          - validation_failed
-          - not_found
-          - conflict
-          - precondition_failed
-          - unauthorized
-          - forbidden
-          - service_unavailable
-          - internal_error
-          - gone
-          type: string
-        detail:
-          type: string
-        details:
-          additionalProperties: {}
-          type: object
-        instance:
-          type: string
-        status:
-          type: integer
-        title:
-          type: string
-        type:
-          type: string
-      required:
-      - code
-      - status
-      - title
-      - type
-      type: object
     UploadCredentials:
       properties:
         credentials:
@@ -308,55 +308,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Conflict.
         "410":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Gone.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Precondition failed.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unexpected error.
       summary: List every dataset (across all names) in a namespace
       tags:
@@ -409,55 +409,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Conflict.
         "410":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Gone.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Precondition failed.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unexpected error.
       summary: List versions of a dataset
       tags:
@@ -494,55 +494,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Conflict.
         "410":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Gone.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Precondition failed.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unexpected error.
       summary: Initiate a dataset version (two-phase write step 1)
       tags:
@@ -580,55 +580,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Conflict.
         "410":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Gone.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Precondition failed.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unexpected error.
       summary: Delete a dataset version
       tags:
@@ -665,55 +665,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Conflict.
         "410":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Gone.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Precondition failed.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unexpected error.
       summary: Get a dataset version
       tags:
@@ -756,55 +756,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Conflict.
         "410":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Gone.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Precondition failed.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unexpected error.
       summary: Patch a dataset's display_name / description / labels / annotations
       tags:
@@ -848,55 +848,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Conflict.
         "410":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Gone.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Precondition failed.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unexpected error.
       summary: Complete dataset upload (two-phase write step 2)
       tags:
@@ -939,55 +939,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Conflict.
         "410":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Gone.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Precondition failed.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unexpected error.
       summary: Resolve dataset for download
       tags:
@@ -1034,55 +1034,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Conflict.
         "410":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Gone.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Precondition failed.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unexpected error.
       summary: List every image (across all names) in a namespace
       tags:
@@ -1135,55 +1135,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Conflict.
         "410":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Gone.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Precondition failed.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unexpected error.
       summary: List versions of a image
       tags:
@@ -1220,55 +1220,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Conflict.
         "410":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Gone.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Precondition failed.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unexpected error.
       summary: Initiate a image version (two-phase write step 1)
       tags:
@@ -1306,55 +1306,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Conflict.
         "410":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Gone.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Precondition failed.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unexpected error.
       summary: Delete a image version
       tags:
@@ -1391,55 +1391,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Conflict.
         "410":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Gone.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Precondition failed.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unexpected error.
       summary: Get a image version
       tags:
@@ -1482,55 +1482,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Conflict.
         "410":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Gone.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Precondition failed.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unexpected error.
       summary: Patch a image's display_name / description / labels / annotations
       tags:
@@ -1574,55 +1574,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Conflict.
         "410":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Gone.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Precondition failed.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unexpected error.
       summary: Complete image upload (two-phase write step 2)
       tags:
@@ -1665,55 +1665,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Conflict.
         "410":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Gone.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Precondition failed.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unexpected error.
       summary: Resolve image for download
       tags:
@@ -1760,55 +1760,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Conflict.
         "410":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Gone.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Precondition failed.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unexpected error.
       summary: List every model (across all names) in a namespace
       tags:
@@ -1861,55 +1861,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Conflict.
         "410":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Gone.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Precondition failed.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unexpected error.
       summary: List versions of a model
       tags:
@@ -1946,55 +1946,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Conflict.
         "410":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Gone.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Precondition failed.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unexpected error.
       summary: Initiate a model version (two-phase write step 1)
       tags:
@@ -2032,55 +2032,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Conflict.
         "410":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Gone.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Precondition failed.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unexpected error.
       summary: Delete a model version
       tags:
@@ -2117,55 +2117,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Conflict.
         "410":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Gone.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Precondition failed.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unexpected error.
       summary: Get a model version
       tags:
@@ -2208,55 +2208,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Conflict.
         "410":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Gone.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Precondition failed.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unexpected error.
       summary: Patch a model's display_name / description / labels / annotations
       tags:
@@ -2300,55 +2300,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Conflict.
         "410":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Gone.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Precondition failed.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unexpected error.
       summary: Complete model upload (two-phase write step 2)
       tags:
@@ -2391,55 +2391,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Conflict.
         "410":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Gone.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Precondition failed.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ArtifactHubError'
           description: Unexpected error.
       summary: Resolve model for download
       tags:
