@@ -124,6 +124,16 @@ components:
       - name
       - namespace
       type: object
+    Capabilities:
+      properties:
+        multiTenant:
+          type: boolean
+        resourcePoolsWritable:
+          type: boolean
+      required:
+      - multiTenant
+      - resourcePoolsWritable
+      type: object
     Corev1Toleration:
       properties:
         effect:
@@ -721,6 +731,19 @@ info:
   version: 0.1.0
 openapi: 3.0.3
 paths:
+  /api/v1/capabilities:
+    get:
+      operationId: getCapabilities
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Capabilities'
+          description: Capability document.
+      summary: Get deployment-form capabilities
+      tags:
+      - Capabilities
   /api/v1/resourcepools:
     get:
       operationId: listResourcePools
@@ -1968,5 +1991,8 @@ tags:
 - description: Tenant CRD CRUD and per-pool tenant quotas (unit × quantity, folded
     to ElasticQuota); cluster-manager is the REST writer.
   name: Tenants
+- description: Deployment-form capability document (multi-tenant / writable resource
+    pools).
+  name: Capabilities
 - description: Liveness and readiness probes.
   name: Health

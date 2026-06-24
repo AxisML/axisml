@@ -69,6 +69,25 @@ func (r *Repository) MarkDeleting(ctx context.Context, id uuid.UUID) error {
 	}).Error
 }
 
+// FindObservable returns the live rows whose underlying workload may still
+// change state and therefore need a runtime Observe poll: everything that has
+// been (or is being) applied and is not yet terminal. Used by the Lite status
+// poller (the Kubernetes form reflows via informer events instead).
+func (r *Repository) FindObservable(ctx context.Context) ([]store.MLRun, error) {
+	var rows []store.MLRun
+	phases := []string{
+		string(StatusCreating), string(StatusPending), string(StatusRunning),
+		string(StatusCanceling), string(StatusDeleting),
+	}
+	if err := r.db.WithContext(ctx).
+		Where("phase IN ?", phases).
+		Order("updated_at ASC").Limit(workSetBatch).
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
 // WorkSet groups rows that match reconciler predicates.
 type WorkSet struct {
 	Creating  []store.MLRun

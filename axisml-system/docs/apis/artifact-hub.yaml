@@ -169,6 +169,18 @@ components:
       - storageKind
       - uri
       type: object
+    Capabilities:
+      properties:
+        kinds:
+          items:
+            type: string
+          type: array
+        upload:
+          type: boolean
+      required:
+      - kinds
+      - upload
+      type: object
     OciCredentials:
       properties:
         expires_at:
@@ -241,6 +253,19 @@ info:
   version: 0.1.0
 openapi: 3.0.3
 paths:
+  /api/v1/capabilities:
+    get:
+      operationId: getCapabilities
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Capabilities'
+          description: Capability document.
+      summary: Get deployment-form capabilities
+      tags:
+      - Capabilities
   /api/v1/namespaces/{namespace}/datasets:
     get:
       operationId: listDatasets
@@ -2457,5 +2482,7 @@ servers:
 tags:
 - description: Artifact registry partitioned by (namespace, kind, name, version).
   name: Artifacts
+- description: Deployment-form capability document (artifact kinds / upload).
+  name: Capabilities
 - description: Liveness and readiness probes.
   name: Health

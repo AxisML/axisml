@@ -60,6 +60,9 @@ func (s *ResourcePoolStore) Delete(ctx context.Context, name string) error {
 	return s.c.Delete(ctx, pool)
 }
 
+// Writable reports the Kubernetes store accepts full CRUD.
+func (s *ResourcePoolStore) Writable() bool { return true }
+
 // TenantStore backs provider.TenantStore with a client.Client.
 type TenantStore struct {
 	c client.Client
@@ -103,6 +106,9 @@ func (s *TenantStore) Delete(ctx context.Context, name string) error {
 	cr.Name = name
 	return s.c.Delete(ctx, cr)
 }
+
+// Writable reports the Kubernetes store supports multi-tenant CRUD.
+func (s *TenantStore) Writable() bool { return true }
 
 // listOptions translates neutral ListParams into controller-runtime options.
 // The selector is re-parsed here (handlers pre-validate it for the 400 path).

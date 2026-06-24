@@ -4,6 +4,8 @@
 
 **AxisML** 是面向机器学习工作负载的一站式平台，覆盖模型开发、训练、制品管理、在线推理与运维。本文是系统设计的高层导航：平台边界、核心概念、组件职责与关键不变量；字段级 schema、状态机与实现契约以各组件详细设计为准。
 
+AxisML 提供两种部署形态，共享 Platform API、`MLRun` / `MLService` / `MLTrafficPolicy` workload contract 与 PostgreSQL schema：**Standard 形态**——完整的 Kubernetes 部署（本文描述的形态），由 operator 将 workload contract 映射为 Job / Deployment / HTTPRoute 等 K8s 资源；**Lite 形态**——无 Kubernetes 的单机 Docker Compose 部署（见 [axisml-lite](../axisml-lite/docs/system_design.md)），由进程内 Standalone Runtime 将同一 contract 映射为 Docker 容器。本文默认描述 Standard 形态。
+
 ## 2. 核心概念
 
 平台采用 **两层业务模型 + 一层定义 / 视图**：
@@ -163,7 +165,7 @@ axisml/                        # 按部署层组织，每层一个自包含目�
 │   └── test/                  # testutil / crds/external / setup-envtest（System 集成测试基建）
 ├── axisml-infra/              # 第三方基础设施
 │   ├── deploy/helm/  docs/  scripts/minikube.sh
-├── axisml-lite/               # 无 K8s 的 Docker Compose 形态（当前仅 docs/）
+├── axisml-lite/               # Lite 形态：无 K8s 的单机 Docker Compose 部署（axisml-core/ deploy/）
 ├── docs/                      # 跨层：high_level_design.md + deployment.md + development_workflow.md
 ├── pkg/openapigen/  test/e2e/ # 共享：OpenAPI 引擎 / 集中式 e2e 套件
 ├── Makefile                   # 根编排器（委派给各层 Makefile）

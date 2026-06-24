@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/axisml/axisml/components/cluster-manager/internal/resourcepool"
+	"github.com/axisml/axisml/components/cluster-manager/internal/server"
 	"github.com/axisml/axisml/components/cluster-manager/internal/tenant"
 	"github.com/axisml/axisml/components/cluster-manager/pkg/provider"
 )
@@ -30,7 +31,8 @@ type Deps struct {
 
 // Module is the assembled Cluster Manager REST surface.
 type Module struct {
-	routes []Route
+	routes       []Route
+	capabilities server.Capabilities
 }
 
 // New assembles the Cluster Manager handlers over the injected stores.
@@ -40,8 +42,17 @@ func New(d Deps) *Module {
 			resourcepool.NewHandler(d.Pools),
 			tenant.NewHandler(d.Tenants, d.Pools),
 		},
+		capabilities: server.Capabilities{
+			MultiTenant:           d.Tenants.Writable(),
+			ResourcePoolsWritable: d.Pools.Writable(),
+		},
 	}
 }
+
+// Capabilities returns the deployment-form capability document derived from the
+// injected stores. A composition root serves it at GET /api/v1/capabilities
+// (Standard, per-service) or folds it into an aggregate (Lite).
+func (m *Module) Capabilities() server.Capabilities { return m.capabilities }
 
 // RegisterRoutes mounts every Cluster Manager route on the supplied group.
 func (m *Module) RegisterRoutes(rg *gin.RouterGroup) {

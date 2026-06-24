@@ -2,6 +2,16 @@
 # Regenerate with: make doc-gen
 components:
   schemas:
+    Capabilities:
+      properties:
+        quotaEnforcement:
+          type: boolean
+        runtime:
+          type: string
+      required:
+      - quotaEnforcement
+      - runtime
+      type: object
     Corev1AWSElasticBlockStoreVolumeSource:
       properties:
         fsType:
@@ -2179,6 +2189,19 @@ info:
   version: 0.1.0
 openapi: 3.0.3
 paths:
+  /api/v1/capabilities:
+    get:
+      operationId: getCapabilities
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Capabilities'
+          description: Capability document.
+      summary: Get deployment-form capabilities
+      tags:
+      - Capabilities
   /api/v1/namespaces/{namespace}/mlruns:
     get:
       operationId: listMLRuns
@@ -4570,5 +4593,7 @@ tags:
 - description: 'MLTrafficPolicy CRUD per namespace: weighted / canary / blue-green
     traffic split over member online services.'
   name: TrafficPolicies
+- description: Deployment-form capability document (runtime engine / quota enforcement).
+  name: Capabilities
 - description: Liveness and readiness probes.
   name: Health

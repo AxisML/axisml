@@ -56,11 +56,13 @@ clean: ## Remove build + coverage artifacts across every layer
 	@rm -rf $(COVERAGE_DIR)
 doc-gen: ## Regenerate all OpenAPI specs
 	@set -e; for l in $(GO_LAYERS); do $(MAKE) -C $$l doc-gen; done
+	@$(MAKE) -C axisml-lite doc-gen
 doc-test: ## Verify all OpenAPI specs are in sync (CI guard)
 	@set -e; for l in $(GO_LAYERS); do $(MAKE) -C $$l doc-test; done
+	@$(MAKE) -C axisml-lite doc-test
 
 ##@ Test execution
-.PHONY: setup-envtest integration-test e2e-test e2e-vet e2e-clean e2e-client-gen
+.PHONY: setup-envtest integration-test e2e-test e2e-lite-test lite-up lite-down lite-delete e2e-vet e2e-clean e2e-client-gen
 setup-envtest: ## Install the shared envtest binary (axisml-system/test/setup-envtest/)
 	@$(MAKE) -C axisml-system setup-envtest
 # The e2e suite talks to the four AxisML HTTP components through oapi-codegen
@@ -75,16 +77,25 @@ e2e-client-gen: ## Regenerate the e2e suite's typed component clients from the O
 integration-test: ## Integration tests across every layer (hermetic, CI-friendly)
 	@$(MAKE) -C axisml-system integration
 	@$(MAKE) -C axisml-platform integration
-# E2E: real-cluster system-layer tests. NOT hermetic, NOT in CI — assumes the
-# `axisml` minikube cluster is up (make cluster-up && make helm-install). See
-# test/e2e/README.md.
-e2e-test: ## End-to-end tests against the running axisml minikube cluster (manual)
-	@cd test/e2e && go test -tags=e2e -count=1 -timeout=30m -v ./...
-# Cluster-free compile guard: type-checks the e2e-tagged suite (no apiserver,
-# no Docker) so reorg-style breakage is caught locally before pushing. CI gets
-# the same coverage via golangci-lint's e2e build tag (.golangci.yml).
-e2e-vet: ## Type-check the e2e suite without a cluster
-	@cd test/e2e && go vet -tags=e2e ./...
+# E2E: the centralized black-box suite runs against either deployment form. The
+# shared CORE tests drive only the System HTTP contract; the form is selected by
+# build tag (standard = real `axisml` minikube cluster; lite = a running
+# axisml-core process). NOT hermetic, NOT in CI. See test/e2e/README.md.
+e2e-test: ## E2E against the Standard form (running axisml minikube cluster; manual)
+	@cd test/e2e && go test -tags=standard -count=1 -timeout=30m -v ./...
+e2e-lite-test: ## E2E against the Lite form (axisml-core at $$LITE_CORE_URL; manual)
+	@cd test/e2e && go test -tags=lite -count=1 -timeout=15m -v ./...
+# Cluster-free compile guard: type-checks BOTH forms (no apiserver, no Docker) so
+# reorg-style breakage is caught locally before pushing. CI gets the same
+# coverage via golangci-lint's build tags (.golangci.yml).
+e2e-vet: ## Type-check both e2e forms without a cluster
+	@cd test/e2e && go vet -tags=standard ./... && go vet -tags=lite ./...
+lite-up: ## Bring up the Lite stack (db + axisml-core on :18080) via Docker Compose
+	@$(MAKE) -C axisml-lite lite-up
+lite-down: ## Tear down the Lite stack (CLEAN=1 also removes data volumes)
+	@$(MAKE) -C axisml-lite lite-down
+lite-delete: ## Purge the Lite stack + all axisml-managed workload containers & volumes
+	@$(MAKE) -C axisml-lite lite-delete
 e2e-clean: ## Delete any e2e-* tenants left by an interrupted run
 	@kubectl --context $(MINIKUBE_PROFILE) get tenants -o name 2>/dev/null \
 		| grep -E '/e2e(-|$$)' \

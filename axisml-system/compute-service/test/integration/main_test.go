@@ -226,15 +226,16 @@ func bootstrapHandlers() error {
 	cfg.ReconcileInterval = 100 * time.Millisecond
 	log := logr.Discard()
 
-	modules, runnables, err := computeapp.BuildModules(cfg, gormDB, testManager, log)
+	modules, runnables, caps, err := computeapp.BuildModules(cfg, gormDB, testManager, log)
 	if err != nil {
 		return fmt.Errorf("build modules: %w", err)
 	}
 
 	srv, err := computeserver.New(computeserver.Options{
-		Addr:    ":0", // never started; engine is invoked via httptest
-		Log:     log,
-		Modules: modules,
+		Addr:         ":0", // never started; engine is invoked via httptest
+		Log:          log,
+		Modules:      modules,
+		Capabilities: caps,
 		Ready: func(ctx context.Context) error {
 			sqlDB, err := gormDB.DB()
 			if err != nil {

@@ -4,14 +4,14 @@
 
 AxisML Lite 是 AxisML 的**无 Kubernetes 单机部署形态**。它在一台 Linux 主机上通过 Docker Compose 启动控制面与基础设施，并通过 Docker Engine API 动态运行训练任务、工作区和在线服务。
 
-AxisML Lite 与 Kubernetes 形态共享 Platform API、`MLRun` / `MLService` / `MLTrafficPolicy` workload contract、PostgreSQL schema 和主要用户流程。System 层根据部署形态将 workload contract 映射为 Kubernetes 或 Docker 资源。
+AxisML Lite 与 **Standard 形态**(AxisML 的完整 Kubernetes 部署形态,与 Lite 相对)共享 Platform API、`MLRun` / `MLService` / `MLTrafficPolicy` workload contract、PostgreSQL schema 和主要用户流程。System 层根据部署形态将 workload contract 映射为 Kubernetes 或 Docker 资源。
 
 设计目标：
 
 - 使用 `docker compose` 完成安装、升级、停止和基础备份。
 - 保留 Job / Experiment / Run、Service / Workspace / TensorBoard、Model / Image / Dataset 等主要能力。
 - 以独立 `axisml-lite` 项目交付产品封装、Standalone Runtime 和 Compose 资产。
-- AxisML 主仓库维护共享 API contract、领域实现和 Kubernetes 形态。
+- AxisML 主仓库维护共享 API contract、领域实现和 Standard 形态。
 - Lite 固定单租户、单主机和单控制面副本。
 
 非目标：
@@ -41,7 +41,7 @@ Lite 固定使用 `default` tenant scope。现有 API 和 PostgreSQL schema 中�
 | ElasticQuota / 借用回收 | ❌ | 不做本机 admission、抢占或借用；ResourceUnit 只生成 Docker limits |
 | Gang Scheduling | ❌ | 不做资源预留或原子启动；多容器 Run 仅按 best-effort 创建，失败时回滚本次创建结果 |
 | GPU | ⚠️ | 依赖宿主机 NVIDIA Driver + Container Toolkit；无 GPU Operator |
-| KServe / Kubeflow backend | ❌ | Kubernetes 模式保留；Lite 创建时明确返回 unsupported backend |
+| KServe / Kubeflow backend | ❌ | Standard 形态保留；Lite 创建时明确返回 unsupported backend |
 | 高可用 / 自愈迁移 | ❌ | `restart` 可原地重启容器；主机故障由外部运维恢复 |
 
 Lite 支持的操作保持现有 REST 资源、请求结构、状态枚举和错误格式。不支持的能力返回 `409 CapabilityUnavailable`，Platform 根据 capability API 控制对应入口。
@@ -99,35 +99,38 @@ Standalone 形态固定编译和部署两个独立可执行文件：
 | `axisml-platform` | Platform、认证、RBAC 和 BFF | 对外 HTTP、PostgreSQL、Redis；通过 HTTP 调用 `axisml-core`，**无 Docker socket** |
 | `axisml-core` | Cluster Manager、Compute 领域层与 API、Artifact Hub，以及进程内实现 `ComputeRuntime` 的 Standalone Runtime（容器/volume/network/route 管理、运行态采集） | 内部 HTTP（对 `axisml-platform` 服务端）、PostgreSQL、zot、S3、Traefik 动态目录、Docker Engine Adapter；唯一可访问 Docker socket |
 
-Platform 保持独立进程和现有 HTTP client 边界。Cluster Manager、Compute、Artifact Hub 和 Standalone Runtime 组合进 `axisml-core`，并各自维护业务逻辑、数据库 schema 和 migration。Kubernetes 形态继续构建和部署现有独立 binary。
+Platform 保持独立进程和现有 HTTP client 边界。Cluster Manager、Compute、Artifact Hub 和 Standalone Runtime 组合进 `axisml-core`，并各自维护业务逻辑、数据库 schema 和 migration。Standard 形态继续构建和部署现有独立 binary。
 
 `axisml-core` 负责 Compute 业务状态和 PostgreSQL 持久化，并通过进程内实现 Compute Service 发布的 `computeruntime.ComputeRuntime` 接口驱动 Standalone Runtime。该 Runtime 实现与 Compute 模块同进程，不引入额外网络跳；它把 AxisML workload contract 映射为 Docker、volume、network 和 Traefik 资源，并返回运行状态。Docker socket 仅在 `axisml-core` 内由 Runtime adapter 访问，Compute 领域层与 Artifact Hub 不直接触及 Docker。
 
 ### 3.2 代码组织
 
-AxisML Lite 是 AxisML monorepo 的顶层 `axisml-lite/` 目录，与 `axisml-platform/`、`axisml-system/`、`axisml-infra/` 并列。它是单个 Go module，构建单一 `axisml-core` 镜像，承载 System 模块装配、Standalone Runtime 和部署资产：
+AxisML Lite 是 AxisML monorepo 的顶层 `axisml-lite/` 目录，与 `axisml-platform/`、`axisml-system/`、`axisml-infra/` 并列。Go module 落在子目录 `axisml-core/`，构建单一 `axisml-core` 镜像，承载 System 模块装配、Standalone Runtime；部署资产与文档在 `axisml-lite/` 层维护：
 
 ```text
 axisml-lite/
-├── cmd/
-│   └── axisml-core/              # Standalone composition root
-├── internal/
-│   ├── core/                     # 模块装配、配置型 provider、PG coordination
-│   └── runtime/                  # ComputeRuntime 实现：Docker/volume/network/Traefik adapter、运行态采集
-├── deploy/compose/
-│   ├── compose.yaml
-│   ├── compose.observability.yaml
+├── axisml-core/                  # Go module（单一 axisml-core 镜像）
+│   ├── cmd/
+│   │   └── axisml-core/          # Standalone composition root
+│   ├── internal/
+│   │   ├── core/                 # 模块装配、配置型 provider、PG coordination
+│   │   └── runtime/
+│   │       └── docker/           # ComputeRuntime 的 Docker 实现：container/volume/network/Traefik adapter、运行态采集（podman/containerd backend 为同级目录）
+│   ├── Dockerfile
+│   └── go.mod
+├── deploy/
+│   ├── docker-compose.yaml
+│   ├── docker-compose.observability.yaml
 │   ├── config/
 │   │   ├── resource-pool.yaml
 │   │   └── tenant.yaml
 │   └── scripts/
 ├── docs/
 │   └── system_design.md          # 本设计文档
-├── Dockerfile
-└── go.mod
+└── Makefile
 ```
 
-`axisml-platform` 使用 monorepo 发布的 Platform 镜像。`axisml-core` 通过仓库内 `go.work` / `replace` 依赖 Cluster Manager、Compute Service 和 Artifact Hub 的 `pkg/module` 公共装配 API，将三者编译进同一个 binary 并注入 Standalone provider；同时依赖 `MLRun` / `MLService` / `MLTrafficPolicy` API packages，在 `internal/runtime` 进程内实现 Compute Service 发布的 `computeruntime.ComputeRuntime` 接口，并注入到 Compute 模块。该实现驱动 Docker Engine Adapter、volume、network 和 Traefik file provider 并采集运行态。Docker Engine Adapter、配置型资源目录和 Compose 资产同由 `axisml-lite/` 维护，构建单一 Dockerfile 和镜像，由 Compose 拉起。
+`axisml-platform` 使用 monorepo 发布的 Platform 镜像。`axisml-core` 通过仓库内 `go.work` / `replace` 依赖 Cluster Manager、Compute Service 和 Artifact Hub 的 `pkg/module` 公共装配 API，将三者编译进同一个 binary 并注入 Standalone provider；同时依赖 `MLRun` / `MLService` / `MLTrafficPolicy` API packages，在 `internal/runtime/docker` 进程内实现 Compute Service 发布的 `computeruntime.ComputeRuntime` 接口，并注入到 Compute 模块。该实现驱动 Docker Engine Adapter、volume、network 和 Traefik file provider 并采集运行态。Docker Engine Adapter、配置型资源目录和 Compose 资产同由 `axisml-lite/` 维护，构建单一 Dockerfile 和镜像，由 Compose 拉起。
 
 monorepo 为三个 System 服务提供公共装配 API：
 
@@ -138,7 +141,7 @@ axisml-system/<service>/pkg/module
   Migrate(...)
 ```
 
-公共装配 API 包含构造器、路由注册、migration 和装配 DTO。handler、repository、Kubernetes adapter 和业务实现保留在各组件 `internal` 中。Kubernetes binary 和 Lite 的 `axisml-core` 共用该 API。
+公共装配 API 包含构造器、路由注册、migration 和装配 DTO。handler、repository、Kubernetes adapter 和业务实现保留在各组件 `internal` 中。Standard binary 和 Lite 的 `axisml-core` 共用该 API。
 
 `axisml-core` 在同一个 `:8080` router 注册三组互不冲突的现有业务路由，并保留原 API path；Platform 的现有三个 downstream client 均指向该地址。Standalone composition root 根据已装配模块和部署形态注册 `/api/v1/capabilities`。模块间通过公开 module contract 协作，各自维护私有 repository。
 
@@ -158,7 +161,7 @@ axisml-system/<service>/pkg/module
 - Kubernetes Runtime 将对象写入 apiserver，由 compute-operator 映射为 Job、Deployment、StatefulSet、Service 和 HTTPRoute。
 - Standalone Runtime 直接接收同一对象，由 Docker handler 映射为 container、volume、network 和 Traefik 动态配置。
 
-Lite 不修改 `compute-operator`。Kubernetes 形态的 `ComputeRuntime` adapter 位于 Compute Service 内部，封装现有 `client.Client`、informer cache 和 kubeproxy 调用；adapter 仍通过现有 CR 与 `compute-operator` 交互。Standalone 复用已发布的 CR API 类型、默认值和校验规则，不要求 operator 增加 Lite 分支。
+Lite 不修改 `compute-operator`。Standard 形态的 `ComputeRuntime` adapter 位于 Compute Service 内部，封装现有 `client.Client`、informer cache 和 kubeproxy 调用；adapter 仍通过现有 CR 与 `compute-operator` 交互。Standalone 复用已发布的 CR API 类型、默认值和校验规则，不要求 operator 增加 Lite 分支。
 
 **Compute Runtime** 负责执行和观察 AxisML workload contract。Runtime contract 包含 CR Spec、状态枚举、condition、backend key、label 及必要 metadata。
 
@@ -226,16 +229,16 @@ Apply 请求携带空 `.status` 的完整 desired 对象；Runtime 从 CR metada
 
 Instance 是 Runtime 对单个运行单元的统一称谓：Kubernetes 实现对应 Pod，Standalone 实现对应 Docker container。Standalone Runtime 将 container 投影为 `corev1.Pod`，并将运行事件合成为 `events.k8s.io/v1.Event`。Instance 名称必须稳定，日志和事件查询必须校验该 instance 属于指定 workload。MLRun / MLService 的资源级事件与 instance 级事件分别由独立方法返回；MLTrafficPolicy 没有 instance，仅提供资源级事件。
 
-Kubernetes 和 Standalone 形态均在各自进程内提供完整的 `ComputeRuntime` 实现：
+Standard 和 Lite 形态均在各自进程内提供完整的 `ComputeRuntime` 实现：
 
-- Kubernetes 形态在 Compute Service 进程内由 `pkg/computeruntime/kuberuntime` 直接实现，封装 `client.Client`、informer 和 kubeproxy。
-- Lite 形态在 `axisml-core` 进程内由 `internal/runtime` 直接实现，根据 `(backend.name, backend.engine)` 选择 Docker handler，并将 AxisML 对象渲染为内部 `ContainerPlan` / `RoutePlan`。
+- Standard 形态在 Compute Service 进程内由 `pkg/computeruntime/kuberuntime` 直接实现，封装 `client.Client`、informer 和 kubeproxy。
+- Lite 形态在 `axisml-core` 进程内由 `internal/runtime/docker` 直接实现，根据 `(backend.name, backend.engine)` 选择 Docker handler，并将 AxisML 对象渲染为内部 `ContainerPlan` / `RoutePlan`。
 
 接口的 Go 类型契约（CR API 类型、`types.NamespacedName` 定位、`apierrors.IsNotFound` 语义、instance 归属校验）在两种形态下保持一致；两种实现均为进程内 Go 调用，不引入网络传输层。
 
 ### 4.2 Provider 映射
 
-| 抽象 | Kubernetes 实现 | Lite 实现 |
+| 抽象 | Standard 实现 | Lite 实现 |
 | --- | --- | --- |
 | Resource catalog | `ResourcePool` CR + informer/client | `ConfigResourceCatalog`，从 CR YAML 读取唯一 `default` ResourcePool |
 | Tenant view | `Tenant` CR provider | `StaticTenantStoreProvider`，从 CR YAML 读取唯一 `default` Tenant |
@@ -254,7 +257,7 @@ Kubernetes 和 Standalone 形态均在各自进程内提供完整的 `ComputeRun
 
 Cluster Manager 的 REST handler 通过 provider 访问资源与租户视图：
 
-- Kubernetes 模式注入 `KubernetesResourceCatalog` 和 `KubernetesTenantStore`。
+- Standard 形态注入 `KubernetesResourceCatalog` 和 `KubernetesTenantStore`。
 - Lite 模式注入只读的 `ConfigResourceCatalog` 和 `StaticTenantStoreProvider`。
 - `default` ResourcePool、ResourceUnit 和 Tenant 从 AxisML CR YAML 加载，配置变更重启后生效。
 - ResourceUnit 的 `requests/limits` 在创建 workload 时写入 Spec 快照。
@@ -347,7 +350,7 @@ spec:
 
 ### 5.2 Compute Service
 
-PostgreSQL 中的 `mlruns`、`mlservices` 和 `traffic_policies` 是 Compute 业务权威。`spec jsonb` 保存对应 CR `.spec` 的规范化 JSON。Compute 补齐 name、tenant namespace、现有 AxisML ID label 和其他 metadata，生成 desired `MLRun`、`MLService` 或 `MLTrafficPolicy`。这些 ID labels 为 Kubernetes 形态和现有 CR contract 保留，Standalone Runtime 不使用它们标识底层资源。Run Spec 创建后不可变；Service 和 TrafficPolicy 使用 `generation` / `observed_generation`。
+PostgreSQL 中的 `mlruns`、`mlservices` 和 `traffic_policies` 是 Compute 业务权威。`spec jsonb` 保存对应 CR `.spec` 的规范化 JSON。Compute 补齐 name、tenant namespace、现有 AxisML ID label 和其他 metadata，生成 desired `MLRun`、`MLService` 或 `MLTrafficPolicy`。这些 ID labels 为 Standard 形态和现有 CR contract 保留，Standalone Runtime 不使用它们标识底层资源。Run Spec 创建后不可变；Service 和 TrafficPolicy 使用 `generation` / `observed_generation`。
 
 Standalone Compute 流程：
 
@@ -421,7 +424,7 @@ Kubernetes handler 继续由现有 `compute-operator` 原样执行；Standalone 
 Artifact Hub 使用 PostgreSQL、OCI 和 S3：
 
 - GC worker 提供可取消启动入口 `Start(ctx) error`。
-- Kubernetes binary 使用 PG session 级 advisory lock（`pg_try_advisory_lock`）选主；Lite 在单副本 `axisml-core` 中直接运行。Artifact Hub 的两种构建均只依赖 PostgreSQL 完成单活控制。
+- Standard binary 使用 PG session 级 advisory lock（`pg_try_advisory_lock`）选主；Lite 在单副本 `axisml-core` 中直接运行。Artifact Hub 的两种构建均只依赖 PostgreSQL 完成单活控制。
 - zot 和 S3 分别配置服务间地址与浏览器/CLI 地址。
 - workload 拉取容器镜像由 Standalone Compute Runtime 通过 Docker Engine Adapter 执行；模型 / 数据集通过 init container 等价步骤或受管 volume 下载。
 - Standalone Compute Runtime 从受控 secret 目录读取凭证，并只向目标 workload 注入最小范围的凭证。
@@ -593,7 +596,7 @@ Job、Service、Workspace、TensorBoard 和 TrafficPolicy 在目标环境通过 
 - `axisml-core` 内置的 Standalone Runtime 只通过 Docker / Traefik adapter 操作运行态，不参与 schema migration。
 - Cluster Manager 的 `default` ResourcePool、ResourceUnit 和静态 tenant view 由配置文件提供。
 - Standalone 复用 `id`、`spec`、`phase` 和 `status` 字段，Service / TrafficPolicy 复用 `generation` / `observed_generation`。
-- Platform `tenants.kubernetes_namespace` 允许 `NULL`；Kubernetes 构建在应用层校验非空。
+- Platform `tenants.kubernetes_namespace` 允许 `NULL`；Standard 构建在应用层校验非空。
 - 迁移使用按领域表和对象前缀定义的逻辑导出 / 导入。
 - 已终态 Run 的历史记录可导出到归档或分析存储，但不导入目标环境的活动 Compute 表。
 
@@ -604,7 +607,7 @@ Job、Service、Workspace、TensorBoard 和 TrafficPolicy 在目标环境通过 
 实施按以下工程依赖顺序推进：
 
 1. **Contract 准备**：在 Compute Service 公共包中发布 Runtime contract，包括 CR apply / observe、MLRun / MLService instance list / logs / events、资源级 events、共享默认值、不可变字段检查、Spec 校验和 Status 映射；不修改 `compute-operator`。
-2. **公共装配面与 Kubernetes adapter**：为 Cluster Manager、Compute Service 和 Artifact Hub 提供 `pkg/module` API；在 Compute Service 内以 adapter 封装现有 `client.Client`、informer 和 kubeproxy，并接入现有 Kubernetes binary。既有 `compute-operator` 保持不变。
+2. **公共装配面与 Kubernetes adapter**：为 Cluster Manager、Compute Service 和 Artifact Hub 提供 `pkg/module` API；在 Compute Service 内以 adapter 封装现有 `client.Client`、informer 和 kubeproxy，并接入现有 Standard binary。既有 `compute-operator` 保持不变。
 3. **Lite 基础控制面**：创建 `axisml-lite` 目录，构建内置 Standalone Runtime 的 `axisml-core`，接入 `axisml-platform`、Compose、PostgreSQL、zot、S3 和 Traefik。
 4. **Run 能力**：Docker job、Kubernetes Pod / Event 投影、日志、取消、状态收敛和 CPU/memory/GPU limits。
 5. **Service 能力**：deployment/stateful workload、volume、health、scale、路由。
@@ -629,7 +632,7 @@ Job、Service、Workspace、TensorBoard 和 TrafficPolicy 在目标环境通过 
 | 调度 | ResourceUnit 快照、Docker limits 和 best-effort 运行 |
 | 网关 | Traefik file provider |
 | 状态权威 | PG 为业务权威；Docker / Traefik 为可重建派生态 |
-| K8s 兼容 | Kubernetes 形态保留现有 CRD / operator 路径；`compute-operator` 不修改，Compute Service adapter 封装现有 Kubernetes 调用；两种 Runtime 共享 CR API contract 和纯校验 |
+| K8s 兼容 | Standard 形态保留现有 CRD / operator 路径；`compute-operator` 不修改，Compute Service adapter 封装现有 Kubernetes 调用；两种 Runtime 共享 CR API contract 和纯校验 |
 | 可恢复性 | 持久卷、幂等 reconcile 和备份 |
 
 ## 11. 关联文档

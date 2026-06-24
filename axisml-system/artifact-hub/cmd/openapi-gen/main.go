@@ -27,8 +27,9 @@ import (
 const defaultVersion = "0.0.0-dev"
 
 const (
-	tagArtifacts = "Artifacts"
-	tagHealth    = "Health"
+	tagArtifacts    = "Artifacts"
+	tagCapabilities = "Capabilities"
+	tagHealth       = "Health"
 )
 
 // Artifact name / version policies. Duplicated here as regex rather than
@@ -119,11 +120,13 @@ func buildDocument(version string) *openapigen.Document {
 	g.Register("ArtifactPatchRequest", server.ArtifactPatchRequest{}, openapigen.InputMode)
 	g.Register("ArtifactResolveResponse", server.ArtifactResolveResponse{}, openapigen.ResponseMode)
 	g.Register("Artifact", server.Artifact{}, openapigen.ResponseMode)
+	g.Register("Capabilities", server.Capabilities{}, openapigen.ResponseMode)
 
 	g.Set("ArtifactList", openapigen.ListEnvelope("Artifact"))
 
 	tags := []openapigen.TagEntry{
 		{Name: tagArtifacts, Description: "Artifact registry partitioned by (namespace, kind, name, version)."},
+		{Name: tagCapabilities, Description: "Deployment-form capability document (artifact kinds / upload)."},
 		{Name: tagHealth, Description: "Liveness and readiness probes."},
 	}
 
@@ -149,6 +152,11 @@ func buildDocument(version string) *openapigen.Document {
 			"200": openapigen.StringResp("ok"),
 			"503": openapigen.StringResp("dependency not yet ready"),
 		},
+	}}
+
+	paths["/api/v1/capabilities"] = openapigen.PathItem{Get: &openapigen.Operation{
+		Tags: []string{tagCapabilities}, Summary: "Get deployment-form capabilities", OperationID: "getCapabilities",
+		Responses: map[string]openapigen.Response{"200": openapigen.JSONResp("Capability document.", "Capabilities")},
 	}}
 
 	// Each kind has the same sub-tree at /{kindPlural}/{name}[/{version}[/{complete,resolve}]].

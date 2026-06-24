@@ -23,6 +23,7 @@ import (
 	"github.com/axisml/axisml/components/compute-service/internal/db"
 	jobmod "github.com/axisml/axisml/components/compute-service/internal/mlrun"
 	servicemod "github.com/axisml/axisml/components/compute-service/internal/mlservice"
+	"github.com/axisml/axisml/components/compute-service/internal/server"
 	trafficmod "github.com/axisml/axisml/components/compute-service/internal/trafficpolicy"
 	"github.com/axisml/axisml/components/compute-service/pkg/computeruntime"
 	"github.com/axisml/axisml/components/compute-service/pkg/provider"
@@ -47,12 +48,20 @@ type Deps struct {
 	Volumes           provider.WorkspaceVolumeProvisioner
 	Log               logr.Logger
 	ReconcileInterval time.Duration
+	// RuntimeName labels the workload execution engine in the capability
+	// document ("kubernetes" or "standalone"). Defaults to "kubernetes".
+	RuntimeName string
+	// QuotaEnforcement reports whether the scheduler admits pods against an
+	// ElasticQuota (true on Kubernetes, false on the Lite Standalone runtime).
+	QuotaEnforcement bool
 }
 
 // Module is the assembled Compute Service: its HTTP routes and reconcilers.
 type Module struct {
-	routes    []Route
-	runnables []Runnable
+	routes       []Route
+	runnables    []Runnable
+	reflow       []Runnable
+	capabilities server.Capabilities
 }
 
 // New assembles the Compute Service business modules from injected providers.
@@ -67,6 +76,11 @@ func New(d Deps) (*Module, error) {
 	serviceRecon := servicemod.NewReconciler(d.DB, d.Runtime, d.Log.WithName("mlservice-reconciler"), d.ReconcileInterval)
 	trafficRecon := trafficmod.NewReconciler(d.DB, d.Runtime, d.Log.WithName("traffic-policy-reconciler"), d.ReconcileInterval)
 
+	runtimeName := d.RuntimeName
+	if runtimeName == "" {
+		runtimeName = "kubernetes"
+	}
+
 	return &Module{
 		routes: []Route{
 			jobmod.NewHandler(jobs, d.Runtime),
@@ -74,8 +88,22 @@ func New(d Deps) (*Module, error) {
 			trafficmod.NewHandler(traffic),
 		},
 		runnables: []Runnable{jobRecon, serviceRecon, trafficRecon},
+		reflow: []Runnable{
+			jobmod.NewStatusPoller(d.DB, d.Runtime, d.Log.WithName("mlrun-status-poller"), d.ReconcileInterval),
+			servicemod.NewStatusPoller(d.DB, d.Runtime, d.Log.WithName("mlservice-status-poller"), d.ReconcileInterval),
+			trafficmod.NewStatusPoller(d.DB, d.Runtime, d.Log.WithName("traffic-policy-status-poller"), d.ReconcileInterval),
+		},
+		capabilities: server.Capabilities{
+			Runtime:          runtimeName,
+			QuotaEnforcement: d.QuotaEnforcement,
+		},
 	}, nil
 }
+
+// Capabilities returns the deployment-form capability document. A composition
+// root serves it at GET /api/v1/capabilities (Standard, per-service) or folds it
+// into an aggregate (Lite).
+func (m *Module) Capabilities() server.Capabilities { return m.capabilities }
 
 // RegisterRoutes mounts every Compute route on the supplied /api/v1 group.
 func (m *Module) RegisterRoutes(rg *gin.RouterGroup) {
@@ -91,6 +119,13 @@ func (m *Module) Routes() []Route { return m.routes }
 // Runnables returns the background reconcilers to start under the composition
 // root's lifecycle.
 func (m *Module) Runnables() []Runnable { return m.runnables }
+
+// StatusReflowRunnables returns the runtime-Observe status pollers — the
+// form-specific status reflow for composition roots WITHOUT an apiserver
+// informer (Lite, design §4.2). The Kubernetes binary does not use these; it
+// reflows via internal informers instead. Both share the same CR Status → PG
+// mapping, so the two forms converge identically.
+func (m *Module) StatusReflowRunnables() []Runnable { return m.reflow }
 
 // Migrate runs the Compute Service schema migrations. Safe to call repeatedly.
 func Migrate(gormDB *gorm.DB) error { return db.Migrate(gormDB) }
