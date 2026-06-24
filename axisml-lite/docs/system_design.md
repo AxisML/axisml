@@ -65,10 +65,10 @@ Lite 支持的操作保持现有 REST 资源、请求结构、状态枚举和错
        │                 │ Compute Service module      │
        │                 │ Artifact Hub module     │
        │                 └────────────┬────────────┘
-       │                              │ 提交 CR contract / 读取 CR Status
+       │                              │ ComputeRuntime over HTTP
        │                              ▼
        │                       axisml-runtime
-       │                  (Runtime API provider)
+       │                  (Runtime HTTP server)
        │                       ├──► Docker Engine ──► dynamic workloads
        │                       ├──► Traefik dynamic config
        │                       └──► logs / events
@@ -89,7 +89,7 @@ API 调用边界如下：
 
 - 浏览器和 CLI 通过 Traefik 访问 Platform API。
 - `axisml-platform` 通过 HTTP 调用 `axisml-core`。
-- `axisml-core` 的 Compute Reconciler 调用 `axisml-runtime`。
+- `axisml-core` 的 Compute Reconciler 通过 HTTP 实现的 `ComputeRuntime` 接口调用 `axisml-runtime`。
 - Traefik 代理 Platform API 和动态 workload 路由。
 
 ### 3.1 Standalone 进程模型
@@ -99,25 +99,29 @@ Standalone 形态固定编译和部署三个独立可执行文件：
 | Binary | 组成 | 权限 |
 | --- | --- | --- |
 | `axisml-platform` | Platform、认证、RBAC 和 BFF | 对外 HTTP、PostgreSQL、Redis；通过 HTTP 调用 `axisml-core`，**无 Docker socket** |
-| `axisml-core` | Cluster Manager、Compute 领域层与 API、Artifact Hub | 内部 HTTP、PostgreSQL、zot、S3；**无 Docker socket** |
-| `axisml-runtime` | Runtime Controller、容器/volume/network/route 管理、运行态采集 | 内部 Runtime API、Traefik 动态目录、Docker Engine Adapter；唯一可访问 Docker socket，**不访问 PostgreSQL** |
+| `axisml-core` | Cluster Manager、Compute 领域层与 API、Artifact Hub，以及指向 `axisml-runtime` 的 `ComputeRuntime` HTTP client | 内部 HTTP（对 `axisml-platform` 服务端、对 `axisml-runtime` 客户端）、PostgreSQL、zot、S3；**无 Docker socket** |
+| `axisml-runtime` | Runtime HTTP server、容器/volume/network/route 管理、运行态采集 | Runtime HTTP API（实现 `ComputeRuntime` 语义）、Traefik 动态目录、Docker Engine Adapter；唯一可访问 Docker socket，**不访问 PostgreSQL** |
 
 Platform 保持独立进程和现有 HTTP client 边界。Cluster Manager、Compute 和 Artifact Hub 组合进 `axisml-core`，并各自维护业务逻辑、数据库 schema 和 migration。Kubernetes 形态继续构建和部署现有独立 binary。
 
-`axisml-core` 负责 Compute 业务状态和 PostgreSQL 持久化，并通过内部 Runtime API 驱动 `axisml-runtime`。`axisml-runtime` 不访问数据库，只负责将 AxisML workload contract 映射为 Docker、volume、network 和 Traefik 资源，并返回运行状态。
+`axisml-core` 负责 Compute 业务状态和 PostgreSQL 持久化，并通过实现 Compute Service 发布的 `computeruntime.ComputeRuntime` 接口（一个指向 `axisml-runtime` 的 HTTP client）驱动 `axisml-runtime`。`axisml-runtime` 作为 HTTP server 实现该接口的 wire 语义，不访问数据库，只负责将 AxisML workload contract 映射为 Docker、volume、network 和 Traefik 资源，并返回运行状态。
 
 ### 3.2 代码组织
 
-AxisML Lite 是 AxisML monorepo 的顶层 `axisml-lite/` 目录，与 `axisml-platform/`、`axisml-system/`、`axisml-infra/` 并列，承载产品装配、Standalone Runtime 和部署资产：
+AxisML Lite 是 AxisML monorepo 的顶层 `axisml-lite/` 目录，与 `axisml-platform/`、`axisml-system/`、`axisml-infra/` 并列。它由 `axisml-core` 和 `axisml-runtime` 两个**独立子项目**组成：各自是独立 Go module，各自维护独立 Dockerfile，构建独立镜像：
 
 ```text
 axisml-lite/
-├── cmd/
-│   ├── axisml-core/               # Standalone System composition root
-│   └── axisml-runtime/            # Standalone Runtime Controller
-├── internal/
-│   ├── core/                      # 模块装配、配置型 provider、PG coordination
-│   └── runtime/                   # Docker/volume/network/Traefik adapter
+├── axisml-core/                  # Standalone System 子项目
+│   ├── cmd/axisml-core/          # System composition root
+│   ├── internal/                 # 模块装配、配置型 provider、ComputeRuntime HTTP client、PG coordination
+│   ├── Dockerfile
+│   └── go.mod
+├── axisml-runtime/               # Standalone Runtime 子项目
+│   ├── cmd/axisml-runtime/       # Runtime HTTP server entrypoint
+│   ├── internal/                 # HTTP handler、Docker/volume/network/Traefik adapter、运行态采集
+│   ├── Dockerfile
+│   └── go.mod
 ├── deploy/compose/
 │   ├── compose.yaml
 │   ├── compose.observability.yaml
@@ -126,12 +130,15 @@ axisml-lite/
 │   │   └── tenant.yaml
 │   └── scripts/
 ├── docs/
-│   └── overview.md               # 本设计文档
-├── go.mod
-└── VERSION_MATRIX.md              # Platform 镜像与数据库 schema 兼容版本
+│   └── system_design.md          # 本设计文档
 ```
 
-`axisml-platform` 使用 monorepo 发布的 Platform 镜像。`axisml-core` 依赖 Cluster Manager、Compute Service 和 Artifact Hub Go modules，并注入 Standalone provider。`axisml-runtime`、Docker Engine Adapter、配置型资源目录和 Compose 资产由 `axisml-lite/` 维护。
+`axisml-platform` 使用 monorepo 发布的 Platform 镜像。两个子项目的职责与依赖如下：
+
+- **`axisml-core` 子项目**通过仓库内 `go.work` / `replace` 依赖 Cluster Manager、Compute Service 和 Artifact Hub 的 `pkg/module` 公共装配 API，将三者编译进同一个 binary，并注入 Standalone provider。它在 composition root 实现 Compute Service 发布的 `computeruntime.ComputeRuntime` 接口——一个把每个接口方法序列化为对 `axisml-runtime` HTTP 调用的 client，并注入到 Compute 模块。
+- **`axisml-runtime` 子项目**依赖 `MLRun` / `MLService` / `MLTrafficPolicy` API packages，提供实现 `ComputeRuntime` 语义的 HTTP server，接收 `axisml-core` 的请求并驱动 Docker Engine Adapter、volume、network 和 Traefik file provider，采集运行态。它不依赖 System component 业务模块，也不持有数据库凭证。
+
+两个子项目各自的 Dockerfile、build context 和镜像独立，由 Compose 分别拉起。Docker Engine Adapter、配置型资源目录和 Compose 资产由 `axisml-lite/` 维护。
 
 monorepo 为三个 System 服务提供公共装配 API：
 
@@ -148,7 +155,7 @@ axisml-system/<service>/pkg/module
 
 依赖与发布规则：
 
-- `axisml-lite` 作为 monorepo 内的 Go module，通过仓库内 `go.work` / `replace` 依赖 Cluster Manager、Compute Service 和 Artifact Hub 组件模块，与其余组件在同一提交中同步演进。
+- `axisml-core` 和 `axisml-runtime` 是 monorepo 内的两个独立 Go module，通过仓库内 `go.work` / `replace` 依赖 System 组件模块（`axisml-core` 依赖三个 `pkg/module`，`axisml-runtime` 依赖 workload contract API packages），与其余组件在同一提交中同步演进。
 - Lite release 固定一组兼容的 Platform 镜像、System module 和数据库 schema 版本，不使用浮动 `latest`。
 - monorepo 内的公共装配 API 对各形态保持稳定契约。
 - OpenAPI DTO、migration 和领域状态机由 System 组件生成和维护。
@@ -170,7 +177,7 @@ Lite 不修改 `compute-operator`。Kubernetes 形态的 `ComputeRuntime` adapte
 
 Runtime 端口只使用 AxisML 发布的 `MLRun`、`MLService`、`MLTrafficPolicy` API 类型和 Kubernetes 标准类型。Docker SDK 请求、Traefik 配置、Deployment、HTTPRoute 和 `client.Object` 属于 handler / adapter 内部类型，不进入 Runtime contract。
 
-核心接口如下：
+核心接口由 `axisml-system/compute-service/pkg/computeruntime/runtime.go` 发布，如下：
 
 ```go
 type ResourceStoreProvider interface {
@@ -230,7 +237,12 @@ Apply 请求携带空 `.status` 的完整 desired 对象；Runtime 从 CR metada
 
 Instance 是 Runtime 对单个运行单元的统一称谓：Kubernetes 实现对应 Pod，Standalone 实现对应 Docker container。Standalone Runtime 将 container 投影为 `corev1.Pod`，并将运行事件合成为 `events.k8s.io/v1.Event`。Instance 名称必须稳定，日志和事件查询必须校验该 instance 属于指定 workload。MLRun / MLService 的资源级事件与 instance 级事件分别由独立方法返回；MLTrafficPolicy 没有 instance，仅提供资源级事件。
 
-Kubernetes 和 Standalone provider 均实现完整的 `ComputeRuntime`。内部 handler 按 MLRun、MLService 和 MLTrafficPolicy 组织；`axisml-runtime` 根据 `(backend.name, backend.engine)` 选择 Docker handler，并将 AxisML 对象渲染为内部 `ContainerPlan` / `RoutePlan`。
+Kubernetes 和 Standalone 形态均提供完整的 `ComputeRuntime` 实现，但落点不同：
+
+- Kubernetes 形态在 Compute Service 进程内由 `pkg/computeruntime/kuberuntime` 直接实现，封装 `client.Client`、informer 和 kubeproxy。
+- Lite 形态把实现拆到进程边界：`axisml-core` 内的实现是一个 HTTP client，将每个接口方法序列化为对 `axisml-runtime` 的 HTTP 调用；`axisml-runtime` 作为 HTTP server 接收请求，根据 `(backend.name, backend.engine)` 选择 Docker handler，并将 AxisML 对象渲染为内部 `ContainerPlan` / `RoutePlan`。
+
+接口的 Go 类型契约（CR API 类型、`types.NamespacedName` 定位、`apierrors.IsNotFound` 语义、instance 归属校验）在两种形态下保持一致；Lite 的 HTTP 编码是该契约的传输实现，不进入 contract 本身。
 
 ### 4.2 Provider 映射
 
@@ -616,9 +628,9 @@ Job、Service、Workspace、TensorBoard 和 TrafficPolicy 在目标环境通过 
 
 | 决策项 | 决策 |
 | --- | --- |
-| 代码组织 | AxisML monorepo 顶层 `axisml-lite/` 目录，经仓库内 `go.work` / `replace` 依赖公共装配 API |
+| 代码组织 | AxisML monorepo 顶层 `axisml-lite/` 目录下 `axisml-core` 与 `axisml-runtime` 两个独立子项目，各自独立 Go module 与 Dockerfile，经仓库内 `go.work` / `replace` 依赖公共装配 API |
 | 部署入口 | Docker Compose 管固定服务，Standalone Compute Runtime 动态管用户 workload |
-| Standalone binary | `axisml-platform` + `axisml-core` + `axisml-runtime`；Platform 保持 HTTP 边界，Runtime 按 Docker socket 权限隔离 |
+| Standalone binary | `axisml-platform` + `axisml-core` + `axisml-runtime`；`axisml-core` 装配三个 System 服务并以 HTTP client 实现 `ComputeRuntime`，`axisml-runtime` 以 HTTP server 落地该接口并独占 Docker socket |
 | 运行时 | Docker Engine API |
 | Workload contract | `MLRun` / `MLService` / `MLTrafficPolicy` API 类型 |
 | 兼容策略 | 共享 CR Spec、backend key、状态和 condition；环境差异由 capability 和 validation 表达 |
