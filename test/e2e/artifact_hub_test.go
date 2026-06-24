@@ -10,166 +10,87 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/axisml/axisml/test/e2e/internal/clients/artifacthub"
 )
 
-// artifact-hub. Real PostgreSQL + real zot (OCI) + RustFS (S3). The
-// metadata lifecycle is deterministic; the two-phase blob upload drives the
-// real registry through the OCI helper in oci_test.go.
+// artifact-hub. The only e2e-worthy path is the two-phase blob upload driven
+// against the REAL zot registry (the integration suite stubs OCI with httptest,
+// so it cannot verify the actual registry round-trip). Metadata-only lifecycle —
+// initiate/patch/list/soft-delete — is deterministic and fully covered by the
+// hermetic integration suite (TestArtifact_HappyPath, _PATCH_AllowedFields,
+// _LabelSelectorFilter, _DeleteMarksDeleting), so it is NOT duplicated here.
+func TestArtifactHub(t *testing.T) {
+	ns, _ := provisionTenant(t)
 
-func modelPath(ns, name string) string {
-	return "/api/v1/namespaces/" + ns + "/models/" + name
-}
+	// ModelTwoPhaseUploadResolve exercises initiate -> push to real zot ->
+	// complete -> resolve, asserting the resolved digest matches what was pushed.
+	t.Run("ModelTwoPhaseUploadResolve", func(t *testing.T) {
+		ctx := context.Background()
+		name := uniqueName("e2e-2phase")
+		res := initiateModel(t, ctx, ns, name, "1.0.0")
+		t.Cleanup(func() {
+			_, _ = h.artifactHub.DeleteModelWithResponse(context.Background(), ns, name, "1.0.0")
+		})
 
-// artifact-hub does not enforce the identity header — a missing X-Axisml-User
-// falls back to "anonymous" (only cluster-manager rejects it). Verify the
-// request still succeeds rather than 401.
-func TestArtifactHub_AnonymousAllowed(t *testing.T) {
-	ctx := context.Background()
-	r, err := h.artifactHub.doNoAuth(ctx, http.MethodGet, "/api/v1/namespaces/"+sharedNS(t)+"/models", nil)
-	require.NoError(t, err)
-	assert.True(t, r.is2xx(), "anonymous list should succeed, got %d", r.status)
-}
+		// Push a minimal manifest to zot through a port-forward.
+		pf, err := startPortForward(h.cfg.InfraNamespace, "zot", 5000)
+		require.NoError(t, err)
+		defer pf.Stop()
+		oc := &ociClient{base: pf.localURL(), creds: ociCredsFrom(res.Upload.Credentials), http: &http.Client{}}
+		repo, ref := parseRepoRef(res.Upload.Uri)
+		digest, err := oc.pushConfigOnlyManifest(ctx, repo, ref)
+		require.NoError(t, err, "push manifest to zot")
 
-func TestArtifactHub_ModelInitiateReturnsUpload(t *testing.T) {
-	ctx := context.Background()
-	ns := sharedNS(t)
-	name := uniqueName("e2e-model")
-	res := initiateModel(t, ctx, ns, name, "1.0.0")
-	assert.NotEmpty(t, res.Upload.StorageKind, "initiate should return a storage kind")
-	assert.NotEmpty(t, res.Upload.URI, "initiate should return an upload URI")
-	t.Cleanup(func() {
-		_, _ = h.artifactHub.do(context.Background(), http.MethodDelete, modelPath(ns, name)+"/1.0.0", nil)
-	})
-}
+		// Complete with the digest.
+		c, err := h.artifactHub.CompleteModelWithResponse(ctx, ns, name, "1.0.0", artifacthub.ArtifactCompleteRequest{Digest: digest})
+		require.NoError(t, err)
+		require.True(t, is2xx(c.StatusCode()), "complete: %d: %s", c.StatusCode(), string(c.Body))
 
-// TestArtifactHub_ModelTwoPhaseUploadResolve exercises initiate -> push to zot ->
-// complete -> resolve against the real registry.
-func TestArtifactHub_ModelTwoPhaseUploadResolve(t *testing.T) {
-	ctx := context.Background()
-	ns := sharedNS(t)
-	name := uniqueName("e2e-2phase")
-	res := initiateModel(t, ctx, ns, name, "1.0.0")
-	t.Cleanup(func() {
-		_, _ = h.artifactHub.do(context.Background(), http.MethodDelete, modelPath(ns, name)+"/1.0.0", nil)
-	})
+		// Status becomes Ready.
+		eventually(t, h.cfg.CRProvisionTimeout, func() error {
+			g, err := h.artifactHub.GetModelWithResponse(ctx, ns, name, "1.0.0")
+			if err != nil {
+				return err
+			}
+			if g.JSON200 == nil {
+				return assertErr("GET model: %d", g.StatusCode())
+			}
+			if !strings.EqualFold(g.JSON200.Status, "Ready") {
+				return assertErr("status=%q want Ready", g.JSON200.Status)
+			}
+			return nil
+		})
 
-	// Push a minimal manifest to zot through a port-forward.
-	pf, err := startPortForward(h.cfg.InfraNamespace, "zot", 5000)
-	require.NoError(t, err)
-	defer pf.Stop()
-	oc := &ociClient{base: pf.localURL(), creds: parseOCICreds(res.Upload.Credentials), http: &http.Client{}}
-	repo, ref := parseRepoRef(res.Upload.URI)
-	digest, err := oc.pushConfigOnlyManifest(ctx, repo, ref)
-	require.NoError(t, err, "push manifest to zot")
-
-	// Complete with the digest.
-	c := h.artifactHub.mustDo(t, ctx, http.MethodPost, modelPath(ns, name)+"/1.0.0/complete", ahCompleteReq{Digest: digest})
-	require.True(t, c.is2xx(), "complete: %d: %s", c.status, string(c.body))
-
-	// Status becomes Ready.
-	eventually(t, h.cfg.CRProvisionTimeout, func() error {
-		g := h.artifactHub.mustDo(t, ctx, http.MethodGet, modelPath(ns, name)+"/1.0.0", nil)
-		var v ahView
-		if err := g.decode(&v); err != nil {
-			return err
-		}
-		if !strings.EqualFold(v.Status, "Ready") {
-			return assertErr("status=%q want Ready", v.Status)
-		}
-		return nil
-	})
-
-	// Resolve returns pull info with the digest.
-	r := h.artifactHub.mustDo(t, ctx, http.MethodGet, modelPath(ns, name)+"/1.0.0/resolve", nil)
-	require.True(t, r.is2xx(), "resolve: %d: %s", r.status, string(r.body))
-	var rr ahResolveResult
-	require.NoError(t, r.decode(&rr))
-	assert.Equal(t, digest, rr.Digest, "resolve should echo the completed digest")
-}
-
-func TestArtifactHub_PatchMetadata(t *testing.T) {
-	ctx := context.Background()
-	ns := sharedNS(t)
-	name := uniqueName("e2e-patch")
-	initiateModel(t, ctx, ns, name, "1.0.0")
-	t.Cleanup(func() {
-		_, _ = h.artifactHub.do(context.Background(), http.MethodDelete, modelPath(ns, name)+"/1.0.0", nil)
-	})
-
-	disp := "Friendly name"
-	p := h.artifactHub.mustDo(t, ctx, http.MethodPatch, modelPath(ns, name)+"/1.0.0",
-		ahPatchReq{DisplayName: &disp, Labels: map[string]string{"team": "e2e"}})
-	require.True(t, p.is2xx(), "patch: %d: %s", p.status, string(p.body))
-
-	g := h.artifactHub.mustDo(t, ctx, http.MethodGet, modelPath(ns, name)+"/1.0.0", nil)
-	var v ahView
-	require.NoError(t, g.decode(&v))
-	assert.Equal(t, "e2e", v.Labels["team"])
-}
-
-func TestArtifactHub_ListAndLabelSelector(t *testing.T) {
-	ctx := context.Background()
-	ns := sharedNS(t)
-	name := uniqueName("e2e-list")
-	res := initiateModelWithLabels(t, ctx, ns, name, "1.0.0", map[string]string{"suite": "e2elist"})
-	_ = res
-	t.Cleanup(func() {
-		_, _ = h.artifactHub.do(context.Background(), http.MethodDelete, modelPath(ns, name)+"/1.0.0", nil)
-	})
-
-	// List filtered by our unique label returns our artifact.
-	l := h.artifactHub.mustDo(t, ctx, http.MethodGet,
-		"/api/v1/namespaces/"+ns+"/models?labelSelector=suite%3De2elist", nil)
-	require.True(t, l.is2xx(), "list: %d", l.status)
-	assert.Contains(t, string(l.body), name, "filtered list should contain our model")
-}
-
-// DELETE soft-deletes: it flips the artifact to status "Deleting"; the GC
-// worker reclaims the blob + row later on its interval (so the row lingers in
-// listings until then). We assert the immediate, deterministic effect — the
-// status transition — rather than waiting on GC.
-func TestArtifactHub_SoftDelete(t *testing.T) {
-	ctx := context.Background()
-	ns := sharedNS(t)
-	name := uniqueName("e2e-del")
-	initiateModel(t, ctx, ns, name, "1.0.0")
-
-	d := h.artifactHub.mustDo(t, ctx, http.MethodDelete, modelPath(ns, name)+"/1.0.0", nil)
-	require.True(t, d.is2xx(), "delete: %d", d.status)
-
-	eventually(t, h.cfg.CRProvisionTimeout, func() error {
-		g := h.artifactHub.mustDo(t, ctx, http.MethodGet, modelPath(ns, name)+"/1.0.0", nil)
-		if g.status == http.StatusNotFound {
-			return nil // GC already reclaimed it
-		}
-		var v ahView
-		if err := g.decode(&v); err != nil {
-			return err
-		}
-		if v.Status != "Deleting" {
-			return assertErr("status=%q want Deleting", v.Status)
-		}
-		return nil
+		// Resolve returns pull info with the digest.
+		r, err := h.artifactHub.ResolveModelWithResponse(ctx, ns, name, "1.0.0", nil)
+		require.NoError(t, err)
+		require.True(t, is2xx(r.StatusCode()), "resolve: %d: %s", r.StatusCode(), string(r.Body))
+		require.NotNil(t, r.JSON200)
+		require.NotNil(t, r.JSON200.Digest)
+		assert.Equal(t, digest, *r.JSON200.Digest, "resolve should echo the completed digest")
 	})
 }
 
 // ---- artifact-hub helpers ----
 
-func initiateModel(t *testing.T, ctx context.Context, ns, name, version string) ahInitiateResult {
+func initiateModel(t *testing.T, ctx context.Context, ns, name, version string) *artifacthub.ArtifactInitiateResponse {
 	return initiateModelWithLabels(t, ctx, ns, name, version, nil)
 }
 
-func initiateModelWithLabels(t *testing.T, ctx context.Context, ns, name, version string, labels map[string]string) ahInitiateResult {
+func initiateModelWithLabels(t *testing.T, ctx context.Context, ns, name, version string, labels map[string]string) *artifacthub.ArtifactInitiateResponse {
 	t.Helper()
-	req := ahInitiateReq{
+	body := artifacthub.ArtifactInitiateRequest{
 		Version: version,
 		// Model spec requires a valid framework + a format (design §5.1).
-		Spec:   map[string]any{"framework": "onnx", "format": "onnx"},
-		Labels: labels,
+		Spec: map[string]interface{}{"framework": "onnx", "format": "onnx"},
 	}
-	r := h.artifactHub.mustDo(t, ctx, http.MethodPost, modelPath(ns, name), req)
-	require.True(t, r.is2xx(), "initiate model: %d: %s", r.status, string(r.body))
-	var res ahInitiateResult
-	require.NoError(t, r.decode(&res))
-	return res
+	if labels != nil {
+		body.Labels = &labels
+	}
+	r, err := h.artifactHub.InitiateModelWithResponse(ctx, ns, name, body)
+	require.NoError(t, err)
+	require.True(t, is2xx(r.StatusCode()), "initiate model: %d: %s", r.StatusCode(), string(r.Body))
+	require.NotNil(t, r.JSON201, "initiate should return the artifact + upload envelope")
+	return r.JSON201
 }

@@ -27,13 +27,11 @@ type envConfig struct {
 	// Identity header sent on every HTTP request.
 	User string
 
-	// Shared, long-lived test tenant. Workload tests run inside this tenant's
-	// namespace and isolate by unique resource names. Lifecycle/over-quota
-	// cases manage their own short-lived tenants instead (see design §2).
-	SharedTenant    string
-	SharedNamespace string
-	DefaultPool     string
-	DefaultUnit     string
+	// Default ResourcePool + unit that each test file's tenant draws its quota
+	// from. A stock install seeds these (Helm hook); the harness reseeds as a
+	// fallback. See provisionTenant / ensureDefaultPool.
+	DefaultPool string
+	DefaultUnit string
 
 	// Workload images, preloaded via `minikube image load` (imagePullPolicy
 	// IfNotPresent so the preloaded copies are used; no live pulls mid-run).
@@ -72,9 +70,8 @@ func loadConfig() envConfig {
 
 		User: envOr("E2E_USER", "e2e-suite"),
 
-		SharedTenant: envOr("E2E_SHARED_TENANT", "e2e"),
-		DefaultPool:  envOr("E2E_DEFAULT_POOL", "default"),
-		DefaultUnit:  envOr("E2E_DEFAULT_UNIT", "cpu-small"),
+		DefaultPool: envOr("E2E_DEFAULT_POOL", "default"),
+		DefaultUnit: envOr("E2E_DEFAULT_UNIT", "cpu-small"),
 
 		MLRunImage:   envOr("E2E_JOB_IMAGE", "busybox:latest"),
 		ServiceImage: envOr("E2E_SERVICE_IMAGE", "nginx:1.27"),

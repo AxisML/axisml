@@ -10,6 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/axisml/axisml/components/compute-service/internal/metrics"
+	"github.com/axisml/axisml/components/compute-service/internal/server"
 	"github.com/axisml/axisml/components/compute-service/internal/store"
 	"github.com/axisml/axisml/components/compute-service/pkg/computeruntime"
 )
@@ -83,7 +84,12 @@ func (r *Reconciler) handleCreate(ctx context.Context, j *store.MLRun) {
 	}
 	if err := r.runtime.ApplyMLRun(ctx, cr); err != nil {
 		r.log.Error(err, "apply MLRun", "name", j.Name)
-		_ = r.repo.Update(ctx, j.ID, map[string]any{"message": err.Error()})
+		// The error surfaces via status.message (a jsonb field); there is no
+		// top-level `message` column.
+		next := mergeStatusFields(j.StatusJSON, func(s *server.MLRunStatus) {
+			s.Message = err.Error()
+		})
+		_ = r.repo.Update(ctx, j.ID, map[string]any{"status": next})
 		metrics.ReconcilerActions.WithLabelValues("mlrun", "creating", "error").Inc()
 		return
 	}

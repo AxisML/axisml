@@ -3,78 +3,53 @@
 package e2e
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/axisml/axisml/test/e2e/internal/clients/platform"
 )
 
 // Platform-layer e2e: drives the deployed Platform backend (the only externally
-// reachable layer) over a port-forward, exercising the orchestration chain
-// Platform -> cluster-manager / compute / PG. Auth is JWT (login), unlike the
-// System services which trust X-Axisml-User.
+// reachable layer) through its generated, typed client over a port-forward,
+// exercising the orchestration chain Platform -> cluster-manager / compute / PG.
+// Auth is JWT (login), unlike the System services which trust X-Axisml-User; the
+// bearer token is injected per call via a RequestEditorFn, and the active tenant
+// for tenant-scoped routes travels in each operation's typed *Params.
 //
 // Prereqs (beyond the System-layer suite): the axisml-platform Helm release is
 // installed with the real backend image, and `platform bootstrap` has seeded the
 // admin account. See test/e2e/README.md.
 
-// ---- platform HTTP client (bearer JWT) ----
-
-type platformClient struct {
-	baseURL string
-	token   string
-	c       *http.Client
-}
-
-func (pc *platformClient) do(ctx context.Context, method, path, token string, body any) (resp, error) {
-	var rdr io.Reader
-	if body != nil {
-		b, err := json.Marshal(body)
-		if err != nil {
-			return resp{}, err
+// bearer is a per-call request editor that attaches the JWT. An empty token
+// leaves the request unauthenticated (used for the 401 negative path).
+func bearer(token string) func(context.Context, *http.Request) error {
+	return func(_ context.Context, req *http.Request) error {
+		if token != "" {
+			req.Header.Set("Authorization", "Bearer "+token)
 		}
-		rdr = bytes.NewReader(b)
+		return nil
 	}
-	req, err := http.NewRequestWithContext(ctx, method, pc.baseURL+path, rdr)
-	if err != nil {
-		return resp{}, err
-	}
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
-	if token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
-	}
-	httpResp, err := pc.c.Do(req)
-	if err != nil {
-		return resp{}, err
-	}
-	defer httpResp.Body.Close()
-	b, _ := io.ReadAll(httpResp.Body)
-	return resp{status: httpResp.StatusCode, body: b}, nil
 }
 
-func (pc *platformClient) login(ctx context.Context, user, pass string) (string, error) {
-	r, err := pc.do(ctx, http.MethodPost, "/api/v1/auth/login", "", map[string]any{"username": user, "password": pass})
+func platformLogin(ctx context.Context, user, pass string) (string, error) {
+	r, err := platformCli.LoginWithResponse(ctx, platform.LoginRequest{Username: user, Password: pass})
 	if err != nil {
 		return "", err
 	}
-	if !r.is2xx() {
-		return "", fmt.Errorf("login %s: status %d: %s", user, r.status, r.body)
+	if !is2xx(r.StatusCode()) {
+		return "", fmt.Errorf("login %s: status %d: %s", user, r.StatusCode(), r.Body)
 	}
-	var out struct {
-		JWT string `json:"jwt"`
+	if r.JSON200 == nil {
+		return "", fmt.Errorf("login %s: empty body", user)
 	}
-	if err := r.decode(&out); err != nil {
-		return "", err
-	}
-	return out.JWT, nil
+	return r.JSON200.Jwt, nil
 }
 
 // ---- lazy platform setup (port-forward + admin login), shared across tests ----
@@ -82,12 +57,12 @@ func (pc *platformClient) login(ctx context.Context, user, pass string) (string,
 var (
 	platformOnce sync.Once
 	platformPF   *portForward
-	platformPC   *platformClient
+	platformCli  *platform.ClientWithResponses
 	adminToken   string
 	platformErr  error
 )
 
-func platform(t *testing.T) (*platformClient, string) {
+func platformReady(t *testing.T) (*platform.ClientWithResponses, string) {
 	t.Helper()
 	platformOnce.Do(func() {
 		ns := envOr("E2E_PLATFORM_NAMESPACE", "axisml-platform")
@@ -98,20 +73,26 @@ func platform(t *testing.T) (*platformClient, string) {
 			return
 		}
 		platformPF = pf
-		platformPC = &platformClient{baseURL: pf.localURL(), c: &http.Client{Timeout: 30 * time.Second}}
+		cli, err := platform.NewClientWithResponses(pf.localURL(),
+			platform.WithHTTPClient(&http.Client{Timeout: 30 * time.Second}))
+		if err != nil {
+			platformErr = fmt.Errorf("build platform client: %w", err)
+			return
+		}
+		platformCli = cli
 
 		ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 		defer cancel()
 		// Retry login while the platform pod / bootstrap settles.
 		deadline := time.Now().Add(90 * time.Second)
 		for {
-			tok, lerr := platformPC.login(ctx, "admin", os.Getenv("E2E_ADMIN_PASSWORD"))
+			tok, lerr := platformLogin(ctx, "admin", os.Getenv("E2E_ADMIN_PASSWORD"))
 			if lerr == nil {
 				adminToken = tok
 				return
 			}
 			if os.Getenv("E2E_ADMIN_PASSWORD") == "" {
-				tok, lerr = platformPC.login(ctx, "admin", "admin")
+				tok, lerr = platformLogin(ctx, "admin", "admin")
 				if lerr == nil {
 					adminToken = tok
 					return
@@ -127,7 +108,7 @@ func platform(t *testing.T) (*platformClient, string) {
 	if platformErr != nil {
 		t.Skipf("platform not reachable (is axisml-platform installed?): %v", platformErr)
 	}
-	return platformPC, adminToken
+	return platformCli, adminToken
 }
 
 func unique(prefix string) string {
@@ -137,247 +118,200 @@ func unique(prefix string) string {
 // ---- tests ----
 
 func TestPlatform_Auth(t *testing.T) {
-	pc, admin := platform(t)
+	pc, admin := platformReady(t)
 	ctx := context.Background()
 
-	r, err := pc.do(ctx, http.MethodGet, "/api/v1/auth/me", admin, nil)
-	mustOK(t, r, err, "GET /auth/me")
-	var me struct {
-		IsSystemAdmin bool `json:"isSystemAdmin"`
-	}
-	_ = r.decode(&me)
-	if !me.IsSystemAdmin {
+	me, err := pc.GetCurrentUserWithResponse(ctx, bearer(admin))
+	mustOK(t, me.StatusCode(), me.Body, err, "GET /auth/me")
+	require.NotNil(t, me.JSON200)
+	if !me.JSON200.IsSystemAdmin {
 		t.Fatalf("admin /me isSystemAdmin = false")
 	}
 
 	// No token -> 401.
-	r, err = pc.do(ctx, http.MethodGet, "/api/v1/auth/me", "", nil)
-	if err != nil || r.status != http.StatusUnauthorized {
-		t.Fatalf("unauthenticated /me: status %d err %v", r.status, err)
+	no, err := pc.GetCurrentUserWithResponse(ctx, bearer(""))
+	if err != nil || no.StatusCode() != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated /me: status %d err %v", no.StatusCode(), err)
 	}
 	// Bad creds -> 401.
-	if _, lerr := pc.login(ctx, "admin", "definitely-wrong"); lerr == nil {
+	if _, lerr := platformLogin(ctx, "admin", "definitely-wrong"); lerr == nil {
 		t.Fatalf("login with wrong password should fail")
 	}
 }
 
 func TestPlatform_ResourcePools(t *testing.T) {
-	pc, admin := platform(t)
+	pc, admin := platformReady(t)
 	ctx := context.Background()
-	r, err := pc.do(ctx, http.MethodGet, "/api/v1/resourcepools", admin, nil)
-	mustOK(t, r, err, "GET /resourcepools")
-	var list struct {
-		Items []struct {
-			Name string `json:"name"`
-		} `json:"items"`
-	}
-	_ = r.decode(&list)
+	r, err := pc.ListResourcePoolsWithResponse(ctx, nil, bearer(admin))
+	mustOK(t, r.StatusCode(), r.Body, err, "GET /resourcepools")
 	// At least the default pool should exist in a provisioned cluster.
-	if len(list.Items) == 0 {
+	if r.JSON200 == nil || len(r.JSON200.Items) == 0 {
 		t.Logf("no resource pools found (cluster may not be seeded); skipping pool detail")
 		return
 	}
 }
 
 func TestPlatform_TenantQuotaMemberLifecycle(t *testing.T) {
-	pc, admin := platform(t)
+	pc, admin := platformReady(t)
 	ctx := context.Background()
 
 	member := unique("plat-u")
 	tenant := unique("plat-t")
 
 	// Create a member user (system-admin).
-	r, err := pc.do(ctx, http.MethodPost, "/api/v1/users", admin, map[string]any{
-		"username": member, "password": "password123", "displayName": member,
-	})
-	mustCreated(t, r, err, "POST /users")
-	t.Cleanup(func() { _ = deleteUser(ctx, pc, admin, member) })
+	cu, err := pc.CreateUserWithResponse(ctx, platform.UserCreateRequest{
+		Username: member, Password: "password123", DisplayName: ptr(member),
+	}, bearer(admin))
+	mustCreated(t, cu.StatusCode(), cu.Body, err, "POST /users")
+	t.Cleanup(func() { _ = deleteUser(ctx, admin, member) })
 
 	// Create the tenant with the member as initial tenant-admin.
-	r, err = pc.do(ctx, http.MethodPost, "/api/v1/tenants", admin, map[string]any{
-		"identifier": tenant, "kubernetesNamespace": tenant,
-		"displayName": "Platform E2E", "initialAdmin": member,
-	})
-	mustCreated(t, r, err, "POST /tenants")
+	ct, err := pc.CreateTenantWithResponse(ctx, platform.TenantCreateRequest{
+		Identifier: tenant, KubernetesNamespace: tenant,
+		DisplayName: "Platform E2E", InitialAdmin: member,
+	}, bearer(admin))
+	mustCreated(t, ct.StatusCode(), ct.Body, err, "POST /tenants")
 	t.Cleanup(func() {
 		// Remove members then delete the tenant.
-		removeAllMembers(ctx, pc, admin, tenant)
-		_, _ = pc.do(ctx, http.MethodDelete, "/api/v1/tenants/"+tenant, admin, nil)
+		removeAllMembers(ctx, admin, tenant)
+		_, _ = pc.DeleteTenantWithResponse(ctx, tenant, bearer(admin))
 	})
 
 	// Get + list.
-	r, err = pc.do(ctx, http.MethodGet, "/api/v1/tenants/"+tenant, admin, nil)
-	mustOK(t, r, err, "GET tenant")
+	gt, err := pc.GetTenantWithResponse(ctx, tenant, bearer(admin))
+	mustOK(t, gt.StatusCode(), gt.Body, err, "GET tenant")
 
 	// Quota: assign the default pool / cpu-small unit.
 	pool := envOr("E2E_DEFAULT_POOL", "default")
 	unit := envOr("E2E_DEFAULT_UNIT", "cpu-small")
-	r, err = pc.do(ctx, http.MethodPost, "/api/v1/tenants/"+tenant+"/quotas", admin, map[string]any{
-		"pool": pool, "units": []map[string]any{{"unitName": unit, "quantity": 1}},
-	})
-	mustCreated(t, r, err, "POST quota")
+	q, err := pc.CreateTenantQuotaWithResponse(ctx, tenant, platform.QuotaCreateRequest{
+		Pool: pool, Units: []platform.QuotaUnit{{UnitName: unit, Quantity: 1}},
+	}, bearer(admin))
+	mustCreated(t, q.StatusCode(), q.Body, err, "POST quota")
 
 	// Members: the initial admin is present; removing it (the only admin) is blocked.
-	memberToken, lerr := pc.login(ctx, member, "password123")
+	memberToken, lerr := platformLogin(ctx, member, "password123")
 	if lerr != nil {
 		t.Fatalf("member login: %v", lerr)
 	}
-	r, err = pc.do(ctx, http.MethodGet, "/api/v1/tenants/"+tenant+"/members", memberToken, nil)
-	mustOK(t, r, err, "GET members (member)")
-	var members struct {
-		Items []struct {
-			UserID string `json:"userId"`
-		} `json:"items"`
+	ml, err := pc.ListTenantMembersWithResponse(ctx, tenant, bearer(memberToken))
+	mustOK(t, ml.StatusCode(), ml.Body, err, "GET members (member)")
+	require.NotNil(t, ml.JSON200)
+	if len(ml.JSON200.Items) != 1 {
+		t.Fatalf("want 1 member, got %d", len(ml.JSON200.Items))
 	}
-	_ = r.decode(&members)
-	if len(members.Items) != 1 {
-		t.Fatalf("want 1 member, got %d", len(members.Items))
-	}
-	r, err = pc.do(ctx, http.MethodDelete, "/api/v1/tenants/"+tenant+"/members/"+members.Items[0].UserID, admin, nil)
-	if err != nil || r.status != http.StatusConflict {
-		t.Fatalf("removing last tenant-admin: want 409, got %d (%s)", r.status, r.body)
+	rm, err := pc.RemoveTenantMemberWithResponse(ctx, tenant, ml.JSON200.Items[0].UserId, bearer(admin))
+	if err != nil || rm.StatusCode() != http.StatusConflict {
+		t.Fatalf("removing last tenant-admin: want 409, got %d (%s)", rm.StatusCode(), rm.Body)
 	}
 
 	// Suspend / resume.
-	r, err = pc.do(ctx, http.MethodPost, "/api/v1/tenants/"+tenant+"/suspend", admin, nil)
-	mustOK(t, r, err, "suspend")
-	r, err = pc.do(ctx, http.MethodPost, "/api/v1/tenants/"+tenant+"/resume", admin, nil)
-	mustOK(t, r, err, "resume")
+	sus, err := pc.SuspendTenantWithResponse(ctx, tenant, bearer(admin))
+	mustOK(t, sus.StatusCode(), sus.Body, err, "suspend")
+	res, err := pc.ResumeTenantWithResponse(ctx, tenant, bearer(admin))
+	mustOK(t, res.StatusCode(), res.Body, err, "resume")
 }
 
 func TestPlatform_JobDefinitionLifecycle(t *testing.T) {
-	pc, admin := platform(t)
+	pc, admin := platformReady(t)
 	ctx := context.Background()
 
 	owner := unique("job-u")
 	tenant := unique("job-t")
-	_, _ = pc.do(ctx, http.MethodPost, "/api/v1/users", admin, map[string]any{"username": owner, "password": "password123", "displayName": owner})
-	t.Cleanup(func() { _ = deleteUser(ctx, pc, admin, owner) })
-	r, err := pc.do(ctx, http.MethodPost, "/api/v1/tenants", admin, map[string]any{
-		"identifier": tenant, "kubernetesNamespace": tenant, "displayName": "Job E2E", "initialAdmin": owner,
-	})
-	mustCreated(t, r, err, "POST /tenants")
+	_, _ = pc.CreateUserWithResponse(ctx, platform.UserCreateRequest{
+		Username: owner, Password: "password123", DisplayName: ptr(owner),
+	}, bearer(admin))
+	t.Cleanup(func() { _ = deleteUser(ctx, admin, owner) })
+	ct, err := pc.CreateTenantWithResponse(ctx, platform.TenantCreateRequest{
+		Identifier: tenant, KubernetesNamespace: tenant, DisplayName: "Job E2E", InitialAdmin: owner,
+	}, bearer(admin))
+	mustCreated(t, ct.StatusCode(), ct.Body, err, "POST /tenants")
 	t.Cleanup(func() {
-		removeAllMembers(ctx, pc, admin, tenant)
-		_, _ = pc.do(ctx, http.MethodDelete, "/api/v1/tenants/"+tenant, admin, nil)
+		removeAllMembers(ctx, admin, tenant)
+		_, _ = pc.DeleteTenantWithResponse(ctx, tenant, bearer(admin))
 	})
 
-	tok, _ := pc.login(ctx, owner, "password123")
+	tok, _ := platformLogin(ctx, owner, "password123")
 	job := unique("job")
-	spec := map[string]any{
-		"backend":  map[string]any{"name": "native", "engine": "job"},
-		"poolName": envOr("E2E_DEFAULT_POOL", "default"),
-		"unitName": envOr("E2E_DEFAULT_UNIT", "cpu-small"),
-		"roles": []map[string]any{{
-			"name": "worker", "replicas": 1,
-			"template": map[string]any{"image": envOr("E2E_JOB_IMAGE", "busybox:latest"), "command": []string{"sh", "-c", "echo hi"}},
+	spec := platform.JobSpec{
+		Backend:  platform.Backend{Name: platform.BackendNameNative, Engine: "job"},
+		PoolName: ptr(envOr("E2E_DEFAULT_POOL", "default")),
+		UnitName: ptr(envOr("E2E_DEFAULT_UNIT", "cpu-small")),
+		Roles: []platform.MLRunRole{{
+			Name:     "worker",
+			Replicas: ptr(1),
+			Template: platform.RoleTemplate{
+				Image:   ptr(envOr("E2E_JOB_IMAGE", "busybox:latest")),
+				Command: &[]string{"sh", "-c", "echo hi"},
+			},
 		}},
 	}
-	// Create the Job definition (Platform PG) with the tenant in the header.
-	r, err = pc.doTenant(ctx, http.MethodPost, "/api/v1/jobs", tok, tenant, map[string]any{
-		"name": job, "displayName": "echo", "spec": spec,
-	})
-	mustCreated(t, r, err, "POST /jobs")
+	tenantParam := ptr(tenant)
+	// Create the Job definition (Platform PG) with the tenant in the header param.
+	cj, err := pc.CreateJobWithResponse(ctx, &platform.CreateJobParams{XAxismlTenant: tenantParam},
+		platform.JobCreateRequest{Name: job, DisplayName: ptr("echo"), Spec: spec}, bearer(tok))
+	mustCreated(t, cj.StatusCode(), cj.Body, err, "POST /jobs")
 
 	// Get + list.
-	r, err = pc.doTenant(ctx, http.MethodGet, "/api/v1/jobs/"+job, tok, tenant, nil)
-	mustOK(t, r, err, "GET /jobs/{name}")
-	r, err = pc.doTenant(ctx, http.MethodGet, "/api/v1/jobs", tok, tenant, nil)
-	mustOK(t, r, err, "GET /jobs")
+	gj, err := pc.GetJobWithResponse(ctx, job, &platform.GetJobParams{XAxismlTenant: tenantParam}, bearer(tok))
+	mustOK(t, gj.StatusCode(), gj.Body, err, "GET /jobs/{name}")
+	lj, err := pc.ListJobsWithResponse(ctx, &platform.ListJobsParams{XAxismlTenant: tenantParam}, bearer(tok))
+	mustOK(t, lj.StatusCode(), lj.Body, err, "GET /jobs")
 
 	// Runs list is empty (no trigger).
-	r, err = pc.doTenant(ctx, http.MethodGet, "/api/v1/jobs/"+job+"/runs", tok, tenant, nil)
-	mustOK(t, r, err, "GET runs")
+	lr, err := pc.ListRunsWithResponse(ctx, job, &platform.ListRunsParams{XAxismlTenant: tenantParam}, bearer(tok))
+	mustOK(t, lr.StatusCode(), lr.Body, err, "GET runs")
 
 	// Delete the Job definition.
-	r, err = pc.doTenant(ctx, http.MethodDelete, "/api/v1/jobs/"+job, tok, tenant, nil)
-	if err != nil || (r.status != http.StatusNoContent && r.status != http.StatusOK) {
-		t.Fatalf("DELETE /jobs/{name}: status %d (%s)", r.status, r.body)
+	dj, err := pc.DeleteJobWithResponse(ctx, job, &platform.DeleteJobParams{XAxismlTenant: tenantParam}, bearer(tok))
+	if err != nil || (dj.StatusCode() != http.StatusNoContent && dj.StatusCode() != http.StatusOK) {
+		t.Fatalf("DELETE /jobs/{name}: status %d (%s)", dj.StatusCode(), dj.Body)
 	}
-}
-
-// doTenant is do with the X-Axisml-Tenant header set.
-func (pc *platformClient) doTenant(ctx context.Context, method, path, token, tenant string, body any) (resp, error) {
-	var rdr io.Reader
-	if body != nil {
-		b, _ := json.Marshal(body)
-		rdr = bytes.NewReader(b)
-	}
-	req, err := http.NewRequestWithContext(ctx, method, pc.baseURL+path, rdr)
-	if err != nil {
-		return resp{}, err
-	}
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("X-Axisml-Tenant", tenant)
-	httpResp, err := pc.c.Do(req)
-	if err != nil {
-		return resp{}, err
-	}
-	defer httpResp.Body.Close()
-	b, _ := io.ReadAll(httpResp.Body)
-	return resp{status: httpResp.StatusCode, body: b}, nil
 }
 
 // ---- helpers ----
 
-func mustOK(t *testing.T, r resp, err error, what string) {
+func mustOK(t *testing.T, code int, body []byte, err error, what string) {
 	t.Helper()
 	if err != nil {
 		t.Fatalf("%s: transport error: %v", what, err)
 	}
-	if !r.is2xx() {
-		t.Fatalf("%s: status %d: %s", what, r.status, r.body)
+	if !is2xx(code) {
+		t.Fatalf("%s: status %d: %s", what, code, body)
 	}
 }
 
-func mustCreated(t *testing.T, r resp, err error, what string) {
+func mustCreated(t *testing.T, code int, body []byte, err error, what string) {
 	t.Helper()
 	if err != nil {
 		t.Fatalf("%s: transport error: %v", what, err)
 	}
-	if r.status != http.StatusCreated && r.status != http.StatusOK {
-		t.Fatalf("%s: want 201, got %d: %s", what, r.status, r.body)
+	if code != http.StatusCreated && code != http.StatusOK {
+		t.Fatalf("%s: want 201, got %d: %s", what, code, body)
 	}
 }
 
-func deleteUser(ctx context.Context, pc *platformClient, admin, username string) error {
-	r, err := pc.do(ctx, http.MethodGet, "/api/v1/users?q="+username, admin, nil)
-	if err != nil || !r.is2xx() {
+func deleteUser(ctx context.Context, admin, username string) error {
+	r, err := platformCli.ListUsersWithResponse(ctx, &platform.ListUsersParams{Q: ptr(username)}, bearer(admin))
+	if err != nil || !is2xx(r.StatusCode()) || r.JSON200 == nil {
 		return fmt.Errorf("lookup user")
 	}
-	var list struct {
-		Items []struct {
-			ID       string `json:"id"`
-			Username string `json:"username"`
-		} `json:"items"`
-	}
-	_ = r.decode(&list)
-	for _, u := range list.Items {
+	for _, u := range r.JSON200.Items {
 		if u.Username == username {
-			_, _ = pc.do(ctx, http.MethodDelete, "/api/v1/users/"+u.ID, admin, nil)
+			_, _ = platformCli.DeleteUserWithResponse(ctx, u.Id, bearer(admin))
 		}
 	}
 	return nil
 }
 
-func removeAllMembers(ctx context.Context, pc *platformClient, admin, tenant string) {
-	r, err := pc.do(ctx, http.MethodGet, "/api/v1/tenants/"+tenant+"/members", admin, nil)
-	if err != nil || !r.is2xx() {
+func removeAllMembers(ctx context.Context, admin, tenant string) {
+	r, err := platformCli.ListTenantMembersWithResponse(ctx, tenant, bearer(admin))
+	if err != nil || !is2xx(r.StatusCode()) || r.JSON200 == nil {
 		return
 	}
-	var members struct {
-		Items []struct {
-			UserID string `json:"userId"`
-		} `json:"items"`
-	}
-	_ = r.decode(&members)
-	// Demote-to-user then delete is required to drop the last admin; simplest is
-	// to delete all but the last, then the tenant delete is blocked unless empty.
-	// For cleanup best-effort, just attempt each removal.
-	for _, m := range members.Items {
-		_, _ = pc.do(ctx, http.MethodDelete, "/api/v1/tenants/"+tenant+"/members/"+m.UserID, admin, nil)
+	// Best-effort: attempt each removal (the last admin removal is blocked, which
+	// is fine — the tenant delete that follows handles the remainder).
+	for _, m := range r.JSON200.Items {
+		_, _ = platformCli.RemoveTenantMemberWithResponse(ctx, tenant, m.UserId, bearer(admin))
 	}
 }

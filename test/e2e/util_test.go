@@ -19,6 +19,10 @@ import (
 
 var nameSeq int64
 
+// ptr returns a pointer to v. The generated clients model optional fields as
+// pointers, so request builders lean on this heavily.
+func ptr[T any](v T) *T { return &v }
+
 // mustQty parses a resource quantity string, panicking on error (test-only).
 func mustQty(s string) resource.Quantity { return resource.MustParse(s) }
 

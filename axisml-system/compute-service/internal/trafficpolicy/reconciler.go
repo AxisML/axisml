@@ -2,6 +2,7 @@ package trafficpolicy
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -10,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/axisml/axisml/components/compute-service/internal/metrics"
+	"github.com/axisml/axisml/components/compute-service/internal/server"
 	"github.com/axisml/axisml/components/compute-service/internal/store"
 	"github.com/axisml/axisml/components/compute-service/pkg/computeruntime"
 )
@@ -72,7 +74,15 @@ func (r *Reconciler) handleCreate(ctx context.Context, p *store.TrafficPolicy) {
 	}
 	if err := r.runtime.ApplyMLTrafficPolicy(ctx, cr); err != nil {
 		r.log.Error(err, "apply MLTrafficPolicy")
-		_ = r.repo.Update(ctx, p.ID, map[string]any{"message": err.Error()})
+		// The error surfaces via status.message (a jsonb field); there is no
+		// top-level `message` column.
+		var sf server.TrafficPolicyStatus
+		if len(p.StatusJSON) > 0 {
+			_ = json.Unmarshal(p.StatusJSON, &sf)
+		}
+		sf.Message = err.Error()
+		b, _ := json.Marshal(sf)
+		_ = r.repo.Update(ctx, p.ID, map[string]any{"status": b})
 		metrics.ReconcilerActions.WithLabelValues("traffic_policy", "creating", "error").Inc()
 		return
 	}

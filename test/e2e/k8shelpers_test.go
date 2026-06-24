@@ -162,26 +162,3 @@ func newBatchJob() *unstructured.Unstructured {
 	o.SetGroupVersionKind(schema.GroupVersionKind{Group: "batch", Version: "v1", Kind: "Job"})
 	return o
 }
-
-// jobCompleteCondition checks a batch/v1 Job for the Complete condition.
-func jobComplete(ctx context.Context, ns, name string) (bool, error) {
-	job := &unstructured.Unstructured{}
-	job.SetGroupVersionKind(schema.GroupVersionKind{Group: "batch", Version: "v1", Kind: "Job"})
-	if err := h.k8s.Get(ctx, client.ObjectKey{Namespace: ns, Name: name}, job); err != nil {
-		return false, err
-	}
-	conds, found, _ := unstructured.NestedSlice(job.Object, "status", "conditions")
-	if !found {
-		return false, nil
-	}
-	for _, c := range conds {
-		m, ok := c.(map[string]any)
-		if !ok {
-			continue
-		}
-		if m["type"] == "Complete" && m["status"] == "True" {
-			return true, nil
-		}
-	}
-	return false, nil
-}

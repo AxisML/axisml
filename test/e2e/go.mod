@@ -6,6 +6,7 @@ require (
 	github.com/axisml/axisml/components/cluster-manager v0.0.0
 	github.com/axisml/axisml/components/compute-operator v0.0.0
 	github.com/axisml/axisml/components/tenant-operator v0.0.0
+	github.com/oapi-codegen/runtime v1.4.2
 	github.com/stretchr/testify v1.11.1
 	k8s.io/api v0.36.0
 	k8s.io/apimachinery v0.36.0
@@ -14,6 +15,7 @@ require (
 )
 
 require (
+	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/emicklei/go-restful/v3 v3.13.0 // indirect
 	github.com/evanphx/json-patch/v5 v5.9.11 // indirect
@@ -57,8 +59,8 @@ require (
 // module proxy; remap it to a real pseudo-version (mirrors the other test modules).
 replace k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912
 
-replace github.com/axisml/axisml/components/tenant-operator => ../../components/tenant-operator
+replace github.com/axisml/axisml/components/tenant-operator => ../../axisml-system/tenant-operator
 
-replace github.com/axisml/axisml/components/compute-operator => ../../components/compute-operator
+replace github.com/axisml/axisml/components/compute-operator => ../../axisml-system/compute-operator
 
-replace github.com/axisml/axisml/components/cluster-manager => ../../components/cluster-manager
+replace github.com/axisml/axisml/components/cluster-manager => ../../axisml-system/cluster-manager

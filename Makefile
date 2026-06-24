@@ -60,9 +60,18 @@ doc-test: ## Verify all OpenAPI specs are in sync (CI guard)
 	@set -e; for l in $(GO_LAYERS); do $(MAKE) -C $$l doc-test; done
 
 ##@ Test execution
-.PHONY: setup-envtest integration-test e2e-test e2e-clean
+.PHONY: setup-envtest integration-test e2e-test e2e-vet e2e-clean e2e-client-gen
 setup-envtest: ## Install the shared envtest binary (axisml-system/test/setup-envtest/)
 	@$(MAKE) -C axisml-system setup-envtest
+# The e2e suite talks to the four AxisML HTTP components through oapi-codegen
+# typed clients generated from the same OpenAPI specs that drive doc-test. Run
+# this after a spec change so the suite fails to COMPILE on drift, not at runtime.
+OAPI_CODEGEN ?= go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.4.1
+e2e-client-gen: ## Regenerate the e2e suite's typed component clients from the OpenAPI specs
+	@cd test/e2e && $(OAPI_CODEGEN) -config internal/clients/clustermanager/oapi-codegen.yaml ../../axisml-system/docs/apis/cluster-manager.yaml
+	@cd test/e2e && $(OAPI_CODEGEN) -config internal/clients/computeservice/oapi-codegen.yaml ../../axisml-system/docs/apis/compute-service.yaml
+	@cd test/e2e && $(OAPI_CODEGEN) -config internal/clients/artifacthub/oapi-codegen.yaml ../../axisml-system/docs/apis/artifact-hub.yaml
+	@cd test/e2e && $(OAPI_CODEGEN) -config internal/clients/platform/oapi-codegen.yaml ../../axisml-platform/docs/apis/platform.yaml
 integration-test: ## Integration tests across every layer (hermetic, CI-friendly)
 	@$(MAKE) -C axisml-system integration
 	@$(MAKE) -C axisml-platform integration
@@ -71,8 +80,15 @@ integration-test: ## Integration tests across every layer (hermetic, CI-friendly
 # test/e2e/README.md.
 e2e-test: ## End-to-end tests against the running axisml minikube cluster (manual)
 	@cd test/e2e && go test -tags=e2e -count=1 -timeout=30m -v ./...
-e2e-clean: ## Delete the shared e2e tenant left by an interrupted run
-	@kubectl --context $(MINIKUBE_PROFILE) delete tenant e2e --ignore-not-found
+# Cluster-free compile guard: type-checks the e2e-tagged suite (no apiserver,
+# no Docker) so reorg-style breakage is caught locally before pushing. CI gets
+# the same coverage via golangci-lint's e2e build tag (.golangci.yml).
+e2e-vet: ## Type-check the e2e suite without a cluster
+	@cd test/e2e && go vet -tags=e2e ./...
+e2e-clean: ## Delete any e2e-* tenants left by an interrupted run
+	@kubectl --context $(MINIKUBE_PROFILE) get tenants -o name 2>/dev/null \
+		| grep -E '/e2e(-|$$)' \
+		| xargs -r kubectl --context $(MINIKUBE_PROFILE) delete --ignore-not-found || true
 
 ##@ Coverage
 .PHONY: coverage coverage-unit coverage-integration coverage-merge coverage-html coverage-clean

@@ -1,0 +1,9 @@
+# oapi-codegen config for the e2e suite's cluster-manager typed client.
+# Generated from axisml-system/docs/apis/cluster-manager.yaml — run `make e2e-client-gen`.
+package: clustermanager
+output: internal/clients/clustermanager/clustermanager.gen.go
+generate:
+  models: true
+  client: true
+output-options:
+  skip-prune: false

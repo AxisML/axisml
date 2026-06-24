@@ -4,16 +4,17 @@ package e2e
 
 import (
 	"context"
-	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// Preflight — environment readiness. These run first and assert the cluster + Helm
-// layers are healthy. If these fail, the rest will too; treat them as the
-// preflight gate.
+// Preflight — environment-readiness diagnostics. The actual fail-fast gate runs
+// in TestMain (gateReady) before any test, because test execution order is by
+// file name and cannot be relied on to run these first. These remain as
+// individually-runnable checks (`-run TestPreflight_…`) for pinpointing which
+// part of the environment is unhealthy.
 
 func TestPreflight_InfraPodsReady(t *testing.T) {
 	ctx := context.Background()
@@ -39,17 +40,7 @@ func TestPreflight_SystemPodsReady(t *testing.T) {
 
 func TestPreflight_CRDsEstablished(t *testing.T) {
 	ctx := context.Background()
-	crds := []string{
-		"tenants.axisml.io",
-		"resourcepools.axisml.io",
-		"mlruns.axisml.io",
-		"mlservices.axisml.io",
-		"elasticquotas.scheduling.sigs.k8s.io",
-		"podgroups.scheduling.sigs.k8s.io",
-		"httproutes.gateway.networking.k8s.io",
-		"gateways.gateway.networking.k8s.io",
-	}
-	for _, name := range crds {
+	for _, name := range requiredCRDs {
 		name := name
 		eventually(t, h.cfg.CRProvisionTimeout, func() error { return crdEstablished(ctx, name) })
 	}
@@ -57,13 +48,13 @@ func TestPreflight_CRDsEstablished(t *testing.T) {
 
 func TestPreflight_SeedDefaultPool(t *testing.T) {
 	ctx := context.Background()
-	r := h.clusterManager.mustDo(t, ctx, http.MethodGet, "/api/v1/resourcepools/"+h.cfg.DefaultPool, nil)
-	require.True(t, r.is2xx(), "GET default pool: status %d: %s", r.status, string(r.body))
+	r, err := h.clusterManager.GetResourcePoolWithResponse(ctx, h.cfg.DefaultPool)
+	require.NoError(t, err)
+	require.True(t, is2xx(r.StatusCode()), "GET default pool: status %d: %s", r.StatusCode(), string(r.Body))
+	require.NotNil(t, r.JSON200)
 
-	var pool cmPoolDTO
-	require.NoError(t, r.decode(&pool))
 	names := map[string]bool{}
-	for _, u := range pool.Units {
+	for _, u := range r.JSON200.Units {
 		names[u.Name] = true
 	}
 	assert.True(t, names["cpu-small"], "default pool should seed cpu-small unit")
@@ -72,14 +63,19 @@ func TestPreflight_SeedDefaultPool(t *testing.T) {
 
 func TestPreflight_HTTPReachable(t *testing.T) {
 	ctx := context.Background()
+	// compute-service / artifact-hub serve no top-level collection; list within a
+	// real namespace (tenant CRUD lives in cluster-manager).
+	ns, _ := provisionTenant(t)
 	// cluster-manager
-	r := h.clusterManager.mustDo(t, ctx, http.MethodGet, "/api/v1/resourcepools", nil)
-	assert.True(t, r.is2xx(), "cluster-manager list pools: %d", r.status)
-	// compute-service (list mlruns in the shared namespace — it serves no
-	// top-level /namespaces collection; tenant CRUD lives in cluster-manager).
-	r = h.computeService.mustDo(t, ctx, http.MethodGet, "/api/v1/namespaces/"+sharedNS(t)+"/mlruns", nil)
-	assert.True(t, r.is2xx(), "compute-service list mlruns: %d", r.status)
-	// artifact-hub (list models in the shared namespace)
-	r = h.artifactHub.mustDo(t, ctx, http.MethodGet, "/api/v1/namespaces/"+sharedNS(t)+"/models", nil)
-	assert.True(t, r.is2xx(), "artifact-hub list models: %d", r.status)
+	rp, err := h.clusterManager.ListResourcePoolsWithResponse(ctx, nil)
+	require.NoError(t, err)
+	assert.True(t, is2xx(rp.StatusCode()), "cluster-manager list pools: %d", rp.StatusCode())
+	// compute-service (list mlruns in the namespace)
+	mr, err := h.computeService.ListMLRunsWithResponse(ctx, ns, nil)
+	require.NoError(t, err)
+	assert.True(t, is2xx(mr.StatusCode()), "compute-service list mlruns: %d", mr.StatusCode())
+	// artifact-hub (list models in the namespace)
+	am, err := h.artifactHub.ListModelsWithResponse(ctx, ns, nil)
+	require.NoError(t, err)
+	assert.True(t, is2xx(am.StatusCode()), "artifact-hub list models: %d", am.StatusCode())
 }
