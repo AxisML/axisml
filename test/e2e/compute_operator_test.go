@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,224 +21,218 @@ import (
 )
 
 // compute-operator. MLRun/MLService CRs are applied DIRECTLY (bypassing
-// compute-service) to isolate the operator, into the shared tenant namespace.
+// compute-service) to isolate the operator. The scenarios share one tenant
+// provisioned for this file and run as subtests, each isolating by unique
+// resource names and tearing its workload down before the next.
+func TestComputeOperator(t *testing.T) {
+	ns, quota := provisionTenant(t)
 
-func TestComputeOperator_MLRunRunsToCompletion(t *testing.T) {
-	ctx := context.Background()
-	ns := sharedNS(t)
-	quota := sharedQuota(t, ctx)
-	name := uniqueName("e2e-job")
+	t.Run("MLRunRunsToCompletion", func(t *testing.T) {
+		ctx := context.Background()
+		name := uniqueName("e2e-job")
 
-	job := buildMLRunCR(ns, name, quota)
-	require.NoError(t, h.k8s.Create(ctx, job))
-	t.Cleanup(func() { _ = h.k8s.Delete(context.Background(), job) })
+		job := buildMLRunCR(ns, name, quota)
+		require.NoError(t, h.k8s.Create(ctx, job))
+		t.Cleanup(func() { _ = h.k8s.Delete(context.Background(), job) })
 
-	// MLRun reaches Succeeded once kubelet has actually run the pod.
-	eventually(t, h.cfg.MLRunCompleteTimeout, func() error {
-		var cur mlrunv1.MLRun
-		if err := h.get(ctx, ns, name, &cur); err != nil {
-			return err
-		}
-		if cur.Status.Phase != mlrunv1.PhaseSucceeded {
-			return assertErr("phase=%q want Succeeded", cur.Status.Phase)
-		}
-		return nil
+		// MLRun reaches Succeeded once kubelet has actually run the pod.
+		eventually(t, h.cfg.MLRunCompleteTimeout, func() error {
+			var cur mlrunv1.MLRun
+			if err := h.get(ctx, ns, name, &cur); err != nil {
+				return err
+			}
+			if cur.Status.Phase != mlrunv1.PhaseSucceeded {
+				return assertErr("phase=%q want Succeeded", cur.Status.Phase)
+			}
+			return nil
+		})
+	})
+
+	t.Run("SchedulerAndQuotaLabels", func(t *testing.T) {
+		ctx := context.Background()
+		name := uniqueName("e2e-sched")
+
+		job := buildMLRunCR(ns, name, quota)
+		require.NoError(t, h.k8s.Create(ctx, job))
+		t.Cleanup(func() { _ = h.k8s.Delete(context.Background(), job) })
+
+		// Once a pod exists, it must carry koord-scheduler + the koord quota label
+		// (the non-negotiable invariant from CLAUDE.md).
+		eventually(t, h.cfg.PodReadyTimeout, func() error {
+			pod, err := firstPodMatching(ctx, ns, name)
+			if err != nil {
+				return err
+			}
+			if pod == nil {
+				return assertErr("no pod for job %s yet", name)
+			}
+			if pod.Spec.SchedulerName != "koord-scheduler" {
+				return assertErr("schedulerName=%q want koord-scheduler", pod.Spec.SchedulerName)
+			}
+			if _, ok := pod.Labels["quota.scheduling.koordinator.sh/name"]; !ok {
+				return assertErr("pod missing koord quota label")
+			}
+			return nil
+		})
+	})
+
+	t.Run("MLRunCancelSuspends", func(t *testing.T) {
+		ctx := context.Background()
+		name := uniqueName("e2e-cancel")
+
+		// Long-running so we can observe suspension.
+		job := buildMLRunCR(ns, name, quota)
+		job.Spec.Roles[0].Template.Command = []string{"sh", "-c", "sleep 600"}
+		require.NoError(t, h.k8s.Create(ctx, job))
+		t.Cleanup(func() { _ = h.k8s.Delete(context.Background(), job) })
+
+		// Cancel by setting spec.runPolicy.suspend via an unstructured patch (avoids
+		// depending on the exact Go field tag).
+		eventually(t, h.cfg.CRProvisionTimeout, func() error { return setMLRunSuspend(ctx, ns, name, true) })
+
+		// The backing batch/v1 Job is suspended.
+		eventually(t, h.cfg.PodReadyTimeout, func() error {
+			suspended, err := batchJobSuspended(ctx, ns, name)
+			if err != nil {
+				return err
+			}
+			if !suspended {
+				return assertErr("batch Job %s not suspended", name)
+			}
+			return nil
+		})
+	})
+
+	t.Run("MLServiceDeploymentServes", func(t *testing.T) {
+		ctx := context.Background()
+		name := uniqueName("e2e-svc")
+
+		svc := buildMLServiceCR(ns, name, quota, "deployment", nil)
+		require.NoError(t, h.k8s.Create(ctx, svc))
+		t.Cleanup(func() { _ = h.k8s.Delete(context.Background(), svc) })
+
+		// Deployment + Service exist and the MLService becomes Ready.
+		eventually(t, h.cfg.PodReadyTimeout, func() error {
+			var dep appsv1.Deployment
+			if err := h.get(ctx, ns, name, &dep); err != nil {
+				return err
+			}
+			var k8ssvc corev1.Service
+			if err := h.get(ctx, ns, name, &k8ssvc); err != nil {
+				return err
+			}
+			var cur mlservicev1.MLService
+			if err := h.get(ctx, ns, name, &cur); err != nil {
+				return err
+			}
+			if cur.Status.Phase != mlservicev1.PhaseReady {
+				return assertErr("phase=%q want Ready", cur.Status.Phase)
+			}
+			return nil
+		})
+
+		// Real HTTP: port-forward to the in-namespace Service and GET / -> 200.
+		pf, err := startPortForward(ns, name, 80)
+		require.NoError(t, err)
+		defer pf.Stop()
+		cli := newHTTPClient(pf.localURL())
+		r, err := cli.do(ctx, http.MethodGet, "/", nil)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, r.status, "nginx should answer 200")
+	})
+
+	t.Run("MLServiceRouteThroughEnvoy", func(t *testing.T) {
+		ctx := context.Background()
+		name := uniqueName("e2e-route")
+
+		route := &mlservicev1.Route{Enabled: true, Hostname: name + ".e2e.local"}
+		svc := buildMLServiceCR(ns, name, quota, "deployment", route)
+		require.NoError(t, h.k8s.Create(ctx, svc))
+		t.Cleanup(func() { _ = h.k8s.Delete(context.Background(), svc) })
+
+		// An HTTPRoute is created with parentRef -> axisml-gateway/axisml-infra.
+		eventually(t, h.cfg.CRProvisionTimeout, func() error {
+			hr := httpRouteObj()
+			if err := h.get(ctx, ns, name, hr); err != nil {
+				return err
+			}
+			parents, found, _ := unstructured.NestedSlice(hr.Object, "spec", "parentRefs")
+			if !found || len(parents) == 0 {
+				return assertErr("HTTPRoute %s has no parentRefs", name)
+			}
+			m, _ := parents[0].(map[string]any)
+			if m["name"] != "axisml-gateway" {
+				return assertErr("parentRef name=%v want axisml-gateway", m["name"])
+			}
+			return nil
+		})
+		// NOTE: driving an actual request through the Envoy LB requires resolving
+		// the minikube gateway address; left to a manual/follow-up check.
+		t.Log("HTTPRoute wired to axisml-gateway; end-to-end gateway curl not asserted")
+	})
+
+	t.Run("StatefulSetEngine", func(t *testing.T) {
+		ctx := context.Background()
+		name := uniqueName("e2e-sts")
+
+		svc := buildMLServiceCR(ns, name, quota, "statefulset", nil)
+		require.NoError(t, h.k8s.Create(ctx, svc))
+		t.Cleanup(func() { _ = h.k8s.Delete(context.Background(), svc) })
+
+		eventually(t, h.cfg.PodReadyTimeout, func() error {
+			var sts appsv1.StatefulSet
+			if err := h.get(ctx, ns, name, &sts); err != nil {
+				return err
+			}
+			var cur mlservicev1.MLService
+			if err := h.get(ctx, ns, name, &cur); err != nil {
+				return err
+			}
+			if cur.Status.Phase != mlservicev1.PhaseReady {
+				return assertErr("phase=%q want Ready", cur.Status.Phase)
+			}
+			return nil
+		})
+	})
+
+	t.Run("MLServiceScaleViaCR", func(t *testing.T) {
+		ctx := context.Background()
+		name := uniqueName("e2e-scale")
+
+		svc := buildMLServiceCR(ns, name, quota, "deployment", nil)
+		require.NoError(t, h.k8s.Create(ctx, svc))
+		t.Cleanup(func() { _ = h.k8s.Delete(context.Background(), svc) })
+
+		eventually(t, h.cfg.PodReadyTimeout, func() error {
+			var dep appsv1.Deployment
+			return h.get(ctx, ns, name, &dep)
+		})
+
+		// Scale 1 -> 2 by updating the CR.
+		eventually(t, h.cfg.CRProvisionTimeout, func() error {
+			var cur mlservicev1.MLService
+			if err := h.get(ctx, ns, name, &cur); err != nil {
+				return err
+			}
+			cur.Spec.Roles[0].Replicas = 2
+			return h.k8s.Update(ctx, &cur)
+		})
+		eventually(t, h.cfg.PodReadyTimeout, func() error {
+			var dep appsv1.Deployment
+			if err := h.get(ctx, ns, name, &dep); err != nil {
+				return err
+			}
+			if dep.Spec.Replicas == nil || *dep.Spec.Replicas != 2 {
+				return assertErr("deployment replicas not 2")
+			}
+			return nil
+		})
 	})
 }
 
-func TestComputeOperator_SchedulerAndQuotaLabels(t *testing.T) {
-	ctx := context.Background()
-	ns := sharedNS(t)
-	quota := sharedQuota(t, ctx)
-	name := uniqueName("e2e-sched")
-
-	job := buildMLRunCR(ns, name, quota)
-	require.NoError(t, h.k8s.Create(ctx, job))
-	t.Cleanup(func() { _ = h.k8s.Delete(context.Background(), job) })
-
-	// Once a pod exists, it must carry koord-scheduler + the koord quota label
-	// (the non-negotiable invariant from CLAUDE.md).
-	eventually(t, h.cfg.PodReadyTimeout, func() error {
-		pod, err := firstPodMatching(ctx, ns, name)
-		if err != nil {
-			return err
-		}
-		if pod == nil {
-			return assertErr("no pod for job %s yet", name)
-		}
-		if pod.Spec.SchedulerName != "koord-scheduler" {
-			return assertErr("schedulerName=%q want koord-scheduler", pod.Spec.SchedulerName)
-		}
-		if _, ok := pod.Labels["quota.scheduling.koordinator.sh/name"]; !ok {
-			return assertErr("pod missing koord quota label")
-		}
-		return nil
-	})
-}
-
-func TestComputeOperator_MLRunCancelSuspends(t *testing.T) {
-	ctx := context.Background()
-	ns := sharedNS(t)
-	quota := sharedQuota(t, ctx)
-	name := uniqueName("e2e-cancel")
-
-	// Long-running so we can observe suspension.
-	job := buildMLRunCR(ns, name, quota)
-	job.Spec.Roles[0].Template.Command = []string{"sh", "-c", "sleep 600"}
-	require.NoError(t, h.k8s.Create(ctx, job))
-	t.Cleanup(func() { _ = h.k8s.Delete(context.Background(), job) })
-
-	// Cancel by setting spec.runPolicy.suspend via an unstructured patch (avoids
-	// depending on the exact Go field tag).
-	eventually(t, h.cfg.CRProvisionTimeout, func() error { return setMLRunSuspend(ctx, ns, name, true) })
-
-	// The backing batch/v1 Job is suspended.
-	eventually(t, h.cfg.PodReadyTimeout, func() error {
-		suspended, err := batchJobSuspended(ctx, ns, name)
-		if err != nil {
-			return err
-		}
-		if !suspended {
-			return assertErr("batch Job %s not suspended", name)
-		}
-		return nil
-	})
-}
-
-func TestComputeOperator_MLServiceDeploymentServes(t *testing.T) {
-	ctx := context.Background()
-	ns := sharedNS(t)
-	quota := sharedQuota(t, ctx)
-	name := uniqueName("e2e-svc")
-
-	svc := buildMLServiceCR(ns, name, quota, "deployment", nil)
-	require.NoError(t, h.k8s.Create(ctx, svc))
-	t.Cleanup(func() { _ = h.k8s.Delete(context.Background(), svc) })
-
-	// Deployment + Service exist and the MLService becomes Ready.
-	eventually(t, h.cfg.PodReadyTimeout, func() error {
-		var dep appsv1.Deployment
-		if err := h.get(ctx, ns, name, &dep); err != nil {
-			return err
-		}
-		var k8ssvc corev1.Service
-		if err := h.get(ctx, ns, name, &k8ssvc); err != nil {
-			return err
-		}
-		var cur mlservicev1.MLService
-		if err := h.get(ctx, ns, name, &cur); err != nil {
-			return err
-		}
-		if cur.Status.Phase != mlservicev1.PhaseReady {
-			return assertErr("phase=%q want Ready", cur.Status.Phase)
-		}
-		return nil
-	})
-
-	// Real HTTP: port-forward to the in-namespace Service and GET / -> 200.
-	pf, err := startPortForward(ns, name, 80)
-	require.NoError(t, err)
-	defer pf.Stop()
-	cli := newHTTPClient(pf.localURL(), "")
-	r, err := cli.do(ctx, http.MethodGet, "/", nil)
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusOK, r.status, "nginx should answer 200")
-}
-
-func TestComputeOperator_MLServiceRouteThroughEnvoy(t *testing.T) {
-	ctx := context.Background()
-	ns := sharedNS(t)
-	quota := sharedQuota(t, ctx)
-	name := uniqueName("e2e-route")
-
-	route := &mlservicev1.Route{Enabled: true, Hostname: name + ".e2e.local"}
-	svc := buildMLServiceCR(ns, name, quota, "deployment", route)
-	require.NoError(t, h.k8s.Create(ctx, svc))
-	t.Cleanup(func() { _ = h.k8s.Delete(context.Background(), svc) })
-
-	// An HTTPRoute is created with parentRef -> axisml-gateway/axisml-infra.
-	eventually(t, h.cfg.CRProvisionTimeout, func() error {
-		hr := httpRouteObj()
-		if err := h.get(ctx, ns, name, hr); err != nil {
-			return err
-		}
-		parents, found, _ := unstructured.NestedSlice(hr.Object, "spec", "parentRefs")
-		if !found || len(parents) == 0 {
-			return assertErr("HTTPRoute %s has no parentRefs", name)
-		}
-		m, _ := parents[0].(map[string]any)
-		if m["name"] != "axisml-gateway" {
-			return assertErr("parentRef name=%v want axisml-gateway", m["name"])
-		}
-		return nil
-	})
-	// NOTE: driving an actual request through the Envoy LB requires resolving
-	// the minikube gateway address; left to a manual/follow-up check.
-	t.Log("HTTPRoute wired to axisml-gateway; end-to-end gateway curl not asserted")
-}
-
-func TestComputeOperator_StatefulSetEngine(t *testing.T) {
-	ctx := context.Background()
-	ns := sharedNS(t)
-	quota := sharedQuota(t, ctx)
-	name := uniqueName("e2e-sts")
-
-	svc := buildMLServiceCR(ns, name, quota, "statefulset", nil)
-	require.NoError(t, h.k8s.Create(ctx, svc))
-	t.Cleanup(func() { _ = h.k8s.Delete(context.Background(), svc) })
-
-	eventually(t, h.cfg.PodReadyTimeout, func() error {
-		var sts appsv1.StatefulSet
-		if err := h.get(ctx, ns, name, &sts); err != nil {
-			return err
-		}
-		var cur mlservicev1.MLService
-		if err := h.get(ctx, ns, name, &cur); err != nil {
-			return err
-		}
-		if cur.Status.Phase != mlservicev1.PhaseReady {
-			return assertErr("phase=%q want Ready", cur.Status.Phase)
-		}
-		return nil
-	})
-}
-
-func TestComputeOperator_MLServiceScaleViaCR(t *testing.T) {
-	ctx := context.Background()
-	ns := sharedNS(t)
-	quota := sharedQuota(t, ctx)
-	name := uniqueName("e2e-scale")
-
-	svc := buildMLServiceCR(ns, name, quota, "deployment", nil)
-	require.NoError(t, h.k8s.Create(ctx, svc))
-	t.Cleanup(func() { _ = h.k8s.Delete(context.Background(), svc) })
-
-	eventually(t, h.cfg.PodReadyTimeout, func() error {
-		var dep appsv1.Deployment
-		return h.get(ctx, ns, name, &dep)
-	})
-
-	// Scale 1 -> 2 by updating the CR.
-	eventually(t, h.cfg.CRProvisionTimeout, func() error {
-		var cur mlservicev1.MLService
-		if err := h.get(ctx, ns, name, &cur); err != nil {
-			return err
-		}
-		cur.Spec.Roles[0].Replicas = 2
-		return h.k8s.Update(ctx, &cur)
-	})
-	eventually(t, h.cfg.PodReadyTimeout, func() error {
-		var dep appsv1.Deployment
-		if err := h.get(ctx, ns, name, &dep); err != nil {
-			return err
-		}
-		if dep.Spec.Replicas == nil || *dep.Spec.Replicas != 2 {
-			return assertErr("deployment replicas not 2")
-		}
-		return nil
-	})
-}
-
+// TestComputeOperator_OverQuotaMLRunPends keeps its OWN tenant: it needs a tiny
+// (1 CPU) quota to force the over-budget pod to pend, unlike the shared 4-unit
+// tenant the rest of the file uses.
 func TestComputeOperator_OverQuotaMLRunPends(t *testing.T) {
 	ctx := context.Background()
 	tn := uniqueName("e2e-oq-tenant")
@@ -264,7 +259,7 @@ func TestComputeOperator_OverQuotaMLRunPends(t *testing.T) {
 	require.NoError(t, h.k8s.Create(ctx, job))
 	t.Cleanup(func() { _ = h.k8s.Delete(context.Background(), job) })
 
-	// The pod must stay Pending (unscheduled) on the ElasticQuota.
+	// First the pod must materialize.
 	eventually(t, h.cfg.PodReadyTimeout, func() error {
 		pod, err := firstPodMatching(ctx, ns, name)
 		if err != nil {
@@ -272,6 +267,19 @@ func TestComputeOperator_OverQuotaMLRunPends(t *testing.T) {
 		}
 		if pod == nil {
 			return assertErr("no pod yet")
+		}
+		return nil
+	})
+	// Then it must STAY unscheduled: a single immediate NodeName check could
+	// pass merely because the scheduler hasn't processed the pod yet (a false
+	// negative on over-quota blocking). Assert Pending holds across a window.
+	consistently(t, 15*time.Second, func() error {
+		pod, err := firstPodMatching(ctx, ns, name)
+		if err != nil {
+			return err
+		}
+		if pod == nil {
+			return assertErr("pod disappeared")
 		}
 		if pod.Spec.NodeName != "" {
 			return assertErr("pod unexpectedly scheduled to %s", pod.Spec.NodeName)

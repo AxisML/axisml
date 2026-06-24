@@ -38,14 +38,14 @@ cd test/e2e && go test -tags=e2e -run TestComputeService_JobLifecycleTopToBottom
 
 | File | Covers |
 |---|---|
-| `main_test.go` | `TestMain`, shared `e2e` tenant setup/teardown |
-| `harness_test.go` | K8s client, scheme, port-forward, HTTP client, polling |
+| `main_test.go` | `TestMain` + `gateReady` readiness gate + `provisionTenant` (per-file tenant) |
+| `harness_test.go` | K8s client, scheme, port-forward, generated component clients + auth editors, polling |
 | `config_test.go` | env-driven knobs (namespaces, ports, images, timeouts) |
-| `dto_test.go` | e2e-local mirrors of the services' HTTP DTOs |
+| `internal/clients/{clustermanager,computeservice,artifacthub,platform}/` | `oapi-codegen`-generated typed clients + models for each AxisML HTTP component, produced from the OpenAPI specs (`make e2e-client-gen`) — the suite's single source of request/response types |
 | `actions_test.go` | reusable client actions + request builders |
 | `util_test.go` / `k8shelpers_test.go` | tenant/pod builders, CRD/quota/pod helpers |
 | `oci_test.go` | minimal OCI-distribution push for artifact-hub |
-| `preflight_test.go` | environment readiness gate |
+| `preflight_test.go` | environment-readiness diagnostics (the gate itself runs in `TestMain`) |
 | `tenant_operator_test.go` | tenant-operator (incl. real ElasticQuota admission) |
 | `cluster_manager_test.go` | cluster-manager ResourcePool CRUD |
 | `compute_operator_test.go` | MLRun/MLService -> real workloads, scheduler labels, route |
@@ -54,14 +54,26 @@ cd test/e2e && go test -tags=e2e -run TestComputeService_JobLifecycleTopToBottom
 | `artifact_hub_test.go` | artifact metadata lifecycle + real zot two-phase upload |
 | `golden_path_test.go` | cross-service train-and-serve journey |
 
+## Test organization
+
+Each service test file owns **one tenant for its lifetime**: a top-level `Test`
+calls `provisionTenant(t)` once and runs its scenarios as `t.Run` subtests that
+share `(namespace, quota)` and tear their workloads down before the next subtest.
+The tenant is removed by `t.Cleanup` when the file finishes. Cases that need a
+differently-sized tenant (e.g. the over-quota check) or none at all keep their own
+top-level `Test`. There is no process-wide shared tenant.
+
+Readiness is gated in `TestMain` (`gateReady`) before any test: the required CRDs
+must be Established and the default pool must exist, else the run fails fast with
+guidance. `provisionTenant` uses run-unique names, so interrupted runs may leave
+`e2e-*` tenants behind — `make e2e-clean` reaps them.
+
 ## Configuration (env overrides)
 
 All have cluster-default values; override only when your install differs:
 `E2E_INFRA_NAMESPACE`, `E2E_SYSTEM_NAMESPACE`, `E2E_CLUSTER_MANAGER_SVC`,
-`E2E_COMPUTE_SERVICE_SVC`, `E2E_ARTIFACT_HUB_SVC`, `E2E_USER`, `E2E_SHARED_TENANT`,
-`E2E_SHARED_NAMESPACE`, `E2E_DEFAULT_POOL`, `E2E_DEFAULT_UNIT`, `E2E_JOB_IMAGE`,
-`E2E_SERVICE_IMAGE`. Set `E2E_KEEP_TENANT=1` to leave the shared tenant in place for
-post-mortem inspection (`make e2e-clean` removes it later).
+`E2E_COMPUTE_SERVICE_SVC`, `E2E_ARTIFACT_HUB_SVC`, `E2E_USER`, `E2E_DEFAULT_POOL`,
+`E2E_DEFAULT_UNIT`, `E2E_JOB_IMAGE`, `E2E_SERVICE_IMAGE`.
 
 ## Known validation point
 

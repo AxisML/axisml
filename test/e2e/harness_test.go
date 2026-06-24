@@ -14,6 +14,8 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -33,6 +35,10 @@ import (
 	mlservicev1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
 	mltpv1 "github.com/axisml/axisml/components/compute-operator/api/mltrafficpolicy/v1alpha1"
 	tenantv1 "github.com/axisml/axisml/components/tenant-operator/api/v1alpha1"
+
+	"github.com/axisml/axisml/test/e2e/internal/clients/artifacthub"
+	"github.com/axisml/axisml/test/e2e/internal/clients/clustermanager"
+	"github.com/axisml/axisml/test/e2e/internal/clients/computeservice"
 )
 
 // suite is the shared, process-wide harness wired up in TestMain.
@@ -42,9 +48,12 @@ type suite struct {
 	scheme *runtime.Scheme
 	k8s    client.Client
 
-	clusterManager *httpClient
-	computeService *httpClient
-	artifactHub    *httpClient
+	// Typed, OpenAPI-generated clients for the three System HTTP components. They
+	// reach the in-cluster Services over the port-forwards started in newSuite and
+	// carry the suite's identity header via a client-wide request editor.
+	clusterManager *clustermanager.ClientWithResponses
+	computeService *computeservice.ClientWithResponses
+	artifactHub    *artifacthub.ClientWithResponses
 
 	// forwards are torn down at the end of the run.
 	forwards []*portForward
@@ -73,16 +82,6 @@ func buildScheme() *runtime.Scheme {
 // TestMain after a readiness gate so failures are reported clearly.
 func newSuite() (*suite, error) {
 	cfg := loadConfig()
-	// Give the shared tenant a per-run-unique name unless explicitly pinned.
-	// compute-service soft-deletes tenants, so reusing a fixed name across runs
-	// collides (409 on re-create, leaving no CR/quota). A unique name sidesteps
-	// that; cleanup hard-removes the CR + namespace via the admin client.
-	if v := os.Getenv("E2E_SHARED_TENANT"); v != "" {
-		cfg.SharedTenant = v
-	} else {
-		cfg.SharedTenant = fmt.Sprintf("e2e-%d", time.Now().Unix()%1000000)
-	}
-	cfg.SharedNamespace = envOr("E2E_SHARED_NAMESPACE", cfg.SharedTenant)
 	s := &suite{cfg: cfg, scheme: buildScheme()}
 
 	restCfg, err := ctrlconfig.GetConfig()
@@ -108,11 +107,47 @@ func newSuite() (*suite, error) {
 		return nil, fmt.Errorf("port-forward artifact-hub: %w", err)
 	}
 
-	s.clusterManager = newHTTPClient(cm.localURL(), cfg.User)
-	s.computeService = newHTTPClient(cs.localURL(), cfg.User)
-	s.artifactHub = newHTTPClient(ah.localURL(), cfg.User)
+	doer := &http.Client{Timeout: 30 * time.Second}
+	user := setUser(cfg.User)
+	if s.clusterManager, err = clustermanager.NewClientWithResponses(cm.localURL(),
+		clustermanager.WithHTTPClient(doer), clustermanager.WithRequestEditorFn(user)); err != nil {
+		return nil, fmt.Errorf("build cluster-manager client: %w", err)
+	}
+	if s.computeService, err = computeservice.NewClientWithResponses(cs.localURL(),
+		computeservice.WithHTTPClient(doer), computeservice.WithRequestEditorFn(user)); err != nil {
+		return nil, fmt.Errorf("build compute-service client: %w", err)
+	}
+	if s.artifactHub, err = artifacthub.NewClientWithResponses(ah.localURL(),
+		artifacthub.WithHTTPClient(doer), artifacthub.WithRequestEditorFn(user)); err != nil {
+		return nil, fmt.Errorf("build artifact-hub client: %w", err)
+	}
 	return s, nil
 }
+
+// setUser is a client-wide request editor that stamps the suite's identity
+// header on every System-component call. The generated per-package
+// RequestEditorFn types share this underlying signature, so one func value is
+// assignable to all three.
+func setUser(user string) func(context.Context, *http.Request) error {
+	return func(_ context.Context, req *http.Request) error {
+		if user != "" {
+			req.Header.Set(headerUser, user)
+		}
+		return nil
+	}
+}
+
+// anon is a per-call request editor that strips the identity header (client-wide
+// editors run first, so this clears it afterward). Used for the artifact-hub
+// anonymous-read test, where a missing X-Axisml-User must still succeed.
+func anon(_ context.Context, req *http.Request) error {
+	req.Header.Del(headerUser)
+	return nil
+}
+
+// is2xx / is4xx classify a status code from a generated response's StatusCode().
+func is2xx(code int) bool { return code >= 200 && code < 300 }
+func is4xx(code int) bool { return code >= 400 && code < 500 }
 
 func (s *suite) forward(ns, svc string, remotePort int) (*portForward, error) {
 	pf, err := startPortForward(ns, svc, remotePort)
@@ -143,6 +178,30 @@ type portForward struct {
 	svc       string
 	localPort int
 	cmd       *exec.Cmd
+
+	// output captures kubectl's stdout+stderr so a failed forward can report
+	// what kubectl actually said (RBAC error, no such service, ...) instead of a
+	// bare timeout. Guarded because the scanner goroutine writes while the
+	// startup path reads it on failure.
+	mu     sync.Mutex
+	output strings.Builder
+}
+
+func (pf *portForward) record(line string) {
+	pf.mu.Lock()
+	pf.output.WriteString(line)
+	pf.output.WriteByte('\n')
+	pf.mu.Unlock()
+}
+
+// diagnostics returns the captured kubectl output for error messages.
+func (pf *portForward) diagnostics() string {
+	pf.mu.Lock()
+	defer pf.mu.Unlock()
+	if s := strings.TrimSpace(pf.output.String()); s != "" {
+		return s
+	}
+	return "(no kubectl output captured)"
 }
 
 func startPortForward(ns, svc string, remotePort int) (*portForward, error) {
@@ -162,9 +221,11 @@ func startPortForward(ns, svc string, remotePort int) (*portForward, error) {
 	go func() {
 		sc := bufio.NewScanner(stdout)
 		for sc.Scan() {
-			if m := forwardingRe.FindStringSubmatch(sc.Text()); m != nil {
+			line := sc.Text()
+			pf.record(line)
+			if m := forwardingRe.FindStringSubmatch(line); m != nil {
 				var p int
-				fmt.Sscanf(m[1], "%d", &p)
+				_, _ = fmt.Sscanf(m[1], "%d", &p)
 				select {
 				case portCh <- p:
 				default:
@@ -179,12 +240,12 @@ func startPortForward(ns, svc string, remotePort int) (*portForward, error) {
 		// Give the listener a moment to accept connections.
 		if err := waitListen(p, 10*time.Second); err != nil {
 			pf.Stop()
-			return nil, err
+			return nil, fmt.Errorf("%w; kubectl said: %s", err, pf.diagnostics())
 		}
 		return pf, nil
 	case <-time.After(30 * time.Second):
 		pf.Stop()
-		return nil, fmt.Errorf("timed out waiting for kubectl port-forward to svc/%s in %s", svc, ns)
+		return nil, fmt.Errorf("timed out waiting for kubectl port-forward to svc/%s in %s; kubectl said: %s", svc, ns, pf.diagnostics())
 	}
 }
 
@@ -193,9 +254,20 @@ func (pf *portForward) localURL() string {
 }
 
 func (pf *portForward) Stop() {
-	if pf.cmd != nil && pf.cmd.Process != nil {
+	if pf.cmd == nil || pf.cmd.Process == nil {
+		return
+	}
+	// Ask kubectl to shut the forward down cleanly first; SIGKILL only if it
+	// doesn't exit promptly. A bare Kill() can leave the API server holding the
+	// SPDY stream open briefly, which occasionally wedges a fast re-run.
+	done := make(chan struct{})
+	go func() { _ = pf.cmd.Wait(); close(done) }()
+	_ = pf.cmd.Process.Signal(os.Interrupt)
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
 		_ = pf.cmd.Process.Kill()
-		_ = pf.cmd.Wait()
+		<-done
 	}
 }
 
@@ -214,39 +286,32 @@ func waitListen(port int, timeout time.Duration) error {
 }
 
 // ---------------------------------------------------------------------------
-// HTTP client
+// Raw HTTP client (deployed-workload probes only)
 // ---------------------------------------------------------------------------
+//
+// The AxisML HTTP components are reached through their typed, generated clients
+// (the suite fields). This bare client exists only for probing arbitrary
+// in-cluster workloads over a port-forward — e.g. GET / against a deployed nginx
+// MLService — which have no OpenAPI contract to generate a client from.
 
 const headerUser = "X-Axisml-User"
 
 type httpClient struct {
 	baseURL string
-	user    string
 	c       *http.Client
 }
 
-func newHTTPClient(baseURL, user string) *httpClient {
-	return &httpClient{baseURL: baseURL, user: user, c: &http.Client{Timeout: 30 * time.Second}}
+func newHTTPClient(baseURL string) *httpClient {
+	return &httpClient{baseURL: baseURL, c: &http.Client{Timeout: 30 * time.Second}}
 }
 
-// resp is the decoded result of an HTTP call.
+// resp is the result of a raw HTTP call.
 type resp struct {
 	status int
 	body   []byte
 }
 
-func (r resp) is2xx() bool { return r.status >= 200 && r.status < 300 }
-func (r resp) is4xx() bool { return r.status >= 400 && r.status < 500 }
-
-// decode unmarshals the JSON body into out. Callers use it only on 2xx.
-func (r resp) decode(out any) error {
-	if out == nil {
-		return nil
-	}
-	return json.Unmarshal(r.body, out)
-}
-
-// do issues a request with the identity header. body may be nil.
+// do issues a request. body may be nil.
 func (hc *httpClient) do(ctx context.Context, method, path string, body any) (resp, error) {
 	var rdr io.Reader
 	if body != nil {
@@ -263,35 +328,16 @@ func (hc *httpClient) do(ctx context.Context, method, path string, body any) (re
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	if hc.user != "" {
-		req.Header.Set(headerUser, hc.user)
-	}
 	httpResp, err := hc.c.Do(req)
 	if err != nil {
 		return resp{}, err
 	}
-	defer httpResp.Body.Close()
+	defer func() { _ = httpResp.Body.Close() }()
 	b, err := io.ReadAll(httpResp.Body)
 	if err != nil {
 		return resp{}, err
 	}
 	return resp{status: httpResp.StatusCode, body: b}, nil
-}
-
-// doNoAuth is like do but omits the identity header (for 401 negative tests).
-func (hc *httpClient) doNoAuth(ctx context.Context, method, path string, body any) (resp, error) {
-	bare := &httpClient{baseURL: hc.baseURL, user: "", c: hc.c}
-	return bare.do(ctx, method, path, body)
-}
-
-// mustDo fails the test on transport error and returns the response.
-func (hc *httpClient) mustDo(t *testing.T, ctx context.Context, method, path string, body any) resp {
-	t.Helper()
-	r, err := hc.do(ctx, method, path, body)
-	if err != nil {
-		t.Fatalf("%s %s: transport error: %v", method, path, err)
-	}
-	return r
 }
 
 // ---------------------------------------------------------------------------

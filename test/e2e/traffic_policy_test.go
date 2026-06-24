@@ -12,6 +12,8 @@ import (
 
 	mlservicev1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
 	mltpv1 "github.com/axisml/axisml/components/compute-operator/api/mltrafficpolicy/v1alpha1"
+
+	"github.com/axisml/axisml/test/e2e/internal/clients/computeservice"
 )
 
 // compute-service + compute-operator: traffic-config (MLTrafficPolicy).
@@ -24,8 +26,8 @@ func createReadyService(t *testing.T, ctx context.Context, ns, quota, name strin
 	t.Helper()
 	r, err := h.createMLService(ctx, ns, nginxMLServiceReq(name, h.cfg.DefaultPool, h.cfg.DefaultUnit, quota, nil))
 	require.NoError(t, err)
-	require.True(t, r.is2xx(), "create member service %s: %d: %s", name, r.status, string(r.body))
-	t.Cleanup(func() { _, _ = h.deleteMLService(context.Background(), ns, name) })
+	require.True(t, is2xx(r.StatusCode()), "create member service %s: %d: %s", name, r.StatusCode(), string(r.Body))
+	cleanupMLService(t, ns, name)
 
 	eventually(t, h.cfg.PodReadyTimeout, func() error {
 		var svc mlservicev1.MLService
@@ -74,8 +76,7 @@ func httpRouteBackendWeights(ctx context.Context, ns, name string) (map[string]i
 
 func TestTrafficPolicy_CanaryThroughGateway(t *testing.T) {
 	ctx := context.Background()
-	ns := sharedNS(t)
-	quota := sharedQuota(t, ctx)
+	ns, quota := provisionTenant(t)
 
 	stable := uniqueName("e2e-tp-stable")
 	canary := uniqueName("e2e-tp-canary")
@@ -84,94 +85,116 @@ func TestTrafficPolicy_CanaryThroughGateway(t *testing.T) {
 	createReadyService(t, ctx, ns, quota, stable)
 	createReadyService(t, ctx, ns, quota, canary)
 
-	// --- create -------------------------------------------------------------
-	r, err := h.createTrafficPolicy(ctx, ns, canaryTrafficReq(policy, stable, canary))
-	require.NoError(t, err)
-	require.True(t, r.is2xx(), "create traffic policy: %d: %s", r.status, string(r.body))
-	t.Cleanup(func() { _, _ = h.deleteTrafficPolicy(context.Background(), ns, policy) })
-
-	// HTTP response carries the derived backend tuple + auto-filled endpoint path.
-	var view csTrafficPolicyView
-	require.NoError(t, r.decode(&view))
-	assert.Equal(t, string(mltpv1.TrafficModeCanary), view.Mode)
-	assert.Equal(t, mltpv1.BackendKindNative, view.Spec.Backend.Name)
-	assert.Equal(t, "/services/"+ns+"/"+policy+"/", view.Spec.Endpoint.Path)
-
-	// MLTrafficPolicy CR materializes with the derived backend tuple + weights.
+	// The phases below form a single canary state machine (create -> split ->
+	// promote -> delete): each depends on the prior, so they run as ordered
+	// subtests and short-circuit on the first failure (a failed split would make
+	// the promote assertions meaningless). t.Run gives per-phase failure
+	// localization without sacrificing the ordering.
 	var cr mltpv1.MLTrafficPolicy
-	eventually(t, h.cfg.CRProvisionTimeout, func() error { return h.get(ctx, ns, policy, &cr) })
-	assert.Equal(t, mltpv1.BackendKindNative, cr.Spec.Backend.Name)
-	assert.Equal(t, mltpv1.EngineHTTPRoute, cr.Spec.Backend.Engine)
-	assert.Equal(t, mltpv1.TrafficModeCanary, cr.Spec.Mode)
-	assert.NotEmpty(t, cr.Labels[mltpv1.LabelTrafficPolicyID])
-	require.Len(t, cr.Spec.Backends, 2)
 
-	// The operator derives a single weighted HTTPRoute over both members.
-	eventually(t, h.cfg.CRProvisionTimeout, func() error {
-		w, err := httpRouteBackendWeights(ctx, ns, policy)
-		if err != nil {
-			return err
-		}
-		if w[stable] != 90 || w[canary] != 10 {
-			return assertErr("HTTPRoute weights=%v want %s:90 %s:10", w, stable, canary)
-		}
-		return nil
-	})
-
-	// --- split: shift to 50/50 ---------------------------------------------
-	s, err := h.splitTrafficPolicy(ctx, ns, policy, csTrafficSplitReq{Backends: []csTrafficWeightUpdate{
-		{ServiceName: stable, Weight: 50},
-		{ServiceName: canary, Weight: 50},
-	}})
-	require.NoError(t, err)
-	require.True(t, s.is2xx(), "split: %d: %s", s.status, string(s.body))
-	eventually(t, h.cfg.CRProvisionTimeout, func() error {
-		w, err := httpRouteBackendWeights(ctx, ns, policy)
-		if err != nil {
-			return err
-		}
-		if w[stable] != 50 || w[canary] != 50 {
-			return assertErr("HTTPRoute weights=%v want 50/50", w)
-		}
-		return nil
-	})
-
-	// --- promote: canary becomes stable @100 (roles swap) ------------------
-	p, err := h.promoteTrafficPolicy(ctx, ns, policy)
-	require.NoError(t, err)
-	require.True(t, p.is2xx(), "promote: %d: %s", p.status, string(p.body))
-	eventually(t, h.cfg.CRProvisionTimeout, func() error {
-		w, err := httpRouteBackendWeights(ctx, ns, policy)
-		if err != nil {
-			return err
-		}
-		if w[canary] != 100 || w[stable] != 0 {
-			return assertErr("HTTPRoute weights=%v want canary:100 stable:0", w)
-		}
-		return nil
-	})
-	require.NoError(t, h.get(ctx, ns, policy, &cr))
-	assert.Equal(t, mltpv1.RoleStable, roleForService(cr.Spec.Backends, canary), "promoted canary should be the new stable")
-
-	// --- delete: policy CR removed, member services retained ---------------
-	d, err := h.deleteTrafficPolicy(ctx, ns, policy)
-	require.NoError(t, err)
-	require.True(t, d.is2xx(), "delete: %d", d.status)
-	eventually(t, h.cfg.CRProvisionTimeout, func() error {
-		var gone mltpv1.MLTrafficPolicy
-		if err := h.get(ctx, ns, policy, &gone); isNotFound(err) {
-			return nil
-		} else if err != nil {
-			return err
-		}
-		return assertErr("MLTrafficPolicy %s still present", policy)
-	})
-	// Members are not deleted by the policy.
-	for _, svc := range []string{stable, canary} {
-		g, err := h.getMLService(ctx, ns, svc)
+	ok := t.Run("create", func(t *testing.T) {
+		r, err := h.createTrafficPolicy(ctx, ns, canaryTrafficReq(policy, stable, canary))
 		require.NoError(t, err)
-		assert.True(t, g.is2xx(), "member service %s should survive policy delete: %d", svc, g.status)
+		require.True(t, is2xx(r.StatusCode()), "create traffic policy: %d: %s", r.StatusCode(), string(r.Body))
+		cleanupTrafficPolicy(t, ns, policy)
+
+		// HTTP response carries the derived backend tuple + auto-filled endpoint path.
+		view := r.JSON201
+		require.NotNil(t, view, "create response should carry the traffic policy")
+		assert.Equal(t, string(mltpv1.TrafficModeCanary), view.Mode)
+		assert.Equal(t, string(mltpv1.BackendKindNative), view.Spec.Backend.Name)
+		require.NotNil(t, view.Spec.Endpoint.Path)
+		assert.Equal(t, "/services/"+ns+"/"+policy+"/", *view.Spec.Endpoint.Path)
+
+		// MLTrafficPolicy CR materializes with the derived backend tuple + weights.
+		eventually(t, h.cfg.CRProvisionTimeout, func() error { return h.get(ctx, ns, policy, &cr) })
+		assert.Equal(t, mltpv1.BackendKindNative, cr.Spec.Backend.Name)
+		assert.Equal(t, mltpv1.EngineHTTPRoute, cr.Spec.Backend.Engine)
+		assert.Equal(t, mltpv1.TrafficModeCanary, cr.Spec.Mode)
+		assert.NotEmpty(t, cr.Labels[mltpv1.LabelTrafficPolicyID])
+		require.Len(t, cr.Spec.Backends, 2)
+
+		// The operator derives a single weighted HTTPRoute over both members.
+		eventually(t, h.cfg.CRProvisionTimeout, func() error {
+			w, err := httpRouteBackendWeights(ctx, ns, policy)
+			if err != nil {
+				return err
+			}
+			if w[stable] != 90 || w[canary] != 10 {
+				return assertErr("HTTPRoute weights=%v want %s:90 %s:10", w, stable, canary)
+			}
+			return nil
+		})
+	})
+	if !ok {
+		return
 	}
+
+	ok = t.Run("split", func(t *testing.T) {
+		s, err := h.splitTrafficPolicy(ctx, ns, policy, computeservice.TrafficPolicySplitRequest{Backends: []computeservice.TrafficPolicyWeightUpdate{
+			{ServiceName: stable, Weight: 50},
+			{ServiceName: canary, Weight: 50},
+		}})
+		require.NoError(t, err)
+		require.True(t, is2xx(s.StatusCode()), "split: %d: %s", s.StatusCode(), string(s.Body))
+		eventually(t, h.cfg.CRProvisionTimeout, func() error {
+			w, err := httpRouteBackendWeights(ctx, ns, policy)
+			if err != nil {
+				return err
+			}
+			if w[stable] != 50 || w[canary] != 50 {
+				return assertErr("HTTPRoute weights=%v want 50/50", w)
+			}
+			return nil
+		})
+	})
+	if !ok {
+		return
+	}
+
+	ok = t.Run("promote", func(t *testing.T) {
+		// canary becomes stable @100 (roles swap).
+		p, err := h.promoteTrafficPolicy(ctx, ns, policy)
+		require.NoError(t, err)
+		require.True(t, is2xx(p.StatusCode()), "promote: %d: %s", p.StatusCode(), string(p.Body))
+		eventually(t, h.cfg.CRProvisionTimeout, func() error {
+			w, err := httpRouteBackendWeights(ctx, ns, policy)
+			if err != nil {
+				return err
+			}
+			if w[canary] != 100 || w[stable] != 0 {
+				return assertErr("HTTPRoute weights=%v want canary:100 stable:0", w)
+			}
+			return nil
+		})
+		require.NoError(t, h.get(ctx, ns, policy, &cr))
+		assert.Equal(t, mltpv1.RoleStable, roleForService(cr.Spec.Backends, canary), "promoted canary should be the new stable")
+	})
+	if !ok {
+		return
+	}
+
+	t.Run("delete", func(t *testing.T) {
+		// Policy CR removed, member services retained.
+		d, err := h.deleteTrafficPolicy(ctx, ns, policy)
+		require.NoError(t, err)
+		require.True(t, is2xx(d.StatusCode()), "delete: %d", d.StatusCode())
+		eventually(t, h.cfg.CRProvisionTimeout, func() error {
+			var gone mltpv1.MLTrafficPolicy
+			if err := h.get(ctx, ns, policy, &gone); isNotFound(err) {
+				return nil
+			} else if err != nil {
+				return err
+			}
+			return assertErr("MLTrafficPolicy %s still present", policy)
+		})
+		// Members are not deleted by the policy.
+		for _, svc := range []string{stable, canary} {
+			g, err := h.getMLService(ctx, ns, svc)
+			require.NoError(t, err)
+			assert.True(t, is2xx(g.StatusCode()), "member service %s should survive policy delete: %d", svc, g.StatusCode())
+		}
+	})
 }
 
 func roleForService(backends []mltpv1.BackendMember, name string) mltpv1.BackendRole {

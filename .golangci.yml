@@ -7,6 +7,12 @@ version: "2"
 run:
   build-tags:
     - integration
+    # e2e-tagged files live only under test/e2e (a real-cluster suite excluded
+    # from `go test`/CI runs). Listing the tag here is a no-op for every other
+    # module but makes lint type-check the e2e sources, so a repo reorg that
+    # breaks their imports/replace paths fails the lint job instead of silently
+    # rotting until someone runs `make e2e-test`.
+    - e2e
 
 linters:
   enable:

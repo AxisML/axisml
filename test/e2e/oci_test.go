@@ -12,6 +12,8 @@ import (
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/axisml/axisml/test/e2e/internal/clients/artifacthub"
 )
 
 // Minimal OCI-distribution push helper used by the artifact-hub two-phase
@@ -26,15 +28,16 @@ import (
 // the flow is contract-stable.
 
 type ociCreds struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
-	Token    string `json:"token"`
+	Username string
+	Password string
+	Token    string
 }
 
-func parseOCICreds(raw json.RawMessage) ociCreds {
-	var c ociCreds
-	_ = json.Unmarshal(raw, &c)
-	return c
+// ociCredsFrom adapts artifact-hub's typed upload credentials to the registry
+// client's auth shape. artifact-hub issues username/password (basic auth);
+// Token is left empty (the client falls back to basic auth).
+func ociCredsFrom(c artifacthub.OciCredentials) ociCreds {
+	return ociCreds{Username: c.Username, Password: c.Password}
 }
 
 // parseRepoRef extracts (repository, reference) from an upload URI, ignoring the
@@ -110,7 +113,7 @@ func (o *ociClient) pushConfigOnlyManifest(ctx context.Context, repo, ref string
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode/100 != 2 {
 		b, _ := io.ReadAll(resp.Body)
 		return "", fmt.Errorf("put manifest: %d: %s", resp.StatusCode, string(b))
@@ -125,7 +128,7 @@ func (o *ociClient) pushBlob(ctx context.Context, repo, digest string, blob []by
 		return err
 	}
 	loc := resp.Header.Get("Location")
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode/100 != 2 || loc == "" {
 		return fmt.Errorf("start upload: status %d loc=%q", resp.StatusCode, loc)
 	}
@@ -147,7 +150,7 @@ func (o *ociClient) pushBlob(ctx context.Context, repo, digest string, blob []by
 	if err != nil {
 		return err
 	}
-	defer resp2.Body.Close()
+	defer func() { _ = resp2.Body.Close() }()
 	if resp2.StatusCode/100 != 2 {
 		b, _ := io.ReadAll(resp2.Body)
 		return fmt.Errorf("put blob: %d: %s", resp2.StatusCode, string(b))
