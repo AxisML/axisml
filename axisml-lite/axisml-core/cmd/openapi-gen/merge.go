@@ -2,32 +2,27 @@ package main
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"reflect"
 
 	"github.com/axisml/axisml/pkg/openapigen"
-	"sigs.k8s.io/yaml"
 )
 
 // axisml-core mounts the three System modules' routers (Cluster Manager,
 // Compute Service, Artifact Hub) on one HTTP server at the same paths the
 // standalone System services expose. The composite OpenAPI document is
-// therefore the UNION of those three generated specs plus the Lite-owned
-// surface (probes + aggregate capability endpoint) already built in main.go.
+// therefore the UNION of those three surfaces plus the Lite-owned surface
+// (probes + aggregate capability endpoint) already built in main.go.
 //
-// We fold by re-reading the System specs' generated YAML (each produced by the
-// SAME pkg/openapigen Document type, so the round-trip is lossless) rather than
-// re-reflecting their Go DTOs — the System layer stays the single owner of
-// those contracts (design §5).
+// Each System surface is built in-process by its pkg/apidoc.Document builder —
+// the SAME builder the System layer's own openapi-gen uses — so the fold is a
+// direct Go-to-Go union with no YAML round-trip, and the System layer stays the
+// single owner of those contracts (design §5).
 //
 // The fold is a plain union: the only cross-spec schema-name collisions are
 // disambiguated at the source (each service's error schema is named per
-// service — e.g. ComputeServiceProblem), so no renaming is needed here. Shared
+// service — e.g. ComputeServiceError), so no renaming is needed here. Shared
 // schemas with an identical definition (e.g. Corev1Toleration) deduplicate; a
 // divergent same-name collision is a hard error pointing back at the source.
-
-var systemSpecFiles = []string{"cluster-manager", "compute-service", "artifact-hub"}
 
 // litePaths are served by axisml-core itself, not delegated to a System module:
 // the composed probes and the aggregate capability document. The System specs
@@ -46,30 +41,13 @@ var liteOwnedSchemas = map[string]bool{
 }
 
 // foldSystemSpecs merges every System module's per-resource surface into dst.
-func foldSystemSpecs(dst *openapigen.Document, dir string) error {
-	for _, name := range systemSpecFiles {
-		path := filepath.Join(dir, name+".yaml")
-		src, err := loadSpec(path)
-		if err != nil {
-			return fmt.Errorf("load %s: %w", path, err)
-		}
+func foldSystemSpecs(dst *openapigen.Document, srcs ...*openapigen.Document) error {
+	for _, src := range srcs {
 		if err := foldOne(dst, src); err != nil {
-			return fmt.Errorf("fold %s: %w", path, err)
+			return fmt.Errorf("fold %q: %w", src.Info.Title, err)
 		}
 	}
 	return nil
-}
-
-func loadSpec(path string) (*openapigen.Document, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	var doc openapigen.Document
-	if err := yaml.Unmarshal(data, &doc); err != nil {
-		return nil, err
-	}
-	return &doc, nil
 }
 
 func foldOne(dst, src *openapigen.Document) error {

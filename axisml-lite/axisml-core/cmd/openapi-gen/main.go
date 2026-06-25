@@ -5,13 +5,14 @@
 // Service + Artifact Hub) onto one HTTP server at the same paths the standalone
 // System services expose, plus its own probes and aggregate capability
 // endpoint. The composite spec is the UNION of the Lite-owned surface (built
-// here by reflection over internal/core) and the three System specs folded in
-// from axisml-system/docs/apis/{cluster-manager,compute-service,artifact-hub}.yaml.
+// here by reflection over internal/core) and the three System surfaces.
 //
-// We fold the System specs by re-reading their generated YAML rather than
-// re-reflecting their Go DTOs: the System layer stays the single owner of those
-// contracts (design §5), and each spec is produced by the same pkg/openapigen
-// Document type, so the round-trip is lossless. See merge.go for the fold.
+// We build each System surface in-process from its pkg/apidoc.Document builder —
+// the SAME builder the System layer's own openapi-gen renders to YAML — so the
+// System layer stays the single owner of those contracts (design §5) while the
+// composite is assembled directly from Go: no YAML re-read, and no dependency on
+// axisml-system/docs/apis/*.yaml having been regenerated first. See merge.go for
+// the fold.
 //
 // Run from the component root:
 //
@@ -26,6 +27,9 @@ import (
 	"strings"
 
 	"github.com/axisml/axisml/axisml-lite/axisml-core/internal/core"
+	arthubapidoc "github.com/axisml/axisml/components/artifact-hub/pkg/apidoc"
+	clustermgrapidoc "github.com/axisml/axisml/components/cluster-manager/pkg/apidoc"
+	computeapidoc "github.com/axisml/axisml/components/compute-service/pkg/apidoc"
 	"github.com/axisml/axisml/pkg/openapigen"
 )
 
@@ -39,12 +43,17 @@ const (
 func main() {
 	out := flag.String("o", "../../docs/apis/axisml-core.yaml", "output path")
 	v := flag.String("version", defaultVersion, "info.version field")
-	systemAPIs := flag.String("system-apis", "../../axisml-system/docs/apis",
-		"directory holding the System layer's generated specs to fold in")
 	flag.Parse()
 
 	doc := buildDocument(*v)
-	if err := foldSystemSpecs(doc, *systemAPIs); err != nil {
+	// Fold the three System surfaces in-process from the SAME pkg/apidoc builders
+	// the System layer's own openapi-gen uses — no YAML re-read, no dependency on
+	// the System specs having been regenerated first.
+	if err := foldSystemSpecs(doc,
+		clustermgrapidoc.Document(*v),
+		computeapidoc.Document(*v),
+		arthubapidoc.Document(*v),
+	); err != nil {
 		fail("fold system specs: %v", err)
 	}
 	data, err := openapigen.MarshalYAML(doc)
