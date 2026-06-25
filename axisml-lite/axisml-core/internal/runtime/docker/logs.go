@@ -5,8 +5,8 @@ import (
 	"io"
 	"strconv"
 
+	cerrdefs "github.com/containerd/errdefs"
 	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -27,7 +27,7 @@ func (r *Runtime) streamLogs(ctx context.Context, instance string, opts *corev1.
 	}
 	rc, err := r.cli.ContainerLogs(ctx, instance, lo)
 	if err != nil {
-		if client.IsErrNotFound(err) {
+		if cerrdefs.IsNotFound(err) {
 			return nil, notFound("pods", types.NamespacedName{Name: instance})
 		}
 		return nil, err

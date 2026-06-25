@@ -99,7 +99,7 @@ func (p *ContainerPlan) toDocker(net string) (*container.Config, *container.Host
 		},
 	}
 	if p.Resources.GPUCount > 0 {
-		host.Resources.DeviceRequests = []container.DeviceRequest{{
+		host.DeviceRequests = []container.DeviceRequest{{
 			Driver:       "nvidia",
 			Count:        p.Resources.GPUCount,
 			Capabilities: [][]string{{"gpu"}},

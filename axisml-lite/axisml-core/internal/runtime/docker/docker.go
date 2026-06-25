@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"io"
 
+	cerrdefs "github.com/containerd/errdefs"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/api/types/volume"
-	"github.com/docker/docker/client"
 )
 
 // managedFilter builds a label filter that selects this installation's managed
@@ -84,7 +84,7 @@ func (r *Runtime) createAndStart(ctx context.Context, p *ContainerPlan) (string,
 // an error.
 func (r *Runtime) removeContainer(ctx context.Context, id string) error {
 	err := r.cli.ContainerRemove(ctx, id, container.RemoveOptions{Force: true, RemoveVolumes: false})
-	if err != nil && !client.IsErrNotFound(err) {
+	if err != nil && !cerrdefs.IsNotFound(err) {
 		return err
 	}
 	return nil
@@ -94,7 +94,7 @@ func (r *Runtime) removeContainer(ctx context.Context, id string) error {
 // already-stopped container is not an error.
 func (r *Runtime) stopContainer(ctx context.Context, id string) error {
 	err := r.cli.ContainerStop(ctx, id, container.StopOptions{})
-	if err != nil && !client.IsErrNotFound(err) {
+	if err != nil && !cerrdefs.IsNotFound(err) {
 		return err
 	}
 	return nil
@@ -109,7 +109,7 @@ func (r *Runtime) ensureVolume(ctx context.Context, name string, labels map[stri
 // removeVolume removes a named volume. A missing volume is not an error.
 func (r *Runtime) removeVolume(ctx context.Context, name string) error {
 	err := r.cli.VolumeRemove(ctx, name, true)
-	if err != nil && !client.IsErrNotFound(err) {
+	if err != nil && !cerrdefs.IsNotFound(err) {
 		return err
 	}
 	return nil

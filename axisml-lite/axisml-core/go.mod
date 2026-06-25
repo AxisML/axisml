@@ -9,6 +9,7 @@ require (
 	github.com/axisml/axisml/components/compute-service v0.0.0
 	github.com/axisml/axisml/components/tenant-operator v0.0.0
 	github.com/axisml/axisml/pkg/openapigen v0.0.0
+	github.com/containerd/errdefs v1.0.0
 	github.com/docker/docker v28.3.3+incompatible
 	github.com/docker/go-connections v0.6.0
 	github.com/gin-gonic/gin v1.12.0
@@ -31,7 +32,6 @@ require (
 	github.com/bytedance/sonic/loader v0.5.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
-	github.com/containerd/errdefs v1.0.0 // indirect
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect

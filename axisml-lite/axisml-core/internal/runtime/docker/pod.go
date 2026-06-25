@@ -3,8 +3,8 @@ package docker
 import (
 	"context"
 
+	cerrdefs "github.com/containerd/errdefs"
 	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/client"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -102,7 +102,7 @@ func (r *Runtime) verifyInstance(ctx context.Context, kind string, key types.Nam
 		}
 	}
 	if _, err := r.cli.ContainerInspect(ctx, instance); err != nil {
-		if client.IsErrNotFound(err) {
+		if cerrdefs.IsNotFound(err) {
 			return notFound("pods", types.NamespacedName{Namespace: key.Namespace, Name: instance})
 		}
 		return err
