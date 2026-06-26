@@ -45,6 +45,15 @@ func (s *clusterManagerStub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.engine.ServeHTTP(w, r)
 }
 
+// seedTenant pre-creates a Tenant CR as the System chart's seed.tenant would,
+// so Platform's bootstrap can discover and import it (e.g. the built-in
+// `default` tenant).
+func (s *clusterManagerStub) seedTenant(name, namespace string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.tenants[name] = map[string]any{"namespace": namespace}
+}
+
 func (s *clusterManagerStub) tenantBody(name string) map[string]any {
 	ns, _ := s.tenants[name]["namespace"].(string)
 	return map[string]any{

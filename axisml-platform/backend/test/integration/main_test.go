@@ -68,6 +68,10 @@ func run(m *testing.M) (int, error) {
 	}
 
 	cmStub = newClusterManagerStub()
+	// The System chart's seed.tenant owns the built-in `default` Tenant CR before
+	// Platform installs; mirror that so bootstrap's importDefaultTenant discovers
+	// and imports it.
+	cmStub.seedTenant(config.DefaultTenant, config.DefaultTenant)
 	stubSrv := httptest.NewServer(cmStub)
 	defer stubSrv.Close()
 
