@@ -6,13 +6,29 @@ package logging
 import (
 	"log/slog"
 	"os"
+	"strings"
 )
 
-// New returns a slog.Logger. development=true uses a human-readable text
-// handler at debug level; otherwise structured JSON at info level.
-func New(development bool) *slog.Logger {
-	if development {
-		return slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+// New returns a slog.Logger honoring the configured level (debug|info|warn|error)
+// and format (json|console). An unrecognized level falls back to info; any
+// format other than "console" uses structured JSON.
+func New(level, format string) *slog.Logger {
+	opts := &slog.HandlerOptions{Level: parseLevel(level)}
+	if format == "console" {
+		return slog.New(slog.NewTextHandler(os.Stderr, opts))
 	}
-	return slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	return slog.New(slog.NewJSONHandler(os.Stderr, opts))
+}
+
+func parseLevel(s string) slog.Level {
+	switch strings.ToLower(s) {
+	case "debug":
+		return slog.LevelDebug
+	case "warn", "warning":
+		return slog.LevelWarn
+	case "error":
+		return slog.LevelError
+	default:
+		return slog.LevelInfo
+	}
 }

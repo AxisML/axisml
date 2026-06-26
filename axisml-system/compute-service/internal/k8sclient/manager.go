@@ -37,22 +37,22 @@ func Scheme() *runtime.Scheme {
 // NewManager builds a controller-runtime Manager configured for compute.
 // The Manager owns the shared cache, leader election lease, and probe HTTP
 // endpoints that the API binary exposes alongside its own gin server.
-func NewManager(cfg config.Config) (manager.Manager, error) {
+func NewManager() (manager.Manager, error) {
 	restCfg, err := ctrl.GetConfig()
 	if err != nil {
 		return nil, fmt.Errorf("kube rest config: %w", err)
 	}
 	mgr, err := ctrl.NewManager(restCfg, ctrl.Options{
 		Scheme:                     Scheme(),
-		Metrics:                    metricsserver.Options{BindAddress: cfg.MetricsBindAddress},
-		HealthProbeBindAddress:     cfg.ProbesBindAddress,
-		LeaderElection:             cfg.LeaderElect,
-		LeaderElectionID:           cfg.LeaderElectionID,
-		LeaderElectionNamespace:    cfg.LeaderResourceNS,
-		LeaderElectionResourceLock: cfg.LeaderResourceLock,
-		LeaseDuration:              durationPtr(cfg.LeaderLeaseDuration),
-		RenewDeadline:              durationPtr(cfg.LeaderRenewDeadline),
-		RetryPeriod:                durationPtr(cfg.LeaderRetryPeriod),
+		Metrics:                    metricsserver.Options{BindAddress: config.MetricsBindAddress},
+		HealthProbeBindAddress:     config.ProbesBindAddress,
+		LeaderElection:             config.LeaderElect,
+		LeaderElectionID:           config.LeaderElectionID,
+		LeaderElectionNamespace:    config.LeaderNamespace(),
+		LeaderElectionResourceLock: config.LeaderResourceLock,
+		LeaseDuration:              durationPtr(config.LeaderLeaseDuration),
+		RenewDeadline:              durationPtr(config.LeaderRenewDeadline),
+		RetryPeriod:                durationPtr(config.LeaderRetryPeriod),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("manager: %w", err)

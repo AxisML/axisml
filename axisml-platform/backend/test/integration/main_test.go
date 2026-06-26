@@ -22,6 +22,7 @@ import (
 	"github.com/axisml/axisml/components/platform/internal/app"
 	"github.com/axisml/axisml/components/platform/internal/config"
 	"github.com/axisml/axisml/components/platform/internal/db"
+	"github.com/axisml/axisml/pkg/axismlconfig"
 )
 
 var (
@@ -71,21 +72,16 @@ func run(m *testing.M) (int, error) {
 	defer stubSrv.Close()
 
 	cfg := config.Config{
-		DatabaseHost:      host,
-		DatabasePort:      port.Int(),
-		DatabaseName:      "axisml",
-		DatabaseUser:      "axisml",
-		DatabasePassword:  "axisml",
-		DatabaseSSLMode:   "disable",
-		APIBindAddress:    ":0",
-		ClusterManagerURL: stubSrv.URL,
-		UpstreamTimeout:   10 * time.Second,
-		JWTKeyID:          "test-key",
-		LoginTokenTTL:     time.Hour,
-		BootstrapUsername: "admin",
-		BootstrapPassword: "admin",
-		BootstrapTenant:   "default",
-		BootstrapTenantNS: "axisml-tenant",
+		Common: axismlconfig.Common{
+			Database: axismlconfig.Database{
+				Host: host, Port: port.Int(), Name: "axisml",
+				User: "axisml", Password: "axisml", SSLMode: "disable",
+			},
+			Log: axismlconfig.Log{Level: "info", Format: "console"},
+		},
+		System:    config.System{ClusterManager: stubSrv.URL},
+		Auth:      config.Auth{LoginTokenTTL: time.Hour},
+		Bootstrap: config.Bootstrap{Username: "admin", Password: "admin"},
 	}
 
 	gormDB, err := db.Open(cfg)

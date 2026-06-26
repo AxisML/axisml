@@ -15,7 +15,7 @@ import (
 )
 
 func testRuntime() *Runtime {
-	return New(nil, Config{InstallationID: "test-install", WorkloadsNetwork: "axisml-workloads", Tenant: "default"}, logr.Discard())
+	return New(nil, Config{WorkloadsNetwork: "axisml-workloads", Tenant: "default"}, logr.Discard())
 }
 
 func TestRenderRunPlans(t *testing.T) {
@@ -62,7 +62,6 @@ func TestRenderRunPlans(t *testing.T) {
 	assert.Equal(t, "trainer", p.Labels[LabelName])
 	assert.Equal(t, "worker", p.Labels[LabelRole])
 	assert.Equal(t, "0", p.Labels[LabelReplicaIndex])
-	assert.Equal(t, "test-install", p.Labels[LabelInstallationID])
 	assert.NotEmpty(t, p.Labels[LabelSpecHash])
 	assert.Equal(t, "axisml-run-default-trainer-worker-1", plans[1].Name)
 }

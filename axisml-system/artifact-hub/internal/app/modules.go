@@ -22,13 +22,13 @@ func BuildModules(
 		DB:  gormDB,
 		Log: log,
 		Config: artifactmodule.Config{
-			OCIEndpoint:      cfg.OCIEndpoint,
-			OCIScheme:        cfg.OCIScheme,
-			OCIAdminUser:     cfg.OCIAdminUser,
-			OCIAdminPassword: cfg.OCIAdminPassword,
-			GCInterval:       cfg.GCInterval,
-			UploadingTTL:     cfg.UploadingTTL,
-			UploadTokenTTL:   cfg.UploadTokenTTL,
+			// OCI scheme is derived from the endpoint URL by the client.
+			OCIEndpoint:      cfg.OCI.Endpoint,
+			OCIAdminUser:     cfg.OCI.AdminUser,
+			OCIAdminPassword: cfg.OCI.AdminPassword,
+			GCInterval:       config.GCInterval,
+			UploadingTTL:     config.UploadingTTL,
+			UploadTokenTTL:   config.UploadTokenTTL,
 		},
 	})
 	if err != nil {

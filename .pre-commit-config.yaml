@@ -83,13 +83,13 @@ repos:
         pass_filenames: true
         require_serial: true
 
-      - id: doc-test
-        name: doc-test (OpenAPI sync)
-        description: Verify generated OpenAPI specs match the Go DTOs (`make doc-test`).
+      - id: api-docs-test
+        name: api-docs-test (OpenAPI sync)
+        description: Verify generated OpenAPI specs match the Go DTOs (`make api-docs-test`).
         # Triggers when the openapi-gen sources OR any Go file inside the
         # three HTTP-surface components changes. Operators (compute / tenant)
         # have no HTTP surface and are excluded. The action is ~10s locally.
-        entry: make doc-test
+        entry: make api-docs-test
         language: system
         files: ^axisml-system/(cluster-manager|compute-service|artifact-hub)/.*\.go$
         pass_filenames: false

@@ -26,7 +26,6 @@ import (
 // pkg/module assembly, then appends the Kubernetes-specific status reflow
 // (apiserver informers, design §4.2) as additional runnables.
 func BuildModules(
-	cfg config.Config,
 	gormDB *gorm.DB,
 	mgr manager.Manager,
 	log logr.Logger,
@@ -42,7 +41,7 @@ func BuildModules(
 		Catalog:           poolcache.New(mgr.GetClient()),
 		Volumes:           k8svolume.New(mgr.GetClient()),
 		Log:               log,
-		ReconcileInterval: cfg.ReconcileInterval,
+		ReconcileInterval: config.ReconcileInterval,
 		// Kubernetes composition root: koord-scheduler admits pods against the
 		// tenant ElasticQuota, so quota enforcement is real.
 		RuntimeName:      "kubernetes",

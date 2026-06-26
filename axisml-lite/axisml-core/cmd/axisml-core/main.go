@@ -33,7 +33,11 @@ func serveCmd() *cobra.Command {
 		RunE: func(_ *cobra.Command, _ []string) error {
 			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
-			return core.Run(ctx, core.Load())
+			cfg, err := core.Load()
+			if err != nil {
+				return err
+			}
+			return core.Run(ctx, cfg)
 		},
 	}
 }
@@ -43,7 +47,11 @@ func migrateCmd() *cobra.Command {
 		Use:   "migrate",
 		Short: "Run database migrations and exit",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return core.Migrate(core.Load())
+			cfg, err := core.Load()
+			if err != nil {
+				return err
+			}
+			return core.Migrate(cfg)
 		},
 	}
 }

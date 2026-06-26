@@ -37,25 +37,26 @@ spec:
             - name: probes
               containerPort: {{ .Values.artifactHub.probesPort }}
               protocol: TCP
-          envFrom:
-            - configMapRef:
-                name: {{ include "axisml.fullname" . }}-artifact-hub
+          volumeMounts:
+            - name: config
+              mountPath: /etc/axisml/config.yaml
+              subPath: config.yaml
+              readOnly: true
           env:
-            - name: DATABASE_PASSWORD
+            - name: AXISML_DATABASE_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ include "axisml.fullname" . }}-artifact-hub-db
                   key: password
-            - name: OCI_ADMIN_USER
-              valueFrom:
-                secretKeyRef:
-                  name: {{ default (printf "%s-artifact-hub-zot" (include "axisml.fullname" .)) .Values.artifactHub.storage.oci.adminSecretRef.name }}
-                  key: {{ .Values.artifactHub.storage.oci.adminSecretRef.usernameKey }}
-            - name: OCI_ADMIN_PASSWORD
+            - name: AXISML_OCI_ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ default (printf "%s-artifact-hub-zot" (include "axisml.fullname" .)) .Values.artifactHub.storage.oci.adminSecretRef.name }}
                   key: {{ .Values.artifactHub.storage.oci.adminSecretRef.passwordKey }}
+            {{- range $key, $value := .Values.artifactHub.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
           livenessProbe:
             httpGet:
               path: /healthz
@@ -70,4 +71,8 @@ spec:
             periodSeconds: 10
           resources:
             {{- toYaml .Values.artifactHub.resources | nindent 12 }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "axisml.fullname" . }}-artifact-hub
 {{- end }}

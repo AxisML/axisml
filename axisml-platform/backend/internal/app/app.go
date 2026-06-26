@@ -45,7 +45,7 @@ type Deps struct {
 // BuildDeps constructs the auth stack, typed clients, services and modules from
 // a live DB handle and config. Shared by Serve and the integration tests.
 func BuildDeps(cfg config.Config, db *gorm.DB, log *slog.Logger) (*Deps, error) {
-	signer, err := auth.NewSigner(cfg.JWTPrivateKeyPEM, cfg.JWTKeyID, cfg.LoginTokenTTL)
+	signer, err := auth.NewSigner(cfg.Auth.JWTPrivateKeyPEM, cfg.Auth.LoginTokenTTL)
 	if err != nil {
 		return nil, err
 	}
@@ -59,20 +59,20 @@ func BuildDeps(cfg config.Config, db *gorm.DB, log *slog.Logger) (*Deps, error) 
 	// Front the auth hot path (session validity + identity/RBAC) with Redis when
 	// configured; both decorators fall back to PostgreSQL on a miss or error.
 	c := cache.New(cfg, log)
-	sessionStore := cache.NewSessionCache(sessions, c, cfg.SessionCacheTTL, log)
-	identityStore := cache.NewIdentityCache(idp, c, cfg.IdentityCacheTTL, log)
+	sessionStore := cache.NewSessionCache(sessions, c, config.SessionCacheTTL, log)
+	identityStore := cache.NewIdentityCache(idp, c, config.IdentityCacheTTL, log)
 
 	authn := auth.NewAuthenticator(signer, identityStore, sessionStore)
 
-	cm, err := clustermanager.New(cfg.ClusterManagerURL, cfg.UpstreamTimeout)
+	cm, err := clustermanager.New(cfg.System.ClusterManager, config.UpstreamTimeout)
 	if err != nil {
 		return nil, err
 	}
-	compute, err := computeservice.New(cfg.ComputeURL, cfg.UpstreamTimeout)
+	compute, err := computeservice.New(cfg.System.ComputeService, config.UpstreamTimeout)
 	if err != nil {
 		return nil, err
 	}
-	artifacts, err := artifacthub.New(cfg.ArtifactsURL, cfg.UpstreamTimeout)
+	artifacts, err := artifacthub.New(cfg.System.ArtifactHub, config.UpstreamTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -87,8 +87,8 @@ func BuildDeps(cfg config.Config, db *gorm.DB, log *slog.Logger) (*Deps, error) 
 	mlserviceSvc := mlservice.NewService(compute, tenants)
 	workspaceSvc := workspace.NewService(compute, tenants)
 	trafficSvc := traffic.NewService(compute, tenants)
-	modelSvc := artifactdef.NewService(store.NewDefinitionRepo(db, store.TableModels), artifacts, "model", cfg.PublicTenantScope)
-	imageSvc := artifactdef.NewService(store.NewDefinitionRepo(db, store.TableImages), artifacts, "image", cfg.PublicTenantScope)
+	modelSvc := artifactdef.NewService(store.NewDefinitionRepo(db, store.TableModels), artifacts, "model", config.DefaultTenant)
+	imageSvc := artifactdef.NewService(store.NewDefinitionRepo(db, store.TableImages), artifacts, "image", config.DefaultTenant)
 
 	modules := []server.Module{
 		identity.NewHandler(identitySvc, authn),
@@ -107,8 +107,8 @@ func BuildDeps(cfg config.Config, db *gorm.DB, log *slog.Logger) (*Deps, error) 
 
 // NewAPIServer builds the API server (modules + JWKS + probes).
 func NewAPIServer(cfg config.Config, db *gorm.DB, log *slog.Logger) (*server.Server, error) {
-	if cfg.JWTPrivateKeyPEM == "" {
-		log.Warn("JWT_PRIVATE_KEY_PEM is unset: signing with an ephemeral key. " +
+	if cfg.Auth.JWTPrivateKeyPEM == "" {
+		log.Warn("auth.jwt_private_key_pem is unset: signing with an ephemeral key. " +
 			"All sessions are invalidated on restart and multi-replica deployments will fail to verify each other's tokens. " +
 			"Inject a stable RSA key in production.")
 	}
@@ -118,7 +118,7 @@ func NewAPIServer(cfg config.Config, db *gorm.DB, log *slog.Logger) (*server.Ser
 	}
 	jwks := deps.Signer.JWKS()
 	return server.New(server.Options{
-		Addr:        cfg.APIBindAddress,
+		Addr:        config.APIBindAddress,
 		Log:         log,
 		Modules:     deps.Modules,
 		JWKSHandler: func(c *gin.Context) { c.JSON(http.StatusOK, jwks) },

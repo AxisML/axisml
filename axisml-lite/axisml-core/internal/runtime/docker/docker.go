@@ -18,7 +18,6 @@ import (
 func (r *Runtime) managedFilter(kind, namespace, name string) filters.Args {
 	f := filters.NewArgs()
 	f.Add("label", LabelManaged+"=true")
-	f.Add("label", LabelInstallationID+"="+r.cfg.InstallationID)
 	f.Add("label", LabelResourceKind+"="+kind)
 	f.Add("label", LabelNamespace+"="+namespace)
 	f.Add("label", LabelName+"="+name)

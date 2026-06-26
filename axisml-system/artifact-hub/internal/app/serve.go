@@ -27,7 +27,7 @@ import (
 // advisory-lock leader election. It owns no Kubernetes client — Postgres is
 // both the source of truth and the leader-election backend.
 func Serve(ctx context.Context, cfg config.Config) error {
-	log, err := logging.New(cfg.LogDevelopment)
+	log, err := logging.New(cfg.Log.Level, cfg.Log.Format)
 	if err != nil {
 		return err
 	}
@@ -54,7 +54,7 @@ func Serve(ctx context.Context, cfg config.Config) error {
 	ready := func(ctx context.Context) error { return db.Ping(ctx, gormDB) }
 
 	srv, err := server.New(server.Options{
-		Addr:         cfg.APIBindAddress,
+		Addr:         config.APIBindAddress,
 		Log:          log,
 		Modules:      modules,
 		Capabilities: caps,
@@ -74,12 +74,12 @@ func Serve(ctx context.Context, cfg config.Config) error {
 
 	g.Go(func() error { return srv.Start(gctx) })
 	g.Go(func() error {
-		return httpx.Serve(gctx, cfg.MetricsBindAddress, metrics.Handler(), log, "metrics")
+		return httpx.Serve(gctx, config.MetricsBindAddress, metrics.Handler(), log, "metrics")
 	})
 	g.Go(func() error {
-		return httpx.Serve(gctx, cfg.ProbesBindAddress, server.ProbesHandler(ready), log, "probes")
+		return httpx.Serve(gctx, config.ProbesBindAddress, server.ProbesHandler(ready), log, "probes")
 	})
-	g.Go(func() error { return runGC(gctx, cfg, gormDB, worker, log) })
+	g.Go(func() error { return runGC(gctx, gormDB, worker, log) })
 
 	if err := g.Wait(); err != nil && !errors.Is(err, context.Canceled) {
 		return err
@@ -87,10 +87,16 @@ func Serve(ctx context.Context, cfg config.Config) error {
 	return nil
 }
 
-// runGC runs the GC worker, gated behind leader election when enabled. With
-// election disabled (single replica / local dev) the worker runs directly.
-func runGC(ctx context.Context, cfg config.Config, gormDB *gorm.DB, worker artifactmodule.Runnable, log logr.Logger) error {
-	if !cfg.LeaderElect {
+// LeaderElection gates the GC advisory-lock leader election. It is always true
+// in production (a no-op at one replica, required automatically when scaled) and
+// is exposed as a package var — not part of the AXISML_ config surface — only so
+// tests / local single-process runs can run the GC worker without the lock.
+var LeaderElection = config.LeaderElect
+
+// runGC runs the GC worker, gated behind leader election. With LeaderElection
+// disabled (tests / local single-process) the worker runs directly.
+func runGC(ctx context.Context, gormDB *gorm.DB, worker artifactmodule.Runnable, log logr.Logger) error {
+	if !LeaderElection {
 		return worker.Start(ctx)
 	}
 	sqlDB, err := gormDB.DB()
@@ -99,8 +105,8 @@ func runGC(ctx context.Context, cfg config.Config, gormDB *gorm.DB, worker artif
 	}
 	return leaderelection.Run(ctx, leaderelection.Config{
 		DB:    sqlDB,
-		Key:   cfg.LeaderLockKey,
-		Retry: cfg.LeaderRetryPeriod,
+		Key:   config.LeaderLockKey,
+		Retry: config.LeaderRetryPeriod,
 		Log:   log.WithName("leader-election"),
 	}, worker.Start)
 }

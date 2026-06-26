@@ -23,7 +23,20 @@ require (
 )
 
 require (
+	github.com/fsnotify/fsnotify v1.8.0 // indirect
+	github.com/go-viper/mapstructure/v2 v2.2.1 // indirect
+	github.com/sagikazarmark/locafero v0.7.0 // indirect
+	github.com/sourcegraph/conc v0.3.0 // indirect
+	github.com/spf13/afero v1.12.0 // indirect
+	github.com/spf13/cast v1.7.1 // indirect
+	github.com/spf13/viper v1.20.1 // indirect
+	github.com/subosito/gotenv v1.6.0 // indirect
+)
+
+require (
 	filippo.io/edwards25519 v1.1.0 // indirect
+	github.com/axisml/axisml/pkg/axismlconfig v0.0.0
+	github.com/axisml/axisml/pkg/configdoc v0.0.0
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
 	github.com/bytedance/sonic v1.15.0 // indirect
@@ -98,3 +111,7 @@ require (
 replace k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912
 
 replace github.com/axisml/axisml/pkg/openapigen => ../../pkg/openapigen
+
+replace github.com/axisml/axisml/pkg/axismlconfig => ../../pkg/axismlconfig
+
+replace github.com/axisml/axisml/pkg/configdoc => ../../pkg/configdoc

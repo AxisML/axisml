@@ -73,12 +73,17 @@ platform:
     tag: ""
     pullPolicy: IfNotPresent
 
-  # Dedicated probes port (separate from the API port).
-  probesPort: 8082
+  # Dedicated probes port (fixed in code; only wires containerPort/probes).
+  probesPort: 8081
+
+  log:
+    level: info          # debug | info | warn | error
+    format: json         # json | console
 
   bootstrap:
-    tenant: default
-    tenantNamespace: axisml-tenant
+    # Initial system-admin. The default tenant is owned by the System chart's
+    # seed.tenant and discovered by the backend via cluster-manager.
+    username: admin
     # Optionally source the initial system-admin password from a Secret.
     # passwordSecret: { name: axisml-platform-bootstrap, key: password }
     passwordSecret: {}
@@ -90,10 +95,10 @@ platform:
   #   - else if `privateKey` (inline PEM) is set, the chart renders a Secret from it;
   #   - else the chart generates a key ONCE and persists it in a chart-managed
   #     Secret, reusing it on subsequent upgrades via `lookup`.
-  # `keyId` is published as the JWKS `kid`.
+  # The JWKS `kid` is derived from the key (RFC 7638 thumbprint), not configured.
   auth:
+    loginTokenTTL: 12h   # login session token lifetime
     jwt:
-      keyId: axisml-platform-key-1
       privateKeySecret: {} # { name: my-jwt-secret, key: private-key.pem }
       privateKey: "" # inline PEM (PKCS#1 or PKCS#8 RSA private key)
 

@@ -32,7 +32,7 @@ type runnable interface {
 // config, builds the in-process Standalone Runtime, assembles the three System
 // modules on one router and starts the HTTP server plus every background loop.
 func Run(ctx context.Context, cfg Config) error {
-	log, err := logging.New(cfg.LogDevelopment)
+	log, err := logging.New(cfg.Log.Level, cfg.Log.Format)
 	if err != nil {
 		return err
 	}
@@ -45,24 +45,23 @@ func Run(ctx context.Context, cfg Config) error {
 		return err
 	}
 
-	static, err := LoadStaticConfig(cfg.ConfigDir)
+	static, err := LoadStaticConfig(PoolConfigDir)
 	if err != nil {
 		return fmt.Errorf("load static config: %w", err)
 	}
 	catalog := NewConfigResourceCatalog(static.Pool)
 	tenants := NewStaticTenantStore(static.Tenant)
 
-	dcli, err := docker.NewClient(cfg.DockerHost)
+	// DOCKER_HOST is read by the Docker SDK (client.FromEnv); no config key.
+	dcli, err := docker.NewClient("")
 	if err != nil {
 		return fmt.Errorf("docker client: %w", err)
 	}
 	rt := docker.New(dcli, docker.Config{
-		WorkloadsNetwork: cfg.WorkloadsNetwork,
-		InstallationID:   cfg.InstallationID,
+		WorkloadsNetwork: WorkloadsNetwork,
 		Tenant:           DefaultName,
-		PullImages:       cfg.WorkloadImagePull,
-		TraefikDir:       cfg.TraefikDir,
-		RuntimeDir:       cfg.RuntimeDir,
+		TraefikDir:       GatewayConfigDir,
+		RuntimeDir:       StateDir,
 	}, log.WithName("runtime"))
 	if err := rt.EnsureNetwork(ctx); err != nil {
 		log.Error(err, "ensure workloads network (continuing)")
@@ -75,7 +74,7 @@ func Run(ctx context.Context, cfg Config) error {
 		Catalog:           catalog,
 		Volumes:           rt,
 		Log:               log,
-		ReconcileInterval: cfg.ReconcileInterval,
+		ReconcileInterval: ReconcileInterval,
 		// Lite Standalone runtime: no scheduler, so no ElasticQuota admission.
 		RuntimeName:      "standalone",
 		QuotaEnforcement: false,
@@ -86,14 +85,13 @@ func Run(ctx context.Context, cfg Config) error {
 	arthubMod, err := arthubmodule.New(arthubmodule.Deps{
 		DB: db,
 		Config: arthubmodule.Config{
-			OCIEndpoint:      cfg.OCIEndpoint,
-			OCIScheme:        cfg.OCIScheme,
-			OCIAdminUser:     cfg.OCIAdminUser,
-			OCIAdminPassword: cfg.OCIAdminPassword,
-			DatasetBucket:    cfg.DatasetBucket,
-			GCInterval:       cfg.GCInterval,
-			UploadingTTL:     cfg.UploadingTTL,
-			UploadTokenTTL:   cfg.UploadTokenTTL,
+			OCIEndpoint:      cfg.OCI.Endpoint,
+			OCIAdminUser:     cfg.OCI.AdminUser,
+			OCIAdminPassword: cfg.OCI.AdminPassword,
+			DatasetBucket:    DatasetBucket,
+			GCInterval:       GCInterval,
+			UploadingTTL:     UploadingTTL,
+			UploadTokenTTL:   UploadTokenTTL,
 		},
 		Log: log,
 	})
@@ -172,7 +170,7 @@ func buildEngine(
 
 // serve runs the HTTP server and every background loop, all bound to ctx.
 func serve(ctx context.Context, cfg Config, engine *gin.Engine, runnables []runnable, log logr.Logger) error {
-	srv := &http.Server{Addr: cfg.APIBindAddress, Handler: engine, ReadHeaderTimeout: 10 * time.Second}
+	srv := &http.Server{Addr: APIBindAddress, Handler: engine, ReadHeaderTimeout: 10 * time.Second}
 
 	errCh := make(chan error, 1)
 	for _, r := range runnables {
@@ -183,7 +181,7 @@ func serve(ctx context.Context, cfg Config, engine *gin.Engine, runnables []runn
 		}(r)
 	}
 	go func() {
-		log.Info("axisml-core listening", "addr", cfg.APIBindAddress)
+		log.Info("axisml-core listening", "addr", APIBindAddress)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errCh <- err
 		}
@@ -220,7 +218,7 @@ func openDB(cfg Config, log logr.Logger) (*gorm.DB, error) {
 // Migrate opens the database and runs the module migrations, then returns. It
 // backs the `axisml-core migrate` subcommand for an explicit pre-flight step.
 func Migrate(cfg Config) error {
-	log, err := logging.New(cfg.LogDevelopment)
+	log, err := logging.New(cfg.Log.Level, cfg.Log.Format)
 	if err != nil {
 		return err
 	}

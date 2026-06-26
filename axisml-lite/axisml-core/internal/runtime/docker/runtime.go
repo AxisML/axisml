@@ -29,18 +29,17 @@ import (
 )
 
 // Managed-resource label keys (design §5.2). The resource key
-// (kind, namespace, name) plus the installation id is the authoritative
-// identity of every container the runtime creates.
+// (kind, namespace, name) plus LabelManaged is the authoritative identity of
+// every container the runtime creates.
 const (
-	LabelManaged        = "io.axisml.managed"
-	LabelResourceKind   = "io.axisml.resource-kind"
-	LabelNamespace      = "io.axisml.resource-namespace"
-	LabelName           = "io.axisml.resource-name"
-	LabelReplicaIndex   = "io.axisml.replica-index"
-	LabelRole           = "io.axisml.role"
-	LabelTenant         = "io.axisml.tenant"
-	LabelInstallationID = "io.axisml.instance-id"
-	LabelSpecHash       = "io.axisml.spec-hash"
+	LabelManaged      = "io.axisml.managed"
+	LabelResourceKind = "io.axisml.resource-kind"
+	LabelNamespace    = "io.axisml.resource-namespace"
+	LabelName         = "io.axisml.resource-name"
+	LabelReplicaIndex = "io.axisml.replica-index"
+	LabelRole         = "io.axisml.role"
+	LabelTenant       = "io.axisml.tenant"
+	LabelSpecHash     = "io.axisml.spec-hash"
 
 	KindRun     = "run"
 	KindService = "service"
@@ -51,13 +50,8 @@ const (
 type Config struct {
 	// Network dynamic workloads join (Traefik also joins it to route them).
 	WorkloadsNetwork string
-	// InstallationID is stamped on every managed resource and required to match
-	// on delete, so the runtime never touches another installation's resources.
-	InstallationID string
 	// Tenant is the fixed Lite tenant ("default").
 	Tenant string
-	// PullImages pulls each workload image before creating containers.
-	PullImages bool
 	// TraefikDir is the Traefik file-provider dynamic config directory.
 	TraefikDir string
 	// RuntimeDir is the managed scratch directory.
@@ -134,12 +128,11 @@ func (r *Runtime) clearCancelled(namespace, name string) {
 // baseLabels returns the managed labels common to every resource of a kind.
 func (r *Runtime) baseLabels(kind, namespace, name string) map[string]string {
 	return map[string]string{
-		LabelManaged:        "true",
-		LabelResourceKind:   kind,
-		LabelNamespace:      namespace,
-		LabelName:           name,
-		LabelTenant:         r.cfg.Tenant,
-		LabelInstallationID: r.cfg.InstallationID,
+		LabelManaged:      "true",
+		LabelResourceKind: kind,
+		LabelNamespace:    namespace,
+		LabelName:         name,
+		LabelTenant:       r.cfg.Tenant,
 	}
 }
 

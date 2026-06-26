@@ -36,7 +36,7 @@ COVERAGE_FILE ?= $(COVERAGE_DIR)/coverage.out
 .DEFAULT_GOAL := build
 
 ##@ Build & test (delegated to layer Makefiles)
-.PHONY: build test image image-load fmt vet tidy clean doc-gen doc-test
+.PHONY: build test image image-load fmt vet tidy clean docs-gen docs-test api-docs-gen api-docs-test config-docs-gen config-docs-test
 build: ## Build every layer's components
 	@set -e; for l in $(GO_LAYERS); do $(MAKE) -C $$l build; done
 test: ## Unit tests across every layer
@@ -54,12 +54,22 @@ tidy: ## go mod tidy across every layer
 clean: ## Remove build + coverage artifacts across every layer
 	@set -e; for l in $(GO_LAYERS); do $(MAKE) -C $$l clean; done
 	@rm -rf $(COVERAGE_DIR)
-doc-gen: ## Regenerate all OpenAPI specs
+docs-gen: api-docs-gen config-docs-gen ## Regenerate all generated docs (OpenAPI specs + config manual)
+docs-test: api-docs-test config-docs-test ## Verify all generated docs are in sync (CI guard)
+api-docs-gen: ## Regenerate all OpenAPI specs
 	@set -e; for l in $(GO_LAYERS); do $(MAKE) -C $$l doc-gen; done
 	@$(MAKE) -C axisml-lite doc-gen
-doc-test: ## Verify all OpenAPI specs are in sync (CI guard)
+api-docs-test: ## Verify all OpenAPI specs are in sync
 	@set -e; for l in $(GO_LAYERS); do $(MAKE) -C $$l doc-test; done
 	@$(MAKE) -C axisml-lite doc-test
+config-docs-gen: ## Regenerate docs/configuration.md from the service Config structs
+	@./scripts/gen-config-doc.sh
+config-docs-test: ## Verify docs/configuration.md is in sync with the Config structs
+	@tmp=$$(mktemp); ./scripts/gen-config-doc.sh $$tmp >/dev/null; \
+	if ! diff -q docs/configuration.md $$tmp >/dev/null 2>&1; then \
+	  echo "ERROR: docs/configuration.md is out of date. Run 'make config-docs-gen' and commit."; \
+	  rm -f $$tmp; exit 1; \
+	fi; rm -f $$tmp; echo "docs/configuration.md is in sync"
 
 ##@ Test execution
 .PHONY: setup-envtest integration-test e2e-test e2e-lite-test lite-up lite-down lite-delete e2e-vet e2e-clean e2e-client-gen

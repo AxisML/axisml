@@ -51,7 +51,7 @@ func TestRenderServicePlans_WorkspacePVCVolume(t *testing.T) {
 // config whose endpoint is readable back, and that delete removes it.
 func TestServiceRoute_ApplyObserveDelete(t *testing.T) {
 	dir := t.TempDir()
-	r := New(nil, Config{InstallationID: "test", WorkloadsNetwork: "axisml-workloads", Tenant: "default", TraefikDir: dir}, logr.Discard())
+	r := New(nil, Config{WorkloadsNetwork: "axisml-workloads", Tenant: "default", TraefikDir: dir}, logr.Discard())
 
 	svc := &mlservicev1alpha1.MLService{
 		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "infer"},
@@ -90,7 +90,7 @@ func TestServiceRoute_ApplyObserveDelete(t *testing.T) {
 // capability error.
 func TestServiceRoute_AuthUnsupported(t *testing.T) {
 	dir := t.TempDir()
-	r := New(nil, Config{InstallationID: "test", TraefikDir: dir}, logr.Discard())
+	r := New(nil, Config{TraefikDir: dir}, logr.Discard())
 	svc := &mlservicev1alpha1.MLService{
 		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "infer"},
 		Spec: mlservicev1alpha1.MLServiceSpec{

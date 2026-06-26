@@ -29,6 +29,7 @@ import (
 	"github.com/axisml/axisml/components/artifact-hub/internal/db"
 	"github.com/axisml/axisml/components/artifact-hub/internal/gc"
 	"github.com/axisml/axisml/components/artifact-hub/internal/server"
+	"github.com/axisml/axisml/pkg/axismlconfig"
 )
 
 // suite is the shared per-package test fixture.
@@ -99,27 +100,23 @@ func bootstrap() (*suite, error) {
 	zot := newFakeZot()
 
 	cfg := config.Config{
-		DatabaseHost:     host,
-		DatabasePort:     int(port.Num()),
-		DatabaseName:     "axisml",
-		DatabaseUser:     "axisml",
-		DatabasePassword: "axisml",
-		DatabaseSSLMode:  "disable",
-
-		APIBindAddress:     ":0",
-		ProbesBindAddress:  ":0",
-		MetricsBindAddress: ":0",
-
-		LeaderElect: false,
-
-		GCInterval:     time.Second,
-		UploadingTTL:   24 * time.Hour,
-		UploadTokenTTL: time.Hour,
-
-		OCIEndpoint:      zot.URL.Host,
-		OCIScheme:        "http",
-		OCIAdminUser:     "admin",
-		OCIAdminPassword: "secret",
+		Common: axismlconfig.Common{
+			Database: axismlconfig.Database{
+				Host:     host,
+				Port:     int(port.Num()),
+				Name:     "axisml",
+				User:     "axisml",
+				Password: "axisml",
+				SSLMode:  "disable",
+			},
+			Log: axismlconfig.Log{Level: "info", Format: "console"},
+		},
+		OCI: config.OCI{
+			// host:port with no scheme — the OCI client defaults to http.
+			Endpoint:      zot.URL.Host,
+			AdminUser:     "admin",
+			AdminPassword: "secret",
+		},
 	}
 
 	// 3. Open DB + run *artifacts* migrations.
@@ -142,8 +139,9 @@ func bootstrap() (*suite, error) {
 		return nil, fmt.Errorf("server.New: %w", err)
 	}
 
-	// GC worker with tight tick (ticker not started; tests call Tick).
-	w := gc.New(cfg, gormDB, log)
+	// GC worker (ticker not started; tests call Tick directly with a fast-
+	// forwarded clock). UploadingTTL is the fixed 24h constant.
+	w := gc.New(config.GCInterval, config.UploadingTTL, gormDB, log)
 
 	return &suite{
 		pgCtr:     ctr.Container,

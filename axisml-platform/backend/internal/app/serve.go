@@ -16,7 +16,7 @@ import (
 
 // Serve boots the API server and the probes server, applying migrations first.
 func Serve(ctx context.Context, cfg config.Config) error {
-	log := logging.New(cfg.LogDevelopment)
+	log := logging.New(cfg.Log.Level, cfg.Log.Format)
 
 	gormDB, err := db.Open(cfg)
 	if err != nil {
@@ -30,13 +30,13 @@ func Serve(ctx context.Context, cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	probes := probeServer(cfg.ProbesBindAddress)
+	probes := probeServer(config.ProbesBindAddress)
 
-	go sweepExpiredSessions(ctx, store.NewSessionRepo(gormDB), cfg.SessionSweepInterval, log)
+	go sweepExpiredSessions(ctx, store.NewSessionRepo(gormDB), config.SessionSweepInterval, log)
 
 	errCh := make(chan error, 2)
 	go func() {
-		log.Info("probes listening", "addr", cfg.ProbesBindAddress)
+		log.Info("probes listening", "addr", config.ProbesBindAddress)
 		if err := probes.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errCh <- fmt.Errorf("probes: %w", err)
 		}

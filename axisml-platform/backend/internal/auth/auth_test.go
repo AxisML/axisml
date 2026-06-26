@@ -1,6 +1,10 @@
 package auth
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
 	"testing"
 	"time"
 )
@@ -46,7 +50,7 @@ func TestPasswordHashAndCheck(t *testing.T) {
 }
 
 func TestJWTRoundTrip(t *testing.T) {
-	signer, err := NewSigner("", "kid-1", time.Hour)
+	signer, err := NewSigner("", time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,10 +74,43 @@ func TestJWTRoundTrip(t *testing.T) {
 }
 
 func TestJWKS(t *testing.T) {
-	signer, _ := NewSigner("", "kid-1", time.Hour)
+	signer, _ := NewSigner("", time.Hour)
 	jwks := signer.JWKS()
 	keys, ok := jwks["keys"].([]map[string]any)
-	if !ok || len(keys) != 1 || keys[0]["kid"] != "kid-1" || keys[0]["kty"] != "RSA" {
+	if !ok || len(keys) != 1 || keys[0]["kty"] != "RSA" {
 		t.Fatalf("unexpected jwks: %+v", jwks)
+	}
+	// kid is the derived thumbprint and must match what tokens are signed with.
+	if keys[0]["kid"] == "" {
+		t.Fatal("jwks kid is empty")
+	}
+}
+
+// TestDerivedKidStable verifies the kid is a deterministic function of the key:
+// the same PEM yields the same kid (so replicas sharing a key agree), and a
+// different key yields a different kid.
+func TestDerivedKidStable(t *testing.T) {
+	k, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pemKey := string(pem.EncodeToMemory(&pem.Block{
+		Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(k),
+	}))
+
+	kid := func(pemKey string) string {
+		s, err := NewSigner(pemKey, time.Hour)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return s.JWKS()["keys"].([]map[string]any)[0]["kid"].(string)
+	}
+
+	a, b := kid(pemKey), kid(pemKey)
+	if a == "" || a != b {
+		t.Fatalf("kid not stable for same key: %q vs %q", a, b)
+	}
+	if c := kid(""); c == a {
+		t.Fatal("a different key should derive a different kid")
 	}
 }

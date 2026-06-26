@@ -233,7 +233,7 @@ func namesOfServiceAccounts(in []axisml.ServiceAccountSpec) []string {
 
 // DefaultNamespaceDenylist returns the set design §6.1 risk note recommends
 // to start with. Helm values can override or extend it via the
-// NAMESPACE_DENYLIST env var (see internal/config).
+// AXISML_NAMESPACE_DENYLIST env var (see internal/config).
 func DefaultNamespaceDenylist() map[string]struct{} {
 	return map[string]struct{}{
 		"kube-system":     {},

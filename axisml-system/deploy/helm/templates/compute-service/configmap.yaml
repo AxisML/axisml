@@ -6,19 +6,14 @@ metadata:
   labels:
     {{- include "axisml.componentLabels" (dict "context" . "component" "compute-service") | nindent 4 }}
 data:
-  DATABASE_HOST: {{ include "axisml.databaseHost" . | quote }}
-  DATABASE_PORT: {{ include "axisml.databasePort" . | quote }}
-  DATABASE_NAME: {{ .Values.database.auth.database | quote }}
-  DATABASE_USER: {{ .Values.database.auth.username | quote }}
-  API_BIND_ADDRESS: {{ printf ":%d" (int .Values.computeService.service.port) | quote }}
-  PROBES_BIND_ADDRESS: {{ printf ":%d" (int .Values.computeService.probesPort) | quote }}
-  METRICS_BIND_ADDRESS: {{ printf ":%d" (int .Values.computeService.metricsPort) | quote }}
-  LEADER_ELECT: {{ .Values.computeService.leaderElection.enabled | quote }}
-  LEADER_NAMESPACE: {{ .Release.Namespace | quote }}
-  RECONCILE_INTERVAL: {{ .Values.computeService.reconcileInterval | quote }}
-  LOG_DEVELOPMENT: {{ .Values.computeService.logDevelopment | quote }}
-  BOOTSTRAP_POOL: {{ .Values.computeService.bootstrap.defaultPool | quote }}
-  {{- range $key, $value := .Values.computeService.env }}
-  {{ $key }}: {{ $value | quote }}
-  {{- end }}
+  config.yaml: |
+    database:
+      host: {{ include "axisml.databaseHost" . }}
+      port: {{ include "axisml.databasePort" . }}
+      name: {{ .Values.database.auth.database }}
+      user: {{ .Values.database.auth.username }}
+      sslmode: {{ .Values.database.sslMode | default "disable" }}
+    log:
+      level: {{ .Values.computeService.log.level | default "info" }}
+      format: {{ .Values.computeService.log.format | default "json" }}
 {{- end }}

@@ -208,18 +208,18 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: printf '%s' "$PR_TITLE" | npx commitlint
 
-  doc-test:
-    name: doc-test
+  docs-test:
+    name: docs-test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-go-cached
-      - name: Verify generated OpenAPI specs are in sync with Go types
-        # Regenerates axisml-system/docs/apis/{compute-service,artifact-hub,cluster-manager}.yaml
-        # from each service's request/response structs and fails the job if
-        # any committed spec drifted. Run `make doc-gen` locally and commit
-        # the result to fix.
-        run: make doc-test
+      - name: Verify generated docs are in sync with Go types
+        # Regenerates the OpenAPI specs (axisml-system/docs/apis/*.yaml,
+        # axisml-platform/docs/apis/platform.yaml, axisml-lite spec) and the
+        # config reference (docs/configuration.md) from the Go types, failing if
+        # any committed file drifted. Run `make docs-gen` locally and commit.
+        run: make docs-test
 
   image:
     name: image (${{ matrix.component.name }})
@@ -227,7 +227,7 @@ jobs:
     # run lint/test but don't publish images. Gate behind every other check
     # so a red tag doesn't ship.
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    needs: [lint, test, integration, helm-lint, doc-test]
+    needs: [lint, test, integration, helm-lint, docs-test]
     runs-on: ubuntu-latest
     permissions:
       contents: read

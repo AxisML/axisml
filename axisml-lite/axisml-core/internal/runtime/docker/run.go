@@ -102,10 +102,9 @@ func (r *Runtime) ApplyMLRun(ctx context.Context, desired *mlrunv1alpha1.MLRun) 
 				return err
 			}
 		}
-		if r.cfg.PullImages {
-			if err := r.pullImage(ctx, p.Image); err != nil {
-				r.log.Info("image pull failed, trying local", "image", p.Image, "err", err.Error())
-			}
+		// Always attempt a pull; on failure fall back to a locally-present image.
+		if err := r.pullImage(ctx, p.Image); err != nil {
+			r.log.Info("image pull failed, trying local", "image", p.Image, "err", err.Error())
 		}
 		id, err := r.createAndStart(ctx, p)
 		if err != nil {

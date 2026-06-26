@@ -10,7 +10,6 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/axisml/axisml/components/artifact-hub/internal/artifact/handler"
-	"github.com/axisml/axisml/components/artifact-hub/internal/config"
 	"github.com/axisml/axisml/components/artifact-hub/internal/dbjson"
 	"github.com/axisml/axisml/components/artifact-hub/internal/server"
 	"github.com/axisml/axisml/components/artifact-hub/internal/store"
@@ -22,13 +21,14 @@ import (
 // by (namespace, kind, name, version) directly — there's no parent
 // ArtifactRepo.
 type Service struct {
-	cfg  config.Config
-	rows *Repository
+	uploadTokenTTL time.Duration
+	rows           *Repository
 }
 
-// NewService constructs a Service.
-func NewService(cfg config.Config, db *gorm.DB) *Service {
-	return &Service{cfg: cfg, rows: NewRepository(db)}
+// NewService constructs a Service. uploadTokenTTL is the lifetime of issued
+// upload/pull credentials.
+func NewService(uploadTokenTTL time.Duration, db *gorm.DB) *Service {
+	return &Service{uploadTokenTTL: uploadTokenTTL, rows: NewRepository(db)}
 }
 
 // Initiate is two-phase write step 1. Validates, inserts an Uploading row,
@@ -137,7 +137,7 @@ func (s *Service) Initiate(ctx context.Context, namespace, kind, name, ownerUser
 		Spec:      in.Spec,
 	}
 
-	creds, err := h.InitiateUpload(ctx, hArt, s.cfg.UploadTokenTTL)
+	creds, err := h.InitiateUpload(ctx, hArt, s.uploadTokenTTL)
 	if err != nil {
 		return nil, apperrors.Wrap(apperrors.CodeUnavailable, "issue upload credentials", err)
 	}
@@ -259,7 +259,7 @@ func (s *Service) Resolve(ctx context.Context, namespace, kind, name, version, u
 	case "inspect":
 	case "download":
 		hArt := handler.Artifact{Kind: kind, Namespace: namespace, Name: name, Version: version, Digest: row.Digest}
-		creds, err := h.IssuePullCredentials(ctx, hArt, s.cfg.UploadTokenTTL)
+		creds, err := h.IssuePullCredentials(ctx, hArt, s.uploadTokenTTL)
 		if err != nil {
 			return nil, apperrors.Wrap(apperrors.CodeUnavailable, "issue pull credentials", err)
 		}

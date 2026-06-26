@@ -22,7 +22,6 @@ import (
 
 	artmod "github.com/axisml/axisml/components/artifact-hub/internal/artifact"
 	"github.com/axisml/axisml/components/artifact-hub/internal/artifact/handler"
-	"github.com/axisml/axisml/components/artifact-hub/internal/config"
 	"github.com/axisml/axisml/components/artifact-hub/internal/metrics"
 )
 
@@ -39,19 +38,22 @@ func (realClock) Now() time.Time { return time.Now().UTC() }
 // leadership; the caller (app.Serve) gates Start behind the Postgres
 // advisory-lock elector.
 type Worker struct {
-	cfg   config.Config
-	rows  *artmod.Repository
-	log   logr.Logger
-	clock Clock
+	gcInterval   time.Duration
+	uploadingTTL time.Duration
+	rows         *artmod.Repository
+	log          logr.Logger
+	clock        Clock
 }
 
-// New returns a Worker.
-func New(cfg config.Config, db *gorm.DB, log logr.Logger) *Worker {
+// New returns a Worker. gcInterval is the tick cadence; uploadingTTL is how long
+// an Uploading artifact may linger before GC marks it Failed.
+func New(gcInterval, uploadingTTL time.Duration, db *gorm.DB, log logr.Logger) *Worker {
 	return &Worker{
-		cfg:   cfg,
-		rows:  artmod.NewRepository(db),
-		log:   log,
-		clock: realClock{},
+		gcInterval:   gcInterval,
+		uploadingTTL: uploadingTTL,
+		rows:         artmod.NewRepository(db),
+		log:          log,
+		clock:        realClock{},
 	}
 }
 
@@ -61,11 +63,11 @@ func (w *Worker) SetClock(c Clock) { w.clock = c }
 // Start runs the GC loop until ctx is cancelled. IsLeader tracks the worker's
 // active lifetime, so it reflects which replica currently holds GC leadership.
 func (w *Worker) Start(ctx context.Context) error {
-	w.log.Info("gc worker started", "interval", w.cfg.GCInterval)
+	w.log.Info("gc worker started", "interval", w.gcInterval)
 	metrics.IsLeader.Set(1)
 	defer metrics.IsLeader.Set(0)
 
-	t := time.NewTicker(w.cfg.GCInterval)
+	t := time.NewTicker(w.gcInterval)
 	defer t.Stop()
 
 	for {
@@ -91,7 +93,7 @@ func (w *Worker) Tick(ctx context.Context) {
 // processStaleUploading flips stuck Uploading rows to Failed and cleans up
 // any partially uploaded backend state.
 func (w *Worker) processStaleUploading(ctx context.Context) {
-	cutoff := w.clock.Now().Add(-w.cfg.UploadingTTL)
+	cutoff := w.clock.Now().Add(-w.uploadingTTL)
 	stale, err := w.rows.FindStaleUploading(ctx, cutoff)
 	if err != nil {
 		w.log.Error(err, "find stale uploading")
