@@ -26,14 +26,13 @@ import (
 // pkg/module assembly, then appends the Kubernetes-specific status reflow
 // (apiserver informers, design §4.2) as additional runnables.
 func BuildModules(
-	cfg config.Config,
 	gormDB *gorm.DB,
 	mgr manager.Manager,
 	log logr.Logger,
-) ([]server.Module, []manager.Runnable, error) {
+) ([]server.Module, []manager.Runnable, server.Capabilities, error) {
 	clientset, err := kubernetes.NewForConfig(mgr.GetConfig())
 	if err != nil {
-		return nil, nil, fmt.Errorf("build clientset: %w", err)
+		return nil, nil, server.Capabilities{}, fmt.Errorf("build clientset: %w", err)
 	}
 
 	mod, err := computemodule.New(computemodule.Deps{
@@ -42,10 +41,14 @@ func BuildModules(
 		Catalog:           poolcache.New(mgr.GetClient()),
 		Volumes:           k8svolume.New(mgr.GetClient()),
 		Log:               log,
-		ReconcileInterval: cfg.ReconcileInterval,
+		ReconcileInterval: config.ReconcileInterval,
+		// Kubernetes composition root: koord-scheduler admits pods against the
+		// tenant ElasticQuota, so quota enforcement is real.
+		RuntimeName:      "kubernetes",
+		QuotaEnforcement: true,
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, server.Capabilities{}, err
 	}
 
 	modules := make([]server.Module, 0, len(mod.Routes()))
@@ -65,5 +68,5 @@ func BuildModules(
 		trafficpolicymod.NewInformer(gormDB, mgr, log.WithName("traffic-policy-informer")),
 	)
 
-	return modules, runnables, nil
+	return modules, runnables, mod.Capabilities(), nil
 }

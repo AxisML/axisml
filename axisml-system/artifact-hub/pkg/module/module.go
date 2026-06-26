@@ -22,9 +22,9 @@ import (
 
 	artmod "github.com/axisml/axisml/components/artifact-hub/internal/artifact"
 	"github.com/axisml/axisml/components/artifact-hub/internal/artifact/handler"
-	"github.com/axisml/axisml/components/artifact-hub/internal/config"
 	"github.com/axisml/axisml/components/artifact-hub/internal/db"
 	"github.com/axisml/axisml/components/artifact-hub/internal/gc"
+	"github.com/axisml/axisml/components/artifact-hub/internal/server"
 	"github.com/axisml/axisml/components/artifact-hub/internal/storage/oci"
 )
 
@@ -73,6 +73,16 @@ type Module struct {
 	runnables []Runnable
 }
 
+// artifactKinds are the artifact kinds served in every deployment form.
+var artifactKinds = []string{"model", "image", "dataset"}
+
+// Capabilities returns the deployment-form capability document. A composition
+// root serves it at GET /api/v1/capabilities (Standard, per-service) or folds it
+// into an aggregate (Lite). Artifact Hub's surface is identical across forms.
+func (m *Module) Capabilities() server.Capabilities {
+	return server.Capabilities{Kinds: artifactKinds, Upload: true}
+}
+
 // New assembles Artifact Hub from the injected config. It registers the model /
 // image / dataset Kind handlers into the process-global registry (idempotent
 // across re-invocation in the same process).
@@ -90,13 +100,8 @@ func New(d Deps) (*Module, error) {
 	}
 	registerHandlers(ociClient, bucket)
 
-	cfg := config.Config{
-		GCInterval:     d.Config.GCInterval,
-		UploadingTTL:   d.Config.UploadingTTL,
-		UploadTokenTTL: d.Config.UploadTokenTTL,
-	}
-	artifacts := artmod.NewService(cfg, d.DB)
-	worker := gc.New(cfg, d.DB, d.Log.WithName("gc-worker"))
+	artifacts := artmod.NewService(d.Config.UploadTokenTTL, d.DB)
+	worker := gc.New(d.Config.GCInterval, d.Config.UploadingTTL, d.DB, d.Log.WithName("gc-worker"))
 
 	return &Module{
 		routes:    []Route{artmod.NewHandler(artifacts)},

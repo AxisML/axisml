@@ -6,21 +6,17 @@ metadata:
   labels:
     {{- include "axisml.componentLabels" (dict "context" . "component" "artifact-hub") | nindent 4 }}
 data:
-  DATABASE_HOST: {{ include "axisml.databaseHost" . | quote }}
-  DATABASE_PORT: {{ include "axisml.databasePort" . | quote }}
-  DATABASE_NAME: {{ .Values.database.auth.database | quote }}
-  DATABASE_USER: {{ .Values.database.auth.username | quote }}
-  API_BIND_ADDRESS: {{ printf ":%d" (int .Values.artifactHub.service.port) | quote }}
-  PROBES_BIND_ADDRESS: {{ printf ":%d" (int .Values.artifactHub.probesPort) | quote }}
-  METRICS_BIND_ADDRESS: {{ printf ":%d" (int .Values.artifactHub.metricsPort) | quote }}
-  LEADER_ELECT: {{ .Values.artifactHub.leaderElection.enabled | quote }}
-  GC_INTERVAL: {{ .Values.artifactHub.gcInterval | quote }}
-  UPLOADING_TTL: {{ .Values.artifactHub.uploadingTTL | quote }}
-  UPLOAD_TOKEN_TTL: {{ .Values.artifactHub.uploadTokenTTL | quote }}
-  OCI_ENDPOINT: {{ .Values.artifactHub.storage.oci.endpoint | quote }}
-  OCI_SCHEME: {{ .Values.artifactHub.storage.oci.scheme | quote }}
-  LOG_DEVELOPMENT: {{ .Values.artifactHub.logDevelopment | quote }}
-  {{- range $key, $value := .Values.artifactHub.env }}
-  {{ $key }}: {{ $value | quote }}
-  {{- end }}
+  config.yaml: |
+    database:
+      host: {{ include "axisml.databaseHost" . }}
+      port: {{ include "axisml.databasePort" . }}
+      name: {{ .Values.database.auth.database }}
+      user: {{ .Values.database.auth.username }}
+      sslmode: {{ .Values.database.sslMode | default "disable" }}
+    log:
+      level: {{ .Values.artifactHub.log.level | default "info" }}
+      format: {{ .Values.artifactHub.log.format | default "json" }}
+    oci:
+      endpoint: {{ .Values.artifactHub.storage.oci.endpoint }}
+      admin_user: {{ .Values.artifactHub.storage.oci.adminSecretRef.username | default "admin" }}
 {{- end }}

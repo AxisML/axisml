@@ -1,4 +1,4 @@
-package main
+package apidoc
 
 import (
 	"strings"
@@ -10,7 +10,7 @@ import (
 )
 
 func TestBuildDocumentSchemaIntegrity(t *testing.T) {
-	doc := buildDocument("test")
+	doc := Document("test")
 	schemas := doc.Components.Schemas
 	const prefix = "#/components/schemas/"
 
@@ -48,7 +48,7 @@ func TestBuildDocumentSchemaIntegrity(t *testing.T) {
 }
 
 func TestOperationIDsUnique(t *testing.T) {
-	doc := buildDocument("test")
+	doc := Document("test")
 	seen := map[string]string{}
 	for path, item := range doc.Paths {
 		for method, op := range openapigen.OpsOf(item) {
@@ -69,7 +69,7 @@ func TestOperationIDsUnique(t *testing.T) {
 // corresponding entry in the spec. Drift here means a client SDK can't see a
 // real endpoint.
 func TestRouteCoverage(t *testing.T) {
-	doc := buildDocument("test")
+	doc := Document("test")
 	want := []struct{ method, path string }{
 		{"get", "/healthz"},
 		{"get", "/readyz"},
@@ -110,17 +110,17 @@ func TestRouteCoverage(t *testing.T) {
 // apperrors.Code enum (not just a free string), so client codegens emit a
 // typed accessor and stay in sync with this component's error codes.
 func TestProblemEnumIsSourced(t *testing.T) {
-	doc := buildDocument("test")
-	prob, ok := doc.Components.Schemas["Problem"]
+	doc := Document("test")
+	prob, ok := doc.Components.Schemas["ComputeServiceError"]
 	if !ok {
-		t.Fatal("Problem schema missing")
+		t.Fatal("ComputeServiceError schema missing")
 	}
 	codeProp := prob.Properties["code"]
 	if codeProp == nil {
-		t.Fatal("Problem.code missing")
+		t.Fatal("ComputeServiceError.code missing")
 	}
 	if len(codeProp.Enum) != len(apperrors.AllCodes()) {
-		t.Errorf("Problem.code enum len = %d, want %d", len(codeProp.Enum), len(apperrors.AllCodes()))
+		t.Errorf("ComputeServiceError.code enum len = %d, want %d", len(codeProp.Enum), len(apperrors.AllCodes()))
 	}
 }
 

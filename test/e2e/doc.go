@@ -1,14 +1,21 @@
-// Package e2e contains the system-layer end-to-end test suite.
+// Package e2e is the centralized, black-box end-to-end suite. It runs against
+// either AxisML deployment form, selected at compile time by build tag:
 //
-// These tests run against a REAL minikube cluster (profile "axisml") with the
-// infra and system Helm layers already installed. They are gated behind the
-// "e2e" build tag and are never part of the default `go test ./...` or the PR
-// CI gate — invoke them explicitly via `make e2e-test`.
+//   - standard (alias: e2e): a REAL minikube cluster (profile "axisml") with the
+//     infra + system Helm layers installed, reached over kubectl port-forwards.
+//     Run with `make e2e-test`.
+//   - lite: one axisml-core process (no Kubernetes) at $LITE_CORE_URL. Bring the
+//     stack up with `make lite-up`, then run `make e2e-lite-test`.
 //
+// The shared CORE tests (files tagged `e2e || standard || lite`) drive only the
+// System HTTP contract through the typed clients and the Harness seam, so they
+// validate both forms unchanged. Form-specific code is confined to the harness
+// implementations (harness_standard_test.go / harness_lite_test.go) and the
+// form-tagged tests (Standard real-cluster white-box; lite_only_test.go).
+//
+// The suite is never part of the default `go test ./...` or the PR CI gate.
 // This file carries no build tag so the package compiles cleanly under the
-// default build constraints; all actual test code lives in `*_test.go` files
-// tagged `//go:build e2e`.
+// default build constraints.
 //
-// See README.md in this directory for how to run the suite and the environment
-// it assumes.
+// See README.md for how to run each form and the environment it assumes.
 package e2e

@@ -34,6 +34,9 @@ type Options struct {
 	// pings (DB, k8s manager cache, etc.) here so kubelet only routes traffic
 	// once the replica is actually serviceable.
 	Ready func(context.Context) error
+	// Capabilities, when non-nil, is served unauthenticated at
+	// GET /api/v1/capabilities (the deployment-form capability document).
+	Capabilities any
 }
 
 // New returns a Server with the standard middleware chain installed.
@@ -63,6 +66,10 @@ func New(opts Options) (*Server, error) {
 		}
 		c.String(http.StatusOK, "ok")
 	})
+
+	if opts.Capabilities != nil {
+		r.GET("/api/v1/capabilities", func(c *gin.Context) { c.JSON(http.StatusOK, opts.Capabilities) })
+	}
 
 	api := r.Group("/api/v1")
 	for _, m := range opts.Modules {

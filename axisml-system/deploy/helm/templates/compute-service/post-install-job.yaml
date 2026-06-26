@@ -29,13 +29,19 @@ spec:
           image: {{ include "axisml.image" (dict "imageRoot" .Values.computeService.image "global" .Values.global "chart" .Chart) }}
           imagePullPolicy: {{ .Values.computeService.image.pullPolicy }}
           args: ["bootstrap"]
-          envFrom:
-            - configMapRef:
-                name: {{ include "axisml.fullname" . }}-compute-service
+          volumeMounts:
+            - name: config
+              mountPath: /etc/axisml/config.yaml
+              subPath: config.yaml
+              readOnly: true
           env:
-            - name: DATABASE_PASSWORD
+            - name: AXISML_DATABASE_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ include "axisml.fullname" . }}-compute-service-db
                   key: password
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "axisml.fullname" . }}-compute-service
 {{- end }}

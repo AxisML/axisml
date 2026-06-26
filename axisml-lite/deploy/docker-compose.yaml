@@ -1,0 +1,139 @@
+# AxisML Lite — single-host Docker Compose deployment.
+#
+# Default (no profile) brings up the Lite control plane: PostgreSQL + axisml-core
+# (Cluster Manager + Compute Service + Artifact Hub + the in-process Standalone
+# Docker runtime). Optional profiles add storage (zot/rustfs), the gateway
+# (traefik) and the Platform (backend/frontend):
+#
+#   docker compose up -d                                   # db + axisml-core
+#   docker compose --profile storage --profile gateway \
+#                  --profile platform up -d                # full stack
+#
+# Build the axisml-core image from the repo ROOT (the go.mod replace directives
+# need the sibling modules in the build context):
+#   docker compose build           # uses ../.. as context (set below)
+
+name: axisml-lite
+
+services:
+  axisml-database:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: axisml
+      POSTGRES_PASSWORD: axisml
+      POSTGRES_DB: axisml
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U axisml -d axisml"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [axisml-control]
+
+  axisml-core:
+    build:
+      context: ../..
+      dockerfile: axisml-lite/axisml-core/Dockerfile
+    image: ghcr.io/axisml/axisml-core:latest
+    depends_on:
+      axisml-database:
+        condition: service_healthy
+    environment:
+      AXISML_DATABASE_HOST: axisml-database
+      AXISML_DATABASE_PORT: "5432"
+      AXISML_DATABASE_NAME: axisml
+      AXISML_DATABASE_USER: axisml
+      AXISML_DATABASE_PASSWORD: axisml
+      AXISML_DATABASE_SSLMODE: disable
+      AXISML_OCI_ENDPOINT: http://zot:5000
+      AXISML_OCI_ADMIN_USER: admin
+      AXISML_OCI_ADMIN_PASSWORD: admin
+      AXISML_LOG_LEVEL: info
+      AXISML_LOG_FORMAT: json
+    ports:
+      # Published for local development and the e2e suite. Platform reaches it
+      # in-cluster at http://axisml-core:8080.
+      - "18080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      # cluster-manager pool definitions (runtime.PoolConfigDir = /etc/axisml/pools)
+      - ./config:/etc/axisml/pools:ro
+      - traefik-dynamic:/var/lib/axisml/traefik
+      - axisml-runtime:/var/lib/axisml/runtime
+    networks: [axisml-control]
+
+  zot:
+    profiles: ["storage"]
+    image: ghcr.io/project-zot/zot-linux-${TARGETARCH:-arm64}:latest
+    volumes:
+      - zotdata:/var/lib/registry
+    networks: [axisml-control]
+
+  rustfs:
+    profiles: ["storage"]
+    image: rustfs/rustfs:latest
+    volumes:
+      - rustfsdata:/data
+    networks: [axisml-control]
+
+  traefik:
+    profiles: ["gateway"]
+    image: traefik:v3.1
+    command:
+      - "--entrypoints.web.address=:80"
+      - "--providers.file.directory=/etc/traefik/dynamic"
+      - "--providers.file.watch=true"
+      - "--api.dashboard=false"
+    ports:
+      - "80:80"
+    volumes:
+      - traefik-dynamic:/etc/traefik/dynamic:ro
+    networks: [axisml-control, axisml-workloads]
+
+  axisml-platform-backend:
+    profiles: ["platform"]
+    image: ghcr.io/axisml/axisml-platform-backend:latest
+    depends_on:
+      axisml-database:
+        condition: service_healthy
+      axisml-core:
+        condition: service_started
+    environment:
+      AXISML_DATABASE_HOST: axisml-database
+      AXISML_DATABASE_PORT: "5432"
+      AXISML_DATABASE_NAME: axisml
+      AXISML_DATABASE_USER: axisml
+      AXISML_DATABASE_PASSWORD: axisml
+      AXISML_DATABASE_SSLMODE: disable
+      AXISML_SYSTEM_CLUSTER_MANAGER: http://axisml-core:8080
+      AXISML_SYSTEM_COMPUTE_SERVICE: http://axisml-core:8080
+      AXISML_SYSTEM_ARTIFACT_HUB: http://axisml-core:8080
+      AXISML_BOOTSTRAP_USERNAME: admin
+      AXISML_BOOTSTRAP_PASSWORD: admin
+    ports:
+      - "8080:8080"
+    networks: [axisml-control]
+
+  axisml-platform-frontend:
+    profiles: ["platform"]
+    image: ghcr.io/axisml/axisml-platform-frontend:latest
+    depends_on:
+      axisml-platform-backend:
+        condition: service_started
+    ports:
+      - "8081:80"
+    networks: [axisml-control]
+
+networks:
+  axisml-control:
+    name: axisml-control
+  axisml-workloads:
+    name: axisml-workloads
+
+volumes:
+  pgdata:
+  zotdata:
+  rustfsdata:
+  traefik-dynamic:
+  axisml-runtime:

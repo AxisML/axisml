@@ -27,11 +27,13 @@ spec:
           image: {{ include "axisml.image" (dict "imageRoot" .Values.platform.image "global" .Values.global "chart" .Chart) }}
           imagePullPolicy: {{ .Values.platform.image.pullPolicy }}
           args: ["bootstrap"]
-          envFrom:
-            - configMapRef:
-                name: {{ include "axisml.fullname" . }}-backend
+          volumeMounts:
+            - name: config
+              mountPath: /etc/axisml/config.yaml
+              subPath: config.yaml
+              readOnly: true
           env:
-            - name: DATABASE_PASSWORD
+            - name: AXISML_DATABASE_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ include "axisml.fullname" . }}-backend-db
@@ -55,27 +57,27 @@ spec:
             - name: probes
               containerPort: {{ .Values.platform.probesPort }}
               protocol: TCP
-          envFrom:
-            - configMapRef:
-                name: {{ include "axisml.fullname" . }}-backend
+          volumeMounts:
+            - name: config
+              mountPath: /etc/axisml/config.yaml
+              subPath: config.yaml
+              readOnly: true
           env:
-            - name: DATABASE_PASSWORD
+            - name: AXISML_DATABASE_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ include "axisml.fullname" . }}-backend-db
                   key: password
             {{- if .Values.cache.enabled }}
-            - name: REDIS_PASSWORD
+            - name: AXISML_CACHE_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ include "axisml.fullname" . }}-backend-cache
                   key: password
             {{- end }}
             # Stable RS256 signing key so login tokens survive pod restarts and
-            # stay consistent across replicas (see secret-jwt.yaml).
-            - name: JWT_KEY_ID
-              value: {{ .Values.platform.auth.jwt.keyId | quote }}
-            - name: JWT_PRIVATE_KEY_PEM
+            # stay consistent across replicas; the JWKS kid is derived from it.
+            - name: AXISML_AUTH_JWT_PRIVATE_KEY_PEM
               valueFrom:
                 secretKeyRef:
                   {{- with .Values.platform.auth.jwt.privateKeySecret }}
@@ -85,6 +87,10 @@ spec:
                   name: {{ include "axisml.fullname" . }}-backend-jwt
                   key: private-key.pem
                   {{- end }}
+            {{- range $key, $value := .Values.platform.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
           livenessProbe:
             httpGet:
               path: /healthz
@@ -99,4 +105,8 @@ spec:
             periodSeconds: 10
           resources:
             {{- toYaml .Values.platform.resources | nindent 12 }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "axisml.fullname" . }}-backend
 {{- end }}

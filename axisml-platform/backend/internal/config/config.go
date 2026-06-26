@@ -1,172 +1,71 @@
-// Package config holds the platform-backend runtime configuration. Every field
-// has an env-var override; defaults target local development and the in-cluster
-// Helm deployment.
+// Package config holds the platform-backend runtime configuration. The shape is
+// the shared Common sections (database, log) plus the platform-specific system
+// endpoints, cache, auth, and bootstrap-seed sections. Fixed operational values
+// live in consts.go; the default tenant and the JWT kid are discovered/derived,
+// not configured (see docs/configuration.md).
 package config
 
 import (
-	"errors"
 	"fmt"
-	"os"
-	"strconv"
 	"time"
+
+	"github.com/axisml/axisml/pkg/axismlconfig"
 )
 
 // Config is the runtime configuration for the platform backend.
 type Config struct {
-	// Database (shared axisml DB, Platform tables are prefix-isolated).
-	DatabaseHost     string
-	DatabasePort     int
-	DatabaseName     string
-	DatabaseUser     string
-	DatabasePassword string
-	DatabaseSSLMode  string
+	axismlconfig.Common `mapstructure:",squash"`
 
-	// HTTP listeners.
-	APIBindAddress    string
-	ProbesBindAddress string
-
-	// Downstream System-layer base URLs (ClusterIP, internal-only).
-	ClusterManagerURL string
-	ComputeURL        string
-	ArtifactsURL      string
-	UpstreamTimeout   time.Duration
-
-	// Cache (Redis). Optional accelerator for the auth hot path: an empty
-	// RedisAddr disables caching entirely (every lookup hits PostgreSQL), and a
-	// transient Redis error falls back to PostgreSQL per-operation. See
-	// internal/cache.
-	RedisAddr        string        // host:port; empty disables the cache (noop)
-	RedisPassword    string        // optional AUTH password
-	RedisDB          int           // logical DB index
-	SessionCacheTTL  time.Duration // session-validity entry lifetime (short backstop)
-	IdentityCacheTTL time.Duration // identity/RBAC entry lifetime (short backstop)
-
-	// SessionSweepInterval is how often `serve` purges expired session rows
-	// from PostgreSQL (Redis entries self-expire via TTL).
-	SessionSweepInterval time.Duration
-
-	// Auth / JWT.
-	JWTPrivateKeyPEM  string        // RS256 private key (PEM); generated ephemerally when empty
-	JWTKeyID          string        // kid published in JWKS
-	LoginTokenTTL     time.Duration // control-plane login JWT lifetime
-	WorkspaceTokenTTL time.Duration // data-plane workspace access JWT lifetime (planned)
-	PublicTenantScope string        // tenant scope that hosts visibility=public artifacts
-
-	// Bootstrap defaults (consumed by `platform bootstrap`).
-	BootstrapUsername string
-	BootstrapPassword string
-	BootstrapTenant   string
-	BootstrapTenantNS string
-
-	// Logging.
-	LogDevelopment bool
+	System    System    `mapstructure:"system"`
+	Cache     Cache     `mapstructure:"cache"`
+	Auth      Auth      `mapstructure:"auth"`
+	Bootstrap Bootstrap `mapstructure:"bootstrap"`
 }
 
-// Load reads env vars and returns a populated Config.
-func Load() (Config, error) {
-	port, err := envInt("DATABASE_PORT", 5432)
-	if err != nil {
+// System holds the base endpoints of the System-layer services this backend
+// calls (ClusterIP, internal-only).
+type System struct {
+	ClusterManager string `mapstructure:"cluster_manager" default:"http://axisml-cluster-manager.axisml-system:8080" doc:"cluster-manager endpoint"`
+	ComputeService string `mapstructure:"compute_service" default:"http://axisml-compute-service.axisml-system:8080" doc:"compute-service endpoint"`
+	ArtifactHub    string `mapstructure:"artifact_hub" default:"http://axisml-artifact-hub.axisml-system:8080" doc:"artifact-hub endpoint"`
+}
+
+// Cache is the Redis accelerator for the auth hot path. An empty Addr disables
+// caching entirely (every lookup hits PostgreSQL).
+type Cache struct {
+	Addr     string `mapstructure:"addr" default:"" doc:"Redis address host:port (empty disables the cache)"`
+	Password string `mapstructure:"password" secret:"true" doc:"Redis password"`
+	DB       int    `mapstructure:"db" default:"0" doc:"Redis logical database"`
+}
+
+// Auth configures login-token issuance. The JWKS kid is derived from the key.
+type Auth struct {
+	LoginTokenTTL    time.Duration `mapstructure:"login_token_ttl" default:"12h" doc:"Login session token lifetime"`
+	JWTPrivateKeyPEM string        `mapstructure:"jwt_private_key_pem" secret:"true" doc:"RS256 signing key PEM (ephemeral if unset; JWKS kid derived from the key)"`
+}
+
+// Bootstrap seeds the initial system-admin (consumed by `platform bootstrap`).
+// The default tenant is NOT configured here — it is owned by the System chart's
+// seed.tenant and discovered via cluster-manager.
+type Bootstrap struct {
+	Username string `mapstructure:"username" default:"admin" doc:"Initial system-admin username"`
+	Password string `mapstructure:"password" secret:"true" doc:"Initial system-admin password"`
+}
+
+// Load resolves the configuration from defaults < file < AXISML_ env < secret
+// files. opts.File carries the --config flag value (empty = auto-discover).
+func Load(opts axismlconfig.Options) (Config, error) {
+	var c Config
+	if err := axismlconfig.Load(&c, opts); err != nil {
 		return Config{}, err
 	}
-	redisDB, err := envInt("REDIS_DB", 0)
-	if err != nil {
-		return Config{}, err
-	}
-
-	cfg := Config{
-		DatabaseHost:     env("DATABASE_HOST", "localhost"),
-		DatabasePort:     port,
-		DatabaseName:     env("DATABASE_NAME", "axisml"),
-		DatabaseUser:     env("DATABASE_USER", "axisml"),
-		DatabasePassword: env("DATABASE_PASSWORD", "axisml"),
-		DatabaseSSLMode:  env("DATABASE_SSLMODE", "disable"),
-
-		APIBindAddress:    env("API_BIND_ADDRESS", ":8080"),
-		ProbesBindAddress: env("PROBES_BIND_ADDRESS", ":8082"),
-
-		ClusterManagerURL: env("CLUSTER_MANAGER_URL", "http://axisml-cluster-manager.axisml-system:8080"),
-		ComputeURL:        env("COMPUTE_URL", "http://axisml-compute-service.axisml-system:8081"),
-		ArtifactsURL:      env("ARTIFACTS_URL", "http://axisml-artifact-hub.axisml-system:8080"),
-		UpstreamTimeout:   envDuration("UPSTREAM_TIMEOUT", 30*time.Second),
-
-		RedisAddr:        env("REDIS_ADDR", ""),
-		RedisPassword:    env("REDIS_PASSWORD", ""),
-		RedisDB:          redisDB,
-		SessionCacheTTL:  envDuration("SESSION_CACHE_TTL", 5*time.Minute),
-		IdentityCacheTTL: envDuration("IDENTITY_CACHE_TTL", time.Minute),
-
-		SessionSweepInterval: envDuration("SESSION_SWEEP_INTERVAL", time.Hour),
-
-		JWTPrivateKeyPEM:  env("JWT_PRIVATE_KEY_PEM", ""),
-		JWTKeyID:          env("JWT_KEY_ID", "axisml-platform-key-1"),
-		LoginTokenTTL:     envDuration("LOGIN_TOKEN_TTL", 12*time.Hour),
-		WorkspaceTokenTTL: envDuration("WORKSPACE_ACCESS_JWT_TTL", time.Hour),
-		PublicTenantScope: env("PUBLIC_TENANT_SCOPE", "default"),
-
-		BootstrapUsername: env("AXISML_BOOTSTRAP_USERNAME", "admin"),
-		BootstrapPassword: env("AXISML_BOOTSTRAP_PASSWORD", "admin"),
-		BootstrapTenant:   env("AXISML_BOOTSTRAP_TENANT", "default"),
-		BootstrapTenantNS: env("AXISML_BOOTSTRAP_TENANT_NAMESPACE", "axisml-tenant"),
-
-		LogDevelopment: envBool("LOG_DEVELOPMENT", false),
-	}
-
-	if cfg.DatabaseHost == "" {
-		return Config{}, errors.New("DATABASE_HOST is required")
-	}
-	return cfg, nil
+	return c, nil
 }
 
-// PostgresDSN returns a libpq-style DSN for GORM / golang-migrate.
-func (c Config) PostgresDSN() string {
-	return fmt.Sprintf(
-		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
-		c.DatabaseHost, c.DatabasePort, c.DatabaseUser, c.DatabasePassword,
-		c.DatabaseName, c.DatabaseSSLMode,
-	)
-}
-
-func env(key, def string) string {
-	if v, ok := os.LookupEnv(key); ok && v != "" {
-		return v
+// Validate is invoked by the loader (fail-fast).
+func (c Config) Validate() error {
+	if c.Database.Host == "" {
+		return fmt.Errorf("database.host is required")
 	}
-	return def
-}
-
-func envBool(key string, def bool) bool {
-	v, ok := os.LookupEnv(key)
-	if !ok || v == "" {
-		return def
-	}
-	switch v {
-	case "1", "true", "TRUE", "True", "yes", "YES":
-		return true
-	case "0", "false", "FALSE", "False", "no", "NO":
-		return false
-	}
-	return def
-}
-
-func envInt(key string, def int) (int, error) {
-	v, ok := os.LookupEnv(key)
-	if !ok || v == "" {
-		return def, nil
-	}
-	n, err := strconv.Atoi(v)
-	if err != nil {
-		return 0, fmt.Errorf("env %s: %w", key, err)
-	}
-	return n, nil
-}
-
-func envDuration(key string, def time.Duration) time.Duration {
-	v, ok := os.LookupEnv(key)
-	if !ok || v == "" {
-		return def
-	}
-	d, err := time.ParseDuration(v)
-	if err != nil {
-		return def
-	}
-	return d
+	return nil
 }

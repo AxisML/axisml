@@ -18,17 +18,17 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
-// Defines values for ProblemCode.
+// Defines values for ArtifactHubErrorCode.
 const (
-	Conflict           ProblemCode = "conflict"
-	Forbidden          ProblemCode = "forbidden"
-	Gone               ProblemCode = "gone"
-	InternalError      ProblemCode = "internal_error"
-	NotFound           ProblemCode = "not_found"
-	PreconditionFailed ProblemCode = "precondition_failed"
-	ServiceUnavailable ProblemCode = "service_unavailable"
-	Unauthorized       ProblemCode = "unauthorized"
-	ValidationFailed   ProblemCode = "validation_failed"
+	Conflict           ArtifactHubErrorCode = "conflict"
+	Forbidden          ArtifactHubErrorCode = "forbidden"
+	Gone               ArtifactHubErrorCode = "gone"
+	InternalError      ArtifactHubErrorCode = "internal_error"
+	NotFound           ArtifactHubErrorCode = "not_found"
+	PreconditionFailed ArtifactHubErrorCode = "precondition_failed"
+	ServiceUnavailable ArtifactHubErrorCode = "service_unavailable"
+	Unauthorized       ArtifactHubErrorCode = "unauthorized"
+	ValidationFailed   ArtifactHubErrorCode = "validation_failed"
 )
 
 // Artifact defines model for Artifact.
@@ -59,6 +59,21 @@ type Artifact struct {
 type ArtifactCompleteRequest struct {
 	Digest string `json:"digest"`
 }
+
+// ArtifactHubError defines model for ArtifactHubError.
+type ArtifactHubError struct {
+	// Code Discrete business error class.
+	Code     ArtifactHubErrorCode    `json:"code"`
+	Detail   *string                 `json:"detail,omitempty"`
+	Details  *map[string]interface{} `json:"details,omitempty"`
+	Instance *string                 `json:"instance,omitempty"`
+	Status   int                     `json:"status"`
+	Title    string                  `json:"title"`
+	Type     string                  `json:"type"`
+}
+
+// ArtifactHubErrorCode Discrete business error class.
+type ArtifactHubErrorCode string
 
 // ArtifactInitiateRequest defines model for ArtifactInitiateRequest.
 type ArtifactInitiateRequest struct {
@@ -103,27 +118,18 @@ type ArtifactResolveResponse struct {
 	Visibility      *string         `json:"visibility,omitempty"`
 }
 
+// Capabilities defines model for Capabilities.
+type Capabilities struct {
+	Kinds  []string `json:"kinds"`
+	Upload bool     `json:"upload"`
+}
+
 // OciCredentials defines model for OciCredentials.
 type OciCredentials struct {
 	ExpiresAt time.Time `json:"expires_at"`
 	Password  string    `json:"password"`
 	Username  string    `json:"username"`
 }
-
-// Problem defines model for Problem.
-type Problem struct {
-	// Code Discrete business error class.
-	Code     ProblemCode             `json:"code"`
-	Detail   *string                 `json:"detail,omitempty"`
-	Details  *map[string]interface{} `json:"details,omitempty"`
-	Instance *string                 `json:"instance,omitempty"`
-	Status   int                     `json:"status"`
-	Title    string                  `json:"title"`
-	Type     string                  `json:"type"`
-}
-
-// ProblemCode Discrete business error class.
-type ProblemCode string
 
 // UploadCredentials defines model for UploadCredentials.
 type UploadCredentials struct {
@@ -341,6 +347,9 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 
 // The interface specification for the client above.
 type ClientInterface interface {
+	// GetCapabilities request
+	GetCapabilities(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListDatasets request
 	ListDatasets(ctx context.Context, namespace string, params *ListDatasetsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -436,6 +445,18 @@ type ClientInterface interface {
 
 	// Readyz request
 	Readyz(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+}
+
+func (c *Client) GetCapabilities(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetCapabilitiesRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
 }
 
 func (c *Client) ListDatasets(ctx context.Context, namespace string, params *ListDatasetsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -856,6 +877,33 @@ func (c *Client) Readyz(ctx context.Context, reqEditors ...RequestEditorFn) (*ht
 		return nil, err
 	}
 	return c.Client.Do(req)
+}
+
+// NewGetCapabilitiesRequest generates requests for GetCapabilities
+func NewGetCapabilitiesRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/capabilities")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
 }
 
 // NewListDatasetsRequest generates requests for ListDatasets
@@ -2626,6 +2674,9 @@ func WithBaseURL(baseURL string) ClientOption {
 
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
+	// GetCapabilitiesWithResponse request
+	GetCapabilitiesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetCapabilitiesResponse, error)
+
 	// ListDatasetsWithResponse request
 	ListDatasetsWithResponse(ctx context.Context, namespace string, params *ListDatasetsParams, reqEditors ...RequestEditorFn) (*ListDatasetsResponse, error)
 
@@ -2723,19 +2774,41 @@ type ClientWithResponsesInterface interface {
 	ReadyzWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ReadyzResponse, error)
 }
 
+type GetCapabilitiesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Capabilities
+}
+
+// Status returns HTTPResponse.Status
+func (r GetCapabilitiesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetCapabilitiesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type ListDatasetsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *ArtifactList
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON410      *Problem
-	JSON412      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ArtifactHubError
+	JSON401      *ArtifactHubError
+	JSON403      *ArtifactHubError
+	JSON404      *ArtifactHubError
+	JSON409      *ArtifactHubError
+	JSON410      *ArtifactHubError
+	JSON412      *ArtifactHubError
+	JSON503      *ArtifactHubError
+	JSONDefault  *ArtifactHubError
 }
 
 // Status returns HTTPResponse.Status
@@ -2758,15 +2831,15 @@ type ListDatasetVersionsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *ArtifactList
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON410      *Problem
-	JSON412      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ArtifactHubError
+	JSON401      *ArtifactHubError
+	JSON403      *ArtifactHubError
+	JSON404      *ArtifactHubError
+	JSON409      *ArtifactHubError
+	JSON410      *ArtifactHubError
+	JSON412      *ArtifactHubError
+	JSON503      *ArtifactHubError
+	JSONDefault  *ArtifactHubError
 }
 
 // Status returns HTTPResponse.Status
@@ -2789,15 +2862,15 @@ type InitiateDatasetResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *ArtifactInitiateResponse
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON410      *Problem
-	JSON412      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ArtifactHubError
+	JSON401      *ArtifactHubError
+	JSON403      *ArtifactHubError
+	JSON404      *ArtifactHubError
+	JSON409      *ArtifactHubError
+	JSON410      *ArtifactHubError
+	JSON412      *ArtifactHubError
+	JSON503      *ArtifactHubError
+	JSONDefault  *ArtifactHubError
 }
 
 // Status returns HTTPResponse.Status
@@ -2820,15 +2893,15 @@ type DeleteDatasetResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Artifact
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON410      *Problem
-	JSON412      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ArtifactHubError
+	JSON401      *ArtifactHubError
+	JSON403      *ArtifactHubError
+	JSON404      *ArtifactHubError
+	JSON409      *ArtifactHubError
+	JSON410      *ArtifactHubError
+	JSON412      *ArtifactHubError
+	JSON503      *ArtifactHubError
+	JSONDefault  *ArtifactHubError
 }
 
 // Status returns HTTPResponse.Status
@@ -2851,15 +2924,15 @@ type GetDatasetResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Artifact
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON410      *Problem
-	JSON412      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ArtifactHubError
+	JSON401      *ArtifactHubError
+	JSON403      *ArtifactHubError
+	JSON404      *ArtifactHubError
+	JSON409      *ArtifactHubError
+	JSON410      *ArtifactHubError
+	JSON412      *ArtifactHubError
+	JSON503      *ArtifactHubError
+	JSONDefault  *ArtifactHubError
 }
 
 // Status returns HTTPResponse.Status
@@ -2882,15 +2955,15 @@ type UpdateDatasetResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Artifact
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON410      *Problem
-	JSON412      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ArtifactHubError
+	JSON401      *ArtifactHubError
+	JSON403      *ArtifactHubError
+	JSON404      *ArtifactHubError
+	JSON409      *ArtifactHubError
+	JSON410      *ArtifactHubError
+	JSON412      *ArtifactHubError
+	JSON503      *ArtifactHubError
+	JSONDefault  *ArtifactHubError
 }
 
 // Status returns HTTPResponse.Status
@@ -2913,15 +2986,15 @@ type CompleteDatasetResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Artifact
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON410      *Problem
-	JSON412      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ArtifactHubError
+	JSON401      *ArtifactHubError
+	JSON403      *ArtifactHubError
+	JSON404      *ArtifactHubError
+	JSON409      *ArtifactHubError
+	JSON410      *ArtifactHubError
+	JSON412      *ArtifactHubError
+	JSON503      *ArtifactHubError
+	JSONDefault  *ArtifactHubError
 }
 
 // Status returns HTTPResponse.Status
@@ -2944,15 +3017,15 @@ type ResolveDatasetResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *ArtifactResolveResponse
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON410      *Problem
-	JSON412      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ArtifactHubError
+	JSON401      *ArtifactHubError
+	JSON403      *ArtifactHubError
+	JSON404      *ArtifactHubError
+	JSON409      *ArtifactHubError
+	JSON410      *ArtifactHubError
+	JSON412      *ArtifactHubError
+	JSON503      *ArtifactHubError
+	JSONDefault  *ArtifactHubError
 }
 
 // Status returns HTTPResponse.Status
@@ -2975,15 +3048,15 @@ type ListImagesResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *ArtifactList
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON410      *Problem
-	JSON412      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ArtifactHubError
+	JSON401      *ArtifactHubError
+	JSON403      *ArtifactHubError
+	JSON404      *ArtifactHubError
+	JSON409      *ArtifactHubError
+	JSON410      *ArtifactHubError
+	JSON412      *ArtifactHubError
+	JSON503      *ArtifactHubError
+	JSONDefault  *ArtifactHubError
 }
 
 // Status returns HTTPResponse.Status
@@ -3006,15 +3079,15 @@ type ListImageVersionsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *ArtifactList
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON410      *Problem
-	JSON412      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ArtifactHubError
+	JSON401      *ArtifactHubError
+	JSON403      *ArtifactHubError
+	JSON404      *ArtifactHubError
+	JSON409      *ArtifactHubError
+	JSON410      *ArtifactHubError
+	JSON412      *ArtifactHubError
+	JSON503      *ArtifactHubError
+	JSONDefault  *ArtifactHubError
 }
 
 // Status returns HTTPResponse.Status
@@ -3037,15 +3110,15 @@ type InitiateImageResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *ArtifactInitiateResponse
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON410      *Problem
-	JSON412      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ArtifactHubError
+	JSON401      *ArtifactHubError
+	JSON403      *ArtifactHubError
+	JSON404      *ArtifactHubError
+	JSON409      *ArtifactHubError
+	JSON410      *ArtifactHubError
+	JSON412      *ArtifactHubError
+	JSON503      *ArtifactHubError
+	JSONDefault  *ArtifactHubError
 }
 
 // Status returns HTTPResponse.Status
@@ -3068,15 +3141,15 @@ type DeleteImageResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Artifact
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON410      *Problem
-	JSON412      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ArtifactHubError
+	JSON401      *ArtifactHubError
+	JSON403      *ArtifactHubError
+	JSON404      *ArtifactHubError
+	JSON409      *ArtifactHubError
+	JSON410      *ArtifactHubError
+	JSON412      *ArtifactHubError
+	JSON503      *ArtifactHubError
+	JSONDefault  *ArtifactHubError
 }
 
 // Status returns HTTPResponse.Status
@@ -3099,15 +3172,15 @@ type GetImageResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Artifact
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON410      *Problem
-	JSON412      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ArtifactHubError
+	JSON401      *ArtifactHubError
+	JSON403      *ArtifactHubError
+	JSON404      *ArtifactHubError
+	JSON409      *ArtifactHubError
+	JSON410      *ArtifactHubError
+	JSON412      *ArtifactHubError
+	JSON503      *ArtifactHubError
+	JSONDefault  *ArtifactHubError
 }
 
 // Status returns HTTPResponse.Status
@@ -3130,15 +3203,15 @@ type UpdateImageResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Artifact
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON410      *Problem
-	JSON412      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ArtifactHubError
+	JSON401      *ArtifactHubError
+	JSON403      *ArtifactHubError
+	JSON404      *ArtifactHubError
+	JSON409      *ArtifactHubError
+	JSON410      *ArtifactHubError
+	JSON412      *ArtifactHubError
+	JSON503      *ArtifactHubError
+	JSONDefault  *ArtifactHubError
 }
 
 // Status returns HTTPResponse.Status
@@ -3161,15 +3234,15 @@ type CompleteImageResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Artifact
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON410      *Problem
-	JSON412      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ArtifactHubError
+	JSON401      *ArtifactHubError
+	JSON403      *ArtifactHubError
+	JSON404      *ArtifactHubError
+	JSON409      *ArtifactHubError
+	JSON410      *ArtifactHubError
+	JSON412      *ArtifactHubError
+	JSON503      *ArtifactHubError
+	JSONDefault  *ArtifactHubError
 }
 
 // Status returns HTTPResponse.Status
@@ -3192,15 +3265,15 @@ type ResolveImageResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *ArtifactResolveResponse
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON410      *Problem
-	JSON412      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ArtifactHubError
+	JSON401      *ArtifactHubError
+	JSON403      *ArtifactHubError
+	JSON404      *ArtifactHubError
+	JSON409      *ArtifactHubError
+	JSON410      *ArtifactHubError
+	JSON412      *ArtifactHubError
+	JSON503      *ArtifactHubError
+	JSONDefault  *ArtifactHubError
 }
 
 // Status returns HTTPResponse.Status
@@ -3223,15 +3296,15 @@ type ListModelsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *ArtifactList
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON410      *Problem
-	JSON412      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ArtifactHubError
+	JSON401      *ArtifactHubError
+	JSON403      *ArtifactHubError
+	JSON404      *ArtifactHubError
+	JSON409      *ArtifactHubError
+	JSON410      *ArtifactHubError
+	JSON412      *ArtifactHubError
+	JSON503      *ArtifactHubError
+	JSONDefault  *ArtifactHubError
 }
 
 // Status returns HTTPResponse.Status
@@ -3254,15 +3327,15 @@ type ListModelVersionsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *ArtifactList
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON410      *Problem
-	JSON412      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ArtifactHubError
+	JSON401      *ArtifactHubError
+	JSON403      *ArtifactHubError
+	JSON404      *ArtifactHubError
+	JSON409      *ArtifactHubError
+	JSON410      *ArtifactHubError
+	JSON412      *ArtifactHubError
+	JSON503      *ArtifactHubError
+	JSONDefault  *ArtifactHubError
 }
 
 // Status returns HTTPResponse.Status
@@ -3285,15 +3358,15 @@ type InitiateModelResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *ArtifactInitiateResponse
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON410      *Problem
-	JSON412      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ArtifactHubError
+	JSON401      *ArtifactHubError
+	JSON403      *ArtifactHubError
+	JSON404      *ArtifactHubError
+	JSON409      *ArtifactHubError
+	JSON410      *ArtifactHubError
+	JSON412      *ArtifactHubError
+	JSON503      *ArtifactHubError
+	JSONDefault  *ArtifactHubError
 }
 
 // Status returns HTTPResponse.Status
@@ -3316,15 +3389,15 @@ type DeleteModelResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Artifact
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON410      *Problem
-	JSON412      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ArtifactHubError
+	JSON401      *ArtifactHubError
+	JSON403      *ArtifactHubError
+	JSON404      *ArtifactHubError
+	JSON409      *ArtifactHubError
+	JSON410      *ArtifactHubError
+	JSON412      *ArtifactHubError
+	JSON503      *ArtifactHubError
+	JSONDefault  *ArtifactHubError
 }
 
 // Status returns HTTPResponse.Status
@@ -3347,15 +3420,15 @@ type GetModelResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Artifact
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON410      *Problem
-	JSON412      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ArtifactHubError
+	JSON401      *ArtifactHubError
+	JSON403      *ArtifactHubError
+	JSON404      *ArtifactHubError
+	JSON409      *ArtifactHubError
+	JSON410      *ArtifactHubError
+	JSON412      *ArtifactHubError
+	JSON503      *ArtifactHubError
+	JSONDefault  *ArtifactHubError
 }
 
 // Status returns HTTPResponse.Status
@@ -3378,15 +3451,15 @@ type UpdateModelResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Artifact
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON410      *Problem
-	JSON412      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ArtifactHubError
+	JSON401      *ArtifactHubError
+	JSON403      *ArtifactHubError
+	JSON404      *ArtifactHubError
+	JSON409      *ArtifactHubError
+	JSON410      *ArtifactHubError
+	JSON412      *ArtifactHubError
+	JSON503      *ArtifactHubError
+	JSONDefault  *ArtifactHubError
 }
 
 // Status returns HTTPResponse.Status
@@ -3409,15 +3482,15 @@ type CompleteModelResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Artifact
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON410      *Problem
-	JSON412      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ArtifactHubError
+	JSON401      *ArtifactHubError
+	JSON403      *ArtifactHubError
+	JSON404      *ArtifactHubError
+	JSON409      *ArtifactHubError
+	JSON410      *ArtifactHubError
+	JSON412      *ArtifactHubError
+	JSON503      *ArtifactHubError
+	JSONDefault  *ArtifactHubError
 }
 
 // Status returns HTTPResponse.Status
@@ -3440,15 +3513,15 @@ type ResolveModelResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *ArtifactResolveResponse
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON410      *Problem
-	JSON412      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ArtifactHubError
+	JSON401      *ArtifactHubError
+	JSON403      *ArtifactHubError
+	JSON404      *ArtifactHubError
+	JSON409      *ArtifactHubError
+	JSON410      *ArtifactHubError
+	JSON412      *ArtifactHubError
+	JSON503      *ArtifactHubError
+	JSONDefault  *ArtifactHubError
 }
 
 // Status returns HTTPResponse.Status
@@ -3507,6 +3580,15 @@ func (r ReadyzResponse) StatusCode() int {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
+}
+
+// GetCapabilitiesWithResponse request returning *GetCapabilitiesResponse
+func (c *ClientWithResponses) GetCapabilitiesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetCapabilitiesResponse, error) {
+	rsp, err := c.GetCapabilities(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetCapabilitiesResponse(rsp)
 }
 
 // ListDatasetsWithResponse request returning *ListDatasetsResponse
@@ -3815,6 +3897,32 @@ func (c *ClientWithResponses) ReadyzWithResponse(ctx context.Context, reqEditors
 	return ParseReadyzResponse(rsp)
 }
 
+// ParseGetCapabilitiesResponse parses an HTTP response from a GetCapabilitiesWithResponse call
+func ParseGetCapabilitiesResponse(rsp *http.Response) (*GetCapabilitiesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetCapabilitiesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Capabilities
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseListDatasetsResponse parses an HTTP response from a ListDatasetsWithResponse call
 func ParseListDatasetsResponse(rsp *http.Response) (*ListDatasetsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -3837,63 +3945,63 @@ func ParseListDatasetsResponse(rsp *http.Response) (*ListDatasetsResponse, error
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON410 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -3926,63 +4034,63 @@ func ParseListDatasetVersionsResponse(rsp *http.Response) (*ListDatasetVersionsR
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON410 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4015,63 +4123,63 @@ func ParseInitiateDatasetResponse(rsp *http.Response) (*InitiateDatasetResponse,
 		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON410 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4104,63 +4212,63 @@ func ParseDeleteDatasetResponse(rsp *http.Response) (*DeleteDatasetResponse, err
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON410 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4193,63 +4301,63 @@ func ParseGetDatasetResponse(rsp *http.Response) (*GetDatasetResponse, error) {
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON410 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4282,63 +4390,63 @@ func ParseUpdateDatasetResponse(rsp *http.Response) (*UpdateDatasetResponse, err
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON410 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4371,63 +4479,63 @@ func ParseCompleteDatasetResponse(rsp *http.Response) (*CompleteDatasetResponse,
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON410 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4460,63 +4568,63 @@ func ParseResolveDatasetResponse(rsp *http.Response) (*ResolveDatasetResponse, e
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON410 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4549,63 +4657,63 @@ func ParseListImagesResponse(rsp *http.Response) (*ListImagesResponse, error) {
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON410 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4638,63 +4746,63 @@ func ParseListImageVersionsResponse(rsp *http.Response) (*ListImageVersionsRespo
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON410 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4727,63 +4835,63 @@ func ParseInitiateImageResponse(rsp *http.Response) (*InitiateImageResponse, err
 		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON410 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4816,63 +4924,63 @@ func ParseDeleteImageResponse(rsp *http.Response) (*DeleteImageResponse, error) 
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON410 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4905,63 +5013,63 @@ func ParseGetImageResponse(rsp *http.Response) (*GetImageResponse, error) {
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON410 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4994,63 +5102,63 @@ func ParseUpdateImageResponse(rsp *http.Response) (*UpdateImageResponse, error) 
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON410 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -5083,63 +5191,63 @@ func ParseCompleteImageResponse(rsp *http.Response) (*CompleteImageResponse, err
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON410 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -5172,63 +5280,63 @@ func ParseResolveImageResponse(rsp *http.Response) (*ResolveImageResponse, error
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON410 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -5261,63 +5369,63 @@ func ParseListModelsResponse(rsp *http.Response) (*ListModelsResponse, error) {
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON410 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -5350,63 +5458,63 @@ func ParseListModelVersionsResponse(rsp *http.Response) (*ListModelVersionsRespo
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON410 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -5439,63 +5547,63 @@ func ParseInitiateModelResponse(rsp *http.Response) (*InitiateModelResponse, err
 		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON410 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -5528,63 +5636,63 @@ func ParseDeleteModelResponse(rsp *http.Response) (*DeleteModelResponse, error) 
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON410 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -5617,63 +5725,63 @@ func ParseGetModelResponse(rsp *http.Response) (*GetModelResponse, error) {
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON410 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -5706,63 +5814,63 @@ func ParseUpdateModelResponse(rsp *http.Response) (*UpdateModelResponse, error) 
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON410 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -5795,63 +5903,63 @@ func ParseCompleteModelResponse(rsp *http.Response) (*CompleteModelResponse, err
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON410 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -5884,63 +5992,63 @@ func ParseResolveModelResponse(rsp *http.Response) (*ResolveModelResponse, error
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON410 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ArtifactHubError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

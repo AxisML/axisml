@@ -35,9 +35,9 @@ spec:
             - --leader-elect=false
             {{- end }}
           env:
-            - name: RESYNC_PERIOD
+            - name: AXISML_RESYNC_PERIOD
               value: {{ $op.resyncPeriod | quote }}
-            - name: NAMESPACE_DENYLIST
+            - name: AXISML_NAMESPACE_DENYLIST
               value: {{ join "," $op.namespaceDenylist | quote }}
           ports:
             - name: metrics

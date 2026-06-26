@@ -1,0 +1,17 @@
+apiVersion: axisml.io/v1alpha1
+kind: Tenant
+metadata:
+  name: default
+spec:
+  namespace:
+    name: default
+  quotas:
+    - pool: default
+      name: default
+      min:
+        cpu: "0"
+        memory: "0"
+      max:
+        cpu: "16"
+        memory: 64Gi
+        nvidia.com/gpu: "1"

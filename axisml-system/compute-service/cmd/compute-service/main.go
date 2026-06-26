@@ -8,62 +8,63 @@ import (
 
 	"github.com/axisml/axisml/components/compute-service/internal/app"
 	"github.com/axisml/axisml/components/compute-service/internal/config"
+	"github.com/axisml/axisml/pkg/axismlconfig"
 )
 
 func main() {
+	var cfgFile string
+
 	root := &cobra.Command{
 		Use:           "compute",
 		Short:         "AxisML Compute Service",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
+	root.PersistentFlags().StringVar(&cfgFile, "config", "",
+		"path to the YAML config file (default: $AXISML_CONFIG or /etc/axisml/config.yaml)")
 
-	root.AddCommand(serveCmd(), bootstrapCmd(), migrateCmd())
-
-	if err := root.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, "compute:", err)
-		os.Exit(1)
+	load := func() (config.Config, error) {
+		return config.Load(axismlconfig.Options{File: cfgFile})
 	}
-}
 
-func serveCmd() *cobra.Command {
-	return &cobra.Command{
+	serve := &cobra.Command{
 		Use:   "serve",
 		Short: "Run the HTTP API + reconciler/informer loops",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			cfg, err := config.Load()
+			cfg, err := load()
 			if err != nil {
 				return err
 			}
 			return app.Serve(cmd.Context(), cfg)
 		},
 	}
-}
-
-func bootstrapCmd() *cobra.Command {
-	return &cobra.Command{
+	bootstrap := &cobra.Command{
 		Use:   "bootstrap",
 		Short: "Run database migrations (Helm post-install)",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			cfg, err := config.Load()
+			cfg, err := load()
 			if err != nil {
 				return err
 			}
 			return app.Bootstrap(cmd.Context(), cfg)
 		},
 	}
-}
-
-func migrateCmd() *cobra.Command {
-	return &cobra.Command{
+	migrate := &cobra.Command{
 		Use:   "migrate",
 		Short: "Apply pending DB migrations and exit",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			cfg, err := config.Load()
+			cfg, err := load()
 			if err != nil {
 				return err
 			}
 			return app.Migrate(cmd.Context(), cfg)
 		},
+	}
+
+	root.AddCommand(serve, bootstrap, migrate)
+
+	if err := root.Execute(); err != nil {
+		fmt.Fprintln(os.Stderr, "compute:", err)
+		os.Exit(1)
 	}
 }

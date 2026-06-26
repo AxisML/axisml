@@ -3,7 +3,7 @@
 // artifacts) over HTTP and adds identity, RBAC, and orchestration.
 //
 // Subcommands: serve (HTTP API + probes), migrate (apply DB migrations),
-// bootstrap (migrate + seed the initial system-admin and the default tenant).
+// bootstrap (migrate + seed the initial system-admin and import the default tenant).
 package main
 
 import (
@@ -14,61 +14,63 @@ import (
 
 	"github.com/axisml/axisml/components/platform/internal/app"
 	"github.com/axisml/axisml/components/platform/internal/config"
+	"github.com/axisml/axisml/pkg/axismlconfig"
 )
 
 func main() {
+	var cfgFile string
+
 	root := &cobra.Command{
 		Use:           "platform",
 		Short:         "AxisML Platform Backend",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
-	root.AddCommand(serveCmd(), migrateCmd(), bootstrapCmd())
+	root.PersistentFlags().StringVar(&cfgFile, "config", "",
+		"path to the YAML config file (default: $AXISML_CONFIG or /etc/axisml/config.yaml)")
 
-	if err := root.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, "platform:", err)
-		os.Exit(1)
+	load := func() (config.Config, error) {
+		return config.Load(axismlconfig.Options{File: cfgFile})
 	}
-}
 
-func serveCmd() *cobra.Command {
-	return &cobra.Command{
+	serve := &cobra.Command{
 		Use:   "serve",
 		Short: "Run the HTTP API + probes",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			cfg, err := config.Load()
+			cfg, err := load()
 			if err != nil {
 				return err
 			}
 			return app.Serve(cmd.Context(), cfg)
 		},
 	}
-}
-
-func migrateCmd() *cobra.Command {
-	return &cobra.Command{
+	migrate := &cobra.Command{
 		Use:   "migrate",
 		Short: "Apply pending DB migrations and exit",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			cfg, err := config.Load()
+			cfg, err := load()
 			if err != nil {
 				return err
 			}
 			return app.Migrate(cmd.Context(), cfg)
 		},
 	}
-}
-
-func bootstrapCmd() *cobra.Command {
-	return &cobra.Command{
+	bootstrap := &cobra.Command{
 		Use:   "bootstrap",
-		Short: "Migrate, then seed the initial system-admin and default tenant",
+		Short: "Migrate, then seed the initial system-admin and import the default tenant",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			cfg, err := config.Load()
+			cfg, err := load()
 			if err != nil {
 				return err
 			}
 			return app.Bootstrap(cmd.Context(), cfg)
 		},
+	}
+
+	root.AddCommand(serve, migrate, bootstrap)
+
+	if err := root.Execute(); err != nil {
+		fmt.Fprintln(os.Stderr, "platform:", err)
+		os.Exit(1)
 	}
 }

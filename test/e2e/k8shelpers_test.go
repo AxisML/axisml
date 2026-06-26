@@ -1,4 +1,4 @@
-//go:build e2e
+//go:build (e2e || standard) && !lite
 
 package e2e
 
@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -105,19 +104,6 @@ func crdEstablished(ctx context.Context, name string) error {
 	return fmt.Errorf("CRD %s not Established", name)
 }
 
-// countRoles returns the number of RBAC Roles in a namespace (the tenant
-// operator creates at least one; the namespace ships with none by default).
-func countRoles(ctx context.Context, ns string) (int, error) {
-	var roles rbacv1.RoleList
-	if err := h.k8s.List(ctx, &roles, client.InNamespace(ns)); err != nil {
-		return 0, err
-	}
-	return len(roles.Items), nil
-}
-
-// assertErr is a fmt.Errorf shorthand for use inside polling closures.
-func assertErr(format string, args ...any) error { return fmt.Errorf(format, args...) }
-
 // newQuotaList returns an empty typed-as-unstructured ElasticQuota list.
 func newQuotaList() *unstructured.UnstructuredList {
 	list := &unstructured.UnstructuredList{}
@@ -141,24 +127,4 @@ func elasticQuotaNames(ctx context.Context, ns string) ([]string, error) {
 		names = append(names, list.Items[i].GetName())
 	}
 	return names, nil
-}
-
-// quotaMax reads .spec.max of a named ElasticQuota as a string map.
-func quotaMax(ctx context.Context, ns, name string) (map[string]string, error) {
-	eq := quotaObj()
-	if err := h.k8s.Get(ctx, client.ObjectKey{Namespace: ns, Name: name}, eq); err != nil {
-		return nil, err
-	}
-	raw, found, err := unstructured.NestedStringMap(eq.Object, "spec", "max")
-	if err != nil || !found {
-		return nil, fmt.Errorf("ElasticQuota %s/%s has no spec.max", ns, name)
-	}
-	return raw, nil
-}
-
-// newBatchJob returns an empty unstructured batch/v1 Job.
-func newBatchJob() *unstructured.Unstructured {
-	o := &unstructured.Unstructured{}
-	o.SetGroupVersionKind(schema.GroupVersionKind{Group: "batch", Version: "v1", Kind: "Job"})
-	return o
 }

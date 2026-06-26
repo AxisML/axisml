@@ -96,8 +96,8 @@ type ResourceUnitList struct {
 	Count int            `json:"count"`
 }
 
-// Problem mirrors RFC 7807 application/problem+json.
-type Problem struct {
+// Error mirrors RFC 7807 application/problem+json.
+type Error struct {
 	Type   string `json:"type"`
 	Title  string `json:"title"`
 	Status int    `json:"status"`
@@ -107,7 +107,7 @@ type Problem struct {
 
 // AbortWithProblem writes an RFC 7807 problem response and stops the gin chain.
 func AbortWithProblem(c *gin.Context, status int, code, title, detail string) {
-	c.AbortWithStatusJSON(status, Problem{
+	c.AbortWithStatusJSON(status, Error{
 		Type:   "about:blank",
 		Title:  title,
 		Status: status,

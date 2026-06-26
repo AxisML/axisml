@@ -40,22 +40,22 @@ type Cache interface {
 // but does NOT fail construction, since go-redis reconnects transparently and
 // the caches degrade to PostgreSQL until Redis recovers.
 func New(cfg config.Config, log *slog.Logger) Cache {
-	if cfg.RedisAddr == "" {
-		log.Info("cache disabled: REDIS_ADDR is unset, auth lookups go straight to PostgreSQL")
+	if cfg.Cache.Addr == "" {
+		log.Info("cache disabled: cache.addr is unset, auth lookups go straight to PostgreSQL")
 		return noopCache{}
 	}
 	client := redis.NewClient(&redis.Options{
-		Addr:     cfg.RedisAddr,
-		Password: cfg.RedisPassword,
-		DB:       cfg.RedisDB,
+		Addr:     cfg.Cache.Addr,
+		Password: cfg.Cache.Password,
+		DB:       cfg.Cache.DB,
 	})
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	if err := client.Ping(ctx).Err(); err != nil {
 		log.Warn("cache: initial Redis ping failed, degrading to PostgreSQL until it recovers",
-			"addr", cfg.RedisAddr, "error", err)
+			"addr", cfg.Cache.Addr, "error", err)
 	} else {
-		log.Info("cache enabled", "addr", cfg.RedisAddr)
+		log.Info("cache enabled", "addr", cfg.Cache.Addr)
 	}
 	return &redisCache{client: client, log: log}
 }

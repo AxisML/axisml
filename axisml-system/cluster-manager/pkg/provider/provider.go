@@ -40,6 +40,10 @@ type ResourcePoolStore interface {
 	// Patch applies an optimistic merge of obj against its pre-mutation base.
 	Patch(ctx context.Context, obj, base *cmv1alpha1.ResourcePool) error
 	Delete(ctx context.Context, name string) error
+	// Writable reports whether the store accepts writes (Create/Patch/Delete).
+	// The Kubernetes store returns true; the Lite read-only config store returns
+	// false. It backs the cluster-manager capability document.
+	Writable() bool
 }
 
 // TenantStore is the persistence seam for the Tenant CR.
@@ -49,4 +53,7 @@ type TenantStore interface {
 	Create(ctx context.Context, tenant *tenantv1alpha1.Tenant) error
 	Patch(ctx context.Context, obj, base *tenantv1alpha1.Tenant) error
 	Delete(ctx context.Context, name string) error
+	// Writable reports whether multi-tenant writes are available (true for the
+	// Kubernetes store, false for the Lite single-tenant config store).
+	Writable() bool
 }

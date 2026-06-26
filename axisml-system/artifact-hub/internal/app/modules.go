@@ -17,22 +17,22 @@ func BuildModules(
 	cfg config.Config,
 	gormDB *gorm.DB,
 	log logr.Logger,
-) ([]server.Module, artifactmodule.Runnable, error) {
+) ([]server.Module, artifactmodule.Runnable, server.Capabilities, error) {
 	mod, err := artifactmodule.New(artifactmodule.Deps{
 		DB:  gormDB,
 		Log: log,
 		Config: artifactmodule.Config{
-			OCIEndpoint:      cfg.OCIEndpoint,
-			OCIScheme:        cfg.OCIScheme,
-			OCIAdminUser:     cfg.OCIAdminUser,
-			OCIAdminPassword: cfg.OCIAdminPassword,
-			GCInterval:       cfg.GCInterval,
-			UploadingTTL:     cfg.UploadingTTL,
-			UploadTokenTTL:   cfg.UploadTokenTTL,
+			// OCI scheme is derived from the endpoint URL by the client.
+			OCIEndpoint:      cfg.OCI.Endpoint,
+			OCIAdminUser:     cfg.OCI.AdminUser,
+			OCIAdminPassword: cfg.OCI.AdminPassword,
+			GCInterval:       config.GCInterval,
+			UploadingTTL:     config.UploadingTTL,
+			UploadTokenTTL:   config.UploadTokenTTL,
 		},
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, server.Capabilities{}, err
 	}
 
 	modules := make([]server.Module, 0, len(mod.Routes()))
@@ -44,5 +44,5 @@ func BuildModules(
 	if rs := mod.Runnables(); len(rs) > 0 {
 		worker = rs[0]
 	}
-	return modules, worker, nil
+	return modules, worker, mod.Capabilities(), nil
 }

@@ -30,13 +30,13 @@ func Load() Config {
 		NamespaceDenylist: validate.DefaultNamespaceDenylist(),
 	}
 
-	if v := os.Getenv("RESYNC_PERIOD"); v != "" {
+	if v := os.Getenv("AXISML_RESYNC_PERIOD"); v != "" {
 		if d, err := time.ParseDuration(v); err == nil && d > 0 {
 			cfg.ResyncPeriod = d
 		}
 	}
 
-	if v := os.Getenv("NAMESPACE_DENYLIST"); v != "" {
+	if v := os.Getenv("AXISML_NAMESPACE_DENYLIST"); v != "" {
 		cfg.NamespaceDenylist = parseDenylist(v)
 	}
 

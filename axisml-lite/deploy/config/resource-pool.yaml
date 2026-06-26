@@ -1,0 +1,29 @@
+apiVersion: axisml.io/v1alpha1
+kind: ResourcePool
+metadata:
+  name: default
+spec:
+  units:
+    - name: cpu-small
+      requests:
+        cpu: "1"
+        memory: 2Gi
+      limits:
+        cpu: "1"
+        memory: 2Gi
+    - name: cpu-medium
+      requests:
+        cpu: "2"
+        memory: 4Gi
+      limits:
+        cpu: "2"
+        memory: 4Gi
+    - name: gpu-1x
+      requests:
+        cpu: "4"
+        memory: 16Gi
+        nvidia.com/gpu: "1"
+      limits:
+        cpu: "4"
+        memory: 16Gi
+        nvidia.com/gpu: "1"

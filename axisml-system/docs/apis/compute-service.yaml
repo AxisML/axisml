@@ -2,6 +2,50 @@
 # Regenerate with: make doc-gen
 components:
   schemas:
+    Capabilities:
+      properties:
+        quotaEnforcement:
+          type: boolean
+        runtime:
+          type: string
+      required:
+      - quotaEnforcement
+      - runtime
+      type: object
+    ComputeServiceError:
+      properties:
+        code:
+          description: Discrete business error class.
+          enum:
+          - validation_failed
+          - not_found
+          - conflict
+          - precondition_failed
+          - unauthorized
+          - forbidden
+          - service_unavailable
+          - internal_error
+          - quota_exceeded
+          type: string
+        detail:
+          type: string
+        details:
+          additionalProperties: {}
+          type: object
+        instance:
+          type: string
+        status:
+          type: integer
+        title:
+          type: string
+        type:
+          type: string
+      required:
+      - code
+      - status
+      - title
+      - type
+      type: object
     Corev1AWSElasticBlockStoreVolumeSource:
       properties:
         fsType:
@@ -1946,40 +1990,6 @@ components:
       - items
       - total
       type: object
-    Problem:
-      properties:
-        code:
-          description: Discrete business error class.
-          enum:
-          - validation_failed
-          - not_found
-          - conflict
-          - precondition_failed
-          - unauthorized
-          - forbidden
-          - service_unavailable
-          - internal_error
-          - quota_exceeded
-          type: string
-        detail:
-          type: string
-        details:
-          additionalProperties: {}
-          type: object
-        instance:
-          type: string
-        status:
-          type: integer
-        title:
-          type: string
-        type:
-          type: string
-      required:
-      - code
-      - status
-      - title
-      - type
-      type: object
     TrafficPolicy:
       properties:
         annotations:
@@ -2179,6 +2189,19 @@ info:
   version: 0.1.0
 openapi: 3.0.3
 paths:
+  /api/v1/capabilities:
+    get:
+      operationId: getCapabilities
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Capabilities'
+          description: Capability document.
+      summary: Get deployment-form capabilities
+      tags:
+      - Capabilities
   /api/v1/namespaces/{namespace}/mlruns:
     get:
       operationId: listMLRuns
@@ -2216,55 +2239,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Conflict.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Quota exceeded.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unexpected error.
       summary: List MLRuns in a namespace
       tags:
@@ -2295,55 +2318,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Conflict.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Quota exceeded.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unexpected error.
       summary: Submit an MLRun
       tags:
@@ -2371,55 +2394,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Conflict.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Quota exceeded.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unexpected error.
       summary: Delete MLRun
       tags:
@@ -2450,55 +2473,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Conflict.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Quota exceeded.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unexpected error.
       summary: Get MLRun
       tags:
@@ -2535,55 +2558,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Conflict.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Quota exceeded.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unexpected error.
       summary: Patch MLRun display fields
       tags:
@@ -2615,55 +2638,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Conflict.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Quota exceeded.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unexpected error.
       summary: Cancel a running MLRun
       tags:
@@ -2695,55 +2718,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Conflict.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Quota exceeded.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unexpected error.
       summary: List events targeted at the MLRun CR
       tags:
@@ -2775,55 +2798,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Conflict.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Quota exceeded.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unexpected error.
       summary: List pods of an MLRun
       tags:
@@ -2861,55 +2884,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Conflict.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Quota exceeded.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unexpected error.
       summary: List events targeted at a pod
       tags:
@@ -2969,55 +2992,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Conflict.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Quota exceeded.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unexpected error.
       summary: Stream a pod's container log
       tags:
@@ -3059,55 +3082,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Conflict.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Quota exceeded.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unexpected error.
       summary: List MLServices in a namespace
       tags:
@@ -3138,55 +3161,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Conflict.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Quota exceeded.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unexpected error.
       summary: Submit an MLService
       tags:
@@ -3214,55 +3237,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Conflict.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Quota exceeded.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unexpected error.
       summary: Delete MLService
       tags:
@@ -3293,55 +3316,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Conflict.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Quota exceeded.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unexpected error.
       summary: Get MLService
       tags:
@@ -3378,55 +3401,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Conflict.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Quota exceeded.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unexpected error.
       summary: Patch MLService display fields
       tags:
@@ -3458,55 +3481,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Conflict.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Quota exceeded.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unexpected error.
       summary: List events targeted at the MLService CR
       tags:
@@ -3538,55 +3561,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Conflict.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Quota exceeded.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unexpected error.
       summary: List pods of an MLService
       tags:
@@ -3624,55 +3647,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Conflict.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Quota exceeded.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unexpected error.
       summary: List events targeted at an MLService pod
       tags:
@@ -3732,55 +3755,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Conflict.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Quota exceeded.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unexpected error.
       summary: Stream an MLService pod's container log
       tags:
@@ -3818,55 +3841,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Conflict.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Quota exceeded.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unexpected error.
       summary: Scale an MLService
       tags:
@@ -3908,55 +3931,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Conflict.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Quota exceeded.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unexpected error.
       summary: List traffic policies in a namespace
       tags:
@@ -3987,55 +4010,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Conflict.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Quota exceeded.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unexpected error.
       summary: Create a traffic policy
       tags:
@@ -4063,55 +4086,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Conflict.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Quota exceeded.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unexpected error.
       summary: Delete traffic policy (members retained)
       tags:
@@ -4142,55 +4165,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Conflict.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Quota exceeded.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unexpected error.
       summary: Get traffic policy
       tags:
@@ -4227,55 +4250,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Conflict.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Quota exceeded.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unexpected error.
       summary: Patch traffic policy display fields
       tags:
@@ -4307,55 +4330,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Conflict.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Quota exceeded.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unexpected error.
       summary: Promote the canary to stable (canary mode)
       tags:
@@ -4387,55 +4410,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Conflict.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Quota exceeded.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unexpected error.
       summary: Roll the canary back to 0 (canary mode)
       tags:
@@ -4473,55 +4496,55 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Validation error.
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unauthorized.
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Forbidden.
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Not found.
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Conflict.
         "412":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Precondition failed.
         "422":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Quota exceeded.
         "503":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Service unavailable.
         default:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Problem'
+                $ref: '#/components/schemas/ComputeServiceError'
           description: Unexpected error.
       summary: Adjust per-backend weights
       tags:
@@ -4570,5 +4593,7 @@ tags:
 - description: 'MLTrafficPolicy CRUD per namespace: weighted / canary / blue-green
     traffic split over member online services.'
   name: TrafficPolicies
+- description: Deployment-form capability document (runtime engine / quota enforcement).
+  name: Capabilities
 - description: Liveness and readiness probes.
   name: Health

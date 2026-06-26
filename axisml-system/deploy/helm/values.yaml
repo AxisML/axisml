@@ -70,14 +70,13 @@ computeService:
     type: ClusterIP
     port: 8080           # HTTP API
 
-  metricsPort: 8081      # Prometheus /metrics
-  probesPort: 8082       # /healthz + /readyz
+  # Listener ports are fixed in code; these only wire containerPort/Service/probes.
+  metricsPort: 9090      # Prometheus /metrics
+  probesPort: 8081       # /healthz + /readyz
 
-  leaderElection:
-    enabled: true        # Reconciler/Informer behind controller-runtime lease
-
-  reconcileInterval: 2s
-  logDevelopment: false
+  log:
+    level: info          # debug | info | warn | error
+    format: json         # json | console
 
   serviceMonitor:
     enabled: false       # opt-in once kube-prometheus-stack is deployed
@@ -90,10 +89,7 @@ computeService:
     monitoringNamespace: axisml-infra
 
   bootstrap:
-    enabled: true
-    # compute-service's bootstrap job only seeds the default ResourcePool now.
-    # Tenants and quotas are owned by cluster-manager + tenant-operator.
-    defaultPool: default
+    enabled: true        # runs DB migrations via a post-install Job
 
   resources:
     requests:
@@ -122,19 +118,13 @@ artifactHub:
     type: ClusterIP
     port: 8080           # HTTP API
 
-  metricsPort: 8081
-  probesPort: 8082
+  # Listener ports are fixed in code; these only wire containerPort/Service/probes.
+  metricsPort: 9090
+  probesPort: 8081
 
-  # GC worker leader election uses a Postgres advisory lock (no K8s Lease /
-  # RBAC). All replicas contend on the same database; the winner runs GC.
-  leaderElection:
-    enabled: true
-
-  gcInterval: 5m
-  uploadingTTL: 24h
-  uploadTokenTTL: 1h     # MVP: passthrough hint only — credentials are admin
-                         # htpasswd, not scope-limited (see component README).
-  logDevelopment: false
+  log:
+    level: info
+    format: json
 
   serviceMonitor:
     enabled: false
@@ -150,8 +140,7 @@ artifactHub:
     oci:
       # The infra zot chart sets fullnameOverride: zot, so the Service is "zot"
       # (not "<infra-release>-zot"). Address it by that name.
-      endpoint: http://zot.axisml-infra:5000
-      scheme: http       # http | https
+      endpoint: http://zot.axisml-infra:5000   # scheme is derived from this URL
       adminSecretRef:
         # Empty name → chart renders default secret <release>-artifact-hub-zot.
         # Override with an externally-managed Secret name to avoid storing
@@ -315,6 +304,7 @@ database:
   # Service name of the PostgreSQL instance in the infra namespace.
   fullnameOverride: axisml-database
   port: 5432
+  sslMode: disable
   auth:
     database: axisml
     username: axisml

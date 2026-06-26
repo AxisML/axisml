@@ -36,7 +36,7 @@ COVERAGE_FILE ?= $(COVERAGE_DIR)/coverage.out
 .DEFAULT_GOAL := build
 
 ##@ Build & test (delegated to layer Makefiles)
-.PHONY: build test image image-load fmt vet tidy clean doc-gen doc-test
+.PHONY: build test image image-load fmt vet tidy clean docs-gen docs-test api-docs-gen api-docs-test config-docs-gen config-docs-test
 build: ## Build every layer's components
 	@set -e; for l in $(GO_LAYERS); do $(MAKE) -C $$l build; done
 test: ## Unit tests across every layer
@@ -54,13 +54,25 @@ tidy: ## go mod tidy across every layer
 clean: ## Remove build + coverage artifacts across every layer
 	@set -e; for l in $(GO_LAYERS); do $(MAKE) -C $$l clean; done
 	@rm -rf $(COVERAGE_DIR)
-doc-gen: ## Regenerate all OpenAPI specs
+docs-gen: api-docs-gen config-docs-gen ## Regenerate all generated docs (OpenAPI specs + config manual)
+docs-test: api-docs-test config-docs-test ## Verify all generated docs are in sync (CI guard)
+api-docs-gen: ## Regenerate all OpenAPI specs
 	@set -e; for l in $(GO_LAYERS); do $(MAKE) -C $$l doc-gen; done
-doc-test: ## Verify all OpenAPI specs are in sync (CI guard)
+	@$(MAKE) -C axisml-lite doc-gen
+api-docs-test: ## Verify all OpenAPI specs are in sync
 	@set -e; for l in $(GO_LAYERS); do $(MAKE) -C $$l doc-test; done
+	@$(MAKE) -C axisml-lite doc-test
+config-docs-gen: ## Regenerate docs/configuration.md from the service Config structs
+	@./scripts/gen-config-doc.sh
+config-docs-test: ## Verify docs/configuration.md is in sync with the Config structs
+	@tmp=$$(mktemp); ./scripts/gen-config-doc.sh $$tmp >/dev/null; \
+	if ! diff -q docs/configuration.md $$tmp >/dev/null 2>&1; then \
+	  echo "ERROR: docs/configuration.md is out of date. Run 'make config-docs-gen' and commit."; \
+	  rm -f $$tmp; exit 1; \
+	fi; rm -f $$tmp; echo "docs/configuration.md is in sync"
 
 ##@ Test execution
-.PHONY: setup-envtest integration-test e2e-test e2e-vet e2e-clean e2e-client-gen
+.PHONY: setup-envtest integration-test e2e-test e2e-lite-test lite-up lite-down lite-delete e2e-vet e2e-clean e2e-client-gen
 setup-envtest: ## Install the shared envtest binary (axisml-system/test/setup-envtest/)
 	@$(MAKE) -C axisml-system setup-envtest
 # The e2e suite talks to the four AxisML HTTP components through oapi-codegen
@@ -75,16 +87,25 @@ e2e-client-gen: ## Regenerate the e2e suite's typed component clients from the O
 integration-test: ## Integration tests across every layer (hermetic, CI-friendly)
 	@$(MAKE) -C axisml-system integration
 	@$(MAKE) -C axisml-platform integration
-# E2E: real-cluster system-layer tests. NOT hermetic, NOT in CI — assumes the
-# `axisml` minikube cluster is up (make cluster-up && make helm-install). See
-# test/e2e/README.md.
-e2e-test: ## End-to-end tests against the running axisml minikube cluster (manual)
-	@cd test/e2e && go test -tags=e2e -count=1 -timeout=30m -v ./...
-# Cluster-free compile guard: type-checks the e2e-tagged suite (no apiserver,
-# no Docker) so reorg-style breakage is caught locally before pushing. CI gets
-# the same coverage via golangci-lint's e2e build tag (.golangci.yml).
-e2e-vet: ## Type-check the e2e suite without a cluster
-	@cd test/e2e && go vet -tags=e2e ./...
+# E2E: the centralized black-box suite runs against either deployment form. The
+# shared CORE tests drive only the System HTTP contract; the form is selected by
+# build tag (standard = real `axisml` minikube cluster; lite = a running
+# axisml-core process). NOT hermetic, NOT in CI. See test/e2e/README.md.
+e2e-test: ## E2E against the Standard form (running axisml minikube cluster; manual)
+	@cd test/e2e && go test -tags=standard -count=1 -timeout=30m -v ./...
+e2e-lite-test: ## E2E against the Lite form (axisml-core at $$LITE_CORE_URL; manual)
+	@cd test/e2e && go test -tags=lite -count=1 -timeout=15m -v ./...
+# Cluster-free compile guard: type-checks BOTH forms (no apiserver, no Docker) so
+# reorg-style breakage is caught locally before pushing. CI gets the same
+# coverage via golangci-lint's build tags (.golangci.yml).
+e2e-vet: ## Type-check both e2e forms without a cluster
+	@cd test/e2e && go vet -tags=standard ./... && go vet -tags=lite ./...
+lite-up: ## Bring up the Lite stack (db + axisml-core on :18080) via Docker Compose
+	@$(MAKE) -C axisml-lite lite-up
+lite-down: ## Tear down the Lite stack (CLEAN=1 also removes data volumes)
+	@$(MAKE) -C axisml-lite lite-down
+lite-delete: ## Purge the Lite stack + all axisml-managed workload containers & volumes
+	@$(MAKE) -C axisml-lite lite-delete
 e2e-clean: ## Delete any e2e-* tenants left by an interrupted run
 	@kubectl --context $(MINIKUBE_PROFILE) get tenants -o name 2>/dev/null \
 		| grep -E '/e2e(-|$$)' \

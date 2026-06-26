@@ -17,7 +17,7 @@ import (
 // Serve boots the long-running compute service: HTTP API on every replica,
 // reconcilers + informers behind leader election.
 func Serve(ctx context.Context, cfg config.Config) error {
-	log, err := logging.New(cfg.LogDevelopment)
+	log, err := logging.New(cfg.Log.Level, cfg.Log.Format)
 	if err != nil {
 		return err
 	}
@@ -33,20 +33,21 @@ func Serve(ctx context.Context, cfg config.Config) error {
 
 	metrics.Register()
 
-	mgr, err := k8sclient.NewManager(cfg)
+	mgr, err := k8sclient.NewManager()
 	if err != nil {
 		return err
 	}
 
-	modules, runnables, err := BuildModules(cfg, gormDB, mgr, log)
+	modules, runnables, caps, err := BuildModules(gormDB, mgr, log)
 	if err != nil {
 		return err
 	}
 
 	srv, err := server.New(server.Options{
-		Addr:    cfg.APIBindAddress,
-		Log:     log,
-		Modules: modules,
+		Addr:         config.APIBindAddress,
+		Log:          log,
+		Modules:      modules,
+		Capabilities: caps,
 		Ready: func(ctx context.Context) error {
 			sqlDB, err := gormDB.DB()
 			if err != nil {

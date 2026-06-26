@@ -22,12 +22,12 @@ func init() {
 	gin.SetMode(gin.TestMode)
 }
 
-func runWriteError(err error) (int, Problem) {
+func runWriteError(err error) (int, Error) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodGet, "/compute/v1/jobs", nil)
 	WriteError(c, err)
-	var p Problem
+	var p Error
 	_ = json.Unmarshal(w.Body.Bytes(), &p)
 	return w.Code, p
 }

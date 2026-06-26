@@ -2,21 +2,31 @@ package logging
 
 import "testing"
 
-func TestNew_DevAndProd(t *testing.T) {
-	dev, err := New(true)
+func TestNew_ConsoleAndJSON(t *testing.T) {
+	con, err := New("debug", "console")
 	if err != nil {
-		t.Fatalf("dev: %v", err)
+		t.Fatalf("console: %v", err)
 	}
-	if dev.GetSink() == nil {
-		t.Error("expected non-nil dev sink")
+	if con.GetSink() == nil {
+		t.Error("expected non-nil console sink")
 	}
-	dev.Info("hello", "k", "v")
+	con.Info("hello", "k", "v")
 
-	prod, err := New(false)
+	js, err := New("info", "json")
 	if err != nil {
-		t.Fatalf("prod: %v", err)
+		t.Fatalf("json: %v", err)
 	}
-	if prod.GetSink() == nil {
-		t.Error("expected non-nil prod sink")
+	if js.GetSink() == nil {
+		t.Error("expected non-nil json sink")
+	}
+}
+
+func TestNew_BadLevelFallsBack(t *testing.T) {
+	log, err := New("nonsense", "json")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if log.GetSink() == nil {
+		t.Error("expected non-nil sink despite bad level")
 	}
 }
