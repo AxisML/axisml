@@ -157,14 +157,13 @@ func bootstrapPG() error {
 		return err
 	}
 
-	pgCfg = computeconfig.Config{
-		DatabaseHost:     host,
-		DatabasePort:     port.Int(),
-		DatabaseName:     "axisml",
-		DatabaseUser:     "axisml",
-		DatabasePassword: "axisml",
-		DatabaseSSLMode:  "disable",
-	}
+	pgCfg = computeconfig.Config{}
+	pgCfg.Database.Host = host
+	pgCfg.Database.Port = port.Int()
+	pgCfg.Database.Name = "axisml"
+	pgCfg.Database.User = "axisml"
+	pgCfg.Database.Password = "axisml"
+	pgCfg.Database.SSLMode = "disable"
 
 	gormDB, err = computedb.Open(pgCfg)
 	if err != nil {
@@ -222,11 +221,9 @@ var testManager ctrl.Manager
 // found CR) or the inline one does (and the global no-ops). Either ordering
 // passes the assertions.
 func bootstrapHandlers() error {
-	cfg := pgCfg
-	cfg.ReconcileInterval = 100 * time.Millisecond
 	log := logr.Discard()
 
-	modules, runnables, caps, err := computeapp.BuildModules(cfg, gormDB, testManager, log)
+	modules, runnables, caps, err := computeapp.BuildModules(gormDB, testManager, log)
 	if err != nil {
 		return fmt.Errorf("build modules: %w", err)
 	}

@@ -23,5 +23,10 @@ for svc in "${SERVICES[@]}"; do
   ( cd "$ROOT/$svc" && go run ./cmd/config-doc-gen ) >> "$tmp"
 done
 
-mv "$tmp" "$OUT"
+# Normalize EOF to a single trailing newline. Each rendered section ends with a
+# blank line so sections are spaced apart; that leaves the final section with a
+# trailing blank line, which the end-of-file-fixer pre-commit hook would strip —
+# do it here so the generated doc and the hook agree (config-docs-test guard).
+printf '%s\n' "$(<"$tmp")" > "$OUT"
+rm -f "$tmp"
 echo "wrote $OUT"

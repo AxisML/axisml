@@ -17,7 +17,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -284,8 +283,3 @@ func (s *suite) namespaceExists(ctx context.Context, name string) error {
 }
 
 func isNotFound(err error) bool { return apierrors.IsNotFound(err) }
-
-// objMeta is a tiny helper to build ObjectMeta inline.
-func objMeta(ns, name string, labels map[string]string) metav1.ObjectMeta {
-	return metav1.ObjectMeta{Namespace: ns, Name: name, Labels: labels}
-}

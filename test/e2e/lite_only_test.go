@@ -3,16 +3,68 @@
 package e2e
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/axisml/axisml/test/e2e/internal/clients/clustermanager"
 )
+
+// httpClient is a bare client for probing arbitrary in-container workloads over
+// their base URL (e.g. GET /api/v1/capabilities against axisml-core), which have
+// no OpenAPI contract to generate a typed client from. The AxisML System
+// components are reached through their typed clients instead. Only the Lite form
+// probes raw endpoints this way, so it lives under the lite tag.
+type httpClient struct {
+	baseURL string
+	c       *http.Client
+}
+
+func newHTTPClient(baseURL string) *httpClient {
+	return &httpClient{baseURL: baseURL, c: &http.Client{Timeout: 30 * time.Second}}
+}
+
+// resp is the result of a raw HTTP call.
+type resp struct {
+	status int
+	body   []byte
+}
+
+// do issues a request. body may be nil.
+func (hc *httpClient) do(ctx context.Context, method, path string, body any) (resp, error) {
+	var rdr io.Reader
+	if body != nil {
+		b, err := json.Marshal(body)
+		if err != nil {
+			return resp{}, err
+		}
+		rdr = bytes.NewReader(b)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, hc.baseURL+path, rdr)
+	if err != nil {
+		return resp{}, err
+	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	httpResp, err := hc.c.Do(req)
+	if err != nil {
+		return resp{}, err
+	}
+	defer func() { _ = httpResp.Body.Close() }()
+	b, err := io.ReadAll(httpResp.Body)
+	if err != nil {
+		return resp{}, err
+	}
+	return resp{status: httpResp.StatusCode, body: b}, nil
+}
 
 // Lite-only assertions: the aggregate capability document axisml-core serves and
 // the 409 CapabilityUnavailable refusals for the writes Lite intentionally does
