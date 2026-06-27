@@ -23,7 +23,7 @@ import (
 
 	cmv1alpha1 "github.com/axisml/axisml/components/cluster-manager/api/v1alpha1"
 	srv "github.com/axisml/axisml/components/cluster-manager/internal/server"
-	"github.com/axisml/axisml/components/cluster-manager/pkg/provider"
+	"github.com/axisml/axisml/components/cluster-manager/pkg/extensions"
 	tenantv1alpha1 "github.com/axisml/axisml/components/tenant-operator/api/v1alpha1"
 )
 
@@ -31,12 +31,12 @@ import (
 // reads/writes go through the injected stores (Kubernetes CRD or Lite config).
 // Quota folding reads the ResourcePool store.
 type Handler struct {
-	tenants provider.TenantStore
-	pools   provider.ResourcePoolStore
+	tenants extensions.TenantStore
+	pools   extensions.ResourcePoolStore
 }
 
 // NewHandler builds a tenant handler over the given stores.
-func NewHandler(tenants provider.TenantStore, pools provider.ResourcePoolStore) *Handler {
+func NewHandler(tenants extensions.TenantStore, pools extensions.ResourcePoolStore) *Handler {
 	return &Handler{tenants: tenants, pools: pools}
 }
 
@@ -107,7 +107,7 @@ func (h *Handler) Get(c *gin.Context) {
 // List handles GET /api/v1/tenants. Supports ?labelSelector, ?limit (1-500,
 // default server-side), and ?continue (opaque cursor).
 func (h *Handler) List(c *gin.Context) {
-	params := provider.ListParams{}
+	params := extensions.ListParams{}
 	if sel := c.Query("labelSelector"); sel != "" {
 		if _, err := labels.Parse(sel); err != nil {
 			srv.AbortWithProblem(c, http.StatusBadRequest, "InvalidSelector", "labelSelector parse error", err.Error())
@@ -464,7 +464,7 @@ func tenantGroupResource() schema.GroupResource {
 
 func writeK8sError(c *gin.Context, err error, name string) {
 	switch {
-	case errors.Is(err, provider.ErrCapabilityUnavailable):
+	case errors.Is(err, extensions.ErrCapabilityUnavailable):
 		srv.AbortWithProblem(c, http.StatusConflict, "CapabilityUnavailable",
 			"operation not supported in this deployment form", name)
 	case apierrors.IsAlreadyExists(err):

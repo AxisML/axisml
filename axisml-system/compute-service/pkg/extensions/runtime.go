@@ -1,24 +1,36 @@
-// Package computeruntime publishes the Compute Runtime contract: the
-// deployment-form-neutral seam between Compute Service business logic and the
-// engine that actually executes AxisML workloads.
+// Package extensions publishes the deployment-form-neutral extension seams that
+// Compute Service business logic depends on — the contracts an alternate
+// deployment form (notably AxisML Lite's axisml-core) must implement. Each
+// composition root (the Kubernetes binary, or Lite's axisml-core) injects
+// concrete implementations:
+//
+//   - ComputeRuntime is the engine that actually executes AxisML workloads. The
+//     Kubernetes runtime (internal/kuberuntime) writes the MLRun / MLService /
+//     MLTrafficPolicy CRs to the apiserver, where compute-operator maps them onto
+//     Job / Deployment / StatefulSet / Service / HTTPRoute. Lite's Standalone
+//     (Docker) runtime receives the same objects and maps them onto containers,
+//     volumes, networks and dynamic proxy config.
+//   - ResourceResolver reads the ResourcePool CR and its embedded units by name.
+//     Kubernetes reads the ResourcePool CR informer cache; Lite reads a static
+//     config catalog. The business layer merges the looked-up (pool, unit) into
+//     the workload spec snapshot (internal/resource, design §5.4).
+//   - WorkspaceVolumeProvisioner manages the durable volume backing a
+//     kind=workspace MLService. Kubernetes creates a PVC; Lite creates a managed
+//     Docker volume via the runtime.
 //
 // The MLRun / MLService / MLTrafficPolicy API types are Compute's unified
-// desired-state contract. Compute Service builds the desired object from its
-// PostgreSQL business records and hands it to a ComputeRuntime:
+// desired-state contract: Compute Service builds the desired object from its
+// PostgreSQL business records and hands it to a ComputeRuntime. Both runtimes
+// share the published CR API contract, defaulting, immutable field checks, Spec
+// validation and CR-Status semantics. The runtime port only speaks the AxisML
+// API types plus standard Kubernetes types; Docker SDK requests, proxy config,
+// Deployments and HTTPRoutes are handler/adapter internals that never cross this
+// boundary.
 //
-//   - The Kubernetes runtime writes the object to the apiserver, where
-//     compute-operator maps it onto Job / Deployment / StatefulSet / Service /
-//     HTTPRoute. See pkg/computeruntime/kubernetes.
-//   - A Standalone (Docker) runtime — maintained out-of-tree in the axisml-lite
-//     repo — receives the same object and maps it onto containers, volumes,
-//     networks and Traefik dynamic config.
-//
-// Both runtimes share the published CR API contract, defaulting, immutable
-// field checks, Spec validation and CR-Status semantics. The runtime port only
-// speaks the AxisML MLRun / MLService / MLTrafficPolicy API types plus standard
-// Kubernetes types; Docker SDK requests, Traefik config, Deployments and
-// HTTPRoutes are handler/adapter internals that never cross this boundary.
-package computeruntime
+// Keeping this a leaf package (CR + corev1 types only, no internal imports) lets
+// both pkg/module and the internal business packages depend on it without an
+// import cycle.
+package extensions
 
 import (
 	"context"

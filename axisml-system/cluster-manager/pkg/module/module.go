@@ -15,7 +15,7 @@ import (
 	"github.com/axisml/axisml/components/cluster-manager/internal/resourcepool"
 	"github.com/axisml/axisml/components/cluster-manager/internal/server"
 	"github.com/axisml/axisml/components/cluster-manager/internal/tenant"
-	"github.com/axisml/axisml/components/cluster-manager/pkg/provider"
+	"github.com/axisml/axisml/components/cluster-manager/pkg/extensions"
 )
 
 // Route wires its endpoints into an /api/v1 router group.
@@ -25,8 +25,8 @@ type Route interface {
 
 // Deps are the form-neutral stores a composition root injects.
 type Deps struct {
-	Pools   provider.ResourcePoolStore
-	Tenants provider.TenantStore
+	Pools   extensions.ResourcePoolStore
+	Tenants extensions.TenantStore
 }
 
 // Module is the assembled Cluster Manager REST surface.

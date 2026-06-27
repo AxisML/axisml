@@ -12,16 +12,16 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cmv1alpha1 "github.com/axisml/axisml/components/cluster-manager/api/v1alpha1"
-	"github.com/axisml/axisml/components/cluster-manager/pkg/provider"
+	"github.com/axisml/axisml/components/cluster-manager/pkg/extensions"
 	tenantv1alpha1 "github.com/axisml/axisml/components/tenant-operator/api/v1alpha1"
 )
 
-// ResourcePoolStore backs provider.ResourcePoolStore with a client.Client.
+// ResourcePoolStore backs extensions.ResourcePoolStore with a client.Client.
 type ResourcePoolStore struct {
 	c client.Client
 }
 
-var _ provider.ResourcePoolStore = (*ResourcePoolStore)(nil)
+var _ extensions.ResourcePoolStore = (*ResourcePoolStore)(nil)
 
 // NewResourcePoolStore builds a ResourcePoolStore.
 func NewResourcePoolStore(c client.Client) *ResourcePoolStore { return &ResourcePoolStore{c: c} }
@@ -34,7 +34,7 @@ func (s *ResourcePoolStore) Get(ctx context.Context, name string) (*cmv1alpha1.R
 	return pool, nil
 }
 
-func (s *ResourcePoolStore) List(ctx context.Context, params provider.ListParams) (*cmv1alpha1.ResourcePoolList, error) {
+func (s *ResourcePoolStore) List(ctx context.Context, params extensions.ListParams) (*cmv1alpha1.ResourcePoolList, error) {
 	opts, err := listOptions(params)
 	if err != nil {
 		return nil, err
@@ -63,12 +63,12 @@ func (s *ResourcePoolStore) Delete(ctx context.Context, name string) error {
 // Writable reports the Kubernetes store accepts full CRUD.
 func (s *ResourcePoolStore) Writable() bool { return true }
 
-// TenantStore backs provider.TenantStore with a client.Client.
+// TenantStore backs extensions.TenantStore with a client.Client.
 type TenantStore struct {
 	c client.Client
 }
 
-var _ provider.TenantStore = (*TenantStore)(nil)
+var _ extensions.TenantStore = (*TenantStore)(nil)
 
 // NewTenantStore builds a TenantStore.
 func NewTenantStore(c client.Client) *TenantStore { return &TenantStore{c: c} }
@@ -81,7 +81,7 @@ func (s *TenantStore) Get(ctx context.Context, name string) (*tenantv1alpha1.Ten
 	return cr, nil
 }
 
-func (s *TenantStore) List(ctx context.Context, params provider.ListParams) (*tenantv1alpha1.TenantList, error) {
+func (s *TenantStore) List(ctx context.Context, params extensions.ListParams) (*tenantv1alpha1.TenantList, error) {
 	opts, err := listOptions(params)
 	if err != nil {
 		return nil, err
@@ -112,7 +112,7 @@ func (s *TenantStore) Writable() bool { return true }
 
 // listOptions translates neutral ListParams into controller-runtime options.
 // The selector is re-parsed here (handlers pre-validate it for the 400 path).
-func listOptions(params provider.ListParams) ([]client.ListOption, error) {
+func listOptions(params extensions.ListParams) ([]client.ListOption, error) {
 	opts := []client.ListOption{}
 	if params.Selector != "" {
 		ps, err := labels.Parse(params.Selector)

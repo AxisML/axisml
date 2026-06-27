@@ -9,7 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/axisml/axisml/components/compute-service/pkg/computeruntime"
+	"github.com/axisml/axisml/components/compute-service/pkg/extensions"
 )
 
 // projectPods projects managed containers as corev1.Pods so the Compute layer
@@ -107,5 +107,5 @@ func (r *Runtime) verifyInstance(ctx context.Context, kind string, key types.Nam
 		}
 		return err
 	}
-	return computeruntime.ErrInstanceNotOwned
+	return extensions.ErrInstanceNotOwned
 }

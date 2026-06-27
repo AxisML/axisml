@@ -1,5 +1,5 @@
 // Package docker is the in-process Standalone Docker implementation of the
-// published computeruntime.ComputeRuntime contract. It lives under
+// published extensions.ComputeRuntime contract. It lives under
 // internal/runtime/ — the home for engine-specific runtime backends (a future
 // podman/containerd backend would be a sibling). It receives the same
 // MLRun / MLService / MLTrafficPolicy desired objects the Kubernetes runtime
@@ -25,7 +25,7 @@ import (
 	"github.com/docker/docker/client"
 	"github.com/go-logr/logr"
 
-	"github.com/axisml/axisml/components/compute-service/pkg/computeruntime"
+	"github.com/axisml/axisml/components/compute-service/pkg/extensions"
 )
 
 // Managed-resource label keys (design §5.2). The resource key
@@ -58,7 +58,7 @@ type Config struct {
 	RuntimeDir string
 }
 
-// Runtime implements computeruntime.ComputeRuntime over the Docker Engine API.
+// Runtime implements extensions.ComputeRuntime over the Docker Engine API.
 type Runtime struct {
 	cli    *client.Client
 	cfg    Config
@@ -72,7 +72,7 @@ type Runtime struct {
 	cancelled map[string]bool
 }
 
-var _ computeruntime.ComputeRuntime = (*Runtime)(nil)
+var _ extensions.ComputeRuntime = (*Runtime)(nil)
 
 // New builds a Runtime from an existing Docker client.
 func New(cli *client.Client, cfg Config, log logr.Logger) *Runtime {

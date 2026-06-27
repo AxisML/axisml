@@ -22,7 +22,7 @@ import (
 	mlservicev1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
 	mltrafficpolicyv1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mltrafficpolicy/v1alpha1"
 
-	"github.com/axisml/axisml/components/compute-service/pkg/computeruntime"
+	"github.com/axisml/axisml/components/compute-service/pkg/extensions"
 )
 
 func testScheme(t *testing.T) *runtime.Scheme {
@@ -159,7 +159,7 @@ func TestGetMLRunInstanceLogs_VerifiesOwnership(t *testing.T) {
 	// with a typed sentinel callers map to 403 (not a generic 5xx).
 	_, err = rt.GetMLRunInstanceLogs(ctx, runKey(), "p-foreign", nil)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, computeruntime.ErrInstanceNotOwned)
+	assert.ErrorIs(t, err, extensions.ErrInstanceNotOwned)
 }
 
 func TestListMLRunInstances_AbsentCRYieldsEmpty(t *testing.T) {

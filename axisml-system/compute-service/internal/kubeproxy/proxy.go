@@ -19,8 +19,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/axisml/axisml/components/compute-service/internal/server"
-	"github.com/axisml/axisml/components/compute-service/pkg/computeruntime"
 	apperrors "github.com/axisml/axisml/components/compute-service/pkg/errors"
+	"github.com/axisml/axisml/components/compute-service/pkg/extensions"
 )
 
 // MapErr translates a runtime error into the typed app error the HTTP error
@@ -34,7 +34,7 @@ func MapErr(err error) error {
 	if _, ok := apperrors.As(err); ok {
 		return err
 	}
-	if errors.Is(err, computeruntime.ErrInstanceNotOwned) {
+	if errors.Is(err, extensions.ErrInstanceNotOwned) {
 		return apperrors.Wrap(apperrors.CodeForbidden, "instance does not belong to this resource", err)
 	}
 	if apierrors.IsNotFound(err) {

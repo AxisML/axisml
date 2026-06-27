@@ -25,8 +25,7 @@ import (
 	servicemod "github.com/axisml/axisml/components/compute-service/internal/mlservice"
 	"github.com/axisml/axisml/components/compute-service/internal/server"
 	trafficmod "github.com/axisml/axisml/components/compute-service/internal/trafficpolicy"
-	"github.com/axisml/axisml/components/compute-service/pkg/computeruntime"
-	"github.com/axisml/axisml/components/compute-service/pkg/provider"
+	"github.com/axisml/axisml/components/compute-service/pkg/extensions"
 )
 
 // Route wires its endpoints into an /api/v1 router group.
@@ -43,9 +42,9 @@ type Runnable interface {
 // Deps are the form-neutral dependencies a composition root injects.
 type Deps struct {
 	DB                *gorm.DB
-	Runtime           computeruntime.ComputeRuntime
-	Catalog           provider.ResourceCatalog
-	Volumes           provider.WorkspaceVolumeProvisioner
+	Runtime           extensions.ComputeRuntime
+	Resolver          extensions.ResourceResolver
+	Volumes           extensions.WorkspaceVolumeProvisioner
 	Log               logr.Logger
 	ReconcileInterval time.Duration
 	// RuntimeName labels the workload execution engine in the capability
@@ -66,10 +65,10 @@ type Module struct {
 
 // New assembles the Compute Service business modules from injected providers.
 func New(d Deps) (*Module, error) {
-	jobs := jobmod.NewService(d.DB, d.Catalog)
+	jobs := jobmod.NewService(d.DB, d.Resolver)
 	serviceRepo := servicemod.NewRepository(d.DB)
 	trafficRepo := trafficmod.NewRepository(d.DB)
-	services := servicemod.NewMLService(d.DB, d.Catalog, d.Volumes, trafficRepo)
+	services := servicemod.NewMLService(d.DB, d.Resolver, d.Volumes, trafficRepo)
 	traffic := trafficmod.NewService(d.DB, serviceRepo, trafficRepo)
 
 	jobRecon := jobmod.NewReconciler(d.DB, d.Runtime, d.Log.WithName("mlrun-reconciler"), d.ReconcileInterval)

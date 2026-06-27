@@ -12,7 +12,7 @@ import (
 	"github.com/axisml/axisml/components/compute-service/internal/metrics"
 	"github.com/axisml/axisml/components/compute-service/internal/server"
 	"github.com/axisml/axisml/components/compute-service/internal/store"
-	"github.com/axisml/axisml/components/compute-service/pkg/computeruntime"
+	"github.com/axisml/axisml/components/compute-service/pkg/extensions"
 )
 
 // Reconciler implements the job Outbox loop. Reads namespace directly off
@@ -21,14 +21,14 @@ import (
 type Reconciler struct {
 	db       *gorm.DB
 	repo     *Repository
-	runtime  computeruntime.ComputeRuntime
+	runtime  extensions.ComputeRuntime
 	log      logr.Logger
 	interval time.Duration
 }
 
 func NewReconciler(
 	db *gorm.DB,
-	rt computeruntime.ComputeRuntime,
+	rt extensions.ComputeRuntime,
 	log logr.Logger,
 	interval time.Duration,
 ) *Reconciler {

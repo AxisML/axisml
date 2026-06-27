@@ -27,17 +27,17 @@ import (
 	mlservicev1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
 	mltrafficpolicyv1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mltrafficpolicy/v1alpha1"
 
-	"github.com/axisml/axisml/components/compute-service/pkg/computeruntime"
+	"github.com/axisml/axisml/components/compute-service/pkg/extensions"
 )
 
-// KubernetesRuntime implements computeruntime.ComputeRuntime against an
+// KubernetesRuntime implements extensions.ComputeRuntime against an
 // apiserver.
 type KubernetesRuntime struct {
 	ctrl      client.Client
 	clientset kubernetes.Interface
 }
 
-var _ computeruntime.ComputeRuntime = (*KubernetesRuntime)(nil)
+var _ extensions.ComputeRuntime = (*KubernetesRuntime)(nil)
 
 // New builds a KubernetesRuntime. The ctrl client serves typed CR CRUD and
 // cached Pod / Event lists; clientset serves Pod log streaming.
@@ -300,7 +300,7 @@ func (r *KubernetesRuntime) verifyInstance(ctx context.Context, namespace, insta
 		return err
 	}
 	if p.Labels[labelKey] != labelValue {
-		return fmt.Errorf("instance %s/%s: %w", namespace, instance, computeruntime.ErrInstanceNotOwned)
+		return fmt.Errorf("instance %s/%s: %w", namespace, instance, extensions.ErrInstanceNotOwned)
 	}
 	return nil
 }

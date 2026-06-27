@@ -9,19 +9,19 @@ import (
 
 	"github.com/axisml/axisml/components/compute-service/internal/kubeproxy"
 	"github.com/axisml/axisml/components/compute-service/internal/server"
-	"github.com/axisml/axisml/components/compute-service/pkg/computeruntime"
+	"github.com/axisml/axisml/components/compute-service/pkg/extensions"
 )
 
 // Handler exposes /namespaces/:namespace/mlruns routes. Namespace is the bare
 // URL partition key; Compute does no existence / activation check on it.
 type Handler struct {
 	svc     *Service
-	runtime computeruntime.ComputeRuntime
+	runtime extensions.ComputeRuntime
 }
 
 // NewHandler builds a job HTTP handler. runtime may be nil in pure-DB tests;
 // the pods / log / events sub-routes are skipped when so.
-func NewHandler(svc *Service, runtime computeruntime.ComputeRuntime) *Handler {
+func NewHandler(svc *Service, runtime extensions.ComputeRuntime) *Handler {
 	return &Handler{svc: svc, runtime: runtime}
 }
 
