@@ -15,7 +15,7 @@ import (
 
 // TestRenderServicePlans_WorkspacePVCVolume verifies a PVC-backed (workspace)
 // volume mounts the volume keyed on its claim name — the same name the
-// VolumeStore (Runtime.Ensure) provisions — rather than a generic per-mount
+// VolumeManager (Runtime.Ensure) provisions — rather than a generic per-mount
 // volume.
 func TestRenderServicePlans_WorkspacePVCVolume(t *testing.T) {
 	r := testRuntime()

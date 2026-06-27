@@ -11,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	axismlv1alpha1 "github.com/axisml/axisml/components/cluster-manager/api/v1alpha1"
 	srv "github.com/axisml/axisml/components/cluster-manager/internal/server"
@@ -19,13 +20,13 @@ import (
 
 // Handler implements the /api/v1/resourcepools[/{pool}[/units...]]
 // HTTP surface. It owns no state; all reads/writes go through the injected
-// ResourcePoolStore (Kubernetes CRD or Lite config).
+// ResourcePoolProvider (Kubernetes CRD or Lite config).
 type Handler struct {
-	pools extensions.ResourcePoolStore
+	pools extensions.ResourcePoolProvider
 }
 
 // NewHandler builds a resourcepool handler over the given store.
-func NewHandler(pools extensions.ResourcePoolStore) *Handler {
+func NewHandler(pools extensions.ResourcePoolProvider) *Handler {
 	return &Handler{pools: pools}
 }
 
@@ -94,14 +95,14 @@ func (h *Handler) Get(c *gin.Context) {
 // ?limit (1-500, default 100), and ?continue (opaque cursor returned by
 // a previous page). Mirrors apis/cluster-manager.yaml.
 func (h *Handler) List(c *gin.Context) {
-	params := extensions.ListParams{}
+	opts := metav1.ListOptions{}
 	if sel := c.Query("labelSelector"); sel != "" {
 		if _, err := labelSelectorFrom(sel); err != nil {
 			srv.AbortWithProblem(c, http.StatusBadRequest, "InvalidSelector",
 				"labelSelector parse error", err.Error())
 			return
 		}
-		params.Selector = sel
+		opts.LabelSelector = sel
 	}
 	if v := c.Query("limit"); v != "" {
 		n, err := strconv.Atoi(v)
@@ -110,11 +111,11 @@ func (h *Handler) List(c *gin.Context) {
 				"limit must be an integer in [1, 500]", v)
 			return
 		}
-		params.Limit = n
+		opts.Limit = int64(n)
 	}
-	params.Continue = c.Query("continue")
+	opts.Continue = c.Query("continue")
 
-	pools, err := h.pools.List(c.Request.Context(), params)
+	pools, err := h.pools.List(c.Request.Context(), opts)
 	if err != nil {
 		writeK8sError(c, err, "")
 		return

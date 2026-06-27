@@ -72,7 +72,7 @@ func (r *Runtime) renderServicePlans(svc *mlservicev1alpha1.MLService) ([]Contai
 // serviceMounts maps each declared volumeMount onto a managed Docker volume.
 // A PVC-backed volume (the durable volume Compute references for a kind=workspace
 // service) maps to the volume keyed on its claim name — the same name the
-// VolumeStore (Runtime.Ensure / Runtime.Delete) materialises and reclaims — so
+// VolumeManager (Runtime.Ensure / Runtime.Delete) materialises and reclaims — so
 // the mounted volume, the provisioned volume and the retention target are one
 // and the same. Any other declared volume gets a per-(namespace, name, volume)
 // managed volume.
@@ -93,7 +93,7 @@ func (r *Runtime) serviceMounts(namespace, name string, tmpl mlservicev1alpha1.P
 		source := r.volumeName(namespace, name, vm.Name)
 		if vol.PersistentVolumeClaim != nil {
 			// PVC-backed volume: key the Docker volume on the claim name so it
-			// matches the volume cluster-manager's VolumeStore (Runtime.Ensure)
+			// matches the volume cluster-manager's VolumeManager (Runtime.Ensure)
 			// materialised for the same claim.
 			source = r.pvcVolumeName(namespace, vol.PersistentVolumeClaim.ClaimName)
 		}
@@ -244,7 +244,7 @@ func (r *Runtime) DeleteMLService(ctx context.Context, key types.NamespacedName)
 		return err
 	}
 	// Volumes are NOT removed here: their lifecycle follows the retention policy
-	// and is driven explicitly through the VolumeStore (Runtime.Delete), so
+	// and is driven explicitly through the VolumeManager (Runtime.Delete), so
 	// deleting a workspace never silently wipes user data the policy meant to
 	// keep.
 	if len(conts) > 0 {

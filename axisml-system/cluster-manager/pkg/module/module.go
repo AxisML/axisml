@@ -26,9 +26,9 @@ type Route interface {
 
 // Deps are the form-neutral stores a composition root injects.
 type Deps struct {
-	Pools   extensions.ResourcePoolStore
-	Tenants extensions.TenantStore
-	Volumes extensions.VolumeStore
+	Pools   extensions.ResourcePoolProvider
+	Tenants extensions.TenantProvider
+	Volumes extensions.VolumeManager
 }
 
 // Module is the assembled Cluster Manager REST surface.
