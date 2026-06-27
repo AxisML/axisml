@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/docker/docker/client"
@@ -44,7 +45,20 @@ type App struct {
 	dcli      *client.Client
 	engine    *gin.Engine
 	runnables []Runnable
+
+	// loopsClaimed guards the background loops against a double start: it is set
+	// the first time they are claimed, by either Serve (which starts them) or
+	// Runnables (which hands them to a host to start). A second claim by either
+	// path is refused, so a host that uses both — e.g. Runnables() then Serve —
+	// cannot accidentally run every reconciler twice against the same DB.
+	loopsClaimed atomic.Bool
 }
+
+// ErrLoopsAlreadyStarted is returned by Serve, and reported by Runnables, when
+// the background loops have already been claimed by the other path. The loops
+// are owned by exactly one runner — call Serve, or start Runnables yourself,
+// never both.
+var ErrLoopsAlreadyStarted = errors.New("axisml-core: background loops already started")
 
 // New is the axisml-core composition root. It resolves the inputs (Settings,
 // database, static config, logger — each overridable via Option), builds the
@@ -180,9 +194,19 @@ func New(ctx context.Context, cfg Config, opts ...Option) (app *App, err error) 
 func (a *App) Handler() http.Handler { return a.engine }
 
 // Runnables returns the modules' background loops (Compute reconcilers + status
-// pollers and the Artifact Hub GC worker). A host that does not call Serve must
-// start each one (go r.Start(ctx)) bound to a context it cancels on shutdown.
-func (a *App) Runnables() []Runnable { return a.runnables }
+// pollers and the Artifact Hub GC worker) for a host that runs its own server
+// instead of calling Serve. Start each one (go r.Start(ctx)) bound to a context
+// it cancels on shutdown.
+//
+// It claims the loops: calling it after Serve has started them — or calling it
+// twice — returns nil (and logs), so the reconcilers are never started twice.
+func (a *App) Runnables() []Runnable {
+	if !a.loopsClaimed.CompareAndSwap(false, true) {
+		a.log.Error(ErrLoopsAlreadyStarted, "Runnables() called after the loops were already started; returning nil")
+		return nil
+	}
+	return a.runnables
+}
 
 // Migrate runs the module migrations against the App's database.
 func (a *App) Migrate() error { return migrate(a.db) }
@@ -213,6 +237,10 @@ func (a *App) Close() error {
 // reconcile tick to finish before returning, so the caller's deferred Close can
 // safely tear down the shared DB / Docker client without racing a live loop.
 func (a *App) Serve(ctx context.Context) error {
+	if !a.loopsClaimed.CompareAndSwap(false, true) {
+		return ErrLoopsAlreadyStarted
+	}
+
 	srv := &http.Server{Addr: a.settings.APIBindAddress, Handler: a.engine, ReadHeaderTimeout: 10 * time.Second}
 
 	// Run the background loops on a context we cancel on the way out, so they are
