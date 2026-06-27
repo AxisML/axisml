@@ -9,7 +9,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	"github.com/axisml/axisml/components/compute-service/internal/config"
-	"github.com/axisml/axisml/components/compute-service/internal/k8svolume"
 	"github.com/axisml/axisml/components/compute-service/internal/kuberuntime"
 	jobmod "github.com/axisml/axisml/components/compute-service/internal/mlrun"
 	servicemod "github.com/axisml/axisml/components/compute-service/internal/mlservice"
@@ -21,10 +20,9 @@ import (
 
 // BuildModules is the Kubernetes composition root. It derives the form-neutral
 // dependencies from the controller-runtime manager — the ComputeRuntime adapter
-// (typed client + clientset), the ResourcePool informer-cache catalog and the
-// PVC-backed workspace volume provisioner — hands them to the shared
-// pkg/module assembly, then appends the Kubernetes-specific status reflow
-// (apiserver informers, design §4.2) as additional runnables.
+// (typed client + clientset) and the ResourcePool informer-cache catalog — hands
+// them to the shared pkg/module assembly, then appends the Kubernetes-specific
+// status reflow (apiserver informers, design §4.2) as additional runnables.
 func BuildModules(
 	gormDB *gorm.DB,
 	mgr manager.Manager,
@@ -39,7 +37,6 @@ func BuildModules(
 		DB:                gormDB,
 		Runtime:           kuberuntime.New(mgr.GetClient(), clientset),
 		Resolver:          poolcache.New(mgr.GetClient()),
-		Volumes:           k8svolume.New(mgr.GetClient()),
 		Log:               log,
 		ReconcileInterval: config.ReconcileInterval,
 		// Kubernetes composition root: koord-scheduler admits pods against the

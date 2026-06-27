@@ -19,6 +19,7 @@ const (
 	tagResourcePools = "ResourcePools"
 	tagResourceUnits = "ResourceUnits"
 	tagTenants       = "Tenants"
+	tagVolumes       = "Volumes"
 	tagCapabilities  = "Capabilities"
 	tagHealth        = "Health"
 )
@@ -61,11 +62,14 @@ func Document(version string) *openapigen.Document {
 	g.Register("Quota", server.Quota{}, openapigen.ResponseMode)
 	g.Register("QuotaList", server.QuotaList{}, openapigen.ResponseMode)
 	g.Register("Capabilities", server.Capabilities{}, openapigen.ResponseMode)
+	g.Register("CreateVolumeRequest", server.CreateVolumeRequest{}, openapigen.InputMode)
+	g.Register("Volume", server.Volume{}, openapigen.ResponseMode)
 
 	tags := []openapigen.TagEntry{
 		{Name: tagResourcePools, Description: "ResourcePool CRD CRUD."},
 		{Name: tagResourceUnits, Description: "Sub-routes over pool.spec.units[]."},
 		{Name: tagTenants, Description: "Tenant CRD CRUD and per-pool tenant quotas (unit × quantity, folded to ElasticQuota); cluster-manager is the REST writer."},
+		{Name: tagVolumes, Description: "Durable volume materialisation (PersistentVolumeClaim CRUD); idempotent create/delete used by compute for workspace volumes."},
 		{Name: tagCapabilities, Description: "Deployment-form capability document (multi-tenant / writable resource pools)."},
 		{Name: tagHealth, Description: "Liveness and readiness probes."},
 	}
@@ -74,6 +78,8 @@ func Document(version string) *openapigen.Document {
 	unitParam := openapigen.PathParam("unit", "ResourceUnit name (within a pool).")
 	tenantParam := openapigen.PathParam("tenant", "Tenant name (== identifier == namespace).")
 	quotaPoolParam := openapigen.PathParam("pool", "ResourcePool the quota applies to.")
+	volNamespaceParam := openapigen.PathParam("namespace", "Physical Kubernetes namespace holding the volume.")
+	volNameParam := openapigen.PathParam("name", "Volume (PersistentVolumeClaim) name.")
 	selectorParam := openapigen.QueryParam("labelSelector", "K8s-style label selector.", &openapigen.Schema{Type: "string"})
 
 	paths := map[string]openapigen.PathItem{}
@@ -217,12 +223,28 @@ func Document(version string) *openapigen.Document {
 		},
 	}
 
+	paths["/api/v1/volumes"] = openapigen.PathItem{
+		Post: &openapigen.Operation{
+			Tags: []string{tagVolumes}, Summary: "Materialise a durable volume", OperationID: "createVolume",
+			RequestBody: openapigen.JSONBody("CreateVolumeRequest"),
+			Responses:   withErrors(map[string]openapigen.Response{"201": openapigen.JSONResp("Volume materialised (idempotent).", "Volume")}),
+		},
+	}
+
+	paths["/api/v1/volumes/{namespace}/{name}"] = openapigen.PathItem{
+		Delete: &openapigen.Operation{
+			Tags: []string{tagVolumes}, Summary: "Delete a durable volume", OperationID: "deleteVolume",
+			Parameters: []openapigen.Parameter{volNamespaceParam, volNameParam},
+			Responses:  withErrors(map[string]openapigen.Response{"204": openapigen.NoContentResp}),
+		},
+	}
+
 	return &openapigen.Document{
 		OpenAPI: "3.0.3",
 		Info: openapigen.Info{
 			Title:       "AxisML Cluster Manager API",
 			Version:     version,
-			Description: "Stateless REST shell over the ResourcePool and Tenant CRDs (cluster-scoped). RFC7807 Problem responses on errors.",
+			Description: "Stateless REST shell over the ResourcePool and Tenant CRDs (cluster-scoped) plus durable volume (PVC) materialisation. RFC7807 Problem responses on errors.",
 		},
 		Servers: []openapigen.ServerEntry{{URL: "/", Description: "Same-origin"}},
 		Tags:    tags,

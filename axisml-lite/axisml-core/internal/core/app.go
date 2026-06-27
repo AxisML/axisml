@@ -67,12 +67,11 @@ func Run(ctx context.Context, cfg Config) error {
 		log.Error(err, "ensure workloads network (continuing)")
 	}
 
-	clusterMod := clustermodule.New(clustermodule.Deps{Pools: catalog, Tenants: tenants})
+	clusterMod := clustermodule.New(clustermodule.Deps{Pools: catalog, Tenants: tenants, Volumes: rt})
 	computeMod, err := computemodule.New(computemodule.Deps{
 		DB:                db,
 		Runtime:           rt,
 		Resolver:          catalog,
-		Volumes:           rt,
 		Log:               log,
 		ReconcileInterval: ReconcileInterval,
 		// Lite Standalone runtime: no scheduler, so no ElasticQuota admission.

@@ -148,7 +148,7 @@ func (s *Service) Delete(ctx context.Context, tenant, name string) error {
 	if _, err := s.getService(ctx, tenant, name); err != nil {
 		return err
 	}
-	return s.compute.DeleteMLService(ctx, tenant, name, nil)
+	return s.compute.DeleteMLService(ctx, tenant, name)
 }
 
 // Pods / Events / PodEvents / PodLogs proxy compute.

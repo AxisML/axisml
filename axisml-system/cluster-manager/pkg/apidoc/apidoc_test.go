@@ -78,6 +78,8 @@ func TestRouteCoverage(t *testing.T) {
 		{"get", "/api/v1/resourcepools/{pool}/units/{unit}"},
 		{"patch", "/api/v1/resourcepools/{pool}/units/{unit}"},
 		{"delete", "/api/v1/resourcepools/{pool}/units/{unit}"},
+		{"post", "/api/v1/volumes"},
+		{"delete", "/api/v1/volumes/{namespace}/{name}"},
 	}
 	for _, w := range want {
 		item, ok := doc.Paths[w.path]

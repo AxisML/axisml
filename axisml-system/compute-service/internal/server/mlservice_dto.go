@@ -13,32 +13,24 @@ import (
 // cache). `Quota` is the ElasticQuota CR name (cluster-unique string) Compute
 // stamps onto Pod labels — opaque, no existence check. `Kind` distinguishes a
 // regular online service from a Platform workspace; immutable after create.
-// When kind=workspace, `WorkspaceStorage` describes the PVC backing the
-// workspace (size required; storageClass optional, falls back to the
-// cluster default).
+// A kind=workspace service's durable volume is pre-provisioned by Platform via
+// cluster-manager and referenced as a PVC entry in roles[0].template.volumes;
+// compute does not provision storage.
 type MLServiceCreateRequest struct {
-	Name             string                         `json:"name" binding:"required,axisml_name"`
-	Kind             string                         `json:"kind,omitempty"`
-	DisplayName      string                         `json:"displayName"`
-	Description      string                         `json:"description"`
-	Labels           map[string]string              `json:"labels,omitempty"`
-	Annotations      map[string]string              `json:"annotations,omitempty"`
-	PoolName         string                         `json:"poolName" binding:"required"`
-	UnitName         string                         `json:"unitName" binding:"required"`
-	Quota            string                         `json:"quota" binding:"required"`
-	PriorityClass    string                         `json:"priorityClass,omitempty"`
-	Backend          *mlservicev1alpha1.Backend     `json:"backend"`
-	Roles            []mlservicev1alpha1.RoleSpec   `json:"roles" binding:"required,min=1"`
-	RunPolicy        *mlservicev1alpha1.RunPolicy   `json:"runPolicy"`
-	Route            *mlservicev1alpha1.Route       `json:"route"`
-	WorkspaceStorage *MLServiceWorkspaceStorageSpec `json:"workspaceStorage,omitempty"`
-}
-
-// MLServiceWorkspaceStorageSpec carries the PVC sizing for kind=workspace
-// mlservices.
-type MLServiceWorkspaceStorageSpec struct {
-	Size         string `json:"size" binding:"required"`
-	StorageClass string `json:"storageClass,omitempty"`
+	Name          string                       `json:"name" binding:"required,axisml_name"`
+	Kind          string                       `json:"kind,omitempty"`
+	DisplayName   string                       `json:"displayName"`
+	Description   string                       `json:"description"`
+	Labels        map[string]string            `json:"labels,omitempty"`
+	Annotations   map[string]string            `json:"annotations,omitempty"`
+	PoolName      string                       `json:"poolName" binding:"required"`
+	UnitName      string                       `json:"unitName" binding:"required"`
+	Quota         string                       `json:"quota" binding:"required"`
+	PriorityClass string                       `json:"priorityClass,omitempty"`
+	Backend       *mlservicev1alpha1.Backend   `json:"backend"`
+	Roles         []mlservicev1alpha1.RoleSpec `json:"roles" binding:"required,min=1"`
+	RunPolicy     *mlservicev1alpha1.RunPolicy `json:"runPolicy"`
+	Route         *mlservicev1alpha1.Route     `json:"route"`
 }
 
 // MLServiceScaleRequest is the body for /:scale.

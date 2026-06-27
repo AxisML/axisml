@@ -17,6 +17,13 @@ rules:
     resources: ["tenants"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 
+  # PersistentVolumeClaims (cross-namespace): cluster-manager's Volume REST
+  # materialises / reclaims the durable volumes compute references (e.g. the
+  # volume backing a kind=workspace MLService). compute no longer holds this.
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["get", "list", "create", "delete"]
+
   # Events: emit audit events on REST mutations.
   - apiGroups: [""]
     resources: ["events"]

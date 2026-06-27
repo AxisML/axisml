@@ -1486,6 +1486,17 @@ components:
             $ref: '#/components/schemas/ServerQuota'
           type: array
       type: object
+    CreateVolumeRequest:
+      properties:
+        name:
+          type: string
+        namespace:
+          type: string
+        size:
+          type: string
+        storageClass:
+          type: string
+      type: object
     Event:
       properties:
         eventTime:
@@ -1927,10 +1938,6 @@ components:
           nullable: true
         unitName:
           type: string
-        workspaceStorage:
-          allOf:
-          - $ref: '#/components/schemas/MLServiceWorkspaceStorageSpec'
-          nullable: true
       required:
       - name
       - poolName
@@ -2171,15 +2178,6 @@ components:
           type: integer
       required:
       - readyReplicas
-      type: object
-    MLServiceWorkspaceStorageSpec:
-      properties:
-        size:
-          type: string
-        storageClass:
-          type: string
-      required:
-      - size
       type: object
     MLTrafficPolicyBackend:
       properties:
@@ -3106,6 +3104,20 @@ components:
       - expiresAt
       - storageKind
       - uri
+      type: object
+    Volume:
+      properties:
+        name:
+          type: string
+        namespace:
+          type: string
+        size:
+          type: string
+        storageClass:
+          type: string
+      required:
+      - name
+      - namespace
       type: object
 info:
   description: 'Complete HTTP surface of axisml-core (AxisML Lite single-host form):
@@ -8873,6 +8885,131 @@ paths:
       summary: Update a pool quota
       tags:
       - Tenants
+  /api/v1/volumes:
+    post:
+      operationId: createVolume
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateVolumeRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Volume'
+          description: Volume materialised (idempotent).
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Missing or invalid X-Axisml-User.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Conflict (already exists or concurrent modification).
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Invariant violated.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Internal error.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Unexpected error.
+      summary: Materialise a durable volume
+      tags:
+      - Volumes
+  /api/v1/volumes/{namespace}/{name}:
+    delete:
+      operationId: deleteVolume
+      parameters:
+      - description: Physical Kubernetes namespace holding the volume.
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      - description: Volume (PersistentVolumeClaim) name.
+        in: path
+        name: name
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          description: Deleted (idempotent).
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Missing or invalid X-Axisml-User.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Conflict (already exists or concurrent modification).
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Invariant violated.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Internal error.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Unexpected error.
+      summary: Delete a durable volume
+      tags:
+      - Volumes
   /healthz:
     get:
       operationId: healthz
@@ -8921,6 +9058,9 @@ tags:
 - description: Tenant CRD CRUD and per-pool tenant quotas (unit × quantity, folded
     to ElasticQuota); cluster-manager is the REST writer.
   name: Tenants
+- description: Durable volume materialisation (PersistentVolumeClaim CRUD); idempotent
+    create/delete used by compute for workspace volumes.
+  name: Volumes
 - description: MLRun CRUD per namespace. ResourcePool/Unit referenced by name (read
     from K8s Informer cache).
   name: MLRuns

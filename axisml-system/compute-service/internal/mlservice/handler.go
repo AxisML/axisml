@@ -184,13 +184,9 @@ func (h *Handler) Scale(c *gin.Context) {
 }
 
 func (h *Handler) Delete(c *gin.Context) {
-	// ?deletePvc=false opts out of cascading PVC deletion for workspaces;
-	// design §4.4 defaults to true.
-	deletePVC := true
-	if v := c.Query("deletePvc"); v == "false" {
-		deletePVC = false
-	}
-	if err := h.svc.Delete(c.Request.Context(), c.Param("namespace"), c.Param("mlservice"), deletePVC); err != nil {
+	// A workspace's durable volume is reclaimed by Platform via cluster-manager,
+	// not here, so there is no PVC-cascade option on this endpoint.
+	if err := h.svc.Delete(c.Request.Context(), c.Param("namespace"), c.Param("mlservice")); err != nil {
 		_ = c.Error(err)
 		return
 	}

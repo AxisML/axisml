@@ -738,21 +738,20 @@ type MLServiceCondition struct {
 
 // MLServiceCreateRequest defines model for MLServiceCreateRequest.
 type MLServiceCreateRequest struct {
-	Annotations      *map[string]string             `json:"annotations,omitempty"`
-	Backend          *MLServiceBackend              `json:"backend"`
-	Description      *string                        `json:"description,omitempty"`
-	DisplayName      *string                        `json:"displayName,omitempty"`
-	Kind             *string                        `json:"kind,omitempty"`
-	Labels           *map[string]string             `json:"labels,omitempty"`
-	Name             string                         `json:"name"`
-	PoolName         string                         `json:"poolName"`
-	PriorityClass    *string                        `json:"priorityClass,omitempty"`
-	Quota            string                         `json:"quota"`
-	Roles            []MLServiceRoleSpec            `json:"roles"`
-	Route            *MLServiceRoute                `json:"route"`
-	RunPolicy        *MLServiceRunPolicy            `json:"runPolicy"`
-	UnitName         string                         `json:"unitName"`
-	WorkspaceStorage *MLServiceWorkspaceStorageSpec `json:"workspaceStorage"`
+	Annotations   *map[string]string  `json:"annotations,omitempty"`
+	Backend       *MLServiceBackend   `json:"backend"`
+	Description   *string             `json:"description,omitempty"`
+	DisplayName   *string             `json:"displayName,omitempty"`
+	Kind          *string             `json:"kind,omitempty"`
+	Labels        *map[string]string  `json:"labels,omitempty"`
+	Name          string              `json:"name"`
+	PoolName      string              `json:"poolName"`
+	PriorityClass *string             `json:"priorityClass,omitempty"`
+	Quota         string              `json:"quota"`
+	Roles         []MLServiceRoleSpec `json:"roles"`
+	Route         *MLServiceRoute     `json:"route"`
+	RunPolicy     *MLServiceRunPolicy `json:"runPolicy"`
+	UnitName      string              `json:"unitName"`
 }
 
 // MLServiceList defines model for MLServiceList.
@@ -867,12 +866,6 @@ type MLServiceStatus struct {
 	Endpoint      *string               `json:"endpoint,omitempty"`
 	Message       *string               `json:"message,omitempty"`
 	ReadyReplicas int32                 `json:"readyReplicas"`
-}
-
-// MLServiceWorkspaceStorageSpec defines model for MLServiceWorkspaceStorageSpec.
-type MLServiceWorkspaceStorageSpec struct {
-	Size         string  `json:"size"`
-	StorageClass *string `json:"storageClass,omitempty"`
 }
 
 // MLTrafficPolicyBackend defines model for MLTrafficPolicyBackend.

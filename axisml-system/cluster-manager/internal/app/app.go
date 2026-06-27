@@ -94,6 +94,7 @@ func NewRouter(c client.Client) *gin.Engine {
 	mod := clustermodule.New(clustermodule.Deps{
 		Pools:   k8sstore.NewResourcePoolStore(c),
 		Tenants: k8sstore.NewTenantStore(c),
+		Volumes: k8sstore.NewVolumeStore(c),
 	})
 	// The capability document is unauthenticated so Platform can read it
 	// pre-login; the resource routes stay behind RequireUser.

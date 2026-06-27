@@ -239,7 +239,7 @@ func (s *Service) StopTensorBoard(ctx context.Context, tenant, exp string) error
 	if _, err := s.get(ctx, tenant, exp); err != nil {
 		return err
 	}
-	return s.compute.DeleteMLService(ctx, tenant, tbName(exp), nil)
+	return s.compute.DeleteMLService(ctx, tenant, tbName(exp))
 }
 
 // buildTensorBoardInput assembles a kind=tensorboard MLService request. The

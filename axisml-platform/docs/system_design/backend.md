@@ -136,16 +136,18 @@ Platform 自有实体三类：**租户持久记录**、**身份 / 授权 / 会�
 
 ### 4.4 工作区编排
 
-下游：compute（services with `kind=workspace`；PVC 由 compute 同事务派生与回收）。工作区 = 长驻交互式开发容器，复用 `MLService(native, deployment)`，不引入新 CRD。
+下游：compute（services with `kind=workspace`）+ cluster-manager（持久卷 PVC 提前创建 / 回收）。工作区 = 长驻交互式开发容器，复用 `MLService(native, deployment)`，不引入新 CRD。持久卷由 Platform 经 cluster-manager Volume REST **提前**建好，再以 PVC 引用写进 Pod 模板交给 compute 挂载——compute 不创建 / 不回收卷（[compute-service.md](../../../axisml-system/docs/system_design/compute-service.md)）。
 
 | 用户操作 | 内部步骤 / 下游调用 |
 | --- | --- |
-| 创建 | 通则"触发实例" → 生成 `workspace_name="ws-"+crockford32(rand40bit)` → 注入 PVC `size`/`storageClass` → `compute.CreateMLService(kind=workspace, route.enabled=false)`；SecurityPolicy 交付后再启用外部 route |
+| 创建 | 通则"触发实例" → 生成 `workspace_name="ws-"+crockford32(rand40bit)` → 经 cluster-manager Volume REST 提前建好声明的卷 → 把 PVC 引用写入 `roles[0].template.{volumes,volumeMounts}` → `compute.CreateMLService(kind=workspace, route.enabled=false)`；SecurityPolicy 交付后再启用外部 route |
 | 停止 / 启动 | 同 §4.3（工作区恒为 1 副本） |
-| 删除 | 校验 `kind==workspace` → `DeleteMLService(?deletePvc=`，默认 true`)` |
+| 删除 | 校验 `kind==workspace` → `DeleteMLService` → 按需经 cluster-manager Volume REST 回收卷 |
 | 浏览器接入 | 当前不开放；SecurityPolicy 派生交付后再启用 `aud=axisml-workspace` access JWT，现阶段保持 fail-closed |
 
 Platform 不为工作区建任何 PG 表；"这是工作区"由 compute `mlservices.kind='workspace'` 表达。寻址 `/api/v1/workspaces/{name}`。
+
+> **卷编排（Volume orchestration）TODO**：工作区持久卷由 Platform 经 cluster-manager Volume REST 提前创建 / 回收的完整编排（命名、`WorkspaceVolume{new|existing}` 解析、失败回滚、`deletePvc` 语义）将单独设计与实现；当前 compute 已不再派生 PVC，仅引用 Pod 模板里声明的卷。
 
 ### 4.5 制品编排
 
@@ -241,7 +243,7 @@ Dashboard 的聚合模型与接口暂不在本版系统设计中定义，待后�
 | create / name 寻址 detail | `400 active-tenant-required` | 用 header 取 `tenant_name` 作分区键 |
 | tuple / 租户 / 资源池路径 | URL 内已带标识或为全集群对象，header 忽略 | 同上 |
 
-**下游 tenant scope**：URL `{namespace}` 兼容段直接用 `identifier`；物理 K8s Namespace 从 `kubernetes_namespace` 映射取得并单独传递。pool/unit 展开、ElasticQuota 名组装、PVC 生命周期均由 compute 内部完成。
+**下游 tenant scope**：URL `{namespace}` 兼容段直接用 `identifier`；物理 K8s Namespace 从 `kubernetes_namespace` 映射取得并单独传递。pool/unit 展开、ElasticQuota 名组装由 compute 内部完成；持久卷 PVC 的生命周期由 Platform 经 cluster-manager 处理（§4.4），不在 compute。
 
 ### 5.3 列表租户作用域
 
@@ -305,7 +307,7 @@ RBAC 中间件装配见 [auth.md](auth.md)；Platform 路由层挂载 `RequireSy
 | PostgreSQL | 身份 / 授权 / 会话 + 四张定义；与 compute / artifacts 共享 DB，按表名前缀隔离（[database.md](database.md)） |
 | Redis（可选） | 认证热点读缓存（会话有效性 + 身份 / RBAC），key 前缀 `platform:`；权威仍是 PostgreSQL，不可达即回退（[auth.md §2.1](auth.md#21-会话与身份缓存)） |
 | Envoy Gateway | 唯一外部入口；TLS 终止 / HTTPRoute；数据面 SecurityPolicy 待交付（[infra.md](../../../axisml-infra/docs/system_design/overview.md)） |
-| cluster-manager | ResourcePool / Unit CRUD + 租户 CR 物化（含配额折算 + 运行态回源） |
+| cluster-manager | ResourcePool / Unit CRUD + 租户 CR 物化（含配额折算 + 运行态回源）+ 工作区等持久卷的提前创建 / 回收（Volume REST，§4.4） |
 | compute | Run / Service / Workspace / TrafficPolicy / TensorBoard 权威；创建体接 `scheduling{poolName,unitName,quota}` 名字对；资源池删除检查复用按 tenant scope 的 labelSelector 列表查询 |
 | artifacts | 模型 / 镜像版本；两阶段写或 `external` 登记；Platform 负责 `GetArtifact` 预检与 `resolve?usage=inspect` 快照 |
 

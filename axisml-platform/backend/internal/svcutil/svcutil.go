@@ -135,13 +135,9 @@ func BuildWorkspaceInput(req server.WorkspaceCreateRequest) (computeservice.MLSe
 	if req.Description != "" {
 		input["description"] = req.Description
 	}
-	if len(req.Volumes) > 0 && req.Volumes[0].Size != "" {
-		ws := map[string]any{"size": req.Volumes[0].Size}
-		if req.Volumes[0].StorageClass != "" {
-			ws["storageClass"] = req.Volumes[0].StorageClass
-		}
-		input["workspaceStorage"] = ws
-	}
+	// Durable volumes are pre-provisioned by Platform via cluster-manager and
+	// injected into the role template as PVC volume/volumeMount entries. That
+	// orchestration is wired up separately; compute no longer provisions storage.
 	return marshalInput(input)
 }
 

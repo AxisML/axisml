@@ -8,7 +8,6 @@ import (
 	"context"
 	"io"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/axisml/axisml/components/platform/internal/clients/clienterr"
@@ -37,7 +36,6 @@ type (
 	MLServiceTmpl    = gen.MLServicePodTemplate
 	MLServiceRoute   = gen.MLServiceRoute
 	MLServicePatch   = gen.MLServicePatchRequest
-	WorkspaceStorage = gen.MLServiceWorkspaceStorageSpec
 	ServicePort      = gen.MLServicePodPort
 
 	TrafficPolicy   = gen.TrafficPolicy
@@ -287,20 +285,10 @@ func (c *Client) ScaleMLService(ctx context.Context, ns, name string, replicas i
 	return nil, clienterr.FromResponse(service, res.HTTPResponse, res.Body)
 }
 
-// DeleteMLService deletes a service. deletePvc (nil = downstream default) controls
-// PVC cascade for workspaces; it is sent as a ?deletePvc query param.
-func (c *Client) DeleteMLService(ctx context.Context, ns, name string, deletePvc *bool) error {
-	var editors []gen.RequestEditorFn
-	if deletePvc != nil {
-		v := strconv.FormatBool(*deletePvc)
-		editors = append(editors, func(_ context.Context, req *http.Request) error {
-			q := req.URL.Query()
-			q.Set("deletePvc", v)
-			req.URL.RawQuery = q.Encode()
-			return nil
-		})
-	}
-	res, err := c.gen.DeleteMLServiceWithResponse(ctx, ns, name, editors...)
+// DeleteMLService deletes a service. A workspace's durable volume is reclaimed
+// by Platform via cluster-manager, not through this call.
+func (c *Client) DeleteMLService(ctx context.Context, ns, name string) error {
+	res, err := c.gen.DeleteMLServiceWithResponse(ctx, ns, name)
 	if err != nil {
 		return clienterr.Transport(service, err)
 	}

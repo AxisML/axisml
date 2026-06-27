@@ -6,7 +6,7 @@ ML 工作负载服务：以 PostgreSQL 为权威，承载 Job / Service / Worksp
 
 | 做 | 不做 |
 | --- | --- |
-| Job / Service CRUD、cancel / scale、软删；workspace 创建时附带 PVC 生命周期 | 租户 / 配额（Tenant CR + 折算）(→ [cluster-manager.md](cluster-manager.md)) |
+| Job / Service CRUD、cancel / scale、软删；工作区卷由 Platform 提前建好，compute 仅在 Pod 模板里以 PVC 引用挂载 | 租户 / 配额（Tenant CR + 折算）(→ [cluster-manager.md](cluster-manager.md))；持久卷 PVC 的创建 / 回收与对应 RBAC（→ Platform 经 [cluster-manager.md §4.5](cluster-manager.md#45-volume) Volume REST 提前建卷；compute 不调 cluster-manager、无 PVC 写权限） |
 | 流量策略 CRUD、split / promote / rollback、指标代理；成员校验权威 | Namespace / ElasticQuota / initResources 落地 (→ [tenant-operator.md](tenant-operator.md)) |
 | 三类 CR spec 下发 + status 回流 | 直接创建 Pod / Deployment / PodGroup（→ [compute-operator.md](compute-operator.md)） |
 | Pod 列表 / 日志 / 事件透传 kube-apiserver | 加权 HTTPRoute / 灰度的网关派生 (→ [compute-operator.md](compute-operator.md)) |
@@ -77,7 +77,7 @@ Creating ─(Informer ADD)─▶ Pending ─▶ Running ─▶ Succeeded / Faile
 
 `Succeeded` / `Failed` / `Cancelled` 为运行终态；`Deleted` 为软删终态（`Cancelled` 行保留，可再 DELETE）。
 
-**Run 对象存储产出**：实验等 Run 把 TensorBoard event log / checkpoint 写到对象存储——路径（`experiments/<def>/runs/<run>/...`）与凭证由 operator 渲染 Pod 时注入（[compute-operator.md §5.2](compute-operator.md#52-pod-注入约定)）；Run 软删时按对象存储约定前缀一并 GC（与工作区 PVC GC 同档）。
+**Run 对象存储产出**：实验等 Run 把 TensorBoard event log / checkpoint 写到对象存储——路径（`experiments/<def>/runs/<run>/...`）与凭证由 operator 渲染 Pod 时注入（[compute-operator.md §5.2](compute-operator.md#52-pod-注入约定)）；Run 软删时按对象存储约定前缀一并 GC（与工作区卷 GC 同档）。
 
 **MLRun CR 契约**：`status.phase` 直映 PG `status`（`Pending`/`Running`/`Succeeded`/`Failed`）；`Pending`/`Running` + `conditions[Suspended,True,CancelRequested]` → PG `Cancelled`（随后入队 `Delete()` 回收）。Cancel 与自然完成竞速时 operator 优先保留终态。
 
@@ -93,15 +93,15 @@ Creating ─(Informer ADD)─▶ Pending ─(ready=desired>0)─▶ Ready ⇄ De
 
 | 操作 | PG 写 | CR 影响 |
 | --- | --- | --- |
-| 创建 | insert `Creating` + spec 快照 | `Create()` MLService（含 `axisml.io/service-{id,kind}` label）；`kind='workspace'` 时同事务派生 PVC `axisml-ws-<name>-data` 挂到 `roles[0].template.volumes[]` |
+| 创建 | insert `Creating` + spec 快照 | `Create()` MLService（含 `axisml.io/service-{id,kind}` label）；`kind='workspace'` 的持久卷由 Platform 提前建好，以 PVC 引用写在 `roles[0].template.volumes[]`，compute 原样下发 |
 | scale | `spec.roles[0].replicas` + `generation += 1` | `generation>observed_generation` 触发 patch replicas |
 | 更新 PG 元数据 | update 行 | 不影响 CR、不 `+generation` |
-| 软删 | 在线服务先检查是否被活跃 TrafficPolicy 引用，命中则 `409 service-in-use`；通过后写 `phase='Deleting'` + `deleted_at` | `Delete()` CR；`kind='workspace'` 按 `?deletePvc=true`（默认）一并删 PVC |
+| 软删 | 在线服务先检查是否被活跃 TrafficPolicy 引用，命中则 `409 service-in-use`；通过后写 `phase='Deleting'` + `deleted_at` | `Delete()` CR；工作区卷的回收由 Platform 经 cluster-manager 处理，compute 不删卷 |
 | Pod 列表 / 日志 / 事件 / 指标 | — | 同 Job；指标按 `spec.backend` 选 PromQL 查 Prometheus，返 `MetricSeries`（QPS / 延迟 / 错误率 / CPU·内存·GPU） |
 
 Service 无 cancel；除 `roles[0].replicas` 与 `kind` 外其他 spec 不可变。
 
-**workspace PVC 生命周期**：`kind='workspace'` 同事务创建 PVC（命名 deterministic `axisml-ws-<name>-data`，size / storageClass 由请求体携带）；PVC 失败 → 同事务回滚 MLService 行、整个 POST 返 5xx。删除按 `?deletePvc=true`（默认）GC PVC。
+**workspace 卷**：`kind='workspace'` 的持久卷不是 compute 的职责。卷由 Platform 提前经 cluster-manager Volume REST 创建（[cluster-manager.md §4.5](cluster-manager.md#45-volume)），并由 Platform 以 PVC 引用（`persistentVolumeClaim.claimName`）写进 `roles[0].template.{volumes,volumeMounts}`。compute 只把该 Pod 模板原样下发到 CR，不创建、不删除、不感知卷，也不持有 PVC 写权限；卷的回收同样由 Platform 经 cluster-manager 完成。
 
 **MLService CR 契约**：
 
@@ -113,7 +113,7 @@ Service 无 cancel；除 `roles[0].replicas` 与 `kind` 外其他 spec 不可变
 | `ready == 0 && desired > 0` 且 CR `Failed` | `Failed`（可自愈） |
 | `desired == 0` | `Pending` |
 
-**kind 过滤**：`GET .../mlservices?kind=workspace`（或 `service` / `tensorboard`）供上游在同一张表上区分在线服务 / 交互式开发 / 实验指标查看实例。`kind='tensorboard'` 复用 `(native, deployment)`、**不派生 PVC**，logdir 与读凭证由 operator 渲染 Pod 时注入，可按空闲 TTL 回收（由上游编排）。
+**kind 过滤**：`GET .../mlservices?kind=workspace`（或 `service` / `tensorboard`）供上游在同一张表上区分在线服务 / 交互式开发 / 实验指标查看实例。`kind='tensorboard'` 复用 `(native, deployment)`、**无持久卷**，logdir 与读凭证由 operator 渲染 Pod 时注入，可按空闲 TTL 回收（由上游编排）。
 
 ### 4.3 流量策略（MLTrafficPolicy）
 
@@ -243,7 +243,7 @@ Compute 不感知 ElasticQuota CR 内部结构——以 `axisml-<identifier>-<po
 | 副本 | 默认 `replicas=1`（API 无状态可水平扩，reconciler / Informer 单 leader） |
 | Leader Election | K8s `Lease`（`axisml-compute-service.axisml.io`）；`/metrics` 暴露 `axisml_compute_is_leader` |
 | 暴露端口 | API `:8080`；Metrics `:8081`；Probes `:8082`（`/readyz` 校验 PG）；ClusterIP，无外部 HTTPRoute |
-| RBAC scope | `mlruns`/`mlservices`/`mltrafficpolicies.axisml.io` 全权 + `resourcepools` `get/list/watch`（展开）+ 跨 ns `persistentvolumeclaims` `get/list/watch/create/delete`（仅 workspace）+ `pods`/`pods/log`/`events` RO + 自身 ns `leases`；**不含** `tenants` / `elasticquotas` / `namespaces` / `secrets` |
+| RBAC scope | `mlruns`/`mlservices`/`mltrafficpolicies.axisml.io` 全权 + `resourcepools` `get/list/watch`（展开）+ `pods`/`pods/log`/`events` RO + 自身 ns `leases`；**不含** `persistentvolumeclaims`（持久卷由 Platform 经 cluster-manager 提前创建）/ `tenants` / `elasticquotas` / `namespaces` / `secrets` |
 | Helm / 镜像 | 见 [deployment.md §8.3](../../../docs/deployment.md#83-helm-模板清单) |
 
 ## 9. 相关引用
@@ -254,5 +254,5 @@ Compute 不感知 ElasticQuota CR 内部结构——以 `axisml-<identifier>-<po
 - [deployment.md](../../../docs/deployment.md) · [infra.md](../../../axisml-infra/docs/system_design/overview.md)
 - [openapi/compute-service.yaml](../apis/compute-service.yaml) — REST 契约源
 - [compute-operator.md](compute-operator.md) — 下游 CR 消费者与 handler 实现
-- [cluster-manager.md](cluster-manager.md) — ResourcePool CRD 写入方；本服务经 Informer 直读做展开
+- [cluster-manager.md](cluster-manager.md) — ResourcePool CRD 写入方（本服务经 Informer 直读做展开）；Volume REST 由 Platform 调用提前建卷，本服务仅在 Pod 模板里引用挂载
 - [artifact-hub.md](artifact-hub.md) — Job / Service 引用懒查询

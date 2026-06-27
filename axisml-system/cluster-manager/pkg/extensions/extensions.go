@@ -5,13 +5,17 @@
 // concrete stores:
 //
 //   - Kubernetes injects stores backed by the cluster-scoped ResourcePool /
-//     Tenant CRs (full CRUD with optimistic locking).
+//     Tenant CRs (full CRUD with optimistic locking) and a VolumeStore that
+//     materialises PersistentVolumeClaims.
 //   - Lite injects read-only stores backed by the static CR-YAML config; write
 //     operations return ErrCapabilityUnavailable, which the handlers surface as
-//     409 CapabilityUnavailable (design §5.1).
+//     409 CapabilityUnavailable (design §5.1). Its VolumeStore is writable,
+//     backed by managed Docker volumes — workspace volumes are created on demand
+//     in every deployment form.
 //
-// The stores traffic in the shared CR API types — the handlers own all request
-// validation, business folding and HTTP translation.
+// The pool / tenant stores traffic in the shared CR API types; the VolumeStore
+// trafficks in a neutral Volume value. The handlers own all request validation,
+// business folding and HTTP translation.
 package extensions
 
 import (
@@ -46,6 +50,33 @@ type ResourcePoolStore interface {
 	// The Kubernetes store returns true; the Lite read-only config store returns
 	// false. It backs the cluster-manager capability document.
 	Writable() bool
+}
+
+// Volume is the neutral representation of a durable volume cluster-manager
+// materialises (design §3.4). The Kubernetes store backs it with a
+// PersistentVolumeClaim; the Lite store backs it with a managed Docker volume.
+// cluster-manager does not interpret the volume's purpose — the deterministic
+// naming (e.g. a workspace's axisml-ws-<svc>-data) and the pod mount are the
+// caller's job; this service only materialises / reclaims by (Namespace, Name).
+type Volume struct {
+	Namespace string
+	Name      string
+	// Size is a Kubernetes Quantity string. Required for the Kubernetes store;
+	// the Lite Docker store accepts it for parity but ignores it (a single-host
+	// volume has no fixed size and grows on demand).
+	Size string
+	// StorageClass selects the backing StorageClass ("" = cluster default).
+	// Ignored by the Lite store.
+	StorageClass string
+}
+
+// VolumeStore is the persistence seam for durable volumes. Both operations are
+// idempotent: Ensure treats an already-existing volume as success; Delete treats
+// a missing volume as success. Unlike the pool / tenant stores there is no
+// Writable() variance — volumes are writable in every deployment form.
+type VolumeStore interface {
+	Ensure(ctx context.Context, v Volume) error
+	Delete(ctx context.Context, namespace, name string) error
 }
 
 // TenantStore is the persistence seam for the Tenant CR.
