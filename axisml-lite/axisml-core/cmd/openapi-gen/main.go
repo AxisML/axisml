@@ -5,7 +5,7 @@
 // Service + Artifact Hub) onto one HTTP server at the same paths the standalone
 // System services expose, plus its own probes and aggregate capability
 // endpoint. The composite spec is the UNION of the Lite-owned surface (built
-// here by reflection over internal/core) and the three System surfaces.
+// here by reflection over pkg/core) and the three System surfaces.
 //
 // We build each System surface in-process from its pkg/apidoc.Document builder —
 // the SAME builder the System layer's own openapi-gen renders to YAML — so the
@@ -27,7 +27,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/axisml/axisml/axisml-lite/axisml-core/internal/core"
+	"github.com/axisml/axisml/axisml-lite/axisml-core/pkg/core"
 	arthubapidoc "github.com/axisml/axisml/components/artifact-hub/pkg/apidoc"
 	clustermgrapidoc "github.com/axisml/axisml/components/cluster-manager/pkg/apidoc"
 	computeapidoc "github.com/axisml/axisml/components/compute-service/pkg/apidoc"
@@ -77,10 +77,10 @@ func fail(format string, args ...any) {
 
 func buildDocument(version string) *openapigen.Document {
 	g := openapigen.New(openapigen.Options{
-		// The capability DTO lives in the flat internal/core package, so map it to
+		// The capability DTO lives in the flat pkg/core package, so map it to
 		// an empty prefix and the schema name equals the Go type name verbatim.
 		PackageNamer: func(pkg string) (string, bool) {
-			if strings.HasSuffix(pkg, "/axisml-lite/axisml-core/internal/core") {
+			if strings.HasSuffix(pkg, "/axisml-lite/axisml-core/pkg/core") {
 				return "", true
 			}
 			return "", false

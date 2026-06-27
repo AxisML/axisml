@@ -6,7 +6,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/axisml/axisml/axisml-lite/axisml-core/internal/core"
+	"github.com/axisml/axisml/axisml-lite/axisml-core/pkg/core"
 	"github.com/axisml/axisml/pkg/configdoc"
 )
 
