@@ -82,6 +82,21 @@ type Apiv1alpha1SourceSecretRef struct {
 	Namespace string `json:"namespace"`
 }
 
+// Capabilities defines model for Capabilities.
+type Capabilities struct {
+	MultiTenant           bool `json:"multiTenant"`
+	ResourcePoolsWritable bool `json:"resourcePoolsWritable"`
+}
+
+// ClusterManagerError defines model for ClusterManagerError.
+type ClusterManagerError struct {
+	Code   *string `json:"code,omitempty"`
+	Detail *string `json:"detail,omitempty"`
+	Status int     `json:"status"`
+	Title  string  `json:"title"`
+	Type   string  `json:"type"`
+}
+
 // Corev1Toleration defines model for Corev1Toleration.
 type Corev1Toleration struct {
 	Effect            *string `json:"effect,omitempty"`
@@ -126,6 +141,14 @@ type CreateTenantRequest struct {
 	Quotas        *[]ServerQuota            `json:"quotas,omitempty"`
 }
 
+// CreateVolumeRequest defines model for CreateVolumeRequest.
+type CreateVolumeRequest struct {
+	Name         *string `json:"name,omitempty"`
+	Namespace    *string `json:"namespace,omitempty"`
+	Size         *string `json:"size,omitempty"`
+	StorageClass *string `json:"storageClass,omitempty"`
+}
+
 // PatchQuotaRequest defines model for PatchQuotaRequest.
 type PatchQuotaRequest struct {
 	Units *[]ServerQuotaUnit `json:"units,omitempty"`
@@ -160,15 +183,6 @@ type PatchTenantRequest struct {
 	Labels               *map[string]string        `json:"labels,omitempty"`
 	NamespaceAnnotations *map[string]string        `json:"namespaceAnnotations,omitempty"`
 	NamespaceLabels      *map[string]string        `json:"namespaceLabels,omitempty"`
-}
-
-// Problem defines model for Problem.
-type Problem struct {
-	Code   *string `json:"code,omitempty"`
-	Detail *string `json:"detail,omitempty"`
-	Status int     `json:"status"`
-	Title  string  `json:"title"`
-	Type   string  `json:"type"`
 }
 
 // Quota defines model for Quota.
@@ -346,6 +360,14 @@ type TenantList struct {
 	Items         []ServerTenant `json:"items"`
 }
 
+// Volume defines model for Volume.
+type Volume struct {
+	Name         string  `json:"name"`
+	Namespace    string  `json:"namespace"`
+	Size         *string `json:"size,omitempty"`
+	StorageClass *string `json:"storageClass,omitempty"`
+}
+
 // ListResourcePoolsParams defines parameters for ListResourcePools.
 type ListResourcePoolsParams struct {
 	// LabelSelector K8s-style label selector.
@@ -387,6 +409,9 @@ type SetTenantQuotaJSONRequestBody = SetQuotaRequest
 
 // UpdateTenantQuotaJSONRequestBody defines body for UpdateTenantQuota for application/json ContentType.
 type UpdateTenantQuotaJSONRequestBody = PatchQuotaRequest
+
+// CreateVolumeJSONRequestBody defines body for CreateVolume for application/json ContentType.
+type CreateVolumeJSONRequestBody = CreateVolumeRequest
 
 // RequestEditorFn  is the function signature for the RequestEditor callback function
 type RequestEditorFn func(ctx context.Context, req *http.Request) error
@@ -461,6 +486,9 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 
 // The interface specification for the client above.
 type ClientInterface interface {
+	// GetCapabilities request
+	GetCapabilities(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListResourcePools request
 	ListResourcePools(ctx context.Context, params *ListResourcePoolsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -534,11 +562,31 @@ type ClientInterface interface {
 
 	UpdateTenantQuota(ctx context.Context, tenant string, pool string, body UpdateTenantQuotaJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// CreateVolumeWithBody request with any body
+	CreateVolumeWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateVolume(ctx context.Context, body CreateVolumeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteVolume request
+	DeleteVolume(ctx context.Context, namespace string, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// Healthz request
 	Healthz(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// Readyz request
 	Readyz(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+}
+
+func (c *Client) GetCapabilities(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetCapabilitiesRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
 }
 
 func (c *Client) ListResourcePools(ctx context.Context, params *ListResourcePoolsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -865,6 +913,42 @@ func (c *Client) UpdateTenantQuota(ctx context.Context, tenant string, pool stri
 	return c.Client.Do(req)
 }
 
+func (c *Client) CreateVolumeWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateVolumeRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateVolume(ctx context.Context, body CreateVolumeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateVolumeRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteVolume(ctx context.Context, namespace string, name string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteVolumeRequest(c.Server, namespace, name)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) Healthz(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewHealthzRequest(c.Server)
 	if err != nil {
@@ -887,6 +971,33 @@ func (c *Client) Readyz(ctx context.Context, reqEditors ...RequestEditorFn) (*ht
 		return nil, err
 	}
 	return c.Client.Do(req)
+}
+
+// NewGetCapabilitiesRequest generates requests for GetCapabilities
+func NewGetCapabilitiesRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/capabilities")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
 }
 
 // NewListResourcePoolsRequest generates requests for ListResourcePools
@@ -1712,6 +1823,87 @@ func NewUpdateTenantQuotaRequestWithBody(server string, tenant string, pool stri
 	return req, nil
 }
 
+// NewCreateVolumeRequest calls the generic CreateVolume builder with application/json body
+func NewCreateVolumeRequest(server string, body CreateVolumeJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateVolumeRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewCreateVolumeRequestWithBody generates requests for CreateVolume with any type of body
+func NewCreateVolumeRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/volumes")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteVolumeRequest generates requests for DeleteVolume
+func NewDeleteVolumeRequest(server string, namespace string, name string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespace", runtime.ParamLocationPath, namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/volumes/%s/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewHealthzRequest generates requests for Healthz
 func NewHealthzRequest(server string) (*http.Request, error) {
 	var err error
@@ -1809,6 +2001,9 @@ func WithBaseURL(baseURL string) ClientOption {
 
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
+	// GetCapabilitiesWithResponse request
+	GetCapabilitiesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetCapabilitiesResponse, error)
+
 	// ListResourcePoolsWithResponse request
 	ListResourcePoolsWithResponse(ctx context.Context, params *ListResourcePoolsParams, reqEditors ...RequestEditorFn) (*ListResourcePoolsResponse, error)
 
@@ -1882,6 +2077,14 @@ type ClientWithResponsesInterface interface {
 
 	UpdateTenantQuotaWithResponse(ctx context.Context, tenant string, pool string, body UpdateTenantQuotaJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateTenantQuotaResponse, error)
 
+	// CreateVolumeWithBodyWithResponse request with any body
+	CreateVolumeWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateVolumeResponse, error)
+
+	CreateVolumeWithResponse(ctx context.Context, body CreateVolumeJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateVolumeResponse, error)
+
+	// DeleteVolumeWithResponse request
+	DeleteVolumeWithResponse(ctx context.Context, namespace string, name string, reqEditors ...RequestEditorFn) (*DeleteVolumeResponse, error)
+
 	// HealthzWithResponse request
 	HealthzWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*HealthzResponse, error)
 
@@ -1889,17 +2092,39 @@ type ClientWithResponsesInterface interface {
 	ReadyzWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ReadyzResponse, error)
 }
 
+type GetCapabilitiesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Capabilities
+}
+
+// Status returns HTTPResponse.Status
+func (r GetCapabilitiesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetCapabilitiesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type ListResourcePoolsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *ResourcePoolList
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON422      *Problem
-	JSON500      *Problem
-	JSONDefault  *Problem
+	JSON400      *ClusterManagerError
+	JSON401      *ClusterManagerError
+	JSON404      *ClusterManagerError
+	JSON409      *ClusterManagerError
+	JSON422      *ClusterManagerError
+	JSON500      *ClusterManagerError
+	JSONDefault  *ClusterManagerError
 }
 
 // Status returns HTTPResponse.Status
@@ -1922,13 +2147,13 @@ type CreateResourcePoolResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *ResourcePool
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON422      *Problem
-	JSON500      *Problem
-	JSONDefault  *Problem
+	JSON400      *ClusterManagerError
+	JSON401      *ClusterManagerError
+	JSON404      *ClusterManagerError
+	JSON409      *ClusterManagerError
+	JSON422      *ClusterManagerError
+	JSON500      *ClusterManagerError
+	JSONDefault  *ClusterManagerError
 }
 
 // Status returns HTTPResponse.Status
@@ -1950,13 +2175,13 @@ func (r CreateResourcePoolResponse) StatusCode() int {
 type DeleteResourcePoolResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON422      *Problem
-	JSON500      *Problem
-	JSONDefault  *Problem
+	JSON400      *ClusterManagerError
+	JSON401      *ClusterManagerError
+	JSON404      *ClusterManagerError
+	JSON409      *ClusterManagerError
+	JSON422      *ClusterManagerError
+	JSON500      *ClusterManagerError
+	JSONDefault  *ClusterManagerError
 }
 
 // Status returns HTTPResponse.Status
@@ -1979,13 +2204,13 @@ type GetResourcePoolResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *ResourcePool
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON422      *Problem
-	JSON500      *Problem
-	JSONDefault  *Problem
+	JSON400      *ClusterManagerError
+	JSON401      *ClusterManagerError
+	JSON404      *ClusterManagerError
+	JSON409      *ClusterManagerError
+	JSON422      *ClusterManagerError
+	JSON500      *ClusterManagerError
+	JSONDefault  *ClusterManagerError
 }
 
 // Status returns HTTPResponse.Status
@@ -2008,13 +2233,13 @@ type UpdateResourcePoolResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *ResourcePool
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON422      *Problem
-	JSON500      *Problem
-	JSONDefault  *Problem
+	JSON400      *ClusterManagerError
+	JSON401      *ClusterManagerError
+	JSON404      *ClusterManagerError
+	JSON409      *ClusterManagerError
+	JSON422      *ClusterManagerError
+	JSON500      *ClusterManagerError
+	JSONDefault  *ClusterManagerError
 }
 
 // Status returns HTTPResponse.Status
@@ -2037,13 +2262,13 @@ type ListResourceUnitsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *ResourceUnitList
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON422      *Problem
-	JSON500      *Problem
-	JSONDefault  *Problem
+	JSON400      *ClusterManagerError
+	JSON401      *ClusterManagerError
+	JSON404      *ClusterManagerError
+	JSON409      *ClusterManagerError
+	JSON422      *ClusterManagerError
+	JSON500      *ClusterManagerError
+	JSONDefault  *ClusterManagerError
 }
 
 // Status returns HTTPResponse.Status
@@ -2066,13 +2291,13 @@ type CreateResourceUnitResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *ResourceUnit
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON422      *Problem
-	JSON500      *Problem
-	JSONDefault  *Problem
+	JSON400      *ClusterManagerError
+	JSON401      *ClusterManagerError
+	JSON404      *ClusterManagerError
+	JSON409      *ClusterManagerError
+	JSON422      *ClusterManagerError
+	JSON500      *ClusterManagerError
+	JSONDefault  *ClusterManagerError
 }
 
 // Status returns HTTPResponse.Status
@@ -2094,13 +2319,13 @@ func (r CreateResourceUnitResponse) StatusCode() int {
 type DeleteResourceUnitResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON422      *Problem
-	JSON500      *Problem
-	JSONDefault  *Problem
+	JSON400      *ClusterManagerError
+	JSON401      *ClusterManagerError
+	JSON404      *ClusterManagerError
+	JSON409      *ClusterManagerError
+	JSON422      *ClusterManagerError
+	JSON500      *ClusterManagerError
+	JSONDefault  *ClusterManagerError
 }
 
 // Status returns HTTPResponse.Status
@@ -2123,13 +2348,13 @@ type GetResourceUnitResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *ResourceUnit
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON422      *Problem
-	JSON500      *Problem
-	JSONDefault  *Problem
+	JSON400      *ClusterManagerError
+	JSON401      *ClusterManagerError
+	JSON404      *ClusterManagerError
+	JSON409      *ClusterManagerError
+	JSON422      *ClusterManagerError
+	JSON500      *ClusterManagerError
+	JSONDefault  *ClusterManagerError
 }
 
 // Status returns HTTPResponse.Status
@@ -2152,13 +2377,13 @@ type UpdateResourceUnitResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *ResourceUnit
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON422      *Problem
-	JSON500      *Problem
-	JSONDefault  *Problem
+	JSON400      *ClusterManagerError
+	JSON401      *ClusterManagerError
+	JSON404      *ClusterManagerError
+	JSON409      *ClusterManagerError
+	JSON422      *ClusterManagerError
+	JSON500      *ClusterManagerError
+	JSONDefault  *ClusterManagerError
 }
 
 // Status returns HTTPResponse.Status
@@ -2181,13 +2406,13 @@ type ListTenantsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *TenantList
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON422      *Problem
-	JSON500      *Problem
-	JSONDefault  *Problem
+	JSON400      *ClusterManagerError
+	JSON401      *ClusterManagerError
+	JSON404      *ClusterManagerError
+	JSON409      *ClusterManagerError
+	JSON422      *ClusterManagerError
+	JSON500      *ClusterManagerError
+	JSONDefault  *ClusterManagerError
 }
 
 // Status returns HTTPResponse.Status
@@ -2210,13 +2435,13 @@ type CreateTenantResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *Tenant
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON422      *Problem
-	JSON500      *Problem
-	JSONDefault  *Problem
+	JSON400      *ClusterManagerError
+	JSON401      *ClusterManagerError
+	JSON404      *ClusterManagerError
+	JSON409      *ClusterManagerError
+	JSON422      *ClusterManagerError
+	JSON500      *ClusterManagerError
+	JSONDefault  *ClusterManagerError
 }
 
 // Status returns HTTPResponse.Status
@@ -2238,13 +2463,13 @@ func (r CreateTenantResponse) StatusCode() int {
 type DeleteTenantResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON422      *Problem
-	JSON500      *Problem
-	JSONDefault  *Problem
+	JSON400      *ClusterManagerError
+	JSON401      *ClusterManagerError
+	JSON404      *ClusterManagerError
+	JSON409      *ClusterManagerError
+	JSON422      *ClusterManagerError
+	JSON500      *ClusterManagerError
+	JSONDefault  *ClusterManagerError
 }
 
 // Status returns HTTPResponse.Status
@@ -2267,13 +2492,13 @@ type GetTenantResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Tenant
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON422      *Problem
-	JSON500      *Problem
-	JSONDefault  *Problem
+	JSON400      *ClusterManagerError
+	JSON401      *ClusterManagerError
+	JSON404      *ClusterManagerError
+	JSON409      *ClusterManagerError
+	JSON422      *ClusterManagerError
+	JSON500      *ClusterManagerError
+	JSONDefault  *ClusterManagerError
 }
 
 // Status returns HTTPResponse.Status
@@ -2296,13 +2521,13 @@ type UpdateTenantResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Tenant
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON422      *Problem
-	JSON500      *Problem
-	JSONDefault  *Problem
+	JSON400      *ClusterManagerError
+	JSON401      *ClusterManagerError
+	JSON404      *ClusterManagerError
+	JSON409      *ClusterManagerError
+	JSON422      *ClusterManagerError
+	JSON500      *ClusterManagerError
+	JSONDefault  *ClusterManagerError
 }
 
 // Status returns HTTPResponse.Status
@@ -2325,13 +2550,13 @@ type ListTenantQuotasResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *QuotaList
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON422      *Problem
-	JSON500      *Problem
-	JSONDefault  *Problem
+	JSON400      *ClusterManagerError
+	JSON401      *ClusterManagerError
+	JSON404      *ClusterManagerError
+	JSON409      *ClusterManagerError
+	JSON422      *ClusterManagerError
+	JSON500      *ClusterManagerError
+	JSONDefault  *ClusterManagerError
 }
 
 // Status returns HTTPResponse.Status
@@ -2354,13 +2579,13 @@ type SetTenantQuotaResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Quota
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON422      *Problem
-	JSON500      *Problem
-	JSONDefault  *Problem
+	JSON400      *ClusterManagerError
+	JSON401      *ClusterManagerError
+	JSON404      *ClusterManagerError
+	JSON409      *ClusterManagerError
+	JSON422      *ClusterManagerError
+	JSON500      *ClusterManagerError
+	JSONDefault  *ClusterManagerError
 }
 
 // Status returns HTTPResponse.Status
@@ -2382,13 +2607,13 @@ func (r SetTenantQuotaResponse) StatusCode() int {
 type DeleteTenantQuotaResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON422      *Problem
-	JSON500      *Problem
-	JSONDefault  *Problem
+	JSON400      *ClusterManagerError
+	JSON401      *ClusterManagerError
+	JSON404      *ClusterManagerError
+	JSON409      *ClusterManagerError
+	JSON422      *ClusterManagerError
+	JSON500      *ClusterManagerError
+	JSONDefault  *ClusterManagerError
 }
 
 // Status returns HTTPResponse.Status
@@ -2411,13 +2636,13 @@ type UpdateTenantQuotaResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Quota
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON422      *Problem
-	JSON500      *Problem
-	JSONDefault  *Problem
+	JSON400      *ClusterManagerError
+	JSON401      *ClusterManagerError
+	JSON404      *ClusterManagerError
+	JSON409      *ClusterManagerError
+	JSON422      *ClusterManagerError
+	JSON500      *ClusterManagerError
+	JSONDefault  *ClusterManagerError
 }
 
 // Status returns HTTPResponse.Status
@@ -2430,6 +2655,63 @@ func (r UpdateTenantQuotaResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r UpdateTenantQuotaResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateVolumeResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *Volume
+	JSON400      *ClusterManagerError
+	JSON401      *ClusterManagerError
+	JSON404      *ClusterManagerError
+	JSON409      *ClusterManagerError
+	JSON422      *ClusterManagerError
+	JSON500      *ClusterManagerError
+	JSONDefault  *ClusterManagerError
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateVolumeResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateVolumeResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteVolumeResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *ClusterManagerError
+	JSON401      *ClusterManagerError
+	JSON404      *ClusterManagerError
+	JSON409      *ClusterManagerError
+	JSON422      *ClusterManagerError
+	JSON500      *ClusterManagerError
+	JSONDefault  *ClusterManagerError
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteVolumeResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteVolumeResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -2476,6 +2758,15 @@ func (r ReadyzResponse) StatusCode() int {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
+}
+
+// GetCapabilitiesWithResponse request returning *GetCapabilitiesResponse
+func (c *ClientWithResponses) GetCapabilitiesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetCapabilitiesResponse, error) {
+	rsp, err := c.GetCapabilities(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetCapabilitiesResponse(rsp)
 }
 
 // ListResourcePoolsWithResponse request returning *ListResourcePoolsResponse
@@ -2713,6 +3004,32 @@ func (c *ClientWithResponses) UpdateTenantQuotaWithResponse(ctx context.Context,
 	return ParseUpdateTenantQuotaResponse(rsp)
 }
 
+// CreateVolumeWithBodyWithResponse request with arbitrary body returning *CreateVolumeResponse
+func (c *ClientWithResponses) CreateVolumeWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateVolumeResponse, error) {
+	rsp, err := c.CreateVolumeWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateVolumeResponse(rsp)
+}
+
+func (c *ClientWithResponses) CreateVolumeWithResponse(ctx context.Context, body CreateVolumeJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateVolumeResponse, error) {
+	rsp, err := c.CreateVolume(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateVolumeResponse(rsp)
+}
+
+// DeleteVolumeWithResponse request returning *DeleteVolumeResponse
+func (c *ClientWithResponses) DeleteVolumeWithResponse(ctx context.Context, namespace string, name string, reqEditors ...RequestEditorFn) (*DeleteVolumeResponse, error) {
+	rsp, err := c.DeleteVolume(ctx, namespace, name, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteVolumeResponse(rsp)
+}
+
 // HealthzWithResponse request returning *HealthzResponse
 func (c *ClientWithResponses) HealthzWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*HealthzResponse, error) {
 	rsp, err := c.Healthz(ctx, reqEditors...)
@@ -2729,6 +3046,32 @@ func (c *ClientWithResponses) ReadyzWithResponse(ctx context.Context, reqEditors
 		return nil, err
 	}
 	return ParseReadyzResponse(rsp)
+}
+
+// ParseGetCapabilitiesResponse parses an HTTP response from a GetCapabilitiesWithResponse call
+func ParseGetCapabilitiesResponse(rsp *http.Response) (*GetCapabilitiesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetCapabilitiesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Capabilities
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
 }
 
 // ParseListResourcePoolsResponse parses an HTTP response from a ListResourcePoolsWithResponse call
@@ -2753,49 +3096,49 @@ func ParseListResourcePoolsResponse(rsp *http.Response) (*ListResourcePoolsRespo
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -2828,49 +3171,49 @@ func ParseCreateResourcePoolResponse(rsp *http.Response) (*CreateResourcePoolRes
 		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -2896,49 +3239,49 @@ func ParseDeleteResourcePoolResponse(rsp *http.Response) (*DeleteResourcePoolRes
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -2971,49 +3314,49 @@ func ParseGetResourcePoolResponse(rsp *http.Response) (*GetResourcePoolResponse,
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -3046,49 +3389,49 @@ func ParseUpdateResourcePoolResponse(rsp *http.Response) (*UpdateResourcePoolRes
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -3121,49 +3464,49 @@ func ParseListResourceUnitsResponse(rsp *http.Response) (*ListResourceUnitsRespo
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -3196,49 +3539,49 @@ func ParseCreateResourceUnitResponse(rsp *http.Response) (*CreateResourceUnitRes
 		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -3264,49 +3607,49 @@ func ParseDeleteResourceUnitResponse(rsp *http.Response) (*DeleteResourceUnitRes
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -3339,49 +3682,49 @@ func ParseGetResourceUnitResponse(rsp *http.Response) (*GetResourceUnitResponse,
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -3414,49 +3757,49 @@ func ParseUpdateResourceUnitResponse(rsp *http.Response) (*UpdateResourceUnitRes
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -3489,49 +3832,49 @@ func ParseListTenantsResponse(rsp *http.Response) (*ListTenantsResponse, error) 
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -3564,49 +3907,49 @@ func ParseCreateTenantResponse(rsp *http.Response) (*CreateTenantResponse, error
 		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -3632,49 +3975,49 @@ func ParseDeleteTenantResponse(rsp *http.Response) (*DeleteTenantResponse, error
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -3707,49 +4050,49 @@ func ParseGetTenantResponse(rsp *http.Response) (*GetTenantResponse, error) {
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -3782,49 +4125,49 @@ func ParseUpdateTenantResponse(rsp *http.Response) (*UpdateTenantResponse, error
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -3857,49 +4200,49 @@ func ParseListTenantQuotasResponse(rsp *http.Response) (*ListTenantQuotasRespons
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -3932,49 +4275,49 @@ func ParseSetTenantQuotaResponse(rsp *http.Response) (*SetTenantQuotaResponse, e
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4000,49 +4343,49 @@ func ParseDeleteTenantQuotaResponse(rsp *http.Response) (*DeleteTenantQuotaRespo
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4075,49 +4418,192 @@ func ParseUpdateTenantQuotaResponse(rsp *http.Response) (*UpdateTenantQuotaRespo
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest Problem
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateVolumeResponse parses an HTTP response from a CreateVolumeWithResponse call
+func ParseCreateVolumeResponse(rsp *http.Response) (*CreateVolumeResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateVolumeResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest Volume
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteVolumeResponse parses an HTTP response from a DeleteVolumeWithResponse call
+func ParseDeleteVolumeResponse(rsp *http.Response) (*DeleteVolumeResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteVolumeResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

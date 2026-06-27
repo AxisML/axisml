@@ -14,8 +14,9 @@ import (
 )
 
 // TestRenderServicePlans_WorkspacePVCVolume verifies a PVC-backed (workspace)
-// volume mounts the workspace volume name — the same name EnsureWorkspaceVolume
-// provisions — rather than a generic per-mount volume.
+// volume mounts the volume keyed on its claim name — the same name the
+// VolumeStore (Runtime.Ensure) provisions — rather than a generic per-mount
+// volume.
 func TestRenderServicePlans_WorkspacePVCVolume(t *testing.T) {
 	r := testRuntime()
 	svc := &mlservicev1alpha1.MLService{
@@ -43,7 +44,7 @@ func TestRenderServicePlans_WorkspacePVCVolume(t *testing.T) {
 	require.Len(t, plans, 1)
 	require.Len(t, plans[0].Mounts, 1)
 	m := plans[0].Mounts[0]
-	assert.Equal(t, r.workspaceVolumeName("default", "ws"), m.Source)
+	assert.Equal(t, r.pvcVolumeName("default", "axisml-ws-ws-data"), m.Source)
 	assert.Equal(t, "/workspace", m.Target)
 }
 

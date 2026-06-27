@@ -14,9 +14,10 @@
 //     Kubernetes reads the ResourcePool CR informer cache; Lite reads a static
 //     config catalog. The business layer merges the looked-up (pool, unit) into
 //     the workload spec snapshot (internal/resource, design §5.4).
-//   - WorkspaceVolumeProvisioner manages the durable volume backing a
-//     kind=workspace MLService. Kubernetes creates a PVC; Lite creates a managed
-//     Docker volume via the runtime.
+//
+// Durable volumes are NOT a compute concern: they are pre-provisioned by Platform
+// via cluster-manager's Volume REST, and compute only references one by mounting
+// the PVC the caller declares in the workload's pod template.
 //
 // The MLRun / MLService / MLTrafficPolicy API types are Compute's unified
 // desired-state contract: Compute Service builds the desired object from its

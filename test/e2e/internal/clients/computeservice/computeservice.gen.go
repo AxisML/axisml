@@ -18,18 +18,39 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
-// Defines values for ProblemCode.
+// Defines values for ComputeServiceErrorCode.
 const (
-	Conflict           ProblemCode = "conflict"
-	Forbidden          ProblemCode = "forbidden"
-	InternalError      ProblemCode = "internal_error"
-	NotFound           ProblemCode = "not_found"
-	PreconditionFailed ProblemCode = "precondition_failed"
-	QuotaExceeded      ProblemCode = "quota_exceeded"
-	ServiceUnavailable ProblemCode = "service_unavailable"
-	Unauthorized       ProblemCode = "unauthorized"
-	ValidationFailed   ProblemCode = "validation_failed"
+	Conflict           ComputeServiceErrorCode = "conflict"
+	Forbidden          ComputeServiceErrorCode = "forbidden"
+	InternalError      ComputeServiceErrorCode = "internal_error"
+	NotFound           ComputeServiceErrorCode = "not_found"
+	PreconditionFailed ComputeServiceErrorCode = "precondition_failed"
+	QuotaExceeded      ComputeServiceErrorCode = "quota_exceeded"
+	ServiceUnavailable ComputeServiceErrorCode = "service_unavailable"
+	Unauthorized       ComputeServiceErrorCode = "unauthorized"
+	ValidationFailed   ComputeServiceErrorCode = "validation_failed"
 )
+
+// Capabilities defines model for Capabilities.
+type Capabilities struct {
+	QuotaEnforcement bool   `json:"quotaEnforcement"`
+	Runtime          string `json:"runtime"`
+}
+
+// ComputeServiceError defines model for ComputeServiceError.
+type ComputeServiceError struct {
+	// Code Discrete business error class.
+	Code     ComputeServiceErrorCode `json:"code"`
+	Detail   *string                 `json:"detail,omitempty"`
+	Details  *map[string]interface{} `json:"details,omitempty"`
+	Instance *string                 `json:"instance,omitempty"`
+	Status   int                     `json:"status"`
+	Title    string                  `json:"title"`
+	Type     string                  `json:"type"`
+}
+
+// ComputeServiceErrorCode Discrete business error class.
+type ComputeServiceErrorCode string
 
 // Corev1AWSElasticBlockStoreVolumeSource defines model for Corev1AWSElasticBlockStoreVolumeSource.
 type Corev1AWSElasticBlockStoreVolumeSource struct {
@@ -717,21 +738,20 @@ type MLServiceCondition struct {
 
 // MLServiceCreateRequest defines model for MLServiceCreateRequest.
 type MLServiceCreateRequest struct {
-	Annotations      *map[string]string             `json:"annotations,omitempty"`
-	Backend          *MLServiceBackend              `json:"backend"`
-	Description      *string                        `json:"description,omitempty"`
-	DisplayName      *string                        `json:"displayName,omitempty"`
-	Kind             *string                        `json:"kind,omitempty"`
-	Labels           *map[string]string             `json:"labels,omitempty"`
-	Name             string                         `json:"name"`
-	PoolName         string                         `json:"poolName"`
-	PriorityClass    *string                        `json:"priorityClass,omitempty"`
-	Quota            string                         `json:"quota"`
-	Roles            []MLServiceRoleSpec            `json:"roles"`
-	Route            *MLServiceRoute                `json:"route"`
-	RunPolicy        *MLServiceRunPolicy            `json:"runPolicy"`
-	UnitName         string                         `json:"unitName"`
-	WorkspaceStorage *MLServiceWorkspaceStorageSpec `json:"workspaceStorage"`
+	Annotations   *map[string]string  `json:"annotations,omitempty"`
+	Backend       *MLServiceBackend   `json:"backend"`
+	Description   *string             `json:"description,omitempty"`
+	DisplayName   *string             `json:"displayName,omitempty"`
+	Kind          *string             `json:"kind,omitempty"`
+	Labels        *map[string]string  `json:"labels,omitempty"`
+	Name          string              `json:"name"`
+	PoolName      string              `json:"poolName"`
+	PriorityClass *string             `json:"priorityClass,omitempty"`
+	Quota         string              `json:"quota"`
+	Roles         []MLServiceRoleSpec `json:"roles"`
+	Route         *MLServiceRoute     `json:"route"`
+	RunPolicy     *MLServiceRunPolicy `json:"runPolicy"`
+	UnitName      string              `json:"unitName"`
 }
 
 // MLServiceList defines model for MLServiceList.
@@ -846,12 +866,6 @@ type MLServiceStatus struct {
 	Endpoint      *string               `json:"endpoint,omitempty"`
 	Message       *string               `json:"message,omitempty"`
 	ReadyReplicas int32                 `json:"readyReplicas"`
-}
-
-// MLServiceWorkspaceStorageSpec defines model for MLServiceWorkspaceStorageSpec.
-type MLServiceWorkspaceStorageSpec struct {
-	Size         string  `json:"size"`
-	StorageClass *string `json:"storageClass,omitempty"`
 }
 
 // MLTrafficPolicyBackend defines model for MLTrafficPolicyBackend.
@@ -970,21 +984,6 @@ type PodList struct {
 	Items []Pod `json:"items"`
 	Total int64 `json:"total"`
 }
-
-// Problem defines model for Problem.
-type Problem struct {
-	// Code Discrete business error class.
-	Code     ProblemCode             `json:"code"`
-	Detail   *string                 `json:"detail,omitempty"`
-	Details  *map[string]interface{} `json:"details,omitempty"`
-	Instance *string                 `json:"instance,omitempty"`
-	Status   int                     `json:"status"`
-	Title    string                  `json:"title"`
-	Type     string                  `json:"type"`
-}
-
-// ProblemCode Discrete business error class.
-type ProblemCode string
 
 // TrafficPolicy defines model for TrafficPolicy.
 type TrafficPolicy struct {
@@ -1231,6 +1230,9 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 
 // The interface specification for the client above.
 type ClientInterface interface {
+	// GetCapabilities request
+	GetCapabilities(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListMLRuns request
 	ListMLRuns(ctx context.Context, namespace string, params *ListMLRunsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1336,6 +1338,18 @@ type ClientInterface interface {
 
 	// Readyz request
 	Readyz(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+}
+
+func (c *Client) GetCapabilities(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetCapabilitiesRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
 }
 
 func (c *Client) ListMLRuns(ctx context.Context, namespace string, params *ListMLRunsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -1792,6 +1806,33 @@ func (c *Client) Readyz(ctx context.Context, reqEditors ...RequestEditorFn) (*ht
 		return nil, err
 	}
 	return c.Client.Do(req)
+}
+
+// NewGetCapabilitiesRequest generates requests for GetCapabilities
+func NewGetCapabilitiesRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/capabilities")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
 }
 
 // NewListMLRunsRequest generates requests for ListMLRuns
@@ -3431,6 +3472,9 @@ func WithBaseURL(baseURL string) ClientOption {
 
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
+	// GetCapabilitiesWithResponse request
+	GetCapabilitiesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetCapabilitiesResponse, error)
+
 	// ListMLRunsWithResponse request
 	ListMLRunsWithResponse(ctx context.Context, namespace string, params *ListMLRunsParams, reqEditors ...RequestEditorFn) (*ListMLRunsResponse, error)
 
@@ -3538,19 +3582,41 @@ type ClientWithResponsesInterface interface {
 	ReadyzWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ReadyzResponse, error)
 }
 
+type GetCapabilitiesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Capabilities
+}
+
+// Status returns HTTPResponse.Status
+func (r GetCapabilitiesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetCapabilitiesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type ListMLRunsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *MLRunList
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON412      *Problem
-	JSON422      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ComputeServiceError
+	JSON401      *ComputeServiceError
+	JSON403      *ComputeServiceError
+	JSON404      *ComputeServiceError
+	JSON409      *ComputeServiceError
+	JSON412      *ComputeServiceError
+	JSON422      *ComputeServiceError
+	JSON503      *ComputeServiceError
+	JSONDefault  *ComputeServiceError
 }
 
 // Status returns HTTPResponse.Status
@@ -3573,15 +3639,15 @@ type CreateMLRunResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *MLRun
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON412      *Problem
-	JSON422      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ComputeServiceError
+	JSON401      *ComputeServiceError
+	JSON403      *ComputeServiceError
+	JSON404      *ComputeServiceError
+	JSON409      *ComputeServiceError
+	JSON412      *ComputeServiceError
+	JSON422      *ComputeServiceError
+	JSON503      *ComputeServiceError
+	JSONDefault  *ComputeServiceError
 }
 
 // Status returns HTTPResponse.Status
@@ -3603,15 +3669,15 @@ func (r CreateMLRunResponse) StatusCode() int {
 type DeleteMLRunResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON412      *Problem
-	JSON422      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ComputeServiceError
+	JSON401      *ComputeServiceError
+	JSON403      *ComputeServiceError
+	JSON404      *ComputeServiceError
+	JSON409      *ComputeServiceError
+	JSON412      *ComputeServiceError
+	JSON422      *ComputeServiceError
+	JSON503      *ComputeServiceError
+	JSONDefault  *ComputeServiceError
 }
 
 // Status returns HTTPResponse.Status
@@ -3634,15 +3700,15 @@ type GetMLRunResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *MLRun
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON412      *Problem
-	JSON422      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ComputeServiceError
+	JSON401      *ComputeServiceError
+	JSON403      *ComputeServiceError
+	JSON404      *ComputeServiceError
+	JSON409      *ComputeServiceError
+	JSON412      *ComputeServiceError
+	JSON422      *ComputeServiceError
+	JSON503      *ComputeServiceError
+	JSONDefault  *ComputeServiceError
 }
 
 // Status returns HTTPResponse.Status
@@ -3665,15 +3731,15 @@ type PatchMLRunResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *MLRun
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON412      *Problem
-	JSON422      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ComputeServiceError
+	JSON401      *ComputeServiceError
+	JSON403      *ComputeServiceError
+	JSON404      *ComputeServiceError
+	JSON409      *ComputeServiceError
+	JSON412      *ComputeServiceError
+	JSON422      *ComputeServiceError
+	JSON503      *ComputeServiceError
+	JSONDefault  *ComputeServiceError
 }
 
 // Status returns HTTPResponse.Status
@@ -3696,15 +3762,15 @@ type CancelMLRunResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON202      *MLRun
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON412      *Problem
-	JSON422      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ComputeServiceError
+	JSON401      *ComputeServiceError
+	JSON403      *ComputeServiceError
+	JSON404      *ComputeServiceError
+	JSON409      *ComputeServiceError
+	JSON412      *ComputeServiceError
+	JSON422      *ComputeServiceError
+	JSON503      *ComputeServiceError
+	JSONDefault  *ComputeServiceError
 }
 
 // Status returns HTTPResponse.Status
@@ -3727,15 +3793,15 @@ type ListMLRunEventsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *EventList
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON412      *Problem
-	JSON422      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ComputeServiceError
+	JSON401      *ComputeServiceError
+	JSON403      *ComputeServiceError
+	JSON404      *ComputeServiceError
+	JSON409      *ComputeServiceError
+	JSON412      *ComputeServiceError
+	JSON422      *ComputeServiceError
+	JSON503      *ComputeServiceError
+	JSONDefault  *ComputeServiceError
 }
 
 // Status returns HTTPResponse.Status
@@ -3758,15 +3824,15 @@ type ListMLRunPodsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *PodList
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON412      *Problem
-	JSON422      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ComputeServiceError
+	JSON401      *ComputeServiceError
+	JSON403      *ComputeServiceError
+	JSON404      *ComputeServiceError
+	JSON409      *ComputeServiceError
+	JSON412      *ComputeServiceError
+	JSON422      *ComputeServiceError
+	JSON503      *ComputeServiceError
+	JSONDefault  *ComputeServiceError
 }
 
 // Status returns HTTPResponse.Status
@@ -3789,15 +3855,15 @@ type ListMLRunPodEventsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *EventList
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON412      *Problem
-	JSON422      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ComputeServiceError
+	JSON401      *ComputeServiceError
+	JSON403      *ComputeServiceError
+	JSON404      *ComputeServiceError
+	JSON409      *ComputeServiceError
+	JSON412      *ComputeServiceError
+	JSON422      *ComputeServiceError
+	JSON503      *ComputeServiceError
+	JSONDefault  *ComputeServiceError
 }
 
 // Status returns HTTPResponse.Status
@@ -3819,15 +3885,15 @@ func (r ListMLRunPodEventsResponse) StatusCode() int {
 type GetMLRunPodLogsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON412      *Problem
-	JSON422      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ComputeServiceError
+	JSON401      *ComputeServiceError
+	JSON403      *ComputeServiceError
+	JSON404      *ComputeServiceError
+	JSON409      *ComputeServiceError
+	JSON412      *ComputeServiceError
+	JSON422      *ComputeServiceError
+	JSON503      *ComputeServiceError
+	JSONDefault  *ComputeServiceError
 }
 
 // Status returns HTTPResponse.Status
@@ -3850,15 +3916,15 @@ type ListMLServicesResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *MLServiceList
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON412      *Problem
-	JSON422      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ComputeServiceError
+	JSON401      *ComputeServiceError
+	JSON403      *ComputeServiceError
+	JSON404      *ComputeServiceError
+	JSON409      *ComputeServiceError
+	JSON412      *ComputeServiceError
+	JSON422      *ComputeServiceError
+	JSON503      *ComputeServiceError
+	JSONDefault  *ComputeServiceError
 }
 
 // Status returns HTTPResponse.Status
@@ -3881,15 +3947,15 @@ type CreateMLServiceResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *MLService
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON412      *Problem
-	JSON422      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ComputeServiceError
+	JSON401      *ComputeServiceError
+	JSON403      *ComputeServiceError
+	JSON404      *ComputeServiceError
+	JSON409      *ComputeServiceError
+	JSON412      *ComputeServiceError
+	JSON422      *ComputeServiceError
+	JSON503      *ComputeServiceError
+	JSONDefault  *ComputeServiceError
 }
 
 // Status returns HTTPResponse.Status
@@ -3911,15 +3977,15 @@ func (r CreateMLServiceResponse) StatusCode() int {
 type DeleteMLServiceResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON412      *Problem
-	JSON422      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ComputeServiceError
+	JSON401      *ComputeServiceError
+	JSON403      *ComputeServiceError
+	JSON404      *ComputeServiceError
+	JSON409      *ComputeServiceError
+	JSON412      *ComputeServiceError
+	JSON422      *ComputeServiceError
+	JSON503      *ComputeServiceError
+	JSONDefault  *ComputeServiceError
 }
 
 // Status returns HTTPResponse.Status
@@ -3942,15 +4008,15 @@ type GetMLServiceResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *MLService
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON412      *Problem
-	JSON422      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ComputeServiceError
+	JSON401      *ComputeServiceError
+	JSON403      *ComputeServiceError
+	JSON404      *ComputeServiceError
+	JSON409      *ComputeServiceError
+	JSON412      *ComputeServiceError
+	JSON422      *ComputeServiceError
+	JSON503      *ComputeServiceError
+	JSONDefault  *ComputeServiceError
 }
 
 // Status returns HTTPResponse.Status
@@ -3973,15 +4039,15 @@ type PatchMLServiceResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *MLService
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON412      *Problem
-	JSON422      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ComputeServiceError
+	JSON401      *ComputeServiceError
+	JSON403      *ComputeServiceError
+	JSON404      *ComputeServiceError
+	JSON409      *ComputeServiceError
+	JSON412      *ComputeServiceError
+	JSON422      *ComputeServiceError
+	JSON503      *ComputeServiceError
+	JSONDefault  *ComputeServiceError
 }
 
 // Status returns HTTPResponse.Status
@@ -4004,15 +4070,15 @@ type ListMLServiceEventsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *EventList
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON412      *Problem
-	JSON422      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ComputeServiceError
+	JSON401      *ComputeServiceError
+	JSON403      *ComputeServiceError
+	JSON404      *ComputeServiceError
+	JSON409      *ComputeServiceError
+	JSON412      *ComputeServiceError
+	JSON422      *ComputeServiceError
+	JSON503      *ComputeServiceError
+	JSONDefault  *ComputeServiceError
 }
 
 // Status returns HTTPResponse.Status
@@ -4035,15 +4101,15 @@ type ListMLServicePodsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *PodList
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON412      *Problem
-	JSON422      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ComputeServiceError
+	JSON401      *ComputeServiceError
+	JSON403      *ComputeServiceError
+	JSON404      *ComputeServiceError
+	JSON409      *ComputeServiceError
+	JSON412      *ComputeServiceError
+	JSON422      *ComputeServiceError
+	JSON503      *ComputeServiceError
+	JSONDefault  *ComputeServiceError
 }
 
 // Status returns HTTPResponse.Status
@@ -4066,15 +4132,15 @@ type ListMLServicePodEventsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *EventList
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON412      *Problem
-	JSON422      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ComputeServiceError
+	JSON401      *ComputeServiceError
+	JSON403      *ComputeServiceError
+	JSON404      *ComputeServiceError
+	JSON409      *ComputeServiceError
+	JSON412      *ComputeServiceError
+	JSON422      *ComputeServiceError
+	JSON503      *ComputeServiceError
+	JSONDefault  *ComputeServiceError
 }
 
 // Status returns HTTPResponse.Status
@@ -4096,15 +4162,15 @@ func (r ListMLServicePodEventsResponse) StatusCode() int {
 type GetMLServicePodLogsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON412      *Problem
-	JSON422      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ComputeServiceError
+	JSON401      *ComputeServiceError
+	JSON403      *ComputeServiceError
+	JSON404      *ComputeServiceError
+	JSON409      *ComputeServiceError
+	JSON412      *ComputeServiceError
+	JSON422      *ComputeServiceError
+	JSON503      *ComputeServiceError
+	JSONDefault  *ComputeServiceError
 }
 
 // Status returns HTTPResponse.Status
@@ -4127,15 +4193,15 @@ type ScaleMLServiceResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON202      *MLService
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON412      *Problem
-	JSON422      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ComputeServiceError
+	JSON401      *ComputeServiceError
+	JSON403      *ComputeServiceError
+	JSON404      *ComputeServiceError
+	JSON409      *ComputeServiceError
+	JSON412      *ComputeServiceError
+	JSON422      *ComputeServiceError
+	JSON503      *ComputeServiceError
+	JSONDefault  *ComputeServiceError
 }
 
 // Status returns HTTPResponse.Status
@@ -4158,15 +4224,15 @@ type ListTrafficPoliciesResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *TrafficPolicyList
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON412      *Problem
-	JSON422      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ComputeServiceError
+	JSON401      *ComputeServiceError
+	JSON403      *ComputeServiceError
+	JSON404      *ComputeServiceError
+	JSON409      *ComputeServiceError
+	JSON412      *ComputeServiceError
+	JSON422      *ComputeServiceError
+	JSON503      *ComputeServiceError
+	JSONDefault  *ComputeServiceError
 }
 
 // Status returns HTTPResponse.Status
@@ -4189,15 +4255,15 @@ type CreateTrafficPolicyResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *TrafficPolicy
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON412      *Problem
-	JSON422      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ComputeServiceError
+	JSON401      *ComputeServiceError
+	JSON403      *ComputeServiceError
+	JSON404      *ComputeServiceError
+	JSON409      *ComputeServiceError
+	JSON412      *ComputeServiceError
+	JSON422      *ComputeServiceError
+	JSON503      *ComputeServiceError
+	JSONDefault  *ComputeServiceError
 }
 
 // Status returns HTTPResponse.Status
@@ -4219,15 +4285,15 @@ func (r CreateTrafficPolicyResponse) StatusCode() int {
 type DeleteTrafficPolicyResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON412      *Problem
-	JSON422      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ComputeServiceError
+	JSON401      *ComputeServiceError
+	JSON403      *ComputeServiceError
+	JSON404      *ComputeServiceError
+	JSON409      *ComputeServiceError
+	JSON412      *ComputeServiceError
+	JSON422      *ComputeServiceError
+	JSON503      *ComputeServiceError
+	JSONDefault  *ComputeServiceError
 }
 
 // Status returns HTTPResponse.Status
@@ -4250,15 +4316,15 @@ type GetTrafficPolicyResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *TrafficPolicy
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON412      *Problem
-	JSON422      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ComputeServiceError
+	JSON401      *ComputeServiceError
+	JSON403      *ComputeServiceError
+	JSON404      *ComputeServiceError
+	JSON409      *ComputeServiceError
+	JSON412      *ComputeServiceError
+	JSON422      *ComputeServiceError
+	JSON503      *ComputeServiceError
+	JSONDefault  *ComputeServiceError
 }
 
 // Status returns HTTPResponse.Status
@@ -4281,15 +4347,15 @@ type PatchTrafficPolicyResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *TrafficPolicy
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON412      *Problem
-	JSON422      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ComputeServiceError
+	JSON401      *ComputeServiceError
+	JSON403      *ComputeServiceError
+	JSON404      *ComputeServiceError
+	JSON409      *ComputeServiceError
+	JSON412      *ComputeServiceError
+	JSON422      *ComputeServiceError
+	JSON503      *ComputeServiceError
+	JSONDefault  *ComputeServiceError
 }
 
 // Status returns HTTPResponse.Status
@@ -4312,15 +4378,15 @@ type PromoteTrafficPolicyResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON202      *TrafficPolicy
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON412      *Problem
-	JSON422      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ComputeServiceError
+	JSON401      *ComputeServiceError
+	JSON403      *ComputeServiceError
+	JSON404      *ComputeServiceError
+	JSON409      *ComputeServiceError
+	JSON412      *ComputeServiceError
+	JSON422      *ComputeServiceError
+	JSON503      *ComputeServiceError
+	JSONDefault  *ComputeServiceError
 }
 
 // Status returns HTTPResponse.Status
@@ -4343,15 +4409,15 @@ type RollbackTrafficPolicyResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON202      *TrafficPolicy
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON412      *Problem
-	JSON422      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ComputeServiceError
+	JSON401      *ComputeServiceError
+	JSON403      *ComputeServiceError
+	JSON404      *ComputeServiceError
+	JSON409      *ComputeServiceError
+	JSON412      *ComputeServiceError
+	JSON422      *ComputeServiceError
+	JSON503      *ComputeServiceError
+	JSONDefault  *ComputeServiceError
 }
 
 // Status returns HTTPResponse.Status
@@ -4374,15 +4440,15 @@ type SplitTrafficPolicyResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON202      *TrafficPolicy
-	JSON400      *Problem
-	JSON401      *Problem
-	JSON403      *Problem
-	JSON404      *Problem
-	JSON409      *Problem
-	JSON412      *Problem
-	JSON422      *Problem
-	JSON503      *Problem
-	JSONDefault  *Problem
+	JSON400      *ComputeServiceError
+	JSON401      *ComputeServiceError
+	JSON403      *ComputeServiceError
+	JSON404      *ComputeServiceError
+	JSON409      *ComputeServiceError
+	JSON412      *ComputeServiceError
+	JSON422      *ComputeServiceError
+	JSON503      *ComputeServiceError
+	JSONDefault  *ComputeServiceError
 }
 
 // Status returns HTTPResponse.Status
@@ -4441,6 +4507,15 @@ func (r ReadyzResponse) StatusCode() int {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
+}
+
+// GetCapabilitiesWithResponse request returning *GetCapabilitiesResponse
+func (c *ClientWithResponses) GetCapabilitiesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetCapabilitiesResponse, error) {
+	rsp, err := c.GetCapabilities(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetCapabilitiesResponse(rsp)
 }
 
 // ListMLRunsWithResponse request returning *ListMLRunsResponse
@@ -4777,6 +4852,32 @@ func (c *ClientWithResponses) ReadyzWithResponse(ctx context.Context, reqEditors
 	return ParseReadyzResponse(rsp)
 }
 
+// ParseGetCapabilitiesResponse parses an HTTP response from a GetCapabilitiesWithResponse call
+func ParseGetCapabilitiesResponse(rsp *http.Response) (*GetCapabilitiesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetCapabilitiesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Capabilities
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseListMLRunsResponse parses an HTTP response from a ListMLRunsWithResponse call
 func ParseListMLRunsResponse(rsp *http.Response) (*ListMLRunsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -4799,63 +4900,63 @@ func ParseListMLRunsResponse(rsp *http.Response) (*ListMLRunsResponse, error) {
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4888,63 +4989,63 @@ func ParseCreateMLRunResponse(rsp *http.Response) (*CreateMLRunResponse, error) 
 		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4970,63 +5071,63 @@ func ParseDeleteMLRunResponse(rsp *http.Response) (*DeleteMLRunResponse, error) 
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -5059,63 +5160,63 @@ func ParseGetMLRunResponse(rsp *http.Response) (*GetMLRunResponse, error) {
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -5148,63 +5249,63 @@ func ParsePatchMLRunResponse(rsp *http.Response) (*PatchMLRunResponse, error) {
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -5237,63 +5338,63 @@ func ParseCancelMLRunResponse(rsp *http.Response) (*CancelMLRunResponse, error) 
 		response.JSON202 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -5326,63 +5427,63 @@ func ParseListMLRunEventsResponse(rsp *http.Response) (*ListMLRunEventsResponse,
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -5415,63 +5516,63 @@ func ParseListMLRunPodsResponse(rsp *http.Response) (*ListMLRunPodsResponse, err
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -5504,63 +5605,63 @@ func ParseListMLRunPodEventsResponse(rsp *http.Response) (*ListMLRunPodEventsRes
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -5586,63 +5687,63 @@ func ParseGetMLRunPodLogsResponse(rsp *http.Response) (*GetMLRunPodLogsResponse,
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -5675,63 +5776,63 @@ func ParseListMLServicesResponse(rsp *http.Response) (*ListMLServicesResponse, e
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -5764,63 +5865,63 @@ func ParseCreateMLServiceResponse(rsp *http.Response) (*CreateMLServiceResponse,
 		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -5846,63 +5947,63 @@ func ParseDeleteMLServiceResponse(rsp *http.Response) (*DeleteMLServiceResponse,
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -5935,63 +6036,63 @@ func ParseGetMLServiceResponse(rsp *http.Response) (*GetMLServiceResponse, error
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -6024,63 +6125,63 @@ func ParsePatchMLServiceResponse(rsp *http.Response) (*PatchMLServiceResponse, e
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -6113,63 +6214,63 @@ func ParseListMLServiceEventsResponse(rsp *http.Response) (*ListMLServiceEventsR
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -6202,63 +6303,63 @@ func ParseListMLServicePodsResponse(rsp *http.Response) (*ListMLServicePodsRespo
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -6291,63 +6392,63 @@ func ParseListMLServicePodEventsResponse(rsp *http.Response) (*ListMLServicePodE
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -6373,63 +6474,63 @@ func ParseGetMLServicePodLogsResponse(rsp *http.Response) (*GetMLServicePodLogsR
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -6462,63 +6563,63 @@ func ParseScaleMLServiceResponse(rsp *http.Response) (*ScaleMLServiceResponse, e
 		response.JSON202 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -6551,63 +6652,63 @@ func ParseListTrafficPoliciesResponse(rsp *http.Response) (*ListTrafficPoliciesR
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -6640,63 +6741,63 @@ func ParseCreateTrafficPolicyResponse(rsp *http.Response) (*CreateTrafficPolicyR
 		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -6722,63 +6823,63 @@ func ParseDeleteTrafficPolicyResponse(rsp *http.Response) (*DeleteTrafficPolicyR
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -6811,63 +6912,63 @@ func ParseGetTrafficPolicyResponse(rsp *http.Response) (*GetTrafficPolicyRespons
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -6900,63 +7001,63 @@ func ParsePatchTrafficPolicyResponse(rsp *http.Response) (*PatchTrafficPolicyRes
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -6989,63 +7090,63 @@ func ParsePromoteTrafficPolicyResponse(rsp *http.Response) (*PromoteTrafficPolic
 		response.JSON202 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -7078,63 +7179,63 @@ func ParseRollbackTrafficPolicyResponse(rsp *http.Response) (*RollbackTrafficPol
 		response.JSON202 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -7167,63 +7268,63 @@ func ParseSplitTrafficPolicyResponse(rsp *http.Response) (*SplitTrafficPolicyRes
 		response.JSON202 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON503 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
+		var dest ComputeServiceError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

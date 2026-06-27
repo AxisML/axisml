@@ -3,12 +3,10 @@ package mlservice
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
 	"github.com/google/uuid"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
-	corev1 "k8s.io/api/core/v1"
 
 	mlservicev1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
 
@@ -26,7 +24,6 @@ type Module struct {
 	repo       *Repository
 	db         *gorm.DB
 	pools      extensions.ResourceResolver
-	volumes    extensions.WorkspaceVolumeProvisioner
 	policyRefs ActivePolicyReferenceChecker
 }
 
@@ -36,19 +33,19 @@ type ActivePolicyReferenceChecker interface {
 	ActiveReferenceName(ctx context.Context, namespace, serviceName string) (string, error)
 }
 
-// NewMLService builds the service module wiring. The volume provisioner backs
-// kind=workspace services and may be nil in pure-DB tests.
+// NewMLService builds the service module wiring. Durable volumes (e.g. the PVC
+// backing a kind=workspace service) are pre-provisioned by Platform via
+// cluster-manager and referenced as a PVC volume in the role template; compute
+// does not provision them.
 func NewMLService(
 	db *gorm.DB,
 	pools extensions.ResourceResolver,
-	volumes extensions.WorkspaceVolumeProvisioner,
 	policyRefs ActivePolicyReferenceChecker,
 ) *Module {
 	return &Module{
 		repo:       NewRepository(db),
 		db:         db,
 		pools:      pools,
-		volumes:    volumes,
 		policyRefs: policyRefs,
 	}
 }
@@ -131,29 +128,10 @@ func (m *Module) Create(ctx context.Context, namespace string, in server.MLServi
 		return nil, err
 	}
 
-	// For kind=workspace, materialise the backing PVC first; if PVC creation
-	// fails we surface the error and never write the DB row. Per design §4.4,
-	// PG row + PVC are a logical pair, and the PVC must be wired into
-	// roles[0].template.{volumes,volumeMounts} so the Pod actually mounts it.
-	if kind == mlservicev1alpha1.ServiceKindWorkspace {
-		if m.volumes != nil {
-			size, storageClass := "", ""
-			if in.WorkspaceStorage != nil {
-				size = in.WorkspaceStorage.Size
-				storageClass = in.WorkspaceStorage.StorageClass
-			}
-			if err := m.volumes.EnsureWorkspaceVolume(ctx, namespace, in.Name, size, storageClass); err != nil {
-				return nil, err
-			}
-		}
-		if len(spec.Roles) > 0 {
-			injectWorkspaceVolume(&spec.Roles[0], in.Name)
-		}
-		// Re-marshal the spec now that we've injected the volume mount.
-		if specJSON, err = json.Marshal(spec); err != nil {
-			return nil, err
-		}
-	}
+	// A kind=workspace service's durable volume is just a PVC entry the caller
+	// (Platform) declares in roles[0].template.{volumes,volumeMounts}; the volume
+	// itself is pre-provisioned by Platform via cluster-manager. compute relays
+	// the role template as-is and does not provision storage.
 
 	mergedLabels := mergeSvcLabels(in.Labels, map[string]string{
 		mlservicev1alpha1.LabelResourcePool: in.PoolName,
@@ -178,11 +156,6 @@ func (m *Module) Create(ctx context.Context, namespace string, in server.MLServi
 		StatusJSON:  []byte("{}"),
 	}
 	if err := m.repo.Create(ctx, row); err != nil {
-		// Workspace path provisioned the volume first; clean it up so we don't
-		// leak orphan storage on a unique-violation or other terminal DB error.
-		if kind == mlservicev1alpha1.ServiceKindWorkspace && m.volumes != nil {
-			_ = m.volumes.DeleteWorkspaceVolume(ctx, namespace, in.Name)
-		}
 		return nil, err
 	}
 	return m.toView(row)
@@ -289,7 +262,7 @@ func (m *Module) Patch(ctx context.Context, namespace, name string, in server.ML
 	return m.toView(fresh)
 }
 
-func (m *Module) Delete(ctx context.Context, namespace, name string, deletePVC bool) error {
+func (m *Module) Delete(ctx context.Context, namespace, name string) error {
 	row, err := m.repo.GetByNamespaceName(ctx, namespace, name)
 	if err != nil {
 		if IsNotFound(err) {
@@ -306,18 +279,9 @@ func (m *Module) Delete(ctx context.Context, namespace, name string, deletePVC b
 			return err
 		}
 	}
-	if err := m.repo.MarkDeleting(ctx, row.ID); err != nil {
-		return err
-	}
-	// For workspaces, default behaviour is to delete the backing volume
-	// alongside the row. Callers that want to preserve the volume must pass
-	// deletePVC=false (the ?deletePvc=false query in the HTTP layer).
-	if row.Kind == mlservicev1alpha1.ServiceKindWorkspace && deletePVC && m.volumes != nil {
-		if err := m.volumes.DeleteWorkspaceVolume(ctx, namespace, name); err != nil {
-			return err
-		}
-	}
-	return nil
+	// A workspace's durable volume is reclaimed by Platform via cluster-manager,
+	// not here — compute only soft-deletes the row and tears down the CR.
+	return m.repo.MarkDeleting(ctx, row.ID)
 }
 
 func checkActivePolicyReference(
@@ -357,57 +321,6 @@ func svcMapBytes(m map[string]string) datatypes.JSON {
 	}
 	b, _ := json.Marshal(m)
 	return b
-}
-
-// injectWorkspaceVolume wires the backing PVC into the role's pod template.
-// The volume is named `workspace`, mounted at /workspace. If the caller
-// already supplied a volume of the same name we leave their choice alone
-// (deterministic-PVC name still wins as the claim it points at).
-func injectWorkspaceVolume(role *mlservicev1alpha1.RoleSpec, serviceName string) {
-	const volumeName = "workspace"
-	const mountPath = "/workspace"
-
-	hasVolume := false
-	for i := range role.Template.Volumes {
-		if role.Template.Volumes[i].Name == volumeName {
-			role.Template.Volumes[i].VolumeSource = corev1.VolumeSource{
-				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-					ClaimName: WorkspacePVCName(serviceName),
-				},
-			}
-			hasVolume = true
-			break
-		}
-	}
-	if !hasVolume {
-		role.Template.Volumes = append(role.Template.Volumes, corev1.Volume{
-			Name: volumeName,
-			VolumeSource: corev1.VolumeSource{
-				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-					ClaimName: WorkspacePVCName(serviceName),
-				},
-			},
-		})
-	}
-	hasMount := false
-	for i := range role.Template.VolumeMounts {
-		if role.Template.VolumeMounts[i].Name == volumeName {
-			hasMount = true
-			break
-		}
-	}
-	if !hasMount {
-		role.Template.VolumeMounts = append(role.Template.VolumeMounts, corev1.VolumeMount{
-			Name:      volumeName,
-			MountPath: mountPath,
-		})
-	}
-}
-
-// WorkspacePVCName is the deterministic PVC name used for kind=workspace
-// mlservices (design §4.4).
-func WorkspacePVCName(serviceName string) string {
-	return fmt.Sprintf("axisml-ws-%s-data", serviceName)
 }
 
 func (m *Module) toView(s *store.MLService) (*server.MLService, error) {

@@ -106,16 +106,16 @@ func (s *Service) setReplicas(ctx context.Context, tenant, name string, replicas
 	return &v, nil
 }
 
-// Delete removes a workspace (PVC cascade default true).
+// Delete removes a workspace. Reclaiming the workspace's durable volume(s) is
+// handled by Platform via cluster-manager — wired up separately; compute only
+// tears down the workspace itself. deletePVC is reserved for that reclamation
+// path.
 func (s *Service) Delete(ctx context.Context, tenant, name string, deletePVC *bool) error {
 	if _, err := s.getWorkspace(ctx, tenant, name); err != nil {
 		return err
 	}
-	if deletePVC == nil {
-		t := true
-		deletePVC = &t
-	}
-	return s.compute.DeleteMLService(ctx, tenant, name, deletePVC)
+	_ = deletePVC
+	return s.compute.DeleteMLService(ctx, tenant, name)
 }
 
 // Pods / Events / PodEvents / PodLogs proxy compute.

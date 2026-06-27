@@ -1510,10 +1510,6 @@ components:
           nullable: true
         unitName:
           type: string
-        workspaceStorage:
-          allOf:
-          - $ref: '#/components/schemas/MLServiceWorkspaceStorageSpec'
-          nullable: true
       required:
       - name
       - poolName
@@ -1754,15 +1750,6 @@ components:
           type: integer
       required:
       - readyReplicas
-      type: object
-    MLServiceWorkspaceStorageSpec:
-      properties:
-        size:
-          type: string
-        storageClass:
-          type: string
-      required:
-      - size
       type: object
     MLTrafficPolicyBackend:
       properties:

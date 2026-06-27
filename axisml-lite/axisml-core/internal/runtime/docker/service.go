@@ -70,11 +70,12 @@ func (r *Runtime) renderServicePlans(svc *mlservicev1alpha1.MLService) ([]Contai
 }
 
 // serviceMounts maps each declared volumeMount onto a managed Docker volume.
-// A PVC-backed volume (the kind=workspace durable volume that Compute injects)
-// maps to the workspace volume name — the same name EnsureWorkspaceVolume
-// provisions and DeleteWorkspaceVolume removes — so the mounted volume, the
-// provisioned volume and the retention target are one and the same. Any other
-// declared volume gets a per-(namespace, name, volume) managed volume.
+// A PVC-backed volume (the durable volume Compute references for a kind=workspace
+// service) maps to the volume keyed on its claim name — the same name the
+// VolumeStore (Runtime.Ensure / Runtime.Delete) materialises and reclaims — so
+// the mounted volume, the provisioned volume and the retention target are one
+// and the same. Any other declared volume gets a per-(namespace, name, volume)
+// managed volume.
 func (r *Runtime) serviceMounts(namespace, name string, tmpl mlservicev1alpha1.PodTemplate) ([]MountPlan, error) {
 	if len(tmpl.VolumeMounts) == 0 {
 		return nil, nil
@@ -91,7 +92,10 @@ func (r *Runtime) serviceMounts(namespace, name string, tmpl mlservicev1alpha1.P
 		}
 		source := r.volumeName(namespace, name, vm.Name)
 		if vol.PersistentVolumeClaim != nil {
-			source = r.workspaceVolumeName(namespace, name)
+			// PVC-backed volume: key the Docker volume on the claim name so it
+			// matches the volume cluster-manager's VolumeStore (Runtime.Ensure)
+			// materialised for the same claim.
+			source = r.pvcVolumeName(namespace, vol.PersistentVolumeClaim.ClaimName)
 		}
 		mounts = append(mounts, MountPlan{
 			Type:     "volume",
@@ -240,9 +244,9 @@ func (r *Runtime) DeleteMLService(ctx context.Context, key types.NamespacedName)
 		return err
 	}
 	// Volumes are NOT removed here: their lifecycle follows the retention policy
-	// and is driven explicitly through the WorkspaceVolumeProvisioner
-	// (DeleteWorkspaceVolume), so deleting a workspace never silently wipes user
-	// data the policy meant to keep.
+	// and is driven explicitly through the VolumeStore (Runtime.Delete), so
+	// deleting a workspace never silently wipes user data the policy meant to
+	// keep.
 	if len(conts) > 0 {
 		r.events.record(KindService, key.Namespace, key.Name, "", "Deleted", "service containers removed")
 	}

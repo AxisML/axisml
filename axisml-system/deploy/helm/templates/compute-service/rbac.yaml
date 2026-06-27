@@ -29,10 +29,9 @@ rules:
   - apiGroups: ["events.k8s.io"]
     resources: ["events"]
     verbs: ["get", "list", "watch"]
-  # PersistentVolumeClaims: Compute creates/deletes a PVC backing workspace services.
-  - apiGroups: [""]
-    resources: ["persistentvolumeclaims"]
-    verbs: ["create", "get", "list", "watch", "update", "patch", "delete"]
+  # PersistentVolumeClaims: NOT granted. Workspace volume materialisation is
+  # delegated to cluster-manager's Volume REST (compute only names and mounts
+  # the volume; cluster-manager owns the PVC create/delete + this RBAC).
   # Leader election lease (controller-runtime).
   - apiGroups: ["coordination.k8s.io"]
     resources: ["leases"]

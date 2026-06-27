@@ -44,7 +44,6 @@ type Deps struct {
 	DB                *gorm.DB
 	Runtime           extensions.ComputeRuntime
 	Resolver          extensions.ResourceResolver
-	Volumes           extensions.WorkspaceVolumeProvisioner
 	Log               logr.Logger
 	ReconcileInterval time.Duration
 	// RuntimeName labels the workload execution engine in the capability
@@ -68,7 +67,7 @@ func New(d Deps) (*Module, error) {
 	jobs := jobmod.NewService(d.DB, d.Resolver)
 	serviceRepo := servicemod.NewRepository(d.DB)
 	trafficRepo := trafficmod.NewRepository(d.DB)
-	services := servicemod.NewMLService(d.DB, d.Resolver, d.Volumes, trafficRepo)
+	services := servicemod.NewMLService(d.DB, d.Resolver, trafficRepo)
 	traffic := trafficmod.NewService(d.DB, serviceRepo, trafficRepo)
 
 	jobRecon := jobmod.NewReconciler(d.DB, d.Runtime, d.Log.WithName("mlrun-reconciler"), d.ReconcileInterval)

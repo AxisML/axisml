@@ -15,6 +15,7 @@ import (
 	"github.com/axisml/axisml/components/cluster-manager/internal/resourcepool"
 	"github.com/axisml/axisml/components/cluster-manager/internal/server"
 	"github.com/axisml/axisml/components/cluster-manager/internal/tenant"
+	"github.com/axisml/axisml/components/cluster-manager/internal/volume"
 	"github.com/axisml/axisml/components/cluster-manager/pkg/extensions"
 )
 
@@ -27,6 +28,7 @@ type Route interface {
 type Deps struct {
 	Pools   extensions.ResourcePoolStore
 	Tenants extensions.TenantStore
+	Volumes extensions.VolumeStore
 }
 
 // Module is the assembled Cluster Manager REST surface.
@@ -41,6 +43,7 @@ func New(d Deps) *Module {
 		routes: []Route{
 			resourcepool.NewHandler(d.Pools),
 			tenant.NewHandler(d.Tenants, d.Pools),
+			volume.NewHandler(d.Volumes),
 		},
 		capabilities: server.Capabilities{
 			MultiTenant:           d.Tenants.Writable(),
