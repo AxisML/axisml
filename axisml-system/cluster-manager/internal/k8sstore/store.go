@@ -7,6 +7,7 @@ package k8sstore
 import (
 	"context"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -16,12 +17,12 @@ import (
 	tenantv1alpha1 "github.com/axisml/axisml/components/tenant-operator/api/v1alpha1"
 )
 
-// ResourcePoolStore backs extensions.ResourcePoolStore with a client.Client.
+// ResourcePoolStore backs extensions.ResourcePoolProvider with a client.Client.
 type ResourcePoolStore struct {
 	c client.Client
 }
 
-var _ extensions.ResourcePoolStore = (*ResourcePoolStore)(nil)
+var _ extensions.ResourcePoolProvider = (*ResourcePoolStore)(nil)
 
 // NewResourcePoolStore builds a ResourcePoolStore.
 func NewResourcePoolStore(c client.Client) *ResourcePoolStore { return &ResourcePoolStore{c: c} }
@@ -34,8 +35,8 @@ func (s *ResourcePoolStore) Get(ctx context.Context, name string) (*cmv1alpha1.R
 	return pool, nil
 }
 
-func (s *ResourcePoolStore) List(ctx context.Context, params extensions.ListParams) (*cmv1alpha1.ResourcePoolList, error) {
-	opts, err := listOptions(params)
+func (s *ResourcePoolStore) List(ctx context.Context, listOpts metav1.ListOptions) (*cmv1alpha1.ResourcePoolList, error) {
+	opts, err := listOptions(listOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -63,12 +64,12 @@ func (s *ResourcePoolStore) Delete(ctx context.Context, name string) error {
 // Writable reports the Kubernetes store accepts full CRUD.
 func (s *ResourcePoolStore) Writable() bool { return true }
 
-// TenantStore backs extensions.TenantStore with a client.Client.
+// TenantStore backs extensions.TenantProvider with a client.Client.
 type TenantStore struct {
 	c client.Client
 }
 
-var _ extensions.TenantStore = (*TenantStore)(nil)
+var _ extensions.TenantProvider = (*TenantStore)(nil)
 
 // NewTenantStore builds a TenantStore.
 func NewTenantStore(c client.Client) *TenantStore { return &TenantStore{c: c} }
@@ -81,8 +82,8 @@ func (s *TenantStore) Get(ctx context.Context, name string) (*tenantv1alpha1.Ten
 	return cr, nil
 }
 
-func (s *TenantStore) List(ctx context.Context, params extensions.ListParams) (*tenantv1alpha1.TenantList, error) {
-	opts, err := listOptions(params)
+func (s *TenantStore) List(ctx context.Context, listOpts metav1.ListOptions) (*tenantv1alpha1.TenantList, error) {
+	opts, err := listOptions(listOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -110,22 +111,23 @@ func (s *TenantStore) Delete(ctx context.Context, name string) error {
 // Writable reports the Kubernetes store supports multi-tenant CRUD.
 func (s *TenantStore) Writable() bool { return true }
 
-// listOptions translates neutral ListParams into controller-runtime options.
-// The selector is re-parsed here (handlers pre-validate it for the 400 path).
-func listOptions(params extensions.ListParams) ([]client.ListOption, error) {
+// listOptions translates the standard metav1.ListOptions into controller-runtime
+// options. The selector is re-parsed here (handlers pre-validate it for the 400
+// path).
+func listOptions(listOpts metav1.ListOptions) ([]client.ListOption, error) {
 	opts := []client.ListOption{}
-	if params.Selector != "" {
-		ps, err := labels.Parse(params.Selector)
+	if listOpts.LabelSelector != "" {
+		ps, err := labels.Parse(listOpts.LabelSelector)
 		if err != nil {
 			return nil, err
 		}
 		opts = append(opts, client.MatchingLabelsSelector{Selector: ps})
 	}
-	if params.Limit > 0 {
-		opts = append(opts, client.Limit(int64(params.Limit)))
+	if listOpts.Limit > 0 {
+		opts = append(opts, client.Limit(listOpts.Limit))
 	}
-	if params.Continue != "" {
-		opts = append(opts, client.Continue(params.Continue))
+	if listOpts.Continue != "" {
+		opts = append(opts, client.Continue(listOpts.Continue))
 	}
 	return opts, nil
 }

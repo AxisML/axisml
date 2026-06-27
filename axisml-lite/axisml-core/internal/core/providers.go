@@ -2,6 +2,7 @@ package core
 
 import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	cmv1alpha1 "github.com/axisml/axisml/components/cluster-manager/api/v1alpha1"
@@ -16,7 +17,7 @@ import (
 const apiGroup = "axisml.io"
 
 // ConfigResourceCatalog serves the single default ResourcePool from the static
-// CR-YAML config. It satisfies BOTH the cluster-manager ResourcePoolStore
+// CR-YAML config. It satisfies BOTH the cluster-manager ResourcePoolProvider
 // (read-only REST surface) and the compute-service ResourceResolver (look up a
 // pool / unit by name). Writes return ErrCapabilityUnavailable (design §5.1);
 // the handlers map that to 409 CapabilityUnavailable.
@@ -25,8 +26,8 @@ type ConfigResourceCatalog struct {
 }
 
 var (
-	_ cmext.ResourcePoolStore = (*ConfigResourceCatalog)(nil)
-	_ csext.ResourceResolver  = (*ConfigResourceCatalog)(nil)
+	_ cmext.ResourcePoolProvider = (*ConfigResourceCatalog)(nil)
+	_ csext.ResourceResolver     = (*ConfigResourceCatalog)(nil)
 )
 
 // NewConfigResourceCatalog builds the catalog over the parsed default pool.
@@ -47,7 +48,7 @@ func (c *ConfigResourceCatalog) Get(_ context.Context, name string) (*cmv1alpha1
 }
 
 // List returns the single default pool.
-func (c *ConfigResourceCatalog) List(_ context.Context, _ cmext.ListParams) (*cmv1alpha1.ResourcePoolList, error) {
+func (c *ConfigResourceCatalog) List(_ context.Context, _ metav1.ListOptions) (*cmv1alpha1.ResourcePoolList, error) {
 	return &cmv1alpha1.ResourcePoolList{Items: []cmv1alpha1.ResourcePool{*c.pool.DeepCopy()}}, nil
 }
 
@@ -107,7 +108,7 @@ type StaticTenantStore struct {
 	tenant *tenantv1alpha1.Tenant
 }
 
-var _ cmext.TenantStore = (*StaticTenantStore)(nil)
+var _ cmext.TenantProvider = (*StaticTenantStore)(nil)
 
 // NewStaticTenantStore builds the store over the parsed default tenant.
 func NewStaticTenantStore(tenant *tenantv1alpha1.Tenant) *StaticTenantStore {
@@ -127,7 +128,7 @@ func (s *StaticTenantStore) Get(_ context.Context, name string) (*tenantv1alpha1
 }
 
 // List returns the single default tenant.
-func (s *StaticTenantStore) List(_ context.Context, _ cmext.ListParams) (*tenantv1alpha1.TenantList, error) {
+func (s *StaticTenantStore) List(_ context.Context, _ metav1.ListOptions) (*tenantv1alpha1.TenantList, error) {
 	return &tenantv1alpha1.TenantList{Items: []tenantv1alpha1.Tenant{*s.tenant.DeepCopy()}}, nil
 }
 

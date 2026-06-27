@@ -17,6 +17,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/uuid"
@@ -31,12 +32,12 @@ import (
 // reads/writes go through the injected stores (Kubernetes CRD or Lite config).
 // Quota folding reads the ResourcePool store.
 type Handler struct {
-	tenants extensions.TenantStore
-	pools   extensions.ResourcePoolStore
+	tenants extensions.TenantProvider
+	pools   extensions.ResourcePoolProvider
 }
 
 // NewHandler builds a tenant handler over the given stores.
-func NewHandler(tenants extensions.TenantStore, pools extensions.ResourcePoolStore) *Handler {
+func NewHandler(tenants extensions.TenantProvider, pools extensions.ResourcePoolProvider) *Handler {
 	return &Handler{tenants: tenants, pools: pools}
 }
 
@@ -107,13 +108,13 @@ func (h *Handler) Get(c *gin.Context) {
 // List handles GET /api/v1/tenants. Supports ?labelSelector, ?limit (1-500,
 // default server-side), and ?continue (opaque cursor).
 func (h *Handler) List(c *gin.Context) {
-	params := extensions.ListParams{}
+	opts := metav1.ListOptions{}
 	if sel := c.Query("labelSelector"); sel != "" {
 		if _, err := labels.Parse(sel); err != nil {
 			srv.AbortWithProblem(c, http.StatusBadRequest, "InvalidSelector", "labelSelector parse error", err.Error())
 			return
 		}
-		params.Selector = sel
+		opts.LabelSelector = sel
 	}
 	if v := c.Query("limit"); v != "" {
 		n, err := strconv.Atoi(v)
@@ -121,11 +122,11 @@ func (h *Handler) List(c *gin.Context) {
 			srv.AbortWithProblem(c, http.StatusBadRequest, "InvalidLimit", "limit must be an integer in [1, 500]", v)
 			return
 		}
-		params.Limit = n
+		opts.Limit = int64(n)
 	}
-	params.Continue = c.Query("continue")
+	opts.Continue = c.Query("continue")
 
-	list, err := h.tenants.List(c.Request.Context(), params)
+	list, err := h.tenants.List(c.Request.Context(), opts)
 	if err != nil {
 		writeK8sError(c, err, "")
 		return
