@@ -10,12 +10,12 @@ import (
 
 	"github.com/axisml/axisml/components/compute-service/internal/config"
 	"github.com/axisml/axisml/components/compute-service/internal/k8svolume"
+	"github.com/axisml/axisml/components/compute-service/internal/kuberuntime"
 	jobmod "github.com/axisml/axisml/components/compute-service/internal/mlrun"
 	servicemod "github.com/axisml/axisml/components/compute-service/internal/mlservice"
 	"github.com/axisml/axisml/components/compute-service/internal/poolcache"
 	"github.com/axisml/axisml/components/compute-service/internal/server"
 	trafficpolicymod "github.com/axisml/axisml/components/compute-service/internal/trafficpolicy"
-	"github.com/axisml/axisml/components/compute-service/pkg/computeruntime/kuberuntime"
 	computemodule "github.com/axisml/axisml/components/compute-service/pkg/module"
 )
 
@@ -38,7 +38,7 @@ func BuildModules(
 	mod, err := computemodule.New(computemodule.Deps{
 		DB:                gormDB,
 		Runtime:           kuberuntime.New(mgr.GetClient(), clientset),
-		Catalog:           poolcache.New(mgr.GetClient()),
+		Resolver:          poolcache.New(mgr.GetClient()),
 		Volumes:           k8svolume.New(mgr.GetClient()),
 		Log:               log,
 		ReconcileInterval: config.ReconcileInterval,

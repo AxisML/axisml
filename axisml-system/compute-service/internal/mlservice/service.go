@@ -13,10 +13,11 @@ import (
 	mlservicev1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
 
 	"github.com/axisml/axisml/components/compute-service/internal/auth"
+	"github.com/axisml/axisml/components/compute-service/internal/resource"
 	"github.com/axisml/axisml/components/compute-service/internal/server"
 	"github.com/axisml/axisml/components/compute-service/internal/store"
 	apperrors "github.com/axisml/axisml/components/compute-service/pkg/errors"
-	"github.com/axisml/axisml/components/compute-service/pkg/provider"
+	"github.com/axisml/axisml/components/compute-service/pkg/extensions"
 	"github.com/axisml/axisml/components/compute-service/pkg/strutil"
 )
 
@@ -24,8 +25,8 @@ import (
 type Module struct {
 	repo       *Repository
 	db         *gorm.DB
-	pools      provider.ResourceCatalog
-	volumes    provider.WorkspaceVolumeProvisioner
+	pools      extensions.ResourceResolver
+	volumes    extensions.WorkspaceVolumeProvisioner
 	policyRefs ActivePolicyReferenceChecker
 }
 
@@ -39,8 +40,8 @@ type ActivePolicyReferenceChecker interface {
 // kind=workspace services and may be nil in pure-DB tests.
 func NewMLService(
 	db *gorm.DB,
-	pools provider.ResourceCatalog,
-	volumes provider.WorkspaceVolumeProvisioner,
+	pools extensions.ResourceResolver,
+	volumes extensions.WorkspaceVolumeProvisioner,
 	policyRefs ActivePolicyReferenceChecker,
 ) *Module {
 	return &Module{
@@ -95,7 +96,7 @@ func (m *Module) Create(ctx context.Context, namespace string, in server.MLServi
 	replicas := int32(0)
 	for i, r := range in.Roles {
 		role := r
-		role.Template.Resources = provider.BuildResources(expanded.Requests, expanded.Limits)
+		role.Template.Resources = resource.BuildResources(expanded.Requests, expanded.Limits)
 		roles[i] = role
 		if i == 0 {
 			replicas = role.Replicas

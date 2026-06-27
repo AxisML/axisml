@@ -169,7 +169,7 @@ Lite 不修改 `compute-operator`。Standard 形态的 `ComputeRuntime` adapter 
 
 Runtime 端口只使用 AxisML 发布的 `MLRun`、`MLService`、`MLTrafficPolicy` API 类型和 Kubernetes 标准类型。Docker SDK 请求、Traefik 配置、Deployment、HTTPRoute 和 `client.Object` 属于 handler / adapter 内部类型，不进入 Runtime contract。
 
-核心接口由 `axisml-system/compute-service/pkg/computeruntime/runtime.go` 发布，如下：
+核心接口由各组件的 `pkg/extensions` 包发布（compute-service 的 `ComputeRuntime` / `ResourceResolver` / `WorkspaceVolumeProvisioner`，cluster-manager 的 `ResourcePoolStore` / `TenantStore`），如下：
 
 ```go
 type ResourceStoreProvider interface {
@@ -231,7 +231,7 @@ Instance 是 Runtime 对单个运行单元的统一称谓：Kubernetes 实现对
 
 Standard 和 Lite 形态均在各自进程内提供完整的 `ComputeRuntime` 实现：
 
-- Standard 形态在 Compute Service 进程内由 `pkg/computeruntime/kuberuntime` 直接实现，封装 `client.Client`、informer 和 kubeproxy。
+- Standard 形态在 Compute Service 进程内由 `internal/kuberuntime` 直接实现，封装 `client.Client`、informer 和 kubeproxy。
 - Lite 形态在 `axisml-core` 进程内由 `internal/runtime/docker` 直接实现，根据 `(backend.name, backend.engine)` 选择 Docker handler，并将 AxisML 对象渲染为内部 `ContainerPlan` / `RoutePlan`。
 
 接口的 Go 类型契约（CR API 类型、`types.NamespacedName` 定位、`apierrors.IsNotFound` 语义、instance 归属校验）在两种形态下保持一致；两种实现均为进程内 Go 调用，不引入网络传输层。

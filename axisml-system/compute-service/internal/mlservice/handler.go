@@ -9,16 +9,16 @@ import (
 
 	"github.com/axisml/axisml/components/compute-service/internal/kubeproxy"
 	"github.com/axisml/axisml/components/compute-service/internal/server"
-	"github.com/axisml/axisml/components/compute-service/pkg/computeruntime"
+	"github.com/axisml/axisml/components/compute-service/pkg/extensions"
 )
 
 // Handler exposes /namespaces/:namespace/mlservices routes.
 type Handler struct {
 	svc     *Module
-	runtime computeruntime.ComputeRuntime
+	runtime extensions.ComputeRuntime
 }
 
-func NewHandler(svc *Module, runtime computeruntime.ComputeRuntime) *Handler {
+func NewHandler(svc *Module, runtime extensions.ComputeRuntime) *Handler {
 	return &Handler{svc: svc, runtime: runtime}
 }
 

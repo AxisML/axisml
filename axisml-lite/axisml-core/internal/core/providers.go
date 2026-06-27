@@ -5,9 +5,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	cmv1alpha1 "github.com/axisml/axisml/components/cluster-manager/api/v1alpha1"
-	cmprovider "github.com/axisml/axisml/components/cluster-manager/pkg/provider"
+	cmext "github.com/axisml/axisml/components/cluster-manager/pkg/extensions"
 	apperrors "github.com/axisml/axisml/components/compute-service/pkg/errors"
-	csprovider "github.com/axisml/axisml/components/compute-service/pkg/provider"
+	csext "github.com/axisml/axisml/components/compute-service/pkg/extensions"
 	tenantv1alpha1 "github.com/axisml/axisml/components/tenant-operator/api/v1alpha1"
 
 	"context"
@@ -17,7 +17,7 @@ const apiGroup = "axisml.io"
 
 // ConfigResourceCatalog serves the single default ResourcePool from the static
 // CR-YAML config. It satisfies BOTH the cluster-manager ResourcePoolStore
-// (read-only REST surface) and the compute-service ResourceCatalog (resolve a
+// (read-only REST surface) and the compute-service ResourceResolver (resolve a
 // (pool, unit) into a resource snapshot). Writes return ErrCapabilityUnavailable
 // (design §5.1); the handlers map that to 409 CapabilityUnavailable.
 type ConfigResourceCatalog struct {
@@ -25,8 +25,8 @@ type ConfigResourceCatalog struct {
 }
 
 var (
-	_ cmprovider.ResourcePoolStore = (*ConfigResourceCatalog)(nil)
-	_ csprovider.ResourceCatalog   = (*ConfigResourceCatalog)(nil)
+	_ cmext.ResourcePoolStore = (*ConfigResourceCatalog)(nil)
+	_ csext.ResourceResolver  = (*ConfigResourceCatalog)(nil)
 )
 
 // NewConfigResourceCatalog builds the catalog over the parsed default pool.
@@ -47,23 +47,23 @@ func (c *ConfigResourceCatalog) Get(_ context.Context, name string) (*cmv1alpha1
 }
 
 // List returns the single default pool.
-func (c *ConfigResourceCatalog) List(_ context.Context, _ cmprovider.ListParams) (*cmv1alpha1.ResourcePoolList, error) {
+func (c *ConfigResourceCatalog) List(_ context.Context, _ cmext.ListParams) (*cmv1alpha1.ResourcePoolList, error) {
 	return &cmv1alpha1.ResourcePoolList{Items: []cmv1alpha1.ResourcePool{*c.pool.DeepCopy()}}, nil
 }
 
 // Create is unavailable in Lite (single read-only default pool).
 func (c *ConfigResourceCatalog) Create(context.Context, *cmv1alpha1.ResourcePool) error {
-	return cmprovider.ErrCapabilityUnavailable
+	return cmext.ErrCapabilityUnavailable
 }
 
 // Patch is unavailable in Lite.
 func (c *ConfigResourceCatalog) Patch(context.Context, *cmv1alpha1.ResourcePool, *cmv1alpha1.ResourcePool) error {
-	return cmprovider.ErrCapabilityUnavailable
+	return cmext.ErrCapabilityUnavailable
 }
 
 // Delete is unavailable in Lite.
 func (c *ConfigResourceCatalog) Delete(context.Context, string) error {
-	return cmprovider.ErrCapabilityUnavailable
+	return cmext.ErrCapabilityUnavailable
 }
 
 // Writable reports the Lite config-backed pool store is read-only.
@@ -72,7 +72,7 @@ func (c *ConfigResourceCatalog) Writable() bool { return false }
 // Resolve expands (poolName, unitName) into the resource snapshot frozen into
 // the workload spec at create time. Lite keeps nodeSelector/tolerations empty
 // (validated at load); only requests/limits carry through to Docker limits.
-func (c *ConfigResourceCatalog) Resolve(_ context.Context, poolName, unitName string) (*csprovider.Expanded, error) {
+func (c *ConfigResourceCatalog) Resolve(_ context.Context, poolName, unitName string) (*csext.Expanded, error) {
 	if poolName == "" || unitName == "" {
 		return nil, apperrors.New(apperrors.CodeValidation, "poolName and unitName are required")
 	}
@@ -84,7 +84,7 @@ func (c *ConfigResourceCatalog) Resolve(_ context.Context, poolName, unitName st
 		if u.Name != unitName {
 			continue
 		}
-		return &csprovider.Expanded{
+		return &csext.Expanded{
 			Requests: u.Requests,
 			Limits:   u.Limits,
 		}, nil
@@ -99,7 +99,7 @@ type StaticTenantStore struct {
 	tenant *tenantv1alpha1.Tenant
 }
 
-var _ cmprovider.TenantStore = (*StaticTenantStore)(nil)
+var _ cmext.TenantStore = (*StaticTenantStore)(nil)
 
 // NewStaticTenantStore builds the store over the parsed default tenant.
 func NewStaticTenantStore(tenant *tenantv1alpha1.Tenant) *StaticTenantStore {
@@ -119,7 +119,7 @@ func (s *StaticTenantStore) Get(_ context.Context, name string) (*tenantv1alpha1
 }
 
 // List returns the single default tenant.
-func (s *StaticTenantStore) List(_ context.Context, _ cmprovider.ListParams) (*tenantv1alpha1.TenantList, error) {
+func (s *StaticTenantStore) List(_ context.Context, _ cmext.ListParams) (*tenantv1alpha1.TenantList, error) {
 	return &tenantv1alpha1.TenantList{Items: []tenantv1alpha1.Tenant{*s.tenant.DeepCopy()}}, nil
 }
 
@@ -129,17 +129,17 @@ func (s *StaticTenantStore) Create(_ context.Context, t *tenantv1alpha1.Tenant) 
 	if t != nil && t.Name == s.tenant.Name {
 		return nil
 	}
-	return cmprovider.ErrCapabilityUnavailable
+	return cmext.ErrCapabilityUnavailable
 }
 
 // Patch is unavailable in Lite.
 func (s *StaticTenantStore) Patch(context.Context, *tenantv1alpha1.Tenant, *tenantv1alpha1.Tenant) error {
-	return cmprovider.ErrCapabilityUnavailable
+	return cmext.ErrCapabilityUnavailable
 }
 
 // Delete is unavailable in Lite.
 func (s *StaticTenantStore) Delete(context.Context, string) error {
-	return cmprovider.ErrCapabilityUnavailable
+	return cmext.ErrCapabilityUnavailable
 }
 
 // Writable reports the Lite single-tenant config store is not multi-tenant.

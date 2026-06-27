@@ -15,18 +15,18 @@ import (
 
 	axismlv1alpha1 "github.com/axisml/axisml/components/cluster-manager/api/v1alpha1"
 	apperrors "github.com/axisml/axisml/components/compute-service/pkg/errors"
-	"github.com/axisml/axisml/components/compute-service/pkg/provider"
+	"github.com/axisml/axisml/components/compute-service/pkg/extensions"
 )
 
 // Reader exposes the read-only lookups needed by job/service. Backed by
 // a controller-runtime client.Client whose cache the parent manager has
 // already wired (so Get is served from the local Informer cache). It is the
-// Kubernetes implementation of provider.ResourceCatalog.
+// Kubernetes implementation of extensions.ResourceResolver.
 type Reader struct {
 	c client.Reader
 }
 
-var _ provider.ResourceCatalog = (*Reader)(nil)
+var _ extensions.ResourceResolver = (*Reader)(nil)
 
 // New returns a Reader that calls c.Get to satisfy lookups.
 func New(c client.Reader) *Reader { return &Reader{c: c} }
@@ -34,7 +34,7 @@ func New(c client.Reader) *Reader { return &Reader{c: c} }
 // Resolve looks up (poolName, unitName) and returns the expanded snapshot
 // per design §5.4 merge rules (pool nodeSelector keys win; pool tolerations
 // pass through verbatim; unit requests/limits go to the role template).
-func (r *Reader) Resolve(ctx context.Context, poolName, unitName string) (*provider.Expanded, error) {
+func (r *Reader) Resolve(ctx context.Context, poolName, unitName string) (*extensions.Expanded, error) {
 	if poolName == "" || unitName == "" {
 		return nil, apperrors.New(apperrors.CodeValidation,
 			"poolName and unitName are required")
@@ -54,7 +54,7 @@ func (r *Reader) Resolve(ctx context.Context, poolName, unitName string) (*provi
 		if u.Name != unitName {
 			continue
 		}
-		return &provider.Expanded{
+		return &extensions.Expanded{
 			NodeSelector: mergeNodeSelector(pool.Spec.NodeSelector, u.NodeSelector),
 			Tolerations:  pool.Spec.Tolerations,
 			Requests:     u.Requests,

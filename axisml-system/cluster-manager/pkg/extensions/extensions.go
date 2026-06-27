@@ -1,6 +1,8 @@
-// Package provider declares the deployment-form-neutral store interfaces the
-// cluster-manager REST handlers depend on. A composition root — the Kubernetes
-// binary, or Lite's axisml-system — injects concrete stores:
+// Package extensions declares the deployment-form-neutral extension seams the
+// cluster-manager REST handlers depend on — the interfaces an alternate
+// deployment form (notably AxisML Lite's axisml-core) must implement. A
+// composition root — the Kubernetes binary, or Lite's axisml-core — injects
+// concrete stores:
 //
 //   - Kubernetes injects stores backed by the cluster-scoped ResourcePool /
 //     Tenant CRs (full CRUD with optimistic locking).
@@ -10,7 +12,7 @@
 //
 // The stores traffic in the shared CR API types — the handlers own all request
 // validation, business folding and HTTP translation.
-package provider
+package extensions
 
 import (
 	"context"

@@ -13,7 +13,7 @@ import (
 	"github.com/axisml/axisml/components/compute-service/internal/metrics"
 	"github.com/axisml/axisml/components/compute-service/internal/server"
 	"github.com/axisml/axisml/components/compute-service/internal/store"
-	"github.com/axisml/axisml/components/compute-service/pkg/computeruntime"
+	"github.com/axisml/axisml/components/compute-service/pkg/extensions"
 )
 
 // Reconciler implements the service Outbox loop. Namespace is read from
@@ -21,12 +21,12 @@ import (
 type Reconciler struct {
 	db       *gorm.DB
 	repo     *Repository
-	runtime  computeruntime.ComputeRuntime
+	runtime  extensions.ComputeRuntime
 	log      logr.Logger
 	interval time.Duration
 }
 
-func NewReconciler(db *gorm.DB, rt computeruntime.ComputeRuntime, log logr.Logger, interval time.Duration) *Reconciler {
+func NewReconciler(db *gorm.DB, rt extensions.ComputeRuntime, log logr.Logger, interval time.Duration) *Reconciler {
 	if interval <= 0 {
 		interval = 2 * time.Second
 	}

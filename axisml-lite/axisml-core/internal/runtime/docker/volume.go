@@ -4,13 +4,13 @@ import (
 	"context"
 	"fmt"
 
-	csprovider "github.com/axisml/axisml/components/compute-service/pkg/provider"
+	csext "github.com/axisml/axisml/components/compute-service/pkg/extensions"
 )
 
 // Runtime also satisfies the Compute workspace-volume provisioner: the durable
 // volume backing a kind=workspace MLService is a managed Docker named volume
 // (design §4.2, §6.4).
-var _ csprovider.WorkspaceVolumeProvisioner = (*Runtime)(nil)
+var _ csext.WorkspaceVolumeProvisioner = (*Runtime)(nil)
 
 // EnsureWorkspaceVolume provisions (or confirms) the named workspace's backing
 // volume. size/storageClass are accepted for contract parity but a single-host

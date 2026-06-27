@@ -14,18 +14,18 @@ import (
 
 	axismlv1alpha1 "github.com/axisml/axisml/components/cluster-manager/api/v1alpha1"
 	srv "github.com/axisml/axisml/components/cluster-manager/internal/server"
-	"github.com/axisml/axisml/components/cluster-manager/pkg/provider"
+	"github.com/axisml/axisml/components/cluster-manager/pkg/extensions"
 )
 
 // Handler implements the /api/v1/resourcepools[/{pool}[/units...]]
 // HTTP surface. It owns no state; all reads/writes go through the injected
 // ResourcePoolStore (Kubernetes CRD or Lite config).
 type Handler struct {
-	pools provider.ResourcePoolStore
+	pools extensions.ResourcePoolStore
 }
 
 // NewHandler builds a resourcepool handler over the given store.
-func NewHandler(pools provider.ResourcePoolStore) *Handler {
+func NewHandler(pools extensions.ResourcePoolStore) *Handler {
 	return &Handler{pools: pools}
 }
 
@@ -94,7 +94,7 @@ func (h *Handler) Get(c *gin.Context) {
 // ?limit (1-500, default 100), and ?continue (opaque cursor returned by
 // a previous page). Mirrors apis/cluster-manager.yaml.
 func (h *Handler) List(c *gin.Context) {
-	params := provider.ListParams{}
+	params := extensions.ListParams{}
 	if sel := c.Query("labelSelector"); sel != "" {
 		if _, err := labelSelectorFrom(sel); err != nil {
 			srv.AbortWithProblem(c, http.StatusBadRequest, "InvalidSelector",
@@ -450,7 +450,7 @@ func (h *Handler) mutateWithRetry(ctx context.Context, poolName string, mutate f
 
 func writeK8sError(c *gin.Context, err error, name string) {
 	switch {
-	case errors.Is(err, provider.ErrCapabilityUnavailable):
+	case errors.Is(err, extensions.ErrCapabilityUnavailable):
 		srv.AbortWithProblem(c, http.StatusConflict, "CapabilityUnavailable",
 			"operation not supported in this deployment form", name)
 	case apierrors.IsAlreadyExists(err):

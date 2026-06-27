@@ -1,5 +1,5 @@
 // Package k8svolume is the Kubernetes implementation of
-// provider.WorkspaceVolumeProvisioner: it backs a kind=workspace MLService with
+// extensions.WorkspaceVolumeProvisioner: it backs a kind=workspace MLService with
 // a PersistentVolumeClaim. The Lite form provides its own provisioner that
 // creates a managed Docker volume instead.
 package k8svolume
@@ -17,7 +17,7 @@ import (
 
 	"github.com/axisml/axisml/components/compute-service/internal/mlservice"
 	apperrors "github.com/axisml/axisml/components/compute-service/pkg/errors"
-	"github.com/axisml/axisml/components/compute-service/pkg/provider"
+	"github.com/axisml/axisml/components/compute-service/pkg/extensions"
 )
 
 // Provisioner manages workspace PVCs via a controller-runtime client.
@@ -25,7 +25,7 @@ type Provisioner struct {
 	c client.Client
 }
 
-var _ provider.WorkspaceVolumeProvisioner = (*Provisioner)(nil)
+var _ extensions.WorkspaceVolumeProvisioner = (*Provisioner)(nil)
 
 // New builds a Provisioner.
 func New(c client.Client) *Provisioner { return &Provisioner{c: c} }

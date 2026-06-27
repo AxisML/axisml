@@ -71,7 +71,7 @@ func Run(ctx context.Context, cfg Config) error {
 	computeMod, err := computemodule.New(computemodule.Deps{
 		DB:                db,
 		Runtime:           rt,
-		Catalog:           catalog,
+		Resolver:          catalog,
 		Volumes:           rt,
 		Log:               log,
 		ReconcileInterval: ReconcileInterval,
