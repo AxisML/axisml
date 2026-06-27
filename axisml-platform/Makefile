@@ -68,15 +68,17 @@ clean: ## Remove backend + frontend build artifacts
 	@rm -rf $(FRONTEND_DIR)/dist $(FRONTEND_DIR)/build $(FRONTEND_DIR)/node_modules/.cache $(FRONTEND_DIR)/tsconfig.tsbuildinfo
 
 # --- Frontend (pnpm; scaffold, not in the default aggregate yet) ---
-.PHONY: frontend-install frontend-build frontend-test frontend-gen-api frontend-lint frontend-dev frontend-image frontend-image-load
+.PHONY: frontend-install frontend-build frontend-test frontend-gen-api frontend-gen-mock frontend-lint frontend-dev frontend-image frontend-image-load
 frontend-install: ## pnpm install
 	@cd $(FRONTEND_DIR) && $(PNPM) install
 frontend-build: ## Build the frontend bundle
 	@cd $(FRONTEND_DIR) && $(PNPM) run build
 frontend-test: ## Frontend unit tests
 	@cd $(FRONTEND_DIR) && $(PNPM) test
-frontend-gen-api: ## Regenerate the typed API client from docs/apis/platform.yaml
+frontend-gen-api: ## Regenerate the typed API client + mock fixtures from docs/apis/platform.yaml
 	@cd $(FRONTEND_DIR) && $(PNPM) run gen:api
+frontend-gen-mock: ## Regenerate the in-browser mock fixtures from the spec's examples
+	@cd $(FRONTEND_DIR) && $(PNPM) run gen:mock
 frontend-lint: ## Lint the frontend
 	@cd $(FRONTEND_DIR) && $(PNPM) run lint
 frontend-dev: ## Start the frontend dev server

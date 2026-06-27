@@ -68,6 +68,32 @@ func (g *Generator) Schemas() map[string]*Schema { return g.defs }
 // envelopes and other shapes that aren't backed by a single Go type.
 func (g *Generator) Set(name string, s *Schema) { g.defs[name] = s }
 
+// SetExample attaches a whole-object example to an already-registered schema.
+// The value is rendered as the schema's `example` and is what the frontend mock
+// codegen reads to build fixtures. Call after Register/Set. Panics on an unknown
+// schema name so a typo breaks `make doc-gen` instead of silently dropping the
+// example.
+func (g *Generator) SetExample(name string, ex any) {
+	s := g.defs[name]
+	if s == nil {
+		panic("openapigen: SetExample for unregistered schema " + name)
+	}
+	s.Example = ex
+}
+
+// ExampleNames returns the schema names that currently carry an example. Used
+// by the generator's own tests to guard example coverage.
+func (g *Generator) ExampleNames() []string {
+	var names []string
+	for name, s := range g.defs {
+		if s != nil && s.Example != nil {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	return names
+}
+
 // Register derives a Schema for v and stores it under the provided component
 // name (so handlers can reference it as #/components/schemas/<name>). For
 // named struct types we call StructSchema directly so the slot holds the
@@ -172,13 +198,18 @@ func (g *Generator) StructSchema(t reflect.Type, mode Mode) *Schema {
 		}
 		fs := g.SchemaForType(f.Type)
 		applyValidators(fs, f.Tag.Get("binding"), f.Type, g.opts.PatternRules)
-		if isPtr(f.Type) {
-			if fs.Ref != "" {
-				// OpenAPI 3.0 ignores sibling keys next to $ref (fixed in 3.1),
-				// so a bare `{$ref, nullable: true}` would silently drop the
-				// nullability hint. Wrap in `allOf` to surface it.
-				fs = &Schema{Nullable: true, AllOf: []*Schema{{Ref: fs.Ref}}}
-			} else {
+		desc := f.Tag.Get("desc")
+		ptr := isPtr(f.Type)
+		if fs.Ref != "" && (ptr || desc != "") {
+			// OpenAPI 3.0 ignores sibling keys next to $ref (fixed in 3.1), so a
+			// bare `{$ref, nullable/description}` would silently drop them. Wrap
+			// in `allOf` to surface the description and/or nullability hint.
+			fs = &Schema{Description: desc, Nullable: ptr, AllOf: []*Schema{{Ref: fs.Ref}}}
+		} else {
+			if desc != "" {
+				fs.Description = desc
+			}
+			if ptr {
 				fs.Nullable = true
 			}
 		}

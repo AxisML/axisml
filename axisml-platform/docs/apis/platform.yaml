@@ -3,41 +3,71 @@
 components:
   schemas:
     ArtifactDefinition:
+      example:
+        createdAt: "2026-06-20T08:00:00Z"
+        description: ResNet-50 图像分类模型。
+        displayName: ResNet-50
+        id: 1f2e3d4c-5b6a-7980-abcd-ef0123456789
+        kind: model
+        labels:
+          team: vision
+        name: resnet50
+        namespace: team-vision
+        owner: li.wei
+        ownerId: 3a2b1c0d-4e5f-6789-abcd-ef0123456789
+        tenantName: team-vision
+        updatedAt: "2026-06-28T09:30:00Z"
       properties:
         annotations:
-          $ref: '#/components/schemas/StringMap'
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: User-defined annotations.
         createdAt:
+          description: Time the definition was created.
           format: date-time
           type: string
         description:
+          description: Free-text definition description.
           type: string
         displayName:
+          description: Human-readable definition label.
           type: string
         id:
+          description: Stable definition identifier.
           format: uuid
           type: string
         kind:
+          description: Definition kind (model or image).
           enum:
           - model
           - image
           type: string
         labels:
-          $ref: '#/components/schemas/StringMap'
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: User-defined labels.
         name:
+          description: Definition name (unique within the tenant).
           type: string
         namespace:
+          description: Platform tenant namespace the definition belongs to.
           type: string
         owner:
+          description: Username of the definition owner.
           type: string
         ownerId:
+          description: User ID of the definition owner.
           format: uuid
           type: string
         spec:
           additionalProperties: {}
+          description: Pass-through definition spec (free-form).
           type: object
         tenantName:
+          description: Tenant identifier owning the definition.
           type: string
         updatedAt:
+          description: Time the definition was last updated.
           format: date-time
           type: string
       required:
@@ -50,71 +80,124 @@ components:
       - updatedAt
       type: object
     ArtifactDefinitionCreateRequest:
+      example:
+        description: ResNet-50 图像分类模型。
+        displayName: ResNet-50
+        labels:
+          team: vision
+        name: resnet50
       properties:
         annotations:
-          $ref: '#/components/schemas/StringMap'
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: User-defined annotations.
         description:
+          description: Free-text definition description.
           maxLength: 4096
           type: string
         displayName:
+          description: Human-readable definition label.
           maxLength: 256
           type: string
         labels:
-          $ref: '#/components/schemas/StringMap'
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: User-defined labels.
         name:
+          description: Artifact definition name (unique within the tenant).
           maxLength: 128
           minLength: 1
           pattern: ^[a-z0-9]([-a-z0-9._]*[a-z0-9])?$
           type: string
         spec:
           additionalProperties: {}
+          description: Pass-through definition spec (free-form).
           type: object
       required:
       - name
       type: object
     ArtifactDefinitionList:
+      example:
+        continueToken: ""
+        count: 1
+        items:
+        - createdAt: "2026-06-20T08:00:00Z"
+          description: ResNet-50 图像分类模型。
+          displayName: ResNet-50
+          id: 1f2e3d4c-5b6a-7980-abcd-ef0123456789
+          kind: model
+          labels:
+            team: vision
+          name: resnet50
+          namespace: team-vision
+          owner: li.wei
+          ownerId: 3a2b1c0d-4e5f-6789-abcd-ef0123456789
+          tenantName: team-vision
+          updatedAt: "2026-06-28T09:30:00Z"
+        partial: false
       properties:
         continueToken:
+          description: Opaque token to fetch the next page.
           type: string
         count:
+          description: Number of definitions in this page.
           minimum: 0
           type: integer
         items:
+          description: Artifact definitions in this page.
           items:
             $ref: '#/components/schemas/ArtifactDefinition'
           type: array
         partial:
+          description: True if the list was truncated by an upstream limit.
           type: boolean
       required:
       - count
       - items
       type: object
     ArtifactDefinitionPatchRequest:
+      example:
+        description: 更新后的定义描述。
+        displayName: ResNet-50 (v2)
       properties:
         annotations:
-          $ref: '#/components/schemas/StringMap'
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: Replacement annotation set.
         description:
+          description: Updated free-text definition description.
           maxLength: 4096
           type: string
         displayName:
+          description: Updated human-readable definition label.
           maxLength: 256
           type: string
         labels:
-          $ref: '#/components/schemas/StringMap'
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: Replacement label set.
         spec:
           additionalProperties: {}
+          description: Replacement definition spec (free-form).
           type: object
       type: object
     ArtifactRef:
+      example:
+        kind: model
+        name: resnet50
+        version: 1.4.0
       properties:
         kind:
+          description: Artifact kind (model or image).
           enum:
           - image
           - model
           type: string
         name:
+          description: Artifact definition name.
           type: string
         version:
+          description: Artifact version.
           type: string
       required:
       - kind
@@ -122,21 +205,34 @@ components:
       - version
       type: object
     ArtifactResolveResponse:
+      example:
+        digest: sha256:9b0d5a2c7f3148e1f4a6c8e3d2b4a6c8e1f9b0d5a2c7f3148e1f4a6c8e3d2b4a
+        expiresAt: "2026-06-28T09:30:00Z"
+        pullCredentials:
+          password: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9
+          username: pull-token
+        storageKind: oci
+        uri: oci://registry.axisml.io/team-vision/resnet50:1.4.0
       properties:
         digest:
+          description: Content digest of the version.
           type: string
         expiresAt:
+          description: Expiry time of the pull credentials.
           format: date-time
           type: string
         pullCredentials:
           additionalProperties: {}
+          description: Short-lived credentials for pulling the content.
           type: object
         storageKind:
+          description: Backing store of the download target (oci, s3).
           enum:
           - oci
           - s3
           type: string
         uri:
+          description: Download URI for the version content.
           type: string
       required:
       - storageKind
@@ -151,26 +247,45 @@ components:
       - external
       type: string
     ArtifactUpdateRequest:
+      example:
+        description: 更新后的版本描述。
+        displayName: ResNet-50 v1.4.0 (校准)
+        labels:
+          team: vision
       properties:
         annotations:
-          $ref: '#/components/schemas/StringMap'
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: Replacement annotation set.
         description:
+          description: Updated free-text description.
           maxLength: 4096
           type: string
         displayName:
+          description: Updated human-readable label.
           maxLength: 256
           type: string
         labels:
-          $ref: '#/components/schemas/StringMap'
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: Replacement label set.
       type: object
     Backend:
+      example:
+        engine: pytorchjob
+        name: native
       properties:
         config:
           additionalProperties: {}
+          description: Backend-specific free-form config (e.g. the target GVK for
+            the custom backend).
           type: object
         engine:
+          description: Engine within the backend (e.g. job, pytorchjob, deployment).
           type: string
         name:
+          description: Compute backend that runs the workload (native, kubeflow-trainer,
+            kserve, custom).
           enum:
           - native
           - kubeflow-trainer
@@ -182,85 +297,139 @@ components:
       - name
       type: object
     Condition:
+      example:
+        lastTransitionTime: "2026-06-28T09:30:00Z"
+        message: All worker replicas are ready.
+        reason: AllReplicasReady
+        status: "True"
+        type: Ready
       properties:
         lastTransitionTime:
+          description: Time the condition last transitioned to this status.
           format: date-time
           type: string
         message:
+          description: Human-readable detail about the last transition.
           type: string
         reason:
+          description: Machine-readable reason for the condition's last transition.
           type: string
         status:
+          description: Status of the condition (True, False, Unknown).
           enum:
           - "True"
           - "False"
           - Unknown
           type: string
         type:
+          description: Condition type (e.g. Ready, Available).
           type: string
       required:
       - status
       - type
       type: object
     ConfigMapInit:
+      example:
+        name: shared-config
+        sourceConfigMapRef:
+          name: shared-config
+          namespace: axisml-system
       properties:
         name:
+          description: Name of the ConfigMap to create in the tenant namespace.
           type: string
         sourceConfigMapRef:
-          $ref: '#/components/schemas/ConfigMapSourceRef'
+          allOf:
+          - $ref: '#/components/schemas/ConfigMapSourceRef'
+          description: Source ConfigMap to copy the data from.
       required:
       - name
       - sourceConfigMapRef
       type: object
     ConfigMapSourceRef:
+      example:
+        name: shared-config
+        namespace: axisml-system
       properties:
         name:
+          description: Name of the source ConfigMap.
           type: string
         namespace:
+          description: Namespace holding the source ConfigMap.
           type: string
       required:
       - name
       - namespace
       type: object
     EnvVar:
+      example:
+        name: NCCL_DEBUG
+        value: INFO
       properties:
         name:
+          description: Environment variable name.
           type: string
         value:
+          description: Literal value for the variable.
           type: string
         valueFrom:
           additionalProperties: {}
+          description: Source the value from a secret/configmap/field (pass-through
+            to the K8s EnvVarSource shape).
           type: object
       required:
       - name
       type: object
     Event:
+      example:
+        count: 1
+        firstTimestamp: "2026-06-28T09:00:00Z"
+        involvedObject:
+          kind: Pod
+          name: resnet-train-7-worker-0
+          namespace: axisml-team-vision
+        lastTimestamp: "2026-06-28T09:00:00Z"
+        message: Successfully assigned resnet-train-7-worker-0 to gpu-node-03.
+        reason: Scheduled
+        source: default-scheduler
+        type: Normal
       properties:
         count:
+          description: Number of times this event has occurred.
           minimum: 0
           type: integer
         firstTimestamp:
+          description: Time the event was first observed.
           format: date-time
           type: string
         involvedObject:
+          description: Object the event is about.
           properties:
             kind:
+              description: Kind of the object the event refers to.
               type: string
             name:
+              description: Name of the object the event refers to.
               type: string
             namespace:
+              description: Namespace of the object the event refers to.
               type: string
           type: object
         lastTimestamp:
+          description: Time the event was last observed.
           format: date-time
           type: string
         message:
+          description: Human-readable event message.
           type: string
         reason:
+          description: Short machine-readable reason for the event.
           type: string
         source:
+          description: Component that reported the event.
           type: string
         type:
+          description: Event type (Normal, Warning).
           enum:
           - Normal
           - Warning
@@ -272,11 +441,27 @@ components:
       - type
       type: object
     EventList:
+      example:
+        count: 1
+        items:
+        - count: 1
+          firstTimestamp: "2026-06-28T09:00:00Z"
+          involvedObject:
+            kind: Pod
+            name: resnet-train-7-worker-0
+            namespace: axisml-team-vision
+          lastTimestamp: "2026-06-28T09:00:00Z"
+          message: Successfully assigned resnet-train-7-worker-0 to gpu-node-03.
+          reason: Scheduled
+          source: default-scheduler
+          type: Normal
       properties:
         count:
+          description: Number of events in the list.
           minimum: 0
           type: integer
         items:
+          description: Events in the list.
           items:
             $ref: '#/components/schemas/Event'
           type: array
@@ -285,35 +470,102 @@ components:
       - items
       type: object
     Experiment:
+      example:
+        createdAt: "2026-06-20T08:00:00Z"
+        description: 在中文语料上微调 BERT 的训练实验。
+        displayName: BERT 微调实验
+        id: d4f8a1b2-3c5e-4a7b-9c0d-1e2f3a4b5c6d
+        labels:
+          team: nlp
+        name: bert-finetune
+        namespace: team-nlp
+        owner: zhang.san
+        ownerId: 3a2b1c0d-4e5f-6789-abcd-ef0123456789
+        spec:
+          artifacts:
+          - kind: model
+            name: bert-base
+            version: 2.1.0
+          backend:
+            engine: pytorchjob
+            name: kubeflow-trainer
+          poolName: gpu-a100
+          quota: team-nlp
+          roles:
+          - name: worker
+            replicas: 2
+            restartPolicy: OnFailure
+            template:
+              args:
+              - --lr
+              - "0.001"
+              - --epochs
+              - "10"
+              - --batch-size
+              - "64"
+              command:
+              - python
+              - train.py
+              env:
+              - name: WANDB_MODE
+                value: offline
+              image: registry.axisml.io/training/bert:2.1.0
+              resources:
+                cpu: "8"
+                memory: 64Gi
+                nvidia.com/gpu: "2"
+          runPolicy:
+            activeDeadlineSeconds: 86400
+            backoffLimit: 2
+            ttlSecondsAfterFinished: 3600
+          unitName: a100-2x
+        tenantName: team-nlp
+        updatedAt: "2026-06-28T09:30:00Z"
       properties:
         annotations:
-          $ref: '#/components/schemas/StringMap'
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: User-defined annotations.
         createdAt:
+          description: Time the experiment was created.
           format: date-time
           type: string
         description:
+          description: Free-text experiment description.
           type: string
         displayName:
+          description: Human-readable experiment label.
           type: string
         id:
+          description: Stable experiment identifier.
           format: uuid
           type: string
         labels:
-          $ref: '#/components/schemas/StringMap'
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: User-defined labels.
         name:
+          description: Experiment definition name (unique within the tenant).
           type: string
         namespace:
+          description: Platform tenant namespace the experiment belongs to.
           type: string
         owner:
+          description: Username of the experiment owner.
           type: string
         ownerId:
+          description: User ID of the experiment owner.
           format: uuid
           type: string
         spec:
-          $ref: '#/components/schemas/JobSpec'
+          allOf:
+          - $ref: '#/components/schemas/JobSpec'
+          description: Reusable run template (isomorphic to a Job spec).
         tenantName:
+          description: Tenant identifier owning the experiment.
           type: string
         updatedAt:
+          description: Time the experiment was last updated.
           format: date-time
           type: string
       required:
@@ -327,67 +579,198 @@ components:
       - updatedAt
       type: object
     ExperimentCreateRequest:
+      example:
+        description: 在中文语料上微调 BERT 的训练实验。
+        displayName: BERT 微调实验
+        labels:
+          team: nlp
+        name: bert-finetune
+        spec:
+          artifacts:
+          - kind: model
+            name: bert-base
+            version: 2.1.0
+          backend:
+            engine: pytorchjob
+            name: kubeflow-trainer
+          poolName: gpu-a100
+          quota: team-nlp
+          roles:
+          - name: worker
+            replicas: 2
+            restartPolicy: OnFailure
+            template:
+              args:
+              - --lr
+              - "0.001"
+              - --epochs
+              - "10"
+              - --batch-size
+              - "64"
+              command:
+              - python
+              - train.py
+              env:
+              - name: WANDB_MODE
+                value: offline
+              image: registry.axisml.io/training/bert:2.1.0
+              resources:
+                cpu: "8"
+                memory: 64Gi
+                nvidia.com/gpu: "2"
+          runPolicy:
+            activeDeadlineSeconds: 86400
+            backoffLimit: 2
+            ttlSecondsAfterFinished: 3600
+          unitName: a100-2x
       properties:
         annotations:
-          $ref: '#/components/schemas/StringMap'
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: User-defined annotations.
         description:
+          description: Free-text experiment description.
           maxLength: 1000
           type: string
         displayName:
+          description: Human-readable experiment label.
           maxLength: 100
           type: string
         labels:
-          $ref: '#/components/schemas/StringMap'
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: User-defined labels.
         name:
+          description: Experiment definition name (unique within the tenant).
           maxLength: 63
           minLength: 1
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
         spec:
-          $ref: '#/components/schemas/JobSpec'
+          allOf:
+          - $ref: '#/components/schemas/JobSpec'
+          description: Reusable run template.
       required:
       - name
       - spec
       type: object
     ExperimentList:
+      example:
+        continueToken: ""
+        count: 1
+        items:
+        - createdAt: "2026-06-20T08:00:00Z"
+          description: 在中文语料上微调 BERT 的训练实验。
+          displayName: BERT 微调实验
+          id: d4f8a1b2-3c5e-4a7b-9c0d-1e2f3a4b5c6d
+          labels:
+            team: nlp
+          name: bert-finetune
+          namespace: team-nlp
+          owner: zhang.san
+          ownerId: 3a2b1c0d-4e5f-6789-abcd-ef0123456789
+          spec:
+            artifacts:
+            - kind: model
+              name: bert-base
+              version: 2.1.0
+            backend:
+              engine: pytorchjob
+              name: kubeflow-trainer
+            poolName: gpu-a100
+            quota: team-nlp
+            roles:
+            - name: worker
+              replicas: 2
+              restartPolicy: OnFailure
+              template:
+                args:
+                - --lr
+                - "0.001"
+                - --epochs
+                - "10"
+                - --batch-size
+                - "64"
+                command:
+                - python
+                - train.py
+                env:
+                - name: WANDB_MODE
+                  value: offline
+                image: registry.axisml.io/training/bert:2.1.0
+                resources:
+                  cpu: "8"
+                  memory: 64Gi
+                  nvidia.com/gpu: "2"
+            runPolicy:
+              activeDeadlineSeconds: 86400
+              backoffLimit: 2
+              ttlSecondsAfterFinished: 3600
+            unitName: a100-2x
+          tenantName: team-nlp
+          updatedAt: "2026-06-28T09:30:00Z"
+        partial: false
       properties:
         continueToken:
+          description: Opaque token to fetch the next page.
           type: string
         count:
+          description: Number of experiments in this page.
           minimum: 0
           type: integer
         items:
+          description: Experiments in this page.
           items:
             $ref: '#/components/schemas/Experiment'
           type: array
         partial:
+          description: True if the list was truncated by an upstream limit.
           type: boolean
       required:
       - count
       - items
       type: object
     ExperimentPatchRequest:
+      example:
+        description: 更新后的描述。
+        displayName: BERT 微调实验 (v2)
       properties:
         annotations:
-          $ref: '#/components/schemas/StringMap'
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: Replacement annotation set.
         description:
+          description: Updated free-text experiment description.
           maxLength: 1000
           type: string
         displayName:
+          description: Updated human-readable experiment label.
           maxLength: 100
           type: string
         labels:
-          $ref: '#/components/schemas/StringMap'
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: Replacement label set.
         spec:
-          $ref: '#/components/schemas/JobSpec'
+          allOf:
+          - $ref: '#/components/schemas/JobSpec'
+          description: Replacement run template (affects only Runs triggered afterwards).
       type: object
     HealthStatus:
+      example:
+        components:
+          artifact-hub: ok
+          compute-service: ok
+          database: ok
+        status: ok
       properties:
         components:
           additionalProperties:
             type: string
+          description: Per-dependency health states keyed by component name.
           type: object
         status:
+          description: Overall health state (e.g. ok, degraded).
           enum:
           - ok
           - degraded
@@ -397,49 +780,89 @@ components:
       - status
       type: object
     Image:
+      example:
+        createdAt: "2026-06-20T08:00:00Z"
+        description: 包含 PyTorch 2.3 与 CUDA 12 的训练镜像。
+        digest: sha256:7f3148e1f4a6c8e3d2b4a6c8e1f9b0d5a2c7f3148e1f4a6c8e3d2b4a6c8e1f9b
+        displayName: PyTorch Training 2.3.0
+        id: a1b2c3d4-5e6f-7081-92a3-b4c5d6e7f809
+        name: pytorch-train
+        namespace: team-vision
+        owner: li.wei
+        ownerId: 3a2b1c0d-4e5f-6789-abcd-ef0123456789
+        readyAt: "2026-06-28T09:30:00Z"
+        sizeBytes: 5368709120
+        source: dockerPush
+        status: Ready
+        tenantName: team-vision
+        updatedAt: "2026-06-28T09:30:00Z"
+        uri: oci://registry.axisml.io/team-vision/pytorch-train:2.3.0
+        version: 2.3.0
       properties:
         createdAt:
+          description: Time the version was created.
           format: date-time
           type: string
         description:
+          description: Free-text version description.
           type: string
         digest:
+          description: Content digest of the image.
           type: string
         displayName:
+          description: Human-readable version label.
           type: string
         id:
+          description: Stable image version identifier.
           format: uuid
           type: string
         name:
+          description: Image definition name (unique within the tenant).
           type: string
         namespace:
+          description: Platform tenant namespace the image belongs to.
           type: string
         owner:
+          description: Username of the version owner.
           type: string
         ownerId:
+          description: User ID of the version owner.
           format: uuid
           type: string
         readyAt:
+          description: Time the version became Ready.
           format: date-time
           nullable: true
           type: string
         sizeBytes:
+          description: Total size of the image content in bytes.
           format: int64
           type: integer
         source:
-          $ref: '#/components/schemas/ArtifactSource'
+          allOf:
+          - $ref: '#/components/schemas/ArtifactSource'
+          description: How this version was added (webUpload, oras, dockerPush, external).
         spec:
-          $ref: '#/components/schemas/ImageSpec'
+          allOf:
+          - $ref: '#/components/schemas/ImageSpec'
+          description: Pass-through artifact-side spec (free-form).
         status:
-          $ref: '#/components/schemas/ImageStatus'
+          allOf:
+          - $ref: '#/components/schemas/ImageStatus'
+          description: Version lifecycle status (Uploading, Ready, Failed, Deleting,
+            Deleted).
         tenantName:
+          description: Tenant identifier owning the image.
           type: string
         updatedAt:
+          description: Time the version was last updated.
           format: date-time
           type: string
         uri:
+          description: Artifact registry URI of the version.
           type: string
         version:
+          description: Image version (tag).
           type: string
       required:
       - createdAt
@@ -451,25 +874,43 @@ components:
       - version
       type: object
     ImageCompleteRequest:
+      example:
+        digest: sha256:7f3148e1f4a6c8e3d2b4a6c8e1f9b0d5a2c7f3148e1f4a6c8e3d2b4a6c8e1f9b
       properties:
         digest:
+          description: Content digest of the pushed image (finalizes the version).
           type: string
       required:
       - digest
       type: object
     ImageInitiateRequest:
+      example:
+        description: 包含 PyTorch 2.3 与 CUDA 12 的训练镜像。
+        displayName: PyTorch Training 2.3.0
+        source: dockerPush
+        spec:
+          purpose: training
+        version: 2.3.0
       properties:
         description:
+          description: Free-text version description.
           type: string
         displayName:
+          description: Human-readable version label.
           type: string
         source:
-          $ref: '#/components/schemas/ArtifactSource'
+          allOf:
+          - $ref: '#/components/schemas/ArtifactSource'
+          description: Upload method (dockerPush, external); empty defaults to dockerPush.
         sourceImageRef:
+          description: Remote image reference to sync (required when source=external).
           type: string
         spec:
-          $ref: '#/components/schemas/ImageSpec'
+          allOf:
+          - $ref: '#/components/schemas/ImageSpec'
+          description: Pass-through artifact-side spec (free-form).
         version:
+          description: Image version (tag) to create.
           maxLength: 64
           minLength: 1
           type: string
@@ -478,50 +919,97 @@ components:
       - version
       type: object
     ImageInitiateResponse:
+      example:
+        expiresAt: "2026-06-28T09:30:00Z"
+        id: a1b2c3d4-5e6f-7081-92a3-b4c5d6e7f809
+        storageKind: oci
+        uploadCredentials:
+          password: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9
+          username: upload-token
+        uri: oci://registry.axisml.io/team-vision/pytorch-train:2.3.0
       properties:
         expiresAt:
+          description: Expiry time of the upload credentials.
           format: date-time
           type: string
         id:
+          description: Identifier of the newly initiated image version.
           format: uuid
           type: string
         storageKind:
+          description: Backing store of the push target (oci, s3).
           enum:
           - oci
           - s3
           type: string
         uploadCredentials:
           additionalProperties: {}
+          description: Short-lived credentials for pushing the image.
           type: object
         uri:
+          description: Push target URI for the image content.
           type: string
       required:
       - id
       - uri
       type: object
     ImageList:
+      example:
+        continueToken: ""
+        count: 1
+        items:
+        - createdAt: "2026-06-20T08:00:00Z"
+          description: 包含 PyTorch 2.3 与 CUDA 12 的训练镜像。
+          digest: sha256:7f3148e1f4a6c8e3d2b4a6c8e1f9b0d5a2c7f3148e1f4a6c8e3d2b4a6c8e1f9b
+          displayName: PyTorch Training 2.3.0
+          id: a1b2c3d4-5e6f-7081-92a3-b4c5d6e7f809
+          name: pytorch-train
+          namespace: team-vision
+          owner: li.wei
+          ownerId: 3a2b1c0d-4e5f-6789-abcd-ef0123456789
+          readyAt: "2026-06-28T09:30:00Z"
+          sizeBytes: 5368709120
+          source: dockerPush
+          status: Ready
+          tenantName: team-vision
+          updatedAt: "2026-06-28T09:30:00Z"
+          uri: oci://registry.axisml.io/team-vision/pytorch-train:2.3.0
+          version: 2.3.0
+        partial: false
       properties:
         continueToken:
+          description: Opaque token to fetch the next page.
           type: string
         count:
+          description: Number of image versions in this page.
           minimum: 0
           type: integer
         items:
+          description: Image versions in this page.
           items:
             $ref: '#/components/schemas/Image'
           type: array
         partial:
+          description: True if the list was truncated by an upstream limit.
           type: boolean
       required:
       - count
       - items
       type: object
     ImagePullSecretInit:
+      example:
+        name: registry-pull
+        sourceSecretRef:
+          name: registry-pull
+          namespace: axisml-system
       properties:
         name:
+          description: Name of the image pull Secret to create in the tenant namespace.
           type: string
         sourceSecretRef:
-          $ref: '#/components/schemas/SecretSourceRef'
+          allOf:
+          - $ref: '#/components/schemas/SecretSourceRef'
+          description: Source Secret to copy the pull credentials from.
       required:
       - name
       - sourceSecretRef
@@ -548,54 +1036,144 @@ components:
       - Deleted
       type: string
     InitResources:
+      example:
+        configMaps:
+        - name: shared-config
+          sourceConfigMapRef:
+            name: shared-config
+            namespace: axisml-system
+        imagePullSecrets:
+        - name: registry-pull
+          sourceSecretRef:
+            name: registry-pull
+            namespace: axisml-system
+        secrets:
+        - name: wandb-api-key
+          sourceSecretRef:
+            name: wandb-api-key
+            namespace: axisml-system
+          type: Opaque
+        serviceAccounts:
+        - imagePullSecrets:
+          - registry-pull
+          name: trainer
       properties:
         configMaps:
+          description: ConfigMaps to seed in the tenant namespace.
           items:
             $ref: '#/components/schemas/ConfigMapInit'
           type: array
         imagePullSecrets:
+          description: Image pull Secrets to seed in the tenant namespace.
           items:
             $ref: '#/components/schemas/ImagePullSecretInit'
           type: array
         secrets:
+          description: Secrets to seed in the tenant namespace.
           items:
             $ref: '#/components/schemas/SecretInit'
           type: array
         serviceAccounts:
+          description: ServiceAccounts to seed in the tenant namespace.
           items:
             $ref: '#/components/schemas/ServiceAccountInit'
           type: array
       type: object
     Job:
+      example:
+        createdAt: "2026-06-20T08:00:00Z"
+        description: ImageNet 上的 ResNet-50 分布式训练任务。
+        displayName: ResNet-50 训练
+        id: 8c1f4e22-2b7a-4c0e-9b1d-7f3a2e5c9a10
+        labels:
+          team: vision
+        name: resnet-train
+        namespace: team-vision
+        owner: li.wei
+        ownerId: 3a2b1c0d-4e5f-6789-abcd-ef0123456789
+        spec:
+          artifacts:
+          - kind: model
+            name: resnet50
+            version: 1.4.0
+          backend:
+            engine: pytorchjob
+            name: native
+          poolName: gpu-a100
+          quota: team-vision
+          roles:
+          - name: worker
+            replicas: 4
+            restartPolicy: OnFailure
+            template:
+              args:
+              - --epochs
+              - "90"
+              - --batch-size
+              - "256"
+              command:
+              - python
+              - train.py
+              env:
+              - name: NCCL_DEBUG
+                value: INFO
+              image: registry.axisml.io/training/resnet:1.4.0
+              resources:
+                cpu: "8"
+                memory: 64Gi
+                nvidia.com/gpu: "2"
+          runPolicy:
+            activeDeadlineSeconds: 86400
+            backoffLimit: 2
+            ttlSecondsAfterFinished: 3600
+          unitName: a100-2x
+        tenantName: team-vision
+        updatedAt: "2026-06-28T09:30:00Z"
       properties:
         annotations:
-          $ref: '#/components/schemas/StringMap'
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: User-defined annotations.
         createdAt:
+          description: Time the job was created.
           format: date-time
           type: string
         description:
+          description: Free-text job description.
           type: string
         displayName:
+          description: Human-readable job label.
           type: string
         id:
+          description: Stable job identifier.
           format: uuid
           type: string
         labels:
-          $ref: '#/components/schemas/StringMap'
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: User-defined labels.
         name:
+          description: Job definition name (unique within the tenant).
           type: string
         namespace:
+          description: Platform tenant namespace the job belongs to.
           type: string
         owner:
+          description: Username of the job owner.
           type: string
         ownerId:
+          description: User ID of the job owner.
           format: uuid
           type: string
         spec:
-          $ref: '#/components/schemas/JobSpec'
+          allOf:
+          - $ref: '#/components/schemas/JobSpec'
+          description: Reusable run template.
         tenantName:
+          description: Tenant identifier owning the job.
           type: string
         updatedAt:
+          description: Time the job was last updated.
           format: date-time
           type: string
       required:
@@ -609,82 +1187,246 @@ components:
       - updatedAt
       type: object
     JobCreateRequest:
+      example:
+        description: ImageNet 上的 ResNet-50 分布式训练任务。
+        displayName: ResNet-50 训练
+        labels:
+          team: vision
+        name: resnet-train
+        spec:
+          artifacts:
+          - kind: model
+            name: resnet50
+            version: 1.4.0
+          backend:
+            engine: pytorchjob
+            name: native
+          poolName: gpu-a100
+          quota: team-vision
+          roles:
+          - name: worker
+            replicas: 4
+            restartPolicy: OnFailure
+            template:
+              args:
+              - --epochs
+              - "90"
+              - --batch-size
+              - "256"
+              command:
+              - python
+              - train.py
+              env:
+              - name: NCCL_DEBUG
+                value: INFO
+              image: registry.axisml.io/training/resnet:1.4.0
+              resources:
+                cpu: "8"
+                memory: 64Gi
+                nvidia.com/gpu: "2"
+          runPolicy:
+            activeDeadlineSeconds: 86400
+            backoffLimit: 2
+            ttlSecondsAfterFinished: 3600
+          unitName: a100-2x
       properties:
         annotations:
-          $ref: '#/components/schemas/StringMap'
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: User-defined annotations.
         description:
+          description: Free-text job description.
           maxLength: 1000
           type: string
         displayName:
+          description: Human-readable job label.
           maxLength: 100
           type: string
         labels:
-          $ref: '#/components/schemas/StringMap'
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: User-defined labels.
         name:
+          description: Job definition name (unique within the tenant).
           maxLength: 63
           minLength: 1
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
         spec:
-          $ref: '#/components/schemas/JobSpec'
+          allOf:
+          - $ref: '#/components/schemas/JobSpec'
+          description: Reusable run template.
       required:
       - name
       - spec
       type: object
     JobList:
+      example:
+        continueToken: ""
+        count: 1
+        items:
+        - createdAt: "2026-06-20T08:00:00Z"
+          description: ImageNet 上的 ResNet-50 分布式训练任务。
+          displayName: ResNet-50 训练
+          id: 8c1f4e22-2b7a-4c0e-9b1d-7f3a2e5c9a10
+          labels:
+            team: vision
+          name: resnet-train
+          namespace: team-vision
+          owner: li.wei
+          ownerId: 3a2b1c0d-4e5f-6789-abcd-ef0123456789
+          spec:
+            artifacts:
+            - kind: model
+              name: resnet50
+              version: 1.4.0
+            backend:
+              engine: pytorchjob
+              name: native
+            poolName: gpu-a100
+            quota: team-vision
+            roles:
+            - name: worker
+              replicas: 4
+              restartPolicy: OnFailure
+              template:
+                args:
+                - --epochs
+                - "90"
+                - --batch-size
+                - "256"
+                command:
+                - python
+                - train.py
+                env:
+                - name: NCCL_DEBUG
+                  value: INFO
+                image: registry.axisml.io/training/resnet:1.4.0
+                resources:
+                  cpu: "8"
+                  memory: 64Gi
+                  nvidia.com/gpu: "2"
+            runPolicy:
+              activeDeadlineSeconds: 86400
+              backoffLimit: 2
+              ttlSecondsAfterFinished: 3600
+            unitName: a100-2x
+          tenantName: team-vision
+          updatedAt: "2026-06-28T09:30:00Z"
+        partial: false
       properties:
         continueToken:
+          description: Opaque token to fetch the next page.
           type: string
         count:
+          description: Number of jobs in this page.
           minimum: 0
           type: integer
         items:
+          description: Jobs in this page.
           items:
             $ref: '#/components/schemas/Job'
           type: array
         partial:
+          description: True if the list was truncated by an upstream limit.
           type: boolean
       required:
       - count
       - items
       type: object
     JobPatchRequest:
+      example:
+        description: 更新后的描述。
+        displayName: ResNet-50 训练 (v2)
       properties:
         annotations:
-          $ref: '#/components/schemas/StringMap'
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: Replacement annotation set.
         description:
+          description: Updated free-text job description.
           maxLength: 1000
           type: string
         displayName:
+          description: Updated human-readable job label.
           maxLength: 100
           type: string
         labels:
-          $ref: '#/components/schemas/StringMap'
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: Replacement label set.
         spec:
-          $ref: '#/components/schemas/JobSpec'
+          allOf:
+          - $ref: '#/components/schemas/JobSpec'
+          description: Replacement run template.
       type: object
     JobSpec:
+      example:
+        artifacts:
+        - kind: model
+          name: resnet50
+          version: 1.4.0
+        backend:
+          engine: pytorchjob
+          name: native
+        poolName: gpu-a100
+        quota: team-vision
+        roles:
+        - name: worker
+          replicas: 4
+          restartPolicy: OnFailure
+          template:
+            args:
+            - --epochs
+            - "90"
+            - --batch-size
+            - "256"
+            command:
+            - python
+            - train.py
+            env:
+            - name: NCCL_DEBUG
+              value: INFO
+            image: registry.axisml.io/training/resnet:1.4.0
+            resources:
+              cpu: "8"
+              memory: 64Gi
+              nvidia.com/gpu: "2"
+        runPolicy:
+          activeDeadlineSeconds: 86400
+          backoffLimit: 2
+          ttlSecondsAfterFinished: 3600
+        unitName: a100-2x
       properties:
         artifacts:
+          description: Model/image artifact versions the runs consume.
           items:
             $ref: '#/components/schemas/ArtifactRef'
           type: array
         backend:
-          $ref: '#/components/schemas/Backend'
+          allOf:
+          - $ref: '#/components/schemas/Backend'
+          description: Compute backend/engine the runs use.
         poolName:
+          description: Default resource pool for runs.
           maxLength: 40
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
         quota:
+          description: Default ElasticQuota for runs.
           type: string
         roles:
+          description: Run topology roles (at least one).
           items:
             $ref: '#/components/schemas/MLRunRole'
           minItems: 1
           type: array
         runPolicy:
-          $ref: '#/components/schemas/RunPolicy'
+          allOf:
+          - $ref: '#/components/schemas/RunPolicy'
+          description: Default run-level execution limits.
         unitName:
+          description: Default resource unit (shape) within the pool.
           maxLength: 40
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
@@ -693,12 +1435,17 @@ components:
       - roles
       type: object
     LoginRequest:
+      example:
+        password: S3cure-pass
+        username: li.wei
       properties:
         password:
+          description: Account password.
           format: password
           minLength: 1
           type: string
         username:
+          description: Account username to authenticate.
           minLength: 1
           type: string
       required:
@@ -706,153 +1453,324 @@ components:
       - username
       type: object
     LoginResponse:
+      example:
+        expiresAt: "2026-06-28T09:25:00Z"
+        jwt: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJsaS53ZWkifQ.sig
+        tenantRoles:
+        - roleName: admin
+          tenantName: team-vision
+        - roleName: member
+          tenantName: team-nlp
+        user:
+          createdAt: "2026-06-20T08:00:00Z"
+          displayName: 李伟
+          email: li.wei@axisml.io
+          id: 3a2b1c0d-4e5f-6789-abcd-ef0123456789
+          updatedAt: "2026-06-28T09:30:00Z"
+          username: li.wei
       properties:
         expiresAt:
+          description: Time the token expires.
           format: date-time
           type: string
         jwt:
+          description: Signed JWT bearer token for subsequent requests.
           type: string
         tenantRoles:
+          description: Tenant/role bindings granted to the user.
           items:
             $ref: '#/components/schemas/UserTenantRole'
           type: array
         user:
-          $ref: '#/components/schemas/User'
+          allOf:
+          - $ref: '#/components/schemas/User'
+          description: Authenticated user account.
       required:
       - jwt
       - tenantRoles
       - user
       type: object
     MLRunRole:
+      example:
+        name: worker
+        replicas: 4
+        restartPolicy: OnFailure
+        template:
+          args:
+          - --epochs
+          - "90"
+          - --batch-size
+          - "256"
+          command:
+          - python
+          - train.py
+          env:
+          - name: NCCL_DEBUG
+            value: INFO
+          image: registry.axisml.io/training/resnet:1.4.0
+          resources:
+            cpu: "8"
+            memory: 64Gi
+            nvidia.com/gpu: "2"
       properties:
         name:
+          description: Role name within the run topology (e.g. master, worker).
           type: string
         replicas:
+          description: Number of pods for this role.
           minimum: 1
           type: integer
         restartPolicy:
+          description: Pod restart policy for the role.
           enum:
           - Never
           - OnFailure
           - Always
           type: string
         template:
-          $ref: '#/components/schemas/RoleTemplate'
+          allOf:
+          - $ref: '#/components/schemas/RoleTemplate'
+          description: Pod template for the role.
       required:
       - name
       - template
       type: object
     MLRunRoleStatus:
+      example:
+        activeReplicas: 4
+        failedReplicas: 0
+        name: worker
+        readyReplicas: 4
+        replicas: 4
+        restartPolicy: OnFailure
+        succeededReplicas: 0
       properties:
         activeReplicas:
+          description: Pods currently running.
           type: integer
         failedReplicas:
+          description: Pods that terminated in failure.
           type: integer
         name:
+          description: Role name.
           type: string
         readyReplicas:
+          description: Pods that have passed readiness.
           type: integer
         replicas:
+          description: Desired replica count for the role.
           type: integer
         restartPolicy:
+          description: Effective restart policy for the role.
           type: string
         succeededReplicas:
+          description: Pods that completed successfully.
           type: integer
         template:
-          $ref: '#/components/schemas/RoleTemplate'
+          allOf:
+          - $ref: '#/components/schemas/RoleTemplate'
+          description: Resolved pod template for the role.
       type: object
     MLRunSpec:
+      example:
+        backend:
+          engine: pytorchjob
+          name: native
+        roles:
+        - name: worker
+          replicas: 4
+          restartPolicy: OnFailure
+          template:
+            args:
+            - --epochs
+            - "90"
+            - --batch-size
+            - "256"
+            command:
+            - python
+            - train.py
+            env:
+            - name: NCCL_DEBUG
+              value: INFO
+            image: registry.axisml.io/training/resnet:1.4.0
+            resources:
+              cpu: "8"
+              memory: 64Gi
+              nvidia.com/gpu: "2"
+        runPolicy:
+          activeDeadlineSeconds: 86400
+          backoffLimit: 2
+          ttlSecondsAfterFinished: 3600
       properties:
         backend:
-          $ref: '#/components/schemas/Backend'
+          allOf:
+          - $ref: '#/components/schemas/Backend'
+          description: Compute backend/engine.
         roles:
+          description: Run topology roles.
           items:
             $ref: '#/components/schemas/MLRunRole'
           type: array
         runPolicy:
-          $ref: '#/components/schemas/RunPolicy'
+          allOf:
+          - $ref: '#/components/schemas/RunPolicy'
+          description: Run-level execution limits.
         scheduling:
           additionalProperties: {}
+          description: Scheduling directives (gang, priority, tolerations).
           type: object
       type: object
     MLService:
+      example:
+        accessUrl: https://gateway.axisml.io/v1/models/llama3-8b
+        backend:
+          engine: llminference
+          name: kserve
+        computeNamespace: axisml-team-nlp
+        createdAt: "2026-06-20T08:00:00Z"
+        description: Llama3-8B 在线推理服务。
+        displayName: Llama3 对话服务
+        env:
+        - name: MAX_TOKENS
+          value: "4096"
+        id: 5d2c9b41-3e8f-4a1c-9d7e-6b4f2a1c8e90
+        image: registry.axisml.io/serving/vllm:0.6.0
+        message: All replicas ready.
+        modelName: llama3-8b
+        modelVersion: 1.2.0
+        name: llama3-chat
+        namespace: team-nlp
+        owner: zhang.san
+        ownerId: 9f8e7d6c-5b4a-3210-fedc-ba9876543210
+        phase: Running
+        poolName: gpu-a100
+        ports:
+        - name: http
+          port: 8080
+        quota: team-nlp
+        readyReplicas: 3
+        replicas: 3
+        resources:
+          cpu: "8"
+          memory: 64Gi
+          nvidia.com/gpu: "1"
+        route:
+          enabled: true
+          path: /v1/models/llama3-8b
+        tenantName: team-nlp
+        unitName: a100-1x
+        updatedAt: "2026-06-28T09:30:00Z"
       properties:
         accessUrl:
+          description: Resolved URL clients use to reach the service.
           type: string
         args:
+          description: Container args override.
           items:
             type: string
           type: array
         backend:
-          $ref: '#/components/schemas/Backend'
+          allOf:
+          - $ref: '#/components/schemas/Backend'
+          description: Compute backend/engine serving the model.
         command:
+          description: Container entrypoint override.
           items:
             type: string
           type: array
         computeNamespace:
+          description: Underlying compute (Kubernetes) namespace running the service.
           type: string
         createdAt:
+          description: Time the service was created.
           format: date-time
           type: string
         description:
+          description: Free-text service description.
           type: string
         displayName:
+          description: Human-readable service label.
           type: string
         env:
+          description: Environment variables injected into the serving pods.
           items:
             $ref: '#/components/schemas/EnvVar'
           type: array
         id:
+          description: Stable service identifier.
           format: uuid
           type: string
         image:
+          description: Serving container image reference.
           type: string
         message:
+          description: Human-readable status detail for the current phase.
           type: string
         modelName:
+          description: Model artifact definition name being served.
           type: string
         modelVersion:
+          description: Model artifact version being served.
           type: string
         name:
+          description: Service name (unique within the tenant).
           type: string
         namespace:
+          description: Platform tenant namespace the service belongs to.
           type: string
         owner:
+          description: Username of the service owner.
           type: string
         ownerId:
+          description: User ID of the service owner.
           format: uuid
           type: string
         phase:
-          $ref: '#/components/schemas/MLServicePhase'
+          allOf:
+          - $ref: '#/components/schemas/MLServicePhase'
+          description: Current service lifecycle phase.
         poolName:
+          description: Resource pool the service is scheduled onto.
           maxLength: 40
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
         ports:
+          description: Container ports exposed by the service.
           items:
             $ref: '#/components/schemas/ServicePort'
           type: array
         quota:
+          description: ElasticQuota the service draws from.
           type: string
         readyReplicas:
+          description: Replicas that have passed readiness.
           minimum: 0
           type: integer
         replicas:
+          description: Desired replica count.
           minimum: 0
           type: integer
         resources:
-          $ref: '#/components/schemas/ResourceMap'
+          allOf:
+          - $ref: '#/components/schemas/ResourceMap'
+          description: Per-replica resource requests/limits.
         route:
-          $ref: '#/components/schemas/MLServiceRoute'
+          allOf:
+          - $ref: '#/components/schemas/MLServiceRoute'
+          description: Gateway exposure settings for the service.
         tenantDisplayName:
+          description: Human-readable tenant name.
           type: string
         tenantName:
+          description: Tenant identifier owning the service.
           type: string
         unitName:
+          description: Resource unit (shape) within the pool.
           maxLength: 40
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
         updatedAt:
+          description: Time the service was last updated.
           format: date-time
           type: string
       required:
@@ -865,55 +1783,97 @@ components:
       - updatedAt
       type: object
     MLServiceCreateRequest:
+      example:
+        backend:
+          engine: llminference
+          name: kserve
+        description: Llama3-8B 在线推理服务。
+        displayName: Llama3 对话服务
+        env:
+        - name: MAX_TOKENS
+          value: "4096"
+        image: registry.axisml.io/serving/vllm:0.6.0
+        modelName: llama3-8b
+        modelVersion: 1.2.0
+        name: llama3-chat
+        poolName: gpu-a100
+        ports:
+        - name: http
+          port: 8080
+        quota: team-nlp
+        replicas: 3
+        route:
+          enabled: true
+          path: /v1/models/llama3-8b
+        unitName: a100-1x
       properties:
         args:
+          description: Container args override.
           items:
             type: string
           type: array
         backend:
-          $ref: '#/components/schemas/Backend'
+          allOf:
+          - $ref: '#/components/schemas/Backend'
+          description: Compute backend/engine (defaults from the model/image when
+            omitted).
         command:
+          description: Container entrypoint override.
           items:
             type: string
           type: array
         description:
+          description: Free-text service description.
           maxLength: 1000
           type: string
         displayName:
+          description: Human-readable service label.
           maxLength: 100
           type: string
         env:
+          description: Environment variables injected into the serving pods.
           items:
             $ref: '#/components/schemas/EnvVar'
           type: array
         image:
+          description: Serving container image reference.
           type: string
         modelName:
+          description: Model artifact definition name to serve.
           type: string
         modelVersion:
+          description: Model artifact version to serve.
           type: string
         name:
+          description: Service name (unique within the tenant).
           maxLength: 40
           minLength: 1
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
         poolName:
+          description: Resource pool to schedule the service onto.
           maxLength: 40
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
         ports:
+          description: Container ports exposed by the service (at least one).
           items:
             $ref: '#/components/schemas/ServicePort'
           minItems: 1
           type: array
         quota:
+          description: ElasticQuota the service draws from.
           type: string
         replicas:
+          description: Desired replica count.
           minimum: 0
           type: integer
         route:
-          $ref: '#/components/schemas/MLServiceRoute'
+          allOf:
+          - $ref: '#/components/schemas/MLServiceRoute'
+          description: Gateway exposure settings for the service.
         unitName:
+          description: Resource unit (shape) within the pool.
           maxLength: 40
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
@@ -928,17 +1888,64 @@ components:
       - unitName
       type: object
     MLServiceList:
+      example:
+        continueToken: ""
+        count: 1
+        items:
+        - accessUrl: https://gateway.axisml.io/v1/models/llama3-8b
+          backend:
+            engine: llminference
+            name: kserve
+          computeNamespace: axisml-team-nlp
+          createdAt: "2026-06-20T08:00:00Z"
+          description: Llama3-8B 在线推理服务。
+          displayName: Llama3 对话服务
+          env:
+          - name: MAX_TOKENS
+            value: "4096"
+          id: 5d2c9b41-3e8f-4a1c-9d7e-6b4f2a1c8e90
+          image: registry.axisml.io/serving/vllm:0.6.0
+          message: All replicas ready.
+          modelName: llama3-8b
+          modelVersion: 1.2.0
+          name: llama3-chat
+          namespace: team-nlp
+          owner: zhang.san
+          ownerId: 9f8e7d6c-5b4a-3210-fedc-ba9876543210
+          phase: Running
+          poolName: gpu-a100
+          ports:
+          - name: http
+            port: 8080
+          quota: team-nlp
+          readyReplicas: 3
+          replicas: 3
+          resources:
+            cpu: "8"
+            memory: 64Gi
+            nvidia.com/gpu: "1"
+          route:
+            enabled: true
+            path: /v1/models/llama3-8b
+          tenantName: team-nlp
+          unitName: a100-1x
+          updatedAt: "2026-06-28T09:30:00Z"
+        partial: false
       properties:
         continueToken:
+          description: Opaque token to fetch the next page.
           type: string
         count:
+          description: Number of services in this page.
           minimum: 0
           type: integer
         items:
+          description: Services in this page.
           items:
             $ref: '#/components/schemas/MLService'
           type: array
         partial:
+          description: True if the list was truncated by an upstream limit.
           type: boolean
       required:
       - count
@@ -954,11 +1961,16 @@ components:
       - gpu_util
       type: string
     MLServicePatchRequest:
+      example:
+        description: 更新后的描述。
+        displayName: Llama3 对话服务 (v2)
       properties:
         description:
+          description: Updated free-text service description.
           maxLength: 1000
           type: string
         displayName:
+          description: Updated human-readable service label.
           maxLength: 100
           type: string
       type: object
@@ -974,34 +1986,66 @@ components:
       - Deleted
       type: string
     MLServiceRoute:
+      example:
+        enabled: true
+        path: /v1/models/llama3-8b
       properties:
         enabled:
+          description: Whether the service is exposed through the gateway.
           type: boolean
         path:
+          description: Gateway route path the service is served under.
           type: string
       type: object
     MLServiceScaleRequest:
+      example:
+        replicas: 5
       properties:
         replicas:
+          description: Target replica count to scale the service to.
           minimum: 0
           type: integer
       required:
       - replicas
       type: object
     MeResponse:
+      example:
+        isSystemAdmin: false
+        permissions:
+        - job:read
+        - job:write
+        - run:read
+        - run:trigger
+        tenantRoles:
+        - roleName: admin
+          tenantName: team-vision
+        - roleName: member
+          tenantName: team-nlp
+        user:
+          createdAt: "2026-06-20T08:00:00Z"
+          displayName: 李伟
+          email: li.wei@axisml.io
+          id: 3a2b1c0d-4e5f-6789-abcd-ef0123456789
+          updatedAt: "2026-06-28T09:30:00Z"
+          username: li.wei
       properties:
         isSystemAdmin:
+          description: True if the caller holds the system administrator role.
           type: boolean
         permissions:
+          description: Flattened permission strings resolved from the caller's roles.
           items:
             type: string
           type: array
         tenantRoles:
+          description: The caller's tenant/role bindings.
           items:
             $ref: '#/components/schemas/UserTenantRole'
           type: array
         user:
-          $ref: '#/components/schemas/User'
+          allOf:
+          - $ref: '#/components/schemas/User'
+          description: The caller's user account.
       required:
       - isSystemAdmin
       - permissions
@@ -1009,21 +2053,35 @@ components:
       - user
       type: object
     Member:
+      example:
+        addedAt: "2026-06-20T08:00:00Z"
+        displayName: 李伟
+        email: li.wei@example.com
+        roleName: tenant-admin
+        userId: 3a2b1c0d-4e5f-6789-abcd-ef0123456789
+        username: li.wei
       properties:
         addedAt:
+          description: Time the member was added to the tenant.
           format: date-time
           type: string
         displayName:
+          description: Human-readable name of the member.
           type: string
         email:
+          description: Email address of the member.
           format: email
           type: string
         roleName:
-          $ref: '#/components/schemas/RoleName'
+          allOf:
+          - $ref: '#/components/schemas/RoleName'
+          description: Role granted to the member within the tenant.
         userId:
+          description: User ID of the member.
           format: uuid
           type: string
         username:
+          description: Username of the member.
           type: string
       required:
       - addedAt
@@ -1032,10 +2090,15 @@ components:
       - username
       type: object
     MemberCreateRequest:
+      example:
+        account: zhang.san@example.com
+        roleName: user
       properties:
         account:
+          description: Email or username of the existing platform user to add.
           type: string
         roleName:
+          description: Role to grant the member (tenant-admin or user).
           enum:
           - tenant-admin
           - user
@@ -1045,13 +2108,26 @@ components:
       - roleName
       type: object
     MemberList:
+      example:
+        continueToken: ""
+        count: 1
+        items:
+        - addedAt: "2026-06-20T08:00:00Z"
+          displayName: 李伟
+          email: li.wei@example.com
+          roleName: tenant-admin
+          userId: 3a2b1c0d-4e5f-6789-abcd-ef0123456789
+          username: li.wei
       properties:
         continueToken:
+          description: Opaque token to fetch the next page.
           type: string
         count:
+          description: Number of members in this page.
           minimum: 0
           type: integer
         items:
+          description: Members in this page.
           items:
             $ref: '#/components/schemas/Member'
           type: array
@@ -1060,8 +2136,11 @@ components:
       - items
       type: object
     MemberPatchRequest:
+      example:
+        roleName: tenant-admin
       properties:
         roleName:
+          description: New role for the member (tenant-admin or user).
           enum:
           - tenant-admin
           - user
@@ -1070,11 +2149,16 @@ components:
       - roleName
       type: object
     MetricPoint:
+      example:
+        timestamp: "2026-06-28T09:00:00Z"
+        value: 12.5
       properties:
         timestamp:
+          description: Sample timestamp.
           format: date-time
           type: string
         value:
+          description: Sample value.
           format: double
           type: number
       required:
@@ -1082,20 +2166,39 @@ components:
       - value
       type: object
     MetricSeries:
+      example:
+        metric: qps
+        percentile: p95
+        range: 1h
+        series:
+        - timestamp: "2026-06-28T09:00:00Z"
+          value: 12.5
+        - timestamp: "2026-06-28T09:30:00Z"
+          value: 18.3
+        - timestamp: "2026-06-28T09:25:00Z"
+          value: 15.1
+        step: 1m
+        unit: req/s
       properties:
         metric:
+          description: Metric name (e.g. qps, latency).
           type: string
         percentile:
+          description: Percentile the series represents (e.g. p95).
           type: string
         range:
+          description: Query time range (e.g. 1h).
           type: string
         series:
+          description: Ordered (timestamp, value) samples.
           items:
             $ref: '#/components/schemas/MetricPoint'
           type: array
         step:
+          description: Sampling step between points (e.g. 1m).
           type: string
         unit:
+          description: Value unit (e.g. ms, req/s).
           type: string
       required:
       - metric
@@ -1103,49 +2206,89 @@ components:
       - series
       type: object
     Model:
+      example:
+        createdAt: "2026-06-20T08:00:00Z"
+        description: 在 ImageNet 上微调的 ResNet-50 权重。
+        digest: sha256:9b0d5a2c7f3148e1f4a6c8e3d2b4a6c8e1f9b0d5a2c7f3148e1f4a6c8e3d2b4a
+        displayName: ResNet-50 v1.4.0
+        id: c4a7f1e9-3d2b-4a6c-8e1f-9b0d5a2c7f31
+        name: resnet50
+        namespace: team-vision
+        owner: li.wei
+        ownerId: 3a2b1c0d-4e5f-6789-abcd-ef0123456789
+        readyAt: "2026-06-28T09:30:00Z"
+        sizeBytes: 102457600
+        source: webUpload
+        status: Ready
+        tenantName: team-vision
+        updatedAt: "2026-06-28T09:30:00Z"
+        uri: oci://registry.axisml.io/team-vision/resnet50:1.4.0
+        version: 1.4.0
       properties:
         createdAt:
+          description: Time the version was created.
           format: date-time
           type: string
         description:
+          description: Free-text version description.
           type: string
         digest:
+          description: Content digest of the uploaded artifact.
           type: string
         displayName:
+          description: Human-readable version label.
           type: string
         id:
+          description: Stable model version identifier.
           format: uuid
           type: string
         name:
+          description: Model definition name (unique within the tenant).
           type: string
         namespace:
+          description: Platform tenant namespace the model belongs to.
           type: string
         owner:
+          description: Username of the version owner.
           type: string
         ownerId:
+          description: User ID of the version owner.
           format: uuid
           type: string
         readyAt:
+          description: Time the version became Ready.
           format: date-time
           nullable: true
           type: string
         sizeBytes:
+          description: Total size of the version content in bytes.
           format: int64
           type: integer
         source:
-          $ref: '#/components/schemas/ArtifactSource'
+          allOf:
+          - $ref: '#/components/schemas/ArtifactSource'
+          description: How this version was added (webUpload, oras, dockerPush, external).
         spec:
-          $ref: '#/components/schemas/ModelSpec'
+          allOf:
+          - $ref: '#/components/schemas/ModelSpec'
+          description: Pass-through artifact-side spec (free-form).
         status:
-          $ref: '#/components/schemas/ModelStatus'
+          allOf:
+          - $ref: '#/components/schemas/ModelStatus'
+          description: Version lifecycle status (Uploading, Ready, Failed, Deleting,
+            Deleted).
         tenantName:
+          description: Tenant identifier owning the model.
           type: string
         updatedAt:
+          description: Time the version was last updated.
           format: date-time
           type: string
         uri:
+          description: Artifact registry URI of the version.
           type: string
         version:
+          description: Model version label.
           type: string
       required:
       - createdAt
@@ -1157,27 +2300,47 @@ components:
       - version
       type: object
     ModelCompleteRequest:
+      example:
+        digest: sha256:9b0d5a2c7f3148e1f4a6c8e3d2b4a6c8e1f9b0d5a2c7f3148e1f4a6c8e3d2b4a
       properties:
         digest:
+          description: Content digest of the uploaded artifact (finalizes the version).
           type: string
       required:
       - digest
       type: object
     ModelInitiateRequest:
+      example:
+        description: 在 ImageNet 上微调的 ResNet-50 权重。
+        displayName: ResNet-50 v1.4.0
+        source: webUpload
+        version: 1.4.0
       properties:
         description:
+          description: Free-text version description.
           type: string
         displayName:
+          description: Human-readable version label.
           type: string
         remoteSourceKind:
-          $ref: '#/components/schemas/RemoteSourceKind'
+          allOf:
+          - $ref: '#/components/schemas/RemoteSourceKind'
+          description: Backing store of the remote URI (s3, oci, http, hf, custom);
+            required when source=external.
         remoteUri:
+          description: Remote artifact URI to register (required when source=external).
           type: string
         source:
-          $ref: '#/components/schemas/ArtifactSource'
+          allOf:
+          - $ref: '#/components/schemas/ArtifactSource'
+          description: Upload method (webUpload, oras, external); empty defaults to
+            webUpload.
         spec:
-          $ref: '#/components/schemas/ModelSpec'
+          allOf:
+          - $ref: '#/components/schemas/ModelSpec'
+          description: Pass-through artifact-side spec (free-form).
         version:
+          description: Model version label to create.
           maxLength: 64
           minLength: 1
           type: string
@@ -1185,39 +2348,78 @@ components:
       - version
       type: object
     ModelInitiateResponse:
+      example:
+        expiresAt: "2026-06-28T09:30:00Z"
+        id: c4a7f1e9-3d2b-4a6c-8e1f-9b0d5a2c7f31
+        storageKind: oci
+        uploadCredentials:
+          password: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9
+          username: upload-token
+        uri: oci://registry.axisml.io/team-vision/resnet50:1.4.0
       properties:
         expiresAt:
+          description: Expiry time of the upload credentials.
           format: date-time
           type: string
         id:
+          description: Identifier of the newly initiated model version.
           format: uuid
           type: string
         storageKind:
+          description: Backing store of the upload target (oci, s3).
           enum:
           - oci
           - s3
           type: string
         uploadCredentials:
           additionalProperties: {}
+          description: Short-lived credentials for pushing the content.
           type: object
         uri:
+          description: Upload target URI for the version content.
           type: string
       required:
       - id
       - uri
       type: object
     ModelList:
+      example:
+        continueToken: ""
+        count: 1
+        items:
+        - createdAt: "2026-06-20T08:00:00Z"
+          description: 在 ImageNet 上微调的 ResNet-50 权重。
+          digest: sha256:9b0d5a2c7f3148e1f4a6c8e3d2b4a6c8e1f9b0d5a2c7f3148e1f4a6c8e3d2b4a
+          displayName: ResNet-50 v1.4.0
+          id: c4a7f1e9-3d2b-4a6c-8e1f-9b0d5a2c7f31
+          name: resnet50
+          namespace: team-vision
+          owner: li.wei
+          ownerId: 3a2b1c0d-4e5f-6789-abcd-ef0123456789
+          readyAt: "2026-06-28T09:30:00Z"
+          sizeBytes: 102457600
+          source: webUpload
+          status: Ready
+          tenantName: team-vision
+          updatedAt: "2026-06-28T09:30:00Z"
+          uri: oci://registry.axisml.io/team-vision/resnet50:1.4.0
+          version: 1.4.0
+        partial: false
       properties:
         continueToken:
+          description: Opaque token to fetch the next page.
           type: string
         count:
+          description: Number of model versions in this page.
           minimum: 0
           type: integer
         items:
+          description: Model versions in this page.
           items:
             $ref: '#/components/schemas/Model'
           type: array
         partial:
+          description: True if the list was truncated by an upstream limit.
           type: boolean
       required:
       - count
@@ -1237,21 +2439,35 @@ components:
       - Deleted
       type: string
     Pod:
+      example:
+        name: resnet-train-7-worker-0
+        nodeName: gpu-node-03
+        phase: Running
+        replicaIndex: 0
+        restartCount: 0
+        role: worker
+        startedAt: "2026-06-28T09:00:00Z"
       properties:
         exitCode:
+          description: Exit code of the container's main process.
           nullable: true
           type: integer
         finishedAt:
+          description: Time the pod terminated.
           format: date-time
           nullable: true
           type: string
         message:
+          description: Human-readable status detail for the pod.
           type: string
         name:
+          description: Pod name.
           type: string
         nodeName:
+          description: Node the pod is scheduled on.
           type: string
         phase:
+          description: Pod lifecycle phase (Pending, Running, Succeeded, Failed, Unknown).
           enum:
           - Pending
           - Running
@@ -1260,14 +2476,18 @@ components:
           - Unknown
           type: string
         replicaIndex:
+          description: Zero-based replica index within the role.
           minimum: 0
           type: integer
         restartCount:
+          description: Number of times the pod's container has restarted.
           minimum: 0
           type: integer
         role:
+          description: Topology role the pod belongs to (e.g. master, worker).
           type: string
         startedAt:
+          description: Time the pod started running.
           format: date-time
           nullable: true
           type: string
@@ -1276,11 +2496,23 @@ components:
       - phase
       type: object
     PodList:
+      example:
+        count: 1
+        items:
+        - name: resnet-train-7-worker-0
+          nodeName: gpu-node-03
+          phase: Running
+          replicaIndex: 0
+          restartCount: 0
+          role: worker
+          startedAt: "2026-06-28T09:00:00Z"
       properties:
         count:
+          description: Number of pods in the list.
           minimum: 0
           type: integer
         items:
+          description: Pods in the list.
           items:
             $ref: '#/components/schemas/Pod'
           type: array
@@ -1289,44 +2521,70 @@ components:
       - items
       type: object
     Problem:
+      example:
+        code: JOB_NOT_FOUND
+        detail: Job "resnet-train" was not found in tenant "team-vision".
+        instance: /api/v1/jobs/resnet-train
+        status: 404
+        title: Not Found
+        type: https://docs.axisml.io/errors/not-found
       properties:
         code:
+          description: Stable machine-readable error code.
           type: string
         detail:
+          description: Human-readable explanation specific to this occurrence.
           type: string
         errors:
+          description: Field-level validation errors, when applicable.
           items:
             $ref: '#/components/schemas/ProblemFieldError'
           type: array
         instance:
+          description: URI reference identifying the specific occurrence of the problem.
           type: string
         status:
+          description: HTTP status code for this occurrence of the problem.
           maximum: 599
           minimum: 100
           type: integer
         title:
+          description: Short, human-readable summary of the problem type.
           type: string
         type:
+          description: URI reference identifying the problem type.
           format: uri
           type: string
       type: object
     ProblemFieldError:
+      example:
+        field: spec.roles
+        message: must contain at least one role
       properties:
         field:
+          description: Name of the field that failed validation.
           type: string
         message:
+          description: Human-readable description of the validation failure.
           type: string
       required:
       - field
       - message
       type: object
     Quota:
+      example:
+        pool: gpu-a100
+        units:
+        - quantity: 4
+          unitName: a100-2x
       properties:
         pool:
+          description: Resource pool the quota allocates from.
           maxLength: 40
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
         units:
+          description: Per-unit allocations within the pool.
           items:
             $ref: '#/components/schemas/QuotaUnit'
           type: array
@@ -1335,12 +2593,19 @@ components:
       - units
       type: object
     QuotaCreateRequest:
+      example:
+        pool: gpu-a100
+        units:
+        - quantity: 4
+          unitName: a100-2x
       properties:
         pool:
+          description: Resource pool to set quota for.
           maxLength: 40
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
         units:
+          description: Per-unit allocations to grant in the pool.
           items:
             $ref: '#/components/schemas/QuotaUnit'
           type: array
@@ -1349,15 +2614,31 @@ components:
       - units
       type: object
     QuotaList:
+      example:
+        count: 1
+        items:
+        - pool: gpu-a100
+          units:
+          - quantity: 4
+            unitName: a100-2x
+        statuses:
+        - pool: gpu-a100
+          units:
+          - quantity: 4
+            unitName: a100-2x
+            used: 3
       properties:
         count:
+          description: Number of pool quotas in this list.
           minimum: 0
           type: integer
         items:
+          description: Per-pool quota allocations for the tenant.
           items:
             $ref: '#/components/schemas/Quota'
           type: array
         statuses:
+          description: Live per-pool usage matching the items.
           items:
             $ref: '#/components/schemas/QuotaStatus'
           type: array
@@ -1366,8 +2647,13 @@ components:
       - items
       type: object
     QuotaPatchRequest:
+      example:
+        units:
+        - quantity: 6
+          unitName: a100-2x
       properties:
         units:
+          description: Replacement per-unit allocations for the pool.
           items:
             $ref: '#/components/schemas/QuotaUnit'
           type: array
@@ -1375,10 +2661,18 @@ components:
       - units
       type: object
     QuotaStatus:
+      example:
+        pool: gpu-a100
+        units:
+        - quantity: 4
+          unitName: a100-2x
+          used: 3
       properties:
         pool:
+          description: Resource pool the status refers to.
           type: string
         units:
+          description: Live per-unit usage within the pool.
           items:
             $ref: '#/components/schemas/QuotaUnitStatus'
           type: array
@@ -1386,11 +2680,16 @@ components:
       - pool
       type: object
     QuotaUnit:
+      example:
+        quantity: 4
+        unitName: a100-2x
       properties:
         quantity:
+          description: Number of units of this shape allocated to the tenant.
           minimum: 0
           type: integer
         unitName:
+          description: Resource unit (shape) name within the pool.
           maxLength: 40
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
@@ -1399,23 +2698,35 @@ components:
       - unitName
       type: object
     QuotaUnitStatus:
+      example:
+        quantity: 4
+        unitName: a100-2x
+        used: 3
       properties:
         quantity:
+          description: Number of units allocated to the tenant.
           type: integer
         unitName:
+          description: Resource unit (shape) name.
           type: string
         used:
+          description: Number of units currently in use.
           type: integer
       required:
       - quantity
       - unitName
       type: object
     RefreshResponse:
+      example:
+        expiresAt: "2026-06-28T09:25:00Z"
+        jwt: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJsaS53ZWkifQ.sig2
       properties:
         expiresAt:
+          description: Time the new token expires.
           format: date-time
           type: string
         jwt:
+          description: Newly issued JWT bearer token.
           type: string
       required:
       - jwt
@@ -1436,33 +2747,70 @@ components:
         "1Ti", "nvidia.com/gpu": "8"}).'
       type: object
     ResourcePool:
+      example:
+        createdAt: "2026-06-20T08:00:00Z"
+        description: A100 GPU 资源池。
+        labels:
+          tier: gpu
+        name: gpu-a100
+        nodeCount: 8
+        nodeSelector:
+          axisml.io/gpu: a100
+        resourceVersion: "184321"
+        units:
+        - description: 2x A100 GPU 计算单元。
+          limits:
+            cpu: "16"
+            memory: 128Gi
+            nvidia.com/gpu: "2"
+          name: a100-2x
+          requests:
+            cpu: "16"
+            memory: 128Gi
+            nvidia.com/gpu: "2"
+        updatedAt: "2026-06-28T09:30:00Z"
       properties:
         annotations:
-          $ref: '#/components/schemas/StringMap'
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: User-defined annotations.
         createdAt:
+          description: Time the pool was created.
           format: date-time
           type: string
         description:
+          description: Free-text pool description.
           type: string
         labels:
-          $ref: '#/components/schemas/StringMap'
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: User-defined labels.
         name:
+          description: Cluster-scoped resource pool name (unique across the cluster).
           type: string
         nodeCount:
+          description: Number of nodes currently matched by the pool's node selector
+            (read-only).
           type: integer
         nodeSelector:
-          $ref: '#/components/schemas/StringMap'
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: Node labels selecting the nodes that back this pool.
         resourceVersion:
+          description: Kubernetes resourceVersion for optimistic concurrency.
           type: string
         tolerations:
+          description: Pod tolerations applied to workloads scheduled onto the pool.
           items:
             $ref: '#/components/schemas/Toleration'
           type: array
         units:
+          description: Resource unit shapes embedded in the pool's spec.units[].
           items:
             $ref: '#/components/schemas/ResourceUnit'
           type: array
         updatedAt:
+          description: Time the pool was last updated.
           format: date-time
           type: string
       required:
@@ -1470,26 +2818,54 @@ components:
       - name
       type: object
     ResourcePoolCreateRequest:
+      example:
+        description: A100 GPU 资源池。
+        labels:
+          tier: gpu
+        name: gpu-a100
+        nodeSelector:
+          axisml.io/gpu: a100
+        units:
+        - description: 2x A100 GPU 计算单元。
+          limits:
+            cpu: "16"
+            memory: 128Gi
+            nvidia.com/gpu: "2"
+          name: a100-2x
+          requests:
+            cpu: "16"
+            memory: 128Gi
+            nvidia.com/gpu: "2"
       properties:
         annotations:
-          $ref: '#/components/schemas/StringMap'
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: User-defined annotations.
         description:
+          description: Free-text pool description.
           maxLength: 1000
           type: string
         labels:
-          $ref: '#/components/schemas/StringMap'
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: User-defined labels.
         name:
+          description: Cluster-scoped resource pool name (unique across the cluster).
           maxLength: 40
           minLength: 1
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
         nodeSelector:
-          $ref: '#/components/schemas/StringMap'
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: Node labels selecting the nodes that back this pool.
         tolerations:
+          description: Pod tolerations applied to workloads scheduled onto the pool.
           items:
             $ref: '#/components/schemas/Toleration'
           type: array
         units:
+          description: Resource unit shapes to embed in the pool.
           items:
             $ref: '#/components/schemas/ResourceUnitCreateRequest'
           type: array
@@ -1497,13 +2873,41 @@ components:
       - name
       type: object
     ResourcePoolList:
+      example:
+        continueToken: ""
+        count: 1
+        items:
+        - createdAt: "2026-06-20T08:00:00Z"
+          description: A100 GPU 资源池。
+          labels:
+            tier: gpu
+          name: gpu-a100
+          nodeCount: 8
+          nodeSelector:
+            axisml.io/gpu: a100
+          resourceVersion: "184321"
+          units:
+          - description: 2x A100 GPU 计算单元。
+            limits:
+              cpu: "16"
+              memory: 128Gi
+              nvidia.com/gpu: "2"
+            name: a100-2x
+            requests:
+              cpu: "16"
+              memory: 128Gi
+              nvidia.com/gpu: "2"
+          updatedAt: "2026-06-28T09:30:00Z"
       properties:
         continueToken:
+          description: Opaque token to fetch the next page.
           type: string
         count:
+          description: Number of pools in this page.
           minimum: 0
           type: integer
         items:
+          description: Resource pools in this page.
           items:
             $ref: '#/components/schemas/ResourcePool'
           type: array
@@ -1512,36 +2916,72 @@ components:
       - items
       type: object
     ResourcePoolPatchRequest:
+      example:
+        description: 更新后的 A100 GPU 资源池。
+        nodeSelector:
+          axisml.io/gpu: a100
+          axisml.io/zone: cn-east-1
       properties:
         annotations:
-          $ref: '#/components/schemas/StringMap'
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: Replacement annotation set.
         description:
+          description: Updated free-text pool description.
           maxLength: 1000
           type: string
         labels:
-          $ref: '#/components/schemas/StringMap'
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: Replacement label set.
         nodeSelector:
-          $ref: '#/components/schemas/StringMap'
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: Replacement node selector.
         tolerations:
+          description: Replacement toleration set.
           items:
             $ref: '#/components/schemas/Toleration'
           type: array
       type: object
     ResourceUnit:
+      example:
+        description: 2x A100 GPU 计算单元。
+        limits:
+          cpu: "16"
+          memory: 128Gi
+          nvidia.com/gpu: "2"
+        name: a100-2x
+        requests:
+          cpu: "16"
+          memory: 128Gi
+          nvidia.com/gpu: "2"
       properties:
         annotations:
-          $ref: '#/components/schemas/StringMap'
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: User-defined annotations.
         description:
+          description: Free-text unit description.
           type: string
         limits:
-          $ref: '#/components/schemas/ResourceMap'
+          allOf:
+          - $ref: '#/components/schemas/ResourceMap'
+          description: Resource limits for the unit shape.
         name:
+          description: Resource unit (shape) name, unique within the pool.
           type: string
         nodeSelector:
-          $ref: '#/components/schemas/StringMap'
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: Additional node labels narrowing placement for this unit.
         requests:
-          $ref: '#/components/schemas/ResourceMap'
+          allOf:
+          - $ref: '#/components/schemas/ResourceMap'
+          description: Resource requests defining the unit shape (e.g. cpu, memory,
+            nvidia.com/gpu).
         tolerations:
+          description: Additional pod tolerations for this unit.
           items:
             $ref: '#/components/schemas/Toleration'
           type: array
@@ -1551,24 +2991,47 @@ components:
       - requests
       type: object
     ResourceUnitCreateRequest:
+      example:
+        description: 2x A100 GPU 计算单元。
+        limits:
+          cpu: "16"
+          memory: 128Gi
+          nvidia.com/gpu: "2"
+        name: a100-2x
+        requests:
+          cpu: "16"
+          memory: 128Gi
+          nvidia.com/gpu: "2"
       properties:
         annotations:
-          $ref: '#/components/schemas/StringMap'
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: User-defined annotations.
         description:
+          description: Free-text unit description.
           maxLength: 1000
           type: string
         limits:
-          $ref: '#/components/schemas/ResourceMap'
+          allOf:
+          - $ref: '#/components/schemas/ResourceMap'
+          description: Resource limits for the unit shape.
         name:
+          description: Resource unit (shape) name, unique within the pool.
           maxLength: 40
           minLength: 1
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
         nodeSelector:
-          $ref: '#/components/schemas/StringMap'
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: Additional node labels narrowing placement for this unit.
         requests:
-          $ref: '#/components/schemas/ResourceMap'
+          allOf:
+          - $ref: '#/components/schemas/ResourceMap'
+          description: Resource requests defining the unit shape (e.g. cpu, memory,
+            nvidia.com/gpu).
         tolerations:
+          description: Additional pod tolerations for this unit.
           items:
             $ref: '#/components/schemas/Toleration'
           type: array
@@ -1578,13 +3041,30 @@ components:
       - requests
       type: object
     ResourceUnitList:
+      example:
+        continueToken: ""
+        count: 1
+        items:
+        - description: 2x A100 GPU 计算单元。
+          limits:
+            cpu: "16"
+            memory: 128Gi
+            nvidia.com/gpu: "2"
+          name: a100-2x
+          requests:
+            cpu: "16"
+            memory: 128Gi
+            nvidia.com/gpu: "2"
       properties:
         continueToken:
+          description: Opaque token to fetch the next page.
           type: string
         count:
+          description: Number of units in this page.
           minimum: 0
           type: integer
         items:
+          description: Resource units in this page.
           items:
             $ref: '#/components/schemas/ResourceUnit'
           type: array
@@ -1593,19 +3073,35 @@ components:
       - items
       type: object
     ResourceUnitPatchRequest:
+      example:
+        description: 更新后的 2x A100 GPU 计算单元。
+        limits:
+          cpu: "24"
+          memory: 192Gi
+          nvidia.com/gpu: "2"
       properties:
         annotations:
-          $ref: '#/components/schemas/StringMap'
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: Replacement annotation set.
         description:
+          description: Updated free-text unit description.
           maxLength: 1000
           type: string
         limits:
-          $ref: '#/components/schemas/ResourceMap'
+          allOf:
+          - $ref: '#/components/schemas/ResourceMap'
+          description: Replacement resource limits.
         nodeSelector:
-          $ref: '#/components/schemas/StringMap'
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: Replacement node selector.
         requests:
-          $ref: '#/components/schemas/ResourceMap'
+          allOf:
+          - $ref: '#/components/schemas/ResourceMap'
+          description: Replacement resource requests.
         tolerations:
+          description: Replacement toleration set.
           items:
             $ref: '#/components/schemas/Toleration'
           type: array
@@ -1617,105 +3113,228 @@ components:
       - user
       type: string
     RoleTemplate:
+      example:
+        args:
+        - --epochs
+        - "90"
+        - --batch-size
+        - "256"
+        command:
+        - python
+        - train.py
+        env:
+        - name: NCCL_DEBUG
+          value: INFO
+        image: registry.axisml.io/training/resnet:1.4.0
+        resources:
+          cpu: "8"
+          memory: 64Gi
+          nvidia.com/gpu: "2"
       properties:
         args:
+          description: Container args override.
           items:
             type: string
           type: array
         command:
+          description: Container entrypoint override.
           items:
             type: string
           type: array
         env:
+          description: Environment variables injected into the role's pods.
           items:
             $ref: '#/components/schemas/EnvVar'
           type: array
         image:
+          description: Container image reference for this role's pods.
           type: string
         ports:
+          description: Container ports (pass-through to the K8s container ports shape).
           items:
             additionalProperties: {}
             type: object
           type: array
         resources:
-          $ref: '#/components/schemas/ResourceMap'
+          allOf:
+          - $ref: '#/components/schemas/ResourceMap'
+          description: Per-replica resource requests/limits.
         volumeMounts:
+          description: Container volume mounts (pass-through to the K8s shape).
           items:
             additionalProperties: {}
             type: object
           type: array
         volumes:
+          description: Pod volumes (pass-through to the K8s PodSpec volumes shape).
           items:
             additionalProperties: {}
             type: object
           type: array
       type: object
     Run:
+      example:
+        backend:
+          engine: pytorchjob
+          name: native
+        computeNamespace: axisml-team-vision
+        createdAt: "2026-06-28T09:00:00Z"
+        displayName: 'ResNet-50 训练 #7'
+        id: b7d9e3f1-1a2b-3c4d-5e6f-708192a3b4c5
+        jobName: resnet-train
+        message: All worker replicas ready.
+        name: resnet-train-7
+        namespace: team-vision
+        owner: li.wei
+        phase: Running
+        poolName: gpu-a100
+        quota: team-vision
+        resources:
+          cpu: "32"
+          memory: 256Gi
+          nvidia.com/gpu: "8"
+        roles:
+        - activeReplicas: 4
+          failedReplicas: 0
+          name: worker
+          readyReplicas: 4
+          replicas: 4
+          restartPolicy: OnFailure
+          succeededReplicas: 0
+        runNumber: 7
+        runPolicy:
+          activeDeadlineSeconds: 86400
+          backoffLimit: 2
+          ttlSecondsAfterFinished: 3600
+        spec:
+          backend:
+            engine: pytorchjob
+            name: native
+          roles:
+          - name: worker
+            replicas: 4
+            restartPolicy: OnFailure
+            template:
+              args:
+              - --epochs
+              - "90"
+              - --batch-size
+              - "256"
+              command:
+              - python
+              - train.py
+              env:
+              - name: NCCL_DEBUG
+                value: INFO
+              image: registry.axisml.io/training/resnet:1.4.0
+              resources:
+                cpu: "8"
+                memory: 64Gi
+                nvidia.com/gpu: "2"
+          runPolicy:
+            activeDeadlineSeconds: 86400
+            backoffLimit: 2
+            ttlSecondsAfterFinished: 3600
+        startedAt: "2026-06-28T09:00:00Z"
+        tenantName: team-vision
+        unitName: a100-2x
+        updatedAt: "2026-06-28T09:30:00Z"
       properties:
         backend:
-          $ref: '#/components/schemas/Backend'
+          allOf:
+          - $ref: '#/components/schemas/Backend'
+          description: Compute backend/engine executing the run.
         computeNamespace:
+          description: Underlying compute (Kubernetes) namespace executing the run.
           type: string
         createdAt:
+          description: Time the run was created.
           format: date-time
           type: string
         description:
+          description: Free-text run description.
           type: string
         displayName:
+          description: Human-readable run label.
           type: string
         finishedAt:
+          description: Time the run reached a terminal phase.
           format: date-time
           nullable: true
           type: string
         id:
+          description: Stable run identifier.
           format: uuid
           type: string
         jobName:
+          description: Name of the Job definition that produced this run.
           type: string
         message:
+          description: Human-readable status detail for the current phase.
           type: string
         name:
+          description: Run name (<job>-<n>).
           type: string
         namespace:
+          description: Platform tenant namespace the run belongs to.
           type: string
         owner:
+          description: Username of the run owner.
           type: string
         ownerId:
+          description: User ID of the run owner.
           format: uuid
           type: string
         phase:
-          $ref: '#/components/schemas/RunPhase'
+          allOf:
+          - $ref: '#/components/schemas/RunPhase'
+          description: Current run lifecycle phase.
         poolName:
+          description: Resource pool the run is scheduled onto.
           maxLength: 40
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
         quota:
+          description: ElasticQuota the run draws from.
           type: string
         resources:
-          $ref: '#/components/schemas/ResourceMap'
+          allOf:
+          - $ref: '#/components/schemas/ResourceMap'
+          description: Aggregate resources reserved by the run.
         roles:
+          description: Live per-role status.
           items:
             $ref: '#/components/schemas/MLRunRoleStatus'
           type: array
         runNumber:
+          description: Monotonic per-job run sequence number.
           type: integer
         runPolicy:
-          $ref: '#/components/schemas/RunPolicy'
+          allOf:
+          - $ref: '#/components/schemas/RunPolicy'
+          description: Effective run-level execution limits.
         spec:
-          $ref: '#/components/schemas/MLRunSpec'
+          allOf:
+          - $ref: '#/components/schemas/MLRunSpec'
+          description: Full resolved run spec (for the YAML view).
         startedAt:
+          description: Time the run started executing.
           format: date-time
           nullable: true
           type: string
         tenantDisplayName:
+          description: Human-readable tenant name.
           type: string
         tenantName:
+          description: Tenant identifier owning the run.
           type: string
         unitName:
+          description: Resource unit (shape) within the pool.
           maxLength: 40
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
         updatedAt:
+          description: Time the run was last updated.
           format: date-time
           type: string
       required:
@@ -1728,17 +3347,91 @@ components:
       - updatedAt
       type: object
     RunList:
+      example:
+        continueToken: ""
+        count: 1
+        items:
+        - backend:
+            engine: pytorchjob
+            name: native
+          computeNamespace: axisml-team-vision
+          createdAt: "2026-06-28T09:00:00Z"
+          displayName: 'ResNet-50 训练 #7'
+          id: b7d9e3f1-1a2b-3c4d-5e6f-708192a3b4c5
+          jobName: resnet-train
+          message: All worker replicas ready.
+          name: resnet-train-7
+          namespace: team-vision
+          owner: li.wei
+          phase: Running
+          poolName: gpu-a100
+          quota: team-vision
+          resources:
+            cpu: "32"
+            memory: 256Gi
+            nvidia.com/gpu: "8"
+          roles:
+          - activeReplicas: 4
+            failedReplicas: 0
+            name: worker
+            readyReplicas: 4
+            replicas: 4
+            restartPolicy: OnFailure
+            succeededReplicas: 0
+          runNumber: 7
+          runPolicy:
+            activeDeadlineSeconds: 86400
+            backoffLimit: 2
+            ttlSecondsAfterFinished: 3600
+          spec:
+            backend:
+              engine: pytorchjob
+              name: native
+            roles:
+            - name: worker
+              replicas: 4
+              restartPolicy: OnFailure
+              template:
+                args:
+                - --epochs
+                - "90"
+                - --batch-size
+                - "256"
+                command:
+                - python
+                - train.py
+                env:
+                - name: NCCL_DEBUG
+                  value: INFO
+                image: registry.axisml.io/training/resnet:1.4.0
+                resources:
+                  cpu: "8"
+                  memory: 64Gi
+                  nvidia.com/gpu: "2"
+            runPolicy:
+              activeDeadlineSeconds: 86400
+              backoffLimit: 2
+              ttlSecondsAfterFinished: 3600
+          startedAt: "2026-06-28T09:00:00Z"
+          tenantName: team-vision
+          unitName: a100-2x
+          updatedAt: "2026-06-28T09:30:00Z"
+        partial: false
       properties:
         continueToken:
+          description: Opaque token to fetch the next page.
           type: string
         count:
+          description: Number of runs in this page.
           minimum: 0
           type: integer
         items:
+          description: Runs in this page.
           items:
             $ref: '#/components/schemas/Run'
           type: array
         partial:
+          description: True if the list was truncated by an upstream limit.
           type: boolean
       required:
       - count
@@ -1759,105 +3452,165 @@ components:
       - Deleted
       type: string
     RunPolicy:
+      example:
+        activeDeadlineSeconds: 86400
+        backoffLimit: 2
+        ttlSecondsAfterFinished: 3600
       properties:
         activeDeadlineSeconds:
+          description: Hard wall-clock limit (seconds) before the run is terminated.
           minimum: 1
           type: integer
         backoffLimit:
+          description: Number of retries before the run is marked failed.
           minimum: 0
           type: integer
         progressDeadlineSeconds:
+          description: Seconds without progress before the run is considered stalled.
           minimum: 1
           type: integer
         ttlSecondsAfterFinished:
+          description: Seconds to retain a finished run before garbage collection.
           minimum: 0
           type: integer
       type: object
     RunTriggerRequest:
+      example:
+        displayName: 'ResNet-50 训练 #8'
+        poolName: gpu-a100
+        quota: team-vision
+        roles:
+        - args:
+          - --epochs
+          - "120"
+          name: worker
+        unitName: a100-2x
       properties:
         annotations:
-          $ref: '#/components/schemas/StringMap'
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: Annotations for the triggered run.
         artifacts:
+          description: Override artifact versions for this run.
           items:
             $ref: '#/components/schemas/ArtifactRef'
           type: array
         displayName:
+          description: Display name for the triggered run.
           maxLength: 100
           type: string
         labels:
-          $ref: '#/components/schemas/StringMap'
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: Labels for the triggered run.
         poolName:
+          description: Override resource pool for this run.
           maxLength: 40
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
         quota:
+          description: Override ElasticQuota for this run.
           type: string
         resources:
-          $ref: '#/components/schemas/ResourceMap'
+          allOf:
+          - $ref: '#/components/schemas/ResourceMap'
+          description: Override aggregate resources for this run.
         roles:
+          description: Per-role trigger-time overrides.
           items:
             properties:
               args:
+                description: Override container args for the role.
                 items:
                   type: string
                 type: array
               env:
+                description: Override environment variables for the role.
                 items:
                   $ref: '#/components/schemas/EnvVar'
                 type: array
               name:
+                description: Role name to override.
                 type: string
             required:
             - name
             type: object
           type: array
         unitName:
+          description: Override resource unit (shape) for this run.
           maxLength: 40
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
       type: object
     SecretInit:
+      example:
+        name: wandb-api-key
+        sourceSecretRef:
+          name: wandb-api-key
+          namespace: axisml-system
+        type: Opaque
       properties:
         name:
+          description: Name of the Secret to create in the tenant namespace.
           type: string
         sourceSecretRef:
-          $ref: '#/components/schemas/SecretSourceRef'
+          allOf:
+          - $ref: '#/components/schemas/SecretSourceRef'
+          description: Source Secret to copy the data from.
         type:
+          description: Kubernetes Secret type (e.g. Opaque).
           type: string
       required:
       - name
       - sourceSecretRef
       type: object
     SecretSourceRef:
+      example:
+        name: registry-pull
+        namespace: axisml-system
       properties:
         name:
+          description: Name of the source Secret.
           type: string
         namespace:
+          description: Namespace holding the source Secret.
           type: string
       required:
       - name
       - namespace
       type: object
     ServiceAccountInit:
+      example:
+        imagePullSecrets:
+        - registry-pull
+        name: trainer
       properties:
         imagePullSecrets:
+          description: Image pull Secret names attached to the ServiceAccount.
           items:
             type: string
           type: array
         name:
+          description: Name of the ServiceAccount to create in the tenant namespace.
           type: string
         rbac:
           additionalProperties: {}
+          description: RBAC rules to bind to the ServiceAccount.
           type: object
       required:
       - name
       type: object
     ServicePort:
+      example:
+        name: http
+        port: 8080
       properties:
         name:
+          description: Port name (unique within the service).
           maxLength: 15
           type: string
         port:
+          description: Container port number the service listens on.
           maximum: 65535
           minimum: 1
           type: integer
@@ -1866,11 +3619,16 @@ components:
       - port
       type: object
     SetPasswordRequest:
+      example:
+        currentPassword: S3cure-pass
+        newPassword: S3cure-pass2
       properties:
         currentPassword:
+          description: Existing password, required when a user changes their own password.
           format: password
           type: string
         newPassword:
+          description: New password to set.
           format: password
           minLength: 8
           type: string
@@ -1882,45 +3640,125 @@ components:
         type: string
       type: object
     Tenant:
+      example:
+        activeExperimentRuns: 2
+        activeJobRuns: 3
+        createdAt: "2026-06-20T08:00:00Z"
+        description: 计算机视觉模型训练与推理团队。
+        displayName: 视觉团队
+        identifier: team-vision
+        initResources:
+          configMaps:
+          - name: shared-config
+            sourceConfigMapRef:
+              name: shared-config
+              namespace: axisml-system
+          imagePullSecrets:
+          - name: registry-pull
+            sourceSecretRef:
+              name: registry-pull
+              namespace: axisml-system
+          secrets:
+          - name: wandb-api-key
+            sourceSecretRef:
+              name: wandb-api-key
+              namespace: axisml-system
+            type: Opaque
+          serviceAccounts:
+          - imagePullSecrets:
+            - registry-pull
+            name: trainer
+        kubernetesNamespace: axisml-team-vision
+        labels:
+          team: vision
+        memberCount: 8
+        onlineServices: 1
+        owner: li.wei
+        phase: Active
+        quotas:
+        - pool: gpu-a100
+          units:
+          - quantity: 4
+            unitName: a100-2x
+        status:
+          conditions:
+          - lastTransitionTime: "2026-06-28T09:30:00Z"
+            message: Namespace and quota provisioned.
+            reason: Provisioned
+            status: "True"
+            type: Ready
+          message: Tenant is active.
+          quotas:
+          - pool: gpu-a100
+            units:
+            - quantity: 4
+              unitName: a100-2x
+              used: 3
+        suspended: false
+        updatedAt: "2026-06-28T09:30:00Z"
       properties:
         activeExperimentRuns:
+          description: Number of active experiment runs in the tenant.
           type: integer
         activeJobRuns:
+          description: Number of active job runs in the tenant.
           type: integer
         annotations:
-          $ref: '#/components/schemas/StringMap'
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: User-defined annotations.
         createdAt:
+          description: Time the tenant was created.
           format: date-time
           type: string
         description:
+          description: Free-text tenant description.
           type: string
         displayName:
+          description: Human-readable tenant name.
           type: string
         identifier:
+          description: Stable logical tenant scope used across Platform, compute and
+            artifacts.
           type: string
         initResources:
-          $ref: '#/components/schemas/InitResources'
+          allOf:
+          - $ref: '#/components/schemas/InitResources'
+          description: Bootstrap objects seeded into the tenant namespace.
         kubernetesNamespace:
+          description: Physical Kubernetes namespace backing the tenant (may be shared).
           type: string
         labels:
-          $ref: '#/components/schemas/StringMap'
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: User-defined labels.
         memberCount:
+          description: Number of members bound to the tenant.
           type: integer
         onlineServices:
+          description: Number of online ML services in the tenant.
           type: integer
         owner:
+          description: Username of the tenant owner.
           type: string
         phase:
-          $ref: '#/components/schemas/TenantPhase'
+          allOf:
+          - $ref: '#/components/schemas/TenantPhase'
+          description: Current tenant lifecycle phase (read live from cluster-manager).
         quotas:
+          description: Per-pool resource quota allocations.
           items:
             $ref: '#/components/schemas/Quota'
           type: array
         status:
-          $ref: '#/components/schemas/TenantStatus'
+          allOf:
+          - $ref: '#/components/schemas/TenantStatus'
+          description: Live tenant status detail.
         suspended:
+          description: Whether new workloads are blocked (Platform-enforced).
           type: boolean
         updatedAt:
+          description: Time the tenant was last updated.
           format: date-time
           type: string
       required:
@@ -1937,32 +3775,57 @@ components:
       - updatedAt
       type: object
     TenantCreateRequest:
+      example:
+        description: 计算机视觉模型训练与推理团队。
+        displayName: 视觉团队
+        identifier: team-vision
+        initialAdmin: li.wei@example.com
+        kubernetesNamespace: axisml-team-vision
+        labels:
+          team: vision
+        quotas:
+        - pool: gpu-a100
+          units:
+          - quantity: 4
+            unitName: a100-2x
       properties:
         annotations:
-          $ref: '#/components/schemas/StringMap'
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: User-defined annotations.
         description:
+          description: Free-text tenant description.
           maxLength: 1000
           type: string
         displayName:
+          description: Human-readable tenant name.
           maxLength: 100
           minLength: 1
           type: string
         identifier:
+          description: Stable logical tenant scope (becomes the Tenant CR name).
           maxLength: 40
           minLength: 3
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
         initResources:
-          $ref: '#/components/schemas/InitResources'
+          allOf:
+          - $ref: '#/components/schemas/InitResources'
+          description: Bootstrap objects to seed into the tenant namespace.
         initialAdmin:
+          description: Email or username of the first tenant-admin member.
           type: string
         kubernetesNamespace:
+          description: Physical Kubernetes namespace to back the tenant (may be shared).
           maxLength: 63
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
         labels:
-          $ref: '#/components/schemas/StringMap'
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: User-defined labels.
         quotas:
+          description: Initial per-pool resource quota allocations.
           items:
             $ref: '#/components/schemas/Quota'
           type: array
@@ -1973,35 +3836,108 @@ components:
       - kubernetesNamespace
       type: object
     TenantList:
+      example:
+        continueToken: ""
+        count: 1
+        items:
+        - activeExperimentRuns: 2
+          activeJobRuns: 3
+          createdAt: "2026-06-20T08:00:00Z"
+          description: 计算机视觉模型训练与推理团队。
+          displayName: 视觉团队
+          identifier: team-vision
+          initResources:
+            configMaps:
+            - name: shared-config
+              sourceConfigMapRef:
+                name: shared-config
+                namespace: axisml-system
+            imagePullSecrets:
+            - name: registry-pull
+              sourceSecretRef:
+                name: registry-pull
+                namespace: axisml-system
+            secrets:
+            - name: wandb-api-key
+              sourceSecretRef:
+                name: wandb-api-key
+                namespace: axisml-system
+              type: Opaque
+            serviceAccounts:
+            - imagePullSecrets:
+              - registry-pull
+              name: trainer
+          kubernetesNamespace: axisml-team-vision
+          labels:
+            team: vision
+          memberCount: 8
+          onlineServices: 1
+          owner: li.wei
+          phase: Active
+          quotas:
+          - pool: gpu-a100
+            units:
+            - quantity: 4
+              unitName: a100-2x
+          status:
+            conditions:
+            - lastTransitionTime: "2026-06-28T09:30:00Z"
+              message: Namespace and quota provisioned.
+              reason: Provisioned
+              status: "True"
+              type: Ready
+            message: Tenant is active.
+            quotas:
+            - pool: gpu-a100
+              units:
+              - quantity: 4
+                unitName: a100-2x
+                used: 3
+          suspended: false
+          updatedAt: "2026-06-28T09:30:00Z"
+        partial: false
       properties:
         continueToken:
+          description: Opaque token to fetch the next page.
           type: string
         count:
+          description: Number of tenants in this page.
           minimum: 0
           type: integer
         items:
+          description: Tenants in this page.
           items:
             $ref: '#/components/schemas/Tenant'
           type: array
         partial:
+          description: True if some rows could not be enriched with live status.
           type: boolean
       required:
       - count
       - items
       type: object
     TenantPatchRequest:
+      example:
+        description: 更新后的团队描述。
+        displayName: 视觉团队 (核心)
       properties:
         annotations:
-          $ref: '#/components/schemas/StringMap'
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: Replacement annotation set.
         description:
+          description: Updated free-text tenant description.
           maxLength: 1000
           type: string
         displayName:
+          description: Updated human-readable tenant name.
           maxLength: 100
           minLength: 1
           type: string
         labels:
-          $ref: '#/components/schemas/StringMap'
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: Replacement label set.
       type: object
     TenantPhase:
       enum:
@@ -2011,30 +3947,59 @@ components:
       - Failed
       type: string
     TenantStatus:
+      example:
+        conditions:
+        - lastTransitionTime: "2026-06-28T09:30:00Z"
+          message: Namespace and quota provisioned.
+          reason: Provisioned
+          status: "True"
+          type: Ready
+        message: Tenant is active.
+        quotas:
+        - pool: gpu-a100
+          units:
+          - quantity: 4
+            unitName: a100-2x
+            used: 3
       properties:
         conditions:
+          description: Live status conditions reported by cluster-manager.
           items:
             $ref: '#/components/schemas/Condition'
           type: array
         message:
+          description: Human-readable status detail for the tenant.
           type: string
         quotas:
+          description: Live per-pool quota usage.
           items:
             $ref: '#/components/schemas/QuotaStatus'
           type: array
       type: object
     TensorBoard:
+      example:
+        createdAt: "2026-06-20T08:00:00Z"
+        message: TensorBoard is serving.
+        name: bert-finetune-tb
+        phase: Running
+        url: https://tb.axisml.io/team-nlp/bert-finetune
       properties:
         createdAt:
+          description: Time the TensorBoard was created.
           format: date-time
           type: string
         message:
+          description: Human-readable status detail for the current phase.
           type: string
         name:
+          description: TensorBoard instance name.
           type: string
         phase:
-          $ref: '#/components/schemas/TensorBoardPhase'
+          allOf:
+          - $ref: '#/components/schemas/TensorBoardPhase'
+          description: Current TensorBoard lifecycle phase.
         url:
+          description: Endpoint URL for the TensorBoard UI once running.
           type: string
       required:
       - createdAt
@@ -2048,8 +4013,14 @@ components:
       - Stopped
       type: string
     TensorBoardRequest:
+      example:
+        runs:
+        - bert-finetune-3
+        - bert-finetune-5
       properties:
         runs:
+          description: Run names to scope the TensorBoard to; empty aggregates every
+            Run of the experiment.
           items:
             type: string
           type: array
@@ -2059,47 +4030,99 @@ components:
       description: Mirrors a Kubernetes corev1.Toleration.
       type: object
     TrafficPolicy:
+      example:
+        accessUrl: https://infer.axisml.io/services/team-vision/resnet-serving/
+        backends:
+        - actualPct: 90
+          ready: true
+          role: stable
+          serviceName: resnet-serving-v1
+          weight: 90
+        - actualPct: 10
+          ready: true
+          role: canary
+          serviceName: resnet-serving-v2
+          weight: 10
+        canaryPercent: 10
+        createdAt: "2026-06-20T08:00:00Z"
+        description: ResNet-50 在线推理服务的金丝雀流量切分。
+        displayName: ResNet 推理流量
+        endpoint:
+          hostname: infer.axisml.io
+          path: /services/team-vision/resnet-serving/
+        id: d4e5f6a7-8b9c-0d1e-2f3a-4b5c6d7e8f90
+        message: Routing 90/10 between stable and canary.
+        mode: canary
+        name: resnet-serving
+        namespace: team-vision
+        owner: li.wei
+        ownerId: 3a2b1c0d-4e5f-6789-abcd-ef0123456789
+        phase: Ready
+        tenantName: team-vision
+        updatedAt: "2026-06-28T09:30:00Z"
       properties:
         accessUrl:
+          description: Resolved external URL clients call (read-only).
           type: string
         backends:
+          description: Member online services and their weights.
           items:
             $ref: '#/components/schemas/TrafficPolicyBackend'
           type: array
         canaryPercent:
+          description: For canary mode, percent of traffic on the canary backend (stable
+            = 100−p).
           type: integer
         createdAt:
+          description: Time the policy was created.
           format: date-time
           type: string
         description:
+          description: Free-text policy description.
           type: string
         displayName:
+          description: Human-readable policy label.
           type: string
         endpoint:
-          $ref: '#/components/schemas/TrafficPolicyEndpoint'
+          allOf:
+          - $ref: '#/components/schemas/TrafficPolicyEndpoint'
+          description: Stable external entry the traffic is fanned out from.
         id:
+          description: Stable traffic policy identifier.
           format: uuid
           type: string
         message:
+          description: Human-readable status detail for the current phase.
           type: string
         mode:
-          $ref: '#/components/schemas/TrafficPolicyMode'
+          allOf:
+          - $ref: '#/components/schemas/TrafficPolicyMode'
+          description: Routing mode (weighted, canary). Immutable after creation.
         name:
+          description: Traffic policy name (unique within the tenant).
           type: string
         namespace:
+          description: Platform tenant namespace the policy belongs to.
           type: string
         owner:
+          description: Username of the policy owner.
           type: string
         ownerId:
+          description: User ID of the policy owner.
           format: uuid
           type: string
         phase:
-          $ref: '#/components/schemas/TrafficPolicyPhase'
+          allOf:
+          - $ref: '#/components/schemas/TrafficPolicyPhase'
+          description: Current policy lifecycle phase.
         tenantDisplayName:
+          description: Human-readable tenant name.
           type: string
         tenantName:
+          description: Tenant identifier owning the policy.
           type: string
         updatedAt:
+          description: Time the policy was last updated.
           format: date-time
           type: string
       required:
@@ -2114,18 +4137,32 @@ components:
       - updatedAt
       type: object
     TrafficPolicyBackend:
+      example:
+        actualPct: 90
+        ready: true
+        role: stable
+        serviceName: resnet-serving-v1
+        weight: 90
       properties:
         actualPct:
+          description: Live percentage of traffic actually routed to this backend
+            (read-only).
           type: integer
         ready:
+          description: Whether the backend service is ready to serve (read-only).
           type: boolean
         role:
-          $ref: '#/components/schemas/TrafficPolicyBackendRole'
+          allOf:
+          - $ref: '#/components/schemas/TrafficPolicyBackendRole'
+          description: Backend role within the policy (stable, canary, member).
         serviceName:
+          description: Name of the member online service receiving a share of traffic.
           maxLength: 40
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
         weight:
+          description: Configured traffic weight (0-100); weights across backends
+            sum to 100.
           maximum: 100
           minimum: 0
           type: integer
@@ -2140,14 +4177,23 @@ components:
       - member
       type: string
     TrafficPolicyBackendSpec:
+      example:
+        role: canary
+        serviceName: resnet-serving-v2
+        weight: 10
       properties:
         role:
-          $ref: '#/components/schemas/TrafficPolicyBackendRole'
+          allOf:
+          - $ref: '#/components/schemas/TrafficPolicyBackendRole'
+          description: Backend role within the policy (stable, canary, member).
         serviceName:
+          description: Name of the member online service to route traffic to.
           maxLength: 40
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
         weight:
+          description: Traffic weight (0-100); weights across backends sum to 100
+            for weighted mode.
           maximum: 100
           minimum: 0
           type: integer
@@ -2155,27 +4201,52 @@ components:
       - serviceName
       type: object
     TrafficPolicyCreateRequest:
+      example:
+        backends:
+        - role: stable
+          serviceName: resnet-serving-v1
+          weight: 90
+        - role: canary
+          serviceName: resnet-serving-v2
+          weight: 10
+        canaryPercent: 10
+        description: ResNet-50 在线推理服务的金丝雀流量切分。
+        displayName: ResNet 推理流量
+        endpoint:
+          hostname: infer.axisml.io
+          path: /services/team-vision/resnet-serving/
+        mode: canary
+        name: resnet-serving
       properties:
         backends:
+          description: Member online services and their weights (≥1).
           items:
             $ref: '#/components/schemas/TrafficPolicyBackendSpec'
           minItems: 1
           type: array
         canaryPercent:
+          description: Initial canary traffic percent for canary mode.
           maximum: 100
           minimum: 0
           type: integer
         description:
+          description: Free-text policy description.
           maxLength: 1000
           type: string
         displayName:
+          description: Human-readable policy label.
           maxLength: 100
           type: string
         endpoint:
-          $ref: '#/components/schemas/TrafficPolicyEndpoint'
+          allOf:
+          - $ref: '#/components/schemas/TrafficPolicyEndpoint'
+          description: Stable external entry; empty path auto-generates one.
         mode:
-          $ref: '#/components/schemas/TrafficPolicyMode'
+          allOf:
+          - $ref: '#/components/schemas/TrafficPolicyMode'
+          description: Routing mode (weighted, canary). Immutable after creation.
         name:
+          description: Traffic policy name (unique within the tenant).
           maxLength: 40
           minLength: 1
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
@@ -2186,24 +4257,68 @@ components:
       - name
       type: object
     TrafficPolicyEndpoint:
+      example:
+        hostname: infer.axisml.io
+        path: /services/team-vision/resnet-serving/
       properties:
         hostname:
+          description: Optional external hostname for the entry. Immutable after creation.
           type: string
         path:
+          description: External URL path; empty auto-generates /services/<tenant>/<name>/.
+            Immutable after creation.
           type: string
       type: object
     TrafficPolicyList:
+      example:
+        continueToken: ""
+        count: 1
+        items:
+        - accessUrl: https://infer.axisml.io/services/team-vision/resnet-serving/
+          backends:
+          - actualPct: 90
+            ready: true
+            role: stable
+            serviceName: resnet-serving-v1
+            weight: 90
+          - actualPct: 10
+            ready: true
+            role: canary
+            serviceName: resnet-serving-v2
+            weight: 10
+          canaryPercent: 10
+          createdAt: "2026-06-20T08:00:00Z"
+          description: ResNet-50 在线推理服务的金丝雀流量切分。
+          displayName: ResNet 推理流量
+          endpoint:
+            hostname: infer.axisml.io
+            path: /services/team-vision/resnet-serving/
+          id: d4e5f6a7-8b9c-0d1e-2f3a-4b5c6d7e8f90
+          message: Routing 90/10 between stable and canary.
+          mode: canary
+          name: resnet-serving
+          namespace: team-vision
+          owner: li.wei
+          ownerId: 3a2b1c0d-4e5f-6789-abcd-ef0123456789
+          phase: Ready
+          tenantName: team-vision
+          updatedAt: "2026-06-28T09:30:00Z"
+        partial: false
       properties:
         continueToken:
+          description: Opaque token to fetch the next page.
           type: string
         count:
+          description: Number of policies in this page.
           minimum: 0
           type: integer
         items:
+          description: Traffic policies in this page.
           items:
             $ref: '#/components/schemas/TrafficPolicy'
           type: array
         partial:
+          description: True if the list was truncated by an upstream limit.
           type: boolean
       required:
       - count
@@ -2215,17 +4330,26 @@ components:
       - canary
       type: string
     TrafficPolicyPatchRequest:
+      example:
+        description: 更新后的描述。
+        displayName: ResNet 推理流量 (v2)
       properties:
         annotations:
-          $ref: '#/components/schemas/StringMap'
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: Replacement annotation set.
         description:
+          description: Updated free-text policy description.
           maxLength: 1000
           type: string
         displayName:
+          description: Updated human-readable policy label.
           maxLength: 100
           type: string
         labels:
-          $ref: '#/components/schemas/StringMap'
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: Replacement label set.
       type: object
     TrafficPolicyPhase:
       enum:
@@ -2238,38 +4362,64 @@ components:
       - Deleted
       type: string
     TrafficPolicySplitRequest:
+      example:
+        backends:
+        - role: stable
+          serviceName: resnet-serving-v1
+          weight: 75
+        - role: canary
+          serviceName: resnet-serving-v2
+          weight: 25
+        canaryPercent: 25
       properties:
         backends:
+          description: Updated backend weights for weighted mode (weights sum to 100).
           items:
             $ref: '#/components/schemas/TrafficPolicyBackendSpec'
           type: array
         canaryPercent:
+          description: Updated canary traffic percent for canary mode (stable = 100−p).
           maximum: 100
           minimum: 0
           nullable: true
           type: integer
       type: object
     User:
+      example:
+        createdAt: "2026-06-20T08:00:00Z"
+        displayName: 李伟
+        email: li.wei@axisml.io
+        id: 3a2b1c0d-4e5f-6789-abcd-ef0123456789
+        updatedAt: "2026-06-28T09:30:00Z"
+        username: li.wei
       properties:
         createdAt:
+          description: Time the account was created.
           format: date-time
           type: string
         disabled:
+          description: True if the account is disabled and cannot sign in.
           type: boolean
         displayName:
+          description: Human-readable display name.
           type: string
         email:
+          description: Account email address.
           format: email
           type: string
         id:
+          description: Stable user identifier.
           format: uuid
           type: string
         mustChangePassword:
+          description: True if the user must change their password before continuing.
           type: boolean
         updatedAt:
+          description: Time the account was last updated.
           format: date-time
           type: string
         username:
+          description: Unique account username.
           type: string
       required:
       - createdAt
@@ -2278,18 +4428,27 @@ components:
       - username
       type: object
     UserCreateRequest:
+      example:
+        displayName: 李伟
+        email: li.wei@axisml.io
+        password: S3cure-pass
+        username: li.wei
       properties:
         displayName:
+          description: Human-readable display name.
           maxLength: 100
           type: string
         email:
+          description: Account email address.
           format: email
           type: string
         password:
+          description: Initial account password.
           format: password
           minLength: 8
           type: string
         username:
+          description: Unique account username.
           maxLength: 64
           minLength: 1
           type: string
@@ -2298,41 +4457,69 @@ components:
       - username
       type: object
     UserPatchRequest:
+      example:
+        disabled: false
+        displayName: 李伟 (Vision Lead)
+        email: li.wei@axisml.io
       properties:
         disabled:
+          description: Set true to disable or false to enable the account; omit to
+            leave unchanged.
           nullable: true
           type: boolean
         displayName:
+          description: Updated human-readable display name.
           maxLength: 100
           type: string
         email:
+          description: Updated account email address.
           format: email
           type: string
       type: object
     UserSummary:
+      example:
+        displayName: 李伟
+        email: li.wei@axisml.io
+        id: 3a2b1c0d-4e5f-6789-abcd-ef0123456789
+        username: li.wei
       properties:
         displayName:
+          description: Human-readable display name.
           type: string
         email:
+          description: Account email address.
           format: email
           type: string
         id:
+          description: Stable user identifier.
           format: uuid
           type: string
         username:
+          description: Unique account username.
           type: string
       required:
       - id
       - username
       type: object
     UserSummaryList:
+      example:
+        continueToken: ""
+        count: 1
+        items:
+        - displayName: 李伟
+          email: li.wei@axisml.io
+          id: 3a2b1c0d-4e5f-6789-abcd-ef0123456789
+          username: li.wei
       properties:
         continueToken:
+          description: Opaque token to fetch the next page.
           type: string
         count:
+          description: Number of users in this page.
           minimum: 0
           type: integer
         items:
+          description: Users in this page.
           items:
             $ref: '#/components/schemas/UserSummary'
           type: array
@@ -2341,10 +4528,16 @@ components:
       - items
       type: object
     UserTenantRole:
+      example:
+        roleName: admin
+        tenantName: team-vision
       properties:
         roleName:
-          $ref: '#/components/schemas/RoleName'
+          allOf:
+          - $ref: '#/components/schemas/RoleName'
+          description: Role granted to the user in the tenant.
         tenantName:
+          description: Tenant the role applies within.
           type: string
       required:
       - roleName
@@ -2358,90 +4551,164 @@ components:
       - gpu_util
       type: string
     Workspace:
+      example:
+        computeNamespace: axisml-team-vision
+        containerPort: 8888
+        createdAt: "2026-06-20T08:00:00Z"
+        description: JupyterLab 交互式开发环境。
+        desiredState: Running
+        displayName: 视觉组开发环境
+        endpoint:
+          accessUrl: https://axisml.example.com/ws/team-vision/notebook-dev/
+          internalDns: notebook-dev.axisml-team-vision.svc.cluster.local
+        id: f1e2d3c4-5b6a-4798-8c0d-1e2f3a4b5c6d
+        image: registry.axisml.io/dev/jupyter:3.0.0
+        lastStartedAt: "2026-06-28T09:00:00Z"
+        lifecycle:
+          idleTimeoutSeconds: 3600
+        message: Workspace is ready.
+        name: notebook-dev
+        namespace: team-vision
+        owner: li.wei
+        ownerId: 3a2b1c0d-4e5f-6789-abcd-ef0123456789
+        phase: Running
+        poolName: gpu-a100
+        quota: team-vision
+        readyReplicas: 1
+        replicas: 1
+        resources:
+          cpu: "4"
+          memory: 32Gi
+          nvidia.com/gpu: "1"
+        tenantName: team-vision
+        unitName: a100-1x
+        updatedAt: "2026-06-28T09:30:00Z"
+        volumes:
+        - mountPath: /home/jovyan/work
+          name: notebook-data
+          size: 50Gi
+          storageClass: standard
+          used: 12Gi
       properties:
         args:
+          description: Container args override.
           items:
             type: string
           type: array
         command:
+          description: Container entrypoint override.
           items:
             type: string
           type: array
         computeNamespace:
+          description: Underlying compute (Kubernetes) namespace hosting the workspace.
           type: string
         containerPort:
+          description: Port the dev server listens on inside the container.
           maximum: 65535
           minimum: 1
           type: integer
         createdAt:
+          description: Time the workspace was created.
           format: date-time
           type: string
         description:
+          description: Free-text workspace description.
           type: string
         desiredState:
-          $ref: '#/components/schemas/WorkspaceDesiredState'
+          allOf:
+          - $ref: '#/components/schemas/WorkspaceDesiredState'
+          description: User-requested run state (Running, Stopped).
         displayName:
+          description: Human-readable workspace label.
           type: string
         endpoint:
-          $ref: '#/components/schemas/WorkspaceEndpoint'
+          allOf:
+          - $ref: '#/components/schemas/WorkspaceEndpoint'
+          description: Reachable URLs for the workspace.
         env:
+          description: Environment variables injected into the container.
           items:
             $ref: '#/components/schemas/EnvVar'
           type: array
         id:
+          description: Stable workspace identifier.
           format: uuid
           type: string
         image:
+          description: Container image for the dev environment (e.g. jupyter, code-server).
           type: string
         lastStartedAt:
+          description: Time the workspace was last started.
           format: date-time
           nullable: true
           type: string
         lastStoppedAt:
+          description: Time the workspace was last stopped.
           format: date-time
           nullable: true
           type: string
         lifecycle:
-          $ref: '#/components/schemas/WorkspaceLifecycle'
+          allOf:
+          - $ref: '#/components/schemas/WorkspaceLifecycle'
+          description: Lifecycle policy (e.g. idle auto-stop).
         message:
+          description: Human-readable status detail for the current phase.
           type: string
         name:
+          description: Workspace name (unique within the tenant).
           type: string
         namespace:
+          description: Platform tenant namespace the workspace belongs to.
           type: string
         owner:
+          description: Username of the workspace owner.
           type: string
         ownerId:
+          description: User ID of the workspace owner.
           format: uuid
           type: string
         phase:
-          $ref: '#/components/schemas/WorkspacePhase'
+          allOf:
+          - $ref: '#/components/schemas/WorkspacePhase'
+          description: Current workspace lifecycle phase.
         poolName:
+          description: Resource pool the workspace is scheduled onto.
           maxLength: 40
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
         quota:
+          description: ElasticQuota the workspace draws from.
           type: string
         readyReplicas:
+          description: Pods that have passed readiness.
           minimum: 0
           type: integer
         replicas:
+          description: Desired pod count (0 when stopped).
           minimum: 0
           type: integer
         resources:
-          $ref: '#/components/schemas/ResourceMap'
+          allOf:
+          - $ref: '#/components/schemas/ResourceMap'
+          description: Resources reserved by the workspace.
         tenantDisplayName:
+          description: Human-readable tenant name.
           type: string
         tenantName:
+          description: Tenant identifier owning the workspace.
           type: string
         unitName:
+          description: Resource unit (shape) within the pool.
           maxLength: 40
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
         updatedAt:
+          description: Time the workspace was last updated.
           format: date-time
           type: string
         volumes:
+          description: Data volumes mounted into the workspace.
           items:
             $ref: '#/components/schemas/WorkspaceVolume'
           type: array
@@ -2457,49 +4724,81 @@ components:
       - updatedAt
       type: object
     WorkspaceCreateRequest:
+      example:
+        containerPort: 8888
+        description: JupyterLab 交互式开发环境。
+        displayName: 视觉组开发环境
+        image: registry.axisml.io/dev/jupyter:3.0.0
+        lifecycle:
+          idleTimeoutSeconds: 3600
+        name: notebook-dev
+        poolName: gpu-a100
+        quota: team-vision
+        unitName: a100-1x
+        volumes:
+        - mountPath: /home/jovyan/work
+          name: notebook-data
+          size: 50Gi
+          storageClass: standard
+          used: 12Gi
       properties:
         args:
+          description: Container args override.
           items:
             type: string
           type: array
         command:
+          description: Container entrypoint override.
           items:
             type: string
           type: array
         containerPort:
+          description: Port the dev server listens on; defaults from the image when
+            omitted.
           maximum: 65535
           minimum: 1
           type: integer
         description:
+          description: Free-text workspace description.
           maxLength: 1000
           type: string
         displayName:
+          description: Human-readable workspace label.
           maxLength: 100
           type: string
         env:
+          description: Environment variables injected into the container.
           items:
             $ref: '#/components/schemas/EnvVar'
           type: array
         image:
+          description: Container image for the dev environment.
           type: string
         lifecycle:
-          $ref: '#/components/schemas/WorkspaceLifecycle'
+          allOf:
+          - $ref: '#/components/schemas/WorkspaceLifecycle'
+          description: Lifecycle policy (e.g. idle auto-stop).
         name:
+          description: Workspace name (unique within the tenant).
           maxLength: 40
           minLength: 1
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
         poolName:
+          description: Resource pool to schedule the workspace onto.
           maxLength: 40
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
         quota:
+          description: ElasticQuota the workspace draws from.
           type: string
         unitName:
+          description: Resource unit (shape) within the pool.
           maxLength: 40
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
         volumes:
+          description: Data volumes to mount into the workspace.
           items:
             $ref: '#/components/schemas/WorkspaceVolume'
           type: array
@@ -2510,8 +4809,11 @@ components:
       - unitName
       type: object
     WorkspaceDeleteRequest:
+      example:
+        deletePvc: false
       properties:
         deletePvc:
+          description: When true, also delete the workspace's persistent volumes.
           type: boolean
       type: object
     WorkspaceDesiredState:
@@ -2520,45 +4822,109 @@ components:
       - Stopped
       type: string
     WorkspaceEndpoint:
+      example:
+        accessUrl: https://axisml.example.com/ws/team-vision/notebook-dev/
+        internalDns: notebook-dev.axisml-team-vision.svc.cluster.local
       properties:
         accessUrl:
+          description: External URL for reaching the workspace UI.
           type: string
         internalDns:
+          description: In-cluster DNS name for the workspace service.
           type: string
       type: object
     WorkspaceLifecycle:
+      example:
+        idleTimeoutSeconds: 3600
       properties:
         idleTimeoutSeconds:
+          description: Idle duration (seconds) after which the workspace is auto-stopped;
+            0 disables auto-stop.
           minimum: 0
           type: integer
       type: object
     WorkspaceList:
+      example:
+        continueToken: ""
+        count: 1
+        items:
+        - computeNamespace: axisml-team-vision
+          containerPort: 8888
+          createdAt: "2026-06-20T08:00:00Z"
+          description: JupyterLab 交互式开发环境。
+          desiredState: Running
+          displayName: 视觉组开发环境
+          endpoint:
+            accessUrl: https://axisml.example.com/ws/team-vision/notebook-dev/
+            internalDns: notebook-dev.axisml-team-vision.svc.cluster.local
+          id: f1e2d3c4-5b6a-4798-8c0d-1e2f3a4b5c6d
+          image: registry.axisml.io/dev/jupyter:3.0.0
+          lastStartedAt: "2026-06-28T09:00:00Z"
+          lifecycle:
+            idleTimeoutSeconds: 3600
+          message: Workspace is ready.
+          name: notebook-dev
+          namespace: team-vision
+          owner: li.wei
+          ownerId: 3a2b1c0d-4e5f-6789-abcd-ef0123456789
+          phase: Running
+          poolName: gpu-a100
+          quota: team-vision
+          readyReplicas: 1
+          replicas: 1
+          resources:
+            cpu: "4"
+            memory: 32Gi
+            nvidia.com/gpu: "1"
+          tenantName: team-vision
+          unitName: a100-1x
+          updatedAt: "2026-06-28T09:30:00Z"
+          volumes:
+          - mountPath: /home/jovyan/work
+            name: notebook-data
+            size: 50Gi
+            storageClass: standard
+            used: 12Gi
+        partial: false
       properties:
         continueToken:
+          description: Opaque token to fetch the next page.
           type: string
         count:
+          description: Number of workspaces in this page.
           minimum: 0
           type: integer
         items:
+          description: Workspaces in this page.
           items:
             $ref: '#/components/schemas/Workspace'
           type: array
         partial:
+          description: True if the list was truncated by an upstream limit.
           type: boolean
       required:
       - count
       - items
       type: object
     WorkspacePatchRequest:
+      example:
+        description: 更新后的描述。
+        displayName: 视觉组开发环境 (v2)
+        lifecycle:
+          idleTimeoutSeconds: 7200
       properties:
         description:
+          description: Updated free-text workspace description.
           maxLength: 1000
           type: string
         displayName:
+          description: Updated human-readable workspace label.
           maxLength: 100
           type: string
         lifecycle:
-          $ref: '#/components/schemas/WorkspaceLifecycle'
+          allOf:
+          - $ref: '#/components/schemas/WorkspaceLifecycle'
+          description: Replacement lifecycle policy.
       type: object
     WorkspacePhase:
       description: Derived from compute service phase + replicas. Hoisted to the top
@@ -2575,16 +4941,28 @@ components:
       - Pending
       type: string
     WorkspaceVolume:
+      example:
+        mountPath: /home/jovyan/work
+        name: notebook-data
+        size: 50Gi
+        storageClass: standard
+        used: 12Gi
       properties:
         mountPath:
+          description: Path the volume is mounted at inside the container.
           type: string
         name:
+          description: Volume name; empty requests a new volume, set mounts an existing
+            one.
           type: string
         size:
+          description: Requested capacity for a new volume (e.g. 50Gi).
           type: string
         storageClass:
+          description: StorageClass backing a new volume.
           type: string
         used:
+          description: Live consumed capacity of the volume (read-only).
           type: string
       required:
       - mountPath
