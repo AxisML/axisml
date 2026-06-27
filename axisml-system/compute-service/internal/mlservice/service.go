@@ -76,10 +76,15 @@ func (m *Module) Create(ctx context.Context, namespace string, in server.MLServi
 	} else if err != nil && !IsNotFound(err) {
 		return nil, err
 	}
-	expanded, err := m.pools.Resolve(ctx, in.PoolName, in.UnitName)
+	pool, err := m.pools.ResolveResourcePool(ctx, in.PoolName)
 	if err != nil {
 		return nil, err
 	}
+	unit, err := m.pools.ResolveResourceUnit(ctx, in.PoolName, in.UnitName)
+	if err != nil {
+		return nil, err
+	}
+	expanded := resource.Expand(pool, unit)
 
 	backend := mlservicev1alpha1.Backend{Name: "native", Engine: "deployment"}
 	if in.Backend != nil {

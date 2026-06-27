@@ -10,9 +10,10 @@
 //     Job / Deployment / StatefulSet / Service / HTTPRoute. Lite's Standalone
 //     (Docker) runtime receives the same objects and maps them onto containers,
 //     volumes, networks and dynamic proxy config.
-//   - ResourceResolver expands a (pool, unit) name pair into a resource snapshot.
+//   - ResourceResolver reads the ResourcePool CR and its embedded units by name.
 //     Kubernetes reads the ResourcePool CR informer cache; Lite reads a static
-//     config catalog.
+//     config catalog. The business layer merges the looked-up (pool, unit) into
+//     the workload spec snapshot (internal/resource, design §5.4).
 //   - WorkspaceVolumeProvisioner manages the durable volume backing a
 //     kind=workspace MLService. Kubernetes creates a PVC; Lite creates a managed
 //     Docker volume via the runtime.

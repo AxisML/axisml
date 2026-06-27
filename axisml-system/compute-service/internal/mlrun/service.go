@@ -51,10 +51,15 @@ func (s *Service) Create(ctx context.Context, namespace string, in server.MLRunC
 		return nil, err
 	}
 
-	expanded, err := s.pools.Resolve(ctx, in.PoolName, in.UnitName)
+	pool, err := s.pools.ResolveResourcePool(ctx, in.PoolName)
 	if err != nil {
 		return nil, err
 	}
+	unit, err := s.pools.ResolveResourceUnit(ctx, in.PoolName, in.UnitName)
+	if err != nil {
+		return nil, err
+	}
+	expanded := resource.Expand(pool, unit)
 
 	backend := mlrunv1alpha1.BackendSpec{Name: "native", Engine: "job"}
 	if in.Backend != nil {

@@ -3,22 +3,20 @@ package extensions
 import (
 	"context"
 
-	corev1 "k8s.io/api/core/v1"
+	cmv1alpha1 "github.com/axisml/axisml/components/cluster-manager/api/v1alpha1"
 )
 
-// Expanded is the resource snapshot a ResourceResolver returns for a
-// (pool, unit) pair, per design §5.4 merge rules.
-type Expanded struct {
-	NodeSelector map[string]string
-	Tolerations  []corev1.Toleration
-	Requests     corev1.ResourceList
-	Limits       corev1.ResourceList
-}
-
-// ResourceResolver resolves (poolName, unitName) into the expanded snapshot that
-// is frozen into the workload spec at create time.
+// ResourceResolver reads the admin resource vocabulary (the ResourcePool CR and
+// its embedded units) that compute-service expands into the workload spec at
+// create time. It owns lookup only; merging a (pool, unit) pair into the spec
+// snapshot per design §5.4 is the business layer's concern (internal/resource).
 type ResourceResolver interface {
-	Resolve(ctx context.Context, poolName, unitName string) (*Expanded, error)
+	// ResolveResourcePool returns the named cluster-scoped ResourcePool, or a
+	// validation error if no such pool exists.
+	ResolveResourcePool(ctx context.Context, name string) (*cmv1alpha1.ResourcePool, error)
+	// ResolveResourceUnit returns the named unit embedded in the named pool, or
+	// a validation error if the pool or the unit within it does not exist.
+	ResolveResourceUnit(ctx context.Context, poolName, unitName string) (*cmv1alpha1.ResourceUnit, error)
 }
 
 // WorkspaceVolumeProvisioner manages the durable volume that backs a

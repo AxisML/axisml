@@ -1,8 +1,9 @@
 // Package poolcache wraps the controller-runtime Informer cache for the
 // ResourcePool CRD (cluster-scoped). Compute consumes this cache at
-// Job/Service create time to expand (poolName, unitName) into the
-// nodeSelector / tolerations / resources snapshot that lands in spec
-// jsonb — there is no PG mirror of ResourcePool. See design §5.4.
+// Job/Service create time to look up the ResourcePool and ResourceUnit it
+// expands (internal/resource) into the nodeSelector / tolerations / resources
+// snapshot that lands in spec jsonb — there is no PG mirror of ResourcePool.
+// See design §5.4.
 package poolcache
 
 import (
@@ -31,54 +32,39 @@ var _ extensions.ResourceResolver = (*Reader)(nil)
 // New returns a Reader that calls c.Get to satisfy lookups.
 func New(c client.Reader) *Reader { return &Reader{c: c} }
 
-// Resolve looks up (poolName, unitName) and returns the expanded snapshot
-// per design §5.4 merge rules (pool nodeSelector keys win; pool tolerations
-// pass through verbatim; unit requests/limits go to the role template).
-func (r *Reader) Resolve(ctx context.Context, poolName, unitName string) (*extensions.Expanded, error) {
-	if poolName == "" || unitName == "" {
-		return nil, apperrors.New(apperrors.CodeValidation,
-			"poolName and unitName are required")
+// ResolveResourcePool returns the named cluster-scoped ResourcePool from the
+// Informer cache, or a validation error if no such pool exists.
+func (r *Reader) ResolveResourcePool(ctx context.Context, name string) (*axismlv1alpha1.ResourcePool, error) {
+	if name == "" {
+		return nil, apperrors.New(apperrors.CodeValidation, "poolName is required")
 	}
 	var pool axismlv1alpha1.ResourcePool
-	if err := r.c.Get(ctx, types.NamespacedName{Name: poolName}, &pool); err != nil {
+	if err := r.c.Get(ctx, types.NamespacedName{Name: name}, &pool); err != nil {
 		if apierrors.IsNotFound(err) {
 			return nil, apperrors.Newf(apperrors.CodeValidation,
-				"resource pool %q not found", poolName)
+				"resource pool %q not found", name)
 		}
 		return nil, apperrors.Wrap(apperrors.CodeUnavailable,
-			fmt.Sprintf("read ResourcePool %q", poolName), err)
+			fmt.Sprintf("read ResourcePool %q", name), err)
 	}
+	return &pool, nil
+}
 
+// ResolveResourceUnit returns the named unit embedded in the named pool, or a
+// validation error if the pool or the unit within it does not exist.
+func (r *Reader) ResolveResourceUnit(ctx context.Context, poolName, unitName string) (*axismlv1alpha1.ResourceUnit, error) {
+	if unitName == "" {
+		return nil, apperrors.New(apperrors.CodeValidation, "unitName is required")
+	}
+	pool, err := r.ResolveResourcePool(ctx, poolName)
+	if err != nil {
+		return nil, err
+	}
 	for i := range pool.Spec.Units {
-		u := &pool.Spec.Units[i]
-		if u.Name != unitName {
-			continue
+		if pool.Spec.Units[i].Name == unitName {
+			return &pool.Spec.Units[i], nil
 		}
-		return &extensions.Expanded{
-			NodeSelector: mergeNodeSelector(pool.Spec.NodeSelector, u.NodeSelector),
-			Tolerations:  pool.Spec.Tolerations,
-			Requests:     u.Requests,
-			Limits:       u.Limits,
-		}, nil
 	}
 	return nil, apperrors.Newf(apperrors.CodeValidation,
 		"resource unit %q not found in pool %q", unitName, poolName)
-}
-
-// mergeNodeSelector applies the design merge rule: pool keys are
-// preserved, unit-only keys fill in gaps the pool didn't declare.
-func mergeNodeSelector(poolSel, unitSel map[string]string) map[string]string {
-	if len(poolSel) == 0 && len(unitSel) == 0 {
-		return nil
-	}
-	out := make(map[string]string, len(poolSel)+len(unitSel))
-	for k, v := range poolSel {
-		out[k] = v
-	}
-	for k, v := range unitSel {
-		if _, ok := out[k]; !ok {
-			out[k] = v
-		}
-	}
-	return out
 }

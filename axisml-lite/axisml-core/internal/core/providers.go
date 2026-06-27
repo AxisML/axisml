@@ -17,9 +17,9 @@ const apiGroup = "axisml.io"
 
 // ConfigResourceCatalog serves the single default ResourcePool from the static
 // CR-YAML config. It satisfies BOTH the cluster-manager ResourcePoolStore
-// (read-only REST surface) and the compute-service ResourceResolver (resolve a
-// (pool, unit) into a resource snapshot). Writes return ErrCapabilityUnavailable
-// (design §5.1); the handlers map that to 409 CapabilityUnavailable.
+// (read-only REST surface) and the compute-service ResourceResolver (look up a
+// pool / unit by name). Writes return ErrCapabilityUnavailable (design §5.1);
+// the handlers map that to 409 CapabilityUnavailable.
 type ConfigResourceCatalog struct {
 	pool *cmv1alpha1.ResourcePool
 }
@@ -69,25 +69,33 @@ func (c *ConfigResourceCatalog) Delete(context.Context, string) error {
 // Writable reports the Lite config-backed pool store is read-only.
 func (c *ConfigResourceCatalog) Writable() bool { return false }
 
-// Resolve expands (poolName, unitName) into the resource snapshot frozen into
-// the workload spec at create time. Lite keeps nodeSelector/tolerations empty
-// (validated at load); only requests/limits carry through to Docker limits.
-func (c *ConfigResourceCatalog) Resolve(_ context.Context, poolName, unitName string) (*csext.Expanded, error) {
-	if poolName == "" || unitName == "" {
-		return nil, apperrors.New(apperrors.CodeValidation, "poolName and unitName are required")
+// ResolveResourcePool returns the single default pool by name, or a validation
+// error for any other name (the business layer maps it to 400).
+func (c *ConfigResourceCatalog) ResolveResourcePool(_ context.Context, name string) (*cmv1alpha1.ResourcePool, error) {
+	if name == "" {
+		return nil, apperrors.New(apperrors.CodeValidation, "poolName is required")
 	}
-	if poolName != c.pool.Name {
-		return nil, apperrors.Newf(apperrors.CodeValidation, "resource pool %q not found", poolName)
+	if name != c.pool.Name {
+		return nil, apperrors.Newf(apperrors.CodeValidation, "resource pool %q not found", name)
 	}
-	for i := range c.pool.Spec.Units {
-		u := &c.pool.Spec.Units[i]
-		if u.Name != unitName {
-			continue
+	return c.pool.DeepCopy(), nil
+}
+
+// ResolveResourceUnit returns the named unit from the default pool. Lite keeps
+// nodeSelector/tolerations empty (validated at load); only requests/limits
+// carry through to Docker limits when the business layer expands the snapshot.
+func (c *ConfigResourceCatalog) ResolveResourceUnit(ctx context.Context, poolName, unitName string) (*cmv1alpha1.ResourceUnit, error) {
+	if unitName == "" {
+		return nil, apperrors.New(apperrors.CodeValidation, "unitName is required")
+	}
+	pool, err := c.ResolveResourcePool(ctx, poolName)
+	if err != nil {
+		return nil, err
+	}
+	for i := range pool.Spec.Units {
+		if pool.Spec.Units[i].Name == unitName {
+			return &pool.Spec.Units[i], nil
 		}
-		return &csext.Expanded{
-			Requests: u.Requests,
-			Limits:   u.Limits,
-		}, nil
 	}
 	return nil, apperrors.Newf(apperrors.CodeValidation, "resource unit %q not found in pool %q", unitName, poolName)
 }
