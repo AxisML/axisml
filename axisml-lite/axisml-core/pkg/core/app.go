@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/docker/docker/client"
@@ -207,17 +208,30 @@ func (a *App) Close() error {
 // Settings.APIBindAddress, then blocks until ctx is cancelled (graceful
 // shutdown) or the server fails. Embedding hosts that mount Handler on their own
 // server use Runnables instead and do not call Serve.
+//
+// On the way out it stops the background loops and waits for any in-flight
+// reconcile tick to finish before returning, so the caller's deferred Close can
+// safely tear down the shared DB / Docker client without racing a live loop.
 func (a *App) Serve(ctx context.Context) error {
 	srv := &http.Server{Addr: a.settings.APIBindAddress, Handler: a.engine, ReadHeaderTimeout: 10 * time.Second}
 
-	errCh := make(chan error, 1)
+	// Run the background loops on a context we cancel on the way out, so they are
+	// also torn down when Serve returns because the HTTP server failed (a path
+	// where the parent ctx is still live).
+	runCtx, cancelRun := context.WithCancel(ctx)
+	defer cancelRun()
+	var wg sync.WaitGroup
 	for _, r := range a.runnables {
+		wg.Add(1)
 		go func(run Runnable) {
-			if err := run.Start(ctx); err != nil {
+			defer wg.Done()
+			if err := run.Start(runCtx); err != nil {
 				a.log.Error(err, "background runnable exited")
 			}
 		}(r)
 	}
+
+	errCh := make(chan error, 1)
 	go func() {
 		a.log.Info("axisml-core listening", "addr", a.settings.APIBindAddress)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -225,14 +239,20 @@ func (a *App) Serve(ctx context.Context) error {
 		}
 	}()
 
+	var err error
 	select {
 	case <-ctx.Done():
 		shutCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
-		return srv.Shutdown(shutCtx)
-	case err := <-errCh:
-		return err
+		err = srv.Shutdown(shutCtx)
+	case err = <-errCh:
 	}
+
+	// Stop the loops and wait for their goroutines to return before we do, so the
+	// DB / Docker client outlives every reconcile tick that might still touch it.
+	cancelRun()
+	wg.Wait()
+	return err
 }
 
 // Run is the binary's convenience entry point: assemble with the fixed Lite
