@@ -13,63 +13,63 @@ import (
 // `Quota` is the ElasticQuota CR name (cluster-unique string) stamped onto
 // Pod labels — compute treats it as opaque.
 type MLRunCreateRequest struct {
-	Name          string                       `json:"name" binding:"required,axisml_name"`
-	DisplayName   string                       `json:"displayName"`
-	Description   string                       `json:"description"`
-	Labels        map[string]string            `json:"labels,omitempty"`
-	Annotations   map[string]string            `json:"annotations,omitempty"`
-	PoolName      string                       `json:"poolName" binding:"required"`
-	UnitName      string                       `json:"unitName" binding:"required"`
-	Quota         string                       `json:"quota" binding:"required"`
-	PriorityClass string                       `json:"priorityClass,omitempty"`
-	Backend       *mlrunv1alpha1.BackendSpec   `json:"backend"`
-	Roles         []mlrunv1alpha1.RoleSpec     `json:"roles" binding:"required,min=1"`
-	RunPolicy     *mlrunv1alpha1.RunPolicySpec `json:"runPolicy"`
+	Name          string                       `json:"name" binding:"required,axisml_name" desc:"MLRun name, unique within the namespace."`
+	DisplayName   string                       `json:"displayName" desc:"Human-readable run label."`
+	Description   string                       `json:"description" desc:"Free-text run description."`
+	Labels        map[string]string            `json:"labels,omitempty" desc:"User-defined labels stored on the row and stamped onto the CR."`
+	Annotations   map[string]string            `json:"annotations,omitempty" desc:"User-defined annotations stored on the row and stamped onto the CR."`
+	PoolName      string                       `json:"poolName" binding:"required" desc:"Resource pool name resolved against the ResourcePool CRD via the Informer cache."`
+	UnitName      string                       `json:"unitName" binding:"required" desc:"Resource unit (shape) name within the selected pool."`
+	Quota         string                       `json:"quota" binding:"required" desc:"ElasticQuota CR name (opaque) stamped onto Pod labels for koord-scheduler admission."`
+	PriorityClass string                       `json:"priorityClass,omitempty" desc:"Optional Kubernetes PriorityClass name for the run's pods."`
+	Backend       *mlrunv1alpha1.BackendSpec   `json:"backend" desc:"Compute backend/engine that runs the workload; defaults to (native, job) when omitted."`
+	Roles         []mlrunv1alpha1.RoleSpec     `json:"roles" binding:"required,min=1" desc:"Run topology roles (at least one)."`
+	RunPolicy     *mlrunv1alpha1.RunPolicySpec `json:"runPolicy" desc:"Run-level execution limits (deadline, TTL, backoff)."`
 }
 
 // MLRun is the HTTP response payload. Mirrors the design yaml: nested
 // spec / status sub-trees, phase at the top level, owner / labels /
 // annotations carried separately.
 type MLRun struct {
-	ID          uuid.UUID               `json:"id"`
-	Namespace   string                  `json:"namespace"`
-	Name        string                  `json:"name"`
-	DisplayName string                  `json:"displayName,omitempty"`
-	Description string                  `json:"description,omitempty"`
-	Owner       string                  `json:"owner,omitempty"`
-	Labels      map[string]string       `json:"labels,omitempty"`
-	Annotations map[string]string       `json:"annotations,omitempty"`
-	Phase       string                  `json:"phase"`
-	Spec        mlrunv1alpha1.MLRunSpec `json:"spec"`
-	Status      MLRunStatus             `json:"status"`
-	CreatedAt   time.Time               `json:"createdAt"`
-	UpdatedAt   time.Time               `json:"updatedAt"`
-	DeletedAt   *time.Time              `json:"deletedAt,omitempty"`
+	ID          uuid.UUID               `json:"id" desc:"Stable run identifier (PG row UUID)."`
+	Namespace   string                  `json:"namespace" desc:"Namespace (= tenant identifier) the run belongs to."`
+	Name        string                  `json:"name" desc:"MLRun name, unique within the namespace."`
+	DisplayName string                  `json:"displayName,omitempty" desc:"Human-readable run label."`
+	Description string                  `json:"description,omitempty" desc:"Free-text run description."`
+	Owner       string                  `json:"owner,omitempty" desc:"Username of the run owner."`
+	Labels      map[string]string       `json:"labels,omitempty" desc:"User-defined labels."`
+	Annotations map[string]string       `json:"annotations,omitempty" desc:"User-defined annotations."`
+	Phase       string                  `json:"phase" desc:"Current run lifecycle phase (Pending, Running, Succeeded, Failed)."`
+	Spec        mlrunv1alpha1.MLRunSpec `json:"spec" desc:"Resolved MLRun spec sub-tree (backend, scheduling, roles, run policy)."`
+	Status      MLRunStatus             `json:"status" desc:"Operator-reported status sub-tree."`
+	CreatedAt   time.Time               `json:"createdAt" desc:"Time the run was created."`
+	UpdatedAt   time.Time               `json:"updatedAt" desc:"Time the run was last updated."`
+	DeletedAt   *time.Time              `json:"deletedAt,omitempty" desc:"Soft-deletion timestamp, set once the run is deleted."`
 }
 
 // MLRunPatchRequest is the body for PATCH /api/v1/namespaces/{ns}/mlruns/{mlrun}.
 // Per design §4.3, only the four "PG-only display" fields are mutable
 // after create — the rest of the spec is frozen.
 type MLRunPatchRequest struct {
-	DisplayName *string           `json:"displayName,omitempty"`
-	Description *string           `json:"description,omitempty"`
-	Labels      map[string]string `json:"labels,omitempty"`
-	Annotations map[string]string `json:"annotations,omitempty"`
+	DisplayName *string           `json:"displayName,omitempty" desc:"Updated human-readable run label."`
+	Description *string           `json:"description,omitempty" desc:"Updated free-text run description."`
+	Labels      map[string]string `json:"labels,omitempty" desc:"Replacement label set."`
+	Annotations map[string]string `json:"annotations,omitempty" desc:"Replacement annotation set."`
 }
 
 // MLRunStatus mirrors the CR status sub-tree compute persists for MLRuns.
 type MLRunStatus struct {
-	Message    string           `json:"message,omitempty"`
-	StartedAt  *time.Time       `json:"startedAt,omitempty"`
-	FinishedAt *time.Time       `json:"finishedAt,omitempty"`
-	Conditions []MLRunCondition `json:"conditions,omitempty"`
+	Message    string           `json:"message,omitempty" desc:"Human-readable status detail for the current phase."`
+	StartedAt  *time.Time       `json:"startedAt,omitempty" desc:"Time the run started executing."`
+	FinishedAt *time.Time       `json:"finishedAt,omitempty" desc:"Time the run reached a terminal phase."`
+	Conditions []MLRunCondition `json:"conditions,omitempty" desc:"Operator-reported status conditions."`
 }
 
 // MLRunCondition is one entry inside an MLRun's status.conditions[].
 type MLRunCondition struct {
-	Type               string    `json:"type"`
-	Status             string    `json:"status"`
-	Reason             string    `json:"reason,omitempty"`
-	Message            string    `json:"message,omitempty"`
-	LastTransitionTime time.Time `json:"lastTransitionTime,omitempty"`
+	Type               string    `json:"type" desc:"Condition type (e.g. Initialized, Scheduled, Suspended, Failed)."`
+	Status             string    `json:"status" desc:"Condition status (True, False, Unknown)."`
+	Reason             string    `json:"reason,omitempty" desc:"Machine-readable reason for the condition's status."`
+	Message            string    `json:"message,omitempty" desc:"Human-readable detail for the condition."`
+	LastTransitionTime time.Time `json:"lastTransitionTime,omitempty" desc:"Time the condition last changed status."`
 }

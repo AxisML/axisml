@@ -100,6 +100,8 @@ func Document(version string) *openapigen.Document {
 	g.Register("Event", server.Event{}, openapigen.ResponseMode)
 	g.Register("Capabilities", server.Capabilities{}, openapigen.ResponseMode)
 
+	registerExamples(g)
+
 	g.Set("MLRunList", openapigen.ListEnvelope("MLRun"))
 	g.Set("MLServiceList", openapigen.ListEnvelope("MLService"))
 	g.Set("TrafficPolicyList", openapigen.ListEnvelope("TrafficPolicy"))

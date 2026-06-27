@@ -14,13 +14,13 @@ import (
 
 // Error is RFC7807 application/problem+json.
 type Error struct {
-	Type     string         `json:"type"`
-	Title    string         `json:"title"`
-	Status   int            `json:"status"`
-	Detail   string         `json:"detail,omitempty"`
-	Instance string         `json:"instance,omitempty"`
-	Code     apperrors.Code `json:"code"`
-	Details  map[string]any `json:"details,omitempty"`
+	Type     string         `json:"type" desc:"URI identifying the problem type (https://axisml.io/errors/<code>)."`
+	Title    string         `json:"title" desc:"Short, human-readable summary of the problem."`
+	Status   int            `json:"status" desc:"HTTP status code for this occurrence of the problem."`
+	Detail   string         `json:"detail,omitempty" desc:"Human-readable explanation specific to this occurrence."`
+	Instance string         `json:"instance,omitempty" desc:"URI reference identifying the specific occurrence (the request path)."`
+	Code     apperrors.Code `json:"code" desc:"Discrete business error class for programmatic handling."`
+	Details  map[string]any `json:"details,omitempty" desc:"Optional structured field-level error details."`
 }
 
 // statusFor maps a business error code to an HTTP status.

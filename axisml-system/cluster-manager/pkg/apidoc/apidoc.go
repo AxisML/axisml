@@ -65,6 +65,8 @@ func Document(version string) *openapigen.Document {
 	g.Register("CreateVolumeRequest", server.CreateVolumeRequest{}, openapigen.InputMode)
 	g.Register("Volume", server.Volume{}, openapigen.ResponseMode)
 
+	registerExamples(g)
+
 	tags := []openapigen.TagEntry{
 		{Name: tagResourcePools, Description: "ResourcePool CRD CRUD."},
 		{Name: tagResourceUnits, Description: "Sub-routes over pool.spec.units[]."},

@@ -88,6 +88,13 @@ func buildDocument(version string) *openapigen.Document {
 	})
 
 	g.Register("Capabilities", core.Capabilities{}, openapigen.ResponseMode)
+	g.SetExample("Capabilities", map[string]any{
+		"components": map[string]any{
+			"cluster-manager": map[string]any{"multiTenant": true, "writableResourcePools": true},
+			"compute-service": map[string]any{"mlrun": true, "mlservice": true, "mltrafficpolicy": true},
+			"artifact-hub":    map[string]any{"models": true, "images": true},
+		},
+	})
 
 	tags := []openapigen.TagEntry{
 		{Name: tagCapabilities, Description: "Aggregate deployment-form capability document — the three System modules' per-form documents folded under their component key (design §5.5)."},

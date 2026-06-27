@@ -8,8 +8,8 @@ package server
 type Capabilities struct {
 	// MultiTenant reports whether Tenant CRUD is available (false = single
 	// static default tenant; tenant writes return 409 CapabilityUnavailable).
-	MultiTenant bool `json:"multiTenant"`
+	MultiTenant bool `json:"multiTenant" desc:"Whether Tenant CRUD is available (false = single static default tenant)."`
 	// ResourcePoolsWritable reports whether ResourcePool CRUD is available
 	// (false = single read-only default pool).
-	ResourcePoolsWritable bool `json:"resourcePoolsWritable"`
+	ResourcePoolsWritable bool `json:"resourcePoolsWritable" desc:"Whether ResourcePool CRUD is available (false = single read-only default pool)."`
 }

@@ -94,6 +94,8 @@ func Document(version string) *openapigen.Document {
 	g.Register("Artifact", server.Artifact{}, openapigen.ResponseMode)
 	g.Register("Capabilities", server.Capabilities{}, openapigen.ResponseMode)
 
+	registerExamples(g)
+
 	g.Set("ArtifactList", openapigen.ListEnvelope("Artifact"))
 
 	tags := []openapigen.TagEntry{

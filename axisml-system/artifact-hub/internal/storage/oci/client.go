@@ -80,9 +80,9 @@ func (c *Client) Endpoint() string { return c.baseURL }
 // and IssuePullCredentials. ExpiresAt is informational only in MVP — see the
 // package doc.
 type Credentials struct {
-	Username  string    `json:"username"`
-	Password  string    `json:"password"`
-	ExpiresAt time.Time `json:"expires_at"`
+	Username  string    `json:"username" desc:"Username for authenticating to the OCI storage backend."`
+	Password  string    `json:"password" desc:"Password (or token) for authenticating to the OCI storage backend."`
+	ExpiresAt time.Time `json:"expires_at" desc:"Expiry of the credentials (RFC3339)."`
 }
 
 // IssueUploadCredentials returns push-capable creds for the given scope.
