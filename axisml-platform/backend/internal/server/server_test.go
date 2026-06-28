@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"testing/fstest"
 )
@@ -55,6 +56,18 @@ func TestStaticServing(t *testing.T) {
 	}
 	if ct := w.Header().Get("Content-Type"); ct != "text/html; charset=utf-8" {
 		t.Fatalf("spa fallback content-type = %q", ct)
+	}
+
+	// A directory must NOT yield a browsable listing — it falls back to the SPA
+	// shell, never exposing bundled filenames.
+	for _, p := range []string{"/assets", "/assets/"} {
+		w := do(t, srv, p)
+		if w.Code == http.StatusOK && strings.Contains(w.Body.String(), "app.123.js") {
+			t.Fatalf("dir listing leaked for %s: %q", p, w.Body.String())
+		}
+		if ct := w.Header().Get("Content-Type"); !strings.HasPrefix(ct, "text/html") {
+			t.Fatalf("dir %s content-type = %q, want SPA html", p, ct)
+		}
 	}
 
 	// Unknown /api/v1 route → 501, never the SPA shell.

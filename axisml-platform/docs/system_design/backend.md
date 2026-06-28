@@ -332,7 +332,7 @@ RBAC 中间件装配见 [auth.md](auth.md)。路由层中间件仅做认证与�
 | 副本 | chart 默认 `replicas=1`；无状态，后续可水平扩 |
 | 启动子命令 | `serve` 启 HTTP API + 后台任务（含过期会话清理 sweep，`SESSION_SWEEP_INTERVAL` 默认 1h）；`migrate` 执行 GORM 迁移；`bootstrap` 创建内置角色、初始 `system-admin`（默认 `admin/admin`，首登强制改密，可由 `AXISML_BOOTSTRAP_PASSWORD` 覆盖）及内置 `default` 租户（K8s Namespace `axisml-tenant`） |
 | 缓存 | 可选 Redis 前置认证热点读；`REDIS_ADDR` 空则直连 PostgreSQL（[auth.md §2.1](auth.md#21-会话与身份缓存)） |
-| 暴露端口 | 目标 API `:8080`、Metrics `:8081`、Probes `:8082`（`/healthz` / `/readyz`），JWKS `/.well-known/jwks.json` 走 ClusterIP；前端 SPA 由同一二进制在 `:8080` 同源托管（非 `/api/v1` 路由回退 `index.html`，供前端路由接管） |
+| 暴露端口 | API `:8080`、Probes `:8081`（`/healthz` / `/readyz`），JWKS `/.well-known/jwks.json` 走 ClusterIP；前端 SPA 由同一二进制在 `:8080` 同源托管（非 `/api/v1` 路由回退 `index.html`，供前端路由接管） |
 | RBAC scope | 无 K8s API 需求（全部下沉下游服务） |
 | Helm / 镜像 | 见 [deployment.md](../../../docs/deployment.md) |
 

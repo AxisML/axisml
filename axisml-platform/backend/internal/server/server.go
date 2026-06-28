@@ -111,18 +111,24 @@ func New(opts Options) (*Server, error) {
 }
 
 // serveSPA serves the SPA bundle: an existing file is returned as-is
-// (fingerprinted /assets/* get an immutable long cache), and any other path
-// falls back to index.html so the client-side router can take over.
+// (fingerprinted /assets/* get an immutable long cache), and any other path —
+// including directories, which must not yield a listing — falls back to
+// index.html so the client-side router can take over.
 func serveSPA(c *gin.Context, fsys fs.FS) {
 	name := strings.TrimPrefix(path.Clean(c.Request.URL.Path), "/")
 	if name != "" {
 		if f, err := fsys.Open(name); err == nil {
+			info, statErr := f.Stat()
 			_ = f.Close()
-			if strings.HasPrefix(c.Request.URL.Path, "/assets/") {
-				c.Header("Cache-Control", "public, max-age=31536000, immutable")
+			// Only serve regular files; a directory would otherwise render a
+			// browsable listing of the bundle.
+			if statErr == nil && !info.IsDir() {
+				if strings.HasPrefix(c.Request.URL.Path, "/assets/") {
+					c.Header("Cache-Control", "public, max-age=31536000, immutable")
+				}
+				http.FileServer(http.FS(fsys)).ServeHTTP(c.Writer, c.Request)
+				return
 			}
-			http.FileServer(http.FS(fsys)).ServeHTTP(c.Writer, c.Request)
-			return
 		}
 	}
 	index, err := fs.ReadFile(fsys, "index.html")
