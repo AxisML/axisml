@@ -43,8 +43,8 @@ func exExperiment(g *openapigen.Generator) {
 		"namespace":   "team-nlp",
 		"tenantName":  "team-nlp",
 		"name":        "bert-finetune",
-		"displayName": "BERT 微调实验",
-		"description": "在中文语料上微调 BERT 的训练实验。",
+		"displayName": "BERT fine-tuning experiment",
+		"description": "Training experiment fine-tuning BERT on a Chinese corpus.",
 		"owner":       "zhang.san",
 		"ownerId":     "3a2b1c0d-4e5f-6789-abcd-ef0123456789",
 		"labels":      obj{"team": "nlp"},
@@ -61,14 +61,14 @@ func exExperiment(g *openapigen.Generator) {
 	})
 	g.SetExample("ExperimentCreateRequest", obj{
 		"name":        "bert-finetune",
-		"displayName": "BERT 微调实验",
-		"description": "在中文语料上微调 BERT 的训练实验。",
+		"displayName": "BERT fine-tuning experiment",
+		"description": "Training experiment fine-tuning BERT on a Chinese corpus.",
 		"labels":      obj{"team": "nlp"},
 		"spec":        jobSpec,
 	})
 	g.SetExample("ExperimentPatchRequest", obj{
-		"displayName": "BERT 微调实验 (v2)",
-		"description": "更新后的描述。",
+		"displayName": "BERT fine-tuning experiment (v2)",
+		"description": "Updated description.",
 	})
 
 	g.SetExample("TensorBoard", obj{

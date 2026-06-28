@@ -64,8 +64,8 @@ func registerExamples(g *openapigen.Generator) {
 
 	g.SetExample("MLRunCreateRequest", obj{
 		"name":        "resnet-train-7",
-		"displayName": "ResNet-50 训练 #7",
-		"description": "ImageNet 上的 ResNet-50 分布式训练。",
+		"displayName": "ResNet-50 Training #7",
+		"description": "Distributed ResNet-50 training on ImageNet.",
 		"labels":      obj{"team": "vision"},
 		"poolName":    "gpu-a100",
 		"unitName":    "a100-2x",
@@ -75,15 +75,15 @@ func registerExamples(g *openapigen.Generator) {
 		"runPolicy":   mlrunRunPolicy,
 	})
 	g.SetExample("MLRunPatchRequest", obj{
-		"displayName": "ResNet-50 训练 #7 (复跑)",
-		"description": "更新后的描述。",
+		"displayName": "ResNet-50 Training #7 (rerun)",
+		"description": "Updated description.",
 	})
 	mlRun := obj{
 		"id":          "b7d9e3f1-1a2b-3c4d-5e6f-708192a3b4c5",
 		"namespace":   "team-vision",
 		"name":        "resnet-train-7",
-		"displayName": "ResNet-50 训练 #7",
-		"description": "ImageNet 上的 ResNet-50 分布式训练。",
+		"displayName": "ResNet-50 Training #7",
+		"description": "Distributed ResNet-50 training on ImageNet.",
 		"owner":       "li.wei",
 		"labels":      obj{"team": "vision"},
 		"phase":       "Running",
@@ -140,8 +140,8 @@ func registerExamples(g *openapigen.Generator) {
 	g.SetExample("MLServiceCreateRequest", obj{
 		"name":        "llama3-8b",
 		"kind":        "service",
-		"displayName": "Llama-3 8B 推理服务",
-		"description": "vLLM 后端的 Llama-3 8B 在线推理。",
+		"displayName": "Llama-3 8B inference service",
+		"description": "Llama-3 8B online inference on the vLLM backend.",
 		"labels":      obj{"team": "vision"},
 		"poolName":    "gpu-a100",
 		"unitName":    "a100-2x",
@@ -152,8 +152,8 @@ func registerExamples(g *openapigen.Generator) {
 		"route":       mlsvcRoute,
 	})
 	g.SetExample("MLServicePatchRequest", obj{
-		"displayName": "Llama-3 8B 推理服务 (生产)",
-		"description": "更新后的描述。",
+		"displayName": "Llama-3 8B inference service (production)",
+		"description": "Updated description.",
 	})
 	g.SetExample("MLServiceScaleRequest", obj{"replicas": 4})
 	mlService := obj{
@@ -161,8 +161,8 @@ func registerExamples(g *openapigen.Generator) {
 		"namespace":          "team-vision",
 		"name":               "llama3-8b",
 		"kind":               "service",
-		"displayName":        "Llama-3 8B 推理服务",
-		"description":        "vLLM 后端的 Llama-3 8B 在线推理。",
+		"displayName":        "Llama-3 8B inference service",
+		"description":        "Llama-3 8B online inference on the vLLM backend.",
 		"owner":              "li.wei",
 		"labels":             obj{"team": "vision"},
 		"generation":         3,
@@ -206,16 +206,16 @@ func registerExamples(g *openapigen.Generator) {
 
 	g.SetExample("TrafficPolicyCreateRequest", obj{
 		"name":        "llama3-canary",
-		"displayName": "Llama-3 灰度发布",
-		"description": "v2 灰度 10% 流量。",
+		"displayName": "Llama-3 canary release",
+		"description": "Canary 10% traffic to v2.",
 		"labels":      obj{"team": "vision"},
 		"mode":        "canary",
 		"endpoint":    tpEndpoint,
 		"backends":    tpMembers,
 	})
 	g.SetExample("TrafficPolicyPatchRequest", obj{
-		"displayName": "Llama-3 灰度发布 (评估中)",
-		"description": "更新后的描述。",
+		"displayName": "Llama-3 canary release (under evaluation)",
+		"description": "Updated description.",
 	})
 	g.SetExample("TrafficPolicySplitRequest", obj{
 		"backends": []any{
@@ -228,8 +228,8 @@ func registerExamples(g *openapigen.Generator) {
 		"namespace":          "team-vision",
 		"name":               "llama3-canary",
 		"mode":               "canary",
-		"displayName":        "Llama-3 灰度发布",
-		"description":        "v2 灰度 10% 流量。",
+		"displayName":        "Llama-3 canary release",
+		"description":        "Canary 10% traffic to v2.",
 		"owner":              "li.wei",
 		"labels":             obj{"team": "vision"},
 		"generation":         2,

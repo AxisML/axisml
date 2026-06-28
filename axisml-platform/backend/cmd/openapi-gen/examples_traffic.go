@@ -33,8 +33,8 @@ func exTraffic(g *openapigen.Generator) {
 		"namespace":     "team-vision",
 		"tenantName":    "team-vision",
 		"name":          "resnet-serving",
-		"displayName":   "ResNet 推理流量",
-		"description":   "ResNet-50 在线推理服务的金丝雀流量切分。",
+		"displayName":   "ResNet inference traffic",
+		"description":   "Canary traffic split for the ResNet-50 online inference service.",
 		"owner":         "li.wei",
 		"ownerId":       "3a2b1c0d-4e5f-6789-abcd-ef0123456789",
 		"mode":          "canary",
@@ -64,8 +64,8 @@ func exTraffic(g *openapigen.Generator) {
 
 	g.SetExample("TrafficPolicyCreateRequest", obj{
 		"name":        "resnet-serving",
-		"displayName": "ResNet 推理流量",
-		"description": "ResNet-50 在线推理服务的金丝雀流量切分。",
+		"displayName": "ResNet inference traffic",
+		"description": "Canary traffic split for the ResNet-50 online inference service.",
 		"mode":        "canary",
 		"endpoint":    endpoint,
 		"backends": []any{
@@ -76,8 +76,8 @@ func exTraffic(g *openapigen.Generator) {
 	})
 
 	g.SetExample("TrafficPolicyPatchRequest", obj{
-		"displayName": "ResNet 推理流量 (v2)",
-		"description": "更新后的描述。",
+		"displayName": "ResNet inference traffic (v2)",
+		"description": "Updated description.",
 	})
 
 	g.SetExample("TrafficPolicySplitRequest", obj{

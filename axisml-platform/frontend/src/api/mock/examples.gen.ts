@@ -9,7 +9,7 @@
 export const examples: Record<string, unknown> = {
   "ArtifactDefinition": {
     "createdAt": "2026-06-20T08:00:00Z",
-    "description": "ResNet-50 图像分类模型。",
+    "description": "ResNet-50 image-classification model.",
     "displayName": "ResNet-50",
     "id": "1f2e3d4c-5b6a-7980-abcd-ef0123456789",
     "kind": "model",
@@ -24,7 +24,7 @@ export const examples: Record<string, unknown> = {
     "updatedAt": "2026-06-28T09:30:00Z"
   },
   "ArtifactDefinitionCreateRequest": {
-    "description": "ResNet-50 图像分类模型。",
+    "description": "ResNet-50 image-classification model.",
     "displayName": "ResNet-50",
     "labels": {
       "team": "vision"
@@ -37,7 +37,7 @@ export const examples: Record<string, unknown> = {
     "items": [
       {
         "createdAt": "2026-06-20T08:00:00Z",
-        "description": "ResNet-50 图像分类模型。",
+        "description": "ResNet-50 image-classification model.",
         "displayName": "ResNet-50",
         "id": "1f2e3d4c-5b6a-7980-abcd-ef0123456789",
         "kind": "model",
@@ -55,7 +55,7 @@ export const examples: Record<string, unknown> = {
     "partial": false
   },
   "ArtifactDefinitionPatchRequest": {
-    "description": "更新后的定义描述。",
+    "description": "Updated definition description.",
     "displayName": "ResNet-50 (v2)"
   },
   "ArtifactRef": {
@@ -74,8 +74,8 @@ export const examples: Record<string, unknown> = {
     "uri": "oci://registry.axisml.io/team-vision/resnet50:1.4.0"
   },
   "ArtifactUpdateRequest": {
-    "description": "更新后的版本描述。",
-    "displayName": "ResNet-50 v1.4.0 (校准)",
+    "description": "Updated version description.",
+    "displayName": "ResNet-50 v1.4.0 (calibrated)",
     "labels": {
       "team": "vision"
     }
@@ -141,8 +141,8 @@ export const examples: Record<string, unknown> = {
   },
   "Experiment": {
     "createdAt": "2026-06-20T08:00:00Z",
-    "description": "在中文语料上微调 BERT 的训练实验。",
-    "displayName": "BERT 微调实验",
+    "description": "Training experiment fine-tuning BERT on a Chinese corpus.",
+    "displayName": "BERT fine-tuning experiment",
     "id": "d4f8a1b2-3c5e-4a7b-9c0d-1e2f3a4b5c6d",
     "labels": {
       "team": "nlp"
@@ -209,8 +209,8 @@ export const examples: Record<string, unknown> = {
     "updatedAt": "2026-06-28T09:30:00Z"
   },
   "ExperimentCreateRequest": {
-    "description": "在中文语料上微调 BERT 的训练实验。",
-    "displayName": "BERT 微调实验",
+    "description": "Training experiment fine-tuning BERT on a Chinese corpus.",
+    "displayName": "BERT fine-tuning experiment",
     "labels": {
       "team": "nlp"
     },
@@ -276,8 +276,8 @@ export const examples: Record<string, unknown> = {
     "items": [
       {
         "createdAt": "2026-06-20T08:00:00Z",
-        "description": "在中文语料上微调 BERT 的训练实验。",
-        "displayName": "BERT 微调实验",
+        "description": "Training experiment fine-tuning BERT on a Chinese corpus.",
+        "displayName": "BERT fine-tuning experiment",
         "id": "d4f8a1b2-3c5e-4a7b-9c0d-1e2f3a4b5c6d",
         "labels": {
           "team": "nlp"
@@ -347,8 +347,8 @@ export const examples: Record<string, unknown> = {
     "partial": false
   },
   "ExperimentPatchRequest": {
-    "description": "更新后的描述。",
-    "displayName": "BERT 微调实验 (v2)"
+    "description": "Updated description.",
+    "displayName": "BERT fine-tuning experiment (v2)"
   },
   "HealthStatus": {
     "components": {
@@ -360,7 +360,7 @@ export const examples: Record<string, unknown> = {
   },
   "Image": {
     "createdAt": "2026-06-20T08:00:00Z",
-    "description": "包含 PyTorch 2.3 与 CUDA 12 的训练镜像。",
+    "description": "Training image with PyTorch 2.3 and CUDA 12.",
     "digest": "sha256:7f3148e1f4a6c8e3d2b4a6c8e1f9b0d5a2c7f3148e1f4a6c8e3d2b4a6c8e1f9b",
     "displayName": "PyTorch Training 2.3.0",
     "id": "a1b2c3d4-5e6f-7081-92a3-b4c5d6e7f809",
@@ -381,7 +381,7 @@ export const examples: Record<string, unknown> = {
     "digest": "sha256:7f3148e1f4a6c8e3d2b4a6c8e1f9b0d5a2c7f3148e1f4a6c8e3d2b4a6c8e1f9b"
   },
   "ImageInitiateRequest": {
-    "description": "包含 PyTorch 2.3 与 CUDA 12 的训练镜像。",
+    "description": "Training image with PyTorch 2.3 and CUDA 12.",
     "displayName": "PyTorch Training 2.3.0",
     "source": "dockerPush",
     "spec": {
@@ -405,7 +405,7 @@ export const examples: Record<string, unknown> = {
     "items": [
       {
         "createdAt": "2026-06-20T08:00:00Z",
-        "description": "包含 PyTorch 2.3 与 CUDA 12 的训练镜像。",
+        "description": "Training image with PyTorch 2.3 and CUDA 12.",
         "digest": "sha256:7f3148e1f4a6c8e3d2b4a6c8e1f9b0d5a2c7f3148e1f4a6c8e3d2b4a6c8e1f9b",
         "displayName": "PyTorch Training 2.3.0",
         "id": "a1b2c3d4-5e6f-7081-92a3-b4c5d6e7f809",
@@ -472,8 +472,8 @@ export const examples: Record<string, unknown> = {
   },
   "Job": {
     "createdAt": "2026-06-20T08:00:00Z",
-    "description": "ImageNet 上的 ResNet-50 分布式训练任务。",
-    "displayName": "ResNet-50 训练",
+    "description": "Distributed ResNet-50 training job on ImageNet.",
+    "displayName": "ResNet-50 Training",
     "id": "8c1f4e22-2b7a-4c0e-9b1d-7f3a2e5c9a10",
     "labels": {
       "team": "vision"
@@ -538,8 +538,8 @@ export const examples: Record<string, unknown> = {
     "updatedAt": "2026-06-28T09:30:00Z"
   },
   "JobCreateRequest": {
-    "description": "ImageNet 上的 ResNet-50 分布式训练任务。",
-    "displayName": "ResNet-50 训练",
+    "description": "Distributed ResNet-50 training job on ImageNet.",
+    "displayName": "ResNet-50 Training",
     "labels": {
       "team": "vision"
     },
@@ -603,8 +603,8 @@ export const examples: Record<string, unknown> = {
     "items": [
       {
         "createdAt": "2026-06-20T08:00:00Z",
-        "description": "ImageNet 上的 ResNet-50 分布式训练任务。",
-        "displayName": "ResNet-50 训练",
+        "description": "Distributed ResNet-50 training job on ImageNet.",
+        "displayName": "ResNet-50 Training",
         "id": "8c1f4e22-2b7a-4c0e-9b1d-7f3a2e5c9a10",
         "labels": {
           "team": "vision"
@@ -672,8 +672,8 @@ export const examples: Record<string, unknown> = {
     "partial": false
   },
   "JobPatchRequest": {
-    "description": "更新后的描述。",
-    "displayName": "ResNet-50 训练 (v2)"
+    "description": "Updated description.",
+    "displayName": "ResNet-50 Training (v2)"
   },
   "JobSpec": {
     "artifacts": [
@@ -746,7 +746,7 @@ export const examples: Record<string, unknown> = {
     ],
     "user": {
       "createdAt": "2026-06-20T08:00:00Z",
-      "displayName": "李伟",
+      "displayName": "Li Wei",
       "email": "li.wei@axisml.io",
       "id": "3a2b1c0d-4e5f-6789-abcd-ef0123456789",
       "updatedAt": "2026-06-28T09:30:00Z",
@@ -755,7 +755,7 @@ export const examples: Record<string, unknown> = {
   },
   "Member": {
     "addedAt": "2026-06-20T08:00:00Z",
-    "displayName": "李伟",
+    "displayName": "Li Wei",
     "email": "li.wei@example.com",
     "roleName": "tenant-admin",
     "userId": "3a2b1c0d-4e5f-6789-abcd-ef0123456789",
@@ -771,7 +771,7 @@ export const examples: Record<string, unknown> = {
     "items": [
       {
         "addedAt": "2026-06-20T08:00:00Z",
-        "displayName": "李伟",
+        "displayName": "Li Wei",
         "email": "li.wei@example.com",
         "roleName": "tenant-admin",
         "userId": "3a2b1c0d-4e5f-6789-abcd-ef0123456789",
@@ -802,7 +802,7 @@ export const examples: Record<string, unknown> = {
     ],
     "user": {
       "createdAt": "2026-06-20T08:00:00Z",
-      "displayName": "李伟",
+      "displayName": "Li Wei",
       "email": "li.wei@axisml.io",
       "id": "3a2b1c0d-4e5f-6789-abcd-ef0123456789",
       "updatedAt": "2026-06-28T09:30:00Z",
@@ -922,8 +922,8 @@ export const examples: Record<string, unknown> = {
     },
     "computeNamespace": "axisml-team-nlp",
     "createdAt": "2026-06-20T08:00:00Z",
-    "description": "Llama3-8B 在线推理服务。",
-    "displayName": "Llama3 对话服务",
+    "description": "Llama3-8B online inference service.",
+    "displayName": "Llama3 chat service",
     "env": [
       {
         "name": "MAX_TOKENS",
@@ -968,8 +968,8 @@ export const examples: Record<string, unknown> = {
       "engine": "llminference",
       "name": "kserve"
     },
-    "description": "Llama3-8B 在线推理服务。",
-    "displayName": "Llama3 对话服务",
+    "description": "Llama3-8B online inference service.",
+    "displayName": "Llama3 chat service",
     "env": [
       {
         "name": "MAX_TOKENS",
@@ -1007,8 +1007,8 @@ export const examples: Record<string, unknown> = {
         },
         "computeNamespace": "axisml-team-nlp",
         "createdAt": "2026-06-20T08:00:00Z",
-        "description": "Llama3-8B 在线推理服务。",
-        "displayName": "Llama3 对话服务",
+        "description": "Llama3-8B online inference service.",
+        "displayName": "Llama3 chat service",
         "env": [
           {
             "name": "MAX_TOKENS",
@@ -1052,8 +1052,8 @@ export const examples: Record<string, unknown> = {
     "partial": false
   },
   "MLServicePatchRequest": {
-    "description": "更新后的描述。",
-    "displayName": "Llama3 对话服务 (v2)"
+    "description": "Updated description.",
+    "displayName": "Llama3 chat service (v2)"
   },
   "MLServiceRoute": {
     "enabled": true,
@@ -1064,7 +1064,7 @@ export const examples: Record<string, unknown> = {
   },
   "Model": {
     "createdAt": "2026-06-20T08:00:00Z",
-    "description": "在 ImageNet 上微调的 ResNet-50 权重。",
+    "description": "ResNet-50 weights fine-tuned on ImageNet.",
     "digest": "sha256:9b0d5a2c7f3148e1f4a6c8e3d2b4a6c8e1f9b0d5a2c7f3148e1f4a6c8e3d2b4a",
     "displayName": "ResNet-50 v1.4.0",
     "id": "c4a7f1e9-3d2b-4a6c-8e1f-9b0d5a2c7f31",
@@ -1085,7 +1085,7 @@ export const examples: Record<string, unknown> = {
     "digest": "sha256:9b0d5a2c7f3148e1f4a6c8e3d2b4a6c8e1f9b0d5a2c7f3148e1f4a6c8e3d2b4a"
   },
   "ModelInitiateRequest": {
-    "description": "在 ImageNet 上微调的 ResNet-50 权重。",
+    "description": "ResNet-50 weights fine-tuned on ImageNet.",
     "displayName": "ResNet-50 v1.4.0",
     "source": "webUpload",
     "version": "1.4.0"
@@ -1106,7 +1106,7 @@ export const examples: Record<string, unknown> = {
     "items": [
       {
         "createdAt": "2026-06-20T08:00:00Z",
-        "description": "在 ImageNet 上微调的 ResNet-50 权重。",
+        "description": "ResNet-50 weights fine-tuned on ImageNet.",
         "digest": "sha256:9b0d5a2c7f3148e1f4a6c8e3d2b4a6c8e1f9b0d5a2c7f3148e1f4a6c8e3d2b4a",
         "displayName": "ResNet-50 v1.4.0",
         "id": "c4a7f1e9-3d2b-4a6c-8e1f-9b0d5a2c7f31",
@@ -1238,7 +1238,7 @@ export const examples: Record<string, unknown> = {
   },
   "ResourcePool": {
     "createdAt": "2026-06-20T08:00:00Z",
-    "description": "A100 GPU 资源池。",
+    "description": "A100 GPU resource pool.",
     "labels": {
       "tier": "gpu"
     },
@@ -1250,7 +1250,7 @@ export const examples: Record<string, unknown> = {
     "resourceVersion": "184321",
     "units": [
       {
-        "description": "2x A100 GPU 计算单元。",
+        "description": "2x A100 GPU compute unit.",
         "limits": {
           "cpu": "16",
           "memory": "128Gi",
@@ -1267,7 +1267,7 @@ export const examples: Record<string, unknown> = {
     "updatedAt": "2026-06-28T09:30:00Z"
   },
   "ResourcePoolCreateRequest": {
-    "description": "A100 GPU 资源池。",
+    "description": "A100 GPU resource pool.",
     "labels": {
       "tier": "gpu"
     },
@@ -1277,7 +1277,7 @@ export const examples: Record<string, unknown> = {
     },
     "units": [
       {
-        "description": "2x A100 GPU 计算单元。",
+        "description": "2x A100 GPU compute unit.",
         "limits": {
           "cpu": "16",
           "memory": "128Gi",
@@ -1298,7 +1298,7 @@ export const examples: Record<string, unknown> = {
     "items": [
       {
         "createdAt": "2026-06-20T08:00:00Z",
-        "description": "A100 GPU 资源池。",
+        "description": "A100 GPU resource pool.",
         "labels": {
           "tier": "gpu"
         },
@@ -1310,7 +1310,7 @@ export const examples: Record<string, unknown> = {
         "resourceVersion": "184321",
         "units": [
           {
-            "description": "2x A100 GPU 计算单元。",
+            "description": "2x A100 GPU compute unit.",
             "limits": {
               "cpu": "16",
               "memory": "128Gi",
@@ -1329,14 +1329,14 @@ export const examples: Record<string, unknown> = {
     ]
   },
   "ResourcePoolPatchRequest": {
-    "description": "更新后的 A100 GPU 资源池。",
+    "description": "Updated A100 GPU resource pool.",
     "nodeSelector": {
       "axisml.io/gpu": "a100",
       "axisml.io/zone": "cn-east-1"
     }
   },
   "ResourceUnit": {
-    "description": "2x A100 GPU 计算单元。",
+    "description": "2x A100 GPU compute unit.",
     "limits": {
       "cpu": "16",
       "memory": "128Gi",
@@ -1350,7 +1350,7 @@ export const examples: Record<string, unknown> = {
     }
   },
   "ResourceUnitCreateRequest": {
-    "description": "2x A100 GPU 计算单元。",
+    "description": "2x A100 GPU compute unit.",
     "limits": {
       "cpu": "16",
       "memory": "128Gi",
@@ -1368,7 +1368,7 @@ export const examples: Record<string, unknown> = {
     "count": 1,
     "items": [
       {
-        "description": "2x A100 GPU 计算单元。",
+        "description": "2x A100 GPU compute unit.",
         "limits": {
           "cpu": "16",
           "memory": "128Gi",
@@ -1384,7 +1384,7 @@ export const examples: Record<string, unknown> = {
     ]
   },
   "ResourceUnitPatchRequest": {
-    "description": "更新后的 2x A100 GPU 计算单元。",
+    "description": "Updated 2x A100 GPU compute unit.",
     "limits": {
       "cpu": "24",
       "memory": "192Gi",
@@ -1422,7 +1422,7 @@ export const examples: Record<string, unknown> = {
     },
     "computeNamespace": "axisml-team-vision",
     "createdAt": "2026-06-28T09:00:00Z",
-    "displayName": "ResNet-50 训练 #7",
+    "displayName": "ResNet-50 Training #7",
     "id": "b7d9e3f1-1a2b-3c4d-5e6f-708192a3b4c5",
     "jobName": "resnet-train",
     "message": "All worker replicas ready.",
@@ -1512,7 +1512,7 @@ export const examples: Record<string, unknown> = {
         },
         "computeNamespace": "axisml-team-vision",
         "createdAt": "2026-06-28T09:00:00Z",
-        "displayName": "ResNet-50 训练 #7",
+        "displayName": "ResNet-50 Training #7",
         "id": "b7d9e3f1-1a2b-3c4d-5e6f-708192a3b4c5",
         "jobName": "resnet-train",
         "message": "All worker replicas ready.",
@@ -1600,7 +1600,7 @@ export const examples: Record<string, unknown> = {
     "ttlSecondsAfterFinished": 3600
   },
   "RunTriggerRequest": {
-    "displayName": "ResNet-50 训练 #8",
+    "displayName": "ResNet-50 Training #8",
     "poolName": "gpu-a100",
     "quota": "team-vision",
     "roles": [
@@ -1644,8 +1644,8 @@ export const examples: Record<string, unknown> = {
     "activeExperimentRuns": 2,
     "activeJobRuns": 3,
     "createdAt": "2026-06-20T08:00:00Z",
-    "description": "计算机视觉模型训练与推理团队。",
-    "displayName": "视觉团队",
+    "description": "Computer-vision model training and inference team.",
+    "displayName": "Vision Team",
     "identifier": "team-vision",
     "initResources": {
       "configMaps": [
@@ -1732,8 +1732,8 @@ export const examples: Record<string, unknown> = {
     "updatedAt": "2026-06-28T09:30:00Z"
   },
   "TenantCreateRequest": {
-    "description": "计算机视觉模型训练与推理团队。",
-    "displayName": "视觉团队",
+    "description": "Computer-vision model training and inference team.",
+    "displayName": "Vision Team",
     "identifier": "team-vision",
     "initialAdmin": "li.wei@example.com",
     "kubernetesNamespace": "axisml-team-vision",
@@ -1760,8 +1760,8 @@ export const examples: Record<string, unknown> = {
         "activeExperimentRuns": 2,
         "activeJobRuns": 3,
         "createdAt": "2026-06-20T08:00:00Z",
-        "description": "计算机视觉模型训练与推理团队。",
-        "displayName": "视觉团队",
+        "description": "Computer-vision model training and inference team.",
+        "displayName": "Vision Team",
         "identifier": "team-vision",
         "initResources": {
           "configMaps": [
@@ -1851,8 +1851,8 @@ export const examples: Record<string, unknown> = {
     "partial": false
   },
   "TenantPatchRequest": {
-    "description": "更新后的团队描述。",
-    "displayName": "视觉团队 (核心)"
+    "description": "Updated team description.",
+    "displayName": "Vision Team (core)"
   },
   "TenantStatus": {
     "conditions": [
@@ -1911,8 +1911,8 @@ export const examples: Record<string, unknown> = {
     ],
     "canaryPercent": 10,
     "createdAt": "2026-06-20T08:00:00Z",
-    "description": "ResNet-50 在线推理服务的金丝雀流量切分。",
-    "displayName": "ResNet 推理流量",
+    "description": "Canary traffic split for the ResNet-50 online inference service.",
+    "displayName": "ResNet inference traffic",
     "endpoint": {
       "hostname": "infer.axisml.io",
       "path": "/services/team-vision/resnet-serving/"
@@ -1954,8 +1954,8 @@ export const examples: Record<string, unknown> = {
       }
     ],
     "canaryPercent": 10,
-    "description": "ResNet-50 在线推理服务的金丝雀流量切分。",
-    "displayName": "ResNet 推理流量",
+    "description": "Canary traffic split for the ResNet-50 online inference service.",
+    "displayName": "ResNet inference traffic",
     "endpoint": {
       "hostname": "infer.axisml.io",
       "path": "/services/team-vision/resnet-serving/"
@@ -1991,8 +1991,8 @@ export const examples: Record<string, unknown> = {
         ],
         "canaryPercent": 10,
         "createdAt": "2026-06-20T08:00:00Z",
-        "description": "ResNet-50 在线推理服务的金丝雀流量切分。",
-        "displayName": "ResNet 推理流量",
+        "description": "Canary traffic split for the ResNet-50 online inference service.",
+        "displayName": "ResNet inference traffic",
         "endpoint": {
           "hostname": "infer.axisml.io",
           "path": "/services/team-vision/resnet-serving/"
@@ -2012,8 +2012,8 @@ export const examples: Record<string, unknown> = {
     "partial": false
   },
   "TrafficPolicyPatchRequest": {
-    "description": "更新后的描述。",
-    "displayName": "ResNet 推理流量 (v2)"
+    "description": "Updated description.",
+    "displayName": "ResNet inference traffic (v2)"
   },
   "TrafficPolicySplitRequest": {
     "backends": [
@@ -2032,25 +2032,25 @@ export const examples: Record<string, unknown> = {
   },
   "User": {
     "createdAt": "2026-06-20T08:00:00Z",
-    "displayName": "李伟",
+    "displayName": "Li Wei",
     "email": "li.wei@axisml.io",
     "id": "3a2b1c0d-4e5f-6789-abcd-ef0123456789",
     "updatedAt": "2026-06-28T09:30:00Z",
     "username": "li.wei"
   },
   "UserCreateRequest": {
-    "displayName": "李伟",
+    "displayName": "Li Wei",
     "email": "li.wei@axisml.io",
     "password": "S3cure-pass",
     "username": "li.wei"
   },
   "UserPatchRequest": {
     "disabled": false,
-    "displayName": "李伟 (Vision Lead)",
+    "displayName": "Li Wei (Vision Lead)",
     "email": "li.wei@axisml.io"
   },
   "UserSummary": {
-    "displayName": "李伟",
+    "displayName": "Li Wei",
     "email": "li.wei@axisml.io",
     "id": "3a2b1c0d-4e5f-6789-abcd-ef0123456789",
     "username": "li.wei"
@@ -2060,7 +2060,7 @@ export const examples: Record<string, unknown> = {
     "count": 1,
     "items": [
       {
-        "displayName": "李伟",
+        "displayName": "Li Wei",
         "email": "li.wei@axisml.io",
         "id": "3a2b1c0d-4e5f-6789-abcd-ef0123456789",
         "username": "li.wei"
@@ -2075,9 +2075,9 @@ export const examples: Record<string, unknown> = {
     "computeNamespace": "axisml-team-vision",
     "containerPort": 8888,
     "createdAt": "2026-06-20T08:00:00Z",
-    "description": "JupyterLab 交互式开发环境。",
+    "description": "JupyterLab interactive development environment.",
     "desiredState": "Running",
-    "displayName": "视觉组开发环境",
+    "displayName": "Vision team dev environment",
     "endpoint": {
       "accessUrl": "https://axisml.example.com/ws/team-vision/notebook-dev/",
       "internalDns": "notebook-dev.axisml-team-vision.svc.cluster.local"
@@ -2118,8 +2118,8 @@ export const examples: Record<string, unknown> = {
   },
   "WorkspaceCreateRequest": {
     "containerPort": 8888,
-    "description": "JupyterLab 交互式开发环境。",
-    "displayName": "视觉组开发环境",
+    "description": "JupyterLab interactive development environment.",
+    "displayName": "Vision team dev environment",
     "image": "registry.axisml.io/dev/jupyter:3.0.0",
     "lifecycle": {
       "idleTimeoutSeconds": 3600
@@ -2156,9 +2156,9 @@ export const examples: Record<string, unknown> = {
         "computeNamespace": "axisml-team-vision",
         "containerPort": 8888,
         "createdAt": "2026-06-20T08:00:00Z",
-        "description": "JupyterLab 交互式开发环境。",
+        "description": "JupyterLab interactive development environment.",
         "desiredState": "Running",
-        "displayName": "视觉组开发环境",
+        "displayName": "Vision team dev environment",
         "endpoint": {
           "accessUrl": "https://axisml.example.com/ws/team-vision/notebook-dev/",
           "internalDns": "notebook-dev.axisml-team-vision.svc.cluster.local"
@@ -2201,8 +2201,8 @@ export const examples: Record<string, unknown> = {
     "partial": false
   },
   "WorkspacePatchRequest": {
-    "description": "更新后的描述。",
-    "displayName": "视觉组开发环境 (v2)",
+    "description": "Updated description.",
+    "displayName": "Vision team dev environment (v2)",
     "lifecycle": {
       "idleTimeoutSeconds": 7200
     }

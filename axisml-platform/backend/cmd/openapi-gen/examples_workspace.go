@@ -28,8 +28,8 @@ func exWorkspace(g *openapigen.Generator) {
 		"tenantName":       "team-vision",
 		"computeNamespace": "axisml-team-vision",
 		"name":             "notebook-dev",
-		"displayName":      "视觉组开发环境",
-		"description":      "JupyterLab 交互式开发环境。",
+		"displayName":      "Vision team dev environment",
+		"description":      "JupyterLab interactive development environment.",
 		"owner":            "li.wei",
 		"ownerId":          "3a2b1c0d-4e5f-6789-abcd-ef0123456789",
 		"image":            "registry.axisml.io/dev/jupyter:3.0.0",
@@ -60,8 +60,8 @@ func exWorkspace(g *openapigen.Generator) {
 
 	g.SetExample("WorkspaceCreateRequest", obj{
 		"name":          "notebook-dev",
-		"displayName":   "视觉组开发环境",
-		"description":   "JupyterLab 交互式开发环境。",
+		"displayName":   "Vision team dev environment",
+		"description":   "JupyterLab interactive development environment.",
 		"image":         "registry.axisml.io/dev/jupyter:3.0.0",
 		"containerPort": 8888,
 		"poolName":      "gpu-a100",
@@ -71,8 +71,8 @@ func exWorkspace(g *openapigen.Generator) {
 		"lifecycle":     lifecycle,
 	})
 	g.SetExample("WorkspacePatchRequest", obj{
-		"displayName": "视觉组开发环境 (v2)",
-		"description": "更新后的描述。",
+		"displayName": "Vision team dev environment (v2)",
+		"description": "Updated description.",
 		"lifecycle":   obj{"idleTimeoutSeconds": 7200},
 	})
 	g.SetExample("WorkspaceDeleteRequest", obj{

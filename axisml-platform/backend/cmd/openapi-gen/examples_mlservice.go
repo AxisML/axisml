@@ -16,8 +16,8 @@ func exMLService(g *openapigen.Generator) {
 		"tenantName":       "team-nlp",
 		"computeNamespace": "axisml-team-nlp",
 		"name":             "llama3-chat",
-		"displayName":      "Llama3 对话服务",
-		"description":      "Llama3-8B 在线推理服务。",
+		"displayName":      "Llama3 chat service",
+		"description":      "Llama3-8B online inference service.",
 		"owner":            "zhang.san",
 		"ownerId":          "9f8e7d6c-5b4a-3210-fedc-ba9876543210",
 		"backend":          obj{"name": "kserve", "engine": "llminference"},
@@ -49,8 +49,8 @@ func exMLService(g *openapigen.Generator) {
 
 	g.SetExample("MLServiceCreateRequest", obj{
 		"name":         "llama3-chat",
-		"displayName":  "Llama3 对话服务",
-		"description":  "Llama3-8B 在线推理服务。",
+		"displayName":  "Llama3 chat service",
+		"description":  "Llama3-8B online inference service.",
 		"backend":      obj{"name": "kserve", "engine": "llminference"},
 		"modelName":    "llama3-8b",
 		"modelVersion": "1.2.0",
@@ -64,8 +64,8 @@ func exMLService(g *openapigen.Generator) {
 		"route":        route,
 	})
 	g.SetExample("MLServicePatchRequest", obj{
-		"displayName": "Llama3 对话服务 (v2)",
-		"description": "更新后的描述。",
+		"displayName": "Llama3 chat service (v2)",
+		"description": "Updated description.",
 	})
 	g.SetExample("MLServiceScaleRequest", obj{"replicas": 5})
 

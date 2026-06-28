@@ -13,7 +13,7 @@ func exArtifact(g *openapigen.Generator) {
 		"name":        "resnet50",
 		"version":     "1.4.0",
 		"displayName": "ResNet-50 v1.4.0",
-		"description": "在 ImageNet 上微调的 ResNet-50 权重。",
+		"description": "ResNet-50 weights fine-tuned on ImageNet.",
 		"status":      "Ready",
 		"source":      "webUpload",
 		"digest":      "sha256:9b0d5a2c7f3148e1f4a6c8e3d2b4a6c8e1f9b0d5a2c7f3148e1f4a6c8e3d2b4a",
@@ -35,7 +35,7 @@ func exArtifact(g *openapigen.Generator) {
 	g.SetExample("ModelInitiateRequest", obj{
 		"version":     "1.4.0",
 		"displayName": "ResNet-50 v1.4.0",
-		"description": "在 ImageNet 上微调的 ResNet-50 权重。",
+		"description": "ResNet-50 weights fine-tuned on ImageNet.",
 		"source":      "webUpload",
 	})
 	g.SetExample("ModelInitiateResponse", obj{
@@ -54,19 +54,19 @@ func exArtifact(g *openapigen.Generator) {
 
 	// ---- Artifacts (shared) ----
 	g.SetExample("ArtifactUpdateRequest", obj{
-		"displayName": "ResNet-50 v1.4.0 (校准)",
-		"description": "更新后的版本描述。",
+		"displayName": "ResNet-50 v1.4.0 (calibrated)",
+		"description": "Updated version description.",
 		"labels":      obj{"team": "vision"},
 	})
 	g.SetExample("ArtifactDefinitionCreateRequest", obj{
 		"name":        "resnet50",
 		"displayName": "ResNet-50",
-		"description": "ResNet-50 图像分类模型。",
+		"description": "ResNet-50 image-classification model.",
 		"labels":      obj{"team": "vision"},
 	})
 	g.SetExample("ArtifactDefinitionPatchRequest", obj{
 		"displayName": "ResNet-50 (v2)",
-		"description": "更新后的定义描述。",
+		"description": "Updated definition description.",
 	})
 
 	definition := obj{
@@ -76,7 +76,7 @@ func exArtifact(g *openapigen.Generator) {
 		"name":        "resnet50",
 		"kind":        "model",
 		"displayName": "ResNet-50",
-		"description": "ResNet-50 图像分类模型。",
+		"description": "ResNet-50 image-classification model.",
 		"owner":       "li.wei",
 		"ownerId":     "3a2b1c0d-4e5f-6789-abcd-ef0123456789",
 		"labels":      obj{"team": "vision"},
@@ -109,7 +109,7 @@ func exArtifact(g *openapigen.Generator) {
 		"name":        "pytorch-train",
 		"version":     "2.3.0",
 		"displayName": "PyTorch Training 2.3.0",
-		"description": "包含 PyTorch 2.3 与 CUDA 12 的训练镜像。",
+		"description": "Training image with PyTorch 2.3 and CUDA 12.",
 		"status":      "Ready",
 		"source":      "dockerPush",
 		"digest":      "sha256:7f3148e1f4a6c8e3d2b4a6c8e1f9b0d5a2c7f3148e1f4a6c8e3d2b4a6c8e1f9b",
@@ -131,7 +131,7 @@ func exArtifact(g *openapigen.Generator) {
 	g.SetExample("ImageInitiateRequest", obj{
 		"version":     "2.3.0",
 		"displayName": "PyTorch Training 2.3.0",
-		"description": "包含 PyTorch 2.3 与 CUDA 12 的训练镜像。",
+		"description": "Training image with PyTorch 2.3 and CUDA 12.",
 		"source":      "dockerPush",
 		"spec":        obj{"purpose": "training"},
 	})

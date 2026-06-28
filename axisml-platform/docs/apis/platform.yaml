@@ -5,7 +5,7 @@ components:
     ArtifactDefinition:
       example:
         createdAt: "2026-06-20T08:00:00Z"
-        description: ResNet-50 图像分类模型。
+        description: ResNet-50 image-classification model.
         displayName: ResNet-50
         id: 1f2e3d4c-5b6a-7980-abcd-ef0123456789
         kind: model
@@ -81,7 +81,7 @@ components:
       type: object
     ArtifactDefinitionCreateRequest:
       example:
-        description: ResNet-50 图像分类模型。
+        description: ResNet-50 image-classification model.
         displayName: ResNet-50
         labels:
           team: vision
@@ -122,7 +122,7 @@ components:
         count: 1
         items:
         - createdAt: "2026-06-20T08:00:00Z"
-          description: ResNet-50 图像分类模型。
+          description: ResNet-50 image-classification model.
           displayName: ResNet-50
           id: 1f2e3d4c-5b6a-7980-abcd-ef0123456789
           kind: model
@@ -157,7 +157,7 @@ components:
       type: object
     ArtifactDefinitionPatchRequest:
       example:
-        description: 更新后的定义描述。
+        description: Updated definition description.
         displayName: ResNet-50 (v2)
       properties:
         annotations:
@@ -248,8 +248,8 @@ components:
       type: string
     ArtifactUpdateRequest:
       example:
-        description: 更新后的版本描述。
-        displayName: ResNet-50 v1.4.0 (校准)
+        description: Updated version description.
+        displayName: ResNet-50 v1.4.0 (calibrated)
         labels:
           team: vision
       properties:
@@ -472,8 +472,8 @@ components:
     Experiment:
       example:
         createdAt: "2026-06-20T08:00:00Z"
-        description: 在中文语料上微调 BERT 的训练实验。
-        displayName: BERT 微调实验
+        description: Training experiment fine-tuning BERT on a Chinese corpus.
+        displayName: BERT fine-tuning experiment
         id: d4f8a1b2-3c5e-4a7b-9c0d-1e2f3a4b5c6d
         labels:
           team: nlp
@@ -580,8 +580,8 @@ components:
       type: object
     ExperimentCreateRequest:
       example:
-        description: 在中文语料上微调 BERT 的训练实验。
-        displayName: BERT 微调实验
+        description: Training experiment fine-tuning BERT on a Chinese corpus.
+        displayName: BERT fine-tuning experiment
         labels:
           team: nlp
         name: bert-finetune
@@ -660,8 +660,8 @@ components:
         count: 1
         items:
         - createdAt: "2026-06-20T08:00:00Z"
-          description: 在中文语料上微调 BERT 的训练实验。
-          displayName: BERT 微调实验
+          description: Training experiment fine-tuning BERT on a Chinese corpus.
+          displayName: BERT fine-tuning experiment
           id: d4f8a1b2-3c5e-4a7b-9c0d-1e2f3a4b5c6d
           labels:
             team: nlp
@@ -732,8 +732,8 @@ components:
       type: object
     ExperimentPatchRequest:
       example:
-        description: 更新后的描述。
-        displayName: BERT 微调实验 (v2)
+        description: Updated description.
+        displayName: BERT fine-tuning experiment (v2)
       properties:
         annotations:
           allOf:
@@ -782,7 +782,7 @@ components:
     Image:
       example:
         createdAt: "2026-06-20T08:00:00Z"
-        description: 包含 PyTorch 2.3 与 CUDA 12 的训练镜像。
+        description: Training image with PyTorch 2.3 and CUDA 12.
         digest: sha256:7f3148e1f4a6c8e3d2b4a6c8e1f9b0d5a2c7f3148e1f4a6c8e3d2b4a6c8e1f9b
         displayName: PyTorch Training 2.3.0
         id: a1b2c3d4-5e6f-7081-92a3-b4c5d6e7f809
@@ -885,7 +885,7 @@ components:
       type: object
     ImageInitiateRequest:
       example:
-        description: 包含 PyTorch 2.3 与 CUDA 12 的训练镜像。
+        description: Training image with PyTorch 2.3 and CUDA 12.
         displayName: PyTorch Training 2.3.0
         source: dockerPush
         spec:
@@ -959,7 +959,7 @@ components:
         count: 1
         items:
         - createdAt: "2026-06-20T08:00:00Z"
-          description: 包含 PyTorch 2.3 与 CUDA 12 的训练镜像。
+          description: Training image with PyTorch 2.3 and CUDA 12.
           digest: sha256:7f3148e1f4a6c8e3d2b4a6c8e1f9b0d5a2c7f3148e1f4a6c8e3d2b4a6c8e1f9b
           displayName: PyTorch Training 2.3.0
           id: a1b2c3d4-5e6f-7081-92a3-b4c5d6e7f809
@@ -1082,8 +1082,8 @@ components:
     Job:
       example:
         createdAt: "2026-06-20T08:00:00Z"
-        description: ImageNet 上的 ResNet-50 分布式训练任务。
-        displayName: ResNet-50 训练
+        description: Distributed ResNet-50 training job on ImageNet.
+        displayName: ResNet-50 Training
         id: 8c1f4e22-2b7a-4c0e-9b1d-7f3a2e5c9a10
         labels:
           team: vision
@@ -1188,8 +1188,8 @@ components:
       type: object
     JobCreateRequest:
       example:
-        description: ImageNet 上的 ResNet-50 分布式训练任务。
-        displayName: ResNet-50 训练
+        description: Distributed ResNet-50 training job on ImageNet.
+        displayName: ResNet-50 Training
         labels:
           team: vision
         name: resnet-train
@@ -1266,8 +1266,8 @@ components:
         count: 1
         items:
         - createdAt: "2026-06-20T08:00:00Z"
-          description: ImageNet 上的 ResNet-50 分布式训练任务。
-          displayName: ResNet-50 训练
+          description: Distributed ResNet-50 training job on ImageNet.
+          displayName: ResNet-50 Training
           id: 8c1f4e22-2b7a-4c0e-9b1d-7f3a2e5c9a10
           labels:
             team: vision
@@ -1336,8 +1336,8 @@ components:
       type: object
     JobPatchRequest:
       example:
-        description: 更新后的描述。
-        displayName: ResNet-50 训练 (v2)
+        description: Updated description.
+        displayName: ResNet-50 Training (v2)
       properties:
         annotations:
           allOf:
@@ -1463,7 +1463,7 @@ components:
           tenantName: team-nlp
         user:
           createdAt: "2026-06-20T08:00:00Z"
-          displayName: 李伟
+          displayName: Li Wei
           email: li.wei@axisml.io
           id: 3a2b1c0d-4e5f-6789-abcd-ef0123456789
           updatedAt: "2026-06-28T09:30:00Z"
@@ -1628,8 +1628,8 @@ components:
           name: kserve
         computeNamespace: axisml-team-nlp
         createdAt: "2026-06-20T08:00:00Z"
-        description: Llama3-8B 在线推理服务。
-        displayName: Llama3 对话服务
+        description: Llama3-8B online inference service.
+        displayName: Llama3 chat service
         env:
         - name: MAX_TOKENS
           value: "4096"
@@ -1787,8 +1787,8 @@ components:
         backend:
           engine: llminference
           name: kserve
-        description: Llama3-8B 在线推理服务。
-        displayName: Llama3 对话服务
+        description: Llama3-8B online inference service.
+        displayName: Llama3 chat service
         env:
         - name: MAX_TOKENS
           value: "4096"
@@ -1898,8 +1898,8 @@ components:
             name: kserve
           computeNamespace: axisml-team-nlp
           createdAt: "2026-06-20T08:00:00Z"
-          description: Llama3-8B 在线推理服务。
-          displayName: Llama3 对话服务
+          description: Llama3-8B online inference service.
+          displayName: Llama3 chat service
           env:
           - name: MAX_TOKENS
             value: "4096"
@@ -1962,8 +1962,8 @@ components:
       type: string
     MLServicePatchRequest:
       example:
-        description: 更新后的描述。
-        displayName: Llama3 对话服务 (v2)
+        description: Updated description.
+        displayName: Llama3 chat service (v2)
       properties:
         description:
           description: Updated free-text service description.
@@ -2023,7 +2023,7 @@ components:
           tenantName: team-nlp
         user:
           createdAt: "2026-06-20T08:00:00Z"
-          displayName: 李伟
+          displayName: Li Wei
           email: li.wei@axisml.io
           id: 3a2b1c0d-4e5f-6789-abcd-ef0123456789
           updatedAt: "2026-06-28T09:30:00Z"
@@ -2055,7 +2055,7 @@ components:
     Member:
       example:
         addedAt: "2026-06-20T08:00:00Z"
-        displayName: 李伟
+        displayName: Li Wei
         email: li.wei@example.com
         roleName: tenant-admin
         userId: 3a2b1c0d-4e5f-6789-abcd-ef0123456789
@@ -2113,7 +2113,7 @@ components:
         count: 1
         items:
         - addedAt: "2026-06-20T08:00:00Z"
-          displayName: 李伟
+          displayName: Li Wei
           email: li.wei@example.com
           roleName: tenant-admin
           userId: 3a2b1c0d-4e5f-6789-abcd-ef0123456789
@@ -2208,7 +2208,7 @@ components:
     Model:
       example:
         createdAt: "2026-06-20T08:00:00Z"
-        description: 在 ImageNet 上微调的 ResNet-50 权重。
+        description: ResNet-50 weights fine-tuned on ImageNet.
         digest: sha256:9b0d5a2c7f3148e1f4a6c8e3d2b4a6c8e1f9b0d5a2c7f3148e1f4a6c8e3d2b4a
         displayName: ResNet-50 v1.4.0
         id: c4a7f1e9-3d2b-4a6c-8e1f-9b0d5a2c7f31
@@ -2311,7 +2311,7 @@ components:
       type: object
     ModelInitiateRequest:
       example:
-        description: 在 ImageNet 上微调的 ResNet-50 权重。
+        description: ResNet-50 weights fine-tuned on ImageNet.
         displayName: ResNet-50 v1.4.0
         source: webUpload
         version: 1.4.0
@@ -2388,7 +2388,7 @@ components:
         count: 1
         items:
         - createdAt: "2026-06-20T08:00:00Z"
-          description: 在 ImageNet 上微调的 ResNet-50 权重。
+          description: ResNet-50 weights fine-tuned on ImageNet.
           digest: sha256:9b0d5a2c7f3148e1f4a6c8e3d2b4a6c8e1f9b0d5a2c7f3148e1f4a6c8e3d2b4a
           displayName: ResNet-50 v1.4.0
           id: c4a7f1e9-3d2b-4a6c-8e1f-9b0d5a2c7f31
@@ -2749,7 +2749,7 @@ components:
     ResourcePool:
       example:
         createdAt: "2026-06-20T08:00:00Z"
-        description: A100 GPU 资源池。
+        description: A100 GPU resource pool.
         labels:
           tier: gpu
         name: gpu-a100
@@ -2758,7 +2758,7 @@ components:
           axisml.io/gpu: a100
         resourceVersion: "184321"
         units:
-        - description: 2x A100 GPU 计算单元。
+        - description: 2x A100 GPU compute unit.
           limits:
             cpu: "16"
             memory: 128Gi
@@ -2819,14 +2819,14 @@ components:
       type: object
     ResourcePoolCreateRequest:
       example:
-        description: A100 GPU 资源池。
+        description: A100 GPU resource pool.
         labels:
           tier: gpu
         name: gpu-a100
         nodeSelector:
           axisml.io/gpu: a100
         units:
-        - description: 2x A100 GPU 计算单元。
+        - description: 2x A100 GPU compute unit.
           limits:
             cpu: "16"
             memory: 128Gi
@@ -2878,7 +2878,7 @@ components:
         count: 1
         items:
         - createdAt: "2026-06-20T08:00:00Z"
-          description: A100 GPU 资源池。
+          description: A100 GPU resource pool.
           labels:
             tier: gpu
           name: gpu-a100
@@ -2887,7 +2887,7 @@ components:
             axisml.io/gpu: a100
           resourceVersion: "184321"
           units:
-          - description: 2x A100 GPU 计算单元。
+          - description: 2x A100 GPU compute unit.
             limits:
               cpu: "16"
               memory: 128Gi
@@ -2917,7 +2917,7 @@ components:
       type: object
     ResourcePoolPatchRequest:
       example:
-        description: 更新后的 A100 GPU 资源池。
+        description: Updated A100 GPU resource pool.
         nodeSelector:
           axisml.io/gpu: a100
           axisml.io/zone: cn-east-1
@@ -2946,7 +2946,7 @@ components:
       type: object
     ResourceUnit:
       example:
-        description: 2x A100 GPU 计算单元。
+        description: 2x A100 GPU compute unit.
         limits:
           cpu: "16"
           memory: 128Gi
@@ -2992,7 +2992,7 @@ components:
       type: object
     ResourceUnitCreateRequest:
       example:
-        description: 2x A100 GPU 计算单元。
+        description: 2x A100 GPU compute unit.
         limits:
           cpu: "16"
           memory: 128Gi
@@ -3045,7 +3045,7 @@ components:
         continueToken: ""
         count: 1
         items:
-        - description: 2x A100 GPU 计算单元。
+        - description: 2x A100 GPU compute unit.
           limits:
             cpu: "16"
             memory: 128Gi
@@ -3074,7 +3074,7 @@ components:
       type: object
     ResourceUnitPatchRequest:
       example:
-        description: 更新后的 2x A100 GPU 计算单元。
+        description: Updated 2x A100 GPU compute unit.
         limits:
           cpu: "24"
           memory: 192Gi
@@ -3179,7 +3179,7 @@ components:
           name: native
         computeNamespace: axisml-team-vision
         createdAt: "2026-06-28T09:00:00Z"
-        displayName: 'ResNet-50 训练 #7'
+        displayName: 'ResNet-50 Training #7'
         id: b7d9e3f1-1a2b-3c4d-5e6f-708192a3b4c5
         jobName: resnet-train
         message: All worker replicas ready.
@@ -3356,7 +3356,7 @@ components:
             name: native
           computeNamespace: axisml-team-vision
           createdAt: "2026-06-28T09:00:00Z"
-          displayName: 'ResNet-50 训练 #7'
+          displayName: 'ResNet-50 Training #7'
           id: b7d9e3f1-1a2b-3c4d-5e6f-708192a3b4c5
           jobName: resnet-train
           message: All worker replicas ready.
@@ -3476,7 +3476,7 @@ components:
       type: object
     RunTriggerRequest:
       example:
-        displayName: 'ResNet-50 训练 #8'
+        displayName: 'ResNet-50 Training #8'
         poolName: gpu-a100
         quota: team-vision
         roles:
@@ -3644,8 +3644,8 @@ components:
         activeExperimentRuns: 2
         activeJobRuns: 3
         createdAt: "2026-06-20T08:00:00Z"
-        description: 计算机视觉模型训练与推理团队。
-        displayName: 视觉团队
+        description: Computer-vision model training and inference team.
+        displayName: Vision Team
         identifier: team-vision
         initResources:
           configMaps:
@@ -3776,8 +3776,8 @@ components:
       type: object
     TenantCreateRequest:
       example:
-        description: 计算机视觉模型训练与推理团队。
-        displayName: 视觉团队
+        description: Computer-vision model training and inference team.
+        displayName: Vision Team
         identifier: team-vision
         initialAdmin: li.wei@example.com
         kubernetesNamespace: axisml-team-vision
@@ -3843,8 +3843,8 @@ components:
         - activeExperimentRuns: 2
           activeJobRuns: 3
           createdAt: "2026-06-20T08:00:00Z"
-          description: 计算机视觉模型训练与推理团队。
-          displayName: 视觉团队
+          description: Computer-vision model training and inference team.
+          displayName: Vision Team
           identifier: team-vision
           initResources:
             configMaps:
@@ -3918,8 +3918,8 @@ components:
       type: object
     TenantPatchRequest:
       example:
-        description: 更新后的团队描述。
-        displayName: 视觉团队 (核心)
+        description: Updated team description.
+        displayName: Vision Team (core)
       properties:
         annotations:
           allOf:
@@ -4045,8 +4045,8 @@ components:
           weight: 10
         canaryPercent: 10
         createdAt: "2026-06-20T08:00:00Z"
-        description: ResNet-50 在线推理服务的金丝雀流量切分。
-        displayName: ResNet 推理流量
+        description: Canary traffic split for the ResNet-50 online inference service.
+        displayName: ResNet inference traffic
         endpoint:
           hostname: infer.axisml.io
           path: /services/team-vision/resnet-serving/
@@ -4210,8 +4210,8 @@ components:
           serviceName: resnet-serving-v2
           weight: 10
         canaryPercent: 10
-        description: ResNet-50 在线推理服务的金丝雀流量切分。
-        displayName: ResNet 推理流量
+        description: Canary traffic split for the ResNet-50 online inference service.
+        displayName: ResNet inference traffic
         endpoint:
           hostname: infer.axisml.io
           path: /services/team-vision/resnet-serving/
@@ -4288,8 +4288,8 @@ components:
             weight: 10
           canaryPercent: 10
           createdAt: "2026-06-20T08:00:00Z"
-          description: ResNet-50 在线推理服务的金丝雀流量切分。
-          displayName: ResNet 推理流量
+          description: Canary traffic split for the ResNet-50 online inference service.
+          displayName: ResNet inference traffic
           endpoint:
             hostname: infer.axisml.io
             path: /services/team-vision/resnet-serving/
@@ -4331,8 +4331,8 @@ components:
       type: string
     TrafficPolicyPatchRequest:
       example:
-        description: 更新后的描述。
-        displayName: ResNet 推理流量 (v2)
+        description: Updated description.
+        displayName: ResNet inference traffic (v2)
       properties:
         annotations:
           allOf:
@@ -4387,7 +4387,7 @@ components:
     User:
       example:
         createdAt: "2026-06-20T08:00:00Z"
-        displayName: 李伟
+        displayName: Li Wei
         email: li.wei@axisml.io
         id: 3a2b1c0d-4e5f-6789-abcd-ef0123456789
         updatedAt: "2026-06-28T09:30:00Z"
@@ -4429,7 +4429,7 @@ components:
       type: object
     UserCreateRequest:
       example:
-        displayName: 李伟
+        displayName: Li Wei
         email: li.wei@axisml.io
         password: S3cure-pass
         username: li.wei
@@ -4459,7 +4459,7 @@ components:
     UserPatchRequest:
       example:
         disabled: false
-        displayName: 李伟 (Vision Lead)
+        displayName: Li Wei (Vision Lead)
         email: li.wei@axisml.io
       properties:
         disabled:
@@ -4478,7 +4478,7 @@ components:
       type: object
     UserSummary:
       example:
-        displayName: 李伟
+        displayName: Li Wei
         email: li.wei@axisml.io
         id: 3a2b1c0d-4e5f-6789-abcd-ef0123456789
         username: li.wei
@@ -4506,7 +4506,7 @@ components:
         continueToken: ""
         count: 1
         items:
-        - displayName: 李伟
+        - displayName: Li Wei
           email: li.wei@axisml.io
           id: 3a2b1c0d-4e5f-6789-abcd-ef0123456789
           username: li.wei
@@ -4555,9 +4555,9 @@ components:
         computeNamespace: axisml-team-vision
         containerPort: 8888
         createdAt: "2026-06-20T08:00:00Z"
-        description: JupyterLab 交互式开发环境。
+        description: JupyterLab interactive development environment.
         desiredState: Running
-        displayName: 视觉组开发环境
+        displayName: Vision team dev environment
         endpoint:
           accessUrl: https://axisml.example.com/ws/team-vision/notebook-dev/
           internalDns: notebook-dev.axisml-team-vision.svc.cluster.local
@@ -4726,8 +4726,8 @@ components:
     WorkspaceCreateRequest:
       example:
         containerPort: 8888
-        description: JupyterLab 交互式开发环境。
-        displayName: 视觉组开发环境
+        description: JupyterLab interactive development environment.
+        displayName: Vision team dev environment
         image: registry.axisml.io/dev/jupyter:3.0.0
         lifecycle:
           idleTimeoutSeconds: 3600
@@ -4851,9 +4851,9 @@ components:
         - computeNamespace: axisml-team-vision
           containerPort: 8888
           createdAt: "2026-06-20T08:00:00Z"
-          description: JupyterLab 交互式开发环境。
+          description: JupyterLab interactive development environment.
           desiredState: Running
-          displayName: 视觉组开发环境
+          displayName: Vision team dev environment
           endpoint:
             accessUrl: https://axisml.example.com/ws/team-vision/notebook-dev/
             internalDns: notebook-dev.axisml-team-vision.svc.cluster.local
@@ -4908,8 +4908,8 @@ components:
       type: object
     WorkspacePatchRequest:
       example:
-        description: 更新后的描述。
-        displayName: 视觉组开发环境 (v2)
+        description: Updated description.
+        displayName: Vision team dev environment (v2)
         lifecycle:
           idleTimeoutSeconds: 7200
       properties:

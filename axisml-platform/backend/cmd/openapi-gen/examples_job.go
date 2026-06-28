@@ -49,8 +49,8 @@ func exJob(g *openapigen.Generator) {
 		"namespace":   "team-vision",
 		"tenantName":  "team-vision",
 		"name":        "resnet-train",
-		"displayName": "ResNet-50 训练",
-		"description": "ImageNet 上的 ResNet-50 分布式训练任务。",
+		"displayName": "ResNet-50 Training",
+		"description": "Distributed ResNet-50 training job on ImageNet.",
 		"owner":       "li.wei",
 		"ownerId":     "3a2b1c0d-4e5f-6789-abcd-ef0123456789",
 		"labels":      obj{"team": "vision"},
@@ -67,14 +67,14 @@ func exJob(g *openapigen.Generator) {
 	})
 	g.SetExample("JobCreateRequest", obj{
 		"name":        "resnet-train",
-		"displayName": "ResNet-50 训练",
-		"description": "ImageNet 上的 ResNet-50 分布式训练任务。",
+		"displayName": "ResNet-50 Training",
+		"description": "Distributed ResNet-50 training job on ImageNet.",
 		"labels":      obj{"team": "vision"},
 		"spec":        jobSpec,
 	})
 	g.SetExample("JobPatchRequest", obj{
-		"displayName": "ResNet-50 训练 (v2)",
-		"description": "更新后的描述。",
+		"displayName": "ResNet-50 Training (v2)",
+		"description": "Updated description.",
 	})
 
 	roleStatus := obj{
@@ -103,7 +103,7 @@ func exJob(g *openapigen.Generator) {
 		"name":             "resnet-train-7",
 		"jobName":          "resnet-train",
 		"runNumber":        7,
-		"displayName":      "ResNet-50 训练 #7",
+		"displayName":      "ResNet-50 Training #7",
 		"owner":            "li.wei",
 		"backend":          backend,
 		"poolName":         "gpu-a100",
@@ -127,7 +127,7 @@ func exJob(g *openapigen.Generator) {
 		"partial":       false,
 	})
 	g.SetExample("RunTriggerRequest", obj{
-		"displayName": "ResNet-50 训练 #8",
+		"displayName": "ResNet-50 Training #8",
 		"poolName":    "gpu-a100",
 		"unitName":    "a100-2x",
 		"quota":       "team-vision",

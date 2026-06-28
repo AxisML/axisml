@@ -46,8 +46,8 @@ export const tenants: Tenant[] = [
   tenant0,
   v(tenant0, {
     identifier: "llm-lab",
-    displayName: "大模型研究院",
-    description: "大语言模型预训练与微调团队。",
+    displayName: "LLM Research Institute",
+    description: "Large language model pretraining and fine-tuning team.",
     kubernetesNamespace: "axisml-llm-lab",
     owner: "zhang.wei",
     memberCount: 12,
@@ -57,8 +57,8 @@ export const tenants: Tenant[] = [
   }),
   v(tenant0, {
     identifier: "rec-alg",
-    displayName: "推荐算法团队",
-    description: "推荐与排序模型训练。",
+    displayName: "Recommendation Algorithm Team",
+    description: "Recommendation and ranking model training.",
     kubernetesNamespace: "axisml-rec-alg",
     owner: "li.mei",
     phase: "Suspended",
@@ -84,12 +84,12 @@ export const pools: ResourcePool[] = [
   pool0,
   v(pool0, {
     name: "h100-pool",
-    description: "H100 SXM GPU 资源池。",
+    description: "H100 SXM GPU resource pool.",
     nodeCount: 4,
   }),
   v(pool0, {
     name: "cpu-pool",
-    description: "通用 CPU 资源池（数据处理 / 推理）。",
+    description: "General-purpose CPU resource pool (data processing / inference).",
     nodeCount: 16,
     units: [],
   }),
@@ -100,11 +100,11 @@ const member0 = ex<Member>("Member");
 export const membersByTenant: Record<string, Member[]> = {
   [tenants[0].identifier!]: [
     member0,
-    v(member0, { userId: "u-zhang", username: "zhang.wei", displayName: "张伟", email: "zhang.wei@axisml.io", roleName: "user" }),
-    v(member0, { userId: "u-liu", username: "liu.yang", displayName: "刘洋", email: "liu.yang@axisml.io", roleName: "user" }),
+    v(member0, { userId: "u-zhang", username: "zhang.wei", displayName: "Zhang Wei", email: "zhang.wei@axisml.io", roleName: "user" }),
+    v(member0, { userId: "u-liu", username: "liu.yang", displayName: "Liu Yang", email: "liu.yang@axisml.io", roleName: "user" }),
   ],
   [tenants[1].identifier!]: [
-    v(member0, { userId: "u-limei", username: "li.mei", displayName: "李梅", email: "li.mei@axisml.io", roleName: "tenant-admin" }),
+    v(member0, { userId: "u-limei", username: "li.mei", displayName: "Li Mei", email: "li.mei@axisml.io", roleName: "tenant-admin" }),
   ],
 };
 
@@ -116,15 +116,15 @@ export const quotasByTenant: Record<string, Quota[]> = Object.fromEntries(
 const job0 = ex<Job>("Job");
 export const jobs: Job[] = [
   job0,
-  v(job0, { id: "job-eval-recall", name: "eval-recall", displayName: "召回离线评估", description: "召回模型离线评估。", owner: "li.na" }),
-  v(job0, { id: "job-data-clean", name: "data-clean-etl", displayName: "训练数据清洗", description: "训练数据清洗 ETL。", owner: "chen.xi" }),
+  v(job0, { id: "job-eval-recall", name: "eval-recall", displayName: "Recall offline evaluation", description: "Offline evaluation of the recall model.", owner: "li.na" }),
+  v(job0, { id: "job-data-clean", name: "data-clean-etl", displayName: "Training data cleaning", description: "Training-data cleaning ETL.", owner: "chen.xi" }),
 ];
 
 // ── experiments ─────────────────────────────────────────────────────────────────
 const exp0 = ex<Experiment>("Experiment");
 export const experiments: Experiment[] = [
   exp0,
-  v(exp0, { id: "exp-aug-search", name: "resnet-aug-search", displayName: "ResNet 数据增强搜索", description: "图像增强策略对比实验。", owner: "li.na" }),
+  v(exp0, { id: "exp-aug-search", name: "resnet-aug-search", displayName: "ResNet data-augmentation search", description: "Experiment comparing image-augmentation strategies.", owner: "li.na" }),
 ];
 
 // ── runs (shared generator for jobs & experiments) ──────────────────────────────
@@ -171,8 +171,8 @@ export const workspaces: Workspace[] = [
   v(ws0, {
     id: "ws-data-prep",
     name: "data-prep",
-    displayName: "数据预处理",
-    description: "CPU 数据清洗工作空间。",
+    displayName: "Data preprocessing",
+    description: "CPU data-cleaning workspace.",
     owner: "liu.yang",
     phase: "Stopped",
     desiredState: "Stopped",
@@ -188,13 +188,13 @@ export const services: MlService[] = [
   v(svc0, {
     id: "svc-bge",
     name: "bge-embed-svc",
-    displayName: "BGE 向量服务",
-    description: "文本向量化在线服务。",
+    displayName: "BGE embedding service",
+    description: "Online text-embedding service.",
     owner: "liu.yang",
     phase: "Degraded",
     replicas: 3,
     readyReplicas: 1,
-    message: "2/3 副本未就绪。",
+    message: "2/3 replicas not ready.",
   }),
 ];
 
@@ -205,8 +205,8 @@ export const trafficPolicies: TrafficPolicy[] = [
   v(tp0, {
     id: "tp-weighted",
     name: "bge-embed-weighted",
-    displayName: "BGE 向量 多版本加权",
-    description: "多个版本按权重承接流量，做 A/B 对比。",
+    displayName: "BGE embedding multi-version weighting",
+    description: "Multiple versions take weighted traffic for A/B comparison.",
     owner: "liu.yang",
     mode: "weighted",
   }),
@@ -216,12 +216,12 @@ export const trafficPolicies: TrafficPolicy[] = [
 const def0 = ex<ArtifactDefinition>("ArtifactDefinition");
 export const models: ArtifactDefinition[] = [
   v(def0, { kind: "model" }),
-  v(def0, { id: "model-bge", kind: "model", name: "bge-embed", displayName: "BGE 向量模型", description: "中文文本向量模型。" }),
+  v(def0, { id: "model-bge", kind: "model", name: "bge-embed", displayName: "BGE embedding model", description: "Chinese text embedding model." }),
 ];
 
 export const images: ArtifactDefinition[] = [
-  v(def0, { id: "image-pytorch", kind: "image", name: "pytorch-train", displayName: "PyTorch 训练镜像", description: "CUDA 12.1 + PyTorch 2.3 训练镜像。" }),
-  v(def0, { id: "image-vllm", kind: "image", name: "vllm-serve", displayName: "vLLM 推理镜像", description: "vLLM 推理镜像。" }),
+  v(def0, { id: "image-pytorch", kind: "image", name: "pytorch-train", displayName: "PyTorch training image", description: "CUDA 12.1 + PyTorch 2.3 training image." }),
+  v(def0, { id: "image-vllm", kind: "image", name: "vllm-serve", displayName: "vLLM inference image", description: "vLLM inference image." }),
 ];
 
 const modelVer0 = ex<Model>("Model");
@@ -322,16 +322,16 @@ const trendFor = (base: number) =>
     return {
       t: `${i * 2}:00`,
       util,
-      // 已分配的 GPU 配额(%)，通常略高于实际利用率。
+      // Allocated GPU quota (%), usually slightly higher than actual utilisation.
       quota: Math.min(100, util + 8 + Math.round(4 * Math.sin(i / 2.3))),
     };
   });
 
 const clusterUsageMap: Record<string, ClusterUsage> = {
-  all: { key: "all", label: "全部", gpu: meter(36, 48, "卡"), cpu: meter(740, 1152, "核"), mem: meter(3.4, 5.5, "TiB", 1), trend: trendFor(72) },
-  "gpu-a100": { key: "gpu-a100", label: "gpu-a100", gpu: meter(22, 32, "卡"), cpu: meter(240, 384, "核"), mem: meter(1.2, 2.0, "TiB", 1), trend: trendFor(69) },
-  "h100-pool": { key: "h100-pool", label: "h100-pool", gpu: meter(14, 16, "卡"), cpu: meter(180, 256, "核"), mem: meter(1.4, 2.0, "TiB", 1), trend: trendFor(86) },
-  "cpu-pool": { key: "cpu-pool", label: "cpu-pool", gpu: meter(0, 0, "卡"), cpu: meter(320, 512, "核"), mem: meter(0.8, 1.5, "TiB", 1), trend: trendFor(60) },
+  all: { key: "all", label: "All", gpu: meter(36, 48, "cards"), cpu: meter(740, 1152, "cores"), mem: meter(3.4, 5.5, "TiB", 1), trend: trendFor(72) },
+  "gpu-a100": { key: "gpu-a100", label: "gpu-a100", gpu: meter(22, 32, "cards"), cpu: meter(240, 384, "cores"), mem: meter(1.2, 2.0, "TiB", 1), trend: trendFor(69) },
+  "h100-pool": { key: "h100-pool", label: "h100-pool", gpu: meter(14, 16, "cards"), cpu: meter(180, 256, "cores"), mem: meter(1.4, 2.0, "TiB", 1), trend: trendFor(86) },
+  "cpu-pool": { key: "cpu-pool", label: "cpu-pool", gpu: meter(0, 0, "cards"), cpu: meter(320, 512, "cores"), mem: meter(0.8, 1.5, "TiB", 1), trend: trendFor(60) },
 };
 
 export function clusterUsage(pool?: string): ClusterUsage {

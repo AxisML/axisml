@@ -13,13 +13,13 @@ const (
 // registerExamples attaches a realistic, internally-consistent whole-object
 // example to every schema registered in Document. The narrative mirrors the
 // platform examples for cross-spec consistency: tenant "team-vision" /
-// "视觉团队", pool "gpu-a100" with unit "a100-2x" (2 GPUs), quota quantity 4.
+// "Vision Team", pool "gpu-a100" with unit "a100-2x" (2 GPUs), quota quantity 4.
 func registerExamples(g *openapigen.Generator) {
 	// --- Resource pools & units ---
 
 	unit := obj{
 		"name":        "a100-2x",
-		"description": "2 × A100 GPU 计算单元。",
+		"description": "2× A100 GPU compute unit.",
 		"requests": obj{
 			"cpu":            "16",
 			"memory":         "128Gi",
@@ -40,7 +40,7 @@ func registerExamples(g *openapigen.Generator) {
 
 	createUnit := obj{
 		"name":        "a100-2x",
-		"description": "2 × A100 GPU 计算单元。",
+		"description": "2× A100 GPU compute unit.",
 		"requests": obj{
 			"cpu":            "16",
 			"memory":         "128Gi",
@@ -55,7 +55,7 @@ func registerExamples(g *openapigen.Generator) {
 	}
 	g.SetExample("CreateResourceUnitRequest", createUnit)
 	g.SetExample("PatchResourceUnitRequest", obj{
-		"description": "2 × A100 GPU 计算单元（更新后）。",
+		"description": "2× A100 GPU compute unit (updated).",
 		"limits": obj{
 			"cpu":            "24",
 			"memory":         "192Gi",
@@ -65,7 +65,7 @@ func registerExamples(g *openapigen.Generator) {
 
 	pool := obj{
 		"name":         "gpu-a100",
-		"description":  "A100 GPU 资源池。",
+		"description":  "A100 GPU resource pool.",
 		"nodeSelector": obj{"axisml.io/gpu": "a100"},
 		"tolerations": []any{obj{
 			"key":      "nvidia.com/gpu",
@@ -87,7 +87,7 @@ func registerExamples(g *openapigen.Generator) {
 
 	g.SetExample("CreateResourcePoolRequest", obj{
 		"name":         "gpu-a100",
-		"description":  "A100 GPU 资源池。",
+		"description":  "A100 GPU resource pool.",
 		"nodeSelector": obj{"axisml.io/gpu": "a100"},
 		"tolerations": []any{obj{
 			"key":      "nvidia.com/gpu",
@@ -98,7 +98,7 @@ func registerExamples(g *openapigen.Generator) {
 		"labels": obj{"tier": "gpu"},
 	})
 	g.SetExample("PatchResourcePoolRequest", obj{
-		"description": "A100 GPU 资源池（更新后）。",
+		"description": "A100 GPU resource pool (updated).",
 		"labels":      obj{"tier": "gpu", "region": "cn-east"},
 	})
 
@@ -121,7 +121,7 @@ func registerExamples(g *openapigen.Generator) {
 		"name":      "team-vision",
 		"namespace": obj{"name": "team-vision"},
 		"quotas":    []any{quota},
-		"labels":    obj{"displayName": "视觉团队"},
+		"labels":    obj{"displayName": "Vision Team"},
 		"annotations": obj{
 			"axisml.io/last-modified-by": "li.wei",
 		},
@@ -155,11 +155,11 @@ func registerExamples(g *openapigen.Generator) {
 		"name":      "team-vision",
 		"namespace": obj{"name": "team-vision"},
 		"quotas":    []any{quota},
-		"labels":    obj{"displayName": "视觉团队"},
+		"labels":    obj{"displayName": "Vision Team"},
 	})
 	g.SetExample("PatchTenantRequest", obj{
 		"namespaceLabels": obj{"team": "vision"},
-		"labels":          obj{"displayName": "视觉团队", "region": "cn-east"},
+		"labels":          obj{"displayName": "Vision Team", "region": "cn-east"},
 	})
 
 	g.SetExample("SetQuotaRequest", quota)

@@ -44,7 +44,7 @@ func registerExamples(g *openapigen.Generator) {
 		"source":      "webUpload",
 		"visibility":  "tenant",
 		"displayName": "ResNet-50",
-		"description": "ImageNet 上预训练的 ResNet-50 图像分类模型。",
+		"description": "ResNet-50 image-classification model pretrained on ImageNet.",
 		"labels":      obj{"team": "vision", "stage": "production"},
 		"annotations": obj{"git-commit": "8c1f4e2"},
 	})
@@ -64,7 +64,7 @@ func registerExamples(g *openapigen.Generator) {
 			"version":     exVersion,
 			"visibility":  "tenant",
 			"displayName": "ResNet-50",
-			"description": "ImageNet 上预训练的 ResNet-50 图像分类模型。",
+			"description": "ResNet-50 image-classification model pretrained on ImageNet.",
 			"labels":      obj{"team": "vision", "stage": "production"},
 			"owner":       "li.wei",
 			"spec":        artifactSpec,
@@ -86,8 +86,8 @@ func registerExamples(g *openapigen.Generator) {
 	})
 
 	g.SetExample("ArtifactPatchRequest", obj{
-		"displayName": "ResNet-50 (生产)",
-		"description": "更新后的描述。",
+		"displayName": "ResNet-50 (production)",
+		"description": "Updated description.",
 		"labels":      obj{"team": "vision", "stage": "production"},
 		"annotations": obj{"reviewed-by": "zhang.san"},
 	})
@@ -109,7 +109,7 @@ func registerExamples(g *openapigen.Generator) {
 		"version":     exVersion,
 		"visibility":  "tenant",
 		"displayName": "ResNet-50",
-		"description": "ImageNet 上预训练的 ResNet-50 图像分类模型。",
+		"description": "ResNet-50 image-classification model pretrained on ImageNet.",
 		"labels":      obj{"team": "vision", "stage": "production"},
 		"annotations": obj{"git-commit": "8c1f4e2"},
 		"owner":       "li.wei",

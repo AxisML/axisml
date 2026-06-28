@@ -187,7 +187,7 @@ components:
       type: object
     CreateResourcePoolRequest:
       example:
-        description: A100 GPU 资源池。
+        description: A100 GPU resource pool.
         labels:
           tier: gpu
         name: gpu-a100
@@ -198,7 +198,7 @@ components:
           key: nvidia.com/gpu
           operator: Exists
         units:
-        - description: 2 × A100 GPU 计算单元。
+        - description: 2× A100 GPU compute unit.
           limits:
             cpu: "16"
             memory: 128Gi
@@ -245,7 +245,7 @@ components:
       type: object
     CreateResourceUnitRequest:
       example:
-        description: 2 × A100 GPU 计算单元。
+        description: 2× A100 GPU compute unit.
         limits:
           cpu: "16"
           memory: 128Gi
@@ -290,7 +290,7 @@ components:
     CreateTenantRequest:
       example:
         labels:
-          displayName: 视觉团队
+          displayName: Vision Team
         name: team-vision
         namespace:
           name: team-vision
@@ -365,7 +365,7 @@ components:
       type: object
     PatchResourcePoolRequest:
       example:
-        description: A100 GPU 资源池（更新后）。
+        description: A100 GPU resource pool (updated).
         labels:
           region: cn-east
           tier: gpu
@@ -397,7 +397,7 @@ components:
       type: object
     PatchResourceUnitRequest:
       example:
-        description: 2 × A100 GPU 计算单元（更新后）。
+        description: 2× A100 GPU compute unit (updated).
         limits:
           cpu: "24"
           memory: 192Gi
@@ -433,7 +433,7 @@ components:
     PatchTenantRequest:
       example:
         labels:
-          displayName: 视觉团队
+          displayName: Vision Team
           region: cn-east
         namespaceLabels:
           team: vision
@@ -533,7 +533,7 @@ components:
     ResourcePool:
       example:
         createdAt: "2026-06-20T08:00:00Z"
-        description: A100 GPU 资源池。
+        description: A100 GPU resource pool.
         labels:
           tier: gpu
         name: gpu-a100
@@ -545,7 +545,7 @@ components:
           key: nvidia.com/gpu
           operator: Exists
         units:
-        - description: 2 × A100 GPU 计算单元。
+        - description: 2× A100 GPU compute unit.
           limits:
             cpu: "16"
             memory: 128Gi
@@ -612,7 +612,7 @@ components:
         count: 1
         items:
         - createdAt: "2026-06-20T08:00:00Z"
-          description: A100 GPU 资源池。
+          description: A100 GPU resource pool.
           labels:
             tier: gpu
           name: gpu-a100
@@ -624,7 +624,7 @@ components:
             key: nvidia.com/gpu
             operator: Exists
           units:
-          - description: 2 × A100 GPU 计算单元。
+          - description: 2× A100 GPU compute unit.
             limits:
               cpu: "16"
               memory: 128Gi
@@ -655,7 +655,7 @@ components:
       type: object
     ResourceUnit:
       example:
-        description: 2 × A100 GPU 计算单元。
+        description: 2× A100 GPU compute unit.
         limits:
           cpu: "16"
           memory: 128Gi
@@ -707,7 +707,7 @@ components:
       example:
         count: 1
         items:
-        - description: 2 × A100 GPU 计算单元。
+        - description: 2× A100 GPU compute unit.
           limits:
             cpu: "16"
             memory: 128Gi
@@ -993,7 +993,7 @@ components:
           axisml.io/last-modified-by: li.wei
         createdAt: "2026-06-20T08:00:00Z"
         labels:
-          displayName: 视觉团队
+          displayName: Vision Team
         name: team-vision
         namespace:
           name: team-vision
@@ -1076,7 +1076,7 @@ components:
             axisml.io/last-modified-by: li.wei
           createdAt: "2026-06-20T08:00:00Z"
           labels:
-            displayName: 视觉团队
+            displayName: Vision Team
           name: team-vision
           namespace:
             name: team-vision

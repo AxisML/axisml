@@ -7,7 +7,7 @@ components:
         annotations:
           git-commit: 8c1f4e2
         createdAt: "2026-06-20T08:00:00Z"
-        description: ImageNet 上预训练的 ResNet-50 图像分类模型。
+        description: ResNet-50 image-classification model pretrained on ImageNet.
         digest: sha256:9b2c1f4e22a74c0e9b1d7f3a2e5c9a108c1f4e222b7a4c0e9b1d7f3a2e5c9a10
         displayName: ResNet-50
         id: 8c1f4e22-2b7a-4c0e-9b1d-7f3a2e5c9a10
@@ -180,7 +180,7 @@ components:
       example:
         annotations:
           git-commit: 8c1f4e2
-        description: ImageNet 上预训练的 ResNet-50 图像分类模型。
+        description: ResNet-50 image-classification model pretrained on ImageNet.
         displayName: ResNet-50
         labels:
           stage: production
@@ -239,7 +239,7 @@ components:
       example:
         artifact:
           createdAt: "2026-06-20T08:00:00Z"
-          description: ImageNet 上预训练的 ResNet-50 图像分类模型。
+          description: ResNet-50 image-classification model pretrained on ImageNet.
           displayName: ResNet-50
           id: 8c1f4e22-2b7a-4c0e-9b1d-7f3a2e5c9a10
           kind: model
@@ -287,7 +287,7 @@ components:
         - annotations:
             git-commit: 8c1f4e2
           createdAt: "2026-06-20T08:00:00Z"
-          description: ImageNet 上预训练的 ResNet-50 图像分类模型。
+          description: ResNet-50 image-classification model pretrained on ImageNet.
           digest: sha256:9b2c1f4e22a74c0e9b1d7f3a2e5c9a108c1f4e222b7a4c0e9b1d7f3a2e5c9a10
           displayName: ResNet-50
           id: 8c1f4e22-2b7a-4c0e-9b1d-7f3a2e5c9a10
@@ -326,8 +326,8 @@ components:
       example:
         annotations:
           reviewed-by: zhang.san
-        description: 更新后的描述。
-        displayName: ResNet-50 (生产)
+        description: Updated description.
+        displayName: ResNet-50 (production)
         labels:
           stage: production
           team: vision

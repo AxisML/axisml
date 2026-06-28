@@ -83,8 +83,8 @@ func exTenant(g *openapigen.Generator) {
 	tenant := obj{
 		"identifier":           "team-vision",
 		"kubernetesNamespace":  "axisml-team-vision",
-		"displayName":          "视觉团队",
-		"description":          "计算机视觉模型训练与推理团队。",
+		"displayName":          "Vision Team",
+		"description":          "Computer-vision model training and inference team.",
 		"owner":                "li.wei",
 		"labels":               obj{"team": "vision"},
 		"quotas":               []any{quota},
@@ -109,21 +109,21 @@ func exTenant(g *openapigen.Generator) {
 	g.SetExample("TenantCreateRequest", obj{
 		"identifier":          "team-vision",
 		"kubernetesNamespace": "axisml-team-vision",
-		"displayName":         "视觉团队",
-		"description":         "计算机视觉模型训练与推理团队。",
+		"displayName":         "Vision Team",
+		"description":         "Computer-vision model training and inference team.",
 		"initialAdmin":        "li.wei@example.com",
 		"labels":              obj{"team": "vision"},
 		"quotas":              []any{quota},
 	})
 	g.SetExample("TenantPatchRequest", obj{
-		"displayName": "视觉团队 (核心)",
-		"description": "更新后的团队描述。",
+		"displayName": "Vision Team (core)",
+		"description": "Updated team description.",
 	})
 
 	member := obj{
 		"userId":      "3a2b1c0d-4e5f-6789-abcd-ef0123456789",
 		"username":    "li.wei",
-		"displayName": "李伟",
+		"displayName": "Li Wei",
 		"email":       "li.wei@example.com",
 		"roleName":    "tenant-admin",
 		"addedAt":     exCreatedAt,

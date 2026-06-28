@@ -129,7 +129,7 @@ components:
         annotations:
           git-commit: 8c1f4e2
         createdAt: "2026-06-20T08:00:00Z"
-        description: ImageNet 上预训练的 ResNet-50 图像分类模型。
+        description: ResNet-50 image-classification model pretrained on ImageNet.
         digest: sha256:9b2c1f4e22a74c0e9b1d7f3a2e5c9a108c1f4e222b7a4c0e9b1d7f3a2e5c9a10
         displayName: ResNet-50
         id: 8c1f4e22-2b7a-4c0e-9b1d-7f3a2e5c9a10
@@ -302,7 +302,7 @@ components:
       example:
         annotations:
           git-commit: 8c1f4e2
-        description: ImageNet 上预训练的 ResNet-50 图像分类模型。
+        description: ResNet-50 image-classification model pretrained on ImageNet.
         displayName: ResNet-50
         labels:
           stage: production
@@ -361,7 +361,7 @@ components:
       example:
         artifact:
           createdAt: "2026-06-20T08:00:00Z"
-          description: ImageNet 上预训练的 ResNet-50 图像分类模型。
+          description: ResNet-50 image-classification model pretrained on ImageNet.
           displayName: ResNet-50
           id: 8c1f4e22-2b7a-4c0e-9b1d-7f3a2e5c9a10
           kind: model
@@ -409,7 +409,7 @@ components:
         - annotations:
             git-commit: 8c1f4e2
           createdAt: "2026-06-20T08:00:00Z"
-          description: ImageNet 上预训练的 ResNet-50 图像分类模型。
+          description: ResNet-50 image-classification model pretrained on ImageNet.
           digest: sha256:9b2c1f4e22a74c0e9b1d7f3a2e5c9a108c1f4e222b7a4c0e9b1d7f3a2e5c9a10
           displayName: ResNet-50
           id: 8c1f4e22-2b7a-4c0e-9b1d-7f3a2e5c9a10
@@ -448,8 +448,8 @@ components:
       example:
         annotations:
           reviewed-by: zhang.san
-        description: 更新后的描述。
-        displayName: ResNet-50 (生产)
+        description: Updated description.
+        displayName: ResNet-50 (production)
         labels:
           stage: production
           team: vision
@@ -1639,7 +1639,7 @@ components:
       type: object
     CreateResourcePoolRequest:
       example:
-        description: A100 GPU 资源池。
+        description: A100 GPU resource pool.
         labels:
           tier: gpu
         name: gpu-a100
@@ -1650,7 +1650,7 @@ components:
           key: nvidia.com/gpu
           operator: Exists
         units:
-        - description: 2 × A100 GPU 计算单元。
+        - description: 2× A100 GPU compute unit.
           limits:
             cpu: "16"
             memory: 128Gi
@@ -1697,7 +1697,7 @@ components:
       type: object
     CreateResourceUnitRequest:
       example:
-        description: 2 × A100 GPU 计算单元。
+        description: 2× A100 GPU compute unit.
         limits:
           cpu: "16"
           memory: 128Gi
@@ -1742,7 +1742,7 @@ components:
     CreateTenantRequest:
       example:
         labels:
-          displayName: 视觉团队
+          displayName: Vision Team
         name: team-vision
         namespace:
           name: team-vision
@@ -1863,8 +1863,8 @@ components:
     MLRun:
       example:
         createdAt: "2026-06-28T09:25:00Z"
-        description: ImageNet 上的 ResNet-50 分布式训练。
-        displayName: 'ResNet-50 训练 #7'
+        description: Distributed ResNet-50 training on ImageNet.
+        displayName: 'ResNet-50 Training #7'
         id: b7d9e3f1-1a2b-3c4d-5e6f-708192a3b4c5
         labels:
           team: vision
@@ -2025,8 +2025,8 @@ components:
         backend:
           engine: pytorchjob
           name: kubeflow-trainer
-        description: ImageNet 上的 ResNet-50 分布式训练。
-        displayName: 'ResNet-50 训练 #7'
+        description: Distributed ResNet-50 training on ImageNet.
+        displayName: 'ResNet-50 Training #7'
         labels:
           team: vision
         name: resnet-train-7
@@ -2130,8 +2130,8 @@ components:
       example:
         items:
         - createdAt: "2026-06-28T09:25:00Z"
-          description: ImageNet 上的 ResNet-50 分布式训练。
-          displayName: 'ResNet-50 训练 #7'
+          description: Distributed ResNet-50 training on ImageNet.
+          displayName: 'ResNet-50 Training #7'
           id: b7d9e3f1-1a2b-3c4d-5e6f-708192a3b4c5
           labels:
             team: vision
@@ -2201,8 +2201,8 @@ components:
       type: object
     MLRunPatchRequest:
       example:
-        description: 更新后的描述。
-        displayName: 'ResNet-50 训练 #7 (复跑)'
+        description: Updated description.
+        displayName: 'ResNet-50 Training #7 (rerun)'
       properties:
         annotations:
           additionalProperties:
@@ -2343,8 +2343,8 @@ components:
     MLService:
       example:
         createdAt: "2026-06-28T09:25:00Z"
-        description: vLLM 后端的 Llama-3 8B 在线推理。
-        displayName: Llama-3 8B 推理服务
+        description: Llama-3 8B online inference on the vLLM backend.
+        displayName: Llama-3 8B inference service
         generation: 3
         id: c2e1a0b9-8d7c-6b5a-4f3e-2d1c0b9a8f7e
         kind: service
@@ -2531,8 +2531,8 @@ components:
         backend:
           engine: llminference
           name: kserve
-        description: vLLM 后端的 Llama-3 8B 在线推理。
-        displayName: Llama-3 8B 推理服务
+        description: Llama-3 8B online inference on the vLLM backend.
+        displayName: Llama-3 8B inference service
         kind: service
         labels:
           team: vision
@@ -2653,8 +2653,8 @@ components:
       example:
         items:
         - createdAt: "2026-06-28T09:25:00Z"
-          description: vLLM 后端的 Llama-3 8B 在线推理。
-          displayName: Llama-3 8B 推理服务
+          description: Llama-3 8B online inference on the vLLM backend.
+          displayName: Llama-3 8B inference service
           generation: 3
           id: c2e1a0b9-8d7c-6b5a-4f3e-2d1c0b9a8f7e
           kind: service
@@ -2733,8 +2733,8 @@ components:
       type: object
     MLServicePatchRequest:
       example:
-        description: 更新后的描述。
-        displayName: Llama-3 8B 推理服务 (生产)
+        description: Updated description.
+        displayName: Llama-3 8B inference service (production)
       properties:
         annotations:
           additionalProperties:
@@ -3191,7 +3191,7 @@ components:
       type: object
     PatchResourcePoolRequest:
       example:
-        description: A100 GPU 资源池（更新后）。
+        description: A100 GPU resource pool (updated).
         labels:
           region: cn-east
           tier: gpu
@@ -3223,7 +3223,7 @@ components:
       type: object
     PatchResourceUnitRequest:
       example:
-        description: 2 × A100 GPU 计算单元（更新后）。
+        description: 2× A100 GPU compute unit (updated).
         limits:
           cpu: "24"
           memory: 192Gi
@@ -3259,7 +3259,7 @@ components:
     PatchTenantRequest:
       example:
         labels:
-          displayName: 视觉团队
+          displayName: Vision Team
           region: cn-east
         namespaceLabels:
           team: vision
@@ -3414,7 +3414,7 @@ components:
     ResourcePool:
       example:
         createdAt: "2026-06-20T08:00:00Z"
-        description: A100 GPU 资源池。
+        description: A100 GPU resource pool.
         labels:
           tier: gpu
         name: gpu-a100
@@ -3426,7 +3426,7 @@ components:
           key: nvidia.com/gpu
           operator: Exists
         units:
-        - description: 2 × A100 GPU 计算单元。
+        - description: 2× A100 GPU compute unit.
           limits:
             cpu: "16"
             memory: 128Gi
@@ -3493,7 +3493,7 @@ components:
         count: 1
         items:
         - createdAt: "2026-06-20T08:00:00Z"
-          description: A100 GPU 资源池。
+          description: A100 GPU resource pool.
           labels:
             tier: gpu
           name: gpu-a100
@@ -3505,7 +3505,7 @@ components:
             key: nvidia.com/gpu
             operator: Exists
           units:
-          - description: 2 × A100 GPU 计算单元。
+          - description: 2× A100 GPU compute unit.
             limits:
               cpu: "16"
               memory: 128Gi
@@ -3536,7 +3536,7 @@ components:
       type: object
     ResourceUnit:
       example:
-        description: 2 × A100 GPU 计算单元。
+        description: 2× A100 GPU compute unit.
         limits:
           cpu: "16"
           memory: 128Gi
@@ -3588,7 +3588,7 @@ components:
       example:
         count: 1
         items:
-        - description: 2 × A100 GPU 计算单元。
+        - description: 2× A100 GPU compute unit.
           limits:
             cpu: "16"
             memory: 128Gi
@@ -3874,7 +3874,7 @@ components:
           axisml.io/last-modified-by: li.wei
         createdAt: "2026-06-20T08:00:00Z"
         labels:
-          displayName: 视觉团队
+          displayName: Vision Team
         name: team-vision
         namespace:
           name: team-vision
@@ -3957,7 +3957,7 @@ components:
             axisml.io/last-modified-by: li.wei
           createdAt: "2026-06-20T08:00:00Z"
           labels:
-            displayName: 视觉团队
+            displayName: Vision Team
           name: team-vision
           namespace:
             name: team-vision
@@ -3999,8 +3999,8 @@ components:
     TrafficPolicy:
       example:
         createdAt: "2026-06-28T09:25:00Z"
-        description: v2 灰度 10% 流量。
-        displayName: Llama-3 灰度发布
+        description: Canary 10% traffic to v2.
+        displayName: Llama-3 canary release
         generation: 2
         id: d3f2b1c0-9e8d-7c6b-5a4f-3e2d1c0b9a8f
         labels:
@@ -4178,8 +4178,8 @@ components:
         - role: canary
           serviceName: llama3-8b-v2
           weight: 10
-        description: v2 灰度 10% 流量。
-        displayName: Llama-3 灰度发布
+        description: Canary 10% traffic to v2.
+        displayName: Llama-3 canary release
         endpoint:
           auth:
             jwt:
@@ -4242,8 +4242,8 @@ components:
       example:
         items:
         - createdAt: "2026-06-28T09:25:00Z"
-          description: v2 灰度 10% 流量。
-          displayName: Llama-3 灰度发布
+          description: Canary 10% traffic to v2.
+          displayName: Llama-3 canary release
           generation: 2
           id: d3f2b1c0-9e8d-7c6b-5a4f-3e2d1c0b9a8f
           labels:
@@ -4307,8 +4307,8 @@ components:
       type: object
     TrafficPolicyPatchRequest:
       example:
-        description: 更新后的描述。
-        displayName: Llama-3 灰度发布 (评估中)
+        description: Updated description.
+        displayName: Llama-3 canary release (under evaluation)
       properties:
         annotations:
           additionalProperties:
