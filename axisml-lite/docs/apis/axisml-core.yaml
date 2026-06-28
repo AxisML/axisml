@@ -404,6 +404,34 @@ components:
       - upload
       type: object
     ArtifactList:
+      example:
+        items:
+        - annotations:
+            git-commit: 8c1f4e2
+          createdAt: "2026-06-20T08:00:00Z"
+          description: ImageNet 上预训练的 ResNet-50 图像分类模型。
+          digest: sha256:9b2c1f4e22a74c0e9b1d7f3a2e5c9a108c1f4e222b7a4c0e9b1d7f3a2e5c9a10
+          displayName: ResNet-50
+          id: 8c1f4e22-2b7a-4c0e-9b1d-7f3a2e5c9a10
+          kind: model
+          labels:
+            stage: production
+            team: vision
+          name: resnet50
+          namespace: team-vision
+          owner: li.wei
+          readyAt: "2026-06-28T09:30:00Z"
+          source: webUpload
+          spec:
+            format: safetensors
+            framework: pytorch
+            parameters: 25.6M
+            task: image-classification
+          status: Ready
+          updatedAt: "2026-06-28T09:30:00Z"
+          version: 1.4.0
+          visibility: tenant
+        total: 1
       properties:
         items:
           items:
@@ -1811,6 +1839,15 @@ components:
       - type
       type: object
     EventList:
+      example:
+        items:
+        - eventTime: "2026-06-28T09:30:00Z"
+          note: Successfully assigned team-vision/resnet-train-7-worker-0 to gpu-node-a100-03
+          object: Pod/resnet-train-7-worker-0
+          reason: Scheduled
+          reportingController: koord-scheduler
+          type: Normal
+        total: 1
       properties:
         items:
           items:
@@ -2090,6 +2127,66 @@ components:
       - unitName
       type: object
     MLRunList:
+      example:
+        items:
+        - createdAt: "2026-06-28T09:25:00Z"
+          description: ImageNet 上的 ResNet-50 分布式训练。
+          displayName: 'ResNet-50 训练 #7'
+          id: b7d9e3f1-1a2b-3c4d-5e6f-708192a3b4c5
+          labels:
+            team: vision
+          name: resnet-train-7
+          namespace: team-vision
+          owner: li.wei
+          phase: Running
+          spec:
+            backend:
+              engine: pytorchjob
+              name: kubeflow-trainer
+            roles:
+            - name: worker
+              replicas: 4
+              restartPolicy: OnFailure
+              template:
+                args:
+                - --epochs
+                - "90"
+                - --batch-size
+                - "256"
+                command:
+                - python
+                - train.py
+                env:
+                - name: NCCL_DEBUG
+                  value: INFO
+                image: registry.axisml.io/training/resnet:1.4.0
+                resources:
+                  limits:
+                    cpu: "8"
+                    memory: 64Gi
+                    nvidia.com/gpu: "2"
+                  requests:
+                    cpu: "8"
+                    memory: 64Gi
+                    nvidia.com/gpu: "2"
+            runPolicy:
+              activeDeadlineSeconds: 86400
+              backoffLimit: 2
+              ttlSecondsAfterFinished: 3600
+            scheduling:
+              priorityClass: high-priority
+              quota: axisml-team-vision-gpu-a100-default
+          status:
+            conditions:
+            - lastTransitionTime: "2026-06-28T09:30:00Z"
+              message: Gang scheduled onto gpu-a100.
+              reason: PodGroupScheduled
+              status: "True"
+              type: Scheduled
+            message: All worker replicas ready.
+            startedAt: "2026-06-28T09:30:00Z"
+          updatedAt: "2026-06-28T09:45:00Z"
+        total: 1
       properties:
         items:
           items:
@@ -2553,6 +2650,75 @@ components:
       - unitName
       type: object
     MLServiceList:
+      example:
+        items:
+        - createdAt: "2026-06-28T09:25:00Z"
+          description: vLLM 后端的 Llama-3 8B 在线推理。
+          displayName: Llama-3 8B 推理服务
+          generation: 3
+          id: c2e1a0b9-8d7c-6b5a-4f3e-2d1c0b9a8f7e
+          kind: service
+          labels:
+            team: vision
+          name: llama3-8b
+          namespace: team-vision
+          observedGeneration: 3
+          owner: li.wei
+          phase: Ready
+          spec:
+            backend:
+              engine: llminference
+              name: kserve
+            roles:
+            - name: predictor
+              replicas: 2
+              template:
+                args:
+                - --model
+                - meta-llama/Llama-3-8b
+                - --max-model-len
+                - "8192"
+                image: registry.axisml.io/serving/vllm:0.6.2
+                ports:
+                - containerPort: 8080
+                  name: http
+                  protocol: TCP
+                resources:
+                  limits:
+                    cpu: "8"
+                    memory: 48Gi
+                    nvidia.com/gpu: "1"
+                  requests:
+                    cpu: "8"
+                    memory: 48Gi
+                    nvidia.com/gpu: "1"
+            route:
+              auth:
+                jwt:
+                  issuer: https://auth.axisml.io
+                  jwksUri: https://auth.axisml.io/.well-known/jwks.json
+                type: jwt
+              enabled: true
+              hostname: llama3-8b.team-vision.axisml.io
+              path: /v1
+              portName: http
+              targetRole: predictor
+            runPolicy:
+              progressDeadlineSeconds: 600
+            scheduling:
+              quota: axisml-team-vision-gpu-a100-default
+          status:
+            conditions:
+            - lastTransitionTime: "2026-06-28T09:30:00Z"
+              message: Deployment has minimum availability.
+              reason: MinimumReplicasAvailable
+              status: "True"
+              type: Available
+            endpoint: https://llama3-8b.team-vision.axisml.io/v1
+            message: 2/2 replicas ready.
+            readyReplicas: 2
+          updatedAt: "2026-06-28T09:45:00Z"
+        total: 1
       properties:
         items:
           items:
@@ -3157,6 +3323,16 @@ components:
       - phase
       type: object
     PodList:
+      example:
+        items:
+        - labels:
+            axisml.io/role: worker
+            axisml.io/run-id: b7d9e3f1-1a2b-3c4d-5e6f-708192a3b4c5
+          name: resnet-train-7-worker-0
+          namespace: team-vision
+          nodeName: gpu-node-a100-03
+          phase: Running
+        total: 1
       properties:
         items:
           items:
@@ -4063,6 +4239,60 @@ components:
       - name
       type: object
     TrafficPolicyList:
+      example:
+        items:
+        - createdAt: "2026-06-28T09:25:00Z"
+          description: v2 灰度 10% 流量。
+          displayName: Llama-3 灰度发布
+          generation: 2
+          id: d3f2b1c0-9e8d-7c6b-5a4f-3e2d1c0b9a8f
+          labels:
+            team: vision
+          mode: canary
+          name: llama3-canary
+          namespace: team-vision
+          observedGeneration: 2
+          owner: li.wei
+          phase: Ready
+          spec:
+            backend:
+              engine: inference
+              name: kserve
+            backends:
+            - role: stable
+              serviceName: llama3-8b
+              weight: 90
+            - role: canary
+              serviceName: llama3-8b-v2
+              weight: 10
+            endpoint:
+              auth:
+                jwt:
+                  audience: axisml-inference
+                  issuer: https://auth.axisml.io
+                  jwksUri: https://auth.axisml.io/.well-known/jwks.json
+                type: jwt
+              hostname: llama3-8b.team-vision.axisml.io
+              path: /v1
+            mode: canary
+          status:
+            backends:
+            - ready: true
+              serviceName: llama3-8b
+              weight: 90
+            - ready: true
+              serviceName: llama3-8b-v2
+              weight: 10
+            conditions:
+            - lastTransitionTime: "2026-06-28T09:30:00Z"
+              message: HTTPRoute programmed with weighted backends.
+              reason: Programmed
+              status: "True"
+              type: Ready
+            endpoint: https://llama3-8b.team-vision.axisml.io/v1
+            message: Route programmed; weights applied.
+          updatedAt: "2026-06-28T09:45:00Z"
+        total: 1
       properties:
         items:
           items:

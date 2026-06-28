@@ -101,7 +101,7 @@ func registerExamples(g *openapigen.Generator) {
 		"expiresAt":       exExpiresAt,
 	})
 
-	g.SetExample("Artifact", obj{
+	artifact := obj{
 		"id":          "8c1f4e22-2b7a-4c0e-9b1d-7f3a2e5c9a10",
 		"namespace":   exNamespace,
 		"kind":        "model",
@@ -120,7 +120,12 @@ func registerExamples(g *openapigen.Generator) {
 		"readyAt":     exReadyAt,
 		"createdAt":   exCreatedAt,
 		"updatedAt":   exUpdatedAt,
-	})
+	}
+	g.SetExample("Artifact", artifact)
+
+	// ArtifactList ({items, total}) is registered in Document() after this call,
+	// so it can reuse the Artifact item example above.
+	g.SetExample("ArtifactList", obj{"items": []any{artifact}, "total": 1})
 
 	g.SetExample("Capabilities", obj{
 		"kinds":  []any{"model", "dataset", "image"},

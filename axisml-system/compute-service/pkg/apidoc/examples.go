@@ -78,7 +78,7 @@ func registerExamples(g *openapigen.Generator) {
 		"displayName": "ResNet-50 训练 #7 (复跑)",
 		"description": "更新后的描述。",
 	})
-	g.SetExample("MLRun", obj{
+	mlRun := obj{
 		"id":          "b7d9e3f1-1a2b-3c4d-5e6f-708192a3b4c5",
 		"namespace":   "team-vision",
 		"name":        "resnet-train-7",
@@ -101,7 +101,8 @@ func registerExamples(g *openapigen.Generator) {
 		},
 		"createdAt": exCreatedAt,
 		"updatedAt": exUpdatedAt,
-	})
+	}
+	g.SetExample("MLRun", mlRun)
 
 	// ---- MLService ---------------------------------------------------------
 	mlsvcBackend := obj{"name": "kserve", "engine": "llminference"}
@@ -155,7 +156,7 @@ func registerExamples(g *openapigen.Generator) {
 		"description": "更新后的描述。",
 	})
 	g.SetExample("MLServiceScaleRequest", obj{"replicas": 4})
-	g.SetExample("MLService", obj{
+	mlService := obj{
 		"id":                 "c2e1a0b9-8d7c-6b5a-4f3e-2d1c0b9a8f7e",
 		"namespace":          "team-vision",
 		"name":               "llama3-8b",
@@ -182,7 +183,8 @@ func registerExamples(g *openapigen.Generator) {
 		},
 		"createdAt": exCreatedAt,
 		"updatedAt": exUpdatedAt,
-	})
+	}
+	g.SetExample("MLService", mlService)
 
 	// ---- TrafficPolicy (90/10 canary) --------------------------------------
 	tpBackend := obj{"name": "kserve", "engine": "inference"}
@@ -221,7 +223,7 @@ func registerExamples(g *openapigen.Generator) {
 			obj{"serviceName": "llama3-8b-v2", "weight": 20},
 		},
 	})
-	g.SetExample("TrafficPolicy", obj{
+	trafficPolicy := obj{
 		"id":                 "d3f2b1c0-9e8d-7c6b-5a4f-3e2d1c0b9a8f",
 		"namespace":          "team-vision",
 		"name":               "llama3-canary",
@@ -251,28 +253,39 @@ func registerExamples(g *openapigen.Generator) {
 		},
 		"createdAt": exCreatedAt,
 		"updatedAt": exUpdatedAt,
-	})
+	}
+	g.SetExample("TrafficPolicy", trafficPolicy)
 
 	// ---- Pod / Event -------------------------------------------------------
-	g.SetExample("Pod", obj{
+	pod := obj{
 		"name":      "resnet-train-7-worker-0",
 		"namespace": "team-vision",
 		"phase":     "Running",
 		"nodeName":  "gpu-node-a100-03",
 		"labels":    obj{"axisml.io/run-id": "b7d9e3f1-1a2b-3c4d-5e6f-708192a3b4c5", "axisml.io/role": "worker"},
-	})
-	g.SetExample("Event", obj{
+	}
+	g.SetExample("Pod", pod)
+	event := obj{
 		"reason":              "Scheduled",
 		"note":                "Successfully assigned team-vision/resnet-train-7-worker-0 to gpu-node-a100-03",
 		"type":                "Normal",
 		"object":              "Pod/resnet-train-7-worker-0",
 		"reportingController": "koord-scheduler",
 		"eventTime":           exStartedAt,
-	})
+	}
+	g.SetExample("Event", event)
 
 	// ---- Capabilities ------------------------------------------------------
 	g.SetExample("Capabilities", obj{
 		"runtime":          "kubernetes",
 		"quotaEnforcement": true,
 	})
+
+	// ---- List envelopes ({items, total}) — registered in Document() after
+	// this call, so each reuses its item example above. ----------------------
+	g.SetExample("MLRunList", obj{"items": []any{mlRun}, "total": 1})
+	g.SetExample("MLServiceList", obj{"items": []any{mlService}, "total": 1})
+	g.SetExample("TrafficPolicyList", obj{"items": []any{trafficPolicy}, "total": 1})
+	g.SetExample("PodList", obj{"items": []any{pod}, "total": 1})
+	g.SetExample("EventList", obj{"items": []any{event}, "total": 1})
 }

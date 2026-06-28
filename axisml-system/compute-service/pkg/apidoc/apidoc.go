@@ -100,13 +100,14 @@ func Document(version string) *openapigen.Document {
 	g.Register("Event", server.Event{}, openapigen.ResponseMode)
 	g.Register("Capabilities", server.Capabilities{}, openapigen.ResponseMode)
 
-	registerExamples(g)
-
 	g.Set("MLRunList", openapigen.ListEnvelope("MLRun"))
 	g.Set("MLServiceList", openapigen.ListEnvelope("MLService"))
 	g.Set("TrafficPolicyList", openapigen.ListEnvelope("TrafficPolicy"))
 	g.Set("PodList", openapigen.ListEnvelope("Pod"))
 	g.Set("EventList", openapigen.ListEnvelope("Event"))
+
+	// After the list envelopes are registered, so list examples can attach too.
+	registerExamples(g)
 
 	tags := []openapigen.TagEntry{
 		{Name: tagMLRuns, Description: "MLRun CRUD per namespace. ResourcePool/Unit referenced by name (read from K8s Informer cache)."},

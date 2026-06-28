@@ -84,17 +84,29 @@ type Apiv1alpha1SourceSecretRef struct {
 
 // Capabilities defines model for Capabilities.
 type Capabilities struct {
-	MultiTenant           bool `json:"multiTenant"`
+	// MultiTenant Whether Tenant CRUD is available (false = single static default tenant).
+	MultiTenant bool `json:"multiTenant"`
+
+	// ResourcePoolsWritable Whether ResourcePool CRUD is available (false = single read-only default pool).
 	ResourcePoolsWritable bool `json:"resourcePoolsWritable"`
 }
 
 // ClusterManagerError defines model for ClusterManagerError.
 type ClusterManagerError struct {
-	Code   *string `json:"code,omitempty"`
+	// Code Stable machine-readable error code for programmatic handling.
+	Code *string `json:"code,omitempty"`
+
+	// Detail Human-readable explanation specific to this occurrence.
 	Detail *string `json:"detail,omitempty"`
-	Status int     `json:"status"`
-	Title  string  `json:"title"`
-	Type   string  `json:"type"`
+
+	// Status HTTP status code for this occurrence of the problem.
+	Status int `json:"status"`
+
+	// Title Short, human-readable summary of the problem.
+	Title string `json:"title"`
+
+	// Type URI reference identifying the problem type (RFC 7807); about:blank when unspecified.
+	Type string `json:"type"`
 }
 
 // Corev1Toleration defines model for Corev1Toleration.
@@ -108,92 +120,160 @@ type Corev1Toleration struct {
 
 // CreateResourcePoolRequest defines model for CreateResourcePoolRequest.
 type CreateResourcePoolRequest struct {
-	Annotations  *map[string]string                 `json:"annotations,omitempty"`
-	Description  *string                            `json:"description,omitempty"`
-	Labels       *map[string]string                 `json:"labels,omitempty"`
-	Name         *string                            `json:"name,omitempty"`
-	NodeSelector *map[string]string                 `json:"nodeSelector,omitempty"`
-	Tolerations  *[]Corev1Toleration                `json:"tolerations,omitempty"`
-	Units        *[]ServerCreateResourceUnitRequest `json:"units,omitempty"`
+	// Annotations User-defined annotations to set on the pool.
+	Annotations *map[string]string `json:"annotations,omitempty"`
+
+	// Description Human-readable description of the pool.
+	Description *string `json:"description,omitempty"`
+
+	// Labels User-defined labels to set on the pool.
+	Labels *map[string]string `json:"labels,omitempty"`
+
+	// Name Pool name to create; must be unique and DNS-1123 compliant.
+	Name *string `json:"name,omitempty"`
+
+	// NodeSelector Node labels that workloads scheduled into this pool must match.
+	NodeSelector *map[string]string `json:"nodeSelector,omitempty"`
+
+	// Tolerations Tolerations applied to workloads scheduled into this pool.
+	Tolerations *[]Corev1Toleration `json:"tolerations,omitempty"`
+
+	// Units Initial set of resource units to create inline with the pool.
+	Units *[]ServerCreateResourceUnitRequest `json:"units,omitempty"`
 }
 
 // CreateResourceUnitRequest defines model for CreateResourceUnitRequest.
 type CreateResourceUnitRequest struct {
+	// Annotations User-defined annotations to set on the unit.
 	Annotations *map[string]string `json:"annotations,omitempty"`
-	Description *string            `json:"description,omitempty"`
 
-	// Limits Map of resource name (cpu, memory, nvidia.com/gpu, …) to resource.Quantity.
-	Limits       *map[string]string `json:"limits,omitempty"`
-	Name         *string            `json:"name,omitempty"`
+	// Description Human-readable description of the unit.
+	Description *string `json:"description,omitempty"`
+
+	// Limits Resource limits per quantity of this unit.
+	Limits *map[string]string `json:"limits,omitempty"`
+
+	// Name Unit name to create; unique within the pool.
+	Name *string `json:"name,omitempty"`
+
+	// NodeSelector Node labels workloads using this unit must match.
 	NodeSelector *map[string]string `json:"nodeSelector,omitempty"`
 
-	// Requests Map of resource name (cpu, memory, nvidia.com/gpu, …) to resource.Quantity.
+	// Requests Resource requests granted per quantity of this unit.
 	Requests *map[string]string `json:"requests,omitempty"`
 }
 
 // CreateTenantRequest defines model for CreateTenantRequest.
 type CreateTenantRequest struct {
-	Annotations   *map[string]string        `json:"annotations,omitempty"`
+	// Annotations User-defined annotations to set on the tenant.
+	Annotations *map[string]string `json:"annotations,omitempty"`
+
+	// InitResources Per-tenant init resources to seed on provisioning.
 	InitResources *Apiv1alpha1InitResources `json:"initResources"`
-	Labels        *map[string]string        `json:"labels,omitempty"`
-	Name          *string                   `json:"name,omitempty"`
-	Namespace     *Apiv1alpha1NamespaceSpec `json:"namespace"`
-	Quotas        *[]ServerQuota            `json:"quotas,omitempty"`
+
+	// Labels User-defined labels to set on the tenant.
+	Labels *map[string]string `json:"labels,omitempty"`
+
+	// Name Tenant identifier to create; becomes the CR name, namespace, and partition string.
+	Name *string `json:"name,omitempty"`
+
+	// Namespace Optional namespace specification; defaults are derived from the tenant name when omitted.
+	Namespace *Apiv1alpha1NamespaceSpec `json:"namespace"`
+
+	// Quotas Initial per-pool quotas to grant the tenant.
+	Quotas *[]ServerQuota `json:"quotas,omitempty"`
 }
 
 // CreateVolumeRequest defines model for CreateVolumeRequest.
 type CreateVolumeRequest struct {
-	Name         *string `json:"name,omitempty"`
-	Namespace    *string `json:"namespace,omitempty"`
-	Size         *string `json:"size,omitempty"`
+	// Name Deterministic volume name supplied by the caller.
+	Name *string `json:"name,omitempty"`
+
+	// Namespace Physical Kubernetes namespace to materialise the volume in.
+	Namespace *string `json:"namespace,omitempty"`
+
+	// Size Requested storage size as a Kubernetes quantity (e.g. 50Gi).
+	Size *string `json:"size,omitempty"`
+
+	// StorageClass StorageClass to back the volume; cluster default when empty.
 	StorageClass *string `json:"storageClass,omitempty"`
 }
 
 // PatchQuotaRequest defines model for PatchQuotaRequest.
 type PatchQuotaRequest struct {
+	// Units Replacement unit × quantity selections for the pool quota.
 	Units *[]ServerQuotaUnit `json:"units,omitempty"`
 }
 
 // PatchResourcePoolRequest defines model for PatchResourcePoolRequest.
 type PatchResourcePoolRequest struct {
-	Annotations  *map[string]string  `json:"annotations,omitempty"`
-	Description  *string             `json:"description"`
-	Labels       *map[string]string  `json:"labels,omitempty"`
-	NodeSelector *map[string]string  `json:"nodeSelector,omitempty"`
-	Tolerations  *[]Corev1Toleration `json:"tolerations,omitempty"`
+	// Annotations Replacement annotations for the pool.
+	Annotations *map[string]string `json:"annotations,omitempty"`
+
+	// Description New description; omit to leave unchanged, empty string to clear.
+	Description *string `json:"description"`
+
+	// Labels Replacement labels for the pool.
+	Labels *map[string]string `json:"labels,omitempty"`
+
+	// NodeSelector Replacement node selector for the pool.
+	NodeSelector *map[string]string `json:"nodeSelector,omitempty"`
+
+	// Tolerations Replacement tolerations for the pool.
+	Tolerations *[]Corev1Toleration `json:"tolerations,omitempty"`
 }
 
 // PatchResourceUnitRequest defines model for PatchResourceUnitRequest.
 type PatchResourceUnitRequest struct {
+	// Annotations Replacement annotations for the unit.
 	Annotations *map[string]string `json:"annotations,omitempty"`
-	Description *string            `json:"description"`
 
-	// Limits Map of resource name (cpu, memory, nvidia.com/gpu, …) to resource.Quantity.
-	Limits       *map[string]string `json:"limits,omitempty"`
+	// Description New description; omit to leave unchanged, empty string to clear.
+	Description *string `json:"description"`
+
+	// Limits Replacement resource limits for the unit.
+	Limits *map[string]string `json:"limits,omitempty"`
+
+	// NodeSelector Replacement node selector for the unit.
 	NodeSelector *map[string]string `json:"nodeSelector,omitempty"`
 
-	// Requests Map of resource name (cpu, memory, nvidia.com/gpu, …) to resource.Quantity.
+	// Requests Replacement resource requests for the unit.
 	Requests *map[string]string `json:"requests,omitempty"`
 }
 
 // PatchTenantRequest defines model for PatchTenantRequest.
 type PatchTenantRequest struct {
-	Annotations          *map[string]string        `json:"annotations,omitempty"`
-	InitResources        *Apiv1alpha1InitResources `json:"initResources"`
-	Labels               *map[string]string        `json:"labels,omitempty"`
-	NamespaceAnnotations *map[string]string        `json:"namespaceAnnotations,omitempty"`
-	NamespaceLabels      *map[string]string        `json:"namespaceLabels,omitempty"`
+	// Annotations Replacement annotations for the tenant.
+	Annotations *map[string]string `json:"annotations,omitempty"`
+
+	// InitResources Replacement per-tenant init resources.
+	InitResources *Apiv1alpha1InitResources `json:"initResources"`
+
+	// Labels Replacement labels for the tenant.
+	Labels *map[string]string `json:"labels,omitempty"`
+
+	// NamespaceAnnotations Replacement annotations applied to the tenant's namespace.
+	NamespaceAnnotations *map[string]string `json:"namespaceAnnotations,omitempty"`
+
+	// NamespaceLabels Replacement labels applied to the tenant's namespace.
+	NamespaceLabels *map[string]string `json:"namespaceLabels,omitempty"`
 }
 
 // Quota defines model for Quota.
 type Quota struct {
-	Pool  string            `json:"pool"`
+	// Pool ResourcePool this quota applies to.
+	Pool string `json:"pool"`
+
+	// Units Unit × quantity selections granted to the tenant under this pool.
 	Units []ServerQuotaUnit `json:"units"`
 }
 
 // QuotaList defines model for QuotaList.
 type QuotaList struct {
-	Count int           `json:"count"`
+	// Count Number of quotas returned.
+	Count int `json:"count"`
+
+	// Items The tenant's per-pool quotas.
 	Items []ServerQuota `json:"items"`
 }
 
@@ -208,163 +288,301 @@ type Rbacv1PolicyRule struct {
 
 // ResourcePool defines model for ResourcePool.
 type ResourcePool struct {
-	Annotations     *map[string]string   `json:"annotations,omitempty"`
-	CreatedAt       time.Time            `json:"createdAt"`
-	Description     *string              `json:"description,omitempty"`
-	Labels          *map[string]string   `json:"labels,omitempty"`
-	Name            string               `json:"name"`
-	NodeSelector    *map[string]string   `json:"nodeSelector,omitempty"`
-	ResourceVersion *string              `json:"resourceVersion,omitempty"`
-	Tolerations     *[]Corev1Toleration  `json:"tolerations,omitempty"`
-	Units           []ServerResourceUnit `json:"units"`
-	UpdatedAt       *time.Time           `json:"updatedAt,omitempty"`
+	// Annotations User-defined annotations on the pool.
+	Annotations *map[string]string `json:"annotations,omitempty"`
+
+	// CreatedAt Pool creation timestamp (RFC3339).
+	CreatedAt time.Time `json:"createdAt"`
+
+	// Description Human-readable description of the pool.
+	Description *string `json:"description,omitempty"`
+
+	// Labels User-defined labels on the pool.
+	Labels *map[string]string `json:"labels,omitempty"`
+
+	// Name Pool name; the stable, immutable handle (CR metadata.name).
+	Name string `json:"name"`
+
+	// NodeSelector Node labels that workloads scheduled into this pool must match.
+	NodeSelector *map[string]string `json:"nodeSelector,omitempty"`
+
+	// ResourceVersion Opaque CR resourceVersion for optimistic concurrency.
+	ResourceVersion *string `json:"resourceVersion,omitempty"`
+
+	// Tolerations Tolerations applied to workloads scheduled into this pool.
+	Tolerations *[]Corev1Toleration `json:"tolerations,omitempty"`
+
+	// Units Resource units (allocatable shapes) offered by this pool.
+	Units []ServerResourceUnit `json:"units"`
+
+	// UpdatedAt Last modification timestamp (RFC3339).
+	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
 }
 
 // ResourcePoolList defines model for ResourcePoolList.
 type ResourcePoolList struct {
-	ContinueToken *string              `json:"continueToken,omitempty"`
-	Count         int                  `json:"count"`
-	Items         []ServerResourcePool `json:"items"`
+	// ContinueToken Opaque token to fetch the next page; empty when no more pages.
+	ContinueToken *string `json:"continueToken,omitempty"`
+
+	// Count Number of pools in this page.
+	Count int `json:"count"`
+
+	// Items Page of resource pools.
+	Items []ServerResourcePool `json:"items"`
 }
 
 // ResourceUnit defines model for ResourceUnit.
 type ResourceUnit struct {
+	// Annotations User-defined annotations on the unit.
 	Annotations *map[string]string `json:"annotations,omitempty"`
-	Description *string            `json:"description,omitempty"`
 
-	// Limits Map of resource name (cpu, memory, nvidia.com/gpu, …) to resource.Quantity.
-	Limits       map[string]string  `json:"limits"`
-	Name         string             `json:"name"`
+	// Description Human-readable description of the unit.
+	Description *string `json:"description,omitempty"`
+
+	// Limits Resource limits per quantity of this unit.
+	Limits map[string]string `json:"limits"`
+
+	// Name Unit name; unique within the pool and immutable.
+	Name string `json:"name"`
+
+	// NodeSelector Node labels workloads using this unit must match (overrides the pool selector).
 	NodeSelector *map[string]string `json:"nodeSelector,omitempty"`
 
-	// Requests Map of resource name (cpu, memory, nvidia.com/gpu, …) to resource.Quantity.
+	// Requests Resource requests granted per quantity of this unit (e.g. cpu, memory, nvidia.com/gpu).
 	Requests map[string]string `json:"requests"`
 }
 
 // ResourceUnitList defines model for ResourceUnitList.
 type ResourceUnitList struct {
-	Count int                  `json:"count"`
+	// Count Number of units returned.
+	Count int `json:"count"`
+
+	// Items Resource units in the pool.
 	Items []ServerResourceUnit `json:"items"`
 }
 
 // ServerCreateResourceUnitRequest defines model for ServerCreateResourceUnitRequest.
 type ServerCreateResourceUnitRequest struct {
+	// Annotations User-defined annotations to set on the unit.
 	Annotations *map[string]string `json:"annotations,omitempty"`
-	Description *string            `json:"description,omitempty"`
 
-	// Limits Map of resource name (cpu, memory, nvidia.com/gpu, …) to resource.Quantity.
-	Limits       map[string]string  `json:"limits"`
-	Name         string             `json:"name"`
+	// Description Human-readable description of the unit.
+	Description *string `json:"description,omitempty"`
+
+	// Limits Resource limits per quantity of this unit.
+	Limits map[string]string `json:"limits"`
+
+	// Name Unit name to create; unique within the pool.
+	Name string `json:"name"`
+
+	// NodeSelector Node labels workloads using this unit must match.
 	NodeSelector *map[string]string `json:"nodeSelector,omitempty"`
 
-	// Requests Map of resource name (cpu, memory, nvidia.com/gpu, …) to resource.Quantity.
+	// Requests Resource requests granted per quantity of this unit.
 	Requests map[string]string `json:"requests"`
 }
 
 // ServerQuota defines model for ServerQuota.
 type ServerQuota struct {
-	Pool  string            `json:"pool"`
+	// Pool ResourcePool this quota applies to.
+	Pool string `json:"pool"`
+
+	// Units Unit × quantity selections granted to the tenant under this pool.
 	Units []ServerQuotaUnit `json:"units"`
 }
 
 // ServerQuotaStatus defines model for ServerQuotaStatus.
 type ServerQuotaStatus struct {
-	Pool  string `json:"pool"`
-	Ready bool   `json:"ready"`
+	// Pool ResourcePool this quota status applies to.
+	Pool string `json:"pool"`
 
-	// Used Map of resource name (cpu, memory, nvidia.com/gpu, …) to resource.Quantity.
+	// Ready Whether the ElasticQuota for this pool is provisioned and ready.
+	Ready bool `json:"ready"`
+
+	// Used Live resource usage from koord-scheduler via the ElasticQuota.
 	Used *map[string]string `json:"used,omitempty"`
 }
 
 // ServerQuotaUnit defines model for ServerQuotaUnit.
 type ServerQuotaUnit struct {
-	Quantity int    `json:"quantity"`
+	// Quantity How many of this unit the tenant is granted under the pool.
+	Quantity int `json:"quantity"`
+
+	// UnitName Name of the ResourceUnit being granted.
 	UnitName string `json:"unitName"`
 }
 
 // ServerResourcePool defines model for ServerResourcePool.
 type ServerResourcePool struct {
-	Annotations     *map[string]string   `json:"annotations,omitempty"`
-	CreatedAt       time.Time            `json:"createdAt"`
-	Description     *string              `json:"description,omitempty"`
-	Labels          *map[string]string   `json:"labels,omitempty"`
-	Name            string               `json:"name"`
-	NodeSelector    *map[string]string   `json:"nodeSelector,omitempty"`
-	ResourceVersion *string              `json:"resourceVersion,omitempty"`
-	Tolerations     *[]Corev1Toleration  `json:"tolerations,omitempty"`
-	Units           []ServerResourceUnit `json:"units"`
-	UpdatedAt       *time.Time           `json:"updatedAt,omitempty"`
+	// Annotations User-defined annotations on the pool.
+	Annotations *map[string]string `json:"annotations,omitempty"`
+
+	// CreatedAt Pool creation timestamp (RFC3339).
+	CreatedAt time.Time `json:"createdAt"`
+
+	// Description Human-readable description of the pool.
+	Description *string `json:"description,omitempty"`
+
+	// Labels User-defined labels on the pool.
+	Labels *map[string]string `json:"labels,omitempty"`
+
+	// Name Pool name; the stable, immutable handle (CR metadata.name).
+	Name string `json:"name"`
+
+	// NodeSelector Node labels that workloads scheduled into this pool must match.
+	NodeSelector *map[string]string `json:"nodeSelector,omitempty"`
+
+	// ResourceVersion Opaque CR resourceVersion for optimistic concurrency.
+	ResourceVersion *string `json:"resourceVersion,omitempty"`
+
+	// Tolerations Tolerations applied to workloads scheduled into this pool.
+	Tolerations *[]Corev1Toleration `json:"tolerations,omitempty"`
+
+	// Units Resource units (allocatable shapes) offered by this pool.
+	Units []ServerResourceUnit `json:"units"`
+
+	// UpdatedAt Last modification timestamp (RFC3339).
+	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
 }
 
 // ServerResourceUnit defines model for ServerResourceUnit.
 type ServerResourceUnit struct {
+	// Annotations User-defined annotations on the unit.
 	Annotations *map[string]string `json:"annotations,omitempty"`
-	Description *string            `json:"description,omitempty"`
 
-	// Limits Map of resource name (cpu, memory, nvidia.com/gpu, …) to resource.Quantity.
-	Limits       map[string]string  `json:"limits"`
-	Name         string             `json:"name"`
+	// Description Human-readable description of the unit.
+	Description *string `json:"description,omitempty"`
+
+	// Limits Resource limits per quantity of this unit.
+	Limits map[string]string `json:"limits"`
+
+	// Name Unit name; unique within the pool and immutable.
+	Name string `json:"name"`
+
+	// NodeSelector Node labels workloads using this unit must match (overrides the pool selector).
 	NodeSelector *map[string]string `json:"nodeSelector,omitempty"`
 
-	// Requests Map of resource name (cpu, memory, nvidia.com/gpu, …) to resource.Quantity.
+	// Requests Resource requests granted per quantity of this unit (e.g. cpu, memory, nvidia.com/gpu).
 	Requests map[string]string `json:"requests"`
 }
 
 // ServerTenant defines model for ServerTenant.
 type ServerTenant struct {
-	Annotations     *map[string]string        `json:"annotations,omitempty"`
-	CreatedAt       time.Time                 `json:"createdAt"`
-	InitResources   *Apiv1alpha1InitResources `json:"initResources"`
-	Labels          *map[string]string        `json:"labels,omitempty"`
-	Name            string                    `json:"name"`
-	Namespace       Apiv1alpha1NamespaceSpec  `json:"namespace"`
-	Phase           *string                   `json:"phase,omitempty"`
-	Quotas          []ServerQuota             `json:"quotas"`
-	ResourceVersion *string                   `json:"resourceVersion,omitempty"`
-	Status          *ServerTenantStatus       `json:"status"`
+	// Annotations User-defined annotations on the tenant.
+	Annotations *map[string]string `json:"annotations,omitempty"`
+
+	// CreatedAt Tenant creation timestamp (RFC3339).
+	CreatedAt time.Time `json:"createdAt"`
+
+	// InitResources Per-tenant init resources (Secrets, ConfigMaps, ServiceAccount, RBAC) seeded on provisioning.
+	InitResources *Apiv1alpha1InitResources `json:"initResources"`
+
+	// Labels User-defined labels on the tenant.
+	Labels *map[string]string `json:"labels,omitempty"`
+
+	// Name Canonical tenant identifier; also the CR name, K8s namespace, and partition string.
+	Name string `json:"name"`
+
+	// Namespace Backing namespace specification for the tenant.
+	Namespace Apiv1alpha1NamespaceSpec `json:"namespace"`
+
+	// Phase High-level provisioning phase of the tenant.
+	Phase *string `json:"phase,omitempty"`
+
+	// Quotas Per-pool quotas in business form (unit × quantity selections).
+	Quotas []ServerQuota `json:"quotas"`
+
+	// ResourceVersion Opaque CR resourceVersion for optimistic concurrency.
+	ResourceVersion *string `json:"resourceVersion,omitempty"`
+
+	// Status Live operator-written status read from the CR.
+	Status *ServerTenantStatus `json:"status"`
 }
 
 // ServerTenantStatus defines model for ServerTenantStatus.
 type ServerTenantStatus struct {
-	Message            *string              `json:"message,omitempty"`
-	NamespaceReady     *bool                `json:"namespaceReady,omitempty"`
-	ObservedGeneration *int64               `json:"observedGeneration,omitempty"`
-	Phase              *string              `json:"phase,omitempty"`
-	Quotas             *[]ServerQuotaStatus `json:"quotas,omitempty"`
+	// Message Human-readable detail about the current phase.
+	Message *string `json:"message,omitempty"`
+
+	// NamespaceReady Whether the tenant's namespace has been provisioned.
+	NamespaceReady *bool `json:"namespaceReady,omitempty"`
+
+	// ObservedGeneration Generation of the spec the operator last reconciled.
+	ObservedGeneration *int64 `json:"observedGeneration,omitempty"`
+
+	// Phase Current reconciliation phase reported by the operator.
+	Phase *string `json:"phase,omitempty"`
+
+	// Quotas Per-pool quota readiness and live usage.
+	Quotas *[]ServerQuotaStatus `json:"quotas,omitempty"`
 }
 
 // SetQuotaRequest defines model for SetQuotaRequest.
 type SetQuotaRequest struct {
-	Pool  *string            `json:"pool,omitempty"`
+	// Pool ResourcePool to create or replace the quota for.
+	Pool *string `json:"pool,omitempty"`
+
+	// Units Unit × quantity selections that make up the pool quota.
 	Units *[]ServerQuotaUnit `json:"units,omitempty"`
 }
 
 // Tenant defines model for Tenant.
 type Tenant struct {
-	Annotations     *map[string]string        `json:"annotations,omitempty"`
-	CreatedAt       time.Time                 `json:"createdAt"`
-	InitResources   *Apiv1alpha1InitResources `json:"initResources"`
-	Labels          *map[string]string        `json:"labels,omitempty"`
-	Name            string                    `json:"name"`
-	Namespace       Apiv1alpha1NamespaceSpec  `json:"namespace"`
-	Phase           *string                   `json:"phase,omitempty"`
-	Quotas          []ServerQuota             `json:"quotas"`
-	ResourceVersion *string                   `json:"resourceVersion,omitempty"`
-	Status          *ServerTenantStatus       `json:"status"`
+	// Annotations User-defined annotations on the tenant.
+	Annotations *map[string]string `json:"annotations,omitempty"`
+
+	// CreatedAt Tenant creation timestamp (RFC3339).
+	CreatedAt time.Time `json:"createdAt"`
+
+	// InitResources Per-tenant init resources (Secrets, ConfigMaps, ServiceAccount, RBAC) seeded on provisioning.
+	InitResources *Apiv1alpha1InitResources `json:"initResources"`
+
+	// Labels User-defined labels on the tenant.
+	Labels *map[string]string `json:"labels,omitempty"`
+
+	// Name Canonical tenant identifier; also the CR name, K8s namespace, and partition string.
+	Name string `json:"name"`
+
+	// Namespace Backing namespace specification for the tenant.
+	Namespace Apiv1alpha1NamespaceSpec `json:"namespace"`
+
+	// Phase High-level provisioning phase of the tenant.
+	Phase *string `json:"phase,omitempty"`
+
+	// Quotas Per-pool quotas in business form (unit × quantity selections).
+	Quotas []ServerQuota `json:"quotas"`
+
+	// ResourceVersion Opaque CR resourceVersion for optimistic concurrency.
+	ResourceVersion *string `json:"resourceVersion,omitempty"`
+
+	// Status Live operator-written status read from the CR.
+	Status *ServerTenantStatus `json:"status"`
 }
 
 // TenantList defines model for TenantList.
 type TenantList struct {
-	ContinueToken *string        `json:"continueToken,omitempty"`
-	Count         int            `json:"count"`
-	Items         []ServerTenant `json:"items"`
+	// ContinueToken Opaque token to fetch the next page; empty when no more pages.
+	ContinueToken *string `json:"continueToken,omitempty"`
+
+	// Count Number of tenants in this page.
+	Count int `json:"count"`
+
+	// Items Page of tenants.
+	Items []ServerTenant `json:"items"`
 }
 
 // Volume defines model for Volume.
 type Volume struct {
-	Name         string  `json:"name"`
-	Namespace    string  `json:"namespace"`
-	Size         *string `json:"size,omitempty"`
+	// Name Volume (PersistentVolumeClaim) name.
+	Name string `json:"name"`
+
+	// Namespace Physical Kubernetes namespace holding the volume.
+	Namespace string `json:"namespace"`
+
+	// Size Requested storage size as a Kubernetes quantity (e.g. 50Gi).
+	Size *string `json:"size,omitempty"`
+
+	// StorageClass StorageClass backing the volume; cluster default when empty.
 	StorageClass *string `json:"storageClass,omitempty"`
 }
 

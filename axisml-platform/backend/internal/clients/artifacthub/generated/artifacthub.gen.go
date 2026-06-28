@@ -33,43 +33,95 @@ const (
 
 // Artifact defines model for Artifact.
 type Artifact struct {
-	Annotations *map[string]string     `json:"annotations,omitempty"`
-	CreatedAt   time.Time              `json:"createdAt"`
-	DeletedAt   *time.Time             `json:"deletedAt"`
-	Description *string                `json:"description,omitempty"`
-	Digest      *string                `json:"digest,omitempty"`
-	DisplayName *string                `json:"displayName,omitempty"`
-	Id          openapi_types.UUID     `json:"id"`
-	Kind        string                 `json:"kind"`
-	Labels      *map[string]string     `json:"labels,omitempty"`
-	Message     *string                `json:"message,omitempty"`
-	Name        string                 `json:"name"`
-	Namespace   string                 `json:"namespace"`
-	Owner       *string                `json:"owner,omitempty"`
-	ReadyAt     *time.Time             `json:"readyAt"`
-	Source      *string                `json:"source,omitempty"`
-	Spec        map[string]interface{} `json:"spec"`
-	Status      string                 `json:"status"`
-	UpdatedAt   time.Time              `json:"updatedAt"`
-	Version     string                 `json:"version"`
-	Visibility  string                 `json:"visibility"`
+	// Annotations Non-identifying metadata annotations.
+	Annotations *map[string]string `json:"annotations,omitempty"`
+
+	// CreatedAt Creation timestamp (RFC3339).
+	CreatedAt time.Time `json:"createdAt"`
+
+	// DeletedAt Soft-delete timestamp, set when the artifact is being removed (RFC3339).
+	DeletedAt *time.Time `json:"deletedAt"`
+
+	// Description Free-form description of the artifact.
+	Description *string `json:"description,omitempty"`
+
+	// Digest Content digest of the stored artifact, set once the upload completes.
+	Digest *string `json:"digest,omitempty"`
+
+	// DisplayName Human-readable name for display.
+	DisplayName *string `json:"displayName,omitempty"`
+
+	// Id Stable artifact identifier (UUID).
+	Id openapi_types.UUID `json:"id"`
+
+	// Kind Artifact kind (model, dataset, image).
+	Kind string `json:"kind"`
+
+	// Labels K8s-style labels used for selector filtering.
+	Labels *map[string]string `json:"labels,omitempty"`
+
+	// Message Human-readable detail for the current status (e.g. failure reason).
+	Message *string `json:"message,omitempty"`
+
+	// Name Artifact name, unique within (namespace, kind).
+	Name string `json:"name"`
+
+	// Namespace Tenant namespace the artifact belongs to (= compute tenants.name).
+	Namespace string `json:"namespace"`
+
+	// Owner Identity that owns the artifact version.
+	Owner *string `json:"owner,omitempty"`
+
+	// ReadyAt Timestamp the artifact became Ready (RFC3339).
+	ReadyAt *time.Time `json:"readyAt"`
+
+	// Source Provenance of the version (webUpload, oras, dockerPush, external).
+	Source *string `json:"source,omitempty"`
+
+	// Spec Kind-specific free-form specification of the artifact.
+	Spec map[string]interface{} `json:"spec"`
+
+	// Status Lifecycle status (Pending, Ready, Failed, Deleting).
+	Status string `json:"status"`
+
+	// UpdatedAt Last-update timestamp (RFC3339).
+	UpdatedAt time.Time `json:"updatedAt"`
+
+	// Version Artifact version (free-form string).
+	Version string `json:"version"`
+
+	// Visibility Access scope of the artifact (tenant or public).
+	Visibility string `json:"visibility"`
 }
 
 // ArtifactCompleteRequest defines model for ArtifactCompleteRequest.
 type ArtifactCompleteRequest struct {
+	// Digest Content digest of the pushed artifact, finalizing the two-phase write.
 	Digest string `json:"digest"`
 }
 
 // ArtifactHubError defines model for ArtifactHubError.
 type ArtifactHubError struct {
 	// Code Discrete business error class.
-	Code     ArtifactHubErrorCode    `json:"code"`
-	Detail   *string                 `json:"detail,omitempty"`
-	Details  *map[string]interface{} `json:"details,omitempty"`
-	Instance *string                 `json:"instance,omitempty"`
-	Status   int                     `json:"status"`
-	Title    string                  `json:"title"`
-	Type     string                  `json:"type"`
+	Code ArtifactHubErrorCode `json:"code"`
+
+	// Detail Human-readable explanation specific to this occurrence.
+	Detail *string `json:"detail,omitempty"`
+
+	// Details Structured, machine-readable detail about the problem.
+	Details *map[string]interface{} `json:"details,omitempty"`
+
+	// Instance URI reference identifying the specific occurrence (the request path).
+	Instance *string `json:"instance,omitempty"`
+
+	// Status HTTP status code for this occurrence of the problem.
+	Status int `json:"status"`
+
+	// Title Short, human-readable summary of the problem.
+	Title string `json:"title"`
+
+	// Type URI reference identifying the problem type.
+	Type string `json:"type"`
 }
 
 // ArtifactHubErrorCode Discrete business error class.
@@ -77,21 +129,41 @@ type ArtifactHubErrorCode string
 
 // ArtifactInitiateRequest defines model for ArtifactInitiateRequest.
 type ArtifactInitiateRequest struct {
-	Annotations *map[string]string     `json:"annotations,omitempty"`
-	Description *string                `json:"description,omitempty"`
-	DisplayName *string                `json:"displayName,omitempty"`
-	Labels      *map[string]string     `json:"labels,omitempty"`
-	Source      *string                `json:"source,omitempty"`
-	SourceUri   *string                `json:"sourceUri,omitempty"`
-	Spec        map[string]interface{} `json:"spec"`
-	Version     string                 `json:"version"`
-	Visibility  *string                `json:"visibility,omitempty"`
+	// Annotations Non-identifying metadata annotations.
+	Annotations *map[string]string `json:"annotations,omitempty"`
+
+	// Description Free-form description of the artifact.
+	Description *string `json:"description,omitempty"`
+
+	// DisplayName Human-readable name for display.
+	DisplayName *string `json:"displayName,omitempty"`
+
+	// Labels K8s-style labels used for selector filtering.
+	Labels *map[string]string `json:"labels,omitempty"`
+
+	// Source Provenance of the version (webUpload, oras, dockerPush, external); external registers a remote artifact with no upload.
+	Source *string `json:"source,omitempty"`
+
+	// SourceUri Remote URI of the artifact; required when source is external.
+	SourceUri *string `json:"sourceUri,omitempty"`
+
+	// Spec Kind-specific free-form specification of the artifact.
+	Spec map[string]interface{} `json:"spec"`
+
+	// Version Version string to create for the artifact name.
+	Version string `json:"version"`
+
+	// Visibility Access scope of the artifact (tenant or public); defaults to tenant.
+	Visibility *string `json:"visibility,omitempty"`
 }
 
 // ArtifactInitiateResponse defines model for ArtifactInitiateResponse.
 type ArtifactInitiateResponse struct {
-	Artifact Artifact          `json:"artifact"`
-	Upload   UploadCredentials `json:"upload"`
+	// Artifact The newly persisted artifact version (status Pending until upload completes).
+	Artifact Artifact `json:"artifact"`
+
+	// Upload Upload target and credentials for pushing the artifact content.
+	Upload UploadCredentials `json:"upload"`
 }
 
 // ArtifactList defines model for ArtifactList.
@@ -102,41 +174,74 @@ type ArtifactList struct {
 
 // ArtifactPatchRequest defines model for ArtifactPatchRequest.
 type ArtifactPatchRequest struct {
+	// Annotations Replacement metadata annotations; omit to leave unchanged.
 	Annotations *map[string]string `json:"annotations,omitempty"`
-	Description *string            `json:"description"`
-	DisplayName *string            `json:"displayName"`
-	Labels      *map[string]string `json:"labels,omitempty"`
+
+	// Description New free-form description; omit to leave unchanged.
+	Description *string `json:"description"`
+
+	// DisplayName New human-readable display name; omit to leave unchanged.
+	DisplayName *string `json:"displayName"`
+
+	// Labels Replacement K8s-style labels; omit to leave unchanged.
+	Labels *map[string]string `json:"labels,omitempty"`
 }
 
 // ArtifactResolveResponse defines model for ArtifactResolveResponse.
 type ArtifactResolveResponse struct {
-	Digest          *string         `json:"digest,omitempty"`
-	ExpiresAt       *time.Time      `json:"expiresAt"`
+	// Digest Content digest of the resolved artifact.
+	Digest *string `json:"digest,omitempty"`
+
+	// ExpiresAt Expiry of the pull credentials (RFC3339).
+	ExpiresAt *time.Time `json:"expiresAt"`
+
+	// PullCredentials Pull credentials, omitted for public artifacts that need none.
 	PullCredentials *OciCredentials `json:"pullCredentials"`
-	StorageKind     string          `json:"storageKind"`
-	Uri             string          `json:"uri"`
-	Visibility      *string         `json:"visibility,omitempty"`
+
+	// StorageKind Storage backend kind serving the artifact (e.g. oci).
+	StorageKind string `json:"storageKind"`
+
+	// Uri Storage URI the client pulls the artifact content from.
+	Uri string `json:"uri"`
+
+	// Visibility Persisted visibility of the artifact (tenant or public).
+	Visibility *string `json:"visibility,omitempty"`
 }
 
 // Capabilities defines model for Capabilities.
 type Capabilities struct {
-	Kinds  []string `json:"kinds"`
-	Upload bool     `json:"upload"`
+	// Kinds Artifact kinds served in this deployment form (model, dataset, image).
+	Kinds []string `json:"kinds"`
+
+	// Upload Whether two-phase artifact upload is available in this deployment form.
+	Upload bool `json:"upload"`
 }
 
 // OciCredentials defines model for OciCredentials.
 type OciCredentials struct {
+	// ExpiresAt Expiry of the credentials (RFC3339).
 	ExpiresAt time.Time `json:"expires_at"`
-	Password  string    `json:"password"`
-	Username  string    `json:"username"`
+
+	// Password Password (or token) for authenticating to the OCI storage backend.
+	Password string `json:"password"`
+
+	// Username Username for authenticating to the OCI storage backend.
+	Username string `json:"username"`
 }
 
 // UploadCredentials defines model for UploadCredentials.
 type UploadCredentials struct {
+	// Credentials Push-capable credentials for the upload target.
 	Credentials OciCredentials `json:"credentials"`
-	ExpiresAt   time.Time      `json:"expiresAt"`
-	StorageKind string         `json:"storageKind"`
-	Uri         string         `json:"uri"`
+
+	// ExpiresAt Expiry of the upload credentials (RFC3339).
+	ExpiresAt time.Time `json:"expiresAt"`
+
+	// StorageKind Storage backend kind backing the upload (e.g. oci).
+	StorageKind string `json:"storageKind"`
+
+	// Uri Target storage URI the client pushes the artifact content to.
+	Uri string `json:"uri"`
 }
 
 // ListDatasetsParams defines parameters for ListDatasets.
