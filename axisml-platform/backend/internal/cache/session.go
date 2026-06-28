@@ -72,3 +72,18 @@ func (s *SessionCache) Revoke(ctx context.Context, jti string) error {
 	}
 	return nil
 }
+
+// RevokeAllForUser revokes the user's sessions in PostgreSQL and drops each
+// cached positive entry so no outstanding token reads as active.
+func (s *SessionCache) RevokeAllForUser(ctx context.Context, userID string) ([]string, error) {
+	jtis, err := s.base.RevokeAllForUser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	for _, jti := range jtis {
+		if err := s.c.Del(ctx, sessionKey(jti)); err != nil {
+			s.log.Debug("session cache: del failed", "error", err)
+		}
+	}
+	return jtis, nil
+}

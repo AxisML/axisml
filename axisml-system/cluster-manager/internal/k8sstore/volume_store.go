@@ -131,7 +131,9 @@ func (s *VolumeStore) Patch(ctx context.Context, key types.NamespacedName, patch
 		obj.Labels = merged
 	}
 
-	if err := s.c.Patch(ctx, obj, client.MergeFrom(base)); err != nil {
+	// Optimistic lock so a concurrent edit returns 409 instead of silently
+	// clobbering the peer's change; the handler maps it to OptimisticLockConflict.
+	if err := s.c.Patch(ctx, obj, client.MergeFromWithOptions(base, client.MergeFromWithOptimisticLock{})); err != nil {
 		return nil, err
 	}
 	return obj, nil

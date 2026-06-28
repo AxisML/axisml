@@ -181,6 +181,13 @@ func (r *Runtime) memberServers(ctx context.Context, namespace, serviceName stri
 	}
 	var servers []map[string]any
 	for _, c := range conts {
+		// listContainers returns All:true, including stopped/exited replicas.
+		// Only route to running ones — a backend URL pointing at a stopped
+		// container would make Traefik forward requests to a dead backend during
+		// a replica restart or rolling replace.
+		if c.State != "running" {
+			continue
+		}
 		name := summaryName(c)
 		port := r.firstExposedPort(ctx, c.ID)
 		servers = append(servers, map[string]any{

@@ -8,11 +8,16 @@ import { Topbar } from "./topbar";
 
 export function AppShell() {
   const { tenant, setTenant } = useApp();
-  // No "all-tenants" view: ensure a tenant is always selected by defaulting to
-  // the user's first available tenant once the options load.
+  // No "all-tenants" view: ensure a valid tenant is always selected. Default to
+  // the user's first available tenant when none is set OR when the persisted
+  // tenant is no longer one of the caller's memberships (revoked access, tenant
+  // deleted, or a different user on the same browser) — otherwise every scoped
+  // query would 403/400 against a stale id with no way back but a manual switch.
   const tenantOptions = useTenantOptions();
   useEffect(() => {
-    if (!tenant && tenantOptions.length) setTenant(tenantOptions[0].id);
+    if (!tenantOptions.length) return; // still loading or genuinely none
+    const valid = tenantOptions.some((o) => o.id === tenant);
+    if (!valid) setTenant(tenantOptions[0].id);
   }, [tenant, tenantOptions, setTenant]);
 
   return (

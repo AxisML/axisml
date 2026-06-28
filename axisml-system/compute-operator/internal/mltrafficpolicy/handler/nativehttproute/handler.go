@@ -6,6 +6,7 @@ package nativehttproute
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -117,20 +118,35 @@ func (h *Handler) Validate(spec *mltp.MLTrafficPolicySpec) handler.Validation {
 }
 
 // Reconcile resolves each member's K8s Service to a port and renders a single
-// weighted HTTPRoute. Members whose Service does not exist yet are skipped;
-// the route still programs for the resolvable subset and MapStatus reports the
-// gap via the route's ResolvedRefs condition.
+// weighted HTTPRoute.
+//
+// Weighted routing is all-or-nothing: Gateway API renormalises weights across
+// only the backendRefs present, so programming a partial member set would
+// silently shift an unresolved member's share onto the survivors — a 5%/95%
+// canary collapses to 100% on the canary while the stable Service is briefly
+// absent. So for a multi-member policy we refuse to (re)program until every
+// member resolves, holding any existing route as last-good and returning an
+// error to requeue. A single-member policy has no weights to skew, so a missing
+// member just yields an empty route (Pending) as before.
 func (h *Handler) Reconcile(ctx context.Context, p *mltp.MLTrafficPolicy) (handler.Result, error) {
 	var refs []gwapiv1.HTTPBackendRef
+	var missing []string
 	for _, m := range p.Spec.Backends {
 		port, ok, err := h.resolveServicePort(ctx, p.Namespace, m.ServiceName)
 		if err != nil {
 			return handler.Result{}, fmt.Errorf("resolve service %s: %w", m.ServiceName, err)
 		}
 		if !ok {
+			missing = append(missing, m.ServiceName)
 			continue
 		}
 		refs = append(refs, backendRef(m.ServiceName, port, m.Weight))
+	}
+	if len(missing) > 0 && len(p.Spec.Backends) > 1 {
+		// Hold the last-good route rather than program a skewed weighted set.
+		return handler.Result{}, fmt.Errorf(
+			"not all member services resolve yet (missing: %s); holding route to avoid shifting weights onto the resolvable subset",
+			strings.Join(missing, ", "))
 	}
 	if len(refs) == 0 {
 		// Nothing routable yet — don't create an HTTPRoute with empty

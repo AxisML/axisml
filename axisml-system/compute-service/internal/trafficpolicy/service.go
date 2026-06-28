@@ -103,7 +103,14 @@ func (m *Module) Create(ctx context.Context, namespace string, in server.Traffic
 		Phase:       string(StatusCreating),
 		StatusJSON:  []byte("{}"),
 	}
-	if err := m.repo.Create(ctx, row); err != nil {
+	// CreateGuarded re-checks member occupancy under a per-member advisory lock
+	// inside the insert transaction, closing the TOCTOU with validateMembers'
+	// occupancy check above (two concurrent creates can't both claim a member).
+	memberNames := make([]string, len(in.Backends))
+	for i, b := range in.Backends {
+		memberNames[i] = b.ServiceName
+	}
+	if err := m.repo.CreateGuarded(ctx, row, memberNames); err != nil {
 		return nil, err
 	}
 	return m.toView(row)

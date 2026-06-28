@@ -101,6 +101,23 @@ func (r *Repository) Update(ctx context.Context, tx *gorm.DB, id uuid.UUID, fiel
 	return tx.Model(&store.Artifact{}).Where("id = ?", id).Updates(fields).Error
 }
 
+// UpdateIfStatus applies fields only when the row is still in expectStatus,
+// returning whether a row was actually updated. This is a compare-and-set used
+// to avoid clobbering a row that transitioned concurrently (e.g. GC marking an
+// Uploading row Failed after the client's Complete already flipped it Ready).
+func (r *Repository) UpdateIfStatus(ctx context.Context, tx *gorm.DB, id uuid.UUID, expectStatus string, fields map[string]any) (bool, error) {
+	if tx == nil {
+		tx = r.db.WithContext(ctx)
+	}
+	res := tx.Model(&store.Artifact{}).
+		Where("id = ? AND status = ?", id, expectStatus).
+		Updates(fields)
+	if res.Error != nil {
+		return false, res.Error
+	}
+	return res.RowsAffected > 0, nil
+}
+
 // CountUploadingByKind powers the axisml_artifacts_uploading_count metric.
 func (r *Repository) CountUploadingByKind(ctx context.Context) (map[string]int64, error) {
 	type row struct {

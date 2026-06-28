@@ -145,7 +145,11 @@ func (r *Runtime) ApplyMLService(ctx context.Context, desired *mlservicev1alpha1
 		}
 	}
 
-	var created []string
+	// On a mid-loop create failure, already-created replicas are left running and
+	// the error is returned; the reconcile loop re-applies idempotently (unchanged
+	// replicas skip by spec hash, missing ones are created) and converges the
+	// rest. Tearing created replicas back down would only reduce availability and
+	// force a full rebuild next apply.
 	for i := range plans {
 		p := &plans[i]
 		wanted[p.Name] = struct{}{}
@@ -161,13 +165,10 @@ func (r *Runtime) ApplyMLService(ctx context.Context, desired *mlservicev1alpha1
 		if err := r.pullImage(ctx, p.Image); err != nil {
 			r.log.Info("image pull failed, trying local", "image", p.Image, "err", err.Error())
 		}
-		id, err := r.createAndStart(ctx, p)
-		if err != nil {
-			r.rollback(ctx, created)
+		if _, err := r.createAndStart(ctx, p); err != nil {
 			r.events.record(KindService, ns, name, "", "ApplyFailed", err.Error())
 			return err
 		}
-		created = append(created, id)
 	}
 
 	// Scale down: remove replicas no longer desired.

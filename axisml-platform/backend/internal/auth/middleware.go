@@ -62,9 +62,36 @@ func (a *Authenticator) RequireAuthenticated() gin.HandlerFunc {
 			fail(c, apperrors.Wrap(apperrors.ClassUnauthorized, "identity not found", err).WithReason("unauthenticated"))
 			return
 		}
+		// Enforce a forced password reset server-side: until the user changes
+		// their password, every authenticated endpoint is blocked except the few
+		// needed to read the session and perform the change itself. Without this,
+		// MustChangePassword is merely advisory (the SPA honours it but a direct
+		// API client — e.g. the bootstrap admin with the default password — could
+		// exercise the whole API).
+		if id.MustChangePassword && !passwordChangeExempt(c.FullPath()) {
+			fail(c, apperrors.New(apperrors.ClassForbidden,
+				"password change required before continuing").WithReason("password-change-required"))
+			return
+		}
 		c.Set(ctxJTIKey, claims.ID)
 		setIdentity(c, id)
 		c.Next()
+	}
+}
+
+// passwordChangeExempt reports whether a route remains reachable while the
+// caller still owes a password change: reading the session, logging out,
+// refreshing the token, and the change-password endpoint itself. Matched on the
+// gin route pattern (FullPath) so the :id param is handled robustly.
+func passwordChangeExempt(fullPath string) bool {
+	switch fullPath {
+	case "/api/v1/auth/me",
+		"/api/v1/auth/logout",
+		"/api/v1/auth/refresh",
+		"/api/v1/users/:id/password":
+		return true
+	default:
+		return false
 	}
 }
 
