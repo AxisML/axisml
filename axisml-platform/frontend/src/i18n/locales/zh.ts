@@ -91,7 +91,7 @@ export const zhCN = {
     themeSystem: "跟随系统",
     logout: "退出登录",
     logoutConfirmTitle: "退出登录",
-    logoutConfirmDesc: "确定要退出当前登录吗？退出后需要重新登录才能继续访问控制台。",
+    logoutConfirmDesc: "确定要退出当前登录吗？退出后需要重新登录才能继续访问平台。",
     langSwitchedZh: "界面语言已切换为简体中文",
     langSwitchedEn: "界面语言已切换为 English",
     themeSwitched: "主题已切换为「{{name}}」",

@@ -36,7 +36,7 @@ export default {
     roleUpdated: "成员角色已更新",
     // suspend confirm
     suspendTitle: "禁用租户 {{name}}？",
-    suspendDesc: "禁用后该租户成员将无法登录控制台或提交新任务，运行中的任务会被暂停。",
+    suspendDesc: "禁用后该租户成员将无法登录平台或提交新任务，运行中的任务会被暂停。",
     suspendInfo: "如需彻底清理，可在禁用后再执行删除。",
     confirmSuspend: "确认禁用",
     // delete confirm

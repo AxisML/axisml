@@ -1,5 +1,5 @@
 /* ============================================================================
-   AxisML 控制台 · 共享外壳与交互
+   AxisML 训推平台 · 共享外壳与交互
    - 单一导航配置（NAV）
    - 自动注入侧边栏 + 顶栏（页面只写 <main class="page" id="page"> 内容）
    - 角色 / 租户切换（localStorage 持久化，驱动菜单可见性）
@@ -319,7 +319,7 @@
         document.querySelectorAll(".menu.open").forEach(function (m) { m.classList.remove("open"); });
         openConfirm({
           title: "退出登录",
-          desc: "确定要退出当前登录吗？退出后需要重新登录才能继续访问控制台。",
+          desc: "确定要退出当前登录吗？退出后需要重新登录才能继续访问平台。",
           okLabel: "退出登录",
           toast: "已退出登录（演示）"
         });

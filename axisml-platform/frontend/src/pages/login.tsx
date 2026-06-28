@@ -12,7 +12,7 @@ import { Spinner } from "@/components/ui/spinner";
 
 // Real login screen — authenticates against platform-backend POST /auth/login.
 // On success the JWT is persisted and identity is hydrated from /auth/me; the
-// gate in router.tsx then admits the user to the console.
+// gate in router.tsx then admits the user to the platform.
 export default function Login() {
   const { status, login } = useSession();
   const navigate = useNavigate();
