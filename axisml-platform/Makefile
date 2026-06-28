@@ -68,7 +68,7 @@ clean: ## Remove backend + frontend build artifacts
 	@rm -rf $(BACKEND_DIR)/bin $(BACKEND_DIR)/coverage
 	@rm -rf $(FRONTEND_DIR)/dist $(FRONTEND_DIR)/build $(FRONTEND_DIR)/node_modules/.cache $(FRONTEND_DIR)/tsconfig.tsbuildinfo
 	@find $(WEB_DIR) -mindepth 1 ! -name index.html ! -name .gitignore -delete 2>/dev/null || true
-	@git -C $(REPO_ROOT) checkout -- $(WEB_DIR)/index.html 2>/dev/null || true
+	@git checkout -- $(WEB_DIR)/index.html 2>/dev/null || true
 
 # --- Frontend (pnpm; built into the Platform image via the Dockerfile) ---
 .PHONY: frontend-install frontend-build frontend-stage frontend-test frontend-gen-api frontend-gen-mock frontend-lint frontend-dev
