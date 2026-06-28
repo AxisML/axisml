@@ -8,6 +8,9 @@
 
 export const examples: Record<string, unknown> = {
   "ArtifactDefinition": {
+    "annotations": {
+      "git-commit": "8c1f4e2"
+    },
     "createdAt": "2026-06-20T08:00:00Z",
     "description": "ResNet-50 image-classification model.",
     "displayName": "ResNet-50",
@@ -20,6 +23,12 @@ export const examples: Record<string, unknown> = {
     "namespace": "team-vision",
     "owner": "li.wei",
     "ownerId": "3a2b1c0d-4e5f-6789-abcd-ef0123456789",
+    "spec": {
+      "format": "safetensors",
+      "framework": "pytorch",
+      "parameters": "25.6M",
+      "task": "image-classification"
+    },
     "tenantName": "team-vision",
     "updatedAt": "2026-06-28T09:30:00Z"
   },
@@ -36,6 +45,9 @@ export const examples: Record<string, unknown> = {
     "count": 1,
     "items": [
       {
+        "annotations": {
+          "git-commit": "8c1f4e2"
+        },
         "createdAt": "2026-06-20T08:00:00Z",
         "description": "ResNet-50 image-classification model.",
         "displayName": "ResNet-50",
@@ -48,6 +60,12 @@ export const examples: Record<string, unknown> = {
         "namespace": "team-vision",
         "owner": "li.wei",
         "ownerId": "3a2b1c0d-4e5f-6789-abcd-ef0123456789",
+        "spec": {
+          "format": "safetensors",
+          "framework": "pytorch",
+          "parameters": "25.6M",
+          "task": "image-classification"
+        },
         "tenantName": "team-vision",
         "updatedAt": "2026-06-28T09:30:00Z"
       }
@@ -140,6 +158,9 @@ export const examples: Record<string, unknown> = {
     ]
   },
   "Experiment": {
+    "annotations": {
+      "axisml.io/created-by": "li.wei"
+    },
     "createdAt": "2026-06-20T08:00:00Z",
     "description": "Training experiment fine-tuning BERT on a Chinese corpus.",
     "displayName": "BERT fine-tuning experiment",
@@ -275,6 +296,9 @@ export const examples: Record<string, unknown> = {
     "count": 1,
     "items": [
       {
+        "annotations": {
+          "axisml.io/created-by": "li.wei"
+        },
         "createdAt": "2026-06-20T08:00:00Z",
         "description": "Training experiment fine-tuning BERT on a Chinese corpus.",
         "displayName": "BERT fine-tuning experiment",
@@ -371,6 +395,11 @@ export const examples: Record<string, unknown> = {
     "readyAt": "2026-06-28T09:30:00Z",
     "sizeBytes": 5368709120,
     "source": "dockerPush",
+    "spec": {
+      "baseImage": "nvidia/cuda:12.1.0-runtime",
+      "purpose": "training",
+      "python": "3.11"
+    },
     "status": "Ready",
     "tenantName": "team-vision",
     "updatedAt": "2026-06-28T09:30:00Z",
@@ -416,6 +445,11 @@ export const examples: Record<string, unknown> = {
         "readyAt": "2026-06-28T09:30:00Z",
         "sizeBytes": 5368709120,
         "source": "dockerPush",
+        "spec": {
+          "baseImage": "nvidia/cuda:12.1.0-runtime",
+          "purpose": "training",
+          "python": "3.11"
+        },
         "status": "Ready",
         "tenantName": "team-vision",
         "updatedAt": "2026-06-28T09:30:00Z",
@@ -466,11 +500,23 @@ export const examples: Record<string, unknown> = {
         "imagePullSecrets": [
           "registry-pull"
         ],
-        "name": "trainer"
+        "name": "trainer",
+        "rbac": {
+          "roleRefs": [
+            {
+              "kind": "ClusterRole",
+              "name": "edit"
+            }
+          ]
+        }
       }
     ]
   },
   "Job": {
+    "annotations": {
+      "axisml.io/created-by": "li.wei",
+      "git-commit": "8c1f4e2"
+    },
     "createdAt": "2026-06-20T08:00:00Z",
     "description": "Distributed ResNet-50 training job on ImageNet.",
     "displayName": "ResNet-50 Training",
@@ -519,17 +565,39 @@ export const examples: Record<string, unknown> = {
               }
             ],
             "image": "registry.axisml.io/training/resnet:1.4.0",
+            "ports": [
+              {
+                "containerPort": 8080,
+                "name": "http",
+                "protocol": "TCP"
+              }
+            ],
             "resources": {
               "cpu": "8",
               "memory": "64Gi",
               "nvidia.com/gpu": "2"
-            }
+            },
+            "volumeMounts": [
+              {
+                "mountPath": "/data",
+                "name": "data"
+              }
+            ],
+            "volumes": [
+              {
+                "name": "data",
+                "persistentVolumeClaim": {
+                  "claimName": "resnet-imagenet"
+                }
+              }
+            ]
           }
         }
       ],
       "runPolicy": {
         "activeDeadlineSeconds": 86400,
         "backoffLimit": 2,
+        "progressDeadlineSeconds": 600,
         "ttlSecondsAfterFinished": 3600
       },
       "unitName": "a100-2x"
@@ -581,17 +649,39 @@ export const examples: Record<string, unknown> = {
               }
             ],
             "image": "registry.axisml.io/training/resnet:1.4.0",
+            "ports": [
+              {
+                "containerPort": 8080,
+                "name": "http",
+                "protocol": "TCP"
+              }
+            ],
             "resources": {
               "cpu": "8",
               "memory": "64Gi",
               "nvidia.com/gpu": "2"
-            }
+            },
+            "volumeMounts": [
+              {
+                "mountPath": "/data",
+                "name": "data"
+              }
+            ],
+            "volumes": [
+              {
+                "name": "data",
+                "persistentVolumeClaim": {
+                  "claimName": "resnet-imagenet"
+                }
+              }
+            ]
           }
         }
       ],
       "runPolicy": {
         "activeDeadlineSeconds": 86400,
         "backoffLimit": 2,
+        "progressDeadlineSeconds": 600,
         "ttlSecondsAfterFinished": 3600
       },
       "unitName": "a100-2x"
@@ -602,6 +692,10 @@ export const examples: Record<string, unknown> = {
     "count": 1,
     "items": [
       {
+        "annotations": {
+          "axisml.io/created-by": "li.wei",
+          "git-commit": "8c1f4e2"
+        },
         "createdAt": "2026-06-20T08:00:00Z",
         "description": "Distributed ResNet-50 training job on ImageNet.",
         "displayName": "ResNet-50 Training",
@@ -650,17 +744,39 @@ export const examples: Record<string, unknown> = {
                   }
                 ],
                 "image": "registry.axisml.io/training/resnet:1.4.0",
+                "ports": [
+                  {
+                    "containerPort": 8080,
+                    "name": "http",
+                    "protocol": "TCP"
+                  }
+                ],
                 "resources": {
                   "cpu": "8",
                   "memory": "64Gi",
                   "nvidia.com/gpu": "2"
-                }
+                },
+                "volumeMounts": [
+                  {
+                    "mountPath": "/data",
+                    "name": "data"
+                  }
+                ],
+                "volumes": [
+                  {
+                    "name": "data",
+                    "persistentVolumeClaim": {
+                      "claimName": "resnet-imagenet"
+                    }
+                  }
+                ]
               }
             }
           ],
           "runPolicy": {
             "activeDeadlineSeconds": 86400,
             "backoffLimit": 2,
+            "progressDeadlineSeconds": 600,
             "ttlSecondsAfterFinished": 3600
           },
           "unitName": "a100-2x"
@@ -712,17 +828,39 @@ export const examples: Record<string, unknown> = {
             }
           ],
           "image": "registry.axisml.io/training/resnet:1.4.0",
+          "ports": [
+            {
+              "containerPort": 8080,
+              "name": "http",
+              "protocol": "TCP"
+            }
+          ],
           "resources": {
             "cpu": "8",
             "memory": "64Gi",
             "nvidia.com/gpu": "2"
-          }
+          },
+          "volumeMounts": [
+            {
+              "mountPath": "/data",
+              "name": "data"
+            }
+          ],
+          "volumes": [
+            {
+              "name": "data",
+              "persistentVolumeClaim": {
+                "claimName": "resnet-imagenet"
+              }
+            }
+          ]
         }
       }
     ],
     "runPolicy": {
       "activeDeadlineSeconds": 86400,
       "backoffLimit": 2,
+      "progressDeadlineSeconds": 600,
       "ttlSecondsAfterFinished": 3600
     },
     "unitName": "a100-2x"
@@ -746,9 +884,11 @@ export const examples: Record<string, unknown> = {
     ],
     "user": {
       "createdAt": "2026-06-20T08:00:00Z",
+      "disabled": false,
       "displayName": "Li Wei",
       "email": "li.wei@axisml.io",
       "id": "3a2b1c0d-4e5f-6789-abcd-ef0123456789",
+      "mustChangePassword": false,
       "updatedAt": "2026-06-28T09:30:00Z",
       "username": "li.wei"
     }
@@ -802,9 +942,11 @@ export const examples: Record<string, unknown> = {
     ],
     "user": {
       "createdAt": "2026-06-20T08:00:00Z",
+      "disabled": false,
       "displayName": "Li Wei",
       "email": "li.wei@axisml.io",
       "id": "3a2b1c0d-4e5f-6789-abcd-ef0123456789",
+      "mustChangePassword": false,
       "updatedAt": "2026-06-28T09:30:00Z",
       "username": "li.wei"
     }
@@ -856,11 +998,32 @@ export const examples: Record<string, unknown> = {
         }
       ],
       "image": "registry.axisml.io/training/resnet:1.4.0",
+      "ports": [
+        {
+          "containerPort": 8080,
+          "name": "http",
+          "protocol": "TCP"
+        }
+      ],
       "resources": {
         "cpu": "8",
         "memory": "64Gi",
         "nvidia.com/gpu": "2"
-      }
+      },
+      "volumeMounts": [
+        {
+          "mountPath": "/data",
+          "name": "data"
+        }
+      ],
+      "volumes": [
+        {
+          "name": "data",
+          "persistentVolumeClaim": {
+            "claimName": "resnet-imagenet"
+          }
+        }
+      ]
     }
   },
   "MLRunRoleStatus": {
@@ -870,7 +1033,52 @@ export const examples: Record<string, unknown> = {
     "readyReplicas": 4,
     "replicas": 4,
     "restartPolicy": "OnFailure",
-    "succeededReplicas": 0
+    "succeededReplicas": 0,
+    "template": {
+      "args": [
+        "--epochs",
+        "90",
+        "--batch-size",
+        "256"
+      ],
+      "command": [
+        "python",
+        "train.py"
+      ],
+      "env": [
+        {
+          "name": "NCCL_DEBUG",
+          "value": "INFO"
+        }
+      ],
+      "image": "registry.axisml.io/training/resnet:1.4.0",
+      "ports": [
+        {
+          "containerPort": 8080,
+          "name": "http",
+          "protocol": "TCP"
+        }
+      ],
+      "resources": {
+        "cpu": "8",
+        "memory": "64Gi",
+        "nvidia.com/gpu": "2"
+      },
+      "volumeMounts": [
+        {
+          "mountPath": "/data",
+          "name": "data"
+        }
+      ],
+      "volumes": [
+        {
+          "name": "data",
+          "persistentVolumeClaim": {
+            "claimName": "resnet-imagenet"
+          }
+        }
+      ]
+    }
   },
   "MLRunSpec": {
     "backend": {
@@ -900,26 +1108,64 @@ export const examples: Record<string, unknown> = {
             }
           ],
           "image": "registry.axisml.io/training/resnet:1.4.0",
+          "ports": [
+            {
+              "containerPort": 8080,
+              "name": "http",
+              "protocol": "TCP"
+            }
+          ],
           "resources": {
             "cpu": "8",
             "memory": "64Gi",
             "nvidia.com/gpu": "2"
-          }
+          },
+          "volumeMounts": [
+            {
+              "mountPath": "/data",
+              "name": "data"
+            }
+          ],
+          "volumes": [
+            {
+              "name": "data",
+              "persistentVolumeClaim": {
+                "claimName": "resnet-imagenet"
+              }
+            }
+          ]
         }
       }
     ],
     "runPolicy": {
       "activeDeadlineSeconds": 86400,
       "backoffLimit": 2,
+      "progressDeadlineSeconds": 600,
       "ttlSecondsAfterFinished": 3600
+    },
+    "scheduling": {
+      "minMember": 4,
+      "priorityClass": "high-priority",
+      "quota": "axisml-team-vision-gpu-a100-default"
     }
   },
   "MLService": {
     "accessUrl": "https://gateway.axisml.io/v1/models/llama3-8b",
+    "args": [
+      "--model",
+      "meta-llama/Llama-3-8b",
+      "--max-model-len",
+      "8192"
+    ],
     "backend": {
       "engine": "llminference",
       "name": "kserve"
     },
+    "command": [
+      "python",
+      "-m",
+      "vllm.entrypoints.openai.api_server"
+    ],
     "computeNamespace": "axisml-team-nlp",
     "createdAt": "2026-06-20T08:00:00Z",
     "description": "Llama3-8B online inference service.",
@@ -959,6 +1205,7 @@ export const examples: Record<string, unknown> = {
       "enabled": true,
       "path": "/v1/models/llama3-8b"
     },
+    "tenantDisplayName": "Vision Team",
     "tenantName": "team-nlp",
     "unitName": "a100-1x",
     "updatedAt": "2026-06-28T09:30:00Z"
@@ -1001,10 +1248,21 @@ export const examples: Record<string, unknown> = {
     "items": [
       {
         "accessUrl": "https://gateway.axisml.io/v1/models/llama3-8b",
+        "args": [
+          "--model",
+          "meta-llama/Llama-3-8b",
+          "--max-model-len",
+          "8192"
+        ],
         "backend": {
           "engine": "llminference",
           "name": "kserve"
         },
+        "command": [
+          "python",
+          "-m",
+          "vllm.entrypoints.openai.api_server"
+        ],
         "computeNamespace": "axisml-team-nlp",
         "createdAt": "2026-06-20T08:00:00Z",
         "description": "Llama3-8B online inference service.",
@@ -1044,6 +1302,7 @@ export const examples: Record<string, unknown> = {
           "enabled": true,
           "path": "/v1/models/llama3-8b"
         },
+        "tenantDisplayName": "Vision Team",
         "tenantName": "team-nlp",
         "unitName": "a100-1x",
         "updatedAt": "2026-06-28T09:30:00Z"
@@ -1075,6 +1334,12 @@ export const examples: Record<string, unknown> = {
     "readyAt": "2026-06-28T09:30:00Z",
     "sizeBytes": 102457600,
     "source": "webUpload",
+    "spec": {
+      "format": "safetensors",
+      "framework": "pytorch",
+      "parameters": "25.6M",
+      "task": "image-classification"
+    },
     "status": "Ready",
     "tenantName": "team-vision",
     "updatedAt": "2026-06-28T09:30:00Z",
@@ -1117,6 +1382,12 @@ export const examples: Record<string, unknown> = {
         "readyAt": "2026-06-28T09:30:00Z",
         "sizeBytes": 102457600,
         "source": "webUpload",
+        "spec": {
+          "format": "safetensors",
+          "framework": "pytorch",
+          "parameters": "25.6M",
+          "task": "image-classification"
+        },
         "status": "Ready",
         "tenantName": "team-vision",
         "updatedAt": "2026-06-28T09:30:00Z",
@@ -1237,6 +1508,10 @@ export const examples: Record<string, unknown> = {
     "jwt": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJsaS53ZWkifQ.sig2"
   },
   "ResourcePool": {
+    "annotations": {
+      "axisml.io/cost-center": "ml-platform",
+      "axisml.io/created-by": "admin"
+    },
     "createdAt": "2026-06-20T08:00:00Z",
     "description": "A100 GPU resource pool.",
     "labels": {
@@ -1248,8 +1523,19 @@ export const examples: Record<string, unknown> = {
       "axisml.io/gpu": "a100"
     },
     "resourceVersion": "184321",
+    "tolerations": [
+      {
+        "effect": "NoSchedule",
+        "key": "nvidia.com/gpu",
+        "operator": "Exists"
+      }
+    ],
     "units": [
       {
+        "annotations": {
+          "axisml.io/cost-center": "ml-platform",
+          "axisml.io/created-by": "admin"
+        },
         "description": "2x A100 GPU compute unit.",
         "limits": {
           "cpu": "16",
@@ -1257,11 +1543,22 @@ export const examples: Record<string, unknown> = {
           "nvidia.com/gpu": "2"
         },
         "name": "a100-2x",
+        "nodeSelector": {
+          "arch": "amd64",
+          "gpu.product": "A100"
+        },
         "requests": {
           "cpu": "16",
           "memory": "128Gi",
           "nvidia.com/gpu": "2"
-        }
+        },
+        "tolerations": [
+          {
+            "effect": "NoSchedule",
+            "key": "nvidia.com/gpu",
+            "operator": "Exists"
+          }
+        ]
       }
     ],
     "updatedAt": "2026-06-28T09:30:00Z"
@@ -1297,6 +1594,10 @@ export const examples: Record<string, unknown> = {
     "count": 1,
     "items": [
       {
+        "annotations": {
+          "axisml.io/cost-center": "ml-platform",
+          "axisml.io/created-by": "admin"
+        },
         "createdAt": "2026-06-20T08:00:00Z",
         "description": "A100 GPU resource pool.",
         "labels": {
@@ -1308,8 +1609,19 @@ export const examples: Record<string, unknown> = {
           "axisml.io/gpu": "a100"
         },
         "resourceVersion": "184321",
+        "tolerations": [
+          {
+            "effect": "NoSchedule",
+            "key": "nvidia.com/gpu",
+            "operator": "Exists"
+          }
+        ],
         "units": [
           {
+            "annotations": {
+              "axisml.io/cost-center": "ml-platform",
+              "axisml.io/created-by": "admin"
+            },
             "description": "2x A100 GPU compute unit.",
             "limits": {
               "cpu": "16",
@@ -1317,11 +1629,22 @@ export const examples: Record<string, unknown> = {
               "nvidia.com/gpu": "2"
             },
             "name": "a100-2x",
+            "nodeSelector": {
+              "arch": "amd64",
+              "gpu.product": "A100"
+            },
             "requests": {
               "cpu": "16",
               "memory": "128Gi",
               "nvidia.com/gpu": "2"
-            }
+            },
+            "tolerations": [
+              {
+                "effect": "NoSchedule",
+                "key": "nvidia.com/gpu",
+                "operator": "Exists"
+              }
+            ]
           }
         ],
         "updatedAt": "2026-06-28T09:30:00Z"
@@ -1336,6 +1659,10 @@ export const examples: Record<string, unknown> = {
     }
   },
   "ResourceUnit": {
+    "annotations": {
+      "axisml.io/cost-center": "ml-platform",
+      "axisml.io/created-by": "admin"
+    },
     "description": "2x A100 GPU compute unit.",
     "limits": {
       "cpu": "16",
@@ -1343,11 +1670,22 @@ export const examples: Record<string, unknown> = {
       "nvidia.com/gpu": "2"
     },
     "name": "a100-2x",
+    "nodeSelector": {
+      "arch": "amd64",
+      "gpu.product": "A100"
+    },
     "requests": {
       "cpu": "16",
       "memory": "128Gi",
       "nvidia.com/gpu": "2"
-    }
+    },
+    "tolerations": [
+      {
+        "effect": "NoSchedule",
+        "key": "nvidia.com/gpu",
+        "operator": "Exists"
+      }
+    ]
   },
   "ResourceUnitCreateRequest": {
     "description": "2x A100 GPU compute unit.",
@@ -1368,6 +1706,10 @@ export const examples: Record<string, unknown> = {
     "count": 1,
     "items": [
       {
+        "annotations": {
+          "axisml.io/cost-center": "ml-platform",
+          "axisml.io/created-by": "admin"
+        },
         "description": "2x A100 GPU compute unit.",
         "limits": {
           "cpu": "16",
@@ -1375,11 +1717,22 @@ export const examples: Record<string, unknown> = {
           "nvidia.com/gpu": "2"
         },
         "name": "a100-2x",
+        "nodeSelector": {
+          "arch": "amd64",
+          "gpu.product": "A100"
+        },
         "requests": {
           "cpu": "16",
           "memory": "128Gi",
           "nvidia.com/gpu": "2"
-        }
+        },
+        "tolerations": [
+          {
+            "effect": "NoSchedule",
+            "key": "nvidia.com/gpu",
+            "operator": "Exists"
+          }
+        ]
       }
     ]
   },
@@ -1409,11 +1762,32 @@ export const examples: Record<string, unknown> = {
       }
     ],
     "image": "registry.axisml.io/training/resnet:1.4.0",
+    "ports": [
+      {
+        "containerPort": 8080,
+        "name": "http",
+        "protocol": "TCP"
+      }
+    ],
     "resources": {
       "cpu": "8",
       "memory": "64Gi",
       "nvidia.com/gpu": "2"
-    }
+    },
+    "volumeMounts": [
+      {
+        "mountPath": "/data",
+        "name": "data"
+      }
+    ],
+    "volumes": [
+      {
+        "name": "data",
+        "persistentVolumeClaim": {
+          "claimName": "resnet-imagenet"
+        }
+      }
+    ]
   },
   "Run": {
     "backend": {
@@ -1422,6 +1796,7 @@ export const examples: Record<string, unknown> = {
     },
     "computeNamespace": "axisml-team-vision",
     "createdAt": "2026-06-28T09:00:00Z",
+    "description": "Distributed ResNet-50 training run on ImageNet.",
     "displayName": "ResNet-50 Training #7",
     "id": "b7d9e3f1-1a2b-3c4d-5e6f-708192a3b4c5",
     "jobName": "resnet-train",
@@ -1429,6 +1804,7 @@ export const examples: Record<string, unknown> = {
     "name": "resnet-train-7",
     "namespace": "team-vision",
     "owner": "li.wei",
+    "ownerId": "3a2b1c0d-4e5f-6789-abcd-ef0123456789",
     "phase": "Running",
     "poolName": "gpu-a100",
     "quota": "team-vision",
@@ -1445,13 +1821,59 @@ export const examples: Record<string, unknown> = {
         "readyReplicas": 4,
         "replicas": 4,
         "restartPolicy": "OnFailure",
-        "succeededReplicas": 0
+        "succeededReplicas": 0,
+        "template": {
+          "args": [
+            "--epochs",
+            "90",
+            "--batch-size",
+            "256"
+          ],
+          "command": [
+            "python",
+            "train.py"
+          ],
+          "env": [
+            {
+              "name": "NCCL_DEBUG",
+              "value": "INFO"
+            }
+          ],
+          "image": "registry.axisml.io/training/resnet:1.4.0",
+          "ports": [
+            {
+              "containerPort": 8080,
+              "name": "http",
+              "protocol": "TCP"
+            }
+          ],
+          "resources": {
+            "cpu": "8",
+            "memory": "64Gi",
+            "nvidia.com/gpu": "2"
+          },
+          "volumeMounts": [
+            {
+              "mountPath": "/data",
+              "name": "data"
+            }
+          ],
+          "volumes": [
+            {
+              "name": "data",
+              "persistentVolumeClaim": {
+                "claimName": "resnet-imagenet"
+              }
+            }
+          ]
+        }
       }
     ],
     "runNumber": 7,
     "runPolicy": {
       "activeDeadlineSeconds": 86400,
       "backoffLimit": 2,
+      "progressDeadlineSeconds": 600,
       "ttlSecondsAfterFinished": 3600
     },
     "spec": {
@@ -1482,21 +1904,49 @@ export const examples: Record<string, unknown> = {
               }
             ],
             "image": "registry.axisml.io/training/resnet:1.4.0",
+            "ports": [
+              {
+                "containerPort": 8080,
+                "name": "http",
+                "protocol": "TCP"
+              }
+            ],
             "resources": {
               "cpu": "8",
               "memory": "64Gi",
               "nvidia.com/gpu": "2"
-            }
+            },
+            "volumeMounts": [
+              {
+                "mountPath": "/data",
+                "name": "data"
+              }
+            ],
+            "volumes": [
+              {
+                "name": "data",
+                "persistentVolumeClaim": {
+                  "claimName": "resnet-imagenet"
+                }
+              }
+            ]
           }
         }
       ],
       "runPolicy": {
         "activeDeadlineSeconds": 86400,
         "backoffLimit": 2,
+        "progressDeadlineSeconds": 600,
         "ttlSecondsAfterFinished": 3600
+      },
+      "scheduling": {
+        "minMember": 4,
+        "priorityClass": "high-priority",
+        "quota": "axisml-team-vision-gpu-a100-default"
       }
     },
     "startedAt": "2026-06-28T09:00:00Z",
+    "tenantDisplayName": "Vision Team",
     "tenantName": "team-vision",
     "unitName": "a100-2x",
     "updatedAt": "2026-06-28T09:30:00Z"
@@ -1512,6 +1962,7 @@ export const examples: Record<string, unknown> = {
         },
         "computeNamespace": "axisml-team-vision",
         "createdAt": "2026-06-28T09:00:00Z",
+        "description": "Distributed ResNet-50 training run on ImageNet.",
         "displayName": "ResNet-50 Training #7",
         "id": "b7d9e3f1-1a2b-3c4d-5e6f-708192a3b4c5",
         "jobName": "resnet-train",
@@ -1519,6 +1970,7 @@ export const examples: Record<string, unknown> = {
         "name": "resnet-train-7",
         "namespace": "team-vision",
         "owner": "li.wei",
+        "ownerId": "3a2b1c0d-4e5f-6789-abcd-ef0123456789",
         "phase": "Running",
         "poolName": "gpu-a100",
         "quota": "team-vision",
@@ -1535,13 +1987,59 @@ export const examples: Record<string, unknown> = {
             "readyReplicas": 4,
             "replicas": 4,
             "restartPolicy": "OnFailure",
-            "succeededReplicas": 0
+            "succeededReplicas": 0,
+            "template": {
+              "args": [
+                "--epochs",
+                "90",
+                "--batch-size",
+                "256"
+              ],
+              "command": [
+                "python",
+                "train.py"
+              ],
+              "env": [
+                {
+                  "name": "NCCL_DEBUG",
+                  "value": "INFO"
+                }
+              ],
+              "image": "registry.axisml.io/training/resnet:1.4.0",
+              "ports": [
+                {
+                  "containerPort": 8080,
+                  "name": "http",
+                  "protocol": "TCP"
+                }
+              ],
+              "resources": {
+                "cpu": "8",
+                "memory": "64Gi",
+                "nvidia.com/gpu": "2"
+              },
+              "volumeMounts": [
+                {
+                  "mountPath": "/data",
+                  "name": "data"
+                }
+              ],
+              "volumes": [
+                {
+                  "name": "data",
+                  "persistentVolumeClaim": {
+                    "claimName": "resnet-imagenet"
+                  }
+                }
+              ]
+            }
           }
         ],
         "runNumber": 7,
         "runPolicy": {
           "activeDeadlineSeconds": 86400,
           "backoffLimit": 2,
+          "progressDeadlineSeconds": 600,
           "ttlSecondsAfterFinished": 3600
         },
         "spec": {
@@ -1572,21 +2070,49 @@ export const examples: Record<string, unknown> = {
                   }
                 ],
                 "image": "registry.axisml.io/training/resnet:1.4.0",
+                "ports": [
+                  {
+                    "containerPort": 8080,
+                    "name": "http",
+                    "protocol": "TCP"
+                  }
+                ],
                 "resources": {
                   "cpu": "8",
                   "memory": "64Gi",
                   "nvidia.com/gpu": "2"
-                }
+                },
+                "volumeMounts": [
+                  {
+                    "mountPath": "/data",
+                    "name": "data"
+                  }
+                ],
+                "volumes": [
+                  {
+                    "name": "data",
+                    "persistentVolumeClaim": {
+                      "claimName": "resnet-imagenet"
+                    }
+                  }
+                ]
               }
             }
           ],
           "runPolicy": {
             "activeDeadlineSeconds": 86400,
             "backoffLimit": 2,
+            "progressDeadlineSeconds": 600,
             "ttlSecondsAfterFinished": 3600
+          },
+          "scheduling": {
+            "minMember": 4,
+            "priorityClass": "high-priority",
+            "quota": "axisml-team-vision-gpu-a100-default"
           }
         },
         "startedAt": "2026-06-28T09:00:00Z",
+        "tenantDisplayName": "Vision Team",
         "tenantName": "team-vision",
         "unitName": "a100-2x",
         "updatedAt": "2026-06-28T09:30:00Z"
@@ -1597,6 +2123,7 @@ export const examples: Record<string, unknown> = {
   "RunPolicy": {
     "activeDeadlineSeconds": 86400,
     "backoffLimit": 2,
+    "progressDeadlineSeconds": 600,
     "ttlSecondsAfterFinished": 3600
   },
   "RunTriggerRequest": {
@@ -1630,7 +2157,15 @@ export const examples: Record<string, unknown> = {
     "imagePullSecrets": [
       "registry-pull"
     ],
-    "name": "trainer"
+    "name": "trainer",
+    "rbac": {
+      "roleRefs": [
+        {
+          "kind": "ClusterRole",
+          "name": "edit"
+        }
+      ]
+    }
   },
   "ServicePort": {
     "name": "http",
@@ -1643,6 +2178,9 @@ export const examples: Record<string, unknown> = {
   "Tenant": {
     "activeExperimentRuns": 2,
     "activeJobRuns": 3,
+    "annotations": {
+      "axisml.io/created-by": "system-admin"
+    },
     "createdAt": "2026-06-20T08:00:00Z",
     "description": "Computer-vision model training and inference team.",
     "displayName": "Vision Team",
@@ -1681,7 +2219,15 @@ export const examples: Record<string, unknown> = {
           "imagePullSecrets": [
             "registry-pull"
           ],
-          "name": "trainer"
+          "name": "trainer",
+          "rbac": {
+            "roleRefs": [
+              {
+                "kind": "ClusterRole",
+                "name": "edit"
+              }
+            ]
+          }
         }
       ]
     },
@@ -1759,6 +2305,9 @@ export const examples: Record<string, unknown> = {
       {
         "activeExperimentRuns": 2,
         "activeJobRuns": 3,
+        "annotations": {
+          "axisml.io/created-by": "system-admin"
+        },
         "createdAt": "2026-06-20T08:00:00Z",
         "description": "Computer-vision model training and inference team.",
         "displayName": "Vision Team",
@@ -1797,7 +2346,15 @@ export const examples: Record<string, unknown> = {
               "imagePullSecrets": [
                 "registry-pull"
               ],
-              "name": "trainer"
+              "name": "trainer",
+              "rbac": {
+                "roleRefs": [
+                  {
+                    "kind": "ClusterRole",
+                    "name": "edit"
+                  }
+                ]
+              }
             }
           ]
         },
@@ -1925,6 +2482,7 @@ export const examples: Record<string, unknown> = {
     "owner": "li.wei",
     "ownerId": "3a2b1c0d-4e5f-6789-abcd-ef0123456789",
     "phase": "Ready",
+    "tenantDisplayName": "Vision Team",
     "tenantName": "team-vision",
     "updatedAt": "2026-06-28T09:30:00Z"
   },
@@ -2005,6 +2563,7 @@ export const examples: Record<string, unknown> = {
         "owner": "li.wei",
         "ownerId": "3a2b1c0d-4e5f-6789-abcd-ef0123456789",
         "phase": "Ready",
+        "tenantDisplayName": "Vision Team",
         "tenantName": "team-vision",
         "updatedAt": "2026-06-28T09:30:00Z"
       }
@@ -2032,9 +2591,11 @@ export const examples: Record<string, unknown> = {
   },
   "User": {
     "createdAt": "2026-06-20T08:00:00Z",
+    "disabled": false,
     "displayName": "Li Wei",
     "email": "li.wei@axisml.io",
     "id": "3a2b1c0d-4e5f-6789-abcd-ef0123456789",
+    "mustChangePassword": false,
     "updatedAt": "2026-06-28T09:30:00Z",
     "username": "li.wei"
   },
@@ -2072,6 +2633,12 @@ export const examples: Record<string, unknown> = {
     "tenantName": "team-vision"
   },
   "Workspace": {
+    "args": [
+      "--NotebookApp.token="
+    ],
+    "command": [
+      "start-notebook.sh"
+    ],
     "computeNamespace": "axisml-team-vision",
     "containerPort": 8888,
     "createdAt": "2026-06-20T08:00:00Z",
@@ -2082,6 +2649,12 @@ export const examples: Record<string, unknown> = {
       "accessUrl": "https://axisml.example.com/ws/team-vision/notebook-dev/",
       "internalDns": "notebook-dev.axisml-team-vision.svc.cluster.local"
     },
+    "env": [
+      {
+        "name": "JUPYTER_ENABLE_LAB",
+        "value": "yes"
+      }
+    ],
     "id": "f1e2d3c4-5b6a-4798-8c0d-1e2f3a4b5c6d",
     "image": "registry.axisml.io/dev/jupyter:3.0.0",
     "lastStartedAt": "2026-06-28T09:00:00Z",
@@ -2103,6 +2676,7 @@ export const examples: Record<string, unknown> = {
       "memory": "32Gi",
       "nvidia.com/gpu": "1"
     },
+    "tenantDisplayName": "Vision Team",
     "tenantName": "team-vision",
     "unitName": "a100-1x",
     "updatedAt": "2026-06-28T09:30:00Z",
@@ -2153,6 +2727,12 @@ export const examples: Record<string, unknown> = {
     "count": 1,
     "items": [
       {
+        "args": [
+          "--NotebookApp.token="
+        ],
+        "command": [
+          "start-notebook.sh"
+        ],
         "computeNamespace": "axisml-team-vision",
         "containerPort": 8888,
         "createdAt": "2026-06-20T08:00:00Z",
@@ -2163,6 +2743,12 @@ export const examples: Record<string, unknown> = {
           "accessUrl": "https://axisml.example.com/ws/team-vision/notebook-dev/",
           "internalDns": "notebook-dev.axisml-team-vision.svc.cluster.local"
         },
+        "env": [
+          {
+            "name": "JUPYTER_ENABLE_LAB",
+            "value": "yes"
+          }
+        ],
         "id": "f1e2d3c4-5b6a-4798-8c0d-1e2f3a4b5c6d",
         "image": "registry.axisml.io/dev/jupyter:3.0.0",
         "lastStartedAt": "2026-06-28T09:00:00Z",
@@ -2184,6 +2770,7 @@ export const examples: Record<string, unknown> = {
           "memory": "32Gi",
           "nvidia.com/gpu": "1"
         },
+        "tenantDisplayName": "Vision Team",
         "tenantName": "team-vision",
         "unitName": "a100-1x",
         "updatedAt": "2026-06-28T09:30:00Z",

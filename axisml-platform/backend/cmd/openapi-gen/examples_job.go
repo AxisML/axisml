@@ -7,11 +7,14 @@ func exJob(g *openapigen.Generator) {
 	backend := obj{"name": "native", "engine": "pytorchjob"}
 
 	roleTemplate := obj{
-		"image":     "registry.axisml.io/training/resnet:1.4.0",
-		"command":   []any{"python", "train.py"},
-		"args":      []any{"--epochs", "90", "--batch-size", "256"},
-		"env":       []any{obj{"name": "NCCL_DEBUG", "value": "INFO"}},
-		"resources": obj{"cpu": "8", "memory": "64Gi", "nvidia.com/gpu": "2"},
+		"image":        "registry.axisml.io/training/resnet:1.4.0",
+		"command":      []any{"python", "train.py"},
+		"args":         []any{"--epochs", "90", "--batch-size", "256"},
+		"env":          []any{obj{"name": "NCCL_DEBUG", "value": "INFO"}},
+		"ports":        []any{obj{"name": "http", "containerPort": 8080, "protocol": "TCP"}},
+		"resources":    obj{"cpu": "8", "memory": "64Gi", "nvidia.com/gpu": "2"},
+		"volumes":      []any{obj{"name": "data", "persistentVolumeClaim": obj{"claimName": "resnet-imagenet"}}},
+		"volumeMounts": []any{obj{"name": "data", "mountPath": "/data"}},
 	}
 
 	role := obj{
@@ -25,6 +28,7 @@ func exJob(g *openapigen.Generator) {
 		"activeDeadlineSeconds":   86400,
 		"ttlSecondsAfterFinished": 3600,
 		"backoffLimit":            2,
+		"progressDeadlineSeconds": 600,
 	}
 
 	jobSpec := obj{
@@ -54,6 +58,7 @@ func exJob(g *openapigen.Generator) {
 		"owner":       "li.wei",
 		"ownerId":     "3a2b1c0d-4e5f-6789-abcd-ef0123456789",
 		"labels":      obj{"team": "vision"},
+		"annotations": obj{"axisml.io/created-by": "li.wei", "git-commit": "8c1f4e2"},
 		"spec":        jobSpec,
 		"createdAt":   exCreatedAt,
 		"updatedAt":   exUpdatedAt,
@@ -84,40 +89,45 @@ func exJob(g *openapigen.Generator) {
 		"readyReplicas":     4,
 		"succeededReplicas": 0,
 		"failedReplicas":    0,
+		"template":          roleTemplate,
 		"restartPolicy":     "OnFailure",
 	}
 	g.SetExample("MLRunRoleStatus", roleStatus)
 
 	mlRunSpec := obj{
-		"backend":   backend,
-		"roles":     []any{role},
-		"runPolicy": runPolicy,
+		"backend":    backend,
+		"scheduling": obj{"quota": "axisml-team-vision-gpu-a100-default", "priorityClass": "high-priority", "minMember": 4},
+		"roles":      []any{role},
+		"runPolicy":  runPolicy,
 	}
 	g.SetExample("MLRunSpec", mlRunSpec)
 
 	run := obj{
-		"id":               "b7d9e3f1-1a2b-3c4d-5e6f-708192a3b4c5",
-		"namespace":        "team-vision",
-		"tenantName":       "team-vision",
-		"computeNamespace": "axisml-team-vision",
-		"name":             "resnet-train-7",
-		"jobName":          "resnet-train",
-		"runNumber":        7,
-		"displayName":      "ResNet-50 Training #7",
-		"owner":            "li.wei",
-		"backend":          backend,
-		"poolName":         "gpu-a100",
-		"unitName":         "a100-2x",
-		"quota":            "team-vision",
-		"resources":        obj{"cpu": "32", "memory": "256Gi", "nvidia.com/gpu": "8"},
-		"roles":            []any{roleStatus},
-		"runPolicy":        runPolicy,
-		"spec":             mlRunSpec,
-		"phase":            "Running",
-		"message":          "All worker replicas ready.",
-		"startedAt":        exStartedAt,
-		"createdAt":        exStartedAt,
-		"updatedAt":        exUpdatedAt,
+		"id":                "b7d9e3f1-1a2b-3c4d-5e6f-708192a3b4c5",
+		"namespace":         "team-vision",
+		"tenantName":        "team-vision",
+		"tenantDisplayName": "Vision Team",
+		"computeNamespace":  "axisml-team-vision",
+		"name":              "resnet-train-7",
+		"jobName":           "resnet-train",
+		"runNumber":         7,
+		"displayName":       "ResNet-50 Training #7",
+		"description":       "Distributed ResNet-50 training run on ImageNet.",
+		"owner":             "li.wei",
+		"ownerId":           "3a2b1c0d-4e5f-6789-abcd-ef0123456789",
+		"backend":           backend,
+		"poolName":          "gpu-a100",
+		"unitName":          "a100-2x",
+		"quota":             "team-vision",
+		"resources":         obj{"cpu": "32", "memory": "256Gi", "nvidia.com/gpu": "8"},
+		"roles":             []any{roleStatus},
+		"runPolicy":         runPolicy,
+		"spec":              mlRunSpec,
+		"phase":             "Running",
+		"message":           "All worker replicas ready.",
+		"startedAt":         exStartedAt,
+		"createdAt":         exStartedAt,
+		"updatedAt":         exUpdatedAt,
 	}
 	g.SetExample("Run", run)
 	g.SetExample("RunList", obj{

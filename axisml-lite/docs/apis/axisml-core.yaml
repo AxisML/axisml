@@ -1862,6 +1862,9 @@ components:
       type: object
     MLRun:
       example:
+        annotations:
+          axisml.io/created-by: li.wei
+          git-commit: 8c1f4e2
         createdAt: "2026-06-28T09:25:00Z"
         description: Distributed ResNet-50 training on ImageNet.
         displayName: 'ResNet-50 Training #7'
@@ -2129,7 +2132,10 @@ components:
     MLRunList:
       example:
         items:
-        - createdAt: "2026-06-28T09:25:00Z"
+        - annotations:
+            axisml.io/created-by: li.wei
+            git-commit: 8c1f4e2
+          createdAt: "2026-06-28T09:25:00Z"
           description: Distributed ResNet-50 training on ImageNet.
           displayName: 'ResNet-50 Training #7'
           id: b7d9e3f1-1a2b-3c4d-5e6f-708192a3b4c5
@@ -2342,6 +2348,9 @@ components:
       type: object
     MLService:
       example:
+        annotations:
+          axisml.io/created-by: li.wei
+          git-commit: 8c1f4e2
         createdAt: "2026-06-28T09:25:00Z"
         description: Llama-3 8B online inference on the vLLM backend.
         displayName: Llama-3 8B inference service
@@ -2652,7 +2661,10 @@ components:
     MLServiceList:
       example:
         items:
-        - createdAt: "2026-06-28T09:25:00Z"
+        - annotations:
+            axisml.io/created-by: li.wei
+            git-commit: 8c1f4e2
+          createdAt: "2026-06-28T09:25:00Z"
           description: Llama-3 8B online inference on the vLLM backend.
           displayName: Llama-3 8B inference service
           generation: 3
@@ -3413,6 +3425,8 @@ components:
       type: object
     ResourcePool:
       example:
+        annotations:
+          axisml.io/managed-by: platform
         createdAt: "2026-06-20T08:00:00Z"
         description: A100 GPU resource pool.
         labels:
@@ -3426,7 +3440,9 @@ components:
           key: nvidia.com/gpu
           operator: Exists
         units:
-        - description: 2× A100 GPU compute unit.
+        - annotations:
+            axisml.io/managed-by: platform
+          description: 2× A100 GPU compute unit.
           limits:
             cpu: "16"
             memory: 128Gi
@@ -3492,7 +3508,9 @@ components:
         continueToken: ""
         count: 1
         items:
-        - createdAt: "2026-06-20T08:00:00Z"
+        - annotations:
+            axisml.io/managed-by: platform
+          createdAt: "2026-06-20T08:00:00Z"
           description: A100 GPU resource pool.
           labels:
             tier: gpu
@@ -3505,7 +3523,9 @@ components:
             key: nvidia.com/gpu
             operator: Exists
           units:
-          - description: 2× A100 GPU compute unit.
+          - annotations:
+              axisml.io/managed-by: platform
+            description: 2× A100 GPU compute unit.
             limits:
               cpu: "16"
               memory: 128Gi
@@ -3536,6 +3556,8 @@ components:
       type: object
     ResourceUnit:
       example:
+        annotations:
+          axisml.io/managed-by: platform
         description: 2× A100 GPU compute unit.
         limits:
           cpu: "16"
@@ -3588,7 +3610,9 @@ components:
       example:
         count: 1
         items:
-        - description: 2× A100 GPU compute unit.
+        - annotations:
+            axisml.io/managed-by: platform
+          description: 2× A100 GPU compute unit.
           limits:
             cpu: "16"
             memory: 128Gi
@@ -3873,6 +3897,38 @@ components:
         annotations:
           axisml.io/last-modified-by: li.wei
         createdAt: "2026-06-20T08:00:00Z"
+        initResources:
+          configMaps:
+          - name: shared-config
+            sourceConfigMapRef:
+              name: tenant-shared-config
+              namespace: axisml-system
+          imagePullSecrets:
+          - name: registry-pull
+            sourceSecretRef:
+              name: registry-pull-credentials
+              namespace: axisml-system
+          secrets:
+          - name: wandb-api-key
+            sourceSecretRef:
+              name: wandb-api-key
+              namespace: axisml-system
+            type: Opaque
+          serviceAccounts:
+          - imagePullSecrets:
+            - registry-pull
+            name: trainer
+            rbac:
+              rules:
+              - apiGroups:
+                - ""
+                resources:
+                - pods
+                - pods/log
+                verbs:
+                - get
+                - list
+                - watch
         labels:
           displayName: Vision Team
         name: team-vision
@@ -3956,6 +4012,38 @@ components:
         - annotations:
             axisml.io/last-modified-by: li.wei
           createdAt: "2026-06-20T08:00:00Z"
+          initResources:
+            configMaps:
+            - name: shared-config
+              sourceConfigMapRef:
+                name: tenant-shared-config
+                namespace: axisml-system
+            imagePullSecrets:
+            - name: registry-pull
+              sourceSecretRef:
+                name: registry-pull-credentials
+                namespace: axisml-system
+            secrets:
+            - name: wandb-api-key
+              sourceSecretRef:
+                name: wandb-api-key
+                namespace: axisml-system
+              type: Opaque
+            serviceAccounts:
+            - imagePullSecrets:
+              - registry-pull
+              name: trainer
+              rbac:
+                rules:
+                - apiGroups:
+                  - ""
+                  resources:
+                  - pods
+                  - pods/log
+                  verbs:
+                  - get
+                  - list
+                  - watch
           labels:
             displayName: Vision Team
           name: team-vision
@@ -3998,6 +4086,9 @@ components:
       type: object
     TrafficPolicy:
       example:
+        annotations:
+          axisml.io/created-by: li.wei
+          git-commit: 8c1f4e2
         createdAt: "2026-06-28T09:25:00Z"
         description: Canary 10% traffic to v2.
         displayName: Llama-3 canary release
@@ -4241,7 +4332,10 @@ components:
     TrafficPolicyList:
       example:
         items:
-        - createdAt: "2026-06-28T09:25:00Z"
+        - annotations:
+            axisml.io/created-by: li.wei
+            git-commit: 8c1f4e2
+          createdAt: "2026-06-28T09:25:00Z"
           description: Canary 10% traffic to v2.
           displayName: Llama-3 canary release
           generation: 2

@@ -17,13 +17,19 @@ func exArtifact(g *openapigen.Generator) {
 		"status":      "Ready",
 		"source":      "webUpload",
 		"digest":      "sha256:9b0d5a2c7f3148e1f4a6c8e3d2b4a6c8e1f9b0d5a2c7f3148e1f4a6c8e3d2b4a",
-		"owner":       "li.wei",
-		"ownerId":     "3a2b1c0d-4e5f-6789-abcd-ef0123456789",
-		"uri":         "oci://registry.axisml.io/team-vision/resnet50:1.4.0",
-		"sizeBytes":   102457600,
-		"createdAt":   exCreatedAt,
-		"readyAt":     exUpdatedAt,
-		"updatedAt":   exUpdatedAt,
+		"spec": obj{
+			"framework":  "pytorch",
+			"task":       "image-classification",
+			"format":     "safetensors",
+			"parameters": "25.6M",
+		},
+		"owner":     "li.wei",
+		"ownerId":   "3a2b1c0d-4e5f-6789-abcd-ef0123456789",
+		"uri":       "oci://registry.axisml.io/team-vision/resnet50:1.4.0",
+		"sizeBytes": 102457600,
+		"createdAt": exCreatedAt,
+		"readyAt":   exUpdatedAt,
+		"updatedAt": exUpdatedAt,
 	}
 	g.SetExample("Model", model)
 	g.SetExample("ModelList", obj{
@@ -80,8 +86,15 @@ func exArtifact(g *openapigen.Generator) {
 		"owner":       "li.wei",
 		"ownerId":     "3a2b1c0d-4e5f-6789-abcd-ef0123456789",
 		"labels":      obj{"team": "vision"},
-		"createdAt":   exCreatedAt,
-		"updatedAt":   exUpdatedAt,
+		"annotations": obj{"git-commit": "8c1f4e2"},
+		"spec": obj{
+			"framework":  "pytorch",
+			"task":       "image-classification",
+			"format":     "safetensors",
+			"parameters": "25.6M",
+		},
+		"createdAt": exCreatedAt,
+		"updatedAt": exUpdatedAt,
 	}
 	g.SetExample("ArtifactDefinition", definition)
 	g.SetExample("ArtifactDefinitionList", obj{
@@ -113,13 +126,18 @@ func exArtifact(g *openapigen.Generator) {
 		"status":      "Ready",
 		"source":      "dockerPush",
 		"digest":      "sha256:7f3148e1f4a6c8e3d2b4a6c8e1f9b0d5a2c7f3148e1f4a6c8e3d2b4a6c8e1f9b",
-		"owner":       "li.wei",
-		"ownerId":     "3a2b1c0d-4e5f-6789-abcd-ef0123456789",
-		"uri":         "oci://registry.axisml.io/team-vision/pytorch-train:2.3.0",
-		"sizeBytes":   5368709120,
-		"createdAt":   exCreatedAt,
-		"readyAt":     exUpdatedAt,
-		"updatedAt":   exUpdatedAt,
+		"spec": obj{
+			"baseImage": "nvidia/cuda:12.1.0-runtime",
+			"python":    "3.11",
+			"purpose":   "training",
+		},
+		"owner":     "li.wei",
+		"ownerId":   "3a2b1c0d-4e5f-6789-abcd-ef0123456789",
+		"uri":       "oci://registry.axisml.io/team-vision/pytorch-train:2.3.0",
+		"sizeBytes": 5368709120,
+		"createdAt": exCreatedAt,
+		"readyAt":   exUpdatedAt,
+		"updatedAt": exUpdatedAt,
 	}
 	g.SetExample("Image", image)
 	g.SetExample("ImageList", obj{

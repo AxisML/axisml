@@ -5,12 +5,14 @@ import "github.com/axisml/axisml/pkg/openapigen"
 // exAuth holds whole-object examples for the auth.go DTOs.
 func exAuth(g *openapigen.Generator) {
 	user := obj{
-		"id":          "3a2b1c0d-4e5f-6789-abcd-ef0123456789",
-		"username":    "li.wei",
-		"displayName": "Li Wei",
-		"email":       "li.wei@axisml.io",
-		"createdAt":   exCreatedAt,
-		"updatedAt":   exUpdatedAt,
+		"id":                 "3a2b1c0d-4e5f-6789-abcd-ef0123456789",
+		"username":           "li.wei",
+		"displayName":        "Li Wei",
+		"email":              "li.wei@axisml.io",
+		"disabled":           false,
+		"mustChangePassword": false,
+		"createdAt":          exCreatedAt,
+		"updatedAt":          exUpdatedAt,
 	}
 	g.SetExample("User", user)
 

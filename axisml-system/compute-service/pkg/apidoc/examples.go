@@ -86,6 +86,7 @@ func registerExamples(g *openapigen.Generator) {
 		"description": "Distributed ResNet-50 training on ImageNet.",
 		"owner":       "li.wei",
 		"labels":      obj{"team": "vision"},
+		"annotations": obj{"axisml.io/created-by": "li.wei", "git-commit": "8c1f4e2"},
 		"phase":       "Running",
 		"spec":        mlrunSpec,
 		"status": obj{
@@ -165,6 +166,7 @@ func registerExamples(g *openapigen.Generator) {
 		"description":        "Llama-3 8B online inference on the vLLM backend.",
 		"owner":              "li.wei",
 		"labels":             obj{"team": "vision"},
+		"annotations":        obj{"axisml.io/created-by": "li.wei", "git-commit": "8c1f4e2"},
 		"generation":         3,
 		"observedGeneration": 3,
 		"phase":              "Ready",
@@ -232,6 +234,7 @@ func registerExamples(g *openapigen.Generator) {
 		"description":        "Canary 10% traffic to v2.",
 		"owner":              "li.wei",
 		"labels":             obj{"team": "vision"},
+		"annotations":        obj{"axisml.io/created-by": "li.wei", "git-commit": "8c1f4e2"},
 		"generation":         2,
 		"observedGeneration": 2,
 		"phase":              "Ready",

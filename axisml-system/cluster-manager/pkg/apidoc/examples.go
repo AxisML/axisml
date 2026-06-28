@@ -31,6 +31,7 @@ func registerExamples(g *openapigen.Generator) {
 			"nvidia.com/gpu": "2",
 		},
 		"nodeSelector": obj{"axisml.io/gpu": "a100"},
+		"annotations":  obj{"axisml.io/managed-by": "platform"},
 	}
 	g.SetExample("ResourceUnit", unit)
 	g.SetExample("ResourceUnitList", obj{
@@ -74,6 +75,7 @@ func registerExamples(g *openapigen.Generator) {
 		}},
 		"units":           []any{unit},
 		"labels":          obj{"tier": "gpu"},
+		"annotations":     obj{"axisml.io/managed-by": "platform"},
 		"resourceVersion": "184729",
 		"createdAt":       exCreatedAt,
 		"updatedAt":       exUpdatedAt,
@@ -117,11 +119,48 @@ func registerExamples(g *openapigen.Generator) {
 		"count": 1,
 	})
 
+	initResources := obj{
+		"configMaps": []any{obj{
+			"name": "shared-config",
+			"sourceConfigMapRef": obj{
+				"namespace": "axisml-system",
+				"name":      "tenant-shared-config",
+			},
+		}},
+		"imagePullSecrets": []any{obj{
+			"name": "registry-pull",
+			"sourceSecretRef": obj{
+				"namespace": "axisml-system",
+				"name":      "registry-pull-credentials",
+			},
+		}},
+		"secrets": []any{obj{
+			"name": "wandb-api-key",
+			"type": "Opaque",
+			"sourceSecretRef": obj{
+				"namespace": "axisml-system",
+				"name":      "wandb-api-key",
+			},
+		}},
+		"serviceAccounts": []any{obj{
+			"name":             "trainer",
+			"imagePullSecrets": []any{"registry-pull"},
+			"rbac": obj{
+				"rules": []any{obj{
+					"apiGroups": []any{""},
+					"resources": []any{"pods", "pods/log"},
+					"verbs":     []any{"get", "list", "watch"},
+				}},
+			},
+		}},
+	}
+
 	tenant := obj{
-		"name":      "team-vision",
-		"namespace": obj{"name": "team-vision"},
-		"quotas":    []any{quota},
-		"labels":    obj{"displayName": "Vision Team"},
+		"name":          "team-vision",
+		"namespace":     obj{"name": "team-vision"},
+		"quotas":        []any{quota},
+		"initResources": initResources,
+		"labels":        obj{"displayName": "Vision Team"},
 		"annotations": obj{
 			"axisml.io/last-modified-by": "li.wei",
 		},

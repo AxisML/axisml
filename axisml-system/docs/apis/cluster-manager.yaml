@@ -532,6 +532,8 @@ components:
       type: object
     ResourcePool:
       example:
+        annotations:
+          axisml.io/managed-by: platform
         createdAt: "2026-06-20T08:00:00Z"
         description: A100 GPU resource pool.
         labels:
@@ -545,7 +547,9 @@ components:
           key: nvidia.com/gpu
           operator: Exists
         units:
-        - description: 2× A100 GPU compute unit.
+        - annotations:
+            axisml.io/managed-by: platform
+          description: 2× A100 GPU compute unit.
           limits:
             cpu: "16"
             memory: 128Gi
@@ -611,7 +615,9 @@ components:
         continueToken: ""
         count: 1
         items:
-        - createdAt: "2026-06-20T08:00:00Z"
+        - annotations:
+            axisml.io/managed-by: platform
+          createdAt: "2026-06-20T08:00:00Z"
           description: A100 GPU resource pool.
           labels:
             tier: gpu
@@ -624,7 +630,9 @@ components:
             key: nvidia.com/gpu
             operator: Exists
           units:
-          - description: 2× A100 GPU compute unit.
+          - annotations:
+              axisml.io/managed-by: platform
+            description: 2× A100 GPU compute unit.
             limits:
               cpu: "16"
               memory: 128Gi
@@ -655,6 +663,8 @@ components:
       type: object
     ResourceUnit:
       example:
+        annotations:
+          axisml.io/managed-by: platform
         description: 2× A100 GPU compute unit.
         limits:
           cpu: "16"
@@ -707,7 +717,9 @@ components:
       example:
         count: 1
         items:
-        - description: 2× A100 GPU compute unit.
+        - annotations:
+            axisml.io/managed-by: platform
+          description: 2× A100 GPU compute unit.
           limits:
             cpu: "16"
             memory: 128Gi
@@ -992,6 +1004,38 @@ components:
         annotations:
           axisml.io/last-modified-by: li.wei
         createdAt: "2026-06-20T08:00:00Z"
+        initResources:
+          configMaps:
+          - name: shared-config
+            sourceConfigMapRef:
+              name: tenant-shared-config
+              namespace: axisml-system
+          imagePullSecrets:
+          - name: registry-pull
+            sourceSecretRef:
+              name: registry-pull-credentials
+              namespace: axisml-system
+          secrets:
+          - name: wandb-api-key
+            sourceSecretRef:
+              name: wandb-api-key
+              namespace: axisml-system
+            type: Opaque
+          serviceAccounts:
+          - imagePullSecrets:
+            - registry-pull
+            name: trainer
+            rbac:
+              rules:
+              - apiGroups:
+                - ""
+                resources:
+                - pods
+                - pods/log
+                verbs:
+                - get
+                - list
+                - watch
         labels:
           displayName: Vision Team
         name: team-vision
@@ -1075,6 +1119,38 @@ components:
         - annotations:
             axisml.io/last-modified-by: li.wei
           createdAt: "2026-06-20T08:00:00Z"
+          initResources:
+            configMaps:
+            - name: shared-config
+              sourceConfigMapRef:
+                name: tenant-shared-config
+                namespace: axisml-system
+            imagePullSecrets:
+            - name: registry-pull
+              sourceSecretRef:
+                name: registry-pull-credentials
+                namespace: axisml-system
+            secrets:
+            - name: wandb-api-key
+              sourceSecretRef:
+                name: wandb-api-key
+                namespace: axisml-system
+              type: Opaque
+            serviceAccounts:
+            - imagePullSecrets:
+              - registry-pull
+              name: trainer
+              rbac:
+                rules:
+                - apiGroups:
+                  - ""
+                  resources:
+                  - pods
+                  - pods/log
+                  verbs:
+                  - get
+                  - list
+                  - watch
           labels:
             displayName: Vision Team
           name: team-vision

@@ -1153,6 +1153,9 @@ components:
       type: object
     MLRun:
       example:
+        annotations:
+          axisml.io/created-by: li.wei
+          git-commit: 8c1f4e2
         createdAt: "2026-06-28T09:25:00Z"
         description: Distributed ResNet-50 training on ImageNet.
         displayName: 'ResNet-50 Training #7'
@@ -1420,7 +1423,10 @@ components:
     MLRunList:
       example:
         items:
-        - createdAt: "2026-06-28T09:25:00Z"
+        - annotations:
+            axisml.io/created-by: li.wei
+            git-commit: 8c1f4e2
+          createdAt: "2026-06-28T09:25:00Z"
           description: Distributed ResNet-50 training on ImageNet.
           displayName: 'ResNet-50 Training #7'
           id: b7d9e3f1-1a2b-3c4d-5e6f-708192a3b4c5
@@ -1633,6 +1639,9 @@ components:
       type: object
     MLService:
       example:
+        annotations:
+          axisml.io/created-by: li.wei
+          git-commit: 8c1f4e2
         createdAt: "2026-06-28T09:25:00Z"
         description: Llama-3 8B online inference on the vLLM backend.
         displayName: Llama-3 8B inference service
@@ -1943,7 +1952,10 @@ components:
     MLServiceList:
       example:
         items:
-        - createdAt: "2026-06-28T09:25:00Z"
+        - annotations:
+            axisml.io/created-by: li.wei
+            git-commit: 8c1f4e2
+          createdAt: "2026-06-28T09:25:00Z"
           description: Llama-3 8B online inference on the vLLM backend.
           displayName: Llama-3 8B inference service
           generation: 3
@@ -2508,6 +2520,9 @@ components:
       type: object
     TrafficPolicy:
       example:
+        annotations:
+          axisml.io/created-by: li.wei
+          git-commit: 8c1f4e2
         createdAt: "2026-06-28T09:25:00Z"
         description: Canary 10% traffic to v2.
         displayName: Llama-3 canary release
@@ -2751,7 +2766,10 @@ components:
     TrafficPolicyList:
       example:
         items:
-        - createdAt: "2026-06-28T09:25:00Z"
+        - annotations:
+            axisml.io/created-by: li.wei
+            git-commit: 8c1f4e2
+          createdAt: "2026-06-28T09:25:00Z"
           description: Canary 10% traffic to v2.
           displayName: Llama-3 canary release
           generation: 2

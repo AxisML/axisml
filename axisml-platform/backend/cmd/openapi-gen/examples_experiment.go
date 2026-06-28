@@ -48,6 +48,7 @@ func exExperiment(g *openapigen.Generator) {
 		"owner":       "zhang.san",
 		"ownerId":     "3a2b1c0d-4e5f-6789-abcd-ef0123456789",
 		"labels":      obj{"team": "nlp"},
+		"annotations": obj{"axisml.io/created-by": "li.wei"},
 		"spec":        jobSpec,
 		"createdAt":   exCreatedAt,
 		"updatedAt":   exUpdatedAt,

@@ -53,6 +53,9 @@ func exTenant(g *openapigen.Generator) {
 	serviceAccountInit := obj{
 		"name":             "trainer",
 		"imagePullSecrets": []any{"registry-pull"},
+		"rbac": obj{
+			"roleRefs": []any{obj{"kind": "ClusterRole", "name": "edit"}},
+		},
 	}
 	g.SetExample("ImagePullSecretInit", imagePullSecretInit)
 	g.SetExample("SecretInit", secretInit)
@@ -87,6 +90,7 @@ func exTenant(g *openapigen.Generator) {
 		"description":          "Computer-vision model training and inference team.",
 		"owner":                "li.wei",
 		"labels":               obj{"team": "vision"},
+		"annotations":          obj{"axisml.io/created-by": "system-admin"},
 		"quotas":               []any{quota},
 		"initResources":        initResources,
 		"phase":                "Active",
