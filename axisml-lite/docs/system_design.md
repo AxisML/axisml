@@ -78,7 +78,7 @@ Lite 支持的操作保持现有 REST 资源、请求结构、状态枚举和错
    ├── service/workspace/tensorboard containers（长生命周期）
    └── managed volumes + axisml-workloads network
 
- PostgreSQL · Redis(optional) · zot · RustFS/S3 · Prometheus(optional)
+ PostgreSQL · zot · RustFS/S3（默认 Compose 栈） · Redis / Prometheus（可选，默认不部署）
 ```
 
 Docker Compose 管理两个 AxisML binary、数据库、缓存、制品存储、网关和可观测组件。`axisml-core` 内置的 Standalone Compute Runtime 根据 API desired state 动态管理用户 workload。
@@ -96,7 +96,7 @@ Standalone 形态固定编译和部署两个独立可执行文件：
 
 | Binary | 组成 | 权限 |
 | --- | --- | --- |
-| `axisml-platform` | Platform、认证、RBAC 和 BFF | 对外 HTTP、PostgreSQL、Redis；通过 HTTP 调用 `axisml-core`，**无 Docker socket** |
+| `axisml-platform` | Platform、认证、RBAC 和 BFF | 对外 HTTP、PostgreSQL、Redis（可选 session cache 加速，Lite 默认不部署，缺省回落 PG）；通过 HTTP 调用 `axisml-core`，**无 Docker socket** |
 | `axisml-core` | Cluster Manager、Compute 领域层与 API、Artifact Hub，以及进程内实现 `ComputeRuntime` 的 Standalone Runtime（容器/volume/network/route 管理、运行态采集） | 内部 HTTP（对 `axisml-platform` 服务端）、PostgreSQL、zot、S3、Traefik 动态目录、Docker Engine Adapter；唯一可访问 Docker socket |
 
 Platform 保持独立进程和现有 HTTP client 边界。Cluster Manager、Compute、Artifact Hub 和 Standalone Runtime 组合进 `axisml-core`，并各自维护业务逻辑、数据库 schema 和 migration。Standard 形态继续构建和部署现有独立 binary。
@@ -111,25 +111,31 @@ AxisML Lite 是 AxisML monorepo 的顶层 `axisml-lite/` 目录，与 `axisml-pl
 axisml-lite/
 ├── axisml-core/                  # Go module（单一 axisml-core 镜像）
 │   ├── cmd/
-│   │   └── axisml-core/          # Standalone composition root
+│   │   ├── axisml-core/          # Standalone composition root（serve / migrate）
+│   │   ├── config-doc-gen/       # 配置参考文档生成
+│   │   └── openapi-gen/          # axisml-core OpenAPI 规格生成
 │   ├── internal/
-│   │   ├── core/                 # 模块装配、配置型 provider、PG coordination
 │   │   └── runtime/
 │   │       └── docker/           # ComputeRuntime 的 Docker 实现：container/volume/network/Traefik adapter、运行态采集（podman/containerd backend 为同级目录）
+│   ├── pkg/
+│   │   └── core/                 # 模块装配、配置型 provider、Config/Settings、PG coordination
+│   ├── examples/
+│   │   └── embed/                # 以库形式嵌入 axisml-core 的可运行示例
 │   ├── Dockerfile
 │   └── go.mod
 ├── deploy/
 │   ├── docker-compose.yaml
-│   ├── config/
-│   │   ├── resource-pool.yaml
-│   │   └── tenant.yaml
-│   └── scripts/
+│   └── config/
+│       ├── resource-pool.yaml
+│       └── tenant.yaml
 ├── docs/
-│   └── system_design.md          # 本设计文档
+│   ├── system_design.md          # 本设计文档
+│   └── apis/
+│       └── axisml-core.yaml      # 生成的 OpenAPI 规格
 └── Makefile
 ```
 
-`axisml-platform` 使用 monorepo 发布的 Platform 镜像。`axisml-core` 通过仓库内 `go.work` / `replace` 依赖 Cluster Manager、Compute Service 和 Artifact Hub 的 `pkg/module` 公共装配 API，将三者编译进同一个 binary 并注入 Standalone provider；同时依赖 `MLRun` / `MLService` / `MLTrafficPolicy` API packages，在 `internal/runtime/docker` 进程内实现 Compute Service 发布的 `computeruntime.ComputeRuntime` 接口，并注入到 Compute 模块。该实现驱动 Docker Engine Adapter、volume、network 和 Traefik file provider 并采集运行态。Docker Engine Adapter、配置型资源目录和 Compose 资产同由 `axisml-lite/` 维护，构建单一 Dockerfile 和镜像，由 Compose 拉起。
+`axisml-platform` 使用 monorepo 发布的 Platform 镜像。`axisml-core` 通过 `go.mod` 的仓库内 `replace` 指令依赖 Cluster Manager、Compute Service 和 Artifact Hub 的 `pkg/module` 公共装配 API，将三者编译进同一个 binary 并注入 Standalone provider；同时依赖 `MLRun` / `MLService` / `MLTrafficPolicy` API packages，在 `internal/runtime/docker` 进程内实现 Compute Service 发布的 `computeruntime.ComputeRuntime` 接口，并注入到 Compute 模块。该实现驱动 Docker Engine Adapter、volume、network 和 Traefik file provider 并采集运行态。Docker Engine Adapter、配置型资源目录和 Compose 资产同由 `axisml-lite/` 维护，构建单一 Dockerfile 和镜像，由 Compose 拉起。
 
 monorepo 为三个 System 服务提供公共装配 API：
 
@@ -146,10 +152,30 @@ axisml-system/<service>/pkg/module
 
 依赖与发布规则：
 
-- `axisml-lite` 作为 monorepo 内的单个 Go module，通过仓库内 `go.work` / `replace` 依赖 System 组件模块（Cluster Manager、Compute Service、Artifact Hub 三个 `pkg/module`，以及 workload contract API packages），与其余组件在同一提交中同步演进。
+- `axisml-core` 作为 monorepo 内的单个 Go module，通过 `go.mod` 的仓库内 `replace` 指令依赖 System 组件模块（Cluster Manager、Compute Service、Artifact Hub 三个 `pkg/module`，以及 workload contract API packages），与其余组件在同一提交中同步演进。
 - Lite release 固定一组兼容的 Platform 镜像、System module 和数据库 schema 版本，不使用浮动 `latest`。
 - monorepo 内的公共装配 API 对各形态保持稳定契约。
 - OpenAPI DTO、migration 和领域状态机由 System 组件生成和维护。
+
+### 3.3 配置
+
+`axisml-core` 在 Docker Compose 下运行，以**环境变量为唯一配置来源**，不读取任何配置文件。每个 key 通过其 `AXISML_` 变量提供，遵循仓库统一的 `AXISML_` 约定：
+
+- 键到环境变量的映射为 `<section>.<key>` ⇄ `AXISML_<SECTION>_<KEY>`（大写、点转下划线）。
+- 取值优先级：内置默认值 < `AXISML_<KEY>` 环境变量 < `AXISML_<KEY>_FILE` 秘密文件（秘密项专用，优先级最高）。
+- 启动 fail-fast：必填项（如 `database.host`）缺失或校验失败时进程不就绪。
+
+配置分为三个 section：
+
+| Section | 内容 | 秘密项 |
+| --- | --- | --- |
+| `database` | PostgreSQL 连接（host / port / name / user / password / sslmode） | `database.password` |
+| `log` | 日志 level 与 format | — |
+| `oci` | zot 制品仓连接（endpoint / admin_user / admin_password） | `oci.admin_password` |
+
+`Settings`（端口、文件系统路径、Docker 网络、后台周期等运行参数）是 Lite 二进制的固定常量，**不经环境读取**；仅当以库形式嵌入 `axisml-core` 时由宿主通过 `WithSettings` 覆盖。
+
+完整 key 表见 [axisml-lite README](../README.md#configuration)，由 `axisml-core` 的 `cmd/config-doc-gen` 基于 `Config` 结构体生成（`go run ./cmd/config-doc-gen`）；`AXISML_` 通用约定见 [配置手册](../../docs/configuration.md)。axisml-core 因 env-only 且经 Compose environment 配置，刻意不并入该手册的 per-service 参考表，README 是其配置参考的归宿。
 
 ## 4. 统一 Workload Contract 与双运行时
 
@@ -168,17 +194,25 @@ Lite 不修改 `compute-operator`。Standard 形态的 `ComputeRuntime` adapter 
 
 Runtime 端口只使用 AxisML 发布的 `MLRun`、`MLService`、`MLTrafficPolicy` API 类型和 Kubernetes 标准类型。Docker SDK 请求、Traefik 配置、Deployment、HTTPRoute 和 `client.Object` 属于 handler / adapter 内部类型，不进入 Runtime contract。
 
-核心接口由各组件的 `pkg/extensions` 包发布（compute-service 的 `ComputeRuntime` / `ResourceResolver` / `VolumeManager`，cluster-manager 的 `ResourcePoolStore` / `TenantStore`），如下：
+核心接口由各组件的 `pkg/extensions` 包发布（compute-service 的 `ComputeRuntime` / `ResourceResolver`，cluster-manager 的 `ResourcePoolProvider` / `TenantProvider` / `VolumeManager`），如下：
 
 ```go
-type ResourceStoreProvider interface {
-    GetPool(ctx context.Context, name string) (ResourcePool, error)
-    ListPools(ctx context.Context, selector string) ([]ResourcePool, error)
+type ResourcePoolProvider interface {
+    Get(ctx context.Context, name string) (*cmv1alpha1.ResourcePool, error)
+    List(ctx context.Context, opts metav1.ListOptions) (*cmv1alpha1.ResourcePoolList, error)
+    Create(ctx context.Context, pool *cmv1alpha1.ResourcePool) error
+    Patch(ctx context.Context, obj, base *cmv1alpha1.ResourcePool) error
+    Delete(ctx context.Context, name string) error
+    Writable() bool // Kubernetes provider 为 true；Lite 只读 config provider 为 false
 }
 
-type TenantStoreProvider interface {
-    Get(ctx context.Context, tenantScope string) (Tenant, error)
-    List(ctx context.Context) ([]Tenant, error)
+type TenantProvider interface {
+    Get(ctx context.Context, name string) (*tenantv1alpha1.Tenant, error)
+    List(ctx context.Context, opts metav1.ListOptions) (*tenantv1alpha1.TenantList, error)
+    Create(ctx context.Context, tenant *tenantv1alpha1.Tenant) error
+    Patch(ctx context.Context, obj, base *tenantv1alpha1.Tenant) error
+    Delete(ctx context.Context, name string) error
+    Writable() bool // 多租户写入是否可用：Kubernetes 为 true，Lite 为 false
 }
 
 type ComputeRuntime interface {
@@ -240,7 +274,7 @@ Standard 和 Lite 形态均在各自进程内提供完整的 `ComputeRuntime` �
 | 抽象 | Standard 实现 | Lite 实现 |
 | --- | --- | --- |
 | Resource catalog | `ResourcePool` CR + informer/client | `ConfigResourceCatalog`，从 CR YAML 读取唯一 `default` ResourcePool |
-| Tenant view | `Tenant` CR provider | `StaticTenantStoreProvider`，从 CR YAML 读取唯一 `default` Tenant |
+| Tenant view | `Tenant` CR provider | `StaticTenantStore`，从 CR YAML 读取唯一 `default` Tenant |
 | Run contract | `MLRun` → apiserver → compute-operator → Job | `MLRun` → Docker run handler → containers |
 | Service contract | `MLService` → apiserver → compute-operator → Deployment/StatefulSet/Service | `MLService` → Docker service handler → containers + runtime registry |
 | Traffic contract | `MLTrafficPolicy` → apiserver → compute-operator → HTTPRoute | `MLTrafficPolicy` → Traefik handler → file provider |
@@ -256,8 +290,8 @@ Standard 和 Lite 形态均在各自进程内提供完整的 `ComputeRuntime` �
 
 Cluster Manager 的 REST handler 通过 provider 访问资源与租户视图：
 
-- Standard 形态注入 `KubernetesResourceCatalog` 和 `KubernetesTenantStore`。
-- Lite 模式注入只读的 `ConfigResourceCatalog` 和 `StaticTenantStoreProvider`。
+- Standard 形态注入 `k8sstore` 的 `ResourcePoolStore` 和 `TenantStore`。
+- Lite 模式注入只读的 `ConfigResourceCatalog` 和 `StaticTenantStore`。
 - `default` ResourcePool、ResourceUnit 和 Tenant 从 AxisML CR YAML 加载，配置变更重启后生效。
 - ResourceUnit 的 `requests/limits` 在创建 workload 时写入 Spec 快照。
 - ResourcePool / ResourceUnit 的 GET、LIST 可用；CREATE、PATCH、DELETE 返回 `409 CapabilityUnavailable`。
@@ -272,7 +306,7 @@ Cluster Manager 的 REST handler 通过 provider 访问资源与租户视图：
 | Platform `tenants` 表 | `default` tenant 的展示信息、停用状态和用户角色关联 |
 | Compute 业务表 | workload `spec` 快照与 `phase` / `status`；Service / TrafficPolicy 另有 `generation` / `observed_generation` |
 
-Platform bootstrap 在 `tenants` 表创建唯一的 `default` 业务记录。Platform 在编排层合并该记录与 `StaticTenantStoreProvider` 返回的静态配置视图。
+Platform bootstrap 在 `tenants` 表创建唯一的 `default` 业务记录。Platform 在编排层合并该记录与 `StaticTenantStore` 返回的静态配置视图。
 
 #### 5.1.1 CR YAML 配置格式
 
@@ -352,7 +386,7 @@ spec:
 - 配置不得包含 `status`、`metadata.uid`、`resourceVersion`、`generation` 或 `managedFields` 等 apiserver 生成字段。
 - 任一对象校验失败时 `axisml-core` 保持 not ready。
 
-`ConfigResourceCatalog` 和 `StaticTenantStoreProvider` 持有启动时解析出的不可变快照。配置变更需要重启 `axisml-core` 并重新执行跨对象校验；已持久化的 workload Spec 保留原 ResourceUnit 快照。
+`ConfigResourceCatalog` 和 `StaticTenantStore` 持有启动时解析出的不可变快照。配置变更需要重启 `axisml-core` 并重新执行跨对象校验；已持久化的 workload Spec 保留原 ResourceUnit 快照。
 
 ### 5.2 Compute Service
 
@@ -524,7 +558,6 @@ Traefik 使用 file provider：
 - Workspace 数据：每个 workspace 独立 named volume，删除策略与现有 Workspace 语义一致。
 - Run 输出 / TensorBoard 日志：S3 前缀，与 Kubernetes 版路径约定一致。
 - Model / Image：zot；Dataset：S3。
-- 临时文件：`/var/lib/axisml/runtime` 受管目录。
 
 所有持久目录支持独立备份。业务对象进入 `Deleted` 且保留策略允许时，Runtime 删除对应 volume / prefix。
 
@@ -629,7 +662,7 @@ Job、Service、Workspace、TensorBoard 和 TrafficPolicy 在目标环境通过 
 
 | 决策项 | 决策 |
 | --- | --- |
-| 代码组织 | AxisML monorepo 顶层 `axisml-lite/` 单个 Go module 与 Dockerfile，经仓库内 `go.work` / `replace` 依赖公共装配 API 与 workload contract，构建单一 `axisml-core` 镜像 |
+| 代码组织 | AxisML monorepo 顶层 `axisml-lite/`，Go module 落在 `axisml-core/`，经 `go.mod` 仓库内 `replace` 指令依赖公共装配 API 与 workload contract，构建单一 `axisml-core` 镜像 |
 | 部署入口 | Docker Compose 管固定服务，`axisml-core` 内置的 Standalone Compute Runtime 动态管用户 workload |
 | Standalone binary | `axisml-platform` + `axisml-core`；`axisml-core` 装配三个 System 服务并进程内实现 `ComputeRuntime` 的 Standalone Runtime，独占 Docker socket |
 | 运行时 | Docker Engine API |
@@ -647,6 +680,7 @@ Job、Service、Workspace、TensorBoard 和 TrafficPolicy 在目标环境通过 
 ## 11. 关联文档
 
 - [AxisML 高层设计](../../docs/high_level_design.md)
+- [配置手册](../../docs/configuration.md)
 - [System 层概要](../../axisml-system/docs/system_design/overview.md)
 - [Compute Service](../../axisml-system/docs/system_design/compute-service.md)
 - [Compute Operator](../../axisml-system/docs/system_design/compute-operator.md)
