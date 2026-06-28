@@ -11,8 +11,9 @@ MINIKUBE_PROFILE ?= axisml
 
 BACKEND_DIR    := backend
 FRONTEND_DIR   := frontend
-BACKEND_IMAGE  ?= ghcr.io/axisml/axisml-platform-backend:$(IMAGE_TAG)
-FRONTEND_IMAGE ?= ghcr.io/axisml/axisml-platform-frontend:$(IMAGE_TAG)
+WEB_DIR        := $(BACKEND_DIR)/internal/web/dist
+# Single Platform image: backend binary that also serves the frontend SPA.
+PLATFORM_IMAGE ?= ghcr.io/axisml/axisml-platform:$(IMAGE_TAG)
 BACKEND_MODULE := github.com/axisml/axisml/components/platform
 OAPI_CODEGEN   ?= go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.4.1
 SPEC_DIR       := $(REPO_ROOT)/axisml-system/docs/apis
@@ -30,10 +31,10 @@ build: ## Build the backend binary
 	@cd $(BACKEND_DIR) && CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o bin/axisml-platform-backend ./cmd/platform-backend
 test: ## Unit-test the backend
 	@cd $(BACKEND_DIR) && go test ./...
-image: ## Build the backend image (repo root as build context)
-	@docker build -f $(CURDIR)/$(BACKEND_DIR)/Dockerfile -t $(BACKEND_IMAGE) $(REPO_ROOT)
-image-load: image ## Build + load the backend image into minikube
-	@minikube image load $(BACKEND_IMAGE)
+image: ## Build the Platform image — frontend SPA + backend in one (repo root as build context)
+	@docker build -f $(CURDIR)/Dockerfile -t $(PLATFORM_IMAGE) $(REPO_ROOT)
+image-load: image ## Build + load the Platform image into minikube
+	@minikube image load $(PLATFORM_IMAGE)
 integration: ## Backend integration tests (in-process httptest)
 	@cd $(BACKEND_DIR)/test/integration && go test -tags=integration -count=1 -timeout=10m ./...
 coverage: ## Backend unit coverage
@@ -66,13 +67,17 @@ tidy: ## go mod tidy the backend
 clean: ## Remove backend + frontend build artifacts
 	@rm -rf $(BACKEND_DIR)/bin $(BACKEND_DIR)/coverage
 	@rm -rf $(FRONTEND_DIR)/dist $(FRONTEND_DIR)/build $(FRONTEND_DIR)/node_modules/.cache $(FRONTEND_DIR)/tsconfig.tsbuildinfo
+	@find $(WEB_DIR) -mindepth 1 ! -name index.html ! -name .gitignore -delete 2>/dev/null || true
+	@git -C $(REPO_ROOT) checkout -- $(WEB_DIR)/index.html 2>/dev/null || true
 
-# --- Frontend (pnpm; scaffold, not in the default aggregate yet) ---
-.PHONY: frontend-install frontend-build frontend-test frontend-gen-api frontend-gen-mock frontend-lint frontend-dev frontend-image frontend-image-load
+# --- Frontend (pnpm; built into the Platform image via the Dockerfile) ---
+.PHONY: frontend-install frontend-build frontend-stage frontend-test frontend-gen-api frontend-gen-mock frontend-lint frontend-dev
 frontend-install: ## pnpm install
 	@cd $(FRONTEND_DIR) && $(PNPM) install
 frontend-build: ## Build the frontend bundle
 	@cd $(FRONTEND_DIR) && $(PNPM) run build
+frontend-stage: frontend-build ## Build the SPA and stage it into the backend's static dir (for a local `make build` that serves the real frontend)
+	@cp -r $(FRONTEND_DIR)/dist/. $(WEB_DIR)/
 frontend-test: ## Frontend unit tests
 	@cd $(FRONTEND_DIR) && $(PNPM) test
 frontend-gen-api: ## Regenerate the typed API client + mock fixtures from docs/apis/platform.yaml
@@ -83,10 +88,6 @@ frontend-lint: ## Lint the frontend
 	@cd $(FRONTEND_DIR) && $(PNPM) run lint
 frontend-dev: ## Start the frontend dev server
 	@cd $(FRONTEND_DIR) && $(PNPM) run dev
-frontend-image: ## Build the frontend image
-	@docker build -t $(FRONTEND_IMAGE) $(FRONTEND_DIR)
-frontend-image-load: frontend-image ## Build + load the frontend image into minikube
-	@minikube image load $(FRONTEND_IMAGE)
 
 # --- Helm (platform layer) ---
 HELM_RELEASE    ?= axisml-platform

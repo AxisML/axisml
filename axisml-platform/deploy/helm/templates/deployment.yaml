@@ -2,18 +2,18 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "axisml.fullname" . }}-backend
+  name: {{ include "axisml.fullname" . }}
   labels:
-    {{- include "axisml.componentLabels" (dict "context" . "component" "backend") | nindent 4 }}
+    {{- include "axisml.componentLabels" (dict "context" . "component" "platform") | nindent 4 }}
 spec:
   replicas: {{ .Values.platform.replicaCount }}
   selector:
     matchLabels:
-      {{- include "axisml.componentSelectorLabels" (dict "context" . "component" "backend") | nindent 6 }}
+      {{- include "axisml.componentSelectorLabels" (dict "context" . "component" "platform") | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "axisml.componentLabels" (dict "context" . "component" "backend") | nindent 8 }}
+        {{- include "axisml.componentLabels" (dict "context" . "component" "platform") | nindent 8 }}
     spec:
       {{- with .Values.global.imagePullSecrets }}
       imagePullSecrets:
@@ -36,7 +36,7 @@ spec:
             - name: AXISML_DATABASE_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "axisml.fullname" . }}-backend-db
+                  name: {{ include "axisml.fullname" . }}-db
                   key: password
             {{- with .Values.platform.bootstrap.passwordSecret }}
             - name: AXISML_BOOTSTRAP_PASSWORD
@@ -46,7 +46,7 @@ spec:
                   key: {{ .key }}
             {{- end }}
       containers:
-        - name: backend
+        - name: platform
           image: {{ include "axisml.image" (dict "imageRoot" .Values.platform.image "global" .Values.global "chart" .Chart) }}
           imagePullPolicy: {{ .Values.platform.image.pullPolicy }}
           args: ["serve"]
@@ -66,13 +66,13 @@ spec:
             - name: AXISML_DATABASE_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "axisml.fullname" . }}-backend-db
+                  name: {{ include "axisml.fullname" . }}-db
                   key: password
             {{- if .Values.cache.enabled }}
             - name: AXISML_CACHE_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "axisml.fullname" . }}-backend-cache
+                  name: {{ include "axisml.fullname" . }}-cache
                   key: password
             {{- end }}
             # Stable RS256 signing key so login tokens survive pod restarts and
@@ -84,7 +84,7 @@ spec:
                   name: {{ .name }}
                   key: {{ .key }}
                   {{- else }}
-                  name: {{ include "axisml.fullname" . }}-backend-jwt
+                  name: {{ include "axisml.fullname" . }}-jwt
                   key: private-key.pem
                   {{- end }}
             {{- range $key, $value := .Values.platform.env }}
@@ -108,5 +108,5 @@ spec:
       volumes:
         - name: config
           configMap:
-            name: {{ include "axisml.fullname" . }}-backend
+            name: {{ include "axisml.fullname" . }}
 {{- end }}
