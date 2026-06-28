@@ -46,6 +46,27 @@ func (r *SessionRepo) Revoke(ctx context.Context, jti string) error {
 		Update("revoked", true).Error
 }
 
+// RevokeAllForUser revokes every active session of a user and returns the jtis
+// it revoked. Used to invalidate outstanding tokens on password change /
+// account deletion so a leaked-then-reset credential cannot keep its sessions.
+func (r *SessionRepo) RevokeAllForUser(ctx context.Context, userID string) ([]string, error) {
+	var jtis []string
+	if err := r.db.WithContext(ctx).Model(&Session{}).
+		Where("user_id = ? AND revoked = ?", userID, false).
+		Pluck("jti", &jtis).Error; err != nil {
+		return nil, err
+	}
+	if len(jtis) == 0 {
+		return nil, nil
+	}
+	if err := r.db.WithContext(ctx).Model(&Session{}).
+		Where("user_id = ? AND revoked = ?", userID, false).
+		Update("revoked", true).Error; err != nil {
+		return nil, err
+	}
+	return jtis, nil
+}
+
 // DeleteExpired purges sessions whose tokens have already expired, returning the
 // number of rows removed. Run periodically: IsActive ignores expired rows, but
 // nothing else GCs them, so the table would grow unbounded.

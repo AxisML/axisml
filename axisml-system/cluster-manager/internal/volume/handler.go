@@ -175,6 +175,9 @@ func writeK8sError(c *gin.Context, err error, name string) {
 			"operation not supported in this deployment form", name)
 	case apierrors.IsNotFound(err):
 		srv.AbortWithProblem(c, http.StatusNotFound, "NotFound", "resource not found", name)
+	case apierrors.IsConflict(err):
+		srv.AbortWithProblem(c, http.StatusConflict, "OptimisticLockConflict",
+			"resource was modified concurrently — retry", name)
 	case apierrors.IsInvalid(err):
 		srv.AbortWithProblem(c, http.StatusUnprocessableEntity, "Invalid",
 			"K8s API rejected the volume", err.Error())

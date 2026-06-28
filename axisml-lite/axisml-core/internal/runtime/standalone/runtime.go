@@ -1,15 +1,15 @@
-// Package docker is the in-process Standalone Docker implementation of the
-// published extensions.ComputeRuntime contract. It lives under
-// internal/runtime/ — the home for engine-specific runtime backends (a future
-// podman/containerd backend would be a sibling). It receives the same
-// MLRun / MLService / MLTrafficPolicy desired objects the Kubernetes runtime
-// does and maps them onto Docker containers, volumes, networks and Traefik
-// dynamic config, then reports status back as the corresponding CR Status.
+// Package standalone is the in-process Standalone Runtime: the single-host
+// implementation of the published extensions.ComputeRuntime contract used by
+// AxisML Lite. It lives under internal/runtime/ — the home for runtime
+// backends. It receives the same MLRun / MLService / MLTrafficPolicy desired
+// objects the Kubernetes runtime does and maps them onto Docker containers,
+// volumes, networks and Traefik dynamic config, then reports status back as the
+// corresponding CR Status.
 //
 // This adapter is the only code in axisml-core that touches the Docker socket.
 // The Compute domain layer drives it purely through the ComputeRuntime
 // interface, exactly as it drives the Kubernetes runtime (design §3.1, §4).
-package docker
+package standalone
 
 import (
 	"context"
@@ -46,7 +46,7 @@ const (
 	KindTraffic = "traffic-policy"
 )
 
-// Config configures the Docker runtime adapter.
+// Config configures the Standalone runtime adapter.
 type Config struct {
 	// Network dynamic workloads join (Traefik also joins it to route them).
 	WorkloadsNetwork string

@@ -1,10 +1,17 @@
 package nativehttproute
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	mltp "github.com/axisml/axisml/components/compute-operator/api/mltrafficpolicy/v1alpha1"
@@ -82,6 +89,65 @@ func TestValidate_JWTAuthRejectedUntilWired(t *testing.T) {
 	// auth.type=none stays valid.
 	spec.Endpoint.Auth = &mltp.EndpointAuth{Type: mltp.EndpointAuthNone}
 	assert.True(t, h.Validate(spec).OK())
+}
+
+func reconcileScheme(t *testing.T) *runtime.Scheme {
+	t.Helper()
+	s := runtime.NewScheme()
+	require.NoError(t, corev1.AddToScheme(s))
+	require.NoError(t, gwapiv1.Install(s))
+	require.NoError(t, mltp.AddToScheme(s))
+	return s
+}
+
+func svc(ns, name string, port int32) *corev1.Service {
+	return &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{Namespace: ns, Name: name},
+		Spec:       corev1.ServiceSpec{Ports: []corev1.ServicePort{{Name: "http", Port: port}}},
+	}
+}
+
+func weightedPolicy() *mltp.MLTrafficPolicy {
+	p := &mltp.MLTrafficPolicy{Spec: *weightedSpec()}
+	p.Name = "chat"
+	p.Namespace = "acme"
+	p.Labels = map[string]string{mltp.LabelTrafficPolicyID: "uuid-chat", mltp.LabelTenant: "acme"}
+	return p
+}
+
+// A weighted policy whose member services do not all resolve must NOT program a
+// partial route (Gateway API would renormalise weights onto the survivors and
+// shift traffic). Reconcile errors to requeue and no HTTPRoute is created.
+func TestReconcile_PartialMembers_HoldsRouteAndErrors(t *testing.T) {
+	s := reconcileScheme(t)
+	c := fake.NewClientBuilder().WithScheme(s).
+		WithObjects(svc("acme", "chat-v1", 8080)). // chat-v2 missing
+		Build()
+	h := &Handler{client: c}
+
+	_, err := h.Reconcile(context.Background(), weightedPolicy())
+	require.Error(t, err, "expected reconcile to hold and requeue on partial member set")
+
+	routes := &gwapiv1.HTTPRouteList{}
+	require.NoError(t, c.List(context.Background(), routes, client.InNamespace("acme")))
+	assert.Empty(t, routes.Items, "no HTTPRoute should be programmed from a partial member set")
+}
+
+// Once every member resolves, the weighted route is programmed with all members.
+func TestReconcile_AllMembers_ProgramsWeightedRoute(t *testing.T) {
+	s := reconcileScheme(t)
+	c := fake.NewClientBuilder().WithScheme(s).
+		WithObjects(svc("acme", "chat-v1", 8080), svc("acme", "chat-v2", 8080)).
+		Build()
+	h := &Handler{client: c}
+
+	_, err := h.Reconcile(context.Background(), weightedPolicy())
+	require.NoError(t, err)
+
+	route := &gwapiv1.HTTPRoute{}
+	require.NoError(t, c.Get(context.Background(), types.NamespacedName{Namespace: "acme", Name: "chat"}, route))
+	require.Len(t, route.Spec.Rules, 1)
+	assert.Len(t, route.Spec.Rules[0].BackendRefs, 2)
 }
 
 func TestBuildHTTPRoute_WeightsPortsHostPath(t *testing.T) {

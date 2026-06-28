@@ -12,19 +12,22 @@ import (
 
 // Handler serves the Auth and Users tags.
 type Handler struct {
-	svc   *Service
-	authn *auth.Authenticator
+	svc        *Service
+	authn      *auth.Authenticator
+	loginLimit *auth.RateLimiter
 }
 
 // NewHandler constructs the identity Handler.
 func NewHandler(svc *Service, authn *auth.Authenticator) *Handler {
-	return &Handler{svc: svc, authn: authn}
+	// Throttle /auth/login per client IP to blunt online password brute-force:
+	// burst of 10, refilling 0.2/s (~1 attempt every 5s sustained).
+	return &Handler{svc: svc, authn: authn, loginLimit: auth.NewRateLimiter(10, 0.2)}
 }
 
 // Register mounts auth + users routes.
 func (h *Handler) Register(rg *gin.RouterGroup) {
 	a := rg.Group("/auth")
-	a.POST("/login", h.login)
+	a.POST("/login", h.loginLimit.Middleware(auth.ClientIPKey), h.login)
 	authed := a.Group("", h.authn.RequireAuthenticated())
 	authed.POST("/logout", h.logout)
 	authed.POST("/refresh", h.refresh)

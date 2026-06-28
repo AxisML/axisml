@@ -12,7 +12,7 @@ A single Go binary, **`axisml-core`**, folds the three System modules (Cluster M
 axisml-lite/
 ├── axisml-core/          # Go module → single axisml-core image
 │   ├── cmd/              # axisml-core (serve / migrate) · config-doc-gen · openapi-gen
-│   ├── internal/runtime/docker/   # ComputeRuntime Docker implementation
+│   ├── internal/runtime/standalone/   # Standalone Runtime — ComputeRuntime over the Docker Engine API
 │   ├── pkg/core/         # module assembly, config-backed providers, Config/Settings, PG coordination
 │   └── examples/embed/   # embedding axisml-core as a library
 ├── deploy/               # docker-compose.yaml + config/ (default ResourcePool + Tenant YAML)

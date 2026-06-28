@@ -52,7 +52,10 @@ func (s *ResourcePoolStore) Create(ctx context.Context, pool *cmv1alpha1.Resourc
 }
 
 func (s *ResourcePoolStore) Patch(ctx context.Context, obj, base *cmv1alpha1.ResourcePool) error {
-	return s.c.Patch(ctx, obj, client.MergeFrom(base))
+	// MergeFromWithOptimisticLock embeds base's resourceVersion as a precondition
+	// so a concurrent write makes the API server return 409; mutateWithRetry then
+	// re-reads and replays the mutation. A plain MergeFrom would silently clobber.
+	return s.c.Patch(ctx, obj, client.MergeFromWithOptions(base, client.MergeFromWithOptimisticLock{}))
 }
 
 func (s *ResourcePoolStore) Delete(ctx context.Context, name string) error {
@@ -99,7 +102,9 @@ func (s *TenantStore) Create(ctx context.Context, tenant *tenantv1alpha1.Tenant)
 }
 
 func (s *TenantStore) Patch(ctx context.Context, obj, base *tenantv1alpha1.Tenant) error {
-	return s.c.Patch(ctx, obj, client.MergeFrom(base))
+	// Optimistic lock: surface concurrent writes as 409 so mutateWithRetry replays
+	// the mutation against a fresh read rather than silently overwriting.
+	return s.c.Patch(ctx, obj, client.MergeFromWithOptions(base, client.MergeFromWithOptimisticLock{}))
 }
 
 func (s *TenantStore) Delete(ctx context.Context, name string) error {

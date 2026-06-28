@@ -31,6 +31,8 @@ func statusFor(class apperrors.Class) int {
 		return http.StatusGone
 	case apperrors.ClassUnprocessable:
 		return http.StatusUnprocessableEntity
+	case apperrors.ClassTooManyReq:
+		return http.StatusTooManyRequests
 	case apperrors.ClassUpstream:
 		return http.StatusBadGateway
 	case apperrors.ClassUnavailable:

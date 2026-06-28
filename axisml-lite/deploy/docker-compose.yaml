@@ -2,7 +2,7 @@
 #
 # Default (no profile) brings up the Lite control plane: PostgreSQL + axisml-core
 # (Cluster Manager + Compute Service + Artifact Hub + the in-process Standalone
-# Docker runtime). Optional profiles add storage (zot/rustfs), the gateway
+# runtime). Optional profiles add storage (zot/rustfs), the gateway
 # (traefik) and the Platform (single image: API + UI on :8080):
 #
 #   docker compose up -d                                   # db + axisml-core

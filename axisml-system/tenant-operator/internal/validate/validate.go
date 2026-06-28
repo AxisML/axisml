@@ -7,8 +7,10 @@ package validate
 import (
 	"fmt"
 	"regexp"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	axisml "github.com/axisml/axisml/components/tenant-operator/api/v1alpha1"
@@ -180,9 +182,113 @@ func validateInitResources(ir axisml.InitResources) error {
 				return fmt.Errorf("spec.initResources.serviceAccounts[%d].rbac.roleRef.name is required when roleRef is set", i)
 			}
 		}
+		// The operator writes inline rbac.rules verbatim into a per-tenant Role
+		// using its own (powerful) credentials, which bypasses the API server's
+		// privilege-escalation guard. Reject rules that would let a tenant SA
+		// grant itself more rights or become namespace admin (defense in depth,
+		// even though Tenant CRs are authored by trusted system components).
+		if sa.RBAC != nil {
+			if err := validateRBACRules(i, sa.RBAC.Rules); err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil
+}
+
+// escalationVerbs are RBAC verbs that exist only to widen privileges; a tenant
+// SA has no legitimate use for them, so any rule granting them is rejected.
+var escalationVerbs = map[string]struct{}{
+	"escalate":    {},
+	"bind":        {},
+	"impersonate": {},
+}
+
+// rbacResources are the resources through which a SA could rewrite its own
+// authorization; write access to them is privilege escalation.
+var rbacResources = map[string]struct{}{
+	"roles":               {},
+	"rolebindings":        {},
+	"clusterroles":        {},
+	"clusterrolebindings": {},
+}
+
+// writeVerbs grant mutation; combined with an RBAC resource they let a SA
+// self-grant.
+var writeVerbs = map[string]struct{}{
+	"create": {}, "update": {}, "patch": {}, "delete": {}, "deletecollection": {},
+}
+
+// validateRBACRules rejects inline Role rules that would escalate privileges:
+// the escalate/bind/impersonate verbs, write access to RBAC resources, and a
+// full apiGroups=* / resources=* / verbs=* namespace-admin grant.
+func validateRBACRules(saIdx int, rules []rbacv1.PolicyRule) error {
+	for j, rule := range rules {
+		verbs := toLowerSet(rule.Verbs)
+		groups := toLowerSet(rule.APIGroups)
+		resources := toLowerSet(rule.Resources)
+		wildcardVerb := setHas(verbs, "*")
+
+		for v := range escalationVerbs {
+			if setHas(verbs, v) || wildcardVerb {
+				return fmt.Errorf(
+					"spec.initResources.serviceAccounts[%d].rbac.rules[%d] grants the %q verb, which would let the tenant escalate privileges",
+					saIdx, j, pickVerb(verbs, v, wildcardVerb))
+			}
+		}
+
+		touchesRBAC := setHas(groups, "rbac.authorization.k8s.io") || setHas(groups, "*")
+		if touchesRBAC {
+			rbacResource := setHas(resources, "*")
+			for r := range rbacResources {
+				if setHas(resources, r) {
+					rbacResource = true
+				}
+			}
+			if rbacResource {
+				for w := range writeVerbs {
+					if setHas(verbs, w) || wildcardVerb {
+						return fmt.Errorf(
+							"spec.initResources.serviceAccounts[%d].rbac.rules[%d] grants write access to RBAC resources, which would let the tenant grant itself more permissions",
+							saIdx, j)
+					}
+				}
+			}
+		}
+
+		if setHas(groups, "*") && setHas(resources, "*") && wildcardVerb {
+			return fmt.Errorf(
+				"spec.initResources.serviceAccounts[%d].rbac.rules[%d] is a full wildcard (apiGroups/resources/verbs all \"*\"), granting namespace-admin",
+				saIdx, j)
+		}
+	}
+	return nil
+}
+
+func toLowerSet(in []string) map[string]struct{} {
+	out := make(map[string]struct{}, len(in))
+	for _, s := range in {
+		out[strings.ToLower(s)] = struct{}{}
+	}
+	return out
+}
+
+func setHas(set map[string]struct{}, key string) bool {
+	_, ok := set[key]
+	return ok
+}
+
+// pickVerb reports the offending verb name for the error message: the explicit
+// escalation verb if present, otherwise "*".
+func pickVerb(verbs map[string]struct{}, candidate string, wildcard bool) string {
+	if setHas(verbs, candidate) {
+		return candidate
+	}
+	if wildcard {
+		return "*"
+	}
+	return candidate
 }
 
 func uniqueNames(field string, names []string) (map[string]struct{}, error) {

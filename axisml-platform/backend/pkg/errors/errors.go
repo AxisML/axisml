@@ -22,6 +22,7 @@ const (
 	ClassConflict      Class = "conflict"             // 409
 	ClassGone          Class = "gone"                 // 410
 	ClassUnprocessable Class = "unprocessable_entity" // 422
+	ClassTooManyReq    Class = "too_many_requests"    // 429
 	ClassUpstream      Class = "upstream_failure"     // 502
 	ClassUnavailable   Class = "service_unavailable"  // 503
 	ClassInternal      Class = "internal_error"       // 500

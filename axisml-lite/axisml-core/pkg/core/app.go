@@ -21,7 +21,7 @@ import (
 	"github.com/axisml/axisml/components/compute-service/pkg/logging"
 	computemodule "github.com/axisml/axisml/components/compute-service/pkg/module"
 
-	"github.com/axisml/axisml/axisml-lite/axisml-core/internal/runtime/docker"
+	"github.com/axisml/axisml/axisml-lite/axisml-core/internal/runtime/standalone"
 )
 
 // Runnable is the common shape of every background loop the modules expose (the
@@ -110,7 +110,7 @@ func New(ctx context.Context, cfg Config, opts ...Option) (app *App, err error) 
 	tenants := NewStaticTenantStore(static.Tenant)
 
 	// DOCKER_HOST is read by the Docker SDK (client.FromEnv); no config key.
-	dcli, err := docker.NewClient("")
+	dcli, err := standalone.NewClient("")
 	if err != nil {
 		return nil, fmt.Errorf("docker client: %w", err)
 	}
@@ -119,7 +119,7 @@ func New(ctx context.Context, cfg Config, opts ...Option) (app *App, err error) 
 			_ = dcli.Close()
 		}
 	}()
-	rt := docker.New(dcli, docker.Config{
+	rt := standalone.New(dcli, standalone.Config{
 		WorkloadsNetwork: o.settings.WorkloadsNetwork,
 		Tenant:           DefaultName,
 		TraefikDir:       o.settings.GatewayConfigDir,
