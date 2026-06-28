@@ -125,26 +125,45 @@ components:
       - namespace
       type: object
     Capabilities:
+      example:
+        multiTenant: true
+        resourcePoolsWritable: true
       properties:
         multiTenant:
+          description: Whether Tenant CRUD is available (false = single static default
+            tenant).
           type: boolean
         resourcePoolsWritable:
+          description: Whether ResourcePool CRUD is available (false = single read-only
+            default pool).
           type: boolean
       required:
       - multiTenant
       - resourcePoolsWritable
       type: object
     ClusterManagerError:
+      example:
+        code: NotFound
+        detail: ResourcePool "gpu-a100" not found.
+        status: 404
+        title: Not found
+        type: about:blank
       properties:
         code:
+          description: Stable machine-readable error code for programmatic handling.
           type: string
         detail:
+          description: Human-readable explanation specific to this occurrence.
           type: string
         status:
+          description: HTTP status code for this occurrence of the problem.
           type: integer
         title:
+          description: Short, human-readable summary of the problem.
           type: string
         type:
+          description: URI reference identifying the problem type (RFC 7807); about:blank
+            when unspecified.
           type: string
       required:
       - status
@@ -167,178 +186,297 @@ components:
           type: string
       type: object
     CreateResourcePoolRequest:
+      example:
+        description: A100 GPU resource pool.
+        labels:
+          tier: gpu
+        name: gpu-a100
+        nodeSelector:
+          axisml.io/gpu: a100
+        tolerations:
+        - effect: NoSchedule
+          key: nvidia.com/gpu
+          operator: Exists
+        units:
+        - description: 2× A100 GPU compute unit.
+          limits:
+            cpu: "16"
+            memory: 128Gi
+            nvidia.com/gpu: "2"
+          name: a100-2x
+          nodeSelector:
+            axisml.io/gpu: a100
+          requests:
+            cpu: "16"
+            memory: 128Gi
+            nvidia.com/gpu: "2"
       properties:
         annotations:
           additionalProperties:
             type: string
+          description: User-defined annotations to set on the pool.
           type: object
         description:
+          description: Human-readable description of the pool.
           type: string
         labels:
           additionalProperties:
             type: string
+          description: User-defined labels to set on the pool.
           type: object
         name:
+          description: Pool name to create; must be unique and DNS-1123 compliant.
           type: string
         nodeSelector:
           additionalProperties:
             type: string
+          description: Node labels that workloads scheduled into this pool must match.
           type: object
         tolerations:
+          description: Tolerations applied to workloads scheduled into this pool.
           items:
             $ref: '#/components/schemas/Corev1Toleration'
           type: array
         units:
+          description: Initial set of resource units to create inline with the pool.
           items:
             $ref: '#/components/schemas/ServerCreateResourceUnitRequest'
           type: array
       type: object
     CreateResourceUnitRequest:
+      example:
+        description: 2× A100 GPU compute unit.
+        limits:
+          cpu: "16"
+          memory: 128Gi
+          nvidia.com/gpu: "2"
+        name: a100-2x
+        nodeSelector:
+          axisml.io/gpu: a100
+        requests:
+          cpu: "16"
+          memory: 128Gi
+          nvidia.com/gpu: "2"
       properties:
         annotations:
           additionalProperties:
             type: string
+          description: User-defined annotations to set on the unit.
           type: object
         description:
+          description: Human-readable description of the unit.
           type: string
         limits:
           additionalProperties:
             description: Kubernetes resource.Quantity.
             type: string
-          description: Map of resource name (cpu, memory, nvidia.com/gpu, …) to resource.Quantity.
+          description: Resource limits per quantity of this unit.
           type: object
         name:
+          description: Unit name to create; unique within the pool.
           type: string
         nodeSelector:
           additionalProperties:
             type: string
+          description: Node labels workloads using this unit must match.
           type: object
         requests:
           additionalProperties:
             description: Kubernetes resource.Quantity.
             type: string
-          description: Map of resource name (cpu, memory, nvidia.com/gpu, …) to resource.Quantity.
+          description: Resource requests granted per quantity of this unit.
           type: object
       type: object
     CreateTenantRequest:
+      example:
+        labels:
+          displayName: Vision Team
+        name: team-vision
+        namespace:
+          name: team-vision
+        quotas:
+        - pool: gpu-a100
+          units:
+          - quantity: 4
+            unitName: a100-2x
       properties:
         annotations:
           additionalProperties:
             type: string
+          description: User-defined annotations to set on the tenant.
           type: object
         initResources:
           allOf:
           - $ref: '#/components/schemas/Apiv1alpha1InitResources'
+          description: Per-tenant init resources to seed on provisioning.
           nullable: true
         labels:
           additionalProperties:
             type: string
+          description: User-defined labels to set on the tenant.
           type: object
         name:
+          description: Tenant identifier to create; becomes the CR name, namespace,
+            and partition string.
           type: string
         namespace:
           allOf:
           - $ref: '#/components/schemas/Apiv1alpha1NamespaceSpec'
+          description: Optional namespace specification; defaults are derived from
+            the tenant name when omitted.
           nullable: true
         quotas:
+          description: Initial per-pool quotas to grant the tenant.
           items:
             $ref: '#/components/schemas/ServerQuota'
           type: array
       type: object
     CreateVolumeRequest:
+      example:
+        name: axisml-ws-notebook-data
+        namespace: team-vision
+        size: 50Gi
+        storageClass: fast-ssd
       properties:
         name:
+          description: Deterministic volume name supplied by the caller.
           type: string
         namespace:
+          description: Physical Kubernetes namespace to materialise the volume in.
           type: string
         size:
+          description: Requested storage size as a Kubernetes quantity (e.g. 50Gi).
           type: string
         storageClass:
+          description: StorageClass to back the volume; cluster default when empty.
           type: string
       type: object
     PatchQuotaRequest:
+      example:
+        units:
+        - quantity: 6
+          unitName: a100-2x
       properties:
         units:
+          description: Replacement unit × quantity selections for the pool quota.
           items:
             $ref: '#/components/schemas/ServerQuotaUnit'
           type: array
       type: object
     PatchResourcePoolRequest:
+      example:
+        description: A100 GPU resource pool (updated).
+        labels:
+          region: cn-east
+          tier: gpu
       properties:
         annotations:
           additionalProperties:
             type: string
+          description: Replacement annotations for the pool.
           type: object
         description:
+          description: New description; omit to leave unchanged, empty string to clear.
           nullable: true
           type: string
         labels:
           additionalProperties:
             type: string
+          description: Replacement labels for the pool.
           type: object
         nodeSelector:
           additionalProperties:
             type: string
+          description: Replacement node selector for the pool.
           type: object
         tolerations:
+          description: Replacement tolerations for the pool.
           items:
             $ref: '#/components/schemas/Corev1Toleration'
           type: array
       type: object
     PatchResourceUnitRequest:
+      example:
+        description: 2× A100 GPU compute unit (updated).
+        limits:
+          cpu: "24"
+          memory: 192Gi
+          nvidia.com/gpu: "2"
       properties:
         annotations:
           additionalProperties:
             type: string
+          description: Replacement annotations for the unit.
           type: object
         description:
+          description: New description; omit to leave unchanged, empty string to clear.
           nullable: true
           type: string
         limits:
           additionalProperties:
             description: Kubernetes resource.Quantity.
             type: string
-          description: Map of resource name (cpu, memory, nvidia.com/gpu, …) to resource.Quantity.
+          description: Replacement resource limits for the unit.
           type: object
         nodeSelector:
           additionalProperties:
             type: string
+          description: Replacement node selector for the unit.
           type: object
         requests:
           additionalProperties:
             description: Kubernetes resource.Quantity.
             type: string
-          description: Map of resource name (cpu, memory, nvidia.com/gpu, …) to resource.Quantity.
+          description: Replacement resource requests for the unit.
           type: object
       type: object
     PatchTenantRequest:
+      example:
+        labels:
+          displayName: Vision Team
+          region: cn-east
+        namespaceLabels:
+          team: vision
       properties:
         annotations:
           additionalProperties:
             type: string
+          description: Replacement annotations for the tenant.
           type: object
         initResources:
           allOf:
           - $ref: '#/components/schemas/Apiv1alpha1InitResources'
+          description: Replacement per-tenant init resources.
           nullable: true
         labels:
           additionalProperties:
             type: string
+          description: Replacement labels for the tenant.
           type: object
         namespaceAnnotations:
           additionalProperties:
             type: string
+          description: Replacement annotations applied to the tenant's namespace.
           type: object
         namespaceLabels:
           additionalProperties:
             type: string
+          description: Replacement labels applied to the tenant's namespace.
           type: object
       type: object
     Quota:
+      example:
+        pool: gpu-a100
+        units:
+        - quantity: 4
+          unitName: a100-2x
       properties:
         pool:
+          description: ResourcePool this quota applies to.
           type: string
         units:
+          description: Unit × quantity selections granted to the tenant under this
+            pool.
           items:
             $ref: '#/components/schemas/ServerQuotaUnit'
           type: array
@@ -347,10 +485,19 @@ components:
       - units
       type: object
     QuotaList:
+      example:
+        count: 1
+        items:
+        - pool: gpu-a100
+          units:
+          - quantity: 4
+            unitName: a100-2x
       properties:
         count:
+          description: Number of quotas returned.
           type: integer
         items:
+          description: The tenant's per-pool quotas.
           items:
             $ref: '#/components/schemas/ServerQuota'
           type: array
@@ -384,37 +531,78 @@ components:
       - verbs
       type: object
     ResourcePool:
+      example:
+        annotations:
+          axisml.io/managed-by: platform
+        createdAt: "2026-06-20T08:00:00Z"
+        description: A100 GPU resource pool.
+        labels:
+          tier: gpu
+        name: gpu-a100
+        nodeSelector:
+          axisml.io/gpu: a100
+        resourceVersion: "184729"
+        tolerations:
+        - effect: NoSchedule
+          key: nvidia.com/gpu
+          operator: Exists
+        units:
+        - annotations:
+            axisml.io/managed-by: platform
+          description: 2× A100 GPU compute unit.
+          limits:
+            cpu: "16"
+            memory: 128Gi
+            nvidia.com/gpu: "2"
+          name: a100-2x
+          nodeSelector:
+            axisml.io/gpu: a100
+          requests:
+            cpu: "16"
+            memory: 128Gi
+            nvidia.com/gpu: "2"
+        updatedAt: "2026-06-28T09:30:00Z"
       properties:
         annotations:
           additionalProperties:
             type: string
+          description: User-defined annotations on the pool.
           type: object
         createdAt:
+          description: Pool creation timestamp (RFC3339).
           format: date-time
           type: string
         description:
+          description: Human-readable description of the pool.
           type: string
         labels:
           additionalProperties:
             type: string
+          description: User-defined labels on the pool.
           type: object
         name:
+          description: Pool name; the stable, immutable handle (CR metadata.name).
           type: string
         nodeSelector:
           additionalProperties:
             type: string
+          description: Node labels that workloads scheduled into this pool must match.
           type: object
         resourceVersion:
+          description: Opaque CR resourceVersion for optimistic concurrency.
           type: string
         tolerations:
+          description: Tolerations applied to workloads scheduled into this pool.
           items:
             $ref: '#/components/schemas/Corev1Toleration'
           type: array
         units:
+          description: Resource units (allocatable shapes) offered by this pool.
           items:
             $ref: '#/components/schemas/ServerResourceUnit'
           type: array
         updatedAt:
+          description: Last modification timestamp (RFC3339).
           format: date-time
           type: string
       required:
@@ -423,12 +611,49 @@ components:
       - units
       type: object
     ResourcePoolList:
+      example:
+        continueToken: ""
+        count: 1
+        items:
+        - annotations:
+            axisml.io/managed-by: platform
+          createdAt: "2026-06-20T08:00:00Z"
+          description: A100 GPU resource pool.
+          labels:
+            tier: gpu
+          name: gpu-a100
+          nodeSelector:
+            axisml.io/gpu: a100
+          resourceVersion: "184729"
+          tolerations:
+          - effect: NoSchedule
+            key: nvidia.com/gpu
+            operator: Exists
+          units:
+          - annotations:
+              axisml.io/managed-by: platform
+            description: 2× A100 GPU compute unit.
+            limits:
+              cpu: "16"
+              memory: 128Gi
+              nvidia.com/gpu: "2"
+            name: a100-2x
+            nodeSelector:
+              axisml.io/gpu: a100
+            requests:
+              cpu: "16"
+              memory: 128Gi
+              nvidia.com/gpu: "2"
+          updatedAt: "2026-06-28T09:30:00Z"
       properties:
         continueToken:
+          description: Opaque token to fetch the next page; empty when no more pages.
           type: string
         count:
+          description: Number of pools in this page.
           type: integer
         items:
+          description: Page of resource pools.
           items:
             $ref: '#/components/schemas/ServerResourcePool'
           type: array
@@ -437,30 +662,51 @@ components:
       - items
       type: object
     ResourceUnit:
+      example:
+        annotations:
+          axisml.io/managed-by: platform
+        description: 2× A100 GPU compute unit.
+        limits:
+          cpu: "16"
+          memory: 128Gi
+          nvidia.com/gpu: "2"
+        name: a100-2x
+        nodeSelector:
+          axisml.io/gpu: a100
+        requests:
+          cpu: "16"
+          memory: 128Gi
+          nvidia.com/gpu: "2"
       properties:
         annotations:
           additionalProperties:
             type: string
+          description: User-defined annotations on the unit.
           type: object
         description:
+          description: Human-readable description of the unit.
           type: string
         limits:
           additionalProperties:
             description: Kubernetes resource.Quantity.
             type: string
-          description: Map of resource name (cpu, memory, nvidia.com/gpu, …) to resource.Quantity.
+          description: Resource limits per quantity of this unit.
           type: object
         name:
+          description: Unit name; unique within the pool and immutable.
           type: string
         nodeSelector:
           additionalProperties:
             type: string
+          description: Node labels workloads using this unit must match (overrides
+            the pool selector).
           type: object
         requests:
           additionalProperties:
             description: Kubernetes resource.Quantity.
             type: string
-          description: Map of resource name (cpu, memory, nvidia.com/gpu, …) to resource.Quantity.
+          description: Resource requests granted per quantity of this unit (e.g. cpu,
+            memory, nvidia.com/gpu).
           type: object
       required:
       - limits
@@ -468,10 +714,29 @@ components:
       - requests
       type: object
     ResourceUnitList:
+      example:
+        count: 1
+        items:
+        - annotations:
+            axisml.io/managed-by: platform
+          description: 2× A100 GPU compute unit.
+          limits:
+            cpu: "16"
+            memory: 128Gi
+            nvidia.com/gpu: "2"
+          name: a100-2x
+          nodeSelector:
+            axisml.io/gpu: a100
+          requests:
+            cpu: "16"
+            memory: 128Gi
+            nvidia.com/gpu: "2"
       properties:
         count:
+          description: Number of units returned.
           type: integer
         items:
+          description: Resource units in the pool.
           items:
             $ref: '#/components/schemas/ServerResourceUnit'
           type: array
@@ -484,26 +749,30 @@ components:
         annotations:
           additionalProperties:
             type: string
+          description: User-defined annotations to set on the unit.
           type: object
         description:
+          description: Human-readable description of the unit.
           type: string
         limits:
           additionalProperties:
             description: Kubernetes resource.Quantity.
             type: string
-          description: Map of resource name (cpu, memory, nvidia.com/gpu, …) to resource.Quantity.
+          description: Resource limits per quantity of this unit.
           type: object
         name:
+          description: Unit name to create; unique within the pool.
           type: string
         nodeSelector:
           additionalProperties:
             type: string
+          description: Node labels workloads using this unit must match.
           type: object
         requests:
           additionalProperties:
             description: Kubernetes resource.Quantity.
             type: string
-          description: Map of resource name (cpu, memory, nvidia.com/gpu, …) to resource.Quantity.
+          description: Resource requests granted per quantity of this unit.
           type: object
       required:
       - limits
@@ -513,8 +782,11 @@ components:
     ServerQuota:
       properties:
         pool:
+          description: ResourcePool this quota applies to.
           type: string
         units:
+          description: Unit × quantity selections granted to the tenant under this
+            pool.
           items:
             $ref: '#/components/schemas/ServerQuotaUnit'
           type: array
@@ -525,14 +797,16 @@ components:
     ServerQuotaStatus:
       properties:
         pool:
+          description: ResourcePool this quota status applies to.
           type: string
         ready:
+          description: Whether the ElasticQuota for this pool is provisioned and ready.
           type: boolean
         used:
           additionalProperties:
             description: Kubernetes resource.Quantity.
             type: string
-          description: Map of resource name (cpu, memory, nvidia.com/gpu, …) to resource.Quantity.
+          description: Live resource usage from koord-scheduler via the ElasticQuota.
           type: object
       required:
       - pool
@@ -541,8 +815,10 @@ components:
     ServerQuotaUnit:
       properties:
         quantity:
+          description: How many of this unit the tenant is granted under the pool.
           type: integer
         unitName:
+          description: Name of the ResourceUnit being granted.
           type: string
       required:
       - quantity
@@ -553,33 +829,43 @@ components:
         annotations:
           additionalProperties:
             type: string
+          description: User-defined annotations on the pool.
           type: object
         createdAt:
+          description: Pool creation timestamp (RFC3339).
           format: date-time
           type: string
         description:
+          description: Human-readable description of the pool.
           type: string
         labels:
           additionalProperties:
             type: string
+          description: User-defined labels on the pool.
           type: object
         name:
+          description: Pool name; the stable, immutable handle (CR metadata.name).
           type: string
         nodeSelector:
           additionalProperties:
             type: string
+          description: Node labels that workloads scheduled into this pool must match.
           type: object
         resourceVersion:
+          description: Opaque CR resourceVersion for optimistic concurrency.
           type: string
         tolerations:
+          description: Tolerations applied to workloads scheduled into this pool.
           items:
             $ref: '#/components/schemas/Corev1Toleration'
           type: array
         units:
+          description: Resource units (allocatable shapes) offered by this pool.
           items:
             $ref: '#/components/schemas/ServerResourceUnit'
           type: array
         updatedAt:
+          description: Last modification timestamp (RFC3339).
           format: date-time
           type: string
       required:
@@ -592,26 +878,32 @@ components:
         annotations:
           additionalProperties:
             type: string
+          description: User-defined annotations on the unit.
           type: object
         description:
+          description: Human-readable description of the unit.
           type: string
         limits:
           additionalProperties:
             description: Kubernetes resource.Quantity.
             type: string
-          description: Map of resource name (cpu, memory, nvidia.com/gpu, …) to resource.Quantity.
+          description: Resource limits per quantity of this unit.
           type: object
         name:
+          description: Unit name; unique within the pool and immutable.
           type: string
         nodeSelector:
           additionalProperties:
             type: string
+          description: Node labels workloads using this unit must match (overrides
+            the pool selector).
           type: object
         requests:
           additionalProperties:
             description: Kubernetes resource.Quantity.
             type: string
-          description: Map of resource name (cpu, memory, nvidia.com/gpu, …) to resource.Quantity.
+          description: Resource requests granted per quantity of this unit (e.g. cpu,
+            memory, nvidia.com/gpu).
           type: object
       required:
       - limits
@@ -623,33 +915,46 @@ components:
         annotations:
           additionalProperties:
             type: string
+          description: User-defined annotations on the tenant.
           type: object
         createdAt:
+          description: Tenant creation timestamp (RFC3339).
           format: date-time
           type: string
         initResources:
           allOf:
           - $ref: '#/components/schemas/Apiv1alpha1InitResources'
+          description: Per-tenant init resources (Secrets, ConfigMaps, ServiceAccount,
+            RBAC) seeded on provisioning.
           nullable: true
         labels:
           additionalProperties:
             type: string
+          description: User-defined labels on the tenant.
           type: object
         name:
+          description: Canonical tenant identifier; also the CR name, K8s namespace,
+            and partition string.
           type: string
         namespace:
-          $ref: '#/components/schemas/Apiv1alpha1NamespaceSpec'
+          allOf:
+          - $ref: '#/components/schemas/Apiv1alpha1NamespaceSpec'
+          description: Backing namespace specification for the tenant.
         phase:
+          description: High-level provisioning phase of the tenant.
           type: string
         quotas:
+          description: Per-pool quotas in business form (unit × quantity selections).
           items:
             $ref: '#/components/schemas/ServerQuota'
           type: array
         resourceVersion:
+          description: Opaque CR resourceVersion for optimistic concurrency.
           type: string
         status:
           allOf:
           - $ref: '#/components/schemas/ServerTenantStatus'
+          description: Live operator-written status read from the CR.
           nullable: true
       required:
       - createdAt
@@ -660,60 +965,145 @@ components:
     ServerTenantStatus:
       properties:
         message:
+          description: Human-readable detail about the current phase.
           type: string
         namespaceReady:
+          description: Whether the tenant's namespace has been provisioned.
           type: boolean
         observedGeneration:
+          description: Generation of the spec the operator last reconciled.
           format: int64
           type: integer
         phase:
+          description: Current reconciliation phase reported by the operator.
           type: string
         quotas:
+          description: Per-pool quota readiness and live usage.
           items:
             $ref: '#/components/schemas/ServerQuotaStatus'
           type: array
       type: object
     SetQuotaRequest:
+      example:
+        pool: gpu-a100
+        units:
+        - quantity: 4
+          unitName: a100-2x
       properties:
         pool:
+          description: ResourcePool to create or replace the quota for.
           type: string
         units:
+          description: Unit × quantity selections that make up the pool quota.
           items:
             $ref: '#/components/schemas/ServerQuotaUnit'
           type: array
       type: object
     Tenant:
+      example:
+        annotations:
+          axisml.io/last-modified-by: li.wei
+        createdAt: "2026-06-20T08:00:00Z"
+        initResources:
+          configMaps:
+          - name: shared-config
+            sourceConfigMapRef:
+              name: tenant-shared-config
+              namespace: axisml-system
+          imagePullSecrets:
+          - name: registry-pull
+            sourceSecretRef:
+              name: registry-pull-credentials
+              namespace: axisml-system
+          secrets:
+          - name: wandb-api-key
+            sourceSecretRef:
+              name: wandb-api-key
+              namespace: axisml-system
+            type: Opaque
+          serviceAccounts:
+          - imagePullSecrets:
+            - registry-pull
+            name: trainer
+            rbac:
+              rules:
+              - apiGroups:
+                - ""
+                resources:
+                - pods
+                - pods/log
+                verbs:
+                - get
+                - list
+                - watch
+        labels:
+          displayName: Vision Team
+        name: team-vision
+        namespace:
+          name: team-vision
+        phase: Ready
+        quotas:
+        - pool: gpu-a100
+          units:
+          - quantity: 4
+            unitName: a100-2x
+        resourceVersion: "184730"
+        status:
+          message: Namespace and quotas provisioned.
+          namespaceReady: true
+          observedGeneration: 3
+          phase: Ready
+          quotas:
+          - pool: gpu-a100
+            ready: true
+            used:
+              cpu: "32"
+              memory: 256Gi
+              nvidia.com/gpu: "4"
       properties:
         annotations:
           additionalProperties:
             type: string
+          description: User-defined annotations on the tenant.
           type: object
         createdAt:
+          description: Tenant creation timestamp (RFC3339).
           format: date-time
           type: string
         initResources:
           allOf:
           - $ref: '#/components/schemas/Apiv1alpha1InitResources'
+          description: Per-tenant init resources (Secrets, ConfigMaps, ServiceAccount,
+            RBAC) seeded on provisioning.
           nullable: true
         labels:
           additionalProperties:
             type: string
+          description: User-defined labels on the tenant.
           type: object
         name:
+          description: Canonical tenant identifier; also the CR name, K8s namespace,
+            and partition string.
           type: string
         namespace:
-          $ref: '#/components/schemas/Apiv1alpha1NamespaceSpec'
+          allOf:
+          - $ref: '#/components/schemas/Apiv1alpha1NamespaceSpec'
+          description: Backing namespace specification for the tenant.
         phase:
+          description: High-level provisioning phase of the tenant.
           type: string
         quotas:
+          description: Per-pool quotas in business form (unit × quantity selections).
           items:
             $ref: '#/components/schemas/ServerQuota'
           type: array
         resourceVersion:
+          description: Opaque CR resourceVersion for optimistic concurrency.
           type: string
         status:
           allOf:
           - $ref: '#/components/schemas/ServerTenantStatus'
+          description: Live operator-written status read from the CR.
           nullable: true
       required:
       - createdAt
@@ -722,12 +1112,78 @@ components:
       - quotas
       type: object
     TenantList:
+      example:
+        continueToken: ""
+        count: 1
+        items:
+        - annotations:
+            axisml.io/last-modified-by: li.wei
+          createdAt: "2026-06-20T08:00:00Z"
+          initResources:
+            configMaps:
+            - name: shared-config
+              sourceConfigMapRef:
+                name: tenant-shared-config
+                namespace: axisml-system
+            imagePullSecrets:
+            - name: registry-pull
+              sourceSecretRef:
+                name: registry-pull-credentials
+                namespace: axisml-system
+            secrets:
+            - name: wandb-api-key
+              sourceSecretRef:
+                name: wandb-api-key
+                namespace: axisml-system
+              type: Opaque
+            serviceAccounts:
+            - imagePullSecrets:
+              - registry-pull
+              name: trainer
+              rbac:
+                rules:
+                - apiGroups:
+                  - ""
+                  resources:
+                  - pods
+                  - pods/log
+                  verbs:
+                  - get
+                  - list
+                  - watch
+          labels:
+            displayName: Vision Team
+          name: team-vision
+          namespace:
+            name: team-vision
+          phase: Ready
+          quotas:
+          - pool: gpu-a100
+            units:
+            - quantity: 4
+              unitName: a100-2x
+          resourceVersion: "184730"
+          status:
+            message: Namespace and quotas provisioned.
+            namespaceReady: true
+            observedGeneration: 3
+            phase: Ready
+            quotas:
+            - pool: gpu-a100
+              ready: true
+              used:
+                cpu: "32"
+                memory: 256Gi
+                nvidia.com/gpu: "4"
       properties:
         continueToken:
+          description: Opaque token to fetch the next page; empty when no more pages.
           type: string
         count:
+          description: Number of tenants in this page.
           type: integer
         items:
+          description: Page of tenants.
           items:
             $ref: '#/components/schemas/ServerTenant'
           type: array
@@ -736,14 +1192,23 @@ components:
       - items
       type: object
     Volume:
+      example:
+        name: axisml-ws-notebook-data
+        namespace: team-vision
+        size: 50Gi
+        storageClass: fast-ssd
       properties:
         name:
+          description: Volume (PersistentVolumeClaim) name.
           type: string
         namespace:
+          description: Physical Kubernetes namespace holding the volume.
           type: string
         size:
+          description: Requested storage size as a Kubernetes quantity (e.g. 50Gi).
           type: string
         storageClass:
+          description: StorageClass backing the volume; cluster default when empty.
           type: string
       required:
       - name

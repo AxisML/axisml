@@ -10,20 +10,20 @@ import (
 // cluster-manager (a PersistentVolumeClaim in Kubernetes, a managed Docker
 // volume in Lite). Identified by the (namespace, name) tuple; no CR, no id.
 type Volume struct {
-	Namespace    string `json:"namespace"`
-	Name         string `json:"name"`
-	Size         string `json:"size,omitempty"`
-	StorageClass string `json:"storageClass,omitempty"`
+	Namespace    string `json:"namespace" desc:"Physical Kubernetes namespace holding the volume."`
+	Name         string `json:"name" desc:"Volume (PersistentVolumeClaim) name."`
+	Size         string `json:"size,omitempty" desc:"Requested storage size as a Kubernetes quantity (e.g. 50Gi)."`
+	StorageClass string `json:"storageClass,omitempty" desc:"StorageClass backing the volume; cluster default when empty."`
 }
 
 // CreateVolumeRequest is the body for POST /api/v1/volumes. The caller supplies
 // the deterministic name (e.g. a workspace's axisml-ws-<svc>-data) and the
 // physical namespace; cluster-manager materialises the backing volume.
 type CreateVolumeRequest struct {
-	Namespace    string `json:"namespace"`
-	Name         string `json:"name"`
-	Size         string `json:"size"`
-	StorageClass string `json:"storageClass,omitempty"`
+	Namespace    string `json:"namespace" desc:"Physical Kubernetes namespace to materialise the volume in."`
+	Name         string `json:"name" desc:"Deterministic volume name supplied by the caller."`
+	Size         string `json:"size" desc:"Requested storage size as a Kubernetes quantity (e.g. 50Gi)."`
+	StorageClass string `json:"storageClass,omitempty" desc:"StorageClass to back the volume; cluster default when empty."`
 }
 
 // APIToPVC builds the PersistentVolumeClaim the VolumeManager materialises from

@@ -22,21 +22,31 @@ working unchanged.
 
 ```
 api/client.ts ── createClientConfig() sets { fetch: mockFetch } when USE_MOCK
-   └── mock/index.ts   mockFetch(Request) → Response   (+ simulated latency)
-        └── mock/router.ts   method + path → handler   (":param" path matching)
-             └── mock/data.ts   fixtures (typed as the generated API types)
+   └── mock/index.ts        mockFetch(Request) → Response   (+ simulated latency)
+        └── mock/router.ts        method + path → handler   (":param" path matching)
+             └── mock/data.ts          fixtures (typed as the generated API types)
+                  └── mock/examples.gen.ts   whole-object examples lifted from the spec
 ```
 
-- `data.ts` — the fixtures. Shapes are the generated types, so anything that
-  compiles renders exactly as it would against a live backend. Values are grounded
-  in `axisml-platform/docs/product_design/prototype`.
+- `examples.gen.ts` — **generated, do not edit.** `pnpm run gen:mock` (also run by
+  `gen:api`, and `make -C axisml-platform frontend-gen-mock`) reads the
+  `components.schemas.*.example` blocks out of `axisml-platform/docs/apis/platform.yaml`
+  and writes them here, keyed by schema name. Those examples are authored on the Go
+  DTOs (`axisml-platform/backend/cmd/openapi-gen/examples_*.go`), so the fixtures
+  can never drift from the API contract.
+- `data.ts` — pulls each entity via the typed `ex<T>("SchemaName")` accessor and
+  clones it into a few rows so list pages show variety. A few helpers (pod logs,
+  metric series, the cluster-usage dashboard) have no endpoint in the contract and
+  stay synthesized here, marked demo-only.
 - `router.ts` — one line per endpoint. Unknown GETs fall back to an empty list and
   unknown writes to `{}`, so a missing route degrades gracefully instead of hanging.
 - `index.ts` — the `fetch` shim + the `VITE_USE_MOCK_API` flag.
 
 ## Adding / changing data
 
-Edit `data.ts` (add an item to an array) or `router.ts` (add an `on(method, path,
-handler)` line). No backend, codegen or restart-of-anything required beyond the
-normal Vite HMR.
+To change an entity's **canonical** shape or values, edit its example on the Go DTO
+(`examples_*.go`), run `make -C axisml-platform doc-gen` then `pnpm run gen:mock`.
+For list variety or demo-only helpers, edit `data.ts` directly (no codegen needed —
+Vite HMR picks it up). Add endpoints with an `on(method, path, handler)` line in
+`router.ts`.
 </content>

@@ -17,7 +17,7 @@ import (
 // each module's document from its own service instead; Platform forwards this
 // verbatim (design §5.5).
 type Capabilities struct {
-	Components map[string]any `json:"components"`
+	Components map[string]any `json:"components" desc:"Per-component capability documents, keyed by component name (cluster-manager / compute-service / artifact-hub)."`
 }
 
 // aggregateCapabilities folds the three modules' capability documents into the

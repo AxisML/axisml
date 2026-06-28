@@ -3,58 +3,107 @@
 components:
   schemas:
     Artifact:
+      example:
+        annotations:
+          git-commit: 8c1f4e2
+        createdAt: "2026-06-20T08:00:00Z"
+        description: ResNet-50 image-classification model pretrained on ImageNet.
+        digest: sha256:9b2c1f4e22a74c0e9b1d7f3a2e5c9a108c1f4e222b7a4c0e9b1d7f3a2e5c9a10
+        displayName: ResNet-50
+        id: 8c1f4e22-2b7a-4c0e-9b1d-7f3a2e5c9a10
+        kind: model
+        labels:
+          stage: production
+          team: vision
+        name: resnet50
+        namespace: team-vision
+        owner: li.wei
+        readyAt: "2026-06-28T09:30:00Z"
+        source: webUpload
+        spec:
+          format: safetensors
+          framework: pytorch
+          parameters: 25.6M
+          task: image-classification
+        status: Ready
+        updatedAt: "2026-06-28T09:30:00Z"
+        version: 1.4.0
+        visibility: tenant
       properties:
         annotations:
           additionalProperties:
             type: string
+          description: Non-identifying metadata annotations.
           type: object
         createdAt:
+          description: Creation timestamp (RFC3339).
           format: date-time
           type: string
         deletedAt:
+          description: Soft-delete timestamp, set when the artifact is being removed
+            (RFC3339).
           format: date-time
           nullable: true
           type: string
         description:
+          description: Free-form description of the artifact.
           type: string
         digest:
+          description: Content digest of the stored artifact, set once the upload
+            completes.
           type: string
         displayName:
+          description: Human-readable name for display.
           type: string
         id:
+          description: Stable artifact identifier (UUID).
           format: uuid
           type: string
         kind:
+          description: Artifact kind (model, dataset, image).
           type: string
         labels:
           additionalProperties:
             type: string
+          description: K8s-style labels used for selector filtering.
           type: object
         message:
+          description: Human-readable detail for the current status (e.g. failure
+            reason).
           type: string
         name:
+          description: Artifact name, unique within (namespace, kind).
           type: string
         namespace:
+          description: Tenant namespace the artifact belongs to (= compute tenants.name).
           type: string
         owner:
+          description: Identity that owns the artifact version.
           type: string
         readyAt:
+          description: Timestamp the artifact became Ready (RFC3339).
           format: date-time
           nullable: true
           type: string
         source:
+          description: Provenance of the version (webUpload, oras, dockerPush, external).
           type: string
         spec:
           additionalProperties: {}
+          description: Kind-specific free-form specification of the artifact.
           type: object
         status:
+          description: Lifecycle status (Pending, Ready, Failed, Deleting).
           type: string
         updatedAt:
+          description: Last-update timestamp (RFC3339).
           format: date-time
           type: string
         version:
+          description: Artifact version (free-form string).
           type: string
         visibility:
+          description: Access scope of the artifact (tenant or public).
           type: string
       required:
       - createdAt
@@ -69,13 +118,24 @@ components:
       - visibility
       type: object
     ArtifactCompleteRequest:
+      example:
+        digest: sha256:9b2c1f4e22a74c0e9b1d7f3a2e5c9a108c1f4e222b7a4c0e9b1d7f3a2e5c9a10
       properties:
         digest:
+          description: Content digest of the pushed artifact, finalizing the two-phase
+            write.
           type: string
       required:
       - digest
       type: object
     ArtifactHubError:
+      example:
+        code: not_found
+        detail: model team-vision/resnet50@1.4.0 not found
+        instance: /api/v1/namespaces/team-vision/models/resnet50/1.4.0
+        status: 404
+        title: artifact not found
+        type: https://axisml.io/errors/not_found
       properties:
         code:
           description: Discrete business error class.
@@ -91,17 +151,24 @@ components:
           - gone
           type: string
         detail:
+          description: Human-readable explanation specific to this occurrence.
           type: string
         details:
           additionalProperties: {}
+          description: Structured, machine-readable detail about the problem.
           type: object
         instance:
+          description: URI reference identifying the specific occurrence (the request
+            path).
           type: string
         status:
+          description: HTTP status code for this occurrence of the problem.
           type: integer
         title:
+          description: Short, human-readable summary of the problem.
           type: string
         type:
+          description: URI reference identifying the problem type.
           type: string
       required:
       - code
@@ -110,48 +177,139 @@ components:
       - type
       type: object
     ArtifactInitiateRequest:
+      example:
+        annotations:
+          git-commit: 8c1f4e2
+        description: ResNet-50 image-classification model pretrained on ImageNet.
+        displayName: ResNet-50
+        labels:
+          stage: production
+          team: vision
+        source: webUpload
+        spec:
+          format: safetensors
+          framework: pytorch
+          parameters: 25.6M
+          task: image-classification
+        version: 1.4.0
+        visibility: tenant
       properties:
         annotations:
           additionalProperties:
             type: string
+          description: Non-identifying metadata annotations.
           type: object
         description:
+          description: Free-form description of the artifact.
           type: string
         displayName:
+          description: Human-readable name for display.
           type: string
         labels:
           additionalProperties:
             type: string
+          description: K8s-style labels used for selector filtering.
           type: object
         source:
+          description: Provenance of the version (webUpload, oras, dockerPush, external);
+            external registers a remote artifact with no upload.
           type: string
         sourceUri:
+          description: Remote URI of the artifact; required when source is external.
           type: string
         spec:
           additionalProperties: {}
+          description: Kind-specific free-form specification of the artifact.
           type: object
         version:
+          description: Version string to create for the artifact name.
           maxLength: 64
           minLength: 1
           pattern: ^[a-zA-Z0-9._-]+$
           type: string
         visibility:
+          description: Access scope of the artifact (tenant or public); defaults to
+            tenant.
           type: string
       required:
       - spec
       - version
       type: object
     ArtifactInitiateResponse:
+      example:
+        artifact:
+          createdAt: "2026-06-20T08:00:00Z"
+          description: ResNet-50 image-classification model pretrained on ImageNet.
+          displayName: ResNet-50
+          id: 8c1f4e22-2b7a-4c0e-9b1d-7f3a2e5c9a10
+          kind: model
+          labels:
+            stage: production
+            team: vision
+          name: resnet50
+          namespace: team-vision
+          owner: li.wei
+          source: webUpload
+          spec:
+            format: safetensors
+            framework: pytorch
+            parameters: 25.6M
+            task: image-classification
+          status: Pending
+          updatedAt: "2026-06-20T08:00:00Z"
+          version: 1.4.0
+          visibility: tenant
+        upload:
+          credentials:
+            expires_at: "2026-06-28T10:30:00Z"
+            password: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.upload-token
+            username: team-vision
+          expiresAt: "2026-06-28T10:30:00Z"
+          storageKind: oci
+          uri: oci://registry.axisml.io/team-vision/resnet50:1.4.0
       properties:
         artifact:
-          $ref: '#/components/schemas/Artifact'
+          allOf:
+          - $ref: '#/components/schemas/Artifact'
+          description: The newly persisted artifact version (status Pending until
+            upload completes).
         upload:
-          $ref: '#/components/schemas/UploadCredentials'
+          allOf:
+          - $ref: '#/components/schemas/UploadCredentials'
+          description: Upload target and credentials for pushing the artifact content.
       required:
       - artifact
       - upload
       type: object
     ArtifactList:
+      example:
+        items:
+        - annotations:
+            git-commit: 8c1f4e2
+          createdAt: "2026-06-20T08:00:00Z"
+          description: ResNet-50 image-classification model pretrained on ImageNet.
+          digest: sha256:9b2c1f4e22a74c0e9b1d7f3a2e5c9a108c1f4e222b7a4c0e9b1d7f3a2e5c9a10
+          displayName: ResNet-50
+          id: 8c1f4e22-2b7a-4c0e-9b1d-7f3a2e5c9a10
+          kind: model
+          labels:
+            stage: production
+            team: vision
+          name: resnet50
+          namespace: team-vision
+          owner: li.wei
+          readyAt: "2026-06-28T09:30:00Z"
+          source: webUpload
+          spec:
+            format: safetensors
+            framework: pytorch
+            parameters: 25.6M
+            task: image-classification
+          status: Ready
+          updatedAt: "2026-06-28T09:30:00Z"
+          version: 1.4.0
+          visibility: tenant
+        total: 1
       properties:
         items:
           items:
@@ -165,51 +323,89 @@ components:
       - total
       type: object
     ArtifactPatchRequest:
+      example:
+        annotations:
+          reviewed-by: zhang.san
+        description: Updated description.
+        displayName: ResNet-50 (production)
+        labels:
+          stage: production
+          team: vision
       properties:
         annotations:
           additionalProperties:
             type: string
+          description: Replacement metadata annotations; omit to leave unchanged.
           type: object
         description:
+          description: New free-form description; omit to leave unchanged.
           nullable: true
           type: string
         displayName:
+          description: New human-readable display name; omit to leave unchanged.
           nullable: true
           type: string
         labels:
           additionalProperties:
             type: string
+          description: Replacement K8s-style labels; omit to leave unchanged.
           type: object
       type: object
     ArtifactResolveResponse:
+      example:
+        digest: sha256:9b2c1f4e22a74c0e9b1d7f3a2e5c9a108c1f4e222b7a4c0e9b1d7f3a2e5c9a10
+        expiresAt: "2026-06-28T10:30:00Z"
+        pullCredentials:
+          expires_at: "2026-06-28T10:30:00Z"
+          password: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.upload-token
+          username: team-vision
+        storageKind: oci
+        uri: oci://registry.axisml.io/team-vision/resnet50:1.4.0
+        visibility: tenant
       properties:
         digest:
+          description: Content digest of the resolved artifact.
           type: string
         expiresAt:
+          description: Expiry of the pull credentials (RFC3339).
           format: date-time
           nullable: true
           type: string
         pullCredentials:
           allOf:
           - $ref: '#/components/schemas/OciCredentials'
+          description: Pull credentials, omitted for public artifacts that need none.
           nullable: true
         storageKind:
+          description: Storage backend kind serving the artifact (e.g. oci).
           type: string
         uri:
+          description: Storage URI the client pulls the artifact content from.
           type: string
         visibility:
+          description: Persisted visibility of the artifact (tenant or public).
           type: string
       required:
       - storageKind
       - uri
       type: object
     Capabilities:
+      example:
+        kinds:
+        - model
+        - dataset
+        - image
+        upload: true
       properties:
         kinds:
+          description: Artifact kinds served in this deployment form (model, dataset,
+            image).
           items:
             type: string
           type: array
         upload:
+          description: Whether two-phase artifact upload is available in this deployment
+            form.
           type: boolean
       required:
       - kinds
@@ -218,11 +414,14 @@ components:
     OciCredentials:
       properties:
         expires_at:
+          description: Expiry of the credentials (RFC3339).
           format: date-time
           type: string
         password:
+          description: Password (or token) for authenticating to the OCI storage backend.
           type: string
         username:
+          description: Username for authenticating to the OCI storage backend.
           type: string
       required:
       - expires_at
@@ -232,13 +431,18 @@ components:
     UploadCredentials:
       properties:
         credentials:
-          $ref: '#/components/schemas/OciCredentials'
+          allOf:
+          - $ref: '#/components/schemas/OciCredentials'
+          description: Push-capable credentials for the upload target.
         expiresAt:
+          description: Expiry of the upload credentials (RFC3339).
           format: date-time
           type: string
         storageKind:
+          description: Storage backend kind backing the upload (e.g. oci).
           type: string
         uri:
+          description: Target storage URI the client pushes the artifact content to.
           type: string
       required:
       - credentials

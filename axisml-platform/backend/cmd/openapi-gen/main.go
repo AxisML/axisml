@@ -13,12 +13,17 @@
 //
 //	go run ./cmd/openapi-gen -o ../docs/apis/platform.yaml
 //
+// Field descriptions come from `desc:"..."` struct tags (reflected by the
+// engine); whole-object `example`s are authored per schema in examples_*.go and
+// attached via Generator.SetExample. The frontend mock fixtures are generated
+// from those examples (axisml-platform/frontend/scripts/gen-mock.mjs), so the
+// demo data can't drift from the contract.
+//
 // Limitations vs the hand-written design spec: the openapigen engine models
 // only `components/schemas` (not `components/parameters` / `responses` /
-// `securitySchemes`), and does not carry field/schema descriptions or `default`
-// values. Shared parameters/responses are therefore inlined per operation and
-// the bearer-JWT security scheme is omitted — matching the other components'
-// generated specs.
+// `securitySchemes`), and does not carry `default` values. Shared
+// parameters/responses are therefore inlined per operation and the bearer-JWT
+// security scheme is omitted — matching the other components' generated specs.
 package main
 
 import (
@@ -106,6 +111,7 @@ func buildDocument(version string) *openapigen.Document {
 	})
 
 	registerSchemas(g)
+	registerExamples(g)
 
 	return &openapigen.Document{
 		OpenAPI: "3.0.3",

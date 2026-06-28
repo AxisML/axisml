@@ -15,7 +15,8 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "test": "vitest run --passWithNoTests",
-    "gen:api": "openapi-ts"
+    "gen:api": "openapi-ts && pnpm run gen:mock",
+    "gen:mock": "node scripts/gen-mock.mjs"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.2.9",
@@ -47,11 +48,13 @@
     "@eslint/js": "^9.17.0",
     "@hey-api/openapi-ts": "^0.64.0",
     "@tailwindcss/vite": "^4.3.1",
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.10.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.4",
     "eslint": "^9.17.0",
+    "js-yaml": "^5.2.0",
     "postcss": "^8.5.15",
     "tailwindcss": "^4.3.1",
     "typescript": "^5.7.0",

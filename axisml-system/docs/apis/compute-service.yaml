@@ -3,19 +3,37 @@
 components:
   schemas:
     Capabilities:
+      example:
+        quotaEnforcement: true
+        runtime: kubernetes
       properties:
         quotaEnforcement:
+          description: True when the scheduler admits pods against an ElasticQuota
+            (Kubernetes form); false on the Lite Standalone runtime.
           type: boolean
         runtime:
+          description: Workload execution engine for this deployment form (kubernetes
+            or standalone).
           type: string
       required:
       - quotaEnforcement
       - runtime
       type: object
     ComputeServiceError:
+      example:
+        code: quota_exceeded
+        detail: requested 8 nvidia.com/gpu exceeds the remaining quota of 2
+        details:
+          available: "2"
+          requested: "8"
+          resource: nvidia.com/gpu
+        instance: /api/v1/namespaces/team-vision/mlruns
+        status: 422
+        title: ElasticQuota team-vision exhausted
+        type: https://axisml.io/errors/quota_exceeded
       properties:
         code:
-          description: Discrete business error class.
+          description: Discrete business error class for programmatic handling.
           enum:
           - validation_failed
           - not_found
@@ -28,17 +46,24 @@ components:
           - quota_exceeded
           type: string
         detail:
+          description: Human-readable explanation specific to this occurrence.
           type: string
         details:
           additionalProperties: {}
+          description: Optional structured field-level error details.
           type: object
         instance:
+          description: URI reference identifying the specific occurrence (the request
+            path).
           type: string
         status:
+          description: HTTP status code for this occurrence of the problem.
           type: integer
         title:
+          description: Short, human-readable summary of the problem.
           type: string
         type:
+          description: URI identifying the problem type (https://axisml.io/errors/<code>).
           type: string
       required:
       - code
@@ -1070,20 +1095,34 @@ components:
       - volumePath
       type: object
     Event:
+      example:
+        eventTime: "2026-06-28T09:30:00Z"
+        note: Successfully assigned team-vision/resnet-train-7-worker-0 to gpu-node-a100-03
+        object: Pod/resnet-train-7-worker-0
+        reason: Scheduled
+        reportingController: koord-scheduler
+        type: Normal
       properties:
         eventTime:
           allOf:
           - $ref: '#/components/schemas/Metav1Time'
+          description: Time the event was first observed.
           nullable: true
         note:
+          description: Human-readable description of the event.
           type: string
         object:
+          description: Target object as "<kind>/<name>".
           type: string
         reason:
+          description: Short machine-readable reason for the event (e.g. Scheduled,
+            Pulled).
           type: string
         reportingController:
+          description: Controller that reported the event.
           type: string
         type:
+          description: Event type (Normal or Warning).
           type: string
       required:
       - object
@@ -1091,6 +1130,15 @@ components:
       - type
       type: object
     EventList:
+      example:
+        items:
+        - eventTime: "2026-06-28T09:30:00Z"
+          note: Successfully assigned team-vision/resnet-train-7-worker-0 to gpu-node-a100-03
+          object: Pod/resnet-train-7-worker-0
+          reason: Scheduled
+          reportingController: koord-scheduler
+          type: Normal
+        total: 1
       properties:
         items:
           items:
@@ -1104,42 +1152,120 @@ components:
       - total
       type: object
     MLRun:
+      example:
+        annotations:
+          axisml.io/created-by: li.wei
+          git-commit: 8c1f4e2
+        createdAt: "2026-06-28T09:25:00Z"
+        description: Distributed ResNet-50 training on ImageNet.
+        displayName: 'ResNet-50 Training #7'
+        id: b7d9e3f1-1a2b-3c4d-5e6f-708192a3b4c5
+        labels:
+          team: vision
+        name: resnet-train-7
+        namespace: team-vision
+        owner: li.wei
+        phase: Running
+        spec:
+          backend:
+            engine: pytorchjob
+            name: kubeflow-trainer
+          roles:
+          - name: worker
+            replicas: 4
+            restartPolicy: OnFailure
+            template:
+              args:
+              - --epochs
+              - "90"
+              - --batch-size
+              - "256"
+              command:
+              - python
+              - train.py
+              env:
+              - name: NCCL_DEBUG
+                value: INFO
+              image: registry.axisml.io/training/resnet:1.4.0
+              resources:
+                limits:
+                  cpu: "8"
+                  memory: 64Gi
+                  nvidia.com/gpu: "2"
+                requests:
+                  cpu: "8"
+                  memory: 64Gi
+                  nvidia.com/gpu: "2"
+          runPolicy:
+            activeDeadlineSeconds: 86400
+            backoffLimit: 2
+            ttlSecondsAfterFinished: 3600
+          scheduling:
+            priorityClass: high-priority
+            quota: axisml-team-vision-gpu-a100-default
+        status:
+          conditions:
+          - lastTransitionTime: "2026-06-28T09:30:00Z"
+            message: Gang scheduled onto gpu-a100.
+            reason: PodGroupScheduled
+            status: "True"
+            type: Scheduled
+          message: All worker replicas ready.
+          startedAt: "2026-06-28T09:30:00Z"
+        updatedAt: "2026-06-28T09:45:00Z"
       properties:
         annotations:
           additionalProperties:
             type: string
+          description: User-defined annotations.
           type: object
         createdAt:
+          description: Time the run was created.
           format: date-time
           type: string
         deletedAt:
+          description: Soft-deletion timestamp, set once the run is deleted.
           format: date-time
           nullable: true
           type: string
         description:
+          description: Free-text run description.
           type: string
         displayName:
+          description: Human-readable run label.
           type: string
         id:
+          description: Stable run identifier (PG row UUID).
           format: uuid
           type: string
         labels:
           additionalProperties:
             type: string
+          description: User-defined labels.
           type: object
         name:
+          description: MLRun name, unique within the namespace.
           type: string
         namespace:
+          description: Namespace (= tenant identifier) the run belongs to.
           type: string
         owner:
+          description: Username of the run owner.
           type: string
         phase:
+          description: Current run lifecycle phase (Pending, Running, Succeeded, Failed).
           type: string
         spec:
-          $ref: '#/components/schemas/MLRunSpec'
+          allOf:
+          - $ref: '#/components/schemas/MLRunSpec'
+          description: Resolved MLRun spec sub-tree (backend, scheduling, roles, run
+            policy).
         status:
-          $ref: '#/components/schemas/MLRunStatus'
+          allOf:
+          - $ref: '#/components/schemas/MLRunStatus'
+          description: Operator-reported status sub-tree.
         updatedAt:
+          description: Time the run was last updated.
           format: date-time
           type: string
       required:
@@ -1169,50 +1295,112 @@ components:
     MLRunCondition:
       properties:
         lastTransitionTime:
+          description: Time the condition last changed status.
           format: date-time
           type: string
         message:
+          description: Human-readable detail for the condition.
           type: string
         reason:
+          description: Machine-readable reason for the condition's status.
           type: string
         status:
+          description: Condition status (True, False, Unknown).
           type: string
         type:
+          description: Condition type (e.g. Initialized, Scheduled, Suspended, Failed).
           type: string
       required:
       - status
       - type
       type: object
     MLRunCreateRequest:
+      example:
+        backend:
+          engine: pytorchjob
+          name: kubeflow-trainer
+        description: Distributed ResNet-50 training on ImageNet.
+        displayName: 'ResNet-50 Training #7'
+        labels:
+          team: vision
+        name: resnet-train-7
+        poolName: gpu-a100
+        quota: axisml-team-vision-gpu-a100-default
+        roles:
+        - name: worker
+          replicas: 4
+          restartPolicy: OnFailure
+          template:
+            args:
+            - --epochs
+            - "90"
+            - --batch-size
+            - "256"
+            command:
+            - python
+            - train.py
+            env:
+            - name: NCCL_DEBUG
+              value: INFO
+            image: registry.axisml.io/training/resnet:1.4.0
+            resources:
+              limits:
+                cpu: "8"
+                memory: 64Gi
+                nvidia.com/gpu: "2"
+              requests:
+                cpu: "8"
+                memory: 64Gi
+                nvidia.com/gpu: "2"
+        runPolicy:
+          activeDeadlineSeconds: 86400
+          backoffLimit: 2
+          ttlSecondsAfterFinished: 3600
+        unitName: a100-2x
       properties:
         annotations:
           additionalProperties:
             type: string
+          description: User-defined annotations stored on the row and stamped onto
+            the CR.
           type: object
         backend:
           allOf:
           - $ref: '#/components/schemas/MLRunBackendSpec'
+          description: Compute backend/engine that runs the workload; defaults to
+            (native, job) when omitted.
           nullable: true
         description:
+          description: Free-text run description.
           type: string
         displayName:
+          description: Human-readable run label.
           type: string
         labels:
           additionalProperties:
             type: string
+          description: User-defined labels stored on the row and stamped onto the
+            CR.
           type: object
         name:
+          description: MLRun name, unique within the namespace.
           maxLength: 40
           minLength: 3
           pattern: ^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])?$
           type: string
         poolName:
+          description: Resource pool name resolved against the ResourcePool CRD via
+            the Informer cache.
           type: string
         priorityClass:
+          description: Optional Kubernetes PriorityClass name for the run's pods.
           type: string
         quota:
+          description: ElasticQuota CR name (opaque) stamped onto Pod labels for koord-scheduler
+            admission.
           type: string
         roles:
+          description: Run topology roles (at least one).
           items:
             $ref: '#/components/schemas/MLRunRoleSpec'
           minItems: 1
@@ -1220,8 +1408,10 @@ components:
         runPolicy:
           allOf:
           - $ref: '#/components/schemas/MLRunRunPolicySpec'
+          description: Run-level execution limits (deadline, TTL, backoff).
           nullable: true
         unitName:
+          description: Resource unit (shape) name within the selected pool.
           type: string
       required:
       - name
@@ -1231,6 +1421,69 @@ components:
       - unitName
       type: object
     MLRunList:
+      example:
+        items:
+        - annotations:
+            axisml.io/created-by: li.wei
+            git-commit: 8c1f4e2
+          createdAt: "2026-06-28T09:25:00Z"
+          description: Distributed ResNet-50 training on ImageNet.
+          displayName: 'ResNet-50 Training #7'
+          id: b7d9e3f1-1a2b-3c4d-5e6f-708192a3b4c5
+          labels:
+            team: vision
+          name: resnet-train-7
+          namespace: team-vision
+          owner: li.wei
+          phase: Running
+          spec:
+            backend:
+              engine: pytorchjob
+              name: kubeflow-trainer
+            roles:
+            - name: worker
+              replicas: 4
+              restartPolicy: OnFailure
+              template:
+                args:
+                - --epochs
+                - "90"
+                - --batch-size
+                - "256"
+                command:
+                - python
+                - train.py
+                env:
+                - name: NCCL_DEBUG
+                  value: INFO
+                image: registry.axisml.io/training/resnet:1.4.0
+                resources:
+                  limits:
+                    cpu: "8"
+                    memory: 64Gi
+                    nvidia.com/gpu: "2"
+                  requests:
+                    cpu: "8"
+                    memory: 64Gi
+                    nvidia.com/gpu: "2"
+            runPolicy:
+              activeDeadlineSeconds: 86400
+              backoffLimit: 2
+              ttlSecondsAfterFinished: 3600
+            scheduling:
+              priorityClass: high-priority
+              quota: axisml-team-vision-gpu-a100-default
+          status:
+            conditions:
+            - lastTransitionTime: "2026-06-28T09:30:00Z"
+              message: Gang scheduled onto gpu-a100.
+              reason: PodGroupScheduled
+              status: "True"
+              type: Scheduled
+            message: All worker replicas ready.
+            startedAt: "2026-06-28T09:30:00Z"
+          updatedAt: "2026-06-28T09:45:00Z"
+        total: 1
       properties:
         items:
           items:
@@ -1244,20 +1497,27 @@ components:
       - total
       type: object
     MLRunPatchRequest:
+      example:
+        description: Updated description.
+        displayName: 'ResNet-50 Training #7 (rerun)'
       properties:
         annotations:
           additionalProperties:
             type: string
+          description: Replacement annotation set.
           type: object
         description:
+          description: Updated free-text run description.
           nullable: true
           type: string
         displayName:
+          description: Updated human-readable run label.
           nullable: true
           type: string
         labels:
           additionalProperties:
             type: string
+          description: Replacement label set.
           type: object
       type: object
     MLRunPodTemplateSubset:
@@ -1359,65 +1619,162 @@ components:
     MLRunStatus:
       properties:
         conditions:
+          description: Operator-reported status conditions.
           items:
             $ref: '#/components/schemas/MLRunCondition'
           type: array
         finishedAt:
+          description: Time the run reached a terminal phase.
           format: date-time
           nullable: true
           type: string
         message:
+          description: Human-readable status detail for the current phase.
           type: string
         startedAt:
+          description: Time the run started executing.
           format: date-time
           nullable: true
           type: string
       type: object
     MLService:
+      example:
+        annotations:
+          axisml.io/created-by: li.wei
+          git-commit: 8c1f4e2
+        createdAt: "2026-06-28T09:25:00Z"
+        description: Llama-3 8B online inference on the vLLM backend.
+        displayName: Llama-3 8B inference service
+        generation: 3
+        id: c2e1a0b9-8d7c-6b5a-4f3e-2d1c0b9a8f7e
+        kind: service
+        labels:
+          team: vision
+        name: llama3-8b
+        namespace: team-vision
+        observedGeneration: 3
+        owner: li.wei
+        phase: Ready
+        spec:
+          backend:
+            engine: llminference
+            name: kserve
+          roles:
+          - name: predictor
+            replicas: 2
+            template:
+              args:
+              - --model
+              - meta-llama/Llama-3-8b
+              - --max-model-len
+              - "8192"
+              image: registry.axisml.io/serving/vllm:0.6.2
+              ports:
+              - containerPort: 8080
+                name: http
+                protocol: TCP
+              resources:
+                limits:
+                  cpu: "8"
+                  memory: 48Gi
+                  nvidia.com/gpu: "1"
+                requests:
+                  cpu: "8"
+                  memory: 48Gi
+                  nvidia.com/gpu: "1"
+          route:
+            auth:
+              jwt:
+                issuer: https://auth.axisml.io
+                jwksUri: https://auth.axisml.io/.well-known/jwks.json
+              type: jwt
+            enabled: true
+            hostname: llama3-8b.team-vision.axisml.io
+            path: /v1
+            portName: http
+            targetRole: predictor
+          runPolicy:
+            progressDeadlineSeconds: 600
+          scheduling:
+            quota: axisml-team-vision-gpu-a100-default
+        status:
+          conditions:
+          - lastTransitionTime: "2026-06-28T09:30:00Z"
+            message: Deployment has minimum availability.
+            reason: MinimumReplicasAvailable
+            status: "True"
+            type: Available
+          endpoint: https://llama3-8b.team-vision.axisml.io/v1
+          message: 2/2 replicas ready.
+          readyReplicas: 2
+        updatedAt: "2026-06-28T09:45:00Z"
       properties:
         annotations:
           additionalProperties:
             type: string
+          description: User-defined annotations.
           type: object
         createdAt:
+          description: Time the service was created.
           format: date-time
           type: string
         deletedAt:
+          description: Soft-deletion timestamp, set once the service is deleted.
           format: date-time
           nullable: true
           type: string
         description:
+          description: Free-text service description.
           type: string
         displayName:
+          description: Human-readable service label.
           type: string
         generation:
+          description: Desired-state generation, bumped on every spec-affecting change
+            (scale).
           format: int64
           type: integer
         id:
+          description: Stable service identifier (PG row UUID).
           format: uuid
           type: string
         kind:
+          description: Service kind (service, workspace, tensorboard).
           type: string
         labels:
           additionalProperties:
             type: string
+          description: User-defined labels.
           type: object
         name:
+          description: MLService name, unique within the namespace.
           type: string
         namespace:
+          description: Namespace (= tenant identifier) the service belongs to.
           type: string
         observedGeneration:
+          description: Generation the operator last reconciled; equals generation
+            when in sync.
           format: int64
           type: integer
         owner:
+          description: Username of the service owner.
           type: string
         phase:
+          description: Current service lifecycle phase (Pending, Ready, Degraded,
+            Failed).
           type: string
         spec:
-          $ref: '#/components/schemas/MLServiceSpec'
+          allOf:
+          - $ref: '#/components/schemas/MLServiceSpec'
+          description: Resolved MLService spec sub-tree (backend, scheduling, roles,
+            route).
         status:
-          $ref: '#/components/schemas/MLServiceStatus'
+          allOf:
+          - $ref: '#/components/schemas/MLServiceStatus'
+          description: Operator-reported status sub-tree.
         updatedAt:
+          description: Time the service was last updated.
           format: date-time
           type: string
       required:
@@ -1450,52 +1807,123 @@ components:
     MLServiceCondition:
       properties:
         lastTransitionTime:
+          description: Time the condition last changed status.
           format: date-time
           type: string
         message:
+          description: Human-readable detail for the condition.
           type: string
         reason:
+          description: Machine-readable reason for the condition's status.
           type: string
         status:
+          description: Condition status (True, False, Unknown).
           type: string
         type:
+          description: Condition type (e.g. Available, Progressing).
           type: string
       required:
       - status
       - type
       type: object
     MLServiceCreateRequest:
+      example:
+        backend:
+          engine: llminference
+          name: kserve
+        description: Llama-3 8B online inference on the vLLM backend.
+        displayName: Llama-3 8B inference service
+        kind: service
+        labels:
+          team: vision
+        name: llama3-8b
+        poolName: gpu-a100
+        quota: axisml-team-vision-gpu-a100-default
+        roles:
+        - name: predictor
+          replicas: 2
+          template:
+            args:
+            - --model
+            - meta-llama/Llama-3-8b
+            - --max-model-len
+            - "8192"
+            image: registry.axisml.io/serving/vllm:0.6.2
+            ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+            resources:
+              limits:
+                cpu: "8"
+                memory: 48Gi
+                nvidia.com/gpu: "1"
+              requests:
+                cpu: "8"
+                memory: 48Gi
+                nvidia.com/gpu: "1"
+        route:
+          auth:
+            jwt:
+              issuer: https://auth.axisml.io
+              jwksUri: https://auth.axisml.io/.well-known/jwks.json
+            type: jwt
+          enabled: true
+          hostname: llama3-8b.team-vision.axisml.io
+          path: /v1
+          portName: http
+          targetRole: predictor
+        runPolicy:
+          progressDeadlineSeconds: 600
+        unitName: a100-2x
       properties:
         annotations:
           additionalProperties:
             type: string
+          description: User-defined annotations stored on the row and stamped onto
+            the CR.
           type: object
         backend:
           allOf:
           - $ref: '#/components/schemas/MLServiceBackend'
+          description: Compute backend/engine that serves the workload; defaults to
+            (native, deployment) when omitted.
           nullable: true
         description:
+          description: Free-text service description.
           type: string
         displayName:
+          description: Human-readable service label.
           type: string
         kind:
+          description: Service kind (service, workspace, tensorboard); immutable after
+            create, defaults to service.
           type: string
         labels:
           additionalProperties:
             type: string
+          description: User-defined labels stored on the row and stamped onto the
+            CR.
           type: object
         name:
+          description: MLService name, unique within the namespace.
           maxLength: 40
           minLength: 3
           pattern: ^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])?$
           type: string
         poolName:
+          description: Resource pool name resolved against the ResourcePool CRD via
+            the Informer cache.
           type: string
         priorityClass:
+          description: Optional Kubernetes PriorityClass name for the service's pods.
           type: string
         quota:
+          description: ElasticQuota CR name (opaque) stamped onto Pod labels for koord-scheduler
+            admission.
           type: string
         roles:
+          description: Service topology roles (at least one).
           items:
             $ref: '#/components/schemas/MLServiceRoleSpec'
           minItems: 1
@@ -1503,12 +1931,16 @@ components:
         route:
           allOf:
           - $ref: '#/components/schemas/MLServiceRoute'
+          description: Optional external entrypoint (HTTPRoute plus auth/rate-limit
+            policies).
           nullable: true
         runPolicy:
           allOf:
           - $ref: '#/components/schemas/MLServiceRunPolicy'
+          description: Service-level lifecycle controls (progress deadline).
           nullable: true
         unitName:
+          description: Resource unit (shape) name within the selected pool.
           type: string
       required:
       - name
@@ -1518,6 +1950,78 @@ components:
       - unitName
       type: object
     MLServiceList:
+      example:
+        items:
+        - annotations:
+            axisml.io/created-by: li.wei
+            git-commit: 8c1f4e2
+          createdAt: "2026-06-28T09:25:00Z"
+          description: Llama-3 8B online inference on the vLLM backend.
+          displayName: Llama-3 8B inference service
+          generation: 3
+          id: c2e1a0b9-8d7c-6b5a-4f3e-2d1c0b9a8f7e
+          kind: service
+          labels:
+            team: vision
+          name: llama3-8b
+          namespace: team-vision
+          observedGeneration: 3
+          owner: li.wei
+          phase: Ready
+          spec:
+            backend:
+              engine: llminference
+              name: kserve
+            roles:
+            - name: predictor
+              replicas: 2
+              template:
+                args:
+                - --model
+                - meta-llama/Llama-3-8b
+                - --max-model-len
+                - "8192"
+                image: registry.axisml.io/serving/vllm:0.6.2
+                ports:
+                - containerPort: 8080
+                  name: http
+                  protocol: TCP
+                resources:
+                  limits:
+                    cpu: "8"
+                    memory: 48Gi
+                    nvidia.com/gpu: "1"
+                  requests:
+                    cpu: "8"
+                    memory: 48Gi
+                    nvidia.com/gpu: "1"
+            route:
+              auth:
+                jwt:
+                  issuer: https://auth.axisml.io
+                  jwksUri: https://auth.axisml.io/.well-known/jwks.json
+                type: jwt
+              enabled: true
+              hostname: llama3-8b.team-vision.axisml.io
+              path: /v1
+              portName: http
+              targetRole: predictor
+            runPolicy:
+              progressDeadlineSeconds: 600
+            scheduling:
+              quota: axisml-team-vision-gpu-a100-default
+          status:
+            conditions:
+            - lastTransitionTime: "2026-06-28T09:30:00Z"
+              message: Deployment has minimum availability.
+              reason: MinimumReplicasAvailable
+              status: "True"
+              type: Available
+            endpoint: https://llama3-8b.team-vision.axisml.io/v1
+            message: 2/2 replicas ready.
+            readyReplicas: 2
+          updatedAt: "2026-06-28T09:45:00Z"
+        total: 1
       properties:
         items:
           items:
@@ -1531,20 +2035,27 @@ components:
       - total
       type: object
     MLServicePatchRequest:
+      example:
+        description: Updated description.
+        displayName: Llama-3 8B inference service (production)
       properties:
         annotations:
           additionalProperties:
             type: string
+          description: Replacement annotation set.
           type: object
         description:
+          description: Updated free-text service description.
           nullable: true
           type: string
         displayName:
+          description: Updated human-readable service label.
           nullable: true
           type: string
         labels:
           additionalProperties:
             type: string
+          description: Replacement label set.
           type: object
       type: object
     MLServicePodPort:
@@ -1689,8 +2200,11 @@ components:
           type: integer
       type: object
     MLServiceScaleRequest:
+      example:
+        replicas: 4
       properties:
         replicas:
+          description: Desired replica count for the service's primary role.
           format: int32
           minimum: 0
           type: integer
@@ -1738,14 +2252,18 @@ components:
     MLServiceStatus:
       properties:
         conditions:
+          description: Operator-reported status conditions.
           items:
             $ref: '#/components/schemas/MLServiceCondition'
           type: array
         endpoint:
+          description: Resolved external endpoint URL when a route is enabled.
           type: string
         message:
+          description: Human-readable status detail for the current phase.
           type: string
         readyReplicas:
+          description: Number of replicas that have passed readiness.
           format: int32
           type: integer
       required:
@@ -1946,18 +2464,31 @@ components:
     Metav1Time:
       type: object
     Pod:
+      example:
+        labels:
+          axisml.io/role: worker
+          axisml.io/run-id: b7d9e3f1-1a2b-3c4d-5e6f-708192a3b4c5
+        name: resnet-train-7-worker-0
+        namespace: team-vision
+        nodeName: gpu-node-a100-03
+        phase: Running
       properties:
         labels:
           additionalProperties:
             type: string
+          description: Pod labels.
           type: object
         name:
+          description: Pod name.
           type: string
         namespace:
+          description: Namespace the pod runs in.
           type: string
         nodeName:
+          description: Node the pod is scheduled onto.
           type: string
         phase:
+          description: Pod lifecycle phase (Pending, Running, Succeeded, Failed, Unknown).
           type: string
       required:
       - name
@@ -1965,6 +2496,16 @@ components:
       - phase
       type: object
     PodList:
+      example:
+        items:
+        - labels:
+            axisml.io/role: worker
+            axisml.io/run-id: b7d9e3f1-1a2b-3c4d-5e6f-708192a3b4c5
+          name: resnet-train-7-worker-0
+          namespace: team-vision
+          nodeName: gpu-node-a100-03
+          phase: Running
+        total: 1
       properties:
         items:
           items:
@@ -1978,50 +2519,127 @@ components:
       - total
       type: object
     TrafficPolicy:
+      example:
+        annotations:
+          axisml.io/created-by: li.wei
+          git-commit: 8c1f4e2
+        createdAt: "2026-06-28T09:25:00Z"
+        description: Canary 10% traffic to v2.
+        displayName: Llama-3 canary release
+        generation: 2
+        id: d3f2b1c0-9e8d-7c6b-5a4f-3e2d1c0b9a8f
+        labels:
+          team: vision
+        mode: canary
+        name: llama3-canary
+        namespace: team-vision
+        observedGeneration: 2
+        owner: li.wei
+        phase: Ready
+        spec:
+          backend:
+            engine: inference
+            name: kserve
+          backends:
+          - role: stable
+            serviceName: llama3-8b
+            weight: 90
+          - role: canary
+            serviceName: llama3-8b-v2
+            weight: 10
+          endpoint:
+            auth:
+              jwt:
+                audience: axisml-inference
+                issuer: https://auth.axisml.io
+                jwksUri: https://auth.axisml.io/.well-known/jwks.json
+              type: jwt
+            hostname: llama3-8b.team-vision.axisml.io
+            path: /v1
+          mode: canary
+        status:
+          backends:
+          - ready: true
+            serviceName: llama3-8b
+            weight: 90
+          - ready: true
+            serviceName: llama3-8b-v2
+            weight: 10
+          conditions:
+          - lastTransitionTime: "2026-06-28T09:30:00Z"
+            message: HTTPRoute programmed with weighted backends.
+            reason: Programmed
+            status: "True"
+            type: Ready
+          endpoint: https://llama3-8b.team-vision.axisml.io/v1
+          message: Route programmed; weights applied.
+        updatedAt: "2026-06-28T09:45:00Z"
       properties:
         annotations:
           additionalProperties:
             type: string
+          description: User-defined annotations.
           type: object
         createdAt:
+          description: Time the policy was created.
           format: date-time
           type: string
         deletedAt:
+          description: Soft-deletion timestamp, set once the policy is deleted.
           format: date-time
           nullable: true
           type: string
         description:
+          description: Free-text policy description.
           type: string
         displayName:
+          description: Human-readable policy label.
           type: string
         generation:
+          description: Desired-state generation, bumped on every spec-affecting change
+            (split, promote, rollback).
           format: int64
           type: integer
         id:
+          description: Stable policy identifier (PG row UUID).
           format: uuid
           type: string
         labels:
           additionalProperties:
             type: string
+          description: User-defined labels.
           type: object
         mode:
+          description: Traffic split mode (weighted, canary, bluegreen).
           type: string
         name:
+          description: Traffic policy name, unique within the namespace.
           type: string
         namespace:
+          description: Namespace (= tenant identifier) the policy belongs to.
           type: string
         observedGeneration:
+          description: Generation the operator last reconciled; equals generation
+            when in sync.
           format: int64
           type: integer
         owner:
+          description: Username of the policy owner.
           type: string
         phase:
+          description: Current policy lifecycle phase (Pending, Ready, Degraded, Failed).
           type: string
         spec:
-          $ref: '#/components/schemas/MLTrafficPolicySpec'
+          allOf:
+          - $ref: '#/components/schemas/MLTrafficPolicySpec'
+          description: Resolved MLTrafficPolicy spec sub-tree (backend, mode, endpoint,
+            members).
         status:
-          $ref: '#/components/schemas/TrafficPolicyStatus'
+          allOf:
+          - $ref: '#/components/schemas/TrafficPolicyStatus'
+          description: Operator-reported status sub-tree.
         updatedAt:
+          description: Time the policy was last updated.
           format: date-time
           type: string
       required:
@@ -2040,10 +2658,13 @@ components:
     TrafficPolicyBackendStatus:
       properties:
         ready:
+          description: True when the member service is ready to receive traffic.
           type: boolean
         serviceName:
+          description: Member MLService name.
           type: string
         weight:
+          description: Effective traffic weight currently routed to the member.
           format: int32
           type: integer
       required:
@@ -2054,44 +2675,85 @@ components:
     TrafficPolicyCondition:
       properties:
         lastTransitionTime:
+          description: Time the condition last changed status.
           format: date-time
           type: string
         message:
+          description: Human-readable detail for the condition.
           type: string
         reason:
+          description: Machine-readable reason for the condition's status.
           type: string
         status:
+          description: Condition status (True, False, Unknown).
           type: string
         type:
+          description: Condition type (e.g. Ready, Programmed).
           type: string
       required:
       - status
       - type
       type: object
     TrafficPolicyCreateRequest:
+      example:
+        backends:
+        - role: stable
+          serviceName: llama3-8b
+          weight: 90
+        - role: canary
+          serviceName: llama3-8b-v2
+          weight: 10
+        description: Canary 10% traffic to v2.
+        displayName: Llama-3 canary release
+        endpoint:
+          auth:
+            jwt:
+              audience: axisml-inference
+              issuer: https://auth.axisml.io
+              jwksUri: https://auth.axisml.io/.well-known/jwks.json
+            type: jwt
+          hostname: llama3-8b.team-vision.axisml.io
+          path: /v1
+        labels:
+          team: vision
+        mode: canary
+        name: llama3-canary
       properties:
         annotations:
           additionalProperties:
             type: string
+          description: User-defined annotations stored on the row and stamped onto
+            the CR.
           type: object
         backends:
+          description: Member MLServices and their weights (at least one).
           items:
             $ref: '#/components/schemas/MLTrafficPolicyBackendMember'
           minItems: 1
           type: array
         description:
+          description: Free-text policy description.
           type: string
         displayName:
+          description: Human-readable policy label.
           type: string
         endpoint:
-          $ref: '#/components/schemas/MLTrafficPolicyEndpoint'
+          allOf:
+          - $ref: '#/components/schemas/MLTrafficPolicyEndpoint'
+          description: Stable external entrypoint (path, hostname, auth) shared by
+            all members.
         labels:
           additionalProperties:
             type: string
+          description: User-defined labels stored on the row and stamped onto the
+            CR.
           type: object
         mode:
+          description: Traffic split mode (weighted, canary, bluegreen); immutable
+            after create.
           type: string
         name:
+          description: Traffic policy name, unique within the namespace.
           maxLength: 40
           minLength: 3
           pattern: ^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])?$
@@ -2102,6 +2764,63 @@ components:
       - name
       type: object
     TrafficPolicyList:
+      example:
+        items:
+        - annotations:
+            axisml.io/created-by: li.wei
+            git-commit: 8c1f4e2
+          createdAt: "2026-06-28T09:25:00Z"
+          description: Canary 10% traffic to v2.
+          displayName: Llama-3 canary release
+          generation: 2
+          id: d3f2b1c0-9e8d-7c6b-5a4f-3e2d1c0b9a8f
+          labels:
+            team: vision
+          mode: canary
+          name: llama3-canary
+          namespace: team-vision
+          observedGeneration: 2
+          owner: li.wei
+          phase: Ready
+          spec:
+            backend:
+              engine: inference
+              name: kserve
+            backends:
+            - role: stable
+              serviceName: llama3-8b
+              weight: 90
+            - role: canary
+              serviceName: llama3-8b-v2
+              weight: 10
+            endpoint:
+              auth:
+                jwt:
+                  audience: axisml-inference
+                  issuer: https://auth.axisml.io
+                  jwksUri: https://auth.axisml.io/.well-known/jwks.json
+                type: jwt
+              hostname: llama3-8b.team-vision.axisml.io
+              path: /v1
+            mode: canary
+          status:
+            backends:
+            - ready: true
+              serviceName: llama3-8b
+              weight: 90
+            - ready: true
+              serviceName: llama3-8b-v2
+              weight: 10
+            conditions:
+            - lastTransitionTime: "2026-06-28T09:30:00Z"
+              message: HTTPRoute programmed with weighted backends.
+              reason: Programmed
+              status: "True"
+              type: Ready
+            endpoint: https://llama3-8b.team-vision.axisml.io/v1
+            message: Route programmed; weights applied.
+          updatedAt: "2026-06-28T09:45:00Z"
+        total: 1
       properties:
         items:
           items:
@@ -2115,25 +2834,39 @@ components:
       - total
       type: object
     TrafficPolicyPatchRequest:
+      example:
+        description: Updated description.
+        displayName: Llama-3 canary release (under evaluation)
       properties:
         annotations:
           additionalProperties:
             type: string
+          description: Replacement annotation set.
           type: object
         description:
+          description: Updated free-text policy description.
           nullable: true
           type: string
         displayName:
+          description: Updated human-readable policy label.
           nullable: true
           type: string
         labels:
           additionalProperties:
             type: string
+          description: Replacement label set.
           type: object
       type: object
     TrafficPolicySplitRequest:
+      example:
+        backends:
+        - serviceName: llama3-8b
+          weight: 80
+        - serviceName: llama3-8b-v2
+          weight: 20
       properties:
         backends:
+          description: Per-backend weight updates; only listed backends change.
           items:
             $ref: '#/components/schemas/TrafficPolicyWeightUpdate'
           minItems: 1
@@ -2144,23 +2877,29 @@ components:
     TrafficPolicyStatus:
       properties:
         backends:
+          description: Per-member effective weight and readiness.
           items:
             $ref: '#/components/schemas/TrafficPolicyBackendStatus'
           type: array
         conditions:
+          description: Operator-reported status conditions.
           items:
             $ref: '#/components/schemas/TrafficPolicyCondition'
           type: array
         endpoint:
+          description: Resolved external endpoint URL fronting the member services.
           type: string
         message:
+          description: Human-readable status detail for the current phase.
           type: string
       type: object
     TrafficPolicyWeightUpdate:
       properties:
         serviceName:
+          description: Member MLService name whose weight is being set.
           type: string
         weight:
+          description: New weight for the member (weights across members sum to 100).
           format: int32
           type: integer
       required:

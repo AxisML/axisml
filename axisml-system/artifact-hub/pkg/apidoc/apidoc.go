@@ -96,6 +96,9 @@ func Document(version string) *openapigen.Document {
 
 	g.Set("ArtifactList", openapigen.ListEnvelope("Artifact"))
 
+	// After the list envelope is registered, so its example can attach too.
+	registerExamples(g)
+
 	tags := []openapigen.TagEntry{
 		{Name: tagArtifacts, Description: "Artifact registry partitioned by (namespace, kind, name, version)."},
 		{Name: tagCapabilities, Description: "Deployment-form capability document (artifact kinds / upload)."},

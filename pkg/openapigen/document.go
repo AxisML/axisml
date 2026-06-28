@@ -46,6 +46,7 @@ type PathItem struct {
 type Operation struct {
 	Tags        []string            `json:"tags,omitempty"`
 	Summary     string              `json:"summary,omitempty"`
+	Description string              `json:"description,omitempty"`
 	OperationID string              `json:"operationId,omitempty"`
 	Parameters  []Parameter         `json:"parameters,omitempty"`
 	RequestBody *RequestBody        `json:"requestBody,omitempty"`
@@ -91,6 +92,7 @@ type Schema struct {
 	Type                 string             `json:"type,omitempty"`
 	Format               string             `json:"format,omitempty"`
 	Description          string             `json:"description,omitempty"`
+	Example              any                `json:"example,omitempty"`
 	Required             []string           `json:"required,omitempty"`
 	Properties           map[string]*Schema `json:"properties,omitempty"`
 	Items                *Schema            `json:"items,omitempty"`

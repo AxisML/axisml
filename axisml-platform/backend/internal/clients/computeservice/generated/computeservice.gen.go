@@ -33,23 +33,38 @@ const (
 
 // Capabilities defines model for Capabilities.
 type Capabilities struct {
-	QuotaEnforcement bool   `json:"quotaEnforcement"`
-	Runtime          string `json:"runtime"`
+	// QuotaEnforcement True when the scheduler admits pods against an ElasticQuota (Kubernetes form); false on the Lite Standalone runtime.
+	QuotaEnforcement bool `json:"quotaEnforcement"`
+
+	// Runtime Workload execution engine for this deployment form (kubernetes or standalone).
+	Runtime string `json:"runtime"`
 }
 
 // ComputeServiceError defines model for ComputeServiceError.
 type ComputeServiceError struct {
-	// Code Discrete business error class.
-	Code     ComputeServiceErrorCode `json:"code"`
-	Detail   *string                 `json:"detail,omitempty"`
-	Details  *map[string]interface{} `json:"details,omitempty"`
-	Instance *string                 `json:"instance,omitempty"`
-	Status   int                     `json:"status"`
-	Title    string                  `json:"title"`
-	Type     string                  `json:"type"`
+	// Code Discrete business error class for programmatic handling.
+	Code ComputeServiceErrorCode `json:"code"`
+
+	// Detail Human-readable explanation specific to this occurrence.
+	Detail *string `json:"detail,omitempty"`
+
+	// Details Optional structured field-level error details.
+	Details *map[string]interface{} `json:"details,omitempty"`
+
+	// Instance URI reference identifying the specific occurrence (the request path).
+	Instance *string `json:"instance,omitempty"`
+
+	// Status HTTP status code for this occurrence of the problem.
+	Status int `json:"status"`
+
+	// Title Short, human-readable summary of the problem.
+	Title string `json:"title"`
+
+	// Type URI identifying the problem type (https://axisml.io/errors/<code>).
+	Type string `json:"type"`
 }
 
-// ComputeServiceErrorCode Discrete business error class.
+// ComputeServiceErrorCode Discrete business error class for programmatic handling.
 type ComputeServiceErrorCode string
 
 // Corev1AWSElasticBlockStoreVolumeSource defines model for Corev1AWSElasticBlockStoreVolumeSource.
@@ -567,12 +582,23 @@ type Corev1VsphereVirtualDiskVolumeSource struct {
 
 // Event defines model for Event.
 type Event struct {
-	EventTime           *Metav1Time `json:"eventTime"`
-	Note                *string     `json:"note,omitempty"`
-	Object              string      `json:"object"`
-	Reason              string      `json:"reason"`
-	ReportingController *string     `json:"reportingController,omitempty"`
-	Type                string      `json:"type"`
+	// EventTime Time the event was first observed.
+	EventTime *Metav1Time `json:"eventTime"`
+
+	// Note Human-readable description of the event.
+	Note *string `json:"note,omitempty"`
+
+	// Object Target object as "<kind>/<name>".
+	Object string `json:"object"`
+
+	// Reason Short machine-readable reason for the event (e.g. Scheduled, Pulled).
+	Reason string `json:"reason"`
+
+	// ReportingController Controller that reported the event.
+	ReportingController *string `json:"reportingController,omitempty"`
+
+	// Type Event type (Normal or Warning).
+	Type string `json:"type"`
 }
 
 // EventList defines model for EventList.
@@ -583,20 +609,47 @@ type EventList struct {
 
 // MLRun defines model for MLRun.
 type MLRun struct {
+	// Annotations User-defined annotations.
 	Annotations *map[string]string `json:"annotations,omitempty"`
-	CreatedAt   time.Time          `json:"createdAt"`
-	DeletedAt   *time.Time         `json:"deletedAt"`
-	Description *string            `json:"description,omitempty"`
-	DisplayName *string            `json:"displayName,omitempty"`
-	Id          openapi_types.UUID `json:"id"`
-	Labels      *map[string]string `json:"labels,omitempty"`
-	Name        string             `json:"name"`
-	Namespace   string             `json:"namespace"`
-	Owner       *string            `json:"owner,omitempty"`
-	Phase       string             `json:"phase"`
-	Spec        MLRunSpec          `json:"spec"`
-	Status      MLRunStatus        `json:"status"`
-	UpdatedAt   time.Time          `json:"updatedAt"`
+
+	// CreatedAt Time the run was created.
+	CreatedAt time.Time `json:"createdAt"`
+
+	// DeletedAt Soft-deletion timestamp, set once the run is deleted.
+	DeletedAt *time.Time `json:"deletedAt"`
+
+	// Description Free-text run description.
+	Description *string `json:"description,omitempty"`
+
+	// DisplayName Human-readable run label.
+	DisplayName *string `json:"displayName,omitempty"`
+
+	// Id Stable run identifier (PG row UUID).
+	Id openapi_types.UUID `json:"id"`
+
+	// Labels User-defined labels.
+	Labels *map[string]string `json:"labels,omitempty"`
+
+	// Name MLRun name, unique within the namespace.
+	Name string `json:"name"`
+
+	// Namespace Namespace (= tenant identifier) the run belongs to.
+	Namespace string `json:"namespace"`
+
+	// Owner Username of the run owner.
+	Owner *string `json:"owner,omitempty"`
+
+	// Phase Current run lifecycle phase (Pending, Running, Succeeded, Failed).
+	Phase string `json:"phase"`
+
+	// Spec Resolved MLRun spec sub-tree (backend, scheduling, roles, run policy).
+	Spec MLRunSpec `json:"spec"`
+
+	// Status Operator-reported status sub-tree.
+	Status MLRunStatus `json:"status"`
+
+	// UpdatedAt Time the run was last updated.
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 // MLRunBackendSpec defines model for MLRunBackendSpec.
@@ -609,27 +662,59 @@ type MLRunBackendSpec struct {
 
 // MLRunCondition defines model for MLRunCondition.
 type MLRunCondition struct {
+	// LastTransitionTime Time the condition last changed status.
 	LastTransitionTime *time.Time `json:"lastTransitionTime,omitempty"`
-	Message            *string    `json:"message,omitempty"`
-	Reason             *string    `json:"reason,omitempty"`
-	Status             string     `json:"status"`
-	Type               string     `json:"type"`
+
+	// Message Human-readable detail for the condition.
+	Message *string `json:"message,omitempty"`
+
+	// Reason Machine-readable reason for the condition's status.
+	Reason *string `json:"reason,omitempty"`
+
+	// Status Condition status (True, False, Unknown).
+	Status string `json:"status"`
+
+	// Type Condition type (e.g. Initialized, Scheduled, Suspended, Failed).
+	Type string `json:"type"`
 }
 
 // MLRunCreateRequest defines model for MLRunCreateRequest.
 type MLRunCreateRequest struct {
-	Annotations   *map[string]string  `json:"annotations,omitempty"`
-	Backend       *MLRunBackendSpec   `json:"backend"`
-	Description   *string             `json:"description,omitempty"`
-	DisplayName   *string             `json:"displayName,omitempty"`
-	Labels        *map[string]string  `json:"labels,omitempty"`
-	Name          string              `json:"name"`
-	PoolName      string              `json:"poolName"`
-	PriorityClass *string             `json:"priorityClass,omitempty"`
-	Quota         string              `json:"quota"`
-	Roles         []MLRunRoleSpec     `json:"roles"`
-	RunPolicy     *MLRunRunPolicySpec `json:"runPolicy"`
-	UnitName      string              `json:"unitName"`
+	// Annotations User-defined annotations stored on the row and stamped onto the CR.
+	Annotations *map[string]string `json:"annotations,omitempty"`
+
+	// Backend Compute backend/engine that runs the workload; defaults to (native, job) when omitted.
+	Backend *MLRunBackendSpec `json:"backend"`
+
+	// Description Free-text run description.
+	Description *string `json:"description,omitempty"`
+
+	// DisplayName Human-readable run label.
+	DisplayName *string `json:"displayName,omitempty"`
+
+	// Labels User-defined labels stored on the row and stamped onto the CR.
+	Labels *map[string]string `json:"labels,omitempty"`
+
+	// Name MLRun name, unique within the namespace.
+	Name string `json:"name"`
+
+	// PoolName Resource pool name resolved against the ResourcePool CRD via the Informer cache.
+	PoolName string `json:"poolName"`
+
+	// PriorityClass Optional Kubernetes PriorityClass name for the run's pods.
+	PriorityClass *string `json:"priorityClass,omitempty"`
+
+	// Quota ElasticQuota CR name (opaque) stamped onto Pod labels for koord-scheduler admission.
+	Quota string `json:"quota"`
+
+	// Roles Run topology roles (at least one).
+	Roles []MLRunRoleSpec `json:"roles"`
+
+	// RunPolicy Run-level execution limits (deadline, TTL, backoff).
+	RunPolicy *MLRunRunPolicySpec `json:"runPolicy"`
+
+	// UnitName Resource unit (shape) name within the selected pool.
+	UnitName string `json:"unitName"`
 }
 
 // MLRunList defines model for MLRunList.
@@ -640,10 +725,17 @@ type MLRunList struct {
 
 // MLRunPatchRequest defines model for MLRunPatchRequest.
 type MLRunPatchRequest struct {
+	// Annotations Replacement annotation set.
 	Annotations *map[string]string `json:"annotations,omitempty"`
-	Description *string            `json:"description"`
-	DisplayName *string            `json:"displayName"`
-	Labels      *map[string]string `json:"labels,omitempty"`
+
+	// Description Updated free-text run description.
+	Description *string `json:"description"`
+
+	// DisplayName Updated human-readable run label.
+	DisplayName *string `json:"displayName"`
+
+	// Labels Replacement label set.
+	Labels *map[string]string `json:"labels,omitempty"`
 }
 
 // MLRunPodTemplateSubset defines model for MLRunPodTemplateSubset.
@@ -692,31 +784,71 @@ type MLRunSpec struct {
 
 // MLRunStatus defines model for MLRunStatus.
 type MLRunStatus struct {
+	// Conditions Operator-reported status conditions.
 	Conditions *[]MLRunCondition `json:"conditions,omitempty"`
-	FinishedAt *time.Time        `json:"finishedAt"`
-	Message    *string           `json:"message,omitempty"`
-	StartedAt  *time.Time        `json:"startedAt"`
+
+	// FinishedAt Time the run reached a terminal phase.
+	FinishedAt *time.Time `json:"finishedAt"`
+
+	// Message Human-readable status detail for the current phase.
+	Message *string `json:"message,omitempty"`
+
+	// StartedAt Time the run started executing.
+	StartedAt *time.Time `json:"startedAt"`
 }
 
 // MLService defines model for MLService.
 type MLService struct {
-	Annotations        *map[string]string `json:"annotations,omitempty"`
-	CreatedAt          time.Time          `json:"createdAt"`
-	DeletedAt          *time.Time         `json:"deletedAt"`
-	Description        *string            `json:"description,omitempty"`
-	DisplayName        *string            `json:"displayName,omitempty"`
-	Generation         int64              `json:"generation"`
-	Id                 openapi_types.UUID `json:"id"`
-	Kind               string             `json:"kind"`
-	Labels             *map[string]string `json:"labels,omitempty"`
-	Name               string             `json:"name"`
-	Namespace          string             `json:"namespace"`
-	ObservedGeneration int64              `json:"observedGeneration"`
-	Owner              *string            `json:"owner,omitempty"`
-	Phase              string             `json:"phase"`
-	Spec               MLServiceSpec      `json:"spec"`
-	Status             MLServiceStatus    `json:"status"`
-	UpdatedAt          time.Time          `json:"updatedAt"`
+	// Annotations User-defined annotations.
+	Annotations *map[string]string `json:"annotations,omitempty"`
+
+	// CreatedAt Time the service was created.
+	CreatedAt time.Time `json:"createdAt"`
+
+	// DeletedAt Soft-deletion timestamp, set once the service is deleted.
+	DeletedAt *time.Time `json:"deletedAt"`
+
+	// Description Free-text service description.
+	Description *string `json:"description,omitempty"`
+
+	// DisplayName Human-readable service label.
+	DisplayName *string `json:"displayName,omitempty"`
+
+	// Generation Desired-state generation, bumped on every spec-affecting change (scale).
+	Generation int64 `json:"generation"`
+
+	// Id Stable service identifier (PG row UUID).
+	Id openapi_types.UUID `json:"id"`
+
+	// Kind Service kind (service, workspace, tensorboard).
+	Kind string `json:"kind"`
+
+	// Labels User-defined labels.
+	Labels *map[string]string `json:"labels,omitempty"`
+
+	// Name MLService name, unique within the namespace.
+	Name string `json:"name"`
+
+	// Namespace Namespace (= tenant identifier) the service belongs to.
+	Namespace string `json:"namespace"`
+
+	// ObservedGeneration Generation the operator last reconciled; equals generation when in sync.
+	ObservedGeneration int64 `json:"observedGeneration"`
+
+	// Owner Username of the service owner.
+	Owner *string `json:"owner,omitempty"`
+
+	// Phase Current service lifecycle phase (Pending, Ready, Degraded, Failed).
+	Phase string `json:"phase"`
+
+	// Spec Resolved MLService spec sub-tree (backend, scheduling, roles, route).
+	Spec MLServiceSpec `json:"spec"`
+
+	// Status Operator-reported status sub-tree.
+	Status MLServiceStatus `json:"status"`
+
+	// UpdatedAt Time the service was last updated.
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 // MLServiceBackend defines model for MLServiceBackend.
@@ -729,29 +861,65 @@ type MLServiceBackend struct {
 
 // MLServiceCondition defines model for MLServiceCondition.
 type MLServiceCondition struct {
+	// LastTransitionTime Time the condition last changed status.
 	LastTransitionTime *time.Time `json:"lastTransitionTime,omitempty"`
-	Message            *string    `json:"message,omitempty"`
-	Reason             *string    `json:"reason,omitempty"`
-	Status             string     `json:"status"`
-	Type               string     `json:"type"`
+
+	// Message Human-readable detail for the condition.
+	Message *string `json:"message,omitempty"`
+
+	// Reason Machine-readable reason for the condition's status.
+	Reason *string `json:"reason,omitempty"`
+
+	// Status Condition status (True, False, Unknown).
+	Status string `json:"status"`
+
+	// Type Condition type (e.g. Available, Progressing).
+	Type string `json:"type"`
 }
 
 // MLServiceCreateRequest defines model for MLServiceCreateRequest.
 type MLServiceCreateRequest struct {
-	Annotations   *map[string]string  `json:"annotations,omitempty"`
-	Backend       *MLServiceBackend   `json:"backend"`
-	Description   *string             `json:"description,omitempty"`
-	DisplayName   *string             `json:"displayName,omitempty"`
-	Kind          *string             `json:"kind,omitempty"`
-	Labels        *map[string]string  `json:"labels,omitempty"`
-	Name          string              `json:"name"`
-	PoolName      string              `json:"poolName"`
-	PriorityClass *string             `json:"priorityClass,omitempty"`
-	Quota         string              `json:"quota"`
-	Roles         []MLServiceRoleSpec `json:"roles"`
-	Route         *MLServiceRoute     `json:"route"`
-	RunPolicy     *MLServiceRunPolicy `json:"runPolicy"`
-	UnitName      string              `json:"unitName"`
+	// Annotations User-defined annotations stored on the row and stamped onto the CR.
+	Annotations *map[string]string `json:"annotations,omitempty"`
+
+	// Backend Compute backend/engine that serves the workload; defaults to (native, deployment) when omitted.
+	Backend *MLServiceBackend `json:"backend"`
+
+	// Description Free-text service description.
+	Description *string `json:"description,omitempty"`
+
+	// DisplayName Human-readable service label.
+	DisplayName *string `json:"displayName,omitempty"`
+
+	// Kind Service kind (service, workspace, tensorboard); immutable after create, defaults to service.
+	Kind *string `json:"kind,omitempty"`
+
+	// Labels User-defined labels stored on the row and stamped onto the CR.
+	Labels *map[string]string `json:"labels,omitempty"`
+
+	// Name MLService name, unique within the namespace.
+	Name string `json:"name"`
+
+	// PoolName Resource pool name resolved against the ResourcePool CRD via the Informer cache.
+	PoolName string `json:"poolName"`
+
+	// PriorityClass Optional Kubernetes PriorityClass name for the service's pods.
+	PriorityClass *string `json:"priorityClass,omitempty"`
+
+	// Quota ElasticQuota CR name (opaque) stamped onto Pod labels for koord-scheduler admission.
+	Quota string `json:"quota"`
+
+	// Roles Service topology roles (at least one).
+	Roles []MLServiceRoleSpec `json:"roles"`
+
+	// Route Optional external entrypoint (HTTPRoute plus auth/rate-limit policies).
+	Route *MLServiceRoute `json:"route"`
+
+	// RunPolicy Service-level lifecycle controls (progress deadline).
+	RunPolicy *MLServiceRunPolicy `json:"runPolicy"`
+
+	// UnitName Resource unit (shape) name within the selected pool.
+	UnitName string `json:"unitName"`
 }
 
 // MLServiceList defines model for MLServiceList.
@@ -762,10 +930,17 @@ type MLServiceList struct {
 
 // MLServicePatchRequest defines model for MLServicePatchRequest.
 type MLServicePatchRequest struct {
+	// Annotations Replacement annotation set.
 	Annotations *map[string]string `json:"annotations,omitempty"`
-	Description *string            `json:"description"`
-	DisplayName *string            `json:"displayName"`
-	Labels      *map[string]string `json:"labels,omitempty"`
+
+	// Description Updated free-text service description.
+	Description *string `json:"description"`
+
+	// DisplayName Updated human-readable service label.
+	DisplayName *string `json:"displayName"`
+
+	// Labels Replacement label set.
+	Labels *map[string]string `json:"labels,omitempty"`
 }
 
 // MLServicePodPort defines model for MLServicePodPort.
@@ -840,6 +1015,7 @@ type MLServiceRunPolicy struct {
 
 // MLServiceScaleRequest defines model for MLServiceScaleRequest.
 type MLServiceScaleRequest struct {
+	// Replicas Desired replica count for the service's primary role.
 	Replicas int32 `json:"replicas"`
 }
 
@@ -862,10 +1038,17 @@ type MLServiceSpec struct {
 
 // MLServiceStatus defines model for MLServiceStatus.
 type MLServiceStatus struct {
-	Conditions    *[]MLServiceCondition `json:"conditions,omitempty"`
-	Endpoint      *string               `json:"endpoint,omitempty"`
-	Message       *string               `json:"message,omitempty"`
-	ReadyReplicas int32                 `json:"readyReplicas"`
+	// Conditions Operator-reported status conditions.
+	Conditions *[]MLServiceCondition `json:"conditions,omitempty"`
+
+	// Endpoint Resolved external endpoint URL when a route is enabled.
+	Endpoint *string `json:"endpoint,omitempty"`
+
+	// Message Human-readable status detail for the current phase.
+	Message *string `json:"message,omitempty"`
+
+	// ReadyReplicas Number of replicas that have passed readiness.
+	ReadyReplicas int32 `json:"readyReplicas"`
 }
 
 // MLTrafficPolicyBackend defines model for MLTrafficPolicyBackend.
@@ -972,11 +1155,20 @@ type Metav1Time = map[string]interface{}
 
 // Pod defines model for Pod.
 type Pod struct {
-	Labels    *map[string]string `json:"labels,omitempty"`
-	Name      string             `json:"name"`
-	Namespace string             `json:"namespace"`
-	NodeName  *string            `json:"nodeName,omitempty"`
-	Phase     string             `json:"phase"`
+	// Labels Pod labels.
+	Labels *map[string]string `json:"labels,omitempty"`
+
+	// Name Pod name.
+	Name string `json:"name"`
+
+	// Namespace Namespace the pod runs in.
+	Namespace string `json:"namespace"`
+
+	// NodeName Node the pod is scheduled onto.
+	NodeName *string `json:"nodeName,omitempty"`
+
+	// Phase Pod lifecycle phase (Pending, Running, Succeeded, Failed, Unknown).
+	Phase string `json:"phase"`
 }
 
 // PodList defines model for PodList.
@@ -987,51 +1179,113 @@ type PodList struct {
 
 // TrafficPolicy defines model for TrafficPolicy.
 type TrafficPolicy struct {
-	Annotations        *map[string]string  `json:"annotations,omitempty"`
-	CreatedAt          time.Time           `json:"createdAt"`
-	DeletedAt          *time.Time          `json:"deletedAt"`
-	Description        *string             `json:"description,omitempty"`
-	DisplayName        *string             `json:"displayName,omitempty"`
-	Generation         int64               `json:"generation"`
-	Id                 openapi_types.UUID  `json:"id"`
-	Labels             *map[string]string  `json:"labels,omitempty"`
-	Mode               string              `json:"mode"`
-	Name               string              `json:"name"`
-	Namespace          string              `json:"namespace"`
-	ObservedGeneration int64               `json:"observedGeneration"`
-	Owner              *string             `json:"owner,omitempty"`
-	Phase              string              `json:"phase"`
-	Spec               MLTrafficPolicySpec `json:"spec"`
-	Status             TrafficPolicyStatus `json:"status"`
-	UpdatedAt          time.Time           `json:"updatedAt"`
+	// Annotations User-defined annotations.
+	Annotations *map[string]string `json:"annotations,omitempty"`
+
+	// CreatedAt Time the policy was created.
+	CreatedAt time.Time `json:"createdAt"`
+
+	// DeletedAt Soft-deletion timestamp, set once the policy is deleted.
+	DeletedAt *time.Time `json:"deletedAt"`
+
+	// Description Free-text policy description.
+	Description *string `json:"description,omitempty"`
+
+	// DisplayName Human-readable policy label.
+	DisplayName *string `json:"displayName,omitempty"`
+
+	// Generation Desired-state generation, bumped on every spec-affecting change (split, promote, rollback).
+	Generation int64 `json:"generation"`
+
+	// Id Stable policy identifier (PG row UUID).
+	Id openapi_types.UUID `json:"id"`
+
+	// Labels User-defined labels.
+	Labels *map[string]string `json:"labels,omitempty"`
+
+	// Mode Traffic split mode (weighted, canary, bluegreen).
+	Mode string `json:"mode"`
+
+	// Name Traffic policy name, unique within the namespace.
+	Name string `json:"name"`
+
+	// Namespace Namespace (= tenant identifier) the policy belongs to.
+	Namespace string `json:"namespace"`
+
+	// ObservedGeneration Generation the operator last reconciled; equals generation when in sync.
+	ObservedGeneration int64 `json:"observedGeneration"`
+
+	// Owner Username of the policy owner.
+	Owner *string `json:"owner,omitempty"`
+
+	// Phase Current policy lifecycle phase (Pending, Ready, Degraded, Failed).
+	Phase string `json:"phase"`
+
+	// Spec Resolved MLTrafficPolicy spec sub-tree (backend, mode, endpoint, members).
+	Spec MLTrafficPolicySpec `json:"spec"`
+
+	// Status Operator-reported status sub-tree.
+	Status TrafficPolicyStatus `json:"status"`
+
+	// UpdatedAt Time the policy was last updated.
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 // TrafficPolicyBackendStatus defines model for TrafficPolicyBackendStatus.
 type TrafficPolicyBackendStatus struct {
-	Ready       bool   `json:"ready"`
+	// Ready True when the member service is ready to receive traffic.
+	Ready bool `json:"ready"`
+
+	// ServiceName Member MLService name.
 	ServiceName string `json:"serviceName"`
-	Weight      int32  `json:"weight"`
+
+	// Weight Effective traffic weight currently routed to the member.
+	Weight int32 `json:"weight"`
 }
 
 // TrafficPolicyCondition defines model for TrafficPolicyCondition.
 type TrafficPolicyCondition struct {
+	// LastTransitionTime Time the condition last changed status.
 	LastTransitionTime *time.Time `json:"lastTransitionTime,omitempty"`
-	Message            *string    `json:"message,omitempty"`
-	Reason             *string    `json:"reason,omitempty"`
-	Status             string     `json:"status"`
-	Type               string     `json:"type"`
+
+	// Message Human-readable detail for the condition.
+	Message *string `json:"message,omitempty"`
+
+	// Reason Machine-readable reason for the condition's status.
+	Reason *string `json:"reason,omitempty"`
+
+	// Status Condition status (True, False, Unknown).
+	Status string `json:"status"`
+
+	// Type Condition type (e.g. Ready, Programmed).
+	Type string `json:"type"`
 }
 
 // TrafficPolicyCreateRequest defines model for TrafficPolicyCreateRequest.
 type TrafficPolicyCreateRequest struct {
-	Annotations *map[string]string             `json:"annotations,omitempty"`
-	Backends    []MLTrafficPolicyBackendMember `json:"backends"`
-	Description *string                        `json:"description,omitempty"`
-	DisplayName *string                        `json:"displayName,omitempty"`
-	Endpoint    *MLTrafficPolicyEndpoint       `json:"endpoint,omitempty"`
-	Labels      *map[string]string             `json:"labels,omitempty"`
-	Mode        string                         `json:"mode"`
-	Name        string                         `json:"name"`
+	// Annotations User-defined annotations stored on the row and stamped onto the CR.
+	Annotations *map[string]string `json:"annotations,omitempty"`
+
+	// Backends Member MLServices and their weights (at least one).
+	Backends []MLTrafficPolicyBackendMember `json:"backends"`
+
+	// Description Free-text policy description.
+	Description *string `json:"description,omitempty"`
+
+	// DisplayName Human-readable policy label.
+	DisplayName *string `json:"displayName,omitempty"`
+
+	// Endpoint Stable external entrypoint (path, hostname, auth) shared by all members.
+	Endpoint *MLTrafficPolicyEndpoint `json:"endpoint,omitempty"`
+
+	// Labels User-defined labels stored on the row and stamped onto the CR.
+	Labels *map[string]string `json:"labels,omitempty"`
+
+	// Mode Traffic split mode (weighted, canary, bluegreen); immutable after create.
+	Mode string `json:"mode"`
+
+	// Name Traffic policy name, unique within the namespace.
+	Name string `json:"name"`
 }
 
 // TrafficPolicyList defines model for TrafficPolicyList.
@@ -1042,29 +1296,47 @@ type TrafficPolicyList struct {
 
 // TrafficPolicyPatchRequest defines model for TrafficPolicyPatchRequest.
 type TrafficPolicyPatchRequest struct {
+	// Annotations Replacement annotation set.
 	Annotations *map[string]string `json:"annotations,omitempty"`
-	Description *string            `json:"description"`
-	DisplayName *string            `json:"displayName"`
-	Labels      *map[string]string `json:"labels,omitempty"`
+
+	// Description Updated free-text policy description.
+	Description *string `json:"description"`
+
+	// DisplayName Updated human-readable policy label.
+	DisplayName *string `json:"displayName"`
+
+	// Labels Replacement label set.
+	Labels *map[string]string `json:"labels,omitempty"`
 }
 
 // TrafficPolicySplitRequest defines model for TrafficPolicySplitRequest.
 type TrafficPolicySplitRequest struct {
+	// Backends Per-backend weight updates; only listed backends change.
 	Backends []TrafficPolicyWeightUpdate `json:"backends"`
 }
 
 // TrafficPolicyStatus defines model for TrafficPolicyStatus.
 type TrafficPolicyStatus struct {
-	Backends   *[]TrafficPolicyBackendStatus `json:"backends,omitempty"`
-	Conditions *[]TrafficPolicyCondition     `json:"conditions,omitempty"`
-	Endpoint   *string                       `json:"endpoint,omitempty"`
-	Message    *string                       `json:"message,omitempty"`
+	// Backends Per-member effective weight and readiness.
+	Backends *[]TrafficPolicyBackendStatus `json:"backends,omitempty"`
+
+	// Conditions Operator-reported status conditions.
+	Conditions *[]TrafficPolicyCondition `json:"conditions,omitempty"`
+
+	// Endpoint Resolved external endpoint URL fronting the member services.
+	Endpoint *string `json:"endpoint,omitempty"`
+
+	// Message Human-readable status detail for the current phase.
+	Message *string `json:"message,omitempty"`
 }
 
 // TrafficPolicyWeightUpdate defines model for TrafficPolicyWeightUpdate.
 type TrafficPolicyWeightUpdate struct {
+	// ServiceName Member MLService name whose weight is being set.
 	ServiceName string `json:"serviceName"`
-	Weight      int32  `json:"weight"`
+
+	// Weight New weight for the member (weights across members sum to 100).
+	Weight int32 `json:"weight"`
 }
 
 // ListMLRunsParams defines parameters for ListMLRuns.

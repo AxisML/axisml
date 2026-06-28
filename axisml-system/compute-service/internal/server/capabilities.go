@@ -7,8 +7,8 @@ package server
 // declares the form-specific values it assembled.
 type Capabilities struct {
 	// Runtime is the workload execution engine: "kubernetes" or "standalone".
-	Runtime string `json:"runtime"`
+	Runtime string `json:"runtime" desc:"Workload execution engine for this deployment form (kubernetes or standalone)."`
 	// QuotaEnforcement reports whether the scheduler admits pods against an
 	// ElasticQuota (true on Kubernetes, false on the Lite Standalone runtime).
-	QuotaEnforcement bool `json:"quotaEnforcement"`
+	QuotaEnforcement bool `json:"quotaEnforcement" desc:"True when the scheduler admits pods against an ElasticQuota (Kubernetes form); false on the Lite Standalone runtime."`
 }

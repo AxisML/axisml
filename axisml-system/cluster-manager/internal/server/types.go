@@ -19,90 +19,90 @@ import (
 // underlying CR's metadata.{name,labels,annotations,resourceVersion} and
 // spec fields. No separate id — CR name is the stable handle.
 type ResourcePool struct {
-	Name            string              `json:"name"`
-	Description     string              `json:"description,omitempty"`
-	NodeSelector    map[string]string   `json:"nodeSelector,omitempty"`
-	Tolerations     []corev1.Toleration `json:"tolerations,omitempty"`
-	Units           []ResourceUnit      `json:"units"`
-	Labels          map[string]string   `json:"labels,omitempty"`
-	Annotations     map[string]string   `json:"annotations,omitempty"`
-	ResourceVersion string              `json:"resourceVersion,omitempty"`
-	CreatedAt       time.Time           `json:"createdAt"`
-	UpdatedAt       time.Time           `json:"updatedAt,omitempty"`
+	Name            string              `json:"name" desc:"Pool name; the stable, immutable handle (CR metadata.name)."`
+	Description     string              `json:"description,omitempty" desc:"Human-readable description of the pool."`
+	NodeSelector    map[string]string   `json:"nodeSelector,omitempty" desc:"Node labels that workloads scheduled into this pool must match."`
+	Tolerations     []corev1.Toleration `json:"tolerations,omitempty" desc:"Tolerations applied to workloads scheduled into this pool."`
+	Units           []ResourceUnit      `json:"units" desc:"Resource units (allocatable shapes) offered by this pool."`
+	Labels          map[string]string   `json:"labels,omitempty" desc:"User-defined labels on the pool."`
+	Annotations     map[string]string   `json:"annotations,omitempty" desc:"User-defined annotations on the pool."`
+	ResourceVersion string              `json:"resourceVersion,omitempty" desc:"Opaque CR resourceVersion for optimistic concurrency."`
+	CreatedAt       time.Time           `json:"createdAt" desc:"Pool creation timestamp (RFC3339)."`
+	UpdatedAt       time.Time           `json:"updatedAt,omitempty" desc:"Last modification timestamp (RFC3339)."`
 }
 
 // ResourceUnit is one entry of pool.spec.units[]. Identified by the
 // (poolName, name) tuple in the URL — no independent CR.
 type ResourceUnit struct {
-	Name         string              `json:"name"`
-	Description  string              `json:"description,omitempty"`
-	Requests     corev1.ResourceList `json:"requests"`
-	Limits       corev1.ResourceList `json:"limits"`
-	NodeSelector map[string]string   `json:"nodeSelector,omitempty"`
-	Annotations  map[string]string   `json:"annotations,omitempty"`
+	Name         string              `json:"name" desc:"Unit name; unique within the pool and immutable."`
+	Description  string              `json:"description,omitempty" desc:"Human-readable description of the unit."`
+	Requests     corev1.ResourceList `json:"requests" desc:"Resource requests granted per quantity of this unit (e.g. cpu, memory, nvidia.com/gpu)."`
+	Limits       corev1.ResourceList `json:"limits" desc:"Resource limits per quantity of this unit."`
+	NodeSelector map[string]string   `json:"nodeSelector,omitempty" desc:"Node labels workloads using this unit must match (overrides the pool selector)."`
+	Annotations  map[string]string   `json:"annotations,omitempty" desc:"User-defined annotations on the unit."`
 }
 
 // CreateResourcePoolRequest is the body for POST /api/v1/resourcepools.
 type CreateResourcePoolRequest struct {
-	Name         string                      `json:"name"`
-	Description  string                      `json:"description,omitempty"`
-	NodeSelector map[string]string           `json:"nodeSelector,omitempty"`
-	Tolerations  []corev1.Toleration         `json:"tolerations,omitempty"`
-	Units        []CreateResourceUnitRequest `json:"units,omitempty"`
-	Labels       map[string]string           `json:"labels,omitempty"`
-	Annotations  map[string]string           `json:"annotations,omitempty"`
+	Name         string                      `json:"name" desc:"Pool name to create; must be unique and DNS-1123 compliant."`
+	Description  string                      `json:"description,omitempty" desc:"Human-readable description of the pool."`
+	NodeSelector map[string]string           `json:"nodeSelector,omitempty" desc:"Node labels that workloads scheduled into this pool must match."`
+	Tolerations  []corev1.Toleration         `json:"tolerations,omitempty" desc:"Tolerations applied to workloads scheduled into this pool."`
+	Units        []CreateResourceUnitRequest `json:"units,omitempty" desc:"Initial set of resource units to create inline with the pool."`
+	Labels       map[string]string           `json:"labels,omitempty" desc:"User-defined labels to set on the pool."`
+	Annotations  map[string]string           `json:"annotations,omitempty" desc:"User-defined annotations to set on the pool."`
 }
 
 // PatchResourcePoolRequest covers the pool-level mutable fields. `name`
 // is immutable; use unit sub-routes for unit-level mutations.
 type PatchResourcePoolRequest struct {
-	Description  *string             `json:"description,omitempty"`
-	NodeSelector map[string]string   `json:"nodeSelector,omitempty"`
-	Tolerations  []corev1.Toleration `json:"tolerations,omitempty"`
-	Labels       map[string]string   `json:"labels,omitempty"`
-	Annotations  map[string]string   `json:"annotations,omitempty"`
+	Description  *string             `json:"description,omitempty" desc:"New description; omit to leave unchanged, empty string to clear."`
+	NodeSelector map[string]string   `json:"nodeSelector,omitempty" desc:"Replacement node selector for the pool."`
+	Tolerations  []corev1.Toleration `json:"tolerations,omitempty" desc:"Replacement tolerations for the pool."`
+	Labels       map[string]string   `json:"labels,omitempty" desc:"Replacement labels for the pool."`
+	Annotations  map[string]string   `json:"annotations,omitempty" desc:"Replacement annotations for the pool."`
 }
 
 // CreateResourceUnitRequest is the body for POST .../units.
 type CreateResourceUnitRequest struct {
-	Name         string              `json:"name"`
-	Description  string              `json:"description,omitempty"`
-	Requests     corev1.ResourceList `json:"requests"`
-	Limits       corev1.ResourceList `json:"limits"`
-	NodeSelector map[string]string   `json:"nodeSelector,omitempty"`
-	Annotations  map[string]string   `json:"annotations,omitempty"`
+	Name         string              `json:"name" desc:"Unit name to create; unique within the pool."`
+	Description  string              `json:"description,omitempty" desc:"Human-readable description of the unit."`
+	Requests     corev1.ResourceList `json:"requests" desc:"Resource requests granted per quantity of this unit."`
+	Limits       corev1.ResourceList `json:"limits" desc:"Resource limits per quantity of this unit."`
+	NodeSelector map[string]string   `json:"nodeSelector,omitempty" desc:"Node labels workloads using this unit must match."`
+	Annotations  map[string]string   `json:"annotations,omitempty" desc:"User-defined annotations to set on the unit."`
 }
 
 // PatchResourceUnitRequest covers the unit-level mutable fields. `name`
 // is immutable.
 type PatchResourceUnitRequest struct {
-	Description  *string             `json:"description,omitempty"`
-	Requests     corev1.ResourceList `json:"requests,omitempty"`
-	Limits       corev1.ResourceList `json:"limits,omitempty"`
-	NodeSelector map[string]string   `json:"nodeSelector,omitempty"`
-	Annotations  map[string]string   `json:"annotations,omitempty"`
+	Description  *string             `json:"description,omitempty" desc:"New description; omit to leave unchanged, empty string to clear."`
+	Requests     corev1.ResourceList `json:"requests,omitempty" desc:"Replacement resource requests for the unit."`
+	Limits       corev1.ResourceList `json:"limits,omitempty" desc:"Replacement resource limits for the unit."`
+	NodeSelector map[string]string   `json:"nodeSelector,omitempty" desc:"Replacement node selector for the unit."`
+	Annotations  map[string]string   `json:"annotations,omitempty" desc:"Replacement annotations for the unit."`
 }
 
 // ResourcePoolList is the LIST response.
 type ResourcePoolList struct {
-	Items         []ResourcePool `json:"items"`
-	Count         int            `json:"count"`
-	ContinueToken string         `json:"continueToken,omitempty"`
+	Items         []ResourcePool `json:"items" desc:"Page of resource pools."`
+	Count         int            `json:"count" desc:"Number of pools in this page."`
+	ContinueToken string         `json:"continueToken,omitempty" desc:"Opaque token to fetch the next page; empty when no more pages."`
 }
 
 // ResourceUnitList is the LIST response for units inside one pool.
 type ResourceUnitList struct {
-	Items []ResourceUnit `json:"items"`
-	Count int            `json:"count"`
+	Items []ResourceUnit `json:"items" desc:"Resource units in the pool."`
+	Count int            `json:"count" desc:"Number of units returned."`
 }
 
 // Error mirrors RFC 7807 application/problem+json.
 type Error struct {
-	Type   string `json:"type"`
-	Title  string `json:"title"`
-	Status int    `json:"status"`
-	Detail string `json:"detail,omitempty"`
-	Code   string `json:"code,omitempty"`
+	Type   string `json:"type" desc:"URI reference identifying the problem type (RFC 7807); about:blank when unspecified."`
+	Title  string `json:"title" desc:"Short, human-readable summary of the problem."`
+	Status int    `json:"status" desc:"HTTP status code for this occurrence of the problem."`
+	Detail string `json:"detail,omitempty" desc:"Human-readable explanation specific to this occurrence."`
+	Code   string `json:"code,omitempty" desc:"Stable machine-readable error code for programmatic handling."`
 }
 
 // AbortWithProblem writes an RFC 7807 problem response and stops the gin chain.
@@ -118,7 +118,7 @@ func AbortWithProblem(c *gin.Context, status int, code, title, detail string) {
 
 // HealthStatus is the body returned by /healthz, /readyz on success.
 type HealthStatus struct {
-	Status string `json:"status"`
+	Status string `json:"status" desc:"Probe status string (e.g. ok)."`
 }
 
 // LastModifiedByAnnotation tracks the X-Axisml-User that performed the
