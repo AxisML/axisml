@@ -32,6 +32,7 @@ import (
 	"github.com/axisml/axisml/components/platform/internal/store"
 	"github.com/axisml/axisml/components/platform/internal/tenant"
 	"github.com/axisml/axisml/components/platform/internal/traffic"
+	"github.com/axisml/axisml/components/platform/internal/web"
 	"github.com/axisml/axisml/components/platform/internal/workspace"
 )
 
@@ -119,11 +120,16 @@ func NewAPIServer(cfg config.Config, db *gorm.DB, log *slog.Logger) (*server.Ser
 	if err != nil {
 		return nil, err
 	}
+	staticFS, err := web.FS()
+	if err != nil {
+		return nil, err
+	}
 	jwks := deps.Signer.JWKS()
 	return server.New(server.Options{
 		Addr:        config.APIBindAddress,
 		Log:         log,
 		Modules:     deps.Modules,
+		StaticFS:    staticFS,
 		JWKSHandler: func(c *gin.Context) { c.JSON(http.StatusOK, jwks) },
 		Ready: func(ctx context.Context) error {
 			sqlDB, err := db.DB()

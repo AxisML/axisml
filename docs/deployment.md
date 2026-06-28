@@ -76,9 +76,9 @@ make helm-install-platform
 
 ### 5.1 镜像版本
 
-所有控制面组件镜像 tag 由 `axisml-system/deploy/helm/Chart.yaml` 的 `appVersion` 统一注入（`ghcr.io/axisml/axisml-<component>:<appVersion>`，含 cluster-manager / compute-service / artifact-hub / platform-{backend,frontend} / tenant-operator / compute-operator）。顶层 `Makefile` 的 `IMAGE_TAG` 从该 `appVersion` 读取，作三层 chart 的统一版本源，并在 `helm-install` / `helm-template` 注入 system 与 platform 的 `--set <component>.image.tag`。
+所有控制面组件镜像 tag 由 `axisml-system/deploy/helm/Chart.yaml` 的 `appVersion` 统一注入（`ghcr.io/axisml/axisml-<component>:<appVersion>`，含 cluster-manager / compute-service / artifact-hub / platform / tenant-operator / compute-operator；platform 为单一镜像，后端同时托管前端 SPA）。顶层 `Makefile` 的 `IMAGE_TAG` 从该 `appVersion` 读取，作三层 chart 的统一版本源，并在 `helm-install` / `helm-template` 注入 system 与 platform 的 `--set <component>.image.tag`。
 
-> Platform 当前仍是 nginx 占位镜像（不跟 appVersion），故 `HELM_PLATFORM_IMAGE_SET` 暂留空。**Dev loop**：`make image-load IMAGE_TAG=dev` 后在 values override 覆盖 `image.tag=dev`。
+> Platform 为单一镜像（后端同时托管前端 SPA），tag 随 appVersion，由 platform 层 Makefile 经 `--set platform.image.tag` 注入。**Dev loop**：`make image-load IMAGE_TAG=dev` 后在 values override 覆盖 `image.tag=dev`。
 
 ### 5.2 PostgreSQL：内置或外接
 
@@ -139,7 +139,7 @@ CRD 与 `axisml-tenant` Namespace 标记了 `helm.sh/resource-policy=keep`，不
 | Compute Service | `1` 默认 | 同上 | controller-runtime Lease | API 无状态可水平扩；reconciler / informer 单 leader（数据卷 PVC 由 Platform 经 cluster-manager 管理，compute 不派生） |
 | Artifact Hub | `1` 默认 | 同上 | PG advisory lock | GC worker 经 `pg_try_advisory_lock` 选主；不连 K8s API；API 无状态 |
 | tenant-operator / compute-operator | `1`(leader)+N 备 | `:8081`/`:8082`（无 API） | controller-runtime Lease | 单 leader |
-| Platform | `1` 默认 | 当前 nginx placeholder 仅 `:8080` | 无 | 真实 backend 目标 API `:8080` / metrics `:8081` / probes `:8082`；经 FQDN 调 System 服务 |
+| Platform | `1` 默认 | API+前端 `:8080` / probes `:8081` | 无 | 单一镜像：后端同源提供 API 与前端 SPA 静态资源；经 FQDN 调 System 服务 |
 
 ### 8.2 Infra 组件部署形态（默认 values）
 

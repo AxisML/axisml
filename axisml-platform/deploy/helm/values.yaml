@@ -67,7 +67,8 @@ platform:
 
   image:
     registry: ghcr.io
-    repository: axisml/axisml-platform-backend
+    # Single Platform image: backend API + frontend SPA.
+    repository: axisml/axisml-platform
     # Defaults to the chart's appVersion when empty (the top-level Makefile
     # injects the system appVersion via --set for tag parity).
     tag: ""

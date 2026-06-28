@@ -1,0 +1,28 @@
+# Repo-root .dockerignore — applies to every image whose build context is the
+# repo root (axisml-platform, the axisml-system components, axisml-lite). Without
+# it, `docker build ... <REPO_ROOT>` ships the whole tree (all node_modules, the
+# .git history, build artifacts) as context, and the platform frontend stage's
+# `COPY axisml-platform/frontend/ ./` would clobber the freshly `pnpm install`ed
+# node_modules with the host's.
+#
+# Keep this to universally-safe excludes only: component Dockerfiles COPY just
+# the source trees they need, and the platform image rebuilds the frontend
+# bundle in a dedicated stage, so none of the below are required in the context.
+
+# Version control & local tooling
+.git
+.claude
+
+# Dependencies (rebuilt in-image)
+**/node_modules
+
+# Build artifacts (rebuilt in-image)
+**/bin
+**/dist
+**/build
+**/coverage
+**/*.tsbuildinfo
+
+# Editor / OS junk
+**/.DS_Store
+**/*.local

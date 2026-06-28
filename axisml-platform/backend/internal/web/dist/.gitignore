@@ -1,0 +1,5 @@
+# The real SPA bundle is staged here at build time and must not be committed.
+# Keep only the placeholder so the build always has a bundle to pick up.
+/*
+!.gitignore
+!index.html

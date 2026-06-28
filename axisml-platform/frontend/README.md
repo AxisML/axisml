@@ -54,19 +54,23 @@ scope (the topbar "所属租户" switcher is a client-side display scope).
 
 Dependencies are managed with **pnpm** (`packageManager` is pinned in `package.json`).
 
+Targets are exposed by the Platform layer Makefile as `frontend-*` (run from the
+repo root or `axisml-platform/`):
+
 ```sh
-make help            # list all targets
-make install         # pnpm install
-make dev             # start the dev server (proxies /api → $VITE_API_TARGET, default :8080)
-make / make build    # type-check + build the production bundle into dist/
-make test            # unit tests
-make lint            # lint the codebase
-make image           # docker build -> ghcr.io/axisml/axisml-platform-frontend:0.1.0
-make clean           # remove dist/, build/, and the local build cache
+make -C axisml-platform frontend-install   # pnpm install
+make -C axisml-platform frontend-dev       # dev server (proxies /api → $VITE_API_TARGET, default :8080)
+make -C axisml-platform frontend-build     # type-check + build the production bundle into dist/
+make -C axisml-platform frontend-test      # unit tests
+make -C axisml-platform frontend-lint      # lint the codebase
 ```
 
-`IMAGE_TAG` defaults to `0.1.0` and must track the `appVersion` in
-[`axisml-system/deploy/helm/Chart.yaml`](../../axisml-system/deploy/helm/Chart.yaml).
+There is **no separate frontend image**. The SPA is built into the single
+Platform image (`ghcr.io/axisml/axisml-platform`), whose backend serves both the
+API and the static bundle on the same origin. Build it with
+`make -C axisml-platform image` (the Dockerfile's frontend stage runs the build);
+`make -C axisml-platform frontend-stage` stages the bundle for a local
+`make -C axisml-platform build` that serves the real frontend.
 
 ### Mock mode (no backend)
 

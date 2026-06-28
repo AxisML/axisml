@@ -3,7 +3,7 @@
 # Default (no profile) brings up the Lite control plane: PostgreSQL + axisml-core
 # (Cluster Manager + Compute Service + Artifact Hub + the in-process Standalone
 # Docker runtime). Optional profiles add storage (zot/rustfs), the gateway
-# (traefik) and the Platform (backend/frontend):
+# (traefik) and the Platform (single image: API + UI on :8080):
 #
 #   docker compose up -d                                   # db + axisml-core
 #   docker compose --profile storage --profile gateway \
@@ -91,9 +91,11 @@ services:
       - traefik-dynamic:/etc/traefik/dynamic:ro
     networks: [axisml-control, axisml-workloads]
 
-  axisml-platform-backend:
+  # Single Platform image: the backend serves both the API and the frontend
+  # SPA on :8080.
+  axisml-platform:
     profiles: ["platform"]
-    image: ghcr.io/axisml/axisml-platform-backend:latest
+    image: ghcr.io/axisml/axisml-platform:latest
     depends_on:
       axisml-database:
         condition: service_healthy
@@ -113,16 +115,6 @@ services:
       AXISML_BOOTSTRAP_PASSWORD: admin
     ports:
       - "8080:8080"
-    networks: [axisml-control]
-
-  axisml-platform-frontend:
-    profiles: ["platform"]
-    image: ghcr.io/axisml/axisml-platform-frontend:latest
-    depends_on:
-      axisml-platform-backend:
-        condition: service_started
-    ports:
-      - "8081:80"
     networks: [axisml-control]
 
 networks:

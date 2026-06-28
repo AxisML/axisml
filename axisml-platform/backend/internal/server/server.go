@@ -3,8 +3,10 @@ package server
 import (
 	"context"
 	"errors"
+	"io/fs"
 	"log/slog"
 	"net/http"
+	"path"
 	"strings"
 	"time"
 
@@ -24,6 +26,10 @@ type Options struct {
 	Modules     []Module
 	JWKSHandler gin.HandlerFunc // served at /.well-known/jwks.json
 	Ready       func(context.Context) error
+	// StaticFS is the built SPA bundle (frontend). When set, non-API routes
+	// serve static assets with an index.html fallback (client-side routing).
+	// When nil, non-API routes 404 — the integration suite runs without it.
+	StaticFS fs.FS
 }
 
 // Server wraps the gin engine.
@@ -69,31 +75,69 @@ func New(opts Options) (*Server, error) {
 	}
 
 	// Unregistered routes: a documented-but-unwired /api/v1 endpoint is "not
-	// implemented yet" (501); everything else is 404 — both as problem+json so
-	// clients always get a parseable RFC 7807 body, never a bare empty 404.
+	// implemented yet" (501). Non-API routes serve the SPA bundle when present
+	// (static asset or index.html fallback for client-side routing), else 404.
+	// Both API errors are problem+json so clients always get a parseable RFC
+	// 7807 body, never a bare empty response.
 	r.NoRoute(func(c *gin.Context) {
-		c.Header("Content-Type", "application/problem+json")
-		if strings.HasPrefix(c.Request.URL.Path, "/api/v1/") {
+		p := c.Request.URL.Path
+		if strings.HasPrefix(p, "/api/v1/") {
+			c.Header("Content-Type", "application/problem+json")
 			c.JSON(http.StatusNotImplemented, Problem{
 				Type:     URI(problemTypeBase + "not-implemented"),
 				Title:    "Not Implemented",
 				Status:   http.StatusNotImplemented,
 				Detail:   "This endpoint is declared in the API contract but not yet implemented.",
-				Instance: c.Request.URL.Path,
+				Instance: p,
 				Code:     "not-implemented",
 			})
 			return
 		}
+		if opts.StaticFS != nil {
+			serveSPA(c, opts.StaticFS)
+			return
+		}
+		c.Header("Content-Type", "application/problem+json")
 		c.JSON(http.StatusNotFound, Problem{
 			Type:     URI(problemTypeBase + "not-found"),
 			Title:    "Not Found",
 			Status:   http.StatusNotFound,
-			Instance: c.Request.URL.Path,
+			Instance: p,
 			Code:     "not-found",
 		})
 	})
 
 	return &Server{addr: opts.Addr, engine: r, log: opts.Log}, nil
+}
+
+// serveSPA serves the SPA bundle: an existing file is returned as-is
+// (fingerprinted /assets/* get an immutable long cache), and any other path —
+// including directories, which must not yield a listing — falls back to
+// index.html so the client-side router can take over.
+func serveSPA(c *gin.Context, fsys fs.FS) {
+	name := strings.TrimPrefix(path.Clean(c.Request.URL.Path), "/")
+	if name != "" {
+		if f, err := fsys.Open(name); err == nil {
+			info, statErr := f.Stat()
+			_ = f.Close()
+			// Only serve regular files; a directory would otherwise render a
+			// browsable listing of the bundle.
+			if statErr == nil && !info.IsDir() {
+				if strings.HasPrefix(c.Request.URL.Path, "/assets/") {
+					c.Header("Cache-Control", "public, max-age=31536000, immutable")
+				}
+				http.FileServer(http.FS(fsys)).ServeHTTP(c.Writer, c.Request)
+				return
+			}
+		}
+	}
+	index, err := fs.ReadFile(fsys, "index.html")
+	if err != nil {
+		c.Status(http.StatusNotFound)
+		return
+	}
+	c.Header("Cache-Control", "no-cache")
+	c.Data(http.StatusOK, "text/html; charset=utf-8", index)
 }
 
 // Start runs the HTTP server until ctx is cancelled.
