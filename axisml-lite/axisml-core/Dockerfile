@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 #
 # Builds the single axisml-core image (Cluster Manager + Compute Service +
-# Artifact Hub modules + the in-process Standalone Docker runtime). The build
+# Artifact Hub modules + the in-process Standalone runtime). The build
 # context is the repo ROOT so the go.mod replace directives (../../axisml-system/*,
 # ../../pkg/openapigen) resolve. Build from the repo root:
 #   docker build -f axisml-lite/axisml-core/Dockerfile -t axisml-core:dev .

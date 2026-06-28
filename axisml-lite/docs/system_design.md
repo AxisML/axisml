@@ -115,7 +115,7 @@ axisml-lite/
 │   ├── internal/
 │   │   ├── core/                 # 模块装配、配置型 provider、PG coordination
 │   │   └── runtime/
-│   │       └── docker/           # ComputeRuntime 的 Docker 实现：container/volume/network/Traefik adapter、运行态采集（podman/containerd backend 为同级目录）
+│   │       └── standalone/       # Standalone Runtime：ComputeRuntime 的单机实现，经 Docker Engine Adapter 管理 container/volume/network/Traefik、采集运行态
 │   ├── Dockerfile
 │   └── go.mod
 ├── deploy/
@@ -129,7 +129,7 @@ axisml-lite/
 └── Makefile
 ```
 
-`axisml-platform` 使用 monorepo 发布的 Platform 镜像。`axisml-core` 通过仓库内 `go.work` / `replace` 依赖 Cluster Manager、Compute Service 和 Artifact Hub 的 `pkg/module` 公共装配 API，将三者编译进同一个 binary 并注入 Standalone provider；同时依赖 `MLRun` / `MLService` / `MLTrafficPolicy` API packages，在 `internal/runtime/docker` 进程内实现 Compute Service 发布的 `computeruntime.ComputeRuntime` 接口，并注入到 Compute 模块。该实现驱动 Docker Engine Adapter、volume、network 和 Traefik file provider 并采集运行态。Docker Engine Adapter、配置型资源目录和 Compose 资产同由 `axisml-lite/` 维护，构建单一 Dockerfile 和镜像，由 Compose 拉起。
+`axisml-platform` 使用 monorepo 发布的 Platform 镜像。`axisml-core` 通过仓库内 `go.work` / `replace` 依赖 Cluster Manager、Compute Service 和 Artifact Hub 的 `pkg/module` 公共装配 API，将三者编译进同一个 binary 并注入 Standalone provider；同时依赖 `MLRun` / `MLService` / `MLTrafficPolicy` API packages，在 `internal/runtime/standalone` 进程内实现 Compute Service 发布的 `computeruntime.ComputeRuntime` 接口，并注入到 Compute 模块。该实现驱动 Docker Engine Adapter、volume、network 和 Traefik file provider 并采集运行态。Docker Engine Adapter、配置型资源目录和 Compose 资产同由 `axisml-lite/` 维护，构建单一 Dockerfile 和镜像，由 Compose 拉起。
 
 monorepo 为三个 System 服务提供公共装配 API：
 
@@ -231,7 +231,7 @@ Instance 是 Runtime 对单个运行单元的统一称谓：Kubernetes 实现对
 Standard 和 Lite 形态均在各自进程内提供完整的 `ComputeRuntime` 实现：
 
 - Standard 形态在 Compute Service 进程内由 `internal/kuberuntime` 直接实现，封装 `client.Client`、informer 和 kubeproxy。
-- Lite 形态在 `axisml-core` 进程内由 `internal/runtime/docker` 直接实现，根据 `(backend.name, backend.engine)` 选择 Docker handler，并将 AxisML 对象渲染为内部 `ContainerPlan` / `RoutePlan`。
+- Lite 形态在 `axisml-core` 进程内由 `internal/runtime/standalone` 直接实现，根据 `(backend.name, backend.engine)` 选择 Docker handler，并将 AxisML 对象渲染为内部 `ContainerPlan` / `RoutePlan`。
 
 接口的 Go 类型契约（CR API 类型、`types.NamespacedName` 定位、`apierrors.IsNotFound` 语义、instance 归属校验）在两种形态下保持一致；两种实现均为进程内 Go 调用，不引入网络传输层。
 

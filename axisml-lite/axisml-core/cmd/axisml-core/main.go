@@ -1,6 +1,6 @@
 // Command axisml-core is the AxisML Lite Standalone composition root. It hosts
 // the Cluster Manager, Compute Service and Artifact Hub modules on one HTTP
-// server and the in-process Standalone (Docker) Compute Runtime, the only
+// server and the in-process Standalone Compute Runtime, the only
 // process with access to the Docker socket (design §3.1).
 package main
 
