@@ -30,3 +30,6 @@ axisml-*/deploy/helm/charts/*.tgz
 
 # Shared envtest binary (downloaded by `make setup-envtest`)
 axisml-system/test/setup-envtest/setup-envtest
+
+# Screenshot generator Python venv (scripts/gen-screenshots.sh)
+.venv/
