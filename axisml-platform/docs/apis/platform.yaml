@@ -375,6 +375,189 @@ components:
       - name
       - namespace
       type: object
+    DataVolume:
+      example:
+        accessModes:
+        - ReadWriteMany
+        createdAt: "2026-06-20T08:00:00Z"
+        description: Shared raw datasets directory.
+        labels:
+          team: vision
+        name: shared-datasets
+        size: 2Ti
+        status:
+          boundCapacity: 2Ti
+          mounts:
+          - kind: Deployment
+            mountPath: /data/shared
+            running: true
+            workload: ws-jupyter-3
+          phase: Bound
+        storageClass: nfs-rwx
+      properties:
+        accessModes:
+          description: Access modes (ReadWriteOnce/ReadWriteMany/ReadOnlyMany). Immutable
+            after creation.
+          items:
+            type: string
+          type: array
+        createdAt:
+          description: Volume creation timestamp (RFC3339).
+          format: date-time
+          type: string
+        description:
+          description: Free-text description of the volume.
+          type: string
+        labels:
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: User-defined labels on the volume.
+        name:
+          description: Data volume name, unique within the tenant.
+          type: string
+        size:
+          description: Requested storage size as a Kubernetes quantity (e.g. 200Gi).
+          type: string
+        status:
+          allOf:
+          - $ref: '#/components/schemas/DataVolumeStatus'
+          description: Live status read from the backing PVC and pod scan.
+          nullable: true
+        storageClass:
+          description: StorageClass backing the volume; cluster default when empty.
+            Immutable after creation.
+          type: string
+      required:
+      - name
+      type: object
+    DataVolumeCreateRequest:
+      example:
+        accessModes:
+        - ReadWriteMany
+        description: Shared raw datasets directory.
+        name: shared-datasets
+        size: 2Ti
+        storageClass: nfs-rwx
+      properties:
+        accessModes:
+          description: Access modes; defaults to [ReadWriteOnce] when empty.
+          items:
+            type: string
+          type: array
+        description:
+          description: Free-text description of the volume.
+          maxLength: 1000
+          type: string
+        labels:
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: User-defined labels to set on the volume.
+        name:
+          description: Data volume name, unique within the tenant.
+          maxLength: 63
+          minLength: 1
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+        size:
+          description: Requested storage size as a Kubernetes quantity (e.g. 200Gi).
+          type: string
+        storageClass:
+          description: StorageClass backing the volume; cluster default when empty.
+          type: string
+      required:
+      - name
+      - size
+      type: object
+    DataVolumeList:
+      example:
+        count: 1
+        items:
+        - accessModes:
+          - ReadWriteMany
+          createdAt: "2026-06-20T08:00:00Z"
+          description: Shared raw datasets directory.
+          labels:
+            team: vision
+          name: shared-datasets
+          size: 2Ti
+          status:
+            boundCapacity: 2Ti
+            mounts:
+            - kind: Deployment
+              mountPath: /data/shared
+              running: true
+              workload: ws-jupyter-3
+            phase: Bound
+          storageClass: nfs-rwx
+      properties:
+        count:
+          description: Number of volumes in this page.
+          type: integer
+        items:
+          description: Data volumes in this page.
+          items:
+            $ref: '#/components/schemas/DataVolume'
+          type: array
+      required:
+      - count
+      - items
+      type: object
+    DataVolumeMount:
+      properties:
+        kind:
+          description: Kubernetes controller kind (Deployment/StatefulSet/Job/Pod).
+          type: string
+        mountPath:
+          description: Mount path inside the pod.
+          type: string
+        running:
+          description: Whether the mounting pod is currently running.
+          type: boolean
+        workload:
+          description: Controlling workload (or pod) name.
+          type: string
+      required:
+      - running
+      - workload
+      type: object
+    DataVolumePatchRequest:
+      example:
+        description: Shared raw datasets directory (expanded).
+        size: 4Ti
+      properties:
+        description:
+          description: Replacement free-text description.
+          nullable: true
+          type: string
+        labels:
+          allOf:
+          - $ref: '#/components/schemas/StringMap'
+          description: Replacement user-defined label set.
+        size:
+          description: New storage size; expand-only (must be >= current).
+          nullable: true
+          type: string
+      type: object
+    DataVolumeStatus:
+      properties:
+        boundCapacity:
+          description: Actually bound capacity once the volume is Bound.
+          type: string
+        mounts:
+          description: Workloads currently mounting this volume (populated on detail
+            get).
+          items:
+            $ref: '#/components/schemas/DataVolumeMount'
+          type: array
+        phase:
+          description: 'PVC phase: Pending, Bound, or Lost.'
+          type: string
+        usedBytes:
+          description: Best-effort used bytes from the monitoring stack; omitted when
+            unavailable.
+          format: int64
+          type: integer
+      type: object
     EnvVar:
       example:
         name: NCCL_DEBUG
@@ -3974,6 +4157,51 @@ components:
       required:
       - newPassword
       type: object
+    StorageClass:
+      example:
+        allowVolumeExpansion: true
+        default: false
+        name: nfs-rwx
+        provisioner: nfs.csi.k8s.io
+      properties:
+        allowVolumeExpansion:
+          description: Whether volumes on this class can be expanded.
+          type: boolean
+        default:
+          description: Whether this is the cluster default StorageClass.
+          type: boolean
+        name:
+          description: StorageClass name.
+          type: string
+        provisioner:
+          description: Provisioner backing the class.
+          type: string
+      required:
+      - allowVolumeExpansion
+      - default
+      - name
+      type: object
+    StorageClassList:
+      example:
+        count: 1
+        items:
+        - allowVolumeExpansion: true
+          default: false
+          name: nfs-rwx
+          provisioner: nfs.csi.k8s.io
+      properties:
+        count:
+          description: Number of storage classes.
+          type: integer
+        items:
+          description: Available storage classes.
+          items:
+            $ref: '#/components/schemas/StorageClass'
+          type: array
+      required:
+      - count
+      - items
+      type: object
     StringMap:
       additionalProperties:
         type: string
@@ -5464,6 +5692,334 @@ paths:
       summary: Refresh the current bearer JWT
       tags:
       - Auth
+  /api/v1/datavolumes:
+    get:
+      operationId: listDataVolumes
+      parameters:
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
+        in: header
+        name: X-Axisml-Tenant
+        schema:
+          maxLength: 40
+          minLength: 3
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataVolumeList'
+          description: A page of data volumes.
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Malformed request (invalid syntax, missing required fields,
+            immutable field, etc.).
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Missing or invalid bearer JWT.
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Authenticated but insufficient role for the requested operation.
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected server error.
+      summary: List data volumes
+      tags:
+      - DataVolumes
+    post:
+      operationId: createDataVolume
+      parameters:
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
+        in: header
+        name: X-Axisml-Tenant
+        schema:
+          maxLength: 40
+          minLength: 3
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DataVolumeCreateRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataVolume'
+          description: Data volume created.
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Malformed request (invalid syntax, missing required fields,
+            immutable field, etc.).
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Missing or invalid bearer JWT.
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Authenticated but insufficient role for the requested operation.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Resource not found, OR the caller cannot see it. Platform deliberately
+            conflates these for non-admins to avoid information leak.
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'Conflicts with a precondition: duplicate name, last-tenant-admin
+            protection, in-use blocker, immutable transition, etc.'
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Semantically invalid request (e.g., cross-field violations).
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected server error.
+      summary: Create a data volume
+      tags:
+      - DataVolumes
+  /api/v1/datavolumes/{name}:
+    delete:
+      operationId: deleteDataVolume
+      parameters:
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
+        in: header
+        name: X-Axisml-Tenant
+        schema:
+          maxLength: 40
+          minLength: 3
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      - in: path
+        name: name
+        required: true
+        schema:
+          maxLength: 63
+          minLength: 1
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      - description: Delete even when mounted by running workloads.
+        in: query
+        name: force
+        schema:
+          type: boolean
+      responses:
+        "204":
+          description: Data volume deleted.
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Malformed request (invalid syntax, missing required fields,
+            immutable field, etc.).
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Missing or invalid bearer JWT.
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Authenticated but insufficient role for the requested operation.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Resource not found, OR the caller cannot see it. Platform deliberately
+            conflates these for non-admins to avoid information leak.
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: 'Conflicts with a precondition: duplicate name, last-tenant-admin
+            protection, in-use blocker, immutable transition, etc.'
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected server error.
+      summary: Delete a data volume
+      tags:
+      - DataVolumes
+    get:
+      operationId: getDataVolume
+      parameters:
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
+        in: header
+        name: X-Axisml-Tenant
+        schema:
+          maxLength: 40
+          minLength: 3
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      - in: path
+        name: name
+        required: true
+        schema:
+          maxLength: 63
+          minLength: 1
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataVolume'
+          description: Data volume detail (with mount occupancy).
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Malformed request (invalid syntax, missing required fields,
+            immutable field, etc.).
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Missing or invalid bearer JWT.
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Authenticated but insufficient role for the requested operation.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Resource not found, OR the caller cannot see it. Platform deliberately
+            conflates these for non-admins to avoid information leak.
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected server error.
+      summary: Get a data volume
+      tags:
+      - DataVolumes
+    patch:
+      operationId: updateDataVolume
+      parameters:
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
+        in: header
+        name: X-Axisml-Tenant
+        schema:
+          maxLength: 40
+          minLength: 3
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      - in: path
+        name: name
+        required: true
+        schema:
+          maxLength: 63
+          minLength: 1
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DataVolumePatchRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataVolume'
+          description: Updated data volume.
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Malformed request (invalid syntax, missing required fields,
+            immutable field, etc.).
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Missing or invalid bearer JWT.
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Authenticated but insufficient role for the requested operation.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Resource not found, OR the caller cannot see it. Platform deliberately
+            conflates these for non-admins to avoid information leak.
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Semantically invalid request (e.g., cross-field violations).
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected server error.
+      summary: Expand or relabel a data volume
+      tags:
+      - DataVolumes
   /api/v1/experiments:
     get:
       operationId: listExperiments
@@ -10957,6 +11513,37 @@ paths:
       summary: Update a resource unit
       tags:
       - ResourceUnits
+  /api/v1/storageclasses:
+    get:
+      operationId: listStorageClasses
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StorageClassList'
+          description: Available storage classes for new volumes.
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Missing or invalid bearer JWT.
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Authenticated but insufficient role for the requested operation.
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected server error.
+      summary: List storage classes
+      tags:
+      - DataVolumes
   /api/v1/tenants:
     get:
       operationId: listTenants
@@ -13494,5 +14081,8 @@ tags:
   name: ResourcePools
 - description: Per-pool resource unit specs (admin-only writes; read by all).
   name: ResourceUnits
+- description: Tenant-scoped durable data volumes (system-admin only); CRUD + expand
+    + mount-occupancy.
+  name: DataVolumes
 - description: Liveness and readiness probes.
   name: Health

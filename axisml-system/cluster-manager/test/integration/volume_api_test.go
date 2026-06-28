@@ -12,7 +12,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
 	srv "github.com/axisml/axisml/components/cluster-manager/internal/server"
@@ -77,4 +79,123 @@ func TestVolume_Validation(t *testing.T) {
 	// Missing name.
 	rr = doRequest(t, "POST", "/api/v1/volumes", `{"namespace":"default","size":"1Gi"}`)
 	require.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
+}
+
+// TestVolume_ListGetPatch covers the data-volume catalog surface: create with
+// accessModes/description, read back (with live status), list, and patch the
+// description.
+func TestVolume_ListGetPatch(t *testing.T) {
+	const ns = "default"
+	const name = "shared-data"
+
+	rr := doRequest(t, "POST", "/api/v1/volumes",
+		`{"namespace":"default","name":"shared-data","size":"1Gi","accessModes":["ReadWriteMany"],"description":"team share"}`)
+	require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
+	t.Cleanup(func() { doRequest(t, "DELETE", "/api/v1/volumes/"+ns+"/"+name+"?force=true", "") })
+
+	// GET echoes accessModes + description and carries a status block.
+	rr = doRequest(t, "GET", "/api/v1/volumes/"+ns+"/"+name, "")
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	var got srv.Volume
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &got))
+	assert.Equal(t, "team share", got.Description)
+	assert.Contains(t, got.AccessModes, "ReadWriteMany")
+	require.NotNil(t, got.Status)
+
+	// LIST returns the managed volume.
+	rr = doRequest(t, "GET", "/api/v1/volumes?namespace="+ns, "")
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	var list srv.VolumeList
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &list))
+	found := false
+	for _, v := range list.Items {
+		if v.Name == name {
+			found = true
+		}
+	}
+	assert.True(t, found, "created volume must appear in the list")
+
+	// PATCH updates the description.
+	rr = doRequest(t, "PATCH", "/api/v1/volumes/"+ns+"/"+name, `{"description":"expanded share"}`)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	var patched srv.Volume
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &patched))
+	assert.Equal(t, "expanded share", patched.Description)
+}
+
+// TestVolume_StorageClasses lists storage classes, flagging the default and
+// expansion capability.
+func TestVolume_StorageClasses(t *testing.T) {
+	expand := true
+	sc := &storagev1.StorageClass{
+		ObjectMeta:           metav1.ObjectMeta{Name: "it-fast-ssd", Annotations: map[string]string{"storageclass.kubernetes.io/is-default-class": "true"}},
+		Provisioner:          "test.csi.k8s.io",
+		AllowVolumeExpansion: &expand,
+	}
+	require.NoError(t, testCli.Create(context.Background(), sc))
+	t.Cleanup(func() { _ = testCli.Delete(context.Background(), sc) })
+
+	rr := doRequest(t, "GET", "/api/v1/storageclasses", "")
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	var list srv.StorageClassList
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &list))
+	var found *srv.StorageClass
+	for i := range list.Items {
+		if list.Items[i].Name == "it-fast-ssd" {
+			found = &list.Items[i]
+		}
+	}
+	require.NotNil(t, found, "created storage class must be listed")
+	assert.True(t, found.Default)
+	assert.True(t, found.AllowVolumeExpansion)
+	assert.Equal(t, "test.csi.k8s.io", found.Provisioner)
+}
+
+// TestVolume_DeleteOccupancyGuard verifies a volume mounted by a running pod is
+// refused (409) and the mount surfaces in the detail status; force=true deletes.
+func TestVolume_DeleteOccupancyGuard(t *testing.T) {
+	const ns = "default"
+	const name = "occupied-data"
+
+	rr := doRequest(t, "POST", "/api/v1/volumes", `{"namespace":"default","name":"occupied-data","size":"1Gi"}`)
+	require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
+
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "consumer", Namespace: ns},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{{
+				Name:         "c",
+				Image:        "busybox",
+				VolumeMounts: []corev1.VolumeMount{{Name: "d", MountPath: "/data"}},
+			}},
+			Volumes: []corev1.Volume{{
+				Name: "d",
+				VolumeSource: corev1.VolumeSource{PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+					ClaimName: name,
+				}},
+			}},
+		},
+	}
+	require.NoError(t, testCli.Create(context.Background(), pod))
+	pod.Status.Phase = corev1.PodRunning
+	require.NoError(t, testCli.Status().Update(context.Background(), pod))
+	t.Cleanup(func() { _ = testCli.Delete(context.Background(), pod) })
+
+	// DELETE without force is blocked while a running pod mounts the volume.
+	rr = doRequest(t, "DELETE", "/api/v1/volumes/"+ns+"/"+name, "")
+	require.Equal(t, http.StatusConflict, rr.Code, rr.Body.String())
+
+	// The mount surfaces in the detail status.
+	rr = doRequest(t, "GET", "/api/v1/volumes/"+ns+"/"+name, "")
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	var got srv.Volume
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &got))
+	require.NotNil(t, got.Status)
+	require.NotEmpty(t, got.Status.Mounts)
+	assert.Equal(t, "consumer", got.Status.Mounts[0].Workload)
+	assert.True(t, got.Status.Mounts[0].Running)
+
+	// force=true deletes despite occupancy.
+	rr = doRequest(t, "DELETE", "/api/v1/volumes/"+ns+"/"+name+"?force=true", "")
+	require.Equal(t, http.StatusNoContent, rr.Code, rr.Body.String())
 }

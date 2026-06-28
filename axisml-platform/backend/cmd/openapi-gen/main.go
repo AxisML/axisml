@@ -56,6 +56,7 @@ const (
 	tagImages        = "Images"
 	tagResourcePools = "ResourcePools"
 	tagResourceUnits = "ResourceUnits"
+	tagDataVolumes   = "DataVolumes"
 	tagHealth        = "Health"
 )
 
@@ -153,6 +154,7 @@ func tags() []openapigen.TagEntry {
 		{Name: tagImages, Description: "Image definitions (Platform-owned); versions proxy artifacts (kind=image)."},
 		{Name: tagResourcePools, Description: "Cluster-scoped resource pools (admin-only writes; read by all)."},
 		{Name: tagResourceUnits, Description: "Per-pool resource unit specs (admin-only writes; read by all)."},
+		{Name: tagDataVolumes, Description: "Tenant-scoped durable data volumes (system-admin only); CRUD + expand + mount-occupancy."},
 		{Name: tagHealth, Description: "Liveness and readiness probes."},
 	}
 }
@@ -192,6 +194,8 @@ func registerSchemas(g *openapigen.Generator) {
 		"ImageCompleteRequest":            server.ImageCompleteRequest{},
 		"ResourcePoolCreateRequest":       server.ResourcePoolCreateRequest{},
 		"ResourcePoolPatchRequest":        server.ResourcePoolPatchRequest{},
+		"DataVolumeCreateRequest":         server.DataVolumeCreateRequest{},
+		"DataVolumePatchRequest":          server.DataVolumePatchRequest{},
 		"ResourceUnitCreateRequest":       server.ResourceUnitCreateRequest{},
 		"ResourceUnitPatchRequest":        server.ResourceUnitPatchRequest{},
 		"ExperimentCreateRequest":         server.ExperimentCreateRequest{},
@@ -277,6 +281,10 @@ func registerSchemas(g *openapigen.Generator) {
 		"TrafficPolicyList":       server.TrafficPolicyList{},
 		"ResourcePool":            server.ResourcePool{},
 		"ResourcePoolList":        server.ResourcePoolList{},
+		"DataVolume":              server.DataVolume{},
+		"DataVolumeList":          server.DataVolumeList{},
+		"StorageClass":            server.StorageClass{},
+		"StorageClassList":        server.StorageClassList{},
 		"ResourceUnit":            server.ResourceUnit{},
 		"ResourceUnitList":        server.ResourceUnitList{},
 		"Pod":                     server.Pod{},

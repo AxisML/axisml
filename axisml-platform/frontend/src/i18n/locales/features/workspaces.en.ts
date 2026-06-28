@@ -41,6 +41,7 @@ export default {
     fAccessUrl: "Access URL",
     fInternalDns: "Internal DNS",
     fVolume: "Data volume",
+    fVolumePlaceholder: "Select an existing data volume",
     fMountPath: "Mount path",
     fEnv: "Environment variables",
     fPort: "Container port",

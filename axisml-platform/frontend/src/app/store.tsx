@@ -59,6 +59,7 @@ export const NAV: NavGroup[] = [
         roles: ["system-admin", "tenant-admin"],
       },
       { key: "pools", labelKey: "nav.pools", icon: "pool", path: "/resource-pools", roles: ["system-admin"] },
+      { key: "volumes", labelKey: "nav.volumes", icon: "volume", path: "/data-volumes", roles: ["system-admin"] },
     ],
   },
 ];

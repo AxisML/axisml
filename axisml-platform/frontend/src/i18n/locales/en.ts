@@ -21,6 +21,7 @@ export const enUS: Catalog = {
     loadFailed: "Failed to load",
     retry: "Retry",
     noData: "No data",
+    noDataVolumes: "No data volumes in this tenant yet — ask a system admin to create one",
     totalItems: "{{count}} items",
     all: "All",
     yes: "Yes",
@@ -76,6 +77,7 @@ export const enUS: Catalog = {
     systemMgmt: "System",
     tenants: "Tenants",
     pools: "Resource Pools",
+    volumes: "Data Volumes",
   },
   topbar: {
     searchPlaceholder: "Search jobs / services / models / images…",

@@ -31,6 +31,7 @@ func registerExamples(g *openapigen.Generator) {
 	exMLService(g)
 	exTraffic(g)
 	exResourcePool(g)
+	exDataVolume(g)
 	exArtifact(g)
 	exExperiment(g)
 	exProxy(g)

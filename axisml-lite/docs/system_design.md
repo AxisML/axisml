@@ -169,7 +169,7 @@ Lite 不修改 `compute-operator`。Standard 形态的 `ComputeRuntime` adapter 
 
 Runtime 端口只使用 AxisML 发布的 `MLRun`、`MLService`、`MLTrafficPolicy` API 类型和 Kubernetes 标准类型。Docker SDK 请求、Traefik 配置、Deployment、HTTPRoute 和 `client.Object` 属于 handler / adapter 内部类型，不进入 Runtime contract。
 
-核心接口由各组件的 `pkg/extensions` 包发布（compute-service 的 `ComputeRuntime` / `ResourceResolver` / `WorkspaceVolumeProvisioner`，cluster-manager 的 `ResourcePoolStore` / `TenantStore`），如下：
+核心接口由各组件的 `pkg/extensions` 包发布（compute-service 的 `ComputeRuntime` / `ResourceResolver` / `VolumeManager`，cluster-manager 的 `ResourcePoolStore` / `TenantStore`），如下：
 
 ```go
 type ResourceStoreProvider interface {

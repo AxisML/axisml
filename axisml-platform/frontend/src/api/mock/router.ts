@@ -148,6 +148,14 @@ on("GET", "/resourcepools/:pool/units/:unit", (p) => ok((db.pools.find((x) => x.
 on("PATCH", "/resourcepools/:pool/units/:unit", (_p, _q, body) => ok(body));
 on("DELETE", "/resourcepools/:pool/units/:unit", () => noContent());
 
+// ── data volumes ────────────────────────────────────────────────────────────────
+on("GET", "/datavolumes", () => list(db.dataVolumes));
+on("POST", "/datavolumes", (_p, _q, body) => created({ ...db.dataVolumes[0], ...(body as object) }));
+on("GET", "/datavolumes/:name", (p) => ok(db.dataVolumes.find((x) => x.name === p.name) ?? db.dataVolumes[0]));
+on("PATCH", "/datavolumes/:name", (p, _q, body) => ok({ ...(db.dataVolumes.find((x) => x.name === p.name) ?? db.dataVolumes[0]), ...(body as object) }));
+on("DELETE", "/datavolumes/:name", () => noContent());
+on("GET", "/storageclasses", () => list(db.storageClasses));
+
 // ── tenants, members, quotas ────────────────────────────────────────────────────
 on("GET", "/tenants", () => list(db.tenants));
 on("POST", "/tenants", (_p, _q, body) => created({ ...db.tenants[0], ...(body as object) }));

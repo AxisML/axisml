@@ -46,6 +46,7 @@ export default {
     fAccessUrl: "访问地址",
     fInternalDns: "内部地址",
     fVolume: "数据卷",
+    fVolumePlaceholder: "选择已建数据卷",
     fMountPath: "挂载路径",
     fEnv: "环境变量",
     fPort: "容器端口",

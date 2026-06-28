@@ -213,15 +213,41 @@ func registerExamples(g *openapigen.Generator) {
 
 	g.SetExample("CreateVolumeRequest", obj{
 		"namespace":    "team-vision",
-		"name":         "axisml-ws-notebook-data",
-		"size":         "50Gi",
-		"storageClass": "fast-ssd",
+		"name":         "shared-datasets",
+		"size":         "2Ti",
+		"storageClass": "nfs-rwx",
+		"accessModes":  []any{"ReadWriteMany"},
+		"description":  "Shared raw datasets directory",
+	})
+	g.SetExample("PatchVolumeRequest", obj{
+		"size":        "4Ti",
+		"description": "Shared raw datasets directory (expanded)",
 	})
 	g.SetExample("Volume", obj{
 		"namespace":    "team-vision",
-		"name":         "axisml-ws-notebook-data",
-		"size":         "50Gi",
-		"storageClass": "fast-ssd",
+		"name":         "shared-datasets",
+		"size":         "2Ti",
+		"storageClass": "nfs-rwx",
+		"accessModes":  []any{"ReadWriteMany"},
+		"description":  "Shared raw datasets directory",
+		"status": obj{
+			"phase":         "Bound",
+			"boundCapacity": "2Ti",
+			"mounts": []any{obj{
+				"workload":  "ws-jupyter-3",
+				"kind":      "Deployment",
+				"mountPath": "/data/shared",
+				"running":   true,
+			}},
+		},
+		"createdAt": "2026-02-11T08:00:00Z",
+	})
+
+	g.SetExample("StorageClass", obj{
+		"name":                 "nfs-rwx",
+		"provisioner":          "nfs.csi.k8s.io",
+		"default":              false,
+		"allowVolumeExpansion": true,
 	})
 
 	// --- Capabilities ---

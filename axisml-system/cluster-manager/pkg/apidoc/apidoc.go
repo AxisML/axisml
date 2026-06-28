@@ -63,7 +63,11 @@ func Document(version string) *openapigen.Document {
 	g.Register("QuotaList", server.QuotaList{}, openapigen.ResponseMode)
 	g.Register("Capabilities", server.Capabilities{}, openapigen.ResponseMode)
 	g.Register("CreateVolumeRequest", server.CreateVolumeRequest{}, openapigen.InputMode)
+	g.Register("PatchVolumeRequest", server.PatchVolumeRequest{}, openapigen.InputMode)
 	g.Register("Volume", server.Volume{}, openapigen.ResponseMode)
+	g.Register("VolumeList", server.VolumeList{}, openapigen.ResponseMode)
+	g.Register("StorageClass", server.StorageClass{}, openapigen.ResponseMode)
+	g.Register("StorageClassList", server.StorageClassList{}, openapigen.ResponseMode)
 
 	registerExamples(g)
 
@@ -71,7 +75,7 @@ func Document(version string) *openapigen.Document {
 		{Name: tagResourcePools, Description: "ResourcePool CRD CRUD."},
 		{Name: tagResourceUnits, Description: "Sub-routes over pool.spec.units[]."},
 		{Name: tagTenants, Description: "Tenant CRD CRUD and per-pool tenant quotas (unit × quantity, folded to ElasticQuota); cluster-manager is the REST writer."},
-		{Name: tagVolumes, Description: "Durable volume materialisation (PersistentVolumeClaim CRUD); idempotent create/delete used by compute for workspace volumes."},
+		{Name: tagVolumes, Description: "Durable data-volume lifecycle (PersistentVolumeClaim create/list/get/expand/delete) with mount-occupancy reporting; idempotent create/delete."},
 		{Name: tagCapabilities, Description: "Deployment-form capability document (multi-tenant / writable resource pools)."},
 		{Name: tagHealth, Description: "Liveness and readiness probes."},
 	}
@@ -83,6 +87,8 @@ func Document(version string) *openapigen.Document {
 	volNamespaceParam := openapigen.PathParam("namespace", "Physical Kubernetes namespace holding the volume.")
 	volNameParam := openapigen.PathParam("name", "Volume (PersistentVolumeClaim) name.")
 	selectorParam := openapigen.QueryParam("labelSelector", "K8s-style label selector.", &openapigen.Schema{Type: "string"})
+	volNamespaceQuery := openapigen.QueryParam("namespace", "Physical Kubernetes namespace to list volumes in.", &openapigen.Schema{Type: "string"})
+	forceQuery := openapigen.QueryParam("force", "Delete even when mounted by running workloads.", &openapigen.Schema{Type: "boolean"})
 
 	paths := map[string]openapigen.PathItem{}
 
@@ -231,12 +237,35 @@ func Document(version string) *openapigen.Document {
 			RequestBody: openapigen.JSONBody("CreateVolumeRequest"),
 			Responses:   withErrors(map[string]openapigen.Response{"201": openapigen.JSONResp("Volume materialised (idempotent).", "Volume")}),
 		},
+		Get: &openapigen.Operation{
+			Tags: []string{tagVolumes}, Summary: "List durable volumes", OperationID: "listVolumes",
+			Parameters: []openapigen.Parameter{volNamespaceQuery, selectorParam},
+			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Volume page (with live phase/capacity).", "VolumeList")}),
+		},
+	}
+
+	paths["/api/v1/storageclasses"] = openapigen.PathItem{
+		Get: &openapigen.Operation{
+			Tags: []string{tagVolumes}, Summary: "List storage classes", OperationID: "listStorageClasses",
+			Responses: withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Available storage classes for new volumes.", "StorageClassList")}),
+		},
 	}
 
 	paths["/api/v1/volumes/{namespace}/{name}"] = openapigen.PathItem{
+		Get: &openapigen.Operation{
+			Tags: []string{tagVolumes}, Summary: "Get a durable volume", OperationID: "getVolume",
+			Parameters: []openapigen.Parameter{volNamespaceParam, volNameParam},
+			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Volume detail (with mount occupancy).", "Volume")}),
+		},
+		Patch: &openapigen.Operation{
+			Tags: []string{tagVolumes}, Summary: "Expand or relabel a durable volume", OperationID: "updateVolume",
+			Parameters:  []openapigen.Parameter{volNamespaceParam, volNameParam},
+			RequestBody: openapigen.JSONBody("PatchVolumeRequest"),
+			Responses:   withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Updated volume.", "Volume")}),
+		},
 		Delete: &openapigen.Operation{
 			Tags: []string{tagVolumes}, Summary: "Delete a durable volume", OperationID: "deleteVolume",
-			Parameters: []openapigen.Parameter{volNamespaceParam, volNameParam},
+			Parameters: []openapigen.Parameter{volNamespaceParam, volNameParam, forceQuery},
 			Responses:  withErrors(map[string]openapigen.Response{"204": openapigen.NoContentResp}),
 		},
 	}
