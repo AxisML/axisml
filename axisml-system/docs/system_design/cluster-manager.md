@@ -170,7 +170,7 @@ K8s 形态：`Volume` 直接物化为该 namespace 下的 `PersistentVolumeClaim
 
 | 类别 | 内容 | 引用 |
 | --- | --- | --- |
-| 对外 REST | `/api/v1/resourcepools[/{pool}[/units[/{unit}]]]`（`ResourcePools` tag）；`/api/v1/tenants[/{tenant}[/quotas[/{pool}]]]`（`Tenants` tag）；`/api/v1/volumes[/{namespace}/{name}]`（`Volumes` tag） | [openapi/cluster-manager.yaml](../apis/cluster-manager.yaml) |
+| 对外 REST | `/api/v1/resourcepools[/{pool}[/units[/{unit}]]]`（`ResourcePools` tag）；`/api/v1/tenants[/{tenant}[/quotas[/{pool}]]]`（`Tenants` tag）；`/api/v1/volumes[/{namespace}/{name}]` 与 `GET /api/v1/storageclasses`（创建数据卷可选的 StorageClass 目录）（`Volumes` tag） | [openapi/cluster-manager.yaml](../apis/cluster-manager.yaml) |
 | 下发 CR | `ResourcePool` / `Tenant`（`axisml.io/v1alpha1`，cluster-scoped）；cluster-manager 是 `spec` 的 REST 写者，kubectl 路径也允许；Tenant `status` 由 tenant-operator 单写 | [resource-pool-crd.yaml](../../deploy/helm/crds/resource-pool-crd.yaml) / [tenant-crd.yaml](../../deploy/helm/crds/tenant-crd.yaml) |
 | 物化 K8s 资源 | `PersistentVolumeClaim`（核心 v1，namespace-scoped）——Volume REST 的落地形态；幂等 create / patch（扩容）/ delete；运行态与挂载占用读 PVC `status` 与同 namespace `Pod` | — |
 | 身份头 | 调用方注入 `X-Axisml-User`，本服务仅做 ownership 归属；透传为 CR annotation `axisml.io/last-modified-by`（[auth.md §6](../../../axisml-platform/docs/system_design/auth.md#6-下游身份透传)） | — |

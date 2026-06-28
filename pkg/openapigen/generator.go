@@ -338,6 +338,24 @@ func ListEnvelope(itemRef string) *Schema {
 	}
 }
 
+// PagedListEnvelope returns a paginated list schema
+// {items: []ref(itemRef), count: int, total: int64, continueToken: string}.
+// items, count and total are always present; continueToken is the Kubernetes
+// continuation token for fetching the next page and is omitted on the final
+// page. Used by handlers that page via ParsePagination + EncodeContinue.
+func PagedListEnvelope(itemRef string) *Schema {
+	return &Schema{
+		Type:     "object",
+		Required: []string{"items", "count", "total"},
+		Properties: map[string]*Schema{
+			"items":         {Type: "array", Items: Ref(itemRef), Description: "The page of items for the current offset."},
+			"count":         {Type: "integer", Description: "Number of items returned in this page (len(items))."},
+			"total":         {Type: "integer", Format: "int64", Description: "Total number of matching items across all pages."},
+			"continueToken": {Type: "string", Description: "Kubernetes-style continuation token for the next page; empty/absent on the final page."},
+		},
+	}
+}
+
 // WalkSchema recurses through every $ref-bearing branch of s and invokes
 // visit for each. Used by per-service integrity tests to verify every
 // reference resolves; kept narrow rather than reflective so a future Schema

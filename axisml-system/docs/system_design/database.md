@@ -65,11 +65,11 @@ CREATE UNIQUE INDEX mlruns_namespace_name_active_uniq ON mlruns (namespace, name
 CREATE INDEX mlruns_phase      ON mlruns (phase) WHERE deleted_at IS NULL;
 CREATE INDEX mlruns_created_at ON mlruns (created_at DESC);
 CREATE INDEX mlruns_labels_gin ON mlruns USING GIN (labels jsonb_path_ops);
-CREATE INDEX mlruns_namespace_job_created
-  ON mlruns (namespace, (labels->>'axisml.io/job'), created_at DESC) WHERE deleted_at IS NULL;
+CREATE INDEX mlruns_namespace_project_created
+  ON mlruns (namespace, (labels->>'axisml.io/project'), created_at DESC) WHERE deleted_at IS NULL;
 ```
 
-`phase` 是 MLRun CR `status.phase` 顶层冗余，`status` jsonb 持 `{message, startedAt, finishedAt, conditions[]}`（informer 写）。`spec` 含 compute 已展开的 `nodeSelector` / `tolerations` / `resources` snapshot，并保留 `scheduling.poolName` / `unitName` 做溯源（展开见 [compute-service.md §5.4](compute-service.md#54-resourcepool-展开)）；`spec.backend` 缺省补 `{native, job}`，创建后不可变。GIN + 复合索引支持 `?labelSelector=axisml.io/job=...`。
+`phase` 是 MLRun CR `status.phase` 顶层冗余，`status` jsonb 持 `{message, startedAt, finishedAt, conditions[]}`（informer 写）。`spec` 含 compute 已展开的 `nodeSelector` / `tolerations` / `resources` snapshot，并保留 `scheduling.poolName` / `unitName` 做溯源（展开见 [compute-service.md §5.4](compute-service.md#54-resourcepool-展开)）；`spec.backend` 缺省补 `{native, job}`，创建后不可变。GIN + 复合索引支持 `?labelSelector=axisml.io/project=...`。
 
 ### 2.2 `mlservices`
 
@@ -100,7 +100,8 @@ CREATE INDEX mlservices_phase          ON mlservices (phase) WHERE deleted_at IS
 CREATE INDEX mlservices_created_at     ON mlservices (created_at DESC);
 CREATE INDEX mlservices_sync_pending   ON mlservices (id) WHERE generation <> observed_generation AND deleted_at IS NULL;
 CREATE INDEX mlservices_labels_gin     ON mlservices USING GIN (labels jsonb_path_ops);
-CREATE INDEX mlservices_namespace_created ON mlservices (namespace, created_at DESC) WHERE deleted_at IS NULL;
+CREATE INDEX mlservices_namespace_project_created
+  ON mlservices (namespace, (labels->>'axisml.io/project'), created_at DESC) WHERE deleted_at IS NULL;
 ```
 
 `phase` 顶层冗余 CR `status.phase`，`status` jsonb 持 `{message, readyReplicas, endpoint, conditions[]}`。`spec` 仅 `roles[0].replicas` 可变（`/scale` 写入并 `+generation`）；`spec.backend` 缺省补 `{native, deployment}`。
@@ -147,10 +148,11 @@ CREATE TABLE artifacts (
   name         text NOT NULL,
   version      text NOT NULL,                  -- OCI tag-safe
   visibility   text NOT NULL DEFAULT 'tenant', -- 'tenant' | 'public'（仅 default tenant scope 允许）
-  display_name text,  description text,
+  display_name text NOT NULL DEFAULT '',
+  description  text NOT NULL DEFAULT '',
   labels       jsonb NOT NULL DEFAULT '{}',
   annotations  jsonb NOT NULL DEFAULT '{}',
-  owner        text,                           -- 创建者；不可变
+  owner_user   text NOT NULL DEFAULT '',       -- 创建者；不可变
   source       text,                           -- webUpload / oras / dockerPush / external；Ready 后冻结
   spec         jsonb NOT NULL,                 -- Kind 特化业务字段；Ready 后冻结
   status       text NOT NULL,                  -- Uploading / Ready / Failed / Deleting / Deleted
@@ -161,11 +163,12 @@ CREATE TABLE artifacts (
   updated_at   timestamptz NOT NULL DEFAULT now(),
   deleted_at   timestamptz
 );
-CREATE UNIQUE INDEX artifacts_nknv_uniq  ON artifacts (namespace, kind, name, version);
-CREATE INDEX artifacts_namespace_kind    ON artifacts (namespace, kind);
-CREATE INDEX artifacts_visibility_public ON artifacts (kind, name, version) WHERE visibility = 'public' AND status = 'Ready';
-CREATE INDEX artifacts_created_at        ON artifacts (created_at DESC);
-CREATE INDEX artifacts_labels_gin        ON artifacts USING GIN (labels jsonb_path_ops);
+CREATE UNIQUE INDEX uq_artifacts_coord         ON artifacts (namespace, kind, name, version);
+CREATE INDEX idx_artifacts_namespace_kind      ON artifacts (namespace, kind) WHERE deleted_at IS NULL;
+CREATE INDEX idx_artifacts_visibility_public   ON artifacts (kind, name, version) WHERE visibility = 'public' AND status = 'Ready';
+CREATE INDEX artifacts_labels_gin              ON artifacts USING GIN (labels jsonb_path_ops);
+CREATE INDEX idx_artifacts_workset             ON artifacts (status, deleted_at);
+CREATE INDEX idx_artifacts_uploading_ttl       ON artifacts (created_at) WHERE status = 'Uploading';
 ```
 
 `(namespace, kind, name, version)` 是 §1 软删唯一性的例外（一旦创建即不复用、软删也不释放，故 unique index **不带** `WHERE deleted_at IS NULL`）。`spec` / `digest` Ready 后冻结，"改"= 同 `(namespace, kind, name)` 下新建 `version`；`display_name` / `description` / `labels` / `annotations` 任何阶段可改，`visibility` 创建后不可变。存储地址不入表：`storage_kind` 是 `kind` 的纯函数，`uri` 由 `Handler.BuildStorageURI` 即时构造，新增 Kind 无需 schema 迁移。

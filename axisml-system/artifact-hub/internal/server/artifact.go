@@ -24,7 +24,7 @@ type Artifact struct {
 	Annotations map[string]string `json:"annotations,omitempty" desc:"Non-identifying metadata annotations."`
 	Owner       string            `json:"owner,omitempty" desc:"Identity that owns the artifact version."`
 	Spec        map[string]any    `json:"spec" desc:"Kind-specific free-form specification of the artifact."`
-	Status      string            `json:"status" desc:"Lifecycle status (Pending, Ready, Failed, Deleting)."`
+	Status      string            `json:"status" desc:"Lifecycle status (Uploading, Ready, Failed, Deleting, Deleted)."`
 	Source      string            `json:"source,omitempty" desc:"Provenance of the version (webUpload, oras, dockerPush, external)."`
 	Message     string            `json:"message,omitempty" desc:"Human-readable detail for the current status (e.g. failure reason)."`
 	Digest      string            `json:"digest,omitempty" desc:"Content digest of the stored artifact, set once the upload completes."`
@@ -74,7 +74,7 @@ type UploadCredentials struct {
 // yaml, it bundles the newly persisted Artifact view with the upload
 // credentials so the caller has a one-stop reply.
 type ArtifactInitiateResponse struct {
-	Artifact Artifact          `json:"artifact" desc:"The newly persisted artifact version (status Pending until upload completes)."`
+	Artifact Artifact          `json:"artifact" desc:"The newly persisted artifact version (status Uploading until upload completes)."`
 	Upload   UploadCredentials `json:"upload" desc:"Upload target and credentials for pushing the artifact content."`
 }
 

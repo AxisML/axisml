@@ -99,9 +99,9 @@ Platform 后端 `internal/auth` 暴露下列中间件供 handler 拼装（角色
 
 | 中间件 | 校验内容 | 短路 |
 | --- | --- | --- |
-| `RequireAuthenticated` | 主 token 有效且未在 `sessions` 黑名单 | — |
+| `RequireAuthenticated` | 主 token 有效且未在 `sessions` 黑名单；加载身份入 context | — |
 | `RequireSystemAdmin` | 当前用户具备 `system-admin` | — |
-| `RequireTenantRole(role, tenantParam)` | 在路径变量对应租户上拥有 ≥ `role` | `system-admin` 短路 |
-| `Require{Workspace,Service,Job,Experiment}Owner(nameParam)` | `@owner` 或在对象所属租户上有 ≥ `tenant-admin`；租户由 `X-Axisml-Tenant` 头解析 | `system-admin` 短路 |
+| `RequireTenantRole(role, tenantParam)` | 在路径变量 `tenantParam` 对应租户上拥有 ≥ `role` | `system-admin` 短路 |
+| `RequireActiveTenantRole(role)` | 在活跃租户（`X-Axisml-Tenant` 头）上拥有 ≥ `role`；name 寻址端点用它 | `system-admin` 短路 |
 
-`Require*Owner` 需先调下游 GET 拿 `owner`（实验 owner 取自 Platform PG 定义行），经 `gin.Context.Set` 注入后续 handler 避免重复调用；TensorBoard 启停复用 `RequireExperimentOwner`（普通成员不可启动）。
+**对象级 owner 校验不在中间件层**：单个对象（Workspace / Service / Job / Experiment 等）的归属判定下沉 service 层，由共享辅助 `guard.OwnerOrTenantAdmin(id, tenant, owner)` 在读取对象后调用——对象 owner、对象所属租户的 `tenant-admin`、或 `system-admin` 放行，否则 403；owner 取自 Platform PG 定义行。路由仅挂 `RequireActiveTenantRole(user)` 做租户成员门禁，更细的归属由 service 统一裁决，避免重复或漏写。TensorBoard 启停同样经此校验（普通成员不可启动）。

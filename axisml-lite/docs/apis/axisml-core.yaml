@@ -215,7 +215,7 @@ components:
           description: Kind-specific free-form specification of the artifact.
           type: object
         status:
-          description: Lifecycle status (Pending, Ready, Failed, Deleting).
+          description: Lifecycle status (Uploading, Ready, Failed, Deleting, Deleted).
           type: string
         updatedAt:
           description: Last-update timestamp (RFC3339).
@@ -377,7 +377,7 @@ components:
             framework: pytorch
             parameters: 25.6M
             task: image-classification
-          status: Pending
+          status: Uploading
           updatedAt: "2026-06-20T08:00:00Z"
           version: 1.4.0
           visibility: tenant
@@ -393,7 +393,7 @@ components:
         artifact:
           allOf:
           - $ref: '#/components/schemas/Artifact'
-          description: The newly persisted artifact version (status Pending until
+          description: The newly persisted artifact version (status Uploading until
             upload completes).
         upload:
           allOf:
@@ -2210,15 +2210,25 @@ components:
           updatedAt: "2026-06-28T09:45:00Z"
         total: 1
       properties:
+        continueToken:
+          description: Kubernetes-style continuation token for the next page; empty/absent
+            on the final page.
+          type: string
+        count:
+          description: Number of items returned in this page (len(items)).
+          type: integer
         items:
+          description: The page of items for the current offset.
           items:
             $ref: '#/components/schemas/MLRun'
           type: array
         total:
+          description: Total number of matching items across all pages.
           format: int64
           type: integer
       required:
       - items
+      - count
       - total
       type: object
     MLRunPatchRequest:
@@ -2748,15 +2758,25 @@ components:
           updatedAt: "2026-06-28T09:45:00Z"
         total: 1
       properties:
+        continueToken:
+          description: Kubernetes-style continuation token for the next page; empty/absent
+            on the final page.
+          type: string
+        count:
+          description: Number of items returned in this page (len(items)).
+          type: integer
         items:
+          description: The page of items for the current offset.
           items:
             $ref: '#/components/schemas/MLService'
           type: array
         total:
+          description: Total number of matching items across all pages.
           format: int64
           type: integer
       required:
       - items
+      - count
       - total
       type: object
     MLServicePatchRequest:
@@ -3489,7 +3509,6 @@ components:
             cpu: "16"
             memory: 128Gi
             nvidia.com/gpu: "2"
-        updatedAt: "2026-06-28T09:30:00Z"
       properties:
         annotations:
           additionalProperties:
@@ -3529,10 +3548,6 @@ components:
           items:
             $ref: '#/components/schemas/ServerResourceUnit'
           type: array
-        updatedAt:
-          description: Last modification timestamp (RFC3339).
-          format: date-time
-          type: string
       required:
       - createdAt
       - name
@@ -3572,7 +3587,6 @@ components:
               cpu: "16"
               memory: 128Gi
               nvidia.com/gpu: "2"
-          updatedAt: "2026-06-28T09:30:00Z"
       properties:
         continueToken:
           description: Opaque token to fetch the next page; empty when no more pages.
@@ -3792,10 +3806,6 @@ components:
           items:
             $ref: '#/components/schemas/ServerResourceUnit'
           type: array
-        updatedAt:
-          description: Last modification timestamp (RFC3339).
-          format: date-time
-          type: string
       required:
       - createdAt
       - name
@@ -4560,15 +4570,25 @@ components:
           updatedAt: "2026-06-28T09:45:00Z"
         total: 1
       properties:
+        continueToken:
+          description: Kubernetes-style continuation token for the next page; empty/absent
+            on the final page.
+          type: string
+        count:
+          description: Number of items returned in this page (len(items)).
+          type: integer
         items:
+          description: The page of items for the current offset.
           items:
             $ref: '#/components/schemas/TrafficPolicy'
           type: array
         total:
+          description: Total number of matching items across all pages.
           format: int64
           type: integer
       required:
       - items
+      - count
       - total
       type: object
     TrafficPolicyPatchRequest:

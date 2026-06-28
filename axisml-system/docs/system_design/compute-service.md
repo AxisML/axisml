@@ -185,7 +185,7 @@ POST .../mlruns  body: { name, scheduling:{poolName, unitName, quota}, ... }
 
 **校验失败**：pool 不存在 → `400 pool-not-found`；unit 名不在 `pool.spec.units[]` → `400 unit-not-found`；Informer 未 sync（冷启）→ `WaitForCacheSync` 通过前 `/readyz` 不就绪。
 
-**quota 名组装**：compute 以 tenant scope（= `identifier`）+ `poolName` 组装 ElasticQuota 全名 `axisml-<identifier>-<pool>` 写入 `spec.scheduling.quota`，随展开一并 snapshot；不校验配额是否存在（由 cluster-manager / tenant-operator 维护，koord-scheduler 调度期强制）。
+**quota 名透传**：ElasticQuota 全名由调用方在创建请求的 `scheduling.quota` 显式提供；compute 仅校验其非空（空则 `400 validation`），原样写入 `spec.scheduling.quota` 并随展开一并 snapshot，不做任何组装。不校验配额是否存在（由 cluster-manager / tenant-operator 维护，koord-scheduler 调度期强制）。
 
 **snapshot 语义**：pool/unit CR 仅在 Create 入口读一次，展开结果固化进 PG `spec`；后续 reconciler 透传到 CR，compute-operator 直接读 spec 渲染 Pod，全程不感知 pool/unit。pool 删除或 unit 改值不影响已创建 workload。
 

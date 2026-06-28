@@ -6,7 +6,7 @@ Components deployed:
   - Shared Gateway:       {{ .Release.Namespace }}/axisml-gateway (className={{ .Values.gateway.className | default "eg" }}, port={{ .Values.gateway.httpPort | default 80 }})
 {{- end }}
 {{- if .Values.rustfs.enabled }}
-  - RustFS (S3):          rustfs-svc:9000
+  - RustFS (S3):          rustfs:9000
 {{- end }}
 {{- if .Values.zot.enabled }}
   - zot (OCI):            zot:5000 (default user: admin / admin)

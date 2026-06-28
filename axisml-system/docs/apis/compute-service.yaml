@@ -1485,15 +1485,25 @@ components:
           updatedAt: "2026-06-28T09:45:00Z"
         total: 1
       properties:
+        continueToken:
+          description: Kubernetes-style continuation token for the next page; empty/absent
+            on the final page.
+          type: string
+        count:
+          description: Number of items returned in this page (len(items)).
+          type: integer
         items:
+          description: The page of items for the current offset.
           items:
             $ref: '#/components/schemas/MLRun'
           type: array
         total:
+          description: Total number of matching items across all pages.
           format: int64
           type: integer
       required:
       - items
+      - count
       - total
       type: object
     MLRunPatchRequest:
@@ -2023,15 +2033,25 @@ components:
           updatedAt: "2026-06-28T09:45:00Z"
         total: 1
       properties:
+        continueToken:
+          description: Kubernetes-style continuation token for the next page; empty/absent
+            on the final page.
+          type: string
+        count:
+          description: Number of items returned in this page (len(items)).
+          type: integer
         items:
+          description: The page of items for the current offset.
           items:
             $ref: '#/components/schemas/MLService'
           type: array
         total:
+          description: Total number of matching items across all pages.
           format: int64
           type: integer
       required:
       - items
+      - count
       - total
       type: object
     MLServicePatchRequest:
@@ -2822,15 +2842,25 @@ components:
           updatedAt: "2026-06-28T09:45:00Z"
         total: 1
       properties:
+        continueToken:
+          description: Kubernetes-style continuation token for the next page; empty/absent
+            on the final page.
+          type: string
+        count:
+          description: Number of items returned in this page (len(items)).
+          type: integer
         items:
+          description: The page of items for the current offset.
           items:
             $ref: '#/components/schemas/TrafficPolicy'
           type: array
         total:
+          description: Total number of matching items across all pages.
           format: int64
           type: integer
       required:
       - items
+      - count
       - total
       type: object
     TrafficPolicyPatchRequest:

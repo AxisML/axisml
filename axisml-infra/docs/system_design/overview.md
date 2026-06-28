@@ -46,7 +46,7 @@ Infra 层是平台的基础设施底座，为工作负载与控制面服务提�
 
 ```
 GatewayClass (envoy-gateway)
-  └── Gateway (axisml-gateway, in axisml-infra ns)  Listener: HTTP(80)/HTTPS(443)
+  └── Gateway (axisml-gateway, in axisml-infra ns)  Listener: HTTP(80)
         │  allowedRoutes.namespaces: 放行接入工作负载所在 namespace
         └── HTTPRoute（静态 / 派生）→ 目标 ClusterIP Service
 ```
@@ -54,6 +54,8 @@ GatewayClass (envoy-gateway)
 - **Gateway**：单一 `axisml-gateway` 承载全部路由，由 `axisml-infra` chart 提供。
 - **静态 HTTPRoute**：由调用方 chart 一同发布，对接控制面服务对外接口。
 - **派生 HTTPRoute**：调用方 controller 在工作负载 namespace 内创建 `HTTPRoute` / `SecurityPolicy` / `BackendTrafficPolicy`，`parentRefs` 指向 `axisml-gateway`；`ReferenceGrant` 仅在跨 namespace `backendRef` 授权场景使用。
+
+> **Future work**：当前仅配置 HTTP(80) listener；TLS 终止（HTTPS/443 listener + 证书引用）待后续补充。
 
 **对外契约**：
 
@@ -160,7 +162,7 @@ Infra 层提供 zot endpoint（ConfigMap）、admin 凭证（平台级 Secret）
 | --- | --- | --- |
 | koord-scheduler | 自定义调度器，承载 Gang Scheduling 与 ElasticQuota plugin | 启用 |
 | koord-manager | 控制器集合，管理 ElasticQuota / PodGroup 等 CR 状态聚合 | 启用 |
-| koord-descheduler / koordlet | Pod 重平衡 / 节点侧 QoS agent | 暂不启用 |
+| koord-descheduler / koordlet | Pod 重平衡 / 节点侧 QoS agent | 启用（随 Koordinator chart 部署） |
 
 **核心能力**：
 

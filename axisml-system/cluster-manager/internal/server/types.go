@@ -28,7 +28,6 @@ type ResourcePool struct {
 	Annotations     map[string]string   `json:"annotations,omitempty" desc:"User-defined annotations on the pool."`
 	ResourceVersion string              `json:"resourceVersion,omitempty" desc:"Opaque CR resourceVersion for optimistic concurrency."`
 	CreatedAt       time.Time           `json:"createdAt" desc:"Pool creation timestamp (RFC3339)."`
-	UpdatedAt       time.Time           `json:"updatedAt,omitempty" desc:"Last modification timestamp (RFC3339)."`
 }
 
 // ResourceUnit is one entry of pool.spec.units[]. Identified by the

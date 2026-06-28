@@ -58,11 +58,13 @@ CREATE TABLE users (
   must_change_password bool NOT NULL DEFAULT false,  -- bootstrap admin/admin 默认 true
   email text, display_name text,
   disabled bool NOT NULL DEFAULT false,
+  is_system_admin bool NOT NULL DEFAULT false,       -- 全局 system-admin 标志（auth.md §3）
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE UNIQUE INDEX users_username_uniq ON users (username);
--- 角色硬编码三档（system-admin / tenant-admin / user），不入表；矩阵见 auth.md §3。
+-- system-admin 为全局角色，由 users.is_system_admin 列承载；tenant-admin / user 为
+-- 租户内绑定，入 user_roles 表。三档矩阵见 auth.md §3。
 
 CREATE TABLE user_roles (
   user_id     uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,

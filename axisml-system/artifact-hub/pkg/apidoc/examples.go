@@ -68,7 +68,7 @@ func registerExamples(g *openapigen.Generator) {
 			"labels":      obj{"team": "vision", "stage": "production"},
 			"owner":       "li.wei",
 			"spec":        artifactSpec,
-			"status":      "Pending",
+			"status":      "Uploading",
 			"source":      "webUpload",
 			"createdAt":   exCreatedAt,
 			"updatedAt":   exCreatedAt,

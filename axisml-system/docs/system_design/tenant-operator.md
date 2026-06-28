@@ -46,7 +46,7 @@
 | --- | --- | --- | --- |
 | Tenant | 租户 CR，cluster-scoped | `metadata.name`（DNS-1123, ≤40） | 上游唯一写者为 cluster-manager |
 | Kubernetes Namespace | 运行租户 Pod 的物理 namespace | `spec.namespace.name` | 与 tenant scope 分离，可被多 Tenant 共享（§5.1） |
-| ElasticQuota | Koordinator 配额 CR | `axisml-<tenant>-<pool>` | 每条 `spec.quotas[]` 1:1 渲染（`min`/`max` 由 cluster-manager 折算后写入） |
+| ElasticQuota | Koordinator 配额 CR | `axisml-<tenant>-<pool>-<quota>` | 每条 `spec.quotas[]` 1:1 渲染（`min`/`max` 由 cluster-manager 折算后写入） |
 | InitResource | per-tenant Secret / CM / SA + RBAC | `axisml-tenant-<tenant>-<name>` | 由 `sourceXxxRef` 复制 |
 
 Tenant CR 字段见 [tenant-crd.yaml](../../deploy/helm/crds/tenant-crd.yaml)；ElasticQuota 调度行为见 [infra.md](../../../axisml-infra/docs/system_design/overview.md)。
@@ -74,7 +74,7 @@ Tenant CR 字段见 [tenant-crd.yaml](../../deploy/helm/crds/tenant-crd.yaml)；
 
 | 维度 | 行为 |
 | --- | --- |
-| 命名 | `axisml-<tenant>-<pool>`（集群内唯一） |
+| 命名 | `axisml-<tenant>-<pool>-<quota>`（集群内唯一） |
 | 创建 / 删除 | `spec.min`/`max` 直传；空数组不创建；spec 增删项 → Create / Delete 对应 CR |
 | ownerReference | Tenant CR |
 | 漂移 | reconcile 按 `spec.quotas[i].{min,max}` 覆盖 |
@@ -170,7 +170,7 @@ Pod 调度 ─▶ koord-scheduler ─▶ ElasticQuota.status.used 累加
 | 进程 | 单二进制 `axisml-tenant-operator`；承载 Manager + Tenant Reconciler |
 | 副本 | `replicas=1`，leader election Lease `axisml-tenant-operator.axisml.io` |
 | 暴露端口 | Metrics `:8081`、Probes `:8082`；无 API 端口，无对外服务 |
-| RBAC scope | ClusterRole：`tenants.axisml.io`（`get/list/watch/patch`）、`namespaces`（`create/get/list/watch/update/patch`，**无 delete**）、`elasticquotas.scheduling.sigs.k8s.io` RW、目标 ns `secrets/configmaps/serviceaccounts/roles/rolebindings` RW、源 ns `secrets/configmaps` RO、`events` `create/patch`；Role：自身 ns `leases` RW |
+| RBAC scope | ClusterRole：`tenants.axisml.io`（`get/list/watch/patch`）、`namespaces`（`create/get/list/watch/patch`，**无 update/delete**）、`elasticquotas.scheduling.sigs.k8s.io` RW、目标 ns `secrets/configmaps/serviceaccounts/roles/rolebindings` RW、源 ns `secrets/configmaps` RO、`events` `create/patch`；`roles` 额外授 `bind/escalate`、`clusterroles` 授 `bind`（apiserver 的 RBAC escalation 检查拒绝创建 operator 自身未持有规则的 Role，亦拒绝绑定 operator 无权 bind 的 Role/ClusterRole）；Role：自身 ns `leases` RW |
 | Cache 过滤 | 子资源用 `axisml.io/managed-by=tenant-operator` selector，避免拉全集群；Tenant CR 不过滤 |
 | Helm / 镜像 | `tenantOperator.*`，见 [deployment.md](../../../docs/deployment.md) |
 

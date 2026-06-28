@@ -7,7 +7,6 @@ type obj = map[string]any
 
 const (
 	exCreatedAt = "2026-06-20T08:00:00Z"
-	exUpdatedAt = "2026-06-28T09:30:00Z"
 )
 
 // registerExamples attaches a realistic, internally-consistent whole-object
@@ -78,7 +77,6 @@ func registerExamples(g *openapigen.Generator) {
 		"annotations":     obj{"axisml.io/managed-by": "platform"},
 		"resourceVersion": "184729",
 		"createdAt":       exCreatedAt,
-		"updatedAt":       exUpdatedAt,
 	}
 	g.SetExample("ResourcePool", pool)
 	g.SetExample("ResourcePoolList", obj{
