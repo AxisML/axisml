@@ -115,7 +115,7 @@ Platform 自有实体三类：**租户持久记录**、**身份 / 授权 / 会�
 | 创建 / 编辑 Job | 通则"写定义"；编辑只影响**之后**触发的 Run（已有 Run 已快照） |
 | 删除 Job | 通则"删除定义"；有活跃 Run → `409 job-has-active-runs` |
 | 触发运行 | 通则"触发实例" → 推导序号 `n` → 命名 `<job>-<n>` + 打 `axisml.io/job` label → `compute.CreateMLRun`；撞名（`409`）重列重算 `n` 重试（有界） |
-| Run 列表 / 取消 / 删除 / 副本 / 事件 / 日志 | `RequireJobOwner` → 透传 `compute.{ListMLRuns(labelSelector),CancelMLRun,DeleteMLRun,GetMLRun{Pods,Events,Logs}}`（日志 / 事件 SSE follow） |
+| Run 列表 / 取消 / 删除 / 副本 / 事件 / 日志 | 路由 `RequireActiveTenantRole(user)` + service 层 `guard.OwnerOrTenantAdmin`（owner 取自 Job 定义行） → 透传 `compute.{ListMLRuns(labelSelector),CancelMLRun,DeleteMLRun,GetMLRun{Pods,Events,Logs}}`（日志 / 事件 SSE follow） |
 
 **触发期 override 白名单**：镜像 / 模型**版本**、`roles[*].template.resources`、`scheduling{poolName,unitName,quota}`、超参（`args` / `env`）。**禁止** override `backend.{name,engine}` 与 role 拓扑（增删 role / 改 replicas 结构）——只能改模板后重新触发。
 
@@ -128,10 +128,10 @@ Platform 自有实体三类：**租户持久记录**、**身份 / 授权 / 会�
 | 用户操作 | 内部步骤 / 下游调用 |
 | --- | --- |
 | 创建 | 通则"触发实例"（预检 `(modelName, modelVersion)`）→ `route.path==""` 时自动拼 `/services/<tenant>/<name>/` 并注入 `AXISML_SERVICE_BASE_URL` env → `compute.CreateMLService(kind=service)` |
-| 扩缩容 | `RequireServiceOwner` → `ScaleMLService`（`Deleted` → `409 service-deleted`） |
+| 扩缩容 | 路由 `RequireActiveTenantRole(user)` + service 层 `guard.OwnerOrTenantAdmin` → `ScaleMLService`（`Deleted` → `409 service-deleted`） |
 | 停止 / 启动 | `stop` = scale 0 并把停前副本写 `annotations[platform.axisml.io/last-replicas]`；`start` = scale 回该 annotation（缺失 fallback 1）（§5.5） |
 | 删除 | 先 `GetMLService` 校验 `kind==service` 防误删工作区 → `DeleteMLService` |
-| 指标查询 | `RequireServiceOwner` → `compute.GetServiceMetrics`（按 backend 选 PromQL 的逻辑在 compute 侧，Platform 不感知 backend、不直连 Prometheus；失败 `502`） |
+| 指标查询 | 路由 `RequireActiveTenantRole(user)` + service 层 `guard.OwnerOrTenantAdmin` → `compute.GetServiceMetrics`（按 backend 选 PromQL 的逻辑在 compute 侧，Platform 不感知 backend、不直连 Prometheus；失败 `502`） |
 
 寻址 `/api/v1/mlservices/{name}`（与 jobs 对称）；spec 除 `roles[*].replicas` 外不可变。在线服务数据面鉴权设计为 API KEY（`route.auth.type=apiKey`，后续提供）；当前仅 `none`。
 
@@ -190,7 +190,7 @@ Dashboard 的聚合模型与接口暂不在本版系统设计中定义，待后�
 | 用户操作 | 内部步骤 / 下游调用 |
 | --- | --- |
 | 创建 | 对每个成员 `GetMLService` 预检 `kind==service` 且 `Ready` → 校验同租户、未被其它活跃策略占用 → `endpoint.path==""` 自动拼 → `compute.CreateTrafficPolicy` |
-| 调整流量 | `RequireTrafficPolicyOwner` → 校验 `Σweight==100`（加权）/ `0–100`（灰度）→ `compute.UpdateTrafficSplit` |
+| 调整流量 | 路由 `RequireActiveTenantRole(user)` + service 层 `guard.OwnerOrTenantAdmin` → 校验 `Σweight==100`（加权）/ `0–100`（灰度）→ `compute.UpdateTrafficSplit` |
 | 提升 / 回滚（灰度专属） | `promote` 置灰度后端 100 并互换 stable/canary `role`；`rollback` 置灰度 0 → `compute.{PromoteCanary,RollbackCanary}` |
 | 指标查询 | `compute.GetTrafficMetrics`（按后端分组 + 灰度健康对比；失败 `502`） |
 | 列表 / 详情 / 删除 | 通则"列表" / 透传；删除仅解除路由，成员 MLService 保留 |
@@ -201,7 +201,7 @@ Dashboard 的聚合模型与接口暂不在本版系统设计中定义，待后�
 
 下游：compute（+ artifacts 预检）。实验是训练特化模板（`experiments` 表，`spec` 与 `jobs` 同构）；每次运行产生一个 Run（`MLRun`，打 `axisml.io/experiment` label），复用计算任务现有后端（`(native,job)` / `(kubeflow-trainer,*)`），**无需新 handler**。训练超参即 `args/env`，Platform **不单独建模 / 不展示超参**；训练指标不入 PG——Run 容器把 TensorBoard event log 写到 compute 注入的对象存储位置（路径与凭证由 compute 渲染 Pod 时注入，Platform 不碰对象存储），经 §4.10 TensorBoard 查看。
 
-编排与 §4.2 同构（`RequireExperimentOwner`）：写 / 编辑 / 删除定义、触发运行（命名 `<exp>-<n>` + `axisml.io/experiment` label）、Run 列表 / 取消 / 删除 / 日志均按 §4.2；override 白名单同 §4.2。额外两项：
+编排与 §4.2 同构（路由 `RequireActiveTenantRole(user)` + service 层 `guard.OwnerOrTenantAdmin`，owner 取自实验定义行）：写 / 编辑 / 删除定义、触发运行（命名 `<exp>-<n>` + `axisml.io/experiment` label）、Run 列表 / 取消 / 删除 / 日志均按 §4.2；override 白名单同 §4.2。额外两项：
 
 - **对比** — 选定 Run 集合 → 拉起 / 复用 TensorBoard（§4.10）；指标与超参对比全在 TensorBoard（HParams / Scalars），Platform 不自建对比视图。
 - **登记模型** — `compute.GetMLRun` 取 checkpoint 产出位置 → 走 §4.5 制品登记流程。
@@ -214,7 +214,7 @@ Dashboard 的聚合模型与接口暂不在本版系统设计中定义，待后�
 
 | 用户操作 | 内部步骤 / 下游调用 |
 | --- | --- |
-| 启动 | `RequireExperimentOwner` → 解析目标 → 幂等（已存活则复用）→ `compute.CreateMLService(kind=tensorboard, route.enabled=false)`；SecurityPolicy 交付后再开放外部 route |
+| 启动 | 路由 `RequireActiveTenantRole(user)` + service 层 `guard.OwnerOrTenantAdmin`（owner 取自实验定义行） → 解析目标 → 幂等（已存活则复用）→ `compute.CreateMLService(kind=tensorboard, route.enabled=false)`；SecurityPolicy 交付后再开放外部 route |
 | 打开 / 停止 | 返回 route endpoint / 手动停或空闲 TTL 自动回收（`compute.{Get,Delete}MLService`） |
 
 - 临时、只读、可空闲回收；不产出制品；Pod 仍走 koord-scheduler 与租户配额。
@@ -299,13 +299,13 @@ Platform 在下游对象上挂自定义元数据（`last-replicas` 副本基线�
 
 **关键不变量**：后端零文案，新增语言 = 加 catalog（前端独立维护），后端与下游零改动；error `type` / 下游 code 是稳定契约（改文案不改 code）。
 
-RBAC 中间件装配见 [auth.md](auth.md)；Platform 路由层挂载 `RequireSystemAdmin` / `RequireTenantRole` / `RequireJobOwner` / `RequireExperimentOwner` / `RequireServiceOwner` / `RequireTrafficPolicyOwner` / `RequireWorkspaceOwner`（均按 `name` 寻址）。
+RBAC 中间件装配见 [auth.md](auth.md)。路由层中间件仅做认证与租户级角色门禁——`RequireAuthenticated`（校验 bearer JWT + 会话白名单，加载身份）、`RequireSystemAdmin`（全局 system-admin）、`RequireTenantRole`（路径参数寻址租户的角色门禁）、`RequireActiveTenantRole`（活跃租户头寻址，name 寻址端点用它，如 `RequireActiveTenantRole(auth.RoleUser)`）。**对象级 owner 校验不在路由层**：单个对象的归属判定下沉到 service 层，由共享的 `guard.OwnerOrTenantAdmin(id, tenant, owner)` 统一执行（owner / tenant-admin / system-admin 放行，否则 403），各工作负载 / 制品模块在读取对象后调用，避免重复或漏写。
 
 ## 6. 接口契约
 
 | 类别 | 内容 |
 | --- | --- |
-| 对外 REST | 业务 tag：`Auth` / `Tenants` / `Quotas` / `Members` / `Jobs` / `Experiments` / `MLServices` / `TrafficPolicy` / `Workspaces` / `Models` / `Images` / `ResourcePools` / `ResourceUnits` / `DataVolumes`；name 寻址 `/api/v1/{kind}/{name}`（Run / TensorBoard 为子资源），制品 tuple 寻址 `/{kind-plural}/{tenant}/{name}`；系统 tag（`Users` / `Health`）见 yaml。契约源 [openapi/platform.yaml](../apis/platform.yaml) |
+| 对外 REST | 业务 tag：`Auth` / `Tenants` / `Quotas` / `Members` / `Jobs` / `Experiments` / `MLServices` / `TrafficPolicy` / `Workspaces` / `Models` / `Images` / `ResourcePools` / `ResourceUnits` / `DataVolumes`；name 寻址 `/api/v1/{kind}/{name}`（Run / TensorBoard 为子资源），制品 tuple 寻址 `/{kind-plural}/{tenant}/{name}`；集群级只读 `GET /api/v1/storageclasses`（system-admin only，透传 cluster-manager 的 ListStorageClasses，供数据卷创建表单选 StorageClass）；系统 tag（`Users` / `Health`）见 yaml。契约源 [openapi/platform.yaml](../apis/platform.yaml) |
 | 状态 | 不暴露任何 K8s CR；下游运行态字段（phase / conditions / quota 用量）作只读透传 |
 | 错误格式 | HTTP 标准码 + RFC 7807 problem+json；下游 problem 透传或包装；`type` URI / 下游 code 为稳定机读标识（§5.6） |
 | 流式 | 日志 / 事件 `follow=true` 用 SSE；非 follow 用 `text/plain` chunked |

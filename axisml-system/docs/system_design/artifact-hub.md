@@ -139,7 +139,7 @@ Ready / Failed ─(DELETE)─▶ Deleting ─(GCBackend 成功)─▶ Deleted
 
 | 依赖 | 用途 |
 | --- | --- |
-| PostgreSQL | 元数据权威；与 compute 共享 database，表前缀 `artifact_*`（[database.md](database.md)） |
+| PostgreSQL | 元数据权威；与 compute 共享 database，单表 `artifacts`（[database.md](database.md)） |
 | zot | OCI 后端；Artifacts 持 admin 凭证签 scope token / HEAD 校验 / GC 删 blob，客户端持短期 token 直连 |
 | RustFS | S3 后端；签 prefix-scoped STS / HEAD `artifact-manifest.json` 校验 / GC 删 prefix，bucket `axisml-artifact-hub` |
 | tenant-operator | 在 workload namespace 落地 per-tenant ServiceAccount + Secrets（默认 imagePullSecret 拉 zot、env / volume 读 RustFS）；Artifacts 不参与 Secret 落地、不在 resolve 返回 secret 名（[tenant-operator.md](tenant-operator.md)） |

@@ -93,7 +93,7 @@ components:
           description: Kind-specific free-form specification of the artifact.
           type: object
         status:
-          description: Lifecycle status (Pending, Ready, Failed, Deleting).
+          description: Lifecycle status (Uploading, Ready, Failed, Deleting, Deleted).
           type: string
         updatedAt:
           description: Last-update timestamp (RFC3339).
@@ -255,7 +255,7 @@ components:
             framework: pytorch
             parameters: 25.6M
             task: image-classification
-          status: Pending
+          status: Uploading
           updatedAt: "2026-06-20T08:00:00Z"
           version: 1.4.0
           visibility: tenant
@@ -271,7 +271,7 @@ components:
         artifact:
           allOf:
           - $ref: '#/components/schemas/Artifact'
-          description: The newly persisted artifact version (status Pending until
+          description: The newly persisted artifact version (status Uploading until
             upload completes).
         upload:
           allOf:

@@ -596,7 +596,6 @@ components:
             cpu: "16"
             memory: 128Gi
             nvidia.com/gpu: "2"
-        updatedAt: "2026-06-28T09:30:00Z"
       properties:
         annotations:
           additionalProperties:
@@ -636,10 +635,6 @@ components:
           items:
             $ref: '#/components/schemas/ServerResourceUnit'
           type: array
-        updatedAt:
-          description: Last modification timestamp (RFC3339).
-          format: date-time
-          type: string
       required:
       - createdAt
       - name
@@ -679,7 +674,6 @@ components:
               cpu: "16"
               memory: 128Gi
               nvidia.com/gpu: "2"
-          updatedAt: "2026-06-28T09:30:00Z"
       properties:
         continueToken:
           description: Opaque token to fetch the next page; empty when no more pages.
@@ -899,10 +893,6 @@ components:
           items:
             $ref: '#/components/schemas/ServerResourceUnit'
           type: array
-        updatedAt:
-          description: Last modification timestamp (RFC3339).
-          format: date-time
-          type: string
       required:
       - createdAt
       - name

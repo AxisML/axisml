@@ -11,7 +11,7 @@ global:
 # Naming convention: sub-charts are scoped by the `axisml-infra` namespace, so
 # fullnameOverride drops the redundant `axisml-infra-` prefix. Cross-namespace
 # callers reach a sub-chart via `<svc>.axisml-infra.svc.cluster.local` (e.g.
-# `zot.axisml-infra:5000`, `rustfs-svc.axisml-infra:9000`).
+# `zot.axisml-infra:5000`, `rustfs.axisml-infra:9000`).
 
 # =============================================================================
 # Envoy Gateway
@@ -39,7 +39,7 @@ gateway:
 # RustFS (object storage)
 # =============================================================================
 # Sub-chart: https://charts.rustfs.com/rustfs
-# Cluster DNS: rustfs-svc.axisml-infra.svc.cluster.local:9000
+# Cluster DNS: rustfs.axisml-infra.svc.cluster.local:9000
 rustfs:
   enabled: true
   fullnameOverride: rustfs
