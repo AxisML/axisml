@@ -126,7 +126,7 @@ func buildDocument(version string) *openapigen.Document {
 			Version: version,
 			Description: "Complete HTTP surface of axisml-core (AxisML Lite single-host form): " +
 				"Cluster Manager + Compute Service + Artifact Hub served on one HTTP server, " +
-				"plus the Standalone Docker runtime. This document folds the three System specs " +
+				"plus the Standalone runtime. This document folds the three System specs " +
 				"(axisml-system/docs/apis/{cluster-manager,compute-service,artifact-hub}.yaml) " +
 				"into one — their per-resource contracts are reachable at the same paths here — " +
 				"alongside the Lite-owned probes and aggregate capability endpoint.",

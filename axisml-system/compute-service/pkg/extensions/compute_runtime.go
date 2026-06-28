@@ -8,7 +8,7 @@
 //     Kubernetes runtime (internal/kuberuntime) writes the MLRun / MLService /
 //     MLTrafficPolicy CRs to the apiserver, where compute-operator maps them onto
 //     Job / Deployment / StatefulSet / Service / HTTPRoute. Lite's Standalone
-//     (Docker) runtime receives the same objects and maps them onto containers,
+//     runtime receives the same objects and maps them onto containers,
 //     volumes, networks and dynamic proxy config.
 //   - ResourceResolver reads the ResourcePool CR and its embedded units by name.
 //     Kubernetes reads the ResourcePool CR informer cache; Lite reads a static
