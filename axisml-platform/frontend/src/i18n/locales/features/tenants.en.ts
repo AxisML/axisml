@@ -37,7 +37,7 @@ export default {
     // suspend confirm
     suspendTitle: "Disable tenant {{name}}?",
     suspendDesc:
-      "Once disabled, its members cannot sign in to the console or submit new tasks, and running tasks are paused.",
+      "Once disabled, its members cannot sign in to the platform or submit new tasks, and running tasks are paused.",
     suspendInfo: "For a full cleanup, delete the tenant after disabling it.",
     confirmSuspend: "Confirm disable",
     // delete confirm

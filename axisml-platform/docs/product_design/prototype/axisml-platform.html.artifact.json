@@ -1,8 +1,8 @@
 {
   "version": 1,
   "kind": "html",
-  "title": "AxisML 控制台 · 首页",
-  "entry": "axisml-console.html",
+  "title": "AxisML 训推平台 · 首页",
+  "entry": "axisml-platform.html",
   "renderer": "html",
   "status": "complete",
   "exports": [
@@ -16,7 +16,7 @@
   "sourceSkillId": "agent-browser",
   "designSystemId": "ant",
   "metadata": {
-    "identifier": "axisml-console",
+    "identifier": "axisml-platform",
     "artifactType": "text/html",
     "inferred": false
   }

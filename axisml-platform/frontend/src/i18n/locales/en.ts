@@ -92,7 +92,7 @@ export const enUS: Catalog = {
     themeSystem: "System",
     logout: "Sign out",
     logoutConfirmTitle: "Sign out",
-    logoutConfirmDesc: "Sign out of the current session? You'll need to sign in again to access the console.",
+    logoutConfirmDesc: "Sign out of the current session? You'll need to sign in again to access the platform.",
     langSwitchedZh: "Language switched to 简体中文",
     langSwitchedEn: "Language switched to English",
     themeSwitched: "Theme switched to “{{name}}”",
