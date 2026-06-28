@@ -60,7 +60,6 @@ services:
       # cluster-manager pool definitions (runtime.PoolConfigDir = /etc/axisml/pools)
       - ./config:/etc/axisml/pools:ro
       - traefik-dynamic:/var/lib/axisml/traefik
-      - axisml-runtime:/var/lib/axisml/runtime
     networks: [axisml-control]
 
   zot:
@@ -128,4 +127,3 @@ volumes:
   zotdata:
   rustfsdata:
   traefik-dynamic:
-  axisml-runtime:

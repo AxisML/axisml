@@ -25,7 +25,6 @@ const (
 
 	// Filesystem layout (fixed by the image / Compose mounts).
 	DefaultPoolConfigDir    = "/etc/axisml/pools"       // Cluster Manager pool + tenant YAML
-	DefaultStateDir         = "/var/lib/axisml/runtime" // managed scratch dir
 	DefaultGatewayConfigDir = "/var/lib/axisml/traefik" // Traefik file-provider dynamic config
 
 	// Docker network dynamic workloads join (Traefik also joins it). Shared
@@ -61,9 +60,8 @@ type Settings struct {
 	// WithStaticConfig.
 	PoolConfigDir string
 
-	// StateDir and GatewayConfigDir are the runtime scratch dir and the Traefik
-	// file-provider config dir on the host filesystem.
-	StateDir         string
+	// GatewayConfigDir is the Traefik file-provider config dir on the host
+	// filesystem, written per service / traffic policy.
 	GatewayConfigDir string
 
 	// WorkloadsNetwork is the Docker network dynamic workloads (and Traefik) join.
@@ -82,7 +80,6 @@ func DefaultSettings() Settings {
 		UploadTokenTTL:    DefaultUploadTokenTTL,
 		DatasetBucket:     DefaultDatasetBucket,
 		PoolConfigDir:     DefaultPoolConfigDir,
-		StateDir:          DefaultStateDir,
 		GatewayConfigDir:  DefaultGatewayConfigDir,
 		WorkloadsNetwork:  DefaultWorkloadsNetwork,
 	}

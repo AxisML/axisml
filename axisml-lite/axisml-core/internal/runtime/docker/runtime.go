@@ -54,8 +54,6 @@ type Config struct {
 	Tenant string
 	// TraefikDir is the Traefik file-provider dynamic config directory.
 	TraefikDir string
-	// RuntimeDir is the managed scratch directory.
-	RuntimeDir string
 }
 
 // Runtime implements extensions.ComputeRuntime over the Docker Engine API.
