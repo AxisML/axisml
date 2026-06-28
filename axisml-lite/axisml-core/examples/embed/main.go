@@ -73,7 +73,6 @@ func run() error {
 	// Lite binary. Start from the defaults and override only what the host needs.
 	// APIBindAddress is left unused because the host owns the listener below.
 	settings := core.DefaultSettings()
-	settings.StateDir = envOr("AXISML_STATE_DIR", "/tmp/axisml-embed/runtime")
 	settings.GatewayConfigDir = envOr("AXISML_GATEWAY_DIR", "/tmp/axisml-embed/traefik")
 
 	// Assemble axisml-core. We supply the static config in memory (so there is no

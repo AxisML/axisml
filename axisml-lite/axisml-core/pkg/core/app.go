@@ -123,7 +123,6 @@ func New(ctx context.Context, cfg Config, opts ...Option) (app *App, err error) 
 		WorkloadsNetwork: o.settings.WorkloadsNetwork,
 		Tenant:           DefaultName,
 		TraefikDir:       o.settings.GatewayConfigDir,
-		RuntimeDir:       o.settings.StateDir,
 	}, log.WithName("runtime"))
 	if nerr := rt.EnsureNetwork(ctx); nerr != nil {
 		log.Error(nerr, "ensure workloads network (continuing)")
