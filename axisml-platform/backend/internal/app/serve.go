@@ -10,6 +10,7 @@ import (
 
 	"github.com/axisml/axisml/components/platform/internal/config"
 	"github.com/axisml/axisml/components/platform/internal/db"
+	"github.com/axisml/axisml/components/platform/internal/metrics"
 	"github.com/axisml/axisml/components/platform/internal/store"
 	"github.com/axisml/axisml/components/platform/pkg/logging"
 )
@@ -30,15 +31,23 @@ func Serve(ctx context.Context, cfg config.Config) error {
 	if err != nil {
 		return err
 	}
+	metrics.Register()
 	probes := probeServer(config.ProbesBindAddress)
+	metricsSrv := metricsServer(config.MetricsBindAddress)
 
 	go sweepExpiredSessions(ctx, store.NewSessionRepo(gormDB), config.SessionSweepInterval, log)
 
-	errCh := make(chan error, 2)
+	errCh := make(chan error, 3)
 	go func() {
 		log.Info("probes listening", "addr", config.ProbesBindAddress)
 		if err := probes.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errCh <- fmt.Errorf("probes: %w", err)
+		}
+	}()
+	go func() {
+		log.Info("metrics listening", "addr", config.MetricsBindAddress)
+		if err := metricsSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			errCh <- fmt.Errorf("metrics: %w", err)
 		}
 	}()
 	go func() {
@@ -52,6 +61,7 @@ func Serve(ctx context.Context, cfg config.Config) error {
 	case <-ctx.Done():
 	case err := <-errCh:
 		_ = probes.Close()
+		_ = metricsSrv.Close()
 		if err != nil {
 			return err
 		}
@@ -59,6 +69,7 @@ func Serve(ctx context.Context, cfg config.Config) error {
 	shutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	_ = probes.Shutdown(shutCtx)
+	_ = metricsSrv.Shutdown(shutCtx)
 	return nil
 }
 

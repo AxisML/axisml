@@ -73,8 +73,9 @@ platform:
     tag: ""
     pullPolicy: IfNotPresent
 
-  # Dedicated probes port (fixed in code; only wires containerPort/probes).
-  probesPort: 8081
+  # Listener ports are fixed in code; these only wire containerPort/Service/probes.
+  metricsPort: 8081      # Prometheus /metrics
+  probesPort: 8082       # /healthz + /readyz
 
   log:
     level: info          # debug | info | warn | error

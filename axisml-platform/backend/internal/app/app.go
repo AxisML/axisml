@@ -1,5 +1,6 @@
 // Package app wires the platform-backend process: the HTTP API server (auth +
-// RBAC + business modules), the health-probe server, and graceful shutdown.
+// RBAC + business modules), the metrics and health-probe servers, and graceful
+// shutdown.
 //
 // Platform is the user-facing aggregator: it fronts the System-layer services
 // (cluster-manager / compute / artifacts) over HTTP and adds identity, RBAC,
@@ -26,6 +27,7 @@ import (
 	"github.com/axisml/axisml/components/platform/internal/experiment"
 	"github.com/axisml/axisml/components/platform/internal/identity"
 	"github.com/axisml/axisml/components/platform/internal/job"
+	"github.com/axisml/axisml/components/platform/internal/metrics"
 	"github.com/axisml/axisml/components/platform/internal/mlservice"
 	"github.com/axisml/axisml/components/platform/internal/resourcepool"
 	"github.com/axisml/axisml/components/platform/internal/server"
@@ -148,4 +150,11 @@ func NewProbeRouter() *gin.Engine {
 
 func probeServer(addr string) *http.Server {
 	return &http.Server{Addr: addr, Handler: NewProbeRouter(), ReadHeaderTimeout: 10 * time.Second}
+}
+
+// metricsServer serves Prometheus metrics on the dedicated metrics port.
+func metricsServer(addr string) *http.Server {
+	mux := http.NewServeMux()
+	mux.Handle("/metrics", metrics.Handler())
+	return &http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: 10 * time.Second}
 }

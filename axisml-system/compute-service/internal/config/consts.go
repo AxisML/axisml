@@ -10,8 +10,8 @@ import (
 const (
 	// Listen addresses, uniform across all AxisML services.
 	APIBindAddress     = ":8080"
-	ProbesBindAddress  = ":8081"
-	MetricsBindAddress = ":9090"
+	MetricsBindAddress = ":8081"
+	ProbesBindAddress  = ":8082"
 
 	// Reconcile cadence.
 	ReconcileInterval = 2 * time.Second
