@@ -116,6 +116,13 @@ func (s *Service) Initiate(ctx context.Context, namespace, kind, name, ownerUser
 	}
 
 	if err := s.rows.Create(ctx, nil, row); err != nil {
+		// The pre-check above is racy: two concurrent Initiate calls for the same
+		// (namespace, kind, name, version) both pass it, then one loses the unique
+		// constraint. Surface that as a 409, not an opaque 500.
+		if dbjson.IsUniqueViolation(err) {
+			return nil, apperrors.Newf(apperrors.CodeConflict,
+				"version %s already exists for %s/%s/%s", in.Version, namespace, kind, name)
+		}
 		return nil, apperrors.Wrap(apperrors.CodeInternal, "insert artifact", err)
 	}
 

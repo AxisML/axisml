@@ -62,10 +62,13 @@ func reflectGone(ctx context.Context, repo *Repository, row *store.MLService) {
 		}
 		sf.Message = "external delete"
 		b, _ := json.Marshal(sf)
+		// Push to Deleting only — do NOT stamp deleted_at here. The row is still
+		// mid-teardown and must remain visible to read APIs (which filter
+		// deleted_at IS NULL); deleted_at is set only on the Deleting→Deleted
+		// convergence above, matching the mlrun reflow.
 		_ = repo.Update(ctx, row.ID, map[string]any{
-			"phase":      string(StatusDeleting),
-			"deleted_at": time.Now().UTC(),
-			"status":     b,
+			"phase":  string(StatusDeleting),
+			"status": b,
 		})
 	}
 }

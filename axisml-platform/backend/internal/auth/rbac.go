@@ -108,4 +108,8 @@ type SessionStore interface {
 	Create(ctx context.Context, jti, userID string, expiresAtUnix int64) error
 	IsActive(ctx context.Context, jti string) (bool, error)
 	Revoke(ctx context.Context, jti string) error
+	// RevokeAllForUser revokes every active session of a user (e.g. on password
+	// change or account deletion) and returns the revoked jtis so cache layers
+	// can invalidate their per-jti entries.
+	RevokeAllForUser(ctx context.Context, userID string) ([]string, error)
 }

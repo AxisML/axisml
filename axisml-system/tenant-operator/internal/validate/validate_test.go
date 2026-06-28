@@ -53,6 +53,41 @@ func TestValidate_Happy(t *testing.T) {
 	}
 }
 
+func TestValidate_RBACRulesGuardrail(t *testing.T) {
+	rejected := map[string][]rbacv1.PolicyRule{
+		"escalate verb":         {{Verbs: []string{"escalate"}, APIGroups: []string{"rbac.authorization.k8s.io"}, Resources: []string{"roles"}}},
+		"bind verb":             {{Verbs: []string{"bind"}, APIGroups: []string{"rbac.authorization.k8s.io"}, Resources: []string{"clusterroles"}}},
+		"impersonate":           {{Verbs: []string{"impersonate"}, APIGroups: []string{""}, Resources: []string{"users"}}},
+		"rbac write":            {{Verbs: []string{"create"}, APIGroups: []string{"rbac.authorization.k8s.io"}, Resources: []string{"rolebindings"}}},
+		"wildcard rbac":         {{Verbs: []string{"*"}, APIGroups: []string{"*"}, Resources: []string{"*"}}},
+		"wildcard verb on rbac": {{Verbs: []string{"*"}, APIGroups: []string{"rbac.authorization.k8s.io"}, Resources: []string{"roles"}}},
+	}
+	for name, rules := range rejected {
+		t.Run("rejected/"+name, func(t *testing.T) {
+			s := validSpec()
+			s.InitResources.ServiceAccounts[0].RBAC.Rules = rules
+			if err := validate.Validate(s, defaultOpts()); err == nil {
+				t.Fatalf("expected rejection for %s, got nil", name)
+			}
+		})
+	}
+
+	allowed := map[string][]rbacv1.PolicyRule{
+		"read pods":            {{Verbs: []string{"get", "list", "watch"}, APIGroups: []string{""}, Resources: []string{"pods"}}},
+		"write configmaps":     {{Verbs: []string{"create", "update", "delete"}, APIGroups: []string{""}, Resources: []string{"configmaps"}}},
+		"read rbac (no write)": {{Verbs: []string{"get", "list"}, APIGroups: []string{"rbac.authorization.k8s.io"}, Resources: []string{"roles"}}},
+	}
+	for name, rules := range allowed {
+		t.Run("allowed/"+name, func(t *testing.T) {
+			s := validSpec()
+			s.InitResources.ServiceAccounts[0].RBAC.Rules = rules
+			if err := validate.Validate(s, defaultOpts()); err != nil {
+				t.Fatalf("expected %s to pass, got %v", name, err)
+			}
+		})
+	}
+}
+
 func TestValidateMeta(t *testing.T) {
 	t.Run("happy path", func(t *testing.T) {
 		meta := &metav1.ObjectMeta{

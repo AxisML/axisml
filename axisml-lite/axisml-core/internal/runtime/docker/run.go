@@ -78,7 +78,11 @@ func planIdentity(p *ContainerPlan) any {
 
 // ApplyMLRun renders and idempotently converges the Run's containers. A Run's
 // spec is immutable, so a re-apply with matching spec hashes is a no-op. On a
-// create failure the containers created in this call are rolled back.
+// mid-loop create failure the already-created containers are left running and
+// the error is returned; the reconcile loop re-applies and, being idempotent
+// (unchanged containers skip by spec hash, missing ones are created), converges
+// the rest. Tearing the created containers back down would only force the next
+// apply to rebuild them from scratch.
 func (r *Runtime) ApplyMLRun(ctx context.Context, desired *mlrunv1alpha1.MLRun) error {
 	ns, name := desired.Namespace, desired.Name
 	plans, err := r.renderRunPlans(desired)
@@ -108,7 +112,6 @@ func (r *Runtime) ApplyMLRun(ctx context.Context, desired *mlrunv1alpha1.MLRun) 
 		}
 		id, err := r.createAndStart(ctx, p)
 		if err != nil {
-			r.rollback(ctx, created)
 			r.events.record(KindRun, ns, name, "", "ApplyFailed", err.Error())
 			return err
 		}
@@ -267,12 +270,6 @@ func (r *Runtime) GetMLRunInstanceEvents(ctx context.Context, key types.Namespac
 // GetMLRunEvents returns resource-level runtime events for the Run.
 func (r *Runtime) GetMLRunEvents(_ context.Context, key types.NamespacedName) (*eventsv1.EventList, error) {
 	return r.events.list(KindRun, key.Namespace, key.Name, ""), nil
-}
-
-func (r *Runtime) rollback(ctx context.Context, ids []string) {
-	for _, id := range ids {
-		_ = r.removeContainer(ctx, id)
-	}
 }
 
 func metaTimePtr(t *time.Time) *metav1.Time {

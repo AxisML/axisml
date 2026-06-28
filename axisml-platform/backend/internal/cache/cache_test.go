@@ -58,13 +58,17 @@ func (f *fakeCache) Close() error  { return nil }
 // fakeSessions is an in-memory auth.SessionStore counting IsActive reads.
 type fakeSessions struct {
 	active        map[string]bool
+	users         map[string]string // jti -> userID
 	isActiveCalls int
 }
 
-func newFakeSessions() *fakeSessions { return &fakeSessions{active: map[string]bool{}} }
+func newFakeSessions() *fakeSessions {
+	return &fakeSessions{active: map[string]bool{}, users: map[string]string{}}
+}
 
-func (f *fakeSessions) Create(_ context.Context, jti, _ string, _ int64) error {
+func (f *fakeSessions) Create(_ context.Context, jti, userID string, _ int64) error {
 	f.active[jti] = true
+	f.users[jti] = userID
 	return nil
 }
 
@@ -76,6 +80,17 @@ func (f *fakeSessions) IsActive(_ context.Context, jti string) (bool, error) {
 func (f *fakeSessions) Revoke(_ context.Context, jti string) error {
 	f.active[jti] = false
 	return nil
+}
+
+func (f *fakeSessions) RevokeAllForUser(_ context.Context, userID string) ([]string, error) {
+	var jtis []string
+	for jti, uid := range f.users {
+		if uid == userID && f.active[jti] {
+			f.active[jti] = false
+			jtis = append(jtis, jti)
+		}
+	}
+	return jtis, nil
 }
 
 func TestSessionCache_WriteThroughThenHit(t *testing.T) {

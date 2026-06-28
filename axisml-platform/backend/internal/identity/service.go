@@ -184,6 +184,13 @@ func (s *Service) DeleteUser(ctx context.Context, id string) error {
 	if _, err := s.GetUser(ctx, id); err != nil {
 		return err
 	}
+	// Revoke (and drop cached) sessions before the row is deleted: the FK cascade
+	// removes the DB session rows, but the positive Redis cache would otherwise
+	// read active until its TTL. Must run before Delete so the jtis are still
+	// readable for cache invalidation.
+	if _, err := s.sessions.RevokeAllForUser(ctx, id); err != nil {
+		return apperrors.Wrap(apperrors.ClassInternal, "revoke sessions", err)
+	}
 	if err := s.users.Delete(ctx, id); err != nil {
 		return apperrors.Wrap(apperrors.ClassInternal, "delete user", err)
 	}
@@ -211,5 +218,10 @@ func (s *Service) SetPassword(ctx context.Context, id, current, next string, isA
 		return apperrors.Wrap(apperrors.ClassInternal, "set password", err)
 	}
 	s.bust(ctx, id) // clears must_change_password, part of the resolved identity
+	// Invalidate all outstanding sessions: a changed/reset password must not
+	// leave a previously issued (possibly leaked) token valid until its TTL.
+	if _, err := s.sessions.RevokeAllForUser(ctx, id); err != nil {
+		return apperrors.Wrap(apperrors.ClassInternal, "revoke sessions", err)
+	}
 	return nil
 }

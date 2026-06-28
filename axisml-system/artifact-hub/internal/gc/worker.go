@@ -101,19 +101,29 @@ func (w *Worker) processStaleUploading(ctx context.Context) {
 		return
 	}
 	for _, row := range stale {
-		if h, ok := handler.Get(row.Kind); ok {
-			if err := h.GCBackend(ctx, gcArtifact(row)); err != nil {
-				w.log.Error(err, "gc backend (uploading_ttl)", "artifactID", row.ID)
-				// continue: prefer flipping Failed even if backend is flaky
-			}
-		}
-		if err := w.rows.Update(ctx, nil, row.ID, map[string]any{
+		// Claim the row first with a compare-and-set on status: a concurrent
+		// Complete may have flipped it to Ready between FindStaleUploading and now.
+		// Only when we win the CAS (status was still Uploading) do we tear down the
+		// backend state — otherwise GCBackend could delete a blob the client just
+		// successfully completed.
+		updated, err := w.rows.UpdateIfStatus(ctx, nil, row.ID, artmod.StatusUploading, map[string]any{
 			"status":  artmod.StatusFailed,
 			"message": "upload TTL exceeded; cleaned up by GC",
-		}); err != nil {
+		})
+		if err != nil {
 			w.log.Error(err, "mark failed", "artifactID", row.ID)
 			metrics.GCActions.WithLabelValues("uploading_ttl", "error").Inc()
 			continue
+		}
+		if !updated {
+			// Row left Uploading concurrently (e.g. completed) — leave it alone.
+			continue
+		}
+		if h, ok := handler.Get(row.Kind); ok {
+			if err := h.GCBackend(ctx, gcArtifact(row)); err != nil {
+				w.log.Error(err, "gc backend (uploading_ttl)", "artifactID", row.ID)
+				// row is already Failed; backend cleanup can be retried next tick
+			}
 		}
 		metrics.GCActions.WithLabelValues("uploading_ttl", "ok").Inc()
 	}

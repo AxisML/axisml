@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/select";
 import { LogViewer } from "@/components/log-viewer";
 import { PageLoading, DetailError } from "@/components/page-state";
+import { errorText } from "@/lib/errors";
 import type { PodLogsState } from "@/lib/use-pod-logs";
 
 // Canonical pod-logs pane, mirroring the prototype's log tab: a `log-bar` with a
@@ -62,8 +63,13 @@ export function PodLogPane({
         </div>
         {podsQ.isLoading || logsQ.isLoading ? (
           <PageLoading className="py-16" />
+        ) : podsQ.isError ? (
+          // Surface the fetch failure rather than masking it as "no logs".
+          <DetailError message={errorText(podsQ.error)} />
         ) : !pods.length ? (
           <DetailError message={emptyText} />
+        ) : logsQ.isError ? (
+          <DetailError message={errorText(logsQ.error)} />
         ) : (
           <LogViewer text={logsQ.data} empty={emptyText} />
         )}

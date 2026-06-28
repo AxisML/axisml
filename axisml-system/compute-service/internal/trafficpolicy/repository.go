@@ -3,12 +3,14 @@ package trafficpolicy
 import (
 	"context"
 	"errors"
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
 	"github.com/axisml/axisml/components/compute-service/internal/store"
+	apperrors "github.com/axisml/axisml/components/compute-service/pkg/errors"
 )
 
 type Repository struct{ db *gorm.DB }
@@ -53,6 +55,44 @@ func (r *Repository) ListByNamespace(ctx context.Context, namespace string, limi
 
 func (r *Repository) Create(ctx context.Context, p *store.TrafficPolicy) error {
 	return r.db.WithContext(ctx).Create(p).Error
+}
+
+// CreateGuarded inserts the policy while holding a transaction-scoped advisory
+// lock per member service and re-checking the "at most one active policy per
+// service" occupancy rule inside the transaction. This closes the TOCTOU
+// between validateMembers' occupancy check and the insert: two concurrent
+// creates that name the same member serialize on the advisory lock, so the
+// second sees the first's committed row and is rejected. A DB unique constraint
+// is impossible here because the membership lives in a jsonb array.
+func (r *Repository) CreateGuarded(ctx context.Context, p *store.TrafficPolicy, memberNames []string) error {
+	sorted := append([]string(nil), memberNames...)
+	sort.Strings(sorted) // deterministic lock order avoids deadlocks between creates sharing members
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Take all member locks first (namespaced so two namespaces don't contend),
+		// released automatically at end of transaction.
+		for _, name := range sorted {
+			if err := tx.Exec("SELECT pg_advisory_xact_lock(hashtext(?), hashtext(?))",
+				p.Namespace, name).Error; err != nil {
+				return err
+			}
+		}
+		// Re-check occupancy under the lock against committed rows.
+		for _, name := range sorted {
+			var n int64
+			if err := tx.Model(&store.TrafficPolicy{}).
+				Where("namespace = ? AND deleted_at IS NULL AND EXISTS ("+
+					"SELECT 1 FROM jsonb_array_elements(spec->'backends') AS b "+
+					"WHERE b->>'serviceName' = ?)", p.Namespace, name).
+				Count(&n).Error; err != nil {
+				return err
+			}
+			if n > 0 {
+				return apperrors.Newf(apperrors.CodeConflict,
+					"member %q is already used by an active policy", name)
+			}
+		}
+		return tx.Create(p).Error
+	})
 }
 
 func (r *Repository) Update(ctx context.Context, id uuid.UUID, fields map[string]any) error {
