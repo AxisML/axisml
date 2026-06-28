@@ -24,6 +24,7 @@ const Models = lazy(() => import("@/pages/models"));
 const Images = lazy(() => import("@/pages/images"));
 const Tenants = lazy(() => import("@/pages/tenants"));
 const ResourcePools = lazy(() => import("@/pages/resource-pools"));
+const DataVolumes = lazy(() => import("@/pages/data-volumes"));
 
 function PageFallback() {
   return (
@@ -80,6 +81,7 @@ export const router = createBrowserRouter([
       { path: "/images", element: <Images /> },
       { path: "/tenants", element: <Tenants /> },
       { path: "/resource-pools", element: <ResourcePools /> },
+      { path: "/data-volumes", element: <DataVolumes /> },
     ],
   },
 ]);

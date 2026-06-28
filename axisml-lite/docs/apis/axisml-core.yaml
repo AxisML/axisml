@@ -1785,11 +1785,27 @@ components:
       type: object
     CreateVolumeRequest:
       example:
-        name: axisml-ws-notebook-data
+        accessModes:
+        - ReadWriteMany
+        description: Shared raw datasets directory
+        name: shared-datasets
         namespace: team-vision
-        size: 50Gi
-        storageClass: fast-ssd
+        size: 2Ti
+        storageClass: nfs-rwx
       properties:
+        accessModes:
+          description: Access modes; defaults to [ReadWriteOnce] when empty.
+          items:
+            type: string
+          type: array
+        description:
+          description: Free-text description of the volume.
+          type: string
+        labels:
+          additionalProperties:
+            type: string
+          description: User-defined labels to set on the volume.
+          type: object
         name:
           description: Deterministic volume name supplied by the caller.
           type: string
@@ -3302,6 +3318,25 @@ components:
           description: Replacement labels applied to the tenant's namespace.
           type: object
       type: object
+    PatchVolumeRequest:
+      example:
+        description: Shared raw datasets directory (expanded)
+        size: 4Ti
+      properties:
+        description:
+          description: Replacement free-text description.
+          nullable: true
+          type: string
+        labels:
+          additionalProperties:
+            type: string
+          description: Replacement user-defined label set.
+          type: object
+        size:
+          description: New storage size; expand-only (must be >= current).
+          nullable: true
+          type: string
+      type: object
     Pod:
       example:
         labels:
@@ -3803,6 +3838,25 @@ components:
       - name
       - requests
       type: object
+    ServerStorageClass:
+      properties:
+        allowVolumeExpansion:
+          description: Whether volumes on this class can be expanded.
+          type: boolean
+        default:
+          description: Whether this is the cluster default StorageClass.
+          type: boolean
+        name:
+          description: StorageClass name.
+          type: string
+        provisioner:
+          description: Provisioner backing the class.
+          type: string
+      required:
+      - allowVolumeExpansion
+      - default
+      - name
+      type: object
     ServerTenant:
       properties:
         annotations:
@@ -3876,6 +3930,86 @@ components:
             $ref: '#/components/schemas/ServerQuotaStatus'
           type: array
       type: object
+    ServerVolume:
+      properties:
+        accessModes:
+          description: Access modes (ReadWriteOnce/ReadWriteMany/ReadOnlyMany). Immutable
+            after creation.
+          items:
+            type: string
+          type: array
+        createdAt:
+          description: Volume creation timestamp (RFC3339).
+          format: date-time
+          type: string
+        description:
+          description: Free-text description of the volume.
+          type: string
+        labels:
+          additionalProperties:
+            type: string
+          description: User-defined labels on the volume.
+          type: object
+        name:
+          description: Volume (PersistentVolumeClaim) name.
+          type: string
+        namespace:
+          description: Physical Kubernetes namespace holding the volume.
+          type: string
+        size:
+          description: Requested storage size as a Kubernetes quantity (e.g. 50Gi).
+          type: string
+        status:
+          allOf:
+          - $ref: '#/components/schemas/ServerVolumeStatus'
+          description: Live status read from the PVC and pod scan; populated on get/list.
+          nullable: true
+        storageClass:
+          description: StorageClass backing the volume; cluster default when empty.
+            Immutable after creation.
+          type: string
+      required:
+      - name
+      - namespace
+      type: object
+    ServerVolumeMount:
+      properties:
+        kind:
+          description: Kubernetes controller kind (Deployment/StatefulSet/Job/Pod).
+          type: string
+        mountPath:
+          description: Mount path inside the pod.
+          type: string
+        running:
+          description: Whether the mounting pod is currently running.
+          type: boolean
+        workload:
+          description: Controlling workload (or pod) name.
+          type: string
+      required:
+      - running
+      - workload
+      type: object
+    ServerVolumeStatus:
+      properties:
+        boundCapacity:
+          description: Actually bound capacity once the volume is Bound.
+          type: string
+        mounts:
+          description: Workloads currently mounting this volume (populated on detail
+            get).
+          items:
+            $ref: '#/components/schemas/ServerVolumeMount'
+          type: array
+        phase:
+          description: 'PVC phase: Pending, Bound, or Lost.'
+          type: string
+        usedBytes:
+          description: Best-effort used bytes from the monitoring stack; omitted when
+            unavailable.
+          format: int64
+          type: integer
+      type: object
     SetQuotaRequest:
       example:
         pool: gpu-a100
@@ -3891,6 +4025,44 @@ components:
           items:
             $ref: '#/components/schemas/ServerQuotaUnit'
           type: array
+      type: object
+    StorageClass:
+      example:
+        allowVolumeExpansion: true
+        default: false
+        name: nfs-rwx
+        provisioner: nfs.csi.k8s.io
+      properties:
+        allowVolumeExpansion:
+          description: Whether volumes on this class can be expanded.
+          type: boolean
+        default:
+          description: Whether this is the cluster default StorageClass.
+          type: boolean
+        name:
+          description: StorageClass name.
+          type: string
+        provisioner:
+          description: Provisioner backing the class.
+          type: string
+      required:
+      - allowVolumeExpansion
+      - default
+      - name
+      type: object
+    StorageClassList:
+      properties:
+        count:
+          description: Number of storage classes.
+          type: integer
+        items:
+          description: Available storage classes.
+          items:
+            $ref: '#/components/schemas/ServerStorageClass'
+          type: array
+      required:
+      - count
+      - items
       type: object
     Tenant:
       example:
@@ -4496,11 +4668,41 @@ components:
       type: object
     Volume:
       example:
-        name: axisml-ws-notebook-data
+        accessModes:
+        - ReadWriteMany
+        createdAt: "2026-02-11T08:00:00Z"
+        description: Shared raw datasets directory
+        name: shared-datasets
         namespace: team-vision
-        size: 50Gi
-        storageClass: fast-ssd
+        size: 2Ti
+        status:
+          boundCapacity: 2Ti
+          mounts:
+          - kind: Deployment
+            mountPath: /data/shared
+            running: true
+            workload: ws-jupyter-3
+          phase: Bound
+        storageClass: nfs-rwx
       properties:
+        accessModes:
+          description: Access modes (ReadWriteOnce/ReadWriteMany/ReadOnlyMany). Immutable
+            after creation.
+          items:
+            type: string
+          type: array
+        createdAt:
+          description: Volume creation timestamp (RFC3339).
+          format: date-time
+          type: string
+        description:
+          description: Free-text description of the volume.
+          type: string
+        labels:
+          additionalProperties:
+            type: string
+          description: User-defined labels on the volume.
+          type: object
         name:
           description: Volume (PersistentVolumeClaim) name.
           type: string
@@ -4510,12 +4712,32 @@ components:
         size:
           description: Requested storage size as a Kubernetes quantity (e.g. 50Gi).
           type: string
+        status:
+          allOf:
+          - $ref: '#/components/schemas/ServerVolumeStatus'
+          description: Live status read from the PVC and pod scan; populated on get/list.
+          nullable: true
         storageClass:
           description: StorageClass backing the volume; cluster default when empty.
+            Immutable after creation.
           type: string
       required:
       - name
       - namespace
+      type: object
+    VolumeList:
+      properties:
+        count:
+          description: Number of volumes in this page.
+          type: integer
+        items:
+          description: Page of volumes.
+          items:
+            $ref: '#/components/schemas/ServerVolume'
+          type: array
+      required:
+      - count
+      - items
       type: object
 info:
   description: 'Complete HTTP surface of axisml-core (AxisML Lite single-host form):
@@ -9710,6 +9932,61 @@ paths:
       summary: Patch unit
       tags:
       - ResourceUnits
+  /api/v1/storageclasses:
+    get:
+      operationId: listStorageClasses
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StorageClassList'
+          description: Available storage classes for new volumes.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Missing or invalid X-Axisml-User.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Conflict (already exists or concurrent modification).
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Invariant violated.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Internal error.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Unexpected error.
+      summary: List storage classes
+      tags:
+      - Volumes
   /api/v1/tenants:
     get:
       operationId: listTenants
@@ -10284,6 +10561,71 @@ paths:
       tags:
       - Tenants
   /api/v1/volumes:
+    get:
+      operationId: listVolumes
+      parameters:
+      - description: Physical Kubernetes namespace to list volumes in.
+        in: query
+        name: namespace
+        schema:
+          type: string
+      - description: K8s-style label selector.
+        in: query
+        name: labelSelector
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VolumeList'
+          description: Volume page (with live phase/capacity).
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Missing or invalid X-Axisml-User.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Conflict (already exists or concurrent modification).
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Invariant violated.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Internal error.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Unexpected error.
+      summary: List durable volumes
+      tags:
+      - Volumes
     post:
       operationId: createVolume
       requestBody:
@@ -10360,6 +10702,11 @@ paths:
         required: true
         schema:
           type: string
+      - description: Delete even when mounted by running workloads.
+        in: query
+        name: force
+        schema:
+          type: boolean
       responses:
         "204":
           description: Deleted (idempotent).
@@ -10406,6 +10753,146 @@ paths:
                 $ref: '#/components/schemas/ClusterManagerError'
           description: Unexpected error.
       summary: Delete a durable volume
+      tags:
+      - Volumes
+    get:
+      operationId: getVolume
+      parameters:
+      - description: Physical Kubernetes namespace holding the volume.
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      - description: Volume (PersistentVolumeClaim) name.
+        in: path
+        name: name
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Volume'
+          description: Volume detail (with mount occupancy).
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Missing or invalid X-Axisml-User.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Conflict (already exists or concurrent modification).
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Invariant violated.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Internal error.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Unexpected error.
+      summary: Get a durable volume
+      tags:
+      - Volumes
+    patch:
+      operationId: updateVolume
+      parameters:
+      - description: Physical Kubernetes namespace holding the volume.
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      - description: Volume (PersistentVolumeClaim) name.
+        in: path
+        name: name
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchVolumeRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Volume'
+          description: Updated volume.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Missing or invalid X-Axisml-User.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Conflict (already exists or concurrent modification).
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Invariant violated.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Internal error.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Unexpected error.
+      summary: Expand or relabel a durable volume
       tags:
       - Volumes
   /healthz:
@@ -10456,8 +10943,8 @@ tags:
 - description: Tenant CRD CRUD and per-pool tenant quotas (unit × quantity, folded
     to ElasticQuota); cluster-manager is the REST writer.
   name: Tenants
-- description: Durable volume materialisation (PersistentVolumeClaim CRUD); idempotent
-    create/delete used by compute for workspace volumes.
+- description: Durable data-volume lifecycle (PersistentVolumeClaim create/list/get/expand/delete)
+    with mount-occupancy reporting; idempotent create/delete.
   name: Volumes
 - description: MLRun CRUD per namespace. ResourcePool/Unit referenced by name (read
     from K8s Informer cache).

@@ -250,6 +250,132 @@ export type ConfigMapSourceRef = {
     namespace: string;
 };
 
+export type DataVolume = {
+    /**
+     * Access modes (ReadWriteOnce/ReadWriteMany/ReadOnlyMany). Immutable after creation.
+     */
+    accessModes?: Array<string>;
+    /**
+     * Volume creation timestamp (RFC3339).
+     */
+    createdAt?: string;
+    /**
+     * Free-text description of the volume.
+     */
+    description?: string;
+    /**
+     * User-defined labels on the volume.
+     */
+    labels?: StringMap;
+    /**
+     * Data volume name, unique within the tenant.
+     */
+    name: string;
+    /**
+     * Requested storage size as a Kubernetes quantity (e.g. 200Gi).
+     */
+    size?: string;
+    /**
+     * Live status read from the backing PVC and pod scan.
+     */
+    status?: DataVolumeStatus | null;
+    /**
+     * StorageClass backing the volume; cluster default when empty. Immutable after creation.
+     */
+    storageClass?: string;
+};
+
+export type DataVolumeCreateRequest = {
+    /**
+     * Access modes; defaults to [ReadWriteOnce] when empty.
+     */
+    accessModes?: Array<string>;
+    /**
+     * Free-text description of the volume.
+     */
+    description?: string;
+    /**
+     * User-defined labels to set on the volume.
+     */
+    labels?: StringMap;
+    /**
+     * Data volume name, unique within the tenant.
+     */
+    name: string;
+    /**
+     * Requested storage size as a Kubernetes quantity (e.g. 200Gi).
+     */
+    size: string;
+    /**
+     * StorageClass backing the volume; cluster default when empty.
+     */
+    storageClass?: string;
+};
+
+export type DataVolumeList = {
+    /**
+     * Number of volumes in this page.
+     */
+    count: number;
+    /**
+     * Data volumes in this page.
+     */
+    items: Array<DataVolume>;
+};
+
+export type DataVolumeMount = {
+    /**
+     * Kubernetes controller kind (Deployment/StatefulSet/Job/Pod).
+     */
+    kind?: string;
+    /**
+     * Mount path inside the pod.
+     */
+    mountPath?: string;
+    /**
+     * Whether the mounting pod is currently running.
+     */
+    running: boolean;
+    /**
+     * Controlling workload (or pod) name.
+     */
+    workload: string;
+};
+
+export type DataVolumePatchRequest = {
+    /**
+     * Replacement free-text description.
+     */
+    description?: string | null;
+    /**
+     * Replacement user-defined label set.
+     */
+    labels?: StringMap;
+    /**
+     * New storage size; expand-only (must be >= current).
+     */
+    size?: string | null;
+};
+
+export type DataVolumeStatus = {
+    /**
+     * Actually bound capacity once the volume is Bound.
+     */
+    boundCapacity?: string;
+    /**
+     * Workloads currently mounting this volume (populated on detail get).
+     */
+    mounts?: Array<DataVolumeMount>;
+    /**
+     * PVC phase: Pending, Bound, or Lost.
+     */
+    phase?: string;
+    /**
+     * Best-effort used bytes from the monitoring stack; omitted when unavailable.
+     */
+    usedBytes?: number;
+};
+
 export type EnvVar = {
     /**
      * Environment variable name.
@@ -2161,6 +2287,36 @@ export type SetPasswordRequest = {
     newPassword: string;
 };
 
+export type StorageClass = {
+    /**
+     * Whether volumes on this class can be expanded.
+     */
+    allowVolumeExpansion: boolean;
+    /**
+     * Whether this is the cluster default StorageClass.
+     */
+    default: boolean;
+    /**
+     * StorageClass name.
+     */
+    name: string;
+    /**
+     * Provisioner backing the class.
+     */
+    provisioner?: string;
+};
+
+export type StorageClassList = {
+    /**
+     * Number of storage classes.
+     */
+    count: number;
+    /**
+     * Available storage classes.
+     */
+    items: Array<StorageClass>;
+};
+
 export type StringMap = {
     [key: string]: string;
 };
@@ -3094,6 +3250,264 @@ export type RefreshTokenResponses = {
 };
 
 export type RefreshTokenResponse = RefreshTokenResponses[keyof RefreshTokenResponses];
+
+export type ListDataVolumesData = {
+    body?: never;
+    headers?: {
+        /**
+         * Active tenant for the request (fallback for the axisml.tenant cookie).
+         */
+        'X-Axisml-Tenant'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/datavolumes';
+};
+
+export type ListDataVolumesErrors = {
+    /**
+     * Malformed request (invalid syntax, missing required fields, immutable field, etc.).
+     */
+    400: Problem;
+    /**
+     * Missing or invalid bearer JWT.
+     */
+    401: Problem;
+    /**
+     * Authenticated but insufficient role for the requested operation.
+     */
+    403: Problem;
+    /**
+     * Unexpected server error.
+     */
+    500: Problem;
+};
+
+export type ListDataVolumesError = ListDataVolumesErrors[keyof ListDataVolumesErrors];
+
+export type ListDataVolumesResponses = {
+    /**
+     * A page of data volumes.
+     */
+    200: DataVolumeList;
+};
+
+export type ListDataVolumesResponse = ListDataVolumesResponses[keyof ListDataVolumesResponses];
+
+export type CreateDataVolumeData = {
+    body: DataVolumeCreateRequest;
+    headers?: {
+        /**
+         * Active tenant for the request (fallback for the axisml.tenant cookie).
+         */
+        'X-Axisml-Tenant'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/datavolumes';
+};
+
+export type CreateDataVolumeErrors = {
+    /**
+     * Malformed request (invalid syntax, missing required fields, immutable field, etc.).
+     */
+    400: Problem;
+    /**
+     * Missing or invalid bearer JWT.
+     */
+    401: Problem;
+    /**
+     * Authenticated but insufficient role for the requested operation.
+     */
+    403: Problem;
+    /**
+     * Resource not found, OR the caller cannot see it. Platform deliberately conflates these for non-admins to avoid information leak.
+     */
+    404: Problem;
+    /**
+     * Conflicts with a precondition: duplicate name, last-tenant-admin protection, in-use blocker, immutable transition, etc.
+     */
+    409: Problem;
+    /**
+     * Semantically invalid request (e.g., cross-field violations).
+     */
+    422: Problem;
+    /**
+     * Unexpected server error.
+     */
+    500: Problem;
+};
+
+export type CreateDataVolumeError = CreateDataVolumeErrors[keyof CreateDataVolumeErrors];
+
+export type CreateDataVolumeResponses = {
+    /**
+     * Data volume created.
+     */
+    201: DataVolume;
+};
+
+export type CreateDataVolumeResponse = CreateDataVolumeResponses[keyof CreateDataVolumeResponses];
+
+export type DeleteDataVolumeData = {
+    body?: never;
+    headers?: {
+        /**
+         * Active tenant for the request (fallback for the axisml.tenant cookie).
+         */
+        'X-Axisml-Tenant'?: string;
+    };
+    path: {
+        name: string;
+    };
+    query?: {
+        /**
+         * Delete even when mounted by running workloads.
+         */
+        force?: boolean;
+    };
+    url: '/api/v1/datavolumes/{name}';
+};
+
+export type DeleteDataVolumeErrors = {
+    /**
+     * Malformed request (invalid syntax, missing required fields, immutable field, etc.).
+     */
+    400: Problem;
+    /**
+     * Missing or invalid bearer JWT.
+     */
+    401: Problem;
+    /**
+     * Authenticated but insufficient role for the requested operation.
+     */
+    403: Problem;
+    /**
+     * Resource not found, OR the caller cannot see it. Platform deliberately conflates these for non-admins to avoid information leak.
+     */
+    404: Problem;
+    /**
+     * Conflicts with a precondition: duplicate name, last-tenant-admin protection, in-use blocker, immutable transition, etc.
+     */
+    409: Problem;
+    /**
+     * Unexpected server error.
+     */
+    500: Problem;
+};
+
+export type DeleteDataVolumeError = DeleteDataVolumeErrors[keyof DeleteDataVolumeErrors];
+
+export type DeleteDataVolumeResponses = {
+    /**
+     * Data volume deleted.
+     */
+    204: void;
+};
+
+export type DeleteDataVolumeResponse = DeleteDataVolumeResponses[keyof DeleteDataVolumeResponses];
+
+export type GetDataVolumeData = {
+    body?: never;
+    headers?: {
+        /**
+         * Active tenant for the request (fallback for the axisml.tenant cookie).
+         */
+        'X-Axisml-Tenant'?: string;
+    };
+    path: {
+        name: string;
+    };
+    query?: never;
+    url: '/api/v1/datavolumes/{name}';
+};
+
+export type GetDataVolumeErrors = {
+    /**
+     * Malformed request (invalid syntax, missing required fields, immutable field, etc.).
+     */
+    400: Problem;
+    /**
+     * Missing or invalid bearer JWT.
+     */
+    401: Problem;
+    /**
+     * Authenticated but insufficient role for the requested operation.
+     */
+    403: Problem;
+    /**
+     * Resource not found, OR the caller cannot see it. Platform deliberately conflates these for non-admins to avoid information leak.
+     */
+    404: Problem;
+    /**
+     * Unexpected server error.
+     */
+    500: Problem;
+};
+
+export type GetDataVolumeError = GetDataVolumeErrors[keyof GetDataVolumeErrors];
+
+export type GetDataVolumeResponses = {
+    /**
+     * Data volume detail (with mount occupancy).
+     */
+    200: DataVolume;
+};
+
+export type GetDataVolumeResponse = GetDataVolumeResponses[keyof GetDataVolumeResponses];
+
+export type UpdateDataVolumeData = {
+    body: DataVolumePatchRequest;
+    headers?: {
+        /**
+         * Active tenant for the request (fallback for the axisml.tenant cookie).
+         */
+        'X-Axisml-Tenant'?: string;
+    };
+    path: {
+        name: string;
+    };
+    query?: never;
+    url: '/api/v1/datavolumes/{name}';
+};
+
+export type UpdateDataVolumeErrors = {
+    /**
+     * Malformed request (invalid syntax, missing required fields, immutable field, etc.).
+     */
+    400: Problem;
+    /**
+     * Missing or invalid bearer JWT.
+     */
+    401: Problem;
+    /**
+     * Authenticated but insufficient role for the requested operation.
+     */
+    403: Problem;
+    /**
+     * Resource not found, OR the caller cannot see it. Platform deliberately conflates these for non-admins to avoid information leak.
+     */
+    404: Problem;
+    /**
+     * Semantically invalid request (e.g., cross-field violations).
+     */
+    422: Problem;
+    /**
+     * Unexpected server error.
+     */
+    500: Problem;
+};
+
+export type UpdateDataVolumeError = UpdateDataVolumeErrors[keyof UpdateDataVolumeErrors];
+
+export type UpdateDataVolumeResponses = {
+    /**
+     * Updated data volume.
+     */
+    200: DataVolume;
+};
+
+export type UpdateDataVolumeResponse = UpdateDataVolumeResponses[keyof UpdateDataVolumeResponses];
 
 export type ListExperimentsData = {
     body?: never;
@@ -7055,6 +7469,39 @@ export type UpdateResourceUnitResponses = {
 };
 
 export type UpdateResourceUnitResponse = UpdateResourceUnitResponses[keyof UpdateResourceUnitResponses];
+
+export type ListStorageClassesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/storageclasses';
+};
+
+export type ListStorageClassesErrors = {
+    /**
+     * Missing or invalid bearer JWT.
+     */
+    401: Problem;
+    /**
+     * Authenticated but insufficient role for the requested operation.
+     */
+    403: Problem;
+    /**
+     * Unexpected server error.
+     */
+    500: Problem;
+};
+
+export type ListStorageClassesError = ListStorageClassesErrors[keyof ListStorageClassesErrors];
+
+export type ListStorageClassesResponses = {
+    /**
+     * Available storage classes for new volumes.
+     */
+    200: StorageClassList;
+};
+
+export type ListStorageClassesResponse = ListStorageClassesResponses[keyof ListStorageClassesResponses];
 
 export type ListTenantsData = {
     body?: never;

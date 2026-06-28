@@ -22,6 +22,7 @@ import (
 	"github.com/axisml/axisml/components/platform/internal/clients/clustermanager"
 	"github.com/axisml/axisml/components/platform/internal/clients/computeservice"
 	"github.com/axisml/axisml/components/platform/internal/config"
+	"github.com/axisml/axisml/components/platform/internal/datavolume"
 	"github.com/axisml/axisml/components/platform/internal/experiment"
 	"github.com/axisml/axisml/components/platform/internal/identity"
 	"github.com/axisml/axisml/components/platform/internal/job"
@@ -82,6 +83,7 @@ func BuildDeps(cfg config.Config, db *gorm.DB, log *slog.Logger) (*Deps, error) 
 	tenantSvc := tenant.NewService(tenants, roles, users, cm, compute).
 		OnIdentityChange(identityStore.Invalidate)
 	resourcePoolSvc := resourcepool.NewService(cm)
+	dataVolumeSvc := datavolume.NewService(cm, tenants)
 	jobSvc := job.NewService(store.NewDefinitionRepo(db, store.TableJobs), tenants, compute)
 	experimentSvc := experiment.NewService(store.NewDefinitionRepo(db, store.TableExperiments), tenants, compute)
 	mlserviceSvc := mlservice.NewService(compute, tenants)
@@ -94,6 +96,7 @@ func BuildDeps(cfg config.Config, db *gorm.DB, log *slog.Logger) (*Deps, error) 
 		identity.NewHandler(identitySvc, authn),
 		tenant.NewHandler(tenantSvc, authn),
 		resourcepool.NewHandler(resourcePoolSvc, authn),
+		datavolume.NewHandler(dataVolumeSvc, authn),
 		job.NewHandler(jobSvc, authn),
 		experiment.NewHandler(experimentSvc, authn),
 		mlservice.NewHandler(mlserviceSvc, authn),

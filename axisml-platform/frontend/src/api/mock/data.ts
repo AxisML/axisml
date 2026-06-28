@@ -14,6 +14,7 @@
 import { ex } from "./examples.gen";
 import type {
   ArtifactDefinition,
+  DataVolume,
   Event,
   Experiment,
   Image,
@@ -93,6 +94,76 @@ export const pools: ResourcePool[] = [
     nodeCount: 16,
     units: [],
   }),
+];
+
+// ── data volumes (tenant-scoped durable PVCs) ───────────────────────────────────
+const GiB = 1024 ** 3;
+const TiB = 1024 ** 4;
+const vol0 = ex<DataVolume>("DataVolume");
+export const dataVolumes: DataVolume[] = [
+  v(vol0, {
+    name: "shared-datasets",
+    description: "Shared raw datasets directory.",
+    size: "2Ti",
+    storageClass: "nfs-rwx",
+    accessModes: ["ReadWriteMany"],
+    createdAt: ago(24 * 130),
+    status: {
+      phase: "Bound",
+      boundCapacity: "2Ti",
+      usedBytes: Math.round(1.32 * TiB),
+      mounts: [
+        { workload: "ws-jupyter-3", kind: "Deployment", mountPath: "/data/shared", running: true },
+        { workload: "preprocess-corpus-21", kind: "Job", mountPath: "/mnt/dataset", running: true },
+        { workload: "eval-bench-7", kind: "Job", mountPath: "/data/in", running: false },
+      ],
+    },
+  }),
+  v(vol0, {
+    name: "llm-checkpoints",
+    description: "Training checkpoint persistence.",
+    size: "500Gi",
+    storageClass: "ceph-rbd",
+    accessModes: ["ReadWriteOnce"],
+    createdAt: ago(24 * 90),
+    status: { phase: "Bound", boundCapacity: "500Gi", usedBytes: 210 * GiB, mounts: [
+      { workload: "train-llm-7b-12", kind: "Job", mountPath: "/ckpt", running: true },
+    ] },
+  }),
+  v(vol0, {
+    name: "preprocess-cache",
+    description: "Data preprocessing scratch cache.",
+    size: "200Gi",
+    storageClass: "nfs-rwx",
+    accessModes: ["ReadWriteMany"],
+    createdAt: ago(24 * 60),
+    status: { phase: "Bound", boundCapacity: "200Gi", usedBytes: 12 * GiB, mounts: [] },
+  }),
+  v(vol0, {
+    name: "eval-artifacts",
+    description: "Read-only shared evaluation outputs.",
+    size: "100Gi",
+    storageClass: "ceph-rbd",
+    accessModes: ["ReadOnlyMany"],
+    createdAt: ago(24 * 40),
+    status: { phase: "Bound", boundCapacity: "100Gi", usedBytes: 28 * GiB, mounts: [] },
+  }),
+  v(vol0, {
+    name: "scratch-ssd",
+    description: "Temporary high-speed scratch disk.",
+    size: "1Ti",
+    storageClass: "local-ssd",
+    accessModes: ["ReadWriteOnce"],
+    createdAt: ago(6),
+    status: { phase: "Pending", mounts: [] },
+  }),
+];
+
+// storage classes for the new-volume picker (cluster-scoped)
+export const storageClasses = [
+  { name: "nfs-rwx", provisioner: "nfs.csi.k8s.io", default: false, allowVolumeExpansion: true },
+  { name: "ceph-rbd", provisioner: "rbd.csi.ceph.com", default: true, allowVolumeExpansion: true },
+  { name: "local-ssd", provisioner: "kubernetes.io/no-provisioner", default: false, allowVolumeExpansion: false },
 ];
 
 // ── members & quotas (keyed by tenant identifier) ───────────────────────────────

@@ -156,7 +156,9 @@ func artifactVerP() openapigen.Parameter {
 }
 func poolNameP() openapigen.Parameter { return pathParam("pool", dns1123Pattern, 1, 63, "") }
 func unitNameP() openapigen.Parameter { return pathParam("unit", dns1123Pattern, 1, 63, "") }
-func podNameP() openapigen.Parameter  { return pathParam("pod", "", 1, 253, "") }
+
+func dataVolumeNameP() openapigen.Parameter { return pathParam("name", dns1123Pattern, 1, 63, "") }
+func podNameP() openapigen.Parameter        { return pathParam("pod", "", 1, 253, "") }
 
 var (
 	limitParam    = qp("limit", "Page size (default 50, max 200).", &openapigen.Schema{Type: "integer", Minimum: fptr(1), Maximum: fptr(200)})
@@ -512,6 +514,27 @@ func paths() map[string]openapigen.PathItem {
 			[]openapigen.Parameter{poolNameP(), unitNameP()}, body("ResourceUnitPatchRequest"), resp(sc("200", "Updated resource unit.", "ResourceUnit"), "400", "401", "403", "404", "422", "500")),
 		Delete: newOp(tagResourceUnits, "deleteResourceUnit", "Delete a resource unit",
 			[]openapigen.Parameter{poolNameP(), unitNameP()}, nil, resp(sc("204", "Resource unit deleted.", ""), "401", "403", "404", "409", "500")),
+	}
+
+	// ---- DataVolumes (tenant-scoped, system-admin only) ----
+	forceQ := qp("force", "Delete even when mounted by running workloads.", boolSchema())
+	p["/api/v1/datavolumes"] = openapigen.PathItem{
+		Post: newOp(tagDataVolumes, "createDataVolume", "Create a data volume",
+			[]openapigen.Parameter{activeTenant(false)}, body("DataVolumeCreateRequest"), resp(sc("201", "Data volume created.", "DataVolume"), "400", "401", "403", "404", "409", "422", "500")),
+		Get: newOp(tagDataVolumes, "listDataVolumes", "List data volumes",
+			[]openapigen.Parameter{activeTenant(false)}, nil, resp(sc("200", "A page of data volumes.", "DataVolumeList"), "400", "401", "403", "500")),
+	}
+	p["/api/v1/datavolumes/{name}"] = openapigen.PathItem{
+		Get: newOp(tagDataVolumes, "getDataVolume", "Get a data volume",
+			[]openapigen.Parameter{activeTenant(false), dataVolumeNameP()}, nil, resp(sc("200", "Data volume detail (with mount occupancy).", "DataVolume"), "400", "401", "403", "404", "500")),
+		Patch: newOp(tagDataVolumes, "updateDataVolume", "Expand or relabel a data volume",
+			[]openapigen.Parameter{activeTenant(false), dataVolumeNameP()}, body("DataVolumePatchRequest"), resp(sc("200", "Updated data volume.", "DataVolume"), "400", "401", "403", "404", "422", "500")),
+		Delete: newOp(tagDataVolumes, "deleteDataVolume", "Delete a data volume",
+			[]openapigen.Parameter{activeTenant(false), dataVolumeNameP(), forceQ}, nil, resp(sc("204", "Data volume deleted.", ""), "400", "401", "403", "404", "409", "500")),
+	}
+	p["/api/v1/storageclasses"] = openapigen.PathItem{
+		Get: newOp(tagDataVolumes, "listStorageClasses", "List storage classes",
+			nil, nil, resp(sc("200", "Available storage classes for new volumes.", "StorageClassList"), "401", "403", "500")),
 	}
 
 	return p

@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import * as sdk from "@/api/generated";
 import { useApp } from "@/app/store";
 import { useApiMutation } from "@/api/mutations";
+import { useVolumeOptions } from "@/api/hooks";
 import { FieldSection } from "@/components/field-section";
 import { CardRadio } from "@/components/card-radio";
 import { FormDrawer } from "@/components/form-drawer";
@@ -37,10 +38,6 @@ import {
 
 export type DrawerMode = "new" | "run" | "edit";
 
-const VOLUMES = [
-  { value: "team-datasets", label: "team-datasets · 1 TiB" },
-  { value: "ckpt-store", label: "ckpt-store · 500 GiB" },
-];
 const CMD = `torchrun --nproc_per_node=4 sft.py \\
   --base llama3-8b-base --lr {{lr}} --epochs 3`;
 
@@ -162,6 +159,7 @@ function ExpForm({
   // stay editable — pool, unit, command (args) and env — per RunTriggerRequest.
   const locked = mode === "run";
   const [submitted, setSubmitted] = useState(false);
+  const { options: volOptions, isError: volError } = useVolumeOptions();
   const [v, setV] = useState<ExpFormValues>(initial);
   const set = <K extends keyof ExpFormValues>(k: K, val: ExpFormValues[K]) =>
     setV((prev) => ({ ...prev, [k]: val }));
@@ -336,10 +334,7 @@ function ExpForm({
       <FieldSection n={5} title={t("experiments.fsVolume")} />
       <FieldGroup>
         <Field>
-          <FieldLabel>
-            {t("experiments.fVolume")}
-            {mode !== "run" && <span className="text-destructive">*</span>}
-          </FieldLabel>
+          <FieldLabel>{t("experiments.fVolume")}</FieldLabel>
           <div className="flex flex-col gap-2.5">
             {v.volumes.map((vol, i) => (
               <div key={i} className="flex items-start gap-2">
@@ -354,7 +349,7 @@ function ExpForm({
                     <SelectValue placeholder={t("experiments.fVolume")} />
                   </SelectTrigger>
                   <SelectContent>
-                    {VOLUMES.map((o) => (
+                    {volOptions.map((o) => (
                       <SelectItem key={o.value} value={o.value}>
                         {o.label}
                       </SelectItem>
@@ -390,7 +385,13 @@ function ExpForm({
               + {t("experiments.addVolume")}
             </Button>
           </div>
-          <FieldDescription>{t("experiments.fVolumeHelp")}</FieldDescription>
+          <FieldDescription>
+            {volError
+              ? t("common.loadFailed")
+              : volOptions.length === 0
+                ? t("common.noDataVolumes")
+                : t("experiments.fVolumeHelp")}
+          </FieldDescription>
         </Field>
 
         <Collapsible className="mt-4">

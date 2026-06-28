@@ -12,6 +12,8 @@ import type {
   ListImageDefinitionsResponse,
   ListTenantsResponse,
   ListResourcePoolsResponse,
+  ListDataVolumesResponse,
+  ListStorageClassesResponse,
   ListModelVersionsResponse,
   ListImageVersionsResponse,
 } from "../generated";
@@ -92,6 +94,26 @@ export const useTenants = () =>
   });
 export const useResourcePools = () =>
   useApi<ListResourcePoolsResponse>(["resourcepools"], () => sdk.listResourcePools(), { scoped: false });
+// Data volumes are tenant-scoped (system-admin managed): the query carries the
+// active tenant and refetches on switch, like the other tenant-partitioned lists.
+export const useDataVolumes = () =>
+  useApi<ListDataVolumesResponse>(["datavolumes"], () => sdk.listDataVolumes());
+
+// Shared volume → Select-option mapping for the mount pickers in the workspace /
+// job / experiment create drawers, plus the query's loading/error flags so each
+// drawer can surface the real state instead of masking a failed list as empty.
+export function useVolumeOptions() {
+  const q = useDataVolumes();
+  const options = (q.data?.items ?? []).map((vol) => ({
+    value: vol.name,
+    label: vol.size ? `${vol.name} · ${vol.size}` : vol.name,
+  }));
+  return { options, isLoading: q.isLoading, isError: q.isError };
+}
+// Storage classes are cluster-global (not tenant-partitioned); used by the
+// data-volume create form.
+export const useStorageClasses = () =>
+  useApi<ListStorageClassesResponse>(["storageclasses"], () => sdk.listStorageClasses(), { scoped: false });
 
 // Versions for a single model, fetched on demand (e.g. when a model is selected
 // in the create-service form). Disabled until a model name is chosen.

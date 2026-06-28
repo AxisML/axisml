@@ -12,6 +12,7 @@ import {
   Container,
   Users,
   Boxes,
+  HardDrive,
 } from "lucide-react";
 import { NAV, useApp, type NavItem } from "@/app/store";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -29,6 +30,7 @@ const ICONS: Record<string, ComponentType<{ className?: string }>> = {
   image: Container,
   tenant: Users,
   pool: Boxes,
+  volume: HardDrive,
 };
 
 // Pick the nav entry whose path best matches the current location, so detail

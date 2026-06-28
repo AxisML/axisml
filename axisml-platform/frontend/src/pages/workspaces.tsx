@@ -18,7 +18,7 @@ import {
   wsBrand,
 } from "@/components/workspace-brand";
 import { useTranslation } from "react-i18next";
-import { useWorkspaces } from "@/api/hooks";
+import { useWorkspaces, useVolumeOptions } from "@/api/hooks";
 import { useApiMutation } from "@/api/mutations";
 import * as sdk from "@/api/generated";
 import { useUI } from "@/app/ui";
@@ -515,12 +515,6 @@ const WS_POOLS: { value: string; label: string }[] = [
   { value: "gpu-l40s", label: "gpu-l40s · L40S 推理池" },
   { value: "cpu-medium", label: "cpu-medium · 通用 CPU 池" },
 ];
-const WS_VOLUMES: { value: string; label: string }[] = [
-  { value: "50Gi", label: "新建数据卷 · 50 GiB（standard-rwo）" },
-  { value: "100Gi", label: "新建数据卷 · 100 GiB（standard-rwo）" },
-  { value: "200Gi", label: "新建数据卷 · 200 GiB（fast-ssd）" },
-  { value: "1Ti", label: "新建数据卷 · 1 TiB（standard-rwo）" },
-];
 const WS_UNITS: { value: string; pool: string; title: string; desc: string }[] = [
   { value: "cpu-medium", pool: "cpu-medium", title: "cpu-medium", desc: "8 vCPU · 32 GiB" },
   { value: "cpu-large", pool: "cpu-medium", title: "cpu-large", desc: "16 vCPU · 64 GiB" },
@@ -543,6 +537,7 @@ interface WsFormValues {
 function WsDrawer({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
   const [submitted, setSubmitted] = useState(false);
+  const { options: volOptions, isError: volError } = useVolumeOptions();
   const [v, setV] = useState<WsFormValues>({
     name: "",
     description: "",
@@ -551,7 +546,7 @@ function WsDrawer({ onClose }: { onClose: () => void }) {
     unitName: WS_UNITS[0].value,
     containerPort: 8888,
     env: "",
-    volume: WS_VOLUMES[0].value,
+    volume: "",
     mountPath: "/workspace",
   });
   const set = <K extends keyof WsFormValues>(k: K, val: WsFormValues[K]) =>
@@ -584,7 +579,7 @@ function WsDrawer({ onClose }: { onClose: () => void }) {
       description: v.description?.trim() || undefined,
       containerPort: v.containerPort && v.containerPort > 0 ? v.containerPort : undefined,
       env: envVars.length ? envVars : undefined,
-      volumes: mountPath ? [{ mountPath, size: v.volume || undefined }] : undefined,
+      volumes: v.volume && mountPath ? [{ name: v.volume, mountPath }] : undefined,
     };
     create.mutate(body, { onSuccess: onClose });
   };
@@ -699,16 +694,13 @@ function WsDrawer({ onClose }: { onClose: () => void }) {
       <FieldGroup>
         <div className="flex gap-3">
           <Field className="flex-1">
-            <FieldLabel htmlFor="ws-volume">
-              {t("workspaces.fVolume")}
-              <span className="text-destructive">*</span>
-            </FieldLabel>
+            <FieldLabel htmlFor="ws-volume">{t("workspaces.fVolume")}</FieldLabel>
             <Select value={v.volume} onValueChange={(val) => set("volume", val)}>
               <SelectTrigger id="ws-volume" className="w-full">
-                <SelectValue />
+                <SelectValue placeholder={t("workspaces.fVolumePlaceholder")} />
               </SelectTrigger>
               <SelectContent>
-                {WS_VOLUMES.map((vol) => (
+                {volOptions.map((vol) => (
                   <SelectItem key={vol.value} value={vol.value}>
                     {vol.label}
                   </SelectItem>
@@ -717,10 +709,7 @@ function WsDrawer({ onClose }: { onClose: () => void }) {
             </Select>
           </Field>
           <Field className="w-56">
-            <FieldLabel htmlFor="ws-mount">
-              {t("workspaces.fMountPath")}
-              <span className="text-destructive">*</span>
-            </FieldLabel>
+            <FieldLabel htmlFor="ws-mount">{t("workspaces.fMountPath")}</FieldLabel>
             <Input
               id="ws-mount"
               className="font-mono"
@@ -730,7 +719,13 @@ function WsDrawer({ onClose }: { onClose: () => void }) {
             />
           </Field>
         </div>
-        <FieldDescription>{t("workspaces.fVolumeHelp")}</FieldDescription>
+        <FieldDescription>
+          {volError
+            ? t("common.loadFailed")
+            : volOptions.length === 0
+              ? t("common.noDataVolumes")
+              : t("workspaces.fVolumeHelp")}
+        </FieldDescription>
       </FieldGroup>
     </FormDrawer>
   );

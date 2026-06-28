@@ -10,7 +10,7 @@ AxisML 提供两种部署形态，共享 Platform API、`MLRun` / `MLService` / 
 
 平台采用 **两层业务模型 + 一层定义 / 视图**：
 
-- **集群词汇层**：`ResourcePool` CRD（内嵌 `units[]`）、集群级 `Tenant` CR 与通用 `Volume`（持久卷 PVC），由 [cluster-manager](../axisml-system/docs/system_design/cluster-manager.md) 经 REST 维护（admin 视角的"K8s 写抽象"）。cluster-manager 据 ResourceUnit 规格把配额「资源单元 × 数量」折算进 `Tenant.spec.quotas[]`；compute 通过 Informer 直读 ResourcePool 展开，[tenant-operator](../axisml-system/docs/system_design/tenant-operator.md) 直读 Tenant CR 落地 Namespace / ElasticQuota / 初始化资源。持久卷是**提前预置**的资源：由 Platform 经 cluster-manager Volume REST 创建，工作负载（如工作区）仅以 PVC 引用挂载，compute 不创建卷。
+- **集群词汇层**：`ResourcePool` CRD（内嵌 `units[]`）、集群级 `Tenant` CR 与通用 `Volume`（持久卷 PVC），由 [cluster-manager](../axisml-system/docs/system_design/cluster-manager.md) 经 REST 维护（admin 视角的"K8s 写抽象"）。cluster-manager 据 ResourceUnit 规格把配额「资源单元 × 数量」折算进 `Tenant.spec.quotas[]`；compute 通过 Informer 直读 ResourcePool 展开，[tenant-operator](../axisml-system/docs/system_design/tenant-operator.md) 直读 Tenant CR 落地 Namespace / ElasticQuota / 初始化资源。持久卷是**提前预置**的资源：由 Platform 经 cluster-manager Volume REST 管理（数据卷管理——系统管理员为租户预建 / 列举 / 扩容 / 删除并查挂载占用），工作负载（如工作区）仅以 PVC 引用挂载，compute 不创建卷。
 - **工作负载层**：运行（Run = `MLRun`）/ Service / 制品版本，由 [compute-service](../axisml-system/docs/system_design/compute-service.md) 与 [artifact-hub](../axisml-system/docs/system_design/artifact-hub.md) 承载；二者以 **tenant scope**（租户逻辑作用域，等于 `identifier`）分区。现有 API / PG 字段仍名为 `namespace`，但它不是 Kubernetes Namespace。
 - **定义 / 视图层**：[Platform](../axisml-platform/docs/system_design/backend.md) 持有租户持久记录与生命周期权威（自有 `tenants` 表，`identifier` 唯一标识），以及 Job / Experiment / Model / Image 的 name 级**定义**和“用户 → tenant scope → Kubernetes Namespace”映射。租户的 K8s 物化经 cluster-manager REST 下发，Platform 不直接操作任何 CR；运行与制品版本在下游，经 label 与 `(kind, name)` 实时关联。
 
@@ -22,7 +22,7 @@ AxisML 提供两种部署形态，共享 Platform API、`MLRun` / `MLService` / 
 | 资源池 ResourcePool | `ResourcePool` CRD（cluster-scoped），`spec.units[]` 内嵌 | [cluster-manager #3](../axisml-system/docs/system_design/cluster-manager.md#3-核心模型) |
 | 资源单元 ResourceUnit | `ResourcePool.spec.units[]` 内嵌项，与 pool 同生灭 | [cluster-manager #3](../axisml-system/docs/system_design/cluster-manager.md#3-核心模型) |
 | 资源配额 Quota | `Tenant.spec.quotas[]`（「资源单元 × 数量」）→ 每 pool 一个 `ElasticQuota`（`min`/`max` 由 cluster-manager 折算） | [cluster-manager #4](../axisml-system/docs/system_design/cluster-manager.md#4-核心功能) / [tenant-operator #4](../axisml-system/docs/system_design/tenant-operator.md#4-核心功能) |
-| 持久卷 Volume | 受管 PVC（Lite 形态为受管 Docker 卷），由 Platform 经 cluster-manager 提前创建；工作负载以 PVC 引用挂载 | [cluster-manager #3](../axisml-system/docs/system_design/cluster-manager.md#3-核心模型) |
+| 数据卷 / 持久卷 Volume | 受管 PVC（Lite 形态为受管 Docker 卷），由 Platform 经 cluster-manager 管理（系统管理员级数据卷目录：CRUD + 扩容 + 占用反查）；工作负载以 PVC 引用挂载 | [cluster-manager #3](../axisml-system/docs/system_design/cluster-manager.md#3-核心模型) |
 | 任务（定义）Job | Platform `jobs` 行（可复用模板） | [platform #3.2](../axisml-platform/docs/system_design/backend.md#32-定义jobs--experiments--models--images) |
 | 实验（定义）Experiment | Platform `experiments` 行（训练特化模板）；Run 经 `axisml.io/experiment` label 关联 | [platform #3.2](../axisml-platform/docs/system_design/backend.md#32-定义jobs--experiments--models--images) |
 | 运行 Run | `MLRun` CR（Job / 实验的一次运行，`<定义>-<n>`），经 `axisml.io/{job,experiment}` label 关联 | [compute-operator #3](../axisml-system/docs/system_design/compute-operator.md#3-核心模型) |

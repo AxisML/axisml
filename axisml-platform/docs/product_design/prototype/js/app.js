@@ -23,6 +23,7 @@
     image: '<rect x="4" y="4" width="16" height="16" rx="2.5"/><path d="M4 9.33h16M4 14.66h16"/>',
     tenant: '<path d="M3 21V8l6-4 6 4v13M15 21V11l6 4v6M3 21h18M7 12h.01M7 16h.01"/>',
     pool: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+    volume: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 12h18"/><path d="M7 8.5h5"/><circle cx="16.5" cy="15.5" r="1.1"/>',
     search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
     bell: '<path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/>',
     help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.8.4-1 .9-1 1.7M12 17h.01"/>',
@@ -77,6 +78,7 @@
     { group: "系统管理", items: [
       { key: "tenants", label: "租户管理", icon: "tenant", href: "tenants.html", roles: ["system-admin", "tenant-admin"] },
       { key: "pools", label: "资源池管理", icon: "pool", href: "resource-pools.html", roles: ["system-admin"] },
+      { key: "datavolumes", label: "数据卷管理", icon: "volume", href: "data-volumes.html", roles: ["system-admin"] },
     ]},
   ];
 
@@ -281,7 +283,7 @@
         localStorage.setItem(LS.role, state.role);
         // 普通用户没有系统管理权限，若当前在管理页则回首页
         const k = document.body.getAttribute("data-nav");
-        const restricted = { tenants: ["system-admin", "tenant-admin"], pools: ["system-admin"] };
+        const restricted = { tenants: ["system-admin", "tenant-admin"], pools: ["system-admin"], datavolumes: ["system-admin"] };
         if (restricted[k] && restricted[k].indexOf(state.role) === -1) { location.href = "index.html"; return; }
         location.reload();
       });

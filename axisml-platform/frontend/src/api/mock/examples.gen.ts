@@ -120,6 +120,74 @@ export const examples: Record<string, unknown> = {
     "name": "shared-config",
     "namespace": "axisml-system"
   },
+  "DataVolume": {
+    "accessModes": [
+      "ReadWriteMany"
+    ],
+    "createdAt": "2026-06-20T08:00:00Z",
+    "description": "Shared raw datasets directory.",
+    "labels": {
+      "team": "vision"
+    },
+    "name": "shared-datasets",
+    "size": "2Ti",
+    "status": {
+      "boundCapacity": "2Ti",
+      "mounts": [
+        {
+          "kind": "Deployment",
+          "mountPath": "/data/shared",
+          "running": true,
+          "workload": "ws-jupyter-3"
+        }
+      ],
+      "phase": "Bound"
+    },
+    "storageClass": "nfs-rwx"
+  },
+  "DataVolumeCreateRequest": {
+    "accessModes": [
+      "ReadWriteMany"
+    ],
+    "description": "Shared raw datasets directory.",
+    "name": "shared-datasets",
+    "size": "2Ti",
+    "storageClass": "nfs-rwx"
+  },
+  "DataVolumeList": {
+    "count": 1,
+    "items": [
+      {
+        "accessModes": [
+          "ReadWriteMany"
+        ],
+        "createdAt": "2026-06-20T08:00:00Z",
+        "description": "Shared raw datasets directory.",
+        "labels": {
+          "team": "vision"
+        },
+        "name": "shared-datasets",
+        "size": "2Ti",
+        "status": {
+          "boundCapacity": "2Ti",
+          "mounts": [
+            {
+              "kind": "Deployment",
+              "mountPath": "/data/shared",
+              "running": true,
+              "workload": "ws-jupyter-3"
+            }
+          ],
+          "phase": "Bound"
+        },
+        "storageClass": "nfs-rwx"
+      }
+    ]
+  },
+  "DataVolumePatchRequest": {
+    "description": "Shared raw datasets directory (expanded).",
+    "size": "4Ti"
+  },
   "EnvVar": {
     "name": "NCCL_DEBUG",
     "value": "INFO"
@@ -2174,6 +2242,23 @@ export const examples: Record<string, unknown> = {
   "SetPasswordRequest": {
     "currentPassword": "S3cure-pass",
     "newPassword": "S3cure-pass2"
+  },
+  "StorageClass": {
+    "allowVolumeExpansion": true,
+    "default": false,
+    "name": "nfs-rwx",
+    "provisioner": "nfs.csi.k8s.io"
+  },
+  "StorageClassList": {
+    "count": 1,
+    "items": [
+      {
+        "allowVolumeExpansion": true,
+        "default": false,
+        "name": "nfs-rwx",
+        "provisioner": "nfs.csi.k8s.io"
+      }
+    ]
   },
   "Tenant": {
     "activeExperimentRuns": 2,

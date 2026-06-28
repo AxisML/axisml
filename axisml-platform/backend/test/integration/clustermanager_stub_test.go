@@ -18,6 +18,7 @@ type clusterManagerStub struct {
 	mu      sync.Mutex
 	tenants map[string]map[string]any
 	quotas  map[string]map[string][]map[string]any // tenant -> pool -> units
+	volumes map[string]map[string]any              // "namespace/name" -> volume
 	engine  *gin.Engine
 }
 
@@ -26,6 +27,7 @@ func newClusterManagerStub() *clusterManagerStub {
 	s := &clusterManagerStub{
 		tenants: map[string]map[string]any{},
 		quotas:  map[string]map[string][]map[string]any{},
+		volumes: map[string]map[string]any{},
 		engine:  gin.New(),
 	}
 	g := s.engine.Group("/api/v1")
@@ -38,7 +40,85 @@ func newClusterManagerStub() *clusterManagerStub {
 	g.POST("/tenants/:tenant/quotas", s.setQuota)
 	g.PATCH("/tenants/:tenant/quotas/:pool", s.setQuota)
 	g.DELETE("/tenants/:tenant/quotas/:pool", s.delQuota)
+	g.POST("/volumes", s.createVolume)
+	g.GET("/volumes", s.listVolumes)
+	g.GET("/volumes/:namespace/:name", s.getVolume)
+	g.PATCH("/volumes/:namespace/:name", s.patchVolume)
+	g.DELETE("/volumes/:namespace/:name", s.delVolume)
 	return s
+}
+
+func volKey(ns, name string) string { return ns + "/" + name }
+
+func (s *clusterManagerStub) createVolume(c *gin.Context) {
+	var body map[string]any
+	_ = c.ShouldBindJSON(&body)
+	ns, _ := body["namespace"].(string)
+	name, _ := body["name"].(string)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	v := map[string]any{
+		"namespace":    ns,
+		"name":         name,
+		"size":         body["size"],
+		"storageClass": body["storageClass"],
+		"accessModes":  body["accessModes"],
+		"description":  body["description"],
+		"labels":       body["labels"],
+		"status":       map[string]any{"phase": "Bound", "boundCapacity": body["size"]},
+		"createdAt":    time.Now().UTC().Format(time.RFC3339),
+	}
+	s.volumes[volKey(ns, name)] = v
+	c.JSON(http.StatusCreated, v)
+}
+
+func (s *clusterManagerStub) listVolumes(c *gin.Context) {
+	ns := c.Query("namespace")
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	items := []map[string]any{}
+	for _, v := range s.volumes {
+		if ns == "" || v["namespace"] == ns {
+			items = append(items, v)
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{"items": items, "count": len(items)})
+}
+
+func (s *clusterManagerStub) getVolume(c *gin.Context) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	v, ok := s.volumes[volKey(c.Param("namespace"), c.Param("name"))]
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{"code": "not-found", "title": "missing", "status": 404, "type": "x"})
+		return
+	}
+	c.JSON(http.StatusOK, v)
+}
+
+func (s *clusterManagerStub) patchVolume(c *gin.Context) {
+	var body map[string]any
+	_ = c.ShouldBindJSON(&body)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	v, ok := s.volumes[volKey(c.Param("namespace"), c.Param("name"))]
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{"code": "not-found", "title": "missing", "status": 404, "type": "x"})
+		return
+	}
+	for _, k := range []string{"size", "description", "labels"} {
+		if val, present := body[k]; present {
+			v[k] = val
+		}
+	}
+	c.JSON(http.StatusOK, v)
+}
+
+func (s *clusterManagerStub) delVolume(c *gin.Context) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.volumes, volKey(c.Param("namespace"), c.Param("name")))
+	c.Status(http.StatusNoContent)
 }
 
 func (s *clusterManagerStub) ServeHTTP(w http.ResponseWriter, r *http.Request) {

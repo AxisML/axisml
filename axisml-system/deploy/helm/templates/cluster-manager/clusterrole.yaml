@@ -18,11 +18,22 @@ rules:
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 
   # PersistentVolumeClaims (cross-namespace): cluster-manager's Volume REST
-  # materialises / reclaims the durable volumes compute references (e.g. the
-  # volume backing a kind=workspace MLService). compute no longer holds this.
+  # materialises / expands / reclaims the durable data volumes compute
+  # references. update/patch back the expand-volume path; compute holds none.
   - apiGroups: [""]
     resources: ["persistentvolumeclaims"]
-    verbs: ["get", "list", "create", "delete"]
+    verbs: ["get", "list", "create", "update", "patch", "delete"]
+
+  # Pods (cross-namespace, read-only): mount-occupancy reverse lookup for the
+  # data-volume detail view and delete-time protection.
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+
+  # StorageClasses (cluster-scoped, read-only): the new-volume picker.
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses"]
+    verbs: ["get", "list"]
 
   # Events: emit audit events on REST mutations.
   - apiGroups: [""]

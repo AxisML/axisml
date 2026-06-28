@@ -186,6 +186,15 @@ type CreateTenantRequest struct {
 
 // CreateVolumeRequest defines model for CreateVolumeRequest.
 type CreateVolumeRequest struct {
+	// AccessModes Access modes; defaults to [ReadWriteOnce] when empty.
+	AccessModes *[]string `json:"accessModes,omitempty"`
+
+	// Description Free-text description of the volume.
+	Description *string `json:"description,omitempty"`
+
+	// Labels User-defined labels to set on the volume.
+	Labels *map[string]string `json:"labels,omitempty"`
+
 	// Name Deterministic volume name supplied by the caller.
 	Name *string `json:"name,omitempty"`
 
@@ -257,6 +266,18 @@ type PatchTenantRequest struct {
 
 	// NamespaceLabels Replacement labels applied to the tenant's namespace.
 	NamespaceLabels *map[string]string `json:"namespaceLabels,omitempty"`
+}
+
+// PatchVolumeRequest defines model for PatchVolumeRequest.
+type PatchVolumeRequest struct {
+	// Description Replacement free-text description.
+	Description *string `json:"description"`
+
+	// Labels Replacement user-defined label set.
+	Labels *map[string]string `json:"labels,omitempty"`
+
+	// Size New storage size; expand-only (must be >= current).
+	Size *string `json:"size"`
 }
 
 // Quota defines model for Quota.
@@ -466,6 +487,21 @@ type ServerResourceUnit struct {
 	Requests map[string]string `json:"requests"`
 }
 
+// ServerStorageClass defines model for ServerStorageClass.
+type ServerStorageClass struct {
+	// AllowVolumeExpansion Whether volumes on this class can be expanded.
+	AllowVolumeExpansion bool `json:"allowVolumeExpansion"`
+
+	// Default Whether this is the cluster default StorageClass.
+	Default bool `json:"default"`
+
+	// Name StorageClass name.
+	Name string `json:"name"`
+
+	// Provisioner Provisioner backing the class.
+	Provisioner *string `json:"provisioner,omitempty"`
+}
+
 // ServerTenant defines model for ServerTenant.
 type ServerTenant struct {
 	// Annotations User-defined annotations on the tenant.
@@ -517,6 +553,66 @@ type ServerTenantStatus struct {
 	Quotas *[]ServerQuotaStatus `json:"quotas,omitempty"`
 }
 
+// ServerVolume defines model for ServerVolume.
+type ServerVolume struct {
+	// AccessModes Access modes (ReadWriteOnce/ReadWriteMany/ReadOnlyMany). Immutable after creation.
+	AccessModes *[]string `json:"accessModes,omitempty"`
+
+	// CreatedAt Volume creation timestamp (RFC3339).
+	CreatedAt *time.Time `json:"createdAt,omitempty"`
+
+	// Description Free-text description of the volume.
+	Description *string `json:"description,omitempty"`
+
+	// Labels User-defined labels on the volume.
+	Labels *map[string]string `json:"labels,omitempty"`
+
+	// Name Volume (PersistentVolumeClaim) name.
+	Name string `json:"name"`
+
+	// Namespace Physical Kubernetes namespace holding the volume.
+	Namespace string `json:"namespace"`
+
+	// Size Requested storage size as a Kubernetes quantity (e.g. 50Gi).
+	Size *string `json:"size,omitempty"`
+
+	// Status Live status read from the PVC and pod scan; populated on get/list.
+	Status *ServerVolumeStatus `json:"status"`
+
+	// StorageClass StorageClass backing the volume; cluster default when empty. Immutable after creation.
+	StorageClass *string `json:"storageClass,omitempty"`
+}
+
+// ServerVolumeMount defines model for ServerVolumeMount.
+type ServerVolumeMount struct {
+	// Kind Kubernetes controller kind (Deployment/StatefulSet/Job/Pod).
+	Kind *string `json:"kind,omitempty"`
+
+	// MountPath Mount path inside the pod.
+	MountPath *string `json:"mountPath,omitempty"`
+
+	// Running Whether the mounting pod is currently running.
+	Running bool `json:"running"`
+
+	// Workload Controlling workload (or pod) name.
+	Workload string `json:"workload"`
+}
+
+// ServerVolumeStatus defines model for ServerVolumeStatus.
+type ServerVolumeStatus struct {
+	// BoundCapacity Actually bound capacity once the volume is Bound.
+	BoundCapacity *string `json:"boundCapacity,omitempty"`
+
+	// Mounts Workloads currently mounting this volume (populated on detail get).
+	Mounts *[]ServerVolumeMount `json:"mounts,omitempty"`
+
+	// Phase PVC phase: Pending, Bound, or Lost.
+	Phase *string `json:"phase,omitempty"`
+
+	// UsedBytes Best-effort used bytes from the monitoring stack; omitted when unavailable.
+	UsedBytes *int64 `json:"usedBytes,omitempty"`
+}
+
 // SetQuotaRequest defines model for SetQuotaRequest.
 type SetQuotaRequest struct {
 	// Pool ResourcePool to create or replace the quota for.
@@ -524,6 +620,15 @@ type SetQuotaRequest struct {
 
 	// Units Unit × quantity selections that make up the pool quota.
 	Units *[]ServerQuotaUnit `json:"units,omitempty"`
+}
+
+// StorageClassList defines model for StorageClassList.
+type StorageClassList struct {
+	// Count Number of storage classes.
+	Count int `json:"count"`
+
+	// Items Available storage classes.
+	Items []ServerStorageClass `json:"items"`
 }
 
 // Tenant defines model for Tenant.
@@ -573,6 +678,18 @@ type TenantList struct {
 
 // Volume defines model for Volume.
 type Volume struct {
+	// AccessModes Access modes (ReadWriteOnce/ReadWriteMany/ReadOnlyMany). Immutable after creation.
+	AccessModes *[]string `json:"accessModes,omitempty"`
+
+	// CreatedAt Volume creation timestamp (RFC3339).
+	CreatedAt *time.Time `json:"createdAt,omitempty"`
+
+	// Description Free-text description of the volume.
+	Description *string `json:"description,omitempty"`
+
+	// Labels User-defined labels on the volume.
+	Labels *map[string]string `json:"labels,omitempty"`
+
 	// Name Volume (PersistentVolumeClaim) name.
 	Name string `json:"name"`
 
@@ -582,8 +699,20 @@ type Volume struct {
 	// Size Requested storage size as a Kubernetes quantity (e.g. 50Gi).
 	Size *string `json:"size,omitempty"`
 
-	// StorageClass StorageClass backing the volume; cluster default when empty.
+	// Status Live status read from the PVC and pod scan; populated on get/list.
+	Status *ServerVolumeStatus `json:"status"`
+
+	// StorageClass StorageClass backing the volume; cluster default when empty. Immutable after creation.
 	StorageClass *string `json:"storageClass,omitempty"`
+}
+
+// VolumeList defines model for VolumeList.
+type VolumeList struct {
+	// Count Number of volumes in this page.
+	Count int `json:"count"`
+
+	// Items Page of volumes.
+	Items []ServerVolume `json:"items"`
 }
 
 // ListResourcePoolsParams defines parameters for ListResourcePools.
@@ -602,6 +731,21 @@ type ListResourceUnitsParams struct {
 type ListTenantsParams struct {
 	// LabelSelector K8s-style label selector.
 	LabelSelector *string `form:"labelSelector,omitempty" json:"labelSelector,omitempty"`
+}
+
+// ListVolumesParams defines parameters for ListVolumes.
+type ListVolumesParams struct {
+	// Namespace Physical Kubernetes namespace to list volumes in.
+	Namespace *string `form:"namespace,omitempty" json:"namespace,omitempty"`
+
+	// LabelSelector K8s-style label selector.
+	LabelSelector *string `form:"labelSelector,omitempty" json:"labelSelector,omitempty"`
+}
+
+// DeleteVolumeParams defines parameters for DeleteVolume.
+type DeleteVolumeParams struct {
+	// Force Delete even when mounted by running workloads.
+	Force *bool `form:"force,omitempty" json:"force,omitempty"`
 }
 
 // CreateResourcePoolJSONRequestBody defines body for CreateResourcePool for application/json ContentType.
@@ -630,6 +774,9 @@ type UpdateTenantQuotaJSONRequestBody = PatchQuotaRequest
 
 // CreateVolumeJSONRequestBody defines body for CreateVolume for application/json ContentType.
 type CreateVolumeJSONRequestBody = CreateVolumeRequest
+
+// UpdateVolumeJSONRequestBody defines body for UpdateVolume for application/json ContentType.
+type UpdateVolumeJSONRequestBody = PatchVolumeRequest
 
 // RequestEditorFn  is the function signature for the RequestEditor callback function
 type RequestEditorFn func(ctx context.Context, req *http.Request) error
@@ -745,6 +892,9 @@ type ClientInterface interface {
 
 	UpdateResourceUnit(ctx context.Context, pool string, unit string, body UpdateResourceUnitJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListStorageClasses request
+	ListStorageClasses(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListTenants request
 	ListTenants(ctx context.Context, params *ListTenantsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -780,13 +930,24 @@ type ClientInterface interface {
 
 	UpdateTenantQuota(ctx context.Context, tenant string, pool string, body UpdateTenantQuotaJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListVolumes request
+	ListVolumes(ctx context.Context, params *ListVolumesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// CreateVolumeWithBody request with any body
 	CreateVolumeWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	CreateVolume(ctx context.Context, body CreateVolumeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DeleteVolume request
-	DeleteVolume(ctx context.Context, namespace string, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	DeleteVolume(ctx context.Context, namespace string, name string, params *DeleteVolumeParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetVolume request
+	GetVolume(ctx context.Context, namespace string, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateVolumeWithBody request with any body
+	UpdateVolumeWithBody(ctx context.Context, namespace string, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateVolume(ctx context.Context, namespace string, name string, body UpdateVolumeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// Healthz request
 	Healthz(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -975,6 +1136,18 @@ func (c *Client) UpdateResourceUnit(ctx context.Context, pool string, unit strin
 	return c.Client.Do(req)
 }
 
+func (c *Client) ListStorageClasses(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListStorageClassesRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) ListTenants(ctx context.Context, params *ListTenantsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListTenantsRequest(c.Server, params)
 	if err != nil {
@@ -1131,6 +1304,18 @@ func (c *Client) UpdateTenantQuota(ctx context.Context, tenant string, pool stri
 	return c.Client.Do(req)
 }
 
+func (c *Client) ListVolumes(ctx context.Context, params *ListVolumesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListVolumesRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) CreateVolumeWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCreateVolumeRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -1155,8 +1340,44 @@ func (c *Client) CreateVolume(ctx context.Context, body CreateVolumeJSONRequestB
 	return c.Client.Do(req)
 }
 
-func (c *Client) DeleteVolume(ctx context.Context, namespace string, name string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteVolumeRequest(c.Server, namespace, name)
+func (c *Client) DeleteVolume(ctx context.Context, namespace string, name string, params *DeleteVolumeParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteVolumeRequest(c.Server, namespace, name, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetVolume(ctx context.Context, namespace string, name string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetVolumeRequest(c.Server, namespace, name)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateVolumeWithBody(ctx context.Context, namespace string, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateVolumeRequestWithBody(c.Server, namespace, name, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateVolume(ctx context.Context, namespace string, name string, body UpdateVolumeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateVolumeRequest(c.Server, namespace, name, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1661,6 +1882,33 @@ func NewUpdateResourceUnitRequestWithBody(server string, pool string, unit strin
 	return req, nil
 }
 
+// NewListStorageClassesRequest generates requests for ListStorageClasses
+func NewListStorageClassesRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/storageclasses")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewListTenantsRequest generates requests for ListTenants
 func NewListTenantsRequest(server string, params *ListTenantsParams) (*http.Request, error) {
 	var err error
@@ -2041,6 +2289,71 @@ func NewUpdateTenantQuotaRequestWithBody(server string, tenant string, pool stri
 	return req, nil
 }
 
+// NewListVolumesRequest generates requests for ListVolumes
+func NewListVolumesRequest(server string, params *ListVolumesParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/volumes")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Namespace != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "namespace", runtime.ParamLocationQuery, *params.Namespace); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.LabelSelector != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "labelSelector", runtime.ParamLocationQuery, *params.LabelSelector); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewCreateVolumeRequest calls the generic CreateVolume builder with application/json body
 func NewCreateVolumeRequest(server string, body CreateVolumeJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -2082,7 +2395,7 @@ func NewCreateVolumeRequestWithBody(server string, contentType string, body io.R
 }
 
 // NewDeleteVolumeRequest generates requests for DeleteVolume
-func NewDeleteVolumeRequest(server string, namespace string, name string) (*http.Request, error) {
+func NewDeleteVolumeRequest(server string, namespace string, name string, params *DeleteVolumeParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -2114,10 +2427,127 @@ func NewDeleteVolumeRequest(server string, namespace string, name string) (*http
 		return nil, err
 	}
 
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Force != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "force", runtime.ParamLocationQuery, *params.Force); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
 	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewGetVolumeRequest generates requests for GetVolume
+func NewGetVolumeRequest(server string, namespace string, name string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespace", runtime.ParamLocationPath, namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/volumes/%s/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateVolumeRequest calls the generic UpdateVolume builder with application/json body
+func NewUpdateVolumeRequest(server string, namespace string, name string, body UpdateVolumeJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateVolumeRequestWithBody(server, namespace, name, "application/json", bodyReader)
+}
+
+// NewUpdateVolumeRequestWithBody generates requests for UpdateVolume with any type of body
+func NewUpdateVolumeRequestWithBody(server string, namespace string, name string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespace", runtime.ParamLocationPath, namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/volumes/%s/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -2260,6 +2690,9 @@ type ClientWithResponsesInterface interface {
 
 	UpdateResourceUnitWithResponse(ctx context.Context, pool string, unit string, body UpdateResourceUnitJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateResourceUnitResponse, error)
 
+	// ListStorageClassesWithResponse request
+	ListStorageClassesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListStorageClassesResponse, error)
+
 	// ListTenantsWithResponse request
 	ListTenantsWithResponse(ctx context.Context, params *ListTenantsParams, reqEditors ...RequestEditorFn) (*ListTenantsResponse, error)
 
@@ -2295,13 +2728,24 @@ type ClientWithResponsesInterface interface {
 
 	UpdateTenantQuotaWithResponse(ctx context.Context, tenant string, pool string, body UpdateTenantQuotaJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateTenantQuotaResponse, error)
 
+	// ListVolumesWithResponse request
+	ListVolumesWithResponse(ctx context.Context, params *ListVolumesParams, reqEditors ...RequestEditorFn) (*ListVolumesResponse, error)
+
 	// CreateVolumeWithBodyWithResponse request with any body
 	CreateVolumeWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateVolumeResponse, error)
 
 	CreateVolumeWithResponse(ctx context.Context, body CreateVolumeJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateVolumeResponse, error)
 
 	// DeleteVolumeWithResponse request
-	DeleteVolumeWithResponse(ctx context.Context, namespace string, name string, reqEditors ...RequestEditorFn) (*DeleteVolumeResponse, error)
+	DeleteVolumeWithResponse(ctx context.Context, namespace string, name string, params *DeleteVolumeParams, reqEditors ...RequestEditorFn) (*DeleteVolumeResponse, error)
+
+	// GetVolumeWithResponse request
+	GetVolumeWithResponse(ctx context.Context, namespace string, name string, reqEditors ...RequestEditorFn) (*GetVolumeResponse, error)
+
+	// UpdateVolumeWithBodyWithResponse request with any body
+	UpdateVolumeWithBodyWithResponse(ctx context.Context, namespace string, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateVolumeResponse, error)
+
+	UpdateVolumeWithResponse(ctx context.Context, namespace string, name string, body UpdateVolumeJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateVolumeResponse, error)
 
 	// HealthzWithResponse request
 	HealthzWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*HealthzResponse, error)
@@ -2620,6 +3064,35 @@ func (r UpdateResourceUnitResponse) StatusCode() int {
 	return 0
 }
 
+type ListStorageClassesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *StorageClassList
+	JSON400      *ClusterManagerError
+	JSON401      *ClusterManagerError
+	JSON404      *ClusterManagerError
+	JSON409      *ClusterManagerError
+	JSON422      *ClusterManagerError
+	JSON500      *ClusterManagerError
+	JSONDefault  *ClusterManagerError
+}
+
+// Status returns HTTPResponse.Status
+func (r ListStorageClassesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListStorageClassesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type ListTenantsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -2879,6 +3352,35 @@ func (r UpdateTenantQuotaResponse) StatusCode() int {
 	return 0
 }
 
+type ListVolumesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *VolumeList
+	JSON400      *ClusterManagerError
+	JSON401      *ClusterManagerError
+	JSON404      *ClusterManagerError
+	JSON409      *ClusterManagerError
+	JSON422      *ClusterManagerError
+	JSON500      *ClusterManagerError
+	JSONDefault  *ClusterManagerError
+}
+
+// Status returns HTTPResponse.Status
+func (r ListVolumesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListVolumesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type CreateVolumeResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -2930,6 +3432,64 @@ func (r DeleteVolumeResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r DeleteVolumeResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetVolumeResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Volume
+	JSON400      *ClusterManagerError
+	JSON401      *ClusterManagerError
+	JSON404      *ClusterManagerError
+	JSON409      *ClusterManagerError
+	JSON422      *ClusterManagerError
+	JSON500      *ClusterManagerError
+	JSONDefault  *ClusterManagerError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetVolumeResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetVolumeResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateVolumeResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Volume
+	JSON400      *ClusterManagerError
+	JSON401      *ClusterManagerError
+	JSON404      *ClusterManagerError
+	JSON409      *ClusterManagerError
+	JSON422      *ClusterManagerError
+	JSON500      *ClusterManagerError
+	JSONDefault  *ClusterManagerError
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateVolumeResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateVolumeResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -3109,6 +3669,15 @@ func (c *ClientWithResponses) UpdateResourceUnitWithResponse(ctx context.Context
 	return ParseUpdateResourceUnitResponse(rsp)
 }
 
+// ListStorageClassesWithResponse request returning *ListStorageClassesResponse
+func (c *ClientWithResponses) ListStorageClassesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListStorageClassesResponse, error) {
+	rsp, err := c.ListStorageClasses(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListStorageClassesResponse(rsp)
+}
+
 // ListTenantsWithResponse request returning *ListTenantsResponse
 func (c *ClientWithResponses) ListTenantsWithResponse(ctx context.Context, params *ListTenantsParams, reqEditors ...RequestEditorFn) (*ListTenantsResponse, error) {
 	rsp, err := c.ListTenants(ctx, params, reqEditors...)
@@ -3222,6 +3791,15 @@ func (c *ClientWithResponses) UpdateTenantQuotaWithResponse(ctx context.Context,
 	return ParseUpdateTenantQuotaResponse(rsp)
 }
 
+// ListVolumesWithResponse request returning *ListVolumesResponse
+func (c *ClientWithResponses) ListVolumesWithResponse(ctx context.Context, params *ListVolumesParams, reqEditors ...RequestEditorFn) (*ListVolumesResponse, error) {
+	rsp, err := c.ListVolumes(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListVolumesResponse(rsp)
+}
+
 // CreateVolumeWithBodyWithResponse request with arbitrary body returning *CreateVolumeResponse
 func (c *ClientWithResponses) CreateVolumeWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateVolumeResponse, error) {
 	rsp, err := c.CreateVolumeWithBody(ctx, contentType, body, reqEditors...)
@@ -3240,12 +3818,38 @@ func (c *ClientWithResponses) CreateVolumeWithResponse(ctx context.Context, body
 }
 
 // DeleteVolumeWithResponse request returning *DeleteVolumeResponse
-func (c *ClientWithResponses) DeleteVolumeWithResponse(ctx context.Context, namespace string, name string, reqEditors ...RequestEditorFn) (*DeleteVolumeResponse, error) {
-	rsp, err := c.DeleteVolume(ctx, namespace, name, reqEditors...)
+func (c *ClientWithResponses) DeleteVolumeWithResponse(ctx context.Context, namespace string, name string, params *DeleteVolumeParams, reqEditors ...RequestEditorFn) (*DeleteVolumeResponse, error) {
+	rsp, err := c.DeleteVolume(ctx, namespace, name, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
 	return ParseDeleteVolumeResponse(rsp)
+}
+
+// GetVolumeWithResponse request returning *GetVolumeResponse
+func (c *ClientWithResponses) GetVolumeWithResponse(ctx context.Context, namespace string, name string, reqEditors ...RequestEditorFn) (*GetVolumeResponse, error) {
+	rsp, err := c.GetVolume(ctx, namespace, name, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetVolumeResponse(rsp)
+}
+
+// UpdateVolumeWithBodyWithResponse request with arbitrary body returning *UpdateVolumeResponse
+func (c *ClientWithResponses) UpdateVolumeWithBodyWithResponse(ctx context.Context, namespace string, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateVolumeResponse, error) {
+	rsp, err := c.UpdateVolumeWithBody(ctx, namespace, name, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateVolumeResponse(rsp)
+}
+
+func (c *ClientWithResponses) UpdateVolumeWithResponse(ctx context.Context, namespace string, name string, body UpdateVolumeJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateVolumeResponse, error) {
+	rsp, err := c.UpdateVolume(ctx, namespace, name, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateVolumeResponse(rsp)
 }
 
 // HealthzWithResponse request returning *HealthzResponse
@@ -4028,6 +4632,81 @@ func ParseUpdateResourceUnitResponse(rsp *http.Response) (*UpdateResourceUnitRes
 	return response, nil
 }
 
+// ParseListStorageClassesResponse parses an HTTP response from a ListStorageClassesWithResponse call
+func ParseListStorageClassesResponse(rsp *http.Response) (*ListStorageClassesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListStorageClassesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest StorageClassList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseListTenantsResponse parses an HTTP response from a ListTenantsWithResponse call
 func ParseListTenantsResponse(rsp *http.Response) (*ListTenantsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -4689,6 +5368,81 @@ func ParseUpdateTenantQuotaResponse(rsp *http.Response) (*UpdateTenantQuotaRespo
 	return response, nil
 }
 
+// ParseListVolumesResponse parses an HTTP response from a ListVolumesWithResponse call
+func ParseListVolumesResponse(rsp *http.Response) (*ListVolumesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListVolumesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest VolumeList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseCreateVolumeResponse parses an HTTP response from a CreateVolumeWithResponse call
 func ParseCreateVolumeResponse(rsp *http.Response) (*CreateVolumeResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -4778,6 +5532,156 @@ func ParseDeleteVolumeResponse(rsp *http.Response) (*DeleteVolumeResponse, error
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetVolumeResponse parses an HTTP response from a GetVolumeWithResponse call
+func ParseGetVolumeResponse(rsp *http.Response) (*GetVolumeResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetVolumeResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Volume
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateVolumeResponse parses an HTTP response from a UpdateVolumeWithResponse call
+func ParseUpdateVolumeResponse(rsp *http.Response) (*UpdateVolumeResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateVolumeResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Volume
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest ClusterManagerError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {

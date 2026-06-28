@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { Plus, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import dayjs from "dayjs";
-import { useJobs } from "@/api/hooks";
+import { useJobs, useVolumeOptions } from "@/api/hooks";
 import { useApiMutation } from "@/api/mutations";
 import * as sdk from "@/api/generated";
 import { useUI } from "@/app/ui";
@@ -216,10 +216,6 @@ export default function Jobs() {
 }
 
 // ── Create / Run / Edit drawer ────────────────────────────────────────────────
-const VOLUMES = [
-  { value: "training-data", label: "training-data · 200 GiB" },
-  { value: "shared-cache", label: "shared-cache · 500 GiB" },
-];
 const CMD = `torchrun --nproc_per_node=4 train.py \\
   --model_name llama-7b --lr 2e-5 --epochs 3 \\
   --batch_size 16 --data /data/sft.jsonl`;
@@ -242,6 +238,7 @@ function JobDrawer({ mode, name: initialName, onClose }: { mode: DrawerMode; nam
   const { t } = useTranslation();
   const locked = mode === "run";
   const [submitted, setSubmitted] = useState(false);
+  const { options: volOptions, isError: volError } = useVolumeOptions();
   const [v, setV] = useState<JobFormValues>({
     name: mode === "new" ? "" : (initialName ?? ""),
     description: "",
@@ -437,7 +434,7 @@ function JobDrawer({ mode, name: initialName, onClose }: { mode: DrawerMode; nam
                 <SelectValue placeholder={t("jobs.fVolume")} />
               </SelectTrigger>
               <SelectContent>
-                {VOLUMES.map((o) => (
+                {volOptions.map((o) => (
                   <SelectItem key={o.value} value={o.value}>
                     {o.label}
                   </SelectItem>
@@ -472,6 +469,11 @@ function JobDrawer({ mode, name: initialName, onClose }: { mode: DrawerMode; nam
         >
           + {t("jobs.addVolume")}
         </Button>
+        {(volError || volOptions.length === 0) && (
+          <p className="text-xs text-muted-foreground">
+            {volError ? t("common.loadFailed") : t("common.noDataVolumes")}
+          </p>
+        )}
       </div>
 
       <Collapsible className="mt-4">

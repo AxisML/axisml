@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>数据卷管理 · AxisML 控制台</title>
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+
+<body data-nav="datavolumes">
+  <main class="page" id="page">
+    <div class="breadcrumb"><span>系统管理</span><span class="sep">/</span><span>数据卷管理</span></div>
+    <div class="page-head">
+      <div>
+        <h1>数据卷管理</h1>
+        <p class="sub">为当前租户预建持久数据卷，统一供工作区、自定义任务与实验挂载。集中查看容量、访问模式与挂载占用，删除前自动校验占用负载。</p>
+      </div>
+      <div class="actions"><button class="btn btn-primary" data-drawer-open="volDrawer"><svg viewBox="0 0 24 24"
+            fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 5v14M5 12h14" />
+          </svg>新建数据卷</button></div>
+    </div>
+
+    <div class="toolbar">
+      <div class="field-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"
+          stroke-linejoin="round">
+          <circle cx="11" cy="11" r="7" />
+          <path d="m20 20-3.5-3.5" />
+        </svg><input placeholder="关键字搜索" /></div>
+      <select class="input" style="max-width:160px">
+        <option>全部状态</option>
+        <option>Bound</option>
+        <option>Pending</option>
+        <option>异常</option>
+      </select>
+      <select class="input" style="max-width:170px">
+        <option>全部访问模式</option>
+        <option>RWO</option>
+        <option>RWX</option>
+        <option>ROX</option>
+      </select>
+      <button class="btn btn-ghost">重置</button>
+    </div>
+
+    <div class="panel">
+      <div class="table-wrap">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th>名称</th>
+              <th>描述</th>
+              <th>存储类</th>
+              <th>访问模式</th>
+              <th>容量 / 用量</th>
+              <th>状态</th>
+              <th>创建时间</th>
+              <th style="text-align:right">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><a class="t-name mono" href="#" data-drawer-open="manageVolDrawer">shared-datasets</a></td>
+              <td>团队共享原始数据集目录</td>
+              <td class="mono">nfs-rwx</td>
+              <td><span class="tag mono">RWX</span></td>
+              <td>
+                <div class="meter-row">
+                  <div class="meter warn"><span style="width:66%"></span></div><span class="val">1.32 / 2 TiB</span>
+                </div>
+              </td>
+              <td><span class="status status-success"><span class="dot"></span>Bound</span></td>
+              <td class="muted mono">2026-02-11</td>
+              <td>
+                <div class="row-actions">
+                  <button class="act" title="管理" aria-label="管理" data-drawer-open="manageVolDrawer"><svg
+                      viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                      <circle cx="12" cy="12" r="3" />
+                      <path
+                        d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                    </svg></button>
+                  <button class="act act-danger" title="删除" aria-label="删除" data-confirm="确定删除数据卷 shared-datasets？"
+                    data-confirm-block="<div>3 个活跃工作负载正在挂载本卷<ul><li class='mono'>workspace / ws-jupyter-3</li><li class='mono'>job / preprocess-corpus-21</li><li>…等 3 项</li></ul>请先停止占用负载后重试。</div>"
+                    data-confirm-blocked><svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                      <path d="M3 6h18" />
+                      <path d="M8 6V4h8v2" />
+                      <path d="M19 6l-1 14H6L5 6" />
+                      <path d="M10 11v6M14 11v6" />
+                    </svg></button>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td><a class="t-name mono" href="#" data-drawer-open="manageVolDrawer">llm-checkpoints</a></td>
+              <td>训练 checkpoint 持久化</td>
+              <td class="mono">ceph-rbd</td>
+              <td><span class="tag mono">RWO</span></td>
+              <td>
+                <div class="meter-row">
+                  <div class="meter ok"><span style="width:42%"></span></div><span class="val">210 / 500 GiB</span>
+                </div>
+              </td>
+              <td><span class="status status-success"><span class="dot"></span>Bound</span></td>
+              <td class="muted mono">2026-03-04</td>
+              <td>
+                <div class="row-actions">
+                  <button class="act" title="管理" aria-label="管理" data-drawer-open="manageVolDrawer"><svg
+                      viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                      <circle cx="12" cy="12" r="3" />
+                      <path
+                        d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                    </svg></button>
+                  <button class="act act-danger" title="删除" aria-label="删除" data-confirm="确定删除数据卷 llm-checkpoints？"
+                    data-confirm-block="<div>1 个活跃运行正在挂载本卷<ul><li class='mono'>job / train-llm-7b-12</li></ul>请先停止占用负载后重试。</div>"
+                    data-confirm-blocked><svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                      <path d="M3 6h18" />
+                      <path d="M8 6V4h8v2" />
+                      <path d="M19 6l-1 14H6L5 6" />
+                      <path d="M10 11v6M14 11v6" />
+                    </svg></button>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td><a class="t-name mono" href="#" data-drawer-open="manageVolDrawer">preprocess-cache</a></td>
+              <td>数据预处理中间缓存</td>
+              <td class="mono">nfs-rwx</td>
+              <td><span class="tag mono">RWX</span></td>
+              <td>
+                <div class="meter-row">
+                  <div class="meter ok"><span style="width:6%"></span></div><span class="val">12 / 200 GiB</span>
+                </div>
+              </td>
+              <td><span class="status status-success"><span class="dot"></span>Bound</span></td>
+              <td class="muted mono">2026-04-09</td>
+              <td>
+                <div class="row-actions">
+                  <button class="act" title="管理" aria-label="管理" data-drawer-open="manageVolDrawer"><svg
+                      viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                      <circle cx="12" cy="12" r="3" />
+                      <path
+                        d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                    </svg></button>
+                  <button class="act act-danger" title="删除" aria-label="删除" data-confirm="确定删除数据卷 preprocess-cache？"
+                    data-confirm-desc="该卷当前无活跃负载挂载。" data-confirm-info="删除将释放底层 PVC，卷内数据不可恢复。" data-confirm-ok="确认删除"
+                    data-confirm-toast="数据卷 preprocess-cache 已删除"><svg viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor">
+                      <path d="M3 6h18" />
+                      <path d="M8 6V4h8v2" />
+                      <path d="M19 6l-1 14H6L5 6" />
+                      <path d="M10 11v6M14 11v6" />
+                    </svg></button>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td><a class="t-name mono" href="#" data-drawer-open="manageVolDrawer">eval-artifacts</a></td>
+              <td>评估产物只读共享</td>
+              <td class="mono">ceph-rbd</td>
+              <td><span class="tag mono">ROX</span></td>
+              <td>
+                <div class="meter-row">
+                  <div class="meter ok"><span style="width:28%"></span></div><span class="val">28 / 100 GiB</span>
+                </div>
+              </td>
+              <td><span class="status status-success"><span class="dot"></span>Bound</span></td>
+              <td class="muted mono">2026-05-02</td>
+              <td>
+                <div class="row-actions">
+                  <button class="act" title="管理" aria-label="管理" data-drawer-open="manageVolDrawer"><svg
+                      viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                      <circle cx="12" cy="12" r="3" />
+                      <path
+                        d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                    </svg></button>
+                  <button class="act act-danger" title="删除" aria-label="删除" data-confirm="确定删除数据卷 eval-artifacts？"
+                    data-confirm-desc="该卷当前无活跃负载挂载。" data-confirm-info="删除将释放底层 PVC，卷内数据不可恢复。" data-confirm-ok="确认删除"
+                    data-confirm-toast="数据卷 eval-artifacts 已删除"><svg viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor">
+                      <path d="M3 6h18" />
+                      <path d="M8 6V4h8v2" />
+                      <path d="M19 6l-1 14H6L5 6" />
+                      <path d="M10 11v6M14 11v6" />
+                    </svg></button>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td><a class="t-name mono" href="#" data-drawer-open="manageVolDrawer">scratch-ssd</a></td>
+              <td>临时高速暂存盘</td>
+              <td class="mono">local-ssd</td>
+              <td><span class="tag mono">RWO</span></td>
+              <td class="muted">供给中…</td>
+              <td><span class="status status-pending"><span class="dot"></span>Pending</span></td>
+              <td class="muted mono">2026-06-27</td>
+              <td>
+                <div class="row-actions">
+                  <button class="act" title="管理" aria-label="管理" data-drawer-open="manageVolDrawer"><svg
+                      viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                      <circle cx="12" cy="12" r="3" />
+                      <path
+                        d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                    </svg></button>
+                  <button class="act act-danger" title="删除" aria-label="删除" data-confirm="确定删除数据卷 scratch-ssd？"
+                    data-confirm-desc="该卷正在供给中，尚无负载挂载。" data-confirm-info="删除将取消供给并释放底层 PVC。" data-confirm-ok="确认删除"
+                    data-confirm-toast="数据卷 scratch-ssd 已删除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                      <path d="M3 6h18" />
+                      <path d="M8 6V4h8v2" />
+                      <path d="M19 6l-1 14H6L5 6" />
+                      <path d="M10 11v6M14 11v6" />
+                    </svg></button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="pagination"><span>共 5 个数据卷</span>
+        <div class="pages"><span class="pg">‹</span><span class="pg on">1</span><span class="pg">›</span></div><span>每页
+          20 条</span>
+      </div>
+    </div>
+  </main>
+
+  <!-- 新建数据卷抽屉 -->
+  <aside class="drawer wide" id="volDrawer">
+    <div class="drawer-head">
+      <div>
+        <h3>新建数据卷</h3>
+        <div class="sub">为当前租户预建一块持久 PVC · 创建后可被工作区 / 任务 / 实验挂载</div>
+      </div><button class="icon-btn" data-drawer-close>✕</button>
+    </div>
+    <div class="drawer-body">
+      <div class="fieldset-title"><span class="n">1</span>基本信息</div>
+      <div class="form-grid">
+        <div class="field"><label>名称 <span class="req">*</span></label><input class="input mono" data-en-only
+            placeholder="shared-datasets" /></div>
+        <div class="field full"><label>描述</label><textarea class="textarea" placeholder="用途说明（可选）"></textarea></div>
+      </div>
+
+      <div class="fieldset-title"><span class="n">2</span>存储规格</div>
+      <div class="form-grid">
+        <div class="field"><label>容量 <span class="req">*</span></label>
+          <div class="input-affix"><input inputmode="numeric" placeholder="200" aria-label="容量" /><span
+              class="suf">GiB</span></div>
+        </div>
+        <div class="field"><label>存储类 StorageClass <span class="req">*</span></label><select class="input">
+            <option>nfs-rwx · 共享文件（RWX）</option>
+            <option>ceph-rbd · 块存储（RWO）</option>
+            <option>local-ssd · 本地高速盘（RWO）</option>
+          </select></div>
+        <div class="field full"><label>访问模式 <span class="req">*</span></label>
+          <div class="pick-grid" data-pick-group>
+            <div class="pick on">
+              <div class="p-title">RWX</div>
+              <div class="p-spec">多节点读写 · 适合共享数据集</div>
+            </div>
+            <div class="pick">
+              <div class="p-title">RWO</div>
+              <div class="p-spec">单节点读写 · 适合 checkpoint</div>
+            </div>
+            <div class="pick">
+              <div class="p-title">ROX</div>
+              <div class="p-spec">多节点只读 · 适合分发产物</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="drawer-foot"><span class="grow"></span><button class="btn" data-drawer-close>取消</button><button
+        class="btn btn-primary" data-toast="数据卷已创建，正在供给" data-drawer-submit>创建数据卷</button></div>
+  </aside>
+
+  <!-- 管理数据卷抽屉：基本信息 + 存储规格（容量可扩容）+ 挂载占用 -->
+  <aside class="drawer wide" id="manageVolDrawer">
+    <div class="drawer-head">
+      <div>
+        <h3 class="mono">shared-datasets</h3>
+        <div class="sub">团队共享原始数据集目录 · 管理描述、扩容与查看挂载占用</div>
+      </div><button class="icon-btn" data-drawer-close>✕</button>
+    </div>
+    <div class="drawer-body">
+      <div class="fieldset-title"><span class="n">1</span>基本信息</div>
+      <div class="form-grid">
+        <div class="field"><label>名称</label><input class="input mono" value="shared-datasets" readonly
+            aria-readonly="true" /></div>
+        <div class="field full"><label>描述</label><textarea class="textarea">团队共享原始数据集目录</textarea></div>
+      </div>
+
+      <div class="fieldset-title"><span class="n">2</span>存储规格</div>
+      <div class="form-grid">
+        <div class="field"><label>存储类 StorageClass</label><input class="input mono" value="nfs-rwx" readonly
+            aria-readonly="true" /></div>
+        <div class="field"><label>访问模式</label><input class="input mono" value="RWX" readonly aria-readonly="true" />
+        </div>
+        <div class="field"><label>容量（仅可扩容）</label>
+          <div class="input-affix"><input inputmode="numeric" value="2048" aria-label="容量" /><span
+              class="suf">GiB</span></div>
+        </div>
+        <div class="field"><label>已用</label><input class="input mono" value="1.32 TiB（66%）" readonly
+            aria-readonly="true" /></div>
+      </div>
+
+      <div class="fieldset-title"><span class="n">3</span>挂载占用</div>
+      <div class="table-wrap">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th>工作负载</th>
+              <th>类型</th>
+              <th>挂载路径</th>
+              <th>状态</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="mono">ws-jupyter-3</td>
+              <td>工作区</td>
+              <td class="mono">/data/shared</td>
+              <td><span class="status status-running"><span class="dot"></span>运行中</span></td>
+            </tr>
+            <tr>
+              <td class="mono">preprocess-corpus-21</td>
+              <td>任务运行</td>
+              <td class="mono">/mnt/dataset</td>
+              <td><span class="status status-running"><span class="dot"></span>运行中</span></td>
+            </tr>
+            <tr>
+              <td class="mono">eval-bench-7</td>
+              <td>实验运行</td>
+              <td class="mono">/data/in</td>
+              <td><span class="status status-success"><span class="dot"></span>已完成</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="drawer-foot"><span class="grow"></span><button class="btn" data-drawer-close>取消</button><button
+        class="btn btn-primary" data-toast="数据卷已保存" data-drawer-submit>保存</button></div>
+  </aside>
+
+  <script src="js/app.js"></script>
+</body>
+
+</html>

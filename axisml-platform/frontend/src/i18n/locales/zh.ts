@@ -19,6 +19,7 @@ export const zhCN = {
     loadFailed: "加载失败",
     retry: "重试",
     noData: "暂无数据",
+    noDataVolumes: "本租户暂无数据卷，请联系系统管理员创建",
     totalItems: "共 {{count}} 条",
     all: "全部",
     yes: "是",
@@ -75,6 +76,7 @@ export const zhCN = {
     systemMgmt: "系统管理",
     tenants: "租户管理",
     pools: "资源池管理",
+    volumes: "数据卷管理",
   },
   topbar: {
     searchPlaceholder: "搜索任务 / 服务 / 模型 / 镜像…",

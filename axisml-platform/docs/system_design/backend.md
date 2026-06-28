@@ -14,6 +14,7 @@ AxisML 唯一直接面向用户的层：承担身份接入、业务编排与视�
 | 持有 Job / 实验 / Model / Image 定义（name 级 PG 表） | 持有制品**版本**权威（→ artifacts） |
 | 跨服务业务编排（创建 / 租户内列表透传） | 持有 ResourcePool / ResourceUnit 词汇（→ cluster-manager） |
 | 视图层映射（用户 ↔ 租户 ↔ `identifier`；workspace ↔ `MLService(kind=workspace)`） | 缓存下游可变实例状态（phase / status / digest / quota 用量 → 一律实时回源） |
+| 数据卷（DataVolume）目录编排（系统管理员级、租户作用域；经 cluster-manager Volume REST） | 持久卷 PVC 的物化 / 扩容 / 回收 / 挂载占用反查（→ cluster-manager） |
 | 前端 UI 多语言（§5.6） | 按 `Accept-Language` 本地化响应（后端与下游 locale-neutral，只返稳定机读 code） |
 
 **统一 tenant scope**：compute / artifacts 的 URL `{namespace}` 兼容段表示租户 `identifier`，Platform 直接透传；它不是 K8s Namespace。物理落地点由 `tenants.kubernetes_namespace` / `Tenant.spec.namespace.name` 表达，可被多个 Tenant 共享（见 [high_level_design §2.2](../../../docs/high_level_design.md#22-关键不变量)）。
@@ -136,18 +137,16 @@ Platform 自有实体三类：**租户持久记录**、**身份 / 授权 / 会�
 
 ### 4.4 工作区编排
 
-下游：compute（services with `kind=workspace`）+ cluster-manager（持久卷 PVC 提前创建 / 回收）。工作区 = 长驻交互式开发容器，复用 `MLService(native, deployment)`，不引入新 CRD。持久卷由 Platform 经 cluster-manager Volume REST **提前**建好，再以 PVC 引用写进 Pod 模板交给 compute 挂载——compute 不创建 / 不回收卷（[compute-service.md](../../../axisml-system/docs/system_design/compute-service.md)）。
+下游：compute（services with `kind=workspace`）。工作区 = 长驻交互式开发容器，复用 `MLService(native, deployment)`，不引入新 CRD。需持久存储时挂载既有数据卷（§4.11）：Platform 把用户选定卷的 PVC 引用写进 Pod 模板交给 compute 挂载——卷是独立受管对象，工作区不创建、不回收卷（[compute-service.md](../../../axisml-system/docs/system_design/compute-service.md)）。
 
 | 用户操作 | 内部步骤 / 下游调用 |
 | --- | --- |
-| 创建 | 通则"触发实例" → 生成 `workspace_name="ws-"+crockford32(rand40bit)` → 经 cluster-manager Volume REST 提前建好声明的卷 → 把 PVC 引用写入 `roles[0].template.{volumes,volumeMounts}` → `compute.CreateMLService(kind=workspace, route.enabled=false)`；SecurityPolicy 交付后再启用外部 route |
+| 创建 | 通则"触发实例" → 生成 `workspace_name="ws-"+crockford32(rand40bit)` → 把用户选定的既有数据卷以 PVC 引用写入 `roles[0].template.{volumes,volumeMounts}`（§4.11）→ `compute.CreateMLService(kind=workspace, route.enabled=false)`；SecurityPolicy 交付后再启用外部 route |
 | 停止 / 启动 | 同 §4.3（工作区恒为 1 副本） |
-| 删除 | 校验 `kind==workspace` → `DeleteMLService` → 按需经 cluster-manager Volume REST 回收卷 |
+| 删除 | 校验 `kind==workspace` → `DeleteMLService`（数据卷为独立对象，不随工作区回收） |
 | 浏览器接入 | 当前不开放；SecurityPolicy 派生交付后再启用 `aud=axisml-workspace` access JWT，现阶段保持 fail-closed |
 
-Platform 不为工作区建任何 PG 表；"这是工作区"由 compute `mlservices.kind='workspace'` 表达。寻址 `/api/v1/workspaces/{name}`。
-
-> **卷编排（Volume orchestration）TODO**：工作区持久卷由 Platform 经 cluster-manager Volume REST 提前创建 / 回收的完整编排（命名、`WorkspaceVolume{new|existing}` 解析、失败回滚、`deletePvc` 语义）将单独设计与实现；当前 compute 已不再派生 PVC，仅引用 Pod 模板里声明的卷。
+Platform 不为工作区建任何 PG 表；"这是工作区"由 compute `mlservices.kind='workspace'` 表达。寻址 `/api/v1/workspaces/{name}`。持久存储统一走数据卷（§4.11）——挂载即引用既有数据卷，无工作区专属卷概念；compute 仅引用 Pod 模板里声明的卷，不派生 PVC。
 
 ### 4.5 制品编排
 
@@ -222,6 +221,20 @@ Dashboard 的聚合模型与接口暂不在本版系统设计中定义，待后�
 - 启动 / 打开 / 停止均限 `owner` 或 `tenant-admin`（会拉起占配额的 workload）。
 - 数据面访问目标方案复用工作区 access JWT；当前 SecurityPolicy 未交付，外部访问不开放；`kind` 创建后不可变。
 
+### 4.11 数据卷编排
+
+下游：cluster-manager（Volume REST：CRUD + 扩容 + 挂载占用反查 + 运行态回源，[cluster-manager.md §4.5](../../../axisml-system/docs/system_design/cluster-manager.md#45-volume)）。数据卷 = 系统管理员为某租户预建的受管持久卷（PVC），供该租户的工作区 / 任务 / 实验挂载。作用域随活跃租户（每个卷归属单一租户命名空间）。**读写分权**：创建 / 扩容 / 删除限 `system-admin`；列表 / 详情对活跃租户成员开放（普通用户提交工作区 / 任务 / 实验时据此下拉选择要挂载的既有卷）。Platform **不为数据卷建任何 PG 表**——K8s etcd（PVC）是唯一真相源，与资源池同构；描述等业务元数据经 PVC 的 `annotations` / `labels` 承载，phase / 已用容量 / 挂载占用一律实时回源。
+
+| 用户操作 | 内部步骤 / 下游调用 |
+| --- | --- |
+| 创建 | RBAC `system-admin` → 校验 `tenants.suspended_at` 为空 → 解析活跃租户 `kubernetes_namespace` → `clustermanager.CreateVolume`（携 `name` / `size` / `storageClass` / `accessModes` / `description`） |
+| 列表 | RBAC 活跃租户成员 → `clustermanager.ListVolumes(namespace)`；每项含 phase / 容量 / 占用实时态 |
+| 详情 | RBAC 活跃租户成员 → `clustermanager.GetVolume(namespace, name)`（合并 `status{phase, boundCapacity, usedBytes?, mounts[]}`） |
+| 扩容 / 改描述 | RBAC `system-admin` → 拦截 `storageClass` / `accessModes` 不可变、`size` 只增 → `clustermanager.PatchVolume` |
+| 删除 | RBAC `system-admin` → `clustermanager.DeleteVolume`；被运行中负载挂载时下游 `409 volume-in-use` 透传为 `409 datavolume-in-use` + 占用清单 |
+
+寻址 `/api/v1/datavolumes/{name}`（活跃租户由 `axisml.tenant` Cookie / `X-Axisml-Tenant` 头携带，§5.2）；物理 K8s Namespace 由 `tenants.kubernetes_namespace` 映射后单独传 cluster-manager。`storageClass` / `accessModes` 创建后不可变，容量仅可扩容。Platform 不感知卷内容与挂载点，删除前置的占用反查全在 cluster-manager（扫描引用该 PVC 的 Pod）；工作区 / 任务 / 实验等所有工作负载的持久存储统一挂载本目录中的数据卷（§4.4），无工作区专属卷。
+
 ## 5. 关键机制
 
 ### 5.1 跨服务调用模型
@@ -292,7 +305,7 @@ RBAC 中间件装配见 [auth.md](auth.md)；Platform 路由层挂载 `RequireSy
 
 | 类别 | 内容 |
 | --- | --- |
-| 对外 REST | 业务 tag：`Auth` / `Tenants` / `Quotas` / `Members` / `Jobs` / `Experiments` / `MLServices` / `TrafficPolicy` / `Workspaces` / `Models` / `Images` / `ResourcePools` / `ResourceUnits`；name 寻址 `/api/v1/{kind}/{name}`（Run / TensorBoard 为子资源），制品 tuple 寻址 `/{kind-plural}/{tenant}/{name}`；系统 tag（`Users` / `Health`）见 yaml。契约源 [openapi/platform.yaml](../apis/platform.yaml) |
+| 对外 REST | 业务 tag：`Auth` / `Tenants` / `Quotas` / `Members` / `Jobs` / `Experiments` / `MLServices` / `TrafficPolicy` / `Workspaces` / `Models` / `Images` / `ResourcePools` / `ResourceUnits` / `DataVolumes`；name 寻址 `/api/v1/{kind}/{name}`（Run / TensorBoard 为子资源），制品 tuple 寻址 `/{kind-plural}/{tenant}/{name}`；系统 tag（`Users` / `Health`）见 yaml。契约源 [openapi/platform.yaml](../apis/platform.yaml) |
 | 状态 | 不暴露任何 K8s CR；下游运行态字段（phase / conditions / quota 用量）作只读透传 |
 | 错误格式 | HTTP 标准码 + RFC 7807 problem+json；下游 problem 透传或包装；`type` URI / 下游 code 为稳定机读标识（§5.6） |
 | 流式 | 日志 / 事件 `follow=true` 用 SSE；非 follow 用 `text/plain` chunked |
@@ -307,7 +320,7 @@ RBAC 中间件装配见 [auth.md](auth.md)；Platform 路由层挂载 `RequireSy
 | PostgreSQL | 身份 / 授权 / 会话 + 四张定义；与 compute / artifacts 共享 DB，按表名前缀隔离（[database.md](database.md)） |
 | Redis（可选） | 认证热点读缓存（会话有效性 + 身份 / RBAC），key 前缀 `platform:`；权威仍是 PostgreSQL，不可达即回退（[auth.md §2.1](auth.md#21-会话与身份缓存)） |
 | Envoy Gateway | 唯一外部入口；TLS 终止 / HTTPRoute；数据面 SecurityPolicy 待交付（[infra.md](../../../axisml-infra/docs/system_design/overview.md)） |
-| cluster-manager | ResourcePool / Unit CRUD + 租户 CR 物化（含配额折算 + 运行态回源）+ 工作区等持久卷的提前创建 / 回收（Volume REST，§4.4） |
+| cluster-manager | ResourcePool / Unit CRUD + 租户 CR 物化（含配额折算 + 运行态回源）+ 数据卷（持久卷 PVC）的 CRUD / 扩容 / 回收 / 占用反查（Volume REST，§4.11） |
 | compute | Run / Service / Workspace / TrafficPolicy / TensorBoard 权威；创建体接 `scheduling{poolName,unitName,quota}` 名字对；资源池删除检查复用按 tenant scope 的 labelSelector 列表查询 |
 | artifacts | 模型 / 镜像版本；两阶段写或 `external` 登记；Platform 负责 `GetArtifact` 预检与 `resolve?usage=inspect` 快照 |
 
