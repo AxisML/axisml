@@ -12,6 +12,10 @@ spec:
       targetPort: http
       protocol: TCP
       name: http
+    - port: {{ .Values.platform.metricsPort }}
+      targetPort: metrics
+      protocol: TCP
+      name: metrics
   selector:
     {{- include "axisml.componentSelectorLabels" (dict "context" . "component" "platform") | nindent 4 }}
 {{- end }}

@@ -5,9 +5,10 @@ import "time"
 // Fixed operational constants. These do not differ across deployments, so they
 // are not configurable (see docs/configuration.md → "Not configurable by design").
 const (
-	// Listen addresses (platform-backend has no metrics endpoint).
-	APIBindAddress    = ":8080"
-	ProbesBindAddress = ":8081"
+	// Listen addresses, uniform across all AxisML services.
+	APIBindAddress     = ":8080"
+	MetricsBindAddress = ":8081"
+	ProbesBindAddress  = ":8082"
 
 	// HTTP client timeout for System-layer upstream calls.
 	UpstreamTimeout = 30 * time.Second

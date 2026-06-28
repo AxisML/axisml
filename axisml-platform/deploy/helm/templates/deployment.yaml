@@ -54,6 +54,9 @@ spec:
             - name: http
               containerPort: {{ .Values.platform.service.port }}
               protocol: TCP
+            - name: metrics
+              containerPort: {{ .Values.platform.metricsPort }}
+              protocol: TCP
             - name: probes
               containerPort: {{ .Values.platform.probesPort }}
               protocol: TCP

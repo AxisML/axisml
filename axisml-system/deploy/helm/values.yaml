@@ -71,8 +71,8 @@ computeService:
     port: 8080           # HTTP API
 
   # Listener ports are fixed in code; these only wire containerPort/Service/probes.
-  metricsPort: 9090      # Prometheus /metrics
-  probesPort: 8081       # /healthz + /readyz
+  metricsPort: 8081      # Prometheus /metrics
+  probesPort: 8082       # /healthz + /readyz
 
   log:
     level: info          # debug | info | warn | error
@@ -119,8 +119,8 @@ artifactHub:
     port: 8080           # HTTP API
 
   # Listener ports are fixed in code; these only wire containerPort/Service/probes.
-  metricsPort: 9090
-  probesPort: 8081
+  metricsPort: 8081
+  probesPort: 8082
 
   log:
     level: info
