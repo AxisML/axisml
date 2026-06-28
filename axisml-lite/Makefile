@@ -64,7 +64,7 @@ lite-down: ## Tear down the Lite stack (CLEAN=1 also removes the data volumes)
 	$(COMPOSE) $(PROFILE_FLAGS) down $(if $(CLEAN),--volumes)
 
 # Full purge: the Compose stack + its volumes/networks AND every resource the
-# Standalone Docker runtime spawned itself (workload containers + workspace
+# Standalone runtime spawned itself (workload containers + workspace
 # volumes labeled io.axisml.managed=true), which `lite-down` does not touch.
 lite-delete: ## Purge the Lite stack + all axisml-managed workload containers & volumes
 	-@docker rm -f $$(docker ps -aq --filter "label=io.axisml.managed=true") 2>/dev/null || true
