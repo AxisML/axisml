@@ -6,7 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	apperrors "github.com/axisml/axisml/components/artifact-hub/pkg/errors"
+	apperrors "github.com/axisml/axisml/axisml-system/artifact-hub/pkg/errors"
 )
 
 // Pagination is the parsed list-query control block. Per the design yaml

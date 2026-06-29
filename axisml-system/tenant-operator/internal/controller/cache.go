@@ -8,7 +8,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	tenantv1alpha1 "github.com/axisml/axisml/components/tenant-operator/api/v1alpha1"
+	tenantv1alpha1 "github.com/axisml/axisml/axisml-system/tenant-operator/api/v1alpha1"
 )
 
 // CacheByObject returns per-type cache restrictions for the resources Tenant

@@ -17,7 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	axisml "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
+	axisml "github.com/axisml/axisml/axisml-system/compute-operator/api/mlservice/v1alpha1"
 
 	"github.com/axisml/axisml/test/testutil"
 )

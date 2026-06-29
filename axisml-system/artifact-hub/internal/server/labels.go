@@ -6,7 +6,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/labels"
 
-	apperrors "github.com/axisml/axisml/components/artifact-hub/pkg/errors"
+	apperrors "github.com/axisml/axisml/axisml-system/artifact-hub/pkg/errors"
 )
 
 // JSONLabelsSQL renders the K8s label selector into a Postgres `WHERE`

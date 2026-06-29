@@ -8,10 +8,10 @@ import (
 	"context"
 	"errors"
 
-	"github.com/axisml/axisml/components/platform/internal/auth"
-	"github.com/axisml/axisml/components/platform/internal/server"
-	"github.com/axisml/axisml/components/platform/internal/store"
-	apperrors "github.com/axisml/axisml/components/platform/pkg/errors"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/auth"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/server"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/store"
+	apperrors "github.com/axisml/axisml/axisml-platform/backend/pkg/errors"
 )
 
 // TenantActive asserts the tenant exists and is not suspended. Workload-create

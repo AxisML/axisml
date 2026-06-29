@@ -5,9 +5,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/axisml/axisml/components/platform/internal/auth"
-	"github.com/axisml/axisml/components/platform/internal/server"
-	"github.com/axisml/axisml/components/platform/internal/store"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/auth"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/server"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/store"
 )
 
 // Handler serves the Auth and Users tags.

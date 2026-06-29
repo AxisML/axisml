@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 
-	apperrors "github.com/axisml/axisml/components/platform/pkg/errors"
+	apperrors "github.com/axisml/axisml/axisml-platform/backend/pkg/errors"
 )
 
 const problemTypeBase = "https://axisml.io/errors/"

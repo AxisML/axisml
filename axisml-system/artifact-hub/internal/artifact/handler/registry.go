@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/axisml/axisml/components/artifact-hub/internal/storage/oci"
+	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/storage/oci"
 )
 
 // StorageKind enumerates the underlying storage backend a Kind uses.

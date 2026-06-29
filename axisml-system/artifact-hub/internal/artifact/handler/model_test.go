@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/axisml/axisml/components/artifact-hub/internal/storage/oci"
-	apperrors "github.com/axisml/axisml/components/artifact-hub/pkg/errors"
+	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/storage/oci"
+	apperrors "github.com/axisml/axisml/axisml-system/artifact-hub/pkg/errors"
 )
 
 func TestModelHandler_ValidateSpec(t *testing.T) {

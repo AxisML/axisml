@@ -6,7 +6,7 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/axisml/axisml/components/platform/internal/auth"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/auth"
 )
 
 // IdentityProvider resolves a verified user id into an auth.Identity (satisfies

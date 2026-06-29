@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/axisml/axisml/components/platform/internal/auth"
-	"github.com/axisml/axisml/components/platform/internal/clients/clustermanager"
-	"github.com/axisml/axisml/components/platform/internal/config"
-	"github.com/axisml/axisml/components/platform/internal/db"
-	"github.com/axisml/axisml/components/platform/internal/store"
-	"github.com/axisml/axisml/components/platform/pkg/logging"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/auth"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/clients/clustermanager"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/config"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/db"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/store"
+	"github.com/axisml/axisml/axisml-platform/backend/pkg/logging"
 )
 
 // Bootstrap runs migrations then seeds the initial system-admin and imports the

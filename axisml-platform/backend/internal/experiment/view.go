@@ -3,9 +3,9 @@ package experiment
 import (
 	"encoding/json"
 
-	"github.com/axisml/axisml/components/platform/internal/clients/computeservice"
-	"github.com/axisml/axisml/components/platform/internal/server"
-	"github.com/axisml/axisml/components/platform/internal/store"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/clients/computeservice"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/server"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/store"
 )
 
 // LabelExperiment ties a Run (MLRun) to its Experiment.

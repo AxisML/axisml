@@ -22,8 +22,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
-	mltp "github.com/axisml/axisml/components/compute-operator/api/mltrafficpolicy/v1alpha1"
-	hpkg "github.com/axisml/axisml/components/compute-operator/internal/mltrafficpolicy/handler"
+	mltp "github.com/axisml/axisml/axisml-system/compute-operator/api/mltrafficpolicy/v1alpha1"
+	hpkg "github.com/axisml/axisml/axisml-system/compute-operator/internal/mltrafficpolicy/handler"
 )
 
 // Reconciler is the dispatcher. It looks up the Handler by

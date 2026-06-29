@@ -6,7 +6,7 @@ import (
 
 	"github.com/axisml/axisml/pkg/openapigen"
 
-	apperrors "github.com/axisml/axisml/components/artifact-hub/pkg/errors"
+	apperrors "github.com/axisml/axisml/axisml-system/artifact-hub/pkg/errors"
 )
 
 func TestBuildDocumentSchemaIntegrity(t *testing.T) {

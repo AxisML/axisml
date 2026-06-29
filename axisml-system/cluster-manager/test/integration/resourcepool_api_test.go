@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	srv "github.com/axisml/axisml/components/cluster-manager/internal/server"
+	srv "github.com/axisml/axisml/axisml-system/cluster-manager/internal/server"
 )
 
 // TestResourcePool_Lifecycle drives the full Create → Get → List → Patch →

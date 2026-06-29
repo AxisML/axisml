@@ -20,10 +20,10 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	axismlv1alpha1 "github.com/axisml/axisml/components/cluster-manager/api/v1alpha1"
-	cmapp "github.com/axisml/axisml/components/cluster-manager/internal/app"
-	cmk8sclient "github.com/axisml/axisml/components/cluster-manager/internal/k8sclient"
-	tenantv1alpha1 "github.com/axisml/axisml/components/tenant-operator/api/v1alpha1"
+	axismlv1alpha1 "github.com/axisml/axisml/axisml-system/cluster-manager/api/v1alpha1"
+	cmapp "github.com/axisml/axisml/axisml-system/cluster-manager/internal/app"
+	cmk8sclient "github.com/axisml/axisml/axisml-system/cluster-manager/internal/k8sclient"
+	tenantv1alpha1 "github.com/axisml/axisml/axisml-system/tenant-operator/api/v1alpha1"
 
 	"github.com/axisml/axisml/test/testutil"
 )

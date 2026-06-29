@@ -13,10 +13,10 @@ import (
 	"net/http"
 	"time"
 
-	gen "github.com/axisml/axisml/components/platform/internal/clients/artifacthub/generated"
-	"github.com/axisml/axisml/components/platform/internal/clients/clienterr"
-	"github.com/axisml/axisml/components/platform/internal/clients/reqedit"
-	apperrors "github.com/axisml/axisml/components/platform/pkg/errors"
+	gen "github.com/axisml/axisml/axisml-platform/backend/internal/clients/artifacthub/generated"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/clients/clienterr"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/clients/reqedit"
+	apperrors "github.com/axisml/axisml/axisml-platform/backend/pkg/errors"
 )
 
 const service = "artifacts"

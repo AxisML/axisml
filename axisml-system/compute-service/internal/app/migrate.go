@@ -3,8 +3,8 @@ package app
 import (
 	"context"
 
-	"github.com/axisml/axisml/components/compute-service/internal/config"
-	"github.com/axisml/axisml/components/compute-service/internal/db"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/config"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/db"
 )
 
 // Migrate runs DB migrations and exits.

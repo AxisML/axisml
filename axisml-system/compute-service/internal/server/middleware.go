@@ -8,7 +8,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
 
-	apperrors "github.com/axisml/axisml/components/compute-service/pkg/errors"
+	apperrors "github.com/axisml/axisml/axisml-system/compute-service/pkg/errors"
 )
 
 // RequestID injects a unique X-Request-ID per request.

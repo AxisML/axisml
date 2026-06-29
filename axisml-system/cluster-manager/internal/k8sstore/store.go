@@ -12,9 +12,9 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	cmv1alpha1 "github.com/axisml/axisml/components/cluster-manager/api/v1alpha1"
-	"github.com/axisml/axisml/components/cluster-manager/pkg/extensions"
-	tenantv1alpha1 "github.com/axisml/axisml/components/tenant-operator/api/v1alpha1"
+	cmv1alpha1 "github.com/axisml/axisml/axisml-system/cluster-manager/api/v1alpha1"
+	"github.com/axisml/axisml/axisml-system/cluster-manager/pkg/extensions"
+	tenantv1alpha1 "github.com/axisml/axisml/axisml-system/tenant-operator/api/v1alpha1"
 )
 
 // ResourcePoolStore backs extensions.ResourcePoolProvider with a client.Client.

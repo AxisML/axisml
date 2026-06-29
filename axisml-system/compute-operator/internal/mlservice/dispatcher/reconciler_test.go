@@ -15,8 +15,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	axisml "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
-	hpkg "github.com/axisml/axisml/components/compute-operator/internal/mlservice/handler"
+	axisml "github.com/axisml/axisml/axisml-system/compute-operator/api/mlservice/v1alpha1"
+	hpkg "github.com/axisml/axisml/axisml-system/compute-operator/internal/mlservice/handler"
 )
 
 func newScheme(t *testing.T) *runtime.Scheme {

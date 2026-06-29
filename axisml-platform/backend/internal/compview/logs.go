@@ -7,7 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/axisml/axisml/components/platform/internal/clients/computeservice"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/clients/computeservice"
 )
 
 // LogOptions parses the contract pod-log query knobs.

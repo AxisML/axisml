@@ -11,7 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	axisml "github.com/axisml/axisml/components/tenant-operator/api/v1alpha1"
+	axisml "github.com/axisml/axisml/axisml-system/tenant-operator/api/v1alpha1"
 )
 
 func TestServiceAccounts_PlainSA_NoRBAC(t *testing.T) {

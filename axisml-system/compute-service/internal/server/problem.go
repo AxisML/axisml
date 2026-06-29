@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 
-	apperrors "github.com/axisml/axisml/components/compute-service/pkg/errors"
+	apperrors "github.com/axisml/axisml/axisml-system/compute-service/pkg/errors"
 )
 
 // Error is RFC7807 application/problem+json.

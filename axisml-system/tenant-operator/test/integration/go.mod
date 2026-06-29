@@ -1,9 +1,9 @@
-module github.com/axisml/axisml/components/tenant-operator/test/integration
+module github.com/axisml/axisml/axisml-system/tenant-operator/test/integration
 
 go 1.26.0
 
 require (
-	github.com/axisml/axisml/components/tenant-operator v0.0.0
+	github.com/axisml/axisml/axisml-system/tenant-operator v0.0.0
 	github.com/axisml/axisml/test/testutil v0.0.0
 	github.com/koordinator-sh/koordinator v1.7.0
 	github.com/stretchr/testify v1.11.1
@@ -73,6 +73,6 @@ require (
 // must mirror it here so `go mod tidy` can resolve the import graph.
 replace k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912
 
-replace github.com/axisml/axisml/components/tenant-operator => ../..
+replace github.com/axisml/axisml/axisml-system/tenant-operator => ../..
 
 replace github.com/axisml/axisml/test/testutil => ../../../test/testutil

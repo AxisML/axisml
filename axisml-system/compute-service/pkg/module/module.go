@@ -20,12 +20,12 @@ import (
 	"github.com/go-logr/logr"
 	"gorm.io/gorm"
 
-	"github.com/axisml/axisml/components/compute-service/internal/db"
-	jobmod "github.com/axisml/axisml/components/compute-service/internal/mlrun"
-	servicemod "github.com/axisml/axisml/components/compute-service/internal/mlservice"
-	"github.com/axisml/axisml/components/compute-service/internal/server"
-	trafficmod "github.com/axisml/axisml/components/compute-service/internal/trafficpolicy"
-	"github.com/axisml/axisml/components/compute-service/pkg/extensions"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/db"
+	jobmod "github.com/axisml/axisml/axisml-system/compute-service/internal/mlrun"
+	servicemod "github.com/axisml/axisml/axisml-system/compute-service/internal/mlservice"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/server"
+	trafficmod "github.com/axisml/axisml/axisml-system/compute-service/internal/trafficpolicy"
+	"github.com/axisml/axisml/axisml-system/compute-service/pkg/extensions"
 )
 
 // Route wires its endpoints into an /api/v1 router group.

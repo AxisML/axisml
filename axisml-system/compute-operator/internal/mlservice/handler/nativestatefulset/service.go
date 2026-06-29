@@ -5,7 +5,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
-	axisml "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
+	axisml "github.com/axisml/axisml/axisml-system/compute-operator/api/mlservice/v1alpha1"
 )
 
 // buildHeadlessService renders the headless Service that fronts the

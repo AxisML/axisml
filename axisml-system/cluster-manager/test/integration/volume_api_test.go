@@ -17,7 +17,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	srv "github.com/axisml/axisml/components/cluster-manager/internal/server"
+	srv "github.com/axisml/axisml/axisml-system/cluster-manager/internal/server"
 )
 
 // TestVolume_Lifecycle drives the Volume REST surface against the live K8s API

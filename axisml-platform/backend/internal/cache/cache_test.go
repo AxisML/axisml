@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/axisml/axisml/components/platform/internal/auth"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/auth"
 )
 
 func testLog() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }

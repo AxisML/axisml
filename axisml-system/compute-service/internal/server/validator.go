@@ -4,7 +4,7 @@ import (
 	"github.com/gin-gonic/gin/binding"
 	"github.com/go-playground/validator/v10"
 
-	"github.com/axisml/axisml/components/compute-service/pkg/strutil"
+	"github.com/axisml/axisml/axisml-system/compute-service/pkg/strutil"
 )
 
 // RegisterValidators wires AxisML-specific tags into the gin binding engine.

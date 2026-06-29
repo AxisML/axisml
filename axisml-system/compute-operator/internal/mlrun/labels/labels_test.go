@@ -3,7 +3,7 @@ package labels
 import (
 	"testing"
 
-	axisv1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlrun/v1alpha1"
+	axisv1alpha1 "github.com/axisml/axisml/axisml-system/compute-operator/api/mlrun/v1alpha1"
 )
 
 func TestLabels_AlignWithPublicAPI(t *testing.T) {

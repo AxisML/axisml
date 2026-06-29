@@ -3,7 +3,7 @@ package mlservice
 import (
 	"testing"
 
-	"github.com/axisml/axisml/components/compute-service/pkg/statusmap"
+	"github.com/axisml/axisml/axisml-system/compute-service/pkg/statusmap"
 )
 
 // TestPhaseValuesMatchStatusmap guards against drift between the internal

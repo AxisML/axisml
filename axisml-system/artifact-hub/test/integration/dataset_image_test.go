@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	artmod "github.com/axisml/axisml/components/artifact-hub/internal/artifact"
+	artmod "github.com/axisml/axisml/axisml-system/artifact-hub/internal/artifact"
 )
 
 // TestDataset_HappyPath drives Initiate → Get for the dataset Kind.

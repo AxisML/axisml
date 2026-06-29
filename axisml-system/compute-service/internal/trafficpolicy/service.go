@@ -8,15 +8,15 @@ import (
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 
-	mlservicev1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
-	mltp "github.com/axisml/axisml/components/compute-operator/api/mltrafficpolicy/v1alpha1"
+	mlservicev1alpha1 "github.com/axisml/axisml/axisml-system/compute-operator/api/mlservice/v1alpha1"
+	mltp "github.com/axisml/axisml/axisml-system/compute-operator/api/mltrafficpolicy/v1alpha1"
 
-	"github.com/axisml/axisml/components/compute-service/internal/auth"
-	servicemod "github.com/axisml/axisml/components/compute-service/internal/mlservice"
-	"github.com/axisml/axisml/components/compute-service/internal/server"
-	"github.com/axisml/axisml/components/compute-service/internal/store"
-	apperrors "github.com/axisml/axisml/components/compute-service/pkg/errors"
-	"github.com/axisml/axisml/components/compute-service/pkg/strutil"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/auth"
+	servicemod "github.com/axisml/axisml/axisml-system/compute-service/internal/mlservice"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/server"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/store"
+	apperrors "github.com/axisml/axisml/axisml-system/compute-service/pkg/errors"
+	"github.com/axisml/axisml/axisml-system/compute-service/pkg/strutil"
 )
 
 // Module wraps the traffic-policy business layer. It is the authoritative

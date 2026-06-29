@@ -3,9 +3,9 @@ module github.com/axisml/axisml/test/e2e
 go 1.26.0
 
 require (
-	github.com/axisml/axisml/components/cluster-manager v0.0.0
-	github.com/axisml/axisml/components/compute-operator v0.0.0
-	github.com/axisml/axisml/components/tenant-operator v0.0.0
+	github.com/axisml/axisml/axisml-system/cluster-manager v0.0.0
+	github.com/axisml/axisml/axisml-system/compute-operator v0.0.0
+	github.com/axisml/axisml/axisml-system/tenant-operator v0.0.0
 	github.com/oapi-codegen/runtime v1.4.2
 	github.com/stretchr/testify v1.11.1
 	k8s.io/api v0.36.0
@@ -59,8 +59,8 @@ require (
 // module proxy; remap it to a real pseudo-version (mirrors the other test modules).
 replace k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912
 
-replace github.com/axisml/axisml/components/tenant-operator => ../../axisml-system/tenant-operator
+replace github.com/axisml/axisml/axisml-system/tenant-operator => ../../axisml-system/tenant-operator
 
-replace github.com/axisml/axisml/components/compute-operator => ../../axisml-system/compute-operator
+replace github.com/axisml/axisml/axisml-system/compute-operator => ../../axisml-system/compute-operator
 
-replace github.com/axisml/axisml/components/cluster-manager => ../../axisml-system/cluster-manager
+replace github.com/axisml/axisml/axisml-system/cluster-manager => ../../axisml-system/cluster-manager

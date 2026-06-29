@@ -5,7 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	apperrors "github.com/axisml/axisml/components/platform/pkg/errors"
+	apperrors "github.com/axisml/axisml/axisml-platform/backend/pkg/errors"
 )
 
 // Page holds normalised pagination inputs parsed from query params.

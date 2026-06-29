@@ -17,10 +17,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/axisml/axisml/components/cluster-manager/internal/k8sclient"
-	"github.com/axisml/axisml/components/cluster-manager/internal/k8sstore"
-	srv "github.com/axisml/axisml/components/cluster-manager/internal/server"
-	clustermodule "github.com/axisml/axisml/components/cluster-manager/pkg/module"
+	"github.com/axisml/axisml/axisml-system/cluster-manager/internal/k8sclient"
+	"github.com/axisml/axisml/axisml-system/cluster-manager/internal/k8sstore"
+	srv "github.com/axisml/axisml/axisml-system/cluster-manager/internal/server"
+	clustermodule "github.com/axisml/axisml/axisml-system/cluster-manager/pkg/module"
 )
 
 // Config groups the runtime knobs the binary exposes.

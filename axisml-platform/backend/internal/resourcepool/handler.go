@@ -5,8 +5,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/axisml/axisml/components/platform/internal/auth"
-	"github.com/axisml/axisml/components/platform/internal/server"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/auth"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/server"
 )
 
 // Handler serves the ResourcePools and ResourceUnits tags. Reads are open to any

@@ -7,10 +7,10 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/axisml/axisml/components/platform/internal/clients/artifacthub"
-	"github.com/axisml/axisml/components/platform/internal/server"
-	"github.com/axisml/axisml/components/platform/internal/store"
-	apperrors "github.com/axisml/axisml/components/platform/pkg/errors"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/clients/artifacthub"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/server"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/store"
+	apperrors "github.com/axisml/axisml/axisml-platform/backend/pkg/errors"
 )
 
 // Service holds artifact-definition logic for one kind (model | image).

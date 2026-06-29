@@ -4,7 +4,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	axismlv1alpha1 "github.com/axisml/axisml/components/cluster-manager/api/v1alpha1"
+	axismlv1alpha1 "github.com/axisml/axisml/axisml-system/cluster-manager/api/v1alpha1"
 )
 
 // PoolToAPI renders a ResourcePool CR into its REST representation.

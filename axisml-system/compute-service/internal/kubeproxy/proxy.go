@@ -18,9 +18,9 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/axisml/axisml/components/compute-service/internal/server"
-	apperrors "github.com/axisml/axisml/components/compute-service/pkg/errors"
-	"github.com/axisml/axisml/components/compute-service/pkg/extensions"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/server"
+	apperrors "github.com/axisml/axisml/axisml-system/compute-service/pkg/errors"
+	"github.com/axisml/axisml/axisml-system/compute-service/pkg/extensions"
 )
 
 // MapErr translates a runtime error into the typed app error the HTTP error

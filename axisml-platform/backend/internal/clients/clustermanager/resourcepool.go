@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/axisml/axisml/components/platform/internal/clients/clienterr"
-	gen "github.com/axisml/axisml/components/platform/internal/clients/clustermanager/generated"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/clients/clienterr"
+	gen "github.com/axisml/axisml/axisml-platform/backend/internal/clients/clustermanager/generated"
 )
 
 // Clean-named aliases for the generated ResourcePool / ResourceUnit wire types.

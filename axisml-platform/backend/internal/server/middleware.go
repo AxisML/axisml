@@ -8,7 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	apperrors "github.com/axisml/axisml/components/platform/pkg/errors"
+	apperrors "github.com/axisml/axisml/axisml-platform/backend/pkg/errors"
 )
 
 // RequestID injects an X-Request-ID per request.

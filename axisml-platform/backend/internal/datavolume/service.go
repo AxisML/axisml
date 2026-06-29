@@ -9,9 +9,9 @@ import (
 	"context"
 	"errors"
 
-	"github.com/axisml/axisml/components/platform/internal/clients/clustermanager"
-	"github.com/axisml/axisml/components/platform/internal/server"
-	"github.com/axisml/axisml/components/platform/internal/store"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/clients/clustermanager"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/server"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/store"
 )
 
 // Service orchestrates data-volume operations over cluster-manager.

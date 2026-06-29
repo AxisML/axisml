@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/axisml/axisml/components/artifact-hub/internal/store"
+	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/store"
 )
 
 type Repository struct{ db *gorm.DB }

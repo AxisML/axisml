@@ -16,10 +16,10 @@ import (
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
 
-	arthubmodule "github.com/axisml/axisml/components/artifact-hub/pkg/module"
-	clustermodule "github.com/axisml/axisml/components/cluster-manager/pkg/module"
-	"github.com/axisml/axisml/components/compute-service/pkg/logging"
-	computemodule "github.com/axisml/axisml/components/compute-service/pkg/module"
+	arthubmodule "github.com/axisml/axisml/axisml-system/artifact-hub/pkg/module"
+	clustermodule "github.com/axisml/axisml/axisml-system/cluster-manager/pkg/module"
+	"github.com/axisml/axisml/axisml-system/compute-service/pkg/logging"
+	computemodule "github.com/axisml/axisml/axisml-system/compute-service/pkg/module"
 
 	"github.com/axisml/axisml/axisml-lite/axisml-core/internal/runtime/standalone"
 )

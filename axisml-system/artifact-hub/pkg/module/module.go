@@ -20,12 +20,12 @@ import (
 	"github.com/go-logr/logr"
 	"gorm.io/gorm"
 
-	artmod "github.com/axisml/axisml/components/artifact-hub/internal/artifact"
-	"github.com/axisml/axisml/components/artifact-hub/internal/artifact/handler"
-	"github.com/axisml/axisml/components/artifact-hub/internal/db"
-	"github.com/axisml/axisml/components/artifact-hub/internal/gc"
-	"github.com/axisml/axisml/components/artifact-hub/internal/server"
-	"github.com/axisml/axisml/components/artifact-hub/internal/storage/oci"
+	artmod "github.com/axisml/axisml/axisml-system/artifact-hub/internal/artifact"
+	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/artifact/handler"
+	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/db"
+	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/gc"
+	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/server"
+	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/storage/oci"
 )
 
 // DefaultDatasetBucket is the conventional object-storage bucket for datasets

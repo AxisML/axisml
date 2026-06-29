@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	srv "github.com/axisml/axisml/components/cluster-manager/internal/server"
+	srv "github.com/axisml/axisml/axisml-system/cluster-manager/internal/server"
 )
 
 // TestResourceUnit_Lifecycle verifies the unit sub-routes: add → get →

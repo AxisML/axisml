@@ -4,7 +4,7 @@
 // source; this shim keeps the internal call sites compact.
 package labels
 
-import axisv1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlrun/v1alpha1"
+import axisv1alpha1 "github.com/axisml/axisml/axisml-system/compute-operator/api/mlrun/v1alpha1"
 
 const (
 	RunIDLabel      = axisv1alpha1.LabelRunID

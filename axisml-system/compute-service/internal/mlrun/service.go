@@ -9,15 +9,15 @@ import (
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 
-	mlrunv1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlrun/v1alpha1"
+	mlrunv1alpha1 "github.com/axisml/axisml/axisml-system/compute-operator/api/mlrun/v1alpha1"
 
-	"github.com/axisml/axisml/components/compute-service/internal/auth"
-	"github.com/axisml/axisml/components/compute-service/internal/resource"
-	"github.com/axisml/axisml/components/compute-service/internal/server"
-	"github.com/axisml/axisml/components/compute-service/internal/store"
-	apperrors "github.com/axisml/axisml/components/compute-service/pkg/errors"
-	"github.com/axisml/axisml/components/compute-service/pkg/extensions"
-	"github.com/axisml/axisml/components/compute-service/pkg/strutil"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/auth"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/resource"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/server"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/store"
+	apperrors "github.com/axisml/axisml/axisml-system/compute-service/pkg/errors"
+	"github.com/axisml/axisml/axisml-system/compute-service/pkg/extensions"
+	"github.com/axisml/axisml/axisml-system/compute-service/pkg/strutil"
 )
 
 // Service is the job business layer. Keyed on bare namespace strings;

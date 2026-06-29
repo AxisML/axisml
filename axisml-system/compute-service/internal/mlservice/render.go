@@ -5,9 +5,9 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	mlservicev1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
+	mlservicev1alpha1 "github.com/axisml/axisml/axisml-system/compute-operator/api/mlservice/v1alpha1"
 
-	"github.com/axisml/axisml/components/compute-service/internal/store"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/store"
 )
 
 // ToCR materialises an MLService CR from a PG row. Per design §6 / §5.2

@@ -22,8 +22,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
-	axisml "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
-	hpkg "github.com/axisml/axisml/components/compute-operator/internal/mlservice/handler"
+	axisml "github.com/axisml/axisml/axisml-system/compute-operator/api/mlservice/v1alpha1"
+	hpkg "github.com/axisml/axisml/axisml-system/compute-operator/internal/mlservice/handler"
 )
 
 // Reconciler is the dispatcher. It owns no Handler-specific knowledge: it

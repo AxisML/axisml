@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	artmod "github.com/axisml/axisml/components/artifact-hub/internal/artifact"
+	artmod "github.com/axisml/axisml/axisml-system/artifact-hub/internal/artifact"
 )
 
 // modelInitiateBody returns a well-formed Initiate body for the model Kind.

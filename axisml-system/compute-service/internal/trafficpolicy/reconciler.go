@@ -10,10 +10,10 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/axisml/axisml/components/compute-service/internal/metrics"
-	"github.com/axisml/axisml/components/compute-service/internal/server"
-	"github.com/axisml/axisml/components/compute-service/internal/store"
-	"github.com/axisml/axisml/components/compute-service/pkg/extensions"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/metrics"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/server"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/store"
+	"github.com/axisml/axisml/axisml-system/compute-service/pkg/extensions"
 )
 
 // Reconciler implements the traffic-policy Outbox loop (leader-only). It scans

@@ -8,7 +8,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
-	mltp "github.com/axisml/axisml/components/compute-operator/api/mltrafficpolicy/v1alpha1"
+	mltp "github.com/axisml/axisml/axisml-system/compute-operator/api/mltrafficpolicy/v1alpha1"
 )
 
 // Informer reflects MLTrafficPolicy CR status into PG. It is the Kubernetes

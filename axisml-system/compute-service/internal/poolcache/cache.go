@@ -14,9 +14,9 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	axismlv1alpha1 "github.com/axisml/axisml/components/cluster-manager/api/v1alpha1"
-	apperrors "github.com/axisml/axisml/components/compute-service/pkg/errors"
-	"github.com/axisml/axisml/components/compute-service/pkg/extensions"
+	axismlv1alpha1 "github.com/axisml/axisml/axisml-system/cluster-manager/api/v1alpha1"
+	apperrors "github.com/axisml/axisml/axisml-system/compute-service/pkg/errors"
+	"github.com/axisml/axisml/axisml-system/compute-service/pkg/extensions"
 )
 
 // Reader exposes the read-only lookups needed by job/service. Backed by

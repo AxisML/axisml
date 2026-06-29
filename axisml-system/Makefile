@@ -26,7 +26,7 @@ SETUP_ENVTEST_VERSION ?= release-0.19
 # services keep their bare name (matching their published image entrypoints).
 cmdpath = $(if $(filter $1,tenant-operator compute-operator),./cmd,./cmd/$1)
 binname = $(if $(filter $1,compute-service artifact-hub),$1,axisml-$1)
-module  = github.com/axisml/axisml/components/$1
+module  = github.com/axisml/axisml/axisml-system/$1
 
 .DEFAULT_GOAL := build
 

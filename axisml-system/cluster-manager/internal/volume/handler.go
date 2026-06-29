@@ -13,8 +13,8 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 
-	srv "github.com/axisml/axisml/components/cluster-manager/internal/server"
-	"github.com/axisml/axisml/components/cluster-manager/pkg/extensions"
+	srv "github.com/axisml/axisml/axisml-system/cluster-manager/internal/server"
+	"github.com/axisml/axisml/axisml-system/cluster-manager/pkg/extensions"
 )
 
 // Handler implements the /api/v1/volumes[/{namespace}/{name}] HTTP surface. It

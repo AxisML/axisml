@@ -16,7 +16,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"github.com/axisml/axisml/components/platform/internal/config"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/config"
 )
 
 // Cache is the minimal key/value surface the auth caches need. Implementations

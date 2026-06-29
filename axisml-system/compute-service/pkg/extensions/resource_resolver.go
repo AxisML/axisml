@@ -3,7 +3,7 @@ package extensions
 import (
 	"context"
 
-	cmv1alpha1 "github.com/axisml/axisml/components/cluster-manager/api/v1alpha1"
+	cmv1alpha1 "github.com/axisml/axisml/axisml-system/cluster-manager/api/v1alpha1"
 )
 
 // ResourceResolver reads the admin resource vocabulary (the ResourcePool CR and

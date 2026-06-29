@@ -14,7 +14,7 @@ FRONTEND_DIR   := frontend
 WEB_DIR        := $(BACKEND_DIR)/internal/web/dist
 # Single Platform image: backend binary that also serves the frontend SPA.
 PLATFORM_IMAGE ?= ghcr.io/axisml/axisml-platform:$(IMAGE_TAG)
-BACKEND_MODULE := github.com/axisml/axisml/components/platform
+BACKEND_MODULE := github.com/axisml/axisml/axisml-platform/backend
 OAPI_CODEGEN   ?= go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.4.1
 SPEC_DIR       := $(REPO_ROOT)/axisml-system/docs/apis
 PNPM           ?= pnpm

@@ -1,9 +1,9 @@
-module github.com/axisml/axisml/components/compute-operator/test/integration
+module github.com/axisml/axisml/axisml-system/compute-operator/test/integration
 
 go 1.26.0
 
 require (
-	github.com/axisml/axisml/components/compute-operator v0.0.0
+	github.com/axisml/axisml/axisml-system/compute-operator v0.0.0
 	github.com/axisml/axisml/test/testutil v0.0.0
 	github.com/stretchr/testify v1.11.1
 	k8s.io/api v0.36.0
@@ -72,6 +72,6 @@ require (
 // pseudo-version so `go mod tidy` can resolve the import graph.
 replace k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912
 
-replace github.com/axisml/axisml/components/compute-operator => ../..
+replace github.com/axisml/axisml/axisml-system/compute-operator => ../..
 
 replace github.com/axisml/axisml/test/testutil => ../../../test/testutil

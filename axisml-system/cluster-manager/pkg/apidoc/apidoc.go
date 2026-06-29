@@ -11,7 +11,7 @@
 package apidoc
 
 import (
-	"github.com/axisml/axisml/components/cluster-manager/internal/server"
+	"github.com/axisml/axisml/axisml-system/cluster-manager/internal/server"
 	"github.com/axisml/axisml/pkg/openapigen"
 )
 

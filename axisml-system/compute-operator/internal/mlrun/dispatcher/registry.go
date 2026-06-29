@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/axisml/axisml/components/compute-operator/internal/mlrun/handler"
+	"github.com/axisml/axisml/axisml-system/compute-operator/internal/mlrun/handler"
 )
 
 // Registry holds the (backend, engine) → Handler routing table. Handler

@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
-	mlrunv1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlrun/v1alpha1"
+	mlrunv1alpha1 "github.com/axisml/axisml/axisml-system/compute-operator/api/mlrun/v1alpha1"
 )
 
 // MLRunCreateRequest is the API request body. Caller selects pool/unit by NAME

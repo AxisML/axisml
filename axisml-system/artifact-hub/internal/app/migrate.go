@@ -3,8 +3,8 @@ package app
 import (
 	"context"
 
-	"github.com/axisml/axisml/components/artifact-hub/internal/config"
-	"github.com/axisml/axisml/components/artifact-hub/internal/db"
+	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/config"
+	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/db"
 )
 
 // Migrate applies pending DB migrations and exits.

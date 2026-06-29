@@ -7,9 +7,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/axisml/axisml/components/compute-service/internal/kubeproxy"
-	"github.com/axisml/axisml/components/compute-service/internal/server"
-	"github.com/axisml/axisml/components/compute-service/pkg/extensions"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/kubeproxy"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/server"
+	"github.com/axisml/axisml/axisml-system/compute-service/pkg/extensions"
 )
 
 // Handler exposes /namespaces/:namespace/mlruns routes. Namespace is the bare

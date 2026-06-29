@@ -14,7 +14,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	mltp "github.com/axisml/axisml/components/compute-operator/api/mltrafficpolicy/v1alpha1"
+	mltp "github.com/axisml/axisml/axisml-system/compute-operator/api/mltrafficpolicy/v1alpha1"
 )
 
 func weightedSpec() *mltp.MLTrafficPolicySpec {

@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	mlservicev1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
-	mltpv1 "github.com/axisml/axisml/components/compute-operator/api/mltrafficpolicy/v1alpha1"
+	mlservicev1 "github.com/axisml/axisml/axisml-system/compute-operator/api/mlservice/v1alpha1"
+	mltpv1 "github.com/axisml/axisml/axisml-system/compute-operator/api/mltrafficpolicy/v1alpha1"
 
 	"github.com/axisml/axisml/test/e2e/internal/clients/computeservice"
 )

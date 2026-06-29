@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/axisml/axisml/components/platform/internal/auth"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/auth"
 )
 
 // IdentityCache fronts the PostgreSQL identity load (auth.IdentityStore) with

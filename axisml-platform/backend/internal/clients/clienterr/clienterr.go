@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	apperrors "github.com/axisml/axisml/components/platform/pkg/errors"
+	apperrors "github.com/axisml/axisml/axisml-platform/backend/pkg/errors"
 )
 
 type problem struct {

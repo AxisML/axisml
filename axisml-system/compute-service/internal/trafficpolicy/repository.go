@@ -9,8 +9,8 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/axisml/axisml/components/compute-service/internal/store"
-	apperrors "github.com/axisml/axisml/components/compute-service/pkg/errors"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/store"
+	apperrors "github.com/axisml/axisml/axisml-system/compute-service/pkg/errors"
 )
 
 type Repository struct{ db *gorm.DB }

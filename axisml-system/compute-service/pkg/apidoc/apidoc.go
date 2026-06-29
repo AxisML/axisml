@@ -16,8 +16,8 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/axisml/axisml/components/compute-service/internal/server"
-	apperrors "github.com/axisml/axisml/components/compute-service/pkg/errors"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/server"
+	apperrors "github.com/axisml/axisml/axisml-system/compute-service/pkg/errors"
 	"github.com/axisml/axisml/pkg/openapigen"
 )
 
@@ -33,7 +33,7 @@ const (
 // AxisML §6.1 name policy is duplicated here as a regex rather than imported
 // because the generator's contract is "render whatever clients need to send";
 // clients don't import strutil. Same constants live in
-// components/compute-service/pkg/strutil — keep them in sync if the policy changes.
+// axisml-system/compute-service/pkg/strutil — keep them in sync if the policy changes.
 const (
 	axisMLNamePattern = "^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])?$"
 )
@@ -347,7 +347,7 @@ func Document(version string) *openapigen.Document {
 // verbatim — no "Server" stutter. The compute-operator's nested API packages
 // fall through to operatorAPIPrefix.
 func packageNamer(pkg string) (string, bool) {
-	if strings.HasSuffix(pkg, "/components/compute-service/internal/server") {
+	if strings.HasSuffix(pkg, "/axisml-system/compute-service/internal/server") {
 		return "", true
 	}
 	return operatorAPIPrefix(pkg)
@@ -357,7 +357,7 @@ func packageNamer(pkg string) (string, bool) {
 // (.../compute-operator/api/{mlrun,mlservice}/v1alpha1) to per-CRD prefixes
 // so MLRunSpec / MLServiceSpec don't collide on a shared "v1alpha1" segment.
 func operatorAPIPrefix(pkg string) (string, bool) {
-	const root = "components/compute-operator/api/"
+	const root = "axisml-system/compute-operator/api/"
 	i := strings.Index(pkg, root)
 	if i < 0 {
 		return "", false

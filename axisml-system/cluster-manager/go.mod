@@ -1,9 +1,9 @@
-module github.com/axisml/axisml/components/cluster-manager
+module github.com/axisml/axisml/axisml-system/cluster-manager
 
 go 1.26.0
 
 require (
-	github.com/axisml/axisml/components/tenant-operator v0.0.0-00010101000000-000000000000
+	github.com/axisml/axisml/axisml-system/tenant-operator v0.0.0-00010101000000-000000000000
 	github.com/axisml/axisml/pkg/openapigen v0.0.0
 	github.com/gin-gonic/gin v1.10.0
 	k8s.io/api v0.36.0
@@ -91,6 +91,6 @@ require (
 // must mirror it here so `go mod tidy` can resolve the import graph.
 replace k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912
 
-replace github.com/axisml/axisml/components/tenant-operator => ../tenant-operator
+replace github.com/axisml/axisml/axisml-system/tenant-operator => ../tenant-operator
 
 replace github.com/axisml/axisml/pkg/openapigen => ../../pkg/openapigen

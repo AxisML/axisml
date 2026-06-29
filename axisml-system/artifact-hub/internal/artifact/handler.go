@@ -6,9 +6,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/axisml/axisml/components/artifact-hub/internal/auth"
-	"github.com/axisml/axisml/components/artifact-hub/internal/server"
-	apperrors "github.com/axisml/axisml/components/artifact-hub/pkg/errors"
+	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/auth"
+	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/server"
+	apperrors "github.com/axisml/axisml/axisml-system/artifact-hub/pkg/errors"
 )
 
 // Handler exposes routes under /api/v1/namespaces/{ns}/{kindPlural}/...

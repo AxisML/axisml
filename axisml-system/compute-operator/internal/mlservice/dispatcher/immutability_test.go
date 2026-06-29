@@ -6,7 +6,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	axisml "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
+	axisml "github.com/axisml/axisml/axisml-system/compute-operator/api/mlservice/v1alpha1"
 )
 
 func TestImmutableSpecHash_StableOnReplicaChange(t *testing.T) {

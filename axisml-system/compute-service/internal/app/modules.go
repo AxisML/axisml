@@ -8,14 +8,14 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
-	"github.com/axisml/axisml/components/compute-service/internal/config"
-	"github.com/axisml/axisml/components/compute-service/internal/kuberuntime"
-	jobmod "github.com/axisml/axisml/components/compute-service/internal/mlrun"
-	servicemod "github.com/axisml/axisml/components/compute-service/internal/mlservice"
-	"github.com/axisml/axisml/components/compute-service/internal/poolcache"
-	"github.com/axisml/axisml/components/compute-service/internal/server"
-	trafficpolicymod "github.com/axisml/axisml/components/compute-service/internal/trafficpolicy"
-	computemodule "github.com/axisml/axisml/components/compute-service/pkg/module"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/config"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/kuberuntime"
+	jobmod "github.com/axisml/axisml/axisml-system/compute-service/internal/mlrun"
+	servicemod "github.com/axisml/axisml/axisml-system/compute-service/internal/mlservice"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/poolcache"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/server"
+	trafficpolicymod "github.com/axisml/axisml/axisml-system/compute-service/internal/trafficpolicy"
+	computemodule "github.com/axisml/axisml/axisml-system/compute-service/pkg/module"
 )
 
 // BuildModules is the Kubernetes composition root. It derives the form-neutral

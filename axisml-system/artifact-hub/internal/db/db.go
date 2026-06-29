@@ -9,7 +9,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
-	"github.com/axisml/axisml/components/artifact-hub/internal/config"
+	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/config"
 )
 
 // Open returns a GORM DB connected to PostgreSQL.

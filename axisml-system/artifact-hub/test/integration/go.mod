@@ -2,12 +2,12 @@
 // go.mod stays free of test-only deps (testify, testcontainers, testutil).
 // The Dockerfile builds from axisml-system/artifact-hub/ and a `../../../`
 // replace would fall outside that build context.
-module github.com/axisml/axisml/components/artifact-hub/test/integration
+module github.com/axisml/axisml/axisml-system/artifact-hub/test/integration
 
 go 1.26.0
 
 require (
-	github.com/axisml/axisml/components/artifact-hub v0.0.0-00010101000000-000000000000
+	github.com/axisml/axisml/axisml-system/artifact-hub v0.0.0-00010101000000-000000000000
 	github.com/gin-gonic/gin v1.12.0
 	github.com/go-logr/logr v1.4.3
 	github.com/google/uuid v1.6.0
@@ -135,7 +135,7 @@ require (
 )
 
 replace (
-	github.com/axisml/axisml/components/artifact-hub => ../..
+	github.com/axisml/axisml/axisml-system/artifact-hub => ../..
 	github.com/axisml/axisml/test/testutil => ../../../test/testutil
 )
 

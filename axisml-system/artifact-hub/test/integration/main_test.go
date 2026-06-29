@@ -24,11 +24,11 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 	"gorm.io/gorm"
 
-	app "github.com/axisml/axisml/components/artifact-hub/internal/app"
-	"github.com/axisml/axisml/components/artifact-hub/internal/config"
-	"github.com/axisml/axisml/components/artifact-hub/internal/db"
-	"github.com/axisml/axisml/components/artifact-hub/internal/gc"
-	"github.com/axisml/axisml/components/artifact-hub/internal/server"
+	app "github.com/axisml/axisml/axisml-system/artifact-hub/internal/app"
+	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/config"
+	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/db"
+	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/gc"
+	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/server"
 	"github.com/axisml/axisml/pkg/axismlconfig"
 )
 

@@ -8,11 +8,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/axisml/axisml/components/platform/internal/config"
-	"github.com/axisml/axisml/components/platform/internal/db"
-	"github.com/axisml/axisml/components/platform/internal/metrics"
-	"github.com/axisml/axisml/components/platform/internal/store"
-	"github.com/axisml/axisml/components/platform/pkg/logging"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/config"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/db"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/metrics"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/store"
+	"github.com/axisml/axisml/axisml-platform/backend/pkg/logging"
 )
 
 // Serve boots the API server and the probes server, applying migrations first.

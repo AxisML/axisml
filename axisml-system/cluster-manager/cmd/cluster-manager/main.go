@@ -24,9 +24,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	axismlv1alpha1 "github.com/axisml/axisml/components/cluster-manager/api/v1alpha1"
-	"github.com/axisml/axisml/components/cluster-manager/internal/app"
-	"github.com/axisml/axisml/components/cluster-manager/internal/k8sclient"
+	axismlv1alpha1 "github.com/axisml/axisml/axisml-system/cluster-manager/api/v1alpha1"
+	"github.com/axisml/axisml/axisml-system/cluster-manager/internal/app"
+	"github.com/axisml/axisml/axisml-system/cluster-manager/internal/k8sclient"
 )
 
 func main() {

@@ -12,11 +12,11 @@ package module
 import (
 	"github.com/gin-gonic/gin"
 
-	"github.com/axisml/axisml/components/cluster-manager/internal/resourcepool"
-	"github.com/axisml/axisml/components/cluster-manager/internal/server"
-	"github.com/axisml/axisml/components/cluster-manager/internal/tenant"
-	"github.com/axisml/axisml/components/cluster-manager/internal/volume"
-	"github.com/axisml/axisml/components/cluster-manager/pkg/extensions"
+	"github.com/axisml/axisml/axisml-system/cluster-manager/internal/resourcepool"
+	"github.com/axisml/axisml/axisml-system/cluster-manager/internal/server"
+	"github.com/axisml/axisml/axisml-system/cluster-manager/internal/tenant"
+	"github.com/axisml/axisml/axisml-system/cluster-manager/internal/volume"
+	"github.com/axisml/axisml/axisml-system/cluster-manager/pkg/extensions"
 )
 
 // Route wires its endpoints into an /api/v1 router group.

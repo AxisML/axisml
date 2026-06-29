@@ -3,8 +3,8 @@ package module
 import (
 	"github.com/gin-gonic/gin"
 
-	"github.com/axisml/axisml/components/artifact-hub/internal/auth"
-	"github.com/axisml/axisml/components/artifact-hub/internal/server"
+	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/auth"
+	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/server"
 )
 
 // The HTTP middleware an Artifact Hub handler needs lives in internal/. These

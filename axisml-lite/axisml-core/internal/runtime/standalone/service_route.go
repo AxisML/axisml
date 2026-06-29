@@ -8,7 +8,7 @@ import (
 
 	"sigs.k8s.io/yaml"
 
-	mlservicev1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
+	mlservicev1alpha1 "github.com/axisml/axisml/axisml-system/compute-operator/api/mlservice/v1alpha1"
 )
 
 // applyServiceRoute renders (or removes) the Traefik file-provider config for an

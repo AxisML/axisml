@@ -20,9 +20,9 @@ import (
 	"github.com/go-logr/logr"
 	"gorm.io/gorm"
 
-	artmod "github.com/axisml/axisml/components/artifact-hub/internal/artifact"
-	"github.com/axisml/axisml/components/artifact-hub/internal/artifact/handler"
-	"github.com/axisml/axisml/components/artifact-hub/internal/metrics"
+	artmod "github.com/axisml/axisml/axisml-system/artifact-hub/internal/artifact"
+	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/artifact/handler"
+	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/metrics"
 )
 
 // Clock is a minimal abstraction so tests can fast-forward.

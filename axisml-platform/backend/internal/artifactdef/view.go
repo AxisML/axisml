@@ -8,9 +8,9 @@ package artifactdef
 import (
 	"encoding/json"
 
-	"github.com/axisml/axisml/components/platform/internal/clients/artifacthub"
-	"github.com/axisml/axisml/components/platform/internal/server"
-	"github.com/axisml/axisml/components/platform/internal/store"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/clients/artifacthub"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/server"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/store"
 )
 
 func defView(d *store.Definition, kind server.DefinitionKind) server.ArtifactDefinition {

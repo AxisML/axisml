@@ -9,12 +9,12 @@ import (
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 
-	"github.com/axisml/axisml/components/artifact-hub/internal/artifact/handler"
-	"github.com/axisml/axisml/components/artifact-hub/internal/dbjson"
-	"github.com/axisml/axisml/components/artifact-hub/internal/server"
-	"github.com/axisml/axisml/components/artifact-hub/internal/store"
-	apperrors "github.com/axisml/axisml/components/artifact-hub/pkg/errors"
-	"github.com/axisml/axisml/components/artifact-hub/pkg/strutil"
+	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/artifact/handler"
+	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/dbjson"
+	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/server"
+	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/store"
+	apperrors "github.com/axisml/axisml/axisml-system/artifact-hub/pkg/errors"
+	"github.com/axisml/axisml/axisml-system/artifact-hub/pkg/strutil"
 )
 
 // Service holds Artifact CRUD + state-machine logic. Rows are addressed

@@ -3,9 +3,9 @@ package artifact
 import (
 	"encoding/json"
 
-	"github.com/axisml/axisml/components/artifact-hub/internal/dbjson"
-	"github.com/axisml/axisml/components/artifact-hub/internal/server"
-	"github.com/axisml/axisml/components/artifact-hub/internal/store"
+	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/dbjson"
+	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/server"
+	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/store"
 )
 
 func toView(row *store.Artifact) server.Artifact {

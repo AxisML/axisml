@@ -1,9 +1,9 @@
 package tenant
 
 import (
-	"github.com/axisml/axisml/components/platform/internal/clients/clustermanager"
-	"github.com/axisml/axisml/components/platform/internal/server"
-	"github.com/axisml/axisml/components/platform/internal/store"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/clients/clustermanager"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/server"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/store"
 )
 
 // QuotaUnitSpec is one resource-unit count within a pool quota.

@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/axisml/axisml/components/platform/internal/config"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/config"
 	"github.com/axisml/axisml/pkg/axismlconfig"
 )
 

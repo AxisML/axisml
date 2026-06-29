@@ -9,9 +9,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/datatypes"
 
-	mlrunv1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlrun/v1alpha1"
+	mlrunv1alpha1 "github.com/axisml/axisml/axisml-system/compute-operator/api/mlrun/v1alpha1"
 
-	"github.com/axisml/axisml/components/compute-service/internal/store"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/store"
 )
 
 func TestToCR_StampsLabelsAndCopiesSpec(t *testing.T) {
