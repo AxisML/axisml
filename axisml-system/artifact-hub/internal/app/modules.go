@@ -4,9 +4,9 @@ import (
 	"github.com/go-logr/logr"
 	"gorm.io/gorm"
 
-	"github.com/axisml/axisml/components/artifact-hub/internal/config"
-	"github.com/axisml/axisml/components/artifact-hub/internal/server"
-	artifactmodule "github.com/axisml/axisml/components/artifact-hub/pkg/module"
+	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/config"
+	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/server"
+	artifactmodule "github.com/axisml/axisml/axisml-system/artifact-hub/pkg/module"
 )
 
 // BuildModules is the composition root: it maps the binary's config onto the

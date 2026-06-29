@@ -12,7 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/axisml/axisml/components/cluster-manager/pkg/extensions"
+	"github.com/axisml/axisml/axisml-system/cluster-manager/pkg/extensions"
 )
 
 const defaultStorageClassAnnotation = "storageclass.kubernetes.io/is-default-class"

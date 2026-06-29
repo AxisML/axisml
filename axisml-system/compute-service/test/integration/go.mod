@@ -2,14 +2,14 @@
 // go.mod stays free of test-only deps (testify, testcontainers, testutil).
 // The Dockerfile builds from axisml-system/compute-service/ + sibling operator dirs
 // and a `../../../` replace would fall outside that build context.
-module github.com/axisml/axisml/components/compute-service/test/integration
+module github.com/axisml/axisml/axisml-system/compute-service/test/integration
 
 go 1.26.0
 
 require (
-	github.com/axisml/axisml/components/cluster-manager v0.0.0
-	github.com/axisml/axisml/components/compute-operator v0.0.0
-	github.com/axisml/axisml/components/compute-service v0.0.0-00010101000000-000000000000
+	github.com/axisml/axisml/axisml-system/cluster-manager v0.0.0
+	github.com/axisml/axisml/axisml-system/compute-operator v0.0.0
+	github.com/axisml/axisml/axisml-system/compute-service v0.0.0-00010101000000-000000000000
 	github.com/axisml/axisml/test/testutil v0.0.0-00010101000000-000000000000
 	github.com/gin-gonic/gin v1.10.0
 	github.com/go-logr/logr v1.4.3
@@ -161,10 +161,10 @@ require (
 )
 
 replace (
-	github.com/axisml/axisml/components/cluster-manager => ../../../cluster-manager
-	github.com/axisml/axisml/components/compute-operator => ../../../compute-operator
-	github.com/axisml/axisml/components/compute-service => ../..
-	github.com/axisml/axisml/components/tenant-operator => ../../../tenant-operator
+	github.com/axisml/axisml/axisml-system/cluster-manager => ../../../cluster-manager
+	github.com/axisml/axisml/axisml-system/compute-operator => ../../../compute-operator
+	github.com/axisml/axisml/axisml-system/compute-service => ../..
+	github.com/axisml/axisml/axisml-system/tenant-operator => ../../../tenant-operator
 	github.com/axisml/axisml/pkg/axismlconfig => ../../../../pkg/axismlconfig
 	github.com/axisml/axisml/test/testutil => ../../../test/testutil
 )

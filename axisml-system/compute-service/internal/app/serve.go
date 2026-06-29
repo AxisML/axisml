@@ -6,12 +6,12 @@ import (
 
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	"github.com/axisml/axisml/components/compute-service/internal/config"
-	"github.com/axisml/axisml/components/compute-service/internal/db"
-	"github.com/axisml/axisml/components/compute-service/internal/k8sclient"
-	"github.com/axisml/axisml/components/compute-service/internal/metrics"
-	"github.com/axisml/axisml/components/compute-service/internal/server"
-	"github.com/axisml/axisml/components/compute-service/pkg/logging"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/config"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/db"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/k8sclient"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/metrics"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/server"
+	"github.com/axisml/axisml/axisml-system/compute-service/pkg/logging"
 )
 
 // Serve boots the long-running compute service: HTTP API on every replica,

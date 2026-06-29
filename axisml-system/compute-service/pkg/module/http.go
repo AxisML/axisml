@@ -4,8 +4,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-logr/logr"
 
-	"github.com/axisml/axisml/components/compute-service/internal/auth"
-	"github.com/axisml/axisml/components/compute-service/internal/server"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/auth"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/server"
 )
 
 // The HTTP middleware a Compute Service handler needs is form-neutral but lives

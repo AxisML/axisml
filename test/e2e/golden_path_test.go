@@ -13,9 +13,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	mlrunv1 "github.com/axisml/axisml/components/compute-operator/api/mlrun/v1alpha1"
-	mlservicev1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
-	tenantv1 "github.com/axisml/axisml/components/tenant-operator/api/v1alpha1"
+	mlrunv1 "github.com/axisml/axisml/axisml-system/compute-operator/api/mlrun/v1alpha1"
+	mlservicev1 "github.com/axisml/axisml/axisml-system/compute-operator/api/mlservice/v1alpha1"
+	tenantv1 "github.com/axisml/axisml/axisml-system/tenant-operator/api/v1alpha1"
 
 	"github.com/axisml/axisml/test/e2e/internal/clients/artifacthub"
 	"github.com/axisml/axisml/test/e2e/internal/clients/clustermanager"

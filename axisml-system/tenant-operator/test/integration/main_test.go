@@ -30,9 +30,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	tenantcontroller "github.com/axisml/axisml/components/tenant-operator/internal/controller"
-	"github.com/axisml/axisml/components/tenant-operator/internal/setup"
-	tenantvalidate "github.com/axisml/axisml/components/tenant-operator/internal/validate"
+	tenantcontroller "github.com/axisml/axisml/axisml-system/tenant-operator/internal/controller"
+	"github.com/axisml/axisml/axisml-system/tenant-operator/internal/setup"
+	tenantvalidate "github.com/axisml/axisml/axisml-system/tenant-operator/internal/validate"
 
 	"github.com/axisml/axisml/test/testutil"
 )

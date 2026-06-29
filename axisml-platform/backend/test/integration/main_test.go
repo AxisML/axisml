@@ -19,9 +19,9 @@ import (
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
 
-	"github.com/axisml/axisml/components/platform/internal/app"
-	"github.com/axisml/axisml/components/platform/internal/config"
-	"github.com/axisml/axisml/components/platform/internal/db"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/app"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/config"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/db"
 	"github.com/axisml/axisml/pkg/axismlconfig"
 )
 

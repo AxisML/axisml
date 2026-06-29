@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"gorm.io/datatypes"
 
-	"github.com/axisml/axisml/components/artifact-hub/internal/store"
+	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/store"
 )
 
 func TestToView_PopulatesAllJSONFields(t *testing.T) {

@@ -5,7 +5,7 @@ package resource
 import (
 	corev1 "k8s.io/api/core/v1"
 
-	cmv1alpha1 "github.com/axisml/axisml/components/cluster-manager/api/v1alpha1"
+	cmv1alpha1 "github.com/axisml/axisml/axisml-system/cluster-manager/api/v1alpha1"
 )
 
 // Expanded is the resource snapshot frozen into the workload spec at create

@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/axisml/axisml/components/artifact-hub/internal/storage/oci"
-	apperrors "github.com/axisml/axisml/components/artifact-hub/pkg/errors"
+	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/storage/oci"
+	apperrors "github.com/axisml/axisml/axisml-system/artifact-hub/pkg/errors"
 )
 
 // validFrameworks is the closed set design §5.1 calls out for the model Kind.

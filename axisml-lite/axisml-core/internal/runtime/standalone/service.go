@@ -10,7 +10,7 @@ import (
 	eventsv1 "k8s.io/api/events/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	mlservicev1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
+	mlservicev1alpha1 "github.com/axisml/axisml/axisml-system/compute-operator/api/mlservice/v1alpha1"
 )
 
 // renderServicePlans renders a (native, deployment|statefulset) MLService into

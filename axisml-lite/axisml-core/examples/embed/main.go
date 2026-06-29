@@ -35,8 +35,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	cmv1alpha1 "github.com/axisml/axisml/components/cluster-manager/api/v1alpha1"
-	tenantv1alpha1 "github.com/axisml/axisml/components/tenant-operator/api/v1alpha1"
+	cmv1alpha1 "github.com/axisml/axisml/axisml-system/cluster-manager/api/v1alpha1"
+	tenantv1alpha1 "github.com/axisml/axisml/axisml-system/tenant-operator/api/v1alpha1"
 
 	"github.com/axisml/axisml/axisml-lite/axisml-core/pkg/core"
 )

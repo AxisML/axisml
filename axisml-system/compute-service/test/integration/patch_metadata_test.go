@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	computeserver "github.com/axisml/axisml/components/compute-service/internal/server"
+	computeserver "github.com/axisml/axisml/axisml-system/compute-service/internal/server"
 )
 
 // TestMLRun_PatchMetadata verifies PATCH /mlruns/{job} updates display-tier

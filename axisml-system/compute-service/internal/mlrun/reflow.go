@@ -7,11 +7,11 @@ import (
 
 	"github.com/google/uuid"
 
-	mlrunv1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlrun/v1alpha1"
+	mlrunv1alpha1 "github.com/axisml/axisml/axisml-system/compute-operator/api/mlrun/v1alpha1"
 
-	"github.com/axisml/axisml/components/compute-service/internal/server"
-	"github.com/axisml/axisml/components/compute-service/internal/store"
-	"github.com/axisml/axisml/components/compute-service/pkg/statusmap"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/server"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/store"
+	"github.com/axisml/axisml/axisml-system/compute-service/pkg/statusmap"
 )
 
 // reflectObserved reflects an observed MLRun CR status onto the row's PG

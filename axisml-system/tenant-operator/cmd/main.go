@@ -15,10 +15,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	tenantconfig "github.com/axisml/axisml/components/tenant-operator/internal/config"
-	tenantcontroller "github.com/axisml/axisml/components/tenant-operator/internal/controller"
-	"github.com/axisml/axisml/components/tenant-operator/internal/setup"
-	tenantvalidate "github.com/axisml/axisml/components/tenant-operator/internal/validate"
+	tenantconfig "github.com/axisml/axisml/axisml-system/tenant-operator/internal/config"
+	tenantcontroller "github.com/axisml/axisml/axisml-system/tenant-operator/internal/controller"
+	"github.com/axisml/axisml/axisml-system/tenant-operator/internal/setup"
+	tenantvalidate "github.com/axisml/axisml/axisml-system/tenant-operator/internal/validate"
 )
 
 const defaultLeaderElectionID = "axisml-tenant-operator.axisml.io"

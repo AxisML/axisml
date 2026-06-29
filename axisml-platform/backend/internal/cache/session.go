@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/axisml/axisml/components/platform/internal/auth"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/auth"
 )
 
 // SessionCache fronts the PostgreSQL session allowlist (auth.SessionStore) with

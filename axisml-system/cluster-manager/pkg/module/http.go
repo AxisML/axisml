@@ -3,7 +3,7 @@ package module
 import (
 	"github.com/gin-gonic/gin"
 
-	"github.com/axisml/axisml/components/cluster-manager/internal/server"
+	"github.com/axisml/axisml/axisml-system/cluster-manager/internal/server"
 )
 
 // RequireUser returns the middleware that rejects requests without a valid

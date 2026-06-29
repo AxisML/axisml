@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	apperrors "github.com/axisml/axisml/components/artifact-hub/pkg/errors"
+	apperrors "github.com/axisml/axisml/axisml-system/artifact-hub/pkg/errors"
 )
 
 func runWriteError(err error) (int, Error) {

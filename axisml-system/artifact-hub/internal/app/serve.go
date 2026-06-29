@@ -12,14 +12,14 @@ import (
 	"golang.org/x/sync/errgroup"
 	"gorm.io/gorm"
 
-	"github.com/axisml/axisml/components/artifact-hub/internal/config"
-	"github.com/axisml/axisml/components/artifact-hub/internal/db"
-	"github.com/axisml/axisml/components/artifact-hub/internal/leaderelection"
-	"github.com/axisml/axisml/components/artifact-hub/internal/metrics"
-	"github.com/axisml/axisml/components/artifact-hub/internal/server"
-	"github.com/axisml/axisml/components/artifact-hub/pkg/httpx"
-	"github.com/axisml/axisml/components/artifact-hub/pkg/logging"
-	artifactmodule "github.com/axisml/axisml/components/artifact-hub/pkg/module"
+	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/config"
+	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/db"
+	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/leaderelection"
+	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/metrics"
+	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/server"
+	"github.com/axisml/axisml/axisml-system/artifact-hub/pkg/httpx"
+	"github.com/axisml/axisml/axisml-system/artifact-hub/pkg/logging"
+	artifactmodule "github.com/axisml/axisml/axisml-system/artifact-hub/pkg/module"
 )
 
 // Serve boots the long-running artifacts service: the HTTP API, the metrics

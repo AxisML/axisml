@@ -5,7 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	apperrors "github.com/axisml/axisml/components/platform/pkg/errors"
+	apperrors "github.com/axisml/axisml/axisml-platform/backend/pkg/errors"
 )
 
 // Authenticator wires the JWT signer, identity store and session blacklist into

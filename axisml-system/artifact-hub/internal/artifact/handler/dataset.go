@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	apperrors "github.com/axisml/axisml/components/artifact-hub/pkg/errors"
+	apperrors "github.com/axisml/axisml/axisml-system/artifact-hub/pkg/errors"
 )
 
 // validDatasetFormats is the closed set per design §4.2.

@@ -5,7 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/axisml/axisml/components/compute-service/internal/server"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/server"
 )
 
 // Handler exposes /namespaces/:namespace/traffic-policies routes.

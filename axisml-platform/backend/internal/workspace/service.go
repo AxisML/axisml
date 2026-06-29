@@ -8,12 +8,12 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/axisml/axisml/components/platform/internal/clients/computeservice"
-	"github.com/axisml/axisml/components/platform/internal/guard"
-	"github.com/axisml/axisml/components/platform/internal/server"
-	"github.com/axisml/axisml/components/platform/internal/store"
-	"github.com/axisml/axisml/components/platform/internal/svcutil"
-	apperrors "github.com/axisml/axisml/components/platform/pkg/errors"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/clients/computeservice"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/guard"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/server"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/store"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/svcutil"
+	apperrors "github.com/axisml/axisml/axisml-platform/backend/pkg/errors"
 )
 
 // Service holds workspace orchestration.

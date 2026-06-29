@@ -24,7 +24,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	cmv1alpha1 "github.com/axisml/axisml/components/cluster-manager/api/v1alpha1"
+	cmv1alpha1 "github.com/axisml/axisml/axisml-system/cluster-manager/api/v1alpha1"
 )
 
 // ErrCapabilityUnavailable is returned by read-only (Lite) providers for any

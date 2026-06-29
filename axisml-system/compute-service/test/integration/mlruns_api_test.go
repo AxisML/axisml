@@ -16,8 +16,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	axismlv1alpha1 "github.com/axisml/axisml/components/cluster-manager/api/v1alpha1"
-	apperrors "github.com/axisml/axisml/components/compute-service/pkg/errors"
+	axismlv1alpha1 "github.com/axisml/axisml/axisml-system/cluster-manager/api/v1alpha1"
+	apperrors "github.com/axisml/axisml/axisml-system/compute-service/pkg/errors"
 )
 
 func TestMLRun_CancelGuards(t *testing.T) {

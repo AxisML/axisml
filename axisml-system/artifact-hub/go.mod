@@ -1,4 +1,4 @@
-module github.com/axisml/axisml/components/artifact-hub
+module github.com/axisml/axisml/axisml-system/artifact-hub
 
 go 1.26.0
 

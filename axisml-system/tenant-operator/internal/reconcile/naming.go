@@ -6,7 +6,7 @@ package reconcile
 import (
 	"fmt"
 
-	axisml "github.com/axisml/axisml/components/tenant-operator/api/v1alpha1"
+	axisml "github.com/axisml/axisml/axisml-system/tenant-operator/api/v1alpha1"
 )
 
 // Naming convention prefixes from design §3.1 and §6.2.

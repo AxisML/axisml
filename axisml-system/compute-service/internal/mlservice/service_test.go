@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	apperrors "github.com/axisml/axisml/components/compute-service/pkg/errors"
+	apperrors "github.com/axisml/axisml/axisml-system/compute-service/pkg/errors"
 )
 
 type fakePolicyReferenceChecker struct {

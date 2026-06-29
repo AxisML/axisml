@@ -6,7 +6,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/labels"
 
-	apperrors "github.com/axisml/axisml/components/compute-service/pkg/errors"
+	apperrors "github.com/axisml/axisml/axisml-system/compute-service/pkg/errors"
 )
 
 // ParseLabelSelector turns the raw ?labelSelector= query into something the

@@ -13,9 +13,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	axisv1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlrun/v1alpha1"
-	axishandler "github.com/axisml/axisml/components/compute-operator/internal/mlrun/handler"
-	axislabels "github.com/axisml/axisml/components/compute-operator/internal/mlrun/labels"
+	axisv1alpha1 "github.com/axisml/axisml/axisml-system/compute-operator/api/mlrun/v1alpha1"
+	axishandler "github.com/axisml/axisml/axisml-system/compute-operator/internal/mlrun/handler"
+	axislabels "github.com/axisml/axisml/axisml-system/compute-operator/internal/mlrun/labels"
 )
 
 // recordingHandler is a minimal Handler that records whether Reconcile

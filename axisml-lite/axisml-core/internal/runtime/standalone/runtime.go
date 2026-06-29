@@ -25,7 +25,7 @@ import (
 	"github.com/docker/docker/client"
 	"github.com/go-logr/logr"
 
-	"github.com/axisml/axisml/components/compute-service/pkg/extensions"
+	"github.com/axisml/axisml/axisml-system/compute-service/pkg/extensions"
 )
 
 // Managed-resource label keys (design §5.2). The resource key

@@ -6,8 +6,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/axisml/axisml/components/compute-service/internal/app"
-	"github.com/axisml/axisml/components/compute-service/internal/config"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/app"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/config"
 	"github.com/axisml/axisml/pkg/axismlconfig"
 )
 

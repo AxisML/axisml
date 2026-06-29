@@ -12,8 +12,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/axisml/axisml/components/platform/internal/app"
-	"github.com/axisml/axisml/components/platform/internal/config"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/app"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/config"
 	"github.com/axisml/axisml/pkg/axismlconfig"
 )
 

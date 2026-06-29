@@ -28,9 +28,9 @@ import (
 	"strings"
 
 	"github.com/axisml/axisml/axisml-lite/axisml-core/pkg/core"
-	arthubapidoc "github.com/axisml/axisml/components/artifact-hub/pkg/apidoc"
-	clustermgrapidoc "github.com/axisml/axisml/components/cluster-manager/pkg/apidoc"
-	computeapidoc "github.com/axisml/axisml/components/compute-service/pkg/apidoc"
+	arthubapidoc "github.com/axisml/axisml/axisml-system/artifact-hub/pkg/apidoc"
+	clustermgrapidoc "github.com/axisml/axisml/axisml-system/cluster-manager/pkg/apidoc"
+	computeapidoc "github.com/axisml/axisml/axisml-system/compute-service/pkg/apidoc"
 	"github.com/axisml/axisml/pkg/openapigen"
 )
 

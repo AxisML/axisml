@@ -1,9 +1,9 @@
-module github.com/axisml/axisml/components/compute-service
+module github.com/axisml/axisml/axisml-system/compute-service
 
 go 1.26.0
 
 require (
-	github.com/axisml/axisml/components/compute-operator v0.0.0
+	github.com/axisml/axisml/axisml-system/compute-operator v0.0.0
 	github.com/axisml/axisml/pkg/openapigen v0.0.0
 	github.com/gin-gonic/gin v1.10.0
 	github.com/go-logr/logr v1.4.3
@@ -36,7 +36,7 @@ require (
 
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect
-	github.com/axisml/axisml/components/cluster-manager v0.0.0
+	github.com/axisml/axisml/axisml-system/cluster-manager v0.0.0
 	github.com/axisml/axisml/pkg/axismlconfig v0.0.0
 	github.com/axisml/axisml/pkg/configdoc v0.0.0
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -122,9 +122,9 @@ require (
 // hosts MLRun and MLService. Pseudo-versions aren't published, so we wire
 // them up via replace directives. Docker builds use the repo root as build
 // context so the relative paths resolve.
-replace github.com/axisml/axisml/components/tenant-operator => ../tenant-operator
+replace github.com/axisml/axisml/axisml-system/tenant-operator => ../tenant-operator
 
-replace github.com/axisml/axisml/components/compute-operator => ../compute-operator
+replace github.com/axisml/axisml/axisml-system/compute-operator => ../compute-operator
 
 replace github.com/axisml/axisml/pkg/openapigen => ../../pkg/openapigen
 
@@ -132,7 +132,7 @@ replace github.com/axisml/axisml/pkg/openapigen => ../../pkg/openapigen
 // kube-openapi version that is not published on the module proxy.
 replace k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912
 
-replace github.com/axisml/axisml/components/cluster-manager => ../cluster-manager
+replace github.com/axisml/axisml/axisml-system/cluster-manager => ../cluster-manager
 
 replace github.com/axisml/axisml/pkg/axismlconfig => ../../pkg/axismlconfig
 

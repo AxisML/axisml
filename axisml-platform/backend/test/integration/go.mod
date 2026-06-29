@@ -1,9 +1,9 @@
-module github.com/axisml/axisml/components/platform/test/integration
+module github.com/axisml/axisml/axisml-platform/backend/test/integration
 
 go 1.26.0
 
 require (
-	github.com/axisml/axisml/components/platform v0.0.0
+	github.com/axisml/axisml/axisml-platform/backend v0.0.0
 	github.com/gin-gonic/gin v1.10.1
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.34.0
@@ -125,7 +125,7 @@ require (
 	gorm.io/gorm v1.25.12 // indirect
 )
 
-replace github.com/axisml/axisml/components/platform => ../..
+replace github.com/axisml/axisml/axisml-platform/backend => ../..
 
 replace github.com/axisml/axisml/pkg/openapigen => ../../../../pkg/openapigen
 

@@ -7,7 +7,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/axisml/axisml/components/cluster-manager/pkg/extensions"
+	"github.com/axisml/axisml/axisml-system/cluster-manager/pkg/extensions"
 )
 
 // descriptionAnnotation carries the volume's free-text description on the PVC.

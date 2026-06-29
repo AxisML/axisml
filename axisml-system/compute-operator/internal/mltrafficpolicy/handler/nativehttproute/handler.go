@@ -18,8 +18,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	mltp "github.com/axisml/axisml/components/compute-operator/api/mltrafficpolicy/v1alpha1"
-	"github.com/axisml/axisml/components/compute-operator/internal/mltrafficpolicy/handler"
+	mltp "github.com/axisml/axisml/axisml-system/compute-operator/api/mltrafficpolicy/v1alpha1"
+	"github.com/axisml/axisml/axisml-system/compute-operator/internal/mltrafficpolicy/handler"
 )
 
 const (

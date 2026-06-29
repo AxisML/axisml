@@ -16,7 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 
-	cmext "github.com/axisml/axisml/components/cluster-manager/pkg/extensions"
+	cmext "github.com/axisml/axisml/axisml-system/cluster-manager/pkg/extensions"
 )
 
 // Runtime satisfies the cluster-manager VolumeManager: a durable data volume is

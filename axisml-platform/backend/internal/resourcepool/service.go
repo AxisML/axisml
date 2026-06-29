@@ -6,8 +6,8 @@ package resourcepool
 import (
 	"context"
 
-	"github.com/axisml/axisml/components/platform/internal/clients/clustermanager"
-	"github.com/axisml/axisml/components/platform/internal/server"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/clients/clustermanager"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/server"
 )
 
 // Service holds resource-pool business logic.

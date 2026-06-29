@@ -5,9 +5,9 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	mlrunv1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlrun/v1alpha1"
+	mlrunv1alpha1 "github.com/axisml/axisml/axisml-system/compute-operator/api/mlrun/v1alpha1"
 
-	"github.com/axisml/axisml/components/compute-service/internal/store"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/store"
 )
 
 // ToCR materialises an MLRun CR from a PG row. Pool/unit provenance is

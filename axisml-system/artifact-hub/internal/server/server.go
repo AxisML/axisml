@@ -8,9 +8,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-logr/logr"
 
-	"github.com/axisml/axisml/components/artifact-hub/internal/auth"
-	"github.com/axisml/axisml/components/artifact-hub/internal/metrics"
-	"github.com/axisml/axisml/components/artifact-hub/pkg/httpx"
+	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/auth"
+	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/metrics"
+	"github.com/axisml/axisml/axisml-system/artifact-hub/pkg/httpx"
 )
 
 // Module is anything that wires its routes into a /api/v1 sub-group.

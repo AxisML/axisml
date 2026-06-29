@@ -12,9 +12,9 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/axisml/axisml/components/platform/internal/auth"
-	"github.com/axisml/axisml/components/platform/internal/store"
-	apperrors "github.com/axisml/axisml/components/platform/pkg/errors"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/auth"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/store"
+	apperrors "github.com/axisml/axisml/axisml-platform/backend/pkg/errors"
 )
 
 // Service holds identity business logic.

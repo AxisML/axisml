@@ -5,7 +5,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	tenantv1alpha1 "github.com/axisml/axisml/components/tenant-operator/api/v1alpha1"
+	tenantv1alpha1 "github.com/axisml/axisml/axisml-system/tenant-operator/api/v1alpha1"
 )
 
 // TenantProvider is the persistence seam for the Tenant CR. List controls travel

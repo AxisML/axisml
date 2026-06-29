@@ -5,7 +5,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
-	tenantv1alpha1 "github.com/axisml/axisml/components/tenant-operator/api/v1alpha1"
+	tenantv1alpha1 "github.com/axisml/axisml/axisml-system/tenant-operator/api/v1alpha1"
 )
 
 // Tenant is a cluster-scoped CR owned by cluster-manager (REST writer) and

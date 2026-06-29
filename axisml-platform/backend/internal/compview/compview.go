@@ -4,8 +4,8 @@
 package compview
 
 import (
-	"github.com/axisml/axisml/components/platform/internal/clients/computeservice"
-	"github.com/axisml/axisml/components/platform/internal/server"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/clients/computeservice"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/server"
 )
 
 // Pods projects compute pods into the contract PodList.

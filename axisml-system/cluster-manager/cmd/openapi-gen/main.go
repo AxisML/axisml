@@ -14,7 +14,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/axisml/axisml/components/cluster-manager/pkg/apidoc"
+	"github.com/axisml/axisml/axisml-system/cluster-manager/pkg/apidoc"
 	"github.com/axisml/axisml/pkg/openapigen"
 )
 

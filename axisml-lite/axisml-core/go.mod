@@ -3,11 +3,11 @@ module github.com/axisml/axisml/axisml-lite/axisml-core
 go 1.26.0
 
 require (
-	github.com/axisml/axisml/components/artifact-hub v0.0.0
-	github.com/axisml/axisml/components/cluster-manager v0.0.0
-	github.com/axisml/axisml/components/compute-operator v0.0.0
-	github.com/axisml/axisml/components/compute-service v0.0.0
-	github.com/axisml/axisml/components/tenant-operator v0.0.0
+	github.com/axisml/axisml/axisml-system/artifact-hub v0.0.0
+	github.com/axisml/axisml/axisml-system/cluster-manager v0.0.0
+	github.com/axisml/axisml/axisml-system/compute-operator v0.0.0
+	github.com/axisml/axisml/axisml-system/compute-service v0.0.0
+	github.com/axisml/axisml/axisml-system/tenant-operator v0.0.0
 	github.com/axisml/axisml/pkg/openapigen v0.0.0
 	github.com/containerd/errdefs v1.0.0
 	github.com/docker/docker v28.3.3+incompatible
@@ -149,15 +149,15 @@ require (
 // Local siblings in the monorepo. Pseudo-versions aren't published, so wire
 // them up via replace directives. Docker builds use the repo root as build
 // context so the relative paths resolve.
-replace github.com/axisml/axisml/components/tenant-operator => ../../axisml-system/tenant-operator
+replace github.com/axisml/axisml/axisml-system/tenant-operator => ../../axisml-system/tenant-operator
 
-replace github.com/axisml/axisml/components/compute-operator => ../../axisml-system/compute-operator
+replace github.com/axisml/axisml/axisml-system/compute-operator => ../../axisml-system/compute-operator
 
-replace github.com/axisml/axisml/components/cluster-manager => ../../axisml-system/cluster-manager
+replace github.com/axisml/axisml/axisml-system/cluster-manager => ../../axisml-system/cluster-manager
 
-replace github.com/axisml/axisml/components/compute-service => ../../axisml-system/compute-service
+replace github.com/axisml/axisml/axisml-system/compute-service => ../../axisml-system/compute-service
 
-replace github.com/axisml/axisml/components/artifact-hub => ../../axisml-system/artifact-hub
+replace github.com/axisml/axisml/axisml-system/artifact-hub => ../../axisml-system/artifact-hub
 
 replace github.com/axisml/axisml/pkg/openapigen => ../../pkg/openapigen
 

@@ -34,7 +34,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/axisml/axisml/components/platform/internal/server"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/server"
 	"github.com/axisml/axisml/pkg/openapigen"
 )
 
@@ -104,7 +104,7 @@ func buildDocument(version string) *openapigen.Document {
 		// each component schema's name is exactly its Go type name (and nested
 		// $refs resolve to the same names).
 		PackageNamer: func(pkg string) (string, bool) {
-			if strings.HasSuffix(pkg, "/components/platform/internal/server") {
+			if strings.HasSuffix(pkg, "/axisml-platform/backend/internal/server") {
 				return "", true
 			}
 			return "", false

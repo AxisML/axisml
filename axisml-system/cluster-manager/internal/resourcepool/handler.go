@@ -13,9 +13,9 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	axismlv1alpha1 "github.com/axisml/axisml/components/cluster-manager/api/v1alpha1"
-	srv "github.com/axisml/axisml/components/cluster-manager/internal/server"
-	"github.com/axisml/axisml/components/cluster-manager/pkg/extensions"
+	axismlv1alpha1 "github.com/axisml/axisml/axisml-system/cluster-manager/api/v1alpha1"
+	srv "github.com/axisml/axisml/axisml-system/cluster-manager/internal/server"
+	"github.com/axisml/axisml/axisml-system/cluster-manager/pkg/extensions"
 )
 
 // Handler implements the /api/v1/resourcepools[/{pool}[/units...]]

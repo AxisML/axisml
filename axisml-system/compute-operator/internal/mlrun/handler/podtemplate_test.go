@@ -8,8 +8,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	axisv1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlrun/v1alpha1"
-	axislabels "github.com/axisml/axisml/components/compute-operator/internal/mlrun/labels"
+	axisv1alpha1 "github.com/axisml/axisml/axisml-system/compute-operator/api/mlrun/v1alpha1"
+	axislabels "github.com/axisml/axisml/axisml-system/compute-operator/internal/mlrun/labels"
 )
 
 func validMLRun() *axisv1alpha1.MLRun {

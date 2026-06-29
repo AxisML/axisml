@@ -9,7 +9,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/axisml/axisml/components/compute-service/pkg/extensions"
+	"github.com/axisml/axisml/axisml-system/compute-service/pkg/extensions"
 )
 
 // StatusPoller is the runtime-Observe status reflow for forms without an

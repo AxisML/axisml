@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/axisml/axisml/components/compute-service/internal/config"
-	"github.com/axisml/axisml/components/compute-service/internal/db"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/config"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/db"
 )
 
 // Bootstrap runs the embedded golang-migrate migrations. compute-service does

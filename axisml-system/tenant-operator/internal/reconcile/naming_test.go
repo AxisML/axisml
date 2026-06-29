@@ -5,7 +5,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	axisml "github.com/axisml/axisml/components/tenant-operator/api/v1alpha1"
+	axisml "github.com/axisml/axisml/axisml-system/tenant-operator/api/v1alpha1"
 )
 
 func TestPerTenantResourceName(t *testing.T) {

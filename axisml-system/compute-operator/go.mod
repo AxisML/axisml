@@ -1,4 +1,4 @@
-module github.com/axisml/axisml/components/compute-operator
+module github.com/axisml/axisml/axisml-system/compute-operator
 
 go 1.26.0
 

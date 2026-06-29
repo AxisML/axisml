@@ -1,4 +1,4 @@
-module github.com/axisml/axisml/components/platform
+module github.com/axisml/axisml/axisml-platform/backend
 
 go 1.26.0
 

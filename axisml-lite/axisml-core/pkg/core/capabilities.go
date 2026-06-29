@@ -5,9 +5,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	arthubmodule "github.com/axisml/axisml/components/artifact-hub/pkg/module"
-	clustermodule "github.com/axisml/axisml/components/cluster-manager/pkg/module"
-	computemodule "github.com/axisml/axisml/components/compute-service/pkg/module"
+	arthubmodule "github.com/axisml/axisml/axisml-system/artifact-hub/pkg/module"
+	clustermodule "github.com/axisml/axisml/axisml-system/cluster-manager/pkg/module"
+	computemodule "github.com/axisml/axisml/axisml-system/compute-service/pkg/module"
 )
 
 // Capabilities is the System capability document axisml-core serves at

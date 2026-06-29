@@ -14,20 +14,20 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	mlrundispatcher "github.com/axisml/axisml/components/compute-operator/internal/mlrun/dispatcher"
-	"github.com/axisml/axisml/components/compute-operator/internal/mlrun/handlers/nativejob"
-	mlservicedispatcher "github.com/axisml/axisml/components/compute-operator/internal/mlservice/dispatcher"
-	mlservicehandler "github.com/axisml/axisml/components/compute-operator/internal/mlservice/handler"
-	mltrafficpolicydispatcher "github.com/axisml/axisml/components/compute-operator/internal/mltrafficpolicy/dispatcher"
-	mltrafficpolicyhandler "github.com/axisml/axisml/components/compute-operator/internal/mltrafficpolicy/handler"
-	"github.com/axisml/axisml/components/compute-operator/internal/setup"
+	mlrundispatcher "github.com/axisml/axisml/axisml-system/compute-operator/internal/mlrun/dispatcher"
+	"github.com/axisml/axisml/axisml-system/compute-operator/internal/mlrun/handlers/nativejob"
+	mlservicedispatcher "github.com/axisml/axisml/axisml-system/compute-operator/internal/mlservice/dispatcher"
+	mlservicehandler "github.com/axisml/axisml/axisml-system/compute-operator/internal/mlservice/handler"
+	mltrafficpolicydispatcher "github.com/axisml/axisml/axisml-system/compute-operator/internal/mltrafficpolicy/dispatcher"
+	mltrafficpolicyhandler "github.com/axisml/axisml/axisml-system/compute-operator/internal/mltrafficpolicy/handler"
+	"github.com/axisml/axisml/axisml-system/compute-operator/internal/setup"
 
 	// Side-effect imports: register the native MLService handlers.
-	_ "github.com/axisml/axisml/components/compute-operator/internal/mlservice/handler/nativedeployment"
-	_ "github.com/axisml/axisml/components/compute-operator/internal/mlservice/handler/nativestatefulset"
+	_ "github.com/axisml/axisml/axisml-system/compute-operator/internal/mlservice/handler/nativedeployment"
+	_ "github.com/axisml/axisml/axisml-system/compute-operator/internal/mlservice/handler/nativestatefulset"
 
 	// Side-effect import: register the native MLTrafficPolicy handler.
-	_ "github.com/axisml/axisml/components/compute-operator/internal/mltrafficpolicy/handler/nativehttproute"
+	_ "github.com/axisml/axisml/axisml-system/compute-operator/internal/mltrafficpolicy/handler/nativehttproute"
 )
 
 const defaultLeaderElectionID = "axisml-compute-operator.axisml.io"

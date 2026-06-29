@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
-	mlservicev1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlservice/v1alpha1"
+	mlservicev1alpha1 "github.com/axisml/axisml/axisml-system/compute-operator/api/mlservice/v1alpha1"
 )
 
 // MLServiceCreateRequest is the API request body. Caller selects pool/unit by

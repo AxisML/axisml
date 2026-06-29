@@ -9,8 +9,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
-	axisv1alpha1 "github.com/axisml/axisml/components/compute-operator/api/mlrun/v1alpha1"
-	axishandler "github.com/axisml/axisml/components/compute-operator/internal/mlrun/handler"
+	axisv1alpha1 "github.com/axisml/axisml/axisml-system/compute-operator/api/mlrun/v1alpha1"
+	axishandler "github.com/axisml/axisml/axisml-system/compute-operator/internal/mlrun/handler"
 )
 
 func (h *Handler) Validate(mlJob *axisv1alpha1.MLRun) field.ErrorList {

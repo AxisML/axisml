@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/axisml/axisml/components/artifact-hub/internal/storage/oci"
+	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/storage/oci"
 )
 
 // Artifact is the JSON projection of an Artifact returned by the API. JSON

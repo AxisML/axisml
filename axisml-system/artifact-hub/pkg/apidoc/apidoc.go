@@ -16,8 +16,8 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/axisml/axisml/components/artifact-hub/internal/server"
-	apperrors "github.com/axisml/axisml/components/artifact-hub/pkg/errors"
+	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/server"
+	apperrors "github.com/axisml/axisml/axisml-system/artifact-hub/pkg/errors"
 	"github.com/axisml/axisml/pkg/openapigen"
 )
 
@@ -78,7 +78,7 @@ func Document(version string) *openapigen.Document {
 		// UploadCredentials, …); map the package to an empty prefix so nested
 		// $refs resolve to the bare type name instead of stuttering (ArtifactArtifact).
 		PackageNamer: func(pkg string) (string, bool) {
-			if strings.HasSuffix(pkg, "/components/artifact-hub/internal/server") {
+			if strings.HasSuffix(pkg, "/axisml-system/artifact-hub/internal/server") {
 				return "", true
 			}
 			return "", false

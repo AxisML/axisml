@@ -7,7 +7,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/axisml/axisml/components/platform/internal/auth"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/auth"
 )
 
 // Identity sets X-Axisml-User from the context (no-op when absent).
