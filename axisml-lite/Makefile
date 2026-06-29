@@ -39,8 +39,9 @@ vet: ## go vet (incl. the centralized lite-form e2e build)
 	cd $(REPO_ROOT)/test/e2e && go vet -tags=lite ./...
 
 fmt: ## Format
-	cd $(CORE_DIR) && gofmt -w cmd internal
-	cd $(CORE_DIR) && go run golang.org/x/tools/cmd/goimports@latest -w cmd internal 2>/dev/null || true
+	cd $(CORE_DIR) && gofmt -w cmd internal pkg
+	cd $(CORE_DIR) && go run golang.org/x/tools/cmd/goimports@latest -w cmd internal pkg 2>/dev/null || true
+	$(MAKE) -C examples fmt
 
 tidy: ## Tidy this module
 	cd $(CORE_DIR) && go mod tidy
