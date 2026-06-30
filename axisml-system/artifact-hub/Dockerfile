@@ -12,8 +12,10 @@ ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /workspace
 
-# Copy the shared pkg module first so the replace target resolves.
+# Copy the shared pkg modules first so the replace targets resolve.
 COPY pkg/openapigen/ pkg/openapigen/
+COPY pkg/axismlconfig/ pkg/axismlconfig/
+COPY pkg/configdoc/ pkg/configdoc/
 COPY axisml-system/artifact-hub/go.mod axisml-system/artifact-hub/go.sum axisml-system/artifact-hub/
 RUN --mount=type=cache,target=/go/pkg/mod \
     cd axisml-system/artifact-hub && go mod download

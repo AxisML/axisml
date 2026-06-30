@@ -3,7 +3,7 @@
 # Builds the single axisml-core image (Cluster Manager + Compute Service +
 # Artifact Hub modules + the in-process Standalone runtime). The build
 # context is the repo ROOT so the go.mod replace directives (../../axisml-system/*,
-# ../../pkg/openapigen) resolve. Build from the repo root:
+# ../../pkg/{openapigen,axismlconfig,configdoc}) resolve. Build from the repo root:
 #   docker build -f axisml-lite/axisml-core/Dockerfile -t axisml-core:dev .
 
 FROM --platform=$BUILDPLATFORM golang:1.26 AS builder
@@ -13,6 +13,8 @@ WORKDIR /workspace
 
 # Copy the modules the axisml-lite replace directives point at, plus axisml-lite.
 COPY pkg/openapigen/ pkg/openapigen/
+COPY pkg/axismlconfig/ pkg/axismlconfig/
+COPY pkg/configdoc/ pkg/configdoc/
 COPY axisml-system/ axisml-system/
 COPY axisml-lite/ axisml-lite/
 

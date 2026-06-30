@@ -39,9 +39,6 @@ data:
             enabled:
               - name: Coscheduling
               - name: ElasticScheduling
-          postBind:
-            enabled:
-              - name: Coscheduling
           score:
             enabled:
               - name: NodeResourcesFit

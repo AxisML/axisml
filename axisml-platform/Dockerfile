@@ -24,8 +24,10 @@ ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /workspace
 
-# Copy the shared pkg module first so the replace target resolves.
+# Copy the shared pkg modules first so the replace targets resolve.
 COPY pkg/openapigen/ pkg/openapigen/
+COPY pkg/axismlconfig/ pkg/axismlconfig/
+COPY pkg/configdoc/ pkg/configdoc/
 COPY axisml-platform/backend/ axisml-platform/backend/
 # Stage the built SPA into the backend's static dir, replacing the placeholder.
 COPY --from=frontend /app/dist/ axisml-platform/backend/internal/web/dist/

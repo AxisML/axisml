@@ -14,6 +14,8 @@ WORKDIR /workspace
 
 # Copy the operator modules + shared pkg first so the replace targets resolve.
 COPY pkg/openapigen/ pkg/openapigen/
+COPY pkg/axismlconfig/ pkg/axismlconfig/
+COPY pkg/configdoc/ pkg/configdoc/
 COPY axisml-system/tenant-operator/ axisml-system/tenant-operator/
 COPY axisml-system/compute-operator/ axisml-system/compute-operator/
 COPY axisml-system/cluster-manager/ axisml-system/cluster-manager/
