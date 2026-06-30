@@ -106,8 +106,8 @@ func (s *Service) Create(ctx context.Context, namespace string, in server.MLRunC
 	}
 	// Mirror the (poolName, unitName) provenance into PG labels alongside
 	// any user-supplied entries — Platform's pre-delete check against
-	// active workloads uses labelSelector against axisml.io/resource-pool
-	// / axisml.io/resource-unit (compute-service.md §5.4).
+	// active workloads uses labelSelector against resource.axisml.io/pool
+	// / resource.axisml.io/unit (compute-service.md §5.4).
 	mergedLabels := mergeLabels(in.Labels, map[string]string{
 		mlrunv1alpha1.LabelResourcePool: in.PoolName,
 		mlrunv1alpha1.LabelResourceUnit: in.UnitName,

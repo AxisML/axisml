@@ -73,9 +73,9 @@ func TestApplyTenantLabels_PreservesUserKeys(t *testing.T) {
 			Labels: map[string]string{axisml.LabelTenantID: "uuid-1"},
 		},
 	}
-	in := map[string]string{"axisml.io/secret-role": "imagepull"}
+	in := map[string]string{"tenant.axisml.io/secret-role": "imagepull"}
 	got := ApplyTenantLabels(tnt, in)
-	if got["axisml.io/secret-role"] != "imagepull" {
+	if got["tenant.axisml.io/secret-role"] != "imagepull" {
 		t.Errorf("user key dropped: %v", got)
 	}
 	if got[axisml.LabelTenantID] != "uuid-1" {

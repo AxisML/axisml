@@ -1,7 +1,7 @@
 package server
 
 // Capabilities describes what Compute Service supports in the current deployment
-// form. The Kubernetes form runs CRs through operators onto a koord-scheduled
+// form. The Kubernetes form runs CRs through operators onto a axisml-scheduler-managed
 // cluster (ElasticQuota-enforced); the Lite form runs them through the in-process
 // Standalone runtime (no scheduler, no quota admission). The composition root
 // declares the form-specific values it assembled.

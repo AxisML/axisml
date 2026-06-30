@@ -7,7 +7,7 @@
 // CRDs loaded:
 //
 //   - Tenant: axisml-system/deploy/helm/crds/tenant-crd.yaml
-//   - ElasticQuota: axisml-system/test/crds/external/koordinator-elasticquota.yaml
+//   - ElasticQuota: axisml-system/test/crds/external/scheduler-plugins-elasticquota.yaml
 package integration_test
 
 import (

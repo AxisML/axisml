@@ -11,7 +11,7 @@ metadata:
   labels:
     {{- include "axisml.componentLabels" (dict "context" . "component" "seed") | nindent 4 }}
   annotations:
-    axisml.io/description: "Default cluster-wide pool seeded by Helm"
+    resource.axisml.io/description: "Default cluster-wide pool seeded by Helm"
     helm.sh/hook: post-install
     helm.sh/hook-weight: "1"
     helm.sh/hook-delete-policy: before-hook-creation

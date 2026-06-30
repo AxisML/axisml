@@ -160,17 +160,17 @@ const ReasonCancelRequested = "CancelRequested"
 // reference them without poking through internal/. Mirrors the layout used
 // by mlservice-operator's api/v1alpha1.
 const (
-	LabelRunID          = "axisml.io/run-id"
-	LabelTenant         = "axisml.io/tenant"
-	LabelQuota          = "axisml.io/quota"
-	LabelRole           = "axisml.io/role"
-	LabelResourcePool   = "axisml.io/resource-pool"
-	LabelResourceUnit   = "axisml.io/resource-unit"
-	LabelKoordQuotaName = "quota.scheduling.koordinator.sh/name"
+	LabelRunID          = "compute.axisml.io/run-id"
+	LabelTenant         = "tenant.axisml.io/name"
+	LabelQuota          = "compute.axisml.io/quota"
+	LabelRole           = "compute.axisml.io/role"
+	LabelResourcePool   = "resource.axisml.io/pool"
+	LabelResourceUnit   = "resource.axisml.io/unit"
+	LabelSchedulerQuota = "scheduling.axisml.io/quota"
 
-	AnnotationAppliedSpec = "axisml.io/applied-spec"
+	AnnotationAppliedSpec = "compute.axisml.io/applied-spec"
 
-	SchedulerName = "koord-scheduler"
+	SchedulerName = "axisml-scheduler"
 
 	// DefaultRoleName is the role name required by the (native, *) handlers.
 	DefaultRoleName = "worker"

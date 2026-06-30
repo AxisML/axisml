@@ -66,7 +66,7 @@ const (
 	// pools (Standard); Lite serves a single read-only default pool.
 	CapResourcePoolWrite Capability = "resourcePoolsWritable"
 	// CapQuotaEnforcement: the scheduler admits pods against an ElasticQuota
-	// (Standard koord-scheduler); the Lite Standalone runtime has no quota gate.
+	// (Standard axisml-scheduler); the Lite Standalone runtime has no quota gate.
 	CapQuotaEnforcement Capability = "quotaEnforcement"
 	// CapArtifactUpload: two-phase artifact upload is available (both forms).
 	CapArtifactUpload Capability = "artifactUpload"

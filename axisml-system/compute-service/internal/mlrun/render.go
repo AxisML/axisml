@@ -11,8 +11,8 @@ import (
 )
 
 // ToCR materialises an MLRun CR from a PG row. Pool/unit provenance is
-// read out of mlruns.labels[axisml.io/resource-pool / -unit] (compute-
-// service.md §5.4). The axisml.io/quota label is sourced from
+// read out of mlruns.labels[resource.axisml.io/pool / -unit] (compute-
+// service.md §5.4). The compute.axisml.io/quota label is sourced from
 // spec.scheduling.quota; compute-operator's Validate rejects CRs missing it.
 func ToCR(j *store.MLRun) (*mlrunv1alpha1.MLRun, error) {
 	var spec mlrunv1alpha1.MLRunSpec

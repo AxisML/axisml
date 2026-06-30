@@ -80,7 +80,7 @@ func runBootstrap() {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: *poolName,
 			Annotations: map[string]string{
-				"axisml.io/description": "Default cluster-wide pool seeded by cluster-manager bootstrap",
+				"resource.axisml.io/description": "Default cluster-wide pool seeded by cluster-manager bootstrap",
 			},
 		},
 		Spec: axismlv1alpha1.ResourcePoolSpec{

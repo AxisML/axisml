@@ -11,7 +11,7 @@
 | MLTrafficPolicy 派生加权 `HTTPRoute` / kserve canary | 流量策略的成员校验 / 权重权威 (→ [compute-service.md](compute-service.md)) |
 | `spec.route` 派生 Gateway API + Envoy Gateway 扩展资源 | 模型工件存储 (→ [artifact-hub.md](artifact-hub.md)) |
 | Cancel 推进信号（`Suspended` condition）单向回流 | 用户认证 / 鉴权 (→ [auth.md](../../../axisml-platform/docs/system_design/auth.md)) |
-| Pod 注入 `schedulerName=koord-scheduler` + Quota label | 写 compute-service PG / 跨集群联邦 |
+| Pod 注入 `schedulerName=axisml-scheduler` + Quota label | 写 compute-service PG / 跨集群联邦 |
 
 ## 2. 架构
 
@@ -51,7 +51,7 @@
 
 三个 CR 均 `axisml.io/v1alpha1`，`status` subresource 必启。`spec.scheduling.quota` 是 compute-service 透传的 ElasticQuota CR 名字符串，对 operator 不透明——ElasticQuota 资源由 [tenant-operator](tenant-operator.md) 独占维护。
 
-实验的 Run 复用 `(native,job)`（训练亦可走 `(kubeflow-trainer,*)`）、TensorBoard 复用 `(native,deployment)`——均为上游业务编排在既有 backend 上的组合，operator **不新增 handler、不感知实验 / TensorBoard 概念**；分组靠 PG label（`axisml.io/experiment`）+ 上游。
+实验的 Run 复用 `(native,job)`（训练亦可走 `(kubeflow-trainer,*)`）、TensorBoard 复用 `(native,deployment)`——均为上游业务编排在既有 backend 上的组合，operator **不新增 handler、不感知实验 / TensorBoard 概念**；分组靠 PG label（`compute.axisml.io/experiment`）+ 上游。
 
 ## 4. 核心功能
 
@@ -106,7 +106,7 @@ ADD ─▶ Pending ─┬─▶ Ready ◀──▶ Degraded
 
 | | `(native, deployment)` | `(native, statefulset)` |
 | --- | --- | --- |
-| 底层资源 | `Deployment` + `Service`；`route.enabled` 时追加 HTTPRoute；SecurityPolicy / BackendTrafficPolicy 尚未交付 | `StatefulSet` + headless Service；透传 `apps.kubernetes.io/pod-index → axisml.io/replica-index` |
+| 底层资源 | `Deployment` + `Service`；`route.enabled` 时追加 HTTPRoute；SecurityPolicy / BackendTrafficPolicy 尚未交付 | `StatefulSet` + headless Service；透传 `apps.kubernetes.io/pod-index → compute.axisml.io/replica-index` |
 | 必填 | 单 role `predictor`，`template.image` + `ports[]` | 同左 |
 | 映射 | `replicas → Deployment.replicas`；`volumes/volumeMounts → PodSpec`（`Validate` 强制 volumeMounts 在同 role volumes、PVC 同 namespace） | `replicas → StatefulSet.replicas`；`config.podManagementPolicy`（默认 `OrderedReady`）、`config.serviceName`（默认 = MLService 名） |
 | RBAC | `deployments.apps` / `services` / `pods` / `events` + Gateway / Envoy CRD（按 `route`）；`secrets` RO（仅 `apiKey`） | `statefulsets.apps` / `services` / `pods` / `events` |
@@ -158,12 +158,12 @@ ADD ─▶ Pending ─(route programmed + 成员 Ready)─▶ Ready ◀──▶
 
 | Pod 字段 / Label | 必填 | 取值 | 用途 |
 | --- | --- | --- | --- |
-| `spec.schedulerName` | 是 | `koord-scheduler` | 所有 workload Pod 强制走 koord-scheduler |
-| label `quota.scheduling.koordinator.sh/name` | 是 | `<spec.scheduling.quota>` | Koordinator ElasticQuota plugin 计入 `status.used` |
-| label `axisml.io/{run-id｜service-id}` | 是 | UUID | 反查 MLRun / MLService |
-| label `axisml.io/role` | 是 | role 名 | 多角色拓扑区分 |
-| label `axisml.io/quota` | 是 | `<spec.scheduling.quota>` | AxisML 自有查询 |
-| label `axisml.io/replica-index` | 否 | role 内 0-based 序号 | 仅天然稳定时透传（STS / Indexed Job） |
+| `spec.schedulerName` | 是 | `axisml-scheduler` | 所有 workload Pod 强制走 axisml-scheduler |
+| label `scheduling.axisml.io/quota` | 是 | `<spec.scheduling.quota>` | ElasticScheduling plugin 计入 `status.used` |
+| label `compute.axisml.io/{run-id｜service-id}` | 是 | UUID | 反查 MLRun / MLService |
+| label `compute.axisml.io/role` | 是 | role 名 | 多角色拓扑区分 |
+| label `compute.axisml.io/quota` | 是 | `<spec.scheduling.quota>` | AxisML 自有查询 |
+| label `compute.axisml.io/replica-index` | 否 | role 内 0-based 序号 | 仅天然稳定时透传（STS / Indexed Job） |
 
 缺失任一前 5 项视为契约违反，Handler `Validate` 必须创建前拦截。第三方 backend 接入时同样必须透传 `schedulerName` + Quota label（具体策略待接入时设计，§9）。
 
@@ -171,7 +171,7 @@ ADD ─▶ Pending ─(route programmed + 成员 Ready)─▶ Ready ◀──▶
 
 ### 5.3 spec.route 派生资源
 
-`route.enabled=true` 时 Handler 在 CR namespace 内创建以下资源，统一打 `axisml.io/service-id` label、`ownerReference: MLService` 级联清理：
+`route.enabled=true` 时 Handler 在 CR namespace 内创建以下资源，统一打 `compute.axisml.io/service-id` label、`ownerReference: MLService` 级联清理：
 
 | 资源 | GVK | 触发 | 关键字段 |
 | --- | --- | --- | --- |
@@ -198,9 +198,9 @@ ADD ─▶ Pending ─(route programmed + 成员 Ready)─▶ Ready ◀──▶
 | 维度 | 内容 | 引用 |
 | --- | --- | --- |
 | CRD | MLRun(`mlj`) / MLService(`mls`) / MLTrafficPolicy(`mltp`)，`axisml.io/v1alpha1`, Namespaced，`status` subresource 必启 | crds/{mlrun,mlservice,mltrafficpolicy}-crd.yaml |
-| 上游写契约 | `Create()` 幂等（重复 409 `AlreadyExists`，id label 一致即视为成功）；`metadata`/`spec` 单向；运行时可变路径仅 `suspend`(MLRun)/`roles[*].replicas`(MLService)/`backends[*].weight`(MLTrafficPolicy)；MLService 额外携带 `axisml.io/service-kind` 稳定 label（operator 不消费） | [compute-service.md](compute-service.md) |
+| 上游写契约 | `Create()` 幂等（重复 409 `AlreadyExists`，id label 一致即视为成功）；`metadata`/`spec` 单向；运行时可变路径仅 `suspend`(MLRun)/`roles[*].replicas`(MLService)/`backends[*].weight`(MLTrafficPolicy)；MLService 额外携带 `compute.axisml.io/service-kind` 稳定 label（operator 不消费） | [compute-service.md](compute-service.md) |
 | 路由元组 | MLRun `(native,job)`；MLService `(native,{deployment,statefulset})`；MLTrafficPolicy `(native,httproute)`（其它保留接口位，§9） | §4 |
-| Pod 注入必填 | `schedulerName=koord-scheduler` + 4 项 label；MLTrafficPolicy 不派生 Pod，不适用 | §5.2 |
+| Pod 注入必填 | `schedulerName=axisml-scheduler` + 4 项 label；MLTrafficPolicy 不派生 Pod，不适用 | §5.2 |
 | Status 回流 | `phase`/`message`/`roles[*]`/`conditions[Suspended]`(MLRun)/`endpoint`(MLService)/`endpoint`+`backends[*]`(MLTrafficPolicy) | §5.4 |
 | 现状 schema | `spec`/`status` 暂用 `x-kubernetes-preserve-unknown-fields: true`；严格 OpenAPI + admission 见 §9 | — |
 
@@ -211,7 +211,7 @@ ADD ─▶ Pending ─(route programmed + 成员 Ready)─▶ Ready ◀──▶
 | 依赖 | 用途 |
 | --- | --- |
 | Kubernetes API | 主 CR + 派生资源 CRUD；leader Lease |
-| Koordinator | 所有派生 Pod 强制 schedulerName + Quota label 计入 ElasticQuota；ElasticQuota 资源由 tenant-operator 维护，operator 只透传名字（[infra.md](../../../axisml-infra/docs/system_design/overview.md) / [tenant-operator.md](tenant-operator.md)） |
+| 调度收编 | 所有派生 Pod 强制 schedulerName + Quota label 计入 ElasticQuota；ElasticQuota 资源由 tenant-operator 维护，operator 只透传名字（[infra.md](../../../axisml-infra/docs/system_design/overview.md) / [tenant-operator.md](tenant-operator.md)） |
 | Gateway API + Envoy 扩展 | 当前派生 `HTTPRoute`；`SecurityPolicy` / `BackendTrafficPolicy` 尚未交付，认证配置 fail-closed（[infra.md](../../../axisml-infra/docs/system_design/overview.md)） |
 | compute-service（上游 CR 写者） | 通过 `Create + Patch` 下发期望，status 单向回流；operator 不感知其 PG 与 Outbox（[compute-service.md](compute-service.md)） |
 | 对象存储（RustFS） | 按 spec 注入项把 Run / TensorBoard Pod 的 logdir / 产出路径 + 凭证透传进派生 Pod（§5.2） |

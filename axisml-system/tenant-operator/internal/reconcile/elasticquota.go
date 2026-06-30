@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	schedv1alpha1 "github.com/koordinator-sh/koordinator/apis/thirdparty/scheduler-plugins/pkg/apis/scheduling/v1alpha1"
+	schedv1alpha1 "github.com/axisml/axisml/axisml-system/tenant-operator/api/scheduling/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -18,7 +18,7 @@ import (
 )
 
 // ElasticQuotas reconciles spec.quotas[] 1:1 to upstream
-// scheduling.sigs.k8s.io/v1alpha1 ElasticQuota CRs in the tenant namespace.
+// scheduling.x-k8s.io/v1alpha1 ElasticQuota CRs in the tenant namespace.
 //
 // Per design §6.2:
 //   - missing entries get Created, removed entries get Deleted, drift on

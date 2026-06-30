@@ -70,20 +70,20 @@ func TestInjectAxisMLLabels_PopulatesLabelsAndScheduling(t *testing.T) {
 	}
 
 	wants := map[string]string{
-		axislabels.RunIDLabel:      "job-1",
-		axislabels.QuotaLabel:      "default",
-		axislabels.RoleLabel:       "worker",
-		axislabels.KoordQuotaLabel: "axisml-team-a-default-q1",
-		"extra":                    "true",
+		axislabels.RunIDLabel:          "job-1",
+		axislabels.QuotaLabel:          "default",
+		axislabels.RoleLabel:           "worker",
+		axislabels.SchedulerQuotaLabel: "axisml-team-a-default-q1",
+		"extra":                        "true",
 	}
 	for k, v := range wants {
 		if tmpl.Labels[k] != v {
 			t.Errorf("label %s = %q; want %q", k, tmpl.Labels[k], v)
 		}
 	}
-	if tmpl.Spec.SchedulerName != axislabels.KoordSchedulerName {
-		t.Errorf("scheduler = %q; want %q (Koord scheduler is mandatory for ElasticQuota)",
-			tmpl.Spec.SchedulerName, axislabels.KoordSchedulerName)
+	if tmpl.Spec.SchedulerName != axislabels.SchedulerName {
+		t.Errorf("scheduler = %q; want %q (axisml-scheduler is mandatory for ElasticQuota)",
+			tmpl.Spec.SchedulerName, axislabels.SchedulerName)
 	}
 	if tmpl.Spec.PriorityClassName != "high" {
 		t.Errorf("PriorityClass = %q", tmpl.Spec.PriorityClassName)

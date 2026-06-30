@@ -11,9 +11,9 @@ func TestLabels_AlignWithPublicAPI(t *testing.T) {
 		{RunIDLabel, axisv1alpha1.LabelRunID},
 		{QuotaLabel, axisv1alpha1.LabelQuota},
 		{RoleLabel, axisv1alpha1.LabelRole},
-		{KoordQuotaLabel, axisv1alpha1.LabelKoordQuotaName},
+		{SchedulerQuotaLabel, axisv1alpha1.LabelSchedulerQuota},
 		{AppliedSpecAnnotation, axisv1alpha1.AnnotationAppliedSpec},
-		{KoordSchedulerName, axisv1alpha1.SchedulerName},
+		{SchedulerName, axisv1alpha1.SchedulerName},
 	}
 	for _, tc := range cases {
 		if tc.got != tc.want {
@@ -24,8 +24,8 @@ func TestLabels_AlignWithPublicAPI(t *testing.T) {
 
 func TestLabels_KeysAreNonEmpty(t *testing.T) {
 	for _, k := range []string{
-		RunIDLabel, QuotaLabel, RoleLabel, KoordQuotaLabel,
-		AppliedSpecAnnotation, KoordSchedulerName,
+		RunIDLabel, QuotaLabel, RoleLabel, SchedulerQuotaLabel,
+		AppliedSpecAnnotation, SchedulerName,
 	} {
 		if k == "" {
 			t.Errorf("label/annotation constant is empty")

@@ -100,10 +100,6 @@ require (
 // pkg/openapigen is an in-repo module wired via replace (no published version).
 replace github.com/axisml/axisml/pkg/openapigen => ../../pkg/openapigen
 
-// Mirror the operator/openapigen modules' pin: koordinator v1.8.0's go.mod
-// references a kube-openapi version that is not published on the module proxy.
-replace k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912
-
 replace github.com/axisml/axisml/pkg/axismlconfig => ../../pkg/axismlconfig
 
 replace github.com/axisml/axisml/pkg/configdoc => ../../pkg/configdoc

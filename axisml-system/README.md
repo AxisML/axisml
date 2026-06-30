@@ -24,7 +24,7 @@ The compute-operator's backend handlers route each CR's `(name, engine)` tuple �
 - **Operators consume CRs one-way.** An operator reads `spec`, writes `status`, and never writes back to upstream PG; operators don't know about each other (tenant-operator never reads `MLRun`/`MLService`; compute-operator never reads `Tenant`/`ElasticQuota` — it only passes the quota name through).
 - **Read/write paths converge through etcd.** cluster-manager writes ResourcePool / Tenant CRs; compute-service (via Informer) and tenant-operator read them directly — no direct service-to-service calls between them.
 - **Tenant scope ≠ landing namespace.** The `namespace` field on compute/artifact records is the tenant scope; the K8s Namespace is `Tenant.spec.namespace.name`, which several Tenants may share.
-- **All derived Pods route through koord-scheduler** with an ElasticQuota label — there is no quota-bypassing path.
+- **All derived Pods route through axisml-scheduler** with an ElasticQuota label — there is no quota-bypassing path.
 
 ## Multi-module workspace
 

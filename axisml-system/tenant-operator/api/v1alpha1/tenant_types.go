@@ -19,8 +19,8 @@ const (
 
 // Well-known label keys applied by tenant-operator.
 const (
-	LabelTenantID               = "axisml.io/tenant-id"
-	LabelManagedBy              = "axisml.io/managed-by"
+	LabelTenantID               = "tenant.axisml.io/id"
+	LabelManagedBy              = "tenant.axisml.io/managed-by"
 	ManagedByValue              = "tenant-operator"
 	ConditionNamespaceReady     = "NamespaceReady"
 	ConditionQuotasReady        = "QuotasReady"

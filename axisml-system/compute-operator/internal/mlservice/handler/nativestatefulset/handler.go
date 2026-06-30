@@ -209,7 +209,7 @@ func (h *Handler) RequiredRBAC() []rbacv1.PolicyRule {
 // appliedSpecHashAnnotation records the SHA-256 of the rendered desired spec;
 // see nativedeployment for the rationale (skip no-op patches when apiserver
 // defaulting otherwise causes a false-mismatch on every reconcile).
-const appliedSpecHashAnnotation = "axisml.io/applied-spec-hash"
+const appliedSpecHashAnnotation = "compute.axisml.io/applied-spec-hash"
 
 func (h *Handler) upsertStatefulSet(ctx context.Context, mls *axisml.MLService, desired *appsv1.StatefulSet) error {
 	if err := controllerutil.SetControllerReference(mls, desired, h.client.Scheme()); err != nil {

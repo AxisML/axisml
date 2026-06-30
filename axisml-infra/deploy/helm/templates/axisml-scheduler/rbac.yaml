@@ -1,0 +1,129 @@
+{{- if .Values.axismlScheduler.enabled }}
+# --- Scheduler ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: axisml-scheduler
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: axisml-scheduler
+    app.kubernetes.io/part-of: axisml-infra
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+---
+# The scheduler reuses the built-in kube-scheduler / volume-scheduler roles for
+# core scheduling permissions, plus this role for the AxisML scheduling CRs and
+# leader election.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: axisml-scheduler
+  labels:
+    app.kubernetes.io/name: axisml-scheduler
+    app.kubernetes.io/part-of: axisml-infra
+rules:
+  - apiGroups: ["scheduling.x-k8s.io"]
+    resources: ["elasticquotas", "elasticquotas/status", "podgroups", "podgroups/status"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods", "nodes", "namespaces", "persistentvolumeclaims", "persistentvolumes", "replicationcontrollers", "services"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["events.k8s.io", ""]
+    resources: ["events"]
+    verbs: ["create", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: axisml-scheduler
+  labels:
+    app.kubernetes.io/name: axisml-scheduler
+    app.kubernetes.io/part-of: axisml-infra
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: axisml-scheduler
+subjects:
+  - kind: ServiceAccount
+    name: axisml-scheduler
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: axisml-scheduler-kube-scheduler
+  labels:
+    app.kubernetes.io/name: axisml-scheduler
+    app.kubernetes.io/part-of: axisml-infra
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:kube-scheduler
+subjects:
+  - kind: ServiceAccount
+    name: axisml-scheduler
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: axisml-scheduler-volume-scheduler
+  labels:
+    app.kubernetes.io/name: axisml-scheduler
+    app.kubernetes.io/part-of: axisml-infra
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:volume-scheduler
+subjects:
+  - kind: ServiceAccount
+    name: axisml-scheduler
+    namespace: {{ .Release.Namespace }}
+---
+# --- Controller (ElasticQuota.status.used aggregation) ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: axisml-scheduler-controller
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: axisml-scheduler-controller
+    app.kubernetes.io/part-of: axisml-infra
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: axisml-scheduler-controller
+  labels:
+    app.kubernetes.io/name: axisml-scheduler-controller
+    app.kubernetes.io/part-of: axisml-infra
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["scheduling.x-k8s.io"]
+    resources: ["elasticquotas", "elasticquotas/status"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: axisml-scheduler-controller
+  labels:
+    app.kubernetes.io/name: axisml-scheduler-controller
+    app.kubernetes.io/part-of: axisml-infra
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: axisml-scheduler-controller
+subjects:
+  - kind: ServiceAccount
+    name: axisml-scheduler-controller
+    namespace: {{ .Release.Namespace }}
+{{- end }}

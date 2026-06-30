@@ -83,8 +83,8 @@ kind: Tenant
 metadata:
   name: team-alpha                # = identifier；DNS-1123，全局唯一
   annotations:
-    axisml.io/quotas: '[{"pool":"gpu-a100","units":[...]}]'  # 业务形态配额（GET 往返用）
-    axisml.io/last-modified-by: <user>                        # 来自 X-Axisml-User
+    tenant.axisml.io/quotas: '[{"pool":"gpu-a100","units":[...]}]'  # 业务形态配额（GET 往返用）
+    resource.axisml.io/last-modified-by: <user>                        # 来自 X-Axisml-User
 spec:
   namespace: { name: axisml-tenant } # 物理 K8s Namespace，可共享；创建后不可变
   quotas:                         # 每 pool 一项；min/max 由折算写入
@@ -94,7 +94,7 @@ spec:
   initResources: { ... }          # ImagePullSecret / Secret / ConfigMap / SA + RBAC
 ```
 
-REST 入参以业务形态 `{pool, units:[{unitName, quantity}]}` 表达配额；cluster-manager 按名读 `ResourcePool` CR，取每个 `unitName` 的 `requests` / `limits`，折算 `min = Σ(unit.requests × quantity)` / `max = Σ(unit.limits × quantity)`，写入 `spec.quotas[]`（`name` = `pool`）。折算有损，故业务原始选择 JSON 编码回存到 `axisml.io/quotas` annotation，GET 时据此还原 `units` 形态返回（tenant-operator 不读该 annotation，只消费 `spec.quotas[].min/max`）。
+REST 入参以业务形态 `{pool, units:[{unitName, quantity}]}` 表达配额；cluster-manager 按名读 `ResourcePool` CR，取每个 `unitName` 的 `requests` / `limits`，折算 `min = Σ(unit.requests × quantity)` / `max = Σ(unit.limits × quantity)`，写入 `spec.quotas[]`（`name` = `pool`）。折算有损，故业务原始选择 JSON 编码回存到 `tenant.axisml.io/quotas` annotation，GET 时据此还原 `units` 形态返回（tenant-operator 不读该 annotation，只消费 `spec.quotas[].min/max`）。
 
 **折算与校验**：`quotas[].pool` 必须存在对应 CR（否则 `422 pool-not-found`）；`units[].unitName` 必须存在于该 pool（否则 `422 unit-not-found`）；`quantity ≥ 0`（否则 `400 bad-quantity`）；空 `units` → 该 pool 配额为零。
 **字段不变性**：`metadata.name`（= identifier）/ `spec.namespace.name` / `quotas[].pool` 不可变；`quotas[].units[]→min/max`（折算写入）与 `initResources.*` 可变；`status.*` 由 tenant-operator 写、GET 时实时读。
@@ -118,7 +118,7 @@ REST 入参以业务形态 `{pool, units:[{unitName, quantity}]}` 表达配额�
     "createdAt": "2026-02-11T08:00:00Z" } }
 ```
 
-K8s 形态：`Volume` 直接物化为该 namespace 下的 `PersistentVolumeClaim`（`spec.accessModes = accessModes`，`spec.resources.requests.storage = size`，可选 `storageClassName`），打 `axisml.io/*` label 供 selector 区分。`status` 不落任何持久层，get / list 时合并 PVC `status.phase` / `status.capacity` 与 Pod 扫描结果实时拼出；`usedBytes` 来自监控栈（`kubelet_volume_stats_used_bytes`），不可得即省略。Lite 形态：物化为受管 Docker named volume（size / storageClass / accessModes 被接受但忽略——单机卷按需增长、无 class、恒等价单机读写）。
+K8s 形态：`Volume` 直接物化为该 namespace 下的 `PersistentVolumeClaim`（`spec.accessModes = accessModes`，`spec.resources.requests.storage = size`，可选 `storageClassName`），打 `resource.axisml.io/*` label 供 selector 区分。`status` 不落任何持久层，get / list 时合并 PVC `status.phase` / `status.capacity` 与 Pod 扫描结果实时拼出；`usedBytes` 来自监控栈（`kubelet_volume_stats_used_bytes`），不可得即省略。Lite 形态：物化为受管 Docker named volume（size / storageClass / accessModes 被接受但忽略——单机卷按需增长、无 class、恒等价单机读写）。
 
 **契约**：`create` 幂等（卷已存在 = 成功）；`delete` 幂等（卷不存在 = 成功）；`patch` 仅允许 `size` 扩容（StorageClass 须 `allowVolumeExpansion`）与 `description` / `labels` 更新，`storageClass` / `accessModes` 不可变；`namespace` / `name` 必填；K8s 形态 `size` 必填且须为合法 Quantity。删除前置：默认拒绝删除被运行中 Pod 挂载的卷（`409 volume-in-use` + 占用清单），调用方确认后可带 `force=true` 强删。本服务不感知卷内容与挂载用途；上游 Platform 决定语义命名与挂载点，本服务只按 `(namespace, name)` 物化 / 回收并实时读运行态。
 
@@ -141,7 +141,7 @@ K8s 形态：`Volume` 直接物化为该 namespace 下的 `PersistentVolumeClaim
 
 | 操作 | 内部行为 |
 | --- | --- |
-| 创建 POST `/api/v1/tenants` | 校验 `identifier`（DNS-1123）；按 `quotas[]` 读 Pool 折算 min/max（§3.3）；create CR，透传调用方 `labels`/`annotations`，回存 `axisml.io/quotas` 与 `last-modified-by` |
+| 创建 POST `/api/v1/tenants` | 校验 `identifier`（DNS-1123）；按 `quotas[]` 读 Pool 折算 min/max（§3.3）；create CR，透传调用方 `labels`/`annotations`，回存 `tenant.axisml.io/quotas` 与 `last-modified-by` |
 | GET / LIST | GET 合并 `spec` 与 CR `status`（phase / conditions / `quotas[].used`）实时返回；list 支持 `?labelSelector=` |
 | PATCH | JSON Patch（乐观锁重试）；`metadata.name` / `spec.namespace.name` / `quotas[].pool` 不可变；display 元数据不在此（归上游表） |
 | DELETE | delete CR（硬删，幂等 204）；子资源经 ownerReference GC，Namespace 永不删除 |
@@ -173,7 +173,7 @@ K8s 形态：`Volume` 直接物化为该 namespace 下的 `PersistentVolumeClaim
 | 对外 REST | `/api/v1/resourcepools[/{pool}[/units[/{unit}]]]`（`ResourcePools` tag）；`/api/v1/tenants[/{tenant}[/quotas[/{pool}]]]`（`Tenants` tag）；`/api/v1/volumes[/{namespace}/{name}]` 与 `GET /api/v1/storageclasses`（创建数据卷可选的 StorageClass 目录）（`Volumes` tag） | [openapi/cluster-manager.yaml](../apis/cluster-manager.yaml) |
 | 下发 CR | `ResourcePool` / `Tenant`（`axisml.io/v1alpha1`，cluster-scoped）；cluster-manager 是 `spec` 的 REST 写者，kubectl 路径也允许；Tenant `status` 由 tenant-operator 单写 | [resource-pool-crd.yaml](../../deploy/helm/crds/resource-pool-crd.yaml) / [tenant-crd.yaml](../../deploy/helm/crds/tenant-crd.yaml) |
 | 物化 K8s 资源 | `PersistentVolumeClaim`（核心 v1，namespace-scoped）——Volume REST 的落地形态；幂等 create / patch（扩容）/ delete；运行态与挂载占用读 PVC `status` 与同 namespace `Pod` | — |
-| 身份头 | 调用方注入 `X-Axisml-User`，本服务仅做 ownership 归属；透传为 CR annotation `axisml.io/last-modified-by`（[auth.md §6](../../../axisml-platform/docs/system_design/auth.md#6-下游身份透传)） | — |
+| 身份头 | 调用方注入 `X-Axisml-User`，本服务仅做 ownership 归属；透传为 CR annotation `resource.axisml.io/last-modified-by`（[auth.md §6](../../../axisml-platform/docs/system_design/auth.md#6-下游身份透传)） | — |
 | 错误格式 | HTTP 标准码 + RFC 7807 problem+json；K8s API 错误经 typed 映射 | — |
 | 写后语义 | mutation 经 K8s API 写入 etcd 后返回；强一致 | — |
 

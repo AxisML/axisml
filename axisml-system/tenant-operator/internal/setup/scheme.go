@@ -3,11 +3,11 @@
 package setup
 
 import (
-	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/thirdparty/scheduler-plugins/pkg/apis/scheduling/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 
+	schedulingv1alpha1 "github.com/axisml/axisml/axisml-system/tenant-operator/api/scheduling/v1alpha1"
 	tenantv1alpha1 "github.com/axisml/axisml/axisml-system/tenant-operator/api/v1alpha1"
 )
 
@@ -15,8 +15,8 @@ import (
 // Call once at process start before constructing the manager.
 //
 // clientgoscheme already covers core, apps, rbac, batch, coordination — we
-// don't re-register them explicitly. ElasticQuota comes from the
-// scheduler-plugins API in Koordinator's vendored apis tree.
+// don't re-register them explicitly. ElasticQuota comes from the in-repo
+// scheduler-plugins API copy (group scheduling.x-k8s.io).
 func AddToScheme(scheme *runtime.Scheme) {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(schedulingv1alpha1.AddToScheme(scheme))

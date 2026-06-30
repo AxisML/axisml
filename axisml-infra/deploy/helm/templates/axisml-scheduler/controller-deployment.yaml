@@ -1,0 +1,52 @@
+{{- if .Values.axismlScheduler.enabled }}
+{{- $s := .Values.axismlScheduler }}
+{{- $tag := $s.image.tag | default .Chart.AppVersion }}
+{{- $registry := $s.image.registry | default .Values.global.imageRegistry }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: axisml-scheduler-controller
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: axisml-scheduler-controller
+    app.kubernetes.io/part-of: axisml-infra
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  replicas: {{ $s.controller.replicas | default 1 }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: axisml-scheduler-controller
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: axisml-scheduler-controller
+        app.kubernetes.io/part-of: axisml-infra
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: axisml-scheduler-controller
+      containers:
+        - name: controller
+          image: "{{ with $registry }}{{ . }}/{{ end }}{{ $s.image.repository }}:{{ $tag }}"
+          imagePullPolicy: {{ $s.image.pullPolicy | default "IfNotPresent" }}
+          command:
+            - /usr/local/bin/axisml-scheduler-controller
+          args:
+            - --resync-period={{ $s.controller.resyncPeriod | default "30s" }}
+            - --workers={{ $s.controller.workers | default 2 }}
+            - --leader-elect={{ $s.leaderElection.enabled }}
+            - --v={{ $s.controller.logLevel | default 2 }}
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          resources:
+            {{- toYaml $s.controller.resources | nindent 12 }}
+{{- end }}

@@ -11,7 +11,7 @@ import (
 )
 
 // descriptionAnnotation carries the volume's free-text description on the PVC.
-const descriptionAnnotation = "axisml.io/description"
+const descriptionAnnotation = "resource.axisml.io/description"
 
 // Volume mirrors the OpenAPI Volume schema — the durable data volume materialised
 // by cluster-manager (a PersistentVolumeClaim in Kubernetes, a managed Docker

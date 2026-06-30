@@ -140,7 +140,7 @@ func TestReconcile_MissingServiceIDLabel_WritesFailedStatus(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "smoke",
 			Namespace: "tenant-demo",
-			// No axisml.io/service-id — the dispatcher must reject this.
+			// No compute.axisml.io/service-id — the dispatcher must reject this.
 		},
 		Spec: axisml.MLServiceSpec{
 			Backend: axisml.Backend{Name: "native", Engine: "deployment"},

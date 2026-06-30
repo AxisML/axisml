@@ -31,6 +31,7 @@ require (
 	github.com/spf13/cast v1.7.1 // indirect
 	github.com/spf13/viper v1.20.1 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
+	k8s.io/kube-openapi v0.0.0-20260317180543-43fb72c5454a // indirect
 )
 
 require (
@@ -138,7 +139,6 @@ require (
 	k8s.io/apiextensions-apiserver v0.36.0 // indirect
 	k8s.io/client-go v0.36.0 // indirect
 	k8s.io/klog/v2 v2.140.0 // indirect
-	k8s.io/kube-openapi v0.30.0 // indirect
 	k8s.io/utils v0.0.0-20260210185600-b8788abfbbc2 // indirect
 	sigs.k8s.io/controller-runtime v0.24.0 // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
@@ -160,10 +160,6 @@ replace github.com/axisml/axisml/axisml-system/compute-service => ../../axisml-s
 replace github.com/axisml/axisml/axisml-system/artifact-hub => ../../axisml-system/artifact-hub
 
 replace github.com/axisml/axisml/pkg/openapigen => ../../pkg/openapigen
-
-// Mirror the operator modules' pin: koordinator v1.8.0's go.mod references a
-// kube-openapi version that is not published on the module proxy.
-replace k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912
 
 replace github.com/axisml/axisml/pkg/axismlconfig => ../../pkg/axismlconfig
 

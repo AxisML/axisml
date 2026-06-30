@@ -20,7 +20,7 @@ AxisML 按 Platform / System / Infra 三层各打包为一个 Helm chart，按 *
 
 | Chart | 路径 | Release | Namespace | 内容 |
 | --- | --- | --- | --- | --- |
-| `axisml-infra` | `axisml-infra/deploy/helm` | `axisml-infra` | `axisml-infra` | 第三方基础设施（Envoy Gateway / RustFS / zot / GPU Operator / Koordinator / kube-prometheus-stack）+ PostgreSQL + Redis |
+| `axisml-infra` | `axisml-infra/deploy/helm` | `axisml-infra` | `axisml-infra` | 第三方基础设施（Envoy Gateway / RustFS / zot / GPU Operator / axisml-scheduler / kube-prometheus-stack）+ PostgreSQL + Redis |
 | `axisml-system` | `axisml-system/deploy/helm` | `axisml` | `axisml-system` | 自研控制面（Cluster Manager / Compute / Artifact Hub / tenant-operator / compute-operator）+ CRDs |
 | `axisml-platform` | `axisml-platform/deploy/helm` | `axisml-platform` | `axisml-platform` | 用户面（Frontend + Backend），唯一对外入口 |
 
@@ -28,7 +28,7 @@ AxisML 按 Platform / System / Infra 三层各打包为一个 Helm chart，按 *
 
 ```
 Kubernetes Cluster
-├── axisml-infra：Envoy Gateway · RustFS · zot · GPU Operator · Koordinator · kube-prometheus-stack · PostgreSQL(axisml-database) · Redis(axisml-redis)
+├── axisml-infra：Envoy Gateway · RustFS · zot · GPU Operator · axisml-scheduler · kube-prometheus-stack · PostgreSQL(axisml-database) · Redis(axisml-redis)
 ├── axisml-system：Cluster Manager · Compute Service · Artifact Hub（Deployment+Service）· tenant-operator · compute-operator（Deployment）
 ├── axisml-platform：Platform（Deployment+Service，Frontend+Backend）
 └── tenant namespaces：默认 `axisml-tenant`；可被多个 Tenant 共享，承载 workloads / routes / secrets / ElasticQuota
@@ -53,7 +53,7 @@ make helm-install           # 按 infra → system → platform 串装（idempot
 
 务必按 **infra → system → platform** 安装。顺序由依赖决定：
 
-- `axisml-infra` 先装——它提供 Koordinator / Envoy 的 CRDs 与 PostgreSQL；否则 system 层的 Tenant / MLRun CR 找不到 ElasticQuota / HTTPRoute kind、服务也连不上 DB。
+- `axisml-infra` 先装——它提供 axisml-scheduler / Envoy 的 CRDs 与 PostgreSQL；否则 system 层的 Tenant / MLRun CR 找不到 ElasticQuota / HTTPRoute kind、服务也连不上 DB。
 - `axisml-platform` 最后装——Platform 启动即依赖 System 层就绪（bootstrap 需调 compute）。
 
 一键串装或分步：
@@ -99,7 +99,7 @@ Redis 由 `axisml-infra` chart 提供（bitnami/redis 子 chart，`architecture:
 
 ### 5.4 Chart 依赖与子 chart
 
-**`axisml-infra` 子 chart**（各带 `<name>.enabled` condition + values 根键）：Envoy Gateway（`gateway-helm`）· RustFS · zot · GPU Operator · Koordinator · kube-prometheus-stack · PostgreSQL（aliased 为 `database`）· Redis（aliased 为 `cache`）。
+**`axisml-infra` 子 chart**（各带 `<name>.enabled` condition + values 根键）：Envoy Gateway（`gateway-helm`）· RustFS · zot · GPU Operator · axisml-scheduler · kube-prometheus-stack · PostgreSQL（aliased 为 `database`）· Redis（aliased 为 `cache`）。
 
 **`axisml-system` / `axisml-platform`** 无第三方子 chart。System 层把 PostgreSQL 当 Infra 外部依赖（`database.enabled=true` 连 `axisml-database.<infraNamespace>:5432` 并自渲染连接 Secret；`=false` 改用 `externalDatabase`）；Platform 层通过 `system.*` values 拼装跨 namespace FQDN 调 System 服务，并把 PostgreSQL 与 Redis 当 Infra 外部依赖消费（各自从共享 `*.auth.password` 自渲染本 namespace Secret）。
 
@@ -143,7 +143,7 @@ CRD 与 `axisml-tenant` Namespace 标记了 `helm.sh/resource-policy=keep`，不
 
 ### 8.2 Infra 组件部署形态（默认 values）
 
-Envoy Gateway（单 `axisml-gateway`，HTTP listener，`allowedRoutes` 放行工作负载 namespace）· RustFS（Standalone）· zot（Standalone filesystem，公共拉取 Secret 落 `axisml-tenant`）· GPU Operator（driver + toolkit + device plugin + DCGM + GFD，MIG 暂不启用）· Koordinator（koord-scheduler + koord-manager + ElasticQuota + PodGroup）· kube-prometheus-stack（不预置告警）· PostgreSQL（bitnami，Service `axisml-database`，`database.enabled=false` 时外接）· Redis（bitnami，standalone，Service `axisml-redis-master`，`cache.enabled=false` 时关闭）。
+Envoy Gateway（单 `axisml-gateway`，HTTP listener，`allowedRoutes` 放行工作负载 namespace）· RustFS（Standalone）· zot（Standalone filesystem，公共拉取 Secret 落 `axisml-tenant`）· GPU Operator（driver + toolkit + device plugin + DCGM + GFD，MIG 暂不启用）· axisml-scheduler（scheduler + controller + ElasticQuota + PodGroup）· kube-prometheus-stack（不预置告警）· PostgreSQL（bitnami，Service `axisml-database`，`database.enabled=false` 时外接）· Redis（bitnami，standalone，Service `axisml-redis-master`，`cache.enabled=false` 时关闭）。
 
 默认共享 K8s Namespace `axisml-tenant` 由 System chart 声明并标记 `helm.sh/resource-policy=keep`；其他 tenant namespace 由 tenant-operator 在 `Tenant` CR reconcile 时按需创建（[tenant-operator.md §4.1.1](../axisml-system/docs/system_design/tenant-operator.md#411-namespace-落地)）。
 

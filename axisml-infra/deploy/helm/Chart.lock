@@ -11,9 +11,6 @@ dependencies:
 - name: gpu-operator
   repository: https://helm.ngc.nvidia.com/nvidia
   version: v26.3.1
-- name: koordinator
-  repository: https://koordinator-sh.github.io/charts
-  version: 1.7.0
 - name: kube-prometheus-stack
   repository: https://prometheus-community.github.io/helm-charts
   version: 84.5.0
@@ -23,5 +20,5 @@ dependencies:
 - name: redis
   repository: oci://registry-1.docker.io/bitnamicharts
   version: 20.13.4
-digest: sha256:a62368a560386d4d7c83687ed729d4a1ddf24562cd725c49aaca919df8dc145a
-generated: "2026-06-21T13:53:23.278674+08:00"
+digest: sha256:b09b880d18ff8ee8b428c7086efda6ffe59d7cdbab01d511537d6bb00ed1c8dd
+generated: "2026-06-29T22:46:35.022689+08:00"

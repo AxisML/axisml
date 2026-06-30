@@ -33,11 +33,11 @@
 
 ### 1.5 CR 稳定锚点
 
-CR-backed 对象在 `id` 之外向对应 CR 打 label `axisml.io/<resource>-id=<uuid>`（`tenant-id` / `run-id` / `service-id` / `traffic-policy-id`）；`mlservices` 额外冗余 `axisml.io/service-kind=<kind>` 便于 selector 区分（compute / operator 不按该 label 改变行为）。
+CR-backed 对象在 `id` 之外向对应 CR 打 label `axisml.io/<resource>-id=<uuid>`（`tenant-id` / `run-id` / `service-id` / `traffic-policy-id`）；`mlservices` 额外冗余 `compute.axisml.io/service-kind=<kind>` 便于 selector 区分（compute / operator 不按该 label 改变行为）。
 
 ### 1.6 扩展元数据 labels / annotations
 
-所有业务表以 `labels jsonb` + `annotations jsonb` 承载扩展元数据（K8s 风格：`labels` 短键短值用于过滤、`annotations` 自由文本用于展示）。Key 前缀：`axisml.io/*` 系统保留（如 `axisml.io/{job,experiment}`），`platform.axisml.io/*` Platform 内部，`user.axisml.io/*` 或无前缀由调用方透传。list 端点接受 `?labelSelector=`（K8s grammar），各表建 GIN 索引兜底、高频 key 额外建复合表达式索引。扩展位**只落 PG**——不下发 CR、不 `+generation`、不参与 reconcile。
+所有业务表以 `labels jsonb` + `annotations jsonb` 承载扩展元数据（K8s 风格：`labels` 短键短值用于过滤、`annotations` 自由文本用于展示）。Key 前缀：系统 label 按域前缀 `scheduling./compute./tenant./resource./platform.axisml.io/*`（如 `compute.axisml.io/{job,experiment}`），`user.axisml.io/*` 或无前缀的裸 `axisml.io/*` 由调用方透传。list 端点接受 `?labelSelector=`（K8s grammar），各表建 GIN 索引兜底、高频 key 额外建复合表达式索引。扩展位**只落 PG**——不下发 CR、不 `+generation`、不参与 reconcile。
 
 ## 2. Compute Service
 

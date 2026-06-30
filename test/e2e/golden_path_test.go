@@ -75,7 +75,7 @@ func TestGoldenPath_TrainAndServeJourney(t *testing.T) {
 		require.True(t, is2xx(cr.StatusCode()), "create golden tenant: %d: %s", cr.StatusCode(), string(cr.Body))
 
 		// Contract: the cluster-manager write fans out to a real namespace and a
-		// real koord ElasticQuota the rest of the journey will schedule into.
+		// real ElasticQuota the rest of the journey will schedule into.
 		eventually(t, h.cfg.CRProvisionTimeout, func() error { return h.namespaceExists(ctx, ns) })
 		eventually(t, h.cfg.CRProvisionTimeout, func() error {
 			names, err := elasticQuotaNames(ctx, ns)
@@ -137,7 +137,7 @@ func TestGoldenPath_TrainAndServeJourney(t *testing.T) {
 		cleanupMLRun(t, ns, jobName)
 
 		// Contract: compute-service resolved (poolName, unitName) + the tenant
-		// quota into a schedulable MLRun, and koord admitted it to completion.
+		// quota into a schedulable MLRun, and axisml-scheduler admitted it to completion.
 		eventually(t, h.cfg.MLRunCompleteTimeout, func() error {
 			var job mlrunv1.MLRun
 			if err := h.get(ctx, ns, jobName, &job); err != nil {

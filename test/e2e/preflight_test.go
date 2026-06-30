@@ -20,7 +20,7 @@ func TestPreflight_InfraPodsReady(t *testing.T) {
 	ctx := context.Background()
 	ns := h.cfg.InfraNamespace
 	// Required infra components (matched by pod-name substring).
-	for _, sub := range []string{"database", "zot", "rustfs", "koord-scheduler", "koord-manager", "envoy"} {
+	for _, sub := range []string{"database", "zot", "rustfs", "axisml-scheduler", "axisml-scheduler-controller", "envoy"} {
 		requireReadyPod(t, ctx, ns, sub)
 	}
 	// GPU operator is optional on minikube — log only.

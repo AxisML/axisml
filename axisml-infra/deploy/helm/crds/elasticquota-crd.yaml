@@ -1,17 +1,17 @@
 ---
-# CRD for the ElasticQuota type used by the AxisML tenant-operator. The Go
-# import path is github.com/koordinator-sh/koordinator/apis/thirdparty/scheduler-plugins/pkg/apis/scheduling/v1alpha1
-# Koordinator's vendored copy uses the API group "scheduling.sigs.k8s.io"
-# (NOT the upstream scheduler-plugins "scheduling.x-k8s.io"). This file
-# tracks Koordinator v1.7.0; refresh procedure is in this directory's README.
+# CRD for the ElasticQuota type consumed by the AxisML self-built scheduler
+# (axisml-scheduler). Group is the upstream scheduler-plugins
+# "scheduling.x-k8s.io" (kubernetes-sigs/scheduler-plugins). The operators carry
+# an in-repo, wire-compatible Go copy of this type under
+# axisml-system/tenant-operator/api/scheduling/v1alpha1.
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: elasticquotas.scheduling.sigs.k8s.io
+  name: elasticquotas.scheduling.x-k8s.io
   annotations:
     api-approved.kubernetes.io: https://github.com/kubernetes-sigs/scheduler-plugins/pull/52
 spec:
-  group: scheduling.sigs.k8s.io
+  group: scheduling.x-k8s.io
   names:
     kind: ElasticQuota
     listKind: ElasticQuotaList

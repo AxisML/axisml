@@ -144,8 +144,8 @@ type MLTrafficPolicyList struct {
 const (
 	// LabelTrafficPolicyID is the stable orphan-detection anchor written by
 	// compute-service (the PG row UUID).
-	LabelTrafficPolicyID = "axisml.io/traffic-policy-id"
-	LabelTenant          = "axisml.io/tenant"
+	LabelTrafficPolicyID = "compute.axisml.io/traffic-policy-id"
+	LabelTenant          = "tenant.axisml.io/name"
 
 	// BackendKindNative routes to the weighted-HTTPRoute handler;
 	// BackendKindKServe routes to the InferenceService canary handler.

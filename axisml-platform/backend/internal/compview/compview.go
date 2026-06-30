@@ -18,7 +18,7 @@ func Pods(pods []computeservice.Pod) server.PodList {
 			item.NodeName = *p.NodeName
 		}
 		if p.Labels != nil {
-			if role, ok := (*p.Labels)["axisml.io/role"]; ok {
+			if role, ok := (*p.Labels)["compute.axisml.io/role"]; ok {
 				item.Role = role
 			}
 		}

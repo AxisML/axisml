@@ -65,12 +65,12 @@ Platform 自有实体三类：**租户持久记录**、**身份 / 授权 / 会�
 
 ### 3.2 定义（jobs / experiments / models / images）
 
-四张 name 级**定义 / 模板**实体；运行 / 版本**实例**由下游持有，经实时查询关联（Platform **不建** run/version 索引表）。`experiments` 是 `jobs` 的训练特化形态——`spec` 与 `jobs` 同构，Run 仍是 `MLRun`，仅多带 `axisml.io/experiment` label，**不引入新 compute CR / handler**。
+四张 name 级**定义 / 模板**实体；运行 / 版本**实例**由下游持有，经实时查询关联（Platform **不建** run/version 索引表）。`experiments` 是 `jobs` 的训练特化形态——`spec` 与 `jobs` 同构，Run 仍是 `MLRun`，仅多带 `compute.axisml.io/experiment` label，**不引入新 compute CR / handler**。
 
 | 定义 | 实例所有者 | `spec` 内容 | 关联（实时） |
 | --- | --- | --- | --- |
-| `jobs` | Run = `MLRun` | `backend` / `roles[]` / `scheduling{poolName,unitName,quota}` / `runPolicy` / 制品引用 | `compute.ListMLRuns(labelSelector=axisml.io/job=<job>)` |
-| `experiments` | Run = `MLRun`（打 `axisml.io/experiment`） | 同 `jobs`；训练超参即 `roles[*].template.{args,env}`，指标经 TensorBoard（§4.9–§4.10） | `compute.ListMLRuns(labelSelector=axisml.io/experiment=<exp>)` |
+| `jobs` | Run = `MLRun` | `backend` / `roles[]` / `scheduling{poolName,unitName,quota}` / `runPolicy` / 制品引用 | `compute.ListMLRuns(labelSelector=compute.axisml.io/job=<job>)` |
+| `experiments` | Run = `MLRun`（打 `compute.axisml.io/experiment`） | 同 `jobs`；训练超参即 `roles[*].template.{args,env}`，指标经 TensorBoard（§4.9–§4.10） | `compute.ListMLRuns(labelSelector=compute.axisml.io/experiment=<exp>)` |
 | `models` | `model` 版本（artifacts） | name 级业务元数据（`framework` 等） | `artifacts.ListArtifactsByKind(ns, model, name)` |
 | `images` | `image` 版本（artifacts） | name 级业务元数据（`purpose` 等） | `artifacts.ListArtifactsByKind(ns, image, name)` |
 
@@ -114,7 +114,7 @@ Platform 自有实体三类：**租户持久记录**、**身份 / 授权 / 会�
 | --- | --- |
 | 创建 / 编辑 Job | 通则"写定义"；编辑只影响**之后**触发的 Run（已有 Run 已快照） |
 | 删除 Job | 通则"删除定义"；有活跃 Run → `409 job-has-active-runs` |
-| 触发运行 | 通则"触发实例" → 推导序号 `n` → 命名 `<job>-<n>` + 打 `axisml.io/job` label → `compute.CreateMLRun`；撞名（`409`）重列重算 `n` 重试（有界） |
+| 触发运行 | 通则"触发实例" → 推导序号 `n` → 命名 `<job>-<n>` + 打 `compute.axisml.io/job` label → `compute.CreateMLRun`；撞名（`409`）重列重算 `n` 重试（有界） |
 | Run 列表 / 取消 / 删除 / 副本 / 事件 / 日志 | 路由 `RequireActiveTenantRole(user)` + service 层 `guard.OwnerOrTenantAdmin`（owner 取自 Job 定义行） → 透传 `compute.{ListMLRuns(labelSelector),CancelMLRun,DeleteMLRun,GetMLRun{Pods,Events,Logs}}`（日志 / 事件 SSE follow） |
 
 **触发期 override 白名单**：镜像 / 模型**版本**、`roles[*].template.resources`、`scheduling{poolName,unitName,quota}`、超参（`args` / `env`）。**禁止** override `backend.{name,engine}` 与 role 拓扑（增删 role / 改 replicas 结构）——只能改模板后重新触发。
@@ -174,7 +174,7 @@ Platform 不为工作区建任何 PG 表；"这是工作区"由 compute `mlservi
 | 用户操作 | 内部步骤 / 下游调用 |
 | --- | --- |
 | 资源池 / 单元 CRUD | RBAC `system-admin`；`PATCH` 拦截 `name` 不可变 → `clustermanager.{Create,Update,Delete}{ResourcePool,ResourceUnit}`（unit 内部 patch `spec.units[]`） |
-| 删除前置 | 枚举可见 tenant scope，分别调用现有 MLRun / MLService list API，并用 `labelSelector=axisml.io/resource-{pool,unit}=<name>` 过滤活跃对象；命中则 `409 {pool,unit}-in-use`，否则允许删除 |
+| 删除前置 | 枚举可见 tenant scope，分别调用现有 MLRun / MLService list API，并用 `labelSelector=resource.axisml.io/{pool,unit}=<name>` 过滤活跃对象；命中则 `409 {pool,unit}-in-use`，否则允许删除 |
 | 列表 | 已登录可读、`system-admin` 写 → `clustermanager.ListResourcePools`（单次返 pool + 内嵌 units） |
 
 Platform 不为池 / 单元建表；Node label / taint 由管理员 `kubectl` 维护，UI 不下发；池 / 单元为全集群对象，不按租户过滤。
@@ -199,9 +199,9 @@ Dashboard 的聚合模型与接口暂不在本版系统设计中定义，待后�
 
 ### 4.9 实验编排
 
-下游：compute（+ artifacts 预检）。实验是训练特化模板（`experiments` 表，`spec` 与 `jobs` 同构）；每次运行产生一个 Run（`MLRun`，打 `axisml.io/experiment` label），复用计算任务现有后端（`(native,job)` / `(kubeflow-trainer,*)`），**无需新 handler**。训练超参即 `args/env`，Platform **不单独建模 / 不展示超参**；训练指标不入 PG——Run 容器把 TensorBoard event log 写到 compute 注入的对象存储位置（路径与凭证由 compute 渲染 Pod 时注入，Platform 不碰对象存储），经 §4.10 TensorBoard 查看。
+下游：compute（+ artifacts 预检）。实验是训练特化模板（`experiments` 表，`spec` 与 `jobs` 同构）；每次运行产生一个 Run（`MLRun`，打 `compute.axisml.io/experiment` label），复用计算任务现有后端（`(native,job)` / `(kubeflow-trainer,*)`），**无需新 handler**。训练超参即 `args/env`，Platform **不单独建模 / 不展示超参**；训练指标不入 PG——Run 容器把 TensorBoard event log 写到 compute 注入的对象存储位置（路径与凭证由 compute 渲染 Pod 时注入，Platform 不碰对象存储），经 §4.10 TensorBoard 查看。
 
-编排与 §4.2 同构（路由 `RequireActiveTenantRole(user)` + service 层 `guard.OwnerOrTenantAdmin`，owner 取自实验定义行）：写 / 编辑 / 删除定义、触发运行（命名 `<exp>-<n>` + `axisml.io/experiment` label）、Run 列表 / 取消 / 删除 / 日志均按 §4.2；override 白名单同 §4.2。额外两项：
+编排与 §4.2 同构（路由 `RequireActiveTenantRole(user)` + service 层 `guard.OwnerOrTenantAdmin`，owner 取自实验定义行）：写 / 编辑 / 删除定义、触发运行（命名 `<exp>-<n>` + `compute.axisml.io/experiment` label）、Run 列表 / 取消 / 删除 / 日志均按 §4.2；override 白名单同 §4.2。额外两项：
 
 - **对比** — 选定 Run 集合 → 拉起 / 复用 TensorBoard（§4.10）；指标与超参对比全在 TensorBoard（HParams / Scalars），Platform 不自建对比视图。
 - **登记模型** — `compute.GetMLRun` 取 checkpoint 产出位置 → 走 §4.5 制品登记流程。
@@ -217,7 +217,7 @@ Dashboard 的聚合模型与接口暂不在本版系统设计中定义，待后�
 | 启动 | 路由 `RequireActiveTenantRole(user)` + service 层 `guard.OwnerOrTenantAdmin`（owner 取自实验定义行） → 解析目标 → 幂等（已存活则复用）→ `compute.CreateMLService(kind=tensorboard, route.enabled=false)`；SecurityPolicy 交付后再开放外部 route |
 | 打开 / 停止 | 返回 route endpoint / 手动停或空闲 TTL 自动回收（`compute.{Get,Delete}MLService`） |
 
-- 临时、只读、可空闲回收；不产出制品；Pod 仍走 koord-scheduler 与租户配额。
+- 临时、只读、可空闲回收；不产出制品；Pod 仍走 axisml-scheduler 与租户配额。
 - 启动 / 打开 / 停止均限 `owner` 或 `tenant-admin`（会拉起占配额的 workload）。
 - 数据面访问目标方案复用工作区 access JWT；当前 SecurityPolicy 未交付，外部访问不开放；`kind` 创建后不可变。
 

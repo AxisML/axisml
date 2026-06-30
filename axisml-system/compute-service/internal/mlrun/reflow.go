@@ -94,7 +94,7 @@ func jobIDFromLabels(cr *mlrunv1alpha1.MLRun) (uuid.UUID, error) {
 	return uuid.Nil, errMissingID
 }
 
-var errMissingID = sentinel("missing axisml.io/run-id label")
+var errMissingID = sentinel("missing compute.axisml.io/run-id label")
 
 type sentinel string
 

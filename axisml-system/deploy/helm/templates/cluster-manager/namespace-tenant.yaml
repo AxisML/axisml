@@ -6,6 +6,6 @@ metadata:
   annotations:
     helm.sh/resource-policy: keep
   labels:
-    axisml.io/managed-by: tenant-operator
+    tenant.axisml.io/managed-by: tenant-operator
     app.kubernetes.io/part-of: axisml
 {{- end }}

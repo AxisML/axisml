@@ -265,7 +265,7 @@ func registerExamples(g *openapigen.Generator) {
 		"namespace": "team-vision",
 		"phase":     "Running",
 		"nodeName":  "gpu-node-a100-03",
-		"labels":    obj{"axisml.io/run-id": "b7d9e3f1-1a2b-3c4d-5e6f-708192a3b4c5", "axisml.io/role": "worker"},
+		"labels":    obj{"compute.axisml.io/run-id": "b7d9e3f1-1a2b-3c4d-5e6f-708192a3b4c5", "compute.axisml.io/role": "worker"},
 	}
 	g.SetExample("Pod", pod)
 	event := obj{
@@ -273,7 +273,7 @@ func registerExamples(g *openapigen.Generator) {
 		"note":                "Successfully assigned team-vision/resnet-train-7-worker-0 to gpu-node-a100-03",
 		"type":                "Normal",
 		"object":              "Pod/resnet-train-7-worker-0",
-		"reportingController": "koord-scheduler",
+		"reportingController": "axisml-scheduler",
 		"eventTime":           exStartedAt,
 	}
 	g.SetExample("Event", event)

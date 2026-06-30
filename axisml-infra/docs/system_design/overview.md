@@ -8,7 +8,7 @@ Infra 层是平台的基础设施底座，为工作负载与控制面服务提�
 | 存储（对象存储 / OCI Registry / 数据库） | RustFS · zot · PostgreSQL | [§4](#4-存储) |
 | 缓存 | Redis | [§4.4](#44-缓存) |
 | 加速器管理 | NVIDIA GPU Operator | [§5](#5-加速器管理) |
-| 调度与配额 | Koordinator | [§6](#6-调度与配额) |
+| 调度与配额 | axisml-scheduler（自研，基于 scheduler-plugins） | [§6](#6-调度与配额) |
 | 监控 | kube-prometheus-stack | [§7](#7-监控) |
 
 ## 1. 功能职责与边界
@@ -20,11 +20,11 @@ Infra 层是平台的基础设施底座，为工作负载与控制面服务提�
 | OCI Registry（zot） | 提供 OCI Distribution v2；admin 凭证由调用方持有并签 scope-limited bearer token | 不内置租户；repo 路径命名由调用方决定 |
 | 数据库（PostgreSQL） | 提供单一 database，调用方按表前缀逻辑隔离 | 不做应用层 SQL 迁移（由调用方自管） |
 | 缓存（Redis） | 提供单一 key/value 缓存实例，调用方按 key 前缀逻辑隔离 | 不承载业务真相（仅缓存可重建数据，宕机即回退源库） |
-| 加速器管理（GPU Operator） | 提供 `nvidia.com/gpu` extended resource、节点标签、DCGM Exporter | 不做调度决策（调度由 koord-scheduler 完成） |
-| 调度与配额（Koordinator） | 提供 `koord-scheduler`、`ElasticQuota` / `PodGroup` CRD | 不持有 ElasticQuota / PodGroup CR 写权限（由各 CR owner 派生） |
+| 加速器管理（GPU Operator） | 提供 `nvidia.com/gpu` extended resource、节点标签、DCGM Exporter | 不做调度决策（调度由 axisml-scheduler 完成） |
+| 调度与配额（axisml-scheduler） | 提供 `axisml-scheduler`、`ElasticQuota` / `PodGroup` CRD（上游 scheduler-plugins 词汇表） | 不持有 ElasticQuota / PodGroup CR spec 写权限（由各 CR owner 派生；本组件只写其 status） |
 | 监控（kube-prometheus-stack） | 提供 Prometheus / Grafana / AlertManager；自动发现 ServiceMonitor / PodMonitor | 不主动埋点（各组件自行暴露 `/metrics`） |
 
-**面向接入工作负载的硬不变式**：任何接入本基础设施的工作负载 Pod 必须设 `schedulerName: koord-scheduler` 并携带 label `quota.scheduling.koordinator.sh/name=<elastic-quota-name>`，否则视为绕过配额的 bug（详见 [§6 调度与配额](#6-调度与配额)）。
+**面向接入工作负载的硬不变式**：任何接入本基础设施的工作负载 Pod 必须设 `schedulerName: axisml-scheduler` 并携带 label `scheduling.axisml.io/quota=<elastic-quota-name>`，否则视为绕过配额的 bug（详见 [§6 调度与配额](#6-调度与配额)）。
 
 ## 2. 调用关系
 
@@ -33,7 +33,7 @@ Infra 层是平台的基础设施底座，为工作负载与控制面服务提�
 - 外部流量 → **服务网关**（按 HTTPRoute 转发到 ClusterIP Service）。
 - 接入服务 → **数据库**（元数据读写）；接入服务 / 终端 cli → **对象存储**（S3）/ **OCI Registry**（OCI Distribution v2）。
 - 接入服务 → **缓存**（可选加速热点读；缓存不可达时回退源库，故为可选依赖）。
-- 任何接入工作负载 Pod → **调度与配额**（`schedulerName: koord-scheduler` + label `quota.scheduling.koordinator.sh/name` 消费 ElasticQuota）；申请 `nvidia.com/gpu` → **加速器管理** 完成设备分配。
+- 任何接入工作负载 Pod → **调度与配额**（`schedulerName: axisml-scheduler` + label `scheduling.axisml.io/quota` 消费 ElasticQuota）；申请 `nvidia.com/gpu` → **加速器管理** 完成设备分配。
 - 已配置采集对象（DCGM Exporter + AxisML ServiceMonitor / PodMonitor）→ **监控**（Prometheus Operator 自动发现）。
 
 ## 3. 服务网关
@@ -152,30 +152,30 @@ Infra 层提供 zot endpoint（ConfigMap）、admin 凭证（平台级 Secret）
 
 ## 6. 调度与配额
 
-平台需要一个统一调度器同时满足多租户配额与分布式训练，要求：**多租户弹性配额**（namespace 级 `min`/`max`，空闲容量可被借用、争用时按 `min` 回收，超 `max` 拒绝调度）；**Gang Scheduling**（分布式训练的全部 Pod 要么同时调度、要么都不调度，避免资源死锁）；**与默认调度器共存**（只接管 AxisML 工作负载，控制面 / 基础设施 Pod 仍走 kube-scheduler，零副作用）；**不锁定私有扩展**（配额 CR 字段尽量与上游 scheduler-plugins 对齐，降低切换成本）。
+平台需要一个统一调度器同时满足多租户配额与分布式训练，要求：**多租户弹性配额**（namespace 级 `min`/`max`，空闲容量可被借用、争用时按 `min` 回收，超 `max` 拒绝调度，且**一个 namespace 可挂多个配额**）；**Gang Scheduling**（分布式训练的全部 Pod 要么同时调度、要么都不调度，避免资源死锁）；**Binpack**（优先填满已用节点，减少加速器碎片）；**与默认调度器共存**（只接管 AxisML 工作负载，控制面 / 基础设施 Pod 仍走 kube-scheduler，零副作用）；**不锁定私有扩展**（配额 CR 字段与上游 scheduler-plugins 对齐，降低切换成本）。
 
-**技术选型**：**[Koordinator](https://koordinator.sh/)**。其 `ElasticQuota`（sigs.k8s.io scheduler-plugins）提供 namespace-scoped `min`/`max` 满足弹性配额，`PodGroup` 提供 Gang Scheduling，二者由统一 koord-scheduler 承载；按 `schedulerName` 与 kube-scheduler 共存；不引入 Koordinator 私有 annotation，CR 字段与上游 scheduler-plugins ElasticQuota 一一对应，避免锁定。
+**技术选型**：**自研 `axisml-scheduler`**，基于 Kubernetes scheduler-framework 编译，复用上游 [scheduler-plugins](https://github.com/kubernetes-sigs/scheduler-plugins)：Gang 由其 `Coscheduling` plugin 原样提供，Binpack 由 in-tree `NodeResourcesFit`（`MostAllocated` 评分）纯配置提供；仅 ElasticQuota 因平台需要「一个 namespace 多个配额」（上游按 namespace 关联，一 namespace 一配额，不满足）而自研一个薄 plugin——把「Pod → Quota」关联从 namespace 改为 label。CR 词汇表全用上游 `scheduling.x-k8s.io/v1alpha1` 的 `ElasticQuota` / `PodGroup`，不引私有 annotation，避免锁定。详见 [axisml-scheduler.md](axisml-scheduler.md)。
 
 **组件构成**：
 
 | 组件 | 职责 | 启用 |
 | --- | --- | --- |
-| koord-scheduler | 自定义调度器，承载 Gang Scheduling 与 ElasticQuota plugin | 启用 |
-| koord-manager | 控制器集合，管理 ElasticQuota / PodGroup 等 CR 状态聚合 | 启用 |
-| koord-descheduler / koordlet | Pod 重平衡 / 节点侧 QoS agent | 启用（随 Koordinator chart 部署） |
+| axisml-scheduler | scheduler-framework 二进制，注册 Coscheduling + NodeResourcesFit + 自研 ElasticScheduling plugin | 启用 |
+| axisml-scheduler-controller | 维护 `PodGroup.status` 与 `ElasticQuota.status.used`（按 quota label 聚合用量供调用方回读） | 启用 |
 
 **核心能力**：
 
-- **Gang Scheduling**：通过 `PodGroup`（`scheduling.sigs.k8s.io/v1alpha1`）表达，同一 PodGroup 全部 Pod 要么同时调度、要么都不调度。
-- **ElasticQuota**：`ElasticQuota`（namespace-scoped）承载 `min`/`max`，Pod 经 label `quota.scheduling.koordinator.sh/name=<eq-name>` 关联；借用容量按 koord-scheduler 默认平权处理。
-- **Preemption / Reclaim**：已分配但低于其他 ElasticQuota `min` 的资源可被回收；高于 `max` 的请求一律拒绝调度。**Backfill**：空闲资源回填。
+- **Gang Scheduling**：通过 `PodGroup`（`scheduling.x-k8s.io/v1alpha1`）表达，同一 PodGroup 全部 Pod 要么同时调度、要么都不调度；由上游 Coscheduling plugin 承载。
+- **Binpack**：`NodeResourcesFit` 以 `MostAllocated` 评分优先填满已用节点，加速器资源加权。
+- **ElasticQuota**：`ElasticQuota`（namespace-scoped）承载 `min`/`max`，Pod 经 label `scheduling.axisml.io/quota=<eq-name>` 关联到同 namespace 下的具体配额；自研 ElasticScheduling plugin 按该 label（而非 namespace）汇总用量。
+- **`max` 强制（已实现）**：超 `max` 的请求一律拒绝调度;缺 quota label 或配额不存在的 Pod 不放行(fail-closed)。**基于 `min` 的借用 / 回收 / 抢占 / Backfill** 为规划能力,详见 [axisml-scheduler.md](axisml-scheduler.md)。
 
 **协作契约（不点名调用方）**：
 
-- **Quota 全覆盖（系统级硬不变式）**：任何接入工作负载 Pod 必须设 `schedulerName: koord-scheduler` + `quota.scheduling.koordinator.sh/name` label，不允许绕过 quota 的调度路径。第三方 controller（如 KServe）派生 Pod 时必须透传这两字段，不支持透传的 controller 不应接入。
-- **Gang scheduling 仅按需启用**：分布式训练等全员就位的工作负载创建 PodGroup；常驻服务 / 单 Pod 任务不创建 PodGroup，但仍走 koord-scheduler 并经 quota label 计入 ElasticQuota。
-- **ElasticQuota / PodGroup CR 由调用方独占 owner**：`min`/`max`、命名、补偿、RBAC 全归调用方；本功能不预置任何 ElasticQuota CR、不持有其 mutation 权限。
-- **与 kube-scheduler 共存**：`koord-scheduler` 仅接管设了 `schedulerName: koord-scheduler` 的 Pod；Infra 自身 Pod 不设此字段，走默认 kube-scheduler、不消耗 ElasticQuota。
+- **Quota 全覆盖（系统级硬不变式）**：任何接入工作负载 Pod 必须设 `schedulerName: axisml-scheduler` + `scheduling.axisml.io/quota` label，不允许绕过 quota 的调度路径。第三方 controller（如 KServe）派生 Pod 时必须透传这两字段，不支持透传的 controller 不应接入。
+- **Gang scheduling 仅按需启用**：分布式训练等全员就位的工作负载创建 PodGroup；常驻服务 / 单 Pod 任务不创建 PodGroup，但仍走 axisml-scheduler 并经 quota label 计入 ElasticQuota。
+- **ElasticQuota / PodGroup CR 由调用方独占 owner**：`min`/`max`、`minMember`、命名、补偿、RBAC 全归调用方；本功能不预置任何此类 CR、不持有其 spec mutation 权限（只写 `status`）。
+- **与 kube-scheduler 共存**：`axisml-scheduler` 仅接管设了 `schedulerName: axisml-scheduler` 的 Pod；Infra 自身 Pod 不设此字段，走默认 kube-scheduler、不消耗 ElasticQuota。
 
 ## 7. 监控
 
@@ -192,7 +192,7 @@ Infra 层提供 zot endpoint（ConfigMap）、admin 凭证（平台级 Secret）
 | 集群层 | kube-state-metrics、node-exporter | 节点 CPU/内存/磁盘、Pod 状态 |
 | GPU 层 | DCGM Exporter（来自 GPU Operator） | GPU 利用率、显存、温度、功耗 |
 | 网关层 | Envoy Gateway | 请求量、延迟分位、错误率 |
-| 调度层 | koord-scheduler / koord-manager | ElasticQuota 用量与借用、PodGroup 调度状态、调度延迟 |
+| 调度层 | axisml-scheduler / axisml-scheduler-controller | ElasticQuota 用量与借用、PodGroup 调度状态、调度延迟 |
 | 业务层 | 接入服务 | 各服务自行暴露 `axisml_*` / `platform_*` 指标 |
 
 **告警**：当前**不预置** AlertManager 告警规则——AlertManager 随栈部署但无业务规则，调用方按需自定义。参考方向：节点 NotReady、GPU 异常（DCGM 上报错误率高）、PVC 容量、配额耗尽（ElasticQuota `min` 持续不可满足）、调度滞后（PodGroup gang 长时间 Pending）、API 5xx 比例超阈值。

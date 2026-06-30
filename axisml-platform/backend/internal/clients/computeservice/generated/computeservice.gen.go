@@ -704,7 +704,7 @@ type MLRunCreateRequest struct {
 	// PriorityClass Optional Kubernetes PriorityClass name for the run's pods.
 	PriorityClass *string `json:"priorityClass,omitempty"`
 
-	// Quota ElasticQuota CR name (opaque) stamped onto Pod labels for koord-scheduler admission.
+	// Quota ElasticQuota CR name (opaque) stamped onto Pod labels for axisml-scheduler admission.
 	Quota string `json:"quota"`
 
 	// Roles Run topology roles (at least one).
@@ -906,7 +906,7 @@ type MLServiceCreateRequest struct {
 	// PriorityClass Optional Kubernetes PriorityClass name for the service's pods.
 	PriorityClass *string `json:"priorityClass,omitempty"`
 
-	// Quota ElasticQuota CR name (opaque) stamped onto Pod labels for koord-scheduler admission.
+	// Quota ElasticQuota CR name (opaque) stamped onto Pod labels for axisml-scheduler admission.
 	Quota string `json:"quota"`
 
 	// Roles Service topology roles (at least one).

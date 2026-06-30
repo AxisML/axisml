@@ -30,7 +30,7 @@
 
 ---
 
-**AxisML** is a Kubernetes-native ML platform that manages the entire model lifecycle — development, distributed training, artifact management, online inference, and operations — behind one coherent control plane. It pairs a clean tenant/quota model with [Koordinator](https://koordinator.sh) elastic scheduling so teams share GPU capacity without stepping on each other, and routes every workload — native Jobs, Kubeflow trainers, KServe inference — through a single quota-enforced scheduling path.
+**AxisML** is a Kubernetes-native ML platform that manages the entire model lifecycle — development, distributed training, artifact management, online inference, and operations — behind one coherent control plane. It pairs a clean tenant/quota model with a self-built elastic scheduler (`axisml-scheduler`, built on [scheduler-plugins](https://github.com/kubernetes-sigs/scheduler-plugins)) so teams share GPU capacity without stepping on each other, and routes every workload — native Jobs, Kubeflow trainers, KServe inference — through a single quota-enforced scheduling path.
 
 <p align="center">
   <img src="docs/screenshots/en/dashboard.png" alt="AxisML console" width="860">
@@ -43,7 +43,7 @@
 
 ## Why AxisML
 
-- **🏢 Multi-tenancy that's actually enforced.** Every tenant maps to an isolated Namespace with a Koordinator `ElasticQuota`. There is *no* scheduling path that bypasses quota — every workload Pod is pinned to `koord-scheduler` by construction.
+- **🏢 Multi-tenancy that's actually enforced.** Every tenant maps to an isolated Namespace with a `ElasticQuota`. There is *no* scheduling path that bypasses quota — every workload Pod is pinned to `axisml-scheduler` by construction.
 - **⚡ Elastic GPU sharing.** ElasticQuota lets idle capacity flow to whoever needs it, then reclaims it under contention — high utilization without static partitioning.
 - **🧩 Pluggable training & serving backends.** One `MLRun`/`MLService` API dispatches to `native` (Job / Deployment / StatefulSet + gang-scheduled `PodGroup`), `kubeflow-trainer` (PyTorchJob / TFJob / MPIJob), `kserve` (`InferenceService`), or a `custom` GVK — without changing the user-facing contract.
 - **📦 First-class artifacts.** Models, datasets, images, and eval reports addressed by `(namespace, kind, name, version)`, backed by OCI (zot) and S3 (RustFS). Clients stream bytes directly from storage — the registry never proxies large blobs.
@@ -64,7 +64,7 @@ AxisML splits into three deployable layers, each shipped as its own Helm chart a
 - **`namespace` *is* the tenant identifier** across compute-service and artifact-hub — no separate tenant lookup at the edge.
 - **PostgreSQL is authoritative, CRs are derived.** compute-service owns the `tenants` table and continuously reconciles the cluster-scoped `Tenant` CR from it; operators read `spec` and write only `status`.
 - **Operators don't know about each other.** tenant-operator never reads `MLRun`/`MLService`; compute-operator never reads `Tenant`/`ElasticQuota` (it only passes the quota name through).
-- **No quota bypass.** Every backend-derived Pod sets `schedulerName: koord-scheduler` and carries the `quota.scheduling.koordinator.sh/name` label — there is no scheduling path around ElasticQuota.
+- **No quota bypass.** Every backend-derived Pod sets `schedulerName: axisml-scheduler` and carries the `scheduling.axisml.io/quota` label — there is no scheduling path around ElasticQuota.
 - **Only Platform is exposed.** System services accept internal calls and trust the `X-Axisml-User` identity header.
 
 See the [High-Level Design](docs/high_level_design.md) for the full picture, and each layer's README — [Platform](axisml-platform/) · [System](axisml-system/) · [Infra](axisml-infra/) — for the details.
@@ -103,11 +103,11 @@ AxisML is a monorepo of independent Go modules grouped into the three layers. Ea
 | **[platform](axisml-platform/)** | Platform | Go BFF + React frontend. The only externally exposed entry point; holds the user → tenant-view mapping and orchestrates the system services. _(backend is currently a contract-only shell generating `axisml-platform/docs/apis/platform.yaml`; frontend scaffolded)_ |
 | **[cluster-manager](axisml-system/cluster-manager/)** | System | Stateless REST shell over the cluster-scoped `ResourcePool` CRD (with inline `spec.units[]`). No PG, no reconciler — Kubernetes etcd is the source of truth. |
 | **[compute-service](axisml-system/compute-service/)** | System | REST service and business authority for **Tenant / Quota / Job / Service / Workspace**, with PG as the sole source of truth. Emits `Tenant` / `MLRun` / `MLService` CRs and reads back status. |
-| **[tenant-operator](axisml-system/tenant-operator/)** | System | Reconciles the `Tenant` CR into a Namespace, Koordinator `ElasticQuota`, and per-tenant Secret / ConfigMap / ServiceAccount / RBAC. |
-| **[compute-operator](axisml-system/compute-operator/)** | System | Reconciles `MLRun` / `MLService` / `MLTrafficPolicy` via a dispatcher + handler model (`native`, `kubeflow-trainer`, `kserve`, `custom`). All derived Pods route through `koord-scheduler`. |
+| **[tenant-operator](axisml-system/tenant-operator/)** | System | Reconciles the `Tenant` CR into a Namespace, `ElasticQuota`, and per-tenant Secret / ConfigMap / ServiceAccount / RBAC. |
+| **[compute-operator](axisml-system/compute-operator/)** | System | Reconciles `MLRun` / `MLService` / `MLTrafficPolicy` via a dispatcher + handler model (`native`, `kubeflow-trainer`, `kserve`, `custom`). All derived Pods route through `axisml-scheduler`. |
 | **[artifact-hub](axisml-system/artifact-hub/)** | System | Registry for models, datasets, images, and eval reports, addressed by `(namespace, kind, name, version)`. PG holds metadata; bytes live in zot (OCI) and RustFS (S3). |
 
-**Infrastructure** ([`axisml-infra`](axisml-infra/) chart): Envoy Gateway, RustFS, zot, Koordinator, NVIDIA GPU Operator, kube-prometheus-stack, and PostgreSQL. See the [infra design](axisml-infra/docs/system_design/overview.md).
+**Infrastructure** ([`axisml-infra`](axisml-infra/) chart): Envoy Gateway, RustFS, zot, axisml-scheduler, NVIDIA GPU Operator, kube-prometheus-stack, and PostgreSQL. See the [infra design](axisml-infra/docs/system_design/overview.md).
 
 ## Development
 
@@ -125,7 +125,7 @@ Things that bite if you don't know them:
 - **Each component is its own Go module** with a sibling `test/integration/` submodule — `go test ./...` from the root won't traverse everything; use the `make` targets (or `make -C <layer> ...` for per-layer work).
 - **OpenAPI specs are generated, not hand-written.** After changing a handler signature or DTO in `cluster-manager` / `compute-service` / `artifact-hub` / `platform/backend`, run `make doc-gen` before committing. The pre-commit hook does *not* watch Platform backend DTOs — run `make -C axisml-platform doc-gen` yourself there.
 - **Conventional Commits, scoped to a layer** — `feat(infra|system|platform|lite)` plus the cross-cutting `build` / `repo` / `deps`; enforced by commitlint on commits and PR titles.
-- **External CRDs** the operators import (Koordinator's `ElasticQuota`, scheduler-plugins' `PodGroup`, …) are vendored under `axisml-system/test/crds/external/`.
+- **External CRDs** the operators import (scheduler-plugins' `ElasticQuota`, scheduler-plugins' `PodGroup`, …) are vendored under `axisml-system/test/crds/external/`.
 
 Architecture notes and gotchas live in [CLAUDE.md](CLAUDE.md); contributor conventions in [AGENTS.md](AGENTS.md) and [CONTRIBUTING.md](CONTRIBUTING.md).
 

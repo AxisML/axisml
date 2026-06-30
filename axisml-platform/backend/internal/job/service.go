@@ -1,5 +1,5 @@
 // Package job implements the Jobs tag: name-level Job definitions (Platform PG)
-// and their Runs (compute MLRuns) associated live by the axisml.io/job label
+// and their Runs (compute MLRuns) associated live by the compute.axisml.io/job label
 // (backend.md §4.2). Run orchestration is shared with Experiments via rundef.
 package job
 

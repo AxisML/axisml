@@ -67,11 +67,6 @@ require (
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
-// k8s.io/kube-openapi v0.30.0 (the version k8s.io/apimachinery v0.36.0 pins
-// transitively) is not published on the module proxy; pin to a real
-// pseudo-version so `go mod tidy` can resolve the import graph.
-replace k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912
-
 replace github.com/axisml/axisml/axisml-system/compute-operator => ../..
 
 replace github.com/axisml/axisml/test/testutil => ../../../test/testutil

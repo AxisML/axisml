@@ -27,7 +27,7 @@ rules:
     resources: ["jobs"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   # (native, podgroup) handler — PodGroup CR.
-  - apiGroups: ["scheduling.sigs.k8s.io"]
+  - apiGroups: ["scheduling.x-k8s.io"]
     resources: ["podgroups"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   {{- end }}

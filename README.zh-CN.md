@@ -30,7 +30,7 @@
 
 ---
 
-**AxisML** 是一个 Kubernetes 原生的机器学习平台，在统一、一致的控制平面下管理模型的完整生命周期 —— 开发、分布式训练、制品管理、在线推理与运维。它将简洁的租户/配额模型与 [Koordinator](https://koordinator.sh) 弹性调度相结合，让团队在共享 GPU 资源的同时互不干扰；并把所有工作负载 —— 原生 Job、Kubeflow 训练器、KServe 推理 —— 统一汇入一条受配额约束的调度路径。
+**AxisML** 是一个 Kubernetes 原生的机器学习平台，在统一、一致的控制平面下管理模型的完整生命周期 —— 开发、分布式训练、制品管理、在线推理与运维。它将简洁的租户/配额模型与自研弹性调度器（`axisml-scheduler`，基于 [scheduler-plugins](https://github.com/kubernetes-sigs/scheduler-plugins)）相结合，让团队在共享 GPU 资源的同时互不干扰；并把所有工作负载 —— 原生 Job、Kubeflow 训练器、KServe 推理 —— 统一汇入一条受配额约束的调度路径。
 
 <p align="center">
   <img src="docs/screenshots/zh-CN/dashboard.png" alt="AxisML 控制台" width="860">
@@ -43,7 +43,7 @@
 
 ## 为什么选择 AxisML
 
-- **🏢 真正落地的多租户隔离。** 每个租户对应一个隔离的 Namespace 与一个 Koordinator `ElasticQuota`。*不存在*绕过配额的调度路径 —— 每个工作负载 Pod 在构造上都被固定到 `koord-scheduler`。
+- **🏢 真正落地的多租户隔离。** 每个租户对应一个隔离的 Namespace 与一个 `ElasticQuota`。*不存在*绕过配额的调度路径 —— 每个工作负载 Pod 在构造上都被固定到 `axisml-scheduler`。
 - **⚡ 弹性 GPU 共享。** ElasticQuota 让空闲算力流向需要它的人，并在资源争用时回收 —— 在不做静态切分的前提下实现高利用率。
 - **🧩 可插拔的训练与推理后端。** 同一套 `MLRun`/`MLService` API 可分发到 `native`（Job / Deployment / StatefulSet + gang 调度的 `PodGroup`）、`kubeflow-trainer`（PyTorchJob / TFJob / MPIJob）、`kserve`（`InferenceService`）或 `custom`（自定义 GVK）—— 而无需改动面向用户的契约。
 - **📦 一等公民的制品管理。** 模型、数据集、镜像与评估报告以 `(namespace, kind, name, version)` 寻址，底层由 OCI（zot）与 S3（RustFS）支撑。客户端直接从存储流式读写字节 —— 注册中心从不代理大块二进制数据。
@@ -64,7 +64,7 @@ AxisML 拆分为三个可部署的分层，各自作为独立的 Helm chart 发�
 - **`namespace` 即租户标识**，贯穿 compute-service 与 artifact-hub —— 边缘处无需额外的租户查找。
 - **PostgreSQL 是权威来源，CR 是派生产物。** compute-service 拥有 `tenants` 表，并据此持续协调集群级的 `Tenant` CR；算子读取 `spec`，只写 `status`。
 - **算子之间互不感知。** tenant-operator 从不读取 `MLRun`/`MLService`；compute-operator 从不读取 `Tenant`/`ElasticQuota`（它只是透传配额名称）。
-- **无配额旁路。** 每个由后端派生的 Pod 都设置 `schedulerName: koord-scheduler` 并携带 `quota.scheduling.koordinator.sh/name` 标签 —— 不存在绕过 ElasticQuota 的调度路径。
+- **无配额旁路。** 每个由后端派生的 Pod 都设置 `schedulerName: axisml-scheduler` 并携带 `scheduling.axisml.io/quota` 标签 —— 不存在绕过 ElasticQuota 的调度路径。
 - **只有 Platform 对外暴露。** System 服务只接受内部调用，并信任 `X-Axisml-User` 身份头。
 
 完整图景见[高层设计](docs/high_level_design.md)，各层细节见对应 README —— [Platform](axisml-platform/) · [System](axisml-system/) · [Infra](axisml-infra/)。
@@ -103,11 +103,11 @@ AxisML 是由多个独立 Go 模块组成的 monorepo，按三层分组。每一
 | **[platform](axisml-platform/)** | Platform | Go BFF + React 前端。唯一对外暴露的入口；持有 用户 → 租户视图 的映射，并编排 system 层服务。_（backend 目前是仅生成契约的壳，产出 `axisml-platform/docs/apis/platform.yaml`；前端已搭好脚手架）_ |
 | **[cluster-manager](axisml-system/cluster-manager/)** | System | 在集群级 `ResourcePool` CRD（含内联 `spec.units[]`）之上的无状态 REST 壳。无 PG、无 reconciler —— Kubernetes etcd 是事实来源。 |
 | **[compute-service](axisml-system/compute-service/)** | System | **Tenant / Quota / Job / Service / Workspace** 的 REST 服务与业务权威，以 PG 为唯一事实来源。派生出 `Tenant` / `MLRun` / `MLService` CR 并回读其状态。 |
-| **[tenant-operator](axisml-system/tenant-operator/)** | System | 将 `Tenant` CR 协调为 Namespace、Koordinator `ElasticQuota`，以及每租户的 Secret / ConfigMap / ServiceAccount / RBAC。 |
-| **[compute-operator](axisml-system/compute-operator/)** | System | 通过 dispatcher + handler 模型协调 `MLRun` / `MLService` / `MLTrafficPolicy`（`native`、`kubeflow-trainer`、`kserve`、`custom`）。所有派生 Pod 都经由 `koord-scheduler`。 |
+| **[tenant-operator](axisml-system/tenant-operator/)** | System | 将 `Tenant` CR 协调为 Namespace、`ElasticQuota`，以及每租户的 Secret / ConfigMap / ServiceAccount / RBAC。 |
+| **[compute-operator](axisml-system/compute-operator/)** | System | 通过 dispatcher + handler 模型协调 `MLRun` / `MLService` / `MLTrafficPolicy`（`native`、`kubeflow-trainer`、`kserve`、`custom`）。所有派生 Pod 都经由 `axisml-scheduler`。 |
 | **[artifact-hub](axisml-system/artifact-hub/)** | System | 模型、数据集、镜像与评估报告的注册中心，以 `(namespace, kind, name, version)` 寻址。PG 存元数据；字节存于 zot（OCI）与 RustFS（S3）。 |
 
-**基础设施**（[`axisml-infra`](axisml-infra/) chart）：Envoy Gateway、RustFS、zot、Koordinator、NVIDIA GPU Operator、kube-prometheus-stack 以及 PostgreSQL。详见 [infra 设计](axisml-infra/docs/system_design/overview.md)。
+**基础设施**（[`axisml-infra`](axisml-infra/) chart）：Envoy Gateway、RustFS、zot、axisml-scheduler、NVIDIA GPU Operator、kube-prometheus-stack 以及 PostgreSQL。详见 [infra 设计](axisml-infra/docs/system_design/overview.md)。
 
 ## 开发
 
@@ -125,7 +125,7 @@ make coverage            # 单元 + 集成覆盖率，合并到 coverage/coverag
 - **每个组件都是独立的 Go 模块**，并带有一个同级的 `test/integration/` 子模块 —— 在根目录执行 `go test ./...` 不会遍历所有内容；请使用 `make` target（按层操作时用 `make -C <layer> ...`）。
 - **OpenAPI 规范是生成的，而非手写的。** 在 `cluster-manager` / `compute-service` / `artifact-hub` / `platform/backend` 中改动 handler 签名或 DTO 后，提交前请运行 `make doc-gen`。pre-commit 钩子*不会*监视 Platform backend 的 DTO —— 那里需要你自己运行 `make -C axisml-platform doc-gen`。
 - **Conventional Commits，按层加 scope** —— `feat(infra|system|platform|lite)` 外加跨切面的 `build` / `repo` / `deps`；由 commitlint 在提交与 PR 标题上强制执行。
-- **算子引入的外部 CRD**（Koordinator 的 `ElasticQuota`、scheduler-plugins 的 `PodGroup`……）已 vendored 到 `axisml-system/test/crds/external/`。
+- **算子引入的外部 CRD**（scheduler-plugins 的 `ElasticQuota` 与 `PodGroup`……）已 vendored 到 `axisml-system/test/crds/external/`。
 
 架构说明与坑点见 [CLAUDE.md](CLAUDE.md)；贡献者约定见 [AGENTS.md](AGENTS.md) 与 [CONTRIBUTING.md](CONTRIBUTING.md)。
 

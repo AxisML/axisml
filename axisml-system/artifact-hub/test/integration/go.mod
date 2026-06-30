@@ -139,8 +139,4 @@ replace (
 	github.com/axisml/axisml/test/testutil => ../../../test/testutil
 )
 
-// Mirror the parent module pin: koordinator v1.8.0's transitive go.mod
-// references a kube-openapi version that is not published on the module proxy.
-replace k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912
-
 replace github.com/axisml/axisml/pkg/axismlconfig => ../../../../pkg/axismlconfig

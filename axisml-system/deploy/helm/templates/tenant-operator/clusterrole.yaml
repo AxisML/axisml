@@ -30,8 +30,8 @@ rules:
     resources: ["namespaces"]
     verbs: ["create", "get", "list", "watch", "patch"]
 
-  # ElasticQuota (scheduler-plugins API group is scheduling.sigs.k8s.io).
-  - apiGroups: ["scheduling.sigs.k8s.io"]
+  # ElasticQuota (scheduler-plugins API group is scheduling.x-k8s.io).
+  - apiGroups: ["scheduling.x-k8s.io"]
     resources: ["elasticquotas"]
     verbs: ["create", "get", "list", "watch", "update", "patch", "delete"]
 

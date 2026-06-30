@@ -19,7 +19,7 @@ import (
 )
 
 // TestKubeProxy_ListMLRunPods drives GET /mlruns/{job}/pods: seed a Pod
-// carrying the axisml.io/run-id label and assert it shows up in the
+// carrying the compute.axisml.io/run-id label and assert it shows up in the
 // projected response.
 func TestKubeProxy_ListMLRunPods(t *testing.T) {
 	if testEngine == nil {
@@ -53,7 +53,7 @@ func TestKubeProxy_ListMLRunPods(t *testing.T) {
 		return c.Get(ctx, types.NamespacedName{Namespace: ns, Name: "kp-job"}, &mlrunv1alpha1.MLRun{}) == nil
 	}, 10*time.Second, 200*time.Millisecond, "MLRun CR did not appear")
 
-	// Seed a Pod carrying axisml.io/run-id.
+	// Seed a Pod carrying compute.axisml.io/run-id.
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: ns,

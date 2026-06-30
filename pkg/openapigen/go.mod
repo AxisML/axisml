@@ -28,7 +28,3 @@ require (
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.2 // indirect
 )
-
-// Mirror the operator modules' pin: koordinator v1.8.0's go.mod references a
-// kube-openapi version that is not published on the module proxy.
-replace k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912

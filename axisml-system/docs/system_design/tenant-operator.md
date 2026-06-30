@@ -2,7 +2,7 @@
 
 ## 1. 定位与边界
 
-把 [cluster-manager](cluster-manager.md) 下发的 `Tenant` CR 翻译为 K8s 侧的 Namespace、Koordinator `ElasticQuota`、租户私有的 Secret / ConfigMap / ServiceAccount + RBAC，并把执行状态回流到 `Tenant.status`。
+把 [cluster-manager](cluster-manager.md) 下发的 `Tenant` CR 翻译为 K8s 侧的 Namespace、`ElasticQuota`、租户私有的 Secret / ConfigMap / ServiceAccount + RBAC，并把执行状态回流到 `Tenant.status`。
 
 | 做 | 不做 |
 | --- | --- |
@@ -20,7 +20,7 @@
                           create/patch/GC     │
             ┌──────────────────┬──────────────┴──────────────┐
             ▼                  ▼                            ▼
-        Namespace      ElasticQuota(Koordinator)    Secret/CM/SA + Role/RB
+        Namespace      ElasticQuota    Secret/CM/SA + Role/RB
                               │ status.used 回流
                               ▼
                    Tenant.status.quotas[].used
@@ -29,7 +29,7 @@
 ```
 ┌──── tenant-operator (one Pod, leader-elected) ────┐
 │ ctrl.Manager  scheme: clientgo + axisml.tenant +  │
-│   Koordinator ElasticQuota                        │
+│   ElasticQuota                        │
 │ cache: managed-by=tenant-operator selector        │
 │ ┌ Tenant Reconciler (单一) ┐                       │
 │ │ Validate → Namespace → ElasticQuota[] →         │
@@ -46,7 +46,7 @@
 | --- | --- | --- | --- |
 | Tenant | 租户 CR，cluster-scoped | `metadata.name`（DNS-1123, ≤40） | 上游唯一写者为 cluster-manager |
 | Kubernetes Namespace | 运行租户 Pod 的物理 namespace | `spec.namespace.name` | 与 tenant scope 分离，可被多 Tenant 共享（§5.1） |
-| ElasticQuota | Koordinator 配额 CR | `axisml-<tenant>-<pool>-<quota>` | 每条 `spec.quotas[]` 1:1 渲染（`min`/`max` 由 cluster-manager 折算后写入） |
+| ElasticQuota | ElasticQuota 配额 CR | `axisml-<tenant>-<pool>-<quota>` | 每条 `spec.quotas[]` 1:1 渲染（`min`/`max` 由 cluster-manager 折算后写入） |
 | InitResource | per-tenant Secret / CM / SA + RBAC | `axisml-tenant-<tenant>-<name>` | 由 `sourceXxxRef` 复制 |
 
 Tenant CR 字段见 [tenant-crd.yaml](../../deploy/helm/crds/tenant-crd.yaml)；ElasticQuota 调度行为见 [infra.md](../../../axisml-infra/docs/system_design/overview.md)。
@@ -55,7 +55,7 @@ Tenant CR 字段见 [tenant-crd.yaml](../../deploy/helm/crds/tenant-crd.yaml)；
 
 ### 4.1 Tenant Controller
 
-承载三件事：Namespace 落地、ElasticQuota 派生、初始化资源下发。统一不变量：不引入 finalizer（级联清理依赖 ownerReference）；`Validate(spec)` 纯函数（失败 → `phase=Failed` + message）；status 单次 patch（reconcile 末尾整体写回 `conditions[]` 与 phase）；per-tenant 子资源叠加 `axisml.io/tenant-id=<uuid>` + `axisml.io/managed-by=tenant-operator` label。
+承载三件事：Namespace 落地、ElasticQuota 派生、初始化资源下发。统一不变量：不引入 finalizer（级联清理依赖 ownerReference）；`Validate(spec)` 纯函数（失败 → `phase=Failed` + message）；status 单次 patch（reconcile 末尾整体写回 `conditions[]` 与 phase）；per-tenant 子资源叠加 `tenant.axisml.io/id=<uuid>` + `tenant.axisml.io/managed-by=tenant-operator` label。
 
 | 事件 | 行为 |
 | --- | --- |
@@ -66,11 +66,11 @@ Tenant CR 字段见 [tenant-crd.yaml](../../deploy/helm/crds/tenant-crd.yaml)；
 
 #### 4.1.1 Namespace 落地
 
-命名 `spec.namespace.name`（创建后不可变），它是物理 K8s Namespace，不要求等于 Tenant `metadata.name`。不存在 → 创建，附 `spec.namespace.labels`/`annotations` + `axisml.io/managed-by`，受 denylist 约束（默认拒 `kube-*` / `default` / `axisml-system` / `axisml-infra`）；已存在 → 仅补 `managed-by` label，**不覆盖**既有 label / annotation；**不设 ownerReference**（不属任何单一 Tenant）；**永不删除**（避免误删 PV / 外部资源；空 Namespace 由管理员清理）。`status.namespaceReady` 在 Namespace `phase=Active` 时为 `true`。
+命名 `spec.namespace.name`（创建后不可变），它是物理 K8s Namespace，不要求等于 Tenant `metadata.name`。不存在 → 创建，附 `spec.namespace.labels`/`annotations` + `tenant.axisml.io/managed-by`，受 denylist 约束（默认拒 `kube-*` / `default` / `axisml-system` / `axisml-infra`）；已存在 → 仅补 `managed-by` label，**不覆盖**既有 label / annotation；**不设 ownerReference**（不属任何单一 Tenant）；**永不删除**（避免误删 PV / 外部资源；空 Namespace 由管理员清理）。`status.namespaceReady` 在 Namespace `phase=Active` 时为 `true`。
 
 #### 4.1.2 ElasticQuota 落地
 
-每个 `(tenant, pool)` 一个 Koordinator `ElasticQuota`，均落 `spec.namespace.name` 下；`min`/`max` 由 cluster-manager 据 ResourceUnit 规格折算后写入 CR，operator 直传落地。
+每个 `(tenant, pool)` 一个 `ElasticQuota`，均落 `spec.namespace.name` 下；`min`/`max` 由 cluster-manager 据 ResourceUnit 规格折算后写入 CR，operator 直传落地。
 
 | 维度 | 行为 |
 | --- | --- |
@@ -80,7 +80,7 @@ Tenant CR 字段见 [tenant-crd.yaml](../../deploy/helm/crds/tenant-crd.yaml)；
 | 漂移 | reconcile 按 `spec.quotas[i].{min,max}` 覆盖 |
 | status.used 回流 | watch ElasticQuota，把 `status.used` 写入 `Tenant.status.quotas[i].used`；不写回 ElasticQuota |
 
-**不变量**：`quotas[].pool` 唯一且创建后不可变；`min[k] ≤ max[k]` 且均 ≥ 0。Pod 经 label `quota.scheduling.koordinator.sh/name=axisml-<tenant>-<pool>` 跨 namespace 绑定其 pool 的 ElasticQuota。
+**不变量**：`quotas[].pool` 唯一且创建后不可变；`min[k] ≤ max[k]` 且均 ≥ 0。Pod 经 label `scheduling.axisml.io/quota=axisml-<tenant>-<pool>` 跨 namespace 绑定其 pool 的 ElasticQuota。
 
 #### 4.1.3 初始化资源落地
 
@@ -109,7 +109,7 @@ Tenant CR 字段见 [tenant-crd.yaml](../../deploy/helm/crds/tenant-crd.yaml)；
 | Namespace 自身 | 共享，无 ownerReference |
 | per-tenant Secret / CM / SA | 前缀 `axisml-tenant-<tenant>-<name>`，集群内唯一不冲突 |
 | ElasticQuota | 前缀 `axisml-<tenant>-<pool>`，集群内唯一 |
-| Pod 绑定 | 选定 `axisml-tenant-<tenant>-<sa>` SA → 关联本 tenant 的 imagePullSecrets / RBAC；label `quota.scheduling.koordinator.sh/name` → 关联本 tenant 的 ElasticQuota |
+| Pod 绑定 | 选定 `axisml-tenant-<tenant>-<sa>` SA → 关联本 tenant 的 imagePullSecrets / RBAC；label `scheduling.axisml.io/quota` → 关联本 tenant 的 ElasticQuota |
 | 删除 | Tenant A 删除 → 其 per-tenant 资源被 GC；Tenant B 与 Namespace 自身保留 |
 
 ### 5.2 Status 推导与 phase 计算
@@ -127,7 +127,7 @@ reconcile 末尾按下表推 phase 并一次性 patch status：
 ### 5.3 ElasticQuota status.used 回流路径
 
 ```
-Pod 调度 ─▶ koord-scheduler ─▶ ElasticQuota.status.used 累加
+Pod 调度 ─▶ axisml-scheduler ─▶ ElasticQuota.status.used 累加
                                      │ watch (SharedInformerFactory, 全集群 ElasticQuota)
                                      ▼
                             tenant-operator ─ownerReference 反查─▶ Tenant.status.quotas[i].used (patch)
@@ -159,7 +159,7 @@ Pod 调度 ─▶ koord-scheduler ─▶ ElasticQuota.status.used 累加
 | 依赖 | 用途 |
 | --- | --- |
 | Kubernetes API | Tenant CR watch、子资源 CRUD、leader Lease |
-| Koordinator ElasticQuota CRD | 渲染目标；`status.used` 回流来源（[infra.md](../../../axisml-infra/docs/system_design/overview.md)） |
+| ElasticQuota CRD | 渲染目标；`status.used` 回流来源（[infra.md](../../../axisml-infra/docs/system_design/overview.md)） |
 | cluster-manager | 上游唯一 Tenant CR 写者；status 回流消费方（GET 时直读 CR）（[cluster-manager.md](cluster-manager.md)） |
 | 受控 Namespace 中的源 Secret / ConfigMap | `sourceSecretRef` / `sourceConfigMapRef` 复制数据源 |
 
@@ -170,8 +170,8 @@ Pod 调度 ─▶ koord-scheduler ─▶ ElasticQuota.status.used 累加
 | 进程 | 单二进制 `axisml-tenant-operator`；承载 Manager + Tenant Reconciler |
 | 副本 | `replicas=1`，leader election Lease `axisml-tenant-operator.axisml.io` |
 | 暴露端口 | Metrics `:8081`、Probes `:8082`；无 API 端口，无对外服务 |
-| RBAC scope | ClusterRole：`tenants.axisml.io`（`get/list/watch/patch`）、`namespaces`（`create/get/list/watch/patch`，**无 update/delete**）、`elasticquotas.scheduling.sigs.k8s.io` RW、目标 ns `secrets/configmaps/serviceaccounts/roles/rolebindings` RW、源 ns `secrets/configmaps` RO、`events` `create/patch`；`roles` 额外授 `bind/escalate`、`clusterroles` 授 `bind`（apiserver 的 RBAC escalation 检查拒绝创建 operator 自身未持有规则的 Role，亦拒绝绑定 operator 无权 bind 的 Role/ClusterRole）；Role：自身 ns `leases` RW |
-| Cache 过滤 | 子资源用 `axisml.io/managed-by=tenant-operator` selector，避免拉全集群；Tenant CR 不过滤 |
+| RBAC scope | ClusterRole：`tenants.axisml.io`（`get/list/watch/patch`）、`namespaces`（`create/get/list/watch/patch`，**无 update/delete**）、`elasticquotas.scheduling.x-k8s.io` RW、目标 ns `secrets/configmaps/serviceaccounts/roles/rolebindings` RW、源 ns `secrets/configmaps` RO、`events` `create/patch`；`roles` 额外授 `bind/escalate`、`clusterroles` 授 `bind`（apiserver 的 RBAC escalation 检查拒绝创建 operator 自身未持有规则的 Role，亦拒绝绑定 operator 无权 bind 的 Role/ClusterRole）；Role：自身 ns `leases` RW |
+| Cache 过滤 | 子资源用 `tenant.axisml.io/managed-by=tenant-operator` selector，避免拉全集群；Tenant CR 不过滤 |
 | Helm / 镜像 | `tenantOperator.*`，见 [deployment.md](../../../docs/deployment.md) |
 
 ## 9. 相关引用

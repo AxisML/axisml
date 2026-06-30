@@ -41,11 +41,6 @@ dependencies:
     repository: "https://helm.ngc.nvidia.com/nvidia"
     condition: gpu-operator.enabled
 
-  - name: koordinator
-    version: "1.7.0"
-    repository: "https://koordinator-sh.github.io/charts"
-    condition: koordinator.enabled
-
   - name: kube-prometheus-stack
     version: "84.5.0"
     repository: "https://prometheus-community.github.io/helm-charts"

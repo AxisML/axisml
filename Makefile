@@ -21,8 +21,9 @@ export MINIKUBE_DISK    ?= 20g
 export K8S_VERSION      ?=
 export MINIKUBE_DRIVER  ?=
 
-# Layers that contain Go modules / build artifacts (infra is Helm-only).
-GO_LAYERS := axisml-system axisml-platform
+# Layers that contain Go modules / build artifacts. axisml-infra hosts the
+# first-party axisml-scheduler component; system + platform host the rest.
+GO_LAYERS := axisml-infra axisml-system axisml-platform
 
 # Component dirs that emit coverage profiles (for the merged report).
 COVERAGE_COMPONENTS := \

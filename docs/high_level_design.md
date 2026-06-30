@@ -24,8 +24,8 @@ AxisML 提供两种部署形态，共享 Platform API、`MLRun` / `MLService` / 
 | 资源配额 Quota | `Tenant.spec.quotas[]`（「资源单元 × 数量」）→ 每 pool 一个 `ElasticQuota`（`min`/`max` 由 cluster-manager 折算） | [cluster-manager #4](../axisml-system/docs/system_design/cluster-manager.md#4-核心功能) / [tenant-operator #4](../axisml-system/docs/system_design/tenant-operator.md#4-核心功能) |
 | 数据卷 / 持久卷 Volume | 受管 PVC（Lite 形态为受管 Docker 卷），由 Platform 经 cluster-manager 管理（系统管理员级数据卷目录：CRUD + 扩容 + 占用反查）；工作负载以 PVC 引用挂载 | [cluster-manager #3](../axisml-system/docs/system_design/cluster-manager.md#3-核心模型) |
 | 任务（定义）Job | Platform `jobs` 行（可复用模板） | [platform #3.2](../axisml-platform/docs/system_design/backend.md#32-定义jobs--experiments--models--images) |
-| 实验（定义）Experiment | Platform `experiments` 行（训练特化模板）；Run 经 `axisml.io/experiment` label 关联 | [platform #3.2](../axisml-platform/docs/system_design/backend.md#32-定义jobs--experiments--models--images) |
-| 运行 Run | `MLRun` CR（Job / 实验的一次运行，`<定义>-<n>`），经 `axisml.io/{job,experiment}` label 关联 | [compute-operator #3](../axisml-system/docs/system_design/compute-operator.md#3-核心模型) |
+| 实验（定义）Experiment | Platform `experiments` 行（训练特化模板）；Run 经 `compute.axisml.io/experiment` label 关联 | [platform #3.2](../axisml-platform/docs/system_design/backend.md#32-定义jobs--experiments--models--images) |
+| 运行 Run | `MLRun` CR（Job / 实验的一次运行，`<定义>-<n>`），经 `compute.axisml.io/{job,experiment}` label 关联 | [compute-operator #3](../axisml-system/docs/system_design/compute-operator.md#3-核心模型) |
 | 服务 Service | `MLService` CR | [compute-operator #3](../axisml-system/docs/system_design/compute-operator.md#3-核心模型) |
 | 工作区 Workspace | `mlservices.kind='workspace'`（复用 `MLService(native, deployment)`） | [compute-service #3](../axisml-system/docs/system_design/compute-service.md#3-核心模型) |
 | TensorBoard | `mlservices.kind='tensorboard'`（按需临时实例，复用同上） | [compute-service #3](../axisml-system/docs/system_design/compute-service.md#3-核心模型) |
@@ -41,10 +41,10 @@ AxisML 提供两种部署形态，共享 Platform API、`MLRun` / `MLService` / 
 - **Kubernetes Namespace 独立建模**：`Tenant.spec.namespace.name` 是物理落地点，可被多个 Tenant 共享；per-tenant 资源靠 tenant ID、命名前缀和 label 隔离。
 - **Tenant CR 即权威态**：cluster-manager 以 REST 直接读写 etcd 上的 `Tenant` / `ResourcePool` CR（无 PG 派生、无 reconciler）；Platform `tenants` 表持有展示元数据、停用状态与物理 namespace 映射，经 cluster-manager REST 物化 / 回收 CR。
 - **Cluster Manager 是 K8s admin REST 抽象**：把 admin 视角的 K8s 写 / 读收敛为 REST，让 Platform 全程不直接调 K8s API；无独立持久化、无 reconciler、无 leader election。
-- **所有 AxisML Pod 走 koord-scheduler**：任何 backend handler 渲染的 Pod 必须设 `schedulerName: koord-scheduler` 并带 `quota.scheduling.koordinator.sh/name` label——不存在绕过配额的调度路径。
+- **所有 AxisML Pod 走 axisml-scheduler**：任何 backend handler 渲染的 Pod 必须设 `schedulerName: axisml-scheduler` 并带 `scheduling.axisml.io/quota` label——不存在绕过配额的调度路径。
 - **Operator 互不感知**：tenant-operator 不看 MLRun / MLService；compute-operator 不看 Tenant / ElasticQuota（仅透传 quota 名）。
 - **Platform 拥有定义、下游拥有实例**：Job / 实验 / Model / Image 的 name 级定义在 Platform；运行与制品版本在下游，经 label 与 `(kind, name)` 实时关联。Platform 不建 run/version 索引表，不缓存 phase / digest / 配额用量等可变状态（一律实时回源）。
-- **分组维度走 labels**：Run 经 `axisml.io/{job,experiment}` 归属；其余自定义分组走 `labels.axisml.io/<dim>`，list 端点支持 `?labelSelector=`。
+- **分组维度走 labels**：Run 经 `compute.axisml.io/{job,experiment}` 归属；系统 label 一律带域前缀（`scheduling./compute./tenant./resource./platform.axisml.io/`），用户自定义分组走裸 `axisml.io/<dim>`，list 端点支持 `?labelSelector=`。
 - **外部入口只在 Platform**：cluster-manager / compute-service / artifact-hub 不暴露到集群外，仅接受 Platform 内部调用并信任 `X-Axisml-User` 身份透传。
 
 ## 3. 功能矩阵
@@ -90,13 +90,13 @@ AxisML 提供两种部署形态，共享 Platform API、`MLRun` / `MLService` / 
 │  │NS/Quota/... │ │ MLRun/MLService →│                        │
 │  └──────┬──────┘ │ backend handler  │                        │
 └─────────┼────────┴──────┬───────────┴────────────────────────┘
-          │ 元数据 / 存储   │ schedulerName: koord-scheduler
+          │ 元数据 / 存储   │ schedulerName: axisml-scheduler
           ▼               ▼
-┌──────────────  Infra 层（第三方基础设施）  ────────────────────┐
-│  Envoy Gateway · Koordinator(koord-scheduler + Quota)        │
+┌──────────────  Infra 层（第三方基础设施 + 自研调度器）  ────────┐
+│  Envoy Gateway · axisml-scheduler(scheduler + ElasticQuota)  │
 │  PostgreSQL · zot(OCI) · RustFS(S3) · GPU Operator · kube-prometheus│
 └─────────────────────────────┬──────────────────────────────┘
-                              ▼  所有 workload Pod 经 koord-scheduler 落到
+                              ▼  所有 workload Pod 经 axisml-scheduler 落到
                        Kubernetes Cluster
 ```
 
@@ -141,7 +141,7 @@ AxisML 提供两种部署形态，共享 Platform API、`MLRun` / `MLService` / 
 | 租户与配额归属 | cluster-manager 持 Tenant CR + 配额折算（与 ResourcePool 同为集群级 admin CR）；Platform 持租户持久记录、K8s Namespace 映射与停用状态；租户删除为硬删除 |
 | Pool/Unit 解耦 | ResourcePool CRD 由 cluster-manager 管（内嵌 units），compute 经 Informer 直读展开；写 / 读路径都经 etcd 收敛 |
 | 配额模型 | 配额内联 `Tenant.spec.quotas[]`（「资源单元 × 数量」）→ cluster-manager 折算为每 pool 一个 ElasticQuota，避免独立 Quota CRD |
-| 调度收编 | 所有 Pod 强制 `schedulerName: koord-scheduler` + ElasticQuota label |
+| 调度收编 | 所有 Pod 强制 `schedulerName: axisml-scheduler` + ElasticQuota label（自研 axisml-scheduler，基于 scheduler-plugins） |
 | 制品抽象 | `(namespace, kind, name, version)` 四元组寻址，无"仓库"两级空间；model/image → zot，dataset → RustFS |
 | 部署分层 | `axisml-infra` / `axisml-system` / `axisml-platform` 三 chart，对齐职责分层；PostgreSQL 归 infra |
 | 技术栈 | 后端 Go，前端 TypeScript + React |

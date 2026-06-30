@@ -25,7 +25,7 @@ type MLServiceCreateRequest struct {
 	Annotations   map[string]string            `json:"annotations,omitempty" desc:"User-defined annotations stored on the row and stamped onto the CR."`
 	PoolName      string                       `json:"poolName" binding:"required" desc:"Resource pool name resolved against the ResourcePool CRD via the Informer cache."`
 	UnitName      string                       `json:"unitName" binding:"required" desc:"Resource unit (shape) name within the selected pool."`
-	Quota         string                       `json:"quota" binding:"required" desc:"ElasticQuota CR name (opaque) stamped onto Pod labels for koord-scheduler admission."`
+	Quota         string                       `json:"quota" binding:"required" desc:"ElasticQuota CR name (opaque) stamped onto Pod labels for axisml-scheduler admission."`
 	PriorityClass string                       `json:"priorityClass,omitempty" desc:"Optional Kubernetes PriorityClass name for the service's pods."`
 	Backend       *mlservicev1alpha1.Backend   `json:"backend" desc:"Compute backend/engine that serves the workload; defaults to (native, deployment) when omitted."`
 	Roles         []mlservicev1alpha1.RoleSpec `json:"roles" binding:"required,min=1" desc:"Service topology roles (at least one)."`

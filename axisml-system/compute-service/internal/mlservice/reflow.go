@@ -89,7 +89,7 @@ func serviceIDFromLabels(cr *mlservicev1alpha1.MLService) (uuid.UUID, error) {
 	return uuid.Nil, errMissingID
 }
 
-var errMissingID = sentinel("missing axisml.io/service-id label")
+var errMissingID = sentinel("missing compute.axisml.io/service-id label")
 
 type sentinel string
 

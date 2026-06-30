@@ -105,7 +105,7 @@ Conventions that bite:
 - Each gated (`integration`/`e2e`) file needs a sibling `doc.go` (no build tag) so the package compiles under bare `go test ./...`.
 - **Polling**: `testutil.Eventually` / `EventuallyExists` / `EventuallyGone` from `axisml-system/test/testutil/` (keep it operator-agnostic — no circular deps).
 - **Naming**: `<feature>_<scenario>_test.go`, `Test<Subject>_<Scenario>`; namespaces via `testutil.RandomNamespace`.
-- **External CRDs**: any CRD an operator imports from outside the repo (Koordinator ElasticQuota, scheduler-plugins PodGroup, gateway-api HTTPRoute, …) must be vendored under `axisml-system/test/crds/external/` and added to the operator's `TestMain` `CRDPaths`, or integration tests hang on "no matches for kind X". Vendor it in the same PR as the handler.
+- **External CRDs**: any CRD an operator imports from outside the repo (ElasticQuota, scheduler-plugins PodGroup, gateway-api HTTPRoute, …) must be vendored under `axisml-system/test/crds/external/` and added to the operator's `TestMain` `CRDPaths`, or integration tests hang on "no matches for kind X". Vendor it in the same PR as the handler.
 
 ## Pre-commit hooks
 

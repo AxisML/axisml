@@ -108,7 +108,7 @@ func crdEstablished(ctx context.Context, name string) error {
 func newQuotaList() *unstructured.UnstructuredList {
 	list := &unstructured.UnstructuredList{}
 	list.SetGroupVersionKind(schema.GroupVersionKind{
-		Group:   "scheduling.sigs.k8s.io",
+		Group:   "scheduling.x-k8s.io",
 		Version: "v1alpha1",
 		Kind:    "ElasticQuotaList",
 	})
