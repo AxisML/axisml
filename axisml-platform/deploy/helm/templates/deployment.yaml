@@ -38,13 +38,16 @@ spec:
                 secretKeyRef:
                   name: {{ include "axisml.fullname" . }}-db
                   key: password
-            {{- with .Values.platform.bootstrap.passwordSecret }}
             - name: AXISML_BOOTSTRAP_PASSWORD
               valueFrom:
                 secretKeyRef:
+                  {{- with .Values.platform.bootstrap.passwordSecret }}
                   name: {{ .name }}
                   key: {{ .key }}
-            {{- end }}
+                  {{- else }}
+                  name: {{ include "axisml.fullname" . }}-bootstrap
+                  key: password
+                  {{- end }}
       containers:
         - name: platform
           image: {{ include "axisml.image" (dict "imageRoot" .Values.platform.image "global" .Values.global "chart" .Chart) }}

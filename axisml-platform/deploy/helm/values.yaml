@@ -86,7 +86,13 @@ platform:
     # Initial system-admin. The default tenant is owned by the System chart's
     # seed.tenant and discovered by the backend via cluster-manager.
     username: admin
-    # Optionally source the initial system-admin password from a Secret.
+    # Initial system-admin password. The backend forces a password change on the
+    # admin's first login (MustChangePassword), so this is a first-login
+    # credential, not a durable secret. Rendered into a chart-managed Secret and
+    # injected as AXISML_BOOTSTRAP_PASSWORD. Override for any real deployment.
+    password: admin
+    # Optionally source the initial system-admin password from an externally
+    # managed Secret instead of `password` above (takes precedence when set).
     # passwordSecret: { name: axisml-platform-bootstrap, key: password }
     passwordSecret: {}
 
