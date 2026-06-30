@@ -87,7 +87,7 @@ Platform 鉴权通过后，对下游出站请求自动注入 `X-Axisml-User: <us
 
 | 服务 | 角色级鉴权 | 用途 |
 | --- | --- | --- |
-| cluster-manager | NO | 写 CR annotation `axisml.io/last-modified-by` + K8s Event |
+| cluster-manager | NO | 写 CR annotation `resource.axisml.io/last-modified-by` + K8s Event |
 | compute | NO | 写 `mlservices.owner` / `mlruns.owner`；列表按 `@owner` 过滤 |
 | artifacts | NO | ownership 归属 |
 

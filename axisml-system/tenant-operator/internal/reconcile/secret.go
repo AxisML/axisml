@@ -78,7 +78,7 @@ func Secrets(
 const (
 	// labelSecretRole distinguishes ImagePullSecret vs generic Secret on
 	// owner-side GC. Without it we'd mix the two kinds in nameSet diffs.
-	labelSecretRole     = "axisml.io/secret-role"
+	labelSecretRole     = "tenant.axisml.io/secret-role"
 	secretRoleImagePull = "imagepull"
 	secretRoleGeneric   = "generic"
 )

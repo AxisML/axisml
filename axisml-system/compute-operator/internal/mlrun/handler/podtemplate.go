@@ -33,7 +33,7 @@ func EnsureRequiredCRLabels(mlJob *axisv1alpha1.MLRun) field.ErrorList {
 
 // InjectAxisMLLabels mutates the supplied PodTemplateSpec so that every
 // Pod the handler renders carries the five mandatory labels and uses
-// koord-scheduler. Returns an error if the MLRun CR is missing inputs
+// axisml-scheduler. Returns an error if the MLRun CR is missing inputs
 // (this should have been caught earlier by EnsureRequiredCRLabels).
 //
 // extraLabels lets the handler add backend-specific labels (e.g. the
@@ -56,12 +56,12 @@ func InjectAxisMLLabels(tmpl *corev1.PodTemplateSpec, mlJob *axisv1alpha1.MLRun,
 	tmpl.Labels[axislabels.RunIDLabel] = mlJob.Labels[axislabels.RunIDLabel]
 	tmpl.Labels[axislabels.QuotaLabel] = mlJob.Labels[axislabels.QuotaLabel]
 	tmpl.Labels[axislabels.RoleLabel] = role.Name
-	tmpl.Labels[axislabels.KoordQuotaLabel] = mlJob.Spec.Scheduling.Quota
+	tmpl.Labels[axislabels.SchedulerQuotaLabel] = mlJob.Spec.Scheduling.Quota
 	for k, v := range extraLabels {
 		tmpl.Labels[k] = v
 	}
 
-	tmpl.Spec.SchedulerName = axislabels.KoordSchedulerName
+	tmpl.Spec.SchedulerName = axislabels.SchedulerName
 	tmpl.Spec.PriorityClassName = mlJob.Spec.Scheduling.PriorityClass
 	if len(mlJob.Spec.Scheduling.NodeSelector) > 0 {
 		if tmpl.Spec.NodeSelector == nil {

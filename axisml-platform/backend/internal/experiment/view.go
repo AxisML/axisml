@@ -9,7 +9,7 @@ import (
 )
 
 // LabelExperiment ties a Run (MLRun) to its Experiment.
-const LabelExperiment = "axisml.io/experiment"
+const LabelExperiment = "compute.axisml.io/experiment"
 
 func toView(d *store.Definition) server.Experiment {
 	var spec server.JobSpec

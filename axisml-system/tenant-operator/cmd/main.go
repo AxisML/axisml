@@ -1,5 +1,5 @@
 // Command axisml-tenant-operator reconciles Tenant CRs into Namespaces,
-// Koordinator ElasticQuotas, and per-tenant Secret/ConfigMap/SA/RBAC
+// ElasticQuotas (scheduling.x-k8s.io), and per-tenant Secret/ConfigMap/SA/RBAC
 // resources. Single reconciler, no dispatcher.
 package main
 

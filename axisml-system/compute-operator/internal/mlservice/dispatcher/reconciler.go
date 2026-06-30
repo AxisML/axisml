@@ -91,7 +91,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, err
 	}
 
-	// Compute is required to stamp axisml.io/service-id on every CR before
+	// Compute is required to stamp compute.axisml.io/service-id on every CR before
 	// submission (mlservice-operator.md §3.1). Handlers use this label as the
 	// stable selector / orphan-detection anchor; an empty value would produce
 	// a Deployment selector with "" as the value, and Deployment selectors
@@ -141,7 +141,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	// Build the snapshot for MapStatus. We keep this minimal — list children
-	// by axisml.io/service-id label across each handler's declared GVKs.
+	// by compute.axisml.io/service-id label across each handler's declared GVKs.
 	children, err := r.listChildren(ctx, mls, h)
 	if err != nil {
 		logger.Error(err, "list children for status")
@@ -163,7 +163,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 }
 
 // listChildren retrieves every owned child object the handler cares about,
-// filtered by axisml.io/service-id so we don't paginate the whole namespace.
+// filtered by compute.axisml.io/service-id so we don't paginate the whole namespace.
 // MapStatus requires the snapshot be self-contained — no dispatcher state may
 // leak into the pure function.
 func (r *Reconciler) listChildren(ctx context.Context, mls *axisml.MLService, h hpkg.Handler) ([]client.Object, error) {

@@ -8,7 +8,7 @@ import (
 )
 
 // LabelJob is the grouping label that ties a Run (MLRun) to its Job.
-const LabelJob = "axisml.io/job"
+const LabelJob = "compute.axisml.io/job"
 
 func toView(d *store.Definition) server.Job {
 	var spec server.JobSpec

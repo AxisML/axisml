@@ -129,8 +129,4 @@ replace github.com/axisml/axisml/axisml-platform/backend => ../..
 
 replace github.com/axisml/axisml/pkg/openapigen => ../../../../pkg/openapigen
 
-// Mirror the production module's pin: koordinator pulls a kube-openapi version
-// (via the k8s deps in pkg/openapigen) that is not published on the proxy.
-replace k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912
-
 replace github.com/axisml/axisml/pkg/axismlconfig => ../../../../pkg/axismlconfig

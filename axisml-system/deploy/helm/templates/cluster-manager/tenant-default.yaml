@@ -10,13 +10,13 @@ kind: Tenant
 metadata:
   name: {{ .Values.seed.tenant.name | quote }}
   annotations:
-    axisml.io/description: "Built-in platform tenant for public artifacts"
+    resource.axisml.io/description: "Built-in platform tenant for public artifacts"
     helm.sh/hook: post-install
     helm.sh/hook-weight: "2"
     helm.sh/hook-delete-policy: before-hook-creation
   labels:
     {{- include "axisml.componentLabels" (dict "context" . "component" "seed") | nindent 4 }}
-    axisml.io/tenant-id: {{ .Values.seed.tenant.id | quote }}
+    tenant.axisml.io/id: {{ .Values.seed.tenant.id | quote }}
 spec:
   namespace:
     name: {{ .Values.seed.tenant.namespace | quote }}

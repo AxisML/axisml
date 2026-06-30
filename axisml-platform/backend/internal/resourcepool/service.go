@@ -68,7 +68,7 @@ func (s *Service) UpdatePool(ctx context.Context, name string, req server.Resour
 // DeletePool deletes a pool.
 //
 // TODO(workloads): enforce the §4.6 in-use precheck (enumerate tenant scopes and
-// reject when an active MLRun/MLService carries axisml.io/resource-pool=<name>)
+// reject when an active MLRun/MLService carries resource.axisml.io/pool=<name>)
 // once the compute client wrapper exposes labelSelector workload listing.
 func (s *Service) DeletePool(ctx context.Context, name string) error {
 	return s.cm.DeleteResourcePool(ctx, name)

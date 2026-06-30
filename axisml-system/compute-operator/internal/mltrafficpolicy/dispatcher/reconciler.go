@@ -90,7 +90,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, err
 	}
 
-	// compute-service stamps axisml.io/traffic-policy-id on every CR before
+	// compute-service stamps compute.axisml.io/traffic-policy-id on every CR before
 	// submission. Handlers use it as the stable child-filtering anchor; an
 	// empty value would silently widen the listChildren selector.
 	if p.Labels[mltp.LabelTrafficPolicyID] == "" {
@@ -130,7 +130,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 }
 
 // listChildren retrieves every owned child the handler cares about, filtered
-// by axisml.io/traffic-policy-id so MapStatus gets a self-contained snapshot.
+// by compute.axisml.io/traffic-policy-id so MapStatus gets a self-contained snapshot.
 func (r *Reconciler) listChildren(ctx context.Context, p *mltp.MLTrafficPolicy, h hpkg.Handler) ([]client.Object, error) {
 	id := p.Labels[mltp.LabelTrafficPolicyID]
 	if id == "" {

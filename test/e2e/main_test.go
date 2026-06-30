@@ -24,8 +24,8 @@ var requiredCRDs = []string{
 	"resourcepools.axisml.io",
 	"mlruns.axisml.io",
 	"mlservices.axisml.io",
-	"elasticquotas.scheduling.sigs.k8s.io",
-	"podgroups.scheduling.sigs.k8s.io",
+	"elasticquotas.scheduling.x-k8s.io",
+	"podgroups.scheduling.x-k8s.io",
 	"httproutes.gateway.networking.k8s.io",
 	"gateways.gateway.networking.k8s.io",
 }
@@ -57,7 +57,7 @@ func gateReady(ctx context.Context) error {
 
 // provisionTenant creates a fresh tenant via the cluster-manager API, waits for
 // tenant-operator to materialize its namespace + ElasticQuota, registers
-// teardown, and returns the namespace plus the koord ElasticQuota CR name that
+// teardown, and returns the namespace plus the ElasticQuota CR name that
 // workloads in it must schedule under. Each workload test file calls this once
 // in its top-level Test and shares (ns, quota) across its subtests — explicit,
 // scoped state in place of a process-global shared tenant.
@@ -72,7 +72,7 @@ func provisionTenant(t *testing.T) (ns, quota string) {
 		Namespace: &clustermanager.Apiv1alpha1NamespaceSpec{Name: ns},
 		// cpu-small has requests==limits, so the fold sets ElasticQuota
 		// min==max==quantity. Keep it small: a large guaranteed `min` reserves
-		// node capacity in koord and starves admission. 4 leaves headroom for the
+		// node capacity in axisml-scheduler and starves admission. 4 leaves headroom for the
 		// file's subtests (each ≤2 cpu-small pods, torn down before the next).
 		Quotas: &[]clustermanager.ServerQuota{{
 			Pool:  h.cfg.DefaultPool,

@@ -162,7 +162,7 @@ func TestBuildStatefulSet_InjectsRequiredLabels(t *testing.T) {
 	wantLabels := map[string]string{
 		axisml.LabelServiceID:      "uuid-1",
 		axisml.LabelRole:           "predictor",
-		axisml.LabelKoordQuotaName: "axisml-demo-default-training",
+		axisml.LabelSchedulerQuota: "axisml-demo-default-training",
 		axisml.LabelQuota:          "training",
 		axisml.LabelTenant:         "demo",
 	}
@@ -173,8 +173,8 @@ func TestBuildStatefulSet_InjectsRequiredLabels(t *testing.T) {
 	}
 
 	// Selector must NOT carry the quota / tenant labels.
-	if _, ok := sts.Spec.Selector.MatchLabels[axisml.LabelKoordQuotaName]; ok {
-		t.Error("selector unexpectedly contains koord quota label")
+	if _, ok := sts.Spec.Selector.MatchLabels[axisml.LabelSchedulerQuota]; ok {
+		t.Error("selector unexpectedly contains scheduler quota label")
 	}
 }
 

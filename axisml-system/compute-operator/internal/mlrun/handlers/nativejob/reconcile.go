@@ -95,7 +95,7 @@ func (h *Handler) buildJob(mlJob *axisv1alpha1.MLRun) (*batchv1.Job, error) {
 	}
 
 	// Carry the Pod template's labels on the Job itself too, so
-	// `kubectl get jobs -l axisml.io/run-id=<id>` works for ops. The
+	// `kubectl get jobs -l compute.axisml.io/run-id=<id>` works for ops. The
 	// template was just rendered locally; sharing the map is safe.
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{

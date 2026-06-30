@@ -100,10 +100,10 @@
                 <mxCell id="infraLane" value="INFRA&#xa;third-party + PostgreSQL" style="swimlane;horizontal=0;startSize=40;rounded=1;arcSize=3;fillColor=#FFF8F0;strokeColor=#F6E2C4;swimlaneFillColor=#FFFBF6;fontColor=#B26A00;fontStyle=1;fontSize=12;verticalAlign=middle;" parent="1" vertex="1">
                     <mxGeometry x="40" y="636" width="1360" height="246" as="geometry"/>
                 </mxCell>
-                <mxCell id="koord" value="Koordinator" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#F9AB00;strokeWidth=1.5;shadow=1;fontColor=#202124;fontStyle=1;fontSize=12;align=left;spacingLeft=40;" parent="infraLane" vertex="1">
+                <mxCell id="sched" value="axisml-scheduler" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#F9AB00;strokeWidth=1.5;shadow=1;fontColor=#202124;fontStyle=1;fontSize=12;align=left;spacingLeft=40;" parent="infraLane" vertex="1">
                     <mxGeometry x="934" y="50" width="210" height="54" as="geometry"/>
                 </mxCell>
-                <mxCell id="koordIcon" style="sketch=0;html=1;pointerEvents=0;shape=mxgraph.kubernetes.icon;prIcon=sched;fillColor=#326CE5;strokeColor=none;" parent="koord" vertex="1">
+                <mxCell id="schedIcon" style="sketch=0;html=1;pointerEvents=0;shape=mxgraph.kubernetes.icon;prIcon=sched;fillColor=#326CE5;strokeColor=none;" parent="sched" vertex="1">
                     <mxGeometry x="10" y="15" width="24" height="24" as="geometry"/>
                 </mxCell>
                 <mxCell id="envoy" value="Envoy Gateway" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#F9AB00;strokeWidth=1.5;shadow=1;fontColor=#202124;fontStyle=1;fontSize=12;align=left;spacingLeft=40;" parent="infraLane" vertex="1">

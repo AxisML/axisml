@@ -189,7 +189,7 @@ func newPendingMLRun() *axisv1alpha1.MLRun {
 }
 
 func TestReconcile_AnchorsAppliedSpecAnnotationOnFirstObservation(t *testing.T) {
-	// First reconcile of a CR that has no axisml.io/applied-spec
+	// First reconcile of a CR that has no compute.axisml.io/applied-spec
 	// annotation must persist the fingerprint so subsequent mutations
 	// are detectable.
 	s := newReconcilerScheme(t)

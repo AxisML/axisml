@@ -77,7 +77,7 @@ func policyIDFromLabels(cr *mltp.MLTrafficPolicy) (uuid.UUID, error) {
 	return uuid.Nil, errMissingID
 }
 
-var errMissingID = sentinel("missing axisml.io/traffic-policy-id label")
+var errMissingID = sentinel("missing compute.axisml.io/traffic-policy-id label")
 
 type sentinel string
 

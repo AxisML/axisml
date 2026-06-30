@@ -70,7 +70,7 @@ func buildContainer(mls *axisml.MLService, role axisml.RoleSpec) corev1.Containe
 
 // selectorLabels are the Pod labels used to match a Service / Deployment
 // selector. They MUST stay stable across updates — these are the §6 labels
-// minus role-internal observability bits (e.g. axisml.io/quota/koord-quota).
+// minus role-internal observability bits (e.g. compute.axisml.io/quota, scheduling.axisml.io/quota).
 func selectorLabels(mls *axisml.MLService, role string) map[string]string {
 	return map[string]string{
 		axisml.LabelServiceID: mls.Labels[axisml.LabelServiceID],
@@ -79,12 +79,12 @@ func selectorLabels(mls *axisml.MLService, role string) map[string]string {
 }
 
 // podTemplateLabels are written onto the Pod template. They include the
-// selector keys plus the §6 Pod 注入约定 labels (Koord quota, axisml quota,
+// selector keys plus the §6 Pod 注入约定 labels (scheduler quota, axisml quota,
 // tenant). These are NOT part of the selector — that lets the quota label
 // evolve without triggering Service-selector mismatches.
 func podTemplateLabels(mls *axisml.MLService, role string) map[string]string {
 	out := selectorLabels(mls, role)
-	out[axisml.LabelKoordQuotaName] = mls.Spec.Scheduling.Quota
+	out[axisml.LabelSchedulerQuota] = mls.Spec.Scheduling.Quota
 	if v := mls.Labels[axisml.LabelQuota]; v != "" {
 		out[axisml.LabelQuota] = v
 	}
@@ -95,7 +95,7 @@ func podTemplateLabels(mls *axisml.MLService, role string) map[string]string {
 }
 
 // resourceLabels are written onto the Deployment / Service / HTTPRoute
-// objects themselves. axisml.io/service-id is always present so operators can
+// objects themselves. compute.axisml.io/service-id is always present so operators can
 // list-by-label across resource types.
 func resourceLabels(mls *axisml.MLService, role string) map[string]string {
 	out := map[string]string{

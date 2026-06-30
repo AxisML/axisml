@@ -85,8 +85,8 @@ func BuildServiceInput(req server.MLServiceCreateRequest) (computeservice.MLServ
 		"annotations": map[string]any{
 			"platform.axisml.io/model-name":    req.ModelName,
 			"platform.axisml.io/model-version": req.ModelVersion,
-			"platform.axisml.io/pool-name":     req.PoolName,
-			"platform.axisml.io/unit-name":     req.UnitName,
+			"resource.axisml.io/pool":          req.PoolName,
+			"resource.axisml.io/unit":          req.UnitName,
 		},
 	}
 	if req.DisplayName != "" {
@@ -125,8 +125,8 @@ func BuildWorkspaceInput(req server.WorkspaceCreateRequest) (computeservice.MLSe
 		"roles":    []map[string]any{{"name": "workspace", "replicas": 1, "template": tmpl}},
 		"route":    map[string]any{"enabled": false},
 		"annotations": map[string]any{
-			"platform.axisml.io/pool-name": req.PoolName,
-			"platform.axisml.io/unit-name": req.UnitName,
+			"resource.axisml.io/pool": req.PoolName,
+			"resource.axisml.io/unit": req.UnitName,
 		},
 	}
 	if req.DisplayName != "" {
@@ -172,8 +172,8 @@ func ServiceToView(s *computeservice.MLService, tenant string) server.MLService 
 	annos := derefMap(s.Annotations)
 	v.ModelName = annos["platform.axisml.io/model-name"]
 	v.ModelVersion = annos["platform.axisml.io/model-version"]
-	v.PoolName = annos["platform.axisml.io/pool-name"]
-	v.UnitName = annos["platform.axisml.io/unit-name"]
+	v.PoolName = annos["resource.axisml.io/pool"]
+	v.UnitName = annos["resource.axisml.io/unit"]
 	if len(spec.Roles) > 0 {
 		v.Replicas = spec.Roles[0].Replicas
 		v.Image = spec.Roles[0].Template.Image
@@ -207,8 +207,8 @@ func WorkspaceToView(s *computeservice.MLService, tenant string) server.Workspac
 		UpdatedAt:     s.UpdatedAt,
 	}
 	annos := derefMap(s.Annotations)
-	v.PoolName = annos["platform.axisml.io/pool-name"]
-	v.UnitName = annos["platform.axisml.io/unit-name"]
+	v.PoolName = annos["resource.axisml.io/pool"]
+	v.UnitName = annos["resource.axisml.io/unit"]
 	if len(spec.Roles) > 0 {
 		v.Replicas = spec.Roles[0].Replicas
 		v.Image = spec.Roles[0].Template.Image

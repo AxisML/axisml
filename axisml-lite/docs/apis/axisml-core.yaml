@@ -1825,7 +1825,7 @@ components:
         note: Successfully assigned team-vision/resnet-train-7-worker-0 to gpu-node-a100-03
         object: Pod/resnet-train-7-worker-0
         reason: Scheduled
-        reportingController: koord-scheduler
+        reportingController: axisml-scheduler
         type: Normal
       properties:
         eventTime:
@@ -1861,7 +1861,7 @@ components:
           note: Successfully assigned team-vision/resnet-train-7-worker-0 to gpu-node-a100-03
           object: Pod/resnet-train-7-worker-0
           reason: Scheduled
-          reportingController: koord-scheduler
+          reportingController: axisml-scheduler
           type: Normal
         total: 1
       properties:
@@ -2121,7 +2121,7 @@ components:
           description: Optional Kubernetes PriorityClass name for the run's pods.
           type: string
         quota:
-          description: ElasticQuota CR name (opaque) stamped onto Pod labels for koord-scheduler
+          description: ElasticQuota CR name (opaque) stamped onto Pod labels for axisml-scheduler
             admission.
           type: string
         roles:
@@ -2654,7 +2654,7 @@ components:
           description: Optional Kubernetes PriorityClass name for the service's pods.
           type: string
         quota:
-          description: ElasticQuota CR name (opaque) stamped onto Pod labels for koord-scheduler
+          description: ElasticQuota CR name (opaque) stamped onto Pod labels for axisml-scheduler
             admission.
           type: string
         roles:
@@ -3360,8 +3360,8 @@ components:
     Pod:
       example:
         labels:
-          axisml.io/role: worker
-          axisml.io/run-id: b7d9e3f1-1a2b-3c4d-5e6f-708192a3b4c5
+          compute.axisml.io/role: worker
+          compute.axisml.io/run-id: b7d9e3f1-1a2b-3c4d-5e6f-708192a3b4c5
         name: resnet-train-7-worker-0
         namespace: team-vision
         nodeName: gpu-node-a100-03
@@ -3393,8 +3393,8 @@ components:
       example:
         items:
         - labels:
-            axisml.io/role: worker
-            axisml.io/run-id: b7d9e3f1-1a2b-3c4d-5e6f-708192a3b4c5
+            compute.axisml.io/role: worker
+            compute.axisml.io/run-id: b7d9e3f1-1a2b-3c4d-5e6f-708192a3b4c5
           name: resnet-train-7-worker-0
           namespace: team-vision
           nodeName: gpu-node-a100-03
@@ -3481,7 +3481,7 @@ components:
     ResourcePool:
       example:
         annotations:
-          axisml.io/managed-by: platform
+          tenant.axisml.io/managed-by: platform
         createdAt: "2026-06-20T08:00:00Z"
         description: A100 GPU resource pool.
         labels:
@@ -3496,7 +3496,7 @@ components:
           operator: Exists
         units:
         - annotations:
-            axisml.io/managed-by: platform
+            tenant.axisml.io/managed-by: platform
           description: 2× A100 GPU compute unit.
           limits:
             cpu: "16"
@@ -3559,7 +3559,7 @@ components:
         count: 1
         items:
         - annotations:
-            axisml.io/managed-by: platform
+            tenant.axisml.io/managed-by: platform
           createdAt: "2026-06-20T08:00:00Z"
           description: A100 GPU resource pool.
           labels:
@@ -3574,7 +3574,7 @@ components:
             operator: Exists
           units:
           - annotations:
-              axisml.io/managed-by: platform
+              tenant.axisml.io/managed-by: platform
             description: 2× A100 GPU compute unit.
             limits:
               cpu: "16"
@@ -3606,7 +3606,7 @@ components:
     ResourceUnit:
       example:
         annotations:
-          axisml.io/managed-by: platform
+          tenant.axisml.io/managed-by: platform
         description: 2× A100 GPU compute unit.
         limits:
           cpu: "16"
@@ -3660,7 +3660,7 @@ components:
         count: 1
         items:
         - annotations:
-            axisml.io/managed-by: platform
+            tenant.axisml.io/managed-by: platform
           description: 2× A100 GPU compute unit.
           limits:
             cpu: "16"
@@ -3748,7 +3748,7 @@ components:
           additionalProperties:
             description: Kubernetes resource.Quantity.
             type: string
-          description: Live resource usage from koord-scheduler via the ElasticQuota.
+          description: Live resource usage from axisml-scheduler via the ElasticQuota.
           type: object
       required:
       - pool
@@ -4077,7 +4077,7 @@ components:
     Tenant:
       example:
         annotations:
-          axisml.io/last-modified-by: li.wei
+          resource.axisml.io/last-modified-by: li.wei
         createdAt: "2026-06-20T08:00:00Z"
         initResources:
           configMaps:
@@ -4192,7 +4192,7 @@ components:
         count: 1
         items:
         - annotations:
-            axisml.io/last-modified-by: li.wei
+            resource.axisml.io/last-modified-by: li.wei
           createdAt: "2026-06-20T08:00:00Z"
           initResources:
             configMaps:

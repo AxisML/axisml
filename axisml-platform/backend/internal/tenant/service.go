@@ -24,8 +24,8 @@ import (
 // phases that make a run "active". Kept local to avoid coupling the tenant
 // module to the job/experiment packages.
 const (
-	labelJob        = "axisml.io/job"
-	labelExperiment = "axisml.io/experiment"
+	labelJob        = "compute.axisml.io/job"
+	labelExperiment = "compute.axisml.io/experiment"
 )
 
 var activeRunPhases = map[string]bool{

@@ -55,10 +55,6 @@ require (
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
-// koordinator's go.mod pins a kube-openapi version that is not published on the
-// module proxy; remap it to a real pseudo-version (mirrors the other test modules).
-replace k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912
-
 replace github.com/axisml/axisml/axisml-system/tenant-operator => ../../axisml-system/tenant-operator
 
 replace github.com/axisml/axisml/axisml-system/compute-operator => ../../axisml-system/compute-operator

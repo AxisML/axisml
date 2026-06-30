@@ -101,8 +101,8 @@ func TestValidateMeta(t *testing.T) {
 	t.Run("missing tenant-id label", func(t *testing.T) {
 		meta := &metav1.ObjectMeta{Name: "team-a"}
 		err := validate.ValidateMeta(meta)
-		if err == nil || !strings.Contains(err.Error(), "tenant-id") {
-			t.Fatalf("expected tenant-id error, got %v", err)
+		if err == nil || !strings.Contains(err.Error(), "tenant.axisml.io/id") {
+			t.Fatalf("expected tenant id label error, got %v", err)
 		}
 	})
 	t.Run("empty tenant-id label", func(t *testing.T) {

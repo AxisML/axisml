@@ -1,6 +1,6 @@
 // Package rundef holds the Run orchestration shared by the Jobs and Experiments
 // modules. A Runner is parameterised by the grouping label key
-// (axisml.io/job | axisml.io/experiment); both modules layer their own
+// (compute.axisml.io/job | compute.axisml.io/experiment); both modules layer their own
 // definition CRUD + type mapping on top.
 package rundef
 

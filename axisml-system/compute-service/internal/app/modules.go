@@ -39,7 +39,7 @@ func BuildModules(
 		Resolver:          poolcache.New(mgr.GetClient()),
 		Log:               log,
 		ReconcileInterval: config.ReconcileInterval,
-		// Kubernetes composition root: koord-scheduler admits pods against the
+		// Kubernetes composition root: axisml-scheduler admits pods against the
 		// tenant ElasticQuota, so quota enforcement is real.
 		RuntimeName:      "kubernetes",
 		QuotaEnforcement: true,

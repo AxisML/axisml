@@ -14,10 +14,10 @@ import (
 )
 
 // Namespace ensures the target Namespace exists and carries the
-// axisml.io/managed-by label. Behaviors per design §6.1:
+// tenant.axisml.io/managed-by label. Behaviors per design §6.1:
 //   - never delete (RBAC also blocks it)
 //   - never overwrite existing labels/annotations on a shared namespace
-//   - only stamp axisml.io/managed-by=tenant-operator if missing
+//   - only stamp tenant.axisml.io/managed-by=tenant-operator if missing
 //   - no ownerReference
 func Namespace(ctx context.Context, c client.Client, t *axisml.Tenant) (ready bool, message string, err error) {
 	name := t.Spec.Namespace.Name

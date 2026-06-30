@@ -6,7 +6,7 @@ import "time"
 // is the training-specialized form of a Job: its Spec is isomorphic to JobSpec
 // (training hyperparameters are role args/env, not separately modelled). Each
 // run produces a compute MLRun named <experiment>-<n> labelled
-// axisml.io/experiment.
+// compute.axisml.io/experiment.
 type Experiment struct {
 	ID          UUID      `json:"id" desc:"Stable experiment identifier."`
 	Namespace   string    `json:"namespace" desc:"Platform tenant namespace the experiment belongs to."`

@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 AxisML is a Kubernetes-native ML platform. The repo is a monorepo organized by deployment layer at the top level — `axisml-platform/`, `axisml-system/`, `axisml-infra/`, and `axisml-lite/` — where each layer dir holds its components, its Helm chart under `deploy/helm/`, and its design docs under `docs/`:
 
-- `axisml-system/tenant-operator/` — Go operator binary reconciling the `Tenant` CR (Namespace, Koordinator ElasticQuota, per-tenant Secret/CM/SA/RBAC). Single reconciler, no dispatcher.
+- `axisml-system/tenant-operator/` — Go operator binary reconciling the `Tenant` CR (Namespace, ElasticQuota, per-tenant Secret/CM/SA/RBAC). Single reconciler, no dispatcher.
 - `axisml-system/compute-operator/` — Go operator binary reconciling `MLRun`, `MLService`, and `MLTrafficPolicy` CRs via the dispatcher + handler model (one dispatcher per CR under `internal/{mlrun,mlservice,mltrafficpolicy}`, each gated by `--enable-mlrun` / `--enable-mlservice` / `--enable-mltrafficpolicy`).
 - `axisml-system/cluster-manager/` — Stateless REST shell over the cluster-scoped `ResourcePool` CRD (CRUD of pools + inline `spec.units[]`) on the K8s API. Admin-tier entry point; no PG, no reconciler, no leader election — Kubernetes etcd is the source of truth.
 - `axisml-system/compute-service/` — Go service and business authority for Tenant / Quota / Job / Service / Workspace, with PG as the sole source of truth. Emits `Tenant` / `MLRun` / `MLService` CRs derived from PG and reads back their status; partitioned by namespace (= tenant name). Resolves `(poolName, unitName)` against the `ResourcePool` CRD via Informer (it does not own the ResourcePool/ResourceUnit vocabulary — that's cluster-manager).
@@ -16,7 +16,7 @@ AxisML is a Kubernetes-native ML platform. The repo is a monorepo organized by d
 - `axisml-platform/backend/` — the user-facing API authority and only external entry point. `internal/server` declares the request/response DTOs that generate `axisml-platform/docs/apis/platform.yaml` via `cmd/openapi-gen`; the domain packages (`internal/{job,rundef,mlservice,traffic,tenant,workspace,resourcepool,artifactdef,experiment,identity,auth,...}`) own the platform logic. It talks to the System layer through typed clients in `internal/clients` generated from `axisml-system/docs/apis` (`make -C axisml-platform client-gen`). `cmd/platform-backend` is the server entry point.
 - `axisml-platform/frontend/` — a Vite + React + TypeScript SPA (pnpm; shadcn/ui + Radix primitives + Tailwind + i18n per `axisml-platform/docs/`), built with shadcn-style components (`components.json`). Its typed API client is generated from `axisml-platform/docs/apis/platform.yaml` (`make -C axisml-platform frontend-gen-api`). Frontend targets are NOT in the default build aggregate.
 - Deployment splits into three Helm charts along the Platform / System / Infra responsibility layers (install order infra → system → platform, uninstall reverse):
-  - `axisml-infra/deploy/helm/` — Infra layer: third-party infrastructure (Envoy Gateway, RustFS, zot, Koordinator, GPU Operator, kube-prometheus-stack) **plus PostgreSQL**.
+  - `axisml-infra/deploy/helm/` — Infra layer: third-party infrastructure (Envoy Gateway, RustFS, zot, axisml-scheduler, GPU Operator, kube-prometheus-stack) **plus PostgreSQL**.
   - `axisml-system/deploy/helm/` — System layer: CRDs, both operators, Cluster Manager, Compute Service, Artifact Hub. No PostgreSQL — it consumes the infra DB cross-namespace.
   - `axisml-platform/deploy/helm/` — Platform layer: the user-facing entry point (Platform frontend + backend). The only externally-exposed layer.
 - `axisml-lite/` — the no-Kubernetes single-host Docker Compose form. The Go module + Dockerfile live under `axisml-lite/axisml-core/` (`cmd/` · `internal/`); deploy assets under `axisml-lite/deploy/` (compose file + `config/`), docs under `axisml-lite/docs/`, layer Makefile at `axisml-lite/Makefile`.
@@ -127,7 +127,7 @@ Conventions that bite if you don't know them:
 - Naming: call the layers "integration" and "e2e" — don't prefix with "L1"/"L2"/etc., in conversation or in code.
 - Each gated test file needs a sibling `doc.go` (no build tag) so the package compiles cleanly under `go test ./...`.
 - Polling: use `testutil.Eventually` / `EventuallyExists` / `EventuallyGone` from `axisml-system/test/testutil/`.
-- **External CRDs**: any CRD the operator imports from outside this repo (Koordinator's ElasticQuota, scheduler-plugins' PodGroup, gateway-api's HTTPRoute, etc.) must be vendored under `axisml-system/test/crds/external/` and added to the merged TestMain's `CRDPaths`. Tests hang on "no matches for kind X" otherwise.
+- **External CRDs**: any CRD the operator imports from outside this repo (scheduler-plugins' ElasticQuota and PodGroup, gateway-api's HTTPRoute, etc.) must be vendored under `axisml-system/test/crds/external/` and added to the merged TestMain's `CRDPaths`. Tests hang on "no matches for kind X" otherwise.
 
 ## Operator architecture: backend handler routing
 
@@ -145,7 +145,7 @@ Defaults: MLRun `(native, job)`, MLService `(native, deployment)`, MLTrafficPoli
 When adding a new handler:
 1. Implement under `internal/<backend>/<engine>/`.
 2. Wire it into the dispatch table in the operator's reconciler.
-3. **All backend-derived Pods MUST set `schedulerName: koord-scheduler` and carry the `quota.scheduling.koordinator.sh/name` label** — this is non-negotiable; bypassing koord-scheduler bypasses ElasticQuota.
+3. **All backend-derived Pods MUST set `schedulerName: axisml-scheduler` and carry the `scheduling.axisml.io/quota` label** — this is non-negotiable; bypassing axisml-scheduler bypasses ElasticQuota.
 4. Vendor any new external CRDs into `axisml-system/test/crds/external/` in the same PR.
 5. Pair an integration happy-path with the unit tests.
 
@@ -175,7 +175,7 @@ Images are pulled by Helm using `Chart.appVersion` as the default tag. `axisml-s
 
 ## Helm: install order matters
 
-Three charts, installed infra → system → platform (uninstall reverse). `axisml-infra` provides CRDs, components, and PostgreSQL that `axisml-system` depends on (Koordinator, Envoy Gateway, the DB, etc.); `axisml-platform` depends on the system-layer services being up. `make helm-install` / `make helm-uninstall` enforce this ordering.
+Three charts, installed infra → system → platform (uninstall reverse). `axisml-infra` provides CRDs, components, and PostgreSQL that `axisml-system` depends on (axisml-scheduler, Envoy Gateway, the DB, etc.); `axisml-platform` depends on the system-layer services being up. `make helm-install` / `make helm-uninstall` enforce this ordering.
 
 PostgreSQL lives in the infra namespace, so the system services reach it cross-namespace at `axisml-database.axisml-infra:5432`. Because Secrets are namespace-scoped, each system service renders its own DB-credentials Secret from `database.auth.password` — that password must match `database.auth.password` in the infra chart (a shared input present in both values files).
 

@@ -203,7 +203,7 @@ func (h *Handler) RequiredRBAC() []rbacv1.PolicyRule {
 // against fetched (defaulted) current returns false-mismatch on every
 // reconcile, generating a no-op patch loop that churns metadata.generation
 // and starves the Deployment controller's availability accounting.
-const appliedSpecHashAnnotation = "axisml.io/applied-spec-hash"
+const appliedSpecHashAnnotation = "compute.axisml.io/applied-spec-hash"
 
 // upsertDeployment is a focused create-or-patch. We intentionally avoid the
 // stock CreateOrUpdate/CreateOrPatch helpers: they invoke the mutate function

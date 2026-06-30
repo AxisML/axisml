@@ -13,7 +13,7 @@ import (
 )
 
 // MLRun is the GORM-backed `mlruns` row. Pool / unit names live on labels
-// (axisml.io/resource-pool / -unit) for provenance, not in dedicated columns.
+// (resource.axisml.io/pool / -unit) for provenance, not in dedicated columns.
 // The CR status sub-tree {message, startedAt, finishedAt, conditions[]} is
 // persisted in `status jsonb`; the top-level `phase` column carries the
 // high-frequency filter value (design §3.2 / database.md §3.2).
@@ -39,7 +39,7 @@ func (MLRun) TableName() string { return "mlruns" }
 // MLService is the GORM-backed `mlservices` row. Phase column = high-frequency
 // CR status.phase mirror; the rest of the status sub-tree {message,
 // readyReplicas, endpoint, conditions[]} lives in `status jsonb`. Pool /
-// unit names live on labels (axisml.io/resource-pool / -unit) for
+// unit names live on labels (resource.axisml.io/pool / -unit) for
 // provenance, not in dedicated columns.
 type MLService struct {
 	ID                 uuid.UUID      `gorm:"type:uuid;primaryKey"`

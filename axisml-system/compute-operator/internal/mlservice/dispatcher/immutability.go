@@ -17,7 +17,7 @@ import (
 // recorded on the first successful Reconcile. Subsequent reconciles compare
 // the live spec hash against this annotation; any drift is reported as
 // "immutable field changed" per mlservice-operator.md §6.
-const immutableHashAnnotation = "axisml.io/spec-immutable-hash"
+const immutableHashAnnotation = "compute.axisml.io/spec-immutable-hash"
 
 // checkImmutability returns a non-empty message if the user mutated any spec
 // field other than spec.roles[*].replicas after the baseline hash was

@@ -10,7 +10,7 @@ import (
 
 // replicaIndexEnvVarName surfaces the K8s-injected apps.kubernetes.io/pod-index
 // label as an env var (§6.6.2). Static pod labels can't reference fieldRef, so
-// materialising axisml.io/replica-index per ordinal would require a mutating
+// materialising compute.axisml.io/replica-index per ordinal would require a mutating
 // webhook; the downward-API env var is the webhook-free MVP fit.
 const (
 	replicaIndexEnvVarName = "AXISML_REPLICA_INDEX"
@@ -87,8 +87,8 @@ func buildContainer(mls *axisml.MLService, role axisml.RoleSpec) corev1.Containe
 
 // selectorLabels are the Pod labels used to match the StatefulSet / headless
 // Service selector. They MUST stay stable across updates — these are the §3.4
-// labels minus role-internal observability bits (axisml.io/quota,
-// quota.scheduling.koordinator.sh/name).
+// labels minus role-internal observability bits (compute.axisml.io/quota,
+// scheduling.axisml.io/quota).
 func selectorLabels(mls *axisml.MLService, role string) map[string]string {
 	return map[string]string{
 		axisml.LabelServiceID: mls.Labels[axisml.LabelServiceID],
@@ -101,7 +101,7 @@ func selectorLabels(mls *axisml.MLService, role string) map[string]string {
 // selector.
 func podTemplateLabels(mls *axisml.MLService, role string) map[string]string {
 	out := selectorLabels(mls, role)
-	out[axisml.LabelKoordQuotaName] = mls.Spec.Scheduling.Quota
+	out[axisml.LabelSchedulerQuota] = mls.Spec.Scheduling.Quota
 	if v := mls.Labels[axisml.LabelQuota]; v != "" {
 		out[axisml.LabelQuota] = v
 	}

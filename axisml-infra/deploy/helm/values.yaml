@@ -114,16 +114,17 @@ gpu-operator:
     fullnameOverride: nfd
 
 # =============================================================================
-# Koordinator (scheduler + ElasticQuota)
+# axisml-scheduler (self-built batch scheduler + ElasticQuota)
 # =============================================================================
-# Sub-chart: https://koordinator-sh.github.io/charts/koordinator
-# Koordinator provides koord-scheduler + koord-manager. AxisML uses:
-#   - PodGroup (scheduling.sigs.k8s.io/v1alpha1) for gang scheduling
-#   - ElasticQuota (scheduling.sigs.k8s.io/v1alpha1) for multi-tenant quota,
-#     keyed by Pod label `quota.scheduling.koordinator.sh/name`
+# First-party component (axisml-infra/axisml-scheduler), templated directly
+# (templates/axisml-scheduler/*) — not a sub-chart. Provides:
+#   - Binpack via in-tree NodeResourcesFit (MostAllocated scoring)
+#   - Gang scheduling via upstream scheduler-plugins Coscheduling + PodGroup
+#     (scheduling.x-k8s.io/v1alpha1)
+#   - ElasticQuota (scheduling.x-k8s.io/v1alpha1) for multi-tenant quota, keyed
+#     by Pod label `scheduling.axisml.io/quota`
 # All AxisML workload Pods (jobs + services, including KServe-derived) must set
-# `schedulerName: koord-scheduler` to be picked up by Koordinator and to consume
-# their ElasticQuota.
+# `schedulerName: axisml-scheduler` to be scheduled and to consume their quota.
 #
 # KServe version requirement: the (kserve, *) MLService path relies on KServe
 # propagating `InferenceService.spec.predictor.schedulerName` and
@@ -131,23 +132,41 @@ gpu-operator:
 # and ComponentExtensionSpec into PredictorSpec, so both fields live directly
 # under `spec.predictor`. Pin a KServe release that supports this propagation;
 # the latest stable KServe is recommended.
-koordinator:
+axismlScheduler:
   enabled: true
-  # Force all Koordinator components (koord-manager, koord-scheduler,
-  # koord-descheduler, koordlet, ConfigMaps) into the `axisml-infra` namespace
-  # alongside the rest of the infra sub-charts. The chart defaults to its own
-  # `koordinator-system` namespace, which would split AxisML infra across two
-  # namespaces.
-  installation:
-    namespace: axisml-infra
-  # Single-replica overrides (chart defaults to 2 each for leader-election HA).
-  # AxisML targets single-node / dev clusters where HA standbys add no value.
-  manager:
-    replicas: 1
+  image:
+    registry: ""
+    repository: axisml/axisml-scheduler
+    # tag defaults to the chart's appVersion; the layer Makefile injects IMAGE_TAG.
+    tag: ""
+    pullPolicy: IfNotPresent
+  # Single-replica defaults: AxisML targets single-node / dev clusters where HA
+  # standbys add no value. Leader election off accordingly.
+  leaderElection:
+    enabled: false
   scheduler:
     replicas: 1
-  descheduler:
+    logLevel: 2
+    resources: {}
+  controller:
     replicas: 1
+    workers: 2
+    resyncPeriod: 30s
+    logLevel: 2
+    resources: {}
+  # Binpack scoring weights (NodeResourcesFit MostAllocated). Accelerators are
+  # weighted high so GPU nodes fill before CPU-only capacity is touched.
+  binpack:
+    weight: 5
+    resources:
+      - name: cpu
+        weight: 1
+      - name: memory
+        weight: 1
+      - name: nvidia.com/gpu
+        weight: 10
+  coscheduling:
+    permitWaitingTimeSeconds: 10
 
 # =============================================================================
 # kube-prometheus-stack (monitoring)

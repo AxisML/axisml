@@ -122,12 +122,12 @@ type HealthStatus struct {
 
 // LastModifiedByAnnotation tracks the X-Axisml-User that performed the
 // most recent mutation (audit hint; the K8s API also persists this).
-const LastModifiedByAnnotation = "axisml.io/last-modified-by"
+const LastModifiedByAnnotation = "resource.axisml.io/last-modified-by"
 
 // DescriptionAnnotation surfaces the API type's `description` field through
-// the CR's metadata.annotations[axisml.io/description] (no dedicated CR
+// the CR's metadata.annotations[resource.axisml.io/description] (no dedicated CR
 // field — keeps the API admin-friendly without polluting spec).
-const DescriptionAnnotation = "axisml.io/description"
+const DescriptionAnnotation = "resource.axisml.io/description"
 
 // HeaderUser is the request header carrying the calling end-user.
 const HeaderUser = "X-Axisml-User"

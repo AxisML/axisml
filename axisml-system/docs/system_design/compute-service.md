@@ -52,7 +52,7 @@ ML 工作负载服务：以 PostgreSQL 为权威，承载 Job / Service / Worksp
 
 字段级 schema 见 [database.md §2](database.md#2-compute-service)；CR spec 字段见 [compute-operator.md](compute-operator.md)。
 
-**通用 PG 约定**：所有表带 `id uuid` / `created_at` / `updated_at` / `deleted_at`；UNIQUE 为 partial index `WHERE deleted_at IS NULL`（软删行不占唯一键）；`name` DNS-1123、长度 3–40。CR-backed 对象打 `axisml.io/{run,service,traffic-policy}-id=<uuid>` label 作稳定锚点（`metadata.name` 可重用，UUID 永久唯一）；`mlservices` 还同步打 `axisml.io/service-kind=<service|workspace|tensorboard>` label 便于 selector 区分（compute / operator 不按 kind 改变行为）。
+**通用 PG 约定**：所有表带 `id uuid` / `created_at` / `updated_at` / `deleted_at`；UNIQUE 为 partial index `WHERE deleted_at IS NULL`（软删行不占唯一键）；`name` DNS-1123、长度 3–40。CR-backed 对象打 `compute.axisml.io/{run,service,traffic-policy}-id=<uuid>` label 作稳定锚点（`metadata.name` 可重用，UUID 永久唯一）；`mlservices` 还同步打 `compute.axisml.io/service-kind=<service|workspace|tensorboard>` label 便于 selector 区分（compute / operator 不按 kind 改变行为）。
 
 **扩展元数据 + 分组**：三表均带 `labels` / `annotations` jsonb，对齐 K8s 语义（[database.md §1.6](database.md#16-扩展元数据-labels--annotations)）；list 端点支持 `?labelSelector=`。两类扩展位 **PG-only、不下发 CR、不 `+generation`**。
 
@@ -73,7 +73,7 @@ Creating ─(Informer ADD)─▶ Pending ─▶ Running ─▶ Succeeded / Faile
 | cancel | `phase='Canceling'` + message | patch `spec.runPolicy.suspend=true`；`Creating` 拒绝（改用 DELETE） |
 | 更新 PG 元数据 | update 行 | 不影响 CR（spec 不可变，扩展位任意阶段可改） |
 | 软删 | `phase='Deleting'` + `deleted_at` | `Delete()` CR；Informer DELETE → `Deleted` |
-| Pod 列表 / 日志 / 事件 | — | 按 `axisml.io/run-id` label list Pod；按 Pod 名透传 Log；按 `involvedObject` 过滤 Event |
+| Pod 列表 / 日志 / 事件 | — | 按 `compute.axisml.io/run-id` label list Pod；按 Pod 名透传 Log；按 `involvedObject` 过滤 Event |
 
 `Succeeded` / `Failed` / `Cancelled` 为运行终态；`Deleted` 为软删终态（`Cancelled` 行保留，可再 DELETE）。
 
@@ -93,7 +93,7 @@ Creating ─(Informer ADD)─▶ Pending ─(ready=desired>0)─▶ Ready ⇄ De
 
 | 操作 | PG 写 | CR 影响 |
 | --- | --- | --- |
-| 创建 | insert `Creating` + spec 快照 | `Create()` MLService（含 `axisml.io/service-{id,kind}` label）；需持久存储的工作负载由 Platform 以既有数据卷的 PVC 引用写在 `roles[0].template.volumes[]`，compute 原样下发 |
+| 创建 | insert `Creating` + spec 快照 | `Create()` MLService（含 `compute.axisml.io/service-{id,kind}` label）；需持久存储的工作负载由 Platform 以既有数据卷的 PVC 引用写在 `roles[0].template.volumes[]`，compute 原样下发 |
 | scale | `spec.roles[0].replicas` + `generation += 1` | `generation>observed_generation` 触发 patch replicas |
 | 更新 PG 元数据 | update 行 | 不影响 CR、不 `+generation` |
 | 软删 | 在线服务先检查是否被活跃 TrafficPolicy 引用，命中则 `409 service-in-use`；通过后写 `phase='Deleting'` + `deleted_at` | `Delete()` CR；数据卷为独立受管对象，其生命周期由 Platform 经 cluster-manager 处理，compute 不删卷 |
@@ -133,7 +133,7 @@ Service 无 cancel；除 `roles[0].replicas` 与 `kind` 外其他 spec 不可变
 
 | 操作 | PG 写 | CR 影响 |
 | --- | --- | --- |
-| 创建 | 成员预检通过后 insert `Creating` + spec 快照（`mode` / `endpoint` / `backends` / 派生 `backend` 元组） | `Create()` MLTrafficPolicy（含 `axisml.io/traffic-policy-id` label） |
+| 创建 | 成员预检通过后 insert `Creating` + spec 快照（`mode` / `endpoint` / `backends` / 派生 `backend` 元组） | `Create()` MLTrafficPolicy（含 `compute.axisml.io/traffic-policy-id` label） |
 | 调整流量（split） | weighted 写权重 / canary 写百分比并派生稳定权重 / bluegreen 翻转 100·0 — `+generation` | patch `spec.backends[*].weight` |
 | 提升 / 回滚（canary） | `promote` 互换 stable/canary 的 `role` 并置 100·0；`rollback` 置 canary 0 — `+generation` | patch |
 | 更新 PG 元数据 | update 行 | 不影响 CR |
@@ -185,11 +185,11 @@ POST .../mlruns  body: { name, scheduling:{poolName, unitName, quota}, ... }
 
 **校验失败**：pool 不存在 → `400 pool-not-found`；unit 名不在 `pool.spec.units[]` → `400 unit-not-found`；Informer 未 sync（冷启）→ `WaitForCacheSync` 通过前 `/readyz` 不就绪。
 
-**quota 名透传**：ElasticQuota 全名由调用方在创建请求的 `scheduling.quota` 显式提供；compute 仅校验其非空（空则 `400 validation`），原样写入 `spec.scheduling.quota` 并随展开一并 snapshot，不做任何组装。不校验配额是否存在（由 cluster-manager / tenant-operator 维护，koord-scheduler 调度期强制）。
+**quota 名透传**：ElasticQuota 全名由调用方在创建请求的 `scheduling.quota` 显式提供；compute 仅校验其非空（空则 `400 validation`），原样写入 `spec.scheduling.quota` 并随展开一并 snapshot，不做任何组装。不校验配额是否存在（由 cluster-manager / tenant-operator 维护，axisml-scheduler 调度期强制）。
 
 **snapshot 语义**：pool/unit CR 仅在 Create 入口读一次，展开结果固化进 PG `spec`；后续 reconciler 透传到 CR，compute-operator 直接读 spec 渲染 Pod，全程不感知 pool/unit。pool 删除或 unit 改值不影响已创建 workload。
 
-**溯源 label**：展开后在 CR 与 PG `labels` 写 `axisml.io/resource-pool=<pool>` + `axisml.io/resource-unit=<unit>`，便于上游 pool/unit 删除前置阻断（按 labelSelector 反查活跃 workload）。
+**溯源 label**：展开后在 CR 与 PG `labels` 写 `resource.axisml.io/pool=<pool>` + `resource.axisml.io/unit=<unit>`，便于上游 pool/unit 删除前置阻断（按 labelSelector 反查活跃 workload）。
 
 ### 5.5 孤儿与补偿
 

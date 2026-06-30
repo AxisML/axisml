@@ -10,7 +10,7 @@ type QuotaUnit struct {
 
 // Quota is a tenant's resource allocation in one pool, expressed as counts of
 // named resource units (product model: pool -> resource unit x quantity).
-// Platform derives the backing Koordinator ElasticQuota from
+// Platform derives the backing ElasticQuota from
 // sum(unit.requests * quantity).
 type Quota struct {
 	Pool  string      `json:"pool" binding:"dns1123,max=40" desc:"Resource pool the quota allocates from."`

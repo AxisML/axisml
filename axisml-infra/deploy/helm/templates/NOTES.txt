@@ -14,8 +14,8 @@ Components deployed:
 {{- if (index .Values "gpu-operator").enabled }}
   - GPU Operator:         gpu-operator
 {{- end }}
-{{- if .Values.koordinator.enabled }}
-  - Koordinator:          koord-scheduler / koord-manager (all AxisML workload Pods set schedulerName: koord-scheduler and consume ElasticQuota)
+{{- if .Values.axismlScheduler.enabled }}
+  - axisml-scheduler:     axisml-scheduler / axisml-scheduler-controller (all AxisML workload Pods set schedulerName: axisml-scheduler and consume ElasticQuota)
 {{- end }}
 {{- if (index .Values "kube-prometheus-stack").enabled }}
   - Prometheus / Grafana: prometheus / grafana

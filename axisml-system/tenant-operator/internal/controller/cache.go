@@ -1,13 +1,13 @@
 package controller
 
 import (
-	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/thirdparty/scheduler-plugins/pkg/apis/scheduling/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	schedulingv1alpha1 "github.com/axisml/axisml/axisml-system/tenant-operator/api/scheduling/v1alpha1"
 	tenantv1alpha1 "github.com/axisml/axisml/axisml-system/tenant-operator/api/v1alpha1"
 )
 
@@ -20,7 +20,7 @@ import (
 // also filter MLRun/MLService informers (Job, Deployment, PodGroup, HTTPRoute),
 // none of which carry the tenant managed-by label.
 //
-// PodGroup (also in scheduling.sigs.k8s.io/v1alpha1) is not in the map: it's
+// PodGroup (also in scheduling.x-k8s.io/v1alpha1) is not in the map: it's
 // owned by MLRun and not labelled by Tenant.
 func CacheByObject() map[client.Object]cache.ByObject {
 	managedByOnly := labels.SelectorFromSet(labels.Set{

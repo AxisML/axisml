@@ -45,7 +45,7 @@ seed:
     # Built-in platform tenant; hosts visibility=public artifacts.
     name: default
     # Stable UUID stamped on the seed Tenant CR as
-    # metadata.labels[axisml.io/tenant-id] for external selectors. tenant-
+    # metadata.labels[tenant.axisml.io/id] for external selectors. tenant-
     # operator's reconciler propagates this id onto the namespace + child
     # resources it provisions.
     id: 00000000-0000-0000-0000-000000000001
@@ -218,7 +218,7 @@ clusterManager:
 # =============================================================================
 # Tenant Operator
 # =============================================================================
-# Reconciles the Tenant CR — provisions Namespace, Koordinator ElasticQuota,
+# Reconciles the Tenant CR — provisions Namespace, ElasticQuota,
 # per-tenant Secret/ConfigMap/SA/RBAC. Single reconciler, no dispatcher.
 tenantOperator:
   enabled: true

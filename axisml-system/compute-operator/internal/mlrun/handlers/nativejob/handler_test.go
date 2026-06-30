@@ -86,15 +86,15 @@ func TestBuildJob_PodTemplateLabels(t *testing.T) {
 	}
 	for _, want := range []string{
 		axislabels.RunIDLabel, axislabels.QuotaLabel,
-		axislabels.RoleLabel, axislabels.KoordQuotaLabel,
+		axislabels.RoleLabel, axislabels.SchedulerQuotaLabel,
 	} {
 		if _, ok := job.Spec.Template.Labels[want]; !ok {
 			t.Errorf("Pod template missing required label %q", want)
 		}
 	}
-	if job.Spec.Template.Spec.SchedulerName != axislabels.KoordSchedulerName {
+	if job.Spec.Template.Spec.SchedulerName != axislabels.SchedulerName {
 		t.Errorf("Pod schedulerName: want %q, got %q",
-			axislabels.KoordSchedulerName, job.Spec.Template.Spec.SchedulerName)
+			axislabels.SchedulerName, job.Spec.Template.Spec.SchedulerName)
 	}
 	if job.Spec.Parallelism == nil || *job.Spec.Parallelism != 2 {
 		t.Errorf("Parallelism: want 2, got %v", job.Spec.Parallelism)
@@ -186,7 +186,7 @@ func newScheme(t *testing.T) *runtime.Scheme {
 func TestReconcile_CreatesJob(t *testing.T) {
 	// First Reconcile against an empty cluster must create a Job whose
 	// name matches the MLRun name and whose Pod template carries the
-	// mandatory labels + koord-scheduler.
+	// mandatory labels + axisml-scheduler.
 	s := newScheme(t)
 	c := fakeclient.NewClientBuilder().WithScheme(s).Build()
 	h := New()
@@ -203,13 +203,13 @@ func TestReconcile_CreatesJob(t *testing.T) {
 	if got.Spec.Parallelism == nil || *got.Spec.Parallelism != 2 {
 		t.Fatalf("Parallelism: want 2, got %v", got.Spec.Parallelism)
 	}
-	if got.Spec.Template.Spec.SchedulerName != axislabels.KoordSchedulerName {
+	if got.Spec.Template.Spec.SchedulerName != axislabels.SchedulerName {
 		t.Fatalf("scheduler: want %q, got %q",
-			axislabels.KoordSchedulerName, got.Spec.Template.Spec.SchedulerName)
+			axislabels.SchedulerName, got.Spec.Template.Spec.SchedulerName)
 	}
 	for _, want := range []string{
 		axislabels.RunIDLabel, axislabels.QuotaLabel,
-		axislabels.RoleLabel, axislabels.KoordQuotaLabel,
+		axislabels.RoleLabel, axislabels.SchedulerQuotaLabel,
 	} {
 		if _, ok := got.Spec.Template.Labels[want]; !ok {
 			t.Errorf("Pod template missing required label %q", want)

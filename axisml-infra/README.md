@@ -14,14 +14,14 @@ The design unit here is a **capability the platform needs**, each satisfied by a
 | Database | **PostgreSQL** (bitnami sub-chart) | The single metadata DB for the whole platform; lives here, consumed cross-namespace by the System layer |
 | Cache | Redis (bitnami sub-chart) | Optional hot-read acceleration; **non-authoritative** — callers fall back to the source DB when it's unreachable |
 | Accelerator management | [NVIDIA GPU Operator](https://github.com/NVIDIA/gpu-operator) | Exposes `nvidia.com/gpu`, node labels, DCGM Exporter |
-| Scheduling & quota | [Koordinator](https://koordinator.sh/) | `koord-scheduler` + `ElasticQuota` (elastic multi-tenant quota) + `PodGroup` (gang scheduling) |
+| Scheduling & quota | axisml-scheduler (self-built, on [scheduler-plugins](https://github.com/kubernetes-sigs/scheduler-plugins)) | `axisml-scheduler` + `ElasticQuota` (elastic multi-tenant quota) + `PodGroup` (gang scheduling) |
 | Monitoring | [kube-prometheus-stack](https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack) | Prometheus + Grafana + AlertManager; auto-discovers `ServiceMonitor` / `PodMonitor` |
 
 Infra exposes standard protocols and does **not** embed a tenant model — isolation (bucket/prefix, repo path, table prefix, key prefix) is the caller's responsibility.
 
 ## Key invariants
 
-- **No quota-bypassing scheduling path.** Any workload Pod admitted onto this infra MUST set `schedulerName: koord-scheduler` and carry the label `quota.scheduling.koordinator.sh/name=<elastic-quota-name>`. A Pod without both is a quota-bypass bug. Third-party controllers that derive Pods (e.g. KServe) must pass both through.
+- **No quota-bypassing scheduling path.** Any workload Pod admitted onto this infra MUST set `schedulerName: axisml-scheduler` and carry the label `scheduling.axisml.io/quota=<elastic-quota-name>`. A Pod without both is a quota-bypass bug. Third-party controllers that derive Pods (e.g. KServe) must pass both through.
 - **Infra owns no quota CRs.** It ships zero `ElasticQuota` / `PodGroup` objects and holds no mutation rights over them — those are owned by the CR owners in the System layer.
 - **PostgreSQL lives here.** The System layer reaches it cross-namespace at `axisml-database.axisml-infra:5432`; Redis at `axisml-redis-master.axisml-infra:6379`. The shared `database.auth.password` / `cache.auth.password` inputs must match what each consuming service renders into its own namespace-scoped Secret.
 - **Infra's own Pods use the default scheduler** — they do not set `schedulerName` and do not consume any ElasticQuota.
@@ -31,7 +31,7 @@ Infra exposes standard protocols and does **not** embed a tenant model — isola
 ```
 deploy/helm/                Umbrella chart "axisml-infra" (version 0.1.0)
   ├── Chart.yaml            Sub-chart dependencies (gateway-helm, rustfs, zot,
-  │                         gpu-operator, koordinator, kube-prometheus-stack)
+  │                         gpu-operator, axisml-scheduler, kube-prometheus-stack)
   ├── values.yaml           Capability toggles + shared DB/cache credentials
   └── templates/
       ├── gateway.yaml      The single axisml-gateway + GatewayClass
@@ -40,7 +40,7 @@ docs/system_design/overview.md   Capability-by-capability design (contracts & ra
 scripts/minikube.sh        Local cluster lifecycle helper
 ```
 
-> PostgreSQL and Redis are pulled in as bitnami sub-charts; the GPU Operator, Koordinator, Envoy Gateway, RustFS, zot, and kube-prometheus-stack come in as their upstream charts pinned in `Chart.yaml`.
+> PostgreSQL and Redis are pulled in as bitnami sub-charts; the GPU Operator, Envoy Gateway, RustFS, zot, and kube-prometheus-stack come in as their upstream charts pinned in `Chart.yaml`. axisml-scheduler is a first-party component templated directly (not a sub-chart).
 
 ## Local cluster
 

@@ -1,5 +1,5 @@
 // Package experiment implements the Experiments tag: training-specialized Job
-// definitions whose Runs carry axisml.io/experiment, plus on-demand TensorBoard
+// definitions whose Runs carry compute.axisml.io/experiment, plus on-demand TensorBoard
 // (backend.md §4.9–4.10). Run orchestration is shared via rundef; the spec is
 // isomorphic to a Job's.
 package experiment
@@ -247,9 +247,9 @@ func (s *Service) StopTensorBoard(ctx context.Context, tenant, exp string) error
 // the object-store logdir prefix; the route stays disabled (no external access
 // until the SecurityPolicy lands).
 func buildTensorBoardInput(name, exp string, spec server.JobSpec, runs []string) (computeservice.MLServiceCreate, error) {
-	annos := map[string]any{"axisml.io/experiment": exp}
+	annos := map[string]any{"compute.axisml.io/experiment": exp}
 	if len(runs) > 0 {
-		annos["axisml.io/tensorboard-runs"] = runs
+		annos["platform.axisml.io/tensorboard-runs"] = runs
 	}
 	input := map[string]any{
 		"name":        name,

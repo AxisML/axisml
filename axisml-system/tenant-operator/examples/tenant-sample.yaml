@@ -7,14 +7,14 @@
 # Apply with:  kubectl apply -f examples/tenant-sample.yaml
 # Inspect:     kubectl get tenant sample -o yaml
 #              kubectl get ns,elasticquota,secret,sa,role,rolebinding \
-#                       -A -l axisml.io/tenant-id=11111111-2222-3333-4444-555555555555
+#                       -A -l tenant.axisml.io/id=11111111-2222-3333-4444-555555555555
 ---
 apiVersion: axisml.io/v1alpha1
 kind: Tenant
 metadata:
   name: sample
   labels:
-    axisml.io/tenant-id: "11111111-2222-3333-4444-555555555555"
+    tenant.axisml.io/id: "11111111-2222-3333-4444-555555555555"
 spec:
   namespace:
     name: sample-ns

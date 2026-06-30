@@ -1,0 +1,63 @@
+{{- if .Values.axismlScheduler.enabled }}
+{{- $s := .Values.axismlScheduler }}
+{{- $tag := $s.image.tag | default .Chart.AppVersion }}
+{{- $registry := $s.image.registry | default .Values.global.imageRegistry }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: axisml-scheduler
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: axisml-scheduler
+    app.kubernetes.io/part-of: axisml-infra
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  replicas: {{ $s.scheduler.replicas | default 1 }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: axisml-scheduler
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: axisml-scheduler
+        app.kubernetes.io/part-of: axisml-infra
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: axisml-scheduler
+      containers:
+        - name: scheduler
+          image: "{{ with $registry }}{{ . }}/{{ end }}{{ $s.image.repository }}:{{ $tag }}"
+          imagePullPolicy: {{ $s.image.pullPolicy | default "IfNotPresent" }}
+          command:
+            - /usr/local/bin/axisml-scheduler
+          args:
+            - --config=/etc/axisml-scheduler/config.yaml
+            - --v={{ $s.scheduler.logLevel | default 2 }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 10259
+              scheme: HTTPS
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 10259
+              scheme: HTTPS
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml $s.scheduler.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/axisml-scheduler
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: axisml-scheduler-config
+{{- end }}

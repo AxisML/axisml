@@ -20,7 +20,7 @@ import (
 // ResourceUnit vocabulary, so it folds `Σ(unit.requests × quantity)` /
 // `Σ(unit.limits × quantity)` into the ElasticQuota min/max written to the
 // CR spec.quotas[]. The original selection round-trips through the
-// `axisml.io/quotas` annotation so GET can return the business form.
+// `tenant.axisml.io/quotas` annotation so GET can return the business form.
 
 // Tenant is the REST representation of a Tenant CR.
 type Tenant struct {
@@ -51,7 +51,7 @@ type QuotaUnit struct {
 }
 
 // TenantStatus surfaces the operator-written CR status, read live from
-// etcd on every GET (no cache). `used` flows from koord-scheduler through
+// etcd on every GET (no cache). `used` flows from axisml-scheduler through
 // the ElasticQuota and is never persisted anywhere but the CR.
 type TenantStatus struct {
 	ObservedGeneration int64         `json:"observedGeneration,omitempty" desc:"Generation of the spec the operator last reconciled."`
@@ -65,7 +65,7 @@ type TenantStatus struct {
 type QuotaStatus struct {
 	Pool  string              `json:"pool" desc:"ResourcePool this quota status applies to."`
 	Ready bool                `json:"ready" desc:"Whether the ElasticQuota for this pool is provisioned and ready."`
-	Used  corev1.ResourceList `json:"used,omitempty" desc:"Live resource usage from koord-scheduler via the ElasticQuota."`
+	Used  corev1.ResourceList `json:"used,omitempty" desc:"Live resource usage from axisml-scheduler via the ElasticQuota."`
 }
 
 // CreateTenantRequest is the body for POST /api/v1/tenants.
@@ -117,4 +117,4 @@ type QuotaList struct {
 // QuotasAnnotation stores the business-form quota selection (JSON-encoded
 // []Quota) on the Tenant CR so GET can round-trip `unit × quantity`
 // after the spec.quotas[] has been folded to ElasticQuota min/max.
-const QuotasAnnotation = "axisml.io/quotas"
+const QuotasAnnotation = "tenant.axisml.io/quotas"

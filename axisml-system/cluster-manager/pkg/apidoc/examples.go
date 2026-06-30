@@ -30,7 +30,7 @@ func registerExamples(g *openapigen.Generator) {
 			"nvidia.com/gpu": "2",
 		},
 		"nodeSelector": obj{"axisml.io/gpu": "a100"},
-		"annotations":  obj{"axisml.io/managed-by": "platform"},
+		"annotations":  obj{"tenant.axisml.io/managed-by": "platform"},
 	}
 	g.SetExample("ResourceUnit", unit)
 	g.SetExample("ResourceUnitList", obj{
@@ -74,7 +74,7 @@ func registerExamples(g *openapigen.Generator) {
 		}},
 		"units":           []any{unit},
 		"labels":          obj{"tier": "gpu"},
-		"annotations":     obj{"axisml.io/managed-by": "platform"},
+		"annotations":     obj{"tenant.axisml.io/managed-by": "platform"},
 		"resourceVersion": "184729",
 		"createdAt":       exCreatedAt,
 	}
@@ -160,7 +160,7 @@ func registerExamples(g *openapigen.Generator) {
 		"initResources": initResources,
 		"labels":        obj{"displayName": "Vision Team"},
 		"annotations": obj{
-			"axisml.io/last-modified-by": "li.wei",
+			"resource.axisml.io/last-modified-by": "li.wei",
 		},
 		"resourceVersion": "184730",
 		"phase":           "Ready",

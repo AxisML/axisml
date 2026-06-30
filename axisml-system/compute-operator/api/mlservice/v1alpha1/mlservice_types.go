@@ -174,13 +174,13 @@ type MLServiceList struct {
 
 // LabelServiceID is the stable orphan-detection anchor written by Compute.
 const (
-	LabelServiceID    = "axisml.io/service-id"
-	LabelServiceKind  = "axisml.io/service-kind"
-	LabelTenant       = "axisml.io/tenant"
-	LabelQuota        = "axisml.io/quota"
-	LabelRole         = "axisml.io/role"
-	LabelResourcePool = "axisml.io/resource-pool"
-	LabelResourceUnit = "axisml.io/resource-unit"
+	LabelServiceID    = "compute.axisml.io/service-id"
+	LabelServiceKind  = "compute.axisml.io/service-kind"
+	LabelTenant       = "tenant.axisml.io/name"
+	LabelQuota        = "compute.axisml.io/quota"
+	LabelRole         = "compute.axisml.io/role"
+	LabelResourcePool = "resource.axisml.io/pool"
+	LabelResourceUnit = "resource.axisml.io/unit"
 
 	// ServiceKind enumerates the rows in compute-service's `services` table
 	// (kind='service' vs protected interactive kinds). Stamped on the MLService
@@ -189,9 +189,9 @@ const (
 	ServiceKindWorkspace   = "workspace"
 	ServiceKindTensorBoard = "tensorboard"
 
-	LabelKoordQuotaName = "quota.scheduling.koordinator.sh/name"
+	LabelSchedulerQuota = "scheduling.axisml.io/quota"
 
-	SchedulerName = "koord-scheduler"
+	SchedulerName = "axisml-scheduler"
 
 	DefaultRoleName = "predictor"
 )

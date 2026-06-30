@@ -30,7 +30,7 @@ var _ cmext.VolumeManager = (*Runtime)(nil)
 // descriptionAnnotation is the PVC annotation carrying the volume's description;
 // descriptionLabel mirrors it onto the Docker volume for read-back.
 const (
-	descriptionAnnotation = "axisml.io/description"
+	descriptionAnnotation = "resource.axisml.io/description"
 	descriptionLabel      = "io.axisml.description"
 )
 

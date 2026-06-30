@@ -44,11 +44,11 @@ func (s *suite) Close() {
 func (s *suite) Ready(ctx context.Context) error { return gateReady(ctx) }
 
 // Tenant provisions a fresh multi-tenant scope via the cluster-manager API and
-// returns its namespace plus the koord ElasticQuota name workloads schedule under.
+// returns its namespace plus the ElasticQuota name workloads schedule under.
 func (s *suite) Tenant(t *testing.T) (ns, quota string) { return provisionTenant(t) }
 
 // Supports reports Standard capabilities. The full Kubernetes form backs every
-// capability (multi-tenant, writable pools, koord quota enforcement, artifact
+// capability (multi-tenant, writable pools, quota enforcement, artifact
 // upload), so it reports true across the board — matching the per-service
 // /api/v1/capabilities documents.
 func (s *suite) Supports(Capability) bool { return true }

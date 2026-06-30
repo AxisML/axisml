@@ -420,7 +420,7 @@ type ServerQuotaStatus struct {
 	// Ready Whether the ElasticQuota for this pool is provisioned and ready.
 	Ready bool `json:"ready"`
 
-	// Used Live resource usage from koord-scheduler via the ElasticQuota.
+	// Used Live resource usage from axisml-scheduler via the ElasticQuota.
 	Used *map[string]string `json:"used,omitempty"`
 }
 

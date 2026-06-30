@@ -37,7 +37,7 @@ const (
 	managedByLabel = "app.kubernetes.io/managed-by"
 	managedByValue = "axisml-cluster-manager"
 
-	descriptionAnnotation = "axisml.io/description"
+	descriptionAnnotation = "resource.axisml.io/description"
 )
 
 // Ensure creates the backing PVC. It stamps the cluster-manager ownership label
