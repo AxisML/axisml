@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -33,15 +34,19 @@ func do(t *testing.T, method, path, token string, body any) (int, map[string]any
 	return rec.Code, out
 }
 
+// tokenCache memoises one session token per credential pair across the whole
+// suite. /auth/login is rate-limited per client IP (burst 10), and httptest
+// makes every request share one IP, so re-authenticating on every call would
+// exhaust the bucket and 429. Reusing the session token also mirrors real
+// clients, which log in once and carry the token.
+var (
+	tokenMu    sync.Mutex
+	tokenCache = map[string]string{}
+)
+
 func loginAdmin(t *testing.T) string {
 	t.Helper()
-	code, body := do(t, http.MethodPost, "/api/v1/auth/login", "", map[string]any{
-		"username": "admin", "password": "admin",
-	})
-	require.Equal(t, http.StatusOK, code, "admin login: %v", body)
-	tok, _ := body["jwt"].(string)
-	require.NotEmpty(t, tok)
-	return tok
+	return loginAs(t, "admin", "admin")
 }
 
 func TestProbes(t *testing.T) {
@@ -144,9 +149,18 @@ func TestTenantAndMemberLifecycle(t *testing.T) {
 
 func loginAs(t *testing.T, user, pass string) string {
 	t.Helper()
+	key := user + "\x00" + pass
+	tokenMu.Lock()
+	defer tokenMu.Unlock()
+	if tok, ok := tokenCache[key]; ok {
+		return tok
+	}
 	code, body := do(t, http.MethodPost, "/api/v1/auth/login", "", map[string]any{"username": user, "password": pass})
 	require.Equal(t, http.StatusOK, code, "login %s: %v", user, body)
-	return body["jwt"].(string)
+	tok, _ := body["jwt"].(string)
+	require.NotEmpty(t, tok)
+	tokenCache[key] = tok
+	return tok
 }
 
 func userID(t *testing.T, admin, username string) string {

@@ -22,6 +22,7 @@ import (
 	"github.com/axisml/axisml/axisml-platform/backend/internal/app"
 	"github.com/axisml/axisml/axisml-platform/backend/internal/config"
 	"github.com/axisml/axisml/axisml-platform/backend/internal/db"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/store"
 	"github.com/axisml/axisml/pkg/axismlconfig"
 )
 
@@ -94,6 +95,15 @@ func run(m *testing.M) (int, error) {
 	}
 	if err := app.Bootstrap(ctx, cfg); err != nil {
 		return 0, fmt.Errorf("bootstrap: %w", err)
+	}
+	// The bootstrap admin is seeded with must_change_password, and the server now
+	// enforces that gate on every protected route. Clear it so the suite drives
+	// the API as a fully-onboarded admin (mirrors a real admin completing the
+	// forced password change before using the platform); the admin/admin
+	// credentials used by loginAdmin stay valid.
+	if err := gormDB.Model(&store.User{}).Where("username = ?", cfg.Bootstrap.Username).
+		Update("must_change_password", false).Error; err != nil {
+		return 0, fmt.Errorf("clear admin password gate: %w", err)
 	}
 
 	srv, err := app.NewAPIServer(cfg, gormDB, slog.New(slog.NewTextHandler(os.Stderr, nil)))

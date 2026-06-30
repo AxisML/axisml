@@ -38,6 +38,25 @@ func bearer(token string) func(context.Context, *http.Request) error {
 	}
 }
 
+// e2eAdminPass is the stable password the suite rotates the bootstrap admin to
+// when E2E_ADMIN_PASSWORD is unset, clearing the forced-change gate. ≥8 chars to
+// satisfy the backend's password policy.
+const e2eAdminPass = "axisml-admin-e2e"
+
+// dedupNonEmpty returns the inputs in order, dropping empties and duplicates.
+func dedupNonEmpty(in ...string) []string {
+	seen := map[string]bool{}
+	out := make([]string, 0, len(in))
+	for _, s := range in {
+		if s == "" || seen[s] {
+			continue
+		}
+		seen[s] = true
+		out = append(out, s)
+	}
+	return out
+}
+
 func platformLogin(ctx context.Context, user, pass string) (string, error) {
 	r, err := platformCli.LoginWithResponse(ctx, platform.LoginRequest{Username: user, Password: pass})
 	if err != nil {
@@ -66,7 +85,7 @@ func platformReady(t *testing.T) (*platform.ClientWithResponses, string) {
 	t.Helper()
 	platformOnce.Do(func() {
 		ns := envOr("E2E_PLATFORM_NAMESPACE", "axisml-platform")
-		svc := envOr("E2E_PLATFORM_SVC", "axisml-platform-backend")
+		svc := envOr("E2E_PLATFORM_SVC", "axisml-platform")
 		pf, err := startPortForward(ns, svc, 8080)
 		if err != nil {
 			platformErr = fmt.Errorf("port-forward platform %s/%s: %w", ns, svc, err)
@@ -81,29 +100,63 @@ func platformReady(t *testing.T) (*platform.ClientWithResponses, string) {
 		}
 		platformCli = cli
 
-		ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 		defer cancel()
+
+		// The bootstrap admin is seeded with bootstrap.password (default "admin")
+		// and MustChangePassword, so every protected route returns 403
+		// password-change-required until the gate is cleared. The suite rotates to
+		// a stable e2e password once and logs in with it on later runs, so it stays
+		// idempotent against a persistent cluster. targetPass is what the admin ends
+		// up with; candidates covers both the rotated (re-run) and seeded (first
+		// run) states.
+		targetPass := os.Getenv("E2E_ADMIN_PASSWORD")
+		if targetPass == "" {
+			targetPass = e2eAdminPass
+		}
+		candidates := dedupNonEmpty(targetPass, "admin")
+
 		// Retry login while the platform pod / bootstrap settles.
 		deadline := time.Now().Add(90 * time.Second)
-		for {
-			tok, lerr := platformLogin(ctx, "admin", os.Getenv("E2E_ADMIN_PASSWORD"))
-			if lerr == nil {
-				adminToken = tok
-				return
-			}
-			if os.Getenv("E2E_ADMIN_PASSWORD") == "" {
-				tok, lerr = platformLogin(ctx, "admin", "admin")
-				if lerr == nil {
-					adminToken = tok
-					return
+		var tok, workingPass string
+		for tok == "" {
+			for _, p := range candidates {
+				if t2, lerr := platformLogin(ctx, "admin", p); lerr == nil {
+					tok, workingPass = t2, p
+					break
 				}
 			}
+			if tok != "" {
+				break
+			}
 			if time.Now().After(deadline) {
-				platformErr = fmt.Errorf("admin login never succeeded: %w", lerr)
+				platformErr = fmt.Errorf("admin login never succeeded (tried %d candidate password(s))", len(candidates))
 				return
 			}
 			time.Sleep(3 * time.Second)
 		}
+
+		// Clear the forced password-change gate so the admin can drive writes.
+		me, err := platformCli.GetCurrentUserWithResponse(ctx, bearer(tok))
+		if err != nil || me.JSON200 == nil {
+			platformErr = fmt.Errorf("GET /auth/me after login: %w (status %d)", err, me.StatusCode())
+			return
+		}
+		if mc := me.JSON200.User.MustChangePassword; mc != nil && *mc {
+			cur := workingPass
+			sp, perr := platformCli.SetUserPasswordWithResponse(ctx, me.JSON200.User.Id,
+				platform.SetPasswordRequest{CurrentPassword: &cur, NewPassword: targetPass}, bearer(tok))
+			if perr != nil || !is2xx(sp.StatusCode()) {
+				platformErr = fmt.Errorf("clear password-change gate: %w (status %d: %s)", perr, sp.StatusCode(), sp.Body)
+				return
+			}
+			tok, perr = platformLogin(ctx, "admin", targetPass)
+			if perr != nil {
+				platformErr = fmt.Errorf("re-login after password change: %w", perr)
+				return
+			}
+		}
+		adminToken = tok
 	})
 	if platformErr != nil {
 		t.Skipf("platform not reachable (is axisml-platform installed?): %v", platformErr)
