@@ -28,19 +28,25 @@ SCHED_IMAGE     := $(IMAGE_REGISTRY)axisml/axisml-scheduler
 .DEFAULT_GOAL := help
 
 # --- axisml-scheduler (first-party Go component) ---
-.PHONY: build test fmt vet tidy clean image image-load
+# The scheduler is a controller/plugin binary with no HTTP API surface, so this
+# layer has no doc-gen/doc-test targets (the root doc aggregates skip infra).
+.PHONY: build test coverage coverage-html fmt vet tidy clean image image-load
 build: ## Build the axisml-scheduler binaries
 	@cd $(SCHED_DIR) && go build ./...
 test: ## Unit-test the axisml-scheduler module
 	@cd $(SCHED_DIR) && go test ./...
+coverage: ## axisml-scheduler unit coverage
+	@mkdir -p $(SCHED_DIR)/coverage && cd $(SCHED_DIR) && go test -coverprofile=coverage/coverage.out -covermode=atomic -count=1 ./...
+coverage-html: ## Render axisml-scheduler HTML coverage
+	@if [ -f $(SCHED_DIR)/coverage/coverage.out ]; then cd $(SCHED_DIR) && go tool cover -html=coverage/coverage.out -o coverage/coverage.html && echo "axisml-scheduler unit: $(SCHED_DIR)/coverage/coverage.html"; fi
 fmt: ## gofmt the axisml-scheduler module
 	@cd $(SCHED_DIR) && gofmt -w .
 vet: ## go vet the axisml-scheduler module
 	@cd $(SCHED_DIR) && go vet ./...
 tidy: ## go mod tidy the axisml-scheduler module
 	@cd $(SCHED_DIR) && go mod tidy
-clean: ## Remove build artifacts
-	@cd $(SCHED_DIR) && rm -rf bin
+clean: ## Remove build + coverage artifacts
+	@cd $(SCHED_DIR) && rm -rf bin coverage
 image: ## Build the axisml-scheduler image (scheduler + controller)
 	@docker build -f $(SCHED_DIR)/Dockerfile -t $(SCHED_IMAGE):$(IMAGE_TAG) $(REPO_ROOT)
 image-load: image ## Build + load the image into minikube

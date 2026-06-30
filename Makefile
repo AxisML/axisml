@@ -25,8 +25,13 @@ export MINIKUBE_DRIVER  ?=
 # first-party axisml-scheduler component; system + platform host the rest.
 GO_LAYERS := axisml-infra axisml-system axisml-platform
 
+# Layers that own generated OpenAPI specs (doc-gen/doc-test). axisml-infra is
+# excluded: the axisml-scheduler is a controller/plugin with no HTTP surface.
+DOC_LAYERS := axisml-system axisml-platform
+
 # Component dirs that emit coverage profiles (for the merged report).
 COVERAGE_COMPONENTS := \
+  axisml-infra/axisml-scheduler \
   axisml-system/tenant-operator axisml-system/compute-operator \
   axisml-system/cluster-manager axisml-system/compute-service \
   axisml-system/artifact-hub axisml-platform/backend
@@ -58,10 +63,10 @@ clean: ## Remove build + coverage artifacts across every layer
 docs-gen: api-docs-gen config-docs-gen ## Regenerate all generated docs (OpenAPI specs + config manual)
 docs-test: api-docs-test config-docs-test ## Verify all generated docs are in sync (CI guard)
 api-docs-gen: ## Regenerate all OpenAPI specs
-	@set -e; for l in $(GO_LAYERS); do $(MAKE) -C $$l doc-gen; done
+	@set -e; for l in $(DOC_LAYERS); do $(MAKE) -C $$l doc-gen; done
 	@$(MAKE) -C axisml-lite doc-gen
 api-docs-test: ## Verify all OpenAPI specs are in sync
-	@set -e; for l in $(GO_LAYERS); do $(MAKE) -C $$l doc-test; done
+	@set -e; for l in $(DOC_LAYERS); do $(MAKE) -C $$l doc-test; done
 	@$(MAKE) -C axisml-lite doc-test
 config-docs-gen: ## Regenerate docs/configuration.md from the service Config structs
 	@./scripts/gen-config-doc.sh
