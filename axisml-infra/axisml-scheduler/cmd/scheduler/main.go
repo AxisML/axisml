@@ -11,6 +11,7 @@ import (
 	"k8s.io/component-base/cli"
 	_ "k8s.io/component-base/metrics/prometheus/clientgo" // register client-go metrics
 	"k8s.io/kubernetes/cmd/kube-scheduler/app"
+	_ "sigs.k8s.io/scheduler-plugins/apis/config/scheme" // register out-of-tree plugin args (e.g. CoschedulingArgs) with the scheduler config scheme
 	"sigs.k8s.io/scheduler-plugins/pkg/coscheduling"
 
 	"github.com/axisml/axisml/axisml-infra/axisml-scheduler/internal/plugins/elasticscheduling"

@@ -8,7 +8,7 @@ MINIKUBE_PROFILE="${MINIKUBE_PROFILE:-axisml}"
 MINIKUBE_CPUS="${MINIKUBE_CPUS:-4}"
 MINIKUBE_MEMORY="${MINIKUBE_MEMORY:-8192}"
 MINIKUBE_DISK="${MINIKUBE_DISK:-20g}"
-K8S_VERSION="${K8S_VERSION:-v1.32.3}"
+K8S_VERSION="${K8S_VERSION:-v1.34.7}"
 ADDONS=(ingress metrics-server storage-provisioner dashboard)
 
 info()  { echo "==> $*"; }
