@@ -1,0 +1,139 @@
+from __future__ import annotations
+
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Any, TypeVar, cast
+
+from attrs import define as _attrs_define
+from attrs import field as _attrs_field
+
+from ..types import UNSET, Unset
+
+if TYPE_CHECKING:
+    from ..models.corev_1_local_object_reference import Corev1LocalObjectReference
+
+
+T = TypeVar("T", bound="Corev1CephFSVolumeSource")
+
+
+@_attrs_define
+class Corev1CephFSVolumeSource:
+    """
+    Attributes:
+        monitors (list[str]):
+        path (str | Unset):
+        read_only (bool | Unset):
+        secret_file (str | Unset):
+        secret_ref (Corev1LocalObjectReference | None | Unset):
+        user (str | Unset):
+    """
+
+    monitors: list[str]
+    path: str | Unset = UNSET
+    read_only: bool | Unset = UNSET
+    secret_file: str | Unset = UNSET
+    secret_ref: Corev1LocalObjectReference | None | Unset = UNSET
+    user: str | Unset = UNSET
+    additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        from ..models.corev_1_local_object_reference import Corev1LocalObjectReference
+
+        monitors = self.monitors
+
+        path = self.path
+
+        read_only = self.read_only
+
+        secret_file = self.secret_file
+
+        secret_ref: dict[str, Any] | None | Unset
+        if isinstance(self.secret_ref, Unset):
+            secret_ref = UNSET
+        elif isinstance(self.secret_ref, Corev1LocalObjectReference):
+            secret_ref = self.secret_ref.to_dict()
+        else:
+            secret_ref = self.secret_ref
+
+        user = self.user
+
+        field_dict: dict[str, Any] = {}
+        field_dict.update(self.additional_properties)
+        field_dict.update(
+            {
+                "monitors": monitors,
+            }
+        )
+        if path is not UNSET:
+            field_dict["path"] = path
+        if read_only is not UNSET:
+            field_dict["readOnly"] = read_only
+        if secret_file is not UNSET:
+            field_dict["secretFile"] = secret_file
+        if secret_ref is not UNSET:
+            field_dict["secretRef"] = secret_ref
+        if user is not UNSET:
+            field_dict["user"] = user
+
+        return field_dict
+
+    @classmethod
+    def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
+        from ..models.corev_1_local_object_reference import Corev1LocalObjectReference
+
+        d = dict(src_dict)
+        monitors = cast(list[str], d.pop("monitors"))
+
+        path = d.pop("path", UNSET)
+
+        read_only = d.pop("readOnly", UNSET)
+
+        secret_file = d.pop("secretFile", UNSET)
+
+        def _parse_secret_ref(
+            data: object,
+        ) -> Corev1LocalObjectReference | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, dict):
+                    raise TypeError()
+                secret_ref_type_1 = Corev1LocalObjectReference.from_dict(data)
+
+                return secret_ref_type_1
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(Corev1LocalObjectReference | None | Unset, data)
+
+        secret_ref = _parse_secret_ref(d.pop("secretRef", UNSET))
+
+        user = d.pop("user", UNSET)
+
+        corev_1_ceph_fs_volume_source = cls(
+            monitors=monitors,
+            path=path,
+            read_only=read_only,
+            secret_file=secret_file,
+            secret_ref=secret_ref,
+            user=user,
+        )
+
+        corev_1_ceph_fs_volume_source.additional_properties = d
+        return corev_1_ceph_fs_volume_source
+
+    @property
+    def additional_keys(self) -> list[str]:
+        return list(self.additional_properties.keys())
+
+    def __getitem__(self, key: str) -> Any:
+        return self.additional_properties[key]
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        self.additional_properties[key] = value
+
+    def __delitem__(self, key: str) -> None:
+        del self.additional_properties[key]
+
+    def __contains__(self, key: str) -> bool:
+        return key in self.additional_properties

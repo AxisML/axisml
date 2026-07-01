@@ -92,7 +92,7 @@ make integration-test             # envtest + testcontainers 集成测试（需�
 make help                         # 列出所有可用的 target
 ```
 
-完整流程 —— 环境搭建、构建/测试，以及各测试分层（单元 / 集成 / 通过 `make e2e-test` 手动运行的 e2e）—— 详见[开发工作流](docs/development_workflow.md)。
+完整流程 —— 环境搭建、构建/测试，以及各测试分层（单元 / 集成 / `tests/` 下的黑盒 pytest 套件）—— 详见[开发工作流](docs/development_workflow.md)。
 
 ## 组件
 

@@ -9,9 +9,9 @@ IMAGE_TAG ?= dev
 IMAGE ?= axisml-core:$(IMAGE_TAG)
 
 # Compose stack: default services are PostgreSQL + axisml-core (published on
-# :18080). Extra services live behind profiles — add them with
-# PROFILES="storage gateway platform". Requires registry access (image build +
-# base-image / workload pulls).
+# :8090) + axisml-platform (API + UI on :8080). Extra services live behind
+# profiles — add them with PROFILES="storage gateway". Requires registry access
+# (image build + base-image / workload pulls).
 COMPOSE := docker compose -f deploy/docker-compose.yaml
 PROFILE_FLAGS := $(foreach p,$(PROFILES),--profile $(p))
 
@@ -58,7 +58,7 @@ doc-test: doc-gen ## Verify the axisml-core spec is in sync with the code
 image: ## Build the axisml-core image (context = repo root)
 	docker build -f $(CORE_DIR)/Dockerfile -t $(IMAGE) $(REPO_ROOT)
 
-lite-up: ## Bring up the Lite stack (db + axisml-core on :18080; PROFILES="storage gateway platform" for more)
+lite-up: ## Bring up the Lite stack (db + axisml-core on :8090 + platform UI on :8080; PROFILES="storage gateway" for more)
 	$(COMPOSE) $(PROFILE_FLAGS) up -d --build
 
 lite-down: ## Tear down the Lite stack (CLEAN=1 also removes the data volumes)
@@ -73,7 +73,7 @@ lite-delete: ## Purge the Lite stack + all axisml-managed workload containers & 
 	-@docker volume rm $$(docker volume ls -q --filter "label=io.axisml.managed=true") 2>/dev/null || true
 
 # Bring the stack up first (`make lite-up`), then run the suite against it.
-e2e-test: ## Run the centralized e2e suite (lite form) against $(LITE_CORE_URL) (default http://localhost:18080)
+e2e-test: ## Run the centralized e2e suite (lite form) against $(LITE_CORE_URL) (default http://localhost:8090)
 	cd $(REPO_ROOT)/test/e2e && go test -tags=lite -v -timeout 15m ./...
 
 clean: ## Remove build artifacts

@@ -1,0 +1,14 @@
+# Generated code is committed (so the suites build without a codegen step) but
+# marked generated: GitHub collapses it in diffs and excludes it from language
+# statistics. Regenerate via the appropriate tooling; never hand-edit.
+
+# Go — kubebuilder deepcopy + oapi-codegen clients (matched by convention, any dir)
+zz_generated*.go linguist-generated=true
+*.gen.go         linguist-generated=true
+
+# TypeScript — generated API client / typed SDK / mock fixtures (any dir)
+*.gen.ts         linguist-generated=true
+
+# Python black-box test-suite clients — `make -C tests client-gen`
+# (openapi-python-client emits plain .py, so mark the whole generated tree)
+tests/clients/** linguist-generated=true

@@ -22,7 +22,7 @@ AxisML is a Kubernetes-native ML platform. The repo is a monorepo organized by d
 - `axisml-lite/` — the no-Kubernetes single-host Docker Compose form. The Go module + Dockerfile live under `axisml-lite/axisml-core/` (`cmd/` · `internal/`); deploy assets under `axisml-lite/deploy/` (compose file + `config/`), docs under `axisml-lite/docs/`, layer Makefile at `axisml-lite/Makefile`.
 - Design docs: each layer owns its per-component design docs under `<layer>/docs/system_design/`, and its per-layer DB schema in `<layer>/docs/system_design/database.md` (system + platform have one; infra's is folded into `axisml-infra/docs/system_design/overview.md`). Cross-cutting docs sit directly in `docs/`: `high_level_design.md` (system-level overview), `deployment.md` (deployment manual), `development_workflow.md` (the single dev guide — setup, build/test, testing layers). Generated API specs live in each layer's `docs/apis/`. Product/UX docs live in `axisml-platform/docs/product_design/` (incl. an interactive `prototype/`). `DESIGN.md` at the root is the **frontend** visual design system (Vercel Geist style), not the system design.
 - `axisml-system/test/` — System-layer test infrastructure used by the System integration suites: `setup-envtest/` binary, `testutil/` helpers, `crds/external/` vendored upstream CRDs.
-- `test/` — repo-level shared tests: `e2e/`, the centralized real-cluster e2e suite (see testing section). It's the only cross-layer test tree left at the root.
+- `tests/` — the repo-level **black-box test suite** (Python + pytest, uv-managed): API tests per component + Playwright UI e2e. Treats the system as a black box; runs against the Standard or Lite form (`--mode`). See `tests/README.md`. (This replaced the old Go `test/e2e/` suite.)
 - `pkg/openapigen/` — shared Go module backing the `openapi-gen` doc-generation tooling used by the API components.
 - `scripts/` — repo-wide build/CI helpers that serve the root Makefile and repo-wide pre-commit hooks, not any single layer (`merge-coverage.sh`, `touched-go-modules.sh`). Layer-specific scripts live under `<layer>/scripts/` instead (e.g. `axisml-infra/scripts/minikube.sh`).
 
@@ -59,7 +59,7 @@ axisml-platform/backend/                              (user-facing API authority
 axisml-platform/backend/test/integration/             (integration tests — drives in-process gin via httptest; no envtest/Docker)
 axisml-system/test/testutil/                          (shared helpers, no operator deps)
 pkg/openapigen/                                       (shared doc-gen tooling module)
-test/e2e/                                             (centralized real-cluster e2e suite)
+tests/                                                (black-box test suite — Python + pytest + Playwright, NOT a Go module)
 ```
 
 Why split: keeps test-only deps (`testify`, `testcontainers-go`, `testutil`) out of each component's production `go.mod` and Dockerfile build context. `testutil` is imported via `replace` from each test module — keep it operator-agnostic to avoid circular deps.
@@ -71,7 +71,7 @@ Practical implications:
 
 ## Build / test / install commands
 
-There are exactly **four Makefiles**: the repo-root orchestrator plus one per layer (`axisml-infra/`, `axisml-system/`, `axisml-platform/`). The root Makefile is a thin delegator — its aggregate targets fan out to the layer Makefiles, which hold the real build/test/helm logic. The most common root targets:
+There are **four build Makefiles**: the repo-root orchestrator plus one per layer (`axisml-infra/`, `axisml-system/`, `axisml-platform/`). The root Makefile is a thin delegator — its aggregate targets fan out to the layer Makefiles, which hold the real build/test/helm logic. (A fifth, tiny `tests/Makefile` exists for the Python test suite but holds only `client-gen`; the suite itself runs via `uv`, not make.) The most common root targets:
 
 ```sh
 make help                # list root targets (delegated to layers)
@@ -118,9 +118,9 @@ Documented in detail in `docs/development_workflow.md`. The short version:
 |---|---|---|---|
 | Unit | none | `*_test.go` next to package | none — uses `controller-runtime/pkg/client/fake` |
 | Integration | `//go:build integration` | each component's `test/integration/` Go submodule | embedded apiserver+etcd via `setup-envtest` (controller-runtime), plus testcontainers Postgres for compute-service and artifact-hub |
-| E2E | `//go:build e2e` | `test/e2e/` (centralized, **not** per-component) | a **real** `axisml` minikube cluster (infra+system installed); reaches in-cluster HTTP via `kubectl port-forward` |
+| E2E (black-box) | none (Python) | `tests/` (centralized, **not** Go) | a **real** `axisml` minikube cluster (Standard) or one `axisml-core` process (Lite); API tests over each component's HTTP contract + Playwright UI e2e |
 
-The e2e suite is **manual and not in CI**: run `make e2e-test` after `make cluster-up && make helm-install` (details in `test/e2e/README.md`). HTTP API contracts for the service components are *also* covered at the integration layer by driving the in-process gin engine via `httptest`.
+The e2e suite is **manual and not in CI**: bring an environment up with `uv run test-setup` (after `cd tests && uv sync`), then `uv run pytest --mode standard api` / `uv run pytest e2e`. It is Python + pytest (uv-managed), drives clients generated from the OpenAPI specs, treats the system as a black box, and selects the deployment form with `--mode standard|lite`. Details in `tests/README.md`. Component HTTP contracts are *also* covered at the integration layer by driving the in-process gin engine via `httptest`; white-box CR/ElasticQuota/HTTPRoute shapes are asserted there (and in unit tests), not in `tests/`.
 
 Conventions that bite if you don't know them:
 - **Framework is plain `testing` + `testify`** (`require` for setup, `assert` for checks). **No Ginkgo/Gomega** — don't add them.
@@ -184,7 +184,7 @@ The system layer's `helm-install` / `helm-upgrade` depend on `helm-crds`, which 
 ## Conventions worth knowing
 
 - Conventional Commit subjects, scoped and imperative. The scope is constrained to the four deployment layers — `feat(infra|system|platform|lite)` — plus the cross-cutting scopes `build` (Makefiles/CI/tooling), `repo` (repo-wide reorg), and `deps` (dependency bumps); omit it for changes that span everything (`docs:`, `chore:`). Enforced by commitlint (`.commitlintrc.yml`) via the `commit-msg` hook and on PR titles in CI.
-- The build system is four Makefiles: root (orchestrator) + one per layer. The system layer Makefile owns the `COMPONENTS` list; component dir names must stay unique within it (per-component shortcut targets are `<component>-<target>`).
+- The build system is four Makefiles: root (orchestrator) + one per layer (plus a tiny `tests/Makefile` for `client-gen` only). The system layer Makefile owns the `COMPONENTS` list; component dir names must stay unique within it (per-component shortcut targets are `<component>-<target>`).
 - `bin/` directories are build artifacts — never commit.
 - Lint config (`.golangci.yml`) is shared across all Go modules; CI runs `golangci-lint` once per module. Active linters: `errcheck`, `govet`, `ineffassign`, `staticcheck`, `unused`, `misspell`, plus `gofmt` + `goimports` formatters. The `integration` build tag is enabled so tagged files are linted too.
 - Tenant scope is mandatory in the Platform UI (a tenant switcher); there is no all-tenants view.

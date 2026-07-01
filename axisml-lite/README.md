@@ -55,16 +55,16 @@ make test                  # unit tests (no Docker)
 make image                 # build the axisml-core image (build context = repo root)
 make doc-gen / doc-test    # regenerate / verify the axisml-core OpenAPI spec
 
-make lite-up               # bring up the stack: db + axisml-core on :18080
+make lite-up               # bring up the stack: db + axisml-core on :8090 + platform UI on :8080
 make lite-down             # tear down (CLEAN=1 also removes data volumes)
 make lite-delete           # purge the stack + all axisml-managed workload containers & volumes
 make e2e-test              # run the centralized e2e suite against the running stack
 ```
 
-The Compose stack is profile-gated. `make lite-up` brings up only PostgreSQL and `axisml-core`; pass `PROFILES="storage gateway platform"` to add the artifact stores (zot · RustFS), the Traefik gateway and the Platform frontend/backend:
+`make lite-up` brings up the full control plane — PostgreSQL, `axisml-core` and the `axisml-platform` API + UI (browse to `http://localhost:8080`). The remaining services are profile-gated; pass `PROFILES="storage gateway"` to add the artifact stores (zot · RustFS) and the Traefik gateway:
 
 ```sh
-make lite-up PROFILES="storage gateway platform"
+make lite-up PROFILES="storage gateway"
 ```
 
 ## See also

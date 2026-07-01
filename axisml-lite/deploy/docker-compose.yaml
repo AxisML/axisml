@@ -1,16 +1,15 @@
 # AxisML Lite — single-host Docker Compose deployment.
 #
-# Default (no profile) brings up the Lite control plane: PostgreSQL + axisml-core
-# (Cluster Manager + Compute Service + Artifact Hub + the in-process Standalone
-# runtime). Optional profiles add storage (zot/rustfs), the gateway
-# (traefik) and the Platform (single image: API + UI on :8080):
+# Default (no profile) brings up the full Lite control plane: PostgreSQL +
+# axisml-core (Cluster Manager + Compute Service + Artifact Hub + the in-process
+# Standalone runtime) + axisml-platform (API + UI on :8080) + zot (OCI registry).
+# Optional profiles add extra storage (rustfs/S3) and the gateway (traefik):
 #
-#   docker compose up -d                                   # db + axisml-core
-#   docker compose --profile storage --profile gateway \
-#                  --profile platform up -d                # full stack
+#   docker compose up -d                                   # db + core + platform + zot
+#   docker compose --profile storage --profile gateway up -d   # + rustfs + gateway
 #
-# Build the axisml-core image from the repo ROOT (the go.mod replace directives
-# need the sibling modules in the build context):
+# Both the axisml-core and axisml-platform images build from the repo ROOT (the
+# go.mod replace directives need the sibling modules in the build context):
 #   docker compose build           # uses ../.. as context (set below)
 
 name: axisml-lite
@@ -39,6 +38,8 @@ services:
     depends_on:
       axisml-database:
         condition: service_healthy
+      zot:
+        condition: service_started
     environment:
       AXISML_DATABASE_HOST: axisml-database
       AXISML_DATABASE_PORT: "5432"
@@ -54,7 +55,7 @@ services:
     ports:
       # Published for local development and the e2e suite. Platform reaches it
       # in-cluster at http://axisml-core:8080.
-      - "18080:8080"
+      - "8090:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       # cluster-manager pool definitions (runtime.PoolConfigDir = /etc/axisml/pools)
@@ -62,11 +63,15 @@ services:
       - traefik-dynamic:/var/lib/axisml/traefik
     networks: [axisml-control]
 
+  # OCI registry backing artifact-hub (axisml-core points at http://zot:5000), so
+  # it is part of the default stack. Published on :5001 for the two-phase upload
+  # (the suite pushes manifests to the host-visible registry).
   zot:
-    profiles: ["storage"]
     image: ghcr.io/project-zot/zot-linux-${TARGETARCH:-arm64}:latest
     volumes:
       - zotdata:/var/lib/registry
+    ports:
+      - "5001:5000"
     networks: [axisml-control]
 
   rustfs:
@@ -90,17 +95,24 @@ services:
       - traefik-dynamic:/etc/traefik/dynamic:ro
     networks: [axisml-control, axisml-workloads]
 
-  # Single Platform image: the backend serves both the API and the frontend
-  # SPA on :8080.
-  axisml-platform:
-    profiles: ["platform"]
-    image: ghcr.io/axisml/axisml-platform:latest
+  # Single Platform image: the backend serves both the API and the frontend SPA
+  # on :8080. The distroless entrypoint needs a subcommand (it prints help and
+  # exits with none), so — mirroring the Helm deployment — a one-shot `bootstrap`
+  # (migrate + seed the system-admin and default tenant) runs to completion, then
+  # the long-running `serve`. Part of the default Lite stack — Lite ships the UI.
+  axisml-platform-bootstrap:
+    build: &platform-build
+      context: ../..
+      dockerfile: axisml-platform/Dockerfile
+    image: &platform-image ghcr.io/axisml/axisml-platform:latest
+    command: ["bootstrap"]
+    restart: "no"
     depends_on:
       axisml-database:
         condition: service_healthy
       axisml-core:
         condition: service_started
-    environment:
+    environment: &platform-env
       AXISML_DATABASE_HOST: axisml-database
       AXISML_DATABASE_PORT: "5432"
       AXISML_DATABASE_NAME: axisml
@@ -112,6 +124,16 @@ services:
       AXISML_SYSTEM_ARTIFACT_HUB: http://axisml-core:8080
       AXISML_BOOTSTRAP_USERNAME: admin
       AXISML_BOOTSTRAP_PASSWORD: admin
+    networks: [axisml-control]
+
+  axisml-platform:
+    build: *platform-build
+    image: *platform-image
+    command: ["serve"]
+    depends_on:
+      axisml-platform-bootstrap:
+        condition: service_completed_successfully
+    environment: *platform-env
     ports:
       - "8080:8080"
     networks: [axisml-control]
