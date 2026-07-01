@@ -1,0 +1,222 @@
+from http import HTTPStatus
+from typing import Any, cast
+from urllib.parse import quote
+
+import httpx
+
+from ... import errors
+from ...client import AuthenticatedClient, Client
+from ...models.problem import Problem
+from ...types import UNSET, Response, Unset
+
+
+def _get_kwargs(
+    name: str,
+    *,
+    force: bool | Unset = UNSET,
+    x_axisml_tenant: str | Unset = UNSET,
+) -> dict[str, Any]:
+    headers: dict[str, Any] = {}
+    if not isinstance(x_axisml_tenant, Unset):
+        headers["X-Axisml-Tenant"] = x_axisml_tenant
+
+    params: dict[str, Any] = {}
+
+    params["force"] = force
+
+    params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
+
+    _kwargs: dict[str, Any] = {
+        "method": "delete",
+        "url": "/api/v1/datavolumes/{name}".format(
+            name=quote(str(name), safe=""),
+        ),
+        "params": params,
+    }
+
+    _kwargs["headers"] = headers
+    return _kwargs
+
+
+def _parse_response(
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Any | Problem | None:
+    if response.status_code == 204:
+        response_204 = cast(Any, None)
+        return response_204
+
+    if response.status_code == 400:
+        response_400 = Problem.from_dict(response.json())
+
+        return response_400
+
+    if response.status_code == 401:
+        response_401 = Problem.from_dict(response.json())
+
+        return response_401
+
+    if response.status_code == 403:
+        response_403 = Problem.from_dict(response.json())
+
+        return response_403
+
+    if response.status_code == 404:
+        response_404 = Problem.from_dict(response.json())
+
+        return response_404
+
+    if response.status_code == 409:
+        response_409 = Problem.from_dict(response.json())
+
+        return response_409
+
+    if response.status_code == 500:
+        response_500 = Problem.from_dict(response.json())
+
+        return response_500
+
+    if client.raise_on_unexpected_status:
+        raise errors.UnexpectedStatus(response.status_code, response.content)
+    else:
+        return None
+
+
+def _build_response(
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Response[Any | Problem]:
+    return Response(
+        status_code=HTTPStatus(response.status_code),
+        content=response.content,
+        headers=response.headers,
+        parsed=_parse_response(client=client, response=response),
+    )
+
+
+def sync_detailed(
+    name: str,
+    *,
+    client: AuthenticatedClient | Client,
+    force: bool | Unset = UNSET,
+    x_axisml_tenant: str | Unset = UNSET,
+) -> Response[Any | Problem]:
+    """Delete a data volume
+
+    Args:
+        name (str):
+        force (bool | Unset):
+        x_axisml_tenant (str | Unset):
+
+    Raises:
+        errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
+        httpx.TimeoutException: If the request takes longer than Client.timeout.
+
+    Returns:
+        Response[Any | Problem]
+    """
+
+    kwargs = _get_kwargs(
+        name=name,
+        force=force,
+        x_axisml_tenant=x_axisml_tenant,
+    )
+
+    response = client.get_httpx_client().request(
+        **kwargs,
+    )
+
+    return _build_response(client=client, response=response)
+
+
+def sync(
+    name: str,
+    *,
+    client: AuthenticatedClient | Client,
+    force: bool | Unset = UNSET,
+    x_axisml_tenant: str | Unset = UNSET,
+) -> Any | Problem | None:
+    """Delete a data volume
+
+    Args:
+        name (str):
+        force (bool | Unset):
+        x_axisml_tenant (str | Unset):
+
+    Raises:
+        errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
+        httpx.TimeoutException: If the request takes longer than Client.timeout.
+
+    Returns:
+        Any | Problem
+    """
+
+    return sync_detailed(
+        name=name,
+        client=client,
+        force=force,
+        x_axisml_tenant=x_axisml_tenant,
+    ).parsed
+
+
+async def asyncio_detailed(
+    name: str,
+    *,
+    client: AuthenticatedClient | Client,
+    force: bool | Unset = UNSET,
+    x_axisml_tenant: str | Unset = UNSET,
+) -> Response[Any | Problem]:
+    """Delete a data volume
+
+    Args:
+        name (str):
+        force (bool | Unset):
+        x_axisml_tenant (str | Unset):
+
+    Raises:
+        errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
+        httpx.TimeoutException: If the request takes longer than Client.timeout.
+
+    Returns:
+        Response[Any | Problem]
+    """
+
+    kwargs = _get_kwargs(
+        name=name,
+        force=force,
+        x_axisml_tenant=x_axisml_tenant,
+    )
+
+    response = await client.get_async_httpx_client().request(**kwargs)
+
+    return _build_response(client=client, response=response)
+
+
+async def asyncio(
+    name: str,
+    *,
+    client: AuthenticatedClient | Client,
+    force: bool | Unset = UNSET,
+    x_axisml_tenant: str | Unset = UNSET,
+) -> Any | Problem | None:
+    """Delete a data volume
+
+    Args:
+        name (str):
+        force (bool | Unset):
+        x_axisml_tenant (str | Unset):
+
+    Raises:
+        errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
+        httpx.TimeoutException: If the request takes longer than Client.timeout.
+
+    Returns:
+        Any | Problem
+    """
+
+    return (
+        await asyncio_detailed(
+            name=name,
+            client=client,
+            force=force,
+            x_axisml_tenant=x_axisml_tenant,
+        )
+    ).parsed

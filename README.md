@@ -92,7 +92,7 @@ make integration-test             # envtest + testcontainers integration tests (
 make help                         # discover every available target
 ```
 
-Full walkthrough — setup, build/test, and the testing layers (unit / integration / manual e2e via `make e2e-test`) — lives in the [Development Workflow](docs/development_workflow.md).
+Full walkthrough — setup, build/test, and the testing layers (unit / integration / the black-box pytest suite in `tests/`) — lives in the [Development Workflow](docs/development_workflow.md).
 
 ## Components
 

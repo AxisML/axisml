@@ -94,15 +94,18 @@ Pick the cheapest layer that proves what you need.
 |---|---|---|---|---|
 | **Unit** | none | `*_test.go` next to package | `controller-runtime` fake client | pure logic, validation, mapping |
 | **Integration** | `//go:build integration` | each component's `test/integration/` submodule | envtest apiserver+etcd; testcontainers Postgres for compute-service / artifact-hub; gin via `httptest` for HTTP contracts | reconciler behavior, REST endpoints |
-| **E2E** | `//go:build e2e` | `test/e2e/` (centralized) | a **real** `axisml` minikube cluster (infra+system installed), reached via `kubectl port-forward` | full-stack smoke; **manual, not in CI** |
+| **E2E (black-box)** | none (Python) | `tests/` (centralized, Python + pytest) | a **real** `axisml` minikube cluster (Standard, via `kubectl port-forward`) or one `axisml-core` process (Lite); Playwright for the UI | full-stack smoke over the HTTP contract + UI; **manual, not in CI** |
 
-Run e2e after `make cluster-up && make helm-install`: `make e2e-test`
-(`make e2e-clean` removes a leftover `e2e` tenant). See [`test/e2e/README.md`](../test/e2e/README.md).
+The E2E suite is Python + pytest (uv-managed), not Go. Bring an environment up
+with `uv run test-setup [--mode standard|lite]`, then run
+`uv run pytest --mode standard api` (API tests per component) or
+`uv run pytest e2e` (UI). It drives clients generated from the OpenAPI specs and
+treats the system as a black box. See [`tests/README.md`](../tests/README.md).
 
 Conventions that bite:
 
 - **Framework**: plain `testing` + `testify` (`require` for setup, `assert` for checks). **No Ginkgo/Gomega.**
-- Each gated (`integration`/`e2e`) file needs a sibling `doc.go` (no build tag) so the package compiles under bare `go test ./...`.
+- Each gated (`integration`) file needs a sibling `doc.go` (no build tag) so the package compiles under bare `go test ./...`.
 - **Polling**: `testutil.Eventually` / `EventuallyExists` / `EventuallyGone` from `axisml-system/test/testutil/` (keep it operator-agnostic — no circular deps).
 - **Naming**: `<feature>_<scenario>_test.go`, `Test<Subject>_<Scenario>`; namespaces via `testutil.RandomNamespace`.
 - **External CRDs**: any CRD an operator imports from outside the repo (ElasticQuota, scheduler-plugins PodGroup, gateway-api HTTPRoute, …) must be vendored under `axisml-system/test/crds/external/` and added to the operator's `TestMain` `CRDPaths`, or integration tests hang on "no matches for kind X". Vendor it in the same PR as the handler.

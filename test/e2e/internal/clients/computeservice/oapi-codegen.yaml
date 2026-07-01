@@ -1,9 +1,0 @@
-# oapi-codegen config for the e2e suite's compute-service typed client.
-# Generated from axisml-system/docs/apis/compute-service.yaml — run `make e2e-client-gen`.
-package: computeservice
-output: internal/clients/computeservice/computeservice.gen.go
-generate:
-  models: true
-  client: true
-output-options:
-  skip-prune: false

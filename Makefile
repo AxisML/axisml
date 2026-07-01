@@ -78,44 +78,28 @@ config-docs-test: ## Verify docs/configuration.md is in sync with the Config str
 	fi; rm -f $$tmp; echo "docs/configuration.md is in sync"
 
 ##@ Test execution
-.PHONY: setup-envtest integration-test e2e-test e2e-lite-test lite-up lite-down lite-delete e2e-vet e2e-clean e2e-client-gen
+.PHONY: setup-envtest integration-test client-gen lite-up lite-down lite-delete
 setup-envtest: ## Install the shared envtest binary (axisml-system/test/setup-envtest/)
 	@$(MAKE) -C axisml-system setup-envtest
-# The e2e suite talks to the four AxisML HTTP components through oapi-codegen
-# typed clients generated from the same OpenAPI specs that drive doc-test. Run
-# this after a spec change so the suite fails to COMPILE on drift, not at runtime.
-OAPI_CODEGEN ?= go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.4.1
-e2e-client-gen: ## Regenerate the e2e suite's typed component clients from the OpenAPI specs
-	@cd test/e2e && $(OAPI_CODEGEN) -config internal/clients/clustermanager/oapi-codegen.yaml ../../axisml-system/docs/apis/cluster-manager.yaml
-	@cd test/e2e && $(OAPI_CODEGEN) -config internal/clients/computeservice/oapi-codegen.yaml ../../axisml-system/docs/apis/compute-service.yaml
-	@cd test/e2e && $(OAPI_CODEGEN) -config internal/clients/artifacthub/oapi-codegen.yaml ../../axisml-system/docs/apis/artifact-hub.yaml
-	@cd test/e2e && $(OAPI_CODEGEN) -config internal/clients/platform/oapi-codegen.yaml ../../axisml-platform/docs/apis/platform.yaml
 integration-test: ## Integration tests across every layer (hermetic, CI-friendly)
 	@$(MAKE) -C axisml-system integration
 	@$(MAKE) -C axisml-platform integration
-# E2E: the centralized black-box suite runs against either deployment form. The
-# shared CORE tests drive only the System HTTP contract; the form is selected by
-# build tag (standard = real `axisml` minikube cluster; lite = a running
-# axisml-core process). NOT hermetic, NOT in CI. See test/e2e/README.md.
-e2e-test: ## E2E against the Standard form (running axisml minikube cluster; manual)
-	@cd test/e2e && go test -tags=standard -count=1 -timeout=30m -v ./...
-e2e-lite-test: ## E2E against the Lite form (axisml-core at $$LITE_CORE_URL; manual)
-	@cd test/e2e && go test -tags=lite -count=1 -timeout=15m -v ./...
-# Cluster-free compile guard: type-checks BOTH forms (no apiserver, no Docker) so
-# reorg-style breakage is caught locally before pushing. CI gets the same
-# coverage via golangci-lint's build tags (.golangci.yml).
-e2e-vet: ## Type-check both e2e forms without a cluster
-	@cd test/e2e && go vet -tags=standard ./... && go vet -tags=lite ./...
-lite-up: ## Bring up the Lite stack (db + axisml-core on :18080) via Docker Compose
+# Black-box test suite (Python + pytest) lives in tests/. Its dependencies, env
+# lifecycle, and runs are uv commands (see tests/README.md):
+#   cd tests && uv sync && uv run playwright install chromium
+#   uv run test-setup [--mode standard|lite]   # bring an environment up
+#   uv run pytest --mode standard api          # API tests (per component)
+#   uv run pytest e2e                          # UI end-to-end (Playwright)
+# Only client generation is a make target, delegated to the suite's Makefile:
+client-gen: ## Regenerate the test suite's typed Python clients from the OpenAPI specs
+	@$(MAKE) -C tests client-gen
+# Lite compose stack — also driven by `uv run test-setup --mode lite`.
+lite-up: ## Bring up the Lite stack (db + axisml-core on :9080) via Docker Compose
 	@$(MAKE) -C axisml-lite lite-up
 lite-down: ## Tear down the Lite stack (CLEAN=1 also removes data volumes)
 	@$(MAKE) -C axisml-lite lite-down
 lite-delete: ## Purge the Lite stack + all axisml-managed workload containers & volumes
 	@$(MAKE) -C axisml-lite lite-delete
-e2e-clean: ## Delete any e2e-* tenants left by an interrupted run
-	@kubectl --context $(MINIKUBE_PROFILE) get tenants -o name 2>/dev/null \
-		| grep -E '/e2e(-|$$)' \
-		| xargs -r kubectl --context $(MINIKUBE_PROFILE) delete --ignore-not-found || true
 
 ##@ Coverage
 .PHONY: coverage coverage-unit coverage-integration coverage-merge coverage-html coverage-clean

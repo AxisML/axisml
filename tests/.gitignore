@@ -1,0 +1,13 @@
+# uv-managed virtualenv (rebuilt with `uv sync`)
+.venv/
+
+# pytest / tooling caches
+.pytest_cache/
+__pycache__/
+*.pyc
+
+# Playwright failure artifacts
+test-results/
+
+# NOTE: generated OpenAPI clients under clients/ ARE committed (analogous to the
+# Go suite's *.gen.go), so they are intentionally not ignored here.

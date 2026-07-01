@@ -1,9 +1,0 @@
-# oapi-codegen config for the e2e suite's artifact-hub typed client.
-# Generated from axisml-system/docs/apis/artifact-hub.yaml — run `make e2e-client-gen`.
-package: artifacthub
-output: internal/clients/artifacthub/artifacthub.gen.go
-generate:
-  models: true
-  client: true
-output-options:
-  skip-prune: false

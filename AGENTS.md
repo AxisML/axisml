@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-AxisML is a Kubernetes-native, multi-module Go monorepo organized by deployment layer. `axisml-system/` contains control-plane components: `tenant-operator`, `compute-operator`, `cluster-manager`, `compute-service`, and `artifact-hub`. `axisml-platform/` contains the user-facing layer: `backend/` plus the Vite/React `frontend/`. `axisml-infra/` owns local cluster and infrastructure Helm logic. `axisml-lite/` holds the no-Kubernetes form. Shared packages live in `pkg/`, cross-cutting docs in `docs/`, real-cluster e2e tests in `test/e2e/`, and generated API specs under each layer's `docs/apis/`.
+AxisML is a Kubernetes-native, multi-module Go monorepo organized by deployment layer. `axisml-system/` contains control-plane components: `tenant-operator`, `compute-operator`, `cluster-manager`, `compute-service`, and `artifact-hub`. `axisml-platform/` contains the user-facing layer: `backend/` plus the Vite/React `frontend/`. `axisml-infra/` owns local cluster and infrastructure Helm logic. `axisml-lite/` holds the no-Kubernetes form. Shared packages live in `pkg/`, cross-cutting docs in `docs/`, the black-box test suite (Python + pytest) in `tests/`, and generated API specs under each layer's `docs/apis/`.
 
 ## Build, Test, and Development Commands
 
@@ -24,7 +24,7 @@ Go code must be `gofmt`/`goimports` clean and pass `go vet`; `golangci-lint` use
 
 ## Testing Guidelines
 
-Unit tests sit next to packages as `*_test.go` and use Go `testing` plus `testify`; avoid Ginkgo/Gomega. Integration tests live under each component's `test/integration/` module and use the `integration` build tag. E2E tests live in `test/e2e/`, use the `e2e` tag, and require a running `axisml` minikube cluster. Prefer `axisml-system/test/testutil` polling helpers for reconciler assertions.
+Unit tests sit next to packages as `*_test.go` and use Go `testing` plus `testify`; avoid Ginkgo/Gomega. Integration tests live under each component's `test/integration/` module and use the `integration` build tag. The black-box E2E suite lives in `tests/` (Python + pytest + Playwright, uv-managed): API tests per component over the HTTP contract, plus UI e2e; it requires a running `axisml` cluster (Standard) or `axisml-core` process (Lite) brought up with `uv run test-setup`. Prefer `axisml-system/test/testutil` polling helpers for reconciler assertions.
 
 ## Commit & Pull Request Guidelines
 
