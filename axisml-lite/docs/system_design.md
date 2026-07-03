@@ -119,8 +119,6 @@ axisml-lite/
 │   │       └── standalone/       # Standalone Runtime：ComputeRuntime 的单机实现，经 Docker Engine Adapter 管理 container/volume/network/Traefik、采集运行态
 │   ├── pkg/
 │   │   └── core/                 # 模块装配、配置型 provider、Config/Settings、PG coordination
-│   ├── examples/
-│   │   └── embed/                # 以库形式嵌入 axisml-core 的可运行示例
 │   ├── Dockerfile
 │   └── go.mod
 ├── deploy/
@@ -149,6 +147,16 @@ axisml-system/<service>/pkg/module
 公共装配 API 包含构造器、路由注册、migration 和装配 DTO。handler、repository、Kubernetes adapter 和业务实现保留在各组件 `internal` 中。Standard binary 和 Lite 的 `axisml-core` 共用该 API。
 
 `axisml-core` 在同一个 `:8080` router 注册三组互不冲突的现有业务路由，并保留原 API path；Platform 的现有三个 downstream client 均指向该地址。Standalone composition root 根据已装配模块和部署形态注册 `/api/v1/capabilities`。模块间通过公开 module contract 协作，各自维护私有 repository。
+
+`pkg/core` 是 axisml-core 的公共嵌入 API（composition root）。`core.New(ctx, cfg, opts...)` 完成装配并返回 `App`，`App` 提供 `Migrate()`、`Runnables()`、`Close()`，以及三条把完整 HTTP 面接入宿主的路径：
+
+- `App.RegisterRoutes(gin.IRouter)`——宿主自带 `*gin.Engine` 时，把 axisml-core 的探针、能力文档与三模块路由直接注册到宿主 router（传入 engine 挂到根，或传入前缀 group 如 `r.Group("/axisml")` 挂到子路径）。axisml 的中间件链（request id、access log、recovery、双服务 identity、RFC 7807 错误渲染）被限定在一个子 group，仅包裹 axisml-core 自身路由，不影响宿主在同一 engine 上追加的自有路由。每个 router 只注册一次。
+- `App.Handler()`——返回 axisml-core 自建的 gin engine（opaque `http.Handler`），供非 gin / stdlib 宿主挂载。
+- `App.Serve(ctx)`——Standalone binary 走此路径，监听 `Settings.APIBindAddress` 并托管后台 loop 至优雅关闭。
+
+后台 loop（Compute reconciler 与 status poller、Artifact Hub GC worker）经 `App.Runnables()` 交由宿主启动，或由 `Serve` 自行启动，二者互斥（`Runnables()` 与 `Serve` 只有一方能认领这组 loop）。数据库、静态 pool/tenant 配置、logger 与运行参数分别由 `WithDB` / `WithStaticConfig` / `WithLogger` / `WithSettings` 注入。典型宿主用法：`core.New` 后调用 `app.Migrate()`，把 `app.RegisterRoutes(r.Group("/axisml"))` 挂到宿主自有 `*gin.Engine`，在同一 engine 上追加自有路由，并用 `app.Runnables()` 启动后台 loop。
+
+axisml-core 作为库被外部项目消费时，因同仓模块尚未发布版本，外部 `go.mod` 需用 `replace` 指向本机 AxisML checkout（axisml-core 及其 8 个同仓依赖）；待 `scripts/publish-modules.sh` 打出各 module 的 `<subdir>/vX.Y.Z` tag 后，可去除 `replace` 直接 `go get github.com/axisml/axisml/axisml-lite/axisml-core@<version>`。
 
 依赖与发布规则：
 

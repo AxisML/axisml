@@ -38,13 +38,21 @@ type Runnable interface {
 // runs App.Serve (the binary) or mounts App.Handler on its own HTTP server and
 // starts App.Runnables (an embedding host).
 type App struct {
-	settings  Settings
-	log       logr.Logger
-	db        *gorm.DB
-	ownDB     bool // close the DB on Close only when New opened it
-	dcli      *client.Client
-	engine    *gin.Engine
-	runnables []Runnable
+	settings Settings
+	log      logr.Logger
+	db       *gorm.DB
+	ownDB    bool // close the DB on Close only when New opened it
+	dcli     *client.Client
+
+	// The three System modules, retained so RegisterRoutes can mount them onto
+	// any gin router (a host's own engine, or the internal engine Handler builds).
+	clusterMod *clustermodule.Module
+	computeMod *computemodule.Module
+	arthubMod  *arthubmodule.Module
+
+	engine     *gin.Engine // built once by Handler via engineOnce
+	engineOnce sync.Once
+	runnables  []Runnable
 
 	// loopsClaimed guards the background loops against a double start: it is set
 	// the first time they are claimed, by either Serve (which starts them) or
@@ -62,9 +70,11 @@ var ErrLoopsAlreadyStarted = errors.New("axisml-core: background loops already s
 
 // New is the axisml-core composition root. It resolves the inputs (Settings,
 // database, static config, logger — each overridable via Option), builds the
-// in-process Standalone Runtime, assembles the three System modules on one
-// router and collects their background loops. It does NOT migrate the database
-// or start serving: call App.Migrate then App.Serve (or mount App.Handler).
+// in-process Standalone Runtime, assembles the three System modules, registers
+// their gin binding validators and collects their background loops. It does NOT
+// build the HTTP engine, migrate the database or start serving: call App.Migrate
+// then App.Serve, mount App.Handler, or register onto your own gin engine with
+// App.RegisterRoutes.
 func New(ctx context.Context, cfg Config, opts ...Option) (app *App, err error) {
 	o := options{settings: DefaultSettings()}
 	for _, opt := range opts {
@@ -159,9 +169,16 @@ func New(ctx context.Context, cfg Config, opts ...Option) (app *App, err error) 
 		return nil, fmt.Errorf("assemble artifact-hub module: %w", err)
 	}
 
-	engine, err := buildEngine(db, log, clusterMod, computeMod, arthubMod)
-	if err != nil {
-		return nil, err
+	// Register the modules' custom gin binding validators on the process-global
+	// binding engine. This is the only fallible step of engine composition, so we
+	// do it here (fail fast in New) rather than in RegisterRoutes; it is idempotent
+	// (a tag→fn map overwrite) so both the internal engine and a host's own engine
+	// see the validators.
+	if err = computemodule.RegisterValidators(); err != nil {
+		return nil, fmt.Errorf("register compute validators: %w", err)
+	}
+	if err = arthubmodule.RegisterValidators(); err != nil {
+		return nil, fmt.Errorf("register artifact-hub validators: %w", err)
 	}
 
 	var runnables []Runnable
@@ -176,21 +193,78 @@ func New(ctx context.Context, cfg Config, opts ...Option) (app *App, err error) 
 	}
 
 	return &App{
-		settings:  o.settings,
-		log:       log,
-		db:        db,
-		ownDB:     ownDB,
-		dcli:      dcli,
-		engine:    engine,
-		runnables: runnables,
+		settings:   o.settings,
+		log:        log,
+		db:         db,
+		ownDB:      ownDB,
+		dcli:       dcli,
+		clusterMod: clusterMod,
+		computeMod: computeMod,
+		arthubMod:  arthubMod,
+		runnables:  runnables,
 	}, nil
 }
 
-// Handler returns the assembled gin engine: the form-neutral middleware chain,
-// the probes + capabilities routes and the three System modules under the
-// X-Axisml-User gate. An embedding host mounts this on its own HTTP server to
-// expose the full axisml-core API.
-func (a *App) Handler() http.Handler { return a.engine }
+// RegisterRoutes mounts the full axisml-core HTTP surface — the liveness /
+// readiness probes, the unauthenticated capability document and the three System
+// modules under the X-Axisml-User gate — onto the supplied gin router. The host
+// owns the *gin.Engine and passes either it or a prefix group (r.Group("/axisml"));
+// it may register its own routes on the same router alongside these.
+//
+// axisml-core's middleware chain (request id, access log, recovery, both
+// services' identity stamping, shared RFC 7807 error rendering) is applied to a
+// child group, so it wraps ONLY axisml-core's routes — never the host's own
+// routes on the parent router. Call it once per router: registering the same
+// routes twice panics on gin's duplicate-route check.
+func (a *App) RegisterRoutes(r gin.IRouter) {
+	// Scope the axisml middleware to a child group so sibling routes the host
+	// registers directly on r never inherit it.
+	grp := r.Group("")
+	grp.Use(
+		computemodule.RequestID(),
+		computemodule.AccessLog(a.log),
+		computemodule.Recovery(a.log),
+		computemodule.IdentityMiddleware(),
+		arthubmodule.IdentityMiddleware(),
+		computemodule.ErrorHandler(),
+	)
+
+	grp.GET("/healthz", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
+	grp.GET("/readyz", func(c *gin.Context) {
+		cctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
+		defer cancel()
+		if err := pingDB(cctx, a.db); err != nil {
+			c.String(http.StatusServiceUnavailable, "not ready: %v", err)
+			return
+		}
+		c.String(http.StatusOK, "ok")
+	})
+	// Capability document is unauthenticated so Platform can read it pre-login.
+	grp.GET("/api/v1/capabilities", capabilitiesHandler(aggregateCapabilities(a.clusterMod, a.computeMod, a.arthubMod)))
+
+	api := grp.Group("/api/v1", clustermodule.RequireUser())
+	a.clusterMod.RegisterRoutes(api)
+	a.computeMod.RegisterRoutes(api)
+	a.arthubMod.RegisterRoutes(api)
+}
+
+// Handler returns axisml-core's own gin engine, built once: the middleware
+// chain, the probes + capabilities routes and the three System modules under the
+// X-Axisml-User gate (i.e. RegisterRoutes on a fresh engine). A host that runs a
+// stdlib net/http server — or any non-gin host — mounts this as an opaque
+// http.Handler; a host that runs its OWN gin engine uses RegisterRoutes instead
+// so axisml and host routes share one engine.
+func (a *App) Handler() http.Handler {
+	a.engineOnce.Do(func() {
+		// Force ReleaseMode only for axisml-core's own engine; a native-gin host
+		// that calls RegisterRoutes keeps whatever mode it chose.
+		gin.SetMode(gin.ReleaseMode)
+		e := gin.New()
+		a.RegisterRoutes(e)
+		a.engine = e
+	})
+	return a.engine
+}
 
 // Runnables returns the modules' background loops (Compute reconcilers + status
 // pollers and the Artifact Hub GC worker) for a host that runs its own server
@@ -240,7 +314,7 @@ func (a *App) Serve(ctx context.Context) error {
 		return ErrLoopsAlreadyStarted
 	}
 
-	srv := &http.Server{Addr: a.settings.APIBindAddress, Handler: a.engine, ReadHeaderTimeout: 10 * time.Second}
+	srv := &http.Server{Addr: a.settings.APIBindAddress, Handler: a.Handler(), ReadHeaderTimeout: 10 * time.Second}
 
 	// Run the background loops on a context we cancel on the way out, so they are
 	// also torn down when Serve returns because the HTTP server failed (a path
@@ -295,55 +369,6 @@ func Run(ctx context.Context, cfg Config) error {
 		return err
 	}
 	return app.Serve(ctx)
-}
-
-// buildEngine assembles the shared gin engine: the form-neutral middleware
-// chain (request id, access log, recovery, BOTH services' identity stamping,
-// shared RFC 7807 error rendering), the probes + capabilities routes, then the
-// three modules under the X-Axisml-User gate.
-func buildEngine(
-	db *gorm.DB,
-	log logr.Logger,
-	clusterMod *clustermodule.Module,
-	computeMod *computemodule.Module,
-	arthubMod *arthubmodule.Module,
-) (*gin.Engine, error) {
-	if err := computemodule.RegisterValidators(); err != nil {
-		return nil, fmt.Errorf("register compute validators: %w", err)
-	}
-	if err := arthubmodule.RegisterValidators(); err != nil {
-		return nil, fmt.Errorf("register artifact-hub validators: %w", err)
-	}
-
-	gin.SetMode(gin.ReleaseMode)
-	r := gin.New()
-	r.Use(
-		computemodule.RequestID(),
-		computemodule.AccessLog(log),
-		computemodule.Recovery(log),
-		computemodule.IdentityMiddleware(),
-		arthubmodule.IdentityMiddleware(),
-		computemodule.ErrorHandler(),
-	)
-
-	r.GET("/healthz", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
-	r.GET("/readyz", func(c *gin.Context) {
-		cctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
-		defer cancel()
-		if err := pingDB(cctx, db); err != nil {
-			c.String(http.StatusServiceUnavailable, "not ready: %v", err)
-			return
-		}
-		c.String(http.StatusOK, "ok")
-	})
-	// Capability document is unauthenticated so Platform can read it pre-login.
-	r.GET("/api/v1/capabilities", capabilitiesHandler(aggregateCapabilities(clusterMod, computeMod, arthubMod)))
-
-	api := r.Group("/api/v1", clustermodule.RequireUser())
-	clusterMod.RegisterRoutes(api)
-	computeMod.RegisterRoutes(api)
-	arthubMod.RegisterRoutes(api)
-	return r, nil
 }
 
 func openDB(cfg Config, log logr.Logger) (*gorm.DB, error) {

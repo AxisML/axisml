@@ -14,7 +14,6 @@ axisml-lite/
 │   ├── cmd/              # axisml-core (serve / migrate) · config-doc-gen · openapi-gen
 │   ├── internal/runtime/standalone/   # Standalone Runtime — ComputeRuntime over the Docker Engine API
 │   └── pkg/core/         # module assembly, config-backed providers, Config/Settings, PG coordination
-├── examples/embed/       # standalone Go project embedding axisml-core as a library
 ├── deploy/               # docker-compose.yaml + config/ (default ResourcePool + Tenant YAML)
 ├── docs/                 # system_design.md + generated apis/axisml-core.yaml
 └── Makefile
