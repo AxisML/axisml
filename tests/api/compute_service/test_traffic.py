@@ -14,7 +14,9 @@ from clients.computeservice.api.traffic_policies import (
     create_traffic_policy,
     delete_traffic_policy,
     get_traffic_policy,
+    list_traffic_policies,
     promote_traffic_policy,
+    rollback_traffic_policy,
     split_traffic_policy,
 )
 from clients.computeservice.models import TrafficPolicySplitRequest, TrafficPolicyWeightUpdate
@@ -78,5 +80,43 @@ def test_traffic_canary_lifecycle(harness, cfg, canary_pair):
         # promote: canary becomes stable (100%)
         pr = promote_traffic_policy.sync_detailed(ns, name, client=harness.compute_service)
         assert pr.status_code in (200, 202), pr.content
+    finally:
+        delete_traffic_policy.sync_detailed(ns, name, client=harness.compute_service)
+
+
+def test_traffic_list_and_rollback(harness, cfg, canary_pair):
+    """List projection + the rollback safety valve (canary shifted, then rolled back to 0)."""
+    ns, stable, canary = canary_pair
+    name = unique_name("e2e-tp-rb")
+
+    r = create_traffic_policy.sync_detailed(ns, client=harness.compute_service, body=builders.canary_traffic(name, stable, canary))
+    assert r.status_code in (200, 201), r.content
+    try:
+        def programmed():
+            g = get_traffic_policy.sync_detailed(ns, name, client=harness.compute_service)
+            assert g.status_code == 200, g.content
+            assert g.parsed.phase in ("Programmed", "Ready", "Active"), f"phase={g.parsed.phase!r}"
+
+        eventually(programmed, timeout=cfg.cr_provision_timeout, interval=cfg.poll_interval)
+
+        # List projects the freshly created policy.
+        lst = list_traffic_policies.sync_detailed(ns, client=harness.compute_service)
+        assert lst.status_code == 200, lst.content
+        assert any(it.name == name for it in lst.parsed.items), "created policy absent from list"
+
+        # Shift some traffic onto the canary, then roll it back to 0.
+        sp = split_traffic_policy.sync_detailed(
+            ns, name, client=harness.compute_service,
+            body=TrafficPolicySplitRequest(
+                backends=[
+                    TrafficPolicyWeightUpdate(service_name=stable, weight=50),
+                    TrafficPolicyWeightUpdate(service_name=canary, weight=50),
+                ]
+            ),
+        )
+        assert sp.status_code in (200, 202), sp.content
+
+        rb = rollback_traffic_policy.sync_detailed(ns, name, client=harness.compute_service)
+        assert rb.status_code in (200, 202), rb.content
     finally:
         delete_traffic_policy.sync_detailed(ns, name, client=harness.compute_service)

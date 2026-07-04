@@ -13,8 +13,12 @@ from clients.computeservice.api.ml_runs import (
     delete_ml_run,
     get_ml_run,
     get_ml_run_pod_logs,
+    list_ml_run_events,
     list_ml_run_pods,
+    list_ml_runs,
+    patch_ml_run,
 )
+from clients.computeservice.models import MLRunPatchRequest
 from lib import builders
 from lib.naming import unique_name
 from lib.polling import eventually
@@ -76,5 +80,40 @@ def test_mlrun_cancel(harness, cfg, tenant):
             assert g.parsed.phase in ("Cancelled", "Canceled", "Failed"), f"phase={g.parsed.phase!r}"
 
         eventually(terminal, timeout=cfg.mlrun_complete_timeout, interval=cfg.poll_interval)
+    finally:
+        delete_ml_run.sync_detailed(ns, name, client=harness.compute_service)
+
+
+def test_mlrun_list_patch_events(harness, cfg, tenant):
+    """List projection (+ pagination), display-field patch round-trip, events reachability."""
+    ns, quota = tenant
+    name = unique_name("e2e-run-lpe")
+
+    r = create_ml_run.sync_detailed(ns, client=harness.compute_service, body=builders.busybox_mlrun(cfg, name, quota))
+    assert r.status_code in (200, 201), r.content
+    try:
+        # List projects the freshly created run; the limit page size is honoured.
+        lst = list_ml_runs.sync_detailed(ns, client=harness.compute_service)
+        assert lst.status_code == 200, lst.content
+        assert any(it.name == name for it in lst.parsed.items), "created run absent from list"
+        page = list_ml_runs.sync_detailed(ns, client=harness.compute_service, limit=1)
+        assert page.status_code == 200, page.content
+        assert len(page.parsed.items) <= 1
+
+        # Patch display fields, then read them back (patch response + subsequent GET).
+        p = patch_ml_run.sync_detailed(
+            ns, name, client=harness.compute_service,
+            body=MLRunPatchRequest(display_name="Renamed Run", description="patched by e2e"),
+        )
+        assert p.status_code == 200, p.content
+        assert p.parsed.display_name == "Renamed Run", p.content
+        g = get_ml_run.sync_detailed(ns, name, client=harness.compute_service)
+        assert g.status_code == 200, g.content
+        assert g.parsed.display_name == "Renamed Run"
+
+        # Events projection is reachable (may be empty immediately after create).
+        ev = list_ml_run_events.sync_detailed(ns, name, client=harness.compute_service)
+        assert ev.status_code == 200, ev.content
+        assert isinstance(ev.parsed.items, list)
     finally:
         delete_ml_run.sync_detailed(ns, name, client=harness.compute_service)
