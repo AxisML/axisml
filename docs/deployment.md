@@ -119,7 +119,7 @@ kubectl get crds | grep axisml          # tenant / mlrun / mlservice / mltraffic
 kubectl get tenant,resourcepool         # 内置租户 default 与默认 ResourcePool 已建
 ```
 
-各服务暴露 `/healthz`（liveness）与 `/readyz`（readiness）；Pod 全部 Ready 即控制面就绪。e2e 冒烟见 `test/e2e/README.md`（`make e2e-test`）。
+各服务暴露 `/healthz`（liveness）与 `/readyz`（readiness）；Pod 全部 Ready 即控制面就绪。黑盒 e2e 套件见 `tests/README.md`（Python + pytest，经 `uv run pytest` 运行）。
 
 ## 7. 卸载
 

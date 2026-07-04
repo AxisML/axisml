@@ -4,13 +4,21 @@
 # dependencies so an OUT-OF-TREE project can `go get` them without any `replace`
 # directives.
 #
-# The repo is a pure multi-module tree: axisml-core and its 8 in-repo
+# The repo is a pure multi-module tree: axisml-core and its 6 in-repo
 # dependencies are wired for local development via per-module `replace ../...`
 # directives and pinned at the placeholder `v0.0.0`. Go IGNORES replace
 # directives in dependency modules, so an external consumer must resolve real,
 # published versions. This script bumps the in-repo `require`s to a real version
 # (keeping the replaces — Go uses them for local dev, external consumers ignore
 # them) and creates Go's per-subdirectory version tags (`<subdir>/vX.Y.Z`).
+#
+# The doc-gen-only libraries pkg/openapigen and pkg/configdoc are deliberately
+# NOT published: nothing in axisml-core's import graph reaches them (the two
+# doc-gen commands that did live in the separate axisml-core/tools module now),
+# so Go 1.17+ module-graph pruning drops them from axisml-core's build list.
+# The System components still `require` them for their own in-tree doc-gen, but
+# that require is pruned away for an axisml-core consumer, so it never needs a
+# real version — leaving both at v0.0.0 + a local replace is correct.
 #
 # Usage:
 #   publish-modules.sh list
@@ -37,7 +45,9 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
 # The full transitive set of in-repo modules in axisml-core's library build
-# graph (test-only modules — testutil, */test/integration — are excluded).
+# graph. Excluded: test-only modules (testutil, */test/integration), the
+# dev-only axisml-core/tools module, and the doc-gen-only pkg/openapigen +
+# pkg/configdoc (pruned out of axisml-core's graph — see the header note).
 # Each module's path is github.com/axisml/axisml/<dir>.
 MODULES=(
   axisml-lite/axisml-core
@@ -47,13 +57,11 @@ MODULES=(
   axisml-system/compute-service
   axisml-system/tenant-operator
   pkg/axismlconfig
-  pkg/configdoc
-  pkg/openapigen
 )
 
 MODPREFIX="github.com/axisml/axisml"
 
-# is_publishable <module-path> → 0 if the path is one of the 9 modules above.
+# is_publishable <module-path> → 0 if the path is one of the 7 modules above.
 is_publishable() {
   local p="$1" dir
   for dir in "${MODULES[@]}"; do

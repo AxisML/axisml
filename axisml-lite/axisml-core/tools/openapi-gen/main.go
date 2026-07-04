@@ -14,9 +14,12 @@
 // axisml-system/docs/apis/*.yaml having been regenerated first. foldSystemSpecs
 // below is the union that merges those surfaces together.
 //
-// Run from the component root:
+// This lives in the axisml-core/tools module (a separate, never-published Go
+// module) so the doc-gen-only pkg/openapigen dependency stays OUT of the
+// axisml-core library module that external projects embed. Run from the tools
+// module root:
 //
-//	go run ./cmd/openapi-gen -o ../../docs/apis/axisml-core.yaml
+//	go run ./openapi-gen -o ../../docs/apis/axisml-core.yaml
 package main
 
 import (
