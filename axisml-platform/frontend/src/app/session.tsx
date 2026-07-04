@@ -19,6 +19,7 @@ import type { Role } from "./store";
 // "demo role" picker; the role is whatever the backend says it is.
 
 const TOKEN_KEY = "axisml.token";
+const EXPIRES_KEY = "axisml.expiresAt";
 
 export type SessionStatus = "loading" | "authed" | "anon";
 
@@ -42,6 +43,13 @@ function setToken(t: string | null) {
   if (t) localStorage.setItem(TOKEN_KEY, t);
   else localStorage.removeItem(TOKEN_KEY);
 }
+function getExpiry(): string | null {
+  return localStorage.getItem(EXPIRES_KEY);
+}
+function setExpiry(v: string | null) {
+  if (v) localStorage.setItem(EXPIRES_KEY, v);
+  else localStorage.removeItem(EXPIRES_KEY);
+}
 
 function deriveRole(me: MeResponse | null): Role {
   if (!me) return "user";
@@ -63,28 +71,55 @@ const Ctx = createContext<Session | null>(null);
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<SessionStatus>(() => (getToken() ? "loading" : "anon"));
   const [me, setMe] = useState<MeResponse | null>(null);
+  const [expiresAt, setExpiresAt] = useState<string | null>(() => getExpiry());
+
+  const applyExpiry = useCallback((v: string | null) => {
+    setExpiry(v);
+    setExpiresAt(v);
+  }, []);
 
   const refresh = useCallback(async () => {
     if (!getToken()) {
       setMe(null);
+      applyExpiry(null);
       setStatus("anon");
       return;
     }
     const { data, error } = await sdk.getCurrentUser();
     if (error || !data) {
       setToken(null);
+      applyExpiry(null);
       setMe(null);
       setStatus("anon");
       return;
     }
     setMe(data);
     setStatus("authed");
-  }, []);
+  }, [applyExpiry]);
 
   // Hydrate identity on first mount when a token is already present.
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // Silent token renewal: refresh the JWT shortly before it expires so an active
+  // session is never bounced to /login mid-work. A hard failure (or an unknown
+  // expiry) falls through to the 401 interceptor in api/setup.ts.
+  useEffect(() => {
+    if (status !== "authed" || !expiresAt) return;
+    const delay = new Date(expiresAt).getTime() - Date.now() - 60_000; // 60s lead
+    if (!Number.isFinite(delay)) return;
+    const timer = window.setTimeout(
+      async () => {
+        const { data, error } = await sdk.refreshToken();
+        if (error || !data?.jwt) return;
+        setToken(data.jwt);
+        applyExpiry(data.expiresAt ?? null);
+      },
+      Math.max(delay, 5_000),
+    );
+    return () => clearTimeout(timer);
+  }, [status, expiresAt, applyExpiry]);
 
   const login = useCallback(
     async (username: string, password: string) => {
@@ -97,9 +132,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         throw new Error(msg);
       }
       setToken(data.jwt);
+      applyExpiry(data.expiresAt ?? null);
       await refresh();
     },
-    [refresh],
+    [refresh, applyExpiry],
   );
 
   const logout = useCallback(async () => {
@@ -109,9 +145,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       // best-effort server-side revocation; clear locally regardless
     }
     setToken(null);
+    applyExpiry(null);
     setMe(null);
     setStatus("anon");
-  }, []);
+  }, [applyExpiry]);
 
   const value = useMemo<Session>(
     () => ({

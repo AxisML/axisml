@@ -57,6 +57,7 @@ const (
 	tagResourcePools = "ResourcePools"
 	tagResourceUnits = "ResourceUnits"
 	tagDataVolumes   = "DataVolumes"
+	tagDashboard     = "Dashboard"
 	tagHealth        = "Health"
 )
 
@@ -155,6 +156,7 @@ func tags() []openapigen.TagEntry {
 		{Name: tagResourcePools, Description: "Cluster-scoped resource pools (admin-only writes; read by all)."},
 		{Name: tagResourceUnits, Description: "Per-pool resource unit specs (admin-only writes; read by all)."},
 		{Name: tagDataVolumes, Description: "Tenant-scoped durable data volumes (system-admin only); CRUD + expand + mount-occupancy."},
+		{Name: tagDashboard, Description: "Landing-page aggregates: cluster resource usage, utilisation trends, and the recent-activity feed."},
 		{Name: tagHealth, Description: "Liveness and readiness probes."},
 	}
 }
@@ -242,9 +244,12 @@ func registerSchemas(g *openapigen.Generator) {
 		"MemberList":              server.MemberList{},
 		"WorkspaceLifecycle":      server.WorkspaceLifecycle{},
 		"WorkspaceVolume":         server.WorkspaceVolume{},
+		"WorkspaceTool":           server.WorkspaceTool{},
 		"WorkspaceEndpoint":       server.WorkspaceEndpoint{},
 		"Workspace":               server.Workspace{},
 		"WorkspaceList":           server.WorkspaceList{},
+		"WorkspaceImage":          server.WorkspaceImage{},
+		"WorkspaceImageList":      server.WorkspaceImageList{},
 		"Backend":                 server.Backend{},
 		"RoleTemplate":            server.RoleTemplate{},
 		"MLRunRole":               server.MLRunRole{},
@@ -253,6 +258,7 @@ func registerSchemas(g *openapigen.Generator) {
 		"Run":                     server.Run{},
 		"MLRunSpec":               server.MLRunSpec{},
 		"RunList":                 server.RunList{},
+		"RunSummary":              server.RunSummary{},
 		"ArtifactRef":             server.ArtifactRef{},
 		"JobSpec":                 server.JobSpec{},
 		"Job":                     server.Job{},
@@ -291,6 +297,11 @@ func registerSchemas(g *openapigen.Generator) {
 		"PodList":                 server.PodList{},
 		"Event":                   server.Event{},
 		"EventList":               server.EventList{},
+		"ClusterMeter":            server.ClusterMeter{},
+		"ClusterPoolUsage":        server.ClusterPoolUsage{},
+		"ClusterUsage":            server.ClusterUsage{},
+		"ActivityItem":            server.ActivityItem{},
+		"ActivityList":            server.ActivityList{},
 	} {
 		g.Register(name, v, openapigen.ResponseMode)
 	}
@@ -304,6 +315,7 @@ func registerSchemas(g *openapigen.Generator) {
 	g.Set("RunPhase", enumSchema(server.RunPhaseValues,
 		"Run (compute MLRun) phase. The active (non-terminal) phases — Creating / Pending / Running / Canceling — block Job-definition deletion."))
 	g.Set("MLServicePhase", enumSchema(server.MLServicePhaseValues, ""))
+	g.Set("MLServiceDesiredState", enumSchema(server.MLServiceDesiredStateValues, ""))
 	g.Set("MLServiceMetricName", enumSchema(server.MLServiceMetricNameValues, ""))
 	g.Set("WorkloadMetricName", enumSchema(server.WorkloadMetricNameValues, "Run / workload resource metric."))
 	g.Set("ModelStatus", enumSchema(server.ArtifactStatusValues, "Mirrors artifacts ArtifactStatus for kind=model."))
@@ -360,6 +372,7 @@ var (
 	tWorkspaceDesiredState = reflect.TypeOf(server.WorkspaceDesiredState(""))
 	tRunPhase              = reflect.TypeOf(server.RunPhase(""))
 	tMLServicePhase        = reflect.TypeOf(server.MLServicePhase(""))
+	tMLServiceDesiredState = reflect.TypeOf(server.MLServiceDesiredState(""))
 	tMLServiceMetricName   = reflect.TypeOf(server.MLServiceMetricName(""))
 	tModelStatus           = reflect.TypeOf(server.ModelStatus(""))
 	tImageStatus           = reflect.TypeOf(server.ImageStatus(""))
@@ -419,6 +432,8 @@ func wellKnown(t reflect.Type) *openapigen.Schema {
 		return openapigen.Ref("RunPhase")
 	case tMLServicePhase:
 		return openapigen.Ref("MLServicePhase")
+	case tMLServiceDesiredState:
+		return openapigen.Ref("MLServiceDesiredState")
 	case tMLServiceMetricName:
 		return openapigen.Ref("MLServiceMetricName")
 	case tModelStatus:

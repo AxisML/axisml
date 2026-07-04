@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { Plus, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
-  useServices,
+  usePagedList,
   useModels,
   useImages,
   useResourcePools,
@@ -13,6 +13,9 @@ import {
 import { useApiMutation } from "@/api/mutations";
 import * as sdk from "@/api/generated";
 import { useUI } from "@/app/ui";
+import { MLSERVICE_PHASES } from "@/lib/phase";
+import { useDebouncedValue } from "@/lib/use-debounced";
+import { LoadMore } from "@/components/load-more";
 import { PageContainer } from "@/components/page-container";
 import { PhaseTag } from "@/components/phase-tag";
 import { FieldSection } from "@/components/field-section";
@@ -57,13 +60,25 @@ type DrawerMode = "new" | "edit" | "scale";
 const INVALIDATE = [["mlservices"]];
 
 export default function Services() {
-  const q = useServices();
   const { t } = useTranslation();
   const { confirm } = useUI();
   const [drawer, setDrawer] = useState<{ mode: DrawerMode; row?: SvcRow } | null>(null);
   const [search, setSearch] = useState("");
   const [phase, setPhase] = useState<string>("");
   const [pool, setPool] = useState<string>("");
+
+  // Server-side search / phase / pool + pagination.
+  const dq = useDebouncedValue(search, 300);
+  const q = usePagedList<sdk.MlService>(["mlservices", dq, phase, pool], (page) =>
+    sdk.listMlServices({
+      query: {
+        q: dq || undefined,
+        phase: (phase || undefined) as sdk.MlServicePhase | undefined,
+        poolName: pool || undefined,
+        ...page,
+      },
+    }),
+  );
 
   const del = useApiMutation((name: string) => sdk.deleteMlService({ path: { name } }), {
     invalidate: INVALIDATE,
@@ -78,9 +93,9 @@ export default function Services() {
     success: t("services.stopping"),
   });
 
-  const allRows: SvcRow[] = useMemo(
+  const rows: SvcRow[] = useMemo(
     () =>
-      q.data?.items?.map((s) => ({
+      q.items.map((s) => ({
         name: s.name,
         desc: s.description ?? s.displayName ?? "",
         phase: s.phase,
@@ -92,25 +107,15 @@ export default function Services() {
         url: s.accessUrl,
         running: RUNNING_PHASES.has(s.phase ?? ""),
         displayName: s.displayName,
-      })) ?? [],
-    [q.data],
+      })),
+    [q.items],
   );
 
   const poolOptions = useMemo(
-    () => Array.from(new Set(allRows.map((r) => r.poolName).filter((p): p is string => !!p))),
-    [allRows],
+    () => Array.from(new Set(rows.map((r) => r.poolName).filter((p): p is string => !!p))),
+    [rows],
   );
-  const phaseOptions = useMemo(
-    () => Array.from(new Set(allRows.map((r) => r.phase).filter((p): p is string => !!p))),
-    [allRows],
-  );
-
-  const rows = allRows.filter(
-    (r) =>
-      (!search || r.name.includes(search)) &&
-      (!phase || r.phase === phase) &&
-      (!pool || r.poolName === pool),
-  );
+  const phaseOptions = MLSERVICE_PHASES;
 
   const onDelete = (r: SvcRow) =>
     confirm({
@@ -264,6 +269,7 @@ export default function Services() {
           error={q.isError}
         />
       </Card>
+      <LoadMore hasMore={q.hasMore} loading={q.isFetchingMore} onClick={q.loadMore} />
 
       {drawer?.mode === "new" && <NewSvcDrawer onClose={() => setDrawer(null)} />}
       {drawer?.mode === "edit" && drawer.row && <EditSvcDrawer row={drawer.row} onClose={() => setDrawer(null)} />}

@@ -10,7 +10,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import dayjs from "dayjs";
 import { useApp } from "@/app/store";
 import { useUI } from "@/app/ui";
@@ -24,10 +24,13 @@ import {
   useModels,
   useImages,
   useResourcePools,
+  useClusterUsage,
+  useClusterMetric,
+  useActivity,
 } from "@/api/hooks";
 import { USE_MOCK } from "@/api/mock";
-import { clusterUsage, type ClusterUsage, type UsageMetric } from "@/api/mock/data";
 import * as sdk from "@/api/generated";
+import type { ClusterMeter, MetricPoint } from "@/api/generated";
 import { Card, CardContent, CardHeader, CardTitle, CardAction } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -44,16 +47,18 @@ import {
 import { Area, CartesianGrid, ComposedChart, Line, XAxis, YAxis } from "recharts";
 import { cn } from "@/lib/utils";
 
-// 首页 / Dashboard. KPI counts and recent activity come from the live list
-// endpoints (scoped to the active tenant); active-run roll-ups come from
-// getTenant. Cluster utilisation has no metrics source in the platform contract:
-// in the real app it renders an honest zero / "指标接入中" state (frontend.md §6);
-// under VITE_USE_MOCK_API it reads the demo fixtures so the page matches the
-// product prototype.
+// 首页 / Dashboard. KPI counts come from the live list endpoints (scoped to the
+// active tenant); active-run roll-ups from getTenant. Cluster usage/metrics and
+// the recent-activity feed come from the dashboard aggregate endpoints
+// (/dashboard/cluster-usage · /cluster-metrics · /activity). Those are declared
+// in the contract but not yet implemented by the backend, so against a real
+// backend they 501 and the page renders an honest empty / "指标接入中" state
+// (see api/hooks useAux); under VITE_USE_MOCK_API the mock router answers them.
 export default function Dashboard() {
   const { tenant } = useApp();
   const { toast } = useUI();
   const { t } = useTranslation();
+  const qc = useQueryClient();
   const [range, setRange] = useState("24h");
 
   const ws = useWorkspaces();
@@ -82,6 +87,11 @@ export default function Dashboard() {
 
   const refresh = () => {
     [ws, exp, jobs, svc, models, images, statsQ].forEach((q) => void q.refetch());
+    // The cluster / activity queries live inside child components; invalidate by
+    // key prefix so they refetch too.
+    ["cluster-usage", "cluster-metric", "activity"].forEach((k) =>
+      qc.invalidateQueries({ queryKey: [k] }),
+    );
     toast(t("dashboard.refreshed"));
   };
 
@@ -136,11 +146,11 @@ export default function Dashboard() {
                 ))}
               </TabsList>
               <TabsContent value="all" className="mt-4">
-                <ClusterPane pool="all" />
+                <ClusterPane pool="all" range={range} />
               </TabsContent>
               {poolNames.map((name) => (
                 <TabsContent key={name} value={name} className="mt-4">
-                  <ClusterPane pool={name} />
+                  <ClusterPane pool={name} range={range} />
                 </TabsContent>
               ))}
             </Tabs>
@@ -152,7 +162,7 @@ export default function Dashboard() {
             <CardTitle>{t("dashboard.recentActivity")}</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            <RecentActivity ws={ws} svc={svc} />
+            <RecentActivity />
           </CardContent>
         </Card>
       </div>
@@ -205,16 +215,28 @@ function runText(n: number | undefined, q: UseQueryResult<unknown>): number | st
   return n;
 }
 
-// Cluster usage — demo fixtures under mock, honest zero otherwise.
-function ClusterPane({ pool }: { pool: string }) {
+// Cluster usage meters from /dashboard/cluster-usage; the GPU util/quota trend
+// from /dashboard/cluster-metrics (two series, scoped to the selected range).
+// Both degrade to an honest "指标接入中" empty state when the backend 501s.
+function ClusterPane({ pool, range }: { pool: string; range: string }) {
   const { t } = useTranslation();
-  const usage: ClusterUsage | null = USE_MOCK ? clusterUsage(pool) : null;
+  const usageQ = useClusterUsage(pool);
+  const utilQ = useClusterMetric("gpu_util", pool, range);
+  const quotaQ = useClusterMetric("gpu_quota", pool, range);
+
+  const meters = usageQ.data?.aggregate ?? [];
+  const gpu = meters.find((m) => m.resource === "gpu");
+  const cpu = meters.find((m) => m.resource === "cpu");
+  const mem = meters.find((m) => m.resource === "memory");
+  const hasUsage = meters.length > 0;
+  const trend = zipTrend(utilQ.data?.series, quotaQ.data?.series);
+
   return (
     <div>
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
-        <MeterStat label="GPU" icon={<GpuIcon />} m={usage?.gpu} />
-        <MeterStat label="CPU" icon={<CpuIcon />} m={usage?.cpu} />
-        <MeterStat label={t("dashboard.memLabel")} icon={<MemIcon />} m={usage?.mem} />
+        <MeterStat label="GPU" icon={<GpuIcon />} m={gpu} />
+        <MeterStat label="CPU" icon={<CpuIcon />} m={cpu} />
+        <MeterStat label={t("dashboard.memLabel")} icon={<MemIcon />} m={mem} />
       </div>
       <Separator className="my-4" />
       <div className="mb-3 flex items-center justify-between">
@@ -230,21 +252,28 @@ function ClusterPane({ pool }: { pool: string }) {
           </span>
         </div>
       </div>
-      <TrendChart trend={usage?.trend} />
-      {!usage && <div className="mt-1 text-center text-xs text-muted-foreground">{t("dashboard.metricsSyncing")}</div>}
+      <TrendChart trend={trend} />
+      {!hasUsage && <div className="mt-1 text-center text-xs text-muted-foreground">{t("dashboard.metricsSyncing")}</div>}
     </div>
   );
 }
 
-function MeterStat({ label, icon, m }: { label: string; icon: ReactNode; m?: UsageMetric }) {
+// Present a raw ClusterMeter (resource / used / total / unit) — percentage and
+// alert state are derived here (presentation), not carried by the API.
+function MeterStat({ label, icon, m }: { label: string; icon: ReactNode; m?: ClusterMeter }) {
   const { t } = useTranslation();
-  const fill =
-    m?.state === "hot"
+  const total = m?.total ?? 0;
+  const used = m?.used ?? 0;
+  const pct = total === 0 ? 0 : Math.round((used / total) * 100);
+  const na = !m || total === 0;
+  const fill = na
+    ? "[&_[data-slot=progress-indicator]]:bg-success"
+    : pct >= 80
       ? "[&_[data-slot=progress-indicator]]:bg-destructive"
-      : m?.state === "warn"
+      : pct >= 60
         ? "[&_[data-slot=progress-indicator]]:bg-warning"
         : "[&_[data-slot=progress-indicator]]:bg-success";
-  const na = m?.state === "na";
+  const display = m ? (Number.isInteger(used) ? String(used) : used.toFixed(1)) : "0";
   return (
     <div className={na ? "opacity-50" : undefined}>
       <div className="mb-2.5 flex items-center gap-2 text-[13px] text-muted-foreground">
@@ -252,23 +281,34 @@ function MeterStat({ label, icon, m }: { label: string; icon: ReactNode; m?: Usa
         {label}
       </div>
       <div className="font-mono text-[22px] font-semibold">
-        {m ? m.display : "0"}{" "}
+        {display}{" "}
         <span className="text-sm font-normal text-muted-foreground">
-          / {m ? `${m.total} ${m.unit}` : `— ${label === "GPU" ? "卡" : ""}`}
+          / {m ? `${m.total} ${m.unit ?? ""}` : `— ${label === "GPU" ? "卡" : ""}`}
         </span>
       </div>
-      <Progress value={m?.pct ?? 0} className={cn("mt-2.5 h-1.5", fill)} />
+      <Progress value={pct} className={cn("mt-2.5 h-1.5", fill)} />
       <div className="mt-1.5 font-mono text-xs text-muted-foreground">
-        {na ? t("dashboard.noGpu") : m ? `${m.pct}% ${t("dashboard.utilization")}` : t("dashboard.metricsSyncing")}
+        {na ? t("dashboard.noGpu") : `${pct}% ${t("dashboard.utilization")}`}
       </div>
     </div>
   );
 }
 
-// GPU utilisation trend (filled util area + dashed concurrency line). recharts
-// ComposedChart via the shadcn Chart wrapper; the dashed series rides a hidden
-// secondary axis so its count scale stays independent of the util percentage.
-function TrendChart({ trend }: { trend?: ClusterUsage["trend"] }) {
+type TrendPoint = { t: string; util: number; quota: number };
+
+// Zip the gpu_util + gpu_quota metric series into the composed-chart shape.
+function zipTrend(util?: MetricPoint[], quota?: MetricPoint[]): TrendPoint[] | undefined {
+  if (!util || !util.length) return undefined;
+  return util.map((p, i) => ({
+    t: dayjs(p.timestamp).format("HH:mm"),
+    util: Math.round(p.value),
+    quota: Math.round(quota?.[i]?.value ?? 0),
+  }));
+}
+
+// GPU utilisation trend (filled util area + dashed quota line). recharts
+// ComposedChart via the shadcn Chart wrapper.
+function TrendChart({ trend }: { trend?: TrendPoint[] }) {
   const { t } = useTranslation();
   const data = trend ?? Array.from({ length: 13 }, (_, i) => ({ t: `${i * 2}:00`, util: 0, quota: 0 }));
   const chartConfig = {
@@ -335,27 +375,12 @@ function MemIcon() {
   );
 }
 
-interface Activity {
-  name: string;
-  type: string;
-  at?: string;
-  phase?: string;
-}
-
-function RecentActivity({
-  ws,
-  svc,
-}: {
-  ws: UseQueryResult<sdk.ListWorkspacesResponse>;
-  svc: UseQueryResult<sdk.ListMlServicesResponse>;
-}) {
+// Recent-activity feed from /dashboard/activity (tenant-scoped). Honest empty
+// state when the backend 501s or there is no activity.
+function RecentActivity() {
   const { t } = useTranslation();
-  const items: Activity[] = [
-    ...(ws.data?.items ?? []).map((w) => ({ name: w.name, type: t("dashboard.typeWorkspace"), at: w.updatedAt, phase: w.phase })),
-    ...(svc.data?.items ?? []).map((s) => ({ name: s.name, type: t("dashboard.typeService"), at: s.updatedAt, phase: s.phase })),
-  ]
-    .sort((a, b) => (b.at || "").localeCompare(a.at || ""))
-    .slice(0, 6);
+  const q = useActivity();
+  const items = (q.data?.items ?? []).slice(0, 6);
 
   if (!items.length) {
     return (
@@ -369,10 +394,12 @@ function RecentActivity({
   return (
     <ul className="divide-y">
       {items.map((a, i) => (
-        <li key={i} className="flex items-center justify-between gap-3 px-5 py-3">
+        <li key={a.id ?? i} className="flex items-center justify-between gap-3 px-5 py-3">
           <div className="min-w-0">
             <div className="truncate font-mono text-sm font-medium">{a.name}</div>
-            <div className="text-xs text-muted-foreground">{`${a.type} · ${a.at ? dayjs(a.at).fromNow() : "—"}`}</div>
+            <div className="text-xs text-muted-foreground">
+              {`${a.kind}${a.action ? ` · ${a.action}` : ""} · ${a.timestamp ? dayjs(a.timestamp).fromNow() : "—"}`}
+            </div>
           </div>
           <PhaseTag phase={a.phase} />
         </li>

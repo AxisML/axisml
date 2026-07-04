@@ -40,6 +40,8 @@ export default {
     done: "Done",
     // new model drawer
     newModelTitle: "New Model",
+    editModelTitle: "Edit Model",
+    modelSaved: "Model updated",
     fsBasic: "Basic info",
     fName: "Model name",
     fNamePlaceholder: "my-llm-model (letters, digits and hyphens only)",
@@ -70,6 +72,7 @@ export default {
     methodOras: "Push with ORAS",
     dzTitle: "Drag files here, or click to select",
     dzHint: "Supports weight & config files (.safetensors / .bin / .json / .model, etc.), up to 50GB per file",
+    dzRequired: "Select a file to upload",
     fStorageKind: "Storage type",
     fRemoteUri: "Address",
     remoteUriPlaceholder: "s3://bucket/prefix",

@@ -16,9 +16,17 @@ func exWorkspace(g *openapigen.Generator) {
 	}
 	g.SetExample("WorkspaceVolume", volume)
 
+	tool := obj{"name": "jupyter", "label": "JupyterLab", "url": "https://axisml.example.com/ws/team-vision/notebook-dev/lab"}
+	g.SetExample("WorkspaceTool", tool)
+
 	endpoint := obj{
 		"accessUrl":   "https://axisml.example.com/ws/team-vision/notebook-dev/",
 		"internalDns": "notebook-dev.axisml-team-vision.svc.cluster.local",
+		"tools": []any{
+			tool,
+			obj{"name": "vscode", "label": "VS Code", "url": "https://axisml.example.com/ws/team-vision/notebook-dev/vscode/"},
+			obj{"name": "terminal", "label": "Terminal", "url": "https://axisml.example.com/ws/team-vision/notebook-dev/terminals/1"},
+		},
 	}
 	g.SetExample("WorkspaceEndpoint", endpoint)
 
@@ -81,5 +89,23 @@ func exWorkspace(g *openapigen.Generator) {
 	})
 	g.SetExample("WorkspaceDeleteRequest", obj{
 		"deletePvc": false,
+	})
+
+	wsImage := obj{
+		"ref":         "registry.axisml.io/dev/jupyter:3.0.0",
+		"displayName": "JupyterLab",
+		"description": "JupyterLab data-science environment (public).",
+		"kind":        "jupyter",
+		"defaultPort": 8888,
+		"public":      true,
+	}
+	g.SetExample("WorkspaceImage", wsImage)
+	g.SetExample("WorkspaceImageList", obj{
+		"items": []any{
+			wsImage,
+			obj{"ref": "registry.axisml.io/dev/pytorch:2.3.0", "displayName": "PyTorch", "description": "CUDA 12.1 + PyTorch 2.3 training image.", "kind": "jupyter", "defaultPort": 8888, "public": true},
+			obj{"ref": "registry.axisml.io/dev/code-server:4.22", "displayName": "VS Code", "description": "VS Code (code-server) development environment (public).", "kind": "vscode", "defaultPort": 8080, "public": true},
+		},
+		"count": 3,
 	})
 }

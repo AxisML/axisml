@@ -13,7 +13,10 @@
 // synthesized here and are clearly marked demo-only.
 import { ex } from "./examples.gen";
 import type {
+  ActivityItem,
+  ActivityList,
   ArtifactDefinition,
+  ClusterUsage,
   DataVolume,
   Event,
   Experiment,
@@ -21,6 +24,7 @@ import type {
   Job,
   Member,
   MeResponse,
+  MetricSeries,
   MlService,
   Model,
   Pod,
@@ -29,7 +33,10 @@ import type {
   Run,
   Tenant,
   TrafficPolicy,
+  UserSummary,
   Workspace,
+  WorkspaceImage,
+  WorkspaceImageList,
 } from "../generated";
 
 // ── time helpers ───────────────────────────────────────────────────────────────
@@ -183,19 +190,38 @@ export const quotasByTenant: Record<string, Quota[]> = Object.fromEntries(
   tenants.map((t) => [t.identifier, ex<{ items: Quota[] }>("QuotaList").items]),
 );
 
+// Platform user directory — backs the add-member typeahead (listUsers).
+export const users: UserSummary[] = [
+  { id: "u-admin", username: "admin", displayName: "Platform Admin", email: "admin@axisml.io" },
+  { id: "u-zhang", username: "zhang.wei", displayName: "Zhang Wei", email: "zhang.wei@axisml.io" },
+  { id: "u-liu", username: "liu.yang", displayName: "Liu Yang", email: "liu.yang@axisml.io" },
+  { id: "u-limei", username: "li.mei", displayName: "Li Mei", email: "li.mei@axisml.io" },
+  { id: "u-lina", username: "li.na", displayName: "Li Na", email: "li.na@axisml.io" },
+  { id: "u-chenxi", username: "chen.xi", displayName: "Chen Xi", email: "chen.xi@axisml.io" },
+];
+
 // ── jobs ────────────────────────────────────────────────────────────────────────
 const job0 = ex<Job>("Job");
 export const jobs: Job[] = [
   job0,
-  v(job0, { id: "job-eval-recall", name: "eval-recall", displayName: "Recall offline evaluation", description: "Offline evaluation of the recall model.", owner: "li.na" }),
-  v(job0, { id: "job-data-clean", name: "data-clean-etl", displayName: "Training data cleaning", description: "Training-data cleaning ETL.", owner: "chen.xi" }),
+  v(job0, {
+    id: "job-eval-recall", name: "eval-recall", displayName: "Recall offline evaluation", description: "Offline evaluation of the recall model.", owner: "li.na",
+    runSummary: { count: 3, active: 0, recent: ["Succeeded", "Succeeded", "Succeeded"], latestPhase: "Succeeded", latestRunAt: ago(30) },
+  }),
+  v(job0, {
+    id: "job-data-clean", name: "data-clean-etl", displayName: "Training data cleaning", description: "Training-data cleaning ETL.", owner: "chen.xi",
+    runSummary: { count: 12, active: 0, recent: ["Succeeded", "Failed", "Succeeded", "Succeeded", "Failed"], latestPhase: "Failed", latestRunAt: ago(4) },
+  }),
 ];
 
 // ── experiments ─────────────────────────────────────────────────────────────────
 const exp0 = ex<Experiment>("Experiment");
 export const experiments: Experiment[] = [
   exp0,
-  v(exp0, { id: "exp-aug-search", name: "resnet-aug-search", displayName: "ResNet data-augmentation search", description: "Experiment comparing image-augmentation strategies.", owner: "li.na" }),
+  v(exp0, {
+    id: "exp-aug-search", name: "resnet-aug-search", displayName: "ResNet data-augmentation search", description: "Experiment comparing image-augmentation strategies.", owner: "li.na",
+    runSummary: { count: 2, active: 0, recent: ["Succeeded", "Succeeded"], latestPhase: "Succeeded", latestRunAt: ago(50) },
+  }),
 ];
 
 // ── runs (shared generator for jobs & experiments) ──────────────────────────────
@@ -219,20 +245,6 @@ export function runsFor(parent: string, kind: "job" | "experiment"): Run[] {
       message: phase === "Failed" ? "OOMKilled on worker-2" : undefined,
     });
   });
-}
-
-// Deterministic run roll-up for list pages (run count + recent phases for the
-// status-dot strip). Demo-only: real list endpoints don't carry run history, so
-// the Jobs/Experiments lists fall back to an empty strip outside mock mode.
-const RUN_SUMMARY: Record<string, { count: number; recent: string[] }> = {
-  [jobs[0].name]: { count: 4, recent: ["Succeeded", "Failed", "Succeeded", "Running"] },
-  [jobs[1].name]: { count: 3, recent: ["Succeeded", "Succeeded", "Succeeded"] },
-  [jobs[2].name]: { count: 7, recent: ["Succeeded", "Failed", "Succeeded", "Succeeded", "Failed"] },
-  [experiments[0].name]: { count: 5, recent: ["Succeeded", "Running", "Succeeded", "Failed", "Succeeded"] },
-  [experiments[1].name]: { count: 2, recent: ["Succeeded", "Succeeded"] },
-};
-export function runSummary(name: string): { count: number; recent: string[] } {
-  return RUN_SUMMARY[name] ?? { count: 0, recent: [] };
 }
 
 // ── workspaces ──────────────────────────────────────────────────────────────────
@@ -284,15 +296,26 @@ export const trafficPolicies: TrafficPolicy[] = [
 ];
 
 // ── model & image definitions + versions ────────────────────────────────────────
+// Definition taxonomy (framework / task for models, purpose for images) lives
+// under spec — the same place the API keys it — so the cards read it back.
 const def0 = ex<ArtifactDefinition>("ArtifactDefinition");
 export const models: ArtifactDefinition[] = [
   v(def0, { kind: "model" }),
-  v(def0, { id: "model-bge", kind: "model", name: "bge-embed", displayName: "BGE embedding model", description: "Chinese text embedding model." }),
+  v(def0, {
+    id: "model-bge", kind: "model", name: "bge-embed", displayName: "BGE embedding model", description: "Chinese text embedding model.",
+    spec: { ...def0.spec, framework: "sentence-transformers", task: "embedding" },
+  }),
 ];
 
 export const images: ArtifactDefinition[] = [
-  v(def0, { id: "image-pytorch", kind: "image", name: "pytorch-train", displayName: "PyTorch training image", description: "CUDA 12.1 + PyTorch 2.3 training image." }),
-  v(def0, { id: "image-vllm", kind: "image", name: "vllm-serve", displayName: "vLLM inference image", description: "vLLM inference image." }),
+  v(def0, {
+    id: "image-pytorch", kind: "image", name: "pytorch-train", displayName: "PyTorch training image", description: "CUDA 12.1 + PyTorch 2.3 training image.",
+    spec: { purpose: "training" },
+  }),
+  v(def0, {
+    id: "image-vllm", kind: "image", name: "vllm-serve", displayName: "vLLM inference image", description: "vLLM inference image.",
+    spec: { purpose: "inference" },
+  }),
 ];
 
 const modelVer0 = ex<Model>("Model");
@@ -357,56 +380,40 @@ export function metricSeries(metric: string) {
   return { metric, range: "24h", step: "1h", unit: "%", series };
 }
 
-// ── cluster resource usage (dashboard) ──────────────────────────────────────────
-// Demo-only: there is no cluster-metrics endpoint in the platform contract, so the
-// real Dashboard renders an honest zero state. Under VITE_USE_MOCK_API the
-// Dashboard reads these fixtures instead, so the landing page looks like the
-// product prototype (axisml-platform/docs/product_design/prototype/index.html).
-export type MeterState = "ok" | "warn" | "hot" | "na";
-export interface UsageMetric {
-  used: number;
-  total: number;
-  unit: string;
-  pct: number;
-  state: MeterState;
-  display: string; // formatted "used" value (mem keeps one decimal)
-}
-export interface ClusterUsage {
-  key: string;
-  label: string;
-  gpu: UsageMetric;
-  cpu: UsageMetric;
-  mem: UsageMetric;
-  /** GPU utilisation (%) and GPU quota usage (%) trend points. */
-  trend: { t: string; util: number; quota: number }[];
-}
+// ── dashboard aggregates (cluster usage / metrics / activity) ────────────────────
+// These now mirror real platform endpoints declared in docs/apis/platform.yaml
+// (GET /dashboard/cluster-usage · /dashboard/cluster-metrics · /dashboard/activity).
+// The base shapes come from the spec examples; against a real (not-yet-implemented)
+// backend these 501, and the Dashboard renders an honest empty state instead.
+const clusterUsage0 = ex<ClusterUsage>("ClusterUsage");
 
-const meter = (used: number, total: number, unit: string, decimals = 0): UsageMetric => {
-  const pct = total === 0 ? 0 : Math.round((used / total) * 100);
-  const state: MeterState = total === 0 ? "na" : pct >= 80 ? "hot" : pct >= 60 ? "warn" : "ok";
-  return { used, total, unit, pct, state, display: decimals ? used.toFixed(decimals) : String(used) };
-};
-
-const trendFor = (base: number) =>
-  Array.from({ length: 13 }, (_, i) => {
-    const util = Math.max(8, Math.round(base - 18 + i * 1.6 + 6 * Math.sin(i / 1.7)));
-    return {
-      t: `${i * 2}:00`,
-      util,
-      // Allocated GPU quota (%), usually slightly higher than actual utilisation.
-      quota: Math.min(100, util + 8 + Math.round(4 * Math.sin(i / 2.3))),
-    };
-  });
-
-const clusterUsageMap: Record<string, ClusterUsage> = {
-  all: { key: "all", label: "All", gpu: meter(36, 48, "cards"), cpu: meter(740, 1152, "cores"), mem: meter(3.4, 5.5, "TiB", 1), trend: trendFor(72) },
-  "gpu-a100": { key: "gpu-a100", label: "gpu-a100", gpu: meter(22, 32, "cards"), cpu: meter(240, 384, "cores"), mem: meter(1.2, 2.0, "TiB", 1), trend: trendFor(69) },
-  "h100-pool": { key: "h100-pool", label: "h100-pool", gpu: meter(14, 16, "cards"), cpu: meter(180, 256, "cores"), mem: meter(1.4, 2.0, "TiB", 1), trend: trendFor(86) },
-  "cpu-pool": { key: "cpu-pool", label: "cpu-pool", gpu: meter(0, 0, "cards"), cpu: meter(320, 512, "cores"), mem: meter(0.8, 1.5, "TiB", 1), trend: trendFor(60) },
-};
-
+// cluster-usage snapshot; a pool filter narrows the aggregate to that pool.
 export function clusterUsage(pool?: string): ClusterUsage {
-  return clusterUsageMap[pool ?? "all"] ?? clusterUsageMap.all;
+  if (!pool || pool === "all") return clusterUsage0;
+  const p = (clusterUsage0.pools ?? []).find((x) => x.pool === pool);
+  return { aggregate: p?.meters ?? [], pools: p ? [p] : [], updatedAt: clusterUsage0.updatedAt };
+}
+
+// cluster-metrics time series (util / quota %). Deterministic sine so the trend
+// chart looks alive; higher baseline for the allocated-quota line. The pool
+// filter doesn't change the demo shape, so it isn't a parameter here.
+export function clusterMetric(metric: string): MetricSeries {
+  const base = metric === "gpu_quota" ? 78 : 62;
+  const series = Array.from({ length: 13 }, (_, i) => ({
+    timestamp: ago(24 - i * 2),
+    value: Math.max(8, Math.min(100, Math.round(base - 12 + i * 1.4 + 6 * Math.sin(i / 1.7)))),
+  }));
+  return { metric, range: "24h", step: "2h", unit: "%", series };
+}
+
+const activity0 = ex<ActivityList>("ActivityList");
+export function activityFeed(): ActivityItem[] {
+  return activity0.items ?? [];
+}
+
+const wsImages0 = ex<WorkspaceImageList>("WorkspaceImageList");
+export function workspaceImages(): WorkspaceImage[] {
+  return wsImages0.items ?? [];
 }
 
 export function podLogs(pod: string): string {

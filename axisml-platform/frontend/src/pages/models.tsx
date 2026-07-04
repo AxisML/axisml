@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   Plus,
   Trash2,
@@ -12,9 +12,13 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import dayjs from "dayjs";
-import { useModels, useModelVersions } from "@/api/hooks";
+import { usePagedList, useModelVersions } from "@/api/hooks";
+import { useDebouncedValue } from "@/lib/use-debounced";
+import { LoadMore } from "@/components/load-more";
 import { useApiMutation } from "@/api/mutations";
 import * as sdk from "@/api/generated";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { runWebUpload, fmtFileSize } from "@/lib/artifact-upload";
 import { useApp } from "@/app/store";
 import { useUI } from "@/app/ui";
 import { PageContainer } from "@/components/page-container";
@@ -24,8 +28,6 @@ import { SearchInput } from "@/components/search-input";
 import { AssetCard } from "@/components/asset-card";
 import { CodeBlock } from "@/components/code-block";
 import { DataTable, type Column } from "@/components/data-table";
-import { USE_MOCK } from "@/api/mock";
-import { modelVersions } from "@/api/mock/data";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -62,10 +64,10 @@ type DrawerState =
   | { kind: "versions"; model: string; desc: string; framework: string }
   | { kind: "pull"; model: string; version: string }
   | { kind: "new" }
+  | { kind: "edit"; def: sdk.ArtifactDefinition }
   | { kind: "upload"; model: string };
 
 export default function Models() {
-  const q = useModels();
   const { t } = useTranslation();
   const { tenant } = useApp();
   const { confirm } = useUI();
@@ -73,40 +75,41 @@ export default function Models() {
   const [search, setSearch] = useState("");
   const [drawer, setDrawer] = useState<DrawerState | null>(null);
 
+  // Server-side search + pagination.
+  const dq = useDebouncedValue(search, 300);
+  const q = usePagedList<sdk.ArtifactDefinition>(["models", dq], (page) =>
+    sdk.listModelDefinitions({ query: { q: dq || undefined, ...page } }),
+  );
+
   const delModel = useApiMutation(
     (name: string) => sdk.deleteModelDefinition({ path: { tenant, name } }),
     { invalidate: [["models"]], success: t("models.modelDeleted") },
   );
 
-  const allRows: ModelRow[] = useMemo(
+  const rows: ModelRow[] = useMemo(
     () =>
-      q.data?.items?.map((m) => {
-        // Version roll-ups aren't carried by the list endpoint; under mock we
-        // derive latest/count from the version fixtures so cards read like the
-        // prototype, otherwise stay honest ("—" / 0).
-        const vs = USE_MOCK ? modelVersions(m.name) : [];
+      q.items.map((m) => {
+        // Version roll-ups ride on the definition list response (versionCount /
+        // latestVersion); honest "—" / 0 when the backend hasn't populated them.
         return {
           name: m.name,
           desc: m.description ?? m.displayName ?? "",
-          framework: (m.labels?.framework as string) ?? "—",
-          latest: vs[0]?.version ?? "—",
-          versions: vs.length,
+          framework: ((m.spec as Record<string, unknown> | undefined)?.framework as string) ?? "—",
+          latest: m.latestVersion ?? "—",
+          versions: m.versionCount ?? 0,
           updated: m.updatedAt ?? m.createdAt ?? "",
         };
-      }) ?? [],
-    [q.data],
+      }),
+    [q.items],
   );
-
-  const rows = useMemo(() => {
-    const needle = search.trim().toLowerCase();
-    if (!needle) return allRows;
-    return allRows.filter(
-      (r) => r.name.toLowerCase().includes(needle) || r.desc.toLowerCase().includes(needle),
-    );
-  }, [allRows, search]);
 
   const openVersions = (r: ModelRow) =>
     setDrawer({ kind: "versions", model: r.name, desc: r.desc, framework: r.framework });
+
+  const onEditModel = (r: ModelRow) => {
+    const def = q.items.find((m) => m.name === r.name);
+    if (def) setDrawer({ kind: "edit", def });
+  };
 
   const onDeleteModel = (r: ModelRow) =>
     confirm({
@@ -162,12 +165,15 @@ export default function Models() {
     {
       key: "actions",
       title: t("common.actions"),
-      width: 160,
+      width: 200,
       align: "right",
       render: (r) => (
         <div className="flex items-center justify-end gap-0.5">
           <Button variant="link" size="sm" onClick={() => setDrawer({ kind: "upload", model: r.name })}>
             {t("models.addVersion")}
+          </Button>
+          <Button variant="link" size="sm" onClick={() => onEditModel(r)}>
+            {t("common.edit")}
           </Button>
           <Button variant="link" size="sm" className="text-destructive" onClick={() => onDeleteModel(r)}>
             {t("common.delete")}
@@ -252,6 +258,8 @@ export default function Models() {
                   updated={r.updated ? dayjs(r.updated).fromNow() : "—"}
                   versionsText={`${r.versions} ${t("models.versionsSuffix")}`}
                   onOpen={() => openVersions(r)}
+                  onEdit={() => onEditModel(r)}
+                  editLabel={t("common.edit")}
                   onDelete={() => onDeleteModel(r)}
                   deleteLabel={t("common.delete")}
                 />
@@ -273,6 +281,7 @@ export default function Models() {
           />
         </Card>
       )}
+      <LoadMore hasMore={q.hasMore} loading={q.isFetchingMore} onClick={q.loadMore} />
 
       {drawer?.kind === "versions" && (
         <VersionsDrawer
@@ -288,6 +297,7 @@ export default function Models() {
         <PullDrawer model={drawer.model} version={drawer.version} onClose={() => setDrawer(null)} />
       )}
       {drawer?.kind === "new" && <NewModelDrawer onClose={() => setDrawer(null)} />}
+      {drawer?.kind === "edit" && <NewModelDrawer edit={drawer.def} onClose={() => setDrawer(null)} />}
       {drawer?.kind === "upload" && <UploadDrawer model={drawer.model} onClose={() => setDrawer(null)} />}
     </PageContainer>
   );
@@ -463,8 +473,22 @@ function VersionsDrawer({
 function PullDrawer({ model, version, onClose }: { model: string; version: string; onClose: () => void }) {
   const { t } = useTranslation();
   const { tenant } = useApp();
-  const resolveQ = useModelResolve(model, version, tenant);
-  const cmd = resolveQ.uri ? `docker pull ${resolveQ.uri}` : t("models.pullResolving");
+  // Resolve mints short-lived pull credentials + the concrete registry ref.
+  const resolveQ = useQuery({
+    queryKey: ["models", tenant, model, version, "resolve"],
+    enabled: tenant !== "" && model !== "" && version !== "",
+    queryFn: async () => {
+      const { data, error } = await sdk.resolveModel({ path: { tenant, name: model, version } });
+      if (error) throw error;
+      return data;
+    },
+  });
+  const uri = resolveQ.data?.uri;
+  const creds = resolveQ.data?.pullCredentials as { username?: string; password?: string } | undefined;
+  const registry = uri?.split("/")[0];
+  const login =
+    creds?.username && registry ? `docker login ${registry} -u ${creds.username} -p ${creds.password ?? ""}\n` : "";
+  const cmd = uri ? `${login}docker pull ${uri}` : t("models.pullResolving");
 
   return (
     <FormDrawer
@@ -474,20 +498,9 @@ function PullDrawer({ model, version, onClose }: { model: string; version: strin
       footer={<Button onClick={onClose}>{t("models.done")}</Button>}
     >
       <p className="mb-3 text-sm text-muted-foreground">{t("models.pullHint")}</p>
-      <CodeBlock copy={resolveQ.uri ? cmd : undefined}>{cmd}</CodeBlock>
+      <CodeBlock copy={uri ? cmd : undefined}>{cmd}</CodeBlock>
     </FormDrawer>
   );
-}
-
-// Resolve a version's pull URI on demand (thin local query; not a shared hook).
-function useModelResolve(model: string, version: string, tenant: string): { uri?: string } {
-  const q = useModelVersions(model);
-  // Versions list already carries the URI; resolve endpoint mints temp creds but
-  // the displayed pull target is the version URI. Fall back to a live resolve only
-  // if the version row lacks one.
-  const fromList = q.data?.items?.find((v) => v.version === version)?.uri;
-  void tenant;
-  return { uri: fromList };
 }
 
 // ── New-model drawer ──────────────────────────────────────────────────────────
@@ -514,27 +527,37 @@ interface NewModelValues {
   params: string;
 }
 
-function NewModelDrawer({ onClose }: { onClose: () => void }) {
+function NewModelDrawer({ edit, onClose }: { edit?: sdk.ArtifactDefinition; onClose: () => void }) {
   const { t } = useTranslation();
   const { tenant } = useApp();
+  const isEdit = !!edit;
+  const editSpec = edit?.spec as Record<string, unknown> | undefined;
   const [submitted, setSubmitted] = useState(false);
   const [v, setV] = useState<NewModelValues>({
-    name: "",
-    description: "",
-    tasks: [],
-    framework: "",
-    params: "",
+    name: edit?.name ?? "",
+    description: edit?.description ?? "",
+    tasks:
+      typeof editSpec?.task === "string"
+        ? (editSpec.task as string).split(",").map((s) => s.trim()).filter(Boolean)
+        : [],
+    framework: (editSpec?.framework as string) ?? "",
+    params: (editSpec?.parameters as string) ?? "",
   });
   const set = <K extends keyof NewModelValues>(k: K, val: NewModelValues[K]) =>
     setV((prev) => ({ ...prev, [k]: val }));
   const [taskInput, setTaskInput] = useState("");
-  const [customTags, setCustomTags] = useState<Record<string, string>>({});
+  const [customTags, setCustomTags] = useState<Record<string, string>>(edit?.annotations ?? {});
   const [ctKey, setCtKey] = useState("");
   const [ctVal, setCtVal] = useState("");
 
   const create = useApiMutation(
     (body: sdk.ArtifactDefinitionCreateRequest) => sdk.createModelDefinition({ path: { tenant, name: body.name }, body }),
     { invalidate: [["models"]], success: t("models.modelCreated") },
+  );
+  const update = useApiMutation(
+    (body: sdk.ArtifactDefinitionPatchRequest) =>
+      sdk.updateModelDefinition({ path: { tenant, name: edit!.name }, body }),
+    { invalidate: [["models"]], success: t("models.modelSaved") },
   );
 
   const addTask = (task: string) => {
@@ -561,17 +584,27 @@ function NewModelDrawer({ onClose }: { onClose: () => void }) {
 
   const submit = () => {
     setSubmitted(true);
-    if (!v.name.trim()) return;
-    const labels: Record<string, string> = {};
-    if (v.framework) labels.framework = v.framework;
-    if (v.tasks.length) labels.tasks = v.tasks.join(",");
-    if (v.params.trim()) labels.params = v.params.trim();
+    if (!isEdit && !v.name.trim()) return;
+    // Definition taxonomy lives under spec (artifact-side), NOT labels: the
+    // contract keys these as spec.framework / spec.task / spec.parameters.
+    const spec: Record<string, unknown> = {};
+    if (v.framework) spec.framework = v.framework;
+    if (v.tasks.length) spec.task = v.tasks.join(",");
+    if (v.params.trim()) spec.parameters = v.params.trim();
+    const annotations = Object.keys(customTags).length ? customTags : undefined;
+    if (isEdit) {
+      update.mutate(
+        { description: v.description.trim() || undefined, spec: Object.keys(spec).length ? spec : undefined, annotations },
+        { onSuccess: onClose },
+      );
+      return;
+    }
     create.mutate(
       {
         name: v.name.trim(),
         description: v.description.trim() || undefined,
-        labels: Object.keys(labels).length ? labels : undefined,
-        annotations: Object.keys(customTags).length ? customTags : undefined,
+        spec: Object.keys(spec).length ? spec : undefined,
+        annotations,
       },
       { onSuccess: onClose },
     );
@@ -579,11 +612,11 @@ function NewModelDrawer({ onClose }: { onClose: () => void }) {
 
   return (
     <FormDrawer
-      title={t("models.newModelTitle")}
+      title={isEdit ? t("models.editModelTitle") : t("models.newModelTitle")}
       onClose={onClose}
       onSubmit={submit}
-      submitLabel={t("models.createModel")}
-      submitting={create.isPending}
+      submitLabel={isEdit ? t("common.save") : t("models.createModel")}
+      submitting={create.isPending || update.isPending}
     >
       <FieldSection n={1} title={t("models.fsBasic")} />
       <FieldGroup>
@@ -597,7 +630,9 @@ function NewModelDrawer({ onClose }: { onClose: () => void }) {
             className="font-mono"
             placeholder={t("models.fNamePlaceholder")}
             value={v.name}
-            aria-invalid={submitted && !v.name.trim()}
+            readOnly={isEdit}
+            disabled={isEdit}
+            aria-invalid={submitted && !isEdit && !v.name.trim()}
             onChange={(e) => set("name", e.target.value)}
           />
           <FieldDescription>{t("models.fNameHelp")}</FieldDescription>
@@ -745,16 +780,48 @@ function UploadDrawer({ model, onClose }: { model: string; onClose: () => void }
   });
   const set = <K extends keyof UploadValues>(k: K, val: UploadValues[K]) =>
     setV((prev) => ({ ...prev, [k]: val }));
+  const [file, setFile] = useState<File | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const { toast } = useUI();
+  const qc = useQueryClient();
 
   const initiate = useApiMutation(
     (body: sdk.ModelInitiateRequest) => sdk.initiateModel({ path: { tenant, name: model }, body }),
     { invalidate: [["models"]], success: t("models.versionSubmitted") },
   );
 
+  // Web upload runs the full handshake: initiate → transfer bytes → complete.
+  const upload = useMutation({
+    mutationFn: async () => {
+      if (!file) throw new Error(t("models.dzTitle"));
+      const version = v.version.trim();
+      await runWebUpload(
+        file,
+        () =>
+          sdk.initiateModel({
+            path: { tenant, name: model },
+            body: { version, description: v.description.trim() || undefined, source: "webUpload" },
+          }),
+        (digest) => sdk.completeModel({ path: { tenant, name: model, version }, body: { digest } }),
+      );
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["models"] });
+      toast(t("models.versionSubmitted"));
+      onClose();
+    },
+    onError: (e) => toast(e instanceof Error ? e.message : "上传失败"),
+  });
+
   const submit = () => {
     setSubmitted(true);
-    const isExternal = method === "external";
     if (!v.version.trim()) return;
+    if (method === "webUpload") {
+      if (!file) return;
+      upload.mutate();
+      return;
+    }
+    const isExternal = method === "external";
     if (isExternal && !v.remoteUri.trim()) return;
     initiate.mutate(
       {
@@ -774,7 +841,7 @@ function UploadDrawer({ model, onClose }: { model: string; onClose: () => void }
       onClose={onClose}
       onSubmit={submit}
       submitLabel={t("models.submit")}
-      submitting={initiate.isPending}
+      submitting={initiate.isPending || upload.isPending}
     >
       <FieldSection n={1} title={t("models.fsBasic")} />
       <FieldGroup>
@@ -819,11 +886,38 @@ function UploadDrawer({ model, onClose }: { model: string; onClose: () => void }
           <TabsTrigger value="oras">{t("models.methodOras")}</TabsTrigger>
         </TabsList>
         <TabsContent value="webUpload" className="pt-4">
-          <div className="grid place-items-center gap-2 rounded-lg border border-dashed bg-card p-8 text-center">
+          <button
+            type="button"
+            onClick={() => fileInput.current?.click()}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
+            }}
+            className="grid w-full place-items-center gap-2 rounded-lg border border-dashed bg-card p-8 text-center transition-colors hover:border-primary/40 hover:bg-accent/40"
+          >
             <Inbox className="size-8 text-muted-foreground" />
-            <div className="text-sm font-medium text-foreground">{t("models.dzTitle")}</div>
-            <div className="text-xs text-muted-foreground">{t("models.dzHint")}</div>
-          </div>
+            {file ? (
+              <>
+                <div className="font-mono text-sm font-medium text-foreground">{file.name}</div>
+                <div className="text-xs text-muted-foreground">{fmtFileSize(file.size)}</div>
+              </>
+            ) : (
+              <>
+                <div className="text-sm font-medium text-foreground">{t("models.dzTitle")}</div>
+                <div className="text-xs text-muted-foreground">{t("models.dzHint")}</div>
+              </>
+            )}
+          </button>
+          <input
+            ref={fileInput}
+            type="file"
+            className="hidden"
+            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+          />
+          {submitted && method === "webUpload" && !file && (
+            <p className="mt-2 text-xs text-destructive">{t("models.dzRequired")}</p>
+          )}
         </TabsContent>
         <TabsContent value="remote" className="flex flex-col gap-4 pt-4">
           <FieldGroup>

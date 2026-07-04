@@ -2,7 +2,9 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Plus, MinusCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useTrafficPolicies, useServices } from "@/api/hooks";
+import { usePagedList, useServices } from "@/api/hooks";
+import { useDebouncedValue } from "@/lib/use-debounced";
+import { LoadMore } from "@/components/load-more";
 import { useApiMutation } from "@/api/mutations";
 import * as sdk from "@/api/generated";
 import { useUI } from "@/app/ui";
@@ -29,6 +31,7 @@ import { FormDrawer } from "@/components/form-drawer";
 import { Field, FieldLabel, FieldDescription, FieldGroup } from "@/components/ui/field";
 import { CanaryRollout } from "@/components/canary-rollout";
 import { cn } from "@/lib/utils";
+import { TRAFFIC_PHASES } from "@/lib/phase";
 
 interface SplitBackend {
   serviceName: string;
@@ -69,7 +72,6 @@ function MiniSplit({ split }: { split: SplitBackend[] }) {
 }
 
 export default function Traffic() {
-  const q = useTrafficPolicies();
   const { t } = useTranslation();
   const { confirm } = useUI();
   const [drawer, setDrawer] = useState<{ kind: "create" } | { kind: "split"; row: TrafficRow } | null>(null);
@@ -77,14 +79,22 @@ export default function Traffic() {
   const [mode, setMode] = useState<sdk.TrafficPolicyMode | "">("");
   const [phase, setPhase] = useState<sdk.TrafficPolicyPhase | "">("");
 
+  // Server-side search / mode / phase + pagination.
+  const dq = useDebouncedValue(search, 300);
+  const q = usePagedList<sdk.TrafficPolicy>(["trafficpolicies", dq, mode, phase], (page) =>
+    sdk.listTrafficPolicies({
+      query: { q: dq || undefined, mode: mode || undefined, phase: phase || undefined, ...page },
+    }),
+  );
+
   const del = useApiMutation((name: string) => sdk.deleteTrafficPolicy({ path: { name } }), {
     invalidate: [["trafficpolicies"]],
     success: t("traffic.deleted"),
   });
 
-  const allRows: TrafficRow[] = useMemo(
+  const rows: TrafficRow[] = useMemo(
     () =>
-      (q.data?.items ?? []).map((p) => ({
+      q.items.map((p) => ({
         name: p.name,
         desc: p.description ?? p.displayName ?? "",
         mode: p.mode,
@@ -97,11 +107,7 @@ export default function Traffic() {
         })),
         endpoint: p.accessUrl,
       })),
-    [q.data],
-  );
-
-  const rows = allRows.filter(
-    (r) => (!search || r.name.includes(search)) && (!mode || r.mode === mode) && (!phase || r.phase === phase),
+    [q.items],
   );
 
   const modeLabel = (m: sdk.TrafficPolicyMode) => (m === "weighted" ? t("traffic.modeWeighted") : t("traffic.modeCanary"));
@@ -210,9 +216,7 @@ export default function Traffic() {
         <FilterSelect
           value={phase}
           onChange={(v) => setPhase(v as sdk.TrafficPolicyPhase | "")}
-          options={(["Ready", "Pending", "Creating", "Degraded", "Failed"] as sdk.TrafficPolicyPhase[]).map(
-            (p) => ({ value: p, label: t(`phase.${p}`, { defaultValue: p }) }),
-          )}
+          options={TRAFFIC_PHASES.map((p) => ({ value: p, label: t(`phase.${p}`, { defaultValue: p }) }))}
           allLabel={t("traffic.statusAll")}
         />
         <Button
@@ -235,6 +239,7 @@ export default function Traffic() {
           error={q.isError}
         />
       </Card>
+      <LoadMore hasMore={q.hasMore} loading={q.isFetchingMore} onClick={q.loadMore} />
 
       {drawer?.kind === "create" && <TrafficDrawer onClose={() => setDrawer(null)} />}
       {drawer?.kind === "split" && <SplitDrawer row={drawer.row} onClose={() => setDrawer(null)} />}

@@ -14,8 +14,6 @@ import { Descriptions, Desc } from "@/components/descriptions";
 import { PageLoading, DetailError } from "@/components/page-state";
 import { fmtDateTime, fmtDuration } from "@/lib/format";
 import { DataTable, type Column } from "@/components/data-table";
-import { USE_MOCK } from "@/api/mock";
-import { runSummary } from "@/api/mock/data";
 import * as sdk from "@/api/generated";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardAction, CardContent } from "@/components/ui/card";
@@ -56,7 +54,7 @@ export default function JobDetail() {
 
   const job = jobQ.data;
   const role = job ? primaryRole(job.spec.roles) : undefined;
-  const latestPhase = USE_MOCK ? runSummary(name).recent.at(-1) : undefined;
+  const latestPhase = job?.runSummary?.latestPhase ?? job?.runSummary?.recent?.at(-1);
 
   return (
     <PageContainer

@@ -38,6 +38,8 @@ export default {
     done: "完成",
     // new image drawer
     newImageTitle: "新建镜像",
+    editImageTitle: "编辑镜像",
+    imageSaved: "镜像已更新",
     fsBasic: "基本信息",
     fName: "镜像名",
     fNamePlaceholder: "my-image（仅英文、数字与连字符）",

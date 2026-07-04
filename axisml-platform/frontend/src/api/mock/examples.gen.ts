@@ -7,6 +7,47 @@
 // authoring lives on the Go DTOs, so fixtures stay in lock-step with the contract.
 
 export const examples: Record<string, unknown> = {
+  "ActivityItem": {
+    "action": "succeeded",
+    "actor": "li.wei",
+    "id": "act-9f3a2e5c",
+    "kind": "run",
+    "name": "resnet-train-7",
+    "phase": "Succeeded",
+    "timestamp": "2026-06-28T09:25:00Z"
+  },
+  "ActivityList": {
+    "count": 3,
+    "items": [
+      {
+        "action": "succeeded",
+        "actor": "li.wei",
+        "id": "act-9f3a2e5c",
+        "kind": "run",
+        "name": "resnet-train-7",
+        "phase": "Succeeded",
+        "timestamp": "2026-06-28T09:25:00Z"
+      },
+      {
+        "action": "started",
+        "actor": "zhang.san",
+        "id": "act-7b4f2a1c",
+        "kind": "mlservice",
+        "name": "llama3-chat",
+        "phase": "Ready",
+        "timestamp": "2026-06-28T09:30:00Z"
+      },
+      {
+        "action": "created",
+        "actor": "li.wei",
+        "id": "act-3e8f4a1c",
+        "kind": "workspace",
+        "name": "notebook-dev",
+        "phase": "Running",
+        "timestamp": "2026-06-20T08:00:00Z"
+      }
+    ]
+  },
   "ArtifactDefinition": {
     "annotations": {
       "git-commit": "8c1f4e2"
@@ -19,6 +60,8 @@ export const examples: Record<string, unknown> = {
     "labels": {
       "team": "vision"
     },
+    "latestVersion": "1.4.0",
+    "latestVersionAt": "2026-06-28T09:30:00Z",
     "name": "resnet50",
     "namespace": "team-vision",
     "owner": "li.wei",
@@ -30,7 +73,8 @@ export const examples: Record<string, unknown> = {
       "task": "image-classification"
     },
     "tenantName": "team-vision",
-    "updatedAt": "2026-06-28T09:30:00Z"
+    "updatedAt": "2026-06-28T09:30:00Z",
+    "versionCount": 3
   },
   "ArtifactDefinitionCreateRequest": {
     "description": "ResNet-50 image-classification model.",
@@ -56,6 +100,8 @@ export const examples: Record<string, unknown> = {
         "labels": {
           "team": "vision"
         },
+        "latestVersion": "1.4.0",
+        "latestVersionAt": "2026-06-28T09:30:00Z",
         "name": "resnet50",
         "namespace": "team-vision",
         "owner": "li.wei",
@@ -67,7 +113,8 @@ export const examples: Record<string, unknown> = {
           "task": "image-classification"
         },
         "tenantName": "team-vision",
-        "updatedAt": "2026-06-28T09:30:00Z"
+        "updatedAt": "2026-06-28T09:30:00Z",
+        "versionCount": 3
       }
     ],
     "partial": false
@@ -101,6 +148,129 @@ export const examples: Record<string, unknown> = {
   "Backend": {
     "engine": "pytorchjob",
     "name": "native"
+  },
+  "ClusterMeter": {
+    "resource": "gpu",
+    "total": 48,
+    "unit": "cards",
+    "used": 36
+  },
+  "ClusterPoolUsage": {
+    "meters": [
+      {
+        "resource": "gpu",
+        "total": 32,
+        "unit": "cards",
+        "used": 22
+      },
+      {
+        "resource": "cpu",
+        "total": 384,
+        "unit": "cores",
+        "used": 240
+      },
+      {
+        "resource": "memory",
+        "total": 2048,
+        "unit": "GiB",
+        "used": 1228.8
+      }
+    ],
+    "pool": "gpu-a100"
+  },
+  "ClusterUsage": {
+    "aggregate": [
+      {
+        "resource": "gpu",
+        "total": 48,
+        "unit": "cards",
+        "used": 36
+      },
+      {
+        "resource": "cpu",
+        "total": 1152,
+        "unit": "cores",
+        "used": 740
+      },
+      {
+        "resource": "memory",
+        "total": 5632,
+        "unit": "GiB",
+        "used": 3481.6
+      }
+    ],
+    "pools": [
+      {
+        "meters": [
+          {
+            "resource": "gpu",
+            "total": 32,
+            "unit": "cards",
+            "used": 22
+          },
+          {
+            "resource": "cpu",
+            "total": 384,
+            "unit": "cores",
+            "used": 240
+          },
+          {
+            "resource": "memory",
+            "total": 2048,
+            "unit": "GiB",
+            "used": 1228.8
+          }
+        ],
+        "pool": "gpu-a100"
+      },
+      {
+        "meters": [
+          {
+            "resource": "gpu",
+            "total": 16,
+            "unit": "cards",
+            "used": 14
+          },
+          {
+            "resource": "cpu",
+            "total": 256,
+            "unit": "cores",
+            "used": 180
+          },
+          {
+            "resource": "memory",
+            "total": 2048,
+            "unit": "GiB",
+            "used": 1433.6
+          }
+        ],
+        "pool": "h100-pool"
+      },
+      {
+        "meters": [
+          {
+            "resource": "gpu",
+            "total": 0,
+            "unit": "cards",
+            "used": 0
+          },
+          {
+            "resource": "cpu",
+            "total": 512,
+            "unit": "cores",
+            "used": 320
+          },
+          {
+            "resource": "memory",
+            "total": 1536,
+            "unit": "GiB",
+            "used": 819.2
+          }
+        ],
+        "pool": "cpu-pool"
+      }
+    ],
+    "updatedAt": "2026-06-28T09:30:00Z"
   },
   "Condition": {
     "lastTransitionTime": "2026-06-28T09:30:00Z",
@@ -240,6 +410,19 @@ export const examples: Record<string, unknown> = {
     "namespace": "team-nlp",
     "owner": "zhang.san",
     "ownerId": "3a2b1c0d-4e5f-6789-abcd-ef0123456789",
+    "runSummary": {
+      "active": 1,
+      "count": 5,
+      "latestPhase": "Succeeded",
+      "latestRunAt": "2026-06-28T09:25:00Z",
+      "recent": [
+        "Succeeded",
+        "Running",
+        "Succeeded",
+        "Failed",
+        "Succeeded"
+      ]
+    },
     "spec": {
       "artifacts": [
         {
@@ -378,6 +561,19 @@ export const examples: Record<string, unknown> = {
         "namespace": "team-nlp",
         "owner": "zhang.san",
         "ownerId": "3a2b1c0d-4e5f-6789-abcd-ef0123456789",
+        "runSummary": {
+          "active": 1,
+          "count": 5,
+          "latestPhase": "Succeeded",
+          "latestRunAt": "2026-06-28T09:25:00Z",
+          "recent": [
+            "Succeeded",
+            "Running",
+            "Succeeded",
+            "Failed",
+            "Succeeded"
+          ]
+        },
         "spec": {
           "artifacts": [
             {
@@ -596,6 +792,19 @@ export const examples: Record<string, unknown> = {
     "namespace": "team-vision",
     "owner": "li.wei",
     "ownerId": "3a2b1c0d-4e5f-6789-abcd-ef0123456789",
+    "runSummary": {
+      "active": 1,
+      "count": 7,
+      "latestPhase": "Running",
+      "latestRunAt": "2026-06-28T09:00:00Z",
+      "recent": [
+        "Succeeded",
+        "Failed",
+        "Succeeded",
+        "Succeeded",
+        "Running"
+      ]
+    },
     "spec": {
       "artifacts": [
         {
@@ -775,6 +984,19 @@ export const examples: Record<string, unknown> = {
         "namespace": "team-vision",
         "owner": "li.wei",
         "ownerId": "3a2b1c0d-4e5f-6789-abcd-ef0123456789",
+        "runSummary": {
+          "active": 1,
+          "count": 7,
+          "latestPhase": "Running",
+          "latestRunAt": "2026-06-28T09:00:00Z",
+          "recent": [
+            "Succeeded",
+            "Failed",
+            "Succeeded",
+            "Succeeded",
+            "Running"
+          ]
+        },
         "spec": {
           "artifacts": [
             {
@@ -1237,6 +1459,7 @@ export const examples: Record<string, unknown> = {
     "computeNamespace": "axisml-team-nlp",
     "createdAt": "2026-06-20T08:00:00Z",
     "description": "Llama3-8B online inference service.",
+    "desiredState": "Running",
     "displayName": "Llama3 chat service",
     "env": [
       {
@@ -1253,7 +1476,7 @@ export const examples: Record<string, unknown> = {
     "namespace": "team-nlp",
     "owner": "zhang.san",
     "ownerId": "9f8e7d6c-5b4a-3210-fedc-ba9876543210",
-    "phase": "Running",
+    "phase": "Ready",
     "poolName": "gpu-a100",
     "ports": [
       {
@@ -1334,6 +1557,7 @@ export const examples: Record<string, unknown> = {
         "computeNamespace": "axisml-team-nlp",
         "createdAt": "2026-06-20T08:00:00Z",
         "description": "Llama3-8B online inference service.",
+        "desiredState": "Running",
         "displayName": "Llama3 chat service",
         "env": [
           {
@@ -1350,7 +1574,7 @@ export const examples: Record<string, unknown> = {
         "namespace": "team-nlp",
         "owner": "zhang.san",
         "ownerId": "9f8e7d6c-5b4a-3210-fedc-ba9876543210",
-        "phase": "Running",
+        "phase": "Ready",
         "poolName": "gpu-a100",
         "ports": [
           {
@@ -1944,6 +2168,7 @@ export const examples: Record<string, unknown> = {
       "progressDeadlineSeconds": 600,
       "ttlSecondsAfterFinished": 3600
     },
+    "scheduledAt": "2026-06-28T09:00:00Z",
     "spec": {
       "backend": {
         "engine": "pytorchjob",
@@ -2110,6 +2335,7 @@ export const examples: Record<string, unknown> = {
           "progressDeadlineSeconds": 600,
           "ttlSecondsAfterFinished": 3600
         },
+        "scheduledAt": "2026-06-28T09:00:00Z",
         "spec": {
           "backend": {
             "engine": "pytorchjob",
@@ -2193,6 +2419,19 @@ export const examples: Record<string, unknown> = {
     "backoffLimit": 2,
     "progressDeadlineSeconds": 600,
     "ttlSecondsAfterFinished": 3600
+  },
+  "RunSummary": {
+    "active": 1,
+    "count": 7,
+    "latestPhase": "Running",
+    "latestRunAt": "2026-06-28T09:00:00Z",
+    "recent": [
+      "Succeeded",
+      "Failed",
+      "Succeeded",
+      "Succeeded",
+      "Running"
+    ]
   },
   "RunTriggerRequest": {
     "displayName": "ResNet-50 Training #8",
@@ -2732,7 +2971,24 @@ export const examples: Record<string, unknown> = {
     "displayName": "Vision team dev environment",
     "endpoint": {
       "accessUrl": "https://axisml.example.com/ws/team-vision/notebook-dev/",
-      "internalDns": "notebook-dev.axisml-team-vision.svc.cluster.local"
+      "internalDns": "notebook-dev.axisml-team-vision.svc.cluster.local",
+      "tools": [
+        {
+          "label": "JupyterLab",
+          "name": "jupyter",
+          "url": "https://axisml.example.com/ws/team-vision/notebook-dev/lab"
+        },
+        {
+          "label": "VS Code",
+          "name": "vscode",
+          "url": "https://axisml.example.com/ws/team-vision/notebook-dev/vscode/"
+        },
+        {
+          "label": "Terminal",
+          "name": "terminal",
+          "url": "https://axisml.example.com/ws/team-vision/notebook-dev/terminals/1"
+        }
+      ]
     },
     "env": [
       {
@@ -2802,7 +3058,61 @@ export const examples: Record<string, unknown> = {
   },
   "WorkspaceEndpoint": {
     "accessUrl": "https://axisml.example.com/ws/team-vision/notebook-dev/",
-    "internalDns": "notebook-dev.axisml-team-vision.svc.cluster.local"
+    "internalDns": "notebook-dev.axisml-team-vision.svc.cluster.local",
+    "tools": [
+      {
+        "label": "JupyterLab",
+        "name": "jupyter",
+        "url": "https://axisml.example.com/ws/team-vision/notebook-dev/lab"
+      },
+      {
+        "label": "VS Code",
+        "name": "vscode",
+        "url": "https://axisml.example.com/ws/team-vision/notebook-dev/vscode/"
+      },
+      {
+        "label": "Terminal",
+        "name": "terminal",
+        "url": "https://axisml.example.com/ws/team-vision/notebook-dev/terminals/1"
+      }
+    ]
+  },
+  "WorkspaceImage": {
+    "defaultPort": 8888,
+    "description": "JupyterLab data-science environment (public).",
+    "displayName": "JupyterLab",
+    "kind": "jupyter",
+    "public": true,
+    "ref": "registry.axisml.io/dev/jupyter:3.0.0"
+  },
+  "WorkspaceImageList": {
+    "count": 3,
+    "items": [
+      {
+        "defaultPort": 8888,
+        "description": "JupyterLab data-science environment (public).",
+        "displayName": "JupyterLab",
+        "kind": "jupyter",
+        "public": true,
+        "ref": "registry.axisml.io/dev/jupyter:3.0.0"
+      },
+      {
+        "defaultPort": 8888,
+        "description": "CUDA 12.1 + PyTorch 2.3 training image.",
+        "displayName": "PyTorch",
+        "kind": "jupyter",
+        "public": true,
+        "ref": "registry.axisml.io/dev/pytorch:2.3.0"
+      },
+      {
+        "defaultPort": 8080,
+        "description": "VS Code (code-server) development environment (public).",
+        "displayName": "VS Code",
+        "kind": "vscode",
+        "public": true,
+        "ref": "registry.axisml.io/dev/code-server:4.22"
+      }
+    ]
   },
   "WorkspaceLifecycle": {
     "idleTimeoutSeconds": 3600
@@ -2826,7 +3136,24 @@ export const examples: Record<string, unknown> = {
         "displayName": "Vision team dev environment",
         "endpoint": {
           "accessUrl": "https://axisml.example.com/ws/team-vision/notebook-dev/",
-          "internalDns": "notebook-dev.axisml-team-vision.svc.cluster.local"
+          "internalDns": "notebook-dev.axisml-team-vision.svc.cluster.local",
+          "tools": [
+            {
+              "label": "JupyterLab",
+              "name": "jupyter",
+              "url": "https://axisml.example.com/ws/team-vision/notebook-dev/lab"
+            },
+            {
+              "label": "VS Code",
+              "name": "vscode",
+              "url": "https://axisml.example.com/ws/team-vision/notebook-dev/vscode/"
+            },
+            {
+              "label": "Terminal",
+              "name": "terminal",
+              "url": "https://axisml.example.com/ws/team-vision/notebook-dev/terminals/1"
+            }
+          ]
         },
         "env": [
           {
@@ -2878,6 +3205,11 @@ export const examples: Record<string, unknown> = {
     "lifecycle": {
       "idleTimeoutSeconds": 7200
     }
+  },
+  "WorkspaceTool": {
+    "label": "JupyterLab",
+    "name": "jupyter",
+    "url": "https://axisml.example.com/ws/team-vision/notebook-dev/lab"
   },
   "WorkspaceVolume": {
     "mountPath": "/home/jovyan/work",

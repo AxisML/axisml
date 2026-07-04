@@ -18,6 +18,7 @@ export const zhCN = {
     loading: "加载中…",
     loadFailed: "加载失败",
     retry: "重试",
+    loadMore: "加载更多",
     noData: "暂无数据",
     noDataVolumes: "本租户暂无数据卷，请联系系统管理员创建",
     totalItems: "共 {{count}} 条",

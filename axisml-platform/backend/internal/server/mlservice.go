@@ -18,36 +18,37 @@ type MLServiceRoute struct {
 
 // MLService is a long-running online inference service.
 type MLService struct {
-	ID                UUID           `json:"id" desc:"Stable service identifier."`
-	Namespace         string         `json:"namespace" desc:"Platform tenant namespace the service belongs to."`
-	TenantName        string         `json:"tenantName" desc:"Tenant identifier owning the service."`
-	TenantDisplayName string         `json:"tenantDisplayName,omitempty" desc:"Human-readable tenant name."`
-	ComputeNamespace  string         `json:"computeNamespace,omitempty" desc:"Underlying compute (Kubernetes) namespace running the service."`
-	Name              string         `json:"name" desc:"Service name (unique within the tenant)."`
-	DisplayName       string         `json:"displayName,omitempty" desc:"Human-readable service label."`
-	Description       string         `json:"description,omitempty" desc:"Free-text service description."`
-	Owner             string         `json:"owner" desc:"Username of the service owner."`
-	OwnerID           UUID           `json:"ownerId,omitempty" desc:"User ID of the service owner."`
-	Backend           Backend        `json:"backend,omitempty" desc:"Compute backend/engine serving the model."`
-	ModelName         string         `json:"modelName,omitempty" desc:"Model artifact definition name being served."`
-	ModelVersion      string         `json:"modelVersion,omitempty" desc:"Model artifact version being served."`
-	Image             string         `json:"image,omitempty" desc:"Serving container image reference."`
-	Command           []string       `json:"command,omitempty" desc:"Container entrypoint override."`
-	Args              []string       `json:"args,omitempty" desc:"Container args override."`
-	Env               []EnvVar       `json:"env,omitempty" desc:"Environment variables injected into the serving pods."`
-	Ports             []ServicePort  `json:"ports,omitempty" desc:"Container ports exposed by the service."`
-	PoolName          string         `json:"poolName,omitempty" binding:"dns1123,max=40" desc:"Resource pool the service is scheduled onto."`
-	UnitName          string         `json:"unitName,omitempty" binding:"dns1123,max=40" desc:"Resource unit (shape) within the pool."`
-	Quota             string         `json:"quota,omitempty" desc:"ElasticQuota the service draws from."`
-	Resources         ResourceMap    `json:"resources,omitempty" desc:"Per-replica resource requests/limits."`
-	Replicas          int            `json:"replicas,omitempty" binding:"min=0" desc:"Desired replica count."`
-	ReadyReplicas     int            `json:"readyReplicas,omitempty" binding:"min=0" desc:"Replicas that have passed readiness."`
-	Route             MLServiceRoute `json:"route,omitempty" desc:"Gateway exposure settings for the service."`
-	AccessURL         string         `json:"accessUrl,omitempty" desc:"Resolved URL clients use to reach the service."`
-	Phase             MLServicePhase `json:"phase,omitempty" desc:"Current service lifecycle phase."`
-	Message           string         `json:"message,omitempty" desc:"Human-readable status detail for the current phase."`
-	CreatedAt         time.Time      `json:"createdAt" desc:"Time the service was created."`
-	UpdatedAt         time.Time      `json:"updatedAt" desc:"Time the service was last updated."`
+	ID                UUID                  `json:"id" desc:"Stable service identifier."`
+	Namespace         string                `json:"namespace" desc:"Platform tenant namespace the service belongs to."`
+	TenantName        string                `json:"tenantName" desc:"Tenant identifier owning the service."`
+	TenantDisplayName string                `json:"tenantDisplayName,omitempty" desc:"Human-readable tenant name."`
+	ComputeNamespace  string                `json:"computeNamespace,omitempty" desc:"Underlying compute (Kubernetes) namespace running the service."`
+	Name              string                `json:"name" desc:"Service name (unique within the tenant)."`
+	DisplayName       string                `json:"displayName,omitempty" desc:"Human-readable service label."`
+	Description       string                `json:"description,omitempty" desc:"Free-text service description."`
+	Owner             string                `json:"owner" desc:"Username of the service owner."`
+	OwnerID           UUID                  `json:"ownerId,omitempty" desc:"User ID of the service owner."`
+	Backend           Backend               `json:"backend,omitempty" desc:"Compute backend/engine serving the model."`
+	ModelName         string                `json:"modelName,omitempty" desc:"Model artifact definition name being served."`
+	ModelVersion      string                `json:"modelVersion,omitempty" desc:"Model artifact version being served."`
+	Image             string                `json:"image,omitempty" desc:"Serving container image reference."`
+	Command           []string              `json:"command,omitempty" desc:"Container entrypoint override."`
+	Args              []string              `json:"args,omitempty" desc:"Container args override."`
+	Env               []EnvVar              `json:"env,omitempty" desc:"Environment variables injected into the serving pods."`
+	Ports             []ServicePort         `json:"ports,omitempty" desc:"Container ports exposed by the service."`
+	PoolName          string                `json:"poolName,omitempty" binding:"dns1123,max=40" desc:"Resource pool the service is scheduled onto."`
+	UnitName          string                `json:"unitName,omitempty" binding:"dns1123,max=40" desc:"Resource unit (shape) within the pool."`
+	Quota             string                `json:"quota,omitempty" desc:"ElasticQuota the service draws from."`
+	Resources         ResourceMap           `json:"resources,omitempty" desc:"Per-replica resource requests/limits."`
+	Replicas          int                   `json:"replicas,omitempty" binding:"min=0" desc:"Desired replica count."`
+	ReadyReplicas     int                   `json:"readyReplicas,omitempty" binding:"min=0" desc:"Replicas that have passed readiness."`
+	DesiredState      MLServiceDesiredState `json:"desiredState,omitempty" desc:"User-requested run state (Running, Stopped); drives the Start/Stop control without inferring from phase."`
+	Route             MLServiceRoute        `json:"route,omitempty" desc:"Gateway exposure settings for the service."`
+	AccessURL         string                `json:"accessUrl,omitempty" desc:"Resolved URL clients use to reach the service."`
+	Phase             MLServicePhase        `json:"phase,omitempty" desc:"Current service lifecycle phase."`
+	Message           string                `json:"message,omitempty" desc:"Human-readable status detail for the current phase."`
+	CreatedAt         time.Time             `json:"createdAt" desc:"Time the service was created."`
+	UpdatedAt         time.Time             `json:"updatedAt" desc:"Time the service was last updated."`
 }
 
 // MLServiceList is a page of MLService.

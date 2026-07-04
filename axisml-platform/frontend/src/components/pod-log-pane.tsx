@@ -25,7 +25,7 @@ export function PodLogPane({
   emptyText: string;
 }) {
   const { t } = useTranslation();
-  const { pods, pod, setPod, follow, setFollow, podsQ, logsQ } = logs;
+  const { pods, pod, setPod, follow, setFollow, podsQ, logsQ, text, streaming, streamError } = logs;
   return (
     <Card>
       <CardContent>
@@ -52,6 +52,9 @@ export function PodLogPane({
           </div>
           <div className="grow" />
           <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+            {streaming && (
+              <span className="inline-block size-1.5 animate-pulse rounded-full bg-success" aria-hidden />
+            )}
             {t("common.follow")}
             <Switch
               checked={follow}
@@ -61,17 +64,19 @@ export function PodLogPane({
             />
           </label>
         </div>
-        {podsQ.isLoading || logsQ.isLoading ? (
+        {podsQ.isLoading || (logsQ.isLoading && !streaming) ? (
           <PageLoading className="py-16" />
         ) : podsQ.isError ? (
           // Surface the fetch failure rather than masking it as "no logs".
           <DetailError message={errorText(podsQ.error)} />
         ) : !pods.length ? (
           <DetailError message={emptyText} />
-        ) : logsQ.isError ? (
+        ) : streaming && streamError ? (
+          <DetailError message={errorText(streamError)} />
+        ) : !streaming && logsQ.isError ? (
           <DetailError message={errorText(logsQ.error)} />
         ) : (
-          <LogViewer text={logsQ.data} empty={emptyText} />
+          <LogViewer text={text} empty={emptyText} />
         )}
       </CardContent>
     </Card>

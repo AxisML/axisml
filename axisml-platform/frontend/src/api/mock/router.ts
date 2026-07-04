@@ -27,6 +27,47 @@ const ok = (body: unknown = {}): Result => ({ body });
 const created = (body: unknown): Result => ({ status: 201, body });
 const noContent = (): Result => ({ status: 204 });
 
+// Server-style list: honor the shared filter params (q / owner / phase /
+// poolName / purpose / mode) + limit/continue pagination, so mock filtering &
+// "load more" behave like the real backend instead of returning everything.
+type Item = Record<string, unknown>;
+function matchesQuery(it: Item, q: URLSearchParams): boolean {
+  const kw = (q.get("q") ?? "").toLowerCase();
+  if (kw) {
+    const hay = [it.name, it.identifier, it.displayName, it.description, it.image]
+      .filter((s): s is string => typeof s === "string")
+      .join(" ")
+      .toLowerCase();
+    if (!hay.includes(kw)) return false;
+  }
+  for (const [param, field] of [
+    ["owner", "owner"],
+    ["phase", "phase"],
+    ["poolName", "poolName"],
+    ["mode", "mode"],
+  ] as const) {
+    const v = q.get(param);
+    if (v && it[field] !== v) return false;
+  }
+  const purpose = q.get("purpose");
+  if (purpose && (it.spec as Item | undefined)?.purpose !== purpose) return false;
+  return true;
+}
+function paged(items: unknown[], q: URLSearchParams): Result {
+  const filtered = (items as Item[]).filter((it) => matchesQuery(it, q));
+  const start = Number(q.get("continue")) || 0;
+  const limit = Number(q.get("limit")) || 50;
+  const page = filtered.slice(start, start + limit);
+  const next = start + limit;
+  return {
+    body: {
+      count: page.length,
+      items: page,
+      continueToken: next < filtered.length ? String(next) : undefined,
+    },
+  };
+}
+
 // ── auth ─────────────────────────────────────────────────────────────────────
 on("POST", "/auth/login", () => ok({ jwt: "mock.jwt.token", expiresAt: db.ago(-24) }));
 on("POST", "/auth/logout", () => noContent());
@@ -34,7 +75,7 @@ on("POST", "/auth/refresh", () => ok({ jwt: "mock.jwt.token", expiresAt: db.ago(
 on("GET", "/auth/me", () => ok(db.me));
 
 // ── jobs + runs ───────────────────────────────────────────────────────────────
-on("GET", "/jobs", () => list(db.jobs));
+on("GET", "/jobs", (_p, q) => paged(db.jobs, q));
 on("POST", "/jobs", (_p, _q, body) => created({ ...db.jobs[0], ...(body as object) }));
 on("GET", "/jobs/:name", (p) => ok(db.jobs.find((j) => j.name === p.name) ?? db.jobs[0]));
 on("PATCH", "/jobs/:name", (p, _q, body) => ok({ ...(db.jobs.find((j) => j.name === p.name) ?? db.jobs[0]), ...(body as object) }));
@@ -51,7 +92,7 @@ on("GET", "/jobs/:name/runs/:run/pods/:pod/events", (p) => list(db.eventsFor(p.p
 on("GET", "/jobs/:name/runs/:run/pods/:pod/logs", (p) => ({ body: db.podLogs(p.pod) }));
 
 // ── experiments + runs (mirror jobs) ────────────────────────────────────────────
-on("GET", "/experiments", () => list(db.experiments));
+on("GET", "/experiments", (_p, q) => paged(db.experiments, q));
 on("POST", "/experiments", (_p, _q, body) => created({ ...db.experiments[0], ...(body as object) }));
 on("GET", "/experiments/:name", (p) => ok(db.experiments.find((e) => e.name === p.name) ?? db.experiments[0]));
 on("PATCH", "/experiments/:name", (p, _q, body) => ok({ ...(db.experiments.find((e) => e.name === p.name) ?? db.experiments[0]), ...(body as object) }));
@@ -71,7 +112,7 @@ on("POST", "/experiments/:name/tensorboard", (p) => ok({ name: `tb-${p.name}`, p
 on("DELETE", "/experiments/:name/tensorboard", () => noContent());
 
 // ── workspaces ──────────────────────────────────────────────────────────────────
-on("GET", "/workspaces", () => list(db.workspaces));
+on("GET", "/workspaces", (_p, q) => paged(db.workspaces, q));
 on("POST", "/workspaces", (_p, _q, body) => created({ ...db.workspaces[0], ...(body as object) }));
 on("GET", "/workspaces/:name", (p) => ok(db.workspaces.find((w) => w.name === p.name) ?? db.workspaces[0]));
 on("PATCH", "/workspaces/:name", (p, _q, body) => ok({ ...(db.workspaces.find((w) => w.name === p.name) ?? db.workspaces[0]), ...(body as object) }));
@@ -82,9 +123,10 @@ on("GET", "/workspaces/:name/events", (p) => list(db.eventsFor(p.name)));
 on("GET", "/workspaces/:name/pods", (p) => list(db.podsFor(p.name).slice(0, 1)));
 on("GET", "/workspaces/:name/pods/:pod/events", (p) => list(db.eventsFor(p.pod)));
 on("GET", "/workspaces/:name/pods/:pod/logs", (p) => ({ body: db.podLogs(p.pod) }));
+on("GET", "/workspace-images", () => list(db.workspaceImages()));
 
 // ── services ────────────────────────────────────────────────────────────────────
-on("GET", "/mlservices", () => list(db.services));
+on("GET", "/mlservices", (_p, q) => paged(db.services, q));
 on("POST", "/mlservices", (_p, _q, body) => created({ ...db.services[0], ...(body as object) }));
 on("GET", "/mlservices/:name", (p) => ok(db.services.find((s) => s.name === p.name) ?? db.services[0]));
 on("PATCH", "/mlservices/:name", (p, _q, body) => ok({ ...(db.services.find((s) => s.name === p.name) ?? db.services[0]), ...(body as object) }));
@@ -99,7 +141,7 @@ on("GET", "/mlservices/:name/pods/:pod/events", (p) => list(db.eventsFor(p.pod))
 on("GET", "/mlservices/:name/pods/:pod/logs", (p) => ({ body: db.podLogs(p.pod) }));
 
 // ── traffic policies ──────────────────────────────────────────────────────────
-on("GET", "/trafficpolicies", () => list(db.trafficPolicies));
+on("GET", "/trafficpolicies", (_p, q) => paged(db.trafficPolicies, q));
 on("POST", "/trafficpolicies", (_p, _q, body) => created({ ...db.trafficPolicies[0], ...(body as object) }));
 on("GET", "/trafficpolicies/:name", (p) => ok(db.trafficPolicies.find((t) => t.name === p.name) ?? db.trafficPolicies[0]));
 on("PATCH", "/trafficpolicies/:name", (p, _q, body) => ok({ ...(db.trafficPolicies.find((t) => t.name === p.name) ?? db.trafficPolicies[0]), ...(body as object) }));
@@ -111,7 +153,7 @@ on("POST", "/trafficpolicies/:name/rollback", (p) => ok(db.trafficPolicies.find(
 on("POST", "/trafficpolicies/:name/split", (p, _q, body) => ok({ ...(db.trafficPolicies.find((t) => t.name === p.name) ?? db.trafficPolicies[0]), ...(body as object) }));
 
 // ── models ──────────────────────────────────────────────────────────────────────
-on("GET", "/models", () => list(db.models));
+on("GET", "/models", (_p, q) => paged(db.models, q));
 on("GET", "/models/:tenant/:name", (p) => ok(db.models.find((m) => m.name === p.name) ?? db.models[0]));
 on("POST", "/models/:tenant/:name", (_p, _q, body) => created({ ...db.models[0], ...(body as object) }));
 on("PATCH", "/models/:tenant/:name", (p, _q, body) => ok({ ...(db.models.find((m) => m.name === p.name) ?? db.models[0]), ...(body as object) }));
@@ -121,10 +163,16 @@ on("POST", "/models/:tenant/:name/versions", (p, _q, body) => created({ id: `${p
 on("GET", "/models/:tenant/:name/versions/:version", (p) => ok(db.modelVersions(p.name).find((v) => v.version === p.version) ?? db.modelVersions(p.name)[0]));
 on("DELETE", "/models/:tenant/:name/versions/:version", () => noContent());
 on("POST", "/models/:tenant/:name/versions/:version/complete", (p) => ok(db.modelVersions(p.name)[0]));
-on("GET", "/models/:tenant/:name/versions/:version/resolve", (p) => ok({ uri: `s3://axisml-models/${p.tenant}/${p.name}/${p.version}`, expiresAt: db.ago(-1) }));
+on("GET", "/models/:tenant/:name/versions/:version/resolve", (p) => ok({
+  storageKind: "oci",
+  uri: `zot.axisml.internal/${p.tenant}/${p.name}:${p.version}`,
+  digest: "sha256:9b0d5a2c7f3148e1f4a6c8e3d2b4a6c8e1f9b0d5a2c7f3148e1f4a6c8e3d2b4a",
+  pullCredentials: { username: "pull-token", password: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.mock" },
+  expiresAt: db.ago(-1),
+}));
 
 // ── images ────────────────────────────────────────────────────────────────────
-on("GET", "/images", () => list(db.images));
+on("GET", "/images", (_p, q) => paged(db.images, q));
 on("GET", "/images/:tenant/:name", (p) => ok(db.images.find((m) => m.name === p.name) ?? db.images[0]));
 on("POST", "/images/:tenant/:name", (_p, _q, body) => created({ ...db.images[0], ...(body as object) }));
 on("PATCH", "/images/:tenant/:name", (p, _q, body) => ok({ ...(db.images.find((m) => m.name === p.name) ?? db.images[0]), ...(body as object) }));
@@ -134,7 +182,13 @@ on("POST", "/images/:tenant/:name/versions", (p, _q, body) => created({ id: `${p
 on("GET", "/images/:tenant/:name/versions/:version", (p) => ok(db.imageVersions(p.name).find((v) => v.version === p.version) ?? db.imageVersions(p.name)[0]));
 on("DELETE", "/images/:tenant/:name/versions/:version", () => noContent());
 on("POST", "/images/:tenant/:name/versions/:version/complete", (p) => ok(db.imageVersions(p.name)[0]));
-on("GET", "/images/:tenant/:name/versions/:version/resolve", (p) => ok({ uri: `harbor.axisml.io/${p.tenant}/${p.name}:${p.version}`, expiresAt: db.ago(-1) }));
+on("GET", "/images/:tenant/:name/versions/:version/resolve", (p) => ok({
+  storageKind: "oci",
+  uri: `zot.axisml.internal/${p.tenant}/${p.name}:${p.version}`,
+  digest: "sha256:a1b2c3d4e5f60718293a4b5c6d7e8f9012a3b4c5d6e7f8091a2b3c4d5e6f70819",
+  pullCredentials: { username: "pull-token", password: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.mock" },
+  expiresAt: db.ago(-1),
+}));
 
 // ── resource pools + units ──────────────────────────────────────────────────────
 on("GET", "/resourcepools", () => list(db.pools));
@@ -156,8 +210,21 @@ on("PATCH", "/datavolumes/:name", (p, _q, body) => ok({ ...(db.dataVolumes.find(
 on("DELETE", "/datavolumes/:name", () => noContent());
 on("GET", "/storageclasses", () => list(db.storageClasses));
 
+// ── users (directory for the add-member typeahead) ──────────────────────────────
+on("GET", "/users", (_p, q) => {
+  const needle = (q.get("q") ?? "").toLowerCase();
+  const items = db.users.filter(
+    (u) =>
+      !needle ||
+      u.username.toLowerCase().includes(needle) ||
+      (u.email ?? "").toLowerCase().includes(needle) ||
+      (u.displayName ?? "").toLowerCase().includes(needle),
+  );
+  return list(items);
+});
+
 // ── tenants, members, quotas ────────────────────────────────────────────────────
-on("GET", "/tenants", () => list(db.tenants));
+on("GET", "/tenants", (_p, q) => paged(db.tenants, q));
 on("POST", "/tenants", (_p, _q, body) => created({ ...db.tenants[0], ...(body as object) }));
 on("GET", "/tenants/:name", (p) => ok(db.tenants.find((t) => t.identifier === p.name) ?? db.tenants[0]));
 on("PATCH", "/tenants/:name", (p, _q, body) => ok({ ...(db.tenants.find((t) => t.identifier === p.name) ?? db.tenants[0]), ...(body as object) }));
@@ -172,6 +239,11 @@ on("GET", "/tenants/:name/quotas", (p) => ({ body: { count: (db.quotasByTenant[p
 on("POST", "/tenants/:name/quotas", (_p, _q, body) => created(body));
 on("PATCH", "/tenants/:name/quotas/:pool", (_p, _q, body) => ok(body));
 on("DELETE", "/tenants/:name/quotas/:pool", () => noContent());
+
+// ── dashboard aggregates ──────────────────────────────────────────────────────
+on("GET", "/dashboard/cluster-usage", (_p, q) => ok(db.clusterUsage(q.get("pool") ?? undefined)));
+on("GET", "/dashboard/cluster-metrics", (_p, q) => ok(db.clusterMetric(q.get("metric") ?? "gpu_util")));
+on("GET", "/dashboard/activity", () => list(db.activityFeed()));
 
 // ── health ──────────────────────────────────────────────────────────────────────
 on("GET", "/healthz", () => ok({ status: "ok" }));

@@ -1,9 +1,11 @@
 import { useMemo, useState } from "react";
 import { Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useQuery } from "@tanstack/react-query";
 import { useDataVolumes, useStorageClasses } from "@/api/hooks";
 import { useApiMutation } from "@/api/mutations";
 import * as sdk from "@/api/generated";
+import { useApp } from "@/app/store";
 import { useUI } from "@/app/ui";
 import { PageContainer } from "@/components/page-container";
 import { FieldSection } from "@/components/field-section";
@@ -401,8 +403,21 @@ function VolumeCreateDrawer({ onClose }: { onClose: () => void }) {
 // ── Manage drawer: basics (description) + storage spec (size expand) + mounts ──
 function ManageVolumeDrawer({ volume, onClose }: { volume: sdk.DataVolume; onClose: () => void }) {
   const { t } = useTranslation();
+  const { tenant } = useApp();
   const [description, setDescription] = useState(volume.description ?? "");
   const [size, setSize] = useState(volume.size ?? "");
+
+  // Mount occupancy + usedBytes are populated on the detail GET, not the list,
+  // so fetch the single volume here. Fall back to the list row on error.
+  const detailQ = useQuery({
+    queryKey: ["datavolume", tenant, volume.name],
+    queryFn: async () => {
+      const { data, error } = await sdk.getDataVolume({ path: { name: volume.name } });
+      if (error) throw error;
+      return data;
+    },
+  });
+  const detail = detailQ.data ?? volume;
 
   const update = useApiMutation(
     (body: sdk.DataVolumePatchRequest) => sdk.updateDataVolume({ path: { name: volume.name }, body }),
@@ -416,7 +431,7 @@ function ManageVolumeDrawer({ volume, onClose }: { volume: sdk.DataVolume; onClo
     update.mutate(body, { onSuccess: onClose });
   };
 
-  const mounts = volume.status?.mounts ?? [];
+  const mounts = detail.status?.mounts ?? [];
 
   return (
     <FormDrawer
@@ -472,10 +487,10 @@ function ManageVolumeDrawer({ volume, onClose }: { volume: sdk.DataVolume; onClo
           />
           <FieldDescription>{t("volumes.fSizeHelp")}</FieldDescription>
         </Field>
-        {volume.status?.usedBytes ? (
+        {detail.status?.usedBytes ? (
           <Field>
             <FieldLabel>{t("volumes.used")}</FieldLabel>
-            <Input className="font-mono" value={fmtBytes(volume.status.usedBytes)} readOnly aria-readonly />
+            <Input className="font-mono" value={fmtBytes(detail.status.usedBytes)} readOnly aria-readonly />
           </Field>
         ) : null}
       </FieldGroup>

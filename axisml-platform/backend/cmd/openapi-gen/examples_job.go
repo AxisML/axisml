@@ -48,6 +48,15 @@ func exJob(g *openapigen.Generator) {
 	g.SetExample("ArtifactRef", obj{"kind": "model", "name": "resnet50", "version": "1.4.0"})
 	g.SetExample("JobSpec", jobSpec)
 
+	runSummary := obj{
+		"count":       7,
+		"active":      1,
+		"recent":      []any{"Succeeded", "Failed", "Succeeded", "Succeeded", "Running"},
+		"latestPhase": "Running",
+		"latestRunAt": exStartedAt,
+	}
+	g.SetExample("RunSummary", runSummary)
+
 	job := obj{
 		"id":          "8c1f4e22-2b7a-4c0e-9b1d-7f3a2e5c9a10",
 		"namespace":   "team-vision",
@@ -60,6 +69,7 @@ func exJob(g *openapigen.Generator) {
 		"labels":      obj{"team": "vision"},
 		"annotations": obj{"axisml.io/created-by": "li.wei", "git-commit": "8c1f4e2"},
 		"spec":        jobSpec,
+		"runSummary":  runSummary,
 		"createdAt":   exCreatedAt,
 		"updatedAt":   exUpdatedAt,
 	}
@@ -125,6 +135,7 @@ func exJob(g *openapigen.Generator) {
 		"spec":              mlRunSpec,
 		"phase":             "Running",
 		"message":           "All worker replicas ready.",
+		"scheduledAt":       exStartedAt,
 		"startedAt":         exStartedAt,
 		"createdAt":         exStartedAt,
 		"updatedAt":         exUpdatedAt,

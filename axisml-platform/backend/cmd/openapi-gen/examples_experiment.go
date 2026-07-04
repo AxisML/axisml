@@ -50,6 +50,7 @@ func exExperiment(g *openapigen.Generator) {
 		"labels":      obj{"team": "nlp"},
 		"annotations": obj{"axisml.io/created-by": "li.wei"},
 		"spec":        jobSpec,
+		"runSummary":  obj{"count": 5, "active": 1, "recent": []any{"Succeeded", "Running", "Succeeded", "Failed", "Succeeded"}, "latestPhase": "Succeeded", "latestRunAt": exFinishedAt},
 		"createdAt":   exCreatedAt,
 		"updatedAt":   exUpdatedAt,
 	}

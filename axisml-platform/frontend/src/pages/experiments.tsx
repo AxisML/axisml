@@ -3,7 +3,9 @@ import { Link } from "react-router-dom";
 import { Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import dayjs from "dayjs";
-import { useExperiments } from "@/api/hooks";
+import { usePagedList } from "@/api/hooks";
+import { useDebouncedValue } from "@/lib/use-debounced";
+import { LoadMore } from "@/components/load-more";
 import { useApiMutation } from "@/api/mutations";
 import * as sdk from "@/api/generated";
 import { useUI } from "@/app/ui";
@@ -13,8 +15,6 @@ import { SearchInput } from "@/components/search-input";
 import { FilterSelect } from "@/components/filter-select";
 import { DataTable, type Column } from "@/components/data-table";
 import { ExpDrawer, type DrawerMode } from "@/components/exp-drawer";
-import { USE_MOCK } from "@/api/mock";
-import { runSummary } from "@/api/mock/data";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
@@ -28,41 +28,41 @@ interface ExpRow {
 }
 
 export default function Experiments() {
-  const q = useExperiments();
   const { t } = useTranslation();
   const { confirm } = useUI();
   const [drawer, setDrawer] = useState<{ mode: DrawerMode; name?: string } | null>(null);
   const [search, setSearch] = useState("");
   const [creator, setCreator] = useState<string>("");
 
+  const dq = useDebouncedValue(search, 300);
+  const q = usePagedList<sdk.Experiment>(["experiments", dq, creator], (page) =>
+    sdk.listExperiments({ query: { q: dq || undefined, owner: creator || undefined, ...page } }),
+  );
+
   const delExp = useApiMutation((name: string) => sdk.deleteExperiment({ path: { name } }), {
     invalidate: [["experiments"]],
     success: t("experiments.deleted"),
   });
 
-  const allRows: ExpRow[] = useMemo(
+  const rows: ExpRow[] = useMemo(
     () =>
-      q.data?.items?.map((e) => {
-        const summary = USE_MOCK ? runSummary(e.name) : { count: 0, recent: [] as string[] };
+      q.items.map((e) => {
+        const summary = e.runSummary;
         return {
           name: e.name,
           desc: e.description ?? e.displayName ?? "",
-          runCount: summary.count,
-          recent: summary.recent,
+          runCount: summary?.count ?? 0,
+          recent: summary?.recent ?? [],
           owner: e.owner ?? "—",
           updated: e.updatedAt ?? e.createdAt ?? "",
         };
-      }) ?? [],
-    [q.data],
+      }),
+    [q.items],
   );
 
   const creatorOptions = useMemo(
-    () => Array.from(new Set(allRows.map((r) => r.owner).filter((o) => o && o !== "—"))),
-    [allRows],
-  );
-
-  const rows = allRows.filter(
-    (r) => (!search || r.name.includes(search)) && (!creator || r.owner === creator),
+    () => Array.from(new Set(rows.map((r) => r.owner).filter((o) => o && o !== "—"))),
+    [rows],
   );
 
   const onDelete = (r: ExpRow) =>
@@ -180,6 +180,7 @@ export default function Experiments() {
           error={q.isError}
         />
       </Card>
+      <LoadMore hasMore={q.hasMore} loading={q.isFetchingMore} onClick={q.loadMore} />
 
       {drawer && <ExpDrawer mode={drawer.mode} name={drawer.name} onClose={() => setDrawer(null)} />}
     </PageContainer>

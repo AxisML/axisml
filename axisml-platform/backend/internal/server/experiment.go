@@ -8,19 +8,20 @@ import "time"
 // run produces a compute MLRun named <experiment>-<n> labelled
 // compute.axisml.io/experiment.
 type Experiment struct {
-	ID          UUID      `json:"id" desc:"Stable experiment identifier."`
-	Namespace   string    `json:"namespace" desc:"Platform tenant namespace the experiment belongs to."`
-	TenantName  string    `json:"tenantName" desc:"Tenant identifier owning the experiment."`
-	Name        string    `json:"name" desc:"Experiment definition name (unique within the tenant)."`
-	DisplayName string    `json:"displayName,omitempty" desc:"Human-readable experiment label."`
-	Description string    `json:"description,omitempty" desc:"Free-text experiment description."`
-	Owner       string    `json:"owner" desc:"Username of the experiment owner."`
-	OwnerID     UUID      `json:"ownerId,omitempty" desc:"User ID of the experiment owner."`
-	Labels      StringMap `json:"labels,omitempty" desc:"User-defined labels."`
-	Annotations StringMap `json:"annotations,omitempty" desc:"User-defined annotations."`
-	Spec        JobSpec   `json:"spec" desc:"Reusable run template (isomorphic to a Job spec)."`
-	CreatedAt   time.Time `json:"createdAt" desc:"Time the experiment was created."`
-	UpdatedAt   time.Time `json:"updatedAt" desc:"Time the experiment was last updated."`
+	ID          UUID        `json:"id" desc:"Stable experiment identifier."`
+	Namespace   string      `json:"namespace" desc:"Platform tenant namespace the experiment belongs to."`
+	TenantName  string      `json:"tenantName" desc:"Tenant identifier owning the experiment."`
+	Name        string      `json:"name" desc:"Experiment definition name (unique within the tenant)."`
+	DisplayName string      `json:"displayName,omitempty" desc:"Human-readable experiment label."`
+	Description string      `json:"description,omitempty" desc:"Free-text experiment description."`
+	Owner       string      `json:"owner" desc:"Username of the experiment owner."`
+	OwnerID     UUID        `json:"ownerId,omitempty" desc:"User ID of the experiment owner."`
+	Labels      StringMap   `json:"labels,omitempty" desc:"User-defined labels."`
+	Annotations StringMap   `json:"annotations,omitempty" desc:"User-defined annotations."`
+	Spec        JobSpec     `json:"spec" desc:"Reusable run template (isomorphic to a Job spec)."`
+	RunSummary  *RunSummary `json:"runSummary,omitempty" desc:"Roll-up of the experiment's Runs (count + recent phases on lists, latest phase on detail)."`
+	CreatedAt   time.Time   `json:"createdAt" desc:"Time the experiment was created."`
+	UpdatedAt   time.Time   `json:"updatedAt" desc:"Time the experiment was last updated."`
 }
 
 // ExperimentList is a page of Experiment.

@@ -11,9 +11,12 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import dayjs from "dayjs";
-import { useImages, useImageVersions } from "@/api/hooks";
+import { usePagedList, useImageVersions } from "@/api/hooks";
+import { useDebouncedValue } from "@/lib/use-debounced";
+import { LoadMore } from "@/components/load-more";
 import { useApiMutation } from "@/api/mutations";
 import * as sdk from "@/api/generated";
+import { useQuery } from "@tanstack/react-query";
 import { useApp } from "@/app/store";
 import { useUI } from "@/app/ui";
 import { PageContainer } from "@/components/page-container";
@@ -23,8 +26,6 @@ import { SearchInput } from "@/components/search-input";
 import { AssetCard } from "@/components/asset-card";
 import { CodeBlock } from "@/components/code-block";
 import { DataTable, type Column } from "@/components/data-table";
-import { USE_MOCK } from "@/api/mock";
-import { imageVersions } from "@/api/mock/data";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -61,10 +62,10 @@ type DrawerState =
   | { kind: "versions"; image: string; desc: string; purpose: string }
   | { kind: "pull"; image: string; version: string; uri: string }
   | { kind: "new" }
+  | { kind: "edit"; def: sdk.ArtifactDefinition }
   | { kind: "add"; image: string };
 
 export default function Images() {
-  const q = useImages();
   const { t } = useTranslation();
   const { tenant } = useApp();
   const { confirm } = useUI();
@@ -72,37 +73,41 @@ export default function Images() {
   const [search, setSearch] = useState("");
   const [drawer, setDrawer] = useState<DrawerState | null>(null);
 
+  // Server-side search + pagination.
+  const dq = useDebouncedValue(search, 300);
+  const q = usePagedList<sdk.ArtifactDefinition>(["images", dq], (page) =>
+    sdk.listImageDefinitions({ query: { q: dq || undefined, ...page } }),
+  );
+
   const delImage = useApiMutation(
     (name: string) => sdk.deleteImageDefinition({ path: { tenant, name } }),
     { invalidate: [["images"]], success: t("images.imageDeleted") },
   );
 
-  const allRows: ImageRow[] = useMemo(
+  const rows: ImageRow[] = useMemo(
     () =>
-      q.data?.items?.map((m) => {
-        const vs = USE_MOCK ? imageVersions(m.name) : [];
+      q.items.map((m) => {
+        // Version roll-ups ride on the definition list response (versionCount /
+        // latestVersion); honest "—" / 0 when the backend hasn't populated them.
         return {
           name: m.name,
           desc: m.description ?? m.displayName ?? "",
-          purpose: (m.labels?.purpose as string) ?? "—",
-          latest: vs[0]?.version ?? "—",
-          versions: vs.length,
+          purpose: ((m.spec as Record<string, unknown> | undefined)?.purpose as string) ?? "—",
+          latest: m.latestVersion ?? "—",
+          versions: m.versionCount ?? 0,
           updated: m.updatedAt ?? m.createdAt ?? "",
         };
-      }) ?? [],
-    [q.data],
+      }),
+    [q.items],
   );
-
-  const rows = useMemo(() => {
-    const needle = search.trim().toLowerCase();
-    if (!needle) return allRows;
-    return allRows.filter(
-      (r) => r.name.toLowerCase().includes(needle) || r.desc.toLowerCase().includes(needle),
-    );
-  }, [allRows, search]);
 
   const openVersions = (r: ImageRow) =>
     setDrawer({ kind: "versions", image: r.name, desc: r.desc, purpose: r.purpose });
+
+  const onEditImage = (r: ImageRow) => {
+    const def = q.items.find((m) => m.name === r.name);
+    if (def) setDrawer({ kind: "edit", def });
+  };
 
   const onDeleteImage = (r: ImageRow) =>
     confirm({
@@ -158,12 +163,15 @@ export default function Images() {
     {
       key: "actions",
       title: t("common.actions"),
-      width: 160,
+      width: 200,
       align: "right",
       render: (r) => (
         <div className="flex items-center justify-end gap-0.5">
           <Button variant="link" size="sm" onClick={() => setDrawer({ kind: "add", image: r.name })}>
             {t("images.addVersion")}
+          </Button>
+          <Button variant="link" size="sm" onClick={() => onEditImage(r)}>
+            {t("common.edit")}
           </Button>
           <Button variant="link" size="sm" className="text-destructive" onClick={() => onDeleteImage(r)}>
             {t("common.delete")}
@@ -248,6 +256,8 @@ export default function Images() {
                   updated={r.updated ? dayjs(r.updated).fromNow() : "—"}
                   versionsText={`${r.versions} ${t("images.versionsSuffix")}`}
                   onOpen={() => openVersions(r)}
+                  onEdit={() => onEditImage(r)}
+                  editLabel={t("common.edit")}
                   onDelete={() => onDeleteImage(r)}
                   deleteLabel={t("common.delete")}
                 />
@@ -269,6 +279,7 @@ export default function Images() {
           />
         </Card>
       )}
+      <LoadMore hasMore={q.hasMore} loading={q.isFetchingMore} onClick={q.loadMore} />
 
       {drawer?.kind === "versions" && (
         <VersionsDrawer
@@ -284,6 +295,7 @@ export default function Images() {
         <PullDrawer image={drawer.image} version={drawer.version} uri={drawer.uri} onClose={() => setDrawer(null)} />
       )}
       {drawer?.kind === "new" && <NewImageDrawer onClose={() => setDrawer(null)} />}
+      {drawer?.kind === "edit" && <NewImageDrawer edit={drawer.def} onClose={() => setDrawer(null)} />}
       {drawer?.kind === "add" && <AddVersionDrawer image={drawer.image} onClose={() => setDrawer(null)} />}
     </PageContainer>
   );
@@ -462,8 +474,25 @@ function VersionsDrawer({
 // ── Pull-command drawer ───────────────────────────────────────────────────────
 function PullDrawer({ image, version, uri, onClose }: { image: string; version: string; uri: string; onClose: () => void }) {
   const { t } = useTranslation();
-  const ref = uri || `zot.axisml.internal/<tenant>/${image}:${version}`;
-  const cmd = `docker login zot.axisml.internal -u <user> -p <token>\ndocker pull ${ref}`;
+  const { tenant } = useApp();
+  // Resolve mints short-lived pull credentials + the concrete registry ref;
+  // fall back to the version's URI while it loads / if resolve isn't available.
+  const resolveQ = useQuery({
+    queryKey: ["images", tenant, image, version, "resolve"],
+    enabled: tenant !== "" && image !== "" && version !== "",
+    queryFn: async () => {
+      const { data, error } = await sdk.resolveImage({ path: { tenant, name: image, version } });
+      if (error) throw error;
+      return data;
+    },
+  });
+  const ref = resolveQ.data?.uri || uri || `zot.axisml.internal/${tenant}/${image}:${version}`;
+  const creds = resolveQ.data?.pullCredentials as { username?: string; password?: string } | undefined;
+  const registry = ref.split("/")[0];
+  const login = creds?.username
+    ? `docker login ${registry} -u ${creds.username} -p ${creds.password ?? ""}`
+    : `docker login ${registry}`;
+  const cmd = `${login}\ndocker pull ${ref}`;
 
   return (
     <FormDrawer
@@ -485,14 +514,20 @@ interface NewImageValues {
   description: string;
 }
 
-function NewImageDrawer({ onClose }: { onClose: () => void }) {
+function NewImageDrawer({ edit, onClose }: { edit?: sdk.ArtifactDefinition; onClose: () => void }) {
   const { t } = useTranslation();
   const { tenant } = useApp();
+  const isEdit = !!edit;
+  const editSpec = edit?.spec as Record<string, unknown> | undefined;
   const [submitted, setSubmitted] = useState(false);
-  const [v, setV] = useState<NewImageValues>({ name: "", purpose: "training", description: "" });
+  const [v, setV] = useState<NewImageValues>({
+    name: edit?.name ?? "",
+    purpose: (editSpec?.purpose as string) ?? "training",
+    description: edit?.description ?? "",
+  });
   const set = <K extends keyof NewImageValues>(k: K, val: NewImageValues[K]) =>
     setV((prev) => ({ ...prev, [k]: val }));
-  const [customTags, setCustomTags] = useState<Record<string, string>>({});
+  const [customTags, setCustomTags] = useState<Record<string, string>>(edit?.labels ?? {});
   const [ctKey, setCtKey] = useState("");
   const [ctVal, setCtVal] = useState("");
 
@@ -506,6 +541,11 @@ function NewImageDrawer({ onClose }: { onClose: () => void }) {
   const create = useApiMutation(
     (body: sdk.ArtifactDefinitionCreateRequest) => sdk.createImageDefinition({ path: { tenant, name: body.name }, body }),
     { invalidate: [["images"]], success: t("images.imageCreated") },
+  );
+  const update = useApiMutation(
+    (body: sdk.ArtifactDefinitionPatchRequest) =>
+      sdk.updateImageDefinition({ path: { tenant, name: edit!.name }, body }),
+    { invalidate: [["images"]], success: t("images.imageSaved") },
   );
 
   const addTag = () => {
@@ -524,14 +564,25 @@ function NewImageDrawer({ onClose }: { onClose: () => void }) {
 
   const submit = () => {
     setSubmitted(true);
-    if (!v.name.trim()) return;
-    const labels: Record<string, string> = { ...customTags };
-    if (v.purpose) labels.purpose = v.purpose;
+    if (!isEdit && !v.name.trim()) return;
+    // Purpose is the contract's image-definition facet (spec.purpose / the
+    // ?purpose= list filter), NOT a label. Custom tags stay as labels.
+    const spec: Record<string, unknown> = {};
+    if (v.purpose) spec.purpose = v.purpose;
+    const labels = Object.keys(customTags).length ? { ...customTags } : undefined;
+    if (isEdit) {
+      update.mutate(
+        { description: v.description.trim() || undefined, labels, spec: Object.keys(spec).length ? spec : undefined },
+        { onSuccess: onClose },
+      );
+      return;
+    }
     create.mutate(
       {
         name: v.name.trim(),
         description: v.description.trim() || undefined,
-        labels: Object.keys(labels).length ? labels : undefined,
+        labels,
+        spec: Object.keys(spec).length ? spec : undefined,
       },
       { onSuccess: onClose },
     );
@@ -539,11 +590,11 @@ function NewImageDrawer({ onClose }: { onClose: () => void }) {
 
   return (
     <FormDrawer
-      title={t("images.newImageTitle")}
+      title={isEdit ? t("images.editImageTitle") : t("images.newImageTitle")}
       onClose={onClose}
       onSubmit={submit}
-      submitLabel={t("images.createImage")}
-      submitting={create.isPending}
+      submitLabel={isEdit ? t("common.save") : t("images.createImage")}
+      submitting={create.isPending || update.isPending}
     >
       <FieldSection n={1} title={t("images.fsBasic")} />
       <FieldGroup>
@@ -557,7 +608,9 @@ function NewImageDrawer({ onClose }: { onClose: () => void }) {
             className="font-mono"
             placeholder={t("images.fNamePlaceholder")}
             value={v.name}
-            aria-invalid={submitted && !v.name.trim()}
+            readOnly={isEdit}
+            disabled={isEdit}
+            aria-invalid={submitted && !isEdit && !v.name.trim()}
             onChange={(e) => set("name", e.target.value)}
           />
           <FieldDescription>{t("images.fNameHelp")}</FieldDescription>

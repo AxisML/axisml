@@ -1,18 +1,13 @@
 import * as sdk from "@/api/generated";
 
-// Shared demo catalogs + spec builders for the training run drawers (Jobs &
-// Experiments — both are native Job-backed Runs with the same form shape). The
-// authoritative pools/units come from the ResourcePool CRD; these mirror the
-// prototype's samples until the drawers are wired to live pools.
+// Shared spec builders for the training run drawers (Jobs & Experiments — both
+// are native Job-backed Runs with the same form shape). Pools + units now come
+// from the live ResourcePool list (see usePoolUnitOptions). The training-image
+// catalog is still a sample list pending an image+version picker.
 export const TRAINING_IMAGES = [
   { value: "pytorch:2.3-cu121", title: "pytorch:2.3-cu121", desc: "PyTorch 训练镜像" },
   { value: "megatron:24.05", title: "megatron:24.05", desc: "Megatron-LM 训练镜像" },
 ];
-export const TRAINING_UNITS = [
-  { value: "a100-4x-xlarge", title: "a100-4x-xlarge", desc: "4×A100 · 32 vCPU · 256 GiB" },
-  { value: "a100-8x-xlarge-ib", title: "a100-8x-xlarge-ib", desc: "8×A100 · IB · 64 vCPU · 512 GiB" },
-];
-export const TRAINING_POOLS = ["gpu-a100", "gpu-h100"];
 
 // Parse a `KEY=value` lines blob into EnvVar[] (blank lines / keyless skipped).
 export function parseEnv(text: string): sdk.EnvVar[] {
@@ -56,9 +51,15 @@ export interface RunSpecInput {
 // Build the native Job-backed run spec shared by the Job & Experiment drawers.
 export function buildRunSpec(v: RunSpecInput): sdk.JobSpec {
   const reps = Number(v.replicas);
-  const mounts = (v.volumes ?? [])
-    .filter((vol) => vol.name?.trim() && vol.mountPath?.trim())
-    .map((vol) => ({ name: vol.name!.trim(), mountPath: vol.mountPath!.trim() }));
+  const picked = (v.volumes ?? []).filter((vol) => vol.name?.trim() && vol.mountPath?.trim());
+  const mounts = picked.map((vol) => ({ name: vol.name!.trim(), mountPath: vol.mountPath!.trim() }));
+  // Each volumeMount needs a matching pod `volumes` entry, else the mount
+  // references a volume that doesn't exist. The selected name is a DataVolume,
+  // backed by a PVC of the same name.
+  const volumes = picked.map((vol) => ({
+    name: vol.name!.trim(),
+    persistentVolumeClaim: { claimName: vol.name!.trim() },
+  }));
   const role: sdk.MlRunRole = {
     name: "worker",
     replicas: Number.isFinite(reps) && reps > 0 ? reps : 1,
@@ -66,6 +67,7 @@ export function buildRunSpec(v: RunSpecInput): sdk.JobSpec {
       image: v.image?.trim() || undefined,
       command: parseCommand(v.command || ""),
       env: parseEnv(v.env || ""),
+      volumes: volumes.length ? volumes : undefined,
       volumeMounts: mounts.length ? mounts : undefined,
     },
   };

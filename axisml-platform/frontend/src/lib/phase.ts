@@ -30,6 +30,22 @@ export function phaseTone(phase?: string | null): PhaseTone {
   return phase ? (PHASE_TONE[phase] ?? "stopped") : "stopped";
 }
 
+// Complete phase enum value sets (mirror the backend enums.go *Values), so
+// status filters expose EVERY phase instead of an ad-hoc subset that silently
+// hides Failed / Degraded / Creating from filtering.
+export const RUN_PHASES = [
+  "Creating", "Pending", "Running", "Succeeded", "Failed", "Canceling", "Cancelled", "Deleting", "Deleted",
+];
+export const WORKSPACE_PHASES = [
+  "Creating", "Starting", "Running", "Degraded", "Failed", "Stopped", "Deleting", "Deleted", "Pending",
+];
+export const MLSERVICE_PHASES = [
+  "Creating", "Pending", "Ready", "Degraded", "Failed", "Stopped", "Deleting", "Deleted",
+];
+export const TRAFFIC_PHASES = [
+  "Creating", "Ready", "Pending", "Degraded", "Failed", "Deleting", "Deleted",
+];
+
 export const TONE_TEXT: Record<PhaseTone, string> = {
   running: "text-success",
   success: "text-foreground",

@@ -18,10 +18,36 @@ type WorkspaceVolume struct {
 	Used         string `json:"used,omitempty" desc:"Live consumed capacity of the volume (read-only)."`
 }
 
+// WorkspaceTool is one launchable entry point of a workspace (Jupyter, VS Code,
+// terminal, ...), each with its own URL.
+type WorkspaceTool struct {
+	Name  string `json:"name" desc:"Tool identifier (jupyter, vscode, terminal, ...)."`
+	Label string `json:"label,omitempty" desc:"Human-readable tool label."`
+	URL   string `json:"url" desc:"Launch URL for the tool."`
+}
+
 // WorkspaceEndpoint carries a workspace's reachable URLs.
 type WorkspaceEndpoint struct {
-	AccessURL   string `json:"accessUrl,omitempty" desc:"External URL for reaching the workspace UI."`
-	InternalDNS string `json:"internalDns,omitempty" desc:"In-cluster DNS name for the workspace service."`
+	AccessURL   string          `json:"accessUrl,omitempty" desc:"Primary external URL for reaching the workspace UI."`
+	InternalDNS string          `json:"internalDns,omitempty" desc:"In-cluster DNS name for the workspace service."`
+	Tools       []WorkspaceTool `json:"tools,omitempty" desc:"Per-tool launch URLs (Jupyter, VS Code, terminal, ...); the UI renders one launch button each."`
+}
+
+// WorkspaceImage is one selectable base dev-environment image in the workspace
+// image catalog.
+type WorkspaceImage struct {
+	Ref         string `json:"ref" desc:"Container image reference."`
+	DisplayName string `json:"displayName" desc:"Human-readable image label."`
+	Description string `json:"description,omitempty" desc:"Short description of the environment."`
+	Kind        string `json:"kind,omitempty" desc:"Environment kind (jupyter, vscode, terminal, custom)."`
+	DefaultPort int    `json:"defaultPort,omitempty" desc:"Default container port the dev server listens on."`
+	Public      bool   `json:"public,omitempty" desc:"Whether the image is a public/shared base image."`
+}
+
+// WorkspaceImageList is the workspace base-image catalog.
+type WorkspaceImageList struct {
+	Items []WorkspaceImage `json:"items" desc:"Selectable base images."`
+	Count int              `json:"count" binding:"min=0" desc:"Number of images in the catalog."`
 }
 
 // Workspace is a long-running interactive dev container.

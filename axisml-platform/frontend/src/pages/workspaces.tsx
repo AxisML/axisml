@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Plus,
@@ -13,12 +13,13 @@ import {
 import {
   JupyterMark,
   VscodeMark,
-  PytorchMark,
   WorkspaceMark,
   wsBrand,
 } from "@/components/workspace-brand";
 import { useTranslation } from "react-i18next";
-import { useWorkspaces, useVolumeOptions } from "@/api/hooks";
+import { usePagedList, useVolumeOptions, useWorkspaceImages, usePoolUnitOptions } from "@/api/hooks";
+import { useDebouncedValue } from "@/lib/use-debounced";
+import { LoadMore } from "@/components/load-more";
 import { useApiMutation } from "@/api/mutations";
 import * as sdk from "@/api/generated";
 import { useUI } from "@/app/ui";
@@ -39,6 +40,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { FormDrawer } from "@/components/form-drawer";
 import { parseEnv } from "@/lib/run-spec";
+import { WORKSPACE_PHASES } from "@/lib/phase";
 import { Field, FieldGroup, FieldLabel, FieldDescription } from "@/components/ui/field";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
@@ -61,7 +63,9 @@ interface WsRow {
   unit: string;
   image: string;
   owner: string;
+  poolName?: string;
   pvc?: string;
+  tools?: { name?: string; url?: string }[];
 }
 
 const isRunning = (phase?: string) =>
@@ -69,7 +73,6 @@ const isRunning = (phase?: string) =>
 const isStopped = (phase?: string) => !isRunning(phase);
 
 export default function Workspaces() {
-  const q = useWorkspaces();
   const { t } = useTranslation();
   const { confirm } = useUI();
   const [view, setView] = useState<"cards" | "list">("cards");
@@ -78,6 +81,20 @@ export default function Workspaces() {
   const [phase, setPhase] = useState<string>("");
   const [pool, setPool] = useState<string>("");
   const [creator, setCreator] = useState<string>("");
+
+  // Server-side search / phase / owner + pagination. poolName isn't a list
+  // filter param, so the pool facet stays a client refinement over loaded rows.
+  const dq = useDebouncedValue(search, 300);
+  const q = usePagedList<sdk.Workspace>(["workspaces", dq, phase, creator], (page) =>
+    sdk.listWorkspaces({
+      query: {
+        q: dq || undefined,
+        phase: (phase || undefined) as sdk.WorkspacePhase | undefined,
+        owner: creator || undefined,
+        ...page,
+      },
+    }),
+  );
 
   const start = useApiMutation((name: string) => sdk.startWorkspace({ path: { name } }), {
     invalidate: [["workspaces"]],
@@ -95,35 +112,32 @@ export default function Workspaces() {
 
   const allRows: WsRow[] = useMemo(
     () =>
-      q.data?.items?.map((w) => ({
+      q.items.map((w) => ({
         name: w.name,
         desc: w.description ?? w.displayName ?? "",
         phase: w.phase,
         unit: w.unitName ?? "—",
         image: w.image ?? "—",
         owner: w.owner ?? "—",
+        poolName: w.poolName,
         pvc: w.volumes?.find((v) => v.size)?.size,
-      })) ?? [],
-    [q.data],
+        tools: w.endpoint?.tools,
+      })),
+    [q.items],
   );
 
   const poolOptions = useMemo(
-    () => Array.from(new Set((q.data?.items ?? []).map((w) => w.poolName).filter(Boolean) as string[])),
-    [q.data],
+    () => Array.from(new Set(allRows.map((r) => r.poolName).filter(Boolean) as string[])),
+    [allRows],
   );
   const creatorOptions = useMemo(
     () => Array.from(new Set(allRows.map((r) => r.owner).filter((o) => o && o !== "—"))),
     [allRows],
   );
 
-  const rows = allRows.filter(
-    (r) =>
-      (!search || r.name.includes(search)) &&
-      (!phase || r.phase === phase) &&
-      (!creator || r.owner === creator) &&
-      (!pool ||
-        (q.data?.items ?? []).some((w) => w.name === r.name && w.poolName === pool)),
-  );
+  // Only pool is filtered client-side (not a server list param); q/phase/owner
+  // are already applied by the server.
+  const rows = allRows.filter((r) => !pool || r.poolName === pool);
 
   const onDelete = (r: WsRow, descKey: "running" | "stopped" | "default") => {
     let deletePvc = r.pvc != null;
@@ -236,7 +250,7 @@ export default function Workspaces() {
         <FilterSelect
           value={phase}
           onChange={setPhase}
-          options={["Running", "Starting", "Stopped"].map((p) => ({ value: p, label: t(`phase.${p}`) }))}
+          options={WORKSPACE_PHASES.map((p) => ({ value: p, label: t(`phase.${p}`, { defaultValue: p }) }))}
           allLabel={t("workspaces.statusAll")}
         />
         <FilterSelect
@@ -300,6 +314,7 @@ export default function Workspaces() {
           />
         </Card>
       )}
+      <LoadMore hasMore={q.hasMore} loading={q.isFetchingMore} onClick={q.loadMore} />
 
       {drawer && <WsDrawer onClose={() => setDrawer(false)} />}
     </PageContainer>
@@ -313,7 +328,7 @@ function CardsView({
   onStop,
   onDelete,
 }: {
-  q: ReturnType<typeof useWorkspaces>;
+  q: { isLoading: boolean; isError: boolean };
   rows: WsRow[];
   onStart: (name: string) => void;
   onStop: (name: string) => void;
@@ -375,23 +390,38 @@ function WsCard({
   const stopped = isStopped(row.phase);
   const brand = wsBrand(row.image);
 
-  // One launch-tool button (brand mark on the bottom-left action row).
-  const launch = (key: string, title: string, mark: ReactNode) => (
-    <Tooltip key={key}>
-      <TooltipTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          disabled={!running}
-          asChild={running}
-          aria-label={title}
-        >
-          {running ? <Link to={`/workspaces/${row.name}`}>{mark}</Link> : mark}
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>{running ? title : t("workspaces.availableAfterStart")}</TooltipContent>
-    </Tooltip>
-  );
+  // One launch-tool button (brand mark on the bottom-left action row). When the
+  // workspace endpoint carries a per-tool URL, open it directly; otherwise fall
+  // back to the detail page.
+  const launch = (key: string, title: string, mark: ReactNode) => {
+    const url = row.tools?.find((x) => x.name === key)?.url;
+    return (
+      <Tooltip key={key}>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            disabled={!running}
+            asChild={running}
+            aria-label={title}
+          >
+            {running ? (
+              url ? (
+                <a href={url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
+                  {mark}
+                </a>
+              ) : (
+                <Link to={`/workspaces/${row.name}`}>{mark}</Link>
+              )
+            ) : (
+              mark
+            )}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>{running ? title : t("workspaces.availableAfterStart")}</TooltipContent>
+      </Tooltip>
+    );
+  };
 
   return (
     <Card
@@ -490,38 +520,6 @@ function WsCard({
 }
 
 // ── Create drawer ─────────────────────────────────────────────────────────────
-const WS_IMAGES: { value: string; title: string; desc: string; icon: ReactNode }[] = [
-  {
-    value: "jupyter-ds:2024.3",
-    title: "jupyter-ds:2024.3",
-    desc: "Jupyter 开发环境 · 公共",
-    icon: <JupyterMark className="size-[22px]" />,
-  },
-  {
-    value: "pytorch:2.3-cu121",
-    title: "pytorch:2.3-cu121",
-    desc: "PyTorch 训练镜像",
-    icon: <PytorchMark className="size-[22px]" />,
-  },
-  {
-    value: "vscode-server:1.90",
-    title: "vscode-server:1.90",
-    desc: "VS Code 开发环境 · 公共",
-    icon: <VscodeMark className="size-[22px]" />,
-  },
-];
-const WS_POOLS: { value: string; label: string }[] = [
-  { value: "gpu-a100", label: "gpu-a100 · A100 训练池" },
-  { value: "gpu-l40s", label: "gpu-l40s · L40S 推理池" },
-  { value: "cpu-medium", label: "cpu-medium · 通用 CPU 池" },
-];
-const WS_UNITS: { value: string; pool: string; title: string; desc: string }[] = [
-  { value: "cpu-medium", pool: "cpu-medium", title: "cpu-medium", desc: "8 vCPU · 32 GiB" },
-  { value: "cpu-large", pool: "cpu-medium", title: "cpu-large", desc: "16 vCPU · 64 GiB" },
-  { value: "a100-1x", pool: "gpu-a100", title: "a100-1x", desc: "1×A100 · 8 vCPU · 64 GiB" },
-  { value: "l40s-1x", pool: "gpu-l40s", title: "l40s-1x", desc: "1×L40S · 8 vCPU · 48 GiB" },
-];
-
 interface WsFormValues {
   name: string;
   description: string;
@@ -538,12 +536,22 @@ function WsDrawer({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
   const [submitted, setSubmitted] = useState(false);
   const { options: volOptions, isError: volError } = useVolumeOptions();
+  // Base-image catalog + pools/units from the API (declared endpoints).
+  const wsImagesQ = useWorkspaceImages();
+  const imageCatalog = wsImagesQ.data?.items ?? [];
+  const imageOptions = imageCatalog.map((img) => ({
+    value: img.ref,
+    title: img.displayName ?? img.ref,
+    desc: img.description ?? "",
+    icon: <WorkspaceMark brand={wsBrand(img.ref)} className="size-[22px]" />,
+  }));
+  const { pools, unitsFor } = usePoolUnitOptions();
   const [v, setV] = useState<WsFormValues>({
     name: "",
     description: "",
-    image: WS_IMAGES[0].value,
-    poolName: WS_UNITS[0].pool,
-    unitName: WS_UNITS[0].value,
+    image: "",
+    poolName: "",
+    unitName: "",
     containerPort: 8888,
     env: "",
     volume: "",
@@ -552,13 +560,26 @@ function WsDrawer({ onClose }: { onClose: () => void }) {
   const set = <K extends keyof WsFormValues>(k: K, val: WsFormValues[K]) =>
     setV((prev) => ({ ...prev, [k]: val }));
 
-  // Pool drives which units are offered (the prototype scopes the unit grid to
-  // the selected pool); picking a pool resets the unit to the first match.
-  const unitsForPool = WS_UNITS.filter((u) => u.pool === v.poolName);
-  const onPoolChange = (poolName: string) => {
-    const first = WS_UNITS.find((u) => u.pool === poolName);
-    setV((prev) => ({ ...prev, poolName, unitName: first?.value ?? prev.unitName }));
-  };
+  // Default the image to the first catalog entry once it loads (and adopt its
+  // default container port).
+  useEffect(() => {
+    if (!v.image && imageCatalog.length) {
+      const first = imageCatalog[0];
+      setV((prev) => ({ ...prev, image: first.ref, containerPort: first.defaultPort || prev.containerPort }));
+    }
+  }, [imageCatalog, v.image]);
+
+  // Pool drives which units are offered; picking a pool resets the unit to the
+  // first match. Default pool + unit from the live pools once loaded.
+  const unitsForPool = unitsFor(v.poolName);
+  useEffect(() => {
+    if (!v.poolName && pools.length) {
+      const pool = pools[0].value;
+      setV((prev) => ({ ...prev, poolName: pool, unitName: unitsFor(pool)[0]?.value ?? "" }));
+    }
+  }, [pools, v.poolName, unitsFor]);
+  const onPoolChange = (poolName: string) =>
+    setV((prev) => ({ ...prev, poolName, unitName: unitsFor(poolName)[0]?.value ?? "" }));
 
   const create = useApiMutation((body: sdk.WorkspaceCreateRequest) => sdk.createWorkspace({ body }), {
     invalidate: [["workspaces"]],
@@ -568,14 +589,13 @@ function WsDrawer({ onClose }: { onClose: () => void }) {
   const submit = () => {
     setSubmitted(true);
     if (!v.name.trim()) return;
-    const unit = unitsForPool.find((u) => u.value === v.unitName) ?? unitsForPool[0] ?? WS_UNITS[0];
     const envVars = parseEnv(v.env || "");
     const mountPath = v.mountPath?.trim();
     const body: sdk.WorkspaceCreateRequest = {
       name: v.name.trim(),
       image: v.image,
       poolName: v.poolName,
-      unitName: unit.value,
+      unitName: v.unitName,
       description: v.description?.trim() || undefined,
       containerPort: v.containerPort && v.containerPort > 0 ? v.containerPort : undefined,
       env: envVars.length ? envVars : undefined,
@@ -628,7 +648,15 @@ function WsDrawer({ onClose }: { onClose: () => void }) {
             {t("workspaces.fImage")}
             <span className="text-destructive">*</span>
           </FieldLabel>
-          <CardRadio columns={1} options={WS_IMAGES} value={v.image} onChange={(val) => set("image", val)} />
+          <CardRadio
+            columns={1}
+            options={imageOptions}
+            value={v.image}
+            onChange={(val) => {
+              const found = imageCatalog.find((i) => i.ref === val);
+              setV((prev) => ({ ...prev, image: val, containerPort: found?.defaultPort || prev.containerPort }));
+            }}
+          />
         </Field>
       </FieldGroup>
 
@@ -644,7 +672,7 @@ function WsDrawer({ onClose }: { onClose: () => void }) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {WS_POOLS.map((p) => (
+              {pools.map((p) => (
                 <SelectItem key={p.value} value={p.value}>
                   {p.label}
                 </SelectItem>

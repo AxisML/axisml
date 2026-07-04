@@ -2,6 +2,86 @@
 # Regenerate with: make doc-gen
 components:
   schemas:
+    ActivityItem:
+      example:
+        action: succeeded
+        actor: li.wei
+        id: act-9f3a2e5c
+        kind: run
+        name: resnet-train-7
+        phase: Succeeded
+        timestamp: "2026-06-28T09:25:00Z"
+      properties:
+        action:
+          description: What happened (created, started, stopped, succeeded, failed,
+            deleted, ...).
+          type: string
+        actor:
+          description: Username that triggered the activity.
+          type: string
+        id:
+          description: Stable activity entry identifier.
+          type: string
+        kind:
+          description: Subject resource kind (workspace, job, experiment, run, mlservice,
+            trafficpolicy).
+          type: string
+        name:
+          description: Subject resource name.
+          type: string
+        phase:
+          description: Subject's phase at the time of the entry.
+          type: string
+        timestamp:
+          description: Time the activity occurred.
+          format: date-time
+          type: string
+      required:
+      - action
+      - id
+      - kind
+      - name
+      - timestamp
+      type: object
+    ActivityList:
+      example:
+        count: 3
+        items:
+        - action: succeeded
+          actor: li.wei
+          id: act-9f3a2e5c
+          kind: run
+          name: resnet-train-7
+          phase: Succeeded
+          timestamp: "2026-06-28T09:25:00Z"
+        - action: started
+          actor: zhang.san
+          id: act-7b4f2a1c
+          kind: mlservice
+          name: llama3-chat
+          phase: Ready
+          timestamp: "2026-06-28T09:30:00Z"
+        - action: created
+          actor: li.wei
+          id: act-3e8f4a1c
+          kind: workspace
+          name: notebook-dev
+          phase: Running
+          timestamp: "2026-06-20T08:00:00Z"
+      properties:
+        count:
+          description: Number of entries in this page.
+          minimum: 0
+          type: integer
+        items:
+          description: Activity entries, newest first.
+          items:
+            $ref: '#/components/schemas/ActivityItem'
+          type: array
+      required:
+      - count
+      - items
+      type: object
     ArtifactDefinition:
       example:
         annotations:
@@ -13,6 +93,8 @@ components:
         kind: model
         labels:
           team: vision
+        latestVersion: 1.4.0
+        latestVersionAt: "2026-06-28T09:30:00Z"
         name: resnet50
         namespace: team-vision
         owner: li.wei
@@ -24,6 +106,7 @@ components:
           task: image-classification
         tenantName: team-vision
         updatedAt: "2026-06-28T09:30:00Z"
+        versionCount: 3
       properties:
         annotations:
           allOf:
@@ -53,6 +136,14 @@ components:
           allOf:
           - $ref: '#/components/schemas/StringMap'
           description: User-defined labels.
+        latestVersion:
+          description: Version string of the most recent version.
+          type: string
+        latestVersionAt:
+          description: Creation time of the most recent version.
+          format: date-time
+          nullable: true
+          type: string
         name:
           description: Definition name (unique within the tenant).
           type: string
@@ -77,6 +168,9 @@ components:
           description: Time the definition was last updated.
           format: date-time
           type: string
+        versionCount:
+          description: Number of versions under the definition (roll-up for list cards).
+          type: integer
       required:
       - createdAt
       - id
@@ -137,6 +231,8 @@ components:
           kind: model
           labels:
             team: vision
+          latestVersion: 1.4.0
+          latestVersionAt: "2026-06-28T09:30:00Z"
           name: resnet50
           namespace: team-vision
           owner: li.wei
@@ -148,6 +244,7 @@ components:
             task: image-classification
           tenantName: team-vision
           updatedAt: "2026-06-28T09:30:00Z"
+          versionCount: 3
         partial: false
       properties:
         continueToken:
@@ -309,6 +406,139 @@ components:
       required:
       - engine
       - name
+      type: object
+    ClusterMeter:
+      example:
+        resource: gpu
+        total: 48
+        unit: cards
+        used: 36
+      properties:
+        resource:
+          description: Resource dimension (gpu, cpu, memory).
+          type: string
+        total:
+          description: Schedulable total capacity.
+          format: double
+          type: number
+        unit:
+          description: Value unit (e.g. cards, cores, GiB).
+          type: string
+        used:
+          description: Amount currently in use.
+          format: double
+          type: number
+      required:
+      - resource
+      - total
+      - used
+      type: object
+    ClusterPoolUsage:
+      example:
+        meters:
+        - resource: gpu
+          total: 32
+          unit: cards
+          used: 22
+        - resource: cpu
+          total: 384
+          unit: cores
+          used: 240
+        - resource: memory
+          total: 2048
+          unit: GiB
+          used: 1228.8
+        pool: gpu-a100
+      properties:
+        meters:
+          description: Per-resource utilisation meters for the pool.
+          items:
+            $ref: '#/components/schemas/ClusterMeter'
+          type: array
+        pool:
+          description: Resource pool name.
+          type: string
+      required:
+      - meters
+      - pool
+      type: object
+    ClusterUsage:
+      example:
+        aggregate:
+        - resource: gpu
+          total: 48
+          unit: cards
+          used: 36
+        - resource: cpu
+          total: 1152
+          unit: cores
+          used: 740
+        - resource: memory
+          total: 5632
+          unit: GiB
+          used: 3481.6
+        pools:
+        - meters:
+          - resource: gpu
+            total: 32
+            unit: cards
+            used: 22
+          - resource: cpu
+            total: 384
+            unit: cores
+            used: 240
+          - resource: memory
+            total: 2048
+            unit: GiB
+            used: 1228.8
+          pool: gpu-a100
+        - meters:
+          - resource: gpu
+            total: 16
+            unit: cards
+            used: 14
+          - resource: cpu
+            total: 256
+            unit: cores
+            used: 180
+          - resource: memory
+            total: 2048
+            unit: GiB
+            used: 1433.6
+          pool: h100-pool
+        - meters:
+          - resource: gpu
+            total: 0
+            unit: cards
+            used: 0
+          - resource: cpu
+            total: 512
+            unit: cores
+            used: 320
+          - resource: memory
+            total: 1536
+            unit: GiB
+            used: 819.2
+          pool: cpu-pool
+        updatedAt: "2026-06-28T09:30:00Z"
+      properties:
+        aggregate:
+          description: Cluster-wide utilisation across all pools.
+          items:
+            $ref: '#/components/schemas/ClusterMeter'
+          type: array
+        pools:
+          description: Per-pool utilisation breakdown.
+          items:
+            $ref: '#/components/schemas/ClusterPoolUsage'
+          type: array
+        updatedAt:
+          description: Time the snapshot was sampled.
+          format: date-time
+          type: string
+      required:
+      - aggregate
+      - updatedAt
       type: object
     Condition:
       example:
@@ -680,6 +910,17 @@ components:
         namespace: team-nlp
         owner: zhang.san
         ownerId: 3a2b1c0d-4e5f-6789-abcd-ef0123456789
+        runSummary:
+          active: 1
+          count: 5
+          latestPhase: Succeeded
+          latestRunAt: "2026-06-28T09:25:00Z"
+          recent:
+          - Succeeded
+          - Running
+          - Succeeded
+          - Failed
+          - Succeeded
         spec:
           artifacts:
           - kind: model
@@ -756,6 +997,12 @@ components:
           description: User ID of the experiment owner.
           format: uuid
           type: string
+        runSummary:
+          allOf:
+          - $ref: '#/components/schemas/RunSummary'
+          description: Roll-up of the experiment's Runs (count + recent phases on
+            lists, latest phase on detail).
+          nullable: true
         spec:
           allOf:
           - $ref: '#/components/schemas/JobSpec'
@@ -870,6 +1117,17 @@ components:
           namespace: team-nlp
           owner: zhang.san
           ownerId: 3a2b1c0d-4e5f-6789-abcd-ef0123456789
+          runSummary:
+            active: 1
+            count: 5
+            latestPhase: Succeeded
+            latestRunAt: "2026-06-28T09:25:00Z"
+            recent:
+            - Succeeded
+            - Running
+            - Succeeded
+            - Failed
+            - Succeeded
           spec:
             artifacts:
             - kind: model
@@ -1307,6 +1565,17 @@ components:
         namespace: team-vision
         owner: li.wei
         ownerId: 3a2b1c0d-4e5f-6789-abcd-ef0123456789
+        runSummary:
+          active: 1
+          count: 7
+          latestPhase: Running
+          latestRunAt: "2026-06-28T09:00:00Z"
+          recent:
+          - Succeeded
+          - Failed
+          - Succeeded
+          - Succeeded
+          - Running
         spec:
           artifacts:
           - kind: model
@@ -1393,6 +1662,12 @@ components:
           description: User ID of the job owner.
           format: uuid
           type: string
+        runSummary:
+          allOf:
+          - $ref: '#/components/schemas/RunSummary'
+          description: Roll-up of the job's Runs (count + recent phases on lists,
+            latest phase on detail).
+          nullable: true
         spec:
           allOf:
           - $ref: '#/components/schemas/JobSpec'
@@ -1518,6 +1793,17 @@ components:
           namespace: team-vision
           owner: li.wei
           ownerId: 3a2b1c0d-4e5f-6789-abcd-ef0123456789
+          runSummary:
+            active: 1
+            count: 7
+            latestPhase: Running
+            latestRunAt: "2026-06-28T09:00:00Z"
+            recent:
+            - Succeeded
+            - Failed
+            - Succeeded
+            - Succeeded
+            - Running
           spec:
             artifacts:
             - kind: model
@@ -1962,6 +2248,7 @@ components:
         computeNamespace: axisml-team-nlp
         createdAt: "2026-06-20T08:00:00Z"
         description: Llama3-8B online inference service.
+        desiredState: Running
         displayName: Llama3 chat service
         env:
         - name: MAX_TOKENS
@@ -1975,7 +2262,7 @@ components:
         namespace: team-nlp
         owner: zhang.san
         ownerId: 9f8e7d6c-5b4a-3210-fedc-ba9876543210
-        phase: Running
+        phase: Ready
         poolName: gpu-a100
         ports:
         - name: http
@@ -2022,6 +2309,11 @@ components:
         description:
           description: Free-text service description.
           type: string
+        desiredState:
+          allOf:
+          - $ref: '#/components/schemas/MLServiceDesiredState'
+          description: User-requested run state (Running, Stopped); drives the Start/Stop
+            control without inferring from phase.
         displayName:
           description: Human-readable service label.
           type: string
@@ -2221,6 +2513,11 @@ components:
       - replicas
       - unitName
       type: object
+    MLServiceDesiredState:
+      enum:
+      - Running
+      - Stopped
+      type: string
     MLServiceList:
       example:
         continueToken: ""
@@ -2242,6 +2539,7 @@ components:
           computeNamespace: axisml-team-nlp
           createdAt: "2026-06-20T08:00:00Z"
           description: Llama3-8B online inference service.
+          desiredState: Running
           displayName: Llama3 chat service
           env:
           - name: MAX_TOKENS
@@ -2255,7 +2553,7 @@ components:
           namespace: team-nlp
           owner: zhang.san
           ownerId: 9f8e7d6c-5b4a-3210-fedc-ba9876543210
-          phase: Running
+          phase: Ready
           poolName: gpu-a100
           ports:
           - name: http
@@ -3658,6 +3956,7 @@ components:
           backoffLimit: 2
           progressDeadlineSeconds: 600
           ttlSecondsAfterFinished: 3600
+        scheduledAt: "2026-06-28T09:00:00Z"
         spec:
           backend:
             engine: pytorchjob
@@ -3782,6 +4081,11 @@ components:
           allOf:
           - $ref: '#/components/schemas/RunPolicy'
           description: Effective run-level execution limits.
+        scheduledAt:
+          description: Time the run was admitted by the scheduler (left Pending).
+          format: date-time
+          nullable: true
+          type: string
         spec:
           allOf:
           - $ref: '#/components/schemas/MLRunSpec'
@@ -3883,6 +4187,7 @@ components:
             backoffLimit: 2
             progressDeadlineSeconds: 600
             ttlSecondsAfterFinished: 3600
+          scheduledAt: "2026-06-28T09:00:00Z"
           spec:
             backend:
               engine: pytorchjob
@@ -3991,6 +4296,43 @@ components:
           description: Seconds to retain a finished run before garbage collection.
           minimum: 0
           type: integer
+      type: object
+    RunSummary:
+      example:
+        active: 1
+        count: 7
+        latestPhase: Running
+        latestRunAt: "2026-06-28T09:00:00Z"
+        recent:
+        - Succeeded
+        - Failed
+        - Succeeded
+        - Succeeded
+        - Running
+      properties:
+        active:
+          description: Runs currently in a non-terminal phase.
+          type: integer
+        count:
+          description: Total number of Runs of the definition.
+          minimum: 0
+          type: integer
+        latestPhase:
+          allOf:
+          - $ref: '#/components/schemas/RunPhase'
+          description: Phase of the most recent Run.
+        latestRunAt:
+          description: Creation time of the most recent Run.
+          format: date-time
+          nullable: true
+          type: string
+        recent:
+          description: Most-recent Run phases, oldest-to-newest, for the status strip.
+          items:
+            $ref: '#/components/schemas/RunPhase'
+          type: array
+      required:
+      - count
       type: object
     RunTriggerRequest:
       example:
@@ -5148,6 +5490,16 @@ components:
         endpoint:
           accessUrl: https://axisml.example.com/ws/team-vision/notebook-dev/
           internalDns: notebook-dev.axisml-team-vision.svc.cluster.local
+          tools:
+          - label: JupyterLab
+            name: jupyter
+            url: https://axisml.example.com/ws/team-vision/notebook-dev/lab
+          - label: VS Code
+            name: vscode
+            url: https://axisml.example.com/ws/team-vision/notebook-dev/vscode/
+          - label: Terminal
+            name: terminal
+            url: https://axisml.example.com/ws/team-vision/notebook-dev/terminals/1
         env:
         - name: JUPYTER_ENABLE_LAB
           value: "yes"
@@ -5416,13 +5768,96 @@ components:
       example:
         accessUrl: https://axisml.example.com/ws/team-vision/notebook-dev/
         internalDns: notebook-dev.axisml-team-vision.svc.cluster.local
+        tools:
+        - label: JupyterLab
+          name: jupyter
+          url: https://axisml.example.com/ws/team-vision/notebook-dev/lab
+        - label: VS Code
+          name: vscode
+          url: https://axisml.example.com/ws/team-vision/notebook-dev/vscode/
+        - label: Terminal
+          name: terminal
+          url: https://axisml.example.com/ws/team-vision/notebook-dev/terminals/1
       properties:
         accessUrl:
-          description: External URL for reaching the workspace UI.
+          description: Primary external URL for reaching the workspace UI.
           type: string
         internalDns:
           description: In-cluster DNS name for the workspace service.
           type: string
+        tools:
+          description: Per-tool launch URLs (Jupyter, VS Code, terminal, ...); the
+            UI renders one launch button each.
+          items:
+            $ref: '#/components/schemas/WorkspaceTool'
+          type: array
+      type: object
+    WorkspaceImage:
+      example:
+        defaultPort: 8888
+        description: JupyterLab data-science environment (public).
+        displayName: JupyterLab
+        kind: jupyter
+        public: true
+        ref: registry.axisml.io/dev/jupyter:3.0.0
+      properties:
+        defaultPort:
+          description: Default container port the dev server listens on.
+          type: integer
+        description:
+          description: Short description of the environment.
+          type: string
+        displayName:
+          description: Human-readable image label.
+          type: string
+        kind:
+          description: Environment kind (jupyter, vscode, terminal, custom).
+          type: string
+        public:
+          description: Whether the image is a public/shared base image.
+          type: boolean
+        ref:
+          description: Container image reference.
+          type: string
+      required:
+      - displayName
+      - ref
+      type: object
+    WorkspaceImageList:
+      example:
+        count: 3
+        items:
+        - defaultPort: 8888
+          description: JupyterLab data-science environment (public).
+          displayName: JupyterLab
+          kind: jupyter
+          public: true
+          ref: registry.axisml.io/dev/jupyter:3.0.0
+        - defaultPort: 8888
+          description: CUDA 12.1 + PyTorch 2.3 training image.
+          displayName: PyTorch
+          kind: jupyter
+          public: true
+          ref: registry.axisml.io/dev/pytorch:2.3.0
+        - defaultPort: 8080
+          description: VS Code (code-server) development environment (public).
+          displayName: VS Code
+          kind: vscode
+          public: true
+          ref: registry.axisml.io/dev/code-server:4.22
+      properties:
+        count:
+          description: Number of images in the catalog.
+          minimum: 0
+          type: integer
+        items:
+          description: Selectable base images.
+          items:
+            $ref: '#/components/schemas/WorkspaceImage'
+          type: array
+      required:
+      - count
+      - items
       type: object
     WorkspaceLifecycle:
       example:
@@ -5452,6 +5887,16 @@ components:
           endpoint:
             accessUrl: https://axisml.example.com/ws/team-vision/notebook-dev/
             internalDns: notebook-dev.axisml-team-vision.svc.cluster.local
+            tools:
+            - label: JupyterLab
+              name: jupyter
+              url: https://axisml.example.com/ws/team-vision/notebook-dev/lab
+            - label: VS Code
+              name: vscode
+              url: https://axisml.example.com/ws/team-vision/notebook-dev/vscode/
+            - label: Terminal
+              name: terminal
+              url: https://axisml.example.com/ws/team-vision/notebook-dev/terminals/1
           env:
           - name: JUPYTER_ENABLE_LAB
             value: "yes"
@@ -5539,6 +5984,25 @@ components:
       - Deleted
       - Pending
       type: string
+    WorkspaceTool:
+      example:
+        label: JupyterLab
+        name: jupyter
+        url: https://axisml.example.com/ws/team-vision/notebook-dev/lab
+      properties:
+        label:
+          description: Human-readable tool label.
+          type: string
+        name:
+          description: Tool identifier (jupyter, vscode, terminal, ...).
+          type: string
+        url:
+          description: Launch URL for the tool.
+          type: string
+      required:
+      - name
+      - url
+      type: object
     WorkspaceVolume:
       example:
         mountPath: /home/jovyan/work
@@ -5692,6 +6156,161 @@ paths:
       summary: Refresh the current bearer JWT
       tags:
       - Auth
+  /api/v1/dashboard/activity:
+    get:
+      operationId: listActivity
+      parameters:
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
+        in: header
+        name: X-Axisml-Tenant
+        schema:
+          maxLength: 40
+          minLength: 3
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      - description: Page size (default 50, max 200).
+        in: query
+        name: limit
+        schema:
+          maximum: 200
+          minimum: 1
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivityList'
+          description: A page of activity entries.
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Malformed request (invalid syntax, missing required fields,
+            immutable field, etc.).
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Missing or invalid bearer JWT.
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected server error.
+      summary: Recent-activity feed for the active tenant
+      tags:
+      - Dashboard
+  /api/v1/dashboard/cluster-metrics:
+    get:
+      operationId: getClusterMetrics
+      parameters:
+      - description: Metric to query.
+        in: query
+        name: metric
+        required: true
+        schema:
+          enum:
+          - gpu_util
+          - gpu_quota
+          - cpu_util
+          - mem_util
+          type: string
+      - description: ISO 8601 duration (1h, 24h, 7d).
+        in: query
+        name: range
+        required: true
+        schema:
+          type: string
+      - description: Sampling step between points.
+        in: query
+        name: step
+        schema:
+          type: string
+      - description: Restrict to a single resource pool.
+        in: query
+        name: pool
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricSeries'
+          description: Metric series.
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Malformed request (invalid syntax, missing required fields,
+            immutable field, etc.).
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Missing or invalid bearer JWT.
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected server error.
+        "502":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Upstream service (cluster-manager / compute / artifacts / Prometheus)
+            failed.
+      summary: Cluster resource-utilisation time series
+      tags:
+      - Dashboard
+  /api/v1/dashboard/cluster-usage:
+    get:
+      operationId: getClusterUsage
+      parameters:
+      - description: Restrict to a single resource pool; omit for all pools plus the
+          aggregate.
+        in: query
+        name: pool
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterUsage'
+          description: Cluster usage snapshot.
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Missing or invalid bearer JWT.
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected server error.
+        "502":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Upstream service (cluster-manager / compute / artifacts / Prometheus)
+            failed.
+      summary: Cluster resource-usage snapshot (aggregate + per-pool)
+      tags:
+      - Dashboard
   /api/v1/datavolumes:
     get:
       operationId: listDataVolumes
@@ -13369,6 +13988,31 @@ paths:
       summary: Set a user's password
       tags:
       - Users
+  /api/v1/workspace-images:
+    get:
+      operationId: listWorkspaceImages
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceImageList'
+          description: Workspace base-image catalog.
+        "401":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Missing or invalid bearer JWT.
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+          description: Unexpected server error.
+      summary: List selectable workspace base images (dev-environment catalog)
+      tags:
+      - Workspaces
   /api/v1/workspaces:
     get:
       operationId: listWorkspaces
@@ -14084,5 +14728,8 @@ tags:
 - description: Tenant-scoped durable data volumes (system-admin only); CRUD + expand
     + mount-occupancy.
   name: DataVolumes
+- description: 'Landing-page aggregates: cluster resource usage, utilisation trends,
+    and the recent-activity feed.'
+  name: Dashboard
 - description: Liveness and readiness probes.
   name: Health

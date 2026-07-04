@@ -312,6 +312,8 @@ func paths() map[string]openapigen.PathItem {
 		append([]openapigen.Parameter{workspaceNameP(), podNameP()}, logParams()...), nil, resp(logStream(), "401", "403", "404", "410", "500"))}
 	p["/api/v1/workspaces/{name}/pods/{pod}/events"] = openapigen.PathItem{Get: newOp(tagWorkspaces, "listWorkspacePodEvents", "List K8s events for one pod of the workspace",
 		[]openapigen.Parameter{workspaceNameP(), podNameP()}, nil, resp(sc("200", "Pod-scoped events.", "EventList"), "401", "403", "404", "500"))}
+	p["/api/v1/workspace-images"] = openapigen.PathItem{Get: newOp(tagWorkspaces, "listWorkspaceImages", "List selectable workspace base images (dev-environment catalog)",
+		nil, nil, resp(sc("200", "Workspace base-image catalog.", "WorkspaceImageList"), "401", "500"))}
 
 	// ---- Jobs + Runs ----
 	p["/api/v1/jobs"] = openapigen.PathItem{
@@ -536,6 +538,20 @@ func paths() map[string]openapigen.PathItem {
 		Get: newOp(tagDataVolumes, "listStorageClasses", "List storage classes",
 			nil, nil, resp(sc("200", "Available storage classes for new volumes.", "StorageClassList"), "401", "403", "500")),
 	}
+
+	// ---- Dashboard (landing-page aggregates) ----
+	p["/api/v1/dashboard/cluster-usage"] = openapigen.PathItem{Get: newOp(tagDashboard, "getClusterUsage", "Cluster resource-usage snapshot (aggregate + per-pool)",
+		[]openapigen.Parameter{qp("pool", "Restrict to a single resource pool; omit for all pools plus the aggregate.", strSchema())},
+		nil, resp(sc("200", "Cluster usage snapshot.", "ClusterUsage"), "401", "500", "502"))}
+	p["/api/v1/dashboard/cluster-metrics"] = openapigen.PathItem{Get: newOp(tagDashboard, "getClusterMetrics", "Cluster resource-utilisation time series",
+		[]openapigen.Parameter{
+			qpReq("metric", "Metric to query.", strEnum("gpu_util", "gpu_quota", "cpu_util", "mem_util")),
+			qpReq("range", "ISO 8601 duration (1h, 24h, 7d).", strSchema()),
+			qp("step", "Sampling step between points.", strSchema()),
+			qp("pool", "Restrict to a single resource pool.", strSchema()),
+		}, nil, resp(sc("200", "Metric series.", "MetricSeries"), "400", "401", "500", "502"))}
+	p["/api/v1/dashboard/activity"] = openapigen.PathItem{Get: newOp(tagDashboard, "listActivity", "Recent-activity feed for the active tenant",
+		[]openapigen.Parameter{activeTenant(false), limitParam}, nil, resp(sc("200", "A page of activity entries.", "ActivityList"), "400", "401", "500"))}
 
 	return p
 }

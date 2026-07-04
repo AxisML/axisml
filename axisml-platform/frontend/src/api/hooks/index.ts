@@ -1,5 +1,6 @@
-import { useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery, type UseQueryResult } from "@tanstack/react-query";
 import * as sdk from "../generated";
+import { unitSpecLine } from "@/lib/units";
 import { useApp } from "@/app/store";
 import { useSession } from "@/app/session";
 import type {
@@ -7,15 +8,17 @@ import type {
   ListExperimentsResponse,
   ListWorkspacesResponse,
   ListMlServicesResponse,
-  ListTrafficPoliciesResponse,
   ListModelDefinitionsResponse,
   ListImageDefinitionsResponse,
-  ListTenantsResponse,
   ListResourcePoolsResponse,
   ListDataVolumesResponse,
   ListStorageClassesResponse,
   ListModelVersionsResponse,
   ListImageVersionsResponse,
+  ListActivityResponse,
+  ListWorkspaceImagesResponse,
+  ClusterUsage,
+  MetricSeries,
 } from "../generated";
 
 // Thin react-query wrappers over the generated SDK. Every list page calls one of
@@ -77,23 +80,136 @@ function useApi<T>(
   });
 }
 
+// Some endpoints are declared in the OpenAPI contract but not yet implemented by
+// the backend — they answer 501 (not-implemented). For auxiliary roll-up /
+// aggregate data we treat a 501 as "no data yet" and return an empty payload so
+// the page renders its honest empty/pending state — never fake data. Any other
+// error still surfaces. Under VITE_USE_MOCK_API the mock router answers these, so
+// the data is populated. See api/setup.ts (the 401 interceptor is separate).
+function isNotImplemented(err: unknown): boolean {
+  const e = err as { status?: number; code?: string } | null | undefined;
+  return e?.status === 501 || e?.code === "not-implemented";
+}
+
+// useAux mirrors useApi but degrades a 501 to `empty` instead of an error state.
+function useAux<T>(
+  key: unknown[],
+  fn: () => SdkResult<T>,
+  empty: T,
+  opts: { scoped?: boolean } = {},
+): UseQueryResult<T> {
+  const { scoped = true } = opts;
+  const { tenant } = useApp();
+  return useQuery<T>({
+    queryKey: [...key, tenant],
+    enabled: scoped ? tenant !== "" : true,
+    queryFn: async () => {
+      const { data, error } = await fn();
+      if (error) {
+        if (isNotImplemented(error)) return empty;
+        throw error;
+      }
+      return data as T;
+    },
+  });
+}
+
+// Dashboard aggregates. Cluster usage/metrics are cluster-global (unscoped); the
+// activity feed is tenant-scoped.
+export const useClusterUsage = (pool: string) =>
+  useAux<ClusterUsage>(
+    ["cluster-usage", pool],
+    () => sdk.getClusterUsage(pool && pool !== "all" ? { query: { pool } } : {}),
+    { aggregate: [], pools: [], updatedAt: "" },
+    { scoped: false },
+  );
+
+export const useClusterMetric = (metric: "gpu_util" | "gpu_quota", pool: string, range = "24h") =>
+  useAux<MetricSeries>(
+    ["cluster-metric", metric, pool, range],
+    () => sdk.getClusterMetrics({ query: { metric, range, ...(pool && pool !== "all" ? { pool } : {}) } }),
+    { metric, range, series: [] },
+    { scoped: false },
+  );
+
+export const useActivity = () =>
+  useAux<ListActivityResponse>(["activity"], () => sdk.listActivity(), { count: 0, items: [] });
+
+export const useWorkspaceImages = () =>
+  useAux<ListWorkspaceImagesResponse>(["workspace-images"], () => sdk.listWorkspaceImages(), { count: 0, items: [] }, {
+    scoped: false,
+  });
+
+// A page of any list endpoint: items + the opaque continue token for the next.
+interface ListPage<T> {
+  items?: T[];
+  count?: number;
+  continueToken?: string;
+  partial?: boolean;
+}
+
+// Server-side paginated + filtered list. `key` must include every filter value
+// so changing a filter refetches from page 1; `fetchPage` receives {limit,
+// continue} and folds in the caller's filter query. Pages are flattened and
+// accumulated; `loadMore` fetches the next continue token.
+export function usePagedList<T>(
+  key: unknown[],
+  fetchPage: (page: { limit: number; continue?: string }) => SdkResult<ListPage<T>>,
+  opts: { scoped?: boolean; pageSize?: number } = {},
+) {
+  const { scoped = true, pageSize = 50 } = opts;
+  const { tenant } = useApp();
+  const q = useInfiniteQuery({
+    queryKey: [...key, tenant],
+    enabled: scoped ? tenant !== "" : true,
+    initialPageParam: undefined as string | undefined,
+    queryFn: async ({ pageParam }) => {
+      const { data, error } = await fetchPage({ limit: pageSize, continue: pageParam });
+      if (error) throw error;
+      return data as ListPage<T>;
+    },
+    getNextPageParam: (last) => last.continueToken || undefined,
+  });
+  const items = q.data?.pages.flatMap((p) => p.items ?? []) ?? [];
+  return {
+    items,
+    isLoading: q.isLoading,
+    isError: q.isError,
+    error: q.error,
+    hasMore: !!q.hasNextPage,
+    loadMore: () => void q.fetchNextPage(),
+    isFetchingMore: q.isFetchingNextPage,
+    refetch: () => void q.refetch(),
+  };
+}
+
+export type PagedListState<T> = ReturnType<typeof usePagedList<T>>;
+
 export const useJobs = () => useApi<ListJobsResponse>(["jobs"], () => sdk.listJobs());
 export const useExperiments = () => useApi<ListExperimentsResponse>(["experiments"], () => sdk.listExperiments());
 export const useWorkspaces = () => useApi<ListWorkspacesResponse>(["workspaces"], () => sdk.listWorkspaces());
 export const useServices = () => useApi<ListMlServicesResponse>(["mlservices"], () => sdk.listMlServices());
-export const useTrafficPolicies = () =>
-  useApi<ListTrafficPoliciesResponse>(["trafficpolicies"], () => sdk.listTrafficPolicies());
 export const useModels = () => useApi<ListModelDefinitionsResponse>(["models"], () => sdk.listModelDefinitions());
 export const useImages = () => useApi<ListImageDefinitionsResponse>(["images"], () => sdk.listImageDefinitions());
-// The tenant-management table needs live workload roll-ups (member / active-run
-// / online-service counts), so it opts into ?stats=true. The topbar switcher
-// uses useTenantOptions (a separate, count-free listTenants) to stay cheap.
-export const useTenants = () =>
-  useApi<ListTenantsResponse>(["tenants", "stats"], () => sdk.listTenants({ query: { stats: true } }), {
-    scoped: false,
-  });
 export const useResourcePools = () =>
   useApi<ListResourcePoolsResponse>(["resourcepools"], () => sdk.listResourcePools(), { scoped: false });
+
+// Pool + per-pool unit option lists for the create-form pickers (jobs /
+// experiments / workspaces). Units are embedded in the pool list response, so
+// this needs no extra call — it replaces the drawers' hardcoded sample catalogs.
+export function usePoolUnitOptions() {
+  const q = useResourcePools();
+  const items = q.data?.items ?? [];
+  const pools = items.map((p) => ({
+    value: p.name,
+    label: p.description ? `${p.name} · ${p.description}` : p.name,
+  }));
+  const unitsFor = (pool: string) => {
+    const p = items.find((x) => x.name === pool);
+    return (p?.units ?? []).map((u) => ({ value: u.name, title: u.name, desc: unitSpecLine(u) }));
+  };
+  return { pools, unitsFor, isLoading: q.isLoading, isError: q.isError };
+}
 // Data volumes are tenant-scoped (system-admin managed): the query carries the
 // active tenant and refetches on switch, like the other tenant-partitioned lists.
 export const useDataVolumes = () =>
