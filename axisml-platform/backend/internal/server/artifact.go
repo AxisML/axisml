@@ -102,20 +102,23 @@ type ArtifactDefinitionPatchRequest struct {
 
 // ArtifactDefinition is a Platform-owned artifact definition (name-level).
 type ArtifactDefinition struct {
-	ID          UUID           `json:"id" desc:"Stable definition identifier."`
-	Namespace   string         `json:"namespace" desc:"Platform tenant namespace the definition belongs to."`
-	TenantName  string         `json:"tenantName" desc:"Tenant identifier owning the definition."`
-	Name        string         `json:"name" desc:"Definition name (unique within the tenant)."`
-	Kind        DefinitionKind `json:"kind" desc:"Definition kind (model or image)."`
-	DisplayName string         `json:"displayName,omitempty" desc:"Human-readable definition label."`
-	Description string         `json:"description,omitempty" desc:"Free-text definition description."`
-	Owner       string         `json:"owner,omitempty" desc:"Username of the definition owner."`
-	OwnerID     UUID           `json:"ownerId,omitempty" desc:"User ID of the definition owner."`
-	Labels      StringMap      `json:"labels,omitempty" desc:"User-defined labels."`
-	Annotations StringMap      `json:"annotations,omitempty" desc:"User-defined annotations."`
-	Spec        map[string]any `json:"spec,omitempty" desc:"Pass-through definition spec (free-form)."`
-	CreatedAt   time.Time      `json:"createdAt" desc:"Time the definition was created."`
-	UpdatedAt   time.Time      `json:"updatedAt" desc:"Time the definition was last updated."`
+	ID              UUID           `json:"id" desc:"Stable definition identifier."`
+	Namespace       string         `json:"namespace" desc:"Platform tenant namespace the definition belongs to."`
+	TenantName      string         `json:"tenantName" desc:"Tenant identifier owning the definition."`
+	Name            string         `json:"name" desc:"Definition name (unique within the tenant)."`
+	Kind            DefinitionKind `json:"kind" desc:"Definition kind (model or image)."`
+	DisplayName     string         `json:"displayName,omitempty" desc:"Human-readable definition label."`
+	Description     string         `json:"description,omitempty" desc:"Free-text definition description."`
+	Owner           string         `json:"owner,omitempty" desc:"Username of the definition owner."`
+	OwnerID         UUID           `json:"ownerId,omitempty" desc:"User ID of the definition owner."`
+	Labels          StringMap      `json:"labels,omitempty" desc:"User-defined labels."`
+	Annotations     StringMap      `json:"annotations,omitempty" desc:"User-defined annotations."`
+	Spec            map[string]any `json:"spec,omitempty" desc:"Pass-through definition spec (free-form)."`
+	VersionCount    int            `json:"versionCount,omitempty" desc:"Number of versions under the definition (roll-up for list cards)."`
+	LatestVersion   string         `json:"latestVersion,omitempty" desc:"Version string of the most recent version."`
+	LatestVersionAt *time.Time     `json:"latestVersionAt,omitempty" desc:"Creation time of the most recent version."`
+	CreatedAt       time.Time      `json:"createdAt" desc:"Time the definition was created."`
+	UpdatedAt       time.Time      `json:"updatedAt" desc:"Time the definition was last updated."`
 }
 
 // ArtifactDefinitionList is a page of ArtifactDefinition.

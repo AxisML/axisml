@@ -20,6 +20,7 @@ export const enUS: Catalog = {
     loading: "Loading…",
     loadFailed: "Failed to load",
     retry: "Retry",
+    loadMore: "Load more",
     noData: "No data",
     noDataVolumes: "No data volumes in this tenant yet — ask a system admin to create one",
     totalItems: "{{count}} items",

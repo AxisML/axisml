@@ -10,6 +10,7 @@ import { FieldSection } from "@/components/field-section";
 import { SearchInput } from "@/components/search-input";
 import { DataTable, type Column } from "@/components/data-table";
 import { fmtDateTime } from "@/lib/format";
+import { unitSpecLine, memGiB } from "@/lib/units";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -90,18 +91,6 @@ const num = (m: sdk.ResourceMap | undefined, k: string): number | undefined => {
   const n = parseFloat(String(v));
   return Number.isFinite(n) ? n : undefined;
 };
-
-// "1×GPU · 8 vCPU · 64 GiB" — derived from the unit's requests.
-function unitSpecLine(u: sdk.ResourceUnit, gpuUnit: string): string {
-  const cpu = num(u.requests, "cpu");
-  const mem = num(u.requests, "memory");
-  const gpu = num(u.requests, "nvidia.com/gpu");
-  const parts: string[] = [];
-  if (gpu) parts.push(`${gpu}×${gpuUnit}`);
-  if (cpu != null) parts.push(`${cpu} vCPU`);
-  if (mem != null) parts.push(`${mem} GiB`);
-  return parts.join(" · ") || "—";
-}
 
 export default function ResourcePools() {
   const q = useResourcePools();
@@ -648,8 +637,8 @@ interface UnitForm {
 function unitToForm(u?: sdk.ResourceUnit): UnitForm {
   const cpuReq = num(u?.requests, "cpu");
   const cpuLim = num(u?.limits, "cpu");
-  const memReq = num(u?.requests, "memory");
-  const memLim = num(u?.limits, "memory");
+  const memReq = memGiB(u?.requests, "memory");
+  const memLim = memGiB(u?.limits, "memory");
   return {
     name: u?.name ?? "",
     description: u?.description ?? "",

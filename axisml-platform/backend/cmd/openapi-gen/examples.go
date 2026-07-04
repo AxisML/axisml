@@ -34,5 +34,6 @@ func registerExamples(g *openapigen.Generator) {
 	exDataVolume(g)
 	exArtifact(g)
 	exExperiment(g)
+	exDashboard(g)
 	exProxy(g)
 }

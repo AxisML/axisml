@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
-import { Play, Trash2, LineChart } from "lucide-react";
+import { Play, Trash2, LineChart, Square } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import * as sdk from "@/api/generated";
 import { useApp } from "@/app/store";
@@ -19,6 +19,7 @@ import { CodeBlock } from "@/components/code-block";
 import { Descriptions, Desc } from "@/components/descriptions";
 import { PageLoading, DetailError } from "@/components/page-state";
 import { fmtRange, fmtDateTime } from "@/lib/format";
+import { RUN_PHASES } from "@/lib/phase";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -75,6 +76,30 @@ export default function ExperimentDetail() {
     success: t("experiments.runTriggered"),
   });
 
+  // On-demand TensorBoard for the experiment. A not-yet-started TensorBoard
+  // errors (404/501) — treat that as "not running" and offer Start.
+  const tbKey = ["experiments", tenant, name, "tensorboard"];
+  const tbQ = useQuery({
+    queryKey: tbKey,
+    enabled: tenant !== "" && name !== "",
+    retry: false,
+    queryFn: async () => {
+      const { data, error } = await sdk.getTensorBoard({ path: { name } });
+      if (error) throw error;
+      return data;
+    },
+  });
+  const tb = tbQ.data;
+  const tbReady = !!tb?.url;
+  const startTB = useApiMutation(() => sdk.startTensorBoard({ path: { name }, body: {} }), {
+    invalidate: [tbKey],
+    success: t("experiments.tensorboardStarting"),
+  });
+  const stopTB = useApiMutation(() => sdk.stopTensorBoard({ path: { name } }), {
+    invalidate: [tbKey],
+    success: t("experiments.tensorboardStopped"),
+  });
+
   const backLink = <BackLink to="/experiments">{t("experiments.backToList")}</BackLink>;
 
   if (expQ.isError) {
@@ -127,14 +152,39 @@ export default function ExperimentDetail() {
       subtitle={backLink}
       extra={
         <div className="flex items-center gap-2">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="outline" size="icon">
-                <LineChart />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{t("experiments.tensorboard")}</TooltipContent>
-          </Tooltip>
+          {tbReady ? (
+            <>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="outline" size="icon" asChild>
+                    <a href={tb!.url} target="_blank" rel="noreferrer">
+                      <LineChart />
+                    </a>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{t("experiments.tensorboardOpen")}</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="outline" size="icon" onClick={() => stopTB.mutate(undefined)} disabled={stopTB.isPending}>
+                    <Square />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{t("experiments.tensorboardStop")}</TooltipContent>
+              </Tooltip>
+            </>
+          ) : (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="icon" onClick={() => startTB.mutate(undefined)} disabled={startTB.isPending}>
+                  <LineChart />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {startTB.isPending ? t("experiments.tensorboardStarting") : t("experiments.tensorboard")}
+              </TooltipContent>
+            </Tooltip>
+          )}
           <Button onClick={onRun}>
             <Play data-icon="inline-start" />
             {t("experiments.runAction")}
@@ -310,7 +360,7 @@ function RunsPane({ name, q }: { name: string; q: UseQueryResult<sdk.RunList> })
       (!trigger || r.owner === trigger),
   );
 
-  const phaseOptions: sdk.RunPhase[] = ["Running", "Succeeded", "Failed", "Pending", "Canceling", "Cancelled"];
+  const phaseOptions = RUN_PHASES;
 
   const onDeleteRun = (r: RunRow) =>
     confirm({

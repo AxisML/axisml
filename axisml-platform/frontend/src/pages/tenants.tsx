@@ -3,7 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import dayjs from "dayjs";
-import { useTenants, useResourcePools } from "@/api/hooks";
+import { usePagedList, useResourcePools } from "@/api/hooks";
+import { useDebouncedValue } from "@/lib/use-debounced";
+import { LoadMore } from "@/components/load-more";
 import { useApiMutation } from "@/api/mutations";
 import * as sdk from "@/api/generated";
 import { useUI } from "@/app/ui";
@@ -19,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -38,6 +41,7 @@ interface TenantRow {
   ident: string;
   display: string;
   active: boolean;
+  phase?: string;
   pools: { pool: string; allocated: number; used?: number }[];
   members: number;
   activeTasks: number;
@@ -102,17 +106,27 @@ function QuotaMeter({ pool, allocated, used }: { pool: string; allocated: number
 
 type DrawerKind =
   | { kind: "tenant" }
+  | { kind: "edit"; ident: string; display: string; description: string }
   | { kind: "quota"; ident: string }
   | { kind: "members"; ident: string }
   | { kind: "member"; ident: string };
 
 export default function Tenants() {
-  const q = useTenants();
   const { t } = useTranslation();
   const { confirm } = useUI();
   const [drawer, setDrawer] = useState<DrawerKind | null>(null);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<"all" | "active" | "suspended">("all");
+
+  // Server-side search + pagination (with the workload-stats roll-ups). The
+  // active/suspended facet maps to suspend state (not a list param), so it stays
+  // a client refinement over loaded rows.
+  const dq = useDebouncedValue(search, 300);
+  const q = usePagedList<sdk.Tenant>(
+    ["tenants", "stats", dq],
+    (page) => sdk.listTenants({ query: { stats: true, q: dq || undefined, ...page } }),
+    { scoped: false },
+  );
 
   const delTenant = useApiMutation((name: string) => sdk.deleteTenant({ path: { name } }), {
     invalidate: [["tenants"]],
@@ -127,12 +141,23 @@ export default function Tenants() {
     success: t("tenants.resumed"),
   });
 
+  const onEditTenant = (ident: string) => {
+    const tenant = q.items.find((x) => x.identifier === ident);
+    setDrawer({
+      kind: "edit",
+      ident,
+      display: tenant?.displayName ?? "",
+      description: tenant?.description ?? "",
+    });
+  };
+
   const allRows: TenantRow[] = useMemo(
     () =>
-      q.data?.items?.map((tenant) => ({
+      q.items.map((tenant) => ({
         ident: tenant.identifier,
         display: tenant.displayName,
         active: !tenant.suspended,
+        phase: tenant.phase,
         pools: (tenant.quotas ?? []).map((quota) => {
           const allocated = (quota.units ?? []).reduce((sum, u) => sum + (u.quantity ?? 0), 0);
           const statusUnits = tenant.status?.quotas?.find((s) => s.pool === quota.pool)?.units ?? [];
@@ -151,18 +176,14 @@ export default function Tenants() {
         activeTasks: (tenant.activeJobRuns ?? 0) + (tenant.activeExperimentRuns ?? 0),
         services: tenant.onlineServices ?? 0,
         created: tenant.createdAt,
-      })) ?? [],
-    [q.data],
+      })),
+    [q.items],
   );
 
+  // Only the suspend-state facet is client-side; search is applied server-side.
   const rows = useMemo(
-    () =>
-      allRows.filter(
-        (r) =>
-          (!search || r.ident.includes(search) || r.display.includes(search)) &&
-          (status === "all" || (status === "active" ? r.active : !r.active)),
-      ),
-    [allRows, search, status],
+    () => allRows.filter((r) => status === "all" || (status === "active" ? r.active : !r.active)),
+    [allRows, status],
   );
 
   const onSuspend = (r: TenantRow) =>
@@ -205,7 +226,9 @@ export default function Tenants() {
       key: "status",
       title: t("tenants.colStatus"),
       width: 110,
-      render: (r) => <PhaseTag phase={r.active ? "Active" : "Suspended"} />,
+      // Show the real tenant phase (Creating / Active / Suspended / Failed);
+      // fall back to the suspend flag only when the phase isn't populated.
+      render: (r) => <PhaseTag phase={r.phase ?? (r.active ? "Active" : "Suspended")} />,
     },
     {
       key: "quota",
@@ -236,10 +259,13 @@ export default function Tenants() {
     {
       key: "actions",
       title: t("common.actions"),
-      width: 240,
+      width: 300,
       align: "right",
       render: (r) => (
         <div className="flex items-center justify-end gap-0.5">
+          <Button variant="link" size="sm" onClick={() => onEditTenant(r.ident)}>
+            {t("tenants.edit")}
+          </Button>
           <Button
             variant="link"
             size="sm"
@@ -319,8 +345,17 @@ export default function Tenants() {
           error={q.isError}
         />
       </Card>
+      <LoadMore hasMore={q.hasMore} loading={q.isFetchingMore} onClick={q.loadMore} />
 
       {drawer?.kind === "tenant" && <TenantDrawer onClose={() => setDrawer(null)} />}
+      {drawer?.kind === "edit" && (
+        <TenantEditDrawer
+          ident={drawer.ident}
+          display={drawer.display}
+          description={drawer.description}
+          onClose={() => setDrawer(null)}
+        />
+      )}
       {drawer?.kind === "quota" && (
         <QuotaDrawer ident={drawer.ident} onClose={() => setDrawer(null)} />
       )}
@@ -443,6 +478,70 @@ function quotasFromMap(map: QuotaMap): sdk.Quota[] {
         .map(([unitName, quantity]) => ({ unitName, quantity })),
     }))
     .filter((quota) => quota.units.length > 0);
+}
+
+// ── Edit-tenant drawer (display metadata → updateTenant) ────────────────────────
+// Only display metadata is editable; the identifier (= namespace) is immutable.
+function TenantEditDrawer({
+  ident,
+  display,
+  description,
+  onClose,
+}: {
+  ident: string;
+  display: string;
+  description: string;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+  const [displayName, setDisplayName] = useState(display);
+  const [desc, setDesc] = useState(description);
+
+  const update = useApiMutation(
+    (body: sdk.TenantPatchRequest) => sdk.updateTenant({ path: { name: ident }, body }),
+    { invalidate: [["tenants"]], success: t("tenants.edited") },
+  );
+
+  const submit = () =>
+    update.mutate(
+      { displayName: displayName.trim() || undefined, description: desc.trim() || undefined },
+      { onSuccess: onClose },
+    );
+
+  return (
+    <FormDrawer
+      title={t("tenants.drawerEdit")}
+      onClose={onClose}
+      onSubmit={submit}
+      submitLabel={t("common.save")}
+      submitting={update.isPending}
+    >
+      <FieldSection n={1} title={t("tenants.fsBasic")} />
+      <FieldGroup>
+        <Field>
+          <FieldLabel htmlFor="tenant-edit-ident">{t("tenants.fIdentifier")}</FieldLabel>
+          <Input id="tenant-edit-ident" className="font-mono" value={ident} readOnly disabled />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="tenant-edit-display">{t("tenants.fDisplayName")}</FieldLabel>
+          <Input
+            id="tenant-edit-display"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+          />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="tenant-edit-desc">{t("tenants.fDesc")}</FieldLabel>
+          <Textarea
+            id="tenant-edit-desc"
+            rows={2}
+            value={desc}
+            onChange={(e) => setDesc(e.target.value)}
+          />
+        </Field>
+      </FieldGroup>
+    </FormDrawer>
+  );
 }
 
 // ── Create-tenant drawer (basic info + initial per-pool quota → createTenant) ───
@@ -832,6 +931,19 @@ function MemberDrawer({ ident, onClose }: { ident: string; onClose: () => void }
   const set = <K extends keyof MemberFormValues>(k: K, val: MemberFormValues[K]) =>
     setV((prev) => ({ ...prev, [k]: val }));
 
+  // Typeahead against the platform user directory. Suggestions only (free text is
+  // still accepted); a 403/501 for non-system-admins just yields no suggestions.
+  const usersQ = useQuery({
+    queryKey: ["users", v.account],
+    retry: false,
+    queryFn: async () => {
+      const { data, error } = await sdk.listUsers({ query: v.account ? { q: v.account } : {} });
+      if (error) throw error;
+      return data;
+    },
+  });
+  const userOptions = usersQ.data?.items ?? [];
+
   const add = useApiMutation(
     (body: sdk.MemberCreateRequest) => sdk.addTenantMember({ path: { name: ident }, body }),
     { invalidate: [["tenant-members", ident]], success: t("tenants.memberAdded") },
@@ -861,11 +973,19 @@ function MemberDrawer({ ident, onClose }: { ident: string; onClose: () => void }
           </FieldLabel>
           <Input
             id="member-account"
+            list="member-user-options"
             placeholder={t("tenants.fAccountPlaceholder")}
             value={v.account}
             aria-invalid={submitted && !v.account.trim()}
             onChange={(e) => set("account", e.target.value)}
           />
+          <datalist id="member-user-options">
+            {userOptions.map((u) => (
+              <option key={u.id} value={u.username}>
+                {u.displayName || u.email || u.username}
+              </option>
+            ))}
+          </datalist>
           <FieldDescription>{t("tenants.fAccountHelp")}</FieldDescription>
         </Field>
         <Field>

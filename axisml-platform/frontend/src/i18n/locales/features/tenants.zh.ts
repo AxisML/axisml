@@ -47,9 +47,13 @@ export default {
     // create-tenant drawer
     drawerNew: "创建租户",
     createTenant: "创建租户",
+    drawerEdit: "编辑租户",
+    edit: "编辑",
+    edited: "租户已更新",
     fsBasic: "基本信息",
     fsQuota: "初始配额",
     fDisplayName: "租户名称",
+    fDesc: "描述",
     fDisplayNamePlaceholder: "大模型研究院",
     fDisplayNameHelp: "用于在列表与详情中展示",
     fIdentifier: "租户标识",

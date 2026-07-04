@@ -548,6 +548,7 @@ function LogPane({ name }: { name: string }) {
       if (error) throw error;
       return data as unknown as string;
     },
+    streamPath: (pod) => `/api/v1/mlservices/${name}/pods/${encodeURIComponent(pod)}/logs?follow=true`,
   });
   return <PodLogPane logs={logs} emptyText={t("services.logEmpty")} />;
 }

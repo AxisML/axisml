@@ -48,9 +48,13 @@ export default {
     // create-tenant drawer
     drawerNew: "Create tenant",
     createTenant: "Create tenant",
+    drawerEdit: "Edit tenant",
+    edit: "Edit",
+    edited: "Tenant updated",
     fsBasic: "Basics",
     fsQuota: "Initial quota",
     fDisplayName: "Tenant name",
+    fDesc: "Description",
     fDisplayNamePlaceholder: "LLM Research Lab",
     fDisplayNameHelp: "Shown in lists and detail views",
     fIdentifier: "Tenant identifier",

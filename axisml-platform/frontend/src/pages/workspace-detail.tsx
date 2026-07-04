@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useParams } from "react-router-dom";
 import { Play, Power, Trash2, Copy, Code2, Info } from "lucide-react";
 import { JupyterMark, VscodeMark } from "@/components/workspace-brand";
@@ -54,6 +54,25 @@ function useWorkspace(name: string) {
       return data as sdk.Workspace;
     },
   });
+}
+
+// A per-tool launch button: opens `url` in a new tab, disabled when absent.
+function LaunchButton({ url, mark, label }: { url?: string; mark: ReactNode; label: string }) {
+  return (
+    <Button variant="outline" asChild={!!url} disabled={!url}>
+      {url ? (
+        <a href={url} target="_blank" rel="noreferrer">
+          {mark}
+          {label}
+        </a>
+      ) : (
+        <>
+          {mark}
+          {label}
+        </>
+      )}
+    </Button>
+  );
 }
 
 export default function WorkspaceDetail() {
@@ -129,32 +148,16 @@ export default function WorkspaceDetail() {
         <div className="flex items-center gap-2">
           {running && (
             <>
-              <Button variant="outline" asChild={!!w.endpoint?.accessUrl} disabled={!w.endpoint?.accessUrl}>
-                {w.endpoint?.accessUrl ? (
-                  <a href={w.endpoint.accessUrl} target="_blank" rel="noreferrer">
-                    <JupyterMark data-icon="inline-start" className="size-[15px]" />
-                    {t("workspaces.openJupyter")}
-                  </a>
-                ) : (
-                  <>
-                    <JupyterMark data-icon="inline-start" className="size-[15px]" />
-                    {t("workspaces.openJupyter")}
-                  </>
-                )}
-              </Button>
-              <Button variant="outline" asChild={!!w.endpoint?.accessUrl} disabled={!w.endpoint?.accessUrl}>
-                {w.endpoint?.accessUrl ? (
-                  <a href={w.endpoint.accessUrl} target="_blank" rel="noreferrer">
-                    <VscodeMark data-icon="inline-start" className="size-[15px]" />
-                    {t("workspaces.openVscode")}
-                  </a>
-                ) : (
-                  <>
-                    <VscodeMark data-icon="inline-start" className="size-[15px]" />
-                    {t("workspaces.openVscode")}
-                  </>
-                )}
-              </Button>
+              <LaunchButton
+                url={w.endpoint?.tools?.find((x) => x.name === "jupyter")?.url ?? w.endpoint?.accessUrl}
+                mark={<JupyterMark data-icon="inline-start" className="size-[15px]" />}
+                label={t("workspaces.openJupyter")}
+              />
+              <LaunchButton
+                url={w.endpoint?.tools?.find((x) => x.name === "vscode")?.url ?? w.endpoint?.accessUrl}
+                mark={<VscodeMark data-icon="inline-start" className="size-[15px]" />}
+                label={t("workspaces.openVscode")}
+              />
             </>
           )}
           {running ? (
@@ -317,6 +320,7 @@ function LogPane({ name }: { name: string }) {
       if (error) throw error;
       return data as unknown as string;
     },
+    streamPath: (pod) => `/api/v1/workspaces/${name}/pods/${encodeURIComponent(pod)}/logs?follow=true`,
   });
   return <PodLogPane logs={logs} emptyText={t("workspaces.logHint")} />;
 }

@@ -93,8 +93,11 @@ func exArtifact(g *openapigen.Generator) {
 			"format":     "safetensors",
 			"parameters": "25.6M",
 		},
-		"createdAt": exCreatedAt,
-		"updatedAt": exUpdatedAt,
+		"versionCount":    3,
+		"latestVersion":   "1.4.0",
+		"latestVersionAt": exUpdatedAt,
+		"createdAt":       exCreatedAt,
+		"updatedAt":       exUpdatedAt,
 	}
 	g.SetExample("ArtifactDefinition", definition)
 	g.SetExample("ArtifactDefinitionList", obj{

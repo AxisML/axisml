@@ -95,11 +95,11 @@ func TestEveryOperationIsTagged(t *testing.T) {
 // schema is caught.
 func TestExpectedCounts(t *testing.T) {
 	doc := buildDocument("test")
-	if got := len(doc.Paths); got != 82 {
-		t.Errorf("path count = %d, want 82", got)
+	if got := len(doc.Paths); got != 86 {
+		t.Errorf("path count = %d, want 86", got)
 	}
-	if got := len(doc.Components.Schemas); got != 143 {
-		t.Errorf("schema count = %d, want 143", got)
+	if got := len(doc.Components.Schemas); got != 153 {
+		t.Errorf("schema count = %d, want 153", got)
 	}
 }
 

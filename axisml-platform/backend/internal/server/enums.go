@@ -51,6 +51,12 @@ var MLServicePhaseValues = []string{
 	"Creating", "Pending", "Ready", "Degraded", "Failed", "Stopped", "Deleting", "Deleted",
 }
 
+// MLServiceDesiredState is the user-requested run state of an MLService.
+type MLServiceDesiredState string
+
+// MLServiceDesiredStateValues enumerates MLServiceDesiredState.
+var MLServiceDesiredStateValues = []string{"Running", "Stopped"}
+
 // MLServiceMetricName names a queryable MLService metric.
 type MLServiceMetricName string
 

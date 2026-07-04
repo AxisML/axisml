@@ -75,6 +75,7 @@ type Run struct {
 	Spec              MLRunSpec         `json:"spec,omitempty" desc:"Full resolved run spec (for the YAML view)."`
 	Phase             RunPhase          `json:"phase,omitempty" desc:"Current run lifecycle phase."`
 	Message           string            `json:"message,omitempty" desc:"Human-readable status detail for the current phase."`
+	ScheduledAt       *time.Time        `json:"scheduledAt,omitempty" desc:"Time the run was admitted by the scheduler (left Pending)."`
 	StartedAt         *time.Time        `json:"startedAt,omitempty" desc:"Time the run started executing."`
 	FinishedAt        *time.Time        `json:"finishedAt,omitempty" desc:"Time the run reached a terminal phase."`
 	CreatedAt         time.Time         `json:"createdAt" desc:"Time the run was created."`
@@ -99,6 +100,17 @@ type RunList struct {
 	Partial       bool   `json:"partial,omitempty" desc:"True if the list was truncated by an upstream limit."`
 }
 
+// RunSummary is a per-definition roll-up of a Job's / Experiment's Runs. It
+// rides on list responses (count + recent phases for the status strip) and on
+// detail responses (latest-run phase), so list/detail pages need no extra call.
+type RunSummary struct {
+	Count       int        `json:"count" binding:"min=0" desc:"Total number of Runs of the definition."`
+	Active      int        `json:"active,omitempty" desc:"Runs currently in a non-terminal phase."`
+	Recent      []RunPhase `json:"recent,omitempty" desc:"Most-recent Run phases, oldest-to-newest, for the status strip."`
+	LatestPhase RunPhase   `json:"latestPhase,omitempty" desc:"Phase of the most recent Run."`
+	LatestRunAt *time.Time `json:"latestRunAt,omitempty" desc:"Creation time of the most recent Run."`
+}
+
 // ArtifactRef references an artifact version consumed by a run.
 type ArtifactRef struct {
 	Kind    ArtifactKind `json:"kind" desc:"Artifact kind (model or image)."`
@@ -119,19 +131,20 @@ type JobSpec struct {
 
 // Job is a Platform-owned reusable Job template.
 type Job struct {
-	ID          UUID      `json:"id" desc:"Stable job identifier."`
-	Namespace   string    `json:"namespace" desc:"Platform tenant namespace the job belongs to."`
-	TenantName  string    `json:"tenantName" desc:"Tenant identifier owning the job."`
-	Name        string    `json:"name" desc:"Job definition name (unique within the tenant)."`
-	DisplayName string    `json:"displayName,omitempty" desc:"Human-readable job label."`
-	Description string    `json:"description,omitempty" desc:"Free-text job description."`
-	Owner       string    `json:"owner" desc:"Username of the job owner."`
-	OwnerID     UUID      `json:"ownerId,omitempty" desc:"User ID of the job owner."`
-	Labels      StringMap `json:"labels,omitempty" desc:"User-defined labels."`
-	Annotations StringMap `json:"annotations,omitempty" desc:"User-defined annotations."`
-	Spec        JobSpec   `json:"spec" desc:"Reusable run template."`
-	CreatedAt   time.Time `json:"createdAt" desc:"Time the job was created."`
-	UpdatedAt   time.Time `json:"updatedAt" desc:"Time the job was last updated."`
+	ID          UUID        `json:"id" desc:"Stable job identifier."`
+	Namespace   string      `json:"namespace" desc:"Platform tenant namespace the job belongs to."`
+	TenantName  string      `json:"tenantName" desc:"Tenant identifier owning the job."`
+	Name        string      `json:"name" desc:"Job definition name (unique within the tenant)."`
+	DisplayName string      `json:"displayName,omitempty" desc:"Human-readable job label."`
+	Description string      `json:"description,omitempty" desc:"Free-text job description."`
+	Owner       string      `json:"owner" desc:"Username of the job owner."`
+	OwnerID     UUID        `json:"ownerId,omitempty" desc:"User ID of the job owner."`
+	Labels      StringMap   `json:"labels,omitempty" desc:"User-defined labels."`
+	Annotations StringMap   `json:"annotations,omitempty" desc:"User-defined annotations."`
+	Spec        JobSpec     `json:"spec" desc:"Reusable run template."`
+	RunSummary  *RunSummary `json:"runSummary,omitempty" desc:"Roll-up of the job's Runs (count + recent phases on lists, latest phase on detail)."`
+	CreatedAt   time.Time   `json:"createdAt" desc:"Time the job was created."`
+	UpdatedAt   time.Time   `json:"updatedAt" desc:"Time the job was last updated."`
 }
 
 // JobList is a page of Job.

@@ -39,6 +39,8 @@ export default {
     done: "完成",
     // new model drawer
     newModelTitle: "新建模型",
+    editModelTitle: "编辑模型",
+    modelSaved: "模型已更新",
     fsBasic: "基本信息",
     fName: "模型名",
     fNamePlaceholder: "my-llm-model（仅英文、数字与连字符）",
@@ -69,6 +71,7 @@ export default {
     methodOras: "使用 Oras 推送",
     dzTitle: "拖拽文件到此处，或点击选择",
     dzHint: "支持权重与配置文件（.safetensors / .bin / .json / .model 等），单文件最大 50GB",
+    dzRequired: "请选择要上传的文件",
     fStorageKind: "存储类型",
     fRemoteUri: "地址",
     remoteUriPlaceholder: "s3://bucket/prefix",

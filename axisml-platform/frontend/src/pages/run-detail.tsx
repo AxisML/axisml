@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { Ban, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -20,10 +21,19 @@ import * as sdk from "@/api/generated";
 import { PolicyText, primaryRole } from "./job-detail";
 import { fmtDateTime } from "@/lib/format";
 import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent, CardAction } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
+import { Area, CartesianGrid, ComposedChart, XAxis, YAxis } from "recharts";
 import { cn } from "@/lib/utils";
 
 // Run detail for both Job-runs (/jobs/:name/runs/:run) and Experiment-runs
@@ -141,6 +151,7 @@ export default function RunDetail({ kind }: { kind: "experiment" | "job" }) {
             <TabsList>
               <TabsTrigger value="info">{t("runDetail.tabInfo")}</TabsTrigger>
               <TabsTrigger value="pods">{t("runDetail.tabPods")}</TabsTrigger>
+              <TabsTrigger value="monitor">{t("runDetail.tabMonitor")}</TabsTrigger>
               <TabsTrigger value="log">{t("runDetail.tabLog")}</TabsTrigger>
               <TabsTrigger value="ev">{t("runDetail.tabEvents")}</TabsTrigger>
             </TabsList>
@@ -149,6 +160,9 @@ export default function RunDetail({ kind }: { kind: "experiment" | "job" }) {
             </TabsContent>
             <TabsContent value="pods" className="mt-4">
               <PodsPane kind={kind} name={name} run={run} />
+            </TabsContent>
+            <TabsContent value="monitor" className="mt-4">
+              <MonitorPane kind={kind} name={name} run={run} />
             </TabsContent>
             <TabsContent value="log" className="mt-4">
               <LogPane kind={kind} name={name} run={run} />
@@ -289,6 +303,131 @@ function InfoPane({ run }: { run: sdk.Run }) {
   );
 }
 
+// ── Monitoring: run resource-utilisation metric grid ──────────────────────────
+// GPU / CPU / memory utilisation from getRunMetrics (or getExperimentRunMetrics,
+// by kind). Honest "指标接入中" empty state when Prometheus has no feed / the
+// endpoint isn't wired yet.
+const RUN_RANGES = ["5m", "1h", "24h"] as const;
+const RUN_METRICS: { metric: sdk.WorkloadMetricName; titleKey: string }[] = [
+  { metric: "gpu_util", titleKey: "runDetail.mGpu" },
+  { metric: "cpu_util", titleKey: "runDetail.mCpu" },
+  { metric: "mem_util", titleKey: "runDetail.mMem" },
+];
+
+function MonitorPane({ kind, name, run }: { kind: "experiment" | "job"; name: string; run: string }) {
+  const { t } = useTranslation();
+  const [range, setRange] = useState<string>("1h");
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-muted-foreground">{t("runDetail.monitorHint")}</span>
+        <ToggleGroup type="single" value={range} onValueChange={(v) => v && setRange(v)}>
+          {RUN_RANGES.map((r) => (
+            <ToggleGroupItem key={r} value={r}>
+              {r}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+      </div>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {RUN_METRICS.map((m) => (
+          <RunMetricCard
+            key={m.metric}
+            kind={kind}
+            name={name}
+            run={run}
+            range={range}
+            metric={m.metric}
+            title={t(m.titleKey)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function RunMetricCard({
+  kind,
+  name,
+  run,
+  range,
+  metric,
+  title,
+}: {
+  kind: "experiment" | "job";
+  name: string;
+  run: string;
+  range: string;
+  metric: sdk.WorkloadMetricName;
+  title: string;
+}) {
+  const { t } = useTranslation();
+  const { tenant } = useApp();
+  const isExp = kind === "experiment";
+  const q = useQuery({
+    queryKey: ["runDetail", kind, tenant, name, run, "metrics", metric, range],
+    enabled: tenant !== "" && name !== "" && run !== "",
+    queryFn: async () => {
+      const { data, error } = isExp
+        ? await sdk.getExperimentRunMetrics({ path: { name, run }, query: { metric, range } })
+        : await sdk.getRunMetrics({ path: { name, run }, query: { metric, range } });
+      if (error) throw error;
+      return data;
+    },
+  });
+  const series = q.data?.series ?? [];
+  const data = series.map((p) => ({ t: p.timestamp, v: p.value }));
+  const latest = series.at(-1)?.value;
+  const unit = q.data?.unit;
+  const color = "var(--info)";
+  const config = { v: { label: title, color } } satisfies ChartConfig;
+  const fillId = `fill-${metric}`;
+  const latestText =
+    latest != null ? `${Math.round(latest * 100) / 100}${unit === "%" ? "%" : unit ? ` ${unit}` : ""}` : "—";
+
+  return (
+    <Card className="gap-0">
+      <CardHeader className="border-b py-3">
+        <CardTitle className="text-sm">{title}</CardTitle>
+        <CardAction>
+          <span className="font-mono text-sm font-semibold">{latestText}</span>
+        </CardAction>
+      </CardHeader>
+      <CardContent className="pt-4">
+        {q.isLoading ? (
+          <div className="grid h-[140px] place-items-center">
+            <Spinner className="size-6 text-muted-foreground" />
+          </div>
+        ) : data.length === 0 ? (
+          <Empty className="py-10">
+            <EmptyHeader>
+              <EmptyTitle className="text-sm font-normal text-muted-foreground">
+                {t("runDetail.monitorEmpty")}
+              </EmptyTitle>
+            </EmptyHeader>
+          </Empty>
+        ) : (
+          <ChartContainer config={config} className="h-[140px] w-full">
+            <ComposedChart data={data} margin={{ left: 0, right: 0, top: 8, bottom: 0 }}>
+              <defs>
+                <linearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={color} stopOpacity={0.18} />
+                  <stop offset="95%" stopColor={color} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid vertical={false} />
+              <XAxis dataKey="t" hide />
+              <YAxis hide />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <Area dataKey="v" type="monotone" fill={`url(#${fillId})`} stroke={color} strokeWidth={2} />
+            </ComposedChart>
+          </ChartContainer>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function PodsPane({ kind, name, run }: { kind: "experiment" | "job"; name: string; run: string }) {
   const { t } = useTranslation();
   const { tenant } = useApp();
@@ -388,6 +527,12 @@ function LogPane({ kind, name, run }: { kind: "experiment" | "job"; name: string
         : await sdk.getRunPodLogs({ path: { name, run, pod } });
       if (error) throw error;
       return data as unknown as string;
+    },
+    streamPath: (pod) => {
+      const p = encodeURIComponent(pod);
+      return isExp
+        ? `/api/v1/experiments/${name}/runs/${run}/pods/${p}/logs?follow=true`
+        : `/api/v1/jobs/${name}/runs/${run}/pods/${p}/logs?follow=true`;
     },
   });
   return <PodLogPane logs={logs} emptyText={t("runDetail.noLog")} />;

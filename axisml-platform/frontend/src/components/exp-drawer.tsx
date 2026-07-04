@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import * as sdk from "@/api/generated";
 import { useApp } from "@/app/store";
 import { useApiMutation } from "@/api/mutations";
-import { useVolumeOptions } from "@/api/hooks";
+import { useVolumeOptions, usePoolUnitOptions } from "@/api/hooks";
 import { FieldSection } from "@/components/field-section";
 import { CardRadio } from "@/components/card-radio";
 import { FormDrawer } from "@/components/form-drawer";
@@ -29,8 +29,6 @@ import {
 } from "@/components/ui/collapsible";
 import {
   TRAINING_IMAGES as IMAGES,
-  TRAINING_UNITS as UNITS,
-  TRAINING_POOLS as POOLS,
   parseEnv,
   parseCommand,
   buildRunSpec,
@@ -59,8 +57,8 @@ const DEFAULTS: ExpFormValues = {
   name: "",
   description: "",
   image: IMAGES[0].value,
-  poolName: POOLS[0],
-  unitName: UNITS[0].value,
+  poolName: "",
+  unitName: "",
   replicas: 2,
   command: CMD,
   env: "WANDB_DISABLED=true\nNCCL_DEBUG=INFO",
@@ -160,9 +158,22 @@ function ExpForm({
   const locked = mode === "run";
   const [submitted, setSubmitted] = useState(false);
   const { options: volOptions, isError: volError } = useVolumeOptions();
+  const { pools, unitsFor } = usePoolUnitOptions();
   const [v, setV] = useState<ExpFormValues>(initial);
   const set = <K extends keyof ExpFormValues>(k: K, val: ExpFormValues[K]) =>
     setV((prev) => ({ ...prev, [k]: val }));
+
+  const unitsForPool = unitsFor(v.poolName);
+  // Default pool + unit from the live resource pools once loaded (new-mode only;
+  // run/edit arrive pre-filled from the saved experiment).
+  useEffect(() => {
+    if (!v.poolName && pools.length) {
+      const pool = pools[0].value;
+      setV((prev) => ({ ...prev, poolName: pool, unitName: unitsFor(pool)[0]?.value ?? "" }));
+    }
+  }, [pools, v.poolName, unitsFor]);
+  const onPoolChange = (pool: string) =>
+    setV((prev) => ({ ...prev, poolName: pool, unitName: unitsFor(pool)[0]?.value ?? "" }));
 
   const create = useApiMutation((body: sdk.ExperimentCreateRequest) => sdk.createExperiment({ body }), {
     invalidate: [["experiments"]],
@@ -270,14 +281,14 @@ function ExpForm({
       <FieldGroup>
         <Field>
           <FieldLabel>{t("experiments.fPool")}</FieldLabel>
-          <Select value={v.poolName} onValueChange={(val) => set("poolName", val)}>
+          <Select value={v.poolName} onValueChange={onPoolChange}>
             <SelectTrigger className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {POOLS.map((p) => (
-                <SelectItem key={p} value={p}>
-                  {p}
+              {pools.map((p) => (
+                <SelectItem key={p.value} value={p.value}>
+                  {p.label}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -285,7 +296,7 @@ function ExpForm({
         </Field>
         <Field>
           <FieldLabel>{t("experiments.fUnit")}</FieldLabel>
-          <CardRadio options={UNITS} value={v.unitName} onChange={(val) => set("unitName", val)} />
+          <CardRadio options={unitsForPool} value={v.unitName} onChange={(val) => set("unitName", val)} />
         </Field>
         <Field>
           <FieldLabel htmlFor="exp-replicas">{t("experiments.fReplicas")}</FieldLabel>

@@ -1,9 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Plus, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import dayjs from "dayjs";
-import { useJobs, useVolumeOptions } from "@/api/hooks";
+import { usePagedList, useVolumeOptions, usePoolUnitOptions } from "@/api/hooks";
+import { useDebouncedValue } from "@/lib/use-debounced";
+import { LoadMore } from "@/components/load-more";
 import { useApiMutation } from "@/api/mutations";
 import * as sdk from "@/api/generated";
 import { useUI } from "@/app/ui";
@@ -14,8 +16,6 @@ import { RunStrip } from "@/components/run-strip";
 import { SearchInput } from "@/components/search-input";
 import { FilterSelect } from "@/components/filter-select";
 import { DataTable, type Column } from "@/components/data-table";
-import { USE_MOCK } from "@/api/mock";
-import { runSummary } from "@/api/mock/data";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -30,8 +30,6 @@ import {
 import { FormDrawer } from "@/components/form-drawer";
 import {
   TRAINING_IMAGES as IMAGES,
-  TRAINING_UNITS as UNITS,
-  TRAINING_POOLS as POOLS,
   parseEnv,
   parseCommand,
   buildRunSpec,
@@ -55,41 +53,43 @@ interface JobRow {
 type DrawerMode = "new" | "run" | "edit";
 
 export default function Jobs() {
-  const q = useJobs();
   const { t } = useTranslation();
   const { confirm } = useUI();
   const [drawer, setDrawer] = useState<{ mode: DrawerMode; name?: string } | null>(null);
   const [search, setSearch] = useState("");
   const [creator, setCreator] = useState<string>("");
 
+  // Server-side search + owner filter + pagination (debounced so typing doesn't
+  // fire a request per keystroke).
+  const dq = useDebouncedValue(search, 300);
+  const q = usePagedList<sdk.Job>(["jobs", dq, creator], (page) =>
+    sdk.listJobs({ query: { q: dq || undefined, owner: creator || undefined, ...page } }),
+  );
+
   const delJob = useApiMutation((name: string) => sdk.deleteJob({ path: { name } }), {
     invalidate: [["jobs"]],
     success: t("jobs.deleted"),
   });
 
-  const allRows: JobRow[] = useMemo(
+  const rows: JobRow[] = useMemo(
     () =>
-      q.data?.items?.map((j) => {
-        const summary = USE_MOCK ? runSummary(j.name) : { count: 0, recent: [] as string[] };
+      q.items.map((j) => {
+        const summary = j.runSummary;
         return {
           name: j.name,
           desc: j.description ?? j.displayName ?? "",
-          runCount: summary.count,
-          recent: summary.recent,
+          runCount: summary?.count ?? 0,
+          recent: summary?.recent ?? [],
           owner: j.owner ?? "—",
           updated: j.updatedAt ?? j.createdAt ?? "",
         };
-      }) ?? [],
-    [q.data],
+      }),
+    [q.items],
   );
 
   const creatorOptions = useMemo(
-    () => Array.from(new Set(allRows.map((r) => r.owner).filter((o) => o && o !== "—"))),
-    [allRows],
-  );
-
-  const rows = allRows.filter(
-    (r) => (!search || r.name.includes(search)) && (!creator || r.owner === creator),
+    () => Array.from(new Set(rows.map((r) => r.owner).filter((o) => o && o !== "—"))),
+    [rows],
   );
 
   const onDelete = (r: JobRow) =>
@@ -209,6 +209,7 @@ export default function Jobs() {
           error={q.isError}
         />
       </Card>
+      <LoadMore hasMore={q.hasMore} loading={q.isFetchingMore} onClick={q.loadMore} />
 
       {drawer && <JobDrawer mode={drawer.mode} name={drawer.name} onClose={() => setDrawer(null)} />}
     </PageContainer>
@@ -239,12 +240,13 @@ function JobDrawer({ mode, name: initialName, onClose }: { mode: DrawerMode; nam
   const locked = mode === "run";
   const [submitted, setSubmitted] = useState(false);
   const { options: volOptions, isError: volError } = useVolumeOptions();
+  const { pools, unitsFor } = usePoolUnitOptions();
   const [v, setV] = useState<JobFormValues>({
     name: mode === "new" ? "" : (initialName ?? ""),
     description: "",
     image: IMAGES[0].value,
-    poolName: POOLS[0],
-    unitName: UNITS[0].value,
+    poolName: "",
+    unitName: "",
     replicas: 4,
     command: CMD,
     env: "WANDB_DISABLED=true\nNCCL_DEBUG=INFO",
@@ -254,6 +256,17 @@ function JobDrawer({ mode, name: initialName, onClose }: { mode: DrawerMode; nam
   });
   const set = <K extends keyof JobFormValues>(k: K, val: JobFormValues[K]) =>
     setV((prev) => ({ ...prev, [k]: val }));
+
+  const unitsForPool = unitsFor(v.poolName);
+  // Default pool + unit from the live resource pools once loaded.
+  useEffect(() => {
+    if (!v.poolName && pools.length) {
+      const pool = pools[0].value;
+      setV((prev) => ({ ...prev, poolName: pool, unitName: unitsFor(pool)[0]?.value ?? "" }));
+    }
+  }, [pools, v.poolName, unitsFor]);
+  const onPoolChange = (pool: string) =>
+    setV((prev) => ({ ...prev, poolName: pool, unitName: unitsFor(pool)[0]?.value ?? "" }));
 
   const create = useApiMutation((body: sdk.JobCreateRequest) => sdk.createJob({ body }), {
     invalidate: [["jobs"]],
@@ -359,14 +372,14 @@ function JobDrawer({ mode, name: initialName, onClose }: { mode: DrawerMode; nam
       <FieldGroup>
         <Field>
           <FieldLabel>{t("jobs.fPool")}</FieldLabel>
-          <Select value={v.poolName} onValueChange={(val) => set("poolName", val)} disabled={locked}>
+          <Select value={v.poolName} onValueChange={onPoolChange} disabled={locked}>
             <SelectTrigger className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {POOLS.map((p) => (
-                <SelectItem key={p} value={p}>
-                  {p}
+              {pools.map((p) => (
+                <SelectItem key={p.value} value={p.value}>
+                  {p.label}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -374,7 +387,7 @@ function JobDrawer({ mode, name: initialName, onClose }: { mode: DrawerMode; nam
         </Field>
         <Field>
           <FieldLabel>{t("jobs.fUnit")}</FieldLabel>
-          <CardRadio options={UNITS} value={v.unitName} onChange={(val) => set("unitName", val)} disabled={locked} />
+          <CardRadio options={unitsForPool} value={v.unitName} onChange={(val) => set("unitName", val)} disabled={locked} />
         </Field>
         <Field>
           <FieldLabel htmlFor="job-replicas">{t("jobs.fReplicas")}</FieldLabel>

@@ -1,5 +1,5 @@
 import { type ComponentType } from "react";
-import { Tag, Trash2 } from "lucide-react";
+import { Tag, Trash2, Pencil } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -19,6 +19,8 @@ export function AssetCard({
   updated,
   versionsText,
   onOpen,
+  onEdit,
+  editLabel,
   onDelete,
   deleteLabel,
 }: {
@@ -30,6 +32,8 @@ export function AssetCard({
   updated: string;
   versionsText: string;
   onOpen: () => void;
+  onEdit?: () => void;
+  editLabel?: string;
   onDelete: () => void;
   deleteLabel: string;
 }) {
@@ -59,6 +63,24 @@ export function AssetCard({
       <div className="flex items-center text-xs text-muted-foreground">
         <span>{versionsText}</span>
         <div className="grow" />
+        {onEdit && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit();
+                }}
+                aria-label={editLabel}
+              >
+                <Pencil />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{editLabel}</TooltipContent>
+          </Tooltip>
+        )}
         <Tooltip>
           <TooltipTrigger asChild>
             <Button

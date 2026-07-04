@@ -39,6 +39,8 @@ export default {
     done: "Done",
     // new image drawer
     newImageTitle: "New Image",
+    editImageTitle: "Edit Image",
+    imageSaved: "Image updated",
     fsBasic: "Basic info",
     fName: "Image name",
     fNamePlaceholder: "my-image (letters, digits and hyphens only)",
