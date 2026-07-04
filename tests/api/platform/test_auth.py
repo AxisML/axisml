@@ -5,7 +5,7 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from clients.platform.api.auth import get_current_user
+from clients.platform.api.auth import get_current_user, logout, refresh_token
 
 
 def test_admin_me(harness):
@@ -13,6 +13,22 @@ def test_admin_me(harness):
     r = get_current_user.sync_detailed(client=client)
     assert r.status_code == 200, r.content
     assert r.parsed.is_system_admin is True
+
+
+def test_refresh_token_issues_working_jwt(harness):
+    client = harness.platform(harness.admin_token())
+    r = refresh_token.sync_detailed(client=client)
+    assert r.status_code == 200, r.content
+    assert r.parsed.jwt, "refresh must return a new JWT"
+    # The refreshed token authenticates.
+    refreshed = harness.platform(r.parsed.jwt)
+    assert get_current_user.sync_detailed(client=refreshed).status_code == 200
+
+
+def test_logout(harness):
+    client = harness.platform(harness.admin_token())
+    r = logout.sync_detailed(client=client)
+    assert r.status_code in (200, 204), r.content
 
 
 def test_invalid_token_401(harness):

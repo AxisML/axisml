@@ -8,6 +8,7 @@ from clients.platform.api.jobs import (
     get_job,
     list_jobs,
     list_runs,
+    update_job,
 )
 from clients.platform.api.tenants import create_tenant, delete_tenant
 from clients.platform.api.users import create_user
@@ -15,6 +16,7 @@ from clients.platform.models import (
     Backend,
     BackendName,
     JobCreateRequest,
+    JobPatchRequest,
     JobSpec,
     MLRunRole,
     RoleTemplate,
@@ -71,6 +73,13 @@ def test_job_definition_lifecycle(harness, cfg):
             assert list_jobs.sync_detailed(client=owner_client, x_axisml_tenant=tenant).status_code == 200
             # No trigger yet -> runs list is reachable (and empty).
             assert list_runs.sync_detailed(job, client=owner_client, x_axisml_tenant=tenant).status_code == 200
+
+            # Patch the job's display fields.
+            uj = update_job.sync_detailed(
+                job, client=owner_client, x_axisml_tenant=tenant,
+                body=JobPatchRequest(display_name="Renamed Job", description="patched by e2e"),
+            )
+            assert uj.status_code == 200, uj.content
 
             dj = delete_job.sync_detailed(job, client=owner_client, x_axisml_tenant=tenant)
             assert dj.status_code in (200, 204), dj.content
