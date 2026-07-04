@@ -168,7 +168,7 @@ axisml/                        # 按部署层组织，每层一个自包含目�
 │   ├── deploy/helm/  docs/  scripts/minikube.sh
 ├── axisml-lite/               # Lite 形态：无 K8s 的单机 Docker Compose 部署（axisml-core/ deploy/）
 ├── docs/                      # 跨层：high_level_design.md + deployment.md + development_workflow.md
-├── pkg/openapigen/  test/e2e/ # 共享：OpenAPI 引擎 / 集中式 e2e 套件
+├── pkg/openapigen/  tests/    # 共享：OpenAPI 引擎 / 黑盒测试套件（Python + pytest）
 ├── Makefile                   # 根编排器（委派给各层 Makefile）
 └── README.md
 ```
