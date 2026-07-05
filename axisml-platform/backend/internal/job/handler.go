@@ -180,7 +180,13 @@ func (h *Handler) cancelRun(c *gin.Context) {
 }
 
 func (h *Handler) runMetrics(c *gin.Context) {
-	server.Fail(c, server.MetricsUnavailable())
+	m, err := h.svc.RunMetrics(c.Request.Context(), auth.ActiveTenant(c), c.Param("run"),
+		c.Query("metric"), c.Query("range"), server.OptStr(c.Query("step")))
+	if err != nil {
+		server.Fail(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, compview.MetricSeries(m))
 }
 
 func (h *Handler) runPods(c *gin.Context) {

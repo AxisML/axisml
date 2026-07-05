@@ -47,6 +47,9 @@ type (
 
 	Pod   = gen.Pod
 	Event = gen.Event
+
+	MetricSeries = gen.MetricSeries
+	MetricPoint  = gen.MetricPoint
 )
 
 // Client wraps the generated compute client. A second client (stream) is used
@@ -467,6 +470,45 @@ func (c *Client) RollbackTrafficPolicy(ctx context.Context, ns, name string) (*T
 	}
 	if res.JSON202 != nil {
 		return res.JSON202, nil
+	}
+	return nil, clienterr.FromResponse(service, res.HTTPResponse, res.Body)
+}
+
+// ---- Metrics (Prometheus-backed, N1) ----
+
+// MLRunMetrics returns a resource metric time series for a Run.
+func (c *Client) MLRunMetrics(ctx context.Context, ns, name, metric, rng string, step *string) (*MetricSeries, error) {
+	res, err := c.gen.GetMLRunMetricsWithResponse(ctx, ns, name, &gen.GetMLRunMetricsParams{Metric: metric, Range: rng, Step: step})
+	if err != nil {
+		return nil, clienterr.Transport(service, err)
+	}
+	if res.JSON200 != nil {
+		return res.JSON200, nil
+	}
+	return nil, clienterr.FromResponse(service, res.HTTPResponse, res.Body)
+}
+
+// MLServiceMetrics returns a resource metric time series for a service.
+func (c *Client) MLServiceMetrics(ctx context.Context, ns, name, metric, rng string, step *string) (*MetricSeries, error) {
+	res, err := c.gen.GetMLServiceMetricsWithResponse(ctx, ns, name, &gen.GetMLServiceMetricsParams{Metric: metric, Range: rng, Step: step})
+	if err != nil {
+		return nil, clienterr.Transport(service, err)
+	}
+	if res.JSON200 != nil {
+		return res.JSON200, nil
+	}
+	return nil, clienterr.FromResponse(service, res.HTTPResponse, res.Body)
+}
+
+// TrafficPolicyMetrics returns a resource metric time series aggregated over a
+// policy's member services (optionally scoped to one backend).
+func (c *Client) TrafficPolicyMetrics(ctx context.Context, ns, name, metric, rng string, step, backend *string) (*MetricSeries, error) {
+	res, err := c.gen.GetTrafficPolicyMetricsWithResponse(ctx, ns, name, &gen.GetTrafficPolicyMetricsParams{Metric: metric, Range: rng, Step: step, Backend: backend})
+	if err != nil {
+		return nil, clienterr.Transport(service, err)
+	}
+	if res.JSON200 != nil {
+		return res.JSON200, nil
 	}
 	return nil, clienterr.FromResponse(service, res.HTTPResponse, res.Body)
 }

@@ -162,6 +162,9 @@ func (s *Service) DeleteRun(ctx context.Context, tenant, run string) error {
 func (s *Service) RunPods(ctx context.Context, tenant, run string) ([]computeservice.Pod, error) {
 	return s.runner.Pods(ctx, tenant, run)
 }
+func (s *Service) RunMetrics(ctx context.Context, tenant, run, metric, rng string, step *string) (*computeservice.MetricSeries, error) {
+	return s.runner.Metrics(ctx, tenant, run, metric, rng, step)
+}
 func (s *Service) RunEvents(ctx context.Context, tenant, run string) ([]computeservice.Event, error) {
 	return s.runner.Events(ctx, tenant, run)
 }

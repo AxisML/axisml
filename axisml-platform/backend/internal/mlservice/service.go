@@ -187,6 +187,14 @@ func (s *Service) Delete(ctx context.Context, tenant, name string) error {
 	return s.compute.DeleteMLService(ctx, tenant, name)
 }
 
+// Metrics returns a resource metric time series for the service.
+func (s *Service) Metrics(ctx context.Context, tenant, name, metric, rng string, step *string) (*computeservice.MetricSeries, error) {
+	if _, err := s.getService(ctx, tenant, name); err != nil {
+		return nil, err
+	}
+	return s.compute.MLServiceMetrics(ctx, tenant, name, metric, rng, step)
+}
+
 // Pods / Events / PodEvents / PodLogs proxy compute.
 func (s *Service) Pods(ctx context.Context, tenant, name string) ([]computeservice.Pod, error) {
 	return s.compute.ListMLServicePods(ctx, tenant, name)

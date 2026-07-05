@@ -161,6 +161,12 @@ func (s *Service) Delete(ctx context.Context, tenant, name string) error {
 	return s.compute.DeleteTrafficPolicy(ctx, tenant, name)
 }
 
+// Metrics returns a resource metric time series aggregated over the policy's
+// member services (optionally scoped to one backend).
+func (s *Service) Metrics(ctx context.Context, tenant, name, metric, rng string, step, backend *string) (*computeservice.MetricSeries, error) {
+	return s.compute.TrafficPolicyMetrics(ctx, tenant, name, metric, rng, step, backend)
+}
+
 // Events lists the policy's events.
 func (s *Service) Events(ctx context.Context, tenant, name string) ([]computeservice.Event, error) {
 	// compute exposes events on MLServices, not policies; return empty for now.

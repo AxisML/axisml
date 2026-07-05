@@ -183,7 +183,15 @@ func (h *Handler) cancelRun(c *gin.Context) {
 	c.JSON(http.StatusOK, v)
 }
 
-func (h *Handler) runMetrics(c *gin.Context) { server.Fail(c, server.MetricsUnavailable()) }
+func (h *Handler) runMetrics(c *gin.Context) {
+	m, err := h.svc.RunMetrics(c.Request.Context(), auth.ActiveTenant(c), c.Param("run"),
+		c.Query("metric"), c.Query("range"), server.OptStr(c.Query("step")))
+	if err != nil {
+		server.Fail(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, compview.MetricSeries(m))
+}
 
 func (h *Handler) runPods(c *gin.Context) {
 	pods, err := h.svc.RunPods(c.Request.Context(), auth.ActiveTenant(c), c.Param("run"))

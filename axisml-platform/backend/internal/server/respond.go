@@ -82,9 +82,18 @@ func ActiveTenantRequired() error {
 	return apperrors.New(apperrors.ClassValidation, "active tenant required").WithReason("active-tenant-required")
 }
 
-// MetricsUnavailable is the 502 returned by metrics endpoints until the
-// compute-side PromQL surface is implemented (Platform must not query
-// Prometheus directly).
+// MetricsUnavailable is the 502 returned when the compute-side metrics backend
+// (Prometheus) is not configured. Platform proxies metrics to System (compute /
+// cluster-manager) and must not query Prometheus directly.
 func MetricsUnavailable() error {
 	return apperrors.New(apperrors.ClassUpstream, "workload metrics are not yet available").WithReason("metrics-unavailable")
+}
+
+// OptStr returns a pointer to s, or nil when s is empty — for optional query
+// params threaded to the typed System clients.
+func OptStr(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
 }

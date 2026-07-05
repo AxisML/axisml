@@ -98,7 +98,7 @@ func BuildDeps(cfg config.Config, db *gorm.DB, log *slog.Logger) (*Deps, error) 
 	trafficSvc := traffic.NewService(compute, tenants)
 	modelSvc := artifactdef.NewService(store.NewDefinitionRepo(db, store.TableModels), artifacts, "model", config.DefaultTenant)
 	imageSvc := artifactdef.NewService(store.NewDefinitionRepo(db, store.TableImages), artifacts, "image", config.DefaultTenant)
-	dashboardSvc := dashboard.NewService(audits)
+	dashboardSvc := dashboard.NewService(audits, cm)
 
 	modules := []server.Module{
 		identity.NewHandler(identitySvc, authn),

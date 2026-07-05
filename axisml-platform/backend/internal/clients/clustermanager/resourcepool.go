@@ -18,7 +18,38 @@ type (
 	UnitPatch  = gen.PatchResourceUnitRequest
 	UnitInline = gen.ServerCreateResourceUnitRequest
 	Toleration = gen.Corev1Toleration
+
+	PoolUsage        = gen.PoolUsage
+	PoolMeter        = gen.ServerResourceMeter
+	PoolMetricSeries = gen.PoolMetricSeries
+	PoolMetricPoint  = gen.ServerPoolMetricPoint
 )
+
+// ResourcePoolUsage returns a tenant's used-vs-total resource utilisation in a
+// pool (N2).
+func (c *Client) ResourcePoolUsage(ctx context.Context, pool, tenant string) (*PoolUsage, error) {
+	res, err := c.gen.GetResourcePoolUsageWithResponse(ctx, pool, &gen.GetResourcePoolUsageParams{Tenant: tenant})
+	if err != nil {
+		return nil, clienterr.Transport(service, err)
+	}
+	if res.JSON200 != nil {
+		return res.JSON200, nil
+	}
+	return nil, clienterr.FromResponse(service, res.HTTPResponse, res.Body)
+}
+
+// ResourcePoolMetrics returns a (tenant, pool) resource-utilisation time series
+// (N3).
+func (c *Client) ResourcePoolMetrics(ctx context.Context, pool, tenant, metric, rng string, step *string) (*PoolMetricSeries, error) {
+	res, err := c.gen.GetResourcePoolMetricsWithResponse(ctx, pool, &gen.GetResourcePoolMetricsParams{Tenant: tenant, Metric: metric, Range: rng, Step: step})
+	if err != nil {
+		return nil, clienterr.Transport(service, err)
+	}
+	if res.JSON200 != nil {
+		return res.JSON200, nil
+	}
+	return nil, clienterr.FromResponse(service, res.HTTPResponse, res.Body)
+}
 
 // ListResourcePools returns all pools (each with embedded units).
 func (c *Client) ListResourcePools(ctx context.Context, labelSelector string) ([]Pool, error) {

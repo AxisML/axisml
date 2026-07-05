@@ -134,7 +134,15 @@ func (h *Handler) rollback(c *gin.Context) {
 	c.JSON(http.StatusOK, v)
 }
 
-func (h *Handler) metrics(c *gin.Context) { server.Fail(c, server.MetricsUnavailable()) }
+func (h *Handler) metrics(c *gin.Context) {
+	m, err := h.svc.Metrics(c.Request.Context(), auth.ActiveTenant(c), c.Param("name"),
+		c.Query("metric"), c.Query("range"), server.OptStr(c.Query("step")), server.OptStr(c.Query("backend")))
+	if err != nil {
+		server.Fail(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, compview.MetricSeries(m))
+}
 
 func (h *Handler) events(c *gin.Context) {
 	events, err := h.svc.Events(c.Request.Context(), auth.ActiveTenant(c), c.Param("name"))

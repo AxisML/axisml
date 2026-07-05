@@ -280,6 +280,36 @@ type PatchVolumeRequest struct {
 	Size *string `json:"size"`
 }
 
+// PoolMetricSeries defines model for PoolMetricSeries.
+type PoolMetricSeries struct {
+	// Metric Metric name that was queried.
+	Metric string `json:"metric"`
+
+	// Range Query range window (e.g. 1h, 24h).
+	Range string `json:"range"`
+
+	// Series Sampled points, oldest first.
+	Series []ServerPoolMetricPoint `json:"series"`
+
+	// Step Sampling step between points (e.g. 30s).
+	Step *string `json:"step,omitempty"`
+
+	// Unit Value unit (cores, GiB, percent).
+	Unit *string `json:"unit,omitempty"`
+}
+
+// PoolUsage defines model for PoolUsage.
+type PoolUsage struct {
+	// Meters Per-resource used/total meters.
+	Meters []ServerResourceMeter `json:"meters"`
+
+	// Pool Resource pool name.
+	Pool string `json:"pool"`
+
+	// Tenant Tenant identifier the usage is scoped to.
+	Tenant string `json:"tenant"`
+}
+
 // Quota defines model for Quota.
 type Quota struct {
 	// Pool ResourcePool this quota applies to.
@@ -335,9 +365,6 @@ type ResourcePool struct {
 
 	// Units Resource units (allocatable shapes) offered by this pool.
 	Units []ServerResourceUnit `json:"units"`
-
-	// UpdatedAt Last modification timestamp (RFC3339).
-	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
 }
 
 // ResourcePoolList defines model for ResourcePoolList.
@@ -403,6 +430,15 @@ type ServerCreateResourceUnitRequest struct {
 	Requests map[string]string `json:"requests"`
 }
 
+// ServerPoolMetricPoint defines model for ServerPoolMetricPoint.
+type ServerPoolMetricPoint struct {
+	// Timestamp Sample time (RFC3339).
+	Timestamp time.Time `json:"timestamp"`
+
+	// Value Sampled value at the timestamp.
+	Value float64 `json:"value"`
+}
+
 // ServerQuota defines model for ServerQuota.
 type ServerQuota struct {
 	// Pool ResourcePool this quota applies to.
@@ -433,6 +469,21 @@ type ServerQuotaUnit struct {
 	UnitName string `json:"unitName"`
 }
 
+// ServerResourceMeter defines model for ServerResourceMeter.
+type ServerResourceMeter struct {
+	// Resource Resource dimension (cpu, memory, nvidia.com/gpu).
+	Resource string `json:"resource"`
+
+	// Total The tenant's quota ceiling in this pool.
+	Total float64 `json:"total"`
+
+	// Unit Value unit (cores, GiB, cards).
+	Unit *string `json:"unit,omitempty"`
+
+	// Used Amount currently in use (from the ElasticQuota status).
+	Used float64 `json:"used"`
+}
+
 // ServerResourcePool defines model for ServerResourcePool.
 type ServerResourcePool struct {
 	// Annotations User-defined annotations on the pool.
@@ -461,9 +512,6 @@ type ServerResourcePool struct {
 
 	// Units Resource units (allocatable shapes) offered by this pool.
 	Units []ServerResourceUnit `json:"units"`
-
-	// UpdatedAt Last modification timestamp (RFC3339).
-	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
 }
 
 // ServerResourceUnit defines model for ServerResourceUnit.
@@ -721,10 +769,31 @@ type ListResourcePoolsParams struct {
 	LabelSelector *string `form:"labelSelector,omitempty" json:"labelSelector,omitempty"`
 }
 
+// GetResourcePoolMetricsParams defines parameters for GetResourcePoolMetrics.
+type GetResourcePoolMetricsParams struct {
+	// Tenant Tenant identifier the usage / metrics are scoped to.
+	Tenant string `form:"tenant" json:"tenant"`
+
+	// Metric Metric to query: cpu_util (cores) | mem_util (GiB) | gpu_util (percent).
+	Metric string `form:"metric" json:"metric"`
+
+	// Range Query window: 5m, 1h, 24h, 7d.
+	Range string `form:"range" json:"range"`
+
+	// Step Sampling step between points (e.g. 30s); defaults to ~50 points across the range.
+	Step *string `form:"step,omitempty" json:"step,omitempty"`
+}
+
 // ListResourceUnitsParams defines parameters for ListResourceUnits.
 type ListResourceUnitsParams struct {
 	// LabelSelector K8s-style label selector.
 	LabelSelector *string `form:"labelSelector,omitempty" json:"labelSelector,omitempty"`
+}
+
+// GetResourcePoolUsageParams defines parameters for GetResourcePoolUsage.
+type GetResourcePoolUsageParams struct {
+	// Tenant Tenant identifier the usage / metrics are scoped to.
+	Tenant string `form:"tenant" json:"tenant"`
 }
 
 // ListTenantsParams defines parameters for ListTenants.
@@ -873,6 +942,9 @@ type ClientInterface interface {
 
 	UpdateResourcePool(ctx context.Context, pool string, body UpdateResourcePoolJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetResourcePoolMetrics request
+	GetResourcePoolMetrics(ctx context.Context, pool string, params *GetResourcePoolMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListResourceUnits request
 	ListResourceUnits(ctx context.Context, pool string, params *ListResourceUnitsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -891,6 +963,9 @@ type ClientInterface interface {
 	UpdateResourceUnitWithBody(ctx context.Context, pool string, unit string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	UpdateResourceUnit(ctx context.Context, pool string, unit string, body UpdateResourceUnitJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetResourcePoolUsage request
+	GetResourcePoolUsage(ctx context.Context, pool string, params *GetResourcePoolUsageParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListStorageClasses request
 	ListStorageClasses(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1052,6 +1127,18 @@ func (c *Client) UpdateResourcePool(ctx context.Context, pool string, body Updat
 	return c.Client.Do(req)
 }
 
+func (c *Client) GetResourcePoolMetrics(ctx context.Context, pool string, params *GetResourcePoolMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetResourcePoolMetricsRequest(c.Server, pool, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) ListResourceUnits(ctx context.Context, pool string, params *ListResourceUnitsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListResourceUnitsRequest(c.Server, pool, params)
 	if err != nil {
@@ -1126,6 +1213,18 @@ func (c *Client) UpdateResourceUnitWithBody(ctx context.Context, pool string, un
 
 func (c *Client) UpdateResourceUnit(ctx context.Context, pool string, unit string, body UpdateResourceUnitJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpdateResourceUnitRequest(c.Server, pool, unit, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetResourcePoolUsage(ctx context.Context, pool string, params *GetResourcePoolUsageParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetResourcePoolUsageRequest(c.Server, pool, params)
 	if err != nil {
 		return nil, err
 	}
@@ -1643,6 +1742,98 @@ func NewUpdateResourcePoolRequestWithBody(server string, pool string, contentTyp
 	return req, nil
 }
 
+// NewGetResourcePoolMetricsRequest generates requests for GetResourcePoolMetrics
+func NewGetResourcePoolMetricsRequest(server string, pool string, params *GetResourcePoolMetricsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "pool", runtime.ParamLocationPath, pool)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/resourcepools/%s/metrics", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "tenant", runtime.ParamLocationQuery, params.Tenant); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "metric", runtime.ParamLocationQuery, params.Metric); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "range", runtime.ParamLocationQuery, params.Range); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if params.Step != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "step", runtime.ParamLocationQuery, *params.Step); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewListResourceUnitsRequest generates requests for ListResourceUnits
 func NewListResourceUnitsRequest(server string, pool string, params *ListResourceUnitsParams) (*http.Request, error) {
 	var err error
@@ -1878,6 +2069,58 @@ func NewUpdateResourceUnitRequestWithBody(server string, pool string, unit strin
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetResourcePoolUsageRequest generates requests for GetResourcePoolUsage
+func NewGetResourcePoolUsageRequest(server string, pool string, params *GetResourcePoolUsageParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "pool", runtime.ParamLocationPath, pool)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/resourcepools/%s/usage", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "tenant", runtime.ParamLocationQuery, params.Tenant); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -2671,6 +2914,9 @@ type ClientWithResponsesInterface interface {
 
 	UpdateResourcePoolWithResponse(ctx context.Context, pool string, body UpdateResourcePoolJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateResourcePoolResponse, error)
 
+	// GetResourcePoolMetricsWithResponse request
+	GetResourcePoolMetricsWithResponse(ctx context.Context, pool string, params *GetResourcePoolMetricsParams, reqEditors ...RequestEditorFn) (*GetResourcePoolMetricsResponse, error)
+
 	// ListResourceUnitsWithResponse request
 	ListResourceUnitsWithResponse(ctx context.Context, pool string, params *ListResourceUnitsParams, reqEditors ...RequestEditorFn) (*ListResourceUnitsResponse, error)
 
@@ -2689,6 +2935,9 @@ type ClientWithResponsesInterface interface {
 	UpdateResourceUnitWithBodyWithResponse(ctx context.Context, pool string, unit string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateResourceUnitResponse, error)
 
 	UpdateResourceUnitWithResponse(ctx context.Context, pool string, unit string, body UpdateResourceUnitJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateResourceUnitResponse, error)
+
+	// GetResourcePoolUsageWithResponse request
+	GetResourcePoolUsageWithResponse(ctx context.Context, pool string, params *GetResourcePoolUsageParams, reqEditors ...RequestEditorFn) (*GetResourcePoolUsageResponse, error)
 
 	// ListStorageClassesWithResponse request
 	ListStorageClassesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListStorageClassesResponse, error)
@@ -2920,6 +3169,35 @@ func (r UpdateResourcePoolResponse) StatusCode() int {
 	return 0
 }
 
+type GetResourcePoolMetricsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *PoolMetricSeries
+	JSON400      *ClusterManagerError
+	JSON401      *ClusterManagerError
+	JSON404      *ClusterManagerError
+	JSON409      *ClusterManagerError
+	JSON422      *ClusterManagerError
+	JSON500      *ClusterManagerError
+	JSONDefault  *ClusterManagerError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetResourcePoolMetricsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetResourcePoolMetricsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type ListResourceUnitsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -3058,6 +3336,35 @@ func (r UpdateResourceUnitResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r UpdateResourceUnitResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetResourcePoolUsageResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *PoolUsage
+	JSON400      *ClusterManagerError
+	JSON401      *ClusterManagerError
+	JSON404      *ClusterManagerError
+	JSON409      *ClusterManagerError
+	JSON422      *ClusterManagerError
+	JSON500      *ClusterManagerError
+	JSONDefault  *ClusterManagerError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetResourcePoolUsageResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetResourcePoolUsageResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -3608,6 +3915,15 @@ func (c *ClientWithResponses) UpdateResourcePoolWithResponse(ctx context.Context
 	return ParseUpdateResourcePoolResponse(rsp)
 }
 
+// GetResourcePoolMetricsWithResponse request returning *GetResourcePoolMetricsResponse
+func (c *ClientWithResponses) GetResourcePoolMetricsWithResponse(ctx context.Context, pool string, params *GetResourcePoolMetricsParams, reqEditors ...RequestEditorFn) (*GetResourcePoolMetricsResponse, error) {
+	rsp, err := c.GetResourcePoolMetrics(ctx, pool, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetResourcePoolMetricsResponse(rsp)
+}
+
 // ListResourceUnitsWithResponse request returning *ListResourceUnitsResponse
 func (c *ClientWithResponses) ListResourceUnitsWithResponse(ctx context.Context, pool string, params *ListResourceUnitsParams, reqEditors ...RequestEditorFn) (*ListResourceUnitsResponse, error) {
 	rsp, err := c.ListResourceUnits(ctx, pool, params, reqEditors...)
@@ -3667,6 +3983,15 @@ func (c *ClientWithResponses) UpdateResourceUnitWithResponse(ctx context.Context
 		return nil, err
 	}
 	return ParseUpdateResourceUnitResponse(rsp)
+}
+
+// GetResourcePoolUsageWithResponse request returning *GetResourcePoolUsageResponse
+func (c *ClientWithResponses) GetResourcePoolUsageWithResponse(ctx context.Context, pool string, params *GetResourcePoolUsageParams, reqEditors ...RequestEditorFn) (*GetResourcePoolUsageResponse, error) {
+	rsp, err := c.GetResourcePoolUsage(ctx, pool, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetResourcePoolUsageResponse(rsp)
 }
 
 // ListStorageClassesWithResponse request returning *ListStorageClassesResponse
@@ -4264,6 +4589,81 @@ func ParseUpdateResourcePoolResponse(rsp *http.Response) (*UpdateResourcePoolRes
 	return response, nil
 }
 
+// ParseGetResourcePoolMetricsResponse parses an HTTP response from a GetResourcePoolMetricsWithResponse call
+func ParseGetResourcePoolMetricsResponse(rsp *http.Response) (*GetResourcePoolMetricsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetResourcePoolMetricsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest PoolMetricSeries
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseListResourceUnitsResponse parses an HTTP response from a ListResourceUnitsWithResponse call
 func ParseListResourceUnitsResponse(rsp *http.Response) (*ListResourceUnitsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -4573,6 +4973,81 @@ func ParseUpdateResourceUnitResponse(rsp *http.Response) (*UpdateResourceUnitRes
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest ResourceUnit
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ClusterManagerError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetResourcePoolUsageResponse parses an HTTP response from a GetResourcePoolUsageWithResponse call
+func ParseGetResourcePoolUsageResponse(rsp *http.Response) (*GetResourcePoolUsageResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetResourcePoolUsageResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest PoolUsage
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
