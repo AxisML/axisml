@@ -45,7 +45,40 @@ func newClusterManagerStub() *clusterManagerStub {
 	g.GET("/volumes/:namespace/:name", s.getVolume)
 	g.PATCH("/volumes/:namespace/:name", s.patchVolume)
 	g.DELETE("/volumes/:namespace/:name", s.delVolume)
+	g.GET("/resourcepools/:pool/usage", s.poolUsage)
+	g.GET("/resourcepools/:pool/metrics", s.poolMetrics)
 	return s
+}
+
+// seedQuota records a tenant's quota in a pool so listQuotas (and thus the
+// dashboard's per-pool fold) returns it.
+func (s *clusterManagerStub) seedQuota(tenant, pool string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.quotas[tenant] == nil {
+		s.quotas[tenant] = map[string][]map[string]any{}
+	}
+	s.quotas[tenant][pool] = []map[string]any{{"unitName": "small", "quantity": 1}}
+}
+
+func (s *clusterManagerStub) poolUsage(c *gin.Context) {
+	c.JSON(http.StatusOK, map[string]any{
+		"pool":   c.Param("pool"),
+		"tenant": c.Query("tenant"),
+		"meters": []map[string]any{
+			{"resource": "cpu", "used": 2.0, "total": 8.0, "unit": "cores"},
+			{"resource": "nvidia.com/gpu", "used": 1.0, "total": 4.0, "unit": "cards"},
+		},
+	})
+}
+
+func (s *clusterManagerStub) poolMetrics(c *gin.Context) {
+	c.JSON(http.StatusOK, map[string]any{
+		"metric": c.Query("metric"),
+		"range":  c.Query("range"),
+		"unit":   "cores",
+		"series": []map[string]any{{"timestamp": time.Now().UTC().Format(time.RFC3339), "value": 1.5}},
+	})
 }
 
 func volKey(ns, name string) string { return ns + "/" + name }
