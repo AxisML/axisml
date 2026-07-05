@@ -316,6 +316,15 @@ database:
 # Used to build the cross-namespace database DNS name.
 infraNamespace: axisml-infra
 
+# Metrics backend for the per-workload (compute-service) and per-pool
+# (cluster-manager) metrics endpoints. Points at the infra kube-prometheus-stack.
+# Set prometheusUrl to "" to disable those endpoints (they then report 502/503).
+# Note: GPU (DCGM) and per-pool node scoping additionally require enabling the
+# DCGM ServiceMonitor and a kube-state-metrics node-label allowlist in the infra
+# chart; until then those queries return empty series.
+metrics:
+  prometheusUrl: http://prometheus-prometheus.axisml-infra.svc.cluster.local:9090
+
 # -- External database (used when database.enabled=false)
 externalDatabase:
   host: ""

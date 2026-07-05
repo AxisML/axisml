@@ -29,6 +29,9 @@ spec:
             - --api-bind-address=:{{ $cm.service.port }}
             - --metrics-bind-address=:{{ $cm.metricsPort }}
             - --probes-bind-address=:{{ $cm.probesPort }}
+            {{- with .Values.metrics.prometheusUrl }}
+            - --prometheus-url={{ . }}
+            {{- end }}
           ports:
             - name: http
               containerPort: {{ $cm.service.port }}
