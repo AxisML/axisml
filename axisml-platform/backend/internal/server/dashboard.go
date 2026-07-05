@@ -18,11 +18,12 @@ type ClusterPoolUsage struct {
 	Meters []ClusterMeter `json:"meters" desc:"Per-resource utilisation meters for the pool."`
 }
 
-// ClusterUsage is the dashboard's cluster resource-usage snapshot: a
-// cluster-wide aggregate plus a per-pool breakdown.
+// ClusterUsage is the dashboard's per-pool cluster resource-usage snapshot: one
+// entry per resource pool the active tenant has quota in. There is no cross-pool
+// aggregate — Platform folds cluster-manager per-(tenant, pool) usage into this
+// list, one row per pool.
 type ClusterUsage struct {
-	Aggregate []ClusterMeter     `json:"aggregate" desc:"Cluster-wide utilisation across all pools."`
-	Pools     []ClusterPoolUsage `json:"pools,omitempty" desc:"Per-pool utilisation breakdown."`
+	Pools     []ClusterPoolUsage `json:"pools" desc:"Per-pool utilisation, one entry per pool the tenant has quota in."`
 	UpdatedAt time.Time          `json:"updatedAt" desc:"Time the snapshot was sampled."`
 }
 

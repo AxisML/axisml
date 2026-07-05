@@ -244,11 +244,9 @@ func (s *Service) UpdateMeta(ctx context.Context, identifier, displayName, descr
 	return buildView(row, cr), nil
 }
 
-// Delete removes a tenant after verifying it has no members. The CR is deleted
-// first, then the durable record and membership rows.
-//
-// TODO(workloads): also block on active Runs/Services/Workspaces once the
-// compute client wrapper lands (backend.md §4.1 "活跃业务资源非空 → tenant-in-use").
+// Delete removes a tenant after verifying it has no members and no live
+// workloads. The CR is deleted first, then the durable record and membership
+// rows (backend.md §4.1 "活跃业务资源非空 → tenant-in-use").
 func (s *Service) Delete(ctx context.Context, identifier string) error {
 	if _, err := s.getRow(ctx, identifier); err != nil {
 		return err
@@ -260,6 +258,9 @@ func (s *Service) Delete(ctx context.Context, identifier string) error {
 	if n > 0 {
 		return apperrors.New(apperrors.ClassConflict, "tenant still has members").WithReason("tenant-in-use")
 	}
+	if err := s.checkNoActiveWorkloads(ctx, identifier); err != nil {
+		return err
+	}
 	if err := s.cm.DeleteTenant(ctx, identifier); err != nil {
 		return err
 	}
@@ -268,6 +269,36 @@ func (s *Service) Delete(ctx context.Context, identifier string) error {
 	}
 	if err := s.tenants.Delete(ctx, identifier); err != nil {
 		return apperrors.Wrap(apperrors.ClassInternal, "delete tenant", err)
+	}
+	return nil
+}
+
+// checkNoActiveWorkloads blocks tenant deletion while the namespace still holds
+// active Runs or any online Service / Workspace, so a delete never orphans live
+// compute. Unlike enrichCounts, list failures are fatal here: we must not tear a
+// tenant down on incomplete information. compute==nil (unconfigured) skips it.
+func (s *Service) checkNoActiveWorkloads(ctx context.Context, identifier string) error {
+	if s.compute == nil {
+		return nil
+	}
+	runs, err := s.compute.ListMLRuns(ctx, identifier, "")
+	if err != nil {
+		return err
+	}
+	for i := range runs {
+		if activeRunPhases[runs[i].Phase] {
+			return apperrors.New(apperrors.ClassConflict, "tenant still has active runs").WithReason("tenant-in-use")
+		}
+	}
+	svcs, err := s.compute.ListMLServices(ctx, identifier, "")
+	if err != nil {
+		return err
+	}
+	for i := range svcs {
+		switch svcs[i].Kind {
+		case "service", "workspace":
+			return apperrors.New(apperrors.ClassConflict, "tenant still has active services or workspaces").WithReason("tenant-in-use")
+		}
 	}
 	return nil
 }

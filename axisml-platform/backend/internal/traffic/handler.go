@@ -81,9 +81,17 @@ func (h *Handler) get(c *gin.Context) {
 }
 
 func (h *Handler) update(c *gin.Context) {
-	// Display-metadata patch is not yet surfaced by the compute traffic API;
-	// echo the current policy.
-	h.get(c)
+	var req server.TrafficPolicyPatchRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		server.Fail(c, err)
+		return
+	}
+	v, err := h.svc.UpdateMeta(c.Request.Context(), auth.ActiveTenant(c), c.Param("name"), req)
+	if err != nil {
+		server.Fail(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, v)
 }
 
 func (h *Handler) delete(c *gin.Context) {

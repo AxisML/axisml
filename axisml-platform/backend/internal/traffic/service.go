@@ -78,6 +78,32 @@ func (s *Service) List(ctx context.Context, tenant string) ([]server.TrafficPoli
 	return out, nil
 }
 
+// UpdateMeta patches display metadata (name / description / labels /
+// annotations). Weights are unaffected — those go through Split.
+func (s *Service) UpdateMeta(ctx context.Context, tenant, name string, req server.TrafficPolicyPatchRequest) (*server.TrafficPolicy, error) {
+	var patch computeservice.TrafficPatch
+	if req.DisplayName != "" {
+		patch.DisplayName = &req.DisplayName
+	}
+	if req.Description != "" {
+		patch.Description = &req.Description
+	}
+	if req.Labels != nil {
+		m := map[string]string(req.Labels)
+		patch.Labels = &m
+	}
+	if req.Annotations != nil {
+		m := map[string]string(req.Annotations)
+		patch.Annotations = &m
+	}
+	tp, err := s.compute.PatchTrafficPolicy(ctx, tenant, name, patch)
+	if err != nil {
+		return nil, err
+	}
+	v := toView(tp, tenant)
+	return &v, nil
+}
+
 // Split adjusts weights (weighted) or canary percent (canary).
 func (s *Service) Split(ctx context.Context, tenant, name string, req server.TrafficPolicySplitRequest) (*server.TrafficPolicy, error) {
 	var updates []computeservice.WeightUpdate

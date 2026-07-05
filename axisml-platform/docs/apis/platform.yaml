@@ -464,19 +464,6 @@ components:
       type: object
     ClusterUsage:
       example:
-        aggregate:
-        - resource: gpu
-          total: 48
-          unit: cards
-          used: 36
-        - resource: cpu
-          total: 1152
-          unit: cores
-          used: 740
-        - resource: memory
-          total: 5632
-          unit: GiB
-          used: 3481.6
         pools:
         - meters:
           - resource: gpu
@@ -522,13 +509,9 @@ components:
           pool: cpu-pool
         updatedAt: "2026-06-28T09:30:00Z"
       properties:
-        aggregate:
-          description: Cluster-wide utilisation across all pools.
-          items:
-            $ref: '#/components/schemas/ClusterMeter'
-          type: array
         pools:
-          description: Per-pool utilisation breakdown.
+          description: Per-pool utilisation, one entry per pool the tenant has quota
+            in.
           items:
             $ref: '#/components/schemas/ClusterPoolUsage'
           type: array
@@ -537,7 +520,7 @@ components:
           format: date-time
           type: string
       required:
-      - aggregate
+      - pools
       - updatedAt
       type: object
     Condition:
@@ -6276,8 +6259,8 @@ paths:
     get:
       operationId: getClusterUsage
       parameters:
-      - description: Restrict to a single resource pool; omit for all pools plus the
-          aggregate.
+      - description: Restrict to a single resource pool; omit for every pool the tenant
+          has quota in.
         in: query
         name: pool
         schema:
@@ -6308,7 +6291,7 @@ paths:
                 $ref: '#/components/schemas/Problem'
           description: Upstream service (cluster-manager / compute / artifacts / Prometheus)
             failed.
-      summary: Cluster resource-usage snapshot (aggregate + per-pool)
+      summary: Per-pool cluster resource-usage snapshot for the active tenant
       tags:
       - Dashboard
   /api/v1/datavolumes:

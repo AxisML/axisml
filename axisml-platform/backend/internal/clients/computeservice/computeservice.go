@@ -394,6 +394,19 @@ func (c *Client) GetTrafficPolicy(ctx context.Context, ns, name string) (*Traffi
 	return nil, clienterr.FromResponse(service, res.HTTPResponse, res.Body)
 }
 
+// PatchTrafficPolicy updates display metadata / labels / annotations
+// (no CR touch, no generation bump; weights go through split).
+func (c *Client) PatchTrafficPolicy(ctx context.Context, ns, name string, in TrafficPatch) (*TrafficPolicy, error) {
+	res, err := c.gen.PatchTrafficPolicyWithResponse(ctx, ns, name, in)
+	if err != nil {
+		return nil, clienterr.Transport(service, err)
+	}
+	if res.JSON200 != nil {
+		return res.JSON200, nil
+	}
+	return nil, clienterr.FromResponse(service, res.HTTPResponse, res.Body)
+}
+
 // ListTrafficPolicies lists policies filtered by labelSelector.
 func (c *Client) ListTrafficPolicies(ctx context.Context, ns, labelSelector string) ([]TrafficPolicy, error) {
 	p := &gen.ListTrafficPoliciesParams{}

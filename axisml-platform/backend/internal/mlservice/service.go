@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/axisml/axisml/axisml-platform/backend/internal/clients/artifacthub"
 	"github.com/axisml/axisml/axisml-platform/backend/internal/clients/computeservice"
 	"github.com/axisml/axisml/axisml-platform/backend/internal/guard"
 	"github.com/axisml/axisml/axisml-platform/backend/internal/server"
@@ -20,22 +21,26 @@ import (
 
 // Service holds online-service orchestration.
 type Service struct {
-	compute *computeservice.Client
-	tenants *store.TenantRepo
+	compute   *computeservice.Client
+	artifacts *artifacthub.Client
+	tenants   *store.TenantRepo
 }
 
-// NewService constructs an MLService Service.
-func NewService(compute *computeservice.Client, tenants *store.TenantRepo) *Service {
-	return &Service{compute: compute, tenants: tenants}
+// NewService constructs an MLService Service. artifacts may be nil, in which
+// case the served-model preflight is skipped.
+func NewService(compute *computeservice.Client, artifacts *artifacthub.Client, tenants *store.TenantRepo) *Service {
+	return &Service{compute: compute, artifacts: artifacts, tenants: tenants}
 }
 
-// Create deploys an online service. Verifies the tenant is active, auto-fills the
-// gateway path + base-URL env when route.path is empty.
-//
-// TODO(artifacts): preflight (modelName, modelVersion) Ready via artifact-hub and
-// inject the resolved URI/digest snapshot once the artifacts client lands (§4.0).
+// Create deploys an online service. Verifies the tenant is active, preflights
+// the served (modelName, modelVersion) to Ready and injects its resolved pull
+// URI + content digest into the serving pods, and auto-fills the gateway path +
+// base-URL env when route.path is empty.
 func (s *Service) Create(ctx context.Context, tenant, owner string, req server.MLServiceCreateRequest) (*server.MLService, error) {
 	if err := guard.TenantActive(ctx, s.tenants, tenant); err != nil {
+		return nil, err
+	}
+	if err := s.injectModel(ctx, tenant, &req); err != nil {
 		return nil, err
 	}
 	if req.Route.Enabled && req.Route.Path == "" {
@@ -52,6 +57,37 @@ func (s *Service) Create(ctx context.Context, tenant, owner string, req server.M
 	}
 	v := svcutil.ServiceToView(svc, tenant)
 	return &v, nil
+}
+
+// injectModel preflights the served model version to Ready and injects its
+// resolved pull URI + content digest as env into the serving pods, pinning the
+// exact artifact the service was created against. Skipped when artifacts is nil.
+func (s *Service) injectModel(ctx context.Context, tenant string, req *server.MLServiceCreateRequest) error {
+	if s.artifacts == nil {
+		return nil
+	}
+	art, err := s.artifacts.Get(ctx, tenant, "model", req.ModelName, req.ModelVersion)
+	if err != nil {
+		return err
+	}
+	if art.Status != "Ready" {
+		return apperrors.Newf(apperrors.ClassValidation,
+			"model %s@%s is not ready (status %s)", req.ModelName, req.ModelVersion, art.Status).
+			WithReason("model-not-ready")
+	}
+	res, err := s.artifacts.Resolve(ctx, tenant, "model", req.ModelName, req.ModelVersion, "download")
+	if err != nil {
+		return err
+	}
+	req.Env = append(req.Env, server.EnvVar{Name: "AXISML_MODEL_URI", Value: res.Uri})
+	digest := res.Digest
+	if digest == nil {
+		digest = art.Digest
+	}
+	if digest != nil && *digest != "" {
+		req.Env = append(req.Env, server.EnvVar{Name: "AXISML_MODEL_DIGEST", Value: *digest})
+	}
+	return nil
 }
 
 // Get returns a service (must be kind=service).

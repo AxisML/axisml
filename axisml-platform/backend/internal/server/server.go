@@ -21,9 +21,14 @@ type Module interface {
 
 // Options configures the API server.
 type Options struct {
-	Addr        string
-	Log         *slog.Logger
-	Modules     []Module
+	Addr    string
+	Log     *slog.Logger
+	Modules []Module
+	// Middlewares are applied to the /api/v1 group ahead of module routes (e.g.
+	// audit recording). Because a group middleware wraps the whole chain, its
+	// post-c.Next() phase sees the resolved route params and the identity set by
+	// each module's own auth middleware.
+	Middlewares []gin.HandlerFunc
 	JWKSHandler gin.HandlerFunc // served at /.well-known/jwks.json
 	Ready       func(context.Context) error
 	// StaticFS is the built SPA bundle (frontend). When set, non-API routes
@@ -69,7 +74,7 @@ func New(opts Options) (*Server, error) {
 		r.GET("/.well-known/jwks.json", opts.JWKSHandler)
 	}
 
-	api := r.Group("/api/v1")
+	api := r.Group("/api/v1", opts.Middlewares...)
 	for _, m := range opts.Modules {
 		m.Register(api)
 	}

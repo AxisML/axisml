@@ -540,8 +540,8 @@ func paths() map[string]openapigen.PathItem {
 	}
 
 	// ---- Dashboard (landing-page aggregates) ----
-	p["/api/v1/dashboard/cluster-usage"] = openapigen.PathItem{Get: newOp(tagDashboard, "getClusterUsage", "Cluster resource-usage snapshot (aggregate + per-pool)",
-		[]openapigen.Parameter{qp("pool", "Restrict to a single resource pool; omit for all pools plus the aggregate.", strSchema())},
+	p["/api/v1/dashboard/cluster-usage"] = openapigen.PathItem{Get: newOp(tagDashboard, "getClusterUsage", "Per-pool cluster resource-usage snapshot for the active tenant",
+		[]openapigen.Parameter{qp("pool", "Restrict to a single resource pool; omit for every pool the tenant has quota in.", strSchema())},
 		nil, resp(sc("200", "Cluster usage snapshot.", "ClusterUsage"), "401", "500", "502"))}
 	p["/api/v1/dashboard/cluster-metrics"] = openapigen.PathItem{Get: newOp(tagDashboard, "getClusterMetrics", "Cluster resource-utilisation time series",
 		[]openapigen.Parameter{

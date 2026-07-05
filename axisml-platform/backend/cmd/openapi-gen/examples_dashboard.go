@@ -5,10 +5,7 @@ import "github.com/axisml/axisml/pkg/openapigen"
 // exDashboard holds whole-object examples for the dashboard.go DTOs
 // (cluster resource usage + recent-activity feed).
 func exDashboard(g *openapigen.Generator) {
-	gpuMeter := obj{"resource": "gpu", "used": 36, "total": 48, "unit": "cards"}
-	cpuMeter := obj{"resource": "cpu", "used": 740, "total": 1152, "unit": "cores"}
-	memMeter := obj{"resource": "memory", "used": 3481.6, "total": 5632, "unit": "GiB"}
-	g.SetExample("ClusterMeter", gpuMeter)
+	g.SetExample("ClusterMeter", obj{"resource": "gpu", "used": 36, "total": 48, "unit": "cards"})
 
 	poolUsage := obj{
 		"pool":   "gpu-a100",
@@ -17,7 +14,6 @@ func exDashboard(g *openapigen.Generator) {
 	g.SetExample("ClusterPoolUsage", poolUsage)
 
 	g.SetExample("ClusterUsage", obj{
-		"aggregate": []any{gpuMeter, cpuMeter, memMeter},
 		"pools": []any{
 			poolUsage,
 			obj{"pool": "h100-pool", "meters": []any{obj{"resource": "gpu", "used": 14, "total": 16, "unit": "cards"}, obj{"resource": "cpu", "used": 180, "total": 256, "unit": "cores"}, obj{"resource": "memory", "used": 1433.6, "total": 2048, "unit": "GiB"}}},
