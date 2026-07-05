@@ -10,6 +10,7 @@ import (
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/db"
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/k8sclient"
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/metrics"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/promclient"
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/server"
 	"github.com/axisml/axisml/axisml-system/compute-service/pkg/logging"
 )
@@ -38,7 +39,12 @@ func Serve(ctx context.Context, cfg config.Config) error {
 		return err
 	}
 
-	modules, runnables, caps, err := BuildModules(gormDB, mgr, log)
+	promProvider, err := promclient.New(cfg.Prometheus.URL)
+	if err != nil {
+		return fmt.Errorf("prometheus client: %w", err)
+	}
+
+	modules, runnables, caps, err := BuildModules(gormDB, mgr, log, promProvider)
 	if err != nil {
 		return err
 	}

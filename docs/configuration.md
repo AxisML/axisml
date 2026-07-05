@@ -95,6 +95,7 @@ Config file: `/etc/axisml/config.yaml` (override with `--config` or `AXISML_CONF
 | `database.sslmode` | `AXISML_DATABASE_SSLMODE` | `disable` | — | libpq sslmode: disable \| require \| verify-full |
 | `log.level` | `AXISML_LOG_LEVEL` | `info` | — | Log level: debug \| info \| warn \| error |
 | `log.format` | `AXISML_LOG_FORMAT` | `json` | — | Log format: json \| console |
+| `prometheus.url` | `AXISML_PROMETHEUS_URL` | — | — | Prometheus query API base URL (e.g. http://kube-prometheus-stack-prometheus.axisml-infra:9090). Empty disables the workload metrics endpoints. |
 
 ## artifact-hub
 

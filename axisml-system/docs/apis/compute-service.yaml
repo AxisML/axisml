@@ -2483,6 +2483,44 @@ components:
       type: object
     Metav1Time:
       type: object
+    MetricPoint:
+      properties:
+        timestamp:
+          description: Sample time (RFC3339).
+          format: date-time
+          type: string
+        value:
+          description: Sampled value at the timestamp.
+          format: double
+          type: number
+      required:
+      - timestamp
+      - value
+      type: object
+    MetricSeries:
+      properties:
+        metric:
+          description: Metric name that was queried.
+          type: string
+        range:
+          description: Query range window (e.g. 1h, 24h).
+          type: string
+        series:
+          description: Sampled points, oldest first.
+          items:
+            $ref: '#/components/schemas/MetricPoint'
+          type: array
+        step:
+          description: Sampling step between points (e.g. 30s).
+          type: string
+        unit:
+          description: Value unit (cores, bytes, percent, req/s, ms).
+          type: string
+      required:
+      - metric
+      - range
+      - series
+      type: object
     Pod:
       example:
         labels:
@@ -3527,6 +3565,105 @@ paths:
       summary: List events targeted at the MLRun CR
       tags:
       - MLRuns
+  /api/v1/namespaces/{namespace}/mlruns/{mlrun}/metrics:
+    get:
+      operationId: getMLRunMetrics
+      parameters:
+      - description: Tenant name (= mlruns/mlservices partition key).
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      - description: MLRun name.
+        in: path
+        name: mlrun
+        required: true
+        schema:
+          type: string
+      - description: 'Resource metric to query: cpu_util (cores) | mem_util (bytes)
+          | gpu_util (percent).'
+        in: query
+        name: metric
+        required: true
+        schema:
+          type: string
+      - description: 'Query window: 5m, 1h, 24h, 7d.'
+        in: query
+        name: range
+        required: true
+        schema:
+          type: string
+      - description: Sampling step between points (e.g. 30s); defaults to ~50 points
+          across the range.
+        in: query
+        name: step
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricSeries'
+          description: Metric series.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Precondition failed.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Unexpected error.
+      summary: Query a resource metric time series for the MLRun
+      tags:
+      - MLRuns
   /api/v1/namespaces/{namespace}/mlruns/{mlrun}/pods:
     get:
       operationId: listMLRunPods
@@ -4288,6 +4425,105 @@ paths:
                 $ref: '#/components/schemas/ComputeServiceError'
           description: Unexpected error.
       summary: List events targeted at the MLService CR
+      tags:
+      - MLServices
+  /api/v1/namespaces/{namespace}/mlservices/{mlservice}/metrics:
+    get:
+      operationId: getMLServiceMetrics
+      parameters:
+      - description: Tenant name (= mlruns/mlservices partition key).
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      - description: MLService name.
+        in: path
+        name: mlservice
+        required: true
+        schema:
+          type: string
+      - description: 'Resource metric to query: cpu_util (cores) | mem_util (bytes)
+          | gpu_util (percent).'
+        in: query
+        name: metric
+        required: true
+        schema:
+          type: string
+      - description: 'Query window: 5m, 1h, 24h, 7d.'
+        in: query
+        name: range
+        required: true
+        schema:
+          type: string
+      - description: Sampling step between points (e.g. 30s); defaults to ~50 points
+          across the range.
+        in: query
+        name: step
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricSeries'
+          description: Metric series.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Precondition failed.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Unexpected error.
+      summary: Query a resource metric time series for the MLService
       tags:
       - MLServices
   /api/v1/namespaces/{namespace}/mlservices/{mlservice}/pods:
@@ -5057,6 +5293,111 @@ paths:
                 $ref: '#/components/schemas/ComputeServiceError'
           description: Unexpected error.
       summary: Patch traffic policy display fields
+      tags:
+      - TrafficPolicies
+  /api/v1/namespaces/{namespace}/traffic-policies/{policy}/metrics:
+    get:
+      operationId: getTrafficPolicyMetrics
+      parameters:
+      - description: Tenant name (= mlruns/mlservices partition key).
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      - description: Traffic policy name.
+        in: path
+        name: policy
+        required: true
+        schema:
+          type: string
+      - description: 'Resource metric to query: cpu_util (cores) | mem_util (bytes)
+          | gpu_util (percent).'
+        in: query
+        name: metric
+        required: true
+        schema:
+          type: string
+      - description: 'Query window: 5m, 1h, 24h, 7d.'
+        in: query
+        name: range
+        required: true
+        schema:
+          type: string
+      - description: Sampling step between points (e.g. 30s); defaults to ~50 points
+          across the range.
+        in: query
+        name: step
+        schema:
+          type: string
+      - description: Scope the series to one member online service (canary vs stable
+          comparison).
+        in: query
+        name: backend
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricSeries'
+          description: Metric series.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Precondition failed.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Unexpected error.
+      summary: Query a resource metric time series over the policy's member services
       tags:
       - TrafficPolicies
   /api/v1/namespaces/{namespace}/traffic-policies/{policy}/promote:

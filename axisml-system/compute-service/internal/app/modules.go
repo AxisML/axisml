@@ -15,6 +15,7 @@ import (
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/poolcache"
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/server"
 	trafficpolicymod "github.com/axisml/axisml/axisml-system/compute-service/internal/trafficpolicy"
+	"github.com/axisml/axisml/axisml-system/compute-service/pkg/extensions"
 	computemodule "github.com/axisml/axisml/axisml-system/compute-service/pkg/module"
 )
 
@@ -27,6 +28,7 @@ func BuildModules(
 	gormDB *gorm.DB,
 	mgr manager.Manager,
 	log logr.Logger,
+	metrics extensions.MetricsProvider,
 ) ([]server.Module, []manager.Runnable, server.Capabilities, error) {
 	clientset, err := kubernetes.NewForConfig(mgr.GetConfig())
 	if err != nil {
@@ -37,6 +39,7 @@ func BuildModules(
 		DB:                gormDB,
 		Runtime:           kuberuntime.New(mgr.GetClient(), clientset),
 		Resolver:          poolcache.New(mgr.GetClient()),
+		Metrics:           metrics,
 		Log:               log,
 		ReconcileInterval: config.ReconcileInterval,
 		// Kubernetes composition root: axisml-scheduler admits pods against the
