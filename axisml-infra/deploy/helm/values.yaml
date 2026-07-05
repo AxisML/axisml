@@ -112,6 +112,14 @@ gpu-operator:
   enabled: true
   node-feature-discovery:
     fullnameOverride: nfd
+  # Scrape per-GPU DCGM metrics (DCGM_FI_DEV_GPU_UTIL, ...) into Prometheus so the
+  # workload (compute-service N1) and per-pool (cluster-manager N3) gpu_util
+  # endpoints have a source. honorLabels stays false (default): the GPU-consuming
+  # workload's identity lands on `exported_namespace` / `exported_pod`, which is
+  # what those components' PromQL selects on.
+  dcgmExporter:
+    serviceMonitor:
+      enabled: true
 
 # =============================================================================
 # axisml-scheduler (self-built batch scheduler + ElasticQuota)
@@ -183,10 +191,26 @@ kube-prometheus-stack:
   # Drop the redundant "-alertmanager"/"-prometheus" suffixes the chart adds
   # to CR names.
   cleanPrometheusOperatorObjectNames: true
+  prometheus:
+    prometheusSpec:
+      # Discover ServiceMonitors / PodMonitors regardless of a release label.
+      # The DCGM exporter (gpu-operator release) and the AxisML system-layer
+      # components (axisml-system release) emit ServiceMonitors that would not
+      # carry release=axisml-infra; without this they are silently not scraped.
+      # serviceMonitorNamespaceSelector defaults to {} (all namespaces).
+      serviceMonitorSelectorNilUsesHelmValues: false
+      podMonitorSelectorNilUsesHelmValues: false
   grafana:
     fullnameOverride: grafana
   kube-state-metrics:
     fullnameOverride: kube-state-metrics
+    # Expose node labels on kube_node_labels so cluster-manager's per-pool (N3)
+    # PromQL can filter workloads to a pool's nodes by its nodeSelector (keys are
+    # admin-defined per pool, so allow all). The AxisML workload labels on
+    # kube_pod_labels support label-based pod joins.
+    metricLabelsAllowlist:
+      - nodes=[*]
+      - pods=[compute.axisml.io/run-id,compute.axisml.io/service-id,compute.axisml.io/quota,compute.axisml.io/role,scheduling.axisml.io/quota,tenant.axisml.io/name]
   prometheus-node-exporter:
     fullnameOverride: node-exporter
 
