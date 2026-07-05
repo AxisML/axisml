@@ -541,14 +541,15 @@ func paths() map[string]openapigen.PathItem {
 
 	// ---- Dashboard (landing-page aggregates) ----
 	p["/api/v1/dashboard/cluster-usage"] = openapigen.PathItem{Get: newOp(tagDashboard, "getClusterUsage", "Per-pool cluster resource-usage snapshot for the active tenant",
-		[]openapigen.Parameter{qp("pool", "Restrict to a single resource pool; omit for every pool the tenant has quota in.", strSchema())},
+		[]openapigen.Parameter{activeTenant(false), qp("pool", "Restrict to a single resource pool; omit for every pool the tenant has quota in.", strSchema())},
 		nil, resp(sc("200", "Cluster usage snapshot.", "ClusterUsage"), "401", "500", "502"))}
-	p["/api/v1/dashboard/cluster-metrics"] = openapigen.PathItem{Get: newOp(tagDashboard, "getClusterMetrics", "Cluster resource-utilisation time series",
+	p["/api/v1/dashboard/cluster-metrics"] = openapigen.PathItem{Get: newOp(tagDashboard, "getClusterMetrics", "Per-pool cluster resource-utilisation time series for the active tenant",
 		[]openapigen.Parameter{
+			activeTenant(false),
 			qpReq("metric", "Metric to query.", strEnum("gpu_util", "gpu_quota", "cpu_util", "mem_util")),
 			qpReq("range", "ISO 8601 duration (1h, 24h, 7d).", strSchema()),
 			qp("step", "Sampling step between points.", strSchema()),
-			qp("pool", "Restrict to a single resource pool.", strSchema()),
+			qpReq("pool", "Resource pool to query (the series is per (tenant, pool)).", strSchema()),
 		}, nil, resp(sc("200", "Metric series.", "MetricSeries"), "400", "401", "500", "502"))}
 	p["/api/v1/dashboard/activity"] = openapigen.PathItem{Get: newOp(tagDashboard, "listActivity", "Recent-activity feed for the active tenant",
 		[]openapigen.Parameter{activeTenant(false), limitParam}, nil, resp(sc("200", "A page of activity entries.", "ActivityList"), "400", "401", "500"))}

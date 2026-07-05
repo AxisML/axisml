@@ -6192,6 +6192,15 @@ paths:
     get:
       operationId: getClusterMetrics
       parameters:
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
+        in: header
+        name: X-Axisml-Tenant
+        schema:
+          maxLength: 40
+          minLength: 3
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
       - description: Metric to query.
         in: query
         name: metric
@@ -6214,9 +6223,10 @@ paths:
         name: step
         schema:
           type: string
-      - description: Restrict to a single resource pool.
+      - description: Resource pool to query (the series is per (tenant, pool)).
         in: query
         name: pool
+        required: true
         schema:
           type: string
       responses:
@@ -6252,13 +6262,22 @@ paths:
                 $ref: '#/components/schemas/Problem'
           description: Upstream service (cluster-manager / compute / artifacts / Prometheus)
             failed.
-      summary: Cluster resource-utilisation time series
+      summary: Per-pool cluster resource-utilisation time series for the active tenant
       tags:
       - Dashboard
   /api/v1/dashboard/cluster-usage:
     get:
       operationId: getClusterUsage
       parameters:
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
+        in: header
+        name: X-Axisml-Tenant
+        schema:
+          maxLength: 40
+          minLength: 3
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
       - description: Restrict to a single resource pool; omit for every pool the tenant
           has quota in.
         in: query
