@@ -3450,6 +3450,62 @@ components:
       - items
       - total
       type: object
+    PoolMetricPoint:
+      properties:
+        timestamp:
+          description: Sample time (RFC3339).
+          format: date-time
+          type: string
+        value:
+          description: Sampled value at the timestamp.
+          format: double
+          type: number
+      required:
+      - timestamp
+      - value
+      type: object
+    PoolMetricSeries:
+      properties:
+        metric:
+          description: Metric name that was queried.
+          type: string
+        range:
+          description: Query range window (e.g. 1h, 24h).
+          type: string
+        series:
+          description: Sampled points, oldest first.
+          items:
+            $ref: '#/components/schemas/ServerPoolMetricPoint'
+          type: array
+        step:
+          description: Sampling step between points (e.g. 30s).
+          type: string
+        unit:
+          description: Value unit (cores, GiB, percent).
+          type: string
+      required:
+      - metric
+      - range
+      - series
+      type: object
+    PoolUsage:
+      properties:
+        meters:
+          description: Per-resource used/total meters.
+          items:
+            $ref: '#/components/schemas/ServerResourceMeter'
+          type: array
+        pool:
+          description: Resource pool name.
+          type: string
+        tenant:
+          description: Tenant identifier the usage is scoped to.
+          type: string
+      required:
+      - meters
+      - pool
+      - tenant
+      type: object
     Quota:
       example:
         pool: gpu-a100
@@ -3515,6 +3571,27 @@ components:
           type: array
       required:
       - verbs
+      type: object
+    ResourceMeter:
+      properties:
+        resource:
+          description: Resource dimension (cpu, memory, nvidia.com/gpu).
+          type: string
+        total:
+          description: The tenant's quota ceiling in this pool.
+          format: double
+          type: number
+        unit:
+          description: Value unit (cores, GiB, cards).
+          type: string
+        used:
+          description: Amount currently in use (from the ElasticQuota status).
+          format: double
+          type: number
+      required:
+      - resource
+      - total
+      - used
       type: object
     ResourcePool:
       example:
@@ -3759,6 +3836,20 @@ components:
       - name
       - requests
       type: object
+    ServerPoolMetricPoint:
+      properties:
+        timestamp:
+          description: Sample time (RFC3339).
+          format: date-time
+          type: string
+        value:
+          description: Sampled value at the timestamp.
+          format: double
+          type: number
+      required:
+      - timestamp
+      - value
+      type: object
     ServerQuota:
       properties:
         pool:
@@ -3803,6 +3894,27 @@ components:
       required:
       - quantity
       - unitName
+      type: object
+    ServerResourceMeter:
+      properties:
+        resource:
+          description: Resource dimension (cpu, memory, nvidia.com/gpu).
+          type: string
+        total:
+          description: The tenant's quota ceiling in this pool.
+          format: double
+          type: number
+        unit:
+          description: Value unit (cores, GiB, cards).
+          type: string
+        used:
+          description: Amount currently in use (from the ElasticQuota status).
+          format: double
+          type: number
+      required:
+      - resource
+      - total
+      - used
       type: object
     ServerResourcePool:
       properties:
@@ -9955,6 +10067,93 @@ paths:
       summary: Patch ResourcePool
       tags:
       - ResourcePools
+  /api/v1/resourcepools/{pool}/metrics:
+    get:
+      operationId: getResourcePoolMetrics
+      parameters:
+      - description: ResourcePool name.
+        in: path
+        name: pool
+        required: true
+        schema:
+          type: string
+      - description: Tenant identifier the usage / metrics are scoped to.
+        in: query
+        name: tenant
+        required: true
+        schema:
+          type: string
+      - description: 'Metric to query: cpu_util (cores) | mem_util (GiB) | gpu_util
+          (percent).'
+        in: query
+        name: metric
+        required: true
+        schema:
+          type: string
+      - description: 'Query window: 5m, 1h, 24h, 7d.'
+        in: query
+        name: range
+        required: true
+        schema:
+          type: string
+      - description: Sampling step between points (e.g. 30s); defaults to ~50 points
+          across the range.
+        in: query
+        name: step
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PoolMetricSeries'
+          description: Metric series.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Missing or invalid X-Axisml-User.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Conflict (already exists or concurrent modification).
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Invariant violated.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Internal error.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Unexpected error.
+      summary: Query a tenant's resource-utilisation time series for the pool
+      tags:
+      - ResourcePools
   /api/v1/resourcepools/{pool}/units:
     get:
       operationId: listResourceUnits
@@ -10293,6 +10492,74 @@ paths:
       summary: Patch unit
       tags:
       - ResourceUnits
+  /api/v1/resourcepools/{pool}/usage:
+    get:
+      operationId: getResourcePoolUsage
+      parameters:
+      - description: ResourcePool name.
+        in: path
+        name: pool
+        required: true
+        schema:
+          type: string
+      - description: Tenant identifier the usage / metrics are scoped to.
+        in: query
+        name: tenant
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PoolUsage'
+          description: Per-resource usage meters.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Missing or invalid X-Axisml-User.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Conflict (already exists or concurrent modification).
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Invariant violated.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Internal error.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusterManagerError'
+          description: Unexpected error.
+      summary: Get a tenant's used-vs-total resource utilisation in the pool
+      tags:
+      - ResourcePools
   /api/v1/storageclasses:
     get:
       operationId: listStorageClasses

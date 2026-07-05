@@ -43,6 +43,7 @@ func runServe() {
 	flag.StringVar(&cfg.APIBindAddress, "api-bind-address", ":8080", "REST API listen address.")
 	flag.StringVar(&cfg.MetricsBindAddress, "metrics-bind-address", ":8081", "Prometheus metrics listen address.")
 	flag.StringVar(&cfg.ProbesBindAddress, "probes-bind-address", ":8082", "Health probe listen address (/healthz, /readyz).")
+	flag.StringVar(&cfg.PrometheusURL, "prometheus-url", "", "Prometheus query API base URL for the per-pool metrics endpoint (empty disables it).")
 
 	zapOpts := zap.Options{Development: false}
 	zapOpts.BindFlags(flag.CommandLine)

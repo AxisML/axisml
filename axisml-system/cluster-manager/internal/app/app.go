@@ -19,6 +19,8 @@ import (
 
 	"github.com/axisml/axisml/axisml-system/cluster-manager/internal/k8sclient"
 	"github.com/axisml/axisml/axisml-system/cluster-manager/internal/k8sstore"
+	"github.com/axisml/axisml/axisml-system/cluster-manager/internal/promql"
+	"github.com/axisml/axisml/axisml-system/cluster-manager/internal/resourcepool"
 	srv "github.com/axisml/axisml/axisml-system/cluster-manager/internal/server"
 	clustermodule "github.com/axisml/axisml/axisml-system/cluster-manager/pkg/module"
 )
@@ -28,6 +30,8 @@ type Config struct {
 	APIBindAddress     string
 	MetricsBindAddress string
 	ProbesBindAddress  string
+	// PrometheusURL backs the per-pool metrics endpoint; empty disables it.
+	PrometheusURL string
 }
 
 // Run is the long-running entry point. Cancel ctx (e.g. via SIGTERM
@@ -48,7 +52,11 @@ func RunWith(ctx context.Context, cfg Config, c client.Client) error {
 func runWith(ctx context.Context, cfg Config, c client.Client) error {
 	logger := log.FromContext(ctx).WithName("cluster-manager")
 
-	r := NewRouter(c)
+	metrics, err := promql.New(cfg.PrometheusURL)
+	if err != nil {
+		return fmt.Errorf("prometheus: %w", err)
+	}
+	r := NewRouter(c, metrics)
 	probes := NewProbeRouter()
 
 	srvAPI := &http.Server{Addr: cfg.APIBindAddress, Handler: r}
@@ -83,8 +91,9 @@ func runWith(ctx context.Context, cfg Config, c client.Client) error {
 }
 
 // NewRouter builds the gin router. Exposed so integration tests can drive
-// the engine via httptest without booting the listener.
-func NewRouter(c client.Client) *gin.Engine {
+// the engine via httptest without booting the listener. metrics may be nil
+// (the per-pool metrics route then reports metrics-unavailable).
+func NewRouter(c client.Client, metrics resourcepool.MetricsQuerier) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	r.Use(gin.Recovery())
@@ -95,6 +104,7 @@ func NewRouter(c client.Client) *gin.Engine {
 		Pools:   k8sstore.NewResourcePoolStore(c),
 		Tenants: k8sstore.NewTenantStore(c),
 		Volumes: k8sstore.NewVolumeStore(c),
+		Metrics: metrics,
 	})
 	// The capability document is unauthenticated so Platform can read it
 	// pre-login; the resource routes stay behind RequireUser.

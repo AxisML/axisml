@@ -68,7 +68,9 @@ func TestMain(m *testing.M) {
 	testCli = c
 
 	gin.SetMode(gin.TestMode)
-	testRtr = cmapp.NewRouter(testCli)
+	// Metrics querier is nil here: the per-pool metrics endpoint reports
+	// metrics-unavailable, exercised in the resourcepool usage/metrics test.
+	testRtr = cmapp.NewRouter(testCli, nil)
 
 	code := m.Run()
 

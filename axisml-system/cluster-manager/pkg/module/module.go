@@ -29,6 +29,8 @@ type Deps struct {
 	Pools   extensions.ResourcePoolProvider
 	Tenants extensions.TenantProvider
 	Volumes extensions.VolumeManager
+	// Metrics backs the per-pool metrics route (optional; nil = unavailable).
+	Metrics resourcepool.MetricsQuerier
 }
 
 // Module is the assembled Cluster Manager REST surface.
@@ -41,7 +43,7 @@ type Module struct {
 func New(d Deps) *Module {
 	return &Module{
 		routes: []Route{
-			resourcepool.NewHandler(d.Pools),
+			resourcepool.NewHandler(d.Pools, d.Tenants, d.Metrics),
 			tenant.NewHandler(d.Tenants, d.Pools),
 			volume.NewHandler(d.Volumes),
 		},
