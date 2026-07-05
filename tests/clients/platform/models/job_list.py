@@ -23,16 +23,18 @@ class JobList:
             '8c1f4e2'}, 'createdAt': '2026-06-20T08:00:00Z', 'description': 'Distributed ResNet-50 training job on
             ImageNet.', 'displayName': 'ResNet-50 Training', 'id': '8c1f4e22-2b7a-4c0e-9b1d-7f3a2e5c9a10', 'labels':
             {'team': 'vision'}, 'name': 'resnet-train', 'namespace': 'team-vision', 'owner': 'li.wei', 'ownerId':
-            '3a2b1c0d-4e5f-6789-abcd-ef0123456789', 'spec': {'artifacts': [{'kind': 'model', 'name': 'resnet50', 'version':
-            '1.4.0'}], 'backend': {'engine': 'pytorchjob', 'name': 'native'}, 'poolName': 'gpu-a100', 'quota': 'team-
-            vision', 'roles': [{'name': 'worker', 'replicas': 4, 'restartPolicy': 'OnFailure', 'template': {'args': ['--
-            epochs', '90', '--batch-size', '256'], 'command': ['python', 'train.py'], 'env': [{'name': 'NCCL_DEBUG',
-            'value': 'INFO'}], 'image': 'registry.axisml.io/training/resnet:1.4.0', 'ports': [{'containerPort': 8080,
-            'name': 'http', 'protocol': 'TCP'}], 'resources': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'},
-            'volumeMounts': [{'mountPath': '/data', 'name': 'data'}], 'volumes': [{'name': 'data', 'persistentVolumeClaim':
-            {'claimName': 'resnet-imagenet'}}]}}], 'runPolicy': {'activeDeadlineSeconds': 86400, 'backoffLimit': 2,
-            'progressDeadlineSeconds': 600, 'ttlSecondsAfterFinished': 3600}, 'unitName': 'a100-2x'}, 'tenantName': 'team-
-            vision', 'updatedAt': '2026-06-28T09:30:00Z'}], 'partial': False}
+            '3a2b1c0d-4e5f-6789-abcd-ef0123456789', 'runSummary': {'active': 1, 'count': 7, 'latestPhase': 'Running',
+            'latestRunAt': '2026-06-28T09:00:00Z', 'recent': ['Succeeded', 'Failed', 'Succeeded', 'Succeeded', 'Running']},
+            'spec': {'artifacts': [{'kind': 'model', 'name': 'resnet50', 'version': '1.4.0'}], 'backend': {'engine':
+            'pytorchjob', 'name': 'native'}, 'poolName': 'gpu-a100', 'quota': 'team-vision', 'roles': [{'name': 'worker',
+            'replicas': 4, 'restartPolicy': 'OnFailure', 'template': {'args': ['--epochs', '90', '--batch-size', '256'],
+            'command': ['python', 'train.py'], 'env': [{'name': 'NCCL_DEBUG', 'value': 'INFO'}], 'image':
+            'registry.axisml.io/training/resnet:1.4.0', 'ports': [{'containerPort': 8080, 'name': 'http', 'protocol':
+            'TCP'}], 'resources': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'}, 'volumeMounts': [{'mountPath':
+            '/data', 'name': 'data'}], 'volumes': [{'name': 'data', 'persistentVolumeClaim': {'claimName': 'resnet-
+            imagenet'}}]}}], 'runPolicy': {'activeDeadlineSeconds': 86400, 'backoffLimit': 2, 'progressDeadlineSeconds':
+            600, 'ttlSecondsAfterFinished': 3600}, 'unitName': 'a100-2x'}, 'tenantName': 'team-vision', 'updatedAt':
+            '2026-06-28T09:30:00Z'}], 'partial': False}
 
     Attributes:
         count (int): Number of jobs in this page.

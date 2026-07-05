@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import datetime
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 from uuid import UUID
 
 from attrs import define as _attrs_define
@@ -12,6 +12,7 @@ from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
     from ..models.job_spec import JobSpec
+    from ..models.run_summary import RunSummary
     from ..models.string_map import StringMap
 
 
@@ -26,10 +27,12 @@ class Job:
             '2026-06-20T08:00:00Z', 'description': 'Distributed ResNet-50 training job on ImageNet.', 'displayName':
             'ResNet-50 Training', 'id': '8c1f4e22-2b7a-4c0e-9b1d-7f3a2e5c9a10', 'labels': {'team': 'vision'}, 'name':
             'resnet-train', 'namespace': 'team-vision', 'owner': 'li.wei', 'ownerId': '3a2b1c0d-4e5f-6789-abcd-
-            ef0123456789', 'spec': {'artifacts': [{'kind': 'model', 'name': 'resnet50', 'version': '1.4.0'}], 'backend':
-            {'engine': 'pytorchjob', 'name': 'native'}, 'poolName': 'gpu-a100', 'quota': 'team-vision', 'roles': [{'name':
-            'worker', 'replicas': 4, 'restartPolicy': 'OnFailure', 'template': {'args': ['--epochs', '90', '--batch-size',
-            '256'], 'command': ['python', 'train.py'], 'env': [{'name': 'NCCL_DEBUG', 'value': 'INFO'}], 'image':
+            ef0123456789', 'runSummary': {'active': 1, 'count': 7, 'latestPhase': 'Running', 'latestRunAt':
+            '2026-06-28T09:00:00Z', 'recent': ['Succeeded', 'Failed', 'Succeeded', 'Succeeded', 'Running']}, 'spec':
+            {'artifacts': [{'kind': 'model', 'name': 'resnet50', 'version': '1.4.0'}], 'backend': {'engine': 'pytorchjob',
+            'name': 'native'}, 'poolName': 'gpu-a100', 'quota': 'team-vision', 'roles': [{'name': 'worker', 'replicas': 4,
+            'restartPolicy': 'OnFailure', 'template': {'args': ['--epochs', '90', '--batch-size', '256'], 'command':
+            ['python', 'train.py'], 'env': [{'name': 'NCCL_DEBUG', 'value': 'INFO'}], 'image':
             'registry.axisml.io/training/resnet:1.4.0', 'ports': [{'containerPort': 8080, 'name': 'http', 'protocol':
             'TCP'}], 'resources': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'}, 'volumeMounts': [{'mountPath':
             '/data', 'name': 'data'}], 'volumes': [{'name': 'data', 'persistentVolumeClaim': {'claimName': 'resnet-
@@ -59,6 +62,8 @@ class Job:
         display_name (str | Unset): Human-readable job label.
         labels (StringMap | Unset):
         owner_id (UUID | Unset): User ID of the job owner.
+        run_summary (None | RunSummary | Unset): Roll-up of the job's Runs (count + recent phases on lists, latest phase
+            on detail).
     """
 
     created_at: datetime.datetime
@@ -74,9 +79,12 @@ class Job:
     display_name: str | Unset = UNSET
     labels: StringMap | Unset = UNSET
     owner_id: UUID | Unset = UNSET
+    run_summary: None | RunSummary | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
+        from ..models.run_summary import RunSummary
+
         created_at = self.created_at.isoformat()
 
         id = str(self.id)
@@ -109,6 +117,14 @@ class Job:
         if not isinstance(self.owner_id, Unset):
             owner_id = str(self.owner_id)
 
+        run_summary: dict[str, Any] | None | Unset
+        if isinstance(self.run_summary, Unset):
+            run_summary = UNSET
+        elif isinstance(self.run_summary, RunSummary):
+            run_summary = self.run_summary.to_dict()
+        else:
+            run_summary = self.run_summary
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -133,12 +149,15 @@ class Job:
             field_dict["labels"] = labels
         if owner_id is not UNSET:
             field_dict["ownerId"] = owner_id
+        if run_summary is not UNSET:
+            field_dict["runSummary"] = run_summary
 
         return field_dict
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.job_spec import JobSpec
+        from ..models.run_summary import RunSummary
         from ..models.string_map import StringMap
 
         d = dict(src_dict)
@@ -183,6 +202,23 @@ class Job:
         else:
             owner_id = UUID(_owner_id)
 
+        def _parse_run_summary(data: object) -> None | RunSummary | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, dict):
+                    raise TypeError()
+                run_summary_type_1 = RunSummary.from_dict(data)
+
+                return run_summary_type_1
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(None | RunSummary | Unset, data)
+
+        run_summary = _parse_run_summary(d.pop("runSummary", UNSET))
+
         job = cls(
             created_at=created_at,
             id=id,
@@ -197,6 +233,7 @@ class Job:
             display_name=display_name,
             labels=labels,
             owner_id=owner_id,
+            run_summary=run_summary,
         )
 
         job.additional_properties = d

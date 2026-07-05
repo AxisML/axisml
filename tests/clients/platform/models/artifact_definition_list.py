@@ -21,10 +21,11 @@ class ArtifactDefinitionList:
     Example:
         {'continueToken': '', 'count': 1, 'items': [{'annotations': {'git-commit': '8c1f4e2'}, 'createdAt':
             '2026-06-20T08:00:00Z', 'description': 'ResNet-50 image-classification model.', 'displayName': 'ResNet-50',
-            'id': '1f2e3d4c-5b6a-7980-abcd-ef0123456789', 'kind': 'model', 'labels': {'team': 'vision'}, 'name': 'resnet50',
-            'namespace': 'team-vision', 'owner': 'li.wei', 'ownerId': '3a2b1c0d-4e5f-6789-abcd-ef0123456789', 'spec':
-            {'format': 'safetensors', 'framework': 'pytorch', 'parameters': '25.6M', 'task': 'image-classification'},
-            'tenantName': 'team-vision', 'updatedAt': '2026-06-28T09:30:00Z'}], 'partial': False}
+            'id': '1f2e3d4c-5b6a-7980-abcd-ef0123456789', 'kind': 'model', 'labels': {'team': 'vision'}, 'latestVersion':
+            '1.4.0', 'latestVersionAt': '2026-06-28T09:30:00Z', 'name': 'resnet50', 'namespace': 'team-vision', 'owner':
+            'li.wei', 'ownerId': '3a2b1c0d-4e5f-6789-abcd-ef0123456789', 'spec': {'format': 'safetensors', 'framework':
+            'pytorch', 'parameters': '25.6M', 'task': 'image-classification'}, 'tenantName': 'team-vision', 'updatedAt':
+            '2026-06-28T09:30:00Z', 'versionCount': 3}], 'partial': False}
 
     Attributes:
         count (int): Number of definitions in this page.

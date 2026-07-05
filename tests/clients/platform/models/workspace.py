@@ -31,15 +31,18 @@ class Workspace:
             'containerPort': 8888, 'createdAt': '2026-06-20T08:00:00Z', 'description': 'JupyterLab interactive development
             environment.', 'desiredState': 'Running', 'displayName': 'Vision team dev environment', 'endpoint':
             {'accessUrl': 'https://axisml.example.com/ws/team-vision/notebook-dev/', 'internalDns': 'notebook-dev.axisml-
-            team-vision.svc.cluster.local'}, 'env': [{'name': 'JUPYTER_ENABLE_LAB', 'value': 'yes'}], 'id':
-            'f1e2d3c4-5b6a-4798-8c0d-1e2f3a4b5c6d', 'image': 'registry.axisml.io/dev/jupyter:3.0.0', 'lastStartedAt':
-            '2026-06-28T09:00:00Z', 'lifecycle': {'idleTimeoutSeconds': 3600}, 'message': 'Workspace is ready.', 'name':
-            'notebook-dev', 'namespace': 'team-vision', 'owner': 'li.wei', 'ownerId': '3a2b1c0d-4e5f-6789-abcd-
-            ef0123456789', 'phase': 'Running', 'poolName': 'gpu-a100', 'quota': 'team-vision', 'readyReplicas': 1,
-            'replicas': 1, 'resources': {'cpu': '4', 'memory': '32Gi', 'nvidia.com/gpu': '1'}, 'tenantDisplayName': 'Vision
-            Team', 'tenantName': 'team-vision', 'unitName': 'a100-1x', 'updatedAt': '2026-06-28T09:30:00Z', 'volumes':
-            [{'mountPath': '/home/jovyan/work', 'name': 'notebook-data', 'size': '50Gi', 'storageClass': 'standard', 'used':
-            '12Gi'}]}
+            team-vision.svc.cluster.local', 'tools': [{'label': 'JupyterLab', 'name': 'jupyter', 'url':
+            'https://axisml.example.com/ws/team-vision/notebook-dev/lab'}, {'label': 'VS Code', 'name': 'vscode', 'url':
+            'https://axisml.example.com/ws/team-vision/notebook-dev/vscode/'}, {'label': 'Terminal', 'name': 'terminal',
+            'url': 'https://axisml.example.com/ws/team-vision/notebook-dev/terminals/1'}]}, 'env': [{'name':
+            'JUPYTER_ENABLE_LAB', 'value': 'yes'}], 'id': 'f1e2d3c4-5b6a-4798-8c0d-1e2f3a4b5c6d', 'image':
+            'registry.axisml.io/dev/jupyter:3.0.0', 'lastStartedAt': '2026-06-28T09:00:00Z', 'lifecycle':
+            {'idleTimeoutSeconds': 3600}, 'message': 'Workspace is ready.', 'name': 'notebook-dev', 'namespace': 'team-
+            vision', 'owner': 'li.wei', 'ownerId': '3a2b1c0d-4e5f-6789-abcd-ef0123456789', 'phase': 'Running', 'poolName':
+            'gpu-a100', 'quota': 'team-vision', 'readyReplicas': 1, 'replicas': 1, 'resources': {'cpu': '4', 'memory':
+            '32Gi', 'nvidia.com/gpu': '1'}, 'tenantDisplayName': 'Vision Team', 'tenantName': 'team-vision', 'unitName':
+            'a100-1x', 'updatedAt': '2026-06-28T09:30:00Z', 'volumes': [{'mountPath': '/home/jovyan/work', 'name':
+            'notebook-data', 'size': '50Gi', 'storageClass': 'standard', 'used': '12Gi'}]}
 
     Attributes:
         container_port (int): Port the dev server listens on inside the container.
@@ -58,7 +61,10 @@ class Workspace:
         desired_state (WorkspaceDesiredState | Unset):
         display_name (str | Unset): Human-readable workspace label.
         endpoint (WorkspaceEndpoint | Unset):  Example: {'accessUrl': 'https://axisml.example.com/ws/team-
-            vision/notebook-dev/', 'internalDns': 'notebook-dev.axisml-team-vision.svc.cluster.local'}.
+            vision/notebook-dev/', 'internalDns': 'notebook-dev.axisml-team-vision.svc.cluster.local', 'tools': [{'label':
+            'JupyterLab', 'name': 'jupyter', 'url': 'https://axisml.example.com/ws/team-vision/notebook-dev/lab'}, {'label':
+            'VS Code', 'name': 'vscode', 'url': 'https://axisml.example.com/ws/team-vision/notebook-dev/vscode/'}, {'label':
+            'Terminal', 'name': 'terminal', 'url': 'https://axisml.example.com/ws/team-vision/notebook-dev/terminals/1'}]}.
         env (list[EnvVar] | Unset): Environment variables injected into the container.
         last_started_at (datetime.datetime | None | Unset): Time the workspace was last started.
         last_stopped_at (datetime.datetime | None | Unset): Time the workspace was last stopped.

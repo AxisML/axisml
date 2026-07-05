@@ -33,17 +33,17 @@ class RunList:
             'nvidia.com/gpu': '2'}, 'volumeMounts': [{'mountPath': '/data', 'name': 'data'}], 'volumes': [{'name': 'data',
             'persistentVolumeClaim': {'claimName': 'resnet-imagenet'}}]}}], 'runNumber': 7, 'runPolicy':
             {'activeDeadlineSeconds': 86400, 'backoffLimit': 2, 'progressDeadlineSeconds': 600, 'ttlSecondsAfterFinished':
-            3600}, 'spec': {'backend': {'engine': 'pytorchjob', 'name': 'native'}, 'roles': [{'name': 'worker', 'replicas':
-            4, 'restartPolicy': 'OnFailure', 'template': {'args': ['--epochs', '90', '--batch-size', '256'], 'command':
-            ['python', 'train.py'], 'env': [{'name': 'NCCL_DEBUG', 'value': 'INFO'}], 'image':
-            'registry.axisml.io/training/resnet:1.4.0', 'ports': [{'containerPort': 8080, 'name': 'http', 'protocol':
-            'TCP'}], 'resources': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'}, 'volumeMounts': [{'mountPath':
-            '/data', 'name': 'data'}], 'volumes': [{'name': 'data', 'persistentVolumeClaim': {'claimName': 'resnet-
-            imagenet'}}]}}], 'runPolicy': {'activeDeadlineSeconds': 86400, 'backoffLimit': 2, 'progressDeadlineSeconds':
-            600, 'ttlSecondsAfterFinished': 3600}, 'scheduling': {'minMember': 4, 'priorityClass': 'high-priority', 'quota':
-            'axisml-team-vision-gpu-a100-default'}}, 'startedAt': '2026-06-28T09:00:00Z', 'tenantDisplayName': 'Vision
-            Team', 'tenantName': 'team-vision', 'unitName': 'a100-2x', 'updatedAt': '2026-06-28T09:30:00Z'}], 'partial':
-            False}
+            3600}, 'scheduledAt': '2026-06-28T09:00:00Z', 'spec': {'backend': {'engine': 'pytorchjob', 'name': 'native'},
+            'roles': [{'name': 'worker', 'replicas': 4, 'restartPolicy': 'OnFailure', 'template': {'args': ['--epochs',
+            '90', '--batch-size', '256'], 'command': ['python', 'train.py'], 'env': [{'name': 'NCCL_DEBUG', 'value':
+            'INFO'}], 'image': 'registry.axisml.io/training/resnet:1.4.0', 'ports': [{'containerPort': 8080, 'name': 'http',
+            'protocol': 'TCP'}], 'resources': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'}, 'volumeMounts':
+            [{'mountPath': '/data', 'name': 'data'}], 'volumes': [{'name': 'data', 'persistentVolumeClaim': {'claimName':
+            'resnet-imagenet'}}]}}], 'runPolicy': {'activeDeadlineSeconds': 86400, 'backoffLimit': 2,
+            'progressDeadlineSeconds': 600, 'ttlSecondsAfterFinished': 3600}, 'scheduling': {'minMember': 4,
+            'priorityClass': 'high-priority', 'quota': 'axisml-team-vision-gpu-a100-default'}}, 'startedAt':
+            '2026-06-28T09:00:00Z', 'tenantDisplayName': 'Vision Team', 'tenantName': 'team-vision', 'unitName': 'a100-2x',
+            'updatedAt': '2026-06-28T09:30:00Z'}], 'partial': False}
 
     Attributes:
         count (int): Number of runs in this page.

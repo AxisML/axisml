@@ -1,5 +1,7 @@
 """Contains all the data models used in inputs/outputs"""
 
+from .activity_item import ActivityItem
+from .activity_list import ActivityList
 from .artifact_definition import ArtifactDefinition
 from .artifact_definition_create_request import ArtifactDefinitionCreateRequest
 from .artifact_definition_create_request_spec import ArtifactDefinitionCreateRequestSpec
@@ -20,6 +22,9 @@ from .artifact_update_request import ArtifactUpdateRequest
 from .backend import Backend
 from .backend_config import BackendConfig
 from .backend_name import BackendName
+from .cluster_meter import ClusterMeter
+from .cluster_pool_usage import ClusterPoolUsage
+from .cluster_usage import ClusterUsage
 from .condition import Condition
 from .condition_status import ConditionStatus
 from .config_map_init import ConfigMapInit
@@ -40,6 +45,7 @@ from .experiment import Experiment
 from .experiment_create_request import ExperimentCreateRequest
 from .experiment_list import ExperimentList
 from .experiment_patch_request import ExperimentPatchRequest
+from .get_cluster_metrics_metric import GetClusterMetricsMetric
 from .get_ml_service_metrics_percentile import GetMLServiceMetricsPercentile
 from .health_status import HealthStatus
 from .health_status_components import HealthStatusComponents
@@ -81,6 +87,7 @@ from .ml_run_spec import MLRunSpec
 from .ml_run_spec_scheduling import MLRunSpecScheduling
 from .ml_service import MLService
 from .ml_service_create_request import MLServiceCreateRequest
+from .ml_service_desired_state import MLServiceDesiredState
 from .ml_service_list import MLServiceList
 from .ml_service_metric_name import MLServiceMetricName
 from .ml_service_patch_request import MLServicePatchRequest
@@ -130,6 +137,7 @@ from .run import Run
 from .run_list import RunList
 from .run_phase import RunPhase
 from .run_policy import RunPolicy
+from .run_summary import RunSummary
 from .run_trigger_request import RunTriggerRequest
 from .run_trigger_request_roles_item import RunTriggerRequestRolesItem
 from .secret_init import SecretInit
@@ -174,13 +182,18 @@ from .workspace_create_request import WorkspaceCreateRequest
 from .workspace_delete_request import WorkspaceDeleteRequest
 from .workspace_desired_state import WorkspaceDesiredState
 from .workspace_endpoint import WorkspaceEndpoint
+from .workspace_image import WorkspaceImage
+from .workspace_image_list import WorkspaceImageList
 from .workspace_lifecycle import WorkspaceLifecycle
 from .workspace_list import WorkspaceList
 from .workspace_patch_request import WorkspacePatchRequest
 from .workspace_phase import WorkspacePhase
+from .workspace_tool import WorkspaceTool
 from .workspace_volume import WorkspaceVolume
 
 __all__ = (
+    "ActivityItem",
+    "ActivityList",
     "ArtifactDefinition",
     "ArtifactDefinitionCreateRequest",
     "ArtifactDefinitionCreateRequestSpec",
@@ -199,6 +212,9 @@ __all__ = (
     "Backend",
     "BackendConfig",
     "BackendName",
+    "ClusterMeter",
+    "ClusterPoolUsage",
+    "ClusterUsage",
     "Condition",
     "ConditionStatus",
     "ConfigMapInit",
@@ -219,6 +235,7 @@ __all__ = (
     "ExperimentCreateRequest",
     "ExperimentList",
     "ExperimentPatchRequest",
+    "GetClusterMetricsMetric",
     "GetMLServiceMetricsPercentile",
     "HealthStatus",
     "HealthStatusComponents",
@@ -258,6 +275,7 @@ __all__ = (
     "MLRunSpecScheduling",
     "MLService",
     "MLServiceCreateRequest",
+    "MLServiceDesiredState",
     "MLServiceList",
     "MLServiceMetricName",
     "MLServicePatchRequest",
@@ -305,6 +323,7 @@ __all__ = (
     "RunList",
     "RunPhase",
     "RunPolicy",
+    "RunSummary",
     "RunTriggerRequest",
     "RunTriggerRequestRolesItem",
     "SecretInit",
@@ -349,9 +368,12 @@ __all__ = (
     "WorkspaceDeleteRequest",
     "WorkspaceDesiredState",
     "WorkspaceEndpoint",
+    "WorkspaceImage",
+    "WorkspaceImageList",
     "WorkspaceLifecycle",
     "WorkspaceList",
     "WorkspacePatchRequest",
     "WorkspacePhase",
+    "WorkspaceTool",
     "WorkspaceVolume",
 )
