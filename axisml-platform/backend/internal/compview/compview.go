@@ -27,6 +27,25 @@ func Pods(pods []computeservice.Pod) server.PodList {
 	return server.PodList{Items: items, Count: len(items)}
 }
 
+// MetricSeries projects a compute metric series into the contract MetricSeries.
+func MetricSeries(m *computeservice.MetricSeries) server.MetricSeries {
+	out := server.MetricSeries{
+		Metric: m.Metric,
+		Range:  m.Range,
+		Series: make([]server.MetricPoint, 0, len(m.Series)),
+	}
+	if m.Step != nil {
+		out.Step = *m.Step
+	}
+	if m.Unit != nil {
+		out.Unit = *m.Unit
+	}
+	for _, p := range m.Series {
+		out.Series = append(out.Series, server.MetricPoint{Timestamp: p.Timestamp, Value: p.Value})
+	}
+	return out
+}
+
 // Events projects compute events into the contract EventList.
 func Events(events []computeservice.Event) server.EventList {
 	items := make([]server.Event, 0, len(events))

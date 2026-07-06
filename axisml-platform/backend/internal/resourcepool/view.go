@@ -20,9 +20,8 @@ func toPoolView(p *clustermanager.Pool) server.ResourcePool {
 		Annotations:     server.StringMap(derefMap(p.Annotations)),
 		ResourceVersion: deref(p.ResourceVersion),
 		CreatedAt:       p.CreatedAt,
-	}
-	if p.UpdatedAt != nil {
-		v.UpdatedAt = *p.UpdatedAt
+		// A ResourcePool CR tracks no updatedAt (only createdAt / resourceVersion),
+		// so v.UpdatedAt is left zero (omitted).
 	}
 	for i := range p.Units {
 		v.Units = append(v.Units, toUnitView(&p.Units[i]))

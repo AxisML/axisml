@@ -106,6 +106,8 @@ from .metav_1_object_meta_annotations import Metav1ObjectMetaAnnotations
 from .metav_1_object_meta_labels import Metav1ObjectMetaLabels
 from .metav_1_owner_reference import Metav1OwnerReference
 from .metav_1_time import Metav1Time
+from .metric_point import MetricPoint
+from .metric_series import MetricSeries
 from .ml_run import MLRun
 from .ml_run_annotations import MLRunAnnotations
 from .ml_run_backend_spec import MLRunBackendSpec
@@ -270,6 +272,8 @@ __all__ = (
     "Metav1ObjectMetaLabels",
     "Metav1OwnerReference",
     "Metav1Time",
+    "MetricPoint",
+    "MetricSeries",
     "MLRun",
     "MLRunAnnotations",
     "MLRunBackendSpec",

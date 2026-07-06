@@ -27,8 +27,10 @@ import (
 )
 
 var (
-	testEngine *gin.Engine
-	cmStub     *clusterManagerStub
+	testEngine  *gin.Engine
+	cmStub      *clusterManagerStub
+	computeStub *computeServiceStub
+	artStub     *artifactHubStub
 )
 
 func TestMain(m *testing.M) {
@@ -76,6 +78,14 @@ func run(m *testing.M) (int, error) {
 	stubSrv := httptest.NewServer(cmStub)
 	defer stubSrv.Close()
 
+	computeStub = newComputeServiceStub()
+	computeSrv := httptest.NewServer(computeStub)
+	defer computeSrv.Close()
+
+	artStub = newArtifactHubStub()
+	artSrv := httptest.NewServer(artStub)
+	defer artSrv.Close()
+
 	cfg := config.Config{
 		Common: axismlconfig.Common{
 			Database: axismlconfig.Database{
@@ -84,7 +94,7 @@ func run(m *testing.M) (int, error) {
 			},
 			Log: axismlconfig.Log{Level: "info", Format: "console"},
 		},
-		System:    config.System{ClusterManager: stubSrv.URL},
+		System:    config.System{ClusterManager: stubSrv.URL, ComputeService: computeSrv.URL, ArtifactHub: artSrv.URL},
 		Auth:      config.Auth{LoginTokenTTL: time.Hour},
 		Bootstrap: config.Bootstrap{Username: "admin", Password: "admin"},
 	}

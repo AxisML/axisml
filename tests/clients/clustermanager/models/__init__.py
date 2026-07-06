@@ -62,9 +62,13 @@ from .patch_tenant_request_namespace_annotations import (
 from .patch_tenant_request_namespace_labels import PatchTenantRequestNamespaceLabels
 from .patch_volume_request import PatchVolumeRequest
 from .patch_volume_request_labels import PatchVolumeRequestLabels
+from .pool_metric_point import PoolMetricPoint
+from .pool_metric_series import PoolMetricSeries
+from .pool_usage import PoolUsage
 from .quota import Quota
 from .quota_list import QuotaList
 from .rbacv_1_policy_rule import Rbacv1PolicyRule
+from .resource_meter import ResourceMeter
 from .resource_pool import ResourcePool
 from .resource_pool_annotations import ResourcePoolAnnotations
 from .resource_pool_labels import ResourcePoolLabels
@@ -89,10 +93,12 @@ from .server_create_resource_unit_request_node_selector import (
 from .server_create_resource_unit_request_requests import (
     ServerCreateResourceUnitRequestRequests,
 )
+from .server_pool_metric_point import ServerPoolMetricPoint
 from .server_quota import ServerQuota
 from .server_quota_status import ServerQuotaStatus
 from .server_quota_status_used import ServerQuotaStatusUsed
 from .server_quota_unit import ServerQuotaUnit
+from .server_resource_meter import ServerResourceMeter
 from .server_resource_pool import ServerResourcePool
 from .server_resource_pool_annotations import ServerResourcePoolAnnotations
 from .server_resource_pool_labels import ServerResourcePoolLabels
@@ -169,9 +175,13 @@ __all__ = (
     "PatchTenantRequestNamespaceLabels",
     "PatchVolumeRequest",
     "PatchVolumeRequestLabels",
+    "PoolMetricPoint",
+    "PoolMetricSeries",
+    "PoolUsage",
     "Quota",
     "QuotaList",
     "Rbacv1PolicyRule",
+    "ResourceMeter",
     "ResourcePool",
     "ResourcePoolAnnotations",
     "ResourcePoolLabels",
@@ -188,10 +198,12 @@ __all__ = (
     "ServerCreateResourceUnitRequestLimits",
     "ServerCreateResourceUnitRequestNodeSelector",
     "ServerCreateResourceUnitRequestRequests",
+    "ServerPoolMetricPoint",
     "ServerQuota",
     "ServerQuotaStatus",
     "ServerQuotaStatusUsed",
     "ServerQuotaUnit",
+    "ServerResourceMeter",
     "ServerResourcePool",
     "ServerResourcePoolAnnotations",
     "ServerResourcePoolLabels",

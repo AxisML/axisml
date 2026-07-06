@@ -39,17 +39,17 @@ class Run:
             'TCP'}], 'resources': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'}, 'volumeMounts': [{'mountPath':
             '/data', 'name': 'data'}], 'volumes': [{'name': 'data', 'persistentVolumeClaim': {'claimName': 'resnet-
             imagenet'}}]}}], 'runNumber': 7, 'runPolicy': {'activeDeadlineSeconds': 86400, 'backoffLimit': 2,
-            'progressDeadlineSeconds': 600, 'ttlSecondsAfterFinished': 3600}, 'spec': {'backend': {'engine': 'pytorchjob',
-            'name': 'native'}, 'roles': [{'name': 'worker', 'replicas': 4, 'restartPolicy': 'OnFailure', 'template':
-            {'args': ['--epochs', '90', '--batch-size', '256'], 'command': ['python', 'train.py'], 'env': [{'name':
-            'NCCL_DEBUG', 'value': 'INFO'}], 'image': 'registry.axisml.io/training/resnet:1.4.0', 'ports':
-            [{'containerPort': 8080, 'name': 'http', 'protocol': 'TCP'}], 'resources': {'cpu': '8', 'memory': '64Gi',
-            'nvidia.com/gpu': '2'}, 'volumeMounts': [{'mountPath': '/data', 'name': 'data'}], 'volumes': [{'name': 'data',
-            'persistentVolumeClaim': {'claimName': 'resnet-imagenet'}}]}}], 'runPolicy': {'activeDeadlineSeconds': 86400,
-            'backoffLimit': 2, 'progressDeadlineSeconds': 600, 'ttlSecondsAfterFinished': 3600}, 'scheduling': {'minMember':
-            4, 'priorityClass': 'high-priority', 'quota': 'axisml-team-vision-gpu-a100-default'}}, 'startedAt':
-            '2026-06-28T09:00:00Z', 'tenantDisplayName': 'Vision Team', 'tenantName': 'team-vision', 'unitName': 'a100-2x',
-            'updatedAt': '2026-06-28T09:30:00Z'}
+            'progressDeadlineSeconds': 600, 'ttlSecondsAfterFinished': 3600}, 'scheduledAt': '2026-06-28T09:00:00Z', 'spec':
+            {'backend': {'engine': 'pytorchjob', 'name': 'native'}, 'roles': [{'name': 'worker', 'replicas': 4,
+            'restartPolicy': 'OnFailure', 'template': {'args': ['--epochs', '90', '--batch-size', '256'], 'command':
+            ['python', 'train.py'], 'env': [{'name': 'NCCL_DEBUG', 'value': 'INFO'}], 'image':
+            'registry.axisml.io/training/resnet:1.4.0', 'ports': [{'containerPort': 8080, 'name': 'http', 'protocol':
+            'TCP'}], 'resources': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'}, 'volumeMounts': [{'mountPath':
+            '/data', 'name': 'data'}], 'volumes': [{'name': 'data', 'persistentVolumeClaim': {'claimName': 'resnet-
+            imagenet'}}]}}], 'runPolicy': {'activeDeadlineSeconds': 86400, 'backoffLimit': 2, 'progressDeadlineSeconds':
+            600, 'ttlSecondsAfterFinished': 3600}, 'scheduling': {'minMember': 4, 'priorityClass': 'high-priority', 'quota':
+            'axisml-team-vision-gpu-a100-default'}}, 'startedAt': '2026-06-28T09:00:00Z', 'tenantDisplayName': 'Vision
+            Team', 'tenantName': 'team-vision', 'unitName': 'a100-2x', 'updatedAt': '2026-06-28T09:30:00Z'}
 
     Attributes:
         backend (Backend):  Example: {'engine': 'pytorchjob', 'name': 'native'}.
@@ -77,6 +77,7 @@ class Run:
         run_number (int | Unset): Monotonic per-job run sequence number.
         run_policy (RunPolicy | Unset):  Example: {'activeDeadlineSeconds': 86400, 'backoffLimit': 2,
             'progressDeadlineSeconds': 600, 'ttlSecondsAfterFinished': 3600}.
+        scheduled_at (datetime.datetime | None | Unset): Time the run was admitted by the scheduler (left Pending).
         spec (MLRunSpec | Unset):  Example: {'backend': {'engine': 'pytorchjob', 'name': 'native'}, 'roles': [{'name':
             'worker', 'replicas': 4, 'restartPolicy': 'OnFailure', 'template': {'args': ['--epochs', '90', '--batch-size',
             '256'], 'command': ['python', 'train.py'], 'env': [{'name': 'NCCL_DEBUG', 'value': 'INFO'}], 'image':
@@ -113,6 +114,7 @@ class Run:
     roles: list[MLRunRoleStatus] | Unset = UNSET
     run_number: int | Unset = UNSET
     run_policy: RunPolicy | Unset = UNSET
+    scheduled_at: datetime.datetime | None | Unset = UNSET
     spec: MLRunSpec | Unset = UNSET
     started_at: datetime.datetime | None | Unset = UNSET
     tenant_display_name: str | Unset = UNSET
@@ -185,6 +187,14 @@ class Run:
         if not isinstance(self.run_policy, Unset):
             run_policy = self.run_policy.to_dict()
 
+        scheduled_at: None | str | Unset
+        if isinstance(self.scheduled_at, Unset):
+            scheduled_at = UNSET
+        elif isinstance(self.scheduled_at, datetime.datetime):
+            scheduled_at = self.scheduled_at.isoformat()
+        else:
+            scheduled_at = self.scheduled_at
+
         spec: dict[str, Any] | Unset = UNSET
         if not isinstance(self.spec, Unset):
             spec = self.spec.to_dict()
@@ -244,6 +254,8 @@ class Run:
             field_dict["runNumber"] = run_number
         if run_policy is not UNSET:
             field_dict["runPolicy"] = run_policy
+        if scheduled_at is not UNSET:
+            field_dict["scheduledAt"] = scheduled_at
         if spec is not UNSET:
             field_dict["spec"] = spec
         if started_at is not UNSET:
@@ -355,6 +367,23 @@ class Run:
         else:
             run_policy = RunPolicy.from_dict(_run_policy)
 
+        def _parse_scheduled_at(data: object) -> datetime.datetime | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, str):
+                    raise TypeError()
+                scheduled_at_type_0 = datetime.datetime.fromisoformat(data)
+
+                return scheduled_at_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(datetime.datetime | None | Unset, data)
+
+        scheduled_at = _parse_scheduled_at(d.pop("scheduledAt", UNSET))
+
         _spec = d.pop("spec", UNSET)
         spec: MLRunSpec | Unset
         if isinstance(_spec, Unset):
@@ -406,6 +435,7 @@ class Run:
             roles=roles,
             run_number=run_number,
             run_policy=run_policy,
+            scheduled_at=scheduled_at,
             spec=spec,
             started_at=started_at,
             tenant_display_name=tenant_display_name,

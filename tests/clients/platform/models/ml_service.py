@@ -8,6 +8,7 @@ from uuid import UUID
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
+from ..models.ml_service_desired_state import MLServiceDesiredState
 from ..models.ml_service_phase import MLServicePhase
 from ..types import UNSET, Unset
 
@@ -29,14 +30,15 @@ class MLService:
         {'accessUrl': 'https://gateway.axisml.io/v1/models/llama3-8b', 'args': ['--model', 'meta-llama/Llama-3-8b', '--
             max-model-len', '8192'], 'backend': {'engine': 'llminference', 'name': 'kserve'}, 'command': ['python', '-m',
             'vllm.entrypoints.openai.api_server'], 'computeNamespace': 'axisml-team-nlp', 'createdAt':
-            '2026-06-20T08:00:00Z', 'description': 'Llama3-8B online inference service.', 'displayName': 'Llama3 chat
-            service', 'env': [{'name': 'MAX_TOKENS', 'value': '4096'}], 'id': '5d2c9b41-3e8f-4a1c-9d7e-6b4f2a1c8e90',
-            'image': 'registry.axisml.io/serving/vllm:0.6.0', 'message': 'All replicas ready.', 'modelName': 'llama3-8b',
-            'modelVersion': '1.2.0', 'name': 'llama3-chat', 'namespace': 'team-nlp', 'owner': 'zhang.san', 'ownerId':
-            '9f8e7d6c-5b4a-3210-fedc-ba9876543210', 'phase': 'Running', 'poolName': 'gpu-a100', 'ports': [{'name': 'http',
-            'port': 8080}], 'quota': 'team-nlp', 'readyReplicas': 3, 'replicas': 3, 'resources': {'cpu': '8', 'memory':
-            '64Gi', 'nvidia.com/gpu': '1'}, 'route': {'enabled': True, 'path': '/v1/models/llama3-8b'}, 'tenantDisplayName':
-            'Vision Team', 'tenantName': 'team-nlp', 'unitName': 'a100-1x', 'updatedAt': '2026-06-28T09:30:00Z'}
+            '2026-06-20T08:00:00Z', 'description': 'Llama3-8B online inference service.', 'desiredState': 'Running',
+            'displayName': 'Llama3 chat service', 'env': [{'name': 'MAX_TOKENS', 'value': '4096'}], 'id':
+            '5d2c9b41-3e8f-4a1c-9d7e-6b4f2a1c8e90', 'image': 'registry.axisml.io/serving/vllm:0.6.0', 'message': 'All
+            replicas ready.', 'modelName': 'llama3-8b', 'modelVersion': '1.2.0', 'name': 'llama3-chat', 'namespace': 'team-
+            nlp', 'owner': 'zhang.san', 'ownerId': '9f8e7d6c-5b4a-3210-fedc-ba9876543210', 'phase': 'Ready', 'poolName':
+            'gpu-a100', 'ports': [{'name': 'http', 'port': 8080}], 'quota': 'team-nlp', 'readyReplicas': 3, 'replicas': 3,
+            'resources': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '1'}, 'route': {'enabled': True, 'path':
+            '/v1/models/llama3-8b'}, 'tenantDisplayName': 'Vision Team', 'tenantName': 'team-nlp', 'unitName': 'a100-1x',
+            'updatedAt': '2026-06-28T09:30:00Z'}
 
     Attributes:
         created_at (datetime.datetime): Time the service was created.
@@ -52,6 +54,7 @@ class MLService:
         command (list[str] | Unset): Container entrypoint override.
         compute_namespace (str | Unset): Underlying compute (Kubernetes) namespace running the service.
         description (str | Unset): Free-text service description.
+        desired_state (MLServiceDesiredState | Unset):
         display_name (str | Unset): Human-readable service label.
         env (list[EnvVar] | Unset): Environment variables injected into the serving pods.
         image (str | Unset): Serving container image reference.
@@ -85,6 +88,7 @@ class MLService:
     command: list[str] | Unset = UNSET
     compute_namespace: str | Unset = UNSET
     description: str | Unset = UNSET
+    desired_state: MLServiceDesiredState | Unset = UNSET
     display_name: str | Unset = UNSET
     env: list[EnvVar] | Unset = UNSET
     image: str | Unset = UNSET
@@ -136,6 +140,10 @@ class MLService:
         compute_namespace = self.compute_namespace
 
         description = self.description
+
+        desired_state: str | Unset = UNSET
+        if not isinstance(self.desired_state, Unset):
+            desired_state = self.desired_state.value
 
         display_name = self.display_name
 
@@ -214,6 +222,8 @@ class MLService:
             field_dict["computeNamespace"] = compute_namespace
         if description is not UNSET:
             field_dict["description"] = description
+        if desired_state is not UNSET:
+            field_dict["desiredState"] = desired_state
         if display_name is not UNSET:
             field_dict["displayName"] = display_name
         if env is not UNSET:
@@ -290,6 +300,13 @@ class MLService:
         compute_namespace = d.pop("computeNamespace", UNSET)
 
         description = d.pop("description", UNSET)
+
+        _desired_state = d.pop("desiredState", UNSET)
+        desired_state: MLServiceDesiredState | Unset
+        if isinstance(_desired_state, Unset):
+            desired_state = UNSET
+        else:
+            desired_state = MLServiceDesiredState(_desired_state)
 
         display_name = d.pop("displayName", UNSET)
 
@@ -373,6 +390,7 @@ class MLService:
             command=command,
             compute_namespace=compute_namespace,
             description=description,
+            desired_state=desired_state,
             display_name=display_name,
             env=env,
             image=image,

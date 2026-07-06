@@ -464,19 +464,6 @@ components:
       type: object
     ClusterUsage:
       example:
-        aggregate:
-        - resource: gpu
-          total: 48
-          unit: cards
-          used: 36
-        - resource: cpu
-          total: 1152
-          unit: cores
-          used: 740
-        - resource: memory
-          total: 5632
-          unit: GiB
-          used: 3481.6
         pools:
         - meters:
           - resource: gpu
@@ -522,13 +509,13 @@ components:
           pool: cpu-pool
         updatedAt: "2026-06-28T09:30:00Z"
       properties:
-        aggregate:
-          description: Cluster-wide utilisation across all pools.
-          items:
-            $ref: '#/components/schemas/ClusterMeter'
-          type: array
+        partial:
+          description: True when one or more pools could not be sampled and were omitted
+            from the snapshot.
+          type: boolean
         pools:
-          description: Per-pool utilisation breakdown.
+          description: Per-pool utilisation, one entry per pool the tenant has quota
+            in.
           items:
             $ref: '#/components/schemas/ClusterPoolUsage'
           type: array
@@ -537,7 +524,7 @@ components:
           format: date-time
           type: string
       required:
-      - aggregate
+      - pools
       - updatedAt
       type: object
     Condition:
@@ -1213,7 +1200,9 @@ components:
         spec:
           allOf:
           - $ref: '#/components/schemas/JobSpec'
-          description: Replacement run template (affects only Runs triggered afterwards).
+          description: Replacement run template (affects only Runs triggered afterwards);
+            omit to patch metadata only.
+          nullable: true
       type: object
     HealthStatus:
       example:
@@ -1899,7 +1888,8 @@ components:
         spec:
           allOf:
           - $ref: '#/components/schemas/JobSpec'
-          description: Replacement run template.
+          description: Replacement run template; omit to patch metadata only.
+          nullable: true
       type: object
     JobSpec:
       example:
@@ -6209,6 +6199,15 @@ paths:
     get:
       operationId: getClusterMetrics
       parameters:
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
+        in: header
+        name: X-Axisml-Tenant
+        schema:
+          maxLength: 40
+          minLength: 3
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
       - description: Metric to query.
         in: query
         name: metric
@@ -6231,9 +6230,10 @@ paths:
         name: step
         schema:
           type: string
-      - description: Restrict to a single resource pool.
+      - description: Resource pool to query (the series is per (tenant, pool)).
         in: query
         name: pool
+        required: true
         schema:
           type: string
       responses:
@@ -6269,15 +6269,24 @@ paths:
                 $ref: '#/components/schemas/Problem'
           description: Upstream service (cluster-manager / compute / artifacts / Prometheus)
             failed.
-      summary: Cluster resource-utilisation time series
+      summary: Per-pool cluster resource-utilisation time series for the active tenant
       tags:
       - Dashboard
   /api/v1/dashboard/cluster-usage:
     get:
       operationId: getClusterUsage
       parameters:
-      - description: Restrict to a single resource pool; omit for all pools plus the
-          aggregate.
+      - description: Active tenant for the request (fallback for the axisml.tenant
+          cookie).
+        in: header
+        name: X-Axisml-Tenant
+        schema:
+          maxLength: 40
+          minLength: 3
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+      - description: Restrict to a single resource pool; omit for every pool the tenant
+          has quota in.
         in: query
         name: pool
         schema:
@@ -6308,7 +6317,7 @@ paths:
                 $ref: '#/components/schemas/Problem'
           description: Upstream service (cluster-manager / compute / artifacts / Prometheus)
             failed.
-      summary: Cluster resource-usage snapshot (aggregate + per-pool)
+      summary: Per-pool cluster resource-usage snapshot for the active tenant
       tags:
       - Dashboard
   /api/v1/datavolumes:

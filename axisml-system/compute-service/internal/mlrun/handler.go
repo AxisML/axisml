@@ -8,7 +8,9 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/kubeproxy"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/metricsquery"
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/server"
+	apperrors "github.com/axisml/axisml/axisml-system/compute-service/pkg/errors"
 	"github.com/axisml/axisml/axisml-system/compute-service/pkg/extensions"
 )
 
@@ -17,12 +19,13 @@ import (
 type Handler struct {
 	svc     *Service
 	runtime extensions.ComputeRuntime
+	metrics *metricsquery.Querier
 }
 
 // NewHandler builds a job HTTP handler. runtime may be nil in pure-DB tests;
-// the pods / log / events sub-routes are skipped when so.
-func NewHandler(svc *Service, runtime extensions.ComputeRuntime) *Handler {
-	return &Handler{svc: svc, runtime: runtime}
+// the pods / log / events / metrics sub-routes are skipped when so.
+func NewHandler(svc *Service, runtime extensions.ComputeRuntime, metrics *metricsquery.Querier) *Handler {
+	return &Handler{svc: svc, runtime: runtime, metrics: metrics}
 }
 
 // Register implements server.Module.
@@ -39,7 +42,33 @@ func (h *Handler) Register(rg *gin.RouterGroup) {
 		g.GET("/:mlrun/pods/:pod/logs", h.PodLog)
 		g.GET("/:mlrun/pods/:pod/events", h.PodEvents)
 		g.GET("/:mlrun/events", h.MLRunEvents)
+		g.GET("/:mlrun/metrics", h.Metrics)
 	}
+}
+
+// Metrics returns a resource metric time series for the Run, sampled from
+// Prometheus over the pods currently backing it.
+func (h *Handler) Metrics(c *gin.Context) {
+	if h.metrics == nil || !h.metrics.Enabled() {
+		_ = c.Error(apperrors.New(apperrors.CodeUnavailable, "workload metrics are unavailable"))
+		return
+	}
+	key, ok := h.keyFor(c)
+	if !ok {
+		return
+	}
+	pods, err := h.runtime.ListMLRunInstances(c.Request.Context(), key)
+	if err != nil {
+		_ = c.Error(kubeproxy.MapErr(err))
+		return
+	}
+	series, err := h.metrics.Series(c.Request.Context(), key.Namespace, metricsquery.PodNames(pods),
+		c.Query("metric"), c.Query("range"), c.Query("step"))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, series)
 }
 
 // keyFor resolves the row (so the :namespace path param is checked against it)

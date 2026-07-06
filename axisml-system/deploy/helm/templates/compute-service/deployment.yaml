@@ -48,6 +48,10 @@ spec:
                 secretKeyRef:
                   name: {{ include "axisml.fullname" . }}-compute-service-db
                   key: password
+            {{- with .Values.metrics.prometheusUrl }}
+            - name: AXISML_PROMETHEUS_URL
+              value: {{ . | quote }}
+            {{- end }}
             {{- range $key, $value := .Values.computeService.env }}
             - name: {{ $key }}
               value: {{ $value | quote }}

@@ -21,9 +21,14 @@ type Module interface {
 
 // Options configures the API server.
 type Options struct {
-	Addr        string
-	Log         *slog.Logger
-	Modules     []Module
+	Addr    string
+	Log     *slog.Logger
+	Modules []Module
+	// Middlewares are applied to the /api/v1 group ahead of module routes (e.g.
+	// audit recording). Because a group middleware wraps the whole chain, its
+	// post-c.Next() phase sees the resolved route params and the identity set by
+	// each module's own auth middleware.
+	Middlewares []gin.HandlerFunc
 	JWKSHandler gin.HandlerFunc // served at /.well-known/jwks.json
 	Ready       func(context.Context) error
 	// StaticFS is the built SPA bundle (frontend). When set, non-API routes
@@ -53,23 +58,23 @@ func New(opts Options) (*Server, error) {
 		ErrorHandler(opts.Log),
 	)
 
-	r.GET("/healthz", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
+	r.GET("/healthz", func(c *gin.Context) { c.JSON(http.StatusOK, HealthStatus{Status: "ok"}) })
 	r.GET("/readyz", func(c *gin.Context) {
 		if opts.Ready != nil {
 			cctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
 			defer cancel()
 			if err := opts.Ready(cctx); err != nil {
-				c.String(http.StatusServiceUnavailable, "not ready: %v", err)
+				c.JSON(http.StatusServiceUnavailable, HealthStatus{Status: "unavailable", Components: map[string]string{"ready": err.Error()}})
 				return
 			}
 		}
-		c.String(http.StatusOK, "ok")
+		c.JSON(http.StatusOK, HealthStatus{Status: "ok"})
 	})
 	if opts.JWKSHandler != nil {
 		r.GET("/.well-known/jwks.json", opts.JWKSHandler)
 	}
 
-	api := r.Group("/api/v1")
+	api := r.Group("/api/v1", opts.Middlewares...)
 	for _, m := range opts.Modules {
 		m.Register(api)
 	}

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import datetime
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 from uuid import UUID
 
 from attrs import define as _attrs_define
@@ -12,6 +12,7 @@ from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
     from ..models.job_spec import JobSpec
+    from ..models.run_summary import RunSummary
     from ..models.string_map import StringMap
 
 
@@ -25,14 +26,16 @@ class Experiment:
         {'annotations': {'axisml.io/created-by': 'li.wei'}, 'createdAt': '2026-06-20T08:00:00Z', 'description':
             'Training experiment fine-tuning BERT on a Chinese corpus.', 'displayName': 'BERT fine-tuning experiment', 'id':
             'd4f8a1b2-3c5e-4a7b-9c0d-1e2f3a4b5c6d', 'labels': {'team': 'nlp'}, 'name': 'bert-finetune', 'namespace': 'team-
-            nlp', 'owner': 'zhang.san', 'ownerId': '3a2b1c0d-4e5f-6789-abcd-ef0123456789', 'spec': {'artifacts': [{'kind':
-            'model', 'name': 'bert-base', 'version': '2.1.0'}], 'backend': {'engine': 'pytorchjob', 'name': 'kubeflow-
-            trainer'}, 'poolName': 'gpu-a100', 'quota': 'team-nlp', 'roles': [{'name': 'worker', 'replicas': 2,
-            'restartPolicy': 'OnFailure', 'template': {'args': ['--lr', '0.001', '--epochs', '10', '--batch-size', '64'],
-            'command': ['python', 'train.py'], 'env': [{'name': 'WANDB_MODE', 'value': 'offline'}], 'image':
-            'registry.axisml.io/training/bert:2.1.0', 'resources': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'}}}],
-            'runPolicy': {'activeDeadlineSeconds': 86400, 'backoffLimit': 2, 'ttlSecondsAfterFinished': 3600}, 'unitName':
-            'a100-2x'}, 'tenantName': 'team-nlp', 'updatedAt': '2026-06-28T09:30:00Z'}
+            nlp', 'owner': 'zhang.san', 'ownerId': '3a2b1c0d-4e5f-6789-abcd-ef0123456789', 'runSummary': {'active': 1,
+            'count': 5, 'latestPhase': 'Succeeded', 'latestRunAt': '2026-06-28T09:25:00Z', 'recent': ['Succeeded',
+            'Running', 'Succeeded', 'Failed', 'Succeeded']}, 'spec': {'artifacts': [{'kind': 'model', 'name': 'bert-base',
+            'version': '2.1.0'}], 'backend': {'engine': 'pytorchjob', 'name': 'kubeflow-trainer'}, 'poolName': 'gpu-a100',
+            'quota': 'team-nlp', 'roles': [{'name': 'worker', 'replicas': 2, 'restartPolicy': 'OnFailure', 'template':
+            {'args': ['--lr', '0.001', '--epochs', '10', '--batch-size', '64'], 'command': ['python', 'train.py'], 'env':
+            [{'name': 'WANDB_MODE', 'value': 'offline'}], 'image': 'registry.axisml.io/training/bert:2.1.0', 'resources':
+            {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'}}}], 'runPolicy': {'activeDeadlineSeconds': 86400,
+            'backoffLimit': 2, 'ttlSecondsAfterFinished': 3600}, 'unitName': 'a100-2x'}, 'tenantName': 'team-nlp',
+            'updatedAt': '2026-06-28T09:30:00Z'}
 
     Attributes:
         created_at (datetime.datetime): Time the experiment was created.
@@ -56,6 +59,8 @@ class Experiment:
         display_name (str | Unset): Human-readable experiment label.
         labels (StringMap | Unset):
         owner_id (UUID | Unset): User ID of the experiment owner.
+        run_summary (None | RunSummary | Unset): Roll-up of the experiment's Runs (count + recent phases on lists,
+            latest phase on detail).
     """
 
     created_at: datetime.datetime
@@ -71,9 +76,12 @@ class Experiment:
     display_name: str | Unset = UNSET
     labels: StringMap | Unset = UNSET
     owner_id: UUID | Unset = UNSET
+    run_summary: None | RunSummary | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
+        from ..models.run_summary import RunSummary
+
         created_at = self.created_at.isoformat()
 
         id = str(self.id)
@@ -106,6 +114,14 @@ class Experiment:
         if not isinstance(self.owner_id, Unset):
             owner_id = str(self.owner_id)
 
+        run_summary: dict[str, Any] | None | Unset
+        if isinstance(self.run_summary, Unset):
+            run_summary = UNSET
+        elif isinstance(self.run_summary, RunSummary):
+            run_summary = self.run_summary.to_dict()
+        else:
+            run_summary = self.run_summary
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -130,12 +146,15 @@ class Experiment:
             field_dict["labels"] = labels
         if owner_id is not UNSET:
             field_dict["ownerId"] = owner_id
+        if run_summary is not UNSET:
+            field_dict["runSummary"] = run_summary
 
         return field_dict
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.job_spec import JobSpec
+        from ..models.run_summary import RunSummary
         from ..models.string_map import StringMap
 
         d = dict(src_dict)
@@ -180,6 +199,23 @@ class Experiment:
         else:
             owner_id = UUID(_owner_id)
 
+        def _parse_run_summary(data: object) -> None | RunSummary | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, dict):
+                    raise TypeError()
+                run_summary_type_1 = RunSummary.from_dict(data)
+
+                return run_summary_type_1
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(None | RunSummary | Unset, data)
+
+        run_summary = _parse_run_summary(d.pop("runSummary", UNSET))
+
         experiment = cls(
             created_at=created_at,
             id=id,
@@ -194,6 +230,7 @@ class Experiment:
             display_name=display_name,
             labels=labels,
             owner_id=owner_id,
+            run_summary=run_summary,
         )
 
         experiment.additional_properties = d

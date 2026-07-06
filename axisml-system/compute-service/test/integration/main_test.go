@@ -223,7 +223,7 @@ var testManager ctrl.Manager
 func bootstrapHandlers() error {
 	log := logr.Discard()
 
-	modules, runnables, caps, err := computeapp.BuildModules(gormDB, testManager, log)
+	modules, runnables, caps, err := computeapp.BuildModules(gormDB, testManager, log, testMetrics)
 	if err != nil {
 		return fmt.Errorf("build modules: %w", err)
 	}

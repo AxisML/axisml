@@ -14,20 +14,33 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	axismlv1alpha1 "github.com/axisml/axisml/axisml-system/cluster-manager/api/v1alpha1"
+	"github.com/axisml/axisml/axisml-system/cluster-manager/internal/promql"
 	srv "github.com/axisml/axisml/axisml-system/cluster-manager/internal/server"
 	"github.com/axisml/axisml/axisml-system/cluster-manager/pkg/extensions"
 )
 
-// Handler implements the /api/v1/resourcepools[/{pool}[/units...]]
-// HTTP surface. It owns no state; all reads/writes go through the injected
-// ResourcePoolProvider (Kubernetes CRD or Lite config).
-type Handler struct {
-	pools extensions.ResourcePoolProvider
+// MetricsQuerier runs (tenant, pool) resource-utilisation queries against a
+// metrics backend. Implemented by internal/promql.Querier; may be nil (Lite /
+// unconfigured), in which case the metrics route reports metrics-unavailable.
+type MetricsQuerier interface {
+	Enabled() bool
+	Series(ctx context.Context, namespace string, nodeSelector map[string]string, metric, rangeStr, stepStr string) (srv.PoolMetricSeries, error)
 }
 
-// NewHandler builds a resourcepool handler over the given store.
-func NewHandler(pools extensions.ResourcePoolProvider) *Handler {
-	return &Handler{pools: pools}
+// Handler implements the /api/v1/resourcepools[/{pool}[/units...]]
+// HTTP surface. It owns no state; all reads/writes go through the injected
+// ResourcePoolProvider (Kubernetes CRD or Lite config). usage/metrics also read
+// the Tenant CR (tenants) and query Prometheus (metrics).
+type Handler struct {
+	pools   extensions.ResourcePoolProvider
+	tenants extensions.TenantProvider
+	metrics MetricsQuerier
+}
+
+// NewHandler builds a resourcepool handler over the given stores. tenants powers
+// the per-tenant usage endpoint; metrics (optional) powers the metrics endpoint.
+func NewHandler(pools extensions.ResourcePoolProvider, tenants extensions.TenantProvider, metrics MetricsQuerier) *Handler {
+	return &Handler{pools: pools, tenants: tenants, metrics: metrics}
 }
 
 // Register attaches all routes to the provided /api/v1 group.
@@ -38,6 +51,8 @@ func (h *Handler) Register(rg *gin.RouterGroup) {
 	pools.GET("/:pool", h.Get)
 	pools.PATCH("/:pool", h.Patch)
 	pools.DELETE("/:pool", h.Delete)
+	pools.GET("/:pool/usage", h.Usage)
+	pools.GET("/:pool/metrics", h.Metrics)
 
 	units := pools.Group("/:pool/units")
 	units.POST("", h.CreateUnit)
@@ -45,6 +60,66 @@ func (h *Handler) Register(rg *gin.RouterGroup) {
 	units.GET("/:unit", h.GetUnit)
 	units.PATCH("/:unit", h.PatchUnit)
 	units.DELETE("/:unit", h.DeleteUnit)
+}
+
+// Usage handles GET /api/v1/resourcepools/{pool}/usage?tenant=<id>. It returns
+// the tenant's used-vs-total resource utilisation in the pool (ElasticQuota
+// status Used against the folded quota ceiling).
+func (h *Handler) Usage(c *gin.Context) {
+	pool := c.Param("pool")
+	tenant := c.Query("tenant")
+	if tenant == "" {
+		srv.AbortWithProblem(c, http.StatusBadRequest, "MissingTenant", "tenant query parameter is required", "")
+		return
+	}
+	if _, err := h.getPool(c.Request.Context(), pool); err != nil {
+		writeK8sError(c, err, pool)
+		return
+	}
+	t, err := h.tenants.Get(c.Request.Context(), tenant)
+	if err != nil {
+		writeK8sError(c, err, tenant)
+		return
+	}
+	c.JSON(http.StatusOK, srv.TenantPoolUsage(t, pool))
+}
+
+// Metrics handles GET /api/v1/resourcepools/{pool}/metrics?tenant=<id>. It
+// returns a (tenant, pool) resource-utilisation time series from Prometheus.
+func (h *Handler) Metrics(c *gin.Context) {
+	pool := c.Param("pool")
+	tenant := c.Query("tenant")
+	if tenant == "" {
+		srv.AbortWithProblem(c, http.StatusBadRequest, "MissingTenant", "tenant query parameter is required", "")
+		return
+	}
+	if h.metrics == nil || !h.metrics.Enabled() {
+		srv.AbortWithProblem(c, http.StatusServiceUnavailable, "MetricsUnavailable", "cluster metrics backend is not configured", "")
+		return
+	}
+	p, err := h.getPool(c.Request.Context(), pool)
+	if err != nil {
+		writeK8sError(c, err, pool)
+		return
+	}
+	series, err := h.metrics.Series(c.Request.Context(), tenant, p.Spec.NodeSelector,
+		c.Query("metric"), c.Query("range"), c.Query("step"))
+	if err != nil {
+		writeMetricsError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, series)
+}
+
+func writeMetricsError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, promql.ErrUnavailable):
+		srv.AbortWithProblem(c, http.StatusServiceUnavailable, "MetricsUnavailable", "cluster metrics backend is not configured", "")
+	case errors.Is(err, promql.ErrBadRequest):
+		srv.AbortWithProblem(c, http.StatusBadRequest, "InvalidMetricsRequest", err.Error(), "")
+	default:
+		srv.AbortWithProblem(c, http.StatusBadGateway, "MetricsQueryFailed", "metrics query failed", err.Error())
+	}
 }
 
 // ─────────────────────────────────────────────────────────────── Pools

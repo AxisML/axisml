@@ -21,6 +21,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/db"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/metricsquery"
 	jobmod "github.com/axisml/axisml/axisml-system/compute-service/internal/mlrun"
 	servicemod "github.com/axisml/axisml/axisml-system/compute-service/internal/mlservice"
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/server"
@@ -41,9 +42,12 @@ type Runnable interface {
 
 // Deps are the form-neutral dependencies a composition root injects.
 type Deps struct {
-	DB                *gorm.DB
-	Runtime           extensions.ComputeRuntime
-	Resolver          extensions.ResourceResolver
+	DB       *gorm.DB
+	Runtime  extensions.ComputeRuntime
+	Resolver extensions.ResourceResolver
+	// Metrics backs the per-workload /metrics routes. Optional: when nil, or when
+	// its Enabled reports false, those routes report metrics-unavailable.
+	Metrics           extensions.MetricsProvider
 	Log               logr.Logger
 	ReconcileInterval time.Duration
 	// RuntimeName labels the workload execution engine in the capability
@@ -79,11 +83,13 @@ func New(d Deps) (*Module, error) {
 		runtimeName = "kubernetes"
 	}
 
+	metrics := metricsquery.NewQuerier(d.Metrics)
+
 	return &Module{
 		routes: []Route{
-			jobmod.NewHandler(jobs, d.Runtime),
-			servicemod.NewHandler(services, d.Runtime),
-			trafficmod.NewHandler(traffic),
+			jobmod.NewHandler(jobs, d.Runtime, metrics),
+			servicemod.NewHandler(services, d.Runtime, metrics),
+			trafficmod.NewHandler(traffic, d.Runtime, metrics),
 		},
 		runnables: []Runnable{jobRecon, serviceRecon, trafficRecon},
 		reflow: []Runnable{

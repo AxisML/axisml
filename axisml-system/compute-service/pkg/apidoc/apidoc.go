@@ -99,6 +99,8 @@ func Document(version string) *openapigen.Document {
 	g.Register("Pod", server.Pod{}, openapigen.ResponseMode)
 	g.Register("Event", server.Event{}, openapigen.ResponseMode)
 	g.Register("Capabilities", server.Capabilities{}, openapigen.ResponseMode)
+	g.Register("MetricPoint", server.MetricPoint{}, openapigen.ResponseMode)
+	g.Register("MetricSeries", server.MetricSeries{}, openapigen.ResponseMode)
 
 	g.Set("MLRunList", openapigen.PagedListEnvelope("MLRun"))
 	g.Set("MLServiceList", openapigen.PagedListEnvelope("MLService"))
@@ -131,6 +133,14 @@ func Document(version string) *openapigen.Document {
 		openapigen.QueryParam("follow", "Stream new lines as Server-Sent Events (text/event-stream) instead of a one-shot text/plain body.", &openapigen.Schema{Type: "boolean"}),
 		openapigen.QueryParam("previous", "Read the previous (crashed) container instance's log.", &openapigen.Schema{Type: "boolean"}),
 	}
+
+	metricParam := openapigen.QueryParam("metric", "Resource metric to query: cpu_util (cores) | mem_util (bytes) | gpu_util (percent).", &openapigen.Schema{Type: "string"})
+	metricParam.Required = true
+	rangeParam := openapigen.QueryParam("range", "Query window: 5m, 1h, 24h, 7d.", &openapigen.Schema{Type: "string"})
+	rangeParam.Required = true
+	stepParam := openapigen.QueryParam("step", "Sampling step between points (e.g. 30s); defaults to ~50 points across the range.", &openapigen.Schema{Type: "string"})
+	metricsParams := []openapigen.Parameter{metricParam, rangeParam, stepParam}
+	backendParam := openapigen.QueryParam("backend", "Scope the series to one member online service (canary vs stable comparison).", &openapigen.Schema{Type: "string"})
 
 	paths := map[string]openapigen.PathItem{}
 
@@ -212,6 +222,23 @@ func Document(version string) *openapigen.Document {
 		Tags: []string{tagMLRuns}, Summary: "List events targeted at the MLRun CR", OperationID: "listMLRunEvents",
 		Parameters: []openapigen.Parameter{nsParam, mlrunParam},
 		Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Events.", "EventList")}),
+	}}
+
+	// per-workload metrics (Prometheus-backed; range query over the workload's pods)
+	paths["/api/v1/namespaces/{namespace}/mlruns/{mlrun}/metrics"] = openapigen.PathItem{Get: &openapigen.Operation{
+		Tags: []string{tagMLRuns}, Summary: "Query a resource metric time series for the MLRun", OperationID: "getMLRunMetrics",
+		Parameters: append([]openapigen.Parameter{nsParam, mlrunParam}, metricsParams...),
+		Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Metric series.", "MetricSeries")}),
+	}}
+	paths["/api/v1/namespaces/{namespace}/mlservices/{mlservice}/metrics"] = openapigen.PathItem{Get: &openapigen.Operation{
+		Tags: []string{tagMLServices}, Summary: "Query a resource metric time series for the MLService", OperationID: "getMLServiceMetrics",
+		Parameters: append([]openapigen.Parameter{nsParam, mlserviceParam}, metricsParams...),
+		Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Metric series.", "MetricSeries")}),
+	}}
+	paths["/api/v1/namespaces/{namespace}/traffic-policies/{policy}/metrics"] = openapigen.PathItem{Get: &openapigen.Operation{
+		Tags: []string{tagTrafficPolicies}, Summary: "Query a resource metric time series over the policy's member services", OperationID: "getTrafficPolicyMetrics",
+		Parameters: append(append([]openapigen.Parameter{nsParam, policyParam}, metricsParams...), backendParam),
+		Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Metric series.", "MetricSeries")}),
 	}}
 
 	// mlservices (per namespace)

@@ -23,14 +23,15 @@ class ExperimentList:
             '2026-06-20T08:00:00Z', 'description': 'Training experiment fine-tuning BERT on a Chinese corpus.',
             'displayName': 'BERT fine-tuning experiment', 'id': 'd4f8a1b2-3c5e-4a7b-9c0d-1e2f3a4b5c6d', 'labels': {'team':
             'nlp'}, 'name': 'bert-finetune', 'namespace': 'team-nlp', 'owner': 'zhang.san', 'ownerId':
-            '3a2b1c0d-4e5f-6789-abcd-ef0123456789', 'spec': {'artifacts': [{'kind': 'model', 'name': 'bert-base', 'version':
-            '2.1.0'}], 'backend': {'engine': 'pytorchjob', 'name': 'kubeflow-trainer'}, 'poolName': 'gpu-a100', 'quota':
-            'team-nlp', 'roles': [{'name': 'worker', 'replicas': 2, 'restartPolicy': 'OnFailure', 'template': {'args': ['--
-            lr', '0.001', '--epochs', '10', '--batch-size', '64'], 'command': ['python', 'train.py'], 'env': [{'name':
-            'WANDB_MODE', 'value': 'offline'}], 'image': 'registry.axisml.io/training/bert:2.1.0', 'resources': {'cpu': '8',
-            'memory': '64Gi', 'nvidia.com/gpu': '2'}}}], 'runPolicy': {'activeDeadlineSeconds': 86400, 'backoffLimit': 2,
-            'ttlSecondsAfterFinished': 3600}, 'unitName': 'a100-2x'}, 'tenantName': 'team-nlp', 'updatedAt':
-            '2026-06-28T09:30:00Z'}], 'partial': False}
+            '3a2b1c0d-4e5f-6789-abcd-ef0123456789', 'runSummary': {'active': 1, 'count': 5, 'latestPhase': 'Succeeded',
+            'latestRunAt': '2026-06-28T09:25:00Z', 'recent': ['Succeeded', 'Running', 'Succeeded', 'Failed', 'Succeeded']},
+            'spec': {'artifacts': [{'kind': 'model', 'name': 'bert-base', 'version': '2.1.0'}], 'backend': {'engine':
+            'pytorchjob', 'name': 'kubeflow-trainer'}, 'poolName': 'gpu-a100', 'quota': 'team-nlp', 'roles': [{'name':
+            'worker', 'replicas': 2, 'restartPolicy': 'OnFailure', 'template': {'args': ['--lr', '0.001', '--epochs', '10',
+            '--batch-size', '64'], 'command': ['python', 'train.py'], 'env': [{'name': 'WANDB_MODE', 'value': 'offline'}],
+            'image': 'registry.axisml.io/training/bert:2.1.0', 'resources': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu':
+            '2'}}}], 'runPolicy': {'activeDeadlineSeconds': 86400, 'backoffLimit': 2, 'ttlSecondsAfterFinished': 3600},
+            'unitName': 'a100-2x'}, 'tenantName': 'team-nlp', 'updatedAt': '2026-06-28T09:30:00Z'}], 'partial': False}
 
     Attributes:
         count (int): Number of experiments in this page.

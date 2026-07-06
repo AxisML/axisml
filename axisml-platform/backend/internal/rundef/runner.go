@@ -140,6 +140,12 @@ func (r *Runner) CascadeDeleteRuns(ctx context.Context, tenant, defName string) 
 func (r *Runner) Pods(ctx context.Context, tenant, run string) ([]computeservice.Pod, error) {
 	return r.compute.ListMLRunPods(ctx, tenant, run)
 }
+
+// Metrics returns a resource metric time series for a Run (the run name is the
+// backing MLRun name).
+func (r *Runner) Metrics(ctx context.Context, tenant, run, metric, rng string, step *string) (*computeservice.MetricSeries, error) {
+	return r.compute.MLRunMetrics(ctx, tenant, run, metric, rng, step)
+}
 func (r *Runner) Events(ctx context.Context, tenant, run string) ([]computeservice.Event, error) {
 	return r.compute.ListMLRunEvents(ctx, tenant, run)
 }

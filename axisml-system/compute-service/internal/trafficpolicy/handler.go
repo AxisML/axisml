@@ -4,17 +4,24 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"k8s.io/apimachinery/pkg/types"
 
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/kubeproxy"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/metricsquery"
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/server"
+	apperrors "github.com/axisml/axisml/axisml-system/compute-service/pkg/errors"
+	"github.com/axisml/axisml/axisml-system/compute-service/pkg/extensions"
 )
 
 // Handler exposes /namespaces/:namespace/traffic-policies routes.
 type Handler struct {
-	svc *Module
+	svc     *Module
+	runtime extensions.ComputeRuntime
+	metrics *metricsquery.Querier
 }
 
-func NewHandler(svc *Module) *Handler {
-	return &Handler{svc: svc}
+func NewHandler(svc *Module, runtime extensions.ComputeRuntime, metrics *metricsquery.Querier) *Handler {
+	return &Handler{svc: svc, runtime: runtime, metrics: metrics}
 }
 
 func (h *Handler) Register(rg *gin.RouterGroup) {
@@ -27,6 +34,51 @@ func (h *Handler) Register(rg *gin.RouterGroup) {
 	g.POST("/:policy/split", h.Split)
 	g.POST("/:policy/promote", h.Promote)
 	g.POST("/:policy/rollback", h.Rollback)
+	if h.runtime != nil {
+		g.GET("/:policy/metrics", h.Metrics)
+	}
+}
+
+// Metrics returns a resource metric time series for the policy, aggregated over
+// the pods of its member online services. The optional `backend` query param
+// scopes the series to one member (e.g. to compare canary vs stable).
+func (h *Handler) Metrics(c *gin.Context) {
+	if h.metrics == nil || !h.metrics.Enabled() {
+		_ = c.Error(apperrors.New(apperrors.CodeUnavailable, "workload metrics are unavailable"))
+		return
+	}
+	ns := c.Param("namespace")
+	tp, err := h.svc.Get(c.Request.Context(), ns, c.Param("policy"))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	backend := c.Query("backend")
+	var members []string
+	for _, b := range tp.Spec.Backends {
+		if backend == "" || b.ServiceName == backend {
+			members = append(members, b.ServiceName)
+		}
+	}
+	if backend != "" && len(members) == 0 {
+		_ = c.Error(apperrors.Newf(apperrors.CodeValidation, "backend %q is not a member of the policy", backend))
+		return
+	}
+	var names []string
+	for _, m := range members {
+		pods, err := h.runtime.ListMLServiceInstances(c.Request.Context(), types.NamespacedName{Namespace: ns, Name: m})
+		if err != nil {
+			_ = c.Error(kubeproxy.MapErr(err))
+			return
+		}
+		names = append(names, metricsquery.PodNames(pods)...)
+	}
+	series, err := h.metrics.Series(c.Request.Context(), ns, names, c.Query("metric"), c.Query("range"), c.Query("step"))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, series)
 }
 
 func (h *Handler) Create(c *gin.Context) {

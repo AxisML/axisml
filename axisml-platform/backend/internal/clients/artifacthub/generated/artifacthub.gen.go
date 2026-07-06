@@ -81,7 +81,7 @@ type Artifact struct {
 	// Spec Kind-specific free-form specification of the artifact.
 	Spec map[string]interface{} `json:"spec"`
 
-	// Status Lifecycle status (Pending, Ready, Failed, Deleting).
+	// Status Lifecycle status (Uploading, Ready, Failed, Deleting, Deleted).
 	Status string `json:"status"`
 
 	// UpdatedAt Last-update timestamp (RFC3339).
@@ -159,7 +159,7 @@ type ArtifactInitiateRequest struct {
 
 // ArtifactInitiateResponse defines model for ArtifactInitiateResponse.
 type ArtifactInitiateResponse struct {
-	// Artifact The newly persisted artifact version (status Pending until upload completes).
+	// Artifact The newly persisted artifact version (status Uploading until upload completes).
 	Artifact Artifact `json:"artifact"`
 
 	// Upload Upload target and credentials for pushing the artifact content.

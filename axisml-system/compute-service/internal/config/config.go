@@ -6,13 +6,21 @@ import (
 	"github.com/axisml/axisml/pkg/axismlconfig"
 )
 
-// Config is compute-service's runtime configuration. compute-service is a
-// controller whose only deployment-varying inputs are the database connection
-// and log settings, so it embeds only the shared Common sections — there is no
-// service-specific config. Listen ports, reconcile cadence, and leader election
-// are fixed constants (see consts.go).
+// Config is compute-service's runtime configuration. It embeds the shared
+// Common sections (database, log) and adds the optional Prometheus query
+// endpoint that backs the per-workload metrics routes. Listen ports, reconcile
+// cadence, and leader election are fixed constants (see consts.go).
 type Config struct {
 	axismlconfig.Common `mapstructure:",squash"`
+
+	Prometheus Prometheus `mapstructure:"prometheus"`
+}
+
+// Prometheus configures the metrics-query backend. When URL is empty the
+// per-workload metrics endpoints report metrics-unavailable instead of serving
+// fabricated data.
+type Prometheus struct {
+	URL string `mapstructure:"url" default:"" doc:"Prometheus query API base URL (e.g. http://kube-prometheus-stack-prometheus.axisml-infra:9090). Empty disables the workload metrics endpoints."`
 }
 
 // Load resolves the configuration from defaults < file < AXISML_ env < secret

@@ -171,7 +171,7 @@ type JobPatchRequest struct {
 	Description string    `json:"description,omitempty" binding:"max=1000" desc:"Updated free-text job description."`
 	Labels      StringMap `json:"labels,omitempty" desc:"Replacement label set."`
 	Annotations StringMap `json:"annotations,omitempty" desc:"Replacement annotation set."`
-	Spec        JobSpec   `json:"spec,omitempty" desc:"Replacement run template."`
+	Spec        *JobSpec  `json:"spec,omitempty" desc:"Replacement run template; omit to patch metadata only."`
 }
 
 // RunTriggerRequest holds the narrow set of trigger-time overrides for a run.

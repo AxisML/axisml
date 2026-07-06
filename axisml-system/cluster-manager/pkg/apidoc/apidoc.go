@@ -53,6 +53,10 @@ func Document(version string) *openapigen.Document {
 	g.Register("ResourceUnit", server.ResourceUnit{}, openapigen.ResponseMode)
 	g.Register("ResourcePoolList", server.ResourcePoolList{}, openapigen.ResponseMode)
 	g.Register("ResourceUnitList", server.ResourceUnitList{}, openapigen.ResponseMode)
+	g.Register("ResourceMeter", server.ResourceMeter{}, openapigen.ResponseMode)
+	g.Register("PoolUsage", server.PoolUsage{}, openapigen.ResponseMode)
+	g.Register("PoolMetricPoint", server.PoolMetricPoint{}, openapigen.ResponseMode)
+	g.Register("PoolMetricSeries", server.PoolMetricSeries{}, openapigen.ResponseMode)
 	g.Register("CreateTenantRequest", server.CreateTenantRequest{}, openapigen.InputMode)
 	g.Register("PatchTenantRequest", server.PatchTenantRequest{}, openapigen.InputMode)
 	g.Register("SetQuotaRequest", server.SetQuotaRequest{}, openapigen.InputMode)
@@ -87,6 +91,13 @@ func Document(version string) *openapigen.Document {
 	volNamespaceParam := openapigen.PathParam("namespace", "Physical Kubernetes namespace holding the volume.")
 	volNameParam := openapigen.PathParam("name", "Volume (PersistentVolumeClaim) name.")
 	selectorParam := openapigen.QueryParam("labelSelector", "K8s-style label selector.", &openapigen.Schema{Type: "string"})
+	tenantQuery := openapigen.QueryParam("tenant", "Tenant identifier the usage / metrics are scoped to.", &openapigen.Schema{Type: "string"})
+	tenantQuery.Required = true
+	poolMetricParam := openapigen.QueryParam("metric", "Metric to query: cpu_util (cores) | mem_util (GiB) | gpu_util (percent).", &openapigen.Schema{Type: "string"})
+	poolMetricParam.Required = true
+	poolRangeParam := openapigen.QueryParam("range", "Query window: 5m, 1h, 24h, 7d.", &openapigen.Schema{Type: "string"})
+	poolRangeParam.Required = true
+	poolStepParam := openapigen.QueryParam("step", "Sampling step between points (e.g. 30s); defaults to ~50 points across the range.", &openapigen.Schema{Type: "string"})
 	volNamespaceQuery := openapigen.QueryParam("namespace", "Physical Kubernetes namespace to list volumes in.", &openapigen.Schema{Type: "string"})
 	forceQuery := openapigen.QueryParam("force", "Delete even when mounted by running workloads.", &openapigen.Schema{Type: "boolean"})
 
@@ -137,6 +148,16 @@ func Document(version string) *openapigen.Document {
 			Responses:  withErrors(map[string]openapigen.Response{"204": openapigen.NoContentResp}),
 		},
 	}
+	paths["/api/v1/resourcepools/{pool}/usage"] = openapigen.PathItem{Get: &openapigen.Operation{
+		Tags: []string{tagResourcePools}, Summary: "Get a tenant's used-vs-total resource utilisation in the pool", OperationID: "getResourcePoolUsage",
+		Parameters: []openapigen.Parameter{poolParam, tenantQuery},
+		Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Per-resource usage meters.", "PoolUsage")}),
+	}}
+	paths["/api/v1/resourcepools/{pool}/metrics"] = openapigen.PathItem{Get: &openapigen.Operation{
+		Tags: []string{tagResourcePools}, Summary: "Query a tenant's resource-utilisation time series for the pool", OperationID: "getResourcePoolMetrics",
+		Parameters: []openapigen.Parameter{poolParam, tenantQuery, poolMetricParam, poolRangeParam, poolStepParam},
+		Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Metric series.", "PoolMetricSeries")}),
+	}}
 
 	paths["/api/v1/resourcepools/{pool}/units"] = openapigen.PathItem{
 		Post: &openapigen.Operation{

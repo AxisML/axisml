@@ -17,12 +17,14 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/axisml/axisml/axisml-platform/backend/internal/artifactdef"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/audit"
 	"github.com/axisml/axisml/axisml-platform/backend/internal/auth"
 	"github.com/axisml/axisml/axisml-platform/backend/internal/cache"
 	"github.com/axisml/axisml/axisml-platform/backend/internal/clients/artifacthub"
 	"github.com/axisml/axisml/axisml-platform/backend/internal/clients/clustermanager"
 	"github.com/axisml/axisml/axisml-platform/backend/internal/clients/computeservice"
 	"github.com/axisml/axisml/axisml-platform/backend/internal/config"
+	"github.com/axisml/axisml/axisml-platform/backend/internal/dashboard"
 	"github.com/axisml/axisml/axisml-platform/backend/internal/datavolume"
 	"github.com/axisml/axisml/axisml-platform/backend/internal/experiment"
 	"github.com/axisml/axisml/axisml-platform/backend/internal/identity"
@@ -40,10 +42,11 @@ import (
 
 // Deps groups the constructed collaborators shared across modules.
 type Deps struct {
-	Authn   *auth.Authenticator
-	Signer  *auth.Signer
-	Modules []server.Module
-	Cache   cache.Cache
+	Authn       *auth.Authenticator
+	Signer      *auth.Signer
+	Modules     []server.Module
+	Middlewares []gin.HandlerFunc
+	Cache       cache.Cache
 }
 
 // BuildDeps constructs the auth stack, typed clients, services and modules from
@@ -58,6 +61,7 @@ func BuildDeps(cfg config.Config, db *gorm.DB, log *slog.Logger) (*Deps, error) 
 	roles := store.NewRoleRepo(db)
 	sessions := store.NewSessionRepo(db)
 	tenants := store.NewTenantRepo(db)
+	audits := store.NewAuditRepo(db)
 	idp := store.NewIdentityProvider(db)
 
 	// Front the auth hot path (session validity + identity/RBAC) with Redis when
@@ -89,11 +93,12 @@ func BuildDeps(cfg config.Config, db *gorm.DB, log *slog.Logger) (*Deps, error) 
 	dataVolumeSvc := datavolume.NewService(cm, tenants)
 	jobSvc := job.NewService(store.NewDefinitionRepo(db, store.TableJobs), tenants, compute)
 	experimentSvc := experiment.NewService(store.NewDefinitionRepo(db, store.TableExperiments), tenants, compute)
-	mlserviceSvc := mlservice.NewService(compute, tenants)
+	mlserviceSvc := mlservice.NewService(compute, artifacts, tenants)
 	workspaceSvc := workspace.NewService(compute, tenants)
 	trafficSvc := traffic.NewService(compute, tenants)
 	modelSvc := artifactdef.NewService(store.NewDefinitionRepo(db, store.TableModels), artifacts, "model", config.DefaultTenant)
 	imageSvc := artifactdef.NewService(store.NewDefinitionRepo(db, store.TableImages), artifacts, "image", config.DefaultTenant)
+	dashboardSvc := dashboard.NewService(audits, cm)
 
 	modules := []server.Module{
 		identity.NewHandler(identitySvc, authn),
@@ -107,8 +112,10 @@ func BuildDeps(cfg config.Config, db *gorm.DB, log *slog.Logger) (*Deps, error) 
 		traffic.NewHandler(trafficSvc, authn),
 		artifactdef.NewHandler(modelSvc, authn, "models"),
 		artifactdef.NewHandler(imageSvc, authn, "images"),
+		dashboard.NewHandler(dashboardSvc, authn),
 	}
-	return &Deps{Authn: authn, Signer: signer, Modules: modules, Cache: c}, nil
+	middlewares := []gin.HandlerFunc{audit.NewRecorder(audits, log).Middleware()}
+	return &Deps{Authn: authn, Signer: signer, Modules: modules, Middlewares: middlewares, Cache: c}, nil
 }
 
 // NewAPIServer builds the API server (modules + JWKS + probes).
@@ -131,6 +138,7 @@ func NewAPIServer(cfg config.Config, db *gorm.DB, log *slog.Logger) (*server.Ser
 		Addr:        config.APIBindAddress,
 		Log:         log,
 		Modules:     deps.Modules,
+		Middlewares: deps.Middlewares,
 		StaticFS:    staticFS,
 		JWKSHandler: func(c *gin.Context) { c.JSON(http.StatusOK, jwks) },
 		Ready: func(ctx context.Context) error {

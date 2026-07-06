@@ -142,7 +142,15 @@ func (h *Handler) stop(c *gin.Context) {
 	c.JSON(http.StatusOK, v)
 }
 
-func (h *Handler) metrics(c *gin.Context) { server.Fail(c, server.MetricsUnavailable()) }
+func (h *Handler) metrics(c *gin.Context) {
+	m, err := h.svc.Metrics(c.Request.Context(), auth.ActiveTenant(c), c.Param("name"),
+		c.Query("metric"), c.Query("range"), server.OptStr(c.Query("step")))
+	if err != nil {
+		server.Fail(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, compview.MetricSeries(m))
+}
 
 func (h *Handler) pods(c *gin.Context) {
 	pods, err := h.svc.Pods(c.Request.Context(), auth.ActiveTenant(c), c.Param("name"))

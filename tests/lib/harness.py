@@ -57,6 +57,11 @@ def elastic_quota_name(tenant: str, pool: str) -> str:
 class Harness(ABC):
     def __init__(self, cfg: config.Config):
         self.cfg = cfg
+        # Memoize session tokens per credential pair: /auth/login is rate-limited
+        # per client IP (burst), and httptest/port-forward makes every request
+        # share one IP, so re-authenticating on every call would exhaust the bucket
+        # and 429. Reusing the token also mirrors a real client (log in once).
+        self._tokens: dict[tuple[str, str], str] = {}
 
     @property
     @abstractmethod
@@ -86,14 +91,25 @@ class Harness(ABC):
     def admin_token(self) -> str:
         return self.login(self.cfg.admin_username, self.cfg.admin_password)
 
-    def login(self, username: str, password: str) -> str:
+    def login(self, username: str, password: str, *, cache: bool = True) -> str:
+        """Log in and return a JWT. Memoized per (username, password) by default;
+        pass cache=False for a throwaway session a test intends to revoke (logout /
+        refresh) so it does not invalidate the shared cached token."""
+        key = (username, password)
+        if cache:
+            cached = self._tokens.get(key)
+            if cached is not None:
+                return cached
         r = httpx.post(
             f"{self.platform_base_url}/api/v1/auth/login",
             json={"username": username, "password": password},
             timeout=15.0,
         )
         r.raise_for_status()
-        return r.json()["jwt"]
+        token = r.json()["jwt"]
+        if cache:
+            self._tokens[key] = token
+        return token
 
     def platform(self, token: str | None = None) -> PlatformClient:
         return PlatformClient(

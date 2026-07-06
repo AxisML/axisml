@@ -8,8 +8,10 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync/atomic"
 	"time"
 
+	"golang.org/x/sync/errgroup"
 	"gorm.io/gorm"
 
 	"github.com/axisml/axisml/axisml-platform/backend/internal/auth"
@@ -152,22 +154,31 @@ func (s *Service) List(ctx context.Context, scope []string, q string, stats bool
 	if err != nil {
 		return nil, false, apperrors.Wrap(apperrors.ClassInternal, "list tenants", err)
 	}
-	out := make([]*server.Tenant, 0, len(rows))
+	// Each row's cluster-manager GetTenant (+ optional stats fan-out) is
+	// independent, so run them with bounded concurrency: list latency stays flat
+	// in the tenant count instead of O(N) sequential remote round-trips.
+	out := make([]*server.Tenant, len(rows))
+	var partialFlag atomic.Bool
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(8)
 	for i := range rows {
-		cr, cerr := s.cm.GetTenant(ctx, rows[i].Identifier)
-		if cerr != nil {
-			partial = true
-			cr = nil
-		}
-		view := buildView(&rows[i], cr)
-		if stats {
-			if !s.enrichCounts(ctx, view) {
-				partial = true
+		i := i
+		g.Go(func() error {
+			cr, cerr := s.cm.GetTenant(gctx, rows[i].Identifier)
+			if cerr != nil {
+				partialFlag.Store(true)
+				cr = nil
 			}
-		}
-		out = append(out, view)
+			view := buildView(&rows[i], cr)
+			if stats && !s.enrichCounts(gctx, view) {
+				partialFlag.Store(true)
+			}
+			out[i] = view
+			return nil
+		})
 	}
-	return out, partial, nil
+	_ = g.Wait() // workers never return an error; a failed source sets partial
+	return out, partialFlag.Load(), nil
 }
 
 // enrichCounts fills the tenant's best-effort workload roll-ups in place and
@@ -200,7 +211,7 @@ func (s *Service) enrichCounts(ctx context.Context, t *server.Tenant) bool {
 	}
 	if svcs, err := s.compute.ListMLServices(ctx, t.Identifier, ""); err == nil {
 		for i := range svcs {
-			if svcs[i].Kind == "service" {
+			if svcs[i].Kind == "service" && svcs[i].Status.ReadyReplicas > 0 {
 				t.OnlineServices++
 			}
 		}
@@ -244,11 +255,9 @@ func (s *Service) UpdateMeta(ctx context.Context, identifier, displayName, descr
 	return buildView(row, cr), nil
 }
 
-// Delete removes a tenant after verifying it has no members. The CR is deleted
-// first, then the durable record and membership rows.
-//
-// TODO(workloads): also block on active Runs/Services/Workspaces once the
-// compute client wrapper lands (backend.md §4.1 "活跃业务资源非空 → tenant-in-use").
+// Delete removes a tenant after verifying it has no members and no live
+// workloads. The CR is deleted first, then the durable record and membership
+// rows (backend.md §4.1 "活跃业务资源非空 → tenant-in-use").
 func (s *Service) Delete(ctx context.Context, identifier string) error {
 	if _, err := s.getRow(ctx, identifier); err != nil {
 		return err
@@ -260,6 +269,9 @@ func (s *Service) Delete(ctx context.Context, identifier string) error {
 	if n > 0 {
 		return apperrors.New(apperrors.ClassConflict, "tenant still has members").WithReason("tenant-in-use")
 	}
+	if err := s.checkNoActiveWorkloads(ctx, identifier); err != nil {
+		return err
+	}
 	if err := s.cm.DeleteTenant(ctx, identifier); err != nil {
 		return err
 	}
@@ -268,6 +280,41 @@ func (s *Service) Delete(ctx context.Context, identifier string) error {
 	}
 	if err := s.tenants.Delete(ctx, identifier); err != nil {
 		return apperrors.Wrap(apperrors.ClassInternal, "delete tenant", err)
+	}
+	return nil
+}
+
+// checkNoActiveWorkloads blocks tenant deletion while the namespace still holds
+// active Runs or any online Service / Workspace, so a delete never orphans live
+// compute. Unlike enrichCounts, list failures are fatal here: we must not tear a
+// tenant down on incomplete information. compute==nil (unconfigured) skips it.
+func (s *Service) checkNoActiveWorkloads(ctx context.Context, identifier string) error {
+	if s.compute == nil {
+		return nil
+	}
+	runs, err := s.compute.ListMLRuns(ctx, identifier, "")
+	if err != nil {
+		return err
+	}
+	for i := range runs {
+		if activeRunPhases[runs[i].Phase] {
+			return apperrors.New(apperrors.ClassConflict, "tenant still has active runs").WithReason("tenant-in-use")
+		}
+	}
+	svcs, err := s.compute.ListMLServices(ctx, identifier, "")
+	if err != nil {
+		return err
+	}
+	for i := range svcs {
+		switch svcs[i].Kind {
+		case "service", "workspace":
+			// Only a service/workspace with live pods blocks deletion; a stopped
+			// one (scaled to zero) is dormant, mirroring the active-phase run gate
+			// above rather than blocking on mere existence.
+			if svcs[i].Status.ReadyReplicas > 0 {
+				return apperrors.New(apperrors.ClassConflict, "tenant still has online services or workspaces").WithReason("tenant-in-use")
+			}
+		}
 	}
 	return nil
 }

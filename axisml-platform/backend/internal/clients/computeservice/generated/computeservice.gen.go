@@ -719,8 +719,17 @@ type MLRunCreateRequest struct {
 
 // MLRunList defines model for MLRunList.
 type MLRunList struct {
+	// ContinueToken Kubernetes-style continuation token for the next page; empty/absent on the final page.
+	ContinueToken *string `json:"continueToken,omitempty"`
+
+	// Count Number of items returned in this page (len(items)).
+	Count int `json:"count"`
+
+	// Items The page of items for the current offset.
 	Items []MLRun `json:"items"`
-	Total int64   `json:"total"`
+
+	// Total Total number of matching items across all pages.
+	Total int64 `json:"total"`
 }
 
 // MLRunPatchRequest defines model for MLRunPatchRequest.
@@ -924,8 +933,17 @@ type MLServiceCreateRequest struct {
 
 // MLServiceList defines model for MLServiceList.
 type MLServiceList struct {
+	// ContinueToken Kubernetes-style continuation token for the next page; empty/absent on the final page.
+	ContinueToken *string `json:"continueToken,omitempty"`
+
+	// Count Number of items returned in this page (len(items)).
+	Count int `json:"count"`
+
+	// Items The page of items for the current offset.
 	Items []MLService `json:"items"`
-	Total int64       `json:"total"`
+
+	// Total Total number of matching items across all pages.
+	Total int64 `json:"total"`
 }
 
 // MLServicePatchRequest defines model for MLServicePatchRequest.
@@ -1153,6 +1171,33 @@ type Metav1OwnerReference struct {
 // Metav1Time defines model for Metav1Time.
 type Metav1Time = map[string]interface{}
 
+// MetricPoint defines model for MetricPoint.
+type MetricPoint struct {
+	// Timestamp Sample time (RFC3339).
+	Timestamp time.Time `json:"timestamp"`
+
+	// Value Sampled value at the timestamp.
+	Value float64 `json:"value"`
+}
+
+// MetricSeries defines model for MetricSeries.
+type MetricSeries struct {
+	// Metric Metric name that was queried.
+	Metric string `json:"metric"`
+
+	// Range Query range window (e.g. 1h, 24h).
+	Range string `json:"range"`
+
+	// Series Sampled points, oldest first.
+	Series []MetricPoint `json:"series"`
+
+	// Step Sampling step between points (e.g. 30s).
+	Step *string `json:"step,omitempty"`
+
+	// Unit Value unit (cores, bytes, percent, req/s, ms).
+	Unit *string `json:"unit,omitempty"`
+}
+
 // Pod defines model for Pod.
 type Pod struct {
 	// Labels Pod labels.
@@ -1290,8 +1335,17 @@ type TrafficPolicyCreateRequest struct {
 
 // TrafficPolicyList defines model for TrafficPolicyList.
 type TrafficPolicyList struct {
+	// ContinueToken Kubernetes-style continuation token for the next page; empty/absent on the final page.
+	ContinueToken *string `json:"continueToken,omitempty"`
+
+	// Count Number of items returned in this page (len(items)).
+	Count int `json:"count"`
+
+	// Items The page of items for the current offset.
 	Items []TrafficPolicy `json:"items"`
-	Total int64           `json:"total"`
+
+	// Total Total number of matching items across all pages.
+	Total int64 `json:"total"`
 }
 
 // TrafficPolicyPatchRequest defines model for TrafficPolicyPatchRequest.
@@ -1351,6 +1405,18 @@ type ListMLRunsParams struct {
 	LabelSelector *string `form:"labelSelector,omitempty" json:"labelSelector,omitempty"`
 }
 
+// GetMLRunMetricsParams defines parameters for GetMLRunMetrics.
+type GetMLRunMetricsParams struct {
+	// Metric Resource metric to query: cpu_util (cores) | mem_util (bytes) | gpu_util (percent).
+	Metric string `form:"metric" json:"metric"`
+
+	// Range Query window: 5m, 1h, 24h, 7d.
+	Range string `form:"range" json:"range"`
+
+	// Step Sampling step between points (e.g. 30s); defaults to ~50 points across the range.
+	Step *string `form:"step,omitempty" json:"step,omitempty"`
+}
+
 // GetMLRunPodLogsParams defines parameters for GetMLRunPodLogs.
 type GetMLRunPodLogsParams struct {
 	// Container Target container (defaults to the first).
@@ -1378,6 +1444,18 @@ type ListMLServicesParams struct {
 	LabelSelector *string `form:"labelSelector,omitempty" json:"labelSelector,omitempty"`
 }
 
+// GetMLServiceMetricsParams defines parameters for GetMLServiceMetrics.
+type GetMLServiceMetricsParams struct {
+	// Metric Resource metric to query: cpu_util (cores) | mem_util (bytes) | gpu_util (percent).
+	Metric string `form:"metric" json:"metric"`
+
+	// Range Query window: 5m, 1h, 24h, 7d.
+	Range string `form:"range" json:"range"`
+
+	// Step Sampling step between points (e.g. 30s); defaults to ~50 points across the range.
+	Step *string `form:"step,omitempty" json:"step,omitempty"`
+}
+
 // GetMLServicePodLogsParams defines parameters for GetMLServicePodLogs.
 type GetMLServicePodLogsParams struct {
 	// Container Target container (defaults to the first).
@@ -1403,6 +1481,21 @@ type ListTrafficPoliciesParams struct {
 
 	// LabelSelector K8s-style label selector filtered against the row's labels jsonb.
 	LabelSelector *string `form:"labelSelector,omitempty" json:"labelSelector,omitempty"`
+}
+
+// GetTrafficPolicyMetricsParams defines parameters for GetTrafficPolicyMetrics.
+type GetTrafficPolicyMetricsParams struct {
+	// Metric Resource metric to query: cpu_util (cores) | mem_util (bytes) | gpu_util (percent).
+	Metric string `form:"metric" json:"metric"`
+
+	// Range Query window: 5m, 1h, 24h, 7d.
+	Range string `form:"range" json:"range"`
+
+	// Step Sampling step between points (e.g. 30s); defaults to ~50 points across the range.
+	Step *string `form:"step,omitempty" json:"step,omitempty"`
+
+	// Backend Scope the series to one member online service (canary vs stable comparison).
+	Backend *string `form:"backend,omitempty" json:"backend,omitempty"`
 }
 
 // CreateMLRunJSONRequestBody defines body for CreateMLRun for application/json ContentType.
@@ -1530,6 +1623,9 @@ type ClientInterface interface {
 	// ListMLRunEvents request
 	ListMLRunEvents(ctx context.Context, namespace string, mlrun string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetMLRunMetrics request
+	GetMLRunMetrics(ctx context.Context, namespace string, mlrun string, params *GetMLRunMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListMLRunPods request
 	ListMLRunPods(ctx context.Context, namespace string, mlrun string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1560,6 +1656,9 @@ type ClientInterface interface {
 
 	// ListMLServiceEvents request
 	ListMLServiceEvents(ctx context.Context, namespace string, mlservice string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetMLServiceMetrics request
+	GetMLServiceMetrics(ctx context.Context, namespace string, mlservice string, params *GetMLServiceMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListMLServicePods request
 	ListMLServicePods(ctx context.Context, namespace string, mlservice string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1593,6 +1692,9 @@ type ClientInterface interface {
 	PatchTrafficPolicyWithBody(ctx context.Context, namespace string, policy string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	PatchTrafficPolicy(ctx context.Context, namespace string, policy string, body PatchTrafficPolicyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetTrafficPolicyMetrics request
+	GetTrafficPolicyMetrics(ctx context.Context, namespace string, policy string, params *GetTrafficPolicyMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// PromoteTrafficPolicy request
 	PromoteTrafficPolicy(ctx context.Context, namespace string, policy string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1732,6 +1834,18 @@ func (c *Client) ListMLRunEvents(ctx context.Context, namespace string, mlrun st
 	return c.Client.Do(req)
 }
 
+func (c *Client) GetMLRunMetrics(ctx context.Context, namespace string, mlrun string, params *GetMLRunMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetMLRunMetricsRequest(c.Server, namespace, mlrun, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) ListMLRunPods(ctx context.Context, namespace string, mlrun string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListMLRunPodsRequest(c.Server, namespace, mlrun)
 	if err != nil {
@@ -1854,6 +1968,18 @@ func (c *Client) PatchMLService(ctx context.Context, namespace string, mlservice
 
 func (c *Client) ListMLServiceEvents(ctx context.Context, namespace string, mlservice string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListMLServiceEventsRequest(c.Server, namespace, mlservice)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetMLServiceMetrics(ctx context.Context, namespace string, mlservice string, params *GetMLServiceMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetMLServiceMetricsRequest(c.Server, namespace, mlservice, params)
 	if err != nil {
 		return nil, err
 	}
@@ -1998,6 +2124,18 @@ func (c *Client) PatchTrafficPolicyWithBody(ctx context.Context, namespace strin
 
 func (c *Client) PatchTrafficPolicy(ctx context.Context, namespace string, policy string, body PatchTrafficPolicyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPatchTrafficPolicyRequest(c.Server, namespace, policy, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetTrafficPolicyMetrics(ctx context.Context, namespace string, policy string, params *GetTrafficPolicyMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetTrafficPolicyMetricsRequest(c.Server, namespace, policy, params)
 	if err != nil {
 		return nil, err
 	}
@@ -2450,6 +2588,93 @@ func NewListMLRunEventsRequest(server string, namespace string, mlrun string) (*
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetMLRunMetricsRequest generates requests for GetMLRunMetrics
+func NewGetMLRunMetricsRequest(server string, namespace string, mlrun string, params *GetMLRunMetricsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespace", runtime.ParamLocationPath, namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "mlrun", runtime.ParamLocationPath, mlrun)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/mlruns/%s/metrics", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "metric", runtime.ParamLocationQuery, params.Metric); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "range", runtime.ParamLocationQuery, params.Range); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if params.Step != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "step", runtime.ParamLocationQuery, *params.Step); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -2969,6 +3194,93 @@ func NewListMLServiceEventsRequest(server string, namespace string, mlservice st
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetMLServiceMetricsRequest generates requests for GetMLServiceMetrics
+func NewGetMLServiceMetricsRequest(server string, namespace string, mlservice string, params *GetMLServiceMetricsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespace", runtime.ParamLocationPath, namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "mlservice", runtime.ParamLocationPath, mlservice)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/mlservices/%s/metrics", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "metric", runtime.ParamLocationQuery, params.Metric); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "range", runtime.ParamLocationQuery, params.Range); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if params.Step != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "step", runtime.ParamLocationQuery, *params.Step); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -3511,6 +3823,109 @@ func NewPatchTrafficPolicyRequestWithBody(server string, namespace string, polic
 	return req, nil
 }
 
+// NewGetTrafficPolicyMetricsRequest generates requests for GetTrafficPolicyMetrics
+func NewGetTrafficPolicyMetricsRequest(server string, namespace string, policy string, params *GetTrafficPolicyMetricsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespace", runtime.ParamLocationPath, namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "policy", runtime.ParamLocationPath, policy)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/traffic-policies/%s/metrics", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "metric", runtime.ParamLocationQuery, params.Metric); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "range", runtime.ParamLocationQuery, params.Range); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if params.Step != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "step", runtime.ParamLocationQuery, *params.Step); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Backend != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "backend", runtime.ParamLocationQuery, *params.Backend); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewPromoteTrafficPolicyRequest generates requests for PromoteTrafficPolicy
 func NewPromoteTrafficPolicyRequest(server string, namespace string, policy string) (*http.Request, error) {
 	var err error
@@ -3772,6 +4187,9 @@ type ClientWithResponsesInterface interface {
 	// ListMLRunEventsWithResponse request
 	ListMLRunEventsWithResponse(ctx context.Context, namespace string, mlrun string, reqEditors ...RequestEditorFn) (*ListMLRunEventsResponse, error)
 
+	// GetMLRunMetricsWithResponse request
+	GetMLRunMetricsWithResponse(ctx context.Context, namespace string, mlrun string, params *GetMLRunMetricsParams, reqEditors ...RequestEditorFn) (*GetMLRunMetricsResponse, error)
+
 	// ListMLRunPodsWithResponse request
 	ListMLRunPodsWithResponse(ctx context.Context, namespace string, mlrun string, reqEditors ...RequestEditorFn) (*ListMLRunPodsResponse, error)
 
@@ -3802,6 +4220,9 @@ type ClientWithResponsesInterface interface {
 
 	// ListMLServiceEventsWithResponse request
 	ListMLServiceEventsWithResponse(ctx context.Context, namespace string, mlservice string, reqEditors ...RequestEditorFn) (*ListMLServiceEventsResponse, error)
+
+	// GetMLServiceMetricsWithResponse request
+	GetMLServiceMetricsWithResponse(ctx context.Context, namespace string, mlservice string, params *GetMLServiceMetricsParams, reqEditors ...RequestEditorFn) (*GetMLServiceMetricsResponse, error)
 
 	// ListMLServicePodsWithResponse request
 	ListMLServicePodsWithResponse(ctx context.Context, namespace string, mlservice string, reqEditors ...RequestEditorFn) (*ListMLServicePodsResponse, error)
@@ -3835,6 +4256,9 @@ type ClientWithResponsesInterface interface {
 	PatchTrafficPolicyWithBodyWithResponse(ctx context.Context, namespace string, policy string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PatchTrafficPolicyResponse, error)
 
 	PatchTrafficPolicyWithResponse(ctx context.Context, namespace string, policy string, body PatchTrafficPolicyJSONRequestBody, reqEditors ...RequestEditorFn) (*PatchTrafficPolicyResponse, error)
+
+	// GetTrafficPolicyMetricsWithResponse request
+	GetTrafficPolicyMetricsWithResponse(ctx context.Context, namespace string, policy string, params *GetTrafficPolicyMetricsParams, reqEditors ...RequestEditorFn) (*GetTrafficPolicyMetricsResponse, error)
 
 	// PromoteTrafficPolicyWithResponse request
 	PromoteTrafficPolicyWithResponse(ctx context.Context, namespace string, policy string, reqEditors ...RequestEditorFn) (*PromoteTrafficPolicyResponse, error)
@@ -4086,6 +4510,37 @@ func (r ListMLRunEventsResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r ListMLRunEventsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetMLRunMetricsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *MetricSeries
+	JSON400      *ComputeServiceError
+	JSON401      *ComputeServiceError
+	JSON403      *ComputeServiceError
+	JSON404      *ComputeServiceError
+	JSON409      *ComputeServiceError
+	JSON412      *ComputeServiceError
+	JSON422      *ComputeServiceError
+	JSON503      *ComputeServiceError
+	JSONDefault  *ComputeServiceError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetMLRunMetricsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetMLRunMetricsResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -4369,6 +4824,37 @@ func (r ListMLServiceEventsResponse) StatusCode() int {
 	return 0
 }
 
+type GetMLServiceMetricsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *MetricSeries
+	JSON400      *ComputeServiceError
+	JSON401      *ComputeServiceError
+	JSON403      *ComputeServiceError
+	JSON404      *ComputeServiceError
+	JSON409      *ComputeServiceError
+	JSON412      *ComputeServiceError
+	JSON422      *ComputeServiceError
+	JSON503      *ComputeServiceError
+	JSONDefault  *ComputeServiceError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetMLServiceMetricsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetMLServiceMetricsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type ListMLServicePodsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -4646,6 +5132,37 @@ func (r PatchTrafficPolicyResponse) StatusCode() int {
 	return 0
 }
 
+type GetTrafficPolicyMetricsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *MetricSeries
+	JSON400      *ComputeServiceError
+	JSON401      *ComputeServiceError
+	JSON403      *ComputeServiceError
+	JSON404      *ComputeServiceError
+	JSON409      *ComputeServiceError
+	JSON412      *ComputeServiceError
+	JSON422      *ComputeServiceError
+	JSON503      *ComputeServiceError
+	JSONDefault  *ComputeServiceError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetTrafficPolicyMetricsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetTrafficPolicyMetricsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type PromoteTrafficPolicyResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -4869,6 +5386,15 @@ func (c *ClientWithResponses) ListMLRunEventsWithResponse(ctx context.Context, n
 	return ParseListMLRunEventsResponse(rsp)
 }
 
+// GetMLRunMetricsWithResponse request returning *GetMLRunMetricsResponse
+func (c *ClientWithResponses) GetMLRunMetricsWithResponse(ctx context.Context, namespace string, mlrun string, params *GetMLRunMetricsParams, reqEditors ...RequestEditorFn) (*GetMLRunMetricsResponse, error) {
+	rsp, err := c.GetMLRunMetrics(ctx, namespace, mlrun, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetMLRunMetricsResponse(rsp)
+}
+
 // ListMLRunPodsWithResponse request returning *ListMLRunPodsResponse
 func (c *ClientWithResponses) ListMLRunPodsWithResponse(ctx context.Context, namespace string, mlrun string, reqEditors ...RequestEditorFn) (*ListMLRunPodsResponse, error) {
 	rsp, err := c.ListMLRunPods(ctx, namespace, mlrun, reqEditors...)
@@ -4964,6 +5490,15 @@ func (c *ClientWithResponses) ListMLServiceEventsWithResponse(ctx context.Contex
 		return nil, err
 	}
 	return ParseListMLServiceEventsResponse(rsp)
+}
+
+// GetMLServiceMetricsWithResponse request returning *GetMLServiceMetricsResponse
+func (c *ClientWithResponses) GetMLServiceMetricsWithResponse(ctx context.Context, namespace string, mlservice string, params *GetMLServiceMetricsParams, reqEditors ...RequestEditorFn) (*GetMLServiceMetricsResponse, error) {
+	rsp, err := c.GetMLServiceMetrics(ctx, namespace, mlservice, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetMLServiceMetricsResponse(rsp)
 }
 
 // ListMLServicePodsWithResponse request returning *ListMLServicePodsResponse
@@ -5069,6 +5604,15 @@ func (c *ClientWithResponses) PatchTrafficPolicyWithResponse(ctx context.Context
 		return nil, err
 	}
 	return ParsePatchTrafficPolicyResponse(rsp)
+}
+
+// GetTrafficPolicyMetricsWithResponse request returning *GetTrafficPolicyMetricsResponse
+func (c *ClientWithResponses) GetTrafficPolicyMetricsWithResponse(ctx context.Context, namespace string, policy string, params *GetTrafficPolicyMetricsParams, reqEditors ...RequestEditorFn) (*GetTrafficPolicyMetricsResponse, error) {
+	rsp, err := c.GetTrafficPolicyMetrics(ctx, namespace, policy, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetTrafficPolicyMetricsResponse(rsp)
 }
 
 // PromoteTrafficPolicyWithResponse request returning *PromoteTrafficPolicyResponse
@@ -5693,6 +6237,95 @@ func ParseListMLRunEventsResponse(rsp *http.Response) (*ListMLRunEventsResponse,
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest EventList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetMLRunMetricsResponse parses an HTTP response from a GetMLRunMetricsWithResponse call
+func ParseGetMLRunMetricsResponse(rsp *http.Response) (*GetMLRunMetricsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetMLRunMetricsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest MetricSeries
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -6553,6 +7186,95 @@ func ParseListMLServiceEventsResponse(rsp *http.Response) (*ListMLServiceEventsR
 	return response, nil
 }
 
+// ParseGetMLServiceMetricsResponse parses an HTTP response from a GetMLServiceMetricsWithResponse call
+func ParseGetMLServiceMetricsResponse(rsp *http.Response) (*GetMLServiceMetricsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetMLServiceMetricsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest MetricSeries
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseListMLServicePodsResponse parses an HTTP response from a ListMLServicePodsWithResponse call
 func ParseListMLServicePodsResponse(rsp *http.Response) (*ListMLServicePodsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -7267,6 +7989,95 @@ func ParsePatchTrafficPolicyResponse(rsp *http.Response) (*PatchTrafficPolicyRes
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest TrafficPolicy
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetTrafficPolicyMetricsResponse parses an HTTP response from a GetTrafficPolicyMetricsWithResponse call
+func ParseGetTrafficPolicyMetricsResponse(rsp *http.Response) (*GetTrafficPolicyMetricsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetTrafficPolicyMetricsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest MetricSeries
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

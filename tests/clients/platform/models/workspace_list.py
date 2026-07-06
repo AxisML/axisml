@@ -23,8 +23,11 @@ class WorkspaceList:
             'computeNamespace': 'axisml-team-vision', 'containerPort': 8888, 'createdAt': '2026-06-20T08:00:00Z',
             'description': 'JupyterLab interactive development environment.', 'desiredState': 'Running', 'displayName':
             'Vision team dev environment', 'endpoint': {'accessUrl': 'https://axisml.example.com/ws/team-vision/notebook-
-            dev/', 'internalDns': 'notebook-dev.axisml-team-vision.svc.cluster.local'}, 'env': [{'name':
-            'JUPYTER_ENABLE_LAB', 'value': 'yes'}], 'id': 'f1e2d3c4-5b6a-4798-8c0d-1e2f3a4b5c6d', 'image':
+            dev/', 'internalDns': 'notebook-dev.axisml-team-vision.svc.cluster.local', 'tools': [{'label': 'JupyterLab',
+            'name': 'jupyter', 'url': 'https://axisml.example.com/ws/team-vision/notebook-dev/lab'}, {'label': 'VS Code',
+            'name': 'vscode', 'url': 'https://axisml.example.com/ws/team-vision/notebook-dev/vscode/'}, {'label':
+            'Terminal', 'name': 'terminal', 'url': 'https://axisml.example.com/ws/team-vision/notebook-dev/terminals/1'}]},
+            'env': [{'name': 'JUPYTER_ENABLE_LAB', 'value': 'yes'}], 'id': 'f1e2d3c4-5b6a-4798-8c0d-1e2f3a4b5c6d', 'image':
             'registry.axisml.io/dev/jupyter:3.0.0', 'lastStartedAt': '2026-06-28T09:00:00Z', 'lifecycle':
             {'idleTimeoutSeconds': 3600}, 'message': 'Workspace is ready.', 'name': 'notebook-dev', 'namespace': 'team-
             vision', 'owner': 'li.wei', 'ownerId': '3a2b1c0d-4e5f-6789-abcd-ef0123456789', 'phase': 'Running', 'poolName':

@@ -23,6 +23,9 @@ func NewHandler(svc *Service, authn *auth.Authenticator) *Handler {
 
 // Register mounts workspace routes.
 func (h *Handler) Register(rg *gin.RouterGroup) {
+	// Base-image catalog: a sibling read-only route, any authenticated user.
+	rg.GET("/workspace-images", h.authn.RequireAuthenticated(), h.listImages)
+
 	g := rg.Group("/workspaces", h.authn.RequireAuthenticated())
 	g.GET("", h.list)
 
@@ -37,6 +40,11 @@ func (h *Handler) Register(rg *gin.RouterGroup) {
 	s.GET("/:name/pods", h.pods)
 	s.GET("/:name/pods/:pod/logs", h.podLogs)
 	s.GET("/:name/pods/:pod/events", h.podEvents)
+}
+
+func (h *Handler) listImages(c *gin.Context) {
+	imgs := h.svc.Images()
+	c.JSON(http.StatusOK, server.WorkspaceImageList{Items: imgs, Count: len(imgs)})
 }
 
 func (h *Handler) create(c *gin.Context) {

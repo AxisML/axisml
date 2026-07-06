@@ -108,8 +108,8 @@ func (s *Service) Update(ctx context.Context, id *auth.Identity, tenant, name st
 	if in.Annotations != nil {
 		d.Annotations = store.StrMap(in.Annotations)
 	}
-	if len(in.Spec.Roles) > 0 {
-		d.Spec = marshalSpec(in.Spec)
+	if in.Spec != nil && len(in.Spec.Roles) > 0 {
+		d.Spec = marshalSpec(*in.Spec)
 	}
 	if err := s.defs.Update(ctx, d); err != nil {
 		return nil, apperrors.Wrap(apperrors.ClassInternal, "update experiment", err)
@@ -170,6 +170,9 @@ func (s *Service) DeleteRun(ctx context.Context, tenant, run string) error {
 }
 func (s *Service) RunPods(ctx context.Context, tenant, run string) ([]computeservice.Pod, error) {
 	return s.runner.Pods(ctx, tenant, run)
+}
+func (s *Service) RunMetrics(ctx context.Context, tenant, run, metric, rng string, step *string) (*computeservice.MetricSeries, error) {
+	return s.runner.Metrics(ctx, tenant, run, metric, rng, step)
 }
 func (s *Service) RunEvents(ctx context.Context, tenant, run string) ([]computeservice.Event, error) {
 	return s.runner.Events(ctx, tenant, run)
