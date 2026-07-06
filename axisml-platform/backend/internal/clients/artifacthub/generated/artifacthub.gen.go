@@ -192,10 +192,7 @@ type ArtifactResolveResponse struct {
 	// Digest Content digest of the resolved artifact.
 	Digest *string `json:"digest,omitempty"`
 
-	// ExpiresAt Expiry of the pull credentials (RFC3339).
-	ExpiresAt *time.Time `json:"expiresAt"`
-
-	// PullCredentials Pull credentials, omitted for public artifacts that need none.
+	// PullCredentials Pull credentials (carrying their own expiry), omitted for public artifacts that need none.
 	PullCredentials *OciCredentials `json:"pullCredentials"`
 
 	// StorageKind Storage backend kind serving the artifact (e.g. oci).
@@ -231,11 +228,8 @@ type OciCredentials struct {
 
 // UploadCredentials defines model for UploadCredentials.
 type UploadCredentials struct {
-	// Credentials Push-capable credentials for the upload target.
+	// Credentials Push-capable credentials for the upload target; carries its own expiry.
 	Credentials OciCredentials `json:"credentials"`
-
-	// ExpiresAt Expiry of the upload credentials (RFC3339).
-	ExpiresAt time.Time `json:"expiresAt"`
 
 	// StorageKind Storage backend kind backing the upload (e.g. oci).
 	StorageKind string `json:"storageKind"`

@@ -256,8 +256,8 @@ func (s *Service) Resolve(ctx context.Context, tenant, name, version string) (*s
 	if r.Digest != nil {
 		out.Digest = *r.Digest
 	}
-	if r.ExpiresAt != nil {
-		out.ExpiresAt = *r.ExpiresAt
+	if r.PullCredentials != nil {
+		out.ExpiresAt = r.PullCredentials.ExpiresAt
 	}
 	var creds map[string]any
 	b, _ := json.Marshal(r.PullCredentials)
