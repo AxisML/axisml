@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
@@ -27,25 +27,20 @@ class ExperimentPatchRequest:
         description (str | Unset): Updated free-text experiment description.
         display_name (str | Unset): Updated human-readable experiment label.
         labels (StringMap | Unset):
-        spec (JobSpec | Unset):  Example: {'artifacts': [{'kind': 'model', 'name': 'resnet50', 'version': '1.4.0'}],
-            'backend': {'engine': 'pytorchjob', 'name': 'native'}, 'poolName': 'gpu-a100', 'quota': 'team-vision', 'roles':
-            [{'name': 'worker', 'replicas': 4, 'restartPolicy': 'OnFailure', 'template': {'args': ['--epochs', '90', '--
-            batch-size', '256'], 'command': ['python', 'train.py'], 'env': [{'name': 'NCCL_DEBUG', 'value': 'INFO'}],
-            'image': 'registry.axisml.io/training/resnet:1.4.0', 'ports': [{'containerPort': 8080, 'name': 'http',
-            'protocol': 'TCP'}], 'resources': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'}, 'volumeMounts':
-            [{'mountPath': '/data', 'name': 'data'}], 'volumes': [{'name': 'data', 'persistentVolumeClaim': {'claimName':
-            'resnet-imagenet'}}]}}], 'runPolicy': {'activeDeadlineSeconds': 86400, 'backoffLimit': 2,
-            'progressDeadlineSeconds': 600, 'ttlSecondsAfterFinished': 3600}, 'unitName': 'a100-2x'}.
+        spec (JobSpec | None | Unset): Replacement run template (affects only Runs triggered afterwards); omit to patch
+            metadata only.
     """
 
     annotations: StringMap | Unset = UNSET
     description: str | Unset = UNSET
     display_name: str | Unset = UNSET
     labels: StringMap | Unset = UNSET
-    spec: JobSpec | Unset = UNSET
+    spec: JobSpec | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
+        from ..models.job_spec import JobSpec
+
         annotations: dict[str, Any] | Unset = UNSET
         if not isinstance(self.annotations, Unset):
             annotations = self.annotations.to_dict()
@@ -58,9 +53,13 @@ class ExperimentPatchRequest:
         if not isinstance(self.labels, Unset):
             labels = self.labels.to_dict()
 
-        spec: dict[str, Any] | Unset = UNSET
-        if not isinstance(self.spec, Unset):
+        spec: dict[str, Any] | None | Unset
+        if isinstance(self.spec, Unset):
+            spec = UNSET
+        elif isinstance(self.spec, JobSpec):
             spec = self.spec.to_dict()
+        else:
+            spec = self.spec
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
@@ -102,12 +101,22 @@ class ExperimentPatchRequest:
         else:
             labels = StringMap.from_dict(_labels)
 
-        _spec = d.pop("spec", UNSET)
-        spec: JobSpec | Unset
-        if isinstance(_spec, Unset):
-            spec = UNSET
-        else:
-            spec = JobSpec.from_dict(_spec)
+        def _parse_spec(data: object) -> JobSpec | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, dict):
+                    raise TypeError()
+                spec_type_1 = JobSpec.from_dict(data)
+
+                return spec_type_1
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(JobSpec | None | Unset, data)
+
+        spec = _parse_spec(d.pop("spec", UNSET))
 
         experiment_patch_request = cls(
             annotations=annotations,

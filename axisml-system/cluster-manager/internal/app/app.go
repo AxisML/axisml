@@ -98,6 +98,13 @@ func NewRouter(c client.Client, metrics resourcepool.MetricsQuerier) *gin.Engine
 	r := gin.New()
 	r.Use(gin.Recovery())
 
+	// Health probes are also served on the API port (in addition to the dedicated
+	// probes server) so clients reaching the API service can health-check it,
+	// matching compute-service / platform.
+	health := func(ctx *gin.Context) { ctx.JSON(http.StatusOK, srv.HealthStatus{Status: "ok"}) }
+	r.GET("/healthz", health)
+	r.GET("/readyz", health)
+
 	// Kubernetes composition root: back the form-neutral stores with the
 	// cluster-scoped CRs, then assemble via the shared pkg/module.
 	mod := clustermodule.New(clustermodule.Deps{

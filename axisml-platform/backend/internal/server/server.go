@@ -58,17 +58,17 @@ func New(opts Options) (*Server, error) {
 		ErrorHandler(opts.Log),
 	)
 
-	r.GET("/healthz", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
+	r.GET("/healthz", func(c *gin.Context) { c.JSON(http.StatusOK, HealthStatus{Status: "ok"}) })
 	r.GET("/readyz", func(c *gin.Context) {
 		if opts.Ready != nil {
 			cctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
 			defer cancel()
 			if err := opts.Ready(cctx); err != nil {
-				c.String(http.StatusServiceUnavailable, "not ready: %v", err)
+				c.JSON(http.StatusServiceUnavailable, HealthStatus{Status: "unavailable", Components: map[string]string{"ready": err.Error()}})
 				return
 			}
 		}
-		c.String(http.StatusOK, "ok")
+		c.JSON(http.StatusOK, HealthStatus{Status: "ok"})
 	})
 	if opts.JWKSHandler != nil {
 		r.GET("/.well-known/jwks.json", opts.JWKSHandler)

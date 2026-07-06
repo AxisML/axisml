@@ -36,7 +36,10 @@ def parse_repo_ref(uri: str) -> tuple[str, str]:
         head, _, tail = s.rpartition(":")
         if "/" not in tail:
             ref, s = tail, head
-    return s, ref
+    # The upload URI can carry a leading '//' after the host or a trailing '/';
+    # strip them so the /v2/<repo>/blobs path has no double slashes (which the
+    # registry 301-redirects to the canonical form).
+    return s.strip("/"), ref
 
 
 def sha256_digest(b: bytes) -> str:

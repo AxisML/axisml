@@ -55,6 +55,41 @@ func TestMLServiceCreateModelPrecheck(t *testing.T) {
 	assert.Contains(t, names, "AXISML_MODEL_URI", "resolved model URI must be injected")
 }
 
+// TestJobMetadataOnlyPatch covers a metadata-only Job PATCH (no spec): the
+// embedded JobSpec's dns1123/min validators must not trip when spec is omitted,
+// so JobPatchRequest.Spec is a pointer left nil.
+func TestJobMetadataOnlyPatch(t *testing.T) {
+	admin := loginAdmin(t)
+	code, _ := do(t, http.MethodPost, "/api/v1/users", admin, map[string]any{
+		"username": "jobowner", "password": "password123", "displayName": "Job Owner",
+	})
+	require.Contains(t, []int{http.StatusCreated, http.StatusConflict}, code)
+	code, _ = do(t, http.MethodPost, "/api/v1/tenants", admin, map[string]any{
+		"identifier": "job-team", "kubernetesNamespace": "axisml-tenant",
+		"displayName": "Job", "initialAdmin": "jobowner",
+	})
+	require.Equal(t, http.StatusCreated, code)
+
+	code, created := doTenant(t, http.MethodPost, "/api/v1/jobs", admin, "job-team", map[string]any{
+		"name": "echo", "displayName": "Echo",
+		"spec": map[string]any{
+			"backend":  map[string]any{"name": "native", "engine": "job"},
+			"poolName": "gpu-a100", "unitName": "small",
+			"roles": []map[string]any{{
+				"name": "worker", "replicas": 1,
+				"template": map[string]any{"image": "busybox:latest", "command": []string{"sh", "-c", "echo hi"}},
+			}},
+		},
+	})
+	require.Equal(t, http.StatusCreated, code, "%v", created)
+
+	code, patched := doTenant(t, http.MethodPatch, "/api/v1/jobs/echo", admin, "job-team", map[string]any{
+		"displayName": "Renamed", "description": "metadata only",
+	})
+	require.Equal(t, http.StatusOK, code, "%v", patched)
+	assert.Equal(t, "Renamed", patched["displayName"])
+}
+
 // TestPlatformMetricsProxy covers the four metrics endpoints proxying to
 // compute-service N1.
 func TestPlatformMetricsProxy(t *testing.T) {

@@ -49,7 +49,7 @@ type ExperimentPatchRequest struct {
 	Description string    `json:"description,omitempty" binding:"max=1000" desc:"Updated free-text experiment description."`
 	Labels      StringMap `json:"labels,omitempty" desc:"Replacement label set."`
 	Annotations StringMap `json:"annotations,omitempty" desc:"Replacement annotation set."`
-	Spec        JobSpec   `json:"spec,omitempty" desc:"Replacement run template (affects only Runs triggered afterwards)."`
+	Spec        *JobSpec  `json:"spec,omitempty" desc:"Replacement run template (affects only Runs triggered afterwards); omit to patch metadata only."`
 }
 
 // TensorBoard is an on-demand, read-only metric view for an experiment (or a

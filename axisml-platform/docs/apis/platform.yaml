@@ -1196,7 +1196,9 @@ components:
         spec:
           allOf:
           - $ref: '#/components/schemas/JobSpec'
-          description: Replacement run template (affects only Runs triggered afterwards).
+          description: Replacement run template (affects only Runs triggered afterwards);
+            omit to patch metadata only.
+          nullable: true
       type: object
     HealthStatus:
       example:
@@ -1882,7 +1884,8 @@ components:
         spec:
           allOf:
           - $ref: '#/components/schemas/JobSpec'
-          description: Replacement run template.
+          description: Replacement run template; omit to patch metadata only.
+          nullable: true
       type: object
     JobSpec:
       example:

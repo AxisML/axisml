@@ -16,8 +16,10 @@ def test_admin_me(harness):
 
 
 def test_refresh_token_issues_working_jwt(harness):
-    client = harness.platform(harness.admin_token())
-    r = refresh_token.sync_detailed(client=client)
+    # Refresh revokes the presenting session, so use a dedicated (uncached) token
+    # rather than the shared admin session the rest of the suite reuses.
+    token = harness.login(harness.cfg.admin_username, harness.cfg.admin_password, cache=False)
+    r = refresh_token.sync_detailed(client=harness.platform(token))
     assert r.status_code == 200, r.content
     assert r.parsed.jwt, "refresh must return a new JWT"
     # The refreshed token authenticates.
@@ -26,8 +28,10 @@ def test_refresh_token_issues_working_jwt(harness):
 
 
 def test_logout(harness):
-    client = harness.platform(harness.admin_token())
-    r = logout.sync_detailed(client=client)
+    # Logout revokes the session — use a dedicated one so the shared admin token
+    # the rest of the suite reuses stays valid.
+    token = harness.login(harness.cfg.admin_username, harness.cfg.admin_password, cache=False)
+    r = logout.sync_detailed(client=harness.platform(token))
     assert r.status_code in (200, 204), r.content
 
 

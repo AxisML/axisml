@@ -98,8 +98,8 @@ func (s *Service) Update(ctx context.Context, id *auth.Identity, tenant, name st
 	if in.Annotations != nil {
 		d.Annotations = store.StrMap(in.Annotations)
 	}
-	if len(in.Spec.Roles) > 0 {
-		d.Spec = marshalSpec(in.Spec)
+	if in.Spec != nil && len(in.Spec.Roles) > 0 {
+		d.Spec = marshalSpec(*in.Spec)
 	}
 	if err := s.defs.Update(ctx, d); err != nil {
 		return nil, apperrors.Wrap(apperrors.ClassInternal, "update job", err)
