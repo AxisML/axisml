@@ -155,7 +155,6 @@ func (s *Service) Initiate(ctx context.Context, namespace, kind, name, ownerUser
 			StorageKind: string(h.StorageKind()),
 			URI:         h.BuildStorageURI(namespace, name, in.Version),
 			Credentials: creds,
-			ExpiresAt:   creds.ExpiresAt,
 		},
 	}, nil
 }
@@ -271,8 +270,6 @@ func (s *Service) Resolve(ctx context.Context, namespace, kind, name, version, u
 			return nil, apperrors.Wrap(apperrors.CodeUnavailable, "issue pull credentials", err)
 		}
 		res.PullCredentials = &creds
-		expires := creds.ExpiresAt
-		res.ExpiresAt = &expires
 	default:
 		return nil, apperrors.Newf(apperrors.CodeValidation, "usage must be inspect or download (got %q)", usage)
 	}

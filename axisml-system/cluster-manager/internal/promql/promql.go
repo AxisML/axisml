@@ -101,7 +101,7 @@ func (q *Querier) Series(ctx context.Context, namespace string, nodeSelector map
 	if err != nil {
 		return srv.PoolMetricSeries{}, err
 	}
-	out := srv.PoolMetricSeries{Metric: metric, Range: rangeStr, Step: stepStr, Unit: spec.unit, Series: []srv.PoolMetricPoint{}}
+	out := srv.PoolMetricSeries{Metric: metric, Range: rangeStr, Step: step.String(), Unit: spec.unit, Series: []srv.PoolMetricPoint{}}
 	if m, ok := val.(model.Matrix); ok && len(m) > 0 {
 		for _, p := range m[0].Values {
 			out.Series = append(out.Series, srv.PoolMetricPoint{Timestamp: p.Timestamp.Time(), Value: float64(p.Value)})

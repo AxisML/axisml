@@ -14,8 +14,7 @@ import (
 // Informer reflects MLTrafficPolicy CR status into PG. It is the Kubernetes
 // status reflow; the Lite form uses StatusPoller instead. Both share the same
 // writeback helpers (reflectObserved / reflectGone). Writes go to phase
-// (high-frequency filter) + status jsonb (message / endpoint / backends[] /
-// conditions[]).
+// (high-frequency filter) + status jsonb (message / endpoint / backends[]).
 type Informer struct {
 	db   *gorm.DB
 	repo *Repository

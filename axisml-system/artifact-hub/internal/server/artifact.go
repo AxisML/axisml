@@ -66,8 +66,7 @@ type ArtifactPatchRequest struct {
 type UploadCredentials struct {
 	StorageKind string          `json:"storageKind" desc:"Storage backend kind backing the upload (e.g. oci)."`
 	URI         string          `json:"uri" desc:"Target storage URI the client pushes the artifact content to."`
-	Credentials oci.Credentials `json:"credentials" desc:"Push-capable credentials for the upload target."`
-	ExpiresAt   time.Time       `json:"expiresAt" desc:"Expiry of the upload credentials (RFC3339)."`
+	Credentials oci.Credentials `json:"credentials" desc:"Push-capable credentials for the upload target; carries its own expiry."`
 }
 
 // ArtifactInitiateResponse is what we return to the cli after step 1. Per design
@@ -91,6 +90,5 @@ type ArtifactResolveResponse struct {
 	URI             string           `json:"uri" desc:"Storage URI the client pulls the artifact content from."`
 	Digest          string           `json:"digest,omitempty" desc:"Content digest of the resolved artifact."`
 	Visibility      string           `json:"visibility,omitempty" desc:"Persisted visibility of the artifact (tenant or public)."`
-	PullCredentials *oci.Credentials `json:"pullCredentials,omitempty" desc:"Pull credentials, omitted for public artifacts that need none."`
-	ExpiresAt       *time.Time       `json:"expiresAt,omitempty" desc:"Expiry of the pull credentials (RFC3339)."`
+	PullCredentials *oci.Credentials `json:"pullCredentials,omitempty" desc:"Pull credentials (carrying their own expiry), omitted for public artifacts that need none."`
 }

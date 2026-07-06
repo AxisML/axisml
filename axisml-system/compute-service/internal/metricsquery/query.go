@@ -75,7 +75,7 @@ func (q *Querier) Series(ctx context.Context, namespace string, podNames []strin
 		return server.MetricSeries{}, apperrors.Newf(apperrors.CodeValidation, "invalid step %q", stepStr)
 	}
 
-	out := server.MetricSeries{Metric: metric, Range: rangeStr, Step: stepStr, Unit: spec.unit, Series: []server.MetricPoint{}}
+	out := server.MetricSeries{Metric: metric, Range: rangeStr, Step: step.String(), Unit: spec.unit, Series: []server.MetricPoint{}}
 	names := sanitize(podNames)
 	if len(names) == 0 {
 		return out, nil

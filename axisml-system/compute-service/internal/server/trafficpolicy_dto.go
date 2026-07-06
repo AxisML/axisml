@@ -66,10 +66,9 @@ type TrafficPolicy struct {
 // TrafficPolicyStatus mirrors the CR status sub-tree compute persists for
 // traffic policies.
 type TrafficPolicyStatus struct {
-	Message    string                       `json:"message,omitempty" desc:"Human-readable status detail for the current phase."`
-	Endpoint   string                       `json:"endpoint,omitempty" desc:"Resolved external endpoint URL fronting the member services."`
-	Backends   []TrafficPolicyBackendStatus `json:"backends,omitempty" desc:"Per-member effective weight and readiness."`
-	Conditions []TrafficPolicyCondition     `json:"conditions,omitempty" desc:"Operator-reported status conditions."`
+	Message  string                       `json:"message,omitempty" desc:"Human-readable status detail for the current phase."`
+	Endpoint string                       `json:"endpoint,omitempty" desc:"Resolved external endpoint URL fronting the member services."`
+	Backends []TrafficPolicyBackendStatus `json:"backends,omitempty" desc:"Per-member effective weight and readiness."`
 }
 
 // TrafficPolicyBackendStatus is one entry inside a policy's status.backends[].
@@ -77,13 +76,4 @@ type TrafficPolicyBackendStatus struct {
 	ServiceName string `json:"serviceName" desc:"Member MLService name."`
 	Weight      int32  `json:"weight" desc:"Effective traffic weight currently routed to the member."`
 	Ready       bool   `json:"ready" desc:"True when the member service is ready to receive traffic."`
-}
-
-// TrafficPolicyCondition is one entry inside a policy's status.conditions[].
-type TrafficPolicyCondition struct {
-	Type               string    `json:"type" desc:"Condition type (e.g. Ready, Programmed)."`
-	Status             string    `json:"status" desc:"Condition status (True, False, Unknown)."`
-	Reason             string    `json:"reason,omitempty" desc:"Machine-readable reason for the condition's status."`
-	Message            string    `json:"message,omitempty" desc:"Human-readable detail for the condition."`
-	LastTransitionTime time.Time `json:"lastTransitionTime,omitempty" desc:"Time the condition last changed status."`
 }

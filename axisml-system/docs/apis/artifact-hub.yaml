@@ -264,7 +264,6 @@ components:
             expires_at: "2026-06-28T10:30:00Z"
             password: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.upload-token
             username: team-vision
-          expiresAt: "2026-06-28T10:30:00Z"
           storageKind: oci
           uri: oci://registry.axisml.io/team-vision/resnet50:1.4.0
       properties:
@@ -354,7 +353,6 @@ components:
     ArtifactResolveResponse:
       example:
         digest: sha256:9b2c1f4e22a74c0e9b1d7f3a2e5c9a108c1f4e222b7a4c0e9b1d7f3a2e5c9a10
-        expiresAt: "2026-06-28T10:30:00Z"
         pullCredentials:
           expires_at: "2026-06-28T10:30:00Z"
           password: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.upload-token
@@ -366,15 +364,11 @@ components:
         digest:
           description: Content digest of the resolved artifact.
           type: string
-        expiresAt:
-          description: Expiry of the pull credentials (RFC3339).
-          format: date-time
-          nullable: true
-          type: string
         pullCredentials:
           allOf:
           - $ref: '#/components/schemas/OciCredentials'
-          description: Pull credentials, omitted for public artifacts that need none.
+          description: Pull credentials (carrying their own expiry), omitted for public
+            artifacts that need none.
           nullable: true
         storageKind:
           description: Storage backend kind serving the artifact (e.g. oci).
@@ -433,11 +427,8 @@ components:
         credentials:
           allOf:
           - $ref: '#/components/schemas/OciCredentials'
-          description: Push-capable credentials for the upload target.
-        expiresAt:
-          description: Expiry of the upload credentials (RFC3339).
-          format: date-time
-          type: string
+          description: Push-capable credentials for the upload target; carries its
+            own expiry.
         storageKind:
           description: Storage backend kind backing the upload (e.g. oci).
           type: string
@@ -446,7 +437,6 @@ components:
           type: string
       required:
       - credentials
-      - expiresAt
       - storageKind
       - uri
       type: object

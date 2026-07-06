@@ -15,8 +15,8 @@ import (
 )
 
 // reflectObserved reflects an observed MLTrafficPolicy CR status onto the row's
-// PG (phase, status) via the shared statusmap (design §9.1), preserving PG-only
-// fields (conditions). Shared by the Kubernetes informer and the Lite poller.
+// PG (phase, status) via the shared statusmap (design §9.1). Shared by the
+// Kubernetes informer and the Lite poller.
 func reflectObserved(ctx context.Context, repo *Repository, row *store.TrafficPolicy, observed mltp.MLTrafficPolicyStatus) {
 	if Status(row.Phase) == StatusDeleting || Status(row.Phase) == StatusDeleted {
 		return

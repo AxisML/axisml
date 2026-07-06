@@ -15,10 +15,9 @@ import (
 )
 
 // reflectObserved reflects an observed MLRun CR status onto the row's PG
-// (phase, status) via the shared statusmap (design §9.1), preserving PG-only
-// status fields (conditions). It is the single writeback path shared by the
-// Kubernetes informer (apiserver events) and the Lite status poller (runtime
-// Observe). A no-op write is skipped.
+// (phase, status) via the shared statusmap (design §9.1). It is the single
+// writeback path shared by the Kubernetes informer (apiserver events) and the
+// Lite status poller (runtime Observe). A no-op write is skipped.
 func reflectObserved(ctx context.Context, repo *Repository, j *store.MLRun, observed mlrunv1alpha1.MLRunStatus, now time.Time) {
 	var prevStatus server.MLRunStatus
 	if len(j.StatusJSON) > 0 {

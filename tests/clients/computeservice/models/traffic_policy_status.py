@@ -10,7 +10,6 @@ from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
     from ..models.traffic_policy_backend_status import TrafficPolicyBackendStatus
-    from ..models.traffic_policy_condition import TrafficPolicyCondition
 
 
 T = TypeVar("T", bound="TrafficPolicyStatus")
@@ -21,13 +20,11 @@ class TrafficPolicyStatus:
     """
     Attributes:
         backends (list[TrafficPolicyBackendStatus] | Unset): Per-member effective weight and readiness.
-        conditions (list[TrafficPolicyCondition] | Unset): Operator-reported status conditions.
         endpoint (str | Unset): Resolved external endpoint URL fronting the member services.
         message (str | Unset): Human-readable status detail for the current phase.
     """
 
     backends: list[TrafficPolicyBackendStatus] | Unset = UNSET
-    conditions: list[TrafficPolicyCondition] | Unset = UNSET
     endpoint: str | Unset = UNSET
     message: str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
@@ -40,13 +37,6 @@ class TrafficPolicyStatus:
                 backends_item = backends_item_data.to_dict()
                 backends.append(backends_item)
 
-        conditions: list[dict[str, Any]] | Unset = UNSET
-        if not isinstance(self.conditions, Unset):
-            conditions = []
-            for conditions_item_data in self.conditions:
-                conditions_item = conditions_item_data.to_dict()
-                conditions.append(conditions_item)
-
         endpoint = self.endpoint
 
         message = self.message
@@ -56,8 +46,6 @@ class TrafficPolicyStatus:
         field_dict.update({})
         if backends is not UNSET:
             field_dict["backends"] = backends
-        if conditions is not UNSET:
-            field_dict["conditions"] = conditions
         if endpoint is not UNSET:
             field_dict["endpoint"] = endpoint
         if message is not UNSET:
@@ -68,7 +56,6 @@ class TrafficPolicyStatus:
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.traffic_policy_backend_status import TrafficPolicyBackendStatus
-        from ..models.traffic_policy_condition import TrafficPolicyCondition
 
         d = dict(src_dict)
         _backends = d.pop("backends", UNSET)
@@ -80,22 +67,12 @@ class TrafficPolicyStatus:
 
                 backends.append(backends_item)
 
-        _conditions = d.pop("conditions", UNSET)
-        conditions: list[TrafficPolicyCondition] | Unset = UNSET
-        if _conditions is not UNSET:
-            conditions = []
-            for conditions_item_data in _conditions:
-                conditions_item = TrafficPolicyCondition.from_dict(conditions_item_data)
-
-                conditions.append(conditions_item)
-
         endpoint = d.pop("endpoint", UNSET)
 
         message = d.pop("message", UNSET)
 
         traffic_policy_status = cls(
             backends=backends,
-            conditions=conditions,
             endpoint=endpoint,
             message=message,
         )

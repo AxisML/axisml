@@ -144,7 +144,7 @@ Service 无 cancel；除 `roles[0].replicas` 与 `kind` 外其他 spec 不可变
 
 **成员引用完整性（本服务为权威闸门）**：创建策略时，每个成员经内部 `GetService` 预检 `kind=='service'`（拒绝 workspace）且 `Ready`；成员须同租户；一个 MLService 同时只能被一个活跃策略引用（应用层事务内维护）。删除在线服务时反查活跃 TrafficPolicy，仍被引用则拒绝删除。成员后端类型同构（全 `native` 或全 `kserve`，`kserve` 要求 `mode='canary'` 且恰好 2 成员）；校验后把派生的 `spec.backend` 元组写入 CR 供 operator 路由；`endpoint.path==""` 时自动拼 `/services/<tenant>/<name>/`。上游预检仅用于快速失败 UX。
 
-**MLTrafficPolicy CR 契约**：route programmed 且全成员 ready → `Ready`；部分 ready / degraded → `Degraded`；未 programmed 或全未就绪且 CR `Pending` → `Pending`；CR `Failed` → `Failed`（可自愈）。`status` jsonb 持 `{phase, message, endpoint, backends[].{serviceName, weight, ready}, conditions[]}`，由 Informer 整块回流（§5.3）。权重 / 灰度态 / 成员 phase 始终以本服务为权威源回源。
+**MLTrafficPolicy CR 契约**：route programmed 且全成员 ready → `Ready`；部分 ready / degraded → `Degraded`；未 programmed 或全未就绪且 CR `Pending` → `Pending`；CR `Failed` → `Failed`（可自愈）。`status` jsonb 持 `{phase, message, endpoint, backends[].{serviceName, weight, ready}}`，由 Informer 整块回流（§5.3）。权重 / 灰度态 / 成员 phase 始终以本服务为权威源回源。
 
 ## 5. 关键机制
 

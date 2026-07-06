@@ -59,17 +59,7 @@ type MLRunPatchRequest struct {
 
 // MLRunStatus mirrors the CR status sub-tree compute persists for MLRuns.
 type MLRunStatus struct {
-	Message    string           `json:"message,omitempty" desc:"Human-readable status detail for the current phase."`
-	StartedAt  *time.Time       `json:"startedAt,omitempty" desc:"Time the run started executing."`
-	FinishedAt *time.Time       `json:"finishedAt,omitempty" desc:"Time the run reached a terminal phase."`
-	Conditions []MLRunCondition `json:"conditions,omitempty" desc:"Operator-reported status conditions."`
-}
-
-// MLRunCondition is one entry inside an MLRun's status.conditions[].
-type MLRunCondition struct {
-	Type               string    `json:"type" desc:"Condition type (e.g. Initialized, Scheduled, Suspended, Failed)."`
-	Status             string    `json:"status" desc:"Condition status (True, False, Unknown)."`
-	Reason             string    `json:"reason,omitempty" desc:"Machine-readable reason for the condition's status."`
-	Message            string    `json:"message,omitempty" desc:"Human-readable detail for the condition."`
-	LastTransitionTime time.Time `json:"lastTransitionTime,omitempty" desc:"Time the condition last changed status."`
+	Message    string     `json:"message,omitempty" desc:"Human-readable status detail for the current phase."`
+	StartedAt  *time.Time `json:"startedAt,omitempty" desc:"Time the run started executing."`
+	FinishedAt *time.Time `json:"finishedAt,omitempty" desc:"Time the run reached a terminal phase."`
 }

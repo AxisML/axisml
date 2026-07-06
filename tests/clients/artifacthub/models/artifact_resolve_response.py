@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import datetime
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, TypeVar, cast
 
@@ -20,24 +19,23 @@ T = TypeVar("T", bound="ArtifactResolveResponse")
 class ArtifactResolveResponse:
     """
     Example:
-        {'digest': 'sha256:9b2c1f4e22a74c0e9b1d7f3a2e5c9a108c1f4e222b7a4c0e9b1d7f3a2e5c9a10', 'expiresAt':
-            '2026-06-28T10:30:00Z', 'pullCredentials': {'expires_at': '2026-06-28T10:30:00Z', 'password':
-            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.upload-token', 'username': 'team-vision'}, 'storageKind': 'oci', 'uri':
-            'oci://registry.axisml.io/team-vision/resnet50:1.4.0', 'visibility': 'tenant'}
+        {'digest': 'sha256:9b2c1f4e22a74c0e9b1d7f3a2e5c9a108c1f4e222b7a4c0e9b1d7f3a2e5c9a10', 'pullCredentials':
+            {'expires_at': '2026-06-28T10:30:00Z', 'password': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.upload-token',
+            'username': 'team-vision'}, 'storageKind': 'oci', 'uri': 'oci://registry.axisml.io/team-vision/resnet50:1.4.0',
+            'visibility': 'tenant'}
 
     Attributes:
         storage_kind (str): Storage backend kind serving the artifact (e.g. oci).
         uri (str): Storage URI the client pulls the artifact content from.
         digest (str | Unset): Content digest of the resolved artifact.
-        expires_at (datetime.datetime | None | Unset): Expiry of the pull credentials (RFC3339).
-        pull_credentials (None | OciCredentials | Unset): Pull credentials, omitted for public artifacts that need none.
+        pull_credentials (None | OciCredentials | Unset): Pull credentials (carrying their own expiry), omitted for
+            public artifacts that need none.
         visibility (str | Unset): Persisted visibility of the artifact (tenant or public).
     """
 
     storage_kind: str
     uri: str
     digest: str | Unset = UNSET
-    expires_at: datetime.datetime | None | Unset = UNSET
     pull_credentials: None | OciCredentials | Unset = UNSET
     visibility: str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
@@ -50,14 +48,6 @@ class ArtifactResolveResponse:
         uri = self.uri
 
         digest = self.digest
-
-        expires_at: None | str | Unset
-        if isinstance(self.expires_at, Unset):
-            expires_at = UNSET
-        elif isinstance(self.expires_at, datetime.datetime):
-            expires_at = self.expires_at.isoformat()
-        else:
-            expires_at = self.expires_at
 
         pull_credentials: dict[str, Any] | None | Unset
         if isinstance(self.pull_credentials, Unset):
@@ -79,8 +69,6 @@ class ArtifactResolveResponse:
         )
         if digest is not UNSET:
             field_dict["digest"] = digest
-        if expires_at is not UNSET:
-            field_dict["expiresAt"] = expires_at
         if pull_credentials is not UNSET:
             field_dict["pullCredentials"] = pull_credentials
         if visibility is not UNSET:
@@ -98,23 +86,6 @@ class ArtifactResolveResponse:
         uri = d.pop("uri")
 
         digest = d.pop("digest", UNSET)
-
-        def _parse_expires_at(data: object) -> datetime.datetime | None | Unset:
-            if data is None:
-                return data
-            if isinstance(data, Unset):
-                return data
-            try:
-                if not isinstance(data, str):
-                    raise TypeError()
-                expires_at_type_0 = datetime.datetime.fromisoformat(data)
-
-                return expires_at_type_0
-            except (TypeError, ValueError, AttributeError, KeyError):
-                pass
-            return cast(datetime.datetime | None | Unset, data)
-
-        expires_at = _parse_expires_at(d.pop("expiresAt", UNSET))
 
         def _parse_pull_credentials(data: object) -> None | OciCredentials | Unset:
             if data is None:
@@ -139,7 +110,6 @@ class ArtifactResolveResponse:
             storage_kind=storage_kind,
             uri=uri,
             digest=digest,
-            expires_at=expires_at,
             pull_credentials=pull_credentials,
             visibility=visibility,
         )

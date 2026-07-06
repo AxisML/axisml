@@ -1204,12 +1204,6 @@ components:
             priorityClass: high-priority
             quota: axisml-team-vision-gpu-a100-default
         status:
-          conditions:
-          - lastTransitionTime: "2026-06-28T09:30:00Z"
-            message: Gang scheduled onto gpu-a100.
-            reason: PodGroupScheduled
-            status: "True"
-            type: Scheduled
           message: All worker replicas ready.
           startedAt: "2026-06-28T09:30:00Z"
         updatedAt: "2026-06-28T09:45:00Z"
@@ -1291,28 +1285,6 @@ components:
       required:
       - engine
       - name
-      type: object
-    MLRunCondition:
-      properties:
-        lastTransitionTime:
-          description: Time the condition last changed status.
-          format: date-time
-          type: string
-        message:
-          description: Human-readable detail for the condition.
-          type: string
-        reason:
-          description: Machine-readable reason for the condition's status.
-          type: string
-        status:
-          description: Condition status (True, False, Unknown).
-          type: string
-        type:
-          description: Condition type (e.g. Initialized, Scheduled, Suspended, Failed).
-          type: string
-      required:
-      - status
-      - type
       type: object
     MLRunCreateRequest:
       example:
@@ -1474,12 +1446,6 @@ components:
               priorityClass: high-priority
               quota: axisml-team-vision-gpu-a100-default
           status:
-            conditions:
-            - lastTransitionTime: "2026-06-28T09:30:00Z"
-              message: Gang scheduled onto gpu-a100.
-              reason: PodGroupScheduled
-              status: "True"
-              type: Scheduled
             message: All worker replicas ready.
             startedAt: "2026-06-28T09:30:00Z"
           updatedAt: "2026-06-28T09:45:00Z"
@@ -1628,11 +1594,6 @@ components:
       type: object
     MLRunStatus:
       properties:
-        conditions:
-          description: Operator-reported status conditions.
-          items:
-            $ref: '#/components/schemas/MLRunCondition'
-          type: array
         finishedAt:
           description: Time the run reached a terminal phase.
           format: date-time
@@ -1708,12 +1669,6 @@ components:
           scheduling:
             quota: axisml-team-vision-gpu-a100-default
         status:
-          conditions:
-          - lastTransitionTime: "2026-06-28T09:30:00Z"
-            message: Deployment has minimum availability.
-            reason: MinimumReplicasAvailable
-            status: "True"
-            type: Available
           endpoint: https://llama3-8b.team-vision.axisml.io/v1
           message: 2/2 replicas ready.
           readyReplicas: 2
@@ -1813,28 +1768,6 @@ components:
       required:
       - engine
       - name
-      type: object
-    MLServiceCondition:
-      properties:
-        lastTransitionTime:
-          description: Time the condition last changed status.
-          format: date-time
-          type: string
-        message:
-          description: Human-readable detail for the condition.
-          type: string
-        reason:
-          description: Machine-readable reason for the condition's status.
-          type: string
-        status:
-          description: Condition status (True, False, Unknown).
-          type: string
-        type:
-          description: Condition type (e.g. Available, Progressing).
-          type: string
-      required:
-      - status
-      - type
       type: object
     MLServiceCreateRequest:
       example:
@@ -2021,12 +1954,6 @@ components:
             scheduling:
               quota: axisml-team-vision-gpu-a100-default
           status:
-            conditions:
-            - lastTransitionTime: "2026-06-28T09:30:00Z"
-              message: Deployment has minimum availability.
-              reason: MinimumReplicasAvailable
-              status: "True"
-              type: Available
             endpoint: https://llama3-8b.team-vision.axisml.io/v1
             message: 2/2 replicas ready.
             readyReplicas: 2
@@ -2271,11 +2198,6 @@ components:
       type: object
     MLServiceStatus:
       properties:
-        conditions:
-          description: Operator-reported status conditions.
-          items:
-            $ref: '#/components/schemas/MLServiceCondition'
-          type: array
         endpoint:
           description: Resolved external endpoint URL when a route is enabled.
           type: string
@@ -2623,12 +2545,6 @@ components:
           - ready: true
             serviceName: llama3-8b-v2
             weight: 10
-          conditions:
-          - lastTransitionTime: "2026-06-28T09:30:00Z"
-            message: HTTPRoute programmed with weighted backends.
-            reason: Programmed
-            status: "True"
-            type: Ready
           endpoint: https://llama3-8b.team-vision.axisml.io/v1
           message: Route programmed; weights applied.
         updatedAt: "2026-06-28T09:45:00Z"
@@ -2729,28 +2645,6 @@ components:
       - ready
       - serviceName
       - weight
-      type: object
-    TrafficPolicyCondition:
-      properties:
-        lastTransitionTime:
-          description: Time the condition last changed status.
-          format: date-time
-          type: string
-        message:
-          description: Human-readable detail for the condition.
-          type: string
-        reason:
-          description: Machine-readable reason for the condition's status.
-          type: string
-        status:
-          description: Condition status (True, False, Unknown).
-          type: string
-        type:
-          description: Condition type (e.g. Ready, Programmed).
-          type: string
-      required:
-      - status
-      - type
       type: object
     TrafficPolicyCreateRequest:
       example:
@@ -2869,12 +2763,6 @@ components:
             - ready: true
               serviceName: llama3-8b-v2
               weight: 10
-            conditions:
-            - lastTransitionTime: "2026-06-28T09:30:00Z"
-              message: HTTPRoute programmed with weighted backends.
-              reason: Programmed
-              status: "True"
-              type: Ready
             endpoint: https://llama3-8b.team-vision.axisml.io/v1
             message: Route programmed; weights applied.
           updatedAt: "2026-06-28T09:45:00Z"
@@ -2948,11 +2836,6 @@ components:
           description: Per-member effective weight and readiness.
           items:
             $ref: '#/components/schemas/TrafficPolicyBackendStatus'
-          type: array
-        conditions:
-          description: Operator-reported status conditions.
-          items:
-            $ref: '#/components/schemas/TrafficPolicyCondition'
           type: array
         endpoint:
           description: Resolved external endpoint URL fronting the member services.

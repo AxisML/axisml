@@ -28,10 +28,9 @@ class TrafficPolicyList:
             'endpoint': {'auth': {'jwt': {'audience': 'axisml-inference', 'issuer': 'https://auth.axisml.io', 'jwksUri':
             'https://auth.axisml.io/.well-known/jwks.json'}, 'type': 'jwt'}, 'hostname': 'llama3-8b.team-vision.axisml.io',
             'path': '/v1'}, 'mode': 'canary'}, 'status': {'backends': [{'ready': True, 'serviceName': 'llama3-8b', 'weight':
-            90}, {'ready': True, 'serviceName': 'llama3-8b-v2', 'weight': 10}], 'conditions': [{'lastTransitionTime':
-            '2026-06-28T09:30:00Z', 'message': 'HTTPRoute programmed with weighted backends.', 'reason': 'Programmed',
-            'status': 'True', 'type': 'Ready'}], 'endpoint': 'https://llama3-8b.team-vision.axisml.io/v1', 'message': 'Route
-            programmed; weights applied.'}, 'updatedAt': '2026-06-28T09:45:00Z'}], 'total': 1}
+            90}, {'ready': True, 'serviceName': 'llama3-8b-v2', 'weight': 10}], 'endpoint': 'https://llama3-8b.team-
+            vision.axisml.io/v1', 'message': 'Route programmed; weights applied.'}, 'updatedAt': '2026-06-28T09:45:00Z'}],
+            'total': 1}
 
     Attributes:
         count (int): Number of items returned in this page (len(items)).

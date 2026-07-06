@@ -36,10 +36,8 @@ class MLService:
             'https://auth.axisml.io', 'jwksUri': 'https://auth.axisml.io/.well-known/jwks.json'}, 'type': 'jwt'}, 'enabled':
             True, 'hostname': 'llama3-8b.team-vision.axisml.io', 'path': '/v1', 'portName': 'http', 'targetRole':
             'predictor'}, 'runPolicy': {'progressDeadlineSeconds': 600}, 'scheduling': {'quota': 'axisml-team-vision-
-            gpu-a100-default'}}, 'status': {'conditions': [{'lastTransitionTime': '2026-06-28T09:30:00Z', 'message':
-            'Deployment has minimum availability.', 'reason': 'MinimumReplicasAvailable', 'status': 'True', 'type':
-            'Available'}], 'endpoint': 'https://llama3-8b.team-vision.axisml.io/v1', 'message': '2/2 replicas ready.',
-            'readyReplicas': 2}, 'updatedAt': '2026-06-28T09:45:00Z'}
+            gpu-a100-default'}}, 'status': {'endpoint': 'https://llama3-8b.team-vision.axisml.io/v1', 'message': '2/2
+            replicas ready.', 'readyReplicas': 2}, 'updatedAt': '2026-06-28T09:45:00Z'}
 
     Attributes:
         created_at (datetime.datetime): Time the service was created.

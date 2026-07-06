@@ -15,7 +15,7 @@ import (
 // reflow; the Lite form uses StatusPoller instead. Both share the same
 // writeback helpers (reflectObserved / reflectGone). Writes go to phase
 // (high-frequency filter) + status jsonb (message / readyReplicas /
-// endpoint / conditions[]).
+// endpoint).
 type Informer struct {
 	db   *gorm.DB
 	repo *Repository
