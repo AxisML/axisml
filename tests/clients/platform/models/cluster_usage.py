@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, Any, TypeVar
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
+from ..types import UNSET, Unset
+
 if TYPE_CHECKING:
     from ..models.cluster_pool_usage import ClusterPoolUsage
 
@@ -29,10 +31,12 @@ class ClusterUsage:
     Attributes:
         pools (list[ClusterPoolUsage]): Per-pool utilisation, one entry per pool the tenant has quota in.
         updated_at (datetime.datetime): Time the snapshot was sampled.
+        partial (bool | Unset): True when one or more pools could not be sampled and were omitted from the snapshot.
     """
 
     pools: list[ClusterPoolUsage]
     updated_at: datetime.datetime
+    partial: bool | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -43,6 +47,8 @@ class ClusterUsage:
 
         updated_at = self.updated_at.isoformat()
 
+        partial = self.partial
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -51,6 +57,8 @@ class ClusterUsage:
                 "updatedAt": updated_at,
             }
         )
+        if partial is not UNSET:
+            field_dict["partial"] = partial
 
         return field_dict
 
@@ -68,9 +76,12 @@ class ClusterUsage:
 
         updated_at = datetime.datetime.fromisoformat(d.pop("updatedAt"))
 
+        partial = d.pop("partial", UNSET)
+
         cluster_usage = cls(
             pools=pools,
             updated_at=updated_at,
+            partial=partial,
         )
 
         cluster_usage.additional_properties = d

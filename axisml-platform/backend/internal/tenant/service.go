@@ -8,8 +8,10 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync/atomic"
 	"time"
 
+	"golang.org/x/sync/errgroup"
 	"gorm.io/gorm"
 
 	"github.com/axisml/axisml/axisml-platform/backend/internal/auth"
@@ -152,22 +154,31 @@ func (s *Service) List(ctx context.Context, scope []string, q string, stats bool
 	if err != nil {
 		return nil, false, apperrors.Wrap(apperrors.ClassInternal, "list tenants", err)
 	}
-	out := make([]*server.Tenant, 0, len(rows))
+	// Each row's cluster-manager GetTenant (+ optional stats fan-out) is
+	// independent, so run them with bounded concurrency: list latency stays flat
+	// in the tenant count instead of O(N) sequential remote round-trips.
+	out := make([]*server.Tenant, len(rows))
+	var partialFlag atomic.Bool
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(8)
 	for i := range rows {
-		cr, cerr := s.cm.GetTenant(ctx, rows[i].Identifier)
-		if cerr != nil {
-			partial = true
-			cr = nil
-		}
-		view := buildView(&rows[i], cr)
-		if stats {
-			if !s.enrichCounts(ctx, view) {
-				partial = true
+		i := i
+		g.Go(func() error {
+			cr, cerr := s.cm.GetTenant(gctx, rows[i].Identifier)
+			if cerr != nil {
+				partialFlag.Store(true)
+				cr = nil
 			}
-		}
-		out = append(out, view)
+			view := buildView(&rows[i], cr)
+			if stats && !s.enrichCounts(gctx, view) {
+				partialFlag.Store(true)
+			}
+			out[i] = view
+			return nil
+		})
 	}
-	return out, partial, nil
+	_ = g.Wait() // workers never return an error; a failed source sets partial
+	return out, partialFlag.Load(), nil
 }
 
 // enrichCounts fills the tenant's best-effort workload roll-ups in place and
@@ -200,7 +211,7 @@ func (s *Service) enrichCounts(ctx context.Context, t *server.Tenant) bool {
 	}
 	if svcs, err := s.compute.ListMLServices(ctx, t.Identifier, ""); err == nil {
 		for i := range svcs {
-			if svcs[i].Kind == "service" {
+			if svcs[i].Kind == "service" && svcs[i].Status.ReadyReplicas > 0 {
 				t.OnlineServices++
 			}
 		}
@@ -297,7 +308,12 @@ func (s *Service) checkNoActiveWorkloads(ctx context.Context, identifier string)
 	for i := range svcs {
 		switch svcs[i].Kind {
 		case "service", "workspace":
-			return apperrors.New(apperrors.ClassConflict, "tenant still has active services or workspaces").WithReason("tenant-in-use")
+			// Only a service/workspace with live pods blocks deletion; a stopped
+			// one (scaled to zero) is dormant, mirroring the active-phase run gate
+			// above rather than blocking on mere existence.
+			if svcs[i].Status.ReadyReplicas > 0 {
+				return apperrors.New(apperrors.ClassConflict, "tenant still has online services or workspaces").WithReason("tenant-in-use")
+			}
 		}
 	}
 	return nil

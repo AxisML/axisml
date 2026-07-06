@@ -24,6 +24,7 @@ type ClusterPoolUsage struct {
 // list, one row per pool.
 type ClusterUsage struct {
 	Pools     []ClusterPoolUsage `json:"pools" desc:"Per-pool utilisation, one entry per pool the tenant has quota in."`
+	Partial   bool               `json:"partial,omitempty" desc:"True when one or more pools could not be sampled and were omitted from the snapshot."`
 	UpdatedAt time.Time          `json:"updatedAt" desc:"Time the snapshot was sampled."`
 }
 

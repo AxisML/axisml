@@ -54,9 +54,11 @@ func TestSeries_Memory_NamespaceOnly(t *testing.T) {
 	qr, _ := promql.New(srv.URL)
 	s, err := qr.Series(context.Background(), "acme", nil, "mem_util", "1h", "")
 	require.NoError(t, err)
-	assert.Equal(t, "GiB", s.Unit)
+	// mem_util is reported in raw bytes, matching compute-service's workload
+	// metrics endpoint so the same metric name never means two different units.
+	assert.Equal(t, "bytes", s.Unit)
 	assert.Contains(t, q, "container_memory_working_set_bytes")
-	assert.Contains(t, q, "/ 1073741824")
+	assert.NotContains(t, q, "1073741824")
 	assert.NotContains(t, q, "kube_node_labels")
 }
 
@@ -77,5 +79,10 @@ func TestSeries_BadRequests(t *testing.T) {
 	assert.ErrorIs(t, err, promql.ErrBadRequest)
 
 	_, err = qr.Series(context.Background(), "acme", nil, "cpu_util", "nope", "")
+	assert.ErrorIs(t, err, promql.ErrBadRequest)
+
+	// An explicit step so fine it blows the point cap is a client error, not a
+	// downstream Prometheus 422.
+	_, err = qr.Series(context.Background(), "acme", nil, "cpu_util", "30d", "1s")
 	assert.ErrorIs(t, err, promql.ErrBadRequest)
 }

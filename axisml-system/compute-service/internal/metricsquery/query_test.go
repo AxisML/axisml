@@ -85,6 +85,15 @@ func TestSeries_UnsupportedMetric(t *testing.T) {
 	assert.Equal(t, apperrors.CodeValidation, codeOf(t, err))
 }
 
+func TestSeries_ExplicitStepTooFine_Rejected(t *testing.T) {
+	fp := &fakeProvider{enabled: true}
+	_, err := metricsquery.NewQuerier(fp).
+		Series(context.Background(), "acme", []string{"p"}, "cpu_util", "30d", "1s")
+	require.Error(t, err)
+	assert.Equal(t, apperrors.CodeValidation, codeOf(t, err), "an over-fine step is a client error, not a downstream failure")
+	assert.False(t, fp.called, "must reject before querying Prometheus")
+}
+
 func TestSeries_DisabledProvider_Unavailable(t *testing.T) {
 	_, err := metricsquery.NewQuerier(&fakeProvider{enabled: false}).
 		Series(context.Background(), "acme", []string{"p"}, "cpu_util", "1h", "")

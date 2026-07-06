@@ -140,11 +140,23 @@ func parseWindow(s string) (time.Duration, error) {
 	return time.ParseDuration(s)
 }
 
-// resolveStep parses an explicit step, or derives ~50 points across the range
-// (clamped to [15s, 10m]) when unset.
+// maxPoints caps a range-query's sample count. Prometheus rejects a range query
+// that would return more than ~11000 points, so an over-fine explicit step is a
+// client error surfaced as a 400 rather than a downstream Prometheus 422/502.
+const maxPoints = 11000
+
+// resolveStep parses an explicit step (rejecting one so fine it blows the point
+// cap), or derives ~50 points across the range (clamped to [15s, 10m]) when unset.
 func resolveStep(s string, rng time.Duration) (time.Duration, error) {
 	if strings.TrimSpace(s) != "" {
-		return parseWindow(s)
+		step, err := parseWindow(s)
+		if err != nil {
+			return 0, err
+		}
+		if step > 0 && rng/step > maxPoints {
+			return 0, fmt.Errorf("step too small: range/step exceeds %d points", maxPoints)
+		}
+		return step, nil
 	}
 	step := rng / 50
 	if step < 15*time.Second {

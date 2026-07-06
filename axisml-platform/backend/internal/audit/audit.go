@@ -132,15 +132,35 @@ func (r *Recorder) derive(c *gin.Context, body []byte) *store.AuditEvent {
 		return nil
 	}
 
-	name := firstParam(c, "run", "name", "identifier", "pool", "version")
-	if name == "" {
-		name = fieldFromJSON(body, "name", "identifier")
+	// Resolve the subject name for the refined kind. Sub-resources of a tenant
+	// (member, quota) must name the member/pool, not the tenant path param, so
+	// they cannot fall through to the generic "name" match (which is the tenant).
+	var name string
+	switch kind {
+	case "member":
+		name = firstParam(c, "userId") // /tenants/:name/members/:userId (PATCH/DELETE)
+		if name == "" {
+			name = fieldFromJSON(body, "userId", "username", "email") // POST body
+		}
+	case "quota":
+		name = firstParam(c, "pool") // /tenants/:name/quotas/:pool
+		if name == "" {
+			name = fieldFromJSON(body, "pool")
+		}
+	default:
+		name = firstParam(c, "run", "name", "identifier", "pool", "version")
+		if name == "" {
+			name = fieldFromJSON(body, "name", "identifier")
+		}
 	}
 	if name == "" {
 		return nil
 	}
 
 	tenant := auth.ActiveTenant(c)
+	if tenant == "" && segs[0] == "tenants" {
+		tenant = c.Param("name") // /tenants/:name/... scopes to the tenant path param
+	}
 	if tenant == "" {
 		tenant = c.Param("identifier")
 	}

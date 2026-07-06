@@ -509,6 +509,10 @@ components:
           pool: cpu-pool
         updatedAt: "2026-06-28T09:30:00Z"
       properties:
+        partial:
+          description: True when one or more pools could not be sampled and were omitted
+            from the snapshot.
+          type: boolean
         pools:
           description: Per-pool utilisation, one entry per pool the tenant has quota
             in.

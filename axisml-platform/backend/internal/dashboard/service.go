@@ -37,7 +37,10 @@ func (s *Service) ClusterUsage(ctx context.Context, tenant, poolFilter string) (
 	for _, p := range pools {
 		u, err := s.cm.ResourcePoolUsage(ctx, p, tenant)
 		if err != nil {
-			return server.ClusterUsage{}, err
+			// Degrade gracefully: one unreadable pool must not blank the whole
+			// landing page. Omit it and flag the snapshot partial.
+			out.Partial = true
+			continue
 		}
 		out.Pools = append(out.Pools, toClusterPoolUsage(u))
 	}
