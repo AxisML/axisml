@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from clients.artifacthub.api.artifacts import (
     complete_model,
     delete_model,
@@ -21,13 +23,20 @@ from lib.naming import unique_name
 from lib.polling import eventually
 
 
-def test_capabilities_and_health(harness):
+# Lite embeds all System modules in one axisml-core process and serves an
+# aggregated {components: {...}} capabilities doc at the shared /capabilities
+# path; the per-component flat client (kinds/upload) can't parse it. The flat
+# per-service contract is a Standard-form concept — health runs on both forms.
+@pytest.mark.standard_only
+def test_capabilities(harness):
     caps = get_capabilities.sync_detailed(client=harness.artifact_hub)
     assert caps.status_code == 200, caps.content
     assert "model" in caps.parsed.kinds
     # Advertised upload availability must agree with the harness form matrix.
     assert caps.parsed.upload == harness.supports(Capability.ARTIFACT_UPLOAD)
 
+
+def test_health(harness):
     h = healthz.sync_detailed(client=harness.artifact_hub)
     assert h.status_code == 200, h.content
 
