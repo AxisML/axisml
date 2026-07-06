@@ -660,24 +660,6 @@ type MLRunBackendSpec struct {
 	Name   string                  `json:"name"`
 }
 
-// MLRunCondition defines model for MLRunCondition.
-type MLRunCondition struct {
-	// LastTransitionTime Time the condition last changed status.
-	LastTransitionTime *time.Time `json:"lastTransitionTime,omitempty"`
-
-	// Message Human-readable detail for the condition.
-	Message *string `json:"message,omitempty"`
-
-	// Reason Machine-readable reason for the condition's status.
-	Reason *string `json:"reason,omitempty"`
-
-	// Status Condition status (True, False, Unknown).
-	Status string `json:"status"`
-
-	// Type Condition type (e.g. Initialized, Scheduled, Suspended, Failed).
-	Type string `json:"type"`
-}
-
 // MLRunCreateRequest defines model for MLRunCreateRequest.
 type MLRunCreateRequest struct {
 	// Annotations User-defined annotations stored on the row and stamped onto the CR.
@@ -793,9 +775,6 @@ type MLRunSpec struct {
 
 // MLRunStatus defines model for MLRunStatus.
 type MLRunStatus struct {
-	// Conditions Operator-reported status conditions.
-	Conditions *[]MLRunCondition `json:"conditions,omitempty"`
-
 	// FinishedAt Time the run reached a terminal phase.
 	FinishedAt *time.Time `json:"finishedAt"`
 
@@ -866,24 +845,6 @@ type MLServiceBackend struct {
 	Config *map[string]interface{} `json:"config"`
 	Engine string                  `json:"engine"`
 	Name   string                  `json:"name"`
-}
-
-// MLServiceCondition defines model for MLServiceCondition.
-type MLServiceCondition struct {
-	// LastTransitionTime Time the condition last changed status.
-	LastTransitionTime *time.Time `json:"lastTransitionTime,omitempty"`
-
-	// Message Human-readable detail for the condition.
-	Message *string `json:"message,omitempty"`
-
-	// Reason Machine-readable reason for the condition's status.
-	Reason *string `json:"reason,omitempty"`
-
-	// Status Condition status (True, False, Unknown).
-	Status string `json:"status"`
-
-	// Type Condition type (e.g. Available, Progressing).
-	Type string `json:"type"`
 }
 
 // MLServiceCreateRequest defines model for MLServiceCreateRequest.
@@ -1056,9 +1017,6 @@ type MLServiceSpec struct {
 
 // MLServiceStatus defines model for MLServiceStatus.
 type MLServiceStatus struct {
-	// Conditions Operator-reported status conditions.
-	Conditions *[]MLServiceCondition `json:"conditions,omitempty"`
-
 	// Endpoint Resolved external endpoint URL when a route is enabled.
 	Endpoint *string `json:"endpoint,omitempty"`
 
@@ -1288,24 +1246,6 @@ type TrafficPolicyBackendStatus struct {
 	Weight int32 `json:"weight"`
 }
 
-// TrafficPolicyCondition defines model for TrafficPolicyCondition.
-type TrafficPolicyCondition struct {
-	// LastTransitionTime Time the condition last changed status.
-	LastTransitionTime *time.Time `json:"lastTransitionTime,omitempty"`
-
-	// Message Human-readable detail for the condition.
-	Message *string `json:"message,omitempty"`
-
-	// Reason Machine-readable reason for the condition's status.
-	Reason *string `json:"reason,omitempty"`
-
-	// Status Condition status (True, False, Unknown).
-	Status string `json:"status"`
-
-	// Type Condition type (e.g. Ready, Programmed).
-	Type string `json:"type"`
-}
-
 // TrafficPolicyCreateRequest defines model for TrafficPolicyCreateRequest.
 type TrafficPolicyCreateRequest struct {
 	// Annotations User-defined annotations stored on the row and stamped onto the CR.
@@ -1373,9 +1313,6 @@ type TrafficPolicySplitRequest struct {
 type TrafficPolicyStatus struct {
 	// Backends Per-member effective weight and readiness.
 	Backends *[]TrafficPolicyBackendStatus `json:"backends,omitempty"`
-
-	// Conditions Operator-reported status conditions.
-	Conditions *[]TrafficPolicyCondition `json:"conditions,omitempty"`
 
 	// Endpoint Resolved external endpoint URL fronting the member services.
 	Endpoint *string `json:"endpoint,omitempty"`

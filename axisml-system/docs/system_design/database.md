@@ -69,7 +69,7 @@ CREATE INDEX mlruns_namespace_project_created
   ON mlruns (namespace, (labels->>'axisml.io/project'), created_at DESC) WHERE deleted_at IS NULL;
 ```
 
-`phase` 是 MLRun CR `status.phase` 顶层冗余，`status` jsonb 持 `{message, startedAt, finishedAt, conditions[]}`（informer 写）。`spec` 含 compute 已展开的 `nodeSelector` / `tolerations` / `resources` snapshot，并保留 `scheduling.poolName` / `unitName` 做溯源（展开见 [compute-service.md §5.4](compute-service.md#54-resourcepool-展开)）；`spec.backend` 缺省补 `{native, job}`，创建后不可变。GIN + 复合索引支持 `?labelSelector=axisml.io/project=...`。
+`phase` 是 MLRun CR `status.phase` 顶层冗余，`status` jsonb 持 `{message, startedAt, finishedAt}`（informer 写；cancel 判定实时读 CR `conditions[Suspended]`，不落库）。`spec` 含 compute 已展开的 `nodeSelector` / `tolerations` / `resources` snapshot，并保留 `scheduling.poolName` / `unitName` 做溯源（展开见 [compute-service.md §5.4](compute-service.md#54-resourcepool-展开)）；`spec.backend` 缺省补 `{native, job}`，创建后不可变。GIN + 复合索引支持 `?labelSelector=axisml.io/project=...`。
 
 ### 2.2 `mlservices`
 
@@ -104,7 +104,7 @@ CREATE INDEX mlservices_namespace_project_created
   ON mlservices (namespace, (labels->>'axisml.io/project'), created_at DESC) WHERE deleted_at IS NULL;
 ```
 
-`phase` 顶层冗余 CR `status.phase`，`status` jsonb 持 `{message, readyReplicas, endpoint, conditions[]}`。`spec` 仅 `roles[0].replicas` 可变（`/scale` 写入并 `+generation`）；`spec.backend` 缺省补 `{native, deployment}`。
+`phase` 顶层冗余 CR `status.phase`，`status` jsonb 持 `{message, readyReplicas, endpoint}`。`spec` 仅 `roles[0].replicas` 可变（`/scale` 写入并 `+generation`）；`spec.backend` 缺省补 `{native, deployment}`。
 
 ### 2.3 `traffic_policies`
 
@@ -136,7 +136,7 @@ CREATE INDEX traffic_policies_sync_pending ON traffic_policies (id) WHERE genera
 CREATE INDEX traffic_policies_labels_gin   ON traffic_policies USING GIN (labels jsonb_path_ops);
 ```
 
-`status` jsonb 持 `{message, endpoint, backends[].{serviceName, weight, ready}, conditions[]}`。`spec` 持 `{mode, endpoint{path,hostname,auth}, backends[].{serviceName,role,weight}, backend{name,engine}}`——`backends[*].weight` 由 `/split`·`/rollback` 改、canary `/promote` 额外互换两后端 `role`，均 `+generation`；canary 当前基线即 `role=stable` 后端，**不设独立指针**；成员以 `serviceName` 引用同 `namespace` 的 `mlservices` 行、**不冗余成员 spec**。成员占用唯一性（一服务同时只被一活跃策略引用）是跨 jsonb 数组约束，由 compute-service 在事务内应用层维护。
+`status` jsonb 持 `{message, endpoint, backends[].{serviceName, weight, ready}}`。`spec` 持 `{mode, endpoint{path,hostname,auth}, backends[].{serviceName,role,weight}, backend{name,engine}}`——`backends[*].weight` 由 `/split`·`/rollback` 改、canary `/promote` 额外互换两后端 `role`，均 `+generation`；canary 当前基线即 `role=stable` 后端，**不设独立指针**；成员以 `serviceName` 引用同 `namespace` 的 `mlservices` 行、**不冗余成员 spec**。成员占用唯一性（一服务同时只被一活跃策略引用）是跨 jsonb 数组约束，由 compute-service 在事务内应用层维护。
 
 ## 3. Artifact Hub
 

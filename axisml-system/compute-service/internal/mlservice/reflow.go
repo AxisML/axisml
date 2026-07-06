@@ -15,9 +15,9 @@ import (
 )
 
 // reflectObserved reflects an observed MLService CR status onto the row's PG
-// (phase, status) via the shared statusmap (design §9.1), preserving PG-only
-// fields (conditions). Shared by the Kubernetes informer and the Lite poller.
-// desiredReplicas is the spec's role[0] replica count.
+// (phase, status) via the shared statusmap (design §9.1). Shared by the
+// Kubernetes informer and the Lite poller. desiredReplicas is the spec's
+// role[0] replica count.
 func reflectObserved(ctx context.Context, repo *Repository, row *store.MLService, desiredReplicas int32, observed mlservicev1alpha1.MLServiceStatus) {
 	// Don't override Deleting/Deleted.
 	if Status(row.Phase) == StatusDeleting || Status(row.Phase) == StatusDeleted {

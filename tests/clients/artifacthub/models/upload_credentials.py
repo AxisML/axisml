@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import datetime
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, TypeVar
 
@@ -19,21 +18,17 @@ class UploadCredentials:
     """
     Attributes:
         credentials (OciCredentials):
-        expires_at (datetime.datetime): Expiry of the upload credentials (RFC3339).
         storage_kind (str): Storage backend kind backing the upload (e.g. oci).
         uri (str): Target storage URI the client pushes the artifact content to.
     """
 
     credentials: OciCredentials
-    expires_at: datetime.datetime
     storage_kind: str
     uri: str
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         credentials = self.credentials.to_dict()
-
-        expires_at = self.expires_at.isoformat()
 
         storage_kind = self.storage_kind
 
@@ -44,7 +39,6 @@ class UploadCredentials:
         field_dict.update(
             {
                 "credentials": credentials,
-                "expiresAt": expires_at,
                 "storageKind": storage_kind,
                 "uri": uri,
             }
@@ -59,15 +53,12 @@ class UploadCredentials:
         d = dict(src_dict)
         credentials = OciCredentials.from_dict(d.pop("credentials"))
 
-        expires_at = datetime.datetime.fromisoformat(d.pop("expiresAt"))
-
         storage_kind = d.pop("storageKind")
 
         uri = d.pop("uri")
 
         upload_credentials = cls(
             credentials=credentials,
-            expires_at=expires_at,
             storage_kind=storage_kind,
             uri=uri,
         )

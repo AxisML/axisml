@@ -25,8 +25,7 @@ class ArtifactInitiateResponse:
             'parameters': '25.6M', 'task': 'image-classification'}, 'status': 'Uploading', 'updatedAt':
             '2026-06-20T08:00:00Z', 'version': '1.4.0', 'visibility': 'tenant'}, 'upload': {'credentials': {'expires_at':
             '2026-06-28T10:30:00Z', 'password': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.upload-token', 'username': 'team-
-            vision'}, 'expiresAt': '2026-06-28T10:30:00Z', 'storageKind': 'oci', 'uri': 'oci://registry.axisml.io/team-
-            vision/resnet50:1.4.0'}}
+            vision'}, 'storageKind': 'oci', 'uri': 'oci://registry.axisml.io/team-vision/resnet50:1.4.0'}}
 
     Attributes:
         artifact (Artifact):  Example: {'annotations': {'git-commit': '8c1f4e2'}, 'createdAt': '2026-06-20T08:00:00Z',

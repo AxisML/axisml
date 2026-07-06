@@ -29,10 +29,8 @@ class MLRunList:
             'resources': {'limits': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'}, 'requests': {'cpu': '8',
             'memory': '64Gi', 'nvidia.com/gpu': '2'}}}}], 'runPolicy': {'activeDeadlineSeconds': 86400, 'backoffLimit': 2,
             'ttlSecondsAfterFinished': 3600}, 'scheduling': {'priorityClass': 'high-priority', 'quota': 'axisml-team-vision-
-            gpu-a100-default'}}, 'status': {'conditions': [{'lastTransitionTime': '2026-06-28T09:30:00Z', 'message': 'Gang
-            scheduled onto gpu-a100.', 'reason': 'PodGroupScheduled', 'status': 'True', 'type': 'Scheduled'}], 'message':
-            'All worker replicas ready.', 'startedAt': '2026-06-28T09:30:00Z'}, 'updatedAt': '2026-06-28T09:45:00Z'}],
-            'total': 1}
+            gpu-a100-default'}}, 'status': {'message': 'All worker replicas ready.', 'startedAt': '2026-06-28T09:30:00Z'},
+            'updatedAt': '2026-06-28T09:45:00Z'}], 'total': 1}
 
     Attributes:
         count (int): Number of items returned in this page (len(items)).

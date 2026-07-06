@@ -14,7 +14,7 @@ import (
 
 // MLRun is the GORM-backed `mlruns` row. Pool / unit names live on labels
 // (resource.axisml.io/pool / -unit) for provenance, not in dedicated columns.
-// The CR status sub-tree {message, startedAt, finishedAt, conditions[]} is
+// The CR status sub-tree {message, startedAt, finishedAt} is
 // persisted in `status jsonb`; the top-level `phase` column carries the
 // high-frequency filter value (design §3.2 / database.md §3.2).
 type MLRun struct {
@@ -38,7 +38,7 @@ func (MLRun) TableName() string { return "mlruns" }
 
 // MLService is the GORM-backed `mlservices` row. Phase column = high-frequency
 // CR status.phase mirror; the rest of the status sub-tree {message,
-// readyReplicas, endpoint, conditions[]} lives in `status jsonb`. Pool /
+// readyReplicas, endpoint} lives in `status jsonb`. Pool /
 // unit names live on labels (resource.axisml.io/pool / -unit) for
 // provenance, not in dedicated columns.
 type MLService struct {
@@ -65,7 +65,7 @@ func (MLService) TableName() string { return "mlservices" }
 
 // TrafficPolicy is the GORM-backed `traffic_policies` row. Phase column =
 // high-frequency CR status.phase mirror; the rest of the status sub-tree
-// {message, endpoint, backends[], conditions[]} lives in `status jsonb`.
+// {message, endpoint, backends[]} lives in `status jsonb`.
 // Only spec.backends[*].weight (and role on canary promote) is mutable;
 // mode / endpoint / backend tuple are frozen at create.
 type TrafficPolicy struct {

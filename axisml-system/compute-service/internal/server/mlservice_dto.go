@@ -76,17 +76,7 @@ type MLServicePatchRequest struct {
 // MLServiceStatus mirrors the CR status sub-tree compute persists for
 // MLServices.
 type MLServiceStatus struct {
-	Message       string               `json:"message,omitempty" desc:"Human-readable status detail for the current phase."`
-	ReadyReplicas int32                `json:"readyReplicas" desc:"Number of replicas that have passed readiness."`
-	Endpoint      string               `json:"endpoint,omitempty" desc:"Resolved external endpoint URL when a route is enabled."`
-	Conditions    []MLServiceCondition `json:"conditions,omitempty" desc:"Operator-reported status conditions."`
-}
-
-// MLServiceCondition is one entry inside an MLService's status.conditions[].
-type MLServiceCondition struct {
-	Type               string    `json:"type" desc:"Condition type (e.g. Available, Progressing)."`
-	Status             string    `json:"status" desc:"Condition status (True, False, Unknown)."`
-	Reason             string    `json:"reason,omitempty" desc:"Machine-readable reason for the condition's status."`
-	Message            string    `json:"message,omitempty" desc:"Human-readable detail for the condition."`
-	LastTransitionTime time.Time `json:"lastTransitionTime,omitempty" desc:"Time the condition last changed status."`
+	Message       string `json:"message,omitempty" desc:"Human-readable status detail for the current phase."`
+	ReadyReplicas int32  `json:"readyReplicas" desc:"Number of replicas that have passed readiness."`
+	Endpoint      string `json:"endpoint,omitempty" desc:"Resolved external endpoint URL when a route is enabled."`
 }

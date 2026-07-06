@@ -112,7 +112,6 @@ from .ml_run import MLRun
 from .ml_run_annotations import MLRunAnnotations
 from .ml_run_backend_spec import MLRunBackendSpec
 from .ml_run_backend_spec_config_type_0 import MLRunBackendSpecConfigType0
-from .ml_run_condition import MLRunCondition
 from .ml_run_create_request import MLRunCreateRequest
 from .ml_run_create_request_annotations import MLRunCreateRequestAnnotations
 from .ml_run_create_request_labels import MLRunCreateRequestLabels
@@ -132,7 +131,6 @@ from .ml_service import MLService
 from .ml_service_annotations import MLServiceAnnotations
 from .ml_service_backend import MLServiceBackend
 from .ml_service_backend_config_type_0 import MLServiceBackendConfigType0
-from .ml_service_condition import MLServiceCondition
 from .ml_service_create_request import MLServiceCreateRequest
 from .ml_service_create_request_annotations import MLServiceCreateRequestAnnotations
 from .ml_service_create_request_labels import MLServiceCreateRequestLabels
@@ -170,7 +168,6 @@ from .pod_list import PodList
 from .traffic_policy import TrafficPolicy
 from .traffic_policy_annotations import TrafficPolicyAnnotations
 from .traffic_policy_backend_status import TrafficPolicyBackendStatus
-from .traffic_policy_condition import TrafficPolicyCondition
 from .traffic_policy_create_request import TrafficPolicyCreateRequest
 from .traffic_policy_create_request_annotations import (
     TrafficPolicyCreateRequestAnnotations,
@@ -278,7 +275,6 @@ __all__ = (
     "MLRunAnnotations",
     "MLRunBackendSpec",
     "MLRunBackendSpecConfigType0",
-    "MLRunCondition",
     "MLRunCreateRequest",
     "MLRunCreateRequestAnnotations",
     "MLRunCreateRequestLabels",
@@ -298,7 +294,6 @@ __all__ = (
     "MLServiceAnnotations",
     "MLServiceBackend",
     "MLServiceBackendConfigType0",
-    "MLServiceCondition",
     "MLServiceCreateRequest",
     "MLServiceCreateRequestAnnotations",
     "MLServiceCreateRequestLabels",
@@ -334,7 +329,6 @@ __all__ = (
     "TrafficPolicy",
     "TrafficPolicyAnnotations",
     "TrafficPolicyBackendStatus",
-    "TrafficPolicyCondition",
     "TrafficPolicyCreateRequest",
     "TrafficPolicyCreateRequestAnnotations",
     "TrafficPolicyCreateRequestLabels",

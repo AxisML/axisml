@@ -77,7 +77,6 @@ func registerExamples(g *openapigen.Generator) {
 			"storageKind": "oci",
 			"uri":         "oci://registry.axisml.io/team-vision/resnet50:1.4.0",
 			"credentials": credentials,
-			"expiresAt":   exExpiresAt,
 		},
 	})
 
@@ -98,7 +97,6 @@ func registerExamples(g *openapigen.Generator) {
 		"digest":          exDigest,
 		"visibility":      "tenant",
 		"pullCredentials": credentials,
-		"expiresAt":       exExpiresAt,
 	})
 
 	artifact := obj{
