@@ -93,3 +93,84 @@ func TestDataset_InvalidFormat(t *testing.T) {
 	})
 	require.GreaterOrEqual(t, rr.Code, 400)
 }
+
+// datasetInitiate initiates a dataset version and returns nothing (asserts 201).
+func datasetInitiate(t *testing.T, s *suite, name, version string) {
+	t.Helper()
+	rr := s.drive(t, http.MethodPost, s.nsPath("/artifacts/"+name), map[string]any{
+		"kind":    "dataset",
+		"version": version,
+		"spec":    map[string]any{"format": "parquet"},
+	})
+	require.Equalf(t, http.StatusCreated, rr.Code, "initiate dataset: %s", rr.Body.String())
+}
+
+// TestDataset_CompleteVerifiesManifest drives the dataset two-phase write
+// against the real MinIO backend: initiate → PUT artifact-manifest.json →
+// complete with its sha256 → Ready, and resolve echoes the digest.
+func TestDataset_CompleteVerifiesManifest(t *testing.T) {
+	s := setup(t)
+	s.resetState(t)
+
+	const name, version = "verified-set", "v1"
+	datasetInitiate(t, s, name, version)
+
+	digest := s.putDatasetManifest(t, name, version, []byte(`{"files":[{"path":"part-0.parquet","size":42}]}`))
+
+	rr := s.drive(t, http.MethodPost,
+		s.nsPath("/artifacts/"+name+"/"+version+"/complete"),
+		map[string]any{"digest": digest})
+	require.Equalf(t, http.StatusOK, rr.Code, "complete: %s", rr.Body.String())
+
+	rr = s.drive(t, http.MethodGet, s.nsPath("/artifacts/"+name+"/"+version), nil)
+	require.Equal(t, http.StatusOK, rr.Code)
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &got))
+	assert.Equal(t, artmod.StatusReady, got["status"])
+	assert.Equal(t, digest, got["digest"])
+
+	// resolve echoes the verified digest (S3 prefix uri, not digest-pinned).
+	rr = s.drive(t, http.MethodGet, s.nsPath("/artifacts/"+name+"/"+version+"/resolve?usage=inspect"), nil)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	var res map[string]any
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &res))
+	assert.Equal(t, "s3", res["storageKind"])
+	assert.Equal(t, digest, res["digest"])
+}
+
+// TestDataset_CompleteDigestMismatch makes the claim disagree with the stored
+// manifest; the service must mark the row Failed and return 409.
+func TestDataset_CompleteDigestMismatch(t *testing.T) {
+	s := setup(t)
+	s.resetState(t)
+
+	const name, version = "skewed-set", "v1"
+	datasetInitiate(t, s, name, version)
+	s.putDatasetManifest(t, name, version, []byte(`{"files":[]}`))
+
+	rr := s.drive(t, http.MethodPost,
+		s.nsPath("/artifacts/"+name+"/"+version+"/complete"),
+		map[string]any{"digest": fakeDigest("wrong-claim")})
+	require.Equal(t, http.StatusConflict, rr.Code, rr.Body.String())
+
+	rr = s.drive(t, http.MethodGet, s.nsPath("/artifacts/"+name+"/"+version), nil)
+	require.Equal(t, http.StatusOK, rr.Code)
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &got))
+	assert.Equal(t, artmod.StatusFailed, got["status"])
+}
+
+// TestDataset_CompleteWithoutManifest covers the client claiming success while
+// no manifest was uploaded: the S3 GET 404s → 412 Precondition Failed.
+func TestDataset_CompleteWithoutManifest(t *testing.T) {
+	s := setup(t)
+	s.resetState(t)
+
+	const name, version = "no-manifest", "v1"
+	datasetInitiate(t, s, name, version)
+
+	rr := s.drive(t, http.MethodPost,
+		s.nsPath("/artifacts/"+name+"/"+version+"/complete"),
+		map[string]any{"digest": fakeDigest("anything")})
+	assert.Equal(t, http.StatusPreconditionFailed, rr.Code, rr.Body.String())
+}

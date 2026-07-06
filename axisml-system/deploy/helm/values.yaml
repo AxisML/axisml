@@ -153,6 +153,24 @@ artifactHub:
         username: admin
         password: ""
 
+    # RustFS/S3 object store backing the dataset kind. OPT-IN: an empty endpoint
+    # disables dataset digest verification (datasets record the client-supplied
+    # digest unverified, and no S3 Secret is rendered). Set the endpoint +
+    # credentials to verify each dataset's artifact-manifest.json against the
+    # infra RustFS (Service "rustfs" in axisml-infra, port 9000).
+    s3:
+      endpoint: ""                       # e.g. http://rustfs.axisml-infra:9000
+      bucket: axisml-artifact-hub
+      credentialsSecretRef:
+        # Empty name → chart renders default secret <release>-artifact-hub-s3
+        # from the inline creds below (only when endpoint is set). Override with
+        # an externally-managed Secret to keep keys out of values.yaml.
+        name: ""
+        accessKeyKey: access_key
+        secretKeyKey: secret_key
+        accessKey: ""
+        secretKey: ""
+
   resources:
     requests:
       cpu: 100m

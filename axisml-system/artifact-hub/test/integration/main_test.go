@@ -4,6 +4,8 @@ package integration_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -19,7 +21,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
+	"github.com/minio/minio-go/v7"
+	miniocreds "github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/testcontainers/testcontainers-go"
+	tcminio "github.com/testcontainers/testcontainers-go/modules/minio"
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
 	"gorm.io/gorm"
@@ -40,6 +45,12 @@ type suite struct {
 	zot    *fakeZot
 	engine *gin.Engine
 	gcW    *gc.Worker
+
+	// s3 backs the dataset kind (real MinIO testcontainer). s3cli seeds the
+	// artifact-manifest.json objects the handler verifies against.
+	s3Ctr    *tcminio.MinioContainer
+	s3cli    *minio.Client
+	s3Bucket string
 
 	// namespace is the legacy API name for the opaque logical tenant scope.
 	namespace string
@@ -69,7 +80,7 @@ func setup(t *testing.T) *suite {
 }
 
 func bootstrap() (*suite, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 240*time.Second)
 	defer cancel()
 
 	// 1. PostgreSQL via testcontainers.
@@ -99,6 +110,18 @@ func bootstrap() (*suite, error) {
 	// 2. fake OCI server stubbing zot's HEAD / DELETE manifest endpoints.
 	zot := newFakeZot()
 
+	// 3. Real MinIO (S3) via testcontainers, backing the dataset kind so
+	// complete verifies the stored artifact-manifest.json digest for real.
+	const s3Bucket = "axisml-artifact-hub"
+	mc, err := tcminio.Run(ctx, "minio/minio:latest")
+	if err != nil {
+		return nil, fmt.Errorf("start minio: %w", err)
+	}
+	s3Endpoint, err := mc.ConnectionString(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	cfg := config.Config{
 		Common: axismlconfig.Common{
 			Database: axismlconfig.Database{
@@ -116,6 +139,13 @@ func bootstrap() (*suite, error) {
 			Endpoint:      zot.URL.Host,
 			AdminUser:     "admin",
 			AdminPassword: "secret",
+		},
+		S3: config.S3{
+			// host:port with no scheme — the S3 client defaults to http.
+			Endpoint:  s3Endpoint,
+			AccessKey: mc.Username,
+			SecretKey: mc.Password,
+			Bucket:    s3Bucket,
 		},
 	}
 
@@ -143,11 +173,25 @@ func bootstrap() (*suite, error) {
 	// forwarded clock). UploadingTTL is the fixed 24h constant.
 	w := gc.New(config.GCInterval, config.UploadingTTL, gormDB, log)
 
+	// Seeding client: BuildModules already created the bucket via EnsureBucket,
+	// so this client only PUTs the artifact-manifest.json objects the dataset
+	// tests verify against.
+	s3cli, err := minio.New(s3Endpoint, &minio.Options{
+		Creds:  miniocreds.NewStaticV4(mc.Username, mc.Password, ""),
+		Secure: false,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("minio seed client: %w", err)
+	}
+
 	return &suite{
 		pgCtr:     ctr.Container,
 		gormDB:    gormDB,
 		cfg:       cfg,
 		zot:       zot,
+		s3Ctr:     mc,
+		s3cli:     s3cli,
+		s3Bucket:  s3Bucket,
 		engine:    srv.Engine(),
 		gcW:       w,
 		namespace: "axisml-default",
@@ -160,10 +204,29 @@ func TestMain(m *testing.M) {
 	if s != nil && s.pgCtr != nil {
 		_ = s.pgCtr.Terminate(context.Background())
 	}
+	if s != nil && s.s3Ctr != nil {
+		_ = s.s3Ctr.Terminate(context.Background())
+	}
 	if s != nil && s.zot != nil {
 		s.zot.Close()
 	}
 	os.Exit(code)
+}
+
+// putDatasetManifest uploads an artifact-manifest.json for the dataset version
+// and returns its sha256:... digest — the value the client would claim on
+// complete. The handler GETs the same object and must hash to this digest.
+func (s *suite) putDatasetManifest(t *testing.T, name, version string, body []byte) string {
+	t.Helper()
+	key := fmt.Sprintf("namespaces/%s/datasets/%s/%s/artifact-manifest.json", s.namespace, name, version)
+	_, err := s.s3cli.PutObject(context.Background(), s.s3Bucket, key,
+		strings.NewReader(string(body)), int64(len(body)),
+		minio.PutObjectOptions{ContentType: "application/json"})
+	if err != nil {
+		t.Fatalf("put dataset manifest: %v", err)
+	}
+	sum := sha256.Sum256(body)
+	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
 // fakeZot is an httptest.Server stubbing the bits of OCI v2 the artifacts

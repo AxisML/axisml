@@ -114,6 +114,10 @@ Config file: `/etc/axisml/config.yaml` (override with `--config` or `AXISML_CONF
 | `oci.endpoint` | `AXISML_OCI_ENDPOINT` | `http://axisml-infra-zot.axisml-infra:5000` | — | OCI registry endpoint (full URL; scheme derived from it) |
 | `oci.admin_user` | `AXISML_OCI_ADMIN_USER` | `admin` | — | OCI registry admin username |
 | `oci.admin_password` | `AXISML_OCI_ADMIN_PASSWORD`<br>`AXISML_OCI_ADMIN_PASSWORD_FILE` | — | yes | OCI registry admin password |
+| `s3.endpoint` | `AXISML_S3_ENDPOINT` | — | — | S3/RustFS endpoint (host:port or full URL; scheme derived from it). Empty disables dataset digest verification. |
+| `s3.access_key` | `AXISML_S3_ACCESS_KEY` | — | — | S3/RustFS access key |
+| `s3.secret_key` | `AXISML_S3_SECRET_KEY`<br>`AXISML_S3_SECRET_KEY_FILE` | — | yes | S3/RustFS secret key |
+| `s3.bucket` | `AXISML_S3_BUCKET` | `axisml-artifact-hub` | — | S3 bucket datasets are stored in |
 
 ## platform-backend
 

@@ -56,7 +56,7 @@
 | StorageKind | `oci`（zot） | `s3`（RustFS） | `oci`（zot） |
 | 必填 spec | `framework`（pytorch / tensorflow / onnx / safetensors / gguf / custom）+ `format`（OCI media type） | `format`（parquet / jsonl / csv / webdataset / tfrecord / custom） | `purpose`（training / inference / workspace / custom） |
 | URI 模板 | `<oci-host>/namespaces/<ns>/models/<name>:<version>` | `s3://axisml-artifact-hub/namespaces/<ns>/datasets/<name>/<version>/` | `<oci-host>/namespaces/<ns>/images/<name>:<version>` |
-| digest | manifest digest | canonical JSON SHA256(`artifact-manifest.json`) | manifest digest |
+| digest | manifest digest | SHA256 of 存储的 `artifact-manifest.json` 字节（complete 时后端 GET 重算比对；S3 未配置时降级为记录 claim 不校验） | manifest digest |
 | 外部登记 | `remoteUri` + `remoteSourceKind`（s3 / oci / http / hf / custom） | — | `sourceImageRef`（远端镜像地址） |
 | 主要消费方 | mlservice handler → KServe `storageUri`（补 `oci://`）或 native env `AXISML_MODEL_URI` | mlrun handler 注入 env `AXISML_DATASET_URI`/`DIGEST` + init container / csi-s3 挂到 `/data` | mlrun / mlservice handler 用作 Pod `image`；imagePullSecret 由 per-tenant SA 默认携带 |
 
@@ -141,7 +141,7 @@ Ready / Failed ─(DELETE)─▶ Deleting ─(GCBackend 成功)─▶ Deleted
 | --- | --- |
 | PostgreSQL | 元数据权威；与 compute 共享 database，单表 `artifacts`（[database.md](database.md)） |
 | zot | OCI 后端；Artifacts 持 admin 凭证签 scope token / HEAD 校验 / GC 删 blob，客户端持短期 token 直连 |
-| RustFS | S3 后端；签 prefix-scoped STS / HEAD `artifact-manifest.json` 校验 / GC 删 prefix，bucket `axisml-artifact-hub` |
+| RustFS | S3 后端（dataset）；Artifacts 持 admin 凭证经 SigV4 直连：启动 EnsureBucket 建桶、complete 时 GET `artifact-manifest.json` 重算 SHA256 校验 digest、GC 删 version prefix。endpoint（`s3.endpoint`）+ access/secret key 由 Helm 注入（`artifactHub.storage.s3.*`，opt-in）；**未配置 endpoint 时降级为记录 claim 不校验**（单机 dev 形态无对象存储），bucket `axisml-artifact-hub` |
 | tenant-operator | 在 workload namespace 落地 per-tenant ServiceAccount + Secrets（默认 imagePullSecret 拉 zot、env / volume 读 RustFS）；Artifacts 不参与 Secret 落地、不在 resolve 返回 secret 名（[tenant-operator.md](tenant-operator.md)） |
 
 ## 8. 运行时形态
