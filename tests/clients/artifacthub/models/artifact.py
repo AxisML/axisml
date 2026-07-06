@@ -36,7 +36,7 @@ class Artifact:
         created_at (datetime.datetime): Creation timestamp (RFC3339).
         id (UUID): Stable artifact identifier (UUID).
         kind (str): Artifact kind (model, dataset, image).
-        name (str): Artifact name, unique within (namespace, kind).
+        name (str): Artifact name, unique within the namespace across all kinds.
         namespace (str): Tenant namespace the artifact belongs to (= compute tenants.name).
         spec (ArtifactSpec): Kind-specific free-form specification of the artifact.
         status (str): Lifecycle status (Uploading, Ready, Failed, Deleting, Deleted).

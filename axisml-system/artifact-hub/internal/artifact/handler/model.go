@@ -43,6 +43,16 @@ func (h *ModelHandler) BuildStorageURI(namespace, name, version string) string {
 	return fmt.Sprintf("%s/namespaces/%s/models/%s:%s", h.oci.Endpoint(), namespace, name, version)
 }
 
+// BuildPullURI pins the resolved reference to digest so consumers fetch
+// immutable content (<oci-host>/namespaces/<namespace>/models/<name>@<digest>).
+// Falls back to the tag form before the artifact is Ready (empty digest).
+func (h *ModelHandler) BuildPullURI(namespace, name, version, digest string) string {
+	if digest == "" {
+		return h.BuildStorageURI(namespace, name, version)
+	}
+	return fmt.Sprintf("%s/namespaces/%s/models/%s@%s", h.oci.Endpoint(), namespace, name, digest)
+}
+
 // repoPath returns the OCI repository path (no host, no tag) used in v2
 // API URLs.
 func (h *ModelHandler) repoPath(namespace, name string) string {

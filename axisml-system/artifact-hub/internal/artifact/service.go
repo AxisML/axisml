@@ -33,11 +33,14 @@ func NewService(uploadTokenTTL time.Duration, db *gorm.DB) *Service {
 
 // Initiate is two-phase write step 1. Validates, inserts an Uploading row,
 // and asks the Kind handler to mint upload credentials.
-func (s *Service) Initiate(ctx context.Context, namespace, kind, name, ownerUser string, in server.ArtifactInitiateRequest) (*server.ArtifactInitiateResponse, error) {
+func (s *Service) Initiate(ctx context.Context, namespace, name, ownerUser string, in server.ArtifactInitiateRequest) (*server.ArtifactInitiateResponse, error) {
 	if !strutil.IsValidVersion(in.Version) {
 		return nil, apperrors.New(apperrors.CodeValidation, "version does not satisfy OCI tag-safe charset (A-Za-z0-9_.-) or length 1..128")
 	}
 
+	// kind is the routing key into the per-kind handler registry, supplied in
+	// the request body (the API exposes a single /artifacts resource).
+	kind := in.Kind
 	h, ok := handler.Get(kind)
 	if !ok {
 		return nil, apperrors.Newf(apperrors.CodeValidation, "kind %q has no registered handler", kind)
@@ -65,13 +68,13 @@ func (s *Service) Initiate(ctx context.Context, namespace, kind, name, ownerUser
 	// (database.md §1.2). Check the deleted_at-inclusive lookup so a
 	// tombstone is treated as occupying the coord — clients bump version
 	// instead of replaying the same tuple.
-	existing, err := s.rows.GetByCoordIncludingDeleted(ctx, namespace, kind, name, in.Version)
+	existing, err := s.rows.GetByCoordIncludingDeleted(ctx, namespace, name, in.Version)
 	if err != nil && !IsNotFound(err) {
 		return nil, apperrors.Wrap(apperrors.CodeInternal, "lookup artifact", err)
 	}
 	if existing != nil {
 		return nil, apperrors.Newf(apperrors.CodeConflict,
-			"version %s already exists for %s/%s/%s (status=%s)", in.Version, namespace, kind, name, existing.Status)
+			"version %s already exists for %s/%s (kind=%s, status=%s)", in.Version, namespace, name, existing.Kind, existing.Status)
 	}
 
 	source := in.Source
@@ -121,7 +124,7 @@ func (s *Service) Initiate(ctx context.Context, namespace, kind, name, ownerUser
 		// constraint. Surface that as a 409, not an opaque 500.
 		if dbjson.IsUniqueViolation(err) {
 			return nil, apperrors.Newf(apperrors.CodeConflict,
-				"version %s already exists for %s/%s/%s", in.Version, namespace, kind, name)
+				"version %s already exists for %s/%s", in.Version, namespace, name)
 		}
 		return nil, apperrors.Wrap(apperrors.CodeInternal, "insert artifact", err)
 	}
@@ -160,8 +163,8 @@ func (s *Service) Initiate(ctx context.Context, namespace, kind, name, ownerUser
 }
 
 // Complete is two-phase write step 2.
-func (s *Service) Complete(ctx context.Context, namespace, kind, name, version string, in server.ArtifactCompleteRequest) (*store.Artifact, error) {
-	row, err := s.loadRow(ctx, namespace, kind, name, version)
+func (s *Service) Complete(ctx context.Context, namespace, name, version string, in server.ArtifactCompleteRequest) (*store.Artifact, error) {
+	row, err := s.loadRow(ctx, namespace, name, version)
 	if err != nil {
 		return nil, err
 	}
@@ -179,12 +182,12 @@ func (s *Service) Complete(ctx context.Context, namespace, kind, name, version s
 			"artifact is %s, cannot complete", row.Status)
 	}
 
-	h, ok := handler.Get(kind)
+	h, ok := handler.Get(row.Kind)
 	if !ok {
-		return nil, apperrors.Newf(apperrors.CodeValidation, "kind %q has no registered handler", kind)
+		return nil, apperrors.Newf(apperrors.CodeValidation, "kind %q has no registered handler", row.Kind)
 	}
 
-	hArt := handler.Artifact{Kind: kind, Namespace: namespace, Name: name, Version: version}
+	hArt := handler.Artifact{Kind: row.Kind, Namespace: namespace, Name: name, Version: version}
 	digest, err := h.VerifyComplete(ctx, hArt, handler.CompleteClaim{Digest: in.Digest})
 	if err != nil {
 		if e, ok := apperrors.As(err); ok && (e.Code == apperrors.CodeConflict || e.Code == apperrors.CodePrecondition || e.Code == apperrors.CodeValidation) {
@@ -213,15 +216,16 @@ func (s *Service) Complete(ctx context.Context, namespace, kind, name, version s
 	return row, nil
 }
 
-// Get returns a single artifact by coord.
-func (s *Service) Get(ctx context.Context, namespace, kind, name, version string) (*store.Artifact, error) {
-	return s.loadRow(ctx, namespace, kind, name, version)
+// Get returns a single artifact by (namespace, name, version) coord.
+func (s *Service) Get(ctx context.Context, namespace, name, version string) (*store.Artifact, error) {
+	return s.loadRow(ctx, namespace, name, version)
 }
 
-// List returns artifacts under (namespace, kind, name). Pass an empty `name`
-// to list every artifact name+version under (namespace, kind). labelClause
-// and labelArgs come from server.JSONLabelsSQL applied to the ?labelSelector
-// query — empty for no filtering.
+// List returns artifacts under a namespace, optionally narrowed by kind and/or
+// name. Pass an empty `kind` to list across every kind, and an empty `name` to
+// list every artifact name+version. labelClause and labelArgs come from
+// server.JSONLabelsSQL applied to the ?labelSelector query — empty for no
+// filtering.
 func (s *Service) List(ctx context.Context, namespace, kind, name, status string, limit, offset int, labelClause string, labelArgs []any) ([]store.Artifact, int64, error) {
 	rows, total, err := s.rows.ListByCoord(ctx, namespace, kind, name, status, limit, offset, labelClause, labelArgs)
 	if err != nil {
@@ -231,8 +235,8 @@ func (s *Service) List(ctx context.Context, namespace, kind, name, status string
 }
 
 // Resolve returns storage coordinates and (optionally) pull credentials.
-func (s *Service) Resolve(ctx context.Context, namespace, kind, name, version, usage string) (*server.ArtifactResolveResponse, error) {
-	row, err := s.loadRow(ctx, namespace, kind, name, version)
+func (s *Service) Resolve(ctx context.Context, namespace, name, version, usage string) (*server.ArtifactResolveResponse, error) {
+	row, err := s.loadRow(ctx, namespace, name, version)
 	if err != nil {
 		return nil, err
 	}
@@ -245,12 +249,14 @@ func (s *Service) Resolve(ctx context.Context, namespace, kind, name, version, u
 		return nil, apperrors.New(apperrors.CodeGone, "artifact has been deleted")
 	}
 
-	h, ok := handler.Get(kind)
+	h, ok := handler.Get(row.Kind)
 	if !ok {
-		return nil, apperrors.Newf(apperrors.CodeValidation, "kind %q has no registered handler", kind)
+		return nil, apperrors.Newf(apperrors.CodeValidation, "kind %q has no registered handler", row.Kind)
 	}
 
-	uri := h.BuildStorageURI(namespace, name, version)
+	// Pin OCI references to digest so consumers fetch immutable content rather
+	// than a re-pushable tag (S3 returns the version-scoped prefix unchanged).
+	uri := h.BuildPullURI(namespace, name, version, row.Digest)
 	res := &server.ArtifactResolveResponse{
 		StorageKind: string(h.StorageKind()),
 		URI:         uri,
@@ -264,7 +270,7 @@ func (s *Service) Resolve(ctx context.Context, namespace, kind, name, version, u
 	switch usage {
 	case "inspect":
 	case "download":
-		hArt := handler.Artifact{Kind: kind, Namespace: namespace, Name: name, Version: version, Digest: row.Digest}
+		hArt := handler.Artifact{Kind: row.Kind, Namespace: namespace, Name: name, Version: version, Digest: row.Digest}
 		creds, err := h.IssuePullCredentials(ctx, hArt, s.uploadTokenTTL)
 		if err != nil {
 			return nil, apperrors.Wrap(apperrors.CodeUnavailable, "issue pull credentials", err)
@@ -284,8 +290,8 @@ func (s *Service) Resolve(ctx context.Context, namespace, kind, name, version, u
 //   - labels / annotations follow whole-map replace semantics; if a key
 //     is absent from the patch, the column is left as-is unless the
 //     payload supplies a non-nil map (then it replaces).
-func (s *Service) Patch(ctx context.Context, namespace, kind, name, version string, in server.ArtifactPatchRequest) (*store.Artifact, error) {
-	row, err := s.loadRow(ctx, namespace, kind, name, version)
+func (s *Service) Patch(ctx context.Context, namespace, name, version string, in server.ArtifactPatchRequest) (*store.Artifact, error) {
+	row, err := s.loadRow(ctx, namespace, name, version)
 	if err != nil {
 		return nil, err
 	}
@@ -314,11 +320,11 @@ func (s *Service) Patch(ctx context.Context, namespace, kind, name, version stri
 	if err := s.rows.Update(ctx, nil, row.ID, updates); err != nil {
 		return nil, apperrors.Wrap(apperrors.CodeInternal, "update artifact", err)
 	}
-	return s.loadRow(ctx, namespace, kind, name, version)
+	return s.loadRow(ctx, namespace, name, version)
 }
 
-func (s *Service) MarkDeleting(ctx context.Context, namespace, kind, name, version string) error {
-	row, err := s.loadRow(ctx, namespace, kind, name, version)
+func (s *Service) MarkDeleting(ctx context.Context, namespace, name, version string) error {
+	row, err := s.loadRow(ctx, namespace, name, version)
 	if err != nil {
 		return err
 	}
@@ -336,11 +342,11 @@ func (s *Service) MarkDeleting(ctx context.Context, namespace, kind, name, versi
 // this so a client can still observe a row's terminal Deleted status after
 // GC has finalised it (Initiate keeps using the deleted_at-filtered
 // GetByCoord so a tombstone doesn't block a re-create on the same coord).
-func (s *Service) loadRow(ctx context.Context, namespace, kind, name, version string) (*store.Artifact, error) {
-	row, err := s.rows.GetByCoordIncludingDeleted(ctx, namespace, kind, name, version)
+func (s *Service) loadRow(ctx context.Context, namespace, name, version string) (*store.Artifact, error) {
+	row, err := s.rows.GetByCoordIncludingDeleted(ctx, namespace, name, version)
 	if err != nil {
 		if IsNotFound(err) {
-			return nil, apperrors.Newf(apperrors.CodeNotFound, "artifact %s/%s/%s@%s not found", namespace, kind, name, version)
+			return nil, apperrors.Newf(apperrors.CodeNotFound, "artifact %s/%s@%s not found", namespace, name, version)
 		}
 		return nil, apperrors.Wrap(apperrors.CodeInternal, "lookup artifact", err)
 	}

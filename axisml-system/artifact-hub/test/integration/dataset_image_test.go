@@ -22,13 +22,14 @@ func TestDataset_HappyPath(t *testing.T) {
 	s.resetState(t)
 
 	body := map[string]any{
+		"kind":    "dataset",
 		"version": "v1",
 		"spec": map[string]any{
 			"format": "parquet",
 		},
 		"displayName": "demo dataset",
 	}
-	rr := s.drive(t, http.MethodPost, s.nsPath("/datasets/sample-set"), body)
+	rr := s.drive(t, http.MethodPost, s.nsPath("/artifacts/sample-set"), body)
 	require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
 
 	var init map[string]any
@@ -37,7 +38,7 @@ func TestDataset_HappyPath(t *testing.T) {
 	assert.Equal(t, "s3", upload["storageKind"])
 	assert.Contains(t, upload["uri"], "s3://axisml-artifact-hub/namespaces/"+s.namespace+"/datasets/sample-set/v1/")
 
-	rr = s.drive(t, http.MethodGet, s.nsPath("/datasets/sample-set/v1"), nil)
+	rr = s.drive(t, http.MethodGet, s.nsPath("/artifacts/sample-set/v1"), nil)
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &got))
@@ -52,12 +53,13 @@ func TestImage_HappyPath(t *testing.T) {
 	s.resetState(t)
 
 	body := map[string]any{
+		"kind":    "image",
 		"version": "v1",
 		"spec": map[string]any{
 			"purpose": "training",
 		},
 	}
-	rr := s.drive(t, http.MethodPost, s.nsPath("/images/builder"), body)
+	rr := s.drive(t, http.MethodPost, s.nsPath("/artifacts/builder"), body)
 	require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
 
 	var init map[string]any
@@ -71,7 +73,8 @@ func TestImage_HappyPath(t *testing.T) {
 func TestImage_InvalidPurpose(t *testing.T) {
 	s := setup(t)
 	s.resetState(t)
-	rr := s.drive(t, http.MethodPost, s.nsPath("/images/bad"), map[string]any{
+	rr := s.drive(t, http.MethodPost, s.nsPath("/artifacts/bad"), map[string]any{
+		"kind":    "image",
 		"version": "v1",
 		"spec":    map[string]any{"purpose": "wat"},
 	})
@@ -83,7 +86,8 @@ func TestImage_InvalidPurpose(t *testing.T) {
 func TestDataset_InvalidFormat(t *testing.T) {
 	s := setup(t)
 	s.resetState(t)
-	rr := s.drive(t, http.MethodPost, s.nsPath("/datasets/bad"), map[string]any{
+	rr := s.drive(t, http.MethodPost, s.nsPath("/artifacts/bad"), map[string]any{
+		"kind":    "dataset",
 		"version": "v1",
 		"spec":    map[string]any{"format": "wat"},
 	})

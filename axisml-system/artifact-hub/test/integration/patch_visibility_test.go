@@ -29,7 +29,7 @@ func TestArtifact_PATCH_AllowedFields(t *testing.T) {
 		"annotations": map[string]string{"axisml.io/note": "hi"},
 	}
 	rr := s.drive(t, http.MethodPatch,
-		s.nsPath("/models/"+name+"/"+version), body)
+		s.nsPath("/artifacts/"+name+"/"+version), body)
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &got))
@@ -48,7 +48,7 @@ func TestArtifact_PATCH_ImmutableField(t *testing.T) {
 	completeOK(t, s, name, version, fakeDigest(name+version))
 
 	rr := s.drive(t, http.MethodPatch,
-		s.nsPath("/models/"+name+"/"+version),
+		s.nsPath("/artifacts/"+name+"/"+version),
 		map[string]any{"visibility": "public"})
 	require.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
 }
@@ -61,6 +61,7 @@ func TestArtifact_Visibility_PublicGate(t *testing.T) {
 	s.resetState(t)
 
 	body := map[string]any{
+		"kind":    "model",
 		"version": "v1",
 		"spec": map[string]any{
 			"framework": "pytorch",
@@ -69,11 +70,11 @@ func TestArtifact_Visibility_PublicGate(t *testing.T) {
 		"visibility": "public",
 	}
 	rr := s.drive(t, http.MethodPost,
-		s.nsPath("/models/public-only"), body)
+		s.nsPath("/artifacts/public-only"), body)
 	require.GreaterOrEqual(t, rr.Code, 400)
 	require.Less(t, rr.Code, 500)
 
 	rr = s.drive(t, http.MethodPost,
-		"/api/v1/namespaces/default/models/public-allowed", body)
+		"/api/v1/namespaces/default/artifacts/public-allowed", body)
 	require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
 }

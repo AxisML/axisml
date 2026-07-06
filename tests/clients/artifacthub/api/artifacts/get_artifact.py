@@ -6,7 +6,6 @@ import httpx
 
 from ...client import AuthenticatedClient, Client
 from ...models.artifact import Artifact
-from ...models.artifact_complete_request import ArtifactCompleteRequest
 from ...models.artifact_hub_error import ArtifactHubError
 from ...types import Response
 
@@ -15,25 +14,17 @@ def _get_kwargs(
     namespace: str,
     name: str,
     version: str,
-    *,
-    body: ArtifactCompleteRequest,
 ) -> dict[str, Any]:
-    headers: dict[str, Any] = {}
 
     _kwargs: dict[str, Any] = {
-        "method": "post",
-        "url": "/api/v1/namespaces/{namespace}/images/{name}/{version}/complete".format(
+        "method": "get",
+        "url": "/api/v1/namespaces/{namespace}/artifacts/{name}/{version}".format(
             namespace=quote(str(namespace), safe=""),
             name=quote(str(name), safe=""),
             version=quote(str(version), safe=""),
         ),
     }
 
-    _kwargs["json"] = body.to_dict()
-
-    headers["Content-Type"] = "application/json"
-
-    _kwargs["headers"] = headers
     return _kwargs
 
 
@@ -107,16 +98,13 @@ def sync_detailed(
     version: str,
     *,
     client: AuthenticatedClient | Client,
-    body: ArtifactCompleteRequest,
 ) -> Response[Artifact | ArtifactHubError]:
-    """Complete image upload (two-phase write step 2)
+    """Get an artifact version
 
     Args:
         namespace (str):
         name (str):
         version (str):
-        body (ArtifactCompleteRequest):  Example: {'digest':
-            'sha256:9b2c1f4e22a74c0e9b1d7f3a2e5c9a108c1f4e222b7a4c0e9b1d7f3a2e5c9a10'}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -130,7 +118,6 @@ def sync_detailed(
         namespace=namespace,
         name=name,
         version=version,
-        body=body,
     )
 
     response = client.get_httpx_client().request(
@@ -146,16 +133,13 @@ def sync(
     version: str,
     *,
     client: AuthenticatedClient | Client,
-    body: ArtifactCompleteRequest,
 ) -> Artifact | ArtifactHubError | None:
-    """Complete image upload (two-phase write step 2)
+    """Get an artifact version
 
     Args:
         namespace (str):
         name (str):
         version (str):
-        body (ArtifactCompleteRequest):  Example: {'digest':
-            'sha256:9b2c1f4e22a74c0e9b1d7f3a2e5c9a108c1f4e222b7a4c0e9b1d7f3a2e5c9a10'}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -170,7 +154,6 @@ def sync(
         name=name,
         version=version,
         client=client,
-        body=body,
     ).parsed
 
 
@@ -180,16 +163,13 @@ async def asyncio_detailed(
     version: str,
     *,
     client: AuthenticatedClient | Client,
-    body: ArtifactCompleteRequest,
 ) -> Response[Artifact | ArtifactHubError]:
-    """Complete image upload (two-phase write step 2)
+    """Get an artifact version
 
     Args:
         namespace (str):
         name (str):
         version (str):
-        body (ArtifactCompleteRequest):  Example: {'digest':
-            'sha256:9b2c1f4e22a74c0e9b1d7f3a2e5c9a108c1f4e222b7a4c0e9b1d7f3a2e5c9a10'}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -203,7 +183,6 @@ async def asyncio_detailed(
         namespace=namespace,
         name=name,
         version=version,
-        body=body,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -217,16 +196,13 @@ async def asyncio(
     version: str,
     *,
     client: AuthenticatedClient | Client,
-    body: ArtifactCompleteRequest,
 ) -> Artifact | ArtifactHubError | None:
-    """Complete image upload (two-phase write step 2)
+    """Get an artifact version
 
     Args:
         namespace (str):
         name (str):
         version (str):
-        body (ArtifactCompleteRequest):  Example: {'digest':
-            'sha256:9b2c1f4e22a74c0e9b1d7f3a2e5c9a108c1f4e222b7a4c0e9b1d7f3a2e5c9a10'}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -242,6 +218,5 @@ async def asyncio(
             name=name,
             version=version,
             client=client,
-            body=body,
         )
     ).parsed

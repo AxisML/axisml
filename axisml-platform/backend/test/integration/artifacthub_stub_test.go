@@ -11,8 +11,9 @@ import (
 )
 
 // artifactHubStub is a minimal in-memory artifact-hub used to exercise the
-// platform MLService create precheck (served model must be Ready). Only the
-// model GET + resolve endpoints are implemented.
+// platform MLService create precheck (served model must be Ready). artifact-hub
+// exposes a single /artifacts resource for every kind, so the GET + resolve
+// endpoints are addressed by (namespace, name, version) with no kind in the URL.
 type artifactHubStub struct {
 	mu     sync.Mutex
 	models map[string]string // "ns/name/version" -> status
@@ -23,8 +24,8 @@ func newArtifactHubStub() *artifactHubStub {
 	gin.SetMode(gin.ReleaseMode)
 	s := &artifactHubStub{models: map[string]string{}, engine: gin.New()}
 	g := s.engine.Group("/api/v1")
-	g.GET("/namespaces/:namespace/models/:name/:version", s.getModel)
-	g.GET("/namespaces/:namespace/models/:name/:version/resolve", s.resolveModel)
+	g.GET("/namespaces/:namespace/artifacts/:name/:version", s.getModel)
+	g.GET("/namespaces/:namespace/artifacts/:name/:version/resolve", s.resolveModel)
 	return s
 }
 

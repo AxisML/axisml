@@ -9,10 +9,10 @@ runs to completion and a service comes up — all asserted over the HTTP contrac
 from __future__ import annotations
 
 from clients.artifacthub.api.artifacts import (
-    complete_model,
-    get_model,
-    initiate_model,
-    resolve_model,
+    complete_artifact,
+    get_artifact,
+    initiate_artifact,
+    resolve_artifact,
 )
 from clients.artifacthub.models import (
     ArtifactCompleteRequest,
@@ -39,7 +39,7 @@ def test_train_and_serve_journey(harness, cfg):
     try:
         # --- model: artifact-hub two-phase upload resolves to the pushed digest.
         spec = ArtifactInitiateRequestSpec.from_dict({"framework": "onnx", "format": "onnx"})
-        init = initiate_model.sync_detailed(tenant, model, client=harness.artifact_hub, body=ArtifactInitiateRequest(version=version, spec=spec))
+        init = initiate_artifact.sync_detailed(tenant, model, client=harness.artifact_hub, body=ArtifactInitiateRequest(kind="model", version=version, spec=spec))
         assert init.status_code in (200, 201), init.content
         upload = init.parsed.upload
         oc = oci.OciClient(harness.oci_endpoint(), oci.OciCreds(username=upload.credentials.username, password=upload.credentials.password))
@@ -48,14 +48,14 @@ def test_train_and_serve_journey(harness, cfg):
             digest = oc.push_config_only_manifest(repo, ref)
         finally:
             oc.close()
-        assert complete_model.sync_detailed(tenant, model, version, client=harness.artifact_hub, body=ArtifactCompleteRequest(digest=digest)).status_code in (200, 201, 202)
+        assert complete_artifact.sync_detailed(tenant, model, version, client=harness.artifact_hub, body=ArtifactCompleteRequest(digest=digest)).status_code in (200, 201, 202)
 
         def model_ready():
-            g = get_model.sync_detailed(tenant, model, version, client=harness.artifact_hub)
+            g = get_artifact.sync_detailed(tenant, model, version, client=harness.artifact_hub)
             assert g.status_code == 200 and g.parsed.status.lower() == "ready", g.content
 
         eventually(model_ready, timeout=cfg.cr_provision_timeout, interval=cfg.poll_interval)
-        r = resolve_model.sync_detailed(tenant, model, version, client=harness.artifact_hub)
+        r = resolve_artifact.sync_detailed(tenant, model, version, client=harness.artifact_hub)
         assert r.status_code == 200 and r.parsed.digest == digest, r.content
 
         # --- train: a job runs to completion in the tenant's quota.

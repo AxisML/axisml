@@ -11,9 +11,10 @@ import (
 	apperrors "github.com/axisml/axisml/axisml-system/artifact-hub/pkg/errors"
 )
 
-// Handler exposes routes under /api/v1/namespaces/{ns}/{kindPlural}/...
-// where kindPlural ∈ {models, datasets, images}. The plural URL token is
-// the user-facing kind, mapped 1:1 to the singular Kind enum.
+// Handler exposes routes under /api/v1/namespaces/{ns}/artifacts/... The API
+// no longer distinguishes artifact types by URL: a single /artifacts resource
+// serves every kind, with kind carried in the Initiate body and recovered from
+// the persisted row on every other operation.
 type Handler struct {
 	svc *Service
 }
@@ -23,35 +24,24 @@ func NewHandler(svc *Service) *Handler {
 	return &Handler{svc: svc}
 }
 
-// kindPluralToSingular maps the URL token to the persistence enum.
-// Centralising it here keeps the routes table small.
-var kindPluralToSingular = map[string]string{
-	"models":   "model",
-	"datasets": "dataset",
-	"images":   "image",
-}
-
-// Register implements server.Module. Three identical sub-trees per kind so
-// each operationId in the OpenAPI maps to a single concrete route — no
-// `:kind` path parameter.
+// Register implements server.Module. One sub-tree serves all kinds; artifacts
+// are addressed by (namespace, name, version).
 func (h *Handler) Register(rg *gin.RouterGroup) {
-	for plural := range kindPluralToSingular {
-		g := rg.Group("/namespaces/:namespace/" + plural)
-		g.GET("", h.bindKind(plural, h.ListByKind))
-		g.POST("/:name", h.bindKind(plural, h.Initiate))
-		g.GET("/:name", h.bindKind(plural, h.List))
-		g.GET("/:name/:version", h.bindKind(plural, h.Get))
-		g.PATCH("/:name/:version", h.bindKind(plural, h.Patch))
-		g.POST("/:name/:version/complete", h.bindKind(plural, h.Complete))
-		g.GET("/:name/:version/resolve", h.bindKind(plural, h.Resolve))
-		g.DELETE("/:name/:version", h.bindKind(plural, h.Delete))
-	}
+	g := rg.Group("/namespaces/:namespace/artifacts")
+	g.GET("", h.ListAll)
+	g.POST("/:name", h.Initiate)
+	g.GET("/:name", h.List)
+	g.GET("/:name/:version", h.Get)
+	g.PATCH("/:name/:version", h.Patch)
+	g.POST("/:name/:version/complete", h.Complete)
+	g.GET("/:name/:version/resolve", h.Resolve)
+	g.DELETE("/:name/:version", h.Delete)
 }
 
-// ListByKind handles GET /api/v1/namespaces/{ns}/{kindPlural} — returns
-// every (name, version) under the namespace's kind. Design yaml exposes
-// this for browsing all artifacts of a kind without specifying a name.
-func (h *Handler) ListByKind(c *gin.Context) {
+// ListAll handles GET /api/v1/namespaces/{ns}/artifacts — returns every
+// (name, version) in the namespace, optionally narrowed by ?kind=. Exposed for
+// browsing all artifacts without specifying a name.
+func (h *Handler) ListAll(c *gin.Context) {
 	p, err := server.ParsePagination(c)
 	if err != nil {
 		_ = c.Error(err)
@@ -62,9 +52,9 @@ func (h *Handler) ListByKind(c *gin.Context) {
 		_ = c.Error(err)
 		return
 	}
-	// name="" → match every (kind, name).
+	// name="" → match every name; kind from ?kind= ("" → every kind).
 	rows, total, err := h.svc.List(c.Request.Context(),
-		c.Param("namespace"), kindOf(c), "", c.Query("status"),
+		c.Param("namespace"), c.Query("kind"), "", c.Query("status"),
 		p.Limit, p.Offset, clause, args)
 	if err != nil {
 		_ = c.Error(err)
@@ -82,17 +72,6 @@ func (h *Handler) ListByKind(c *gin.Context) {
 	})
 }
 
-// bindKind injects the singular `kind` into the gin context so the per-route
-// handler methods can read it via c.GetString("kind").
-func (h *Handler) bindKind(plural string, next gin.HandlerFunc) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.Set("kind", kindPluralToSingular[plural])
-		next(c)
-	}
-}
-
-func kindOf(c *gin.Context) string { return c.GetString("kind") }
-
 func (h *Handler) Initiate(c *gin.Context) {
 	user := auth.User(c.Request.Context())
 	var in server.ArtifactInitiateRequest
@@ -100,7 +79,7 @@ func (h *Handler) Initiate(c *gin.Context) {
 		_ = c.Error(err)
 		return
 	}
-	res, err := h.svc.Initiate(c.Request.Context(), c.Param("namespace"), kindOf(c), c.Param("name"), user, in)
+	res, err := h.svc.Initiate(c.Request.Context(), c.Param("namespace"), c.Param("name"), user, in)
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -119,7 +98,8 @@ func (h *Handler) List(c *gin.Context) {
 		_ = c.Error(err)
 		return
 	}
-	rows, total, err := h.svc.List(c.Request.Context(), c.Param("namespace"), kindOf(c), c.Param("name"), c.Query("status"), p.Limit, p.Offset, clause, args)
+	// A name is unique across kinds, so listing its versions needs no kind.
+	rows, total, err := h.svc.List(c.Request.Context(), c.Param("namespace"), "", c.Param("name"), c.Query("status"), p.Limit, p.Offset, clause, args)
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -137,7 +117,7 @@ func (h *Handler) List(c *gin.Context) {
 }
 
 func (h *Handler) Get(c *gin.Context) {
-	row, err := h.svc.Get(c.Request.Context(), c.Param("namespace"), kindOf(c), c.Param("name"), c.Param("version"))
+	row, err := h.svc.Get(c.Request.Context(), c.Param("namespace"), c.Param("name"), c.Param("version"))
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -155,7 +135,7 @@ var patchAllowedFields = map[string]struct{}{
 	"annotations": {},
 }
 
-// Patch handles PATCH /{kindPlural}/{name}/{version} — only displayName,
+// Patch handles PATCH /artifacts/{name}/{version} — only displayName,
 // description, labels, annotations are mutable (design §6). Submitting any
 // other key returns 400 ImmutableField so callers can't silently no-op
 // (e.g. attempting to change visibility / digest).
@@ -184,7 +164,7 @@ func (h *Handler) Patch(c *gin.Context) {
 			return
 		}
 	}
-	row, err := h.svc.Patch(c.Request.Context(), c.Param("namespace"), kindOf(c), c.Param("name"), c.Param("version"), in)
+	row, err := h.svc.Patch(c.Request.Context(), c.Param("namespace"), c.Param("name"), c.Param("version"), in)
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -198,7 +178,7 @@ func (h *Handler) Complete(c *gin.Context) {
 		_ = c.Error(err)
 		return
 	}
-	row, err := h.svc.Complete(c.Request.Context(), c.Param("namespace"), kindOf(c), c.Param("name"), c.Param("version"), in)
+	row, err := h.svc.Complete(c.Request.Context(), c.Param("namespace"), c.Param("name"), c.Param("version"), in)
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -207,7 +187,7 @@ func (h *Handler) Complete(c *gin.Context) {
 }
 
 func (h *Handler) Resolve(c *gin.Context) {
-	res, err := h.svc.Resolve(c.Request.Context(), c.Param("namespace"), kindOf(c), c.Param("name"), c.Param("version"), c.Query("usage"))
+	res, err := h.svc.Resolve(c.Request.Context(), c.Param("namespace"), c.Param("name"), c.Param("version"), c.Query("usage"))
 	if err != nil {
 		_ = c.Error(err)
 		return
@@ -216,13 +196,13 @@ func (h *Handler) Resolve(c *gin.Context) {
 }
 
 func (h *Handler) Delete(c *gin.Context) {
-	if err := h.svc.MarkDeleting(c.Request.Context(), c.Param("namespace"), kindOf(c), c.Param("name"), c.Param("version")); err != nil {
+	if err := h.svc.MarkDeleting(c.Request.Context(), c.Param("namespace"), c.Param("name"), c.Param("version")); err != nil {
 		_ = c.Error(err)
 		return
 	}
 	// Per design yaml: DELETE returns the artifact (now status=Deleting)
 	// so the caller has the tombstone row + observable state in one trip.
-	row, err := h.svc.Get(c.Request.Context(), c.Param("namespace"), kindOf(c), c.Param("name"), c.Param("version"))
+	row, err := h.svc.Get(c.Request.Context(), c.Param("namespace"), c.Param("name"), c.Param("version"))
 	if err != nil {
 		_ = c.Error(err)
 		return

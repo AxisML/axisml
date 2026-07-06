@@ -38,6 +38,16 @@ func (h *ImageHandler) BuildStorageURI(namespace, name, version string) string {
 	return fmt.Sprintf("%s/namespaces/%s/images/%s:%s", h.oci.Endpoint(), namespace, name, version)
 }
 
+// BuildPullURI pins the resolved reference to digest so consumers fetch
+// immutable content (<oci-host>/namespaces/<namespace>/images/<name>@<digest>).
+// Falls back to the tag form before the artifact is Ready (empty digest).
+func (h *ImageHandler) BuildPullURI(namespace, name, version, digest string) string {
+	if digest == "" {
+		return h.BuildStorageURI(namespace, name, version)
+	}
+	return fmt.Sprintf("%s/namespaces/%s/images/%s@%s", h.oci.Endpoint(), namespace, name, digest)
+}
+
 func (h *ImageHandler) repoPath(namespace, name string) string {
 	return fmt.Sprintf("namespaces/%s/images/%s", namespace, name)
 }

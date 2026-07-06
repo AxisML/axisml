@@ -15,7 +15,7 @@ type Artifact struct {
 	ID          uuid.UUID         `json:"id" desc:"Stable artifact identifier (UUID)."`
 	Namespace   string            `json:"namespace" desc:"Tenant namespace the artifact belongs to (= compute tenants.name)."`
 	Kind        string            `json:"kind" desc:"Artifact kind (model, dataset, image)."`
-	Name        string            `json:"name" desc:"Artifact name, unique within (namespace, kind)."`
+	Name        string            `json:"name" desc:"Artifact name, unique within the namespace across all kinds."`
 	Version     string            `json:"version" desc:"Artifact version (free-form string)."`
 	Visibility  string            `json:"visibility" desc:"Access scope of the artifact (tenant or public)."`
 	DisplayName string            `json:"displayName,omitempty" desc:"Human-readable name for display."`
@@ -36,11 +36,17 @@ type Artifact struct {
 
 // ArtifactInitiateRequest is the API request body for the two-phase write step 1.
 //
+// Kind selects the artifact type (model / dataset / image); it is the routing
+// key into the per-kind handler registry and is frozen once persisted. The API
+// exposes a single /artifacts resource, so kind travels in the body rather than
+// the URL.
+//
 // Source selects the version's provenance: webUpload / oras / dockerPush all
 // return push credentials and follow the two-phase write; external registers a
 // remote artifact with NO upload (SourceURI is required) and is born Ready.
 // Empty Source defaults to webUpload.
 type ArtifactInitiateRequest struct {
+	Kind        string            `json:"kind" binding:"required" desc:"Artifact kind (model, dataset, image); selects the storage backend and spec schema, immutable once created."`
 	Version     string            `json:"version" binding:"required,axisml_version" desc:"Version string to create for the artifact name."`
 	Spec        map[string]any    `json:"spec" binding:"required" desc:"Kind-specific free-form specification of the artifact."`
 	Source      string            `json:"source,omitempty" binding:"omitempty,oneof=webUpload oras dockerPush external" desc:"Provenance of the version (webUpload, oras, dockerPush, external); external registers a remote artifact with no upload."`
@@ -52,7 +58,7 @@ type ArtifactInitiateRequest struct {
 	Annotations map[string]string `json:"annotations,omitempty" desc:"Non-identifying metadata annotations."`
 }
 
-// ArtifactPatchRequest is the body for PATCH .../{kindPlural}/{name}/{version}.
+// ArtifactPatchRequest is the body for PATCH .../artifacts/{name}/{version}.
 // Only the four "displayable" fields are mutable post-Ready (design §6).
 type ArtifactPatchRequest struct {
 	DisplayName *string           `json:"displayName,omitempty" desc:"New human-readable display name; omit to leave unchanged."`

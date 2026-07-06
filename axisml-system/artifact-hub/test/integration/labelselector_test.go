@@ -20,7 +20,8 @@ func TestArtifact_LabelSelectorFilter(t *testing.T) {
 
 	// Seed alpha and beta artifacts with distinct labels.
 	mk := func(name string, labels map[string]string) {
-		rr := s.drive(t, http.MethodPost, s.nsPath("/models/"+name), map[string]any{
+		rr := s.drive(t, http.MethodPost, s.nsPath("/artifacts/"+name), map[string]any{
+			"kind":    "model",
 			"version": "v1",
 			"spec":    map[string]any{"framework": "pytorch", "format": "safetensors"},
 			"labels":  labels,
@@ -32,7 +33,7 @@ func TestArtifact_LabelSelectorFilter(t *testing.T) {
 
 	// labelSelector axisml.io/project=p1 — only sel-alpha
 	rr := s.drive(t, http.MethodGet,
-		s.nsPath("/models")+"?labelSelector="+url.QueryEscape("axisml.io/project=p1"),
+		s.nsPath("/artifacts")+"?labelSelector="+url.QueryEscape("axisml.io/project=p1"),
 		nil)
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 	var resp struct {
@@ -47,7 +48,7 @@ func TestArtifact_LabelSelectorFilter(t *testing.T) {
 
 	// labelSelector axisml.io/project in (p1,p2) — both rows
 	rr = s.drive(t, http.MethodGet,
-		s.nsPath("/models")+"?labelSelector="+url.QueryEscape("axisml.io/project in (p1,p2)"),
+		s.nsPath("/artifacts")+"?labelSelector="+url.QueryEscape("axisml.io/project in (p1,p2)"),
 		nil)
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))

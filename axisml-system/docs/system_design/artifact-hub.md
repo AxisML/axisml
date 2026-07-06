@@ -2,13 +2,13 @@
 
 ## 1. 定位与边界
 
-平台的制品元数据服务：以 PostgreSQL `artifacts` 表为元数据权威，按 `(tenantScope, kind, name, version)` 四元组寻址，bytes 由调用方凭短期凭证直连 zot / RustFS。REST / PG 中兼容字段仍名为 `namespace`，但其语义是 tenant scope，不是 K8s Namespace。
+平台的制品元数据服务：以 PostgreSQL `artifacts` 表为元数据权威，按 `(tenantScope, name, version)` 三元组寻址，`kind` 是制品的不可变属性（非寻址键）。REST API 只暴露单一 `artifacts` 资源，不再按类型分资源族；bytes 由调用方凭短期凭证直连 zot / RustFS。REST / PG 中兼容字段仍名为 `namespace`，但其语义是 tenant scope，不是 K8s Namespace。
 
 | 做 | 不做 |
 | --- | --- |
 | Artifact CRUD、两阶段写（initiate / complete）、resolve | 制品 bytes 存取（→ zot / RustFS 直连） |
 | 上传 / 下载凭证签发（OCI scope token / S3 prefix-scoped STS） | 用户认证与角色鉴权（→ [auth.md](../../../axisml-platform/docs/system_design/auth.md)） |
-| Kind 按 Handler 注册表分发（model / dataset / image） | tenant 存在性与权限校验（namespace 字段由 compute 兜底 tenant 语义） |
+| `kind` 按 Handler 注册表分发（model / dataset / image）——API 层不分资源族，kind 进 initiate body | tenant 存在性与权限校验（namespace 字段由 compute 兜底 tenant 语义） |
 | GC：Uploading TTL、Failed 留存、Deleting 推进 | 反向孤儿主动清理（仅告警）；跨 namespace 级联删除 |
 | `visibility=public` 全局可见制品（落 `default` 内置 tenant scope） | tenant Secret 落地（→ [tenant-operator.md](tenant-operator.md)） |
 
@@ -36,9 +36,9 @@
 
 | 实体 | 含义 | 寻址键 | 备注 |
 | --- | --- | --- | --- |
-| Artifact | 版本化制品 | `(tenantScope, kind, name, version)` | 四元组创建后不复用；兼容字段名为 `namespace` |
+| Artifact | 版本化制品 | `(tenantScope, name, version)` | 三元组创建后不复用；兼容字段名为 `namespace`；`name` 在 tenantScope 内跨 kind 唯一 |
 
-- `kind`：`model` / `dataset` / `image`，由 Handler registry 校验。
+- `kind`：`model` / `dataset` / `image`，创建时经 initiate body 提供、由 Handler registry 校验，进 `Ready` 前后均不可变；是 Handler 派发键，但不参与寻址。
 - `namespace` 是历史兼容字段名，表示租户 `identifier` 对应的 tenant scope；Artifacts 不解析、不做存在性校验，仅作不透明分区键。`default` 是内置 tenant scope，承载 `visibility=public` 制品，其 K8s Namespace 是 `axisml-tenant`。
 - `visibility`：`tenant`（默认，仅本 tenant scope 可见）/ `public`（全局可见；仅允许在 `default` 下创建，由上游做 RBAC 兜底）。
 - `source`：`webUpload` / `oras`（model CLI 推送）/ `dockerPush`（image 本机推送）/ `external`（登记远端、免上传，§5.1）——进 `Ready` 后冻结。
@@ -75,20 +75,20 @@
  │◀── 200 ─────────────│                             │
 ```
 
-**幂等性**：重复 initiate 同四元组——未过期 `Uploading` 返原凭证，其他终态 409（同 version 不可复活，复用先 DELETE 旧行）；重复 complete——`Uploading` 正常推进，`Ready` 且 digest 一致 → 200、不一致 → 409 `DigestMismatch`，其他 → 409；24h 内未 complete 的 `Uploading` 由 GC 转 `Failed` 并清后端残留 blob。
+**幂等性**：重复 initiate 同三元组 `(namespace, name, version)`——未过期 `Uploading` 返原凭证，其他终态 409（同 version 不可复活，复用先 DELETE 旧行；同名不同 kind 同 version 亦冲突）；重复 complete——`Uploading` 正常推进，`Ready` 且 digest 一致 → 200、不一致 → 409 `DigestMismatch`，其他 → 409；24h 内未 complete 的 `Uploading` 由 GC 转 `Failed` 并清后端残留 blob。
 
 **外部登记（`source=external`）**：initiate 给定远端来源即登记，不返上传凭证、无客户端 push 阶段；Artifacts 异步从远端拉取 / 同步到后端，凭 HEAD 通过转 `Ready`（失败转 `Failed`，GC 按同档清理）。
 
 ### 5.2 读路径：resolve
 
-`GET .../{kindPlural}/{name}/{version}/resolve?usage={inspect|download}`
+`GET .../artifacts/{name}/{version}/resolve?usage={inspect|download}`
 
 | usage | 调用方 | 凭证形态 |
 | --- | --- | --- |
 | `inspect` | 集群内 operator（mlservice / mlrun handler） | 不签发凭证；operator 派生的 Pod 经 per-tenant ServiceAccount（由 tenant-operator 落地，已默认携带 zot / RustFS 的 imagePullSecrets / Secret）拉取；Artifacts 只回 `uri` + `digest` |
 | `download` | 终端用户 / 脚本（经上游 / Gateway） | OCI pull scope token / S3 prefix-scoped STS，TTL=1h（额外回 `pull_credentials` / `expires_at`） |
 
-公共字段：`storage_kind`（`oci` / `s3`）、`uri`（`Handler.BuildStorageURI` 拼装）、`digest`（PG 读，未 Ready 为空）、`visibility`。
+公共字段：`storage_kind`（`oci` / `s3`）、`uri`、`digest`（PG 读，未 Ready 为空）、`visibility`。`uri` 由 `Handler.BuildPullURI` 拼装：OCI kind 锚定 digest（`<name>@<digest>`），消费方拉取不可变内容而非可复推的 tag；S3 kind 无内容寻址路径，返回按 version 定死的 prefix（digest 并列返回供客户端自校验）。
 
 ### 5.3 GC 与生命周期清理
 
@@ -115,7 +115,7 @@ GC worker（leader-only，每 5 分钟）扫描 PG 三类谓词：
 
 | 类别 | 内容 | 引用 |
 | --- | --- | --- |
-| 对外 REST | `/api/v1/namespaces/{ns}/{kindPlural}/{name}[/{version}[/{complete,resolve}]]`；版本级 GET / PATCH / DELETE 同前缀。`kindPlural`：`models` / `datasets` / `images` | [openapi/artifact-hub.yaml](../apis/artifact-hub.yaml) `Artifacts` tag |
+| 对外 REST | `/api/v1/namespaces/{ns}/artifacts/{name}[/{version}[/{complete,resolve}]]`；版本级 GET / PATCH / DELETE 同前缀。单一资源族服务所有 kind——`kind` 经 initiate body 传入（`required`），列表端点接受可选 `?kind=` 过滤 | [openapi/artifact-hub.yaml](../apis/artifact-hub.yaml) `Artifacts` tag |
 | 身份头 | 调用方注入 `X-Axisml-User`，本服务仅做 ownership 归属（[auth.md §6](../../../axisml-platform/docs/system_design/auth.md#6-下游身份透传)） | — |
 | 列表查询 | list 支持 `?labelSelector=`（K8s grammar） | [database.md §1.6](database.md#16-扩展元数据-labels--annotations) |
 | 错误格式 | HTTP 标准码 + RFC 7807 problem+json | — |
@@ -123,7 +123,7 @@ GC worker（leader-only，每 5 分钟）扫描 PG 三类谓词：
 
 **PATCH 可变字段**（任何非终态生效）：`displayName` / `description` / `labels` / `annotations`。其它一律不可变（含 `visibility`），否则 `400 ImmutableField`；`Deleting` / `Deleted` 行 PATCH 返 `409 ArtifactTerminal`。`labels` / `annotations` 整体 map 替换。
 
-**ArtifactHandler 接口**（编译期注册，key=`Kind()`）：`Kind()`（registry 主键）· `StorageKind()`（`oci`/`s3`）· `BuildStorageURI`（即时拼装，不读 PG / 不调后端）· `ValidateSpec`（纯函数）· `InitiateUpload`（签上传凭证，幂等）· `VerifyComplete`（调后端 HEAD / GET manifest 校验 digest）· `GCBackend`（删后端残留 blob，幂等，NotFound 视作成功）。
+**ArtifactHandler 接口**（编译期注册，key=`Kind()`）：`Kind()`（registry 主键）· `StorageKind()`（`oci`/`s3`）· `BuildStorageURI`（上传/tag 形式，即时拼装，不读 PG / 不调后端）· `BuildPullURI`（resolve 消费引用；OCI 锚 digest，S3 返回 prefix）· `ValidateSpec`（纯函数）· `InitiateUpload`（签上传凭证，幂等）· `VerifyComplete`（调后端 HEAD / GET manifest 校验 digest）· `GCBackend`（删后端残留 blob，幂等，NotFound 视作成功）。
 
 **状态机**：
 

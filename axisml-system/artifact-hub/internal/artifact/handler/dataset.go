@@ -50,6 +50,13 @@ func (h *DatasetHandler) BuildStorageURI(namespace, name, version string) string
 	return fmt.Sprintf("s3://%s/namespaces/%s/datasets/%s/%s/", h.bucket, namespace, name, version)
 }
 
+// BuildPullURI returns the version-scoped S3 prefix unchanged: RustFS has no
+// content-addressable path, so the prefix is already immutable per version and
+// the digest is returned alongside for client-side verification.
+func (h *DatasetHandler) BuildPullURI(namespace, name, version, _ string) string {
+	return h.BuildStorageURI(namespace, name, version)
+}
+
 func (h *DatasetHandler) ValidateSpec(_ context.Context, spec Spec) error {
 	format, ok := stringField(spec, "format")
 	if !ok || format == "" {

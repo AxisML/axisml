@@ -27,15 +27,16 @@ func (r *Repository) GetByID(ctx context.Context, id uuid.UUID) (*store.Artifact
 	return &row, nil
 }
 
-// GetByCoord loads an artifact by its (namespace, kind, name, version)
-// natural key. Soft-deleted rows (deleted_at IS NOT NULL) are excluded —
-// callers using this for the Initiate idempotency check rely on that so a
-// new version can be created over a fully-Deleted tombstone.
-func (r *Repository) GetByCoord(ctx context.Context, namespace, kind, name, version string) (*store.Artifact, error) {
+// GetByCoord loads an artifact by its (namespace, name, version) natural key.
+// kind is not part of the key — a name is unique within a namespace across all
+// kinds. Soft-deleted rows (deleted_at IS NOT NULL) are excluded — callers
+// using this for the Initiate idempotency check rely on that so a new version
+// can be created over a fully-Deleted tombstone.
+func (r *Repository) GetByCoord(ctx context.Context, namespace, name, version string) (*store.Artifact, error) {
 	var row store.Artifact
 	if err := r.db.WithContext(ctx).
-		Where("namespace = ? AND kind = ? AND name = ? AND version = ? AND deleted_at IS NULL",
-			namespace, kind, name, version).
+		Where("namespace = ? AND name = ? AND version = ? AND deleted_at IS NULL",
+			namespace, name, version).
 		Take(&row).Error; err != nil {
 		return nil, err
 	}
@@ -47,26 +48,29 @@ func (r *Repository) GetByCoord(ctx context.Context, namespace, kind, name, vers
 // a row's terminal Deleted status after GC has finalised it; without this,
 // the row vanishes from /artifacts/... the moment GC runs and the user
 // can't tell whether DELETE has propagated or the row never existed.
-func (r *Repository) GetByCoordIncludingDeleted(ctx context.Context, namespace, kind, name, version string) (*store.Artifact, error) {
+func (r *Repository) GetByCoordIncludingDeleted(ctx context.Context, namespace, name, version string) (*store.Artifact, error) {
 	var row store.Artifact
 	if err := r.db.WithContext(ctx).
-		Where("namespace = ? AND kind = ? AND name = ? AND version = ?",
-			namespace, kind, name, version).
+		Where("namespace = ? AND name = ? AND version = ?",
+			namespace, name, version).
 		Take(&row).Error; err != nil {
 		return nil, err
 	}
 	return &row, nil
 }
 
-// ListByCoord returns artifacts under (namespace, kind, name). Status filter
-// is optional. To list across versions of a single artifact name, callers
-// pass the name; to list across all names within a kind, pass an empty
-// name.
+// ListByCoord returns artifacts under a namespace, optionally narrowed by kind
+// and/or name. All three of kind / name / status filters are optional: pass an
+// empty kind to list across every kind, an empty name to list across all names,
+// and an empty status for no status filter.
 func (r *Repository) ListByCoord(ctx context.Context, namespace, kind, name, status string, limit, offset int, labelClause string, labelArgs []any) ([]store.Artifact, int64, error) {
 	var rows []store.Artifact
 	var total int64
 	q := r.db.WithContext(ctx).Model(&store.Artifact{}).
-		Where("namespace = ? AND kind = ? AND deleted_at IS NULL", namespace, kind)
+		Where("namespace = ? AND deleted_at IS NULL", namespace)
+	if kind != "" {
+		q = q.Where("kind = ?", kind)
+	}
 	if name != "" {
 		q = q.Where("name = ?", name)
 	}

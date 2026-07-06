@@ -70,19 +70,15 @@ func TestRouteCoverage(t *testing.T) {
 	want := []struct{ method, path string }{
 		{"get", "/healthz"},
 		{"get", "/readyz"},
-		// One representative kind (models); the loop in main.go renders all
-		// three kinds (models/datasets/images) symmetrically.
-		{"get", "/api/v1/namespaces/{namespace}/models"},
-		{"post", "/api/v1/namespaces/{namespace}/models/{name}"},
-		{"get", "/api/v1/namespaces/{namespace}/models/{name}"},
-		{"get", "/api/v1/namespaces/{namespace}/models/{name}/{version}"},
-		{"patch", "/api/v1/namespaces/{namespace}/models/{name}/{version}"},
-		{"delete", "/api/v1/namespaces/{namespace}/models/{name}/{version}"},
-		{"post", "/api/v1/namespaces/{namespace}/models/{name}/{version}/complete"},
-		{"get", "/api/v1/namespaces/{namespace}/models/{name}/{version}/resolve"},
-		// Datasets / images symmetry spot-check.
-		{"post", "/api/v1/namespaces/{namespace}/datasets/{name}"},
-		{"post", "/api/v1/namespaces/{namespace}/images/{name}"},
+		// A single /artifacts sub-tree serves every kind.
+		{"get", "/api/v1/namespaces/{namespace}/artifacts"},
+		{"post", "/api/v1/namespaces/{namespace}/artifacts/{name}"},
+		{"get", "/api/v1/namespaces/{namespace}/artifacts/{name}"},
+		{"get", "/api/v1/namespaces/{namespace}/artifacts/{name}/{version}"},
+		{"patch", "/api/v1/namespaces/{namespace}/artifacts/{name}/{version}"},
+		{"delete", "/api/v1/namespaces/{namespace}/artifacts/{name}/{version}"},
+		{"post", "/api/v1/namespaces/{namespace}/artifacts/{name}/{version}/complete"},
+		{"get", "/api/v1/namespaces/{namespace}/artifacts/{name}/{version}/resolve"},
 	}
 	for _, w := range want {
 		item, ok := doc.Paths[w.path]

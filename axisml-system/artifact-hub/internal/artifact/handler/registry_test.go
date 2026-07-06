@@ -11,6 +11,7 @@ type stubHandler struct{ kind string }
 func (s *stubHandler) Kind() string                                 { return s.kind }
 func (s *stubHandler) StorageKind() StorageKind                     { return StorageOCI }
 func (s *stubHandler) BuildStorageURI(_, _, _ string) string        { return "" }
+func (s *stubHandler) BuildPullURI(_, _, _, _ string) string        { return "" }
 func (s *stubHandler) ValidateSpec(_ context.Context, _ Spec) error { return nil }
 func (s *stubHandler) InitiateUpload(_ context.Context, _ Artifact, _ time.Duration) (Credentials, error) {
 	return Credentials{}, nil

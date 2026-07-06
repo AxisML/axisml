@@ -18,6 +18,7 @@ import (
 // modelInitiateBody returns a well-formed Initiate body for the model Kind.
 func modelInitiateBody(version string, overrides map[string]any) map[string]any {
 	body := map[string]any{
+		"kind":    "model",
 		"version": version,
 		"spec": map[string]any{
 			"framework": "pytorch",
@@ -31,11 +32,11 @@ func modelInitiateBody(version string, overrides map[string]any) map[string]any 
 	return body
 }
 
-// initiateOK posts /models/{name} and asserts 201; returns parsed body.
+// initiateOK posts /artifacts/{name} and asserts 201; returns parsed body.
 func initiateOK(t *testing.T, s *suite, name, version string) map[string]any {
 	t.Helper()
 	rr := s.drive(t, http.MethodPost,
-		s.nsPath("/models/"+name), modelInitiateBody(version, nil))
+		s.nsPath("/artifacts/"+name), modelInitiateBody(version, nil))
 	require.Equalf(t, http.StatusCreated, rr.Code,
 		"initiate should succeed; body=%s", rr.Body.String())
 	var out map[string]any
@@ -49,7 +50,7 @@ func completeOK(t *testing.T, s *suite, name, version, digest string) map[string
 	repoPath := "namespaces/" + s.namespace + "/models/" + name
 	s.zot.pushManifest(repoPath, version, digest)
 	rr := s.drive(t, http.MethodPost,
-		s.nsPath("/models/"+name+"/"+version+"/complete"),
+		s.nsPath("/artifacts/"+name+"/"+version+"/complete"),
 		map[string]any{"digest": digest})
 	require.Equalf(t, http.StatusOK, rr.Code,
 		"complete should succeed; body=%s", rr.Body.String())
@@ -80,12 +81,12 @@ func TestArtifact_HappyPath(t *testing.T) {
 
 	// Idempotent re-Complete with same digest.
 	rr := s.drive(t, http.MethodPost,
-		s.nsPath("/models/"+name+"/"+version+"/complete"),
+		s.nsPath("/artifacts/"+name+"/"+version+"/complete"),
 		map[string]any{"digest": digest})
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 
 	// Get.
-	rr = s.drive(t, http.MethodGet, s.nsPath("/models/"+name+"/"+version), nil)
+	rr = s.drive(t, http.MethodGet, s.nsPath("/artifacts/"+name+"/"+version), nil)
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &got))
@@ -94,7 +95,7 @@ func TestArtifact_HappyPath(t *testing.T) {
 	assert.Equal(t, artmod.StatusReady, got["status"])
 
 	// List under (kind, name).
-	rr = s.drive(t, http.MethodGet, s.nsPath("/models/"+name), nil)
+	rr = s.drive(t, http.MethodGet, s.nsPath("/artifacts/"+name), nil)
 	require.Equal(t, http.StatusOK, rr.Code)
 	var listOut struct {
 		Items []map[string]any `json:"items"`
@@ -105,7 +106,7 @@ func TestArtifact_HappyPath(t *testing.T) {
 
 	// Resolve(inspect) — no pull credentials.
 	rr = s.drive(t, http.MethodGet,
-		s.nsPath("/models/"+name+"/"+version+"/resolve?usage=inspect"), nil)
+		s.nsPath("/artifacts/"+name+"/"+version+"/resolve?usage=inspect"), nil)
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 	var inspect map[string]any
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &inspect))
@@ -114,7 +115,7 @@ func TestArtifact_HappyPath(t *testing.T) {
 
 	// Resolve(download) — pull credentials present.
 	rr = s.drive(t, http.MethodGet,
-		s.nsPath("/models/"+name+"/"+version+"/resolve?usage=download"), nil)
+		s.nsPath("/artifacts/"+name+"/"+version+"/resolve?usage=download"), nil)
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 	var download map[string]any
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &download))
@@ -131,7 +132,7 @@ func TestArtifact_DuplicateInitiateConflict(t *testing.T) {
 	initiateOK(t, s, name, version)
 
 	rr := s.drive(t, http.MethodPost,
-		s.nsPath("/models/"+name), modelInitiateBody(version, nil))
+		s.nsPath("/artifacts/"+name), modelInitiateBody(version, nil))
 	assert.Equal(t, http.StatusConflict, rr.Code, rr.Body.String())
 }
 
@@ -154,6 +155,7 @@ func TestArtifact_ValidationRejections(t *testing.T) {
 		{
 			name: "missing framework",
 			body: map[string]any{
+				"kind":    "model",
 				"version": "v1",
 				"spec":    map[string]any{"format": "safetensors"},
 			},
@@ -161,6 +163,7 @@ func TestArtifact_ValidationRejections(t *testing.T) {
 		{
 			name: "unknown framework",
 			body: map[string]any{
+				"kind":    "model",
 				"version": "v1",
 				"spec":    map[string]any{"framework": "wat", "format": "safetensors"},
 			},
@@ -168,6 +171,7 @@ func TestArtifact_ValidationRejections(t *testing.T) {
 		{
 			name: "missing format",
 			body: map[string]any{
+				"kind":    "model",
 				"version": "v1",
 				"spec":    map[string]any{"framework": "pytorch"},
 			},
@@ -176,22 +180,22 @@ func TestArtifact_ValidationRejections(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			rr := s.drive(t, http.MethodPost,
-				s.nsPath("/models/some-model"), tc.body)
+				s.nsPath("/artifacts/some-model"), tc.body)
 			assert.Equal(t, http.StatusBadRequest, rr.Code,
 				"validation must surface as 400; body=%s", rr.Body.String())
 		})
 	}
 }
 
-// TestArtifact_UnknownKind404Style covers the kind-not-registered path. It's
-// surfaced as CodeValidation → 400 today (registry lookup happens before the
-// route knows the URL refers to "no such handler"); we just assert it's 4xx.
+// TestArtifact_UnknownKind covers the kind-not-registered path: a body kind
+// with no handler is surfaced as CodeValidation → 400. We just assert it's 4xx.
 func TestArtifact_UnknownKind(t *testing.T) {
 	s := setup(t)
 	s.resetState(t)
 
 	rr := s.drive(t, http.MethodPost,
-		s.nsPath("/datasets/foo"), modelInitiateBody("v1", nil))
+		s.nsPath("/artifacts/foo"),
+		modelInitiateBody("v1", map[string]any{"kind": "totally-unknown"}))
 	assert.GreaterOrEqual(t, rr.Code, 400)
 	assert.Less(t, rr.Code, 500, "must be a client error, not a panic")
 }
@@ -211,14 +215,14 @@ func TestArtifact_CompleteDigestMismatch(t *testing.T) {
 	s.zot.pushManifest(repoPath, version, registryDigest)
 
 	rr := s.drive(t, http.MethodPost,
-		s.nsPath("/models/"+name+"/"+version+"/complete"),
+		s.nsPath("/artifacts/"+name+"/"+version+"/complete"),
 		map[string]any{"digest": clientDigest})
 	require.Equal(t, http.StatusConflict, rr.Code, rr.Body.String())
 
 	// The service must mark the row Failed (precondition for Phase-2 GC of
 	// orphaned blobs).
 	rr = s.drive(t, http.MethodGet,
-		s.nsPath("/models/"+name+"/"+version), nil)
+		s.nsPath("/artifacts/"+name+"/"+version), nil)
 	require.Equal(t, http.StatusOK, rr.Code)
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &got))
@@ -236,7 +240,7 @@ func TestArtifact_CompleteWithoutManifest(t *testing.T) {
 	initiateOK(t, s, name, version)
 
 	rr := s.drive(t, http.MethodPost,
-		s.nsPath("/models/"+name+"/"+version+"/complete"),
+		s.nsPath("/artifacts/"+name+"/"+version+"/complete"),
 		map[string]any{"digest": fakeDigest("anything")})
 	assert.Equal(t, http.StatusPreconditionFailed, rr.Code, rr.Body.String())
 }
@@ -250,7 +254,7 @@ func TestArtifact_ResolveBeforeReady(t *testing.T) {
 	initiateOK(t, s, name, version)
 
 	rr := s.drive(t, http.MethodGet,
-		s.nsPath("/models/"+name+"/"+version+"/resolve?usage=inspect"), nil)
+		s.nsPath("/artifacts/"+name+"/"+version+"/resolve?usage=inspect"), nil)
 	assert.Equal(t, http.StatusPreconditionFailed, rr.Code, rr.Body.String())
 }
 
@@ -265,11 +269,11 @@ func TestArtifact_DeleteMarksDeleting(t *testing.T) {
 	completeOK(t, s, name, version, fakeDigest(name+version))
 
 	rr := s.drive(t, http.MethodDelete,
-		s.nsPath("/models/"+name+"/"+version), nil)
+		s.nsPath("/artifacts/"+name+"/"+version), nil)
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 
 	rr = s.drive(t, http.MethodGet,
-		s.nsPath("/models/"+name+"/"+version), nil)
+		s.nsPath("/artifacts/"+name+"/"+version), nil)
 	require.Equal(t, http.StatusOK, rr.Code)
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &got))
@@ -277,7 +281,7 @@ func TestArtifact_DeleteMarksDeleting(t *testing.T) {
 
 	// Idempotent: a second DELETE on a Deleting row is still 202.
 	rr = s.drive(t, http.MethodDelete,
-		s.nsPath("/models/"+name+"/"+version), nil)
+		s.nsPath("/artifacts/"+name+"/"+version), nil)
 	assert.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 }
 
@@ -298,7 +302,7 @@ func TestGC_StaleUploadingFlippedToFailed(t *testing.T) {
 	s.gcW.Tick(context.Background())
 
 	rr := s.drive(t, http.MethodGet,
-		s.nsPath("/models/"+name+"/"+version), nil)
+		s.nsPath("/artifacts/"+name+"/"+version), nil)
 	require.Equal(t, http.StatusOK, rr.Code)
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &got))
@@ -318,13 +322,13 @@ func TestGC_DeletingMarkedDeleted(t *testing.T) {
 	completeOK(t, s, name, version, fakeDigest(name+version))
 
 	rr := s.drive(t, http.MethodDelete,
-		s.nsPath("/models/"+name+"/"+version), nil)
+		s.nsPath("/artifacts/"+name+"/"+version), nil)
 	require.Equal(t, http.StatusOK, rr.Code)
 
 	s.gcW.Tick(context.Background())
 
 	rr = s.drive(t, http.MethodGet,
-		s.nsPath("/models/"+name+"/"+version), nil)
+		s.nsPath("/artifacts/"+name+"/"+version), nil)
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &got))
@@ -334,7 +338,7 @@ func TestGC_DeletingMarkedDeleted(t *testing.T) {
 	// after a full Deleted tombstone, re-Initiate on the same coord must
 	// fail. Callers bump the version instead.
 	rr = s.drive(t, http.MethodPost,
-		s.nsPath("/models/"+name), modelInitiateBody(version, nil))
+		s.nsPath("/artifacts/"+name), modelInitiateBody(version, nil))
 	assert.GreaterOrEqual(t, rr.Code, 400,
 		"re-initiate over a Deleted tombstone must be rejected; body=%s",
 		rr.Body.String())

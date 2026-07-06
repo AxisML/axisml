@@ -5,48 +5,43 @@ from urllib.parse import quote
 import httpx
 
 from ...client import AuthenticatedClient, Client
+from ...models.artifact import Artifact
+from ...models.artifact_complete_request import ArtifactCompleteRequest
 from ...models.artifact_hub_error import ArtifactHubError
-from ...models.artifact_list import ArtifactList
-from ...types import UNSET, Response, Unset
+from ...types import Response
 
 
 def _get_kwargs(
     namespace: str,
+    name: str,
+    version: str,
     *,
-    limit: int | Unset = UNSET,
-    continue_: str | Unset = UNSET,
-    status: str | Unset = UNSET,
-    label_selector: str | Unset = UNSET,
+    body: ArtifactCompleteRequest,
 ) -> dict[str, Any]:
-
-    params: dict[str, Any] = {}
-
-    params["limit"] = limit
-
-    params["continue"] = continue_
-
-    params["status"] = status
-
-    params["labelSelector"] = label_selector
-
-    params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
+    headers: dict[str, Any] = {}
 
     _kwargs: dict[str, Any] = {
-        "method": "get",
-        "url": "/api/v1/namespaces/{namespace}/datasets".format(
+        "method": "post",
+        "url": "/api/v1/namespaces/{namespace}/artifacts/{name}/{version}/complete".format(
             namespace=quote(str(namespace), safe=""),
+            name=quote(str(name), safe=""),
+            version=quote(str(version), safe=""),
         ),
-        "params": params,
     }
 
+    _kwargs["json"] = body.to_dict()
+
+    headers["Content-Type"] = "application/json"
+
+    _kwargs["headers"] = headers
     return _kwargs
 
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> ArtifactHubError | ArtifactList:
+) -> Artifact | ArtifactHubError:
     if response.status_code == 200:
-        response_200 = ArtifactList.from_dict(response.json())
+        response_200 = Artifact.from_dict(response.json())
 
         return response_200
 
@@ -97,7 +92,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[ArtifactHubError | ArtifactList]:
+) -> Response[Artifact | ArtifactHubError]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -108,36 +103,34 @@ def _build_response(
 
 def sync_detailed(
     namespace: str,
+    name: str,
+    version: str,
     *,
     client: AuthenticatedClient | Client,
-    limit: int | Unset = UNSET,
-    continue_: str | Unset = UNSET,
-    status: str | Unset = UNSET,
-    label_selector: str | Unset = UNSET,
-) -> Response[ArtifactHubError | ArtifactList]:
-    """List every dataset (across all names) in a namespace
+    body: ArtifactCompleteRequest,
+) -> Response[Artifact | ArtifactHubError]:
+    """Complete artifact upload (two-phase write step 2)
 
     Args:
         namespace (str):
-        limit (int | Unset):
-        continue_ (str | Unset):
-        status (str | Unset):
-        label_selector (str | Unset):
+        name (str):
+        version (str):
+        body (ArtifactCompleteRequest):  Example: {'digest':
+            'sha256:9b2c1f4e22a74c0e9b1d7f3a2e5c9a108c1f4e222b7a4c0e9b1d7f3a2e5c9a10'}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ArtifactHubError | ArtifactList]
+        Response[Artifact | ArtifactHubError]
     """
 
     kwargs = _get_kwargs(
         namespace=namespace,
-        limit=limit,
-        continue_=continue_,
-        status=status,
-        label_selector=label_selector,
+        name=name,
+        version=version,
+        body=body,
     )
 
     response = client.get_httpx_client().request(
@@ -149,72 +142,68 @@ def sync_detailed(
 
 def sync(
     namespace: str,
+    name: str,
+    version: str,
     *,
     client: AuthenticatedClient | Client,
-    limit: int | Unset = UNSET,
-    continue_: str | Unset = UNSET,
-    status: str | Unset = UNSET,
-    label_selector: str | Unset = UNSET,
-) -> ArtifactHubError | ArtifactList | None:
-    """List every dataset (across all names) in a namespace
+    body: ArtifactCompleteRequest,
+) -> Artifact | ArtifactHubError | None:
+    """Complete artifact upload (two-phase write step 2)
 
     Args:
         namespace (str):
-        limit (int | Unset):
-        continue_ (str | Unset):
-        status (str | Unset):
-        label_selector (str | Unset):
+        name (str):
+        version (str):
+        body (ArtifactCompleteRequest):  Example: {'digest':
+            'sha256:9b2c1f4e22a74c0e9b1d7f3a2e5c9a108c1f4e222b7a4c0e9b1d7f3a2e5c9a10'}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ArtifactHubError | ArtifactList
+        Artifact | ArtifactHubError
     """
 
     return sync_detailed(
         namespace=namespace,
+        name=name,
+        version=version,
         client=client,
-        limit=limit,
-        continue_=continue_,
-        status=status,
-        label_selector=label_selector,
+        body=body,
     ).parsed
 
 
 async def asyncio_detailed(
     namespace: str,
+    name: str,
+    version: str,
     *,
     client: AuthenticatedClient | Client,
-    limit: int | Unset = UNSET,
-    continue_: str | Unset = UNSET,
-    status: str | Unset = UNSET,
-    label_selector: str | Unset = UNSET,
-) -> Response[ArtifactHubError | ArtifactList]:
-    """List every dataset (across all names) in a namespace
+    body: ArtifactCompleteRequest,
+) -> Response[Artifact | ArtifactHubError]:
+    """Complete artifact upload (two-phase write step 2)
 
     Args:
         namespace (str):
-        limit (int | Unset):
-        continue_ (str | Unset):
-        status (str | Unset):
-        label_selector (str | Unset):
+        name (str):
+        version (str):
+        body (ArtifactCompleteRequest):  Example: {'digest':
+            'sha256:9b2c1f4e22a74c0e9b1d7f3a2e5c9a108c1f4e222b7a4c0e9b1d7f3a2e5c9a10'}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ArtifactHubError | ArtifactList]
+        Response[Artifact | ArtifactHubError]
     """
 
     kwargs = _get_kwargs(
         namespace=namespace,
-        limit=limit,
-        continue_=continue_,
-        status=status,
-        label_selector=label_selector,
+        name=name,
+        version=version,
+        body=body,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -224,37 +213,35 @@ async def asyncio_detailed(
 
 async def asyncio(
     namespace: str,
+    name: str,
+    version: str,
     *,
     client: AuthenticatedClient | Client,
-    limit: int | Unset = UNSET,
-    continue_: str | Unset = UNSET,
-    status: str | Unset = UNSET,
-    label_selector: str | Unset = UNSET,
-) -> ArtifactHubError | ArtifactList | None:
-    """List every dataset (across all names) in a namespace
+    body: ArtifactCompleteRequest,
+) -> Artifact | ArtifactHubError | None:
+    """Complete artifact upload (two-phase write step 2)
 
     Args:
         namespace (str):
-        limit (int | Unset):
-        continue_ (str | Unset):
-        status (str | Unset):
-        label_selector (str | Unset):
+        name (str):
+        version (str):
+        body (ArtifactCompleteRequest):  Example: {'digest':
+            'sha256:9b2c1f4e22a74c0e9b1d7f3a2e5c9a108c1f4e222b7a4c0e9b1d7f3a2e5c9a10'}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ArtifactHubError | ArtifactList
+        Artifact | ArtifactHubError
     """
 
     return (
         await asyncio_detailed(
             namespace=namespace,
+            name=name,
+            version=version,
             client=client,
-            limit=limit,
-            continue_=continue_,
-            status=status,
-            label_selector=label_selector,
+            body=body,
         )
     ).parsed
