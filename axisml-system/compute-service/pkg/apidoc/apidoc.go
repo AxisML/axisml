@@ -88,10 +88,12 @@ func Document(version string) *openapigen.Document {
 	g.Register("MLRunCreateRequest", server.MLRunCreateRequest{}, openapigen.InputMode)
 	g.Register("MLRunPatchRequest", server.MLRunPatchRequest{}, openapigen.InputMode)
 	g.Register("MLRun", server.MLRun{}, openapigen.ResponseMode)
+	g.Register("MLRunPhase", server.MLRunPhase{}, openapigen.ResponseMode)
 	g.Register("MLServiceCreateRequest", server.MLServiceCreateRequest{}, openapigen.InputMode)
 	g.Register("MLServicePatchRequest", server.MLServicePatchRequest{}, openapigen.InputMode)
 	g.Register("MLServiceScaleRequest", server.MLServiceScaleRequest{}, openapigen.InputMode)
 	g.Register("MLService", server.MLService{}, openapigen.ResponseMode)
+	g.Register("MLServicePhase", server.MLServicePhase{}, openapigen.ResponseMode)
 	g.Register("TrafficPolicyCreateRequest", server.TrafficPolicyCreateRequest{}, openapigen.InputMode)
 	g.Register("TrafficPolicyPatchRequest", server.TrafficPolicyPatchRequest{}, openapigen.InputMode)
 	g.Register("TrafficPolicySplitRequest", server.TrafficPolicySplitRequest{}, openapigen.InputMode)
@@ -103,7 +105,9 @@ func Document(version string) *openapigen.Document {
 	g.Register("MetricSeries", server.MetricSeries{}, openapigen.ResponseMode)
 
 	g.Set("MLRunList", openapigen.PagedListEnvelope("MLRun"))
+	g.Set("MLRunPhaseList", openapigen.PagedListEnvelope("MLRunPhase"))
 	g.Set("MLServiceList", openapigen.PagedListEnvelope("MLService"))
+	g.Set("MLServicePhaseList", openapigen.PagedListEnvelope("MLServicePhase"))
 	g.Set("TrafficPolicyList", openapigen.PagedListEnvelope("TrafficPolicy"))
 	g.Set("PodList", openapigen.ListEnvelope("Pod"))
 	g.Set("EventList", openapigen.ListEnvelope("Event"))
@@ -127,6 +131,8 @@ func Document(version string) *openapigen.Document {
 	limitParam := openapigen.QueryParam("limit", "Page size (1–200, default 50).", openapigen.IntFormat32Param())
 	continueParam := openapigen.QueryParam("continue", "Opaque continuation token from a previous page.", &openapigen.Schema{Type: "string"})
 	labelSelectorParam := openapigen.QueryParam("labelSelector", "K8s-style label selector filtered against the row's labels jsonb.", &openapigen.Schema{Type: "string"})
+	namesParam := openapigen.QueryParam("names", "Comma-separated (or repeated) names to fetch phases for, e.g. names=a,b,c. Bounded at 200; unresolved names are omitted from items. Presence of the key (even empty) selects names-mode, so an empty value returns an empty list. When present, labelSelector / pagination are ignored.", &openapigen.Schema{Type: "string"})
+	kindParam := openapigen.QueryParam("kind", "Filter MLServices by kind (service, workspace, tensorboard).", &openapigen.Schema{Type: "string"})
 	logParams := []openapigen.Parameter{
 		openapigen.QueryParam("container", "Target container (defaults to the first).", &openapigen.Schema{Type: "string"}),
 		openapigen.QueryParam("tailLines", "Return only the last N lines.", openapigen.IntFormat32Param()),
@@ -199,6 +205,16 @@ func Document(version string) *openapigen.Document {
 		Parameters: []openapigen.Parameter{nsParam, mlrunParam},
 		Responses:  withErrors(map[string]openapigen.Response{"202": openapigen.JSONResp("Cancellation queued (row is Canceling).", "MLRun")}),
 	}}
+	paths["/api/v1/namespaces/{namespace}/mlruns/phases"] = openapigen.PathItem{Get: &openapigen.Operation{
+		Tags: []string{tagMLRuns}, Summary: "Batch-get MLRun phases", OperationID: "batchGetMLRunPhases",
+		Parameters: []openapigen.Parameter{nsParam, namesParam, labelSelectorParam, limitParam, continueParam},
+		Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Phase projections for the selected runs.", "MLRunPhaseList")}),
+	}}
+	paths["/api/v1/namespaces/{namespace}/mlruns/{mlrun}/phase"] = openapigen.PathItem{Get: &openapigen.Operation{
+		Tags: []string{tagMLRuns}, Summary: "Get MLRun phase", OperationID: "getMLRunPhase",
+		Parameters: []openapigen.Parameter{nsParam, mlrunParam},
+		Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Current run phase and status detail.", "MLRunPhase")}),
+	}}
 
 	podParam := openapigen.PathParam("pod", "Pod name.")
 	paths["/api/v1/namespaces/{namespace}/mlruns/{mlrun}/pods"] = openapigen.PathItem{Get: &openapigen.Operation{
@@ -251,7 +267,7 @@ func Document(version string) *openapigen.Document {
 		},
 		Get: &openapigen.Operation{
 			Tags: []string{tagMLServices}, Summary: "List MLServices in a namespace", OperationID: "listMLServices",
-			Parameters: []openapigen.Parameter{nsParam, limitParam, continueParam, labelSelectorParam},
+			Parameters: []openapigen.Parameter{nsParam, kindParam, limitParam, continueParam, labelSelectorParam},
 			Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Page.", "MLServiceList")}),
 		},
 	}
@@ -278,6 +294,16 @@ func Document(version string) *openapigen.Document {
 		Parameters:  []openapigen.Parameter{nsParam, mlserviceParam},
 		RequestBody: openapigen.JSONBody("MLServiceScaleRequest"),
 		Responses:   withErrors(map[string]openapigen.Response{"202": openapigen.JSONResp("Scale queued (generation bumped).", "MLService")}),
+	}}
+	paths["/api/v1/namespaces/{namespace}/mlservices/phases"] = openapigen.PathItem{Get: &openapigen.Operation{
+		Tags: []string{tagMLServices}, Summary: "Batch-get MLService phases", OperationID: "batchGetMLServicePhases",
+		Parameters: []openapigen.Parameter{nsParam, namesParam, kindParam, labelSelectorParam, limitParam, continueParam},
+		Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Phase projections for the selected services.", "MLServicePhaseList")}),
+	}}
+	paths["/api/v1/namespaces/{namespace}/mlservices/{mlservice}/phase"] = openapigen.PathItem{Get: &openapigen.Operation{
+		Tags: []string{tagMLServices}, Summary: "Get MLService phase", OperationID: "getMLServicePhase",
+		Parameters: []openapigen.Parameter{nsParam, mlserviceParam},
+		Responses:  withErrors(map[string]openapigen.Response{"200": openapigen.JSONResp("Current service phase, readiness and sync signal.", "MLServicePhase")}),
 	}}
 
 	paths["/api/v1/namespaces/{namespace}/mlservices/{mlservice}/pods"] = openapigen.PathItem{Get: &openapigen.Operation{

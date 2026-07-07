@@ -1,6 +1,7 @@
 package mlrun
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 
@@ -33,7 +34,9 @@ func (h *Handler) Register(rg *gin.RouterGroup) {
 	g := rg.Group("/namespaces/:namespace/mlruns")
 	g.POST("", h.Create)
 	g.GET("", h.List)
+	g.GET("/phases", h.BatchPhase)
 	g.GET("/:mlrun", h.Get)
+	g.GET("/:mlrun/phase", h.Phase)
 	g.PATCH("/:mlrun", h.Patch)
 	g.POST("/:mlrun/cancel", h.Cancel)
 	g.DELETE("/:mlrun", h.Delete)
@@ -199,6 +202,70 @@ func (h *Handler) Get(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, v)
+}
+
+// Phase returns the run's lifecycle phase and status detail only — a
+// lightweight probe for high-frequency polling.
+func (h *Handler) Phase(c *gin.Context) {
+	v, err := h.svc.Phase(c.Request.Context(), c.Param("namespace"), c.Param("mlrun"))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, v)
+}
+
+// maxBatchPhaseNames bounds the ?names= list so the IN() clause and URL stay
+// bounded; callers with more should page via ?labelSelector.
+const maxBatchPhaseNames = 200
+
+// BatchPhase returns phase projections for many runs in one call. Select the
+// set either explicitly with ?names=a,b,c (bounded, unpaginated) or by
+// ?labelSelector (paginated with ?limit / ?continue like List). Both yield the
+// standard list envelope.
+func (h *Handler) BatchPhase(c *gin.Context) {
+	ns := c.Param("namespace")
+	// Presence of the ?names key (even empty) selects names-mode, so an
+	// explicitly empty set returns [] rather than falling through to the
+	// whole-namespace selector branch.
+	if _, hasNames := c.GetQueryArray("names"); hasNames {
+		names := server.QueryCSV(c, "names")
+		if len(names) > maxBatchPhaseNames {
+			_ = c.Error(apperrors.New(apperrors.CodeValidation,
+				fmt.Sprintf("too many names: %d (max %d); page via labelSelector instead", len(names), maxBatchPhaseNames)))
+			return
+		}
+		items, err := h.svc.PhasesByNames(c.Request.Context(), ns, names)
+		if err != nil {
+			_ = c.Error(err)
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"items": items, "count": len(items), "total": len(items), "continueToken": "",
+		})
+		return
+	}
+	p, err := server.ParsePagination(c)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	clause, args, err := server.JSONLabelsSQL("labels", c.Query("labelSelector"))
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	items, total, err := h.svc.PhasesBySelector(c.Request.Context(), ns, p.Limit, p.Offset, clause, args)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"items":         items,
+		"count":         len(items),
+		"total":         total,
+		"continueToken": server.EncodeContinue(p.Offset, len(items), total),
+	})
 }
 
 func (h *Handler) Cancel(c *gin.Context) {

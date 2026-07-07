@@ -39,7 +39,7 @@ type MLRun struct {
 	Owner       string                  `json:"owner,omitempty" desc:"Username of the run owner."`
 	Labels      map[string]string       `json:"labels,omitempty" desc:"User-defined labels."`
 	Annotations map[string]string       `json:"annotations,omitempty" desc:"User-defined annotations."`
-	Phase       string                  `json:"phase" desc:"Current run lifecycle phase (Pending, Running, Succeeded, Failed)."`
+	Phase       string                  `json:"phase" desc:"Current run lifecycle phase: Creating, Pending, Running, Succeeded, Failed, Canceling, Cancelled, Deleting, Deleted."`
 	Spec        mlrunv1alpha1.MLRunSpec `json:"spec" desc:"Resolved MLRun spec sub-tree (backend, scheduling, roles, run policy)."`
 	Status      MLRunStatus             `json:"status" desc:"Operator-reported status sub-tree."`
 	CreatedAt   time.Time               `json:"createdAt" desc:"Time the run was created."`
@@ -59,6 +59,19 @@ type MLRunPatchRequest struct {
 
 // MLRunStatus mirrors the CR status sub-tree compute persists for MLRuns.
 type MLRunStatus struct {
+	Message    string     `json:"message,omitempty" desc:"Human-readable status detail for the current phase."`
+	StartedAt  *time.Time `json:"startedAt,omitempty" desc:"Time the run started executing."`
+	FinishedAt *time.Time `json:"finishedAt,omitempty" desc:"Time the run reached a terminal phase."`
+}
+
+// MLRunPhase is the lightweight response for the phase probes — GET
+// /api/v1/namespaces/{ns}/mlruns/{mlrun}/phase (single) and the batch GET
+// /api/v1/namespaces/{ns}/mlruns/phases. It returns only the run's lifecycle
+// phase and status detail, skipping the heavy spec sub-tree the full MLRun
+// payload carries. `name` identifies the run in batch responses.
+type MLRunPhase struct {
+	Name       string     `json:"name" desc:"MLRun name, unique within the namespace."`
+	Phase      string     `json:"phase" desc:"Current run lifecycle phase: Creating, Pending, Running, Succeeded, Failed, Canceling, Cancelled, Deleting, Deleted."`
 	Message    string     `json:"message,omitempty" desc:"Human-readable status detail for the current phase."`
 	StartedAt  *time.Time `json:"startedAt,omitempty" desc:"Time the run started executing."`
 	FinishedAt *time.Time `json:"finishedAt,omitempty" desc:"Time the run reached a terminal phase."`

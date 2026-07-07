@@ -54,6 +54,52 @@ func (r *Repository) ListByNamespace(ctx context.Context, namespace, kind string
 	return rows, total, nil
 }
 
+// phaseColumns are the only columns the batch/single phase probes read — the
+// heavy spec jsonb is never selected.
+var phaseColumns = []string{"namespace", "name", "phase", "status", "generation", "observed_generation"}
+
+// ListPhasesByNames returns the phase columns for the given service names in
+// the namespace (soft-deleted excluded). Missing names are simply absent from
+// the result; the caller does not paginate — the set is bounded by the name
+// list.
+func (r *Repository) ListPhasesByNames(ctx context.Context, namespace string, names []string) ([]store.MLService, error) {
+	if len(names) == 0 {
+		return nil, nil
+	}
+	var rows []store.MLService
+	if err := r.db.WithContext(ctx).
+		Select(phaseColumns).
+		Where("namespace = ? AND name IN ? AND deleted_at IS NULL", namespace, names).
+		Order("name ASC").
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
+// ListPhasesBySelector returns the phase columns for rows matching the kind and
+// label selector, paginated exactly like ListByNamespace.
+func (r *Repository) ListPhasesBySelector(ctx context.Context, namespace, kind string, limit, offset int, labelClause string, labelArgs []any) ([]store.MLService, int64, error) {
+	var rows []store.MLService
+	var total int64
+	q := r.db.WithContext(ctx).Model(&store.MLService{}).Where("namespace = ? AND deleted_at IS NULL", namespace)
+	if kind != "" {
+		q = q.Where("kind = ?", kind)
+	}
+	if labelClause != "" {
+		q = q.Where(labelClause, labelArgs...)
+	}
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	if err := q.Select(phaseColumns).
+		Order("created_at DESC").Limit(limit).Offset(offset).
+		Find(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	return rows, total, nil
+}
+
 func (r *Repository) Create(ctx context.Context, s *store.MLService) error {
 	return r.db.WithContext(ctx).Create(s).Error
 }

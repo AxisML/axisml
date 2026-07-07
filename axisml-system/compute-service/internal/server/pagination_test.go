@@ -78,3 +78,24 @@ func TestParsePagination_ContinueZeroAccepted(t *testing.T) {
 func base64Of(s string) string {
 	return base64.RawURLEncoding.EncodeToString([]byte(s))
 }
+
+func TestQueryCSV(t *testing.T) {
+	cases := []struct {
+		qs   string
+		want []string
+	}{
+		{"", nil},
+		{"names=a,b,c", []string{"a", "b", "c"}},
+		{"names=a&names=b&names=c", []string{"a", "b", "c"}},
+		{"names=a,b&names=c", []string{"a", "b", "c"}},
+		{"names=%20a%20,%20,b%20,", []string{"a", "b"}}, // trims (%20=space) and drops empties
+		{"names=a,b,a,b", []string{"a", "b"}},           // de-dupes, first-seen order
+		{"names=b,a", []string{"b", "a"}},               // preserves order
+		{"other=x", nil},                                // unrelated key
+	}
+	for _, tc := range cases {
+		t.Run(tc.qs, func(t *testing.T) {
+			assert.Equal(t, tc.want, QueryCSV(newCtxWithQuery(tc.qs), "names"))
+		})
+	}
+}

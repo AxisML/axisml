@@ -142,6 +142,66 @@ func (s *Service) Get(ctx context.Context, namespace, name string) (*server.MLRu
 	return s.toView(j)
 }
 
+// Phase returns the run's current lifecycle phase and status detail — a
+// lightweight projection for high-frequency polling that skips unmarshalling
+// and shipping the spec sub-tree.
+func (s *Service) Phase(ctx context.Context, namespace, name string) (*server.MLRunPhase, error) {
+	j, err := s.repo.GetByNamespaceName(ctx, namespace, name)
+	if err != nil {
+		if IsNotFound(err) {
+			return nil, apperrors.New(apperrors.CodeNotFound, "job not found")
+		}
+		return nil, err
+	}
+	v := phaseView(j)
+	return &v, nil
+}
+
+// PhasesByNames returns phase projections for the named runs in the namespace.
+// Names that don't resolve (deleted / never existed) are simply omitted, so a
+// caller diffs the returned set against what it asked for.
+func (s *Service) PhasesByNames(ctx context.Context, namespace string, names []string) ([]server.MLRunPhase, error) {
+	rows, err := s.repo.ListPhasesByNames(ctx, namespace, names)
+	if err != nil {
+		return nil, err
+	}
+	return phaseViews(rows), nil
+}
+
+// PhasesBySelector returns phase projections for runs matching the label
+// selector, paginated like List.
+func (s *Service) PhasesBySelector(ctx context.Context, namespace string, limit, offset int, labelClause string, labelArgs []any) ([]server.MLRunPhase, int64, error) {
+	rows, total, err := s.repo.ListPhasesBySelector(ctx, namespace, limit, offset, labelClause, labelArgs)
+	if err != nil {
+		return nil, 0, err
+	}
+	return phaseViews(rows), total, nil
+}
+
+// phaseView projects a row onto the lean phase DTO, unmarshalling only the
+// status sub-tree (never the spec).
+func phaseView(j *store.MLRun) server.MLRunPhase {
+	var status server.MLRunStatus
+	if len(j.StatusJSON) > 0 {
+		_ = json.Unmarshal(j.StatusJSON, &status)
+	}
+	return server.MLRunPhase{
+		Name:       j.Name,
+		Phase:      j.Phase,
+		Message:    status.Message,
+		StartedAt:  status.StartedAt,
+		FinishedAt: status.FinishedAt,
+	}
+}
+
+func phaseViews(rows []store.MLRun) []server.MLRunPhase {
+	out := make([]server.MLRunPhase, 0, len(rows))
+	for i := range rows {
+		out = append(out, phaseView(&rows[i]))
+	}
+	return out
+}
+
 func (s *Service) List(ctx context.Context, namespace string, limit, offset int, labelClause string, labelArgs []any) ([]server.MLRun, int64, error) {
 	rows, total, err := s.repo.ListByNamespace(ctx, namespace, limit, offset, labelClause, labelArgs)
 	if err != nil {
