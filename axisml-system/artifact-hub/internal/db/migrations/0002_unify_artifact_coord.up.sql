@@ -7,6 +7,12 @@
 
 -- Guard: refuse to unify if any (namespace, name, version) already exists under
 -- more than one kind — otherwise the new unique index would silently drop rows.
+--
+-- On a legitimate collision this aborts the migration, which golang-migrate
+-- records as a dirty version; every subsequent artifact-hub start then fails at
+-- Migrate() until an operator removes/renames the colliding artifacts and runs
+-- `migrate force <version>`. Expected to be a no-op on a fresh DB (kind was a
+-- coordinate before this migration, so same-name cross-kind rows are rare).
 DO $$
 BEGIN
     IF EXISTS (
@@ -16,7 +22,7 @@ BEGIN
         HAVING count(DISTINCT kind) > 1
     ) THEN
         RAISE EXCEPTION
-            'cannot unify artifact coordinate: (namespace, name, version) collides across kinds';
+            'cannot unify artifact coordinate: (namespace, name, version) collides across kinds; resolve the duplicate name(s) then re-run';
     END IF;
 END $$;
 

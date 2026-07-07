@@ -17,7 +17,6 @@ import (
 	"fmt"
 	"io"
 	"strings"
-	"time"
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -122,15 +121,4 @@ func (c *Client) DeletePrefix(ctx context.Context, prefix string) error {
 func isNoSuchKey(err error) bool {
 	code := minio.ToErrorResponse(err).Code
 	return code == "NoSuchKey" || code == "NoSuchBucket"
-}
-
-// pingTimeout bounds the startup bucket bootstrap.
-const pingTimeout = 10 * time.Second
-
-// EnsureBucketWithTimeout runs EnsureBucket under a bounded context so a slow or
-// unreachable backend fails fast at startup rather than hanging.
-func (c *Client) EnsureBucketWithTimeout(ctx context.Context) error {
-	cctx, cancel := context.WithTimeout(ctx, pingTimeout)
-	defer cancel()
-	return c.EnsureBucket(cctx)
 }

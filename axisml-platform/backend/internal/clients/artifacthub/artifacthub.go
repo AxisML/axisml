@@ -60,28 +60,24 @@ func (c *Client) Initiate(ctx context.Context, ns, kind, name string, in Initiat
 
 // Get returns one artifact version.
 func (c *Client) Get(ctx context.Context, ns, kind, name, version string) (*Artifact, error) {
-	_ = kind
 	res, err := c.gen.GetArtifactWithResponse(ctx, ns, name, version)
 	return view(res.JSON200, res.HTTPResponse, res.Body, err)
 }
 
 // Update patches mutable version metadata.
 func (c *Client) Update(ctx context.Context, ns, kind, name, version string, in PatchRequest) (*Artifact, error) {
-	_ = kind
 	res, err := c.gen.UpdateArtifactWithResponse(ctx, ns, name, version, in)
 	return view(res.JSON200, res.HTTPResponse, res.Body, err)
 }
 
 // Delete soft-deletes one artifact version.
 func (c *Client) Delete(ctx context.Context, ns, kind, name, version string) error {
-	_ = kind
 	res, err := c.gen.DeleteArtifactWithResponse(ctx, ns, name, version)
 	return ok(res.HTTPResponse, res.Body, err)
 }
 
 // Complete finalizes a version upload with its digest.
 func (c *Client) Complete(ctx context.Context, ns, kind, name, version, digest string) (*Artifact, error) {
-	_ = kind
 	body := gen.ArtifactCompleteRequest{Digest: digest}
 	res, err := c.gen.CompleteArtifactWithResponse(ctx, ns, name, version, body)
 	return view(res.JSON200, res.HTTPResponse, res.Body, err)
@@ -89,7 +85,6 @@ func (c *Client) Complete(ctx context.Context, ns, kind, name, version, digest s
 
 // Resolve returns download credentials / inspect URI for a version.
 func (c *Client) Resolve(ctx context.Context, ns, kind, name, version, usage string) (*ResolveResponse, error) {
-	_ = kind
 	res, err := c.gen.ResolveArtifactWithResponse(ctx, ns, name, version, &gen.ResolveArtifactParams{Usage: &usage})
 	if err != nil {
 		return nil, clienterr.Transport(service, err)
@@ -102,7 +97,6 @@ func (c *Client) Resolve(ctx context.Context, ns, kind, name, version, usage str
 
 // ListVersions lists a definition's versions.
 func (c *Client) ListVersions(ctx context.Context, ns, kind, name string) ([]Artifact, error) {
-	_ = kind
 	res, err := c.gen.ListArtifactVersionsWithResponse(ctx, ns, name, &gen.ListArtifactVersionsParams{})
 	if err != nil {
 		return nil, clienterr.Transport(service, err)

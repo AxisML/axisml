@@ -338,10 +338,11 @@ func (s *Service) MarkDeleting(ctx context.Context, namespace, name, version str
 	})
 }
 
-// loadRow returns the artifact row by coord, or NotFound. Read paths use
-// this so a client can still observe a row's terminal Deleted status after
-// GC has finalised it (Initiate keeps using the deleted_at-filtered
-// GetByCoord so a tombstone doesn't block a re-create on the same coord).
+// loadRow returns the artifact row by coord (soft-deleted included), or
+// NotFound. Read paths use this so a client can still observe a row's terminal
+// Deleted status after GC has finalised it; a Deleted tombstone keeps occupying
+// the coordinate, so a re-Initiate on the same coord is rejected (the coordinate
+// never recycles — database.md §1.2).
 func (s *Service) loadRow(ctx context.Context, namespace, name, version string) (*store.Artifact, error) {
 	row, err := s.rows.GetByCoordIncludingDeleted(ctx, namespace, name, version)
 	if err != nil {

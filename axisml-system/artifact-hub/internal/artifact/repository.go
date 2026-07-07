@@ -27,27 +27,12 @@ func (r *Repository) GetByID(ctx context.Context, id uuid.UUID) (*store.Artifact
 	return &row, nil
 }
 
-// GetByCoord loads an artifact by its (namespace, name, version) natural key.
-// kind is not part of the key — a name is unique within a namespace across all
-// kinds. Soft-deleted rows (deleted_at IS NOT NULL) are excluded — callers
-// using this for the Initiate idempotency check rely on that so a new version
-// can be created over a fully-Deleted tombstone.
-func (r *Repository) GetByCoord(ctx context.Context, namespace, name, version string) (*store.Artifact, error) {
-	var row store.Artifact
-	if err := r.db.WithContext(ctx).
-		Where("namespace = ? AND name = ? AND version = ? AND deleted_at IS NULL",
-			namespace, name, version).
-		Take(&row).Error; err != nil {
-		return nil, err
-	}
-	return &row, nil
-}
-
-// GetByCoordIncludingDeleted is GetByCoord without the soft-delete filter.
-// Used by read paths (Get / Resolve / etc.) so a client can still observe
-// a row's terminal Deleted status after GC has finalised it; without this,
-// the row vanishes from /artifacts/... the moment GC runs and the user
-// can't tell whether DELETE has propagated or the row never existed.
+// GetByCoordIncludingDeleted loads an artifact by its (namespace, name, version)
+// natural key, soft-deleted rows included. kind is not part of the key — a name
+// is unique within a namespace across all kinds. Read paths (Get / Resolve /
+// Initiate's idempotency check) use this so a client can still observe a row's
+// terminal Deleted status after GC has finalised it, and so a Deleted tombstone
+// still occupies the coordinate (which never recycles — database.md §1.2).
 func (r *Repository) GetByCoordIncludingDeleted(ctx context.Context, namespace, name, version string) (*store.Artifact, error) {
 	var row store.Artifact
 	if err := r.db.WithContext(ctx).

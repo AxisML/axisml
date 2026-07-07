@@ -33,6 +33,10 @@ import (
 // (infra.md) used when Config.DatasetBucket is empty.
 const DefaultDatasetBucket = "axisml-artifact-hub"
 
+// s3BucketBootstrapTimeout bounds the startup bucket-ensure call so a slow or
+// unreachable object store fails fast rather than hanging New.
+const s3BucketBootstrapTimeout = 10 * time.Second
+
 // Route wires its endpoints into an /api/v1 router group.
 type Route interface {
 	Register(rg *gin.RouterGroup)
@@ -121,7 +125,10 @@ func New(d Deps) (*Module, error) {
 		if err != nil {
 			return nil, err
 		}
-		if err := c.EnsureBucketWithTimeout(context.Background()); err != nil {
+		bootstrapCtx, cancel := context.WithTimeout(context.Background(), s3BucketBootstrapTimeout)
+		err = c.EnsureBucket(bootstrapCtx)
+		cancel()
+		if err != nil {
 			return nil, err
 		}
 		s3Client = c

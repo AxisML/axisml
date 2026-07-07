@@ -2,10 +2,6 @@ package handler
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"strings"
-	"time"
 
 	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/storage/oci"
 	apperrors "github.com/axisml/axisml/axisml-system/artifact-hub/pkg/errors"
@@ -18,41 +14,15 @@ var validImagePurposes = map[string]struct{}{
 	"dev":       {},
 }
 
-// ImageHandler implements Handler for OCI-backed container image artifacts.
-// Mirrors ModelHandler's flow against the same zot endpoint but with a
-// distinct repository sub-path so models and images don't collide.
-type ImageHandler struct {
-	oci *oci.Client
-}
+// ImageHandler implements Handler for OCI-backed container image artifacts. It
+// mirrors ModelHandler against the same zot endpoint via the shared ociBacked
+// mechanics but with a distinct repository sub-path, adding only image-specific
+// spec validation.
+type ImageHandler struct{ ociBacked }
 
 // NewImageHandler returns a Handler implementation.
 func NewImageHandler(client *oci.Client) *ImageHandler {
-	return &ImageHandler{oci: client}
-}
-
-func (h *ImageHandler) Kind() string             { return "image" }
-func (h *ImageHandler) StorageKind() StorageKind { return StorageOCI }
-
-// BuildStorageURI constructs the OCI image reference per design §4.3:
-// <oci-host>/namespaces/<namespace>/images/<name>:<version>.
-func (h *ImageHandler) BuildStorageURI(namespace, name, version string) string {
-	return fmt.Sprintf("%s/namespaces/%s/images/%s:%s", h.oci.Endpoint(), namespace, name, version)
-}
-
-// BuildPullURI pins the resolved reference to digest so consumers fetch
-// immutable content (<oci-host>/namespaces/<namespace>/images/<name>@<digest>).
-// Falls back to the tag form when there is no content digest to pin — before
-// the artifact is Ready (empty digest) or when the digest column holds a
-// non-digest value (an external artifact's remote URI).
-func (h *ImageHandler) BuildPullURI(namespace, name, version, digest string) string {
-	if !strings.HasPrefix(digest, contentDigestPrefix) {
-		return h.BuildStorageURI(namespace, name, version)
-	}
-	return fmt.Sprintf("%s/namespaces/%s/images/%s@%s", h.oci.Endpoint(), namespace, name, digest)
-}
-
-func (h *ImageHandler) repoPath(namespace, name string) string {
-	return fmt.Sprintf("namespaces/%s/images/%s", namespace, name)
+	return &ImageHandler{ociBacked{oci: client, kind: "image", subpath: "images"}}
 }
 
 // ValidateSpec enforces the design §4.3 required field (purpose).
@@ -66,39 +36,4 @@ func (h *ImageHandler) ValidateSpec(_ context.Context, spec Spec) error {
 			"spec.purpose %q is not in {training,inference,dev}", purpose)
 	}
 	return nil
-}
-
-func (h *ImageHandler) InitiateUpload(ctx context.Context, a Artifact, ttl time.Duration) (Credentials, error) {
-	return h.oci.IssueUploadCredentials(ctx, h.repoPath(a.Namespace, a.Name), ttl)
-}
-
-func (h *ImageHandler) IssuePullCredentials(ctx context.Context, a Artifact, ttl time.Duration) (Credentials, error) {
-	return h.oci.IssuePullCredentials(ctx, h.repoPath(a.Namespace, a.Name), ttl)
-}
-
-func (h *ImageHandler) VerifyComplete(ctx context.Context, a Artifact, claim CompleteClaim) (string, error) {
-	digest, err := h.oci.HeadManifest(ctx, h.repoPath(a.Namespace, a.Name), a.Version)
-	if err != nil {
-		if errors.Is(err, oci.ErrNotFound) {
-			return "", apperrors.Newf(apperrors.CodePrecondition,
-				"image manifest %s:%s not found in registry",
-				h.repoPath(a.Namespace, a.Name), a.Version)
-		}
-		return "", apperrors.Wrap(apperrors.CodeUnavailable, "head manifest", err)
-	}
-	if claim.Digest == "" {
-		return "", apperrors.New(apperrors.CodeValidation, "complete: digest is required")
-	}
-	if digest != claim.Digest {
-		return "", apperrors.Newf(apperrors.CodeConflict,
-			"digest mismatch: registry has %s, claim is %s", digest, claim.Digest)
-	}
-	return digest, nil
-}
-
-func (h *ImageHandler) GCBackend(ctx context.Context, a Artifact) error {
-	if a.Digest == "" {
-		return nil
-	}
-	return h.oci.DeleteManifest(ctx, h.repoPath(a.Namespace, a.Name), a.Digest)
 }
