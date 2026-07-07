@@ -63,7 +63,7 @@ type Artifact struct {
 	// Message Human-readable detail for the current status (e.g. failure reason).
 	Message *string `json:"message,omitempty"`
 
-	// Name Artifact name, unique within (namespace, kind).
+	// Name Artifact name, unique within the namespace across all kinds.
 	Name string `json:"name"`
 
 	// Namespace Tenant namespace the artifact belongs to (= compute tenants.name).
@@ -137,6 +137,9 @@ type ArtifactInitiateRequest struct {
 
 	// DisplayName Human-readable name for display.
 	DisplayName *string `json:"displayName,omitempty"`
+
+	// Kind Artifact kind (model, dataset, image); selects the storage backend and spec schema, immutable once created.
+	Kind string `json:"kind"`
 
 	// Labels K8s-style labels used for selector filtering.
 	Labels *map[string]string `json:"labels,omitempty"`
@@ -238,8 +241,11 @@ type UploadCredentials struct {
 	Uri string `json:"uri"`
 }
 
-// ListDatasetsParams defines parameters for ListDatasets.
-type ListDatasetsParams struct {
+// ListArtifactsParams defines parameters for ListArtifacts.
+type ListArtifactsParams struct {
+	// Kind Optional kind filter (model, dataset, image).
+	Kind *string `form:"kind,omitempty" json:"kind,omitempty"`
+
 	// Limit Page size (1–200, default 50).
 	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
 
@@ -253,8 +259,8 @@ type ListDatasetsParams struct {
 	LabelSelector *string `form:"labelSelector,omitempty" json:"labelSelector,omitempty"`
 }
 
-// ListDatasetVersionsParams defines parameters for ListDatasetVersions.
-type ListDatasetVersionsParams struct {
+// ListArtifactVersionsParams defines parameters for ListArtifactVersions.
+type ListArtifactVersionsParams struct {
 	// Limit Page size (1–200, default 50).
 	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
 
@@ -268,110 +274,20 @@ type ListDatasetVersionsParams struct {
 	LabelSelector *string `form:"labelSelector,omitempty" json:"labelSelector,omitempty"`
 }
 
-// ResolveDatasetParams defines parameters for ResolveDataset.
-type ResolveDatasetParams struct {
+// ResolveArtifactParams defines parameters for ResolveArtifact.
+type ResolveArtifactParams struct {
 	// Usage Optional usage hint forwarded to the storage handler.
 	Usage *string `form:"usage,omitempty" json:"usage,omitempty"`
 }
 
-// ListImagesParams defines parameters for ListImages.
-type ListImagesParams struct {
-	// Limit Page size (1–200, default 50).
-	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
+// InitiateArtifactJSONRequestBody defines body for InitiateArtifact for application/json ContentType.
+type InitiateArtifactJSONRequestBody = ArtifactInitiateRequest
 
-	// Continue Opaque continuation token from a previous page.
-	Continue *string `form:"continue,omitempty" json:"continue,omitempty"`
+// UpdateArtifactJSONRequestBody defines body for UpdateArtifact for application/json ContentType.
+type UpdateArtifactJSONRequestBody = ArtifactPatchRequest
 
-	// Status Optional status filter (pending, ready, failed).
-	Status *string `form:"status,omitempty" json:"status,omitempty"`
-
-	// LabelSelector K8s-style label selector filtered against the row's labels jsonb.
-	LabelSelector *string `form:"labelSelector,omitempty" json:"labelSelector,omitempty"`
-}
-
-// ListImageVersionsParams defines parameters for ListImageVersions.
-type ListImageVersionsParams struct {
-	// Limit Page size (1–200, default 50).
-	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
-
-	// Continue Opaque continuation token from a previous page.
-	Continue *string `form:"continue,omitempty" json:"continue,omitempty"`
-
-	// Status Optional status filter (pending, ready, failed).
-	Status *string `form:"status,omitempty" json:"status,omitempty"`
-
-	// LabelSelector K8s-style label selector filtered against the row's labels jsonb.
-	LabelSelector *string `form:"labelSelector,omitempty" json:"labelSelector,omitempty"`
-}
-
-// ResolveImageParams defines parameters for ResolveImage.
-type ResolveImageParams struct {
-	// Usage Optional usage hint forwarded to the storage handler.
-	Usage *string `form:"usage,omitempty" json:"usage,omitempty"`
-}
-
-// ListModelsParams defines parameters for ListModels.
-type ListModelsParams struct {
-	// Limit Page size (1–200, default 50).
-	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
-
-	// Continue Opaque continuation token from a previous page.
-	Continue *string `form:"continue,omitempty" json:"continue,omitempty"`
-
-	// Status Optional status filter (pending, ready, failed).
-	Status *string `form:"status,omitempty" json:"status,omitempty"`
-
-	// LabelSelector K8s-style label selector filtered against the row's labels jsonb.
-	LabelSelector *string `form:"labelSelector,omitempty" json:"labelSelector,omitempty"`
-}
-
-// ListModelVersionsParams defines parameters for ListModelVersions.
-type ListModelVersionsParams struct {
-	// Limit Page size (1–200, default 50).
-	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
-
-	// Continue Opaque continuation token from a previous page.
-	Continue *string `form:"continue,omitempty" json:"continue,omitempty"`
-
-	// Status Optional status filter (pending, ready, failed).
-	Status *string `form:"status,omitempty" json:"status,omitempty"`
-
-	// LabelSelector K8s-style label selector filtered against the row's labels jsonb.
-	LabelSelector *string `form:"labelSelector,omitempty" json:"labelSelector,omitempty"`
-}
-
-// ResolveModelParams defines parameters for ResolveModel.
-type ResolveModelParams struct {
-	// Usage Optional usage hint forwarded to the storage handler.
-	Usage *string `form:"usage,omitempty" json:"usage,omitempty"`
-}
-
-// InitiateDatasetJSONRequestBody defines body for InitiateDataset for application/json ContentType.
-type InitiateDatasetJSONRequestBody = ArtifactInitiateRequest
-
-// UpdateDatasetJSONRequestBody defines body for UpdateDataset for application/json ContentType.
-type UpdateDatasetJSONRequestBody = ArtifactPatchRequest
-
-// CompleteDatasetJSONRequestBody defines body for CompleteDataset for application/json ContentType.
-type CompleteDatasetJSONRequestBody = ArtifactCompleteRequest
-
-// InitiateImageJSONRequestBody defines body for InitiateImage for application/json ContentType.
-type InitiateImageJSONRequestBody = ArtifactInitiateRequest
-
-// UpdateImageJSONRequestBody defines body for UpdateImage for application/json ContentType.
-type UpdateImageJSONRequestBody = ArtifactPatchRequest
-
-// CompleteImageJSONRequestBody defines body for CompleteImage for application/json ContentType.
-type CompleteImageJSONRequestBody = ArtifactCompleteRequest
-
-// InitiateModelJSONRequestBody defines body for InitiateModel for application/json ContentType.
-type InitiateModelJSONRequestBody = ArtifactInitiateRequest
-
-// UpdateModelJSONRequestBody defines body for UpdateModel for application/json ContentType.
-type UpdateModelJSONRequestBody = ArtifactPatchRequest
-
-// CompleteModelJSONRequestBody defines body for CompleteModel for application/json ContentType.
-type CompleteModelJSONRequestBody = ArtifactCompleteRequest
+// CompleteArtifactJSONRequestBody defines body for CompleteArtifact for application/json ContentType.
+type CompleteArtifactJSONRequestBody = ArtifactCompleteRequest
 
 // RequestEditorFn  is the function signature for the RequestEditor callback function
 type RequestEditorFn func(ctx context.Context, req *http.Request) error
@@ -449,95 +365,35 @@ type ClientInterface interface {
 	// GetCapabilities request
 	GetCapabilities(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ListDatasets request
-	ListDatasets(ctx context.Context, namespace string, params *ListDatasetsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// ListArtifacts request
+	ListArtifacts(ctx context.Context, namespace string, params *ListArtifactsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ListDatasetVersions request
-	ListDatasetVersions(ctx context.Context, namespace string, name string, params *ListDatasetVersionsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// ListArtifactVersions request
+	ListArtifactVersions(ctx context.Context, namespace string, name string, params *ListArtifactVersionsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// InitiateDatasetWithBody request with any body
-	InitiateDatasetWithBody(ctx context.Context, namespace string, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// InitiateArtifactWithBody request with any body
+	InitiateArtifactWithBody(ctx context.Context, namespace string, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	InitiateDataset(ctx context.Context, namespace string, name string, body InitiateDatasetJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	InitiateArtifact(ctx context.Context, namespace string, name string, body InitiateArtifactJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// DeleteDataset request
-	DeleteDataset(ctx context.Context, namespace string, name string, version string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// DeleteArtifact request
+	DeleteArtifact(ctx context.Context, namespace string, name string, version string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetDataset request
-	GetDataset(ctx context.Context, namespace string, name string, version string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetArtifact request
+	GetArtifact(ctx context.Context, namespace string, name string, version string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// UpdateDatasetWithBody request with any body
-	UpdateDatasetWithBody(ctx context.Context, namespace string, name string, version string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// UpdateArtifactWithBody request with any body
+	UpdateArtifactWithBody(ctx context.Context, namespace string, name string, version string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	UpdateDataset(ctx context.Context, namespace string, name string, version string, body UpdateDatasetJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	UpdateArtifact(ctx context.Context, namespace string, name string, version string, body UpdateArtifactJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// CompleteDatasetWithBody request with any body
-	CompleteDatasetWithBody(ctx context.Context, namespace string, name string, version string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// CompleteArtifactWithBody request with any body
+	CompleteArtifactWithBody(ctx context.Context, namespace string, name string, version string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	CompleteDataset(ctx context.Context, namespace string, name string, version string, body CompleteDatasetJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	CompleteArtifact(ctx context.Context, namespace string, name string, version string, body CompleteArtifactJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ResolveDataset request
-	ResolveDataset(ctx context.Context, namespace string, name string, version string, params *ResolveDatasetParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ListImages request
-	ListImages(ctx context.Context, namespace string, params *ListImagesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ListImageVersions request
-	ListImageVersions(ctx context.Context, namespace string, name string, params *ListImageVersionsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// InitiateImageWithBody request with any body
-	InitiateImageWithBody(ctx context.Context, namespace string, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	InitiateImage(ctx context.Context, namespace string, name string, body InitiateImageJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// DeleteImage request
-	DeleteImage(ctx context.Context, namespace string, name string, version string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// GetImage request
-	GetImage(ctx context.Context, namespace string, name string, version string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// UpdateImageWithBody request with any body
-	UpdateImageWithBody(ctx context.Context, namespace string, name string, version string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	UpdateImage(ctx context.Context, namespace string, name string, version string, body UpdateImageJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// CompleteImageWithBody request with any body
-	CompleteImageWithBody(ctx context.Context, namespace string, name string, version string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	CompleteImage(ctx context.Context, namespace string, name string, version string, body CompleteImageJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ResolveImage request
-	ResolveImage(ctx context.Context, namespace string, name string, version string, params *ResolveImageParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ListModels request
-	ListModels(ctx context.Context, namespace string, params *ListModelsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ListModelVersions request
-	ListModelVersions(ctx context.Context, namespace string, name string, params *ListModelVersionsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// InitiateModelWithBody request with any body
-	InitiateModelWithBody(ctx context.Context, namespace string, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	InitiateModel(ctx context.Context, namespace string, name string, body InitiateModelJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// DeleteModel request
-	DeleteModel(ctx context.Context, namespace string, name string, version string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// GetModel request
-	GetModel(ctx context.Context, namespace string, name string, version string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// UpdateModelWithBody request with any body
-	UpdateModelWithBody(ctx context.Context, namespace string, name string, version string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	UpdateModel(ctx context.Context, namespace string, name string, version string, body UpdateModelJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// CompleteModelWithBody request with any body
-	CompleteModelWithBody(ctx context.Context, namespace string, name string, version string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	CompleteModel(ctx context.Context, namespace string, name string, version string, body CompleteModelJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ResolveModel request
-	ResolveModel(ctx context.Context, namespace string, name string, version string, params *ResolveModelParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// ResolveArtifact request
+	ResolveArtifact(ctx context.Context, namespace string, name string, version string, params *ResolveArtifactParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// Healthz request
 	Healthz(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -558,8 +414,8 @@ func (c *Client) GetCapabilities(ctx context.Context, reqEditors ...RequestEdito
 	return c.Client.Do(req)
 }
 
-func (c *Client) ListDatasets(ctx context.Context, namespace string, params *ListDatasetsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListDatasetsRequest(c.Server, namespace, params)
+func (c *Client) ListArtifacts(ctx context.Context, namespace string, params *ListArtifactsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListArtifactsRequest(c.Server, namespace, params)
 	if err != nil {
 		return nil, err
 	}
@@ -570,8 +426,8 @@ func (c *Client) ListDatasets(ctx context.Context, namespace string, params *Lis
 	return c.Client.Do(req)
 }
 
-func (c *Client) ListDatasetVersions(ctx context.Context, namespace string, name string, params *ListDatasetVersionsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListDatasetVersionsRequest(c.Server, namespace, name, params)
+func (c *Client) ListArtifactVersions(ctx context.Context, namespace string, name string, params *ListArtifactVersionsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListArtifactVersionsRequest(c.Server, namespace, name, params)
 	if err != nil {
 		return nil, err
 	}
@@ -582,8 +438,8 @@ func (c *Client) ListDatasetVersions(ctx context.Context, namespace string, name
 	return c.Client.Do(req)
 }
 
-func (c *Client) InitiateDatasetWithBody(ctx context.Context, namespace string, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewInitiateDatasetRequestWithBody(c.Server, namespace, name, contentType, body)
+func (c *Client) InitiateArtifactWithBody(ctx context.Context, namespace string, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewInitiateArtifactRequestWithBody(c.Server, namespace, name, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -594,8 +450,8 @@ func (c *Client) InitiateDatasetWithBody(ctx context.Context, namespace string, 
 	return c.Client.Do(req)
 }
 
-func (c *Client) InitiateDataset(ctx context.Context, namespace string, name string, body InitiateDatasetJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewInitiateDatasetRequest(c.Server, namespace, name, body)
+func (c *Client) InitiateArtifact(ctx context.Context, namespace string, name string, body InitiateArtifactJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewInitiateArtifactRequest(c.Server, namespace, name, body)
 	if err != nil {
 		return nil, err
 	}
@@ -606,8 +462,8 @@ func (c *Client) InitiateDataset(ctx context.Context, namespace string, name str
 	return c.Client.Do(req)
 }
 
-func (c *Client) DeleteDataset(ctx context.Context, namespace string, name string, version string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteDatasetRequest(c.Server, namespace, name, version)
+func (c *Client) DeleteArtifact(ctx context.Context, namespace string, name string, version string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteArtifactRequest(c.Server, namespace, name, version)
 	if err != nil {
 		return nil, err
 	}
@@ -618,8 +474,8 @@ func (c *Client) DeleteDataset(ctx context.Context, namespace string, name strin
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetDataset(ctx context.Context, namespace string, name string, version string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetDatasetRequest(c.Server, namespace, name, version)
+func (c *Client) GetArtifact(ctx context.Context, namespace string, name string, version string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetArtifactRequest(c.Server, namespace, name, version)
 	if err != nil {
 		return nil, err
 	}
@@ -630,8 +486,8 @@ func (c *Client) GetDataset(ctx context.Context, namespace string, name string, 
 	return c.Client.Do(req)
 }
 
-func (c *Client) UpdateDatasetWithBody(ctx context.Context, namespace string, name string, version string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateDatasetRequestWithBody(c.Server, namespace, name, version, contentType, body)
+func (c *Client) UpdateArtifactWithBody(ctx context.Context, namespace string, name string, version string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateArtifactRequestWithBody(c.Server, namespace, name, version, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -642,8 +498,8 @@ func (c *Client) UpdateDatasetWithBody(ctx context.Context, namespace string, na
 	return c.Client.Do(req)
 }
 
-func (c *Client) UpdateDataset(ctx context.Context, namespace string, name string, version string, body UpdateDatasetJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateDatasetRequest(c.Server, namespace, name, version, body)
+func (c *Client) UpdateArtifact(ctx context.Context, namespace string, name string, version string, body UpdateArtifactJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateArtifactRequest(c.Server, namespace, name, version, body)
 	if err != nil {
 		return nil, err
 	}
@@ -654,8 +510,8 @@ func (c *Client) UpdateDataset(ctx context.Context, namespace string, name strin
 	return c.Client.Do(req)
 }
 
-func (c *Client) CompleteDatasetWithBody(ctx context.Context, namespace string, name string, version string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCompleteDatasetRequestWithBody(c.Server, namespace, name, version, contentType, body)
+func (c *Client) CompleteArtifactWithBody(ctx context.Context, namespace string, name string, version string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCompleteArtifactRequestWithBody(c.Server, namespace, name, version, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -666,8 +522,8 @@ func (c *Client) CompleteDatasetWithBody(ctx context.Context, namespace string, 
 	return c.Client.Do(req)
 }
 
-func (c *Client) CompleteDataset(ctx context.Context, namespace string, name string, version string, body CompleteDatasetJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCompleteDatasetRequest(c.Server, namespace, name, version, body)
+func (c *Client) CompleteArtifact(ctx context.Context, namespace string, name string, version string, body CompleteArtifactJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCompleteArtifactRequest(c.Server, namespace, name, version, body)
 	if err != nil {
 		return nil, err
 	}
@@ -678,272 +534,8 @@ func (c *Client) CompleteDataset(ctx context.Context, namespace string, name str
 	return c.Client.Do(req)
 }
 
-func (c *Client) ResolveDataset(ctx context.Context, namespace string, name string, version string, params *ResolveDatasetParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewResolveDatasetRequest(c.Server, namespace, name, version, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) ListImages(ctx context.Context, namespace string, params *ListImagesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListImagesRequest(c.Server, namespace, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) ListImageVersions(ctx context.Context, namespace string, name string, params *ListImageVersionsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListImageVersionsRequest(c.Server, namespace, name, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) InitiateImageWithBody(ctx context.Context, namespace string, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewInitiateImageRequestWithBody(c.Server, namespace, name, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) InitiateImage(ctx context.Context, namespace string, name string, body InitiateImageJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewInitiateImageRequest(c.Server, namespace, name, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) DeleteImage(ctx context.Context, namespace string, name string, version string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteImageRequest(c.Server, namespace, name, version)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) GetImage(ctx context.Context, namespace string, name string, version string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetImageRequest(c.Server, namespace, name, version)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UpdateImageWithBody(ctx context.Context, namespace string, name string, version string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateImageRequestWithBody(c.Server, namespace, name, version, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UpdateImage(ctx context.Context, namespace string, name string, version string, body UpdateImageJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateImageRequest(c.Server, namespace, name, version, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) CompleteImageWithBody(ctx context.Context, namespace string, name string, version string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCompleteImageRequestWithBody(c.Server, namespace, name, version, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) CompleteImage(ctx context.Context, namespace string, name string, version string, body CompleteImageJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCompleteImageRequest(c.Server, namespace, name, version, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) ResolveImage(ctx context.Context, namespace string, name string, version string, params *ResolveImageParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewResolveImageRequest(c.Server, namespace, name, version, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) ListModels(ctx context.Context, namespace string, params *ListModelsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListModelsRequest(c.Server, namespace, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) ListModelVersions(ctx context.Context, namespace string, name string, params *ListModelVersionsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListModelVersionsRequest(c.Server, namespace, name, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) InitiateModelWithBody(ctx context.Context, namespace string, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewInitiateModelRequestWithBody(c.Server, namespace, name, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) InitiateModel(ctx context.Context, namespace string, name string, body InitiateModelJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewInitiateModelRequest(c.Server, namespace, name, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) DeleteModel(ctx context.Context, namespace string, name string, version string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteModelRequest(c.Server, namespace, name, version)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) GetModel(ctx context.Context, namespace string, name string, version string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetModelRequest(c.Server, namespace, name, version)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UpdateModelWithBody(ctx context.Context, namespace string, name string, version string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateModelRequestWithBody(c.Server, namespace, name, version, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UpdateModel(ctx context.Context, namespace string, name string, version string, body UpdateModelJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateModelRequest(c.Server, namespace, name, version, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) CompleteModelWithBody(ctx context.Context, namespace string, name string, version string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCompleteModelRequestWithBody(c.Server, namespace, name, version, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) CompleteModel(ctx context.Context, namespace string, name string, version string, body CompleteModelJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCompleteModelRequest(c.Server, namespace, name, version, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) ResolveModel(ctx context.Context, namespace string, name string, version string, params *ResolveModelParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewResolveModelRequest(c.Server, namespace, name, version, params)
+func (c *Client) ResolveArtifact(ctx context.Context, namespace string, name string, version string, params *ResolveArtifactParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewResolveArtifactRequest(c.Server, namespace, name, version, params)
 	if err != nil {
 		return nil, err
 	}
@@ -1005,8 +597,8 @@ func NewGetCapabilitiesRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
-// NewListDatasetsRequest generates requests for ListDatasets
-func NewListDatasetsRequest(server string, namespace string, params *ListDatasetsParams) (*http.Request, error) {
+// NewListArtifactsRequest generates requests for ListArtifacts
+func NewListArtifactsRequest(server string, namespace string, params *ListArtifactsParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -1021,7 +613,7 @@ func NewListDatasetsRequest(server string, namespace string, params *ListDataset
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/datasets", pathParam0)
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/artifacts", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -1033,6 +625,22 @@ func NewListDatasetsRequest(server string, namespace string, params *ListDataset
 
 	if params != nil {
 		queryValues := queryURL.Query()
+
+		if params.Kind != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "kind", runtime.ParamLocationQuery, *params.Kind); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
 
 		if params.Limit != nil {
 
@@ -1109,8 +717,8 @@ func NewListDatasetsRequest(server string, namespace string, params *ListDataset
 	return req, nil
 }
 
-// NewListDatasetVersionsRequest generates requests for ListDatasetVersions
-func NewListDatasetVersionsRequest(server string, namespace string, name string, params *ListDatasetVersionsParams) (*http.Request, error) {
+// NewListArtifactVersionsRequest generates requests for ListArtifactVersions
+func NewListArtifactVersionsRequest(server string, namespace string, name string, params *ListArtifactVersionsParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -1132,7 +740,7 @@ func NewListDatasetVersionsRequest(server string, namespace string, name string,
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/datasets/%s", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/artifacts/%s", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -1220,19 +828,19 @@ func NewListDatasetVersionsRequest(server string, namespace string, name string,
 	return req, nil
 }
 
-// NewInitiateDatasetRequest calls the generic InitiateDataset builder with application/json body
-func NewInitiateDatasetRequest(server string, namespace string, name string, body InitiateDatasetJSONRequestBody) (*http.Request, error) {
+// NewInitiateArtifactRequest calls the generic InitiateArtifact builder with application/json body
+func NewInitiateArtifactRequest(server string, namespace string, name string, body InitiateArtifactJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewInitiateDatasetRequestWithBody(server, namespace, name, "application/json", bodyReader)
+	return NewInitiateArtifactRequestWithBody(server, namespace, name, "application/json", bodyReader)
 }
 
-// NewInitiateDatasetRequestWithBody generates requests for InitiateDataset with any type of body
-func NewInitiateDatasetRequestWithBody(server string, namespace string, name string, contentType string, body io.Reader) (*http.Request, error) {
+// NewInitiateArtifactRequestWithBody generates requests for InitiateArtifact with any type of body
+func NewInitiateArtifactRequestWithBody(server string, namespace string, name string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -1254,7 +862,7 @@ func NewInitiateDatasetRequestWithBody(server string, namespace string, name str
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/datasets/%s", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/artifacts/%s", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -1274,8 +882,8 @@ func NewInitiateDatasetRequestWithBody(server string, namespace string, name str
 	return req, nil
 }
 
-// NewDeleteDatasetRequest generates requests for DeleteDataset
-func NewDeleteDatasetRequest(server string, namespace string, name string, version string) (*http.Request, error) {
+// NewDeleteArtifactRequest generates requests for DeleteArtifact
+func NewDeleteArtifactRequest(server string, namespace string, name string, version string) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -1304,7 +912,7 @@ func NewDeleteDatasetRequest(server string, namespace string, name string, versi
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/datasets/%s/%s", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/artifacts/%s/%s", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -1322,8 +930,8 @@ func NewDeleteDatasetRequest(server string, namespace string, name string, versi
 	return req, nil
 }
 
-// NewGetDatasetRequest generates requests for GetDataset
-func NewGetDatasetRequest(server string, namespace string, name string, version string) (*http.Request, error) {
+// NewGetArtifactRequest generates requests for GetArtifact
+func NewGetArtifactRequest(server string, namespace string, name string, version string) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -1352,7 +960,7 @@ func NewGetDatasetRequest(server string, namespace string, name string, version 
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/datasets/%s/%s", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/artifacts/%s/%s", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -1370,19 +978,19 @@ func NewGetDatasetRequest(server string, namespace string, name string, version 
 	return req, nil
 }
 
-// NewUpdateDatasetRequest calls the generic UpdateDataset builder with application/json body
-func NewUpdateDatasetRequest(server string, namespace string, name string, version string, body UpdateDatasetJSONRequestBody) (*http.Request, error) {
+// NewUpdateArtifactRequest calls the generic UpdateArtifact builder with application/json body
+func NewUpdateArtifactRequest(server string, namespace string, name string, version string, body UpdateArtifactJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewUpdateDatasetRequestWithBody(server, namespace, name, version, "application/json", bodyReader)
+	return NewUpdateArtifactRequestWithBody(server, namespace, name, version, "application/json", bodyReader)
 }
 
-// NewUpdateDatasetRequestWithBody generates requests for UpdateDataset with any type of body
-func NewUpdateDatasetRequestWithBody(server string, namespace string, name string, version string, contentType string, body io.Reader) (*http.Request, error) {
+// NewUpdateArtifactRequestWithBody generates requests for UpdateArtifact with any type of body
+func NewUpdateArtifactRequestWithBody(server string, namespace string, name string, version string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -1411,7 +1019,7 @@ func NewUpdateDatasetRequestWithBody(server string, namespace string, name strin
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/datasets/%s/%s", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/artifacts/%s/%s", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -1431,19 +1039,19 @@ func NewUpdateDatasetRequestWithBody(server string, namespace string, name strin
 	return req, nil
 }
 
-// NewCompleteDatasetRequest calls the generic CompleteDataset builder with application/json body
-func NewCompleteDatasetRequest(server string, namespace string, name string, version string, body CompleteDatasetJSONRequestBody) (*http.Request, error) {
+// NewCompleteArtifactRequest calls the generic CompleteArtifact builder with application/json body
+func NewCompleteArtifactRequest(server string, namespace string, name string, version string, body CompleteArtifactJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewCompleteDatasetRequestWithBody(server, namespace, name, version, "application/json", bodyReader)
+	return NewCompleteArtifactRequestWithBody(server, namespace, name, version, "application/json", bodyReader)
 }
 
-// NewCompleteDatasetRequestWithBody generates requests for CompleteDataset with any type of body
-func NewCompleteDatasetRequestWithBody(server string, namespace string, name string, version string, contentType string, body io.Reader) (*http.Request, error) {
+// NewCompleteArtifactRequestWithBody generates requests for CompleteArtifact with any type of body
+func NewCompleteArtifactRequestWithBody(server string, namespace string, name string, version string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -1472,7 +1080,7 @@ func NewCompleteDatasetRequestWithBody(server string, namespace string, name str
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/datasets/%s/%s/complete", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/artifacts/%s/%s/complete", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -1492,8 +1100,8 @@ func NewCompleteDatasetRequestWithBody(server string, namespace string, name str
 	return req, nil
 }
 
-// NewResolveDatasetRequest generates requests for ResolveDataset
-func NewResolveDatasetRequest(server string, namespace string, name string, version string, params *ResolveDatasetParams) (*http.Request, error) {
+// NewResolveArtifactRequest generates requests for ResolveArtifact
+func NewResolveArtifactRequest(server string, namespace string, name string, version string, params *ResolveArtifactParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -1522,1121 +1130,7 @@ func NewResolveDatasetRequest(server string, namespace string, name string, vers
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/datasets/%s/%s/resolve", pathParam0, pathParam1, pathParam2)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		queryValues := queryURL.Query()
-
-		if params.Usage != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "usage", runtime.ParamLocationQuery, *params.Usage); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		queryURL.RawQuery = queryValues.Encode()
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewListImagesRequest generates requests for ListImages
-func NewListImagesRequest(server string, namespace string, params *ListImagesParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespace", runtime.ParamLocationPath, namespace)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/images", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		queryValues := queryURL.Query()
-
-		if params.Limit != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.Continue != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "continue", runtime.ParamLocationQuery, *params.Continue); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.Status != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "status", runtime.ParamLocationQuery, *params.Status); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.LabelSelector != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "labelSelector", runtime.ParamLocationQuery, *params.LabelSelector); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		queryURL.RawQuery = queryValues.Encode()
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewListImageVersionsRequest generates requests for ListImageVersions
-func NewListImageVersionsRequest(server string, namespace string, name string, params *ListImageVersionsParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespace", runtime.ParamLocationPath, namespace)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/images/%s", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		queryValues := queryURL.Query()
-
-		if params.Limit != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.Continue != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "continue", runtime.ParamLocationQuery, *params.Continue); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.Status != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "status", runtime.ParamLocationQuery, *params.Status); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.LabelSelector != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "labelSelector", runtime.ParamLocationQuery, *params.LabelSelector); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		queryURL.RawQuery = queryValues.Encode()
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewInitiateImageRequest calls the generic InitiateImage builder with application/json body
-func NewInitiateImageRequest(server string, namespace string, name string, body InitiateImageJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewInitiateImageRequestWithBody(server, namespace, name, "application/json", bodyReader)
-}
-
-// NewInitiateImageRequestWithBody generates requests for InitiateImage with any type of body
-func NewInitiateImageRequestWithBody(server string, namespace string, name string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespace", runtime.ParamLocationPath, namespace)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/images/%s", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewDeleteImageRequest generates requests for DeleteImage
-func NewDeleteImageRequest(server string, namespace string, name string, version string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespace", runtime.ParamLocationPath, namespace)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam2 string
-
-	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "version", runtime.ParamLocationPath, version)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/images/%s/%s", pathParam0, pathParam1, pathParam2)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewGetImageRequest generates requests for GetImage
-func NewGetImageRequest(server string, namespace string, name string, version string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespace", runtime.ParamLocationPath, namespace)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam2 string
-
-	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "version", runtime.ParamLocationPath, version)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/images/%s/%s", pathParam0, pathParam1, pathParam2)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewUpdateImageRequest calls the generic UpdateImage builder with application/json body
-func NewUpdateImageRequest(server string, namespace string, name string, version string, body UpdateImageJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewUpdateImageRequestWithBody(server, namespace, name, version, "application/json", bodyReader)
-}
-
-// NewUpdateImageRequestWithBody generates requests for UpdateImage with any type of body
-func NewUpdateImageRequestWithBody(server string, namespace string, name string, version string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespace", runtime.ParamLocationPath, namespace)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam2 string
-
-	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "version", runtime.ParamLocationPath, version)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/images/%s/%s", pathParam0, pathParam1, pathParam2)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("PATCH", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewCompleteImageRequest calls the generic CompleteImage builder with application/json body
-func NewCompleteImageRequest(server string, namespace string, name string, version string, body CompleteImageJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewCompleteImageRequestWithBody(server, namespace, name, version, "application/json", bodyReader)
-}
-
-// NewCompleteImageRequestWithBody generates requests for CompleteImage with any type of body
-func NewCompleteImageRequestWithBody(server string, namespace string, name string, version string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespace", runtime.ParamLocationPath, namespace)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam2 string
-
-	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "version", runtime.ParamLocationPath, version)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/images/%s/%s/complete", pathParam0, pathParam1, pathParam2)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewResolveImageRequest generates requests for ResolveImage
-func NewResolveImageRequest(server string, namespace string, name string, version string, params *ResolveImageParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespace", runtime.ParamLocationPath, namespace)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam2 string
-
-	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "version", runtime.ParamLocationPath, version)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/images/%s/%s/resolve", pathParam0, pathParam1, pathParam2)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		queryValues := queryURL.Query()
-
-		if params.Usage != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "usage", runtime.ParamLocationQuery, *params.Usage); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		queryURL.RawQuery = queryValues.Encode()
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewListModelsRequest generates requests for ListModels
-func NewListModelsRequest(server string, namespace string, params *ListModelsParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespace", runtime.ParamLocationPath, namespace)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/models", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		queryValues := queryURL.Query()
-
-		if params.Limit != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.Continue != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "continue", runtime.ParamLocationQuery, *params.Continue); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.Status != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "status", runtime.ParamLocationQuery, *params.Status); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.LabelSelector != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "labelSelector", runtime.ParamLocationQuery, *params.LabelSelector); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		queryURL.RawQuery = queryValues.Encode()
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewListModelVersionsRequest generates requests for ListModelVersions
-func NewListModelVersionsRequest(server string, namespace string, name string, params *ListModelVersionsParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespace", runtime.ParamLocationPath, namespace)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/models/%s", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		queryValues := queryURL.Query()
-
-		if params.Limit != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.Continue != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "continue", runtime.ParamLocationQuery, *params.Continue); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.Status != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "status", runtime.ParamLocationQuery, *params.Status); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.LabelSelector != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "labelSelector", runtime.ParamLocationQuery, *params.LabelSelector); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		queryURL.RawQuery = queryValues.Encode()
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewInitiateModelRequest calls the generic InitiateModel builder with application/json body
-func NewInitiateModelRequest(server string, namespace string, name string, body InitiateModelJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewInitiateModelRequestWithBody(server, namespace, name, "application/json", bodyReader)
-}
-
-// NewInitiateModelRequestWithBody generates requests for InitiateModel with any type of body
-func NewInitiateModelRequestWithBody(server string, namespace string, name string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespace", runtime.ParamLocationPath, namespace)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/models/%s", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewDeleteModelRequest generates requests for DeleteModel
-func NewDeleteModelRequest(server string, namespace string, name string, version string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespace", runtime.ParamLocationPath, namespace)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam2 string
-
-	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "version", runtime.ParamLocationPath, version)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/models/%s/%s", pathParam0, pathParam1, pathParam2)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewGetModelRequest generates requests for GetModel
-func NewGetModelRequest(server string, namespace string, name string, version string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespace", runtime.ParamLocationPath, namespace)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam2 string
-
-	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "version", runtime.ParamLocationPath, version)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/models/%s/%s", pathParam0, pathParam1, pathParam2)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewUpdateModelRequest calls the generic UpdateModel builder with application/json body
-func NewUpdateModelRequest(server string, namespace string, name string, version string, body UpdateModelJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewUpdateModelRequestWithBody(server, namespace, name, version, "application/json", bodyReader)
-}
-
-// NewUpdateModelRequestWithBody generates requests for UpdateModel with any type of body
-func NewUpdateModelRequestWithBody(server string, namespace string, name string, version string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespace", runtime.ParamLocationPath, namespace)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam2 string
-
-	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "version", runtime.ParamLocationPath, version)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/models/%s/%s", pathParam0, pathParam1, pathParam2)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("PATCH", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewCompleteModelRequest calls the generic CompleteModel builder with application/json body
-func NewCompleteModelRequest(server string, namespace string, name string, version string, body CompleteModelJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewCompleteModelRequestWithBody(server, namespace, name, version, "application/json", bodyReader)
-}
-
-// NewCompleteModelRequestWithBody generates requests for CompleteModel with any type of body
-func NewCompleteModelRequestWithBody(server string, namespace string, name string, version string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespace", runtime.ParamLocationPath, namespace)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam2 string
-
-	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "version", runtime.ParamLocationPath, version)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/models/%s/%s/complete", pathParam0, pathParam1, pathParam2)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewResolveModelRequest generates requests for ResolveModel
-func NewResolveModelRequest(server string, namespace string, name string, version string, params *ResolveModelParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespace", runtime.ParamLocationPath, namespace)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam2 string
-
-	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "version", runtime.ParamLocationPath, version)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/models/%s/%s/resolve", pathParam0, pathParam1, pathParam2)
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/artifacts/%s/%s/resolve", pathParam0, pathParam1, pathParam2)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -2776,95 +1270,35 @@ type ClientWithResponsesInterface interface {
 	// GetCapabilitiesWithResponse request
 	GetCapabilitiesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetCapabilitiesResponse, error)
 
-	// ListDatasetsWithResponse request
-	ListDatasetsWithResponse(ctx context.Context, namespace string, params *ListDatasetsParams, reqEditors ...RequestEditorFn) (*ListDatasetsResponse, error)
+	// ListArtifactsWithResponse request
+	ListArtifactsWithResponse(ctx context.Context, namespace string, params *ListArtifactsParams, reqEditors ...RequestEditorFn) (*ListArtifactsResponse, error)
 
-	// ListDatasetVersionsWithResponse request
-	ListDatasetVersionsWithResponse(ctx context.Context, namespace string, name string, params *ListDatasetVersionsParams, reqEditors ...RequestEditorFn) (*ListDatasetVersionsResponse, error)
+	// ListArtifactVersionsWithResponse request
+	ListArtifactVersionsWithResponse(ctx context.Context, namespace string, name string, params *ListArtifactVersionsParams, reqEditors ...RequestEditorFn) (*ListArtifactVersionsResponse, error)
 
-	// InitiateDatasetWithBodyWithResponse request with any body
-	InitiateDatasetWithBodyWithResponse(ctx context.Context, namespace string, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*InitiateDatasetResponse, error)
+	// InitiateArtifactWithBodyWithResponse request with any body
+	InitiateArtifactWithBodyWithResponse(ctx context.Context, namespace string, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*InitiateArtifactResponse, error)
 
-	InitiateDatasetWithResponse(ctx context.Context, namespace string, name string, body InitiateDatasetJSONRequestBody, reqEditors ...RequestEditorFn) (*InitiateDatasetResponse, error)
+	InitiateArtifactWithResponse(ctx context.Context, namespace string, name string, body InitiateArtifactJSONRequestBody, reqEditors ...RequestEditorFn) (*InitiateArtifactResponse, error)
 
-	// DeleteDatasetWithResponse request
-	DeleteDatasetWithResponse(ctx context.Context, namespace string, name string, version string, reqEditors ...RequestEditorFn) (*DeleteDatasetResponse, error)
+	// DeleteArtifactWithResponse request
+	DeleteArtifactWithResponse(ctx context.Context, namespace string, name string, version string, reqEditors ...RequestEditorFn) (*DeleteArtifactResponse, error)
 
-	// GetDatasetWithResponse request
-	GetDatasetWithResponse(ctx context.Context, namespace string, name string, version string, reqEditors ...RequestEditorFn) (*GetDatasetResponse, error)
+	// GetArtifactWithResponse request
+	GetArtifactWithResponse(ctx context.Context, namespace string, name string, version string, reqEditors ...RequestEditorFn) (*GetArtifactResponse, error)
 
-	// UpdateDatasetWithBodyWithResponse request with any body
-	UpdateDatasetWithBodyWithResponse(ctx context.Context, namespace string, name string, version string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateDatasetResponse, error)
+	// UpdateArtifactWithBodyWithResponse request with any body
+	UpdateArtifactWithBodyWithResponse(ctx context.Context, namespace string, name string, version string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateArtifactResponse, error)
 
-	UpdateDatasetWithResponse(ctx context.Context, namespace string, name string, version string, body UpdateDatasetJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateDatasetResponse, error)
+	UpdateArtifactWithResponse(ctx context.Context, namespace string, name string, version string, body UpdateArtifactJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateArtifactResponse, error)
 
-	// CompleteDatasetWithBodyWithResponse request with any body
-	CompleteDatasetWithBodyWithResponse(ctx context.Context, namespace string, name string, version string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CompleteDatasetResponse, error)
+	// CompleteArtifactWithBodyWithResponse request with any body
+	CompleteArtifactWithBodyWithResponse(ctx context.Context, namespace string, name string, version string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CompleteArtifactResponse, error)
 
-	CompleteDatasetWithResponse(ctx context.Context, namespace string, name string, version string, body CompleteDatasetJSONRequestBody, reqEditors ...RequestEditorFn) (*CompleteDatasetResponse, error)
+	CompleteArtifactWithResponse(ctx context.Context, namespace string, name string, version string, body CompleteArtifactJSONRequestBody, reqEditors ...RequestEditorFn) (*CompleteArtifactResponse, error)
 
-	// ResolveDatasetWithResponse request
-	ResolveDatasetWithResponse(ctx context.Context, namespace string, name string, version string, params *ResolveDatasetParams, reqEditors ...RequestEditorFn) (*ResolveDatasetResponse, error)
-
-	// ListImagesWithResponse request
-	ListImagesWithResponse(ctx context.Context, namespace string, params *ListImagesParams, reqEditors ...RequestEditorFn) (*ListImagesResponse, error)
-
-	// ListImageVersionsWithResponse request
-	ListImageVersionsWithResponse(ctx context.Context, namespace string, name string, params *ListImageVersionsParams, reqEditors ...RequestEditorFn) (*ListImageVersionsResponse, error)
-
-	// InitiateImageWithBodyWithResponse request with any body
-	InitiateImageWithBodyWithResponse(ctx context.Context, namespace string, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*InitiateImageResponse, error)
-
-	InitiateImageWithResponse(ctx context.Context, namespace string, name string, body InitiateImageJSONRequestBody, reqEditors ...RequestEditorFn) (*InitiateImageResponse, error)
-
-	// DeleteImageWithResponse request
-	DeleteImageWithResponse(ctx context.Context, namespace string, name string, version string, reqEditors ...RequestEditorFn) (*DeleteImageResponse, error)
-
-	// GetImageWithResponse request
-	GetImageWithResponse(ctx context.Context, namespace string, name string, version string, reqEditors ...RequestEditorFn) (*GetImageResponse, error)
-
-	// UpdateImageWithBodyWithResponse request with any body
-	UpdateImageWithBodyWithResponse(ctx context.Context, namespace string, name string, version string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateImageResponse, error)
-
-	UpdateImageWithResponse(ctx context.Context, namespace string, name string, version string, body UpdateImageJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateImageResponse, error)
-
-	// CompleteImageWithBodyWithResponse request with any body
-	CompleteImageWithBodyWithResponse(ctx context.Context, namespace string, name string, version string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CompleteImageResponse, error)
-
-	CompleteImageWithResponse(ctx context.Context, namespace string, name string, version string, body CompleteImageJSONRequestBody, reqEditors ...RequestEditorFn) (*CompleteImageResponse, error)
-
-	// ResolveImageWithResponse request
-	ResolveImageWithResponse(ctx context.Context, namespace string, name string, version string, params *ResolveImageParams, reqEditors ...RequestEditorFn) (*ResolveImageResponse, error)
-
-	// ListModelsWithResponse request
-	ListModelsWithResponse(ctx context.Context, namespace string, params *ListModelsParams, reqEditors ...RequestEditorFn) (*ListModelsResponse, error)
-
-	// ListModelVersionsWithResponse request
-	ListModelVersionsWithResponse(ctx context.Context, namespace string, name string, params *ListModelVersionsParams, reqEditors ...RequestEditorFn) (*ListModelVersionsResponse, error)
-
-	// InitiateModelWithBodyWithResponse request with any body
-	InitiateModelWithBodyWithResponse(ctx context.Context, namespace string, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*InitiateModelResponse, error)
-
-	InitiateModelWithResponse(ctx context.Context, namespace string, name string, body InitiateModelJSONRequestBody, reqEditors ...RequestEditorFn) (*InitiateModelResponse, error)
-
-	// DeleteModelWithResponse request
-	DeleteModelWithResponse(ctx context.Context, namespace string, name string, version string, reqEditors ...RequestEditorFn) (*DeleteModelResponse, error)
-
-	// GetModelWithResponse request
-	GetModelWithResponse(ctx context.Context, namespace string, name string, version string, reqEditors ...RequestEditorFn) (*GetModelResponse, error)
-
-	// UpdateModelWithBodyWithResponse request with any body
-	UpdateModelWithBodyWithResponse(ctx context.Context, namespace string, name string, version string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateModelResponse, error)
-
-	UpdateModelWithResponse(ctx context.Context, namespace string, name string, version string, body UpdateModelJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateModelResponse, error)
-
-	// CompleteModelWithBodyWithResponse request with any body
-	CompleteModelWithBodyWithResponse(ctx context.Context, namespace string, name string, version string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CompleteModelResponse, error)
-
-	CompleteModelWithResponse(ctx context.Context, namespace string, name string, version string, body CompleteModelJSONRequestBody, reqEditors ...RequestEditorFn) (*CompleteModelResponse, error)
-
-	// ResolveModelWithResponse request
-	ResolveModelWithResponse(ctx context.Context, namespace string, name string, version string, params *ResolveModelParams, reqEditors ...RequestEditorFn) (*ResolveModelResponse, error)
+	// ResolveArtifactWithResponse request
+	ResolveArtifactWithResponse(ctx context.Context, namespace string, name string, version string, params *ResolveArtifactParams, reqEditors ...RequestEditorFn) (*ResolveArtifactResponse, error)
 
 	// HealthzWithResponse request
 	HealthzWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*HealthzResponse, error)
@@ -2895,7 +1329,7 @@ func (r GetCapabilitiesResponse) StatusCode() int {
 	return 0
 }
 
-type ListDatasetsResponse struct {
+type ListArtifactsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *ArtifactList
@@ -2911,7 +1345,7 @@ type ListDatasetsResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r ListDatasetsResponse) Status() string {
+func (r ListArtifactsResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -2919,14 +1353,14 @@ func (r ListDatasetsResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r ListDatasetsResponse) StatusCode() int {
+func (r ListArtifactsResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type ListDatasetVersionsResponse struct {
+type ListArtifactVersionsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *ArtifactList
@@ -2942,7 +1376,7 @@ type ListDatasetVersionsResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r ListDatasetVersionsResponse) Status() string {
+func (r ListArtifactVersionsResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -2950,14 +1384,14 @@ func (r ListDatasetVersionsResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r ListDatasetVersionsResponse) StatusCode() int {
+func (r ListArtifactVersionsResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type InitiateDatasetResponse struct {
+type InitiateArtifactResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *ArtifactInitiateResponse
@@ -2973,7 +1407,7 @@ type InitiateDatasetResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r InitiateDatasetResponse) Status() string {
+func (r InitiateArtifactResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -2981,14 +1415,14 @@ func (r InitiateDatasetResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r InitiateDatasetResponse) StatusCode() int {
+func (r InitiateArtifactResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type DeleteDatasetResponse struct {
+type DeleteArtifactResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Artifact
@@ -3004,7 +1438,7 @@ type DeleteDatasetResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r DeleteDatasetResponse) Status() string {
+func (r DeleteArtifactResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -3012,14 +1446,14 @@ func (r DeleteDatasetResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r DeleteDatasetResponse) StatusCode() int {
+func (r DeleteArtifactResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type GetDatasetResponse struct {
+type GetArtifactResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Artifact
@@ -3035,7 +1469,7 @@ type GetDatasetResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r GetDatasetResponse) Status() string {
+func (r GetArtifactResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -3043,14 +1477,14 @@ func (r GetDatasetResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r GetDatasetResponse) StatusCode() int {
+func (r GetArtifactResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type UpdateDatasetResponse struct {
+type UpdateArtifactResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Artifact
@@ -3066,7 +1500,7 @@ type UpdateDatasetResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r UpdateDatasetResponse) Status() string {
+func (r UpdateArtifactResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -3074,14 +1508,14 @@ func (r UpdateDatasetResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r UpdateDatasetResponse) StatusCode() int {
+func (r UpdateArtifactResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type CompleteDatasetResponse struct {
+type CompleteArtifactResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *Artifact
@@ -3097,7 +1531,7 @@ type CompleteDatasetResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r CompleteDatasetResponse) Status() string {
+func (r CompleteArtifactResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -3105,14 +1539,14 @@ func (r CompleteDatasetResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r CompleteDatasetResponse) StatusCode() int {
+func (r CompleteArtifactResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type ResolveDatasetResponse struct {
+type ResolveArtifactResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *ArtifactResolveResponse
@@ -3128,7 +1562,7 @@ type ResolveDatasetResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r ResolveDatasetResponse) Status() string {
+func (r ResolveArtifactResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -3136,503 +1570,7 @@ func (r ResolveDatasetResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r ResolveDatasetResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type ListImagesResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *ArtifactList
-	JSON400      *ArtifactHubError
-	JSON401      *ArtifactHubError
-	JSON403      *ArtifactHubError
-	JSON404      *ArtifactHubError
-	JSON409      *ArtifactHubError
-	JSON410      *ArtifactHubError
-	JSON412      *ArtifactHubError
-	JSON503      *ArtifactHubError
-	JSONDefault  *ArtifactHubError
-}
-
-// Status returns HTTPResponse.Status
-func (r ListImagesResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ListImagesResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type ListImageVersionsResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *ArtifactList
-	JSON400      *ArtifactHubError
-	JSON401      *ArtifactHubError
-	JSON403      *ArtifactHubError
-	JSON404      *ArtifactHubError
-	JSON409      *ArtifactHubError
-	JSON410      *ArtifactHubError
-	JSON412      *ArtifactHubError
-	JSON503      *ArtifactHubError
-	JSONDefault  *ArtifactHubError
-}
-
-// Status returns HTTPResponse.Status
-func (r ListImageVersionsResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ListImageVersionsResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type InitiateImageResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON201      *ArtifactInitiateResponse
-	JSON400      *ArtifactHubError
-	JSON401      *ArtifactHubError
-	JSON403      *ArtifactHubError
-	JSON404      *ArtifactHubError
-	JSON409      *ArtifactHubError
-	JSON410      *ArtifactHubError
-	JSON412      *ArtifactHubError
-	JSON503      *ArtifactHubError
-	JSONDefault  *ArtifactHubError
-}
-
-// Status returns HTTPResponse.Status
-func (r InitiateImageResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r InitiateImageResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type DeleteImageResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *Artifact
-	JSON400      *ArtifactHubError
-	JSON401      *ArtifactHubError
-	JSON403      *ArtifactHubError
-	JSON404      *ArtifactHubError
-	JSON409      *ArtifactHubError
-	JSON410      *ArtifactHubError
-	JSON412      *ArtifactHubError
-	JSON503      *ArtifactHubError
-	JSONDefault  *ArtifactHubError
-}
-
-// Status returns HTTPResponse.Status
-func (r DeleteImageResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r DeleteImageResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetImageResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *Artifact
-	JSON400      *ArtifactHubError
-	JSON401      *ArtifactHubError
-	JSON403      *ArtifactHubError
-	JSON404      *ArtifactHubError
-	JSON409      *ArtifactHubError
-	JSON410      *ArtifactHubError
-	JSON412      *ArtifactHubError
-	JSON503      *ArtifactHubError
-	JSONDefault  *ArtifactHubError
-}
-
-// Status returns HTTPResponse.Status
-func (r GetImageResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetImageResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type UpdateImageResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *Artifact
-	JSON400      *ArtifactHubError
-	JSON401      *ArtifactHubError
-	JSON403      *ArtifactHubError
-	JSON404      *ArtifactHubError
-	JSON409      *ArtifactHubError
-	JSON410      *ArtifactHubError
-	JSON412      *ArtifactHubError
-	JSON503      *ArtifactHubError
-	JSONDefault  *ArtifactHubError
-}
-
-// Status returns HTTPResponse.Status
-func (r UpdateImageResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r UpdateImageResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type CompleteImageResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *Artifact
-	JSON400      *ArtifactHubError
-	JSON401      *ArtifactHubError
-	JSON403      *ArtifactHubError
-	JSON404      *ArtifactHubError
-	JSON409      *ArtifactHubError
-	JSON410      *ArtifactHubError
-	JSON412      *ArtifactHubError
-	JSON503      *ArtifactHubError
-	JSONDefault  *ArtifactHubError
-}
-
-// Status returns HTTPResponse.Status
-func (r CompleteImageResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r CompleteImageResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type ResolveImageResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *ArtifactResolveResponse
-	JSON400      *ArtifactHubError
-	JSON401      *ArtifactHubError
-	JSON403      *ArtifactHubError
-	JSON404      *ArtifactHubError
-	JSON409      *ArtifactHubError
-	JSON410      *ArtifactHubError
-	JSON412      *ArtifactHubError
-	JSON503      *ArtifactHubError
-	JSONDefault  *ArtifactHubError
-}
-
-// Status returns HTTPResponse.Status
-func (r ResolveImageResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ResolveImageResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type ListModelsResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *ArtifactList
-	JSON400      *ArtifactHubError
-	JSON401      *ArtifactHubError
-	JSON403      *ArtifactHubError
-	JSON404      *ArtifactHubError
-	JSON409      *ArtifactHubError
-	JSON410      *ArtifactHubError
-	JSON412      *ArtifactHubError
-	JSON503      *ArtifactHubError
-	JSONDefault  *ArtifactHubError
-}
-
-// Status returns HTTPResponse.Status
-func (r ListModelsResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ListModelsResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type ListModelVersionsResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *ArtifactList
-	JSON400      *ArtifactHubError
-	JSON401      *ArtifactHubError
-	JSON403      *ArtifactHubError
-	JSON404      *ArtifactHubError
-	JSON409      *ArtifactHubError
-	JSON410      *ArtifactHubError
-	JSON412      *ArtifactHubError
-	JSON503      *ArtifactHubError
-	JSONDefault  *ArtifactHubError
-}
-
-// Status returns HTTPResponse.Status
-func (r ListModelVersionsResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ListModelVersionsResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type InitiateModelResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON201      *ArtifactInitiateResponse
-	JSON400      *ArtifactHubError
-	JSON401      *ArtifactHubError
-	JSON403      *ArtifactHubError
-	JSON404      *ArtifactHubError
-	JSON409      *ArtifactHubError
-	JSON410      *ArtifactHubError
-	JSON412      *ArtifactHubError
-	JSON503      *ArtifactHubError
-	JSONDefault  *ArtifactHubError
-}
-
-// Status returns HTTPResponse.Status
-func (r InitiateModelResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r InitiateModelResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type DeleteModelResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *Artifact
-	JSON400      *ArtifactHubError
-	JSON401      *ArtifactHubError
-	JSON403      *ArtifactHubError
-	JSON404      *ArtifactHubError
-	JSON409      *ArtifactHubError
-	JSON410      *ArtifactHubError
-	JSON412      *ArtifactHubError
-	JSON503      *ArtifactHubError
-	JSONDefault  *ArtifactHubError
-}
-
-// Status returns HTTPResponse.Status
-func (r DeleteModelResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r DeleteModelResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetModelResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *Artifact
-	JSON400      *ArtifactHubError
-	JSON401      *ArtifactHubError
-	JSON403      *ArtifactHubError
-	JSON404      *ArtifactHubError
-	JSON409      *ArtifactHubError
-	JSON410      *ArtifactHubError
-	JSON412      *ArtifactHubError
-	JSON503      *ArtifactHubError
-	JSONDefault  *ArtifactHubError
-}
-
-// Status returns HTTPResponse.Status
-func (r GetModelResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetModelResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type UpdateModelResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *Artifact
-	JSON400      *ArtifactHubError
-	JSON401      *ArtifactHubError
-	JSON403      *ArtifactHubError
-	JSON404      *ArtifactHubError
-	JSON409      *ArtifactHubError
-	JSON410      *ArtifactHubError
-	JSON412      *ArtifactHubError
-	JSON503      *ArtifactHubError
-	JSONDefault  *ArtifactHubError
-}
-
-// Status returns HTTPResponse.Status
-func (r UpdateModelResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r UpdateModelResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type CompleteModelResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *Artifact
-	JSON400      *ArtifactHubError
-	JSON401      *ArtifactHubError
-	JSON403      *ArtifactHubError
-	JSON404      *ArtifactHubError
-	JSON409      *ArtifactHubError
-	JSON410      *ArtifactHubError
-	JSON412      *ArtifactHubError
-	JSON503      *ArtifactHubError
-	JSONDefault  *ArtifactHubError
-}
-
-// Status returns HTTPResponse.Status
-func (r CompleteModelResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r CompleteModelResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type ResolveModelResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *ArtifactResolveResponse
-	JSON400      *ArtifactHubError
-	JSON401      *ArtifactHubError
-	JSON403      *ArtifactHubError
-	JSON404      *ArtifactHubError
-	JSON409      *ArtifactHubError
-	JSON410      *ArtifactHubError
-	JSON412      *ArtifactHubError
-	JSON503      *ArtifactHubError
-	JSONDefault  *ArtifactHubError
-}
-
-// Status returns HTTPResponse.Status
-func (r ResolveModelResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ResolveModelResponse) StatusCode() int {
+func (r ResolveArtifactResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -3690,292 +1628,100 @@ func (c *ClientWithResponses) GetCapabilitiesWithResponse(ctx context.Context, r
 	return ParseGetCapabilitiesResponse(rsp)
 }
 
-// ListDatasetsWithResponse request returning *ListDatasetsResponse
-func (c *ClientWithResponses) ListDatasetsWithResponse(ctx context.Context, namespace string, params *ListDatasetsParams, reqEditors ...RequestEditorFn) (*ListDatasetsResponse, error) {
-	rsp, err := c.ListDatasets(ctx, namespace, params, reqEditors...)
+// ListArtifactsWithResponse request returning *ListArtifactsResponse
+func (c *ClientWithResponses) ListArtifactsWithResponse(ctx context.Context, namespace string, params *ListArtifactsParams, reqEditors ...RequestEditorFn) (*ListArtifactsResponse, error) {
+	rsp, err := c.ListArtifacts(ctx, namespace, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseListDatasetsResponse(rsp)
+	return ParseListArtifactsResponse(rsp)
 }
 
-// ListDatasetVersionsWithResponse request returning *ListDatasetVersionsResponse
-func (c *ClientWithResponses) ListDatasetVersionsWithResponse(ctx context.Context, namespace string, name string, params *ListDatasetVersionsParams, reqEditors ...RequestEditorFn) (*ListDatasetVersionsResponse, error) {
-	rsp, err := c.ListDatasetVersions(ctx, namespace, name, params, reqEditors...)
+// ListArtifactVersionsWithResponse request returning *ListArtifactVersionsResponse
+func (c *ClientWithResponses) ListArtifactVersionsWithResponse(ctx context.Context, namespace string, name string, params *ListArtifactVersionsParams, reqEditors ...RequestEditorFn) (*ListArtifactVersionsResponse, error) {
+	rsp, err := c.ListArtifactVersions(ctx, namespace, name, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseListDatasetVersionsResponse(rsp)
+	return ParseListArtifactVersionsResponse(rsp)
 }
 
-// InitiateDatasetWithBodyWithResponse request with arbitrary body returning *InitiateDatasetResponse
-func (c *ClientWithResponses) InitiateDatasetWithBodyWithResponse(ctx context.Context, namespace string, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*InitiateDatasetResponse, error) {
-	rsp, err := c.InitiateDatasetWithBody(ctx, namespace, name, contentType, body, reqEditors...)
+// InitiateArtifactWithBodyWithResponse request with arbitrary body returning *InitiateArtifactResponse
+func (c *ClientWithResponses) InitiateArtifactWithBodyWithResponse(ctx context.Context, namespace string, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*InitiateArtifactResponse, error) {
+	rsp, err := c.InitiateArtifactWithBody(ctx, namespace, name, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseInitiateDatasetResponse(rsp)
+	return ParseInitiateArtifactResponse(rsp)
 }
 
-func (c *ClientWithResponses) InitiateDatasetWithResponse(ctx context.Context, namespace string, name string, body InitiateDatasetJSONRequestBody, reqEditors ...RequestEditorFn) (*InitiateDatasetResponse, error) {
-	rsp, err := c.InitiateDataset(ctx, namespace, name, body, reqEditors...)
+func (c *ClientWithResponses) InitiateArtifactWithResponse(ctx context.Context, namespace string, name string, body InitiateArtifactJSONRequestBody, reqEditors ...RequestEditorFn) (*InitiateArtifactResponse, error) {
+	rsp, err := c.InitiateArtifact(ctx, namespace, name, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseInitiateDatasetResponse(rsp)
+	return ParseInitiateArtifactResponse(rsp)
 }
 
-// DeleteDatasetWithResponse request returning *DeleteDatasetResponse
-func (c *ClientWithResponses) DeleteDatasetWithResponse(ctx context.Context, namespace string, name string, version string, reqEditors ...RequestEditorFn) (*DeleteDatasetResponse, error) {
-	rsp, err := c.DeleteDataset(ctx, namespace, name, version, reqEditors...)
+// DeleteArtifactWithResponse request returning *DeleteArtifactResponse
+func (c *ClientWithResponses) DeleteArtifactWithResponse(ctx context.Context, namespace string, name string, version string, reqEditors ...RequestEditorFn) (*DeleteArtifactResponse, error) {
+	rsp, err := c.DeleteArtifact(ctx, namespace, name, version, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseDeleteDatasetResponse(rsp)
+	return ParseDeleteArtifactResponse(rsp)
 }
 
-// GetDatasetWithResponse request returning *GetDatasetResponse
-func (c *ClientWithResponses) GetDatasetWithResponse(ctx context.Context, namespace string, name string, version string, reqEditors ...RequestEditorFn) (*GetDatasetResponse, error) {
-	rsp, err := c.GetDataset(ctx, namespace, name, version, reqEditors...)
+// GetArtifactWithResponse request returning *GetArtifactResponse
+func (c *ClientWithResponses) GetArtifactWithResponse(ctx context.Context, namespace string, name string, version string, reqEditors ...RequestEditorFn) (*GetArtifactResponse, error) {
+	rsp, err := c.GetArtifact(ctx, namespace, name, version, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetDatasetResponse(rsp)
+	return ParseGetArtifactResponse(rsp)
 }
 
-// UpdateDatasetWithBodyWithResponse request with arbitrary body returning *UpdateDatasetResponse
-func (c *ClientWithResponses) UpdateDatasetWithBodyWithResponse(ctx context.Context, namespace string, name string, version string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateDatasetResponse, error) {
-	rsp, err := c.UpdateDatasetWithBody(ctx, namespace, name, version, contentType, body, reqEditors...)
+// UpdateArtifactWithBodyWithResponse request with arbitrary body returning *UpdateArtifactResponse
+func (c *ClientWithResponses) UpdateArtifactWithBodyWithResponse(ctx context.Context, namespace string, name string, version string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateArtifactResponse, error) {
+	rsp, err := c.UpdateArtifactWithBody(ctx, namespace, name, version, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseUpdateDatasetResponse(rsp)
+	return ParseUpdateArtifactResponse(rsp)
 }
 
-func (c *ClientWithResponses) UpdateDatasetWithResponse(ctx context.Context, namespace string, name string, version string, body UpdateDatasetJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateDatasetResponse, error) {
-	rsp, err := c.UpdateDataset(ctx, namespace, name, version, body, reqEditors...)
+func (c *ClientWithResponses) UpdateArtifactWithResponse(ctx context.Context, namespace string, name string, version string, body UpdateArtifactJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateArtifactResponse, error) {
+	rsp, err := c.UpdateArtifact(ctx, namespace, name, version, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseUpdateDatasetResponse(rsp)
+	return ParseUpdateArtifactResponse(rsp)
 }
 
-// CompleteDatasetWithBodyWithResponse request with arbitrary body returning *CompleteDatasetResponse
-func (c *ClientWithResponses) CompleteDatasetWithBodyWithResponse(ctx context.Context, namespace string, name string, version string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CompleteDatasetResponse, error) {
-	rsp, err := c.CompleteDatasetWithBody(ctx, namespace, name, version, contentType, body, reqEditors...)
+// CompleteArtifactWithBodyWithResponse request with arbitrary body returning *CompleteArtifactResponse
+func (c *ClientWithResponses) CompleteArtifactWithBodyWithResponse(ctx context.Context, namespace string, name string, version string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CompleteArtifactResponse, error) {
+	rsp, err := c.CompleteArtifactWithBody(ctx, namespace, name, version, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseCompleteDatasetResponse(rsp)
+	return ParseCompleteArtifactResponse(rsp)
 }
 
-func (c *ClientWithResponses) CompleteDatasetWithResponse(ctx context.Context, namespace string, name string, version string, body CompleteDatasetJSONRequestBody, reqEditors ...RequestEditorFn) (*CompleteDatasetResponse, error) {
-	rsp, err := c.CompleteDataset(ctx, namespace, name, version, body, reqEditors...)
+func (c *ClientWithResponses) CompleteArtifactWithResponse(ctx context.Context, namespace string, name string, version string, body CompleteArtifactJSONRequestBody, reqEditors ...RequestEditorFn) (*CompleteArtifactResponse, error) {
+	rsp, err := c.CompleteArtifact(ctx, namespace, name, version, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseCompleteDatasetResponse(rsp)
+	return ParseCompleteArtifactResponse(rsp)
 }
 
-// ResolveDatasetWithResponse request returning *ResolveDatasetResponse
-func (c *ClientWithResponses) ResolveDatasetWithResponse(ctx context.Context, namespace string, name string, version string, params *ResolveDatasetParams, reqEditors ...RequestEditorFn) (*ResolveDatasetResponse, error) {
-	rsp, err := c.ResolveDataset(ctx, namespace, name, version, params, reqEditors...)
+// ResolveArtifactWithResponse request returning *ResolveArtifactResponse
+func (c *ClientWithResponses) ResolveArtifactWithResponse(ctx context.Context, namespace string, name string, version string, params *ResolveArtifactParams, reqEditors ...RequestEditorFn) (*ResolveArtifactResponse, error) {
+	rsp, err := c.ResolveArtifact(ctx, namespace, name, version, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseResolveDatasetResponse(rsp)
-}
-
-// ListImagesWithResponse request returning *ListImagesResponse
-func (c *ClientWithResponses) ListImagesWithResponse(ctx context.Context, namespace string, params *ListImagesParams, reqEditors ...RequestEditorFn) (*ListImagesResponse, error) {
-	rsp, err := c.ListImages(ctx, namespace, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseListImagesResponse(rsp)
-}
-
-// ListImageVersionsWithResponse request returning *ListImageVersionsResponse
-func (c *ClientWithResponses) ListImageVersionsWithResponse(ctx context.Context, namespace string, name string, params *ListImageVersionsParams, reqEditors ...RequestEditorFn) (*ListImageVersionsResponse, error) {
-	rsp, err := c.ListImageVersions(ctx, namespace, name, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseListImageVersionsResponse(rsp)
-}
-
-// InitiateImageWithBodyWithResponse request with arbitrary body returning *InitiateImageResponse
-func (c *ClientWithResponses) InitiateImageWithBodyWithResponse(ctx context.Context, namespace string, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*InitiateImageResponse, error) {
-	rsp, err := c.InitiateImageWithBody(ctx, namespace, name, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseInitiateImageResponse(rsp)
-}
-
-func (c *ClientWithResponses) InitiateImageWithResponse(ctx context.Context, namespace string, name string, body InitiateImageJSONRequestBody, reqEditors ...RequestEditorFn) (*InitiateImageResponse, error) {
-	rsp, err := c.InitiateImage(ctx, namespace, name, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseInitiateImageResponse(rsp)
-}
-
-// DeleteImageWithResponse request returning *DeleteImageResponse
-func (c *ClientWithResponses) DeleteImageWithResponse(ctx context.Context, namespace string, name string, version string, reqEditors ...RequestEditorFn) (*DeleteImageResponse, error) {
-	rsp, err := c.DeleteImage(ctx, namespace, name, version, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseDeleteImageResponse(rsp)
-}
-
-// GetImageWithResponse request returning *GetImageResponse
-func (c *ClientWithResponses) GetImageWithResponse(ctx context.Context, namespace string, name string, version string, reqEditors ...RequestEditorFn) (*GetImageResponse, error) {
-	rsp, err := c.GetImage(ctx, namespace, name, version, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetImageResponse(rsp)
-}
-
-// UpdateImageWithBodyWithResponse request with arbitrary body returning *UpdateImageResponse
-func (c *ClientWithResponses) UpdateImageWithBodyWithResponse(ctx context.Context, namespace string, name string, version string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateImageResponse, error) {
-	rsp, err := c.UpdateImageWithBody(ctx, namespace, name, version, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpdateImageResponse(rsp)
-}
-
-func (c *ClientWithResponses) UpdateImageWithResponse(ctx context.Context, namespace string, name string, version string, body UpdateImageJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateImageResponse, error) {
-	rsp, err := c.UpdateImage(ctx, namespace, name, version, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpdateImageResponse(rsp)
-}
-
-// CompleteImageWithBodyWithResponse request with arbitrary body returning *CompleteImageResponse
-func (c *ClientWithResponses) CompleteImageWithBodyWithResponse(ctx context.Context, namespace string, name string, version string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CompleteImageResponse, error) {
-	rsp, err := c.CompleteImageWithBody(ctx, namespace, name, version, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCompleteImageResponse(rsp)
-}
-
-func (c *ClientWithResponses) CompleteImageWithResponse(ctx context.Context, namespace string, name string, version string, body CompleteImageJSONRequestBody, reqEditors ...RequestEditorFn) (*CompleteImageResponse, error) {
-	rsp, err := c.CompleteImage(ctx, namespace, name, version, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCompleteImageResponse(rsp)
-}
-
-// ResolveImageWithResponse request returning *ResolveImageResponse
-func (c *ClientWithResponses) ResolveImageWithResponse(ctx context.Context, namespace string, name string, version string, params *ResolveImageParams, reqEditors ...RequestEditorFn) (*ResolveImageResponse, error) {
-	rsp, err := c.ResolveImage(ctx, namespace, name, version, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseResolveImageResponse(rsp)
-}
-
-// ListModelsWithResponse request returning *ListModelsResponse
-func (c *ClientWithResponses) ListModelsWithResponse(ctx context.Context, namespace string, params *ListModelsParams, reqEditors ...RequestEditorFn) (*ListModelsResponse, error) {
-	rsp, err := c.ListModels(ctx, namespace, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseListModelsResponse(rsp)
-}
-
-// ListModelVersionsWithResponse request returning *ListModelVersionsResponse
-func (c *ClientWithResponses) ListModelVersionsWithResponse(ctx context.Context, namespace string, name string, params *ListModelVersionsParams, reqEditors ...RequestEditorFn) (*ListModelVersionsResponse, error) {
-	rsp, err := c.ListModelVersions(ctx, namespace, name, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseListModelVersionsResponse(rsp)
-}
-
-// InitiateModelWithBodyWithResponse request with arbitrary body returning *InitiateModelResponse
-func (c *ClientWithResponses) InitiateModelWithBodyWithResponse(ctx context.Context, namespace string, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*InitiateModelResponse, error) {
-	rsp, err := c.InitiateModelWithBody(ctx, namespace, name, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseInitiateModelResponse(rsp)
-}
-
-func (c *ClientWithResponses) InitiateModelWithResponse(ctx context.Context, namespace string, name string, body InitiateModelJSONRequestBody, reqEditors ...RequestEditorFn) (*InitiateModelResponse, error) {
-	rsp, err := c.InitiateModel(ctx, namespace, name, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseInitiateModelResponse(rsp)
-}
-
-// DeleteModelWithResponse request returning *DeleteModelResponse
-func (c *ClientWithResponses) DeleteModelWithResponse(ctx context.Context, namespace string, name string, version string, reqEditors ...RequestEditorFn) (*DeleteModelResponse, error) {
-	rsp, err := c.DeleteModel(ctx, namespace, name, version, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseDeleteModelResponse(rsp)
-}
-
-// GetModelWithResponse request returning *GetModelResponse
-func (c *ClientWithResponses) GetModelWithResponse(ctx context.Context, namespace string, name string, version string, reqEditors ...RequestEditorFn) (*GetModelResponse, error) {
-	rsp, err := c.GetModel(ctx, namespace, name, version, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetModelResponse(rsp)
-}
-
-// UpdateModelWithBodyWithResponse request with arbitrary body returning *UpdateModelResponse
-func (c *ClientWithResponses) UpdateModelWithBodyWithResponse(ctx context.Context, namespace string, name string, version string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateModelResponse, error) {
-	rsp, err := c.UpdateModelWithBody(ctx, namespace, name, version, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpdateModelResponse(rsp)
-}
-
-func (c *ClientWithResponses) UpdateModelWithResponse(ctx context.Context, namespace string, name string, version string, body UpdateModelJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateModelResponse, error) {
-	rsp, err := c.UpdateModel(ctx, namespace, name, version, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpdateModelResponse(rsp)
-}
-
-// CompleteModelWithBodyWithResponse request with arbitrary body returning *CompleteModelResponse
-func (c *ClientWithResponses) CompleteModelWithBodyWithResponse(ctx context.Context, namespace string, name string, version string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CompleteModelResponse, error) {
-	rsp, err := c.CompleteModelWithBody(ctx, namespace, name, version, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCompleteModelResponse(rsp)
-}
-
-func (c *ClientWithResponses) CompleteModelWithResponse(ctx context.Context, namespace string, name string, version string, body CompleteModelJSONRequestBody, reqEditors ...RequestEditorFn) (*CompleteModelResponse, error) {
-	rsp, err := c.CompleteModel(ctx, namespace, name, version, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCompleteModelResponse(rsp)
-}
-
-// ResolveModelWithResponse request returning *ResolveModelResponse
-func (c *ClientWithResponses) ResolveModelWithResponse(ctx context.Context, namespace string, name string, version string, params *ResolveModelParams, reqEditors ...RequestEditorFn) (*ResolveModelResponse, error) {
-	rsp, err := c.ResolveModel(ctx, namespace, name, version, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseResolveModelResponse(rsp)
+	return ParseResolveArtifactResponse(rsp)
 }
 
 // HealthzWithResponse request returning *HealthzResponse
@@ -4022,15 +1768,15 @@ func ParseGetCapabilitiesResponse(rsp *http.Response) (*GetCapabilitiesResponse,
 	return response, nil
 }
 
-// ParseListDatasetsResponse parses an HTTP response from a ListDatasetsWithResponse call
-func ParseListDatasetsResponse(rsp *http.Response) (*ListDatasetsResponse, error) {
+// ParseListArtifactsResponse parses an HTTP response from a ListArtifactsWithResponse call
+func ParseListArtifactsResponse(rsp *http.Response) (*ListArtifactsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &ListDatasetsResponse{
+	response := &ListArtifactsResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -4111,15 +1857,15 @@ func ParseListDatasetsResponse(rsp *http.Response) (*ListDatasetsResponse, error
 	return response, nil
 }
 
-// ParseListDatasetVersionsResponse parses an HTTP response from a ListDatasetVersionsWithResponse call
-func ParseListDatasetVersionsResponse(rsp *http.Response) (*ListDatasetVersionsResponse, error) {
+// ParseListArtifactVersionsResponse parses an HTTP response from a ListArtifactVersionsWithResponse call
+func ParseListArtifactVersionsResponse(rsp *http.Response) (*ListArtifactVersionsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &ListDatasetVersionsResponse{
+	response := &ListArtifactVersionsResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -4200,15 +1946,15 @@ func ParseListDatasetVersionsResponse(rsp *http.Response) (*ListDatasetVersionsR
 	return response, nil
 }
 
-// ParseInitiateDatasetResponse parses an HTTP response from a InitiateDatasetWithResponse call
-func ParseInitiateDatasetResponse(rsp *http.Response) (*InitiateDatasetResponse, error) {
+// ParseInitiateArtifactResponse parses an HTTP response from a InitiateArtifactWithResponse call
+func ParseInitiateArtifactResponse(rsp *http.Response) (*InitiateArtifactResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &InitiateDatasetResponse{
+	response := &InitiateArtifactResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -4289,15 +2035,15 @@ func ParseInitiateDatasetResponse(rsp *http.Response) (*InitiateDatasetResponse,
 	return response, nil
 }
 
-// ParseDeleteDatasetResponse parses an HTTP response from a DeleteDatasetWithResponse call
-func ParseDeleteDatasetResponse(rsp *http.Response) (*DeleteDatasetResponse, error) {
+// ParseDeleteArtifactResponse parses an HTTP response from a DeleteArtifactWithResponse call
+func ParseDeleteArtifactResponse(rsp *http.Response) (*DeleteArtifactResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &DeleteDatasetResponse{
+	response := &DeleteArtifactResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -4378,15 +2124,15 @@ func ParseDeleteDatasetResponse(rsp *http.Response) (*DeleteDatasetResponse, err
 	return response, nil
 }
 
-// ParseGetDatasetResponse parses an HTTP response from a GetDatasetWithResponse call
-func ParseGetDatasetResponse(rsp *http.Response) (*GetDatasetResponse, error) {
+// ParseGetArtifactResponse parses an HTTP response from a GetArtifactWithResponse call
+func ParseGetArtifactResponse(rsp *http.Response) (*GetArtifactResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &GetDatasetResponse{
+	response := &GetArtifactResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -4467,15 +2213,15 @@ func ParseGetDatasetResponse(rsp *http.Response) (*GetDatasetResponse, error) {
 	return response, nil
 }
 
-// ParseUpdateDatasetResponse parses an HTTP response from a UpdateDatasetWithResponse call
-func ParseUpdateDatasetResponse(rsp *http.Response) (*UpdateDatasetResponse, error) {
+// ParseUpdateArtifactResponse parses an HTTP response from a UpdateArtifactWithResponse call
+func ParseUpdateArtifactResponse(rsp *http.Response) (*UpdateArtifactResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &UpdateDatasetResponse{
+	response := &UpdateArtifactResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -4556,15 +2302,15 @@ func ParseUpdateDatasetResponse(rsp *http.Response) (*UpdateDatasetResponse, err
 	return response, nil
 }
 
-// ParseCompleteDatasetResponse parses an HTTP response from a CompleteDatasetWithResponse call
-func ParseCompleteDatasetResponse(rsp *http.Response) (*CompleteDatasetResponse, error) {
+// ParseCompleteArtifactResponse parses an HTTP response from a CompleteArtifactWithResponse call
+func ParseCompleteArtifactResponse(rsp *http.Response) (*CompleteArtifactResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &CompleteDatasetResponse{
+	response := &CompleteArtifactResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -4645,1439 +2391,15 @@ func ParseCompleteDatasetResponse(rsp *http.Response) (*CompleteDatasetResponse,
 	return response, nil
 }
 
-// ParseResolveDatasetResponse parses an HTTP response from a ResolveDatasetWithResponse call
-func ParseResolveDatasetResponse(rsp *http.Response) (*ResolveDatasetResponse, error) {
+// ParseResolveArtifactResponse parses an HTTP response from a ResolveArtifactWithResponse call
+func ParseResolveArtifactResponse(rsp *http.Response) (*ResolveArtifactResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &ResolveDatasetResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ArtifactResolveResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON410 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON412 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON503 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseListImagesResponse parses an HTTP response from a ListImagesWithResponse call
-func ParseListImagesResponse(rsp *http.Response) (*ListImagesResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ListImagesResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ArtifactList
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON410 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON412 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON503 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseListImageVersionsResponse parses an HTTP response from a ListImageVersionsWithResponse call
-func ParseListImageVersionsResponse(rsp *http.Response) (*ListImageVersionsResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ListImageVersionsResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ArtifactList
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON410 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON412 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON503 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseInitiateImageResponse parses an HTTP response from a InitiateImageWithResponse call
-func ParseInitiateImageResponse(rsp *http.Response) (*InitiateImageResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &InitiateImageResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest ArtifactInitiateResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON201 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON410 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON412 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON503 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseDeleteImageResponse parses an HTTP response from a DeleteImageWithResponse call
-func ParseDeleteImageResponse(rsp *http.Response) (*DeleteImageResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &DeleteImageResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Artifact
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON410 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON412 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON503 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetImageResponse parses an HTTP response from a GetImageWithResponse call
-func ParseGetImageResponse(rsp *http.Response) (*GetImageResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetImageResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Artifact
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON410 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON412 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON503 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseUpdateImageResponse parses an HTTP response from a UpdateImageWithResponse call
-func ParseUpdateImageResponse(rsp *http.Response) (*UpdateImageResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &UpdateImageResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Artifact
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON410 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON412 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON503 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseCompleteImageResponse parses an HTTP response from a CompleteImageWithResponse call
-func ParseCompleteImageResponse(rsp *http.Response) (*CompleteImageResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &CompleteImageResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Artifact
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON410 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON412 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON503 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseResolveImageResponse parses an HTTP response from a ResolveImageWithResponse call
-func ParseResolveImageResponse(rsp *http.Response) (*ResolveImageResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ResolveImageResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ArtifactResolveResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON410 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON412 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON503 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseListModelsResponse parses an HTTP response from a ListModelsWithResponse call
-func ParseListModelsResponse(rsp *http.Response) (*ListModelsResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ListModelsResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ArtifactList
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON410 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON412 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON503 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseListModelVersionsResponse parses an HTTP response from a ListModelVersionsWithResponse call
-func ParseListModelVersionsResponse(rsp *http.Response) (*ListModelVersionsResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ListModelVersionsResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ArtifactList
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON410 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON412 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON503 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseInitiateModelResponse parses an HTTP response from a InitiateModelWithResponse call
-func ParseInitiateModelResponse(rsp *http.Response) (*InitiateModelResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &InitiateModelResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest ArtifactInitiateResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON201 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON410 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON412 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON503 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseDeleteModelResponse parses an HTTP response from a DeleteModelWithResponse call
-func ParseDeleteModelResponse(rsp *http.Response) (*DeleteModelResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &DeleteModelResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Artifact
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON410 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON412 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON503 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetModelResponse parses an HTTP response from a GetModelWithResponse call
-func ParseGetModelResponse(rsp *http.Response) (*GetModelResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetModelResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Artifact
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON410 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON412 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON503 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseUpdateModelResponse parses an HTTP response from a UpdateModelWithResponse call
-func ParseUpdateModelResponse(rsp *http.Response) (*UpdateModelResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &UpdateModelResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Artifact
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON410 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON412 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON503 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseCompleteModelResponse parses an HTTP response from a CompleteModelWithResponse call
-func ParseCompleteModelResponse(rsp *http.Response) (*CompleteModelResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &CompleteModelResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Artifact
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON410 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON412 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON503 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest ArtifactHubError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseResolveModelResponse parses an HTTP response from a ResolveModelWithResponse call
-func ParseResolveModelResponse(rsp *http.Response) (*ResolveModelResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ResolveModelResponse{
+	response := &ResolveArtifactResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}

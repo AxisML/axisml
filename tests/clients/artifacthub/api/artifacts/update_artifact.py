@@ -5,48 +5,43 @@ from urllib.parse import quote
 import httpx
 
 from ...client import AuthenticatedClient, Client
+from ...models.artifact import Artifact
 from ...models.artifact_hub_error import ArtifactHubError
-from ...models.artifact_list import ArtifactList
-from ...types import UNSET, Response, Unset
+from ...models.artifact_patch_request import ArtifactPatchRequest
+from ...types import Response
 
 
 def _get_kwargs(
     namespace: str,
+    name: str,
+    version: str,
     *,
-    limit: int | Unset = UNSET,
-    continue_: str | Unset = UNSET,
-    status: str | Unset = UNSET,
-    label_selector: str | Unset = UNSET,
+    body: ArtifactPatchRequest,
 ) -> dict[str, Any]:
-
-    params: dict[str, Any] = {}
-
-    params["limit"] = limit
-
-    params["continue"] = continue_
-
-    params["status"] = status
-
-    params["labelSelector"] = label_selector
-
-    params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
+    headers: dict[str, Any] = {}
 
     _kwargs: dict[str, Any] = {
-        "method": "get",
-        "url": "/api/v1/namespaces/{namespace}/images".format(
+        "method": "patch",
+        "url": "/api/v1/namespaces/{namespace}/artifacts/{name}/{version}".format(
             namespace=quote(str(namespace), safe=""),
+            name=quote(str(name), safe=""),
+            version=quote(str(version), safe=""),
         ),
-        "params": params,
     }
 
+    _kwargs["json"] = body.to_dict()
+
+    headers["Content-Type"] = "application/json"
+
+    _kwargs["headers"] = headers
     return _kwargs
 
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> ArtifactHubError | ArtifactList:
+) -> Artifact | ArtifactHubError:
     if response.status_code == 200:
-        response_200 = ArtifactList.from_dict(response.json())
+        response_200 = Artifact.from_dict(response.json())
 
         return response_200
 
@@ -97,7 +92,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[ArtifactHubError | ArtifactList]:
+) -> Response[Artifact | ArtifactHubError]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -108,36 +103,35 @@ def _build_response(
 
 def sync_detailed(
     namespace: str,
+    name: str,
+    version: str,
     *,
     client: AuthenticatedClient | Client,
-    limit: int | Unset = UNSET,
-    continue_: str | Unset = UNSET,
-    status: str | Unset = UNSET,
-    label_selector: str | Unset = UNSET,
-) -> Response[ArtifactHubError | ArtifactList]:
-    """List every image (across all names) in a namespace
+    body: ArtifactPatchRequest,
+) -> Response[Artifact | ArtifactHubError]:
+    """Patch an artifact's display_name / description / labels / annotations
 
     Args:
         namespace (str):
-        limit (int | Unset):
-        continue_ (str | Unset):
-        status (str | Unset):
-        label_selector (str | Unset):
+        name (str):
+        version (str):
+        body (ArtifactPatchRequest):  Example: {'annotations': {'reviewed-by': 'zhang.san'},
+            'description': 'Updated description.', 'displayName': 'ResNet-50 (production)', 'labels':
+            {'stage': 'production', 'team': 'vision'}}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ArtifactHubError | ArtifactList]
+        Response[Artifact | ArtifactHubError]
     """
 
     kwargs = _get_kwargs(
         namespace=namespace,
-        limit=limit,
-        continue_=continue_,
-        status=status,
-        label_selector=label_selector,
+        name=name,
+        version=version,
+        body=body,
     )
 
     response = client.get_httpx_client().request(
@@ -149,72 +143,70 @@ def sync_detailed(
 
 def sync(
     namespace: str,
+    name: str,
+    version: str,
     *,
     client: AuthenticatedClient | Client,
-    limit: int | Unset = UNSET,
-    continue_: str | Unset = UNSET,
-    status: str | Unset = UNSET,
-    label_selector: str | Unset = UNSET,
-) -> ArtifactHubError | ArtifactList | None:
-    """List every image (across all names) in a namespace
+    body: ArtifactPatchRequest,
+) -> Artifact | ArtifactHubError | None:
+    """Patch an artifact's display_name / description / labels / annotations
 
     Args:
         namespace (str):
-        limit (int | Unset):
-        continue_ (str | Unset):
-        status (str | Unset):
-        label_selector (str | Unset):
+        name (str):
+        version (str):
+        body (ArtifactPatchRequest):  Example: {'annotations': {'reviewed-by': 'zhang.san'},
+            'description': 'Updated description.', 'displayName': 'ResNet-50 (production)', 'labels':
+            {'stage': 'production', 'team': 'vision'}}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ArtifactHubError | ArtifactList
+        Artifact | ArtifactHubError
     """
 
     return sync_detailed(
         namespace=namespace,
+        name=name,
+        version=version,
         client=client,
-        limit=limit,
-        continue_=continue_,
-        status=status,
-        label_selector=label_selector,
+        body=body,
     ).parsed
 
 
 async def asyncio_detailed(
     namespace: str,
+    name: str,
+    version: str,
     *,
     client: AuthenticatedClient | Client,
-    limit: int | Unset = UNSET,
-    continue_: str | Unset = UNSET,
-    status: str | Unset = UNSET,
-    label_selector: str | Unset = UNSET,
-) -> Response[ArtifactHubError | ArtifactList]:
-    """List every image (across all names) in a namespace
+    body: ArtifactPatchRequest,
+) -> Response[Artifact | ArtifactHubError]:
+    """Patch an artifact's display_name / description / labels / annotations
 
     Args:
         namespace (str):
-        limit (int | Unset):
-        continue_ (str | Unset):
-        status (str | Unset):
-        label_selector (str | Unset):
+        name (str):
+        version (str):
+        body (ArtifactPatchRequest):  Example: {'annotations': {'reviewed-by': 'zhang.san'},
+            'description': 'Updated description.', 'displayName': 'ResNet-50 (production)', 'labels':
+            {'stage': 'production', 'team': 'vision'}}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ArtifactHubError | ArtifactList]
+        Response[Artifact | ArtifactHubError]
     """
 
     kwargs = _get_kwargs(
         namespace=namespace,
-        limit=limit,
-        continue_=continue_,
-        status=status,
-        label_selector=label_selector,
+        name=name,
+        version=version,
+        body=body,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -224,37 +216,36 @@ async def asyncio_detailed(
 
 async def asyncio(
     namespace: str,
+    name: str,
+    version: str,
     *,
     client: AuthenticatedClient | Client,
-    limit: int | Unset = UNSET,
-    continue_: str | Unset = UNSET,
-    status: str | Unset = UNSET,
-    label_selector: str | Unset = UNSET,
-) -> ArtifactHubError | ArtifactList | None:
-    """List every image (across all names) in a namespace
+    body: ArtifactPatchRequest,
+) -> Artifact | ArtifactHubError | None:
+    """Patch an artifact's display_name / description / labels / annotations
 
     Args:
         namespace (str):
-        limit (int | Unset):
-        continue_ (str | Unset):
-        status (str | Unset):
-        label_selector (str | Unset):
+        name (str):
+        version (str):
+        body (ArtifactPatchRequest):  Example: {'annotations': {'reviewed-by': 'zhang.san'},
+            'description': 'Updated description.', 'displayName': 'ResNet-50 (production)', 'labels':
+            {'stage': 'production', 'team': 'vision'}}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ArtifactHubError | ArtifactList
+        Artifact | ArtifactHubError
     """
 
     return (
         await asyncio_detailed(
             namespace=namespace,
+            name=name,
+            version=version,
             client=client,
-            limit=limit,
-            continue_=continue_,
-            status=status,
-            label_selector=label_selector,
+            body=body,
         )
     ).parsed

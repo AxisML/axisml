@@ -21,7 +21,7 @@
 
 ### 1.2 软删与 UNIQUE 约束
 
-唯一键统一为 PG **partial unique index** `WHERE deleted_at IS NULL`（软删行不占唯一键，同名可再创建）；`id` 永久唯一不复用，作跨服务持久引用键。**例外**：`artifacts` 的 `(namespace, kind, name, version)` 一旦创建即不复用、删除也不释放，以保证跨组件持久引用。
+唯一键统一为 PG **partial unique index** `WHERE deleted_at IS NULL`（软删行不占唯一键，同名可再创建）；`id` 永久唯一不复用，作跨服务持久引用键。**例外**：`artifacts` 的 `(namespace, name, version)` 一旦创建即不复用、删除也不释放，以保证跨组件持久引用（`kind` 不参与寻址键，`name` 在 namespace 内跨 kind 唯一）。
 
 ### 1.3 命名校验
 
@@ -163,7 +163,7 @@ CREATE TABLE artifacts (
   updated_at   timestamptz NOT NULL DEFAULT now(),
   deleted_at   timestamptz
 );
-CREATE UNIQUE INDEX uq_artifacts_coord         ON artifacts (namespace, kind, name, version);
+CREATE UNIQUE INDEX uq_artifacts_coord         ON artifacts (namespace, name, version);
 CREATE INDEX idx_artifacts_namespace_kind      ON artifacts (namespace, kind) WHERE deleted_at IS NULL;
 CREATE INDEX idx_artifacts_visibility_public   ON artifacts (kind, name, version) WHERE visibility = 'public' AND status = 'Ready';
 CREATE INDEX artifacts_labels_gin              ON artifacts USING GIN (labels jsonb_path_ops);
@@ -171,4 +171,4 @@ CREATE INDEX idx_artifacts_workset             ON artifacts (status, deleted_at)
 CREATE INDEX idx_artifacts_uploading_ttl       ON artifacts (created_at) WHERE status = 'Uploading';
 ```
 
-`(namespace, kind, name, version)` 是 §1 软删唯一性的例外（一旦创建即不复用、软删也不释放，故 unique index **不带** `WHERE deleted_at IS NULL`）。`spec` / `digest` Ready 后冻结，"改"= 同 `(namespace, kind, name)` 下新建 `version`；`display_name` / `description` / `labels` / `annotations` 任何阶段可改，`visibility` 创建后不可变。存储地址不入表：`storage_kind` 是 `kind` 的纯函数，`uri` 由 `Handler.BuildStorageURI` 即时构造，新增 Kind 无需 schema 迁移。
+`(namespace, name, version)` 是 §1 软删唯一性的例外（一旦创建即不复用、软删也不释放，故 unique index **不带** `WHERE deleted_at IS NULL`）——`kind` 不参与寻址键，故 `name` 在 namespace 内跨 kind 唯一。`kind` 经 initiate body 提供、创建后冻结；`spec` / `digest` Ready 后冻结，"改"= 同 `(namespace, name)` 下新建 `version`；`display_name` / `description` / `labels` / `annotations` 任何阶段可改，`visibility` 创建后不可变。存储地址不入表：`storage_kind` 是 `kind` 的纯函数，`uri` 由 `Handler.BuildStorageURI`（上传）/ `BuildPullURI`（resolve，OCI 锚 digest）即时构造，新增 Kind 无需 schema 迁移。`idx_artifacts_namespace_kind` 等 kind 二级索引保留以支撑列表端点的 `?kind=` 过滤。

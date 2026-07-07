@@ -7,7 +7,6 @@ import httpx
 from ...client import AuthenticatedClient, Client
 from ...models.artifact import Artifact
 from ...models.artifact_hub_error import ArtifactHubError
-from ...models.artifact_patch_request import ArtifactPatchRequest
 from ...types import Response
 
 
@@ -15,25 +14,17 @@ def _get_kwargs(
     namespace: str,
     name: str,
     version: str,
-    *,
-    body: ArtifactPatchRequest,
 ) -> dict[str, Any]:
-    headers: dict[str, Any] = {}
 
     _kwargs: dict[str, Any] = {
-        "method": "patch",
-        "url": "/api/v1/namespaces/{namespace}/datasets/{name}/{version}".format(
+        "method": "delete",
+        "url": "/api/v1/namespaces/{namespace}/artifacts/{name}/{version}".format(
             namespace=quote(str(namespace), safe=""),
             name=quote(str(name), safe=""),
             version=quote(str(version), safe=""),
         ),
     }
 
-    _kwargs["json"] = body.to_dict()
-
-    headers["Content-Type"] = "application/json"
-
-    _kwargs["headers"] = headers
     return _kwargs
 
 
@@ -107,17 +98,13 @@ def sync_detailed(
     version: str,
     *,
     client: AuthenticatedClient | Client,
-    body: ArtifactPatchRequest,
 ) -> Response[Artifact | ArtifactHubError]:
-    """Patch a dataset's display_name / description / labels / annotations
+    """Delete an artifact version
 
     Args:
         namespace (str):
         name (str):
         version (str):
-        body (ArtifactPatchRequest):  Example: {'annotations': {'reviewed-by': 'zhang.san'},
-            'description': 'Updated description.', 'displayName': 'ResNet-50 (production)', 'labels':
-            {'stage': 'production', 'team': 'vision'}}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -131,7 +118,6 @@ def sync_detailed(
         namespace=namespace,
         name=name,
         version=version,
-        body=body,
     )
 
     response = client.get_httpx_client().request(
@@ -147,17 +133,13 @@ def sync(
     version: str,
     *,
     client: AuthenticatedClient | Client,
-    body: ArtifactPatchRequest,
 ) -> Artifact | ArtifactHubError | None:
-    """Patch a dataset's display_name / description / labels / annotations
+    """Delete an artifact version
 
     Args:
         namespace (str):
         name (str):
         version (str):
-        body (ArtifactPatchRequest):  Example: {'annotations': {'reviewed-by': 'zhang.san'},
-            'description': 'Updated description.', 'displayName': 'ResNet-50 (production)', 'labels':
-            {'stage': 'production', 'team': 'vision'}}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -172,7 +154,6 @@ def sync(
         name=name,
         version=version,
         client=client,
-        body=body,
     ).parsed
 
 
@@ -182,17 +163,13 @@ async def asyncio_detailed(
     version: str,
     *,
     client: AuthenticatedClient | Client,
-    body: ArtifactPatchRequest,
 ) -> Response[Artifact | ArtifactHubError]:
-    """Patch a dataset's display_name / description / labels / annotations
+    """Delete an artifact version
 
     Args:
         namespace (str):
         name (str):
         version (str):
-        body (ArtifactPatchRequest):  Example: {'annotations': {'reviewed-by': 'zhang.san'},
-            'description': 'Updated description.', 'displayName': 'ResNet-50 (production)', 'labels':
-            {'stage': 'production', 'team': 'vision'}}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -206,7 +183,6 @@ async def asyncio_detailed(
         namespace=namespace,
         name=name,
         version=version,
-        body=body,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -220,17 +196,13 @@ async def asyncio(
     version: str,
     *,
     client: AuthenticatedClient | Client,
-    body: ArtifactPatchRequest,
 ) -> Artifact | ArtifactHubError | None:
-    """Patch a dataset's display_name / description / labels / annotations
+    """Delete an artifact version
 
     Args:
         namespace (str):
         name (str):
         version (str):
-        body (ArtifactPatchRequest):  Example: {'annotations': {'reviewed-by': 'zhang.san'},
-            'description': 'Updated description.', 'displayName': 'ResNet-50 (production)', 'labels':
-            {'stage': 'production', 'team': 'vision'}}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -246,6 +218,5 @@ async def asyncio(
             name=name,
             version=version,
             client=client,
-            body=body,
         )
     ).parsed

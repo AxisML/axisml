@@ -19,4 +19,15 @@ data:
     oci:
       endpoint: {{ .Values.artifactHub.storage.oci.endpoint }}
       admin_user: {{ .Values.artifactHub.storage.oci.adminSecretRef.username | default "admin" }}
+    s3:
+      # Empty endpoint disables dataset digest verification. access_key is the
+      # non-secret identifier and is always supplied inline (like oci.admin_user);
+      # only secret_key comes from a Secret via env when the endpoint is set.
+      endpoint: {{ .Values.artifactHub.storage.s3.endpoint | quote }}
+      {{- if .Values.artifactHub.storage.s3.endpoint }}
+      access_key: {{ required "artifactHub.storage.s3.credentialsSecretRef.accessKey is required when s3.endpoint is set" .Values.artifactHub.storage.s3.credentialsSecretRef.accessKey | quote }}
+      {{- else }}
+      access_key: ""
+      {{- end }}
+      bucket: {{ .Values.artifactHub.storage.s3.bucket | default "axisml-artifact-hub" }}
 {{- end }}

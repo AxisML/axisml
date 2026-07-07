@@ -53,6 +53,13 @@ spec:
                 secretKeyRef:
                   name: {{ default (printf "%s-artifact-hub-zot" (include "axisml.fullname" .)) .Values.artifactHub.storage.oci.adminSecretRef.name }}
                   key: {{ .Values.artifactHub.storage.oci.adminSecretRef.passwordKey }}
+            {{- if .Values.artifactHub.storage.s3.endpoint }}
+            - name: AXISML_S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default (printf "%s-artifact-hub-s3" (include "axisml.fullname" .)) .Values.artifactHub.storage.s3.credentialsSecretRef.name }}
+                  key: {{ .Values.artifactHub.storage.s3.credentialsSecretRef.secretKeyKey }}
+            {{- end }}
             {{- range $key, $value := .Values.artifactHub.env }}
             - name: {{ $key }}
               value: {{ $value | quote }}

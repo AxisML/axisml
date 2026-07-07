@@ -29,6 +29,8 @@ class ArtifactInitiateRequest:
             classification'}, 'version': '1.4.0', 'visibility': 'tenant'}
 
     Attributes:
+        kind (str): Artifact kind (model, dataset, image); selects the storage backend and spec schema, immutable once
+            created.
         spec (ArtifactInitiateRequestSpec): Kind-specific free-form specification of the artifact.
         version (str): Version string to create for the artifact name.
         annotations (ArtifactInitiateRequestAnnotations | Unset): Non-identifying metadata annotations.
@@ -41,6 +43,7 @@ class ArtifactInitiateRequest:
         visibility (str | Unset): Access scope of the artifact (tenant or public); defaults to tenant.
     """
 
+    kind: str
     spec: ArtifactInitiateRequestSpec
     version: str
     annotations: ArtifactInitiateRequestAnnotations | Unset = UNSET
@@ -53,6 +56,8 @@ class ArtifactInitiateRequest:
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
+        kind = self.kind
+
         spec = self.spec.to_dict()
 
         version = self.version
@@ -79,6 +84,7 @@ class ArtifactInitiateRequest:
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
+                "kind": kind,
                 "spec": spec,
                 "version": version,
             }
@@ -111,6 +117,8 @@ class ArtifactInitiateRequest:
         from ..models.artifact_initiate_request_spec import ArtifactInitiateRequestSpec
 
         d = dict(src_dict)
+        kind = d.pop("kind")
+
         spec = ArtifactInitiateRequestSpec.from_dict(d.pop("spec"))
 
         version = d.pop("version")
@@ -140,6 +148,7 @@ class ArtifactInitiateRequest:
         visibility = d.pop("visibility", UNSET)
 
         artifact_initiate_request = cls(
+            kind=kind,
             spec=spec,
             version=version,
             annotations=annotations,

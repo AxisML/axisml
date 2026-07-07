@@ -26,11 +26,16 @@ import (
 	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/gc"
 	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/server"
 	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/storage/oci"
+	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/storage/s3"
 )
 
 // DefaultDatasetBucket is the conventional object-storage bucket for datasets
 // (infra.md) used when Config.DatasetBucket is empty.
 const DefaultDatasetBucket = "axisml-artifact-hub"
+
+// s3BucketBootstrapTimeout bounds the startup bucket-ensure call so a slow or
+// unreachable object store fails fast rather than hanging New.
+const s3BucketBootstrapTimeout = 10 * time.Second
 
 // Route wires its endpoints into an /api/v1 router group.
 type Route interface {
@@ -54,6 +59,13 @@ type Config struct {
 	// DatasetBucket is the object-storage bucket for datasets; defaults to
 	// DefaultDatasetBucket when empty.
 	DatasetBucket string
+	// S3/RustFS object store — dataset artifacts. When S3Endpoint is empty the
+	// dataset handler records the client digest unverified (single-host dev
+	// form with no object store); when set, complete verifies the digest
+	// against the stored artifact-manifest.json.
+	S3Endpoint  string
+	S3AccessKey string
+	S3SecretKey string
 	// Lifecycle.
 	GCInterval     time.Duration
 	UploadingTTL   time.Duration
@@ -98,7 +110,30 @@ func New(d Deps) (*Module, error) {
 	if bucket == "" {
 		bucket = DefaultDatasetBucket
 	}
-	registerHandlers(ociClient, bucket)
+
+	// S3 client for datasets is optional: only built when an endpoint is
+	// configured (Standard/real RustFS). Without it the dataset handler skips
+	// live digest verification.
+	var s3Client *s3.Client
+	if d.Config.S3Endpoint != "" {
+		c, err := s3.New(s3.Config{
+			Endpoint:  d.Config.S3Endpoint,
+			AccessKey: d.Config.S3AccessKey,
+			SecretKey: d.Config.S3SecretKey,
+			Bucket:    bucket,
+		})
+		if err != nil {
+			return nil, err
+		}
+		bootstrapCtx, cancel := context.WithTimeout(context.Background(), s3BucketBootstrapTimeout)
+		err = c.EnsureBucket(bootstrapCtx)
+		cancel()
+		if err != nil {
+			return nil, err
+		}
+		s3Client = c
+	}
+	registerHandlers(ociClient, s3Client, bucket)
 
 	artifacts := artmod.NewService(d.Config.UploadTokenTTL, d.DB)
 	worker := gc.New(d.Config.GCInterval, d.Config.UploadingTTL, d.DB, d.Log.WithName("gc-worker"))
@@ -129,13 +164,13 @@ func Migrate(gormDB *gorm.DB) error { return db.Migrate(gormDB) }
 
 // registerHandlers wires the Kind handlers into the process-global registry.
 // Idempotent on a fresh process; re-invocation (tests) checks the model entry
-// first. The MVP dataset handler issues prefix-scoped placeholder credentials
-// without a live STS integration.
-func registerHandlers(client *oci.Client, datasetBucket string) {
+// first. s3Client may be nil, in which case the dataset handler records the
+// client digest unverified (no object store configured).
+func registerHandlers(client *oci.Client, s3Client *s3.Client, datasetBucket string) {
 	if _, ok := handler.Get("model"); ok {
 		return // already registered (test re-runs)
 	}
 	handler.Register(handler.NewModelHandler(client))
 	handler.Register(handler.NewImageHandler(client))
-	handler.Register(handler.NewDatasetHandler(datasetBucket, client.Endpoint()))
+	handler.Register(handler.NewDatasetHandler(datasetBucket, s3Client))
 }

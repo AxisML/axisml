@@ -26,9 +26,14 @@ func BuildModules(
 			OCIEndpoint:      cfg.OCI.Endpoint,
 			OCIAdminUser:     cfg.OCI.AdminUser,
 			OCIAdminPassword: cfg.OCI.AdminPassword,
-			GCInterval:       config.GCInterval,
-			UploadingTTL:     config.UploadingTTL,
-			UploadTokenTTL:   config.UploadTokenTTL,
+			// S3/RustFS — datasets. Empty endpoint disables live verification.
+			S3Endpoint:     cfg.S3.Endpoint,
+			S3AccessKey:    cfg.S3.AccessKey,
+			S3SecretKey:    cfg.S3.SecretKey,
+			DatasetBucket:  cfg.S3.Bucket,
+			GCInterval:     config.GCInterval,
+			UploadingTTL:   config.UploadingTTL,
+			UploadTokenTTL: config.UploadTokenTTL,
 		},
 	})
 	if err != nil {

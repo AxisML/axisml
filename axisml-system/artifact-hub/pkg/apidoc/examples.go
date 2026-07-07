@@ -26,8 +26,8 @@ func registerExamples(g *openapigen.Generator) {
 		"type":     "https://axisml.io/errors/not_found",
 		"title":    "artifact not found",
 		"status":   404,
-		"detail":   "model team-vision/resnet50@1.4.0 not found",
-		"instance": "/api/v1/namespaces/team-vision/models/resnet50/1.4.0",
+		"detail":   "artifact team-vision/resnet50@1.4.0 not found",
+		"instance": "/api/v1/namespaces/team-vision/artifacts/resnet50/1.4.0",
 		"code":     "not_found",
 	})
 

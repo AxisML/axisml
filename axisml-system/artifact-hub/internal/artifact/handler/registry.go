@@ -49,6 +49,12 @@ type Handler interface {
 	Kind() string
 	StorageKind() StorageKind
 	BuildStorageURI(namespace, name, version string) string
+	// BuildPullURI is the reference a consumer pulls from on resolve. For
+	// content-addressable backends (OCI) it pins to digest (<name>@<digest>)
+	// so consumers fetch immutable content rather than a re-pushable tag; an
+	// empty digest (not yet Ready) falls back to BuildStorageURI. Backends
+	// without content-addressable paths (S3) return BuildStorageURI unchanged.
+	BuildPullURI(namespace, name, version, digest string) string
 	ValidateSpec(ctx context.Context, spec Spec) error
 	InitiateUpload(ctx context.Context, a Artifact, ttl time.Duration) (Credentials, error)
 	IssuePullCredentials(ctx context.Context, a Artifact, ttl time.Duration) (Credentials, error)

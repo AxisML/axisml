@@ -2,11 +2,20 @@ package handler
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"time"
 
+	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/storage/s3"
 	apperrors "github.com/axisml/axisml/axisml-system/artifact-hub/pkg/errors"
 )
+
+// datasetManifestObject is the canonical object whose SHA256 is the dataset
+// digest (design §4.2). The client uploads it to the version prefix alongside
+// the payload; complete verifies the stored bytes hash to the claimed digest.
+const datasetManifestObject = "artifact-manifest.json"
 
 // validDatasetFormats is the closed set per design §4.2.
 var validDatasetFormats = map[string]struct{}{
@@ -20,25 +29,29 @@ var validDatasetFormats = map[string]struct{}{
 
 // DatasetHandler implements Handler for S3-backed (RustFS) dataset
 // artifacts. Datasets are directory-shaped: the digest is the SHA256 of
-// the canonical-JSON `artifact-manifest.json` the client uploads alongside
-// the dataset payload (design §4.2).
+// the `artifact-manifest.json` the client uploads alongside the dataset
+// payload (design §4.2).
+//
+// s3c is optional: when non-nil, complete verifies the claimed digest against
+// the stored manifest bytes and GC deletes the version prefix. When nil (the
+// single-host dev form ships without object storage), the handler records the
+// client-supplied digest unverified and GC is a no-op.
 //
 // The MVP DatasetHandler uses Credentials' bare-token fields to surface
 // the S3 prefix + an opaque session marker; a real STS / IAM integration
-// is a follow-up. ValidateSpec / BuildStorageURI / GCBackend match the
-// design contract today.
+// is a follow-up.
 type DatasetHandler struct {
-	bucket   string
-	endpoint string
+	bucket string
+	s3c    *s3.Client
 }
 
-// NewDatasetHandler builds the handler with a configured bucket and
-// public endpoint (used for the s3:// URI).
-func NewDatasetHandler(bucket, endpoint string) *DatasetHandler {
+// NewDatasetHandler builds the handler with a configured bucket and an optional
+// S3 client (nil disables live digest verification).
+func NewDatasetHandler(bucket string, s3c *s3.Client) *DatasetHandler {
 	if bucket == "" {
 		bucket = "axisml-artifact-hub"
 	}
-	return &DatasetHandler{bucket: bucket, endpoint: endpoint}
+	return &DatasetHandler{bucket: bucket, s3c: s3c}
 }
 
 func (h *DatasetHandler) Kind() string             { return "dataset" }
@@ -48,6 +61,13 @@ func (h *DatasetHandler) StorageKind() StorageKind { return StorageS3 }
 // s3://<bucket>/namespaces/<namespace>/datasets/<name>/<version>/.
 func (h *DatasetHandler) BuildStorageURI(namespace, name, version string) string {
 	return fmt.Sprintf("s3://%s/namespaces/%s/datasets/%s/%s/", h.bucket, namespace, name, version)
+}
+
+// BuildPullURI returns the version-scoped S3 prefix unchanged: RustFS has no
+// content-addressable path, so the prefix is already immutable per version and
+// the digest is returned alongside for client-side verification.
+func (h *DatasetHandler) BuildPullURI(namespace, name, version, _ string) string {
+	return h.BuildStorageURI(namespace, name, version)
 }
 
 func (h *DatasetHandler) ValidateSpec(_ context.Context, spec Spec) error {
@@ -82,20 +102,45 @@ func (h *DatasetHandler) IssuePullCredentials(_ context.Context, a Artifact, ttl
 	}, nil
 }
 
-// VerifyComplete accepts the cli's claimed digest verbatim (no live HEAD
-// against the S3 manifest yet). Real S3 verification — HEAD
-// <prefix>artifact-manifest.json — is a follow-up.
-func (h *DatasetHandler) VerifyComplete(_ context.Context, _ Artifact, claim CompleteClaim) (string, error) {
+// VerifyComplete verifies the claimed digest against the stored dataset
+// manifest. When an S3 backend is configured it GETs <prefix>artifact-manifest.json,
+// computes its SHA256, and rejects a mismatch (409) or a missing manifest (412);
+// without a backend it records the claimed digest unverified (dev form).
+func (h *DatasetHandler) VerifyComplete(ctx context.Context, a Artifact, claim CompleteClaim) (string, error) {
 	if claim.Digest == "" {
 		return "", apperrors.New(apperrors.CodeValidation, "complete: digest is required")
 	}
-	return claim.Digest, nil
+	if h.s3c == nil {
+		// No object store configured — trust the claim (dev form).
+		return claim.Digest, nil
+	}
+
+	key := h.prefix(a.Namespace, a.Name, a.Version) + datasetManifestObject
+	body, err := h.s3c.GetObject(ctx, key)
+	if err != nil {
+		if errors.Is(err, s3.ErrNotFound) {
+			return "", apperrors.Newf(apperrors.CodePrecondition,
+				"dataset manifest %s not found in object store", key)
+		}
+		return "", apperrors.Wrap(apperrors.CodeUnavailable, "get dataset manifest", err)
+	}
+
+	sum := sha256.Sum256(body)
+	digest := "sha256:" + hex.EncodeToString(sum[:])
+	if digest != claim.Digest {
+		return "", apperrors.Newf(apperrors.CodeConflict,
+			"digest mismatch: manifest hashes to %s, claim is %s", digest, claim.Digest)
+	}
+	return digest, nil
 }
 
-// GCBackend is a no-op in the MVP; a real implementation would issue a
-// DeletePrefix against RustFS. Keep idempotent semantics for the GC worker.
-func (h *DatasetHandler) GCBackend(_ context.Context, _ Artifact) error {
-	return nil
+// GCBackend deletes the dataset version prefix. No-op without an S3 backend;
+// NotFound is treated as success inside the client.
+func (h *DatasetHandler) GCBackend(ctx context.Context, a Artifact) error {
+	if h.s3c == nil {
+		return nil
+	}
+	return h.s3c.DeletePrefix(ctx, h.prefix(a.Namespace, a.Name, a.Version))
 }
 
 func (h *DatasetHandler) prefix(namespace, name, version string) string {

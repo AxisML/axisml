@@ -5,27 +5,25 @@ from urllib.parse import quote
 import httpx
 
 from ...client import AuthenticatedClient, Client
-from ...models.artifact import Artifact
-from ...models.artifact_complete_request import ArtifactCompleteRequest
 from ...models.artifact_hub_error import ArtifactHubError
+from ...models.artifact_initiate_request import ArtifactInitiateRequest
+from ...models.artifact_initiate_response import ArtifactInitiateResponse
 from ...types import Response
 
 
 def _get_kwargs(
     namespace: str,
     name: str,
-    version: str,
     *,
-    body: ArtifactCompleteRequest,
+    body: ArtifactInitiateRequest,
 ) -> dict[str, Any]:
     headers: dict[str, Any] = {}
 
     _kwargs: dict[str, Any] = {
         "method": "post",
-        "url": "/api/v1/namespaces/{namespace}/datasets/{name}/{version}/complete".format(
+        "url": "/api/v1/namespaces/{namespace}/artifacts/{name}".format(
             namespace=quote(str(namespace), safe=""),
             name=quote(str(name), safe=""),
-            version=quote(str(version), safe=""),
         ),
     }
 
@@ -39,11 +37,11 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Artifact | ArtifactHubError:
-    if response.status_code == 200:
-        response_200 = Artifact.from_dict(response.json())
+) -> ArtifactHubError | ArtifactInitiateResponse:
+    if response.status_code == 201:
+        response_201 = ArtifactInitiateResponse.from_dict(response.json())
 
-        return response_200
+        return response_201
 
     if response.status_code == 400:
         response_400 = ArtifactHubError.from_dict(response.json())
@@ -92,7 +90,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[Artifact | ArtifactHubError]:
+) -> Response[ArtifactHubError | ArtifactInitiateResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -104,32 +102,32 @@ def _build_response(
 def sync_detailed(
     namespace: str,
     name: str,
-    version: str,
     *,
     client: AuthenticatedClient | Client,
-    body: ArtifactCompleteRequest,
-) -> Response[Artifact | ArtifactHubError]:
-    """Complete dataset upload (two-phase write step 2)
+    body: ArtifactInitiateRequest,
+) -> Response[ArtifactHubError | ArtifactInitiateResponse]:
+    """Initiate an artifact version (two-phase write step 1)
 
     Args:
         namespace (str):
         name (str):
-        version (str):
-        body (ArtifactCompleteRequest):  Example: {'digest':
-            'sha256:9b2c1f4e22a74c0e9b1d7f3a2e5c9a108c1f4e222b7a4c0e9b1d7f3a2e5c9a10'}.
+        body (ArtifactInitiateRequest):  Example: {'annotations': {'git-commit': '8c1f4e2'},
+            'description': 'ResNet-50 image-classification model pretrained on ImageNet.',
+            'displayName': 'ResNet-50', 'labels': {'stage': 'production', 'team': 'vision'}, 'source':
+            'webUpload', 'spec': {'format': 'safetensors', 'framework': 'pytorch', 'parameters':
+            '25.6M', 'task': 'image-classification'}, 'version': '1.4.0', 'visibility': 'tenant'}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Artifact | ArtifactHubError]
+        Response[ArtifactHubError | ArtifactInitiateResponse]
     """
 
     kwargs = _get_kwargs(
         namespace=namespace,
         name=name,
-        version=version,
         body=body,
     )
 
@@ -143,32 +141,32 @@ def sync_detailed(
 def sync(
     namespace: str,
     name: str,
-    version: str,
     *,
     client: AuthenticatedClient | Client,
-    body: ArtifactCompleteRequest,
-) -> Artifact | ArtifactHubError | None:
-    """Complete dataset upload (two-phase write step 2)
+    body: ArtifactInitiateRequest,
+) -> ArtifactHubError | ArtifactInitiateResponse | None:
+    """Initiate an artifact version (two-phase write step 1)
 
     Args:
         namespace (str):
         name (str):
-        version (str):
-        body (ArtifactCompleteRequest):  Example: {'digest':
-            'sha256:9b2c1f4e22a74c0e9b1d7f3a2e5c9a108c1f4e222b7a4c0e9b1d7f3a2e5c9a10'}.
+        body (ArtifactInitiateRequest):  Example: {'annotations': {'git-commit': '8c1f4e2'},
+            'description': 'ResNet-50 image-classification model pretrained on ImageNet.',
+            'displayName': 'ResNet-50', 'labels': {'stage': 'production', 'team': 'vision'}, 'source':
+            'webUpload', 'spec': {'format': 'safetensors', 'framework': 'pytorch', 'parameters':
+            '25.6M', 'task': 'image-classification'}, 'version': '1.4.0', 'visibility': 'tenant'}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Artifact | ArtifactHubError
+        ArtifactHubError | ArtifactInitiateResponse
     """
 
     return sync_detailed(
         namespace=namespace,
         name=name,
-        version=version,
         client=client,
         body=body,
     ).parsed
@@ -177,32 +175,32 @@ def sync(
 async def asyncio_detailed(
     namespace: str,
     name: str,
-    version: str,
     *,
     client: AuthenticatedClient | Client,
-    body: ArtifactCompleteRequest,
-) -> Response[Artifact | ArtifactHubError]:
-    """Complete dataset upload (two-phase write step 2)
+    body: ArtifactInitiateRequest,
+) -> Response[ArtifactHubError | ArtifactInitiateResponse]:
+    """Initiate an artifact version (two-phase write step 1)
 
     Args:
         namespace (str):
         name (str):
-        version (str):
-        body (ArtifactCompleteRequest):  Example: {'digest':
-            'sha256:9b2c1f4e22a74c0e9b1d7f3a2e5c9a108c1f4e222b7a4c0e9b1d7f3a2e5c9a10'}.
+        body (ArtifactInitiateRequest):  Example: {'annotations': {'git-commit': '8c1f4e2'},
+            'description': 'ResNet-50 image-classification model pretrained on ImageNet.',
+            'displayName': 'ResNet-50', 'labels': {'stage': 'production', 'team': 'vision'}, 'source':
+            'webUpload', 'spec': {'format': 'safetensors', 'framework': 'pytorch', 'parameters':
+            '25.6M', 'task': 'image-classification'}, 'version': '1.4.0', 'visibility': 'tenant'}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Artifact | ArtifactHubError]
+        Response[ArtifactHubError | ArtifactInitiateResponse]
     """
 
     kwargs = _get_kwargs(
         namespace=namespace,
         name=name,
-        version=version,
         body=body,
     )
 
@@ -214,33 +212,33 @@ async def asyncio_detailed(
 async def asyncio(
     namespace: str,
     name: str,
-    version: str,
     *,
     client: AuthenticatedClient | Client,
-    body: ArtifactCompleteRequest,
-) -> Artifact | ArtifactHubError | None:
-    """Complete dataset upload (two-phase write step 2)
+    body: ArtifactInitiateRequest,
+) -> ArtifactHubError | ArtifactInitiateResponse | None:
+    """Initiate an artifact version (two-phase write step 1)
 
     Args:
         namespace (str):
         name (str):
-        version (str):
-        body (ArtifactCompleteRequest):  Example: {'digest':
-            'sha256:9b2c1f4e22a74c0e9b1d7f3a2e5c9a108c1f4e222b7a4c0e9b1d7f3a2e5c9a10'}.
+        body (ArtifactInitiateRequest):  Example: {'annotations': {'git-commit': '8c1f4e2'},
+            'description': 'ResNet-50 image-classification model pretrained on ImageNet.',
+            'displayName': 'ResNet-50', 'labels': {'stage': 'production', 'team': 'vision'}, 'source':
+            'webUpload', 'spec': {'format': 'safetensors', 'framework': 'pytorch', 'parameters':
+            '25.6M', 'task': 'image-classification'}, 'version': '1.4.0', 'visibility': 'tenant'}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Artifact | ArtifactHubError
+        ArtifactHubError | ArtifactInitiateResponse
     """
 
     return (
         await asyncio_detailed(
             namespace=namespace,
             name=name,
-            version=version,
             client=client,
             body=body,
         )

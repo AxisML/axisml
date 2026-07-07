@@ -10,9 +10,10 @@ import (
 	"gorm.io/datatypes"
 )
 
-// Artifact is the GORM-backed `artifacts` row. Keyed on
-// (namespace, kind, name, version); namespace is a bare string with no
-// existence check, kind matches a registered ArtifactHandler.
+// Artifact is the GORM-backed `artifacts` row. Addressed by
+// (namespace, name, version); namespace is a bare string with no existence
+// check, and kind is an immutable attribute matching a registered
+// ArtifactHandler (no longer part of the addressing coordinate).
 type Artifact struct {
 	ID          uuid.UUID      `gorm:"type:uuid;primaryKey"`
 	Namespace   string         `gorm:"size:253;not null"`

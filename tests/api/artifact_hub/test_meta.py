@@ -5,10 +5,10 @@ from __future__ import annotations
 import pytest
 
 from clients.artifacthub.api.artifacts import (
-    complete_model,
-    delete_model,
-    initiate_model,
-    list_models,
+    complete_artifact,
+    delete_artifact,
+    initiate_artifact,
+    list_artifacts,
 )
 from clients.artifacthub.api.capabilities import get_capabilities
 from clients.artifacthub.api.health import healthz
@@ -41,16 +41,16 @@ def test_health(harness):
     assert h.status_code == 200, h.content
 
 
-def test_list_models_projects_uploaded(harness, cfg, tenant):
-    """A completed model must surface in the namespace's model listing."""
+def test_list_artifacts_projects_uploaded(harness, cfg, tenant):
+    """A completed model must surface in the namespace's artifact listing."""
     harness.skip_unless(Capability.ARTIFACT_UPLOAD)
     ns, _ = tenant
     name = unique_name("e2e-list")
     version = "1.0.0"
 
     spec = ArtifactInitiateRequestSpec.from_dict({"framework": "onnx", "format": "onnx"})
-    init = initiate_model.sync_detailed(
-        ns, name, client=harness.artifact_hub, body=ArtifactInitiateRequest(version=version, spec=spec)
+    init = initiate_artifact.sync_detailed(
+        ns, name, client=harness.artifact_hub, body=ArtifactInitiateRequest(kind="model", version=version, spec=spec)
     )
     assert init.status_code in (200, 201), init.content
     upload = init.parsed.upload
@@ -64,14 +64,14 @@ def test_list_models_projects_uploaded(harness, cfg, tenant):
             digest = client.push_config_only_manifest(repo, ref)
         finally:
             client.close()
-        c = complete_model.sync_detailed(ns, name, version, client=harness.artifact_hub, body=ArtifactCompleteRequest(digest=digest))
+        c = complete_artifact.sync_detailed(ns, name, version, client=harness.artifact_hub, body=ArtifactCompleteRequest(digest=digest))
         assert c.status_code in (200, 201, 202), c.content
 
         def listed():
-            lst = list_models.sync_detailed(ns, client=harness.artifact_hub)
+            lst = list_artifacts.sync_detailed(ns, client=harness.artifact_hub, kind="model")
             assert lst.status_code == 200, lst.content
             assert any(a.name == name for a in lst.parsed.items), "uploaded model absent from list"
 
         eventually(listed, timeout=cfg.cr_provision_timeout, interval=cfg.poll_interval)
     finally:
-        delete_model.sync_detailed(ns, name, version, client=harness.artifact_hub)
+        delete_artifact.sync_detailed(ns, name, version, client=harness.artifact_hub)
