@@ -162,9 +162,12 @@ artifactHub:
       endpoint: ""                       # e.g. http://rustfs.axisml-infra:9000
       bucket: axisml-artifact-hub
       credentialsSecretRef:
-        # Empty name → chart renders default secret <release>-artifact-hub-s3
-        # from the inline creds below (only when endpoint is set). Override with
-        # an externally-managed Secret to keep keys out of values.yaml.
+        # accessKey is the non-secret identifier — always set it inline below
+        # when endpoint is set (mirrors oci.adminSecretRef.username); the chart
+        # requires it at render time. Only the secret key is externalizable:
+        # empty name → chart renders default secret <release>-artifact-hub-s3
+        # from secretKey below; set name to source secret_key from an
+        # externally-managed Secret (accessKey still comes from here).
         name: ""
         accessKeyKey: access_key
         secretKeyKey: secret_key

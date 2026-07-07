@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/axisml/axisml/axisml-system/artifact-hub/internal/storage/oci"
@@ -40,9 +41,11 @@ func (h *ImageHandler) BuildStorageURI(namespace, name, version string) string {
 
 // BuildPullURI pins the resolved reference to digest so consumers fetch
 // immutable content (<oci-host>/namespaces/<namespace>/images/<name>@<digest>).
-// Falls back to the tag form before the artifact is Ready (empty digest).
+// Falls back to the tag form when there is no content digest to pin — before
+// the artifact is Ready (empty digest) or when the digest column holds a
+// non-digest value (an external artifact's remote URI).
 func (h *ImageHandler) BuildPullURI(namespace, name, version, digest string) string {
-	if digest == "" {
+	if !strings.HasPrefix(digest, contentDigestPrefix) {
 		return h.BuildStorageURI(namespace, name, version)
 	}
 	return fmt.Sprintf("%s/namespaces/%s/images/%s@%s", h.oci.Endpoint(), namespace, name, digest)

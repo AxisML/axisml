@@ -66,3 +66,37 @@ func TestModelHandler_BuildStorageURI(t *testing.T) {
 		t.Fatalf("BuildStorageURI = %q, want %q", got, want)
 	}
 }
+
+func TestModelHandler_BuildPullURI(t *testing.T) {
+	h := NewModelHandler(oci.New(oci.Config{Endpoint: "zot.local:5000"}))
+	cases := []struct {
+		name   string
+		digest string
+		want   string
+	}{
+		{
+			name:   "content digest pins to @digest",
+			digest: "sha256:abc123",
+			want:   "zot.local:5000/namespaces/team-a/models/llama-7b@sha256:abc123",
+		},
+		{
+			name:   "empty digest falls back to tag",
+			digest: "",
+			want:   "zot.local:5000/namespaces/team-a/models/llama-7b:v1",
+		},
+		{
+			// External artifacts store their remote URI in the digest column;
+			// it must NOT be pinned into a "<name>@<uri>" reference.
+			name:   "non-digest (external URI) falls back to tag",
+			digest: "registry.example.com/org/m:tag",
+			want:   "zot.local:5000/namespaces/team-a/models/llama-7b:v1",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := h.BuildPullURI("team-a", "llama-7b", "v1", tc.digest); got != tc.want {
+				t.Fatalf("BuildPullURI(%q) = %q, want %q", tc.digest, got, tc.want)
+			}
+		})
+	}
+}
