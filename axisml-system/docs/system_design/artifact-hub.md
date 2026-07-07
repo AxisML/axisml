@@ -154,7 +154,27 @@ Ready / Failed ─(DELETE)─▶ Deleting ─(GCBackend 成功)─▶ Deleted
 | K8s 依赖 | 无。Artifacts 不连 K8s API（不 watch CRD、不持 Lease、不需 client-go / controller-runtime），因此不需要任何 K8s RBAC，只读写 PG + 调后端 HTTP；选主权威与数据权威统一在 PG |
 | Helm / 镜像 | 见 [deployment.md](../../../docs/deployment.md) |
 
-## 9. 相关引用
+## 9. 未来工作
+
+以下增强的服务端逻辑本身不复杂，但价值完全取决于后端（zot / RustFS）具备并开启对应能力；在后端就绪前不落地，避免签发后端不认的凭证或挂接无人触发的端点。
+
+### 9.1 作用域化短期凭证（scope token / STS）
+
+§5 描述的目标形态是"下载凭证为 repo/prefix 作用域化、TTL=1h 的短期凭证"。落地前置条件：
+
+- **OCI（zot）**：zot 需配置 **bearer-token（JWT）auth realm**，信任 Artifact Hub 作为 token issuer；Artifact Hub 按 `(repo, action)` 签发带 `exp` 的作用域 JWT。这连带要求 tenant-operator 的 per-tenant `imagePullSecret` 从 htpasswd dockerconfigjson 迁移到同一 token 模型（跨组件）。前置未满足前，`download` 路径继续返回 admin 凭证（`inspect` 路径本就不签发凭证，走 per-tenant SA，不受影响）。
+- **S3（RustFS）**：需确认并开启 RustFS 的 **STS `AssumeRole`**；Artifact Hub 以 dataset version prefix 为 session policy 签发临时凭证。当前 RustFS 仅作 SigV4 对象存储、无 STS 配置项。
+- 服务端可先以 opt-in 形式实现（未配置签名密钥 / STS 端点时回退到当前直连凭证），与 §5 的凭证签发点对齐。
+
+### 9.2 事件驱动 finalize（可选）
+
+作为客户端 `POST .../complete` 的更健壮替代：后端 push 完成后由事件自动把 `Uploading` 推进到 `Ready`，完成不再依赖客户端主动调用。落地前置条件：
+
+- zot 开启 events / registry webhook，向 Artifact Hub 的事件入口 POST manifest-push 事件；RustFS 对 dataset prefix 开启 bucket notification。当前两者均未配置事件。
+- 新增（幂等 / 单活）事件入口路由，把对象路径映射到 `Uploading` 行后复用现有校验（OCI HEAD manifest / S3 GET manifest）推进 `Ready`；GC（§5.3）继续作为兜底。
+- `complete` 端点保留，事件为叠加路径而非替换。
+
+## 10. 相关引用
 
 - [high_level_design.md](../../../docs/high_level_design.md) — Artifacts 在控制平面的位置与系统不变量
 - [auth.md](../../../axisml-platform/docs/system_design/auth.md) — `X-Axisml-User` 注入与传播
