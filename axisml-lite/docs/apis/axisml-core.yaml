@@ -1971,7 +1971,8 @@ components:
           description: Username of the run owner.
           type: string
         phase:
-          description: Current run lifecycle phase (Pending, Running, Succeeded, Failed).
+          description: 'Current run lifecycle phase: Creating, Pending, Running, Succeeded,
+            Failed, Canceling, Cancelled, Deleting, Deleted.'
           type: string
         spec:
           allOf:
@@ -2220,6 +2221,55 @@ components:
           description: Replacement label set.
           type: object
       type: object
+    MLRunPhase:
+      properties:
+        finishedAt:
+          description: Time the run reached a terminal phase.
+          format: date-time
+          nullable: true
+          type: string
+        message:
+          description: Human-readable status detail for the current phase.
+          type: string
+        name:
+          description: MLRun name, unique within the namespace.
+          type: string
+        phase:
+          description: 'Current run lifecycle phase: Creating, Pending, Running, Succeeded,
+            Failed, Canceling, Cancelled, Deleting, Deleted.'
+          type: string
+        startedAt:
+          description: Time the run started executing.
+          format: date-time
+          nullable: true
+          type: string
+      required:
+      - name
+      - phase
+      type: object
+    MLRunPhaseList:
+      properties:
+        continueToken:
+          description: Kubernetes-style continuation token for the next page; empty/absent
+            on the final page.
+          type: string
+        count:
+          description: Number of items returned in this page (len(items)).
+          type: integer
+        items:
+          description: The page of items for the current offset.
+          items:
+            $ref: '#/components/schemas/MLRunPhase'
+          type: array
+        total:
+          description: Total number of matching items across all pages.
+          format: int64
+          type: integer
+      required:
+      - items
+      - count
+      - total
+      type: object
     MLRunPodTemplateSubset:
       properties:
         args:
@@ -2450,8 +2500,8 @@ components:
           description: Username of the service owner.
           type: string
         phase:
-          description: Current service lifecycle phase (Pending, Ready, Degraded,
-            Failed).
+          description: 'Current service lifecycle phase: Creating, Pending, Ready,
+            Degraded, Failed, Deleting, Deleted.'
           type: string
         spec:
           allOf:
@@ -2728,6 +2778,62 @@ components:
             type: string
           description: Replacement label set.
           type: object
+      type: object
+    MLServicePhase:
+      properties:
+        generation:
+          description: Desired-state generation, bumped on every spec-affecting change
+            (scale).
+          format: int64
+          type: integer
+        message:
+          description: Human-readable status detail for the current phase.
+          type: string
+        name:
+          description: MLService name, unique within the namespace.
+          type: string
+        observedGeneration:
+          description: Generation the operator last reconciled; equals generation
+            when in sync.
+          format: int64
+          type: integer
+        phase:
+          description: 'Current service lifecycle phase: Creating, Pending, Ready,
+            Degraded, Failed, Deleting, Deleted.'
+          type: string
+        readyReplicas:
+          description: Number of replicas that have passed readiness.
+          format: int32
+          type: integer
+      required:
+      - generation
+      - name
+      - observedGeneration
+      - phase
+      - readyReplicas
+      type: object
+    MLServicePhaseList:
+      properties:
+        continueToken:
+          description: Kubernetes-style continuation token for the next page; empty/absent
+            on the final page.
+          type: string
+        count:
+          description: Number of items returned in this page (len(items)).
+          type: integer
+        items:
+          description: The page of items for the current offset.
+          items:
+            $ref: '#/components/schemas/MLServicePhase'
+          type: array
+        total:
+          description: Total number of matching items across all pages.
+          format: int64
+          type: integer
+      required:
+      - items
+      - count
+      - total
       type: object
     MLServicePodPort:
       properties:
@@ -6209,6 +6315,86 @@ paths:
       summary: Query a resource metric time series for the MLRun
       tags:
       - MLRuns
+  /api/v1/namespaces/{namespace}/mlruns/{mlrun}/phase:
+    get:
+      operationId: getMLRunPhase
+      parameters:
+      - description: Tenant name (= mlruns/mlservices partition key).
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      - description: MLRun name.
+        in: path
+        name: mlrun
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MLRunPhase'
+          description: Current run phase and status detail.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Precondition failed.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Unexpected error.
+      summary: Get MLRun phase
+      tags:
+      - MLRuns
   /api/v1/namespaces/{namespace}/mlruns/{mlrun}/pods:
     get:
       operationId: listMLRunPods
@@ -6483,6 +6669,104 @@ paths:
       summary: Stream a pod's container log
       tags:
       - MLRuns
+  /api/v1/namespaces/{namespace}/mlruns/phases:
+    get:
+      operationId: batchGetMLRunPhases
+      parameters:
+      - description: Tenant name (= mlruns/mlservices partition key).
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      - description: Comma-separated (or repeated) names to fetch phases for, e.g.
+          names=a,b,c. Bounded at 200; unresolved names are omitted from items. Presence
+          of the key (even empty) selects names-mode, so an empty value returns an
+          empty list. When present, labelSelector / pagination are ignored.
+        in: query
+        name: names
+        schema:
+          type: string
+      - description: K8s-style label selector filtered against the row's labels jsonb.
+        in: query
+        name: labelSelector
+        schema:
+          type: string
+      - description: Page size (1–200, default 50).
+        in: query
+        name: limit
+        schema:
+          format: int32
+          type: integer
+      - description: Opaque continuation token from a previous page.
+        in: query
+        name: continue
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MLRunPhaseList'
+          description: Phase projections for the selected runs.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Precondition failed.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Unexpected error.
+      summary: Batch-get MLRun phases
+      tags:
+      - MLRuns
   /api/v1/namespaces/{namespace}/mlservices:
     get:
       operationId: listMLServices
@@ -6491,6 +6775,11 @@ paths:
         in: path
         name: namespace
         required: true
+        schema:
+          type: string
+      - description: Filter MLServices by kind (service, workspace, tensorboard).
+        in: query
+        name: kind
         schema:
           type: string
       - description: Page size (1–200, default 50).
@@ -7071,6 +7360,86 @@ paths:
       summary: Query a resource metric time series for the MLService
       tags:
       - MLServices
+  /api/v1/namespaces/{namespace}/mlservices/{mlservice}/phase:
+    get:
+      operationId: getMLServicePhase
+      parameters:
+      - description: Tenant name (= mlruns/mlservices partition key).
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      - description: MLService name.
+        in: path
+        name: mlservice
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MLServicePhase'
+          description: Current service phase, readiness and sync signal.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Precondition failed.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Unexpected error.
+      summary: Get MLService phase
+      tags:
+      - MLServices
   /api/v1/namespaces/{namespace}/mlservices/{mlservice}/pods:
     get:
       operationId: listMLServicePods
@@ -7429,6 +7798,109 @@ paths:
                 $ref: '#/components/schemas/ComputeServiceError'
           description: Unexpected error.
       summary: Scale an MLService
+      tags:
+      - MLServices
+  /api/v1/namespaces/{namespace}/mlservices/phases:
+    get:
+      operationId: batchGetMLServicePhases
+      parameters:
+      - description: Tenant name (= mlruns/mlservices partition key).
+        in: path
+        name: namespace
+        required: true
+        schema:
+          type: string
+      - description: Comma-separated (or repeated) names to fetch phases for, e.g.
+          names=a,b,c. Bounded at 200; unresolved names are omitted from items. Presence
+          of the key (even empty) selects names-mode, so an empty value returns an
+          empty list. When present, labelSelector / pagination are ignored.
+        in: query
+        name: names
+        schema:
+          type: string
+      - description: Filter MLServices by kind (service, workspace, tensorboard).
+        in: query
+        name: kind
+        schema:
+          type: string
+      - description: K8s-style label selector filtered against the row's labels jsonb.
+        in: query
+        name: labelSelector
+        schema:
+          type: string
+      - description: Page size (1–200, default 50).
+        in: query
+        name: limit
+        schema:
+          format: int32
+          type: integer
+      - description: Opaque continuation token from a previous page.
+        in: query
+        name: continue
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MLServicePhaseList'
+          description: Phase projections for the selected services.
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Validation error.
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Unauthorized.
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Forbidden.
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Not found.
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Conflict.
+        "412":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Precondition failed.
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Quota exceeded.
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Service unavailable.
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeServiceError'
+          description: Unexpected error.
+      summary: Batch-get MLService phases
       tags:
       - MLServices
   /api/v1/namespaces/{namespace}/traffic-policies:

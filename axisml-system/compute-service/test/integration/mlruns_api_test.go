@@ -4,7 +4,10 @@ package integration_test
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -52,6 +55,115 @@ func TestMLRun_NotFound(t *testing.T) {
 
 	rr = doJSON(t, ctx, http.MethodPost, "/api/v1/namespaces/"+ns+"/mlruns/ghost/cancel", nil, nil)
 	requireStatus(t, rr, http.StatusNotFound)
+
+	rr = doJSON(t, ctx, http.MethodGet, "/api/v1/namespaces/"+ns+"/mlruns/ghost/phase", nil, nil)
+	requireStatus(t, rr, http.StatusNotFound)
+}
+
+// TestMLRun_Phase checks the lightweight phase probe: a freshly-created run is
+// in the default Creating phase before the operator observes it.
+func TestMLRun_Phase(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	seedResourcePool(t, ctx, "jobs-phase-pool", "small-phase")
+	const ns = "jobs-phase-ns"
+	mustCreateNamespace(t, ctx, ns)
+
+	rr := doJSON(t, ctx, http.MethodPost, "/api/v1/namespaces/"+ns+"/mlruns",
+		buildMLRunCreateBody("phase-run", "jobs-phase-pool", "small-phase"), nil)
+	requireStatus(t, rr, http.StatusCreated)
+
+	var got map[string]any
+	rr = doJSON(t, ctx, http.MethodGet, "/api/v1/namespaces/"+ns+"/mlruns/phase-run/phase", nil, &got)
+	requireStatus(t, rr, http.StatusOK)
+	assert.Equal(t, "Creating", got["phase"])
+	assert.Equal(t, "phase-run", got["name"])
+	// The phase probe is a lean projection — the heavy spec sub-tree must not
+	// ride along.
+	assert.NotContains(t, got, "spec")
+}
+
+// TestMLRun_BatchPhase covers the batch probe: ?names selects an explicit set
+// (unresolved names omitted), an explicit empty ?names returns [], the names
+// cap is enforced, ?labelSelector filters, and the no-filter form returns the
+// whole namespace.
+func TestMLRun_BatchPhase(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	seedResourcePool(t, ctx, "jobs-batch-pool", "small-batch")
+	const ns = "jobs-batch-ns"
+	mustCreateNamespace(t, ctx, ns)
+
+	// batch-a/b carry the group=ml label; batch-c does not.
+	for _, n := range []string{"batch-a", "batch-b"} {
+		body := buildMLRunCreateBody(n, "jobs-batch-pool", "small-batch")
+		body["labels"] = map[string]string{"group": "ml"}
+		rr := doJSON(t, ctx, http.MethodPost, "/api/v1/namespaces/"+ns+"/mlruns", body, nil)
+		requireStatus(t, rr, http.StatusCreated)
+	}
+	rr := doJSON(t, ctx, http.MethodPost, "/api/v1/namespaces/"+ns+"/mlruns",
+		buildMLRunCreateBody("batch-c", "jobs-batch-pool", "small-batch"), nil)
+	requireStatus(t, rr, http.StatusCreated)
+
+	type phaseList struct {
+		Items []map[string]any `json:"items"`
+		Count int              `json:"count"`
+		Total int64            `json:"total"`
+	}
+	phaseByName := func(items []map[string]any) map[string]string {
+		out := map[string]string{}
+		for _, it := range items {
+			name, _ := it["name"].(string)
+			phase, _ := it["phase"].(string)
+			out[name] = phase
+			assert.NotContains(t, it, "spec")
+		}
+		return out
+	}
+
+	// ?names selects an explicit set; the unresolved "ghost" is omitted.
+	var byNames phaseList
+	rr = doJSON(t, ctx, http.MethodGet,
+		"/api/v1/namespaces/"+ns+"/mlruns/phases?names=batch-a,ghost,batch-b", nil, &byNames)
+	requireStatus(t, rr, http.StatusOK)
+	assert.Equal(t, 2, byNames.Count)
+	assert.Equal(t, map[string]string{"batch-a": "Creating", "batch-b": "Creating"}, phaseByName(byNames.Items))
+
+	// An explicit empty ?names returns an empty set, NOT the whole namespace.
+	var empty phaseList
+	rr = doJSON(t, ctx, http.MethodGet, "/api/v1/namespaces/"+ns+"/mlruns/phases?names=", nil, &empty)
+	requireStatus(t, rr, http.StatusOK)
+	assert.Equal(t, 0, empty.Count)
+	assert.Empty(t, empty.Items)
+
+	// More names than the cap → 400 validation.
+	tooMany := make([]string, 201)
+	for i := range tooMany {
+		tooMany[i] = fmt.Sprintf("n%d", i)
+	}
+	rr = doJSON(t, ctx, http.MethodGet,
+		"/api/v1/namespaces/"+ns+"/mlruns/phases?names="+strings.Join(tooMany, ","), nil, nil)
+	requireStatus(t, rr, http.StatusBadRequest)
+
+	// ?labelSelector filters to the labelled subset (batch-a, batch-b).
+	var bySelector phaseList
+	rr = doJSON(t, ctx, http.MethodGet,
+		"/api/v1/namespaces/"+ns+"/mlruns/phases?labelSelector="+url.QueryEscape("group=ml"), nil, &bySelector)
+	requireStatus(t, rr, http.StatusOK)
+	assert.Equal(t, int64(2), bySelector.Total)
+	assert.Equal(t, map[string]string{"batch-a": "Creating", "batch-b": "Creating"}, phaseByName(bySelector.Items))
+
+	// No filter → whole namespace (all three).
+	var all phaseList
+	rr = doJSON(t, ctx, http.MethodGet, "/api/v1/namespaces/"+ns+"/mlruns/phases", nil, &all)
+	requireStatus(t, rr, http.StatusOK)
+	assert.Equal(t, int64(3), all.Total)
+
+	// The static /phases route must not shadow the single-get param route.
+	rr = doJSON(t, ctx, http.MethodGet, "/api/v1/namespaces/"+ns+"/mlruns/batch-a", nil, nil)
+	requireStatus(t, rr, http.StatusOK)
 }
 
 func TestMLRun_ListPagination(t *testing.T) {

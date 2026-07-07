@@ -54,7 +54,7 @@ type MLService struct {
 	Annotations        map[string]string               `json:"annotations,omitempty" desc:"User-defined annotations."`
 	Generation         int64                           `json:"generation" desc:"Desired-state generation, bumped on every spec-affecting change (scale)."`
 	ObservedGeneration int64                           `json:"observedGeneration" desc:"Generation the operator last reconciled; equals generation when in sync."`
-	Phase              string                          `json:"phase" desc:"Current service lifecycle phase (Pending, Ready, Degraded, Failed)."`
+	Phase              string                          `json:"phase" desc:"Current service lifecycle phase: Creating, Pending, Ready, Degraded, Failed, Deleting, Deleted."`
 	Spec               mlservicev1alpha1.MLServiceSpec `json:"spec" desc:"Resolved MLService spec sub-tree (backend, scheduling, roles, route)."`
 	Status             MLServiceStatus                 `json:"status" desc:"Operator-reported status sub-tree."`
 	CreatedAt          time.Time                       `json:"createdAt" desc:"Time the service was created."`
@@ -79,4 +79,20 @@ type MLServiceStatus struct {
 	Message       string `json:"message,omitempty" desc:"Human-readable status detail for the current phase."`
 	ReadyReplicas int32  `json:"readyReplicas" desc:"Number of replicas that have passed readiness."`
 	Endpoint      string `json:"endpoint,omitempty" desc:"Resolved external endpoint URL when a route is enabled."`
+}
+
+// MLServicePhase is the lightweight response for the phase probes — GET
+// /api/v1/namespaces/{ns}/mlservices/{svc}/phase (single) and the batch GET
+// /api/v1/namespaces/{ns}/mlservices/phases. It returns only the service's
+// lifecycle phase, readiness and sync signal, skipping the heavy spec sub-tree
+// the full MLService payload carries. The generation / observedGeneration pair
+// lets a caller tell when a scale has been reconciled (observedGeneration ==
+// generation). `name` identifies the service in batch responses.
+type MLServicePhase struct {
+	Name               string `json:"name" desc:"MLService name, unique within the namespace."`
+	Phase              string `json:"phase" desc:"Current service lifecycle phase: Creating, Pending, Ready, Degraded, Failed, Deleting, Deleted."`
+	Message            string `json:"message,omitempty" desc:"Human-readable status detail for the current phase."`
+	ReadyReplicas      int32  `json:"readyReplicas" desc:"Number of replicas that have passed readiness."`
+	Generation         int64  `json:"generation" desc:"Desired-state generation, bumped on every spec-affecting change (scale)."`
+	ObservedGeneration int64  `json:"observedGeneration" desc:"Generation the operator last reconciled; equals generation when in sync."`
 }

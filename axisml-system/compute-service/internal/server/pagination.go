@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/base64"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -55,6 +56,28 @@ func EncodeContinue(offset, count int, total int64) string {
 		return ""
 	}
 	return base64.RawURLEncoding.EncodeToString([]byte(strconv.Itoa(offset + count)))
+}
+
+// QueryCSV returns the flattened, comma-split, trimmed, de-duplicated values of
+// a repeatable query parameter, preserving first-seen order. Both
+// `?k=a,b&k=c` and `?k=a&k=b` yield [a b c].
+func QueryCSV(c *gin.Context, key string) []string {
+	var out []string
+	seen := map[string]struct{}{}
+	for _, raw := range c.QueryArray(key) {
+		for _, part := range strings.Split(raw, ",") {
+			v := strings.TrimSpace(part)
+			if v == "" {
+				continue
+			}
+			if _, dup := seen[v]; dup {
+				continue
+			}
+			seen[v] = struct{}{}
+			out = append(out, v)
+		}
+	}
+	return out
 }
 
 func decodeContinue(raw string) (int, error) {
