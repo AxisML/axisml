@@ -134,6 +134,14 @@ func TestTenant_QuotaSubRoutes(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &q))
 	require.Equal(t, 5, q.Units[0].Quantity)
 
+	// An empty PATCH body is a no-op that preserves the existing quota (not a 400).
+	rr = doRequest(t, "PATCH", "/api/v1/tenants/"+name+"/quotas/"+pool, `{}`)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	var noop srv.Quota
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &noop))
+	require.Len(t, noop.Units, 1)
+	require.Equal(t, 5, noop.Units[0].Quantity)
+
 	// Patch a missing pool quota 404s.
 	rr = doRequest(t, "PATCH", "/api/v1/tenants/"+name+"/quotas/nope",
 		`{"units": [{"unitName": "cpu-small", "quantity": 1}]}`)
@@ -144,6 +152,44 @@ func TestTenant_QuotaSubRoutes(t *testing.T) {
 	require.Equal(t, http.StatusNoContent, rr.Code, rr.Body.String())
 	rr = doRequest(t, "DELETE", "/api/v1/tenants/"+name+"/quotas/"+pool, "")
 	require.Equal(t, http.StatusNoContent, rr.Code, rr.Body.String())
+
+	_ = doRequest(t, "DELETE", "/api/v1/tenants/"+name, "")
+}
+
+func TestTenant_DirectQuotaInput(t *testing.T) {
+	const pool = "direct-pool"
+	const name = "team-direct"
+	seedPool(t, pool)
+
+	rr := doRequest(t, "POST", "/api/v1/tenants", `{
+	  "name": "`+name+`",
+	  "quotas": [{
+	    "pool": "`+pool+`",
+	    "quota": {
+	      "min": {"cpu": "2"},
+	      "max": {"cpu": "8", "memory": "16Gi"}
+	    }
+	  }]
+	}`)
+	require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
+
+	var created srv.Tenant
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &created))
+	require.Len(t, created.Quotas, 1)
+	require.Nil(t, created.Quotas[0].Units)
+	require.NotNil(t, created.Quotas[0].Quota)
+	createdMaxCPU := created.Quotas[0].Quota.Max["cpu"]
+	require.Equal(t, "8", createdMaxCPU.String())
+
+	var cr tenantv1alpha1.Tenant
+	require.NoError(t, testCli.Get(context.Background(), types.NamespacedName{Name: name}, &cr))
+	require.Empty(t, cr.Annotations[srv.QuotasAnnotation], "direct quota input should not create units annotation")
+	crMaxCPU := cr.Spec.Quotas[0].Max["cpu"]
+	require.Equal(t, "8", crMaxCPU.String())
+
+	rr = doRequest(t, "POST", "/api/v1/tenants/"+name+"/quotas",
+		`{"pool": "`+pool+`", "units": [{"unitName": "cpu-small", "quantity": 1}], "quota": {"max": {"cpu": "1"}}}`)
+	require.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
 
 	_ = doRequest(t, "DELETE", "/api/v1/tenants/"+name, "")
 }

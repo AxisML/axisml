@@ -21,11 +21,12 @@ const service = "cluster-manager"
 // Clean-named aliases for the generated wire types, so callers never handle the
 // spec-derived, package-prefixed names. The generated package remains the source of truth.
 type (
-	Tenant      = gen.Tenant
-	Quota       = gen.ServerQuota
-	QuotaUnit   = gen.ServerQuotaUnit
-	QuotaStatus = gen.ServerQuotaStatus
-	Namespace   = gen.Apiv1alpha1NamespaceSpec
+	Tenant         = gen.Tenant
+	Quota          = gen.ServerQuota
+	QuotaUnit      = gen.ServerQuotaUnit
+	QuotaResources = gen.ServerQuotaResources
+	QuotaStatus    = gen.ServerQuotaStatus
+	Namespace      = gen.Apiv1alpha1NamespaceSpec
 )
 
 // Client wraps the generated cluster-manager client.
@@ -147,9 +148,15 @@ func (c *Client) ListTenants(ctx context.Context, labelSelector string) ([]Tenan
 	return out, nil
 }
 
-// SetQuota creates or replaces a tenant's quota for one pool.
-func (c *Client) SetQuota(ctx context.Context, tenant, pool string, units []QuotaUnit) error {
-	body := gen.SetQuotaRequest{Pool: strPtr(pool), Units: &units}
+// SetQuota creates or replaces a tenant's quota for one pool, in either the
+// units business form or direct min/max mode (mutually exclusive).
+func (c *Client) SetQuota(ctx context.Context, tenant, pool string, units []QuotaUnit, direct *QuotaResources) error {
+	body := gen.SetQuotaRequest{Pool: strPtr(pool)}
+	if direct != nil {
+		body.Quota = direct
+	} else {
+		body.Units = &units
+	}
 	res, err := c.gen.SetTenantQuotaWithResponse(ctx, tenant, body)
 	if err != nil {
 		return clienterr.Transport(service, err)
@@ -160,9 +167,15 @@ func (c *Client) SetQuota(ctx context.Context, tenant, pool string, units []Quot
 	return clienterr.FromResponse(service, res.HTTPResponse, res.Body)
 }
 
-// UpdateQuota replaces the unit selection of an existing pool quota.
-func (c *Client) UpdateQuota(ctx context.Context, tenant, pool string, units []QuotaUnit) error {
-	body := gen.PatchQuotaRequest{Units: &units}
+// UpdateQuota replaces an existing pool quota's input, in either the units
+// business form or direct min/max mode (mutually exclusive).
+func (c *Client) UpdateQuota(ctx context.Context, tenant, pool string, units []QuotaUnit, direct *QuotaResources) error {
+	body := gen.PatchQuotaRequest{}
+	if direct != nil {
+		body.Quota = direct
+	} else {
+		body.Units = &units
+	}
 	res, err := c.gen.UpdateTenantQuotaWithResponse(ctx, tenant, pool, body)
 	if err != nil {
 		return clienterr.Transport(service, err)

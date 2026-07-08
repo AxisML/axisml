@@ -4,9 +4,9 @@
 // a Namespace + ElasticQuota + per-tenant init resources and writes status.
 //
 // Handlers are stateless: every mutation is a direct K8s API call (with a
-// single optimistic-lock retry). Quotas are accepted in the business form
-// (`unit × quantity` per pool) and folded into ElasticQuota min/max against the
-// locally-owned ResourcePool CRs before being written to the Tenant CR.
+// single optimistic-lock retry). Quotas are accepted either in the business form
+// (`unit × quantity` per pool) or as direct min/max resources. Both forms are
+// compiled into Tenant.spec.quotas[].min/max before being written to the CR.
 package tenant
 
 import (
@@ -245,7 +245,7 @@ func (h *Handler) SetQuota(c *gin.Context) {
 		srv.AbortWithProblem(c, http.StatusBadRequest, "InvalidQuota", "pool is required", "")
 		return
 	}
-	q := srv.Quota(req)
+	q := srv.Quota{Pool: req.Pool, Units: req.Units, Quota: req.Quota}
 	var result srv.Quota
 	err := h.mutateQuotas(c.Request.Context(), tenant, c.GetHeader(srv.HeaderUser),
 		func(quotas []srv.Quota) ([]srv.Quota, error) {
@@ -259,7 +259,7 @@ func (h *Handler) SetQuota(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-// PatchQuota handles PATCH .../quotas/{pool} — replace the unit selection.
+// PatchQuota handles PATCH .../quotas/{pool} — replace the pool quota input.
 func (h *Handler) PatchQuota(c *gin.Context) {
 	tenant, pool := c.Param("tenant"), c.Param("pool")
 	var req srv.PatchQuotaRequest
@@ -274,8 +274,16 @@ func (h *Handler) PatchQuota(c *gin.Context) {
 			if idx == -1 {
 				return nil, errQuotaNotFound
 			}
-			quotas[idx].Units = req.Units
-			result = quotas[idx]
+			// An empty body (neither units nor quota) is a no-op that preserves
+			// the existing quota rather than re-folding with no mode set — which
+			// would otherwise fail ModeRequired. An explicit `units: []` still
+			// zeroes the quota via the units path.
+			if req.Units == nil && req.Quota == nil {
+				result = quotas[idx]
+				return quotas, nil
+			}
+			result = srv.Quota{Pool: pool, Units: req.Units, Quota: req.Quota}
+			quotas[idx] = result
 			return quotas, nil
 		})
 	if err != nil {
@@ -450,12 +458,28 @@ func (h *Handler) writeQuotaError(c *gin.Context, err error) {
 		srv.AbortWithProblem(c, http.StatusNotFound, "QuotaNotFound", err.Error(), "")
 	case errors.As(err, &qe):
 		status := http.StatusUnprocessableEntity
-		if qe.Reason == srv.QuotaBadQuantity {
+		if isBadQuotaInput(qe.Reason) {
 			status = http.StatusBadRequest
 		}
 		srv.AbortWithProblem(c, status, "InvalidQuota", qe.Error(), "")
 	default:
 		writeK8sError(c, err, c.Param("tenant"))
+	}
+}
+
+func isBadQuotaInput(reason srv.QuotaErrorReason) bool {
+	switch reason {
+	case srv.QuotaBadQuantity,
+		srv.QuotaDuplicatePool,
+		srv.QuotaModeConflict,
+		srv.QuotaModeRequired,
+		srv.QuotaMaxRequired,
+		srv.QuotaNegativeResource,
+		srv.QuotaMinWithoutMax,
+		srv.QuotaMinExceedsMax:
+		return true
+	default:
+		return false
 	}
 }
 

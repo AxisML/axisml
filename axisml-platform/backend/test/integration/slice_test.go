@@ -145,6 +145,30 @@ func TestTenantAndMemberLifecycle(t *testing.T) {
 	code, quotas := do(t, http.MethodGet, "/api/v1/tenants/acme-team/quotas", admin, nil)
 	require.Equal(t, http.StatusOK, code)
 	require.Equal(t, 1, int(quotas["count"].(float64)))
+
+	// Direct min/max quota round-trips through the Platform API without data loss
+	// (units absent). Regression guard for the stale-client finding.
+	code, _ = do(t, http.MethodPost, "/api/v1/tenants/acme-team/quotas", admin, map[string]any{
+		"pool": "direct-pool", "quota": map[string]any{
+			"min": map[string]any{"cpu": "2"},
+			"max": map[string]any{"cpu": "8", "memory": "16Gi"},
+		},
+	})
+	require.Equal(t, http.StatusCreated, code)
+	code, quotas = do(t, http.MethodGet, "/api/v1/tenants/acme-team/quotas", admin, nil)
+	require.Equal(t, http.StatusOK, code)
+	require.Equal(t, 2, int(quotas["count"].(float64)))
+	var direct map[string]any
+	for _, it := range quotas["items"].([]any) {
+		if m := it.(map[string]any); m["pool"] == "direct-pool" {
+			direct = m
+		}
+	}
+	require.NotNil(t, direct, "direct-pool quota should round-trip")
+	require.Nil(t, direct["units"], "direct quota must not carry units")
+	dq := direct["quota"].(map[string]any)
+	require.Equal(t, "8", dq["max"].(map[string]any)["cpu"])
+	require.Equal(t, "2", dq["min"].(map[string]any)["cpu"])
 }
 
 func loginAs(t *testing.T, user, pass string) string {

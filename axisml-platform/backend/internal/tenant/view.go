@@ -12,10 +12,19 @@ type QuotaUnitSpec struct {
 	Quantity int
 }
 
-// QuotaSpec is a tenant's quota in one pool.
+// QuotaResourcesSpec is a pool quota's direct min/max resource quantities
+// (resource.Quantity strings keyed by resource name).
+type QuotaResourcesSpec struct {
+	Min map[string]string
+	Max map[string]string
+}
+
+// QuotaSpec is a tenant's quota in one pool: either a unit selection or a
+// direct min/max resource spec (mutually exclusive).
 type QuotaSpec struct {
-	Pool  string
-	Units []QuotaUnitSpec
+	Pool   string
+	Units  []QuotaUnitSpec
+	Direct *QuotaResourcesSpec
 }
 
 // buildView merges the durable record with the live Tenant CR (cr may be nil
@@ -68,11 +77,29 @@ func mapQuotas(qs []clustermanager.Quota) []server.Quota {
 	}
 	out := make([]server.Quota, 0, len(qs))
 	for _, q := range qs {
-		units := make([]server.QuotaUnit, 0, len(q.Units))
-		for _, u := range q.Units {
-			units = append(units, server.QuotaUnit{UnitName: u.UnitName, Quantity: u.Quantity})
+		if q.Quota != nil {
+			out = append(out, server.Quota{Pool: q.Pool, Quota: mapQuotaResources(q.Quota)})
+			continue
+		}
+		var units []server.QuotaUnit
+		if q.Units != nil {
+			units = make([]server.QuotaUnit, 0, len(*q.Units))
+			for _, u := range *q.Units {
+				units = append(units, server.QuotaUnit{UnitName: u.UnitName, Quantity: u.Quantity})
+			}
 		}
 		out = append(out, server.Quota{Pool: q.Pool, Units: units})
+	}
+	return out
+}
+
+func mapQuotaResources(r *clustermanager.QuotaResources) *server.QuotaResources {
+	if r == nil {
+		return nil
+	}
+	out := &server.QuotaResources{Max: r.Max}
+	if r.Min != nil {
+		out.Min = *r.Min
 	}
 	return out
 }

@@ -1777,7 +1777,8 @@ components:
             the tenant name when omitted.
           nullable: true
         quotas:
-          description: Initial per-pool quotas to grant the tenant.
+          description: Initial per-pool quotas to grant the tenant. Each item must
+            use either units or quota.
           items:
             $ref: '#/components/schemas/ServerQuota'
           type: array
@@ -3292,12 +3293,22 @@ components:
       type: object
     PatchQuotaRequest:
       example:
-        units:
-        - quantity: 6
-          unitName: a100-2x
+        quota:
+          max:
+            nvidia.com/gpu: "8"
+          min:
+            cpu: "32"
+            memory: 256Gi
       properties:
+        quota:
+          allOf:
+          - $ref: '#/components/schemas/ServerQuotaResources'
+          description: Replacement direct min/max resources for the pool quota. Mutually
+            exclusive with units.
+          nullable: true
         units:
           description: Replacement unit × quantity selections for the pool quota.
+            Mutually exclusive with quota.
           items:
             $ref: '#/components/schemas/ServerQuotaUnit'
           type: array
@@ -3543,15 +3554,20 @@ components:
         pool:
           description: ResourcePool this quota applies to.
           type: string
+        quota:
+          allOf:
+          - $ref: '#/components/schemas/ServerQuotaResources'
+          description: Direct min/max resources for this pool. Mutually exclusive
+            with units.
+          nullable: true
         units:
           description: Unit × quantity selections granted to the tenant under this
-            pool.
+            pool. Mutually exclusive with quota.
           items:
             $ref: '#/components/schemas/ServerQuotaUnit'
           type: array
       required:
       - pool
-      - units
       type: object
     QuotaList:
       example:
@@ -3882,15 +3898,37 @@ components:
         pool:
           description: ResourcePool this quota applies to.
           type: string
+        quota:
+          allOf:
+          - $ref: '#/components/schemas/ServerQuotaResources'
+          description: Direct min/max resources for this pool. Mutually exclusive
+            with units.
+          nullable: true
         units:
           description: Unit × quantity selections granted to the tenant under this
-            pool.
+            pool. Mutually exclusive with quota.
           items:
             $ref: '#/components/schemas/ServerQuotaUnit'
           type: array
       required:
       - pool
-      - units
+      type: object
+    ServerQuotaResources:
+      properties:
+        max:
+          additionalProperties:
+            description: Kubernetes resource.Quantity.
+            type: string
+          description: ElasticQuota maximum resources.
+          type: object
+        min:
+          additionalProperties:
+            description: Kubernetes resource.Quantity.
+            type: string
+          description: ElasticQuota minimum resources.
+          type: object
+      required:
+      - max
       type: object
     ServerQuotaStatus:
       properties:
@@ -4078,7 +4116,8 @@ components:
           description: High-level provisioning phase of the tenant.
           type: string
         quotas:
-          description: Per-pool quotas in business form (unit × quantity selections).
+          description: Per-pool quotas. Each item is returned either as units (business
+            form) or quota (direct min/max form).
           items:
             $ref: '#/components/schemas/ServerQuota'
           type: array
@@ -4207,8 +4246,15 @@ components:
         pool:
           description: ResourcePool to create or replace the quota for.
           type: string
+        quota:
+          allOf:
+          - $ref: '#/components/schemas/ServerQuotaResources'
+          description: Direct min/max resources for the pool quota. Mutually exclusive
+            with units.
+          nullable: true
         units:
-          description: Unit × quantity selections that make up the pool quota.
+          description: Unit × quantity selections that make up the pool quota. Mutually
+            exclusive with quota.
           items:
             $ref: '#/components/schemas/ServerQuotaUnit'
           type: array
@@ -4345,7 +4391,8 @@ components:
           description: High-level provisioning phase of the tenant.
           type: string
         quotas:
-          description: Per-pool quotas in business form (unit × quantity selections).
+          description: Per-pool quotas. Each item is returned either as units (business
+            form) or quota (direct min/max form).
           items:
             $ref: '#/components/schemas/ServerQuota'
           type: array

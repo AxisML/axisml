@@ -24,23 +24,26 @@ func (s *Service) ListQuotas(ctx context.Context, identifier string) (*server.Qu
 	return list, nil
 }
 
-// SetQuota creates or replaces a pool quota and returns the updated tenant.
-func (s *Service) SetQuota(ctx context.Context, identifier, pool string, units []QuotaUnitSpec) (*server.Tenant, error) {
+// SetQuota creates or replaces a pool quota (units or direct min/max) and
+// returns the updated tenant.
+func (s *Service) SetQuota(ctx context.Context, identifier string, q QuotaSpec) (*server.Tenant, error) {
 	if _, err := s.getRow(ctx, identifier); err != nil {
 		return nil, err
 	}
-	if err := s.cm.SetQuota(ctx, identifier, pool, toCMUnits(units)); err != nil {
+	units, direct := toCMQuotaInput(q)
+	if err := s.cm.SetQuota(ctx, identifier, q.Pool, units, direct); err != nil {
 		return nil, err
 	}
 	return s.Get(ctx, identifier)
 }
 
-// UpdateQuota replaces an existing pool quota's unit selection.
-func (s *Service) UpdateQuota(ctx context.Context, identifier, pool string, units []QuotaUnitSpec) (*server.Tenant, error) {
+// UpdateQuota replaces an existing pool quota's input (units or direct min/max).
+func (s *Service) UpdateQuota(ctx context.Context, identifier string, q QuotaSpec) (*server.Tenant, error) {
 	if _, err := s.getRow(ctx, identifier); err != nil {
 		return nil, err
 	}
-	if err := s.cm.UpdateQuota(ctx, identifier, pool, toCMUnits(units)); err != nil {
+	units, direct := toCMQuotaInput(q)
+	if err := s.cm.UpdateQuota(ctx, identifier, q.Pool, units, direct); err != nil {
 		return nil, err
 	}
 	return s.Get(ctx, identifier)
@@ -54,6 +57,15 @@ func (s *Service) DeleteQuota(ctx context.Context, identifier, pool string) erro
 	return s.cm.DeleteQuota(ctx, identifier, pool)
 }
 
+// toCMQuotaInput splits a QuotaSpec into the cluster-manager client's units or
+// direct min/max arguments; direct wins when present.
+func toCMQuotaInput(q QuotaSpec) ([]clustermanager.QuotaUnit, *clustermanager.QuotaResources) {
+	if q.Direct != nil {
+		return nil, toCMResources(q.Direct)
+	}
+	return toCMUnits(q.Units), nil
+}
+
 func toCMUnits(units []QuotaUnitSpec) []clustermanager.QuotaUnit {
 	out := make([]clustermanager.QuotaUnit, 0, len(units))
 	for _, u := range units {
@@ -61,6 +73,18 @@ func toCMUnits(units []QuotaUnitSpec) []clustermanager.QuotaUnit {
 			continue
 		}
 		out = append(out, clustermanager.QuotaUnit{UnitName: u.UnitName, Quantity: u.Quantity})
+	}
+	return out
+}
+
+func toCMResources(r *QuotaResourcesSpec) *clustermanager.QuotaResources {
+	if r == nil {
+		return nil
+	}
+	out := &clustermanager.QuotaResources{Max: r.Max}
+	if len(r.Min) > 0 {
+		min := r.Min
+		out.Min = &min
 	}
 	return out
 }

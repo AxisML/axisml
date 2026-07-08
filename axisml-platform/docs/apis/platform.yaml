@@ -3227,14 +3227,20 @@ components:
           maxLength: 40
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
+        quota:
+          allOf:
+          - $ref: '#/components/schemas/QuotaResources'
+          description: Direct min/max resources for the pool. Mutually exclusive with
+            units.
+          nullable: true
         units:
-          description: Per-unit allocations within the pool.
+          description: Per-unit allocations within the pool. Mutually exclusive with
+            quota.
           items:
             $ref: '#/components/schemas/QuotaUnit'
           type: array
       required:
       - pool
-      - units
       type: object
     QuotaCreateRequest:
       example:
@@ -3248,14 +3254,20 @@ components:
           maxLength: 40
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
+        quota:
+          allOf:
+          - $ref: '#/components/schemas/QuotaResources'
+          description: Direct min/max resources for the pool. Mutually exclusive with
+            units.
+          nullable: true
         units:
-          description: Per-unit allocations to grant in the pool.
+          description: Per-unit allocations to grant in the pool. Mutually exclusive
+            with quota.
           items:
             $ref: '#/components/schemas/QuotaUnit'
           type: array
       required:
       - pool
-      - units
       type: object
     QuotaList:
       example:
@@ -3296,13 +3308,33 @@ components:
         - quantity: 6
           unitName: a100-2x
       properties:
+        quota:
+          allOf:
+          - $ref: '#/components/schemas/QuotaResources'
+          description: Replacement direct min/max resources for the pool. Mutually
+            exclusive with units.
+          nullable: true
         units:
-          description: Replacement per-unit allocations for the pool.
+          description: Replacement per-unit allocations for the pool. Mutually exclusive
+            with quota.
           items:
             $ref: '#/components/schemas/QuotaUnit'
           type: array
+      type: object
+    QuotaResources:
+      properties:
+        max:
+          additionalProperties:
+            type: string
+          description: ElasticQuota maximum resources (resource.Quantity strings).
+          type: object
+        min:
+          additionalProperties:
+            type: string
+          description: ElasticQuota minimum resources (resource.Quantity strings).
+          type: object
       required:
-      - units
+      - max
       type: object
     QuotaStatus:
       example:
