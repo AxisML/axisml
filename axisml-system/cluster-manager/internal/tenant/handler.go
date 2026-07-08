@@ -245,7 +245,7 @@ func (h *Handler) SetQuota(c *gin.Context) {
 		srv.AbortWithProblem(c, http.StatusBadRequest, "InvalidQuota", "pool is required", "")
 		return
 	}
-	q := srv.Quota{Pool: req.Pool, Units: req.Units, Quota: req.Quota}
+	q := srv.Quota(req)
 	var result srv.Quota
 	err := h.mutateQuotas(c.Request.Context(), tenant, c.GetHeader(srv.HeaderUser),
 		func(quotas []srv.Quota) ([]srv.Quota, error) {
