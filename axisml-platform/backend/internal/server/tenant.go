@@ -8,13 +8,22 @@ type QuotaUnit struct {
 	Quantity int    `json:"quantity" binding:"min=0" desc:"Number of units of this shape allocated to the tenant."`
 }
 
-// Quota is a tenant's resource allocation in one pool, expressed as counts of
-// named resource units (product model: pool -> resource unit x quantity).
-// Platform derives the backing ElasticQuota from
-// sum(unit.requests * quantity).
+// QuotaResources is a pool quota expressed directly as ElasticQuota min/max
+// resource quantities (Kubernetes resource.Quantity strings, e.g. "8",
+// "256Gi"). Mutually exclusive with the units business form.
+type QuotaResources struct {
+	Min map[string]string `json:"min,omitempty" desc:"ElasticQuota minimum resources (resource.Quantity strings)."`
+	Max map[string]string `json:"max" desc:"ElasticQuota maximum resources (resource.Quantity strings)."`
+}
+
+// Quota is a tenant's resource allocation in one pool, in exactly one of two
+// forms: the units business form (pool -> resource unit x quantity, from which
+// Platform derives the backing ElasticQuota via sum(unit.requests * quantity)),
+// or direct min/max resources.
 type Quota struct {
-	Pool  string      `json:"pool" binding:"dns1123,max=40" desc:"Resource pool the quota allocates from."`
-	Units []QuotaUnit `json:"units" desc:"Per-unit allocations within the pool."`
+	Pool  string          `json:"pool" binding:"dns1123,max=40" desc:"Resource pool the quota allocates from."`
+	Units []QuotaUnit     `json:"units,omitempty" desc:"Per-unit allocations within the pool. Mutually exclusive with quota."`
+	Quota *QuotaResources `json:"quota,omitempty" desc:"Direct min/max resources for the pool. Mutually exclusive with units."`
 }
 
 // QuotaUnitStatus is the live usage of one allocated resource unit.
@@ -37,15 +46,19 @@ type QuotaList struct {
 	Count    int           `json:"count" binding:"min=0" desc:"Number of pool quotas in this list."`
 }
 
-// QuotaCreateRequest sets a pool's quota for a tenant.
+// QuotaCreateRequest sets a pool's quota for a tenant, in either the units
+// business form or direct min/max mode (exactly one; validated downstream).
 type QuotaCreateRequest struct {
-	Pool  string      `json:"pool" binding:"required,dns1123,max=40" desc:"Resource pool to set quota for."`
-	Units []QuotaUnit `json:"units" binding:"required" desc:"Per-unit allocations to grant in the pool."`
+	Pool  string          `json:"pool" binding:"required,dns1123,max=40" desc:"Resource pool to set quota for."`
+	Units []QuotaUnit     `json:"units,omitempty" desc:"Per-unit allocations to grant in the pool. Mutually exclusive with quota."`
+	Quota *QuotaResources `json:"quota,omitempty" desc:"Direct min/max resources for the pool. Mutually exclusive with units."`
 }
 
-// QuotaPatchRequest replaces a pool quota's unit allocations.
+// QuotaPatchRequest replaces a pool quota's input, in either the units business
+// form or direct min/max mode (exactly one; validated downstream).
 type QuotaPatchRequest struct {
-	Units []QuotaUnit `json:"units" binding:"required" desc:"Replacement per-unit allocations for the pool."`
+	Units []QuotaUnit     `json:"units,omitempty" desc:"Replacement per-unit allocations for the pool. Mutually exclusive with quota."`
+	Quota *QuotaResources `json:"quota,omitempty" desc:"Replacement direct min/max resources for the pool. Mutually exclusive with units."`
 }
 
 // SecretSourceRef references a Secret in another namespace.

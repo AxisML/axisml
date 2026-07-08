@@ -180,7 +180,7 @@ type CreateTenantRequest struct {
 	// Namespace Optional namespace specification; defaults are derived from the tenant name when omitted.
 	Namespace *Apiv1alpha1NamespaceSpec `json:"namespace"`
 
-	// Quotas Initial per-pool quotas to grant the tenant.
+	// Quotas Initial per-pool quotas to grant the tenant. Each item must use either units or quota.
 	Quotas *[]ServerQuota `json:"quotas,omitempty"`
 }
 
@@ -210,7 +210,10 @@ type CreateVolumeRequest struct {
 
 // PatchQuotaRequest defines model for PatchQuotaRequest.
 type PatchQuotaRequest struct {
-	// Units Replacement unit × quantity selections for the pool quota.
+	// Quota Replacement direct min/max resources for the pool quota. Mutually exclusive with units.
+	Quota *ServerQuotaResources `json:"quota"`
+
+	// Units Replacement unit × quantity selections for the pool quota. Mutually exclusive with quota.
 	Units *[]ServerQuotaUnit `json:"units,omitempty"`
 }
 
@@ -315,8 +318,11 @@ type Quota struct {
 	// Pool ResourcePool this quota applies to.
 	Pool string `json:"pool"`
 
-	// Units Unit × quantity selections granted to the tenant under this pool.
-	Units []ServerQuotaUnit `json:"units"`
+	// Quota Direct min/max resources for this pool. Mutually exclusive with units.
+	Quota *ServerQuotaResources `json:"quota"`
+
+	// Units Unit × quantity selections granted to the tenant under this pool. Mutually exclusive with quota.
+	Units *[]ServerQuotaUnit `json:"units,omitempty"`
 }
 
 // QuotaList defines model for QuotaList.
@@ -444,8 +450,20 @@ type ServerQuota struct {
 	// Pool ResourcePool this quota applies to.
 	Pool string `json:"pool"`
 
-	// Units Unit × quantity selections granted to the tenant under this pool.
-	Units []ServerQuotaUnit `json:"units"`
+	// Quota Direct min/max resources for this pool. Mutually exclusive with units.
+	Quota *ServerQuotaResources `json:"quota"`
+
+	// Units Unit × quantity selections granted to the tenant under this pool. Mutually exclusive with quota.
+	Units *[]ServerQuotaUnit `json:"units,omitempty"`
+}
+
+// ServerQuotaResources defines model for ServerQuotaResources.
+type ServerQuotaResources struct {
+	// Max ElasticQuota maximum resources.
+	Max map[string]string `json:"max"`
+
+	// Min ElasticQuota minimum resources.
+	Min *map[string]string `json:"min,omitempty"`
 }
 
 // ServerQuotaStatus defines model for ServerQuotaStatus.
@@ -573,7 +591,7 @@ type ServerTenant struct {
 	// Phase High-level provisioning phase of the tenant.
 	Phase *string `json:"phase,omitempty"`
 
-	// Quotas Per-pool quotas in business form (unit × quantity selections).
+	// Quotas Per-pool quotas. Each item is returned either as units (business form) or quota (direct min/max form).
 	Quotas []ServerQuota `json:"quotas"`
 
 	// ResourceVersion Opaque CR resourceVersion for optimistic concurrency.
@@ -666,7 +684,10 @@ type SetQuotaRequest struct {
 	// Pool ResourcePool to create or replace the quota for.
 	Pool *string `json:"pool,omitempty"`
 
-	// Units Unit × quantity selections that make up the pool quota.
+	// Quota Direct min/max resources for the pool quota. Mutually exclusive with units.
+	Quota *ServerQuotaResources `json:"quota"`
+
+	// Units Unit × quantity selections that make up the pool quota. Mutually exclusive with quota.
 	Units *[]ServerQuotaUnit `json:"units,omitempty"`
 }
 
@@ -702,7 +723,7 @@ type Tenant struct {
 	// Phase High-level provisioning phase of the tenant.
 	Phase *string `json:"phase,omitempty"`
 
-	// Quotas Per-pool quotas in business form (unit × quantity selections).
+	// Quotas Per-pool quotas. Each item is returned either as units (business form) or quota (direct min/max form).
 	Quotas []ServerQuota `json:"quotas"`
 
 	// ResourceVersion Opaque CR resourceVersion for optimistic concurrency.

@@ -153,7 +153,7 @@ func (h *Handler) createQuota(c *gin.Context) {
 		server.Fail(c, err)
 		return
 	}
-	view, err := h.svc.SetQuota(c.Request.Context(), c.Param("name"), req.Pool, fromContractUnits(req.Units))
+	view, err := h.svc.SetQuota(c.Request.Context(), c.Param("name"), makeQuotaSpec(req.Pool, req.Units, req.Quota))
 	if err != nil {
 		server.Fail(c, err)
 		return
@@ -167,7 +167,7 @@ func (h *Handler) updateQuota(c *gin.Context) {
 		server.Fail(c, err)
 		return
 	}
-	view, err := h.svc.UpdateQuota(c.Request.Context(), c.Param("name"), c.Param("pool"), fromContractUnits(req.Units))
+	view, err := h.svc.UpdateQuota(c.Request.Context(), c.Param("name"), makeQuotaSpec(c.Param("pool"), req.Units, req.Quota))
 	if err != nil {
 		server.Fail(c, err)
 		return
@@ -235,9 +235,19 @@ func (h *Handler) removeMember(c *gin.Context) {
 func fromContractQuotas(qs []server.Quota) []QuotaSpec {
 	out := make([]QuotaSpec, 0, len(qs))
 	for _, q := range qs {
-		out = append(out, QuotaSpec{Pool: q.Pool, Units: fromContractUnits(q.Units)})
+		out = append(out, makeQuotaSpec(q.Pool, q.Units, q.Quota))
 	}
 	return out
+}
+
+// makeQuotaSpec resolves one pool's contract input into the internal QuotaSpec.
+// Direct min/max wins when present; otherwise the units business form is used.
+// Mode exclusivity (both/neither) is enforced downstream by cluster-manager.
+func makeQuotaSpec(pool string, units []server.QuotaUnit, direct *server.QuotaResources) QuotaSpec {
+	if direct != nil {
+		return QuotaSpec{Pool: pool, Direct: &QuotaResourcesSpec{Min: direct.Min, Max: direct.Max}}
+	}
+	return QuotaSpec{Pool: pool, Units: fromContractUnits(units)}
 }
 
 func fromContractUnits(units []server.QuotaUnit) []QuotaUnitSpec {

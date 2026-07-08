@@ -17,8 +17,8 @@ import (
 type clusterManagerStub struct {
 	mu      sync.Mutex
 	tenants map[string]map[string]any
-	quotas  map[string]map[string][]map[string]any // tenant -> pool -> units
-	volumes map[string]map[string]any              // "namespace/name" -> volume
+	quotas  map[string]map[string]map[string]any // tenant -> pool -> quota object ({pool,units} or {pool,quota})
+	volumes map[string]map[string]any            // "namespace/name" -> volume
 	engine  *gin.Engine
 }
 
@@ -26,7 +26,7 @@ func newClusterManagerStub() *clusterManagerStub {
 	gin.SetMode(gin.ReleaseMode)
 	s := &clusterManagerStub{
 		tenants: map[string]map[string]any{},
-		quotas:  map[string]map[string][]map[string]any{},
+		quotas:  map[string]map[string]map[string]any{},
 		volumes: map[string]map[string]any{},
 		engine:  gin.New(),
 	}
@@ -56,9 +56,12 @@ func (s *clusterManagerStub) seedQuota(tenant, pool string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.quotas[tenant] == nil {
-		s.quotas[tenant] = map[string][]map[string]any{}
+		s.quotas[tenant] = map[string]map[string]any{}
 	}
-	s.quotas[tenant][pool] = []map[string]any{{"unitName": "small", "quantity": 1}}
+	s.quotas[tenant][pool] = map[string]any{
+		"pool":  pool,
+		"units": []map[string]any{{"unitName": "small", "quantity": 1}},
+	}
 }
 
 func (s *clusterManagerStub) poolUsage(c *gin.Context) {
@@ -230,8 +233,8 @@ func (s *clusterManagerStub) listQuotas(c *gin.Context) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	items := []map[string]any{}
-	for pool, units := range s.quotas[tenant] {
-		items = append(items, map[string]any{"pool": pool, "units": units})
+	for _, q := range s.quotas[tenant] {
+		items = append(items, q)
 	}
 	c.JSON(http.StatusOK, gin.H{"items": items, "count": len(items)})
 }
@@ -242,6 +245,7 @@ func (s *clusterManagerStub) setQuota(c *gin.Context) {
 	var body struct {
 		Pool  string           `json:"pool"`
 		Units []map[string]any `json:"units"`
+		Quota map[string]any   `json:"quota"`
 	}
 	_ = c.ShouldBindJSON(&body)
 	if pool == "" {
@@ -250,10 +254,17 @@ func (s *clusterManagerStub) setQuota(c *gin.Context) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.quotas[tenant] == nil {
-		s.quotas[tenant] = map[string][]map[string]any{}
+		s.quotas[tenant] = map[string]map[string]any{}
 	}
-	s.quotas[tenant][pool] = body.Units
-	c.JSON(http.StatusOK, map[string]any{"pool": pool, "units": body.Units})
+	// Round-trip whichever mode the caller sent (units or direct min/max).
+	entry := map[string]any{"pool": pool}
+	if body.Quota != nil {
+		entry["quota"] = body.Quota
+	} else {
+		entry["units"] = body.Units
+	}
+	s.quotas[tenant][pool] = entry
+	c.JSON(http.StatusOK, entry)
 }
 
 func (s *clusterManagerStub) delQuota(c *gin.Context) {

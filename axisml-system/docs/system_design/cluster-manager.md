@@ -94,10 +94,10 @@ spec:
   initResources: { ... }          # ImagePullSecret / Secret / ConfigMap / SA + RBAC
 ```
 
-REST 入参以业务形态 `{pool, units:[{unitName, quantity}]}` 表达配额；cluster-manager 按名读 `ResourcePool` CR，取每个 `unitName` 的 `requests` / `limits`，折算 `min = Σ(unit.requests × quantity)` / `max = Σ(unit.limits × quantity)`，写入 `spec.quotas[]`（`name` = `pool`）。折算有损，故业务原始选择 JSON 编码回存到 `tenant.axisml.io/quotas` annotation，GET 时据此还原 `units` 形态返回（tenant-operator 不读该 annotation，只消费 `spec.quotas[].min/max`）。
+REST 入参按 quota 二选一：业务形态 `{pool, units:[{unitName, quantity}]}`，或直写形态 `{pool, quota:{min,max}}`。业务形态下 cluster-manager 按名读 `ResourcePool` CR，取每个 `unitName` 的 `requests` / `limits`，折算 `min = Σ(unit.requests × quantity)` / `max = Σ(unit.limits × quantity)`；直写形态直接校验并采用调用方给出的 `min/max`。两种入口最终都写入统一的 `spec.quotas[]`（`name` = `pool`）。折算有损，故业务原始选择 JSON 编码回存到 `tenant.axisml.io/quotas` annotation，GET 时据此还原 `units` 形态；直写形态 GET 则从 `spec.quotas[]` 返回 `quota.min/max`（tenant-operator 不读 annotation，只消费 `spec.quotas[].min/max`）。
 
-**折算与校验**：`quotas[].pool` 必须存在对应 CR（否则 `422 pool-not-found`）；`units[].unitName` 必须存在于该 pool（否则 `422 unit-not-found`）；`quantity ≥ 0`（否则 `400 bad-quantity`）；空 `units` → 该 pool 配额为零。
-**字段不变性**：`metadata.name`（= identifier）/ `spec.namespace.name` / `quotas[].pool` 不可变；`quotas[].units[]→min/max`（折算写入）与 `initResources.*` 可变；`status.*` 由 tenant-operator 写、GET 时实时读。
+**折算与校验**：`quotas[].pool` 必须存在对应 CR（否则 `422 pool-not-found`）；同一 quota 入参只能使用 `units` 或 `quota` 之一（否则 `400 mode-conflict`）；`units[].unitName` 必须存在于该 pool（否则 `422 unit-not-found`）；`quantity ≥ 0`（否则 `400 bad-quantity`）；直写 `quota.max` 必填，`quota.min[k] ≤ quota.max[k]` 且资源量均非负。
+**字段不变性**：`metadata.name`（= identifier）/ `spec.namespace.name` / `quotas[].pool` 不可变；`quotas[].units[]→min/max`（折算写入）、直写 `quotas[].quota→min/max` 与 `initResources.*` 可变；`status.*` 由 tenant-operator 写、GET 时实时读。
 
 ### 3.4 Volume 形状
 
@@ -141,7 +141,7 @@ K8s 形态：`Volume` 直接物化为该 namespace 下的 `PersistentVolumeClaim
 
 | 操作 | 内部行为 |
 | --- | --- |
-| 创建 POST `/api/v1/tenants` | 校验 `identifier`（DNS-1123）；按 `quotas[]` 读 Pool 折算 min/max（§3.3）；create CR，透传调用方 `labels`/`annotations`，回存 `tenant.axisml.io/quotas` 与 `last-modified-by` |
+| 创建 POST `/api/v1/tenants` | 校验 `identifier`（DNS-1123）；按 `quotas[]` 的 `units` 或 `quota` 输入统一生成 min/max（§3.3）；create CR，透传调用方 `labels`/`annotations`，必要时回存 `tenant.axisml.io/quotas` 与 `last-modified-by` |
 | GET / LIST | GET 合并 `spec` 与 CR `status`（phase / conditions / `quotas[].used`）实时返回；list 支持 `?labelSelector=` |
 | PATCH | JSON Patch（乐观锁重试）；`metadata.name` / `spec.namespace.name` / `quotas[].pool` 不可变；display 元数据不在此（归上游表） |
 | DELETE | delete CR（硬删，幂等 204）；子资源经 ownerReference GC，Namespace 永不删除 |
@@ -150,7 +150,7 @@ K8s 形态：`Volume` 直接物化为该 namespace 下的 `PersistentVolumeClaim
 
 ### 4.4 Tenant 配额子路径
 
-`GET/POST .../tenants/{tenant}/quotas` 与 `PATCH/DELETE .../quotas/{pool}`：每个端点映射为"读 Tenant CR → 据 ResourceUnit 折算 → 局部改 `spec.quotas[]` → 写回 CR"的原子封装。GET 时一并从 CR `status.quotas[].used` 实时读用量。
+`GET/POST .../tenants/{tenant}/quotas` 与 `PATCH/DELETE .../quotas/{pool}`：每个端点映射为"读 Tenant CR → 编译 `units` 或校验 `quota` → 局部改 `spec.quotas[]` → 写回 CR"的原子封装。GET 时一并从 CR `status.quotas[].used` 实时读用量。
 
 ### 4.5 Volume
 

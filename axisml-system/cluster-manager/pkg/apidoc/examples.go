@@ -201,10 +201,10 @@ func registerExamples(g *openapigen.Generator) {
 
 	g.SetExample("SetQuotaRequest", quota)
 	g.SetExample("PatchQuotaRequest", obj{
-		"units": []any{obj{
-			"unitName": "a100-2x",
-			"quantity": 6,
-		}},
+		"quota": obj{
+			"min": obj{"cpu": "32", "memory": "256Gi"},
+			"max": obj{"nvidia.com/gpu": "8"},
+		},
 	})
 
 	// --- Volumes ---

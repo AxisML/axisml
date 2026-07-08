@@ -372,11 +372,14 @@ func (s *Service) resolveAccount(ctx context.Context, account string) (*store.Us
 func toCMQuotas(qs []QuotaSpec) []clustermanager.Quota {
 	out := make([]clustermanager.Quota, 0, len(qs))
 	for _, q := range qs {
-		units := make([]clustermanager.QuotaUnit, 0, len(q.Units))
-		for _, u := range q.Units {
-			units = append(units, clustermanager.QuotaUnit{UnitName: u.UnitName, Quantity: u.Quantity})
+		cmq := clustermanager.Quota{Pool: q.Pool}
+		if q.Direct != nil {
+			cmq.Quota = toCMResources(q.Direct)
+		} else {
+			units := toCMUnits(q.Units)
+			cmq.Units = &units
 		}
-		out = append(out, clustermanager.Quota{Pool: q.Pool, Units: units})
+		out = append(out, cmq)
 	}
 	return out
 }

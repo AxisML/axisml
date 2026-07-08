@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -15,18 +16,17 @@ import (
 // CR metadata.name, the K8s namespace, and the compute/artifacts partition
 // string all at once.
 //
-// Quotas are expressed in the business form (per pool, a list of
-// `unit × quantity` selections). cluster-manager owns the ResourcePool /
-// ResourceUnit vocabulary, so it folds `Σ(unit.requests × quantity)` /
-// `Σ(unit.limits × quantity)` into the ElasticQuota min/max written to the
-// CR spec.quotas[]. The original selection round-trips through the
-// `tenant.axisml.io/quotas` annotation so GET can return the business form.
+// Quotas accept either the business form (per pool, a list of `unit × quantity`
+// selections) or direct ElasticQuota min/max resources. cluster-manager compiles
+// both forms into the single canonical Tenant CR shape: spec.quotas[].min/max.
+// Unit selections round-trip through the tenant.axisml.io/quotas annotation so
+// GET can return the business form without making it part of the CR contract.
 
 // Tenant is the REST representation of a Tenant CR.
 type Tenant struct {
 	Name            string                        `json:"name" desc:"Canonical tenant identifier; also the CR name, K8s namespace, and partition string."`
 	Namespace       tenantv1alpha1.NamespaceSpec  `json:"namespace" desc:"Backing namespace specification for the tenant."`
-	Quotas          []Quota                       `json:"quotas" desc:"Per-pool quotas in business form (unit × quantity selections)."`
+	Quotas          []Quota                       `json:"quotas" desc:"Per-pool quotas. Each item is returned either as units (business form) or quota (direct min/max form)."`
 	InitResources   *tenantv1alpha1.InitResources `json:"initResources,omitempty" desc:"Per-tenant init resources (Secrets, ConfigMaps, ServiceAccount, RBAC) seeded on provisioning."`
 	Labels          map[string]string             `json:"labels,omitempty" desc:"User-defined labels on the tenant."`
 	Annotations     map[string]string             `json:"annotations,omitempty" desc:"User-defined annotations on the tenant."`
@@ -36,11 +36,32 @@ type Tenant struct {
 	CreatedAt       time.Time                     `json:"createdAt" desc:"Tenant creation timestamp (RFC3339)."`
 }
 
-// Quota is the business form of one pool's quota: a list of
-// `unit × quantity` selections under that pool.
+// Quota is one pool quota in exactly one of two input forms:
+//   - units: business selection compiled against ResourcePool.spec.units[].
+//   - quota: direct ElasticQuota min/max resources.
+//
+// The Tenant CR always stores the compiled direct form in spec.quotas[].min/max.
 type Quota struct {
-	Pool  string      `json:"pool" desc:"ResourcePool this quota applies to."`
-	Units []QuotaUnit `json:"units" desc:"Unit × quantity selections granted to the tenant under this pool."`
+	Pool  string          `json:"pool" desc:"ResourcePool this quota applies to."`
+	Units []QuotaUnit     `json:"units,omitempty" desc:"Unit × quantity selections granted to the tenant under this pool. Mutually exclusive with quota."`
+	Quota *QuotaResources `json:"quota,omitempty" desc:"Direct min/max resources for this pool. Mutually exclusive with units."`
+}
+
+// MarshalJSON preserves the distinction between an omitted units field (direct
+// quota mode) and an explicit empty units array (zero quota in units mode).
+func (q Quota) MarshalJSON() ([]byte, error) {
+	if q.Units != nil {
+		type unitsQuota struct {
+			Pool  string      `json:"pool"`
+			Units []QuotaUnit `json:"units"`
+		}
+		return json.Marshal(unitsQuota{Pool: q.Pool, Units: q.Units})
+	}
+	type directQuota struct {
+		Pool  string          `json:"pool"`
+		Quota *QuotaResources `json:"quota,omitempty"`
+	}
+	return json.Marshal(directQuota{Pool: q.Pool, Quota: q.Quota})
 }
 
 // QuotaUnit selects a ResourceUnit and how many of it the tenant is
@@ -48,6 +69,13 @@ type Quota struct {
 type QuotaUnit struct {
 	UnitName string `json:"unitName" desc:"Name of the ResourceUnit being granted."`
 	Quantity int    `json:"quantity" desc:"How many of this unit the tenant is granted under the pool."`
+}
+
+// QuotaResources is the direct scheduler-facing quota shape. It maps 1:1 to the
+// Tenant CR's spec.quotas[].min/max fields.
+type QuotaResources struct {
+	Min corev1.ResourceList `json:"min,omitempty" desc:"ElasticQuota minimum resources."`
+	Max corev1.ResourceList `json:"max" desc:"ElasticQuota maximum resources."`
 }
 
 // TenantStatus surfaces the operator-written CR status, read live from
@@ -72,7 +100,7 @@ type QuotaStatus struct {
 type CreateTenantRequest struct {
 	Name          string                        `json:"name" desc:"Tenant identifier to create; becomes the CR name, namespace, and partition string."`
 	Namespace     *tenantv1alpha1.NamespaceSpec `json:"namespace,omitempty" desc:"Optional namespace specification; defaults are derived from the tenant name when omitted."`
-	Quotas        []Quota                       `json:"quotas,omitempty" desc:"Initial per-pool quotas to grant the tenant."`
+	Quotas        []Quota                       `json:"quotas,omitempty" desc:"Initial per-pool quotas to grant the tenant. Each item must use either units or quota."`
 	InitResources *tenantv1alpha1.InitResources `json:"initResources,omitempty" desc:"Per-tenant init resources to seed on provisioning."`
 	Labels        map[string]string             `json:"labels,omitempty" desc:"User-defined labels to set on the tenant."`
 	Annotations   map[string]string             `json:"annotations,omitempty" desc:"User-defined annotations to set on the tenant."`
@@ -91,14 +119,16 @@ type PatchTenantRequest struct {
 // SetQuotaRequest is the body for POST /api/v1/tenants/{tenant}/quotas — it
 // creates or replaces the quota for one pool.
 type SetQuotaRequest struct {
-	Pool  string      `json:"pool" desc:"ResourcePool to create or replace the quota for."`
-	Units []QuotaUnit `json:"units" desc:"Unit × quantity selections that make up the pool quota."`
+	Pool  string          `json:"pool" desc:"ResourcePool to create or replace the quota for."`
+	Units []QuotaUnit     `json:"units,omitempty" desc:"Unit × quantity selections that make up the pool quota. Mutually exclusive with quota."`
+	Quota *QuotaResources `json:"quota,omitempty" desc:"Direct min/max resources for the pool quota. Mutually exclusive with units."`
 }
 
 // PatchQuotaRequest is the body for PATCH .../quotas/{pool}; `pool` is the
 // path param.
 type PatchQuotaRequest struct {
-	Units []QuotaUnit `json:"units" desc:"Replacement unit × quantity selections for the pool quota."`
+	Units []QuotaUnit     `json:"units,omitempty" desc:"Replacement unit × quantity selections for the pool quota. Mutually exclusive with quota."`
+	Quota *QuotaResources `json:"quota,omitempty" desc:"Replacement direct min/max resources for the pool quota. Mutually exclusive with units."`
 }
 
 // TenantList is the LIST response.
