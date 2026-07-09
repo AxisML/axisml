@@ -5,9 +5,10 @@ set -euo pipefail
 #
 # Usage: merge-coverage.sh <output> <component-dir> [<component-dir>...]
 #
-# Each component is expected to produce coverage.out and/or envtest-coverage.out
-# under <component-dir>/coverage/. Profiles must use -covermode=atomic so the
-# merged file's mode header stays consistent.
+# Each component is expected to produce coverage.out (unit) and/or
+# integration-coverage.out (envtest/testcontainers) under <component-dir>/coverage/.
+# Profiles must use -covermode=atomic so the merged file's mode header stays
+# consistent.
 
 if [ "$#" -lt 2 ]; then
   echo "usage: $0 <output> <component-dir> [<component-dir>...]" >&2
@@ -25,7 +26,7 @@ echo "mode: atomic" > "$out"
 
 merged=0
 for dir in "$@"; do
-  for f in "$dir/coverage/coverage.out" "$dir/coverage/envtest-coverage.out"; do
+  for f in "$dir/coverage/coverage.out" "$dir/coverage/integration-coverage.out"; do
     if [ -f "$f" ]; then
       tail -n +2 "$f" >> "$out"
       merged=$((merged + 1))
