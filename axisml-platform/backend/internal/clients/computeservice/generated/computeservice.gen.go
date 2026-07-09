@@ -639,7 +639,7 @@ type MLRun struct {
 	// Owner Username of the run owner.
 	Owner *string `json:"owner,omitempty"`
 
-	// Phase Current run lifecycle phase (Pending, Running, Succeeded, Failed).
+	// Phase Current run lifecycle phase: Creating, Pending, Running, Succeeded, Failed, Canceling, Cancelled, Deleting, Deleted.
 	Phase string `json:"phase"`
 
 	// Spec Resolved MLRun spec sub-tree (backend, scheduling, roles, run policy).
@@ -727,6 +727,39 @@ type MLRunPatchRequest struct {
 
 	// Labels Replacement label set.
 	Labels *map[string]string `json:"labels,omitempty"`
+}
+
+// MLRunPhase defines model for MLRunPhase.
+type MLRunPhase struct {
+	// FinishedAt Time the run reached a terminal phase.
+	FinishedAt *time.Time `json:"finishedAt"`
+
+	// Message Human-readable status detail for the current phase.
+	Message *string `json:"message,omitempty"`
+
+	// Name MLRun name, unique within the namespace.
+	Name string `json:"name"`
+
+	// Phase Current run lifecycle phase: Creating, Pending, Running, Succeeded, Failed, Canceling, Cancelled, Deleting, Deleted.
+	Phase string `json:"phase"`
+
+	// StartedAt Time the run started executing.
+	StartedAt *time.Time `json:"startedAt"`
+}
+
+// MLRunPhaseList defines model for MLRunPhaseList.
+type MLRunPhaseList struct {
+	// ContinueToken Kubernetes-style continuation token for the next page; empty/absent on the final page.
+	ContinueToken *string `json:"continueToken,omitempty"`
+
+	// Count Number of items returned in this page (len(items)).
+	Count int `json:"count"`
+
+	// Items The page of items for the current offset.
+	Items []MLRunPhase `json:"items"`
+
+	// Total Total number of matching items across all pages.
+	Total int64 `json:"total"`
 }
 
 // MLRunPodTemplateSubset defines model for MLRunPodTemplateSubset.
@@ -826,7 +859,7 @@ type MLService struct {
 	// Owner Username of the service owner.
 	Owner *string `json:"owner,omitempty"`
 
-	// Phase Current service lifecycle phase (Pending, Ready, Degraded, Failed).
+	// Phase Current service lifecycle phase: Creating, Pending, Ready, Degraded, Failed, Deleting, Deleted.
 	Phase string `json:"phase"`
 
 	// Spec Resolved MLService spec sub-tree (backend, scheduling, roles, route).
@@ -920,6 +953,42 @@ type MLServicePatchRequest struct {
 
 	// Labels Replacement label set.
 	Labels *map[string]string `json:"labels,omitempty"`
+}
+
+// MLServicePhase defines model for MLServicePhase.
+type MLServicePhase struct {
+	// Generation Desired-state generation, bumped on every spec-affecting change (scale).
+	Generation int64 `json:"generation"`
+
+	// Message Human-readable status detail for the current phase.
+	Message *string `json:"message,omitempty"`
+
+	// Name MLService name, unique within the namespace.
+	Name string `json:"name"`
+
+	// ObservedGeneration Generation the operator last reconciled; equals generation when in sync.
+	ObservedGeneration int64 `json:"observedGeneration"`
+
+	// Phase Current service lifecycle phase: Creating, Pending, Ready, Degraded, Failed, Deleting, Deleted.
+	Phase string `json:"phase"`
+
+	// ReadyReplicas Number of replicas that have passed readiness.
+	ReadyReplicas int32 `json:"readyReplicas"`
+}
+
+// MLServicePhaseList defines model for MLServicePhaseList.
+type MLServicePhaseList struct {
+	// ContinueToken Kubernetes-style continuation token for the next page; empty/absent on the final page.
+	ContinueToken *string `json:"continueToken,omitempty"`
+
+	// Count Number of items returned in this page (len(items)).
+	Count int `json:"count"`
+
+	// Items The page of items for the current offset.
+	Items []MLServicePhase `json:"items"`
+
+	// Total Total number of matching items across all pages.
+	Total int64 `json:"total"`
 }
 
 // MLServicePodPort defines model for MLServicePodPort.
@@ -1342,6 +1411,21 @@ type ListMLRunsParams struct {
 	LabelSelector *string `form:"labelSelector,omitempty" json:"labelSelector,omitempty"`
 }
 
+// BatchGetMLRunPhasesParams defines parameters for BatchGetMLRunPhases.
+type BatchGetMLRunPhasesParams struct {
+	// Names Comma-separated (or repeated) names to fetch phases for, e.g. names=a,b,c. Bounded at 200; unresolved names are omitted from items. Presence of the key (even empty) selects names-mode, so an empty value returns an empty list. When present, labelSelector / pagination are ignored.
+	Names *string `form:"names,omitempty" json:"names,omitempty"`
+
+	// LabelSelector K8s-style label selector filtered against the row's labels jsonb.
+	LabelSelector *string `form:"labelSelector,omitempty" json:"labelSelector,omitempty"`
+
+	// Limit Page size (1–200, default 50).
+	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Continue Opaque continuation token from a previous page.
+	Continue *string `form:"continue,omitempty" json:"continue,omitempty"`
+}
+
 // GetMLRunMetricsParams defines parameters for GetMLRunMetrics.
 type GetMLRunMetricsParams struct {
 	// Metric Resource metric to query: cpu_util (cores) | mem_util (bytes) | gpu_util (percent).
@@ -1371,6 +1455,9 @@ type GetMLRunPodLogsParams struct {
 
 // ListMLServicesParams defines parameters for ListMLServices.
 type ListMLServicesParams struct {
+	// Kind Filter MLServices by kind (service, workspace, tensorboard).
+	Kind *string `form:"kind,omitempty" json:"kind,omitempty"`
+
 	// Limit Page size (1–200, default 50).
 	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
 
@@ -1379,6 +1466,24 @@ type ListMLServicesParams struct {
 
 	// LabelSelector K8s-style label selector filtered against the row's labels jsonb.
 	LabelSelector *string `form:"labelSelector,omitempty" json:"labelSelector,omitempty"`
+}
+
+// BatchGetMLServicePhasesParams defines parameters for BatchGetMLServicePhases.
+type BatchGetMLServicePhasesParams struct {
+	// Names Comma-separated (or repeated) names to fetch phases for, e.g. names=a,b,c. Bounded at 200; unresolved names are omitted from items. Presence of the key (even empty) selects names-mode, so an empty value returns an empty list. When present, labelSelector / pagination are ignored.
+	Names *string `form:"names,omitempty" json:"names,omitempty"`
+
+	// Kind Filter MLServices by kind (service, workspace, tensorboard).
+	Kind *string `form:"kind,omitempty" json:"kind,omitempty"`
+
+	// LabelSelector K8s-style label selector filtered against the row's labels jsonb.
+	LabelSelector *string `form:"labelSelector,omitempty" json:"labelSelector,omitempty"`
+
+	// Limit Page size (1–200, default 50).
+	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Continue Opaque continuation token from a previous page.
+	Continue *string `form:"continue,omitempty" json:"continue,omitempty"`
 }
 
 // GetMLServiceMetricsParams defines parameters for GetMLServiceMetrics.
@@ -1543,6 +1648,9 @@ type ClientInterface interface {
 
 	CreateMLRun(ctx context.Context, namespace string, body CreateMLRunJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// BatchGetMLRunPhases request
+	BatchGetMLRunPhases(ctx context.Context, namespace string, params *BatchGetMLRunPhasesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// DeleteMLRun request
 	DeleteMLRun(ctx context.Context, namespace string, mlrun string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1563,6 +1671,9 @@ type ClientInterface interface {
 	// GetMLRunMetrics request
 	GetMLRunMetrics(ctx context.Context, namespace string, mlrun string, params *GetMLRunMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetMLRunPhase request
+	GetMLRunPhase(ctx context.Context, namespace string, mlrun string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListMLRunPods request
 	ListMLRunPods(ctx context.Context, namespace string, mlrun string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1580,6 +1691,9 @@ type ClientInterface interface {
 
 	CreateMLService(ctx context.Context, namespace string, body CreateMLServiceJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// BatchGetMLServicePhases request
+	BatchGetMLServicePhases(ctx context.Context, namespace string, params *BatchGetMLServicePhasesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// DeleteMLService request
 	DeleteMLService(ctx context.Context, namespace string, mlservice string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1596,6 +1710,9 @@ type ClientInterface interface {
 
 	// GetMLServiceMetrics request
 	GetMLServiceMetrics(ctx context.Context, namespace string, mlservice string, params *GetMLServiceMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetMLServicePhase request
+	GetMLServicePhase(ctx context.Context, namespace string, mlservice string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListMLServicePods request
 	ListMLServicePods(ctx context.Context, namespace string, mlservice string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1699,6 +1816,18 @@ func (c *Client) CreateMLRun(ctx context.Context, namespace string, body CreateM
 	return c.Client.Do(req)
 }
 
+func (c *Client) BatchGetMLRunPhases(ctx context.Context, namespace string, params *BatchGetMLRunPhasesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewBatchGetMLRunPhasesRequest(c.Server, namespace, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) DeleteMLRun(ctx context.Context, namespace string, mlrun string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewDeleteMLRunRequest(c.Server, namespace, mlrun)
 	if err != nil {
@@ -1783,6 +1912,18 @@ func (c *Client) GetMLRunMetrics(ctx context.Context, namespace string, mlrun st
 	return c.Client.Do(req)
 }
 
+func (c *Client) GetMLRunPhase(ctx context.Context, namespace string, mlrun string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetMLRunPhaseRequest(c.Server, namespace, mlrun)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) ListMLRunPods(ctx context.Context, namespace string, mlrun string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListMLRunPodsRequest(c.Server, namespace, mlrun)
 	if err != nil {
@@ -1855,6 +1996,18 @@ func (c *Client) CreateMLService(ctx context.Context, namespace string, body Cre
 	return c.Client.Do(req)
 }
 
+func (c *Client) BatchGetMLServicePhases(ctx context.Context, namespace string, params *BatchGetMLServicePhasesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewBatchGetMLServicePhasesRequest(c.Server, namespace, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) DeleteMLService(ctx context.Context, namespace string, mlservice string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewDeleteMLServiceRequest(c.Server, namespace, mlservice)
 	if err != nil {
@@ -1917,6 +2070,18 @@ func (c *Client) ListMLServiceEvents(ctx context.Context, namespace string, mlse
 
 func (c *Client) GetMLServiceMetrics(ctx context.Context, namespace string, mlservice string, params *GetMLServiceMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetMLServiceMetricsRequest(c.Server, namespace, mlservice, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetMLServicePhase(ctx context.Context, namespace string, mlservice string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetMLServicePhaseRequest(c.Server, namespace, mlservice)
 	if err != nil {
 		return nil, err
 	}
@@ -2317,6 +2482,110 @@ func NewCreateMLRunRequestWithBody(server string, namespace string, contentType 
 	return req, nil
 }
 
+// NewBatchGetMLRunPhasesRequest generates requests for BatchGetMLRunPhases
+func NewBatchGetMLRunPhasesRequest(server string, namespace string, params *BatchGetMLRunPhasesParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespace", runtime.ParamLocationPath, namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/mlruns/phases", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Names != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "names", runtime.ParamLocationQuery, *params.Names); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.LabelSelector != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "labelSelector", runtime.ParamLocationQuery, *params.LabelSelector); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Continue != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "continue", runtime.ParamLocationQuery, *params.Continue); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewDeleteMLRunRequest generates requests for DeleteMLRun
 func NewDeleteMLRunRequest(server string, namespace string, mlrun string) (*http.Request, error) {
 	var err error
@@ -2622,6 +2891,47 @@ func NewGetMLRunMetricsRequest(server string, namespace string, mlrun string, pa
 	return req, nil
 }
 
+// NewGetMLRunPhaseRequest generates requests for GetMLRunPhase
+func NewGetMLRunPhaseRequest(server string, namespace string, mlrun string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespace", runtime.ParamLocationPath, namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "mlrun", runtime.ParamLocationPath, mlrun)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/mlruns/%s/phase", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewListMLRunPodsRequest generates requests for ListMLRunPods
 func NewListMLRunPodsRequest(server string, namespace string, mlrun string) (*http.Request, error) {
 	var err error
@@ -2858,6 +3168,22 @@ func NewListMLServicesRequest(server string, namespace string, params *ListMLSer
 	if params != nil {
 		queryValues := queryURL.Query()
 
+		if params.Kind != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "kind", runtime.ParamLocationQuery, *params.Kind); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
 		if params.Limit != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
@@ -2960,6 +3286,126 @@ func NewCreateMLServiceRequestWithBody(server string, namespace string, contentT
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewBatchGetMLServicePhasesRequest generates requests for BatchGetMLServicePhases
+func NewBatchGetMLServicePhasesRequest(server string, namespace string, params *BatchGetMLServicePhasesParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespace", runtime.ParamLocationPath, namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/mlservices/phases", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Names != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "names", runtime.ParamLocationQuery, *params.Names); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Kind != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "kind", runtime.ParamLocationQuery, *params.Kind); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.LabelSelector != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "labelSelector", runtime.ParamLocationQuery, *params.LabelSelector); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Continue != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "continue", runtime.ParamLocationQuery, *params.Continue); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -3218,6 +3664,47 @@ func NewGetMLServiceMetricsRequest(server string, namespace string, mlservice st
 		}
 
 		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetMLServicePhaseRequest generates requests for GetMLServicePhase
+func NewGetMLServicePhaseRequest(server string, namespace string, mlservice string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "namespace", runtime.ParamLocationPath, namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "mlservice", runtime.ParamLocationPath, mlservice)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/namespaces/%s/mlservices/%s/phase", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -4107,6 +4594,9 @@ type ClientWithResponsesInterface interface {
 
 	CreateMLRunWithResponse(ctx context.Context, namespace string, body CreateMLRunJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateMLRunResponse, error)
 
+	// BatchGetMLRunPhasesWithResponse request
+	BatchGetMLRunPhasesWithResponse(ctx context.Context, namespace string, params *BatchGetMLRunPhasesParams, reqEditors ...RequestEditorFn) (*BatchGetMLRunPhasesResponse, error)
+
 	// DeleteMLRunWithResponse request
 	DeleteMLRunWithResponse(ctx context.Context, namespace string, mlrun string, reqEditors ...RequestEditorFn) (*DeleteMLRunResponse, error)
 
@@ -4127,6 +4617,9 @@ type ClientWithResponsesInterface interface {
 	// GetMLRunMetricsWithResponse request
 	GetMLRunMetricsWithResponse(ctx context.Context, namespace string, mlrun string, params *GetMLRunMetricsParams, reqEditors ...RequestEditorFn) (*GetMLRunMetricsResponse, error)
 
+	// GetMLRunPhaseWithResponse request
+	GetMLRunPhaseWithResponse(ctx context.Context, namespace string, mlrun string, reqEditors ...RequestEditorFn) (*GetMLRunPhaseResponse, error)
+
 	// ListMLRunPodsWithResponse request
 	ListMLRunPodsWithResponse(ctx context.Context, namespace string, mlrun string, reqEditors ...RequestEditorFn) (*ListMLRunPodsResponse, error)
 
@@ -4144,6 +4637,9 @@ type ClientWithResponsesInterface interface {
 
 	CreateMLServiceWithResponse(ctx context.Context, namespace string, body CreateMLServiceJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateMLServiceResponse, error)
 
+	// BatchGetMLServicePhasesWithResponse request
+	BatchGetMLServicePhasesWithResponse(ctx context.Context, namespace string, params *BatchGetMLServicePhasesParams, reqEditors ...RequestEditorFn) (*BatchGetMLServicePhasesResponse, error)
+
 	// DeleteMLServiceWithResponse request
 	DeleteMLServiceWithResponse(ctx context.Context, namespace string, mlservice string, reqEditors ...RequestEditorFn) (*DeleteMLServiceResponse, error)
 
@@ -4160,6 +4656,9 @@ type ClientWithResponsesInterface interface {
 
 	// GetMLServiceMetricsWithResponse request
 	GetMLServiceMetricsWithResponse(ctx context.Context, namespace string, mlservice string, params *GetMLServiceMetricsParams, reqEditors ...RequestEditorFn) (*GetMLServiceMetricsResponse, error)
+
+	// GetMLServicePhaseWithResponse request
+	GetMLServicePhaseWithResponse(ctx context.Context, namespace string, mlservice string, reqEditors ...RequestEditorFn) (*GetMLServicePhaseResponse, error)
 
 	// ListMLServicePodsWithResponse request
 	ListMLServicePodsWithResponse(ctx context.Context, namespace string, mlservice string, reqEditors ...RequestEditorFn) (*ListMLServicePodsResponse, error)
@@ -4293,6 +4792,37 @@ func (r CreateMLRunResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r CreateMLRunResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type BatchGetMLRunPhasesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *MLRunPhaseList
+	JSON400      *ComputeServiceError
+	JSON401      *ComputeServiceError
+	JSON403      *ComputeServiceError
+	JSON404      *ComputeServiceError
+	JSON409      *ComputeServiceError
+	JSON412      *ComputeServiceError
+	JSON422      *ComputeServiceError
+	JSON503      *ComputeServiceError
+	JSONDefault  *ComputeServiceError
+}
+
+// Status returns HTTPResponse.Status
+func (r BatchGetMLRunPhasesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r BatchGetMLRunPhasesResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -4484,6 +5014,37 @@ func (r GetMLRunMetricsResponse) StatusCode() int {
 	return 0
 }
 
+type GetMLRunPhaseResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *MLRunPhase
+	JSON400      *ComputeServiceError
+	JSON401      *ComputeServiceError
+	JSON403      *ComputeServiceError
+	JSON404      *ComputeServiceError
+	JSON409      *ComputeServiceError
+	JSON412      *ComputeServiceError
+	JSON422      *ComputeServiceError
+	JSON503      *ComputeServiceError
+	JSONDefault  *ComputeServiceError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetMLRunPhaseResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetMLRunPhaseResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type ListMLRunPodsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -4638,6 +5199,37 @@ func (r CreateMLServiceResponse) StatusCode() int {
 	return 0
 }
 
+type BatchGetMLServicePhasesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *MLServicePhaseList
+	JSON400      *ComputeServiceError
+	JSON401      *ComputeServiceError
+	JSON403      *ComputeServiceError
+	JSON404      *ComputeServiceError
+	JSON409      *ComputeServiceError
+	JSON412      *ComputeServiceError
+	JSON422      *ComputeServiceError
+	JSON503      *ComputeServiceError
+	JSONDefault  *ComputeServiceError
+}
+
+// Status returns HTTPResponse.Status
+func (r BatchGetMLServicePhasesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r BatchGetMLServicePhasesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type DeleteMLServiceResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -4786,6 +5378,37 @@ func (r GetMLServiceMetricsResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r GetMLServiceMetricsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetMLServicePhaseResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *MLServicePhase
+	JSON400      *ComputeServiceError
+	JSON401      *ComputeServiceError
+	JSON403      *ComputeServiceError
+	JSON404      *ComputeServiceError
+	JSON409      *ComputeServiceError
+	JSON412      *ComputeServiceError
+	JSON422      *ComputeServiceError
+	JSON503      *ComputeServiceError
+	JSONDefault  *ComputeServiceError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetMLServicePhaseResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetMLServicePhaseResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -5270,6 +5893,15 @@ func (c *ClientWithResponses) CreateMLRunWithResponse(ctx context.Context, names
 	return ParseCreateMLRunResponse(rsp)
 }
 
+// BatchGetMLRunPhasesWithResponse request returning *BatchGetMLRunPhasesResponse
+func (c *ClientWithResponses) BatchGetMLRunPhasesWithResponse(ctx context.Context, namespace string, params *BatchGetMLRunPhasesParams, reqEditors ...RequestEditorFn) (*BatchGetMLRunPhasesResponse, error) {
+	rsp, err := c.BatchGetMLRunPhases(ctx, namespace, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseBatchGetMLRunPhasesResponse(rsp)
+}
+
 // DeleteMLRunWithResponse request returning *DeleteMLRunResponse
 func (c *ClientWithResponses) DeleteMLRunWithResponse(ctx context.Context, namespace string, mlrun string, reqEditors ...RequestEditorFn) (*DeleteMLRunResponse, error) {
 	rsp, err := c.DeleteMLRun(ctx, namespace, mlrun, reqEditors...)
@@ -5332,6 +5964,15 @@ func (c *ClientWithResponses) GetMLRunMetricsWithResponse(ctx context.Context, n
 	return ParseGetMLRunMetricsResponse(rsp)
 }
 
+// GetMLRunPhaseWithResponse request returning *GetMLRunPhaseResponse
+func (c *ClientWithResponses) GetMLRunPhaseWithResponse(ctx context.Context, namespace string, mlrun string, reqEditors ...RequestEditorFn) (*GetMLRunPhaseResponse, error) {
+	rsp, err := c.GetMLRunPhase(ctx, namespace, mlrun, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetMLRunPhaseResponse(rsp)
+}
+
 // ListMLRunPodsWithResponse request returning *ListMLRunPodsResponse
 func (c *ClientWithResponses) ListMLRunPodsWithResponse(ctx context.Context, namespace string, mlrun string, reqEditors ...RequestEditorFn) (*ListMLRunPodsResponse, error) {
 	rsp, err := c.ListMLRunPods(ctx, namespace, mlrun, reqEditors...)
@@ -5385,6 +6026,15 @@ func (c *ClientWithResponses) CreateMLServiceWithResponse(ctx context.Context, n
 	return ParseCreateMLServiceResponse(rsp)
 }
 
+// BatchGetMLServicePhasesWithResponse request returning *BatchGetMLServicePhasesResponse
+func (c *ClientWithResponses) BatchGetMLServicePhasesWithResponse(ctx context.Context, namespace string, params *BatchGetMLServicePhasesParams, reqEditors ...RequestEditorFn) (*BatchGetMLServicePhasesResponse, error) {
+	rsp, err := c.BatchGetMLServicePhases(ctx, namespace, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseBatchGetMLServicePhasesResponse(rsp)
+}
+
 // DeleteMLServiceWithResponse request returning *DeleteMLServiceResponse
 func (c *ClientWithResponses) DeleteMLServiceWithResponse(ctx context.Context, namespace string, mlservice string, reqEditors ...RequestEditorFn) (*DeleteMLServiceResponse, error) {
 	rsp, err := c.DeleteMLService(ctx, namespace, mlservice, reqEditors...)
@@ -5436,6 +6086,15 @@ func (c *ClientWithResponses) GetMLServiceMetricsWithResponse(ctx context.Contex
 		return nil, err
 	}
 	return ParseGetMLServiceMetricsResponse(rsp)
+}
+
+// GetMLServicePhaseWithResponse request returning *GetMLServicePhaseResponse
+func (c *ClientWithResponses) GetMLServicePhaseWithResponse(ctx context.Context, namespace string, mlservice string, reqEditors ...RequestEditorFn) (*GetMLServicePhaseResponse, error) {
+	rsp, err := c.GetMLServicePhase(ctx, namespace, mlservice, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetMLServicePhaseResponse(rsp)
 }
 
 // ListMLServicePodsWithResponse request returning *ListMLServicePodsResponse
@@ -5740,6 +6399,95 @@ func ParseCreateMLRunResponse(rsp *http.Response) (*CreateMLRunResponse, error) 
 			return nil, err
 		}
 		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseBatchGetMLRunPhasesResponse parses an HTTP response from a BatchGetMLRunPhasesWithResponse call
+func ParseBatchGetMLRunPhasesResponse(rsp *http.Response) (*BatchGetMLRunPhasesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &BatchGetMLRunPhasesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest MLRunPhaseList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest ComputeServiceError
@@ -6336,6 +7084,95 @@ func ParseGetMLRunMetricsResponse(rsp *http.Response) (*GetMLRunMetricsResponse,
 	return response, nil
 }
 
+// ParseGetMLRunPhaseResponse parses an HTTP response from a GetMLRunPhaseWithResponse call
+func ParseGetMLRunPhaseResponse(rsp *http.Response) (*GetMLRunPhaseResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetMLRunPhaseResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest MLRunPhase
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseListMLRunPodsResponse parses an HTTP response from a ListMLRunPodsWithResponse call
 func ParseListMLRunPodsResponse(rsp *http.Response) (*ListMLRunPodsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -6774,6 +7611,95 @@ func ParseCreateMLServiceResponse(rsp *http.Response) (*CreateMLServiceResponse,
 	return response, nil
 }
 
+// ParseBatchGetMLServicePhasesResponse parses an HTTP response from a BatchGetMLServicePhasesWithResponse call
+func ParseBatchGetMLServicePhasesResponse(rsp *http.Response) (*BatchGetMLServicePhasesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &BatchGetMLServicePhasesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest MLServicePhaseList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseDeleteMLServiceResponse parses an HTTP response from a DeleteMLServiceWithResponse call
 func ParseDeleteMLServiceResponse(rsp *http.Response) (*DeleteMLServiceResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -7139,6 +8065,95 @@ func ParseGetMLServiceMetricsResponse(rsp *http.Response) (*GetMLServiceMetricsR
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest MetricSeries
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ComputeServiceError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetMLServicePhaseResponse parses an HTTP response from a GetMLServicePhaseWithResponse call
+func ParseGetMLServicePhaseResponse(rsp *http.Response) (*GetMLServicePhaseResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetMLServicePhaseResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest MLServicePhase
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
