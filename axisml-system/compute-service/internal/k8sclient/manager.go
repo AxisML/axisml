@@ -14,10 +14,10 @@ import (
 
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/config"
 
-	resourcepoolv1alpha1 "github.com/axisml/axisml/axisml-system/cluster-manager/api/v1alpha1"
-	mlrunv1alpha1 "github.com/axisml/axisml/axisml-system/compute-operator/api/mlrun/v1alpha1"
-	mlservicev1alpha1 "github.com/axisml/axisml/axisml-system/compute-operator/api/mlservice/v1alpha1"
-	mltrafficpolicyv1alpha1 "github.com/axisml/axisml/axisml-system/compute-operator/api/mltrafficpolicy/v1alpha1"
+	mlrunv1alpha1 "github.com/axisml/axisml/axisml-system/apis/mlrun/v1alpha1"
+	mlservicev1alpha1 "github.com/axisml/axisml/axisml-system/apis/mlservice/v1alpha1"
+	mltrafficpolicyv1alpha1 "github.com/axisml/axisml/axisml-system/apis/mltrafficpolicy/v1alpha1"
+	resourcepoolv1alpha1 "github.com/axisml/axisml/axisml-system/apis/resourcepool/v1alpha1"
 )
 
 // Scheme returns a runtime.Scheme pre-loaded with all CRDs that compute

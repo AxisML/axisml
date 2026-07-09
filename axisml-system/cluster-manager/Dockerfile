@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 #
-# axisml-cluster-manager builds from the repo root so the tenant-operator
+# axisml-cluster-manager builds from the repo root so the shared apis module
 # `replace` path resolves. The top-level Makefile target uses
 #   docker build -f axisml-system/cluster-manager/Dockerfile <REPO_ROOT>
 
@@ -9,9 +9,9 @@ ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /workspace
 
-# Copy the tenant-operator and shared pkg modules first so the replace targets resolve.
+# Copy the shared apis + pkg modules first so the replace targets resolve.
 COPY pkg/openapigen/ pkg/openapigen/
-COPY axisml-system/tenant-operator/ axisml-system/tenant-operator/
+COPY axisml-system/apis/ axisml-system/apis/
 COPY axisml-system/cluster-manager/ axisml-system/cluster-manager/
 
 WORKDIR /workspace/axisml-system/cluster-manager

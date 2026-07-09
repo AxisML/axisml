@@ -10,6 +10,9 @@ ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /workspace
 
+# Shared apis module (CRD types) — the `replace apis => ../apis` target must be
+# present before `go mod download` can resolve the module graph.
+COPY axisml-system/apis/ axisml-system/apis/
 COPY axisml-system/tenant-operator/go.mod axisml-system/tenant-operator/go.sum axisml-system/tenant-operator/
 RUN --mount=type=cache,target=/go/pkg/mod \
     cd axisml-system/tenant-operator && go mod download

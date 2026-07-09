@@ -15,7 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	axisml "github.com/axisml/axisml/axisml-system/tenant-operator/api/v1alpha1"
+	axisml "github.com/axisml/axisml/axisml-system/apis/tenant/v1alpha1"
 	"github.com/axisml/axisml/axisml-system/tenant-operator/internal/reconcile"
 	"github.com/axisml/axisml/axisml-system/tenant-operator/internal/validate"
 )

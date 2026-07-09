@@ -13,7 +13,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	axisv1alpha1 "github.com/axisml/axisml/axisml-system/compute-operator/api/mlrun/v1alpha1"
+	axisv1alpha1 "github.com/axisml/axisml/axisml-system/apis/mlrun/v1alpha1"
 	axishandler "github.com/axisml/axisml/axisml-system/compute-operator/internal/mlrun/handler"
 	axislabels "github.com/axisml/axisml/axisml-system/compute-operator/internal/mlrun/labels"
 )

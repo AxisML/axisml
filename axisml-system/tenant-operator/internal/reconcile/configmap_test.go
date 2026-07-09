@@ -9,7 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	axisml "github.com/axisml/axisml/axisml-system/tenant-operator/api/v1alpha1"
+	axisml "github.com/axisml/axisml/axisml-system/apis/tenant/v1alpha1"
 )
 
 func TestConfigMaps_CopiesFromSource(t *testing.T) {

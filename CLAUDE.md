@@ -45,6 +45,7 @@ A reader opening the doc cold should not be able to tell which parts were rewrit
 Each component is its own Go module, and each has a sibling `test/integration/` Go submodule that holds its integration tests:
 
 ```
+axisml-system/apis/                                  (shared CRD Go types: MLRun/MLService/MLTrafficPolicy/Tenant/ResourcePool, axisml.io/v1alpha1)
 axisml-system/tenant-operator/                       (Tenant CR reconciler)
 axisml-system/tenant-operator/test/integration/      (integration tests, separate module)
 axisml-system/compute-operator/                       (MLRun + MLService + MLTrafficPolicy controllers)
@@ -63,6 +64,8 @@ tests/                                                (black-box test suite — 
 ```
 
 Why split: keeps test-only deps (`testify`, `testcontainers-go`, `testutil`) out of each component's production `go.mod` and Dockerfile build context. `testutil` is imported via `replace` from each test module — keep it operator-agnostic to avoid circular deps.
+
+The five system CRD Go types (MLRun, MLService, MLTrafficPolicy, Tenant, ResourcePool — all Group `axisml.io/v1alpha1`) live in the shared `axisml-system/apis` module, one dependency-light package per CRD (`apis/{mlrun,mlservice,mltrafficpolicy,tenant,resourcepool}/v1alpha1`; deps are only apimachinery + `k8s.io/api`). Every producer (the operators, which reconcile) and consumer (compute-service and cluster-manager, which emit/read CRs; axisml-lite) depends on this leaf module via `replace`, so nobody reaches CR types *through* the operator that happens to reconcile them — the awkward service→operator dependency edge is gone and module cycles are structurally impossible. **Owner semantics** (who reconciles, who signs off a CR) live in the design docs, not in where the type physically sits. Note `tenant-operator/api/scheduling/v1alpha1` (a vendored copy of upstream scheduler-plugins' ElasticQuota) is operator-internal and deliberately NOT in `apis`.
 
 Practical implications:
 - `go test ./...` from the repo root won't traverse all of these. Use `make test` / `make integration-test` instead, or `cd` into the right module.

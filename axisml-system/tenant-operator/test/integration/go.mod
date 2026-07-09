@@ -13,6 +13,7 @@ require (
 )
 
 require (
+	github.com/axisml/axisml/axisml-system/apis v0.0.0
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
@@ -69,3 +70,5 @@ require (
 replace github.com/axisml/axisml/axisml-system/tenant-operator => ../..
 
 replace github.com/axisml/axisml/test/testutil => ../../../test/testutil
+
+replace github.com/axisml/axisml/axisml-system/apis => ../../../apis

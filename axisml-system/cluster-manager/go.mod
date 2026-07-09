@@ -3,7 +3,6 @@ module github.com/axisml/axisml/axisml-system/cluster-manager
 go 1.26.0
 
 require (
-	github.com/axisml/axisml/axisml-system/tenant-operator v0.0.0-00010101000000-000000000000
 	github.com/axisml/axisml/pkg/openapigen v0.0.0
 	github.com/gin-gonic/gin v1.10.0
 	github.com/prometheus/client_golang v1.23.2
@@ -16,6 +15,7 @@ require (
 )
 
 require (
+	github.com/axisml/axisml/axisml-system/apis v0.0.0
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bytedance/sonic v1.11.6 // indirect
 	github.com/bytedance/sonic/loader v0.1.1 // indirect
@@ -86,6 +86,6 @@ require (
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
-replace github.com/axisml/axisml/axisml-system/tenant-operator => ../tenant-operator
-
 replace github.com/axisml/axisml/pkg/openapigen => ../../pkg/openapigen
+
+replace github.com/axisml/axisml/axisml-system/apis => ../apis

@@ -2,128 +2,6 @@
 # Regenerate with: make doc-gen
 components:
   schemas:
-    Apiv1alpha1ConfigMapSpec:
-      properties:
-        name:
-          type: string
-        sourceConfigMapRef:
-          $ref: '#/components/schemas/Apiv1alpha1SourceConfigMapRef'
-      required:
-      - name
-      - sourceConfigMapRef
-      type: object
-    Apiv1alpha1ImagePullSecretSpec:
-      properties:
-        name:
-          type: string
-        sourceSecretRef:
-          $ref: '#/components/schemas/Apiv1alpha1SourceSecretRef'
-      required:
-      - name
-      - sourceSecretRef
-      type: object
-    Apiv1alpha1InitResources:
-      properties:
-        configMaps:
-          items:
-            $ref: '#/components/schemas/Apiv1alpha1ConfigMapSpec'
-          type: array
-        imagePullSecrets:
-          items:
-            $ref: '#/components/schemas/Apiv1alpha1ImagePullSecretSpec'
-          type: array
-        secrets:
-          items:
-            $ref: '#/components/schemas/Apiv1alpha1SecretSpec'
-          type: array
-        serviceAccounts:
-          items:
-            $ref: '#/components/schemas/Apiv1alpha1ServiceAccountSpec'
-          type: array
-      type: object
-    Apiv1alpha1NamespaceSpec:
-      properties:
-        annotations:
-          additionalProperties:
-            type: string
-          type: object
-        labels:
-          additionalProperties:
-            type: string
-          type: object
-        name:
-          type: string
-      required:
-      - name
-      type: object
-    Apiv1alpha1RBACRoleRef:
-      properties:
-        kind:
-          type: string
-        name:
-          type: string
-      required:
-      - kind
-      - name
-      type: object
-    Apiv1alpha1RBACSpec:
-      properties:
-        roleRef:
-          allOf:
-          - $ref: '#/components/schemas/Apiv1alpha1RBACRoleRef'
-          nullable: true
-        rules:
-          items:
-            $ref: '#/components/schemas/Rbacv1PolicyRule'
-          type: array
-      type: object
-    Apiv1alpha1SecretSpec:
-      properties:
-        name:
-          type: string
-        sourceSecretRef:
-          $ref: '#/components/schemas/Apiv1alpha1SourceSecretRef'
-        type:
-          type: string
-      required:
-      - name
-      - sourceSecretRef
-      type: object
-    Apiv1alpha1ServiceAccountSpec:
-      properties:
-        imagePullSecrets:
-          items:
-            type: string
-          type: array
-        name:
-          type: string
-        rbac:
-          allOf:
-          - $ref: '#/components/schemas/Apiv1alpha1RBACSpec'
-          nullable: true
-      required:
-      - name
-      type: object
-    Apiv1alpha1SourceConfigMapRef:
-      properties:
-        name:
-          type: string
-        namespace:
-          type: string
-      required:
-      - name
-      - namespace
-      type: object
-    Apiv1alpha1SourceSecretRef:
-      properties:
-        name:
-          type: string
-        namespace:
-          type: string
-      required:
-      - name
-      - namespace
-      type: object
     Artifact:
       example:
         annotations:
@@ -1758,7 +1636,7 @@ components:
           type: object
         initResources:
           allOf:
-          - $ref: '#/components/schemas/Apiv1alpha1InitResources'
+          - $ref: '#/components/schemas/Tenantv1alpha1InitResources'
           description: Per-tenant init resources to seed on provisioning.
           nullable: true
         labels:
@@ -1772,7 +1650,7 @@ components:
           type: string
         namespace:
           allOf:
-          - $ref: '#/components/schemas/Apiv1alpha1NamespaceSpec'
+          - $ref: '#/components/schemas/Tenantv1alpha1NamespaceSpec'
           description: Optional namespace specification; defaults are derived from
             the tenant name when omitted.
           nullable: true
@@ -3395,7 +3273,7 @@ components:
           type: object
         initResources:
           allOf:
-          - $ref: '#/components/schemas/Apiv1alpha1InitResources'
+          - $ref: '#/components/schemas/Tenantv1alpha1InitResources'
           description: Replacement per-tenant init resources.
           nullable: true
         labels:
@@ -4095,7 +3973,7 @@ components:
           type: string
         initResources:
           allOf:
-          - $ref: '#/components/schemas/Apiv1alpha1InitResources'
+          - $ref: '#/components/schemas/Tenantv1alpha1InitResources'
           description: Per-tenant init resources (Secrets, ConfigMaps, ServiceAccount,
             RBAC) seeded on provisioning.
           nullable: true
@@ -4110,7 +3988,7 @@ components:
           type: string
         namespace:
           allOf:
-          - $ref: '#/components/schemas/Apiv1alpha1NamespaceSpec'
+          - $ref: '#/components/schemas/Tenantv1alpha1NamespaceSpec'
           description: Backing namespace specification for the tenant.
         phase:
           description: High-level provisioning phase of the tenant.
@@ -4370,7 +4248,7 @@ components:
           type: string
         initResources:
           allOf:
-          - $ref: '#/components/schemas/Apiv1alpha1InitResources'
+          - $ref: '#/components/schemas/Tenantv1alpha1InitResources'
           description: Per-tenant init resources (Secrets, ConfigMaps, ServiceAccount,
             RBAC) seeded on provisioning.
           nullable: true
@@ -4385,7 +4263,7 @@ components:
           type: string
         namespace:
           allOf:
-          - $ref: '#/components/schemas/Apiv1alpha1NamespaceSpec'
+          - $ref: '#/components/schemas/Tenantv1alpha1NamespaceSpec'
           description: Backing namespace specification for the tenant.
         phase:
           description: High-level provisioning phase of the tenant.
@@ -4489,6 +4367,128 @@ components:
       required:
       - count
       - items
+      type: object
+    Tenantv1alpha1ConfigMapSpec:
+      properties:
+        name:
+          type: string
+        sourceConfigMapRef:
+          $ref: '#/components/schemas/Tenantv1alpha1SourceConfigMapRef'
+      required:
+      - name
+      - sourceConfigMapRef
+      type: object
+    Tenantv1alpha1ImagePullSecretSpec:
+      properties:
+        name:
+          type: string
+        sourceSecretRef:
+          $ref: '#/components/schemas/Tenantv1alpha1SourceSecretRef'
+      required:
+      - name
+      - sourceSecretRef
+      type: object
+    Tenantv1alpha1InitResources:
+      properties:
+        configMaps:
+          items:
+            $ref: '#/components/schemas/Tenantv1alpha1ConfigMapSpec'
+          type: array
+        imagePullSecrets:
+          items:
+            $ref: '#/components/schemas/Tenantv1alpha1ImagePullSecretSpec'
+          type: array
+        secrets:
+          items:
+            $ref: '#/components/schemas/Tenantv1alpha1SecretSpec'
+          type: array
+        serviceAccounts:
+          items:
+            $ref: '#/components/schemas/Tenantv1alpha1ServiceAccountSpec'
+          type: array
+      type: object
+    Tenantv1alpha1NamespaceSpec:
+      properties:
+        annotations:
+          additionalProperties:
+            type: string
+          type: object
+        labels:
+          additionalProperties:
+            type: string
+          type: object
+        name:
+          type: string
+      required:
+      - name
+      type: object
+    Tenantv1alpha1RBACRoleRef:
+      properties:
+        kind:
+          type: string
+        name:
+          type: string
+      required:
+      - kind
+      - name
+      type: object
+    Tenantv1alpha1RBACSpec:
+      properties:
+        roleRef:
+          allOf:
+          - $ref: '#/components/schemas/Tenantv1alpha1RBACRoleRef'
+          nullable: true
+        rules:
+          items:
+            $ref: '#/components/schemas/Rbacv1PolicyRule'
+          type: array
+      type: object
+    Tenantv1alpha1SecretSpec:
+      properties:
+        name:
+          type: string
+        sourceSecretRef:
+          $ref: '#/components/schemas/Tenantv1alpha1SourceSecretRef'
+        type:
+          type: string
+      required:
+      - name
+      - sourceSecretRef
+      type: object
+    Tenantv1alpha1ServiceAccountSpec:
+      properties:
+        imagePullSecrets:
+          items:
+            type: string
+          type: array
+        name:
+          type: string
+        rbac:
+          allOf:
+          - $ref: '#/components/schemas/Tenantv1alpha1RBACSpec'
+          nullable: true
+      required:
+      - name
+      type: object
+    Tenantv1alpha1SourceConfigMapRef:
+      properties:
+        name:
+          type: string
+        namespace:
+          type: string
+      required:
+      - name
+      - namespace
+      type: object
+    Tenantv1alpha1SourceSecretRef:
+      properties:
+        name:
+          type: string
+        namespace:
+          type: string
+      required:
+      - name
+      - namespace
       type: object
     TrafficPolicy:
       example:

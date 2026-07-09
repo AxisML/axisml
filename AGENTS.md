@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-AxisML is a Kubernetes-native, multi-module Go monorepo organized by deployment layer. `axisml-system/` contains control-plane components: `tenant-operator`, `compute-operator`, `cluster-manager`, `compute-service`, and `artifact-hub`. `axisml-platform/` contains the user-facing layer: `backend/` plus the Vite/React `frontend/`. `axisml-infra/` owns local cluster and infrastructure Helm logic. `axisml-lite/` holds the no-Kubernetes form. Shared packages live in `pkg/`, cross-cutting docs in `docs/`, the black-box test suite (Python + pytest) in `tests/`, and generated API specs under each layer's `docs/apis/`.
+AxisML is a Kubernetes-native, multi-module Go monorepo organized by deployment layer. `axisml-system/` contains control-plane components: `tenant-operator`, `compute-operator`, `cluster-manager`, `compute-service`, and `artifact-hub`, plus the shared `apis` module that holds the five CRD Go types (MLRun/MLService/MLTrafficPolicy/Tenant/ResourcePool) every producer and consumer imports. `axisml-platform/` contains the user-facing layer: `backend/` plus the Vite/React `frontend/`. `axisml-infra/` owns local cluster and infrastructure Helm logic. `axisml-lite/` holds the no-Kubernetes form. Shared packages live in `pkg/`, cross-cutting docs in `docs/`, the black-box test suite (Python + pytest) in `tests/`, and generated API specs under each layer's `docs/apis/`.
 
 ## Build, Test, and Development Commands
 

@@ -5,7 +5,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
-	axisml "github.com/axisml/axisml/axisml-system/compute-operator/api/mlservice/v1alpha1"
+	axisml "github.com/axisml/axisml/axisml-system/apis/mlservice/v1alpha1"
 )
 
 // buildService renders the ClusterIP Service for the predictor role.

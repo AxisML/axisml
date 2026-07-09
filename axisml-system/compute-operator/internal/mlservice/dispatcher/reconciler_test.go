@@ -15,7 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	axisml "github.com/axisml/axisml/axisml-system/compute-operator/api/mlservice/v1alpha1"
+	axisml "github.com/axisml/axisml/axisml-system/apis/mlservice/v1alpha1"
 	hpkg "github.com/axisml/axisml/axisml-system/compute-operator/internal/mlservice/handler"
 )
 

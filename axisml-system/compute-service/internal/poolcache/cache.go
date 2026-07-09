@@ -14,7 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	axismlv1alpha1 "github.com/axisml/axisml/axisml-system/cluster-manager/api/v1alpha1"
+	axismlv1alpha1 "github.com/axisml/axisml/axisml-system/apis/resourcepool/v1alpha1"
 	apperrors "github.com/axisml/axisml/axisml-system/compute-service/pkg/errors"
 	"github.com/axisml/axisml/axisml-system/compute-service/pkg/extensions"
 )

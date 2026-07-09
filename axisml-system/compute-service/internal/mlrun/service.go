@@ -9,7 +9,7 @@ import (
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 
-	mlrunv1alpha1 "github.com/axisml/axisml/axisml-system/compute-operator/api/mlrun/v1alpha1"
+	mlrunv1alpha1 "github.com/axisml/axisml/axisml-system/apis/mlrun/v1alpha1"
 
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/auth"
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/resource"
