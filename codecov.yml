@@ -21,8 +21,13 @@ comment:
   layout: "reach,diff,flags,files"
   require_changes: false
 
+# Generated / non-hand-written code is excluded from the coverage statistic: it
+# is produced by a generator, not authored by hand, so counting it only dilutes
+# the number that reflects real, testable code.
 ignore:
-  - "**/zz_generated_*.go"
+  - "**/zz_generated*.go"        # controller-gen deepcopy (zz_generated.deepcopy.go)
+  - "**/*.gen.go"                # oapi-codegen System clients (internal/clients/*/generated)
+  - "**/generated/**"            # generated client packages
   - "**/*_mock.go"
   - "**/mocks/**"
   - "test/**"
