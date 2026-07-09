@@ -17,71 +17,6 @@ import (
 	"github.com/oapi-codegen/runtime"
 )
 
-// Apiv1alpha1ConfigMapSpec defines model for Apiv1alpha1ConfigMapSpec.
-type Apiv1alpha1ConfigMapSpec struct {
-	Name               string                        `json:"name"`
-	SourceConfigMapRef Apiv1alpha1SourceConfigMapRef `json:"sourceConfigMapRef"`
-}
-
-// Apiv1alpha1ImagePullSecretSpec defines model for Apiv1alpha1ImagePullSecretSpec.
-type Apiv1alpha1ImagePullSecretSpec struct {
-	Name            string                     `json:"name"`
-	SourceSecretRef Apiv1alpha1SourceSecretRef `json:"sourceSecretRef"`
-}
-
-// Apiv1alpha1InitResources defines model for Apiv1alpha1InitResources.
-type Apiv1alpha1InitResources struct {
-	ConfigMaps       *[]Apiv1alpha1ConfigMapSpec       `json:"configMaps,omitempty"`
-	ImagePullSecrets *[]Apiv1alpha1ImagePullSecretSpec `json:"imagePullSecrets,omitempty"`
-	Secrets          *[]Apiv1alpha1SecretSpec          `json:"secrets,omitempty"`
-	ServiceAccounts  *[]Apiv1alpha1ServiceAccountSpec  `json:"serviceAccounts,omitempty"`
-}
-
-// Apiv1alpha1NamespaceSpec defines model for Apiv1alpha1NamespaceSpec.
-type Apiv1alpha1NamespaceSpec struct {
-	Annotations *map[string]string `json:"annotations,omitempty"`
-	Labels      *map[string]string `json:"labels,omitempty"`
-	Name        string             `json:"name"`
-}
-
-// Apiv1alpha1RBACRoleRef defines model for Apiv1alpha1RBACRoleRef.
-type Apiv1alpha1RBACRoleRef struct {
-	Kind string `json:"kind"`
-	Name string `json:"name"`
-}
-
-// Apiv1alpha1RBACSpec defines model for Apiv1alpha1RBACSpec.
-type Apiv1alpha1RBACSpec struct {
-	RoleRef *Apiv1alpha1RBACRoleRef `json:"roleRef"`
-	Rules   *[]Rbacv1PolicyRule     `json:"rules,omitempty"`
-}
-
-// Apiv1alpha1SecretSpec defines model for Apiv1alpha1SecretSpec.
-type Apiv1alpha1SecretSpec struct {
-	Name            string                     `json:"name"`
-	SourceSecretRef Apiv1alpha1SourceSecretRef `json:"sourceSecretRef"`
-	Type            *string                    `json:"type,omitempty"`
-}
-
-// Apiv1alpha1ServiceAccountSpec defines model for Apiv1alpha1ServiceAccountSpec.
-type Apiv1alpha1ServiceAccountSpec struct {
-	ImagePullSecrets *[]string            `json:"imagePullSecrets,omitempty"`
-	Name             string               `json:"name"`
-	Rbac             *Apiv1alpha1RBACSpec `json:"rbac"`
-}
-
-// Apiv1alpha1SourceConfigMapRef defines model for Apiv1alpha1SourceConfigMapRef.
-type Apiv1alpha1SourceConfigMapRef struct {
-	Name      string `json:"name"`
-	Namespace string `json:"namespace"`
-}
-
-// Apiv1alpha1SourceSecretRef defines model for Apiv1alpha1SourceSecretRef.
-type Apiv1alpha1SourceSecretRef struct {
-	Name      string `json:"name"`
-	Namespace string `json:"namespace"`
-}
-
 // Capabilities defines model for Capabilities.
 type Capabilities struct {
 	// MultiTenant Whether Tenant CRUD is available (false = single static default tenant).
@@ -169,7 +104,7 @@ type CreateTenantRequest struct {
 	Annotations *map[string]string `json:"annotations,omitempty"`
 
 	// InitResources Per-tenant init resources to seed on provisioning.
-	InitResources *Apiv1alpha1InitResources `json:"initResources"`
+	InitResources *Tenantv1alpha1InitResources `json:"initResources"`
 
 	// Labels User-defined labels to set on the tenant.
 	Labels *map[string]string `json:"labels,omitempty"`
@@ -178,7 +113,7 @@ type CreateTenantRequest struct {
 	Name *string `json:"name,omitempty"`
 
 	// Namespace Optional namespace specification; defaults are derived from the tenant name when omitted.
-	Namespace *Apiv1alpha1NamespaceSpec `json:"namespace"`
+	Namespace *Tenantv1alpha1NamespaceSpec `json:"namespace"`
 
 	// Quotas Initial per-pool quotas to grant the tenant. Each item must use either units or quota.
 	Quotas *[]ServerQuota `json:"quotas,omitempty"`
@@ -259,7 +194,7 @@ type PatchTenantRequest struct {
 	Annotations *map[string]string `json:"annotations,omitempty"`
 
 	// InitResources Replacement per-tenant init resources.
-	InitResources *Apiv1alpha1InitResources `json:"initResources"`
+	InitResources *Tenantv1alpha1InitResources `json:"initResources"`
 
 	// Labels Replacement labels for the tenant.
 	Labels *map[string]string `json:"labels,omitempty"`
@@ -577,7 +512,7 @@ type ServerTenant struct {
 	CreatedAt time.Time `json:"createdAt"`
 
 	// InitResources Per-tenant init resources (Secrets, ConfigMaps, ServiceAccount, RBAC) seeded on provisioning.
-	InitResources *Apiv1alpha1InitResources `json:"initResources"`
+	InitResources *Tenantv1alpha1InitResources `json:"initResources"`
 
 	// Labels User-defined labels on the tenant.
 	Labels *map[string]string `json:"labels,omitempty"`
@@ -586,7 +521,7 @@ type ServerTenant struct {
 	Name string `json:"name"`
 
 	// Namespace Backing namespace specification for the tenant.
-	Namespace Apiv1alpha1NamespaceSpec `json:"namespace"`
+	Namespace Tenantv1alpha1NamespaceSpec `json:"namespace"`
 
 	// Phase High-level provisioning phase of the tenant.
 	Phase *string `json:"phase,omitempty"`
@@ -709,7 +644,7 @@ type Tenant struct {
 	CreatedAt time.Time `json:"createdAt"`
 
 	// InitResources Per-tenant init resources (Secrets, ConfigMaps, ServiceAccount, RBAC) seeded on provisioning.
-	InitResources *Apiv1alpha1InitResources `json:"initResources"`
+	InitResources *Tenantv1alpha1InitResources `json:"initResources"`
 
 	// Labels User-defined labels on the tenant.
 	Labels *map[string]string `json:"labels,omitempty"`
@@ -718,7 +653,7 @@ type Tenant struct {
 	Name string `json:"name"`
 
 	// Namespace Backing namespace specification for the tenant.
-	Namespace Apiv1alpha1NamespaceSpec `json:"namespace"`
+	Namespace Tenantv1alpha1NamespaceSpec `json:"namespace"`
 
 	// Phase High-level provisioning phase of the tenant.
 	Phase *string `json:"phase,omitempty"`
@@ -743,6 +678,71 @@ type TenantList struct {
 
 	// Items Page of tenants.
 	Items []ServerTenant `json:"items"`
+}
+
+// Tenantv1alpha1ConfigMapSpec defines model for Tenantv1alpha1ConfigMapSpec.
+type Tenantv1alpha1ConfigMapSpec struct {
+	Name               string                           `json:"name"`
+	SourceConfigMapRef Tenantv1alpha1SourceConfigMapRef `json:"sourceConfigMapRef"`
+}
+
+// Tenantv1alpha1ImagePullSecretSpec defines model for Tenantv1alpha1ImagePullSecretSpec.
+type Tenantv1alpha1ImagePullSecretSpec struct {
+	Name            string                        `json:"name"`
+	SourceSecretRef Tenantv1alpha1SourceSecretRef `json:"sourceSecretRef"`
+}
+
+// Tenantv1alpha1InitResources defines model for Tenantv1alpha1InitResources.
+type Tenantv1alpha1InitResources struct {
+	ConfigMaps       *[]Tenantv1alpha1ConfigMapSpec       `json:"configMaps,omitempty"`
+	ImagePullSecrets *[]Tenantv1alpha1ImagePullSecretSpec `json:"imagePullSecrets,omitempty"`
+	Secrets          *[]Tenantv1alpha1SecretSpec          `json:"secrets,omitempty"`
+	ServiceAccounts  *[]Tenantv1alpha1ServiceAccountSpec  `json:"serviceAccounts,omitempty"`
+}
+
+// Tenantv1alpha1NamespaceSpec defines model for Tenantv1alpha1NamespaceSpec.
+type Tenantv1alpha1NamespaceSpec struct {
+	Annotations *map[string]string `json:"annotations,omitempty"`
+	Labels      *map[string]string `json:"labels,omitempty"`
+	Name        string             `json:"name"`
+}
+
+// Tenantv1alpha1RBACRoleRef defines model for Tenantv1alpha1RBACRoleRef.
+type Tenantv1alpha1RBACRoleRef struct {
+	Kind string `json:"kind"`
+	Name string `json:"name"`
+}
+
+// Tenantv1alpha1RBACSpec defines model for Tenantv1alpha1RBACSpec.
+type Tenantv1alpha1RBACSpec struct {
+	RoleRef *Tenantv1alpha1RBACRoleRef `json:"roleRef"`
+	Rules   *[]Rbacv1PolicyRule        `json:"rules,omitempty"`
+}
+
+// Tenantv1alpha1SecretSpec defines model for Tenantv1alpha1SecretSpec.
+type Tenantv1alpha1SecretSpec struct {
+	Name            string                        `json:"name"`
+	SourceSecretRef Tenantv1alpha1SourceSecretRef `json:"sourceSecretRef"`
+	Type            *string                       `json:"type,omitempty"`
+}
+
+// Tenantv1alpha1ServiceAccountSpec defines model for Tenantv1alpha1ServiceAccountSpec.
+type Tenantv1alpha1ServiceAccountSpec struct {
+	ImagePullSecrets *[]string               `json:"imagePullSecrets,omitempty"`
+	Name             string                  `json:"name"`
+	Rbac             *Tenantv1alpha1RBACSpec `json:"rbac"`
+}
+
+// Tenantv1alpha1SourceConfigMapRef defines model for Tenantv1alpha1SourceConfigMapRef.
+type Tenantv1alpha1SourceConfigMapRef struct {
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
+}
+
+// Tenantv1alpha1SourceSecretRef defines model for Tenantv1alpha1SourceSecretRef.
+type Tenantv1alpha1SourceSecretRef struct {
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
 }
 
 // Volume defines model for Volume.

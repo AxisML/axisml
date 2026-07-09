@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
-	mlservicev1alpha1 "github.com/axisml/axisml/axisml-system/compute-operator/api/mlservice/v1alpha1"
+	mlservicev1alpha1 "github.com/axisml/axisml/axisml-system/apis/mlservice/v1alpha1"
 
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/server"
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/store"

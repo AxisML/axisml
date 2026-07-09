@@ -14,7 +14,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	axisml "github.com/axisml/axisml/axisml-system/tenant-operator/api/v1alpha1"
+	axisml "github.com/axisml/axisml/axisml-system/apis/tenant/v1alpha1"
 )
 
 // ServiceAccounts reconciles spec.initResources.serviceAccounts[] together

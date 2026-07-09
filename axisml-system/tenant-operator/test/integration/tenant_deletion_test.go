@@ -14,7 +14,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	axisml "github.com/axisml/axisml/axisml-system/tenant-operator/api/v1alpha1"
+	axisml "github.com/axisml/axisml/axisml-system/apis/tenant/v1alpha1"
 	"github.com/axisml/axisml/test/testutil"
 )
 

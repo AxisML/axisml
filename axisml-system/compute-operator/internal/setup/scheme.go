@@ -9,9 +9,9 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	mlrunv1alpha1 "github.com/axisml/axisml/axisml-system/compute-operator/api/mlrun/v1alpha1"
-	mlservicev1alpha1 "github.com/axisml/axisml/axisml-system/compute-operator/api/mlservice/v1alpha1"
-	mltrafficpolicyv1alpha1 "github.com/axisml/axisml/axisml-system/compute-operator/api/mltrafficpolicy/v1alpha1"
+	mlrunv1alpha1 "github.com/axisml/axisml/axisml-system/apis/mlrun/v1alpha1"
+	mlservicev1alpha1 "github.com/axisml/axisml/axisml-system/apis/mlservice/v1alpha1"
+	mltrafficpolicyv1alpha1 "github.com/axisml/axisml/axisml-system/apis/mltrafficpolicy/v1alpha1"
 	mlservicehandler "github.com/axisml/axisml/axisml-system/compute-operator/internal/mlservice/handler"
 	mltrafficpolicyhandler "github.com/axisml/axisml/axisml-system/compute-operator/internal/mltrafficpolicy/handler"
 )

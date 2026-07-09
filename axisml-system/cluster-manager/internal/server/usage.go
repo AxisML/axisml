@@ -6,7 +6,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
-	tenantv1alpha1 "github.com/axisml/axisml/axisml-system/tenant-operator/api/v1alpha1"
+	tenantv1alpha1 "github.com/axisml/axisml/axisml-system/apis/tenant/v1alpha1"
 )
 
 // TenantPoolUsage projects a tenant's used-vs-total resource utilisation in one

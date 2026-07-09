@@ -5,11 +5,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	cmv1alpha1 "github.com/axisml/axisml/axisml-system/cluster-manager/api/v1alpha1"
+	cmv1alpha1 "github.com/axisml/axisml/axisml-system/apis/resourcepool/v1alpha1"
+	tenantv1alpha1 "github.com/axisml/axisml/axisml-system/apis/tenant/v1alpha1"
 	cmext "github.com/axisml/axisml/axisml-system/cluster-manager/pkg/extensions"
 	apperrors "github.com/axisml/axisml/axisml-system/compute-service/pkg/errors"
 	csext "github.com/axisml/axisml/axisml-system/compute-service/pkg/extensions"
-	tenantv1alpha1 "github.com/axisml/axisml/axisml-system/tenant-operator/api/v1alpha1"
 
 	"context"
 )

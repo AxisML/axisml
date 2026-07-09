@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
-	mltp "github.com/axisml/axisml/axisml-system/compute-operator/api/mltrafficpolicy/v1alpha1"
+	mltp "github.com/axisml/axisml/axisml-system/apis/mltrafficpolicy/v1alpha1"
 )
 
 // TrafficPolicyCreateRequest is the API request body. The backend tuple is

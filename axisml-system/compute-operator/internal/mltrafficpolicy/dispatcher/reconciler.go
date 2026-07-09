@@ -22,7 +22,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
-	mltp "github.com/axisml/axisml/axisml-system/compute-operator/api/mltrafficpolicy/v1alpha1"
+	mltp "github.com/axisml/axisml/axisml-system/apis/mltrafficpolicy/v1alpha1"
 	hpkg "github.com/axisml/axisml/axisml-system/compute-operator/internal/mltrafficpolicy/handler"
 )
 

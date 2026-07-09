@@ -26,7 +26,7 @@ type (
 	QuotaUnit      = gen.ServerQuotaUnit
 	QuotaResources = gen.ServerQuotaResources
 	QuotaStatus    = gen.ServerQuotaStatus
-	Namespace      = gen.Apiv1alpha1NamespaceSpec
+	Namespace      = gen.Tenantv1alpha1NamespaceSpec
 )
 
 // Client wraps the generated cluster-manager client.

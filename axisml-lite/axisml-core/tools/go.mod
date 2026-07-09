@@ -21,8 +21,7 @@ require (
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
-	github.com/axisml/axisml/axisml-system/compute-operator v0.0.0 // indirect
-	github.com/axisml/axisml/axisml-system/tenant-operator v0.0.0 // indirect
+	github.com/axisml/axisml/axisml-system/apis v0.0.0 // indirect
 	github.com/axisml/axisml/pkg/axismlconfig v0.0.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
@@ -157,10 +156,6 @@ require (
 // up via replace directives. Paths are relative to this tools/ directory.
 replace github.com/axisml/axisml/axisml-lite/axisml-core => ..
 
-replace github.com/axisml/axisml/axisml-system/tenant-operator => ../../../axisml-system/tenant-operator
-
-replace github.com/axisml/axisml/axisml-system/compute-operator => ../../../axisml-system/compute-operator
-
 replace github.com/axisml/axisml/axisml-system/cluster-manager => ../../../axisml-system/cluster-manager
 
 replace github.com/axisml/axisml/axisml-system/compute-service => ../../../axisml-system/compute-service
@@ -172,3 +167,5 @@ replace github.com/axisml/axisml/pkg/openapigen => ../../../pkg/openapigen
 replace github.com/axisml/axisml/pkg/axismlconfig => ../../../pkg/axismlconfig
 
 replace github.com/axisml/axisml/pkg/configdoc => ../../../pkg/configdoc
+
+replace github.com/axisml/axisml/axisml-system/apis => ../../../axisml-system/apis

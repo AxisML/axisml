@@ -5,7 +5,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	mltp "github.com/axisml/axisml/axisml-system/compute-operator/api/mltrafficpolicy/v1alpha1"
+	mltp "github.com/axisml/axisml/axisml-system/apis/mltrafficpolicy/v1alpha1"
 
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/store"
 )

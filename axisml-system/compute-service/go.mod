@@ -3,7 +3,6 @@ module github.com/axisml/axisml/axisml-system/compute-service
 go 1.26.0
 
 require (
-	github.com/axisml/axisml/axisml-system/compute-operator v0.0.0
 	github.com/axisml/axisml/pkg/openapigen v0.0.0
 	github.com/gin-gonic/gin v1.10.0
 	github.com/go-logr/logr v1.4.3
@@ -25,6 +24,7 @@ require (
 )
 
 require (
+	github.com/evanphx/json-patch v5.6.0+incompatible // indirect
 	github.com/go-viper/mapstructure/v2 v2.2.1 // indirect
 	github.com/sagikazarmark/locafero v0.7.0 // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect
@@ -37,7 +37,7 @@ require (
 
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect
-	github.com/axisml/axisml/axisml-system/cluster-manager v0.0.0
+	github.com/axisml/axisml/axisml-system/apis v0.0.0
 	github.com/axisml/axisml/pkg/axismlconfig v0.0.0
 	github.com/axisml/axisml/pkg/configdoc v0.0.0
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -118,18 +118,10 @@ require (
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
-// Local siblings: tenant-operator hosts the Tenant CR types, compute-operator
-// hosts MLRun and MLService. Pseudo-versions aren't published, so we wire
-// them up via replace directives. Docker builds use the repo root as build
-// context so the relative paths resolve.
-replace github.com/axisml/axisml/axisml-system/tenant-operator => ../tenant-operator
-
-replace github.com/axisml/axisml/axisml-system/compute-operator => ../compute-operator
-
 replace github.com/axisml/axisml/pkg/openapigen => ../../pkg/openapigen
-
-replace github.com/axisml/axisml/axisml-system/cluster-manager => ../cluster-manager
 
 replace github.com/axisml/axisml/pkg/axismlconfig => ../../pkg/axismlconfig
 
 replace github.com/axisml/axisml/pkg/configdoc => ../../pkg/configdoc
+
+replace github.com/axisml/axisml/axisml-system/apis => ../apis

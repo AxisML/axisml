@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/types"
 
+	tenantv1alpha1 "github.com/axisml/axisml/axisml-system/apis/tenant/v1alpha1"
 	srv "github.com/axisml/axisml/axisml-system/cluster-manager/internal/server"
-	tenantv1alpha1 "github.com/axisml/axisml/axisml-system/tenant-operator/api/v1alpha1"
 )
 
 // seedPool creates a ResourcePool with one cpu-small unit (requests cpu=1,

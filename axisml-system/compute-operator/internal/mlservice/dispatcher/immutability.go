@@ -10,7 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	axisml "github.com/axisml/axisml/axisml-system/compute-operator/api/mlservice/v1alpha1"
+	axisml "github.com/axisml/axisml/axisml-system/apis/mlservice/v1alpha1"
 )
 
 // immutableHashAnnotation stores the SHA-256 of the immutable spec subset

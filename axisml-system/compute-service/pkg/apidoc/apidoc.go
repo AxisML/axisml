@@ -397,7 +397,7 @@ func Document(version string) *openapigen.Document {
 // packageNamer routes a Go type's package path to its schema-name prefix.
 // The flat internal/server package (which now owns every request / response
 // DTO) maps to an empty prefix so the schema name equals the Go type name
-// verbatim — no "Server" stutter. The compute-operator's nested API packages
+// verbatim — no "Server" stutter. The apis module's nested CRD packages
 // fall through to operatorAPIPrefix.
 func packageNamer(pkg string) (string, bool) {
 	if strings.HasSuffix(pkg, "/axisml-system/compute-service/internal/server") {
@@ -406,11 +406,13 @@ func packageNamer(pkg string) (string, bool) {
 	return operatorAPIPrefix(pkg)
 }
 
-// operatorAPIPrefix maps the compute-operator's nested API package paths
-// (.../compute-operator/api/{mlrun,mlservice}/v1alpha1) to per-CRD prefixes
+// operatorAPIPrefix maps the shared apis module's nested CRD package paths
+// (.../apis/{mlrun,mlservice,mltrafficpolicy}/v1alpha1) to per-CRD prefixes
 // so MLRunSpec / MLServiceSpec don't collide on a shared "v1alpha1" segment.
+// Other apis sub-packages (tenant, resourcepool) fall through to the empty
+// prefix, matching their prior behaviour.
 func operatorAPIPrefix(pkg string) (string, bool) {
-	const root = "axisml-system/compute-operator/api/"
+	const root = "axisml-system/apis/"
 	i := strings.Index(pkg, root)
 	if i < 0 {
 		return "", false

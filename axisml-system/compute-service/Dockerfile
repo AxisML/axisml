@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 #
-# Compute imports tenant-operator + compute-operator API packages via local
-# replace directives, so the build context must be the repo root. The top-
+# Compute imports the shared apis module (CRD types) via a local replace
+# directive, so the build context must be the repo root. The top-
 # level Makefile target uses
 #   docker build -f axisml-system/compute-service/Dockerfile <REPO_ROOT>
 # Run the build stage on the host architecture and cross-compile to TARGETARCH.
@@ -12,13 +12,11 @@ ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /workspace
 
-# Copy the operator modules + shared pkg first so the replace targets resolve.
+# Copy the shared apis + pkg modules first so the replace targets resolve.
 COPY pkg/openapigen/ pkg/openapigen/
 COPY pkg/axismlconfig/ pkg/axismlconfig/
 COPY pkg/configdoc/ pkg/configdoc/
-COPY axisml-system/tenant-operator/ axisml-system/tenant-operator/
-COPY axisml-system/compute-operator/ axisml-system/compute-operator/
-COPY axisml-system/cluster-manager/ axisml-system/cluster-manager/
+COPY axisml-system/apis/ axisml-system/apis/
 COPY axisml-system/compute-service/ axisml-system/compute-service/
 
 WORKDIR /workspace/axisml-system/compute-service
