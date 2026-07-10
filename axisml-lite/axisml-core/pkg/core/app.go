@@ -60,6 +60,13 @@ type App struct {
 	// path is refused, so a host that uses both — e.g. Runnables() then Serve —
 	// cannot accidentally run every reconciler twice against the same DB.
 	loopsClaimed atomic.Bool
+
+	// specOnce builds the served OpenAPI document once; the surface is static, so
+	// both formats are rendered on first request and cached.
+	specOnce sync.Once
+	specYAML []byte
+	specJSON []byte
+	specErr  error
 }
 
 // ErrLoopsAlreadyStarted is returned by Serve, and reported by Runnables, when
@@ -206,10 +213,11 @@ func New(ctx context.Context, cfg Config, opts ...Option) (app *App, err error) 
 }
 
 // RegisterRoutes mounts the full axisml-core HTTP surface — the liveness /
-// readiness probes, the unauthenticated capability document and the three System
-// modules under the X-Axisml-User gate — onto the supplied gin router. The host
-// owns the *gin.Engine and passes either it or a prefix group (r.Group("/axisml"));
-// it may register its own routes on the same router alongside these.
+// readiness probes, the unauthenticated capability document and OpenAPI spec, and
+// the three System modules under the X-Axisml-User gate — onto the supplied gin
+// router. The host owns the *gin.Engine and passes either it or a prefix group
+// (r.Group("/axisml")); it may register its own routes on the same router
+// alongside these.
 //
 // axisml-core's middleware chain (request id, access log, recovery, both
 // services' identity stamping, shared RFC 7807 error rendering) is applied to a
@@ -241,11 +249,45 @@ func (a *App) RegisterRoutes(r gin.IRouter) {
 	})
 	// Capability document is unauthenticated so Platform can read it pre-login.
 	grp.GET("/api/v1/capabilities", capabilitiesHandler(aggregateCapabilities(a.clusterMod, a.computeMod, a.arthubMod)))
+	// The OpenAPI document (same builder as OpenAPISpec) is unauthenticated so
+	// clients and gateways can fetch the contract without an identity.
+	grp.GET("/openapi.yaml", a.openapiHandler(SpecYAML, "application/yaml"))
+	grp.GET("/openapi.json", a.openapiHandler(SpecJSON, "application/json"))
 
 	api := grp.Group("/api/v1", clustermodule.RequireUser())
 	a.clusterMod.RegisterRoutes(api)
 	a.computeMod.RegisterRoutes(api)
 	a.arthubMod.RegisterRoutes(api)
+}
+
+// openapiHandler serves the composite OpenAPI document in the given format from
+// the same builder as the package-level OpenAPISpec. The bytes are rendered once
+// (the surface is static) and cached on the App.
+func (a *App) openapiHandler(format SpecFormat, contentType string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		data, err := a.openAPISpec(format)
+		if err != nil {
+			c.String(http.StatusInternalServerError, "openapi spec unavailable: %v", err)
+			return
+		}
+		c.Data(http.StatusOK, contentType, data)
+	}
+}
+
+func (a *App) openAPISpec(format SpecFormat) ([]byte, error) {
+	a.specOnce.Do(func() {
+		if a.specYAML, a.specErr = OpenAPISpec(SpecYAML); a.specErr != nil {
+			return
+		}
+		a.specJSON, a.specErr = OpenAPISpec(SpecJSON)
+	})
+	if a.specErr != nil {
+		return nil, a.specErr
+	}
+	if format == SpecJSON {
+		return a.specJSON, nil
+	}
+	return a.specYAML, nil
 }
 
 // Handler returns axisml-core's own gin engine, built once: the middleware
