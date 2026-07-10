@@ -151,9 +151,11 @@ axisml-system/<service>/pkg/module
 
 `pkg/core` 是 axisml-core 的公共嵌入 API（composition root）。`core.New(ctx, cfg, opts...)` 完成装配并返回 `App`，`App` 提供 `Migrate()`、`Runnables()`、`Close()`，以及三条把完整 HTTP 面接入宿主的路径：
 
-- `App.RegisterRoutes(gin.IRouter)`——宿主自带 `*gin.Engine` 时，把 axisml-core 的探针、能力文档与三模块路由直接注册到宿主 router（传入 engine 挂到根，或传入前缀 group 如 `r.Group("/axisml")` 挂到子路径）。axisml 的中间件链（request id、access log、recovery、双服务 identity、RFC 7807 错误渲染）被限定在一个子 group，仅包裹 axisml-core 自身路由，不影响宿主在同一 engine 上追加的自有路由。每个 router 只注册一次。
+- `App.RegisterRoutes(gin.IRouter)`——宿主自带 `*gin.Engine` 时，把 axisml-core 的探针、能力文档、OpenAPI 文档（`/openapi.yaml`、`/openapi.json`，免鉴权）与三模块路由直接注册到宿主 router（传入 engine 挂到根，或传入前缀 group 如 `r.Group("/axisml")` 挂到子路径）。axisml 的中间件链（request id、access log、recovery、双服务 identity、RFC 7807 错误渲染）被限定在一个子 group，仅包裹 axisml-core 自身路由，不影响宿主在同一 engine 上追加的自有路由。每个 router 只注册一次。
 - `App.Handler()`——返回 axisml-core 自建的 gin engine（opaque `http.Handler`），供非 gin / stdlib 宿主挂载。
 - `App.Serve(ctx)`——Standalone binary 走此路径，监听 `Settings.APIBindAddress` 并托管后台 loop 至优雅关闭。
+
+此外，包级函数 `core.OpenAPISpec(format, opts...)` 以 bytes 形式返回 axisml-core 完整 HTTP 面的 OpenAPI 3.0.3 文档（`core.SpecYAML` / `core.SpecJSON`）：可选按 `WithPathPrefixes` 路径前缀裁剪（`components.schemas` 同步裁剪到被保留 operation 的 `$ref` 传递闭包——无悬挂引用、不泄漏未暴露资源，空 tag 一并移除），并用 `WithInfo` / `WithVersion` 改写 `info`、用 `WithGlobalHeaderParam` 为每个 operation 追加网关所需的身份 header。它是包级函数而非 `App` 方法：契约是静态的，嵌入方在纯 doc-gen 步骤中即可生成自己发布的子集规格，无需数据库或 Docker。该文档由 dev-only 的 `axisml-core/tools/openapi-gen` 在构建期折叠三个 System 面生成，并 `//go:embed` 进 `pkg/core`（`App` 在 `/openapi.{yaml,json}` 托管同一份 bytes）；反射式 doc-gen 依赖 `pkg/openapigen` 因此始终留在 tools module，`pkg/core` 只解析并裁剪已内嵌的 bytes，不进入嵌入库的构建图。
 
 后台 loop（Compute reconciler 与 status poller、Artifact Hub GC worker）经 `App.Runnables()` 交由宿主启动，或由 `Serve` 自行启动，二者互斥（`Runnables()` 与 `Serve` 只有一方能认领这组 loop）。数据库、静态 pool/tenant 配置、logger 与运行参数分别由 `WithDB` / `WithStaticConfig` / `WithLogger` / `WithSettings` 注入。典型宿主用法：`core.New` 后调用 `app.Migrate()`，把 `app.RegisterRoutes(r.Group("/axisml"))` 挂到宿主自有 `*gin.Engine`，在同一 engine 上追加自有路由，并用 `app.Runnables()` 启动后台 loop。
 
