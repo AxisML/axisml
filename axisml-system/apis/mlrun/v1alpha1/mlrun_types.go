@@ -67,6 +67,14 @@ type PodTemplateSubset struct {
 	WorkingDir string `json:"workingDir,omitempty"`
 	// +optional
 	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
+	// Volumes the role's containers can mount (e.g. a PVC-backed data volume
+	// holding the training dataset). Mirrors MLService's template; a mount
+	// referencing a volume not declared here is a capability error.
+	// +optional
+	Volumes []corev1.Volume `json:"volumes,omitempty"`
+	// VolumeMounts binds declared Volumes into the container filesystem.
+	// +optional
+	VolumeMounts []corev1.VolumeMount `json:"volumeMounts,omitempty"`
 }
 
 // RoleSpec carries one role within the job's role topology.

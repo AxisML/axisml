@@ -2173,6 +2173,14 @@ components:
           type: string
         resources:
           $ref: '#/components/schemas/Corev1ResourceRequirements'
+        volumeMounts:
+          items:
+            $ref: '#/components/schemas/Corev1VolumeMount'
+          type: array
+        volumes:
+          items:
+            $ref: '#/components/schemas/Corev1Volume'
+          type: array
         workingDir:
           type: string
       required:
