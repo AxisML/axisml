@@ -169,9 +169,12 @@ func (g *Generator) SchemaForType(t reflect.Type) *Schema {
 	return &Schema{}
 }
 
-// StructSchema builds the object schema for a struct type. Anonymous fields
-// without a json tag are flattened (their properties merge into the parent),
-// matching encoding/json's behavior.
+// StructSchema builds the object schema for a struct type. Anonymous struct
+// fields whose json name is empty are flattened (their properties merge into
+// the parent), matching encoding/json's promotion of embedded fields — this
+// covers both an absent tag and an explicit empty-name tag such as
+// `json:",inline"` (e.g. corev1.Volume embeds VolumeSource inline, so
+// persistentVolumeClaim et al. must surface at the volume's top level).
 func (g *Generator) StructSchema(t reflect.Type, mode Mode) *Schema {
 	out := &Schema{Type: "object", Properties: map[string]*Schema{}}
 	var required []string
@@ -180,7 +183,7 @@ func (g *Generator) StructSchema(t reflect.Type, mode Mode) *Schema {
 		if !f.IsExported() {
 			continue
 		}
-		if f.Anonymous && f.Type.Kind() == reflect.Struct && f.Tag.Get("json") == "" {
+		if name, _ := splitTag(f.Tag.Get("json")); f.Anonymous && f.Type.Kind() == reflect.Struct && name == "" {
 			sub := g.StructSchema(f.Type, mode)
 			for k, v := range sub.Properties {
 				out.Properties[k] = v

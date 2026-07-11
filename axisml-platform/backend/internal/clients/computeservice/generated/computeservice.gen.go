@@ -130,30 +130,30 @@ type Corev1ClusterTrustBundleProjection struct {
 
 // Corev1ConfigMapEnvSource defines model for Corev1ConfigMapEnvSource.
 type Corev1ConfigMapEnvSource struct {
-	LocalObjectReference Corev1LocalObjectReference `json:"LocalObjectReference"`
-	Optional             *bool                      `json:"optional"`
+	Name     *string `json:"name,omitempty"`
+	Optional *bool   `json:"optional"`
 }
 
 // Corev1ConfigMapKeySelector defines model for Corev1ConfigMapKeySelector.
 type Corev1ConfigMapKeySelector struct {
-	LocalObjectReference Corev1LocalObjectReference `json:"LocalObjectReference"`
-	Key                  string                     `json:"key"`
-	Optional             *bool                      `json:"optional"`
+	Key      string  `json:"key"`
+	Name     *string `json:"name,omitempty"`
+	Optional *bool   `json:"optional"`
 }
 
 // Corev1ConfigMapProjection defines model for Corev1ConfigMapProjection.
 type Corev1ConfigMapProjection struct {
-	LocalObjectReference Corev1LocalObjectReference `json:"LocalObjectReference"`
-	Items                *[]Corev1KeyToPath         `json:"items,omitempty"`
-	Optional             *bool                      `json:"optional"`
+	Items    *[]Corev1KeyToPath `json:"items,omitempty"`
+	Name     *string            `json:"name,omitempty"`
+	Optional *bool              `json:"optional"`
 }
 
 // Corev1ConfigMapVolumeSource defines model for Corev1ConfigMapVolumeSource.
 type Corev1ConfigMapVolumeSource struct {
-	LocalObjectReference Corev1LocalObjectReference `json:"LocalObjectReference"`
-	DefaultMode          *int32                     `json:"defaultMode"`
-	Items                *[]Corev1KeyToPath         `json:"items,omitempty"`
-	Optional             *bool                      `json:"optional"`
+	DefaultMode *int32             `json:"defaultMode"`
+	Items       *[]Corev1KeyToPath `json:"items,omitempty"`
+	Name        *string            `json:"name,omitempty"`
+	Optional    *bool              `json:"optional"`
 }
 
 // Corev1DownwardAPIProjection defines model for Corev1DownwardAPIProjection.
@@ -436,22 +436,22 @@ type Corev1ScaleIOVolumeSource struct {
 
 // Corev1SecretEnvSource defines model for Corev1SecretEnvSource.
 type Corev1SecretEnvSource struct {
-	LocalObjectReference Corev1LocalObjectReference `json:"LocalObjectReference"`
-	Optional             *bool                      `json:"optional"`
+	Name     *string `json:"name,omitempty"`
+	Optional *bool   `json:"optional"`
 }
 
 // Corev1SecretKeySelector defines model for Corev1SecretKeySelector.
 type Corev1SecretKeySelector struct {
-	LocalObjectReference Corev1LocalObjectReference `json:"LocalObjectReference"`
-	Key                  string                     `json:"key"`
-	Optional             *bool                      `json:"optional"`
+	Key      string  `json:"key"`
+	Name     *string `json:"name,omitempty"`
+	Optional *bool   `json:"optional"`
 }
 
 // Corev1SecretProjection defines model for Corev1SecretProjection.
 type Corev1SecretProjection struct {
-	LocalObjectReference Corev1LocalObjectReference `json:"LocalObjectReference"`
-	Items                *[]Corev1KeyToPath         `json:"items,omitempty"`
-	Optional             *bool                      `json:"optional"`
+	Items    *[]Corev1KeyToPath `json:"items,omitempty"`
+	Name     *string            `json:"name,omitempty"`
+	Optional *bool              `json:"optional"`
 }
 
 // Corev1SecretVolumeSource defines model for Corev1SecretVolumeSource.
@@ -504,8 +504,37 @@ type Corev1TypedObjectReference struct {
 
 // Corev1Volume defines model for Corev1Volume.
 type Corev1Volume struct {
-	VolumeSource Corev1VolumeSource `json:"VolumeSource"`
-	Name         string             `json:"name"`
+	AwsElasticBlockStore  *Corev1AWSElasticBlockStoreVolumeSource  `json:"awsElasticBlockStore"`
+	AzureDisk             *Corev1AzureDiskVolumeSource             `json:"azureDisk"`
+	AzureFile             *Corev1AzureFileVolumeSource             `json:"azureFile"`
+	Cephfs                *Corev1CephFSVolumeSource                `json:"cephfs"`
+	Cinder                *Corev1CinderVolumeSource                `json:"cinder"`
+	ConfigMap             *Corev1ConfigMapVolumeSource             `json:"configMap"`
+	Csi                   *Corev1CSIVolumeSource                   `json:"csi"`
+	DownwardAPI           *Corev1DownwardAPIVolumeSource           `json:"downwardAPI"`
+	EmptyDir              *Corev1EmptyDirVolumeSource              `json:"emptyDir"`
+	Ephemeral             *Corev1EphemeralVolumeSource             `json:"ephemeral"`
+	Fc                    *Corev1FCVolumeSource                    `json:"fc"`
+	FlexVolume            *Corev1FlexVolumeSource                  `json:"flexVolume"`
+	Flocker               *Corev1FlockerVolumeSource               `json:"flocker"`
+	GcePersistentDisk     *Corev1GCEPersistentDiskVolumeSource     `json:"gcePersistentDisk"`
+	GitRepo               *Corev1GitRepoVolumeSource               `json:"gitRepo"`
+	Glusterfs             *Corev1GlusterfsVolumeSource             `json:"glusterfs"`
+	HostPath              *Corev1HostPathVolumeSource              `json:"hostPath"`
+	Image                 *Corev1ImageVolumeSource                 `json:"image"`
+	Iscsi                 *Corev1ISCSIVolumeSource                 `json:"iscsi"`
+	Name                  string                                   `json:"name"`
+	Nfs                   *Corev1NFSVolumeSource                   `json:"nfs"`
+	PersistentVolumeClaim *Corev1PersistentVolumeClaimVolumeSource `json:"persistentVolumeClaim"`
+	PhotonPersistentDisk  *Corev1PhotonPersistentDiskVolumeSource  `json:"photonPersistentDisk"`
+	PortworxVolume        *Corev1PortworxVolumeSource              `json:"portworxVolume"`
+	Projected             *Corev1ProjectedVolumeSource             `json:"projected"`
+	Quobyte               *Corev1QuobyteVolumeSource               `json:"quobyte"`
+	Rbd                   *Corev1RBDVolumeSource                   `json:"rbd"`
+	ScaleIO               *Corev1ScaleIOVolumeSource               `json:"scaleIO"`
+	Secret                *Corev1SecretVolumeSource                `json:"secret"`
+	Storageos             *Corev1StorageOSVolumeSource             `json:"storageos"`
+	VsphereVolume         *Corev1VsphereVirtualDiskVolumeSource    `json:"vsphereVolume"`
 }
 
 // Corev1VolumeMount defines model for Corev1VolumeMount.
@@ -536,40 +565,6 @@ type Corev1VolumeResourceRequirements struct {
 
 	// Requests Map of resource name (cpu, memory, nvidia.com/gpu, …) to resource.Quantity.
 	Requests *map[string]string `json:"requests,omitempty"`
-}
-
-// Corev1VolumeSource defines model for Corev1VolumeSource.
-type Corev1VolumeSource struct {
-	AwsElasticBlockStore  *Corev1AWSElasticBlockStoreVolumeSource  `json:"awsElasticBlockStore"`
-	AzureDisk             *Corev1AzureDiskVolumeSource             `json:"azureDisk"`
-	AzureFile             *Corev1AzureFileVolumeSource             `json:"azureFile"`
-	Cephfs                *Corev1CephFSVolumeSource                `json:"cephfs"`
-	Cinder                *Corev1CinderVolumeSource                `json:"cinder"`
-	ConfigMap             *Corev1ConfigMapVolumeSource             `json:"configMap"`
-	Csi                   *Corev1CSIVolumeSource                   `json:"csi"`
-	DownwardAPI           *Corev1DownwardAPIVolumeSource           `json:"downwardAPI"`
-	EmptyDir              *Corev1EmptyDirVolumeSource              `json:"emptyDir"`
-	Ephemeral             *Corev1EphemeralVolumeSource             `json:"ephemeral"`
-	Fc                    *Corev1FCVolumeSource                    `json:"fc"`
-	FlexVolume            *Corev1FlexVolumeSource                  `json:"flexVolume"`
-	Flocker               *Corev1FlockerVolumeSource               `json:"flocker"`
-	GcePersistentDisk     *Corev1GCEPersistentDiskVolumeSource     `json:"gcePersistentDisk"`
-	GitRepo               *Corev1GitRepoVolumeSource               `json:"gitRepo"`
-	Glusterfs             *Corev1GlusterfsVolumeSource             `json:"glusterfs"`
-	HostPath              *Corev1HostPathVolumeSource              `json:"hostPath"`
-	Image                 *Corev1ImageVolumeSource                 `json:"image"`
-	Iscsi                 *Corev1ISCSIVolumeSource                 `json:"iscsi"`
-	Nfs                   *Corev1NFSVolumeSource                   `json:"nfs"`
-	PersistentVolumeClaim *Corev1PersistentVolumeClaimVolumeSource `json:"persistentVolumeClaim"`
-	PhotonPersistentDisk  *Corev1PhotonPersistentDiskVolumeSource  `json:"photonPersistentDisk"`
-	PortworxVolume        *Corev1PortworxVolumeSource              `json:"portworxVolume"`
-	Projected             *Corev1ProjectedVolumeSource             `json:"projected"`
-	Quobyte               *Corev1QuobyteVolumeSource               `json:"quobyte"`
-	Rbd                   *Corev1RBDVolumeSource                   `json:"rbd"`
-	ScaleIO               *Corev1ScaleIOVolumeSource               `json:"scaleIO"`
-	Secret                *Corev1SecretVolumeSource                `json:"secret"`
-	Storageos             *Corev1StorageOSVolumeSource             `json:"storageos"`
-	VsphereVolume         *Corev1VsphereVirtualDiskVolumeSource    `json:"vsphereVolume"`
 }
 
 // Corev1VsphereVirtualDiskVolumeSource defines model for Corev1VsphereVirtualDiskVolumeSource.
@@ -771,6 +766,8 @@ type MLRunPodTemplateSubset struct {
 	Image           string                      `json:"image"`
 	ImagePullPolicy *string                     `json:"imagePullPolicy,omitempty"`
 	Resources       *Corev1ResourceRequirements `json:"resources,omitempty"`
+	VolumeMounts    *[]Corev1VolumeMount        `json:"volumeMounts,omitempty"`
+	Volumes         *[]Corev1Volume             `json:"volumes,omitempty"`
 	WorkingDir      *string                     `json:"workingDir,omitempty"`
 }
 

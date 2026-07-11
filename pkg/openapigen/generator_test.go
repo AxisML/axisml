@@ -223,6 +223,74 @@ func TestStructSchemaNullableRef(t *testing.T) {
 	}
 }
 
+// TestStructSchemaInlineEmbed pins that anonymous struct fields with an
+// empty json name are flattened — both an absent tag and an explicit
+// `json:",inline"` — matching encoding/json's promotion of embedded fields.
+// A non-empty json name keeps the embed as a nested named property.
+func TestStructSchemaInlineEmbed(t *testing.T) {
+	type Source struct {
+		Claim string `json:"claim"`
+	}
+	type NamedEmbed struct {
+		Extra string `json:"extra"`
+	}
+	type Volume struct {
+		Name       string `json:"name"`
+		Source     `json:",inline"`
+		NamedEmbed `json:"named"`
+	}
+	g := New(Options{})
+	g.Register("Volume", Volume{}, InputMode)
+	out, ok := g.defs["Volume"]
+	if !ok {
+		t.Fatal("Volume not registered")
+	}
+	// The `,inline` embed is flattened: claim surfaces at the top level.
+	if _, ok := out.Properties["claim"]; !ok {
+		t.Errorf("`json:\",inline\"` embed should flatten `claim` to the top level; got %v", keys(out.Properties))
+	}
+	if _, ok := out.Properties["Source"]; ok {
+		t.Error("`,inline` embed must NOT appear as a nested `Source` property")
+	}
+	// A named embed stays nested under its json name.
+	if _, ok := out.Properties["named"]; !ok {
+		t.Errorf("named embed should stay nested under `named`; got %v", keys(out.Properties))
+	}
+	if _, ok := out.Properties["extra"]; ok {
+		t.Error("named embed must NOT flatten `extra` to the top level")
+	}
+}
+
+func keys(m map[string]*Schema) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	return out
+}
+
+// TestStructSchemaCorev1VolumeFlattened is the concrete regression: the real
+// corev1.Volume embeds VolumeSource with `json:",inline"`, so its members
+// (persistentVolumeClaim, emptyDir, …) must surface at the volume's top level —
+// matching how corev1.Volume actually (de)serializes. A nested `VolumeSource`
+// property here would mismatch the runtime shape and silently drop the source.
+func TestStructSchemaCorev1VolumeFlattened(t *testing.T) {
+	g := New(Options{})
+	g.Register("Corev1Volume", corev1.Volume{}, InputMode)
+	out, ok := g.defs["Corev1Volume"]
+	if !ok {
+		t.Fatal("Corev1Volume not registered")
+	}
+	if _, ok := out.Properties["VolumeSource"]; ok {
+		t.Error("corev1.Volume must NOT expose a nested `VolumeSource` property")
+	}
+	for _, want := range []string{"name", "persistentVolumeClaim", "emptyDir", "configMap"} {
+		if _, ok := out.Properties[want]; !ok {
+			t.Errorf("corev1.Volume must flatten %q to the top level; got %v", want, keys(out.Properties))
+		}
+	}
+}
+
 // TestStructSchemaResponseRequired pins the responseMode required-list rule.
 func TestStructSchemaResponseRequired(t *testing.T) {
 	type View struct {
