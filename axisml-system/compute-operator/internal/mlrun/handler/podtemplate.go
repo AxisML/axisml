@@ -91,6 +91,7 @@ func BuildContainer(role axisv1alpha1.RoleSpec) corev1.Container {
 		EnvFrom:         role.Template.EnvFrom,
 		WorkingDir:      role.Template.WorkingDir,
 		Resources:       role.Template.Resources,
+		VolumeMounts:    role.Template.VolumeMounts,
 	}
 }
 

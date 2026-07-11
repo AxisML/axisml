@@ -43,6 +43,21 @@ func (h *Handler) Validate(mlJob *axisv1alpha1.MLRun) field.ErrorList {
 		))
 	}
 
+	// Every volumeMount must reference a volume declared in the same role's
+	// template.volumes (parity with the (native, deployment) handler).
+	declared := map[string]bool{}
+	for _, vol := range role.Template.Volumes {
+		declared[vol.Name] = true
+	}
+	for i, vm := range role.Template.VolumeMounts {
+		if !declared[vm.Name] {
+			errs = append(errs, field.Invalid(
+				rolesPath.Index(0).Child("template", "volumeMounts").Index(i).Child("name"),
+				vm.Name,
+				"no matching volume declared in template.volumes"))
+		}
+	}
+
 	if mlJob.Spec.Scheduling.Quota == "" {
 		errs = append(errs, field.Required(field.NewPath("spec", "scheduling", "quota"), "quota is required"))
 	}

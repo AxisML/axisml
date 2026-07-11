@@ -77,6 +77,45 @@ func TestValidate_RequiresLabels(t *testing.T) {
 	}
 }
 
+func TestValidate_RejectsDanglingVolumeMount(t *testing.T) {
+	h := New()
+	mlj := newMLRun(1, func(m *axisv1alpha1.MLRun) {
+		m.Spec.Roles[0].Template.VolumeMounts = []corev1.VolumeMount{
+			{Name: "data", MountPath: "/data"},
+		}
+	})
+	errs := h.Validate(mlj)
+	if len(errs) == 0 {
+		t.Fatalf("expected validation error for volumeMount with no matching volume")
+	}
+	found := false
+	for _, e := range errs {
+		if e.Field == "spec.roles[0].template.volumeMounts[0].name" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("error should point at the offending volumeMount field; got %v", errs)
+	}
+}
+
+func TestValidate_AcceptsDeclaredVolumeMount(t *testing.T) {
+	h := New()
+	mlj := newMLRun(1, func(m *axisv1alpha1.MLRun) {
+		m.Spec.Roles[0].Template.Volumes = []corev1.Volume{
+			{Name: "data", VolumeSource: corev1.VolumeSource{
+				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{ClaimName: "dataset-1"},
+			}},
+		}
+		m.Spec.Roles[0].Template.VolumeMounts = []corev1.VolumeMount{
+			{Name: "data", MountPath: "/data"},
+		}
+	})
+	if errs := h.Validate(mlj); len(errs) != 0 {
+		t.Fatalf("expected no validation error for declared volumeMount; got %v", errs)
+	}
+}
+
 func TestBuildJob_PodTemplateLabels(t *testing.T) {
 	h := New()
 	mlj := newMLRun(2, nil)
@@ -101,6 +140,33 @@ func TestBuildJob_PodTemplateLabels(t *testing.T) {
 	}
 	if job.Spec.Completions == nil || *job.Spec.Completions != 2 {
 		t.Errorf("Completions: want 2, got %v", job.Spec.Completions)
+	}
+}
+
+func TestBuildJob_PropagatesVolumes(t *testing.T) {
+	h := New()
+	mlj := newMLRun(1, func(m *axisv1alpha1.MLRun) {
+		m.Spec.Roles[0].Template.Volumes = []corev1.Volume{
+			{Name: "data", VolumeSource: corev1.VolumeSource{
+				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{ClaimName: "dataset-1"},
+			}},
+		}
+		m.Spec.Roles[0].Template.VolumeMounts = []corev1.VolumeMount{
+			{Name: "data", MountPath: "/data"},
+		}
+	})
+	job, err := h.buildJob(mlj)
+	if err != nil {
+		t.Fatalf("buildJob: %v", err)
+	}
+	vols := job.Spec.Template.Spec.Volumes
+	if len(vols) != 1 || vols[0].Name != "data" || vols[0].PersistentVolumeClaim == nil ||
+		vols[0].PersistentVolumeClaim.ClaimName != "dataset-1" {
+		t.Fatalf("PodSpec.Volumes not propagated: %+v", vols)
+	}
+	mounts := job.Spec.Template.Spec.Containers[0].VolumeMounts
+	if len(mounts) != 1 || mounts[0].Name != "data" || mounts[0].MountPath != "/data" {
+		t.Fatalf("container VolumeMounts not propagated: %+v", mounts)
 	}
 }
 

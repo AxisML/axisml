@@ -161,6 +161,7 @@ func TestBuildContainer_AllFieldsCopied(t *testing.T) {
 			Args:            []string{"--flag"},
 			Env:             []corev1.EnvVar{{Name: "K", Value: "V"}},
 			WorkingDir:      "/tmp",
+			VolumeMounts:    []corev1.VolumeMount{{Name: "data", MountPath: "/data"}},
 		},
 	}
 	c := BuildContainer(role)
@@ -172,6 +173,9 @@ func TestBuildContainer_AllFieldsCopied(t *testing.T) {
 	}
 	if len(c.Env) != 1 || c.Env[0].Name != "K" {
 		t.Errorf("env not copied: %+v", c.Env)
+	}
+	if len(c.VolumeMounts) != 1 || c.VolumeMounts[0].Name != "data" || c.VolumeMounts[0].MountPath != "/data" {
+		t.Errorf("volumeMounts not copied: %+v", c.VolumeMounts)
 	}
 }
 
