@@ -98,6 +98,58 @@ func TestRenderRunPlans_EnvFromUnsupported(t *testing.T) {
 	require.ErrorAs(t, err, &ce)
 }
 
+func TestRenderRunPlans_VolumeMounts(t *testing.T) {
+	r := testRuntime()
+	run := &mlrunv1alpha1.MLRun{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "trainer"},
+		Spec: mlrunv1alpha1.MLRunSpec{
+			Backend: mlrunv1alpha1.BackendSpec{Name: "native", Engine: "job"},
+			Roles: []mlrunv1alpha1.RoleSpec{{
+				Name:     "worker",
+				Replicas: 1,
+				Template: mlrunv1alpha1.PodTemplateSubset{
+					Image: "busybox",
+					Volumes: []corev1.Volume{{
+						Name: "dataset",
+						VolumeSource: corev1.VolumeSource{
+							PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{ClaimName: "yolo26-dataset"},
+						},
+					}},
+					VolumeMounts: []corev1.VolumeMount{{Name: "dataset", MountPath: "/data", ReadOnly: true}},
+				},
+			}},
+		},
+	}
+	plans, err := r.renderRunPlans(run)
+	require.NoError(t, err)
+	require.Len(t, plans, 1)
+	require.Len(t, plans[0].Mounts, 1)
+	m := plans[0].Mounts[0]
+	assert.Equal(t, "volume", m.Type)
+	// PVC-backed volume keys the Docker volume on the claim name, matching what
+	// the VolumeManager (Runtime.Ensure) materialises for the same claim.
+	assert.Equal(t, "axisml-default-yolo26-dataset", m.Source)
+	assert.Equal(t, "/data", m.Target)
+	assert.True(t, m.ReadOnly)
+}
+
+func TestRenderRunPlans_VolumeMountUndeclared(t *testing.T) {
+	r := testRuntime()
+	run := &mlrunv1alpha1.MLRun{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "x"},
+		Spec: mlrunv1alpha1.MLRunSpec{
+			Backend: mlrunv1alpha1.BackendSpec{Name: "native", Engine: "job"},
+			Roles: []mlrunv1alpha1.RoleSpec{{Name: "worker", Replicas: 1, Template: mlrunv1alpha1.PodTemplateSubset{
+				Image:        "busybox",
+				VolumeMounts: []corev1.VolumeMount{{Name: "data", MountPath: "/data"}},
+			}}},
+		},
+	}
+	_, err := r.renderRunPlans(run)
+	var ce *CapabilityError
+	require.ErrorAs(t, err, &ce)
+}
+
 func TestRenderServicePlans(t *testing.T) {
 	r := testRuntime()
 	svc := &mlservicev1alpha1.MLService{

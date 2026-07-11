@@ -40,7 +40,7 @@ func (r *Runtime) renderServicePlans(svc *mlservicev1alpha1.MLService) ([]Contai
 	for _, p := range tmpl.Ports {
 		ports = append(ports, PortPlan{Name: p.Name, ContainerPort: p.ContainerPort, Protocol: protoString(p.Protocol)})
 	}
-	mounts, err := r.serviceMounts(ns, name, tmpl)
+	mounts, err := r.volumeMounts(ns, name, tmpl.Volumes, tmpl.VolumeMounts)
 	if err != nil {
 		return nil, err
 	}
@@ -69,23 +69,24 @@ func (r *Runtime) renderServicePlans(svc *mlservicev1alpha1.MLService) ([]Contai
 	return plans, nil
 }
 
-// serviceMounts maps each declared volumeMount onto a managed Docker volume.
-// A PVC-backed volume (the durable volume Compute references for a kind=workspace
-// service) maps to the volume keyed on its claim name — the same name the
-// VolumeManager (Runtime.Ensure / Runtime.Delete) materialises and reclaims — so
-// the mounted volume, the provisioned volume and the retention target are one
-// and the same. Any other declared volume gets a per-(namespace, name, volume)
-// managed volume.
-func (r *Runtime) serviceMounts(namespace, name string, tmpl mlservicev1alpha1.PodTemplate) ([]MountPlan, error) {
-	if len(tmpl.VolumeMounts) == 0 {
+// volumeMounts maps each declared volumeMount onto a managed Docker volume. It
+// is shared by MLService and MLRun rendering, so a training run mounts a dataset
+// volume by exactly the same rules a service mounts its workspace. A PVC-backed
+// volume (the durable volume Compute references by claim name) maps to the volume
+// keyed on its claim name — the same name the VolumeManager (Runtime.Ensure /
+// Runtime.Delete) materialises and reclaims — so the mounted volume, the
+// provisioned volume and the retention target are one and the same. Any other
+// declared volume gets a per-(namespace, name, volume) managed volume.
+func (r *Runtime) volumeMounts(namespace, name string, volumes []corev1.Volume, volumeMounts []corev1.VolumeMount) ([]MountPlan, error) {
+	if len(volumeMounts) == 0 {
 		return nil, nil
 	}
 	declared := map[string]corev1.Volume{}
-	for _, v := range tmpl.Volumes {
+	for _, v := range volumes {
 		declared[v.Name] = v
 	}
 	var mounts []MountPlan
-	for _, vm := range tmpl.VolumeMounts {
+	for _, vm := range volumeMounts {
 		vol, ok := declared[vm.Name]
 		if !ok {
 			return nil, capabilityError("volumeMount %q references an undeclared volume", vm.Name)

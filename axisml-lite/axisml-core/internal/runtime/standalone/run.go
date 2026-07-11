@@ -2,6 +2,7 @@ package standalone
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"time"
 
@@ -35,6 +36,10 @@ func (r *Runtime) renderRunPlans(run *mlrunv1alpha1.MLRun) ([]ContainerPlan, err
 		if err != nil {
 			return nil, err
 		}
+		mounts, err := r.volumeMounts(ns, name, tmpl.Volumes, tmpl.VolumeMounts)
+		if err != nil {
+			return nil, err
+		}
 		for i := 0; i < int(role.Replicas); i++ {
 			labels := r.baseLabels(KindRun, ns, name)
 			labels[LabelRole] = role.Name
@@ -47,6 +52,7 @@ func (r *Runtime) renderRunPlans(run *mlrunv1alpha1.MLRun) ([]ContainerPlan, err
 				Env:           env,
 				WorkingDir:    tmpl.WorkingDir,
 				Labels:        labels,
+				Mounts:        mounts,
 				Resources:     resourcePlan(tmpl.Resources),
 				RestartPolicy: string(container.RestartPolicyDisabled),
 			}
@@ -94,6 +100,20 @@ func (r *Runtime) ApplyMLRun(ctx context.Context, desired *mlrunv1alpha1.MLRun) 
 		return err
 	}
 	byName := indexByName(existing)
+
+	// Ensure backing volumes once (parity with ApplyMLService). A dataset volume
+	// the caller populated out-of-band already exists, and VolumeCreate is
+	// idempotent — it returns the existing volume and never wipes its content.
+	for i := range plans {
+		for _, m := range plans[i].Mounts {
+			if m.Type != "volume" {
+				continue
+			}
+			if err := r.ensureVolume(ctx, m.Source, r.baseLabels(KindRun, ns, name)); err != nil {
+				return fmt.Errorf("ensure volume %q: %w", m.Source, err)
+			}
+		}
+	}
 
 	var created []string
 	for i := range plans {
