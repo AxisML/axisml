@@ -89,6 +89,34 @@ func TestBuildRunInput_Base(t *testing.T) {
 	assert.Equal(t, int32(60), *out.RunPolicy.TtlSecondsAfterFinished)
 }
 
+func TestBuildRunInput_ForwardsVolumes(t *testing.T) {
+	// A PVC-backed dataset volume declared on the role template must reach the
+	// compute MLRun create request intact — name, mount, and the volume source.
+	spec := baseSpec()
+	spec.Roles[0].Template.Volumes = []map[string]any{
+		{"name": "data", "persistentVolumeClaim": map[string]any{"claimName": "dataset-1"}},
+	}
+	spec.Roles[0].Template.VolumeMounts = []map[string]any{
+		{"name": "data", "mountPath": "/data"},
+	}
+	out, err := runutil.BuildRunInput(spec, nil, "job-1", "", nil, nil)
+	require.NoError(t, err)
+	require.Len(t, out.Roles, 1)
+	tmpl := out.Roles[0].Template
+
+	require.NotNil(t, tmpl.Volumes)
+	require.Len(t, *tmpl.Volumes, 1)
+	vol := (*tmpl.Volumes)[0]
+	assert.Equal(t, "data", vol.Name)
+	require.NotNil(t, vol.PersistentVolumeClaim, "volume source must survive the typed round-trip")
+	assert.Equal(t, "dataset-1", vol.PersistentVolumeClaim.ClaimName)
+
+	require.NotNil(t, tmpl.VolumeMounts)
+	require.Len(t, *tmpl.VolumeMounts, 1)
+	assert.Equal(t, "data", (*tmpl.VolumeMounts)[0].Name)
+	assert.Equal(t, "/data", (*tmpl.VolumeMounts)[0].MountPath)
+}
+
 func TestBuildRunInput_OverridePrecedence(t *testing.T) {
 	// Trigger overrides win over the spec for pool/unit/quota, resources (all
 	// roles), and per-role args/env.
@@ -153,6 +181,8 @@ func TestBuildRunInput_EmptyTemplateOmitsFields(t *testing.T) {
 	assert.Nil(t, r.Template.Args)
 	assert.Nil(t, r.Template.Env)
 	assert.Nil(t, r.Template.Resources)
+	assert.Nil(t, r.Template.Volumes)
+	assert.Nil(t, r.Template.VolumeMounts)
 	assert.Equal(t, int32(0), r.Replicas)
 	assert.Nil(t, r.RestartPolicy)
 
