@@ -618,45 +618,38 @@ components:
       type: object
     Corev1ConfigMapEnvSource:
       properties:
-        LocalObjectReference:
-          $ref: '#/components/schemas/Corev1LocalObjectReference'
+        name:
+          type: string
         optional:
           nullable: true
           type: boolean
-      required:
-      - LocalObjectReference
       type: object
     Corev1ConfigMapKeySelector:
       properties:
-        LocalObjectReference:
-          $ref: '#/components/schemas/Corev1LocalObjectReference'
         key:
+          type: string
+        name:
           type: string
         optional:
           nullable: true
           type: boolean
       required:
-      - LocalObjectReference
       - key
       type: object
     Corev1ConfigMapProjection:
       properties:
-        LocalObjectReference:
-          $ref: '#/components/schemas/Corev1LocalObjectReference'
         items:
           items:
             $ref: '#/components/schemas/Corev1KeyToPath'
           type: array
+        name:
+          type: string
         optional:
           nullable: true
           type: boolean
-      required:
-      - LocalObjectReference
       type: object
     Corev1ConfigMapVolumeSource:
       properties:
-        LocalObjectReference:
-          $ref: '#/components/schemas/Corev1LocalObjectReference'
         defaultMode:
           format: int32
           nullable: true
@@ -665,11 +658,11 @@ components:
           items:
             $ref: '#/components/schemas/Corev1KeyToPath'
           type: array
+        name:
+          type: string
         optional:
           nullable: true
           type: boolean
-      required:
-      - LocalObjectReference
       type: object
     Corev1DownwardAPIProjection:
       properties:
@@ -1181,40 +1174,35 @@ components:
       type: object
     Corev1SecretEnvSource:
       properties:
-        LocalObjectReference:
-          $ref: '#/components/schemas/Corev1LocalObjectReference'
+        name:
+          type: string
         optional:
           nullable: true
           type: boolean
-      required:
-      - LocalObjectReference
       type: object
     Corev1SecretKeySelector:
       properties:
-        LocalObjectReference:
-          $ref: '#/components/schemas/Corev1LocalObjectReference'
         key:
+          type: string
+        name:
           type: string
         optional:
           nullable: true
           type: boolean
       required:
-      - LocalObjectReference
       - key
       type: object
     Corev1SecretProjection:
       properties:
-        LocalObjectReference:
-          $ref: '#/components/schemas/Corev1LocalObjectReference'
         items:
           items:
             $ref: '#/components/schemas/Corev1KeyToPath'
           type: array
+        name:
+          type: string
         optional:
           nullable: true
           type: boolean
-      required:
-      - LocalObjectReference
       type: object
     Corev1SecretVolumeSource:
       properties:
@@ -1306,80 +1294,6 @@ components:
       type: object
     Corev1Volume:
       properties:
-        VolumeSource:
-          $ref: '#/components/schemas/Corev1VolumeSource'
-        name:
-          type: string
-      required:
-      - VolumeSource
-      - name
-      type: object
-    Corev1VolumeMount:
-      properties:
-        mountPath:
-          type: string
-        mountPropagation:
-          nullable: true
-          type: string
-        name:
-          type: string
-        readOnly:
-          type: boolean
-        recursiveReadOnly:
-          nullable: true
-          type: string
-        subPath:
-          type: string
-        subPathExpr:
-          type: string
-      required:
-      - mountPath
-      - name
-      type: object
-    Corev1VolumeProjection:
-      properties:
-        clusterTrustBundle:
-          allOf:
-          - $ref: '#/components/schemas/Corev1ClusterTrustBundleProjection'
-          nullable: true
-        configMap:
-          allOf:
-          - $ref: '#/components/schemas/Corev1ConfigMapProjection'
-          nullable: true
-        downwardAPI:
-          allOf:
-          - $ref: '#/components/schemas/Corev1DownwardAPIProjection'
-          nullable: true
-        podCertificate:
-          allOf:
-          - $ref: '#/components/schemas/Corev1PodCertificateProjection'
-          nullable: true
-        secret:
-          allOf:
-          - $ref: '#/components/schemas/Corev1SecretProjection'
-          nullable: true
-        serviceAccountToken:
-          allOf:
-          - $ref: '#/components/schemas/Corev1ServiceAccountTokenProjection'
-          nullable: true
-      type: object
-    Corev1VolumeResourceRequirements:
-      properties:
-        limits:
-          additionalProperties:
-            description: Kubernetes resource.Quantity.
-            type: string
-          description: Map of resource name (cpu, memory, nvidia.com/gpu, …) to resource.Quantity.
-          type: object
-        requests:
-          additionalProperties:
-            description: Kubernetes resource.Quantity.
-            type: string
-          description: Map of resource name (cpu, memory, nvidia.com/gpu, …) to resource.Quantity.
-          type: object
-      type: object
-    Corev1VolumeSource:
-      properties:
         awsElasticBlockStore:
           allOf:
           - $ref: '#/components/schemas/Corev1AWSElasticBlockStoreVolumeSource'
@@ -1456,6 +1370,8 @@ components:
           allOf:
           - $ref: '#/components/schemas/Corev1ISCSIVolumeSource'
           nullable: true
+        name:
+          type: string
         nfs:
           allOf:
           - $ref: '#/components/schemas/Corev1NFSVolumeSource'
@@ -1500,6 +1416,72 @@ components:
           allOf:
           - $ref: '#/components/schemas/Corev1VsphereVirtualDiskVolumeSource'
           nullable: true
+      required:
+      - name
+      type: object
+    Corev1VolumeMount:
+      properties:
+        mountPath:
+          type: string
+        mountPropagation:
+          nullable: true
+          type: string
+        name:
+          type: string
+        readOnly:
+          type: boolean
+        recursiveReadOnly:
+          nullable: true
+          type: string
+        subPath:
+          type: string
+        subPathExpr:
+          type: string
+      required:
+      - mountPath
+      - name
+      type: object
+    Corev1VolumeProjection:
+      properties:
+        clusterTrustBundle:
+          allOf:
+          - $ref: '#/components/schemas/Corev1ClusterTrustBundleProjection'
+          nullable: true
+        configMap:
+          allOf:
+          - $ref: '#/components/schemas/Corev1ConfigMapProjection'
+          nullable: true
+        downwardAPI:
+          allOf:
+          - $ref: '#/components/schemas/Corev1DownwardAPIProjection'
+          nullable: true
+        podCertificate:
+          allOf:
+          - $ref: '#/components/schemas/Corev1PodCertificateProjection'
+          nullable: true
+        secret:
+          allOf:
+          - $ref: '#/components/schemas/Corev1SecretProjection'
+          nullable: true
+        serviceAccountToken:
+          allOf:
+          - $ref: '#/components/schemas/Corev1ServiceAccountTokenProjection'
+          nullable: true
+      type: object
+    Corev1VolumeResourceRequirements:
+      properties:
+        limits:
+          additionalProperties:
+            description: Kubernetes resource.Quantity.
+            type: string
+          description: Map of resource name (cpu, memory, nvidia.com/gpu, …) to resource.Quantity.
+          type: object
+        requests:
+          additionalProperties:
+            description: Kubernetes resource.Quantity.
+            type: string
+          description: Map of resource name (cpu, memory, nvidia.com/gpu, …) to resource.Quantity.
+          type: object
       type: object
     Corev1VsphereVirtualDiskVolumeSource:
       properties:

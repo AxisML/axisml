@@ -98,6 +98,72 @@ func TestMLRun_NativeJob_HappyPath(t *testing.T) {
 	})
 }
 
+// TestMLRun_NativeJob_MountsVolume drives the (native, job) handler with a
+// PVC-backed dataset volume declared on the role template and asserts the
+// dispatcher injects it into the underlying Job: the PodSpec carries the
+// volume (keyed on its claim) and the container carries the matching mount.
+func TestMLRun_NativeJob_MountsVolume(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	c := testEnv.Client
+
+	const (
+		ns        = "envt-mlrun-vol"
+		mlrunName = "with-data"
+	)
+	require.NoError(t, c.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}}))
+	t.Cleanup(func() { cleanupNamespace(t, c, ns) })
+
+	mlrun := &axisv1alpha1.MLRun{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: ns,
+			Name:      mlrunName,
+			Labels: map[string]string{
+				axislabels.RunIDLabel: "uuid-vol",
+				axislabels.QuotaLabel: "training",
+			},
+		},
+		Spec: axisv1alpha1.MLRunSpec{
+			Backend:    axisv1alpha1.BackendSpec{Name: "native", Engine: "job"},
+			Scheduling: axisv1alpha1.SchedulingSpec{Quota: "axisml-acme-default-training"},
+			Roles: []axisv1alpha1.RoleSpec{{
+				Name:          axisv1alpha1.DefaultRoleName,
+				Replicas:      1,
+				RestartPolicy: corev1.RestartPolicyNever,
+				Template: axisv1alpha1.PodTemplateSubset{
+					Image:   "busybox:latest",
+					Command: []string{"sh", "-c", "ls /data"},
+					Volumes: []corev1.Volume{{
+						Name: "data",
+						VolumeSource: corev1.VolumeSource{
+							PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{ClaimName: "dataset-1"},
+						},
+					}},
+					VolumeMounts: []corev1.VolumeMount{{Name: "data", MountPath: "/data"}},
+				},
+			}},
+		},
+	}
+	require.NoError(t, c.Create(ctx, mlrun))
+
+	var job batchv1.Job
+	testutil.EventuallyExists(t, ctx, c,
+		types.NamespacedName{Namespace: ns, Name: mlrunName}, &job, testWaitTimeout)
+
+	podSpec := job.Spec.Template.Spec
+	require.Len(t, podSpec.Volumes, 1, "PodSpec must carry the declared volume")
+	require.Equal(t, "data", podSpec.Volumes[0].Name)
+	require.NotNil(t, podSpec.Volumes[0].PersistentVolumeClaim, "volume source must survive")
+	require.Equal(t, "dataset-1", podSpec.Volumes[0].PersistentVolumeClaim.ClaimName)
+
+	require.Len(t, podSpec.Containers, 1)
+	mounts := podSpec.Containers[0].VolumeMounts
+	require.Len(t, mounts, 1, "container must carry the declared volumeMount")
+	require.Equal(t, "data", mounts[0].Name)
+	require.Equal(t, "/data", mounts[0].MountPath)
+}
+
 // cleanupNamespace deletes a namespace and ignores NotFound. Used in
 // t.Cleanup hooks; envtest deletes namespaces ~instantly because there's
 // no controller manager doing finalizer GC.

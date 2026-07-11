@@ -90,6 +90,65 @@ func TestJobMetadataOnlyPatch(t *testing.T) {
 	assert.Equal(t, "Renamed", patched["displayName"])
 }
 
+// TestJobRunForwardsVolumes covers the platform → compute Run path: a Job
+// definition declaring a PVC-backed dataset volume must forward that volume
+// (with its source) and the matching mount to compute when a run is triggered.
+func TestJobRunForwardsVolumes(t *testing.T) {
+	admin := loginAdmin(t)
+	code, _ := do(t, http.MethodPost, "/api/v1/users", admin, map[string]any{
+		"username": "runvolowner", "password": "password123", "displayName": "Run Vol Owner",
+	})
+	require.Contains(t, []int{http.StatusCreated, http.StatusConflict}, code)
+	code, _ = do(t, http.MethodPost, "/api/v1/tenants", admin, map[string]any{
+		"identifier": "runvol-team", "kubernetesNamespace": "axisml-tenant",
+		"displayName": "Run Vol", "initialAdmin": "runvolowner",
+	})
+	require.Equal(t, http.StatusCreated, code)
+
+	code, created := doTenant(t, http.MethodPost, "/api/v1/jobs", admin, "runvol-team", map[string]any{
+		"name": "trainer", "displayName": "Trainer",
+		"spec": map[string]any{
+			"backend":  map[string]any{"name": "native", "engine": "job"},
+			"poolName": "gpu-a100", "unitName": "small",
+			"roles": []map[string]any{{
+				"name": "worker", "replicas": 1,
+				"template": map[string]any{
+					"image":   "busybox:latest",
+					"command": []string{"sh", "-c", "ls /data"},
+					"volumes": []map[string]any{
+						{"name": "data", "persistentVolumeClaim": map[string]any{"claimName": "dataset-1"}},
+					},
+					"volumeMounts": []map[string]any{
+						{"name": "data", "mountPath": "/data"},
+					},
+				},
+			}},
+		},
+	})
+	require.Equal(t, http.StatusCreated, code, "%v", created)
+
+	// Trigger a run with no overrides — the stored spec (incl. volumes) drives it.
+	code, run := doTenant(t, http.MethodPost, "/api/v1/jobs/trainer/runs", admin, "runvol-team", nil)
+	require.Equal(t, http.StatusCreated, code, "%v", run)
+
+	tmpl := computeStub.lastRunTmpl()
+	require.NotNil(t, tmpl, "compute must have received an MLRun create")
+
+	vols, _ := tmpl["volumes"].([]any)
+	require.Len(t, vols, 1, "volume must be forwarded to compute: %v", tmpl)
+	vol0, _ := vols[0].(map[string]any)
+	assert.Equal(t, "data", vol0["name"])
+	pvc, _ := vol0["persistentVolumeClaim"].(map[string]any)
+	require.NotNil(t, pvc, "volume source must survive the typed round-trip: %v", vol0)
+	assert.Equal(t, "dataset-1", pvc["claimName"])
+
+	mounts, _ := tmpl["volumeMounts"].([]any)
+	require.Len(t, mounts, 1, "volumeMount must be forwarded to compute")
+	m0, _ := mounts[0].(map[string]any)
+	assert.Equal(t, "data", m0["name"])
+	assert.Equal(t, "/data", m0["mountPath"])
+}
+
 // TestPlatformMetricsProxy covers the four metrics endpoints proxying to
 // compute-service N1.
 func TestPlatformMetricsProxy(t *testing.T) {

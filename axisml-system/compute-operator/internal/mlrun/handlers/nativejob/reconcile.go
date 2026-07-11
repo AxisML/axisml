@@ -87,6 +87,7 @@ func (h *Handler) buildJob(mlJob *axisv1alpha1.MLRun) (*batchv1.Job, error) {
 		ObjectMeta: metav1.ObjectMeta{},
 		Spec: corev1.PodSpec{
 			RestartPolicy: defaultRestartPolicy(role.RestartPolicy),
+			Volumes:       role.Template.Volumes,
 			Containers:    []corev1.Container{axishandler.BuildContainer(role)},
 		},
 	}

@@ -69,6 +69,16 @@ func BuildRunInput(spec server.JobSpec, ov *server.RunTriggerRequest, runName, d
 		if len(resources) > 0 {
 			tmpl["resources"] = map[string]any{"requests": resources, "limits": resources}
 		}
+		// volumes / volumeMounts are pass-through K8s shapes: forward them so a
+		// PVC-backed dataset volume the caller declares reaches the MLRun CR (and
+		// thus the operator's pod template). A mount referencing an undeclared
+		// volume is rejected downstream by the native-job handler's Validate.
+		if len(t.Volumes) > 0 {
+			tmpl["volumes"] = t.Volumes
+		}
+		if len(t.VolumeMounts) > 0 {
+			tmpl["volumeMounts"] = t.VolumeMounts
+		}
 		rm := map[string]any{"name": role.Name, "template": tmpl}
 		if role.Replicas > 0 {
 			rm["replicas"] = role.Replicas
