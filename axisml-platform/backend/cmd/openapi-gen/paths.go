@@ -298,7 +298,7 @@ func paths() map[string]openapigen.PathItem {
 		Patch: newOp(tagWorkspaces, "updateWorkspace", "Update workspace display metadata",
 			[]openapigen.Parameter{workspaceNameP()}, body("WorkspacePatchRequest"), resp(sc("200", "Updated workspace.", "Workspace"), "400", "401", "403", "404", "422", "500")),
 		Delete: newOp(tagWorkspaces, "deleteWorkspace", "Delete a workspace",
-			[]openapigen.Parameter{workspaceNameP()}, optBody("WorkspaceDeleteRequest"), resp(sc("204", "Workspace deleted.", ""), "401", "403", "404", "500")),
+			[]openapigen.Parameter{workspaceNameP()}, nil, resp(sc("204", "Workspace deleted.", ""), "401", "403", "404", "500")),
 	}
 	p["/api/v1/workspaces/{name}/start"] = openapigen.PathItem{Post: newOp(tagWorkspaces, "startWorkspace", "Start a workspace (scale to 1 replica)",
 		[]openapigen.Parameter{workspaceNameP()}, nil, resp(sc("200", "Workspace started.", "Workspace"), "401", "403", "404", "409", "500"))}

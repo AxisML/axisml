@@ -106,15 +106,13 @@ func (s *Service) setReplicas(ctx context.Context, tenant, name string, replicas
 	return &v, nil
 }
 
-// Delete removes a workspace. Reclaiming the workspace's durable volume(s) is
-// handled by Platform via cluster-manager — wired up separately; compute only
-// tears down the workspace itself. deletePVC is reserved for that reclamation
-// path.
-func (s *Service) Delete(ctx context.Context, tenant, name string, deletePVC *bool) error {
+// Delete removes a workspace. Data volumes it mounted are independent managed
+// objects and are NOT reclaimed here — they outlive the workspace and are
+// managed via the DataVolumes catalog (backend.md §4.4).
+func (s *Service) Delete(ctx context.Context, tenant, name string) error {
 	if _, err := s.getWorkspace(ctx, tenant, name); err != nil {
 		return err
 	}
-	_ = deletePVC
 	return s.compute.DeleteMLService(ctx, tenant, name)
 }
 

@@ -32,7 +32,6 @@ export default {
     deleteDescRunning: "A running workspace is stopped before deletion; this cannot be undone.",
     deleteDescStopped: "The workspace is stopped; deletion cannot be undone.",
     deleteDescDefault: "Deletion cannot be undone.",
-    deletePvc: "Also delete the data volume PVC ({{size}})",
     backToList: "Back to workspaces",
     tabInfo: "Overview",
     tabLog: "Logs",

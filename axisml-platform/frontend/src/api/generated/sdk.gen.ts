@@ -73,7 +73,7 @@ export const listActivity = <ThrowOnError extends boolean = false>(options?: Opt
 };
 
 /**
- * Cluster resource-utilisation time series
+ * Per-pool cluster resource-utilisation time series for the active tenant
  */
 export const getClusterMetrics = <ThrowOnError extends boolean = false>(options: Options<GetClusterMetricsData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<GetClusterMetricsResponse, GetClusterMetricsError, ThrowOnError>({
@@ -83,7 +83,7 @@ export const getClusterMetrics = <ThrowOnError extends boolean = false>(options:
 };
 
 /**
- * Cluster resource-usage snapshot (aggregate + per-pool)
+ * Per-pool cluster resource-usage snapshot for the active tenant
  */
 export const getClusterUsage = <ThrowOnError extends boolean = false>(options?: Options<GetClusterUsageData, ThrowOnError>) => {
     return (options?.client ?? _heyApiClient).get<GetClusterUsageResponse, GetClusterUsageError, ThrowOnError>({
@@ -1454,11 +1454,7 @@ export const createWorkspace = <ThrowOnError extends boolean = false>(options: O
 export const deleteWorkspace = <ThrowOnError extends boolean = false>(options: Options<DeleteWorkspaceData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).delete<DeleteWorkspaceResponse, DeleteWorkspaceError, ThrowOnError>({
         url: '/api/v1/workspaces/{name}',
-        ...options,
-        headers: {
-            'Content-Type': 'application/json',
-            ...options?.headers
-        }
+        ...options
     });
 };
 

@@ -90,11 +90,10 @@ export default function WorkspaceDetail() {
     invalidate: [["workspaces"]],
     success: t("workspaces.stopped"),
   });
-  const del = useApiMutation(
-    (vars: { name: string; deletePvc: boolean }) =>
-      sdk.deleteWorkspace({ path: { name: vars.name }, body: { deletePvc: vars.deletePvc } }),
-    { invalidate: [["workspaces"]], success: t("workspaces.deleted") },
-  );
+  const del = useApiMutation((name: string) => sdk.deleteWorkspace({ path: { name } }), {
+    invalidate: [["workspaces"]],
+    success: t("workspaces.deleted"),
+  });
 
   const backLink = <BackLink to="/workspaces">{t("workspaces.backToList")}</BackLink>;
 
@@ -115,22 +114,13 @@ export default function WorkspaceDetail() {
 
   const w = q.data;
   const running = isRunning(w.phase);
-  const pvc = w.volumes?.find((v) => v.size)?.size;
 
   const onDelete = () => {
-    let deletePvc = pvc != null;
     confirm({
       title: t("workspaces.deleteTitle", { name: w.name }),
       desc: running ? t("workspaces.deleteDescRunning") : t("workspaces.deleteDescStopped"),
-      info:
-        pvc != null ? (
-          <label className="flex items-center gap-2">
-            <input type="checkbox" defaultChecked onChange={(e) => (deletePvc = e.target.checked)} />
-            {t("workspaces.deletePvc", { size: pvc })}
-          </label>
-        ) : undefined,
       okLabel: t("common.confirmDelete"),
-      onConfirm: () => del.mutate({ name: w.name, deletePvc }),
+      onConfirm: () => del.mutate(w.name),
     });
   };
 
@@ -203,7 +193,7 @@ function InfoPane({ w, running, onEdit }: { w: sdk.Workspace; running: boolean; 
   const { t } = useTranslation();
   const { toast } = useUI();
   const accessUrl = w.endpoint?.accessUrl;
-  const vol = w.volumes?.find((v) => v.size) ?? w.volumes?.[0];
+  const vol = w.volumes?.[0];
 
   return (
     <Card>
@@ -268,9 +258,7 @@ function InfoPane({ w, running, onEdit }: { w: sdk.Workspace; running: boolean; 
             {vol ? (
               <span className="inline-flex items-center gap-2">
                 <MonoChip>{vol.name ?? vol.mountPath}</MonoChip>
-                <span className="text-sm text-muted-foreground">
-                  {[vol.size, vol.storageClass].filter(Boolean).join(" · ") || "—"}
-                </span>
+                {vol.used && <span className="text-sm text-muted-foreground">{vol.used}</span>}
               </span>
             ) : (
               <span className="text-muted-foreground">{t("workspaces.noVolume")}</span>

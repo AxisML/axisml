@@ -179,26 +179,6 @@ export const examples: Record<string, unknown> = {
     "pool": "gpu-a100"
   },
   "ClusterUsage": {
-    "aggregate": [
-      {
-        "resource": "gpu",
-        "total": 48,
-        "unit": "cards",
-        "used": 36
-      },
-      {
-        "resource": "cpu",
-        "total": 1152,
-        "unit": "cores",
-        "used": 740
-      },
-      {
-        "resource": "memory",
-        "total": 5632,
-        "unit": "GiB",
-        "used": 3481.6
-      }
-    ],
     "pools": [
       {
         "meters": [
@@ -3025,8 +3005,6 @@ export const examples: Record<string, unknown> = {
       {
         "mountPath": "/home/jovyan/work",
         "name": "notebook-data",
-        "size": "50Gi",
-        "storageClass": "standard",
         "used": "12Gi"
       }
     ]
@@ -3046,15 +3024,9 @@ export const examples: Record<string, unknown> = {
     "volumes": [
       {
         "mountPath": "/home/jovyan/work",
-        "name": "notebook-data",
-        "size": "50Gi",
-        "storageClass": "standard",
-        "used": "12Gi"
+        "name": "notebook-data"
       }
     ]
-  },
-  "WorkspaceDeleteRequest": {
-    "deletePvc": false
   },
   "WorkspaceEndpoint": {
     "accessUrl": "https://axisml.example.com/ws/team-vision/notebook-dev/",
@@ -3190,8 +3162,6 @@ export const examples: Record<string, unknown> = {
           {
             "mountPath": "/home/jovyan/work",
             "name": "notebook-data",
-            "size": "50Gi",
-            "storageClass": "standard",
             "used": "12Gi"
           }
         ]
@@ -3214,8 +3184,6 @@ export const examples: Record<string, unknown> = {
   "WorkspaceVolume": {
     "mountPath": "/home/jovyan/work",
     "name": "notebook-data",
-    "size": "50Gi",
-    "storageClass": "standard",
     "used": "12Gi"
   },
 };

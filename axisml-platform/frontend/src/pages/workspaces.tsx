@@ -34,7 +34,6 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
@@ -64,7 +63,6 @@ interface WsRow {
   image: string;
   owner: string;
   poolName?: string;
-  pvc?: string;
   tools?: { name?: string; url?: string }[];
 }
 
@@ -104,11 +102,10 @@ export default function Workspaces() {
     invalidate: [["workspaces"]],
     success: t("workspaces.stopped"),
   });
-  const del = useApiMutation(
-    (vars: { name: string; deletePvc: boolean }) =>
-      sdk.deleteWorkspace({ path: { name: vars.name }, body: { deletePvc: vars.deletePvc } }),
-    { invalidate: [["workspaces"]], success: t("workspaces.deleted") },
-  );
+  const del = useApiMutation((name: string) => sdk.deleteWorkspace({ path: { name } }), {
+    invalidate: [["workspaces"]],
+    success: t("workspaces.deleted"),
+  });
 
   const allRows: WsRow[] = useMemo(
     () =>
@@ -120,7 +117,6 @@ export default function Workspaces() {
         image: w.image ?? "—",
         owner: w.owner ?? "—",
         poolName: w.poolName,
-        pvc: w.volumes?.find((v) => v.size)?.size,
         tools: w.endpoint?.tools,
       })),
     [q.items],
@@ -140,7 +136,6 @@ export default function Workspaces() {
   const rows = allRows.filter((r) => !pool || r.poolName === pool);
 
   const onDelete = (r: WsRow, descKey: "running" | "stopped" | "default") => {
-    let deletePvc = r.pvc != null;
     confirm({
       title: t("workspaces.deleteTitle", { name: r.name }),
       desc:
@@ -149,15 +144,8 @@ export default function Workspaces() {
           : descKey === "stopped"
             ? t("workspaces.deleteDescStopped")
             : t("workspaces.deleteDescDefault"),
-      info:
-        r.pvc != null ? (
-          <label className="flex items-center gap-2">
-            <Checkbox defaultChecked onCheckedChange={(c) => (deletePvc = c === true)} />
-            {t("workspaces.deletePvc", { size: r.pvc })}
-          </label>
-        ) : undefined,
       okLabel: t("common.confirmDelete"),
-      onConfirm: () => del.mutate({ name: r.name, deletePvc }),
+      onConfirm: () => del.mutate(r.name),
     });
   };
 

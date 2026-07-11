@@ -20,9 +20,13 @@ type decodedSpec struct {
 		Name     string `json:"name"`
 		Replicas int    `json:"replicas"`
 		Template struct {
-			Image   string   `json:"image"`
-			Command []string `json:"command"`
-			Args    []string `json:"args"`
+			Image        string   `json:"image"`
+			Command      []string `json:"command"`
+			Args         []string `json:"args"`
+			VolumeMounts []struct {
+				Name      string `json:"name"`
+				MountPath string `json:"mountPath"`
+			} `json:"volumeMounts"`
 		} `json:"template"`
 	} `json:"roles"`
 	Scheduling struct {
@@ -116,6 +120,24 @@ func BuildWorkspaceInput(req server.WorkspaceCreateRequest) (computeservice.MLSe
 	if req.ContainerPort > 0 {
 		tmpl["ports"] = []map[string]any{{"name": "http", "containerPort": req.ContainerPort}}
 	}
+	// Durable volumes are pre-provisioned by Platform via the DataVolumes catalog
+	// (cluster-manager); the workspace only references an existing one by claim
+	// name, written into the role template as a PVC volume + matching mount — the
+	// same mechanism a Run/Service uses. Compute relays it and never provisions or
+	// reclaims storage (backend.md §4.4).
+	if len(req.Volumes) > 0 {
+		volumes := make([]map[string]any, 0, len(req.Volumes))
+		mounts := make([]map[string]any, 0, len(req.Volumes))
+		for _, v := range req.Volumes {
+			volumes = append(volumes, map[string]any{
+				"name":                  v.Name,
+				"persistentVolumeClaim": map[string]any{"claimName": v.Name},
+			})
+			mounts = append(mounts, map[string]any{"name": v.Name, "mountPath": v.MountPath})
+		}
+		tmpl["volumes"] = volumes
+		tmpl["volumeMounts"] = mounts
+	}
 	input := map[string]any{
 		"name":     req.Name,
 		"kind":     "workspace",
@@ -135,9 +157,6 @@ func BuildWorkspaceInput(req server.WorkspaceCreateRequest) (computeservice.MLSe
 	if req.Description != "" {
 		input["description"] = req.Description
 	}
-	// Durable volumes are pre-provisioned by Platform via cluster-manager and
-	// injected into the role template as PVC volume/volumeMount entries. That
-	// orchestration is wired up separately; compute no longer provisions storage.
 	return marshalInput(input)
 }
 
@@ -214,6 +233,9 @@ func WorkspaceToView(s *computeservice.MLService, tenant string) server.Workspac
 		v.Image = spec.Roles[0].Template.Image
 		v.Command = spec.Roles[0].Template.Command
 		v.Args = spec.Roles[0].Template.Args
+		for _, m := range spec.Roles[0].Template.VolumeMounts {
+			v.Volumes = append(v.Volumes, server.WorkspaceVolume{Name: m.Name, MountPath: m.MountPath})
+		}
 	}
 	if v.Replicas > 0 {
 		v.DesiredState = "Running"

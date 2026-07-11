@@ -291,13 +291,13 @@ export type ClusterPoolUsage = {
 
 export type ClusterUsage = {
     /**
-     * Cluster-wide utilisation across all pools.
+     * True when one or more pools could not be sampled and were omitted from the snapshot.
      */
-    aggregate: Array<ClusterMeter>;
+    partial?: boolean;
     /**
-     * Per-pool utilisation breakdown.
+     * Per-pool utilisation, one entry per pool the tenant has quota in.
      */
-    pools?: Array<ClusterPoolUsage>;
+    pools: Array<ClusterPoolUsage>;
     /**
      * Time the snapshot was sampled.
      */
@@ -672,9 +672,9 @@ export type ExperimentPatchRequest = {
      */
     labels?: StringMap;
     /**
-     * Replacement run template (affects only Runs triggered afterwards).
+     * Replacement run template (affects only Runs triggered afterwards); omit to patch metadata only.
      */
-    spec?: JobSpec;
+    spec?: JobSpec | null;
 };
 
 export type HealthStatus = {
@@ -1009,9 +1009,9 @@ export type JobPatchRequest = {
      */
     labels?: StringMap;
     /**
-     * Replacement run template.
+     * Replacement run template; omit to patch metadata only.
      */
-    spec?: JobSpec;
+    spec?: JobSpec | null;
 };
 
 export type JobSpec = {
@@ -1780,9 +1780,13 @@ export type Quota = {
      */
     pool: string;
     /**
-     * Per-unit allocations within the pool.
+     * Direct min/max resources for the pool. Mutually exclusive with units.
      */
-    units: Array<QuotaUnit>;
+    quota?: QuotaResources | null;
+    /**
+     * Per-unit allocations within the pool. Mutually exclusive with quota.
+     */
+    units?: Array<QuotaUnit>;
 };
 
 export type QuotaCreateRequest = {
@@ -1791,9 +1795,13 @@ export type QuotaCreateRequest = {
      */
     pool: string;
     /**
-     * Per-unit allocations to grant in the pool.
+     * Direct min/max resources for the pool. Mutually exclusive with units.
      */
-    units: Array<QuotaUnit>;
+    quota?: QuotaResources | null;
+    /**
+     * Per-unit allocations to grant in the pool. Mutually exclusive with quota.
+     */
+    units?: Array<QuotaUnit>;
 };
 
 export type QuotaList = {
@@ -1813,9 +1821,28 @@ export type QuotaList = {
 
 export type QuotaPatchRequest = {
     /**
-     * Replacement per-unit allocations for the pool.
+     * Replacement direct min/max resources for the pool. Mutually exclusive with units.
      */
-    units: Array<QuotaUnit>;
+    quota?: QuotaResources | null;
+    /**
+     * Replacement per-unit allocations for the pool. Mutually exclusive with quota.
+     */
+    units?: Array<QuotaUnit>;
+};
+
+export type QuotaResources = {
+    /**
+     * ElasticQuota maximum resources (resource.Quantity strings).
+     */
+    max: {
+        [key: string]: string;
+    };
+    /**
+     * ElasticQuota minimum resources (resource.Quantity strings).
+     */
+    min?: {
+        [key: string]: string;
+    };
 };
 
 export type QuotaStatus = {
@@ -3178,13 +3205,6 @@ export type WorkspaceCreateRequest = {
     volumes?: Array<WorkspaceVolume>;
 };
 
-export type WorkspaceDeleteRequest = {
-    /**
-     * When true, also delete the workspace's persistent volumes.
-     */
-    deletePvc?: boolean;
-};
-
 export type WorkspaceDesiredState = 'Running' | 'Stopped';
 
 export type WorkspaceEndpoint = {
@@ -3307,17 +3327,9 @@ export type WorkspaceVolume = {
      */
     mountPath: string;
     /**
-     * Volume name; empty requests a new volume, set mounts an existing one.
+     * Existing data volume (claim) name to mount.
      */
-    name?: string;
-    /**
-     * Requested capacity for a new volume (e.g. 50Gi).
-     */
-    size?: string;
-    /**
-     * StorageClass backing a new volume.
-     */
-    storageClass?: string;
+    name: string;
     /**
      * Live consumed capacity of the volume (read-only).
      */
@@ -3494,6 +3506,12 @@ export type ListActivityResponse = ListActivityResponses[keyof ListActivityRespo
 
 export type GetClusterMetricsData = {
     body?: never;
+    headers?: {
+        /**
+         * Active tenant for the request (fallback for the axisml.tenant cookie).
+         */
+        'X-Axisml-Tenant'?: string;
+    };
     path?: never;
     query: {
         /**
@@ -3509,9 +3527,9 @@ export type GetClusterMetricsData = {
          */
         step?: string;
         /**
-         * Restrict to a single resource pool.
+         * Resource pool to query (the series is per (tenant, pool)).
          */
-        pool?: string;
+        pool: string;
     };
     url: '/api/v1/dashboard/cluster-metrics';
 };
@@ -3548,10 +3566,16 @@ export type GetClusterMetricsResponse = GetClusterMetricsResponses[keyof GetClus
 
 export type GetClusterUsageData = {
     body?: never;
+    headers?: {
+        /**
+         * Active tenant for the request (fallback for the axisml.tenant cookie).
+         */
+        'X-Axisml-Tenant'?: string;
+    };
     path?: never;
     query?: {
         /**
-         * Restrict to a single resource pool; omit for all pools plus the aggregate.
+         * Restrict to a single resource pool; omit for every pool the tenant has quota in.
          */
         pool?: string;
     };
@@ -9395,7 +9419,7 @@ export type CreateWorkspaceResponses = {
 export type CreateWorkspaceResponse = CreateWorkspaceResponses[keyof CreateWorkspaceResponses];
 
 export type DeleteWorkspaceData = {
-    body?: WorkspaceDeleteRequest;
+    body?: never;
     path: {
         name: string;
     };

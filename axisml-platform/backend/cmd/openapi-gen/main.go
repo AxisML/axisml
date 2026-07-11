@@ -180,7 +180,6 @@ func registerSchemas(g *openapigen.Generator) {
 		"MemberPatchRequest":              server.MemberPatchRequest{},
 		"WorkspaceCreateRequest":          server.WorkspaceCreateRequest{},
 		"WorkspacePatchRequest":           server.WorkspacePatchRequest{},
-		"WorkspaceDeleteRequest":          server.WorkspaceDeleteRequest{},
 		"JobCreateRequest":                server.JobCreateRequest{},
 		"JobPatchRequest":                 server.JobPatchRequest{},
 		"RunTriggerRequest":               server.RunTriggerRequest{},
