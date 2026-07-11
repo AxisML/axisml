@@ -104,14 +104,7 @@ func (h *Handler) update(c *gin.Context) {
 }
 
 func (h *Handler) delete(c *gin.Context) {
-	var req server.WorkspaceDeleteRequest
-	var deletePVC *bool
-	if c.Request.ContentLength != 0 {
-		if err := c.ShouldBindJSON(&req); err == nil {
-			deletePVC = &req.DeletePVC
-		}
-	}
-	if err := h.svc.Delete(c.Request.Context(), auth.ActiveTenant(c), c.Param("name"), deletePVC); err != nil {
+	if err := h.svc.Delete(c.Request.Context(), auth.ActiveTenant(c), c.Param("name")); err != nil {
 		server.Fail(c, err)
 		return
 	}

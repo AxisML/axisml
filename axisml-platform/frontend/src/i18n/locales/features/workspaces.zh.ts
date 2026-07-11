@@ -36,7 +36,6 @@ export default {
     deleteDescRunning: "运行中的工作区将先停止再删除，删除后不可恢复。",
     deleteDescStopped: "工作区已停止，删除后不可恢复。",
     deleteDescDefault: "删除后不可恢复。",
-    deletePvc: "一并删除数据卷 PVC（{{size}}）",
     // 详情
     backToList: "返回工作区列表",
     tabInfo: "概览",

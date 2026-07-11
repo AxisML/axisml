@@ -7,15 +7,14 @@ type WorkspaceLifecycle struct {
 	IdleTimeoutSeconds int `json:"idleTimeoutSeconds,omitempty" binding:"min=0" desc:"Idle duration (seconds) after which the workspace is auto-stopped; 0 disables auto-stop."`
 }
 
-// WorkspaceVolume is one data volume mounted into a workspace. An empty Name
-// requests a new volume (sized by Size / StorageClass); a set Name mounts an
-// existing volume. Used is live consumption (read-only).
+// WorkspaceVolume mounts an existing data volume into a workspace by claim
+// name. Workspaces never create or reclaim volumes — data volumes are managed
+// independently via the DataVolumes catalog; this only references one and picks
+// its mount path (backend.md §4.4). Used is live consumption (read-only).
 type WorkspaceVolume struct {
-	Name         string `json:"name,omitempty" desc:"Volume name; empty requests a new volume, set mounts an existing one."`
-	Size         string `json:"size,omitempty" desc:"Requested capacity for a new volume (e.g. 50Gi)."`
-	StorageClass string `json:"storageClass,omitempty" desc:"StorageClass backing a new volume."`
-	MountPath    string `json:"mountPath" binding:"required" desc:"Path the volume is mounted at inside the container."`
-	Used         string `json:"used,omitempty" desc:"Live consumed capacity of the volume (read-only)."`
+	Name      string `json:"name" binding:"required,dns1123,max=40" desc:"Existing data volume (claim) name to mount."`
+	MountPath string `json:"mountPath" binding:"required" desc:"Path the volume is mounted at inside the container."`
+	Used      string `json:"used,omitempty" desc:"Live consumed capacity of the volume (read-only)."`
 }
 
 // WorkspaceTool is one launchable entry point of a workspace (Jupyter, VS Code,
@@ -116,9 +115,4 @@ type WorkspacePatchRequest struct {
 	DisplayName string             `json:"displayName,omitempty" binding:"max=100" desc:"Updated human-readable workspace label."`
 	Description string             `json:"description,omitempty" binding:"max=1000" desc:"Updated free-text workspace description."`
 	Lifecycle   WorkspaceLifecycle `json:"lifecycle,omitempty" desc:"Replacement lifecycle policy."`
-}
-
-// WorkspaceDeleteRequest is the optional body of DELETE /workspaces/{name}.
-type WorkspaceDeleteRequest struct {
-	DeletePVC bool `json:"deletePvc,omitempty" desc:"When true, also delete the workspace's persistent volumes."`
 }

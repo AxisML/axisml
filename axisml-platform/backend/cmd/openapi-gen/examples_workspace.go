@@ -8,11 +8,9 @@ func exWorkspace(g *openapigen.Generator) {
 	g.SetExample("WorkspaceLifecycle", lifecycle)
 
 	volume := obj{
-		"name":         "notebook-data",
-		"size":         "50Gi",
-		"storageClass": "standard",
-		"mountPath":    "/home/jovyan/work",
-		"used":         "12Gi",
+		"name":      "notebook-data",
+		"mountPath": "/home/jovyan/work",
+		"used":      "12Gi",
 	}
 	g.SetExample("WorkspaceVolume", volume)
 
@@ -79,16 +77,13 @@ func exWorkspace(g *openapigen.Generator) {
 		"poolName":      "gpu-a100",
 		"unitName":      "a100-1x",
 		"quota":         "team-vision",
-		"volumes":       []any{volume},
+		"volumes":       []any{obj{"name": "notebook-data", "mountPath": "/home/jovyan/work"}},
 		"lifecycle":     lifecycle,
 	})
 	g.SetExample("WorkspacePatchRequest", obj{
 		"displayName": "Vision team dev environment (v2)",
 		"description": "Updated description.",
 		"lifecycle":   obj{"idleTimeoutSeconds": 7200},
-	})
-	g.SetExample("WorkspaceDeleteRequest", obj{
-		"deletePvc": false,
 	})
 
 	wsImage := obj{

@@ -5551,8 +5551,6 @@ components:
         volumes:
         - mountPath: /home/jovyan/work
           name: notebook-data
-          size: 50Gi
-          storageClass: standard
           used: 12Gi
       properties:
         args:
@@ -5703,9 +5701,6 @@ components:
         volumes:
         - mountPath: /home/jovyan/work
           name: notebook-data
-          size: 50Gi
-          storageClass: standard
-          used: 12Gi
       properties:
         args:
           description: Container args override.
@@ -5772,14 +5767,6 @@ components:
       - name
       - poolName
       - unitName
-      type: object
-    WorkspaceDeleteRequest:
-      example:
-        deletePvc: false
-      properties:
-        deletePvc:
-          description: When true, also delete the workspace's persistent volumes.
-          type: boolean
       type: object
     WorkspaceDesiredState:
       enum:
@@ -5948,8 +5935,6 @@ components:
           volumes:
           - mountPath: /home/jovyan/work
             name: notebook-data
-            size: 50Gi
-            storageClass: standard
             used: 12Gi
         partial: false
       properties:
@@ -6029,28 +6014,22 @@ components:
       example:
         mountPath: /home/jovyan/work
         name: notebook-data
-        size: 50Gi
-        storageClass: standard
         used: 12Gi
       properties:
         mountPath:
           description: Path the volume is mounted at inside the container.
           type: string
         name:
-          description: Volume name; empty requests a new volume, set mounts an existing
-            one.
-          type: string
-        size:
-          description: Requested capacity for a new volume (e.g. 50Gi).
-          type: string
-        storageClass:
-          description: StorageClass backing a new volume.
+          description: Existing data volume (claim) name to mount.
+          maxLength: 40
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
         used:
           description: Live consumed capacity of the volume (read-only).
           type: string
       required:
       - mountPath
+      - name
       type: object
 info:
   description: 'User-facing entrypoint to AxisML. Aggregates the internal services
@@ -14207,11 +14186,6 @@ paths:
           minLength: 1
           pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
           type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/WorkspaceDeleteRequest'
       responses:
         "204":
           description: Workspace deleted.

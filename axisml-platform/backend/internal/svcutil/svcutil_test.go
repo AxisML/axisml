@@ -156,6 +156,29 @@ func TestBuildWorkspaceInput(t *testing.T) {
 	assert.False(t, hasModel)
 }
 
+func TestBuildWorkspaceInput_MountsExistingVolume(t *testing.T) {
+	req := server.WorkspaceCreateRequest{
+		Name: "ws-vol", Image: "img", PoolName: "p", UnitName: "u",
+		Volumes: []server.WorkspaceVolume{{Name: "shared-data", MountPath: "/home/jovyan/work"}},
+	}
+	out, err := svcutil.BuildWorkspaceInput(req)
+	require.NoError(t, err)
+	require.Len(t, out.Roles, 1)
+	tmpl := out.Roles[0].Template
+
+	require.NotNil(t, tmpl.Volumes)
+	require.Len(t, *tmpl.Volumes, 1)
+	vol := (*tmpl.Volumes)[0]
+	assert.Equal(t, "shared-data", vol.Name)
+	require.NotNil(t, vol.PersistentVolumeClaim, "workspace volume must be a PVC reference to the existing data volume")
+	assert.Equal(t, "shared-data", vol.PersistentVolumeClaim.ClaimName)
+
+	require.NotNil(t, tmpl.VolumeMounts)
+	require.Len(t, *tmpl.VolumeMounts, 1)
+	assert.Equal(t, "shared-data", (*tmpl.VolumeMounts)[0].Name)
+	assert.Equal(t, "/home/jovyan/work", (*tmpl.VolumeMounts)[0].MountPath)
+}
+
 func TestBuildWorkspaceInput_NoPortWhenZero(t *testing.T) {
 	req := server.WorkspaceCreateRequest{
 		Name: "ws-2", Image: "img", PoolName: "p", UnitName: "u",
@@ -296,6 +319,33 @@ func TestWorkspaceToView_Running(t *testing.T) {
 	assert.Equal(t, "https://ws.example", v.Endpoint.AccessURL)
 	assert.Equal(t, server.WorkspacePhase("Ready"), v.Phase)
 	assert.Equal(t, server.WorkspaceDesiredState("Running"), v.DesiredState)
+}
+
+func TestWorkspaceToView_ProjectsVolumes(t *testing.T) {
+	s := &computeservice.MLService{
+		Id:        uuid.Nil,
+		Namespace: "ns",
+		Name:      "ws",
+		Phase:     "Ready",
+		Spec: gen.MLServiceSpec{
+			Roles: []gen.MLServiceRoleSpec{{
+				Name:     "workspace",
+				Replicas: 1,
+				Template: gen.MLServicePodTemplate{
+					Image:        "img",
+					VolumeMounts: &[]gen.Corev1VolumeMount{{Name: "shared-data", MountPath: "/home/jovyan/work"}},
+					Volumes: &[]gen.Corev1Volume{{
+						Name:                  "shared-data",
+						PersistentVolumeClaim: &gen.Corev1PersistentVolumeClaimVolumeSource{ClaimName: "shared-data"},
+					}},
+				},
+			}},
+		},
+	}
+	v := svcutil.WorkspaceToView(s, "acme")
+	require.Len(t, v.Volumes, 1)
+	assert.Equal(t, "shared-data", v.Volumes[0].Name)
+	assert.Equal(t, "/home/jovyan/work", v.Volumes[0].MountPath)
 }
 
 func TestWorkspaceToView_StoppedWhenZeroReplicas(t *testing.T) {

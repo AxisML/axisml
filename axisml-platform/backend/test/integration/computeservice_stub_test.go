@@ -17,12 +17,13 @@ import (
 // tenant enrichCounts). It returns the compute-service wire shapes the generated
 // client decodes.
 type computeServiceStub struct {
-	mu              sync.Mutex
-	runs            map[string][]map[string]any // ns -> mlruns
-	services        map[string][]map[string]any // ns -> mlservices
-	lastCreateEnv   []any                       // env of the last created service
-	lastRunTemplate map[string]any              // roles[0].template of the last created run
-	engine          *gin.Engine
+	mu                  sync.Mutex
+	runs                map[string][]map[string]any // ns -> mlruns
+	services            map[string][]map[string]any // ns -> mlservices
+	lastCreateEnv       []any                       // env of the last created service
+	lastServiceTemplate map[string]any              // roles[0].template of the last created service
+	lastRunTemplate     map[string]any              // roles[0].template of the last created run
+	engine              *gin.Engine
 }
 
 // lastServiceEnv returns the env injected into the most recent create.
@@ -30,6 +31,14 @@ func (s *computeServiceStub) lastServiceEnv() []any {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.lastCreateEnv
+}
+
+// lastServiceTmpl returns the roles[0].template of the most recent MLService
+// create, so a test can assert what the platform forwarded (e.g. volumes).
+func (s *computeServiceStub) lastServiceTmpl() map[string]any {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.lastServiceTemplate
 }
 
 // lastRunTmpl returns the roles[0].template of the most recent MLRun create,
@@ -83,17 +92,21 @@ func (s *computeServiceStub) createService(c *gin.Context) {
 	_ = c.ShouldBindJSON(&body)
 	name, _ := body["name"].(string)
 	// Echo the env from the request's single role template so a test can assert
-	// the injected model URI/digest env.
+	// the injected model URI/digest env; also record the full template so a
+	// workspace test can assert the injected volumes/volumeMounts.
 	var env []any
+	var tmpl map[string]any
 	if roles, ok := body["roles"].([]any); ok && len(roles) > 0 {
 		if r0, ok := roles[0].(map[string]any); ok {
-			if tmpl, ok := r0["template"].(map[string]any); ok {
-				env, _ = tmpl["env"].([]any)
+			if t, ok := r0["template"].(map[string]any); ok {
+				tmpl = t
+				env, _ = t["env"].([]any)
 			}
 		}
 	}
 	s.mu.Lock()
 	s.lastCreateEnv = env
+	s.lastServiceTemplate = tmpl
 	s.mu.Unlock()
 	c.JSON(http.StatusCreated, s.serviceBody(c.Param("namespace"), name, env))
 }

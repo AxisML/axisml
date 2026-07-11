@@ -149,6 +149,46 @@ func TestJobRunForwardsVolumes(t *testing.T) {
 	assert.Equal(t, "/data", m0["mountPath"])
 }
 
+// TestWorkspaceMountsVolume covers the platform → compute Workspace path: a
+// workspace referencing an existing data volume must forward it to compute as a
+// PVC volume + matching mount in the role template.
+func TestWorkspaceMountsVolume(t *testing.T) {
+	admin := loginAdmin(t)
+	code, _ := do(t, http.MethodPost, "/api/v1/users", admin, map[string]any{
+		"username": "wsvolowner", "password": "password123", "displayName": "WS Vol Owner",
+	})
+	require.Contains(t, []int{http.StatusCreated, http.StatusConflict}, code)
+	code, _ = do(t, http.MethodPost, "/api/v1/tenants", admin, map[string]any{
+		"identifier": "wsvol-team", "kubernetesNamespace": "axisml-tenant",
+		"displayName": "WS Vol", "initialAdmin": "wsvolowner",
+	})
+	require.Equal(t, http.StatusCreated, code)
+
+	code, ws := doTenant(t, http.MethodPost, "/api/v1/workspaces", admin, "wsvol-team", map[string]any{
+		"name": "notebook", "image": "jupyter:3", "containerPort": 8888,
+		"poolName": "gpu-a100", "unitName": "small",
+		"volumes": []map[string]any{{"name": "shared-data", "mountPath": "/home/jovyan/work"}},
+	})
+	require.Equal(t, http.StatusCreated, code, "%v", ws)
+
+	tmpl := computeStub.lastServiceTmpl()
+	require.NotNil(t, tmpl, "compute must have received an MLService create")
+
+	vols, _ := tmpl["volumes"].([]any)
+	require.Len(t, vols, 1, "workspace volume must be forwarded: %v", tmpl)
+	vol0, _ := vols[0].(map[string]any)
+	assert.Equal(t, "shared-data", vol0["name"])
+	pvc, _ := vol0["persistentVolumeClaim"].(map[string]any)
+	require.NotNil(t, pvc, "workspace volume must be a PVC reference: %v", vol0)
+	assert.Equal(t, "shared-data", pvc["claimName"])
+
+	mounts, _ := tmpl["volumeMounts"].([]any)
+	require.Len(t, mounts, 1)
+	m0, _ := mounts[0].(map[string]any)
+	assert.Equal(t, "shared-data", m0["name"])
+	assert.Equal(t, "/home/jovyan/work", m0["mountPath"])
+}
+
 // TestPlatformMetricsProxy covers the four metrics endpoints proxying to
 // compute-service N1.
 func TestPlatformMetricsProxy(t *testing.T) {
