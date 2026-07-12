@@ -90,3 +90,12 @@ Run a slice: `uv run pytest --mode standard api/compute_service -k mlrun -v`.
 - Grep the log for the summary: `N passed`, `N failed`, `--- FAIL`, `ok  `, `panic`.
 - After fixing a failure, re-run the **whole package/suite** (not just the one test) — these suites share state (one Postgres per Go package; one env per API mode), so an isolated pass can still collide in the full run.
 - Conventions live in `docs/development_workflow.md` and `tests/README.md`.
+
+## After the run: ask whether to tear down
+
+If the run brought up a live environment (Lite compose or a Standard minikube cluster — i.e. any API/UI-e2e layer ran), **do not leave it dangling and do not tear it down unprompted**. Once you've reported the results, ask the user whether to close the environment, e.g. "测试已完成，是否关闭测试环境？". Then act on the answer:
+
+- **Yes** → run the matching teardown (see the Teardown section above): `uv run test-teardown --mode lite [--clean]` for Lite, `uv run test-teardown --mode standard [--delete]` for Standard. Use `--clean` / `--delete` only if the user also wants the data volumes / cluster removed; otherwise keep them for a faster next bring-up.
+- **No / keep it** → leave it running and remind them of the teardown command so they can close it later.
+
+Skip this step when the run was Go-only (unit/integration) — those are hermetic and leave nothing to tear down.
