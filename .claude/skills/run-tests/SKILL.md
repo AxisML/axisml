@@ -1,12 +1,12 @@
 ---
 name: run-tests
-description: Run the AxisML test suites — Go unit, Go integration, and the black-box API tests (Lite + Standard). Use when the user asks to run tests, "跑测试 / 跑一下完整的测试", verify a change, check CI locally, or bring up a test environment. Covers all four layers, environment bring-up/teardown, and the known bring-up gotchas.
+description: Run the AxisML test suites — Go unit, Go integration, and the black-box tests (API in Lite + Standard modes, plus the Playwright UI e2e). Use when the user asks to run tests, "跑测试 / 跑一下完整的测试", verify a change, check CI locally, or bring up a test environment. Covers every layer, environment bring-up/teardown, and the known bring-up gotchas.
 user-invocable: true
 ---
 
 # Running AxisML tests
 
-Four test layers. Pick by what the user asked for; if they say "完整的测试 / full tests" run **all four** in the order below (unit → integration → Lite API → Standard API), stopping to fix the first failure.
+Test layers, in run order. Pick by what the user asked for; if they say "完整的测试 / full tests" run **all of them** in the order below (unit → integration → Lite API → Standard API → UI e2e), stopping to fix the first failure. Lite API and Standard API are the same black-box API suite in two `--mode`s; the UI e2e suite (Playwright, `tests/e2e/`) is `standard_only`.
 
 Run each long suite in the background and log to the scratchpad, then monitor for pass/fail lines rather than blocking. Report failures with the actual output; never claim green without seeing the summary line.
 
@@ -16,8 +16,9 @@ Run each long suite in the background and log to the scratchpad, then monitor fo
 | Go integration | `make integration-test` | envtest + testcontainers Postgres | needs Docker running |
 | Lite API | `cd tests && uv run test-setup --mode lite` then `uv run pytest --mode lite api` | axisml-core + platform in Docker Compose | System CORE tests; platform/e2e/artifact_hub skip |
 | Standard API | `cd tests && uv run test-setup` then `uv run pytest --mode standard api` | real `axisml` minikube cluster + helm | full coverage |
+| UI e2e | `cd tests && uv run test-setup` then `uv run pytest e2e` | real `axisml` minikube cluster + helm (Standard) | Playwright UI e2e; `standard_only`; needs `uv run playwright install chromium` once |
 
-Prerequisites: Docker (integration + both API layers), `minikube` (Standard), `uv` + `cd tests && uv sync` (API layers). Install envtest once with `make setup-envtest` if integration complains about a missing binary.
+Prerequisites: Docker (integration + both API layers), `minikube` (Standard + UI e2e), `uv` + `cd tests && uv sync` (API + e2e layers), plus `uv run playwright install chromium` once for the UI e2e. Install envtest once with `make setup-envtest` if integration complains about a missing binary.
 
 ## Go unit + integration
 
@@ -28,7 +29,7 @@ make integration-test   # integration across 6 components — needs Docker
 
 Both are hermetic. A single module/test: `cd <component> && go test -run TestX ./internal/...` (add `-tags=integration` inside a `test/integration/` submodule).
 
-## API tests (black-box) — need a live environment
+## Black-box tests (API + UI e2e) — need a live environment
 
 Provisioning is **not** a pytest fixture: bring an env up once, then run pytest against it many times. The readiness gate is read-only and aborts with guidance if the env isn't up.
 
@@ -40,6 +41,9 @@ uv run pytest --mode lite api             # → System CORE tests; standard_only
 
 uv run test-setup                         # Standard: minikube (profile "axisml") → image-load → helm → seed admin
 uv run pytest --mode standard api         # → full API coverage (port-forward, dynamic local ports)
+
+uv run playwright install chromium        # one-time: browser for the UI e2e
+uv run pytest e2e                         # → Playwright UI e2e over the Platform SPA (Standard-only)
 ```
 
 Teardown when done:
