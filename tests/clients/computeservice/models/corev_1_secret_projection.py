@@ -10,7 +10,6 @@ from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
     from ..models.corev_1_key_to_path import Corev1KeyToPath
-    from ..models.corev_1_local_object_reference import Corev1LocalObjectReference
 
 
 T = TypeVar("T", bound="Corev1SecretProjection")
@@ -20,25 +19,25 @@ T = TypeVar("T", bound="Corev1SecretProjection")
 class Corev1SecretProjection:
     """
     Attributes:
-        local_object_reference (Corev1LocalObjectReference):
         items (list[Corev1KeyToPath] | Unset):
+        name (str | Unset):
         optional (bool | None | Unset):
     """
 
-    local_object_reference: Corev1LocalObjectReference
     items: list[Corev1KeyToPath] | Unset = UNSET
+    name: str | Unset = UNSET
     optional: bool | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        local_object_reference = self.local_object_reference.to_dict()
-
         items: list[dict[str, Any]] | Unset = UNSET
         if not isinstance(self.items, Unset):
             items = []
             for items_item_data in self.items:
                 items_item = items_item_data.to_dict()
                 items.append(items_item)
+
+        name = self.name
 
         optional: bool | None | Unset
         if isinstance(self.optional, Unset):
@@ -48,13 +47,11 @@ class Corev1SecretProjection:
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update(
-            {
-                "LocalObjectReference": local_object_reference,
-            }
-        )
+        field_dict.update({})
         if items is not UNSET:
             field_dict["items"] = items
+        if name is not UNSET:
+            field_dict["name"] = name
         if optional is not UNSET:
             field_dict["optional"] = optional
 
@@ -63,13 +60,8 @@ class Corev1SecretProjection:
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.corev_1_key_to_path import Corev1KeyToPath
-        from ..models.corev_1_local_object_reference import Corev1LocalObjectReference
 
         d = dict(src_dict)
-        local_object_reference = Corev1LocalObjectReference.from_dict(
-            d.pop("LocalObjectReference")
-        )
-
         _items = d.pop("items", UNSET)
         items: list[Corev1KeyToPath] | Unset = UNSET
         if _items is not UNSET:
@@ -78,6 +70,8 @@ class Corev1SecretProjection:
                 items_item = Corev1KeyToPath.from_dict(items_item_data)
 
                 items.append(items_item)
+
+        name = d.pop("name", UNSET)
 
         def _parse_optional(data: object) -> bool | None | Unset:
             if data is None:
@@ -89,8 +83,8 @@ class Corev1SecretProjection:
         optional = _parse_optional(d.pop("optional", UNSET))
 
         corev_1_secret_projection = cls(
-            local_object_reference=local_object_reference,
             items=items,
+            name=name,
             optional=optional,
         )
 

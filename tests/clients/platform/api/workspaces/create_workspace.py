@@ -108,7 +108,7 @@ def sync_detailed(
             environment', 'image': 'registry.axisml.io/dev/jupyter:3.0.0', 'lifecycle':
             {'idleTimeoutSeconds': 3600}, 'name': 'notebook-dev', 'poolName': 'gpu-a100', 'quota':
             'team-vision', 'unitName': 'a100-1x', 'volumes': [{'mountPath': '/home/jovyan/work',
-            'name': 'notebook-data', 'size': '50Gi', 'storageClass': 'standard', 'used': '12Gi'}]}.
+            'name': 'notebook-data'}]}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -145,7 +145,7 @@ def sync(
             environment', 'image': 'registry.axisml.io/dev/jupyter:3.0.0', 'lifecycle':
             {'idleTimeoutSeconds': 3600}, 'name': 'notebook-dev', 'poolName': 'gpu-a100', 'quota':
             'team-vision', 'unitName': 'a100-1x', 'volumes': [{'mountPath': '/home/jovyan/work',
-            'name': 'notebook-data', 'size': '50Gi', 'storageClass': 'standard', 'used': '12Gi'}]}.
+            'name': 'notebook-data'}]}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -177,7 +177,7 @@ async def asyncio_detailed(
             environment', 'image': 'registry.axisml.io/dev/jupyter:3.0.0', 'lifecycle':
             {'idleTimeoutSeconds': 3600}, 'name': 'notebook-dev', 'poolName': 'gpu-a100', 'quota':
             'team-vision', 'unitName': 'a100-1x', 'volumes': [{'mountPath': '/home/jovyan/work',
-            'name': 'notebook-data', 'size': '50Gi', 'storageClass': 'standard', 'used': '12Gi'}]}.
+            'name': 'notebook-data'}]}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -212,7 +212,7 @@ async def asyncio(
             environment', 'image': 'registry.axisml.io/dev/jupyter:3.0.0', 'lifecycle':
             {'idleTimeoutSeconds': 3600}, 'name': 'notebook-dev', 'poolName': 'gpu-a100', 'quota':
             'team-vision', 'unitName': 'a100-1x', 'volumes': [{'mountPath': '/home/jovyan/work',
-            'name': 'notebook-data', 'size': '50Gi', 'storageClass': 'standard', 'used': '12Gi'}]}.
+            'name': 'notebook-data'}]}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

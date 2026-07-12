@@ -24,8 +24,7 @@ class WorkspaceCreateRequest:
         {'containerPort': 8888, 'description': 'JupyterLab interactive development environment.', 'displayName': 'Vision
             team dev environment', 'image': 'registry.axisml.io/dev/jupyter:3.0.0', 'lifecycle': {'idleTimeoutSeconds':
             3600}, 'name': 'notebook-dev', 'poolName': 'gpu-a100', 'quota': 'team-vision', 'unitName': 'a100-1x', 'volumes':
-            [{'mountPath': '/home/jovyan/work', 'name': 'notebook-data', 'size': '50Gi', 'storageClass': 'standard', 'used':
-            '12Gi'}]}
+            [{'mountPath': '/home/jovyan/work', 'name': 'notebook-data'}]}
 
     Attributes:
         image (str): Container image for the dev environment.

@@ -9,13 +9,13 @@ from attrs import field as _attrs_field
 from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
-    from ..models.apiv_1_alpha_1_init_resources import Apiv1Alpha1InitResources
-    from ..models.apiv_1_alpha_1_namespace_spec import Apiv1Alpha1NamespaceSpec
     from ..models.create_tenant_request_annotations import (
         CreateTenantRequestAnnotations,
     )
     from ..models.create_tenant_request_labels import CreateTenantRequestLabels
     from ..models.server_quota import ServerQuota
+    from ..models.tenantv_1_alpha_1_init_resources import Tenantv1Alpha1InitResources
+    from ..models.tenantv_1_alpha_1_namespace_spec import Tenantv1Alpha1NamespaceSpec
 
 
 T = TypeVar("T", bound="CreateTenantRequest")
@@ -30,25 +30,30 @@ class CreateTenantRequest:
 
     Attributes:
         annotations (CreateTenantRequestAnnotations | Unset): User-defined annotations to set on the tenant.
-        init_resources (Apiv1Alpha1InitResources | None | Unset): Per-tenant init resources to seed on provisioning.
+        init_resources (None | Tenantv1Alpha1InitResources | Unset): Per-tenant init resources to seed on provisioning.
         labels (CreateTenantRequestLabels | Unset): User-defined labels to set on the tenant.
         name (str | Unset): Tenant identifier to create; becomes the CR name, namespace, and partition string.
-        namespace (Apiv1Alpha1NamespaceSpec | None | Unset): Optional namespace specification; defaults are derived from
-            the tenant name when omitted.
-        quotas (list[ServerQuota] | Unset): Initial per-pool quotas to grant the tenant.
+        namespace (None | Tenantv1Alpha1NamespaceSpec | Unset): Optional namespace specification; defaults are derived
+            from the tenant name when omitted.
+        quotas (list[ServerQuota] | Unset): Initial per-pool quotas to grant the tenant. Each item must use either units
+            or quota.
     """
 
     annotations: CreateTenantRequestAnnotations | Unset = UNSET
-    init_resources: Apiv1Alpha1InitResources | None | Unset = UNSET
+    init_resources: None | Tenantv1Alpha1InitResources | Unset = UNSET
     labels: CreateTenantRequestLabels | Unset = UNSET
     name: str | Unset = UNSET
-    namespace: Apiv1Alpha1NamespaceSpec | None | Unset = UNSET
+    namespace: None | Tenantv1Alpha1NamespaceSpec | Unset = UNSET
     quotas: list[ServerQuota] | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        from ..models.apiv_1_alpha_1_init_resources import Apiv1Alpha1InitResources
-        from ..models.apiv_1_alpha_1_namespace_spec import Apiv1Alpha1NamespaceSpec
+        from ..models.tenantv_1_alpha_1_init_resources import (
+            Tenantv1Alpha1InitResources,
+        )
+        from ..models.tenantv_1_alpha_1_namespace_spec import (
+            Tenantv1Alpha1NamespaceSpec,
+        )
 
         annotations: dict[str, Any] | Unset = UNSET
         if not isinstance(self.annotations, Unset):
@@ -57,7 +62,7 @@ class CreateTenantRequest:
         init_resources: dict[str, Any] | None | Unset
         if isinstance(self.init_resources, Unset):
             init_resources = UNSET
-        elif isinstance(self.init_resources, Apiv1Alpha1InitResources):
+        elif isinstance(self.init_resources, Tenantv1Alpha1InitResources):
             init_resources = self.init_resources.to_dict()
         else:
             init_resources = self.init_resources
@@ -71,7 +76,7 @@ class CreateTenantRequest:
         namespace: dict[str, Any] | None | Unset
         if isinstance(self.namespace, Unset):
             namespace = UNSET
-        elif isinstance(self.namespace, Apiv1Alpha1NamespaceSpec):
+        elif isinstance(self.namespace, Tenantv1Alpha1NamespaceSpec):
             namespace = self.namespace.to_dict()
         else:
             namespace = self.namespace
@@ -103,13 +108,17 @@ class CreateTenantRequest:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
-        from ..models.apiv_1_alpha_1_init_resources import Apiv1Alpha1InitResources
-        from ..models.apiv_1_alpha_1_namespace_spec import Apiv1Alpha1NamespaceSpec
         from ..models.create_tenant_request_annotations import (
             CreateTenantRequestAnnotations,
         )
         from ..models.create_tenant_request_labels import CreateTenantRequestLabels
         from ..models.server_quota import ServerQuota
+        from ..models.tenantv_1_alpha_1_init_resources import (
+            Tenantv1Alpha1InitResources,
+        )
+        from ..models.tenantv_1_alpha_1_namespace_spec import (
+            Tenantv1Alpha1NamespaceSpec,
+        )
 
         d = dict(src_dict)
         _annotations = d.pop("annotations", UNSET)
@@ -121,7 +130,7 @@ class CreateTenantRequest:
 
         def _parse_init_resources(
             data: object,
-        ) -> Apiv1Alpha1InitResources | None | Unset:
+        ) -> None | Tenantv1Alpha1InitResources | Unset:
             if data is None:
                 return data
             if isinstance(data, Unset):
@@ -129,12 +138,12 @@ class CreateTenantRequest:
             try:
                 if not isinstance(data, dict):
                     raise TypeError()
-                init_resources_type_1 = Apiv1Alpha1InitResources.from_dict(data)
+                init_resources_type_1 = Tenantv1Alpha1InitResources.from_dict(data)
 
                 return init_resources_type_1
             except (TypeError, ValueError, AttributeError, KeyError):
                 pass
-            return cast(Apiv1Alpha1InitResources | None | Unset, data)
+            return cast(None | Tenantv1Alpha1InitResources | Unset, data)
 
         init_resources = _parse_init_resources(d.pop("initResources", UNSET))
 
@@ -147,7 +156,9 @@ class CreateTenantRequest:
 
         name = d.pop("name", UNSET)
 
-        def _parse_namespace(data: object) -> Apiv1Alpha1NamespaceSpec | None | Unset:
+        def _parse_namespace(
+            data: object,
+        ) -> None | Tenantv1Alpha1NamespaceSpec | Unset:
             if data is None:
                 return data
             if isinstance(data, Unset):
@@ -155,12 +166,12 @@ class CreateTenantRequest:
             try:
                 if not isinstance(data, dict):
                     raise TypeError()
-                namespace_type_1 = Apiv1Alpha1NamespaceSpec.from_dict(data)
+                namespace_type_1 = Tenantv1Alpha1NamespaceSpec.from_dict(data)
 
                 return namespace_type_1
             except (TypeError, ValueError, AttributeError, KeyError):
                 pass
-            return cast(Apiv1Alpha1NamespaceSpec | None | Unset, data)
+            return cast(None | Tenantv1Alpha1NamespaceSpec | Unset, data)
 
         namespace = _parse_namespace(d.pop("namespace", UNSET))
 

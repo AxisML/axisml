@@ -1,41 +1,37 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-if TYPE_CHECKING:
-    from ..models.apiv_1_alpha_1_source_secret_ref import Apiv1Alpha1SourceSecretRef
-
-
-T = TypeVar("T", bound="Apiv1Alpha1ImagePullSecretSpec")
+T = TypeVar("T", bound="Tenantv1Alpha1RBACRoleRef")
 
 
 @_attrs_define
-class Apiv1Alpha1ImagePullSecretSpec:
+class Tenantv1Alpha1RBACRoleRef:
     """
     Attributes:
+        kind (str):
         name (str):
-        source_secret_ref (Apiv1Alpha1SourceSecretRef):
     """
 
+    kind: str
     name: str
-    source_secret_ref: Apiv1Alpha1SourceSecretRef
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        name = self.name
+        kind = self.kind
 
-        source_secret_ref = self.source_secret_ref.to_dict()
+        name = self.name
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
+                "kind": kind,
                 "name": name,
-                "sourceSecretRef": source_secret_ref,
             }
         )
 
@@ -43,22 +39,18 @@ class Apiv1Alpha1ImagePullSecretSpec:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
-        from ..models.apiv_1_alpha_1_source_secret_ref import Apiv1Alpha1SourceSecretRef
-
         d = dict(src_dict)
+        kind = d.pop("kind")
+
         name = d.pop("name")
 
-        source_secret_ref = Apiv1Alpha1SourceSecretRef.from_dict(
-            d.pop("sourceSecretRef")
-        )
-
-        apiv_1_alpha_1_image_pull_secret_spec = cls(
+        tenantv_1_alpha_1rbac_role_ref = cls(
+            kind=kind,
             name=name,
-            source_secret_ref=source_secret_ref,
         )
 
-        apiv_1_alpha_1_image_pull_secret_spec.additional_properties = d
-        return apiv_1_alpha_1_image_pull_secret_spec
+        tenantv_1_alpha_1rbac_role_ref.additional_properties = d
+        return tenantv_1_alpha_1rbac_role_ref
 
     @property
     def additional_keys(self) -> list[str]:

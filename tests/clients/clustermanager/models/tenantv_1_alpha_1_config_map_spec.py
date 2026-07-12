@@ -1,37 +1,43 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-T = TypeVar("T", bound="Apiv1Alpha1SourceConfigMapRef")
+if TYPE_CHECKING:
+    from ..models.tenantv_1_alpha_1_source_config_map_ref import (
+        Tenantv1Alpha1SourceConfigMapRef,
+    )
+
+
+T = TypeVar("T", bound="Tenantv1Alpha1ConfigMapSpec")
 
 
 @_attrs_define
-class Apiv1Alpha1SourceConfigMapRef:
+class Tenantv1Alpha1ConfigMapSpec:
     """
     Attributes:
         name (str):
-        namespace (str):
+        source_config_map_ref (Tenantv1Alpha1SourceConfigMapRef):
     """
 
     name: str
-    namespace: str
+    source_config_map_ref: Tenantv1Alpha1SourceConfigMapRef
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         name = self.name
 
-        namespace = self.namespace
+        source_config_map_ref = self.source_config_map_ref.to_dict()
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
                 "name": name,
-                "namespace": namespace,
+                "sourceConfigMapRef": source_config_map_ref,
             }
         )
 
@@ -39,18 +45,24 @@ class Apiv1Alpha1SourceConfigMapRef:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
+        from ..models.tenantv_1_alpha_1_source_config_map_ref import (
+            Tenantv1Alpha1SourceConfigMapRef,
+        )
+
         d = dict(src_dict)
         name = d.pop("name")
 
-        namespace = d.pop("namespace")
-
-        apiv_1_alpha_1_source_config_map_ref = cls(
-            name=name,
-            namespace=namespace,
+        source_config_map_ref = Tenantv1Alpha1SourceConfigMapRef.from_dict(
+            d.pop("sourceConfigMapRef")
         )
 
-        apiv_1_alpha_1_source_config_map_ref.additional_properties = d
-        return apiv_1_alpha_1_source_config_map_ref
+        tenantv_1_alpha_1_config_map_spec = cls(
+            name=name,
+            source_config_map_ref=source_config_map_ref,
+        )
+
+        tenantv_1_alpha_1_config_map_spec.additional_properties = d
+        return tenantv_1_alpha_1_config_map_spec
 
     @property
     def additional_keys(self) -> list[str]:

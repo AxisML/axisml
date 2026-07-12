@@ -42,7 +42,8 @@ class MLRun:
         id (UUID): Stable run identifier (PG row UUID).
         name (str): MLRun name, unique within the namespace.
         namespace (str): Namespace (= tenant identifier) the run belongs to.
-        phase (str): Current run lifecycle phase (Pending, Running, Succeeded, Failed).
+        phase (str): Current run lifecycle phase: Creating, Pending, Running, Succeeded, Failed, Canceling, Cancelled,
+            Deleting, Deleted.
         spec (MLRunSpec):
         status (MLRunStatus):
         updated_at (datetime.datetime): Time the run was last updated.

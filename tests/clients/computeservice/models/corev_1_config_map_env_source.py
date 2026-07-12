@@ -1,16 +1,12 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any, TypeVar, cast
+from typing import Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
-
-if TYPE_CHECKING:
-    from ..models.corev_1_local_object_reference import Corev1LocalObjectReference
-
 
 T = TypeVar("T", bound="Corev1ConfigMapEnvSource")
 
@@ -19,16 +15,16 @@ T = TypeVar("T", bound="Corev1ConfigMapEnvSource")
 class Corev1ConfigMapEnvSource:
     """
     Attributes:
-        local_object_reference (Corev1LocalObjectReference):
+        name (str | Unset):
         optional (bool | None | Unset):
     """
 
-    local_object_reference: Corev1LocalObjectReference
+    name: str | Unset = UNSET
     optional: bool | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        local_object_reference = self.local_object_reference.to_dict()
+        name = self.name
 
         optional: bool | None | Unset
         if isinstance(self.optional, Unset):
@@ -38,11 +34,9 @@ class Corev1ConfigMapEnvSource:
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update(
-            {
-                "LocalObjectReference": local_object_reference,
-            }
-        )
+        field_dict.update({})
+        if name is not UNSET:
+            field_dict["name"] = name
         if optional is not UNSET:
             field_dict["optional"] = optional
 
@@ -50,12 +44,8 @@ class Corev1ConfigMapEnvSource:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
-        from ..models.corev_1_local_object_reference import Corev1LocalObjectReference
-
         d = dict(src_dict)
-        local_object_reference = Corev1LocalObjectReference.from_dict(
-            d.pop("LocalObjectReference")
-        )
+        name = d.pop("name", UNSET)
 
         def _parse_optional(data: object) -> bool | None | Unset:
             if data is None:
@@ -67,7 +57,7 @@ class Corev1ConfigMapEnvSource:
         optional = _parse_optional(d.pop("optional", UNSET))
 
         corev_1_config_map_env_source = cls(
-            local_object_reference=local_object_reference,
+            name=name,
             optional=optional,
         )
 

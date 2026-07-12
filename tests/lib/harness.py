@@ -193,16 +193,16 @@ class StandardHarness(Harness):
     def create_tenant(self, name: str, *, pool: str | None = None, quantity: int = 4) -> str:
         from clients.clustermanager.api.tenants import create_tenant
         from clients.clustermanager.models import (
-            Apiv1Alpha1NamespaceSpec,
             CreateTenantRequest,
             ServerQuota,
             ServerQuotaUnit,
+            Tenantv1Alpha1NamespaceSpec,
         )
 
         pool = pool or self.cfg.default_pool
         body = CreateTenantRequest(
             name=name,
-            namespace=Apiv1Alpha1NamespaceSpec(name=name),
+            namespace=Tenantv1Alpha1NamespaceSpec(name=name),
             quotas=[ServerQuota(pool=pool, units=[ServerQuotaUnit(unit_name=self.cfg.default_unit, quantity=quantity)])],
         )
         resp = create_tenant.sync_detailed(client=self._cm, body=body)

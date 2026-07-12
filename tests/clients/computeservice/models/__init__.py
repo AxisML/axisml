@@ -76,7 +76,6 @@ from .corev_1_volume_resource_requirements_limits import (
 from .corev_1_volume_resource_requirements_requests import (
     Corev1VolumeResourceRequirementsRequests,
 )
-from .corev_1_volume_source import Corev1VolumeSource
 from .corev_1_vsphere_virtual_disk_volume_source import (
     Corev1VsphereVirtualDiskVolumeSource,
 )
@@ -120,6 +119,8 @@ from .ml_run_list import MLRunList
 from .ml_run_patch_request import MLRunPatchRequest
 from .ml_run_patch_request_annotations import MLRunPatchRequestAnnotations
 from .ml_run_patch_request_labels import MLRunPatchRequestLabels
+from .ml_run_phase import MLRunPhase
+from .ml_run_phase_list import MLRunPhaseList
 from .ml_run_pod_template_subset import MLRunPodTemplateSubset
 from .ml_run_role_spec import MLRunRoleSpec
 from .ml_run_run_policy_spec import MLRunRunPolicySpec
@@ -139,6 +140,8 @@ from .ml_service_list import MLServiceList
 from .ml_service_patch_request import MLServicePatchRequest
 from .ml_service_patch_request_annotations import MLServicePatchRequestAnnotations
 from .ml_service_patch_request_labels import MLServicePatchRequestLabels
+from .ml_service_phase import MLServicePhase
+from .ml_service_phase_list import MLServicePhaseList
 from .ml_service_pod_port import MLServicePodPort
 from .ml_service_pod_template import MLServicePodTemplate
 from .ml_service_role_spec import MLServiceRoleSpec
@@ -255,7 +258,6 @@ __all__ = (
     "Corev1VolumeResourceRequirements",
     "Corev1VolumeResourceRequirementsLimits",
     "Corev1VolumeResourceRequirementsRequests",
-    "Corev1VolumeSource",
     "Corev1VsphereVirtualDiskVolumeSource",
     "Event",
     "EventList",
@@ -283,6 +285,8 @@ __all__ = (
     "MLRunPatchRequest",
     "MLRunPatchRequestAnnotations",
     "MLRunPatchRequestLabels",
+    "MLRunPhase",
+    "MLRunPhaseList",
     "MLRunPodTemplateSubset",
     "MLRunRoleSpec",
     "MLRunRunPolicySpec",
@@ -302,6 +306,8 @@ __all__ = (
     "MLServicePatchRequest",
     "MLServicePatchRequestAnnotations",
     "MLServicePatchRequestLabels",
+    "MLServicePhase",
+    "MLServicePhaseList",
     "MLServicePodPort",
     "MLServicePodTemplate",
     "MLServiceRoleSpec",
