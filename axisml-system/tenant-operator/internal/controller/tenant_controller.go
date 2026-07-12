@@ -5,6 +5,7 @@ package controller
 
 import (
 	"context"
+	"time"
 
 	schedv1alpha1 "github.com/axisml/axisml/axisml-system/tenant-operator/api/scheduling/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
@@ -20,6 +21,15 @@ import (
 	"github.com/axisml/axisml/axisml-system/tenant-operator/internal/validate"
 )
 
+// DefaultVolumeResyncInterval bounds how long a predefined data volume can be
+// missing before the operator re-ensures it. Unlike the credential init
+// resources, predefined-volume PVCs carry no ownerReference (deletion must never
+// cascade), so no ownerRef-driven watch re-triggers reconcile when one is
+// deleted out-of-band (e.g. via the DataVolumes catalog). A periodic requeue —
+// applied only while the tenant declares volumes — keeps the "ensured to exist"
+// guarantee bounded instead of relying on the manager's multi-hour resync.
+const DefaultVolumeResyncInterval = 5 * time.Minute
+
 // TenantReconciler reconciles a Tenant CR.
 type TenantReconciler struct {
 	client.Client
@@ -32,6 +42,10 @@ type TenantReconciler struct {
 	APIReader    client.Reader
 	Scheme       *runtime.Scheme
 	ValidateOpts validate.Options
+	// VolumeResyncInterval is the requeue period used to re-ensure predefined
+	// volumes exist; zero is replaced with DefaultVolumeResyncInterval in
+	// SetupWithManager.
+	VolumeResyncInterval time.Duration
 }
 
 // SetupWithManager wires the watch topology described in design §5:
@@ -39,6 +53,9 @@ type TenantReconciler struct {
 // events trigger reconcile, including ElasticQuota.status.used updates).
 // Namespace is intentionally NOT owned — it has no ownerRef and is shared.
 func (r *TenantReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	if r.VolumeResyncInterval <= 0 {
+		r.VolumeResyncInterval = DefaultVolumeResyncInterval
+	}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&axisml.Tenant{}).
 		Owns(&corev1.Secret{}).
@@ -89,6 +106,7 @@ func (r *TenantReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		Secrets:          tenant.Status.InitResources.Secrets,
 		ConfigMaps:       tenant.Status.InitResources.ConfigMaps,
 		ServiceAccounts:  tenant.Status.InitResources.ServiceAccounts,
+		Volumes:          tenant.Status.InitResources.Volumes,
 	}
 
 	// 1. Namespace
@@ -136,8 +154,27 @@ func (r *TenantReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return r.recordAndRequeue(ctx, tenant, agg, previousPhase, saErr)
 	}
 
+	// 4. Predefined data volumes. Runs after the namespace exists (step 1) so the
+	// PVCs land in it. Non-critical: a PVC hiccup requeues without failing the
+	// tenant, mirroring the credential init resources above.
+	vols, volErr := reconcile.Volumes(ctx, r.Client, r.APIReader, tenant)
+	agg.Volumes = vols
+	if volErr != nil {
+		agg.FailureMessage = "volumes reconcile failed: " + volErr.Error()
+		return r.recordAndRequeue(ctx, tenant, agg, previousPhase, volErr)
+	}
+
 	phase, msg := reconcile.DerivePhase(tenant, agg, previousPhase)
-	return ctrl.Result{}, r.patchStatus(ctx, tenant, agg, phase, msg)
+	if err := r.patchStatus(ctx, tenant, agg, phase, msg); err != nil {
+		return ctrl.Result{}, err
+	}
+	// Predefined volumes carry no ownerRef, so a PVC deleted out-of-band raises
+	// no watch event; requeue on a bounded interval to re-ensure they exist.
+	// Only when the tenant declares volumes, to avoid churn for the common case.
+	if len(tenant.Spec.InitResources.Volumes) > 0 {
+		return ctrl.Result{RequeueAfter: r.VolumeResyncInterval}, nil
+	}
+	return ctrl.Result{}, nil
 }
 
 func (r *TenantReconciler) recordAndRequeue(

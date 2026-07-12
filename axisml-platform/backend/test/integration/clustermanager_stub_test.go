@@ -172,7 +172,7 @@ func (s *clusterManagerStub) seedTenant(name, namespace string) {
 
 func (s *clusterManagerStub) tenantBody(name string) map[string]any {
 	ns, _ := s.tenants[name]["namespace"].(string)
-	return map[string]any{
+	body := map[string]any{
 		"name":      name,
 		"namespace": map[string]any{"name": ns},
 		"quotas":    []any{},
@@ -180,6 +180,12 @@ func (s *clusterManagerStub) tenantBody(name string) map[string]any {
 		"phase":     "Active",
 		"status":    map[string]any{"phase": "Active", "namespaceReady": true},
 	}
+	// Echo back the seeded init resources (e.g. predefined volumes) the way the
+	// real cluster-manager surfaces them from the stored CR, so GET round-trips.
+	if ir := s.tenants[name]["initResources"]; ir != nil {
+		body["initResources"] = ir
+	}
+	return body
 }
 
 func (s *clusterManagerStub) create(c *gin.Context) {
@@ -188,6 +194,7 @@ func (s *clusterManagerStub) create(c *gin.Context) {
 		Namespace struct {
 			Name string `json:"name"`
 		} `json:"namespace"`
+		InitResources map[string]any `json:"initResources"`
 	}
 	_ = c.ShouldBindJSON(&body)
 	s.mu.Lock()
@@ -196,7 +203,11 @@ func (s *clusterManagerStub) create(c *gin.Context) {
 		c.JSON(http.StatusConflict, gin.H{"code": "tenant-exists", "title": "exists", "status": 409, "type": "x"})
 		return
 	}
-	s.tenants[body.Name] = map[string]any{"namespace": body.Namespace.Name}
+	rec := map[string]any{"namespace": body.Namespace.Name}
+	if body.InitResources != nil {
+		rec["initResources"] = body.InitResources
+	}
+	s.tenants[body.Name] = rec
 	c.JSON(http.StatusCreated, s.tenantBody(body.Name))
 }
 

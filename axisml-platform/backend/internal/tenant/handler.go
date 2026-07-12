@@ -59,6 +59,7 @@ func (h *Handler) createTenant(c *gin.Context) {
 		Labels:              req.Labels,
 		Annotations:         req.Annotations,
 		Quotas:              fromContractQuotas(req.Quotas),
+		Volumes:             fromContractVolumes(req.Volumes),
 	}
 	view, err := h.svc.Create(c.Request.Context(), in, auth.Current(c).Username)
 	if err != nil {

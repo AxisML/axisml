@@ -39,6 +39,12 @@ rules:
   - apiGroups: [""]
     resources: ["secrets", "configmaps", "serviceaccounts"]
     verbs: ["create", "get", "list", "watch", "update", "patch", "delete"]
+  # Predefined data volumes: ensured as managed PVCs in the tenant namespace.
+  # Explicitly NO delete — the operator never reclaims a data volume, so a spec
+  # change or tenant teardown can never destroy tenant data.
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["create", "get", "list", "watch", "update", "patch"]
   - apiGroups: ["rbac.authorization.k8s.io"]
     resources: ["roles", "rolebindings"]
     verbs: ["create", "get", "list", "watch", "update", "patch", "delete"]

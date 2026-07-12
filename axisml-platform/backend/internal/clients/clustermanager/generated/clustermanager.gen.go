@@ -698,6 +698,7 @@ type Tenantv1alpha1InitResources struct {
 	ImagePullSecrets *[]Tenantv1alpha1ImagePullSecretSpec `json:"imagePullSecrets,omitempty"`
 	Secrets          *[]Tenantv1alpha1SecretSpec          `json:"secrets,omitempty"`
 	ServiceAccounts  *[]Tenantv1alpha1ServiceAccountSpec  `json:"serviceAccounts,omitempty"`
+	Volumes          *[]Tenantv1alpha1VolumeSpec          `json:"volumes,omitempty"`
 }
 
 // Tenantv1alpha1NamespaceSpec defines model for Tenantv1alpha1NamespaceSpec.
@@ -743,6 +744,16 @@ type Tenantv1alpha1SourceConfigMapRef struct {
 type Tenantv1alpha1SourceSecretRef struct {
 	Name      string `json:"name"`
 	Namespace string `json:"namespace"`
+}
+
+// Tenantv1alpha1VolumeSpec defines model for Tenantv1alpha1VolumeSpec.
+type Tenantv1alpha1VolumeSpec struct {
+	AccessModes  *[]string `json:"accessModes,omitempty"`
+	Description  *string   `json:"description,omitempty"`
+	HostPath     *string   `json:"hostPath,omitempty"`
+	Name         string    `json:"name"`
+	Size         *string   `json:"size,omitempty"`
+	StorageClass *string   `json:"storageClass,omitempty"`
 }
 
 // Volume defines model for Volume.

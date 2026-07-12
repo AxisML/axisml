@@ -48,6 +48,47 @@ func TestRenderServicePlans_WorkspacePVCVolume(t *testing.T) {
 	assert.Equal(t, "/workspace", m.Target)
 }
 
+// TestRenderServicePlans_HostPathVolume verifies a predefined hostPath volume:
+// the workload references it by claim name (its ordinary PVC form), and the
+// runtime — knowing that claim name maps to a host directory (Config.
+// HostPathVolumes) — renders a bind mount to the host path instead of a managed
+// Docker volume.
+func TestRenderServicePlans_HostPathVolume(t *testing.T) {
+	r := New(nil, Config{
+		WorkloadsNetwork: "axisml-workloads",
+		Tenant:           "default",
+		HostPathVolumes:  map[string]string{"host-ds": "/data/host-datasets"},
+	}, logr.Discard())
+	svc := &mlservicev1alpha1.MLService{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "ws"},
+		Spec: mlservicev1alpha1.MLServiceSpec{
+			Backend: mlservicev1alpha1.Backend{Name: "native", Engine: "statefulset"},
+			Roles: []mlservicev1alpha1.RoleSpec{{
+				Name:     "predictor",
+				Replicas: 1,
+				Template: mlservicev1alpha1.PodTemplate{
+					Image: "codeserver:latest",
+					Volumes: []corev1.Volume{{
+						Name: "data",
+						VolumeSource: corev1.VolumeSource{
+							PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{ClaimName: "host-ds"},
+						},
+					}},
+					VolumeMounts: []corev1.VolumeMount{{Name: "data", MountPath: "/data"}},
+				},
+			}},
+		},
+	}
+	plans, err := r.renderServicePlans(svc)
+	require.NoError(t, err)
+	require.Len(t, plans, 1)
+	require.Len(t, plans[0].Mounts, 1)
+	m := plans[0].Mounts[0]
+	assert.Equal(t, "bind", m.Type)
+	assert.Equal(t, "/data/host-datasets", m.Source)
+	assert.Equal(t, "/data", m.Target)
+}
+
 // TestServiceRoute_ApplyObserveDelete verifies spec.route renders a Traefik
 // config whose endpoint is readable back, and that delete removes it.
 func TestServiceRoute_ApplyObserveDelete(t *testing.T) {

@@ -11,6 +11,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	axisml "github.com/axisml/axisml/axisml-system/apis/tenant/v1alpha1"
@@ -154,6 +155,9 @@ func validateInitResources(ir axisml.InitResources) error {
 		return err
 	}
 	if _, err := uniqueNames("serviceAccounts", namesOfServiceAccounts(ir.ServiceAccounts)); err != nil {
+		return err
+	}
+	if err := validateVolumes(ir.Volumes); err != nil {
 		return err
 	}
 
@@ -303,6 +307,45 @@ func uniqueNames(field string, names []string) (map[string]struct{}, error) {
 		seen[n] = struct{}{}
 	}
 	return seen, nil
+}
+
+// validateVolumes checks predefined data volumes: each name is a valid DNS-1123
+// label (it becomes the PVC / claim name a workload mounts by), unique, and
+// carries a parseable non-empty size (a PVC needs a storage request to be valid
+// — the single-host Lite runtime ignores it but the field stays required for a
+// consistent declaration).
+func validateVolumes(vols []axisml.VolumeSpec) error {
+	seen := make(map[string]struct{}, len(vols))
+	for i, v := range vols {
+		if v.Name == "" {
+			return fmt.Errorf("spec.initResources.volumes[%d].name is required", i)
+		}
+		// hostPath volumes are a single-host Lite convenience only; in a
+		// multi-tenant cluster they break tenant isolation, pin the workload to a
+		// node, and have no cluster-wide "ensure exists" semantics. Reject them
+		// here so the Standard operator never materialises one.
+		if v.HostPath != "" {
+			return fmt.Errorf("spec.initResources.volumes[%d] uses hostPath, which is not supported in Standard (multi-tenant); hostPath volumes are a Lite-only feature", i)
+		}
+		if len(v.Name) > 63 || !dns1123LabelRegex.MatchString(v.Name) {
+			return fmt.Errorf("spec.initResources.volumes[%d].name %q is not a valid DNS-1123 label", i, v.Name)
+		}
+		if _, dup := seen[v.Name]; dup {
+			return fmt.Errorf("spec.initResources.volumes[%d].name %q is duplicated", i, v.Name)
+		}
+		seen[v.Name] = struct{}{}
+		if v.Size == "" {
+			return fmt.Errorf("spec.initResources.volumes[%d].size is required", i)
+		}
+		q, err := resource.ParseQuantity(v.Size)
+		if err != nil {
+			return fmt.Errorf("spec.initResources.volumes[%d].size %q is not a valid quantity: %v", i, v.Size, err)
+		}
+		if q.Sign() <= 0 {
+			return fmt.Errorf("spec.initResources.volumes[%d].size %q must be > 0", i, v.Size)
+		}
+	}
+	return nil
 }
 
 func namesOfPullSecrets(in []axisml.ImagePullSecretSpec) []string {

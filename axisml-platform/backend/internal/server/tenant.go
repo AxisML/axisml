@@ -99,6 +99,21 @@ type ServiceAccountInit struct {
 	RBAC             map[string]any `json:"rbac,omitempty" desc:"RBAC rules to bind to the ServiceAccount."`
 }
 
+// TenantVolume is a predefined data volume the tenant guarantees exists: the
+// System layer ensures it as a managed PVC (a managed Docker volume in Lite) in
+// the tenant namespace, named by Name, so workspaces/jobs/experiments can mount
+// it by name. It is the same managed object the DataVolumes catalog surfaces;
+// declaring it here just seeds it at tenant-provision time. Size/storageClass/
+// accessModes are the initial PVC request (ignored by the single-host Lite
+// runtime); ongoing expand/delete stays with the DataVolumes catalog.
+type TenantVolume struct {
+	Name         string   `json:"name" binding:"required,dns1123,max=40" desc:"Data volume (claim) name; workloads mount it by this name."`
+	Size         string   `json:"size,omitempty" desc:"Initial requested capacity (e.g. 50Gi). Required in Standard; ignored in Lite."`
+	StorageClass string   `json:"storageClass,omitempty" desc:"StorageClass backing the volume (Standard only)."`
+	AccessModes  []string `json:"accessModes,omitempty" desc:"Access modes (ReadWriteOnce/ReadWriteMany/ReadOnlyMany)."`
+	Description  string   `json:"description,omitempty" desc:"Free-text description surfaced in the DataVolumes catalog."`
+}
+
 // InitResources is the set of bootstrap objects created in a tenant namespace.
 type InitResources struct {
 	ImagePullSecrets []ImagePullSecretInit `json:"imagePullSecrets,omitempty" desc:"Image pull Secrets to seed in the tenant namespace."`
@@ -118,18 +133,19 @@ type InitResources struct {
 // Phase / Status are read live from cluster-manager (not cached); Suspended is
 // Platform-owned and enforced at the workload-create entry point.
 type Tenant struct {
-	Identifier          string        `json:"identifier" desc:"Stable logical tenant scope used across Platform, compute and artifacts."`
-	KubernetesNamespace string        `json:"kubernetesNamespace" desc:"Physical Kubernetes namespace backing the tenant (may be shared)."`
-	DisplayName         string        `json:"displayName" desc:"Human-readable tenant name."`
-	Description         string        `json:"description,omitempty" desc:"Free-text tenant description."`
-	Owner               string        `json:"owner,omitempty" desc:"Username of the tenant owner."`
-	Labels              StringMap     `json:"labels,omitempty" desc:"User-defined labels."`
-	Annotations         StringMap     `json:"annotations,omitempty" desc:"User-defined annotations."`
-	Quotas              []Quota       `json:"quotas,omitempty" desc:"Per-pool resource quota allocations."`
-	InitResources       InitResources `json:"initResources,omitempty" desc:"Bootstrap objects seeded into the tenant namespace."`
-	Phase               TenantPhase   `json:"phase" desc:"Current tenant lifecycle phase (read live from cluster-manager)."`
-	Status              TenantStatus  `json:"status,omitempty" desc:"Live tenant status detail."`
-	Suspended           bool          `json:"suspended" desc:"Whether new workloads are blocked (Platform-enforced)."`
+	Identifier          string         `json:"identifier" desc:"Stable logical tenant scope used across Platform, compute and artifacts."`
+	KubernetesNamespace string         `json:"kubernetesNamespace" desc:"Physical Kubernetes namespace backing the tenant (may be shared)."`
+	DisplayName         string         `json:"displayName" desc:"Human-readable tenant name."`
+	Description         string         `json:"description,omitempty" desc:"Free-text tenant description."`
+	Owner               string         `json:"owner,omitempty" desc:"Username of the tenant owner."`
+	Labels              StringMap      `json:"labels,omitempty" desc:"User-defined labels."`
+	Annotations         StringMap      `json:"annotations,omitempty" desc:"User-defined annotations."`
+	Quotas              []Quota        `json:"quotas,omitempty" desc:"Per-pool resource quota allocations."`
+	Volumes             []TenantVolume `json:"volumes,omitempty" desc:"Predefined data volumes ensured to exist in the tenant namespace."`
+	InitResources       InitResources  `json:"initResources,omitempty" desc:"Bootstrap objects seeded into the tenant namespace."`
+	Phase               TenantPhase    `json:"phase" desc:"Current tenant lifecycle phase (read live from cluster-manager)."`
+	Status              TenantStatus   `json:"status,omitempty" desc:"Live tenant status detail."`
+	Suspended           bool           `json:"suspended" desc:"Whether new workloads are blocked (Platform-enforced)."`
 	// Live workload roll-ups, best-effort. Populated on getTenant and on
 	// listTenants?stats=true; left at zero when the compute-service enrichment
 	// is skipped (e.g. the tenant-switcher list) or temporarily unavailable.
@@ -163,15 +179,16 @@ type TenantList struct {
 // selects the physical namespace and may be shared. InitialAdmin seeds the
 // first tenant-admin member, by email or username.
 type TenantCreateRequest struct {
-	Identifier          string        `json:"identifier" binding:"required,dns1123,min=3,max=40" desc:"Stable logical tenant scope (becomes the Tenant CR name)."`
-	KubernetesNamespace string        `json:"kubernetesNamespace" binding:"required,dns1123,max=63" desc:"Physical Kubernetes namespace to back the tenant (may be shared)."`
-	DisplayName         string        `json:"displayName" binding:"required,min=1,max=100" desc:"Human-readable tenant name."`
-	Description         string        `json:"description,omitempty" binding:"max=1000" desc:"Free-text tenant description."`
-	InitialAdmin        string        `json:"initialAdmin" binding:"required" desc:"Email or username of the first tenant-admin member."`
-	Labels              StringMap     `json:"labels,omitempty" desc:"User-defined labels."`
-	Annotations         StringMap     `json:"annotations,omitempty" desc:"User-defined annotations."`
-	Quotas              []Quota       `json:"quotas,omitempty" desc:"Initial per-pool resource quota allocations."`
-	InitResources       InitResources `json:"initResources,omitempty" desc:"Bootstrap objects to seed into the tenant namespace."`
+	Identifier          string         `json:"identifier" binding:"required,dns1123,min=3,max=40" desc:"Stable logical tenant scope (becomes the Tenant CR name)."`
+	KubernetesNamespace string         `json:"kubernetesNamespace" binding:"required,dns1123,max=63" desc:"Physical Kubernetes namespace to back the tenant (may be shared)."`
+	DisplayName         string         `json:"displayName" binding:"required,min=1,max=100" desc:"Human-readable tenant name."`
+	Description         string         `json:"description,omitempty" binding:"max=1000" desc:"Free-text tenant description."`
+	InitialAdmin        string         `json:"initialAdmin" binding:"required" desc:"Email or username of the first tenant-admin member."`
+	Labels              StringMap      `json:"labels,omitempty" desc:"User-defined labels."`
+	Annotations         StringMap      `json:"annotations,omitempty" desc:"User-defined annotations."`
+	Quotas              []Quota        `json:"quotas,omitempty" desc:"Initial per-pool resource quota allocations."`
+	Volumes             []TenantVolume `json:"volumes,omitempty" desc:"Predefined data volumes to ensure in the tenant namespace at provisioning."`
+	InitResources       InitResources  `json:"initResources,omitempty" desc:"Bootstrap objects to seed into the tenant namespace."`
 }
 
 // TenantPatchRequest is the JSON Merge Patch body of PATCH /tenants/{name}.

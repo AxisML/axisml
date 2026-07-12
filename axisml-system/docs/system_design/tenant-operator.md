@@ -2,13 +2,13 @@
 
 ## 1. 定位与边界
 
-把 [cluster-manager](cluster-manager.md) 下发的 `Tenant` CR 翻译为 K8s 侧的 Namespace、`ElasticQuota`、租户私有的 Secret / ConfigMap / ServiceAccount + RBAC，并把执行状态回流到 `Tenant.status`。
+把 [cluster-manager](cluster-manager.md) 下发的 `Tenant` CR 翻译为 K8s 侧的 Namespace、`ElasticQuota`、租户私有的 Secret / ConfigMap / ServiceAccount + RBAC、预定义数据卷（受管 PVC），并把执行状态回流到 `Tenant.status`。
 
 | 做 | 不做 |
 | --- | --- |
 | Namespace 创建与 metadata 对齐（永不删除） | Tenant CR / 配额的 CRUD API (→ [cluster-manager.md](cluster-manager.md)) |
 | 每条 `spec.quotas[]` 渲染为一个 ElasticQuota CR，回流 `status.used` | MLRun / MLService 生命周期 (→ [compute-operator.md](compute-operator.md)) |
-| `spec.initResources` 下发 ImagePullSecret / Secret / ConfigMap / SA + RBAC | 用户认证、平台 RBAC (→ [auth.md](../../../axisml-platform/docs/system_design/auth.md)) |
+| `spec.initResources` 下发 ImagePullSecret / Secret / ConfigMap / SA + RBAC + 预定义数据卷（PVC，ensure-only 非破坏） | 用户认证、平台 RBAC (→ [auth.md](../../../axisml-platform/docs/system_design/auth.md))；数据卷扩容 / 删除 / 占用守卫（归数据卷目录） |
 | 周期 resync 收敛源 Secret / ConfigMap 漂移 | 跨集群 / 多 region 联邦 |
 
 ## 2. 架构
@@ -48,6 +48,7 @@
 | Kubernetes Namespace | 运行租户 Pod 的物理 namespace | `spec.namespace.name` | 与 tenant scope 分离，可被多 Tenant 共享（§5.1） |
 | ElasticQuota | ElasticQuota 配额 CR | `axisml-<tenant>-<pool>-<quota>` | 每条 `spec.quotas[]` 1:1 渲染（`min`/`max` 由 cluster-manager 折算后写入） |
 | InitResource | per-tenant Secret / CM / SA + RBAC | `axisml-tenant-<tenant>-<name>` | 由 `sourceXxxRef` 复制 |
+| 预定义数据卷 | `spec.initResources.volumes[]` 声明的受管 PVC | `<name>`（即 workload 挂载的 claim name，不加前缀） | ensure-only：无 ownerRef、无 GC、不缩容、不删除；stamped `app.kubernetes.io/managed-by=axisml-cluster-manager` 从而在数据卷目录中可见 |
 
 Tenant CR 字段见 [tenant-crd.yaml](../../deploy/helm/crds/tenant-crd.yaml)；ElasticQuota 调度行为见 [infra.md](../../../axisml-infra/docs/system_design/overview.md)。
 
@@ -97,6 +98,23 @@ Tenant CR 字段见 [tenant-crd.yaml](../../deploy/helm/crds/tenant-crd.yaml)；
 通用行为：**复制**（`Get()` 源对象 → 写本端 `data`；源不存在 → 对应 `ready=false`）；**漂移**（reconcile 检测本端 ≠ 源时覆盖，源 watch 不建立，延迟 ≤ resync）；**删除**（spec 删项 → 显式 Delete；Tenant 删除 → ownerReference GC）。
 
 **不变量**：`serviceAccounts[].imagePullSecrets[]` 中每个 name 必须能在 `imagePullSecrets[].name` 找到，否则 Validate 失败。per-tenant SA + 默认 imagePullSecrets / Secret 是 workload 拉取 zot / RustFS 的凭证来源；Artifact Hub 不签发或返回 K8s Secret 引用。
+
+#### 4.1.4 预定义数据卷落地
+
+`spec.initResources.volumes[]` 声明租户保证存在的数据卷，Namespace 落地后为每项 ensure 一个受管 PVC。它**刻意偏离**上面凭证类资源的复制/GC 模式，因为承载的是数据：
+
+| 维度 | 行为 |
+| --- | --- |
+| 命名 | PVC name = `<volume.name>`（不加 `axisml-tenant-` 前缀），即 workload 通过 claim name 直接挂载的名字 |
+| 幂等 create | 不存在则按 `size`/`storageClass`/`accessModes`（默认 RWO）创建；已存在则只同步 label / description，**绝不改 spec**（`size` 只增不减由数据卷目录负责，`storageClass`/`accessModes` 不可变） |
+| 收养守卫 | 已存在的同名 PVC **仅当它是 AxisML 受管卷**（带 `app.kubernetes.io/managed-by=axisml-cluster-manager`，即本 operator 或数据卷目录所建）才同步；否则**拒绝收养 / 改标签**，报 not-ready，避免静默劫持外部 PVC |
+| 目录可见 | stamped `app.kubernetes.io/managed-by=axisml-cluster-manager` + `resource.axisml.io/description`，从而与数据卷目录（cluster-manager）里的普通数据卷同构、可见、可管理 |
+| 非破坏 | **不设 ownerReference**（Tenant / Namespace 拆除不会级联删卷）、**不做孤儿 GC**（从 spec 移除一项只是停止存在性保证，不删数据）；operator ClusterRole 对 `persistentvolumeclaims` **不授予 delete** |
+| 读路径 | PVC 经**未缓存的 APIReader** 读取（PVC 不在 `CacheByObject` 的 label 限定内，走缓存 Get 会拉起全集群 PVC informer）；写（create/patch）走缓存 client 直连 API |
+| 持续保证 | PVC 无 ownerRef → 被外部删除（如经数据卷目录）不会触发 watch 事件，故控制器在租户声明了卷时按 `DefaultVolumeResyncInterval`（默认 5min）周期性 requeue 重新 ensure，把「确保存在」窗口收敛在有限时间内 |
+| readiness | PVC 存在即 `ready=true`；绑定可延迟（WaitForFirstConsumer），不阻塞租户进入 `Active` |
+
+**不变量**：`volumes[].name` 为唯一 DNS-1123 label；`size` 必填且为合法正 Quantity（Standard 侧 PVC 需要存储请求；单机 Lite Runtime 忽略 size）。**拒绝 `hostPath`**：设了 `volumes[].hostPath` 的 Tenant CR 在 `Validate` 阶段直接失败（`phase=Failed`）——hostPath 破坏租户隔离、把 workload 钉到某节点、且无集群级「确保存在」语义，是单机部署专属能力，不在多租户 Standard 支持。数据卷生命周期（扩容 / 删除 / 占用守卫）仍归数据卷目录，见 [cluster-manager.md](cluster-manager.md) §3.4。
 
 ## 5. 关键机制
 

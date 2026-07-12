@@ -75,12 +75,39 @@ type QuotaSpec struct {
 	Max  corev1.ResourceList `json:"max"`
 }
 
-// InitResources groups the four kinds of per-tenant initialization resources.
+// InitResources groups the per-tenant initialization resources the operator
+// seeds into the tenant namespace: credential/RBAC objects copied from a source,
+// plus predefined data Volumes ensured to exist for workloads to mount.
 type InitResources struct {
 	ImagePullSecrets []ImagePullSecretSpec `json:"imagePullSecrets,omitempty"`
 	Secrets          []SecretSpec          `json:"secrets,omitempty"`
 	ConfigMaps       []ConfigMapSpec       `json:"configMaps,omitempty"`
 	ServiceAccounts  []ServiceAccountSpec  `json:"serviceAccounts,omitempty"`
+	Volumes          []VolumeSpec          `json:"volumes,omitempty"`
+}
+
+// VolumeSpec declares a predefined data volume the tenant guarantees exists.
+// The operator ensures it as a managed PersistentVolumeClaim (a managed Docker
+// volume in Lite) in the tenant namespace, named exactly Name, so a workload
+// can mount it by claim name without a separate provisioning step. Ensure is
+// idempotent and non-destructive: the PVC is created if absent and never
+// shrunk, relabeled away, or deleted by the operator — Size is the initial
+// request only, and ongoing lifecycle (expand/delete) belongs to the
+// data-volume catalog (cluster-manager). Removing a VolumeSpec merely stops the
+// existence guarantee; it never deletes data.
+type VolumeSpec struct {
+	Name         string                              `json:"name"`
+	Size         string                              `json:"size,omitempty"`
+	StorageClass string                              `json:"storageClass,omitempty"`
+	AccessModes  []corev1.PersistentVolumeAccessMode `json:"accessModes,omitempty"`
+	Description  string                              `json:"description,omitempty"`
+	// HostPath, when set, makes this a host-backed volume instead of a managed
+	// PVC: a workload that mounts it by name gets the host directory bind-mounted.
+	// Supported ONLY in the single-host Lite runtime (rendered as a Docker bind
+	// mount); the multi-tenant Standard operator REJECTS it — a hostPath breaks
+	// tenant isolation, pins the workload to a node, and has no cluster-wide
+	// "ensure exists" semantics. Mutually exclusive with size/storageClass.
+	HostPath string `json:"hostPath,omitempty"`
 }
 
 // SourceSecretRef references a controlled Secret to copy data from.
@@ -151,6 +178,7 @@ type InitResourcesStatus struct {
 	Secrets          []InitResourceItemStatus `json:"secrets,omitempty"`
 	ConfigMaps       []InitResourceItemStatus `json:"configMaps,omitempty"`
 	ServiceAccounts  []InitResourceItemStatus `json:"serviceAccounts,omitempty"`
+	Volumes          []InitResourceItemStatus `json:"volumes,omitempty"`
 }
 
 type InitResourceItemStatus struct {

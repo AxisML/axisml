@@ -4396,6 +4396,10 @@ components:
           items:
             $ref: '#/components/schemas/Tenantv1alpha1ServiceAccountSpec'
           type: array
+        volumes:
+          items:
+            $ref: '#/components/schemas/Tenantv1alpha1VolumeSpec'
+          type: array
       type: object
     Tenantv1alpha1NamespaceSpec:
       properties:
@@ -4479,6 +4483,25 @@ components:
       required:
       - name
       - namespace
+      type: object
+    Tenantv1alpha1VolumeSpec:
+      properties:
+        accessModes:
+          items:
+            type: string
+          type: array
+        description:
+          type: string
+        hostPath:
+          type: string
+        name:
+          type: string
+        size:
+          type: string
+        storageClass:
+          type: string
+      required:
+      - name
       type: object
     TrafficPolicy:
       example:

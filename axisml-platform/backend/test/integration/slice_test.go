@@ -171,6 +171,44 @@ func TestTenantAndMemberLifecycle(t *testing.T) {
 	require.Equal(t, "2", dq["min"].(map[string]any)["cpu"])
 }
 
+// TestTenantPredefinedVolumes drives a tenant create carrying predefined data
+// volumes end-to-end: Platform handler -> service -> cluster-manager client
+// (initResources.volumes[]) -> stub -> GET round-trip.
+func TestTenantPredefinedVolumes(t *testing.T) {
+	admin := loginAdmin(t)
+
+	code, body := do(t, http.MethodPost, "/api/v1/users", admin, map[string]any{
+		"username": "carol", "password": "password123", "displayName": "carol",
+	})
+	require.Equal(t, http.StatusCreated, code, "create user: %v", body)
+
+	code, tn := do(t, http.MethodPost, "/api/v1/tenants", admin, map[string]any{
+		"identifier": "vol-team", "kubernetesNamespace": "axisml-vol",
+		"displayName": "Vol", "initialAdmin": "carol",
+		"volumes": []map[string]any{
+			{"name": "dataset", "size": "50Gi", "description": "shared training data"},
+			{"name": "checkpoints", "size": "10Gi"},
+		},
+	})
+	require.Equal(t, http.StatusCreated, code, "create tenant: %v", tn)
+
+	assertVolumes := func(payload map[string]any) {
+		vols, ok := payload["volumes"].([]any)
+		require.True(t, ok, "volumes present: %v", payload)
+		require.Len(t, vols, 2)
+		first := vols[0].(map[string]any)
+		require.Equal(t, "dataset", first["name"])
+		require.Equal(t, "50Gi", first["size"])
+		require.Equal(t, "shared training data", first["description"])
+	}
+	assertVolumes(tn)
+
+	// Round-trip through GET (buildView reads them from the CR's initResources).
+	code, got := do(t, http.MethodGet, "/api/v1/tenants/vol-team", admin, nil)
+	require.Equal(t, http.StatusOK, code)
+	assertVolumes(got)
+}
+
 func loginAs(t *testing.T, user, pass string) string {
 	t.Helper()
 	key := user + "\x00" + pass

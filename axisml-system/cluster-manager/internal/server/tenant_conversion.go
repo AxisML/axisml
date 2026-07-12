@@ -310,7 +310,7 @@ func validateDirectQuota(pool string, q *QuotaResources) error {
 
 func isZeroInitResources(ir tenantv1alpha1.InitResources) bool {
 	return len(ir.ImagePullSecrets) == 0 && len(ir.Secrets) == 0 &&
-		len(ir.ConfigMaps) == 0 && len(ir.ServiceAccounts) == 0
+		len(ir.ConfigMaps) == 0 && len(ir.ServiceAccounts) == 0 && len(ir.Volumes) == 0
 }
 
 // QuotaErrorReason classifies a quota-folding failure for HTTP mapping.

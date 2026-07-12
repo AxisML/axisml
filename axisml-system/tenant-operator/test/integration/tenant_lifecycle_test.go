@@ -72,6 +72,11 @@ func TestTenant_SubmitCRHappyPath(t *testing.T) {
 					Name:            pullName,
 					SourceSecretRef: axisml.SourceSecretRef{Namespace: SourceNamespace, Name: "happy-source"},
 				}},
+				Volumes: []axisml.VolumeSpec{{
+					Name:        "dataset",
+					Size:        "10Gi",
+					Description: "shared training data",
+				}},
 			},
 		},
 	}
@@ -104,6 +109,17 @@ func TestTenant_SubmitCRHappyPath(t *testing.T) {
 	perTenant := reconcile.PerTenantResourceName(tenantName, pullName)
 	var pulled corev1.Secret
 	require.NoError(t, c.Get(ctx, types.NamespacedName{Namespace: tenantNs, Name: perTenant}, &pulled))
+
+	// Predefined data volume materialised as a managed PVC — named by the raw
+	// volume name (the claim name a workload mounts), catalog-visible, and NOT
+	// owned by the tenant (non-destructive).
+	var pvc corev1.PersistentVolumeClaim
+	require.NoError(t, c.Get(ctx, types.NamespacedName{Namespace: tenantNs, Name: "dataset"}, &pvc))
+	require.Equal(t, "axisml-cluster-manager", pvc.Labels["app.kubernetes.io/managed-by"])
+	require.Equal(t, "uuid-team-happy", pvc.Labels[axisml.LabelTenantID])
+	require.Equal(t, "shared training data", pvc.Annotations["resource.axisml.io/description"])
+	require.Equal(t, "10Gi", pvc.Spec.Resources.Requests.Storage().String())
+	require.Empty(t, pvc.OwnerReferences, "predefined volume PVC must not be owned by the tenant")
 }
 
 // TestTenant_MissingSourceSecret verifies that referring to a non-existent

@@ -96,7 +96,7 @@ Platform 自有实体三类：**租户持久记录**、**身份 / 授权 / 会�
 
 | 用户操作 | 内部步骤 | 下游调用 |
 | --- | --- | --- |
-| 创建 | RBAC `system-admin` → 写 `tenants` 行 | `clustermanager.CreateTenant` |
+| 创建 | RBAC `system-admin` → 写 `tenants` 行；可选携带 `volumes[]` 预定义数据卷（§4.11） | `clustermanager.CreateTenant`（`volumes[]` → CR `initResources.volumes[]`） |
 | 编辑展示元数据 | 拦截不可变字段 → 更新 `tenants` 行 | `clustermanager.UpdateTenant`（同步 annotation，可选） |
 | 删除 | 成员或活跃业务资源非空 → `409 tenant-in-use`；删除 Tenant 行 | `clustermanager.DeleteTenant` |
 | 停用 / 恢复 | 置 / 清 `tenants.suspended_at` | —（仅 Platform PG；不下发 CR） |
@@ -224,6 +224,8 @@ Dashboard 的聚合模型与接口暂不在本版系统设计中定义，待后�
 ### 4.11 数据卷编排
 
 下游：cluster-manager（Volume REST：CRUD + 扩容 + 挂载占用反查 + 运行态回源，[cluster-manager.md §4.5](../../../axisml-system/docs/system_design/cluster-manager.md#45-volume)）。数据卷 = 系统管理员为某租户预建的受管持久卷（PVC），供该租户的工作区 / 任务 / 实验挂载。作用域随活跃租户（每个卷归属单一租户命名空间）。**读写分权**：创建 / 扩容 / 删除限 `system-admin`；列表 / 详情对活跃租户成员开放（普通用户提交工作区 / 任务 / 实验时据此下拉选择要挂载的既有卷）。Platform **不为数据卷建任何 PG 表**——K8s etcd（PVC）是唯一真相源，与资源池同构；描述等业务元数据经 PVC 的 `annotations` / `labels` 承载，phase / 已用容量 / 挂载占用一律实时回源。
+
+数据卷有两条建卷入口，物化的是同一命名空间 / 同名 PVC，此后在本目录里一视同仁：(1) **命令式**——管理员经本节 `POST /datavolumes` 直建；(2) **声明式（预定义）**——创建租户时携带 `volumes[]`（§4.1），Platform 写入 Tenant CR `initResources.volumes[]`，由 tenant-operator 在租户 namespace 里 ensure 成受管 PVC（非破坏：不设 ownerRef、不做 GC、不缩容、不删除）。预定义入口保证「租户开通即有卷」，适合 Lite 等需要开机即备好数据卷供 workload 挂载的场景；单机 Lite 形态由 `axisml-core` 启动时 seed 成受管 Docker 卷。两条入口的卷都出现在本目录，后续扩容 / 删除仍走本节的 Volume REST。
 
 | 用户操作 | 内部步骤 / 下游调用 |
 | --- | --- |

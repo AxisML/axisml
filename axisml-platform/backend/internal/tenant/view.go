@@ -27,6 +27,77 @@ type QuotaSpec struct {
 	Direct *QuotaResourcesSpec
 }
 
+// VolumeSpec is a predefined data volume declared on a tenant.
+type VolumeSpec struct {
+	Name         string
+	Size         string
+	StorageClass string
+	AccessModes  []string
+	Description  string
+}
+
+// fromContractVolumes maps the wire volumes to the domain shape.
+func fromContractVolumes(in []server.TenantVolume) []VolumeSpec {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]VolumeSpec, 0, len(in))
+	for _, v := range in {
+		out = append(out, VolumeSpec{
+			Name:         v.Name,
+			Size:         v.Size,
+			StorageClass: v.StorageClass,
+			AccessModes:  v.AccessModes,
+			Description:  v.Description,
+		})
+	}
+	return out
+}
+
+// toCMVolumes maps the domain volumes to the cluster-manager client inputs.
+func toCMVolumes(in []VolumeSpec) []clustermanager.TenantVolume {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]clustermanager.TenantVolume, 0, len(in))
+	for _, v := range in {
+		out = append(out, clustermanager.TenantVolume{
+			Name:         v.Name,
+			Size:         v.Size,
+			StorageClass: v.StorageClass,
+			AccessModes:  v.AccessModes,
+			Description:  v.Description,
+		})
+	}
+	return out
+}
+
+// mapVolumes projects the Tenant CR's initResources.volumes[] back to the wire
+// view.
+func mapVolumes(ir *clustermanager.InitResources) []server.TenantVolume {
+	if ir == nil || ir.Volumes == nil {
+		return nil
+	}
+	out := make([]server.TenantVolume, 0, len(*ir.Volumes))
+	for _, v := range *ir.Volumes {
+		tv := server.TenantVolume{Name: v.Name}
+		if v.Size != nil {
+			tv.Size = *v.Size
+		}
+		if v.StorageClass != nil {
+			tv.StorageClass = *v.StorageClass
+		}
+		if v.Description != nil {
+			tv.Description = *v.Description
+		}
+		if v.AccessModes != nil {
+			tv.AccessModes = *v.AccessModes
+		}
+		out = append(out, tv)
+	}
+	return out
+}
+
 // buildView merges the durable record with the live Tenant CR (cr may be nil
 // when cluster-manager is unreachable) into the contract Tenant view.
 func buildView(row *store.Tenant, cr *clustermanager.Tenant) *server.Tenant {
@@ -46,6 +117,7 @@ func buildView(row *store.Tenant, cr *clustermanager.Tenant) *server.Tenant {
 	phase := server.TenantPhase("Creating")
 	if cr != nil {
 		t.Quotas = mapQuotas(cr.Quotas)
+		t.Volumes = mapVolumes(cr.InitResources)
 		if cr.Status != nil {
 			st := server.TenantStatus{}
 			if cr.Status.Message != nil {

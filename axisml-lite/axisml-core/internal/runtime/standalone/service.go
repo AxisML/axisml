@@ -69,14 +69,16 @@ func (r *Runtime) renderServicePlans(svc *mlservicev1alpha1.MLService) ([]Contai
 	return plans, nil
 }
 
-// volumeMounts maps each declared volumeMount onto a managed Docker volume. It
-// is shared by MLService and MLRun rendering, so a training run mounts a dataset
-// volume by exactly the same rules a service mounts its workspace. A PVC-backed
-// volume (the durable volume Compute references by claim name) maps to the volume
-// keyed on its claim name — the same name the VolumeManager (Runtime.Ensure /
-// Runtime.Delete) materialises and reclaims — so the mounted volume, the
-// provisioned volume and the retention target are one and the same. Any other
-// declared volume gets a per-(namespace, name, volume) managed volume.
+// volumeMounts maps each declared volumeMount onto a Docker mount. It is shared
+// by MLService and MLRun rendering, so a training run mounts a dataset volume by
+// exactly the same rules a service mounts its workspace. Resolution order per
+// mount:
+//   - a predefined host-path volume (claim name registered in cfg.HostPathVolumes)
+//     → a bind mount to the host directory (Lite-only "hostPath" support);
+//   - a PVC-backed volume → the managed Docker volume keyed on its claim name —
+//     the same name the VolumeManager (Runtime.Ensure / Runtime.Delete)
+//     materialises and reclaims, so mount, provision and retention target agree;
+//   - any other declared volume → a per-(namespace, name, volume) managed volume.
 func (r *Runtime) volumeMounts(namespace, name string, volumes []corev1.Volume, volumeMounts []corev1.VolumeMount) ([]MountPlan, error) {
 	if len(volumeMounts) == 0 {
 		return nil, nil
@@ -91,11 +93,17 @@ func (r *Runtime) volumeMounts(namespace, name string, volumes []corev1.Volume, 
 		if !ok {
 			return nil, capabilityError("volumeMount %q references an undeclared volume", vm.Name)
 		}
+		if hp := r.hostPathFor(vol); hp != "" {
+			mounts = append(mounts, MountPlan{
+				Type:     "bind",
+				Source:   hp,
+				Target:   vm.MountPath,
+				ReadOnly: vm.ReadOnly,
+			})
+			continue
+		}
 		source := r.volumeName(namespace, name, vm.Name)
 		if vol.PersistentVolumeClaim != nil {
-			// PVC-backed volume: key the Docker volume on the claim name so it
-			// matches the volume cluster-manager's VolumeManager (Runtime.Ensure)
-			// materialised for the same claim.
 			source = r.pvcVolumeName(namespace, vol.PersistentVolumeClaim.ClaimName)
 		}
 		mounts = append(mounts, MountPlan{
@@ -106,6 +114,20 @@ func (r *Runtime) volumeMounts(namespace, name string, volumes []corev1.Volume, 
 		})
 	}
 	return mounts, nil
+}
+
+// hostPathFor returns the host directory to bind-mount for a declared volume, or
+// "" when it is not host-backed. It resolves a PVC-backed volume whose claim name
+// is registered as a predefined hostPath volume (cfg.HostPathVolumes) — so a
+// workspace/run that references the volume by claim name (its ordinary PVC form)
+// transparently binds the host path. Only admin-declared paths are honoured; a
+// raw hostPath source in a pod template is not, keeping the bindable set to the
+// tenant's predefined registry.
+func (r *Runtime) hostPathFor(vol corev1.Volume) string {
+	if vol.PersistentVolumeClaim == nil {
+		return ""
+	}
+	return r.cfg.HostPathVolumes[vol.PersistentVolumeClaim.ClaimName]
 }
 
 func (r *Runtime) volumeName(namespace, name, vol string) string {
