@@ -224,7 +224,7 @@ function ClusterPane({ pool, range }: { pool: string; range: string }) {
   const utilQ = useClusterMetric("gpu_util", pool, range);
   const quotaQ = useClusterMetric("gpu_quota", pool, range);
 
-  const meters = usageQ.data?.aggregate ?? [];
+  const meters = usageQ.data?.pools?.flatMap((p) => p.meters) ?? [];
   const gpu = meters.find((m) => m.resource === "gpu");
   const cpu = meters.find((m) => m.resource === "cpu");
   const mem = meters.find((m) => m.resource === "memory");
