@@ -178,13 +178,13 @@ func TestTenantPredefinedVolumes(t *testing.T) {
 	admin := loginAdmin(t)
 
 	code, body := do(t, http.MethodPost, "/api/v1/users", admin, map[string]any{
-		"username": "carol", "password": "password123", "displayName": "carol",
+		"username": "volowner", "password": "password123", "displayName": "volowner",
 	})
 	require.Equal(t, http.StatusCreated, code, "create user: %v", body)
 
 	code, tn := do(t, http.MethodPost, "/api/v1/tenants", admin, map[string]any{
-		"identifier": "vol-team", "kubernetesNamespace": "axisml-vol",
-		"displayName": "Vol", "initialAdmin": "carol",
+		"identifier": "predefvol-team", "kubernetesNamespace": "axisml-predefvol",
+		"displayName": "Vol", "initialAdmin": "volowner",
 		"volumes": []map[string]any{
 			{"name": "dataset", "size": "50Gi", "description": "shared training data"},
 			{"name": "checkpoints", "size": "10Gi"},
@@ -204,7 +204,7 @@ func TestTenantPredefinedVolumes(t *testing.T) {
 	assertVolumes(tn)
 
 	// Round-trip through GET (buildView reads them from the CR's initResources).
-	code, got := do(t, http.MethodGet, "/api/v1/tenants/vol-team", admin, nil)
+	code, got := do(t, http.MethodGet, "/api/v1/tenants/predefvol-team", admin, nil)
 	require.Equal(t, http.StatusOK, code)
 	assertVolumes(got)
 }
