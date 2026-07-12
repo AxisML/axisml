@@ -57,7 +57,11 @@ repos:
     rev: lychee-v0.24.2
     hooks:
       - id: lychee
-        args: ["--offline", "--no-progress"]
+        # Pin LYCHEE_VERSION so the hook skips its git-describe auto-detection,
+        # which bails with "requires 'rev' to be a versioned release tag" when
+        # pre-commit's shallow clone doesn't have the release tag fetched. Keep
+        # this in sync with `rev` above.
+        args: ["LYCHEE_VERSION=0.24.2", "--offline", "--no-progress"]
         types: [markdown]
 
   - repo: local
