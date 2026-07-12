@@ -140,10 +140,14 @@ func New(ctx context.Context, cfg Config, opts ...Option) (app *App, err error) 
 		WorkloadsNetwork: o.settings.WorkloadsNetwork,
 		Tenant:           DefaultName,
 		TraefikDir:       o.settings.GatewayConfigDir,
+		HostPathVolumes:  tenantHostPathVolumes(static.Tenant),
 	}, log.WithName("runtime"))
 	if nerr := rt.EnsureNetwork(ctx); nerr != nil {
 		log.Error(nerr, "ensure workloads network (continuing)")
 	}
+	// Ensure the tenant's predefined data volumes exist before any workload
+	// reconcile mounts them (idempotent; safe on every boot).
+	seedTenantVolumes(ctx, rt, static.Tenant, log)
 
 	clusterMod := clustermodule.New(clustermodule.Deps{Pools: catalog, Tenants: tenants, Volumes: rt})
 	computeMod, err := computemodule.New(computemodule.Deps{

@@ -17,6 +17,7 @@ type Aggregate struct {
 	Secrets          []axisml.InitResourceItemStatus
 	ConfigMaps       []axisml.InitResourceItemStatus
 	ServiceAccounts  []axisml.InitResourceItemStatus
+	Volumes          []axisml.InitResourceItemStatus
 
 	// CriticalFailure indicates a non-transient failure on Namespace or
 	// ElasticQuota that should drive phase=Failed (design §4 row 3).
@@ -43,6 +44,11 @@ func (a Aggregate) AllInitResourcesReady() bool {
 		}
 	}
 	for _, s := range a.ServiceAccounts {
+		if !s.Ready {
+			return false
+		}
+	}
+	for _, s := range a.Volumes {
 		if !s.Ready {
 			return false
 		}
@@ -101,6 +107,7 @@ func BuildStatus(t *axisml.Tenant, a Aggregate, phase axisml.TenantPhase, messag
 			Secrets:          a.Secrets,
 			ConfigMaps:       a.ConfigMaps,
 			ServiceAccounts:  a.ServiceAccounts,
+			Volumes:          a.Volumes,
 		},
 	}
 

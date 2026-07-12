@@ -81,8 +81,14 @@ func (sc *StaticConfig) validate() error {
 	if len(sc.Pool.Spec.NodeSelector) != 0 || len(sc.Pool.Spec.Tolerations) != 0 {
 		return fmt.Errorf("resource pool nodeSelector/tolerations must be empty in Lite")
 	}
-	if !initResourcesEmpty(sc.Tenant.Spec.InitResources) {
-		return fmt.Errorf("tenant initResources must be empty in Lite")
+	// Lite has no tenant-operator to copy Secrets/ConfigMaps/ServiceAccounts, so
+	// those stay unsupported; predefined data volumes ARE supported — they are
+	// seeded as managed Docker volumes at startup (see seedTenantVolumes).
+	if !credentialInitResourcesEmpty(sc.Tenant.Spec.InitResources) {
+		return fmt.Errorf("tenant initResources secrets/configMaps/serviceAccounts must be empty in Lite; only volumes are supported")
+	}
+	if err := validateTenantVolumes(sc.Tenant.Spec.InitResources.Volumes); err != nil {
+		return err
 	}
 
 	// Unit names unique + unit nodeSelector empty.
@@ -137,9 +143,35 @@ func withinMax(unit string, list, max corev1.ResourceList) error {
 	return nil
 }
 
-func initResourcesEmpty(ir tenantv1alpha1.InitResources) bool {
+// credentialInitResourcesEmpty reports whether the credential/RBAC init
+// resources (everything except predefined volumes) are empty. Volumes are
+// handled separately (validateTenantVolumes + seedTenantVolumes).
+func credentialInitResourcesEmpty(ir tenantv1alpha1.InitResources) bool {
 	return len(ir.ImagePullSecrets) == 0 &&
 		len(ir.Secrets) == 0 &&
 		len(ir.ConfigMaps) == 0 &&
 		len(ir.ServiceAccounts) == 0
+}
+
+// validateTenantVolumes checks the predefined data volumes declared in Lite:
+// each needs a non-empty, unique name (it becomes the Docker volume / claim name
+// a workload mounts). A volume may set hostPath to bind-mount a host directory
+// instead of a managed Docker volume (Lite-only); the path must be absolute.
+// Size/storageClass/accessModes are accepted but ignored by the single-host
+// Docker runtime.
+func validateTenantVolumes(vols []tenantv1alpha1.VolumeSpec) error {
+	seen := map[string]struct{}{}
+	for i, v := range vols {
+		if v.Name == "" {
+			return fmt.Errorf("tenant initResources.volumes[%d].name is required", i)
+		}
+		if _, dup := seen[v.Name]; dup {
+			return fmt.Errorf("duplicate tenant volume %q", v.Name)
+		}
+		seen[v.Name] = struct{}{}
+		if v.HostPath != "" && !filepath.IsAbs(v.HostPath) {
+			return fmt.Errorf("tenant initResources.volumes[%d].hostPath %q must be an absolute path", i, v.HostPath)
+		}
+	}
+	return nil
 }

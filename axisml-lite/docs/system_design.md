@@ -393,7 +393,9 @@ spec:
 - `ResourcePool.spec.units[*].requests/limits` 不得超过对应 quota `max`，名称必须唯一。
 - `ResourcePool.spec.nodeSelector`、`spec.tolerations` 和 unit `nodeSelector` 必须为空。
 - `Tenant.spec.namespace.name` 固定为 `default`。
-- `Tenant.spec.initResources` 必须为空；Standalone workload 的 volume 和凭证由 Runtime Controller 按 workload 需要创建。
+- `Tenant.spec.initResources` 中的凭证类资源（`secrets` / `configMaps` / `serviceAccounts` / `imagePullSecrets`）必须为空——Standalone 没有租户算子来复制它们，workload 凭证由 Runtime Controller 按需创建。`initResources.volumes` 例外且受支持，有两种形态：
+  - 默认（受管卷）：声明的每个预定义数据卷在启动时被幂等地 ensure 成一个受管 Docker named volume（`seedTenantVolumes`），从而在任何 workload 挂载前就已存在；ensure 幂等且不擦内容，每次启动重复执行都安全。
+  - `hostPath`（仅 Lite）：卷设置 `hostPath: <绝对路径>` 时不建 Docker 卷，而是把宿主机目录 bind-mount 进 workload。启动时把「卷名 → hostPath」注册进 `Runtime.Config.HostPathVolumes`；workload 仍按 claim name 引用该卷（与普通数据卷同一种引用形态），Runtime 解析挂载时据注册表将其渲染为 `Type:"bind"`。宿主机目录须在 **Docker 宿主机**上预先存在：runtime 走 `--mount`（`HostConfig.Mounts`）语义，源路径缺失时 Docker **不自动创建、而是报错**，workload 容器启动失败（错误进入 Run/Service status 与 events），即失败可见、不会静默挂空目录。`axisml-core` 自身跑在容器内、无法可靠 stat 或创建宿主机路径，故只校验路径为绝对路径，不校验其存在性。多租户的 Standard 形态**拒绝** hostPath（tenant-operator 校验阶段报错），因为它破坏租户隔离、把 workload 钉到节点，且没有集群级「确保存在」语义。
 - 配置不得包含 `status`、`metadata.uid`、`resourceVersion`、`generation` 或 `managedFields` 等 apiserver 生成字段。
 - 任一对象校验失败时 `axisml-core` 保持 not ready。
 

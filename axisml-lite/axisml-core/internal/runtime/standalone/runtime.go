@@ -54,6 +54,11 @@ type Config struct {
 	Tenant string
 	// TraefikDir is the Traefik file-provider dynamic config directory.
 	TraefikDir string
+	// HostPathVolumes maps a predefined data volume's name (= the claim name a
+	// workload mounts) to a host directory. A workload that mounts such a volume
+	// by name gets the host path bind-mounted instead of a managed Docker volume.
+	// Seeded from Tenant.spec.initResources.volumes[] entries that set hostPath.
+	HostPathVolumes map[string]string
 }
 
 // Runtime implements extensions.ComputeRuntime over the Docker Engine API.

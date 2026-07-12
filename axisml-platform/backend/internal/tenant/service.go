@@ -74,6 +74,7 @@ type CreateInput struct {
 	Labels              map[string]string
 	Annotations         map[string]string
 	Quotas              []QuotaSpec
+	Volumes             []VolumeSpec
 }
 
 // Create writes the durable record, materialises the Tenant CR, and binds the
@@ -115,6 +116,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput, owner string) (*se
 		Labels:        in.Labels,
 		Annotations:   in.Annotations,
 		Quotas:        toCMQuotas(in.Quotas),
+		Volumes:       toCMVolumes(in.Volumes),
 	}
 	cr, err := s.cm.CreateTenant(ctx, cmIn)
 	if err != nil {

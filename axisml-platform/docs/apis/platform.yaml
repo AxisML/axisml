@@ -4698,6 +4698,11 @@ components:
           description: Time the tenant was last updated.
           format: date-time
           type: string
+        volumes:
+          description: Predefined data volumes ensured to exist in the tenant namespace.
+          items:
+            $ref: '#/components/schemas/TenantVolume'
+          type: array
       required:
       - activeExperimentRuns
       - activeJobRuns
@@ -4765,6 +4770,12 @@ components:
           description: Initial per-pool resource quota allocations.
           items:
             $ref: '#/components/schemas/Quota'
+          type: array
+        volumes:
+          description: Predefined data volumes to ensure in the tenant namespace at
+            provisioning.
+          items:
+            $ref: '#/components/schemas/TenantVolume'
           type: array
       required:
       - displayName
@@ -4918,6 +4929,31 @@ components:
           items:
             $ref: '#/components/schemas/QuotaStatus'
           type: array
+      type: object
+    TenantVolume:
+      properties:
+        accessModes:
+          description: Access modes (ReadWriteOnce/ReadWriteMany/ReadOnlyMany).
+          items:
+            type: string
+          type: array
+        description:
+          description: Free-text description surfaced in the DataVolumes catalog.
+          type: string
+        name:
+          description: Data volume (claim) name; workloads mount it by this name.
+          maxLength: 40
+          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+          type: string
+        size:
+          description: Initial requested capacity (e.g. 50Gi). Required in Standard;
+            ignored in Lite.
+          type: string
+        storageClass:
+          description: StorageClass backing the volume (Standard only).
+          type: string
+      required:
+      - name
       type: object
     TensorBoard:
       example:

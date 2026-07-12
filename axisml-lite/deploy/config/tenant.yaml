@@ -15,3 +15,16 @@ spec:
         cpu: "16"
         memory: 64Gi
         nvidia.com/gpu: "1"
+  # Predefined data volumes: ensured to exist at axisml-core startup so workloads
+  # can mount them by name. size/storageClass/accessModes are ignored by the
+  # single-host runtime. Uncomment to enable:
+  # initResources:
+  #   volumes:
+  #     # Managed Docker volume, created at startup:
+  #     - name: dataset
+  #       description: shared training data
+  #     - name: checkpoints
+  #     # Host-path volume (Lite only): a workload mounting "host-datasets" by name
+  #     # gets this host directory bind-mounted. Path must be absolute.
+  #     - name: host-datasets
+  #       hostPath: /srv/axisml/datasets

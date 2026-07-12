@@ -4,6 +4,7 @@
 package v1alpha1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -133,6 +134,12 @@ func (in *InitResources) DeepCopyInto(out *InitResources) {
 			in.ServiceAccounts[i].DeepCopyInto(&out.ServiceAccounts[i])
 		}
 	}
+	if in.Volumes != nil {
+		out.Volumes = make([]VolumeSpec, len(in.Volumes))
+		for i := range in.Volumes {
+			in.Volumes[i].DeepCopyInto(&out.Volumes[i])
+		}
+	}
 }
 
 func (in *InitResources) DeepCopy() *InitResources {
@@ -140,6 +147,22 @@ func (in *InitResources) DeepCopy() *InitResources {
 		return nil
 	}
 	out := new(InitResources)
+	in.DeepCopyInto(out)
+	return out
+}
+
+func (in *VolumeSpec) DeepCopyInto(out *VolumeSpec) {
+	*out = *in
+	if in.AccessModes != nil {
+		out.AccessModes = append([]corev1.PersistentVolumeAccessMode(nil), in.AccessModes...)
+	}
+}
+
+func (in *VolumeSpec) DeepCopy() *VolumeSpec {
+	if in == nil {
+		return nil
+	}
+	out := new(VolumeSpec)
 	in.DeepCopyInto(out)
 	return out
 }
@@ -242,6 +265,9 @@ func (in *InitResourcesStatus) DeepCopyInto(out *InitResourcesStatus) {
 	}
 	if in.ServiceAccounts != nil {
 		out.ServiceAccounts = append([]InitResourceItemStatus(nil), in.ServiceAccounts...)
+	}
+	if in.Volumes != nil {
+		out.Volumes = append([]InitResourceItemStatus(nil), in.Volumes...)
 	}
 }
 

@@ -280,4 +280,57 @@ func TestValidate_InitResources(t *testing.T) {
 			t.Fatalf("expected nil error, got %v", err)
 		}
 	})
+
+	t.Run("valid predefined volume", func(t *testing.T) {
+		s := validSpec()
+		s.InitResources.Volumes = []axisml.VolumeSpec{{Name: "dataset", Size: "50Gi"}}
+		if err := validate.Validate(s, defaultOpts()); err != nil {
+			t.Fatalf("expected nil error, got %v", err)
+		}
+	})
+
+	t.Run("volume without size", func(t *testing.T) {
+		s := validSpec()
+		s.InitResources.Volumes = []axisml.VolumeSpec{{Name: "dataset"}}
+		err := validate.Validate(s, defaultOpts())
+		if err == nil || !strings.Contains(err.Error(), "size is required") {
+			t.Fatalf("expected size-required error, got %v", err)
+		}
+	})
+
+	t.Run("volume bad size", func(t *testing.T) {
+		s := validSpec()
+		s.InitResources.Volumes = []axisml.VolumeSpec{{Name: "dataset", Size: "banana"}}
+		err := validate.Validate(s, defaultOpts())
+		if err == nil || !strings.Contains(err.Error(), "not a valid quantity") {
+			t.Fatalf("expected quantity error, got %v", err)
+		}
+	})
+
+	t.Run("volume invalid name", func(t *testing.T) {
+		s := validSpec()
+		s.InitResources.Volumes = []axisml.VolumeSpec{{Name: "Bad_Name", Size: "1Gi"}}
+		err := validate.Validate(s, defaultOpts())
+		if err == nil || !strings.Contains(err.Error(), "DNS-1123 label") {
+			t.Fatalf("expected dns1123 error, got %v", err)
+		}
+	})
+
+	t.Run("duplicate volume name", func(t *testing.T) {
+		s := validSpec()
+		s.InitResources.Volumes = []axisml.VolumeSpec{{Name: "dataset", Size: "1Gi"}, {Name: "dataset", Size: "2Gi"}}
+		err := validate.Validate(s, defaultOpts())
+		if err == nil || !strings.Contains(err.Error(), "duplicated") {
+			t.Fatalf("expected duplicate error, got %v", err)
+		}
+	})
+
+	t.Run("hostPath volume rejected in Standard", func(t *testing.T) {
+		s := validSpec()
+		s.InitResources.Volumes = []axisml.VolumeSpec{{Name: "hostdata", HostPath: "/data/ds"}}
+		err := validate.Validate(s, defaultOpts())
+		if err == nil || !strings.Contains(err.Error(), "hostPath") {
+			t.Fatalf("expected hostPath-not-supported error, got %v", err)
+		}
+	})
 }

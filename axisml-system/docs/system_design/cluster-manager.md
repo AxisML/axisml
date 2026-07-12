@@ -91,8 +91,10 @@ spec:
     - { pool: gpu-a100, name: gpu-a100,
         min: {cpu:"16",memory:128Gi,nvidia.com/gpu:"1"},
         max: {cpu:"32",memory:256Gi,nvidia.com/gpu:"2"} }
-  initResources: { ... }          # ImagePullSecret / Secret / ConfigMap / SA + RBAC
+  initResources: { ... }          # ImagePullSecret / Secret / ConfigMap / SA + RBAC；volumes[] = 预定义数据卷
 ```
+
+`initResources` 由 cluster-manager 原样透传写入 CR（不折算、不校验语义），由 tenant-operator 落地。其中 `volumes[]` 声明租户的预定义数据卷：tenant-operator 在租户 namespace 里 ensure 成受管 PVC（stamped `app.kubernetes.io/managed-by=axisml-cluster-manager`），因此它们与本服务 Volume REST（§3.4）管理的普通数据卷同构、同现于数据卷目录——差别仅在于「预定义卷」由租户声明式保证存在，而目录卷由 Platform 命令式创建。二者物化的是同一命名空间 / 同名 PVC，本服务的 Volume REST 对其后续扩容 / 删除 / 占用反查一视同仁。
 
 REST 入参按 quota 二选一：业务形态 `{pool, units:[{unitName, quantity}]}`，或直写形态 `{pool, quota:{min,max}}`。业务形态下 cluster-manager 按名读 `ResourcePool` CR，取每个 `unitName` 的 `requests` / `limits`，折算 `min = Σ(unit.requests × quantity)` / `max = Σ(unit.limits × quantity)`；直写形态直接校验并采用调用方给出的 `min/max`。两种入口最终都写入统一的 `spec.quotas[]`（`name` = `pool`）。折算有损，故业务原始选择 JSON 编码回存到 `tenant.axisml.io/quotas` annotation，GET 时据此还原 `units` 形态；直写形态 GET 则从 `spec.quotas[]` 返回 `quota.min/max`（tenant-operator 不读 annotation，只消费 `spec.quotas[].min/max`）。
 

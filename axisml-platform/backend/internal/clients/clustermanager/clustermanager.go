@@ -27,6 +27,7 @@ type (
 	QuotaResources = gen.ServerQuotaResources
 	QuotaStatus    = gen.ServerQuotaStatus
 	Namespace      = gen.Tenantv1alpha1NamespaceSpec
+	InitResources  = gen.Tenantv1alpha1InitResources
 )
 
 // Client wraps the generated cluster-manager client.
@@ -44,7 +45,18 @@ func New(baseURL string, timeout time.Duration) (*Client, error) {
 	return &Client{gen: c}, nil
 }
 
-// CreateTenantInput is the create payload (name + namespace + quotas + meta).
+// TenantVolume is a predefined data volume seeded into the tenant namespace on
+// provisioning (written to the Tenant CR's initResources.volumes[]).
+type TenantVolume struct {
+	Name         string
+	Size         string
+	StorageClass string
+	AccessModes  []string
+	Description  string
+}
+
+// CreateTenantInput is the create payload (name + namespace + quotas + meta +
+// predefined volumes).
 type CreateTenantInput struct {
 	Name          string
 	NamespaceName string
@@ -52,6 +64,7 @@ type CreateTenantInput struct {
 	Labels        map[string]string
 	Annotations   map[string]string
 	Quotas        []Quota
+	Volumes       []TenantVolume
 }
 
 // CreateTenant materialises a Tenant CR.
@@ -68,6 +81,9 @@ func (c *Client) CreateTenant(ctx context.Context, in CreateTenantInput) (*Tenan
 	}
 	if len(in.Quotas) > 0 {
 		body.Quotas = &in.Quotas
+	}
+	if len(in.Volumes) > 0 {
+		body.InitResources = &gen.Tenantv1alpha1InitResources{Volumes: toGenVolumes(in.Volumes)}
 	}
 	res, err := c.gen.CreateTenantWithResponse(ctx, body)
 	if err != nil {
@@ -211,3 +227,27 @@ func (c *Client) ListQuotas(ctx context.Context, tenant string) ([]Quota, error)
 }
 
 func strPtr(s string) *string { return &s }
+
+// toGenVolumes maps the client's TenantVolume inputs to the generated CR
+// initResources.volumes shape.
+func toGenVolumes(in []TenantVolume) *[]gen.Tenantv1alpha1VolumeSpec {
+	out := make([]gen.Tenantv1alpha1VolumeSpec, 0, len(in))
+	for _, v := range in {
+		gv := gen.Tenantv1alpha1VolumeSpec{Name: v.Name}
+		if v.Size != "" {
+			gv.Size = strPtr(v.Size)
+		}
+		if v.StorageClass != "" {
+			gv.StorageClass = strPtr(v.StorageClass)
+		}
+		if v.Description != "" {
+			gv.Description = strPtr(v.Description)
+		}
+		if len(v.AccessModes) > 0 {
+			modes := append([]string(nil), v.AccessModes...)
+			gv.AccessModes = &modes
+		}
+		out = append(out, gv)
+	}
+	return &out
+}

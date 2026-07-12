@@ -77,6 +77,21 @@ func TestLoadStaticConfig_Valid(t *testing.T) {
 	assert.Equal(t, "small", sc.Pool.Spec.Units[0].Name)
 }
 
+func TestLoadStaticConfig_ValidWithPredefinedVolumes(t *testing.T) {
+	tn := validTenant()
+	tn.Spec.InitResources.Volumes = []tenantv1alpha1.VolumeSpec{
+		{Name: "dataset", Size: "50Gi", Description: "shared training data"},
+		{Name: "checkpoints"},
+		{Name: "hostdata", HostPath: "/data/host-datasets"},
+	}
+	dir := writeConfig(t, validPool(), tn)
+	sc, err := core.LoadStaticConfig(dir)
+	require.NoError(t, err)
+	require.Len(t, sc.Tenant.Spec.InitResources.Volumes, 3)
+	assert.Equal(t, "dataset", sc.Tenant.Spec.InitResources.Volumes[0].Name)
+	assert.Equal(t, "/data/host-datasets", sc.Tenant.Spec.InitResources.Volumes[2].HostPath)
+}
+
 func TestLoadStaticConfig_ValidationErrors(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -113,11 +128,32 @@ func TestLoadStaticConfig_ValidationErrors(t *testing.T) {
 			wantSub: "nodeSelector/tolerations must be empty",
 		},
 		{
-			name: "tenant initResources not empty",
+			name: "tenant credential initResources not empty",
 			mutate: func(_ *cmv1alpha1.ResourcePool, tn *tenantv1alpha1.Tenant) {
 				tn.Spec.InitResources.ConfigMaps = []tenantv1alpha1.ConfigMapSpec{{Name: "cm"}}
 			},
-			wantSub: "initResources must be empty",
+			wantSub: "secrets/configMaps/serviceAccounts must be empty",
+		},
+		{
+			name: "tenant volume without name",
+			mutate: func(_ *cmv1alpha1.ResourcePool, tn *tenantv1alpha1.Tenant) {
+				tn.Spec.InitResources.Volumes = []tenantv1alpha1.VolumeSpec{{Name: ""}}
+			},
+			wantSub: "volumes[0].name is required",
+		},
+		{
+			name: "tenant duplicate volume name",
+			mutate: func(_ *cmv1alpha1.ResourcePool, tn *tenantv1alpha1.Tenant) {
+				tn.Spec.InitResources.Volumes = []tenantv1alpha1.VolumeSpec{{Name: "data"}, {Name: "data"}}
+			},
+			wantSub: "duplicate tenant volume",
+		},
+		{
+			name: "tenant hostPath volume relative path",
+			mutate: func(_ *cmv1alpha1.ResourcePool, tn *tenantv1alpha1.Tenant) {
+				tn.Spec.InitResources.Volumes = []tenantv1alpha1.VolumeSpec{{Name: "hostdata", HostPath: "relative/path"}}
+			},
+			wantSub: "must be an absolute path",
 		},
 		{
 			name:    "unit name empty",
