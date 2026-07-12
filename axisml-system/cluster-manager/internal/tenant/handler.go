@@ -21,6 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/uuid"
+	"k8s.io/client-go/util/retry"
 
 	cmv1alpha1 "github.com/axisml/axisml/axisml-system/apis/resourcepool/v1alpha1"
 	tenantv1alpha1 "github.com/axisml/axisml/axisml-system/apis/tenant/v1alpha1"
@@ -358,9 +359,12 @@ func (h *Handler) fetchPools(ctx context.Context, names []string) (map[string]*c
 }
 
 // mutateWithRetry runs `mutate` against a fresh Tenant read; on a 409
-// resourceVersion conflict it re-reads and reruns the closure once.
+// resourceVersion conflict it re-reads and reruns the closure with backoff.
+// A freshly-created tenant is written repeatedly by the operator's initial
+// reconcile, so a single retry loses the race — RetryOnConflict backs off
+// across several attempts before surfacing the conflict.
 func (h *Handler) mutateWithRetry(ctx context.Context, name string, mutate func(*tenantv1alpha1.Tenant) error) error {
-	for attempt := 0; attempt < 2; attempt++ {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		cr, err := h.getTenant(ctx, name)
 		if err != nil {
 			return err
@@ -369,22 +373,16 @@ func (h *Handler) mutateWithRetry(ctx context.Context, name string, mutate func(
 		if err := mutate(cr); err != nil {
 			return err
 		}
-		err = h.tenants.Patch(ctx, cr, base)
-		if err == nil {
-			return nil
-		}
-		if !apierrors.IsConflict(err) {
-			return err
-		}
-	}
-	return apierrors.NewConflict(tenantGroupResource(), name, errors.New("resourceVersion conflict after one retry"))
+		return h.tenants.Patch(ctx, cr, base)
+	})
 }
 
 // mutateQuotas loads the tenant, runs `transform` on its business-form quotas,
 // re-folds the result into spec.quotas[] + the round-trip annotation, and
-// patches with one optimistic-lock retry.
+// patches with optimistic-lock retry + backoff (a freshly-created tenant is
+// still being reconciled, so one retry loses the race).
 func (h *Handler) mutateQuotas(ctx context.Context, name, user string, transform func([]srv.Quota) ([]srv.Quota, error)) error {
-	for attempt := 0; attempt < 2; attempt++ {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		cr, err := h.getTenant(ctx, name)
 		if err != nil {
 			return err
@@ -406,15 +404,8 @@ func (h *Handler) mutateQuotas(ctx context.Context, name, user string, transform
 			}
 			cr.Annotations[srv.LastModifiedByAnnotation] = user
 		}
-		err = h.tenants.Patch(ctx, cr, base)
-		if err == nil {
-			return nil
-		}
-		if !apierrors.IsConflict(err) {
-			return err
-		}
-	}
-	return apierrors.NewConflict(tenantGroupResource(), name, errors.New("resourceVersion conflict after one retry"))
+		return h.tenants.Patch(ctx, cr, base)
+	})
 }
 
 func setQuotaAnnotation(cr *tenantv1alpha1.Tenant, anno string) {
