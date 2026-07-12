@@ -9,29 +9,29 @@ from attrs import field as _attrs_field
 from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
-    from ..models.apiv_1_alpha_1_namespace_spec_annotations import (
-        Apiv1Alpha1NamespaceSpecAnnotations,
+    from ..models.tenantv_1_alpha_1_namespace_spec_annotations import (
+        Tenantv1Alpha1NamespaceSpecAnnotations,
     )
-    from ..models.apiv_1_alpha_1_namespace_spec_labels import (
-        Apiv1Alpha1NamespaceSpecLabels,
+    from ..models.tenantv_1_alpha_1_namespace_spec_labels import (
+        Tenantv1Alpha1NamespaceSpecLabels,
     )
 
 
-T = TypeVar("T", bound="Apiv1Alpha1NamespaceSpec")
+T = TypeVar("T", bound="Tenantv1Alpha1NamespaceSpec")
 
 
 @_attrs_define
-class Apiv1Alpha1NamespaceSpec:
+class Tenantv1Alpha1NamespaceSpec:
     """
     Attributes:
         name (str):
-        annotations (Apiv1Alpha1NamespaceSpecAnnotations | Unset):
-        labels (Apiv1Alpha1NamespaceSpecLabels | Unset):
+        annotations (Tenantv1Alpha1NamespaceSpecAnnotations | Unset):
+        labels (Tenantv1Alpha1NamespaceSpecLabels | Unset):
     """
 
     name: str
-    annotations: Apiv1Alpha1NamespaceSpecAnnotations | Unset = UNSET
-    labels: Apiv1Alpha1NamespaceSpecLabels | Unset = UNSET
+    annotations: Tenantv1Alpha1NamespaceSpecAnnotations | Unset = UNSET
+    labels: Tenantv1Alpha1NamespaceSpecLabels | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -61,38 +61,38 @@ class Apiv1Alpha1NamespaceSpec:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
-        from ..models.apiv_1_alpha_1_namespace_spec_annotations import (
-            Apiv1Alpha1NamespaceSpecAnnotations,
+        from ..models.tenantv_1_alpha_1_namespace_spec_annotations import (
+            Tenantv1Alpha1NamespaceSpecAnnotations,
         )
-        from ..models.apiv_1_alpha_1_namespace_spec_labels import (
-            Apiv1Alpha1NamespaceSpecLabels,
+        from ..models.tenantv_1_alpha_1_namespace_spec_labels import (
+            Tenantv1Alpha1NamespaceSpecLabels,
         )
 
         d = dict(src_dict)
         name = d.pop("name")
 
         _annotations = d.pop("annotations", UNSET)
-        annotations: Apiv1Alpha1NamespaceSpecAnnotations | Unset
+        annotations: Tenantv1Alpha1NamespaceSpecAnnotations | Unset
         if isinstance(_annotations, Unset):
             annotations = UNSET
         else:
-            annotations = Apiv1Alpha1NamespaceSpecAnnotations.from_dict(_annotations)
+            annotations = Tenantv1Alpha1NamespaceSpecAnnotations.from_dict(_annotations)
 
         _labels = d.pop("labels", UNSET)
-        labels: Apiv1Alpha1NamespaceSpecLabels | Unset
+        labels: Tenantv1Alpha1NamespaceSpecLabels | Unset
         if isinstance(_labels, Unset):
             labels = UNSET
         else:
-            labels = Apiv1Alpha1NamespaceSpecLabels.from_dict(_labels)
+            labels = Tenantv1Alpha1NamespaceSpecLabels.from_dict(_labels)
 
-        apiv_1_alpha_1_namespace_spec = cls(
+        tenantv_1_alpha_1_namespace_spec = cls(
             name=name,
             annotations=annotations,
             labels=labels,
         )
 
-        apiv_1_alpha_1_namespace_spec.additional_properties = d
-        return apiv_1_alpha_1_namespace_spec
+        tenantv_1_alpha_1_namespace_spec.additional_properties = d
+        return tenantv_1_alpha_1_namespace_spec
 
     @property
     def additional_keys(self) -> list[str]:

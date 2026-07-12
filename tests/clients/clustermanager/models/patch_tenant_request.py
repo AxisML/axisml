@@ -9,7 +9,6 @@ from attrs import field as _attrs_field
 from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
-    from ..models.apiv_1_alpha_1_init_resources import Apiv1Alpha1InitResources
     from ..models.patch_tenant_request_annotations import PatchTenantRequestAnnotations
     from ..models.patch_tenant_request_labels import PatchTenantRequestLabels
     from ..models.patch_tenant_request_namespace_annotations import (
@@ -18,6 +17,7 @@ if TYPE_CHECKING:
     from ..models.patch_tenant_request_namespace_labels import (
         PatchTenantRequestNamespaceLabels,
     )
+    from ..models.tenantv_1_alpha_1_init_resources import Tenantv1Alpha1InitResources
 
 
 T = TypeVar("T", bound="PatchTenantRequest")
@@ -31,7 +31,7 @@ class PatchTenantRequest:
 
     Attributes:
         annotations (PatchTenantRequestAnnotations | Unset): Replacement annotations for the tenant.
-        init_resources (Apiv1Alpha1InitResources | None | Unset): Replacement per-tenant init resources.
+        init_resources (None | Tenantv1Alpha1InitResources | Unset): Replacement per-tenant init resources.
         labels (PatchTenantRequestLabels | Unset): Replacement labels for the tenant.
         namespace_annotations (PatchTenantRequestNamespaceAnnotations | Unset): Replacement annotations applied to the
             tenant's namespace.
@@ -40,14 +40,16 @@ class PatchTenantRequest:
     """
 
     annotations: PatchTenantRequestAnnotations | Unset = UNSET
-    init_resources: Apiv1Alpha1InitResources | None | Unset = UNSET
+    init_resources: None | Tenantv1Alpha1InitResources | Unset = UNSET
     labels: PatchTenantRequestLabels | Unset = UNSET
     namespace_annotations: PatchTenantRequestNamespaceAnnotations | Unset = UNSET
     namespace_labels: PatchTenantRequestNamespaceLabels | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        from ..models.apiv_1_alpha_1_init_resources import Apiv1Alpha1InitResources
+        from ..models.tenantv_1_alpha_1_init_resources import (
+            Tenantv1Alpha1InitResources,
+        )
 
         annotations: dict[str, Any] | Unset = UNSET
         if not isinstance(self.annotations, Unset):
@@ -56,7 +58,7 @@ class PatchTenantRequest:
         init_resources: dict[str, Any] | None | Unset
         if isinstance(self.init_resources, Unset):
             init_resources = UNSET
-        elif isinstance(self.init_resources, Apiv1Alpha1InitResources):
+        elif isinstance(self.init_resources, Tenantv1Alpha1InitResources):
             init_resources = self.init_resources.to_dict()
         else:
             init_resources = self.init_resources
@@ -91,7 +93,6 @@ class PatchTenantRequest:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
-        from ..models.apiv_1_alpha_1_init_resources import Apiv1Alpha1InitResources
         from ..models.patch_tenant_request_annotations import (
             PatchTenantRequestAnnotations,
         )
@@ -101,6 +102,9 @@ class PatchTenantRequest:
         )
         from ..models.patch_tenant_request_namespace_labels import (
             PatchTenantRequestNamespaceLabels,
+        )
+        from ..models.tenantv_1_alpha_1_init_resources import (
+            Tenantv1Alpha1InitResources,
         )
 
         d = dict(src_dict)
@@ -113,7 +117,7 @@ class PatchTenantRequest:
 
         def _parse_init_resources(
             data: object,
-        ) -> Apiv1Alpha1InitResources | None | Unset:
+        ) -> None | Tenantv1Alpha1InitResources | Unset:
             if data is None:
                 return data
             if isinstance(data, Unset):
@@ -121,12 +125,12 @@ class PatchTenantRequest:
             try:
                 if not isinstance(data, dict):
                     raise TypeError()
-                init_resources_type_1 = Apiv1Alpha1InitResources.from_dict(data)
+                init_resources_type_1 = Tenantv1Alpha1InitResources.from_dict(data)
 
                 return init_resources_type_1
             except (TypeError, ValueError, AttributeError, KeyError):
                 pass
-            return cast(Apiv1Alpha1InitResources | None | Unset, data)
+            return cast(None | Tenantv1Alpha1InitResources | Unset, data)
 
         init_resources = _parse_init_resources(d.pop("initResources", UNSET))
 

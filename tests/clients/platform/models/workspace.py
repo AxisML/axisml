@@ -42,7 +42,7 @@ class Workspace:
             'gpu-a100', 'quota': 'team-vision', 'readyReplicas': 1, 'replicas': 1, 'resources': {'cpu': '4', 'memory':
             '32Gi', 'nvidia.com/gpu': '1'}, 'tenantDisplayName': 'Vision Team', 'tenantName': 'team-vision', 'unitName':
             'a100-1x', 'updatedAt': '2026-06-28T09:30:00Z', 'volumes': [{'mountPath': '/home/jovyan/work', 'name':
-            'notebook-data', 'size': '50Gi', 'storageClass': 'standard', 'used': '12Gi'}]}
+            'notebook-data', 'used': '12Gi'}]}
 
     Attributes:
         container_port (int): Port the dev server listens on inside the container.

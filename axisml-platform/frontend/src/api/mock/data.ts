@@ -391,7 +391,7 @@ const clusterUsage0 = ex<ClusterUsage>("ClusterUsage");
 export function clusterUsage(pool?: string): ClusterUsage {
   if (!pool || pool === "all") return clusterUsage0;
   const p = (clusterUsage0.pools ?? []).find((x) => x.pool === pool);
-  return { aggregate: p?.meters ?? [], pools: p ? [p] : [], updatedAt: clusterUsage0.updatedAt };
+  return { pools: p ? [p] : [], updatedAt: clusterUsage0.updatedAt };
 }
 
 // cluster-metrics time series (util / quota %). Deterministic sine so the trend

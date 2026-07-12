@@ -6,46 +6,51 @@ from typing import Any, TypeVar
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-from ..types import UNSET, Unset
-
-T = TypeVar("T", bound="WorkspaceDeleteRequest")
+T = TypeVar("T", bound="Tenantv1Alpha1SourceConfigMapRef")
 
 
 @_attrs_define
-class WorkspaceDeleteRequest:
+class Tenantv1Alpha1SourceConfigMapRef:
     """
-    Example:
-        {'deletePvc': False}
-
     Attributes:
-        delete_pvc (bool | Unset): When true, also delete the workspace's persistent volumes.
+        name (str):
+        namespace (str):
     """
 
-    delete_pvc: bool | Unset = UNSET
+    name: str
+    namespace: str
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        delete_pvc = self.delete_pvc
+        name = self.name
+
+        namespace = self.namespace
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({})
-        if delete_pvc is not UNSET:
-            field_dict["deletePvc"] = delete_pvc
+        field_dict.update(
+            {
+                "name": name,
+                "namespace": namespace,
+            }
+        )
 
         return field_dict
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
-        delete_pvc = d.pop("deletePvc", UNSET)
+        name = d.pop("name")
 
-        workspace_delete_request = cls(
-            delete_pvc=delete_pvc,
+        namespace = d.pop("namespace")
+
+        tenantv_1_alpha_1_source_config_map_ref = cls(
+            name=name,
+            namespace=namespace,
         )
 
-        workspace_delete_request.additional_properties = d
-        return workspace_delete_request
+        tenantv_1_alpha_1_source_config_map_ref.additional_properties = d
+        return tenantv_1_alpha_1_source_config_map_ref
 
     @property
     def additional_keys(self) -> list[str]:

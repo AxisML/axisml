@@ -6,11 +6,11 @@ from typing import Any, TypeVar
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-T = TypeVar("T", bound="Apiv1Alpha1NamespaceSpecAnnotations")
+T = TypeVar("T", bound="Tenantv1Alpha1NamespaceSpecAnnotations")
 
 
 @_attrs_define
-class Apiv1Alpha1NamespaceSpecAnnotations:
+class Tenantv1Alpha1NamespaceSpecAnnotations:
     """ """
 
     additional_properties: dict[str, str] = _attrs_field(init=False, factory=dict)
@@ -25,10 +25,10 @@ class Apiv1Alpha1NamespaceSpecAnnotations:
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
-        apiv_1_alpha_1_namespace_spec_annotations = cls()
+        tenantv_1_alpha_1_namespace_spec_annotations = cls()
 
-        apiv_1_alpha_1_namespace_spec_annotations.additional_properties = d
-        return apiv_1_alpha_1_namespace_spec_annotations
+        tenantv_1_alpha_1_namespace_spec_annotations.additional_properties = d
+        return tenantv_1_alpha_1_namespace_spec_annotations
 
     @property
     def additional_keys(self) -> list[str]:

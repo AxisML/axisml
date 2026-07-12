@@ -10,7 +10,6 @@ from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
     from ..models.corev_1_key_to_path import Corev1KeyToPath
-    from ..models.corev_1_local_object_reference import Corev1LocalObjectReference
 
 
 T = TypeVar("T", bound="Corev1ConfigMapVolumeSource")
@@ -20,21 +19,19 @@ T = TypeVar("T", bound="Corev1ConfigMapVolumeSource")
 class Corev1ConfigMapVolumeSource:
     """
     Attributes:
-        local_object_reference (Corev1LocalObjectReference):
         default_mode (int | None | Unset):
         items (list[Corev1KeyToPath] | Unset):
+        name (str | Unset):
         optional (bool | None | Unset):
     """
 
-    local_object_reference: Corev1LocalObjectReference
     default_mode: int | None | Unset = UNSET
     items: list[Corev1KeyToPath] | Unset = UNSET
+    name: str | Unset = UNSET
     optional: bool | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        local_object_reference = self.local_object_reference.to_dict()
-
         default_mode: int | None | Unset
         if isinstance(self.default_mode, Unset):
             default_mode = UNSET
@@ -48,6 +45,8 @@ class Corev1ConfigMapVolumeSource:
                 items_item = items_item_data.to_dict()
                 items.append(items_item)
 
+        name = self.name
+
         optional: bool | None | Unset
         if isinstance(self.optional, Unset):
             optional = UNSET
@@ -56,15 +55,13 @@ class Corev1ConfigMapVolumeSource:
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update(
-            {
-                "LocalObjectReference": local_object_reference,
-            }
-        )
+        field_dict.update({})
         if default_mode is not UNSET:
             field_dict["defaultMode"] = default_mode
         if items is not UNSET:
             field_dict["items"] = items
+        if name is not UNSET:
+            field_dict["name"] = name
         if optional is not UNSET:
             field_dict["optional"] = optional
 
@@ -73,12 +70,8 @@ class Corev1ConfigMapVolumeSource:
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.corev_1_key_to_path import Corev1KeyToPath
-        from ..models.corev_1_local_object_reference import Corev1LocalObjectReference
 
         d = dict(src_dict)
-        local_object_reference = Corev1LocalObjectReference.from_dict(
-            d.pop("LocalObjectReference")
-        )
 
         def _parse_default_mode(data: object) -> int | None | Unset:
             if data is None:
@@ -98,6 +91,8 @@ class Corev1ConfigMapVolumeSource:
 
                 items.append(items_item)
 
+        name = d.pop("name", UNSET)
+
         def _parse_optional(data: object) -> bool | None | Unset:
             if data is None:
                 return data
@@ -108,9 +103,9 @@ class Corev1ConfigMapVolumeSource:
         optional = _parse_optional(d.pop("optional", UNSET))
 
         corev_1_config_map_volume_source = cls(
-            local_object_reference=local_object_reference,
             default_mode=default_mode,
             items=items,
+            name=name,
             optional=optional,
         )
 

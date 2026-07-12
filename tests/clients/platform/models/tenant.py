@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from ..models.quota import Quota
     from ..models.string_map import StringMap
     from ..models.tenant_status import TenantStatus
+    from ..models.tenant_volume import TenantVolume
 
 
 T = TypeVar("T", bound="Tenant")
@@ -66,6 +67,7 @@ class Tenant:
             'message': 'Namespace and quota provisioned.', 'reason': 'Provisioned', 'status': 'True', 'type': 'Ready'}],
             'message': 'Tenant is active.', 'quotas': [{'pool': 'gpu-a100', 'units': [{'quantity': 4, 'unitName': 'a100-2x',
             'used': 3}]}]}.
+        volumes (list[TenantVolume] | Unset): Predefined data volumes ensured to exist in the tenant namespace.
     """
 
     active_experiment_runs: int
@@ -86,6 +88,7 @@ class Tenant:
     owner: str | Unset = UNSET
     quotas: list[Quota] | Unset = UNSET
     status: TenantStatus | Unset = UNSET
+    volumes: list[TenantVolume] | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -138,6 +141,13 @@ class Tenant:
         if not isinstance(self.status, Unset):
             status = self.status.to_dict()
 
+        volumes: list[dict[str, Any]] | Unset = UNSET
+        if not isinstance(self.volumes, Unset):
+            volumes = []
+            for volumes_item_data in self.volumes:
+                volumes_item = volumes_item_data.to_dict()
+                volumes.append(volumes_item)
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -169,6 +179,8 @@ class Tenant:
             field_dict["quotas"] = quotas
         if status is not UNSET:
             field_dict["status"] = status
+        if volumes is not UNSET:
+            field_dict["volumes"] = volumes
 
         return field_dict
 
@@ -178,6 +190,7 @@ class Tenant:
         from ..models.quota import Quota
         from ..models.string_map import StringMap
         from ..models.tenant_status import TenantStatus
+        from ..models.tenant_volume import TenantVolume
 
         d = dict(src_dict)
         active_experiment_runs = d.pop("activeExperimentRuns")
@@ -243,6 +256,15 @@ class Tenant:
         else:
             status = TenantStatus.from_dict(_status)
 
+        _volumes = d.pop("volumes", UNSET)
+        volumes: list[TenantVolume] | Unset = UNSET
+        if _volumes is not UNSET:
+            volumes = []
+            for volumes_item_data in _volumes:
+                volumes_item = TenantVolume.from_dict(volumes_item_data)
+
+                volumes.append(volumes_item)
+
         tenant = cls(
             active_experiment_runs=active_experiment_runs,
             active_job_runs=active_job_runs,
@@ -262,6 +284,7 @@ class Tenant:
             owner=owner,
             quotas=quotas,
             status=status,
+            volumes=volumes,
         )
 
         tenant.additional_properties = d

@@ -12,6 +12,8 @@ if TYPE_CHECKING:
     from ..models.corev_1_env_from_source import Corev1EnvFromSource
     from ..models.corev_1_env_var import Corev1EnvVar
     from ..models.corev_1_resource_requirements import Corev1ResourceRequirements
+    from ..models.corev_1_volume import Corev1Volume
+    from ..models.corev_1_volume_mount import Corev1VolumeMount
 
 
 T = TypeVar("T", bound="MLRunPodTemplateSubset")
@@ -28,6 +30,8 @@ class MLRunPodTemplateSubset:
         env_from (list[Corev1EnvFromSource] | Unset):
         image_pull_policy (str | Unset):
         resources (Corev1ResourceRequirements | Unset):
+        volume_mounts (list[Corev1VolumeMount] | Unset):
+        volumes (list[Corev1Volume] | Unset):
         working_dir (str | Unset):
     """
 
@@ -38,6 +42,8 @@ class MLRunPodTemplateSubset:
     env_from: list[Corev1EnvFromSource] | Unset = UNSET
     image_pull_policy: str | Unset = UNSET
     resources: Corev1ResourceRequirements | Unset = UNSET
+    volume_mounts: list[Corev1VolumeMount] | Unset = UNSET
+    volumes: list[Corev1Volume] | Unset = UNSET
     working_dir: str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -72,6 +78,20 @@ class MLRunPodTemplateSubset:
         if not isinstance(self.resources, Unset):
             resources = self.resources.to_dict()
 
+        volume_mounts: list[dict[str, Any]] | Unset = UNSET
+        if not isinstance(self.volume_mounts, Unset):
+            volume_mounts = []
+            for volume_mounts_item_data in self.volume_mounts:
+                volume_mounts_item = volume_mounts_item_data.to_dict()
+                volume_mounts.append(volume_mounts_item)
+
+        volumes: list[dict[str, Any]] | Unset = UNSET
+        if not isinstance(self.volumes, Unset):
+            volumes = []
+            for volumes_item_data in self.volumes:
+                volumes_item = volumes_item_data.to_dict()
+                volumes.append(volumes_item)
+
         working_dir = self.working_dir
 
         field_dict: dict[str, Any] = {}
@@ -93,6 +113,10 @@ class MLRunPodTemplateSubset:
             field_dict["imagePullPolicy"] = image_pull_policy
         if resources is not UNSET:
             field_dict["resources"] = resources
+        if volume_mounts is not UNSET:
+            field_dict["volumeMounts"] = volume_mounts
+        if volumes is not UNSET:
+            field_dict["volumes"] = volumes
         if working_dir is not UNSET:
             field_dict["workingDir"] = working_dir
 
@@ -103,6 +127,8 @@ class MLRunPodTemplateSubset:
         from ..models.corev_1_env_from_source import Corev1EnvFromSource
         from ..models.corev_1_env_var import Corev1EnvVar
         from ..models.corev_1_resource_requirements import Corev1ResourceRequirements
+        from ..models.corev_1_volume import Corev1Volume
+        from ..models.corev_1_volume_mount import Corev1VolumeMount
 
         d = dict(src_dict)
         image = d.pop("image")
@@ -138,6 +164,26 @@ class MLRunPodTemplateSubset:
         else:
             resources = Corev1ResourceRequirements.from_dict(_resources)
 
+        _volume_mounts = d.pop("volumeMounts", UNSET)
+        volume_mounts: list[Corev1VolumeMount] | Unset = UNSET
+        if _volume_mounts is not UNSET:
+            volume_mounts = []
+            for volume_mounts_item_data in _volume_mounts:
+                volume_mounts_item = Corev1VolumeMount.from_dict(
+                    volume_mounts_item_data
+                )
+
+                volume_mounts.append(volume_mounts_item)
+
+        _volumes = d.pop("volumes", UNSET)
+        volumes: list[Corev1Volume] | Unset = UNSET
+        if _volumes is not UNSET:
+            volumes = []
+            for volumes_item_data in _volumes:
+                volumes_item = Corev1Volume.from_dict(volumes_item_data)
+
+                volumes.append(volumes_item)
+
         working_dir = d.pop("workingDir", UNSET)
 
         ml_run_pod_template_subset = cls(
@@ -148,6 +194,8 @@ class MLRunPodTemplateSubset:
             env_from=env_from,
             image_pull_policy=image_pull_policy,
             resources=resources,
+            volume_mounts=volume_mounts,
+            volumes=volumes,
             working_dir=working_dir,
         )
 

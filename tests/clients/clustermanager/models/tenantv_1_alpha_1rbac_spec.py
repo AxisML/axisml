@@ -9,32 +9,32 @@ from attrs import field as _attrs_field
 from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
-    from ..models.apiv_1_alpha_1rbac_role_ref import Apiv1Alpha1RBACRoleRef
     from ..models.rbacv_1_policy_rule import Rbacv1PolicyRule
+    from ..models.tenantv_1_alpha_1rbac_role_ref import Tenantv1Alpha1RBACRoleRef
 
 
-T = TypeVar("T", bound="Apiv1Alpha1RBACSpec")
+T = TypeVar("T", bound="Tenantv1Alpha1RBACSpec")
 
 
 @_attrs_define
-class Apiv1Alpha1RBACSpec:
+class Tenantv1Alpha1RBACSpec:
     """
     Attributes:
-        role_ref (Apiv1Alpha1RBACRoleRef | None | Unset):
+        role_ref (None | Tenantv1Alpha1RBACRoleRef | Unset):
         rules (list[Rbacv1PolicyRule] | Unset):
     """
 
-    role_ref: Apiv1Alpha1RBACRoleRef | None | Unset = UNSET
+    role_ref: None | Tenantv1Alpha1RBACRoleRef | Unset = UNSET
     rules: list[Rbacv1PolicyRule] | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        from ..models.apiv_1_alpha_1rbac_role_ref import Apiv1Alpha1RBACRoleRef
+        from ..models.tenantv_1_alpha_1rbac_role_ref import Tenantv1Alpha1RBACRoleRef
 
         role_ref: dict[str, Any] | None | Unset
         if isinstance(self.role_ref, Unset):
             role_ref = UNSET
-        elif isinstance(self.role_ref, Apiv1Alpha1RBACRoleRef):
+        elif isinstance(self.role_ref, Tenantv1Alpha1RBACRoleRef):
             role_ref = self.role_ref.to_dict()
         else:
             role_ref = self.role_ref
@@ -58,12 +58,12 @@ class Apiv1Alpha1RBACSpec:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
-        from ..models.apiv_1_alpha_1rbac_role_ref import Apiv1Alpha1RBACRoleRef
         from ..models.rbacv_1_policy_rule import Rbacv1PolicyRule
+        from ..models.tenantv_1_alpha_1rbac_role_ref import Tenantv1Alpha1RBACRoleRef
 
         d = dict(src_dict)
 
-        def _parse_role_ref(data: object) -> Apiv1Alpha1RBACRoleRef | None | Unset:
+        def _parse_role_ref(data: object) -> None | Tenantv1Alpha1RBACRoleRef | Unset:
             if data is None:
                 return data
             if isinstance(data, Unset):
@@ -71,12 +71,12 @@ class Apiv1Alpha1RBACSpec:
             try:
                 if not isinstance(data, dict):
                     raise TypeError()
-                role_ref_type_1 = Apiv1Alpha1RBACRoleRef.from_dict(data)
+                role_ref_type_1 = Tenantv1Alpha1RBACRoleRef.from_dict(data)
 
                 return role_ref_type_1
             except (TypeError, ValueError, AttributeError, KeyError):
                 pass
-            return cast(Apiv1Alpha1RBACRoleRef | None | Unset, data)
+            return cast(None | Tenantv1Alpha1RBACRoleRef | Unset, data)
 
         role_ref = _parse_role_ref(d.pop("roleRef", UNSET))
 
@@ -89,13 +89,13 @@ class Apiv1Alpha1RBACSpec:
 
                 rules.append(rules_item)
 
-        apiv_1_alpha_1rbac_spec = cls(
+        tenantv_1_alpha_1rbac_spec = cls(
             role_ref=role_ref,
             rules=rules,
         )
 
-        apiv_1_alpha_1rbac_spec.additional_properties = d
-        return apiv_1_alpha_1rbac_spec
+        tenantv_1_alpha_1rbac_spec.additional_properties = d
+        return tenantv_1_alpha_1rbac_spec
 
     @property
     def additional_keys(self) -> list[str]:

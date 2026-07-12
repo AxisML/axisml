@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from ..models.init_resources import InitResources
     from ..models.quota import Quota
     from ..models.string_map import StringMap
+    from ..models.tenant_volume import TenantVolume
 
 
 T = TypeVar("T", bound="TenantCreateRequest")
@@ -41,6 +42,7 @@ class TenantCreateRequest:
             [{'kind': 'ClusterRole', 'name': 'edit'}]}}]}.
         labels (StringMap | Unset):
         quotas (list[Quota] | Unset): Initial per-pool resource quota allocations.
+        volumes (list[TenantVolume] | Unset): Predefined data volumes to ensure in the tenant namespace at provisioning.
     """
 
     display_name: str
@@ -52,6 +54,7 @@ class TenantCreateRequest:
     init_resources: InitResources | Unset = UNSET
     labels: StringMap | Unset = UNSET
     quotas: list[Quota] | Unset = UNSET
+    volumes: list[TenantVolume] | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -84,6 +87,13 @@ class TenantCreateRequest:
                 quotas_item = quotas_item_data.to_dict()
                 quotas.append(quotas_item)
 
+        volumes: list[dict[str, Any]] | Unset = UNSET
+        if not isinstance(self.volumes, Unset):
+            volumes = []
+            for volumes_item_data in self.volumes:
+                volumes_item = volumes_item_data.to_dict()
+                volumes.append(volumes_item)
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -104,6 +114,8 @@ class TenantCreateRequest:
             field_dict["labels"] = labels
         if quotas is not UNSET:
             field_dict["quotas"] = quotas
+        if volumes is not UNSET:
+            field_dict["volumes"] = volumes
 
         return field_dict
 
@@ -112,6 +124,7 @@ class TenantCreateRequest:
         from ..models.init_resources import InitResources
         from ..models.quota import Quota
         from ..models.string_map import StringMap
+        from ..models.tenant_volume import TenantVolume
 
         d = dict(src_dict)
         display_name = d.pop("displayName")
@@ -154,6 +167,15 @@ class TenantCreateRequest:
 
                 quotas.append(quotas_item)
 
+        _volumes = d.pop("volumes", UNSET)
+        volumes: list[TenantVolume] | Unset = UNSET
+        if _volumes is not UNSET:
+            volumes = []
+            for volumes_item_data in _volumes:
+                volumes_item = TenantVolume.from_dict(volumes_item_data)
+
+                volumes.append(volumes_item)
+
         tenant_create_request = cls(
             display_name=display_name,
             identifier=identifier,
@@ -164,6 +186,7 @@ class TenantCreateRequest:
             init_resources=init_resources,
             labels=labels,
             quotas=quotas,
+            volumes=volumes,
         )
 
         tenant_create_request.additional_properties = d

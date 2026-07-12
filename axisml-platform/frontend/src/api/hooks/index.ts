@@ -120,14 +120,14 @@ export const useClusterUsage = (pool: string) =>
   useAux<ClusterUsage>(
     ["cluster-usage", pool],
     () => sdk.getClusterUsage(pool && pool !== "all" ? { query: { pool } } : {}),
-    { aggregate: [], pools: [], updatedAt: "" },
+    { pools: [], updatedAt: "" },
     { scoped: false },
   );
 
 export const useClusterMetric = (metric: "gpu_util" | "gpu_quota", pool: string, range = "24h") =>
   useAux<MetricSeries>(
     ["cluster-metric", metric, pool, range],
-    () => sdk.getClusterMetrics({ query: { metric, range, ...(pool && pool !== "all" ? { pool } : {}) } }),
+    () => sdk.getClusterMetrics({ query: { metric, range, pool } }),
     { metric, range, series: [] },
     { scoped: false },
   );

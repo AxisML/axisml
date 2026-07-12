@@ -114,6 +114,9 @@ from .quota import Quota
 from .quota_create_request import QuotaCreateRequest
 from .quota_list import QuotaList
 from .quota_patch_request import QuotaPatchRequest
+from .quota_resources import QuotaResources
+from .quota_resources_max import QuotaResourcesMax
+from .quota_resources_min import QuotaResourcesMin
 from .quota_status import QuotaStatus
 from .quota_unit import QuotaUnit
 from .quota_unit_status import QuotaUnitStatus
@@ -155,6 +158,7 @@ from .tenant_list import TenantList
 from .tenant_patch_request import TenantPatchRequest
 from .tenant_phase import TenantPhase
 from .tenant_status import TenantStatus
+from .tenant_volume import TenantVolume
 from .tensor_board import TensorBoard
 from .tensor_board_phase import TensorBoardPhase
 from .tensor_board_request import TensorBoardRequest
@@ -179,7 +183,6 @@ from .user_tenant_role import UserTenantRole
 from .workload_metric_name import WorkloadMetricName
 from .workspace import Workspace
 from .workspace_create_request import WorkspaceCreateRequest
-from .workspace_delete_request import WorkspaceDeleteRequest
 from .workspace_desired_state import WorkspaceDesiredState
 from .workspace_endpoint import WorkspaceEndpoint
 from .workspace_image import WorkspaceImage
@@ -300,6 +303,9 @@ __all__ = (
     "QuotaCreateRequest",
     "QuotaList",
     "QuotaPatchRequest",
+    "QuotaResources",
+    "QuotaResourcesMax",
+    "QuotaResourcesMin",
     "QuotaStatus",
     "QuotaUnit",
     "QuotaUnitStatus",
@@ -341,6 +347,7 @@ __all__ = (
     "TenantPatchRequest",
     "TenantPhase",
     "TenantStatus",
+    "TenantVolume",
     "TensorBoard",
     "TensorBoardPhase",
     "TensorBoardRequest",
@@ -365,7 +372,6 @@ __all__ = (
     "WorkloadMetricName",
     "Workspace",
     "WorkspaceCreateRequest",
-    "WorkspaceDeleteRequest",
     "WorkspaceDesiredState",
     "WorkspaceEndpoint",
     "WorkspaceImage",

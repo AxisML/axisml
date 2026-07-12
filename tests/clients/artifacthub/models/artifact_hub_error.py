@@ -20,8 +20,8 @@ T = TypeVar("T", bound="ArtifactHubError")
 class ArtifactHubError:
     """
     Example:
-        {'code': 'not_found', 'detail': 'model team-vision/resnet50@1.4.0 not found', 'instance':
-            '/api/v1/namespaces/team-vision/models/resnet50/1.4.0', 'status': 404, 'title': 'artifact not found', 'type':
+        {'code': 'not_found', 'detail': 'artifact team-vision/resnet50@1.4.0 not found', 'instance':
+            '/api/v1/namespaces/team-vision/artifacts/resnet50/1.4.0', 'status': 404, 'title': 'artifact not found', 'type':
             'https://axisml.io/errors/not_found'}
 
     Attributes:

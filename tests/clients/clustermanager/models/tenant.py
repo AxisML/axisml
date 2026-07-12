@@ -10,12 +10,12 @@ from attrs import field as _attrs_field
 from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
-    from ..models.apiv_1_alpha_1_init_resources import Apiv1Alpha1InitResources
-    from ..models.apiv_1_alpha_1_namespace_spec import Apiv1Alpha1NamespaceSpec
     from ..models.server_quota import ServerQuota
     from ..models.server_tenant_status import ServerTenantStatus
     from ..models.tenant_annotations import TenantAnnotations
     from ..models.tenant_labels import TenantLabels
+    from ..models.tenantv_1_alpha_1_init_resources import Tenantv1Alpha1InitResources
+    from ..models.tenantv_1_alpha_1_namespace_spec import Tenantv1Alpha1NamespaceSpec
 
 
 T = TypeVar("T", bound="Tenant")
@@ -41,10 +41,11 @@ class Tenant:
     Attributes:
         created_at (datetime.datetime): Tenant creation timestamp (RFC3339).
         name (str): Canonical tenant identifier; also the CR name, K8s namespace, and partition string.
-        namespace (Apiv1Alpha1NamespaceSpec):
-        quotas (list[ServerQuota]): Per-pool quotas in business form (unit × quantity selections).
+        namespace (Tenantv1Alpha1NamespaceSpec):
+        quotas (list[ServerQuota]): Per-pool quotas. Each item is returned either as units (business form) or quota
+            (direct min/max form).
         annotations (TenantAnnotations | Unset): User-defined annotations on the tenant.
-        init_resources (Apiv1Alpha1InitResources | None | Unset): Per-tenant init resources (Secrets, ConfigMaps,
+        init_resources (None | Tenantv1Alpha1InitResources | Unset): Per-tenant init resources (Secrets, ConfigMaps,
             ServiceAccount, RBAC) seeded on provisioning.
         labels (TenantLabels | Unset): User-defined labels on the tenant.
         phase (str | Unset): High-level provisioning phase of the tenant.
@@ -54,10 +55,10 @@ class Tenant:
 
     created_at: datetime.datetime
     name: str
-    namespace: Apiv1Alpha1NamespaceSpec
+    namespace: Tenantv1Alpha1NamespaceSpec
     quotas: list[ServerQuota]
     annotations: TenantAnnotations | Unset = UNSET
-    init_resources: Apiv1Alpha1InitResources | None | Unset = UNSET
+    init_resources: None | Tenantv1Alpha1InitResources | Unset = UNSET
     labels: TenantLabels | Unset = UNSET
     phase: str | Unset = UNSET
     resource_version: str | Unset = UNSET
@@ -65,8 +66,10 @@ class Tenant:
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        from ..models.apiv_1_alpha_1_init_resources import Apiv1Alpha1InitResources
         from ..models.server_tenant_status import ServerTenantStatus
+        from ..models.tenantv_1_alpha_1_init_resources import (
+            Tenantv1Alpha1InitResources,
+        )
 
         created_at = self.created_at.isoformat()
 
@@ -86,7 +89,7 @@ class Tenant:
         init_resources: dict[str, Any] | None | Unset
         if isinstance(self.init_resources, Unset):
             init_resources = UNSET
-        elif isinstance(self.init_resources, Apiv1Alpha1InitResources):
+        elif isinstance(self.init_resources, Tenantv1Alpha1InitResources):
             init_resources = self.init_resources.to_dict()
         else:
             init_resources = self.init_resources
@@ -134,19 +137,23 @@ class Tenant:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
-        from ..models.apiv_1_alpha_1_init_resources import Apiv1Alpha1InitResources
-        from ..models.apiv_1_alpha_1_namespace_spec import Apiv1Alpha1NamespaceSpec
         from ..models.server_quota import ServerQuota
         from ..models.server_tenant_status import ServerTenantStatus
         from ..models.tenant_annotations import TenantAnnotations
         from ..models.tenant_labels import TenantLabels
+        from ..models.tenantv_1_alpha_1_init_resources import (
+            Tenantv1Alpha1InitResources,
+        )
+        from ..models.tenantv_1_alpha_1_namespace_spec import (
+            Tenantv1Alpha1NamespaceSpec,
+        )
 
         d = dict(src_dict)
         created_at = datetime.datetime.fromisoformat(d.pop("createdAt"))
 
         name = d.pop("name")
 
-        namespace = Apiv1Alpha1NamespaceSpec.from_dict(d.pop("namespace"))
+        namespace = Tenantv1Alpha1NamespaceSpec.from_dict(d.pop("namespace"))
 
         quotas = []
         _quotas = d.pop("quotas")
@@ -164,7 +171,7 @@ class Tenant:
 
         def _parse_init_resources(
             data: object,
-        ) -> Apiv1Alpha1InitResources | None | Unset:
+        ) -> None | Tenantv1Alpha1InitResources | Unset:
             if data is None:
                 return data
             if isinstance(data, Unset):
@@ -172,12 +179,12 @@ class Tenant:
             try:
                 if not isinstance(data, dict):
                     raise TypeError()
-                init_resources_type_1 = Apiv1Alpha1InitResources.from_dict(data)
+                init_resources_type_1 = Tenantv1Alpha1InitResources.from_dict(data)
 
                 return init_resources_type_1
             except (TypeError, ValueError, AttributeError, KeyError):
                 pass
-            return cast(Apiv1Alpha1InitResources | None | Unset, data)
+            return cast(None | Tenantv1Alpha1InitResources | Unset, data)
 
         init_resources = _parse_init_resources(d.pop("initResources", UNSET))
 

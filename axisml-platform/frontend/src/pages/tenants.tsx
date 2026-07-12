@@ -705,7 +705,7 @@ function QuotaDrawer({ ident, onClose }: { ident: string; onClose: () => void })
 
   const onFinish = async () => {
     const desired = new Map<string, sdk.QuotaUnit[]>();
-    for (const quota of quotasFromMap(editValue)) desired.set(quota.pool, quota.units);
+    for (const quota of quotasFromMap(editValue)) desired.set(quota.pool, quota.units ?? []);
 
     const ops: Promise<unknown>[] = [];
     for (const [pool, units] of desired) {

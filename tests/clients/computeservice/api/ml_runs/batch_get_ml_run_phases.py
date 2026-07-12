@@ -6,34 +6,34 @@ import httpx
 
 from ...client import AuthenticatedClient, Client
 from ...models.compute_service_error import ComputeServiceError
-from ...models.ml_service_list import MLServiceList
+from ...models.ml_run_phase_list import MLRunPhaseList
 from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
     namespace: str,
     *,
-    kind: str | Unset = UNSET,
+    names: str | Unset = UNSET,
+    label_selector: str | Unset = UNSET,
     limit: int | Unset = UNSET,
     continue_: str | Unset = UNSET,
-    label_selector: str | Unset = UNSET,
 ) -> dict[str, Any]:
 
     params: dict[str, Any] = {}
 
-    params["kind"] = kind
+    params["names"] = names
+
+    params["labelSelector"] = label_selector
 
     params["limit"] = limit
 
     params["continue"] = continue_
 
-    params["labelSelector"] = label_selector
-
     params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
 
     _kwargs: dict[str, Any] = {
         "method": "get",
-        "url": "/api/v1/namespaces/{namespace}/mlservices".format(
+        "url": "/api/v1/namespaces/{namespace}/mlruns/phases".format(
             namespace=quote(str(namespace), safe=""),
         ),
         "params": params,
@@ -44,9 +44,9 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> ComputeServiceError | MLServiceList:
+) -> ComputeServiceError | MLRunPhaseList:
     if response.status_code == 200:
-        response_200 = MLServiceList.from_dict(response.json())
+        response_200 = MLRunPhaseList.from_dict(response.json())
 
         return response_200
 
@@ -97,7 +97,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[ComputeServiceError | MLServiceList]:
+) -> Response[ComputeServiceError | MLRunPhaseList]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -110,34 +110,34 @@ def sync_detailed(
     namespace: str,
     *,
     client: AuthenticatedClient | Client,
-    kind: str | Unset = UNSET,
+    names: str | Unset = UNSET,
+    label_selector: str | Unset = UNSET,
     limit: int | Unset = UNSET,
     continue_: str | Unset = UNSET,
-    label_selector: str | Unset = UNSET,
-) -> Response[ComputeServiceError | MLServiceList]:
-    """List MLServices in a namespace
+) -> Response[ComputeServiceError | MLRunPhaseList]:
+    """Batch-get MLRun phases
 
     Args:
         namespace (str):
-        kind (str | Unset):
+        names (str | Unset):
+        label_selector (str | Unset):
         limit (int | Unset):
         continue_ (str | Unset):
-        label_selector (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ComputeServiceError | MLServiceList]
+        Response[ComputeServiceError | MLRunPhaseList]
     """
 
     kwargs = _get_kwargs(
         namespace=namespace,
-        kind=kind,
+        names=names,
+        label_selector=label_selector,
         limit=limit,
         continue_=continue_,
-        label_selector=label_selector,
     )
 
     response = client.get_httpx_client().request(
@@ -151,35 +151,35 @@ def sync(
     namespace: str,
     *,
     client: AuthenticatedClient | Client,
-    kind: str | Unset = UNSET,
+    names: str | Unset = UNSET,
+    label_selector: str | Unset = UNSET,
     limit: int | Unset = UNSET,
     continue_: str | Unset = UNSET,
-    label_selector: str | Unset = UNSET,
-) -> ComputeServiceError | MLServiceList | None:
-    """List MLServices in a namespace
+) -> ComputeServiceError | MLRunPhaseList | None:
+    """Batch-get MLRun phases
 
     Args:
         namespace (str):
-        kind (str | Unset):
+        names (str | Unset):
+        label_selector (str | Unset):
         limit (int | Unset):
         continue_ (str | Unset):
-        label_selector (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ComputeServiceError | MLServiceList
+        ComputeServiceError | MLRunPhaseList
     """
 
     return sync_detailed(
         namespace=namespace,
         client=client,
-        kind=kind,
+        names=names,
+        label_selector=label_selector,
         limit=limit,
         continue_=continue_,
-        label_selector=label_selector,
     ).parsed
 
 
@@ -187,34 +187,34 @@ async def asyncio_detailed(
     namespace: str,
     *,
     client: AuthenticatedClient | Client,
-    kind: str | Unset = UNSET,
+    names: str | Unset = UNSET,
+    label_selector: str | Unset = UNSET,
     limit: int | Unset = UNSET,
     continue_: str | Unset = UNSET,
-    label_selector: str | Unset = UNSET,
-) -> Response[ComputeServiceError | MLServiceList]:
-    """List MLServices in a namespace
+) -> Response[ComputeServiceError | MLRunPhaseList]:
+    """Batch-get MLRun phases
 
     Args:
         namespace (str):
-        kind (str | Unset):
+        names (str | Unset):
+        label_selector (str | Unset):
         limit (int | Unset):
         continue_ (str | Unset):
-        label_selector (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ComputeServiceError | MLServiceList]
+        Response[ComputeServiceError | MLRunPhaseList]
     """
 
     kwargs = _get_kwargs(
         namespace=namespace,
-        kind=kind,
+        names=names,
+        label_selector=label_selector,
         limit=limit,
         continue_=continue_,
-        label_selector=label_selector,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -226,35 +226,35 @@ async def asyncio(
     namespace: str,
     *,
     client: AuthenticatedClient | Client,
-    kind: str | Unset = UNSET,
+    names: str | Unset = UNSET,
+    label_selector: str | Unset = UNSET,
     limit: int | Unset = UNSET,
     continue_: str | Unset = UNSET,
-    label_selector: str | Unset = UNSET,
-) -> ComputeServiceError | MLServiceList | None:
-    """List MLServices in a namespace
+) -> ComputeServiceError | MLRunPhaseList | None:
+    """Batch-get MLRun phases
 
     Args:
         namespace (str):
-        kind (str | Unset):
+        names (str | Unset):
+        label_selector (str | Unset):
         limit (int | Unset):
         continue_ (str | Unset):
-        label_selector (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ComputeServiceError | MLServiceList
+        ComputeServiceError | MLRunPhaseList
     """
 
     return (
         await asyncio_detailed(
             namespace=namespace,
             client=client,
-            kind=kind,
+            names=names,
+            label_selector=label_selector,
             limit=limit,
             continue_=continue_,
-            label_selector=label_selector,
         )
     ).parsed
