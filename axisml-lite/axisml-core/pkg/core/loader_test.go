@@ -47,34 +47,85 @@ func validTenant() *tenantv1alpha1.Tenant {
 	}
 }
 
-// writeConfig marshals the given pool/tenant into <dir>/resource-pool.yaml and
-// <dir>/tenant.yaml. A nil argument skips writing that file (to test the missing
-// -file decode path).
-func writeConfig(t *testing.T, pool *cmv1alpha1.ResourcePool, tenant *tenantv1alpha1.Tenant) string {
+// writeConfig marshals each pool into <dir>/resourcepools/<name>.yaml and each
+// tenant into <dir>/tenants/<name>.yaml. Empty slices skip creating that subdir
+// (to exercise the missing-config paths).
+func writeConfig(t *testing.T, pools []*cmv1alpha1.ResourcePool, tenants []*tenantv1alpha1.Tenant) string {
 	t.Helper()
 	dir := t.TempDir()
-	if pool != nil {
-		b, err := yaml.Marshal(pool)
-		require.NoError(t, err)
-		require.NoError(t, os.WriteFile(filepath.Join(dir, "resource-pool.yaml"), b, 0o600))
+	if len(pools) > 0 {
+		sub := filepath.Join(dir, "resourcepools")
+		require.NoError(t, os.MkdirAll(sub, 0o755))
+		for _, p := range pools {
+			b, err := yaml.Marshal(p)
+			require.NoError(t, err)
+			require.NoError(t, os.WriteFile(filepath.Join(sub, p.Name+".yaml"), b, 0o600))
+		}
 	}
-	if tenant != nil {
-		b, err := yaml.Marshal(tenant)
-		require.NoError(t, err)
-		require.NoError(t, os.WriteFile(filepath.Join(dir, "tenant.yaml"), b, 0o600))
+	if len(tenants) > 0 {
+		sub := filepath.Join(dir, "tenants")
+		require.NoError(t, os.MkdirAll(sub, 0o755))
+		for _, tn := range tenants {
+			b, err := yaml.Marshal(tn)
+			require.NoError(t, err)
+			require.NoError(t, os.WriteFile(filepath.Join(sub, tn.Name+".yaml"), b, 0o600))
+		}
 	}
 	return dir
 }
 
+// oneConfig is the common single-pool / single-tenant fixture.
+func oneConfig(t *testing.T, pool *cmv1alpha1.ResourcePool, tenant *tenantv1alpha1.Tenant) string {
+	t.Helper()
+	var pools []*cmv1alpha1.ResourcePool
+	var tenants []*tenantv1alpha1.Tenant
+	if pool != nil {
+		pools = []*cmv1alpha1.ResourcePool{pool}
+	}
+	if tenant != nil {
+		tenants = []*tenantv1alpha1.Tenant{tenant}
+	}
+	return writeConfig(t, pools, tenants)
+}
+
 func TestLoadStaticConfig_Valid(t *testing.T) {
-	dir := writeConfig(t, validPool(), validTenant())
+	dir := oneConfig(t, validPool(), validTenant())
 	sc, err := core.LoadStaticConfig(dir)
 	require.NoError(t, err)
 	require.NotNil(t, sc)
-	assert.Equal(t, "default", sc.Pool.Name)
-	assert.Equal(t, "default", sc.Tenant.Name)
-	require.Len(t, sc.Pool.Spec.Units, 1)
-	assert.Equal(t, "small", sc.Pool.Spec.Units[0].Name)
+	require.Len(t, sc.Pools, 1)
+	require.Len(t, sc.Tenants, 1)
+	assert.Equal(t, "default", sc.Pools[0].Name)
+	assert.Equal(t, "default", sc.Tenants[0].Name)
+	require.Len(t, sc.Pools[0].Spec.Units, 1)
+	assert.Equal(t, "small", sc.Pools[0].Spec.Units[0].Name)
+}
+
+// TestLoadStaticConfig_MultipleValid loads two pools and two tenants, each
+// tenant scoped to its own namespace and referencing a distinct pool.
+func TestLoadStaticConfig_MultipleValid(t *testing.T) {
+	gpuPool := validPool()
+	gpuPool.Name = "gpu"
+	gpuPool.Spec.Units[0].Name = "gpu-1x"
+
+	teamA := validTenant()
+	teamA.Name = "team-a"
+	teamA.Spec.Namespace.Name = "team-a"
+	teamA.Spec.Quotas[0].Pool = "gpu"
+
+	dir := writeConfig(t,
+		[]*cmv1alpha1.ResourcePool{validPool(), gpuPool},
+		[]*tenantv1alpha1.Tenant{validTenant(), teamA},
+	)
+	sc, err := core.LoadStaticConfig(dir)
+	require.NoError(t, err)
+	require.Len(t, sc.Pools, 2)
+	require.Len(t, sc.Tenants, 2)
+	// Load order follows sorted filenames: "default" before "gpu"/"team-a".
+	assert.Equal(t, "default", sc.Pools[0].Name)
+	assert.Equal(t, "gpu", sc.Pools[1].Name)
+	assert.Equal(t, "default", sc.Tenants[0].Name)
+	assert.Equal(t, "team-a", sc.Tenants[1].Name)
 }
 
 func TestLoadStaticConfig_ValidWithPredefinedVolumes(t *testing.T) {
@@ -84,12 +135,43 @@ func TestLoadStaticConfig_ValidWithPredefinedVolumes(t *testing.T) {
 		{Name: "checkpoints"},
 		{Name: "hostdata", HostPath: "/data/host-datasets"},
 	}
-	dir := writeConfig(t, validPool(), tn)
+	dir := oneConfig(t, validPool(), tn)
 	sc, err := core.LoadStaticConfig(dir)
 	require.NoError(t, err)
-	require.Len(t, sc.Tenant.Spec.InitResources.Volumes, 3)
-	assert.Equal(t, "dataset", sc.Tenant.Spec.InitResources.Volumes[0].Name)
-	assert.Equal(t, "/data/host-datasets", sc.Tenant.Spec.InitResources.Volumes[2].HostPath)
+	require.Len(t, sc.Tenants[0].Spec.InitResources.Volumes, 3)
+	assert.Equal(t, "dataset", sc.Tenants[0].Spec.InitResources.Volumes[0].Name)
+	assert.Equal(t, "/data/host-datasets", sc.Tenants[0].Spec.InitResources.Volumes[2].HostPath)
+}
+
+// TestLoadStaticConfig_HostPathVolumeNames covers how predefined volume names
+// scope across tenants: hostPath names must be globally unique (they resolve
+// through the runtime's single name-keyed map), while managed volume names may
+// repeat across tenants (they are namespaced per tenant).
+func TestLoadStaticConfig_HostPathVolumeNames(t *testing.T) {
+	t.Run("same hostPath name across tenants rejected", func(t *testing.T) {
+		a := validTenant()
+		a.Spec.InitResources.Volumes = []tenantv1alpha1.VolumeSpec{{Name: "shared", HostPath: "/data/a"}}
+		b := validTenant()
+		b.Name = "team-b"
+		b.Spec.Namespace.Name = "team-b"
+		b.Spec.InitResources.Volumes = []tenantv1alpha1.VolumeSpec{{Name: "shared", HostPath: "/data/b"}}
+		dir := writeConfig(t, []*cmv1alpha1.ResourcePool{validPool()}, []*tenantv1alpha1.Tenant{a, b})
+		_, err := core.LoadStaticConfig(dir)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "must be unique across tenants")
+	})
+
+	t.Run("same managed volume name across tenants allowed", func(t *testing.T) {
+		a := validTenant()
+		a.Spec.InitResources.Volumes = []tenantv1alpha1.VolumeSpec{{Name: "data"}}
+		b := validTenant()
+		b.Name = "team-b"
+		b.Spec.Namespace.Name = "team-b"
+		b.Spec.InitResources.Volumes = []tenantv1alpha1.VolumeSpec{{Name: "data"}}
+		dir := writeConfig(t, []*cmv1alpha1.ResourcePool{validPool()}, []*tenantv1alpha1.Tenant{a, b})
+		_, err := core.LoadStaticConfig(dir)
+		require.NoError(t, err)
+	})
 }
 
 func TestLoadStaticConfig_ValidationErrors(t *testing.T) {
@@ -98,21 +180,6 @@ func TestLoadStaticConfig_ValidationErrors(t *testing.T) {
 		mutate  func(p *cmv1alpha1.ResourcePool, tn *tenantv1alpha1.Tenant)
 		wantSub string
 	}{
-		{
-			name:    "pool name not default",
-			mutate:  func(p *cmv1alpha1.ResourcePool, _ *tenantv1alpha1.Tenant) { p.Name = "other" },
-			wantSub: "resource pool name must be",
-		},
-		{
-			name:    "tenant name not default",
-			mutate:  func(_ *cmv1alpha1.ResourcePool, tn *tenantv1alpha1.Tenant) { tn.Name = "other" },
-			wantSub: "tenant name must be",
-		},
-		{
-			name:    "tenant namespace not default",
-			mutate:  func(_ *cmv1alpha1.ResourcePool, tn *tenantv1alpha1.Tenant) { tn.Spec.Namespace.Name = "other" },
-			wantSub: "tenant namespace must be",
-		},
 		{
 			name: "pool nodeSelector not empty",
 			mutate: func(p *cmv1alpha1.ResourcePool, _ *tenantv1alpha1.Tenant) {
@@ -146,7 +213,7 @@ func TestLoadStaticConfig_ValidationErrors(t *testing.T) {
 			mutate: func(_ *cmv1alpha1.ResourcePool, tn *tenantv1alpha1.Tenant) {
 				tn.Spec.InitResources.Volumes = []tenantv1alpha1.VolumeSpec{{Name: "data"}, {Name: "data"}}
 			},
-			wantSub: "duplicate tenant volume",
+			wantSub: "duplicate volume",
 		},
 		{
 			name: "tenant hostPath volume relative path",
@@ -154,6 +221,16 @@ func TestLoadStaticConfig_ValidationErrors(t *testing.T) {
 				tn.Spec.InitResources.Volumes = []tenantv1alpha1.VolumeSpec{{Name: "hostdata", HostPath: "relative/path"}}
 			},
 			wantSub: "must be an absolute path",
+		},
+		{
+			name:    "tenant namespace does not match name",
+			mutate:  func(_ *cmv1alpha1.ResourcePool, tn *tenantv1alpha1.Tenant) { tn.Spec.Namespace.Name = "other" },
+			wantSub: "must equal the tenant name",
+		},
+		{
+			name:    "tenant namespace empty",
+			mutate:  func(_ *cmv1alpha1.ResourcePool, tn *tenantv1alpha1.Tenant) { tn.Spec.Namespace.Name = "" },
+			wantSub: "must equal the tenant name",
 		},
 		{
 			name:    "unit name empty",
@@ -177,33 +254,19 @@ func TestLoadStaticConfig_ValidationErrors(t *testing.T) {
 		{
 			name:    "no quotas declared",
 			mutate:  func(_ *cmv1alpha1.ResourcePool, tn *tenantv1alpha1.Tenant) { tn.Spec.Quotas = nil },
-			wantSub: "tenant must declare a quota",
+			wantSub: "must declare at least one quota",
 		},
 		{
-			name:    "quota references wrong pool",
+			name:    "quota references unknown pool",
 			mutate:  func(_ *cmv1alpha1.ResourcePool, tn *tenantv1alpha1.Tenant) { tn.Spec.Quotas[0].Pool = "other" },
-			wantSub: "tenant quota must reference pool",
-		},
-		{
-			name: "unit requests exceed max",
-			mutate: func(p *cmv1alpha1.ResourcePool, _ *tenantv1alpha1.Tenant) {
-				p.Spec.Units[0].Requests = corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("20")}
-			},
-			wantSub: "exceeds quota max",
-		},
-		{
-			name: "unit limits exceed max",
-			mutate: func(p *cmv1alpha1.ResourcePool, _ *tenantv1alpha1.Tenant) {
-				p.Spec.Units[0].Limits = corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("50")}
-			},
-			wantSub: "exceeds quota max",
+			wantSub: "references unknown pool",
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			pool, tenant := validPool(), validTenant()
 			tc.mutate(pool, tenant)
-			dir := writeConfig(t, pool, tenant)
+			dir := oneConfig(t, pool, tenant)
 			_, err := core.LoadStaticConfig(dir)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tc.wantSub)
@@ -211,38 +274,114 @@ func TestLoadStaticConfig_ValidationErrors(t *testing.T) {
 	}
 }
 
-func TestLoadStaticConfig_MissingPoolFile(t *testing.T) {
-	dir := writeConfig(t, nil, validTenant())
-	_, err := core.LoadStaticConfig(dir)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "read resource-pool config")
+// TestLoadStaticConfig_DuplicateNames covers the cross-object uniqueness checks
+// that only apply once more than one object exists.
+func TestLoadStaticConfig_DuplicateNames(t *testing.T) {
+	t.Run("duplicate pool name", func(t *testing.T) {
+		// Two pool files decode to the same metadata.name.
+		dir := t.TempDir()
+		sub := filepath.Join(dir, "resourcepools")
+		require.NoError(t, os.MkdirAll(sub, 0o755))
+		for _, fn := range []string{"a.yaml", "b.yaml"} {
+			b, err := yaml.Marshal(validPool())
+			require.NoError(t, err)
+			require.NoError(t, os.WriteFile(filepath.Join(sub, fn), b, 0o600))
+		}
+		tsub := filepath.Join(dir, "tenants")
+		require.NoError(t, os.MkdirAll(tsub, 0o755))
+		b, err := yaml.Marshal(validTenant())
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(filepath.Join(tsub, "default.yaml"), b, 0o600))
+
+		_, err = core.LoadStaticConfig(dir)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "duplicate resource pool")
+	})
+
+	t.Run("duplicate tenant name", func(t *testing.T) {
+		// Two tenant files decode to the same metadata.name.
+		dir := t.TempDir()
+		psub := filepath.Join(dir, "resourcepools")
+		require.NoError(t, os.MkdirAll(psub, 0o755))
+		b, err := yaml.Marshal(validPool())
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(filepath.Join(psub, "default.yaml"), b, 0o600))
+
+		tsub := filepath.Join(dir, "tenants")
+		require.NoError(t, os.MkdirAll(tsub, 0o755))
+		for _, fn := range []string{"a.yaml", "b.yaml"} {
+			tb, err := yaml.Marshal(validTenant())
+			require.NoError(t, err)
+			require.NoError(t, os.WriteFile(filepath.Join(tsub, fn), tb, 0o600))
+		}
+
+		_, err = core.LoadStaticConfig(dir)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "duplicate tenant")
+	})
 }
 
-func TestLoadStaticConfig_MissingTenantFile(t *testing.T) {
-	dir := writeConfig(t, validPool(), nil)
+func TestLoadStaticConfig_MissingPoolDir(t *testing.T) {
+	dir := oneConfig(t, nil, validTenant())
 	_, err := core.LoadStaticConfig(dir)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "read tenant config")
+	assert.Contains(t, err.Error(), "resource pool config dir")
+}
+
+func TestLoadStaticConfig_MissingTenantDir(t *testing.T) {
+	dir := oneConfig(t, validPool(), nil)
+	_, err := core.LoadStaticConfig(dir)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "tenant config dir")
+}
+
+func TestLoadStaticConfig_EmptyPoolDir(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "resourcepools"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "tenants"), 0o755))
+	_, err := core.LoadStaticConfig(dir)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no resource pool config found")
 }
 
 func TestLoadStaticConfig_UndecodablePool(t *testing.T) {
 	dir := t.TempDir()
+	psub := filepath.Join(dir, "resourcepools")
+	require.NoError(t, os.MkdirAll(psub, 0o755))
 	// A top-level YAML sequence decodes to a JSON array, which cannot unmarshal
 	// into the ResourcePool struct.
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "resource-pool.yaml"), []byte("- a\n- b\n"), 0o600))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "tenant.yaml"), []byte("{}"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(psub, "bad.yaml"), []byte("- a\n- b\n"), 0o600))
+	tsub := filepath.Join(dir, "tenants")
+	require.NoError(t, os.MkdirAll(tsub, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(tsub, "default.yaml"), []byte("{}"), 0o600))
 	_, err := core.LoadStaticConfig(dir)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "decode resource-pool config")
+	assert.Contains(t, err.Error(), "decode resource pool config")
 }
 
-// unconstrainedDimension confirms withinMax skips resource dimensions the quota
-// does not cap (e.g. memory when only cpu is bounded).
-func TestLoadStaticConfig_UnconstrainedDimensionAllowed(t *testing.T) {
-	pool, tenant := validPool(), validTenant()
-	// Unit asks for memory the quota does not constrain; cpu stays within max.
-	pool.Spec.Units[0].Requests[corev1.ResourceMemory] = resource.MustParse("999Gi")
-	dir := writeConfig(t, pool, tenant)
-	_, err := core.LoadStaticConfig(dir)
+// TestLoadStaticConfig_MultipleDocsRejected covers the single-document guard: a
+// file packing two YAML documents must error rather than silently loading only
+// the first.
+func TestLoadStaticConfig_MultipleDocsRejected(t *testing.T) {
+	dir := t.TempDir()
+	psub := filepath.Join(dir, "resourcepools")
+	require.NoError(t, os.MkdirAll(psub, 0o755))
+	p1, err := yaml.Marshal(validPool())
 	require.NoError(t, err)
+	p2 := validPool()
+	p2.Name = "second"
+	p2b, err := yaml.Marshal(p2)
+	require.NoError(t, err)
+	multi := append(append(append([]byte{}, p1...), []byte("\n---\n")...), p2b...)
+	require.NoError(t, os.WriteFile(filepath.Join(psub, "pools.yaml"), multi, 0o600))
+
+	tsub := filepath.Join(dir, "tenants")
+	require.NoError(t, os.MkdirAll(tsub, 0o755))
+	tb, err := yaml.Marshal(validTenant())
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(tsub, "default.yaml"), tb, 0o600))
+
+	_, err = core.LoadStaticConfig(dir)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "must contain exactly one object")
 }

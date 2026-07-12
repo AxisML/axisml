@@ -33,9 +33,9 @@ func WithDB(db *gorm.DB) Option {
 	return func(o *options) { o.db = db }
 }
 
-// WithStaticConfig supplies the single default ResourcePool + Tenant in memory
-// instead of reading them from Settings.PoolConfigDir. The supplied config is
-// validated by New the same way the on-disk form is.
+// WithStaticConfig supplies the ResourcePools + Tenants in memory instead of
+// reading them from Settings.PoolConfigDir. The supplied config is validated by
+// New the same way the on-disk form is.
 func WithStaticConfig(sc *StaticConfig) Option {
 	return func(o *options) { o.static = sc }
 }

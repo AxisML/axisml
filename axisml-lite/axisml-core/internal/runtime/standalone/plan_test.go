@@ -15,7 +15,7 @@ import (
 )
 
 func testRuntime() *Runtime {
-	return New(nil, Config{WorkloadsNetwork: "axisml-workloads", Tenant: "default"}, logr.Discard())
+	return New(nil, Config{WorkloadsNetwork: "axisml-workloads"}, logr.Discard())
 }
 
 func TestRenderRunPlans(t *testing.T) {

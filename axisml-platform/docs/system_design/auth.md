@@ -31,7 +31,7 @@
 - **可选与降级**：未配置 `REDIS_ADDR` 时全程直连 PostgreSQL；运行中 Redis 出错按操作回退源库，请求不因缓存不健康而失败。故吊销 / 停用以 PostgreSQL 为准，不会因缓存丢失而「复活」已登出的 token。
 - **失效优先于兜底**：身份缓存在每个绑定 / 账号变更点显式删除，短 TTL 仅作兜底（防遗漏）。会话仅缓存正项，吊销即删 key，绝不缓存「有效」以外的状态。
 - **身份解析为权威闸门**：中间件先查会话、再解析身份；删除 / 停用用户会使身份解析失败（用户不存在 / 已停用），即便会话缓存项尚未到期也即时拒绝。
-- **bootstrap**（`axisml-platform bootstrap`，首次安装）：创建内置角色；创建初始 `system-admin` 账号 `admin`/`admin`（**首登强制改密**，可由 `AXISML_BOOTSTRAP_PASSWORD` 覆盖）；创建内置租户 `default`，其 K8s Namespace 为 `axisml-tenant`（承载 `visibility=public` 制品）。
+- **bootstrap**（`axisml-platform bootstrap`，首次安装）：创建内置角色；创建初始 `system-admin` 账号 `admin`/`admin`（**首登强制改密**，可由 `AXISML_BOOTSTRAP_PASSWORD` 覆盖）；经 cluster-manager 导入 System 层已定义的租户（内置 `default` 的 K8s Namespace 为 `axisml-tenant`，承载 `visibility=public` 制品；Lite 可由静态配置定义多个只读租户）。
 
 ## 3. RBAC 角色
 

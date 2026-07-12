@@ -395,8 +395,8 @@ components:
             images: true
             models: true
           cluster-manager:
-            multiTenant: true
-            writableResourcePools: true
+            multiTenant: false
+            resourcePoolsWritable: false
           compute-service:
             mlrun: true
             mlservice: true

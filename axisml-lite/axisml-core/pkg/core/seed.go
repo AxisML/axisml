@@ -42,19 +42,23 @@ func seedTenantVolumes(ctx context.Context, rt volumeEnsurer, t *tenantv1alpha1.
 	}
 }
 
-// tenantHostPathVolumes builds the name→host-path registry the runtime consults
+// tenantsHostPathVolumes builds the name→host-path registry the runtime consults
 // to bind-mount predefined hostPath volumes (keyed by the claim name a workload
-// mounts). Nil when the tenant declares none.
-func tenantHostPathVolumes(t *tenantv1alpha1.Tenant) map[string]string {
+// mounts), merged across every tenant. hostPath volume names are validated
+// unique across tenants at config load, so the merge never collides. Nil when no
+// tenant declares any.
+func tenantsHostPathVolumes(tenants []*tenantv1alpha1.Tenant) map[string]string {
 	var out map[string]string
-	for _, v := range t.Spec.InitResources.Volumes {
-		if v.HostPath == "" {
-			continue
+	for _, t := range tenants {
+		for _, v := range t.Spec.InitResources.Volumes {
+			if v.HostPath == "" {
+				continue
+			}
+			if out == nil {
+				out = map[string]string{}
+			}
+			out[v.Name] = v.HostPath
 		}
-		if out == nil {
-			out = map[string]string{}
-		}
-		out[v.Name] = v.HostPath
 	}
 	return out
 }

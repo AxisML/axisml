@@ -111,6 +111,45 @@ func TestStaticTenantStore_Writes(t *testing.T) {
 	assert.False(t, store.Writable())
 }
 
+func TestConfigResourceCatalog_MultiplePools(t *testing.T) {
+	ctx := context.Background()
+	gpu := validPool()
+	gpu.Name = "gpu"
+	cat := core.NewConfigResourceCatalog(validPool(), gpu)
+
+	list, err := cat.List(ctx, metav1.ListOptions{})
+	require.NoError(t, err)
+	require.Len(t, list.Items, 2)
+
+	got, err := cat.Get(ctx, "gpu")
+	require.NoError(t, err)
+	assert.Equal(t, "gpu", got.Name)
+
+	resolved, err := cat.ResolveResourcePool(ctx, "default")
+	require.NoError(t, err)
+	assert.Equal(t, "default", resolved.Name)
+}
+
+func TestStaticTenantStore_MultipleTenants(t *testing.T) {
+	ctx := context.Background()
+	teamA := validTenant()
+	teamA.Name = "team-a"
+	teamA.Spec.Namespace.Name = "team-a"
+	store := core.NewStaticTenantStore(validTenant(), teamA)
+
+	list, err := store.List(ctx, metav1.ListOptions{})
+	require.NoError(t, err)
+	require.Len(t, list.Items, 2)
+
+	got, err := store.Get(ctx, "team-a")
+	require.NoError(t, err)
+	assert.Equal(t, "team-a", got.Name)
+
+	// Create is idempotent for any configured tenant; unknown names are unavailable.
+	require.NoError(t, store.Create(ctx, &tenantv1alpha1.Tenant{ObjectMeta: metav1.ObjectMeta{Name: "team-a"}}))
+	assert.ErrorIs(t, store.Create(ctx, &tenantv1alpha1.Tenant{ObjectMeta: metav1.ObjectMeta{Name: "team-b"}}), cmext.ErrCapabilityUnavailable)
+}
+
 // Guard against the sentinel drifting into a wrapped/renamed error.
 func TestErrCapabilityUnavailableIsSentinel(t *testing.T) {
 	err := core.NewConfigResourceCatalog(validPool()).Create(context.Background(), &cmv1alpha1.ResourcePool{})
