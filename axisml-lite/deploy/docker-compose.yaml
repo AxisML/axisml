@@ -58,7 +58,8 @@ services:
       - "8090:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      # cluster-manager pool definitions (runtime.PoolConfigDir = /etc/axisml/pools)
+      # cluster-manager pool + tenant definitions (PoolConfigDir = /etc/axisml/pools;
+      # resourcepools/*.yaml + tenants/*.yaml, one or more of each)
       - ./config:/etc/axisml/pools:ro
       - traefik-dynamic:/var/lib/axisml/traefik
     networks: [axisml-control]

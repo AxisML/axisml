@@ -123,8 +123,8 @@ func New(ctx context.Context, cfg Config, opts ...Option) (app *App, err error) 
 	} else if err = static.validate(); err != nil {
 		return nil, fmt.Errorf("validate static config: %w", err)
 	}
-	catalog := NewConfigResourceCatalog(static.Pool)
-	tenants := NewStaticTenantStore(static.Tenant)
+	catalog := NewConfigResourceCatalog(static.Pools...)
+	tenants := NewStaticTenantStore(static.Tenants...)
 
 	// DOCKER_HOST is read by the Docker SDK (client.FromEnv); no config key.
 	dcli, err := standalone.NewClient("")
@@ -138,16 +138,17 @@ func New(ctx context.Context, cfg Config, opts ...Option) (app *App, err error) 
 	}()
 	rt := standalone.New(dcli, standalone.Config{
 		WorkloadsNetwork: o.settings.WorkloadsNetwork,
-		Tenant:           DefaultName,
 		TraefikDir:       o.settings.GatewayConfigDir,
-		HostPathVolumes:  tenantHostPathVolumes(static.Tenant),
+		HostPathVolumes:  tenantsHostPathVolumes(static.Tenants),
 	}, log.WithName("runtime"))
 	if nerr := rt.EnsureNetwork(ctx); nerr != nil {
 		log.Error(nerr, "ensure workloads network (continuing)")
 	}
-	// Ensure the tenant's predefined data volumes exist before any workload
+	// Ensure every tenant's predefined data volumes exist before any workload
 	// reconcile mounts them (idempotent; safe on every boot).
-	seedTenantVolumes(ctx, rt, static.Tenant, log)
+	for _, t := range static.Tenants {
+		seedTenantVolumes(ctx, rt, t, log)
+	}
 
 	clusterMod := clustermodule.New(clustermodule.Deps{Pools: catalog, Tenants: tenants, Volumes: rt})
 	computeMod, err := computemodule.New(computemodule.Deps{

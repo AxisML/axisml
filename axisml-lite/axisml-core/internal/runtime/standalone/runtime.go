@@ -50,8 +50,6 @@ const (
 type Config struct {
 	// Network dynamic workloads join (Traefik also joins it to route them).
 	WorkloadsNetwork string
-	// Tenant is the fixed Lite tenant ("default").
-	Tenant string
 	// TraefikDir is the Traefik file-provider dynamic config directory.
 	TraefikDir string
 	// HostPathVolumes maps a predefined data volume's name (= the claim name a
@@ -79,9 +77,6 @@ var _ extensions.ComputeRuntime = (*Runtime)(nil)
 
 // New builds a Runtime from an existing Docker client.
 func New(cli *client.Client, cfg Config, log logr.Logger) *Runtime {
-	if cfg.Tenant == "" {
-		cfg.Tenant = "default"
-	}
 	return &Runtime{
 		cli:       cli,
 		cfg:       cfg,
@@ -128,14 +123,16 @@ func (r *Runtime) clearCancelled(namespace, name string) {
 	delete(r.cancelled, r.cancelKey(namespace, name))
 }
 
-// baseLabels returns the managed labels common to every resource of a kind.
+// baseLabels returns the managed labels common to every resource of a kind. The
+// tenant label mirrors the workload namespace: in Lite the tenant scope IS the
+// namespace (design §5.2).
 func (r *Runtime) baseLabels(kind, namespace, name string) map[string]string {
 	return map[string]string{
 		LabelManaged:      "true",
 		LabelResourceKind: kind,
 		LabelNamespace:    namespace,
 		LabelName:         name,
-		LabelTenant:       r.cfg.Tenant,
+		LabelTenant:       namespace,
 	}
 }
 

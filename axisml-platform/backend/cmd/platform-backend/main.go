@@ -3,7 +3,7 @@
 // artifacts) over HTTP and adds identity, RBAC, and orchestration.
 //
 // Subcommands: serve (HTTP API + probes), migrate (apply DB migrations),
-// bootstrap (migrate + seed the initial system-admin and import the default tenant).
+// bootstrap (migrate + seed the initial system-admin and import the System-defined tenants).
 package main
 
 import (
@@ -57,7 +57,7 @@ func main() {
 	}
 	bootstrap := &cobra.Command{
 		Use:   "bootstrap",
-		Short: "Migrate, then seed the initial system-admin and import the default tenant",
+		Short: "Migrate, then seed the initial system-admin and import the System-defined tenants",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg, err := load()
 			if err != nil {

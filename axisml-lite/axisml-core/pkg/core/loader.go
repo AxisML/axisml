@@ -1,143 +1,227 @@
 package core
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 
-	corev1 "k8s.io/api/core/v1"
+	utilyaml "k8s.io/apimachinery/pkg/util/yaml"
 	"sigs.k8s.io/yaml"
 
 	cmv1alpha1 "github.com/axisml/axisml/axisml-system/apis/resourcepool/v1alpha1"
 	tenantv1alpha1 "github.com/axisml/axisml/axisml-system/apis/tenant/v1alpha1"
 )
 
-// DefaultName is the single tenant / pool / namespace identity Lite supports.
-const DefaultName = "default"
+// Config subdirectory names under PoolConfigDir. Each holds one YAML file per
+// object; every *.yaml / *.yml file is loaded (design §5.1.1).
+const (
+	poolsSubdir   = "resourcepools"
+	tenantsSubdir = "tenants"
+)
 
 // StaticConfig is the immutable snapshot parsed from the CR-YAML config at
-// startup: the single default ResourcePool and Tenant (design §5.1.1). All
+// startup: one or more read-only ResourcePools and Tenants (design §5.1.1). All
 // config-backed providers read from this snapshot; changing it requires an
 // axisml-core restart.
 type StaticConfig struct {
-	Pool   *cmv1alpha1.ResourcePool
-	Tenant *tenantv1alpha1.Tenant
+	Pools   []*cmv1alpha1.ResourcePool
+	Tenants []*tenantv1alpha1.Tenant
 }
 
-// LoadStaticConfig reads resource-pool.yaml and tenant.yaml from dir, decodes
-// them with the AxisML API types and runs the cross-object validation. Any
-// failure leaves axisml-core not-ready (design §5.1.1).
+// LoadStaticConfig reads every ResourcePool under <dir>/resourcepools and every
+// Tenant under <dir>/tenants, decodes them with the AxisML API types and runs
+// the cross-object validation. Any failure leaves axisml-core not-ready
+// (design §5.1.1).
 func LoadStaticConfig(dir string) (*StaticConfig, error) {
-	pool, err := decodePool(filepath.Join(dir, "resource-pool.yaml"))
+	pools, err := loadDir[cmv1alpha1.ResourcePool](filepath.Join(dir, poolsSubdir), "resource pool")
 	if err != nil {
 		return nil, err
 	}
-	tenant, err := decodeTenant(filepath.Join(dir, "tenant.yaml"))
+	tenants, err := loadDir[tenantv1alpha1.Tenant](filepath.Join(dir, tenantsSubdir), "tenant")
 	if err != nil {
 		return nil, err
 	}
-	sc := &StaticConfig{Pool: pool, Tenant: tenant}
+	sc := &StaticConfig{Pools: pools, Tenants: tenants}
 	if err := sc.validate(); err != nil {
 		return nil, err
 	}
 	return sc, nil
 }
 
-func decodePool(path string) (*cmv1alpha1.ResourcePool, error) {
-	b, err := os.ReadFile(path)
+// yamlFiles returns the sorted *.yaml / *.yml paths directly under dir. Sorting
+// keeps the load order (and thus List order) deterministic across restarts.
+func yamlFiles(dir string) ([]string, error) {
+	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return nil, fmt.Errorf("read resource-pool config: %w", err)
+		return nil, err
 	}
-	var p cmv1alpha1.ResourcePool
-	if err := yaml.Unmarshal(b, &p); err != nil {
-		return nil, fmt.Errorf("decode resource-pool config: %w", err)
+	var out []string
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		if name := e.Name(); strings.HasSuffix(name, ".yaml") || strings.HasSuffix(name, ".yml") {
+			out = append(out, filepath.Join(dir, name))
+		}
 	}
-	return &p, nil
+	sort.Strings(out)
+	return out, nil
 }
 
-func decodeTenant(path string) (*tenantv1alpha1.Tenant, error) {
-	b, err := os.ReadFile(path)
+// loadDir decodes every YAML file under dir into a *T. kind names the object for
+// error messages ("resource pool" / "tenant").
+func loadDir[T any](dir, kind string) ([]*T, error) {
+	paths, err := yamlFiles(dir)
 	if err != nil {
-		return nil, fmt.Errorf("read tenant config: %w", err)
+		return nil, fmt.Errorf("read %s config dir %s: %w", kind, dir, err)
 	}
-	var t tenantv1alpha1.Tenant
-	if err := yaml.Unmarshal(b, &t); err != nil {
-		return nil, fmt.Errorf("decode tenant config: %w", err)
+	if len(paths) == 0 {
+		return nil, fmt.Errorf("no %s config found in %s", kind, dir)
 	}
-	return &t, nil
+	out := make([]*T, 0, len(paths))
+	for _, p := range paths {
+		obj, err := decodeObject[T](p, kind)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, obj)
+	}
+	return out, nil
 }
 
-// validate enforces the Lite config invariants (design §5.1.1).
-func (sc *StaticConfig) validate() error {
-	if sc.Pool.Name != DefaultName {
-		return fmt.Errorf("resource pool name must be %q, got %q", DefaultName, sc.Pool.Name)
+// decodeObject reads one CR-YAML file into a *T. Each file must hold exactly one
+// object (design §5.1.1); a file with multiple YAML documents is rejected rather
+// than silently loading only the first.
+func decodeObject[T any](path, kind string) (*T, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read %s config %s: %w", kind, path, err)
 	}
-	if sc.Tenant.Name != DefaultName {
-		return fmt.Errorf("tenant name must be %q, got %q", DefaultName, sc.Tenant.Name)
+	if err := singleDocument(b, path, kind); err != nil {
+		return nil, err
 	}
-	if sc.Tenant.Spec.Namespace.Name != DefaultName {
-		return fmt.Errorf("tenant namespace must be %q, got %q", DefaultName, sc.Tenant.Spec.Namespace.Name)
+	var obj T
+	if err := yaml.Unmarshal(b, &obj); err != nil {
+		return nil, fmt.Errorf("decode %s config %s: %w", kind, path, err)
 	}
-	if len(sc.Pool.Spec.NodeSelector) != 0 || len(sc.Pool.Spec.Tolerations) != 0 {
-		return fmt.Errorf("resource pool nodeSelector/tolerations must be empty in Lite")
-	}
-	// Lite has no tenant-operator to copy Secrets/ConfigMaps/ServiceAccounts, so
-	// those stay unsupported; predefined data volumes ARE supported — they are
-	// seeded as managed Docker volumes at startup (see seedTenantVolumes).
-	if !credentialInitResourcesEmpty(sc.Tenant.Spec.InitResources) {
-		return fmt.Errorf("tenant initResources secrets/configMaps/serviceAccounts must be empty in Lite; only volumes are supported")
-	}
-	if err := validateTenantVolumes(sc.Tenant.Spec.InitResources.Volumes); err != nil {
-		return err
-	}
+	return &obj, nil
+}
 
-	// Unit names unique + unit nodeSelector empty.
-	seen := map[string]struct{}{}
-	for _, u := range sc.Pool.Spec.Units {
-		if u.Name == "" {
-			return fmt.Errorf("resource unit name must not be empty")
-		}
-		if _, dup := seen[u.Name]; dup {
-			return fmt.Errorf("duplicate resource unit %q", u.Name)
-		}
-		seen[u.Name] = struct{}{}
-		if len(u.NodeSelector) != 0 {
-			return fmt.Errorf("resource unit %q nodeSelector must be empty in Lite", u.Name)
-		}
+// singleDocument rejects a config file that packs more than one YAML document,
+// which yaml.Unmarshal would otherwise collapse to its first document silently.
+// A decode error on the first document is left for the typed decode to report.
+func singleDocument(b []byte, path, kind string) error {
+	dec := utilyaml.NewYAMLOrJSONDecoder(bytes.NewReader(b), 4096)
+	var first map[string]any
+	if err := dec.Decode(&first); err != nil {
+		return nil // real errors surface in the typed decode
 	}
-
-	// Quotas must reference only the default pool.
-	if len(sc.Tenant.Spec.Quotas) == 0 {
-		return fmt.Errorf("tenant must declare a quota for pool %q", DefaultName)
-	}
-	var max corev1.ResourceList
-	for _, q := range sc.Tenant.Spec.Quotas {
-		if q.Pool != DefaultName {
-			return fmt.Errorf("tenant quota must reference pool %q, got %q", DefaultName, q.Pool)
-		}
-		max = q.Max
-	}
-
-	// Units must not exceed the declared quota max.
-	for _, u := range sc.Pool.Spec.Units {
-		if err := withinMax(u.Name, u.Requests, max); err != nil {
-			return err
-		}
-		if err := withinMax(u.Name, u.Limits, max); err != nil {
-			return err
-		}
+	var next map[string]any
+	if err := dec.Decode(&next); err == nil && len(next) > 0 {
+		return fmt.Errorf("%s config %s must contain exactly one object (found multiple YAML documents)", kind, path)
 	}
 	return nil
 }
 
-func withinMax(unit string, list, max corev1.ResourceList) error {
-	for name, q := range list {
-		m, ok := max[name]
-		if !ok {
-			continue // unconstrained dimension
+// validate enforces the Lite config invariants (design §5.1.1): unique pool /
+// tenant identities, a tenant namespace equal to its name, Lite-empty scheduling
+// fields, predefined-volume rules, and every tenant quota referencing an
+// existing pool.
+func (sc *StaticConfig) validate() error {
+	if len(sc.Pools) == 0 {
+		return fmt.Errorf("at least one resource pool must be defined")
+	}
+	if len(sc.Tenants) == 0 {
+		return fmt.Errorf("at least one tenant must be defined")
+	}
+
+	poolByName, err := validatePools(sc.Pools)
+	if err != nil {
+		return err
+	}
+	return validateTenants(sc.Tenants, poolByName)
+}
+
+// validatePools checks each pool's Lite invariants and returns a name→pool index
+// for the tenant quota cross-checks.
+func validatePools(pools []*cmv1alpha1.ResourcePool) (map[string]*cmv1alpha1.ResourcePool, error) {
+	poolByName := make(map[string]*cmv1alpha1.ResourcePool, len(pools))
+	for _, pool := range pools {
+		if pool.Name == "" {
+			return nil, fmt.Errorf("resource pool name must not be empty")
 		}
-		if q.Cmp(m) > 0 {
-			return fmt.Errorf("resource unit %q %s=%s exceeds quota max %s", unit, string(name), q.String(), m.String())
+		if _, dup := poolByName[pool.Name]; dup {
+			return nil, fmt.Errorf("duplicate resource pool %q", pool.Name)
+		}
+		poolByName[pool.Name] = pool
+
+		if len(pool.Spec.NodeSelector) != 0 || len(pool.Spec.Tolerations) != 0 {
+			return nil, fmt.Errorf("resource pool %q nodeSelector/tolerations must be empty in Lite", pool.Name)
+		}
+
+		seen := map[string]struct{}{}
+		for _, u := range pool.Spec.Units {
+			if u.Name == "" {
+				return nil, fmt.Errorf("resource pool %q: resource unit name must not be empty", pool.Name)
+			}
+			if _, dup := seen[u.Name]; dup {
+				return nil, fmt.Errorf("resource pool %q: duplicate resource unit %q", pool.Name, u.Name)
+			}
+			seen[u.Name] = struct{}{}
+			if len(u.NodeSelector) != 0 {
+				return nil, fmt.Errorf("resource pool %q: resource unit %q nodeSelector must be empty in Lite", pool.Name, u.Name)
+			}
+		}
+	}
+	return poolByName, nil
+}
+
+// validateTenants checks each tenant's Lite invariants (unique name, namespace
+// equal to name, credential-free initResources, predefined-volume rules) and
+// cross-references its quotas against poolByName. hostPathOwner tracks hostPath
+// volume names across all tenants: the Standalone Runtime looks them up in a
+// single name-keyed map (Config.HostPathVolumes), so they must be globally
+// unique even though managed volumes are namespaced per tenant.
+func validateTenants(tenants []*tenantv1alpha1.Tenant, poolByName map[string]*cmv1alpha1.ResourcePool) error {
+	tenantNames := map[string]struct{}{}
+	hostPathOwner := map[string]string{}
+	for _, tenant := range tenants {
+		if tenant.Name == "" {
+			return fmt.Errorf("tenant name must not be empty")
+		}
+		if _, dup := tenantNames[tenant.Name]; dup {
+			return fmt.Errorf("duplicate tenant %q", tenant.Name)
+		}
+		tenantNames[tenant.Name] = struct{}{}
+
+		// The Lite tenant scope IS the tenant name: the System contract defines the
+		// tenant name as the CR name, namespace, and partition string. Requiring
+		// them equal keeps Platform's namespace, the compute partition and the
+		// runtime label consistent (which also makes namespaces unique per tenant).
+		if ns := tenant.Spec.Namespace.Name; ns != tenant.Name {
+			return fmt.Errorf("tenant %q namespace %q must equal the tenant name", tenant.Name, ns)
+		}
+
+		// Lite has no tenant-operator to copy Secrets/ConfigMaps/ServiceAccounts, so
+		// those stay unsupported; predefined data volumes ARE supported — they are
+		// seeded as managed Docker volumes at startup (see seedTenantVolumes).
+		if !credentialInitResourcesEmpty(tenant.Spec.InitResources) {
+			return fmt.Errorf("tenant %q initResources secrets/configMaps/serviceAccounts must be empty in Lite; only volumes are supported", tenant.Name)
+		}
+		if err := validateTenantVolumes(tenant.Name, tenant.Spec.InitResources.Volumes, hostPathOwner); err != nil {
+			return err
+		}
+
+		if len(tenant.Spec.Quotas) == 0 {
+			return fmt.Errorf("tenant %q must declare at least one quota", tenant.Name)
+		}
+		for _, q := range tenant.Spec.Quotas {
+			if _, ok := poolByName[q.Pool]; !ok {
+				return fmt.Errorf("tenant %q quota references unknown pool %q", tenant.Name, q.Pool)
+			}
 		}
 	}
 	return nil
@@ -153,24 +237,32 @@ func credentialInitResourcesEmpty(ir tenantv1alpha1.InitResources) bool {
 		len(ir.ServiceAccounts) == 0
 }
 
-// validateTenantVolumes checks the predefined data volumes declared in Lite:
-// each needs a non-empty, unique name (it becomes the Docker volume / claim name
-// a workload mounts). A volume may set hostPath to bind-mount a host directory
-// instead of a managed Docker volume (Lite-only); the path must be absolute.
-// Size/storageClass/accessModes are accepted but ignored by the single-host
-// Docker runtime.
-func validateTenantVolumes(vols []tenantv1alpha1.VolumeSpec) error {
+// validateTenantVolumes checks a tenant's predefined data volumes: each needs a
+// non-empty name unique within the tenant (it becomes the Docker volume / claim
+// name a workload mounts). A volume may set hostPath to bind-mount a host
+// directory instead of a managed Docker volume (Lite-only); the path must be
+// absolute, and because hostPath volumes resolve through the runtime's single
+// name-keyed map, their names must be unique across ALL tenants (tracked in
+// hostPathOwner). Size/storageClass/accessModes are accepted but ignored by the
+// single-host Docker runtime.
+func validateTenantVolumes(tenant string, vols []tenantv1alpha1.VolumeSpec, hostPathOwner map[string]string) error {
 	seen := map[string]struct{}{}
 	for i, v := range vols {
 		if v.Name == "" {
-			return fmt.Errorf("tenant initResources.volumes[%d].name is required", i)
+			return fmt.Errorf("tenant %q initResources.volumes[%d].name is required", tenant, i)
 		}
 		if _, dup := seen[v.Name]; dup {
-			return fmt.Errorf("duplicate tenant volume %q", v.Name)
+			return fmt.Errorf("tenant %q duplicate volume %q", tenant, v.Name)
 		}
 		seen[v.Name] = struct{}{}
-		if v.HostPath != "" && !filepath.IsAbs(v.HostPath) {
-			return fmt.Errorf("tenant initResources.volumes[%d].hostPath %q must be an absolute path", i, v.HostPath)
+		if v.HostPath != "" {
+			if !filepath.IsAbs(v.HostPath) {
+				return fmt.Errorf("tenant %q initResources.volumes[%d].hostPath %q must be an absolute path", tenant, i, v.HostPath)
+			}
+			if other, ok := hostPathOwner[v.Name]; ok {
+				return fmt.Errorf("hostPath volume name %q is declared by tenants %q and %q; hostPath volume names must be unique across tenants", v.Name, other, tenant)
+			}
+			hostPathOwner[v.Name] = tenant
 		}
 	}
 	return nil

@@ -24,7 +24,7 @@ const (
 	DefaultDatasetBucket = "axisml-artifact-hub"
 
 	// Filesystem layout (fixed by the image / Compose mounts).
-	DefaultPoolConfigDir    = "/etc/axisml/pools"       // Cluster Manager pool + tenant YAML
+	DefaultPoolConfigDir    = "/etc/axisml/pools"       // Cluster Manager pool + tenant YAML (resourcepools/ + tenants/ subdirs)
 	DefaultGatewayConfigDir = "/var/lib/axisml/traefik" // Traefik file-provider dynamic config
 
 	// Docker network dynamic workloads join (Traefik also joins it). Shared
