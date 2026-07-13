@@ -207,3 +207,48 @@ func TestContainerNameSanitized(t *testing.T) {
 	name := r.containerName(KindRun, "default", "weird/name*here", "worker", 0)
 	assert.Regexp(t, `^[a-zA-Z0-9][a-zA-Z0-9_.-]*$`, name)
 }
+
+// The assigned GPU device indices must NOT be part of the spec hash: a re-apply
+// re-runs the allocator and would otherwise see a "changed" spec and rebuild the
+// running container every tick.
+func TestPlanIdentityExcludesGPUDeviceIDs(t *testing.T) {
+	base := ContainerPlan{
+		Image:     "busybox",
+		Resources: ResourcePlan{GPUCount: 1},
+	}
+	withDev := base
+	withDev.Resources.GPUDeviceIDs = []string{"0"}
+	otherDev := base
+	otherDev.Resources.GPUDeviceIDs = []string{"3"}
+
+	assert.Equal(t, specHash(planIdentity(&base)), specHash(planIdentity(&withDev)),
+		"assigning a device must not change the spec hash")
+	assert.Equal(t, specHash(planIdentity(&withDev)), specHash(planIdentity(&otherDev)),
+		"different assigned devices must yield the same spec hash")
+
+	// The GPU request count is still part of the identity.
+	twoCards := base
+	twoCards.Resources.GPUCount = 2
+	assert.NotEqual(t, specHash(planIdentity(&base)), specHash(planIdentity(&twoCards)),
+		"a different GPU request count must change the spec hash")
+}
+
+func TestToDockerBindsAssignedDevices(t *testing.T) {
+	p := ContainerPlan{
+		Image:     "busybox",
+		Resources: ResourcePlan{GPUCount: 2, GPUDeviceIDs: []string{"1", "3"}},
+	}
+	_, host, _ := p.toDocker("axisml-workloads")
+	require.Len(t, host.DeviceRequests, 1)
+	dr := host.DeviceRequests[0]
+	assert.Equal(t, "nvidia", dr.Driver)
+	assert.Equal(t, []string{"1", "3"}, dr.DeviceIDs)
+	assert.Equal(t, 0, dr.Count) // pinned by ID, never by count
+	assert.Equal(t, [][]string{{"gpu"}}, dr.Capabilities)
+
+	// A GPU request with no assigned devices produces no DeviceRequest — such a
+	// plan is held at admission and never reaches toDocker.
+	unassigned := ContainerPlan{Image: "busybox", Resources: ResourcePlan{GPUCount: 1}}
+	_, host2, _ := unassigned.toDocker("axisml-workloads")
+	assert.Empty(t, host2.DeviceRequests)
+}

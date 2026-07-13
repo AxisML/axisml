@@ -16,6 +16,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	eventsv1 "k8s.io/api/events/v1"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -146,9 +147,26 @@ func (r *KubernetesRuntime) ApplyMLService(ctx context.Context, desired *mlservi
 	if err != nil {
 		return err
 	}
+	// Skip the write when nothing changed: the reconciler re-applies every tick
+	// while a Service is Creating/Pending, and an unconditional Update would churn
+	// the apiserver (resourceVersion bumps → informer event storms).
+	if apiequality.Semantic.DeepEqual(cur.Spec, desired.Spec) && labelsMerged(cur.Labels, desired.Labels) {
+		return nil
+	}
 	cur.Spec = desired.Spec
 	mergeLabels(cur, desired.Labels)
 	return r.ctrl.Update(ctx, cur)
+}
+
+// labelsMerged reports whether every desired label is already present on cur
+// with the same value (i.e. mergeLabels would be a no-op).
+func labelsMerged(cur, desired map[string]string) bool {
+	for k, v := range desired {
+		if cur[k] != v {
+			return false
+		}
+	}
+	return true
 }
 
 func (r *KubernetesRuntime) ObserveMLService(ctx context.Context, key types.NamespacedName) (mlservicev1alpha1.MLServiceStatus, error) {

@@ -136,10 +136,15 @@ func New(ctx context.Context, cfg Config, opts ...Option) (app *App, err error) 
 			_ = dcli.Close()
 		}
 	}()
+	gpuDevices, err := standalone.ResolveGPUDevices(cfg.GPU.Devices)
+	if err != nil {
+		return nil, fmt.Errorf("resolve GPU devices: %w", err)
+	}
 	rt := standalone.New(dcli, standalone.Config{
 		WorkloadsNetwork: o.settings.WorkloadsNetwork,
 		TraefikDir:       o.settings.GatewayConfigDir,
 		HostPathVolumes:  tenantsHostPathVolumes(static.Tenants),
+		GPUDevices:       gpuDevices,
 	}, log.WithName("runtime"))
 	if nerr := rt.EnsureNetwork(ctx); nerr != nil {
 		log.Error(nerr, "ensure workloads network (continuing)")

@@ -56,7 +56,11 @@ func reflectGone(ctx context.Context, repo *Repository, j *store.MLRun) {
 			"phase":      string(StatusDeleted),
 			"deleted_at": now,
 		})
-	case StatusPending, StatusRunning:
+	case StatusRunning:
+		// A Run that was placed and running has vanished from under us (external
+		// delete). A Pending Run is deliberately NOT handled here: it is still
+		// being placed (no containers yet — e.g. waiting for a GPU), so Observe
+		// returning NotFound is expected and the reconciler keeps retrying.
 		next := mergeStatusFields(j.StatusJSON, func(s *server.MLRunStatus) {
 			s.Message = "external delete"
 			s.FinishedAt = &now

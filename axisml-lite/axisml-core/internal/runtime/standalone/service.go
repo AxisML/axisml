@@ -173,6 +173,7 @@ func (r *Runtime) ApplyMLService(ctx context.Context, desired *mlservicev1alpha1
 	// replicas skip by spec hash, missing ones are created) and converges the
 	// rest. Tearing created replicas back down would only reduce availability and
 	// force a full rebuild next apply.
+	var toCreate []*ContainerPlan
 	for i := range plans {
 		p := &plans[i]
 		wanted[p.Name] = struct{}{}
@@ -184,12 +185,14 @@ func (r *Runtime) ApplyMLService(ctx context.Context, desired *mlservicev1alpha1
 				return err
 			}
 		}
-		// Always attempt a pull; on failure fall back to a locally-present image.
-		if err := r.pullImage(ctx, p.Image); err != nil {
-			r.log.Info("image pull failed, trying local", "image", p.Image, "err", err.Error())
-		}
-		if _, err := r.createAndStart(ctx, p); err != nil {
-			r.events.record(KindService, ns, name, "", "ApplyFailed", err.Error())
+		toCreate = append(toCreate, p)
+	}
+	// GPU admission is atomic across the replicas being created: createPlans
+	// reserves a free card for each or returns ResourceUnavailable (keeping the
+	// Service Pending) without creating anything. Already-running replicas are
+	// untouched.
+	if len(toCreate) > 0 {
+		if err := r.createPlans(ctx, KindService, ns, name, toCreate); err != nil {
 			return err
 		}
 	}

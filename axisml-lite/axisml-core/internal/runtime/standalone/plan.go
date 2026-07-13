@@ -47,10 +47,14 @@ type MountPlan struct {
 }
 
 // ResourcePlan carries the cgroup limits + GPU request derived from the spec.
+// GPUDeviceIDs is the concrete set of physical card indices the allocator pinned
+// for this container; it is assigned at admission (not at render) and therefore
+// deliberately excluded from the spec hash (see planIdentity).
 type ResourcePlan struct {
-	NanoCPUs    int64
-	MemoryBytes int64
-	GPUCount    int
+	NanoCPUs     int64
+	MemoryBytes  int64
+	GPUCount     int
+	GPUDeviceIDs []string
 }
 
 // HealthPlan is an optional container healthcheck.
@@ -98,10 +102,10 @@ func (p *ContainerPlan) toDocker(net string) (*container.Config, *container.Host
 			Memory:   p.Resources.MemoryBytes,
 		},
 	}
-	if p.Resources.GPUCount > 0 {
+	if len(p.Resources.GPUDeviceIDs) > 0 {
 		host.DeviceRequests = []container.DeviceRequest{{
 			Driver:       "nvidia",
-			Count:        p.Resources.GPUCount,
+			DeviceIDs:    p.Resources.GPUDeviceIDs,
 			Capabilities: [][]string{{"gpu"}},
 		}}
 	}

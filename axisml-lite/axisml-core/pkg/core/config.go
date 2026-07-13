@@ -22,6 +22,14 @@ type Config struct {
 	axismlconfig.Common `mapstructure:",squash"`
 
 	OCI OCI `mapstructure:"oci"`
+	GPU GPU `mapstructure:"gpu"`
+}
+
+// GPU configures single-host GPU scheduling. Devices names the physical GPU
+// indices AxisML may schedule onto: a comma list ("0,1,2"), "all" for NVML
+// autodetection, or empty to disable GPU scheduling entirely.
+type GPU struct {
+	Devices string `mapstructure:"devices" doc:"Schedulable GPU device indices: comma list (0,1,2), 'all' for NVML autodetect, or empty to disable GPU"`
 }
 
 // OCI is the artifact registry (zot) connection. The scheme is derived from the

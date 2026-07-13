@@ -82,14 +82,28 @@ func (r *Reconciler) handleCreate(ctx context.Context, j *store.MLRun) {
 		r.log.Error(err, "render job CR")
 		return
 	}
+	// Pickup: a Creating row has left the queue and is now being placed → Pending
+	// (pulling the image / creating containers / waiting for resources all happen
+	// in Pending, never in Creating).
+	if Status(j.Phase) == StatusCreating {
+		if err := r.repo.Update(ctx, j.ID, map[string]any{"phase": string(StatusPending)}); err == nil {
+			j.Phase = string(StatusPending)
+		}
+	}
 	if err := r.runtime.ApplyMLRun(ctx, cr); err != nil {
-		r.log.Error(err, "apply MLRun", "name", j.Name)
-		// The error surfaces via status.message (a jsonb field); there is no
+		// The message surfaces via status.message (a jsonb field); there is no
 		// top-level `message` column.
 		next := mergeStatusFields(j.StatusJSON, func(s *server.MLRunStatus) {
 			s.Message = err.Error()
 		})
 		_ = r.repo.Update(ctx, j.ID, map[string]any{"status": next})
+		if extensions.IsResourceUnavailable(err) {
+			// Insufficient resources (e.g. no free GPU): expected, stay Pending and
+			// retry quietly on the next tick.
+			metrics.ReconcilerActions.WithLabelValues("mlrun", "creating", "pending").Inc()
+			return
+		}
+		r.log.Error(err, "apply MLRun", "name", j.Name)
 		metrics.ReconcilerActions.WithLabelValues("mlrun", "creating", "error").Inc()
 		return
 	}
