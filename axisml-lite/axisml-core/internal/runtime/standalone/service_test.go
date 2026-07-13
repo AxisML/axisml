@@ -64,7 +64,36 @@ func TestRenderServicePlans_HostPathVolumeSubPath(t *testing.T) {
 	require.Len(t, host.Mounts, 1)
 	assert.Equal(t, mount.TypeBind, host.Mounts[0].Type)
 	assert.Equal(t, "/data/host-datasets/images", host.Mounts[0].Source)
+	require.NotNil(t, host.Mounts[0].BindOptions)
+	assert.True(t, host.Mounts[0].BindOptions.CreateMountpoint)
 	assert.Nil(t, host.Mounts[0].VolumeOptions)
+}
+
+// TestRenderServicePlans_ReadOnlyHostPathVolumeSubPath verifies a missing
+// read-only subPath remains an error handled by Docker: the runtime must not ask
+// the daemon to create an empty directory for a potentially misspelled dataset
+// path.
+func TestRenderServicePlans_ReadOnlyHostPathVolumeSubPath(t *testing.T) {
+	r := New(nil, Config{
+		WorkloadsNetwork: "axisml-workloads",
+		HostPathVolumes:  map[string]string{"host-ds": "/data/host-datasets"},
+	}, logr.Discard())
+	svc := svcWithMount("host-ds", corev1.VolumeMount{
+		Name:      "data",
+		MountPath: "/data",
+		SubPath:   "images",
+		ReadOnly:  true,
+	})
+
+	plans, err := r.renderServicePlans(svc)
+	require.NoError(t, err)
+	require.Len(t, plans, 1)
+
+	_, host, _ := plans[0].toDocker("axisml-workloads")
+	require.Len(t, host.Mounts, 1)
+	assert.Equal(t, "/data/host-datasets/images", host.Mounts[0].Source)
+	assert.True(t, host.Mounts[0].ReadOnly)
+	assert.Nil(t, host.Mounts[0].BindOptions)
 }
 
 // TestRenderServicePlans_ManagedVolumeSubPath verifies subPath on a managed
@@ -183,6 +212,10 @@ func TestRenderServicePlans_HostPathVolume(t *testing.T) {
 	assert.Equal(t, "bind", m.Type)
 	assert.Equal(t, "/data/host-datasets", m.Source)
 	assert.Equal(t, "/data", m.Target)
+
+	_, host, _ := plans[0].toDocker("axisml-workloads")
+	require.Len(t, host.Mounts, 1)
+	assert.Nil(t, host.Mounts[0].BindOptions, "the registered workspace root itself must not be auto-created")
 }
 
 // TestServiceRoute_ApplyObserveDelete verifies spec.route renders a Traefik

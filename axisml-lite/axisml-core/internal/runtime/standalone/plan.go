@@ -140,6 +140,14 @@ func (p *ContainerPlan) toDocker(net string) (*container.Config, *container.Host
 			switch m.Type {
 			case "bind":
 				dm.Source = path.Join(m.Source, m.SubPath)
+				// axisml-core may itself run in a container with only the Docker
+				// socket mounted, so the daemon (rather than this process) must
+				// create a missing host-side subdirectory. Keep read-only mounts
+				// strict: a misspelled dataset subPath must fail instead of
+				// silently creating an empty directory.
+				if !m.ReadOnly {
+					dm.BindOptions = &mount.BindOptions{CreateMountpoint: true}
+				}
 			case "volume":
 				dm.VolumeOptions = &mount.VolumeOptions{Subpath: m.SubPath}
 			}
