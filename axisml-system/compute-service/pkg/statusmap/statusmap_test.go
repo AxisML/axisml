@@ -51,6 +51,19 @@ func TestMapRun_Transitions(t *testing.T) {
 	assert.Equal(t, fixedNow, *st.FinishedAt)
 }
 
+// A placement message (e.g. "waiting for GPU" set while Pending) must be cleared
+// once the workload is actually running/ready, so it does not linger on a live
+// Run/Service.
+func TestMapClearsPlacementMessageWhenPlaced(t *testing.T) {
+	_, st := MapRun(RunPending, RunStatus{Message: "等待可用 GPU（需 1，空闲 0）"},
+		mlrunv1alpha1.MLRunStatus{Phase: mlrunv1alpha1.PhaseRunning}, fixedNow)
+	assert.Empty(t, st.Message, "Run placement message should clear on Running")
+
+	_, ss := MapService(ServicePending, ServiceStatus{Message: "等待可用 GPU（需 1，空闲 0）"}, 1,
+		mlservicev1alpha1.MLServiceStatus{ReadyReplicas: 1})
+	assert.Empty(t, ss.Message, "Service placement message should clear on Ready")
+}
+
 func TestMapService_Transitions(t *testing.T) {
 	// desired == 0 -> Pending.
 	phase, _ := MapService(ServiceReady, ServiceStatus{}, 0, mlservicev1alpha1.MLServiceStatus{})

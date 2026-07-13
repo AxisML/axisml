@@ -74,22 +74,41 @@ func (r *Reconciler) handleCreate(ctx context.Context, s *store.MLService) {
 		r.log.Error(err, "render service CR")
 		return
 	}
-	if err := r.runtime.ApplyMLService(ctx, cr); err != nil {
-		r.log.Error(err, "apply MLService")
-		// The error surfaces via status.message (a jsonb field); there is no
-		// top-level `message` column.
-		var sf server.MLServiceStatus
-		if len(s.StatusJSON) > 0 {
-			_ = json.Unmarshal(s.StatusJSON, &sf)
+	// Pickup: a Creating row is now being placed → Pending (pull / create /
+	// wait-for-resources all happen in Pending, never in Creating).
+	if Status(s.Phase) == StatusCreating {
+		if err := r.repo.Update(ctx, s.ID, map[string]any{"phase": string(StatusPending)}); err == nil {
+			s.Phase = string(StatusPending)
 		}
-		sf.Message = err.Error()
-		b, _ := json.Marshal(sf)
-		_ = r.repo.Update(ctx, s.ID, map[string]any{"status": b})
+	}
+	if err := r.runtime.ApplyMLService(ctx, cr); err != nil {
+		// The message surfaces via status.message (a jsonb field); there is no
+		// top-level `message` column.
+		r.setStatusMessage(ctx, s, err.Error())
+		if extensions.IsResourceUnavailable(err) {
+			// No free GPU: stay Pending and retry quietly (retries flow through
+			// handleSpecSync since observed_generation stays behind generation).
+			metrics.ReconcilerActions.WithLabelValues("mlservice", "creating", "pending").Inc()
+			return
+		}
+		r.log.Error(err, "apply MLService")
 		metrics.ReconcilerActions.WithLabelValues("mlservice", "creating", "error").Inc()
 		return
 	}
 	_ = r.repo.Update(ctx, s.ID, map[string]any{"observed_generation": s.Generation})
 	metrics.ReconcilerActions.WithLabelValues("mlservice", "creating", "success").Inc()
+}
+
+// setStatusMessage merges a message into the row's status jsonb without touching
+// the other status fields.
+func (r *Reconciler) setStatusMessage(ctx context.Context, s *store.MLService, msg string) {
+	var sf server.MLServiceStatus
+	if len(s.StatusJSON) > 0 {
+		_ = json.Unmarshal(s.StatusJSON, &sf)
+	}
+	sf.Message = msg
+	b, _ := json.Marshal(sf)
+	_ = r.repo.Update(ctx, s.ID, map[string]any{"status": b})
 }
 
 func (r *Reconciler) handleDelete(ctx context.Context, s *store.MLService) {
@@ -120,6 +139,14 @@ func (r *Reconciler) handleSpecSync(ctx context.Context, s *store.MLService) {
 		return
 	}
 	if err := r.runtime.ApplyMLService(ctx, cr); err != nil {
+		if extensions.IsResourceUnavailable(err) {
+			// No free GPU for the (re)placement: leave the phase alone and retry
+			// quietly. This is the retry path for a Pending service waiting on a
+			// card (generation stays ahead of observed_generation until placed).
+			r.setStatusMessage(ctx, s, err.Error())
+			metrics.ReconcilerActions.WithLabelValues("mlservice", "spec_sync", "pending").Inc()
+			return
+		}
 		r.log.Error(err, "apply MLService spec")
 		metrics.ReconcilerActions.WithLabelValues("mlservice", "spec_sync", "error").Inc()
 		return

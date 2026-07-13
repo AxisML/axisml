@@ -87,6 +87,9 @@ func MapRun(curPhase string, cur RunStatus, observed mlrunv1alpha1.MLRunStatus, 
 			t := observed.StartedAt.Time
 			next.StartedAt = &t
 		}
+		// Clear any placement message (e.g. "waiting for GPU") now that the Run
+		// is actually running.
+		next.Message = ""
 	case mlrunv1alpha1.PhaseSucceeded:
 		phase = RunSucceeded
 		t := terminalTime(observed.FinishedAt, now)
@@ -132,6 +135,11 @@ func MapService(curPhase string, cur ServiceStatus, desiredReplicas int32, obser
 	next.Endpoint = observed.Endpoint
 	if observed.Phase == mlservicev1alpha1.PhaseFailed && observed.Message != "" {
 		next.Message = observed.Message
+	}
+	if phase == ServiceReady {
+		// Clear any placement message (e.g. "waiting for GPU") now that the
+		// Service is ready.
+		next.Message = ""
 	}
 	return phase, next
 }

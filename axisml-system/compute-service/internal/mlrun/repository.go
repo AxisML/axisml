@@ -141,8 +141,13 @@ const workSetBatch = 100
 
 func (r *Repository) FindWorkSet(ctx context.Context) (WorkSet, error) {
 	var ws WorkSet
+	// Both Creating (queued) and Pending (being placed / waiting for resources)
+	// rows are driven by handleCreate: a workload that cannot yet be placed —
+	// e.g. no free GPU — sits in Pending and is retried every tick until a card
+	// frees up. ApplyMLRun is idempotent, so re-applying a Pending row whose
+	// containers already exist is a no-op.
 	if err := r.db.WithContext(ctx).
-		Where("phase = ? AND deleted_at IS NULL", string(StatusCreating)).
+		Where("phase IN ? AND deleted_at IS NULL", []string{string(StatusCreating), string(StatusPending)}).
 		Order("updated_at ASC").Limit(workSetBatch).
 		Find(&ws.Creating).Error; err != nil {
 		return ws, err

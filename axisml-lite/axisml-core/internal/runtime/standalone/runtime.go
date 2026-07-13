@@ -40,6 +40,7 @@ const (
 	LabelRole         = "io.axisml.role"
 	LabelTenant       = "io.axisml.tenant"
 	LabelSpecHash     = "io.axisml.spec-hash"
+	LabelGPUDevices   = "io.axisml.gpu-devices"
 
 	KindRun     = "run"
 	KindService = "service"
@@ -57,6 +58,10 @@ type Config struct {
 	// by name gets the host path bind-mounted instead of a managed Docker volume.
 	// Seeded from Tenant.spec.initResources.volumes[] entries that set hostPath.
 	HostPathVolumes map[string]string
+	// GPUDevices is the set of physical GPU indices the host has handed to
+	// AxisML for scheduling. Empty disables GPU scheduling (GPU workloads stay
+	// Pending). Resolved from AXISML_GPU_DEVICES via ResolveGPUDevices.
+	GPUDevices []int
 }
 
 // Runtime implements extensions.ComputeRuntime over the Docker Engine API.
@@ -71,6 +76,9 @@ type Runtime struct {
 	// a stopped container is otherwise indistinguishable from a failure.
 	mu        sync.Mutex
 	cancelled map[string]bool
+
+	// gpu serialises GPU admission and holds the schedulable device set.
+	gpu *gpuAllocator
 }
 
 var _ extensions.ComputeRuntime = (*Runtime)(nil)
@@ -83,6 +91,7 @@ func New(cli *client.Client, cfg Config, log logr.Logger) *Runtime {
 		log:       log,
 		events:    newEventRing(512),
 		cancelled: map[string]bool{},
+		gpu:       newGPUAllocator(cfg.GPUDevices),
 	}
 }
 

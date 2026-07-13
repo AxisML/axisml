@@ -67,19 +67,34 @@ func (r *Runtime) renderRunPlans(run *mlrunv1alpha1.MLRun) ([]ContainerPlan, err
 }
 
 // planIdentity is the change-detection projection of a plan (everything but the
-// stable name/labels), so an unchanged spec does not rebuild the container.
+// stable name/labels), so an unchanged spec does not rebuild the container. The
+// GPU *request* (GPUCount) is part of the identity; the *assigned* device indices
+// (GPUDeviceIDs) are NOT — they are chosen at admission and would otherwise churn
+// a running container on every re-apply.
 func planIdentity(p *ContainerPlan) any {
 	return struct {
-		Image         string
-		Command       []string
-		Args          []string
-		Env           []string
-		WorkingDir    string
-		Ports         []PortPlan
-		Mounts        []MountPlan
-		Resources     ResourcePlan
+		Image      string
+		Command    []string
+		Args       []string
+		Env        []string
+		WorkingDir string
+		Ports      []PortPlan
+		Mounts     []MountPlan
+		Resources  struct {
+			NanoCPUs    int64
+			MemoryBytes int64
+			GPUCount    int
+		}
 		RestartPolicy string
-	}{p.Image, p.Command, p.Args, p.Env, p.WorkingDir, p.Ports, p.Mounts, p.Resources, p.RestartPolicy}
+	}{
+		p.Image, p.Command, p.Args, p.Env, p.WorkingDir, p.Ports, p.Mounts,
+		struct {
+			NanoCPUs    int64
+			MemoryBytes int64
+			GPUCount    int
+		}{p.Resources.NanoCPUs, p.Resources.MemoryBytes, p.Resources.GPUCount},
+		p.RestartPolicy,
+	}
 }
 
 // ApplyMLRun renders and idempotently converges the Run's containers. A Run's
@@ -115,7 +130,7 @@ func (r *Runtime) ApplyMLRun(ctx context.Context, desired *mlrunv1alpha1.MLRun) 
 		}
 	}
 
-	var created []string
+	var toCreate []*ContainerPlan
 	for i := range plans {
 		p := &plans[i]
 		if cur, ok := byName[p.Name]; ok {
@@ -126,20 +141,18 @@ func (r *Runtime) ApplyMLRun(ctx context.Context, desired *mlrunv1alpha1.MLRun) 
 				return err
 			}
 		}
-		// Always attempt a pull; on failure fall back to a locally-present image.
-		if err := r.pullImage(ctx, p.Image); err != nil {
-			r.log.Info("image pull failed, trying local", "image", p.Image, "err", err.Error())
-		}
-		id, err := r.createAndStart(ctx, p)
-		if err != nil {
-			r.events.record(KindRun, ns, name, "", "ApplyFailed", err.Error())
-			return err
-		}
-		created = append(created, id)
+		toCreate = append(toCreate, p)
 	}
-	if len(created) > 0 {
-		r.events.record(KindRun, ns, name, "", "Created", "run containers created")
+	if len(toCreate) == 0 {
+		return nil
 	}
+	// GPU admission is atomic across the whole workload: createPlans reserves a
+	// free card for every GPU plan or returns ResourceUnavailable (which keeps
+	// the Run Pending) without creating anything.
+	if err := r.createPlans(ctx, KindRun, ns, name, toCreate); err != nil {
+		return err
+	}
+	r.events.record(KindRun, ns, name, "", "Created", "run containers created")
 	return nil
 }
 

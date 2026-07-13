@@ -55,7 +55,11 @@ func reflectGone(ctx context.Context, repo *Repository, row *store.MLService) {
 			"phase":      string(StatusDeleted),
 			"deleted_at": now,
 		})
-	case StatusPending, StatusReady, StatusDegraded, StatusFailed:
+	case StatusReady, StatusDegraded, StatusFailed:
+		// A Service that was placed (had containers) has vanished externally. A
+		// Pending Service is deliberately excluded: it is still being placed (no
+		// containers yet — e.g. waiting for a GPU), so Observe returning NotFound
+		// is expected and the reconciler keeps retrying rather than tearing it down.
 		var sf server.MLServiceStatus
 		if len(row.StatusJSON) > 0 {
 			_ = json.Unmarshal(row.StatusJSON, &sf)
