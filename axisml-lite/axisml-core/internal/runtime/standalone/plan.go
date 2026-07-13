@@ -102,10 +102,20 @@ func (p *ContainerPlan) toDocker(net string) (*container.Config, *container.Host
 			Memory:   p.Resources.MemoryBytes,
 		},
 	}
-	if len(p.Resources.GPUDeviceIDs) > 0 {
+	switch {
+	case len(p.Resources.GPUDeviceIDs) > 0:
+		// Managed mode: pinned to specific cards the allocator reserved.
 		host.DeviceRequests = []container.DeviceRequest{{
 			Driver:       "nvidia",
 			DeviceIDs:    p.Resources.GPUDeviceIDs,
+			Capabilities: [][]string{{"gpu"}},
+		}}
+	case p.Resources.GPUCount > 0:
+		// Unmanaged mode (AXISML_GPU_DEVICES unset): Docker's default count-based
+		// request — the NVIDIA runtime picks the cards.
+		host.DeviceRequests = []container.DeviceRequest{{
+			Driver:       "nvidia",
+			Count:        p.Resources.GPUCount,
 			Capabilities: [][]string{{"gpu"}},
 		}}
 	}
