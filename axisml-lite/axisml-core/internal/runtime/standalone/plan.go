@@ -2,6 +2,7 @@ package standalone
 
 import (
 	"fmt"
+	"path"
 	"strconv"
 	"time"
 
@@ -38,11 +39,17 @@ type PortPlan struct {
 	Protocol      string // "tcp" | "udp"
 }
 
-// MountPlan is a volume or bind mount.
+// MountPlan is a volume or bind mount. SubPath, when set, mounts only that
+// subdirectory of the source (the volume root or host directory) at Target
+// instead of the whole volume — so several runs can share one volume and each
+// see a different subtree. It is always a cleaned, relative path (no leading
+// "/" and no ".." escape); volumeMounts validates it before constructing the
+// plan.
 type MountPlan struct {
 	Type     string // "volume" | "bind"
 	Source   string
 	Target   string
+	SubPath  string
 	ReadOnly bool
 }
 
@@ -120,12 +127,24 @@ func (p *ContainerPlan) toDocker(net string) (*container.Config, *container.Host
 		}}
 	}
 	for _, m := range p.Mounts {
-		host.Mounts = append(host.Mounts, mount.Mount{
+		dm := mount.Mount{
 			Type:     mount.Type(m.Type),
 			Source:   m.Source,
 			Target:   m.Target,
 			ReadOnly: m.ReadOnly,
-		})
+		}
+		if m.SubPath != "" {
+			// A bind mount has no subpath option, so resolve it into the source
+			// host path; a named volume carries it as a VolumeOptions.Subpath so
+			// Docker mounts the subtree of the shared volume.
+			switch m.Type {
+			case "bind":
+				dm.Source = path.Join(m.Source, m.SubPath)
+			case "volume":
+				dm.VolumeOptions = &mount.VolumeOptions{Subpath: m.SubPath}
+			}
+		}
+		host.Mounts = append(host.Mounts, dm)
 	}
 
 	netCfg := &network.NetworkingConfig{

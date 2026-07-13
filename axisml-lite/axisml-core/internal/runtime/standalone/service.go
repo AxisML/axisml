@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"path"
+	"strings"
 
 	"github.com/docker/docker/api/types/container"
 	corev1 "k8s.io/api/core/v1"
@@ -93,11 +95,16 @@ func (r *Runtime) volumeMounts(namespace, name string, volumes []corev1.Volume, 
 		if !ok {
 			return nil, capabilityError("volumeMount %q references an undeclared volume", vm.Name)
 		}
+		subPath, err := validateSubPath(vm)
+		if err != nil {
+			return nil, err
+		}
 		if hp := r.hostPathFor(vol); hp != "" {
 			mounts = append(mounts, MountPlan{
 				Type:     "bind",
 				Source:   hp,
 				Target:   vm.MountPath,
+				SubPath:  subPath,
 				ReadOnly: vm.ReadOnly,
 			})
 			continue
@@ -110,10 +117,33 @@ func (r *Runtime) volumeMounts(namespace, name string, volumes []corev1.Volume, 
 			Type:     "volume",
 			Source:   source,
 			Target:   vm.MountPath,
+			SubPath:  subPath,
 			ReadOnly: vm.ReadOnly,
 		})
 	}
 	return mounts, nil
+}
+
+// validateSubPath returns the cleaned subPath to mount for a volumeMount, or a
+// CapabilityError when the request names a sub-mount form Lite can't honour. A
+// subPath must be relative and stay inside the volume; a ".." escape or an
+// absolute path is rejected rather than silently clamped. subPathExpr (which
+// needs env/downward-API expansion Lite does not perform) is unsupported.
+func validateSubPath(vm corev1.VolumeMount) (string, error) {
+	if vm.SubPathExpr != "" {
+		return "", capabilityError("volumeMount %q subPathExpr is unsupported in Lite", vm.Name)
+	}
+	if vm.SubPath == "" {
+		return "", nil
+	}
+	if path.IsAbs(vm.SubPath) {
+		return "", capabilityError("volumeMount %q subPath %q must be relative", vm.Name, vm.SubPath)
+	}
+	clean := path.Clean(vm.SubPath)
+	if clean == ".." || strings.HasPrefix(clean, "../") {
+		return "", capabilityError("volumeMount %q subPath %q must not escape the volume", vm.Name, vm.SubPath)
+	}
+	return clean, nil
 }
 
 // hostPathFor returns the host directory to bind-mount for a declared volume, or

@@ -402,6 +402,7 @@ spec:
 - `Tenant.spec.initResources` 中的凭证类资源（`secrets` / `configMaps` / `serviceAccounts` / `imagePullSecrets`）必须为空——Standalone 没有租户算子来复制它们，workload 凭证由 Runtime Controller 按需创建。`initResources.volumes` 例外且受支持，有两种形态：
   - 默认（受管卷）：声明的每个预定义数据卷在启动时被幂等地 ensure 成一个受管 Docker named volume（`seedTenantVolumes`），从而在任何 workload 挂载前就已存在；ensure 幂等且不擦内容，每次启动重复执行都安全。受管卷按 tenant namespace 命名空间化，故不同租户可重名。
   - `hostPath`（仅 Lite）：卷设置 `hostPath: <绝对路径>` 时不建 Docker 卷，而是把宿主机目录 bind-mount 进 workload。启动时把「卷名 → hostPath」注册进 `Runtime.Config.HostPathVolumes`；workload 仍按 claim name 引用该卷（与普通数据卷同一种引用形态），Runtime 解析挂载时据注册表将其渲染为 `Type:"bind"`。宿主机目录须在 **Docker 宿主机**上预先存在：runtime 走 `--mount`（`HostConfig.Mounts`）语义，源路径缺失时 Docker **不自动创建、而是报错**，workload 容器启动失败（错误进入 Run/Service status 与 events），即失败可见、不会静默挂空目录。`axisml-core` 自身跑在容器内、无法可靠 stat 或创建宿主机路径，故只校验路径为绝对路径，不校验其存在性。由于 hostPath 卷在全局 `HostPathVolumes` 名字表中解析（不按 namespace 区分），其**卷名在所有租户间必须唯一**，加载期校验。多租户的 Standard 形态**拒绝** hostPath（tenant-operator 校验阶段报错），因为它破坏租户隔离、把 workload 钉到节点，且没有集群级「确保存在」语义。
+- `volumeMount.subPath` 受支持，作用于上述两种卷形态：只把卷（受管卷根或 hostPath 目录）下的该子目录挂到 `mountPath`，从而多个 Run/Service **共享同一个卷、各自看到不同子树**，无需为每个子目录单独声明一个卷。受管卷经 Docker `VolumeOptions.Subpath` 挂子树；hostPath 卷则把 subPath 拼进 bind 源路径。subPath 必须是相对路径且不得以 `..` 逃逸出卷——越界或绝对路径在渲染期报 `CapabilityError`（映射为 409），不静默截断；`subPathExpr` 需要环境变量/downward-API 展开，Lite 不支持，同样报 `CapabilityError`。
 - 配置不得包含 `status`、`metadata.uid`、`resourceVersion`、`generation` 或 `managedFields` 等 apiserver 生成字段。
 - 任一对象校验失败时 `axisml-core` 保持 not ready。
 
