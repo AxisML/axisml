@@ -133,6 +133,48 @@ func TestRenderRunPlans_VolumeMounts(t *testing.T) {
 	assert.True(t, m.ReadOnly)
 }
 
+func TestRenderRunPlans_WritableHostPathSubPathCreatesMountpoint(t *testing.T) {
+	r := New(nil, Config{
+		WorkloadsNetwork: "axisml-workloads",
+		HostPathVolumes:  map[string]string{"default-workspaces": "/host/data/tenants/default/workspaces"},
+	}, logr.Discard())
+	run := &mlrunv1alpha1.MLRun{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "hello-world-1"},
+		Spec: mlrunv1alpha1.MLRunSpec{
+			Backend: mlrunv1alpha1.BackendSpec{Name: "native", Engine: "job"},
+			Roles: []mlrunv1alpha1.RoleSpec{{
+				Name:     "worker",
+				Replicas: 1,
+				Template: mlrunv1alpha1.PodTemplateSubset{
+					Image: "busybox",
+					Volumes: []corev1.Volume{{
+						Name: "workspaces",
+						VolumeSource: corev1.VolumeSource{
+							PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{ClaimName: "default-workspaces"},
+						},
+					}},
+					VolumeMounts: []corev1.VolumeMount{{
+						Name:      "workspaces",
+						MountPath: "/workspaces",
+						SubPath:   "hello-world-1",
+					}},
+				},
+			}},
+		},
+	}
+
+	plans, err := r.renderRunPlans(run)
+	require.NoError(t, err)
+	require.Len(t, plans, 1)
+
+	_, host, _ := plans[0].toDocker("axisml-workloads")
+	require.Len(t, host.Mounts, 1)
+	assert.Equal(t, "/host/data/tenants/default/workspaces/hello-world-1", host.Mounts[0].Source)
+	assert.Equal(t, "/workspaces", host.Mounts[0].Target)
+	require.NotNil(t, host.Mounts[0].BindOptions)
+	assert.True(t, host.Mounts[0].BindOptions.CreateMountpoint)
+}
+
 func TestRenderRunPlans_VolumeMountUndeclared(t *testing.T) {
 	r := testRuntime()
 	run := &mlrunv1alpha1.MLRun{
