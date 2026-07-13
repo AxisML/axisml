@@ -246,9 +246,11 @@ func TestToDockerBindsAssignedDevices(t *testing.T) {
 	assert.Equal(t, 0, dr.Count) // pinned by ID, never by count
 	assert.Equal(t, [][]string{{"gpu"}}, dr.Capabilities)
 
-	// A GPU request with no assigned devices produces no DeviceRequest — such a
-	// plan is held at admission and never reaches toDocker.
-	unassigned := ContainerPlan{Image: "busybox", Resources: ResourcePlan{GPUCount: 1}}
+	// Unmanaged mode (AXISML_GPU_DEVICES unset): a GPU request with no assigned
+	// devices falls back to Docker's default count-based request.
+	unassigned := ContainerPlan{Image: "busybox", Resources: ResourcePlan{GPUCount: 2}}
 	_, host2, _ := unassigned.toDocker("axisml-workloads")
-	assert.Empty(t, host2.DeviceRequests)
+	require.Len(t, host2.DeviceRequests, 1)
+	assert.Equal(t, 2, host2.DeviceRequests[0].Count)
+	assert.Empty(t, host2.DeviceRequests[0].DeviceIDs)
 }

@@ -40,15 +40,13 @@ func newGPUAllocator(devices []int) *gpuAllocator {
 }
 
 // ResolveGPUDevices parses the AXISML_GPU_DEVICES value into the set of
-// schedulable physical GPU indices: empty disables GPU scheduling, "all" runs
-// NVML autodetection, and a comma list ("0,1,2") selects explicit indices.
+// schedulable physical GPU indices. A comma list ("0,1,2") turns on managed
+// scheduling over exactly those cards; empty turns managed scheduling OFF, in
+// which case GPU workloads fall back to Docker's default count-based request.
 func ResolveGPUDevices(spec string) ([]int, error) {
 	spec = strings.TrimSpace(spec)
 	if spec == "" {
 		return nil, nil
-	}
-	if strings.EqualFold(spec, "all") {
-		return detectAllGPUs()
 	}
 	seen := map[int]bool{}
 	var out []int
@@ -203,19 +201,16 @@ func (r *Runtime) assignGPUsLocked(ctx context.Context, cli gpuDockerClient, toC
 	return nil
 }
 
-// computeAssignment is the pure allocation core: given the schedulable card set,
-// the currently-busy indices, the count of GPUs held by legacy (label-less)
-// containers, and the per-plan GPU needs, it returns the concrete indices to pin
-// per plan. It returns a ResourceUnavailableError — distinguishing "GPU disabled",
-// "request exceeds capacity" (infeasible) and "no free card right now"
+// computeAssignment is the pure allocation core (managed mode only): given the
+// schedulable card set, the currently-busy indices, the count of GPUs held by
+// label-less containers, and the per-plan GPU needs, it returns the concrete
+// indices to pin per plan. It returns a ResourceUnavailableError — distinguishing
+// "request exceeds capacity" (infeasible) from "no free card right now"
 // (transient) — without allocating any card when capacity is insufficient.
 func computeAssignment(schedulable []int, busy map[int]struct{}, untracked int, needs []int) ([][]int, error) {
 	total := 0
 	for _, n := range needs {
 		total += n
-	}
-	if len(schedulable) == 0 {
-		return nil, extensions.NewResourceUnavailable("GPU 调度未启用（设置 AXISML_GPU_DEVICES）")
 	}
 	if total > len(schedulable) {
 		return nil, extensions.NewResourceUnavailable("请求 %d 张 GPU 超过可调度容量 %d", total, len(schedulable))
@@ -260,11 +255,14 @@ func (r *Runtime) createPlans(ctx context.Context, kind, namespace, name string,
 			r.log.Info("image pull failed, trying local", "image", p.Image, "err", err.Error())
 		}
 	}
+	// Managed GPU scheduling only kicks in when AXISML_GPU_DEVICES names a card
+	// set. Otherwise GPU plans keep their count-based request and Docker's NVIDIA
+	// runtime picks the cards (toDocker falls back to DeviceRequest.Count).
 	need := 0
 	for _, p := range toCreate {
 		need += p.Resources.GPUCount
 	}
-	if need > 0 {
+	if need > 0 && len(r.gpu.schedulable) > 0 {
 		r.gpu.mu.Lock()
 		defer r.gpu.mu.Unlock()
 		if err := r.assignGPUsLocked(ctx, r.cli, toCreate); err != nil {

@@ -3,7 +3,6 @@ module github.com/axisml/axisml/axisml-lite/axisml-core
 go 1.26.0
 
 require (
-	github.com/NVIDIA/go-nvml v0.13.3-1
 	github.com/axisml/axisml/axisml-system/artifact-hub v0.0.0
 	github.com/axisml/axisml/axisml-system/cluster-manager v0.0.0
 	github.com/axisml/axisml/axisml-system/compute-service v0.0.0

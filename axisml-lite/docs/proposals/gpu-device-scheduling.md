@@ -4,11 +4,12 @@
 
 ## 1. 目标
 
-1. **可配置哪些卡用于调度**：管理员声明本机哪几张物理卡交给 AxisML 调度，其余保留。
-2. **按空闲卡调度**：创建 workload 时把它绑定到未被占用的物理卡；无足够空闲卡则停在 `Pending`，
-   卡空出后自动拉起，不超卖、不直接失败。
+1. **可配置哪些卡用于调度**：管理员声明本机哪几张物理卡交给 AxisML 托管调度，其余保留。
+2. **按空闲卡调度**：托管模式下创建 workload 时把它绑定到未被占用的物理卡；无足够空闲卡则停在
+   `Pending`，卡空出后自动拉起，不超卖、不直接失败。
 
-只做整卡独占调度。
+只做整卡独占调度。不配置 `AXISML_GPU_DEVICES` 时不启用托管调度，GPU workload 保持 Docker 默认的
+按数量请求（行为同引入本特性前）。
 
 ## 2. 可调度 GPU 设备配置
 
@@ -16,22 +17,19 @@ GPU 设备是单台宿主机的物理属性，配置放在进程级 `AXISML_` en
 ResourcePool CR。
 
 ```
-AXISML_GPU_DEVICES=0,1,2     # 交给 AxisML 调度的物理卡 index 列表
-AXISML_GPU_DEVICES=all       # 用 NVML 探测本机全部可用卡并托管
-# 不设置                       # 不启用 GPU
+AXISML_GPU_DEVICES=0,1,2     # 托管调度：只在这几张物理卡上按空闲绑卡
+# 不设置                       # 不启用托管调度：GPU workload 走 Docker 默认按数量请求
 ```
 
-| 取值 | 可调度卡集合 | 效果 |
-|---|---|---|
-| 未设置 / 空 | 空集 | 不启用 GPU。请求 GPU 的 workload → `Pending`，message="GPU 调度未启用（设置 AXISML_GPU_DEVICES）" |
-| `all` | NVML 探测的全部可用卡 | 全部托管 |
-| `0,1,2` | 指定索引 | 只在这些卡上调度，其余卡不碰 |
+| 取值 | 效果 |
+|---|---|
+| 未设置 / 空 | **不启用托管调度**。GPU workload 用 Docker 默认 `DeviceRequest{Count:N}`，由 NVIDIA runtime 选卡（可超卖，行为同引入本特性前） |
+| `0,1,2` | **托管调度**：只在这些索引的卡上按空闲绑卡，无空闲则 `Pending`；其余卡不碰 |
 
-- `standalone.Config.GPUDevices` 启动时解析为 `[]int`：`all` 走 NVML（`github.com/NVIDIA/go-nvml`）枚举，
-  索引列表直接解析（去重、非负校验，解析失败即启动报错）。
-- NVML 探测失败或无卡时集合为空（GPU workload 停在 `Pending` 并给出 message），不 panic。
-- 绑卡用卡的 index（Docker `DeviceRequest.DeviceIDs` 接受）；NVML 路径保留 index→UUID 映射，供需要稳定
-  绑定时切换为 UUID（同一字段接受 `GPU-<uuid>`）。
+- `standalone.Config.GPUDevices` 启动时把该字符串解析为 `[]int`（去重、非负校验，解析失败即启动报错）；
+  为空即托管调度关闭。不做 NVML/自动探测——由管理员按机器实际卡数显式列出。
+- 托管模式绑卡用卡的 index（Docker `DeviceRequest.DeviceIDs` 接受），后续如需可无缝切到 GPU UUID
+  （同一字段接受 `GPU-<uuid>`）。
 
 ## 3. GPU 分配器（`internal/runtime/standalone/gpu.go`）
 
@@ -78,25 +76,32 @@ func (a *gpuAllocator) allocate(ctx, needPerPlan []int) ([][]int, error)
 - **不重复计己方**：re-apply 时本 workload 已建副本按占用计入，只为尚未建的 plan 分配。
 - **并发**：Run 与 Service 共用同一 `Runtime` 单例与同一把 `mu`，串行化"算空闲 → 绑定 → 创建"临界区；
   非 GPU workload 不走锁；镜像 pull 在临界区外。
-- **无标签的遗留 GPU 容器**：存活、托管、`limits` 含 `nvidia.com/gpu>0` 但无 `io.axisml.gpu-devices`
-  标签者，按其请求数从可调度容量保守扣减。
+- **无标签的 GPU 容器**（非托管模式下用 `Count` 建的、或本特性之前遗留的）：存活、托管、`limits` 含
+  `nvidia.com/gpu>0` 但无 `io.axisml.gpu-devices` 标签者，按其请求数从可调度容量保守扣减，避免切到托管
+  模式后与它们撞卡。
 
 ## 4. 绑卡
 
-`ResourcePlan` 增加 `GPUDeviceIDs []string`；`toDocker` 据此绑定具体卡：
+`ResourcePlan` 增加 `GPUDeviceIDs []string`；`toDocker` 分两种模式：
 
 ```go
-if len(p.Resources.GPUDeviceIDs) > 0 {
+switch {
+case len(p.Resources.GPUDeviceIDs) > 0: // 托管：绑定分配器选的具体卡
     host.DeviceRequests = []container.DeviceRequest{{
-        Driver:       "nvidia",
-        DeviceIDs:    p.Resources.GPUDeviceIDs,   // 如 ["0","2"]
+        Driver: "nvidia", DeviceIDs: p.Resources.GPUDeviceIDs, // 如 ["0","2"]
+        Capabilities: [][]string{{"gpu"}},
+    }}
+case p.Resources.GPUCount > 0: // 非托管：Docker 默认按数量，由 NVIDIA runtime 选卡
+    host.DeviceRequests = []container.DeviceRequest{{
+        Driver: "nvidia", Count: p.Resources.GPUCount,
         Capabilities: [][]string{{"gpu"}},
     }}
 }
 ```
 
-流程：渲染 plan（从 `limits` 得 GPU 需求数）→ 分配器挑出 index → 写入 `plan.Resources.GPUDeviceIDs` 与
-`io.axisml.gpu-devices` 标签 → 创建容器。GPU 请求全程经分配器，拿到卡才创建。
+流程：`createPlans` 只在 `AXISML_GPU_DEVICES` 非空（托管模式）时走分配器——渲染 plan（从 `limits` 得
+GPU 需求数）→ 分配器挑出 index → 写入 `plan.Resources.GPUDeviceIDs` 与 `io.axisml.gpu-devices` 标签 →
+拿到卡才创建。未配置时跳过分配器，GPU plan 直接以 `Count` 请求创建。
 
 `planIdentity`（spec-hash）**不含** `GPUDeviceIDs`——identity 只认 GPU 请求数（在 `GPUCount` 里），
 不认分到哪张卡，使 re-apply 不因重新分配而 churn 容器。
@@ -117,7 +122,8 @@ type ResourceUnavailableError struct{ Msg string }
 func IsResourceUnavailable(err error) bool
 ```
 
-`ApplyMLRun`/`ApplyMLService` 在 GPU 不足时返回它（未创建任何容器）。等待态用统一状态机呈现为
+**托管模式下** `ApplyMLRun`/`ApplyMLService` 在 GPU 不足时返回它（未创建任何容器）；非托管模式不走分配器、
+永不返回此 error（GPU 请求直接以 `Count` 创建，不会因缺卡进入 GPU 等待）。等待态用统一状态机呈现为
 `Pending`，四处改动（不加 marker 列、不改 status DTO）：
 
 1. **reconciler `handleCreate`（mlrun + mlservice）**：取出 `Creating` 行即置 `phase = Pending`（进入放置），
@@ -142,23 +148,20 @@ func IsResourceUnavailable(err error) bool
 
 ## 7. 构建与部署
 
-- `axisml-core` 以 `CGO_ENABLED=1` 构建（go-nvml 需 cgo）；交叉编译需对应 cgo 工具链。
-- 最终镜像用 `gcr.io/distroless/base-debian12`（含 glibc）。
-- 运行期由 NVIDIA container runtime 给 core 容器注入驱动（`NVIDIA_DRIVER_CAPABILITIES` 含 `utility`）供
-  NVML 在运行时 `dlopen libnvidia-ml.so.1`；构建期不需要 libnvidia-ml。
-- `docker-compose.yaml` 暴露 GPU 给 core 容器并给出 `AXISML_GPU_DEVICES` 示例。
+- 无 cgo 依赖：`axisml-core` 保持 `CGO_ENABLED=0` 纯静态构建，最终镜像 `gcr.io/distroless/static-debian12`。
+- 宿主机需装 NVIDIA Driver + Container Toolkit（workload 容器经 Docker API 拿卡）；core 容器自身**不**需要
+  驱动可见性。
+- `docker-compose.yaml` 给出 `AXISML_GPU_DEVICES` 示例。
 
 ## 8. 涉及改动的文件
 
 **Lite：**
-- `pkg/core/config.go` — `GPUDevices` env 配置（`all` / 列表解析）。
+- `pkg/core/config.go` — `GPUDevices` env 配置（索引列表解析）。
 - `pkg/core/app.go` — 透传到 `standalone.Config`。
 - `internal/runtime/standalone/runtime.go` — `Config.GPUDevices`、持有 `gpuAllocator`、`LabelGPUDevices`。
-- `internal/runtime/standalone/gpu.go`（新增）— 分配器 + NVML `all` 探测。
-- `internal/runtime/standalone/plan.go` — `ResourcePlan.GPUDeviceIDs`、`toDocker` 绑卡。
+- `internal/runtime/standalone/gpu.go`（新增）— 分配器（托管模式）。
+- `internal/runtime/standalone/plan.go` — `ResourcePlan.GPUDeviceIDs`、`toDocker` 绑卡 / Count 两分支。
 - `internal/runtime/standalone/{run.go,service.go}` — Apply 接入准入；`planIdentity` 排除 `GPUDeviceIDs`。
-- `go.mod` — `github.com/NVIDIA/go-nvml`。
-- `Dockerfile` — `CGO_ENABLED=1`；最终镜像 `distroless/base-debian12`。
 
 **compute-service（Lite/Standard 共享）：**
 - `pkg/extensions/` — `ResourceUnavailableError` + `IsResourceUnavailable`。
@@ -180,7 +183,7 @@ func IsResourceUnavailable(err error) bool
 ## 10. 测试计划
 
 - **单元**（`internal/runtime/standalone`）：空闲计算（exited 视为释放、re-apply 不重复计己方、原子性）、
-  `toDocker` 绑卡、配置解析。fake/mock Docker 列表驱动。
+  `toDocker` 托管绑卡 vs 非托管 `Count` 两分支、配置解析。fake/mock Docker 列表驱动。
 - **集成**（`test/integration`，不依赖真实 GPU，以标签模拟占用）：卡满 → `Pending` + message、Observe
   NotFound 不被误删/误取消 → 释放后自动拉起 → `Running`；重启后从标签重建占用；re-apply 不 churn 容器；
   Service 等待不被静默删除。

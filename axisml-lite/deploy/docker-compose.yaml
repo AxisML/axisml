@@ -52,24 +52,11 @@ services:
       AXISML_OCI_ADMIN_PASSWORD: admin
       AXISML_LOG_LEVEL: info
       AXISML_LOG_FORMAT: json
-      # GPU scheduling: unset disables GPU; a comma list ("0,1,2") schedules only
-      # those physical cards; "all" autodetects every card via NVML. Requires the
-      # host to have the NVIDIA driver + Container Toolkit installed.
+      # GPU scheduling: a comma list ("0,1,2") schedules onto exactly those
+      # physical cards (pins a free card, waits when none is free). Unset leaves
+      # GPU workloads on Docker's default count-based request. Requires the host to
+      # have the NVIDIA driver + Container Toolkit installed.
       # AXISML_GPU_DEVICES: "0,1,2"
-      # For AXISML_GPU_DEVICES=all only, axisml-core must itself see the driver so
-      # NVML can enumerate cards (uncomment the deploy block below).
-      # NVIDIA_VISIBLE_DEVICES: all
-      # NVIDIA_DRIVER_CAPABILITIES: utility
-    # Uncomment to give axisml-core NVML visibility for AXISML_GPU_DEVICES=all.
-    # Workload containers get their GPUs via the Docker API regardless of this;
-    # this block is only needed so `all` can enumerate cards at startup.
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: all
-    #           capabilities: [gpu, utility]
     ports:
       # Published for local development and the e2e suite. Platform reaches it
       # in-cluster at http://axisml-core:8080.

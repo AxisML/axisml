@@ -26,11 +26,6 @@ func TestResolveGPUDevices(t *testing.T) {
 		_, err = ResolveGPUDevices("-1")
 		require.Error(t, err)
 	})
-	t.Run("all defers to NVML detection", func(t *testing.T) {
-		// On the non-linux/non-cgo test build detectAllGPUs is the stub, which errors.
-		_, err := ResolveGPUDevices("all")
-		require.Error(t, err)
-	})
 }
 
 func TestNewGPUAllocatorDedupSorts(t *testing.T) {
@@ -63,12 +58,6 @@ func busySet(ids ...int) map[int]struct{} {
 }
 
 func TestComputeAssignment(t *testing.T) {
-	t.Run("GPU disabled when no schedulable cards", func(t *testing.T) {
-		_, err := computeAssignment(nil, nil, 0, []int{1})
-		require.Error(t, err)
-		assert.True(t, extensions.IsResourceUnavailable(err))
-	})
-
 	t.Run("assigns free cards, skipping busy ones", func(t *testing.T) {
 		// schedulable 0,1,2,3; 0 and 2 busy -> free 1,3.
 		got, err := computeAssignment([]int{0, 1, 2, 3}, busySet(0, 2), 0, []int{1, 1})

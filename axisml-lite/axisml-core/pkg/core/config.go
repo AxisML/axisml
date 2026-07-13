@@ -26,10 +26,11 @@ type Config struct {
 }
 
 // GPU configures single-host GPU scheduling. Devices names the physical GPU
-// indices AxisML may schedule onto: a comma list ("0,1,2"), "all" for NVML
-// autodetection, or empty to disable GPU scheduling entirely.
+// indices AxisML may schedule onto as a comma list ("0,1,2"), which turns on
+// managed scheduling (pin to a free card, wait when none is free). Empty leaves
+// managed scheduling off: GPU workloads use Docker's default count-based request.
 type GPU struct {
-	Devices string `mapstructure:"devices" doc:"Schedulable GPU device indices: comma list (0,1,2), 'all' for NVML autodetect, or empty to disable GPU"`
+	Devices string `mapstructure:"devices" doc:"Physical GPU indices to schedule onto (comma list, e.g. 0,1,2); empty falls back to Docker's default count-based GPU request"`
 }
 
 // OCI is the artifact registry (zot) connection. The scheme is derived from the
