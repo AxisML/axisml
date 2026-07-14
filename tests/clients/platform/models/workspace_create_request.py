@@ -23,8 +23,8 @@ class WorkspaceCreateRequest:
     Example:
         {'containerPort': 8888, 'description': 'JupyterLab interactive development environment.', 'displayName': 'Vision
             team dev environment', 'image': 'registry.axisml.io/dev/jupyter:3.0.0', 'lifecycle': {'idleTimeoutSeconds':
-            3600}, 'name': 'notebook-dev', 'poolName': 'gpu-a100', 'quota': 'team-vision', 'unitName': 'a100-1x', 'volumes':
-            [{'mountPath': '/home/jovyan/work', 'name': 'notebook-data'}]}
+            3600}, 'name': 'notebook-dev', 'poolName': 'gpu-a100', 'unitName': 'a100-1x', 'volumes': [{'mountPath':
+            '/home/jovyan/work', 'name': 'notebook-data'}]}
 
     Attributes:
         image (str): Container image for the dev environment.
@@ -38,7 +38,6 @@ class WorkspaceCreateRequest:
         display_name (str | Unset): Human-readable workspace label.
         env (list[EnvVar] | Unset): Environment variables injected into the container.
         lifecycle (WorkspaceLifecycle | Unset):  Example: {'idleTimeoutSeconds': 3600}.
-        quota (str | Unset): ElasticQuota the workspace draws from.
         volumes (list[WorkspaceVolume] | Unset): Data volumes to mount into the workspace.
     """
 
@@ -53,7 +52,6 @@ class WorkspaceCreateRequest:
     display_name: str | Unset = UNSET
     env: list[EnvVar] | Unset = UNSET
     lifecycle: WorkspaceLifecycle | Unset = UNSET
-    quota: str | Unset = UNSET
     volumes: list[WorkspaceVolume] | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -91,8 +89,6 @@ class WorkspaceCreateRequest:
         if not isinstance(self.lifecycle, Unset):
             lifecycle = self.lifecycle.to_dict()
 
-        quota = self.quota
-
         volumes: list[dict[str, Any]] | Unset = UNSET
         if not isinstance(self.volumes, Unset):
             volumes = []
@@ -124,8 +120,6 @@ class WorkspaceCreateRequest:
             field_dict["env"] = env
         if lifecycle is not UNSET:
             field_dict["lifecycle"] = lifecycle
-        if quota is not UNSET:
-            field_dict["quota"] = quota
         if volumes is not UNSET:
             field_dict["volumes"] = volumes
 
@@ -172,8 +166,6 @@ class WorkspaceCreateRequest:
         else:
             lifecycle = WorkspaceLifecycle.from_dict(_lifecycle)
 
-        quota = d.pop("quota", UNSET)
-
         _volumes = d.pop("volumes", UNSET)
         volumes: list[WorkspaceVolume] | Unset = UNSET
         if _volumes is not UNSET:
@@ -195,7 +187,6 @@ class WorkspaceCreateRequest:
             display_name=display_name,
             env=env,
             lifecycle=lifecycle,
-            quota=quota,
             volumes=volumes,
         )
 

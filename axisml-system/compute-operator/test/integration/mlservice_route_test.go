@@ -48,12 +48,12 @@ func TestMLService_NativeDeployment_RouteEnabled(t *testing.T) {
 			Labels: map[string]string{
 				axisml.LabelServiceID: "uuid-predictor-route",
 				axisml.LabelTenant:    "acme",
-				axisml.LabelQuota:     "axisml-acme-default-default",
+				axisml.LabelQuota:     "axisml-acme-default",
 			},
 		},
 		Spec: axisml.MLServiceSpec{
 			Backend:    axisml.Backend{Name: "native", Engine: "deployment"},
-			Scheduling: axisml.Scheduling{Quota: "axisml-acme-default-default"},
+			Scheduling: axisml.Scheduling{Quota: "axisml-acme-default"},
 			Roles: []axisml.RoleSpec{{
 				Name:     axisml.DefaultRoleName,
 				Replicas: 1,
@@ -169,12 +169,12 @@ func TestMLService_ScaleAndImmutability(t *testing.T) {
 			Labels: map[string]string{
 				axisml.LabelServiceID: "uuid-scalable",
 				axisml.LabelTenant:    "acme",
-				axisml.LabelQuota:     "axisml-acme-default-default",
+				axisml.LabelQuota:     "axisml-acme-default",
 			},
 		},
 		Spec: axisml.MLServiceSpec{
 			Backend:    axisml.Backend{Name: "native", Engine: "deployment"},
-			Scheduling: axisml.Scheduling{Quota: "axisml-acme-default-default"},
+			Scheduling: axisml.Scheduling{Quota: "axisml-acme-default"},
 			Roles: []axisml.RoleSpec{{
 				Name:     axisml.DefaultRoleName,
 				Replicas: 1,
@@ -283,12 +283,12 @@ func TestMLService_StubBackendFails(t *testing.T) {
 			Labels: map[string]string{
 				axisml.LabelServiceID: "uuid-stub-backend",
 				axisml.LabelTenant:    "acme",
-				axisml.LabelQuota:     "axisml-acme-default-default",
+				axisml.LabelQuota:     "axisml-acme-default",
 			},
 		},
 		Spec: axisml.MLServiceSpec{
 			Backend:    axisml.Backend{Name: "kserve", Engine: "inference"},
-			Scheduling: axisml.Scheduling{Quota: "axisml-acme-default-default"},
+			Scheduling: axisml.Scheduling{Quota: "axisml-acme-default"},
 			Roles: []axisml.RoleSpec{{
 				Name:     axisml.DefaultRoleName,
 				Replicas: 1,

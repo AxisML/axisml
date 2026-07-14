@@ -35,7 +35,6 @@ func exJob(g *openapigen.Generator) {
 		"backend":   backend,
 		"poolName":  "gpu-a100",
 		"unitName":  "a100-2x",
-		"quota":     "team-vision",
 		"roles":     []any{role},
 		"runPolicy": runPolicy,
 		"artifacts": []any{obj{"kind": "model", "name": "resnet50", "version": "1.4.0"}},
@@ -106,7 +105,7 @@ func exJob(g *openapigen.Generator) {
 
 	mlRunSpec := obj{
 		"backend":    backend,
-		"scheduling": obj{"quota": "axisml-team-vision-gpu-a100-default", "priorityClass": "high-priority", "minMember": 4},
+		"scheduling": obj{"quota": "axisml-team-vision-gpu-a100", "priorityClass": "high-priority", "minMember": 4},
 		"roles":      []any{role},
 		"runPolicy":  runPolicy,
 	}
@@ -128,7 +127,6 @@ func exJob(g *openapigen.Generator) {
 		"backend":           backend,
 		"poolName":          "gpu-a100",
 		"unitName":          "a100-2x",
-		"quota":             "team-vision",
 		"resources":         obj{"cpu": "32", "memory": "256Gi", "nvidia.com/gpu": "8"},
 		"roles":             []any{roleStatus},
 		"runPolicy":         runPolicy,
@@ -151,7 +149,6 @@ func exJob(g *openapigen.Generator) {
 		"displayName": "ResNet-50 Training #8",
 		"poolName":    "gpu-a100",
 		"unitName":    "a100-2x",
-		"quota":       "team-vision",
 		"roles": []any{obj{
 			"name": "worker",
 			"args": []any{"--epochs", "120"},

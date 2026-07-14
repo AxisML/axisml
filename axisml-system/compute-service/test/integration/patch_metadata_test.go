@@ -69,7 +69,6 @@ func TestMLService_PatchMetadata(t *testing.T) {
 		"name":     "patchable-svc",
 		"poolName": "svc-patch-pool",
 		"unitName": "small",
-		"quota":    "axisml-default",
 		"roles": []map[string]any{{
 			"name":     "predictor",
 			"replicas": 1,

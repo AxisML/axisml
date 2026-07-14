@@ -30,12 +30,12 @@ class Experiment:
             'count': 5, 'latestPhase': 'Succeeded', 'latestRunAt': '2026-06-28T09:25:00Z', 'recent': ['Succeeded',
             'Running', 'Succeeded', 'Failed', 'Succeeded']}, 'spec': {'artifacts': [{'kind': 'model', 'name': 'bert-base',
             'version': '2.1.0'}], 'backend': {'engine': 'pytorchjob', 'name': 'kubeflow-trainer'}, 'poolName': 'gpu-a100',
-            'quota': 'team-nlp', 'roles': [{'name': 'worker', 'replicas': 2, 'restartPolicy': 'OnFailure', 'template':
-            {'args': ['--lr', '0.001', '--epochs', '10', '--batch-size', '64'], 'command': ['python', 'train.py'], 'env':
-            [{'name': 'WANDB_MODE', 'value': 'offline'}], 'image': 'registry.axisml.io/training/bert:2.1.0', 'resources':
-            {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'}}}], 'runPolicy': {'activeDeadlineSeconds': 86400,
-            'backoffLimit': 2, 'ttlSecondsAfterFinished': 3600}, 'unitName': 'a100-2x'}, 'tenantName': 'team-nlp',
-            'updatedAt': '2026-06-28T09:30:00Z'}
+            'roles': [{'name': 'worker', 'replicas': 2, 'restartPolicy': 'OnFailure', 'template': {'args': ['--lr', '0.001',
+            '--epochs', '10', '--batch-size', '64'], 'command': ['python', 'train.py'], 'env': [{'name': 'WANDB_MODE',
+            'value': 'offline'}], 'image': 'registry.axisml.io/training/bert:2.1.0', 'resources': {'cpu': '8', 'memory':
+            '64Gi', 'nvidia.com/gpu': '2'}}}], 'runPolicy': {'activeDeadlineSeconds': 86400, 'backoffLimit': 2,
+            'ttlSecondsAfterFinished': 3600}, 'unitName': 'a100-2x'}, 'tenantName': 'team-nlp', 'updatedAt':
+            '2026-06-28T09:30:00Z'}
 
     Attributes:
         created_at (datetime.datetime): Time the experiment was created.
@@ -44,9 +44,9 @@ class Experiment:
         namespace (str): Platform tenant namespace the experiment belongs to.
         owner (str): Username of the experiment owner.
         spec (JobSpec):  Example: {'artifacts': [{'kind': 'model', 'name': 'resnet50', 'version': '1.4.0'}], 'backend':
-            {'engine': 'pytorchjob', 'name': 'native'}, 'poolName': 'gpu-a100', 'quota': 'team-vision', 'roles': [{'name':
-            'worker', 'replicas': 4, 'restartPolicy': 'OnFailure', 'template': {'args': ['--epochs', '90', '--batch-size',
-            '256'], 'command': ['python', 'train.py'], 'env': [{'name': 'NCCL_DEBUG', 'value': 'INFO'}], 'image':
+            {'engine': 'pytorchjob', 'name': 'native'}, 'poolName': 'gpu-a100', 'roles': [{'name': 'worker', 'replicas': 4,
+            'restartPolicy': 'OnFailure', 'template': {'args': ['--epochs', '90', '--batch-size', '256'], 'command':
+            ['python', 'train.py'], 'env': [{'name': 'NCCL_DEBUG', 'value': 'INFO'}], 'image':
             'registry.axisml.io/training/resnet:1.4.0', 'ports': [{'containerPort': 8080, 'name': 'http', 'protocol':
             'TCP'}], 'resources': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'}, 'volumeMounts': [{'mountPath':
             '/data', 'name': 'data'}], 'volumes': [{'name': 'data', 'persistentVolumeClaim': {'claimName': 'resnet-

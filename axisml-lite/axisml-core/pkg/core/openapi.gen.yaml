@@ -1787,7 +1787,7 @@ components:
             ttlSecondsAfterFinished: 3600
           scheduling:
             priorityClass: high-priority
-            quota: axisml-team-vision-gpu-a100-default
+            quota: axisml-team-vision-gpu-a100
         status:
           message: All worker replicas ready.
           startedAt: "2026-06-28T09:30:00Z"
@@ -1883,7 +1883,6 @@ components:
           team: vision
         name: resnet-train-7
         poolName: gpu-a100
-        quota: axisml-team-vision-gpu-a100-default
         roles:
         - name: worker
           replicas: 4
@@ -1953,10 +1952,6 @@ components:
         priorityClass:
           description: Optional Kubernetes PriorityClass name for the run's pods.
           type: string
-        quota:
-          description: ElasticQuota CR name (opaque) stamped onto Pod labels for axisml-scheduler
-            admission.
-          type: string
         roles:
           description: Run topology roles (at least one).
           items:
@@ -1974,7 +1969,6 @@ components:
       required:
       - name
       - poolName
-      - quota
       - roles
       - unitName
       type: object
@@ -2030,7 +2024,7 @@ components:
               ttlSecondsAfterFinished: 3600
             scheduling:
               priorityClass: high-priority
-              quota: axisml-team-vision-gpu-a100-default
+              quota: axisml-team-vision-gpu-a100
           status:
             message: All worker replicas ready.
             startedAt: "2026-06-28T09:30:00Z"
@@ -2310,7 +2304,7 @@ components:
           runPolicy:
             progressDeadlineSeconds: 600
           scheduling:
-            quota: axisml-team-vision-gpu-a100-default
+            quota: axisml-team-vision-gpu-a100
         status:
           endpoint: https://llama3-8b.team-vision.axisml.io/v1
           message: 2/2 replicas ready.
@@ -2424,7 +2418,6 @@ components:
           team: vision
         name: llama3-8b
         poolName: gpu-a100
-        quota: axisml-team-vision-gpu-a100-default
         roles:
         - name: predictor
           replicas: 2
@@ -2504,10 +2497,6 @@ components:
         priorityClass:
           description: Optional Kubernetes PriorityClass name for the service's pods.
           type: string
-        quota:
-          description: ElasticQuota CR name (opaque) stamped onto Pod labels for axisml-scheduler
-            admission.
-          type: string
         roles:
           description: Service topology roles (at least one).
           items:
@@ -2531,7 +2520,6 @@ components:
       required:
       - name
       - poolName
-      - quota
       - roles
       - unitName
       type: object
@@ -2595,7 +2583,7 @@ components:
             runPolicy:
               progressDeadlineSeconds: 600
             scheduling:
-              quota: axisml-team-vision-gpu-a100-default
+              quota: axisml-team-vision-gpu-a100
           status:
             endpoint: https://llama3-8b.team-vision.axisml.io/v1
             message: 2/2 replicas ready.

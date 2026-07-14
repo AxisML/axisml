@@ -8,10 +8,8 @@ import (
 	mlrunv1alpha1 "github.com/axisml/axisml/axisml-system/apis/mlrun/v1alpha1"
 )
 
-// MLRunCreateRequest is the API request body. Caller selects pool/unit by NAME
-// (the ResourcePool CRD lives in K8s; compute reads it via Informer cache).
-// `Quota` is the ElasticQuota CR name (cluster-unique string) stamped onto
-// Pod labels — compute treats it as opaque.
+// MLRunCreateRequest is the API request body. Caller selects pool/unit by name;
+// compute derives the tenant's single ElasticQuota for that pool.
 type MLRunCreateRequest struct {
 	Name          string                       `json:"name" binding:"required,axisml_name" desc:"MLRun name, unique within the namespace."`
 	DisplayName   string                       `json:"displayName" desc:"Human-readable run label."`
@@ -20,7 +18,6 @@ type MLRunCreateRequest struct {
 	Annotations   map[string]string            `json:"annotations,omitempty" desc:"User-defined annotations stored on the row and stamped onto the CR."`
 	PoolName      string                       `json:"poolName" binding:"required" desc:"Resource pool name resolved against the ResourcePool CRD via the Informer cache."`
 	UnitName      string                       `json:"unitName" binding:"required" desc:"Resource unit (shape) name within the selected pool."`
-	Quota         string                       `json:"quota" binding:"required" desc:"ElasticQuota CR name (opaque) stamped onto Pod labels for axisml-scheduler admission."`
 	PriorityClass string                       `json:"priorityClass,omitempty" desc:"Optional Kubernetes PriorityClass name for the run's pods."`
 	Backend       *mlrunv1alpha1.BackendSpec   `json:"backend" desc:"Compute backend/engine that runs the workload; defaults to (native, job) when omitted."`
 	Roles         []mlrunv1alpha1.RoleSpec     `json:"roles" binding:"required,min=1" desc:"Run topology roles (at least one)."`

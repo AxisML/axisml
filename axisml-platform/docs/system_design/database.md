@@ -110,6 +110,6 @@ CREATE INDEX jobs_labels_gin ON jobs USING GIN (labels jsonb_path_ops);
 -- experiments / models / images：列与索引同 jobs（仅表名 / 索引名前缀替换）。
 ```
 
-- `jobs.spec`：`backend{name,engine,config}` / `roles[]`（含镜像引用）/ `scheduling{poolName,unitName,quota}`（仅名字，compute 内部展开）/ `runPolicy` / 制品引用。`experiments.spec` 与 `jobs.spec` 同构（训练超参即 `roles[*].template.{args,env}`）。`models.spec` / `images.spec`：name 级业务元数据（`framework` / `purpose`），版本级硬校验在 artifacts。**均无 run / version 列**。
+- `jobs.spec`：`backend{name,engine,config}` / `roles[]`（含镜像引用）/ `scheduling{poolName,unitName}`（仅名字，compute 内部展开并按 tenant+pool 推导 ElasticQuota）/ `runPolicy` / 制品引用。`experiments.spec` 与 `jobs.spec` 同构（训练超参即 `roles[*].template.{args,env}`）。`models.spec` / `images.spec`：name 级业务元数据（`framework` / `purpose`），版本级硬校验在 artifacts。**均无 run / version 列**。
 - **关联（实时，无索引表）**：Run 经 `MLRun` 的 `compute.axisml.io/{job,experiment}=<定义>` label 反查（命名 `<定义>-<n>`）；制品版本经 artifacts `(namespace, kind, name)` 列举。软删后同名可重建，定义可在零 Run / 零版本下存在。
 - **训练指标 / checkpoint 不入 PG、不经 Platform**：实验 Run 的 TensorBoard event log（`experiments/<exp>/runs/<run>/tb/`）/ checkpoint（`.../output/`）由 compute 注入路径与凭证写入对象存储，TensorBoard 实例读取、Run 删除时由 compute 一并 GC。PG 仅存定义。

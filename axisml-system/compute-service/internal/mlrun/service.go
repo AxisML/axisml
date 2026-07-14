@@ -10,6 +10,7 @@ import (
 	"gorm.io/gorm"
 
 	mlrunv1alpha1 "github.com/axisml/axisml/axisml-system/apis/mlrun/v1alpha1"
+	tenantv1alpha1 "github.com/axisml/axisml/axisml-system/apis/tenant/v1alpha1"
 
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/auth"
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/resource"
@@ -20,8 +21,8 @@ import (
 	"github.com/axisml/axisml/axisml-system/compute-service/pkg/strutil"
 )
 
-// Service is the job business layer. Keyed on bare namespace strings;
-// `spec.scheduling.quota` is whatever the caller passes through.
+// Service is the job business layer. The namespace argument is the tenant
+// scope used to derive the scheduler quota for the selected pool.
 type Service struct {
 	repo  *Repository
 	db    *gorm.DB
@@ -41,9 +42,6 @@ func NewService(db *gorm.DB, pools extensions.ResourceResolver) *Service {
 func (s *Service) Create(ctx context.Context, namespace string, in server.MLRunCreateRequest) (*server.MLRun, error) {
 	if !strutil.IsValidName(in.Name) {
 		return nil, apperrors.New(apperrors.CodeValidation, "invalid job name")
-	}
-	if in.Quota == "" {
-		return nil, apperrors.New(apperrors.CodeValidation, "quota is required")
 	}
 	if existing, err := s.repo.GetByNamespaceName(ctx, namespace, in.Name); err == nil && existing != nil {
 		return nil, apperrors.New(apperrors.CodeConflict, "job already exists")
@@ -91,7 +89,7 @@ func (s *Service) Create(ctx context.Context, namespace string, in server.MLRunC
 	spec := mlrunv1alpha1.MLRunSpec{
 		Backend: backend,
 		Scheduling: mlrunv1alpha1.SchedulingSpec{
-			Quota:         in.Quota,
+			Quota:         tenantv1alpha1.ElasticQuotaName(namespace, in.PoolName),
 			PriorityClass: in.PriorityClass,
 			NodeSelector:  expanded.NodeSelector,
 			Tolerations:   expanded.Tolerations,

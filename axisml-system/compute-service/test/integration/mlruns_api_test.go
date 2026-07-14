@@ -238,7 +238,6 @@ func buildMLRunCreateBody(name, poolName, unitName string) map[string]any {
 		"name":     name,
 		"poolName": poolName,
 		"unitName": unitName,
-		"quota":    "axisml-default",
 		"backend":  map[string]string{"name": "native", "engine": "job"},
 		"roles": []map[string]any{
 			{

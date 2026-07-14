@@ -31,7 +31,6 @@ func TestBuildServiceInput(t *testing.T) {
 		Ports:        []server.ServicePort{{Name: "http", Port: 8080}},
 		PoolName:     "pool-a",
 		UnitName:     "unit-a",
-		Quota:        "quota-a",
 		Replicas:     3,
 		Route:        server.MLServiceRoute{Enabled: true, Path: "/svc"},
 	}
@@ -43,7 +42,6 @@ func TestBuildServiceInput(t *testing.T) {
 	assert.Equal(t, "service", *out.Kind)
 	assert.Equal(t, "pool-a", out.PoolName)
 	assert.Equal(t, "unit-a", out.UnitName)
-	assert.Equal(t, "quota-a", out.Quota)
 
 	require.NotNil(t, out.DisplayName)
 	assert.Equal(t, "My Svc", *out.DisplayName)
@@ -118,7 +116,6 @@ func TestBuildWorkspaceInput(t *testing.T) {
 		Env:           []server.EnvVar{{Name: "E", Value: "1"}},
 		PoolName:      "pool-a",
 		UnitName:      "unit-a",
-		Quota:         "quota-a",
 	}
 	out, err := svcutil.BuildWorkspaceInput(req)
 	require.NoError(t, err)
@@ -128,7 +125,6 @@ func TestBuildWorkspaceInput(t *testing.T) {
 	assert.Equal(t, "workspace", *out.Kind)
 	assert.Equal(t, "pool-a", out.PoolName)
 	assert.Equal(t, "unit-a", out.UnitName)
-	assert.Equal(t, "quota-a", out.Quota)
 
 	require.Len(t, out.Roles, 1)
 	role := out.Roles[0]
@@ -240,7 +236,6 @@ func TestServiceToView_Full(t *testing.T) {
 	assert.Equal(t, "Disp", v.DisplayName)
 	assert.Equal(t, "A desc", v.Description)
 	assert.Equal(t, "alice", v.Owner)
-	assert.Equal(t, "quota-a", v.Quota)
 	assert.Equal(t, 1, v.ReadyReplicas)
 	assert.Equal(t, server.MLServicePhase("Ready"), v.Phase)
 	assert.Equal(t, "ready", v.Message)
@@ -309,7 +304,6 @@ func TestWorkspaceToView_Running(t *testing.T) {
 	assert.Equal(t, server.UUID(id.String()), v.ID)
 	assert.Equal(t, "acme", v.TenantName)
 	assert.Equal(t, "My WS", v.DisplayName)
-	assert.Equal(t, "quota-a", v.Quota)
 	assert.Equal(t, "pool-a", v.PoolName)
 	assert.Equal(t, "unit-a", v.UnitName)
 	assert.Equal(t, 2, v.Replicas)

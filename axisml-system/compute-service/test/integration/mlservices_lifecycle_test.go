@@ -38,7 +38,6 @@ func TestMLServiceCreateRoundTrip(t *testing.T) {
 		"name":     "predictor",
 		"poolName": "services-e2e-pool",
 		"unitName": "small",
-		"quota":    "axisml-default",
 		"backend":  map[string]string{"name": "native", "engine": "deployment"},
 		"roles": []map[string]any{
 			{
@@ -60,8 +59,8 @@ func TestMLServiceCreateRoundTrip(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return c.Get(ctx, types.NamespacedName{Namespace: ns, Name: "predictor"}, &cr) == nil
 	}, 10*time.Second, 200*time.Millisecond, "MLService CR did not appear")
-	assert.Equal(t, "axisml-default", cr.Spec.Scheduling.Quota)
-	assert.Equal(t, "axisml-default", cr.Labels[mlservicev1alpha1.LabelQuota])
+	assert.Equal(t, "axisml-services-e2e-ns-services-e2e-pool", cr.Spec.Scheduling.Quota)
+	assert.Equal(t, "axisml-services-e2e-ns-services-e2e-pool", cr.Labels[mlservicev1alpha1.LabelQuota])
 	assert.NotEmpty(t, cr.Labels[mlservicev1alpha1.LabelServiceID])
 	require.Len(t, cr.Spec.Roles, 1)
 	assert.Equal(t, int32(1), cr.Spec.Roles[0].Replicas)

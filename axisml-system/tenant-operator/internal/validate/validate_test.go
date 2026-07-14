@@ -19,7 +19,6 @@ func validSpec() *axisml.TenantSpec {
 		Quotas: []axisml.QuotaSpec{
 			{
 				Pool: "gpu",
-				Name: "default",
 				Min:  corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("1")},
 				Max:  corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("4")},
 			},
@@ -163,7 +162,7 @@ func TestValidate_Namespace_AllowsSharedTenantNamespace(t *testing.T) {
 }
 
 func TestValidate_Quotas(t *testing.T) {
-	t.Run("duplicate pool/name", func(t *testing.T) {
+	t.Run("duplicate pool", func(t *testing.T) {
 		s := validSpec()
 		s.Quotas = append(s.Quotas, s.Quotas[0])
 		if err := validate.Validate(s, defaultOpts()); err == nil ||

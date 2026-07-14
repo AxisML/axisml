@@ -27,8 +27,8 @@ func TestPerTenantResourceName(t *testing.T) {
 }
 
 func TestElasticQuotaName(t *testing.T) {
-	got := ElasticQuotaName("team-a", "gpu", "default")
-	want := "axisml-team-a-gpu-default"
+	got := ElasticQuotaName("team-a", "gpu")
+	want := "axisml-team-a-gpu"
 	if got != want {
 		t.Errorf("ElasticQuotaName = %q; want %q", got, want)
 	}

@@ -86,14 +86,10 @@ func validateQuotas(quotas []axisml.QuotaSpec) error {
 		if q.Pool == "" {
 			return fmt.Errorf("spec.quotas[%d].pool is required", i)
 		}
-		if q.Name == "" {
-			return fmt.Errorf("spec.quotas[%d].name is required", i)
+		if _, dup := seen[q.Pool]; dup {
+			return fmt.Errorf("spec.quotas[%d] duplicates pool %s", i, q.Pool)
 		}
-		key := q.Pool + "/" + q.Name
-		if _, dup := seen[key]; dup {
-			return fmt.Errorf("spec.quotas[%d] duplicates (pool=%s, name=%s)", i, q.Pool, q.Name)
-		}
-		seen[key] = struct{}{}
+		seen[q.Pool] = struct{}{}
 
 		if q.Max == nil {
 			return fmt.Errorf("spec.quotas[%d].max is required", i)

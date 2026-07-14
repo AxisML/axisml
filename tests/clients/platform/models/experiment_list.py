@@ -26,12 +26,12 @@ class ExperimentList:
             '3a2b1c0d-4e5f-6789-abcd-ef0123456789', 'runSummary': {'active': 1, 'count': 5, 'latestPhase': 'Succeeded',
             'latestRunAt': '2026-06-28T09:25:00Z', 'recent': ['Succeeded', 'Running', 'Succeeded', 'Failed', 'Succeeded']},
             'spec': {'artifacts': [{'kind': 'model', 'name': 'bert-base', 'version': '2.1.0'}], 'backend': {'engine':
-            'pytorchjob', 'name': 'kubeflow-trainer'}, 'poolName': 'gpu-a100', 'quota': 'team-nlp', 'roles': [{'name':
-            'worker', 'replicas': 2, 'restartPolicy': 'OnFailure', 'template': {'args': ['--lr', '0.001', '--epochs', '10',
-            '--batch-size', '64'], 'command': ['python', 'train.py'], 'env': [{'name': 'WANDB_MODE', 'value': 'offline'}],
-            'image': 'registry.axisml.io/training/bert:2.1.0', 'resources': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu':
-            '2'}}}], 'runPolicy': {'activeDeadlineSeconds': 86400, 'backoffLimit': 2, 'ttlSecondsAfterFinished': 3600},
-            'unitName': 'a100-2x'}, 'tenantName': 'team-nlp', 'updatedAt': '2026-06-28T09:30:00Z'}], 'partial': False}
+            'pytorchjob', 'name': 'kubeflow-trainer'}, 'poolName': 'gpu-a100', 'roles': [{'name': 'worker', 'replicas': 2,
+            'restartPolicy': 'OnFailure', 'template': {'args': ['--lr', '0.001', '--epochs', '10', '--batch-size', '64'],
+            'command': ['python', 'train.py'], 'env': [{'name': 'WANDB_MODE', 'value': 'offline'}], 'image':
+            'registry.axisml.io/training/bert:2.1.0', 'resources': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'}}}],
+            'runPolicy': {'activeDeadlineSeconds': 86400, 'backoffLimit': 2, 'ttlSecondsAfterFinished': 3600}, 'unitName':
+            'a100-2x'}, 'tenantName': 'team-nlp', 'updatedAt': '2026-06-28T09:30:00Z'}], 'partial': False}
 
     Attributes:
         count (int): Number of experiments in this page.

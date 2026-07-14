@@ -57,7 +57,6 @@ func TestMLService_Phase(t *testing.T) {
 		"name":     "phase-svc",
 		"poolName": "services-phase-pool",
 		"unitName": "small-phase",
-		"quota":    "axisml-default",
 		"backend":  map[string]string{"name": "native", "engine": "deployment"},
 		"roles": []map[string]any{
 			{
@@ -103,7 +102,6 @@ func TestMLService_BatchPhase(t *testing.T) {
 			"labels":   map[string]string{"group": "ml"},
 			"poolName": "services-batch-pool",
 			"unitName": "small-batch",
-			"quota":    "axisml-default",
 			"backend":  map[string]string{"name": "native", "engine": "deployment"},
 			"roles": []map[string]any{
 				{

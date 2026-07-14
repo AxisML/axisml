@@ -19,7 +19,7 @@ import (
 func minimalSpec() *axisml.MLServiceSpec {
 	return &axisml.MLServiceSpec{
 		Backend:    axisml.Backend{Name: "native", Engine: "statefulset"},
-		Scheduling: axisml.Scheduling{Quota: "axisml-demo-default-training"},
+		Scheduling: axisml.Scheduling{Quota: "axisml-demo-default"},
 		Roles: []axisml.RoleSpec{{
 			Name:     axisml.DefaultRoleName,
 			Replicas: 1,
@@ -162,7 +162,7 @@ func TestBuildStatefulSet_InjectsRequiredLabels(t *testing.T) {
 	wantLabels := map[string]string{
 		axisml.LabelServiceID:      "uuid-1",
 		axisml.LabelRole:           "predictor",
-		axisml.LabelSchedulerQuota: "axisml-demo-default-training",
+		axisml.LabelSchedulerQuota: "axisml-demo-default",
 		axisml.LabelQuota:          "training",
 		axisml.LabelTenant:         "demo",
 	}

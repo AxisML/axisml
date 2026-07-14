@@ -31,7 +31,6 @@ func exMLService(g *openapigen.Generator) {
 		"ports":             []any{port},
 		"poolName":          "gpu-a100",
 		"unitName":          "a100-1x",
-		"quota":             "team-nlp",
 		"resources":         obj{"cpu": "8", "memory": "64Gi", "nvidia.com/gpu": "1"},
 		"replicas":          3,
 		"readyReplicas":     3,
@@ -63,7 +62,6 @@ func exMLService(g *openapigen.Generator) {
 		"ports":        []any{port},
 		"poolName":     "gpu-a100",
 		"unitName":     "a100-1x",
-		"quota":        "team-nlp",
 		"replicas":     3,
 		"route":        route,
 	})

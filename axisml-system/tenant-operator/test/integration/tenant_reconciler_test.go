@@ -70,7 +70,6 @@ func TestTenant_HappyPath(t *testing.T) {
 			Quotas: []axisml.QuotaSpec{
 				{
 					Pool: "gpu",
-					Name: "default",
 					Min:  corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("1")},
 					Max:  corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("4")},
 				},
@@ -104,8 +103,8 @@ func TestTenant_HappyPath(t *testing.T) {
 	require.Equal(t, axisml.ManagedByValue, ns.Labels[axisml.LabelManagedBy], "namespace missing managed-by label")
 
 	// ElasticQuota appears in tenant namespace, named per the operator's
-	// canonical scheme (axisml-<tenant>-<pool>-<quota>).
-	eqName := reconcile.ElasticQuotaName(tenantName, "gpu", "default")
+	// canonical scheme (axisml-<tenant>-<pool>).
+	eqName := reconcile.ElasticQuotaName(tenantName, "gpu")
 	var eq schedv1alpha1.ElasticQuota
 	testutil.EventuallyExists(t, ctx, c, types.NamespacedName{Namespace: tenantNs, Name: eqName}, &eq, testWaitTimeout)
 	require.Equal(t, "4", eq.Spec.Max.Cpu().String(), "ElasticQuota.spec.max.cpu mismatch")

@@ -34,7 +34,7 @@ class MLRun:
             'resources': {'limits': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'}, 'requests': {'cpu': '8',
             'memory': '64Gi', 'nvidia.com/gpu': '2'}}}}], 'runPolicy': {'activeDeadlineSeconds': 86400, 'backoffLimit': 2,
             'ttlSecondsAfterFinished': 3600}, 'scheduling': {'priorityClass': 'high-priority', 'quota': 'axisml-team-vision-
-            gpu-a100-default'}}, 'status': {'message': 'All worker replicas ready.', 'startedAt': '2026-06-28T09:30:00Z'},
+            gpu-a100'}}, 'status': {'message': 'All worker replicas ready.', 'startedAt': '2026-06-28T09:30:00Z'},
             'updatedAt': '2026-06-28T09:45:00Z'}
 
     Attributes:

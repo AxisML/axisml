@@ -11,7 +11,7 @@ import (
 
 func TestAggregate_AllReadyTrue(t *testing.T) {
 	a := Aggregate{
-		Quotas:           []axisml.QuotaStatus{{Pool: "gpu", Name: "default", Ready: true}},
+		Quotas:           []axisml.QuotaStatus{{Pool: "gpu", Ready: true}},
 		ImagePullSecrets: []axisml.InitResourceItemStatus{{Ready: true}},
 		Secrets:          []axisml.InitResourceItemStatus{{Ready: true}},
 		ConfigMaps:       []axisml.InitResourceItemStatus{{Ready: true}},
@@ -129,7 +129,7 @@ func TestBuildStatus_Conditions(t *testing.T) {
 	tnt := &axisml.Tenant{ObjectMeta: metav1.ObjectMeta{Generation: 7}}
 	a := Aggregate{
 		NamespaceReady: true,
-		Quotas:         []axisml.QuotaStatus{{Pool: "gpu", Name: "d", Ready: true}},
+		Quotas:         []axisml.QuotaStatus{{Pool: "gpu", Ready: true}},
 		Secrets:        []axisml.InitResourceItemStatus{{Name: "x", Ready: true}},
 	}
 	st := BuildStatus(tnt, a, axisml.TenantPhaseActive, "")

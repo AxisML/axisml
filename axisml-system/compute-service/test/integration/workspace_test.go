@@ -44,7 +44,6 @@ func TestWorkspace_ReferencesPreProvisionedVolume(t *testing.T) {
 		"kind":     "workspace",
 		"poolName": "ws-pool",
 		"unitName": "small",
-		"quota":    "axisml-default",
 		"roles": []map[string]any{{
 			"name":     mlservicev1alpha1.DefaultRoleName,
 			"replicas": 1,

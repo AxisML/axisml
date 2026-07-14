@@ -10,8 +10,8 @@ import (
 
 // MLServiceCreateRequest is the API request body. Caller selects pool/unit by
 // NAME (the ResourcePool CRD lives in K8s; compute reads it via Informer
-// cache). `Quota` is the ElasticQuota CR name (cluster-unique string) Compute
-// stamps onto Pod labels — opaque, no existence check. `Kind` distinguishes a
+// cache). Compute derives the tenant's single ElasticQuota for that pool.
+// `Kind` distinguishes a
 // regular online service from a Platform workspace; immutable after create.
 // A kind=workspace service's durable volume is pre-provisioned by Platform via
 // cluster-manager and referenced as a PVC entry in roles[0].template.volumes;
@@ -25,7 +25,6 @@ type MLServiceCreateRequest struct {
 	Annotations   map[string]string            `json:"annotations,omitempty" desc:"User-defined annotations stored on the row and stamped onto the CR."`
 	PoolName      string                       `json:"poolName" binding:"required" desc:"Resource pool name resolved against the ResourcePool CRD via the Informer cache."`
 	UnitName      string                       `json:"unitName" binding:"required" desc:"Resource unit (shape) name within the selected pool."`
-	Quota         string                       `json:"quota" binding:"required" desc:"ElasticQuota CR name (opaque) stamped onto Pod labels for axisml-scheduler admission."`
 	PriorityClass string                       `json:"priorityClass,omitempty" desc:"Optional Kubernetes PriorityClass name for the service's pods."`
 	Backend       *mlservicev1alpha1.Backend   `json:"backend" desc:"Compute backend/engine that serves the workload; defaults to (native, deployment) when omitted."`
 	Roles         []mlservicev1alpha1.RoleSpec `json:"roles" binding:"required,min=1" desc:"Service topology roles (at least one)."`

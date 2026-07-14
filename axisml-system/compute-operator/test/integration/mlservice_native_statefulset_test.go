@@ -45,12 +45,12 @@ func TestMLService_NativeStatefulSet_HappyPath(t *testing.T) {
 			Labels: map[string]string{
 				axisml.LabelServiceID: "uuid-predictor-sts",
 				axisml.LabelTenant:    "acme",
-				axisml.LabelQuota:     "axisml-acme-default-default",
+				axisml.LabelQuota:     "axisml-acme-default",
 			},
 		},
 		Spec: axisml.MLServiceSpec{
 			Backend:    axisml.Backend{Name: "native", Engine: "statefulset"},
-			Scheduling: axisml.Scheduling{Quota: "axisml-acme-default-default"},
+			Scheduling: axisml.Scheduling{Quota: "axisml-acme-default"},
 			Roles: []axisml.RoleSpec{{
 				Name:     axisml.DefaultRoleName,
 				Replicas: 1,
@@ -117,12 +117,12 @@ func TestMLService_NativeStatefulSet_ScaleAndImmutability(t *testing.T) {
 			Labels: map[string]string{
 				axisml.LabelServiceID: "uuid-scalable-sts",
 				axisml.LabelTenant:    "acme",
-				axisml.LabelQuota:     "axisml-acme-default-default",
+				axisml.LabelQuota:     "axisml-acme-default",
 			},
 		},
 		Spec: axisml.MLServiceSpec{
 			Backend:    axisml.Backend{Name: "native", Engine: "statefulset"},
-			Scheduling: axisml.Scheduling{Quota: "axisml-acme-default-default"},
+			Scheduling: axisml.Scheduling{Quota: "axisml-acme-default"},
 			Roles: []axisml.RoleSpec{{
 				Name:     axisml.DefaultRoleName,
 				Replicas: 1,

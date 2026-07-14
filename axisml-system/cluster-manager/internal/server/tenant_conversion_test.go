@@ -51,8 +51,8 @@ func TestFoldQuotas_SumsUnitsByQuantity(t *testing.T) {
 	if got := q.Max["memory"]; got.String() != "12Gi" {
 		t.Errorf("max memory = %s, want 12Gi", got.String())
 	}
-	if q.Pool != "p1" || q.Name != "p1" {
-		t.Errorf("pool/name = %s/%s, want p1/p1", q.Pool, q.Name)
+	if q.Pool != "p1" {
+		t.Errorf("pool = %s, want p1", q.Pool)
 	}
 }
 
@@ -133,7 +133,6 @@ func TestQuotasToAPI_DriftedAnnotationRendersEmptyUnits(t *testing.T) {
 	// should degrade to an explicit empty units selection so it stays re-foldable.
 	specs := []tenantv1alpha1.QuotaSpec{{
 		Pool: "p1",
-		Name: "p1",
 		Min:  corev1.ResourceList{"cpu": resource.MustParse("1")},
 	}}
 	got := quotasToAPI(specs, nil)
@@ -150,7 +149,6 @@ func TestQuotasToAPI_DriftedAnnotationRendersEmptyUnits(t *testing.T) {
 	// A genuine direct quota (max present) still renders as direct.
 	direct := []tenantv1alpha1.QuotaSpec{{
 		Pool: "p2",
-		Name: "p2",
 		Max:  corev1.ResourceList{"cpu": resource.MustParse("8")},
 	}}
 	gotDirect := quotasToAPI(direct, nil)

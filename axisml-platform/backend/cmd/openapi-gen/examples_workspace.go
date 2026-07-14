@@ -46,7 +46,6 @@ func exWorkspace(g *openapigen.Generator) {
 		"containerPort":     8888,
 		"poolName":          "gpu-a100",
 		"unitName":          "a100-1x",
-		"quota":             "team-vision",
 		"resources":         obj{"cpu": "4", "memory": "32Gi", "nvidia.com/gpu": "1"},
 		"volumes":           []any{volume},
 		"lifecycle":         lifecycle,
@@ -76,7 +75,6 @@ func exWorkspace(g *openapigen.Generator) {
 		"containerPort": 8888,
 		"poolName":      "gpu-a100",
 		"unitName":      "a100-1x",
-		"quota":         "team-vision",
 		"volumes":       []any{obj{"name": "notebook-data", "mountPath": "/home/jovyan/work"}},
 		"lifecycle":     lifecycle,
 	})

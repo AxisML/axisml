@@ -28,7 +28,7 @@ func newMLRun(roleReplicas int32, modify func(*axisv1alpha1.MLRun)) *axisv1alpha
 		Spec: axisv1alpha1.MLRunSpec{
 			Backend: axisv1alpha1.BackendSpec{Name: "native", Engine: "job"},
 			Scheduling: axisv1alpha1.SchedulingSpec{
-				Quota: "axisml-tnt-default-training",
+				Quota: "axisml-tnt-default",
 			},
 			Roles: []axisv1alpha1.RoleSpec{{
 				Name:          axisv1alpha1.DefaultRoleName,

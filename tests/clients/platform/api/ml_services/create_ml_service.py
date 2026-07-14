@@ -108,8 +108,8 @@ def sync_detailed(
             chat service', 'env': [{'name': 'MAX_TOKENS', 'value': '4096'}], 'image':
             'registry.axisml.io/serving/vllm:0.6.0', 'modelName': 'llama3-8b', 'modelVersion':
             '1.2.0', 'name': 'llama3-chat', 'poolName': 'gpu-a100', 'ports': [{'name': 'http', 'port':
-            8080}], 'quota': 'team-nlp', 'replicas': 3, 'route': {'enabled': True, 'path':
-            '/v1/models/llama3-8b'}, 'unitName': 'a100-1x'}.
+            8080}], 'replicas': 3, 'route': {'enabled': True, 'path': '/v1/models/llama3-8b'},
+            'unitName': 'a100-1x'}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -146,8 +146,8 @@ def sync(
             chat service', 'env': [{'name': 'MAX_TOKENS', 'value': '4096'}], 'image':
             'registry.axisml.io/serving/vllm:0.6.0', 'modelName': 'llama3-8b', 'modelVersion':
             '1.2.0', 'name': 'llama3-chat', 'poolName': 'gpu-a100', 'ports': [{'name': 'http', 'port':
-            8080}], 'quota': 'team-nlp', 'replicas': 3, 'route': {'enabled': True, 'path':
-            '/v1/models/llama3-8b'}, 'unitName': 'a100-1x'}.
+            8080}], 'replicas': 3, 'route': {'enabled': True, 'path': '/v1/models/llama3-8b'},
+            'unitName': 'a100-1x'}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -179,8 +179,8 @@ async def asyncio_detailed(
             chat service', 'env': [{'name': 'MAX_TOKENS', 'value': '4096'}], 'image':
             'registry.axisml.io/serving/vllm:0.6.0', 'modelName': 'llama3-8b', 'modelVersion':
             '1.2.0', 'name': 'llama3-chat', 'poolName': 'gpu-a100', 'ports': [{'name': 'http', 'port':
-            8080}], 'quota': 'team-nlp', 'replicas': 3, 'route': {'enabled': True, 'path':
-            '/v1/models/llama3-8b'}, 'unitName': 'a100-1x'}.
+            8080}], 'replicas': 3, 'route': {'enabled': True, 'path': '/v1/models/llama3-8b'},
+            'unitName': 'a100-1x'}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -215,8 +215,8 @@ async def asyncio(
             chat service', 'env': [{'name': 'MAX_TOKENS', 'value': '4096'}], 'image':
             'registry.axisml.io/serving/vllm:0.6.0', 'modelName': 'llama3-8b', 'modelVersion':
             '1.2.0', 'name': 'llama3-chat', 'poolName': 'gpu-a100', 'ports': [{'name': 'http', 'port':
-            8080}], 'quota': 'team-nlp', 'replicas': 3, 'route': {'enabled': True, 'path':
-            '/v1/models/llama3-8b'}, 'unitName': 'a100-1x'}.
+            8080}], 'replicas': 3, 'route': {'enabled': True, 'path': '/v1/models/llama3-8b'},
+            'unitName': 'a100-1x'}.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

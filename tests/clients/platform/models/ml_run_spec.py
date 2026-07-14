@@ -30,7 +30,7 @@ class MLRunSpec:
             '/data', 'name': 'data'}], 'volumes': [{'name': 'data', 'persistentVolumeClaim': {'claimName': 'resnet-
             imagenet'}}]}}], 'runPolicy': {'activeDeadlineSeconds': 86400, 'backoffLimit': 2, 'progressDeadlineSeconds':
             600, 'ttlSecondsAfterFinished': 3600}, 'scheduling': {'minMember': 4, 'priorityClass': 'high-priority', 'quota':
-            'axisml-team-vision-gpu-a100-default'}}
+            'axisml-team-vision-gpu-a100'}}
 
     Attributes:
         backend (Backend | Unset):  Example: {'engine': 'pytorchjob', 'name': 'native'}.

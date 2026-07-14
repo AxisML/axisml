@@ -18,7 +18,6 @@ def _get_kwargs(
     continue_: str | Unset = UNSET,
     label_selector: str | Unset = UNSET,
 ) -> dict[str, Any]:
-
     params: dict[str, Any] = {}
 
     params["kind"] = kind

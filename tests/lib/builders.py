@@ -25,13 +25,12 @@ from clients.computeservice.models import (
 from lib import config
 
 
-def busybox_mlrun(cfg: config.Config, name: str, quota: str) -> MLRunCreateRequest:
+def busybox_mlrun(cfg: config.Config, name: str) -> MLRunCreateRequest:
     """A native/job MLRun that runs to completion fast, echoing a log marker."""
     return MLRunCreateRequest(
         name=name,
         pool_name=cfg.default_pool,
         unit_name=cfg.default_unit,
-        quota=quota,
         backend=MLRunBackendSpec(name="native", engine="job"),
         roles=[
             MLRunRoleSpec(
@@ -49,7 +48,7 @@ def busybox_mlrun(cfg: config.Config, name: str, quota: str) -> MLRunCreateReque
 
 
 def nginx_mlservice(
-    cfg: config.Config, name: str, quota: str, *, route: MLServiceRoute | None = None
+    cfg: config.Config, name: str, *, route: MLServiceRoute | None = None
 ) -> MLServiceCreateRequest:
     """A native/deployment MLService serving nginx on :80."""
     kwargs = dict(
@@ -57,7 +56,6 @@ def nginx_mlservice(
         kind="service",
         pool_name=cfg.default_pool,
         unit_name=cfg.default_unit,
-        quota=quota,
         backend=MLServiceBackend(name="native", engine="deployment"),
         roles=[
             MLServiceRoleSpec(
@@ -66,7 +64,9 @@ def nginx_mlservice(
                 template=MLServicePodTemplate(
                     image=cfg.service_image,
                     image_pull_policy="IfNotPresent",
-                    ports=[MLServicePodPort(name="http", container_port=80, protocol="TCP")],
+                    ports=[
+                        MLServicePodPort(name="http", container_port=80, protocol="TCP")
+                    ],
                 ),
             )
         ],
@@ -76,14 +76,20 @@ def nginx_mlservice(
     return MLServiceCreateRequest(**kwargs)
 
 
-def canary_traffic(name: str, stable_svc: str, canary_svc: str) -> TrafficPolicyCreateRequest:
+def canary_traffic(
+    name: str, stable_svc: str, canary_svc: str
+) -> TrafficPolicyCreateRequest:
     """A canary policy fronting two member services (stable @90 / canary @10)."""
     return TrafficPolicyCreateRequest(
         name=name,
         mode="canary",
         endpoint=MLTrafficPolicyEndpoint(hostname=f"{name}.e2e.local"),
         backends=[
-            MLTrafficPolicyBackendMember(service_name=stable_svc, role="stable", weight=90),
-            MLTrafficPolicyBackendMember(service_name=canary_svc, role="canary", weight=10),
+            MLTrafficPolicyBackendMember(
+                service_name=stable_svc, role="stable", weight=90
+            ),
+            MLTrafficPolicyBackendMember(
+                service_name=canary_svc, role="canary", weight=10
+            ),
         ],
     )

@@ -32,7 +32,6 @@ func exExperiment(g *openapigen.Generator) {
 		"backend":   backend,
 		"poolName":  "gpu-a100",
 		"unitName":  "a100-2x",
-		"quota":     "team-nlp",
 		"roles":     []any{role},
 		"runPolicy": runPolicy,
 		"artifacts": []any{obj{"kind": "model", "name": "bert-base", "version": "2.1.0"}},

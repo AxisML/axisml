@@ -22,8 +22,8 @@ T = TypeVar("T", bound="RunTriggerRequest")
 class RunTriggerRequest:
     """
     Example:
-        {'displayName': 'ResNet-50 Training #8', 'poolName': 'gpu-a100', 'quota': 'team-vision', 'roles': [{'args': ['--
-            epochs', '120'], 'name': 'worker'}], 'unitName': 'a100-2x'}
+        {'displayName': 'ResNet-50 Training #8', 'poolName': 'gpu-a100', 'roles': [{'args': ['--epochs', '120'], 'name':
+            'worker'}], 'unitName': 'a100-2x'}
 
     Attributes:
         annotations (StringMap | Unset):
@@ -31,7 +31,6 @@ class RunTriggerRequest:
         display_name (str | Unset): Display name for the triggered run.
         labels (StringMap | Unset):
         pool_name (str | Unset): Override resource pool for this run.
-        quota (str | Unset): Override ElasticQuota for this run.
         resources (ResourceMap | Unset): Kubernetes-style resource quantity map (e.g., {"cpu": "100", "memory": "1Ti",
             "nvidia.com/gpu": "8"}).
         roles (list[RunTriggerRequestRolesItem] | Unset): Per-role trigger-time overrides.
@@ -43,7 +42,6 @@ class RunTriggerRequest:
     display_name: str | Unset = UNSET
     labels: StringMap | Unset = UNSET
     pool_name: str | Unset = UNSET
-    quota: str | Unset = UNSET
     resources: ResourceMap | Unset = UNSET
     roles: list[RunTriggerRequestRolesItem] | Unset = UNSET
     unit_name: str | Unset = UNSET
@@ -68,8 +66,6 @@ class RunTriggerRequest:
             labels = self.labels.to_dict()
 
         pool_name = self.pool_name
-
-        quota = self.quota
 
         resources: dict[str, Any] | Unset = UNSET
         if not isinstance(self.resources, Unset):
@@ -97,8 +93,6 @@ class RunTriggerRequest:
             field_dict["labels"] = labels
         if pool_name is not UNSET:
             field_dict["poolName"] = pool_name
-        if quota is not UNSET:
-            field_dict["quota"] = quota
         if resources is not UNSET:
             field_dict["resources"] = resources
         if roles is not UNSET:
@@ -143,8 +137,6 @@ class RunTriggerRequest:
 
         pool_name = d.pop("poolName", UNSET)
 
-        quota = d.pop("quota", UNSET)
-
         _resources = d.pop("resources", UNSET)
         resources: ResourceMap | Unset
         if isinstance(_resources, Unset):
@@ -169,7 +161,6 @@ class RunTriggerRequest:
             display_name=display_name,
             labels=labels,
             pool_name=pool_name,
-            quota=quota,
             resources=resources,
             roles=roles,
             unit_name=unit_name,

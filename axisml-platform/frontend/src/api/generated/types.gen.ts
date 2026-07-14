@@ -1028,10 +1028,6 @@ export type JobSpec = {
      */
     poolName?: string;
     /**
-     * Default ElasticQuota for runs.
-     */
-    quota?: string;
-    /**
      * Run topology roles (at least one).
      */
     roles: Array<MlRunRole>;
@@ -1238,10 +1234,6 @@ export type MlService = {
      */
     ports?: Array<ServicePort>;
     /**
-     * ElasticQuota the service draws from.
-     */
-    quota?: string;
-    /**
      * Replicas that have passed readiness.
      */
     readyReplicas?: number;
@@ -1324,10 +1316,6 @@ export type MlServiceCreateRequest = {
      * Container ports exposed by the service (at least one).
      */
     ports: Array<ServicePort>;
-    /**
-     * ElasticQuota the service draws from.
-     */
-    quota?: string;
     /**
      * Desired replica count.
      */
@@ -2224,10 +2212,6 @@ export type Run = {
      */
     poolName?: string;
     /**
-     * ElasticQuota the run draws from.
-     */
-    quota?: string;
-    /**
      * Aggregate resources reserved by the run.
      */
     resources?: ResourceMap;
@@ -2360,10 +2344,6 @@ export type RunTriggerRequest = {
      * Override resource pool for this run.
      */
     poolName?: string;
-    /**
-     * Override ElasticQuota for this run.
-     */
-    quota?: string;
     /**
      * Override aggregate resources for this run.
      */
@@ -2561,6 +2541,10 @@ export type Tenant = {
      * Time the tenant was last updated.
      */
     updatedAt: string;
+    /**
+     * Predefined data volumes ensured to exist in the tenant namespace.
+     */
+    volumes?: Array<TenantVolume>;
 };
 
 export type TenantCreateRequest = {
@@ -2600,6 +2584,10 @@ export type TenantCreateRequest = {
      * Initial per-pool resource quota allocations.
      */
     quotas?: Array<Quota>;
+    /**
+     * Predefined data volumes to ensure in the tenant namespace at provisioning.
+     */
+    volumes?: Array<TenantVolume>;
 };
 
 export type TenantList = {
@@ -2655,6 +2643,29 @@ export type TenantStatus = {
      * Live per-pool quota usage.
      */
     quotas?: Array<QuotaStatus>;
+};
+
+export type TenantVolume = {
+    /**
+     * Access modes (ReadWriteOnce/ReadWriteMany/ReadOnlyMany).
+     */
+    accessModes?: Array<string>;
+    /**
+     * Free-text description surfaced in the DataVolumes catalog.
+     */
+    description?: string;
+    /**
+     * Data volume (claim) name; workloads mount it by this name.
+     */
+    name: string;
+    /**
+     * Initial requested capacity (e.g. 50Gi). Required in Standard; ignored in Lite.
+     */
+    size?: string;
+    /**
+     * StorageClass backing the volume (Standard only).
+     */
+    storageClass?: string;
 };
 
 export type TensorBoard = {
@@ -3113,10 +3124,6 @@ export type Workspace = {
      */
     poolName?: string;
     /**
-     * ElasticQuota the workspace draws from.
-     */
-    quota?: string;
-    /**
      * Pods that have passed readiness.
      */
     readyReplicas?: number;
@@ -3191,10 +3198,6 @@ export type WorkspaceCreateRequest = {
      * Resource pool to schedule the workspace onto.
      */
     poolName: string;
-    /**
-     * ElasticQuota the workspace draws from.
-     */
-    quota?: string;
     /**
      * Resource unit (shape) within the pool.
      */

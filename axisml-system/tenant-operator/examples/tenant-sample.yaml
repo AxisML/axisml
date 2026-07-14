@@ -22,7 +22,6 @@ spec:
       team: sample
   quotas:
     - pool: gpu
-      name: default
       min:
         cpu: "2"
         memory: 4Gi

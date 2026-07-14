@@ -68,7 +68,6 @@ type Workspace struct {
 	ContainerPort     int                   `json:"containerPort" binding:"min=1,max=65535" desc:"Port the dev server listens on inside the container."`
 	PoolName          string                `json:"poolName,omitempty" binding:"dns1123,max=40" desc:"Resource pool the workspace is scheduled onto."`
 	UnitName          string                `json:"unitName,omitempty" binding:"dns1123,max=40" desc:"Resource unit (shape) within the pool."`
-	Quota             string                `json:"quota,omitempty" desc:"ElasticQuota the workspace draws from."`
 	Resources         ResourceMap           `json:"resources,omitempty" desc:"Resources reserved by the workspace."`
 	Volumes           []WorkspaceVolume     `json:"volumes,omitempty" desc:"Data volumes mounted into the workspace."`
 	Lifecycle         WorkspaceLifecycle    `json:"lifecycle,omitempty" desc:"Lifecycle policy (e.g. idle auto-stop)."`
@@ -105,7 +104,6 @@ type WorkspaceCreateRequest struct {
 	Env           []EnvVar           `json:"env,omitempty" desc:"Environment variables injected into the container."`
 	PoolName      string             `json:"poolName" binding:"required,dns1123,max=40" desc:"Resource pool to schedule the workspace onto."`
 	UnitName      string             `json:"unitName" binding:"required,dns1123,max=40" desc:"Resource unit (shape) within the pool."`
-	Quota         string             `json:"quota,omitempty" desc:"ElasticQuota the workspace draws from."`
 	Volumes       []WorkspaceVolume  `json:"volumes,omitempty" desc:"Data volumes to mount into the workspace."`
 	Lifecycle     WorkspaceLifecycle `json:"lifecycle,omitempty" desc:"Lifecycle policy (e.g. idle auto-stop)."`
 }

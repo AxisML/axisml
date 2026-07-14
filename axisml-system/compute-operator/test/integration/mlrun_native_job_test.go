@@ -53,7 +53,7 @@ func TestMLRun_NativeJob_HappyPath(t *testing.T) {
 		},
 		Spec: axisv1alpha1.MLRunSpec{
 			Backend:    axisv1alpha1.BackendSpec{Name: "native", Engine: "job"},
-			Scheduling: axisv1alpha1.SchedulingSpec{Quota: "axisml-acme-default-training"},
+			Scheduling: axisv1alpha1.SchedulingSpec{Quota: "axisml-acme-default"},
 			Roles: []axisv1alpha1.RoleSpec{{
 				Name:          axisv1alpha1.DefaultRoleName,
 				Replicas:      1,
@@ -126,7 +126,7 @@ func TestMLRun_NativeJob_MountsVolume(t *testing.T) {
 		},
 		Spec: axisv1alpha1.MLRunSpec{
 			Backend:    axisv1alpha1.BackendSpec{Name: "native", Engine: "job"},
-			Scheduling: axisv1alpha1.SchedulingSpec{Quota: "axisml-acme-default-training"},
+			Scheduling: axisv1alpha1.SchedulingSpec{Quota: "axisml-acme-default"},
 			Roles: []axisv1alpha1.RoleSpec{{
 				Name:          axisv1alpha1.DefaultRoleName,
 				Replicas:      1,

@@ -41,7 +41,7 @@ func validTenant() *tenantv1alpha1.Tenant {
 		Spec: tenantv1alpha1.TenantSpec{
 			Namespace: tenantv1alpha1.NamespaceSpec{Name: "default"},
 			Quotas: []tenantv1alpha1.QuotaSpec{
-				{Pool: "default", Name: "default", Max: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("10")}},
+				{Pool: "default", Max: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("10")}},
 			},
 		},
 	}

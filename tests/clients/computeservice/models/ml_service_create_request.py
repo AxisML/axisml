@@ -28,19 +28,18 @@ class MLServiceCreateRequest:
     Example:
         {'backend': {'engine': 'llminference', 'name': 'kserve'}, 'description': 'Llama-3 8B online inference on the
             vLLM backend.', 'displayName': 'Llama-3 8B inference service', 'kind': 'service', 'labels': {'team': 'vision'},
-            'name': 'llama3-8b', 'poolName': 'gpu-a100', 'quota': 'axisml-team-vision-gpu-a100-default', 'roles': [{'name':
-            'predictor', 'replicas': 2, 'template': {'args': ['--model', 'meta-llama/Llama-3-8b', '--max-model-len',
-            '8192'], 'image': 'registry.axisml.io/serving/vllm:0.6.2', 'ports': [{'containerPort': 8080, 'name': 'http',
-            'protocol': 'TCP'}], 'resources': {'limits': {'cpu': '8', 'memory': '48Gi', 'nvidia.com/gpu': '1'}, 'requests':
-            {'cpu': '8', 'memory': '48Gi', 'nvidia.com/gpu': '1'}}}}], 'route': {'auth': {'jwt': {'issuer':
-            'https://auth.axisml.io', 'jwksUri': 'https://auth.axisml.io/.well-known/jwks.json'}, 'type': 'jwt'}, 'enabled':
-            True, 'hostname': 'llama3-8b.team-vision.axisml.io', 'path': '/v1', 'portName': 'http', 'targetRole':
-            'predictor'}, 'runPolicy': {'progressDeadlineSeconds': 600}, 'unitName': 'a100-2x'}
+            'name': 'llama3-8b', 'poolName': 'gpu-a100', 'roles': [{'name': 'predictor', 'replicas': 2, 'template': {'args':
+            ['--model', 'meta-llama/Llama-3-8b', '--max-model-len', '8192'], 'image':
+            'registry.axisml.io/serving/vllm:0.6.2', 'ports': [{'containerPort': 8080, 'name': 'http', 'protocol': 'TCP'}],
+            'resources': {'limits': {'cpu': '8', 'memory': '48Gi', 'nvidia.com/gpu': '1'}, 'requests': {'cpu': '8',
+            'memory': '48Gi', 'nvidia.com/gpu': '1'}}}}], 'route': {'auth': {'jwt': {'issuer': 'https://auth.axisml.io',
+            'jwksUri': 'https://auth.axisml.io/.well-known/jwks.json'}, 'type': 'jwt'}, 'enabled': True, 'hostname':
+            'llama3-8b.team-vision.axisml.io', 'path': '/v1', 'portName': 'http', 'targetRole': 'predictor'}, 'runPolicy':
+            {'progressDeadlineSeconds': 600}, 'unitName': 'a100-2x'}
 
     Attributes:
         name (str): MLService name, unique within the namespace.
         pool_name (str): Resource pool name resolved against the ResourcePool CRD via the Informer cache.
-        quota (str): ElasticQuota CR name (opaque) stamped onto Pod labels for axisml-scheduler admission.
         roles (list[MLServiceRoleSpec]): Service topology roles (at least one).
         unit_name (str): Resource unit (shape) name within the selected pool.
         annotations (MLServiceCreateRequestAnnotations | Unset): User-defined annotations stored on the row and stamped
@@ -58,7 +57,6 @@ class MLServiceCreateRequest:
 
     name: str
     pool_name: str
-    quota: str
     roles: list[MLServiceRoleSpec]
     unit_name: str
     annotations: MLServiceCreateRequestAnnotations | Unset = UNSET
@@ -80,8 +78,6 @@ class MLServiceCreateRequest:
         name = self.name
 
         pool_name = self.pool_name
-
-        quota = self.quota
 
         roles = []
         for roles_item_data in self.roles:
@@ -136,7 +132,6 @@ class MLServiceCreateRequest:
             {
                 "name": name,
                 "poolName": pool_name,
-                "quota": quota,
                 "roles": roles,
                 "unitName": unit_name,
             }
@@ -179,8 +174,6 @@ class MLServiceCreateRequest:
         name = d.pop("name")
 
         pool_name = d.pop("poolName")
-
-        quota = d.pop("quota")
 
         roles = []
         _roles = d.pop("roles")
@@ -267,7 +260,6 @@ class MLServiceCreateRequest:
         ml_service_create_request = cls(
             name=name,
             pool_name=pool_name,
-            quota=quota,
             roles=roles,
             unit_name=unit_name,
             annotations=annotations,

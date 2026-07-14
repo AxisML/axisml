@@ -15,7 +15,6 @@ def _get_kwargs(
     mlrun: str,
     pod: str,
 ) -> dict[str, Any]:
-
     _kwargs: dict[str, Any] = {
         "method": "get",
         "url": "/api/v1/namespaces/{namespace}/mlruns/{mlrun}/pods/{pod}/events".format(

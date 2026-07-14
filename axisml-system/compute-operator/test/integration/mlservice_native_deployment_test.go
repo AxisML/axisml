@@ -49,12 +49,12 @@ func TestMLService_NativeDeployment_HappyPath(t *testing.T) {
 			Labels: map[string]string{
 				axisml.LabelServiceID: "uuid-predictor",
 				axisml.LabelTenant:    "acme",
-				axisml.LabelQuota:     "axisml-acme-default-default",
+				axisml.LabelQuota:     "axisml-acme-default",
 			},
 		},
 		Spec: axisml.MLServiceSpec{
 			Backend:    axisml.Backend{Name: "native", Engine: "deployment"},
-			Scheduling: axisml.Scheduling{Quota: "axisml-acme-default-default"},
+			Scheduling: axisml.Scheduling{Quota: "axisml-acme-default"},
 			Roles: []axisml.RoleSpec{{
 				Name:     axisml.DefaultRoleName,
 				Replicas: 1,

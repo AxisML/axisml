@@ -9,6 +9,7 @@ import (
 	"gorm.io/gorm"
 
 	mlservicev1alpha1 "github.com/axisml/axisml/axisml-system/apis/mlservice/v1alpha1"
+	tenantv1alpha1 "github.com/axisml/axisml/axisml-system/apis/tenant/v1alpha1"
 
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/auth"
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/resource"
@@ -53,9 +54,6 @@ func NewMLService(
 func (m *Module) Create(ctx context.Context, namespace string, in server.MLServiceCreateRequest) (*server.MLService, error) {
 	if !strutil.IsValidName(in.Name) {
 		return nil, apperrors.New(apperrors.CodeValidation, "invalid service name")
-	}
-	if in.Quota == "" {
-		return nil, apperrors.New(apperrors.CodeValidation, "quota is required")
 	}
 	kind := in.Kind
 	if kind == "" {
@@ -113,7 +111,7 @@ func (m *Module) Create(ctx context.Context, namespace string, in server.MLServi
 	spec := mlservicev1alpha1.MLServiceSpec{
 		Backend: backend,
 		Scheduling: mlservicev1alpha1.Scheduling{
-			Quota:         in.Quota,
+			Quota:         tenantv1alpha1.ElasticQuotaName(namespace, in.PoolName),
 			PriorityClass: in.PriorityClass,
 			NodeSelector:  expanded.NodeSelector,
 			Tolerations:   expanded.Tolerations,

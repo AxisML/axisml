@@ -1,6 +1,8 @@
 package v1alpha1
 
 import (
+	"fmt"
+
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -16,6 +18,13 @@ const (
 	TenantPhaseActive TenantPhase = "Active"
 	TenantPhaseFailed TenantPhase = "Failed"
 )
+
+// ElasticQuotaName returns the scheduler-facing ElasticQuota name for one
+// tenant and resource pool. There is exactly one quota per (tenant, pool), so
+// callers never select or supply a separate quota name.
+func ElasticQuotaName(tenantName, poolName string) string {
+	return fmt.Sprintf("axisml-%s-%s", tenantName, poolName)
+}
 
 // Well-known label keys applied by tenant-operator.
 const (
@@ -70,7 +79,6 @@ type NamespaceSpec struct {
 // QuotaSpec is rendered 1:1 to a sigs.k8s.io scheduler-plugins ElasticQuota CR.
 type QuotaSpec struct {
 	Pool string              `json:"pool"`
-	Name string              `json:"name"`
 	Min  corev1.ResourceList `json:"min,omitempty"`
 	Max  corev1.ResourceList `json:"max"`
 }
@@ -167,7 +175,6 @@ type TenantStatus struct {
 
 type QuotaStatus struct {
 	Pool    string              `json:"pool"`
-	Name    string              `json:"name"`
 	Ready   bool                `json:"ready"`
 	Used    corev1.ResourceList `json:"used,omitempty"`
 	Message string              `json:"message,omitempty"`

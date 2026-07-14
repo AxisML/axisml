@@ -30,26 +30,26 @@ class Run:
             '2026-06-28T09:00:00Z', 'description': 'Distributed ResNet-50 training run on ImageNet.', 'displayName':
             'ResNet-50 Training #7', 'id': 'b7d9e3f1-1a2b-3c4d-5e6f-708192a3b4c5', 'jobName': 'resnet-train', 'message':
             'All worker replicas ready.', 'name': 'resnet-train-7', 'namespace': 'team-vision', 'owner': 'li.wei',
-            'ownerId': '3a2b1c0d-4e5f-6789-abcd-ef0123456789', 'phase': 'Running', 'poolName': 'gpu-a100', 'quota': 'team-
-            vision', 'resources': {'cpu': '32', 'memory': '256Gi', 'nvidia.com/gpu': '8'}, 'roles': [{'activeReplicas': 4,
-            'failedReplicas': 0, 'name': 'worker', 'readyReplicas': 4, 'replicas': 4, 'restartPolicy': 'OnFailure',
-            'succeededReplicas': 0, 'template': {'args': ['--epochs', '90', '--batch-size', '256'], 'command': ['python',
-            'train.py'], 'env': [{'name': 'NCCL_DEBUG', 'value': 'INFO'}], 'image':
-            'registry.axisml.io/training/resnet:1.4.0', 'ports': [{'containerPort': 8080, 'name': 'http', 'protocol':
-            'TCP'}], 'resources': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'}, 'volumeMounts': [{'mountPath':
-            '/data', 'name': 'data'}], 'volumes': [{'name': 'data', 'persistentVolumeClaim': {'claimName': 'resnet-
-            imagenet'}}]}}], 'runNumber': 7, 'runPolicy': {'activeDeadlineSeconds': 86400, 'backoffLimit': 2,
-            'progressDeadlineSeconds': 600, 'ttlSecondsAfterFinished': 3600}, 'scheduledAt': '2026-06-28T09:00:00Z', 'spec':
-            {'backend': {'engine': 'pytorchjob', 'name': 'native'}, 'roles': [{'name': 'worker', 'replicas': 4,
-            'restartPolicy': 'OnFailure', 'template': {'args': ['--epochs', '90', '--batch-size', '256'], 'command':
-            ['python', 'train.py'], 'env': [{'name': 'NCCL_DEBUG', 'value': 'INFO'}], 'image':
-            'registry.axisml.io/training/resnet:1.4.0', 'ports': [{'containerPort': 8080, 'name': 'http', 'protocol':
-            'TCP'}], 'resources': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'}, 'volumeMounts': [{'mountPath':
-            '/data', 'name': 'data'}], 'volumes': [{'name': 'data', 'persistentVolumeClaim': {'claimName': 'resnet-
-            imagenet'}}]}}], 'runPolicy': {'activeDeadlineSeconds': 86400, 'backoffLimit': 2, 'progressDeadlineSeconds':
-            600, 'ttlSecondsAfterFinished': 3600}, 'scheduling': {'minMember': 4, 'priorityClass': 'high-priority', 'quota':
-            'axisml-team-vision-gpu-a100-default'}}, 'startedAt': '2026-06-28T09:00:00Z', 'tenantDisplayName': 'Vision
-            Team', 'tenantName': 'team-vision', 'unitName': 'a100-2x', 'updatedAt': '2026-06-28T09:30:00Z'}
+            'ownerId': '3a2b1c0d-4e5f-6789-abcd-ef0123456789', 'phase': 'Running', 'poolName': 'gpu-a100', 'resources':
+            {'cpu': '32', 'memory': '256Gi', 'nvidia.com/gpu': '8'}, 'roles': [{'activeReplicas': 4, 'failedReplicas': 0,
+            'name': 'worker', 'readyReplicas': 4, 'replicas': 4, 'restartPolicy': 'OnFailure', 'succeededReplicas': 0,
+            'template': {'args': ['--epochs', '90', '--batch-size', '256'], 'command': ['python', 'train.py'], 'env':
+            [{'name': 'NCCL_DEBUG', 'value': 'INFO'}], 'image': 'registry.axisml.io/training/resnet:1.4.0', 'ports':
+            [{'containerPort': 8080, 'name': 'http', 'protocol': 'TCP'}], 'resources': {'cpu': '8', 'memory': '64Gi',
+            'nvidia.com/gpu': '2'}, 'volumeMounts': [{'mountPath': '/data', 'name': 'data'}], 'volumes': [{'name': 'data',
+            'persistentVolumeClaim': {'claimName': 'resnet-imagenet'}}]}}], 'runNumber': 7, 'runPolicy':
+            {'activeDeadlineSeconds': 86400, 'backoffLimit': 2, 'progressDeadlineSeconds': 600, 'ttlSecondsAfterFinished':
+            3600}, 'scheduledAt': '2026-06-28T09:00:00Z', 'spec': {'backend': {'engine': 'pytorchjob', 'name': 'native'},
+            'roles': [{'name': 'worker', 'replicas': 4, 'restartPolicy': 'OnFailure', 'template': {'args': ['--epochs',
+            '90', '--batch-size', '256'], 'command': ['python', 'train.py'], 'env': [{'name': 'NCCL_DEBUG', 'value':
+            'INFO'}], 'image': 'registry.axisml.io/training/resnet:1.4.0', 'ports': [{'containerPort': 8080, 'name': 'http',
+            'protocol': 'TCP'}], 'resources': {'cpu': '8', 'memory': '64Gi', 'nvidia.com/gpu': '2'}, 'volumeMounts':
+            [{'mountPath': '/data', 'name': 'data'}], 'volumes': [{'name': 'data', 'persistentVolumeClaim': {'claimName':
+            'resnet-imagenet'}}]}}], 'runPolicy': {'activeDeadlineSeconds': 86400, 'backoffLimit': 2,
+            'progressDeadlineSeconds': 600, 'ttlSecondsAfterFinished': 3600}, 'scheduling': {'minMember': 4,
+            'priorityClass': 'high-priority', 'quota': 'axisml-team-vision-gpu-a100'}}, 'startedAt': '2026-06-28T09:00:00Z',
+            'tenantDisplayName': 'Vision Team', 'tenantName': 'team-vision', 'unitName': 'a100-2x', 'updatedAt':
+            '2026-06-28T09:30:00Z'}
 
     Attributes:
         backend (Backend):  Example: {'engine': 'pytorchjob', 'name': 'native'}.
@@ -70,7 +70,6 @@ class Run:
         phase (RunPhase | Unset): Run (compute MLRun) phase. The active (non-terminal) phases — Creating / Pending /
             Running / Canceling — block Job-definition deletion.
         pool_name (str | Unset): Resource pool the run is scheduled onto.
-        quota (str | Unset): ElasticQuota the run draws from.
         resources (ResourceMap | Unset): Kubernetes-style resource quantity map (e.g., {"cpu": "100", "memory": "1Ti",
             "nvidia.com/gpu": "8"}).
         roles (list[MLRunRoleStatus] | Unset): Live per-role status.
@@ -86,7 +85,7 @@ class Run:
             '/data', 'name': 'data'}], 'volumes': [{'name': 'data', 'persistentVolumeClaim': {'claimName': 'resnet-
             imagenet'}}]}}], 'runPolicy': {'activeDeadlineSeconds': 86400, 'backoffLimit': 2, 'progressDeadlineSeconds':
             600, 'ttlSecondsAfterFinished': 3600}, 'scheduling': {'minMember': 4, 'priorityClass': 'high-priority', 'quota':
-            'axisml-team-vision-gpu-a100-default'}}.
+            'axisml-team-vision-gpu-a100'}}.
         started_at (datetime.datetime | None | Unset): Time the run started executing.
         tenant_display_name (str | Unset): Human-readable tenant name.
         unit_name (str | Unset): Resource unit (shape) within the pool.
@@ -109,7 +108,6 @@ class Run:
     owner_id: UUID | Unset = UNSET
     phase: RunPhase | Unset = UNSET
     pool_name: str | Unset = UNSET
-    quota: str | Unset = UNSET
     resources: ResourceMap | Unset = UNSET
     roles: list[MLRunRoleStatus] | Unset = UNSET
     run_number: int | Unset = UNSET
@@ -167,8 +165,6 @@ class Run:
             phase = self.phase.value
 
         pool_name = self.pool_name
-
-        quota = self.quota
 
         resources: dict[str, Any] | Unset = UNSET
         if not isinstance(self.resources, Unset):
@@ -244,8 +240,6 @@ class Run:
             field_dict["phase"] = phase
         if pool_name is not UNSET:
             field_dict["poolName"] = pool_name
-        if quota is not UNSET:
-            field_dict["quota"] = quota
         if resources is not UNSET:
             field_dict["resources"] = resources
         if roles is not UNSET:
@@ -340,8 +334,6 @@ class Run:
 
         pool_name = d.pop("poolName", UNSET)
 
-        quota = d.pop("quota", UNSET)
-
         _resources = d.pop("resources", UNSET)
         resources: ResourceMap | Unset
         if isinstance(_resources, Unset):
@@ -430,7 +422,6 @@ class Run:
             owner_id=owner_id,
             phase=phase,
             pool_name=pool_name,
-            quota=quota,
             resources=resources,
             roles=roles,
             run_number=run_number,
