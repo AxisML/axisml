@@ -42,8 +42,9 @@ func svcWithMount(claimName string, vm corev1.VolumeMount) *mlservicev1alpha1.ML
 
 // TestRenderServicePlans_HostPathVolumeSubPath verifies subPath on a hostPath
 // (bind) mount: the plan keeps the registered host root as the source plus the
-// subPath, and toDocker resolves it into the bind source so several workloads
-// share one host directory while each sees a different subtree.
+// subPath, and toDocker emits a legacy bind whose source-creation semantics are
+// implemented by the daemon so several workloads can share one host directory
+// while each sees a different subtree.
 func TestRenderServicePlans_HostPathVolumeSubPath(t *testing.T) {
 	r := New(nil, Config{
 		WorkloadsNetwork: "axisml-workloads",
@@ -61,12 +62,8 @@ func TestRenderServicePlans_HostPathVolumeSubPath(t *testing.T) {
 	assert.Equal(t, "images", m.SubPath)
 
 	_, host, _ := plans[0].toDocker("axisml-workloads")
-	require.Len(t, host.Mounts, 1)
-	assert.Equal(t, mount.TypeBind, host.Mounts[0].Type)
-	assert.Equal(t, "/data/host-datasets/images", host.Mounts[0].Source)
-	require.NotNil(t, host.Mounts[0].BindOptions)
-	assert.True(t, host.Mounts[0].BindOptions.CreateMountpoint)
-	assert.Nil(t, host.Mounts[0].VolumeOptions)
+	assert.Empty(t, host.Mounts)
+	assert.Equal(t, []string{"/data/host-datasets/images:/data"}, host.Binds)
 }
 
 // TestRenderServicePlans_ReadOnlyHostPathVolumeSubPath verifies a missing
@@ -91,6 +88,7 @@ func TestRenderServicePlans_ReadOnlyHostPathVolumeSubPath(t *testing.T) {
 
 	_, host, _ := plans[0].toDocker("axisml-workloads")
 	require.Len(t, host.Mounts, 1)
+	assert.Empty(t, host.Binds)
 	assert.Equal(t, "/data/host-datasets/images", host.Mounts[0].Source)
 	assert.True(t, host.Mounts[0].ReadOnly)
 	assert.Nil(t, host.Mounts[0].BindOptions)
@@ -215,6 +213,7 @@ func TestRenderServicePlans_HostPathVolume(t *testing.T) {
 
 	_, host, _ := plans[0].toDocker("axisml-workloads")
 	require.Len(t, host.Mounts, 1)
+	assert.Empty(t, host.Binds)
 	assert.Nil(t, host.Mounts[0].BindOptions, "the registered workspace root itself must not be auto-created")
 }
 

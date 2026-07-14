@@ -133,7 +133,7 @@ func TestRenderRunPlans_VolumeMounts(t *testing.T) {
 	assert.True(t, m.ReadOnly)
 }
 
-func TestRenderRunPlans_WritableHostPathSubPathCreatesMountpoint(t *testing.T) {
+func TestRenderRunPlans_WritableHostPathSubPathUsesDaemonCreatingBind(t *testing.T) {
 	r := New(nil, Config{
 		WorkloadsNetwork: "axisml-workloads",
 		HostPathVolumes:  map[string]string{"default-workspaces": "/host/data/tenants/default/workspaces"},
@@ -168,11 +168,10 @@ func TestRenderRunPlans_WritableHostPathSubPathCreatesMountpoint(t *testing.T) {
 	require.Len(t, plans, 1)
 
 	_, host, _ := plans[0].toDocker("axisml-workloads")
-	require.Len(t, host.Mounts, 1)
-	assert.Equal(t, "/host/data/tenants/default/workspaces/hello-world-1", host.Mounts[0].Source)
-	assert.Equal(t, "/workspaces", host.Mounts[0].Target)
-	require.NotNil(t, host.Mounts[0].BindOptions)
-	assert.True(t, host.Mounts[0].BindOptions.CreateMountpoint)
+	assert.Empty(t, host.Mounts)
+	assert.Equal(t, []string{
+		"/host/data/tenants/default/workspaces/hello-world-1:/workspaces",
+	}, host.Binds)
 }
 
 func TestRenderRunPlans_VolumeMountUndeclared(t *testing.T) {
