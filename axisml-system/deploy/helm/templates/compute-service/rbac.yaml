@@ -7,13 +7,18 @@ metadata:
     {{- include "axisml.componentLabels" (dict "context" . "component" "compute-service") | nindent 4 }}
 rules:
   # AxisML CRDs Compute writes to (MLRun/MLService/MLTrafficPolicy, all
-  # namespace-scoped). Tenant is owned by cluster-manager, not Compute.
+  # namespace-scoped).
   - apiGroups: ["axisml.io"]
     resources: ["mlruns", "mlservices", "mltrafficpolicies"]
     verbs: ["create", "get", "list", "watch", "update", "patch", "delete"]
   - apiGroups: ["axisml.io"]
     resources: ["mlruns/status", "mlservices/status", "mltrafficpolicies/status"]
     verbs: ["get", "list", "watch"]
+  # Tenant remains owned by cluster-manager. Compute only reads it to map the
+  # logical tenant key to Tenant.spec.namespace.name before writing workloads.
+  - apiGroups: ["axisml.io"]
+    resources: ["tenants"]
+    verbs: ["get"]
   # ResourcePool (owned by cluster-manager): Compute reads it via an informer to
   # resolve pool/unit -> nodeSelector/tolerations/resources when materializing
   # Job/Service workloads.

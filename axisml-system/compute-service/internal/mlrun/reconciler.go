@@ -19,11 +19,12 @@ import (
 // the row and drives the workload through the ComputeRuntime contract rather
 // than a raw apiserver client, so the same loop serves any runtime form.
 type Reconciler struct {
-	db       *gorm.DB
-	repo     *Repository
-	runtime  extensions.ComputeRuntime
-	log      logr.Logger
-	interval time.Duration
+	db           *gorm.DB
+	repo         *Repository
+	runtime      extensions.ComputeRuntime
+	log          logr.Logger
+	interval     time.Duration
+	tenantPrefix bool
 }
 
 func NewReconciler(
@@ -31,16 +32,18 @@ func NewReconciler(
 	rt extensions.ComputeRuntime,
 	log logr.Logger,
 	interval time.Duration,
+	tenantPrefix bool,
 ) *Reconciler {
 	if interval <= 0 {
 		interval = 2 * time.Second
 	}
 	return &Reconciler{
-		db:       db,
-		repo:     NewRepository(db),
-		runtime:  rt,
-		log:      log,
-		interval: interval,
+		db:           db,
+		repo:         NewRepository(db),
+		runtime:      rt,
+		log:          log,
+		interval:     interval,
+		tenantPrefix: tenantPrefix,
 	}
 }
 
@@ -77,7 +80,7 @@ func (r *Reconciler) runOnce(ctx context.Context) {
 }
 
 func (r *Reconciler) handleCreate(ctx context.Context, j *store.MLRun) {
-	cr, err := ToCR(j)
+	cr, err := ToCR(j, r.tenantPrefix)
 	if err != nil {
 		r.log.Error(err, "render job CR")
 		return

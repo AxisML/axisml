@@ -45,7 +45,8 @@ func (r *Runtime) renderRunPlans(run *mlrunv1alpha1.MLRun) ([]ContainerPlan, err
 			labels[LabelRole] = role.Name
 			labels[LabelReplicaIndex] = formatLabelInt(i)
 			p := ContainerPlan{
-				Name:          r.containerName(KindRun, ns, name, role.Name, i),
+				NamePrefix:    instanceBase(run, role.Name),
+				Replica:       i,
 				Image:         tmpl.Image,
 				Command:       tmpl.Command,
 				Args:          tmpl.Args,
@@ -114,7 +115,7 @@ func (r *Runtime) ApplyMLRun(ctx context.Context, desired *mlrunv1alpha1.MLRun) 
 	if err != nil {
 		return err
 	}
-	byName := indexByName(existing)
+	bySlot := indexBySlot(existing)
 
 	// Ensure backing volumes once (parity with ApplyMLService). A dataset volume
 	// the caller populated out-of-band already exists, and VolumeCreate is
@@ -133,14 +134,16 @@ func (r *Runtime) ApplyMLRun(ctx context.Context, desired *mlrunv1alpha1.MLRun) 
 	var toCreate []*ContainerPlan
 	for i := range plans {
 		p := &plans[i]
-		if cur, ok := byName[p.Name]; ok {
+		if cur, ok := bySlot[planSlot(p)]; ok {
 			if cur.Labels[LabelSpecHash] == p.Labels[LabelSpecHash] {
+				p.Name = summaryName(cur)
 				continue // unchanged
 			}
 			if err := r.removeContainer(ctx, cur.ID); err != nil {
 				return err
 			}
 		}
+		p.Name = instanceName(p.NamePrefix, p.Replica, p.StableOrdinal)
 		toCreate = append(toCreate, p)
 	}
 	if len(toCreate) == 0 {

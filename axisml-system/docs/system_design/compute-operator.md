@@ -108,7 +108,7 @@ ADD ─▶ Pending ─┬─▶ Ready ◀──▶ Degraded
 | --- | --- | --- |
 | 底层资源 | `Deployment` + `Service`；`route.enabled` 时追加 HTTPRoute；SecurityPolicy / BackendTrafficPolicy 尚未交付 | `StatefulSet` + headless Service；透传 `apps.kubernetes.io/pod-index → compute.axisml.io/replica-index` |
 | 必填 | 单 role `predictor`，`template.image` + `ports[]` | 同左 |
-| 映射 | `replicas → Deployment.replicas`；`volumes/volumeMounts → PodSpec`（`Validate` 强制 volumeMounts 在同 role volumes、PVC 同 namespace） | `replicas → StatefulSet.replicas`；`config.podManagementPolicy`（默认 `OrderedReady`）、`config.serviceName`（默认 = MLService 名） |
+| 映射 | `replicas → Deployment.replicas`；`volumes/volumeMounts → PodSpec`（`Validate` 强制 volumeMounts 在同 role volumes、PVC 同 namespace） | `replicas → StatefulSet.replicas`；`config.podManagementPolicy`（默认 `OrderedReady`）、`config.serviceName`（默认 = `compute.axisml.io/workload-name` 物理基础名） |
 | RBAC | `deployments.apps` / `services` / `pods` / `events` + Gateway / Envoy CRD（按 `route`）；`secrets` RO（仅 `apiKey`） | `statefulsets.apps` / `services` / `pods` / `events` |
 
 > `volumeClaimTemplates` / `updateStrategy` 等见 §9。
@@ -159,13 +159,16 @@ ADD ─▶ Pending ─(route programmed + 成员 Ready)─▶ Ready ◀──▶
 | Pod 字段 / Label | 必填 | 取值 | 用途 |
 | --- | --- | --- | --- |
 | `spec.schedulerName` | 是 | `axisml-scheduler` | 所有 workload Pod 强制走 axisml-scheduler |
+| `spec.containers[0].name` | 是 | `main` | role 由 Pod 名与 label 表达，主容器名不重复编码 role |
 | label `scheduling.axisml.io/quota` | 是 | `<spec.scheduling.quota>` | ElasticScheduling plugin 计入 `status.used` |
 | label `compute.axisml.io/{run-id｜service-id}` | 是 | UUID | 反查 MLRun / MLService |
 | label `compute.axisml.io/role` | 是 | role 名 | 多角色拓扑区分 |
 | label `compute.axisml.io/quota` | 是 | `<spec.scheduling.quota>` | AxisML 自有查询 |
 | label `compute.axisml.io/replica-index` | 否 | role 内 0-based 序号 | 仅天然稳定时透传（STS / Indexed Job） |
 
-缺失任一前 5 项视为契约违反，Handler `Validate` 必须创建前拦截。第三方 backend 接入时同样必须透传 `schedulerName` + Quota label（具体策略待接入时设计，§9）。
+缺失任一标记为必填的字段视为契约违反，Handler `Validate` 必须创建前拦截。第三方 backend 接入时同样必须透传 `schedulerName` + Quota label（具体策略待接入时设计，§9）。
+
+Compute Service 通过 `compute.axisml.io/workload-name` annotation 下发物理 workload 基础名；Kubernetes adapter 将逻辑 tenant 映射到 `Tenant.spec.namespace.name`，并以该基础名作为 API Server 中 CR 的 `metadata.name`。native handler 将控制器资源命名为 `<workload-base>-<role>`：Job / Deployment Pod 继续采用 Kubernetes 生成 suffix，StatefulSet Pod 使用 ordinal；缺少 annotation 的外部 CR 回退到 `metadata.name`。启用 tenant prefix 时基础名包含 `<tenant-slug>-<tenant-hash8>`，避免共享 namespace 中歧义拼接导致冲突。资源归属仍以稳定 ID、tenant 与 role labels 为准，不反向解析名称。
 
 **对象存储产出注入**：实验 Run 与 TensorBoard Pod 还在此注入对象存储访问（event log / checkpoint 的读写路径 + 凭证，路径约定 `experiments/<def>/runs/<run>/...`）；operator 不感知实验 / TensorBoard 概念，只按 [compute-service](compute-service.md) 在 spec 给定的注入项透传。MLTrafficPolicy handler 不派生 Pod，本节不适用。
 

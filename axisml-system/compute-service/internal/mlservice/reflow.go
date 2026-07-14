@@ -79,7 +79,7 @@ func reflectGone(ctx context.Context, repo *Repository, row *store.MLService) {
 
 // desiredReplicas reads role[0].replicas off the row's stored spec.
 func desiredReplicas(row *store.MLService) int32 {
-	cr, err := ToCR(row)
+	cr, err := ToCR(row, false)
 	if err != nil || len(cr.Spec.Roles) == 0 {
 		return 0
 	}

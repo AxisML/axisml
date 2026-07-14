@@ -68,9 +68,20 @@ func (r *Runtime) pullImage(ctx context.Context, ref string) error {
 // the container ID so the caller can roll back on a later failure.
 func (r *Runtime) createAndStart(ctx context.Context, p *ContainerPlan) (string, error) {
 	cfg, hostCfg, netCfg := p.toDocker(r.cfg.WorkloadsNetwork)
-	created, err := r.cli.ContainerCreate(ctx, cfg, hostCfg, netCfg, nil, p.Name)
+	var created container.CreateResponse
+	var err error
+	for attempt := 0; attempt < 5; attempt++ {
+		created, err = r.cli.ContainerCreate(ctx, cfg, hostCfg, netCfg, nil, p.Name)
+		if err == nil {
+			break
+		}
+		if !cerrdefs.IsConflict(err) || p.StableOrdinal || p.NamePrefix == "" {
+			return "", fmt.Errorf("create container %q: %w", p.Name, err)
+		}
+		p.Name = instanceName(p.NamePrefix, p.Replica, false)
+	}
 	if err != nil {
-		return "", fmt.Errorf("create container %q: %w", p.Name, err)
+		return "", fmt.Errorf("create container %q after suffix retries: %w", p.Name, err)
 	}
 	if err := r.cli.ContainerStart(ctx, created.ID, container.StartOptions{}); err != nil {
 		_ = r.cli.ContainerRemove(ctx, created.ID, container.RemoveOptions{Force: true})

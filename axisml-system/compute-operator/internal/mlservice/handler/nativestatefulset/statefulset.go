@@ -6,6 +6,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	axisml "github.com/axisml/axisml/axisml-system/apis/mlservice/v1alpha1"
+	"github.com/axisml/axisml/axisml-system/apis/pkg/workloadname"
 )
 
 // replicaIndexEnvVarName surfaces the K8s-injected apps.kubernetes.io/pod-index
@@ -27,7 +28,7 @@ func buildStatefulSet(mls *axisml.MLService, cfg Config) *appsv1.StatefulSet {
 
 	sts := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      mls.Name,
+			Name:      workloadname.Role(mls, role.Name),
 			Namespace: mls.Namespace,
 			Labels:    resourceLabels(mls, role.Name),
 		},
@@ -55,7 +56,7 @@ func buildStatefulSet(mls *axisml.MLService, cfg Config) *appsv1.StatefulSet {
 func buildContainer(mls *axisml.MLService, role axisml.RoleSpec) corev1.Container {
 	tmpl := role.Template
 	c := corev1.Container{
-		Name:            role.Name,
+		Name:            workloadname.ContainerName,
 		Image:           tmpl.Image,
 		ImagePullPolicy: tmpl.ImagePullPolicy,
 		Command:         tmpl.Command,

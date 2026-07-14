@@ -154,6 +154,9 @@ func TestBuildStatefulSet_InjectsRequiredLabels(t *testing.T) {
 		Spec: *minimalSpec(),
 	}
 	sts := buildStatefulSet(mls, Config{})
+	if sts.Name != "smoke-predictor" || sts.Spec.Template.Spec.Containers[0].Name != "main" {
+		t.Errorf("names = StatefulSet %q / container %q; want smoke-predictor / main", sts.Name, sts.Spec.Template.Spec.Containers[0].Name)
+	}
 
 	if got := sts.Spec.Template.Spec.SchedulerName; got != axisml.SchedulerName {
 		t.Errorf("schedulerName = %q; want %q", got, axisml.SchedulerName)
@@ -291,7 +294,7 @@ func TestMapStatus_PhaseReady_WhenStatefulSetReady(t *testing.T) {
 		Spec:       *minimalSpec(),
 	}
 	sts := &appsv1.StatefulSet{
-		ObjectMeta: metav1.ObjectMeta{Name: "smoke", Namespace: "tenant-demo"},
+		ObjectMeta: metav1.ObjectMeta{Name: "smoke-predictor", Namespace: "tenant-demo"},
 		Status:     appsv1.StatefulSetStatus{ReadyReplicas: 1},
 	}
 	svc := &corev1.Service{
@@ -319,7 +322,7 @@ func TestMapStatus_PhaseDegraded_PartialReady(t *testing.T) {
 	}
 	mls.Spec.Roles[0].Replicas = 3
 	sts := &appsv1.StatefulSet{
-		ObjectMeta: metav1.ObjectMeta{Name: "smoke", Namespace: "tenant-demo"},
+		ObjectMeta: metav1.ObjectMeta{Name: "smoke-predictor", Namespace: "tenant-demo"},
 		Status:     appsv1.StatefulSetStatus{ReadyReplicas: 1},
 	}
 	upd := mapStatus(handler.Snapshot{
@@ -337,7 +340,7 @@ func TestMapStatus_PhasePending_RollingOut(t *testing.T) {
 		Spec:       *minimalSpec(),
 	}
 	sts := &appsv1.StatefulSet{
-		ObjectMeta: metav1.ObjectMeta{Name: "smoke", Namespace: "tenant-demo"},
+		ObjectMeta: metav1.ObjectMeta{Name: "smoke-predictor", Namespace: "tenant-demo"},
 		Status:     appsv1.StatefulSetStatus{ReadyReplicas: 0},
 	}
 	upd := mapStatus(handler.Snapshot{
@@ -356,7 +359,7 @@ func TestMapStatus_RouteEnabled_DegradedWhenNotAccepted(t *testing.T) {
 	}
 	mls.Spec.Route = &axisml.Route{Enabled: true, Hostname: "demo.example.com"}
 	sts := &appsv1.StatefulSet{
-		ObjectMeta: metav1.ObjectMeta{Name: "smoke", Namespace: "tenant-demo"},
+		ObjectMeta: metav1.ObjectMeta{Name: "smoke-predictor", Namespace: "tenant-demo"},
 		Status:     appsv1.StatefulSetStatus{ReadyReplicas: 1},
 	}
 	svc := &corev1.Service{
@@ -384,7 +387,7 @@ func TestMapStatus_RouteEnabled_ReadyWithExternalEndpoint(t *testing.T) {
 	}
 	mls.Spec.Route = &axisml.Route{Enabled: true, Hostname: "demo.example.com", Path: "/predict"}
 	sts := &appsv1.StatefulSet{
-		ObjectMeta: metav1.ObjectMeta{Name: "smoke", Namespace: "tenant-demo"},
+		ObjectMeta: metav1.ObjectMeta{Name: "smoke-predictor", Namespace: "tenant-demo"},
 		Status:     appsv1.StatefulSetStatus{ReadyReplicas: 1},
 	}
 	svc := &corev1.Service{
@@ -423,7 +426,7 @@ func TestMapStatus_HonorsCustomServiceName(t *testing.T) {
 		Spec:       *spec,
 	}
 	sts := &appsv1.StatefulSet{
-		ObjectMeta: metav1.ObjectMeta{Name: "smoke", Namespace: "tenant-demo"},
+		ObjectMeta: metav1.ObjectMeta{Name: "smoke-predictor", Namespace: "tenant-demo"},
 		Status:     appsv1.StatefulSetStatus{ReadyReplicas: 1},
 	}
 	svc := &corev1.Service{

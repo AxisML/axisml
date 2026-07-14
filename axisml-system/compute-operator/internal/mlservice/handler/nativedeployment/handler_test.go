@@ -11,6 +11,7 @@ import (
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	axisml "github.com/axisml/axisml/axisml-system/apis/mlservice/v1alpha1"
+	"github.com/axisml/axisml/axisml-system/apis/pkg/workloadname"
 	"github.com/axisml/axisml/axisml-system/compute-operator/internal/mlservice/handler"
 )
 
@@ -100,6 +101,9 @@ func TestBuildDeployment_InjectsRequiredLabels(t *testing.T) {
 		Spec: *minimalSpec(),
 	}
 	dep := buildDeployment(mls)
+	if dep.Name != "smoke-predictor" || dep.Spec.Template.Spec.Containers[0].Name != "main" {
+		t.Errorf("names = Deployment %q / container %q; want smoke-predictor / main", dep.Name, dep.Spec.Template.Spec.Containers[0].Name)
+	}
 
 	if got := dep.Spec.Template.Spec.SchedulerName; got != axisml.SchedulerName {
 		t.Errorf("schedulerName = %q; want %q", got, axisml.SchedulerName)
@@ -139,6 +143,24 @@ func TestBuildService_TargetPortMatchesContainerPort(t *testing.T) {
 	}
 }
 
+func TestBuildResources_UseAnnotatedTenantPrefix(t *testing.T) {
+	mls := &axisml.MLService{
+		ObjectMeta: metav1.ObjectMeta{Name: "hello-world", Namespace: "tenant-demo"},
+		Spec:       *minimalSpec(),
+	}
+	mls.Spec.Route = &axisml.Route{Enabled: true}
+	workloadname.Annotate(mls, "team-a", mls.Name, true)
+	if got := buildDeployment(mls).Name; got != "team-a-96c2886c-hello-world-predictor" {
+		t.Errorf("Deployment name = %q", got)
+	}
+	if got := buildService(mls).Name; got != "team-a-96c2886c-hello-world" {
+		t.Errorf("Service name = %q", got)
+	}
+	if got := buildHTTPRoute(mls).Name; got != "team-a-96c2886c-hello-world" {
+		t.Errorf("HTTPRoute name = %q", got)
+	}
+}
+
 func TestMapStatus_PhasePending_WhenNoDeployment(t *testing.T) {
 	mls := &axisml.MLService{
 		ObjectMeta: metav1.ObjectMeta{Name: "smoke", Namespace: "tenant-demo"},
@@ -156,7 +178,7 @@ func TestMapStatus_PhaseReady_WhenDeploymentMatches(t *testing.T) {
 		Spec:       *minimalSpec(),
 	}
 	dep := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{Name: "smoke", Namespace: "tenant-demo"},
+		ObjectMeta: metav1.ObjectMeta{Name: "smoke-predictor", Namespace: "tenant-demo"},
 		Status:     appsv1.DeploymentStatus{ReadyReplicas: 1},
 	}
 	svc := &corev1.Service{
@@ -184,7 +206,7 @@ func TestMapStatus_PhaseDegraded_WhenPartialReady(t *testing.T) {
 	}
 	mls.Spec.Roles[0].Replicas = 3
 	dep := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{Name: "smoke", Namespace: "tenant-demo"},
+		ObjectMeta: metav1.ObjectMeta{Name: "smoke-predictor", Namespace: "tenant-demo"},
 		Status:     appsv1.DeploymentStatus{ReadyReplicas: 1},
 	}
 	upd := mapStatus(handler.Snapshot{
@@ -202,7 +224,7 @@ func TestMapStatus_PhaseFailed_OnProgressDeadlineExceeded(t *testing.T) {
 		Spec:       *minimalSpec(),
 	}
 	dep := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{Name: "smoke", Namespace: "tenant-demo"},
+		ObjectMeta: metav1.ObjectMeta{Name: "smoke-predictor", Namespace: "tenant-demo"},
 		Status: appsv1.DeploymentStatus{
 			Conditions: []appsv1.DeploymentCondition{{
 				Type:   appsv1.DeploymentProgressing,
@@ -227,7 +249,7 @@ func TestMapStatus_RouteEnabled_DegradedWhenNotAccepted(t *testing.T) {
 	}
 	mls.Spec.Route = &axisml.Route{Enabled: true, Hostname: "demo.example.com"}
 	dep := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{Name: "smoke", Namespace: "tenant-demo"},
+		ObjectMeta: metav1.ObjectMeta{Name: "smoke-predictor", Namespace: "tenant-demo"},
 		Status:     appsv1.DeploymentStatus{ReadyReplicas: 1},
 	}
 	svc := &corev1.Service{
@@ -255,7 +277,7 @@ func TestMapStatus_RouteEnabled_ReadyWithExternalEndpoint(t *testing.T) {
 	}
 	mls.Spec.Route = &axisml.Route{Enabled: true, Hostname: "demo.example.com", Path: "/predict"}
 	dep := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{Name: "smoke", Namespace: "tenant-demo"},
+		ObjectMeta: metav1.ObjectMeta{Name: "smoke-predictor", Namespace: "tenant-demo"},
 		Status:     appsv1.DeploymentStatus{ReadyReplicas: 1},
 	}
 	svc := &corev1.Service{

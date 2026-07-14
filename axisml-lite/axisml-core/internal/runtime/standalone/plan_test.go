@@ -48,7 +48,10 @@ func TestRenderRunPlans(t *testing.T) {
 	require.Len(t, plans, 2)
 
 	p := plans[0]
-	assert.Equal(t, "axisml-run-default-trainer-worker-0", p.Name)
+	assert.Empty(t, p.Name)
+	assert.Equal(t, "trainer-worker", p.NamePrefix)
+	assert.Equal(t, 0, p.Replica)
+	assert.False(t, p.StableOrdinal)
 	assert.Equal(t, "busybox:latest", p.Image)
 	assert.Equal(t, []string{"sh", "-c"}, p.Command)
 	assert.Equal(t, []string{"echo hi"}, p.Args)
@@ -63,7 +66,8 @@ func TestRenderRunPlans(t *testing.T) {
 	assert.Equal(t, "worker", p.Labels[LabelRole])
 	assert.Equal(t, "0", p.Labels[LabelReplicaIndex])
 	assert.NotEmpty(t, p.Labels[LabelSpecHash])
-	assert.Equal(t, "axisml-run-default-trainer-worker-1", plans[1].Name)
+	assert.Equal(t, "trainer-worker", plans[1].NamePrefix)
+	assert.Equal(t, 1, plans[1].Replica)
 }
 
 func TestRenderRunPlans_UnsupportedBackend(t *testing.T) {
@@ -214,7 +218,9 @@ func TestRenderServicePlans(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, plans, 2)
 	p := plans[0]
-	assert.Equal(t, "axisml-service-default-infer-predictor-0", p.Name)
+	assert.Empty(t, p.Name)
+	assert.Equal(t, "infer-predictor", p.NamePrefix)
+	assert.False(t, p.StableOrdinal)
 	assert.Equal(t, string("unless-stopped"), p.RestartPolicy)
 	require.Len(t, p.Ports, 1)
 	assert.Equal(t, int32(80), p.Ports[0].ContainerPort)
@@ -244,9 +250,13 @@ func TestRenderServicePlans_VolumeMountUndeclared(t *testing.T) {
 }
 
 func TestContainerNameSanitized(t *testing.T) {
-	r := testRuntime()
-	name := r.containerName(KindRun, "default", "weird/name*here", "worker", 0)
+	name := instanceName("weird-name-here-worker", 0, false)
 	assert.Regexp(t, `^[a-zA-Z0-9][a-zA-Z0-9_.-]*$`, name)
+	assert.Regexp(t, `^weird-name-here-worker-[a-z0-9]{5}$`, name)
+}
+
+func TestStatefulSetInstanceUsesOrdinal(t *testing.T) {
+	assert.Equal(t, "hello-world-predictor-0", instanceName("hello-world-predictor", 0, true))
 }
 
 // The assigned GPU device indices must NOT be part of the spec hash: a re-apply

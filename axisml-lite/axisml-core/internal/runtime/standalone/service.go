@@ -53,7 +53,9 @@ func (r *Runtime) renderServicePlans(svc *mlservicev1alpha1.MLService) ([]Contai
 		labels[LabelRole] = roleOr(role.Name)
 		labels[LabelReplicaIndex] = formatLabelInt(i)
 		p := ContainerPlan{
-			Name:          r.containerName(KindService, ns, name, roleOr(role.Name), i),
+			NamePrefix:    instanceBase(svc, roleOr(role.Name)),
+			Replica:       i,
+			StableOrdinal: svc.Spec.Backend.Engine == "statefulset",
 			Image:         tmpl.Image,
 			Command:       tmpl.Command,
 			Args:          tmpl.Args,
@@ -182,7 +184,7 @@ func (r *Runtime) ApplyMLService(ctx context.Context, desired *mlservicev1alpha1
 	if err != nil {
 		return err
 	}
-	byName := indexByName(existing)
+	bySlot := indexBySlot(existing)
 	wanted := map[string]struct{}{}
 
 	// Ensure backing volumes once.
@@ -206,15 +208,18 @@ func (r *Runtime) ApplyMLService(ctx context.Context, desired *mlservicev1alpha1
 	var toCreate []*ContainerPlan
 	for i := range plans {
 		p := &plans[i]
-		wanted[p.Name] = struct{}{}
-		if cur, ok := byName[p.Name]; ok {
+		slot := planSlot(p)
+		wanted[slot] = struct{}{}
+		if cur, ok := bySlot[slot]; ok {
 			if cur.Labels[LabelSpecHash] == p.Labels[LabelSpecHash] {
+				p.Name = summaryName(cur)
 				continue
 			}
 			if err := r.removeContainer(ctx, cur.ID); err != nil {
 				return err
 			}
 		}
+		p.Name = instanceName(p.NamePrefix, p.Replica, p.StableOrdinal)
 		toCreate = append(toCreate, p)
 	}
 	// GPU admission is atomic across the replicas being created: createPlans
@@ -229,7 +234,7 @@ func (r *Runtime) ApplyMLService(ctx context.Context, desired *mlservicev1alpha1
 
 	// Scale down: remove replicas no longer desired.
 	for _, c := range existing {
-		if _, ok := wanted[summaryName(c)]; !ok {
+		if _, ok := wanted[containerSlot(c)]; !ok {
 			if err := r.removeContainer(ctx, c.ID); err != nil {
 				return err
 			}

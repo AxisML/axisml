@@ -19,6 +19,9 @@ import (
 // (design §6.1).
 type ContainerPlan struct {
 	Name          string
+	NamePrefix    string
+	Replica       int
+	StableOrdinal bool
 	Image         string
 	Command       []string // entrypoint
 	Args          []string // cmd

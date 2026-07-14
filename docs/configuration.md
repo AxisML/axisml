@@ -96,6 +96,7 @@ Config file: `/etc/axisml/config.yaml` (override with `--config` or `AXISML_CONF
 | `log.level` | `AXISML_LOG_LEVEL` | `info` | — | Log level: debug \| info \| warn \| error |
 | `log.format` | `AXISML_LOG_FORMAT` | `json` | — | Log format: json \| console |
 | `prometheus.url` | `AXISML_PROMETHEUS_URL` | — | — | Prometheus query API base URL (e.g. http://kube-prometheus-stack-prometheus.axisml-infra:9090). Empty disables the workload metrics endpoints. |
+| `workload.tenant_prefix` | `AXISML_WORKLOAD_TENANT_PREFIX` | `false` | — | Prefix physical workload names with a readable, collision-resistant tenant token |
 
 ## artifact-hub
 

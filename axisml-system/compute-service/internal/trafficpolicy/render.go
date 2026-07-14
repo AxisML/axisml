@@ -6,6 +6,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	mltp "github.com/axisml/axisml/axisml-system/apis/mltrafficpolicy/v1alpha1"
+	"github.com/axisml/axisml/axisml-system/apis/pkg/workloadname"
 
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/store"
 )
@@ -14,7 +15,7 @@ import (
 // stable anchor label (traffic-policy-id = row UUID) plus the tenant label so
 // the operator can stamp the derived HTTPRoute and the dispatcher can filter
 // owned children.
-func ToCR(p *store.TrafficPolicy) (*mltp.MLTrafficPolicy, error) {
+func ToCR(p *store.TrafficPolicy, tenantPrefix bool) (*mltp.MLTrafficPolicy, error) {
 	var spec mltp.MLTrafficPolicySpec
 	if len(p.Spec) > 0 {
 		if err := json.Unmarshal(p.Spec, &spec); err != nil {
@@ -25,14 +26,16 @@ func ToCR(p *store.TrafficPolicy) (*mltp.MLTrafficPolicy, error) {
 		mltp.LabelTrafficPolicyID: p.ID.String(),
 		mltp.LabelTenant:          p.Namespace,
 	}
-	return &mltp.MLTrafficPolicy{
+	cr := &mltp.MLTrafficPolicy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      p.Name,
 			Namespace: p.Namespace,
 			Labels:    labels,
 		},
 		Spec: spec,
-	}, nil
+	}
+	workloadname.Annotate(cr, p.Namespace, p.Name, tenantPrefix)
+	return cr, nil
 }
 
 func decodeStringMap(raw []byte) map[string]string {

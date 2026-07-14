@@ -18,7 +18,7 @@ import (
 )
 
 func (h *Handler) Reconcile(ctx context.Context, c client.Client, mlJob *axisv1alpha1.MLRun) (any, axishandler.ReconcileResult, error) {
-	key := types.NamespacedName{Namespace: mlJob.Namespace, Name: jobName(mlJob.Name)}
+	key := types.NamespacedName{Namespace: mlJob.Namespace, Name: jobName(mlJob)}
 
 	var existing batchv1.Job
 	getErr := c.Get(ctx, key, &existing)
@@ -100,7 +100,7 @@ func (h *Handler) buildJob(mlJob *axisv1alpha1.MLRun) (*batchv1.Job, error) {
 	// template was just rendered locally; sharing the map is safe.
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:            jobName(mlJob.Name),
+			Name:            jobName(mlJob),
 			Namespace:       mlJob.Namespace,
 			Labels:          tmpl.Labels,
 			OwnerReferences: []metav1.OwnerReference{axishandler.OwnerRef(mlJob)},

@@ -12,6 +12,7 @@ import (
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	axisml "github.com/axisml/axisml/axisml-system/apis/mlservice/v1alpha1"
+	"github.com/axisml/axisml/axisml-system/apis/pkg/workloadname"
 	"github.com/axisml/axisml/axisml-system/compute-operator/internal/mlservice/handler"
 )
 
@@ -35,9 +36,9 @@ func mapStatus(snap handler.Snapshot) handler.StatusUpdate {
 	cfg, _ := parseBackendConfig(mls.Spec.Backend.Config)
 	headlessName := defaultedServiceName(mls, cfg)
 
-	sts := findStatefulSet(snap.Children, mls.Name, mls.Namespace)
+	sts := findStatefulSet(snap.Children, workloadname.Role(mls, mls.Spec.Roles[0].Name), mls.Namespace)
 	svc := findService(snap.Children, headlessName, mls.Namespace)
-	route := findHTTPRoute(snap.Children, mls.Name, mls.Namespace)
+	route := findHTTPRoute(snap.Children, workloadname.Workload(mls), mls.Namespace)
 
 	desired := role.Replicas
 	var ready int32

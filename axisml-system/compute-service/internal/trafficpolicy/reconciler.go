@@ -20,18 +20,19 @@ import (
 // the predicate work set and drives the MLTrafficPolicy workload through the
 // ComputeRuntime contract to match PG (compute-service.md §5.1).
 type Reconciler struct {
-	db       *gorm.DB
-	repo     *Repository
-	runtime  extensions.ComputeRuntime
-	log      logr.Logger
-	interval time.Duration
+	db           *gorm.DB
+	repo         *Repository
+	runtime      extensions.ComputeRuntime
+	log          logr.Logger
+	interval     time.Duration
+	tenantPrefix bool
 }
 
-func NewReconciler(db *gorm.DB, rt extensions.ComputeRuntime, log logr.Logger, interval time.Duration) *Reconciler {
+func NewReconciler(db *gorm.DB, rt extensions.ComputeRuntime, log logr.Logger, interval time.Duration, tenantPrefix bool) *Reconciler {
 	if interval <= 0 {
 		interval = 2 * time.Second
 	}
-	return &Reconciler{db: db, repo: NewRepository(db), runtime: rt, log: log, interval: interval}
+	return &Reconciler{db: db, repo: NewRepository(db), runtime: rt, log: log, interval: interval, tenantPrefix: tenantPrefix}
 }
 
 func (r *Reconciler) NeedLeaderElection() bool { return true }
@@ -67,7 +68,7 @@ func (r *Reconciler) runOnce(ctx context.Context) {
 }
 
 func (r *Reconciler) handleCreate(ctx context.Context, p *store.TrafficPolicy) {
-	cr, err := ToCR(p)
+	cr, err := ToCR(p, r.tenantPrefix)
 	if err != nil {
 		r.log.Error(err, "render traffic-policy CR")
 		return
@@ -113,7 +114,7 @@ func (r *Reconciler) handleDelete(ctx context.Context, p *store.TrafficPolicy) {
 // backends (weight + role) change after create; mode / endpoint / backend
 // are immutable.
 func (r *Reconciler) handleSpecSync(ctx context.Context, p *store.TrafficPolicy) {
-	cr, err := ToCR(p)
+	cr, err := ToCR(p, r.tenantPrefix)
 	if err != nil {
 		r.log.Error(err, "render traffic-policy CR")
 		return

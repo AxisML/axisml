@@ -14,6 +14,12 @@ type Config struct {
 	axismlconfig.Common `mapstructure:",squash"`
 
 	Prometheus Prometheus `mapstructure:"prometheus"`
+	Workload   Workload   `mapstructure:"workload"`
+}
+
+// Workload controls physical workload resource naming.
+type Workload struct {
+	TenantPrefix bool `mapstructure:"tenant_prefix" default:"false" doc:"Prefix physical workload names with a readable, collision-resistant tenant token"`
 }
 
 // Prometheus configures the metrics-query backend. When URL is empty the

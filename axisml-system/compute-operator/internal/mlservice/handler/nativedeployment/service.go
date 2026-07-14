@@ -6,6 +6,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	axisml "github.com/axisml/axisml/axisml-system/apis/mlservice/v1alpha1"
+	"github.com/axisml/axisml/axisml-system/apis/pkg/workloadname"
 )
 
 // buildService renders the ClusterIP Service for the predictor role.
@@ -28,7 +29,7 @@ func buildService(mls *axisml.MLService) *corev1.Service {
 	}
 	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      mls.Name,
+			Name:      workloadname.Workload(mls),
 			Namespace: mls.Namespace,
 			Labels:    resourceLabels(mls, role.Name),
 		},

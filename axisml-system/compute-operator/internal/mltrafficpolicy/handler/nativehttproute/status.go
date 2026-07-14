@@ -8,6 +8,7 @@ import (
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	mltp "github.com/axisml/axisml/axisml-system/apis/mltrafficpolicy/v1alpha1"
+	"github.com/axisml/axisml/axisml-system/apis/pkg/workloadname"
 	"github.com/axisml/axisml/axisml-system/compute-operator/internal/mltrafficpolicy/handler"
 )
 
@@ -19,7 +20,7 @@ const condTypeAvailable = "Available"
 // pod readiness; live member readiness is a follow-up refinement.
 func mapStatus(snap handler.Snapshot) handler.StatusUpdate {
 	p := snap.Policy
-	route := findHTTPRoute(snap.Children, p.Name, p.Namespace)
+	route := findHTTPRoute(snap.Children, workloadname.Workload(p), p.Namespace)
 
 	accepted := routeAccepted(route)
 	resolved := routeResolved(route)

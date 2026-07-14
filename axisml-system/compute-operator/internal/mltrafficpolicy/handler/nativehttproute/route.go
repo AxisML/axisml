@@ -5,6 +5,7 @@ import (
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	mltp "github.com/axisml/axisml/axisml-system/apis/mltrafficpolicy/v1alpha1"
+	"github.com/axisml/axisml/axisml-system/apis/pkg/workloadname"
 )
 
 // buildHTTPRoute renders the single weighted HTTPRoute fronting all member
@@ -29,7 +30,7 @@ func buildHTTPRoute(p *mltp.MLTrafficPolicy, backendRefs []gwapiv1.HTTPBackendRe
 
 	route := &gwapiv1.HTTPRoute{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      p.Name,
+			Name:      workloadname.Workload(p),
 			Namespace: p.Namespace,
 			Labels:    resourceLabels(p),
 		},

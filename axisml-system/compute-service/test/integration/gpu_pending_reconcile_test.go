@@ -161,7 +161,7 @@ func TestMLRun_WaitsForGPUThenRuns(t *testing.T) {
 	defer cancel()
 
 	fake := &fakeResourceRuntime{unavailable: true}
-	recon := mlrun.NewReconciler(gormDB, fake, logr.Discard(), 50*time.Millisecond)
+	recon := mlrun.NewReconciler(gormDB, fake, logr.Discard(), 50*time.Millisecond, false)
 	poller := mlrun.NewStatusPoller(gormDB, fake, logr.Discard(), 50*time.Millisecond)
 	go func() { _ = recon.Start(ctx) }()
 	go func() { _ = poller.Start(ctx) }()
@@ -213,7 +213,7 @@ func TestMLService_WaitingNotSilentlyDeleted(t *testing.T) {
 	defer cancel()
 
 	fake := &fakeResourceRuntime{unavailable: true}
-	recon := mlservice.NewReconciler(gormDB, fake, logr.Discard(), 50*time.Millisecond)
+	recon := mlservice.NewReconciler(gormDB, fake, logr.Discard(), 50*time.Millisecond, false)
 	poller := mlservice.NewStatusPoller(gormDB, fake, logr.Discard(), 50*time.Millisecond)
 	go func() { _ = recon.Start(ctx) }()
 	go func() { _ = poller.Start(ctx) }()

@@ -2,6 +2,7 @@ package standalone
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -24,6 +25,7 @@ type instState struct {
 	startedAt  time.Time
 	finishedAt time.Time
 	health     string // "" | starting | healthy | unhealthy
+	tenant     string
 	role       string
 	replica    string
 }
@@ -36,11 +38,18 @@ func summaryName(c container.Summary) string {
 	return strings.TrimPrefix(c.Names[0], "/")
 }
 
-// indexByName maps managed containers by their (slash-trimmed) name.
-func indexByName(conts []container.Summary) map[string]container.Summary {
+func containerSlot(c container.Summary) string {
+	return fmt.Sprintf("%s/%s", c.Labels[LabelRole], c.Labels[LabelReplicaIndex])
+}
+
+func planSlot(p *ContainerPlan) string {
+	return fmt.Sprintf("%s/%s", p.Labels[LabelRole], p.Labels[LabelReplicaIndex])
+}
+
+func indexBySlot(conts []container.Summary) map[string]container.Summary {
 	m := make(map[string]container.Summary, len(conts))
 	for _, c := range conts {
-		m[summaryName(c)] = c
+		m[containerSlot(c)] = c
 	}
 	return m
 }
@@ -57,6 +66,7 @@ func (r *Runtime) inspectAll(ctx context.Context, conts []container.Summary) ([]
 			name:    summaryName(c),
 			id:      c.ID,
 			image:   c.Image,
+			tenant:  c.Labels[LabelTenant],
 			role:    c.Labels[LabelRole],
 			replica: c.Labels[LabelReplicaIndex],
 		}

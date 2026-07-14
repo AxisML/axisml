@@ -9,6 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
+	"github.com/axisml/axisml/axisml-system/apis/pkg/workloadname"
 	"github.com/axisml/axisml/axisml-system/compute-service/pkg/extensions"
 )
 
@@ -35,12 +36,13 @@ func (r *Runtime) projectPod(namespace string, s *instState) corev1.Pod {
 			Name:      s.name,
 			Namespace: namespace,
 			Labels: map[string]string{
+				LabelTenant:       s.tenant,
 				LabelRole:         s.role,
 				LabelReplicaIndex: s.replica,
 			},
 		},
 		Spec: corev1.PodSpec{
-			Containers: []corev1.Container{{Name: roleOr(s.role), Image: s.image}},
+			Containers: []corev1.Container{{Name: workloadname.ContainerName, Image: s.image}},
 		},
 	}
 	phase, cs := containerStatus(s)
@@ -57,7 +59,7 @@ func (r *Runtime) projectPod(namespace string, s *instState) corev1.Pod {
 }
 
 func containerStatus(s *instState) (corev1.PodPhase, corev1.ContainerStatus) {
-	cs := corev1.ContainerStatus{Name: roleOr(s.role), Image: s.image, Ready: s.ready()}
+	cs := corev1.ContainerStatus{Name: workloadname.ContainerName, Image: s.image, Ready: s.ready()}
 	switch {
 	case s.status == "running":
 		cs.State.Running = &corev1.ContainerStateRunning{StartedAt: metav1.NewTime(s.startedAt)}

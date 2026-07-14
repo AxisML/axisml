@@ -31,6 +31,7 @@ import (
 	mlservicev1alpha1 "github.com/axisml/axisml/axisml-system/apis/mlservice/v1alpha1"
 	mltrafficpolicyv1alpha1 "github.com/axisml/axisml/axisml-system/apis/mltrafficpolicy/v1alpha1"
 	axismlv1alpha1 "github.com/axisml/axisml/axisml-system/apis/resourcepool/v1alpha1"
+	tenantv1alpha1 "github.com/axisml/axisml/axisml-system/apis/tenant/v1alpha1"
 
 	computeapp "github.com/axisml/axisml/axisml-system/compute-service/internal/app"
 	computeconfig "github.com/axisml/axisml/axisml-system/compute-service/internal/config"
@@ -65,6 +66,7 @@ func init() {
 	utilruntime.Must(mlrunv1alpha1.AddToScheme(testScheme))
 	utilruntime.Must(mlservicev1alpha1.AddToScheme(testScheme))
 	utilruntime.Must(mltrafficpolicyv1alpha1.AddToScheme(testScheme))
+	utilruntime.Must(tenantv1alpha1.AddToScheme(testScheme))
 }
 
 // TestMain sets up envtest + PostgreSQL once for the whole package.
@@ -223,7 +225,7 @@ var testManager ctrl.Manager
 func bootstrapHandlers() error {
 	log := logr.Discard()
 
-	modules, runnables, caps, err := computeapp.BuildModules(gormDB, testManager, log, testMetrics)
+	modules, runnables, caps, err := computeapp.BuildModules(gormDB, testManager, log, testMetrics, false)
 	if err != nil {
 		return fmt.Errorf("build modules: %w", err)
 	}

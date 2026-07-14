@@ -10,6 +10,7 @@ import (
 	"gorm.io/datatypes"
 
 	mlrunv1alpha1 "github.com/axisml/axisml/axisml-system/apis/mlrun/v1alpha1"
+	"github.com/axisml/axisml/axisml-system/apis/pkg/workloadname"
 
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/store"
 )
@@ -36,7 +37,7 @@ func TestToCR_StampsLabelsAndCopiesSpec(t *testing.T) {
 		Spec:      datatypes.JSON(specJSON),
 	}
 
-	cr, err := ToCR(row)
+	cr, err := ToCR(row, false)
 	require.NoError(t, err)
 
 	assert.Equal(t, "trainer", cr.Name)
@@ -54,11 +55,20 @@ func TestToCR_EmptySpec_StillRenders(t *testing.T) {
 		Namespace: "team-b",
 		Name:      "no-spec",
 	}
-	cr, err := ToCR(row)
+	cr, err := ToCR(row, false)
 	require.NoError(t, err)
 	assert.Equal(t, "no-spec", cr.Name)
 	assert.Empty(t, cr.Labels[mlrunv1alpha1.LabelQuota],
 		"empty spec leaves quota label empty — operator's Validate will reject downstream")
+}
+
+func TestToCR_StampsTenantPrefixedPhysicalName(t *testing.T) {
+	row := &store.MLRun{ID: uuid.New(), Namespace: "team-a", Name: "hello-world"}
+	cr, err := ToCR(row, true)
+	require.NoError(t, err)
+	assert.Equal(t, "hello-world", cr.Name)
+	assert.Equal(t, "team-a-96c2886c-hello-world", cr.Annotations[workloadname.AnnotationName])
+	assert.Equal(t, "true", cr.Annotations[workloadname.AnnotationTenantPrefix])
 }
 
 func TestToCR_BadJSON_ReturnsError(t *testing.T) {
@@ -68,7 +78,7 @@ func TestToCR_BadJSON_ReturnsError(t *testing.T) {
 		Name:      "bad",
 		Spec:      datatypes.JSON([]byte(`{"backend":`)), // truncated
 	}
-	_, err := ToCR(row)
+	_, err := ToCR(row, false)
 	assert.Error(t, err)
 }
 

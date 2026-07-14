@@ -6,6 +6,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	mlservicev1alpha1 "github.com/axisml/axisml/axisml-system/apis/mlservice/v1alpha1"
+	"github.com/axisml/axisml/axisml-system/apis/pkg/workloadname"
 
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/store"
 )
@@ -15,7 +16,7 @@ import (
 // service-kind (`service`|`workspace`, for kubectl selectors), tenant
 // (= partition namespace), and quota. Pool/unit provenance is read from
 // the row's labels jsonb.
-func ToCR(s *store.MLService) (*mlservicev1alpha1.MLService, error) {
+func ToCR(s *store.MLService, tenantPrefix bool) (*mlservicev1alpha1.MLService, error) {
 	var spec mlservicev1alpha1.MLServiceSpec
 	if len(s.Spec) > 0 {
 		if err := json.Unmarshal(s.Spec, &spec); err != nil {
@@ -41,14 +42,16 @@ func ToCR(s *store.MLService) (*mlservicev1alpha1.MLService, error) {
 			labels[k] = v
 		}
 	}
-	return &mlservicev1alpha1.MLService{
+	cr := &mlservicev1alpha1.MLService{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      s.Name,
 			Namespace: s.Namespace,
 			Labels:    labels,
 		},
 		Spec: spec,
-	}, nil
+	}
+	workloadname.Annotate(cr, s.Namespace, s.Name, tenantPrefix)
+	return cr, nil
 }
 
 func decodeStringMap(raw []byte) map[string]string {

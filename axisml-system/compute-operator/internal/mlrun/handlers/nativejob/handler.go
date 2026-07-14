@@ -10,6 +10,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	axisv1alpha1 "github.com/axisml/axisml/axisml-system/apis/mlrun/v1alpha1"
+	"github.com/axisml/axisml/axisml-system/apis/pkg/workloadname"
 	axishandler "github.com/axisml/axisml/axisml-system/compute-operator/internal/mlrun/handler"
 )
 
@@ -41,4 +42,6 @@ type backendConfig struct {
 	PodFailurePolicy *batchv1.PodFailurePolicy `json:"podFailurePolicy,omitempty"`
 }
 
-func jobName(mlrunName string) string { return mlrunName }
+func jobName(mlrun *axisv1alpha1.MLRun) string {
+	return workloadname.Role(mlrun, roleName)
+}
