@@ -19,6 +19,7 @@ import (
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	mltp "github.com/axisml/axisml/axisml-system/apis/mltrafficpolicy/v1alpha1"
+	"github.com/axisml/axisml/axisml-system/apis/pkg/workloadname"
 	"github.com/axisml/axisml/axisml-system/compute-operator/internal/mltrafficpolicy/handler"
 )
 
@@ -132,7 +133,8 @@ func (h *Handler) Reconcile(ctx context.Context, p *mltp.MLTrafficPolicy) (handl
 	var refs []gwapiv1.HTTPBackendRef
 	var missing []string
 	for _, m := range p.Spec.Backends {
-		port, ok, err := h.resolveServicePort(ctx, p.Namespace, m.ServiceName)
+		serviceName := workloadname.Related(p, p.Labels[mltp.LabelTenant], m.ServiceName)
+		port, ok, err := h.resolveServicePort(ctx, p.Namespace, serviceName)
 		if err != nil {
 			return handler.Result{}, fmt.Errorf("resolve service %s: %w", m.ServiceName, err)
 		}
@@ -140,7 +142,7 @@ func (h *Handler) Reconcile(ctx context.Context, p *mltp.MLTrafficPolicy) (handl
 			missing = append(missing, m.ServiceName)
 			continue
 		}
-		refs = append(refs, backendRef(m.ServiceName, port, m.Weight))
+		refs = append(refs, backendRef(serviceName, port, m.Weight))
 	}
 	if len(missing) > 0 && len(p.Spec.Backends) > 1 {
 		// Hold the last-good route rather than program a skewed weighted set.

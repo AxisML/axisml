@@ -6,6 +6,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	mlrunv1alpha1 "github.com/axisml/axisml/axisml-system/apis/mlrun/v1alpha1"
+	"github.com/axisml/axisml/axisml-system/apis/pkg/workloadname"
 
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/store"
 )
@@ -14,7 +15,7 @@ import (
 // read out of mlruns.labels[resource.axisml.io/pool / -unit] (compute-
 // service.md §5.4). The compute.axisml.io/quota label is sourced from
 // spec.scheduling.quota; compute-operator's Validate rejects CRs missing it.
-func ToCR(j *store.MLRun) (*mlrunv1alpha1.MLRun, error) {
+func ToCR(j *store.MLRun, tenantPrefix bool) (*mlrunv1alpha1.MLRun, error) {
 	var spec mlrunv1alpha1.MLRunSpec
 	if len(j.Spec) > 0 {
 		if err := json.Unmarshal(j.Spec, &spec); err != nil {
@@ -35,14 +36,16 @@ func ToCR(j *store.MLRun) (*mlrunv1alpha1.MLRun, error) {
 			labels[k] = v
 		}
 	}
-	return &mlrunv1alpha1.MLRun{
+	cr := &mlrunv1alpha1.MLRun{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      j.Name,
 			Namespace: j.Namespace,
 			Labels:    labels,
 		},
 		Spec: spec,
-	}, nil
+	}
+	workloadname.Annotate(cr, j.Namespace, j.Name, tenantPrefix)
+	return cr, nil
 }
 
 func decodeStringMap(raw []byte) map[string]string {

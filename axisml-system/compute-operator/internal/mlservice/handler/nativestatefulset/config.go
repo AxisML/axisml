@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 
 	axisml "github.com/axisml/axisml/axisml-system/apis/mlservice/v1alpha1"
+	"github.com/axisml/axisml/axisml-system/apis/pkg/workloadname"
 )
 
 // Config is the parsed shape of MLService.spec.backend.config for the
@@ -58,7 +59,7 @@ func defaultedServiceName(mls *axisml.MLService, c Config) string {
 	if c.ServiceName != "" {
 		return c.ServiceName
 	}
-	return mls.Name
+	return workloadname.Workload(mls)
 }
 
 // defaultedPodManagementPolicy applies §6.6.2's OrderedReady default when the

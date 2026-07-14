@@ -18,6 +18,7 @@ import (
 	mlservicev1alpha1 "github.com/axisml/axisml/axisml-system/apis/mlservice/v1alpha1"
 	mltrafficpolicyv1alpha1 "github.com/axisml/axisml/axisml-system/apis/mltrafficpolicy/v1alpha1"
 	resourcepoolv1alpha1 "github.com/axisml/axisml/axisml-system/apis/resourcepool/v1alpha1"
+	tenantv1alpha1 "github.com/axisml/axisml/axisml-system/apis/tenant/v1alpha1"
 )
 
 // Scheme returns a runtime.Scheme pre-loaded with all CRDs that compute
@@ -31,6 +32,8 @@ func Scheme() *runtime.Scheme {
 	// compute resolves ResourcePool/ResourceUnit (owned by cluster-manager) when
 	// materializing Job/Service workloads, so its type must be in the scheme.
 	utilruntime.Must(resourcepoolv1alpha1.AddToScheme(scheme))
+	// KubernetesRuntime maps logical tenant keys through Tenant.spec.namespace.
+	utilruntime.Must(tenantv1alpha1.AddToScheme(scheme))
 	return scheme
 }
 

@@ -141,6 +141,9 @@ func TestBuildJob_PodTemplateLabels(t *testing.T) {
 	if job.Spec.Completions == nil || *job.Spec.Completions != 2 {
 		t.Errorf("Completions: want 2, got %v", job.Spec.Completions)
 	}
+	if job.Name != "smoke-worker" || job.Spec.Template.Spec.Containers[0].Name != "main" {
+		t.Errorf("names = Job %q / container %q; want smoke-worker / main", job.Name, job.Spec.Template.Spec.Containers[0].Name)
+	}
 }
 
 func TestBuildJob_PropagatesVolumes(t *testing.T) {
@@ -251,7 +254,7 @@ func newScheme(t *testing.T) *runtime.Scheme {
 
 func TestReconcile_CreatesJob(t *testing.T) {
 	// First Reconcile against an empty cluster must create a Job whose
-	// name matches the MLRun name and whose Pod template carries the
+	// name contains the MLRun name and role and whose Pod template carries the
 	// mandatory labels + axisml-scheduler.
 	s := newScheme(t)
 	c := fakeclient.NewClientBuilder().WithScheme(s).Build()
@@ -263,7 +266,7 @@ func TestReconcile_CreatesJob(t *testing.T) {
 	}
 
 	var got batchv1.Job
-	if err := c.Get(context.Background(), client.ObjectKey{Namespace: "tnt", Name: "smoke"}, &got); err != nil {
+	if err := c.Get(context.Background(), client.ObjectKey{Namespace: "tnt", Name: "smoke-worker"}, &got); err != nil {
 		t.Fatalf("Job not created: %v", err)
 	}
 	if got.Spec.Parallelism == nil || *got.Spec.Parallelism != 2 {
@@ -361,7 +364,7 @@ func TestReconcile_IsIdempotent(t *testing.T) {
 		t.Fatalf("first Reconcile: %v", err)
 	}
 	var first batchv1.Job
-	if err := c.Get(context.Background(), client.ObjectKey{Namespace: "tnt", Name: "smoke"}, &first); err != nil {
+	if err := c.Get(context.Background(), client.ObjectKey{Namespace: "tnt", Name: "smoke-worker"}, &first); err != nil {
 		t.Fatalf("first get: %v", err)
 	}
 	firstUID := first.UID
@@ -370,7 +373,7 @@ func TestReconcile_IsIdempotent(t *testing.T) {
 		t.Fatalf("second Reconcile: %v", err)
 	}
 	var second batchv1.Job
-	if err := c.Get(context.Background(), client.ObjectKey{Namespace: "tnt", Name: "smoke"}, &second); err != nil {
+	if err := c.Get(context.Background(), client.ObjectKey{Namespace: "tnt", Name: "smoke-worker"}, &second); err != nil {
 		t.Fatalf("second get: %v", err)
 	}
 	if second.UID != firstUID {

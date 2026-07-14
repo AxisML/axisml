@@ -99,6 +99,7 @@ computeService:
       cpu: 1
       memory: 512Mi
 
+  # AXISML_WORKLOAD_TENANT_PREFIX: "true"  # enable when tenants share a namespace
   env: {}
 
 # =============================================================================

@@ -21,6 +21,7 @@ import (
 	mlrunv1alpha1 "github.com/axisml/axisml/axisml-system/apis/mlrun/v1alpha1"
 	mlservicev1alpha1 "github.com/axisml/axisml/axisml-system/apis/mlservice/v1alpha1"
 	mltrafficpolicyv1alpha1 "github.com/axisml/axisml/axisml-system/apis/mltrafficpolicy/v1alpha1"
+	"github.com/axisml/axisml/axisml-system/apis/pkg/workloadname"
 
 	"github.com/axisml/axisml/axisml-system/compute-service/pkg/extensions"
 )
@@ -38,7 +39,19 @@ func testScheme(t *testing.T) *runtime.Scheme {
 func newRuntime(t *testing.T, objs ...client.Object) *KubernetesRuntime {
 	t.Helper()
 	cl := fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(objs...).Build()
-	return New(cl, fakeclientset.NewSimpleClientset())
+	return New(cl, fakeclientset.NewSimpleClientset(), Options{})
+}
+
+type namespaceResolverFunc func(context.Context, string) (string, error)
+
+func (f namespaceResolverFunc) ResolveNamespace(ctx context.Context, tenant string) (string, error) {
+	return f(ctx, tenant)
+}
+
+func newRuntimeWithOptions(t *testing.T, opts Options, objs ...client.Object) *KubernetesRuntime {
+	t.Helper()
+	cl := fake.NewClientBuilder().WithScheme(testScheme(t)).WithObjects(objs...).Build()
+	return New(cl, fakeclientset.NewSimpleClientset(), opts)
 }
 
 func runKey() types.NamespacedName { return types.NamespacedName{Namespace: "default", Name: "job-a"} }
@@ -61,6 +74,44 @@ func TestApplyMLRun_CreatesThenIdempotent(t *testing.T) {
 
 	// Second apply is a no-op (Run spec is immutable post-create).
 	require.NoError(t, rt.ApplyMLRun(ctx, desired))
+}
+
+func TestApplyMLRun_SharedNamespaceKeepsTenantKeysDistinct(t *testing.T) {
+	ctx := context.Background()
+	rt := newRuntimeWithOptions(t, Options{
+		NamespaceResolver: namespaceResolverFunc(func(_ context.Context, _ string) (string, error) {
+			return "shared-workloads", nil
+		}),
+		WorkloadTenantPrefix: true,
+	})
+
+	for _, tenant := range []string{"team-a", "team"} {
+		desired := &mlrunv1alpha1.MLRun{ObjectMeta: metav1.ObjectMeta{
+			Namespace: tenant,
+			Name:      map[string]string{"team-a": "hello", "team": "a-hello"}[tenant],
+			Labels:    map[string]string{mlrunv1alpha1.LabelRunID: tenant + "-id"},
+		}}
+		require.NoError(t, rt.ApplyMLRun(ctx, desired))
+	}
+
+	teamAKey := types.NamespacedName{
+		Namespace: "shared-workloads",
+		Name:      workloadname.Base("team-a", "hello", true),
+	}
+	teamKey := types.NamespacedName{
+		Namespace: "shared-workloads",
+		Name:      workloadname.Base("team", "a-hello", true),
+	}
+	assert.NotEqual(t, teamAKey.Name, teamKey.Name)
+	for key, id := range map[types.NamespacedName]string{teamAKey: "team-a-id", teamKey: "team-id"} {
+		var got mlrunv1alpha1.MLRun
+		require.NoError(t, rt.ctrl.Get(ctx, key, &got))
+		assert.Equal(t, id, got.Labels[mlrunv1alpha1.LabelRunID])
+	}
+
+	require.NoError(t, rt.DeleteMLRun(ctx, types.NamespacedName{Namespace: "team-a", Name: "hello"}))
+	assert.True(t, apierrors.IsNotFound(rt.ctrl.Get(ctx, teamAKey, &mlrunv1alpha1.MLRun{})))
+	require.NoError(t, rt.ctrl.Get(ctx, teamKey, &mlrunv1alpha1.MLRun{}))
 }
 
 func TestObserveMLRun(t *testing.T) {

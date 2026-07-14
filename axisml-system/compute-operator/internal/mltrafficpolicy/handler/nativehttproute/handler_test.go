@@ -15,6 +15,8 @@ import (
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	mltp "github.com/axisml/axisml/axisml-system/apis/mltrafficpolicy/v1alpha1"
+	"github.com/axisml/axisml/axisml-system/apis/pkg/workloadname"
+	trafficpolicyhandler "github.com/axisml/axisml/axisml-system/compute-operator/internal/mltrafficpolicy/handler"
 )
 
 func weightedSpec() *mltp.MLTrafficPolicySpec {
@@ -188,4 +190,20 @@ func TestBuildHTTPRoute_WeightsPortsHostPath(t *testing.T) {
 	assert.Equal(t, int32(10), *rule.BackendRefs[1].Weight)
 	require.NotNil(t, rule.BackendRefs[0].Port)
 	assert.Equal(t, gwapiv1.PortNumber(8080), *rule.BackendRefs[0].Port)
+}
+
+func TestMapStatusFindsTenantPrefixedRoute(t *testing.T) {
+	p := weightedPolicy()
+	workloadname.Annotate(p, "acme", p.Name, true)
+	route := &gwapiv1.HTTPRoute{ObjectMeta: metav1.ObjectMeta{
+		Namespace: p.Namespace,
+		Name:      workloadname.Workload(p),
+	}}
+	route.Status.Parents = []gwapiv1.RouteParentStatus{{Conditions: []metav1.Condition{
+		{Type: string(gwapiv1.RouteConditionAccepted), Status: metav1.ConditionTrue},
+		{Type: string(gwapiv1.RouteConditionResolvedRefs), Status: metav1.ConditionTrue},
+	}}}
+
+	got := mapStatus(trafficpolicyhandler.Snapshot{Policy: p, Children: []client.Object{route}})
+	assert.Equal(t, mltp.PhaseReady, got.Phase)
 }

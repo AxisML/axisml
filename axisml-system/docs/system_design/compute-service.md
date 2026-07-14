@@ -15,6 +15,8 @@ ML 工作负载服务：以 PostgreSQL 为权威，承载 Job / Service / Worksp
 
 **namespace 字段语义**：`mlruns` / `mlservices` 表的 `namespace text` 是兼容字段名，实际表示 tenant scope（租户 `identifier`），不是 K8s Namespace。代码与新接口描述优先使用 `tenantScope`；物理落地点使用 `kubernetesNamespace` 明确表达（见 [high_level_design §2.2](../../../docs/high_level_design.md#22-关键不变量)）。
 
+Standard Runtime 写入 API Server 前，通过 Tenant CR 将逻辑 tenant scope 映射到 `Tenant.spec.namespace.name`。CR `metadata.name` 使用共享 workload naming helper 产生的物理基础名；启用 `AXISML_WORKLOAD_TENANT_PREFIX` 时包含稳定 tenant token，以允许多个 tenant 在同一 Kubernetes Namespace 中使用相同逻辑 workload 名。PG/API key 始终保持逻辑值，observe、delete、Pod、日志与事件查询在 Kubernetes adapter 内复用相同映射。
+
 **Pool/Unit 展开归属**：上游仅传 `(poolName, unitName)` 名字对；compute-service 通过 K8s Informer 直读 `ResourcePool` CR cache 完成展开（合并 `nodeSelector` / `tolerations` / `requests` / `limits`），snapshot 到 `spec` jsonb。snapshot 一经写入即与 pool/unit CR 解耦（§5.4）。
 
 ## 2. 架构

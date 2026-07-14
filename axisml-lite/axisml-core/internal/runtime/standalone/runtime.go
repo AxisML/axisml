@@ -24,7 +24,10 @@ import (
 
 	"github.com/docker/docker/client"
 	"github.com/go-logr/logr"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilrand "k8s.io/apimachinery/pkg/util/rand"
 
+	"github.com/axisml/axisml/axisml-system/apis/pkg/workloadname"
 	"github.com/axisml/axisml/axisml-system/compute-service/pkg/extensions"
 )
 
@@ -37,8 +40,8 @@ const (
 	LabelNamespace    = "io.axisml.resource-namespace"
 	LabelName         = "io.axisml.resource-name"
 	LabelReplicaIndex = "io.axisml.replica-index"
-	LabelRole         = "io.axisml.role"
-	LabelTenant       = "io.axisml.tenant"
+	LabelRole         = "compute.axisml.io/role"
+	LabelTenant       = "tenant.axisml.io/name"
 	LabelSpecHash     = "io.axisml.spec-hash"
 	LabelGPUDevices   = "io.axisml.gpu-devices"
 
@@ -147,22 +150,28 @@ func (r *Runtime) baseLabels(kind, namespace, name string) map[string]string {
 
 var nameSanitizer = regexp.MustCompile(`[^a-zA-Z0-9_.-]+`)
 
-// containerName builds a stable, Docker-legal container name for an instance.
-// (kind, namespace, name, role, replica) is the source; if the joined name is
-// too long or contains illegal characters it is normalized and suffixed with a
-// short hash of the resource key so the name stays stable and unique.
-func (r *Runtime) containerName(kind, namespace, name, role string, replica int) string {
-	raw := fmt.Sprintf("axisml-%s-%s-%s-%s-%d", kind, namespace, name, role, replica)
+// instanceName mirrors Kubernetes-generated instance naming. Jobs and
+// Deployments get a fresh five-character suffix for each instance lifecycle;
+// StatefulSet instances keep their ordinal.
+func instanceName(base string, replica int, stableOrdinal bool) string {
+	raw := base + "-" + utilrand.String(5)
+	if stableOrdinal {
+		raw = fmt.Sprintf("%s-%d", base, replica)
+	}
 	clean := nameSanitizer.ReplaceAllString(raw, "-")
-	if clean == raw && len(clean) <= 100 {
+	if clean == raw && len(clean) <= 63 {
 		return clean
 	}
 	h := shortHash(raw)
 	trimmed := clean
-	if len(trimmed) > 80 {
-		trimmed = trimmed[:80]
+	if len(trimmed) > 54 {
+		trimmed = trimmed[:54]
 	}
 	return fmt.Sprintf("%s-%s", strings.TrimRight(trimmed, "-"), h)
+}
+
+func instanceBase(obj metav1.Object, role string) string {
+	return workloadname.Role(obj, role)
 }
 
 func shortHash(s string) string {

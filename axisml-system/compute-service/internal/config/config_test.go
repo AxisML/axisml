@@ -26,11 +26,13 @@ func TestLoad_EnvOverrideAndWeakTyping(t *testing.T) {
 	t.Setenv("AXISML_DATABASE_HOST", "db.example")
 	t.Setenv("AXISML_DATABASE_PORT", "6543")
 	t.Setenv("AXISML_LOG_LEVEL", "debug")
+	t.Setenv("AXISML_WORKLOAD_TENANT_PREFIX", "true")
 	cfg, err := config.Load(axismlconfig.Options{EnvOnly: true})
 	require.NoError(t, err)
 	assert.Equal(t, "db.example", cfg.Database.Host)
 	assert.Equal(t, 6543, cfg.Database.Port)
 	assert.Equal(t, "debug", cfg.Log.Level)
+	assert.True(t, cfg.Workload.TenantPrefix)
 }
 
 func TestLoad_SecretFromFile(t *testing.T) {

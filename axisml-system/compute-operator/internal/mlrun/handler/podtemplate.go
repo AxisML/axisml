@@ -77,12 +77,11 @@ func InjectAxisMLLabels(tmpl *corev1.PodTemplateSpec, mlJob *axisv1alpha1.MLRun,
 	return nil
 }
 
-// BuildContainer renders the role's PodTemplateSubset into a corev1
-// Container. Container name is the role name so logs/exec are
-// addressable by `kubectl exec -c <role>`.
+// BuildContainer renders the role's PodTemplateSubset into the Pod's single
+// main container. Role identity belongs to the Pod labels and instance name.
 func BuildContainer(role axisv1alpha1.RoleSpec) corev1.Container {
 	return corev1.Container{
-		Name:            role.Name,
+		Name:            "main",
 		Image:           role.Template.Image,
 		ImagePullPolicy: role.Template.ImagePullPolicy,
 		Command:         role.Template.Command,

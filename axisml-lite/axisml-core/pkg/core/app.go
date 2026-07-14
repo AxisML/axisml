@@ -163,8 +163,9 @@ func New(ctx context.Context, cfg Config, opts ...Option) (app *App, err error) 
 		Log:               log,
 		ReconcileInterval: o.settings.ReconcileInterval,
 		// Lite Standalone runtime: no scheduler, so no ElasticQuota admission.
-		RuntimeName:      "standalone",
-		QuotaEnforcement: false,
+		RuntimeName:          "standalone",
+		QuotaEnforcement:     false,
+		WorkloadTenantPrefix: cfg.Workload.TenantPrefix,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("assemble compute module: %w", err)

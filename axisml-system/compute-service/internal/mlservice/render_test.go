@@ -34,7 +34,7 @@ func TestMLServiceToCR_StampsLabelsAndCopiesSpec(t *testing.T) {
 		Spec:      datatypes.JSON(specJSON),
 	}
 
-	cr, err := ToCR(row)
+	cr, err := ToCR(row, false)
 	require.NoError(t, err)
 
 	assert.Equal(t, "predictor", cr.Name)
@@ -51,6 +51,6 @@ func TestMLServiceToCR_BadJSON_ReturnsError(t *testing.T) {
 		Name:      "bad",
 		Spec:      datatypes.JSON([]byte(`{"backend":`)),
 	}
-	_, err := ToCR(row)
+	_, err := ToCR(row, false)
 	assert.Error(t, err)
 }

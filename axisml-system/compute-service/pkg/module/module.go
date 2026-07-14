@@ -56,6 +56,9 @@ type Deps struct {
 	// QuotaEnforcement reports whether the scheduler admits pods against an
 	// ElasticQuota (true on Kubernetes, false on the Lite Standalone runtime).
 	QuotaEnforcement bool
+	// WorkloadTenantPrefix prefixes physical workload names with the tenant
+	// identifier. Logical API/DB names remain unchanged.
+	WorkloadTenantPrefix bool
 }
 
 // Module is the assembled Compute Service: its HTTP routes and reconcilers.
@@ -74,9 +77,9 @@ func New(d Deps) (*Module, error) {
 	services := servicemod.NewMLService(d.DB, d.Resolver, trafficRepo)
 	traffic := trafficmod.NewService(d.DB, serviceRepo, trafficRepo)
 
-	jobRecon := jobmod.NewReconciler(d.DB, d.Runtime, d.Log.WithName("mlrun-reconciler"), d.ReconcileInterval)
-	serviceRecon := servicemod.NewReconciler(d.DB, d.Runtime, d.Log.WithName("mlservice-reconciler"), d.ReconcileInterval)
-	trafficRecon := trafficmod.NewReconciler(d.DB, d.Runtime, d.Log.WithName("traffic-policy-reconciler"), d.ReconcileInterval)
+	jobRecon := jobmod.NewReconciler(d.DB, d.Runtime, d.Log.WithName("mlrun-reconciler"), d.ReconcileInterval, d.WorkloadTenantPrefix)
+	serviceRecon := servicemod.NewReconciler(d.DB, d.Runtime, d.Log.WithName("mlservice-reconciler"), d.ReconcileInterval, d.WorkloadTenantPrefix)
+	trafficRecon := trafficmod.NewReconciler(d.DB, d.Runtime, d.Log.WithName("traffic-policy-reconciler"), d.ReconcileInterval, d.WorkloadTenantPrefix)
 
 	runtimeName := d.RuntimeName
 	if runtimeName == "" {

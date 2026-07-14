@@ -27,11 +27,13 @@ func TestLoad_EnvOverride(t *testing.T) {
 	t.Setenv("AXISML_DATABASE_HOST", "axisml-database")
 	t.Setenv("AXISML_OCI_ENDPOINT", "http://zot.internal:5000")
 	t.Setenv("AXISML_LOG_FORMAT", "console")
+	t.Setenv("AXISML_WORKLOAD_TENANT_PREFIX", "true")
 	cfg, err := core.Load()
 	require.NoError(t, err)
 	assert.Equal(t, "axisml-database", cfg.Database.Host)
 	assert.Equal(t, "http://zot.internal:5000", cfg.OCI.Endpoint)
 	assert.Equal(t, "console", cfg.Log.Format)
+	assert.True(t, cfg.Workload.TenantPrefix)
 }
 
 func TestLoad_SecretFromFile(t *testing.T) {

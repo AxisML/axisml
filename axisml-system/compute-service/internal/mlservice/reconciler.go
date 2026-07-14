@@ -19,18 +19,19 @@ import (
 // Reconciler implements the service Outbox loop. Namespace is read from
 // the row directly; workloads are driven through the ComputeRuntime contract.
 type Reconciler struct {
-	db       *gorm.DB
-	repo     *Repository
-	runtime  extensions.ComputeRuntime
-	log      logr.Logger
-	interval time.Duration
+	db           *gorm.DB
+	repo         *Repository
+	runtime      extensions.ComputeRuntime
+	log          logr.Logger
+	interval     time.Duration
+	tenantPrefix bool
 }
 
-func NewReconciler(db *gorm.DB, rt extensions.ComputeRuntime, log logr.Logger, interval time.Duration) *Reconciler {
+func NewReconciler(db *gorm.DB, rt extensions.ComputeRuntime, log logr.Logger, interval time.Duration, tenantPrefix bool) *Reconciler {
 	if interval <= 0 {
 		interval = 2 * time.Second
 	}
-	return &Reconciler{db: db, repo: NewRepository(db), runtime: rt, log: log, interval: interval}
+	return &Reconciler{db: db, repo: NewRepository(db), runtime: rt, log: log, interval: interval, tenantPrefix: tenantPrefix}
 }
 
 func (r *Reconciler) NeedLeaderElection() bool { return true }
@@ -69,7 +70,7 @@ func (r *Reconciler) runOnce(ctx context.Context) {
 // it creates the CR when absent and is a no-op when present, so observed_-
 // generation advances on first success.
 func (r *Reconciler) handleCreate(ctx context.Context, s *store.MLService) {
-	cr, err := ToCR(s)
+	cr, err := ToCR(s, r.tenantPrefix)
 	if err != nil {
 		r.log.Error(err, "render service CR")
 		return
@@ -133,7 +134,7 @@ func (r *Reconciler) handleDelete(ctx context.Context, s *store.MLService) {
 // handleSpecSync converges the CR onto the PG spec snapshot (only
 // roles[0].replicas changes after create) and records observed_generation.
 func (r *Reconciler) handleSpecSync(ctx context.Context, s *store.MLService) {
-	cr, err := ToCR(s)
+	cr, err := ToCR(s, r.tenantPrefix)
 	if err != nil {
 		r.log.Error(err, "render service CR")
 		return

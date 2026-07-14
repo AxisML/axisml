@@ -14,6 +14,7 @@ import (
 	servicemod "github.com/axisml/axisml/axisml-system/compute-service/internal/mlservice"
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/poolcache"
 	"github.com/axisml/axisml/axisml-system/compute-service/internal/server"
+	"github.com/axisml/axisml/axisml-system/compute-service/internal/tenantresolver"
 	trafficpolicymod "github.com/axisml/axisml/axisml-system/compute-service/internal/trafficpolicy"
 	"github.com/axisml/axisml/axisml-system/compute-service/pkg/extensions"
 	computemodule "github.com/axisml/axisml/axisml-system/compute-service/pkg/module"
@@ -29,6 +30,7 @@ func BuildModules(
 	mgr manager.Manager,
 	log logr.Logger,
 	metrics extensions.MetricsProvider,
+	workloadTenantPrefix bool,
 ) ([]server.Module, []manager.Runnable, server.Capabilities, error) {
 	clientset, err := kubernetes.NewForConfig(mgr.GetConfig())
 	if err != nil {
@@ -36,16 +38,20 @@ func BuildModules(
 	}
 
 	mod, err := computemodule.New(computemodule.Deps{
-		DB:                gormDB,
-		Runtime:           kuberuntime.New(mgr.GetClient(), clientset),
+		DB: gormDB,
+		Runtime: kuberuntime.New(mgr.GetClient(), clientset, kuberuntime.Options{
+			NamespaceResolver:    tenantresolver.New(mgr.GetAPIReader()),
+			WorkloadTenantPrefix: workloadTenantPrefix,
+		}),
 		Resolver:          poolcache.New(mgr.GetClient()),
 		Metrics:           metrics,
 		Log:               log,
 		ReconcileInterval: config.ReconcileInterval,
 		// Kubernetes composition root: axisml-scheduler admits pods against the
 		// tenant ElasticQuota, so quota enforcement is real.
-		RuntimeName:      "kubernetes",
-		QuotaEnforcement: true,
+		RuntimeName:          "kubernetes",
+		QuotaEnforcement:     true,
+		WorkloadTenantPrefix: workloadTenantPrefix,
 	})
 	if err != nil {
 		return nil, nil, server.Capabilities{}, err

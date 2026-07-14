@@ -5,6 +5,7 @@ import (
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	axisml "github.com/axisml/axisml/axisml-system/apis/mlservice/v1alpha1"
+	"github.com/axisml/axisml/axisml-system/apis/pkg/workloadname"
 )
 
 // buildHTTPRoute renders the Gateway API HTTPRoute that fronts the MLService
@@ -38,7 +39,7 @@ func buildHTTPRoute(mls *axisml.MLService) *gwapiv1.HTTPRoute {
 		BackendRefs: []gwapiv1.HTTPBackendRef{{
 			BackendRef: gwapiv1.BackendRef{
 				BackendObjectReference: gwapiv1.BackendObjectReference{
-					Name: gwapiv1.ObjectName(mls.Name),
+					Name: gwapiv1.ObjectName(workloadname.Workload(mls)),
 					Kind: &backendKind,
 					Port: &port,
 				},
@@ -48,7 +49,7 @@ func buildHTTPRoute(mls *axisml.MLService) *gwapiv1.HTTPRoute {
 
 	route := &gwapiv1.HTTPRoute{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      mls.Name,
+			Name:      workloadname.Workload(mls),
 			Namespace: mls.Namespace,
 			Labels:    resourceLabels(mls, role.Name),
 		},

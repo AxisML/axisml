@@ -27,6 +27,7 @@ import (
 	mlrunv1alpha1 "github.com/axisml/axisml/axisml-system/apis/mlrun/v1alpha1"
 	mlservicev1alpha1 "github.com/axisml/axisml/axisml-system/apis/mlservice/v1alpha1"
 	mltrafficpolicyv1alpha1 "github.com/axisml/axisml/axisml-system/apis/mltrafficpolicy/v1alpha1"
+	"github.com/axisml/axisml/axisml-system/apis/pkg/workloadname"
 
 	"github.com/axisml/axisml/axisml-system/compute-service/pkg/extensions"
 )
@@ -34,16 +35,45 @@ import (
 // KubernetesRuntime implements extensions.ComputeRuntime against an
 // apiserver.
 type KubernetesRuntime struct {
-	ctrl      client.Client
-	clientset kubernetes.Interface
+	ctrl                 client.Client
+	clientset            kubernetes.Interface
+	namespaceResolver    NamespaceResolver
+	workloadTenantPrefix bool
 }
 
 var _ extensions.ComputeRuntime = (*KubernetesRuntime)(nil)
 
+// NamespaceResolver maps a logical tenant name to the Kubernetes Namespace
+// that Tenant.spec.namespace.name designates. Multiple tenants may resolve to
+// the same physical Namespace.
+type NamespaceResolver interface {
+	ResolveNamespace(ctx context.Context, tenant string) (string, error)
+}
+
+// Options controls the logical-to-physical Kubernetes key mapping.
+type Options struct {
+	NamespaceResolver    NamespaceResolver
+	WorkloadTenantPrefix bool
+}
+
+type identityNamespaceResolver struct{}
+
+func (identityNamespaceResolver) ResolveNamespace(_ context.Context, tenant string) (string, error) {
+	return tenant, nil
+}
+
 // New builds a KubernetesRuntime. The ctrl client serves typed CR CRUD and
 // cached Pod / Event lists; clientset serves Pod log streaming.
-func New(ctrl client.Client, clientset kubernetes.Interface) *KubernetesRuntime {
-	return &KubernetesRuntime{ctrl: ctrl, clientset: clientset}
+func New(ctrl client.Client, clientset kubernetes.Interface, opts Options) *KubernetesRuntime {
+	if opts.NamespaceResolver == nil {
+		opts.NamespaceResolver = identityNamespaceResolver{}
+	}
+	return &KubernetesRuntime{
+		ctrl:                 ctrl,
+		clientset:            clientset,
+		namespaceResolver:    opts.NamespaceResolver,
+		workloadTenantPrefix: opts.WorkloadTenantPrefix,
+	}
 }
 
 // ----------------------------------------------------------------------
@@ -52,8 +82,12 @@ func New(ctrl client.Client, clientset kubernetes.Interface) *KubernetesRuntime 
 // ApplyMLRun creates the MLRun when absent. A Run's spec is immutable once
 // created, so applying an already-present Run is an idempotent no-op.
 func (r *KubernetesRuntime) ApplyMLRun(ctx context.Context, desired *mlrunv1alpha1.MLRun) error {
+	desired, err := r.physicalMLRun(ctx, desired)
+	if err != nil {
+		return err
+	}
 	cur := &mlrunv1alpha1.MLRun{}
-	err := r.ctrl.Get(ctx, client.ObjectKeyFromObject(desired), cur)
+	err = r.ctrl.Get(ctx, client.ObjectKeyFromObject(desired), cur)
 	if apierrors.IsNotFound(err) {
 		return r.ctrl.Create(ctx, desired)
 	}
@@ -63,6 +97,10 @@ func (r *KubernetesRuntime) ApplyMLRun(ctx context.Context, desired *mlrunv1alph
 // ObserveMLRun returns the current MLRun CR Status. A missing CR surfaces as a
 // NotFound error recognizable by apierrors.IsNotFound.
 func (r *KubernetesRuntime) ObserveMLRun(ctx context.Context, key types.NamespacedName) (mlrunv1alpha1.MLRunStatus, error) {
+	key, err := r.physicalKey(ctx, key)
+	if err != nil {
+		return mlrunv1alpha1.MLRunStatus{}, err
+	}
 	cr := &mlrunv1alpha1.MLRun{}
 	if err := r.ctrl.Get(ctx, key, cr); err != nil {
 		return mlrunv1alpha1.MLRunStatus{}, err
@@ -73,6 +111,10 @@ func (r *KubernetesRuntime) ObserveMLRun(ctx context.Context, key types.Namespac
 // CancelMLRun signals cancellation by patching spec.runPolicy.suspend=true.
 // Idempotent: a missing CR is treated as already cancelled.
 func (r *KubernetesRuntime) CancelMLRun(ctx context.Context, key types.NamespacedName) error {
+	key, err := r.physicalKey(ctx, key)
+	if err != nil {
+		return err
+	}
 	cr := &mlrunv1alpha1.MLRun{ObjectMeta: metav1.ObjectMeta{Name: key.Name, Namespace: key.Namespace}}
 	patch := client.RawPatch(types.MergePatchType, []byte(`{"spec":{"runPolicy":{"suspend":true}}}`))
 	return ignoreNotFound(r.ctrl.Patch(ctx, cr, patch))
@@ -80,6 +122,10 @@ func (r *KubernetesRuntime) CancelMLRun(ctx context.Context, key types.Namespace
 
 // DeleteMLRun removes the MLRun. Idempotent on an already-deleted CR.
 func (r *KubernetesRuntime) DeleteMLRun(ctx context.Context, key types.NamespacedName) error {
+	key, err := r.physicalKey(ctx, key)
+	if err != nil {
+		return err
+	}
 	cr := &mlrunv1alpha1.MLRun{ObjectMeta: metav1.ObjectMeta{Name: key.Name, Namespace: key.Namespace}}
 	return ignoreNotFound(r.ctrl.Delete(ctx, cr))
 }
@@ -88,48 +134,61 @@ func (r *KubernetesRuntime) DeleteMLRun(ctx context.Context, key types.Namespace
 // whose CR has not yet been materialized (no instances exist yet) yields an
 // empty list rather than a NotFound.
 func (r *KubernetesRuntime) ListMLRunInstances(ctx context.Context, key types.NamespacedName) (*corev1.PodList, error) {
-	id, err := r.runLabelID(ctx, key)
+	id, physical, err := r.runLabelID(ctx, key)
 	if apierrors.IsNotFound(err) {
 		return &corev1.PodList{}, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	return r.listPodsByLabel(ctx, key.Namespace, mlrunv1alpha1.LabelRunID, id)
+	return r.listPodsByLabel(ctx, physical.Namespace, mlrunv1alpha1.LabelRunID, id)
 }
 
 // GetMLRunInstanceLogs streams the named instance's log after verifying it
 // belongs to the addressed Run.
 func (r *KubernetesRuntime) GetMLRunInstanceLogs(ctx context.Context, key types.NamespacedName, instance string, opts *corev1.PodLogOptions) (io.ReadCloser, error) {
-	id, err := r.runLabelID(ctx, key)
+	id, physical, err := r.runLabelID(ctx, key)
 	if err != nil {
 		return nil, err
 	}
-	if err := r.verifyInstance(ctx, key.Namespace, instance, mlrunv1alpha1.LabelRunID, id); err != nil {
+	if err := r.verifyInstance(ctx, physical.Namespace, instance, mlrunv1alpha1.LabelRunID, id); err != nil {
 		return nil, err
 	}
-	return r.streamLogs(ctx, key.Namespace, instance, opts)
+	return r.streamLogs(ctx, physical.Namespace, instance, opts)
 }
 
 // GetMLRunInstanceEvents returns events regarding the named instance (Pod)
 // after verifying it belongs to the addressed Run.
 func (r *KubernetesRuntime) GetMLRunInstanceEvents(ctx context.Context, key types.NamespacedName, instance string) (*eventsv1.EventList, error) {
-	id, err := r.runLabelID(ctx, key)
+	id, physical, err := r.runLabelID(ctx, key)
 	if err != nil {
 		return nil, err
 	}
-	if err := r.verifyInstance(ctx, key.Namespace, instance, mlrunv1alpha1.LabelRunID, id); err != nil {
+	if err := r.verifyInstance(ctx, physical.Namespace, instance, mlrunv1alpha1.LabelRunID, id); err != nil {
 		return nil, err
 	}
-	return r.eventsFor(ctx, key.Namespace, eventTarget{"Pod", instance})
+	return r.eventsFor(ctx, physical.Namespace, eventTarget{"Pod", instance})
 }
 
 // GetMLRunEvents returns events regarding the MLRun CR and its peer scheduling
 // primitive (PodGroup).
 func (r *KubernetesRuntime) GetMLRunEvents(ctx context.Context, key types.NamespacedName) (*eventsv1.EventList, error) {
-	return r.eventsFor(ctx, key.Namespace,
-		eventTarget{"MLRun", key.Name},
-		eventTarget{"PodGroup", key.Name},
+	physical, err := r.physicalKey(ctx, key)
+	if err != nil {
+		return nil, err
+	}
+	cr := &mlrunv1alpha1.MLRun{ObjectMeta: metav1.ObjectMeta{Name: physical.Name, Namespace: physical.Namespace}}
+	if err := r.ctrl.Get(ctx, physical, cr); err != nil && !apierrors.IsNotFound(err) {
+		return nil, err
+	}
+	role := mlrunv1alpha1.DefaultRoleName
+	if len(cr.Spec.Roles) > 0 && cr.Spec.Roles[0].Name != "" {
+		role = cr.Spec.Roles[0].Name
+	}
+	return r.eventsFor(ctx, physical.Namespace,
+		eventTarget{"MLRun", physical.Name},
+		eventTarget{"Job", workloadname.Role(cr, role)},
+		eventTarget{"PodGroup", physical.Name},
 	)
 }
 
@@ -139,8 +198,12 @@ func (r *KubernetesRuntime) GetMLRunEvents(ctx context.Context, key types.Namesp
 // ApplyMLService creates the MLService when absent, else converges its spec
 // onto the desired one. Idempotent.
 func (r *KubernetesRuntime) ApplyMLService(ctx context.Context, desired *mlservicev1alpha1.MLService) error {
+	desired, err := r.physicalMLService(ctx, desired)
+	if err != nil {
+		return err
+	}
 	cur := &mlservicev1alpha1.MLService{}
-	err := r.ctrl.Get(ctx, client.ObjectKeyFromObject(desired), cur)
+	err = r.ctrl.Get(ctx, client.ObjectKeyFromObject(desired), cur)
 	if apierrors.IsNotFound(err) {
 		return r.ctrl.Create(ctx, desired)
 	}
@@ -170,6 +233,10 @@ func labelsMerged(cur, desired map[string]string) bool {
 }
 
 func (r *KubernetesRuntime) ObserveMLService(ctx context.Context, key types.NamespacedName) (mlservicev1alpha1.MLServiceStatus, error) {
+	key, err := r.physicalKey(ctx, key)
+	if err != nil {
+		return mlservicev1alpha1.MLServiceStatus{}, err
+	}
 	cr := &mlservicev1alpha1.MLService{}
 	if err := r.ctrl.Get(ctx, key, cr); err != nil {
 		return mlservicev1alpha1.MLServiceStatus{}, err
@@ -178,6 +245,10 @@ func (r *KubernetesRuntime) ObserveMLService(ctx context.Context, key types.Name
 }
 
 func (r *KubernetesRuntime) DeleteMLService(ctx context.Context, key types.NamespacedName) error {
+	key, err := r.physicalKey(ctx, key)
+	if err != nil {
+		return err
+	}
 	cr := &mlservicev1alpha1.MLService{ObjectMeta: metav1.ObjectMeta{Name: key.Name, Namespace: key.Namespace}}
 	return ignoreNotFound(r.ctrl.Delete(ctx, cr))
 }
@@ -186,46 +257,61 @@ func (r *KubernetesRuntime) DeleteMLService(ctx context.Context, key types.Names
 // label. A Service whose CR has not yet been materialized yields an empty list
 // rather than a NotFound.
 func (r *KubernetesRuntime) ListMLServiceInstances(ctx context.Context, key types.NamespacedName) (*corev1.PodList, error) {
-	id, err := r.serviceLabelID(ctx, key)
+	id, physical, err := r.serviceLabelID(ctx, key)
 	if apierrors.IsNotFound(err) {
 		return &corev1.PodList{}, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	return r.listPodsByLabel(ctx, key.Namespace, mlservicev1alpha1.LabelServiceID, id)
+	return r.listPodsByLabel(ctx, physical.Namespace, mlservicev1alpha1.LabelServiceID, id)
 }
 
 func (r *KubernetesRuntime) GetMLServiceInstanceLogs(ctx context.Context, key types.NamespacedName, instance string, opts *corev1.PodLogOptions) (io.ReadCloser, error) {
-	id, err := r.serviceLabelID(ctx, key)
+	id, physical, err := r.serviceLabelID(ctx, key)
 	if err != nil {
 		return nil, err
 	}
-	if err := r.verifyInstance(ctx, key.Namespace, instance, mlservicev1alpha1.LabelServiceID, id); err != nil {
+	if err := r.verifyInstance(ctx, physical.Namespace, instance, mlservicev1alpha1.LabelServiceID, id); err != nil {
 		return nil, err
 	}
-	return r.streamLogs(ctx, key.Namespace, instance, opts)
+	return r.streamLogs(ctx, physical.Namespace, instance, opts)
 }
 
 func (r *KubernetesRuntime) GetMLServiceInstanceEvents(ctx context.Context, key types.NamespacedName, instance string) (*eventsv1.EventList, error) {
-	id, err := r.serviceLabelID(ctx, key)
+	id, physical, err := r.serviceLabelID(ctx, key)
 	if err != nil {
 		return nil, err
 	}
-	if err := r.verifyInstance(ctx, key.Namespace, instance, mlservicev1alpha1.LabelServiceID, id); err != nil {
+	if err := r.verifyInstance(ctx, physical.Namespace, instance, mlservicev1alpha1.LabelServiceID, id); err != nil {
 		return nil, err
 	}
-	return r.eventsFor(ctx, key.Namespace, eventTarget{"Pod", instance})
+	return r.eventsFor(ctx, physical.Namespace, eventTarget{"Pod", instance})
 }
 
 // GetMLServiceEvents returns events regarding the MLService CR and the workload
 // primitives compute-operator derives from it.
 func (r *KubernetesRuntime) GetMLServiceEvents(ctx context.Context, key types.NamespacedName) (*eventsv1.EventList, error) {
-	return r.eventsFor(ctx, key.Namespace,
-		eventTarget{"MLService", key.Name},
-		eventTarget{"Deployment", key.Name},
-		eventTarget{"StatefulSet", key.Name},
-		eventTarget{"HTTPRoute", key.Name},
+	physical, err := r.physicalKey(ctx, key)
+	if err != nil {
+		return nil, err
+	}
+	cr := &mlservicev1alpha1.MLService{ObjectMeta: metav1.ObjectMeta{Name: physical.Name, Namespace: physical.Namespace}}
+	if err := r.ctrl.Get(ctx, physical, cr); err != nil && !apierrors.IsNotFound(err) {
+		return nil, err
+	}
+	role := mlservicev1alpha1.DefaultRoleName
+	if len(cr.Spec.Roles) > 0 && cr.Spec.Roles[0].Name != "" {
+		role = cr.Spec.Roles[0].Name
+	}
+	workload := workloadname.Workload(cr)
+	roleWorkload := workloadname.Role(cr, role)
+	return r.eventsFor(ctx, physical.Namespace,
+		eventTarget{"MLService", physical.Name},
+		eventTarget{"Deployment", roleWorkload},
+		eventTarget{"StatefulSet", roleWorkload},
+		eventTarget{"Service", workload},
+		eventTarget{"HTTPRoute", workload},
 	)
 }
 
@@ -233,8 +319,12 @@ func (r *KubernetesRuntime) GetMLServiceEvents(ctx context.Context, key types.Na
 // MLTrafficPolicy
 
 func (r *KubernetesRuntime) ApplyMLTrafficPolicy(ctx context.Context, desired *mltrafficpolicyv1alpha1.MLTrafficPolicy) error {
+	desired, err := r.physicalMLTrafficPolicy(ctx, desired)
+	if err != nil {
+		return err
+	}
 	cur := &mltrafficpolicyv1alpha1.MLTrafficPolicy{}
-	err := r.ctrl.Get(ctx, client.ObjectKeyFromObject(desired), cur)
+	err = r.ctrl.Get(ctx, client.ObjectKeyFromObject(desired), cur)
 	if apierrors.IsNotFound(err) {
 		return r.ctrl.Create(ctx, desired)
 	}
@@ -247,6 +337,10 @@ func (r *KubernetesRuntime) ApplyMLTrafficPolicy(ctx context.Context, desired *m
 }
 
 func (r *KubernetesRuntime) ObserveMLTrafficPolicy(ctx context.Context, key types.NamespacedName) (mltrafficpolicyv1alpha1.MLTrafficPolicyStatus, error) {
+	key, err := r.physicalKey(ctx, key)
+	if err != nil {
+		return mltrafficpolicyv1alpha1.MLTrafficPolicyStatus{}, err
+	}
 	cr := &mltrafficpolicyv1alpha1.MLTrafficPolicy{}
 	if err := r.ctrl.Get(ctx, key, cr); err != nil {
 		return mltrafficpolicyv1alpha1.MLTrafficPolicyStatus{}, err
@@ -255,6 +349,10 @@ func (r *KubernetesRuntime) ObserveMLTrafficPolicy(ctx context.Context, key type
 }
 
 func (r *KubernetesRuntime) DeleteMLTrafficPolicy(ctx context.Context, key types.NamespacedName) error {
+	key, err := r.physicalKey(ctx, key)
+	if err != nil {
+		return err
+	}
 	cr := &mltrafficpolicyv1alpha1.MLTrafficPolicy{ObjectMeta: metav1.ObjectMeta{Name: key.Name, Namespace: key.Namespace}}
 	return ignoreNotFound(r.ctrl.Delete(ctx, cr))
 }
@@ -262,9 +360,17 @@ func (r *KubernetesRuntime) DeleteMLTrafficPolicy(ctx context.Context, key types
 // GetMLTrafficPolicyEvents returns events regarding the policy CR and its
 // derived gateway route. MLTrafficPolicy has no instances.
 func (r *KubernetesRuntime) GetMLTrafficPolicyEvents(ctx context.Context, key types.NamespacedName) (*eventsv1.EventList, error) {
-	return r.eventsFor(ctx, key.Namespace,
-		eventTarget{"MLTrafficPolicy", key.Name},
-		eventTarget{"HTTPRoute", key.Name},
+	physical, err := r.physicalKey(ctx, key)
+	if err != nil {
+		return nil, err
+	}
+	cr := &mltrafficpolicyv1alpha1.MLTrafficPolicy{ObjectMeta: metav1.ObjectMeta{Name: physical.Name, Namespace: physical.Namespace}}
+	if err := r.ctrl.Get(ctx, physical, cr); err != nil && !apierrors.IsNotFound(err) {
+		return nil, err
+	}
+	return r.eventsFor(ctx, physical.Namespace,
+		eventTarget{"MLTrafficPolicy", physical.Name},
+		eventTarget{"HTTPRoute", workloadname.Workload(cr)},
 	)
 }
 
@@ -276,28 +382,85 @@ type eventTarget struct {
 	name string
 }
 
-func (r *KubernetesRuntime) runLabelID(ctx context.Context, key types.NamespacedName) (string, error) {
+func (r *KubernetesRuntime) runLabelID(ctx context.Context, key types.NamespacedName) (string, types.NamespacedName, error) {
+	logical := key
+	key, err := r.physicalKey(ctx, key)
+	if err != nil {
+		return "", types.NamespacedName{}, err
+	}
 	cr := &mlrunv1alpha1.MLRun{}
 	if err := r.ctrl.Get(ctx, key, cr); err != nil {
-		return "", err
+		return "", key, err
 	}
 	id := cr.Labels[mlrunv1alpha1.LabelRunID]
 	if id == "" {
-		return "", fmt.Errorf("mlrun %s missing %s label", key, mlrunv1alpha1.LabelRunID)
+		return "", key, fmt.Errorf("mlrun %s missing %s label", logical, mlrunv1alpha1.LabelRunID)
 	}
-	return id, nil
+	return id, key, nil
 }
 
-func (r *KubernetesRuntime) serviceLabelID(ctx context.Context, key types.NamespacedName) (string, error) {
+func (r *KubernetesRuntime) serviceLabelID(ctx context.Context, key types.NamespacedName) (string, types.NamespacedName, error) {
+	logical := key
+	key, err := r.physicalKey(ctx, key)
+	if err != nil {
+		return "", types.NamespacedName{}, err
+	}
 	cr := &mlservicev1alpha1.MLService{}
 	if err := r.ctrl.Get(ctx, key, cr); err != nil {
-		return "", err
+		return "", key, err
 	}
 	id := cr.Labels[mlservicev1alpha1.LabelServiceID]
 	if id == "" {
-		return "", fmt.Errorf("mlservice %s missing %s label", key, mlservicev1alpha1.LabelServiceID)
+		return "", key, fmt.Errorf("mlservice %s missing %s label", logical, mlservicev1alpha1.LabelServiceID)
 	}
-	return id, nil
+	return id, key, nil
+}
+
+func (r *KubernetesRuntime) physicalKey(ctx context.Context, logical types.NamespacedName) (types.NamespacedName, error) {
+	namespace, err := r.namespaceResolver.ResolveNamespace(ctx, logical.Namespace)
+	if err != nil {
+		return types.NamespacedName{}, fmt.Errorf("resolve tenant %q namespace: %w", logical.Namespace, err)
+	}
+	if namespace == "" {
+		return types.NamespacedName{}, fmt.Errorf("resolve tenant %q namespace: empty namespace", logical.Namespace)
+	}
+	return types.NamespacedName{
+		Namespace: namespace,
+		Name:      workloadname.Base(logical.Namespace, logical.Name, r.workloadTenantPrefix),
+	}, nil
+}
+
+func (r *KubernetesRuntime) physicalMLRun(ctx context.Context, logical *mlrunv1alpha1.MLRun) (*mlrunv1alpha1.MLRun, error) {
+	key, err := r.physicalKey(ctx, client.ObjectKeyFromObject(logical))
+	if err != nil {
+		return nil, err
+	}
+	out := logical.DeepCopy()
+	workloadname.Annotate(out, logical.Namespace, logical.Name, r.workloadTenantPrefix)
+	out.Name, out.Namespace = key.Name, key.Namespace
+	return out, nil
+}
+
+func (r *KubernetesRuntime) physicalMLService(ctx context.Context, logical *mlservicev1alpha1.MLService) (*mlservicev1alpha1.MLService, error) {
+	key, err := r.physicalKey(ctx, client.ObjectKeyFromObject(logical))
+	if err != nil {
+		return nil, err
+	}
+	out := logical.DeepCopy()
+	workloadname.Annotate(out, logical.Namespace, logical.Name, r.workloadTenantPrefix)
+	out.Name, out.Namespace = key.Name, key.Namespace
+	return out, nil
+}
+
+func (r *KubernetesRuntime) physicalMLTrafficPolicy(ctx context.Context, logical *mltrafficpolicyv1alpha1.MLTrafficPolicy) (*mltrafficpolicyv1alpha1.MLTrafficPolicy, error) {
+	key, err := r.physicalKey(ctx, client.ObjectKeyFromObject(logical))
+	if err != nil {
+		return nil, err
+	}
+	out := logical.DeepCopy()
+	workloadname.Annotate(out, logical.Namespace, logical.Name, r.workloadTenantPrefix)
+	out.Name, out.Namespace = key.Name, key.Namespace
+	return out, nil
 }
 
 func (r *KubernetesRuntime) listPodsByLabel(ctx context.Context, namespace, labelKey, labelValue string) (*corev1.PodList, error) {

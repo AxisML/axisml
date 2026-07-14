@@ -52,6 +52,8 @@ services:
       AXISML_OCI_ADMIN_PASSWORD: admin
       AXISML_LOG_LEVEL: info
       AXISML_LOG_FORMAT: json
+      # Prefix physical workload/container names when tenants share this daemon.
+      # AXISML_WORKLOAD_TENANT_PREFIX: "true"
       # GPU scheduling: a comma list ("0,1,2") schedules onto exactly those
       # physical cards (pins a free card, waits when none is free). Unset leaves
       # GPU workloads on Docker's default count-based request. Requires the host to

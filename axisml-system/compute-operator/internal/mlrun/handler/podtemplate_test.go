@@ -165,7 +165,7 @@ func TestBuildContainer_AllFieldsCopied(t *testing.T) {
 		},
 	}
 	c := BuildContainer(role)
-	if c.Name != "worker" || c.Image != "img:tag" || c.WorkingDir != "/tmp" {
+	if c.Name != "main" || c.Image != "img:tag" || c.WorkingDir != "/tmp" {
 		t.Errorf("container fields wrong: %+v", c)
 	}
 	if c.ImagePullPolicy != corev1.PullAlways {

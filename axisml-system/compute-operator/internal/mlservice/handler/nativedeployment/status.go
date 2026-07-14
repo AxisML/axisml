@@ -12,6 +12,7 @@ import (
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	axisml "github.com/axisml/axisml/axisml-system/apis/mlservice/v1alpha1"
+	"github.com/axisml/axisml/axisml-system/apis/pkg/workloadname"
 	"github.com/axisml/axisml/axisml-system/compute-operator/internal/mlservice/handler"
 )
 
@@ -32,9 +33,9 @@ func mapStatus(snap handler.Snapshot) handler.StatusUpdate {
 	mls := snap.Service
 	role := mls.Spec.Roles[0]
 
-	dep := findDeployment(snap.Children, mls.Name, mls.Namespace)
-	svc := findService(snap.Children, mls.Name, mls.Namespace)
-	route := findHTTPRoute(snap.Children, mls.Name, mls.Namespace)
+	dep := findDeployment(snap.Children, workloadname.Role(mls, mls.Spec.Roles[0].Name), mls.Namespace)
+	svc := findService(snap.Children, workloadname.Workload(mls), mls.Namespace)
+	route := findHTTPRoute(snap.Children, workloadname.Workload(mls), mls.Namespace)
 
 	desired := role.Replicas
 	var ready int32
@@ -102,7 +103,7 @@ func derivePhase(dep *appsv1.Deployment, desired, ready int32) (axisml.Phase, st
 
 func deriveEndpoint(mls *axisml.MLService, role axisml.RoleSpec, svc *corev1.Service, route *gwapiv1.HTTPRoute) string {
 	port := pickEndpointPort(role)
-	internal := fmt.Sprintf(internalEndpointFmt, mls.Name, mls.Namespace, port)
+	internal := fmt.Sprintf(internalEndpointFmt, workloadname.Workload(mls), mls.Namespace, port)
 	if svc == nil {
 		return ""
 	}

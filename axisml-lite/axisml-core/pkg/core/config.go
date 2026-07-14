@@ -21,8 +21,14 @@ import (
 type Config struct {
 	axismlconfig.Common `mapstructure:",squash"`
 
-	OCI OCI `mapstructure:"oci"`
-	GPU GPU `mapstructure:"gpu"`
+	OCI      OCI      `mapstructure:"oci"`
+	GPU      GPU      `mapstructure:"gpu"`
+	Workload Workload `mapstructure:"workload"`
+}
+
+// Workload controls physical workload resource naming.
+type Workload struct {
+	TenantPrefix bool `mapstructure:"tenant_prefix" default:"false" doc:"Prefix physical workload names with a readable, collision-resistant tenant token"`
 }
 
 // GPU configures single-host GPU scheduling. Devices names the physical GPU
